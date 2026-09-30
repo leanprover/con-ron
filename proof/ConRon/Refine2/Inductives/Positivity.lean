@@ -1117,16 +1117,6 @@ theorem fv_map_at_all {pers} (f : arena.inductives.positivity.FvMap) (hwf : FvMa
         (fvMapAt (absFvMap f) (absU i)) :=
   fun i _ _ hrel hinv => fv_map_at_ls hrel hinv f hwf i
 
-@[lockstep] theorem replace_fvars_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
-    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx}
-    {lm : Std.HashMap EIdx EIdx} (hm : PEMemoRel rm lm) (fuel : Std.U64)
-    (h : arena.handle.EIdx) :
-    LS pers (fun a b => ∃ m', PEMemoRel a.2 m' ∧ b = (absEIdx a.1, m'))
-      (arena.inductives.positivity.replace_fvars_go pers st f rm fuel h) lst
-      (replaceFVarsGo (absFvMap f) lm (absU fuel) (absEIdx h)) :=
-  replace_fvars_go_of f (fv_map_at_all f hwf) _ rm lm fuel h st lst rfl hm hrel hinv
-
 @[lockstep] theorem replace_fvars_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
     (e : arena.handle.EIdx) :
@@ -1134,17 +1124,6 @@ theorem fv_map_at_all {pers} (f : arena.inductives.positivity.FvMap) (hwf : FvMa
       (arena.inductives.positivity.replace_fvars pers st f e) lst
       (replaceFVars (absFvMap f) (absEIdx e)) :=
   replace_fvars_of f (fv_map_at_all f hwf) e st lst hrel hinv
-
-@[lockstep] theorem replace_fvars_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
-    (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
-    (out : alloc.vec.Vec arena.handle.EIdx) :
-    LS pers (fun a b => b = absEIdxL a)
-      (arena.inductives.positivity.replace_fvars_list pers st f xs i out) lst
-      (do
-        let r ← (absEIdxLFrom xs i).mapM fun x => replaceFVars (absFvMap f) x
-        pure (absEIdxL out ++ r)) :=
-  replace_fvars_list_of f (fv_map_at_all f hwf) xs i st lst out hrel hinv
 
 @[lockstep] theorem replace_fvars_list_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (f : arena.inductives.positivity.FvMap) (hwf : FvMapWF f)
@@ -1328,23 +1307,6 @@ theorem replace_apps_go_aux {pers} (names : alloc.vec.Vec arena.handle.NIdx)
       (nestResHead (absEIdx e)) := by
   apply LSR.of_LS
   rw [arena.inductives.positivity.nest_res_head, nestResHead]
-  lockstep
-
-/-- `nest_res_ok` — a fragment of `nestCtors`: the result headed by its hole
-with hole-free indices, stated against that sub-expression of the twin. -/
-@[lockstep] theorem nest_res_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx) (hi : Std.U64)
-    (cur : arena.handle.EIdx) :
-    LSR pers (fun a b => b = a)
-      (arena.inductives.positivity.nest_res_ok pers st ctx hi cur) st lst
-      (do
-        if ← nestResHead (absEIdx cur) then do
-          let args ← getAppArgs coreWalkFuel (absEIdx cur)
-          let occ ← args.anyM fun x => nestOcc (absNIdxL ctx.names) (absU ctx.n_p) (absU hi) x
-          pure !occ
-        else pure false) := by
-  apply LSR.of_LS
-  rw [arena.inductives.positivity.nest_res_ok]
   lockstep
 
 /-- `all_fvar_b_le` ⊑ `List.allM (fvarB · ≤ bound)` from the cursor on. -/
@@ -1564,18 +1526,6 @@ theorem mapM_cons_acc {α β : Type} (F : α → AM β) (a : α) (l : List α) (
     ((a :: l).mapM F >>= fun r => pure (w ++ r)) =
       (F a >>= fun b => l.mapM F >>= fun bs => pure (w ++ b :: bs)) := by
   simp [List.mapM_cons]
-
-/-- `nest_seed_param` — `nestSeedOf`'s per-parameter lambda. -/
-@[lockstep] theorem nest_seed_param_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
-    (holes : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle.EIdx) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.inductives.positivity.nest_seed_param pers st ctx holes x) lst
-      (do
-        let y ← replaceApps (absNIdxL ctx.names) (absLsIdx ctx.lvls) 0 (absU ctx.n_p) (absEIdx x)
-        replaceFVars (.keyMap (absEIdxL ctx.params) (absEIdxL holes)) y) := by
-  rw [arena.inductives.positivity.nest_seed_param]
-  lockstep
 
 /-- `nest_seed_params` ⊑ `List.mapM` of the lambda from the cursor on, behind
 the accumulator. -/

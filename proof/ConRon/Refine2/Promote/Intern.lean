@@ -54,7 +54,7 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 open ConRon.Refine (ExprWF ExprsWF NameWF NamesWF LevelWF LevelsWF
-  ConstantValWF ConstantInfoWF ConstantInfosWF DeclarationWF RecRuleWF
+  ConstantValWF ConstantInfoWF ConstantInfosWF RecRuleWF
   RecRulesWF IndCapsWF ProjTableWF RecRuleFireWF)
 open ConRon.Refine.HashMap2 (Inv RelOn)
 
@@ -982,10 +982,10 @@ private theorem intern_expr_list0_ls {pers st lst rm lm} (hrel : AStateRel₀ pe
 /-! ### `ConstantVal`, the rule and its firing mode -/
 
 section decl
-attribute [local simp] absIConstantVal absIRecRuleFire absIRecRule absIIndCaps absIProjTable
-  absIConstantInfo absIDeclaration ConRon.Refine.absConstantVal ConRon.Refine.absFire
-  ConRon.Refine.absRecRule ConRon.Refine.absIndCaps ConRon.Refine.absProjTable
-  ConRon.Refine.absConstantInfo ConRon.Refine.absDeclaration
+attribute [local simp] absIConstantVal absIRecRuleFire absIRecRule absIIndCaps
+  absIProjTable absIConstantInfo absIDeclaration ConRon.Refine.absConstantVal
+  ConRon.Refine.absFire ConRon.Refine.absRecRule ConRon.Refine.absIndCaps
+  ConRon.Refine.absProjTable ConRon.Refine.absConstantInfo
 
 open Lockstep in
 /-- `intern_cv_go` ⊑ `Frontend.internCV`, in the judgement shape. -/

@@ -176,8 +176,4 @@ theorem absSz_add_one {x z : Std.Usize} (h : x + 1#usize = ok z) :
   have hv := ConRon.Refine.Nat.uadd_val h
   simpa using hv
 
-theorem absSz_sub {x y z : Std.Usize} (h : x - y = ok z) :
-    absSz y ≤ absSz x ∧ absSz z = absSz x - absSz y :=
-  ConRon.Refine.Nat.usub_val h
-
 end ConRon.Refine2

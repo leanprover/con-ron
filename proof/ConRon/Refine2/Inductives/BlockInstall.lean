@@ -447,19 +447,6 @@ cursor on. -/
       if_neg (show ¬ i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
     lockstep
 
-/-- `check_block_agree` at the cursor `0` (the install's call). -/
-@[lockstep] theorem check_block_agree_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode)
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
-    (cv_ta0 : arena.env.IConstantVal) (s0 : arena.handle.LIdx)
-    (rest : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)) :
-    LS pers (fun _ _ => True)
-      (arena.inductives.block_install.check_block_agree pers st mode rf n_p cv_ta0 s0 rest 0#usize) lst
-      (checkBlockAgree (ConRon.Refine.absMode mode) lf (absU n_p) (absIConstantVal cv_ta0)
-        (absLIdx s0) (absTeleL rest)) := by
-  have h := check_block_agree_ls mode hfe n_p cv_ta0 s0 rest 0#usize st lst hrel hinv
-  simpa [absTeleL] using h
-
 /-- `cons_block_inds` ⊑ `consBlockInds` from the cursor on: the formers
 pushed in block order, each with its capability record. -/
 @[lockstep] theorem cons_block_inds_ls {pers} (p1 : arena.inductives.block_parts.BlockShape)
@@ -500,17 +487,6 @@ pushed in block order, each with its capability record. -/
       (fun _ _ h => h)
     · have := hfe2.1; simp only [absIConstantInfo, hcv1] at this; exact this
     · simp only [absICVLFrom, ha]
-
-/-- `cons_block_inds` from the first former (the install's call). -/
-@[lockstep] theorem cons_block_inds_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p1 : arena.inductives.block_parts.BlockShape)
-    (is_rec : Bool) (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
-    {fe : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI fe lf) :
-    LS pers (fun a b => IFEnvRelI a b)
-      (arena.inductives.block_install.cons_block_inds pers st p1 is_rec cv_tas 0#usize fe) lst
-      (consBlockInds (absBlockShape p1) is_rec (absICVL cv_tas) 0 lf) := by
-  have h := cons_block_inds_ls p1 is_rec cv_tas 0#usize fe lf st lst hfe hrel hinv
-  rwa [absICVLFrom_zero, show (0#usize : Std.Usize).val = 0 from rfl] at h
 
 /-- `check_block_teles` from an empty accumulator IS `checkBlockTeles` from
 the cursor on (the install calls it at `1`, the twin on `rest`). -/
@@ -1070,14 +1046,6 @@ related environment after the folds. -/
         (consBlockCtors (absU n_p) ((ctors_as.val.drop i.val).map absCtorsL) lf)) :=
   fun _ h => cons_block_ctors_refines hfe h
 
-/-- `cons_block_ctors` from member `0` (the tail's call). -/
-@[lockstep] theorem cons_block_ctors_ls0 {n_p : Std.U64}
-    {ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
-    LSP (arena.inductives.block_install.cons_block_ctors n_p ctors_as 0#usize rf)
-      (fun o => IFEnvRelI o (consBlockCtors (absU n_p) (absCtorsLL ctors_as) lf)) :=
-  fun _ h => by simpa [absCtorsLL] using cons_block_ctors_refines hfe h
-
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.block_caps_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -1094,9 +1062,6 @@ related environment after the folds. -/
 
 /-- info: 'ConRon.Refine2.check_block_idx_sorts_new_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_block_idx_sorts_new_ls
-
-/-- info: 'ConRon.Refine2.cons_block_ctors_ls0' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms cons_block_ctors_ls0
 
 /-- info: 'ConRon.Refine2.block_raw_rec_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms block_raw_rec_ls

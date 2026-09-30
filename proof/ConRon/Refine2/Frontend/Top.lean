@@ -621,19 +621,6 @@ theorem usize_numBits_le : UScalarTy.numBits .Usize ≤ 64 := by
   | inl h => rw [h]; omega
   | inr h => rw [h]
 
-/-- **`CHUNK_SIZE` refines `chunkSize`** (`ExportC.lean:768`). -/
-theorem chunk_size_refines {v} (h : frontend.export_c.CHUNK_SIZE = ok v) :
-    v.val = chunkSize.toNat := by
-  rw [frontend.export_c.CHUNK_SIZE] at h
-  obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [(ConRon.Refine.Nat.umul_val h).2, (ConRon.Refine.Nat.umul_val ha).2]
-  have hc : chunkSize.toNat = 4194304 := by
-    simp only [chunkSize]
-    cases System.Platform.numBits_eq with
-    | inl h32 => simp [USize.toNat_mul, USize.toNat_ofNat, h32]
-    | inr h64 => simp [USize.toNat_mul, USize.toNat_ofNat, h64]
-  rw [hc]; rfl
-
 /-- **`apply_final_line` refines `applyFinalLine`** (`ExportC.lean:726-739`) —
 the LAST line of a stream, the one no newline ends.  A syntactic failure is
 reported at its offset in the line. -/
@@ -1042,27 +1029,6 @@ theorem parse_bytes_refines {pers rst lst b o}
       have hF' := stream_unwrap_err hF (fun q => (q.1, q.2.1, q.2.2)) (fun _ => rfl) (fun _ => rfl)
       exact StreamErrSim.bind hF' _ (fun _ _ => rfl)
 
-/-- **`parse_export_d` refines `parseExportD`** (`ExportC.lean:795-797`).
-Aeneas reads a `&str` as its bytes and `core::str::as_bytes` is con-ron-core's
-own hole (OVERVIEW §8.1), modelled as the identity — which is exactly what
-`String.toUTF8` is on the twin's side. -/
-theorem parse_export_d_refines {pers rst lst contents o}
-    (hsc : ScanSpec)
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (h : frontend.export_c.parse_export_d pers rst contents
-      = ok o) :
-    ∀ b s, core.str.Str.as_bytes contents = ok b →
-      (absBytes b) = String.toUTF8 s →
-      SimStreamRel ParseResultDRel pers lst o
-        (parseExportD s) := by
-  intro b s hb hs
-  rw [frontend.export_c.parse_export_d] at h
-  obtain ⟨b', hb', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [hb] at hb'
-  cases Result.ok_injective hb'
-  rw [parseExportD, ← hs]
-  exact parse_bytes_refines hsc hrel hinv h
-
 /-! ### Byte vectors (task #97-P5-Front) -/
 
 theorem to_vec_u8_val {s : Slice Std.U8} {v : alloc.vec.Vec Std.U8}
@@ -1097,60 +1063,6 @@ theorem vec_index_full {v : alloc.vec.Vec Std.U8} {s : Slice Std.U8}
 @[simp] theorem absChunk_size (c : alloc.vec.Vec Std.U8) :
     (absChunk c).size = c.val.length := by
   simp [absChunk, ByteArray.size]
-
-/-- `concat_bytes`'s loop from cursor `i`: `out` followed by the chunks from `i` on. -/
-private theorem concat_bytes_loop_refines (N : Nat) :
-    ∀ (chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)) (out : alloc.vec.Vec Std.U8)
-      (n i : Std.Usize) (v : alloc.vec.Vec Std.U8),
-      n.val = chunks.val.length → n.val - i.val = N →
-      frontend.export_c.concat_bytes_loop chunks out n i = ok v →
-      absChunk v = absChunk out ++ concatBytes ((absChunks chunks).drop i.val) := by
-  induction N using Nat.strong_induction_on with
-  | _ N ih =>
-    intro chunks out n i v hn hN h
-    rw [frontend.export_c.concat_bytes_loop.eq_def] at h
-    split at h
-    · rename_i hlt
-      obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hil : i.val < chunks.val.length := by scalar_tac
-      have hcv := vec_index_eq hil hc
-      have hi1v : i1.val = i.val + 1 := by
-        have := ConRon.Refine.Nat.uadd_val hi1; simpa using this
-      have hsb := vec_index_full hs
-      have hout := extend_u8_val hout1
-      have hres := ih (n.val - i1.val) (by scalar_tac) chunks out1 n i1 v hn rfl h
-      have hdrop : (absChunks chunks).drop i.val
-          = absChunk c :: (absChunks chunks).drop (i.val + 1) := by
-        simp only [absChunks]
-        rw [← List.map_drop, ← List.map_drop, List.drop_eq_getElem_cons hil, hcv,
-          List.map_cons]
-      rw [hres, hi1v, hdrop, concatBytes, ← ByteArray.append_assoc]
-      congr 1
-      rw [← hsb]
-      apply ByteArray.ext
-      simp [absChunk, absBytes, hout, ByteArray.data_append]
-    · rename_i hge
-      simp only [Result.ok.injEq] at h
-      have hnil : (absChunks chunks).drop i.val = [] := by
-        apply List.drop_eq_nil_of_le
-        simp only [absChunks, List.length_map]
-        scalar_tac
-      rw [hnil, concatBytes, ← h]
-      exact ByteArray.append_empty.symm
-
-/-- **`concat_bytes` refines `concatBytes`** (`ExportC.lean:824-826`). -/
-theorem concat_bytes_refines {chunks v}
-    (h : frontend.export_c.concat_bytes chunks = ok v) :
-    absChunk v = concatBytes (absChunks chunks) := by
-  rw [frontend.export_c.concat_bytes] at h
-  have hres := concat_bytes_loop_refines _ chunks (alloc.vec.Vec.new Std.U8)
-    (alloc.vec.Vec.len chunks) 0#usize v (by simp [alloc.vec.Vec.len]) rfl h
-  rw [hres, show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero,
-    show absChunk (alloc.vec.Vec.new Std.U8) = ByteArray.empty from rfl,
-    ByteArray.empty_append]
 
 /-- **`chunk_step` refines `chunkStep`** (`ExportC.lean:803-811`) — one chunk
 of the stream, applied: the carried incomplete tail in front of the new bytes,

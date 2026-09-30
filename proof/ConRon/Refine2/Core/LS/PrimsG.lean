@@ -53,12 +53,6 @@ theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
     (alloc.vec.Vec.len v).val = v.val.length := by
   simp
 
-@[local lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
-    (ConRon.Refine.absBinderMeta m).pw = ConRon.Refine.absPropWhen m.pw := rfl
-
-@[local lockstep_simp] theorem absBinderMeta_mk (pw : kernel.prop_when.PropWhen) :
-    ConRon.Refine.absBinderMeta { pw } = ⟨ConRon.Refine.absPropWhen pw⟩ := rfl
-
 /-- The binder stack's index, as a twin fact about the twin's `stk[j]!`. -/
 theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
     (i : Std.Usize) :
@@ -82,10 +76,6 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
 @[lockstep] theorem prop_when_dup_spec (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
-
-@[lockstep] theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
-    LSP (kernel.expr.binder_meta_dup m) (fun r => r = m) :=
-  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
 
 @[lockstep] theorem binder_meta_spec (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.expr.binder_meta pw) (fun r => r = { pw }) := by
@@ -225,5 +215,5 @@ namespace ConRon.Refine2.Lockstep.PG.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] absBinderMeta_pw absBinderMeta_mk peel_fuel_val
+attribute [scoped lockstep_simp] peel_fuel_val
 end ConRon.Refine2.Lockstep.PG.CoreLSReg

@@ -37,19 +37,6 @@ section Entries
 
 variable {pers vis st mode fe lfe fu depth lst}
 
-/-- `arena::core::whnf_core` against `Arena.whnfCore`. -/
-theorem whnf_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hf : absU fu = f)
-    (hrun : arena.core.whnf_core pers vis st mode fe fu depth e = ok o) :
-    Sim₀ absEIdx pers lst o
-      (Arena.whnfCore (ConRon.Refine.absMode mode) lfe f (absU depth)
-        (absEIdx e)) := by
-  rw [arena.core.whnf_core] at hrun
-  have h := hk.whnfCore hrel hinv hctx hf hrun
-  rw [laneKnot_full] at h
-  exact h
-
 /-- `arena::core::whnf` against `Arena.whnf`, with no side condition. -/
 theorem whnf_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
@@ -73,19 +60,6 @@ theorem infer_type_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateR
         (absEIdx e)) := by
   rw [arena.core.infer_type_core] at hrun
   have h := hk.infer hrel hinv hctx hf hrun
-  rw [laneKnot_full] at h
-  exact h
-
-/-- `arena::core::infer_type_io` against `Arena.inferTypeIO`. -/
-theorem infer_type_io_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hf : absU fu = f)
-    (hrun : arena.core.infer_type_io pers vis st mode fe fu depth e = ok o) :
-    Sim₀ absEIdx pers lst o
-      (Arena.inferTypeIO (ConRon.Refine.absMode mode) lfe f (absU depth)
-        (absEIdx e)) := by
-  rw [arena.core.infer_type_io] at hrun
-  have h := hk.inferIO hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 

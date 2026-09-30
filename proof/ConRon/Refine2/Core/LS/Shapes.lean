@@ -97,16 +97,6 @@ well formed when the inputs' are. -/
           (∀ p, pw = some p → ConRon.Refine.PropWhenWF p) → ConRon.Refine.PropWhenWF m.pw)) :=
   fun r h => ⟨(annot_binder_meta_spec pw mb r h).symm, annot_binder_meta_wf pw mb r h⟩
 
-@[lockstep] theorem whnf_core_stuck_tag_ls (e : arena.handle.EIdx) :
-    LSP (arena.core.whnf_core_stuck_tag e) (fun b => b = whnfCoreStuckTag (absEIdx e)) := by
-  intro b h
-  rw [arena.core.whnf_core_stuck_tag] at h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have htag := eidx_tag_abs ht
-  simp only [whnfCoreStuckTag, htag, absU32_beq_app, absU32_beq_proj, absU32_beq_letE,
-    absU32_beq_bvar]
-  split_ifs at h <;> simp_all
-
 /-! ## Reads -/
 
 @[lockstep] theorem defeq_peel_done_ls {pers st mism mism_lam lst}
@@ -432,22 +422,6 @@ end rescue
 
 section tele
 
-/-- `prop_when::beq` at a stack entry's datum (the ∀-membership form of the
-`PropWhenWF` premise). -/
-@[lockstep] theorem prop_when_beq_lam_stk_ls {l : List (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {i : Nat} {hi : i < l.length} {b : kernel.prop_when.PropWhen}
-    (hl : ∀ x ∈ l, ConRon.Refine.PropWhenWF x.2.pw) (hb : ConRon.Refine.PropWhenWF b) :
-    LSP (kernel.prop_when.beq (l[i]'hi).2.pw b)
-      (fun c => c = (ConRon.Refine.absPropWhen (l[i]'hi).2.pw == ConRon.Refine.absPropWhen b)) :=
-  PA2.prop_when_beq_ls (hl _ (List.getElem_mem hi)) hb
-
-@[lockstep] theorem prop_when_beq_pi_stk_ls {l : List (arena.handle.LIdx × kernel.prop_when.PropWhen)}
-    {i : Nat} {hi : i < l.length} {a : kernel.prop_when.PropWhen}
-    (hl : ∀ x ∈ l, ConRon.Refine.PropWhenWF x.2) (ha : ConRon.Refine.PropWhenWF a) :
-    LSP (kernel.prop_when.beq a (l[i]'hi).2)
-      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen (l[i]'hi).2)) :=
-  PA2.prop_when_beq_ls ha (hl _ (List.getElem_mem hi))
-
 theorem getElem!_map_toArray {α β : Type} [Inhabited β] (f : α → β) {l : List α} {i : Nat}
     (hi : i < l.length) (k : Nat) (hk : k = i) : (l.map f).toArray[k]! = f l[i] := by
   subst hk
@@ -575,7 +549,6 @@ end tele
 #print axioms annot_binder_meta_ls
 #print axioms annot_binder_meta_spec
 #print axioms annot_binder_meta_wf
-#print axioms whnf_core_stuck_tag_ls
 #print axioms defeq_no_fvars_ls
 #print axioms fab_scope_ok_ls
 #print axioms infer_lam_result_ls

@@ -44,16 +44,14 @@ cursor). -/
 
 section spine
 
-theorem vec_new_val_eidx : (alloc.vec.Vec.new arena.handle.EIdx).val = [] := by simp
-
 theorem map_getElem!_absEIdx (l : List arena.handle.EIdx) (i : Nat) (h : i < l.length) :
     (l.map absEIdx).toArray[i]! = absEIdx l[i] := by
   rw [getElem!_pos (l.map absEIdx).toArray i (by simpa using h)]
   simp
 
-attribute [local lockstep_simp] absEIdxArr ExprOps.absEIdxL List.push_toArray List.map_append
-  List.map_cons List.map_nil List.nil_append List.size_toArray List.length_map
-  List.getElem_toArray List.getElem_map vec_new_val_eidx map_getElem!_absEIdx absU_eq_val
+attribute [local lockstep_simp] absEIdxArr ExprOps.absEIdxL List.push_toArray
+  List.map_append List.map_cons List.map_nil List.nil_append List.size_toArray
+  List.length_map List.getElem_toArray List.getElem_map map_getElem!_absEIdx
 
 /-- The spine at remaining length `n`. -/
 def WhnfAppAt (f : Nat) (n : Nat) : Prop :=
@@ -134,25 +132,9 @@ theorem spine_ls {f : Nat} (hk : KnotRel f) : ∀ n, WhnfAppAt f n ∧ BetaPeelA
         (absEIdxArr nodes) (absSz i)) :=
   (spine_ls hk _).1 hx rfl hrel hinv hctx hf
 
-/-- `arena::core::beta_peel` against `Arena.betaPeel` (`beta_peel_refines`, in
-the lockstep form). -/
-@[lockstep] theorem beta_peel_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth t acc args nodes i lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.beta_peel pers vis st mode lane fu fe depth t acc args nodes i) lst
-      (betaPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth) (absEIdx t) (absEIdxArr acc) (absEIdxArr args) (absEIdxArr nodes)
-        (absSz i)) :=
-  (spine_ls hk _).2 hx rfl hrel hinv hctx hf
-
 end spine
 
 /-! ## `whnf_core_body` -/
-
-attribute [local lockstep_simp] absU_eq_val
 
 theorem whnf_core_body_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst}

@@ -131,10 +131,6 @@ private theorem uscalar_sub_add {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
   have := Std.UScalar.sub_equiv x y
   rw [h] at this; simp at this; omega
 
-/-- Two bytes are equal when their values are. -/
-private theorem byte_eq {i : Std.U8} {w : UInt8} (h : i.val = w.toNat) : absByte i = w := by
-  apply UInt8.toNat_inj.mp; simpa using h
-
 /-- `Char.ofNat` keeps a scalar value. -/
 theorem char_ofNat_toNat {n : Nat} (h : Nat.isValidChar n) :
     (Char.ofNat n).val.toNat = n := by

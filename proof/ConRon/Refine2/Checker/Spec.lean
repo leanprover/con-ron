@@ -499,12 +499,6 @@ theorem checkThmVal_split (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
 
 /-! ### The `Nat`-operation pin gate's splits -/
 
-/-- `divModCertGuard`'s tail past the substituted proof's own ground guards. -/
-def divModCertGuardRestSpec (fe : IFEnv) (c : NIdx) (annVal : EIdx)
-    (hyps : List EIdx) (eqE : EIdx) : AM Bool := do
-  if !(← constsResolveAll fe (← substConst0List c annVal hyps)) then pure false
-  else constsResolveFFast fe (← substConst0 c annVal coreWalkFuel eqE)
-
 /-- One `Bool` constructor stored at the type `Bool` itself. -/
 abbrev boolCtorTypedSpec (fe2 : IFEnv) (n : NIdx) : AM Bool := boolCtorTyped fe2 n
 
@@ -567,27 +561,6 @@ def divModCertAppliedHypsSpec (base : EIdx) : List EIdx → AM EIdx
     let f3 ← internE (.fvar 3 h2)
     internE (.app a1 f3)
   | _ => pure base
-
-/-- The operation's slot in the pin record's eight-slot family.  The twin
-spells the dispatch as a chain of handle comparisons inside `divModDeclPin`
-and `divModCertProofs`; the port computes the index once. -/
-def divModSlot2Spec (c : NIdx) : AM Nat := do
-  if c == (← natXorName) then pure 4
-  else if c == (← natShiftLeftName) then pure 5
-  else if c == (← natShiftRightName) then pure 6
-  else pure 7
-
-/-- … past `Nat.div` (the Rust's `div_mod_slot_1`: `gcd`, `land`, `lor`). -/
-def divModSlot1Spec (c : NIdx) : AM Nat := do
-  if c == (← natGcdName) then pure 1
-  else if c == (← natLandName) then pure 2
-  else if c == (← natLorName) then pure 3
-  else divModSlot2Spec c
-
-/-- … from the top. -/
-def divModSlotSpec (c : NIdx) : AM Nat := do
-  if c == (← natDivName) then pure 0
-  else divModSlot1Spec c
 
 /-! ### `divModCertStmts`' context, split where the port splits it
 

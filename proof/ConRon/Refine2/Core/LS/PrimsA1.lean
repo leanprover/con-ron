@@ -1004,11 +1004,6 @@ theorem pin_quot_run₀ {pers st lst} {o}
 
 /-! ### As `@[lockstep]` reads -/
 
-@[lockstep] theorem pin_reserved_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdxList a) (arena.pins.pin_reserved st) st lst pinReserved :=
-  pinRE_lsr hrel hinv fun _ h => pin_reserved_run₀ hrel hinv h
-
 @[lockstep] theorem reserved_basis_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdxList a) (arena.core.reserved_basis_names st) st lst reservedBasisNames :=
@@ -1028,11 +1023,6 @@ theorem pin_quot_run₀ {pers st lst} {o}
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absEIdx a) (arena.pins.pin_sort_one st) st lst pinSortOne :=
   pinRE_lsr hrel hinv fun _ h => pin_sort_one_run₀ hrel hinv h
-
-@[lockstep] theorem pin_eq_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_eq st) st lst pinEq :=
-  pinRE_lsr hrel hinv fun _ h => pin_eq_run₀ hrel hinv h
 
 @[lockstep] theorem pin_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
@@ -1064,120 +1054,10 @@ theorem pin_quot_run₀ {pers st lst} {o}
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_string_of_list st) st lst pinStringOfList :=
   pinRE_lsr hrel hinv fun _ h => pin_string_of_list_run₀ hrel hinv h
 
-@[lockstep] theorem pin_list_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_list st) st lst pinList :=
-  pinRE_lsr hrel hinv fun _ h => pin_list_run₀ hrel hinv h
-
-@[lockstep] theorem pin_list_nil_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_list_nil st) st lst pinListNil :=
-  pinRE_lsr hrel hinv fun _ h => pin_list_nil_run₀ hrel hinv h
-
-@[lockstep] theorem pin_list_cons_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_list_cons st) st lst pinListCons :=
-  pinRE_lsr hrel hinv fun _ h => pin_list_cons_run₀ hrel hinv h
-
-@[lockstep] theorem pin_char_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_char st) st lst pinChar :=
-  pinRE_lsr hrel hinv fun _ h => pin_char_run₀ hrel hinv h
-
-@[lockstep] theorem pin_and_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_and st) st lst pinAnd :=
-  pinRE_lsr hrel hinv fun _ h => pin_and_run₀ hrel hinv h
-
-@[lockstep] theorem pin_char_of_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_char_of_nat st) st lst pinCharOfNat :=
-  pinRE_lsr hrel hinv fun _ h => pin_char_of_nat_run₀ hrel hinv h
-
 @[lockstep] theorem pin_sorry_ax_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_sorry_ax st) st lst pinSorryAx :=
   pinRE_lsr hrel hinv fun _ h => pin_sorry_ax_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_pred_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_pred st) st lst pinNatPred :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_pred_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_add_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_add st) st lst pinNatAdd :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_add_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_sub_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_sub st) st lst pinNatSub :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_sub_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_mul_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_mul st) st lst pinNatMul :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_mul_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_pow_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_pow st) st lst pinNatPow :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_pow_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_beq_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_beq st) st lst pinNatBeq :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_beq_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_ble_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_ble st) st lst pinNatBle :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_ble_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_div_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_div st) st lst pinNatDiv :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_div_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_mod_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_mod st) st lst pinNatMod :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_mod_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_gcd_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_gcd st) st lst pinNatGcd :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_gcd_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_land_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_land st) st lst pinNatLand :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_land_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_lor_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_lor st) st lst pinNatLor :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_lor_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_xor_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_xor st) st lst pinNatXor :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_xor_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_shift_left_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_shift_left st) st lst pinNatShiftLeft :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_shift_left_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nat_shift_right_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nat_shift_right st) st lst pinNatShiftRight :=
-  pinRE_lsr hrel hinv fun _ h => pin_nat_shift_right_run₀ hrel hinv h
-
-@[lockstep] theorem pin_bool_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_bool st) st lst pinBool :=
-  pinRE_lsr hrel hinv fun _ h => pin_bool_run₀ hrel hinv h
 
 @[lockstep] theorem pin_bool_true_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
@@ -1189,81 +1069,6 @@ theorem pin_quot_run₀ {pers st lst} {o}
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_bool_false st) st lst pinBoolFalse :=
   pinRE_lsr hrel hinv fun _ h => pin_bool_false_run₀ hrel hinv h
 
-@[lockstep] theorem pin_propext_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_propext st) st lst pinPropext :=
-  pinRE_lsr hrel hinv fun _ h => pin_propext_run₀ hrel hinv h
-
-@[lockstep] theorem pin_choice_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_choice st) st lst pinChoice :=
-  pinRE_lsr hrel hinv fun _ h => pin_choice_run₀ hrel hinv h
-
-@[lockstep] theorem pin_iff_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_iff st) st lst pinIff :=
-  pinRE_lsr hrel hinv fun _ h => pin_iff_run₀ hrel hinv h
-
-@[lockstep] theorem pin_iff_intro_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_iff_intro st) st lst pinIffIntro :=
-  pinRE_lsr hrel hinv fun _ h => pin_iff_intro_run₀ hrel hinv h
-
-@[lockstep] theorem pin_iff_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_iff_rec st) st lst pinIffRec :=
-  pinRE_lsr hrel hinv fun _ h => pin_iff_rec_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nonempty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nonempty st) st lst pinNonempty :=
-  pinRE_lsr hrel hinv fun _ h => pin_nonempty_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nonempty_intro_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nonempty_intro st) st lst pinNonemptyIntro :=
-  pinRE_lsr hrel hinv fun _ h => pin_nonempty_intro_run₀ hrel hinv h
-
-@[lockstep] theorem pin_nonempty_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_nonempty_rec st) st lst pinNonemptyRec :=
-  pinRE_lsr hrel hinv fun _ h => pin_nonempty_rec_run₀ hrel hinv h
-
-@[lockstep] theorem pin_true_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_true st) st lst pinTrue :=
-  pinRE_lsr hrel hinv fun _ h => pin_true_run₀ hrel hinv h
-
-@[lockstep] theorem pin_true_intro_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_true_intro st) st lst pinTrueIntro :=
-  pinRE_lsr hrel hinv fun _ h => pin_true_intro_run₀ hrel hinv h
-
-@[lockstep] theorem pin_trust_compiler_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_trust_compiler st) st lst pinTrustCompiler :=
-  pinRE_lsr hrel hinv fun _ h => pin_trust_compiler_run₀ hrel hinv h
-
-@[lockstep] theorem pin_reduce_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_reduce_nat st) st lst pinReduceNat :=
-  pinRE_lsr hrel hinv fun _ h => pin_reduce_nat_run₀ hrel hinv h
-
-@[lockstep] theorem pin_reduce_bool_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_reduce_bool st) st lst pinReduceBool :=
-  pinRE_lsr hrel hinv fun _ h => pin_reduce_bool_run₀ hrel hinv h
-
-@[lockstep] theorem pin_of_reduce_nat_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_of_reduce_nat st) st lst pinOfReduceNat :=
-  pinRE_lsr hrel hinv fun _ h => pin_of_reduce_nat_run₀ hrel hinv h
-
-@[lockstep] theorem pin_of_reduce_bool_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_of_reduce_bool st) st lst pinOfReduceBool :=
-  pinRE_lsr hrel hinv fun _ h => pin_of_reduce_bool_run₀ hrel hinv h
-
 @[lockstep] theorem pin_quot_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_quot st) st lst pinQuot :=
@@ -1274,14 +1079,6 @@ theorem pin_quot_run₀ {pers st lst} {o}
 @[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _e he => dupId_nidx _ _ he
-
-@[lockstep] theorem dup2_lidx (h : arena.handle.LIdx) :
-    LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _e he => dupId_lidx _ _ he
-
-@[lockstep] theorem dup2_lsidx (h : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _e he => dupId_lsidx _ _ he
 
 @[lockstep] theorem eq2_nidx (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)

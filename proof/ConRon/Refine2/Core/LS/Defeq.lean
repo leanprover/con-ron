@@ -392,10 +392,6 @@ theorem defeqLoop_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (
     defeqLoop mode r fe d (m + 1) pi a b = defeqStep mode r fe d (defeqLoop mode r fe d m) pi a b :=
   rfl
 
-@[local lockstep_simp] theorem defeq_loop_fuel_val :
-    absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel := by
-  rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl
-
 /-- The loop, by induction on the port's counter (`Core/Arms/Loops.lean`'s
 `whnf_loop_aux` shape): the step at `n - 1` is `defeq_step_of_cont` with the
 induction hypothesis as its continuation. -/
@@ -444,36 +440,6 @@ theorem defeq_loop_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
         lfe (absU depth) (absU n) pi (absEIdx a) (absEIdx b)) :=
   defeq_loop_aux hk hx hctx hf depth _ n pi a b rfl hrel hinv
 
-/-- `arena::core::defeq_step` against `Arena.defeqStep` with the rest of the
-loop named — the port's `n` IS the twin's continuation `defeqLoop … (absU n)`. -/
-@[lockstep] theorem defeq_step_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth n pi a b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b) lst
-      (defeqStep (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth)
-        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-          lfe (absU depth) (absU n)) pi (absEIdx a) (absEIdx b)) :=
-  defeq_step_of_cont hk hx hctx hf depth n
-    (fun _ _ _ hr hv => defeq_loop_ls hk hx hr hv hctx hf) pi a b hrel hinv
-
-/-- `arena::core::defeq_body` against `Arena.defeqBody` — `BodyRel`'s `defeq`
-field, in `LS` form: the loop at its own step budget, at `pi = true`. -/
-@[lockstep] theorem defeq_body_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth a b lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = a)
-      (arena.core.defeq_body pers vis st mode lane fu fe depth a b) lst
-      (defeqBody (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth) (absEIdx a) (absEIdx b)) := by
-  rw [arena.core.defeq_body, defeqBody]
-  lockstep_f
-
 end ConRon.Refine2.Lockstep
 
 /-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
@@ -485,5 +451,4 @@ open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2
 open ConRon.Refine2.Lockstep.PF
-attribute [scoped lockstep_simp] defeq_loop_fuel_val
 end ConRon.Refine2.Lockstep.CoreLSReg

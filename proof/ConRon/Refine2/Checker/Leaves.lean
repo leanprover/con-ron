@@ -118,14 +118,6 @@ memo. -/
   rw [arena.inductives.struct_parts.mentions_const, mentionsConst]
   lockstep
 
-theorem mentions_const_refines {pers st lst} {t : arena.handle.NIdx}
-    {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.inductives.struct_parts.mentions_const pers st t e = ok o) :
-    Sim₀ id pers lst o
-      (mentionsConst (absNIdx t) (absEIdx e)) :=
-  Lockstep.LS.toSim₀ (mentions_const_ls hrel hinv) hrun
-
 end ConRon.Refine2
 
 namespace ConRon.Refine2.Frontend

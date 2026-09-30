@@ -412,14 +412,6 @@ attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
   arena.core.iota_rec_params arena.core.iota_rec_certs arena.core.iota_rec_fam
   arena.core.iota_rec_reduct
 
-/-- `iotaRecAt`'s one `liftFueled` site, with its message fixed (a free
-`String` argument is a goal no side tactic closes). -/
-@[lockstep] theorem lift_fueled_level_ls {pers st lst} (o : Option Bool)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
-      (liftFueled "level comparison" o) :=
-  lift_fueled_ls hrel hinv o "level comparison"
-
 set_option maxHeartbeats 0 in
 @[lockstep] theorem iota_rec_at_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth hd sargs n lst}

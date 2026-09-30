@@ -84,218 +84,35 @@ def absStrip
 def absPwOpt (o : Option kernel.prop_when.PropWhen) : Option ConLeche.PropWhen :=
   o.map ConRon.Refine.absPropWhen
 
-/-- `result_sort`'s answer. -/
-def absLIdxOpt (o : Option arena.handle.LIdx) : Option LIdx := o.map absLIdx
-
-attribute [lockstep_simp] absEIdxList absLeaves absLIdxOpt absPwOpt absBinders absStrip
+attribute [lockstep_simp] absEIdxList absLeaves absPwOpt absBinders absStrip
 
 section size_b
 attribute [local lockstep_simp] sizeBArmApp sizeBArmBind sizeBArmLet sizeBArmProj
-
-theorem size_b_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = absU a) (arena.expr_ops.size_b pers st fuel h) st lst
-        (sizeB n (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.size_b, sizeB_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.size_b, sizeB_succ]
-    lockstep
-
-@[lockstep] theorem size_b_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absU a) (arena.expr_ops.size_b pers st fuel h) st lst
-      (sizeB (absU fuel) (absEIdx h)) :=
-  size_b_aux _ fuel h rfl hrel hinv
-
-theorem size_b_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.size_b pers st fuel h = ok o) :
-    AOut₀ absU pers o st ((sizeB (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (size_b_ls hrel hinv fuel h) hrun
 
 end size_b
 
 section size_f
 attribute [local lockstep_simp] sizeFArmFVar sizeFArmApp sizeFArmBind sizeFArmLet sizeFArmProj
 
-theorem size_f_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = absU a) (arena.expr_ops.size_f pers st fuel h) st lst
-        (sizeF n (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.size_f, sizeF_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.size_f, sizeF_succ]
-    lockstep
-
-@[lockstep] theorem size_f_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absU a) (arena.expr_ops.size_f pers st fuel h) st lst
-      (sizeF (absU fuel) (absEIdx h)) :=
-  size_f_aux _ fuel h rfl hrel hinv
-
-theorem size_f_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.size_f pers st fuel h = ok o) :
-    AOut₀ absU pers o st ((sizeF (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (size_f_ls hrel hinv fuel h) hrun
-
 end size_f
 
 section has_fvar
 attribute [local lockstep_simp] hasFvarArmApp hasFvarArmBind hasFvarArmLet
-
-theorem has_fvar_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = id a) (arena.expr_ops.has_fvar pers st fuel h) st lst
-        (hasFvar n (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.has_fvar, hasFvar_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.has_fvar, hasFvar_succ]
-    lockstep
-
-@[lockstep] theorem has_fvar_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = id a) (arena.expr_ops.has_fvar pers st fuel h) st lst
-      (hasFvar (absU fuel) (absEIdx h)) :=
-  has_fvar_aux _ fuel h rfl hrel hinv
-
-theorem has_fvar_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.has_fvar pers st fuel h = ok o) :
-    AOut₀ id pers o st ((hasFvar (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (has_fvar_ls hrel hinv fuel h) hrun
 
 end has_fvar
 
 section fvar_leaves
 attribute [local lockstep_simp] fvarLeavesArmFVar fvarLeavesArmApp fvarLeavesArmBind fvarLeavesArmLet
 
-theorem fvar_leaves_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = absLeaves a) (arena.expr_ops.fvar_leaves pers st fuel h) st lst
-        (fvarLeaves n (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.fvar_leaves, fvarLeaves_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.fvar_leaves, fvarLeaves_succ]
-    lockstep
-
-@[lockstep] theorem fvar_leaves_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absLeaves a) (arena.expr_ops.fvar_leaves pers st fuel h) st lst
-      (fvarLeaves (absU fuel) (absEIdx h)) :=
-  fvar_leaves_aux _ fuel h rfl hrel hinv
-
-theorem fvar_leaves_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.fvar_leaves pers st fuel h = ok o) :
-    AOut₀ absLeaves pers o st ((fvarLeaves (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (fvar_leaves_ls hrel hinv fuel h) hrun
-
 end fvar_leaves
 
 section wscoped_b
 attribute [local lockstep_simp] wscopedBArmApp wscopedBArmBind wscopedBArmLet
 
-theorem wscoped_b_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (d : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = id a) (arena.expr_ops.wscoped_b pers st fuel d h) st lst
-        (wscopedB n (absU d) (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel d h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.wscoped_b, wscopedB_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel d h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.wscoped_b, wscopedB_succ]
-    lockstep
-
-@[lockstep] theorem wscoped_b_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (d : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = id a) (arena.expr_ops.wscoped_b pers st fuel d h) st lst
-      (wscopedB (absU fuel) (absU d) (absEIdx h)) :=
-  wscoped_b_aux _ fuel d h rfl hrel hinv
-
-theorem wscoped_b_refines {pers st lst} {fuel : Std.U64} {d : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.wscoped_b pers st fuel d h = ok o) :
-    AOut₀ id pers o st ((wscopedB (absU fuel) (absU d) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (wscoped_b_ls hrel hinv fuel d h) hrun
-
 end wscoped_b
 
 section loose_bvars_bounded
 attribute [local lockstep_simp] looseBArmApp looseBArmBind looseBArmLet
-
-theorem loose_bvars_bounded_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (fuel : Std.U64) (k : Std.U64) (h : arena.handle.EIdx),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LSR pers (fun a b => b = id a) (arena.expr_ops.loose_bvars_bounded pers st fuel k h) st lst
-        (looseBVarsBounded n (absU k) (absEIdx h)) := by
-  induction n with
-  | zero =>
-    intro pers st lst fuel k h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.loose_bvars_bounded, looseBVarsBounded_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst fuel k h hn hrel hinv
-    apply LSR.of_LS
-    rw [arena.expr_ops.loose_bvars_bounded, looseBVarsBounded_succ]
-    lockstep
-
-@[lockstep] theorem loose_bvars_bounded_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (fuel : Std.U64) (k : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = id a) (arena.expr_ops.loose_bvars_bounded pers st fuel k h) st lst
-      (looseBVarsBounded (absU fuel) (absU k) (absEIdx h)) :=
-  loose_bvars_bounded_aux _ fuel k h rfl hrel hinv
-
-theorem loose_bvars_bounded_refines {pers st lst} {fuel : Std.U64} {k : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.loose_bvars_bounded pers st fuel k h = ok o) :
-    AOut₀ id pers o st ((looseBVarsBounded (absU fuel) (absU k) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (loose_bvars_bounded_ls hrel hinv fuel k h) hrun
 
 end loose_bvars_bounded
 
@@ -329,12 +146,6 @@ theorem get_app_fn_aux (n : Nat) :
       (getAppFn (absU fuel) (absEIdx h)) :=
   get_app_fn_aux _ fuel h rfl hrel hinv
 
-theorem get_app_fn_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.get_app_fn pers st fuel h = ok o) :
-    AOut₀ absEIdx pers o st ((getAppFn (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (get_app_fn_ls hrel hinv fuel h) hrun
-
 end get_app_fn
 
 section pi_result
@@ -362,12 +173,6 @@ theorem pi_result_aux (n : Nat) :
     LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.pi_result pers st fuel h) st lst
       (piResult (absU fuel) (absEIdx h)) :=
   pi_result_aux _ fuel h rfl hrel hinv
-
-theorem pi_result_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.pi_result pers st fuel h = ok o) :
-    AOut₀ absEIdx pers o st ((piResult (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (pi_result_ls hrel hinv fuel h) hrun
 
 end pi_result
 
@@ -400,13 +205,6 @@ end getAppArgs
 
 section oneNode
 
-theorem is_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = a) (arena.expr_ops.is_lam pers st h) st lst (isLam (absEIdx h)) := by
-  apply LSR.of_LS
-  rw [arena.expr_ops.is_lam, isLam]
-  lockstep
-
 theorem lam_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (h : arena.handle.EIdx) :
     LSR pers (fun a b => b = absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst
@@ -421,22 +219,6 @@ theorem lam_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AState
       (fvarTypeD (absEIdx h)) := by
   apply LSR.of_LS
   rw [arena.expr_ops.fvar_type_d, fvarTypeD]
-  lockstep
-
-theorem lidx_has_param_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
-    LSV pers (fun a b => b = a) (arena.expr_ops.lidx_has_param pers st h) st lst
-      (LIdx.hasParam (absLIdx h)) := by
-  apply LSV.ofLS
-  rw [arena.expr_ops.lidx_has_param, LIdx.hasParam]
-  lockstep
-
-theorem eidx_has_level_param_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
-    LSV pers (fun a b => b = a) (arena.expr_ops.eidx_has_level_param pers st h) st lst
-      (EIdx.hasLevelParam (absEIdx h)) := by
-  apply LSV.ofLS
-  rw [arena.expr_ops.eidx_has_level_param, EIdx.hasLevelParam]
   lockstep
 
 end oneNode
@@ -658,8 +440,7 @@ end entries
       (stripPis (absU k) (absEIdx h)) :=
   strip_pis_aux _ k h rfl hrel hinv
 
-attribute [lockstep] is_lam_ls lam_pw_ls fvar_type_d_ls lidx_has_param_ls
-  eidx_has_level_param_ls
+attribute [lockstep] lam_pw_ls fvar_type_d_ls
 
 @[lockstep] theorem inst_list_cutoff_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) (k : Std.U64) :
@@ -670,65 +451,5 @@ attribute [lockstep] is_lam_ls lam_pw_ls fvar_type_d_ls lidx_has_param_ls
   lockstep
 
 /-! ## The public statements (`AOut₀`, read-only: the Rust post-state is its pre-state) -/
-
-theorem get_app_args_go_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {k : Std.Usize} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.get_app_args_go pers st fuel h k = ok o) :
-    AOut₀ absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (get_app_args_go_ls hrel hinv fuel h k) hrun
-
-theorem get_app_args_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.get_app_args pers st fuel h = ok o) :
-    AOut₀ absEIdxList pers o st ((getAppArgs (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (get_app_args_ls hrel hinv fuel h) hrun
-
-theorem strip_lams_refines {pers st lst} {k : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.strip_lams pers st k h = ok o) :
-    AOut₀ absStrip pers o st ((stripLams (absU k) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (strip_lams_ls hrel hinv k h) hrun
-
-theorem strip_pis_refines {pers st lst} {k : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.strip_pis pers st k h = ok o) :
-    AOut₀ absStrip pers o st ((stripPis (absU k) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (strip_pis_ls hrel hinv k h) hrun
-
-theorem is_lam_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.is_lam pers st h = ok o) :
-    AOut₀ id pers o st ((isLam (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (is_lam_ls hrel hinv h) hrun
-
-theorem lam_pw_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.lam_pw pers st h = ok o) :
-    AOut₀ absPwOpt pers o st ((lamPw (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (lam_pw_ls hrel hinv h) hrun
-
-theorem fvar_type_d_refines {pers st lst} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.fvar_type_d pers st h = ok o) :
-    AOut₀ absEIdx pers o st ((fvarTypeD (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (fvar_type_d_ls hrel hinv h) hrun
-
-theorem wscoped_b_fast_refines {pers st lst} {fuel d : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.wscoped_b_fast pers st fuel d h = ok o) :
-    AOut₀ id pers o st ((wscopedBFast (absU fuel) (absU d) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (wscoped_b_fast_ls hrel hinv fuel d h) hrun
-
-theorem fvar_leaves_fast_refines {pers st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.fvar_leaves_fast pers st fuel h = ok o) :
-    AOut₀ (fun v => (absLeaves v).reverse) pers o st ((fvarLeavesFast (absU fuel) (absEIdx h)).run lst) :=
-  LSR.toAOut₀ (fvar_leaves_fast_ls hrel hinv fuel h) hrun
-
-theorem leaf_guard_refines {pers st lst} {fuel : Std.U64} {fab base : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.expr_ops.leaf_guard pers st fuel fab base = ok o) :
-    AOut₀ id pers o st ((leafGuard (absU fuel) (absEIdx fab) (absEIdx base)).run lst) :=
-  LSR.toAOut₀ (leaf_guard_ls hrel hinv fuel fab base) hrun
 
 end ConRon.Refine2.ExprOps

@@ -111,24 +111,6 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
 @[local lockstep_simp] theorem etag_lam_ne_forallE : (ETag.lam = ETag.forallE) = False := by
   simp [ETag.forallE, ETag.lam]
 
-@[local lockstep_simp] theorem etag_FORALL_ne_LAM :
-    (arena.handle.ETAG_FORALL_E = arena.handle.ETAG_LAM) = False := by
-  apply propext; constructor
-  · intro h
-    have := congrArg absU32 h
-    rw [etag_forallE_abs, etag_lam_abs] at this
-    exact absurd this (by simp [ETag.forallE, ETag.lam])
-  · intro h; exact h.elim
-
-@[local lockstep_simp] theorem etag_LAM_ne_FORALL :
-    (arena.handle.ETAG_LAM = arena.handle.ETAG_FORALL_E) = False := by
-  apply propext; constructor
-  · intro h
-    have := congrArg absU32 h
-    rw [etag_forallE_abs, etag_lam_abs] at this
-    exact absurd this (by simp [ETag.forallE, ETag.lam])
-  · intro h; exact h.elim
-
 @[local lockstep_simp] theorem absU32_eq_const (t : Std.U32) :
     (absU32 t = ETag.const) = (t = arena.handle.ETAG_CONST) := by
   rw [← etag_const_abs, absU32_eq_absU32]
@@ -158,9 +140,6 @@ theorem absU32_eq_absU32 (t c : Std.U32) : (absU32 t = absU32 c) = (t = c) := by
   · have : x.val ≠ y.val := fun e => h (UScalar.eq_imp x y e)
     simp [h, this]
 
-@[local lockstep_simp] theorem internLitE_eq (l : ConLeche.Literal) :
-    Arena.internLitE l = Arena.internE (.lit l) := rfl
-
 /-! ## The accumulated free variables -/
 
 /-- The port pushes onto its `Vec`, the twin onto its `Array`: the push
@@ -173,33 +152,10 @@ theorem vec_push_eidx_ls (v : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle
   have := ConRon.Refine.vec_push_val h
   simp [absEIdxArr, this]
 
-@[local lockstep_simp] theorem absBinderMeta_pw (m : kernel.expr.BinderMeta) :
-    (ConRon.Refine.absBinderMeta m).pw = ConRon.Refine.absPropWhen m.pw := rfl
-
-@[local lockstep_simp] theorem absEIdxArr_new :
-    absEIdxArr (alloc.vec.Vec.new arena.handle.EIdx) = #[] := rfl
-
-@[local lockstep_simp] theorem arr_empty_push (x : EIdx) : (#[] : Array EIdx).push x = #[x] := rfl
-
 @[local lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
   rw [arena.core.PEEL_FUEL]; rfl
 
 /-! ## Spine lengths -/
-
-@[local lockstep_simp] theorem absEIdxList_length' (v : alloc.vec.Vec arena.handle.EIdx) :
-    (ExprOps.absEIdxList v).length = v.val.length := by
-  simp [ExprOps.absEIdxList]
-
-@[local lockstep_simp] theorem vec_len_eq_iff {α : Type} (v w : alloc.vec.Vec α) :
-    (v.len = w.len) = (v.val.length = w.val.length) := by
-  apply propext
-  constructor
-  · intro h
-    have := congrArg UScalar.val h
-    simpa [alloc.vec.Vec.len_val] using this
-  · intro h
-    apply Aeneas.Std.UScalar.eq_imp
-    simpa [alloc.vec.Vec.len_val] using h
 
 /-! ## Literals and binder data: exact comparisons on well-formed values -/
 
@@ -422,5 +378,11 @@ namespace ConRon.Refine2.Lockstep.PF.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] absConstT absU32_bne u32_bne ETag.isBind Bool.or_eq_true Bool.not_eq_true' Bool.not_true false_or or_false true_or or_true false_and and_false Bool.not_eq_false Bool.not_eq_true Bool.true_or Bool.false_or Bool.or_true Bool.or_false Bool.true_and Bool.and_true Bool.false_and Bool.and_false Bool.and_eq_true decide_not ite_true ite_false and_self absU32_eq_lam absU32_eq_forallE etag_forallE_ne_lam etag_lam_ne_forallE etag_FORALL_ne_LAM etag_LAM_ne_FORALL absU32_eq_const internLitE_eq absBinderMeta_pw absEIdxArr_new arr_empty_push peel_fuel_val absEIdxList_length' vec_len_eq_iff ConRon.Refine.absLiteral ConRon.Refine.LiteralWF ENodeViewWF
+attribute [scoped lockstep_simp] absConstT absU32_bne u32_bne ETag.isBind Bool.or_eq_true
+  Bool.not_eq_true' Bool.not_true false_or or_false true_or or_true false_and and_false
+  Bool.not_eq_false Bool.not_eq_true Bool.true_or Bool.false_or Bool.or_true Bool.or_false
+  Bool.true_and Bool.and_true Bool.false_and Bool.and_false Bool.and_eq_true decide_not
+  ite_true ite_false and_self absU32_eq_lam absU32_eq_forallE etag_forallE_ne_lam
+  etag_lam_ne_forallE absU32_eq_const peel_fuel_val ConRon.Refine.absLiteral
+  ConRon.Refine.LiteralWF ENodeViewWF
 end ConRon.Refine2.Lockstep.PF.CoreLSReg

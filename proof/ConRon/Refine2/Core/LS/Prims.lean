@@ -47,28 +47,12 @@ theorem LSR.ofAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
 
 attribute [local lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
 
-@[local lockstep_simp] theorem absU32_beq_const (t : Std.U32) :
-    (absU32 t == ETag.const) = decide (t = arena.handle.ETAG_CONST) := by
-  rw [← etag_const_abs]
-  by_cases h : t = arena.handle.ETAG_CONST
-  · subst h; simp
-  · have : absU32 t ≠ absU32 arena.handle.ETAG_CONST := fun hc => h (absU32_inj hc)
-    simp [h, this]
-
 @[local lockstep_simp] theorem absU32_beq_lit (t : Std.U32) :
     (absU32 t == ETag.lit) = decide (t = arena.handle.ETAG_LIT) := by
   rw [← etag_lit_abs]
   by_cases h : t = arena.handle.ETAG_LIT
   · subst h; simp
   · have : absU32 t ≠ absU32 arena.handle.ETAG_LIT := fun hc => h (absU32_inj hc)
-    simp [h, this]
-
-@[local lockstep_simp] theorem absU32_beq_fvar (t : Std.U32) :
-    (absU32 t == ETag.fvar) = decide (t = arena.handle.ETAG_FVAR) := by
-  rw [← etag_fvar_abs]
-  by_cases h : t = arena.handle.ETAG_FVAR
-  · subst h; simp
-  · have : absU32 t ≠ absU32 arena.handle.ETAG_FVAR := fun hc => h (absU32_inj hc)
     simp [h, this]
 
 /-! ## Handle equality, one normal form
@@ -78,19 +62,11 @@ prims and `r = decide (absNIdx a = absNIdx b)` by others; both twin spellings
 occur (`c = entry.ctor` in an `if`, `n₁ == n₂` in a `pure`).  The `lockstep_simp`
 normal form is `decide (_ = _)`. -/
 
-theorem idx_beq_decide {k : IdxKind} (a b : Idx k) :
-    (a == b) = decide (a = b) := by
-  by_cases h : a = b <;> simp [h]
-
 /-! ## The two expression-list abstractions, one normal form
 
 `Refine2/ExprOps/Read.lean`'s `ExprOps.absEIdxList` and `ExprOps/Mut.lean`'s
 `absEIdxList` are the same map; `lockstep_simp` rewrites the first to the
 second, and knows the length of both. -/
-
-@[local lockstep_simp] theorem absEIdxList_length_mut (v : alloc.vec.Vec arena.handle.EIdx) :
-    (absEIdxList v).length = v.val.length := by
-  simp [absEIdxList]
 
 /-! ## Well-formedness facts in context
 
@@ -167,55 +143,11 @@ coordinator's ruling (d) of task #97-P5-Core round 5). -/
 
 /-! ## The spine readers (read-only `ExprOps` walks, proved in `Core/Arms/Delta.lean`) -/
 
-@[lockstep] theorem get_app_fn_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.get_app_fn pers st fuel h) st lst
-      (getAppFn (absU fuel) (absEIdx h)) :=
-  LSR.ofAOut₀ fun _ hr => get_app_fn_refines₀ hrel hinv hr
-
-@[lockstep] theorem get_app_args_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = ExprOps.absEIdxList a)
-      (arena.expr_ops.get_app_args pers st fuel h) st lst
-      (getAppArgs (absU fuel) (absEIdx h)) :=
-  LSR.ofAOut₀ fun _ hr => get_app_args_refines₀ hrel hinv hr
-
 /-! ## The `ExprOps` walks, through the `ExprOpsHyp` seam
 
 Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 `assumption`: a body lemma carries the bundle as a hypothesis, and
 `Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
-
-@[lockstep] theorem inst_lp_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel lps us value) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_lp_fast pers st fuel lps us value)
-      lst (instLPFast (absU fuel) (lps.val.map absNIdx) (absLsIdx us) (absEIdx value)) :=
-  LS.ofSim₀ fun _ h => hx.instLPFast hrel hinv h
-
-@[lockstep] theorem mk_app_n_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (f args) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.mk_app_n pers st f args)
-      lst (Arena.mkAppN (absEIdx f) (absEIdxList args)) :=
-  LS.ofSim₀ fun _ h => hx.mkAppN hrel hinv h
-
-@[lockstep] theorem mk_app_n_from_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (f args i) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.mk_app_n_from pers st f args i)
-      lst (mkAppNFrom (absEIdx f) (absEIdxArr args) (absSz i)) :=
-  LS.ofSim₀ fun _ h => hx.mkAppNFrom hrel hinv h
-
-@[lockstep] theorem instantiate1_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e v d) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.instantiate1_fast pers st fuel e v d)
-      lst (instantiate1Fast (absU fuel) (absEIdx e) (absEIdx v) (absU d)) :=
-  LS.ofSim₀ fun _ h => hx.instantiate1Fast hrel hinv h
-
-@[lockstep] theorem instantiate_list_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e vs d) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.expr_ops.instantiate_list_fast pers st fuel e vs d)
-      lst (instantiateListFast (absU fuel) (absEIdx e) (absEIdxArr vs) (absU d)) :=
-  LS.ofSim₀ fun _ h => hx.instantiateListFast hrel hinv h
 
 @[lockstep] theorem abstract1_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e d k) :
@@ -223,72 +155,11 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
       lst (abstract1Fast (absU fuel) (absEIdx e) (absU d) (absU k)) :=
   LS.ofSim₀ fun _ h => hx.abstract1Fast hrel hinv h
 
-@[lockstep] theorem abstract_range_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e d k c) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.expr_ops.abstract_range_fast pers st fuel e d k c)
-      lst (abstractRangeFast (absU fuel) (absEIdx e) (absU d) (absU k) (absU c)) :=
-  LS.ofSim₀ fun _ h => hx.abstractRangeFast hrel hinv h
-
-@[lockstep] theorem inst_spine_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel args t e) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine pers st fuel args t e)
-      lst (instSpine (absU fuel) (absEIdxList args) (absU t) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => hx.instSpine hrel hinv h
-
-@[lockstep] theorem intern_rebuilt_app_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h same f a) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_app pers st h same f a)
-      lst (internRebuiltApp (absEIdx h) same (absEIdx f) (absEIdx a)) :=
-  LS.ofSim₀ fun _ hr => hx.internRebuiltApp hrel hinv hr
-
-@[lockstep] theorem bvar_b_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e) :
-    LS pers (fun a b => b = absU a) (arena.expr_ops.bvar_b pers st fuel e)
-      lst (bvarB (absU fuel) (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => hx.bvarB hrel hinv h
-
-@[lockstep] theorem has_fvar_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e) :
-    LS pers (fun a b => b = a) (arena.expr_ops.has_fvar_fast pers st fuel e)
-      lst (hasFvarFast (absU fuel) (absEIdx e)) :=
-  LS.ofSim₀ (A := id) fun _ h => hx.hasFvarFast hrel hinv h
-
-@[lockstep] theorem loose_bvars_bounded_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel k e) :
-    LS pers (fun a b => b = a) (arena.expr_ops.loose_bvars_bounded_fast pers st fuel k e)
-      lst (looseBVarsBoundedFast (absU fuel) (absU k) (absEIdx e)) :=
-  LS.ofSim₀ (A := id) fun _ h => hx.looseBVarsBoundedFast hrel hinv h
-
 @[lockstep] theorem lam_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
     LSR pers (fun a b => b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst
       (lamPw (absEIdx h)) :=
   LSR.ofAOut₀ fun _ hr => hx.lamPw hrel hinv hr
-
-@[lockstep] theorem pi_result_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel h) :
-    LSR pers (fun a b => b = absEIdx a) (arena.expr_ops.pi_result pers st fuel h) st lst
-      (piResult (absU fuel) (absEIdx h)) :=
-  LSR.ofAOut₀ fun _ hr => hx.piResult hrel hinv hr
-
-@[lockstep] theorem strip_pis_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (k h) :
-    LSR pers (fun a b => b = ExprOps.absStrip a) (arena.expr_ops.strip_pis pers st k h) st lst
-      (stripPis (absU k) (absEIdx h)) :=
-  LSR.ofAOut₀ fun _ hr => hx.stripPis hrel hinv hr
-
-@[lockstep] theorem wscoped_b_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel d h) :
-    LSR pers (fun a b => b = a) (arena.expr_ops.wscoped_b_fast pers st fuel d h) st lst
-      (wscopedBFast (absU fuel) (absU d) (absEIdx h)) :=
-  LSR.ofAOut₀ (A := id) fun _ hr => hx.wscopedBFast hrel hinv hr
-
-@[lockstep] theorem leaf_guard_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel fab base) :
-    LSR pers (fun a b => b = a) (arena.expr_ops.leaf_guard pers st fuel fab base) st lst
-      (leafGuard (absU fuel) (absEIdx fab) (absEIdx base)) :=
-  LSR.ofAOut₀ (A := id) fun _ hr => hx.leafGuard hrel hinv hr
 
 @[lockstep] theorem proof_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
@@ -338,13 +209,6 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
       (arena.core.unfold_definition pers vis st fe e) lst
       (unfoldDefinition lfe (absEIdx e)) :=
   LS.ofSim₀ fun _ h => unfold_definition_refines hx hrel hinv hctx h
-
-@[lockstep] theorem const_val_at_ls {pers st lst n lps value us}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.const_val_at pers st n lps value us) lst
-      (constValAt (absNIdx n) (lps.val.map absNIdx) (absEIdx value) (absLsIdx us)) :=
-  LS.ofSim₀ fun _ h => const_val_at_refines hx hrel hinv h
 
 /-! ## The environment's name builders (region C1's proofs, shared)
 
@@ -644,5 +508,7 @@ namespace ConRon.Refine2.Lockstep.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2
-attribute [scoped lockstep_simp] core_walk_fuel_val etag_const_abs etag_lit_abs etag_fvar_abs absU32_beq_const absU32_beq_lit absU32_beq_fvar absEIdxList_length_mut Option.some.injEq forall_eq' ConRon.Refine.LiteralWF IConstantInfoWF absIProjEntry absIConstantInfo
+attribute [scoped lockstep_simp] core_walk_fuel_val etag_const_abs etag_lit_abs
+  etag_fvar_abs absU32_beq_lit Option.some.injEq forall_eq' ConRon.Refine.LiteralWF
+  IConstantInfoWF absIProjEntry absIConstantInfo
 end ConRon.Refine2.Lockstep.CoreLSReg

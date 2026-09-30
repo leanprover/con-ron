@@ -1256,13 +1256,6 @@ attribute [lockstep_simp] id_eq
         (absEIdx ty, ConRon.Refine.absBinderMeta m) :: ExprOps.absBinderL xs) :=
   fun _ h => ExprOps.cons_binder_refines h
 
-@[lockstep] theorem binder_copy_from_spec
-    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
-    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    LSP (arena.expr_ops.binder_copy_from xs i out)
-      (fun r => ExprOps.absBinderL r = ExprOps.absBinderL out ++ (ExprOps.absBinderL xs).drop i.val) :=
-  fun _ h => ExprOps.binder_copy_from_refines h
-
 /-- `take_eidx_n` (the prefix at a `u64` count) against `takeEidx` at that count. -/
 @[lockstep] theorem take_eidx_n_spec (xs : alloc.vec.Vec arena.handle.EIdx) (c : Std.U64) :
     LSP (arena.expr_ops.take_eidx_n xs c)
@@ -1273,17 +1266,6 @@ attribute [lockstep_simp] id_eq
   rw [takeEidx, ExprOps.eidxCopyUpto_toList (absEIdxArr xs) c.val c.val 0 #[] (by omega)]
   simp only [absEIdxArr, List.toList_toArray] at this ⊢
   simpa [ExprOps.absEIdxL] using this
-
-@[lockstep] theorem fvl_copy_from_spec (xs : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
-    (i : Std.Usize) (out : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
-    LSP (arena.expr_ops.fvl_copy_from xs i out)
-      (fun r => ExprOps.absFvlL r = ExprOps.absFvlL out ++ (ExprOps.absFvlL xs).drop i.val) :=
-  fun _ h => ExprOps.fvl_copy_from_refines h
-
-@[lockstep] theorem fvl_append_spec (x y : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
-    LSP (arena.expr_ops.fvl_append x y)
-      (fun r => ExprOps.absFvlL r = ExprOps.absFvlL x ++ ExprOps.absFvlL y) :=
-  fun _ h => ExprOps.fvl_append_refines h
 
 theorem leafMem_app' (l1 l2 : List (Nat × EIdx)) (i : Nat) (t : EIdx) :
     leafMem (l1 ++ l2) i t = (leafMem l1 i t || leafMem l2 i t) := by
@@ -1308,10 +1290,6 @@ one reader, `leaves_sub_go`. -/
     LSP (arena.expr_ops.leaf_mem bl idx ty)
       (fun r => r = leafMem (ExprOps.absFvlL bl) (absU idx) (absEIdx ty)) :=
   fun _ h => (ExprOps.leaf_mem_refines h).symm
-
-@[lockstep] theorem expr_ptr_beq_spec (a b : arena.handle.EIdx) :
-    LSP (arena.expr_ops.expr_ptr_beq a b) (fun r => r = exprPtrBEq (absEIdx a) (absEIdx b)) :=
-  fun _ h => (ExprOps.expr_ptr_beq_refines h).symm
 
 /-! ### Tag tests the `ExprOps` walks make (suffix `_eo`: the Core lane has its own copies) -/
 
@@ -1354,14 +1332,6 @@ attribute [lockstep_simp] etag_fvar_abs etag_const_abs etag_lit_abs
     LSV pers (fun a b => b = Option.map absU a) (arena.monad.view_fvar_idx pers st h) st lst
       (Arena.viewFVarIdx (absEIdx h)) :=
   LSV.ofSimR (fun _ hr => view_fvar_idx_run₀ hrel hr) hrel hinv
-
-@[lockstep] theorem derived_l_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.LIdx) :
-    LSV pers (fun (a : arena.store.LDer) (b : LDer) => b.hasParam = a.has_param)
-      (arena.monad.derived_l pers st h) st lst (Arena.derivedL (absLIdx h)) := by
-  intro a ha
-  obtain ⟨v, hx, hobs⟩ := derived_l_run₀ hrel ha
-  exact ⟨v, lst, hx, hobs, hrel, hinv⟩
 
 @[lockstep] theorem fvar_of_data_spec (w : Std.U64) :
     LSP (kernel.expr.fvar_of_data w) (fun r => r.val = w.val / 2 % 32768) :=
@@ -1546,16 +1516,6 @@ theorem LSV.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
   simp only [absEIdxArr, List.toList_toArray] at this ⊢
   rw [← this]
 
-/-- `arena::monad::intern_e` (the view dispatcher) against `internE`, under the
-view's own well-formedness (the literal's payload, the binder's datum). -/
-@[lockstep] theorem intern_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (v : arena.store.ENodeView)
-    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e pers st v) lst
-      (Arena.internE (absENodeView v)) :=
-  LS.ofSim₀ fun _ h => intern_e_run₀ hrel hinv v hlit hpw h
-
 /-! ### The remaining memo probes, writes and clears (from `Specs.lean`'s `₀` lemmas) -/
 
 @[lockstep] theorem inst1_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -1583,38 +1543,6 @@ view's own well-formedness (the literal's payload, the binder's datum). -/
     (hinv : AStateInv pers st) :
     LSW pers (arena.monad.lift_clear st) lst Arena.liftClear :=
   LSW.ofSimS₀ fun _ h => lift_clear_run₀ hrel hinv h
-
-@[lockstep] theorem reset_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
-    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.reset_get st k) st lst
-      (Arena.resetGet (absEIdxNat k)) :=
-  LSV.ofSimR (fun _ h => reset_get_run₀ hrel hinv h) hrel hinv
-
-@[lockstep] theorem reset_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
-    LSW pers (arena.monad.reset_set st k r) lst (Arena.resetSet (absEIdxNat k) (absEIdx r)) :=
-  LSW.ofSimS₀ fun _ h => reset_set_run₀ hrel hinv h
-
-@[lockstep] theorem reset_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSW pers (arena.monad.reset_clear st) lst Arena.resetClear :=
-  LSW.ofSimS₀ fun _ h => reset_clear_run₀ hrel hinv h
-
-@[lockstep] theorem rename_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
-    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.rename_get st k) st lst
-      (Arena.renameGet (absEIdxNat k)) :=
-  LSV.ofSimR (fun _ h => rename_get_run₀ hrel hinv h) hrel hinv
-
-@[lockstep] theorem rename_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
-    LSW pers (arena.monad.rename_set st k r) lst (Arena.renameSet (absEIdxNat k) (absEIdx r)) :=
-  LSW.ofSimS₀ fun _ h => rename_set_run₀ hrel hinv h
-
-@[lockstep] theorem rename_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSW pers (arena.monad.rename_clear st) lst Arena.renameClear :=
-  LSW.ofSimS₀ fun _ h => rename_clear_run₀ hrel hinv h
 
 @[lockstep] theorem abs1_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
@@ -1914,14 +1842,5 @@ theorem LSR.ofAOut₀WF {α β : Type} {A : α → β} {P : α → Prop} {pers :
   | Ok a =>
     obtain ⟨lst', hx, h1, h2⟩ := this
     exact ⟨_, lst', hx, ⟨hP _ hm a rfl, rfl⟩, h1, h2⟩
-
-/-- `arena::monad::read_name` against `Arena.readName` (`read_name_run₀`); the
-answer is well formed. -/
-@[lockstep] theorem read_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.NIdx) :
-    LSR pers (fun a b => ConRon.Refine.NameWF a ∧ b = ConRon.Refine.absName a)
-      (arena.monad.read_name pers st h) st lst (Arena.readName (absNIdx h)) :=
-  LSR.ofAOut₀WF (fun _ hm => read_name_run₀ hrel hinv hm)
-    (fun _ hm _ ha => read_name_wf hinv (ha ▸ hm))
 
 end ConRon.Refine2.Lockstep

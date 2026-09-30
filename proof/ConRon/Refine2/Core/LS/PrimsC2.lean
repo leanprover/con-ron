@@ -35,16 +35,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 /-! ## Abstraction bridges -/
 
-@[local lockstep_simp] theorem exprOps_absEIdxList_eq (v : alloc.vec.Vec arena.handle.EIdx) :
-    ExprOps.absEIdxList v = absEIdxList v := rfl
-
-@[local lockstep_simp] theorem absEIdxL_eq (v : alloc.vec.Vec arena.handle.EIdx) :
-    ExprOps.absEIdxL v = absEIdxList v := rfl
-
-@[local lockstep_simp] theorem absEIdxListFrom_zero (v : alloc.vec.Vec arena.handle.EIdx) :
-    absEIdxListFrom v 0#usize = absEIdxList v := by
-  simp [absEIdxListFrom, absEIdxList]
-
 attribute [local lockstep_simp] absConstT
 
 /-! ## Rust-only steps: the mode bits, handle comparisons, record copies -/
@@ -482,63 +472,6 @@ theorem CastFits.val {x : Std.U64} {r : Std.Usize} (h : CastFits x r) (hx : x.va
 
 /-! ## The typed store projections -/
 
-theorem etables_get_lit_abs {rt lt} (hrel : ETablesRel rt lt)
-    {i : arena.handle.EIdx} {o : Option kernel.expr.Literal}
-    (h : arena.store.ETables.get_lit rt i = ok o) :
-    lt.getLit (absEIdx i) = o.map ConRon.Refine.absLiteral := by
-  rw [arena.store.ETables.get_lit] at h
-  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hnode := tbl_node_abs hrel.lits hp
-  rw [ETables.getLit, eidx_idxNat hn, hnode]
-  cases hpc : p with
-  | none =>
-    rw [hpc] at h
-    cases Result.ok_injective h
-    rfl
-  | some r =>
-    rw [hpc] at h
-    obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases Result.ok_injective h
-    rw [ConRon.Refine.Expr.literal_dup_eq hx]
-    rfl
-
-theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    {i : arena.handle.EIdx} {o : Option kernel.expr.Literal}
-    (h : arena.store.EStore.view_lit rs pers i = ok o) :
-    ls.viewLit (absEIdx i) = o.map ConRon.Refine.absLiteral := by
-  rw [arena.store.EStore.view_lit] at h
-  obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hb2 := eidx_is_persistent_abs hb
-  rw [EStore.viewLit]
-  split at h <;> rename_i hbv
-  · rw [if_pos (show (absEIdx i).isPersistent = true by rw [hb2, hbv]), EStore.persGetLit]
-    rw [arena.store.EStore.pers_get_lit] at h
-    have h3 : arena.store.ETables.get_lit (rPersE pers rs) i = ok o := by
-      unfold rPersE
-      split at h <;> rename_i hs
-      · rw [if_pos hs]; exact h
-      · rw [if_neg hs]; exact h
-    exact etables_get_lit_abs hrel.perst h3
-  · rw [if_neg (show ¬ (absEIdx i).isPersistent = true by rw [hb2]; simpa using hbv),
-      hrel.scratchOn]
-    split at h <;> rename_i hs
-    · rw [if_pos hs]
-      exact etables_get_lit_abs hrel.scrt h
-    · rw [if_neg hs]
-      cases Result.ok_injective h
-      rfl
-
-/-- (Region B's `view_lit_ls`, which carries the literal's well-formedness,
-is the registered pair.) -/
-theorem view_lit_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
-    LSV pers (fun a b => b = Option.map ConRon.Refine.absLiteral a)
-      (arena.monad.view_lit pers st h) st lst (Arena.viewLit (absEIdx h)) :=
-  LSV.of_store_read (F := fun s => s.viewLit (absEIdx h)) (fun _ => rfl)
-    (fun _ hr => by rw [arena.monad.view_lit] at hr; exact estore_view_lit_abs hrel.store hr)
-    hrel hinv
-
 @[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSV pers (fun a b => b = Option.map absConstT a)
@@ -684,5 +617,5 @@ namespace ConRon.Refine2.Lockstep.PC2.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] exprOps_absEIdxList_eq absEIdxL_eq absEIdxListFrom_zero absConstT takeEidx_toList_eq
+attribute [scoped lockstep_simp] absConstT takeEidx_toList_eq
 end ConRon.Refine2.Lockstep.PC2.CoreLSReg

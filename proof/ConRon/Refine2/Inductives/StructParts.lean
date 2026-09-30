@@ -69,18 +69,6 @@ Bridges this file needs: `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
 
 attribute [local lockstep_simp] core_walk_fuel_abs
 
-open Lockstep in
-theorem sp_inst_pis_at_lift_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (args : alloc.vec.Vec arena.handle.EIdx)
-    (h : arena.handle.EIdx) :
-    LS pers (fun a b => b = Option.map absEIdx a)
-      (arena.expr_ops.inst_pis_at_lift pers st arena.core.CORE_WALK_FUEL args h) lst
-      (instPisAtLift coreWalkFuel (absEIdxL args) (absEIdx h)) := by
-  have := inst_pis_at_lift_ls hrel hinv arena.core.CORE_WALK_FUEL args h
-  rw [core_walk_fuel_abs] at this
-  exact this
-
-attribute [local lockstep] sp_inst_pis_at_lift_ls
 
 /-! ## The level lists -/
 
@@ -218,18 +206,6 @@ theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
       subst he
       exact (Result.ok_injective h).symm
 
-open Lockstep in
-@[lockstep] theorem struct_ps_at_from_ls
-    {pers st lst}
-    {ofs n_p k : Std.U64}
-    {out : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absEIdxL a) (arena.inductives.struct_parts.struct_ps_at_from pers st ofs n_p k out) lst
-      (do pure (absEIdxL out ++
-        (← structPsAtGoSpec (absU ofs) (absU n_p) (absU n_p - absU k) (absU k)))) :=
-  LS.ofSim₀ fun _ h => struct_ps_at_from_refines hrel hinv h
-
 /-- `struct_ps_at` ⊑ `structPsAt`. -/
 theorem struct_ps_at_refines {pers st lst} {ofs n_p : Std.U64} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -308,45 +284,6 @@ open Lockstep in
       (structProjArgP (absNIdx t) (absU j)) := by
   rw [arena.inductives.struct_parts.struct_proj_arg_p, structProjArgP]
   lockstep
-
-open Lockstep in
-/-- `struct_proj_resid_p` by induction on the count `i` (the port recurses on
-`i - 1` first, as the twin's `i + 1` arm does). -/
-theorem struct_proj_resid_p_aux {pers} {t : arena.handle.NIdx}
-    {n_p : Std.U64} {cty : arena.handle.EIdx} :
-    ∀ (n : Nat) (i : Std.U64) st lst, i.val = n →
-      AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = (Option.map absEIdx) a)
-        (arena.inductives.struct_parts.struct_proj_resid_p pers st t n_p cty i) lst
-        (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) := by
-  intro n
-  induction n with
-  | zero =>
-    intro i st lst hi hrel hinv
-    have h0 : i = 0#u64 := by scalar_tac
-    subst h0
-    rw [arena.inductives.struct_parts.struct_proj_resid_p.eq_def, if_pos rfl,
-      show absU (0#u64 : Std.U64) = 0 from rfl, structProjResidP]
-    lockstep
-  | succ n ih =>
-    intro i st lst hi hrel hinv
-    rw [arena.inductives.struct_parts.struct_proj_resid_p.eq_def, if_neg (by scalar_tac),
-      show absU i = n + 1 by simp [absU, hi], structProjResidP]
-    lockstep
-
-open Lockstep in
-/-- `struct_proj_resid_p` ⊑ `structProjResidP`. -/
-@[lockstep] theorem struct_proj_resid_p_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {n_p : Std.U64}
-    {cty : arena.handle.EIdx}
-    {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map absEIdx) a) (arena.inductives.struct_parts.struct_proj_resid_p pers st t n_p cty i) lst
-      (structProjResidP (absNIdx t) (absU n_p) (absEIdx cty) (absU i)) :=
-  struct_proj_resid_p_aux _ i st lst rfl hrel hinv
 
 /-! ## `hasLooseBVarB` — the cutoff, the memo and the walk
 
@@ -482,21 +419,6 @@ theorem has_loose_bvar_b_go_aux (n : Nat) :
     rw [arena.inductives.struct_parts.has_loose_bvar_b_go, hasLooseBVarBGo_unfold]
     rw [if_neg (by scalar_tac)]
     lockstep
-
-open Lockstep in
-@[lockstep] theorem has_loose_bvar_b_node_ls
-    {pers st lst}
-    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
-    {lm : Std.HashMap (EIdx × Nat) Bool}
-    {i fuel : Std.U64}
-    {v : arena.store.ENodeView}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hm : WMemoRel rm lm) :
-    LS pers WOutRel (arena.inductives.struct_parts.has_loose_bvar_b_node pers st rm i fuel v) lst
-      (hasLooseBVarBNodeSpec lm (absU i) (absU fuel) (absENodeView v)) :=
-  has_loose_bvar_b_node_of_go (m := fuel.val)
-    (fun {st lst} => @has_loose_bvar_b_go_aux _ pers st lst) st lst rm lm i fuel v rfl hrel hinv hm
 
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_go_ls
@@ -781,22 +703,6 @@ theorem struct_proj_bodies_go_aux {pers} {t : arena.handle.NIdx} (N : Nat) :
     rw [e1, e2]
     refine am_bind_congr _ ?_; intro x
     cases x <;> simp [absEIdxL, hout1]
-
-open Lockstep in
-/-- `struct_proj_bodies_go` ⊑ `structProjBodiesGo`, with the accumulated
-domains in front. -/
-@[lockstep] theorem struct_proj_bodies_go_ls
-    {pers st lst}
-    {t : arena.handle.NIdx}
-    {k i : Std.U64}
-    {h : arena.handle.EIdx}
-    {out : alloc.vec.Vec arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (Option.map absEIdxL) a) (arena.inductives.struct_parts.struct_proj_bodies_go pers st t k i h out) lst
-      (do pure ((← structProjBodiesGo (absNIdx t) (absU k) (absU i) (absEIdx h)).map
-        fun r => absEIdxL out ++ r)) :=
-  struct_proj_bodies_go_aux _ k i h out st lst rfl hrel hinv
 
 open Lockstep in
 /-- `struct_proj_bodies_go` from field `0` and an empty accumulator, read as

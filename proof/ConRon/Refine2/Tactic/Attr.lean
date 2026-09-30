@@ -104,10 +104,6 @@ order. -/
 def lockstepLemmasPrio (k : Name) : CoreM (Array (Name × Nat)) := do
   return (lockstepExt.getState (← getEnv)).getD k #[]
 
-/-- The lemmas filed under a key, in registration order. -/
-def lockstepLemmas (k : Name) : CoreM (Array Name) := do
-  return (← lockstepLemmasPrio k).map (·.1)
-
 end ConRon.Refine2.Lockstep
 
 /-- The abstraction equations the twin side reduces with after a Rust split. -/

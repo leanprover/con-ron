@@ -160,11 +160,6 @@ theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g
 
 /-! ## The binders: `class_binders`, `gen_binders` (`List.mapM` in its loop form) -/
 
-theorem absBinderL_push {out o : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {x : arena.handle.EIdx × kernel.expr.BinderMeta} (h : o.val = out.val ++ [x]) :
-    (absBinderL o).reverse = (absEIdx x.1, ConRon.Refine.absBinderMeta x.2) :: (absBinderL out).reverse := by
-  simp [absBinderL, h]
-
 @[lockstep_simp] theorem absBinderL_new :
     absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) = [] := rfl
 

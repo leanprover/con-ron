@@ -103,11 +103,6 @@ list. -/
 def absFvlL (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) : List (Nat × EIdx) :=
   v.val.map (fun p => (absU p.1, absEIdx p.2))
 
-/-- A `Vec<Level>` as the twin's `List Level` — `Refine/Abs.lean`'s
-`absLevels`, named here for symmetry with the three above. -/
-abbrev absLevelL (v : alloc.vec.Vec kernel.level.Level) : List ConLeche.Level :=
-  absLevels v
-
 @[simp] theorem absEIdxArr_toList (v) : (absEIdxArr v).toList = absEIdxL v := by
   simp [absEIdxArr]
 
@@ -588,68 +583,6 @@ theorem cons_binder_refines {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta
 
 /-! ## The `fvar`-leaf list's append -/
 
-theorem fvl_copy_from_aux (xs : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
-    ∀ (n : Nat) (i : Std.Usize)
-      (out r : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)),
-      xs.val.length ≤ i.val + n →
-      arena.expr_ops.fvl_copy_from xs i out = ok r →
-      absFvlL r = absFvlL out ++ (absFvlL xs).drop i.val := by
-  intro n
-  induction n with
-  | zero =>
-    intro i out r hn h
-    rw [arena.expr_ops.fvl_copy_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
-    subst h
-    rw [List.drop_eq_nil_of_le (by simp; omega)]
-    simp
-  | succ n ih =>
-    intro i out r hn h
-    rw [arena.expr_ops.fvl_copy_from.eq_def] at h
-    by_cases hx : i.val ≥ xs.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
-      subst h
-      rw [List.drop_eq_nil_of_le (by simp; omega)]
-      simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
-      have hxi : i.val < xs.val.length := by omega
-      obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i2, e⟩ := p
-      obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨hb, hpv⟩ := vecIndexAt hp
-      have hee : e1 = e := dupId_eidx e e1 he1
-      have hov : out1.val = out.val ++ [(i2, e1)] := ConRon.Refine.vec_push_val hout1
-      have hi3v : i3.val = i.val + 1 :=
-        (ConRon.Refine.Nat.uadd_val hi3).trans (by simp)
-      have hih := ih i3 out1 r (by omega) h
-      rw [hih, hi3v]
-      have hd : (absFvlL xs).drop i.val
-          = (absU i2, absEIdx e) :: (absFvlL xs).drop (i.val + 1) := by
-        rw [List.drop_eq_getElem_cons (by simpa using hxi)]
-        simp only [absFvlL, List.getElem_map, hpv]
-      have hob : absFvlL out1 = absFvlL out ++ [(absU i2, absEIdx e)] := by
-        simp [absFvlL, hov, hee]
-      rw [hd, hob]
-      simp
-
-theorem fvl_copy_from_refines
-    {xs out r : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)} {i : Std.Usize}
-    (h : arena.expr_ops.fvl_copy_from xs i out = ok r) :
-    absFvlL r = absFvlL out ++ (absFvlL xs).drop i.val :=
-  fvl_copy_from_aux xs xs.val.length i out r (by omega) h
-
-theorem fvl_append_refines {x y r : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
-    (h : arena.expr_ops.fvl_append x y = ok r) :
-    absFvlL r = absFvlL x ++ absFvlL y := by
-  rw [arena.expr_ops.fvl_append] at h
-  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h1 := fvl_copy_from_refines hv
-  have h2 := fvl_copy_from_refines h
-  rw [h2, h1]
-  simp [absFvlL]
-
 /-! ## The three memo probe/insert pairs
 
 Relation in, relation out.  Each `get` is `Refine/HashMap2WF.lean`'s
@@ -906,17 +839,6 @@ theorem leaf_mem_refines {bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)}
 
 /-! ## Handle equality -/
 
-theorem expr_ptr_beq_refines {a b : arena.handle.EIdx} {r : Bool}
-    (h : arena.expr_ops.expr_ptr_beq a b = ok r) :
-    exprPtrBEq (absEIdx a) (absEIdx b) = r := by
-  rw [arena.expr_ops.expr_ptr_beq] at h
-  have hbv : r = decide (a = b) := eidx_eq2 a b r trivial trivial h
-  rw [exprPtrBEq, hbv]
-  by_cases hc : a = b
-  · subst hc; simp
-  · have hne : absEIdx a ≠ absEIdx b := fun hcc => hc (absEIdx_inj hcc)
-    simp [hc, hne]
-
 /-! ## The level-list substitution
 
 The one pair of this file that needs a well-formedness hypothesis: the
@@ -1058,24 +980,11 @@ def absNIdxList (v : alloc.vec.Vec arena.handle.NIdx) : List NIdx :=
 /-- `Option<EIdx>`. -/
 def absOptE (o : Option arena.handle.EIdx) : Option EIdx := o.map absEIdx
 
-/-- `Option<(Vec<EIdx>, EIdx)>` — the domain list and the residual that
-`inst_pis_at` and its three siblings answer. -/
-def absOptArgsE (o : Option (alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx)) :
-    Option (List EIdx × EIdx) :=
-  o.map fun p => (absEIdxList p.1, absEIdx p.2)
-
 attribute [simp] absEIdxArr absEIdxList absEIdxListFrom absNIdxList absOptE
-  absOptArgsE
 
 @[simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxArr v).size = v.val.length := by
   simp [absEIdxArr]
-
-theorem absEIdxArr_get (v : alloc.vec.Vec arena.handle.EIdx) (k : Nat)
-    (h : k < v.val.length) :
-    (absEIdxArr v)[k]'(by simpa using h) = absEIdx (v.val[k]) := by
-  simp [absEIdxArr]
-
 
 /-- The memo key: `eidx_nat_key` is the pair. -/
 theorem eidx_nat_key_abs {h : arena.handle.EIdx} {d : Std.U64}

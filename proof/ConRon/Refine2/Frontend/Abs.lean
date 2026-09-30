@@ -57,14 +57,6 @@ def absBytes (b : Slice Std.U8) : ByteArray := ⟨(b.val.map absByte).toArray⟩
 @[simp] theorem absBytes_size (b : Slice Std.U8) : (absBytes b).size = b.val.length := by
   simp [absBytes, ByteArray.size]
 
-theorem absBytes_data (b : Slice Std.U8) :
-    (absBytes b).data = (b.val.map absByte).toArray := rfl
-
-/-- The byte at an in-range index: the port's slice read, abstracted. -/
-theorem absBytes_getElem (b : Slice Std.U8) (i : Nat) (h : i < b.val.length) :
-    (absBytes b).data[i]'(by simpa [absBytes] using h) = absByte (b.val[i]'h) := by
-  simp [absBytes]
-
 /-- `ByteArray.uget`, which is what con-leche's scanners read a byte with. -/
 theorem absBytes_uget (b : Slice Std.U8) (i : USize)
     (h : i.toNat < (absBytes b).size) (h' : i.toNat < b.val.length) :

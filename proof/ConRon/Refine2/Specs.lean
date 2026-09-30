@@ -2453,27 +2453,6 @@ The three binder readers carry finding 3's guard, for the reason
     rfl
 
 
-/-- **`Arena.view` is a READER**: its run leaves the state alone.  `view_run`
-concludes `AOut`, whose post-state is existentially quantified, so every
-caller that binds a view and then continues at the SAME state needs this to
-collapse the existential.  The `ExprOps` and Core tiers want it at every
-`match ← view h` — which is most of the crate. -/
-theorem view_run_state {lst lst' : AState} {hh : EIdx} {v : ENodeView}
-    (h : (Arena.view hh).run lst = .ok (v, lst')) : lst' = lst := by
-  rw [show (Arena.view hh).run lst
-      = (match lst.store.view hh with
-         | some w => Except.ok (w, lst)
-         | none => Except.error (Arena.CheckError.internal
-             "arena: dangling expression handle")) by
-    show ((match lst.store.view hh with
-            | some w => (pure w : AM ENodeView)
-            | none => Arena.fail
-                (.internal "arena: dangling expression handle")).run lst) = _
-    cases lst.store.view hh <;> rfl] at h
-  split at h
-  · simp only [Except.ok.injEq, Prod.mk.injEq] at h; exact h.2.symm
-  · simp at h
-
 /-- `arena::monad::view_bind_i` against `Arena.viewBindI` (task #97-P6-16: the
 binder projection that stops at the datum's HANDLE). -/
 @[grind →] theorem view_bind_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -13836,9 +13815,6 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 
 /-- info: 'ConRon.Refine2.run_get_bind' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms run_get_bind
-
-/-- info: 'ConRon.Refine2.view_run_state' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms view_run_state
 
 /-- info: 'ConRon.Refine2.internBM_of_findBM' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms internBM_of_findBM

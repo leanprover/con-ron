@@ -144,16 +144,6 @@ theorem iota_certs_aux_aux {f : Nat} (hk : KnotRel f) (N : Nat) :
   rw [arena.core.iota_certs, iotaCerts]
   exact iota_certs_aux_ls hk hx hrel hinv hctx hf
 
-/-- Region A1's `lift_fueled_ls` (`Leaves.lean`) at this file's message,
-with the Rust argument implicit, as `lockstep_core` wants it (tactic gap:
-the real lemma's explicit trailing `o`/`what` are not found by the bind
-step). -/
-@[lockstep] theorem lift_fueled_lc_ls {pers st o lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
-      (liftFueled "level comparison" o) :=
-  lift_fueled_ls hrel hinv o _
-
 /-! ## `proofIrrel` (fragments `prop_sorts_zero`, `prop_sorts_zero_right`) -/
 
 attribute [lockstep_inline] arena.core.prop_sorts_zero arena.core.prop_sorts_zero_right

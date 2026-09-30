@@ -128,79 +128,6 @@ macro "twin_reduce" : tactic =>
 
 /-! ## `SimRel` — `Sim` with the result RELATED rather than abstracted -/
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `AOutRel₀`.
-`AOut` with the result related.  `WF` is gone: a relation says everything
-a well-formedness predicate did, and every consumer of this shape in the tier
-states its `WF` inside `R`. -/
-def AOutRel {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState) (o : core.result.Result α kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError (β × AState)) : Prop :=
-  match o with
-  | .Ok r => ∃ v lst', x = .ok (v, lst') ∧ R r v ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store
-  | .Err e => AErrSim e x
-
-/-- The simulation statement for a Rust function whose result relates rather
-than abstracts — `IFEnv` throughout the checker tier. -/
-def SimRel {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
-    (x : AM β) : Prop :=
-  AOutRel R pers lst o.1 o.2 (x.run lst)
-
-theorem AOutRel.ok {α β : Type} {R : α → β → Prop} {r : α} {v : β}
-    {pers : arena.store.PersTier} {lst lst' : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (hx : x = .ok (v, lst')) (hr : R r v) (hrel : AStateRel pers st' lst')
-    (hinv : AStateInv pers st') (hext : Ext lst.store lst'.store) :
-    AOutRel R pers lst (.Ok r) st' x := ⟨v, lst', hx, hr, hrel, hinv, hext⟩
-
-theorem AOutRel.err {α β : Type} {R : α → β → Prop}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (h : AErrSim e x) :
-    AOutRel R pers lst (.Err e) st' x := h
-
-theorem AOutRel.dest {α β : Type} {R : α → β → Prop} {r : α}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (h : AOutRel R pers lst (.Ok r) st' x) :
-    ∃ v lst', x = .ok (v, lst') ∧ R r v ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store := h
-
-/-- The value equation is the stronger claim: a `Sim` feeds a `SimRel`
-consumer. -/
-theorem Sim.toSimRel {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : Sim A (fun _ => True) pers lst o x) :
-    SimRel (fun r v => v = A r) pers lst o x := by
-  revert h
-  unfold Sim SimRel AOut AOutRel
-  cases o.1 with
-  | Err e => exact id
-  | Ok r =>
-    rintro ⟨lst', hx, h1, h2, h3, -⟩
-    exact ⟨A r, lst', hx, rfl, h1, h2, h3⟩
-
-/-- **The result relation, weakened.**  The fold's statements conclude
-`IFEnvRelI` (related AND well formed) because the next step needs both; the
-capstone's public conclusion is DESIGN §8.2's `IFEnvRel` alone, and this is
-the one step between them. -/
-theorem SimRel.mono {α β : Type} {R R' : α → β → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : SimRel R pers lst o x) (hRR : ∀ r v, R r v → R' r v) :
-    SimRel R' pers lst o x := by
-  revert h
-  unfold SimRel AOutRel
-  cases o.1 with
-  | Err e => exact id
-  | Ok r =>
-    rintro ⟨v, lst', hx, hr, h1, h2, h3⟩
-    exact ⟨v, lst', hx, hRR _ _ hr, h1, h2, h3⟩
-
 /-! ## `SimRel₀` — the lockstep `SimRel` (task #97-T2-LOCKSTEP)
 
 `AOutRel`/`SimRel` over `AStateRel₀`, without `Ext` and without the dead
@@ -258,19 +185,6 @@ theorem Sim₀.toSimRel₀ {α β : Type} {A : α → β} {pers : arena.store.Pe
     rintro ⟨lst', hx, h1, h2⟩
     exact ⟨A r, lst', hx, rfl, h1, h2⟩
 
-/-- Every old `SimRel` is a lockstep one. -/
-theorem SimRel.to₀ {α β : Type} {R : α → β → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : SimRel R pers lst o x) : SimRel₀ R pers lst o x := by
-  revert h
-  unfold SimRel SimRel₀ AOutRel AOutRel₀
-  cases o.1 with
-  | Err e => exact id
-  | Ok r =>
-    rintro ⟨v, lst', hx, hr, h1, h2, -⟩
-    exact ⟨v, lst', hx, hr, h1.to₀, h2⟩
-
 theorem SimRel₀.mono {α β : Type} {R R' : α → β → Prop}
     {pers : arena.store.PersTier} {lst : AState}
     {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
@@ -298,13 +212,6 @@ def SimRE {α β : Type} (A : α → β) (lst : AState)
   match o with
   | .Ok r => x.run lst = .ok (A r, lst)
   | .Err e => AErrSim e (x.run lst)
-
-theorem SimRE.ok {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
-    (h : x.run lst = .ok (A r, lst)) : SimRE A lst (.Ok r) x := h
-
-theorem SimRE.err {α β : Type} {A : α → β} {lst : AState}
-    {e : kernel.core_types.CheckError} {x : AM β} (h : AErrSim e (x.run lst)) :
-    SimRE A lst (.Err e) x := h
 
 theorem SimRE.apply {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
     (h : SimRE A lst (.Ok r) x) : x.run lst = .ok (A r, lst) := h
@@ -351,78 +258,6 @@ def EMemoRel (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
 
 /-! ## The two memo-threading outcome shapes (finding 4, at this tier) -/
 
-/-- The outcome of a promotion: the twin's answer is `(PMemo × β)`, the memo
-related and the value related. -/
-def POut {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (_lst : AState)
-    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (x : Except Arena.CheckError ((PMemo × β) × AState)) : Prop :=
-  match o with
-  | .Ok r => ∃ m' v lst', x = .ok ((m', v), lst') ∧ R r.2 v ∧ PMemoRel r.1 m' ∧
-      AStateRel₀ pers st' lst' ∧ AStateInv pers st'
-  | .Err e => AErrSim e x
-
-/-- `POut` at the Rust's outcome pair — the `Sim` of the promotion tier. -/
-def SimPM {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
-      arena.monad.AState)
-    (x : AM (PMemo × β)) : Prop :=
-  POut R pers lst o.1 o.2 (x.run lst)
-
-/-- The `SimPM` of a promotion whose value abstracts by a FUNCTION — all of
-them but `promote_new`. -/
-abbrev SimPMF {α β : Type} (A : α → β) (pers : arena.store.PersTier)
-    (lst : AState)
-    (o : core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
-      arena.monad.AState)
-    (x : AM (PMemo × β)) : Prop :=
-  SimPM (fun r v => v = A r) pers lst o x
-
-theorem POut.ok {α β : Type} {R : α → β → Prop} {r : arena.promote.PMemo × α}
-    {v : β} {pers : arena.store.PersTier} {lst lst' : AState} {m' : PMemo}
-    {st' : arena.monad.AState} {x : Except Arena.CheckError ((PMemo × β) × AState)}
-    (hx : x = .ok ((m', v), lst')) (hv : R r.2 v) (hm : PMemoRel r.1 m')
-    (hrel : AStateRel₀ pers st' lst') (hinv : AStateInv pers st') :
-    POut R pers lst (.Ok r) st' x :=
-  ⟨m', v, lst', hx, hv, hm, hrel, hinv⟩
-
-theorem POut.err {α β : Type} {R : α → β → Prop} {e : kernel.core_types.CheckError}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError ((PMemo × β) × AState)} (h : AErrSim e x) :
-    POut R pers lst (.Err e) st' x := h
-
-theorem POut.dest {α β : Type} {R : α → β → Prop} {r : arena.promote.PMemo × α}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError ((PMemo × β) × AState)}
-    (h : POut R pers lst (.Ok r) st' x) :
-    ∃ m' v lst', x = .ok ((m', v), lst') ∧ R r.2 v ∧ PMemoRel r.1 m' ∧
-      AStateRel₀ pers st' lst' ∧ AStateInv pers st' := h
-
-/-- The outcome of an `arena::intern` walk.  **The memo is outside the
-`Result`** on the Rust's side and inside it on the twin's: the port moves the
-`HashMap2` back whatever happened, and a thrown `CheckError` in
-`StateT AState (Except …)` carries nothing — so the error arm claims nothing
-about the memo, exactly as it claims nothing about the state. -/
-def EOut {α β : Type} (A : α → β) (pers : arena.store.PersTier) (_lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError)
-    (st' : arena.monad.AState)
-    (rm : ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
-    (x : Except Arena.CheckError ((Std.HashMap ConLeche.Expr EIdx × β) × AState)) :
-    Prop :=
-  match o with
-  | .Ok r => ∃ m' lst', x = .ok ((m', A r), lst') ∧ EMemoRel rm m' ∧
-      AStateRel₀ pers st' lst' ∧ AStateInv pers st'
-  | .Err e => AErrSim e x
-
-/-- `EOut` at the Rust's outcome TRIPLE. -/
-def SimEM {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
-      ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)
-    (x : AM (Std.HashMap ConLeche.Expr EIdx × β)) : Prop :=
-  EOut A pers lst o.1 o.2.1 o.2.2 (x.run lst)
-
 /-! ## `arena::checker_base`'s `Bool` memo, threaded two ways
 
 `consts_resolve_f_go` and `all_level_params_defined_go` thread a
@@ -432,28 +267,6 @@ re-declared.  What is new is that the Rust returns the memo OUTSIDE the
 `Result` (a moved value comes back whatever happened) where the twin returns
 it INSIDE, beside the answer — and that the second of the two does not thread
 the state at all.  Two shapes, three lines each. -/
-
-/-- A `Bool`-memo walk that threads the state: `(Result α) × AState × memo`
-against the twin's `AM (β × Std.HashMap EIdx Bool)`. -/
-def SimBM {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState ×
-      ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-    (x : AM (β × Std.HashMap EIdx Bool)) : Prop :=
-  match o.1 with
-  | .Ok r => ∃ m' lst', x.run lst = .ok ((A r, m'), lst') ∧ ExprOps.LMemoRel o.2.2 m' ∧
-      AStateRel₀ pers o.2.1 lst' ∧ AStateInv pers o.2.1
-  | .Err e => AErrSim e (x.run lst)
-
-/-- A `Bool`-memo walk that only READS the state: `(Result α) × memo`.
-`all_level_params_defined_go` is the one, and it is a reader because the
-level-parameter test interns nothing. -/
-def SimBR {α β : Type} (A : α → β) (lst : AState)
-    (o : core.result.Result α kernel.core_types.CheckError ×
-      ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
-    (x : AM (β × Std.HashMap EIdx Bool)) : Prop :=
-  match o.1 with
-  | .Ok r => ∃ m', x.run lst = .ok ((A r, m'), lst) ∧ ExprOps.LMemoRel o.2 m'
-  | .Err e => AErrSim e (x.run lst)
 
 /-! ## The containers these two tiers abstract
 
@@ -511,14 +324,6 @@ def absEqPairsFrom (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx))
     (i : Std.Usize) : List (EIdx × EIdx) :=
   (v.val.drop i.val).map fun p => (absEIdx p.1, absEIdx p.2)
 
-def absExprLFrom (v : alloc.vec.Vec kernel.expr.Expr) (i : Std.Usize) :
-    List ConLeche.Expr := (v.val.drop i.val).map ConRon.Refine.absExpr
-def absCIListFrom (v : alloc.vec.Vec kernel.env.ConstantInfo) (i : Std.Usize) :
-    List ConLeche.ConstantInfo := (v.val.drop i.val).map ConRon.Refine.absConstantInfo
-def absRecRuleLFrom (v : alloc.vec.Vec kernel.env.RecRule) (i : Std.Usize) :
-    List ConLeche.RecRule := (v.val.drop i.val).map ConRon.Refine.absRecRule
-def absDeclLFrom (v : alloc.vec.Vec kernel.env.Declaration) (i : Std.Usize) :
-    List ConLeche.Declaration := (v.val.drop i.val).map ConRon.Refine.absDeclaration
 def absLevelLFrom (v : alloc.vec.Vec kernel.level.Level) (i : Std.Usize) :
     List ConLeche.Level := (v.val.drop i.val).map ConRon.Refine.absLevel
 def absNameLFrom (v : alloc.vec.Vec kernel.name.Name) (i : Std.Usize) :
@@ -527,9 +332,8 @@ def absBasisKindLFrom (v : alloc.vec.Vec kernel.env.BasisKind) (i : Std.Usize) :
     List ConLeche.BasisKind := (v.val.drop i.val).map ConRon.Refine.absBasisKind
 
 attribute [simp] absNIdxL absEIdxL absLIdxL absNIdxLFrom absEIdxLFrom absLIdxLFrom
-  absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom
-  absStmts absStmtsFrom absEqPairs absEqPairsFrom absExprLFrom absCIListFrom absRecRuleLFrom absDeclLFrom absLevelLFrom
-  absNameLFrom absBasisKindLFrom
+  absIRecRuleL absIRecRuleLFrom absICIL absICILFrom absIDeclL absIDeclLFrom absStmts
+  absStmtsFrom absEqPairs absEqPairsFrom absLevelLFrom absNameLFrom absBasisKindLFrom
 
 /-! ## The environment index's own invariant
 
@@ -625,9 +429,6 @@ weaken this at the last step. -/
 step has to carry. -/
 def IFEnvRelI (rf : arena.env.IFEnv) (lf : IFEnv) : Prop :=
   IFEnvRel rf lf ∧ IFEnvInv rf
-
-theorem IFEnvRelI.mk {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRel rf lf)
-    (hi : IFEnvInv rf) : IFEnvRelI rf lf := ⟨h, hi⟩
 
 theorem IFEnvRelI.rel {rf : arena.env.IFEnv} {lf : IFEnv} (h : IFEnvRelI rf lf) :
     IFEnvRel rf lf := h.1
@@ -885,9 +686,6 @@ def absPendingCheck (p : arena.checker.PendingCheck) : PendingCheck :=
 
 def absPendingCheckL (v : alloc.vec.Vec arena.checker.PendingCheck) :
     List PendingCheck := v.val.map absPendingCheck
-def absPendingCheckLFrom (v : alloc.vec.Vec arena.checker.PendingCheck)
-    (i : Std.Usize) : List PendingCheck :=
-  (v.val.drop i.val).map absPendingCheck
 
 /-- `arena::nat_op_pin_set::INatOpPinSet` — one toolchain's `Nat`-operation
 pins over handles.  The `toolchain` string is `Vec<u32>` code points against
@@ -926,8 +724,8 @@ def NatOpPinSetWF (p : kernel.nat_op_pins.NatOpPinSet) : Prop :=
     ConRon.Refine.ExprsWF p.shift_left_proofs ∧
     ConRon.Refine.ExprsWF p.shift_right_proofs
 
-attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
-  absINatOpPinSet absINatOpPinSetL absINatOpPinSetLFrom
+attribute [simp] absPendingCheck absPendingCheckL absINatOpPinSet absINatOpPinSetL
+  absINatOpPinSetLFrom
 
 /-! ## The axiom census — rule 11's four, and the relation's weakening -/
 
@@ -936,9 +734,6 @@ attribute [simp] absPendingCheck absPendingCheckL absPendingCheckLFrom
 
 /-- info: 'ConRon.Refine2.am_bind_congr' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms am_bind_congr
-
-/-- info: 'ConRon.Refine2.SimRel.mono' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms SimRel.mono
 
 /-- info: 'ConRon.Refine2.ifenv_push_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_push_refines

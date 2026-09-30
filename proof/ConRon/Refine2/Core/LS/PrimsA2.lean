@@ -48,11 +48,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
 
-@[lockstep] theorem prop_when_is_never_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.prop_when.is_never pw)
-      (fun b => b = (ConRon.Refine.absPropWhen pw).isNever) :=
-  fun _ h => ConRon.Refine.PropWhen.is_never_refines h
-
 /-- `prop_when::beq` is the twin's `==` on the abstraction, at two
 canonical-form (`PropWhenWF`) data. -/
 @[lockstep] theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}

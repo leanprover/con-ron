@@ -125,10 +125,6 @@ def absAErrKind : kernel.core_types.CheckError → Option AErrKind
     lAErrKind (.internal m) = some .internal := rfl
 @[simp] theorem lAErrKind_native (m) : lAErrKind (.native m) = some .native := rfl
 
-/-- Every port error stands for a twin kind. -/
-theorem absAErrKind_isSome (e : kernel.core_types.CheckError) :
-    ∃ k, absAErrKind e = some k := by cases e <;> exact ⟨_, rfl⟩
-
 /-- **What a Rust error claims about the twin's outcome**: that the twin
 throws too, at the same kind — for all four kinds (task #98-NATIVE; the
 quantified shape is from when a `Native` abstracted to `none`). -/
@@ -202,58 +198,6 @@ def AOut {α β : Type} (A : α → β) (WF : α → Prop)
       AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r
   | .Err e => AErrSim e x
 
-theorem AOut.ok {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
-    {pers : arena.store.PersTier} {lst lst' : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (hx : x = .ok (A r, lst')) (hrel : AStateRel pers st' lst')
-    (hinv : AStateInv pers st') (hext : Ext lst.store lst'.store) (hr : WF r) :
-    AOut A WF pers lst (.Ok r) st' x :=
-  ⟨lst', hx, hrel, hinv, hext, hr⟩
-
-theorem AOut.err {α β : Type} {A : α → β} {WF : α → Prop}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (h : AErrSim e x) :
-    AOut A WF pers lst (.Err e) st' x := h
-
-theorem AOut.native {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} {m s}
-    (hx : x = .error (.native s)) :
-    AOut A WF pers lst (.Err (.Native m)) st' x := AErrSim.native hx
-
-/-- What the success half gives at a call site. -/
-theorem AOut.dest {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (h : AOut A WF pers lst (.Ok r) st' x) :
-    ∃ lst', x = .ok (A r, lst') ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r := h
-
-/-- What the failure half gives at a call site. -/
-theorem AOut.destErr {α β : Type} {A : α → β} {WF : α → Prop}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (h : AOut A WF pers lst (.Err e) st' x) : AErrSim e x := h
-
-/-- `AOut`'s success half in `RunOk` form (`Refine/Abs.lean`'s predicate): the
-same claim with no witness to find, which is what `grind` needs. -/
-theorem AOut.ofRun {α β : Type} {A : α → β} {WF : α → Prop} {r : α}
-    {pers : arena.store.PersTier} {lst : AState} {st' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)}
-    (h : ConRon.Refine.RunOk x (fun v lst' => v = A r ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r)) :
-    AOut A WF pers lst (.Ok r) st' x := by
-  revert h
-  cases hx : x with
-  | error e => intro h; exact h.elim
-  | ok p =>
-    obtain ⟨v, lst'⟩ := p
-    intro h
-    obtain ⟨rfl, h1, h2, h3, h4⟩ := h
-    exact ⟨lst', rfl, h1, h2, h3, h4⟩
-
 /-! ## `Sim` — the statement a Theorem-2 lemma is written with
 
 One definition for the whole tier, over the Rust outcome PAIR the arena's
@@ -267,39 +211,6 @@ def Sim {α β : Type} (A : α → β) (WF : α → Prop)
     (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
     (x : AM β) : Prop :=
   AOut A WF pers lst o.1 o.2 (x.run lst)
-
-theorem Sim.mk {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : AOut A WF pers lst o.1 o.2 (x.run lst)) :
-    Sim A WF pers lst o x := h
-
-theorem Sim.dest {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState}
-    {x : AM β} (h : Sim A WF pers lst o x) :
-    AOut A WF pers lst o.1 o.2 (x.run lst) := h
-
-/-- The success half at a call site: the Rust returned `.Ok r`, so the twin's
-run ends at the abstraction and the four side conditions hold. -/
-theorem Sim.apply {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState} {r : α}
-    {st' : arena.monad.AState} {x : AM β}
-    (h : Sim A WF pers lst (.Ok r, st') x) :
-    ∃ lst', x.run lst = .ok (A r, lst') ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store ∧ WF r := h
-
-/-- The failure half at a call site. -/
-theorem Sim.apply_err {α β : Type} {A : α → β} {WF : α → Prop}
-    {pers : arena.store.PersTier} {lst : AState}
-    {e : kernel.core_types.CheckError} {st' : arena.monad.AState} {x : AM β}
-    (h : Sim A WF pers lst (.Err e, st') x) : AErrSim e (x.run lst) := h
-
-/-- **The state-free simulation**, for the arena's PURE helpers: a function
-with no `pers`/`st` at all (`expr_ops::{eidx_copy_upto, take_eidx, cons_eidx,
-last_eidx, leaf_mem, expr_ptr_beq, …}`).  Nothing is claimed on an Aeneas
-failure, which is the hypothesis's own doing. -/
-def SimP {α β : Type} (A : α → β) (r : α) (y : β) : Prop := y = A r
 
 /-- **The read-only simulation**, for the arena's state READERS (`monad::{view,
 view_app, derived_e, inst1_get, …}` and the `store::*` projections under
@@ -325,17 +236,6 @@ theorem SimRO.mk {α β γ : Type} {A : α → β} {obs : β → γ} {lst : ASta
     {v : β} {x : AM β} (hx : x.run lst = .ok (v, lst)) (ho : obs v = obs (A r)) :
     SimRO A obs lst r x := ⟨v, hx, ho⟩
 
-theorem SimRO.apply {α β γ : Type} {A : α → β} {obs : β → γ} {lst : AState}
-    {r : α} {x : AM β} (h : SimRO A obs lst r x) :
-    ∃ v, x.run lst = .ok (v, lst) ∧ obs v = obs (A r) := h
-
-/-- A `SimR` is a `SimRO` at any observation: the value equation is the
-stronger claim, and this is how a reader that HAS one feeds a consumer that
-only wants the observation. -/
-theorem SimR.toSimRO {α β γ : Type} {A : α → β} {obs : β → γ} {lst : AState}
-    {r : α} {x : AM β} (h : SimR A lst r x) : SimRO A obs lst r x :=
-  ⟨A r, h, rfl⟩
-
 /-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `SimS₀`.
 **The total state-threading simulation**, for the Rust functions whose
 signature is `Result AState` with no inner `Result` at all — the thirteen memo
@@ -346,17 +246,6 @@ def SimS (pers : arena.store.PersTier) (lst : AState)
     (st' : arena.monad.AState) (x : AM Unit) : Prop :=
   ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel pers st' lst' ∧
     AStateInv pers st' ∧ Ext lst.store lst'.store
-
-theorem SimS.mk {pers : arena.store.PersTier} {lst lst' : AState}
-    {st' : arena.monad.AState} {x : AM Unit}
-    (hx : x.run lst = .ok ((), lst')) (hrel : AStateRel pers st' lst')
-    (hinv : AStateInv pers st') (hext : Ext lst.store lst'.store) :
-    SimS pers lst st' x := ⟨lst', hx, hrel, hinv, hext⟩
-
-theorem SimS.apply {pers : arena.store.PersTier} {lst : AState}
-    {st' : arena.monad.AState} {x : AM Unit} (h : SimS pers lst st' x) :
-    ∃ lst', x.run lst = .ok ((), lst') ∧ AStateRel pers st' lst' ∧
-      AStateInv pers st' ∧ Ext lst.store lst'.store := h
 
 /-! ## The lockstep outcome (task #97-P5-Core round 4)
 
@@ -468,8 +357,6 @@ theorem SimS₀.apply {pers : arena.store.PersTier} {lst : AState}
 The two lemmas every reader's `Sim` conclusion needs, and the one every bind
 needs.  `Arena/Denote.lean` proves `Ext.refl` and `Ext.trans`; these name
 them in the shape the closer wants. -/
-
-theorem ext_of_eq {a b : EStore} (h : b = a) : Ext a b := by rw [h]; exact Ext.refl a
 
 /-! ## The lockstep shapes, completed (task #97-T2-LOCKSTEP step 1)
 

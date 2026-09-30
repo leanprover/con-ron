@@ -44,14 +44,6 @@ theorem ls_tail_cons {β τ : Type} {A : τ → List β} {pers : arena.store.Per
     LS pers (fun a b => A a = A out ++ b) m lst (do let r ← x; pure (y :: r)) :=
   LS.twin_map h (fun a b h1 => by rw [h1, hout]; simp)
 
-theorem lsr_tail_cons {β τ : Type} {A : τ → List β} {pers : arena.store.PersTier}
-    {m : Result (core.result.Result τ kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM (List β)} {y : β} {out out1 : τ}
-    (h : LSR pers (fun a b => A a = A out1 ++ b) m st lst x) (hout : A out1 = A out ++ [y]) :
-    LS pers (fun a b => A a = A out ++ b) (m >>= fun o => ok (o, st)) lst
-      (do let r ← x; pure (y :: r)) :=
-  ls_tail_cons (LSR.tail_ls h rfl (fun _ _ h => h)) hout
-
 /-! ## `nfs_of_ctor`, `minor_hits`, `class_minor_slot` -/
 
 @[lockstep] theorem nfs_of_ctor_twin (es : alloc.vec.Vec arena.inductives.positivity.NestCtorNf)
@@ -1061,16 +1053,6 @@ from the cursor on. -/
           fun b => constsResolveFFast (lf.restrictTo (absU vis_t)) b.1) :=
   fun i st lst => domains_resolve_aux hfe rbs _ i st lst rfl
 
-@[lockstep] theorem domains_resolve_zero_ls {pers st lst} {vis_t : Std.U64}
-    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (rbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    LS pers (fun a b => b = a)
-      (arena.inductives.gen_rec.domains_resolve pers vis_t st rf rbs 0#usize) lst
-      ((rbs.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).allM
-        fun b => constsResolveFFast (lf.restrictTo (absU vis_t)) b.1) := by
-  have h := domains_resolve_ls (pers := pers) (vis_t := vis_t) hfe rbs 0#usize st lst hrel hinv
-  simpa using h
-
 /-- `domains_pw` is the rule's `rbs.all (·.2.pw == pw)`, at canonical data. -/
 @[lockstep] theorem domains_pw_twin (rbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
     (pw : kernel.prop_when.PropWhen) (hrbs : TeleWF rbs) (hpw : ConRon.Refine.PropWhenWF pw) :
@@ -1147,14 +1129,8 @@ theorem gr_absRecShape_mI (r : arena.inductives.block_parts.RecShape) :
 theorem gr_absRecShape_cvR (r : arena.inductives.block_parts.RecShape) :
     (absRecShape r).cvR = absIConstantVal r.cv_r := rfl
 
-theorem gr_absU_beq (a b : Std.U64) : (absU a == absU b) = (a == b) := by
-  by_cases h : a = b
-  · subst h; simp
-  · have : absU a ≠ absU b := fun h' => h (u64_eq_iff_val.mpr h')
-    simp [h, this]
-
 attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecShape_mI
-  gr_absRecShape_cvR gr_absU_beq
+  gr_absRecShape_cvR
 
 /-- `class_rec_ty_ok` ⊑ `classRecTyOk`. -/
 @[lockstep] theorem class_rec_ty_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -1503,9 +1479,6 @@ def RFEq (a b : arena.env.IFEnv) : Prop :=
     a.visible_below = b.visible_below
 
 theorem RFEq.refl (a : arena.env.IFEnv) : RFEq a a := ⟨rfl, rfl, rfl⟩
-
-theorem RFEq.trans {a b c : arena.env.IFEnv} (h₁ : RFEq a b) (h₂ : RFEq b c) : RFEq a c :=
-  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, h₁.2.2.trans h₂.2.2⟩
 
 /-- The port index's table invariant alone. -/
 abbrev IdxInv (a : arena.env.IFEnv) : Prop :=

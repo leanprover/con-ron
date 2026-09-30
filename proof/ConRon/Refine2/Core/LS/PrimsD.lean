@@ -82,10 +82,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
       have := absNIdx_inj hc; cases this; rfl)
     simp [hw, this]
 
-@[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _e he => dupId_nidx _ _ he
-
 @[lockstep] theorem fail_dangling_ls_spec (T : Type) :
     LSP (arena.monad.fail_dangling_ls T) (fun r => ∃ v, r = .Err (.Internal v)) := by
   intro r h
@@ -104,10 +100,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
   rcases System.Platform.numBits_eq with h | h <;> omega
 
-@[local lockstep_simp] theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
-    (ExprOps.absEIdxList v).length = v.val.length := by
-  simp [ExprOps.absEIdxList]
-
 @[local lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
     (absEIdxArr v).size = v.val.length := by
   simp [absEIdxArr]
@@ -120,10 +112,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
     (v.map absNIdx).length = v.length := List.length_map _
 
 attribute [local lockstep_simp] absConstT
-
-/-- `absU` is the value (for a LOCAL `lockstep_simp` where a Rust-only index
-step's fact is stated through `absU` and the cursor arithmetic through `.val`). -/
-theorem absU_eq_val (x : Std.U64) : absU x = x.val := rfl
 
 /-! ## Store reads -/
 
@@ -153,5 +141,6 @@ namespace ConRon.Refine2.Lockstep.PD.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] absEIdxList_length absEIdxArr_size absSz_vec_len length_map_absNIdx absConstT
+attribute [scoped lockstep_simp] absEIdxArr_size absSz_vec_len length_map_absNIdx
+  absConstT
 end ConRon.Refine2.Lockstep.PD.CoreLSReg

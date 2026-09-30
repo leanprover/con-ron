@@ -123,14 +123,6 @@ def ALineErrSim {γ : Type} (e : frontend.export_c.LineErr)
   | .Err ce => AErrSim ce x
   | .Verdict _ => False
 
-theorem ALineErrSim.err {γ : Type} {ce : kernel.core_types.CheckError}
-    {x : Except Arena.CheckError γ} (h : AErrSim ce x) :
-    ALineErrSim (.Err ce) x := h
-
-theorem ALineErrSim.native {γ : Type} {x : Except Arena.CheckError γ} {m s}
-    (hx : x = .error (.native s)) :
-    ALineErrSim (.Err (.Native m)) x := AErrSim.native hx
-
 /-- Error propagation through a bind, the move every arm makes. -/
 theorem ALineErrSim.bind {γ δ : Type} {e : frontend.export_c.LineErr}
     {x : Except Arena.CheckError γ} (h : ALineErrSim e x)
@@ -167,18 +159,6 @@ def SimL {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : ASt
     (x : AM β) : Prop :=
   LOut A pers o.1 o.2 (x.run lst)
 
-theorem LOut.ok {α β : Type} {A : α → β} {r : α} {pers : arena.store.PersTier}
-    {lst' : AState} {rst' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (hx : x = .ok (A r, lst'))
-    (hrel : AStateRel₀ pers rst' lst') (hinv : AStateInv pers rst') :
-    LOut A pers (.Ok r) rst' x :=
-  ⟨lst', hx, hrel, hinv⟩
-
-theorem LOut.err {α β : Type} {A : α → β} {e : frontend.export_c.LineErr}
-    {pers : arena.store.PersTier} {rst' : arena.monad.AState}
-    {x : Except Arena.CheckError (β × AState)} (h : ALineErrSim e x) :
-    LOut A pers (.Err e) rst' x := h
-
 theorem LOut.dest {α β : Type} {A : α → β} {r : α} {pers : arena.store.PersTier}
     {rst' : arena.monad.AState}
     {x : Except Arena.CheckError (β × AState)}
@@ -194,13 +174,6 @@ def SimLR {α β : Type} (A : α → β) (lst : AState)
   match o with
   | .Ok r => x.run lst = .ok (A r, lst)
   | .Err e => ALineErrSim e (x.run lst)
-
-theorem SimLR.ok {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
-    (h : x.run lst = .ok (A r, lst)) : SimLR A lst (.Ok r) x := h
-
-theorem SimLR.err {α β : Type} {A : α → β} {lst : AState}
-    {e : frontend.export_c.LineErr} {x : AM β}
-    (h : ALineErrSim e (x.run lst)) : SimLR A lst (.Err e) x := h
 
 theorem SimLR.apply {α β : Type} {A : α → β} {lst : AState} {r : α} {x : AM β}
     (h : SimLR A lst (.Ok r) x) : x.run lst = .ok (A r, lst) := h
@@ -436,15 +409,6 @@ def StreamErrSim {γ : Type} (p : kernel.core_types.CheckError × Std.U64)
     (∃ le, x = .error le ∧ lAErrKind le = some k) ∨
     (k = .native ∧ ScanOverflowErr p.1)
 
-/-- The scanner's overflow, the carve-out. -/
-theorem StreamErrSim.overflow {γ : Type} {ce : kernel.core_types.CheckError} {n : Std.U64}
-    {x : Except Arena.CheckError (Except (Arena.CheckError × Nat) γ × AState)}
-    (h : ScanOverflowErr ce) (hk : absAErrKind ce = some .native) :
-    StreamErrSim (ce, n) x := by
-  intro k hk'
-  rw [hk] at hk'; cases hk'
-  exact Or.inr (Or.inr ⟨rfl, h⟩)
-
 /-- A throw, carried: the port's `(e, n)` for an `AErrSim e` twin failure. -/
 theorem StreamErrSim.of_throw {γ δ : Type} {e : kernel.core_types.CheckError}
     {n : Std.U64} {x : Except Arena.CheckError δ}
@@ -470,13 +434,6 @@ abbrev SimStream {α β : Type} (A : α → β) (pers : arena.store.PersTier) (l
       arena.monad.AState)
     (x : AM (Except (Arena.CheckError × Nat) β)) : Prop :=
   SimStreamRel (fun r v => v = A r) pers lst o x
-
-theorem SimStreamRel.ok {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
-    {lst lst' : AState} {r : α} {v : β} {rst' : arena.monad.AState}
-    {x : AM (Except (Arena.CheckError × Nat) β)}
-    (hx : x.run lst = .ok (.ok v, lst')) (hr : R r v) (hrel : AStateRel₀ pers rst' lst')
-    (hinv : AStateInv pers rst') :
-    SimStreamRel R pers lst (.Ok r, rst') x := ⟨v, lst', hx, hr, hrel, hinv⟩
 
 /-! ## The `StateD`-carrying variant of the stream shape
 

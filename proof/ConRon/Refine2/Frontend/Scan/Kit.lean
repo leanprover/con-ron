@@ -609,10 +609,6 @@ private theorem uT9 : ((9 : USize)).toNat = 9 := by
   simp [USize.toNat_ofNat, Nat.mod_eq_of_lt (usize_small 9 (by norm_num))]
 private theorem uT10 : ((10 : USize)).toNat = 10 := by
   simp [USize.toNat_ofNat, Nat.mod_eq_of_lt (usize_small 10 (by norm_num))]
-private theorem uT11 : ((11 : USize)).toNat = 11 := by
-  simp [USize.toNat_ofNat, Nat.mod_eq_of_lt (usize_small 11 (by norm_num))]
-private theorem uT12 : ((12 : USize)).toNat = 12 := by
-  simp [USize.toNat_ofNat, Nat.mod_eq_of_lt (usize_small 12 (by norm_num))]
 
 private theorem uA1 (x : USize) : x + 1 + 1 = x + 2 := by
   rw [USize.add_assoc]
@@ -668,18 +664,6 @@ private theorem uA9 (x : USize) : x + 9 + 1 = x + 10 := by
   apply USize.toNat_inj.mp
   simp only [USize.toNat_add, uT1, uT9, uT10,
     Nat.mod_eq_of_lt (usize_small 10 (by norm_num))]
-private theorem uA10 (x : USize) : x + 10 + 1 = x + 11 := by
-  rw [USize.add_assoc]
-  congr 1
-  apply USize.toNat_inj.mp
-  simp only [USize.toNat_add, uT1, uT10, uT11,
-    Nat.mod_eq_of_lt (usize_small 11 (by norm_num))]
-private theorem uA11 (x : USize) : x + 11 + 1 = x + 12 := by
-  rw [USize.add_assoc]
-  congr 1
-  apply USize.toNat_inj.mp
-  simp only [USize.toNat_add, uT1, uT11, uT12,
-    Nat.mod_eq_of_lt (usize_small 12 (by norm_num))]
 private theorem uB2 (x : USize) : x + 1 + 2 = x + 3 := by
   rw [USize.add_assoc]
   congr 1
@@ -728,18 +712,6 @@ private theorem uB9 (x : USize) : x + 1 + 9 = x + 10 := by
   apply USize.toNat_inj.mp
   simp only [USize.toNat_add, uT1, uT9, uT10,
     Nat.mod_eq_of_lt (usize_small 10 (by norm_num))]
-private theorem uB10 (x : USize) : x + 1 + 10 = x + 11 := by
-  rw [USize.add_assoc]
-  congr 1
-  apply USize.toNat_inj.mp
-  simp only [USize.toNat_add, uT1, uT10, uT11,
-    Nat.mod_eq_of_lt (usize_small 11 (by norm_num))]
-private theorem uB11 (x : USize) : x + 1 + 11 = x + 12 := by
-  rw [USize.add_assoc]
-  congr 1
-  apply USize.toNat_inj.mp
-  simp only [USize.toNat_add, uT1, uT11, uT12,
-    Nat.mod_eq_of_lt (usize_small 12 (by norm_num))]
 
 private theorem litFrom_1 (B : ByteArray) (q : USize) (c0 : UInt8) :
     litFrom B q [c0] = (byteAt B q == c0) := by
@@ -2088,14 +2060,6 @@ theorem num_end_refines {b : Slice Std.U8} {i e : Std.Usize}
 `duplicateKey` tests every slot of every `scan*Loop` of `Scan/Fast.lean`
 writes inline (`scan_fast.rs:1440-1450`, "con-leche: none"). -/
 
-/-- **`prog` is con-leche's `i < e` guard.** -/
-theorem prog_eq {ks e : Std.Usize} {r : Bool}
-    (h : frontend.scan_fast.prog ks e = ok r) : r = decide (absPos ks < absPos e) := by
-  rw [frontend.scan_fast.prog] at h
-  have hr : decide (ks < e) = r := by simpa using h
-  rw [← hr]
-  simp [absPos_lt]
-
 /-- A port `u32` seen-mask as con-leche's. -/
 def absU32 (x : Std.U32) : UInt32 := UInt32.ofBitVec x.bv
 
@@ -2802,70 +2766,6 @@ theorem read_nat_at_err {α : Type} {b : Slice Std.U8} {i e : Std.Usize}
 con-leche function -- an intermediate definition in DESIGN.md's sense, written
 to be the Lean's own inline chain, so an object loop can unfold it and see
 exactly what its `scan*Loop` twin has. -/
-
-/-- con-leche's inline `numEnd`/`readNatAt`/`noProgress` chain.
-
-This is the **value** form, which is what `slot_nat_refines` -- the canonical
-`*_refines` lemma of the Rust function `scan_fast::slot_nat` -- is stated
-against.  A slot loop does not consume it directly: what it needs is the
-continuation-passing form, `ScanObj.natSlot` / `ScanObj.natSlot_step`, which
-abstracts the loop's tail call as well.  The two are the same three arms of
-`Scan/Fast.lean:820-824`, written for the two different callers. -/
-def slotNat (B : ByteArray) (ks v : USize) : ConLeche.Frontend.ScanRes Nat :=
-  let e := numEnd B v
-  if e == v then .err ⟨v.toNat, .expectedNat⟩
-  else if ks < e then .ok (readNatAt B v e) e
-  else .err ⟨ks.toNat, .noProgress⟩
-
-/-- **`slot_nat` refines `slotNat`**, in full outcome. -/
-theorem slot_nat_refines {b : Slice Std.U8} {ks v : Std.Usize}
-    {o : core.result.Result (Std.U64 × Std.Usize) frontend.scan_types.ScanErr}
-    (h : frontend.scan_fast.slot_nat b ks v = ok o) :
-    ScanSim absU64 o (slotNat (absBytes b) (absPos ks) (absPos v)) := by
-  rw [frontend.scan_fast.slot_nat] at h
-  obtain ⟨e, he, h⟩ := bind_eq_ok_iff.mp h
-  have hnum : absPos e = numEnd (absBytes b) (absPos v) := num_end_refines he
-  simp only [slotNat, ← hnum]
-  by_cases hev : e = v
-  · rw [if_pos hev] at h
-    rw [frontend.scan_fast.err] at h
-    have ho : (core.result.Result.Err
-        ({ offset := v, what := frontend.scan_types.ErrTag.ExpectedNat } :
-          frontend.scan_types.ScanErr)) = o := by simpa using h
-    rw [← ho]
-    refine ScanSim.err (ScanErrSim.mk (t := .expectedNat) rfl ?_)
-    rw [if_pos (show (absPos e == absPos v) = true by simp; scalar_tac)]
-    simp
-  · rw [if_neg hev] at h
-    rw [if_neg (show ¬ (absPos e == absPos v) = true by simp; scalar_tac)]
-    obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-    have hb1v : b1 = decide (absPos ks < absPos e) := prog_eq hb1
-    by_cases hp : b1 = true
-    · rw [if_pos hp] at h
-      rw [if_pos (by rw [hb1v] at hp; simpa using hp)]
-      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-      cases r with
-      | Ok x =>
-        have ho : core.result.Result.Ok (x, e) = o := by simpa using h
-        rw [← ho]
-        refine ScanSim.ok ?_
-        have hrun : frontend.scan_fast.skip_digits b v = ok e := num_end_run he hev
-        rw [show absU64 x = x.val from rfl, read_nat_at_refines hrun hr]
-      | Err er =>
-        have ho : core.result.Result.Err er = o := by simpa using h
-        rw [← ho]
-        exact ScanSim.err (read_nat_at_err hr)
-    · rw [if_neg hp] at h
-      rw [if_neg (by rw [hb1v] at hp; simpa using hp)]
-      rw [frontend.scan_fast.err] at h
-      have ho : (core.result.Result.Err
-          ({ offset := ks, what := frontend.scan_types.ErrTag.NoProgress } :
-            frontend.scan_types.ScanErr)) = o := by simpa using h
-      rw [← ho]
-      refine ScanSim.err (ScanErrSim.mk (t := .noProgress) rfl ?_)
-      simp
-
-
 
 /-- `strClose` is `0` or at least where it started: what discharges
 con-leche's `_hj : i < e + 1` guard, which the port does not have. -/

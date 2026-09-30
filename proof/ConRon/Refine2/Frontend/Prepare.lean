@@ -142,14 +142,6 @@ theorem restL_none :
       Bool.false_eq_true, if_false, List.tail_cons]
     rw [restL_none L L.length rfl]
 
-theorem pickL_le (p : IDeclaration → Bool) :
-    ∀ (L : List IDeclaration) (M : List Bool), pickL p L M ≤ L.length
-  | [], _ => by simp [pickL]
-  | d :: L, M => by
-    have := pickL_le p L M.tail
-    simp only [pickL, List.length_cons]
-    split <;> omega
-
 theorem frontL_append (ps ds : Array IDeclaration) :
     ∀ (ks : List Nat) (k j : Nat),
       frontL ps ds (ks ++ [k]) j =
@@ -187,15 +179,6 @@ theorem pick_preparedRest (n : NIdx) (ds : Array IDeclaration) (picked : List Bo
       rw [List.eraseIdx_of_length_le (by omega)]
 
 /-! ## The eleven functions -/
-
-/-- **`prepare::prelude_ix_empty`** — the empty prelude, the twin's field
-default. -/
-theorem prelude_ix_empty_refines {p : frontend.prepare.PreludeIx}
-    (h : frontend.prepare.prelude_ix_empty = ok p) :
-    absPreludeIx p = (⟨#[]⟩ : PreludeIx) := by
-  rw [frontend.prepare.prelude_ix_empty] at h
-  cases Result.ok_injective h
-  rfl
 
 -- `i_declaration_dup_abs` is `Refine2/Dup.lean`'s (task #97-P5-Front round 2:
 -- the `arena::env` copies moved down from `Inductives/Shape.lean`).

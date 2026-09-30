@@ -170,11 +170,6 @@ private theorem vec_index_get? {α : Type} {v : alloc.vec.Vec α} {i : Std.Usize
   · rw [show v[i.val]? = v.val[i.val]? from rfl, hi] at h
     exact congrArg some (Result.ok_injective h)
 
-/-- A machine-word increment really moves the cursor forward. -/
-private theorem uadd_gt {x c z : Std.Usize} (h : x + c = ok z) (hc : 0 < c.val) :
-    x.val < z.val := by
-  have := ConRon.Refine.Nat.uadd_val h; omega
-
 /-- The chunk's length on con-leche's side. -/
 private theorem usize_le_absPos {b : Slice Std.U8} {s : Std.Usize} :
     (absBytes b).usize ≤ absPos s ↔ b.val.length ≤ s.val := by
@@ -3473,24 +3468,6 @@ theorem scanLineFwd_tail_of_no_newline (bb : ByteArray) (p : USize)
           exact Or.inr ⟨_, rfl⟩
         · rw [if_neg h5]
           exact Or.inl ⟨_, rfl⟩
-
-/-- **`ParseIngredients.scan_line_fwd_tail`**, in the field's own shape: a port
-reader failure with no newline ahead is an incomplete tail for con-leche's
-reader too.  The port's failure is not used — `scanLineFwd_tail_of_no_newline`
-needs only the newline test, which `ScanKit.newline_from_refines` transports —
-so this holds of an `ErrTag::IndexOverflow`, which is exactly the tag it is
-there to pay for. -/
-theorem scan_line_fwd_tail {b : Slice Std.U8} {i : Std.Usize}
-    {e : frontend.scan_types.ScanErr}
-    (_h : frontend.scan_fast.scan_line_fwd b i = ok (.Err e))
-    (hnl : frontend.scan_fast.newline_from b i = ok false) :
-    (∃ le, scanLineFwd (absBytes b) (absPos i) = .err le) ∨
-      (∃ r, scanLineFwd (absBytes b) (absPos i) = .ok r 0) :=
-  scanLineFwd_tail_of_no_newline (absBytes b) (absPos i) (newline_from_refines hnl).symm
-
-/-- info: 'ConRon.Refine2.Frontend.scan_line_fwd_tail' depends on axioms: [propext,
-Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms scan_line_fwd_tail
 
 /-! ## What exactness needs of the scanner beyond `LineRecWF`
 

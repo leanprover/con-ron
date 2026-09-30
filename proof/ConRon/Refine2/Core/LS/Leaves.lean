@@ -44,17 +44,7 @@ theorem decide_usize_eq_len {α : Type} (u : Std.Usize) (v : alloc.vec.Vec α) :
       rw [alloc.vec.Vec.len_val]; exact hc
     simp [h, this]
 
-theorem absIConstantVal_levelParams_length (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).levelParams.length = cv.level_params.val.length := by
-  simp [absIConstantVal]
-
-theorem uscalar_eq_iff_val {ty} (a b : Std.UScalar ty) : a = b ↔ a.val = b.val :=
-  ⟨fun h => h ▸ rfl, fun h => Aeneas.Std.UScalar.eq_imp a b h⟩
-
-theorem nat_beq_eq_decide (a b : Nat) : (a == b) = decide (a = b) := by
-  by_cases h : a = b <;> simp [h]
-
-attribute [local lockstep_simp] decide_usize_eq_len absIConstantVal_levelParams_length
+attribute [local lockstep_simp] decide_usize_eq_len
 
 attribute [local lockstep_simp] absIConstantVal absIIndCaps
 
@@ -184,12 +174,6 @@ theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
     cases Result.ok_injective h
     simp [hne]
 
-@[lockstep] theorem proj_indexed_struct_like_spec {vis fe lfe} (hctx : CoreCtx vis fe lfe)
-    (t sn : arena.handle.NIdx) (i n : Std.U64) :
-    LSP (arena.core.proj_indexed_struct_like vis fe t sn i n)
-      (fun b => b = projIndexedStructLike lfe (absNIdx t) (absNIdx sn) (absU i) (absU n)) :=
-  fun _ h => proj_indexed_struct_like_abs hctx h
-
 /-- `proj_miss_error` against `projMissError`: the error KIND (messages are
 never compared, DESIGN §3.1). -/
 @[lockstep] theorem proj_miss_error_spec {vis fe lfe} (hctx : CoreCtx vis fe lfe)
@@ -275,12 +259,6 @@ the twin's `what` is free (messages are never compared). -/
     LS pers (fun a b => b = absNIdx a) (arena.core.bool_false_name st) lst boolFalseName := by
   rw [arena.core.bool_false_name, boolFalseName, ← bind_pure pinBoolFalse]
   lockstep_core
-
-@[lockstep] theorem reserved_basis_names_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdxList a) (arena.core.reserved_basis_names st) st lst
-      reservedBasisNames :=
-  pinRE_lsr hrel hinv fun _ h => reserved_basis_names_run₀ hrel hinv h
 
 @[lockstep] theorem is_bool_true_ls {pers st h lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :

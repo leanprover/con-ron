@@ -939,9 +939,6 @@ open Lockstep in
   rw [i_rec_rule_eq_but_rhs_refines h]
   exact (beq_eq_decide _ _).symm
 
-@[local lockstep_simp] private theorem canon_absIRecRule_rhs (r : arena.env.IRecRule) :
-    (absIRecRule r).rhs = absEIdx r.rhs := rfl
-
 open Lockstep in
 @[local lockstep] private theorem canon_intern_n_anon_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -992,15 +989,6 @@ private theorem canon_names_go_aux (k : Nat) :
     simp only [bind_assoc, pure_bind]
     lockstep
 
-/-- `canon_names_go` ⊑ `canonNamesGo`, with the Rust's accumulator in front. -/
-theorem canon_names_go_refines {pers st lst} {i n : Std.U64}
-    {out : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.canon.canon_names_go pers st i n out = ok o) :
-    Sim₀ absNIdxL pers lst o
-      (do pure (absNIdxL out ++ (← canonNamesGo (absU i) (absU n)))) :=
-  Lockstep.LS.toSim₀ (canon_names_go_aux _ rfl hrel hinv) hrun
-
 open Lockstep in
 @[local lockstep] private theorem canon_names_lsc {pers st lst} {n : Std.U64}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
@@ -1010,13 +998,6 @@ open Lockstep in
     (out := alloc.vec.Vec.new arena.handle.NIdx) rfl hrel hinv
   rw [arena.canon.canon_names, canonNames]
   simpa [absNIdxL] using h
-
-/-- `canon_names` ⊑ `canonNames`. -/
-theorem canon_names_refines {pers st lst} {n : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.canon.canon_names pers st n = ok o) :
-    Sim₀ absNIdxL pers lst o (canonNames (absU n)) :=
-  Lockstep.LS.toSim₀ (canon_names_lsc hrel hinv) hrun
 
 /-! ## The two node transcriptions
 
@@ -1148,19 +1129,6 @@ open Lockstep in
       (canonLevelEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
         (absLIdx u) (absLIdx v)) :=
   canon_level_eq_aux _ hrel hinv ps ps2 cs fuel u v rfl
-
-open Lockstep in
-/-- `canon_level_eq_at` is `canon_level_eq`'s arm past the two `view`s
-(extraction rule 5), stated against the twin's `match` at the two views. -/
-@[lockstep] theorem canon_level_eq_at_ls {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
-    {a b : arena.store.LNodeView}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a)
-      (arena.canon.canon_level_eq_at pers st ps ps2 cs fuel a b) st lst
-      (canonLevelEqAtSpec (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absLNodeView a) (absLNodeView b)) :=
-  canon_level_eq_node_of (canon_level_eq_aux _) hrel hinv ps ps2 cs fuel a b rfl
 
 open Lockstep in
 private theorem canon_level_list_eq_aux (n : Nat) :
@@ -1320,37 +1288,6 @@ open Lockstep in
   canon_expr_eq_aux _ hrel hinv ps ps2 cs fuel a b rfl
 
 open Lockstep in
-/-- `canon_expr_eq_at` is `canon_expr_eq`'s arm past the two `view`s, at
-well-formed views. -/
-@[lockstep] theorem canon_expr_eq_at_ls {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
-    {va vb : arena.store.ENodeView}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hva : EViewMetaWF va) (hvb : EViewMetaWF vb) :
-    LSR pers (fun a b => b = id a)
-      (arena.canon.canon_expr_eq_at pers st ps ps2 cs fuel va vb) st lst
-      (canonExprEqAtSpec (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-        (absENodeView va) (absENodeView vb)) :=
-  canon_expr_eq_node_of (canon_expr_eq_aux _) hrel hinv ps ps2 cs fuel va vb rfl hva hvb
-
-open Lockstep in
-/-- `canon_expr_eq_two` is the two-child arms' pair of descents, in the twin's
-order and with its short-circuit. -/
-@[lockstep] theorem canon_expr_eq_two_ls {pers st lst}
-    {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
-    {a a2 b b2 : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a)
-      (arena.canon.canon_expr_eq_two pers st ps ps2 cs fuel a a2 b b2) st lst
-      (do
-        if ← canonExprEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-            (absEIdx a) (absEIdx a2) then
-          canonExprEq (absNIdxL ps) (absNIdxL ps2) (absNIdxL cs) (absU fuel)
-            (absEIdx b) (absEIdx b2)
-        else pure false) :=
-  canon_expr_eq_two_of (canon_expr_eq_aux _) hrel hinv ps ps2 cs fuel a a2 b b2 rfl
-
-open Lockstep in
 private theorem canon_rules_eq_aux (n : Nat) :
     ∀ {pers st lst} {ps ps2 cs : alloc.vec.Vec arena.handle.NIdx} {fuel : Std.U64}
       {rs rs2 : alloc.vec.Vec arena.env.IRecRule} {i : Std.Usize},
@@ -1444,23 +1381,6 @@ open Lockstep in
   simp only [absIConstantVal, ← core_walk_fuel_abs]
   lockstep
 
-/-- `canon_eq_cv_and_rules` is `i_constant_info_canon_eq`'s `.recInfo` arm
-past its two scalar tests (extraction rule 5). -/
-theorem canon_eq_cv_and_rules_refines {pers st lst}
-    {cv cv2 : arena.env.IConstantVal}
-    {rs rs2 : alloc.vec.Vec arena.env.IRecRule} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.canon.canon_eq_cv_and_rules pers st cv cv2 rs rs2 = ok o) :
-    Sim₀ id pers lst o
-      (do
-        if ← (absIConstantVal cv).canonEq (absIConstantVal cv2) then do
-          let cs ← canonNames (absIConstantVal cv).levelParams.length
-          canonRulesEq (absIConstantVal cv).levelParams
-            (absIConstantVal cv2).levelParams cs coreWalkFuel
-            (absIRecRuleL rs) (absIRecRuleL rs2)
-        else pure false) :=
-  Lockstep.LS.toSim₀ (canon_eq_cv_and_rules_lsc hrel hinv) hrun
-
 open Lockstep in
 @[local lockstep] private theorem canon_eq_cv_and_value_lsc {pers st lst}
     {cv cv2 : arena.env.IConstantVal} {v v2 : arena.handle.EIdx}
@@ -1478,21 +1398,6 @@ open Lockstep in
   simp only [absIConstantVal, ← core_walk_fuel_abs]
   lockstep
 
-/-- `canon_eq_cv_and_value` is the `.defnInfo` / `.thmInfo` arms' shared tail. -/
-theorem canon_eq_cv_and_value_refines {pers st lst}
-    {cv cv2 : arena.env.IConstantVal} {v v2 : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.canon.canon_eq_cv_and_value pers st cv cv2 v v2 = ok o) :
-    Sim₀ id pers lst o
-      (do
-        if ← (absIConstantVal cv).canonEq (absIConstantVal cv2) then do
-          let cs ← canonNames (absIConstantVal cv).levelParams.length
-          canonExprEq (absIConstantVal cv).levelParams
-            (absIConstantVal cv2).levelParams cs coreWalkFuel
-            (absEIdx v) (absEIdx v2)
-        else pure false) :=
-  Lockstep.LS.toSim₀ (canon_eq_cv_and_value_lsc hrel hinv) hrun
-
 open Lockstep in
 /-- One `lockstep` per pair of constructors.  The `.defnInfo` arm zips only
 since the twin tests the hints first, as the port does (task #97-T2-LOCKSTEP
@@ -1505,17 +1410,6 @@ lane Checker Canon). -/
   cases ci <;> cases ci2 <;>
     simp only [arena.canon.i_constant_info_canon_eq, absIConstantInfo,
       IConstantInfo.canonEq] <;> lockstep
-
-/-- `i_constant_info_canon_eq` ⊑ `IConstantInfo.canonEq`.  `.indInfo`'s
-capabilities are not compared (`canon` resets both to `{}`), and a projection
-table is compared as it stands. -/
-theorem i_constant_info_canon_eq_refines {pers st lst}
-    {ci ci2 : arena.env.IConstantInfo} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.canon.i_constant_info_canon_eq pers st ci ci2 = ok o) :
-    Sim₀ id pers lst o
-      ((absIConstantInfo ci).canonEq (absIConstantInfo ci2)) :=
-  Lockstep.LS.toSim₀ (i_constant_info_canon_eq_ls hrel hinv) hrun
 
 open Lockstep in
 private theorem canon_eq_list_aux (n : Nat) :

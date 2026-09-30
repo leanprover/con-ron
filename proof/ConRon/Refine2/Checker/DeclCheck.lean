@@ -67,12 +67,6 @@ def absCertCtx (cx : arena.decl_check.CertCtx) : CertCtxA :=
 /-! ## Rust-only steps this file's zips meet (task #97-T2-LOCKSTEP lane Checker DeclCheck) -/
 
 open Lockstep in
-/-- `arena::env::eidx_vec_dup` is the identity on the value. -/
-@[lockstep] theorem eidx_vec_dup_spec (es : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.env.eidx_vec_dup es) (fun r => absEIdxL r = absEIdxL es) :=
-  fun _ h => by simp only [absEIdxL, eidx_vec_dup_val h]
-
-open Lockstep in
 /-- `arena::canon::i_constant_info_beq` is the twin's `==` (at `some`, the
 shape `reduceElemOk` compares at), at canonical Rust data (`IConstantInfoWF`:
 the `IndInfo` arm compares `sort_z` by representation; task #97-T2-LOCKSTEP
@@ -1081,16 +1075,6 @@ theorem ite_bor {α : Sort _} (a b : Bool) (x y : α) :
     (if (a || b) = true then x else y) = if a = true then x else if b = true then x else y := by
   cases a <;> cases b <;> rfl
 
-/-- The Rust's `cv.level_params.len() == 0` is the twin's `levelParams.isEmpty`. -/
-theorem absIConstantVal_levelParams_isEmpty (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).levelParams.isEmpty = decide (cv.level_params.len = 0#usize) := by
-  rw [Bool.eq_iff_iff]
-  simp only [absIConstantVal, List.isEmpty_map, List.isEmpty_iff, decide_eq_true_eq]
-  rw [← List.length_eq_zero_iff]
-  have h1 := alloc.vec.Vec.len_val cv.level_params
-  simp only [alloc.vec.Vec.length] at h1
-  constructor <;> intro h <;> scalar_tac
-
 /-- … and in the form the twin is in once `absIConstantVal` is unfolded. -/
 theorem map_absNIdx_isEmpty (l : alloc.vec.Vec arena.handle.NIdx) :
     (l.val.map absNIdx).isEmpty = decide (l.len = 0#usize) := by
@@ -1101,40 +1085,7 @@ theorem map_absNIdx_isEmpty (l : alloc.vec.Vec arena.handle.NIdx) :
   simp only [alloc.vec.Vec.length] at h1
   constructor <;> intro h <;> scalar_tac
 
-attribute [local lockstep_simp] absIConstantVal_levelParams_isEmpty map_absNIdx_isEmpty
-
-open Lockstep in
-/-- `arena::core::nat_ind_ok` ⊑ `natIndOk`. -/
-@[lockstep] theorem nat_ind_ok_ls {pers st lst} {ci : Option arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.core.nat_ind_ok st ci) lst
-      (natIndOk (ci.map absIConstantInfo)) := by
-  rcases ci with _ | ci
-  · simp only [arena.core.nat_ind_ok, Option.map_none, natIndOk]; lockstep
-  · cases ci <;> simp only [arena.core.nat_ind_ok, Option.map_some, absIConstantInfo, natIndOk] <;>
-      lockstep
-
-open Lockstep in
-/-- `arena::core::nat_zero_ok` ⊑ `natZeroOk`. -/
-@[lockstep] theorem nat_zero_ok_ls {pers st lst} {ci : Option arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.core.nat_zero_ok pers st ci) lst
-      (natZeroOk (ci.map absIConstantInfo)) := by
-  rcases ci with _ | ci
-  · simp only [arena.core.nat_zero_ok, Option.map_none, natZeroOk]; lockstep
-  · cases ci <;> simp only [arena.core.nat_zero_ok, Option.map_some, absIConstantInfo,
-      natZeroOk] <;> lockstep
-
-open Lockstep in
-/-- `arena::core::nat_succ_ok` ⊑ `natSuccOk`. -/
-@[lockstep] theorem nat_succ_ok_ls {pers st lst} {ci : Option arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.core.nat_succ_ok pers st ci) lst
-      (natSuccOk (ci.map absIConstantInfo)) := by
-  rcases ci with _ | ci
-  · simp only [arena.core.nat_succ_ok, Option.map_none, natSuccOk]; lockstep
-  · cases ci <;> simp only [arena.core.nat_succ_ok, Option.map_some, absIConstantInfo,
-      natSuccOk] <;> lockstep
+attribute [local lockstep_simp] map_absNIdx_isEmpty
 
 open Lockstep in
 /-- `arena::core::nat_lit_supported` ⊑ `natLitSupported`. -/
@@ -1182,13 +1133,6 @@ open Lockstep in
   lockstep
 
 open Lockstep in
-/-- `arena::core::push_nidx` is `Vec::push`. -/
-@[lockstep] theorem push_nidx_spec (out : alloc.vec.Vec arena.handle.NIdx)
-    (n : arena.handle.NIdx) :
-    LSP (arena.core.push_nidx out n) (fun w => w.val = out.val ++ [n]) :=
-  fun _ h => push_nidx_val h
-
-open Lockstep in
 /-- `arena::core::push_eq` is `Vec::push` of the pair. -/
 @[lockstep] theorem push_eq_spec
     (out : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) (l r : arena.handle.EIdx) :
@@ -1199,25 +1143,6 @@ open Lockstep in
   obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [dupId_eidx _ _ hl1, dupId_eidx _ _ hr1] at h
   exact ConRon.Refine.vec_push_val h
-
-theorem absNIdxL_val (v : alloc.vec.Vec arena.handle.NIdx) :
-    absNIdxL v = v.val.map absNIdx := rfl
-
-theorem absEqPairs_val (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) :
-    absEqPairs v = v.val.map fun p => (absEIdx p.1, absEIdx p.2) := rfl
-
-attribute [local lockstep_simp] absNIdxL_val absEqPairs_val
-
-open Lockstep in
-/-- `arena::core::nat_op_deps` ⊑ `natOpDeps` — the operation's dependency list,
-pin reads only.  The Rust reads its fifteen pins through `nat_op_pins`. -/
-@[lockstep] theorem nat_op_deps_ls {pers st lst} {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdxL a)
-      (arena.core.nat_op_deps st c) lst (natOpDeps (absNIdx c)) := by
-  rw [arena.core.nat_op_deps, natOpDeps]
-  simp only [arena.core.nat_op_pins, arena.core.nat_op_pins_rest]
-  lockstep
 
 open Lockstep in
 /-- `arena::core::nat_op_equations` ⊑ `natOpEquations` — the operation's
@@ -1707,11 +1632,6 @@ open Lockstep in
       (arena.decl_check.certify_nat_eqs pers vis st mode rf eqs i) lst
       (certifyNatEqs (ConRon.Refine.absMode mode) lf (absEqPairsFrom eqs i)) :=
   LS.ofSim₀ fun _ h => certify_nat_eqs_refines hrel hinv hfe.rel hfe.inv hvis h
-
-@[lockstep_simp] theorem absEqPairsFrom_zero
-    (v : alloc.vec.Vec (arena.handle.EIdx × arena.handle.EIdx)) :
-    absEqPairsFrom v 0#usize = absEqPairs v := by
-  simp [absEqPairsFrom, absEqPairs]
 
 /-! ### The certificate statements — the `CertCtx` family (finding 11) -/
 
@@ -2492,42 +2412,6 @@ open Lockstep in
       (divModCertApplied (absEIdx proof_s) (absEIdxL hyps)) :=
   LS.ofSim₀ fun _ h => div_mod_cert_applied_refines hrel hinv h
 
-/-- `div_mod_cert_guard_rest` — `divModCertGuard`'s tail past the substituted
-proof's own guards. -/
-theorem div_mod_cert_guard_rest_refines {pers st lst} {vis : Std.U64} {rf lf}
-    {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}
-    {hyps : alloc.vec.Vec arena.handle.EIdx} {eq_e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf) (hvis : absU vis = lf.visibleBelow)
-    (hrun : arena.decl_check.div_mod_cert_guard_rest pers vis st rf c ann_val hyps
-      eq_e = ok o) :
-    Sim₀ id pers lst o
-      (divModCertGuardRestSpec lf (absNIdx c) (absEIdx ann_val)
-        (absEIdxL hyps) (absEIdx eq_e)) := by
-  have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.decl_check.div_mod_cert_guard_rest, divModCertGuardRestSpec]
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem div_mod_cert_guard_rest_ls {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {c : arena.handle.NIdx}
-    {ann_val : arena.handle.EIdx}
-    {hyps : alloc.vec.Vec arena.handle.EIdx}
-    {eq_e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a)
-      (arena.decl_check.div_mod_cert_guard_rest pers vis st rf c ann_val hyps
-      eq_e) lst
-      (divModCertGuardRestSpec lf (absNIdx c) (absEIdx ann_val)
-        (absEIdxL hyps) (absEIdx eq_e)) :=
-  LS.ofSim₀ fun _ h => div_mod_cert_guard_rest_refines hrel hinv hfe.rel hfe.inv hvis h
-
 /-- `div_mod_cert_guard` ⊑ `divModCertGuard`. -/
 theorem div_mod_cert_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
     {c : arena.handle.NIdx} {ann_val : arena.handle.EIdx}
@@ -2696,67 +2580,6 @@ theorem div_mod_certs_guard_refines {pers st lst} {vis : Std.U64} {rf lf}
   rw [arena.decl_check.div_mod_certs_guard]
   try unfold divModCertsGuard
   lockstep
-
-theorem div_mod_slot_2_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.div_mod_slot_2 st c = ok o) :
-    Sim₀ absU pers lst o (divModSlot2Spec (absNIdx c)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.decl_check.div_mod_slot_2]
-  try unfold divModSlot2Spec
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem div_mod_slot_2_ls {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absU a)
-      (arena.decl_check.div_mod_slot_2 st c) lst
-      (divModSlot2Spec (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => div_mod_slot_2_refines hrel hinv h
-theorem div_mod_slot_1_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.div_mod_slot_1 st c = ok o) :
-    Sim₀ absU pers lst o (divModSlot1Spec (absNIdx c)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.decl_check.div_mod_slot_1]
-  try unfold divModSlot1Spec
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem div_mod_slot_1_ls {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absU a)
-      (arena.decl_check.div_mod_slot_1 st c) lst
-      (divModSlot1Spec (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => div_mod_slot_1_refines hrel hinv h
-/-- `div_mod_slot` / `_1` / `_2` — the operation's index in the pin record's
-eight-slot family, which the twin spells as a chain of handle comparisons
-inside `divModDeclPin` and `divModCertProofs`. -/
-theorem div_mod_slot_refines {pers st lst} {c : arena.handle.NIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.decl_check.div_mod_slot st c = ok o) :
-    Sim₀ absU pers lst o (divModSlotSpec (absNIdx c)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.decl_check.div_mod_slot]
-  try unfold divModSlotSpec
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem div_mod_slot_ls {pers st lst}
-    {c : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absU a)
-      (arena.decl_check.div_mod_slot st c) lst
-      (divModSlotSpec (absNIdx c)) :=
-  LS.ofSim₀ fun _ h => div_mod_slot_refines hrel hinv h
-
-
-
 
 attribute [local lockstep_simp] absINatOpPinSet in
 /-- `div_mod_decl_pin` ⊑ `divModDeclPin`. -/
@@ -2950,24 +2773,6 @@ theorem check_div_mod_pin_at_refines {pers st lst} {vis : Std.U64} {rf lf}
   try unfold checkDivModPinAt
   lockstep
 
-open Lockstep in
-@[lockstep] theorem check_div_mod_pin_at_ls {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {c : arena.handle.NIdx}
-    {value2 : arena.handle.EIdx}
-    {ps : arena.nat_op_pin_set.INatOpPinSet}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a)
-      (arena.decl_check.check_div_mod_pin_at pers vis st mode rf c value2 ps) lst
-      (checkDivModPinAt (ConRon.Refine.absMode mode) lf (absNIdx c)
-        (absEIdx value2) (absINatOpPinSet ps)) :=
-  LS.ofSim₀ fun _ h => check_div_mod_pin_at_refines hrel hinv hfe.rel hfe.inv hvis h
-
 /-- The port's four-way step against the twin's, at a returned step.  The
 port never returns `Failed` as a step (`check_div_mod_pin_attempt` returns its
 `Native` error instead), so that arm relates nothing; a recovered error is
@@ -3096,12 +2901,6 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
         | _ => simp only [orElseStepOf, attemptRestore_self]
       · show absAErrKind _ = lAErrKind le
         rw [hk]; rfl
-
-/-- `orElseAttempt` never throws: its error arm is a step. -/
-theorem orElseAttempt_run_ne_error {att : AM Bool} {s : AState}
-    {le : Arena.CheckError} : (orElseAttempt att).run s ≠ .error le := by
-  simp only [StateT.run, orElseAttempt]
-  cases att s <;> simp
 
 /-- **`check_div_mod_pin_try` — one variant's attempt, then the loop**
 (restated lockstep, task #97-T2-LOCKSTEP lane Checker; proved, task
@@ -3601,9 +3400,6 @@ theorem install_basis_decls_refines {lst} {rf lf}
 
 /-- info: 'ConRon.Refine2.check_div_mod_pin_attempt_refines₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_div_mod_pin_attempt_refines₀
-
-/-- info: 'ConRon.Refine2.orElseAttempt_run_ne_error' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms orElseAttempt_run_ne_error
 
 /-- info: 'ConRon.Refine2.check_div_mod_pin_try_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_div_mod_pin_try_refines

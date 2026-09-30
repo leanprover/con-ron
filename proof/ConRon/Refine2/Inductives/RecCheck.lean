@@ -415,28 +415,6 @@ end ParamsDefEq
         (absEIdxLFrom ys i)) :=
   target_params_def_eq_aux hctx d names lvls holes pfvs xs ys i st lst hrel hinv
 
-@[lockstep] theorem target_params_def_eq_infer_ls {pers st lst} {mode : kernel.env.CheckMode}
-    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
-    (d : Std.U64) (names : alloc.vec.Vec arena.handle.NIdx) (lvls : arena.handle.LsIdx)
-    (holes pfvs xs ys : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
-    (a2 b2 : arena.handle.EIdx) :
-    LS pers (fun a b => b = a)
-      (arena.inductives.rec_check.target_params_def_eq_infer pers st mode vis rf d names
-        lvls holes pfvs xs ys i a2 b2) lst
-      (do
-        let _ ← inferTypeCore (ConRon.Refine.absMode mode) lf checkFuel (absU d) (absEIdx a2)
-        let _ ← inferTypeCore (ConRon.Refine.absMode mode) lf checkFuel (absU d) (absEIdx b2)
-        if ← isDefEqCore (ConRon.Refine.absMode mode) lf checkFuel (absU d) (absEIdx a2)
-            (absEIdx b2) then
-          targetParamsDefEq (ConRon.Refine.absMode mode) lf (absU d) (absNIdxL names)
-            (absLsIdx lvls) (absEIdxL holes) (absEIdxL pfvs)
-            ((xs.val.drop (i.val + 1)).map absEIdx) ((ys.val.drop (i.val + 1)).map absEIdx)
-        else pure false) :=
-  target_params_def_eq_infer_of hctx d names lvls holes pfvs xs ys i
-    (fun j _ st lst hrel hinv => target_params_def_eq_aux hctx d names lvls holes pfvs xs ys
-      j st lst hrel hinv) a2 b2 st lst hrel hinv
-
 /-! ## The major record -/
 
 @[lockstep_simp] theorem absTargetMajor_ind (m : arena.inductives.rec_check.TargetMajor) :
@@ -1922,18 +1900,6 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
       (consBlockRecsTF (absU vis2) (absBlockShape p) (absU m)
         ((out.val.drop m.val).map absRecOut) lf) :=
   cons_block_recs_t_aux vis2 p out _ m st lst rf lf rfl hfe hrel hinv
-
-/-- `cons_block_recs_t` from the first recursor (the callers' form). -/
-@[lockstep] theorem cons_block_recs_t_ls0 {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
-    (vis2 : Std.U64) (p : arena.inductives.block_parts.BlockShape)
-    (out : alloc.vec.Vec (arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
-      alloc.vec.Vec arena.handle.EIdx)) :
-    LS pers (fun a b => IFEnvRelI a b)
-      (arena.inductives.rec_check.cons_block_recs_t pers vis2 st p 0#u64 out rf) lst
-      (consBlockRecsTF (absU vis2) (absBlockShape p) 0 (out.val.map absRecOut) lf) := by
-  have h := cons_block_recs_t_ls hrel hinv hfe vis2 p 0#u64 out
-  simpa [absU] using h
 
 /-- `recs_by_target … true`: the member recursors (`p.recs.filter (·.tgt < k)`). -/
 @[lockstep] theorem recs_by_target_own_twin (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)

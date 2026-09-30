@@ -59,46 +59,7 @@ open ConRon.Refine
 
 /-! ## Values of a `ron::HashMap` -/
 
-/-- Every value the table holds satisfies `P`. -/
-def MapValsWF {K V : Type} (P : V → Prop) (m : ron.hashmap.HashMap K V) : Prop :=
-  ∀ p ∈ HashMap.al_v m, P p.2
-
-/-- The key-blind reading of `ExprOps.Compat`, which is what lets `get_mem` and
-`insert_pres` be used with neither `Eq2Spec` nor `Inv`. -/
-theorem compat_of_vals {K V : Type} {Eq2Inst : ron.hashmap.Eq2 K} (P : V → Prop) :
-    ExprOps.Compat Eq2Inst (fun (_ : K) (v : V) => P v) :=
-  fun _ _ _ _ h _ _ => h
-
-/-- **A hit returns a recorded value.** -/
-theorem map_get_wf {K V : Type} {HashableInst : ron.hashmap.Hashable K}
-    {Eq2Inst : ron.hashmap.Eq2 K} {P : V → Prop} {m : ron.hashmap.HashMap K V}
-    (hm : MapValsWF P m) {k : K} {r : V}
-    (h : ron.hashmap.HashMap.get HashableInst Eq2Inst m k = ok (some r)) : P r := by
-  obtain ⟨k', hmem, -⟩ := ExprOps.get_mem h
-  exact hm _ hmem
-
-/-- **An insert records its own value and nothing else.** -/
-theorem map_insert_wf {K V : Type} {HashableInst : ron.hashmap.Hashable K}
-    {Eq2Inst : ron.hashmap.Eq2 K} {P : V → Prop} {m m' : ron.hashmap.HashMap K V}
-    {k : K} {v : V} {old : Option V}
-    (hm : MapValsWF P m) (hnew : P v)
-    (h : ron.hashmap.HashMap.insert HashableInst Eq2Inst m k v = ok (old, m')) :
-    MapValsWF P m' :=
-  ExprOps.insert_pres (compat_of_vals P) hm hnew h
-
-/-- A fresh table holds nothing. -/
-theorem map_new_wf {K V : Type} {P : V → Prop} {m : ron.hashmap.HashMap K V}
-    (h : ron.hashmap.HashMap.new K V = ok m) : MapValsWF P m := by
-  rw [ron.hashmap.HashMap.new] at h
-  intro p hp
-  rw [← Result.ok_injective h] at hp
-  simp [HashMap.al_v, alloc.vec.Vec.new] at hp
-
 /-! ## The parse's index tables -/
-
-/-- `scan_types::IdTable`: the dense prefix and the sparse overflow map. -/
-def IdTableWF {T : Type} (P : T → Prop) (t : frontend.scan_types.IdTable T) : Prop :=
-  (∀ x ∈ t.dense.val, P x) ∧ MapValsWF P t.sparse
 
 /-! ## The scanner's one obligation -/
 

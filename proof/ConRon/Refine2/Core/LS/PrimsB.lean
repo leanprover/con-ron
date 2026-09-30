@@ -167,40 +167,6 @@ pin_slot arena.pins.pin_nat_shift_right pinNatShiftRight arena.pins.PIN_NAT_SHIF
   · have : absNIdx a ≠ absNIdx b := fun hc => hab (absNIdx_inj hc)
     simp [hab, this]
 
-@[lockstep] theorem lsidx_eq2_spec (a b : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun r => r = (absLsIdx a == absLsIdx b)) := by
-  intro r h
-  have := lsidx_eq2 a b r trivial trivial h
-  rw [this]
-  by_cases hab : a = b
-  · subst hab; simp
-  · have : absLsIdx a ≠ absLsIdx b := fun hc => hab (absLsIdx_inj hc)
-    simp [hab, this]
-
-@[lockstep] theorem eidx_eq2_spec (a b : arena.handle.EIdx) :
-    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun r => r = (absEIdx a == absEIdx b)) := by
-  intro r h
-  have := eidx_eq2 a b r trivial trivial h
-  rw [this]
-  by_cases hab : a = b
-  · subst hab; simp
-  · have : absEIdx a ≠ absEIdx b := fun hc => hab (absEIdx_inj hc)
-    simp [hab, this]
-
-@[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _e he => dupId_nidx _ _ he
-
-@[lockstep] theorem dup2_lidx (h : arena.handle.LIdx) :
-    LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _e he => dupId_lidx _ _ he
-
-@[lockstep] theorem dup2_lsidx (h : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _e he => dupId_lsidx _ _ he
-
 /-! ## `ron::nat`, as Rust-only facts about `Nat.toNat` -/
 
 open ConRon.Refine.Nat in
@@ -546,15 +512,6 @@ theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   rw [arena.monad.view_lit] at hrun
   exact ⟨_, lst, rfl, ⟨estore_view_lit_wf hinv.store hrun,
     estore_view_lit_abs hrel.store hrun⟩, hrel, hinv⟩
-
-/-- `view_const` against `viewConst`. -/
-@[lockstep] theorem view_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
-    LSV pers (fun a b => b = a.map absConstT)
-      (arena.monad.view_const pers st h) st lst (Arena.viewConst (absEIdx h)) := by
-  intro o hrun
-  rw [arena.monad.view_const] at hrun
-  exact ⟨_, lst, rfl, estore_view_const_abs hrel.store hrun, hrel, hinv⟩
 
 attribute [local lockstep_simp] absConstT
 

@@ -129,16 +129,6 @@ theorem etables_empty {rt : arena.store.ETables}
       tbl_empty_inv ht4, tbl_empty_inv ht5, tbl_empty_inv ht5, tbl_empty_inv ht6,
       tbl_empty_inv ht7, tbl_empty_inv ht8, tbl_empty_inv ht9⟩⟩
 
-/-- **`PersTier::empty()` is an owned store's reader**: not `frozen`. -/
-theorem persTier_empty_frozen {pers : arena.store.PersTier}
-    (h : arena.store.PersTier.empty = ok pers) : pers.frozen = false := by
-  rw [arena.store.PersTier.empty] at h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [← Result.ok_injective h]
-
 /-- The empty store, with every flag down.  `pers` is never read: the
 relation's persistent arm is the store's own tier when `pers` is not
 `frozen`. -/

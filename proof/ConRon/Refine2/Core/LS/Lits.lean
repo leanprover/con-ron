@@ -179,20 +179,6 @@ attribute [local lockstep_simp] pure_or_ite
 
 end
 
-@[lockstep] theorem nat_op_stored_ls {pers vis st fe lfe c lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe) :
-    LSV pers (fun a b => b = a) (arena.core.nat_op_stored vis fe c) st lst
-      (natOpStored lfe (absNIdx c)) := by
-  intro a ha
-  rw [arena.core.nat_op_stored] at ha
-  obtain ⟨o, ho, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-  have hf := ifenv_find_abs hctx ho
-  refine ⟨a, lst, ?_, rfl, hrel, hinv⟩
-  rw [natOpStored, ← hf]
-  rcases o with _ | ii
-  · cases Result.ok_injective ha; rfl
-  · cases ii <;> (cases Result.ok_injective ha; rfl)
-
 /-! ## The `Nat` literal guards -/
 
 @[lockstep] theorem nat_ind_ok_ls {pers st ci lst}

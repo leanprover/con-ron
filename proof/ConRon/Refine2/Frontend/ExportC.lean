@@ -67,14 +67,6 @@ theorem declined_refines {T : Type} {what o}
   simp only [Result.ok.injEq] at h
   exact ⟨what, h.symm⟩
 
-/-- **`export_c::invalid`** — a REJECT verdict. -/
-theorem invalid_refines {T : Type} {what o}
-    (h : frontend.export_c.invalid T what = ok o) :
-    ∃ m, o = .Err (.Verdict (.Invalid m)) := by
-  rw [frontend.export_c.invalid] at h
-  simp only [Result.ok.injEq] at h
-  exact ⟨what, h.symm⟩
-
 /-- **`line_err_to_check` refines `RecordVerdict.toError` composed with the
 line number**: the pair the chunk drivers' error channel carries. -/
 theorem line_err_to_check_refines {e line_no o}
@@ -227,48 +219,6 @@ So each of the fifteen is recorded as an explicit no-claim, named so that a
 reader looking for `safety_error` finds the reason rather than a gap.  They
 are counted as statements in this file's census and they are closed. -/
 
-/-- `export_c::bool_str` builds a message; see the section note. -/
-theorem bool_str_no_claim : True := trivial
-
-/-- `export_c::rebound_error` builds a message; see the section note. -/
-theorem rebound_error_no_claim : True := trivial
-
-/-- `export_c::no_such_ctor_error` builds a message; see the section note. -/
-theorem no_such_ctor_error_no_claim : True := trivial
-
-/-- `export_c::ctor_count_error` builds a message; see the section note. -/
-theorem ctor_count_error_no_claim : True := trivial
-
-/-- `export_c::cidx_error` builds a message; see the section note. -/
-theorem cidx_error_no_claim : True := trivial
-
-/-- `export_c::induct_error` builds a message; see the section note. -/
-theorem induct_error_no_claim : True := trivial
-
-/-- `export_c::fields_error` builds a message; see the section note. -/
-theorem fields_error_no_claim : True := trivial
-
-/-- `export_c::rec_params_error` builds a message; see the section note. -/
-theorem rec_params_error_no_claim : True := trivial
-
-/-- `export_c::rec_motives_error` builds a message; see the section note. -/
-theorem rec_motives_error_no_claim : True := trivial
-
-/-- `export_c::rec_minors_error` builds a message; see the section note. -/
-theorem rec_minors_error_no_claim : True := trivial
-
-/-- `export_c::rec_k_error` builds a message; see the section note. -/
-theorem rec_k_error_no_claim : True := trivial
-
-/-- `export_c::rec_indices_error` builds a message; see the section note. -/
-theorem rec_indices_error_no_claim : True := trivial
-
-/-- `export_c::safety_error` builds a message; see the section note. -/
-theorem safety_error_no_claim : True := trivial
-
-/-- `export_c::quot_kind_error` builds a message; see the section note. -/
-theorem quot_kind_error_no_claim : True := trivial
-
 /-! ## Two arithmetic helpers and the scanner's error -/
 
 /-- **`sat_sub`** — saturating subtraction, the twin's `Nat` subtraction. -/
@@ -286,24 +236,6 @@ theorem sat_sub_refines {a b v} (h : frontend.export_c.sat_sub a b = ok v) :
     have hlt' : a.val < b.val := by scalar_tac
     have h0 : (0#u64 : Std.U64).val = 0 := rfl
     simp only [absU, h0]
-    omega
-
-/-- **`rel_offset`** — a scan error's offset, relative to the line's start.
-The port saturates where the twin's `Nat` subtraction does. -/
-theorem rel_offset_refines {off i v}
-    (h : frontend.export_c.rel_offset off i = ok v) :
-    v.val = off.val - i.val := by
-  rw [frontend.export_c.rel_offset] at h
-  split at h
-  · rename_i hge
-    have := ConRon.Refine.Nat.usub_val h
-    omega
-  · rename_i hlt
-    simp only [Result.ok.injEq] at h
-    subst h
-    have hlt' : off.val < i.val := by scalar_tac
-    have h0 : (0#usize : Std.Usize).val = 0 := rfl
-    rw [h0]
     omega
 
 /-- **`scan_err_to_check`** — the scanner's tag as a `CheckError`.  Task #87
@@ -1363,14 +1295,6 @@ theorem parse_level_entry_d_refines {pers rst lst rsd lsd i r o}
           ⟨⟩ hrel1 hinv1
         rw [hpre, am_run_bind', hx1]; rfl
 
-/-- A `SimL` claim moves along a twin run equation. -/
-theorem SimL.of_run_eq {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {lst lst1 : AState}
-    {o : core.result.Result α frontend.export_c.LineErr × arena.monad.AState}
-    {x y : AM β} (h : SimL A pers lst1 o x) (hxy : y.run lst = x.run lst1) :
-    SimL A pers lst o y := by
-  unfold SimL at h ⊢; rw [hxy]; exact h
-
 /-- The shared tail of the expression-table value half: `EStore::intern` at a
 view, lifted to the ambient state, against the twin's `internE`. -/
 theorem expr_intern_tail {pers rst lst} {v : arena.store.ENodeView} {o}
@@ -2010,26 +1934,6 @@ theorem parse_result_of_state_refines {rsd lsd p} (hd : StateDRel rsd lsd)
   cases Result.ok_injective h
   exact ⟨hd.decls⟩
 
-/-- **`at_line` refines `atLine`** (`ExportC.lean:855-859`): the line number
-folded into the message.  The KIND — hence the exit code — is untouched, and
-the kind is all the theorem reads. -/
-theorem at_line_refines {e n ce} (h : frontend.export_c.at_line e n = ok ce) :
-    absAErrKind ce = absAErrKind e := by
-  rw [frontend.export_c.at_line] at h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  cases e <;>
-  · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    first
-    | (rw [kernel.core_types.not_implemented] at h; cases Result.ok_injective h; rfl)
-    | (rw [kernel.core_types.invalid] at h; cases Result.ok_injective h; rfl)
-    | (rw [kernel.core_types.internal] at h; cases Result.ok_injective h; rfl)
-    | (rw [kernel.core_types.native] at h; cases Result.ok_injective h; rfl)
-
 /-! ## Line-layer shape lemmas (moved from `Top.lean` by task #97-P5-Front round 3,
 so that `ExportCInd.lean`'s `install_ind_d` can compose with them) -/
 
@@ -2088,17 +1992,9 @@ statements are `trivial` and carry no axiom at all.) -/
 #guard_msgs in
 #print axioms declined_refines
 
-/-- info: 'ConRon.Refine2.Frontend.invalid_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms invalid_refines
-
 /-- info: 'ConRon.Refine2.Frontend.sat_sub_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms sat_sub_refines
-
-/-- info: 'ConRon.Refine2.Frontend.rel_offset_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms rel_offset_refines
 
 /-- info: 'ConRon.Refine2.Frontend.push_decl_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

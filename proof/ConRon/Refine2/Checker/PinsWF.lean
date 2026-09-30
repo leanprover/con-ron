@@ -1812,13 +1812,6 @@ theorem decode_wf {t : Slice Std.U8} {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
       (tables_new_wf htn) v h
   · exact (err_ne_ok h).elim
 
-/-- The embedded pin text is a byte slice like any other. -/
-theorem decode_embedded_wf {v : alloc.vec.Vec nat_op_pins.NatOpPinSet}
-    (h : pins_decode.decode_embedded = ok (.Ok v)) : PinListWF v := by
-  rw [pins_decode.decode_embedded] at h
-  obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
-  exact decode_wf h
-
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 
 `decode_wf` is the file's product and it is proved for every byte slice, so
@@ -1833,12 +1826,6 @@ with `pins_closed`. -/
 
 /-- info: 'ConRon.Refine.PinsWF.decode_wf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms decode_wf
-
-/-- info: 'ConRon.Refine.PinsWF.decode_embedded_wf' depends on axioms: [propext,
- Classical.choice,
- Quot.sound,
- pins_text.PINS_TEXT._native.decide.ax_1] -/
-#guard_msgs in #print axioms decode_embedded_wf
 
 /-! ## Into `Refine2`'s form (task #97-P5-Top) -/
 

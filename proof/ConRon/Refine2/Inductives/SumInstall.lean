@@ -253,14 +253,6 @@ form a caller's twin has, so the `TwinEq` rewrites it. -/
   simpa [Lockstep.TwinEq, absEIdxLFrom, absEIdxL, alloc.vec.Vec.new] using h'
 
 open Lockstep in
-@[lockstep] theorem eidx_contains_twin
-    {xs : alloc.vec.Vec arena.handle.EIdx}
-    {x : arena.handle.EIdx}
-    {i : Std.Usize} :
-    LSP (arena.inductives.sum_install.eidx_contains xs x i) (fun o => TwinEq ((absEIdxLFrom xs i).contains (absEIdx x)) (o)) :=
-  fun _o h => (eidx_contains_refines h).symm
-
-open Lockstep in
 /-- `field_sort_bound` ⊑ `checkStructFieldSortsI`'s per-field universe
 bound. -/
 @[lockstep] theorem field_sort_bound_ls
@@ -652,63 +644,6 @@ and well-formed environment after the folds. -/
       (fun o => IFEnvRelI o (consSumCtors (absU n_p) (absCtorsLFrom ctors i) lf)) :=
   fun _ h => cons_sum_ctors_refines hfe.rel hfe.inv h
 
-theorem sum_rules_aux (m : Nat) :
-    ∀ {pers st lst} {vis : Std.U64} {rf lf} {rec_name : arena.handle.NIdx}
-      {n_p m_i r_p : Std.U64} {rec_ty : arena.handle.EIdx}
-      {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
-      {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
-      {out : alloc.vec.Vec arena.env.IRecRule},
-      ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
-      IFEnvRelI rf lf → absU vis = lf.visibleBelow →
-      Lockstep.LS pers (fun a b => b = absIRecRuleL a)
-        (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i
-          r_p rec_ty ctors rhss i out) lst
-        (do pure (absIRecRuleL out ++
-          (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
-            (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
-  induction m with
-  | zero =>
-    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
-    rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
-      vecFrom_nil _ _ _ (by omega)]
-    simp only [sumRules]
-    lockstep
-  | succ m ih =>
-    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hfe hvis
-    rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
-      vecFrom_cons _ _ _ (by omega)]
-    by_cases hr : i.val < rhss.val.length
-    · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
-      simp only [sumRules]
-      lockstep
-    · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
-      simp only [sumRules]
-      lockstep
-
-open Lockstep in
-/-- `sum_rules` ⊑ `sumRules` from the cursor on, with the accumulated rules in
-front. -/
-@[lockstep] theorem sum_rules_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {rec_name : arena.handle.NIdx}
-    {n_p m_i r_p : Std.U64}
-    {rec_ty : arena.handle.EIdx}
-    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
-    {rhss : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    {out : alloc.vec.Vec arena.env.IRecRule}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absIRecRuleL a) (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i r_p rec_ty ctors rhss i out) lst
-      (do pure (absIRecRuleL out ++
-        (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
-          (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) :=
-  sum_rules_aux _ rfl hrel hinv hfe hvis
-
 /-! ## The axiom census -/
 
 /-- info: 'ConRon.Refine2.whnf_telescope_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -716,9 +651,6 @@ front. -/
 
 /-- info: 'ConRon.Refine2.check_sum_ctor_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms check_sum_ctor_ls
-
-/-- info: 'ConRon.Refine2.sum_rules_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms sum_rules_ls
 
 /-- info: 'ConRon.Refine2.cons_sum_ctors_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cons_sum_ctors_refines

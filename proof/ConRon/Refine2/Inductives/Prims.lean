@@ -34,36 +34,6 @@ open Lockstep in
 
 /-! ## The mode gates: each is its twin field, a Rust-only step -/
 
-open Lockstep in
-@[lockstep] theorem tt_checks_twin (m : kernel.env.CheckMode) :
-    LSP (kernel.env.tt_checks m) (fun b => TwinEq (ConRon.Refine.absMode m).ttChecks b) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.tt_checks, Result.ok.injEq] at h; rw [← h]; rfl)
-
-open Lockstep in
-@[lockstep] theorem verified_checks_twin (m : kernel.env.CheckMode) :
-    LSP (kernel.env.verified_checks m) (fun b => TwinEq (ConRon.Refine.absMode m).verifiedChecks b) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
-
-open Lockstep in
-@[lockstep] theorem beta_gate_twin (m : kernel.env.CheckMode) :
-    LSP (kernel.env.beta_gate m) (fun b => TwinEq (ConRon.Refine.absMode m).betaGate b) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.beta_gate, Result.ok.injEq] at h; rw [← h]; rfl)
-
-open Lockstep in
-@[lockstep] theorem io_gate_twin (m : kernel.env.CheckMode) :
-    LSP (kernel.env.io_gate m) (fun b => TwinEq (ConRon.Refine.absMode m).ioGate b) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.io_gate, Result.ok.injEq] at h; rw [← h]; rfl)
-
-open Lockstep in
-@[lockstep] theorem certs_twin (m : kernel.env.CheckMode) :
-    LSP (kernel.env.certs m) (fun b => TwinEq (ConRon.Refine.absMode m).certs b) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.certs, Result.ok.injEq] at h; rw [← h]; rfl)
-
 /-! ## The port's message and name-part constants
 
 A name the port builds from a constant (`intern_n_node (Str n (code_points
@@ -114,41 +84,6 @@ open Lockstep in
       (fun r => ConRon.Refine.absCodes r.val = toString i.val ∧ ConRon.Refine.StrWF r) :=
   fun _ h => ConRon.Refine.CoreK.nat_to_dec_refines h
 
-open Lockstep in
-@[lockstep] theorem code_points_from_zero_spec (s : Slice Std.U32) (out : alloc.vec.Vec Std.U32) :
-    LSP (kernel.core_types.code_points_from s 0#usize out)
-      (fun v => v.val = out.val ++ s.val) := by
-  intro v h
-  have := ConRon.Refine.Env.code_points_from_val s _ 0#usize out v (le_refl _) h
-  simpa using this
-
-open Lockstep in
-/-- `kernel::level::zeroness_of` is the twin's `Level.zeronessOf` at a
-well-formed level (the cached readback's output carries the `LevelWF`). -/
-@[lockstep] theorem zeroness_of_twin (l : kernel.level.Level) (hl : ConRon.Refine.LevelWF l) :
-    LSP (kernel.level.zeroness_of l)
-      (fun pw => TwinEq ((ConRon.Refine.absLevel l).zeronessOf) (ConRon.Refine.absPropWhen pw) ∧
-        ConRon.Refine.PropWhenWF pw) :=
-  fun pw h => ⟨(ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).1.symm,
-    (ConRon.Refine.ExprOps.zeroness_of_refines hl pw h).2⟩
-
-open Lockstep in
-/-- `prop_when::if_all_zero` of the empty list is the twin's `.ifAllZero []`. -/
-@[lockstep] theorem if_all_zero_new_twin :
-    LSP (kernel.prop_when.if_all_zero (alloc.vec.Vec.new kernel.name.Name))
-      (fun pw => TwinEq (ConLeche.PropWhen.ifAllZero []) (ConRon.Refine.absPropWhen pw) ∧
-        ConRon.Refine.PropWhenWF pw) := by
-  intro pw h
-  have hwf : ConRon.Refine.PropWhenWF pw :=
-    ConRon.Refine.PropWhenWF.if_all_zero (by simp [ConRon.Refine.NamesWF, alloc.vec.Vec.new]) h
-  refine ⟨?_, hwf⟩
-  simp only [kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
-    alloc.vec.Vec.len] at h
-  rw [if_pos (by rfl)] at h
-  simp at h
-  subst h
-  rfl
-
 /-! ## The checker tier's statements in `LS` form
 
 The checker tier's own `@[lockstep]` companions (`Checker/{Base,Pins,Axioms}`)
@@ -159,108 +94,7 @@ adds later does not clash. -/
 
 namespace IndPrims
 
-open Lockstep in
-@[lockstep] theorem name_read_sim_ls
-    {pers : arena.store.PersTier}
-    {st : arena.monad.AState}
-    {lst : AState}
-    {pin : Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)}
-    {tw : AM NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hS : ∀ r, pin = ok r → SimRE absNIdx lst r tw) :
-    LS pers (fun a b => b = absNIdx a) ((do let r ← pin; ok (r, st))) lst
-                            tw :=
-  LS.ofSim₀ fun _ h => name_read_sim hrel hinv hS h
-
-
-open Lockstep in
-@[lockstep] theorem canon_names_go_ls
-    {pers st lst}
-    {i n : Std.U64}
-    {out : alloc.vec.Vec arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdxL a) (arena.canon.canon_names_go pers st i n out) lst
-      (do pure (absNIdxL out ++ (← canonNamesGo (absU i) (absU n)))) :=
-  LS.ofSim₀ fun _ h => canon_names_go_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_names_ls
-    {pers st lst}
-    {n : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdxL a) (arena.canon.canon_names pers st n) lst
-                             (canonNames (absU n)) :=
-  LS.ofSim₀ fun _ h => canon_names_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem i_constant_val_canon_eq_ls
-    {pers st lst}
-    {cv cv2 : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.canon.i_constant_val_canon_eq pers st cv cv2) lst
-      ((absIConstantVal cv).canonEq (absIConstantVal cv2)) :=
-  LS.ofSim₀ fun _ h => i_constant_val_canon_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_eq_cv_and_rules_ls
-    {pers st lst}
-    {cv cv2 : arena.env.IConstantVal}
-    {rs rs2 : alloc.vec.Vec arena.env.IRecRule}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.canon.canon_eq_cv_and_rules pers st cv cv2 rs rs2) lst
-      (do
-        if ← (absIConstantVal cv).canonEq (absIConstantVal cv2) then do
-          let cs ← canonNames (absIConstantVal cv).levelParams.length
-          canonRulesEq (absIConstantVal cv).levelParams
-            (absIConstantVal cv2).levelParams cs coreWalkFuel
-            (absIRecRuleL rs) (absIRecRuleL rs2)
-        else pure false) :=
-  LS.ofSim₀ fun _ h => canon_eq_cv_and_rules_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_eq_cv_and_value_ls
-    {pers st lst}
-    {cv cv2 : arena.env.IConstantVal}
-    {v v2 : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.canon.canon_eq_cv_and_value pers st cv cv2 v v2) lst
-      (do
-        if ← (absIConstantVal cv).canonEq (absIConstantVal cv2) then do
-          let cs ← canonNames (absIConstantVal cv).levelParams.length
-          canonExprEq (absIConstantVal cv).levelParams
-            (absIConstantVal cv2).levelParams cs coreWalkFuel
-            (absEIdx v) (absEIdx v2)
-        else pure false) :=
-  LS.ofSim₀ fun _ h => canon_eq_cv_and_value_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem canon_eq_list_ls
-    {pers st lst}
-    {xs ys : alloc.vec.Vec arena.env.IConstantInfo}
-    {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.canon.canon_eq_list pers st xs ys i) lst
-      (canonEqList (absICILFrom xs i) (absICILFrom ys i)) :=
-  LS.ofSim₀ fun _ h => canon_eq_list_refines hrel hinv h
-
-
 end IndPrims
-
-theorem IFEnv.restrictTo_of_eq {lf : IFEnv} {k : Nat} (h : k = lf.visibleBelow) :
-    lf.restrictTo k = lf := by
-  subst h; rfl
 
 -- A checker-tier statement at a split counter reads `lf.restrictTo (absU vis)`;
 -- where the counter is the environment's own (`hvis`), that IS `lf`.
@@ -302,36 +136,6 @@ attribute [local lockstep_simp] absIRecRule_ctor_eq absIRecRule_nfields_eq
   IndModeledPrims.absIRecRule_ctorParams Lockstep.absIRecRule_fire
   absIRecRule_rhs_eq Lockstep.absIRecRule_k Lockstep.absIRecRule_eta
   IndModeledPrims.absIRecRule_paramsBlind Lockstep.absIIndCaps_eta Lockstep.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
-
-@[lockstep] theorem rec_rule_k_of_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (ctor : arena.handle.NIdx) :
-    LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
-      (recRuleKOf lf (absNIdx ctor)) := by
-  rw [arena.core.rec_rule_k_of, recRuleKOf]
-  lockstep
-
-@[lockstep] theorem rec_rule_eta_of_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn ctor : arena.handle.NIdx) :
-    LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
-      (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
-  rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
-  lockstep
-  -- the level-parameter comparison, in `nidx_vec_beq`'s `decide` form
-  all_goals
-    refine LS.pure ?_ ‹_› ‹_›
-    simp_all [absNIdxList]
-    exact beq_eq_decide _ _
-
-@[lockstep] theorem rec_rule_bits_ls {pers st lst} {vis : Std.U64} {rf lf}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) (rn : arena.handle.NIdx)
-    (rl : arena.env.IRecRule) :
-    LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
-      (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
-  rw [arena.core.rec_rule_bits, recRuleBits]
-  lockstep
 
 end RuleBits
 
