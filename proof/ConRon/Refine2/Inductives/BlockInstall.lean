@@ -475,4 +475,64 @@ pushed in block order, each with its capability record. -/
     · have := hfe2.1; simp only [absIConstantInfo, hcv1] at this; exact this
     · simp only [absICVLFrom, ha]
 
+/-- `cons_block_inds` from the first former (the install's call). -/
+@[lockstep] theorem cons_block_inds_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p1 : arena.inductives.block_parts.BlockShape)
+    (is_rec : Bool) (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
+    {fe : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI fe lf) :
+    LS pers (fun a b => IFEnvRelI a b)
+      (arena.inductives.block_install.cons_block_inds pers st p1 is_rec cv_tas 0#usize fe) lst
+      (consBlockInds (absBlockShape p1) is_rec (absICVL cv_tas) 0 lf) := by
+  have h := cons_block_inds_ls p1 is_rec cv_tas 0#usize fe lf st lst hfe hrel hinv
+  rwa [absICVLFrom_zero, show (0#usize : Std.Usize).val = 0 from rfl] at h
+
+/-- `check_block_teles` from an empty accumulator IS `checkBlockTeles` from
+the cursor on (the install calls it at `1`, the twin on `rest`). -/
+@[lockstep] theorem check_block_teles_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape) (i : Std.Usize) :
+    LS pers (fun a b => b = absTeleL a)
+      (arena.inductives.block_install.check_block_teles pers st mode rf n_p ms i
+        (alloc.vec.Vec.new _)) lst
+      (checkBlockTeles (ConRon.Refine.absMode mode) lf (absU n_p) (absMemberShapeLFrom ms i)) := by
+  have h := check_block_teles_ls hrel hinv mode hfe n_p ms i (alloc.vec.Vec.new _)
+  simpa [absTeleL, alloc.vec.Vec.new] using h
+
+/-- `tele_vals` from `0` onto `[cv_ta0]` is the twin's `cvTa₀ :: cvs.map (·.1)`. -/
+theorem tele_vals_cons_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)}
+    {out o : alloc.vec.Vec arena.env.IConstantVal} {x : arena.env.IConstantVal}
+    (hout : out.val = [x])
+    (h : arena.inductives.block_install.tele_vals cvs 0#usize out = ok o) :
+    absICVL o = absIConstantVal x :: (absTeleL cvs).map (·.1) := by
+  rw [tele_vals_abs _ _ o h]
+  simp [absICVL, hout, absTeleL]
+
+/-- `check_block_inds` ⊑ `checkBlockInds` — stage 1. -/
+@[lockstep] theorem check_block_inds_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (p : arena.inductives.block_parts.BlockParts) (is_rec : Bool) :
+    LS pers (fun a b => IFEnvRelI a.1 b.1 ∧ b.2.1 = absICVL a.2.1 ∧ b.2.2 = absBlockShape a.2.2)
+      (arena.inductives.block_install.check_block_inds pers st mode rf p is_rec) lst
+      (checkBlockInds (ConRon.Refine.absMode mode) lf (absBlockParts p) is_rec) := by
+  rw [arena.inductives.block_install.check_block_inds, checkBlockInds, absBlockParts_shape,
+    absBlockShape_members]
+  rcases hms : p.shape.members.val with _ | ⟨m0, rest⟩
+  · have h0 : alloc.vec.Vec.len p.shape.members = 0#usize := by
+      have : (alloc.vec.Vec.len p.shape.members).val = 0 := by simp [alloc.vec.Vec.len, hms]
+      scalar_tac
+    simp only [h0, ↓reduceIte, List.map_nil]
+    lockstep
+  · have h0 : ¬ alloc.vec.Vec.len p.shape.members = 0#usize := by
+      intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hms] at this
+    have hidx := bi_vec_index_eq p.shape.members 0#usize 0 rfl (by simp [hms])
+    simp only [hms, List.getElem_cons_zero] at hidx
+    have hrest : absMemberShapeLFrom p.shape.members 1#usize = rest.map absMemberShape := by
+      simp [absMemberShapeLFrom, hms]
+    simp only [h0, ↓reduceIte, hidx, bind_tc_ok, List.map_cons]
+    lockstep
+    have e := tele_vals_cons_abs (by simpa [alloc.vec.Vec.new] using hP) hf
+    rw [← e]
+    lockstep
+
 end ConRon.Refine2
