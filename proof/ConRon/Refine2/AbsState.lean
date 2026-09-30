@@ -354,11 +354,6 @@ theorem AStateRel₀.of₀ {pers : arena.store.PersTier} {rs : arena.monad.AStat
     AStateRel pers rs ls :=
   ⟨h.store, h.memos, h.caches, h.pins, hwf⟩
 
-/-- `AStateRel` is the lockstep relation and the twin's invariant, and nothing
-else. -/
-theorem AStateRel_iff {pers : arena.store.PersTier} {rs : arena.monad.AState}
-    {ls : AState} : AStateRel pers rs ls ↔ AStateRel₀ pers rs ls ∧ StoreWF ls.store :=
-  ⟨fun h => ⟨h.to₀, h.storeWF⟩, fun h => h.1.of₀ h.2⟩
 
 /-- The Rust-side invariant of the whole state. -/
 structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :

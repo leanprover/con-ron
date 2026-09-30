@@ -32,11 +32,6 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-- `LANE_FULL` is not `LANE_GATED` — kept because the tier's statements read
-the lane's identity in several places, though since task #97-P5-Core-2 no
-`KnotRel` field needs it to discharge a side condition. -/
-theorem laneFull_ne_gated : ¬ (arena.core.LANE_FULL = arena.core.LANE_GATED) := by
-  rw [arena.core.LANE_FULL, arena.core.LANE_GATED]; decide
 
 section Entries
 
@@ -133,15 +128,9 @@ theorem check_fuel_abs : absU arena.core.CHECK_FUEL = Arena.checkFuel := by
   rw [arena.core.CHECK_FUEL, Arena.checkFuel]
   rfl
 
-/-- **What the Checker tier asks this tier for.**  Given the arms, the knot
-holds at the checker's own fuel. -/
-theorem knotRel_checkFuel (hbody : ∀ f, KnotRel f → BodyRel f) :
-    KnotRel (absU arena.core.CHECK_FUEL) := knot_rel hbody _
 
 section Axioms
 
-/-- info: 'ConRon.Refine2.whnf_core_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms whnf_core_refines
 
 /-- info: 'ConRon.Refine2.whnf_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms whnf_refines

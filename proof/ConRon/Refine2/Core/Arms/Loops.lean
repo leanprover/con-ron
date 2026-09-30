@@ -344,22 +344,6 @@ theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
         (absU depth) (absU n) (absEIdx e)) :=
   whnf_loop_aux hk (absU n) hx hrel hinv hctx hf rfl hrun
 
-/-- `arena::core::whnf_step` against `Arena.whnfStep` with the rest of the loop
-named: **the port's `n` IS the twin's continuation `whnfLoop … (absU n)`** — no
-`- 1`, see the module note's finding 13. -/
-theorem whnf_step_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth n e lst o}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.whnf_step pers vis st mode lane fu fe depth n e = ok o) :
-    Sim₀ absEIdx pers lst o
-      (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth)
-        (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-          (absU depth) (absU n)) (absEIdx e)) :=
-  whnf_step_of_cont hk hx hrel hinv hctx hf
-    (fun h1 h2 h3 => whnf_loop_refines hk hx h1 h2 hctx hf h3) hrun
 
 /-- `arena::core::whnf_body` against `Arena.whnfBody`: the loop at its own step
 budget, `WHNF_LOOP_FUEL = whnfLoopFuel = 100000` on both sides. -/
@@ -402,22 +386,6 @@ theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
         (absU n) pi (absEIdx a) (absEIdx b)) :=
   Lockstep.LS.toSim₀ (Lockstep.defeq_loop_ls hk hx hrel hinv hctx hf) hrun
 
-/-- `arena::core::defeq_step` against `Arena.defeqStep` — **the port's `n` IS
-the twin's continuation `defeqLoop … (absU n)`**, finding 13 again. -/
-theorem defeq_step_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth n pi a b lst o}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b
-      = ok o) :
-    Sim₀ id pers lst o
-      (defeqStep (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (defeqLoop (ConRon.Refine.absMode mode)
-          (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-          (absU n)) pi (absEIdx a) (absEIdx b)) :=
-  Lockstep.LS.toSim₀ (Lockstep.defeq_step_ls hk hx hrel hinv hctx hf) hrun
 
 /-- `arena::core::defeq_body` against `Arena.defeqBody`: the loop at its own
 step budget, `DEFEQ_LOOP_FUEL = defeqLoopFuel = 100000` on both sides, at

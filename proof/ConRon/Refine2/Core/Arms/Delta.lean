@@ -107,11 +107,6 @@ theorem EStore_view_of_tag_const (st : EStore) (i : EIdx)
     · rw [if_pos hs, if_pos hs]; exact key _
     · rw [if_neg hs, if_neg hs]; rfl
 
-/-- **A `.const` view comes only from a `const`-tagged handle** — the negative
-half the port's `else` arm needs, an instance of `EStore_view_tagOf`. -/
-theorem EStore_tag_of_view_const {st : EStore} {i : EIdx} {n : NIdx}
-    {us : LsIdx} (h : st.view i = some (.const n us)) : i.tag = ETag.const :=
-  EStore_view_tagOf h
 
 /-! ## The level-list length, as a projection of the view -/
 

@@ -1167,9 +1167,6 @@ are the same under `get`, so each is the floor-3 lemma plus one `rfl`-level
 step for the `StateT` plumbing.  `SimR` (`Refine2/Shape.lean`) is the shape:
 *the twin answers the abstracted value and leaves the state alone*. -/
 
-/-- The `StateT` plumbing, once: a twin reader is `get` then `pure`. -/
-theorem run_get_pure {β : Type} (f : AState → β) (lst : AState) :
-    ((do let s ← get; pure (f s) : AM β)).run lst = .ok (f lst, lst) := rfl
 
 /-- The same at a twin action that READS the state and then continues: the
 `get` is the identity on the run.  Every `do let s ← get; …` of the twin goes
@@ -1330,12 +1327,6 @@ theorem failDanglingE_errSim {γ : Type} {v : alloc.vec.Vec Std.U32}
       ((Arena.failDanglingE : AM γ).run lst) :=
   AErrSim.internal (by rfl)
 
-/-- The same at the level-list handle. -/
-theorem failDanglingLs_errSim {γ : Type} {v : alloc.vec.Vec Std.U32}
-    (lst : AState) :
-    AErrSim (kernel.core_types.CheckError.Internal v)
-      ((Arena.failDanglingLs : AM γ).run lst) :=
-  AErrSim.internal (by rfl)
 
 /-! ### The memo probes
 
@@ -4583,31 +4574,8 @@ theorem ECapBMOf.not_of_pers_size {st : EStore} {m : ConLeche.BinderMeta}
   have := hc (by simp [EStore.findBM, hp, hoff])
   simpa [EStore.capOKBM, hoff] using this
 
-/-- `Arena.internE`'s SECOND miss-path test, at a binder view: the datum
-array has room.  Named beside `ECapAt` for the same reason — so it can be
-concluded rather than assumed where the port's own `intern_bm` proves it.
 
-**Guarded by the DATUM probe, not by the tag** (task #97-P5-Twin round 2):
-`internBM` appends only where `findBMOfView` misses, which is where the port's
-`intern_bm` tests `full`, so this is exactly the port's own decision.  A
-non-binder view answers `some (Idx.ofWord 0)` there and the implication is
-vacuous, which is why no `eViewNeedsBM` appears. -/
-def ECapBMAt (st : EStore) (v : ENodeView) : Prop :=
-  st.findBMOfView v = none → st.capOKBM
 
-/-- A non-binder view never reaches the datum array. -/
-theorem ECapBMAt.of_findBMOfView {st : EStore} {v : ENodeView} {mi : BMIdx}
-    (h : st.findBMOfView v = some mi) : ECapBMAt st v := by
-  intro hf; rw [h] at hf; exact absurd hf (by simp)
-
-/-- A non-binder view never reaches the datum array: `findBMOfView` answers
-`some (Idx.ofWord 0)` at all eight of them, by definition. -/
-theorem ECapBMAt.of_no_bm {st : EStore} {v : ENodeView}
-    (h : EStore.eViewNeedsBM v = false) : ECapBMAt st v := by
-  cases v
-  case lam => exact absurd h (by simp [EStore.eViewNeedsBM])
-  case forallE => exact absurd h (by simp [EStore.eViewNeedsBM])
-  all_goals exact ECapBMAt.of_findBMOfView (mi := Idx.ofWord 0) rfl
 
 /-- `Arena.internE` at a NON-binder view IS `Arena.internNodeE` (task
 #97-T2-LOCKSTEP D6: the two binder arms are the Rust's datum-then-node
@@ -4690,44 +4658,7 @@ so every producer of the relation owes it.  `Arena/WFProofs.lean`'s
   shape `EStore.ViewOK` already has, so a caller discharges it with the
   builders below. -/
 
-/-- The clause at `EStore.intern`: `intern_wf` on the miss, and on the hit the
-store does not move at all (`intern_of_find`), so there is nothing to prove. -/
-theorem intern_storeWF {st : EStore} {v : ENodeView} (hwf : StoreWF st)
-    (hview : st.ViewOK v) (hcap : ECapAt st v) (hbm : ECapBMAt st v) :
-    StoreWF (st.intern v).1 := by
-  cases hf : st.find? v with
-  | some h => rw [intern_of_find hf]; exact hwf
-  | none => exact EStore.intern_wf hwf hview ⟨hcap hf, hbm⟩
 
-/-- **The inversion of `Arena.internNodeE`'s run**: a successful run passed the
-node array's test and ended at `EStore.intern`.  It is the twin-side fact the
-deprecated shims below need to rebuild `StoreWF` and `Ext` (task
-#97-T2-LOCKSTEP); no lockstep statement uses it. -/
-theorem internNodeE_run_inv {lst lst' : AState} {v : ENodeView} {h : EIdx}
-    (hrun : (Arena.internNodeE v).run lst = .ok (h, lst')) :
-    ECapAt lst.store v ∧ lst' = { lst with store := (lst.store.intern v).1 } := by
-  rw [Arena.internNodeE, run_get_bind] at hrun
-  cases hf : lst.store.find? v with
-  | some i =>
-    simp only [hf] at hrun
-    have he : (i, lst) = (h, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    refine ⟨ECapAt.of_find_ne (by rw [hf]; simp), ?_⟩
-    rw [intern_of_find hf, ← he.2]
-  | none =>
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.scratchOn then lst.store.scr.sizeOf v
-          else lst.store.pers.sizeOf v) < Idx.idxCap
-    · rw [if_pos hc] at hrun
-      refine ⟨fun _ => hc, ?_⟩
-      cases hi : lst.store.intern v with
-      | mk st1 h1 =>
-        rw [hi] at hrun
-        have he : (h1, ({ lst with store := st1 } : AState)) = (h, lst') :=
-          Except.ok.inj hrun
-        simp only [Prod.mk.injEq] at he
-        rw [← he.2]
-    · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
 
 /-! ### The ten `ViewOK` builders
 
@@ -4735,91 +4666,15 @@ One per constructor, so that a caller says what it knows (a child's `view`
 is `some`) rather than assembling a four-field structure.  `bvar` and `lit`
 have no children at all and need no hypothesis. -/
 
-theorem viewOK_bvar {st : EStore} (k : Nat) : st.ViewOK (.bvar k) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_lit {st : EStore} (l : ConLeche.Literal) : st.ViewOK (.lit l) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_fvar {st : EStore} {k : Nat} {ty : EIdx}
-    (hty : (st.view ty).isSome = true) : st.ViewOK (.fvar k ty) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc; subst hc; exact hty,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_sort {st : EStore} {u : LIdx}
-    (hu : (st.ls.view u).isSome = true) : st.ViewOK (.sort u) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc; subst hc; exact hu,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_const {st : EStore} {n : NIdx} {us : LsIdx}
-    (hn : (st.ns.view n).isSome = true) (hus : (st.lss.view us).isSome = true) :
-    st.ViewOK (.const n us) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc,
-   by intro c hc; simp [ENodeView.nchildren] at hc; subst hc; exact hn,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc; subst hc; exact hus⟩
 
-theorem viewOK_app {st : EStore} {f a : EIdx} (hf : (st.view f).isSome = true)
-    (ha : (st.view a).isSome = true) : st.ViewOK (.app f a) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc
-      rcases hc with rfl | rfl
-      · exact hf
-      · exact ha,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_letE {st : EStore} {ty v b : EIdx} (hty : (st.view ty).isSome = true)
-    (hv : (st.view v).isSome = true) (hb : (st.view b).isSome = true) :
-    st.ViewOK (.letE ty v b) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc
-      rcases hc with rfl | rfl | rfl
-      · exact hty
-      · exact hv
-      · exact hb,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_proj {st : EStore} {n : NIdx} {i : Nat} {e : EIdx}
-    (hn : (st.ns.view n).isSome = true) (he : (st.view e).isSome = true) :
-    st.ViewOK (.proj n i e) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc; subst hc; exact he,
-   by intro c hc; simp [ENodeView.nchildren] at hc; subst hc; exact hn,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_lam {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
-    (hty : (st.view ty).isSome = true) (hb : (st.view b).isSome = true) :
-    st.ViewOK (.lam ty b m) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc
-      rcases hc with rfl | rfl
-      · exact hty
-      · exact hb,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
-theorem viewOK_forallE {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
-    (hty : (st.view ty).isSome = true) (hb : (st.view b).isSome = true) :
-    st.ViewOK (.forallE ty b m) :=
-  ⟨by intro c hc; simp [ENodeView.echildren] at hc
-      rcases hc with rfl | rfl
-      · exact hty
-      · exact hb,
-   by intro c hc; simp [ENodeView.nchildren] at hc,
-   by intro c hc; simp [ENodeView.lchildren] at hc,
-   by intro c hc; simp [ENodeView.lschildren] at hc⟩
 
 theorem intern_e_bvar_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
@@ -5543,24 +5398,6 @@ theorem estore_intern_fvar_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with fvars := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_fvar_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_fvar_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {idx : Std.U64} {ty : arena.handle.EIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : (absEIdx ty).isPersistent = false →
-      ls.pers.fvars.find? ⟨absU idx, absEIdx ty⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_fvar rs pers idx ty = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.intern (.fvar (absU idx) (absEIdx ty))).2 ∧
-        StoreRel pers rs' (ls.intern (.fvar (absU idx) (absEIdx ty))).1 ∧
-        StoreInv pers rs' ∧ ECapAt ls (.fvar (absU idx) (absEIdx ty))) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.fvar (absU idx) (absEIdx ty))) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_fvar_abs₀ hrel hinv h
 
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
@@ -5988,24 +5825,6 @@ theorem estore_intern_sort_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with sorts := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_sort_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_sort_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {u : arena.handle.LIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : (absLIdx u).isPersistent = false →
-      ls.pers.sorts.find? ⟨absLIdx u⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_sort rs pers u = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.intern (.sort (absLIdx u))).2 ∧
-        StoreRel pers rs' (ls.intern (.sort (absLIdx u))).1 ∧
-        StoreInv pers rs' ∧ ECapAt ls (.sort (absLIdx u))) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.sort (absLIdx u))) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_sort_abs₀ hrel hinv h
 
 
 
@@ -6268,24 +6087,6 @@ theorem estore_intern_const_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with consts := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_const_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_const_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {n : arena.handle.NIdx} {us : arena.handle.LsIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : ((absNIdx n).isPersistent = false ∨ (absLsIdx us).isPersistent = false) →
-      ls.pers.consts.find? ⟨absNIdx n, absLsIdx us⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_const rs pers n us = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.intern (.const (absNIdx n) (absLsIdx us))).2 ∧
-        StoreRel pers rs' (ls.intern (.const (absNIdx n) (absLsIdx us))).1 ∧
-        StoreInv pers rs' ∧ ECapAt ls (.const (absNIdx n) (absLsIdx us))) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.const (absNIdx n) (absLsIdx us))) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_const_abs₀ hrel hinv h
 
 
 
@@ -6548,24 +6349,6 @@ theorem estore_intern_app_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with apps := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_app_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_app_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {f a : arena.handle.EIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : ((absEIdx f).isPersistent = false ∨ (absEIdx a).isPersistent = false) →
-      ls.pers.apps.find? ⟨absEIdx f, absEIdx a⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_app rs pers f a = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.intern (.app (absEIdx f) (absEIdx a))).2 ∧
-        StoreRel pers rs' (ls.intern (.app (absEIdx f) (absEIdx a))).1 ∧
-        StoreInv pers rs' ∧ ECapAt ls (.app (absEIdx f) (absEIdx a))) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.app (absEIdx f) (absEIdx a))) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_app_abs₀ hrel hinv h
 
 
 
@@ -6828,24 +6611,6 @@ theorem estore_intern_proj_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with projs := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_proj_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_proj_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {n : arena.handle.NIdx} {i : Std.U64} {ep : arena.handle.EIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : ((absNIdx n).isPersistent = false ∨ (absEIdx ep).isPersistent = false) →
-      ls.pers.projs.find? ⟨absNIdx n, absU i, absEIdx ep⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_proj rs pers n i ep = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.intern (.proj (absNIdx n) (absU i) (absEIdx ep))).2 ∧
-        StoreRel pers rs' (ls.intern (.proj (absNIdx n) (absU i) (absEIdx ep))).1 ∧
-        StoreInv pers rs' ∧ ECapAt ls (.proj (absNIdx n) (absU i) (absEIdx ep))) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.proj (absNIdx n) (absU i) (absEIdx ep))) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_proj_abs₀ hrel hinv h
 
 
 
@@ -7113,24 +6878,6 @@ theorem estore_intern_let_e_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with lets := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_let_e_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_let_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {ty val bo : arena.handle.EIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx val).isPersistent = false ∨ (absEIdx bo).isPersistent = false) →
-      ls.pers.lets.find? ⟨absEIdx ty, absEIdx val, absEIdx bo⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_let_e rs pers ty val bo = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))).2 ∧
-        StoreRel pers rs' (ls.intern (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))).1 ∧
-        StoreInv pers rs' ∧ ECapAt ls (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ ECapAt ls (.letE (absEIdx ty) (absEIdx val) (absEIdx bo))) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_let_e_abs₀ hrel hinv h
 
 
 
@@ -7961,26 +7708,6 @@ theorem estore_intern_lam_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls)
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with lams := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_lam_i_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_lam_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {ty bo : arena.handle.EIdx} {mi : arena.handle.BMIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : ((absEIdx ty).isPersistent = false ∨
-        (absEIdx bo).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
-      ls.pers.lams.find? ⟨absEIdx ty, absEIdx bo, absBMIdx mi⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_lam_i rs pers ty bo mi = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.internLamI (absEIdx ty) (absEIdx bo) (absBMIdx mi)).2 ∧
-        StoreRel pers rs' (ls.internLamI (absEIdx ty) (absEIdx bo) (absBMIdx mi)).1 ∧
-        StoreInv pers rs' ∧
-        EBindCapAt ls ETag.lam (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ EBindCapAt ls ETag.lam (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_lam_i_abs₀ hrel hinv h
 
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
@@ -8272,26 +7999,6 @@ theorem estore_intern_forall_e_i_abs₀ {pers rs ls} (hrel : StoreRel pers rs ls
           unfold rPersE; rw [if_neg (by simp [hsh])]
           exact { hinvPerst with foralls := hinv1 }
 
-/-- **Deprecated shim** (task #97-T2-LOCKSTEP): use `estore_intern_forall_e_i_abs₀` (its `hchild` has been
-unused since D2). -/
-theorem estore_intern_forall_e_i_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {ty bo : arena.handle.EIdx} {mi : arena.handle.BMIdx}
-    -- unused since D2; removed in slice 3
-    (_hchild : ((absEIdx ty).isPersistent = false ∨
-        (absEIdx bo).isPersistent = false ∨ (absBMIdx mi).isPersistent = false) →
-      ls.pers.foralls.find? ⟨absEIdx ty, absEIdx bo, absBMIdx mi⟩ = none)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_forall_e_i rs pers ty bo mi = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh = (ls.internForallEI (absEIdx ty) (absEIdx bo) (absBMIdx mi)).2 ∧
-        StoreRel pers rs' (ls.internForallEI (absEIdx ty) (absEIdx bo) (absBMIdx mi)).1 ∧
-        StoreInv pers rs' ∧
-        EBindCapAt ls ETag.forallE (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native ∧ ¬ EBindCapAt ls ETag.forallE (absEIdx ty) (absEIdx bo) (absBMIdx mi)) ∧
-      (rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) :=
-  estore_intern_forall_e_i_abs₀ hrel hinv h
 
 /-! ## The binder arms' side conditions, CONCLUDED (task #97-P5-Mut round 2)
 
@@ -8313,144 +8020,15 @@ whose datum table answers `mi` for `m`, `pers.lams.find? ⟨ty, b, mi⟩` IS
 `persFindBM_of_view_pers` (a persistent binder names a persistent datum) close
 the three disjuncts. -/
 
-theorem persFindBM_none_of_findBM {st : EStore} {m : ConLeche.BinderMeta}
-    (hf : st.findBM m = none) : st.persFindBM m = none := by
-  cases hp : st.persFindBM m with
-  | none => rfl
-  | some i => simp [EStore.findBM, hp] at hf
 
-/-- **The datum handle `internBM` APPENDS decodes nowhere in the store it was
-appended to**: its index is the datum array's old size. -/
-theorem viewBM_internBM_fresh {st : EStore} {m : ConLeche.BinderMeta}
-    (hf : st.findBM m = none) (hcap : st.capOKBM) :
-    st.viewBM (st.internBM m).2 = none := by
-  have hp := persFindBM_none_of_findBM hf
-  cases hon : st.scratchOn with
-  | true =>
-    have hs : st.scr.findBM m = none := by
-      simpa [EStore.findBM, hp, hon] using hf
-    have hc : st.scr.bms.size < Idx.idxCap := by
-      simpa [EStore.capOKBM, hon, ETables.bmSize] using hcap
-    rw [EStore.internBM_push_scr hp hon hs]
-    have htr : (Idx.tierS : UInt32).toNat < 2 := by decide
-    have hpS : (st.scr.pushBM m (hash m.pw) Idx.tierS).2.isPersistent = false := by
-      simp only [Idx.isPersistent, ETables.pushBM_tier htr hc]; decide
-    simp only [EStore.viewBM, EStore.persGetBM, hpS, hon, Bool.false_eq_true, if_false,
-      if_true]
-    exact ETables.getBM_eq_none_of_size (ETables.pushBM_idxNat htr hc)
-  | false =>
-    have hc : st.pers.bms.size < Idx.idxCap := by
-      simpa [EStore.capOKBM, hon, ETables.bmSize] using hcap
-    rw [EStore.internBM_push_pers hp hon]
-    have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
-    have hpP : (st.pers.pushBM m (hash m.pw) Idx.tierP).2.isPersistent = true := by
-      simp only [Idx.isPersistent, ETables.pushBM_tier htr hc]; decide
-    simp only [EStore.viewBM, EStore.persGetBM, hpP, if_true]
-    exact ETables.getBM_eq_none_of_size (ETables.pushBM_idxNat htr hc)
 
-/-- **No binder cons key names a datum handle that decodes nowhere** —
-`bmKeyP`/`bmKeyS` against `bmConsP`/`viewBM_of_findBM`. -/
-theorem findBindI_none_of_viewBM_none {st : EStore} (hwf : StoreWF st)
-    {ty b : EIdx} {mi : BMIdx} (m : ConLeche.BinderMeta)
-    (hv : st.viewBM mi = none) :
-    st.findBindI ETag.lam ty b mi = none ∧ st.findBindI ETag.forallE ty b mi = none := by
-  obtain ⟨rk, hw⟩ := hwf
-  have kP : ∀ (v : ENodeView), v.bmOf = some m → st.pers.find? v mi = none := by
-    intro v hbm
-    cases hj : st.pers.find? v mi with
-    | none => rfl
-    | some j =>
-      rcases hw.bmKeyP v mi j hj with h | ⟨m', hm'⟩
-      · rw [hbm] at h; cases h
-      · rw [((hw.bmConsP m' mi).mp hm').1] at hv; cases hv
-  have kS : ∀ (v : ENodeView), v.bmOf = some m → st.scr.find? v mi = none := by
-    intro v hbm
-    cases hj : st.scr.find? v mi with
-    | none => rfl
-    | some j =>
-      rcases hw.bmKeyS v mi j hj with h | ⟨m', hm'⟩
-      · rw [hbm] at h; cases h
-      · rw [hw.viewBM_of_findBM hm'] at hv; cases hv
-  have hPL : st.pers.lams.find? ⟨ty, b, mi⟩ = none := kP (.lam ty b m) rfl
-  have hSL : st.scr.lams.find? ⟨ty, b, mi⟩ = none := kS (.lam ty b m) rfl
-  have hPF : st.pers.foralls.find? ⟨ty, b, mi⟩ = none := kP (.forallE ty b m) rfl
-  have hSF : st.scr.foralls.find? ⟨ty, b, mi⟩ = none := kS (.forallE ty b m) rfl
-  constructor
-  · simp [EStore.findBindI, EStore.persFindBindMaybe, ETables.findBind, hPL, hSL]
-  · simp [EStore.findBindI, EStore.persFindBindMaybe, ETables.findBind, ETag.lam, ETag.forallE, hPF, hSF]
 
-/-- `internBM` moves neither binder array, nor the tier flag. -/
-theorem findBindI_internBM (st : EStore) (m : ConLeche.BinderMeta) (tag : UInt32)
-    (ty b : EIdx) (mi : BMIdx) :
-    (st.internBM m).1.findBindI tag ty b mi = st.findBindI tag ty b mi := by
-  rcases EStore.internBM_cases st m with he | he | he <;> rw [he] <;> rfl
 
-theorem bindSize_internBM (st : EStore) (m : ConLeche.BinderMeta) (tag : UInt32) :
-    (if (st.internBM m).1.scratchOn then (st.internBM m).1.scr.bindSizeOf tag
-      else (st.internBM m).1.pers.bindSizeOf tag)
-      = (if st.scratchOn then st.scr.bindSizeOf tag else st.pers.bindSizeOf tag) := by
-  rcases EStore.internBM_cases st m with he | he | he <;> rw [he] <;> rfl
 
-/-- At a datum handle the cons table answers, the node probe IS the binder
-probe. -/
-theorem findAt_lam_eq_findBindI (st : EStore) (ty b : EIdx) (m : ConLeche.BinderMeta)
-    (mi : BMIdx) : st.findAt (.lam ty b m) mi = st.findBindI ETag.lam ty b mi := by
-  simp only [EStore.findAt, EStore.findBindI, EStore.persFindMaybe,
-    EStore.persFindBindMaybe, EStore.eRecHasScratchChild, ETables.find?, ETables.findBind,
-    beq_self_eq_true, if_true]
 
-theorem findAt_forallE_eq_findBindI (st : EStore) (ty b : EIdx) (m : ConLeche.BinderMeta)
-    (mi : BMIdx) :
-    st.findAt (.forallE ty b m) mi = st.findBindI ETag.forallE ty b mi := by
-  simp only [EStore.findAt, EStore.findBindI, EStore.persFindMaybe,
-    EStore.persFindBindMaybe, EStore.eRecHasScratchChild, ETables.find?, ETables.findBind,
-    ETag.lam, ETag.forallE]
-  rfl
 
-/-- **`ECapAt` at a binder view, from the port's own test at the binder
-array**, `lam` and `forallE` in one: the four side facts are each a one-line
-instance at either constructor. -/
-theorem ECapAt_bind_of {ls : EStore} (hwf : StoreWF ls) {tag : UInt32} {ty b : EIdx}
-    {m : ConLeche.BinderMeta} {v : ENodeView}
-    (hfov : ∀ st : EStore, st.findBMOfView v = st.findBM m)
-    (hfa : ∀ (st : EStore) (mi : BMIdx), st.findAt v mi = st.findBindI tag ty b mi)
-    (hsz : ∀ t : ETables, t.sizeOf v = t.bindSizeOf tag)
-    (hfresh : ∀ st : EStore, StoreWF st → ∀ mi, st.viewBM mi = none →
-      st.findBindI tag ty b mi = none)
-    (hbm : ECapBMOf ls m)
-    (hcap : EBindCapAt (ls.internBM m).1 tag ty b (ls.internBM m).2) :
-    ECapAt ls v := by
-  intro hfind
-  rw [hsz, hsz]
-  have hg : ls.findBindI tag ty b (ls.internBM m).2 = none := by
-    cases hfb : ls.findBM m with
-    | some mi0 =>
-      rw [internBM_of_findBM hfb]
-      simp only [EStore.find?, hfov, hfb] at hfind
-      rw [← hfa]; exact hfind
-    | none => exact hfresh ls hwf _ (viewBM_internBM_fresh hfb (hbm hfb))
-  have := hcap (by rw [findBindI_internBM]; exact hg)
-  rwa [bindSize_internBM] at this
 
-theorem ECapAt_lam_of {ls : EStore} (hwf : StoreWF ls) {ty b : EIdx}
-    {m : ConLeche.BinderMeta} (hbm : ECapBMOf ls m)
-    (hcap : EBindCapAt (ls.internBM m).1 ETag.lam ty b (ls.internBM m).2) :
-    ECapAt ls (.lam ty b m) :=
-  ECapAt_bind_of hwf (fun _ => rfl) (fun st mi => findAt_lam_eq_findBindI st ty b m mi)
-    (fun t => by simp [ETables.sizeOf, ETables.bindSizeOf])
-    (fun _ h _ hv => (findBindI_none_of_viewBM_none h m hv).1) hbm hcap
 
-theorem ECapAt_forallE_of {ls : EStore} (hwf : StoreWF ls) {ty b : EIdx}
-    {m : ConLeche.BinderMeta} (hbm : ECapBMOf ls m)
-    (hcap : EBindCapAt (ls.internBM m).1 ETag.forallE ty b (ls.internBM m).2) :
-    ECapAt ls (.forallE ty b m) :=
-  ECapAt_bind_of hwf (fun _ => rfl)
-    (fun st mi => findAt_forallE_eq_findBindI st ty b m mi)
-    (fun t => by simp [ETables.sizeOf, ETables.bindSizeOf, ETag.lam, ETag.forallE])
-    (fun _ h _ hv => (findBindI_none_of_viewBM_none h m hv).2) hbm hcap
-
--- `persFind_bind_none_of_child` and `bind_child_disj` moved to
--- `Arena/WFSkip.lean` (task #97-T2-LOCKSTEP D2).
 
 /-! ## `intern_lam` / `intern_forall_e`: the datum intern, then the binder array
 
@@ -8463,141 +8041,7 @@ into the second step — which is now the third conjunct of
 `estore_intern_bm_abs`'s success arm.  (Task #97-P5-Unfreeze retired
 `hfrozen`; the conjunct stays.) -/
 
-/-- `EStore::intern_lam` against the twin's `internLam`. -/
-theorem estore_intern_lam_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {ty bo : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
-    (hwf : StoreWF ls)
-    (hpw : ConRon.Refine.PropWhenWF m.pw)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_lam rs pers ty bo m = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh
-            = (ls.internLam (absEIdx ty) (absEIdx bo)
-                (ConRon.Refine.absBinderMeta m)).2 ∧
-        StoreRel pers rs'
-            (ls.internLam (absEIdx ty) (absEIdx bo)
-              (ConRon.Refine.absBinderMeta m)).1 ∧
-        StoreInv pers rs' ∧
-        ECapBMOf ls (ConRon.Refine.absBinderMeta m) ∧
-        ECapAt ls (.lam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)) ∧
-        rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native) := by
-  rw [arena.store.EStore.intern_lam] at h
-  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨rb, rs1⟩ := q
-  obtain ⟨hok1, herr1⟩ := estore_intern_bm_abs (ls := ls) hrel hinv hpw hq
-  cases hrb : rb with
-  | Err ee =>
-    rw [hrb] at h
-    have he := Result.ok_injective h
-    simp only [Prod.mk.injEq] at he
-    obtain ⟨hr, hs'⟩ := he
-    subst hr; subst hs'
-    refine ⟨by intro hh hok; simp at hok, ?_⟩
-    intro e2 he2
-    simp only [core.result.Result.Err.injEq] at he2
-    subst he2
-    exact (herr1 ee hrb).1
-  | Ok mi =>
-    rw [hrb] at h
-    obtain ⟨hmi, hrel1, hinv1, hsc, hlss1, hcb⟩ := hok1 mi hrb
-    -- `hchild`, from `StoreWF` at the shifted store
-    have hwf1 : StoreWF (ls.internBM (ConRon.Refine.absBinderMeta m)).1 := by
-      obtain ⟨rk, hw⟩ := hwf; exact (EStore.internBM_spec hw hcb).1
-    have hfb1 : (ls.internBM (ConRon.Refine.absBinderMeta m)).1.findBM
-        (ConRon.Refine.absBinderMeta m) = some (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := by
-      obtain ⟨rk, hw⟩ := hwf
-      obtain ⟨-, -, -, -, -, -, hvbm1, htag1⟩ := EStore.internBM_spec hw hcb
-      obtain ⟨rk1, hw1⟩ := hwf1
-      exact hw1.findBM_of_viewBM htag1 hvbm1
-    have hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx bo).isPersistent = false ∨
-        ((ls.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
-      (ls.internBM (ConRon.Refine.absBinderMeta m)).1.pers.lams.find?
-        ⟨absEIdx ty, absEIdx bo, (ls.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none :=
-      fun hc => persFind_bind_none_of_child
-        (v := .lam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m))
-        hwf1 rfl hfb1 (bind_child_disj _ rfl hc)
-    have htw : ls.internLam (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)
-        = (ls.internBM (ConRon.Refine.absBinderMeta m)).1.internLamI (absEIdx ty)
-            (absEIdx bo) (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := rfl
-    rw [htw, ← hmi]
-    obtain ⟨hok2, herr2, hfl2⟩ := estore_intern_lam_i_abs
-      (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1
-      (by rw [hmi]; exact hchild) h
-    refine ⟨fun hh hokk => ?_, fun e he => (herr2 e he).1⟩
-    obtain ⟨a1, a2, a3, a4⟩ := hok2 hh hokk
-    exact ⟨a1, a2, a3, hcb, ECapAt_lam_of hwf hcb (by rw [← hmi]; exact a4),
-      by rw [hfl2.1, hsc], by rw [hfl2.2, hlss1]⟩
 
-/-- `EStore::intern_forall_e` against the twin's `internForallE`. -/
-theorem estore_intern_forall_e_abs {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs)
-    {ty bo : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
-    (hwf : StoreWF ls)
-    (hpw : ConRon.Refine.PropWhenWF m.pw)
-    {r} {rs'}
-    (h : arena.store.EStore.intern_forall_e rs pers ty bo m = ok (r, rs')) :
-    (∀ hh, r = .Ok hh →
-        absEIdx hh
-            = (ls.internForallE (absEIdx ty) (absEIdx bo)
-                (ConRon.Refine.absBinderMeta m)).2 ∧
-        StoreRel pers rs'
-            (ls.internForallE (absEIdx ty) (absEIdx bo)
-              (ConRon.Refine.absBinderMeta m)).1 ∧
-        StoreInv pers rs' ∧
-        ECapBMOf ls (ConRon.Refine.absBinderMeta m) ∧
-        ECapAt ls (.forallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)) ∧
-        rs'.scratch_on = rs.scratch_on ∧
-        rs'.lss = rs.lss) ∧
-      (∀ e, r = .Err e → absAErrKind e = some .native) := by
-  rw [arena.store.EStore.intern_forall_e] at h
-  obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨rb, rs1⟩ := q
-  obtain ⟨hok1, herr1⟩ := estore_intern_bm_abs (ls := ls) hrel hinv hpw hq
-  cases hrb : rb with
-  | Err ee =>
-    rw [hrb] at h
-    have he := Result.ok_injective h
-    simp only [Prod.mk.injEq] at he
-    obtain ⟨hr, hs'⟩ := he
-    subst hr; subst hs'
-    refine ⟨by intro hh hok; simp at hok, ?_⟩
-    intro e2 he2
-    simp only [core.result.Result.Err.injEq] at he2
-    subst he2
-    exact (herr1 ee hrb).1
-  | Ok mi =>
-    rw [hrb] at h
-    obtain ⟨hmi, hrel1, hinv1, hsc, hlss1, hcb⟩ := hok1 mi hrb
-    -- `hchild`, from `StoreWF` at the shifted store
-    have hwf1 : StoreWF (ls.internBM (ConRon.Refine.absBinderMeta m)).1 := by
-      obtain ⟨rk, hw⟩ := hwf; exact (EStore.internBM_spec hw hcb).1
-    have hfb1 : (ls.internBM (ConRon.Refine.absBinderMeta m)).1.findBM
-        (ConRon.Refine.absBinderMeta m) = some (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := by
-      obtain ⟨rk, hw⟩ := hwf
-      obtain ⟨-, -, -, -, -, -, hvbm1, htag1⟩ := EStore.internBM_spec hw hcb
-      obtain ⟨rk1, hw1⟩ := hwf1
-      exact hw1.findBM_of_viewBM htag1 hvbm1
-    have hchild : ((absEIdx ty).isPersistent = false ∨ (absEIdx bo).isPersistent = false ∨
-        ((ls.internBM (ConRon.Refine.absBinderMeta m)).2).isPersistent = false) →
-      (ls.internBM (ConRon.Refine.absBinderMeta m)).1.pers.foralls.find?
-        ⟨absEIdx ty, absEIdx bo, (ls.internBM (ConRon.Refine.absBinderMeta m)).2⟩ = none :=
-      fun hc => persFind_bind_none_of_child
-        (v := .forallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m))
-        hwf1 rfl hfb1 (bind_child_disj _ rfl hc)
-    have htw : ls.internForallE (absEIdx ty) (absEIdx bo) (ConRon.Refine.absBinderMeta m)
-        = (ls.internBM (ConRon.Refine.absBinderMeta m)).1.internForallEI (absEIdx ty)
-            (absEIdx bo) (ls.internBM (ConRon.Refine.absBinderMeta m)).2 := rfl
-    rw [htw, ← hmi]
-    obtain ⟨hok2, herr2, hfl2⟩ := estore_intern_forall_e_i_abs
-      (ls := (ls.internBM (ConRon.Refine.absBinderMeta m)).1) hrel1 hinv1
-      (by rw [hmi]; exact hchild) h
-    refine ⟨fun hh hokk => ?_, fun e he => (herr2 e he).1⟩
-    obtain ⟨a1, a2, a3, a4⟩ := hok2 hh hokk
-    exact ⟨a1, a2, a3, hcb, ECapAt_forallE_of hwf hcb (by rw [← hmi]; exact a4),
-      by rw [hfl2.1, hsc], by rw [hfl2.2, hlss1]⟩
 
 
 /-! ## The node records: `Dup` is the identity, and `abs` is injective
@@ -8856,30 +8300,7 @@ theorem internBindI_of_findBindI {st : EStore} {tag : UInt32} {ty b : EIdx}
       | none => simp only [hs] at hf; simp at hf
     · simp only [hon] at hf; simp at hf
 
-/-- **Finding 16's clause at the two BINDER arrays, on the MISS path only.**
 
-Task #97-P5-Specs put `StoreWF` on the twin store into `AStateRel`, so the two
-`_i` wrappers owe it of the store `internBindI` hands back.  They cannot prove
-it: `internAt_wf_view` wants `findBMOfView w = some mi` — *"the datum handle is
-the cons table's"* — and the `_i` family takes a raw `BMIdx`, so the claim is
-FALSE at an arbitrary one.  It is therefore assumed, and the owner is
-`Arena/WFProofs.lean`.
-
-What task #97-P5-Twin's probe-first `internLamIE` buys is that it need only be
-assumed on the **miss**: a cons hit interns nothing
-(`internBindI_of_findBindI`), so the store does not move and `hrel.storeWF` is
-the whole answer there.  That is `EBindCapAt`'s shape exactly, and the two
-side conditions now read the same way. -/
-def EBindWFAt (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) : Prop :=
-  st.findBindI tag ty b mi = none → StoreWF (st.internBindI tag ty b mi).1
-
-/-- The unconditional form, at a well-formed store. -/
-theorem EBindWFAt.apply {st : EStore} {tag : UInt32} {ty b : EIdx} {mi : BMIdx}
-    (h : EBindWFAt st tag ty b mi) (hwf : StoreWF st) :
-    StoreWF (st.internBindI tag ty b mi).1 := by
-  cases hf : st.findBindI tag ty b mi with
-  | some j => rw [internBindI_of_findBindI hf]; exact hwf
-  | none => exact h hf
 
 /-- `Arena.internLamIE`'s run: the cons hit moves nothing, and the miss is
 below the `lams` array's cap. -/
@@ -8944,56 +8365,7 @@ theorem internForallEIE_run_of_not_cap {lst : AState} {ty b : EIdx} {mi : BMIdx}
   | none => rw [if_neg hc]; exact ⟨_, rfl⟩
 
 
-/-- The inversion of `Arena.internLamIE`'s run (task #97-T2-LOCKSTEP): it ends
-at `internLamI`.  Twin-only; the deprecated shims' `StoreWF`/`Ext` need it. -/
-theorem internLamIE_run_inv {lst lst' : AState} {ty b : EIdx} {mi : BMIdx} {h : EIdx}
-    (hrun : (Arena.internLamIE ty b mi).run lst = .ok (h, lst')) :
-    lst' = { lst with store := (lst.store.internLamI ty b mi).1 } := by
-  rw [Arena.internLamIE, run_get_bind] at hrun
-  cases hf : lst.store.findBindI ETag.lam ty b mi with
-  | some i =>
-    simp only [hf] at hrun
-    have he : (i, lst) = (h, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    rw [← he.2, EStore.internLamI, internBindI_of_findBindI hf]
-  | none =>
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.scratchOn then lst.store.scr.bindSizeOf ETag.lam
-        else lst.store.pers.bindSizeOf ETag.lam) < Idx.idxCap
-    · rw [if_pos hc] at hrun
-      cases hi : lst.store.internLamI ty b mi with
-      | mk st1 h1 =>
-        rw [hi] at hrun
-        have he : (h1, ({ lst with store := st1 } : AState)) = (h, lst') :=
-          Except.ok.inj hrun
-        simp only [Prod.mk.injEq] at he
-        rw [← he.2]
-    · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
 
-/-- The same at `Arena.internForallEIE`. -/
-theorem internForallEIE_run_inv {lst lst' : AState} {ty b : EIdx} {mi : BMIdx}
-    {h : EIdx} (hrun : (Arena.internForallEIE ty b mi).run lst = .ok (h, lst')) :
-    lst' = { lst with store := (lst.store.internForallEI ty b mi).1 } := by
-  rw [Arena.internForallEIE, run_get_bind] at hrun
-  cases hf : lst.store.findBindI ETag.forallE ty b mi with
-  | some i =>
-    simp only [hf] at hrun
-    have he : (i, lst) = (h, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    rw [← he.2, EStore.internForallEI, internBindI_of_findBindI hf]
-  | none =>
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.scratchOn then lst.store.scr.bindSizeOf ETag.forallE
-        else lst.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap
-    · rw [if_pos hc] at hrun
-      cases hi : lst.store.internForallEI ty b mi with
-      | mk st1 h1 =>
-        rw [hi] at hrun
-        have he : (h1, ({ lst with store := st1 } : AState)) = (h, lst') :=
-          Except.ok.inj hrun
-        simp only [Prod.mk.injEq] at he
-        rw [← he.2]
-    · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
 
 /-- `arena::monad::intern_e_lam_i` against `Arena.internLamIE`. -/
 theorem intern_e_lam_i_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -9101,11 +8473,6 @@ leaves `scratch_on` alone, so that finding 8's `hfrozen`
 survives into the second step.  That is ~30 lines in the same file and is
 this round's one named unfinished piece. -/
 
-/-- `ETag.isBind` is the disjunction it is defined as. -/
-theorem ETag_isBind_eq {tag : UInt32} (h : ETag.isBind tag = true) :
-    tag = ETag.lam ∨ tag = ETag.forallE := by
-  simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at h
-  exact h
 
 /-! ## `internBindI` IS `internAt`, once more
 
@@ -9114,90 +8481,15 @@ The three components are `Bridge/StoreBind.lean`'s and are facts about
 `Bridge` and this tier may not edit `Arena/`.  Underscore names, so that
 nothing clashes if the two tiers ever meet. -/
 
-theorem ETables_findBind_eq_find? (t : ETables) {tag : UInt32} {ty b : EIdx}
-    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true) :
-    t.findBind tag ⟨ty, b, mi⟩ = t.find? (eBindView tag ty b m) mi := by
-  rcases ETag_isBind_eq htag with rfl | rfl
-  · rfl
-  · rfl
 
-theorem ETables_pushBind_eq_push (t : ETables) {tag : UInt32} {ty b : EIdx}
-    {mi : BMIdx} {m : ConLeche.BinderMeta} (d : UInt64) (tier : UInt32)
-    (htag : ETag.isBind tag = true) :
-    t.pushBind tag ⟨ty, b, mi⟩ d tier = t.push (eBindView tag ty b m) d mi tier := by
-  rcases ETag_isBind_eq htag with rfl | rfl
-  · rfl
-  · rfl
 
-theorem EStore_derOfBindAtI_eq_derOfView {st : EStore} {tag : UInt32} {ty b : EIdx}
-    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true)
-    (hder : st.bmDer mi = (hash m.pw, m.pw.hasParams)) :
-    st.derOfBindAtI (if tag == ETag.lam then 19 else 23) ty b mi
-      = st.derOfView (eBindView tag ty b m) := by
-  rcases ETag_isBind_eq htag with rfl | rfl
-  · show st.derOfBindAtI 19 ty b mi = st.derOfBindAt 19 ty b m
-    simp only [EStore.derOfBindAtI, EStore.derOfBindAt, hder]
-  · show st.derOfBindAtI 23 ty b mi = st.derOfBindAt 23 ty b m
-    simp only [EStore.derOfBindAtI, EStore.derOfBindAt, hder]
 
-/-- The skipping binder probe is the skipping view probe (task #97-T2-LOCKSTEP
-D2): the same test at the same three handles, the same key. -/
-theorem EStore_persFindBindMaybe_eq_persFindMaybe (st : EStore) {tag : UInt32}
-    {ty b : EIdx} {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true) :
-    st.persFindBindMaybe tag ⟨ty, b, mi⟩ = st.persFindMaybe (eBindView tag ty b m) mi := by
-  rcases ETag_isBind_eq htag with rfl | rfl
-  · rfl
-  · rfl
 
-theorem EStore_internBindI_eq_internAt {st : EStore} {tag : UInt32} {ty b : EIdx}
-    {mi : BMIdx} {m : ConLeche.BinderMeta} (htag : ETag.isBind tag = true)
-    (hder : st.bmDer mi = (hash m.pw, m.pw.hasParams)) :
-    st.internBindI tag ty b mi = st.internAt (eBindView tag ty b m) mi := by
-  simp only [EStore.internBindI, EStore.internAt,
-    EStore_persFindBindMaybe_eq_persFindMaybe (m := m) _ htag,
-    EStore_derOfBindAtI_eq_derOfView htag hder,
-    ETables_findBind_eq_find? (m := m) _ htag,
-    ETables_pushBind_eq_push (m := m) _ _ _ htag]
 
-/-- The datum just interned decodes to the datum it was asked for, so its
-derived pair is the one `derOfBindAtI` reads. -/
-theorem bmDer_internBM {st : EStore} {m : ConLeche.BinderMeta} (hwf : StoreWF st)
-    (hcap : ECapBMOf st m) :
-    (st.internBM m).1.bmDer (st.internBM m).2 = (hash m.pw, m.pw.hasParams) := by
-  obtain ⟨rk, hw⟩ := hwf
-  obtain ⟨hwf', -, -, -, -, -, hview, -⟩ := EStore.internBM_spec hw hcap
-  obtain ⟨rk', hw'⟩ := hwf'
-  exact hw'.bmDerExact _ _ hview
 
-/-- **`intern` at a binder view IS the datum intern followed by
-`internBindI`** — the twin's `internLamE` against the port's
-`EStore::intern_lam`. -/
-theorem intern_lam_eq {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
-    (hwf : StoreWF st) (hcap : ECapBMOf st m) :
-    st.intern (.lam ty b m) = st.internLam ty b m := by
-  show (st.internBM m).1.internAt (.lam ty b m) (st.internBM m).2
-    = (st.internBM m).1.internLamI ty b (st.internBM m).2
-  rw [EStore.internLamI,
-    EStore_internBindI_eq_internAt (m := m) (by simp [ETag.isBind])
-      (bmDer_internBM hwf hcap)]
-  rfl
 
-theorem intern_forall_e_eq {st : EStore} {ty b : EIdx} {m : ConLeche.BinderMeta}
-    (hwf : StoreWF st) (hcap : ECapBMOf st m) :
-    st.intern (.forallE ty b m) = st.internForallE ty b m := by
-  show (st.internBM m).1.internAt (.forallE ty b m) (st.internBM m).2
-    = (st.internBM m).1.internForallEI ty b (st.internBM m).2
-  rw [EStore.internForallEI,
-    EStore_internBindI_eq_internAt (m := m)
-      (by simp [ETag.isBind, ETag.lam, ETag.forallE])
-      (bmDer_internBM hwf hcap)]
-  rfl
 
-/-- info: 'ConRon.Refine2.intern_lam_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_lam_eq
 
-/-- info: 'ConRon.Refine2.intern_forall_e_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms intern_forall_e_eq
 
 /-! ### The two binder DISPATCHERS, in the Rust's order (task #97-T2-LOCKSTEP D6)
 
@@ -9272,47 +8564,8 @@ theorem internForallEE_run_of_not_bm {lst : AState} {ty b : EIdx} {m : ConLeche.
   rw [StateT.run_bind, hs]; rfl
 
 
-/-- The inversion of `Arena.internBME`'s run. -/
-theorem internBME_run_inv {lst lst' : AState} {m : ConLeche.BinderMeta} {i : BMIdx}
-    (hrun : (Arena.internBME m).run lst = .ok (i, lst')) :
-    ECapBMOf lst.store m ∧ i = (lst.store.internBM m).2 ∧
-      lst' = { lst with store := (lst.store.internBM m).1 } := by
-  have hcap : ECapBMOf lst.store m := by
-    intro hf
-    rw [Arena.internBME, run_get_bind] at hrun
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.scratchOn then lst.store.scr.bmSize
-        else lst.store.pers.bmSize) < Idx.idxCap
-    · exact hc
-    · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
-  rw [internBME_run_of_cap hcap] at hrun
-  have he := Except.ok.inj hrun
-  simp only [Prod.mk.injEq] at he
-  exact ⟨hcap, he.1.symm, he.2.symm⟩
 
-/-- A successful `Arena.internLamIE` passed the `lams` array's test. -/
-theorem internLamIE_run_cap {lst lst' : AState} {ty b : EIdx} {mi : BMIdx} {h : EIdx}
-    (hrun : (Arena.internLamIE ty b mi).run lst = .ok (h, lst')) :
-    EBindCapAt lst.store ETag.lam ty b mi := by
-  intro hf
-  rw [Arena.internLamIE, run_get_bind] at hrun
-  simp only [hf] at hrun
-  by_cases hc : (if lst.store.scratchOn then lst.store.scr.bindSizeOf ETag.lam
-      else lst.store.pers.bindSizeOf ETag.lam) < Idx.idxCap
-  · exact hc
-  · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
 
-/-- The same at `Arena.internForallEIE`. -/
-theorem internForallEIE_run_cap {lst lst' : AState} {ty b : EIdx} {mi : BMIdx} {h : EIdx}
-    (hrun : (Arena.internForallEIE ty b mi).run lst = .ok (h, lst')) :
-    EBindCapAt lst.store ETag.forallE ty b mi := by
-  intro hf
-  rw [Arena.internForallEIE, run_get_bind] at hrun
-  simp only [hf] at hrun
-  by_cases hc : (if lst.store.scratchOn then lst.store.scr.bindSizeOf ETag.forallE
-      else lst.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap
-  · exact hc
-  · rw [if_neg hc, arena_fail_run] at hrun; exact absurd hrun (by simp)
 
 /-- The binder arm's run, as the two monadic steps it is. -/
 theorem internLamE_run_split {lst : AState} {ty b : EIdx} {m : ConLeche.BinderMeta}
@@ -9333,89 +8586,10 @@ theorem internForallEE_run_split {lst : AState} {ty b : EIdx} {m : ConLeche.Bind
   rw [StateT.run_bind, internBME_run_of_cap hcap]
   rfl
 
-/-- A successful binder arm passed the datum step's test. -/
-theorem internBind_run_bm {lst lst' : AState} {m : ConLeche.BinderMeta} {h : EIdx}
-    {k : BMIdx → AM EIdx}
-    (hrun : (Arena.internBME m >>= k).run lst = .ok (h, lst')) :
-    ECapBMOf lst.store m := by
-  rw [StateT.run_bind] at hrun
-  cases h1 : (Arena.internBME m).run lst with
-  | error e => rw [h1] at hrun; cases hrun
-  | ok p => exact (internBME_run_inv h1).1
 
-/-- **The inversion of the binder arm's run**: both steps succeeded, so both
-of the port's tests held where the port makes them. -/
-theorem internLamE_run_inv {lst lst' : AState} {ty b : EIdx} {m : ConLeche.BinderMeta}
-    {h : EIdx} (hrun : (Arena.internE (.lam ty b m)).run lst = .ok (h, lst')) :
-    ECapBMOf lst.store m ∧
-      EBindCapAt (lst.store.internBM m).1 ETag.lam ty b (lst.store.internBM m).2 ∧
-      lst' = { lst with store := ((lst.store.internBM m).1.internLamI ty b
-        (lst.store.internBM m).2).1 } := by
-  have hbm : ECapBMOf lst.store m := internBind_run_bm (k := Arena.internLamIE ty b) hrun
-  rw [internLamE_run_split hbm] at hrun
-  exact ⟨hbm, internLamIE_run_cap hrun, by rw [internLamIE_run_inv hrun]⟩
 
-theorem internForallEE_run_inv {lst lst' : AState} {ty b : EIdx}
-    {m : ConLeche.BinderMeta} {h : EIdx}
-    (hrun : (Arena.internE (.forallE ty b m)).run lst = .ok (h, lst')) :
-    ECapBMOf lst.store m ∧
-      EBindCapAt (lst.store.internBM m).1 ETag.forallE ty b (lst.store.internBM m).2 ∧
-      lst' = { lst with store := ((lst.store.internBM m).1.internForallEI ty b
-        (lst.store.internBM m).2).1 } := by
-  have hbm : ECapBMOf lst.store m :=
-    internBind_run_bm (k := Arena.internForallEIE ty b) hrun
-  rw [internForallEE_run_split hbm] at hrun
-  exact ⟨hbm, internForallEIE_run_cap hrun, by rw [internForallEIE_run_inv hrun]⟩
 
-/-- `ECapAt` at a binder view gives the node step's own test at the datum
-handle `internBM` answers — no `StoreWF`: on a datum hit the node probe IS
-`find?`'s second step, and on a datum miss `find?` already missed. -/
-theorem EBindCapAt_internBM_of_ECapAt {ls : EStore} {tag : UInt32} {ty b : EIdx}
-    {m : ConLeche.BinderMeta} {v : ENodeView}
-    (hfov : ∀ st : EStore, st.findBMOfView v = st.findBM m)
-    (hfa : ∀ (st : EStore) (mi : BMIdx), st.findAt v mi = st.findBindI tag ty b mi)
-    (hsz : ∀ t : ETables, t.sizeOf v = t.bindSizeOf tag)
-    (hcap : ECapAt ls v) :
-    EBindCapAt (ls.internBM m).1 tag ty b (ls.internBM m).2 := by
-  intro hf
-  rw [findBindI_internBM] at hf
-  rw [bindSize_internBM]
-  have hfind : ls.find? v = none := by
-    cases hfb : ls.findBM m with
-    | some mi0 =>
-      rw [internBM_of_findBM hfb] at hf
-      simp only [EStore.find?, hfov, hfb]
-      rw [hfa]; exact hf
-    | none => simp only [EStore.find?, hfov, hfb]
-  have := hcap hfind
-  rwa [hsz, hsz] at this
 
-/-- The binder arm's run at a `StoreWF` store, as the twin's composed store
-step `EStore.intern`: what the deprecated shims and the `WOutE` wrappers of
-`Refine2/ExprOps/Mut.lean` state their outcome with. -/
-theorem internE_run_of_caps {lst : AState} {v : ENodeView} (hwf : StoreWF lst.store)
-    (hcap : ECapAt lst.store v) (hbm : ECapBMAt lst.store v) :
-    (Arena.internE v).run lst
-      = .ok ((lst.store.intern v).2,
-             { lst with store := (lst.store.intern v).1 }) := by
-  cases v
-  case lam ty b m =>
-    have hbm' : ECapBMOf lst.store m := hbm
-    rw [internLamE_run_split hbm', internLamIE_run_of_cap
-      (EBindCapAt_internBM_of_ECapAt (fun _ => rfl) (fun st mi => findAt_lam_eq_findBindI st ty b m mi)
-        (fun t => by simp [ETables.sizeOf, ETables.bindSizeOf]) hcap),
-      intern_lam_eq hwf hbm']
-    rfl
-  case forallE ty b m =>
-    have hbm' : ECapBMOf lst.store m := hbm
-    rw [internForallEE_run_split hbm', internForallEIE_run_of_cap
-      (EBindCapAt_internBM_of_ECapAt (fun _ => rfl)
-        (fun st mi => findAt_forallE_eq_findBindI st ty b m mi)
-        (fun t => by simp [ETables.sizeOf, ETables.bindSizeOf, ETag.lam, ETag.forallE])
-        hcap),
-      intern_forall_e_eq hwf hbm']
-    rfl
-  all_goals exact internE_run_of_cap rfl hcap
 
 /-- `arena::monad::intern_e_lam` against `Arena.internLamE` — **lockstep**
 (task #97-T2-LOCKSTEP D6): the port's `intern_bm` against `internBME`
@@ -10326,14 +9500,6 @@ theorem EStore_internName_of_find {st : EStore} {v : NNodeView} {h : NIdx}
   have h1 : st.lss.ls.ns.intern v = (st.lss.ls.ns, h) := NStore_intern_of_find hf
   simp only [EStore.internName, LsStore.internName, LStore.internName, h1]
 
-/-- Finding 16's clause at the name intern: `intern_wf` on the miss, and on
-the hit the store does not move at all. -/
-theorem internName_storeWF {st : EStore} {v : NNodeView} (hwf : StoreWF st)
-    (hview : st.ns.ViewOK v) (hcap : NCapAt st.ns v) :
-    StoreWF (st.internName v).1 := by
-  cases hf : st.ns.find? v with
-  | some h => rw [EStore_internName_of_find hf]; exact hwf
-  | none => exact EStore.internName_wf hwf hview (hcap hf)
 
 /-- `Arena.internNNode`'s run: probe first, then the one capacity test. -/
 theorem internNNode_run_of_cap {lst : AState} {v : NNodeView}
@@ -10965,12 +10131,6 @@ theorem EStore_internLevel_of_find {st : EStore} {v : LNodeView} {h : LIdx}
   have h1 : st.lss.ls.intern v = (st.lss.ls, h) := LStore_intern_of_find hf
   simp only [EStore.internLevel, LsStore.internLevel, h1]
 
-theorem internLevel_storeWF {st : EStore} {v : LNodeView} (hwf : StoreWF st)
-    (hview : st.ls.ViewOK v) (hcap : LCapAt st.ls v) :
-    StoreWF (st.internLevel v).1 := by
-  cases hf : st.ls.find? v with
-  | some h => rw [EStore_internLevel_of_find hf]; exact hwf
-  | none => exact EStore.internLevel_wf hwf hview (hcap hf)
 
 theorem internLNode_run_of_cap {lst : AState} {v : LNodeView}
     (hcap : LCapAt lst.store.ls v) :
@@ -11397,12 +10557,6 @@ theorem EStore_internLevels_of_find {st : EStore} {v : LsNodeView} {h : LsIdx}
   have h1 : st.lss.intern v = (st.lss, h) := LsStore_intern_of_find hf
   simp only [EStore.internLevels, h1]
 
-theorem internLevels_storeWF {st : EStore} {v : LsNodeView} (hwf : StoreWF st)
-    (hview : st.lss.ViewOK v) (hcap : LsCapAt st.lss v) :
-    StoreWF (st.internLevels v).1 := by
-  cases hf : st.lss.find? v with
-  | some h => rw [EStore_internLevels_of_find hf]; exact hwf
-  | none => exact EStore.internLevels_wf hwf hview (hcap hf)
 
 theorem internLsNode_run_of_cap {lst : AState} {v : LsNodeView}
     (hcap : LsCapAt lst.store.lss v) :
@@ -11647,12 +10801,6 @@ theorem EStore_internLevelsPersistent_of_persFind {st : EStore} {v : LsNodeView}
 
 /-! ### Finding 17's clause at the three nested promote-interns -/
 
-theorem internNamePersistent_storeWF' {st : EStore} {v : NNodeView}
-    (hwf : StoreWF' st) (hview : st.ns.ViewOK v) (hp : NViewPers v)
-    (hcap : NCapPAt st.ns v) : StoreWF' (st.internNamePersistent v).1 := by
-  cases hf : st.ns.pers.find? v with
-  | some h => rw [EStore_internNamePersistent_of_persFind hf]; exact hwf
-  | none => exact EStore.internNamePersistent_wf' hwf hview hp (hcap hf)
 
 /-! ### The twin actions' runs -/
 
@@ -12673,435 +11821,22 @@ induction needs it; the `_run` statement is its first projection and the
 `_flags` one its second, which is the shape `intern_e_bvar_run` /
 `intern_e_bvar_flags` already has at the expression tier. -/
 
-theorem internNNode_run_inv {lst lst' : AState} {v : NNodeView} {h : NIdx}
-    (hrun : (Arena.internNNode v).run lst = .ok (h, lst')) :
-    NCapAt lst.store.ns v ∧ h = (lst.store.internName v).2 ∧
-      lst' = { lst with store := (lst.store.internName v).1 } := by
-  simp only [Arena.internNNode, run_get_bind] at hrun
-  cases hf : lst.store.ns.find? v with
-  | some i =>
-    simp only [hf] at hrun
-    rw [EStore_internName_of_find hf]
-    have he : (i, lst) = (h, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    exact ⟨NCapAt.of_find_ne (by rw [hf]; simp), he.1.symm, he.2.symm⟩
-  | none =>
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.ns.scratchOn = true then lst.store.ns.scr.sizeOf v
-        else lst.store.ns.pers.sizeOf v) < Idx.idxCap
-    · rw [if_pos hc] at hrun
-      have he : ((lst.store.internName v).2,
-          ({ lst with store := (lst.store.internName v).1 } : AState)) = (h, lst') :=
-        Except.ok.inj hrun
-      simp only [Prod.mk.injEq] at he
-      exact ⟨fun _ => hc, he.1.symm, he.2.symm⟩
-    · rw [if_neg hc] at hrun
-      rw [arena_fail_run] at hrun; exact absurd hrun (by simp)
-
-theorem StoreWF.nsWF' {st : EStore} (h : StoreWF st) : NStoreWF st.ns := by
-  obtain ⟨rk, hw⟩ := h; exact hw.nsWF
-
-theorem internNNode_run_view {lst lst' : AState} {v : NNodeView} {h : NIdx}
-    (hwf : StoreWF lst.store) (hview : lst.store.ns.ViewOK v)
-    (hrun : (Arena.internNNode v).run lst = .ok (h, lst')) :
-    lst'.store.ns.view h = some v ∧ StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  obtain ⟨hcap, rfl, rfl⟩ := internNNode_run_inv hrun
-  refine ⟨?_, internName_storeWF hwf hview hcap, EStore.internName_ext _ _⟩
-  cases hf : lst.store.ns.find? v with
-  | some i =>
-    rw [EStore_internName_of_find hf]
-    exact NStore.view_of_find (StoreWF.nsWF' hwf) hf
-  | none => exact NStore.intern_view_spec (StoreWF.nsWF' hwf) hview (hcap hf)
-
-theorem internName_run_denote : ∀ (n : ConLeche.Name) {lst lst' : AState} {h : NIdx},
-    StoreWF lst.store →
-    (Arena.internName n).run lst = .ok (h, lst') →
-    denoteN lst'.store.ns h = some n ∧ StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  intro n
-  induction n with
-  | anonymous =>
-    intro lst lst' h hwf hrun
-    obtain ⟨hv, hwf', hext⟩ :=
-      internNNode_run_view hwf (by intro c hc; simp [NNodeView.children] at hc) hrun
-    refine ⟨?_, hwf', hext⟩
-    obtain ⟨rk, hw⟩ := (StoreWF.nsWF' hwf')
-    rw [denoteN_unfold hw hv]; rfl
-  | str p s ih =>
-    intro lst lst' h hwf hrun
-    rw [Arena.internName, StateT.run_bind] at hrun
-    cases hx : (Arena.internName p).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨hp, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hdp, hwf1, hext1⟩ := ih hwf hx
-      replace hrun : StateT.run (Arena.internNNode (NNodeView.str hp s)) lst1
-          = Except.ok (h, lst') := hrun
-      obtain ⟨v1, hv1⟩ := denoteN_view hdp
-      have hvo : lst1.store.ns.ViewOK (NNodeView.str hp s) := by
-        intro c hc
-        simp only [NNodeView.children, List.mem_singleton] at hc
-        subst hc; rw [hv1]; rfl
-      obtain ⟨hv, hwf', hext⟩ := internNNode_run_view hwf1 hvo hrun
-      refine ⟨?_, hwf', hext1.trans hext⟩
-      obtain ⟨rk, hw⟩ := StoreWF.nsWF' hwf'
-      rw [denoteN_unfold hw hv]
-      show (denoteN lst'.store.ns hp).map _ = _
-      rw [show denoteN lst'.store.ns hp = some p from hext.lss.ls.ns hp p hdp]
-      rfl
-  | num p k ih =>
-    intro lst lst' h hwf hrun
-    rw [Arena.internName, StateT.run_bind] at hrun
-    cases hx : (Arena.internName p).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨hp, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hdp, hwf1, hext1⟩ := ih hwf hx
-      replace hrun : StateT.run (Arena.internNNode (NNodeView.num hp k)) lst1
-          = Except.ok (h, lst') := hrun
-      obtain ⟨v1, hv1⟩ := denoteN_view hdp
-      have hvo : lst1.store.ns.ViewOK (NNodeView.num hp k) := by
-        intro c hc
-        simp only [NNodeView.children, List.mem_singleton] at hc
-        subst hc; rw [hv1]; rfl
-      obtain ⟨hv, hwf', hext⟩ := internNNode_run_view hwf1 hvo hrun
-      refine ⟨?_, hwf', hext1.trans hext⟩
-      obtain ⟨rk, hw⟩ := StoreWF.nsWF' hwf'
-      rw [denoteN_unfold hw hv]
-      show (denoteN lst'.store.ns hp).map _ = _
-      rw [show denoteN lst'.store.ns hp = some p from hext.lss.ls.ns hp p hdp]
-      rfl
 
 
-theorem StoreWF.lsWF' {st : EStore} (h : StoreWF st) : LStoreWF st.ls := by
-  obtain ⟨rk, hw⟩ := h; exact hw.lsWF
-
-theorem StoreWF.lssWF' {st : EStore} (h : StoreWF st) : LsStoreWF st.lss := by
-  obtain ⟨rk, hw⟩ := h; exact hw.lssWF
-
-theorem internLNode_run_inv {lst lst' : AState} {v : LNodeView} {h : LIdx}
-    (hrun : (Arena.internLNode v).run lst = .ok (h, lst')) :
-    LCapAt lst.store.ls v ∧ h = (lst.store.internLevel v).2 ∧
-      lst' = { lst with store := (lst.store.internLevel v).1 } := by
-  simp only [Arena.internLNode, run_get_bind] at hrun
-  cases hf : lst.store.ls.find? v with
-  | some i =>
-    simp only [hf] at hrun
-    rw [EStore_internLevel_of_find hf]
-    have he : (i, lst) = (h, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    exact ⟨LCapAt.of_find_ne (by rw [hf]; simp), he.1.symm, he.2.symm⟩
-  | none =>
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.ls.scratchOn = true then lst.store.ls.scr.sizeOf v
-        else lst.store.ls.pers.sizeOf v) < Idx.idxCap
-    · rw [if_pos hc] at hrun
-      have he : ((lst.store.internLevel v).2,
-          ({ lst with store := (lst.store.internLevel v).1 } : AState)) = (h, lst') :=
-        Except.ok.inj hrun
-      simp only [Prod.mk.injEq] at he
-      exact ⟨fun _ => hc, he.1.symm, he.2.symm⟩
-    · rw [if_neg hc] at hrun
-      rw [arena_fail_run] at hrun; exact absurd hrun (by simp)
-
-theorem internLNode_run_view {lst lst' : AState} {v : LNodeView} {h : LIdx}
-    (hwf : StoreWF lst.store) (hview : lst.store.ls.ViewOK v)
-    (hrun : (Arena.internLNode v).run lst = .ok (h, lst')) :
-    lst'.store.ls.view h = some v ∧ StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  obtain ⟨hcap, rfl, rfl⟩ := internLNode_run_inv hrun
-  refine ⟨?_, internLevel_storeWF hwf hview hcap, EStore.internLevel_ext _ _⟩
-  cases hf : lst.store.ls.find? v with
-  | some i =>
-    rw [EStore_internLevel_of_find hf]
-    exact LStore.view_of_find (StoreWF.lsWF' hwf) hf
-  | none => exact LStore.intern_view_spec (StoreWF.lsWF' hwf) hview (hcap hf)
-
-theorem internLsNode_run_inv {lst lst' : AState} {v : LsNodeView} {h : LsIdx}
-    (hrun : (Arena.internLsNode v).run lst = .ok (h, lst')) :
-    LsCapAt lst.store.lss v ∧ h = (lst.store.internLevels v).2 ∧
-      lst' = { lst with store := (lst.store.internLevels v).1 } := by
-  simp only [Arena.internLsNode, run_get_bind] at hrun
-  cases hf : lst.store.lss.find? v with
-  | some i =>
-    simp only [hf] at hrun
-    rw [EStore_internLevels_of_find hf]
-    have he : (i, lst) = (h, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    exact ⟨LsCapAt.of_find_ne (by rw [hf]; simp), he.1.symm, he.2.symm⟩
-  | none =>
-    simp only [hf] at hrun
-    by_cases hc : (if lst.store.lss.scratchOn = true then lst.store.lss.scr.sizeOf v
-        else lst.store.lss.pers.sizeOf v) < Idx.idxCap
-    · rw [if_pos hc] at hrun
-      have he : ((lst.store.internLevels v).2,
-          ({ lst with store := (lst.store.internLevels v).1 } : AState)) = (h, lst') :=
-        Except.ok.inj hrun
-      simp only [Prod.mk.injEq] at he
-      exact ⟨fun _ => hc, he.1.symm, he.2.symm⟩
-    · rw [if_neg hc] at hrun
-      rw [arena_fail_run] at hrun; exact absurd hrun (by simp)
-
-theorem internLsNode_run_view {lst lst' : AState} {v : LsNodeView} {h : LsIdx}
-    (hwf : StoreWF lst.store) (hview : lst.store.lss.ViewOK v)
-    (hrun : (Arena.internLsNode v).run lst = .ok (h, lst')) :
-    lst'.store.lss.view h = some v ∧ StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  obtain ⟨hcap, rfl, rfl⟩ := internLsNode_run_inv hrun
-  refine ⟨?_, internLevels_storeWF hwf hview hcap, EStore.internLevels_ext _ _⟩
-  cases hf : lst.store.lss.find? v with
-  | some i =>
-    rw [EStore_internLevels_of_find hf]
-    exact LsStore.view_of_find (StoreWF.lssWF' hwf) hf
-  | none => exact LsStore.intern_view_spec (StoreWF.lssWF' hwf) hview (hcap hf)
-
-theorem internLevel_run_denote : ∀ (u : ConLeche.Level) {lst lst' : AState} {h : LIdx},
-    StoreWF lst.store →
-    (Arena.internLevel u).run lst = .ok (h, lst') →
-    denoteL lst'.store.ls h = some u ∧ StoreWF lst'.store ∧ Ext lst.store lst'.store := by
-  intro u
-  induction u with
-  | zero =>
-    intro lst lst' h hwf hrun
-    have hvo : lst.store.ls.ViewOK (LNodeView.zero) := by
-      constructor
-      · intro c hc; simp [LNodeView.lchildren] at hc
-      · intro c hc; simp [LNodeView.nchildren] at hc
-    obtain ⟨hv, hwf', hext⟩ := internLNode_run_view hwf hvo hrun
-    refine ⟨?_, hwf', hext⟩
-    obtain ⟨rk, hw⟩ := StoreWF.lsWF' hwf'
-    rw [denoteL_unfold hw hv]; rfl
-  | succ a ih =>
-    intro lst lst' h hwf hrun
-    rw [Arena.internLevel, StateT.run_bind] at hrun
-    cases hx : (Arena.internLevel a).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨ha, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hda, hwf1, hext1⟩ := ih hwf hx
-      replace hrun : StateT.run (Arena.internLNode (LNodeView.succ ha)) lst1
-          = Except.ok (h, lst') := hrun
-      obtain ⟨v1, hv1⟩ := denoteL_view hda
-      have hvo : lst1.store.ls.ViewOK (LNodeView.succ ha) := by
-        constructor
-        · intro c hc
-          simp only [LNodeView.lchildren, List.mem_singleton] at hc
-          subst hc; rw [hv1]; rfl
-        · intro c hc; simp [LNodeView.nchildren] at hc
-      obtain ⟨hv, hwf', hext⟩ := internLNode_run_view hwf1 hvo hrun
-      refine ⟨?_, hwf', hext1.trans hext⟩
-      obtain ⟨rk, hw⟩ := StoreWF.lsWF' hwf'
-      rw [denoteL_unfold hw hv]
-      show (denoteL lst'.store.ls ha).map _ = _
-      rw [show denoteL lst'.store.ls ha = some a from hext.lss.ls.lvl ha a hda]
-      rfl
-  | max a b iha ihb =>
-    intro lst lst' h hwf hrun
-    rw [Arena.internLevel, StateT.run_bind] at hrun
-    cases hx : (Arena.internLevel a).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨ha, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hda, hwf1, hext1⟩ := iha hwf hx
-      replace hrun : ((Arena.internLevel b) >>= fun hb =>
-          Arena.internLNode (LNodeView.max ha hb)).run lst1 = Except.ok (h, lst') := hrun
-      rw [StateT.run_bind] at hrun
-      cases hy : (Arena.internLevel b).run lst1 with
-      | error e => rw [hy] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-      | ok q2 =>
-        obtain ⟨hb, lst2⟩ := q2
-        rw [hy] at hrun
-        obtain ⟨hdb, hwf2, hext2⟩ := ihb hwf1 hy
-        replace hrun : StateT.run (Arena.internLNode (LNodeView.max ha hb)) lst2
-            = Except.ok (h, lst') := hrun
-        have hda2 : denoteL lst2.store.ls ha = some a := hext2.lss.ls.lvl ha a hda
-        obtain ⟨v1, hv1⟩ := denoteL_view hda2
-        obtain ⟨v2, hv2⟩ := denoteL_view hdb
-        have hvo : lst2.store.ls.ViewOK (LNodeView.max ha hb) := by
-          constructor
-          · intro c hc
-            simp only [LNodeView.lchildren, List.mem_cons,
-              List.not_mem_nil, or_false] at hc
-            rcases hc with rfl | rfl
-            · rw [hv1]; rfl
-            · rw [hv2]; rfl
-          · intro c hc; simp [LNodeView.nchildren] at hc
-        obtain ⟨hv, hwf', hext⟩ := internLNode_run_view hwf2 hvo hrun
-        refine ⟨?_, hwf', (hext1.trans hext2).trans hext⟩
-        obtain ⟨rk, hw⟩ := StoreWF.lsWF' hwf'
-        rw [denoteL_unfold hw hv]
-        show opt2 ConLeche.Level.max (denoteL lst'.store.ls ha) (denoteL lst'.store.ls hb) = _
-        rw [show denoteL lst'.store.ls ha = some a from hext.lss.ls.lvl ha a hda2,
-          show denoteL lst'.store.ls hb = some b from hext.lss.ls.lvl hb b hdb]
-        rfl
-  | imax a b iha ihb =>
-    intro lst lst' h hwf hrun
-    rw [Arena.internLevel, StateT.run_bind] at hrun
-    cases hx : (Arena.internLevel a).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨ha, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hda, hwf1, hext1⟩ := iha hwf hx
-      replace hrun : ((Arena.internLevel b) >>= fun hb =>
-          Arena.internLNode (LNodeView.imax ha hb)).run lst1 = Except.ok (h, lst') := hrun
-      rw [StateT.run_bind] at hrun
-      cases hy : (Arena.internLevel b).run lst1 with
-      | error e => rw [hy] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-      | ok q2 =>
-        obtain ⟨hb, lst2⟩ := q2
-        rw [hy] at hrun
-        obtain ⟨hdb, hwf2, hext2⟩ := ihb hwf1 hy
-        replace hrun : StateT.run (Arena.internLNode (LNodeView.imax ha hb)) lst2
-            = Except.ok (h, lst') := hrun
-        have hda2 : denoteL lst2.store.ls ha = some a := hext2.lss.ls.lvl ha a hda
-        obtain ⟨v1, hv1⟩ := denoteL_view hda2
-        obtain ⟨v2, hv2⟩ := denoteL_view hdb
-        have hvo : lst2.store.ls.ViewOK (LNodeView.imax ha hb) := by
-          constructor
-          · intro c hc
-            simp only [LNodeView.lchildren, List.mem_cons,
-              List.not_mem_nil, or_false] at hc
-            rcases hc with rfl | rfl
-            · rw [hv1]; rfl
-            · rw [hv2]; rfl
-          · intro c hc; simp [LNodeView.nchildren] at hc
-        obtain ⟨hv, hwf', hext⟩ := internLNode_run_view hwf2 hvo hrun
-        refine ⟨?_, hwf', (hext1.trans hext2).trans hext⟩
-        obtain ⟨rk, hw⟩ := StoreWF.lsWF' hwf'
-        rw [denoteL_unfold hw hv]
-        show opt2 ConLeche.Level.imax (denoteL lst'.store.ls ha) (denoteL lst'.store.ls hb) = _
-        rw [show denoteL lst'.store.ls ha = some a from hext.lss.ls.lvl ha a hda2,
-          show denoteL lst'.store.ls hb = some b from hext.lss.ls.lvl hb b hdb]
-        rfl
-  | param n =>
-    intro lst lst' h hwf hrun
-    rw [Arena.internLevel, StateT.run_bind] at hrun
-    cases hx : (Arena.internName n).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨hn, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hdn, hwf1, hext1⟩ := internName_run_denote n hwf hx
-      replace hrun : StateT.run (Arena.internLNode (LNodeView.param hn)) lst1
-          = Except.ok (h, lst') := hrun
-      obtain ⟨v1, hv1⟩ := denoteN_view hdn
-      have hvo : lst1.store.ls.ViewOK (LNodeView.param hn) := by
-        constructor
-        · intro c hc; simp [LNodeView.lchildren] at hc
-        · intro c hc
-          simp only [LNodeView.nchildren, List.mem_singleton] at hc
-          subst hc
-          show (lst1.store.ns.view _).isSome = true
-          rw [hv1]; rfl
-      obtain ⟨hv, hwf', hext⟩ := internLNode_run_view hwf1 hvo hrun
-      refine ⟨?_, hwf', hext1.trans hext⟩
-      obtain ⟨rk, hw⟩ := StoreWF.lsWF' hwf'
-      rw [denoteL_unfold hw hv]
-      show (denoteN lst'.store.ls.ns hn).map _ = _
-      rw [show denoteN lst'.store.ls.ns hn = some n from hext.lss.ls.ns hn n hdn]
-      rfl
 
 
-theorem denoteLList_isSome {st : LStore} : ∀ {hs : List LIdx} {us : List ConLeche.Level},
-    denoteLList st hs = some us → ∀ c ∈ hs, (st.view c).isSome = true := by
-  intro hs
-  induction hs with
-  | nil => intro us _ c hc; simp at hc
-  | cons a rest ih =>
-    intro us h c hc
-    simp only [denoteLList] at h
-    cases hda : denoteL st a with
-    | none => rw [hda] at h; simp [opt2] at h
-    | some x =>
-      cases hdas : denoteLList st rest with
-      | none => rw [hda, hdas] at h; simp [opt2] at h
-      | some xs =>
-        simp only [List.mem_cons] at hc
-        rcases hc with rfl | hc
-        · obtain ⟨v, hv⟩ := denoteL_view hda; rw [hv]; rfl
-        · exact ih hdas c hc
 
-theorem denoteLList_of_ext {a b : LStore} (h : LExt a b) :
-    ∀ {hs : List LIdx} {us : List ConLeche.Level},
-      denoteLList a hs = some us → denoteLList b hs = some us := by
-  intro hs
-  induction hs with
-  | nil => intro us hu; exact hu
-  | cons c cs ih =>
-    intro us hu
-    simp only [denoteLList] at hu ⊢
-    cases hdc : denoteL a c with
-    | none => rw [hdc] at hu; simp [opt2] at hu
-    | some x =>
-      cases hdcs : denoteLList a cs with
-      | none => rw [hdc, hdcs] at hu; simp [opt2] at hu
-      | some xs =>
-        rw [hdc, hdcs] at hu
-        rw [h.lvl c x hdc, ih hdcs]
-        exact hu
 
-theorem internLevelList_run_denote :
-    ∀ (us : List ConLeche.Level) {lst lst' : AState} {hs : List LIdx},
-      StoreWF lst.store →
-      (Arena.internLevelList us).run lst = .ok (hs, lst') →
-      denoteLList lst'.store.ls hs = some us ∧ StoreWF lst'.store ∧
-        Ext lst.store lst'.store := by
-  intro us
-  induction us with
-  | nil =>
-    intro lst lst' hs hwf hrun
-    have he : (([] : List LIdx), lst) = (hs, lst') := Except.ok.inj hrun
-    simp only [Prod.mk.injEq] at he
-    obtain ⟨h1, h2⟩ := he
-    subst h1; subst h2
-    exact ⟨rfl, hwf, Ext.refl _⟩
-  | cons u us ih =>
-    intro lst lst' hs hwf hrun
-    rw [Arena.internLevelList, StateT.run_bind] at hrun
-    cases hx : (Arena.internLevel u).run lst with
-    | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-    | ok q =>
-      obtain ⟨hu, lst1⟩ := q
-      rw [hx] at hrun
-      obtain ⟨hdu, hwf1, hext1⟩ := internLevel_run_denote u hwf hx
-      replace hrun : ((Arena.internLevelList us) >>= fun hus =>
-          (pure (hu :: hus) : AM (List LIdx))).run lst1 = Except.ok (hs, lst') := hrun
-      rw [StateT.run_bind] at hrun
-      cases hy : (Arena.internLevelList us).run lst1 with
-      | error e => rw [hy] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-      | ok q2 =>
-        obtain ⟨hus, lst2⟩ := q2
-        rw [hy] at hrun
-        obtain ⟨hdus, hwf2, hext2⟩ := ih hwf1 hy
-        have he : ((hu :: hus), lst2) = (hs, lst') := Except.ok.inj hrun
-        simp only [Prod.mk.injEq] at he
-        obtain ⟨h1, h2⟩ := he
-        subst h1; subst h2
-        refine ⟨?_, hwf2, hext1.trans hext2⟩
-        simp only [denoteLList]
-        rw [show denoteL lst2.store.ls hu = some u from hext2.lss.ls.lvl hu u hdu, hdus]
-        rfl
 
-theorem internLevels_run_denote (us : List ConLeche.Level) {lst lst' : AState}
-    {h : LsIdx} (hwf : StoreWF lst.store)
-    (hrun : (Arena.internLevels us).run lst = .ok (h, lst')) :
-    denoteLs lst'.store.lss h = some us ∧ StoreWF lst'.store ∧
-      Ext lst.store lst'.store := by
-  rw [Arena.internLevels, StateT.run_bind] at hrun
-  cases hx : (Arena.internLevelList us).run lst with
-  | error e => rw [hx] at hrun; exact absurd hrun (by simp [Bind.bind, Except.bind])
-  | ok q =>
-    obtain ⟨hs, lst1⟩ := q
-    rw [hx] at hrun
-    obtain ⟨hdus, hwf1, hext1⟩ := internLevelList_run_denote us hwf hx
-    replace hrun : StateT.run (Arena.internLsNode hs) lst1 = Except.ok (h, lst') := hrun
-    have hvo : lst1.store.lss.ViewOK hs := denoteLList_isSome hdus
-    obtain ⟨hv, hwf', hext⟩ := internLsNode_run_view hwf1 hvo hrun
-    refine ⟨?_, hwf', hext1.trans hext⟩
-    rw [denoteLs_unfold hv]
-    exact denoteLList_of_ext hext.lss.ls hdus
+
+
+
+
+
+
+
+
+
 
 /-! ### The tier flags, unmoved
 
@@ -13260,32 +11995,7 @@ theorem run_bind_ok {β δ : Type} {x : AM β} {lst lst1 : AState} {v : β}
 `Shape.lean` was not this task's lane.  The names are `AOut.*` so that the two
 copies do not collide. -/
 
-/-- The error arm travels through a bind. -/
-theorem AOut.errBind {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
-    {e : kernel.core_types.CheckError} {pers : arena.store.PersTier}
-    {lstA lstB : AState} {stA stB : arena.monad.AState}
-    {x : AM β} {f : β → AM δ}
-    (h : AOut A (fun _ => True) pers lstA (.Err e) stA (x.run lstA)) :
-    AOut AC (fun _ => True) pers lstB (.Err e) stB
-      ((do let v ← x; f v).run lstA) := by
-  refine AOut.err ?_
-  rw [StateT.run_bind]
-  exact AErrSim.bind h _
 
-/-- An outcome measured from a later state is one measured from an earlier
-one, `Ext` composed. -/
-theorem AOut.rebase {γ δ : Type} {AC : γ → δ} {pers : arena.store.PersTier}
-    {lst lst1 : AState} {st2 : arena.monad.AState}
-    {o : core.result.Result γ kernel.core_types.CheckError}
-    {y : Except Arena.CheckError (δ × AState)}
-    (hext : Ext lst.store lst1.store)
-    (h : AOut AC (fun _ => True) pers lst1 o st2 y) :
-    AOut AC (fun _ => True) pers lst o st2 y := by
-  cases o with
-  | Err e => exact h
-  | Ok c =>
-    obtain ⟨lst2, hy, hrel2, hinv2, hext2, -⟩ := h
-    exact AOut.ok hy hrel2 hinv2 (Ext.trans hext hext2) trivial
 
 /-- The error arm travels through a bind (the lockstep form). -/
 theorem AOut₀.errBind {β γ δ : Type} {A : γ → β} {C : Type} {AC : C → δ}
@@ -14383,32 +13093,6 @@ theorem readNamesM_run_cons (lst : AState) (h : NIdx) (hs : List NIdx) :
   rw [StateT.run_bind]
   congr 1
 
-/-- `Arena.readNamesM` leaves the store alone: it reads and fills the cache. -/
-theorem readNamesM_store : ∀ (l : List NIdx) (lst : AState) (b : List ConLeche.Name)
-    (lst' : AState), (Arena.readNamesM l).run lst = .ok (b, lst') →
-    lst'.store = lst.store
-  | [], lst, b, lst', hx => by cases hx; rfl
-  | h :: hs, lst, b, lst', hx => by
-    rw [readNamesM_run_cons] at hx
-    have h1 : ∀ c lst1, (Arena.readNameM h).run lst = .ok (c, lst1) →
-        lst1.store = lst.store := by
-      intro c lst1 hx1
-      rw [readNameM_run] at hx1
-      split at hx1
-      · cases hx1; rfl
-      · split at hx1
-        · cases hx1
-        · cases hx1; rfl
-    cases hr : (Arena.readNameM h).run lst with
-    | error e => rw [hr] at hx; cases hx
-    | ok p =>
-      rw [hr] at hx
-      cases hq : (Arena.readNamesM hs).run p.2 with
-      | error e => simp only [hq, Except.bind] at hx; cases hx
-      | ok q =>
-        simp only [hq, Except.bind] at hx
-        cases hx
-        rw [readNamesM_store hs p.2 q.1 q.2 hq, h1 p.1 p.2 hr]
 
 theorem read_names_m_from_abs₀ {pers} {ks : alloc.vec.Vec arena.handle.NIdx} :
     ∀ k {st : arena.monad.AState} {lst : AState}, AStateRel₀ pers st lst →
@@ -15130,32 +13814,16 @@ packing's `*`/`/`/`%` spelling is what buys. -/
 /-- info: 'ConRon.Refine2.absBMNode_inj' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms absBMNode_inj
 
-/-- info: 'ConRon.Refine2.estore_intern_fvar_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_fvar_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_sort_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_sort_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_const_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_const_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_app_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_app_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_proj_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_proj_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_let_e_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_let_e_abs
 
 /-- info: 'ConRon.Refine2.estore_intern_lit_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_intern_lit_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_lam_i_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_lam_i_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_forall_e_i_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_forall_e_i_abs
 
 /-- info: 'ConRon.Refine2.estore_intern_bm_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms estore_intern_bm_abs
@@ -15202,101 +13870,8 @@ it is here because this tier may not edit that file").  The text below is that
 tier's, verbatim, at its own names — **so the migration is a deletion there
 and nothing here**. -/
 
-/-- **`ETables.get` answers the view whose constructor is the tag it tested** —
-the ten-way half of the agreement, once.  `ENodeView.tagOf` is
-`Arena/WFProofs.lean`'s and `tag_cases` is its ten-way `if` splitter, so the
-proof is the same six lines eight times. -/
-theorem ETables_get_tagOf {t : ETables} {i : EIdx} {v : ENodeView}
-    (h : t.get i = some v) : i.tag = v.tagOf := by
-  simp only [ETables.get] at h
-  tag_cases h
-  · revert h
-    cases t.bvars.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.fvars.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.sorts.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.consts.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.apps.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · simp at h
-  · revert h
-    cases t.lets.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.lits.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · revert h
-    cases t.projs.node? i.idxNat with
-    | none => simp
-    | some r =>
-      intro h; simp only [Option.map_some, Option.some.injEq] at h
-      rw [← h]; exact eq_of_beq hc
-  · simp at h
 
-/-- **`view` answers the view whose constructor is the handle's own tag,
-UNCONDITIONALLY** — task #97-P5-2 §10's `estore_view_tagOf`, which that section
-predicted is free of `StoreWF` and which this tier needs in both its halves.
-The binder arm is the one that is not `ETables_get_tagOf`: `view` builds
-`eBindView i.tag …`, whose `tagOf` is `i.tag` exactly under `ETag.isBind`.
 
-**This belongs in `Refine2/Specs.lean`** beside `view_run`; it is here because
-this tier may not edit that file, and the migration is the two lines that
-name it. -/
-theorem EStore_view_tagOf {st : EStore} {i : EIdx} {v : ENodeView}
-    (h : st.view i = some v) : i.tag = v.tagOf := by
-  rw [EStore.view] at h
-  by_cases hb : ETag.isBind i.tag = true
-  · rw [if_pos hb] at h
-    split at h
-    · exact absurd h (by simp)
-    · rename_i ty b m _
-      simp only [Option.some.injEq] at h
-      rw [← h, eBindView]
-      by_cases hl : i.tag == ETag.lam
-      · rw [if_pos hl]; exact eq_of_beq hl
-      · rw [if_neg hl]
-        simp only [ETag.isBind, Bool.or_eq_true] at hb
-        rcases hb with hx | hx
-        · exact absurd hx hl
-        · exact eq_of_beq hx
-  · rw [if_neg hb] at h
-    by_cases hp : i.isPersistent
-    · rw [if_pos hp] at h; exact ETables_get_tagOf h
-    · rw [if_neg hp] at h
-      by_cases hs : st.scratchOn
-      · rw [if_pos hs] at h; exact ETables_get_tagOf h
-      · rw [if_neg hs] at h; exact absurd h (by simp)
-
-/-- info: 'ConRon.Refine2.EStore_view_tagOf' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms EStore_view_tagOf
 
 
 /-- info: 'ConRon.Refine2.internLamIE_run_of_cap' depends on axioms: [propext, Classical.choice, Quot.sound] -/
@@ -15319,23 +13894,11 @@ Finding 14's two halves and the binder composition of §2. -/
 /-- info: 'ConRon.Refine2.tbl_not_full_size' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms tbl_not_full_size
 
-/-- info: 'ConRon.Arena.persFind?_none_of_echild' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms persFind?_none_of_echild
 
-/-- info: 'ConRon.Arena.hchild_const' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms hchild_const
 
-/-- info: 'ConRon.Arena.hchild_let_e' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms hchild_let_e
 
-/-- info: 'ConRon.Refine2.internE_run_of_caps' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms internE_run_of_caps
 
-/-- info: 'ConRon.Refine2.estore_intern_lam_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_lam_abs
 
-/-- info: 'ConRon.Refine2.estore_intern_forall_e_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms estore_intern_forall_e_abs
 
 
 
@@ -15400,17 +13963,9 @@ Finding 14's two halves and the binder composition of §2. -/
 
 /-! ### Task #97-P5-Specs round 3: the four transient-tree walks -/
 
-/-- info: 'ConRon.Refine2.internName_run_denote' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms internName_run_denote
 
-/-- info: 'ConRon.Refine2.internLevel_run_denote' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms internLevel_run_denote
 
-/-- info: 'ConRon.Refine2.internLevelList_run_denote' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms internLevelList_run_denote
 
-/-- info: 'ConRon.Refine2.internLevels_run_denote' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms internLevels_run_denote
 
 /-- info: 'ConRon.Refine2.intern_n_node_flags' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms intern_n_node_flags

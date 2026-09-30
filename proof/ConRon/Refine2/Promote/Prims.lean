@@ -152,21 +152,6 @@ def pmapFrom {σ γ δ : Type} (f : σ → γ → AM (σ × δ)) (m : σ) (acc :
     let (m, y) ← f m x
     pmapFrom f m (acc ++ [y]) xs
 
-theorem pmapFrom_acc {σ γ δ : Type} (f : σ → γ → AM (σ × δ)) :
-    ∀ (l : List γ) (m : σ) (acc : List δ),
-      pmapFrom f m acc l = (do let (m, ys) ← pmapFrom f m [] l; pure (m, acc ++ ys)) := by
-  intro l
-  induction l with
-  | nil => intro m acc; simp [pmapFrom]
-  | cons x xs ih =>
-    intro m acc
-    simp only [pmapFrom, bind_assoc, List.nil_append]
-    congr 1
-    funext p
-    obtain ⟨m', y⟩ := p
-    simp only
-    rw [ih m' (acc ++ [y]), ih m' [y]]
-    simp [List.append_assoc]
 
 /-- The twin's cons-recursion is `pmapFrom` at the empty accumulator. -/
 theorem pmapFrom_cons_eq {σ γ δ : Type} (f : σ → γ → AM (σ × δ))
@@ -458,21 +443,6 @@ theorem LSR.mono {α β : Type} {R R' : α → β → Prop}
     obtain ⟨b, lst', hx, hr, h1, h2⟩ := this
     exact ⟨b, lst', hx, hR a b hr, h1, h2⟩
 
-/-- The promotion tier's statement shape from the judgement. -/
-theorem LS.toSimPM {α β : Type} {R : α → β → Prop} {pers : arena.store.PersTier}
-    {m : Result (core.result.Result (arena.promote.PMemo × α) kernel.core_types.CheckError ×
-      arena.monad.AState)}
-    {lst : AState} {x : AM (PMemo × β)} {o}
-    (h : LS pers (fun r v => PMemoRel r.1 v.1 ∧ R r.2 v.2) m lst x) (hm : m = ok o) :
-    SimPM R pers lst o x := by
-  obtain ⟨o, st'⟩ := o
-  have := h o st' hm
-  show POut R pers lst o st' (x.run lst)
-  cases o with
-  | Err e => exact this
-  | Ok a =>
-    obtain ⟨⟨m', v⟩, lst', hx, ⟨hM, hR⟩, h1, h2⟩ := this
-    exact ⟨m', v, lst', hx, hR, hM, h1, h2⟩
 
 /-! ## The name, level and level-list views -/
 
@@ -675,10 +645,6 @@ private theorem pint_lst {α β : Type} {A : α → β} {P t : arena.store.PersT
   intro r h
   cases k <;> simp only [kernel.env.basis_kind_dup, Result.ok.injEq] at h <;> exact h.symm
 
-@[lockstep] theorem quot_kind_dup_spec (k : kernel.env.QuotKind) :
-    LSP (kernel.env.quot_kind_dup k) (fun r => r = k) := by
-  intro r h
-  cases k <;> simp only [kernel.env.quot_kind_dup, Result.ok.injEq] at h <;> exact h.symm
 
 end Lockstep
 

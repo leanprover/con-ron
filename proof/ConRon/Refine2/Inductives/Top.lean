@@ -42,21 +42,6 @@ open scoped ConRon.Refine2.IndSide
 open ConRon.Arena
 
 open Lockstep in
-/-- `checker_base::ind_params_ok` from the cursor `0`, the one call site
-(`Refine2/Checker/Base.lean`'s `ind_params_ok_refines` in `LS` form). -/
-@[lockstep] theorem ind_params_ok_zero_ls {pers st lst} {n_p : Std.U64}
-    {block : alloc.vec.Vec arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a)
-      (arena.checker_base.ind_params_ok pers st n_p block 0#usize) lst
-      (indParamsOk (absU n_p) (absICIL block)) := by
-  have h : LS pers (fun a b => b = id a)
-      (arena.checker_base.ind_params_ok pers st n_p block 0#usize) lst
-      (indParamsOk (absU n_p) (absICILFrom block 0#usize)) :=
-    LS.ofSim₀ fun _ h => ind_params_ok_refines hrel hinv h
-  have hz : absICILFrom block 0#usize = absICIL block := by simp [absICILFrom, absICIL]
-  rw [hz] at h
-  exact h
 
 /-- **`arena::inductives::check_ind_decl` ⊑ `Inductives.checkIndDecl`** — the
 `.indDecl` arm.  The name carries the module qualifier because

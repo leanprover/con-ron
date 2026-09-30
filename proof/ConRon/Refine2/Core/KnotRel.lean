@@ -182,11 +182,6 @@ structure CoreCtx (vis : Std.U64) (fe : arena.env.IFEnv) (lfe : IFEnv) : Prop wh
   idxPos : ∀ n p, ConRon.Refine.HashMap2.toFun fe.idx n = some p →
     p.2.val ≤ Std.Usize.max
 
-/-- `fenv`'s constant-list clause, at `lfe` itself — `IFEnv.restrictTo` moves
-`visibleBelow` alone, so the two are the same statement and this is the
-spelling a reader of `lfe` wants. -/
-theorem CoreCtx.env {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
-    (h : CoreCtx vis fe lfe) : lfe.env = absIEnv fe.env := h.fenv.env
 
 /-- `fenv`'s index clause, at `lfe` itself.  **This is the one `ifenv_find_abs`
 consumes**, and it is stated here rather than projected through `fenv` because
