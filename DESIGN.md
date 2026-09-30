@@ -65701,3 +65701,87 @@ unknown identifiers.
 of `scripts/gates.sh` (cargo, style lint, provenance, `extract.sh --check`)
 was not re-run by this lane (no Rust or `Generated/` change) -- the landing
 agent should run the full gate set.
+
+#### Lane F-IND — Theorem 2 for the uniform inductive route (Opus)
+
+Branch `t105-fi`. It proves the lockstep refinement of the new
+`arena::inductives::*` against the twin `Arena/Inductives/*`, plus the
+`.indDecl` arm's pieces of `arena::check_decl`. Eight sub-agents did the work,
+each in its own worktree, merged into `t105-fi`. The last one removed duplicate
+helpers. The tier is **sorry-free**: `lake build ConRonRefine2 ConRonCapstone`
+is green with no warning from `proof/`, and `Checker/Top`'s `#guard_msgs` read
+no `sorryAx`.
+
+**Deleted** (their Rust and twin are gone): `Refine2/Inductives/{NativeParts,
+NativeInstall, NativeInstallF, Modeled, PrimsModeled, SpecModeled, SumParts,
+StructInstallF, SumInstallF}.lean`. Also deleted: the fixpoint/modeled records
+and readers in `Shape`; 102 `IndPrims` companions that duplicated the checker
+tier's global `@[lockstep]` lemmas; and the `Spec` transcriptions of deleted
+generators.
+
+**Modules** (theorems / lines):
+
+| module | Rust | thms | lines |
+|---|---|---:|---:|
+| `FieldTele` | `field_tele` (`pi_binders`, accumulator in front) | 5 | 130 |
+| `Abs` | the records (`NestCtx` drops `vis`; `BlockShape`, `TargetMajor`, `ClassGen`, …) | 2 | 120 |
+| `Shape` | containers, cursor recipes (lowered below the checker tier) | 61 | 1222 |
+| `Env` | Core front doors, env readers, `CoreCtx` side alternatives | 2 | 92 |
+| `Prims` | the remaining checker/pin companions | 28 | 349 |
+| `Positivity` | `positivity`: walks, `FvMap` read-back, `replace_apps`, closedness, uniform, seeds | 137 | 2295 |
+| `PositivityNest` | `positivity`: env lookups and the `nest_pos` mutual block (one induction on the twin fuel) | 41 | 1222 |
+| `BlockParts`, `BlockRec` | `block_parts` (the recogniser), `block_rec` | 113 + 4 | 2065 |
+| `ClassRead` | `class_read` + `gen_rec::class_n_pc_of` | 31 | 736 |
+| `RecCheck` | `rec_check` (+ `nested_rule_syn`'s body, which had no lemma) | 107 | 2070 |
+| `GenRec`, `GenRecCheck` | `gen_rec`: the generator; the class checks, `gen_rec_check` | 87 + 80 | 3503 |
+| `BlockInstall` | `block_install` | 47 | 1104 |
+| `BlockTail` | `block_tail` (`BlockPassRel`: `IFEnvRelI` on `env1`, the abstraction elsewhere) | 8 | 223 |
+| `StructParts`, `StructInstall`, `SumInstall`, `Spec` | repaired to the new Rust/twin | 39 + 9 + 26 + 8 | 2251 |
+| `Top` | `check_shapeless(_formers)` | 2 | 86 |
+
+Totals: 837 theorems, 17 468 lines. Against `t105-uinds`: +13 867 / −5 193.
+
+**The interface** consumed by `Refine2/Checker/Top.lean`'s
+`check_ind_decl_refines` (one `lockstep` call over `arena::check_decl::check_ind_decl`).
+All three lemmas are `@[lockstep]`, take `AStateRel₀`/`AStateInv` (the last
+two also take `IFEnvRelI rf lf`), and answer in `IFEnvRelI` for the two
+installs:
+* `block_parts_ls` (`BlockParts.lean`): `block_parts pers st n_pd block` against `blockParts? (absU n_pd) (absICIL block)`, answer `b = Option.map absBlockParts a`;
+* `check_block_ls` (`BlockTail.lean`): `check_block pers st mode rf block p0` against `checkBlock (absMode mode) lf (absICIL block) (absBlockParts p0)`;
+* `check_shapeless_ls` (`Top.lean`): against `checkShapeless (absMode mode) lf (absICIL block)`.
+
+**The audit.** Before any proof was written, four read-only auditors compared
+every Rust function with its twin. They found no divergence in the order or
+set of effectful operations, and every error message and kind equal. Every
+shape difference is bridged by a lemma, and **no twin was changed**:
+* Rust index cursors against the twin's `List` operations and structural recursion;
+* accumulators against cons-on-return;
+* `_node`/`_at`/`_tail` fragments (`lockstep_inline`, or `rfl`-restated twin sub-expressions);
+* `vis` beside `fe` (`CoreCtx`, or `absU ctx.vis = lf.visibleBelow`);
+* `HashMap2` memos against `Std.HashMap`;
+* `class_fe_r_push`/`pop`'s index rows (both sides return to an index that answers alike);
+* `cons_block_recs_t` at `(vis2, fe)` against `fe.restrictTo vis₂`.
+
+**The one Rust change** was `pi_doms_mention_any`, which had no fuel where the
+twin's `piDomsMentionAny` must have one. The lead gave it the twin's fuel
+(`t105-uinds` `5da0ea94`).
+
+The representation premises added are: `TeleWF` on telescopes read back from
+the store, `FvMapWF` (a `HoleImg` map's `n ≤ |prog|`), and `PropWhenWF` on
+constructed caps. No semantic invariant was added.
+
+**Heartbeats.** These lemmas need a raised `maxHeartbeats` (1–4 M):
+`nest_pos_all`, `block_counts_ls`, `block_shape(_sort)_ls`, `block_caps_at_ls`,
+`class_fields_of_acc`, `gen_rec_check_ls`, `sum_rules_ctx_aux`.
+
+**A slip, repaired.** Sub-agent `bp`'s commit `c4e012cb` committed the
+uncommitted pin bump (`proof/lakefile.toml`, `proof/lake-manifest.json`). Every
+merge into `t105-fi` restored the two files, so `t105-fi`'s copies are
+byte-identical to `t105-uinds`'s. The commit stays in the history.
+
+**For the sweep.** `LS.twin_map` (Shape) has the same statement as Core/LS's
+`LS.tail_bind_pure`. Checker/Base restates Shape's `absNIdxLFrom_zero`. A few
+Shape lemmas (`prop_when_dup_spec`, `binder_meta_dup_spec`,
+`absIRecRule_*_eq`) have copies in `Core/LS`. GenRec pins Shape's
+`drop_eidx_n_twin` with `local lockstep high`, because three global
+`drop_eidx_n` lemmas exist and the import order decides between them.
