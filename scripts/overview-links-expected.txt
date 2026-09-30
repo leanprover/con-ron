@@ -2363,30 +2363,30 @@
     79          memoWhnfCore_step henv
     80            (whnfCoreBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
 
-== proof/ConRon/Refine2/AbsState.lean#L346-L360
-   346  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
-   347  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
-   348  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
-   349  made a knot statement false at a state both programs handle alike: the port
-   350  and the twin both intern `app d a` over a dangling `d` without looking at it,
-   351  their stores stay equal field for field, and only `StoreWF` fails.  The Core
-   352  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
-   353  it later (tier-wide migration, scheduled separately), and until then
-   354  `AStateRel` keeps its five fields and these two lemmas convert. -/
-   355  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
-   356      (ls : AState) : Prop where
-   357    store : StoreRel pers rs.store ls.store
-   358    memos : MemosRel rs.memos ls.memos
-   359    caches : CachesRel rs.caches ls.caches
-   360    pins : PinsRel rs.pins ls.pins
+== proof/ConRon/Refine2/AbsState.lean#L330-L344
+   330  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
+   331  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
+   332  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
+   333  made a knot statement false at a state both programs handle alike: the port
+   334  and the twin both intern `app d a` over a dangling `d` without looking at it,
+   335  their stores stay equal field for field, and only `StoreWF` fails.  The Core
+   336  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
+   337  it later (tier-wide migration, scheduled separately), and until then
+   338  `AStateRel` keeps its five fields and these two lemmas convert. -/
+   339  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
+   340      (ls : AState) : Prop where
+   341    store : StoreRel pers rs.store ls.store
+   342    memos : MemosRel rs.memos ls.memos
+   343    caches : CachesRel rs.caches ls.caches
+   344    pins : PinsRel rs.pins ls.pins
 
-== proof/ConRon/Refine2/AbsState.lean#L379-L384
-   379  /-- The Rust-side invariant of the whole state. -/
-   380  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
-   381      Prop where
-   382    store : StoreInv pers rs.store
-   383    memos : MemosInv rs.memos
-   384    caches : CachesInv rs.caches
+== proof/ConRon/Refine2/AbsState.lean#L363-L368
+   363  /-- The Rust-side invariant of the whole state. -/
+   364  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
+   365      Prop where
+   366    store : StoreInv pers rs.store
+   367    memos : MemosInv rs.memos
+   368    caches : CachesInv rs.caches
 
 == proof/ConRon/Refine2/Shape.lean#L410-L414
    410  /-- The lockstep simulation statement for a state-threading Rust function. -/
@@ -2463,9 +2463,9 @@
    671      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
    672    LS pers R (packRM st m) lst x
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L3008-L3009
-  3008  /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
-  3009  macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L3001-L3002
+  3001  /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
+  3002  macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
 
 == proof/ConRon/Refine2/Tactic/Attr.lean#L87-L95
     87  initialize registerBuiltinAttribute {
