@@ -284,14 +284,6 @@ theorem basis_decls_empty_wf {v : alloc.vec.Vec env.ConstantInfo}
 
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 1000000 in
-/-- The `.PunitK` block's entries are well formed. -/
-theorem basis_decls_punit_wf {v : alloc.vec.Vec env.ConstantInfo}
-    (h : basis_tables.basis_decls_punit = ok v) : ConstantInfosWF v := by
-  rw [basis_tables.basis_decls_punit] at h
-  basis_wf_block h
-
-set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 1000000 in
 /-- The `.QuotK` block's entries are well formed. -/
 theorem basis_decls_quot_wf {v : alloc.vec.Vec env.ConstantInfo}
     (h : basis_tables.basis_decls_quot = ok v) : ConstantInfosWF v := by
@@ -322,7 +314,6 @@ theorem basis_decls_a_wf {k : env.BasisKind}
   cases k <;> simp only [] at h
   · exact basis_decls_eq_wf h
   · exact basis_decls_nat_wf h
-  · exact basis_decls_punit_wf h
   · exact basis_decls_empty_wf h
   · exact basis_decls_false_wf h
   · exact basis_decls_quot_wf h

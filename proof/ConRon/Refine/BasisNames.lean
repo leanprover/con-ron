@@ -19,12 +19,10 @@ Two shapes are not closed-name lemmas:
   `n.str "rec"` -- the suffix the cited Lean spells out at each of its five
   `reservedBasisNames` sites.
 * `reserved_basis_names` returns a `Vec<Name>`; it is stated as
-  `absNames v = reservedBasisNames ∧ NamesWF v` and proved by reading the 19
+  `absNames v = reservedBasisNames ∧ NamesWF v` and proved by reading the 16
   pushes off with `vec_push_val`.
 
-Nothing was hard.  `punit_rec_name` goes through `rec_of` in the port and is
-spelled out in the Lean, so its lemma composes `punit_name_refines` with
-`rec_of_refines` and finishes by `rfl`.
+Nothing was hard.
 -/
 import ConRon.Refine.CoreKBase
 
@@ -58,18 +56,6 @@ theorem eq_refl_name_refines {n : name.Name} (h : basis_names.eq_refl_name = ok 
     (L := [114#u32, 101#u32, 102#u32, 108#u32]) (by simp [basis_names.eq_refl_name.S]) (by decide)
   exact ⟨by rw [h1, hp]; rfl, h1wf⟩
 
-/-- `ConLeche/Kernel/Basis/Names.lean:23-24 punitName` --
-`basis_names::punit_name` refines `punitName`. -/
-theorem punit_name_refines {n : name.Name} (h : basis_names.punit_name = ok n) :
-    absName n = ConLeche.punitName ∧ NameWF n := by
-  rw [basis_names.punit_name] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨a, ha, s, hs, v, hv, hmk⟩ := h
-  obtain ⟨h1, h1wf⟩ := str_lit_step (Name.anonymous_wf ha) hs hv hmk
-    (L := [80#u32, 85#u32, 110#u32, 105#u32,
-      116#u32]) (by simp [basis_names.punit_name.S]) (by decide)
-  exact ⟨by rw [h1, Name.anonymous_refines ha]; rfl, h1wf⟩
-
 /-! `rec_of` and the two names built through it. -/
 
 /-- `ConLeche/Kernel/Basis/Names.lean:105-115 reservedBasisNames` --
@@ -84,18 +70,6 @@ theorem rec_of_refines {n r : name.Name} (hn : NameWF n)
   obtain ⟨h1, h1wf⟩ := str_lit_step hn hs hv hmk
     (L := [114#u32, 101#u32, 99#u32]) (by simp [basis_names.rec_of.S]) (by decide)
   exact ⟨by rw [h1]; rfl, h1wf⟩
-
-/-- `ConLeche/Kernel/Basis/Names.lean:26-29 punitRecName` --
-`basis_names::punit_rec_name` refines `punitRecName`. -/
-theorem punit_rec_name_refines {n : name.Name}
-    (h : basis_names.punit_rec_name = ok n) :
-    absName n = ConLeche.punitRecName ∧ NameWF n := by
-  rw [basis_names.punit_rec_name] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨a, ha, hrec⟩ := h
-  obtain ⟨hp, hpwf⟩ := punit_name_refines ha
-  obtain ⟨h1, h1wf⟩ := rec_of_refines hpwf hrec
-  exact ⟨by rw [h1, hp]; rfl, h1wf⟩
 
 /-- `ConLeche/Kernel/Basis/Names.lean:31-32 natName` --
 `basis_names::nat_name` refines `natName`. -/
@@ -131,19 +105,6 @@ theorem nat_succ_name_refines {n : name.Name} (h : basis_names.nat_succ_name = o
   obtain ⟨hp, hpwf⟩ := nat_name_refines ha
   obtain ⟨h1, h1wf⟩ := str_lit_step hpwf hs hv hmk
     (L := [115#u32, 117#u32, 99#u32, 99#u32]) (by simp [basis_names.nat_succ_name.S]) (by decide)
-  exact ⟨by rw [h1, hp]; rfl, h1wf⟩
-
-/-- `ConLeche/Kernel/Basis/Names.lean:40-41 punitUnitName` --
-`basis_names::punit_unit_name` refines `punitUnitName`. -/
-theorem punit_unit_name_refines {n : name.Name} (h : basis_names.punit_unit_name = ok n) :
-    absName n = ConLeche.punitUnitName ∧ NameWF n := by
-  rw [basis_names.punit_unit_name] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨a, ha, s, hs, v, hv, hmk⟩ := h
-  obtain ⟨hp, hpwf⟩ := punit_name_refines ha
-  obtain ⟨h1, h1wf⟩ := str_lit_step hpwf hs hv hmk
-    (L := [117#u32, 110#u32, 105#u32,
-      116#u32]) (by simp [basis_names.punit_unit_name.S]) (by decide)
   exact ⟨by rw [h1, hp]; rfl, h1wf⟩
 
 /-- `ConLeche/Kernel/Basis/Names.lean:43-43 emptyName` --
@@ -353,8 +314,7 @@ theorem reserved_basis_names_refines {v : alloc.vec.Vec name.Name}
   obtain ⟨m0, hm0, w0, hw0, m1, hm1, w1, hw1, m2, hm2, w2, hw2, m3, hm3, w3, hw3, m4, hm4, w4,
     hw4, m5, hm5, w5, hw5, m6, hm6, w6, hw6, m7, hm7, w7, hw7, m8, hm8, w8, hw8, m9, hm9, w9, hw9,
     m10, hm10, w10, hw10, m11, hm11, w11, hw11, m12, hm12, w12, hw12, m13, hm13, w13, hw13, m14,
-    hm14, w14, hw14, m15, hm15, w15, hw15, m16, hm16, w16, hw16, m17, hm17, w17, hw17, m18, hm18,
-    hlast⟩ := h
+    hm14, w14, hw14, m15, hm15, hlast⟩ := h
   obtain ⟨e0, f0⟩ := eq_name_refines hm0
   obtain ⟨e1, f1⟩ := eq_refl_name_refines hm1
   obtain ⟨e2, f2⟩ := rec_of_refines f0 hm2
@@ -362,36 +322,32 @@ theorem reserved_basis_names_refines {v : alloc.vec.Vec name.Name}
   obtain ⟨e4, f4⟩ := nat_zero_name_refines hm4
   obtain ⟨e5, f5⟩ := nat_succ_name_refines hm5
   obtain ⟨e6, f6⟩ := rec_of_refines f3 hm6
-  obtain ⟨e7, f7⟩ := punit_name_refines hm7
-  obtain ⟨e8, f8⟩ := punit_unit_name_refines hm8
-  obtain ⟨e9, f9⟩ := rec_of_refines f7 hm9
-  obtain ⟨e10, f10⟩ := empty_name_refines hm10
-  obtain ⟨e11, f11⟩ := rec_of_refines f10 hm11
-  obtain ⟨e12, f12⟩ := false_name_refines hm12
-  obtain ⟨e13, f13⟩ := rec_of_refines f12 hm13
-  obtain ⟨e14, f14⟩ := quot_name_refines hm14
-  obtain ⟨e15, f15⟩ := quot_mk_name_refines hm15
-  obtain ⟨e16, f16⟩ := quot_lift_name_refines hm16
-  obtain ⟨e17, f17⟩ := quot_ind_name_refines hm17
-  obtain ⟨e18, f18⟩ := quot_sound_name_refines hm18
-  have hval : v.val = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14, m15, m16,
-    m17, m18] := by
-    rw [vec_push_val hlast, vec_push_val hw17, vec_push_val hw16, vec_push_val hw15,
-      vec_push_val hw14, vec_push_val hw13, vec_push_val hw12, vec_push_val hw11,
-      vec_push_val hw10, vec_push_val hw9, vec_push_val hw8, vec_push_val hw7, vec_push_val hw6,
-      vec_push_val hw5, vec_push_val hw4, vec_push_val hw3, vec_push_val hw2, vec_push_val hw1,
-      vec_push_val hw0]
+  obtain ⟨e7, f7⟩ := empty_name_refines hm7
+  obtain ⟨e8, f8⟩ := rec_of_refines f7 hm8
+  obtain ⟨e9, f9⟩ := false_name_refines hm9
+  obtain ⟨e10, f10⟩ := rec_of_refines f9 hm10
+  obtain ⟨e11, f11⟩ := quot_name_refines hm11
+  obtain ⟨e12, f12⟩ := quot_mk_name_refines hm12
+  obtain ⟨e13, f13⟩ := quot_lift_name_refines hm13
+  obtain ⟨e14, f14⟩ := quot_ind_name_refines hm14
+  obtain ⟨e15, f15⟩ := quot_sound_name_refines hm15
+  have hval : v.val = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13, m14,
+    m15] := by
+    rw [vec_push_val hlast, vec_push_val hw14, vec_push_val hw13, vec_push_val hw12,
+      vec_push_val hw11, vec_push_val hw10, vec_push_val hw9, vec_push_val hw8, vec_push_val hw7,
+      vec_push_val hw6, vec_push_val hw5, vec_push_val hw4, vec_push_val hw3, vec_push_val hw2,
+      vec_push_val hw1, vec_push_val hw0]
     simp
   refine ⟨?_, ?_⟩
   · rw [absNames, hval]
     simp only [List.map_cons, List.map_nil, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12,
-      e13, e14, e15, e16, e17, e18]
+      e13, e14, e15]
     rfl
   · intro x hx
     rw [hval] at hx
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
-    rcases hx with rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
-    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18]
+    rcases hx with rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
+    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15]
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate) -/
 
