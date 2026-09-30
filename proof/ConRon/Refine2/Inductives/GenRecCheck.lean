@@ -1191,4 +1191,36 @@ attribute [local lockstep_inline] arena.inductives.gen_rec.class_const_ok_type
   rw [arena.inductives.gen_rec.class_const_ok, classConstOk]
   lockstep
 
+theorem gr_absRecShape_tgt (r : arena.inductives.block_parts.RecShape) :
+    (absRecShape r).tgt = absU r.tgt := rfl
+theorem gr_absRecShape_rP (r : arena.inductives.block_parts.RecShape) :
+    (absRecShape r).rP = absU r.r_p := rfl
+theorem gr_absRecShape_mI (r : arena.inductives.block_parts.RecShape) :
+    (absRecShape r).mI = absU r.m_i := rfl
+theorem gr_absRecShape_cvR (r : arena.inductives.block_parts.RecShape) :
+    (absRecShape r).cvR = absIConstantVal r.cv_r := rfl
+
+theorem gr_absU_beq (a b : Std.U64) : (absU a == absU b) = (a == b) := by
+  by_cases h : a = b
+  · subst h; simp
+  · have : absU a ≠ absU b := fun h' => h (u64_eq_iff_val.mpr h')
+    simp [h, this]
+
+attribute [local lockstep_simp] gr_absRecShape_tgt gr_absRecShape_rP gr_absRecShape_mI
+  gr_absRecShape_cvR gr_absU_beq
+
+/-- `class_rec_ty_ok` ⊑ `classRecTyOk`. -/
+@[lockstep] theorem class_rec_ty_ok_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (g : arena.inductives.gen_rec.ClassGen)
+    (hg : ClassGenWF g) (k : Std.U64) (rc : arena.inductives.block_parts.RecShape)
+    (cv_ri : arena.env.IConstantVal) (c : Std.U64) :
+    LS pers (fun a b => b = absIConstantVal a)
+      (arena.inductives.gen_rec.class_rec_ty_ok pers st mode rf g k rc cv_ri c) lst
+      (classRecTyOk (ConRon.Refine.absMode mode) lf (absClassGen g) (absU k) (absRecShape rc)
+        (absIConstantVal cv_ri) (absU c)) := by
+  have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
+  rw [arena.inductives.gen_rec.class_rec_ty_ok, classRecTyOk]
+  lockstep
+
 end ConRon.Refine2
