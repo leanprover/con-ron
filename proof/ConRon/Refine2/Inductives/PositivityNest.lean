@@ -801,6 +801,10 @@ theorem pn_lsidx_dup2_spec (x : arena.handle.LsIdx) :
     LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
   fun _ h => dupId_lsidx _ _ h
 
+theorem pn_eidx_dup2_spec (x : arena.handle.EIdx) :
+    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
+  fun _ h => dupId_eidx _ _ h
+
 attribute [local lockstep high] nest_keys_contain_active_twin nest_keys_contain_keys_twin
   pn_nidx_dup2_spec pn_lsidx_dup2_spec
 
@@ -824,5 +828,98 @@ theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   apply LS.pure _ (by assumption) (by assumption)
   show _ = _
   simp only [absNestFieldKind, pn_u64_bne_zero]
+
+/-- `drop_eidx_n` / `take_eidx_n` as the twin's `List.drop` / `List.take` of
+the arguments (the `TwinEq` form of `Core/LS`'s `drop_eidx_n_ls` /
+`take_eidx_n_ls`, local). -/
+theorem pn_drop_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.core.drop_eidx_n xs n)
+      (fun r => TwinEq ((List.map absEIdx xs.val).drop (absU n)) (List.map absEIdx r.val)) := by
+  intro r h
+  have := Lockstep.PC1.drop_eidx_n_ls xs n r h
+  simp only [absEIdxList] at this
+  exact this.symm
+
+theorem pn_take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs n)
+      (fun r => TwinEq ((List.map absEIdx xs.val).take (absU n)) (List.map absEIdx r.val)) := by
+  intro r h
+  have := Lockstep.PC1.take_eidx_n_ls xs n r h
+  simp only [absEIdxList] at this
+  exact this.symm
+
+attribute [local lockstep high] pn_drop_eidx_n_twin pn_take_eidx_n_twin
+
+-- `nest_cont_params` is the tail of `nestCont` (the parameters' closedness,
+-- the former, full application).
+attribute [lockstep_inline] arena.inductives.positivity.nest_cont_params
+
+/-- `nest_cont` ⊑ `nestCont` at a fuel whose `nest_pos` is related. -/
+theorem nest_cont_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx ctx.vis rf lf)
+    {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (kb : Std.U64)
+    (n : arena.handle.NIdx) (us : arena.handle.LsIdx) (args : alloc.vec.Vec arena.handle.EIdx)
+    (ns : arena.inductives.positivity.NestState) st lst
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers RCont
+      (arena.inductives.positivity.nest_cont pers st mode rf ctx fuel prog kb n us args ns) lst
+      (nestCont (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
+        (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL args)
+        (absNestState ns)) := by
+  have hK := nest_cont_key_of hctx hP
+  rw [arena.inductives.positivity.nest_cont, nestCont.eq_def]
+  lockstep
+
+-- `nest_pos_at` (the reduct that mentions a member or a hole) and
+-- `nest_pos_hole` (its hole application) are `nestPos`'s `fuel + 1` arm.
+attribute [lockstep_inline] arena.inductives.positivity.nest_pos_at
+  arena.inductives.positivity.nest_pos_hole
+
+set_option maxHeartbeats 2000000 in
+/-- **The induction**: `nest_pos` ⊑ `nestPos` at every fuel. -/
+theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx ctx.vis rf lf) :
+    ∀ F, NestPosRel pers mode rf lf ctx F := by
+  intro F
+  induction F with
+  | zero =>
+    intro fuel prog dep kb e ns st lst hf hrel hinv
+    rw [arena.inductives.positivity.nest_pos, if_pos (by scalar_tac), nestPos]
+    lockstep
+  | succ F ih =>
+    have hP : ∀ (fuel : Std.U64) (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
+        (dep kb : Std.U64) (e : arena.handle.EIdx) (ns : arena.inductives.positivity.NestState)
+        st lst, AStateRel₀ pers st lst → AStateInv pers st → fuel.val = F →
+        LS pers RPos
+          (arena.inductives.positivity.nest_pos pers st mode rf ctx fuel prog dep kb e ns)
+          lst (nestPos (ConRon.Refine.absMode mode) lf (absNestCtx ctx) F
+            (prog.val.map absNestHole) (absU dep) (absU kb) (absEIdx e) (absNestState ns)) :=
+      fun fuel prog dep kb e ns st lst hrel hinv hf => ih fuel prog dep kb e ns st lst hf hrel hinv
+    have hC : ∀ (fuel : Std.U64) (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
+        (kb : Std.U64) (n : arena.handle.NIdx) (us : arena.handle.LsIdx)
+        (args : alloc.vec.Vec arena.handle.EIdx) (ns : arena.inductives.positivity.NestState)
+        st lst, AStateRel₀ pers st lst → AStateInv pers st → fuel.val = F →
+        LS pers RCont
+          (arena.inductives.positivity.nest_cont pers st mode rf ctx fuel prog kb n us args ns) lst
+          (nestCont (ConRon.Refine.absMode mode) lf (absNestCtx ctx) F
+            (prog.val.map absNestHole) (absU kb) (absNIdx n) (absLsIdx us) (absEIdxL args)
+            (absNestState ns)) := by
+      intro fuel prog kb n us args ns st lst hrel hinv hf
+      subst hf
+      exact nest_cont_of hctx ih prog kb n us args ns st lst hrel hinv
+    clear ih
+    intro fuel prog dep kb e ns st lst hf hrel hinv
+    rw [arena.inductives.positivity.nest_pos, if_neg (by scalar_tac), nestPos]
+    lockstep
+    all_goals
+      apply LS.pure _ (by assumption) (by assumption)
+      show _ = _
+      simp only [absNestFieldKind, Prod.mk.injEq, and_true]
+      split_ifs <;> (try simp only [beq_iff_eq] at *) <;>
+        first
+        | (exfalso; scalar_tac)
+        | (simp only [NestFieldKind.recursive.injEq, NestFieldKind.reflexive.injEq, absU];
+           scalar_tac)
 
 end ConRon.Refine2
