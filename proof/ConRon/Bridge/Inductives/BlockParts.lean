@@ -979,4 +979,317 @@ theorem blockGroups_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls
       (List.range k) s₀ s' r hok (fun _ _ => hp) hrun
     exact ⟨p1, ListRel.toMapM hrel⟩
 
+/-! ## The recursor records' pins -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:325-333 blockRecLpsOk
+Pure on both sides: `beq_nhandleList_eq` at every recursor, against the
+block's level parameters (with the eliminator consed in front at the large
+eliminator). -/
+theorem blockRecLpsOk_spec {st : EStore} (hwf : StoreWF st) {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} (h : dShape st p = some pP) :
+    Arena.blockRecLpsOk p = ConLeche.blockRecLpsOk pP := by
+  have hlps := BlockShape.lps_spec h
+  obtain ⟨ms, rs, el, s, hms, hrs, hel, -, hpP⟩ := dShape_inv h
+  have hr : pP.recs = rs := by rw [hpP]
+  have hl : pP.large = p.large := by rw [hpP]
+  have he : pP.elim = el := by rw [hpP]
+  have hcons : Frontend.denoteNList st.ns (p.elim :: p.lps) = some (el :: pP.lps) := by
+    simp only [Frontend.denoteNList, hel, hlps]
+  simp only [Arena.blockRecLpsOk, ConLeche.blockRecLpsOk, hr, hl, he]
+  generalize pP.lps = L at hlps hcons
+  clear h hms hpP hr
+  generalize p.recs = xs at hrs
+  induction xs generalizing rs with
+  | nil =>
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs
+    subst hrs; rfl
+  | cons x xs ih =>
+    obtain ⟨y, ys, rfl, hx, hxs⟩ := mapM_option_cons_inv hrs
+    obtain ⟨cv, rhss, hcv, -, rfl⟩ := dRec_inv hx
+    simp only [List.all_cons, ih ys hxs]
+    congr 1
+    cases p.large
+    · exact beq_nhandleList_eq hwf (denoteCV_lps hcv) hlps
+    · exact beq_nhandleList_eq hwf (denoteCV_lps hcv) hcons
+
+/-- con-leche: none — `T_m.rec` at every member, interned in block order. -/
+theorem recNames_run : ∀ (ms : List Arena.MemberShape) (msP : List ConLeche.MemberShape)
+    (s₀ s' : AState) (want : List NIdx), StateOK s₀ →
+    ms.mapM (dMember s₀.store) = some msP →
+    ms.mapM (fun m => internNNode (.str m.cvT.name "rec")) s₀ = .ok (want, s') →
+    PStep s₀ s' ∧
+      Frontend.denoteNList s'.store.ns want = some (msP.map fun m => m.cvT.name.str "rec") := by
+  intro ms
+  induction ms with
+  | nil =>
+    intro msP s₀ s' want hok hms hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hms
+    subst hms
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons m ms ih =>
+    intro msP s₀ s' want hok hms hrun
+    obtain ⟨mP, msP', rfl, hm, hxs⟩ := mapM_option_cons_inv hms
+    obtain ⟨cv, cs, hcv, -, rfl⟩ := dMember_inv hm
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨n, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨p1, hn⟩ := internStrN_run hok (denoteCV_name hcv) h1
+    obtain ⟨ns, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨p2, hns⟩ := ih msP' s₁ s₂ ns p1.ok
+      (mapM_option_ext (fun x y h => dMember_ext p1.ext x y h) _ _ hxs) h3
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    refine ⟨p1.trans p2, ?_⟩
+    simp only [List.map_cons, Frontend.denoteNList, denoteN_ext hn p2.ext, hns]
+
+/-- con-leche: none — the recursors' names, over the recursor list. -/
+theorem recShapeNames_go {st : EStore} :
+    ∀ {rs : List Arena.RecShape} {rsP : List ConLeche.RecShape},
+      rs.mapM (dRec st) = some rsP →
+      Frontend.denoteNList st.ns (rs.map (·.cvR.name)) = some (rsP.map (·.cvR.name)) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP h
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | cons r rs ih =>
+    intro rsP h
+    obtain ⟨rP, rsP', rfl, hr, hrs⟩ := mapM_option_cons_inv h
+    obtain ⟨cv, rhss, hcv, -, rfl⟩ := dRec_inv hr
+    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih hrs]
+
+/-- con-leche: none — `all`/`contains` over two denoting name-handle lists is
+the names'. -/
+theorem all_contains_eq {st : EStore} (hwf : StoreWF st) {bs : List NIdx}
+    {bsP : List ConLeche.Name} (hb : Frontend.denoteNList st.ns bs = some bsP) :
+    ∀ {as : List NIdx} {asP : List ConLeche.Name},
+      Frontend.denoteNList st.ns as = some asP →
+      (as.all fun n => bs.contains n) = (asP.all fun n => bsP.contains n) := by
+  intro as
+  induction as with
+  | nil =>
+    intro asP h
+    simp only [Frontend.denoteNList, Option.some.injEq] at h
+    subst h; rfl
+  | cons a as ih =>
+    intro asP h
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN st.ns a with
+    | none => rw [ha] at h; simp at h
+    | some x =>
+      cases has : Frontend.denoteNList st.ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some xs =>
+        rw [ha, has] at h
+        obtain rfl := Option.some.inj h
+        simp only [List.all_cons, PW.contains_handle_eq hwf ha hb, ih has]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:335-357 blockRecNameSetOk
+The recursor names as a SET.  The twin takes the members and the recursors
+apart (the caller's `{ p with recs := own }` is an argument): stated at any
+pure record `pP` whose two lists they denote. -/
+theorem blockRecNameSetOk_spec (members : List Arena.MemberShape) (recs : List Arena.RecShape)
+    (pP : ConLeche.BlockShape) :
+    PSpec (fun st => members.mapM (dMember st) = some pP.members ∧
+        recs.mapM (dRec st) = some pP.recs)
+      (Arena.blockRecNameSetOk members recs) (RV (ConLeche.blockRecNameSetOk pP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hms, hrs⟩ := hp
+  simp only [Arena.blockRecNameSetOk] at hrun
+  obtain ⟨want, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, hw⟩ := recNames_run members pP.members s₀ s₁ want hok hms h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  refine ⟨p1, ?_⟩
+  have hg := recShapeNames_go (mapM_option_ext (fun x y h => dRec_ext p1.ext x y h) _ _ hrs)
+  simp only [RV, ConLeche.blockRecNameSetOk]
+  rw [PW.denoteNList_length hg, PW.denoteNList_length hw, all_contains_eq p1.ok.wf hg hw,
+    all_contains_eq p1.ok.wf hw hg]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:449-454 litGuardNames — the ten
+literal-guard names, off the pin table. -/
+theorem litGuardNames_runB {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+    (hr : Arena.litGuardNames s = .ok (ns, s')) :
+    s' = s ∧ denoteNL s.store ns ConLeche.litGuardNames := by
+  simp only [Arena.litGuardNames] at hr
+  obtain ⟨n1, t1, g1, r1⟩ := bindOk hr
+  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.natName) hp rfl g1
+  rw [e1] at r1
+  obtain ⟨n2, t2, g2, r2⟩ := bindOk r1
+  obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.natZeroName) hp rfl g2
+  rw [e2] at r2
+  obtain ⟨n3, t3, g3, r3⟩ := bindOk r2
+  obtain ⟨e3, d3⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl g3
+  rw [e3] at r3
+  obtain ⟨n4, t4, g4, r4⟩ := bindOk r3
+  obtain ⟨e4, d4⟩ := pinAt_run (x := ConLeche.stringName) hp rfl g4
+  rw [e4] at r4
+  obtain ⟨n5, t5, g5, r5⟩ := bindOk r4
+  obtain ⟨e5, d5⟩ := pinAt_run (x := ConLeche.stringOfListName) hp rfl g5
+  rw [e5] at r5
+  obtain ⟨n6, t6, g6, r6⟩ := bindOk r5
+  obtain ⟨e6, d6⟩ := pinAt_run (x := ConLeche.listName) hp rfl g6
+  rw [e6] at r6
+  obtain ⟨n7, t7, g7, r7⟩ := bindOk r6
+  obtain ⟨e7, d7⟩ := pinAt_run (x := ConLeche.listNilName) hp rfl g7
+  rw [e7] at r7
+  obtain ⟨n8, t8, g8, r8⟩ := bindOk r7
+  obtain ⟨e8, d8⟩ := pinAt_run (x := ConLeche.listConsName) hp rfl g8
+  rw [e8] at r8
+  obtain ⟨n9, t9, g9, r9⟩ := bindOk r8
+  obtain ⟨e9, d9⟩ := pinAt_run (x := ConLeche.charName) hp rfl g9
+  rw [e9] at r9
+  obtain ⟨n10, t10, g10, r10⟩ := bindOk r9
+  obtain ⟨e10, d10⟩ := pinAt_run (x := ConLeche.charOfNatName) hp rfl g10
+  rw [e10] at r10
+  obtain ⟨rfl, rfl⟩ := pureOk r10
+  exact ⟨rfl, d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, trivial⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:475-481 natOpNames —
+`Bridge/Checker/DeclVal.lean`'s `natOpNames_run`, restated (that module is
+not in this one's import closure). -/
+theorem natOpNames_runB {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+    (hr : Arena.natOpNames s = .ok (ns, s')) :
+    s' = s ∧ denoteNL s.store ns ConLeche.natOpNames := by
+  simp only [Arena.natOpNames] at hr
+  obtain ⟨n1, t1, g1, r1⟩ := bindOk hr
+  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.natPredName) hp rfl g1
+  rw [e1] at r1
+  obtain ⟨n2, t2, g2, r2⟩ := bindOk r1
+  obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.natAddName) hp rfl g2
+  rw [e2] at r2
+  obtain ⟨n3, t3, g3, r3⟩ := bindOk r2
+  obtain ⟨e3, d3⟩ := pinAt_run (x := ConLeche.natSubName) hp rfl g3
+  rw [e3] at r3
+  obtain ⟨n4, t4, g4, r4⟩ := bindOk r3
+  obtain ⟨e4, d4⟩ := pinAt_run (x := ConLeche.natMulName) hp rfl g4
+  rw [e4] at r4
+  obtain ⟨n5, t5, g5, r5⟩ := bindOk r4
+  obtain ⟨e5, d5⟩ := pinAt_run (x := ConLeche.natPowName) hp rfl g5
+  rw [e5] at r5
+  obtain ⟨n6, t6, g6, r6⟩ := bindOk r5
+  obtain ⟨e6, d6⟩ := pinAt_run (x := ConLeche.natBeqName) hp rfl g6
+  rw [e6] at r6
+  obtain ⟨n7, t7, g7, r7⟩ := bindOk r6
+  obtain ⟨e7, d7⟩ := pinAt_run (x := ConLeche.natBleName) hp rfl g7
+  rw [e7] at r7
+  obtain ⟨rfl, rfl⟩ := pureOk r7
+  exact ⟨rfl, d1, d2, d3, d4, d5, d6, d7, trivial⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:483-498 natDivModNames —
+`Bridge/Checker/DeclVal.lean`'s `natDivModNames_run`, restated. -/
+theorem natDivModNames_runB {s s' : AState} {ns : List NIdx} (hp : PinsOK s)
+    (hr : Arena.natDivModNames s = .ok (ns, s')) :
+    s' = s ∧ denoteNL s.store ns ConLeche.natDivModNames := by
+  simp only [Arena.natDivModNames] at hr
+  obtain ⟨n1, t1, g1, r1⟩ := bindOk hr
+  obtain ⟨e1, d1⟩ := pinAt_run (x := ConLeche.natDivName) hp rfl g1
+  rw [e1] at r1
+  obtain ⟨n2, t2, g2, r2⟩ := bindOk r1
+  obtain ⟨e2, d2⟩ := pinAt_run (x := ConLeche.natModName) hp rfl g2
+  rw [e2] at r2
+  obtain ⟨n3, t3, g3, r3⟩ := bindOk r2
+  obtain ⟨e3, d3⟩ := pinAt_run (x := ConLeche.natGcdName) hp rfl g3
+  rw [e3] at r3
+  obtain ⟨n4, t4, g4, r4⟩ := bindOk r3
+  obtain ⟨e4, d4⟩ := pinAt_run (x := ConLeche.natLandName) hp rfl g4
+  rw [e4] at r4
+  obtain ⟨n5, t5, g5, r5⟩ := bindOk r4
+  obtain ⟨e5, d5⟩ := pinAt_run (x := ConLeche.natLorName) hp rfl g5
+  rw [e5] at r5
+  obtain ⟨n6, t6, g6, r6⟩ := bindOk r5
+  obtain ⟨e6, d6⟩ := pinAt_run (x := ConLeche.natXorName) hp rfl g6
+  rw [e6] at r6
+  obtain ⟨n7, t7, g7, r7⟩ := bindOk r6
+  obtain ⟨e7, d7⟩ := pinAt_run (x := ConLeche.natShiftLeftName) hp rfl g7
+  rw [e7] at r7
+  obtain ⟨n8, t8, g8, r8⟩ := bindOk r7
+  obtain ⟨e8, d8⟩ := pinAt_run (x := ConLeche.natShiftRightName) hp rfl g8
+  rw [e8] at r8
+  obtain ⟨rfl, rfl⟩ := pureOk r8
+  exact ⟨rfl, d1, d2, d3, d4, d5, d6, d7, d8, trivial⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:456-466 reservedRecName — the
+`||` chain, one pin-table list at a time. -/
+theorem reservedRecName_run {s s' : AState} {n : NIdx} {nm : ConLeche.Name} {b : Bool}
+    (hok : StateOK s) (hp : PinsOK s) (hn : denoteN s.store.ns n = some nm)
+    (hr : Arena.reservedRecName n s = .ok (b, s')) :
+    PStep s s' ∧ b = ConLeche.reservedRecName nm := by
+  simp only [Arena.reservedRecName] at hr
+  obtain ⟨rs, s₁, h1, h2⟩ := bindOk hr
+  obtain ⟨p1, hrs⟩ := reservedBasisNames_pstep hok hp h1
+  have hn1 := denoteN_ext hn p1.ext
+  have e1 := denoteNList_contains p1.ok.wf _ _ hrs _ _ hn1
+  simp only [ConLeche.reservedRecName]
+  rw [e1] at h2
+  split at h2
+  · rename_i hc
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    exact ⟨p1, by simp only [hc, Bool.true_or]⟩
+  · rename_i hc
+    simp only [Bool.not_eq_true] at hc
+    have hp1 := hp.mono p1.ext p1.pins
+    obtain ⟨ls, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨rfl, hls⟩ := litGuardNames_runB hp1 h3
+    rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hls) _ _ hn1] at h4
+    split at h4
+    · rename_i hc2
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      exact ⟨p1, by simp only [hc, hc2, Bool.true_or, Bool.false_or]⟩
+    · rename_i hc2
+      simp only [Bool.not_eq_true] at hc2
+      obtain ⟨os, s₃, h5, h6⟩ := bindOk h4
+      obtain ⟨rfl, hos⟩ := natOpNames_runB hp1 h5
+      rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hos) _ _ hn1] at h6
+      split at h6
+      · rename_i hc3
+        obtain ⟨rfl, rfl⟩ := pureOk h6
+        exact ⟨p1, by simp only [hc, hc2, hc3, Bool.true_or, Bool.false_or]⟩
+      · rename_i hc3
+        simp only [Bool.not_eq_true] at hc3
+        obtain ⟨ds, s₄, h7, h8⟩ := bindOk h6
+        obtain ⟨rfl, hds⟩ := natDivModNames_runB hp1 h7
+        obtain ⟨rfl, rfl⟩ := pureOk h8
+        refine ⟨p1, ?_⟩
+        rw [denoteNList_contains p1.ok.wf _ _ (denoteNL_toList _ _ hds) _ _ hn1]
+        simp only [hc, hc2, hc3, Bool.false_or]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:359-368 blockRecNamesUnreserved
+No recursor takes a reserved name: the twin stops at the first hit, the pure
+side is an `all`; `reservedRecName_run` at each.  **`PSpecP`**: the lists are
+read off the pin table. -/
+theorem blockRecNamesUnreserved_spec (pP : ConLeche.BlockShape) :
+    ∀ (recs : List Arena.RecShape),
+    PSpecP (fun st => recs.mapM (dRec st) = some pP.recs)
+      (Arena.blockRecNamesUnreserved recs) (RV (ConLeche.blockRecNamesUnreserved pP)) := by
+  intro recs
+  simp only [ConLeche.blockRecNamesUnreserved]
+  generalize pP.recs = rsP
+  induction recs generalizing rsP with
+  | nil =>
+    intro s₀ s' r hok _ hrs hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs
+    subst hrs
+    simp only [Arena.blockRecNamesUnreserved] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons rc rest ih =>
+    intro s₀ s' r hok hp hrs hrun
+    obtain ⟨rP, rsP', rfl, hr, hrest⟩ := mapM_option_cons_inv hrs
+    obtain ⟨cv, rhss, hcv, -, rfl⟩ := dRec_inv hr
+    simp only [Arena.blockRecNamesUnreserved] at hrun
+    obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨p1, rfl⟩ := reservedRecName_run hok hp (denoteCV_name hcv) h1
+    simp only [List.all_cons]
+    split at h2
+    · rename_i hc
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      exact ⟨p1, by simp [hc]⟩
+    · rename_i hc
+      obtain ⟨p2, h3⟩ := ih rsP' s₁ s' r p1.ok (hp.mono p1.ext p1.pins)
+        (mapM_option_ext (fun x y h => dRec_ext p1.ext x y h) _ _ hrest) h2
+      refine ⟨p1.trans p2, ?_⟩
+      simp only [RV] at h3 ⊢
+      simp [hc, h3]
+
 end ConRon.Bridge.Inductives
