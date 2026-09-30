@@ -274,37 +274,37 @@ pub fn iff_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, Ch
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:118-119 propextRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:116-117 propextRaw`.
 pub fn propext_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::propext_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:120-121 nonemptyRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:118-119 nonemptyRaw`.
 pub fn nonempty_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:122-123 nonemptyIntroRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:120-121 nonemptyIntroRaw`.
 pub fn nonempty_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_intro_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:124-125 nonemptyRecRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:122-123 nonemptyRecRaw`.
 pub fn nonempty_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:129-130 choiceRaw`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:124-125 choiceRaw`.
 pub fn choice_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::choice_raw())
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:132-136 eqA` — the ANNOTATED `Eq`
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:127-131 eqA` — the ANNOTATED `Eq`
 /// pin, interned.  It is the comparand of every "requires the pinned `Eq`
 /// basis" test in the checker, and the one pin compared by whole-constant
 /// EQUALITY rather than by `matchesPin` (the module note).
@@ -313,7 +313,7 @@ pub fn eq_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckErro
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:138-140 natA` — the ANNOTATED
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:133-135 natA` — the ANNOTATED
 /// `Nat` pin, interned.
 pub fn nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &basis_pins::nat_a())

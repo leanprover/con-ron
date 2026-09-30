@@ -306,7 +306,7 @@ open Lockstep in
       (basisPinHitGo (absICIL block) (absBasisKindLFrom ks i)) :=
   LS.ofSim₀ fun _ h => basis_pin_hit_go_refines hrel hinv h
 
-/-- `basis_pin_hit` ⊑ `basisPinHit` — the five pinned blocks, in con-leche's order; `.quotK` is deliberately not among them. -/
+/-- `basis_pin_hit` ⊑ `basisPinHit` — the four pinned inductive blocks, in con-leche's order; `.quotK` is deliberately not among them. -/
 theorem basis_pin_hit_refines {pers st lst} {block : alloc.vec.Vec arena.env.IConstantInfo} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hrun : arena.basis.basis_pin_hit pers st block = ok o) :
@@ -317,7 +317,7 @@ theorem basis_pin_hit_refines {pers st lst} {block : alloc.vec.Vec arena.env.ICo
   have hk := ConRon.Refine.BasisRaw.block_pin_kinds_refines hks
   have h := Lockstep.LS.toSim₀ (basis_pin_hit_go_aux _ block ks 0#usize rfl hrel hinv) hrun
   have e : absBasisKindLFrom ks 0#usize =
-      [ConLeche.BasisKind.eqK, .natK, .punitK, .emptyK, .falseK] := by
+      [ConLeche.BasisKind.eqK, .natK, .emptyK, .falseK] := by
     simp only [absBasisKindLFrom]; rw [← hk]; rfl
   rw [e] at h
   exact h
@@ -756,24 +756,6 @@ open Lockstep in
       (iffRecRaw) :=
   LS.ofSim₀ fun _ h => iff_rec_raw_refines hrel hinv h
 
-/-- `iff_family` ⊑ `iffFamily` — the con-leche constant, interned. -/
-theorem iff_family_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.std_axioms.iff_family pers st = ok o) :
-    Sim₀ absICIL pers lst o
-      (iffFamily) := by
-  rw [arena.std_axioms.iff_family] at hrun
-  exact sim_intern_ci_list_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.iff_family_refines h) hrun
-
-open Lockstep in
-@[lockstep] theorem iff_family_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absICIL a)
-      (arena.std_axioms.iff_family pers st) lst
-      (iffFamily) :=
-  LS.ofSim₀ fun _ h => iff_family_refines hrel hinv h
-
 /-- `propext_raw` ⊑ `propextRaw` — the con-leche constant, interned. -/
 theorem propext_raw_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -845,24 +827,6 @@ open Lockstep in
       (arena.std_axioms.nonempty_rec_raw pers st) lst
       (nonemptyRecRaw) :=
   LS.ofSim₀ fun _ h => nonempty_rec_raw_refines hrel hinv h
-
-/-- `nonempty_family` ⊑ `nonemptyFamily` — the con-leche constant, interned. -/
-theorem nonempty_family_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.std_axioms.nonempty_family pers st = ok o) :
-    Sim₀ absICIL pers lst o
-      (nonemptyFamily) := by
-  rw [arena.std_axioms.nonempty_family] at hrun
-  exact sim_intern_ci_list_of hrel hinv (fun _ h => ConRon.Refine.StdAxioms.nonempty_family_refines h) hrun
-
-open Lockstep in
-@[lockstep] theorem nonempty_family_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absICIL a)
-      (arena.std_axioms.nonempty_family pers st) lst
-      (nonemptyFamily) :=
-  LS.ofSim₀ fun _ h => nonempty_family_refines hrel hinv h
 
 /-- `choice_raw` ⊑ `choiceRaw` — the con-leche constant, interned. -/
 theorem choice_raw_refines {pers st lst} {o}

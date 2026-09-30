@@ -57,9 +57,9 @@ import sys
 # store-native parser and the pinned data — inside this gate and inside
 # `lint-rust-style.sh`.  (`crates/arena-core/src` was the rewrite's second
 # verified tree from task #97-P4a until the swap folded it in here.)
-# `crates/con-ron/src` is the UNVERIFIED crate: the driver, the CLI, the pool,
-# the in-process modeller and the `Expr`-value helpers it builds trees with
-# (`tree/`, task #97-SWAP).  It is inside this gate and outside
+# `crates/con-ron/src` is the UNVERIFIED crate: the driver, the CLI and the
+# pool (the in-process modeller and its `tree/` helpers went with upstream's,
+# task #105).  It is inside this gate and outside
 # `lint-rust-style.sh` and `extract.sh` on purpose: DESIGN.md §3.7 — "for the
 # unverified frontend it is the only sync signal there is".  Its items are
 # cited but not style-linted.  (`crates/con-ron-arena/src` was its arena-side

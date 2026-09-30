@@ -4,12 +4,12 @@
 **Task #97-P5-Checker**, deliverable 2's first file (DESIGN.md §8.2).
 `crates/con-ron-core/src/arena/{pins,nat_op_pin_set}.rs` against
 `proof/ConRon/Arena/{Pins,NatOpPinSet}.lean`: the arena's own pin table — the
-forty-nine reserved constant names, the nineteen reserved basis names, the
+forty-eight reserved constant names, the sixteen reserved basis names, the
 empty universe-argument list, the level `0` and the expression `Sort 1`, all
 interned ONCE by the driver before the prelude — and the `Nat`-operation pin
 variants interned beside them.
 
-## Why the fifty-four readers are `SimRE` and not `Sim`
+## Why the fifty-three readers are `SimRE` and not `Sim`
 
 `pin_at(st, i)` takes `&AState` and returns `Result<NIdx, CheckError>`: it
 reads the table and can DECLINE (task #97c's hazard, turned into a stop — an
@@ -18,7 +18,7 @@ unfilled table is empty, so a pin read before `intern_reserved_pins` raises
 handle), but it never writes.  `Refine2/Shape.lean`'s `SimR` has no error arm
 and its `Sim` wants a post-state; `Refine2/Checker/Shape.lean`'s **`SimRE`**
 is the two halves put together, and this file is where it earns its keep
-fifty-four times.
+fifty-three times.
 
 The `Internal` decline is one of the three MIRRORED kinds, so the claim is
 real: the twin declines too, at the same kind, and the two bound tests agree
@@ -37,7 +37,7 @@ persistent first and hands back the persistent handle*.  The proof is
 
 ## What these lemmas wait on
 
-`pin_at` and its forty-nine wrappers wait on **nothing below them** — they are
+`pin_at` and its forty-eight wrappers wait on **nothing below them** — they are
 `PinsRel.names` plus a bounds test, which is why they are the cheapest group
 of the tier.  `intern_reserved_pins` and the three `intern_pin_set*` wait on
 `Specs.lean`'s four transient walks and its per-constructor interns (task
@@ -133,7 +133,7 @@ theorem push_nidx_val {out w : alloc.vec.Vec arena.handle.NIdx} {n : arena.handl
 
 set_option maxRecDepth 20000 in
 /-- `pin_names` is the twin's `pinNames`, a pure list of con-leche `Name`s
-built by nineteen `basis_names` calls.  The `NamesWF` conjunct is what every
+built by forty-eight name calls.  The `NamesWF` conjunct is what every
 caller of `intern_name_list` owes (`Refine2/Promote/Intern.lean`'s note). -/
 theorem pin_names_refines {o} (hrun : arena.pins.pin_names = ok o) :
     ConRon.Refine.absNames o = pinNames ∧ NamesWF o := by
@@ -232,96 +232,68 @@ theorem pin_names_refines {o} (hrun : arena.pins.pin_names = ok o) :
   obtain ⟨o45, ho45, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨n46, h46, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨o46, ho46, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨n47, h47, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨o47, ho47, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨n48, h48, hlast⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨n47, h47, hlast⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨e0, f0⟩ := ConRon.Refine.BasisNames.eq_name_refines h0
-  obtain ⟨e1, f1⟩ := ConRon.Refine.BasisNames.punit_name_refines h1
-  obtain ⟨e2, f2⟩ := ConRon.Refine.BasisNames.punit_rec_name_refines h2
-  obtain ⟨e3, f3⟩ := ConRon.Refine.BasisNames.nat_name_refines h3
-  obtain ⟨e4, f4⟩ := ConRon.Refine.BasisNames.nat_zero_name_refines h4
-  obtain ⟨e5, f5⟩ := ConRon.Refine.BasisNames.nat_succ_name_refines h5
-  obtain ⟨e6, f6⟩ := ConRon.Refine.BasisNames.quot_sound_name_refines h6
-  obtain ⟨e7, f7⟩ := ConRon.Refine.BasisNames.string_name_refines h7
-  obtain ⟨e8, f8⟩ := ConRon.Refine.BasisNames.string_of_list_name_refines h8
-  obtain ⟨e9, f9⟩ := ConRon.Refine.BasisNames.list_name_refines h9
-  obtain ⟨e10, f10⟩ := ConRon.Refine.BasisNames.list_nil_name_refines h10
-  obtain ⟨e11, f11⟩ := ConRon.Refine.BasisNames.list_cons_name_refines h11
-  obtain ⟨e12, f12⟩ := ConRon.Refine.BasisNames.char_name_refines h12
-  obtain ⟨e13, f13⟩ := ConRon.Refine.BasisNames.and_name_refines h13
-  obtain ⟨e14, f14⟩ := ConRon.Refine.BasisNames.char_of_nat_name_refines h14
-  obtain ⟨e15, f15⟩ := ConRon.Refine.BasisNames.sorry_ax_name_refines h15
-  obtain ⟨e16, f16⟩ := ConRon.Refine.CoreK.nat_pred_name_refines h16
-  obtain ⟨e17, f17⟩ := ConRon.Refine.CoreK.nat_add_name_refines h17
-  obtain ⟨e18, f18⟩ := ConRon.Refine.CoreK.nat_sub_name_refines h18
-  obtain ⟨e19, f19⟩ := ConRon.Refine.CoreK.nat_mul_name_refines h19
-  obtain ⟨e20, f20⟩ := ConRon.Refine.CoreK.nat_pow_name_refines h20
-  obtain ⟨e21, f21⟩ := ConRon.Refine.CoreK.nat_beq_name_refines h21
-  obtain ⟨e22, f22⟩ := ConRon.Refine.CoreK.nat_ble_name_refines h22
-  obtain ⟨e23, f23⟩ := ConRon.Refine.CoreK.nat_div_name_refines h23
-  obtain ⟨e24, f24⟩ := ConRon.Refine.CoreK.nat_mod_name_refines h24
-  obtain ⟨e25, f25⟩ := ConRon.Refine.CoreK.nat_gcd_name_refines h25
-  obtain ⟨e26, f26⟩ := ConRon.Refine.CoreK.nat_land_name_refines h26
-  obtain ⟨e27, f27⟩ := ConRon.Refine.CoreK.nat_lor_name_refines h27
-  obtain ⟨e28, f28⟩ := ConRon.Refine.CoreK.nat_xor_name_refines h28
-  obtain ⟨e29, f29⟩ := ConRon.Refine.CoreK.nat_shift_left_name_refines h29
-  obtain ⟨e30, f30⟩ := ConRon.Refine.CoreK.nat_shift_right_name_refines h30
-  obtain ⟨e31, f31⟩ := ConRon.Refine.CoreK.bool_name_refines h31
-  obtain ⟨e32, f32⟩ := ConRon.Refine.CoreK.bool_true_name_refines h32
-  obtain ⟨e33, f33⟩ := ConRon.Refine.CoreK.bool_false_name_refines h33
-  obtain ⟨e34, f34⟩ := ConRon.Refine.StdAxioms.propext_name_refines h34
-  obtain ⟨e35, f35⟩ := ConRon.Refine.StdAxioms.choice_name_refines h35
-  obtain ⟨e36, f36⟩ := ConRon.Refine.StdAxioms.iff_name_refines h36
-  obtain ⟨e37, f37⟩ := ConRon.Refine.StdAxioms.iff_intro_name_refines h37
-  obtain ⟨e38, f38⟩ := ConRon.Refine.StdAxioms.iff_rec_name_refines h38
-  obtain ⟨e39, f39⟩ := ConRon.Refine.StdAxioms.nonempty_name_refines h39
-  obtain ⟨e40, f40⟩ := ConRon.Refine.StdAxioms.nonempty_intro_name_refines h40
-  obtain ⟨e41, f41⟩ := ConRon.Refine.StdAxioms.nonempty_rec_name_refines h41
-  obtain ⟨e42, f42⟩ := ConRon.Refine.TrustAxioms.true_name_refines h42
-  obtain ⟨e43, f43⟩ := ConRon.Refine.TrustAxioms.true_intro_name_refines h43
-  obtain ⟨e44, f44⟩ := ConRon.Refine.TrustAxioms.trust_compiler_name_refines h44
-  obtain ⟨e45, f45⟩ := ConRon.Refine.TrustAxioms.reduce_nat_name_refines h45
-  obtain ⟨e46, f46⟩ := ConRon.Refine.TrustAxioms.reduce_bool_name_refines h46
-  obtain ⟨e47, f47⟩ := ConRon.Refine.TrustAxioms.of_reduce_nat_name_refines h47
-  obtain ⟨e48, f48⟩ := ConRon.Refine.TrustAxioms.of_reduce_bool_name_refines h48
-  have hval : o.val = [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15,
-      n16, n17, n18, n19, n20, n21, n22, n23, n24, n25, n26, n27, n28, n29, n30, n31, n32, n33, n34,
-      n35, n36, n37, n38, n39, n40, n41, n42, n43, n44, n45, n46, n47, n48] := by
-    rw [ConRon.Refine.vec_push_val hlast, ConRon.Refine.vec_push_val ho47,
-      ConRon.Refine.vec_push_val ho46, ConRon.Refine.vec_push_val ho45, ConRon.Refine.vec_push_val
-      ho44, ConRon.Refine.vec_push_val ho43, ConRon.Refine.vec_push_val ho42,
-      ConRon.Refine.vec_push_val ho41, ConRon.Refine.vec_push_val ho40, ConRon.Refine.vec_push_val
-      ho39, ConRon.Refine.vec_push_val ho38, ConRon.Refine.vec_push_val ho37,
-      ConRon.Refine.vec_push_val ho36, ConRon.Refine.vec_push_val ho35, ConRon.Refine.vec_push_val
-      ho34, ConRon.Refine.vec_push_val ho33, ConRon.Refine.vec_push_val ho32,
-      ConRon.Refine.vec_push_val ho31, ConRon.Refine.vec_push_val ho30, ConRon.Refine.vec_push_val
-      ho29, ConRon.Refine.vec_push_val ho28, ConRon.Refine.vec_push_val ho27,
-      ConRon.Refine.vec_push_val ho26, ConRon.Refine.vec_push_val ho25, ConRon.Refine.vec_push_val
-      ho24, ConRon.Refine.vec_push_val ho23, ConRon.Refine.vec_push_val ho22,
-      ConRon.Refine.vec_push_val ho21, ConRon.Refine.vec_push_val ho20, ConRon.Refine.vec_push_val
-      ho19, ConRon.Refine.vec_push_val ho18, ConRon.Refine.vec_push_val ho17,
-      ConRon.Refine.vec_push_val ho16, ConRon.Refine.vec_push_val ho15, ConRon.Refine.vec_push_val
-      ho14, ConRon.Refine.vec_push_val ho13, ConRon.Refine.vec_push_val ho12,
-      ConRon.Refine.vec_push_val ho11, ConRon.Refine.vec_push_val ho10, ConRon.Refine.vec_push_val
-      ho9, ConRon.Refine.vec_push_val ho8, ConRon.Refine.vec_push_val ho7, ConRon.Refine.vec_push_val
-      ho6, ConRon.Refine.vec_push_val ho5, ConRon.Refine.vec_push_val ho4, ConRon.Refine.vec_push_val
-      ho3, ConRon.Refine.vec_push_val ho2, ConRon.Refine.vec_push_val ho1, ConRon.Refine.vec_push_val
-      ho0]
+  obtain ⟨e1, f1⟩ := ConRon.Refine.BasisNames.nat_name_refines h1
+  obtain ⟨e2, f2⟩ := ConRon.Refine.BasisNames.nat_zero_name_refines h2
+  obtain ⟨e3, f3⟩ := ConRon.Refine.BasisNames.nat_succ_name_refines h3
+  obtain ⟨e4, f4⟩ := ConRon.Refine.BasisNames.quot_sound_name_refines h4
+  obtain ⟨e5, f5⟩ := ConRon.Refine.BasisNames.string_name_refines h5
+  obtain ⟨e6, f6⟩ := ConRon.Refine.BasisNames.string_of_list_name_refines h6
+  obtain ⟨e7, f7⟩ := ConRon.Refine.BasisNames.list_name_refines h7
+  obtain ⟨e8, f8⟩ := ConRon.Refine.BasisNames.list_nil_name_refines h8
+  obtain ⟨e9, f9⟩ := ConRon.Refine.BasisNames.list_cons_name_refines h9
+  obtain ⟨e10, f10⟩ := ConRon.Refine.BasisNames.char_name_refines h10
+  obtain ⟨e11, f11⟩ := ConRon.Refine.BasisNames.and_name_refines h11
+  obtain ⟨e12, f12⟩ := ConRon.Refine.BasisNames.char_of_nat_name_refines h12
+  obtain ⟨e13, f13⟩ := ConRon.Refine.BasisNames.sorry_ax_name_refines h13
+  obtain ⟨e14, f14⟩ := ConRon.Refine.CoreK.nat_pred_name_refines h14
+  obtain ⟨e15, f15⟩ := ConRon.Refine.CoreK.nat_add_name_refines h15
+  obtain ⟨e16, f16⟩ := ConRon.Refine.CoreK.nat_sub_name_refines h16
+  obtain ⟨e17, f17⟩ := ConRon.Refine.CoreK.nat_mul_name_refines h17
+  obtain ⟨e18, f18⟩ := ConRon.Refine.CoreK.nat_pow_name_refines h18
+  obtain ⟨e19, f19⟩ := ConRon.Refine.CoreK.nat_beq_name_refines h19
+  obtain ⟨e20, f20⟩ := ConRon.Refine.CoreK.nat_ble_name_refines h20
+  obtain ⟨e21, f21⟩ := ConRon.Refine.CoreK.nat_div_name_refines h21
+  obtain ⟨e22, f22⟩ := ConRon.Refine.CoreK.nat_mod_name_refines h22
+  obtain ⟨e23, f23⟩ := ConRon.Refine.CoreK.nat_gcd_name_refines h23
+  obtain ⟨e24, f24⟩ := ConRon.Refine.CoreK.nat_land_name_refines h24
+  obtain ⟨e25, f25⟩ := ConRon.Refine.CoreK.nat_lor_name_refines h25
+  obtain ⟨e26, f26⟩ := ConRon.Refine.CoreK.nat_xor_name_refines h26
+  obtain ⟨e27, f27⟩ := ConRon.Refine.CoreK.nat_shift_left_name_refines h27
+  obtain ⟨e28, f28⟩ := ConRon.Refine.CoreK.nat_shift_right_name_refines h28
+  obtain ⟨e29, f29⟩ := ConRon.Refine.CoreK.bool_name_refines h29
+  obtain ⟨e30, f30⟩ := ConRon.Refine.CoreK.bool_true_name_refines h30
+  obtain ⟨e31, f31⟩ := ConRon.Refine.CoreK.bool_false_name_refines h31
+  obtain ⟨e32, f32⟩ := ConRon.Refine.StdAxioms.propext_name_refines h32
+  obtain ⟨e33, f33⟩ := ConRon.Refine.StdAxioms.choice_name_refines h33
+  obtain ⟨e34, f34⟩ := ConRon.Refine.StdAxioms.iff_name_refines h34
+  obtain ⟨e35, f35⟩ := ConRon.Refine.StdAxioms.iff_intro_name_refines h35
+  obtain ⟨e36, f36⟩ := ConRon.Refine.StdAxioms.iff_rec_name_refines h36
+  obtain ⟨e37, f37⟩ := ConRon.Refine.StdAxioms.nonempty_name_refines h37
+  obtain ⟨e38, f38⟩ := ConRon.Refine.StdAxioms.nonempty_intro_name_refines h38
+  obtain ⟨e39, f39⟩ := ConRon.Refine.StdAxioms.nonempty_rec_name_refines h39
+  obtain ⟨e40, f40⟩ := ConRon.Refine.TrustAxioms.true_name_refines h40
+  obtain ⟨e41, f41⟩ := ConRon.Refine.TrustAxioms.true_intro_name_refines h41
+  obtain ⟨e42, f42⟩ := ConRon.Refine.TrustAxioms.trust_compiler_name_refines h42
+  obtain ⟨e43, f43⟩ := ConRon.Refine.TrustAxioms.reduce_nat_name_refines h43
+  obtain ⟨e44, f44⟩ := ConRon.Refine.TrustAxioms.reduce_bool_name_refines h44
+  obtain ⟨e45, f45⟩ := ConRon.Refine.TrustAxioms.of_reduce_nat_name_refines h45
+  obtain ⟨e46, f46⟩ := ConRon.Refine.TrustAxioms.of_reduce_bool_name_refines h46
+  obtain ⟨e47, f47⟩ := ConRon.Refine.BasisNames.quot_name_refines h47
+  have hval : o.val = [n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10, n11, n12, n13, n14, n15, n16, n17, n18, n19, n20, n21, n22, n23, n24, n25, n26, n27, n28, n29, n30, n31, n32, n33, n34, n35, n36, n37, n38, n39, n40, n41, n42, n43, n44, n45, n46, n47] := by
+    rw [ConRon.Refine.vec_push_val hlast, ConRon.Refine.vec_push_val ho46, ConRon.Refine.vec_push_val ho45, ConRon.Refine.vec_push_val ho44, ConRon.Refine.vec_push_val ho43, ConRon.Refine.vec_push_val ho42, ConRon.Refine.vec_push_val ho41, ConRon.Refine.vec_push_val ho40, ConRon.Refine.vec_push_val ho39, ConRon.Refine.vec_push_val ho38, ConRon.Refine.vec_push_val ho37, ConRon.Refine.vec_push_val ho36, ConRon.Refine.vec_push_val ho35, ConRon.Refine.vec_push_val ho34, ConRon.Refine.vec_push_val ho33, ConRon.Refine.vec_push_val ho32, ConRon.Refine.vec_push_val ho31, ConRon.Refine.vec_push_val ho30, ConRon.Refine.vec_push_val ho29, ConRon.Refine.vec_push_val ho28, ConRon.Refine.vec_push_val ho27, ConRon.Refine.vec_push_val ho26, ConRon.Refine.vec_push_val ho25, ConRon.Refine.vec_push_val ho24, ConRon.Refine.vec_push_val ho23, ConRon.Refine.vec_push_val ho22, ConRon.Refine.vec_push_val ho21, ConRon.Refine.vec_push_val ho20, ConRon.Refine.vec_push_val ho19, ConRon.Refine.vec_push_val ho18, ConRon.Refine.vec_push_val ho17, ConRon.Refine.vec_push_val ho16, ConRon.Refine.vec_push_val ho15, ConRon.Refine.vec_push_val ho14, ConRon.Refine.vec_push_val ho13, ConRon.Refine.vec_push_val ho12, ConRon.Refine.vec_push_val ho11, ConRon.Refine.vec_push_val ho10, ConRon.Refine.vec_push_val ho9, ConRon.Refine.vec_push_val ho8, ConRon.Refine.vec_push_val ho7, ConRon.Refine.vec_push_val ho6, ConRon.Refine.vec_push_val ho5, ConRon.Refine.vec_push_val ho4, ConRon.Refine.vec_push_val ho3, ConRon.Refine.vec_push_val ho2, ConRon.Refine.vec_push_val ho1, ConRon.Refine.vec_push_val ho0]
     simp
   refine ⟨?_, ?_⟩
   · rw [ConRon.Refine.absNames, hval]
-    simp only [List.map_cons, List.map_nil, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11,
-      e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25, e26, e27, e28, e29, e30,
-      e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45, e46, e47, e48]
+    simp only [List.map_cons, List.map_nil, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22, e23, e24, e25, e26, e27, e28, e29, e30, e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45, e46, e47]
     rfl
   · intro x hx
     rw [hval] at hx
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
     rcases hx with
-      rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
-    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17,
-      f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36,
-      f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47, f48]
+      rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl|rfl
+    exacts [f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31, f32, f33, f34, f35, f36, f37, f38, f39, f40, f41, f42, f43, f44, f45, f46, f47]
 
 /-! ### The startup walk's glue (task #97-P5-Top) -/
 
@@ -333,7 +305,7 @@ theorem internNameList_eq_frontend :
   | nil => rfl
   | cons n ns ih => simp only [Arena.internNameList, Frontend.internNameList, ih]
 
-/-- The pin table's nineteen reserved names are con-leche's. -/
+/-- The pin table's sixteen reserved names are con-leche's. -/
 theorem reservedBasisNameValues_eq :
     reservedBasisNameValues = ConLeche.reservedBasisNames := by
   rfl
@@ -350,7 +322,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   rw [arena.pins.intern_reserved_pins] at hrun
   unfold Sim₀
   rw [Arena.internReservedPins, internNameList_eq_frontend]
-  -- 1. the forty-nine constant names
+  -- 1. the forty-eight constant names
   obtain ⟨v, hv, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hvabs, hvwf⟩ := pin_names_refines hv
   obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -365,7 +337,7 @@ theorem intern_reserved_pins_refines {pers st lst} {o}
   | Ok hs =>
   obtain ⟨lst1, hx1, hrel1, hinv1⟩ := Sim₀.apply hS1
   rw [run_bind_ok hx1]
-  -- 2. the nineteen reserved basis names
+  -- 2. the sixteen reserved basis names
   obtain ⟨v1, hv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨hv1abs, hv1wf⟩ := ConRon.Refine.BasisNames.reserved_basis_names_refines hv1
   obtain ⟨q2, hq2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -483,7 +455,7 @@ theorem pins_ready_refines {pers st lst} {o : Bool}
     apply Aeneas.Std.UScalar.eq_imp
     rw [this, hcount, h]
 
-/-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-nine below are instances
+/-- `pin_at` ⊑ `pinAt` — **the one lemma the forty-eight below are instances
 of**: the bounds branch and then `PinsRel.names`. -/
 theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
     (hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st)
@@ -555,7 +527,7 @@ open Lockstep in
       (pinAt (absSz i)) :=
   LSR.ofSimRE hrel hinv fun _ h => pin_at_refines hrel hinv h
 
-/-- `pin_reserved` ⊑ `pinReserved` — the nineteen reserved basis names, off
+/-- `pin_reserved` ⊑ `pinReserved` — the sixteen reserved basis names, off
 the table.  `arena::core`'s `reserved_basis_names` used to build and intern
 all nineteen on every call, which task #97-P6-4a's profile put at 1.1 % of
 `Init`'s cycles in the `Name` construction alone. -/
@@ -776,7 +748,7 @@ open Lockstep in
       pinSortOne :=
   LSR.ofSimRE hrel hinv fun _ h => pin_sort_one_refines hrel hinv h
 
-/-! ## The forty-nine named readers, one per slot
+/-! ## The forty-eight named readers, one per slot
 
 Each is `pin_at` at its own constant, and each lemma is `pin_at_refines` after
 that constant's value.  The order is `Arena/Pins.lean`'s, which is
@@ -804,52 +776,6 @@ open Lockstep in
       (arena.pins.pin_eq st) st lst
       pinEq :=
   LSR.ofSimRE hrel hinv fun _ h => pin_eq_refines hrel hinv h
-
-/-- `pin_punit` ⊑ `pinPUnit`, at slot `PIN_PUNIT`. -/
-theorem pin_punit_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.pins.pin_punit st = ok o) :
-    SimRE absNIdx lst o pinPUnit := by
-  rw [arena.pins.pin_punit] at hrun
-  have h := pin_at_refines hrel hinv hrun
-  have hc : absSz arena.pins.PIN_PUNIT = Arena.PIN_PUNIT := by
-    show (arena.pins.PIN_PUNIT).val = _
-    rw [arena.pins.PIN_PUNIT]
-    rfl
-  rw [hc] at h
-  exact h
-
-open Lockstep in
-@[lockstep] theorem pin_punit_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a)
-      (arena.pins.pin_punit st) st lst
-      pinPUnit :=
-  LSR.ofSimRE hrel hinv fun _ h => pin_punit_refines hrel hinv h
-
-/-- `pin_punit_rec` ⊑ `pinPUnitRec`, at slot `PIN_PUNIT_REC`. -/
-theorem pin_punit_rec_refines {pers st lst} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.pins.pin_punit_rec st = ok o) :
-    SimRE absNIdx lst o pinPUnitRec := by
-  rw [arena.pins.pin_punit_rec] at hrun
-  have h := pin_at_refines hrel hinv hrun
-  have hc : absSz arena.pins.PIN_PUNIT_REC = Arena.PIN_PUNIT_REC := by
-    show (arena.pins.PIN_PUNIT_REC).val = _
-    rw [arena.pins.PIN_PUNIT_REC]
-    rfl
-  rw [hc] at h
-  exact h
-
-open Lockstep in
-@[lockstep] theorem pin_punit_rec_ls {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a)
-      (arena.pins.pin_punit_rec st) st lst
-      pinPUnitRec :=
-  LSR.ofSimRE hrel hinv fun _ h => pin_punit_rec_refines hrel hinv h
 
 /-- `pin_nat` ⊑ `pinNat`, at slot `PIN_NAT`. -/
 theorem pin_nat_refines {pers st lst} {o}
@@ -2271,8 +2197,8 @@ DESIGN.md §8.2's own discipline (task #97-P5-0 §8, task #97-P5-1 §7): every
 CLOSED lemma of the tier is `#print axioms`-checked under `#guard_msgs`, and
 every one reads `[propext, Classical.choice, Quot.sound]` and nothing else —
 no `sorryAx` on a closed lemma, no `bv_decide` axiom anywhere.  `pin_at` is
-the one this file's fifty-four readers all reduce to, so it is the row that
-matters; three of the forty-nine wrappers and the three table readers stand
+the one this file's fifty-three readers all reduce to, so it is the row that
+matters; three of the forty-eight wrappers and the three table readers stand
 for the rest. -/
 
 /-- info: 'ConRon.Refine2.pin_at_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/

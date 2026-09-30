@@ -113,24 +113,6 @@ macro "ind_str_side" : tactic =>
 macro_rules
   | `(tactic| lockstep_side_ext) => `(tactic| (ind_str_side; done))
 
-/-- The name part `"proj_" ++ toString i` the port builds from the literal
-`PROJ_` and `nat_to_dec i`. -/
-theorem proj_name_part {a v1 dig : alloc.vec.Vec Std.U32} {sl : Slice Std.U32} {n : Nat}
-    (hcat : a.val = v1.val ++ (alloc.vec.Vec.deref dig).val) (hv1 : v1.val = sl.val)
-    (hsl : sl.val = (arena.core.proj_model_name.PROJ_).val)
-    (hdig : ConRon.Refine.absCodes dig.val = toString n ∧ ConRon.Refine.StrWF dig) :
-    ConRon.Refine.absString a = "proj_" ++ toString n ∧ ConRon.Refine.StrWF a := by
-  have hl : a.val = [112#u32, 114#u32, 111#u32, 106#u32, 95#u32] ++ dig.val := by
-    rw [hcat, hv1, hsl]; simp [arena.core.proj_model_name.PROJ_, alloc.vec.Vec.deref]
-  refine ⟨?_, ?_⟩
-  · rw [ConRon.Refine.absString_eq, hl, ConRon.Refine.CoreK.absCodes_append, hdig.1]; rfl
-  · intro c hc
-    rw [hl, List.mem_append] at hc
-    rcases hc with hc | hc
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
-      rcases hc with rfl | rfl | rfl | rfl | rfl <;> decide
-    · exact hdig.2 c hc
-
 /-! ## Three Core readers the inductive routes call (task #97-T2-LOCKSTEP lane
 Inductives round 4): `proj_model_name`, `pi_result_is_prop`, `pi_result_z`.
 No lane owns them; both the Native/Struct/Sum tier and the Modeled lane use them. -/
@@ -148,24 +130,6 @@ open Lockstep in
   intro v h
   have := ConRon.Refine.Env.code_points_from_val s _ 0#usize out v (le_refl _) h
   simpa using this
-
-/-- `proj_model_name` ⊑ `projModelName` — `(T.str "_model").str ("proj_" ++ toString i)`. -/
-theorem proj_model_name_refines {pers st lst} {t : arena.handle.NIdx} {i : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.proj_model_name pers st t i = ok o) :
-    Sim₀ absNIdx pers lst o (projModelName (absNIdx t) (absU i)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.core.proj_model_name, projModelName]
-  lockstep
-  -- the second part is a concatenation (`"proj_" ++ toString i`)
-  all_goals
-    rename_i dig hdig sl hsl v1 hv1
-    obtain ⟨hs, hwf⟩ := proj_name_part hP hv1 hsl hdig
-    have e : NNodeView.str (absNIdx ‹arena.handle.NIdx›) ("proj_" ++ toString i.val)
-        = absNNodeView (.Str ‹arena.handle.NIdx› a) := by
-      simp only [absNNodeView, hs]
-    rw [e]
-    exact intern_n_node_ls ‹_› ‹_› _ hwf
 
 open Lockstep in
 /-- `kernel::level::zeroness_of` is the twin's `Level.zeronessOf` at a
@@ -195,48 +159,6 @@ open Lockstep in
   rfl
 
 open Lockstep in
-@[lockstep] theorem proj_model_name_ls {pers st lst} {t : arena.handle.NIdx} {i : Std.U64}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absNIdx a) (arena.core.proj_model_name pers st t i) lst
-      (projModelName (absNIdx t) (absU i)) :=
-  LS.ofSim₀ fun _ h => proj_model_name_refines hrel hinv h
-
-/-- `pi_result_is_prop` ⊑ `piResultIsProp`.  **Waits on `expr_ops::pi_result`'s
-lockstep lemma** (the ExprOps lane): past it, the zip is `tag`, `view_sort`,
-`zero_level`, `lvl_eq` — all filed here — and one `lockstep` call closes it. -/
-theorem pi_result_is_prop_refines {pers st lst} {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.pi_result_is_prop pers st e = ok o) :
-    Sim₀ id pers lst o (piResultIsProp (absEIdx e)) := by
-  refine Lockstep.LS.toSim₀ ?_ hrun
-  rw [arena.core.pi_result_is_prop, piResultIsProp]
-  lockstep
-
-open Lockstep in
-@[lockstep] theorem pi_result_is_prop_ls {pers st lst} {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.core.pi_result_is_prop pers st e) lst
-      (piResultIsProp (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => pi_result_is_prop_refines hrel hinv h
-
-open Lockstep in
-/-- `pi_result_z` ⊑ `piResultZ`, and its answer is well formed
-(`PropWhenWF`, the erased subtype invariant: `zeroness_of` and `if_all_zero`
-build canonical data) — `ind_block_caps` pushes it with the inductive. -/
-@[lockstep] theorem pi_result_z_ls {pers st lst} {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = ConRon.Refine.absPropWhen a ∧ ConRon.Refine.PropWhenWF a)
-      (arena.core.pi_result_z pers st e) lst (piResultZ (absEIdx e)) := by
-  rw [arena.core.pi_result_z, piResultZ]
-  lockstep
-
-/-- `pi_result_z` ⊑ `piResultZ`. -/
-theorem pi_result_z_refines {pers st lst} {e : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hrun : arena.core.pi_result_z pers st e = ok o) :
-    Sim₀ ConRon.Refine.absPropWhen pers lst o (piResultZ (absEIdx e)) :=
-  Lockstep.LS.toSim₀ (Lockstep.LS.tail (pi_result_z_ls hrel hinv) rfl fun _ _ h => h.1) hrun
-
 /-! ## The checker tier's statements in `LS` form
 
 Generated from `Refine2/Checker/{Base,Pins,Axioms,Canon}.lean` (every
@@ -245,17 +167,6 @@ line each, in their own namespace so a companion the checker lane adds later
 does not clash. -/
 
 namespace IndPrims
-
-open Lockstep in
-@[lockstep] theorem nidx_is_model_suffix_ls
-    {pers st lst}
-    {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = id a) (arena.checker_base.nidx_is_model_suffix pers st n) st lst
-                   (NIdx.isModelSuffix (absNIdx n)) :=
-  LSR.ofSimRE hrel hinv fun _ h => nidx_is_model_suffix_refines hrel hinv h
-
 
 open Lockstep in
 @[lockstep] theorem nidx_is_proj_fn_shape_ls
@@ -409,271 +320,6 @@ open Lockstep in
 
 
 open Lockstep in
-@[lockstep] theorem is_eq_head_ls
-    {pers st lst}
-    {h : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.checker_base.is_eq_head pers st h) lst
-                       (isEqHead (absEIdx h)) :=
-  LS.ofSim₀ fun _ h => is_eq_head_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem eq_head_level_at_ls
-    {pers st lst}
-    {us : arena.handle.LsIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absLIdx a) (arena.checker_base.eq_head_level_at pers st us) lst
-      (do
-        match ← viewLs (absLsIdx us) with
-        | [l] => pure l
-        | _ => zeroLevel) :=
-  LS.ofSim₀ fun _ h => eq_head_level_at_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem eq_head_level_ls
-    {pers st lst}
-    {h : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absLIdx a) (arena.checker_base.eq_head_level pers st h) lst
-                            (eqHeadLevel (absEIdx h)) :=
-  LS.ofSim₀ fun _ h => eq_head_level_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem check_typed_list_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {depth : Std.U64}
-    {xs ts : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a) (arena.checker_base.check_typed_list pers vis st mode rf depth xs ts i) lst
-      (checkTypedList (ConRon.Refine.absMode mode) lf (absU depth)
-        (absEIdxLFrom xs i) (absEIdxLFrom ts i)) :=
-  LS.ofSim₀ fun _ h => check_typed_list_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_annot_list_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {depth : Std.U64}
-    {xs : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a) (arena.checker_base.check_annot_list pers vis st mode rf depth xs i) lst
-      (checkAnnotList (ConRon.Refine.absMode mode) lf (absU depth)
-        (absEIdxLFrom xs i)) :=
-  LS.ofSim₀ fun _ h => check_annot_list_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_def_eq_list_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {depth : Std.U64}
-    {xs ys : alloc.vec.Vec arena.handle.EIdx}
-    {i : Std.Usize}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (fun _ : Unit => ()) a) (arena.checker_base.check_def_eq_list pers vis st mode rf depth xs ys i) lst
-      (checkDefEqList (ConRon.Refine.absMode mode) lf (absU depth)
-        (absEIdxLFrom xs i) (absEIdxLFrom ys i)) :=
-  LS.ofSim₀ fun _ h => check_def_eq_list_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem ifenv_find_cv_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {n : arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = (Option.map absIConstantVal) a) (arena.checker_base.ifenv_find_cv pers vis st rf n) lst
-      (lf.findCV? (absNIdx n)) :=
-  LS.ofSim₀ fun _ h => ifenv_find_cv_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem pi_result_sort_ls
-    {pers st lst}
-    {e : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = (Option.map absLIdx) a) (arena.checker_base.pi_result_sort pers st e) st lst
-                                     (piResultSort (absEIdx e)) :=
-  ConRon.Refine2.pi_result_sort_ls hrel hinv
-
-
-
-
-open Lockstep in
-@[lockstep] theorem proj_rule_wf_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {rhs_a : arena.handle.EIdx}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.checker_base.proj_rule_wf pers vis st rf rhs_a lps) lst
-      (do
-        pure ((← allLevelParamsDefined (absNIdxL lps) (absEIdx rhs_a)) &&
-          (← constsResolveFFast lf (absEIdx rhs_a)) &&
-          (← looseBVarsBoundedFast coreWalkFuel 0 (absEIdx rhs_a)) &&
-          !(← hasFvarFast coreWalkFuel (absEIdx rhs_a)))) :=
-  LS.ofSim₀ fun _ h => proj_rule_wf_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_rule_frame_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {n_p n_f : Std.U64}
-    {fvs_p : alloc.vec.Vec arena.handle.EIdx}
-    {crest_p rhs_a : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a) (arena.checker_base.check_proj_rule_frame pers vis st mode rf n_p n_f fvs_p crest_p rhs_a) lst
-      (checkProjRuleFrameSpec (ConRon.Refine.absMode mode) lf (absU n_p) (absU n_f)
-        (absEIdxL fvs_p) (absEIdx crest_p) (absEIdx rhs_a)) :=
-  LS.ofSim₀ fun _ h => check_proj_rule_frame_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_rule_certs_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pty : arena.handle.EIdx}
-    {cvj : arena.env.IConstantVal}
-    {n_p n_f : Std.U64}
-    {rhs_a : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a) (arena.checker_base.check_proj_rule_certs pers vis st mode rf pty cvj n_p n_f rhs_a) lst
-      (checkProjRuleCertsSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
-        (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx rhs_a)) :=
-  LS.ofSim₀ fun _ h => check_proj_rule_certs_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_rule_shape_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pty : arena.handle.EIdx}
-    {cvj : arena.env.IConstantVal}
-    {n_p n_f : Std.U64}
-    {bv rhs_a : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a) (arena.checker_base.check_proj_rule_shape pers vis st mode rf pty cvj n_p n_f bv rhs_a) lst
-      (checkProjRuleShapeSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
-        (absIConstantVal cvj) (absU n_p) (absU n_f) (absEIdx bv)
-        (absEIdx rhs_a)) :=
-  LS.ofSim₀ fun _ h => check_proj_rule_shape_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_rule_wf_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pty : arena.handle.EIdx}
-    {cvj : arena.env.IConstantVal}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p n_f : Std.U64}
-    {bv rhs_a : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a) (arena.checker_base.check_proj_rule_wf pers vis st mode rf pty cvj lps n_p n_f bv rhs_a) lst
-      (checkProjRuleWfSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
-        (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
-        (absEIdx rhs_a)) :=
-  LS.ofSim₀ fun _ h => check_proj_rule_wf_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_rule_scoped_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pty : arena.handle.EIdx}
-    {cvj : arena.env.IConstantVal}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p n_f : Std.U64}
-    {bv rhs : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a) (arena.checker_base.check_proj_rule_scoped pers vis st mode rf pty cvj lps n_p n_f bv rhs) lst
-      (checkProjRuleScopedSpec (ConRon.Refine.absMode mode) lf (absEIdx pty)
-        (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absEIdx bv)
-        (absEIdx rhs)) :=
-  LS.ofSim₀ fun _ h => check_proj_rule_scoped_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
-@[lockstep] theorem check_proj_rule_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {mode : kernel.env.CheckMode}
-    {pty : arena.handle.EIdx}
-    {cvj : arena.env.IConstantVal}
-    {lps : alloc.vec.Vec arena.handle.NIdx}
-    {n_p n_f i : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = absEIdx a) (arena.checker_base.check_proj_rule pers vis st mode rf pty cvj lps n_p n_f i) lst
-      (checkProjRule (ConRon.Refine.absMode mode) lf (absEIdx pty)
-        (absIConstantVal cvj) (absNIdxL lps) (absU n_p) (absU n_f) (absU i)) :=
-  LS.ofSim₀ fun _ h => check_proj_rule_refines hrel hinv hfe.rel hfe.inv hvis h
-
-
-open Lockstep in
 @[lockstep] theorem ind_params_ok_at_ls
     {pers st lst}
     {n_p : Std.U64}
@@ -812,26 +458,6 @@ open Lockstep in
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_eq st) st lst
                         pinEq :=
   LSR.ofSimRE hrel hinv fun _ h => pin_eq_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem pin_punit_ls
-    {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_punit st) st lst
-                        pinPUnit :=
-  LSR.ofSimRE hrel hinv fun _ h => pin_punit_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem pin_punit_rec_ls
-    {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_punit_rec st) st lst
-                        pinPUnitRec :=
-  LSR.ofSimRE hrel hinv fun _ h => pin_punit_rec_refines hrel hinv h
 
 
 open Lockstep in
@@ -1353,16 +979,6 @@ open Lockstep in
 
 
 open Lockstep in
-@[lockstep] theorem iff_family_ls
-    {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absICIL a) (arena.std_axioms.iff_family pers st) lst
-      (iffFamily) :=
-  LS.ofSim₀ fun _ h => iff_family_refines hrel hinv h
-
-
-open Lockstep in
 @[lockstep] theorem propext_raw_ls
     {pers st lst}
     (hrel : AStateRel₀ pers st lst)
@@ -1400,16 +1016,6 @@ open Lockstep in
     LS pers (fun a b => b = absIConstantInfo a) (arena.std_axioms.nonempty_rec_raw pers st) lst
       (nonemptyRecRaw) :=
   LS.ofSim₀ fun _ h => nonempty_rec_raw_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem nonempty_family_ls
-    {pers st lst}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = absICIL a) (arena.std_axioms.nonempty_family pers st) lst
-      (nonemptyFamily) :=
-  LS.ofSim₀ fun _ h => nonempty_family_refines hrel hinv h
 
 
 open Lockstep in
@@ -1757,17 +1363,6 @@ open Lockstep in
             (absEIdx v) (absEIdx v2)
         else pure false) :=
   LS.ofSim₀ fun _ h => canon_eq_cv_and_value_refines hrel hinv h
-
-
-open Lockstep in
-@[lockstep] theorem i_constant_info_canon_eq_ls
-    {pers st lst}
-    {ci ci2 : arena.env.IConstantInfo}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.canon.i_constant_info_canon_eq pers st ci ci2) lst
-      ((absIConstantInfo ci).canonEq (absIConstantInfo ci2)) :=
-  LS.ofSim₀ fun _ h => i_constant_info_canon_eq_refines hrel hinv h
 
 
 open Lockstep in

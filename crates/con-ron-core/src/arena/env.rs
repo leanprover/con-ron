@@ -172,7 +172,7 @@ pub fn lidx_vec_dup(us: &Vec<LIdx>) -> Vec<LIdx> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:183-188 ConstantVal
-/// Lean twin: `proof/ConRon/Arena/Env.lean:66-72 IConstantVal` — data common
+/// Lean twin: `proof/ConRon/Arena/Env.lean:64-70 IConstantVal` — data common
 /// to all constants, with the name and the type as handles.  Deviation: the
 /// field `type` is `ty` (`type` is a Rust keyword, task #6's modulo rule).
 pub struct IConstantVal {
@@ -196,7 +196,7 @@ pub fn i_constant_val_dup(cv: &IConstantVal) -> IConstantVal {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:190-229 RecRuleFire
-/// Lean twin: `proof/ConRon/Arena/Env.lean:76-83 IRecRuleFire` — how a stored
+/// Lean twin: `proof/ConRon/Arena/Env.lean:74-81 IRecRuleFire` — how a stored
 /// recursor rule may fire.  `.nested`'s level and pin lists become handle
 /// lists; the parse writes the placeholder `.inert` and never the other two.
 pub enum IRecRuleFire {
@@ -218,7 +218,7 @@ pub fn i_rec_rule_fire_dup(f: &IRecRuleFire) -> IRecRuleFire {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:231-274 RecRule
-/// Lean twin: `proof/ConRon/Arena/Env.lean:85-98 IRecRule` — one iota rule of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:83-96 IRecRule` — one iota rule of
 /// a recursor.  `ctor_params`, `fire`, `k`, `eta` and `params_blind` are
 /// install-computed and carry the parse placeholders `0`/`.inert`/`false`,
 /// exactly as con-leche's do.
@@ -268,7 +268,7 @@ pub fn i_rec_rule_parsed(ctor: NIdx, nfields: u64, rhs: EIdx) -> IRecRule {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:276-283 RecRule.compareParams
-/// Lean twin: `proof/ConRon/Arena/Env.lean:100-105 IRecRule.compareParams` —
+/// Lean twin: `proof/ConRon/Arena/Env.lean:98-103 IRecRule.compareParams` —
 /// whether the iota step compares this rule's parameter comparands.
 pub fn i_rec_rule_compare_params(rl: &IRecRule) -> bool {
     match rl.fire {
@@ -301,7 +301,7 @@ pub fn i_rec_rules_dup_from(rs: &Vec<IRecRule>, i: usize, out: Vec<IRecRule>) ->
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// Lean twin: `proof/ConRon/Arena/Env.lean:109-125 IIndCaps` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:107-129 IIndCaps` — the
 /// definitional capabilities of a stored inductive type.  `eta_ctor` is a
 /// handle; `sort_z` stays con-leche's `PropWhen`, which is the datum the
 /// store's own binder metadata already carries (the module note).
@@ -370,7 +370,7 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:386-438 ProjTable
-/// Lean twin: `proof/ConRon/Arena/Env.lean:129-146 IProjTable` — one
+/// Lean twin: `proof/ConRon/Arena/Env.lean:133-150 IProjTable` — one
 /// structure's projection table, every term field a handle.
 pub struct IProjTable {
     pub struct_name: NIdx,
@@ -407,7 +407,7 @@ pub fn i_proj_table_dup(t: &IProjTable) -> IProjTable {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:440-459 ProjEntry
-/// Lean twin: `proof/ConRon/Arena/Env.lean:148-161 IProjEntry` — the per-field
+/// Lean twin: `proof/ConRon/Arena/Env.lean:152-165 IProjEntry` — the per-field
 /// view of a projection table.
 pub struct IProjEntry {
     pub struct_name: NIdx,
@@ -423,7 +423,7 @@ pub struct IProjEntry {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:461-465 ProjTable.entry
-/// Lean twin: `proof/ConRon/Arena/Env.lean:163-169 IProjTable.entry` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:167-173 IProjTable.entry` — the
 /// view at field `i`.  con-leche's `default` expression and its `.zero` guard
 /// level become the zero handle of each kind (the twin's `Inhabited (Idx k)`):
 /// a table is only read at `i < num_fields`, where neither default is
@@ -458,7 +458,7 @@ pub fn i_proj_table_entry(tbl: &IProjTable, i: u64) -> IProjEntry {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:173-183 IConstantInfo` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:177-187 IConstantInfo` — the
 /// information stored about an accepted constant, over handles.
 pub enum IConstantInfo {
     AxiomInfo(IConstantVal),
@@ -521,7 +521,7 @@ pub fn i_constant_infos_dup_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:513-566 Declaration
-/// Lean twin: `proof/ConRon/Arena/Env.lean:187-199 IDeclaration` — a
+/// Lean twin: `proof/ConRon/Arena/Env.lean:191-203 IDeclaration` — a
 /// declaration presented to the checker, over handles.  Seven constructors,
 /// con-leche's own order; the frontend produces every one but `BasisDecl`,
 /// which is the fold's own record for "install the pinned basis block".
@@ -568,7 +568,7 @@ pub fn i_declaration_dup(d: &IDeclaration) -> IDeclaration {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:623-628 projFnName
-/// Lean twin: `proof/ConRon/Arena/Env.lean:203-208 projFnName` — the public
+/// Lean twin: `proof/ConRon/Arena/Env.lean:207-212 projFnName` — the public
 /// projection-*function* name for field `i` of structure `T`.  Building a name
 /// means interning it, so the twin is monadic and this takes the store.
 pub fn proj_fn_name(
@@ -585,7 +585,7 @@ pub fn proj_fn_name(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:630-634 projTableName
-/// Lean twin: `proof/ConRon/Arena/Env.lean:210-214 projTableName` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:214-218 projTableName` — the
 /// reserved name of structure `T`'s projection table.
 pub fn proj_table_name(pers: &PersTier, ar: &mut EStore, t: &NIdx) -> Result<NIdx, CheckError> {
     const S: [u32; 9] = [112, 114, 111, 106, 84, 97, 98, 108, 101];
@@ -600,7 +600,7 @@ pub fn proj_table_name(pers: &PersTier, ar: &mut EStore, t: &NIdx) -> Result<NId
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:638-641 ConstantInfo.toConstantVal
-/// Lean twin: `proof/ConRon/Arena/Env.lean:218-229 IConstantInfo.toConstantVal`
+/// Lean twin: `proof/ConRon/Arena/Env.lean:222-233 IConstantInfo.toConstantVal`
 /// — the constant's common data.  The `.projInfo` arm BUILDS the closed dummy
 /// type `Sort 1`, which over handles means interning it: that is the one
 /// reason this projection takes the store (the module note).  The table's own
@@ -635,7 +635,7 @@ pub fn i_constant_info_to_constant_val(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:643 name
-/// Lean twin: `proof/ConRon/Arena/Env.lean:231-238 IConstantInfo.name` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:235-242 IConstantInfo.name` — the
 /// constant's name.  **PURE**, unlike `to_constant_val`: it is the environment
 /// index's key, and `IProjTable.table_name` is the stored handle that makes it
 /// so (the module note).
@@ -652,7 +652,7 @@ pub fn i_constant_info_name(c: &IConstantInfo) -> NIdx {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:645-650 ConstantInfo.isTowerEntry
-/// Lean twin: `proof/ConRon/Arena/Env.lean:240-244 IConstantInfo.isTowerEntry`
+/// Lean twin: `proof/ConRon/Arena/Env.lean:244-248 IConstantInfo.isTowerEntry`
 /// — a projection table is a table, not a term.
 pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
     match c {
@@ -662,7 +662,7 @@ pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names
-/// Lean twin: `proof/ConRon/Arena/Env.lean:259-266 IDeclaration.names` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:250-257 IDeclaration.names` — the
 /// names a declaration record declares; `prepare::prelude_key`'s lookup and
 /// the ground hoist's name index read it.  **PURE**, because
 /// `i_constant_info_name` is.
@@ -707,7 +707,7 @@ pub fn i_constant_info_names_from(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:671-676 Env
-/// Lean twin: `proof/ConRon/Arena/Env.lean:270-275 IEnv` — the global
+/// Lean twin: `proof/ConRon/Arena/Env.lean:261-266 IEnv` — the global
 /// environment: the constants accepted so far.  Names are unique (the checker
 /// rejects duplicates), so the order is irrelevant for lookup.
 ///
@@ -719,7 +719,7 @@ pub struct IEnv {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:680-681 Env.empty
-/// Lean twin: `proof/ConRon/Arena/Env.lean:277-279 IEnv.empty` — the empty
+/// Lean twin: `proof/ConRon/Arena/Env.lean:268-270 IEnv.empty` — the empty
 /// environment; the starting point of every checker run.
 pub fn i_env_empty() -> IEnv {
     IEnv { consts: Vec::new() }
@@ -746,7 +746,7 @@ pub fn i_env_find_from<'a>(
 
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv
-/// Lean twin: `proof/ConRon/Arena/Env.lean:297-303 IFEnv` — the environment
+/// Lean twin: `proof/ConRon/Arena/Env.lean:288-294 IFEnv` — the environment
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
 /// `< visible_below` are visible; `visible_below` doubles as the next counter
 /// `push` hands out.
@@ -782,7 +782,7 @@ pub struct IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:48-57 mkFEnvGo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:305-312 mkIFEnvGo` — the index
+/// Lean twin: `proof/ConRon/Arena/Env.lean:296-303 mkIFEnvGo` — the index
 /// build.  The cited recursion runs from the back of the newest-first list, so
 /// that the newest constant is inserted last and wins, exactly as
 /// `List.find?` takes the first match; over this `Vec`'s oldest-first order
@@ -803,7 +803,7 @@ pub fn mk_ifenv_go(
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:59-63 mkFEnv
-/// Lean twin: `proof/ConRon/Arena/Env.lean:314-318 mkIFEnv` — build the index
+/// Lean twin: `proof/ConRon/Arena/Env.lean:305-309 mkIFEnv` — build the index
 /// of `env`, with nothing hidden.  Takes the environment by value: the `IFEnv`
 /// owns it.
 pub fn mk_ifenv(env: IEnv) -> IFEnv {
@@ -816,7 +816,7 @@ pub fn mk_ifenv(env: IEnv) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:67-72 FEnv.find?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:320-325 IFEnv.find?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:311-316 IFEnv.find?` — indexed
 /// lookup, bounded by the visibility counter.
 ///
 /// **The bound is a PARAMETER and not the record's field** (task #97-P6-6b).
@@ -842,7 +842,7 @@ pub fn ifenv_find<'a>(vis: u64, fe: &'a IFEnv, n: &NIdx) -> Option<&'a IConstant
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:74-77 FEnv.restrictTo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:327-330 IFEnv.restrictTo` —
+/// Lean twin: `proof/ConRon/Arena/Env.lean:318-321 IFEnv.restrictTo` —
 /// restrict the view to the first `k` installed constants; `O(1)`, a field
 /// update.  Takes the record by value and returns it, which is what makes the
 /// update `O(1)` in Rust (con-ron-core's `fenv` module note).
@@ -853,7 +853,7 @@ pub fn ifenv_restrict_to(fe: IFEnv, k: u64) -> IFEnv {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:332-337 IFEnv.push` — the index of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:323-328 IFEnv.push` — the index of
 /// the cons-extended environment: the new entry gets the next installation
 /// counter and the visibility bound advances with it.
 pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
@@ -902,7 +902,7 @@ impl core::clone::Clone for IConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:332-337 IFEnv.push` — **the push of
+/// Lean twin: `proof/ConRon/Arena/Env.lean:323-328 IFEnv.push` — **the push of
 /// a TEMPORARY extension, with what it displaced** (task #97-P6-5, lever 4).
 ///
 /// The twin writes `fe_r := fe.push stored` and goes on using `fe`, which in
@@ -928,7 +928,7 @@ pub fn ifenv_push_temp(fe: &mut IFEnv, ci: IConstantInfo) -> Option<(u64, u64)> 
 }
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push
-/// Lean twin: `proof/ConRon/Arena/Env.lean:339-348 IFEnv.popTemp` — the inverse
+/// Lean twin: `proof/ConRon/Arena/Env.lean:330-339 IFEnv.popTemp` — the inverse
 /// of `ifenv_push_temp`: the constant popped, the displaced index row put
 /// back, the visibility bound restored.  See that function's note.
 pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
@@ -956,7 +956,7 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
 
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:88-92 FEnv.findProj?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:350-355 IFEnv.findProj?` — indexed
+/// Lean twin: `proof/ConRon/Arena/Env.lean:341-346 IFEnv.findProj?` — indexed
 /// projection-table lookup.
 pub fn ifenv_find_proj(
     pers: &PersTier,
@@ -993,7 +993,7 @@ pub fn ifenv_find_proj(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:173-183 IConstantInfo` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:177-187 IConstantInfo` — the
 /// dictionary `ron::HashMap::dup` needs to copy an `IFEnv`'s index.
 impl Dup for IConstantInfo {
     /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
@@ -1179,7 +1179,7 @@ pub fn dangling_level() -> CheckError {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:572-586 Expr.piSortTeleLen?
-/// Lean twin: `proof/ConRon/Arena/Env.lean:359-369 piSortTeleLen?` — the
+/// Lean twin: `proof/ConRon/Arena/Env.lean:350-360 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
 /// same walk with the node read through `view`.
