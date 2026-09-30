@@ -52,27 +52,6 @@ structure CheckerOpsA where
   the checker actually runs. -/
   orElse : AM Bool → (Option CheckError → AM Unit) → AM Unit
 
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:54-63 fueledOps — **the one
-instantiation** (DESIGN §8.2: "one knot, the memoized one").  con-leche's
-`fueledOps` is the PURE knot and `ConLeche/Cached/CheckerC.lean`'s `sharedOpsC`
-the memoized one the binary runs; the arena's `pureFnsA` already carries the
-memo probes, so this is both. -/
-def fueledOpsA (mode : CheckMode) (F : Nat) : CheckerOpsA where
-  annotate fe d e := annotateCore mode fe F d e
-  inferType fe d e := inferTypeCore mode fe F d e
-  isDefEq fe d a b := isDefEqCore mode fe F d a b
-  ensureSort fe d e := ensureSortCore mode fe F d e
-  whnf fe d e := ConRon.Arena.whnf mode fe F d e
-  orElse x k := fun s =>
-    match x s with
-    | .ok (true, s') => .ok ((), s')
-    | .ok (false, s') => k none s'
-    | .error _ => k none s
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:65-66 pureOps — the one
-instantiation at the standard fuel. -/
-def pureOpsA (mode : CheckMode) : CheckerOpsA := fueledOpsA mode checkFuel
-
 /-! ## The variant fallback
 
 DESIGN §8.3 and OVERVIEW §6.5 (the `Native` kind) describe con-ron's
@@ -307,8 +286,6 @@ def fvarTypeDs : List EIdx → AM (List EIdx)
     let t ← fvarTypeD h
     let ts ← fvarTypeDs hs
     pure (t :: ts)
-
-/-! ## The front door's verdict at an unresolved constant -/
 
 /-! ## The front door's verdict at an unresolved constant
 

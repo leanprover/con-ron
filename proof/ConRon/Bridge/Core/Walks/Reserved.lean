@@ -28,17 +28,6 @@ open ConRon.Bridge
 
 set_option autoImplicit false
 
-/-- con-leche: none — `pinAt` in run form (copy of `Bridge/Checker/Names.lean`'s
-`pinAt_runC`, see the module note). -/
-theorem pinAt_runC {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
-    (hp : PinsOK s) (hx : pinNames[i]? = some x)
-    (hr : pinAt i s = .ok (n, s')) :
-    s' = s ∧ denoteN s.store.ns n = some x := by
-  have h := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ ∀ y, pinNames[i]? = some y →
-      denoteN s.store.ns r = some y) rfl hr (pinAt_spec s i hp)
-  exact ⟨h.1, h.2 x hx⟩
-
 /-- con-leche: none — the frame a pin read or a name intern leaves: the store
 only grew, and nothing else moved. -/
 structure PinStepC (s s' : AState) : Prop where
@@ -50,28 +39,6 @@ structure PinStepC (s s' : AState) : Prop where
 
 theorem PinStepC.refl {s : AState} (h : StoreWF s.store) : PinStepC s s :=
   ⟨h, Ext.refl _, rfl, rfl, rfl⟩
-
-theorem PinStepC.trans {a b c : AState} (h₁ : PinStepC a b) (h₂ : PinStepC b c) :
-    PinStepC a c :=
-  ⟨h₂.wf, h₁.ext.trans h₂.ext, by rw [h₂.memos, h₁.memos],
-    by rw [h₂.caches, h₁.caches], by rw [h₂.pins, h₁.pins]⟩
-
-theorem PinStepC.pinsOK {s s' : AState} (h : PinStepC s s') (hp : PinsOK s) :
-    PinsOK s' := hp.mono h.ext h.pins
-
-/-- con-leche: none — `internName` in run form, off `Bridge/Specs.lean`'s
-triple. -/
-theorem internName_runC {nm : ConLeche.Name} {s s' : AState} {n : NIdx}
-    (hwf : StoreWF s.store) (hr : internName nm s = .ok (n, s')) :
-    PinStepC s s' ∧ denoteN s'.store.ns n = some nm := by
-  have h := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => StoreWF t.store ∧ Ext s.store t.store ∧
-        t.store.pers = s.store.pers ∧ t.store.scr = s.store.scr ∧
-        t.store.scratchOn = s.store.scratchOn ∧
-        t.memos = s.memos ∧ t.caches = s.caches ∧ t.pins = s.pins ∧
-        denoteN t.store.ns r = some nm) rfl hr (internName_spec s nm hwf)
-  obtain ⟨h1, h2, _, _, _, h6, h7, h8, h9⟩ := h
-  exact ⟨⟨h1, h2, h6, h7, h8⟩, h9⟩
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the nineteen reserved names, as handles that denote them**, off the pin
@@ -145,8 +112,6 @@ theorem denoteNList_containsC {st : EStore} (hwf : StoreWF st) :
 
 section Census
 
-#print axioms pinAt_runC
-#print axioms internName_runC
 #print axioms reservedBasisNames_runC
 #print axioms denoteNL_toListC
 #print axioms denoteNList_containsC

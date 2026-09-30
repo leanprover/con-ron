@@ -53,10 +53,8 @@ namespace ConRon.Bridge
 #print axioms RelE.lam
 #print axioms RelE.letE
 #print axioms RelE.proj
-#print axioms RelE.of_view
 #print axioms RelEO.ext
 #print axioms RelEL.ext
-#print axioms viewOK_eBindView
 
 /-! ## The state invariant -/
 
@@ -82,11 +80,8 @@ namespace ConRon.Bridge
 #print axioms internLamIE_spec
 #print axioms internBindIE_spec
 #print axioms internBindIE_spec'
-#print axioms internRebuilt_spec
-#print axioms internRebuiltBindI_spec'
 #print axioms viewApp_spec
 #print axioms viewBindI_spec
-#print axioms viewBM_spec
 #print axioms readName_spec
 #print axioms readNames_spec
 #print axioms internName_spec
@@ -100,8 +95,6 @@ namespace ConRon.Bridge
 #print axioms inst1Set_spec
 #print axioms inst1Clear_spec
 #print axioms instLPClear_spec
-#print axioms instLPLSet_spec
-#print axioms instLPLsSet_spec
 #print axioms bvarBSet_spec
 #print axioms fvarBSet_spec
 #print axioms instListCutoff_spec
@@ -109,9 +102,6 @@ namespace ConRon.Bridge
 #print axioms internLevelList_spec
 #print axioms internLevels_spec
 #print axioms readNamesM_spec
-#print axioms flushCaches_spec
-#print axioms dropScratch_spec
-#print axioms enterScratch_spec
 #print axioms pinAt_spec
 #print axioms pinReserved_spec
 #print axioms pinSortOne_spec
@@ -133,9 +123,7 @@ under it are what every rebuilding walk's binder arm now leans on. -/
 #print axioms BMExt.intern
 #print axioms BMExt.internAt
 #print axioms BMExt.get
-#print axioms BMExt.isSome
 #print axioms ConRon.Arena.EStore.view_of_find
-#print axioms ConRon.Arena.EStore.view_of_persFind
 #print axioms ConRon.Arena.NStore.view_of_find
 #print axioms ConRon.Arena.LStore.view_of_find
 #print axioms ConRon.Arena.LsStore.view_of_find
@@ -185,7 +173,6 @@ for an `Arena/ExprOps.lean` definition cannot). -/
 #print axioms ExprOps.AccGrow.trans
 #print axioms ExprOps.LeavesEq.app_step
 #print axioms ExprOps.LeavesEq.letE_step
-#print axioms ExprOps.fvarLeaves_spec
 #print axioms ExprOps.fvarLeavesGo_spec
 #print axioms ExprOps.fvarLeavesFast_spec
 #print axioms ExprOps.leafMem_spec

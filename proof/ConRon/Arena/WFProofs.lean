@@ -1319,12 +1319,8 @@ theorem Tbl.derAt_push_size [Inhabited δ] {t : Tbl α ι δ} {a : α} {d : δ} 
   rw [if_pos hs.symm]
   rfl
 
-theorem Tbl.Sized_empty : (Tbl.empty : Tbl α ι δ).Sized := rfl
-theorem Tbl.node?_empty (n : Nat) : (Tbl.empty : Tbl α ι δ).node? n = none := rfl
 theorem Tbl.find?_empty (a : α) : (Tbl.empty : Tbl α ι δ).find? a = none := by
   simp [Tbl.empty, Tbl.find?]
-theorem Tbl.size_empty : (Tbl.empty : Tbl α ι δ).size = 0 := rfl
-
 end Tbl
 
 /-! ### The expression tier under `push`
@@ -1346,9 +1342,6 @@ def ENodeView.tagOf : ENodeView → UInt32
   | .letE _ _ _ => ETag.letE
   | .lit _ => ETag.lit
   | .proj _ _ _ => ETag.proj
-
-theorem ENodeView.tagOf_lt (v : ENodeView) : v.tagOf.toNat < 16 := by
-  cases v <;> (simp only [ENodeView.tagOf]; decide)
 
 /-! ### The binder arms, resolved
 
@@ -1399,28 +1392,6 @@ def ETables.consKeyEq (w : ENodeView) (mi : BMIdx) (v : ENodeView) (mj : BMIdx) 
 all `derAt` asks of a handle, and both `get` and `getBind` give it. -/
 def ETables.Decodes (t : ETables) (i : EIdx) : Prop :=
   (t.get i).isSome = true ∨ (t.getBind i).isSome = true
-
-theorem ETables.get_eq_none_of_isBind {t : ETables} {i : EIdx}
-    (hb : ETag.isBind i.tag = true) : t.get i = none := by
-  simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at hb
-  simp only [ETables.get]
-  rcases hb with h | h <;> rw [h] <;>
-    simp [ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
-      ETag.forallE, ETag.isBind]
-
-theorem ETables.getBind_eq_none_of_not_isBind {t : ETables} {i : EIdx}
-    (hb : ETag.isBind i.tag = false) : t.getBind i = none := by
-  simp only [ETag.isBind, Bool.or_eq_false_iff] at hb
-  simp [ETables.getBind, hb.1, hb.2]
-
-theorem ETables.get_eq_getWith (t : ETables) (i : EIdx) :
-    t.get i = t.getWith (fun _ => none) i := by
-  simp only [ETables.getWith]
-  split
-  · rename_i hb
-    rw [ETables.get_eq_none_of_isBind hb]
-    split <;> simp
-  · rfl
 
 theorem ETables.Decodes_of_getWith {t : ETables}
     {bm : BMIdx → Option ConLeche.BinderMeta}
@@ -1541,25 +1512,6 @@ theorem ETables.find?_push_gen {t : ETables} {w v : ENodeView} {d : UInt64}
       SortNode.mk.injEq, ConstNode.mk.injEq, AppNode.mk.injEq, BindNode.mk.injEq,
       LetNode.mk.injEq, LitNode.mk.injEq, ProjNode.mk.injEq, and_assoc,
       if_false, Bool.false_eq_true]
-
-theorem ETables.find?_push {t : ETables} {w v : ENodeView} {d : UInt64}
-    {mi : BMIdx} {tr : UInt32} (hnb : ETag.isBind w.tagOf = false) :
-    (t.push w d mi tr).1.find? v mi =
-      if w = v then some (t.push w d mi tr).2 else t.find? v mi := by
-  rw [ETables.find?_push_gen]
-  have hself : ETables.consKeyEq w mi w mi = true := by
-    cases w <;> simp [ETables.consKeyEq]
-  by_cases hwv : w = v
-  · subst hwv; rw [if_pos hself, if_pos rfl]
-  · have hne : ¬ (ETables.consKeyEq w mi v mi = true) := by
-      revert hwv
-      cases w
-      case lam _ _ _ =>
-        simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hnb
-      case forallE _ _ _ =>
-        simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hnb
-      all_goals (cases v <;> simp [ETables.consKeyEq] <;> grind)
-    rw [if_neg hne, if_neg hwv]
 
 /-- A cons key that matches a BINDER view's key matches it at the datum
 HANDLE too: the two views are the same constructor, so `w` carries a datum as
@@ -1697,23 +1649,6 @@ theorem ETables.derAt_congr_decodes {t t' : ETables} {i : EIdx}
     · simp only [ETables.derAt_forallE (eq_of_beq hc)]; exact hfa _ (Tbl.lt_of_map h)
     · simp at h
 
-theorem ETables.derAt_congr {t t' : ETables} {i : EIdx} {v : ENodeView}
-    (h : t.get i = some v)
-    (hb : ∀ n, n < t.bvars.size → t'.bvars.derAt n = t.bvars.derAt n)
-    (hfv : ∀ n, n < t.fvars.size → t'.fvars.derAt n = t.fvars.derAt n)
-    (hso : ∀ n, n < t.sorts.size → t'.sorts.derAt n = t.sorts.derAt n)
-    (hco : ∀ n, n < t.consts.size → t'.consts.derAt n = t.consts.derAt n)
-    (hap : ∀ n, n < t.apps.size → t'.apps.derAt n = t.apps.derAt n)
-    (hla : ∀ n, n < t.lams.size → t'.lams.derAt n = t.lams.derAt n)
-    (hfa : ∀ n, n < t.foralls.size → t'.foralls.derAt n = t.foralls.derAt n)
-    (_hbm : ∀ n, n < t.bms.size → t'.bms.derAt n = t.bms.derAt n)
-    (hle : ∀ n, n < t.lets.size → t'.lets.derAt n = t.lets.derAt n)
-    (hli : ∀ n, n < t.lits.size → t'.lits.derAt n = t.lits.derAt n)
-    (hpr : ∀ n, n < t.projs.size → t'.projs.derAt n = t.projs.derAt n) :
-    t'.derAt i = t.derAt i :=
-  ETables.derAt_congr_decodes (Or.inl (by rw [h]; rfl)) hb hfv hso hco hap hla hfa
-    hle hli hpr
-
 theorem ETables.derAt_push_of_decodes {t : ETables} {w : ENodeView} {d : UInt64}
     {mi : BMIdx} {tr : UInt32} {i : EIdx} (hs : t.Sized) (h : t.Decodes i) :
     (t.push w d mi tr).1.derAt i = t.derAt i := by
@@ -1722,12 +1657,6 @@ theorem ETables.derAt_push_of_decodes {t : ETables} {w : ENodeView} {d : UInt64}
     refine ETables.derAt_congr_decodes h ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ <;>
     intro n hn <;> simp only [ETables.push] <;>
     first | rfl | exact Tbl.derAt_push_of_lt (by assumption) hn
-
-theorem ETables.derAt_push_of_get {t : ETables} {w : ENodeView} {d : UInt64}
-    {mi : BMIdx} {tr : UInt32} {i : EIdx} {v : ENodeView} (hs : t.Sized)
-    (h : t.get i = some v) :
-    (t.push w d mi tr).1.derAt i = t.derAt i :=
-  ETables.derAt_push_of_decodes hs (Or.inl (by rw [h]; rfl))
 
 theorem ETables.derAt_push_new {t : ETables} {w : ENodeView} {d : UInt64}
     {mi : BMIdx} {tr : UInt32} (hs : t.Sized) (htr : tr.toNat < 2)
@@ -1763,8 +1692,6 @@ theorem ETables.find?_empty (v : ENodeView) (mi : BMIdx) :
 
 theorem ETables.sizeOf_empty (v : ENodeView) : (ETables.empty).sizeOf v = 0 := by
   cases v <;> rfl
-
-theorem ETables.count_empty : (ETables.empty).count = 0 := rfl
 
 theorem ETables.Sized_empty : (ETables.empty).Sized :=
   ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
@@ -1924,14 +1851,6 @@ theorem ETables.findBM_pushBM (t : ETables) (m m' : ConLeche.BinderMeta)
 theorem ETables.pushBM_idx (t : ETables) (m : ConLeche.BinderMeta) (d : UInt64)
     (tr : UInt32) : (t.pushBM m d tr).2 = Idx.mk 0 tr (UInt32.ofNat t.bms.size) := rfl
 
-theorem ETables.getBM_pushBM_new {t : ETables} {m : ConLeche.BinderMeta}
-    {d : UInt64} {tr : UInt32} (htr : tr.toNat < 2) (hcap : t.bms.size < Idx.idxCap) :
-    (t.pushBM m d tr).1.getBM (t.pushBM m d tr).2 = some m := by
-  have hix : (t.pushBM m d tr).2.idxNat = t.bms.size := by
-    rw [ETables.pushBM_idx]; exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
-  simp only [ETables.getBM, ETables.bms_pushBM, hix, Tbl.node?_push_new,
-    Option.map_some]
-
 theorem ETables.pushBM_tier {t : ETables} {m : ConLeche.BinderMeta}
     {d : UInt64} {tr : UInt32} (htr : tr.toNat < 2) (hcap : t.bms.size < Idx.idxCap) :
     (t.pushBM m d tr).2.tier = tr := by
@@ -1943,14 +1862,6 @@ theorem ETables.bmDerAt_pushBM_of_lt {t : ETables} {m : ConLeche.BinderMeta}
     {d : UInt64} {tr : UInt32} {n : Nat} (hs : t.bms.Sized) (hn : n < t.bms.size) :
     (t.pushBM m d tr).1.bms.derAt n = t.bms.derAt n := by
   rw [ETables.bms_pushBM]; exact Tbl.derAt_push_of_lt hs hn
-
-theorem ETables.bmDerAt_pushBM_new {t : ETables} {m : ConLeche.BinderMeta}
-    {d : UInt64} {tr : UInt32} (hs : t.bms.Sized) (htr : tr.toNat < 2)
-    (hcap : t.bms.size < Idx.idxCap) :
-    (t.pushBM m d tr).1.bms.derAt (t.pushBM m d tr).2.idxNat = d := by
-  have hix : (t.pushBM m d tr).2.idxNat = t.bms.size := by
-    rw [ETables.pushBM_idx]; exact Idx.idxNat_mk _ _ _ (by decide) htr hcap
-  rw [ETables.bms_pushBM, hix]; exact Tbl.derAt_push_size hs
 
 theorem ETables.pushBM_idxNat {t : ETables} {m : ConLeche.BinderMeta}
     {d : UInt64} {tr : UInt32} (htr : tr.toNat < 2) (hcap : t.bms.size < Idx.idxCap) :
@@ -2018,20 +1929,6 @@ theorem ETables.getWith_pushBM (t : ETables) (m : ConLeche.BinderMeta) (d : UInt
   simp only [ETables.getWith, ETables.get_pushBM, ETables.getBind_pushBM]
 
 /-! ### `view`, as a tier's `getWith` -/
-
-theorem EStore.viewBM_mono_of_pers {st st' : EStore} (hp : st'.pers = st.pers)
-    (hs : st'.scratchOn = st.scratchOn)
-    (hsc : ∀ i m, st.scr.getBM i = some m → st'.scr.getBM i = some m)
-    {i : BMIdx} {m : ConLeche.BinderMeta} (h : st.viewBM i = some m) :
-    st'.viewBM i = some m := by
-  unfold EStore.viewBM EStore.persGetBM at h ⊢
-  split at h
-  · rename_i hc; rw [if_pos hc, hp]; exact h
-  · rename_i hc
-    rw [if_neg hc]
-    split at h
-    · rename_i hc2; rw [hs, if_pos hc2]; exact hsc i m h
-    · exact absurd h (by simp)
 
 /-- The two nested `match`es of `EStore.view` on a binder tag — `viewBindI`
 then `viewBM` — collapse into `ETables.getWith`'s single `Option.map`. -/
@@ -2496,24 +2393,6 @@ theorem denoteE_enableScratch_scr (st : EStore) {i : EIdx}
     (hp : i.isPersistent = false) : denoteE st.enableScratch i = none := by
   simp only [denoteE, denoteEAux, EStore.view_enableScratch_scr st hp,
     Option.bind_none]
-
-/-! ## The remaining store-operation specifications
-
-These are the signatures the later phases of task #97 program against.  The
-three proofs left open at P2a are recorded in DESIGN.md §"Task #97a" with
-their cost estimate; each is a bookkeeping induction over the ten
-constructors' arrays, not a new idea — `intern_ext` above is the same
-argument carried all the way through. -/
-
-
-/-! ## The scratch bracket, store by store
-
-`enableScratch` and `dropScratch` differ only in the flag they leave behind:
-both replace the scratch tier by `empty` and touch nothing persistent.  So
-each store gets **one** lemma, `wf_of_scr_empty`, and both operations are
-instances of it.  It is stated at an explicit rank — the same rank the store
-had — because `denote…_dropScratch` needs that rank to trade the old fuel for
-the new one. -/
 
 /-! ### Names -/
 
@@ -3044,8 +2923,6 @@ theorem denoteLs_dropScratch_pers {st : LsStore} (h : LsWF st) {i : LsIdx}
   exact denoteLList_dropScratch hl us xs
     (fun c hc => (h.lchildOK i us hus c hc).2 hp) hlist
 
-/-! ### Expressions -/
-
 /-! ### The binder datum a view names
 
 Since task #97-P6-16 the cons key of a `lam` or `forallE` node is the datum's
@@ -3558,20 +3435,6 @@ tag and index round-trip (`Idx.tag_mk`, `Idx.idxNat_mk`), so `get` finds the
 record `Array.push` just wrote (`Tbl.node?_push_new`), and its tier bit is the
 tier it was appended to. -/
 
-theorem Idx.isPersistent_mkP {k : IdxKind} (tg n : UInt32) (htg : tg.toNat < 16)
-    (hn : n.toNat < idxCap) : (mk (k := k) tg tierP n).isPersistent = true := by
-  have h2 : (tierP : UInt32).toNat < 2 := by decide
-  show ((mk (k := k) tg tierP n).tier == 0) = true
-  rw [tier_mk tg tierP n htg h2 hn]
-  decide
-
-theorem Idx.isPersistent_mkS {k : IdxKind} (tg n : UInt32) (htg : tg.toNat < 16)
-    (hn : n.toNat < idxCap) : (mk (k := k) tg tierS n).isPersistent = false := by
-  have h2 : (tierS : UInt32).toNat < 2 := by decide
-  show ((mk (k := k) tg tierS n).tier == 0) = false
-  rw [tier_mk tg tierS n htg h2 hn]
-  decide
-
 private theorem ofNat_lt_cap {n : Nat} (h : n < Idx.idxCap) :
     (UInt32.ofNat n).toNat < Idx.idxCap := by
   rw [Idx.idxCap] at h ⊢; simp; omega
@@ -3739,16 +3602,6 @@ theorem ENodeView.bmOf_of_isBind {v : ENodeView} (h : ETag.isBind v.tagOf = true
   case lam _ _ m => exact ⟨m, rfl⟩
   case forallE _ _ m => exact ⟨m, rfl⟩
   all_goals (exfalso; revert h; simp only [ENodeView.tagOf]; decide)
-
-theorem ETables.getBind_push_of_not_isBind {t : ETables} {w : ENodeView} {d : UInt64}
-    {mi : BMIdx} {tr : UInt32} (hnb : ETag.isBind w.tagOf = false) (i : EIdx) :
-    (t.push w d mi tr).1.getBind i = t.getBind i := by
-  cases w
-  case lam _ _ _ =>
-    simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hnb
-  case forallE _ _ _ =>
-    simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hnb
-  all_goals rfl
 
 theorem ETables.getBind_push_inv {t : ETables} {w : ENodeView} {d : UInt64}
     {mi : BMIdx} {tr : UInt32} {i : EIdx} {ty b : EIdx} {mj : BMIdx}
@@ -6194,28 +6047,6 @@ theorem EStore.internAt_wf_view {st : EStore} {rk : EIdx → Nat} {w : ENodeView
         h hv hsync hoff' hoff' rfl rfl htag0 hbmok rfl rfl hcap hfp
       exact ⟨hwf, hvw⟩
 
-/-- con-leche: none — arena infrastructure; with the scratch tier off the node
-half hands back a persistent handle.  Stated apart from `internAt_wf_view`
-because `intern_isPersistent_of_off` does not assume `ViewOK`. -/
-theorem EStore.internAt_isPersistent_of_off {st : EStore} {rk : EIdx → Nat}
-    {w : ENodeView} {mi : BMIdx} (h : EWFAt st rk) (hoff : st.scratchOn = false)
-    (hcap : st.pers.sizeOf w < Idx.idxCap)
-    (hbmok : ENodeView.BMOK st.viewBM w mi)
-    (hfov : st.findBMOfView w = some mi) :
-    (st.internAt w mi).2.isPersistent = true := by
-  simp only [EStore.internAt, EStore.persFindMaybe_eq ⟨rk, h⟩]
-  split
-  · rename_i i hi
-    have hpf : st.persFind? w = some i := by
-      simp only [EStore.persFind?, hfov]; exact hi
-    exact ((h.consP w i).mp hpf).2
-  · rw [if_neg (by simp [hoff])]
-    show ((st.pers.push w (st.derOfView w) mi Idx.tierP).2).isPersistent = true
-    show ((st.pers.push w (st.derOfView w) mi Idx.tierP).2).tier == 0
-    rw [(ETables.getWith_push_spec st.pers st.viewBM w (st.derOfView w) mi Idx.tierP
-      hbmok (by decide) hcap).2]
-    decide
-
 /-- con-leche: none — arena infrastructure; `intern` preserves the store
 invariant and its handle decodes to the node interned.  The flag
 synchronisation the persistent case needs is `EWFAt.sync` (task #97a); the
@@ -6254,35 +6085,6 @@ theorem EStore.intern_wf_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
     (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
     StoreWF (st.intern w).1 :=
   (EStore.intern_wf_view_of_sync h hsync hv hcap).1
-
-theorem EStore.intern_spec_of_sync {st : EStore} {w : ENodeView} (h : StoreWF st)
-    (hsync : st.ScratchSync) (hv : st.ViewOK w) (hcap : st.capOK w) :
-    StoreWF (st.intern w).1 ∧ Ext st (st.intern w).1 ∧
-      (st.intern w).1.view (st.intern w).2 = some w ∧
-      denoteE (st.intern w).1 (st.intern w).2 = denoteEView (st.intern w).1 w := by
-  have hwf := EStore.intern_wf_of_sync h hsync hv hcap
-  have hview := EStore.intern_view_spec h hv hcap
-  refine ⟨hwf, EStore.intern_ext st w, hview, ?_⟩
-  obtain ⟨rk', hwf'⟩ := hwf
-  exact denoteE_unfold hwf' hview
-
-
-/-- With the scratch tier off, `intern` hands out a persistent handle. -/
-theorem EStore.intern_isPersistent_of_off {st : EStore} {w : ENodeView}
-    (h : StoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
-    (st.intern w).2.isPersistent = true := by
-  obtain ⟨rk, h⟩ := h
-  simp only [EStore.capOK] at hcap
-  obtain ⟨hcapN, hcapB⟩ := hcap
-  obtain ⟨hwf1, hlss1, hon1, hview1, hszP, hszS, hbmok, htag0, hfov1⟩ :=
-    EStore.internBMOfView_spec h hcapB
-  obtain ⟨rk1, h1⟩ := hwf1
-  have hoff1 : (st.internBMOfView w).1.scratchOn = false := by rw [hon1]; exact hoff
-  have hcapN' : st.pers.sizeOf w < Idx.idxCap := by
-    rw [hoff] at hcapN; simpa using hcapN
-  have hcap1 : (st.internBMOfView w).1.pers.sizeOf w < Idx.idxCap := by
-    rw [hszP w]; exact hcapN'
-  exact EStore.internAt_isPersistent_of_off h1 hoff1 hcap1 hbmok hfov1
 
 /-- con-leche: none — the constructor tag a level node view lands under. -/
 def LNodeView.tagOf : LNodeView → UInt32
@@ -6502,10 +6304,6 @@ theorem LTables.derAt_push_new {t : LTables} {w : LNodeView} {d : LDer}
 
 /-- con-leche: none — `LWFAt`'s `sync` clause, named (task #97a). -/
 def LStore.ScratchSync (st : LStore) : Prop := st.scratchOn = st.ns.scratchOn
-
-/-- con-leche: none — read the clause off the invariant. -/
-theorem LWFAt.scratchSync {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk) :
-    st.ScratchSync := h.sync
 
 /-- con-leche: none — the same, off `LStoreWF`. -/
 theorem LStoreWF.scratchSync {st : LStore} (h : LStoreWF st) : st.ScratchSync := by
@@ -7062,11 +6860,6 @@ theorem LsTables.get_push_inv {t : LsTables} {w v : LsNodeView} {d : LDer}
     first | (subst ha; rfl) | rfl
   · exact Or.inl ha
 
-theorem LsTables.get_eq_none_of_size {t : LsTables} {w : LsNodeView} {i : LsIdx}
-    (htg : i.tag = LsTag.list) (hix : i.idxNat = t.sizeOf w) : t.get i = none := by
-  simp only [LsTables.sizeOf] at hix
-  simp [LsTables.get, htg, hix, Tbl.node?_size]
-
 theorem LsTables.get_mono {t t' : LsTables}
     (hli : ∀ n a, t.lists.node? n = some a → t'.lists.node? n = some a)
     {i : LsIdx} {v : LsNodeView} (h : t.get i = some v) : t'.get i = some v := by
@@ -7124,10 +6917,6 @@ theorem LsTables.Sized_push {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UIn
   simp only [LsTables.push, LsTables.Sized]
   exact Tbl.Sized_push hs
 
-theorem LsTables.count_push {t : LsTables} {w : LsNodeView} {d : LDer} {tr : UInt32} :
-    (t.push w d tr).1.count = t.count + 1 := by
-  simp [LsTables.push, LsTables.count, Tbl.size_push]
-
 theorem LsTables.derAt_congr {t t' : LsTables} {i : LsIdx} {v : LsNodeView}
     (h : t.get i = some v)
     (hli : ∀ n, n < t.lists.size → t'.lists.derAt n = t.lists.derAt n) :
@@ -7157,9 +6946,6 @@ theorem LsTables.derAt_push_new {t : LsTables} {w : LsNodeView} {d : LDer}
 
 /-- con-leche: none — the clause `LsStoreWF` is missing (task #97a). -/
 def LsStore.ScratchSync (st : LsStore) : Prop := st.scratchOn = st.ls.scratchOn
-
-/-- con-leche: none — read the clause off the invariant. -/
-theorem LsWF.scratchSync {st : LsStore} (h : LsWF st) : st.ScratchSync := h.sync
 
 /-- con-leche: none — the same, off `LsStoreWF`. -/
 theorem LsStoreWF.scratchSync {st : LsStore} (h : LsStoreWF st) : st.ScratchSync :=
@@ -7769,28 +7555,6 @@ theorem denoteE_enableScratch_eq (st : EStore) (i : EIdx) :
   rw [denoteEAux_enableScratch_eq]
   rfl
 
-/-- con-leche: none — arena infrastructure; **opening the scratch tier keeps
-every persistent denotation**.  The `dropScratch` half has been there since
-task #97a; this is its twin, and `Bridge/Checker/**`'s `PExt.enterScratch`
-is what wanted it (task #97-P3-CoreWalks). -/
-theorem EStore.enableScratch_denote_pers {st : EStore} (h : StoreWF st)
-    {i : EIdx} {e : Expr} (hp : i.isPersistent = true)
-    (hd : denoteE st i = some e) : denoteE st.enableScratch i = some e := by
-  rw [denoteE_enableScratch_eq]
-  exact EStore.dropScratch_denote_pers h hp hd
-
-/-- con-leche: none — arena infrastructure; `EStore.enableScratch_spec` with
-the denote conjunct `EStore.dropScratch_spec` has had all along. -/
-theorem EStore.enableScratch_spec' {st : EStore} (h : StoreWF st) :
-    StoreWF st.enableScratch ∧
-      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) ∧
-      (∀ i e, i.isPersistent = true → denoteE st i = some e →
-        denoteE st.enableScratch i = some e) ∧
-      (∀ i, i.isPersistent = false → denoteE st.enableScratch i = none) :=
-  ⟨EStore.enableScratch_wf h, fun _ hp => EStore.view_enableScratch_pers_wf h hp,
-   fun _ _ hp hd => EStore.enableScratch_denote_pers h hp hd,
-   fun _ hp => denoteE_enableScratch_scr st hp⟩
-
 /-! ### The same, for the three stores underneath
 
 Names, levels and level lists have the identical shape; their `Ext`,
@@ -7850,26 +7614,6 @@ theorem LsStore.dropScratch_spec {st : LsStore} (h : LsStoreWF st) :
   exact ⟨LsStore.dropScratch_wf h,
     fun _ hp => LsStore.view_dropScratch_pers st hp,
     fun _ _ hp hd => denoteLs_dropScratch_pers h hp hd⟩
-
-theorem NStore.enableScratch_spec {st : NStore} (h : NStoreWF st) :
-    NStoreWF st.enableScratch ∧
-      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) := by
-  obtain ⟨rk, h⟩ := h
-  exact ⟨⟨rk, NStore.enableScratch_wfAt h⟩,
-    fun _ hp => NStore.view_enableScratch_pers st hp⟩
-
-theorem LStore.enableScratch_spec {st : LStore} (h : LStoreWF st) :
-    LStoreWF st.enableScratch ∧
-      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) := by
-  obtain ⟨rk, h⟩ := h
-  exact ⟨⟨rk, LStore.enableScratch_wfAt h⟩,
-    fun _ hp => LStore.view_enableScratch_pers st hp⟩
-
-theorem LsStore.enableScratch_spec {st : LsStore} (h : LsStoreWF st) :
-    LsStoreWF st.enableScratch ∧
-      (∀ i, i.isPersistent = true → st.enableScratch.view i = st.view i) := by
-  exact ⟨LsStore.enableScratch_wf h,
-    fun _ hp => LsStore.view_enableScratch_pers st hp⟩
 
 /-! ## The cons HIT answers a handle whose view is the view (task #97-P5-1's
 finding 9)
@@ -7978,59 +7722,6 @@ theorem EStore.view_of_find {st : EStore} {v : ENodeView} {i : EIdx}
   rcases EStore.find?_cases hf with hh | hh
   · exact ((hwf.consP v i).mp hh).1
   · exact ((hwf.consS v i).mp hh).1
-
-/-- con-leche: none — arena infrastructure; the PERSISTENT-tier probe, which
-is what `internPersistentE` hits. -/
-theorem EStore.view_of_persFind {st : EStore} {v : ENodeView} {i : EIdx}
-    (h : StoreWF st) (hf : st.persFind? v = some i) : st.view i = some v := by
-  obtain ⟨rk, hwf⟩ := h
-  exact ((hwf.consP v i).mp hf).1
-
-/-- con-leche: none — arena infrastructure; the name store's persistent
-probe. -/
-theorem NStore.view_of_persFind {st : NStore} {v : NNodeView} {i : NIdx}
-    (h : NStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v := by
-  obtain ⟨rk, hwf⟩ := h
-  exact ((hwf.consP v i).mp hf).1
-
-/-- con-leche: none — arena infrastructure; the level store's persistent
-probe. -/
-theorem LStore.view_of_persFind {st : LStore} {v : LNodeView} {i : LIdx}
-    (h : LStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v := by
-  obtain ⟨rk, hwf⟩ := h
-  exact ((hwf.consP v i).mp hf).1
-
-/-- con-leche: none — arena infrastructure; the level-list store's persistent
-probe. -/
-theorem LsStore.view_of_persFind {st : LsStore} {v : LsNodeView} {i : LsIdx}
-    (h : LsStoreWF st) (hf : st.pers.find? v = some i) : st.view i = some v :=
-  ((h.consP v i).mp hf).1
-
-
-/-! ## ============================================================
-    `Ext` at EVERY appending primitive — task #97a, follow-up 4
-
-**This section is additive and self-contained, and it is the last thing in
-the file.**  Task #97-P5-2 §10 and §11 item 4: `EStore.intern_ext` exists,
-and `internBindI`, `internBM`, `internNNode`/`internLNode`/`internLsNode`,
-the four `internPersistent`s and `promote` have no sibling — while
-`Refine2`'s `AOut` demands `Ext lst.store lst'.store` at every one of them.
-Five of Theorem 2's `intern_e_*_run` statements are blocked on the first of
-those alone.
-
-What was missing is not an argument — `EStore.intern_ext` is fifteen lines —
-but the fact that the argument was written at ONE entry point and the store
-has a dozen.  So it is factored here into four combinators
-(`{N,L,Ls,}Ext.of_view_mono`) and then applied.  Every statement below is
-**unconditional**: no `StoreWF`, no `ViewOK`, no `capOK`.  An append moves no
-handle that decoded before it whatever the invariant says, and that is
-precisely why the refinement can use these where it cannot use
-`Bridge/StoreBind.lean`'s `internBindI_spec` or `Bridge/StoreNested.lean`'s
-`internName_spec` — both of which assume the invariant, because they conclude
-something about `view` as well, which `Ext` does not need.
-
-The `promote` family's `Ext` is `Arena/PromoteExt.lean`: it is monadic, so it
-needs `AState` and cannot be stated here. -/
 
 /-! ### The extension combinators
 
@@ -8212,11 +7903,6 @@ theorem ETables.getBind_pushBind_mono (t : ETables) (tag : UInt32) (r : BindNode
     (simp only [ETables.pushBind]; split) <;>
     first | exact ha | exact Tbl.node?_push ha
 
-theorem ETables.count_pushBind (t : ETables) (tag : UInt32) (r : BindNode) (d : UInt64)
-    (tier : UInt32) : (t.pushBind tag r d tier).1.count = t.count + 1 := by
-  unfold ETables.pushBind
-  split <;> simp [ETables.count, Tbl.size_push] <;> omega
-
 /-! ### `internBindI` — the binder append at a datum HANDLE
 
 The lemma task #97-P5-2 §10 names as the ONE thing five of Theorem 2's
@@ -8278,24 +7964,9 @@ theorem EStore.view_internBindI_mono (st : EStore) (tag : UInt32) (ty b : EIdx)
       · exact fun _ _ hk => by rw [ETables.getBM_pushBind]; exact hk
       · exact fun _ _ hk => hk
 
-theorem EStore.lss_internBindI (st : EStore) (tag : UInt32) (ty b : EIdx)
-    (mi : BMIdx) : (st.internBindI tag ty b mi).1.lss = st.lss := by
-  rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
-
 theorem EStore.scratchOn_internBindI (st : EStore) (tag : UInt32) (ty b : EIdx)
     (mi : BMIdx) : (st.internBindI tag ty b mi).1.scratchOn = st.scratchOn := by
   rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
-
-theorem EStore.nodeCount_internBindI_le (st : EStore) (tag : UInt32) (ty b : EIdx)
-    (mi : BMIdx) : st.nodeCount ≤ (st.internBindI tag ty b mi).1.nodeCount := by
-  rcases EStore.internBindI_cases st tag ty b mi with he | he | he <;> rw [he]
-  · exact Nat.le_refl _
-  · simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount,
-      ETables.count_pushBind]
-    omega
-  · simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount,
-      ETables.count_pushBind]
-    omega
 
 /-! ### The persistent-tier appends
 
@@ -8574,53 +8245,6 @@ theorem EStore.internBM_ext (st : EStore) (m : ConLeche.BinderMeta) :
     (fun _ _ h => EStore.view_internBM_mono st m h)
     (by rw [EStore.nodeCount_internBM]; exact Nat.le_refl _)
 
-theorem EStore.internBMOfView_ext (st : EStore) (w : ENodeView) :
-    Ext st (st.internBMOfView w).1 :=
-  Ext.of_view_mono (by rw [EStore.lss_internBMOfView]; exact LsExt.refl _)
-    (fun _ _ h => EStore.view_internBMOfView_mono st w h)
-    (by rw [EStore.nodeCount_internBMOfView]; exact Nat.le_refl _)
-
-theorem EStore.internBMPersistent_ext (st : EStore) (m : ConLeche.BinderMeta) :
-    Ext st (st.internBMPersistent m).1 :=
-  Ext.of_view_mono (by rw [EStore.lss_internBMPersistent]; exact LsExt.refl _)
-    (fun _ _ h => EStore.view_internBMPersistent_mono st m h)
-    (by rw [EStore.nodeCount_internBMPersistent]; exact Nat.le_refl _)
-
-theorem EStore.internBMOfViewPersistent_ext (st : EStore) (w : ENodeView) :
-    Ext st (st.internBMOfViewPersistent w).1 :=
-  Ext.of_view_mono (by rw [EStore.lss_internBMOfViewPersistent]; exact LsExt.refl _)
-    (fun _ _ h => EStore.view_internBMOfViewPersistent_mono st w h)
-    (by rw [EStore.nodeCount_internBMOfViewPersistent]; exact Nat.le_refl _)
-
-/-- con-leche: none — arena infrastructure; **the binder append extends the
-arena** (task #97-P5-2 §10, §11 item 4).  Unconditional: no `StoreWF`, no
-`BinderMeta`, no capacity — which is what `Refine2`'s `AOut` needs of it. -/
-theorem EStore.internBindI_ext (st : EStore) (tag : UInt32) (ty b : EIdx)
-    (mi : BMIdx) : Ext st (st.internBindI tag ty b mi).1 :=
-  Ext.of_view_mono (by rw [EStore.lss_internBindI]; exact LsExt.refl _)
-    (fun _ _ h => EStore.view_internBindI_mono st tag ty b mi h)
-    (EStore.nodeCount_internBindI_le st tag ty b mi)
-
-theorem EStore.internLamI_ext (st : EStore) (ty b : EIdx) (mi : BMIdx) :
-    Ext st (st.internLamI ty b mi).1 := EStore.internBindI_ext st _ ty b mi
-
-theorem EStore.internForallEI_ext (st : EStore) (ty b : EIdx) (mi : BMIdx) :
-    Ext st (st.internForallEI ty b mi).1 := EStore.internBindI_ext st _ ty b mi
-
-theorem EStore.internEBindI_ext (st : EStore) (tag : UInt32) (ty b : EIdx)
-    (mi : BMIdx) : Ext st (st.internEBindI tag ty b mi).1 :=
-  EStore.internBindI_ext st tag ty b mi
-
-theorem EStore.internLam_ext (st : EStore) (ty b : EIdx) (m : ConLeche.BinderMeta) :
-    Ext st (st.internLam ty b m).1 :=
-  (EStore.internBM_ext st m).trans
-    (EStore.internLamI_ext (st.internBM m).1 ty b (st.internBM m).2)
-
-theorem EStore.internForallE_ext (st : EStore) (ty b : EIdx)
-    (m : ConLeche.BinderMeta) : Ext st (st.internForallE ty b m).1 :=
-  (EStore.internBM_ext st m).trans
-    (EStore.internForallEI_ext (st.internBM m).1 ty b (st.internBM m).2)
-
 /-- con-leche: none — arena infrastructure; **the promotion's append extends
 the arena** (task #97-P6-2).  This is the conjunct the promotion keeps
 outright, where `StoreWF`'s `fresh` is transiently broken. -/
@@ -8699,25 +8323,13 @@ theorem EStore.internLevelsPersistent_ext (st : EStore) (w : LsNodeView) :
   Ext.of_view_mono (LsStore.internPersistent_ext st.lss w) (fun _ _ h => h)
     (Nat.le_refl _)
 
-theorem EStore.view_internName (st : EStore) (w : NNodeView) (i : EIdx) :
-    (st.internName w).1.view i = st.view i := rfl
-theorem EStore.view_internLevel (st : EStore) (w : LNodeView) (i : EIdx) :
-    (st.internLevel w).1.view i = st.view i := rfl
-theorem EStore.view_internLevels (st : EStore) (w : LsNodeView) (i : EIdx) :
-    (st.internLevels w).1.view i = st.view i := rfl
-theorem EStore.view_internNamePersistent (st : EStore) (w : NNodeView) (i : EIdx) :
-    (st.internNamePersistent w).1.view i = st.view i := rfl
-theorem EStore.view_internLevelPersistent (st : EStore) (w : LNodeView) (i : EIdx) :
-    (st.internLevelPersistent w).1.view i = st.view i := rfl
-theorem EStore.view_internLevelsPersistent (st : EStore) (w : LsNodeView) (i : EIdx) :
-    (st.internLevelsPersistent w).1.view i = st.view i := rfl
-
 theorem EStore.scratchOn_internName (st : EStore) (w : NNodeView) :
     (st.internName w).1.scratchOn = st.scratchOn := rfl
 theorem EStore.scratchOn_internLevel (st : EStore) (w : LNodeView) :
     (st.internLevel w).1.scratchOn = st.scratchOn := rfl
 theorem EStore.scratchOn_internLevels (st : EStore) (w : LsNodeView) :
     (st.internLevels w).1.scratchOn = st.scratchOn := rfl
+
 theorem EStore.scratchOn_internNamePersistent (st : EStore) (w : NNodeView) :
     (st.internNamePersistent w).1.scratchOn = st.scratchOn := rfl
 theorem EStore.scratchOn_internLevelPersistent (st : EStore) (w : LNodeView) :
@@ -8750,62 +8362,6 @@ for concurrent rounds).
 -/
 
 namespace ConRon.Arena
-
-/-- con-leche: none — arena infrastructure; with the scratch tier off the NAME
-intern hands back a persistent handle.  `EStore.intern_isPersistent_of_off`'s
-twin one level down. -/
-theorem NStore.intern_isPersistent_of_off {st : NStore} {w : NNodeView}
-    (h : NStoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
-    (st.intern w).2.isPersistent = true := by
-  obtain ⟨rk, hwf⟩ := h
-  have hoff' : ¬ (st.scratchOn = true) := by simp [hoff]
-  simp only [NStore.capOK] at hcap
-  rw [if_neg hoff'] at hcap
-  simp only [NStore.intern]
-  split
-  · rename_i i heq
-    exact ((hwf.consP w i).mp heq).2
-  · rw [if_neg hoff']
-    have hspec := NTables.push_spec st.pers w (st.derOfView w) Idx.tierP
-      (by decide) hcap
-    show (_ == 0) = true
-    rw [hspec.2]; decide
-
-/-- con-leche: none — arena infrastructure; the same for a LEVEL node. -/
-theorem LStore.intern_isPersistent_of_off {st : LStore} {w : LNodeView}
-    (h : LStoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
-    (st.intern w).2.isPersistent = true := by
-  obtain ⟨rk, hwf⟩ := h
-  have hoff' : ¬ (st.scratchOn = true) := by simp [hoff]
-  simp only [LStore.capOK] at hcap
-  rw [if_neg hoff'] at hcap
-  simp only [LStore.intern]
-  split
-  · rename_i i heq
-    exact ((hwf.consP w i).mp heq).2
-  · rw [if_neg hoff']
-    have hspec := LTables.push_spec st.pers w (st.derOfView w) Idx.tierP
-      (by decide) hcap
-    show (_ == 0) = true
-    rw [hspec.2]; decide
-
-/-- con-leche: none — arena infrastructure; the same for a universe-argument
-LIST node. -/
-theorem LsStore.intern_isPersistent_of_off {st : LsStore} {w : LsNodeView}
-    (h : LsStoreWF st) (hoff : st.scratchOn = false) (hcap : st.capOK w) :
-    (st.intern w).2.isPersistent = true := by
-  have hoff' : ¬ (st.scratchOn = true) := by simp [hoff]
-  simp only [LsStore.capOK] at hcap
-  rw [if_neg hoff'] at hcap
-  simp only [LsStore.intern]
-  split
-  · rename_i i heq
-    exact ((h.consP w i).mp heq).2
-  · rw [if_neg hoff']
-    have hspec := LsTables.push_spec st.pers w (st.derOfView w) Idx.tierP
-      (by decide) hcap
-    show (_ == 0) = true
-    rw [hspec.2]; decide
 
 end ConRon.Arena
 
@@ -8964,16 +8520,6 @@ theorem NStore.derived_intern_eq {st : NStore} (h : NStoreWF st) (w : NNodeView)
           (fun j x hj => NTables.derAt_push_of_get hwf.sizedS hj)
     · exact NStore.derived_congr hi rfl
         (fun j x hj => NTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
-
-theorem NStore.derived_internPersistent_eq {st : NStore} (h : NStoreWF st)
-    (w : NNodeView) {i : NIdx} {v : NNodeView} (hi : st.view i = some v) :
-    (st.internPersistent w).1.derived i = st.derived i := by
-  obtain ⟨rk, hwf⟩ := h
-  simp only [NStore.internPersistent]
-  split
-  · rfl
-  · exact NStore.derived_congr hi rfl
-      (fun j x hj => NTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
 
 /-! ## The nested name intern keeps the arena well formed -/
 
@@ -9222,45 +8768,6 @@ theorem EStore.internLevels_wf {st : EStore} (h : StoreWF st) {v : LsNodeView}
     rw [hcg]
     exact hwf.derExact i u hi
   · rw [hlss, LsStore.scratchOn_intern]; exact hwf.sync
-
-
-/-! ### FINDING 17: `internPersistent` and the `fresh` clause (task #97-P5-Specs
-round 2)
-
-`NWFAt.fresh` says *"a view in the SCRATCH cons table is not in the persistent
-one"*, and `NStore.internPersistent` appends to the persistent tier **whatever
-tier the store is in** — which is the whole point of it (DESIGN §8.3:
-promotion runs with the scratch tier live).  The two cannot both hold at a
-view the scratch tier already has, and that state is reachable: `intern`
-appends to the tier the store is IN regardless of its children, so
-`internNNode (.str p_pers "foo")` lands in SCRATCH during phase B, and
-`Arena/Promote.lean`'s `promoteN` of that handle promotes its (already
-persistent) children to themselves and then interns the SAME view
-persistently.
-
-So `StoreWF (st.internPersistent w).1` is not a lemma waiting to be written.
-It is recorded here as a proved NEGATIVE so that the next round does not spend
-itself looking for the proof; the three shapes the fix can take are in
-DESIGN.md's task #97-P5-Specs round 2 §6.  `EWFAt.childOK`'s *"a persistent
-node's children are persistent"* is a second, milder version of the same gap.
--/
-
-theorem NStore.internPersistent_breaks_fresh {st : NStore} {v : NNodeView}
-    {i : NIdx} (hp : st.pers.find? v = none) (hs : st.scr.find? v = some i) :
-    ¬ NStoreWF (st.internPersistent v).1 := by
-  rintro ⟨rk, hwf⟩
-  have hst : (st.internPersistent v).1
-      = { st with pers := (st.pers.push v (st.derOfView v) Idx.tierP).1 } := by
-    simp only [NStore.internPersistent, hp]
-  have h1 : (st.internPersistent v).1.scr.find? v = some i := by rw [hst]; exact hs
-  have h2 : (st.internPersistent v).1.pers.find? v
-      = some (st.pers.push v (st.derOfView v) Idx.tierP).2 := by
-    rw [hst]
-    show (st.pers.push v (st.derOfView v) Idx.tierP).1.find? v = _
-    rw [NTables.find?_push, if_pos rfl]
-  have hf := hwf.fresh v i h1
-  rw [h2] at hf
-  simp at hf
 
 
 /-! ### ============================================================
@@ -10608,20 +10115,12 @@ one tier down where it belongs. -/
 theorem NStore.dropScratch_wfAt' {st : NStore} {rk : NIdx → Nat} (h : NWFAt' st rk) :
     NWFAt st.dropScratch rk := NStore.wf_of_scr_empty h rfl rfl
 
-theorem NStoreWF'.dropScratch_wf {st : NStore} (h : NStoreWF' st) :
-    NStoreWF st.dropScratch := by
-  obtain ⟨rk, h⟩ := h; exact ⟨rk, NStore.dropScratch_wfAt' h⟩
-
 theorem LStore.dropScratch_wfAt' {st : LStore} {rk : LIdx → Nat} (h : LWFAt' st rk) :
     LWFAt st.dropScratch rk := by
   obtain ⟨rkn, hn⟩ := h.ns
   exact LStore.wf_of_scr_empty h rfl rfl ⟨rkn, NStore.dropScratch_wfAt' hn⟩
     (fun c hp => NStore.view_dropScratch_pers st.ns hp)
     (fun c hp => NStore.derived_dropScratch_pers st.ns hp) rfl
-
-theorem LStoreWF'.dropScratch_wf {st : LStore} (h : LStoreWF' st) :
-    LStoreWF st.dropScratch := by
-  obtain ⟨rk, h⟩ := h; exact ⟨rk, LStore.dropScratch_wfAt' h⟩
 
 theorem LsStoreWF'.dropScratch_wf {st : LsStore} (h : LsStoreWF' st) :
     LsStoreWF st.dropScratch := by
@@ -10686,81 +10185,6 @@ datum is not yet persistent; see this task's DESIGN section. -/
 theorem ETables.getBM_eq_none_of_size {t : ETables} {i : BMIdx}
     (hix : i.idxNat = t.bms.size) : t.getBM i = none := by
   simp [ETables.getBM, hix, Tbl.node?_size]
-
-theorem EStore.internBMPersistent_breaks_consS {st : EStore} {rk : EIdx → Nat}
-    (h : EWFAt st rk) {m : ConLeche.BinderMeta} {i ty b : EIdx}
-    (hpf : st.persFindBM m = none) (hcap : st.pers.bms.size < Idx.idxCap)
-    (hv : st.view i = some (.lam ty b m)) (hip : i.isPersistent = false) :
-    (st.internBMPersistent m).1.view i = some (.lam ty b m) ∧
-      i.isPersistent = false ∧
-      (st.internBMPersistent m).1.scrFind? (.lam ty b m) = none := by
-  have htr : (Idx.tierP : UInt32).toNat < 2 := by decide
-  obtain ⟨mp, hmpdef⟩ : ∃ x, x = (st.pers.pushBM m (hash m.pw) Idx.tierP).2 :=
-    ⟨_, rfl⟩
-  have hst : (st.internBMPersistent m).1
-      = { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 } := by
-    simp only [EStore.internBMPersistent, hpf]
-  -- the scratch tier is live, or the node would not decode
-  have hon : st.scratchOn = true := by
-    cases hc : st.scratchOn with
-    | false => rw [EStore.view_off hip hc] at hv; exact absurd hv (by simp)
-    | true => rfl
-  -- the new datum handle is persistent and did not decode before
-  have hmpP : mp.isPersistent = true := by
-    show (mp.tier == 0) = true
-    rw [hmpdef, ETables.pushBM_tier htr hcap]; decide
-  have hmpIx : mp.idxNat = st.pers.bms.size := by
-    rw [hmpdef]; exact ETables.pushBM_idxNat htr hcap
-  have hmpOld : st.viewBM mp = none := by
-    rw [EStore.viewBM_pers hmpP]
-    exact ETables.getBM_eq_none_of_size hmpIx
-  -- the node still decodes: the datum table only grew, at a handle no node names
-  have hviewBM : ∀ (t b' : EIdx) (mj : BMIdx), st.scr.getBind i = some (t, b', mj) →
-      (st.internBMPersistent m).1.viewBM mj = st.viewBM mj := by
-    intro t b' mj hg
-    have hsome : (st.viewBM mj).isSome = true := by
-      refine (h.bmChildOK i t b' mj ?_).1
-      rw [EStore.viewBindI_scr hip hon]; exact hg
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsome
-    rw [hx]
-    by_cases hjp : mj.isPersistent = true
-    · rw [hst, EStore.viewBM_pers hjp]
-      show (st.pers.pushBM m (hash m.pw) Idx.tierP).1.getBM mj = some x
-      rw [EStore.viewBM_pers hjp] at hx
-      exact ETables.getBM_pushBM_mono hx
-    · have hjp' : mj.isPersistent = false := by simpa using hjp
-      rw [hst]
-      simp only [EStore.viewBM, hjp', Bool.false_eq_true, if_false] at hx ⊢
-      exact hx
-  refine ⟨?_, hip, ?_⟩
-  · rw [EStore.view_scr hip (by rw [hst]; exact hon), hst]
-    show st.scr.getWith (EStore.viewBM
-      { st with pers := (st.pers.pushBM m (hash m.pw) Idx.tierP).1 }) i = _
-    rw [ETables.getWith_congr (t := st.scr) (bm := st.viewBM)
-      (fun t b' mj hg => by rw [← hst]; exact hviewBM t b' mj hg)]
-    rw [← EStore.view_scr hip hon]
-    exact hv
-  · -- `findBMOfView` now answers the PERSISTENT handle, and the scratch table
-    -- holds nothing under it
-    have hfbm : (st.internBMPersistent m).1.findBM m = some mp := by
-      have hp' : (st.internBMPersistent m).1.pers.findBM m = some mp := by
-        rw [hst]
-        show (st.pers.pushBM m (hash m.pw) Idx.tierP).1.findBM m = some mp
-        rw [ETables.findBM_pushBM, if_pos rfl, hmpdef]
-      simp only [EStore.findBM, EStore.persFindBM, hp']
-    have hfov : (st.internBMPersistent m).1.findBMOfView (.lam ty b m) = some mp := by
-      rw [EStore.findBMOfView_eq_findBM _ (rfl : (ENodeView.lam ty b m).bmOf = some m)]
-      exact hfbm
-    simp only [EStore.scrFind?, hfov]
-    have hscr : (st.internBMPersistent m).1.scr = st.scr := by rw [hst]
-    rw [hscr]
-    cases hq : st.scr.find? (ENodeView.lam ty b m) mp with
-    | none => rfl
-    | some j =>
-      exfalso
-      rcases h.bmKeyS _ mp j hq with hb | ⟨m', hm'⟩
-      · simp [ENodeView.bmOf] at hb
-      · rw [h.viewBM_of_findBM hm'] at hmpOld; exact absurd hmpOld (by simp)
 
 /-! ## THE PROMOTE WINDOW'S DATUM AND NODE APPENDS (task #97-P5-Specs round 3)
 
@@ -11259,24 +10683,6 @@ theorem EStore.findBMOfView_internBMOfViewPersistent {st : EStore} {rk : EIdx �
     rw [EStore.findBMOfView_eq_findBM _ hb]
     exact h1.findBM_of_viewBM_pers htag0 hpers (hbmok m hb)
 
-/-- con-leche: none — arena infrastructure; the promote-intern's NODE probe is
-the store's own persistent probe: promoting the datum moves the key, and the
-answer at the moved key is the answer at the old one (both `none` when the
-datum was only in the scratch tier). -/
-theorem EStore.persFind?_internBMOfViewPersistent {st : EStore} {rk : EIdx → Nat}
-    (h : EWFAt' st rk) {w : ENodeView}
-    (hcapBM : st.persCapBM w) :
-    (st.internBMOfViewPersistent w).1.pers.find? w (st.internBMOfViewPersistent w).2
-      = st.persFind? w := by
-  obtain ⟨-, -, -, -, -, -, -, -, -, hpfA⟩ :=
-    EStore.internBMOfViewPersistent_spec' h hcapBM
-  have hfov1 := EStore.findBMOfView_internBMOfViewPersistent h hcapBM
-  have hlhs : (st.internBMOfViewPersistent w).1.persFind? w
-      = (st.internBMOfViewPersistent w).1.pers.find? w
-        (st.internBMOfViewPersistent w).2 := by
-    simp only [EStore.persFind?, hfov1]
-  rw [← hlhs]; exact hpfA w
-
 theorem EStore.internPersistent_of_persFind {st : EStore} {rk : EIdx → Nat}
     (h : EWFAt' st rk) {w : ENodeView} {i : EIdx} (hf : st.persFind? w = some i) :
     st.internPersistent w = (st, i) := by
@@ -11375,36 +10781,5 @@ theorem EStore.internPersistent_spec' {st : EStore} {w : ENodeView}
       h1 hv1 hp rfl rfl rfl htag0 hmiP hbmok rfl rfl (hcapN hf) hf
     exact ⟨hwf2, hview2, hpers2⟩
 
-
-/-- con-leche: none — arena infrastructure; the datum step moves no NODE
-array, whatever it does (no invariant needed). -/
-theorem EStore.internBMOfViewPersistent_sizeOf (st : EStore) (w v : ENodeView) :
-    (st.internBMOfViewPersistent w).1.pers.sizeOf v = st.pers.sizeOf v := by
-  have hbm : ∀ m, (st.internBMPersistent m).1.pers.sizeOf v = st.pers.sizeOf v := by
-    intro m
-    cases hp : st.persFindBM m with
-    | some i => rw [EStore.internBMPersistent_hit hp]
-    | none =>
-      rw [EStore.internBMPersistent_push hp]
-      exact ETables.sizeOf_pushBM _ _ _ _ v
-  cases w
-  case lam ty b m => exact hbm m
-  case forallE ty b m => exact hbm m
-  all_goals rfl
-
-/-- con-leche: none — arena infrastructure; the old, unconditional datum
-capacity (`capOKPersistent`'s second half) implies the Rust's miss-path one. -/
-theorem EStore.persCapBM.of_needs {st : EStore} {w : ENodeView}
-    (h : EStore.eViewNeedsBM w = true → st.capOKBMPersistent) : st.persCapBM w := by
-  cases w
-  case lam ty b m => exact fun _ => h rfl
-  case forallE ty b m => exact fun _ => h rfl
-  all_goals trivial
-
-/-- con-leche: none — arena infrastructure; the old, unconditional node
-capacity implies the Rust's miss-path one. -/
-theorem EStore.persCapNode.of_size {st : EStore} {w : ENodeView}
-    (h : st.pers.sizeOf w < Idx.idxCap) : st.persCapNode w := fun _ => by
-  rw [EStore.internBMOfViewPersistent_sizeOf]; exact h
 
 end ConRon.Arena

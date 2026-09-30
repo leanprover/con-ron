@@ -324,32 +324,4 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
       if_pos hg2, if_pos hg3']
   · exact ProjOut.push_table hcoh _ ⟨hsize, hg, TP, denoteN_ext hT x06, htn⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:53-86 checkStructProjTable
-The same at the core grade, read off `checkStructProjTable_run` (the twin is
-pure, so it needs no `CheckOK` and leaves `PStep`).  **`hcoh` added** (task
-#97-P3-Ind round 8, ruling 3 on round 7's R7.5: `InstRel.coh` of the pushed
-index needs the old index coherent). -/
-theorem checkStructProjTable_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
-    (T C : NIdx) (TP CP : ConLeche.Name) (lps : List NIdx)
-    (lpsP : List ConLeche.Name) (nP nF : Nat) (resSort : LIdx)
-    (resSortP : Level) (guards : List LIdx) (guardsP : List Level) (off : Nat)
-    (cvCa : IConstantVal) (cvCaP : ConstantVal)
-    (hg : guards.length = nF) (hcoh : IFEnvCoh fe) :
-    CSpec μ env fe
-      (fun st => denoteN st.ns T = some TP ∧ denoteN st.ns C = some CP ∧
-        Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteL st.ls resSort = some resSortP ∧
-        denoteLList st.ls guards = some guardsP ∧
-        Frontend.denoteCV st cvCa = some cvCaP ∧
-        denoteFEnv st fe = some env)
-      (Arena.checkStructProjTable T C lps nP nF resSort guards off cvCa fe)
-      (InstRel fe (fun env' =>
-        @ConLeche.checkStructProjTable CheckM _ _ TP CP lpsP nP nF resSortP
-          guardsP off cvCaP env = .ok env')) :=
-  (checkStructProjTable_run fe env T C TP CP lps lpsP nP nF resSort resSortP guards
-    guardsP off cvCa cvCaP hg hcoh).toCSpec μ env fe |> fun h => by
-      intro s₀ s' r hok hpre hrun
-      obtain ⟨a1, a2, a3, a4, a5, a6, a7⟩ := hpre
-      exact h s₀ s' r hok ⟨a1, a2, a3, a4, a5, a6, a7, hok.ienv.toS⟩ hrun
-
 end ConRon.Bridge.Inductives

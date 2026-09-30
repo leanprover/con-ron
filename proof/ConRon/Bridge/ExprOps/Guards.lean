@@ -134,15 +134,6 @@ theorem wscopedBFast_spec (fuel d : Nat) (s₀ : AState) (h : EIdx)
   mvcgen [wscopedBFast, hr]
   all_goals bridge_vcs [RelV, MemoVDOK.of_empty]
 
-/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1090-1095 wscopedBC — the run
-form. -/
-theorem wscopedBFast_run {fuel d : Nat} {s₀ s' : AState} {h : EIdx} {r : Bool}
-    (hok : StateOK s₀) (hden : (denoteE s₀.store h).isSome = true)
-    (hrun : (wscopedBFast fuel d h).run s₀ = Except.ok (r, s')) :
-    s' = s₀ ∧ RelV (Expr.wscopedB d) s₀.store h r :=
-  AM.of_run (P := fun s => s = s₀) rfl hrun
-    (wscopedBFast_spec fuel d s₀ h hok hden)
-
 /-! ## 2. The leaf-subset test's pure specification
 
 `Kernel/Core.lean:586`'s own guard expression, and the ten equations that make

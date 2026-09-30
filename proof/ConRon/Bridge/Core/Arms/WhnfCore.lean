@@ -63,88 +63,6 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 variable {mode : CheckMode} {env : Env}
 
-/-! ## 1. The `.app` clause's five exits -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:977-1000 whnfCoreBody — the β arm
-with the **gate firing** (con-leche's task #161): the validated annotation
-says the binder is never a proposition, so no argument certificate runs. -/
-theorem whnfCore_app_beta_gate {F d : Nat} {f a ty body res : Expr}
-    {mb : BinderMeta}
-    (hf : ConLeche.whnfCore mode env F d f = .ok (.lam ty body mb))
-    (hg : ConLeche.betaGateFires mode mb.pw = true)
-    (hr : ConLeche.whnfCore mode env F d (body.instantiate1 a) = .ok res) :
-    ConLeche.whnfCore mode env (F + 1) d (.app f a) = .ok res := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnfCore_def, hf, hg, bind,
-    Except.bind, if_true]
-  exact hr
-
-/-- con-leche: ConLeche/Kernel/Core.lean:977-1000 whnfCoreBody — the β arm
-with the **argument certificate**: the argument's io-grade type is defeq to
-the binder's domain, so the redex reduces. -/
-theorem whnfCore_app_beta_cert {F d : Nat} {f a ty body ta res : Expr}
-    {mb : BinderMeta}
-    (hf : ConLeche.whnfCore mode env F d f = .ok (.lam ty body mb))
-    (hg : ConLeche.betaGateFires mode mb.pw = false)
-    (hta : ConLeche.inferTypeIO mode env F d a = .ok ta)
-    (hde : ConLeche.isDefEqCore mode env F d ta ty = .ok true)
-    (hr : ConLeche.whnfCore mode env F d (body.instantiate1 a) = .ok res) :
-    ConLeche.whnfCore mode env (F + 1) d (.app f a) = .ok res := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnfCore_def,
-    ConLeche.inferTypeIO_def, ConLeche.defeq_def, hf, hg, hta, hde, bind,
-    Except.bind, if_false, Bool.false_eq_true, if_true]
-  exact hr
-
-/-- con-leche: ConLeche/Kernel/Core.lean:997-1000 whnfCoreBody — the β arm
-whose certificate FAILS: the redex stays stuck, which is sound and
-unreachable for well-typed input. -/
-theorem whnfCore_app_stuck {F d : Nat} {f a ty body ta : Expr}
-    {mb : BinderMeta}
-    (hf : ConLeche.whnfCore mode env F d f = .ok (.lam ty body mb))
-    (hg : ConLeche.betaGateFires mode mb.pw = false)
-    (hta : ConLeche.inferTypeIO mode env F d a = .ok ta)
-    (hde : ConLeche.isDefEqCore mode env F d ta ty = .ok false) :
-    ConLeche.whnfCore mode env (F + 1) d (.app f a) =
-      .ok (.app (.lam ty body mb) a) := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnfCore_def,
-    ConLeche.inferTypeIO_def, ConLeche.defeq_def, hf, hg, hta, hde, bind,
-    Except.bind, if_false, Bool.false_eq_true, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1001-1004 whnfCoreBody — the ι arm:
-the head is not a λ and the recursor rule **fires**. -/
-theorem whnfCore_app_iota {F d : Nat} {f a f' e'' res : Expr}
-    (hf : ConLeche.whnfCore mode env F d f = .ok f')
-    (hne : ∀ ty body mb, f' ≠ .lam ty body mb)
-    (hi : ConLeche.iotaRec mode (ConLeche.pureFns mode env F) env d
-      (.app f' a) = .ok (some e''))
-    (hr : ConLeche.whnfCore mode env F d e'' = .ok res) :
-    ConLeche.whnfCore mode env (F + 1) d (.app f a) = .ok res := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnfCore_def, hf, bind,
-    Except.bind]
-  cases f'
-  case lam ty b m => exact absurd rfl (hne ty b m)
-  all_goals
-    simp only [hi]
-    exact hr
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1001-1004 whnfCoreBody — the ι arm
-that **declines**: the application is stuck at its normalized head. -/
-theorem whnfCore_app_iota_none {F d : Nat} {f a f' : Expr}
-    (hf : ConLeche.whnfCore mode env F d f = .ok f')
-    (hne : ∀ ty body mb, f' ≠ .lam ty body mb)
-    (hi : ConLeche.iotaRec mode (ConLeche.pureFns mode env F) env d
-      (.app f' a) = .ok none) :
-    ConLeche.whnfCore mode env (F + 1) d (.app f a) = .ok (.app f' a) := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnfCore_def, hf, bind,
-    Except.bind]
-  cases f'
-  case lam ty b m => exact absurd rfl (hne ty b m)
-  all_goals simp only [hi, pure, Except.pure]
-
 /-! ## 2. The `.proj` clause's five exits
 
 All five run the same prefix — `r.whnf depth pe` then `projLitToCtor` — so
@@ -260,85 +178,6 @@ term `.bvar 0`). -/
 theorem getD_of_lt {α : Type} {l : List α} {i : Nat} {a : α}
     (h : i < l.length) : l.getD i a = l[i] := by
   simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h]
-
-/-! ### The `.proj` clause's callee rules in ANSWER shape
-
-Round 3's rule: a walk whose subject is another walk's answer must not take
-that answer's denotation as an explicit argument.  In the `.proj` clause the
-scrutinee of `projLitToCtor` is `whnf`'s answer, the table entry of `fireOk`
-is `findProj?`'s, and the constructor, levels and arguments of `projCertAt`
-are read off `projLitToCtor`'s answer — so each gets its primed form here,
-four lines over the published one. -/
-
-/-- con-leche: none — `projLitToCtor_spec` in answer shape. -/
-theorem projLitToCtor_spec' {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel) (s₀ : AState) (d : Nat) (h : EIdx)
-    (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store h = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.projLitToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ x, denoteE s₀.store h = some x →
-          SimEOp (fun F => ConLeche.projLitToCtorFueled mode env F d x) d
-            s'.store r⌝⦄ := by
-  obtain ⟨x, hx, hw⟩ := hdw
-  have hs := projLitToCtor_spec hsim s₀ d h x hok hx hw
-  mvcgen [hs]
-  intro hck hxt hp hr
-  refine ⟨hck, hxt, hp, fun x' hx' => ?_⟩
-  obtain rfl := Option.some.inj (hx.symm.trans hx')
-  exact hr
-
-/-- con-leche: none — `IProjEntry.fireOk_spec` in answer shape. -/
-theorem IProjEntry.fireOk_spec' {fe : IFEnv} (s₀ : AState)
-    (entry : IProjEntry) (us : LsIdx) (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ p ls, denoteProjEntry s₀.store entry = some p ∧
-      denoteLs s₀.store.lss us = some ls) :
-    ⦃fun s => ⌜s = s₀⌝⦄ entry.fireOk us
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ p ls, denoteProjEntry s₀.store entry = some p →
-          denoteLs s₀.store.lss us = some ls → b = p.fireOk ls⌝⦄ := by
-  obtain ⟨p, ls, hp, hls⟩ := hpre
-  have hs := IProjEntry.fireOk_spec s₀ entry us p ls hok hp hls
-  mvcgen [hs]
-  intro hck hst hpn hb
-  refine ⟨hck, hst, hpn, fun p' ls' hp' hls' => ?_⟩
-  obtain rfl := Option.some.inj (hp.symm.trans hp')
-  obtain rfl := Option.some.inj (hls.symm.trans hls')
-  exact hb
-
-/-- con-leche: none — `projCertAt_spec` in answer shape. -/
-theorem projCertAt_spec' {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel) (henv : ConLeche.EnvWF env)
-    (s₀ : AState) (d : Nat) (verified lic : Bool) (c : NIdx) (us : LsIdx)
-    (args : List EIdx) (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ cn ls xs, denoteN s₀.store.ns c = some cn ∧
-      denoteLs s₀.store.lss us = some ls ∧
-      Frontend.denoteEList s₀.store args = some xs ∧
-      ∀ x ∈ xs, Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.projCertAt (coreKnot mode fe id fuel) fe d verified lic c
-        us args
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ cn ls xs, denoteN s₀.store.ns c = some cn →
-          denoteLs s₀.store.lss us = some ls →
-          Frontend.denoteEList s₀.store args = some xs →
-          SimBOp
-            (fun F => ConLeche.projCertAtFueled mode env F d verified lic cn
-              ls xs) b⌝⦄ := by
-  obtain ⟨cn, ls, xs, hc, hus, hxs, hw⟩ := hpre
-  have hs := projCertAt_spec hsim henv s₀ d verified lic c us args cn ls xs
-    hok hc hus hxs hw
-  mvcgen [hs]
-  intro hck hxt hp hb
-  refine ⟨hck, hxt, hp, fun cn' ls' xs' hc' hus' hxs' => ?_⟩
-  obtain rfl := Option.some.inj (hc.symm.trans hc')
-  obtain rfl := Option.some.inj (hus.symm.trans hus')
-  obtain rfl := Option.some.inj (hxs.symm.trans hxs')
-  exact hb
 
 /-! ## 3. The batched `.app` clause's identification
 
@@ -734,9 +573,6 @@ section Census
 
 #print axioms whnfCore_proj_head
 #print axioms getD_of_lt
-#print axioms projLitToCtor_spec'
-#print axioms IProjEntry.fireOk_spec'
-#print axioms projCertAt_spec'
 #print axioms whnfCoreBody_leaf
 /-! No `sorryAx` expected: `whnfCoreBody_app_batched` read it only through
 `Walks/BetaSpine.lean`'s `iotaRecAt_spec` (round 6), which is closed since. -/

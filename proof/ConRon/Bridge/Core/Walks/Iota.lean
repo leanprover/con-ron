@@ -449,17 +449,6 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           (e'.getAppArgs.drop cnP) is = .ok r := hF
       simp [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, hm, hpe, hF']
 
-/-! ## 4. The ι step
-
-`iotaRecAt_spec` is staged over the twin's `do` block; past the parameter
-comparison the legacy `do` elaborator inlines the certificate-family
-continuation into each of the comparison's three branches, so that
-continuation is one lemma (`iotaFam_spec`, stated at the same `do` text) and
-the three branches `exact` it.  The pure side is `iotaTail`, a copy of
-con-leche's clause past the major's preparation that `iotaRecFueled_pre` ties
-to the original by `rfl`, and `iotaTail_fire` evaluates it at the five
-verdicts. -/
-
 /-! ### `iotaRec`'s pure side at its exits
 
 Each exit is con-leche's `iotaRec` at a subject `E` whose spine head and
@@ -1401,39 +1390,6 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hfin⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **THEOREM 1 for
-`iotaRec`**: one ι step at a recursor application, with the stuck-major
-machinery under it.  Moved here from `Walks/Owed.lean` (round 6); **the
-preconditions `hμ` and `henv` are new** (module note). -/
-theorem iotaRec_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (e : EIdx) (x : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x)
-    (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.iotaRec mode (coreKnot mode fe id fuel) fe d e
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimOOp (fun F => ConLeche.iotaRecFueled mode env F d x) d
-          s'.store r⌝⦄ := by
-  unfold ConRon.Arena.iotaRec
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ e hok.state
-    (by rw [hden]; rfl)) ?_
-  rintro hd s1 ⟨hs1, hrelF⟩
-  subst s1
-  refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ e hok.state
-    (by rw [hden]; rfl)) ?_
-  rintro args s2 ⟨hs2, hrelA⟩
-  subst s2
-  have hmk : Expr.mkAppN x.getAppFn x.getAppArgs = x := Expr.mkAppN_getApp x
-  refine triple_mono (iotaRecAt_spec hμ henv hsim s₀ d hd args.toArray
-    args.length x.getAppFn x.getAppArgs hok (hrelF x hden)
-    (fun f a => ConLeche.Expr.getAppFn_not_app x f a) (by simp)
-    (by simpa using hrelA x hden) (by rw [hmk]; exact hw)) ?_
-  rintro r s' ⟨h1, h2, h3, h4⟩
-  rw [hmk] at h4
-  exact ⟨h1, h2, h3, h4⟩
-
 section Census
 #print axioms isCtorApp_spec
 #print axioms litToCtorIfNat_spec
@@ -1452,7 +1408,6 @@ section Census
 #print axioms iotaIndexOk_spec
 #print axioms iotaFam_spec
 #print axioms iotaRecAt_spec
-#print axioms iotaRec_spec
 
 end Census
 

@@ -134,22 +134,4 @@ def eqA : AM IConstantInfo := internCI ConLeche.eqA
 `ConLeche.natA`, interned. -/
 def natA : AM IConstantInfo := internCI ConLeche.natA
 
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — the annotated `Iff`
-pin (`#annotate_basis`'s `iffA`), interned. -/
-def iffA : AM IConstantInfo := internCI ConLeche.iffA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `iffIntroA`. -/
-def iffIntroA : AM IConstantInfo := internCI ConLeche.iffIntroA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `iffRecA`. -/
-def iffRecA : AM IConstantInfo := internCI ConLeche.iffRecA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `nonemptyA`. -/
-def nonemptyA : AM IConstantInfo := internCI ConLeche.nonemptyA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `nonemptyIntroA`. -/
-def nonemptyIntroA : AM IConstantInfo := internCI ConLeche.nonemptyIntroA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _ — `nonemptyRecA`. -/
-def nonemptyRecA : AM IConstantInfo := internCI ConLeche.nonemptyRecA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _ — `propextA`. -/
-def propextA : AM IConstantVal := internCV ConLeche.propextA
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _ — `choiceA`. -/
-def choiceA : AM IConstantVal := internCV ConLeche.choiceA
-
 end ConRon.Arena

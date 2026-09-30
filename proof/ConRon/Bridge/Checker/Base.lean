@@ -78,20 +78,6 @@ theorem orElseAttempt_run {att : AM Bool} {s s' : AState} {r : OrElseStep}
     obtain ⟨rfl, rfl⟩ := h
     exact Or.inr ⟨e, rfl, rfl, rfl⟩
 
-/-- con-leche: none — a `matched` attempt matched, and a `continued` attempt
-did not: the step's tag reads back the attempt's `Bool`.  The gate's loop
-(`Arena/DeclCheck.lean`'s `checkDivModPinLoop`) dispatches on the tag, so this
-is what lets the bridge read the loop. -/
-theorem orElseStepOf_ok_iff {b : Bool} :
-    orElseStepOf (.ok b) = .matched ↔ b = true := by
-  cases b <;> simp [orElseStepOf]
-
-/-! ## The memoised DAG walks of the front door
-
-`allLevelParamsDefined_run` and `constsResolveFFast_run`, with their cone,
-moved to `Bridge/Checker/Names.lean` (task #97-P3-Checker round 9): the
-inductive tier reads them and cannot import this module. -/
-
 /-! ## The name-shape guards
 
 Pure tests on handles.  Each is a handle comparison where con-leche has a

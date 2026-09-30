@@ -48,8 +48,6 @@ namespace ConRon.Bridge
 -- the promotion memo and the frame
 #print axioms PMemoOK.empty
 #print axioms PMemoOK.mono
-#print axioms PFrame.refl
-#print axioms PFrame.trans
 #print axioms Pushed.refl
 #print axioms Pushed.trans
 #print axioms Pushed.push
@@ -99,7 +97,6 @@ namespace ConRon.Bridge
 
 -- the variant fallback
 #print axioms orElseAttempt_run
-#print axioms orElseStepOf_ok_iff
 
 /-! ### Task #97-P3-Checker-2's own additions -/
 
@@ -118,7 +115,6 @@ namespace ConRon.Bridge
 #print axioms AM.Never.bind
 #print axioms AM.Never.of_bind_left
 #print axioms AM.Never.fail_any
-#print axioms AM.readFail_ne
 #print axioms AM.ite_ok
 #print axioms AM.pure_ok
 #print axioms AM.dguard_ok
@@ -141,7 +137,6 @@ namespace ConRon.Bridge
 -- persistence clauses, and the rule is that only a fold-step BOUNDARY may
 -- conclude the latter.
 #print axioms StepOK.mono
-#print axioms StepOK.pmono
 #print axioms FoldOK.toStepOK
 
 -- the name-shape guards (item 10) and the handle/name comparison they cash
@@ -153,8 +148,6 @@ namespace ConRon.Bridge
 
 -- the pin readers and the nineteen reserved names (part of item 13)
 #print axioms pinAt_run
-#print axioms internName_run
-#print axioms denoteNL_snoc
 #print axioms reservedBasisNames_run
 
 -- the sibling pin-table walks (task #97-P3-Checker-3), in
@@ -187,7 +180,6 @@ namespace ConRon.Bridge
 #print axioms denoteNList_get
 #print axioms canonFindIdx_denote
 #print axioms canonNameMap_denote
-#print axioms CanonMapD.mono
 #print axioms canonLevelEq_run
 #print axioms denoteLList_cons
 #print axioms canonLevelListEq_run
@@ -230,7 +222,6 @@ namespace ConRon.Bridge
 #print axioms installConstantVal_bridge
 #print axioms installValue_pure
 #print axioms installValue_bridge
-#print axioms installBasisDecl_bridge
 
 -- the readback facts that moved down out of `Base.lean` (round 4)
 #print axioms beq_handle_iff
@@ -418,14 +409,11 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms checkDecl_bridge_ind
 #print axioms checkDecl_bridge_quot
 #print axioms Arena.checkDecl_bridge
-#print axioms Arena.installThenCheck_bridge
 
 -- the fold's skeleton and the startup walk (task #97-P3-Checker round 8):
 -- closed, children included
 #print axioms Arena.annotFold_bridge
 #print axioms Arena.checkPendingList_bridge
-#print axioms Arena.annotStep_bridge
-#print axioms Arena.checkPending_bridge
 #print axioms internReservedPins_run
 #print axioms internAllPins_run
 

@@ -451,12 +451,6 @@ inductive CIListKept (st st' : EStore) : List IConstantInfo → List IConstantIn
       CINameKept st st' c c' → CIListKept st st' cs cs' →
       CIListKept st st' (c :: cs) (c' :: cs')
 
-theorem CIListKept.post {st st' st'' : EStore} {cs cs' : List IConstantInfo}
-    (h : CIListKept st st' cs cs') (hx : Ext st' st'') : CIListKept st st'' cs cs' := by
-  induction h with
-  | nil => exact .nil
-  | cons hc _ ih => exact .cons (NameKept.post hc hx) ih
-
 theorem CIListKept.pre {st0 st st' : EStore} {cs cs' : List IConstantInfo}
     (h : CIListKept st st' cs cs') (hx : Ext st0 st) : CIListKept st0 st' cs cs' := by
   induction h with

@@ -68,19 +68,6 @@ def installThenCheckPhased (mode : CheckMode) (pins : List INatOpPinSet)
 
 /-! ## A worker is the phase-A state, as far as phase B can tell -/
 
-theorem NStore.enableScratch_dropScratch (st : NStore) :
-    st.dropScratch.enableScratch = st.enableScratch := rfl
-
-theorem LStore.enableScratch_dropScratch (st : LStore) :
-    st.dropScratch.enableScratch = st.enableScratch := rfl
-
-theorem LsStore.enableScratch_dropScratch (st : LsStore) :
-    st.dropScratch.enableScratch = st.enableScratch := rfl
-
-/-- Opening the scratch tier forgets whether it was closed first. -/
-theorem EStore.enableScratch_dropScratch (st : EStore) :
-    st.dropScratch.enableScratch = st.enableScratch := rfl
-
 /-- **Opening a worker's scratch tier is opening the phase-A state's**, when
 the caches are empty there: `enterScratch` resets the memos and opens an
 empty scratch tier over the same persistent one. -/

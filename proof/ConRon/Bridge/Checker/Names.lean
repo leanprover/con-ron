@@ -94,30 +94,6 @@ of the nineteen names on every call).  So its run lemma is
 `PinStep` is kept as the lemma's frame (a table read is the reflexive step)
 so that its readers did not change. -/
 
-/-- con-leche: none — one more denoting handle at the end of a denoting list.
-
-The chain below no longer uses it: an accumulated `hs ++ [h]` is what made
-`reservedBasisNames_run` a 63-second theorem (see its note), so the rule for
-this tier is to carry the per-step facts and assemble the list once.  It is
-kept because the fact itself is right, and because the rule is easier to state
-next to the shape it forbids. -/
-theorem denoteNL_snoc {st : EStore} :
-    ∀ (hs : List NIdx) (xs : List ConLeche.Name) (h : NIdx) (x : ConLeche.Name),
-      denoteNL st hs xs → denoteN st.ns h = some x →
-        denoteNL st (hs ++ [h]) (xs ++ [x]) := by
-  intro hs
-  induction hs with
-  | nil =>
-    intro xs h x hd hn
-    cases xs with
-    | nil => exact ⟨hn, trivial⟩
-    | cons _ _ => exact hd.elim
-  | cons a as ih =>
-    intro xs h x hd hn
-    cases xs with
-    | nil => exact hd.elim
-    | cons y ys => exact ⟨hd.1, ih ys h x hd.2 hn⟩
-
 /-- con-leche: none — the frame a pin read or a name intern leaves: the store
 only grew, and nothing else moved. -/
 structure PinStep (s s' : AState) : Prop where
@@ -129,28 +105,6 @@ structure PinStep (s s' : AState) : Prop where
 
 theorem PinStep.refl {s : AState} (h : StoreWF s.store) : PinStep s s :=
   ⟨h, Ext.refl _, rfl, rfl, rfl⟩
-
-theorem PinStep.trans {a b c : AState} (h₁ : PinStep a b) (h₂ : PinStep b c) :
-    PinStep a c :=
-  ⟨h₂.wf, h₁.ext.trans h₂.ext, by rw [h₂.memos, h₁.memos],
-    by rw [h₂.caches, h₁.caches], by rw [h₂.pins, h₁.pins]⟩
-
-theorem PinStep.pinsOK {s s' : AState} (h : PinStep s s') (hp : PinsOK s) :
-    PinsOK s' := hp.mono h.ext h.pins
-
-/-- con-leche: none — `internName` in run form, off `Bridge/Specs.lean`'s
-triple. -/
-theorem internName_run {nm : ConLeche.Name} {s s' : AState} {n : NIdx}
-    (hwf : StoreWF s.store) (hr : internName nm s = .ok (n, s')) :
-    PinStep s s' ∧ denoteN s'.store.ns n = some nm := by
-  have h := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => StoreWF t.store ∧ Ext s.store t.store ∧
-        t.store.pers = s.store.pers ∧ t.store.scr = s.store.scr ∧
-        t.store.scratchOn = s.store.scratchOn ∧
-        t.memos = s.memos ∧ t.caches = s.caches ∧ t.pins = s.pins ∧
-        denoteN t.store.ns r = some nm) rfl hr (internName_spec s nm hwf)
-  obtain ⟨h1, h2, _, _, _, h6, h7, h8, h9⟩ := h
-  exact ⟨⟨h1, h2, h6, h7, h8⟩, h9⟩
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the nineteen reserved names, as handles that denote them**, off the pin

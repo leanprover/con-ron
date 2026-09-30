@@ -620,37 +620,4 @@ theorem parseChunks_run {md : Modeller} (hmw : ModellerWF md)
   exact ⟨hstep0.trans hstep1, hp1, rc, by rw [parseChunks_eq]; exact hcl,
     hrel1⟩
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:891-893 parseChunks — **the
-exactness equation, at its letter.**  DESIGN §8.2 writes the parser tier as
-`denoteDecls (Arena.parse chunks) = parseChunks chunks`, and this is that
-sentence with the `Option` the readback needs and the state the `AM` threads:
-*the declarations the twin parsed denote, and what they denote is exactly the
-declarations con-leche parsed.*
-
-The record count travels with it — `ParseResultRel.genRecords` is
-`r.genRecords = rc.genRecords`, which is what `Arena/Main.lean`'s verdict
-number (`r.decls.size - r.genRecords`) is read off — so DESIGN §8.2's "and
-the same for the record count / `genRecords`" is this corollary's second
-conjunct. -/
-theorem parseChunks_exact {md : Modeller} (hmw : ModellerWF md)
-    (hmr : ModellerRefines md) {s s' : AState} (hok : StateOK s)
-    (hoff : s.store.scratchOn = false) (hpins : PinsOK s) (hrb : ReadCachesOK s) {chunks : List ByteArray} {im ce : Bool}
-    {r : ParseResultD}
-    (hrun : parseChunks md chunks im ce s = .ok (.ok r, s')) :
-    ∃ rc, ConLeche.Frontend.parseChunks chunks im ce = .ok rc ∧
-      denoteDecls s'.store r.decls.toList = some rc.decls.toList ∧
-      r.decls.size = rc.decls.size ∧ r.genRecords = rc.genRecords ∧
-      (∀ d ∈ r.decls, PersDecl d) := by
-  obtain ⟨-, hpers, rc, hrc, hrel⟩ := parseChunks_run hmw hmr hok hoff hpins hrb hrun
-  have h := hrel.decls
-  simp only [denoteDeclArray, Option.map_eq_some_iff] at h
-  obtain ⟨xs, hxs, hEq⟩ := h
-  have hdec : denoteDecls s'.store r.decls.toList = some rc.decls.toList := by
-    rw [hxs, ← hEq]
-  have hlen : r.decls.size = rc.decls.size := by
-    have hlen := denoteDecls_length _ _ hxs
-    rw [← hEq]
-    simpa using hlen
-  exact ⟨rc, hrc, hdec, hlen, hrel.genRecords, hpers⟩
-
 end ConRon.Bridge.Frontend

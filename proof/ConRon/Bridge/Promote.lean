@@ -12,9 +12,6 @@ and the memo invariant.  This is that tier.
 * `Bridge/Promote/Weak.lean` — the readback (`denote*_unfold'`) and the
   closing `dropScratch` (`PExt.dropScratch'`) at `Arena/WF.lean`'s
   promote-window invariant `StoreWF'`;
-* `Bridge/Promote/StoreP.lean` — the four `internPersistent` obligations at
-  `StoreWF'` (task #97-P3-Promote deleted this file's own `StoreWFP`, which
-  task #97-P5-Fresh §6 found wrong in three places);
 * `Bridge/Promote/Memo.lean` — `PMemoOK` (the memo's rows are promoted
   pairs) and `PFrame`;
 * `Bridge/Promote/Walk.lean`, `Bridge/Promote/WalkDecl.lean` — the four
@@ -29,7 +26,6 @@ and the memo invariant.  This is that tier.
 -/
 import ConRon.Bridge.Promote.Pers
 import ConRon.Bridge.Promote.Weak
-import ConRon.Bridge.Promote.StoreP
 import ConRon.Bridge.Promote.Memo
 import ConRon.Bridge.Promote.Walk
 import ConRon.Bridge.Promote.WalkDecl

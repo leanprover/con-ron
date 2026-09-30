@@ -30,7 +30,6 @@ import ConRon.Arena.Frontend.PreludeText
 import ConRon.Arena.Frontend.Prelude
 import ConRon.Arena.PropRead
 import ConRon.Arena.Core
-import ConRon.Arena.FEnv
 import ConRon.Arena.CoreIO
 import ConRon.Arena.CoreTest
 import ConRon.Arena.Intern

@@ -736,21 +736,4 @@ reused by the next declaration. -/
   let after := (← get).caches.whnfC.contains h
   pure (inside && scratch && !after))
 
-/- The specification of a surviving row is still there, and still says a
-persistent-through row could have stayed: `dropScratchEntries` keeps it. -/
-#guard runB (do
-  let _ ← whnf MU FX.fe F 0 FX.two
-  let before := (← get).caches.whnfC.size
-  let kept := ((← get).caches.dropScratchEntries).whnfC.size
-  pure (before > 0 && kept == before))
-
-/-! ## The io knot agrees with the executed one on the fixture
-
-`CoreIO.lean`'s leaf lane is a statement subject, not an executed path; what
-this checks is that it is not *broken* — at `.verified` the io `infer`
-answers the fixture the way con-leche's own does. -/
-
-#guard chkE (inferTypeCoreIO MU FX.fe F 0 FX.succ3)
-  (ConLeche.inferTypeCoreIO MU envCL F 0 tSucc3)
-
 end ConRon.Arena

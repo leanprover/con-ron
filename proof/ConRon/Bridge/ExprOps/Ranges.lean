@@ -271,17 +271,6 @@ theorem fvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
   mvcgen [fvarB, hr]
   all_goals bridge_vcs [RelV, fvarRange_of_derived]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1698 fvarB_eq — the run form, at
-`Expr.fvarRange` and at con-leche's `Expr.fvarB`. -/
-theorem fvarB_run {fuel : Nat} {s₀ s' : AState} {e : EIdx} {r : Nat}
-    (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true)
-    (hrun : (fvarB fuel e).run s₀ = Except.ok (r, s')) :
-    s'.store = s₀.store ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-      RelV Expr.fvarRange s₀.store e r ∧ RelV Expr.fvarB s₀.store e r := by
-  obtain ⟨h1, h2, h3, h4⟩ :=
-    AM.of_run (P := fun s => s = s₀) rfl hrun (fvarB_spec fuel s₀ e hok hden)
-  exact ⟨h1, h2, h3, h4, h4.congr (fun x => (Expr.fvarB_eq x).symm)⟩
-
 /-! ## `hasFvarFast` and `looseBVarsBoundedFast` — `ExprOps.lean:1501`, `:1507`
 
 The two `@[csimp]` replacements: what con-leche executes for `hasFvar` and

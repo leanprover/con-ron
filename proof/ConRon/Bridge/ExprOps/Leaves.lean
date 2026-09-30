@@ -150,20 +150,6 @@ def RelFL (f : Expr → List (Nat × Expr)) (st : EStore) (c : EIdx)
     (rs : List (Nat × EIdx)) : Prop :=
   ∀ e, denoteE st c = some e → denoteLeaves st rs = some (f e)
 
-/-- con-leche: none — `RelFL`'s eliminator. -/
-theorem RelFL.apply {f : Expr → List (Nat × Expr)} {st : EStore} {c : EIdx}
-    {rs : List (Nat × EIdx)} {e : Expr} (h : RelFL f st c rs)
-    (he : denoteE st c = some e) : denoteLeaves st rs = some (f e) := h e he
-
-/-- con-leche: none — a leaf list that denotes has a denotation (the `isSome`
-spelling, template rule 4). -/
-theorem RelFL.isSome {f : Expr → List (Nat × Expr)} {st : EStore} {c : EIdx}
-    {rs : List (Nat × EIdx)} (h : RelFL f st c rs)
-    (hs : (denoteE st c).isSome = true) :
-    (denoteLeaves st rs).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  rw [h e he]; rfl
-
 /-! ## 2. The generic memo invariant this tier needs and `StateOK.lean` lacks
 
 `MemoVOK` is `StateOK.lean`'s handle-keyed, value-valued invariant, and
@@ -411,48 +397,6 @@ arm. -/
     simp [Expr.fvarLeaves]
   rw [hp]
   exact hs es hds
-
-/-! ## 5. `fvarLeaves` — `ExprOps.lean:730`
-
-`Kernel/ExprOps.lean`'s unmemoized walk: the SPECIFICATION of
-`fvarLeavesFast`.  Its answer is con-leche's exact list in con-leche's order,
-which makes it the one leaf twin with an equality statement rather than a
-membership one. -/
-
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
-one level of `fvarLeaves`'s recursion. -/
-structure FvarLeavesSpec (rec : EIdx → AM (List (Nat × EIdx))) : Prop where
-  run : ∀ (s₁ : AState) (c : EIdx), StateOK s₁ →
-      (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c
-    ⦃⇓? rs s' => ⌜s' = s₁ ∧ RelFL Expr.fvarLeaves s₁.store c rs⌝⦄
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — **THEOREM 1
-for `fvarLeaves`**, at one level of the recursion. -/
-theorem fvarLeaves_spec : ∀ fuel, FvarLeavesSpec (fvarLeaves fuel) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    constructor
-    intro s₀ h _ _
-    mvcgen [fvarLeaves_zero]
-    all_goals bridge_vcs [denoteLeaves_nil]
-  | succ fuel ih =>
-    constructor
-    intro s₀ h hok hden
-    have hrec := ih.run
-    mvcgen [fvarLeaves_succ, fvarLeavesArmFVar, fvarLeavesArmApp, fvarLeavesArmBind, fvarLeavesArmLet, hrec]
-    all_goals bridge_vcs [denoteLeaves_nil]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the run
-form. -/
-theorem fvarLeaves_run {fuel : Nat} {s₀ s' : AState} {h : EIdx}
-    {rs : List (Nat × EIdx)} (hok : StateOK s₀)
-    (hden : (denoteE s₀.store h).isSome = true)
-    (hrun : (fvarLeaves fuel h).run s₀ = Except.ok (rs, s')) :
-    s' = s₀ ∧ RelFL Expr.fvarLeaves s₀.store h rs :=
-  AM.of_run (P := fun s => s = s₀) rfl hrun
-    ((fvarLeaves_spec fuel).run s₀ h hok hden)
 
 /-! ## 6. `leafMem` — `ExprOps.lean:914`
 
@@ -1081,11 +1025,9 @@ theorem fvarLeavesFast_spec (fuel : Nat) (s₀ : AState) (h : EIdx)
 
 /-! ## The axiom check -/
 
-#print axioms denoteLeaves_append
 #print axioms fvarLeaves_nil_of_hasFvar
 #print axioms wscopedB_of_hasFvar
 #print axioms hasFvar_false_of_derived
-#print axioms fvarLeaves_spec
 #print axioms leafMem_spec
 #print axioms SeenOK.of_grow
 #print axioms fvarLeavesGo_spec

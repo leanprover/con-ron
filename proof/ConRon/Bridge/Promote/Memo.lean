@@ -6,7 +6,7 @@
 promoted pair) and `PFrame` (a promotion touches nothing but the store).
 Nothing about either definition changed.
 -/
-import ConRon.Bridge.Promote.StoreP
+import ConRon.Bridge.Promote.Pers
 import ConRon.Arena.PromoteExt
 
 namespace ConRon.Bridge
@@ -97,13 +97,6 @@ structure PFrame (s s' : AState) : Prop where
   caches : s'.caches = s.caches
   pins : s'.pins = s.pins
   scratchOn : s'.store.scratchOn = s.store.scratchOn
-
-theorem PFrame.refl (s : AState) : PFrame s s := ⟨rfl, rfl, rfl, rfl⟩
-
-theorem PFrame.trans {a b c : AState} (h₁ : PFrame a b) (h₂ : PFrame b c) :
-    PFrame a c :=
-  ⟨by rw [h₂.memos, h₁.memos], by rw [h₂.caches, h₁.caches],
-   by rw [h₂.pins, h₁.pins], by rw [h₂.scratchOn, h₁.scratchOn]⟩
 
 /-- con-leche: none — arena infrastructure; `Arena/PromoteExt.lean`'s step
 relation IS `Ext` plus the frame. -/

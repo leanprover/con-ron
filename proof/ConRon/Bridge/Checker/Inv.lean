@@ -666,17 +666,6 @@ theorem StepOK.mono {env : Env} {fe : IFEnv} {s s' : AState}
   coh := h.coh
   denote := denoteFEnv_mono hx h.denote
 
-/-- con-leche: none — `StepOK` transports across a DROP too, at a persistent
-index: `IFEnvOK.pmono` and `denoteFEnv_pext`.  This is the form the promotion
-hands the next step. -/
-theorem StepOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
-    (h : StepOK env fe s) (hp : PersIFEnv fe) (hx : PExt s.store s'.store) :
-    StepOK env fe s' where
-  ienv := h.ienv.pmono hp hx
-  envWF := h.envWF
-  coh := h.coh
-  denote := denoteFEnv_pext hx hp h.denote
-
 /-! ## The fold-step invariant -/
 
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:262 CSOK
@@ -1125,10 +1114,5 @@ theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
     exact ⟨n, ci, h1, by rw [hcoh.find?]; exact h2, h3⟩
   · intro n t hf
     exact hproj t (IFEnv.find?_mem hcoh hf)
-
-/-! `IProjTableOK` is discharged at the install that builds a table
-(`Bridge/Inductives/StructInstall.lean`'s `checkStructProjTable_spec`).  The
-free-standing debtor `projTableOK_of_install` that used to sit here (a
-`sorry`, no consumer) was deleted by task #97-T2-CLEANUP. -/
 
 end ConRon.Bridge

@@ -208,13 +208,6 @@ def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → 
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → PinsOK s₀ → P s₀.store →
     c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
 
-/-- con-leche: none — a twin that does NOT read the pin table has the
-stronger statement, and every consumer may use it at the weaker one. -/
-theorem PSpec.toPSpecP {α : Type} {P : EStore → Prop} {c : AM α}
-    {R : EStore → α → Prop} (h : PSpec P c R) : PSpecP P c R :=
-  fun s₀ s' r hok _ hp hrun => h s₀ s' r hok hp hrun
-
-
 /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
 statement**: the same at a function that calls the knot, so the invariant is
 `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
@@ -223,16 +216,6 @@ def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
     (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
   ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
     c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
-
-/-- con-leche: none — a pure-grade twin is a core-grade twin at any
-environment.  The one lemma that lets `Modeled.lean`'s core-grade bodies quote
-`StructParts.lean`'s pure-grade lemmas without restating them. -/
-theorem PSpec.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
-    {R : EStore → α → Prop} (h : PSpec P c R) (μ : CheckMode) (env : Env)
-    (fe : IFEnv) : CSpec μ env fe P c R := by
-  intro s₀ s' r hok hp hrun
-  obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hp hrun
-  exact ⟨hstep.toCore hok, hr⟩
 
 /-- con-leche: none — **the pure grade with the level-readback cache** (task
 #97-T2-LOCKSTEP lane Inductives round 3, ruling 1).  A twin that reads a level
@@ -246,13 +229,6 @@ def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → 
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → ReadLCacheOK s₀.caches.readLC s₀.store →
     P s₀.store → c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
-
-theorem PSpecL.toCSpec {α : Type} {P : EStore → Prop} {c : AM α}
-    {R : EStore → α → Prop} (h : PSpecL P c R) (μ : CheckMode) (env : Env)
-    (fe : IFEnv) : CSpec μ env fe P c R := by
-  intro s₀ s' r hok hp hrun
-  obtain ⟨hstep, hr⟩ := h s₀ s' r hok.state hok.caches.readL hp hrun
-  exact ⟨hstep.toCore hok, hr⟩
 
 /-- con-leche: none — and a pin-reading pure twin is a core-grade twin at any
 environment: `CheckOK.pins` is exactly what it was missing. -/
@@ -409,12 +385,6 @@ abbrev REA (vs : Array Expr) : EStore → Array EIdx → Prop :=
 /-- a LIST of level handles denotes a given `List Level`. -/
 abbrev RLL (us : List Level) : EStore → List LIdx → Prop :=
   fun st r => denoteLList st.ls r = some us
-/-- an `Option` expression handle denotes a given `Option Expr`. -/
-abbrev REO (v : Option Expr) : EStore → Option EIdx → Prop :=
-  fun st r => denoteEO st r = some v
-/-- a stored constant's header denotes a given `ConstantVal`. -/
-abbrev RCV (c : ConstantVal) : EStore → IConstantVal → Prop :=
-  fun st r => Frontend.denoteCV st r = some c
 /-- a representation-free answer (`Bool`, `Nat`, `List Nat`, `Unit`, …): NO
 target store, task #97-P3-0 §5's finding 1. -/
 abbrev RV {α : Type} (x : α) : EStore → α → Prop := fun _ r => r = x
@@ -586,16 +556,6 @@ theorem denoteCtors4_getElem? {st : EStore} :
             simp only [List.getElem?_cons_succ]
             exact ih h3 j
 
-abbrev RCs (cs : List (ConstantVal × Nat)) :
-    EStore → List (IConstantVal × Nat) → Prop :=
-  fun st r => denoteCtors st r = some cs
-abbrev RCs3 (cs : List (ConstantVal × Nat × Nat)) :
-    EStore → List (IConstantVal × Nat × Nat) → Prop :=
-  fun st r => denoteCtors3 st r = some cs
-abbrev RCs4 (cs : List (ConLeche.Name × Nat × Expr × List Nat)) :
-    EStore → List (NIdx × Nat × EIdx × List Nat) → Prop :=
-  fun st r => denoteCtors4 st r = some cs
-
 theorem denoteCtors_ext {st st' : EStore} (hx : Ext st st') :
     ∀ (cs : List (IConstantVal × Nat)) (xs : List (ConstantVal × Nat)),
       denoteCtors st cs = some xs → denoteCtors st' cs = some xs := by
@@ -624,9 +584,6 @@ def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
     match denoteLList st.ls l, denoteLLists st ls with
     | some x, some xs => some (x :: xs)
     | _, _ => none
-
-abbrev RLLL (us : List (List Level)) : EStore → List (List LIdx) → Prop :=
-  fun st r => denoteLLists st r = some us
 
 /-- con-leche: none — a denoting constructor list has con-leche's length. -/
 theorem denoteCtors_length {st : EStore} :
@@ -966,9 +923,6 @@ structure SPartsRel (st : EStore) (p : Arena.StructParts)
   rhs : denoteE st p.rhs = some q.rhs
   large : p.large = q.large
   isProp : p.isProp = q.isProp
-
-abbrev RSParts (q : ConLeche.StructParts) :
-    EStore → Arena.StructParts → Prop := fun st p => SPartsRel st p q
 
 /-! ## The `AM` bind's inversion
 
@@ -1941,15 +1895,6 @@ theorem denoteBinders_length {st : EStore} :
         obtain rfl := Option.some.inj h
         simp only [List.length_cons, ih has]
 
-/-- con-leche: none — **`readLevel` in run form**: the readback IS `denoteL`
-and the state does not move.  `Bridge/Frontend/ProjRec.lean` has the same
-lemma; that module is ABOVE this tier, so it is restated here (the same
-reason `beq_handle_eq` is). -/
-theorem readLevel_run {s s' : AState} {h : LIdx} {u : Level}
-    (hrun : readLevel h s = .ok (u, s')) :
-    s' = s ∧ denoteL s.store.ls h = some u :=
-  AM.of_run (P := fun t => t = s) rfl hrun (readLevel_spec s h)
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 liftLooseBVarsFast —
 **the lift in run form at this tier's frame**.  Round 4 §R4.4 recorded that
 `Bridge/ExprOps/Subst.lean`'s `LiftSpec` did not state `BMExt` and that this
@@ -2257,19 +2202,6 @@ theorem ProjOut.push_table {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
       simp only [IFEnv.find?, hg, if_pos hlt]
       exact hf
 
-/-- con-leche: none — **the absolute form**, which is what
-`Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` asks for: the fold's invariant
-at the index the step started from, plus the step's own `ProjOut`, is the
-invariant at the index it produced. -/
-theorem ProjOut.absolute {env : Env} {fe fe' : IFEnv} {s : AState}
-    {st' : EStore} (hfe : IFEnvOK env fe s) (hx : Ext s.store st')
-    (h : ProjOut fe st' fe') :
-    ∀ n t, fe'.find? n = some (.projInfo t) → IProjTableOK st' t := by
-  intro n t hf
-  rcases h.1 n t hf with h' | h'
-  · exact (hfe.proj n t h').mono hx
-  · exact h'
-
 /-! ## The environment's own relation
 
 An install route's argument and answer are `IFEnv`s, and the pure side's are
@@ -2383,43 +2315,6 @@ def NestFrame (s s' : AState) : Prop :=
 /-- con-leche: none — every accepting run of the program leaves `NestFrame`. -/
 def NestProg {α : Type} (c : AM α) : Prop :=
   ∀ (s s' : AState) (a : α), c s = .ok (a, s') → NestFrame s s'
-
-theorem NestProg.pure {α : Type} (a : α) : NestProg (pure a : AM α) := by
-  intro s s' b h
-  obtain ⟨-, rfl⟩ := pureOk h
-  exact fun hw => ⟨hw, rfl, rfl, rfl⟩
-
-theorem NestProg.bind {α β : Type} {x : AM α} {f : α → AM β}
-    (hx : NestProg x) (hf : ∀ a, NestProg (f a)) : NestProg (x >>= f) := by
-  intro s s' b h
-  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
-  intro hw
-  obtain ⟨w1, p1, c1, o1⟩ := hx s s₁ a h1 hw
-  obtain ⟨w2, p2, c2, o2⟩ := hf a s₁ s' b h2 w1
-  exact ⟨w2, p2.trans p1, c2.trans c1, o2.trans o1⟩
-
-theorem NestProg.pinAt (i : Nat) : NestProg (Arena.pinAt i) := by
-  intro s s' n h
-  simp only [Arena.pinAt] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  have e1 : t = s ∧ s₁ = s := by
-    injection h1 with h1'; injection h1' with a b; exact ⟨a.symm, b.symm⟩
-  obtain ⟨rfl, rfl⟩ := e1
-  split at h2
-  · obtain ⟨-, rfl⟩ := pureOk h2
-    exact fun hw => ⟨hw, rfl, rfl, rfl⟩
-  · exact absurd h2 (fun hc => failOk hc)
-
-theorem NestProg.internName (nm : ConLeche.Name) :
-    NestProg (Arena.internName nm) := by
-  intro s s' n h hw
-  obtain ⟨h1, -, h3, h4, h5, -⟩ := AM.of_run (P := fun t => t = s)
-    (Q := fun r t => StoreWF t.store ∧ Ext s.store t.store ∧
-        t.store.pers = s.store.pers ∧ t.store.scr = s.store.scr ∧
-        t.store.scratchOn = s.store.scratchOn ∧
-        t.memos = s.memos ∧ t.caches = s.caches ∧ t.pins = s.pins ∧
-        denoteN t.store.ns r = some nm) rfl h (internName_spec s nm hw)
-  exact ⟨h1, h3, h4, h5⟩
 
 /-- con-leche: none — `reservedBasisNames` touches no expression table:
 it is the pin-table read `pinReserved` (twin fix D5). -/

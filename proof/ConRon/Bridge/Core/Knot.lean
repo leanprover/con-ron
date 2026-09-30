@@ -93,44 +93,12 @@ def SimV (op : Nat → Nat → Expr → Expr → CheckM Bool) (d : Nat)
 `Bridge/Rel.lean`'s five, in the two shapes above.  `SimV` needs none but
 `.mk`: it mentions no store, so nothing transports. -/
 
-/-- con-leche: none — the answer survives an arena extension. -/
-theorem SimE.ext {op : Nat → Nat → Expr → CheckM Expr} {d : Nat} {e : Expr}
-    {st st' : EStore} {r : EIdx} (h : SimE op d e st r) (hx : Ext st st') :
-    SimE op d e st' r := by
-  obtain ⟨v, hv, hw, F, hF⟩ := h
-  exact ⟨v, denote_ext hv hx, hw, F, hF⟩
-
 /-- con-leche: none — the answer's denotation, forgetting the pure run. -/
 theorem SimE.denote {op : Nat → Nat → Expr → CheckM Expr} {d : Nat}
     {e : Expr} {st : EStore} {r : EIdx} (h : SimE op d e st r) :
     (denoteE st r).isSome = true := by
   obtain ⟨v, hv, _, _, _⟩ := h
   rw [hv]; rfl
-
-/-- con-leche: none — the answer's well-scopedness, which is what a caller
-that feeds it into a second slot needs. -/
-theorem SimE.wscoped {op : Nat → Nat → Expr → CheckM Expr} {d : Nat}
-    {e v : Expr} {st : EStore} {r : EIdx} (h : SimE op d e st r)
-    (hv : denoteE st r = some v) : Expr.WScoped d v := by
-  obtain ⟨v', hv', hw, _, _⟩ := h
-  rw [hv] at hv'
-  obtain rfl := Option.some.inj hv'
-  exact hw
-
-/-- con-leche: none — **the `CacheOK` shape from an answer**: a slot's answer
-at a subject that is well scoped at the query's depth is a row of the entry
-cache, once the run has been made depth-universal.  The depth-invariance
-theorem is the caller's (`Bridge/Core/Memo.lean` supplies con-leche's six),
-which is why it is a hypothesis here. -/
-theorem SimE.toCache {op : Nat → Nat → Expr → CheckM Expr} {d : Nat}
-    {e v : Expr} {st : EStore} {r : EIdx} (h : SimE op d e st r)
-    (hinv : ∀ (F d' : Nat), Expr.wscopedB d' e = true →
-      op F d' e = op F d e) (hv : denoteE st r = some v) :
-    ∃ F, ∀ d', Expr.wscopedB d' e = true → op F d' e = .ok v := by
-  obtain ⟨v', hv', _, F, hF⟩ := h
-  rw [hv] at hv'
-  obtain rfl := Option.some.inj hv'
-  exact ⟨F, fun d' hd' => by rw [hinv F d' hd']; exact hF⟩
 
 /-! ## The knot statement
 
@@ -246,24 +214,6 @@ denotation should keep using the field, which leaves it one fewer `∀` to
 instantiate. -/
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
-whnfCore slot in ANSWER shape (see the section note). -/
-theorem KnotSpec.whnfCore' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ e, denoteE s₀.store i = some e →
-          SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
-  obtain ⟨e₀, hd, hwf⟩ := hdw
-  have hb := hsim.whnfCore s₀ d i e₀ hok hd hwf
-  mvcgen [hb]
-  intro h1 h2 h3 h4
-  refine ⟨h1, h2, h3, fun e he => ?_⟩
-  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
 whnf slot in ANSWER shape. -/
 theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
@@ -362,7 +312,6 @@ theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
 
 section Census
 
-#print axioms KnotSpec.whnfCore'
 #print axioms KnotSpec.whnf'
 #print axioms KnotSpec.infer'
 #print axioms KnotSpec.annotate'

@@ -28,30 +28,9 @@ open ConLeche
 
 /-! ## Unconditional rewrites -/
 
-theorem EStore.persFindMaybe_of_off {st : EStore} (h : st.scratchOn = false)
-    (v : ENodeView) (mi : BMIdx) : st.persFindMaybe v mi = st.pers.find? v mi := by
-  simp [EStore.persFindMaybe, h]
-
-theorem EStore.persFindMaybe_of_none {st : EStore} {v : ENodeView} {mi : BMIdx}
-    (h : st.pers.find? v mi = none) : st.persFindMaybe v mi = none := by
-  simp only [EStore.persFindMaybe, h]; split <;> (try split) <;> rfl
-
 theorem EStore.pers_find_of_persFindMaybe {st : EStore} {v : ENodeView} {mi : BMIdx}
     {j : EIdx} (h : st.persFindMaybe v mi = some j) : st.pers.find? v mi = some j := by
   revert h; simp only [EStore.persFindMaybe]; split <;> (try split) <;> simp
-
-theorem EStore.persFindBindMaybe_of_off {st : EStore} (h : st.scratchOn = false)
-    (tag : UInt32) (r : BindNode) : st.persFindBindMaybe tag r = st.pers.findBind tag r := by
-  simp [EStore.persFindBindMaybe, h]
-
-theorem EStore.persFindBindMaybe_of_none {st : EStore} {tag : UInt32} {r : BindNode}
-    (h : st.pers.findBind tag r = none) : st.persFindBindMaybe tag r = none := by
-  simp only [EStore.persFindBindMaybe, h]; split <;> (try split) <;> rfl
-
-theorem EStore.pers_findBind_of_persFindBindMaybe {st : EStore} {tag : UInt32}
-    {r : BindNode} {j : EIdx} (h : st.persFindBindMaybe tag r = some j) :
-    st.pers.findBind tag r = some j := by
-  revert h; simp only [EStore.persFindBindMaybe]; split <;> (try split) <;> simp
 
 /-- The skip spelled with the Rust's own `sk` flag: once a proof knows the
 port's `sk` is the twin's test, the twin's probe is `if sk then none else …`. -/
@@ -245,37 +224,12 @@ theorem EStore.persFindMaybe_eq {st : EStore} (hwf : StoreWF st) (v : ENodeView)
   · simp
   · simp [pers_find_none_of_eRecHasScratchChild hwf hr]
 
-/-- **D2's equation at the binder-record probe** (`findBindI`/`internBindI`). -/
-theorem EStore.persFindBindMaybe_eq {st : EStore} (hwf : StoreWF st) (tag : UInt32)
-    (r : BindNode) : st.persFindBindMaybe tag r = st.pers.findBind tag r := by
-  simp only [EStore.persFindBindMaybe]
-  cases st.scratchOn <;> simp only [Bool.false_eq_true, if_false, if_true]
-  cases h : EStore.bindHasScratchChild r.ty r.body r.m
-  · simp
-  · simp only [if_true]
-    obtain ⟨ty, b, mi⟩ := r
-    have hL := pers_find_bind_none_of_skip (st := st) (m0 := default)
-      (v := .lam ty b default) hwf (Or.inl rfl) h
-    have hF := pers_find_bind_none_of_skip (st := st) (m0 := default)
-      (v := .forallE ty b default) hwf (Or.inr rfl) h
-    simp only [ETables.find?] at hL hF
-    simp only [ETables.findBind, hL, hF]
-    split <;> (try split) <;> rfl
-
 /-! ## The per-constructor corollaries (moved from `Refine2/Specs.lean`)
 
 `findBMOfView` answers `some 0` off a binder, so at a non-binder view
 `persFind?` IS the per-constructor table probe the `estore_intern_*_abs`
 hypothesis asks for — `rfl` on top of the four lemmas above.  `bvar`, `lit`
 and the binder datum have no children and need none. -/
-
-theorem hchild_fvar {st : EStore} (hwf : StoreWF st) {idx : Nat} {ty : EIdx}
-    (h : ty.isPersistent = false) : st.pers.fvars.find? ⟨idx, ty⟩ = none :=
-  persFind?_none_of_echild (v := .fvar idx ty) hwf (by simp [ENodeView.echildren]) h
-
-theorem hchild_sort {st : EStore} (hwf : StoreWF st) {u : LIdx}
-    (h : u.isPersistent = false) : st.pers.sorts.find? ⟨u⟩ = none :=
-  persFind?_none_of_lchild (v := .sort u) hwf (by simp [ENodeView.lchildren]) h
 
 theorem hchild_const {st : EStore} (hwf : StoreWF st) {n : NIdx} {us : LsIdx}
     (h : n.isPersistent = false ∨ us.isPersistent = false) :
@@ -286,15 +240,6 @@ theorem hchild_const {st : EStore} (hwf : StoreWF st) {n : NIdx} {us : LsIdx}
   · exact persFind?_none_of_lschild (v := .const n us) hwf
       (by simp [ENodeView.lschildren]) h
 
-theorem hchild_app {st : EStore} (hwf : StoreWF st) {f a : EIdx}
-    (h : f.isPersistent = false ∨ a.isPersistent = false) :
-    st.pers.apps.find? ⟨f, a⟩ = none := by
-  rcases h with h | h
-  · exact persFind?_none_of_echild (v := .app f a) hwf
-      (by simp [ENodeView.echildren]) h
-  · exact persFind?_none_of_echild (v := .app f a) hwf
-      (by simp [ENodeView.echildren]) h
-
 theorem hchild_let_e {st : EStore} (hwf : StoreWF st) {ty val b : EIdx}
     (h : ty.isPersistent = false ∨ val.isPersistent = false ∨
       b.isPersistent = false) : st.pers.lets.find? ⟨ty, val, b⟩ = none := by
@@ -304,15 +249,6 @@ theorem hchild_let_e {st : EStore} (hwf : StoreWF st) {ty val b : EIdx}
   · exact persFind?_none_of_echild (v := .letE ty val b) hwf
       (by simp [ENodeView.echildren]) h
   · exact persFind?_none_of_echild (v := .letE ty val b) hwf
-      (by simp [ENodeView.echildren]) h
-
-theorem hchild_proj {st : EStore} (hwf : StoreWF st) {n : NIdx} {i : Nat}
-    {e : EIdx} (h : n.isPersistent = false ∨ e.isPersistent = false) :
-    st.pers.projs.find? ⟨n, i, e⟩ = none := by
-  rcases h with h | h
-  · exact persFind?_none_of_nchild (v := .proj n i e) hwf
-      (by simp [ENodeView.nchildren]) h
-  · exact persFind?_none_of_echild (v := .proj n i e) hwf
       (by simp [ENodeView.echildren]) h
 
 /-- **`hchild` at a binder view** (finding 14's first half, at the datum

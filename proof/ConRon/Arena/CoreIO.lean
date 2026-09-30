@@ -21,7 +21,7 @@ not an executed core), and so is this one: adding a table here would give
 the io grade two of them and break DESIGN §8.3's lesson 9 ("a hit in one
 grade never serves another") in the other direction.
 -/
-import ConRon.Arena.FEnv
+import ConRon.Arena.Core
 
 namespace ConRon.Arena
 
@@ -45,17 +45,5 @@ def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
       annotate := (coreKnot mode fe id (fuel + 1)).annotate
       infer := fun d e => inferBodyIO mode (coreKnotIO mode fe fuel) fe d e
       inferIO := fun d e => inferBodyIO mode (coreKnotIO mode fe fuel) fe d e }
-
-/-- con-leche: ConLeche/Kernel/CoreIO.lean:120-123 pureFnsIO — the io core,
-tied at `AM`: the specification the `InferClaimIO` family is stated at. -/
-def pureFnsIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA :=
-  coreKnotIO mode fe
-
-/-- con-leche: ConLeche/Kernel/CoreIO.lean:125-129 inferTypeCoreIO —
-infer-only (io-grade) type inference, fueled: the io lane's single entry
-point. -/
-def inferTypeCoreIO (mode : CheckMode) (fe : IFEnv) (fuel depth : Nat)
-    (e : EIdx) : AM EIdx :=
-  (pureFnsIO mode fe fuel).infer depth e
 
 end ConRon.Arena

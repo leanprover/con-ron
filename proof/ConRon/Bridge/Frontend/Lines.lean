@@ -73,15 +73,6 @@ theorem SumRel.inl_left {st : EStore} {x : StateD ⊕ RecordVerdict}
   | inl sc => subst hx; exact ⟨sc, rfl, h⟩
   | inr w => subst hx; exact absurd h (by simp [SumRel])
 
-/-- con-leche: none — the mirror at the verdict arm. -/
-theorem SumRel.inr_left {st : EStore} {x : StateD ⊕ RecordVerdict}
-    {y : ConLeche.Frontend.StateD ⊕ ConLeche.Frontend.RecordVerdict}
-    (h : SumRel st x y) {v : RecordVerdict} (hx : x = .inr v) :
-    ∃ w, y = .inr w ∧ VerdictRel v w := by
-  cases y with
-  | inl sc => subst hx; exact absurd h (by simp [SumRel])
-  | inr w => subst hx; exact ⟨w, rfl, h⟩
-
 /-- con-leche: none — the `SumRel` of two related states, which is what every
 `.inl` arm of `processLineCoreD` produces. -/
 theorem SumRel.of_state {st : EStore} {sd : StateD}
@@ -1682,15 +1673,6 @@ the same in all three, so it is written once as the tactic macros below. -/
 theorem except_ok_bind {ε α β : Type} (a : α) (f : α → Except ε β) :
     (Except.ok a >>= f) = f a := rfl
 
-/-- con-leche: none — an `Except` bind succeeds when its head does, at an
-answer the continuation accepts: the shape that lets a loop lemma name the
-con-leche loop body by unification with the goal. -/
-theorem except_bind_of {ε α β : Type} {m : Except ε α} {k : α → Except ε β}
-    {v : β} {Q : α → Prop} {P : Prop} (hm : ∃ a, m = .ok a ∧ Q a)
-    (hk : ∀ a, Q a → P ∧ k a = .ok v) : P ∧ (m >>= k) = .ok v := by
-  obtain ⟨a, rfl, hq⟩ := hm
-  exact hk a hq
-
 /-- con-leche: none — `ListRel` at equality, on one list. -/
 theorem ListRel.refl_eq {α : Type} : ∀ (xs : List α), ListRel (fun a b => a = b) xs xs
   | [] => ListRel.nil
@@ -2512,21 +2494,6 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
           · rfl
       · rintro c2 ⟨hs2, hn2, hl2⟩
         vind_rec_fin
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:412-413 validateIndD — the
-accepting arm of `validateIndD_run'`, in the shape round 1 stated. -/
-theorem validateIndD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    {tys : List ConLeche.Frontend.IndTypeRec}
-    {cts : List ConLeche.Frontend.IndCtorRec}
-    {rcs : List ConLeche.Frontend.IndRecRec}
-    {cts' : List ConLeche.Frontend.IndCtorRec} {nPd : Nat}
-    (hrun : validateIndD sd tys cts rcs s = .ok (.inr (cts', nPd), s')) :
-    s' = s ∧ ConLeche.Frontend.validateIndD sc tys cts rcs = .ok (.inr (cts', nPd)) := by
-  obtain ⟨hs, y, hy, hr⟩ := validateIndD_run' hok hrel hrun
-  cases y with
-  | inl w => exact absurd hr (by simp [VRes])
-  | inr q => exact ⟨hs, by rw [hy]; cases hr; rfl⟩
 
 /-! ## `installIndD`'s machinery
 

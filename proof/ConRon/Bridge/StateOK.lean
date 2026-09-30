@@ -156,14 +156,6 @@ theorem MemoOK.insert {f : Nat → Expr → Expr}
     exact ⟨e, he, hr e he⟩
   · exact hm k' r' hk'
 
-theorem MemoVOK.mono {α : Type} {f : Expr → α} {tbl tbl' : Std.HashMap EIdx α}
-    {st st' : EStore} (hm : MemoVOK f tbl st) (hx : Ext st st')
-    (hc : tbl' = tbl) : MemoVOK f tbl' st' := by
-  intro k v hk
-  rw [hc] at hk
-  obtain ⟨e, h1, h2⟩ := hm k v hk
-  exact ⟨e, denote_ext h1 hx, h2⟩
-
 theorem MemoVOK.of_empty {α : Type} {f : Expr → α}
     {tbl : Std.HashMap EIdx α} {st : EStore} (h : tbl = ∅) :
     MemoVOK f tbl st := by

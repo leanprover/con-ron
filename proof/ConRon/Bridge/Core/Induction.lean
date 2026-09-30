@@ -116,10 +116,7 @@ section Census
 
 /-! ### The statement layer — closed -/
 
-#print axioms SimE.ext
 #print axioms SimE.denote
-#print axioms SimE.wscoped
-#print axioms SimE.toCache
 #print axioms knotSpec_zero
 #print axioms ioGate_true
 
@@ -174,11 +171,6 @@ standard axioms. -/
 
 /-! ### The per-arm step lemmas — closed, fifty-two of them -/
 
-#print axioms whnfCore_app_beta_gate
-#print axioms whnfCore_app_beta_cert
-#print axioms whnfCore_app_stuck
-#print axioms whnfCore_app_iota
-#print axioms whnfCore_app_iota_none
 #print axioms whnfCore_proj_none
 #print axioms whnfCore_proj_fire
 #print axioms whnfCore_proj_cert_false
@@ -194,19 +186,11 @@ standard axioms. -/
 #print axioms infer_const
 #print axioms infer_natLit
 #print axioms infer_strLit
-#print axioms infer_forallE
-#print axioms infer_lam_chain
-#print axioms infer_lam_leaf
-#print axioms infer_lam_trusted
-#print axioms infer_app
 #print axioms infer_proj_nonprop
 #print axioms infer_proj_prop
 
 #print axioms inferIO_lam_chain
 #print axioms inferIO_lam_leaf
-#print axioms inferIO_lam_trusted
-#print axioms inferIO_app_licensed
-#print axioms inferIO_app_cert
 
 #print axioms defeq_of_loop
 #print axioms defeqLoop_syntactic
@@ -215,8 +199,6 @@ standard axioms. -/
 #print axioms defeqLoop_propIrrel
 #print axioms defeqLoop_reduceNat_left
 #print axioms defeqLoop_reduceNat_right
-#print axioms defeqLoop_forallE
-#print axioms defeqLoop_lam
 
 #print axioms annot_bvar
 #print axioms annot_fvar
@@ -225,10 +207,6 @@ standard axioms. -/
 #print axioms annot_natLit
 #print axioms annot_strLit
 #print axioms annot_app
-#print axioms annot_forallE_written
-#print axioms annot_forallE_computed
-#print axioms annot_lam_written
-#print axioms annot_lam_computed
 #print axioms annot_letE
 #print axioms annot_proj
 

@@ -22,6 +22,7 @@ records is a promoted pair whether or not the caller cared.
 gives them for every run, unconditionally.
 -/
 import ConRon.Bridge.Promote.Memo
+import ConRon.Bridge.Promote.Weak
 
 namespace ConRon.Bridge
 

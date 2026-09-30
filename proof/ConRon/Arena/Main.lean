@@ -189,32 +189,6 @@ def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
   | .error (e, n) => pure (.error (atDecl e n))
   | .ok _ => pure (.ok records)
 
-/-- con-leche: Main.lean:462-648 checkMain
-**THE PURE SEAM'S BODY**: the prelude, `parseChunks` (which is `chunkStep`
-folded over the chunk list with `chunkFinish` at its end), and the tail.  The
-driver's `readFold` is the same fold over the same steps with the buffers read
-one at a time; see the module note. -/
-def runPipelineM (mode : CheckMode) (pins : List NatOpPinSet)
-    (chunks : List ByteArray) :
-    AM (Except CheckError Nat) := do
-  match ← runPipelineHead with
-  | .error (e, n) => pure (.error (Frontend.atLine e n))
-  | .ok (pre, st) =>
-    match ← Frontend.parseChunksGo st .empty 0 0 chunks with
-    | .error (e, n) => pure (.error (Frontend.atLine e n))
-    | .ok r => runPipelineTail mode pins pre r
-
-/-- con-leche: Main.lean:462-648 checkMain
-**THE SEAM ITSELF**: `runPipelineM` run at the empty store, with the parse's
-own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
-because this signature has no position channel. -/
-def runPipeline (chunks : List ByteArray) (mode : CheckMode)
-    (pins : List NatOpPinSet) : Except CheckError Nat :=
-  match (runPipelineM mode pins chunks).run
-      (AState.init EStore.empty) with
-  | .error e => .error e
-  | .ok (r, _) => r
-
 /-- con-leche: Main.lean:424-435 progressStride
 The progress heartbeat's stride, read off `--progress[=<stride>]`.  No
 flag is off; bare `--progress` is stride 1.  A value that is not a decimal

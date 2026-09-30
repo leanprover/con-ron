@@ -87,59 +87,6 @@ theorem inferIO_lam_leaf {F d : Nat} {ty body bt btt : Expr}
     ConLeche.ensureSort, ConLeche.whnf_def, hb, hv, hpw, hbtt, hvb, hz, bind,
     Except.bind, if_true, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1328-1349 inferBodyIO — the io λ
-clause at a mode that runs no TT-lane check. -/
-theorem inferIO_lam_trusted {F d : Nat} {ty body bt : Expr}
-    {mb : BinderMeta} (hg : mode.betaGate = true)
-    (hb : ConLeche.inferTypeIO mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty)) = .ok bt)
-    (hv : mode.verifiedChecks = false) :
-    ConLeche.inferTypeIO mode env (F + 1) d (.lam ty body mb) =
-      .ok (.forallE ty (bt.abstract1 d) mb) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hg]
-  simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    hb, hv, bind, Except.bind, Bool.false_eq_true, if_false, pure,
-    Except.pure]
-
-/-! ## 2. The application clause: **the io site** -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1350-1373 inferBodyIO — **the io
-site**: at a ∀ whose validated datum is `never` the per-argument certificate
-is dead weight (the premise-form io claim derives the membership from the
-subject's own `WellDenoted` app slot), so it is skipped.  The READ IS THE
-DATUM ALONE — con-leche's licence ruling of 2026-09-06 — which is why no
-`mode` conjunct appears. -/
-theorem inferIO_app_licensed {F d : Nat} {f a tf ty body : Expr}
-    {mt : BinderMeta} (hg : mode.betaGate = true)
-    (hf : ConLeche.inferTypeIO mode env F d f = .ok tf)
-    (hw : ConLeche.whnf mode env F d tf = .ok (.forallE ty body mt))
-    (hlic : mt.pw.isNever = true) :
-    ConLeche.inferTypeIO mode env (F + 1) d (.app f a) =
-      .ok (body.instantiate1 a) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hg]
-  simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    ConLeche.whnf_def, hf, hw, hlic, bind, Except.bind, pure, Except.pure]
-  simp
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1368-1372 inferBodyIO — the
-application clause at a **possibly-zero** datum: the certificate runs
-unconditionally.  The squash regime's membership is model-class-wide
-unrecoverable, and that fence is absolute. -/
-theorem inferIO_app_cert {F d : Nat} {f a tf ty body ta : Expr}
-    {mt : BinderMeta} (hg : mode.betaGate = true)
-    (hf : ConLeche.inferTypeIO mode env F d f = .ok tf)
-    (hw : ConLeche.whnf mode env F d tf = .ok (.forallE ty body mt))
-    (hlic : mt.pw.isNever = false)
-    (hta : ConLeche.inferTypeIO mode env F d a = .ok ta)
-    (hde : ConLeche.isDefEqCore mode env F d ta ty = .ok true) :
-    ConLeche.inferTypeIO mode env (F + 1) d (.app f a) =
-      .ok (body.instantiate1 a) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hg]
-  simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    ConLeche.whnf_def, ConLeche.defeq_def, hf, hw, hlic, hta, hde, bind,
-    Except.bind, Bool.false_eq_true, if_false, pure, Except.pure]
-  simp
-
 /-! ## 3. The body theorem -/
 
 

@@ -176,22 +176,9 @@ theorem ext_of {i j : Idx k} (ht : i.tag = j.tag) (hr : i.tier = j.tier)
     (hn : i.index = j.index) : i = j := by
   rw [← eta i, ← eta j, ht, hr, hn]
 
-theorem tag_lt (i : Idx k) : i.tag.toNat < 16 := by
-  have hw := i.word.toNat_lt_size
-  simp only [UInt32.size] at hw
-  simp [tag, UInt32.toNat_div]
-  omega
-
 theorem tier_lt (i : Idx k) : i.tier.toNat < 2 := by
   simp [tier, UInt32.toNat_div, UInt32.toNat_mod]
   omega
-
-theorem index_lt (i : Idx k) : i.index.toNat < idxCap := by
-  rw [idxCap]
-  simp [index, UInt32.toNat_mod]
-  omega
-
-theorem idxNat_lt (i : Idx k) : i.idxNat < idxCap := index_lt i
 
 theorem idxNat_mk (t tr : UInt32) (n : Nat) (ht : t.toNat < 16)
     (htr : tr.toNat < 2) (hn : n < idxCap) :
@@ -201,11 +188,6 @@ theorem idxNat_mk (t tr : UInt32) (n : Nat) (ht : t.toNat < 16)
     rw [idxCap]; simp; omega
   rw [idxNat, index_mk t tr _ ht htr h]
   simp; omega
-
-/-- A scratch handle and a persistent handle are never equal — the tier bit
-separates them, which is what makes `dropScratch` sound (DESIGN §8.3). -/
-theorem ne_of_tier_ne {i j : Idx k} (h : i.tier ≠ j.tier) : i ≠ j := by
-  intro he; exact h (by rw [he])
 
 end Idx
 

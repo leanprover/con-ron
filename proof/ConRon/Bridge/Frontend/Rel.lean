@@ -264,11 +264,6 @@ theorem ReadCachesOK.step {s s' : AState} (h : ReadCachesOK s)
     (hs : ParseStep s s') : ReadCachesOK s' :=
   ⟨hs.cframe.readL h.readL, hs.cframe.readN h.readN, hs.cframe.readLs h.readLs⟩
 
-/-- con-leche: none — a state whose caches satisfy `CacheOK` has them. -/
-theorem ReadCachesOK.ofCacheOK {μ : CheckMode} {env : Env} {s : AState}
-    (h : CacheOK μ env s) : ReadCachesOK s :=
-  ⟨h.readL, h.readN, h.readLs⟩
-
 /-- con-leche: none — the capstones' start: the caches are empty. -/
 theorem ReadCachesOK.ofEmpty {s : AState} (h : s.caches = Caches.empty) :
     ReadCachesOK s where
@@ -299,13 +294,6 @@ theorem OptRel.some_left {α : Type u} {β : Type v} {R : α → β → Prop}
   cases b with
   | none => rw [ha] at h; exact absurd h (by simp [OptRel])
   | some y => rw [ha] at h; exact ⟨y, rfl, h⟩
-
-theorem OptRel.some_right {α : Type u} {β : Type v} {R : α → β → Prop}
-    {a : Option α} {b : Option β} {y : β} (h : OptRel R a b) (hb : b = some y) :
-    ∃ x, a = some x ∧ R x y := by
-  cases a with
-  | none => rw [hb] at h; exact absurd h (by simp [OptRel])
-  | some x => rw [hb] at h; exact ⟨x, rfl, h⟩
 
 theorem OptRel.none_left {α : Type u} {β : Type v} {R : α → β → Prop}
     {a : Option α} {b : Option β} (h : OptRel R a b) (ha : a = none) : b = none := by
@@ -559,37 +547,6 @@ theorem denoteDecls_length {st : EStore} :
         simp only [Option.some.injEq] at h
         subst h
         simp [ih ys has]
-
-/-! ## The projection table's name — the repair of round 4's finding 16
-
-Round 4 found that a record which DENOTES does not, by itself, have `names`
-exactness: `IDeclaration.names` (`Arena/Env.lean:262-266`) reads
-`IConstantInfo.name`, which at a `.projInfo tbl` is the STORED handle
-`tbl.tableName`, where con-leche's `ConstantInfo.name` is the RECOMPUTED
-`ConLeche.projTableName tbl.structName` — and `denoteProjTable`
-(`Arena/Frontend/Readback.lean:159-168`) drops `tableName` entirely, because
-the field is the arena's own redundancy (`Arena/Env.lean`'s note: kept so the
-environment index's key is PURE).
-
-**This is the gap `Bridge/StateOK.lean`'s `IFEnvOK` met one module over, and
-the answer is the same one.**  There the fix was a third clause on the
-RELATION — `IFEnvOK.proj`, "every stored projection table is well shaped and
-rightly named" — rather than a side condition on each of `IFEnvOK`'s
-consumers.  Here `StateDRel` and `ParseResultRel` gain `projNamed` for exactly
-the same reason, and the seam's first promise (`Bridge/Frontend/Modeller.lean`'s
-`ModellerWF`) gains the clause for the records that enter the stream through
-the modeller rather than through the parse.
-
-**What is carried is the `named` half of `IProjTableOK` alone**, and that is
-deliberate.  The two size clauses (`bodies`, `guards`) are not what a name
-equation needs, and they are not what the one concrete modeller can give:
-`inProcessModeller` (`Arena/Frontend/InModel.lean`) is `internDecls` over
-con-leche's own generator, and `internProjTable`
-(`Arena/Frontend/Readback.lean:583-590`) INTERNS the reserved name itself
-(`projTableName sn`) — so the `named` half is true of its answer by
-construction, whereas `bodies.size = numFields` would have to be imported from
-con-leche's `ProjTable`, which nothing states.  See DESIGN #97-P3-Frontend
-round 5. -/
 
 /-! `IProjNamed`, `IProjTableOK.toNamed` and `IProjNamed.mono` are in
 `Bridge/StateOK.lean` beside `IProjTableOK` since task #97-P3-Ind round 5 —
@@ -1064,8 +1021,6 @@ theorem PersDecls_of_denote {st : EStore} (hwf : StoreWF st)
         rcases hdm with rfl | hdm
         · exact PersDecl_of_denote hwf hoff (hn d (by simp)) h1
         · exact ih (fun di hdi => hn di (by simp [hdi])) h2 d hdm
-
-/-! ### The name equations the clause buys -/
 
 /-! The non-projection half is `Bridge/StateOK.lean`'s own `denoteCI_name`,
 which landed there while this round ran; only the `.projInfo` half is restated
@@ -1625,21 +1580,6 @@ theorem StateDRel.ext {st st' : EStore} (hx : Ext st st') {sd : StateD}
   indCount := h.indCount
   indBlocks := h.indBlocks.mono hx (fun _ _ hb => BlockRecRel.ext hx hb)
   inModelCensus := h.inModelCensus
-  inModelDeclined := h.inModelDeclined.mono
-    (fun _ _ hp => ⟨denoteN_ext hp.1 hx, hp.2⟩)
-
-/-- con-leche: none — the same for the parse RESULT. -/
-theorem ParseResultRel.ext {st st' : EStore} (hx : Ext st st') {r : ParseResultD}
-    {rc : ConLeche.Frontend.ParseResultD} (h : ParseResultRel st r rc) :
-    ParseResultRel st' r rc where
-  decls := denoteDeclArray_ext hx h.decls
-  projNamed := h.projNamed.mono hx
-  projRewrites := denoteNListE_ext hx _ _ h.projRewrites
-  inModelled := denoteNListE_ext hx _ _ h.inModelled
-  genRecords := h.genRecords
-  genOwner := h.genOwner.mono hx (fun _ _ hd => denoteN_ext hd hx)
-  inModelGen := h.inModelGen.mono
-    (fun _ _ hp => ⟨hp.1, denoteDeclArray_ext hx hp.2⟩)
   inModelDeclined := h.inModelDeclined.mono
     (fun _ _ hp => ⟨denoteN_ext hp.1 hx, hp.2⟩)
 

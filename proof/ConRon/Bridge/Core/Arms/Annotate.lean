@@ -106,75 +106,6 @@ theorem annot_app {F d : Nat} {f a f' a' : Expr}
   simp only [ConLeche.annotateBody, ConLeche.annotate_def, hf, ha, bind,
     Except.bind, pure, Except.pure]
 
-/-! ## 3. The two binder clauses
-
-Each has two exits: the node already carries a real input annotation (which
-validation judges and the pass never overwrites — con-leche's
-`pwWritten`/`annotBinderMeta`), or the datum is computed from the annotated
-body. -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1836-1845 annotateBody — the ∀
-clause at a node that **already carries** a datum. -/
-theorem annot_forallE_written {F d : Nat} {ty body ty' body' : Expr}
-    {mb : BinderMeta}
-    (hty : ConLeche.annotateCore mode env F d ty = .ok ty')
-    (hb : ConLeche.annotateCore mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty')) = .ok body')
-    (hw : ConLeche.pwWritten mb.pw = true) :
-    ConLeche.annotateCore mode env (F + 1) d (.forallE ty body mb) =
-      .ok (.forallE ty' (body'.abstract1 d) ⟨mb.pw⟩) := by
-  rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, ConLeche.annotate_def, hty, hb, hw, bind,
-    Except.bind, Bool.not_eq_true', Bool.true_eq_false, if_false, pure,
-    Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1836-1845 annotateBody — the ∀
-clause whose datum is **computed** by `annotPwPi` from the annotated body. -/
-theorem annot_forallE_computed {F d : Nat} {ty body ty' body' : Expr}
-    {mb : BinderMeta} {pw : PropWhen}
-    (hty : ConLeche.annotateCore mode env F d ty = .ok ty')
-    (hb : ConLeche.annotateCore mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty')) = .ok body')
-    (hw : ConLeche.pwWritten mb.pw = false)
-    (hpw : ConLeche.annotPwPi (ConLeche.pureFns mode env F) env (d + 1) body'
-      = .ok pw) :
-    ConLeche.annotateCore mode env (F + 1) d (.forallE ty body mb) =
-      .ok (.forallE ty' (body'.abstract1 d) ⟨pw⟩) := by
-  rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, ConLeche.annotate_def, hty, hb, hw, hpw,
-    bind, Except.bind, Bool.not_eq_true', if_true, pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1846-1853 annotateBody — the λ
-clause at a node that **already carries** a datum. -/
-theorem annot_lam_written {F d : Nat} {ty body ty' body' : Expr}
-    {mb : BinderMeta}
-    (hty : ConLeche.annotateCore mode env F d ty = .ok ty')
-    (hb : ConLeche.annotateCore mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty')) = .ok body')
-    (hw : ConLeche.pwWritten mb.pw = true) :
-    ConLeche.annotateCore mode env (F + 1) d (.lam ty body mb) =
-      .ok (.lam ty' (body'.abstract1 d) ⟨mb.pw⟩) := by
-  rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, ConLeche.annotate_def, hty, hb, hw, bind,
-    Except.bind, Bool.not_eq_true', Bool.true_eq_false, if_false, pure,
-    Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1846-1853 annotateBody — the λ
-clause whose datum is **computed** by `annotPwLam`. -/
-theorem annot_lam_computed {F d : Nat} {ty body ty' body' : Expr}
-    {mb : BinderMeta} {pw : PropWhen}
-    (hty : ConLeche.annotateCore mode env F d ty = .ok ty')
-    (hb : ConLeche.annotateCore mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty')) = .ok body')
-    (hw : ConLeche.pwWritten mb.pw = false)
-    (hpw : ConLeche.annotPwLam (ConLeche.pureFns mode env F) env (d + 1) body'
-      = .ok pw) :
-    ConLeche.annotateCore mode env (F + 1) d (.lam ty body mb) =
-      .ok (.lam ty' (body'.abstract1 d) ⟨pw⟩) := by
-  rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, ConLeche.annotate_def, hty, hb, hw, hpw,
-    bind, Except.bind, Bool.not_eq_true', if_true, pure, Except.pure]
-
 /-! ## 4. The `let` clause — the one place the official `infer_let` triple
 runs
 
@@ -575,27 +506,6 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
       | (apply CheckOK.state; assumption)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
-/-- con-leche: none — `Walks/Proj.lean`'s `IFEnv.findProj?_spec` in ANSWER
-shape: the looked-up name is read off a `view` of a `whnf`'s head, so its
-denotation goes in as an existential and out as a universal (round 3's
-rule). -/
-theorem IFEnv.findProj?_spec' {fe : IFEnv} (s₀ : AState) (T : NIdx) (i : Nat)
-    (hok : CheckOK mode env fe s₀)
-    (hT : ∃ Tn, denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => ⌜s = s₀⌝⦄ fe.findProj? T i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        ∀ Tn, denoteN s₀.store.ns T = some Tn →
-          ∀ e, r = some e → ∃ p, denoteProjEntry s'.store e = some p ∧
-            env.findProj? Tn i = some p⌝⦄ := by
-  obtain ⟨Tn, hTn⟩ := hT
-  have h := IFEnv.findProj?_spec (mode := mode) (env := env) (fe := fe)
-    s₀ T i Tn hok hTn
-  mvcgen [h]
-  intro hck hx _ hc hp hsome _
-  refine ⟨hck, hx, hc, hp, fun Tn' hTn' => ?_⟩
-  rw [hTn] at hTn'; obtain rfl := Option.some.inj hTn'; exact hsome
-
 /-- con-leche: ConLeche/Kernel/Core.lean:1882-1900 annotateBody — **the `.proj`
 clause**: `KnotSpec.annotate`, `KnotSpec.inferIO'`, `KnotSpec.whnf'`,
 `getAppFn`/`getAppArgs`, `IFEnv.findProj?_spec`; pure side `annot_proj`.
@@ -806,7 +716,6 @@ section Census
 #print axioms annotateBody_leaf
 #print axioms ensureSortCore_of_whnf
 #print axioms annotateBody_letE
-#print axioms IFEnv.findProj?_spec'
 end Census
 
 end ConRon.Bridge.Core

@@ -186,15 +186,6 @@ structure CanonMapD (ns : NStore) (ps cs : List NIdx)
     = some ((List.range cs.length).map (fun i => ConLeche.Name.num .anonymous i))
   len : ps.length = cs.length
 
-/-- con-leche: none — `Frontend.denoteNList` transports across an `NExt`,
-which is `Bridge/Rel.lean`'s `denoteNList_ext` at this spelling. -/
-theorem CanonMapD.mono {st st' : EStore} (hx : Ext st st') {ps cs : List NIdx}
-    {psN : List ConLeche.Name} (h : CanonMapD st.ns ps cs psN) :
-    CanonMapD st'.ns ps cs psN where
-  params := denoteNListE_ext hx _ _ h.params
-  nums := denoteNListE_ext hx _ _ h.nums
-  len := h.len
-
 /-- con-leche: none — a name-handle list and its denotation are equally
 long. -/
 theorem denoteNList_length {ns : NStore} :

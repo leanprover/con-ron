@@ -47,13 +47,6 @@ def SimL (op : Nat → Nat → Expr → CheckM Level) (d : Nat) (e : Expr)
     (st' : EStore) (r : LIdx) : Prop :=
   ∃ u, denoteL st'.ls r = some u ∧ ∃ F, op F d e = .ok u
 
-/-- con-leche: none — the answer survives an arena extension. -/
-theorem SimL.ext {op : Nat → Nat → Expr → CheckM Level} {d : Nat} {e : Expr}
-    {st st' : EStore} {r : LIdx} (h : SimL op d e st r) (hx : Ext st st') :
-    SimL op d e st' r := by
-  obtain ⟨u, hu, F, hF⟩ := h
-  exact ⟨u, hx.lss.ls.lvl _ _ hu, F, hF⟩
-
 /-! ## 2. The pure side's one step lemma
 
 Rule 8 at a body with one exit: `ensureSortCore` succeeds exactly when the
@@ -108,7 +101,6 @@ theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
 
 section Census
 
-#print axioms SimL.ext
 #print axioms ensureSortCore_of_whnf
 /-! **The seventh entry point, sorry-free**: the Checker tier's
 `EnsureSortSpec` is discharged outright (task #97-P3-CoreWalks, ask 2). -/

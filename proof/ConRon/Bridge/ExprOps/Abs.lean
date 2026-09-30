@@ -215,33 +215,6 @@ theorem AbsRangeAt.bind_step {d k c : Nat} {st s1 s2 s3 : EStore}
     exact RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
       ((hb.of_ext hx1).ext hx3) hr
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `lam`
-arm at the CONSTRUCTOR (the spec descent reads the datum's value out of the
-view and puts it back unchanged). -/
-theorem AbsRangeAt.lam_step {d k c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b m))
-    (hx1 : Ext st s1) (ht : AbsRangeAt d k c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : AbsRangeAt d k (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb m)) :
-    AbsRangeAt d k c st h s3 r :=
-  RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-    ((hb.of_ext hx1).ext hx3) hr
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — and the
-`forallE` arm. -/
-theorem AbsRangeAt.forallE_step {d k c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
-    (hx1 : Ext st s1) (ht : AbsRangeAt d k c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : AbsRangeAt d k (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb m)) :
-    AbsRangeAt d k c st h s3 r :=
-  RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-    ((hb.of_ext hx1).ext hx3) hr
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `letE`
 arm, whose BODY is the one child at the bumped cursor. -/
 theorem AbsRangeAt.letE_step {d k c : Nat} {st s1 s2 s3 s4 : EStore}
@@ -297,28 +270,6 @@ theorem AbsRangeAt.fvar_miss {d k c idx : Nat} {st : EStore} {h ty : EIdx}
   rw [h2]; exact he
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the LEAF
-arms of the SPEC descent, which dispatches on the VIEW and so knows which
-constructor it is looking at. -/
-theorem AbsRangeAt.self_of_leafView {d k c : Nat} {st : EStore} {h : EIdx}
-    {v : ENodeView} (hwf : StoreWF st) (hview : st.view h = some v)
-    (hv : (∃ i, v = .bvar i) ∨ (∃ u, v = .sort u) ∨
-      (∃ n us, v = .const n us) ∨ ∃ l, v = .lit l) :
-    AbsRangeAt d k c st h st h := by
-  intro e he
-  show denoteE st h = some (e.abstractRange d k c)
-  have hleaf : (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨
-      (∃ l, e = .lit l) ∨ ∃ i, e = .bvar i := by
-    rcases hv with ⟨i, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩
-    · exact Or.inr (Or.inr (Or.inr ⟨i, denote_bvar_inv hwf hview he⟩))
-    · obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hview he
-      exact Or.inl ⟨l, rfl⟩
-    · obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
-      exact Or.inr (Or.inl ⟨nm, ls, rfl⟩)
-    · exact Or.inr (Or.inr (Or.inl ⟨l, denote_lit_inv hwf hview he⟩))
-  rw [abstractRange_leaf hleaf]
-  exact he
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the LEAF
 arms at a TAG dispatch (the executed walk's catch-all `else`): `bvar`, `sort`,
 `const` and `lit` answer the handle they were given. -/
 theorem AbsRangeAt.leaf {d k c : Nat} {st : EStore} {h : EIdx}
@@ -351,141 +302,6 @@ theorem AbsRangeAt.leaf {d k c : Nat} {st : EStore} {h : EIdx}
     | proj n i sub => exact absurd (htag.trans rfl) hproj
   rw [abstractRange_leaf hleaf]
   exact he
-
-/-! ## Theorem 1 for `abstractRange` — the SPEC descent (`ExprOps.lean:669`)
-
-The bare structural descent con-leche's `Kernel/ExprOps.lean:791` is: no
-cutoff, no memo, `internE` at every rebuilt node.  It is what the executed
-walk is *stated against*, and the checker calls it nowhere (task #97-P6-11
-replaced every call with `abstractRangeFast`) — so its theorem is the
-family's statement anchor and the cheapest of the five. -/
-
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
-one level of `abstractRange`'s descent. -/
-structure AbsRangeSpec (d k : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
-  run : ∀ (s₁ : AState) (h : EIdx) (c : Nat), StateOK s₁ →
-    (denoteE s₁.store h).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec h c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧ BMExt s₁.store s'.store ∧
-        s'.memos = s₁.memos ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        AbsRangeAt d k c s₁.store h s'.store r⌝⦄
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange —
-**THEOREM 1 for the `abstractRange` SPEC descent**, at one level of the
-recursion, by induction on the fuel. -/
-theorem abstractRange_spec (d k : Nat) :
-    ∀ fuel, AbsRangeSpec d k (fun h c => abstractRange fuel h d k c) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    constructor
-    intro s₀ h c _ _
-    mvcgen [abstractRange_zero]
-    all_goals bridge_vcs [Expr.abstractRange]
-  | succ fuel ih =>
-    constructor
-    intro s₀ h c hok hden
-    have hrec := ih.run
-    mvcgen [abstractRange_succ, absRangeArmApp, absRangeArmLam, absRangeArmForallE, absRangeArmLet, absRangeArmProj, hrec]
-    all_goals try bridge_vcs [Expr.abstractRange]
-    -- Eleven structural verification conditions remain, in goal order: the
-    -- four LEAF views, the `fvar` leaf's two branches, and the five rebuilding
-    -- arms.  Task #97s round 2's item 3 ("the two structural verification
-    -- conditions of every arm applied by hand"), and the intern's
-    -- postcondition arrives as an IMPLICATION chain here rather than as a
-    -- conjunction, so each rebuilding arm `intro`s it first.
-    -- `bvar`
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-        AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
-    -- `fvar`, in the range: the fresh `bvar` node
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-        by grind only [BMExt, BMExt.trans, BMExt.refl],
-        by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.fvar_hit hok.wf (by abs_hyp) (by abs_hyp)
-        (by rw [hr, denoteEView])
-    -- `fvar`, outside the range
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-        AbsRangeAt.fvar_miss hok.wf (by abs_hyp) (by abs_hyp)⟩
-    -- `sort`, `const`, `lit`
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-        AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-        AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-        AbsRangeAt.self_of_leafView hok.wf (by abs_hyp) (by grind)⟩
-    -- `app`
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-        by grind only [BMExt, BMExt.trans, BMExt.refl],
-        by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.app_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) hx hr
-    -- `lam`
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-        by grind only [BMExt, BMExt.trans, BMExt.refl],
-        by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.lam_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) hx hr
-    -- `forallE`
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-        by grind only [BMExt, BMExt.trans, BMExt.refl],
-        by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.forallE_step hok.wf (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) hx hr
-    -- `letE`
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-        by grind only [BMExt, BMExt.trans, BMExt.refl],
-        by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.letE_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) hx hr
-    -- `proj`
-    next =>
-      bridge_peel
-      subst_vars
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_proj hok.wf (by abs_hyp) hden
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-        by grind only [BMExt, BMExt.trans, BMExt.refl],
-        by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.proj_step hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        hx hr hn0
-
 
 /-! ## The executed walks' own lemmas
 
@@ -1415,7 +1231,6 @@ theorem abstract1Go_spec (hfv : FvarBSpec) (d : Nat) :
 #print axioms abstractRange_zero_eq
 #print axioms Abs1At.cutoff
 #print axioms Abs1At.leaf
-#print axioms abstractRange_spec
 #print axioms abstract1Go_spec
 
 end ConRon.Bridge.ExprOps

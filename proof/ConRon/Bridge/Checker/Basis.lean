@@ -569,51 +569,6 @@ theorem quotPinHit_run {k : QuotKind} {cv : IConstantVal} {c : ConstantVal}
 
 /-! ## The install -/
 
-/-- con-leche: ConLeche/Kernel/Checker.lean:27-30 installBasisDecl — one
-pinned constant, duplicate-checked.
-
-**PROVED** (task #97-P3-Checker round 4), and **the statement gained
-`hproj`** — the `.projInfo` clause round 2 §8 item 5 and round 3 §3.1 both
-stopped at.  The duplicate test gives `fe.find? ci.name = none`; turning that
-into con-leche's `env.find? c.name = none` through `IFEnvOK.miss` needs
-
-    denoteN s.store.ns ci.name = some c.name
-
-and that is `Bridge/StateOK.lean`'s `denoteCI_name_of`, whose `.projInfo` arm
-takes `IProjTableOK` (`Frontend.denoteProjTable` drops `tableName`, so nothing
-in the denotation ties the index's key to the recomputed name).  Six of the
-seven constructors need nothing; `hproj` is what the seventh costs, and it is
-the SAME hypothesis `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` already
-takes at the same gap.  Free at the one call site: `checkBasisDecl` installs a
-pinned block, which contains no `.projInfo` (a table never occurs in parsed
-input, and the six basis blocks are `axiomInfo`/`defnInfo`/`indInfo`/
-`ctorInfo`/`recInfo` only). -/
-theorem installBasisDecl_bridge {μ : CheckMode} {_F : Nat} {env : Env}
-    {fe fe' : IFEnv} {ci : IConstantInfo} {c : ConstantInfo} {s s' : AState}
-    (hok : FoldOK μ env fe s) (hci : Frontend.denoteCI s.store ci = some c)
-    (hproj : ∀ t, ci = .projInfo t → IProjTableOK s.store t)
-    (hrun : installBasisDecl fe ci s = .ok (fe', s')) :
-    StateOK s' ∧ Ext s.store s'.store ∧ s'.pins = s.pins ∧
-      IFEnvCoh fe' ∧ Pushed fe fe' ∧
-      ∃ env', denoteFEnv s'.store fe' = some env' ∧
-        ConLeche.installBasisDecl (m := CheckM) env c = .ok env' := by
-  simp only [Arena.installBasisDecl] at hrun
-  obtain ⟨hdup, r1⟩ := AM.dunless_ok
-    AM.Never.fail_any hrun
-  replace r1 := AM.pure_bind_ok r1
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok r1
-  have hfind : fe.find? ci.name = none := by
-    cases hf : fe.find? ci.name with
-    | none => rfl
-    | some d => rw [hf] at hdup; exact absurd hdup (by simp)
-  have hnm := denoteCI_name_of (fun t ht => (hproj t ht).toNamed) hci
-  have hfindP : env.find? c.name = none :=
-    IFEnvOK.miss hok.check.state hok.check.ienv hnm hfind
-  refine ⟨hok.check.state, Ext.refl _, rfl, hok.coh.push ci, Pushed.push _ _,
-    ⟨c :: env.consts⟩, denoteFEnv_push hok.denote hci, ?_⟩
-  simp only [ConLeche.installBasisDecl, hfindP, Option.isNone_none, if_true,
-    bind, Except.bind, pure, Except.pure]
-
 /-- con-leche: ConLeche/Kernel/Checker.lean:27-30 installBasisDecl — **the
 block, one constant at a time**, against con-leche's `foldlM`.
 
@@ -1021,14 +976,6 @@ theorem IFEnvOK.findRel {env : Env} {fe : IFEnv} {s : AState}
     rw [hd] at h1
     obtain rfl := Option.some.inj h1
     exact Or.inr ⟨ci, c, rfl, h3, h2⟩
-
-/-- con-leche: none — `FindRel` survives an extension of the store. -/
-theorem FindRel.mono {st st' : EStore} {x : Option IConstantInfo}
-    {y : Option ConstantInfo} (h : FindRel st x y) (hx : Ext st st') :
-    FindRel st' x y := by
-  rcases h with h | ⟨ci, c, h1, h2, h3⟩
-  · exact Or.inl h
-  · exact Or.inr ⟨ci, c, h1, h2, denoteCI_ext h3 hx⟩
 
 theorem RunsB.matchInd {x : Option IConstantInfo} {y : Option ConstantInfo}
     {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
@@ -1598,22 +1545,6 @@ theorem RunsB.matchCod {x : Option IConstantInfo} {y : Option ConstantInfo}
       beq_of_denote_inj (fun h1 h2 => denoteE_inj hs1.ok.wf h1 h2) hty he
     rw [h1, h2]
     exact RunsB.ret hs1.ok
-
-/-- con-leche: none — a pin read leaves the state alone, at any slot. -/
-theorem pinAt_state {i : Nat} {n : NIdx} {s s' : AState} (hp : PinsOK s)
-    (hr : pinAt i s = .ok (n, s')) : s' = s :=
-  (AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ ∀ y, pinNames[i]? = some y →
-      denoteN s.store.ns r = some y) rfl hr (pinAt_spec s i hp)).1
-
-/-! ## The axiom shapes
-
-`stdAxiomOk`, `trustCompilerOk` and `ofReduceAxOk` (`Arena/DeclCheck.lean`)
-are the `.axiomDecl` arm's four environment tests.  Each reads the environment
-index and compares an interned literal, so each is `IFEnvOK` plus one intern
-exactness; none of them calls the core — which is why each concludes
-`s'.caches = s.caches` (task #97-P3-Checker-2: the arm needs it to rebuild
-`CheckOK` after the test). -/
 
 /-! ### The raw pins are con-leche's annotated ones, to `matchesPin`
 

@@ -709,9 +709,6 @@ def empty : LsTables := ⟨.empty⟩
 
 instance : Inhabited LsTables := ⟨empty⟩
 
-/-- con-leche: none — nodes in this tier. -/
-def count (t : LsTables) : Nat := t.lists.size
-
 /-- con-leche: none — decode one handle against this tier's array. -/
 @[inline] def get (t : LsTables) (i : LsIdx) : Option LsNodeView :=
   if i.tag == LsTag.list then (t.lists.node? i.idxNat).map fun r => r.us
@@ -750,16 +747,6 @@ namespace LsStore
 def empty : LsStore := ⟨.empty, .empty, .empty, false⟩
 
 instance : Inhabited LsStore := ⟨empty⟩
-
-/-- con-leche: none — nodes in the persistent tier. -/
-@[inline] def persCount (st : LsStore) : Nat := st.pers.count
-/-- con-leche: none — nodes in the scratch tier. -/
-@[inline] def scrCount (st : LsStore) : Nat := st.scr.count
-/-- con-leche: none — the fuel bound `denoteLs` uses. -/
-@[inline] def nodeCount (st : LsStore) : Nat := st.persCount + st.scrCount
-
-/-- con-leche: none — the name store underneath. -/
-@[inline] def ns (st : LsStore) : NStore := st.ls.ns
 
 /-- con-leche: none — decode a level-list handle. -/
 @[inline] def view (st : LsStore) (i : LsIdx) : Option LsNodeView :=
@@ -1141,8 +1128,6 @@ instance : Inhabited EStore := ⟨empty⟩
 /-- con-leche: none — the fuel bound `denoteE` uses. -/
 @[inline] def nodeCount (st : EStore) : Nat := st.persCount + st.scrCount
 
-/-- con-leche: none — the level-list store underneath. -/
-@[inline] def lsS (st : EStore) : LsStore := st.lss
 /-- con-leche: none — the level store underneath. -/
 @[inline] def ls (st : EStore) : LStore := st.lss.ls
 /-- con-leche: none — the name store underneath. -/
@@ -1648,28 +1633,6 @@ the ledger asks for (`internC r = intern (viewOf r)`, `rfl` after the
 `match`), and the ten entries below make the one-to-one correspondence with
 the Rust's ten paths explicit. -/
 
-/-- con-leche: none — `intern` at the `bvar` constructor. -/
-@[inline] def internBVar (st : EStore) (i : Nat) : EStore × EIdx := st.intern (.bvar i)
-/-- con-leche: none — `intern` at the `fvar` constructor. -/
-@[inline] def internFVar (st : EStore) (idx : Nat) (ty : EIdx) : EStore × EIdx :=
-  st.intern (.fvar idx ty)
-/-- con-leche: none — `intern` at the `sort` constructor. -/
-@[inline] def internSort (st : EStore) (u : LIdx) : EStore × EIdx := st.intern (.sort u)
-/-- con-leche: none — `intern` at the `const` constructor. -/
-@[inline] def internConst (st : EStore) (n : NIdx) (us : LsIdx) : EStore × EIdx :=
-  st.intern (.const n us)
-/-- con-leche: none — `intern` at the `app` constructor. -/
-@[inline] def internApp (st : EStore) (f a : EIdx) : EStore × EIdx := st.intern (.app f a)
-/-- con-leche: none — `intern` at the `letE` constructor. -/
-@[inline] def internLetE (st : EStore) (ty val b : EIdx) : EStore × EIdx :=
-  st.intern (.letE ty val b)
-/-- con-leche: none — `intern` at the `lit` constructor. -/
-@[inline] def internLit (st : EStore) (l : ConLeche.Literal) : EStore × EIdx :=
-  st.intern (.lit l)
-/-- con-leche: none — `intern` at the `proj` constructor. -/
-@[inline] def internProj (st : EStore) (n : NIdx) (i : Nat) (e : EIdx) : EStore × EIdx :=
-  st.intern (.proj n i e)
-
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the persistent
 half of the binder probe, SKIPPED as the Rust's `intern_lam_i` /
 `intern_forall_e_i` skip it: `sk` is `bindHasScratchChild` at the record's
@@ -1743,13 +1706,6 @@ def internBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
     EStore × EIdx :=
   let (st, mi) := st.internBM m
   st.internForallEI ty b mi
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the binder
-`intern` at a tag the caller already read off the handle, which is
-`eBindView`'s own choice made one step earlier. -/
-@[inline] def internEBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
-    EStore × EIdx :=
-  st.internBindI tag ty b mi
 
 /-- con-leche: none — open the scratch tier, in all four stores.  DESIGN §8.3:
 "each tier has its own array set and cons tables, both indexed from 0". -/
@@ -1984,13 +1940,6 @@ def EStore.persCapNode (st : EStore) (v : ENodeView) : Prop :=
   (st.internBMOfViewPersistent v).1.pers.find? v (st.internBMOfViewPersistent v).2
       = none →
     (st.internBMOfViewPersistent v).1.pers.sizeOf v < Idx.idxCap
-
-/-- con-leche: none — arena infrastructure; the expression store's capacity
-precondition for `internPersistent`, the datum store included for the reason
-`EStore.capOK` states. -/
-def EStore.capOKPersistent (st : EStore) (v : ENodeView) : Prop :=
-  st.pers.sizeOf v < Idx.idxCap
-    ∧ (EStore.eViewNeedsBM v = true → st.capOKBMPersistent)
 
 /-! ### The same, through the nesting
 
