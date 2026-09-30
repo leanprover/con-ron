@@ -18,6 +18,7 @@ installed, and `gen_rec_check`.  The generator is `GenRec.lean`.
   `RecCheck.lean`.
 -/
 import ConRon.Refine2.Inductives.GenRec
+import ConRon.Refine2.Inductives.BlockRec
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -998,6 +999,9 @@ theorem one_class_per_member_abs (ms : alloc.vec.Vec arena.inductives.rec_check.
 
 attribute [local lockstep_simp] absTargetMajorL absClassCtorL absClassCtorLL
 
+theorem absClassCtorL_fun : absClassCtorL = fun cs => cs.val.map absClassCtor := rfl
+attribute [local lockstep_simp] absClassCtorL_fun
+
 /-- `check_block_classes` ⊑ `checkBlockClasses` — the export the block tail
 reads. -/
 @[lockstep] theorem check_block_classes_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -1925,16 +1929,7 @@ theorem gr_target_rec_pins_stub {pers st lst} (hrel : AStateRel₀ pers st lst)
       (targetRecPins (absBlockShape p) (block.val.map absIConstantInfo)) := by
   sorry
 
-/-- PLACEHOLDER for `BlockRec.lean`'s `block_large_elim_allowed_ls` (on branch
-`t105-fi-bp`, not yet on `t105-fi`): the same statement. -/
-theorem gr_block_large_elim_allowed_stub {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape) (nested : Bool) :
-    LS pers (fun a b => b = a)
-      (arena.inductives.block_rec.block_large_elim_allowed pers st p nested) lst
-      (blockLargeElimAllowed (absBlockShape p) nested) := by
-  sorry
-
-attribute [local lockstep] gr_target_rec_pins_stub gr_block_large_elim_allowed_stub
+attribute [local lockstep] gr_target_rec_pins_stub
 
 /-- The pop lambda, named (the twin's `fun (n, prev) acc => acc.popTemp n prev`). -/
 def grPop (x : NIdx × Option (Nat × IConstantInfo)) (acc : IFEnv) : IFEnv :=
@@ -1993,6 +1988,12 @@ index handed back related to the twin's popped one, the rules alike. -/
   have hvis : absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
   rw [arena.inductives.gen_rec.gen_rec_check, genRecCheck]
   lockstep
-  all_goals (trace_state; sorry)
+  all_goals
+    obtain ⟨hR, hpop⟩ := hP
+    simp only at hR hpop
+    have hvr := hR.rel.visibleBelow.symm
+    lockstep
+    refine LS.pure ⟨?_, rfl⟩ ‹_› ‹_›
+    exact hpop _ _ (by simp [alloc.vec.Vec.len]) hf
 
 end ConRon.Refine2
