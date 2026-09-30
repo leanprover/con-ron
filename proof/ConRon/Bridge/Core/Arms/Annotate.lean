@@ -553,8 +553,7 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     subst s4
     have hdd : denoteE s3.store hd = some vte.getAppFn := hrelF vte hvte
     obtain ⟨vh, hvh⟩ := denoteE_view hdd
-    refine tag_view_bind_triple hvh ?_
-      (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
+    refine tag_view_bind_triple_else hvh ?_ (fun _ => triple_fail)
     cases vh
     case const T us =>
       obtain ⟨Tn, ls, hgf, hTn, _hus⟩ := denote_const_inv hwf3 hvh hdd
@@ -564,10 +563,12 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
       rintro oe s5 ⟨hok5, hx5, _hm5, _hc5, hp5, hsome, _hnone⟩
       cases oe with
       | none =>
+        -- official's `infer_proj` verdict (`projMissError`): every exit fails
         dsimp only
-        refine triple_seq (IFEnv.findProj?_spec s5 T 0 Tn hok5
-          (denoteN_ext hTn hx5)) ?_
-        intro _ _ _
+        refine triple_seq (Q := fun _ _ => True)
+          (triple_of_run (fun _ _ _ => trivial)) fun _ _ _ => ?_
+        refine triple_seq (Q := fun _ _ => True)
+          (triple_of_run (fun _ _ _ => trivial)) fun _ _ _ => ?_
         exact triple_fail
       | some entry =>
         obtain ⟨p, hpd, hfp⟩ := hsome entry rfl

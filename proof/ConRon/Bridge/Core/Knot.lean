@@ -200,9 +200,8 @@ task #97-P3-Core-2's finding 5.2, which re-shaped `reduceNat_spec` and
 > `Expr` in scope — the *original* subject — and the side goal it leaves is
 > false.
 
-`isPropType` is the smallest walk that meets it (`r.inferIO d ty'` on
-`r.annotate`'s ANSWER), and every remaining walk of
-`Bridge/Core/Walks/Owed.lean` that chains two knot calls meets it too.  So
+Every walk of `Bridge/Core/Walks/Owed.lean` that chains two knot calls
+(`r.inferIO d ty'` on `r.annotate`'s ANSWER, say) meets it.  So
 rather than re-derive the existential/universal form at each site, the six
 slots are restated here, once: **the denotation goes IN as an existential
 (which names no metavariable) and OUT as a universal**.  Each is four lines
@@ -268,7 +267,7 @@ theorem KnotSpec.annotate' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the io
-grade in ANSWER shape.  This is the one `isPropType` needs. -/
+grade in ANSWER shape. -/
 theorem KnotSpec.inferIO' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
     (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)

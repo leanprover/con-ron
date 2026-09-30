@@ -32,7 +32,7 @@ open ConRon.Arena Std.Do
 set_option maxHeartbeats 2000000 in
 #keeps structEtaCertWith
 #keeps etaCtorShape structEtaCert structUnitCert
-  etaCert stuckIrrel etaFabArgs etaFabArgsE IProjEntry.fireOk
+  etaCert stuckIrrel etaFabArgsE IProjEntry.fireOk
 #keeps_ind andRescueSlotsGo 5
 #keeps andRescueSlots fabScopeOk
 
@@ -42,7 +42,7 @@ set_option maxHeartbeats 2000000 in
   rcases rules with _ | ⟨rl, _ | ⟨rl2, rest⟩⟩ <;> keeps_step majorToCtor
 
 #keeps litMajorToCtor projLitToCtor recRuleKOf
-  recRuleEtaOf recRuleBits projFnRule prepareMajor
+  recRuleEtaOf recRuleBits prepareMajor
 #keeps_ind substLevelsAt 2
 #keeps_ind substParamLevels 2
 #keeps_ind instSpinePins 4

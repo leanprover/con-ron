@@ -111,8 +111,8 @@ theorem iotaIndexOk_mono (h : FnsRefines r₁ r₂) (d mI rP cnP : Nat)
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — proof
 irrelevance at a known proposition. -/
 theorem proofIrrel_mono (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (proofIrrel r₁ env d a b) (proofIrrel r₂ env d a b) := by
-  have := (proofIrrel (pairFns r₁ r₂ h) env d a b).property
+    MRefines (proofIrrel r₁ d a b) (proofIrrel r₂ d a b) := by
+  have := (proofIrrel (pairFns r₁ r₂ h) d a b).property
   rwa [proofIrrel_fst_proj, proofIrrel_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the hoisted
