@@ -1528,4 +1528,104 @@ theorem pi_doms_occ_aux (k : Nat) :
   rw [arena.inductives.positivity.nest_root_canon, nestRootCanon]
   lockstep
 
+/-! ## `nest_ctor_nf` -/
+
+@[lockstep_simp] theorem fvMapWF_holeImg (m : arena.inductives.positivity.HoleImgMap) :
+    FvMapWF (.HoleImg m) = (m.n.val ≤ m.prog.val.length) := rfl
+
+@[lockstep] theorem nest_ctor_nf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (us : arena.handle.LsIdx)
+    (ds : alloc.vec.Vec arena.handle.EIdx) (cv : arena.env.IConstantVal)
+    (closed : arena.handle.EIdx) :
+    LS pers (fun a b => b = absNestCtorNf a)
+      (arena.inductives.positivity.nest_ctor_nf pers st ctx prog us ds cv closed) lst
+      (nestCtorNf (absNestCtx ctx) (prog.val.map absNestHole) (absLsIdx us) (absEIdxL ds)
+        (absIConstantVal cv) (absEIdx closed)) := by
+  rw [arena.inductives.positivity.nest_ctor_nf, nestCtorNf]
+  lockstep
+
+/-! ## Uniform occurrences: `nest_uniform_ok`, `nest_uniform_member`, `nest_uniform` -/
+
+/-- `arena::env::i_constant_val_dup` is the identity (a LOCAL restatement of
+the Core/Checker tiers' `i_constant_val_dup_ls`). -/
+theorem pos_i_constant_val_dup_spec (cv : arena.env.IConstantVal) :
+    LSP (arena.env.i_constant_val_dup cv) (fun o => o = cv) := by
+  intro o h
+  rw [arena.env.i_constant_val_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [dupId_nidx _ _ hn, dupId_eidx _ _ he, alloc.vec.Vec.ext _ _ (nidx_vec_dup_val hv)]
+
+attribute [local lockstep] pos_i_constant_val_dup_spec
+
+@[lockstep] theorem nest_uniform_ok_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (cv : arena.env.IConstantVal) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_uniform_ok pers st ctx cv) lst
+      (nestUniformOk (absNestCtx ctx) (absIConstantVal cv)) := by
+  rw [arena.inductives.positivity.nest_uniform_ok, nestUniformOk]
+  lockstep
+
+/-- `nest_uniform_member` ⊑ `List.allM (nestUniformOk ctx ·.1)` from the
+cursor on. -/
+@[lockstep] theorem nest_uniform_member_ls {pers} (ctx : arena.inductives.positivity.NestCtx)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.inductives.positivity.nest_uniform_member pers st ctx cs i) lst
+        ((absCtorsLFrom cs i).allM fun c => nestUniformOk (absNestCtx ctx) c.1) := by
+  refine ls_cursor cs (fun p => (absIConstantVal p.1, absU p.2))
+    (fun l => l.allM fun c => nestUniformOk (absNestCtx ctx) c.1)
+    (fun st i => arena.inductives.positivity.nest_uniform_member pers st ctx cs i) ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.positivity.nest_uniform_member.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), List.allM]
+    lockstep
+  · intro st lst i hi hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = a)
+          (arena.inductives.positivity.nest_uniform_member pers st' ctx cs j) lst'
+          ((absCtorsLFrom cs j).allM fun c => nestUniformOk (absNestCtx ctx) c.1) := ih
+    clear ih
+    rw [arena.inductives.positivity.nest_uniform_member.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), List.allM]
+    lockstep
+    all_goals
+      simp only [Bool.not_eq_true] at hc
+      subst hc
+      lockstep
+
+/-- A member list's constructor lists. -/
+def absCtorsLL (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
+    List (List (IConstantVal × Nat)) := v.val.map absCtorsL
+
+/-- `nest_uniform` ⊑ `nestUniform`, the members from the cursor on. -/
+@[lockstep] theorem nest_uniform_ls {pers} (ctx : arena.inductives.positivity.NestCtx)
+    (css : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.positivity.nest_uniform pers st ctx css i) lst
+        (nestUniform (absNestCtx ctx) ((css.val.drop i.val).map absCtorsL)) := by
+  refine ls_cursor css absCtorsL (fun l => nestUniform (absNestCtx ctx) l)
+    (fun st i => arena.inductives.positivity.nest_uniform pers st ctx css i) ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.positivity.nest_uniform.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len css by scalar_tac), nestUniform]
+    lockstep
+  · intro st lst i hi hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun _ _ => True)
+          (arena.inductives.positivity.nest_uniform pers st' ctx css j) lst'
+          (nestUniform (absNestCtx ctx) ((css.val.drop j.val).map absCtorsL)) := ih
+    clear ih
+    rw [arena.inductives.positivity.nest_uniform.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len css by scalar_tac), nestUniform]
+    lockstep
+
 end ConRon.Refine2
