@@ -807,4 +807,105 @@ theorem rec_fields_abs (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) 
   rw [TwinEq, rec_fields_abs ks n_f _ 0#u64 _ o rfl h]
   simp [List.range_eq_range', absU]
 
+/-! ## `minor_ihs` ⊑ `minorTy.ihsGo`
+
+The Rust pushes each hypothesis onto `out` and tail-calls; the twin recurses
+and conses on the way out.  The statement carries `out` in front of the
+twin's answer (`OptBinders out`), and the step closes the twin's
+`match ← ihsGo … with | some ihs => pure (some (ih :: ihs))` by
+`ls_tail_opt_cons`. -/
+
+/-- An optional telescope's binders are canonical. -/
+def OptTeleWF (a : Option (alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))) : Prop :=
+  ∀ v, a = some v → TeleWF v
+
+theorem OptTeleWF.none : OptTeleWF none := fun _ h => by cases h
+
+theorem OptTeleWF.some {v} (h : TeleWF v) : OptTeleWF (Option.some v) := fun _ h' => by
+  cases h'; exact h
+
+theorem OptTeleWF.get {v} (h : OptTeleWF (Option.some v)) : TeleWF v := h v rfl
+
+/-- The answer relation of an optional telescope built onto `out`. -/
+def OptBinders (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+    (a : Option (alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)))
+    (b : Option (List (EIdx × ConLeche.BinderMeta))) : Prop :=
+  a.map absBinderL = b.map (absBinderL out ++ ·) ∧ OptTeleWF a
+
+theorem ls_tail_opt_cons {pers : arena.store.PersTier}
+    {m : Result (core.result.Result (Option (alloc.vec.Vec (arena.handle.EIdx ×
+      kernel.expr.BinderMeta))) kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM (Option (List (EIdx × ConLeche.BinderMeta)))}
+    {y : EIdx × ConLeche.BinderMeta}
+    {out out1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (h : LS pers (OptBinders out1) m lst x) (hout : absBinderL out1 = absBinderL out ++ [y]) :
+    LS pers (OptBinders out) m lst (do
+      match ← x with
+      | none => pure none
+      | some ihs => pure (some (y :: ihs))) := by
+  have h2 := LS.twin_map (R := OptBinders out) (f := Option.map (y :: ·)) h (by
+    intro a b ⟨h1, h2⟩
+    refine ⟨?_, h2⟩
+    rw [h1, hout]
+    cases b <;> simp)
+  refine LS.twin_eq h2 ?_
+  congr 1
+  funext r
+  cases r <;> rfl
+
+theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
+    (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64)
+    (fvs ws : alloc.vec.Vec arena.handle.EIdx)
+    (recs : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64)) :
+    ∀ (l : Std.Usize) (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+      LS pers (OptBinders out)
+        (arena.inductives.gen_rec.minor_ihs pers st g x d fvs ws recs l out) lst
+        (ClassGen.minorTy.ihsGo (absClassGen g) (absClassCtor x) (absU d) (absEIdxL fvs)
+          (absEIdxL ws) l.val ((recs.val.drop l.val).map absTriple)) := by
+  intro l
+  refine cursor_induction (fun i : Std.Usize => i.val) recs.val.length
+    (fun l out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+      LS pers (OptBinders out)
+        (arena.inductives.gen_rec.minor_ihs pers st g x d fvs ws recs l out) lst
+        (ClassGen.minorTy.ihsGo (absClassGen g) (absClassCtor x) (absU d) (absEIdxL fvs)
+          (absEIdxL ws) l.val ((recs.val.drop l.val).map absTriple))) ?_ ?_ l
+  · intro l out hn st lst hrel hinv hout
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, ClassGen.minorTy.ihsGo,
+      arena.inductives.gen_rec.minor_ihs.eq_def,
+      if_pos (show l ≥ alloc.vec.Vec.len recs by scalar_tac)]
+    exact LS.pure ⟨by simp, OptTeleWF.some hout⟩ hrel hinv
+  · intro l out hl ih st lst hrel hinv hout
+    rw [List.drop_eq_getElem_cons hl, List.map_cons, absTriple, ClassGen.minorTy.ihsGo,
+      arena.inductives.gen_rec.minor_ihs.eq_def,
+      if_neg (show ¬ l ≥ alloc.vec.Vec.len recs by scalar_tac)]
+    lockstep
+    · exact LS.pure ⟨rfl, OptTeleWF.none⟩ ‹_› ‹_›
+    · rename_i ihd out1 hout1
+      have hjv : a.val = l.val + 1 := by simpa using hP
+      have h1 := ih a out1 hjv _ _ ‹_› ‹_› (TeleWF.push hout1 hout hbm)
+      rw [hjv] at h1
+      refine ls_tail_opt_cons h1 ?_
+      simp [absBinderL, hout1]
+
+/-- `minor_ihs` from `0` into `Vec::new()` ⊑ `minorTy.ihsGo … 0`. -/
+@[lockstep] theorem minor_ihs_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
+    (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64)
+    (fvs ws : alloc.vec.Vec arena.handle.EIdx)
+    (recs : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64)) :
+    LS pers (fun a b => b = a.map absBinderL ∧ OptTeleWF a)
+      (arena.inductives.gen_rec.minor_ihs pers st g x d fvs ws recs 0#usize (alloc.vec.Vec.new _))
+      lst
+      (ClassGen.minorTy.ihsGo (absClassGen g) (absClassCtor x) (absU d) (absEIdxL fvs)
+        (absEIdxL ws) 0 (recs.val.map absTriple)) := by
+  have h := minor_ihs_acc g hbm x d fvs ws recs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
+    TeleWF.new
+  refine LS.tail h (by simp) ?_
+  intro a b ⟨h1, h2⟩
+  refine ⟨?_, h2⟩
+  rw [h1]
+  cases b <;> simp [absBinderL, alloc.vec.Vec.new]
+
 end ConRon.Refine2
