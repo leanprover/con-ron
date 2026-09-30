@@ -615,18 +615,6 @@ theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec St
 
 /-! ## `class_read_slots` -/
 
-/-- The twin's `slot :: rest` under the accumulator the Rust pushed it onto. -/
-theorem slots_step_twin (x : AM (Option (List ClassSlot))) (s : ClassSlot) (A : List ClassSlot) :
-    (x >>= fun y =>
-      (match y with
-        | none => pure none
-        | some rest => pure (some (s :: rest))) >>= fun r =>
-      pure (r.map (A ++ ·)) : AM _) =
-    (x >>= fun r => pure (r.map ((A ++ [s]) ++ ·))) := by
-  congr 1
-  funext y
-  rcases y with _ | y <;> simp
-
 theorem class_read_slots_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
     (p : arena.inductives.block_parts.BlockShape) (np : Std.U64) :
     ∀ (k : Nat) (n : Std.U64) (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64)
@@ -656,10 +644,60 @@ theorem class_read_slots_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : I
         (fun _ _ h => h)
       have hdv : absU a = absU d + 1 := by simp only [absU]; scalar_tac
       rw [hdv]
-      refine Eq.trans ?_ (slots_step_twin _ _ _).symm
       rcases hsv : absClassSlot ‹arena.inductives.class_read.ClassSlot› with key | ⟨c, cn, ihs⟩ <;>
         first
         | (simp [hsv, isMotiveSlot] at hc; done)
-        | simp [hsv, hout1, absU]
+        | (simp only [hsv]
+           congr 1
+           funext r
+           rcases r with _ | r <;> simp [hout1, hsv])
+
+@[lockstep] theorem class_read_slots_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (np n : Std.U64)
+    (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64) (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map (fun v => v.val.map absClassSlot))
+      (arena.inductives.class_read.class_read_slots pers st p rf np n mot_pos d e
+        (alloc.vec.Vec.new _)) lst
+      (classReadSlots (absBlockShape p) lf (absU np) (absU n) (absNatL mot_pos) (absU d)
+        (absEIdx e)) := by
+  have h := class_read_slots_acc hfe p np n.val n mot_pos d e (alloc.vec.Vec.new _) st lst rfl
+    hrel hinv
+  refine LS.twin_eq h ?_
+  simp [alloc.vec.Vec.new, absU]
+
+/-! ## `class_read_rec_cls` -/
+
+theorem class_read_rec_cls_acc {pers} (n_p : Std.U64) (mot_pos : alloc.vec.Vec Std.U64)
+    (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec Std.U64),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absNatL)
+        (arena.inductives.class_read.class_read_rec_cls pers st n_p mot_pos recs i out) lst
+        (do
+          let r ← classReadRecCls (absU n_p) (absNatL mot_pos)
+            ((recs.val.drop i.val).map absRecShape)
+          pure (r.map (absNatL out ++ ·))) := by
+  refine ls_cursor_acc recs absRecShape
+    (fun out l => do
+      let r ← classReadRecCls (absU n_p) (absNatL mot_pos) l
+      pure (r.map (absNatL out ++ ·)))
+    (fun st i out => arena.inductives.class_read.class_read_rec_cls pers st n_p mot_pos recs i out)
+    ?_ ?_
+  · intro st lst i out hn hrel hinv
+    rw [arena.inductives.class_read.class_read_rec_cls.eq_def, if_pos (by scalar_tac),
+      classReadRecCls]
+    lockstep
+  · intro st lst i out hb hrel hinv ih
+    rw [arena.inductives.class_read.class_read_rec_cls.eq_def, if_neg (by scalar_tac),
+      classReadRecCls]
+    lockstep
+    rename_i out1 hout1
+    refine LS.tail (ih _ _ _ _ (by scalar_tac) (by assumption) (by assumption)) ?_
+      (fun _ _ h => h)
+    rw [show (↑a : Nat) = i.val + 1 by scalar_tac]
+    congr 1
+    funext r
+    rcases r with _ | r <;> simp [absNatL, hout1, absU]
 
 end ConRon.Refine2
