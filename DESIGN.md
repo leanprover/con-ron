@@ -65383,3 +65383,68 @@ patch that build re-elaborated everything from `Generated` down (#100's
 28-minute rebuild).  #103's procedural advice (build the main tree from an
 empty `proof/.lake/build` after a landing) is no longer needed; it is
 harmless.
+
+### Task #105-DC-refine — dead-code deletion in `ConRon/Refine/` (2026-09-30, Opus under Fable)
+
+Maintainer's task #105 campaign ("leave no unused code or proofs around"):
+`scripts/dead-census.py` walked the whole build from the capstone's headline
+theorems and found 1157 dead owners in `proof/ConRon/Refine/**`
+(`_tmp/t105/census-master2/lane-refine.txt`), plus two modules every owner of
+which is dead (`deletable-modules.txt`). This lane deleted all 1157, one
+whole module (`CoreKPinned.lean`), and 28 421 net lines
+(`git diff --shortstat 723616b1`: 46 files, 13 insertions, 28 421 deletions),
+across six commits (by tier: infra, runtime primitives, representation-free
+types, `core_k`, pinned data, the pins decoder).
+
+**One module kept despite being wholly dead.** `Pins.lean`'s two theorems
+(`pins_decode_refines`, `pins_decode_refines_ok`) are deleted, but the file
+itself stays -- `Refine2/Checker/PinsWF.lean` (out of scope for this lane)
+and `Refine/BasisPins.lean` still `import ConRon.Refine.Pins`, and deleting
+the module would turn that import into a hard "unknown module" error this
+lane is not allowed to fix on the `Refine2` side. The file is now
+header-comment-and-imports only.
+
+**Five owners the census misattributes to the wrong module.** `dead-census.py`
+picks a dead owner's reported module from an arbitrary member of its
+equation-lemma family (`owner_mod[o] = info[next(iter(members[o]))][0]`), and
+a lazily-generated `.eq_1` lemma is recorded under whichever file first
+`rw`/`simp`s the definition open -- not the file that declares it.
+`PinsDec.{decode,recordStep,startsWith,headerBytes,runFooter}` are all
+declared in `PinsDec.lean` but were listed under
+`PinsAscii`/`PinsBytes`/`PinsRead` (the files that first unfold them);
+`Refine.{absEnv,absProjEntry}` are declared in `Abs.lean` but listed under
+`Env`. All five were deleted from their real, declaring file. Worth fixing in
+`dead-census.py` (use `o`'s own `info[o][0]`, not an arbitrary member's)
+before the next census run.
+
+**What the census cannot see, twice.** (1) A `@[local simp]` one-liner
+(`X_nil`/`X_cons`/`X_vacant`-style smart-constructor readings) that only ever
+fires through a bare `simp` -- never a `simp only [X]` -- leaves no edge in
+the term graph, so the census calls it dead even when a kept proof needs it.
+Nine such lemmas came back after `lake build` demanded them:
+`Nat.nat_land_eq`/`nat_xor_eq`; `HashMap.lookupK_nil`/`alv_nil`/`alvO_none`/
+`alvO_some`/`alv_default`; `HashMap2.liveAt_vacant`/`liveAt_live`/
+`liveAt_default`; and two more of the same family,
+`ExprOpsMeta.level_node_kind` and `CoreKShapes.name_node_kind` ("the `Level`/
+`Name` twin of `ExprOps.node_kind`" -- `node_kind` itself, and everything
+that used it, really is dead). Each was restored with the
+`omit [DecidableEq K] in` it originally carried; deleting a sibling in the
+same omit-prefixed run had left that modifier orphaned in front of a
+*different* surviving theorem, and in two cases (`HashMap2.lean`'s
+`clear_refines`/`try_resize_spec`) the survivor actually needs the instance
+the leftover `omit` would have dropped -- `lake build` catches that case
+loudly ("cannot omit referenced section variable"), the harmless cases
+(redundant repeated `omit`) it does not. (2) A `#guard`/`#print axioms`/
+`example` command has no declared name of its own, so the census cannot see
+it using a dead owner either; `PinsDec.lean`'s and `Pins.lean`'s self-tests
+of the now-dead decoder, and ~50 dangling
+`#guard_msgs in #print axioms <deleted name>` axiom-census entries across
+nearly every file, needed deleting by hand once `lake build` flagged the
+unknown identifiers.
+
+**Gates.** `cd proof && LAKE_JOBS=4 lake build` (all default targets,
+2870 jobs) is green with no warning naming a file under `ConRon/`; so are
+`ConRon`, `ConRonRefine2` and `ConRonCapstone` built individually. The rest
+of `scripts/gates.sh` (cargo, style lint, provenance, `extract.sh --check`)
+was not re-run by this lane (no Rust or `Generated/` change) -- the landing
+agent should run the full gate set.
