@@ -550,4 +550,59 @@ context, which `absNestCtx` drops; the answer carries it. -/
   refine LS.pure ⟨?_, rfl⟩ hrel hinv
   simp_all [TwinEq, absNestCtx, absNatL, absBlockShape]
 
+/-- `check_sum_ctors` from the first constructor with empty accumulators IS
+`checkSumCtors` (the block's call). -/
+@[lockstep] theorem bi_check_sum_ctors_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {mode : kernel.env.CheckMode} {rf0 lf0 rf lf}
+    (hfe0 : IFEnvRelI rf0 lf0) (hfe : IFEnvRelI rf lf)
+    (t : arena.handle.NIdx) (lps : alloc.vec.Vec arena.handle.NIdx) (n_p n_idx : Std.U64)
+    (res_sort : arena.handle.LIdx) (is_prop large : Bool) (cv_ta : arena.env.IConstantVal)
+    (ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LS pers (fun a b => b = (absCtorsL a.1, absLIdxLL a.2))
+      (arena.inductives.sum_install.check_sum_ctors pers st mode rf0 rf t lps n_p n_idx res_sort
+        is_prop large cv_ta ctors 0#usize (alloc.vec.Vec.new _) (alloc.vec.Vec.new _)) lst
+      (checkSumCtors (ConRon.Refine.absMode mode) lf0 lf (absNIdx t) (absNIdxL lps) (absU n_p)
+        (absU n_idx) (absLIdx res_sort) is_prop large (absIConstantVal cv_ta) (absCtorsL ctors)) := by
+  have h := check_sum_ctors_ls (i := 0#usize) (out := alloc.vec.Vec.new _)
+    (sout := alloc.vec.Vec.new _) (t := t) (lps := lps) (n_p := n_p) (n_idx := n_idx)
+    (res_sort := res_sort) (is_prop := is_prop) (large := large) (cv_ta := cv_ta)
+    (ctors := ctors) (mode := mode) hrel hinv hfe0 hfe
+  simpa [absCtorsL, absLIdxLL, absCtorsLFrom, alloc.vec.Vec.new] using h
+
+/-- `Vec<Vec<Vec<LIdx>>>` — the fields' sorts, per member, per constructor. -/
+def absLIdxLLL (v : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx))) :
+    List (List (List LIdx)) := v.val.map absLIdxLL
+
+theorem check_block_ctors_aux (m : Nat) :
+    ∀ {pers st lst} {mode : kernel.env.CheckMode} {rf0 lf0 rf lf}
+      {p : arena.inductives.block_parts.BlockShape}
+      {cv_tas : alloc.vec.Vec arena.env.IConstantVal} {i : Std.Usize}
+      {out_c : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
+      {out_s : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx))},
+      p.members.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      IFEnvRelI rf0 lf0 → IFEnvRelI rf lf →
+      LS pers (fun a b => b = (absCtorsLL a.1, absLIdxLLL a.2))
+        (arena.inductives.block_install.check_block_ctors pers st mode rf0 rf p cv_tas i
+          out_c out_s) lst
+        (do
+          let q ← checkBlockCtors (ConRon.Refine.absMode mode) lf0 lf (absBlockShape p)
+            (absMemberShapeLFrom p.members i) (absICVLFrom cv_tas i)
+          pure (absCtorsLL out_c ++ q.1, absLIdxLLL out_s ++ q.2)) := by
+  induction m with
+  | zero =>
+    intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
+    rw [arena.inductives.block_install.check_block_ctors, if_pos (by scalar_tac),
+      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega), checkBlockCtors]
+    lockstep
+  | succ m ih =>
+    intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
+    rw [arena.inductives.block_install.check_block_ctors, if_neg (by scalar_tac),
+      absMemberShapeLFrom, sp_vecFrom_cons _ _ _ (by omega)]
+    by_cases hc : i.val < cv_tas.val.length
+    · rw [if_neg (by scalar_tac), absICVLFrom, sp_vecFrom_cons _ _ _ hc, checkBlockCtors]
+      lockstep
+      all_goals sorry
+    · rw [if_pos (by scalar_tac), absICVLFrom, sp_vecFrom_nil _ _ _ (by omega), checkBlockCtors]
+      lockstep
+
 end ConRon.Refine2
