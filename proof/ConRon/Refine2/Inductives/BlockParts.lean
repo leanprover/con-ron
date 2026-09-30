@@ -1968,4 +1968,30 @@ theorem block_rec_lps_ok_from_abs {p : arena.inductives.block_parts.BlockShape}
   rw [TwinEq, block_rec_lps_ok_from_abs _ o h, blockRecLpsOk, e, usz_zero_val, List.drop_zero]
   simp only [absBlockShape, List.all_map]
 
+/-- `block_rec_names_unreserved` ⊑ `blockRecNamesUnreserved` from the cursor on. -/
+theorem block_rec_names_unreserved_ls {pers}
+    (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.inductives.block_parts.block_rec_names_unreserved st rs i) lst
+        (blockRecNamesUnreserved ((rs.val.drop i.val).map absRecShape)) := by
+  refine ls_cursor rs absRecShape blockRecNamesUnreserved
+    (fun st i => arena.inductives.block_parts.block_rec_names_unreserved st rs i) ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.block_parts.block_rec_names_unreserved.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), blockRecNamesUnreserved]
+    lockstep
+  · intro st lst i hi hrel hinv ih
+    rw [arena.inductives.block_parts.block_rec_names_unreserved.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac), blockRecNamesUnreserved]
+    lockstep
+
+@[lockstep] theorem block_rec_names_unreserved_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.block_parts.block_rec_names_unreserved st rs 0#usize) lst
+      (blockRecNamesUnreserved (rs.val.map absRecShape)) := by
+  have h := block_rec_names_unreserved_ls (pers := pers) rs 0#usize st lst hrel hinv
+  rwa [usz_zero_val, List.drop_zero] at h
+
 end ConRon.Refine2
