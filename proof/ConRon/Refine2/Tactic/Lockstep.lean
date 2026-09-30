@@ -461,17 +461,6 @@ theorem LSP.tail {α : Type} {m : Result α} {P Q : α → Prop}
 @[lockstep_simp] theorem usize_one_val : (1#usize : Std.Usize).val = 1 := rfl
 @[lockstep_simp] theorem u64_zero_val : (0#u64 : Std.U64).val = 0 := rfl
 
-theorem LSP.u64_sub (x y : Std.U64) :
-    LSP (x - y) (fun z => z.val = x.val - y.val ∧ y.val ≤ x.val) := by
-  intro z h
-  have := ConRon.Refine.Nat.usub_val h
-  exact ⟨this.2, this.1⟩
-
-theorem LSP.u64_add (x y : Std.U64) :
-    LSP (x + y) (fun z => z.val = x.val + y.val) := by
-  intro z h
-  exact (ConRon.Refine.Nat.uadd_val h)
-
 /-- A twin-only `pure` step. -/
 theorem LS.twin_pure_bind {α β δ : Type} {pers : arena.store.PersTier} {R : α → δ → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
@@ -597,23 +586,6 @@ theorem LSS.bind {α γ β δ : Type} {pers : arena.store.PersTier}
     rw [run_bind_ok hx1]
     exact hk a b s1 lst1 hR hrel hinv o st' hk1
 
-/-- A tail call to a store-level step. -/
-theorem LSS.tail {α β : Type} {pers : arena.store.PersTier} {R₁ R : α → β → Prop}
-    {f : Result (core.result.Result α kernel.core_types.CheckError × arena.store.EStore)}
-    {st : arena.monad.AState} {lst : AState} {x' x : AM β}
-    (hf : LSS pers R₁ f st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
-    LS pers R (f >>= fun p => ok (p.1, { st with store := p.2 })) lst x := by
-  subst hx
-  intro o st' hm
-  obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  cases Result.ok_injective hk1
-  have h := hf r s1 hf1
-  cases r with
-  | Err e => exact h
-  | Ok a =>
-    obtain ⟨b, lst', h1, h2, h3, h4⟩ := h
-    exact ⟨b, lst', h1, hR _ _ h2, h3, h4⟩
-
 /-! ## Walks that return their memo beside the `Result` (task #97-T2-TACTIC round 2)
 
 A memoised Rust walk hands its memo back OUTSIDE the `Result` (a `&mut`
@@ -671,10 +643,6 @@ def LSRM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → 
     (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
   LS pers R (packRM st m) lst x
 
-theorem LSM.toLS {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
-    {lst : AState} {x : AM β} (h : LSM pers R m lst x) : LS pers R (packM m) lst x := h
-
 /-- What an `LSM` says about one outcome, unpacked. -/
 theorem LSM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
@@ -700,25 +668,6 @@ theorem LSRM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M �
   have := h (packRMemo st (o, mm)).1 (packRMemo st (o, mm)).2
     (by simp only [packRM, hm, bind_tc_ok])
   cases o <;> exact this
-
-/-- `LSM` from its outcomes. -/
-theorem LSM.intro {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
-    {lst : AState} {x : AM β}
-    (h : ∀ o st' mm, m = ok (o, st', mm) →
-      match o with
-      | .Ok a => ∃ b lst', x.run lst = .ok (b, lst') ∧ R (a, mm) b ∧
-          AStateRel₀ pers st' lst' ∧ AStateInv pers st'
-      | .Err e => AErrSim e (x.run lst)) : LSM pers R m lst x := by
-  intro o st' hm
-  obtain ⟨⟨r, st1, mm⟩, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  have := h r st1 mm h1
-  cases r with
-  | Ok a =>
-    cases Result.ok_injective h2
-    obtain ⟨b, lst', hx, hR, h3, h4⟩ := this
-    exact ⟨b, lst', hx, hR, h3, h4⟩
-  | Err e => cases Result.ok_injective h2; exact this
 
 /-! ### The Rust side of a packed walk -/
 
@@ -911,12 +860,6 @@ def LST {α β : Type} (pers : arena.store.PersTier)
     (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier))
     (lst : AState) (x : AM β) : Prop :=
   LS pers R (packT G m) lst x
-
-theorem LST.toLS {α β : Type} {pers : arena.store.PersTier}
-    {R : α × arena.store.PersTier → β → Prop}
-    {G : arena.store.PersTier → arena.monad.AState}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
-    {lst : AState} {x : AM β} (h : LST pers R G m lst x) : LS pers R (packT G m) lst x := h
 
 /-- What an `LST` says about one outcome, unpacked. -/
 theorem LST.apply {α β : Type} {pers : arena.store.PersTier}
@@ -1356,26 +1299,6 @@ theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
     (fun p => ENodeView.lit p) (fun st => tagView_lit st h ht)]
   exact hls
 
-@[lockstep_twin] theorem LS.twin_view_letE {α β : Type} {pers : arena.store.PersTier}
-    {R : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.letE)
-    (hls : LS pers R m lst (viewLet h >>= danglingOr fun p => g ((fun p => ENodeView.letE p.1 p.2.1 p.2.2) p))) :
-    LS pers R m lst (Arena.view h >>= g) := by
-  rw [view_bind_of_proj h (viewLet h) (fun s => s.viewLet h) (fun _ => rfl)
-    (fun p => (fun p => ENodeView.letE p.1 p.2.1 p.2.2) p) (fun st => tagView_letE st h ht)]
-  exact hls
-
-@[lockstep_twin] theorem LS.twin_view_proj {α β : Type} {pers : arena.store.PersTier}
-    {R : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.proj)
-    (hls : LS pers R m lst (viewProj h >>= danglingOr fun p => g ((fun p => ENodeView.proj p.1 p.2.1 p.2.2) p))) :
-    LS pers R m lst (Arena.view h >>= g) := by
-  rw [view_bind_of_proj h (viewProj h) (fun s => s.viewProj h) (fun _ => rfl)
-    (fun p => (fun p => ENodeView.proj p.1 p.2.1 p.2.2) p) (fun st => tagView_proj st h ht)]
-  exact hls
-
 @[lockstep_twin] theorem LS.twin_view_bvar {α β : Type} {pers : arena.store.PersTier}
     {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
@@ -1384,16 +1307,6 @@ theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
     LS pers R m lst (Arena.view h >>= g) := by
   rw [view_bind_of_proj h (viewBVar h) (fun s => s.viewBVar h) (fun _ => rfl)
     (fun p => ENodeView.bvar p) (fun st => tagView_bvar st h ht)]
-  exact hls
-
-@[lockstep_twin] theorem LS.twin_view_lam {α β : Type} {pers : arena.store.PersTier}
-    {R : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.lam)
-    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.lam p.1 p.2.1 p.2.2) p))) :
-    LS pers R m lst (Arena.view h >>= g) := by
-  rw [view_bind_of_proj h (viewBind h) (fun s => s.viewBind h) (fun _ => rfl)
-    (fun p => (fun p => ENodeView.lam p.1 p.2.1 p.2.2) p) (fun st => tagView_lam st h ht)]
   exact hls
 
 @[lockstep_twin] theorem LS.twin_view_forallE {α β : Type} {pers : arena.store.PersTier}
@@ -2164,9 +2077,6 @@ def contra (gs : List MVarId) : TacticM (List MVarId) := do
       s.restore
       out := out ++ [g]
   return out
-
-def isMatcherApp (e : Expr) : MetaM Bool := do
-  return (← matchMatcherApp? e).isSome
 
 /-- One step of a Rust-only (`LSP`) goal. -/
 def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
