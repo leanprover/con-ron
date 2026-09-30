@@ -23,9 +23,8 @@
 //! | `scan_types` | imported, not twinned | `ConLeche/Frontend/Scan/Types.lean` |
 //! | `scan_fast` | imported, not twinned | `ConLeche/Frontend/Scan/Fast.lean` (the `@[csimp]` twin the compiler *runs*; `Scan/Naive.lean` is the specification and is not ported) |
 //! | `prelude_text` | `include_str` | `ConLeche/Frontend/Prelude.lean:57-62`'s `include_str` — **generated**, `scripts/gen-prelude.sh` |
-//! | `types` | `Arena/Frontend/Types.lean` | `Frontend/Export.lean`'s verdicts, `Frontend/ProjRec.lean`'s owner, `Frontend/InModel/Mutual.lean`'s block records, `InModel.lean`'s `wants` and the `Modeller` seam |
+//! | `types` | `Arena/Frontend/Types.lean` | `Frontend/Export.lean`'s verdicts |
 //! | `export_c` | `Arena/Frontend/ExportC.lean` | `Frontend/ExportC.lean` |
-//! | `proj_rec` | `Arena/Frontend/ProjRec.lean` | `Frontend/ProjRec.lean` |
 //! | `nat_op_ground` | `Arena/Frontend/NatOpGround.lean` | `Frontend/NatOpGround.lean` |
 //! | `prepare` | `Arena/Frontend/Prepare.lean` | `Frontend/Prepare.lean` |
 //! | `prelude` | `Arena/Frontend/Prelude.lean` | `Frontend/Prelude.lean` |
@@ -70,35 +69,29 @@
 //! The Lean twin's monad is `StateT AState (Except CheckError)`; `AState` is
 //! the store, the `ExprOps` memo tables and the per-declaration caches.
 //!
-//! Task #97 P4e part 1 could narrow that to the store alone — the parse
-//! touched no memo — so every function that read the store took
-//! `ar: &EStore` and every function that interned took `ar: &mut EStore`,
-//! beside the `st: &mut StateD` that the parser already threads.
-//! **Part 2 ends the narrowing on the path that needs it.**  The projection
-//! rewrite (`proj_rec`) runs `ExprOps`' `instantiate1LiftFast`,
-//! `liftLooseBVarsFast` and `instLPFast`, whose memos ARE `AState` fields, so
-//! the eighteen functions between `chunk_step` / `chunk_finish` /
-//! `parse_bytes` / `parse_chunks` and the three rewrite entry points now take
-//! `ar: &mut AState` — the twin's own monad, unnarrowed — and hand
-//! `&ar.store` / `&mut ar.store` to the ninety-odd that still only intern.
-//! That is `prepare.rs`'s arrangement too ("`prepare_d` takes the whole
-//! `AState` where everything else in this module takes the store"), and it is
-//! the change part 1's note predicted, in the place that needed it.
+//! Task #97 P4e part 1 narrowed that to the store alone — the parse
+//! touches no memo — so every function that reads the store takes
+//! `ar: &EStore` and every function that interns takes `ar: &mut EStore`,
+//! beside the `st: &mut StateD` the parser already threads; only the table
+//! entries (`parse_name_entry_d`/`parse_level_entry_d`/`parse_expr_entry_d`)
+//! and the loop that carries them (`apply_line`, `feed_chunk`, the drivers)
+//! take the whole `ar: &mut AState`, because interning is where the memo
+//! tables live.
+//!
+//! **Neither the projection rewrite nor the in-process modeller are here any
+//! more** (task #105, con-leche's `uniform-inds` merge).  Part 2 had widened
+//! several dozen functions to `ar: &mut AState` for the rewrite's `ExprOps`
+//! memos and threaded a `Modeller` type parameter through the whole parse for
+//! the modeller seam (`crates/con-ron/src/in_model/mod.rs`'s old
+//! implementation); both are deleted along with `Frontend/ProjRec.lean` and
+//! `Frontend/InModel*.lean` upstream, so `process_line_core_d` and everything
+//! it calls is back to reading the store immutably, and no function in this
+//! directory takes a modeller any more — every inductive block installs
+//! through the kernel's uniform installer instead.
 //!
 //! The four `Monad.lean` primitives at the bottom of `arena/env.rs`
 //! (`view`, `viewN`, `readName`, `readLevel`) still stand where P4b left
 //! them; nothing here depends on which of the two they take.
-//!
-//! **The modeller is NOT here.**  `InModel.generate` — the in-process
-//! construction of a `_model` family for a mutual or nested block — stays in
-//! the unverified crate, behind the one-method trait `types::Modeller` that
-//! `export_c::parse_chunks` takes as a type parameter.  A trait method on a
-//! type parameter extracts as a typeclass field, i.e. an opaque function, so
-//! the extracted parse is quantified over an arbitrary modeller and the
-//! refinement will carry one hypothesis about its output rather than a port of
-//! four thousand lines whose correctness decides coverage and not soundness
-//! (`crates/con-ron/src/in_model/mod.rs`: "soundness needs nothing from this
-//! module").
 //!
 //! ## The loop relaxation (DESIGN.md §3.4, dated 2026-09-14)
 //!
@@ -117,7 +110,6 @@ pub mod nat_op_ground;
 pub mod prelude;
 pub mod prelude_text;
 pub mod prepare;
-pub mod proj_rec;
 pub mod scan_fast;
 pub mod scan_types;
 pub mod text;
