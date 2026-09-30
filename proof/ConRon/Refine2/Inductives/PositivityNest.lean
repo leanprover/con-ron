@@ -233,4 +233,82 @@ n_pc, cs, i, out`; twin `fe nPc cs out`). -/
   rwa [absNIdxLFrom_zero, show absCtorsL (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))
     = [] from rfl] at h
 
+/-! ## The container's former: `nest_inst_type` -/
+
+-- `nest_inst_type_at` / `nest_inst_type_sort` are the tail of `nestInstType`
+-- (the instantiated former, its telescope and its sort; (N2) and (N3)).
+attribute [lockstep_inline] arena.inductives.positivity.nest_inst_type_at
+  arena.inductives.positivity.nest_inst_type_sort
+
+-- `unwrap_or` of the looked-up container: the port matches the `Option` it
+-- just built, the twin `unwrapOr`s it (local; `StructInstall`'s
+-- `IndInstPrims.unwrapOr_*'` are the same equations, scoped there).
+attribute [local lockstep_inline] arena.checker_base.unwrap_or
+-- The constant's copy IS the constant (`Positivity.lean`'s local spec).
+attribute [local lockstep high] pos_i_constant_val_dup_spec
+
+/-- `eidx_vec_dup` is the identity (the exact form, ahead of the generic
+abstraction-level spec, so that a copied key's parameters ARE the original's). -/
+theorem pn_eidx_vec_dup_spec (v : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.env.eidx_vec_dup v) (fun o => o = v) :=
+  fun _ h => alloc.vec.Vec.ext _ _ (eidx_vec_dup_val h)
+
+attribute [local lockstep high] pn_eidx_vec_dup_spec
+
+@[local lockstep_simp] theorem pn_unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+
+@[local lockstep_simp] theorem pn_unwrapOr_none {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
+/-- `nest_inst_type` ⊑ `nestInstType`. -/
+@[lockstep] theorem nest_inst_type_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (hi : Std.U64)
+    (key : arena.inductives.positivity.NestKey) :
+    LS pers (fun a b => b = (absU a.1, absEIdx a.2))
+      (arena.inductives.positivity.nest_inst_type pers st rf ctx hi key) lst
+      (nestInstType lf (absNestCtx ctx) (absU hi) (absNestKey key)) := by
+  rw [arena.inductives.positivity.nest_inst_type, nestInstType]
+  lockstep
+
+/-- `nest_grow_group` ⊑ `nestGrowGroup` from the cursor on. -/
+@[lockstep] theorem nest_grow_group_ls {pers} (ctx : arena.inductives.positivity.NestCtx)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hctx : CoreCtx ctx.vis rf lf) (hi : Std.U64)
+    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (cs : alloc.vec.Vec arena.handle.NIdx) :
+    ∀ (i : Std.Usize) st lst (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absGrpL a)
+        (arena.inductives.positivity.nest_grow_group pers st rf ctx hi us ds cs i grp) lst
+        (nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
+          (absNIdxLFrom cs i) (absGrpL grp)) := by
+  intro i st lst grp hrel hinv
+  refine ls_cursor_acc cs absNIdx
+    (fun (w : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)) l =>
+      nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds) l (absGrpL w))
+    (fun st k w => arena.inductives.positivity.nest_grow_group pers st rf ctx hi us ds cs k w)
+    ?_ ?_ i st lst grp hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.nest_grow_group.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len cs by scalar_tac), nestGrowGroup]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)),
+        j.val = k.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absGrpL a)
+          (arena.inductives.positivity.nest_grow_group pers st' rf ctx hi us ds cs j w') lst'
+          (nestGrowGroup lf (absNestCtx ctx) (absU hi) (absLsIdx us) (absEIdxL ds)
+            (absNIdxLFrom cs j) (absGrpL w')) := ih
+    clear ih
+    rw [arena.inductives.positivity.nest_grow_group.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len cs by scalar_tac), nestGrowGroup]
+    lockstep
+    rename_i _ _ grp1 hgrp
+    refine LS.tail (ih' _ _ _ grp1 (by scalar_tac) (by assumption) (by assumption)) ?_
+      (fun _ _ h => h)
+    have hj' : a.val = k.val + 1 := by scalar_tac
+    simp only [absEIdxL, absNIdxLFrom, absGrpL, hgrp, hj', List.map_append, List.map_cons,
+      List.map_nil]
+
 end ConRon.Refine2
