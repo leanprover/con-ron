@@ -2448,22 +2448,6 @@ binder projection that stops at the datum's HANDLE). -/
         = .ok (lst.store.viewBind (absEIdx h), lst) from rfl,
     estore_view_bind_abs hrel.store hbind hrun]
 
-/-- **`Arena.viewBM` has no `arena::monad` wrapper** — a shape difference, and
-a small one: `arena/monad.rs` stops at `view_bind`/`view_bind_i` and its
-binder-datum read goes straight to `EStore::view_bm`, where the twin's
-`Monad.lean` names a `viewBM` of its own.  Both are the same store read under
-the same state, so the refinement states the lemma at the STORE function and
-the twin's monadic wrapper is `rfl` over it. -/
-@[grind →] theorem view_bm_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
-    {m : arena.handle.BMIdx} {o}
-    (hrun : arena.store.EStore.view_bm st.store pers m = ok o) :
-    SimR (Option.map ConRon.Refine.absBinderMeta) lst o
-      (Arena.viewBM (absBMIdx m)) := by
-  show (Arena.viewBM (absBMIdx m)).run lst = _
-  rw [show (Arena.viewBM (absBMIdx m)).run lst
-        = .ok (lst.store.viewBM (absBMIdx m), lst) from rfl,
-    estore_view_bm_abs hrel.store hrun]
-
 /-! ## The rest of the layer: stated, not yet closed
 
 The brief's ask is *one `_run` lemma per primitive of `arena::monad` /

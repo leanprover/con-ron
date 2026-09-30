@@ -414,14 +414,12 @@ abstraction walks intern a fresh `bvar` rather than rebuilding, so they need
 
 `Bridge/Rel.lean`'s group 7 has `RelE.of_view` and the five per-site instances
 for the BRANCHING constructors (`app`, `lam`, `forallE`, `letE`, `proj`).
-Three walks of this tier rebuild a constructor that group 7 does not cover:
-`resetMeta` and `renameConsts` descend into a `fvar`'s annotation, and
-`instLPGo` rebuilds a `sort` and a `const`.  These are the same lemma at those
-three constructors, and they belong beside the other five. -/
+`instLPGo` rebuilds constructors that group 7 does not cover — a `fvar`'s
+annotation, a `sort` and a `const`.  These are the same lemma at those three
+constructors, and they belong beside the other five. -/
 
 /-- con-leche: none — `RelE.of_view` at `fvar`, whose child is the type
-ANNOTATION (`resetMeta`, `renameConsts` and `instantiateLevelParams` are the
-three pure functions that descend into it). -/
+ANNOTATION (`instantiateLevelParams` descends into it). -/
 theorem RelE.fvar {F Ft : Expr → Expr} {st st' : EStore} {h ty rt r : EIdx}
     {idx : Nat} (hwf : StoreWF st)
     (hview : st.view h = some (.fvar idx ty))

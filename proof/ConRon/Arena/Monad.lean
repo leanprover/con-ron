@@ -71,9 +71,12 @@ the other's answers.
 The nine handle-valued tables are keyed `(EIdx × Nat)`: the node and the
 traversal cursor, which is what the answer depends on once the substituted
 term is fixed (nanoda's trick, DESIGN §8.3 "Caches").  Three of con-leche's
-walks have no cursor (`resetMetaGo`, `renameConstsGo`, `instLPGo` key on the
-node alone); the arena keys them at cursor `0` so that every handle-valued
-memo has ONE invariant and one insert lemma.  The two `Nat`-valued tables are
+walks have no cursor (`resetMeta`, `renameConsts`, `instantiateLevelParams`
+key on the node alone); the arena keys them at cursor `0` so that every
+handle-valued memo has ONE invariant and one insert lemma.  `resetC` and
+`renameC` have no walk on either side any more (the port runs neither
+`resetMeta` nor `renameConsts`); they stay field for field with the Rust's
+`Memos`.  The two `Nat`-valued tables are
 the saturated-branch recomputations of the packed range fields. -/
 structure Memos where
   /-- `instantiate1` (`ExprOps.lean:80-116`). -/
@@ -377,11 +380,6 @@ projection that stops at the datum's HANDLE (task #97-P6-16): a walk that
 takes a binder apart and puts it back never looks inside the datum. -/
 @[inline] def viewBindI (h : EIdx) : AM (Option (EIdx × EIdx × BMIdx)) := do
   let s ← get; pure (s.store.viewBindI h)
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — decode a binder
-datum handle. -/
-@[inline] def viewBM (mi : BMIdx) : AM (Option ConLeche.BinderMeta) := do
-  let s ← get; pure (s.store.viewBM mi)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `letE`
 projection. -/

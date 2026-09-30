@@ -23,3 +23,20 @@ ConRon.Bridge.matchOwner_instantiate1ArmProj	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_isCtorApp	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_liftLooseBVarsGo	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_proofIrrel	as matchOwner_denoteLs
+ConRon.Arena.EStore.lss_empty	@[simp] rfl lemma of Arena/WFProofs.lean fired by attribute (the `…_empty` / `hash_*_eq` simp sets of the empty-store and hash proofs); deleting the dead ones broke WFProofs
+ConRon.Arena.EStore.pers_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.EStore.scr_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.EStore.scratchOn_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LStore.ns_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LStore.pers_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LStore.scr_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LStore.scratchOn_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LsStore.ls_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LsStore.pers_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LsStore.scr_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.LsStore.scratchOn_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.NStore.pers_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.NStore.scr_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.NStore.scratchOn_empty	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.hash_level_eq	as ConRon.Arena.EStore.lss_empty
+ConRon.Arena.hash_name_eq	as ConRon.Arena.EStore.lss_empty

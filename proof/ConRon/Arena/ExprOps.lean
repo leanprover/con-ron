@@ -60,9 +60,7 @@ the same one, read in `O(1)` off the derived column instead of recomputed:
 
 `instantiate1Go`'s is one of three cutoffs con-leche does NOT have (its
 `instantiate1Go` walks unconditionally); DESIGN §8.3 asks for it by name and
-task #97s proved its licence, so the arena takes it.  `resetMeta` and
-`renameConsts` have no cutoff in con-leche and none here — neither reads a
-derived field that decides them.
+task #97s proved its licence, so the arena takes it.
 
 **The two derived cutoffs (task #97f, P2f).**  `instantiateList` and
 `liftLooseBVars` have no cutoff in con-leche either, and task #97b left them
@@ -127,10 +125,9 @@ comparison per child.
 
 It is applied ONLY to the walks whose downward cutoff is inexact, which is
 where it can fire at all: `abstract1Go` (the cutoff is `fvarB ≤ d`, and the arm
-abstracts the index `= d`), `abstractRangeGo`, `instLPGo` (the cutoff is the
-`hasLP` bit, and a substitution touching none of the parameters present is the
-identity), `resetMetaGo` (no downward cutoff at all) and `renameConstsGo`.
-`instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo`, `lowerBVarsGo` and
+abstracts the index `= d`), `abstractRangeGo` and `instLPGo` (the cutoff is
+the `hasLP` bit, and a substitution touching none of the parameters present is
+the identity).  `instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo`, `lowerBVarsGo` and
 `instantiate1LiftGo` are NOT given it: their cutoff is `bvarB ≤ d` against a
 field that is EXACT below saturation, so past the cutoff a loose `bvar` at or
 above `d` really is present and really does move. -/
