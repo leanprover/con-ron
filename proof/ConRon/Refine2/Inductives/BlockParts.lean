@@ -1886,4 +1886,86 @@ theorem idx_at_abs {α : Type} (v : alloc.vec.Vec α) (r : Std.U64) (f : α → 
   lockstep
   all_goals (split <;> (refine LS.pure ?_ ‹_› ‹_›; simp_all [absBlockShape]))
 
+/-! ## The recursor records' pins -/
+
+theorem rec_lps_ok_abs {p : arena.inductives.block_parts.BlockShape}
+    {lps rl : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
+    (h : arena.inductives.block_parts.rec_lps_ok p lps rl = ok o) :
+    o = if p.large then (absNIdxL rl == absNIdx p.elim :: absNIdxL lps)
+      else (absNIdxL rl == absNIdxL lps) := by
+  rw [arena.inductives.block_parts.rec_lps_ok] at h
+  cases hl : p.large
+  · rw [if_neg (by simp [hl])] at h
+    simp only [Bool.false_eq_true, ↓reduceIte]
+    exact nidx_vec_beq_abs h
+  · rw [if_pos hl] at h
+    simp only [↓reduceIte]
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi2v := ConRon.Refine.Nat.uadd_val hi2
+    by_cases hlen : alloc.vec.Vec.len rl = i2
+    · rw [if_pos hlen] at h
+      have hlv : rl.val.length = lps.val.length + 1 := by
+        have := congrArg Std.UScalar.val hlen
+        scalar_tac
+      obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbv := nidx_eq2_abs hb
+      have hnv := vec_index_some hn
+      rw [usz_zero_val] at hnv
+      rcases hv : rl.val with _ | ⟨x, xs⟩
+      · simp [hv] at hlv
+      · simp only [hv, List.getElem?_cons_zero, Option.some.injEq] at hnv
+        subst hnv
+        simp only [absNIdxL, hv, List.map_cons, List.cons_beq_cons]
+        cases b
+        · rw [if_neg (by simp), Result.ok.injEq] at h
+          rw [← h, ← hbv, Bool.false_and]
+        · rw [if_pos (by simp)] at h
+          rw [nidx_vec_beq_off_abs _ o h, ← hbv, Bool.true_and, hv]
+          simp
+    · rw [if_neg hlen, Result.ok.injEq] at h
+      rw [← h, eq_comm, beq_eq_false_iff_ne]
+      intro hc
+      have := congrArg List.length hc
+      simp only [absNIdxL, List.length_map, List.length_cons] at this
+      apply hlen
+      scalar_tac
+
+theorem block_rec_lps_ok_from_abs {p : arena.inductives.block_parts.BlockShape}
+    {lps : alloc.vec.Vec arena.handle.NIdx} :
+    ∀ (i : Std.Usize) (o : Bool),
+      arena.inductives.block_parts.block_rec_lps_ok_from p lps i = ok o →
+      o = ((p.recs.val.drop i.val).map absRecShape).all fun rc =>
+        if p.large then rc.cvR.levelParams == absNIdx p.elim :: absNIdxL lps
+        else rc.cvR.levelParams == absNIdxL lps := by
+  have := vec_cursor_all p.recs (fun x => (fun rc : RecShape =>
+        if p.large then rc.cvR.levelParams == absNIdx p.elim :: absNIdxL lps
+        else rc.cvR.levelParams == absNIdxL lps) (absRecShape x))
+    (arena.inductives.block_parts.block_rec_lps_ok_from p lps) ?_ ?_
+  · intro i o h
+    rw [this i o h, List.all_map]; rfl
+  · bp_all_stop arena.inductives.block_parts.block_rec_lps_ok_from.eq_def p.recs
+  · bp_all_head arena.inductives.block_parts.block_rec_lps_ok_from.eq_def p.recs
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := rec_lps_ok_abs hb
+    have e : (if p.large then (absRecShape q).cvR.levelParams == absNIdx p.elim :: absNIdxL lps
+        else (absRecShape q).cvR.levelParams == absNIdxL lps) = b := by
+      rw [hbv]; rfl
+    cases b
+    · rw [if_neg (by simp), Result.ok.injEq] at h
+      exact Or.inr ⟨e, h.symm⟩
+    · rw [if_pos (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inl ⟨e, i2, absSz_add_one hi2, h⟩
+
+@[lockstep] theorem block_rec_lps_ok_twin (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.block_rec_lps_ok p)
+      (fun o => TwinEq (blockRecLpsOk (absBlockShape p)) o) := by
+  intro o h
+  rw [arena.inductives.block_parts.block_rec_lps_ok] at h
+  obtain ⟨lps, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  have e := (shape_lps_twin p lps hl : (absBlockShape p).lps = absNIdxL lps)
+  rw [TwinEq, block_rec_lps_ok_from_abs _ o h, blockRecLpsOk, e, usz_zero_val, List.drop_zero]
+  simp only [absBlockShape, List.all_map]
+
 end ConRon.Refine2
