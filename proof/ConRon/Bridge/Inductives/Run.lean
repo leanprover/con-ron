@@ -4,11 +4,12 @@
 The half of the tier's vocabulary that reads no knot and no environment
 index: the pure frame `PStep`, the pure statement shapes (`PSpec`, `PSpecP`,
 `PSpecL`), the `Option` lift `ROp`, the answer relations, the binder and
-constructor-list denotations, the `AM` bind's inversion and the store
-primitives in RUN form.  Split out of `Bridge/Inductives/Rel.lean` (task #105)
-so that the pure-grade twins of the uniform route — the positivity walk's
-memoised occurrence tests, the recogniser — build without the Core tier.
-`Rel.lean` imports this and adds the core-grade shapes.
+constructor-list denotations, the `AM` bind's inversion, the store
+primitives in RUN form (`zeroLevel_run`, `mkAppN_run`, the views and the
+interners) and the tag and handle-list lemmas every walk reads.  The
+pure-grade twins of the uniform route — the positivity walk's memoised
+occurrence tests, the recogniser — build on this alone; `Rel.lean` imports it
+and adds the core-grade shapes.
 -/
 import ConRon.Bridge.Inductives.Records
 import ConRon.Bridge.Specs
@@ -100,11 +101,9 @@ def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → 
 /-- con-leche: none — **the pure grade with the level-readback cache** (task
 #97-T2-LOCKSTEP lane Inductives round 3, ruling 1).  A twin that reads a level
 back through the CACHED `readLevelM` answers the denotation only under
-`ReadLCacheOK`, which `StateOK` does not carry; the core grade (`CSpec`) does,
-but its `CheckOK` also pins every knot cache to ONE environment, which the
-native recursor's generators do not have (they run at the environment with
-the rule-less recursor pushed, `checkNativeRec`).  This grade asks for the one
-table and nothing else; `PSpecL.toCSpec` is the core grade. -/
+`ReadLCacheOK`, which `StateOK` does not carry.  This grade asks for that one
+table and nothing else; the core grade's `CheckOK` carries it
+(`CheckOK.caches.readL`). -/
 def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → ReadLCacheOK s₀.caches.readLC s₀.store →
@@ -112,11 +111,11 @@ def PSpecL {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → 
 
 /-! ### The `Option` lift
 
-An `Option`-valued twin (`structPartsCore?`, `nativeParts?`, `replacePisPw`,
+An `Option`-valued twin (`blockParts?`, `blockShape?`, `memberIdxAt?`,
 `structProjBodies`, …) needs its answer relation lifted through `Option`, and
 the lift must say `none ↔ none`: a twin that answers `none` where con-leche
 answers `some` would send the DISPATCH into the other route.  That is
-`checkIndDecl`'s own soundness obligation and it is why this is a two-sided
+the route's own soundness obligation and it is why this is a two-sided
 relation rather than a one-sided implication. -/
 
 /-- con-leche: none — an answer relation lifted through `Option`, both
@@ -197,9 +196,8 @@ theorem denoteBinders_ext {st st' : EStore} (hx : Ext st st') :
 
 /-! ## The constructor lists
 
-`List (IConstantVal × Nat)` is `InductiveShape.ctors`; `List (IConstantVal ×
-Nat × Nat)` is what `sumSplit` answers; `List (NIdx × Nat × EIdx × List Nat)`
-is `nativeCtors4`'s, the four-tuple the generated recursor is built from. -/
+`List (IConstantVal × Nat)` is `MemberShape.ctors`; `List (IConstantVal ×
+Nat × Nat)` is what the recogniser's `blockSplitCtors` answers. -/
 
 /-- con-leche: none — the shape record's constructor list denotes. -/
 def denoteCtors (st : EStore) :
@@ -210,7 +208,7 @@ def denoteCtors (st : EStore) :
     | some c, some rest => some ((c, n) :: rest)
     | _, _ => none
 
-/-- con-leche: none — `sumSplit`'s constructor list denotes. -/
+/-- con-leche: none — `blockSplitCtors`' constructor list denotes. -/
 def denoteCtors3 (st : EStore) :
     List (IConstantVal × Nat × Nat) → Option (List (ConstantVal × Nat × Nat))
   | [] => some []
@@ -249,8 +247,7 @@ def denoteLLists (st : EStore) : List (List LIdx) → Option (List (List Level))
     | _, _ => none
 
 /-- con-leche: none — a three-tuple constructor list's denotation keeps its
-length; `nativeCounts?` compares `cs.length` against the recursor's claimed
-prefix. -/
+length. -/
 theorem denoteCtors3_length {st : EStore} :
     ∀ {cs : List (IConstantVal × Nat × Nat)}
       {csP : List (ConstantVal × Nat × Nat)},
@@ -301,19 +298,14 @@ theorem denoteCI_not_ind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
   cases ci <;>
     simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
 
-/-! ## The capability record -/
-
 /-! ## The `AM` bind's inversion
 
-`Bridge/Checker/Fold.lean` has this lemma under the name `AM.bind_ok`, and
-this tier cannot import it: `Bridge/Checker/Decl.lean` will import
-`Bridge/Inductives/Decl.lean` to discharge its `.indDecl` arm, so an import
-the other way would close a cycle.  Six lines, restated, with the citation
-that says where its twin lives. -/
+`Bridge/Promote/Pers.lean` has the same lemma under the name `AM.bind_ok`
+(and `AM.pure_ok` for `pureOk`); the tier's proofs are written against these
+names. -/
 
 /-- con-leche: none — the `AM` bind's inversion: an accepting composite is two
-accepting halves.  `Bridge/Checker/Fold.lean`'s `AM.bind_ok`, restated here
-for the reason the section note gives. -/
+accepting halves. -/
 theorem bindOk {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
     {b : β} (h : (x >>= f) s = .ok (b, s')) :
     ∃ a s₁, x s = .ok (a, s₁) ∧ f a s₁ = .ok (b, s') := by

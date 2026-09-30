@@ -1,111 +1,34 @@
 /-
-# `ConRon.Bridge.Inductives.Rel` — the inductive tier's vocabulary
+# `ConRon.Bridge.Inductives.Rel` — the inductive tier's core-grade vocabulary
 
-DESIGN §8.2's **Theorem 1** at `Arena/Inductives.lean` and the ten modules
-under it (task #97d-2's twins of `ConLeche/Kernel/Inductives/*`).  This module
-holds what every statement of the tier is phrased with — the two frames, the
-two statement shapes, and the denotation relations for the tier's own record
-types — so that `Bridge/Inductives/{StructParts,SumParts,NativeParts,
-StructInstall,SumInstall,NativeInstall,Modeled}.lean` are statements and
-proofs and nothing else.
+DESIGN §8.2's **Theorem 1** at the uniform inductive route (task #105).
+`Run.lean` holds the pure grade; this module adds what the stages that call
+the knot, switch the environment index or read it are phrased with, and the
+run forms those stages share.
 
-## The two frames, and why there are two
+* **The core grade**: `CSpec` (invariant `CheckOK`, frame
+  `Bridge/Checker/Hyp.lean`'s `CoreStep`) and `CSpecF` (its answer related to
+  a con-leche function run at `fueledOpsM μ`, through `FOk`).  `PStep.toCore`
+  is the bridge from the pure grade.
+* **The install frame**: `InstStep`, `ReadOK`, `IFEnvOKS`, for runs that push
+  constants and call the knot at the pushed index.
+* **The environment relations**: `InstRel` (an install's answer), `ProjOut`
+  (the projection-table obligation), `IndOut` (the route's conclusion, what
+  `IndSpec` reads).
+* **Run forms**: `stripPis`/`stripLams`, the spine readers, the interners the
+  generators call, `lvlEq?`/`readLevelM` at the pure frame, `List.mapM`/
+  `allM`/`anyM` of a pure-grade step, `fvarB` (with `FvarBSpec` discharged),
+  the knot's entry points (`whnf_crun`, `infer_crun`, `ensureSort_crun`,
+  `annotate_crun`, `defeq_crun`, `lvlEq?_crun`) and the telescope opener.
 
-Task #97-P3-0 §2's rule for the `ExprOps` tier — "`StateOK s` is `StoreWF
-s.store` and nothing else, the only clause the tier mentions" — applies to
-**two thirds of this tier**: `structFam`, `structPsAt`, `structRecTyR`,
-`nativeCtors4` and their ~70 siblings intern nodes and read the store and do
-nothing else.  Their frame is `PStep`: the store grows, the pin table stands
-still, the caches stand still up to the two tables a level comparison may
-write, and `CheckOK.monoF` lifts the whole invariant across them whenever a
-caller needs it.
-
-The other third calls the knot (`inferTypeCore`, `isDefEqCore`, `whnf`,
-`annotateCore` through `Arena/CheckerBase.lean`), so it flushes and fills the
-per-declaration caches.  Its frame is `Bridge/Checker/Hyp.lean`'s `CoreStep`,
-already stated there for exactly this reason, and its statements take
-`CheckOK` rather than `StateOK`.
-
-`PStep.toCore` is the one-line bridge between them.
-
-**FINDING (task #97-P3-Ind round 2): `lvlEq?` is a CACHED call, and four
-statements of this tier had it at a frame that stands still.**
-`Arena/Core.lean`'s `lvlEq?` is a cached verdict walk: it probes
-`caches.lvlEqC`, and on a miss it reads both handles back through
-`readLevelM` (which writes `caches.readLC`) and records the verdict (which
-writes `caches.lvlEqC`).  So a twin that calls it moves TWO of the fourteen
-per-declaration cache tables, and round 1's `caches : s'.caches = s.caches`
-was **false of it** — not hard to prove, false.
-
-**RULING (task #97-P3-Frame): the STATEMENT was wrong, not the code.**  The
-Rust does exactly what the twin does — `core.rs`'s `lvl_eq` probes, then on a
-miss calls `read_level_m` twice and `lvl_eq_set`, and all three call sites
-(`sum_parts.rs:170`, `struct_parts.rs:832`, `native_parts.rs:2129`) are
-`zero_level` then `core::lvl_eq` — so changing the Lean twin to match
-con-leche's uncached `Level.isEquiv (← readLevel s) .zero` would CREATE a
-layer-B/layer-C divergence, and `Refine2/AbsState.lean`'s `CachesRel` relates
-the two tables pointwise.  `PStep`'s cache clause is therefore
-`Bridge/StateOK.lean`'s `CacheFrame`: the record equation that names the two
-tables allowed to move, plus their invariants as IMPLICATIONS — exactly the
-shape `Bridge/Specs.lean`'s three readback specs and
-`Bridge/Core/Walks/Frame.lean`'s `ReadbackFrame` already carry.
-`PStep.of_caches` is the constructor for the ~107 twins that move nothing.
-
-Three twins of this tier call `lvlEq?` — `InductiveShape.withSort`
-(`SumParts.lean:62`), `structPartsCore?` (`StructParts.lean:289`) and
-`nativeShape?` (`NativeParts.lean:505`), the last of which `nativeParts?`
-calls — and round 1 stated all four at `PSpec`.  They are `CSpec`, and task
-#97-P3-Frame LEFT THEM THERE even though the corrected `PStep` makes their
-FRAME provable at `StateOK` (`Core.lvlEq?_frame`,
-`Bridge/Core/Walks/Cached.lean`, closed).  The frame was never what forced
-them up: their ANSWER is what forces them up.  `withSort`'s `isProp` field is
-the verdict `lvlEq?` returns, and a `lvlEqC` row is only the right verdict
-because `LvlEqCacheOK` says so — an invariant `StateOK` does not carry.  At
-`PSpec` a poisoned cache would make the twin answer a record the statement
-claims is `ConLeche.InductiveShape.withSort`'s, and it is not.  `CSpec` is not
-a weakening for convenience here; it is the grade the ANSWER lives at.
-
-Every consumer inside this tier has `CheckOK` where it needs them
-(`checkIndDecl_bridge` through `FoldOK.check`, `checkSumInd_spec` by its own
-grade), so the correction costs the tier nothing.  Outside it,
-`Bridge/Frontend/ProjRec.lean`'s `projRecOwners_run` calls `structPartsCore?`
-AND `nativeParts?` (`Arena/Frontend/ProjRec.lean:510-515`) and concludes
-`ParseStep` at `StateOK`.  Its frame is now true there — `lvlEq?_frame` needs
-no cache-content hypothesis — and its answer conjunct survives because
-neither recogniser's `isSome` depends on the verdict: `isProp` fills a FIELD
-of a record that is already `some`.
-
-## The two statement shapes
-
-Rather than write the statement out at ~110 declarations, the tier has
-two combinators — `PSpec` for the pure grade and `CSpec` for the core grade —
-each taking the ANSWER RELATION as a parameter, exactly as
-`Bridge/Rel.lean`'s `RelE` family is generic in the pure function (task
-#97-P3-0 §2: "five shapes for the whole tier where the spike's monomorphic
-`Inst1At` would need one copy of its 822-line layer per walk").
-
-    PSpec P c R  :  ∀ s₀ s' r, StateOK s₀ → P s₀.store →
-                    c s₀ = .ok (r, s') → PStep s₀ s' ∧ R s'.store r
-
-`P` is the PRECONDITION — "these argument handles denote these `Expr`s" — and
-it is a predicate on the store rather than a hypothesis of the theorem for the
-reason `Bridge/Core/Knot.lean`'s `BodySpec` makes `denoteE s₀.store i = some e`
-a parameter: the statement quantifies over the initial state, so anything said
-about that state's store has to travel inside.
-
-The answer relation is an `EStore → α → Prop` and the ten the tier uses are
-the `R…` abbreviations below.  A `Bool`- or `Nat`-valued twin uses `RV`, which
-mentions no store — task #97-P3-0 §5's finding 1, "the cheapest group is the
-one with no target store".
-
-## The record relations
-
-`InductiveShape`, `NativeParts`, `StructParts`, `IIndCaps` and the three ctor
-lists are twinned records whose fields are handles; each gets a `…Rel`
-structure saying every field denotes, with an `ext` transport beside it.
-These are the tier's own instance of `Bridge/Rel.lean`'s ten
-declaration-layer transports and they are what the install routes' statements
-name.
+**Why `lvlEq?` sits at the core grade** (task #97-P3-Frame): it is a CACHED
+verdict walk — it probes `caches.lvlEqC` and on a miss reads both handles
+back through `readLevelM` (writing `readLC`) and records the verdict (writing
+`lvlEqC`), exactly as the Rust's `core::lvl_eq` does.  `PStep`'s cache clause
+(`Bridge/StateOK.lean`'s `CacheFrame`) lets those two tables move, so its
+FRAME is pure (`lvlEq?_pstep`); but its ANSWER is the verdict only under
+`LvlEqCacheOK`, which `StateOK` does not carry, so a twin whose answer
+contains the verdict (`BlockShape.withSort`'s `isProp`) is `CSpec`.
 -/
 import ConRon.Bridge.Inductives.Run
 import ConRon.Bridge.Checker.Hyp
@@ -153,12 +76,11 @@ def CSpecF (μ : CheckMode) (env : Env) (fe : IFEnv) {α β : Type}
     (P : EStore → Prop) (c : AM α) (R : EStore → α → β → Prop) (p : FueledM β) : Prop :=
   CSpec μ env fe P c (fun st r => ∃ v, R st r v ∧ FOk p v)
 
-/-! ## The install frame (task #97-P3-Ind round 8, ruling 2 on finding R7.4)
+/-! ## The install frame
 
 A run that SWITCHES the environment index part-way — pushes a constant and
-calls the knot at the pushed index (`checkNativePass`, `checkNativeTail`, the
-modeled route's iota family at `feSelf`, the member and recursor folds) —
-leaves cache rows valid for the NEW environment only (`ConstTyCacheOK env`
+calls the knot at the pushed index (the constructors' stage after the formers'
+push, the recursor stage, the tail) — leaves cache rows valid for the NEW environment only (`ConstTyCacheOK env`
 asks `env.find?` of every cached constant type).  `CoreStep` at the ENTRY
 index is then false.  What such a run owes the consumer
 (`Bridge/Inductives/Decl.lean` reads `.state`, `.ext` and `.pins` alone) is
@@ -259,13 +181,9 @@ theorem denoteBinders_eq_denoteBL {st : EStore} :
 
 /-! ### `stripPis`, in run form
 
-`Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is CLOSED; this tier's
-consumers are the three telescope readers (`structUsedLater`,
-`structUsedLaterGo` and, through them, `structProjGuards`) and — since round
-5 — `structShape_spec`, which is why these live here rather than in
-`StructParts.lean`.  Two inversions of `denoteBP` are the shape the readers
-need; `denoteBP_someB` above is the third, for the twins that read the peeled
-BINDERS. -/
+`Bridge/ExprOps/Spine.lean`'s `stripPis_spec` is closed; here is its run
+form with the two inversions of `denoteBP` its readers need, and the other
+spine readers and interners the generators call, in run form. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the run form
 at this tier's frame; `stripPis` is read-only, so the state does not move at
@@ -459,17 +377,6 @@ theorem denoteEList_append {st : EStore} :
         obtain rfl := Option.some.inj ha
         simp only [List.cons_append, Frontend.denoteEList, hx, ih hxs hb]
 
-/-! ### The stored constant's NAME, and the `.projInfo` name gap — MOVED
-
-`denoteCV_type`, `denoteCV_name`, `denoteCI_name`, `denoteCI_name_proj` and
-`denoteCI_name_of` were proved here in round 3 and **moved to
-`Bridge/StateOK.lean` in round 4**, beside `IProjTableOK` — the lowest module
-that has both `Frontend.denoteCI` and the invariant, and the one below the
-Checker tier, whose `IFEnvOK_of_denote`, `denoteFEnv_restrictTo` and
-`installBasisDecl_bridge` need them and cannot see `Bridge/Inductives/**`.
-They are in scope here unchanged (`ConRon.Bridge` is this namespace's
-parent), so every use in this tier reads the same. -/
-
 /-- con-leche: none — **a denoting binder telescope reads at an INDEX with the
 `Option` CARRIED**, both ways.  `structShape` reads `rbs[nP]?`, `rbs[nP+1]?`
 and `rbs[nP+2]?` and dispatches on the `Option`, so the `none` answers have to
@@ -542,12 +449,9 @@ theorem denoteBinders_length {st : EStore} :
         simp only [List.length_cons, ih has]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 liftLooseBVarsFast —
-**the lift in run form at this tier's frame**.  Round 4 §R4.4 recorded that
-`Bridge/ExprOps/Subst.lean`'s `LiftSpec` did not state `BMExt` and that this
-blocked the whole of group 3; task #97-P3-ExprOps round 4 stated it, and this
-is the lemma that cashes it.  `Bridge/Inductives/Rel.lean` gains the
-`ExprOps.Subst` import for it — nothing else in the Bridge imported that
-module. -/
+**the lift in run form at this tier's frame**, from
+`Bridge/ExprOps/Subst.lean`'s `LiftSpec` (which states the `BMExt` conjunct
+`PStep` needs). -/
 theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
     {eP : Expr} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
     (hrun : Arena.liftLooseBVarsFast fuel amount c e s₀ = .ok (r, s')) :
@@ -560,11 +464,9 @@ theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
 
 `Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and
 its Theorem 1 **belongs in `Bridge/ExprOps/TelescopeF.lean`** beside
-`stripPis`' — but that tier has not stated it and two statements here need it
-(`Bridge/Inductives/Decl.lean`'s `indParamsOk_spec`, which is the arm's own
-gate, and `Bridge/Inductives/NativeParts.lean`'s `nativeCounts?_spec`).  It is
-proved here, at this tier's frame, with the citation that says where it should
-move. -/
+`stripPis`' — but that tier has not stated it, and
+`Bridge/Inductives/Decl.lean`'s `indParamsOk_spec` (the arm's own gate) needs
+it.  It is proved here, at this tier's frame. -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:583-586 Expr.piSortTeleLen? —
 **THEOREM 1 for `piSortTeleLen?`**: the number of `∀`-binders before a `Sort`
@@ -671,28 +573,22 @@ Two of the record's three clauses the install itself tests (`unless
 bodies.size = nF` is `bodies` verbatim, `let tn ← projTableName T` is
 `named`'s second half).  The third, `guards.length = numFields`, is about an
 ARGUMENT, so it cannot be tested there and its site is the CALLER:
-`Arena.checkNativeTable` builds `structProjGuards cA.1.type p.nP cA.2 sorts`
-and passes it beside `cA.2`, and `structProjGuards`' own answer has length
-`nF` by construction (`structProjGuards_length`).  So
-`checkStructProjTable_spec` takes `guards.length = nF` as a HYPOTHESIS and
-`checkNativeTable_spec` discharges it.
+`Arena/Inductives/BlockTail.lean`'s structure tail builds the guards with
+`structProjGuards`, whose answer has length `nF` by construction
+(`structProjGuards_length`).  So `checkStructProjTable_spec` takes
+`guards.length = nF` as a HYPOTHESIS and `BlockTail.lean` discharges it.
 
 The clause an install can actually CONCLUDE is RELATIVE — "every projection
 table the new index holds was already in the old one, or is well shaped at the
-new store" — because a route chains a dozen installs and only the structure
-route's stage 4 pushes one.  `ProjOut` is that clause; it composes
+new store" — because the route chains many installs and only the structure
+tail pushes one.  `ProjOut` is that clause; it composes
 (`ProjOut.trans`, transporting the older tables over the store the chain
 grew), and it is a FIELD of `InstRel` so that every install of the tier
-carries it rather than each caller restating it.
-
-`ProjOut.absolute` turns it back into the absolute statement
-`IFEnvOK_of_denote` wants, against the fold's own `IFEnvOK env fe s` at the
-index the step started from. -/
+carries it rather than each caller restating it. -/
 
 /-- con-leche: none — a level-handle list's denotation has its own length.
-What `checkNativeTable_spec` reads `guards.length = nF` off, against
-`structProjGuards_length`.  Belongs in `Bridge/Rel.lean` beside
-`denoteLList_ext`. -/
+What `BlockTail.lean` reads `guards.length = nF` off, against
+`structProjGuards_length`. -/
 theorem denoteLList_length {st : LStore} :
     ∀ (us : List LIdx) (xs : List Level), denoteLList st us = some xs →
       us.length = xs.length := by
@@ -735,8 +631,7 @@ def ProjOutM (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:191 ConstWF (the `.projInfo`
 clause) — **what an install owes about projection tables**, in both shapes:
-`find?` (`ProjOutF`, what `ProjOut.absolute` turns into the fold's
-`IFEnvOK.proj`) and membership (`ProjOutM`, what `IndSpec.run` concludes). -/
+`find?` (`ProjOutF`, the fold's `IFEnvOK.proj` shape) and membership (`ProjOutM`, what `IndSpec.run` concludes). -/
 def ProjOut (fe : IFEnv) (st : EStore) (fe' : IFEnv) : Prop :=
   ProjOutF fe st fe' ∧ ProjOutM fe st fe'
 
@@ -775,10 +670,9 @@ theorem ProjOut.trans {fe₀ fe₁ fe₂ : IFEnv} {st₁ st₂ : EStore}
     · exact Or.inr h'
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a push that is
-not a projection table owes nothing**.  Thirteen of this tier's fourteen
-install statements need exactly this; the fourteenth is
-`checkStructProjTable`, the one install of the arena that pushes a
-`.projInfo` row.
+not a projection table owes nothing**.  Every install of the tier but
+`checkStructProjTable` (the one that pushes a `.projInfo` row) needs exactly
+this.
 
 The coherence hypothesis is not decoration: `IFEnv.find?` hides an entry whose
 counter is not below `visibleBelow`, and `push` raises the bound, so without
@@ -862,10 +756,9 @@ at `checkDecl`. -/
 index, it only pushed, its visibility bound only rose, and it denotes an
 environment con-leche's own install produces.
 
-Every install twin of this tier (`checkStructProjTable`, `checkSumInd`,
-`checkNativeTable`, `checkIndMember`, `checkProjFn`, `installProjFnStep`, the
-two routes) answers an `IFEnv`, and this is the one relation all of them use;
-`IndOut` below is `InstRel` plus what the STATE did, and
+Every install twin of this tier (the formers' and constructors' pushes,
+`checkStructProjTable`, the recursor stage, the route) answers an `IFEnv`,
+and this is the one relation all of them use; `IndOut` below is `InstRel` plus what the STATE did, and
 `Bridge/Inductives/Decl.lean` assembles the two. -/
 structure InstRel (fe : IFEnv) (P : Env → Prop) (st : EStore) (fe' : IFEnv) :
     Prop where
@@ -927,11 +820,48 @@ theorem InstRel.imp {fe fe' : IFEnv} {P Q : Env → Prop} {st : EStore}
   obtain ⟨e, he, hp⟩ := h.denote
   exact ⟨h.coh, h.pushed, h.visible, ⟨e, he, hPQ e hp⟩, h.proj⟩
 
-/-! ## The recognisers' readers (task #97-P3-Ind round 6)
+/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
+**what an inductive install route leaves behind**.  Seven clauses, and the
+correspondence with `DeclOut` is one-for-one except that the `run` clause is
+abstracted: `Bridge/Inductives/Decl.lean` instantiates it at
+`ConLeche.checkDecl … (.indDecl b nP)` and the two route theorems at their own
+con-leche function.
 
-`structPartsCore?` and `nativeShape?` read the reserved-name list, peel a
-rule's right-hand side with `stripLams`, and ask `lvlEq?` for `isProp`.  The
-three run forms below put each of those at THIS tier's frame. -/
+**`visible` is here and not in `DeclOut`**, because `IndSpec`
+(`Bridge/Checker/Hyp.lean`) asks for it: `Arena/Checker.lean`'s promotion
+counter is read off `visibleBelow`, so the step needs to know the route only
+moved it up. -/
+structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop where
+  state : StateOK s'
+  ext : Ext s.store s'.store
+  pins : s'.pins = s.pins
+  coh : IFEnvCoh fe'
+  pushed : Pushed fe fe'
+  visible : fe.visibleBelow ≤ fe'.visibleBelow
+  denote : ∃ env', denoteFEnv s'.store fe' = some env' ∧ run env'
+  /-- **the eighth clause** (task #97-P3-Ind round 2): the arm's own
+  `ProjOut`.  `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` needs
+  `IProjTableOK` at every stored table of the index the step produced, and
+  `ProjOut.absolute` is what turns this clause plus the fold's incoming
+  `IFEnvOK` into that.  `Bridge/Checker/Hyp.lean`'s `IndSpec` and
+  `Bridge/Checker/Decl.lean`'s `DeclOut` do not carry it yet — that is the
+  checker tier's two-line follow-on, and `indSpec_of_bridge` simply drops it
+  until then. -/
+  proj : ProjOut fe s'.store fe'
+  /-- **the ninth clause** (task #97-P3-Ind round 7, the coordinator's
+  authorised conclusion change): the environment the new index denotes is
+  well formed.  The fold boundary after each declaration needs `EnvWF` at the
+  pushed index (task #97-P3-Checker round 9's finding); `DeclOut` gains the
+  same clause.  Stated for every denotation — `denoteFEnv` is a function, so
+  this is the `denote` clause's witness. -/
+  envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
+
+/-! ## The recognisers' readers
+
+The recogniser (`blockParts?`, `blockShape?`) and the generated recursors read
+the reserved-name list, peel a rule's right-hand side with `stripLams`, and
+ask `lvlEq?` for `isProp`.  The run forms below put each of those at THIS
+tier's frame. -/
 
 /-- con-leche: none — the frame a name-only program leaves on the three
 fields `EStore.viewBM` reads: `bmExt_of_nested`'s hypotheses, as a relation
@@ -1038,13 +968,11 @@ theorem readLevelM_denote_core {μ : CheckMode} {env : Env} {fe : IFEnv}
     denoteL s.store.ls h = some u :=
   readLevelM_denote_L hc.caches.readL q hrun
 
-/-! ## `List.mapM` at the pure frame (task #97-P3-Ind round 6)
+/-! ## `List.mapM` at the pure frame
 
-Group 3's generators map a pure-grade twin over a list (`structTeleAt` over
-the telescope's indices, `structIhApp` over the index expressions,
-`structRuleBodyR` over the recursive positions, …).  `mapM_pstep` is the one
-induction; the answer is a pointwise relation `ListRel`, which the two
-readers below turn into `denoteEList` / `denoteBinders`. -/
+The generators map a pure-grade twin over a list.  `mapM_pstep` is the one
+induction; the answer is a pointwise relation `ListRel`, which
+`ListRel.toEList` turns into `denoteEList`. -/
 
 /-- con-leche: none — a relation lifted pointwise to two lists of the same
 length. -/
@@ -1260,7 +1188,7 @@ theorem ListRel.toEList {st : EStore} :
       obtain ⟨h1, h2⟩ := h
       simp only [Frontend.denoteEList, h1, ih h2]
 
-/-! ## `FvarBSpec`, discharged (task #97-P3-Ind round 6)
+/-! ## `FvarBSpec`, discharged
 
 `Bridge/ExprOps/Abs.lean` takes `fvarB`'s Theorem 1 as the hypothesis
 `FvarBSpec`, and `Bridge/ExprOps/Ranges.lean`'s `fvarB_spec` states everything
@@ -1268,7 +1196,7 @@ it asks EXCEPT the `abs1C` frame (`fvarB` writes only `fvarBC`).  This section
 supplies that frame — a program-level fact, proved over `fvarRangeGo`'s
 mutual block the way `NestProg` is over `reservedBasisNames` — and assembles
 the record, so `abstract1Fast_spec` has its hypothesis and `closeTelescope`
-(`SumInstall.lean`) can call it.  **On loan from the `ExprOps` tier**, whose
+(`FieldTele.lean`) can call it; `fvarB_pstep` is the run form the walks read.  **On loan from the `ExprOps` tier**, whose
 module it belongs in: `Ranges.lean`'s `fvarB_spec` gaining the conjunct makes
 this section one line. -/
 
@@ -1388,43 +1316,21 @@ theorem fvarBSpec : ExprOps.FvarBSpec where
       (ExprOps.fvarB_spec fuel s h hok hden)
     exact ⟨h1, h2, h3, fvarB_a1 fuel h s s' a hr, h4⟩)
 
-/-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
-**what an inductive install route leaves behind**.  Seven clauses, and the
-correspondence with `DeclOut` is one-for-one except that the `run` clause is
-abstracted: `Bridge/Inductives/Decl.lean` instantiates it at
-`ConLeche.checkDecl … (.indDecl b nP)` and the two route theorems at their own
-con-leche function.
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — **the free-variable
+cutoff's run form** at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s
+`fvarB_spec` answers `fvarRange`, which is `Expr.fvarB` (`Expr.fvarB_eq`). -/
+theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
+    {r : Nat} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
+    (hrun : Arena.fvarB fuel e s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.fvarB eP := by
+  obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+    (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, ?_⟩
+  · rw [h1]; exact Ext.refl _
+  · rw [h1]; exact BMExt.refl _
+  · rw [h4 eP hd, Expr.fvarB_eq]
 
-**`visible` is here and not in `DeclOut`**, because `IndSpec`
-(`Bridge/Checker/Hyp.lean`) asks for it: `Arena/Checker.lean`'s promotion
-counter is read off `visibleBelow`, so the step needs to know the route only
-moved it up. -/
-structure IndOut (fe fe' : IFEnv) (s s' : AState) (run : Env → Prop) : Prop where
-  state : StateOK s'
-  ext : Ext s.store s'.store
-  pins : s'.pins = s.pins
-  coh : IFEnvCoh fe'
-  pushed : Pushed fe fe'
-  visible : fe.visibleBelow ≤ fe'.visibleBelow
-  denote : ∃ env', denoteFEnv s'.store fe' = some env' ∧ run env'
-  /-- **the eighth clause** (task #97-P3-Ind round 2): the arm's own
-  `ProjOut`.  `Bridge/Checker/Inv.lean`'s `IFEnvOK_of_denote` needs
-  `IProjTableOK` at every stored table of the index the step produced, and
-  `ProjOut.absolute` is what turns this clause plus the fold's incoming
-  `IFEnvOK` into that.  `Bridge/Checker/Hyp.lean`'s `IndSpec` and
-  `Bridge/Checker/Decl.lean`'s `DeclOut` do not carry it yet — that is the
-  checker tier's two-line follow-on, and `indSpec_of_bridge` simply drops it
-  until then. -/
-  proj : ProjOut fe s'.store fe'
-  /-- **the ninth clause** (task #97-P3-Ind round 7, the coordinator's
-  authorised conclusion change): the environment the new index denotes is
-  well formed.  The fold boundary after each declaration needs `EnvWF` at the
-  pushed index (task #97-P3-Checker round 9's finding); `DeclOut` gains the
-  same clause.  Stated for every denotation — `denoteFEnv` is a function, so
-  this is the `denote` clause's witness. -/
-  envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
-
-/-! ## Reading the index at `ReadOK` (task #97-P3-Ind round 8) -/
+/-! ## Reading the index at `ReadOK` -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean constsResolveFFast — `Bridge/Checker/Names.lean`'s
 `constsResolveFFast_run` at `ReadOK`: the walk reads the store, the pins and
@@ -1659,22 +1565,6 @@ theorem defeq_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 
 end Knot
-
-/-! ## Shared walks at the pure frame -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — **the free-variable
-cutoff's run form** at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s
-`fvarB_spec` answers `fvarRange`, which is `Expr.fvarB` (`Expr.fvarB_eq`). -/
-theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
-    {r : Nat} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
-    (hrun : Arena.fvarB fuel e s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.fvarB eP := by
-  obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, ?_⟩
-  · rw [h1]; exact Ext.refl _
-  · rw [h1]; exact BMExt.refl _
-  · rw [h4 eP hd, Expr.fvarB_eq]
 
 /-! ## The telescope opener
 
