@@ -443,14 +443,6 @@ theorem ETables.get_of_getConst {t : ETables} {i : EIdx} {n : NIdx} {us : LsIdx}
   obtain ⟨r, hr, rfl, rfl⟩ := h
   simp [ETables.get, htg, hr, ETag.const, ETag.bvar, ETag.fvar, ETag.sort]
 
-theorem ETables.get_of_getConstName {t : ETables} {i : EIdx} {n : NIdx}
-    (htg : i.tag = ETag.const) (h : t.getConstName i = some n) :
-    ∃ us, t.get i = some (.const n us) := by
-  simp only [ETables.getConstName, Option.map_eq_some_iff] at h
-  obtain ⟨r, hr, rfl⟩ := h
-  exact ⟨r.us, by simp [ETables.get, htg, hr, ETag.const, ETag.bvar, ETag.fvar,
-    ETag.sort]⟩
-
 theorem ETables.get_of_getApp {t : ETables} {i : EIdx} {f a : EIdx}
     (htg : i.tag = ETag.app) (h : t.getApp i = some (f, a)) :
     t.get i = some (.app f a) := by
@@ -1129,18 +1121,6 @@ theorem denoteProjEntry_inv {st : EStore} {e : IProjEntry} {p : ProjEntry}
               obtain rfl := Option.some.inj h
               exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — an entry's denotation
-survives an arena extension, exactly as `denoteProjTable_ext` does. -/
-theorem denoteProjEntry_ext {st st' : EStore} {e : IProjEntry} {p : ProjEntry}
-    (h : denoteProjEntry st e = some p) (hx : Ext st st') :
-    denoteProjEntry st' e = some p := by
-  obtain ⟨hs, hl, hc, hb, hf, hss, hi, hnp, hnf, ho⟩ := denoteProjEntry_inv h
-  simp only [denoteProjEntry]
-  rw [denoteN_ext hs hx, denoteNListE_ext hx _ _ hl, denoteN_ext hc hx,
-    denote_ext hb hx, denoteL_ext hf hx, denoteL_ext hss hx]
-  cases p
-  simp_all
-
 /-- con-leche: none — a denoting expression-handle list keeps its length. -/
 theorem denoteEList_len {st : EStore} :
     ∀ {hs : List EIdx} {xs : List Expr},
@@ -1224,43 +1204,6 @@ theorem denoteLList_getD {st : LStore} :
         | succ k =>
           simp only [List.getD_cons_succ]
           exact denoteLList_getD has (by simpa using hi)
-
-/-- con-leche: none — the two indexed columns keep their lengths under the
-denotation, so an in-range index on the arena's side is one on con-leche's
-and back.  This is what lets a caller of `denoteProjTable_entry` discharge
-its two side conditions from whichever tier's table invariant it holds. -/
-theorem denoteProjTable_sizes {st : EStore} {t : IProjTable} {p : ProjTable}
-    (h : Frontend.denoteProjTable st t = some p) :
-    p.bodies.size = t.bodies.size ∧ p.guards.length = t.guards.length := by
-  simp only [Frontend.denoteProjTable] at h
-  cases hs : denoteN st.ns t.structName with
-  | none => rw [hs] at h; simp at h
-  | some sn =>
-    cases hl : Frontend.denoteNList st.ns t.levelParams with
-    | none => rw [hs, hl] at h; simp at h
-    | some lps =>
-      cases hc : denoteN st.ns t.ctor with
-      | none => rw [hs, hl, hc] at h; simp at h
-      | some ct =>
-        rw [hs, hl, hc] at h
-        cases hss : denoteL st.ls t.structSort with
-        | none => rw [hss] at h; simp at h
-        | some ss =>
-          cases hb : Frontend.denoteEArray st t.bodies with
-          | none => rw [hss, hb] at h; simp at h
-          | some bs =>
-            cases hg : denoteLList st.ls t.guards with
-            | none => rw [hss, hb, hg] at h; simp at h
-            | some gs =>
-              rw [hss, hb, hg] at h
-              obtain rfl := Option.some.inj h
-              simp only [Frontend.denoteEArray] at hb
-              cases hbl : Frontend.denoteEList st t.bodies.toList with
-              | none => rw [hbl] at hb; simp at hb
-              | some bl =>
-                rw [hbl] at hb
-                obtain rfl := Option.some.inj hb
-                exact ⟨by simp [denoteEList_len hbl], denoteLList_len hg⟩
 
 /-- con-leche: ConLeche/Kernel/Env.lean:454-458 ProjTable.entry — **the
 EXACTNESS lemma of the projection table**: taking the per-field view commutes
@@ -1556,45 +1499,12 @@ lemma con-leche's tree-shaped proof never needed. -/
   rw [Option.some.inj hh]
   exact h e0 he0
 
-/-- con-leche: none — two extensions at once.  `grind` chains `Ext.trans` and
-`RelE.ext` only when it has the budget for two nested instantiations; the
-composite fires in one. -/
-theorem RelE.ext2 {f : Expr → Expr} {st a b c : EStore} {x r : EIdx}
-    (h : RelE f st x a r) (h1 : Ext a b) (h2 : Ext b c) : RelE f st x c r :=
-  (h.ext h1).ext h2
-
-/-- con-leche: none — retarget the source and extend the target in one step:
-the shape every SECOND child of a node needs, because its answer was
-established against the store the first child's call left behind. -/
-theorem RelE.back_ext {f : Expr → Expr} {st st1 a b : EStore} {x r : EIdx}
-    (h : RelE f st1 x a r) (h0 : Ext st st1) (h1 : Ext a b) : RelE f st x b r :=
-  (h.of_ext h0).ext h1
-
-/-- con-leche: none — and with two extensions after the retarget (the third
-child of `letE`). -/
-theorem RelE.back_ext2 {f : Expr → Expr} {st st1 a b c : EStore} {x r : EIdx}
-    (h : RelE f st1 x a r) (h0 : Ext st st1) (h1 : Ext a b) (h2 : Ext b c) :
-    RelE f st x c r := ((h.of_ext h0).ext h1).ext h2
-
-/-- con-leche: none — **the pure function may be replaced by an equal one**.
-This is what lets a twin whose clause is not con-leche's clause be stated
-against con-leche's function anyway: the equating lemma goes here (DESIGN
-§8's "the equation the bridge cites"). -/
-theorem RelE.congr {f g : Expr → Expr} {st st' : EStore} {c r : EIdx}
-    (h : RelE f st c st' r) (hfg : ∀ e, f e = g e) : RelE g st c st' r :=
-  fun e he => by rw [← hfg e]; exact h e he
-
 /-- con-leche: none — a leaf arm that answers the handle it was given: the
 CUTOFF shape.  Every derived-word cutoff in `ExprOps.lean` closes through
 this, with `hf` supplied by con-leche's own `*_of_*_le` licence. -/
 theorem RelE.self {f : Expr → Expr} {st : EStore} {c : EIdx}
     (hf : ∀ e, denoteE st c = some e → f e = e) : RelE f st c st c :=
   fun e he => by rw [hf e he]; exact he
-
-/-- con-leche: none — the same at a store the walk has already grown. -/
-theorem RelE.self_ext {f : Expr → Expr} {st st' : EStore} {c : EIdx}
-    (hf : ∀ e, denoteE st c = some e → f e = e) (hx : Ext st st') :
-    RelE f st c st' c := (RelE.self hf).ext hx
 
 /-! ### The same eliminators, at the other four shapes -/
 
@@ -1652,11 +1562,6 @@ theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x :
   rw [Option.some.inj hh]
   exact h e0 he0
 
-theorem RelEO.congr {f g : Expr → Option Expr} {st st' : EStore} {c : EIdx}
-    {r : Option EIdx} (h : RelEO f st c st' r) (hfg : ∀ e, f e = g e) :
-    RelEO g st c st' r :=
-  fun e he => by rw [← hfg e]; exact h e he
-
 @[grind →] theorem RelEL.apply {f : Expr → List Expr} {st st' : EStore}
     {c : EIdx} {rs : List EIdx} {e : Expr} (h : RelEL f st c st' rs)
     (he : denoteE st c = some e) : Frontend.denoteEList st' rs = some (f e) := h e he
@@ -1680,11 +1585,6 @@ theorem RelEO.congr {f g : Expr → Option Expr} {st st' : EStore} {c : EIdx}
   rw [he] at hh
   rw [Option.some.inj hh]
   exact h e0 he0
-
-theorem RelEL.congr {f g : Expr → List Expr} {st st' : EStore} {c : EIdx}
-    {rs : List EIdx} (h : RelEL f st c st' rs) (hfg : ∀ e, f e = g e) :
-    RelEL g st c st' rs :=
-  fun e he => by rw [← hfg e]; exact h e he
 
 @[grind →] theorem RelL.apply {f : Level → Level} {st st' : EStore} {c r : LIdx}
     {u : Level} (h : RelL f st c st' r) (hu : denoteL st.ls c = some u) :
@@ -1727,15 +1627,6 @@ pure function's own clause supplied as a decomposition hypothesis `hdec`.  Per
 task #97b finding 1 they are **not** `@[grind →]`: `hdec`'s head is a
 variable, so `grind` finds no pattern.  They are applied by hand, which is
 what task #97s round 2's recipe item 3 prescribes anyway. -/
-
-theorem RelE.of_view {f : Expr → Expr} {st st' : EStore} {h r : EIdx}
-    {w w' : ENodeView} (hwf : StoreWF st) (hview : st.view h = some w)
-    (hr : denoteE st' r = denoteEView st' w')
-    (hstep : ∀ e, denoteEView st w = some e → denoteEView st' w' = some (f e)) :
-    RelE f st h st' r := by
-  intro e he
-  rw [denoteE_view_eq hwf hview] at he
-  rw [hr]; exact hstep e he
 
 theorem RelE.app {F Ff Fa : Expr → Expr} {st st' : EStore}
     {h f a rf ra r : EIdx} (hwf : StoreWF st)
@@ -1884,18 +1775,5 @@ theorem viewOK_proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx}
       exact view_isSome hs,
    by intro c hc; simp [ENodeView.nchildren] at hc; subst hc; exact hn,
    by simp [ENodeView.lchildren], by simp [ENodeView.lschildren]⟩
-
-/-- con-leche: none — `eBindView`'s `ViewOK`, so that the binder arms of the
-rebuilding walks (which carry the tag rather than the constructor) need no
-case split. -/
-theorem viewOK_eBindView {st : EStore} {tag : UInt32} {ty b : EIdx}
-    {m : BinderMeta} (ht : (denoteE st ty).isSome = true)
-    (hb : (denoteE st b).isSome = true) : st.ViewOK (eBindView tag ty b m) := by
-  unfold eBindView
-  by_cases hc : (tag == ETag.lam) = true
-  · rw [if_pos hc]; exact viewOK_lam ht hb
-  · simp only [Bool.not_eq_true] at hc
-    rw [hc]; simp only [Bool.false_eq_true, if_false]
-    exact viewOK_forallE ht hb
 
 end ConRon.Bridge

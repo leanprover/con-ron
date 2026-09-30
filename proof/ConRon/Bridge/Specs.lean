@@ -532,17 +532,6 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.bvar i)⌝⦄ :=
   internE_spec s₀ (.bvar i) hwf viewOK_bvar
 
-@[spec] theorem internLitE_spec (s₀ : AState) (l : ConLeche.Literal)
-    (hwf : StoreWF s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLitE l
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.store.view h = some (.lit l) ∧
-        denoteE s'.store h = denoteEView s'.store (.lit l)⌝⦄ :=
-  internE_spec s₀ (.lit l) hwf viewOK_lit
-
 @[spec] theorem internFVarE_spec (s₀ : AState) (idx : Nat) (ty : EIdx)
     (hwf : StoreWF s₀.store) (hty : (denoteE s₀.store ty).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internFVarE idx ty
@@ -564,18 +553,6 @@ so this is a case split over the two. -/
         s'.store.view h = some (.sort u) ∧
         denoteE s'.store h = denoteEView s'.store (.sort u)⌝⦄ :=
   internE_spec s₀ (.sort u) hwf (viewOK_sort hu)
-
-@[spec] theorem internConstE_spec (s₀ : AState) (n : NIdx) (us : LsIdx)
-    (hwf : StoreWF s₀.store) (hn : (s₀.store.ns.view n).isSome = true)
-    (hus : (s₀.store.lss.view us).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internConstE n us
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.store.view h = some (.const n us) ∧
-        denoteE s'.store h = denoteEView s'.store (.const n us)⌝⦄ :=
-  internE_spec s₀ (.const n us) hwf (viewOK_const hn hus)
 
 @[spec] theorem internAppE_spec (s₀ : AState) (f a : EIdx)
     (hwf : StoreWF s₀.store) (hf : (denoteE s₀.store f).isSome = true)
@@ -669,12 +646,6 @@ is the store's own projection.  `Bridge/Rel.lean`'s group 6 turns each into a
   mvcgen [viewConst]
   spec_ro
 
-@[spec] theorem viewConstName_spec (s₀ : AState) (h : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ viewConstName h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewConstName h⌝⦄ := by
-  mvcgen [viewConstName]
-  spec_ro
-
 @[spec] theorem viewFVarIdx_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewFVarIdx h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewFVarIdx h⌝⦄ := by
@@ -685,12 +656,6 @@ is the store's own projection.  `Bridge/Rel.lean`'s group 6 turns each into a
     ⦃fun s => ⌜s = s₀⌝⦄ viewFVarTy h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewFVarTy h⌝⦄ := by
   mvcgen [viewFVarTy]
-  spec_ro
-
-@[spec] theorem viewLit_spec (s₀ : AState) (h : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ viewLit h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewLit h⌝⦄ := by
-  mvcgen [viewLit]
   spec_ro
 
 @[spec] theorem viewLet_spec (s₀ : AState) (h : EIdx) :
@@ -715,12 +680,6 @@ is the store's own projection.  `Bridge/Rel.lean`'s group 6 turns each into a
     ⦃fun s => ⌜s = s₀⌝⦄ viewBindI h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewBindI h⌝⦄ := by
   mvcgen [viewBindI]
-  spec_ro
-
-@[spec] theorem viewBM_spec (s₀ : AState) (mi : BMIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ viewBM mi
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewBM mi⌝⦄ := by
-  mvcgen [viewBM]
   spec_ro
 
 /-! ## The name store -/
@@ -814,12 +773,6 @@ name, by induction on the `Name` tree (the recursion `internName` takes: a
     ⦃fun s => ⌜s = s₀⌝⦄ viewL h
     ⦃⇓? v s' => ⌜s' = s₀ ∧ s₀.store.ls.view h = some v⌝⦄ := by
   mvcgen [viewL]
-  spec_ro
-
-@[spec] theorem derivedL_spec (s₀ : AState) (h : LIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ derivedL h
-    ⦃⇓? d s' => ⌜s' = s₀ ∧ d = s₀.store.lder h⌝⦄ := by
-  mvcgen [derivedL]
   spec_ro
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — **the level readback
@@ -1015,20 +968,6 @@ record bought. -/
   mvcgen [instLGet]
   spec_ro
 
-@[spec] theorem instLSet_spec (s₀ : AState) (ws : List Expr) (k : EIdx × Nat)
-    (r : EIdx) (hm : InstLMemoA ws s₀)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (fun e => Expr.instantiateList e ws k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with instLC := s₀.memos.instLC.insert k r } ∧
-        InstLMemoA ws s'⌝⦄ := by
-  mvcgen [instLSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
-
 @[spec] theorem instLClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -1044,20 +983,6 @@ record bought. -/
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.liftC[k]?⌝⦄ := by
   mvcgen [liftGet]
   spec_ro
-
-@[spec] theorem liftSet_spec (s₀ : AState) (amount : Nat) (k : EIdx × Nat)
-    (r : EIdx) (hm : LiftMemoA amount s₀)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (Expr.liftLooseBVars amount k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ liftSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with liftC := s₀.memos.liftC.insert k r } ∧
-        LiftMemoA amount s'⌝⦄ := by
-  mvcgen [liftSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 @[spec] theorem liftClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ liftClear
@@ -1075,19 +1000,6 @@ record bought. -/
   mvcgen [resetGet]
   spec_ro
 
-@[spec] theorem resetSet_spec (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
-    (hm : ResetMemoA s₀) (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE Expr.resetMeta s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with resetC := s₀.memos.resetC.insert k r } ∧
-        ResetMemoA s'⌝⦄ := by
-  mvcgen [resetSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
-
 @[spec] theorem resetClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ resetClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -1103,20 +1015,6 @@ record bought. -/
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.renameC[k]?⌝⦄ := by
   mvcgen [renameGet]
   spec_ro
-
-@[spec] theorem renameSet_spec (s₀ : AState)
-    (fn : ConLeche.Name → ConLeche.Name) (k : EIdx × Nat) (r : EIdx)
-    (hm : RenameMemoA fn s₀) (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (Expr.renameConsts fn) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with renameC := s₀.memos.renameC.insert k r } ∧
-        RenameMemoA fn s'⌝⦄ := by
-  mvcgen [renameSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 @[spec] theorem renameClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ renameClear
@@ -1134,20 +1032,6 @@ record bought. -/
   mvcgen [abs1Get]
   spec_ro
 
-@[spec] theorem abs1Set_spec (s₀ : AState) (d : Nat) (k : EIdx × Nat)
-    (r : EIdx) (hm : Abs1MemoA d s₀)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (fun e => Expr.abstract1 e d k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ abs1Set k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with abs1C := s₀.memos.abs1C.insert k r } ∧
-        Abs1MemoA d s'⌝⦄ := by
-  mvcgen [abs1Set]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
-
 @[spec] theorem abs1Clear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ abs1Clear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -1163,20 +1047,6 @@ record bought. -/
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.lowerC[k]?⌝⦄ := by
   mvcgen [lowerGet]
   spec_ro
-
-@[spec] theorem lowerSet_spec (s₀ : AState) (amount : Nat) (k : EIdx × Nat)
-    (r : EIdx) (hm : LowerMemoA amount s₀)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (Expr.lowerBVars amount k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ lowerSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with lowerC := s₀.memos.lowerC.insert k r } ∧
-        LowerMemoA amount s'⌝⦄ := by
-  mvcgen [lowerSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 @[spec] theorem lowerClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ lowerClear
@@ -1194,21 +1064,6 @@ record bought. -/
   mvcgen [inst1LGet]
   spec_ro
 
-@[spec] theorem inst1LSet_spec (s₀ : AState) (ve : Expr) (k : EIdx × Nat)
-    (r : EIdx) (hm : Inst1LMemoA ve s₀)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (fun e => Expr.instantiate1Lift e ve k.2) s₀.store k.1
-      s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ inst1LSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with inst1LC := s₀.memos.inst1LC.insert k r } ∧
-        Inst1LMemoA ve s'⌝⦄ := by
-  mvcgen [inst1LSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
-
 @[spec] theorem inst1LClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ inst1LClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -1224,21 +1079,6 @@ record bought. -/
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.instLPC[k]?⌝⦄ := by
   mvcgen [instLPGet]
   spec_ro
-
-@[spec] theorem instLPSet_spec (s₀ : AState) (ks : List ConLeche.Name)
-    (us : List Level) (k : EIdx × Nat) (r : EIdx) (hm : InstLPMemoA ks us s₀)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (fun e => e.instantiateLevelParams ks us) s₀.store k.1
-      s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLPSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with instLPC := s₀.memos.instLPC.insert k r } ∧
-        InstLPMemoA ks us s'⌝⦄ := by
-  mvcgen [instLPSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast — the
 one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
@@ -1262,40 +1102,11 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
   mvcgen [instLPLGet]
   spec_ro
 
-@[spec] theorem instLPLSet_spec (s₀ : AState) (ks : List ConLeche.Name)
-    (us : List Level) (h r : LIdx) (hm : InstLPLMemoA ks us s₀)
-    (hk : (denoteL s₀.store.ls h).isSome = true)
-    (hr : RelL (Level.subst ks us) s₀.store h s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLPLSet h r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with instLPLC := s₀.memos.instLPLC.insert h r } ∧
-        InstLPLMemoA ks us s'⌝⦄ := by
-  mvcgen [instLPLSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoLOK.insert hm rfl hk hr⟩
-
 @[spec] theorem instLPLsGet_spec (s₀ : AState) (h : LsIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLsGet h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.instLPLsC[h]?⌝⦄ := by
   mvcgen [instLPLsGet]
   spec_ro
-
-@[spec] theorem instLPLsSet_spec (s₀ : AState) (ks : List ConLeche.Name)
-    (us : List Level) (h r : LsIdx) (hm : InstLPLsMemoA ks us s₀)
-    (hk : (denoteLs s₀.store.lss h).isSome = true)
-    (hr : RelLs (fun vs => vs.map (Level.subst ks us)) s₀.store h s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLPLsSet h r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos =
-          { s₀.memos with instLPLsC := s₀.memos.instLPLsC.insert h r } ∧
-        InstLPLsMemoA ks us s'⌝⦄ := by
-  mvcgen [instLPLsSet]
-  rename_i s hs _mp _s1
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoLsOK.insert hm rfl hk hr⟩
 
 @[spec] theorem bvarBGet_spec (s₀ : AState) (k : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ bvarBGet k
@@ -1355,234 +1166,6 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
 
-/-! ## The `ExprOps` intern faces with the upward cutoff (task #97-P6-5)
-
-`internRebuilt h same v` answers `h` itself when the walk's children all came
-back unchanged, and `internE v` otherwise.  Its spec takes the caller's own
-obligation for the `same` branch — "if `same` then `v` IS `h`'s view" — which
-is exactly what the walk knows, and answers the same postcondition in both
-branches.  `denoteEView_ext` (`Bridge/Rel.lean` group 6b) is what makes the
-`same` branch's conclusion the other's. -/
-
-@[spec] theorem internRebuilt_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (v : ENodeView) (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK v)
-    (hsame : same = true → s₀.store.view h = some v) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuilt h same v
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store v⌝⦄ := by
-  mvcgen [internRebuilt, internE_spec]
-  case vc1.isTrue =>
-    rename_i hc s hs
-    subst hs
-    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
-      denoteE_view_eq hwf (hsame hc)⟩
-  case vc2.isFalse.post.success =>
-    rename_i _hc s hs _r _s2
-    subst hs
-    intro a bb bm c sc d e f _g hh
-    exact ⟨a, bb, bm, c, sc, d, e, f, hh⟩
-  all_goals (intro s hs; subst hs; first | exact hwf | exact hv)
-
-/-! ### The eleven per-constructor faces of `internRebuilt` (task #97-P6-15)
-
-`internRebuiltApp h same f a` is `internRebuilt h same (.app f a)` — the view
-is never built — so each spec is `internRebuilt_spec` at that constructor and
-the definitional unfolding is the whole proof.  The two BINDER faces are the
-exception: `internRebuiltBind` takes the tag INSIDE the `else` branch, so the
-`if` on the tag and the `if` on `same` commute rather than coincide, and the
-proof is a two-case split. -/
-
-@[spec] theorem internRebuiltBVar_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (i : Nat) (hwf : StoreWF s₀.store)
-    (hsame : same = true → s₀.store.view h = some (.bvar i)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBVar h same i
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.bvar i)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.bvar i) hwf viewOK_bvar hsame
-
-@[spec] theorem internRebuiltLit_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (l : ConLeche.Literal) (hwf : StoreWF s₀.store)
-    (hsame : same = true → s₀.store.view h = some (.lit l)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLit h same l
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.lit l)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.lit l) hwf viewOK_lit hsame
-
-@[spec] theorem internRebuiltFVar_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (idx : Nat) (ty : EIdx) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.fvar idx ty)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltFVar h same idx ty
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.fvar idx ty) hwf (viewOK_fvar hty) hsame
-
-@[spec] theorem internRebuiltSort_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (u : LIdx) (hwf : StoreWF s₀.store)
-    (hu : (s₀.store.ls.view u).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.sort u)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltSort h same u
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.sort u)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.sort u) hwf (viewOK_sort hu) hsame
-
-@[spec] theorem internRebuiltConst_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (n : NIdx) (us : LsIdx) (hwf : StoreWF s₀.store)
-    (hn : (s₀.store.ns.view n).isSome = true)
-    (hus : (s₀.store.lss.view us).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.const n us)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltConst h same n us
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.const n us) hwf (viewOK_const hn hus) hsame
-
-@[spec] theorem internRebuiltApp_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (f a : EIdx) (hwf : StoreWF s₀.store)
-    (hf : (denoteE s₀.store f).isSome = true)
-    (ha : (denoteE s₀.store a).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.app f a)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltApp h same f a
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.app f a) hwf (viewOK_app hf ha) hsame
-
-@[spec] theorem internRebuiltLam_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true)
-    (hb : (denoteE s₀.store b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.lam ty b m)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLam h same ty b m
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.lam ty b m) hwf (viewOK_lam hty hb) hsame
-
-@[spec] theorem internRebuiltForallE_spec (s₀ : AState) (h : EIdx)
-    (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true)
-    (hb : (denoteE s₀.store b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.forallE ty b m)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltForallE h same ty b m
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.forallE ty b m) hwf (viewOK_forallE hty hb)
-    hsame
-
-@[spec] theorem internRebuiltLetE_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (ty val b : EIdx) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true)
-    (hval : (denoteE s₀.store val).isSome = true)
-    (hb : (denoteE s₀.store b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.letE ty val b)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltLetE h same ty val b
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.letE ty val b)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.letE ty val b) hwf
-    (viewOK_letE hty hval hb) hsame
-
-@[spec] theorem internRebuiltProj_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (n : NIdx) (i : Nat) (e : EIdx) (hwf : StoreWF s₀.store)
-    (hn : (s₀.store.ns.view n).isSome = true)
-    (he : (denoteE s₀.store e).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.proj n i e)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltProj h same n i e
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (.proj n i e)⌝⦄ :=
-  internRebuilt_spec s₀ h same (.proj n i e) hwf (viewOK_proj hn he) hsame
-
-/-- con-leche: none — `internRebuilt` at a binder view the caller carries as a
-TAG (task #97-P6-5 at #97-P6-16's shape): the `if` on the tag lives inside the
-`else`, so the proof is the two-case split and not a definitional
-unfolding. -/
-@[spec] theorem internRebuiltBind_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (tag : UInt32) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
-    (htag : ETag.isBind tag = true)
-    (hty : (denoteE s₀.store ty).isSome = true)
-    (hb : (denoteE s₀.store b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (eBindView tag ty b m)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBind h same tag ty b m
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store r = denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
-  rcases (show tag = ETag.lam ∨ tag = ETag.forallE by
-      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htag; exact htag)
-    with rfl | rfl
-  · have := internRebuilt_spec s₀ h same (.lam ty b m) hwf
-      (viewOK_lam hty hb) (by simpa [eBindView] using hsame)
-    simpa [internRebuiltBind, internRebuilt, internLamE, eBindView] using this
-  · have := internRebuilt_spec s₀ h same (.forallE ty b m) hwf
-      (viewOK_forallE hty hb)
-      (by simpa [eBindView, ETag.lam, ETag.forallE] using hsame)
-    simpa [internRebuiltBind, internRebuilt, internForallEE, eBindView,
-      ETag.lam, ETag.forallE] using this
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta —
-`internRebuiltBind` at a binder datum the walk is CARRYING ACROSS (task
-#97-P6-16): a substituting walk takes a binder apart and puts it back with the
-same datum, so the round trip never decodes it. -/
-theorem internRebuiltBindI_spec (s₀ : AState) (h : EIdx) (same : Bool)
-    (tag : UInt32) (ty b : EIdx) (mi : BMIdx) (m : BinderMeta)
-    (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
-    (htag : ETag.isBind tag = true) (hbm : s₀.store.viewBM mi = some m)
-    (hty : (s₀.store.view ty).isSome = true)
-    (hb : (s₀.store.view b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (eBindView tag ty b m)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBindI h same tag ty b mi
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.store.view r = some (eBindView tag ty b m) ∧
-        denoteE s'.store r = denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
-  by_cases hc : same = true
-  · have hprog : internRebuiltBindI h same tag ty b mi = pure h := by
-      simp [internRebuiltBindI, hc]
-    rw [hprog]
-    mvcgen
-    rename_i s hs
-    subst hs
-    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hsame hc,
-      denoteE_view_eq hwf (hsame hc)⟩
-  · have hprog :
-        internRebuiltBindI h same tag ty b mi = internBindIE tag ty b mi := by
-      simp [internRebuiltBindI, hc]
-    rw [hprog]
-    exact internBindIE_spec s₀ tag ty b mi m hwf hmi0 htag hbm hty hb
-
 /-! ### The two binder interns, in the form `mvcgen` can use
 
 Task #97b's "one measured trap", at the binder datum: the datum's VALUE `m`
@@ -1612,35 +1195,6 @@ discharges their two side conditions from the `viewBindI` read. -/
   obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hbm
   have h := internBindIE_spec s₀ tag ty b mi m hwf hmi0 htag hm hty hb
   refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post h ?_)
-  refine ⟨fun _a => ?_, Std.Do.ExceptConds.entails.refl _⟩
-  intro s' hp
-  obtain ⟨p1, p2, pbe, p3, p4, p5, p6, p7, p8, p9⟩ := hp
-  refine ⟨p1, p2, pbe, p3, p4, p5, p6, p7, fun m' hm' => ?_⟩
-  rw [hm] at hm'
-  obtain rfl := Option.some.inj hm'
-  exact ⟨p8, p9⟩
-
-@[spec] theorem internRebuiltBindI_spec' (s₀ : AState) (h : EIdx) (same : Bool)
-    (tag : UInt32) (ty b : EIdx) (mi : BMIdx) (hwf : StoreWF s₀.store)
-    (hmi0 : mi.tag = 0) (htag : ETag.isBind tag = true)
-    (hbm : (s₀.store.viewBM mi).isSome = true)
-    (hty : (s₀.store.view ty).isSome = true)
-    (hb : (s₀.store.view b).isSome = true)
-    (hsame : ∀ m, s₀.store.viewBM mi = some m → same = true →
-      s₀.store.view h = some (eBindView tag ty b m)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBindI h same tag ty b mi
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        ∀ m, s₀.store.viewBM mi = some m →
-          (s'.store.view r = some (eBindView tag ty b m) ∧
-            denoteE s'.store r =
-              denoteEView s'.store (eBindView tag ty b m))⌝⦄ := by
-  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hbm
-  have hh0 := internRebuiltBindI_spec s₀ h same tag ty b mi m hwf hmi0 htag hm
-    hty hb (hsame m hm)
-  refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post hh0 ?_)
   refine ⟨fun _a => ?_, Std.Do.ExceptConds.entails.refl _⟩
   intro s' hp
   obtain ⟨p1, p2, pbe, p3, p4, p5, p6, p7, p8, p9⟩ := hp
@@ -1697,59 +1251,6 @@ theorem CacheOK.of_empty {mode : CheckMode} {env : Env} {s : AState}
   readL := by intro k u hk; rw [h] at hk; simp [Caches.empty] at hk
   readN := by intro k x hk; rw [h] at hk; simp [Caches.empty] at hk
   readLs := by intro k us hk; rw [h] at hk; simp [Caches.empty] at hk
-
-@[spec] theorem flushCaches_spec (s₀ : AState) :
-    ⦃fun s => ⌜s = s₀⌝⦄ flushCaches
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
-        s'.pins = s₀.pins ∧ s'.caches = Caches.empty ∧
-        ∀ mode env, CacheOK mode env s'⌝⦄ := by
-  mvcgen [flushCaches]
-  rename_i s hs
-  subst hs
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;>
-    first | rfl | trivial | exact fun _ _ => CacheOK.of_empty rfl
-
-/-- con-leche: none — **the per-declaration bracket, closed**: the scratch
-tier goes and the caches go with it.  A persistent handle keeps its bits, its
-view and its denotation (DESIGN §8.3 lesson 6, the identity embedding); a
-scratch handle denotes nothing afterwards, which is what makes a stale cache
-row impossible rather than merely unlikely. -/
-@[spec] theorem dropScratch_spec (s₀ : AState) (hwf : StoreWF s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ dropScratch
-    ⦃⇓? _u s' => ⌜StoreWF s'.store ∧ s'.memos = s₀.memos ∧
-        s'.pins = s₀.pins ∧ s'.caches = Caches.empty ∧
-        (∀ mode env, CacheOK mode env s') ∧
-        (∀ i, i.isPersistent = true → s'.store.view i = s₀.store.view i) ∧
-        (∀ i e, i.isPersistent = true → denoteE s₀.store i = some e →
-          denoteE s'.store i = some e) ∧
-        (∀ i, i.isPersistent = false → denoteE s'.store i = none)⌝⦄ := by
-  mvcgen [dropScratch, flushCaches_spec]
-  rename_i heq _u s hs _st _s1
-  obtain ⟨e1, e2, e3, e4, _e5⟩ := hs
-  rw [heq] at e1 e2 e3
-  obtain ⟨h1, h2, h3, h4⟩ :=
-    EStore.dropScratch_spec (st := s.store) (by rw [e1]; exact hwf)
-  refine ⟨h1, e2, e3, e4, fun _ _ => CacheOK.of_empty e4, ?_, ?_, h4⟩
-  · intro i hi
-    show s.store.dropScratch.view i = s₀.store.view i
-    rw [h2 i hi, e1]
-  · intro i e hi hd
-    show denoteE s.store.dropScratch i = some e
-    exact h3 i e hi (by rw [e1]; exact hd)
-
-/-- con-leche: none — **the per-declaration bracket, opened**: the scratch
-tier comes back empty and the per-call memo tables go with it. -/
-@[spec] theorem enterScratch_spec (s₀ : AState) (hwf : StoreWF s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ enterScratch
-    ⦃⇓? _u s' => ⌜StoreWF s'.store ∧ s'.memos = Memos.empty ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ i, i.isPersistent = true → s'.store.view i = s₀.store.view i) ∧
-        (∀ i, i.isPersistent = false → denoteE s'.store i = none)⌝⦄ := by
-  mvcgen [enterScratch]
-  rename_i s hs _st _s1
-  subst hs
-  obtain ⟨h1, h2, h3⟩ := EStore.enableScratch_spec hwf
-  exact ⟨h1, rfl, rfl, rfl, h2, h3⟩
 
 /-! ## The pin table (task #97-P6-4a)
 
@@ -1866,23 +1367,23 @@ macro_rules
          subst_vars
          grind (instances := 1000) [$ts,*, StateOK, MemoOK.mono, MemoOK.insert, MemoOK.of_empty,
            MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
-           MemoVOK.mono, MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
+           MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
            Ext.trans, Ext.refl, BMExt.trans, BMExt.refl,
            viewOK_bvar, viewOK_lit, viewOK_fvar,
            viewOK_sort, viewOK_const, viewOK_app, viewOK_lam, viewOK_forallE,
-           viewOK_letE, viewOK_proj, viewOK_eBindView, denoteEView,
+           viewOK_letE, viewOK_proj, denoteEView,
            opt2_eq_some_iff, opt3_eq_some_iff, Option.isSome_iff_exists,
            Option.map_eq_some_iff])
       | (bridge_peel
          subst_vars
          grind (instances := 4000) [$ts,*, StateOK, MemoOK.mono, MemoOK.insert, MemoOK.of_empty,
            MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
-           MemoVOK.mono, MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
+           MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
            Ext.trans, Ext.refl, BMExt.trans, BMExt.refl,
            RelE.ext, RelE.of_ext, RelV.of_ext,
            viewOK_bvar, viewOK_lit, viewOK_fvar, viewOK_sort, viewOK_const,
            viewOK_app, viewOK_lam, viewOK_forallE, viewOK_letE, viewOK_proj,
-           viewOK_eBindView, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
+           denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
            Option.isSome_iff_exists, Option.map_eq_some_iff]))
 
 end ConRon.Bridge

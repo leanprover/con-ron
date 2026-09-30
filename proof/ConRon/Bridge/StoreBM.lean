@@ -129,13 +129,6 @@ recursive calls did. -/
     {m : ConLeche.BinderMeta} (h : BMExt st st') (hs : st.viewBM mi = some m) :
     st'.viewBM mi = some m := h mi m hs
 
-/-- con-leche: none — `BMExt` at an `isSome`, which is the shape
-`internBindIE_spec'`'s precondition asks for. -/
-theorem BMExt.isSome {st st' : EStore} (h : BMExt st st') {mi : BMIdx}
-    (hs : (st.viewBM mi).isSome = true) : (st'.viewBM mi).isSome = true := by
-  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hs
-  rw [h mi m hm]; rfl
-
 #print axioms EStore.viewBM_intern_mono
 #print axioms BMExt.intern
 #print axioms BMExt.internAt

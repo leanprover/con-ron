@@ -167,12 +167,6 @@ section Twin
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
 open ConRon.Bridge ConRon.Bridge.Frontend
 
-/-- con-leche: none — an `AM` bind whose first half is known to accept is
-its second half at the first half's result. -/
-theorem AM.bind_of_ok {α β : Type} {x : AM α} {f : α → AM β} {s s₁ : AState}
-    {a : α} (h : x s = .ok (a, s₁)) : (x >>= f) s = f a s₁ := by
-  rw [ConRon.Bridge.AM.bind_apply, h]; rfl
-
 /-- con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
 **the stages' frame, up to the fold**: after the first five stages from the
 driver's start state, the scratch tier is closed, the fold's start invariant
@@ -367,23 +361,6 @@ section Rust
 
 open ConRon.Refine2 ConRon.Refine2.Frontend
 
-/-- **The start state** (task #97-COMPOSE's mismatch 2, a named hypothesis
-until task #97-P5-Top).  The Rust driver's `AState::init(EStore::empty())`,
-read through `PersTier::empty()`, is related to the twin driver's
-`AState.init EStore.empty` and satisfies the Rust-side invariant —
-`Refine2/Checker/Init.lean`'s `init_rel`. -/
-def InitRel : Prop :=
-  ∀ (pers : arena.store.PersTier) (est : arena.store.EStore)
-    (st : arena.monad.AState),
-    arena.store.PersTier.empty = ok pers → arena.store.EStore.empty = ok est →
-    arena.monad.AState.init est = ok st →
-    AStateRel₀ pers st (ConRon.Arena.AState.init ConRon.Arena.EStore.empty) ∧
-      AStateInv pers st
-
-theorem initRel : InitRel := fun _ _ _ hpers hest hst =>
-  ⟨(init_rel (persTier_empty_frozen hpers) hest hst).1,
-    (init_rel (persTier_empty_frozen hpers) hest hst).2.1⟩
-
 /-- **The Rust pipeline, walked into the twin.**  Six accepting Rust runs from
 the driver's start state give six accepting twin runs from the twin's, at the
 abstracted values, with the Rust's final state related to the twin's and the
@@ -514,12 +491,6 @@ frozen, its four table sets, every table empty (`emptyTier_eq`). -/
 def emptyTier : arena.store.PersTier :=
   { frozen := false, n := emptyNTables, l := emptyLTables, ls := emptyLsTables,
     e := emptyETables }
-
-theorem emptyTier_eq : arena.store.PersTier.empty = ok emptyTier := by
-  simp only [arena.store.PersTier.empty, arena.store.Tbl.empty, arena.store.ETables.empty,
-    arena.store.LsTables.empty, arena.store.LTables.empty, arena.store.NTables.empty,
-    ron.hashmap2.HashMap2.new, bind_tc_ok]
-  rfl
 
 /-- **The binary's start state**, `AState::empty()` (`bin/con-ron.rs:373`),
 which is `AState::init(EStore::empty())`: a store whose four layers (names,
