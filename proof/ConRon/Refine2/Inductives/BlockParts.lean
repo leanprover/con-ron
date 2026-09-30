@@ -246,7 +246,7 @@ theorem block_shape_dup_abs {p o : arena.inductives.block_parts.BlockShape}
 
 /-! ## The split -/
 
-theorem absICILFrom_cons {block : alloc.vec.Vec arena.env.IConstantInfo} {i j : Std.Usize}
+theorem bp_absICILFrom_cons {block : alloc.vec.Vec arena.env.IConstantInfo} {i j : Std.Usize}
     {ii : arena.env.IConstantInfo} (hx : block.val[i.val]? = some ii)
     (hj : j.val = i.val + 1) :
     absICILFrom block i = absIConstantInfo ii :: absICILFrom block j := by
@@ -321,7 +321,7 @@ theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
-      rw [ih i2 out1 hi2v o h, absICILFrom_cons hx hi2v]
+      rw [ih i2 out1 hi2v o h, bp_absICILFrom_cons hx hi2v]
       simp only [absIConstantInfo, blockSplitRecs]
       cases blockSplitRecs (absICILFrom block i2) <;>
         simp [absRecsL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv,
@@ -379,7 +379,7 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
-      rw [ih i2 out1 hi2v o h, absICILFrom_cons hx hi2v]
+      rw [ih i2 out1 hi2v o h, bp_absICILFrom_cons hx hi2v]
       simp only [absIConstantInfo, blockSplitCtors]
       cases blockSplitCtors (absICILFrom block i2) <;>
         simp [absCtors3L, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
@@ -440,7 +440,7 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
-      rw [ih i2 out1 hi2v o h, absICILFrom_cons hx hi2v]
+      rw [ih i2 out1 hi2v o h, bp_absICILFrom_cons hx hi2v]
       simp only [absIConstantInfo, blockSplit]
       cases blockSplit (absICILFrom block i2) <;>
         simp [absICVL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
@@ -1485,15 +1485,15 @@ theorem absNatL_headD_pos {v : alloc.vec.Vec Std.U64} (h : ¬ v.len = 0#usize) :
 
 section recogniser
 
-theorem absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
+theorem bp_absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).levelParams = cv.level_params.val.map absNIdx := rfl
-theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
+theorem bp_absIConstantVal_name (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).name = absNIdx cv.name := rfl
-theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
+theorem bp_absIConstantVal_type (cv : arena.env.IConstantVal) :
     (absIConstantVal cv).type = absEIdx cv.ty := rfl
 
-attribute [local lockstep_simp] absNIdxL usz_zero_val absIConstantVal_levelParams
-  absIConstantVal_name absIConstantVal_type
+attribute [local lockstep_simp] absNIdxL usz_zero_val bp_absIConstantVal_levelParams
+  bp_absIConstantVal_name bp_absIConstantVal_type
 
 /-- The twin's eliminator read: `elim :: relps` with `relps == lps` and `elim`
 fresh is the large eliminator. -/
