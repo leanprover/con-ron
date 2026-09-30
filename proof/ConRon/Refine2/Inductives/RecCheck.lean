@@ -1285,4 +1285,396 @@ attribute [local lockstep high] rc_take_eidx_n_twin
   rw [arena.inductives.rec_check.target_k53, targetK53]
   lockstep
 
+/-! ## The major record: copy, default, lookup -/
+
+theorem rc_ctors_dup_id (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    ∀ o, arena.inductives.block_parts.ctors_dup cs 0#usize
+      (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64)) = ok o → o = cs := by
+  refine vec_copy_id cs (arena.inductives.block_parts.ctors_dup cs) ?_ ?_
+  · intro i out o hn h
+    rw [arena.inductives.block_parts.ctors_dup.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.block_parts.ctors_dup.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨⟨iv, k⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : (iv, k) = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [pos_i_constant_val_dup_spec _ _ hiv1] at hout1
+    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
+
+/-- `target_major_dup` is the identity. -/
+@[lockstep] theorem target_major_dup_spec (m : arena.inductives.rec_check.TargetMajor) :
+    LSP (arena.inductives.rec_check.target_major_dup m) (fun o => o = m) := by
+  intro o h
+  rw [arena.inductives.rec_check.target_major_dup] at h
+  obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨li, hli, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v2, hv2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v3, hv3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  have hom : o1 = m.member := by
+    cases hm : m.member <;> rw [hm] at ho1 <;> exact (Result.ok_injective ho1).symm
+  rw [dupId_nidx _ _ hn, dupId_lsidx _ _ hli, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv),
+    rc_ctors_dup_id _ _ hv1, hom, nest_ctor_nfs_dup_spec _ _ hv2,
+    alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv3)]
+
+@[lockstep] theorem target_major_default_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absTargetMajor a)
+      (arena.inductives.rec_check.target_major_default pers st) lst targetMajorDefault := by
+  rw [arena.inductives.rec_check.target_major_default, targetMajorDefault]
+  lockstep
+
+@[lockstep] theorem target_major_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
+    (c : Std.U64) :
+    LS pers (fun a b => b = absTargetMajor a)
+      (arena.inductives.rec_check.target_major_at pers st ms c) lst
+      (targetMajorAt (ms.val.map absTargetMajor) (absU c)) := by
+  rw [arena.inductives.rec_check.target_major_at, targetMajorAt]
+  by_cases hc : c.val < ms.val.length
+  · rw [List.getElem?_map, List.getElem?_eq_getElem (show absU c < ms.val.length from hc)]
+    simp only [Option.map_some]
+    lockstep
+  · rw [List.getElem?_eq_none (by simp only [List.length_map, absU]; omega)]
+    lockstep
+
+/-! ## The outside major's type former: `target_outside_inst` -/
+
+attribute [local lockstep_inline] arena.inductives.positivity.ind_cv_of
+attribute [local lockstep high] pos_i_constant_val_dup_spec
+
+@[lockstep] theorem target_outside_inst_ls {pers st lst} {vis : Std.U64}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (i_name : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = (absU a.1, absLIdx a.2))
+      (arena.inductives.rec_check.target_outside_inst pers st vis rf i_name us ds) lst
+      (targetOutsideInst lf (absNIdx i_name) (absLsIdx us) (absEIdxL ds)) := by
+  rw [arena.inductives.rec_check.target_outside_inst, targetOutsideInst]
+  lockstep
+
+/-! ## A recursor's major, resolved: `target_major_of` (with `_member`,
+`_outside`, `_outside_aux`: fragments of the one twin `targetMajorOf`) -/
+
+/-- PROVISIONAL (sorry): `nest_container` ⊑ `nestContainer`, the statement of
+`Inductives/PositivityNest.lean`'s `nest_container_ls` (branch `t105-fi-pn`),
+to be replaced by it once that module is below this one. -/
+theorem rc_nest_container_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx vis rf lf) (c : arena.handle.NIdx) :
+    LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
+      (arena.inductives.positivity.nest_container pers st vis rf c) st lst
+      (nestContainer lf (absNIdx c)) := by
+  sorry
+
+attribute [local lockstep] rc_nest_container_ls
+
+@[lockstep] theorem target_ctors_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx vis rf lf) (c : arena.handle.NIdx) :
+    LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
+      (arena.inductives.rec_check.target_ctors_of pers st vis rf c) st lst
+      (targetCtorsOf lf (absNIdx c)) := by
+  rw [arena.inductives.rec_check.target_ctors_of, targetCtorsOf]
+  exact rc_nest_container_ls hrel hinv hctx c
+
+/-- The twin's `unwrapOr l[i]? e` as the bounds test the port makes. -/
+theorem rc_unwrapOr_getElem? {α : Type} (l : List α) (i : Nat) (e : Arena.CheckError) :
+    unwrapOr l[i]? e = if h : i < l.length then pure l[i] else Arena.fail e := by
+  by_cases h : i < l.length
+  · rw [dif_pos h, List.getElem?_eq_getElem h]; rfl
+  · rw [dif_neg h, List.getElem?_eq_none (by omega)]; rfl
+
+theorem rc_absBlockShape_members_length (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).members.length = p.members.val.length := by
+  simp [absBlockShape]
+
+theorem rc_absCtorsLL_length
+    (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
+    (absCtorsLL v).length = v.val.length := by
+  simp [absCtorsLL]
+
+theorem rc_absBlockShape_nP (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).nP = p.n_p.val := rfl
+
+theorem rc_absBlockShape_members_getElem (p : arena.inductives.block_parts.BlockShape) (i : Nat)
+    (h : i < (absBlockShape p).members.length) :
+    (absBlockShape p).members[i] = absMemberShape (p.members.val[i]'(by
+      simpa [absBlockShape] using h)) := by
+  simp [absBlockShape]
+
+theorem rc_absCtorsLL_getElem
+    (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) (i : Nat)
+    (h : i < (absCtorsLL v).length) :
+    (absCtorsLL v)[i] = absCtorsL (v.val[i]'(by simpa [absCtorsLL] using h)) := by
+  simp [absCtorsLL]
+
+theorem rc_ctors_dup_spec (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSP (arena.inductives.block_parts.ctors_dup cs 0#usize
+      (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))) (fun o => o = cs) :=
+  rc_ctors_dup_id cs
+
+attribute [local lockstep high] rc_ctors_dup_spec
+
+attribute [local lockstep_simp] rc_unwrapOr_getElem? rc_absBlockShape_members_length
+  rc_absCtorsLL_length rc_absBlockShape_nP rc_absBlockShape_members_getElem rc_absCtorsLL_getElem
+
+attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
+  arena.inductives.rec_check.target_major_outside arena.inductives.rec_check.target_major_outside_aux
+
+@[lockstep] theorem target_major_of_ls {pers st lst} {vis : Std.U64}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape)
+    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
+    (pfvs fvs : alloc.vec.Vec arena.handle.EIdx) (mty : arena.handle.EIdx) :
+    LS pers (fun a b => b = absTargetMajor a)
+      (arena.inductives.rec_check.target_major_of pers st vis rf p ctors_as pfvs fvs mty) lst
+      (targetMajorOf lf (absBlockShape p) (absCtorsLL ctors_as) (absEIdxL pfvs) (absEIdxL fvs)
+        (absEIdx mty)) := by
+  rw [arena.inductives.rec_check.target_major_of, targetMajorOf]
+  lockstep
+  refine LS.pure ?_ ‹_› ‹_›
+  simp only [absTargetMajor, absMemberShape]
+  casesm* _ ∨ _
+  all_goals first | (exfalso; scalar_tac) | skip
+  rename_i h5
+  simp only [h5, hP, absEIdxL, absU, Option.map_some]
+  rfl
+
+/-! ## The recursor records' pins: the auxiliary names `T₀.rec_1 … T₀.rec_n` -/
+
+theorem cps_append_val (s t : alloc.vec.Vec Std.U32) :
+    ∀ (i : Std.Usize) (o : alloc.vec.Vec Std.U32),
+      arena.inductives.rec_check.cps_append s t i = ok o → o.val = s.val ++ t.val.drop i.val := by
+  intro i o h
+  have key := vec_cursor_copy t id id (fun i s => arena.inductives.rec_check.cps_append s t i)
+    ?_ ?_ i s o h
+  · simpa using key
+  · intro i out o hn h
+    rw [arena.inductives.rec_check.cps_append.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len t by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.rec_check.cps_append.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len t by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, q, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, rfl, h⟩
+
+/-- An auxiliary recursor's name part: `rec_` followed by the decimal digits. -/
+theorem rc_aux_name_str {s1 d s2 : alloc.vec.Vec Std.U32} {k : Nat}
+    (h1 : s1.val = (arena.inductives.rec_check.REC_AUX_PREFIX).val)
+    (h2 : s2.val = s1.val ++ d.val) (hd : ConRon.Refine.absCodes d.val = toString k)
+    (hwf : ConRon.Refine.StrWF d) :
+    ConRon.Refine.absString s2 = s!"rec_{k}" ∧ ConRon.Refine.StrWF s2 := by
+  simp only [global_simps, Array.make] at h1
+  constructor
+  · rw [ConRon.Refine.absString_eq, h2, h1]
+    rw [ConRon.Refine.absCodes] at hd ⊢
+    rw [List.map_append, String.ofList_append, hd]
+    rfl
+  · intro c hc
+    rw [h2, h1] at hc
+    rcases List.mem_append.mp hc with hc | hc
+    · simp at hc; rcases hc with rfl | rfl | rfl | rfl <;> decide
+    · exact hwf c hc
+
+theorem rc_cps_append_twin0 (s t : alloc.vec.Vec Std.U32) :
+    LSP (arena.inductives.rec_check.cps_append s t 0#usize) (fun o => o.val = s.val ++ t.val) := by
+  intro o h
+  rw [cps_append_val s t _ o h]; simp
+
+/-- Interning `n.rec_k` from the port's code points. -/
+theorem rc_intern_aux_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {n : arena.handle.NIdx} {s s1 d s2 : alloc.vec.Vec Std.U32}
+    {k : Nat} (hs : s1.val = s.val)
+    (h0 : s.val = (arena.inductives.rec_check.REC_AUX_PREFIX).val)
+    (h2 : s2.val = s1.val ++ d.val)
+    (hd : ConRon.Refine.absCodes d.val = toString k ∧ ConRon.Refine.StrWF d) :
+    LS pers (fun a b => b = absNIdx a) (arena.monad.intern_n_node pers st (.Str n s2)) lst
+      (Arena.internNNode (.str (absNIdx n) s!"rec_{k}")) := by
+  obtain ⟨e, hw⟩ := rc_aux_name_str (hs.trans h0) h2 hd.1 hd.2
+  have := intern_n_node_ls hrel hinv (.Str n s2) hw
+  simpa [absNNodeView, e] using this
+
+attribute [local lockstep] rc_cps_append_twin0
+attribute [local lockstep high] rc_intern_aux_name_ls
+
+theorem want_aux_names_acc {pers} (n0 : arena.handle.NIdx) (n : Std.U64) :
+    ∀ (i : Std.U64) st lst (out : alloc.vec.Vec arena.handle.NIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absNIdxL a)
+        (arena.inductives.rec_check.want_aux_names pers st n0 n i out) lst
+        (do
+          let r ← (List.range' i.val (n.val - i.val)).mapM fun j =>
+            Arena.internNNode (.str (absNIdx n0) s!"rec_{j + 1}")
+          pure (absNIdxL out ++ r)) := by
+  intro i st lst out hrel hinv
+  refine ls_counted n
+    (fun (w : alloc.vec.Vec arena.handle.NIdx) m k => do
+      let r ← (List.range' k m).mapM fun j =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{j + 1}")
+      pure (absNIdxL w ++ r))
+    (fun st k w => arena.inductives.rec_check.want_aux_names pers st n0 n k w) ?_ ?_
+    i st lst out hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.rec_check.want_aux_names.eq_def, if_pos (by scalar_tac)]
+    simp only [List.range'_zero, List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro st lst k w m hk hm hrel hinv ih
+    rw [arena.inductives.rec_check.want_aux_names.eq_def, if_neg (by scalar_tac)]
+    simp only [List.range'_succ, List.mapM_cons, bind_assoc, pure_bind]
+    lockstep
+
+@[lockstep] theorem want_aux_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n0 : arena.handle.NIdx) (n : Std.U64) :
+    LS pers (fun a b => b = absNIdxL a)
+      (arena.inductives.rec_check.want_aux_names pers st n0 n 0#u64
+        (alloc.vec.Vec.new arena.handle.NIdx)) lst
+      ((List.range (absU n)).mapM fun i =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{i + 1}")) := by
+  have h := want_aux_names_acc n0 n 0#u64 st lst (alloc.vec.Vec.new arena.handle.NIdx) hrel hinv
+  have e : (do
+      let r ← (List.range' (0#u64 : Std.U64).val (n.val - (0#u64 : Std.U64).val)).mapM fun j =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{j + 1}")
+      pure (absNIdxL (alloc.vec.Vec.new arena.handle.NIdx) ++ r) : AM _)
+      = (List.range (absU n)).mapM fun i =>
+        Arena.internNNode (.str (absNIdx n0) s!"rec_{i + 1}") := by
+    simp [absNIdxL, alloc.vec.Vec.new, absU, List.range_eq_range']
+  rwa [e] at h
+
+/-! ## The name lists: `ctor_names`, `ctor3_names`, `recs_by_target` -/
+
+theorem ctor_names_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.rec_check.ctor_names cs i out = ok o →
+      absNIdxL o = absNIdxL out ++ (absCtorsLFrom cs i).map (·.1.name) := by
+  intro i out o h
+  have key := vec_cursor_copy cs absNIdx (fun p => absNIdx p.1.name)
+    (fun i out => arena.inductives.rec_check.ctor_names cs i out) ?_ ?_ i out o h
+  · simp only [absNIdxL, key, absCtorsLFrom, List.map_map]; rfl
+  · intro i out o hn h
+    rw [arena.inductives.rec_check.ctor_names.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.rec_check.ctor_names.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨⟨iv, k⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : (iv, k) = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+/-- `ctor_names` from `0` into an empty accumulator: the constructors' names. -/
+@[lockstep] theorem ctor_names_twin (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSP (arena.inductives.rec_check.ctor_names cs 0#usize (alloc.vec.Vec.new arena.handle.NIdx))
+      (fun o => TwinEq ((absCtorsL cs).map (·.1.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, ctor_names_abs cs _ _ o h, absCtorsLFrom_zero]
+  simp [absNIdxL, alloc.vec.Vec.new]
+
+theorem ctor3_names_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.rec_check.ctor3_names cs i out = ok o →
+      absNIdxL o = absNIdxL out ++ (absCtors3LFrom cs i).map (·.1.name) := by
+  intro i out o h
+  have key := vec_cursor_copy cs absNIdx (fun p => absNIdx p.1.name)
+    (fun i out => arena.inductives.rec_check.ctor3_names cs i out) ?_ ?_ i out o h
+  · simp only [absNIdxL, key, absCtors3LFrom, List.map_map]; rfl
+  · intro i out o hn h
+    rw [arena.inductives.rec_check.ctor3_names.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.rec_check.ctor3_names.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨⟨iv, k, k2⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : (iv, k, k2) = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+@[lockstep] theorem ctor3_names_twin (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    LSP (arena.inductives.rec_check.ctor3_names cs 0#usize (alloc.vec.Vec.new arena.handle.NIdx))
+      (fun o => TwinEq ((absCtors3L cs).map (·.1.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, ctor3_names_abs cs _ _ o h, absCtors3LFrom_zero]
+  simp [absNIdxL, alloc.vec.Vec.new]
+
+theorem rc_rec_shape_dup_id (r : arena.inductives.block_parts.RecShape) :
+    LSP (arena.inductives.block_parts.rec_shape_dup r) (fun o => o = r) := by
+  intro o h
+  rw [arena.inductives.block_parts.rec_shape_dup] at h
+  obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [pos_i_constant_val_dup_spec _ _ hiv, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+
+/-- `recs_by_target` keeps the recursors whose major is a member iff `own`. -/
+theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (k : Std.U64) (own : Bool) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_parts.RecShape),
+      arena.inductives.rec_check.recs_by_target rs k own i out = ok o →
+      o.val = out.val ++ (rs.val.drop i.val).filter (fun r => decide (r.tgt < k) == own) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) rs.val.length
+    (fun i (_ : Unit) => ∀ (out o : alloc.vec.Vec arena.inductives.block_parts.RecShape),
+      arena.inductives.rec_check.recs_by_target rs k own i out = ok o →
+      o.val = out.val ++ (rs.val.drop i.val).filter (fun r => decide (r.tgt < k) == own))
+    ?_ ?_ i ()
+  · intro i _ hn out o h
+    rw [arena.inductives.rec_check.recs_by_target.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [h, List.drop_eq_nil_of_le hn]; simp
+  · intro i _ hlt ih out o h
+    rw [arena.inductives.rec_check.recs_by_target.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : rs.val[i.val] = q := by
+      have h1 := vec_index_some hq; rw [List.getElem?_eq_getElem hlt] at h1
+      exact Option.some_inj.mp h1
+    rw [List.drop_eq_getElem_cons hlt, List.filter_cons, hqx]
+    by_cases hc : (q.tgt < k) = (own = true)
+    · rw [if_pos hc] at h
+      have hb : (decide (q.tgt < k) == own) = true := by cases own <;> simp_all
+      obtain ⟨q2, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [ih i2 () (absSz_add_one hi2) out1 o h, ConRon.Refine.vec_push_val hout1,
+        rc_rec_shape_dup_id _ _ hq2, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
+      simp
+    · rw [if_neg hc] at h
+      have hb : (decide (q.tgt < k) == own) = false := by cases own <;> simp_all
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [ih i2 () (absSz_add_one hi2) out o h, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
+      simp
+
 end ConRon.Refine2
