@@ -38,6 +38,7 @@ import ConRon.Bridge.Inductives.BlockRec
 import ConLeche.Verify.Cached.GenRecC
 import ConLeche.Verify.Inductives.GenRecRun
 import ConLeche.Verify.Extend.Inversions
+import ConLeche.Verify.Cached.BlockRunC
 
 namespace ConRon.Bridge.Inductives
 
@@ -129,6 +130,35 @@ theorem dClassCtor_inv {st : EStore} {x : Arena.ClassCtor} {xP : ConLeche.ClassC
     Option.some.injEq] at h
   obtain ⟨cv, h1, tyD, h2, tyN, h3, rfl⟩ := h
   exact ⟨h1, rfl, rfl, h2, h3⟩
+
+/-- con-leche: none — a generator with its prefix set. -/
+theorem dClassGen_pre {st : EStore} {g : Arena.ClassGen} {gP : ConLeche.ClassGen}
+    {pre : List (EIdx × BinderMeta)} {preP : List (Expr × BinderMeta)}
+    (h : dClassGen st g = some gP) (hp : denoteBinders st pre = some preP) :
+    dClassGen st { g with pre := pre } = some { gP with pre := preP } := by
+  obtain ⟨hnP, h1, h2, h3, h4, h5, h6, -, hbm⟩ := dClassGen_inv h
+  simp only [dClassGen, h1, h2, h3, h4, h5, h6, hp, Option.bind_eq_bind, Option.bind_some,
+    Option.pure_def]
+  rw [if_pos (show g.bm = ⟨gP.elim.zeronessOf⟩ from hbm), hnP]
+
+/-- con-leche: none — `mapM denoteE` is `denoteEList`. -/
+theorem mapM_denoteE {st : EStore} :
+    ∀ {l : List EIdx} {v : List Expr}, l.mapM (fun e => denoteE st e) = some v →
+      Frontend.denoteEList st l = some v
+  | [], v, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
+  | a :: l, v, h => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases ha : denoteE st a with
+    | none => rw [ha] at h; simp at h
+    | some x =>
+    cases hl : l.mapM (fun e => denoteE st e) with
+    | none => rw [ha, hl] at h; simp at h
+    | some xs =>
+    rw [ha, hl] at h
+    simp only [Option.bind_some, Option.some.injEq] at h
+    subst h
+    simp only [Frontend.denoteEList, ha, mapM_denoteE hl]
 
 /-- con-leche: none — the answer relation of the generator's `(opened
 variables, term)` pairs. -/
@@ -3046,5 +3076,301 @@ theorem classFeR_go_view (p : Arena.BlockShape) (k : Nat) :
       (fun x hx => by rw [hv]; exact hfr x (List.mem_cons_of_mem _ hx)), hv]
 
 end GR
+
+/-! ### The stage, assembled -/
+
+namespace GR
+
+theorem types_denote {st : EStore} :
+    ∀ {cvs : List IConstantVal} {cvsP : List ConstantVal},
+      cvs.mapM (Frontend.denoteCV st) = some cvsP →
+      Frontend.denoteEList st (cvs.map (·.type)) = some (cvsP.map (·.type))
+  | [], _, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
+  | cv :: cvs, _, h => by
+    obtain ⟨cP, cvsP', rfl, hc, hcs⟩ := mapM_cons_inv h
+    simp only [List.map_cons, Frontend.denoteEList, denoteCV_type hc, types_denote hcs]
+
+theorem any_member_isNone {st : EStore} :
+    ∀ {ms : List Arena.TargetMajor} {MsP : List ConLeche.TargetMajor},
+      ms.mapM (dMajor st) = some MsP →
+      ms.any (·.member.isNone) = MsP.any (·.member.isNone)
+  | [], _, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
+  | m :: ms, _, h => by
+    obtain ⟨mP, MsP', rfl, hm, hms⟩ := mapM_cons_inv h
+    simp only [List.any_cons, (dMajor_inv hm).2.2.2.2.2.2.1, any_member_isNone hms]
+
+theorem sum_lengths {α β : Type} {f : α → Option β} :
+    ∀ {xss : List (List α)} {yss : List (List β)},
+      xss.mapM (fun xs => xs.mapM f) = some yss →
+      (xss.map List.length).sum = (yss.map List.length).sum
+  | [], _, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; rfl
+  | xs :: xss, _, h => by
+    obtain ⟨ys, yss', rfl, hx, hxs⟩ := mapM_cons_inv h
+    simp only [List.map_cons, List.sum_cons, mapM_option_length hx, sum_lengths hxs]
+
+/-- con-leche: none — an index MISS from an environment miss at a denoting
+name (the contrapositive of `IFEnvOK.hit`). -/
+theorem mapM_mem {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → ∀ x ∈ xs, ∃ y ∈ ys, f x = some y
+  | [], _, _, _, hx => nomatch hx
+  | a :: as, _, h, x, hx => by
+    obtain ⟨b, bs, rfl, hb, hbs⟩ := mapM_cons_inv h
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact ⟨b, List.mem_cons_self, hb⟩
+    · obtain ⟨y, hy, hfy⟩ := mapM_mem hbs x hx
+      exact ⟨y, List.mem_cons_of_mem _ hy, hfy⟩
+
+theorem find_none_of_env {env : Env} {fe : IFEnv} {s : AState} (h : IFEnvOK env fe s)
+    {n : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns n = some nm)
+    (he : env.find? nm = none) : fe.find? n = none := by
+  cases hf : fe.find? n with
+  | none => rfl
+  | some ci =>
+    obtain ⟨c, -, hc⟩ := find_some_rel h hn hf
+    rw [he] at hc; exact nomatch hc
+
+end GR
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
+con-leche: ConLeche/Cached/CheckerC.lean:128-134 shadowOpsC
+**THEOREM 1 for the GENERATED recursor stage**, at the constructors'
+environment `env₂` (index `fe₂`), on the pass's classes (`ClassMajScoped`)
+and table: an accepting twin run answers con-leche's `genRecCheck` at
+`ShadowOps.ofOps (fueledOpsM μ)` — the output family denotes con-leche's,
+every output recursor is fresh in `env₂`, and the returned index answers
+exactly as `fe₂` (the pushes popped: same list, same bound, same row at every
+key).  The rule stage's knot calls run at the rule-less recursors'
+environment (`consBlockRecsBare`, well formed by `envWF_consBlockRecsBare`);
+the flushes restore the invariant at whichever index the state reads, and the
+last one leaves `CheckOK μ env₂ fe₂` (the `CoreStep` frame). -/
+theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv₂ : EnvWF env₂)
+    (hcoh : IFEnvCoh fe₂) (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (nestedBit : Bool)
+    (params : List EIdx) (paramsP : List Expr) (tbl : List Arena.NestCtorNf)
+    (tblP : List ConLeche.NestCtorNf) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
+    (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor)
+    (cvTas : List IConstantVal) (cvTasP : List ConstantVal) (block : List IConstantInfo)
+    (blockP : List ConstantInfo)
+    (hMs : ∀ M ∈ MsP, Cached.ClassMajScoped pP.nP M) (hT : ∀ cv ∈ cvTasP, Expr.WScoped 0 cv.type) :
+    CSpecF μ env₂ fe₂
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st params = some paramsP ∧
+        tbl.mapM (dCtorNf st) = some tblP ∧ dClassRead st rd = some rdP ∧
+        ms.mapM (dMajor st) = some MsP ∧ cvTas.mapM (Frontend.denoteCV st) = some cvTasP ∧
+        Frontend.denoteCIList st block = some blockP)
+      (Arena.genRecCheck μ fe₂ p nestedBit params tbl rd ms cvTas block)
+      (fun st r v => r.2.mapM (dRecOut st) = some v ∧ (∀ t ∈ v, env₂.find? t.1.name = none) ∧
+        GR.FEq r.1 fe₂)
+      (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM μ)) (mkFEnv env₂) pP nestedBit paramsP
+        tblP rdP MsP cvTasP blockP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hsh, hpar, htbl, hrd, hms, hcvT, hblk⟩ := hpre
+  simp only [Arena.genRecCheck] at hrun
+  obtain ⟨-, -, hnP, -, -, hlarge, -⟩ := RC.dShape_inv hsh
+  have hk' := BlockShape.k_spec hsh
+  have hrecs := (RC.dShape_inv hsh).2.1
+  -- the records' pins
+  obtain ⟨u0, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hF1⟩ := targetRecPins_spec p pP block blockP s₀ s1 u0 hok.state hok.pins
+    ⟨hsh, hblk⟩ k1
+  have c1 := p1.toCore hok
+  -- the stream's recursor types
+  obtain ⟨cvRis, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, cvRisP, ⟨hcvRis, hwRis⟩, hF2⟩ := classStreamRecs_spec fe₂ hμ hk henv₂ p.recs
+    pP.recs s1 s2 cvRis c1.ok (dRec_ext.list c1.ext _ _ hrecs) k2
+  have c12 := c1.trans c2
+  -- the elimination guard
+  obtain ⟨hk0, z3⟩ := AM.dguard_ok AM.Never.fail_any z2
+  replace z3 := AM.pure_bind_ok z3
+  have hkP : 0 < pP.k := by
+    rw [← hk']; simp only [beq_iff_eq] at hk0; omega
+  have hany := GR.any_member_isNone (dMajor_ext.list c12.ext _ _ hms)
+  by_cases hL : p.large = true
+  case' pos =>
+    rw [if_pos hL] at z3
+    obtain ⟨la, s3, k3, z4⟩ := bindOk z3
+    obtain ⟨c3, rfl⟩ := blockLargeElimAllowed_cspec fe₂ p pP _ s2 s3 la c12.ok
+      (dShape_ext c12.ext _ _ hsh) k3
+    obtain ⟨hla, z4⟩ := AM.dunless_ok AM.Never.fail_any z4
+    replace z4 := AM.pure_bind_ok z4
+    have hcond : (pP.large && !ConLeche.blockLargeElimAllowed pP
+        (nestedBit || MsP.any (·.member.isNone))) = false := by
+      rw [← hany]; simp [hla]
+    have c13 := c12.trans c3
+    have hcvRis3 := dExt_denoteCV.list c3.ext _ _ hcvRis
+  case' neg =>
+    rw [if_neg hL] at z3
+    have hcond : (pP.large && !ConLeche.blockLargeElimAllowed pP
+        (nestedBit || MsP.any (·.member.isNone))) = false := by
+      rw [← hlarge]; simp only [Bool.not_eq_true] at hL; simp [hL]
+    generalize hs3 : s2 = s3 at z3
+    have c13 : CoreStep μ env₂ fe₂ s₀ s3 := hs3 ▸ c12
+    have hcvRis3 : cvRis.mapM (Frontend.denoteCV s3.store) = some cvRisP := hs3 ▸ hcvRis
+    have z4 := AM.pure_bind_ok z3
+  all_goals
+    have hformer : ∀ t ∈ cvTasP.map (·.type), Expr.WScoped 0 t := by
+      intro t ht
+      obtain ⟨cv, hcv, rfl⟩ := List.mem_map.mp ht
+      exact hT cv hcv
+    have hMsT : ∀ M ∈ MsP, Cached.TargetMajScoped M := fun M hM => (hMs M hM).1
+    -- every class's table entries
+    obtain ⟨ms2, s4, k4, z5⟩ := bindOk z4
+    obtain ⟨c4, Ms2P, ⟨hms2, hMs2⟩, hF4⟩ := classesNfs_spec fe₂ hk henv₂ p pP _ _ tbl tblP hformer
+      ms MsP hMsT s3 s4 ms2 c13.ok
+      ⟨dShape_ext c13.ext _ _ hsh, GR.types_denote (dExt_denoteCV.list c13.ext _ _ hcvT),
+        dCtorNf_ext.list c13.ext _ _ htbl, dMajor_ext.list c13.ext _ _ hms⟩ k4
+    have c14 := c13.trans c4
+    -- the generator's constructors
+    obtain ⟨ctors, s5, k5, z6⟩ := bindOk z5
+    obtain ⟨c5, ctorsP, hctors, hF5⟩ := classesCtors_spec fe₂ hk henv₂ p pP _ _ rd rdP ms2 Ms2P
+      hformer hMs2 ms2 Ms2P 0 s4 s5 ctors c4.ok
+      ⟨dShape_ext c14.ext _ _ hsh, GR.types_denote (dExt_denoteCV.list c14.ext _ _ hcvT),
+        dClassRead_ext c14.ext _ _ hrd, hms2, hms2⟩ k5
+    have c15 := c14.trans c5
+    -- no minor premise beyond the constructors
+    obtain ⟨hminor, z7⟩ := AM.dunless_ok AM.Never.fail_any z6
+    replace z7 := AM.pure_bind_ok z7
+    have hsl : rd.slots.mapM (dSlot s₀.store) = some rdP.slots := by
+      simp only [dClassRead, Option.map_eq_some_iff] at hrd
+      obtain ⟨q, hq, rfl⟩ := hrd
+      exact hq
+    have hrc : rd.recCls = rdP.recCls := by
+      simp only [dClassRead, Option.map_eq_some_iff] at hrd
+      obtain ⟨q, hq, rfl⟩ := hrd
+      rfl
+    have hminorP : ((rdP.slots.filter ConLeche.ClassSlot.isMinor).length ==
+        (ctorsP.map List.length).sum) = true := by
+      rw [← isMinor_count hsl, ← GR.sum_lengths hctors]; exact hminor
+    -- the classes' formers
+    obtain ⟨fTC, s6, k6, z8⟩ := bindOk z7
+    obtain ⟨c6, fTCP, hfTC, hF6⟩ := GR.mapM_cspecF dMajor dMajor_ext (fun st e => denoteE st e)
+      dExt_denoteE (fun st => cvTas.mapM (Frontend.denoteCV st) = some cvTasP)
+      (fun hx h => dExt_denoteCV.list hx _ _ h) (Arena.classFormerTy fe₂ cvTas)
+      (ConLeche.classFormerTy (m := FueledM) (mkFEnv env₂) cvTasP)
+      (fun m mP s₀ s' r hok hpre hrun => classFormerTy_spec fe₂ cvTas cvTasP m mP s₀ s' r hok
+        ⟨hpre.1, hpre.2⟩ hrun) ms2 Ms2P s5 s6 fTC c5.ok
+      ⟨dExt_denoteCV.list c15.ext _ _ hcvT, dMajor_ext.list c5.ext _ _ hms2⟩ k6
+    have c16 := c15.trans c6
+    -- the elimination level and the binder datum
+    obtain ⟨elim, s7, k7, z9⟩ := bindOk z8
+    obtain ⟨p7, helim⟩ := structElimLevel_spec p.elim pP.elim p.large s6 s7 elim c6.ok.state
+      ((RC.dShape_inv (dShape_ext c16.ext _ _ hsh)).2.2.2.1) k7
+    obtain ⟨bm, s8, k8, z10⟩ := bindOk z9
+    have c17 := c16.trans (p7.toCore c6.ok)
+    obtain ⟨p8, rfl⟩ := classGenBm_spec elim _ s7 s8 bm c17.ok.state c17.ok.caches.readL helim k8
+    have c18 := c17.trans (p8.toCore c17.ok)
+    rw [hlarge] at helim
+    -- the generator's record
+    have hg0 : dClassGen s8.store (⟨p.nP, params, ms2, fTC, rd.slots, ctors, elim,
+          ⟨Level.zeronessOf (ConLeche.structElimLevel pP.elim p.large)⟩, []⟩ : Arena.ClassGen) =
+        some ⟨pP.nP, paramsP, Ms2P, fTCP, rdP.slots, ctorsP,
+          ConLeche.structElimLevel pP.elim pP.large, []⟩ := by
+      have e1 := denoteEList_ext c18.ext _ _ hpar
+      have e2 := dMajor_ext.list (c5.ext.trans (c6.ext.trans (p7.ext.trans p8.ext))) _ _ hms2
+      have e3 := denoteEList_ext (p7.ext.trans p8.ext) _ _ (mapM_denoteE hfTC)
+      have e4 := dSlot_ext.list c18.ext _ _ hsl
+      have e5 := dClassCtors_ext (c6.ext.trans (p7.ext.trans p8.ext)) _ _ hctors
+      have e6 := denoteL_ext helim p8.ext
+      simp only [dClassGen, e1, e2, e3, e4, e5, e6, denoteBinders, hnP, hlarge,
+        Option.bind_eq_bind, Option.bind_some, Option.pure_def, if_true]
+    -- the prefix
+    obtain ⟨o, s9, k9, z11⟩ := bindOk z10
+    obtain ⟨p9, ho⟩ := ClassGen.prefixBinders_spec _ _ s8 s9 o c18.ok.state c18.ok.pins hg0 k9
+    have c19 := c18.trans (p9.toCore c18.ok)
+    cases o with
+    | none => exact absurd z11 (fun hc => failOk hc)
+    | some pre =>
+    obtain ⟨preP, hpreP, hpre⟩ := ho
+    dsimp only at z11
+    have hg := dClassGen_pre (dClassGen_ext p9.ext _ _ hg0) hpre
+    -- the generated types
+    obtain ⟨cvGs, s10, k10, z12⟩ := bindOk z11
+    rw [hk'] at k10
+    obtain ⟨c10, cvGsP, ⟨hcvGs, hfrG⟩, hF10⟩ := classRecTysOk_spec fe₂ hk henv₂ _ _ pP.k p.recs
+      pP.recs cvRis cvRisP rd.recCls hwRis s9 s10 cvGs c19.ok
+      ⟨hg, dRec_ext.list c19.ext _ _ hrecs,
+        dExt_denoteCV.list ((c4.trans c5).trans (c6.trans ((p7.toCore c6.ok).trans
+          ((p8.toCore c17.ok).trans (p9.toCore c18.ok))))).ext _ _ hcvRis3⟩ k10
+    have c110 := c19.trans c10
+    -- the rule-less recursors' environment
+    have hrecCls : rd.recCls = rdP.recCls := hrc
+    have hfeR := GR.classFeR_go_ok c10.ok.state p pP (dShape_ext c110.ext _ _ hsh)
+      (fun c => (Ms2P.getD c default).nIdx) cvGs cvGsP rd.recCls 0 fe₂ env₂ []
+      (hok.ienv.mono c110.ext) hcoh hcvGs
+    obtain ⟨F10, hF10'⟩ := id hF10
+    rw [classRecTysOk_datF] at hF10'
+    obtain ⟨hlenG, hallG⟩ := classRecTysOk_run hF10'
+    have henvR : EnvWF (consBlockRecsBare pP 0
+        ((cvGsP.zip rd.recCls).map fun x => (x.1, (Ms2P.getD x.2 default).nIdx)) env₂) := by
+      refine ConLeche.Cached.envWF_consBlockRecsBare henv₂ fun c hc => ?_
+      obtain ⟨x, hx, rfl⟩ := List.mem_map.mp hc
+      obtain ⟨i, hi⟩ := List.getElem?_of_mem (List.of_mem_zip hx).1
+      have hil : i < pP.recs.length := by
+        rw [← hlenG]; exact (List.getElem?_eq_some_iff.mp hi).1
+      obtain ⟨c, cvG, -, hcvG, ⟨R⟩⟩ := hallG i _ (List.getElem?_eq_getElem hil)
+      rw [hi] at hcvG
+      obtain rfl := Option.some.inj hcvG
+      exact classConstOk_typeWF R.hcv
+    -- the constructors' view, inside the pushed index
+    have hview : ((Arena.classFeR p cvGs rd.recCls fe₂).1.restrictTo fe₂.visibleBelow).find? =
+        fe₂.find? := by
+      simp only [Arena.classFeR]
+      rw [GR.classFeR_go_view p fe₂.visibleBelow _ 0 fe₂ [] (Nat.le_refl _)]
+      · rfl
+      · intro x hx
+        obtain ⟨cP, hcP, hd⟩ := GR.mapM_mem hcvGs x.1 (List.of_mem_zip hx).1
+        exact GR.find_none_of_env (hok.ienv.mono c110.ext) (ConRon.Bridge.denoteCV_name hd)
+          (hfrG cP hcP)
+    have hie2R : IFEnvOK env₂ ((Arena.classFeR p cvGs rd.recCls fe₂).1.restrictTo
+        fe₂.visibleBelow) s10 := RC.IFEnvOK.of_find? (hok.ienv.mono c110.ext) hview
+    -- the flush into the rule-less recursors' environment
+    obtain ⟨u11, s11, k11, z13⟩ := bindOk z12
+    obtain ⟨hok11, hi11, hst11⟩ := (⟨c10.ok.state, c10.ok.pins, hfeR.1⟩ :
+      ReadOK _ (Arena.classFeR p cvGs rd.recCls fe₂).1 s10).flush (μ := μ) k11
+    -- the rules
+    obtain ⟨out, s12, k12, z14⟩ := bindOk z13
+    obtain ⟨c12', outP, hout, hF12⟩ := classRecsRulesOk_spec _ fe₂.visibleBelow hk henvR _ _
+      rd.recCls _ cvGs cvGsP cvGs cvGsP rd.recCls s11 s12 out hok11
+      ⟨by rw [hst11]; exact dClassGen_ext c10.ext _ _ hg, by rw [hst11]; exact hcvGs,
+        by rw [hst11]; exact hcvGs, by rw [hst11]; exact hie2R.toS⟩ k12
+    -- the flush back
+    obtain ⟨u13, s13, k13, z15⟩ := bindOk z14
+    have hext12 : Ext s₀.store s12.store := c110.ext.trans (by rw [← hst11]; exact c12'.ext)
+    have hpins12 : s12.pins = s₀.pins := by
+      rw [c12'.pins, hi11.pins, c110.pins]
+    obtain ⟨hok13, hi13, hst13⟩ := (⟨c12'.ok.state, by
+      exact hok.pins.mono hext12 hpins12, hok.ienv.mono hext12⟩ : ReadOK env₂ fe₂ s12).flush
+      (μ := μ) k13
+    obtain ⟨hr15, hs15⟩ := pureOk z15
+    subst hr15
+    rw [← hs15] at hok13 hi13 hst13
+    have hframe : CoreStep μ env₂ fe₂ s₀ s' :=
+      ⟨hok13, by rw [hst13]; exact hext12, by rw [hi13.pins, hpins12]⟩
+    have hFOk : FOk (ConLeche.genRecCheck (ShadowOps.ofOps (fueledOpsM μ)) (mkFEnv env₂) pP
+        nestedBit paramsP tblP rdP MsP cvTasP blockP) outP := by
+      simp only [ConLeche.genRecCheck, ShadowOps.ofOps, mkFEnv_env]
+      refine FOk.bind hF1 (FOk.bind hF2 ?_)
+      rw [if_pos hkP, hcond]
+      simp only [Bool.false_eq_true, ↓reduceIte]
+      refine FOk.bind hF4 (FOk.bind hF5 ?_)
+      rw [if_pos hminorP]
+      refine FOk.bind hF6 ?_
+      rw [hpreP]
+      rw [hrc] at hF10
+      refine FOk.bind FOk.unwrapOr (FOk.bind hF10 (FOk.seq (FOk.pure ()) ?_))
+      have hfeReq : ConLeche.classFeR pP Ms2P cvGsP rdP.recCls (mkFEnv env₂) =
+          mkFEnv (consBlockRecsBare pP 0
+            ((cvGsP.zip rdP.recCls).map fun x => (x.1, (Ms2P.getD x.2 default).nIdx)) env₂) := by
+        simp only [ConLeche.classFeR, consBlockRecsBareF_mkFEnv]
+      rw [hfeReq]
+      rw [hlarge, hrc] at hF12
+      exact FOk.bind hF12 (FOk.seq (FOk.pure ()) (FOk.pure _))
+    refine ⟨hframe, outP, ⟨by rw [hst13]; exact hout, ?_, GR.classFeR_pop p cvGs rd.recCls fe₂⟩,
+      hFOk⟩
+    obtain ⟨F, hF⟩ := hFOk
+    rw [genRecCheck_datF] at hF
+    exact genRecCheck_out_fresh hF
 
 end ConRon.Bridge.Inductives
