@@ -192,12 +192,8 @@ theorem natWF_of_limbs {m n : ron.nat.Nat} (h : m.limbs.val = n.limbs.val)
         ConRon.Refine.Nat.toNat m = ConRon.Refine.Nat.toNat n) :=
   fun _ h => let r := ConRon.Refine.Nat.clone_refines h; ⟨natWF_of_limbs r.1 hn, r.2⟩
 
-theorem nat_beq_decide' (a b : Nat) : (a == b) = decide (a = b) := by
-  by_cases h : a = b <;> simp [h]
-
 -- local: globally it rewrites other tiers' twins off their definitions
 -- (`Inductives/SumInstall`'s `checkSumIndAtSpec`); `Core/LS/Defeq` re-declares it
-attribute [local lockstep_simp] nat_beq_decide'
 
 attribute [local lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
 

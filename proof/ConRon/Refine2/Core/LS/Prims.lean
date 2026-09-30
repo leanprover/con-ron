@@ -149,12 +149,6 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 `assumption`: a body lemma carries the bundle as a hypothesis, and
 `Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
 
-@[lockstep] theorem abstract1_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (fuel e d k) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.abstract1_fast pers st fuel e d k)
-      lst (abstract1Fast (absU fuel) (absEIdx e) (absU d) (absU k)) :=
-  LS.ofSim₀ fun _ h => hx.abstract1Fast hrel hinv h
-
 @[lockstep] theorem lam_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
     LSR pers (fun a b => b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst

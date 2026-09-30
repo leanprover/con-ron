@@ -100,10 +100,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   rw [UScalarTy.Usize_numBits_eq, UScalarTy.U64_numBits_eq]
   rcases System.Platform.numBits_eq with h | h <;> omega
 
-@[local lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
-    (absEIdxArr v).size = v.val.length := by
-  simp [absEIdxArr]
-
 @[local lockstep_simp] theorem absSz_vec_len {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by
   simp [absSz]

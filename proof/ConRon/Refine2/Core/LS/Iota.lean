@@ -236,23 +236,9 @@ The twin reads fields of the abstracted records (`cvj.levelParams`,
 record copies are identities (`PrimsC2.i_*_dup_ls`), so these projections are
 all the glue the two readings need. -/
 
-private theorem absIConstantVal_name (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).name = absNIdx cv.name := rfl
-theorem absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).levelParams = cv.level_params.val.map absNIdx := rfl
-private theorem absIConstantVal_type (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).type = absEIdx cv.ty := rfl
 theorem absIIndCaps_eta (c : arena.env.IIndCaps) : (absIIndCaps c).eta = c.eta := rfl
 theorem absIIndCaps_etaCtor (c : arena.env.IIndCaps) :
     (absIIndCaps c).etaCtor = absNIdx c.eta_ctor := rfl
-theorem absIIndCaps_etaParams (c : arena.env.IIndCaps) :
-    (absIIndCaps c).etaParams = c.eta_params.val := rfl
-theorem absIIndCaps_etaFields (c : arena.env.IIndCaps) :
-    (absIIndCaps c).etaFields = c.eta_fields.val := rfl
-theorem absLsNodeView_length (v : alloc.vec.Vec arena.handle.LIdx) :
-    (absLsNodeView v).length = v.val.length := by simp [absLsNodeView]
-theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
-    (absEIdxList v).length = v.val.length := by simp [absEIdxList]
 theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec β) :
     (alloc.vec.Vec.len x = alloc.vec.Vec.len y) = (x.val.length = y.val.length) := by
   apply propext
@@ -260,9 +246,7 @@ theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec 
   · intro h; have := congrArg (·.val) h; simpa using this
   · intro h; apply UScalar.eq_imp; simpa using h
 
-attribute [local lockstep_simp] absIConstantVal_name absIConstantVal_levelParams
-  absIConstantVal_type absIIndCaps_eta absIIndCaps_etaCtor absIIndCaps_etaParams
-  absIIndCaps_etaFields absLsNodeView_length absEIdxList_length vec_len_eq_iff List.length_map
+attribute [local lockstep_simp] absIIndCaps_eta absIIndCaps_etaCtor vec_len_eq_iff List.length_map
 
 /-! ## Stubs (other regions' lemmas; deleted at merge) -/
 

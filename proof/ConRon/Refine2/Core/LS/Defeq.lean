@@ -42,7 +42,7 @@ attribute [local lockstep_simp] ConRon.Refine2.absIConstantVal
 -- `PrimsF`'s `==`-as-`decide` rewrites, local there (they rewrote other tiers'
 -- twins)
 attribute [local lockstep_simp] ConRon.Refine2.Lockstep.PF.idx_beq_decide
-  ConRon.Refine2.Lockstep.PF.beq_of_decEq ConRon.Refine2.Lockstep.PF.nat_beq_decide'
+  ConRon.Refine2.Lockstep.PF.beq_of_decEq
 
 namespace ConRon.Refine2.Lockstep
 

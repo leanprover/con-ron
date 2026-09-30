@@ -732,8 +732,6 @@ theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x =
     (absNestCtx c).lps = absNIdxL c.lps := rfl
 @[lockstep_simp] theorem absNestCtx_nP (c : arena.inductives.positivity.NestCtx) :
     (absNestCtx c).nP = absU c.n_p := rfl
-@[lockstep_simp] theorem absNestCtx_nIdxs (c : arena.inductives.positivity.NestCtx) :
-    (absNestCtx c).nIdxs = c.n_idxs.val.map absU := rfl
 @[lockstep_simp] theorem absNestCtx_params (c : arena.inductives.positivity.NestCtx) :
     (absNestCtx c).params = absEIdxL c.params := rfl
 @[lockstep_simp] theorem absNestCtx_sort (c : arena.inductives.positivity.NestCtx) :
@@ -875,8 +873,6 @@ theorem root_hole_spec (ctx : arena.inductives.positivity.NestCtx) (j : Std.Usiz
 
 @[lockstep_simp] theorem absNestHole_key (h : arena.inductives.positivity.NestHole) :
     (absNestHole h).key = absNestKey h.key := rfl
-@[lockstep_simp] theorem absNestHole_base (h : arena.inductives.positivity.NestHole) :
-    (absNestHole h).base = absU h.base := rfl
 @[lockstep_simp] theorem absNestKey_cname (k : arena.inductives.positivity.NestKey) :
     (absNestKey k).cname = absNIdx k.cname := rfl
 @[lockstep_simp] theorem absNestKey_lvls (k : arena.inductives.positivity.NestKey) :

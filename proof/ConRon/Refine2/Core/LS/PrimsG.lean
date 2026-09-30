@@ -43,15 +43,9 @@ theorem absStk_size (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderM
     (absStk v).size = v.val.length := by
   simp [absStk]
 
-theorem vec_new_val {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
-
 theorem vec_len_abs {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by
   simp [absSz]
-
-theorem vec_len_val' {α : Type} (v : alloc.vec.Vec α) :
-    (alloc.vec.Vec.len v).val = v.val.length := by
-  simp
 
 /-- The binder stack's index, as a twin fact about the twin's `stk[j]!`. -/
 theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))

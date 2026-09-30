@@ -109,13 +109,6 @@ leave on the twin side. -/
       Result.ok.injEq] at h
     rw [← h]; rfl
 
-/-- The twin's `(if c then a else b) >>= g`, pushed into the branches so that
-the twin test sits at the head where `lockstep` decides it. -/
-theorem twin_ite_bind {α β : Type} {c : Prop} [Decidable c] (a b : AM α) (g : α → AM β) :
-    ((if c then a else b) >>= g) = (if c then a >>= g else b >>= g) := by
-  split <;> rfl
-
-
 /-! ## Well-formedness carried by a read
 
 `prop_when::beq` is the twin's `==` on the abstraction only at two

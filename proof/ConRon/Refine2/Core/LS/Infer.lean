@@ -35,10 +35,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PE
 
 -- `absEIdxArr_getElem`: the shared one (`Tactic/Prims`)
 
-@[local lockstep_simp] theorem absEIdxArr_size (v : alloc.vec.Vec arena.handle.EIdx) :
-    (absEIdxArr v).size = v.val.length := by
-  simp [absEIdxArr]
-
 theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
     ∀ {pers vis st mode lane fu fe lfe depth ty acc args i lst},
       ExprOpsHyp pers → args.val.length - (i : Std.Usize).val = n →

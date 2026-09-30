@@ -268,8 +268,6 @@ private theorem mk_ifenv_empty_refines' {e f}
     rw [hnone n] at hp
     exact absurd hp (by simp)
 
-private theorem toList_toArray'' {α : Type} (l : List α) : l.toArray.toList = l := rfl
-
 /-! ## The pool (tasks #97-P5-POOL, #98-POOL)
 
 The binary does not run `check_decls_phased`'s one-worker walk: its phase B
@@ -543,7 +541,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
     exact foldAllOk_check_pending_refines hv2.rel hv2.inv w hrelW hinvW rfl hf
   refine ⟨fe1, lst', ⟨n1, (absPendingCheckL pend).toArray,
     parts.map (List.map absPendingCheck), ?_, ?_, ?_, ?_⟩, hv2.rel, hrel1⟩
-  · simpa only [toList_toArray''] using hx'
+  · simpa only using hx'
   · intro pc hpc
     simp only [absPendingCheckL, List.mem_map] at hpc
     obtain ⟨x, hx, rfl⟩ := hpc

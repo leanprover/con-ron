@@ -20,10 +20,10 @@ SUBJECT the arena still calls:
 |---|---|
 | infrastructure | `SimpSets`, `Abs`, `Fixpoint` (`partial_induct`: `fixpoint_induct` for an `= ok` motive, task #99-PFIX; `Scalars` was deleted at task #97-PRUNE: nothing imported it) |
 | runtime primitives (`ron/`) | `Nat`, `HashMap`, `HashMapWF`, `HashMap2`, `HashMap2WF` |
-| representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsSpine`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
-| `core_k`'s readers, names, literals and shape guards | `CoreKBase`, `CoreKNames`, `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKShapes`, `CoreKInfer`, `CoreKProj` (`CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead) |
+| representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
+| `core_k`'s readers, names and shape guards | `CoreKBase`, `CoreKNames`, `CoreKShapes` (`CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead; `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKInfer` and `CoreKProj` deleted, task #105 SW-R2: nothing live was left in them) |
 | the pinned data | `BasisTables`, `BasisNames`, `BasisRaw`, `BasisPins`, `StdAxioms`, `TrustAxioms` |
-| the `con-ron-pins/1` decoder | `PinsDec`, `PinsAscii`, `PinsBytes`, `PinsAbs`, `PinsSplit`, `PinsRecords`, `PinsRead`, `PinsRun`, `Pins` |
+| the `con-ron-pins/1` decoder | `PinsDec`, `PinsAscii`, `PinsBytes`, `PinsAbs`, `PinsSplit`, `PinsRecords`, `PinsRead`, `PinsRun` (`Pins` deleted, task #105 SW-R2: only its module note was left) |
 
 Every lemma in those is still a lemma about code that ships: the arena reads
 `Name`, `Level`, `PropWhen` and `HashMap` directly, and it interns the
@@ -33,7 +33,10 @@ checker's own tier — the knot's arms, the declaration checker, the install
 routes, the cached state, the `Expr`-tree parse and the capstones of
 `Main.lean`; `Bridge/` (Theorem 1) and `Refine2/` (Theorem 2) replace them
 (§8.6's phases P3 and P5).  Task #97-PRUNE checked the remaining 46 modules
-mechanically: every one is in `ConRon.Capstone`'s import closure.
+mechanically: every one is in `ConRon.Capstone`'s import closure.  Task #105
+(the unused-code sweep) deleted `ExprOpsSpine` and the emptied `CoreK*`/`Pins`
+modules above; the per-file tables further down are the tier's history and
+still name files that are gone.
 
 **`Refine/<Module>.lean` names a `kernel/` or `ron/` module, not an `arena/`
 one.**  The arena's own refinement will be `Refine/Arena*.lean`;

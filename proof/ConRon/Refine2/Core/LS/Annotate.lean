@@ -43,10 +43,9 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PG
 
 /-! ## Local normalisation -/
 
-attribute [local lockstep_simp] absEIdxArr_eq vec_new_val vec_len_abs absStk_size
-  List.map_append List.map_cons List.map_nil List.push_toArray
-  List.nil_append List.size_toArray List.length_map
-  ite_true ite_false Bool.not_true Bool.not_false Nat.add_sub_cancel
+attribute [local lockstep_simp] absEIdxArr_eq vec_len_abs absStk_size List.map_append
+  List.map_cons List.map_nil List.push_toArray List.nil_append List.size_toArray
+  List.length_map ite_true ite_false Bool.not_true Bool.not_false Nat.add_sub_cancel
 
 /-! ## The datum computations -/
 
@@ -247,8 +246,8 @@ theorem annotate_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
 
 attribute [lockstep_inline] arena.core.annotate_binder arena.core.annotate_let
   arena.core.annotate_proj arena.core.annotate_proj_at
-attribute [local lockstep_simp] annotateBinder absIProjEntry bne_iff_ne ExprOps.absEIdxList
-  vec_len_val'
+attribute [local lockstep_simp] annotateBinder absIProjEntry bne_iff_ne
+  ExprOps.absEIdxList
 attribute [local lockstep] proj_table_name_at_ls
 
 /-- **`BodyRel.annotate` in lockstep**: `arena::core::annotate_body` against

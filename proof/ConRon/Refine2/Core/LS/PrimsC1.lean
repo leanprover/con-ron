@@ -23,13 +23,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 /-! ## Bridges between the two `Vec<EIdx>` readings -/
 
-@[local lockstep_simp] theorem exprOps_absEIdxList_eq (v : alloc.vec.Vec arena.handle.EIdx) :
-    ExprOps.absEIdxList v = absEIdxList v := rfl
-
-@[local lockstep_simp] theorem absEIdxListFrom_zero (v : alloc.vec.Vec arena.handle.EIdx) :
-    absEIdxListFrom v 0#usize = absEIdxList v := by
-  simp [absEIdxListFrom, absEIdxList]
-
 /-! ## `drop_eidx_from` / `drop_eidx_n_from` / `drop_eidx_n` (the twin's `List.drop`) -/
 
 theorem drop_eidx_from_aux (n : Nat) :
@@ -365,15 +358,9 @@ a dup's `absIIndCaps c = absIIndCaps o` rewrites the twin's record first. -/
 @[local lockstep_simp] theorem absIIndCaps_unitlike (c) : (absIIndCaps c).unitlike = c.unitlike := rfl
 @[local lockstep_simp] theorem absIIndCaps_unitParams (c) :
     (absIIndCaps c).unitParams = absU c.unit_params := rfl
-@[local lockstep_simp] theorem absIConstantVal_name (c) : (absIConstantVal c).name = absNIdx c.name := rfl
 @[local lockstep_simp] theorem absIConstantVal_levelParams (c) :
     (absIConstantVal c).levelParams = absNIdxList c.level_params := rfl
 @[local lockstep_simp] theorem absIConstantVal_type (c) : (absIConstantVal c).type = absEIdx c.ty := rfl
-
-@[local lockstep_simp] theorem absEIdxList_length (v : alloc.vec.Vec arena.handle.EIdx) :
-    (absEIdxList v).length = v.val.length := by simp [absEIdxList]
-@[local lockstep_simp] theorem absNIdxList_length (v : alloc.vec.Vec arena.handle.NIdx) :
-    (absNIdxList v).length = v.val.length := by simp [absNIdxList]
 
 @[lockstep] theorem nidx_vec_dup_ls (ns : alloc.vec.Vec arena.handle.NIdx) :
     LSP (arena.env.nidx_vec_dup ns) (fun r => r = ns) :=
@@ -485,12 +472,6 @@ theorem LS.view_ls_len_bind {γ δ : Type} {pers st lst} {h : arena.handle.LsIdx
 
 /-! ## Twin-side shapes -/
 
-/-- The twin's `if ← x then pure true else pure false` is `x`: the port tail-calls. -/
-@[local lockstep_simp] theorem bind_if_pure_true_false (x : AM Bool) :
-    (x >>= fun b => if b = true then pure true else pure false) = x := by
-  conv => rhs; rw [← bind_pure x]
-  congr 1; funext b; cases b <;> rfl
-
 end ConRon.Refine2.Lockstep.PC1
 
 /-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
@@ -501,5 +482,8 @@ namespace ConRon.Refine2.Lockstep.PC1.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] exprOps_absEIdxList_eq absEIdxListFrom_zero ConRon.Refine.absBinderMeta ExprOps.absStrip Option.isSome_some Option.isSome_none absIIndCaps_eta absIIndCaps_etaCtor absIIndCaps_etaParams absIIndCaps_etaFields absIIndCaps_unitlike absIIndCaps_unitParams absIConstantVal_name absIConstantVal_levelParams absIConstantVal_type absEIdxList_length absNIdxList_length absConstT bind_if_pure_true_false
+attribute [scoped lockstep_simp] ConRon.Refine.absBinderMeta ExprOps.absStrip
+  Option.isSome_some Option.isSome_none absIIndCaps_eta absIIndCaps_etaCtor
+  absIIndCaps_etaParams absIIndCaps_etaFields absIIndCaps_unitlike absIIndCaps_unitParams
+  absIConstantVal_levelParams absIConstantVal_type absConstT
 end ConRon.Refine2.Lockstep.PC1.CoreLSReg

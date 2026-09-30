@@ -214,13 +214,6 @@ omit [DecidableEq K] in
     liveAt e (.Live g k v) = if g = e then some (k, v) else none := rfl
 
 omit [DecidableEq K] in
-/-- The default slot is `Vacant`: this is what `slots[j]!` gives outside the
-range, which is *every* `j` on an unallocated table (task #35's lazy
-allocation, kept). -/
-@[local simp] theorem liveAt_default (e : Std.U32) :
-    liveAt (K := K) (V := V) e default = none := rfl
-
-omit [DecidableEq K] in
 theorem liveAt_epoch {e g : Std.U32} {k : K} {v : V} {p : K × V}
     (h : liveAt e (.Live g k v) = some p) : g = e ∧ p = (k, v) := by
   simp only [liveAt_live] at h

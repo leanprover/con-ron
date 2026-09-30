@@ -1245,8 +1245,6 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
   rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne]
   exact ⟨fun h hv => h (Std.UScalar.eq_of_val_eq hv), fun h hab => h (by rw [hab])⟩
 
-@[lockstep_simp] theorem u64_zero_val' : ((0#u64 : Std.U64)).val = 0 := rfl
-
 attribute [lockstep_simp] id_eq
 
 @[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx) (m : kernel.expr.BinderMeta)

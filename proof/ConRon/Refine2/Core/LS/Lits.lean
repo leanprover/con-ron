@@ -64,8 +64,6 @@ name_pin arena.core.nat_shift_right_name natShiftRightName PB.pin_nat_shift_righ
     rw [dupId_nidx _ _ hn1] at h
     exact ConRon.Refine.vec_push_val h
 
-@[local lockstep_simp] theorem vec_new_val_B {α : Type} : (alloc.vec.Vec.new α).val = [] := rfl
-
 attribute [local lockstep_simp] absNIdxList
 
 attribute [local lockstep_simp] List.map_append List.map_cons List.map_nil
@@ -599,5 +597,5 @@ namespace ConRon.Refine2.Lockstep.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2
-attribute [scoped lockstep_simp] vec_new_val_B absNIdxList
+attribute [scoped lockstep_simp] absNIdxList
 end ConRon.Refine2.Lockstep.CoreLSReg
