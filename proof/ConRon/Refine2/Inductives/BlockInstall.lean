@@ -27,6 +27,150 @@ open scoped IndSide
 @[local lockstep_simp] theorem bi_core_walk_fuel_val :
     (arena.core.CORE_WALK_FUEL).val = coreWalkFuel := core_walk_fuel_abs
 
+@[local lockstep_simp] theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
+@[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).nIdx = absU m.n_idx := rfl
+@[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_parts.MemberShape) :
+    (absMemberShape m).ctors = absCtorsL m.ctors := rfl
+
+/-! ## The Rust-only list builders (the twin's inline `map`s) -/
+
+theorem ctor_name_list_abs {cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.block_install.ctor_name_list cs i out = ok o →
+      absNIdxL o = absNIdxL out ++ ((cs.val.drop i.val).map fun p => absNIdx p.1.name) := by
+  have := vec_cursor_copy cs absNIdx (fun p => absNIdx p.1.name)
+    (arena.inductives.block_install.ctor_name_list cs) ?_ ?_
+  · intro i out o h
+    simpa [absNIdxL] using this i out o h
+  · bp_copy_stop arena.inductives.block_install.ctor_name_list.eq_def cs
+  · bp_copy_head arena.inductives.block_install.ctor_name_list.eq_def cs
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+/-- `ctor_name_list` from `0` is `blockCapsAt`'s `cs.map (·.1.name)`. -/
+@[lockstep] theorem ctor_name_list_twin0 (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSP (arena.inductives.block_install.ctor_name_list cs 0#usize (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((absCtorsL cs).map (·.1.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, ctor_name_list_abs _ _ o h]
+  simp [absNIdxL, absCtorsL, absIConstantVal]
+
+theorem tele_vals_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)} :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.env.IConstantVal),
+      arena.inductives.block_install.tele_vals cvs i out = ok o →
+      absICVL o = absICVL out ++ ((cvs.val.drop i.val).map fun p => absIConstantVal p.1) := by
+  have := vec_cursor_copy cvs absIConstantVal (fun p => absIConstantVal p.1)
+    (arena.inductives.block_install.tele_vals cvs) ?_ ?_
+  · intro i out o h
+    simpa [absICVL] using this i out o h
+  · bp_copy_stop arena.inductives.block_install.tele_vals.eq_def cvs
+  · bp_copy_head arena.inductives.block_install.tele_vals.eq_def cvs
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      i_constant_val_dup_abs hn, h⟩
+
+/-! ## The capability record: `block_caps_at` -/
+
+theorem shape_k_spec (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_k p) (fun r => r.val = p.members.val.length) := by
+  intro r h
+  rw [arena.inductives.block_parts.shape_k] at h
+  have := lift_cast_u64_of_usize _ r h
+  simpa [alloc.vec.Vec.len] using this
+
+attribute [local lockstep] shape_k_spec
+
+theorem bi_vec_index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize) (k : Nat)
+    (hi : i.val = k) (hk : k < v.val.length) :
+    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) v i = ok v.val[k] := by
+  subst hi
+  rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+  simp [List.getElem?_eq_getElem hk]
+
+/-- The default-record arm's leaf: the Rust's `{ default with all, nparams,
+ctors }` against the twin's record literal. -/
+macro "bi_caps_leaf" : tactic => `(tactic| (
+  refine LS.pure ⟨?_, by assumption⟩ (by assumption) (by assumption)
+  simp only [TwinEq, absIIndCaps, IIndCaps.mk.injEq] at *
+  simp_all [absBlockShape, alloc.vec.Vec.new, absNIdxL, absU, absIConstantVal_name]))
+
+/-- The one-constructor arm's leaf: the Rust's record, built by branches, against
+the twin's `&&`/`if` record. -/
+macro "bi_caps_leaf1" : tactic => `(tactic| (
+  refine LS.pure ⟨?_, by simp_all⟩ (by assumption) (by assumption)
+  simp only [TwinEq, pn_u64_bne_zero] at *
+  simp_all [absIIndCaps, absBlockShape, BlockShape.k, absNIdxL, absU, alloc.vec.Vec.new,
+    absIConstantVal_name]))
+
+set_option maxHeartbeats 3000000 in
+/-- `block_caps_at` ⊑ `blockCapsAt` — the capability record of member `mi`.
+The Rust tests `mi < len && ctors.len() == 1` where the twin matches
+`members[mi]?` and `[c]`: the Rust's tests are decided first. -/
+@[lockstep] theorem block_caps_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape) (mi : Std.U64)
+    (is_rec : Bool) :
+    LS pers (fun a b => b = absIIndCaps a ∧ ConRon.Refine.PropWhenWF a.sort_z)
+      (arena.inductives.block_install.block_caps_at pers st p mi is_rec) lst
+      (blockCapsAt (absBlockShape p) (absU mi) is_rec) := by
+  rw [arena.inductives.block_install.block_caps_at, blockCapsAt]
+  by_cases hm : mi.val < p.members.val.length
+  · have hget : (absBlockShape p).members[absU mi]? =
+        some (absMemberShape p.members.val[mi.val]) := by
+      show (p.members.val.map absMemberShape)[mi.val]? = _
+      rw [List.getElem?_map, List.getElem?_eq_getElem hm]; rfl
+    rw [hget]
+    dsimp only
+    have hI : (UScalar.cast .Usize mi : Std.Usize).val = mi.val := by
+      rcases lift_cast_usize_of_u64 mi _ rfl with h | h
+      · exact h
+      · exfalso; have := p.members.property; scalar_tac
+    have h1 : mi < UScalar.cast .U64 (alloc.vec.Vec.len p.members) := by
+      have := lift_cast_u64_of_usize (alloc.vec.Vec.len p.members) _ rfl
+      simp only [alloc.vec.Vec.len] at this
+      scalar_tac
+    have hidx := bi_vec_index_eq p.members (UScalar.cast .Usize mi) mi.val hI hm
+    simp only [lift, bind_tc_ok, if_pos h1, hidx]
+    generalize p.members.val[mi.val] = m
+    rcases hc : m.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
+    · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
+        intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
+      rw [absMemberShape_ctors, absCtorsL, hc, List.map_nil]
+      simp only [if_neg hlen]
+      lockstep
+      bi_caps_leaf
+    · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
+        have : (alloc.vec.Vec.len m.ctors).val = 1 := by simp [alloc.vec.Vec.len, hc]
+        scalar_tac
+      have hidx0 : alloc.vec.Vec.index
+          (core.slice.index.SliceIndexUsizeSlice (arena.env.IConstantVal × Std.U64))
+          m.ctors 0#usize = ok (cv, nf) := by
+        rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
+        simp [hc]
+      rw [absMemberShape_ctors, absCtorsL, hc, List.map_cons, List.map_nil]
+      simp only [hlen, ↓reduceIte, hidx0, bind_tc_ok]
+      lockstep
+      all_goals bi_caps_leaf1
+    · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
+        intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
+      rw [absMemberShape_ctors, absCtorsL, hc, List.map_cons, List.map_cons]
+      simp only [if_neg hlen]
+      lockstep
+      bi_caps_leaf
+  · have hget : (absBlockShape p).members[absU mi]? = none := by
+      show (p.members.val.map absMemberShape)[mi.val]? = _
+      rw [List.getElem?_eq_none (by simp; omega)]
+    rw [hget]
+    dsimp only
+    lockstep
+    bi_caps_leaf
+
 /-! ## Official's `is_rec`: `pi_doms_mention_any`, `ctors_mention_any`,
 `members_mention_any`, `block_raw_rec` -/
 
@@ -145,12 +289,6 @@ def absMemberShapeLFrom (v : alloc.vec.Vec arena.inductives.block_parts.MemberSh
 theorem bi_hvis {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
     absU rf.visible_below = lf.visibleBelow := hfe.rel.visibleBelow.symm
 
-@[local lockstep_simp] theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
-    (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
-@[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_parts.MemberShape) :
-    (absMemberShape m).nIdx = absU m.n_idx := rfl
-@[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_parts.MemberShape) :
-    (absMemberShape m).ctors = absCtorsL m.ctors := rfl
 
 /-- `check_block_tele` ⊑ `checkBlockTele`: one member's type former. -/
 @[lockstep] theorem check_block_tele_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
