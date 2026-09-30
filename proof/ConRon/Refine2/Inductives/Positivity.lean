@@ -1214,4 +1214,99 @@ theorem fv_map_at_all {pers} (f : arena.inductives.positivity.FvMap) (hwf : FvMa
       ((absEIdxL xs).mapM fun x => replaceFVars (absFvMap f) x) :=
   replace_fvars_list_new_of f (fv_map_at_all f hwf) xs st lst hrel hinv
 
+/-! ## The whole-application abstraction: `ph_app`, `nest_canon_sub`, `app_hole` -/
+
+/-- `ph_app` ⊑ `phApp?`: the Rust reads the placeholder `b + (n - 1)` at a
+positive `n`, the twin `b + n'` at `n = n' + 1` — the same index. -/
+theorem ph_app_aux (k : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (b : Std.U64) (e : arena.handle.EIdx) (n : Std.U64),
+      n.val = k → AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a.map absConstT)
+        (arena.inductives.positivity.ph_app pers st b e n) st lst
+        (phApp? (absU b) (absEIdx e) k) := by
+  induction k with
+  | zero =>
+    intro pers st lst b e n hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.ph_app, if_pos (by scalar_tac), phApp?]
+    lockstep
+  | succ k ih =>
+    intro pers st lst b e n hn hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.ph_app, if_neg (by scalar_tac), phApp?]
+    lockstep
+
+@[lockstep] theorem ph_app_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (b : Std.U64) (e : arena.handle.EIdx) (n : Std.U64) :
+    LSR pers (fun a b => b = a.map absConstT)
+      (arena.inductives.positivity.ph_app pers st b e n) st lst
+      (phApp? (absU b) (absEIdx e) (absU n)) :=
+  ph_app_aux _ b e n rfl hrel hinv
+
+@[lockstep] theorem nest_canon_sub_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (n : Std.U64) (c : arena.handle.NIdx) (v : arena.handle.LsIdx) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.nest_canon_sub pers st names us n c v) lst
+      (nestCanonSub (absNIdxL names) (absLsIdx us) (absU n) (absNIdx c) (absLsIdx v)) := by
+  rw [arena.inductives.positivity.nest_canon_sub, nestCanonSub]
+  lockstep
+
+@[lockstep] theorem app_hole_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (b n : Std.U64) (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.positivity.app_hole pers st names us b n e) lst
+      (appHole? (absNIdxL names) (absLsIdx us) (absU b) (absU n) (absEIdx e)) := by
+  rw [arena.inductives.positivity.app_hole, appHole?]
+  lockstep
+
+/-! ## `nest_phs` -/
+
+/-- `nest_phs` ⊑ `(List.range' i (n - i)).mapM`, behind the accumulator. -/
+theorem nest_phs_acc {pers} (n : Std.U64) :
+    ∀ (i : Std.U64) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.nest_phs pers st n i out) lst
+        (do
+          let r ← (List.range' i.val (n.val - i.val)).mapM fun i => do
+            let z ← zeroLevel
+            let s ← internSortE z
+            internFVarE i s
+          pure (absEIdxL out ++ r)) := by
+  refine ls_counted n
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) m i => do
+      let r ← (List.range' i m).mapM fun i => do
+        let z ← zeroLevel
+        let s ← internSortE z
+        internFVarE i s
+      pure (absEIdxL w ++ r))
+    (fun st i w => arena.inductives.positivity.nest_phs pers st n i w) ?_ ?_
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.positivity.nest_phs.eq_def, if_pos (by scalar_tac)]
+    simp only [List.range'_zero, List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro st lst i w m hi hm hrel hinv ih
+    rw [arena.inductives.positivity.nest_phs.eq_def, if_neg (by scalar_tac)]
+    simp only [List.range'_succ, List.mapM_cons, bind_assoc, pure_bind]
+    lockstep
+
+@[lockstep] theorem nest_phs_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n : Std.U64) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.positivity.nest_phs pers st n 0#u64
+        (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (nestPhs (absU n)) := by
+  have h := nest_phs_acc n 0#u64 st lst (alloc.vec.Vec.new arena.handle.EIdx) hrel hinv
+  have e : (do
+      let r ← (List.range' (0#u64 : Std.U64).val (n.val - (0#u64 : Std.U64).val)).mapM fun i => do
+        let z ← zeroLevel
+        let s ← internSortE z
+        internFVarE i s
+      pure (absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ r) : AM _) = nestPhs (absU n) := by
+    simp [nestPhs, absEIdxL, alloc.vec.Vec.new, List.range_eq_range']
+  rwa [e] at h
+
 end ConRon.Refine2
