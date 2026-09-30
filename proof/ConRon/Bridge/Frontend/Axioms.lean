@@ -435,24 +435,20 @@ what rested on what.
 #print axioms preparePrelude_run
 #print axioms FoldOK_of_start
 
-/-! ## Task #97-T1-OCC — the occurrence walks, CLOSED
+/-! ## The headlines, and the two named hypotheses
 
-`Bridge/Frontend/ProjRec.lean`'s two con-leche-tier lemmas, proved here: the
-budgeted walk by induction with the budget generalised, the memoised one
-from the memo invariant `clOccursMemoInv`.  With them every declaration this
-census prints — the "resting on an open leaf" list above and the headlines
-below included — reads at Lean's own three or fewer; the section titles
-record where each stood when it was written. -/
-
-
-/-! ## The headlines, and the four named hypotheses
+**Task #105**: `Bridge/Frontend/ProjRec.lean`'s two con-leche-tier occurrence
+lemmas (`clOccursConstB_eq`, `clOccursConstGo_eq`) that task #97-T1-OCC's
+section here used to close are gone with the file; they served only
+`occursConstFast_run`/`occursConstGo_run`, the projection rewrite's own
+walks, which are gone too.
 
 These five reported `sorryAx` while they rested on leaves of the sorry list
 (the memoised readback, the intern direction, the `ExprOps` walks, the
 record-assembly steps and `processLineCoreD`'s six arms); those are closed,
 and the five are printed for the one thing the census is for: **none of
-them names `CoreSpec`, `IndSpec`, `ModellerWF` or `ModellerRefines`.**  Those four are hypotheses of
-the statements, not axioms of the environment, which is what makes "four named
+them names `CoreSpec` or `IndSpec`.**  Those two are hypotheses of
+the statements, not axioms of the environment, which is what makes "two named
 hypotheses" a checkable claim rather than an editorial one
 (`Bridge/Checker/Axioms.lean` makes the same point about its two).
 
