@@ -240,7 +240,7 @@ theorem kernel.expr.Expr._0._simpLemma_ (_0 : alloc.sync.Arc
   kernel.expr.ExprNode) : (kernel.expr.Expr.mk _0)._0 = _0 := by rfl
 
 /-- [con_ron_core::kernel::env::ProjTable]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 428:0-438:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 433:0-443:1
     Visibility: public -/
 structure kernel.env.ProjTable where
   struct_name : kernel.name.Name
@@ -254,7 +254,7 @@ structure kernel.env.ProjTable where
   off : Std.U64
 
 /-- [con_ron_core::kernel::env::IndCaps]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 375:0-384:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 370:0-385:1
     Visibility: public -/
 structure kernel.env.IndCaps where
   eta : Bool
@@ -265,6 +265,9 @@ structure kernel.env.IndCaps where
   unit_params : Std.U64
   rule_k : Bool
   sort_z : kernel.prop_when.PropWhen
+  all : alloc.vec.Vec kernel.name.Name
+  nparams : Std.U64
+  ctors : alloc.vec.Vec kernel.name.Name
 
 /-- [con_ron_core::kernel::env::ReducibilityHint]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 293:0-297:1
@@ -309,7 +312,7 @@ structure kernel.env.ConstantVal where
   ty : kernel.expr.Expr
 
 /-- [con_ron_core::kernel::env::ConstantInfo]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 513:0-521:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 518:0-526:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.ConstantInfo where
@@ -341,13 +344,12 @@ inductive kernel.env.ConstantInfo where
 | ProjInfo : kernel.env.ProjTable → kernel.env.ConstantInfo
 
 /-- [con_ron_core::kernel::env::BasisKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 347:0-354:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 346:0-352:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.BasisKind where
 | EqK : kernel.env.BasisKind
 | NatK : kernel.env.BasisKind
-| PunitK : kernel.env.BasisKind
 | EmptyK : kernel.env.BasisKind
 | FalseK : kernel.env.BasisKind
 | QuotK : kernel.env.BasisKind
@@ -645,7 +647,7 @@ structure arena.store.EStore where
   scratch_on : Bool
 
 /-- [con_ron_core::arena::pins::Pins]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 226:0-241:1
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 225:0-240:1
     Visibility: public -/
 structure arena.pins.Pins where
   names : alloc.vec.Vec arena.handle.NIdx
@@ -884,7 +886,7 @@ inductive arena.store.ENodeView where
   arena.store.ENodeView
 
 /-- [con_ron_core::arena::env::IProjTable]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 366:0-381:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 375:0-390:1
     Visibility: public -/
 structure arena.env.IProjTable where
   struct_name : arena.handle.NIdx
@@ -899,7 +901,7 @@ structure arena.env.IProjTable where
   off : Std.U64
 
 /-- [con_ron_core::arena::env::IIndCaps]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 309:0-321:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 308:0-326:1
     Visibility: public -/
 structure arena.env.IIndCaps where
   eta : Bool
@@ -910,6 +912,9 @@ structure arena.env.IIndCaps where
   unit_params : Std.U64
   rule_k : Bool
   sort_z : kernel.prop_when.PropWhen
+  all : alloc.vec.Vec arena.handle.NIdx
+  nparams : Std.U64
+  ctors : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::arena::env::IRecRuleFire]
     Source: 'crates/con-ron-core/src/arena/env.rs', lines 202:0-206:1
@@ -945,7 +950,7 @@ structure arena.env.IConstantVal where
   ty : arena.handle.EIdx
 
 /-- [con_ron_core::arena::env::IConstantInfo]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 454:0-462:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 463:0-471:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IConstantInfo where
@@ -977,7 +982,7 @@ inductive arena.env.IConstantInfo where
 | ProjInfo : arena.env.IProjTable → arena.env.IConstantInfo
 
 /-- [con_ron_core::kernel::env::QuotKind]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 892:0-898:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 899:0-905:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.QuotKind where
@@ -987,20 +992,6 @@ inductive kernel.env.QuotKind where
 | Ind : kernel.env.QuotKind
 | Sound : kernel.env.QuotKind
 
-/-- [con_ron_core::arena::env::IEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 744:0-746:1
-    Visibility: public -/
-structure arena.env.IEnv where
-  consts : alloc.vec.Vec arena.env.IConstantInfo
-
-/-- [con_ron_core::arena::env::IFEnv]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 838:0-842:1
-    Visibility: public -/
-structure arena.env.IFEnv where
-  env : arena.env.IEnv
-  idx : ron.hashmap2.HashMap2 arena.handle.NIdx (Std.U64 × Std.U64)
-  visible_below : Std.U64
-
 /-- [con_ron_core::kernel::env::CheckMode]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 68:0-71:1
     Visibility: public -/
@@ -1008,6 +999,68 @@ structure arena.env.IFEnv where
 inductive kernel.env.CheckMode where
 | Verified : kernel.env.CheckMode
 | Trusted : kernel.env.CheckMode
+
+/-- [con_ron_core::arena::env::IEnv]
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 717:0-719:1
+    Visibility: public -/
+structure arena.env.IEnv where
+  consts : alloc.vec.Vec arena.env.IConstantInfo
+
+/-- [con_ron_core::arena::env::IFEnv]
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 811:0-815:1
+    Visibility: public -/
+structure arena.env.IFEnv where
+  env : arena.env.IEnv
+  idx : ron.hashmap2.HashMap2 arena.handle.NIdx (Std.U64 × Std.U64)
+  visible_below : Std.U64
+
+/-- [con_ron_core::arena::env::IProjEntry]
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 412:0-423:1
+    Visibility: public -/
+structure arena.env.IProjEntry where
+  struct_name : arena.handle.NIdx
+  idx : Std.U64
+  level_params : alloc.vec.Vec arena.handle.NIdx
+  num_params : Std.U64
+  ctor : arena.handle.NIdx
+  num_fields : Std.U64
+  body : arena.handle.EIdx
+  field_sort : arena.handle.LIdx
+  struct_sort : arena.handle.LIdx
+  off : Std.U64
+
+/-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
+    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 651:0-655:1
+    Visibility: public -/
+structure kernel.prop_when.NameToPw (Self : Type) where
+  apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
+
+/-- [con_ron_core::kernel::level::SubstZ]
+    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 537:0-540:1
+    Visibility: public -/
+structure kernel.level.SubstZ where
+  ks : alloc.vec.Vec kernel.name.Name
+  vs : alloc.vec.Vec kernel.level.Level
+
+/-- [con_ron_core::arena::core::NatOpPins]
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2477:0-2493:1
+    Visibility: public -/
+structure arena.core.NatOpPins where
+  pr : arena.handle.NIdx
+  ad : arena.handle.NIdx
+  su : arena.handle.NIdx
+  mu : arena.handle.NIdx
+  po : arena.handle.NIdx
+  be : arena.handle.NIdx
+  bl : arena.handle.NIdx
+  di : arena.handle.NIdx
+  mo : arena.handle.NIdx
+  gc : arena.handle.NIdx
+  la : arena.handle.NIdx
+  lo : arena.handle.NIdx
+  xo : arena.handle.NIdx
+  sl : arena.handle.NIdx
+  sr : arena.handle.NIdx
 
 /-- [con_ron_core::arena::nat_op_pin_set::INatOpPinSet]
     Source: 'crates/con-ron-core/src/arena/nat_op_pin_set.rs', lines 35:0-55:1
@@ -1032,7 +1085,7 @@ structure arena.nat_op_pin_set.INatOpPinSet where
   shift_right_proofs : alloc.vec.Vec arena.handle.EIdx
 
 /-- [con_ron_core::arena::env::IDeclaration]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 519:0-527:1
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 528:0-536:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.env.IDeclaration where
@@ -1060,113 +1113,215 @@ inductive arena.env.IDeclaration where
   arena.env.IConstantVal →
   arena.env.IDeclaration
 
-/-- [con_ron_core::arena::inductives::sum_parts::InductiveShape]
-    Source: 'crates/con-ron-core/src/arena/inductives/sum_parts.rs', lines 31:0-52:1
+/-- [con_ron_core::arena::inductives::positivity::NestCtorNf]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 999:0-1004:1
     Visibility: public -/
-structure arena.inductives.sum_parts.InductiveShape where
-  cv_t : arena.env.IConstantVal
-  ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
-  n_p : Std.U64
+structure arena.inductives.positivity.NestCtorNf where
+  ctor : arena.handle.NIdx
+  lvls : arena.handle.LsIdx
+  ds : alloc.vec.Vec arena.handle.EIdx
+  ty : arena.handle.EIdx
+
+/-- [con_ron_core::arena::inductives::rec_check::TargetMajor]
+    Source: 'crates/con-ron-core/src/arena/inductives/rec_check.rs', lines 410:0-420:1
+    Visibility: public -/
+structure arena.inductives.rec_check.TargetMajor where
+  ind : arena.handle.NIdx
+  lvls : arena.handle.LsIdx
+  ds : alloc.vec.Vec arena.handle.EIdx
+  n_pc : Std.U64
   n_idx : Std.U64
+  ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
+  member : Option Std.U64
+  nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
+  pfvs : alloc.vec.Vec arena.handle.EIdx
+
+/-- [con_ron_core::arena::inductives::block_parts::RecShape]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 87:0-93:1
+    Visibility: public -/
+structure arena.inductives.block_parts.RecShape where
   cv_r : arena.env.IConstantVal
+  r_p : Std.U64
+  m_i : Std.U64
+  tgt : Std.U64
+  rhss : alloc.vec.Vec arena.handle.EIdx
+
+/-- [con_ron_core::arena::inductives::block_parts::MemberShape]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 49:0-53:1
+    Visibility: public -/
+structure arena.inductives.block_parts.MemberShape where
+  cv_t : arena.env.IConstantVal
+  n_idx : Std.U64
+  ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
+
+/-- [con_ron_core::arena::inductives::block_parts::BlockShape]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 112:0-120:1
+    Visibility: public -/
+structure arena.inductives.block_parts.BlockShape where
+  members : alloc.vec.Vec arena.inductives.block_parts.MemberShape
+  recs : alloc.vec.Vec arena.inductives.block_parts.RecShape
+  n_p : Std.U64
   elim : arena.handle.NIdx
   res_sort : arena.handle.LIdx
-  rhss : alloc.vec.Vec arena.handle.EIdx
   large : Bool
   is_prop : Bool
 
-/-- [con_ron_core::arena::inductives::native_parts::RecFieldKind]
-    Source: 'crates/con-ron-core/src/arena/inductives/native_parts.rs', lines 79:0-90:1
+/-- [con_ron_core::arena::inductives::positivity::NestFieldKind]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 912:0-918:1
     Visibility: public -/
 @[discriminant isize]
-inductive arena.inductives.native_parts.RecFieldKind where
-| Ordinary : arena.inductives.native_parts.RecFieldKind
-| Recursive : arena.inductives.native_parts.RecFieldKind
-| Reflexive : arena.inductives.native_parts.RecFieldKind
-| Negative : arena.inductives.native_parts.RecFieldKind
-| Unsupported : arena.inductives.native_parts.RecFieldKind
+inductive arena.inductives.positivity.NestFieldKind where
+| Ordinary : arena.inductives.positivity.NestFieldKind
+| Recursive : Std.U64 → arena.inductives.positivity.NestFieldKind
+| Reflexive : Std.U64 → arena.inductives.positivity.NestFieldKind
+| InProgress : arena.inductives.positivity.NestFieldKind
+| Nested : Bool → arena.inductives.positivity.NestFieldKind
 
-/-- [con_ron_core::arena::inductives::native_parts::NativeParts]
-    Source: 'crates/con-ron-core/src/arena/inductives/native_parts.rs', lines 607:0-613:1
+/-- [con_ron_core::arena::inductives::class_read::ClassKey]
+    Source: 'crates/con-ron-core/src/arena/inductives/class_read.rs', lines 38:0-42:1
     Visibility: public -/
-structure arena.inductives.native_parts.NativeParts where
-  shape : arena.inductives.sum_parts.InductiveShape
-  kinds : alloc.vec.Vec (alloc.vec.Vec
-    arena.inductives.native_parts.RecFieldKind)
-  rec_pinned : Bool
+structure arena.inductives.class_read.ClassKey where
+  ind : arena.handle.NIdx
+  lvls : arena.handle.LsIdx
+  ds : alloc.vec.Vec arena.handle.EIdx
 
-/-- Trait declaration: [con_ron_core::kernel::prop_when::NameToPw]
-    Source: 'crates/con-ron-core/src/kernel/prop_when.rs', lines 651:0-655:1
+/-- [con_ron_core::arena::inductives::class_read::ClassSlot]
+    Source: 'crates/con-ron-core/src/arena/inductives/class_read.rs', lines 59:0-62:1
     Visibility: public -/
-structure kernel.prop_when.NameToPw (Self : Type) where
-  apply : Self → kernel.name.Name → Result kernel.prop_when.PropWhen
+@[discriminant isize]
+inductive arena.inductives.class_read.ClassSlot where
+| Motive :
+  arena.inductives.class_read.ClassKey →
+  arena.inductives.class_read.ClassSlot
+| Minor :
+  Std.U64 →
+  arena.handle.NIdx →
+  alloc.vec.Vec (Std.U64 × Std.U64) →
+  arena.inductives.class_read.ClassSlot
 
-/-- [con_ron_core::kernel::level::SubstZ]
-    Source: 'crates/con-ron-core/src/kernel/level.rs', lines 545:0-548:1
+/-- [con_ron_core::arena::inductives::class_read::ClassRead]
+    Source: 'crates/con-ron-core/src/arena/inductives/class_read.rs', lines 101:0-104:1
     Visibility: public -/
-structure kernel.level.SubstZ where
-  ks : alloc.vec.Vec kernel.name.Name
-  vs : alloc.vec.Vec kernel.level.Level
+structure arena.inductives.class_read.ClassRead where
+  slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot
+  rec_cls : alloc.vec.Vec Std.U64
 
-/-- [con_ron_core::arena::env::IProjEntry]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 403:0-414:1
+/-- [con_ron_core::arena::inductives::gen_rec::ClassField]
+    Source: 'crates/con-ron-core/src/arena/inductives/gen_rec.rs', lines 347:0-350:1
     Visibility: public -/
-structure arena.env.IProjEntry where
-  struct_name : arena.handle.NIdx
-  idx : Std.U64
-  level_params : alloc.vec.Vec arena.handle.NIdx
-  num_params : Std.U64
-  ctor : arena.handle.NIdx
-  num_fields : Std.U64
-  body : arena.handle.EIdx
-  field_sort : arena.handle.LIdx
-  struct_sort : arena.handle.LIdx
-  off : Std.U64
+@[discriminant isize]
+inductive arena.inductives.gen_rec.ClassField where
+| Ordinary : arena.inductives.gen_rec.ClassField
+| Recursive : Std.U64 → Std.U64 → arena.inductives.gen_rec.ClassField
 
-/-- [con_ron_core::arena::core::NatOpPins]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2490:0-2506:1
+/-- [con_ron_core::arena::inductives::gen_rec::ClassCtor]
+    Source: 'crates/con-ron-core/src/arena/inductives/gen_rec.rs', lines 378:0-384:1
     Visibility: public -/
-structure arena.core.NatOpPins where
-  pr : arena.handle.NIdx
-  ad : arena.handle.NIdx
-  su : arena.handle.NIdx
-  mu : arena.handle.NIdx
-  po : arena.handle.NIdx
-  be : arena.handle.NIdx
-  bl : arena.handle.NIdx
-  di : arena.handle.NIdx
-  mo : arena.handle.NIdx
-  gc : arena.handle.NIdx
-  la : arena.handle.NIdx
-  lo : arena.handle.NIdx
-  xo : arena.handle.NIdx
-  sl : arena.handle.NIdx
-  sr : arena.handle.NIdx
+structure arena.inductives.gen_rec.ClassCtor where
+  cv : arena.env.IConstantVal
+  n_f : Std.U64
+  kinds : alloc.vec.Vec arena.inductives.gen_rec.ClassField
+  ty_d : arena.handle.EIdx
+  ty_n : arena.handle.EIdx
 
-/-- [con_ron_core::arena::inductives::native_install::NativePass]
-    Source: 'crates/con-ron-core/src/arena/inductives/native_install.rs', lines 1195:0-1206:1
+/-- [con_ron_core::arena::inductives::gen_rec::ClassGen]
+    Source: 'crates/con-ron-core/src/arena/inductives/gen_rec.rs', lines 432:0-442:1
     Visibility: public -/
-structure arena.inductives.native_install.NativePass where
+structure arena.inductives.gen_rec.ClassGen where
+  n_p : Std.U64
+  params : alloc.vec.Vec arena.handle.EIdx
+  cls : alloc.vec.Vec arena.inductives.rec_check.TargetMajor
+  former_tys : alloc.vec.Vec arena.handle.EIdx
+  slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot
+  ctors : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_rec.ClassCtor)
+  elim : arena.handle.LIdx
+  bm : kernel.expr.BinderMeta
+  pre : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)
+
+/-- [con_ron_core::arena::inductives::positivity::NestCtx]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1034:0-1043:1
+    Visibility: public -/
+structure arena.inductives.positivity.NestCtx where
+  names : alloc.vec.Vec arena.handle.NIdx
+  lps : alloc.vec.Vec arena.handle.NIdx
+  n_p : Std.U64
+  n_idxs : alloc.vec.Vec Std.U64
+  params : alloc.vec.Vec arena.handle.EIdx
+  sort : arena.handle.LIdx
+  vis : Std.U64
+  lvls : arena.handle.LsIdx
+
+/-- [con_ron_core::arena::inductives::positivity::NestKey]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 698:0-702:1
+    Visibility: public -/
+structure arena.inductives.positivity.NestKey where
+  cname : arena.handle.NIdx
+  lvls : arena.handle.LsIdx
+  ds : alloc.vec.Vec arena.handle.EIdx
+
+/-- [con_ron_core::arena::inductives::positivity::NestHole]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 748:0-751:1
+    Visibility: public -/
+structure arena.inductives.positivity.NestHole where
+  key : arena.inductives.positivity.NestKey
+  base : Std.U64
+
+/-- [con_ron_core::arena::inductives::positivity::HoleImgMap]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1300:0-1304:1
+    Visibility: public -/
+structure arena.inductives.positivity.HoleImgMap where
+  ctx : arena.inductives.positivity.NestCtx
+  prog : alloc.vec.Vec arena.inductives.positivity.NestHole
+  n : Std.U64
+
+/-- [con_ron_core::arena::inductives::positivity::FvMap]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1312:0-1317:1
+    Visibility: public -/
+@[discriminant isize]
+inductive arena.inductives.positivity.FvMap where
+| HoleImg :
+  arena.inductives.positivity.HoleImgMap →
+  arena.inductives.positivity.FvMap
+| KeyMap :
+  alloc.vec.Vec arena.handle.EIdx →
+  alloc.vec.Vec arena.handle.EIdx →
+  arena.inductives.positivity.FvMap
+| Erase : arena.inductives.positivity.FvMap
+| Canon : alloc.vec.Vec arena.handle.EIdx → arena.inductives.positivity.FvMap
+
+/-- [con_ron_core::arena::inductives::block_parts::BlockParts]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_parts.rs', lines 290:0-292:1
+    Visibility: public -/
+structure arena.inductives.block_parts.BlockParts where
+  shape : arena.inductives.block_parts.BlockShape
+
+/-- [con_ron_core::arena::inductives::block_tail::BlockPass]
+    Source: 'crates/con-ron-core/src/arena/inductives/block_tail.rs', lines 57:0-69:1
+    Visibility: public -/
+structure arena.inductives.block_tail.BlockPass where
   env1 : arena.env.IFEnv
-  cv_ta : arena.env.IConstantVal
-  p : arena.inductives.native_parts.NativeParts
-  ctors_a : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)
-  sortss : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)
+  cv_tas : alloc.vec.Vec arena.env.IConstantVal
+  p : arena.inductives.block_parts.BlockParts
+  ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
+  sortsss : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx))
+  kinds : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
+    arena.inductives.positivity.NestFieldKind))
+  nfs : alloc.vec.Vec (alloc.vec.Vec arena.handle.EIdx)
+  params : alloc.vec.Vec arena.handle.EIdx
+  rd : arena.inductives.class_read.ClassRead
+  cls : alloc.vec.Vec arena.inductives.rec_check.TargetMajor
+  tbl : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
-/-- [con_ron_core::arena::inductives::modeled::RenameBy]
-    Source: 'crates/con-ron-core/src/arena/inductives/modeled.rs', lines 565:0-567:1
+/-- [con_ron_core::arena::inductives::positivity::NestState]
+    Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 1077:0-1081:1
     Visibility: public -/
-structure arena.inductives.modeled.RenameBy where
-  tbl : alloc.vec.Vec (arena.handle.NIdx × arena.handle.NIdx)
-
-/-- Trait declaration: [con_ron_core::arena::expr_ops::NIdxToNIdx]
-    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2776:0-2779:1
-    Visibility: public -/
-structure arena.expr_ops.NIdxToNIdx (Self : Type) where
-  rename : Self → arena.handle.NIdx → Result arena.handle.NIdx
+structure arena.inductives.positivity.NestState where
+  keys : alloc.vec.Vec arena.inductives.positivity.NestKey
+  active : alloc.vec.Vec arena.inductives.positivity.NestKey
+  ctor_nfs : alloc.vec.Vec arena.inductives.positivity.NestCtorNf
 
 /-- [con_ron_core::arena::core::NatEqCtx]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2711:0-2720:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 2698:0-2707:1
     Visibility: public -/
 structure arena.core.NatEqCtx where
   x : arena.handle.EIdx
@@ -1205,7 +1360,7 @@ structure arena.decl_check.CertCtx where
   xor_n : arena.handle.NIdx
 
 /-- [con_ron_core::arena::checker_base::OrElseStep]
-    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 417:0-422:1
+    Source: 'crates/con-ron-core/src/arena/checker_base.rs', lines 318:0-323:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.checker_base.OrElseStep where
@@ -1241,7 +1396,7 @@ structure arena.checker_split.ValueGroup where
   jv : arena.handle.EIdx
 
 /-- [con_ron_core::arena::checker::PendingCheck]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 858:0-862:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 148:0-152:1
     Visibility: public -/
 structure arena.checker.PendingCheck where
   vg : arena.checker_split.ValueGroup
@@ -1249,7 +1404,7 @@ structure arena.checker.PendingCheck where
   vis : Std.U64
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 1382:0-1386:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 672:0-676:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →
@@ -1277,23 +1432,14 @@ structure kernel.nat_op_pins.NatOpPinSet where
   shift_left_proofs : alloc.vec.Vec kernel.expr.Expr
   shift_right_proofs : alloc.vec.Vec kernel.expr.Expr
 
-/-- [con_ron_core::arena::inductives::struct_parts::StructParts]
-    Source: 'crates/con-ron-core/src/arena/inductives/struct_parts.rs', lines 506:0-528:1
+/-- Trait declaration: [con_ron_core::arena::expr_ops::NIdxToNIdx]
+    Source: 'crates/con-ron-core/src/arena/expr_ops.rs', lines 2749:0-2752:1
     Visibility: public -/
-structure arena.inductives.struct_parts.StructParts where
-  cv_t : arena.env.IConstantVal
-  cv_c : arena.env.IConstantVal
-  n_p : Std.U64
-  n_f : Std.U64
-  cv_r : arena.env.IConstantVal
-  elim : arena.handle.NIdx
-  res_sort : arena.handle.LIdx
-  rhs : arena.handle.EIdx
-  large : Bool
-  is_prop : Bool
+structure arena.expr_ops.NIdxToNIdx (Self : Type) where
+  rename : Self → arena.handle.NIdx → Result arena.handle.NIdx
 
 /-- [con_ron_core::kernel::env::Declaration]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 936:0-944:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 943:0-951:1
     Visibility: public -/
 @[discriminant isize]
 inductive kernel.env.Declaration where
@@ -1672,7 +1818,7 @@ structure frontend.prepare.Prepared where
   hoisted : alloc.vec.Vec arena.handle.NIdx
 
 /-- [con_ron_core::kernel::env::Env]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1196:0-1198:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 1172:0-1174:1
     Visibility: public -/
 structure kernel.env.Env where
   consts : alloc.vec.Vec (alloc.sync.Arc kernel.env.ConstantInfo)
@@ -1694,7 +1840,7 @@ structure kernel.expr_ops.ExprNatKey where
   d : Std.U64
 
 /-- [con_ron_core::kernel::env::ProjEntry]
-    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 458:0-469:1
+    Source: 'crates/con-ron-core/src/kernel/env.rs', lines 463:0-474:1
     Visibility: public -/
 structure kernel.env.ProjEntry where
   struct_name : kernel.name.Name
@@ -1709,7 +1855,7 @@ structure kernel.env.ProjEntry where
   off : Std.U64
 
 /-- Trait declaration: [con_ron_core::kernel::expr_ops::NameToName]
-    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1186:0-1189:1
+    Source: 'crates/con-ron-core/src/kernel/expr_ops.rs', lines 1176:0-1179:1
     Visibility: public -/
 structure kernel.expr_ops.NameToName (Self : Type) where
   rename : Self → kernel.name.Name → Result kernel.name.Name
