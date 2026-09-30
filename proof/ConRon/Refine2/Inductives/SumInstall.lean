@@ -24,6 +24,7 @@ The Core tier arrives here: `whnf_telescope` calls `whnf`,
 sides (the index push touches no term).
 -/
 import ConRon.Refine2.Inductives.StructInstall
+import ConRon.Refine2.Inductives.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -469,9 +470,28 @@ open Lockstep in
         (absEIdx xrest)) := by
   rw [arena.inductives.sum_install.check_sum_ctor_resid, checkSumCtorResidSpec]
   lockstep
-  all_goals
-    have e := absEIdxL_of_takeEidx ‹ExprOps.absEIdxArr _ = takeEidx (ExprOps.absEIdxArr _) _›
-    simp only [absEIdxL] at *
+  · -- the residual is the family at the parameters: the twin's test holds
+    rename_i a3 a2 hT _ x hl1 hl2 k hk
+    have e := absEIdxL_of_takeEidx hT
+    have hb : List.map absEIdx a2.val = List.map absEIdx p_fvs.val := beq_iff_eq.mp hc
+    simp only [absEIdxL] at e
+    have hlen : a3.val.length = n_p.val + n_idx.val := by
+      scalar_tac
+    have hkk : k.val = n_p.val := by
+      rcases hk with h | h
+      · exact h
+      · exfalso; have := a3.property; scalar_tac
+    have hd : List.drop n_p.val (List.map absEIdx a3.val) = List.map absEIdx a.val := by
+      have := hP; simp only [Lockstep.TwinEq, absEIdxL, hkk] at this; exact this
+    rw [if_pos (by simp [← e, hb, hlen]), hd]
+    exact check_sum_ctor_sorts_ls hrel hinv hfe0 hfe
+  · -- the parameter spine differs: both sides decline
+    rename_i a3 a2 hT _ _ _
+    have e := absEIdxL_of_takeEidx hT
+    simp only [absEIdxL] at e
+    have hne : ¬ (List.take n_p.val (List.map absEIdx a3.val) = List.map absEIdx p_fvs.val) := by
+      rw [← e]; simpa using hc
+    rw [if_neg (by simp [hne])]
     lockstep
 
 open Lockstep in
