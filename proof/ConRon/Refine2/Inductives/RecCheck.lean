@@ -1209,15 +1209,7 @@ attribute [local lockstep_inline] arena.inductives.rec_check.target_k53_leaf
   arena.inductives.rec_check.target_k53_args arena.inductives.rec_check.target_k53_class
 attribute [local lockstep high] rc_strip_pis_wf_ls
 
-/-- `take_eidx_n` as the twin's `List.take` on the abstracted list. -/
-theorem rc_take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (c : Std.U64) :
-    LSP (arena.expr_ops.take_eidx_n xs c)
-      (fun r => TwinEq ((xs.val.map absEIdx).take c.val) (r.val.map absEIdx)) := by
-  intro r h
-  have := absEIdxL_of_takeEidx (take_eidx_n_spec xs c r h)
-  simpa [TwinEq, absEIdxL] using this.symm
-
-attribute [local lockstep high] rc_take_eidx_n_twin
+attribute [local lockstep high] take_eidx_n_twin
 
 @[lockstep] theorem target_k53_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}

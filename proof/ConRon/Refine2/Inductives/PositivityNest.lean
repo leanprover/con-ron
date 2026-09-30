@@ -858,26 +858,9 @@ theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   show _ = _
   simp only [absNestFieldKind, pn_u64_bne_zero]
 
-/-- `drop_eidx_n` / `take_eidx_n` as the twin's `List.drop` / `List.take` of
-the arguments (the `TwinEq` form of `Core/LS`'s `drop_eidx_n_ls` /
-`take_eidx_n_ls`, local). -/
-theorem pn_drop_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
-    LSP (arena.core.drop_eidx_n xs n)
-      (fun r => TwinEq ((List.map absEIdx xs.val).drop (absU n)) (List.map absEIdx r.val)) := by
-  intro r h
-  have := Lockstep.PC1.drop_eidx_n_ls xs n r h
-  simp only [absEIdxList] at this
-  exact this.symm
-
-theorem pn_take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
-    LSP (arena.expr_ops.take_eidx_n xs n)
-      (fun r => TwinEq ((List.map absEIdx xs.val).take (absU n)) (List.map absEIdx r.val)) := by
-  intro r h
-  have := Lockstep.PC1.take_eidx_n_ls xs n r h
-  simp only [absEIdxList] at this
-  exact this.symm
-
-attribute [local lockstep high] pn_drop_eidx_n_twin pn_take_eidx_n_twin
+-- `drop_eidx_n` / `take_eidx_n` as the twin's `List.drop` / `List.take` (`Shape`'s rows,
+-- ahead of `Core/LS`'s `absEIdxList` forms).
+attribute [local lockstep high] drop_eidx_n_twin take_eidx_n_twin
 
 -- `nest_cont_params` is the tail of `nestCont` (the parameters' closedness,
 -- the former, full application).
