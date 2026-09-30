@@ -7,7 +7,8 @@ that is still stated about it (`ConRon.Refine`), and the `DeclC` dump of §3.6.
 (DESIGN.md §8): the `Expr`-tree checker `ConRon.Refine` was grown over is
 deleted, and the modules of that proof, set aside as `ConRon.RefineOld` at
 the swap, were deleted at task #97-PRUNE (they are in git history).  What is
-imported below is the 46 modules whose SUBJECT survived the swap, in tier
+imported below is the modules whose SUBJECT survived the swap (34 since
+task #105's unused-code sweep deleted the ones with nothing live left), in tier
 order: the runtime primitives (`Nat`, `HashMap`, `HashMap2`), the
 representation-free types (`Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`,
 `Env`, `FEnv`, `Canon`), the `core_k` readers and shape guards, the pinned
@@ -49,12 +50,9 @@ import ConRon.Refine.CoreKNames
 import ConRon.Refine.PropRead
 import ConRon.Refine.CoreKShapes
 import ConRon.Refine.PinsDec
-import ConRon.Refine.PinsAscii
 import ConRon.Refine.PinsBytes
 import ConRon.Refine.PinsAbs
-import ConRon.Refine.PinsSplit
 import ConRon.Refine.PinsRecords
-import ConRon.Refine.PinsRead
 import ConRon.Refine.PinsRun
 import ConRon.Refine.BasisPins
 import ConRon.Refine.StdAxioms

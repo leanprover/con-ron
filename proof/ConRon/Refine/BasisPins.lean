@@ -77,7 +77,7 @@ import ConRon.Refine.BasisNames
 import ConRon.Refine.FEnv
 import ConRon.Refine.PinsAbs
 import ConRon.Refine.PinsRun
-import ConRon.Refine.PinsRead
+import ConRon.Refine.PinsDec
 import ConRon.Dump.Pins
 
 open Aeneas Aeneas.Std Result

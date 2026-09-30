@@ -23,7 +23,7 @@ SUBJECT the arena still calls:
 | representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
 | `core_k`'s readers, names and shape guards | `CoreKBase`, `CoreKNames`, `CoreKShapes` (`CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead; `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKInfer` and `CoreKProj` deleted, task #105 SW-R2: nothing live was left in them) |
 | the pinned data | `BasisTables`, `BasisNames`, `BasisRaw`, `BasisPins`, `StdAxioms`, `TrustAxioms` |
-| the `con-ron-pins/1` decoder | `PinsDec`, `PinsAscii`, `PinsBytes`, `PinsAbs`, `PinsSplit`, `PinsRecords`, `PinsRead`, `PinsRun` (`Pins` deleted, task #105 SW-R2: only its module note was left) |
+| the `con-ron-pins/1` decoder | `PinsDec`, `PinsBytes`, `PinsAbs`, `PinsRecords`, `PinsRun` (`Pins` deleted, task #105 SW-R2: only its module note was left; `PinsAscii`, `PinsSplit`, `PinsRead` — the reader half — deleted with it: nothing used them) |
 
 Every lemma in those is still a lemma about code that ships: the arena reads
 `Name`, `Level`, `PropWhen` and `HashMap` directly, and it interns the
@@ -34,8 +34,8 @@ routes, the cached state, the `Expr`-tree parse and the capstones of
 `Main.lean`; `Bridge/` (Theorem 1) and `Refine2/` (Theorem 2) replace them
 (§8.6's phases P3 and P5).  Task #97-PRUNE checked the remaining 46 modules
 mechanically: every one is in `ConRon.Capstone`'s import closure.  Task #105
-(the unused-code sweep) deleted `ExprOpsSpine` and the emptied `CoreK*`/`Pins`
-modules above; the per-file tables further down are the tier's history and
+(the unused-code sweep) deleted `ExprOpsSpine`, the emptied `CoreK*`/`Pins`
+modules and the pin reader's half above; the per-file tables further down are the tier's history and
 still name files that are gone.
 
 **`Refine/<Module>.lean` names a `kernel/` or `ron/` module, not an `arena/`

@@ -2,7 +2,7 @@
 `ConRon.Refine.PinsDec` — the **byte-level reference decoder** (task #64).
 
 The decoder's refinement (`pins_decode_refines`, deleted with `Refine/Pins.lean`
-at task #105 — nothing used the composition; its two halves below remain)
+at task #105 — nothing used the composition; its half (A) below remains)
 relates two programs that do
 not have the same shape: `kernel::pins_decode::decode` walks a `&[u8]` with an
 index, while `ConRon.Dump.parsePins` splits a `String` into lines and each
@@ -31,17 +31,18 @@ With that, `pins_decode_refines` factors into two independent halves:
 | half | statement | where |
 |---|---|---|
 | (A) the model against `Dec` | `decode t = ok (.Ok v) → Dec.decode (bytes t) = some (absPins v)` | `Refine/PinsBytes.lean`, `Refine/PinsRecords.lean`, `Refine/PinsRun.lean` |
-| (B) `Dec` against the reader | `Dec.decode bs = some ps → parsePins (text bs) = .ok ps` | `Refine/PinsSplit.lean`, `Refine/PinsRead.lean` |
+| (B) `Dec` against the reader | `Dec.decode bs = some ps → parsePins (text bs) = .ok ps` | deleted at task #105 with the composition (`Refine/PinsSplit.lean`, `Refine/PinsAscii.lean`, `Refine/PinsRead.lean`): nothing used it |
 
 (A) is ordinary Aeneas refinement — one lemma per Rust function, no strings
-anywhere.  (B) is pure Lean and is where `String.splitOn` is met.
+anywhere, and is what the proof uses (through `Refine2/Checker/PinsWF.lean`).
+(B) was pure Lean and where `String.splitOn` was met.
 
-**Why the bytes are ASCII, and why that is not a third pass.**  `absText` is a
+**Why the bytes were ASCII, for (B), and why that was not a third pass.**  `absText` is a
 UTF-8 *decode*, so relating a byte suffix to a character suffix needs every
 byte to be ASCII.  `Dec` makes that a one-line induction rather than a second
 walk over the port: every byte `Dec` ever looks at it either compares to a
-fixed value or bounds into `33 … 126`, so `decode_ascii` below falls out of
-`Dec`'s own equations, and `Refine/PinsSplit.lean` turns it into
+fixed value or bounds into `33 … 126`, so the ASCII fact fell out of
+`Dec`'s own equations, and (B) turned it into
 `absText t = String.ofList …` once, at the top.
 
 **Fuel, in one place.**  Every recursion here is structural — on the byte list

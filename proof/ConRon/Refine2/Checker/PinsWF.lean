@@ -64,9 +64,8 @@ changed.
 -/
 import ConRon.Refine.PinsAbs
 import ConRon.Refine.PinsRun
-import ConRon.Refine.PinsRead
-import ConRon.Dump.Pins
 import ConRon.Refine.PinsDec
+import ConRon.Dump.Pins
 import ConRon.Refine.PinsBytes
 import ConRon.Refine2.Checker.Shape
 

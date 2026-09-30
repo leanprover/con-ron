@@ -24,8 +24,8 @@ throws go through `pins_decode::bad_text`, a `CheckError::Native`.
 that down; `ErrSim.of_none` is what turns `absErrKind ce = none` into an
 `ErrSim` at a caller.
 
-`Refine/PinsRead.lean` is (B).  (`Refine/Pins.lean` composed the two; task
-#105 deleted it, since nothing used the composition.)
+(B), `PinsDec` against the reader, and `Refine/Pins.lean`, which composed the
+two, were deleted at task #105: nothing used either.
 -/
 import ConRon.Refine.Env
 import ConRon.Refine.PinsRecords
