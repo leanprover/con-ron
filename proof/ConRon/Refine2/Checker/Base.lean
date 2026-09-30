@@ -479,21 +479,6 @@ theorem or_else_attempt_refines {attempt} {o}
   rw [arena.checker_base.or_else_attempt] at hrun
   cases b <;> simp_all
 
-/-! ## The `Vec` duplications
-
-`vec_dup` and `vec_dup_range` are `ron::hashmap::Dup` lifted to a vector;
-`Refine2/Inv.lean`'s five `DupId` lemmas say `dup2` is the identity at every
-handle type, so both are the identity on the abstraction. -/
-
-/-- `vec_dup` is the identity on the abstraction. -/
-theorem vec_dup_refines {T β : Type} {A : T → β} {inst : ron.hashmap.Dup T}
-    {xs : alloc.vec.Vec T} {o}
-    (hdup : ConRon.Refine.HashMap.DupId inst)
-    (hrun : arena.checker_base.vec_dup inst xs = ok o) :
-    o.val.map A = xs.val.map A := by
-  obtain rfl := vec_dup_eq hdup hrun
-  rfl
-
 /-! ## The name-shape tests
 
 `ConLeche/Kernel/Level.lean`'s three `Name` predicates: the declaration front
@@ -2685,9 +2670,6 @@ end Lockstep
 
 /-- info: 'ConRon.Refine2.vec_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms vec_dup_eq
-
-/-- info: 'ConRon.Refine2.vec_dup_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms vec_dup_refines
 
 /-- info: 'ConRon.Refine2.pins_dup_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms pins_dup_eq
