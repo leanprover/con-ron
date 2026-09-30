@@ -36,6 +36,7 @@ import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.Positivity
 import ConLeche.Verify.Cached.GenRecC
 import ConLeche.Verify.Inductives.GenRecRun
+import ConLeche.Verify.Extend.Inversions
 
 namespace ConRon.Bridge.Inductives
 
@@ -2721,5 +2722,188 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
       exact FOk.pure _
     · rw [if_neg hpw] at z13
       exact absurd z13 (fun hc => failOk hc)
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-459 classRulesOk — a
+recursor's generated rules, one per constructor of its class, the callee the
+family's recursor at the landing class (`classRecOf recCls cvGs`). -/
+theorem classRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+    (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (recCls : List Nat)
+    (cvGs : List IConstantVal) (cvGsP : List ConstantVal) (cvR : IConstantVal)
+    (cvRP : ConstantVal) (pw : PropWhen) (c : Nat) :
+    ∀ (xs : List Arena.ClassCtor) (xsP : List ConLeche.ClassCtor),
+    CSpecF μ envR feR
+      (fun st => dClassGen st g = some gP ∧ cvGs.mapM (Frontend.denoteCV st) = some cvGsP ∧
+        Frontend.denoteCV st cvR = some cvRP ∧ xs.mapM (dClassCtor st) = some xsP ∧
+        IFEnvOKS env₂ (feR.restrictTo visT) st)
+      (Arena.classRulesOk μ visT feR g recCls cvGs cvR pw c xs)
+      (fun st r v => Frontend.denoteEList st r = some v)
+      (ConLeche.classRulesOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) gP
+        (ConLeche.classRecOf recCls cvGsP) cvRP pw c xsP) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, hxs, -⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hxs
+    subst hxs
+    simp only [Arena.classRulesOk] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classRulesOk]; exact FOk.pure _⟩
+  | cons x xs ih =>
+    intro xsP s₀ s' r hok hpre hrun
+    obtain ⟨hg, hcvs, hcvR, hxs, hie⟩ := hpre
+    obtain ⟨xP, xsP', rfl, hx, hxs'⟩ := GR.mapM_cons_inv hxs
+    obtain ⟨hnP, -, -, -, hsl, -, -, -, -⟩ := dClassGen_inv hg
+    have hsll : g.slots.length = gP.slots.length := (mapM_option_length hsl).symm
+    have hnF := (dClassCtor_inv hx).2.1
+    obtain ⟨-, hlps, -⟩ := Core.denoteCV_inv hcvR
+    simp only [Arena.classRulesOk] at hrun
+    simp only [ConLeche.classRulesOk]
+    obtain ⟨rl, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hrl⟩ := paramLevels_spec _ _ s₀ s1 rl hok.state hlps k1
+    obtain ⟨o, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, ho⟩ := classGenRule_spec g gP recCls cvGs cvGsP rl _ c x xP s1 s2 o p1.ok
+      (PinsOK.ofPStep hok.pins p1)
+      ⟨dClassGen_ext p1.ext _ _ hg, dClassCtor_ext p1.ext _ _ hx,
+        dExt_denoteCV.list p1.ext _ _ hcvs, hrl⟩ k2
+    have c12 := (p1.trans p2).toCore hok
+    cases o with
+    | none => exact absurd z2 (fun hc => failOk hc)
+    | some gen =>
+      obtain ⟨genP, hgenP, hgen⟩ := ho
+      dsimp only at z2
+      obtain ⟨r1, s3, k3, z3⟩ := bindOk z2
+      rw [hnP, hsll, hnF] at k3
+      obtain ⟨c3, r1P, hr1, hF3⟩ := classRuleOk_spec feR visT hk henvR cvR cvRP pw _ gen genP
+        s2 s3 r1 c12.ok ⟨dExt_denoteCV c12.ext _ _ hcvR, hgen, hie.mono c12.ext⟩ k3
+      have c13 := c12.trans c3
+      obtain ⟨rs, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨c4, rsP, hrs, hF4⟩ := ih xsP' s3 s4 rs c3.ok
+        ⟨dClassGen_ext c13.ext _ _ hg, dExt_denoteCV.list c13.ext _ _ hcvs,
+          dExt_denoteCV c13.ext _ _ hcvR, dClassCtor_ext.list c13.ext _ _ hxs',
+          hie.mono c13.ext⟩ k4
+      obtain ⟨rfl, rfl⟩ := pureOk z4
+      refine ⟨c13.trans c4, r1P :: rsP, ?_, ?_⟩
+      · simp only [Frontend.denoteEList, denote_ext hr1 c4.ext, hrs]
+      · rw [hgenP]
+        exact FOk.bind FOk.unwrapOr (FOk.bind hF3 (FOk.bind hF4 (FOk.pure _)))
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:461-470 classRecsRulesOk —
+every recursor's generated rules, with its class; the walked lists are the
+tails of `cvGs` and `recCls` (the shorter decides). -/
+theorem classRecsRulesOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (visT : Nat)
+    (hk : CoreSpec μ Arena.checkFuel) (henvR : EnvWF envR)
+    (g : Arena.ClassGen) (gP : ConLeche.ClassGen) (recCls : List Nat) (pw : PropWhen)
+    (cvGs : List IConstantVal) (cvGsP : List ConstantVal) :
+    ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (cs : List Nat),
+    CSpecF μ envR feR
+      (fun st => dClassGen st g = some gP ∧ cvGs.mapM (Frontend.denoteCV st) = some cvGsP ∧
+        cvs.mapM (Frontend.denoteCV st) = some cvsP ∧ IFEnvOKS env₂ (feR.restrictTo visT) st)
+      (Arena.classRecsRulesOk μ visT feR g recCls pw cvGs cvs cs)
+      (fun st r v => r.mapM (dRecOut st) = some v)
+      (ConLeche.classRecsRulesOk (fueledOpsM μ) .plain (mkFEnv env₂) (mkFEnv envR) gP
+        (ConLeche.classRecOf recCls cvGsP) pw cvsP cs) := by
+  intro cvs
+  induction cvs with
+  | nil =>
+    intro cvsP cs s₀ s' r hok hpre hrun
+    obtain ⟨-, -, hcvs, -⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcvs
+    subst hcvs
+    simp only [Arena.classRecsRulesOk] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classRecsRulesOk]; exact FOk.pure _⟩
+  | cons cvG cvs ih =>
+    intro cvsP cs s₀ s' r hok hpre hrun
+    obtain ⟨hg, hcvGs, hcvs, hie⟩ := hpre
+    obtain ⟨cvGP, cvsP', rfl, hcvG, hcvs'⟩ := GR.mapM_cons_inv hcvs
+    cases cs with
+    | nil =>
+      simp only [Arena.classRecsRulesOk] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classRecsRulesOk]; exact FOk.pure _⟩
+    | cons c cs =>
+      obtain ⟨-, -, hcls, -, -, hctors, -, -, -⟩ := dClassGen_inv hg
+      have hxs : (g.ctors.getD c []).mapM (dClassCtor s₀.store) = some (gP.ctors.getD c []) := by
+        have hcj := mapM_option_getElem? (st := s₀.store) hctors c
+        rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD]
+        cases hc : g.ctors[c]? with
+        | none =>
+          rw [hc] at hcj
+          have : gP.ctors[c]? = none := hcj
+          rw [this]; rfl
+        | some xs =>
+          rw [hc] at hcj
+          obtain ⟨xsP, hxsP, hd⟩ := hcj
+          rw [hxsP]; exact hd
+      simp only [Arena.classRecsRulesOk] at hrun
+      simp only [ConLeche.classRecsRulesOk]
+      obtain ⟨rhss, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨c1, rhssP, hrhss, hF1⟩ := classRulesOk_spec feR visT hk henvR g gP recCls cvGs cvGsP
+        cvG cvGP pw c _ _ s₀ s1 rhss hok ⟨hg, hcvGs, hcvG, hxs, hie⟩ k1
+      obtain ⟨m, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨p2, hm⟩ := targetMajorAt_spec g.cls gP.cls c s1 s2 m c1.ok.state c1.ok.pins
+        (dMajor_ext.list c1.ext _ _ hcls) k2
+      have c12 := c1.trans (p2.toCore c1.ok)
+      obtain ⟨rest, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨c3, restP, hrest, hF3⟩ := ih cvsP' cs s2 s3 rest c12.ok
+        ⟨dClassGen_ext c12.ext _ _ hg, dExt_denoteCV.list c12.ext _ _ hcvGs,
+          dExt_denoteCV.list c12.ext _ _ hcvs', hie.mono c12.ext⟩ k3
+      obtain ⟨rfl, rfl⟩ := pureOk z3
+      refine ⟨c12.trans c3, (cvGP, gP.cls.getD c default, rhssP) :: restP, ?_, ?_⟩
+      · have h1 : dRecOut s'.store (cvG, m, rhss) = some (cvGP, gP.cls.getD c default, rhssP) := by
+          simp only [dRecOut, dExt_denoteCV c12.ext _ _ hcvG |> dExt_denoteCV c3.ext _ _,
+            dMajor_ext c3.ext _ _ hm, denoteEList_ext (p2.ext.trans c3.ext) _ _ hrhss,
+            Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+        simp only [List.mapM_cons, h1, hrest, Option.bind_eq_bind, Option.bind_some,
+          Option.pure_def]
+      · exact FOk.bind hF1 (FOk.bind hF3 (FOk.pure _))
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:472-479 classStreamRecs —
+**the stream's recursor constants, checked** (`checkConstantVal`): each
+denotes con-leche's `checkConstantValF` answer at `fueledOpsM μ`, closed. -/
+theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) :
+    ∀ (recs : List Arena.RecShape) (recsP : List ConLeche.RecShape),
+    CSpecF μ env fe (fun st => recs.mapM (dRec st) = some recsP)
+      (Arena.classStreamRecs μ fe recs)
+      (fun st r v => r.mapM (Frontend.denoteCV st) = some v ∧ ∀ cv ∈ v, Expr.WScoped 0 cv.type)
+      (ConLeche.classStreamRecs (fueledOpsM μ) (mkFEnv env) recsP) := by
+  intro recs
+  induction recs with
+  | nil =>
+    intro recsP s₀ s' r hok hrecs hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrecs
+    subst hrecs
+    simp only [Arena.classStreamRecs] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
+      simp only [ConLeche.classStreamRecs]; exact FOk.pure _⟩
+  | cons rc recs ih =>
+    intro recsP s₀ s' r hok hrecs hrun
+    obtain ⟨rcP, recsP', rfl, hrc, hrecs'⟩ := GR.mapM_cons_inv hrecs
+    have hcvR := (RC.dRec_inv hrc).1
+    simp only [Arena.classStreamRecs] at hrun
+    obtain ⟨cv, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, cA, F, hcA, hF⟩ := checkConstantVal_bridge hμ hk hok henv hcvR k1
+    have hwA : Expr.WScoped 0 cA.type := by
+      obtain ⟨-, -, -, -, -, hitf, type, -, -, hann, -, -, -, -, rfl⟩ :=
+        ConLeche.checkConstantVal_inv hF
+      exact ConLeche.annotateCore_WScoped F _ hann (ConLeche.Expr.WScoped.of_not_hasFvar hitf)
+    obtain ⟨cvs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨c2, cvsP, ⟨hcvs, hwcvs⟩, hF2⟩ := ih recsP' s1 s2 cvs c1.ok
+      (dRec_ext.list c1.ext _ _ hrecs') k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c1.trans c2, cA :: cvsP, ⟨?_, ?_⟩, ?_⟩
+    · simp only [List.mapM_cons, dExt_denoteCV c2.ext _ _ hcA, hcvs, Option.bind_eq_bind,
+        Option.bind_some, Option.pure_def]
+    · intro x hx
+      rcases List.mem_cons.mp hx with rfl | hx
+      · exact hwA
+      · exact hwcvs x hx
+    · simp only [ConLeche.classStreamRecs]
+      exact FOk.bind ⟨F, by rw [checkConstantValF_datF, checkConstantValF_eq]; exact hF⟩
+        (FOk.bind hF2 (FOk.pure _))
 
 end ConRon.Bridge.Inductives
