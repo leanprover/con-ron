@@ -35,12 +35,14 @@ One `@[lockstep]` companion per Rust function with a twin counterpart.
 
 `rec_rule_k_of/eta_of/bits` and `sum_rules` at `CoreCtx` (Prims/SumInstall
 have them at `IFEnvRelI` + `hvis` only), `nested_rule_syn` and its body
-(checker tier; nobody had them), and the provisional `block_parts` readers
-(`rc_shape_member_names_twin`, `rc_shape_lps_twin`, `rc_param_levels_ls`,
-`rc_major_idx_at_twin`, `rc_rule_prefix_at_twin`, `rc_ctors_dup_id`) until
-`Inductives/BlockParts.lean` is below this module.
+(checker tier; nobody had them), `strip_pis`'s telescope well-formedness,
+`take_eidx_n` as `List.take`, and raw-identity copies (`rc_ctors_dup_id`,
+`rc_rec_shape_dup_id`, `rc_eidx_vec_dup_id`).  `targetRecPins` is split at its
+two binds (`targetRecPins_split`, `rcPinsAux`, `rcPinsTail`, by `rfl`) to meet
+the Rust's `_aux`/`_names` fragments.
 -/
 import ConRon.Refine2.Inductives.PositivityNest
+import ConRon.Refine2.Inductives.BlockParts
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Arena.Inductives.RecCheck
 
@@ -969,107 +971,6 @@ theorem targetMajorNfs_append (mode : ConLeche.CheckMode) (fe : IFEnv) (p : Bloc
       split <;> simp
     · simp
 
-/-! ## Provisional `block_parts`/`struct_parts` companions
-
-Until `Inductives/BlockParts.lean` (branch `t105-fi-bp`) is below this module:
-the three readers `target_class_match` needs.  To be dropped for BlockParts'
-own `shape_member_names_twin` / `bp_param_levels_ls` once it lands. -/
-
-theorem rc_member_names_abs {ms : alloc.vec.Vec arena.inductives.block_parts.MemberShape} :
-    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
-      arena.inductives.block_parts.member_names ms i out = ok o →
-      absNIdxL o = absNIdxL out ++ ((ms.val.drop i.val).map absMemberShape).map (·.cvT.name) := by
-  have := vec_cursor_copy ms absNIdx (fun m => absNIdx m.cv_t.name)
-    (arena.inductives.block_parts.member_names ms) ?_ ?_
-  · intro i out o h
-    simpa [absNIdxL, absMemberShape, absIConstantVal, Function.comp_def] using this i out o h
-  · intro i out o hn h
-    rw [arena.inductives.block_parts.member_names.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    rw [arena.inductives.block_parts.member_names.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by
-        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
-    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hqx : q = x := by
-      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hqx
-    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
-      by rw [dupId_nidx _ _ hn], h⟩
-
-theorem rc_shape_member_names_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_member_names p)
-      (fun o => TwinEq (absBlockShape p).memberNames (absNIdxL o)) := by
-  intro o h
-  rw [arena.inductives.block_parts.shape_member_names] at h
-  rw [TwinEq, rc_member_names_abs _ _ o h]
-  simp [absNIdxL, BlockShape.memberNames, absBlockShape]
-
-theorem rc_shape_lps_twin (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_lps p)
-      (fun o => TwinEq (absBlockShape p).lps (absNIdxL o)) := by
-  intro o h
-  rw [arena.inductives.block_parts.shape_lps] at h
-  rw [TwinEq]
-  split at h
-  · rename_i h0
-    rw [Result.ok.injEq] at h; subst h
-    have : p.members.val = [] := by
-      have : p.members.val.length = 0 := by scalar_tac
-      exact List.eq_nil_of_length_eq_zero this
-    simp [absBlockShape, BlockShape.lps, this, absNIdxL, alloc.vec.Vec.new]
-  · rename_i h0
-    obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hmv := vec_index_some hm
-    obtain ⟨m0, ms, hms⟩ : ∃ m0 ms, p.members.val = m0 :: ms := by
-      cases hc : p.members.val with
-      | nil => exfalso; apply h0; scalar_tac
-      | cons a l => exact ⟨a, l, rfl⟩
-    rw [hms] at hmv
-    simp only [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.getElem?_cons_zero,
-      Option.some.injEq] at hmv
-    subst hmv
-    have ho := nidx_vec_dup_val h
-    simp [absBlockShape, BlockShape.lps, hms, absMemberShape, absIConstantVal, absNIdxL, ho]
-
-theorem rc_param_levels_go_ls {pers} (lps : alloc.vec.Vec arena.handle.NIdx) :
-    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.LIdx),
-      AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absLIdxL a)
-        (arena.inductives.struct_parts.param_levels_go pers st lps i out) lst
-        (do let r ← paramLevels.go ((lps.val.drop i.val).map absNIdx); pure (absLIdxL out ++ r)) := by
-  refine ls_cursor_acc lps absNIdx
-    (fun (w : alloc.vec.Vec arena.handle.LIdx) L =>
-      (do let r ← paramLevels.go L; pure (absLIdxL w ++ r) : AM (List LIdx)))
-    (fun st i w => arena.inductives.struct_parts.param_levels_go pers st lps i w) ?_ ?_
-  · intro st lst i w hn hrel hinv
-    rw [arena.inductives.struct_parts.param_levels_go.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len lps by scalar_tac), paramLevels.go]
-    lockstep
-  · intro st lst i w hi hrel hinv ih
-    rw [arena.inductives.struct_parts.param_levels_go.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len lps by scalar_tac), paramLevels.go]
-    lockstep
-
-theorem rc_param_levels_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (lps : alloc.vec.Vec arena.handle.NIdx) :
-    LS pers (fun a b => b = absLsIdx a) (arena.inductives.struct_parts.param_levels pers st lps)
-      lst (paramLevels (absNIdxL lps)) := by
-  have hgo := rc_param_levels_go_ls (pers := pers) lps 0#usize st lst (alloc.vec.Vec.new _)
-    hrel hinv
-  have e : (paramLevels.go ((lps.val.drop (0#usize : Std.Usize).val).map absNIdx) >>= fun r =>
-      pure (absLIdxL (alloc.vec.Vec.new arena.handle.LIdx) ++ r) : AM _) =
-      paramLevels.go (absNIdxL lps) := by
-    simp [absLIdxL, absNIdxL]
-  rw [e] at hgo
-  rw [arena.inductives.struct_parts.param_levels, paramLevels]
-  lockstep
-
-attribute [local lockstep] rc_shape_member_names_twin rc_shape_lps_twin rc_param_levels_ls
 
 /-! ## `target_class_match` -/
 
@@ -1983,63 +1884,6 @@ local macro_rules
   rw [arena.inductives.rec_check.tgt_stored_rules, tgtStoredRules]
   lockstep
 
-/-- Provisional (until `Inductives/BlockParts.lean` is below): the two recursor
-readers `cons_block_recs_t` needs. -/
-theorem rc_major_idx_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
-    LSP (arena.inductives.block_parts.major_idx_at p r)
-      (fun o => TwinEq ((absBlockShape p).majorIdxAt (absU r)) (absU o)) := by
-  intro o h
-  rw [arena.inductives.block_parts.major_idx_at] at h
-  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hi1v := lift_cast_u64_of_usize _ i1 hi1
-  simp only [alloc.vec.Vec.len] at hi1v
-  rw [TwinEq, BlockShape.majorIdxAt]
-  split at h
-  · rename_i hlt
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨rs, hrs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases Result.ok_injective h
-    have hlt' : r.val < p.recs.val.length := by scalar_tac
-    rcases lift_cast_usize_of_u64 _ i2 hi2 with hk | hk
-    · have hx := vec_index_some hrs
-      rw [hk, List.getElem?_eq_getElem hlt'] at hx
-      cases Option.some_inj.mp hx
-      simp [absBlockShape, absU, List.getElem?_eq_getElem hlt', absRecShape]
-    · exfalso; scalar_tac
-  · rename_i hge
-    cases Result.ok_injective h
-    rw [show (absBlockShape p).recs[absU r]? = none from by
-      rw [List.getElem?_eq_none]; simp [absBlockShape, absU]; scalar_tac]
-    rfl
-
-theorem rc_rule_prefix_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
-    LSP (arena.inductives.block_parts.rule_prefix_at p r)
-      (fun o => TwinEq ((absBlockShape p).rulePrefixAt (absU r)) (absU o)) := by
-  intro o h
-  rw [arena.inductives.block_parts.rule_prefix_at] at h
-  obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hi1v := lift_cast_u64_of_usize _ i1 hi1
-  simp only [alloc.vec.Vec.len] at hi1v
-  rw [TwinEq, BlockShape.rulePrefixAt]
-  split at h
-  · rename_i hlt
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨rs, hrs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases Result.ok_injective h
-    have hlt' : r.val < p.recs.val.length := by scalar_tac
-    rcases lift_cast_usize_of_u64 _ i2 hi2 with hk | hk
-    · have hx := vec_index_some hrs
-      rw [hk, List.getElem?_eq_getElem hlt'] at hx
-      cases Option.some_inj.mp hx
-      simp [absBlockShape, absU, List.getElem?_eq_getElem hlt', absRecShape]
-    · exfalso; scalar_tac
-  · rename_i hge
-    cases Result.ok_injective h
-    rw [show (absBlockShape p).recs[absU r]? = none from by
-      rw [List.getElem?_eq_none]; simp [absBlockShape, absU]; scalar_tac]
-    rfl
-
-attribute [local lockstep] rc_major_idx_at_twin rc_rule_prefix_at_twin
 
 /-- A checked recursor with its major and its right-hand sides. -/
 def absRecOut (x : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
@@ -2140,88 +1984,91 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
   congr 1
   simp [Function.comp_def, absRecShape, absU]
 
-/-! ## `target_rec_pins` (`_aux`, `_names`: fragments of the one twin
-`targetRecPins`, unfolded in place)
-
-`Inductives/BlockParts.lean` holds the `block_parts` readers this needs but
-cannot be imported beside `Inductives/Prims.lean` (name clashes with
-`Checker/Base.lean`), so the proof takes BlockParts' statements as premises
-(`BPReaders`, their exact forms); `target_rec_pins_ls` is the instance once
-the clash is resolved. -/
-
-/-- BlockParts' readers, as `target_rec_pins` uses them. -/
-structure BPReaders (pers : arena.store.PersTier) : Prop where
-  shapeK : ∀ p : arena.inductives.block_parts.BlockShape,
-    LSP (arena.inductives.block_parts.shape_k p) (fun o => TwinEq (absBlockShape p).k (absU o))
-  lpsOk : ∀ p : arena.inductives.block_parts.BlockShape,
-    LSP (arena.inductives.block_parts.block_rec_lps_ok p)
-      (fun o => TwinEq (blockRecLpsOk (absBlockShape p)) o)
-  unreserved : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-    ∀ rs : alloc.vec.Vec arena.inductives.block_parts.RecShape,
-    LS pers (fun a b => b = a)
-      (arena.inductives.block_parts.block_rec_names_unreserved st rs 0#usize) lst
-      (blockRecNamesUnreserved (rs.val.map absRecShape))
-  nameSetOk : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-    ∀ (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
-      (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape),
-    LS pers (fun a b => b = a)
-      (arena.inductives.block_parts.block_rec_name_set_ok pers st members recs) lst
-      (blockRecNameSetOk (members.val.map absMemberShape) (recs.val.map absRecShape))
-  recNames : ∀ rs : alloc.vec.Vec arena.inductives.block_parts.RecShape,
-    LSP (arena.inductives.block_parts.rec_names rs 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq ((rs.val.map absRecShape).map (·.cvR.name)) (absNIdxL o))
-  allIn : ∀ xs ys : alloc.vec.Vec arena.handle.NIdx,
-    LSP (arena.inductives.block_parts.names_all_in xs ys 0#usize)
-      (fun o => TwinEq ((absNIdxL xs).all (fun n => (absNIdxL ys).contains n)) o)
-  split : ∀ block : alloc.vec.Vec arena.env.IConstantInfo,
-    LSP (arena.inductives.block_parts.block_split block 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq (blockSplit (absICIL block))
-        (o.map (fun q => (q.1.val.map absIConstantVal, absCtors3L q.2.1, absRecsL q.2.2))))
-  allCtors : ∀ p : arena.inductives.block_parts.BlockShape,
-    LSP (arena.inductives.block_parts.all_ctors p.members 0#usize (alloc.vec.Vec.new _))
-      (fun o => TwinEq (absBlockShape p).allCtors (absCtorsL o))
+/-! ## `target_rec_pins`, `_aux`, `_names`: one twin `targetRecPins`, split
+at its two binds (`rcPinsTail` is the twin's continuation after `n₀`) -/
 
 theorem rc_absBlockShape_members (p : arena.inductives.block_parts.BlockShape) :
     (absBlockShape p).members = p.members.val.map absMemberShape := rfl
 theorem rc_absBlockShape_recs (p : arena.inductives.block_parts.BlockShape) :
     (absBlockShape p).recs = p.recs.val.map absRecShape := rfl
 
-attribute [local lockstep_inline] arena.inductives.rec_check.target_rec_pins_aux
-  arena.inductives.rec_check.target_rec_pins_names
+/-- `targetRecPins` after `n₀` (the Rust's `target_rec_pins_names`). -/
+def rcPinsTail (p : BlockShape) (block : List IConstantInfo) (n₀ : NIdx) : AM Unit := do
+  let aux := p.recs.filter fun rc => !(rc.tgt < p.k)
+  let wantAux ← (List.range aux.length).mapM fun i =>
+    internNNode (.str n₀ s!"rec_{i + 1}")
+  let gotAux := aux.map (·.cvR.name)
+  unless gotAux.length == wantAux.length && wantAux.all (gotAux.contains ·) &&
+      gotAux.all (wantAux.contains ·) do
+    fail (.invalid "target rec: the block's auxiliary recursor names are not the generated \
+      ones (T.rec_1 … T.rec_n)")
+  unless nameNodup (p.recs.map (·.cvR.name)) do
+    fail (.invalid "target rec: two recursors of the block share a name")
+  match blockSplit block with
+  | some (cvTs, cs, rs) =>
+    unless cvTs.length == p.k && rs.length == p.recs.length &&
+        p.allCtors.map (·.1.name) == cs.map (·.1.name) do
+      fail (.invalid "target rec: the recursor record is not the generated recursor \
+        (constructor grouping)")
+  | none => fail (.invalid "target rec: the block does not split")
 
-set_option maxHeartbeats 1000000 in
-theorem target_rec_pins_of {pers st lst} (hbp : BPReaders pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (p : arena.inductives.block_parts.BlockShape)
+/-- `targetRecPins` after its member-name pin (the Rust's `target_rec_pins_aux`). -/
+def rcPinsAux (p : BlockShape) (block : List IConstantInfo) : AM Unit := do
+  let n₀ ← match p.members with
+    | [] => internNNode .anonymous
+    | ms :: _ => pure ms.cvT.name
+  rcPinsTail p block n₀
+
+theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
+    targetRecPins p block = (do
+      unless blockRecLpsOk p do
+        fail (.invalid "target rec: the recursor's level parameters are not the generated ones")
+      unless ← blockRecNamesUnreserved p.recs do
+        fail (.invalid "target rec: a recursor is named for a pinned basis constant, a literal \
+          guard's slot or a certified Nat operation")
+      let own := p.recs.filter fun rc => rc.tgt < p.k
+      unless ← blockRecNameSetOk p.members own do
+        fail (.invalid "target rec: the block's recursor names are not the generated ones \
+          (one T.rec per member)")
+      rcPinsAux p block) := rfl
+
+@[lockstep] theorem target_rec_pins_names_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (block : alloc.vec.Vec arena.env.IConstantInfo) (n0 : arena.handle.NIdx) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.rec_check.target_rec_pins_names pers st p block n0) lst
+      (rcPinsTail (absBlockShape p) (absICIL block) (absNIdx n0)) := by
+  rw [arena.inductives.rec_check.target_rec_pins_names, rcPinsTail]
+  simp only [rc_absBlockShape_recs]
+  lockstep
+
+@[lockstep] theorem target_rec_pins_aux_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
+    (block : alloc.vec.Vec arena.env.IConstantInfo) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.rec_check.target_rec_pins_aux pers st p block) lst
+      (rcPinsAux (absBlockShape p) (absICIL block)) := by
+  rw [arena.inductives.rec_check.target_rec_pins_aux, rcPinsAux]
+  simp only [rc_absBlockShape_members]
+  rcases hm : p.members.val with _ | ⟨m0, ms⟩
+  · simp only [List.map_nil]
+    rw [if_pos (by have : p.members.val.length = 0 := by simp [hm]
+                   scalar_tac)]
+    lockstep
+  · simp only [List.map_cons, pure_bind]
+    rw [if_neg (by simp [alloc.vec.Vec.len, hm])]
+    lockstep
+
+@[lockstep] theorem target_rec_pins_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
     (block : alloc.vec.Vec arena.env.IConstantInfo) :
     LS pers (fun a b => b = a)
       (arena.inductives.rec_check.target_rec_pins pers st p block) lst
       (targetRecPins (absBlockShape p) (absICIL block)) := by
-  have h1 := hbp.shapeK
-  have h2 := hbp.lpsOk
-  have h3 : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-      ∀ rs : alloc.vec.Vec arena.inductives.block_parts.RecShape,
-      LS pers (fun a b => b = a)
-        (arena.inductives.block_parts.block_rec_names_unreserved st rs 0#usize) lst
-        (blockRecNamesUnreserved (rs.val.map absRecShape)) := hbp.unreserved
-  have h4 : ∀ {st lst}, AStateRel₀ pers st lst → AStateInv pers st →
-      ∀ (members : alloc.vec.Vec arena.inductives.block_parts.MemberShape)
-        (recs : alloc.vec.Vec arena.inductives.block_parts.RecShape),
-      LS pers (fun a b => b = a)
-        (arena.inductives.block_parts.block_rec_name_set_ok pers st members recs) lst
-        (blockRecNameSetOk (members.val.map absMemberShape) (recs.val.map absRecShape)) :=
-    hbp.nameSetOk
-  have h5 := hbp.recNames
-  have h6 := hbp.allIn
-  have h7 := hbp.split
-  have h8 := hbp.allCtors
-  rw [arena.inductives.rec_check.target_rec_pins, targetRecPins]
+  rw [arena.inductives.rec_check.target_rec_pins, targetRecPins_split]
   simp only [rc_absBlockShape_members, rc_absBlockShape_recs]
-  rcases hm : p.members.val with _ | ⟨m0, ms⟩
-  all_goals simp only [List.map_nil, List.map_cons]
-  all_goals lockstep
-  trace_state
-  all_goals sorry
+  lockstep
+
 
 /-! ## The axiom census -/
 
@@ -2239,6 +2086,9 @@ theorem target_rec_pins_of {pers st lst} (hbp : BPReaders pers)
 
 /-- info: 'ConRon.Refine2.cons_block_recs_t_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms cons_block_recs_t_ls
+
+/-- info: 'ConRon.Refine2.target_rec_pins_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms target_rec_pins_ls
 
 /-- info: 'ConRon.Refine2.want_aux_names_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms want_aux_names_ls
