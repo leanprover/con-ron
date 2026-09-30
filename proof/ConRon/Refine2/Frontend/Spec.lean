@@ -132,6 +132,6 @@ theorem installIndD_unfold (st : StateD) (tys : List IndTypeRec)
     installIndD st tys cts rcs nPd = (do
       let block ← indBlockOf st tys cts rcs
       pushDecl st (.indDecl block nPd)) := by
-  simp only [installIndD, indBlockOf, bind_assoc, pure_bind] <;> rfl
+  simp only [installIndD, indBlockOf, bind_assoc, pure_bind]
 
 end ConRon.Refine2.Frontend

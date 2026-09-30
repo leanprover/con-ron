@@ -70,9 +70,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 
 # The Rust trees that carry `Lean twin:` lines: the verified crate's arena
-# and store-native frontend (task #97-SWAP's file map), and `in_model.rs`,
-# the one module of the unverified crate that has a twin (the in-process
-# modeller's readback, task #97-P4f).  Handed the whole of `crates/` this
+# and store-native frontend (task #97-SWAP's file map), and the unverified
+# crate (whose one twinned module, the in-process modeller's `in_model.rs`,
+# went with upstream's at task #105).  Handed the whole of `crates/` this
 # would find the same set; naming the roots keeps the gate's subject fixed.
 ROOTS = (
     "crates/con-ron-core/src/arena",

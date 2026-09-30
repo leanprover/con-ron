@@ -720,14 +720,14 @@ pub fn canon_eq_list(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:183-188 ConstantVal
-/// Lean twin: `proof/ConRon/Arena/Env.lean:66-72 IConstantVal` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:64-70 IConstantVal` — the cited
 /// `deriving DecidableEq`, field by field.
 pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
     a.name.eq2(&b.name) && nidx_vec_beq(&a.level_params, &b.level_params, 0) && a.ty.eq2(&b.ty)
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:231-274 RecRule
-/// Lean twin: `proof/ConRon/Arena/Env.lean:85-98 IRecRule` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:83-96 IRecRule` — the cited
 /// `deriving DecidableEq`: `i_rec_rule_eq_but_rhs` and the right-hand side.
 pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
     i_rec_rule_eq_but_rhs(a, b) && a.rhs.eq2(&b.rhs)
@@ -748,7 +748,7 @@ pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// Lean twin: `proof/ConRon/Arena/Env.lean:109-125 IIndCaps` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:107-129 IIndCaps` — the cited
 /// `deriving DecidableEq`; `sortZ` goes through `PropWhen`'s own.
 pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
     a.eta == b.eta
@@ -765,7 +765,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:173-183 IConstantInfo` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:177-187 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
 /// `Eq` and `Nat` bases are recognised by.

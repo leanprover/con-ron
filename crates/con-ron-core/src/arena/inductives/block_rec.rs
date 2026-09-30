@@ -11,7 +11,7 @@ use crate::kernel::core_types::CheckError;
 use crate::kernel::level;
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockRec.lean:50-84 blockLargeElimAllowed
-/// Lean twin: `proof/ConRon/Arena/Inductives/BlockRec.lean blockLargeElimAllowed` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/BlockRec.lean:21-31 blockLargeElimAllowed` —
 /// **when a large eliminator is allowed**: always when the block's sort is
 /// never `0`; otherwise only for ONE member with no container occurrence and
 /// at most one constructor, at the large shape.  The cited `||` short-circuits
