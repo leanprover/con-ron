@@ -146,70 +146,6 @@ def indParamsOkAtSpec (nP : Nat) : IConstantInfo → AM Bool
   | .ctorInfo _ nPc _ => pure (nPc == nP)
   | _ => pure true
 
-/-! ## `checkProjRule`, in six
-
-The five tails, outermost first.  Each is a contiguous run of
-`Arena/CheckerBase.lean:checkProjRule`'s clauses; composing them back is the
-`_unfold` at the bottom of this section. -/
-
-/-- The innermost tail: the constructor's residual telescope opened, the
-λ-domains compared and the rule's own type inferred. -/
-def checkProjRuleFrameSpec (mode : CheckMode) (fe : IFEnv) (nP nF : Nat)
-    (fvsP : List EIdx) (crestP rhsA : EIdx) : AM EIdx := do
-  let some (xFvs, _) ← openPisAtFvarsF nF crestP nP
-    | fail (.notImplemented "projection constructor telescope")
-  let some (ldoms, _) ← instLamsAtF coreWalkFuel (fvsP ++ xFvs) rhsA
-    | fail (.notImplemented "projection rule telescope")
-  checkDefEqList mode fe (nP + nF) (← fvarTypeDs (fvsP ++ xFvs)) ldoms
-  let _rhsTy ← inferTypeCore mode fe checkFuel 0 rhsA
-  pure rhsA
-
-/-- The parameter frame: the projection type's telescope opened at fresh free
-variables and the constructor's domains instantiated at them. -/
-def checkProjRuleCertsSpec (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
-    (cvj : IConstantVal) (nP nF : Nat) (rhsA : EIdx) : AM EIdx := do
-  let some (fvsP, _) ← openPisAtFvarsF nP pty 0
-    | fail (.notImplemented "projection type telescope")
-  let some (cdomsP, crestP) ← instPisAtF coreWalkFuel fvsP cvj.type
-    | fail (.notImplemented "projection constructor telescope")
-  checkDefEqList mode fe (nP + nF) (← fvarTypeDs fvsP) cdomsP
-  checkProjRuleFrameSpec mode fe nP nF fvsP crestP rhsA
-
-/-- The λ-telescope shape: the annotated rule is a λ over the constructor
-telescope returning the field variable, and its domains are the
-constructor's. -/
-def checkProjRuleShapeSpec (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
-    (cvj : IConstantVal) (nP nF : Nat) (bv rhsA : EIdx) : AM EIdx := do
-  let some (rbinders, rrbody) ← stripLams (nP + nF) rhsA
-    | fail (.notImplemented "projection rule telescope")
-  unless rrbody == bv do
-    fail (.notImplemented "projection rule body")
-  let some (cbindersR, _) ← stripPis (nP + nF) cvj.type
-    | fail (.notImplemented "projection constructor telescope")
-  unless domsMatchAux rbinders.toArray cbindersR.toArray 0 0 (nP + nF) do
-    fail (.notImplemented "projection rule domain mismatch")
-  checkProjRuleCertsSpec mode fe pty cvj nP nF rhsA
-
-/-- The well-formedness conjunct on the ANNOTATED rule. -/
-def checkProjRuleWfSpec (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
-    (cvj : IConstantVal) (lps : List NIdx) (nP nF : Nat) (bv rhsA : EIdx) :
-    AM EIdx := do
-  unless (← allLevelParamsDefined lps rhsA) && (← constsResolveFFast fe rhsA) &&
-      (← looseBVarsBoundedFast coreWalkFuel 0 rhsA) &&
-      !(← hasFvarFast coreWalkFuel rhsA) do
-    fail (.notImplemented "projection rule wellformedness")
-  checkProjRuleShapeSpec mode fe pty cvj nP nF bv rhsA
-
-/-- The scoping test on the RAW rule, then the annotation. -/
-def checkProjRuleScopedSpec (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
-    (cvj : IConstantVal) (lps : List NIdx) (nP nF : Nat) (bv rhs : EIdx) :
-    AM EIdx := do
-  unless !(← hasFvarFast coreWalkFuel rhs) &&
-      (← looseBVarsBoundedFast coreWalkFuel 0 rhs) do
-    fail (.notImplemented "projection rule scoping")
-  let rhsA ← annotateCore mode fe checkFuel 0 rhs
-  checkProjRuleWfSpec mode fe pty cvj lps nP nF bv rhsA
-
 /-! ## The `_unfold` equations
 
 Each says that the named twin IS its transcription composed — the file's whole
@@ -268,25 +204,6 @@ theorem indParamsOk_unfold (nP : Nat) (ci : IConstantInfo)
   refine ConRon.Refine2.am_bind_congr _ ?_
   intro x
   cases x <;> twin_reduce
-
-/-- `checkProjRule` is its six pieces. -/
-theorem checkProjRule_unfold (mode : CheckMode) (fe : IFEnv) (pty : EIdx)
-    (cvj : IConstantVal) (lps : List NIdx) (nP nF i : Nat) :
-    checkProjRule mode fe pty cvj lps nP nF i = (do
-      let bv ← internE (.bvar (nF - 1 - i))
-      let some rhs ← pisToLams (nP + nF) cvj.type bv
-        | fail (.notImplemented "projection rule telescope")
-      checkProjRuleScopedSpec mode fe pty cvj lps nP nF bv rhs) := by
-  rw [checkProjRule]
-  refine ConRon.Refine2.am_bind_congr _ ?_
-  intro bv
-  refine ConRon.Refine2.am_bind_congr _ ?_
-  intro r
-  cases r <;>
-    (twin_reduce [checkProjRuleScopedSpec, checkProjRuleWfSpec,
-      checkProjRuleShapeSpec, checkProjRuleCertsSpec, checkProjRuleFrameSpec];
-      try rfl)
-
 
 /-! ## `arena::decl_check`'s splits (finding 11)
 
@@ -768,12 +685,19 @@ def checkQuotDeclSpec (fe : IFEnv) (k : QuotKind) (cv : IConstantVal) :
 
 /-- `checkDecl`'s `.indDecl` arm: **the pinned basis blocks** recognised
 first — a stream's `Nat` block arrives as an ordinary `indDecl` — then the
-inductive routes. -/
+declared parameter count, then the one uniform route (`checkBlock`) or the
+decline (`checkShapeless`). -/
 def checkIndDeclArmSpec (mode : CheckMode) (fe : IFEnv)
     (block : List IConstantInfo) (nP : Nat) : AM IFEnv := do
   match ← basisPinHit block with
   | some kind => checkBasisDecl fe kind
-  | none => Inductives.checkIndDecl mode fe block nP
+  | none => do
+    if !(← indParamsOk nP block) then
+      fail (.invalid "number of parameters mismatch")
+    else
+      match ← blockParts? nP block with
+      | some p => checkBlock mode fe block p
+      | none => checkShapeless mode fe block
 
 /-- `checkDecl`'s axiom arm past the `ofReduce*` test: the two standard
 axioms' shape mismatch, `sorryAx` tolerated as a DECLARATION, everything else
@@ -1195,9 +1119,6 @@ only obligations of this file about the TWIN rather than the port, and rule
 /-- info: 'ConRon.Arena.checkValueGroup_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkValueGroup_unfold
 
-
-/-- info: 'ConRon.Arena.checkProjRule_unfold' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms checkProjRule_unfold
 
 /-- info: 'ConRon.Arena.checkDecl_axiomDecl' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms checkDecl_axiomDecl
