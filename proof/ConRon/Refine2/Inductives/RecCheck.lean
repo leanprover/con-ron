@@ -1560,4 +1560,121 @@ theorem want_aux_names_acc {pers} (n0 : arena.handle.NIdx) (n : Std.U64) :
     simp [absNIdxL, alloc.vec.Vec.new, absU, List.range_eq_range']
   rwa [e] at h
 
+/-! ## The name lists: `ctor_names`, `ctor3_names`, `recs_by_target` -/
+
+theorem ctor_names_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.rec_check.ctor_names cs i out = ok o →
+      absNIdxL o = absNIdxL out ++ (absCtorsLFrom cs i).map (·.1.name) := by
+  intro i out o h
+  have key := vec_cursor_copy cs absNIdx (fun p => absNIdx p.1.name)
+    (fun i out => arena.inductives.rec_check.ctor_names cs i out) ?_ ?_ i out o h
+  · simp only [absNIdxL, key, absCtorsLFrom, List.map_map]; rfl
+  · intro i out o hn h
+    rw [arena.inductives.rec_check.ctor_names.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.rec_check.ctor_names.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨⟨iv, k⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : (iv, k) = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+/-- `ctor_names` from `0` into an empty accumulator: the constructors' names. -/
+@[lockstep] theorem ctor_names_twin (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSP (arena.inductives.rec_check.ctor_names cs 0#usize (alloc.vec.Vec.new arena.handle.NIdx))
+      (fun o => TwinEq ((absCtorsL cs).map (·.1.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, ctor_names_abs cs _ _ o h, absCtorsLFrom_zero]
+  simp [absNIdxL, alloc.vec.Vec.new]
+
+theorem ctor3_names_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.handle.NIdx),
+      arena.inductives.rec_check.ctor3_names cs i out = ok o →
+      absNIdxL o = absNIdxL out ++ (absCtors3LFrom cs i).map (·.1.name) := by
+  intro i out o h
+  have key := vec_cursor_copy cs absNIdx (fun p => absNIdx p.1.name)
+    (fun i out => arena.inductives.rec_check.ctor3_names cs i out) ?_ ?_ i out o h
+  · simp only [absNIdxL, key, absCtors3LFrom, List.map_map]; rfl
+  · intro i out o hn h
+    rw [arena.inductives.rec_check.ctor3_names.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.inductives.rec_check.ctor3_names.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨⟨iv, k, k2⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : (iv, k, k2) = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, n, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_nidx _ _ hn], h⟩
+
+@[lockstep] theorem ctor3_names_twin (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64)) :
+    LSP (arena.inductives.rec_check.ctor3_names cs 0#usize (alloc.vec.Vec.new arena.handle.NIdx))
+      (fun o => TwinEq ((absCtors3L cs).map (·.1.name)) (absNIdxL o)) := by
+  intro o h
+  rw [TwinEq, ctor3_names_abs cs _ _ o h, absCtors3LFrom_zero]
+  simp [absNIdxL, alloc.vec.Vec.new]
+
+theorem rc_rec_shape_dup_id (r : arena.inductives.block_parts.RecShape) :
+    LSP (arena.inductives.block_parts.rec_shape_dup r) (fun o => o = r) := by
+  intro o h
+  rw [arena.inductives.block_parts.rec_shape_dup] at h
+  obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases Result.ok_injective h
+  rw [pos_i_constant_val_dup_spec _ _ hiv, alloc.vec.Vec.ext _ _ (eidx_vec_dup_val hv)]
+
+/-- `recs_by_target` keeps the recursors whose major is a member iff `own`. -/
+theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
+    (k : Std.U64) (own : Bool) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec arena.inductives.block_parts.RecShape),
+      arena.inductives.rec_check.recs_by_target rs k own i out = ok o →
+      o.val = out.val ++ (rs.val.drop i.val).filter (fun r => decide (r.tgt < k) == own) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) rs.val.length
+    (fun i (_ : Unit) => ∀ (out o : alloc.vec.Vec arena.inductives.block_parts.RecShape),
+      arena.inductives.rec_check.recs_by_target rs k own i out = ok o →
+      o.val = out.val ++ (rs.val.drop i.val).filter (fun r => decide (r.tgt < k) == own))
+    ?_ ?_ i ()
+  · intro i _ hn out o h
+    rw [arena.inductives.rec_check.recs_by_target.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [h, List.drop_eq_nil_of_le hn]; simp
+  · intro i _ hlt ih out o h
+    rw [arena.inductives.rec_check.recs_by_target.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : rs.val[i.val] = q := by
+      have h1 := vec_index_some hq; rw [List.getElem?_eq_getElem hlt] at h1
+      exact Option.some_inj.mp h1
+    rw [List.drop_eq_getElem_cons hlt, List.filter_cons, hqx]
+    by_cases hc : (q.tgt < k) = (own = true)
+    · rw [if_pos hc] at h
+      have hb : (decide (q.tgt < k) == own) = true := by cases own <;> simp_all
+      obtain ⟨q2, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [ih i2 () (absSz_add_one hi2) out1 o h, ConRon.Refine.vec_push_val hout1,
+        rc_rec_shape_dup_id _ _ hq2, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
+      simp
+    · rw [if_neg hc] at h
+      have hb : (decide (q.tgt < k) == own) = false := by cases own <;> simp_all
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      rw [ih i2 () (absSz_add_one hi2) out o h, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
+      simp
+
 end ConRon.Refine2
