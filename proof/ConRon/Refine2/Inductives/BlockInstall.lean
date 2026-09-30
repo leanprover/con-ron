@@ -957,9 +957,98 @@ theorem check_block_idx_sorts_aux (m : Nat) :
     by_cases hc : i.val < cv_tas.val.length
     · rw [if_neg (by scalar_tac), absICVLFrom, sp_vecFrom_cons _ _ _ hc, checkBlockIdxSorts]
       lockstep
-      all_goals sorry
+      rename_i o1 ho1
+      have ha : a.val = i.val + 1 := by scalar_tac
+      refine LS.tail (ih (i := a) (out := o1) (by omega) hrel hinv hfe) ?_ (fun _ _ h => h)
+      simp only [absMemberShapeLFrom, absICVLFrom, ha, absLIdxLL, ho1, absLIdxL,
+        List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
+        List.nil_append]
     · rw [if_pos (by scalar_tac), absICVLFrom, sp_vecFrom_nil _ _ _ (by omega)]
       simp only [checkBlockIdxSorts]
       lockstep
+
+/-- `check_block_idx_sorts` ⊑ `checkBlockIdxSorts` from the cursor on, the
+accumulated sorts in front. -/
+@[lockstep] theorem check_block_idx_sorts_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (p : arena.inductives.block_parts.BlockShape)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal) (i : Std.Usize)
+    (out : alloc.vec.Vec (alloc.vec.Vec arena.handle.LIdx)) :
+    LS pers (fun a b => b = absLIdxLL a)
+      (arena.inductives.block_install.check_block_idx_sorts pers st mode rf p cv_tas i out) lst
+      (do
+        let q ← checkBlockIdxSorts (ConRon.Refine.absMode mode) lf (absBlockShape p)
+          (absMemberShapeLFrom p.members i) (absICVLFrom cv_tas i)
+        pure (absLIdxLL out ++ q)) :=
+  check_block_idx_sorts_aux _ rfl hrel hinv hfe
+
+/-- `check_block_idx_sorts` from member `0` with an empty accumulator IS
+`checkBlockIdxSorts` on the block's members (the tail's call). -/
+@[lockstep] theorem check_block_idx_sorts_new_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode) {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hfe : IFEnvRelI rf lf) (p : arena.inductives.block_parts.BlockShape)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal) :
+    LS pers (fun a b => b = absLIdxLL a)
+      (arena.inductives.block_install.check_block_idx_sorts pers st mode rf p cv_tas 0#usize
+        (alloc.vec.Vec.new _)) lst
+      (checkBlockIdxSorts (ConRon.Refine.absMode mode) lf (absBlockShape p)
+        (absBlockShape p).members (absICVL cv_tas)) := by
+  have h := check_block_idx_sorts_ls hrel hinv mode hfe p cv_tas 0#usize (alloc.vec.Vec.new _)
+  simpa [absLIdxLL, absMemberShapeLFrom, absICVLFrom, absICVL, absBlockShape,
+    alloc.vec.Vec.new] using h
+
+/-- `cons_block_ctors` ⊑ `consBlockCtors` from the cursor on — the members'
+constructors consed, member by member.  **Pure on both sides**. -/
+theorem cons_block_ctors_refines {n_p : Std.U64}
+    {ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
+    {i : Std.Usize} {rf : arena.env.IFEnv} {lf : IFEnv} {o}
+    (hfe : IFEnvRelI rf lf)
+    (hrun : arena.inductives.block_install.cons_block_ctors n_p ctors_as i rf = ok o) :
+    IFEnvRelI o (consBlockCtors (absU n_p) ((ctors_as.val.drop i.val).map absCtorsL) lf) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) ctors_as.val.length
+    (fun i rf => ∀ lf o, IFEnvRelI rf lf →
+      arena.inductives.block_install.cons_block_ctors n_p ctors_as i rf = ok o →
+      IFEnvRelI o (consBlockCtors (absU n_p) ((ctors_as.val.drop i.val).map absCtorsL) lf))
+    ?_ ?_ i rf lf o hfe hrun
+  · intro i rf hn lf o hfe h
+    rw [arena.inductives.block_install.cons_block_ctors.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ctors_as by scalar_tac), Result.ok.injEq] at h
+    subst h
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, consBlockCtors]
+    exact hfe
+  · intro i rf hi ih lf o hfe h
+    rw [arena.inductives.block_install.cons_block_ctors.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors_as by scalar_tac)] at h
+    obtain ⟨v, hv, g1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨fe2, hfe2, g2⟩ := ConRon.Refine.bind_eq_ok_iff.mp g1
+    obtain ⟨i2, hi2, g3⟩ := ConRon.Refine.bind_eq_ok_iff.mp g2
+    have hvx : v = ctors_as.val[i.val] := by
+      have h1 := vec_index_some hv
+      rw [List.getElem?_eq_getElem hi] at h1
+      exact (Option.some_inj.mp h1).symm
+    have hj : i2.val = i.val + 1 := absSz_add_one hi2
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, consBlockCtors]
+    have h2 := cons_sum_ctors_ls hfe fe2 hfe2
+    rw [hvx, absCtorsLFrom_zero] at h2
+    have := ih i2 fe2 hj _ o h2 g3
+    rwa [hj] at this
+
+/-- `cons_block_ctors` against `consBlockCtors`: a pure Rust-only step, the
+related environment after the folds. -/
+@[lockstep] theorem cons_block_ctors_ls {n_p : Std.U64}
+    {ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
+    {i : Std.Usize} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
+    LSP (arena.inductives.block_install.cons_block_ctors n_p ctors_as i rf)
+      (fun o => IFEnvRelI o
+        (consBlockCtors (absU n_p) ((ctors_as.val.drop i.val).map absCtorsL) lf)) :=
+  fun _ h => cons_block_ctors_refines hfe h
+
+/-- `cons_block_ctors` from member `0` (the tail's call). -/
+@[lockstep] theorem cons_block_ctors_ls0 {n_p : Std.U64}
+    {ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) :
+    LSP (arena.inductives.block_install.cons_block_ctors n_p ctors_as 0#usize rf)
+      (fun o => IFEnvRelI o (consBlockCtors (absU n_p) (absCtorsLL ctors_as) lf)) :=
+  fun _ h => by simpa [absCtorsLL] using cons_block_ctors_refines hfe h
 
 end ConRon.Refine2
