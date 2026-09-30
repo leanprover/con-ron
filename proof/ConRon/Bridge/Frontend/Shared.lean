@@ -30,13 +30,20 @@ its children are built), so there is no gray phase and no second induction on
 
 ## The other direction
 
-`internExpr` is the readback's inverse and the frontend needs it in three
-places — the modeller seam (`Arena/Frontend/InModel.lean`), the pin variants
-(`Bridge/Checker/Pins.lean`'s item 13) and `ProjRec`'s two recognisers until
-P2d twinned them.  Its exactness is the mirror statement, `denoteE st'
-(internExpr e) = some e`, with `Ext` and `StoreWF` threaded: it is
-`Bridge/Specs.lean`'s `internE_spec` composed along a `ConLeche.Expr`'s own
-structural recursion, with the `EMemo` invariant in the same shape.
+`internExpr` is the readback's inverse; the frontend needs it for the pin
+variants (`Bridge/Checker/Pins.lean`'s item 13) — the in-process modeller
+(`Arena/Frontend/InModel.lean`) and the projection rewrite's two recognisers
+that used to need it too are gone (task #105).  Its exactness is the mirror
+statement, `denoteE st' (internExpr e) = some e`, with `Ext` and `StoreWF`
+threaded: it is `Bridge/Specs.lean`'s `internE_spec` composed along a
+`ConLeche.Expr`'s own structural recursion, with the `EMemo` invariant in the
+same shape.
+
+**Task #105 deletion**: the tail section relating `BlockRec`/`Ctx`
+(`denoteM{Type,Ctor,Rec}Go_of_rel`, `denoteBlockRec_eq_of_rel`,
+`nameHandle?_sound`, `find?_isSome_of_view`, `nameHandle?_isSome`,
+`ctxOf_eq_of_rel`, eleven lemmas) served only the modeller seam's context
+readback and is gone with it.
 -/
 import ConRon.Bridge.Frontend.Rel
 import ConRon.Bridge.SpecsL
@@ -1236,9 +1243,15 @@ theorem internCaps_sstep {s s' : AState} (hok : StateOK s)
   rw [ConRon.Arena.Frontend.internCaps] at hrun
   obtain ⟨ct, s₁, h1, hrest⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, hdc⟩ := internName_sstep hok h1
-  obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+  obtain ⟨all, s₂, h2, hrest2⟩ := AM.bind_ok hrest
+  obtain ⟨hstep2, hda⟩ := internNameList_sstep c.all hstep1.ok h2
+  obtain ⟨ctors, s₃, h3, hrest3⟩ := AM.bind_ok hrest2
+  obtain ⟨hstep3, hdct⟩ := internNameList_sstep c.ctors hstep2.ok h3
+  obtain ⟨hv, hst⟩ := AM.pure_ok hrest3
   subst hst; subst hv
-  exact ⟨hstep1, by simp only [denoteCaps, hdc]⟩
+  refine ⟨(hstep1.trans hstep2).trans hstep3, ?_⟩
+  simp only [denoteCaps, denoteN_ext hdc (hstep2.ext.trans hstep3.ext),
+    denoteNListE_ext hstep3.ext _ _ hda, hdct]
 
 theorem internProjTable_sstep {s s' : AState} (hok : StateOK s)
     {m m' : EMemo} (hm : EMemoOK s.store m)
@@ -1864,277 +1877,5 @@ theorem denoteRulesGo_isSome {st : EStore} (hwf : StoreWF st) :
     obtain ⟨m2, g2, hm2⟩ := ih hm1 h2
     exact ⟨m2, by
       rw [denoteRulesGo, g1]; simp only []; rw [g2]; simp only []; rw [hd], hm2⟩
-
-/-- con-leche: none — one type former of a parsed block, from the relation. -/
-theorem denoteMTypeGo_of_rel {st : EStore} (hwf : StoreWF st) {m : DMemo}
-    (hm : DMemoOK st m) {t : MIndTypeRec}
-    {tc : ConLeche.Frontend.InModel.IndTypeRec} (h : MIndTypeRecRel st t tc) :
-    ∃ m', denoteMTypeGo st m t = some (m', tc) ∧ DMemoOK st m' := by
-  obtain ⟨m1, g1, hm1⟩ := denoteCVGo_isSome hwf hm h.cv
-  refine ⟨m1, ?_, hm1⟩
-  rw [denoteMTypeGo, g1, h.ctors]
-  simp only []
-  rw [h.nP, h.nIdx, h.isRec, h.isReflexive, h.numNested]
-
-/-- con-leche: none — the type-former list. -/
-theorem denoteMTypesGo_of_rel {st : EStore} (hwf : StoreWF st) :
-    ∀ {ts : List MIndTypeRec} {tcs : List ConLeche.Frontend.InModel.IndTypeRec}
-      {m : DMemo}, DMemoOK st m → ListRel (MIndTypeRecRel st) ts tcs →
-      ∃ m', denoteMTypesGo st m ts = some (m', tcs) ∧ DMemoOK st m' := by
-  intro ts tcs m hm h
-  induction h generalizing m with
-  | nil => exact ⟨m, rfl, hm⟩
-  | @cons a b as bs hab _ ih =>
-    obtain ⟨m1, g1, hm1⟩ := denoteMTypeGo_of_rel hwf hm hab
-    obtain ⟨m2, g2, hm2⟩ := ih hm1
-    exact ⟨m2, by rw [denoteMTypesGo, g1]; simp only []; rw [g2], hm2⟩
-
-/-- con-leche: none — one constructor record. -/
-theorem denoteMCtorGo_of_rel {st : EStore} (hwf : StoreWF st) {m : DMemo}
-    (hm : DMemoOK st m) {c : MIndCtorRec}
-    {cc : ConLeche.Frontend.InModel.IndCtorRec} (h : MIndCtorRecRel st c cc) :
-    ∃ m', denoteMCtorGo st m c = some (m', cc) ∧ DMemoOK st m' := by
-  obtain ⟨m1, g1, hm1⟩ := denoteCVGo_isSome hwf hm h.cv
-  refine ⟨m1, ?_, hm1⟩
-  rw [denoteMCtorGo, g1]
-  simp only []
-  rw [h.nP, h.nF]
-
-/-- con-leche: none — the constructor list. -/
-theorem denoteMCtorsGo_of_rel {st : EStore} (hwf : StoreWF st) :
-    ∀ {cs : List MIndCtorRec} {ccs : List ConLeche.Frontend.InModel.IndCtorRec}
-      {m : DMemo}, DMemoOK st m → ListRel (MIndCtorRecRel st) cs ccs →
-      ∃ m', denoteMCtorsGo st m cs = some (m', ccs) ∧ DMemoOK st m' := by
-  intro cs ccs m hm h
-  induction h generalizing m with
-  | nil => exact ⟨m, rfl, hm⟩
-  | @cons a b as bs hab _ ih =>
-    obtain ⟨m1, g1, hm1⟩ := denoteMCtorGo_of_rel hwf hm hab
-    obtain ⟨m2, g2, hm2⟩ := ih hm1
-    exact ⟨m2, by rw [denoteMCtorsGo, g1]; simp only []; rw [g2], hm2⟩
-
-/-- con-leche: none — one recursor record. -/
-theorem denoteMRecGo_of_rel {st : EStore} (hwf : StoreWF st) {m : DMemo}
-    (hm : DMemoOK st m) {r : MIndRecRec}
-    {rc : ConLeche.Frontend.InModel.IndRecRec} (h : MIndRecRecRel st r rc) :
-    ∃ m', denoteMRecGo st m r = some (m', rc) ∧ DMemoOK st m' := by
-  obtain ⟨m1, g1, hm1⟩ := denoteCVGo_isSome hwf hm h.cv
-  obtain ⟨m2, g2, hm2⟩ := denoteRulesGo_isSome hwf r.rules hm1 h.rules
-  refine ⟨m2, ?_, hm2⟩
-  rw [denoteMRecGo, g1]
-  simp only []
-  rw [g2]
-  simp only []
-  rw [h.nP, h.nM, h.nm, h.nI]
-
-/-- con-leche: none — the recursor list. -/
-theorem denoteMRecsGo_of_rel {st : EStore} (hwf : StoreWF st) :
-    ∀ {rs : List MIndRecRec} {rcs : List ConLeche.Frontend.InModel.IndRecRec}
-      {m : DMemo}, DMemoOK st m → ListRel (MIndRecRecRel st) rs rcs →
-      ∃ m', denoteMRecsGo st m rs = some (m', rcs) ∧ DMemoOK st m' := by
-  intro rs rcs m hm h
-  induction h generalizing m with
-  | nil => exact ⟨m, rfl, hm⟩
-  | @cons a b as bs hab _ ih =>
-    obtain ⟨m1, g1, hm1⟩ := denoteMRecGo_of_rel hwf hm hab
-    obtain ⟨m2, g2, hm2⟩ := ih hm1
-    exact ⟨m2, by rw [denoteMRecsGo, g1]; simp only []; rw [g2], hm2⟩
-
-/-- con-leche: none — the block the seam reads back is the block the relation
-names: `denoteCVGo`'s existence direction through the three member families,
-then `BlockRecRel`'s three `ListRel` clauses. -/
-theorem denoteBlockRec_eq_of_rel {st : EStore} (hwf : StoreWF st) {b : BlockRec}
-    {bP : ConLeche.Frontend.InModel.BlockRec} (h : BlockRecRel st b bP) :
-    denoteBlockRec st b = some bP := by
-  obtain ⟨m1, g1, hm1⟩ := denoteMTypesGo_of_rel hwf (DMemoOK.empty st) h.types
-  obtain ⟨m2, g2, hm2⟩ := denoteMCtorsGo_of_rel hwf hm1 h.ctors
-  obtain ⟨m3, g3, hm3⟩ := denoteMRecsGo_of_rel hwf hm2 h.recs
-  rw [denoteBlockRec, denoteBlockRecGo, g1]
-  simp only []
-  rw [g2]
-  simp only []
-  rw [g3]
-
-/-! ### `nameHandle?`, both directions
-
-`ctxOf` probes the name store with `nameHandle?` where `CtxRel` quantifies over
-handles that DENOTE, so the bridge between them is two lemmas: what the probe
-answers denotes the name it was asked for, and a name that denotes at all is
-one the probe answers.  The second needs `denoteN_inj` — two handles denoting
-one name are one handle — which is DESIGN §8.3's soundness obligation. -/
-
-/-- con-leche: none — a handle `nameHandle?` answers denotes the name it was
-asked for. -/
-theorem nameHandle?_sound {st : NStore} (hwf : NStoreWF st) :
-    ∀ (n : ConLeche.Name) {h : NIdx}, nameHandle? st n = some h →
-      denoteN st h = some n := by
-  obtain ⟨rk, hw⟩ := hwf
-  intro n
-  induction n with
-  | anonymous =>
-    intro h hf
-    rw [nameHandle?] at hf
-    have hv := Arena.NStore.view_of_find ⟨rk, hw⟩ hf
-    rw [Arena.denoteN_unfold hw hv]; rfl
-  | str p s ih =>
-    intro h hf
-    rw [nameHandle?] at hf
-    cases hp : nameHandle? st p with
-    | none => rw [hp] at hf; exact absurd hf (by simp)
-    | some hpi =>
-      rw [hp] at hf
-      have hdp := ih hp
-      have hv := Arena.NStore.view_of_find ⟨rk, hw⟩ hf
-      rw [Arena.denoteN_unfold hw hv]
-      simp [Arena.denoteNView, hdp]
-  | num p k ih =>
-    intro h hf
-    rw [nameHandle?] at hf
-    cases hp : nameHandle? st p with
-    | none => rw [hp] at hf; exact absurd hf (by simp)
-    | some hpi =>
-      rw [hp] at hf
-      have hdp := ih hp
-      have hv := Arena.NStore.view_of_find ⟨rk, hw⟩ hf
-      rw [Arena.denoteN_unfold hw hv]
-      simp [Arena.denoteNView, hdp]
-
-/-- con-leche: none — a node the store holds is a node `NStore.find?`
-answers. -/
-theorem find?_isSome_of_view {st : NStore} {rk : NIdx → Nat} (hw : Arena.NWFAt st rk)
-    {h : NIdx} {v : NNodeView} (hv : st.view h = some v) :
-    (st.find? v).isSome = true := by
-  simp only [Arena.NStore.find?]
-  cases hp : st.pers.find? v with
-  | some i => simp
-  | none =>
-    by_cases hper : h.isPersistent = true
-    · rw [(hw.consP v h).mpr ⟨hv, hper⟩] at hp; exact absurd hp (by simp)
-    · have hper' : h.isPersistent = false := by simpa using hper
-      have hon : st.scratchOn = true := by
-        by_cases hoff : st.scratchOn = true
-        · exact hoff
-        · exfalso
-          have hoff' : st.scratchOn = false := by simpa using hoff
-          rw [Arena.NStore.view, if_neg hper, if_neg (by rw [hoff']; simp)] at hv
-          exact absurd hv (by simp)
-      rw [if_pos hon, (hw.consS v h).mpr ⟨hv, hper'⟩]
-      simp
-
-/-- con-leche: none — a name that denotes is a name `nameHandle?` answers. -/
-theorem nameHandle?_isSome {st : NStore} (hwf : NStoreWF st) :
-    ∀ (n : ConLeche.Name) {h : NIdx}, denoteN st h = some n →
-      (nameHandle? st n).isSome = true := by
-  obtain ⟨rk, hw⟩ := hwf
-  intro n
-  induction n with
-  | anonymous =>
-    intro h hd
-    obtain ⟨v, hv⟩ := Arena.denoteN_view hd
-    rw [Arena.denoteN_unfold hw hv] at hd
-    obtain rfl := Arena.denoteNView_anonymous hd
-    rw [nameHandle?]
-    exact find?_isSome_of_view hw hv
-  | str p s ih =>
-    intro h hd
-    obtain ⟨v, hv⟩ := Arena.denoteN_view hd
-    rw [Arena.denoteN_unfold hw hv] at hd
-    obtain ⟨pi, rfl, hdp⟩ := Arena.denoteNView_str hd
-    have hsi := ih hdp
-    cases hpq : nameHandle? st p with
-    | none => rw [hpq] at hsi; exact absurd hsi (by simp)
-    | some hpi =>
-      obtain rfl : hpi = pi :=
-        Arena.denoteN_inj ⟨rk, hw⟩ (nameHandle?_sound ⟨rk, hw⟩ p hpq) hdp
-      rw [nameHandle?, hpq]
-      exact find?_isSome_of_view hw hv
-  | num p k ih =>
-    intro h hd
-    obtain ⟨v, hv⟩ := Arena.denoteN_view hd
-    rw [Arena.denoteN_unfold hw hv] at hd
-    obtain ⟨pi, rfl, hdp⟩ := Arena.denoteNView_num hd
-    have hsi := ih hdp
-    cases hpq : nameHandle? st p with
-    | none => rw [hpq] at hsi; exact absurd hsi (by simp)
-    | some hpi =>
-      obtain rfl : hpi = pi :=
-        Arena.denoteN_inj ⟨rk, hw⟩ (nameHandle?_sound ⟨rk, hw⟩ p hpq) hdp
-      rw [nameHandle?, hpq]
-      exact find?_isSome_of_view hw hv
-
-/-- con-leche: ConLeche/Frontend/InModel/Mutual.lean:119-124 Ctx — the context
-the seam builds IS the context the relation names.  Function extensionality at
-three fields, each of which probes the name store with `nameHandle?` where the
-relation quantifies over handles that denote — and the two meet because
-`denoteN` is injective (DESIGN §8.3's soundness obligation).
-
-`nameHandle?`'s own exactness — both halves — plus `denoteN_inj`, then
-`denoteEShared_eq_denoteE` at the `tbl` field and `denoteBlockRec_eq_of_rel`
-at the `blocks` one.  **The three COVER clauses of `CtxRel` are what make this
-true at all** (round 2's finding 12): a name the store never interned has no
-handle, `ctxOf` answers `none` / `0` there, and nothing but a cover clause
-says con-leche's context does too. -/
-theorem ctxOf_eq_of_rel {st : EStore} (hwf : StoreWF st) {c : Ctx}
-    {cc : ConLeche.Frontend.InModel.Ctx} (h : CtxRel st c cc) :
-    ctxOf st c = cc := by
-  have hns : NStoreWF st.ns := by
-    obtain ⟨rk, hw⟩ := hwf
-    obtain ⟨rkl, hl⟩ := hw.lss.ls
-    exact hl.ns
-  cases cc with
-  | mk tbl heights blocks =>
-  simp only [ctxOf]
-  congr 1
-  · funext n
-    cases hnh : nameHandle? st.ns n with
-    | none =>
-      cases htn : tbl n with
-      | none => rfl
-      | some q =>
-        obtain ⟨hh, hdh⟩ := h.tblCover n q htn
-        have hs := nameHandle?_isSome hns n hdh
-        rw [hnh] at hs; exact absurd hs (by simp)
-    | some hh =>
-      simp only []
-      have hdh : denoteN st.ns hh = some n := nameHandle?_sound hns n hnh
-      have hrel := h.tbl hh n hdh
-      simp only [] at hrel
-      cases hc : c.tbl hh with
-      | none => exact (hrel.none_left hc).symm
-      | some p =>
-        obtain ⟨q, hq, hpq⟩ := hrel.some_left hc
-        rw [hq]
-        simp only [hpq.1, denoteEShared_eq_denoteE hwf p.2, hpq.2]
-  · funext n
-    cases hnh : nameHandle? st.ns n with
-    | none =>
-      by_cases hz : heights n = 0
-      · rw [hz]
-      · obtain ⟨hh, hdh⟩ := h.heightsCover n hz
-        have hs := nameHandle?_isSome hns n hdh
-        rw [hnh] at hs; exact absurd hs (by simp)
-    | some hh =>
-      simp only []
-      exact h.heights hh n (nameHandle?_sound hns n hnh)
-  · funext n
-    cases hnh : nameHandle? st.ns n with
-    | none =>
-      cases htn : blocks n with
-      | none => rfl
-      | some b =>
-        obtain ⟨hh, hdh⟩ := h.blocksCover n b htn
-        have hs := nameHandle?_isSome hns n hdh
-        rw [hnh] at hs; exact absurd hs (by simp)
-    | some hh =>
-      simp only []
-      have hdh : denoteN st.ns hh = some n := nameHandle?_sound hns n hnh
-      have hrel := h.blocks hh n hdh
-      simp only [] at hrel
-      cases hc : c.blocks hh with
-      | none => exact (hrel.none_left hc).symm
-      | some bb =>
-        obtain ⟨bP, hbP, hbrel⟩ := hrel.some_left hc
-        rw [hbP]
-        exact denoteBlockRec_eq_of_rel hwf hbrel
 
 end ConRon.Bridge.Frontend
