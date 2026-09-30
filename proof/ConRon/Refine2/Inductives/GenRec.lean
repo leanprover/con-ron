@@ -1544,4 +1544,59 @@ theorem slot_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   simp only [bind_tc_ok]
   cases sl <;> simp only [grSlotTy, absClassSlot] <;> lockstep
 
+theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) :
+    ∀ (s : Std.Usize) (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+      LS pers (OptBinders out)
+        (arena.inductives.gen_rec.slot_binders pers st g s out) lst
+        (ClassGen.prefixBinders.slotsGo (absClassGen g) s.val
+          ((g.slots.val.drop s.val).map absClassSlot)) := by
+  intro s
+  refine cursor_induction (fun i : Std.Usize => i.val) g.slots.val.length
+    (fun s out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+      LS pers (OptBinders out)
+        (arena.inductives.gen_rec.slot_binders pers st g s out) lst
+        (ClassGen.prefixBinders.slotsGo (absClassGen g) s.val
+          ((g.slots.val.drop s.val).map absClassSlot))) ?_ ?_ s
+  · intro s out hn st lst hrel hinv hout
+    rw [List.drop_eq_nil_of_le hn, List.map_nil, ClassGen.prefixBinders.slotsGo,
+      arena.inductives.gen_rec.slot_binders.eq_def,
+      if_pos (show s ≥ alloc.vec.Vec.len g.slots by scalar_tac)]
+    exact LS.pure ⟨by simp, OptTeleWF.some hout⟩ hrel hinv
+  · intro s out hs ih st lst hrel hinv hout
+    rw [List.drop_eq_getElem_cons hs, List.map_cons, slotsGo_cons,
+      arena.inductives.gen_rec.slot_binders.eq_def,
+      if_neg (show ¬ s ≥ alloc.vec.Vec.len g.slots by scalar_tac)]
+    have hsb := slot_binder_ls (pers := pers) hrel hinv g hbm s _ (List.getElem?_eq_getElem hs)
+    lockstep
+    · exact LS.pure ⟨rfl, OptTeleWF.none⟩ ‹_› ‹_›
+    · rename_i ty out1 hout1
+      have hjv : a.val = s.val + 1 := by simpa using hP
+      have h1 := ih a out1 hjv _ _ ‹_› ‹_› (TeleWF.push hout1 hout hbm)
+      rw [hjv] at h1
+      refine ls_tail_opt_cons h1 ?_
+      simp [absBinderL, hout1]
+
+/-- `prefix_binders` ⊑ `ClassGen.prefixBinders`. -/
+@[lockstep] theorem prefix_binders_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
+    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) :
+    LS pers (fun a b => b = a.map absBinderL ∧ OptTeleWF a)
+      (arena.inductives.gen_rec.prefix_binders pers st g) lst
+      ((absClassGen g).prefixBinders) := by
+  rw [arena.inductives.gen_rec.prefix_binders, ClassGen.prefixBinders]
+  lockstep
+  have h1 := slot_binders_acc (pers := pers) g hbm 0#usize a st _ hrel hinv hR
+  simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at h1
+  have h2 := LS.twin_map (R := fun a b => b = Option.map absBinderL a ∧ OptTeleWF a)
+    (f := Option.map (absBinderL a ++ ·)) h1 (by
+      intro x y ⟨hxy, hw⟩
+      refine ⟨?_, hw⟩
+      rw [hxy])
+  refine LS.twin_eq h2 ?_
+  congr 1
+  funext r
+  cases r <;> rfl
+
 end ConRon.Refine2
