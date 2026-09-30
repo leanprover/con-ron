@@ -34,6 +34,19 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
+/-! ## Helpers for Shape/Abs -/
+
+/-- `CORE_WALK_FUEL = coreWalkFuel` (`Core/Arms/Delta.lean`'s
+`core_walk_fuel_abs`, restated here below the core tier). -/
+theorem pos_core_walk_fuel_abs : absU arena.core.CORE_WALK_FUEL = coreWalkFuel := by
+  rw [arena.core.CORE_WALK_FUEL, Arena.coreWalkFuel]
+  rfl
+
+theorem pos_core_walk_fuel_val : (arena.core.CORE_WALK_FUEL).val = coreWalkFuel :=
+  pos_core_walk_fuel_abs
+
+attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
+
 /-! ## The name-list scans -/
 
 /-- `names_contain` ⊑ `List.contains` from the cursor on. -/
@@ -206,6 +219,143 @@ theorem mentions_any_go_aux (n : Nat) :
     apply LSR.of_LS
     rw [arena.inductives.positivity.mentions_any_go, mentionsAnyGo]
     unfold arena.inductives.positivity.mentions_any_node
+    lockstep
+
+@[lockstep] theorem mentions_any_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool} {lm : Std.HashMap EIdx Bool}
+    (hm : ExprOps.LMemoRel rm lm) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => ∃ m', ExprOps.LMemoRel a.2 m' ∧ b = (a.1, m'))
+      (arena.inductives.positivity.mentions_any_go pers st names rm fuel h) st lst
+      (mentionsAnyGo (absNIdxL names) lm (absU fuel) (absEIdx h)) :=
+  mentions_any_go_aux _ names rm lm fuel h rfl hrel hinv hm
+
+/-- `mentions_any_const` ⊑ `mentionsAnyConst` — one memoised walk from the
+empty memo. -/
+@[lockstep] theorem mentions_any_const_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.mentions_any_const pers st names e) st lst
+      (mentionsAnyConst (absNIdxL names) (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.mentions_any_const, mentionsAnyConst]
+  lockstep
+
+/-- `member_idx_at` ⊑ `memberIdxAt?`. -/
+@[lockstep] theorem member_idx_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : arena.handle.LsIdx) (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a.map absU)
+      (arena.inductives.positivity.member_idx_at pers st names lvls e) st lst
+      (memberIdxAt? (absNIdxL names) (absLsIdx lvls) (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.member_idx_at, memberIdxAt?]
+  lockstep
+
+/-! ## `close_telescope` -/
+
+/-- `close_telescope` ⊑ `closeTelescope`, the telescope from the cursor on. -/
+@[lockstep] theorem close_telescope_ls {pers}
+    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {body : arena.handle.EIdx} (hte : TeleWF bs) :
+    ∀ (k : Std.Usize) (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.inductives.positivity.close_telescope pers st bs k i body) lst
+        (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
+  intro k i st lst hrel hinv
+  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+    (fun (w : Std.U64) l => closeTelescope l (absU w) (absEIdx body))
+    (fun st k w => arena.inductives.positivity.close_telescope pers st bs k w body)
+    ?_ ?_ k st lst i hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.close_telescope.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len bs by scalar_tac), closeTelescope]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : Std.U64), j.val = k.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absEIdx a)
+          (arena.inductives.positivity.close_telescope pers st' bs j w' body) lst'
+          (closeTelescope (absBinderLFrom bs j) (absU w') (absEIdx body)) := ih
+    clear ih
+    have hpw := TeleWF.get hte k.val hk
+    rw [arena.inductives.positivity.close_telescope.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len bs by scalar_tac), closeTelescope]
+    lockstep
+
+/-! ## `nest_occ_go` / `nest_occ` -/
+
+theorem nest_occ_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (names : alloc.vec.Vec arena.handle.NIdx) (lo hi : Std.U64)
+      (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool)
+      (lm : Std.HashMap EIdx Bool) (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → ExprOps.LMemoRel rm lm →
+      LSR pers (fun a b => ∃ m', ExprOps.LMemoRel a.2 m' ∧ b = (a.1, m'))
+        (arena.inductives.positivity.nest_occ_go pers st names lo hi rm fuel h) st lst
+        (nestOccGo (absNIdxL names) (absU lo) (absU hi) lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst names lo hi rm lm fuel h hn hrel hinv hm
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_occ_go, nestOccGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst names lo hi rm lm fuel h hn hrel hinv hm
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_occ_go, nestOccGo]
+    unfold arena.inductives.positivity.nest_occ_node
+    lockstep
+
+@[lockstep] theorem nest_occ_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (lo hi : Std.U64)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Bool} {lm : Std.HashMap EIdx Bool}
+    (hm : ExprOps.LMemoRel rm lm) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => ∃ m', ExprOps.LMemoRel a.2 m' ∧ b = (a.1, m'))
+      (arena.inductives.positivity.nest_occ_go pers st names lo hi rm fuel h) st lst
+      (nestOccGo (absNIdxL names) (absU lo) (absU hi) lm (absU fuel) (absEIdx h)) :=
+  nest_occ_go_aux _ names lo hi rm lm fuel h rfl hrel hinv hm
+
+@[lockstep] theorem nest_occ_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (lo hi : Std.U64)
+    (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_occ pers st names lo hi e) st lst
+      (nestOcc (absNIdxL names) (absU lo) (absU hi) (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.nest_occ, nestOcc]
+  lockstep
+
+/-- `nest_occ_any` ⊑ `List.anyM (nestOcc …)` from the cursor on. -/
+@[lockstep] theorem nest_occ_any_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (lo hi : Std.U64)
+    (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) :
+    LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_occ_any pers st names lo hi xs i) st lst
+      ((absEIdxLFrom xs i).anyM fun x => nestOcc (absNIdxL names) (absU lo) (absU hi) x) := by
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → LSR pers (fun a b => b = a)
+      (arena.inductives.positivity.nest_occ_any pers st names lo hi xs i) st lst
+      ((absEIdxLFrom xs i).anyM fun x => nestOcc (absNIdxL names) (absU lo) (absU hi) x))
+    ?_ ?_ i () lst hrel
+  · intro i _ hn lst hrel
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_occ_any.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), absEIdxLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, List.anyM]
+    lockstep
+  · intro i _ hlt ih lst hrel
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ lst, AStateRel₀ pers st lst →
+        LSR pers (fun a b => b = a)
+        (arena.inductives.positivity.nest_occ_any pers st names lo hi xs j) st lst
+        ((absEIdxLFrom xs j).anyM fun x => nestOcc (absNIdxL names) (absU lo) (absU hi) x) :=
+      fun j hj => ih j () hj
+    clear ih
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.nest_occ_any.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac), absEIdxLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
     lockstep
 
 end ConRon.Refine2
