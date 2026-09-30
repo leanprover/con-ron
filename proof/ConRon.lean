@@ -56,7 +56,6 @@ import ConRon.Refine.PropRead
 import ConRon.Refine.CoreKShapes
 import ConRon.Refine.CoreKInfer
 import ConRon.Refine.CoreKProj
-import ConRon.Refine.CoreKPinned
 import ConRon.Refine.PinsDec
 import ConRon.Refine.PinsAscii
 import ConRon.Refine.PinsBytes
