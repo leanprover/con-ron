@@ -93,7 +93,7 @@ pub const M_AT_DECL_CLOSE: [u32; 1] = [41];
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:425-435 checkBasisDecl
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:78-89 checkBasisDecl` —
+/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:37-48 checkBasisDecl` —
 /// **install the pinned (pre-annotated) basis block.**  The three records that
 /// install one — the fold's own `basisDecl` kind, a stream block
 /// `basis_pin_hit` recognises and a quotient record `quot_pin_hit` recognises
@@ -121,7 +121,7 @@ pub fn check_basis_decl(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:425-435 checkBasisDecl
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:78-89 checkBasisDecl` — the
+/// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:37-48 checkBasisDecl` — the
 /// cited `installBasisDecls fe (← BasisKind.declsA kind)`, past the quotient
 /// gate.  Split off so the gate's two branches are tail calls.
 pub fn check_basis_decl_install(
@@ -141,7 +141,7 @@ pub fn check_basis_decl_install(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/Installed.lean:82-90 PendingCheck
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:280-288 PendingCheck` — a
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:102-110 PendingCheck` — a
 /// phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag) and
 /// the environment counter at the install.
@@ -152,7 +152,7 @@ pub struct PendingCheck {
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — phase
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — phase
 /// A's step BODY: annotate-and-install for the three value kinds, the ordinary
 /// step `check_decl` for everything else.  The four arms are four functions,
 /// so every one of them is a tail call.
@@ -186,7 +186,7 @@ pub fn annot_step_go(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:329-383 annotStep` — **phase
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — **phase
 /// A's step, bracketed**; `i` is the fold position the record is tagged with.
 ///
 /// **The bracket, and why phase A has one** (DESIGN.md §8.3, "Phase A runs in
@@ -263,7 +263,7 @@ pub fn annot_step(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:329-383 annotStep` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — the
 /// bracket's `some vg` arm: the seam promoted first and the environment at the
 /// SAME memo, then the tier dropped and the record pushed.
 #[allow(clippy::too_many_arguments)]
@@ -303,7 +303,7 @@ pub fn annot_step_promote(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.defnDecl` arm: a pin-certified operation takes the ordinary step (its
 /// check is not separable from its install), everything else is annotated,
 /// installed and recorded as pending.
@@ -336,7 +336,7 @@ pub fn annot_step_defn(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.defnDecl` arm's install and push.  The environment counter the pending
 /// record carries is the BRACKET's now (task #97-P6-2): it reads it before the
 /// step, which is both con-leche's own RC-linearity note — read it after the
@@ -374,7 +374,7 @@ pub fn annot_step_defn_install(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's install
 /// half only; the value is recorded raw and never touched here (phase B
 /// annotates it), so phase A never enters a theorem's body.
@@ -402,7 +402,7 @@ pub fn annot_step_thm(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its identity
 /// certificate is part of its install), everything else is annotated, installed
 /// **as an axiom** — an opaque's value being a discarded witness — and recorded
@@ -430,7 +430,7 @@ pub fn annot_step_opaque(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// opaque arm's install and push.  **An `opaque`'s value is not in the
 /// environment**: the arm pushes `.axiomInfo cvA` and hands the annotated
 /// VALUE to the pending record alone, which is why the bracket promotes the
@@ -462,7 +462,7 @@ pub fn annot_step_opaque_install(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:290-327 annotStepGo` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// catch-all arm, shared by the three gated branches above: the ordinary step,
 /// which records nothing pending.
 pub fn annot_step_other(
@@ -480,7 +480,7 @@ pub fn annot_step_other(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:184-194 annotDeclStep
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:385-399 annotDeclStep` — phase
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:207-221 annotDeclStep` — phase
 /// A's step with the position carried and the error tagged: a failing step
 /// reports the `CheckError` together with `i`, the fold position of the
 /// declaration that failed.
@@ -505,7 +505,7 @@ pub fn annot_decl_step(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:440-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:401-412 annotFold` — phase A as
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:223-234 annotFold` — phase A as
 /// a fold over the records, as an index recursion threading the accumulator by
 /// value.
 pub fn annot_fold(
@@ -528,7 +528,7 @@ pub fn annot_fold(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:255-269 checkPending
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:414-430 checkPending` —
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:236-252 checkPending` —
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
 ///
@@ -566,7 +566,7 @@ pub fn check_pending(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:432-441 checkPendingList` —
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:254-263 checkPendingList` —
 /// phase B as a pure walk: every record checked at its own prefix view, a
 /// failure tagged with the record's fold position.
 pub fn check_pending_list(
@@ -588,7 +588,7 @@ pub fn check_pending_list(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:443-454 installThenCheck` —
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:265-276 installThenCheck` —
 /// **the declaration fold the binary runs**: install every record (phase A),
 /// check every recorded declaration (phase B), return the environment.  The
 /// `× Nat` of the error is the failure's POSITION in the fold.
@@ -834,7 +834,7 @@ pub fn check_decls_phased<H: InstallHook>(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:456-468 atDecl` — the fold's
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:278-290 atDecl` — the fold's
 /// failure, with its POSITION rendered into the message.  It sits beside
 /// `frontend`'s `at_line`, which does the same for the PARSE's position and
 /// must not be confused with it: a line number and a fold position are
@@ -849,7 +849,7 @@ pub fn at_decl(e: CheckError, n: u64) -> CheckError {
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:456-468 atDecl` — the twin's
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:278-290 atDecl` — the twin's
 /// `s!"{w} (declaration {n})"`, as code points; `toString n` is
 /// `con_ron_core::kernel::core_k::nat_to_dec`, the port's own decimal
 /// recursion.
@@ -879,7 +879,7 @@ pub fn cp_append(out: Vec<u32>, s: &Vec<u32>, i: usize) -> Vec<u32> {
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — **the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
 /// a stream record against, interned into the tier that is live at the call —
 /// which, at the driver's call, is the persistent one.
@@ -907,7 +907,7 @@ pub fn intern_all_pins(
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the five
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the five
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
 /// spells the twelve calls out).
@@ -927,7 +927,7 @@ pub fn intern_all_basis(pers: &PersTier, st: &mut AState, i: usize) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the five
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the five
 /// kinds the startup walk interns, in the twin's order.
 pub fn all_basis_kinds() -> Vec<BasisKind> {
     let mut ks: Vec<BasisKind> = Vec::with_capacity(5);
@@ -940,7 +940,7 @@ pub fn all_basis_kinds() -> Vec<BasisKind> {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the
 /// standard and compiler-trust axiom pins, in the twin's order.  The twin's
 /// `iffA`/`propextA` family is this port's raw one (`arena::std_axioms`'
 /// module note).
@@ -961,7 +961,7 @@ pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the
 /// rest of the axiom pins and the two reduce pins.
 pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::std_axioms::nonempty_intro_raw(pers, st) {
@@ -980,7 +980,7 @@ pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the
 /// compiler-trust shapes and the two reduce pins.
 pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::trust_axioms::true_cv_a(pers, st) {
@@ -999,7 +999,7 @@ pub fn intern_all_trust_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the
 /// four `reduce*`/`ofReduce*` shapes and the two pinned defining expressions.
 pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::trust_axioms::reduce_nat_cv_a(pers, st) {
@@ -1025,7 +1025,7 @@ pub fn intern_all_reduce_pins(pers: &PersTier, st: &mut AState) -> Result<(), Ch
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — the
 /// reserved names the guards compare by handle.
 pub fn intern_all_names(st: &mut AState) -> Result<(), CheckError> {
     match crate::arena::core::reserved_basis_names(st) {
@@ -1069,7 +1069,6 @@ mod tests {
             Err(_) => panic!("the reserved-name pins must intern"),
         }
     }
-    use crate::arena::core::pin;
     use crate::arena::intern::{intern_ci_list, intern_cv};
     use crate::arena::std_axioms::i_constant_val_matches_pin;
     use crate::arena::store::EStore;
@@ -1362,7 +1361,7 @@ mod tests {
         // a scratch tier, and the same names again: nothing new is appended
         // and every handle is persistent
         let tier = enter_scratch(&mut st);
-        let eqn = ok(pin(&tier, &mut st, &basis_names::eq_name()));
+        let eqn = ok(crate::arena::monad::intern_name(&tier, &mut st, &basis_names::eq_name()));
         assert!(eqn.is_persistent());
         let blk = ok(basis_kind_decls_a(&tier, &mut st, &BasisKind::EqK));
         let mut i: usize = 0;

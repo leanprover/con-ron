@@ -92,7 +92,6 @@ crates/con-ron-core/src/ron/hashmap2.rs:find_slot	Real caller `arena::store`/fri
 
 # --- (C) only-tests, kept: differential/regression test value for live code ---
 
-crates/con-ron-core/src/arena/core.rs:fvar_leaves_subset	Only-tests, but exercises the live `arena::core` fvar-set machinery directly (not a retired feature) (task #105 sweep).
 crates/con-ron-core/src/arena/expr_ops.rs:reset_meta_fast	Only-tests unit coverage of the live arena `ExprOps` fast path (task #105 sweep).
 crates/con-ron-core/src/arena/expr_ops.rs:rename_consts_fast	As `reset_meta_fast` above (task #105 sweep).
 crates/con-ron-core/src/arena/expr_ops.rs:lidx_has_param	As `reset_meta_fast` above (task #105 sweep).

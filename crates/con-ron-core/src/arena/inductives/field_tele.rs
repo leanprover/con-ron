@@ -31,7 +31,7 @@ pub const M_FUEL_PI_BINDERS: [u32; 25] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
-/// Lean twin: `proof/ConRon/Arena/Inductives/FieldTele.lean piBinders` — all
+/// Lean twin: `proof/ConRon/Arena/Inductives/FieldTele.lean:19-32 piBinders` — all
 /// leading `∀` binders of an expression (outermost first) and the body.  Lean
 /// conses on the way out; the port pushes on the way in, which is the same
 /// list.  The fuel is the store walk's (the telescope is a chain of nodes).
