@@ -50,4 +50,7 @@ theorem u64_eq_one_iff (a : Std.U64) : a = 1#u64 ↔ a.val = 1 :=
     · simp [h1]
     · simp [h1, hc]
 
+/-- info: 'ConRon.Refine2.block_large_elim_allowed_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_large_elim_allowed_ls
+
 end ConRon.Refine2
