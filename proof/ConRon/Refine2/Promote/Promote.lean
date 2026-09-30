@@ -1160,10 +1160,20 @@ theorem promote_ci_wf {t st m fuel} {ci : arena.env.IConstantInfo} {m2 ci' t'}
         cases r3 with
         | Err e => cases Result.ok_injective h2
         | Ok p3 =>
-          obtain ⟨caps, hcaps, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
-          cases Result.ok_injective h2
-          cases Lockstep.i_ind_caps_dup_spec c caps hcaps
-          exact hwf
+          obtain ⟨⟨r4, st4⟩, -, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+          cases r4 with
+          | Err e => cases Result.ok_injective h2
+          | Ok p4 =>
+            obtain ⟨m3, all⟩ := p4
+            obtain ⟨⟨r5, st5⟩, -, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+            cases r5 with
+            | Err e => cases Result.ok_injective h2
+            | Ok p5 =>
+              obtain ⟨m4, ctors⟩ := p5
+              obtain ⟨caps, hcaps, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h2
+              cases Result.ok_injective h2
+              cases Lockstep.i_ind_caps_dup_spec c caps hcaps
+              exact hwf
   | _ =>
     rw [arena.promote.promote_ci] at h
     repeat (first
