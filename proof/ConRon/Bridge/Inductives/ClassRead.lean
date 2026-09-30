@@ -1162,7 +1162,7 @@ theorem denoteCV_type {st : EStore} {cv : IConstantVal} {c : ConstantVal}
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:71-96 RecShape — what
 the pre-pass reads of a denoting recursor record. -/
-theorem dRec_inv {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
+theorem dRec_inv_CR {st : EStore} {r : Arena.RecShape} {rP : ConLeche.RecShape}
     (h : dRec st r = some rP) :
     denoteE st r.cvR.type = some rP.cvR.type ∧ rP.mI = r.mI ∧ rP.rP = r.rP := by
   simp only [dRec, Option.bind_eq_bind] at h
@@ -1214,7 +1214,7 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     rw [hxs] at hp
     simp only [Option.bind_some, Option.some.injEq] at hp
     subst hp
-    obtain ⟨hty, hmI, -⟩ := dRec_inv hx
+    obtain ⟨hty, hmI, -⟩ := dRec_inv_CR hx
     simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def]
     simp only [Arena.classReadRecCls] at hrun
     obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
@@ -1312,7 +1312,7 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
   rw [hxs] at hrecs'
   simp only [Option.bind_some, Option.some.injEq] at hrecs'
   subst hrecs'
-  obtain ⟨hty, -, hrP⟩ := dRec_inv hx
+  obtain ⟨hty, -, hrP⟩ := dRec_inv_CR hx
   simp only [List.head?_cons, Option.bind_eq_bind, Option.bind_some]
   dsimp only at hrun
   obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
