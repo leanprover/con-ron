@@ -19,6 +19,7 @@ against `proof/ConRon/Arena/Inductives/GenRec.lean`: the generator
 import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Refine2.Inductives.StructParts
+import ConRon.Refine2.Inductives.ClassRead
 import ConRon.Arena.Inductives.GenRec
 
 open Aeneas Aeneas.Std Result
@@ -376,7 +377,7 @@ in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
 Each Rust cursor scan against the twin's `List` expression, stated at the
 cursor (`List.range' i (n - i)`, `drop i`) and read at `0` by the `TwinEq`
 companion.  The twin's lambdas that carry a `match` are the helpers below
-(`grMinorIs`, `grIsMotive`, `grRecField`): a restated `match` is a new matcher
+(`grMinorIs`, `isMotiveSlot`, `grRecField`): a restated `match` is a new matcher
 constant, so the twin functions that use them are restated once by `rfl`
 (`classGenRule_eq`, …) in terms of these. -/
 
@@ -384,11 +385,6 @@ constant, so the twin functions that use them are restated once by `rfl`
 def grMinorIs (c : Nat) (C : NIdx) : Nat × ClassSlot → Bool
   | (_, .minor c' C' _) => c' == c && C' == C
   | (_, .motive _) => false
-
-/-- `prefixBinders`' motive test. -/
-def grIsMotive : ClassSlot → Bool
-  | .motive _ => true
-  | _ => false
 
 /-- `minorTy`'s recursive-field reading. -/
 def grRecField (kinds : List ClassField) (i : Nat) : Option (Nat × Nat × Nat) :=
@@ -557,12 +553,12 @@ theorem motives_before_abs (slots : alloc.vec.Vec arena.inductives.class_read.Cl
     ∀ (i : Std.Usize) (acc o : Std.U64),
       arena.inductives.gen_rec.motives_before slots s i acc = ok o →
       o.val = acc.val + ((((slots.val.map absClassSlot).take s.val).drop i.val).filter
-        grIsMotive).length := by
+        isMotiveSlot).length := by
   intro i
   refine cursor_induction (fun i : Std.Usize => i.val) (min s.val slots.val.length)
     (fun i (_ : Unit) => ∀ acc o, arena.inductives.gen_rec.motives_before slots s i acc = ok o →
       o.val = acc.val + ((((slots.val.map absClassSlot).take s.val).drop i.val).filter
-        grIsMotive).length) ?_ ?_ i ()
+        isMotiveSlot).length) ?_ ?_ i ()
   · intro i _ hn acc o h
     rw [List.drop_eq_nil_of_le (by simp; omega)]
     rw [arena.inductives.gen_rec.motives_before.eq_def] at h
@@ -581,8 +577,7 @@ theorem motives_before_abs (slots : alloc.vec.Vec arena.inductives.class_read.Cl
     have hx := vec_index_some hcs
     obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hbv : b = grIsMotive (absClassSlot cs) := by
-      cases cs <;> simp_all [arena.inductives.class_read.is_motive, grIsMotive, absClassSlot]
+    have hbv : b = isMotiveSlot (absClassSlot cs) := is_motive_twin cs b hb
     simp only [List.getElem_take, List.getElem_map, hxv, List.filter_cons]
     rw [← hbv]
     cases b
@@ -603,7 +598,7 @@ theorem motives_before_abs (slots : alloc.vec.Vec arena.inductives.class_read.Cl
 @[lockstep] theorem motives_before_twin (slots : alloc.vec.Vec arena.inductives.class_read.ClassSlot)
     (s : Std.Usize) :
     LSP (arena.inductives.gen_rec.motives_before slots s 0#usize 0#u64)
-      (fun o => TwinEq ((((slots.val.map absClassSlot).take s.val).filter grIsMotive).length)
+      (fun o => TwinEq ((((slots.val.map absClassSlot).take s.val).filter isMotiveSlot).length)
         (absU o)) := by
   intro o h
   rw [TwinEq, absU, motives_before_abs slots s 0#usize 0#u64 o h]
@@ -662,7 +657,7 @@ theorem find_class_ctor_in_abs (xs : alloc.vec.Vec arena.inductives.gen_rec.Clas
   obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hnv : n.val = g.ctors.val.length := by
     simp only [lift, Result.ok.injEq] at hn; subst hn
-    simp [ConRon.Refine.ExprOps.usize_cast_u64_val]
+    simp
   rw [TwinEq]
   split at h
   · rename_i hcn
@@ -682,5 +677,134 @@ theorem find_class_ctor_in_abs (xs : alloc.vec.Vec arena.inductives.gen_rec.Clas
     subst h
     rw [List.getD_eq_default _ _ (by simp; scalar_tac)]
     rfl
+
+/-! ## The generator's small steps -/
+
+/-- `binder_copy_from … 0 Vec::new()` is a copy. -/
+theorem binder_copy_from_new_spec
+    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    LSP (arena.expr_ops.binder_copy_from xs 0#usize (alloc.vec.Vec.new _)) (fun r => r = xs) := by
+  refine vec_copy_id xs (arena.expr_ops.binder_copy_from xs) ?_ ?_
+  · intro i out o hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.expr_ops.binder_copy_from.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    rw [dupId_eidx _ _ he1, ConRon.Refine.Expr.binder_meta_dup_eq hbm1] at hout1
+    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
+
+attribute [local lockstep high] binder_copy_from_new_spec
+
+/-- `mot_var` ⊑ `ClassGen.motVar`. -/
+@[lockstep] theorem mot_var_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (c : Std.U64) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.gen_rec.mot_var pers st g c) lst ((absClassGen g).motVar (absU c)) := by
+  rw [arena.inductives.gen_rec.mot_var, ClassGen.motVar]
+  lockstep
+
+/-- `ih_parts` ⊑ `ClassGen.ihParts`. -/
+@[lockstep] theorem ih_parts_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (t tele : Std.U64)
+    (w : arena.handle.EIdx) (d : Std.U64) :
+    LS pers (fun a b => b = a.map (fun p => (absEIdxL p.1, absEIdxL p.2)))
+      (arena.inductives.gen_rec.ih_parts pers st g t tele w d) lst
+      ((absClassGen g).ihParts (absU t) (absU tele) (absEIdx w) (absU d)) := by
+  rw [arena.inductives.gen_rec.ih_parts, ClassGen.ihParts]
+  rcases hcls : (g.cls.val)[(absU t)]? with _ | m <;>
+    simp only [absClassGen_cls, List.getElem?_map, hcls, Option.map_none, Option.map_some]
+  · lockstep
+    all_goals (exfalso; rw [List.getElem?_eq_none_iff] at hcls; simp only [absU] at hcls; scalar_tac)
+  · obtain ⟨hb, rfl⟩ := List.getElem?_eq_some_iff.mp hcls
+    lockstep
+    rename_i n hn k hk hkb args
+    refine LS.pure ?_ ‹_› ‹_›
+    rcases hk with hk | hk
+    · have e : (g.cls.val)[k.val]'hkb = (g.cls.val)[absU t]'hb := by simp only [absU, hk]
+      simp only [TwinEq] at hP
+      simp only [absEIdxL, Option.map_some] at hP ⊢
+      rw [← hP, e]
+      rfl
+    · exfalso
+      have := g.cls.property
+      simp only [absU] at hb
+      scalar_tac
+
+/-- `rec_fields` from the cursor `i`. -/
+theorem rec_fields_abs (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) (n_f : Std.U64) :
+    ∀ (m : Nat) (i : Std.U64) (out o : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64)),
+      n_f.val - i.val = m → arena.inductives.gen_rec.rec_fields ks n_f i out = ok o →
+      o.val.map absTriple = out.val.map absTriple ++
+        (List.range' i.val m).filterMap (grRecField (ks.val.map absClassField)) := by
+  intro m
+  induction m with
+  | zero =>
+    intro i out o hm h
+    rw [arena.inductives.gen_rec.rec_fields.eq_def, if_pos (by scalar_tac), Result.ok.injEq] at h
+    subst h; simp
+  | succ m ih =>
+    intro i out o hm h
+    rw [arena.inductives.gen_rec.rec_fields.eq_def, if_neg (by scalar_tac)] at h
+    rw [List.range'_succ, List.filterMap_cons]
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnv : n.val = ks.val.length := by
+      simp only [lift, Result.ok.injEq] at hn; subst hn
+      simp
+    split at h
+    · rename_i hlt
+      obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hkv : k.val = i.val := by
+        simp only [lift, Result.ok.injEq] at hk
+        subst hk
+        exact ConRon.Refine.ExprOps.u64_cast_usize_val (by have := ks.property; scalar_tac)
+      obtain ⟨cf, hcf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hx := vec_index_some hcf
+      have hg : grRecField (ks.val.map absClassField) i.val =
+          (match absClassField cf with
+           | .recursive t tele => some (i.val, t, tele)
+           | .ordinary => none) := by
+        simp only [grRecField, List.getD_eq_getElem?_getD, List.getElem?_map, ← hkv, hx]
+        rfl
+      rw [hg]
+      cases cf with
+      | Ordinary =>
+        obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi4v : i4.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi4
+        rw [ih i4 out o (by omega) h, hi4v]
+        rfl
+      | Recursive t tele =>
+        obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        have hi4v : i4.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi4
+        rw [ih i4 out1 o (by omega) h, hi4v, ConRon.Refine.vec_push_val hout1]
+        simp [absTriple, absClassField, absU]
+    · rename_i hge
+      obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi3v : i3.val = i.val + 1 := ConRon.Refine.Nat.uadd_val hi3
+      have hg : grRecField (ks.val.map absClassField) i.val = none := by
+        simp only [grRecField, List.getD_eq_getElem?_getD, List.getElem?_map]
+        rw [List.getElem?_eq_none (by scalar_tac)]
+        rfl
+      rw [hg, ih i3 out o (by omega) h, hi3v]
+
+/-- `rec_fields … 0 Vec::new()` is `minorTy`'s `recs`. -/
+@[lockstep] theorem rec_fields_twin (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField)
+    (n_f : Std.U64) :
+    LSP (arena.inductives.gen_rec.rec_fields ks n_f 0#u64 (alloc.vec.Vec.new _))
+      (fun o => TwinEq ((List.range (absU n_f)).filterMap (grRecField (ks.val.map absClassField)))
+        (o.val.map absTriple)) := by
+  intro o h
+  rw [TwinEq, rec_fields_abs ks n_f _ 0#u64 _ o rfl h]
+  simp [List.range_eq_range', absU]
 
 end ConRon.Refine2
