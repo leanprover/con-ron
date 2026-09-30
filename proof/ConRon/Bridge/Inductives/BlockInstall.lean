@@ -632,4 +632,148 @@ theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     · rw [if_neg hlen] at z4
       exact absurd z4 (AM.Never.fail_any _ _ _)
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:166-172 consBlockInds
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:75-80 consBlockIndsF
+**The formers consed**, each with its capability record: index pushes of
+`.indInfo` rows on the accumulator `fe`, the records read (`blockCapsAt`) at
+the caches of the ENTRY index `feC`, which the pushes do not touch.  The
+answer is `InstRel` (as `consSumCtors_spec`'s) and the index spec carried
+across the pushes. -/
+theorem consBlockInds_spec {μ : CheckMode} {env : Env} (feC : IFEnv)
+    (p₁ : Arena.BlockShape) (p₁P : ConLeche.BlockShape) (isRec : Bool) :
+    ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (i : Nat) (fe : IFEnv)
+      (env' : Env), IFEnvCoh fe →
+    CSpec μ env feC
+      (fun st => dShape st p₁ = some p₁P ∧ cvs.mapM (Frontend.denoteCV st) = some cvsP ∧
+        denoteFEnv st fe = some env')
+      (Arena.consBlockInds p₁ isRec cvs i fe)
+      (fun st r => InstRel fe (fun e => e = ConLeche.consBlockInds p₁P isRec cvsP i env') st r ∧
+        (StoreWF st → IFEnvOKS env' fe st →
+          IFEnvOKS (ConLeche.consBlockInds p₁P isRec cvsP i env') r st)) := by
+  intro cvs
+  induction cvs with
+  | nil =>
+    intro cvsP i fe env' hcoh s₀ s' r hok hpre hrun
+    obtain ⟨-, hcvs, hfe⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcvs
+    subst hcvs
+    simp only [Arena.consBlockInds] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, ⟨hcoh, Pushed.refl _, Nat.le_refl _, ⟨env', hfe, rfl⟩,
+      ProjOut.refl _ _⟩, fun _ h => h⟩
+  | cons cv rest ih =>
+    intro cvsP i fe env' hcoh s₀ s' r hok hpre hrun
+    obtain ⟨hp, hcvs, hfe⟩ := hpre
+    obtain ⟨cvP, restP, rfl, hcv, hrest⟩ := mapM_option_cons_inv hcvs
+    simp only [Arena.consBlockInds] at hrun
+    obtain ⟨caps, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, hcaps⟩ := blockCapsAt_spec feC p₁ p₁P i isRec s₀ s₁ caps hok hp k1
+    have x1 := c1.ext
+    have hci : Frontend.denoteCI s₁.store (.indInfo cv caps) =
+        some (.indInfo cvP (ConLeche.blockCapsAt p₁P i isRec)) := by
+      simp only [Frontend.denoteCI, denoteCV_ext hcv x1, hcaps]
+    have hpush := denoteFEnv_push (denoteFEnv_ext x1 hfe) hci
+    have hnp : ∀ t, IConstantInfo.indInfo cv caps ≠ .projInfo t := fun t h => by cases h
+    obtain ⟨c2, hR, hO⟩ := ih restP (i + 1) (fe.push (.indInfo cv caps))
+      ⟨.indInfo cvP (ConLeche.blockCapsAt p₁P i isRec) :: env'.consts⟩ (hcoh.push _) s₁ s' r
+      c1.ok ⟨dShape_ext x1 _ _ hp, dExt_denoteCV.list x1 _ _ hrest, hpush⟩ z1
+    have h1 : InstRel fe (fun _ => True) s₁.store (fe.push (.indInfo cv caps)) :=
+      ⟨hcoh.push _, Pushed.push _ _, Nat.le_succ _, ⟨_, hpush, trivial⟩,
+        ProjOut.push hcoh _ hnp⟩
+    refine ⟨c1.trans c2, InstRel.trans c2.ext h1 hR, ?_⟩
+    intro hwf hS
+    simp only [ConLeche.consBlockInds]
+    refine hO hwf ?_
+    intro s hs
+    have hS' := hS s hs
+    have hst : StateOK s := ⟨by rw [hs]; exact hwf⟩
+    exact hS'.push hst hcoh hnp (by rw [hs]; exact denoteCI_ext hci c2.ext)
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:174-187 checkBlockInds
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:82-93 checkBlockIndsF
+**Stage 1**, against `checkBlockInds (fueledOpsM μ)`: the k formers checked
+and agreed at the ENTRY index (so `CheckOK μ env fe` still holds at the end —
+the frame is `CoreStep`), then consed.  The answer: the new index `fe₁` is an
+`InstRel` of `fe` denoting con-leche's `env₁`, the index spec holds at it
+(`IFEnvOKS`; with the state's `CheckOK` at `fe` this is the `ReadOK env₁ fe₁`
+the caller flushes into `CheckOK μ env₁ fe₁`), the stored formers and the
+completed shape denote con-leche's, and every stored former is closed
+(`checkBlockIndsS_sim`'s answer). -/
+theorem checkBlockInds_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (hcoh : IFEnvCoh fe) (p : Arena.BlockParts) (pP : ConLeche.BlockParts) (isRec : Bool) :
+    CSpecF μ env fe
+      (fun st => dParts st p = some pP ∧ denoteFEnv st fe = some env)
+      (Arena.checkBlockInds μ fe p isRec)
+      (fun st r v => InstRel fe (fun e => e = v.1) st r.1 ∧ IFEnvOKS v.1 r.1 st ∧
+        r.2.1.mapM (Frontend.denoteCV st) = some v.2.1 ∧ dShape st r.2.2 = some v.2.2 ∧
+        ∀ cv ∈ v.2.1, Expr.WScoped 0 cv.type)
+      (ConLeche.checkBlockInds (fueledOpsM μ) env pP isRec) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hp, hfe⟩ := hpre
+  simp only [dParts, Option.map_eq_some_iff] at hp
+  obtain ⟨q, hq, rfl⟩ := hp
+  obtain ⟨ms, rs, el, sP, hms, hrs, hel, hsP, rfl⟩ := dShape_inv hq
+  simp only [Arena.checkBlockInds] at hrun
+  cases hmem : p.shape.members with
+  | nil =>
+    rw [hmem] at hrun
+    exact absurd hrun (fun h => failOk h)
+  | cons ms₀ rest =>
+  rw [hmem] at hrun hms
+  obtain ⟨ms₀P, restP, rfl, hm0, hrestP⟩ := mapM_option_cons_inv hms
+  dsimp only at hrun
+  obtain ⟨t1, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨c1, ⟨cvTa₀P, s0P⟩, ⟨h1a, h1b, hw1⟩, fk1⟩ := checkBlockTele_specF fe hμ hk henv
+    p.shape.nP ms₀ ms₀P s₀ s₁ t1 hok ⟨hm0, hfe⟩ k1
+  obtain ⟨cvTa₀, s0⟩ := t1
+  dsimp only at h1a h1b z1
+  obtain ⟨cvs, s₂, k2, z2⟩ := bindOk z1
+  obtain ⟨c2, cvsP, ⟨h2, hw2⟩, fk2⟩ := checkBlockTeles_specF fe hμ hk henv p.shape.nP rest
+    restP s₁ s₂ cvs c1.ok ⟨dMember_ext.list c1.ext _ _ hrestP, denoteFEnv_ext c1.ext hfe⟩ k2
+  have x12 := c2.ext
+  obtain ⟨u3, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨c3, u3v, -, fk3⟩ := checkBlockAgree_specF fe hk henv p.shape.nP cvTa₀ cvTa₀P s0 s0P
+    hw1 cvs cvsP hw2 s₂ s₃ u3 c2.ok
+    ⟨denoteCV_ext h1a x12, denoteL_ext h1b x12, h2⟩ k3
+  have c13 := c1.trans (c2.trans c3)
+  obtain ⟨p₁, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨c4, hp₁⟩ := BlockShape.withSort_spec fe p.shape
+    ⟨ms₀P :: restP, rs, p.shape.nP, el, sP, p.shape.large, p.shape.isProp⟩ s0 s0P s₃ s₄ p₁
+    c3.ok ⟨dShape_ext c13.ext _ _ hq, denoteL_ext h1b (c2.ext.trans c3.ext)⟩ k4
+  have c14 := c13.trans c4
+  obtain ⟨fe₁, s₅, k5, z5⟩ := bindOk z4
+  have hcvTas : (cvTa₀ :: cvs.map (·.1)).mapM (Frontend.denoteCV s₄.store) =
+      some (cvTa₀P :: cvsP.map (·.1)) := by
+    refine mapM_option_cons (denoteCV_ext h1a (c2.ext.trans (c3.ext.trans c4.ext))) ?_
+    have h2' := dCvL_ext.list (c3.ext.trans c4.ext) _ _ h2
+    clear h2 hw2 fk2 fk3 k2 k3 z2 z3 z4 z5 k5
+    generalize cvs = xs at h2'
+    generalize cvsP = ys at h2'
+    induction xs generalizing ys with
+    | nil =>
+      simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h2'
+      subst h2'; rfl
+    | cons x xs ih =>
+      obtain ⟨y, ys', rfl, hy, hys⟩ := mapM_option_cons_inv h2'
+      exact mapM_option_cons (dCvL_inv hy).1 (ih ys' hys)
+  obtain ⟨c5, hR, hO⟩ := consBlockInds_spec fe p₁ _ isRec _ _ 0 fe env hcoh s₄ s₅ fe₁ c4.ok
+    ⟨hp₁, hcvTas, denoteFEnv_ext c14.ext hfe⟩ k5
+  obtain ⟨rfl, rfl⟩ := pureOk z5
+  have c15 := c14.trans c5
+  refine ⟨c15, (ConLeche.consBlockInds (ConLeche.BlockShape.withSort
+      ⟨ms₀P :: restP, rs, p.shape.nP, el, sP, p.shape.large, p.shape.isProp⟩ s0P) isRec
+      (cvTa₀P :: cvsP.map (·.1)) 0 env, cvTa₀P :: cvsP.map (·.1),
+      ConLeche.BlockShape.withSort
+      ⟨ms₀P :: restP, rs, p.shape.nP, el, sP, p.shape.large, p.shape.isProp⟩ s0P),
+    ⟨hR, hO c5.ok.state.wf (c5.ok.ienv.toS), dExt_denoteCV.list c5.ext _ _ hcvTas,
+    dShape_ext c5.ext _ _ hp₁, ?_⟩, ?_⟩
+  · intro cv hcv
+    rcases List.mem_cons.mp hcv with rfl | hcv
+    · exact hw1
+    · obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hcv
+      exact hw2 y hy
+  · unfold ConLeche.checkBlockInds
+    exact FOk.bind fk1 (FOk.bind fk2 (FOk.bind fk3 (FOk.pure _)))
+
 end ConRon.Bridge.Inductives
