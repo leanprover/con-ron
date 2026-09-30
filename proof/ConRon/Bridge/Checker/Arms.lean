@@ -88,7 +88,7 @@ theorem projMem_of_noTower {st : EStore} {fe fe' : IFEnv} {env env' : Env}
     exact ci_ne_proj_of_denote hdz (hnoT z hz) t rfl
   · exact hold
 
-/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:52 checkDeclRun_ofEnvFactsE
+/-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:49 checkDeclRun_ofEnvFactsK
 — **an arm off the inductive route owes nothing more than its six clauses**:
 the two round-10 clauses follow from the pure run (`checkDecl_wf_pure`) and
 the incoming `FoldOK`'s `EnvWF`. -/

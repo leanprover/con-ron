@@ -48,7 +48,7 @@ Three things made the six possible, and none of them is about any one walk:
 2. **The knot's six slots in ANSWER shape** (`Bridge/Core/Knot.lean`, round
    3): §0's rule, paid once at the knot instead of per site.
 3. **The fuel merge** (`Bridge/Core/Walks/Mono.lean`, round 2), which
-   `defEqList`'s cons arm and `isPropType`'s conclusion both spend.
+   `defEqList`'s cons arm spends.
 
 ## 0. The shape correction of task #97-P3-Core-2, and why it was forced
 
@@ -85,7 +85,7 @@ abstracted:
 |---|---|
 | `SimOOp` — an `Option EIdx` answer | `reduceNat`, `iotaRec` |
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
-| `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList`, `isPropType` |
+| `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
 | `SimVOp` — any shared type | `annotPwPi`, `annotPwLam` (`PropWhen`), `headHint` (`ReducibilityHint`) |
 | an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `isBoolTrue`, CLOSED in `Walks/Guards.lean`) |
 

@@ -88,7 +88,7 @@ theorem pinAt_run {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
 `Arena/Core.lean`'s `reservedBasisNames` IS `Arena/Pins.lean`'s
 `pinReserved`, as the port's `reserved_basis_names` is `pin_reserved` (task
 #97-T2-LOCKSTEP step 1, twin fix D5; before it the twin re-interned thirteen
-of the nineteen names on every call).  So its run lemma is
+of the then nineteen names on every call).  So its run lemma is
 `pinReserved_spec` read at `PinsOK`, and the state does not move.
 
 `PinStep` is kept as the lemma's frame (a table read is the reflexive step)
@@ -106,8 +106,8 @@ structure PinStep (s s' : AState) : Prop where
 theorem PinStep.refl {s : AState} (h : StoreWF s.store) : PinStep s s :=
   ⟨h, Ext.refl _, rfl, rfl, rfl⟩
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-**the nineteen reserved names, as handles that denote them**, off the pin
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
+**the sixteen reserved names, as handles that denote them**, off the pin
 table (`pinReserved_spec`): the state does not move, so the frame is
 `PinStep.refl`, and the answer is `denoteNL` at con-leche's own list.
 
@@ -146,7 +146,7 @@ theorem denoteNL_toList {st : EStore} :
     | cons y ys =>
       simp only [Frontend.denoteNList, h.1, ih ys h.2]
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-119 reservedBasisNames —
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
 the arena's copy of the reserved list IS con-leche's, on the nose. -/
 theorem reservedBasisNameValues_eq :
     reservedBasisNameValues = ConLeche.reservedBasisNames := rfl
