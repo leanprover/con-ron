@@ -1349,4 +1349,108 @@ theorem rc_ctors_dup_id (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
   · rw [List.getElem?_eq_none (by simp only [List.length_map, absU]; omega)]
     lockstep
 
+/-! ## The outside major's type former: `target_outside_inst` -/
+
+attribute [local lockstep_inline] arena.inductives.positivity.ind_cv_of
+attribute [local lockstep high] pos_i_constant_val_dup_spec
+
+@[lockstep] theorem target_outside_inst_ls {pers st lst} {vis : Std.U64}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (i_name : arena.handle.NIdx) (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = (absU a.1, absLIdx a.2))
+      (arena.inductives.rec_check.target_outside_inst pers st vis rf i_name us ds) lst
+      (targetOutsideInst lf (absNIdx i_name) (absLsIdx us) (absEIdxL ds)) := by
+  rw [arena.inductives.rec_check.target_outside_inst, targetOutsideInst]
+  lockstep
+
+/-! ## A recursor's major, resolved: `target_major_of` (with `_member`,
+`_outside`, `_outside_aux`: fragments of the one twin `targetMajorOf`) -/
+
+/-- PROVISIONAL (sorry): `nest_container` ⊑ `nestContainer`, the statement of
+`Inductives/PositivityNest.lean`'s `nest_container_ls` (branch `t105-fi-pn`),
+to be replaced by it once that module is below this one. -/
+theorem rc_nest_container_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx vis rf lf) (c : arena.handle.NIdx) :
+    LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
+      (arena.inductives.positivity.nest_container pers st vis rf c) st lst
+      (nestContainer lf (absNIdx c)) := by
+  sorry
+
+attribute [local lockstep] rc_nest_container_ls
+
+@[lockstep] theorem target_ctors_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
+    {lf : IFEnv} (hctx : CoreCtx vis rf lf) (c : arena.handle.NIdx) :
+    LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
+      (arena.inductives.rec_check.target_ctors_of pers st vis rf c) st lst
+      (targetCtorsOf lf (absNIdx c)) := by
+  rw [arena.inductives.rec_check.target_ctors_of, targetCtorsOf]
+  exact rc_nest_container_ls hrel hinv hctx c
+
+/-- The twin's `unwrapOr l[i]? e` as the bounds test the port makes. -/
+theorem rc_unwrapOr_getElem? {α : Type} (l : List α) (i : Nat) (e : Arena.CheckError) :
+    unwrapOr l[i]? e = if h : i < l.length then pure l[i] else Arena.fail e := by
+  by_cases h : i < l.length
+  · rw [dif_pos h, List.getElem?_eq_getElem h]; rfl
+  · rw [dif_neg h, List.getElem?_eq_none (by omega)]; rfl
+
+theorem rc_absBlockShape_members_length (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).members.length = p.members.val.length := by
+  simp [absBlockShape]
+
+theorem rc_absCtorsLL_length
+    (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) :
+    (absCtorsLL v).length = v.val.length := by
+  simp [absCtorsLL]
+
+theorem rc_absBlockShape_nP (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).nP = p.n_p.val := rfl
+
+theorem rc_absBlockShape_members_getElem (p : arena.inductives.block_parts.BlockShape) (i : Nat)
+    (h : i < (absBlockShape p).members.length) :
+    (absBlockShape p).members[i] = absMemberShape (p.members.val[i]'(by
+      simpa [absBlockShape] using h)) := by
+  simp [absBlockShape]
+
+theorem rc_absCtorsLL_getElem
+    (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64))) (i : Nat)
+    (h : i < (absCtorsLL v).length) :
+    (absCtorsLL v)[i] = absCtorsL (v.val[i]'(by simpa [absCtorsLL] using h)) := by
+  simp [absCtorsLL]
+
+theorem rc_ctors_dup_spec (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) :
+    LSP (arena.inductives.block_parts.ctors_dup cs 0#usize
+      (alloc.vec.Vec.new (arena.env.IConstantVal × Std.U64))) (fun o => o = cs) :=
+  rc_ctors_dup_id cs
+
+attribute [local lockstep high] rc_ctors_dup_spec
+
+attribute [local lockstep_simp] rc_unwrapOr_getElem? rc_absBlockShape_members_length
+  rc_absCtorsLL_length rc_absBlockShape_nP rc_absBlockShape_members_getElem rc_absCtorsLL_getElem
+
+attribute [local lockstep_inline] arena.inductives.rec_check.target_major_member
+  arena.inductives.rec_check.target_major_outside arena.inductives.rec_check.target_major_outside_aux
+
+@[lockstep] theorem target_major_of_ls {pers st lst} {vis : Std.U64}
+    {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape)
+    (ctors_as : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.U64)))
+    (pfvs fvs : alloc.vec.Vec arena.handle.EIdx) (mty : arena.handle.EIdx) :
+    LS pers (fun a b => b = absTargetMajor a)
+      (arena.inductives.rec_check.target_major_of pers st vis rf p ctors_as pfvs fvs mty) lst
+      (targetMajorOf lf (absBlockShape p) (absCtorsLL ctors_as) (absEIdxL pfvs) (absEIdxL fvs)
+        (absEIdx mty)) := by
+  rw [arena.inductives.rec_check.target_major_of, targetMajorOf]
+  lockstep
+  refine LS.pure ?_ ‹_› ‹_›
+  simp only [absTargetMajor, absMemberShape]
+  casesm* _ ∨ _
+  all_goals first | (exfalso; scalar_tac) | skip
+  rename_i h5
+  simp only [h5, hP, absEIdxL, absU, Option.map_some]
+  rfl
+
 end ConRon.Refine2
