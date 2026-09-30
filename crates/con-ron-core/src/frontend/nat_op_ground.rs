@@ -519,27 +519,7 @@ pub fn hoist_targets(
 // The reorder (`NatOpGround.lean:211-265` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:365-373 hoistKey` —
-/// a moved record sorts at its target, just ahead of the operation record there
-/// (key `(t, 0, k)` against the operation's `(t, 1, t)`); everything else keeps
-/// its position (`(k, 1, k)`).  **The specification** of the order
-/// `hoist_order` computes (the module note's bucket pass); nothing calls it.
-pub fn hoist_key(target: &HashMap<u64, u64>, k: u64) -> (u64, u64, u64) {
-    match target.get(&k) {
-        Some(t) => (*t, 0, k),
-        None => (k, 1, k),
-    }
-}
 
-/// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
-/// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:375-381 hoistLt` —
-/// the strict order on those keys.  **The specification**, as `hoist_key` is.
-pub fn hoist_lt(target: &HashMap<u64, u64>, a: u64, b: u64) -> bool {
-    let ka = hoist_key(target, a);
-    let kb = hoist_key(target, b);
-    ka.0 < kb.0 || (ka.0 == kb.0 && (ka.1 < kb.1 || (ka.1 == kb.1 && ka.2 < kb.2)))
-}
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:138-162 applyHoist
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:402-407 applyHoist`

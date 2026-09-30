@@ -155,22 +155,6 @@ pub fn erase_pw(e: &Expr) -> Expr {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:115-117 ConstantVal.matchesPin
-/// Shape comparison for the pins: exact name, level parameters and counts,
-/// type up to the `pw` datum.  **The specification** every proof about a pin
-/// hit consumes; the executed one is `matches_pin_fast`.  Ported, and
-/// uncalled, so the gate stays in step with its source.
-pub fn matches_pin(cv: &ConstantVal, pin: &ConstantVal) -> bool {
-    if name::beq(&cv.name, &pin.name) {
-        if prop_when::names_beq(&cv.level_params, &pin.level_params) {
-            expr::beq(&erase_pw(&cv.ty), &erase_pw(&pin.ty))
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq
 /// `a.erasePw = b.erasePw`, decided by descending **both** terms together and

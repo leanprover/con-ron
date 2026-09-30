@@ -237,3 +237,46 @@ ConLeche/Kernel/Inductives/RecCheck.lean tgtRs The recursor-list format of the t
 ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers The walkers record `classRuleOk` is parameterised by; the port has its one instance (`structWalkersC`: `consts_resolve_f`, `struct_proj_bodies_c`) and calls it directly.
 ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers.plain The pure instance of `StructWalkers`; as `StructWalkers`.
 ConLeche/Kernel/Inductives/SumParts.lean InductiveShape A block member read as one inductive, for the proofs' statement of the recursor's shape; no executed caller.
+
+# ---------------------------------------------------------------------------
+# Task #105 sweep: retired-checker Rust deleted, its SECOND citation with it
+# ---------------------------------------------------------------------------
+# `kernel/core_k.rs` and `kernel/expr_ops.rs` held the syntactic readers the
+# retired Expr-tree/`cached` checker's `Cached/*C.lean` bodies called; task
+# #18/#23 already moved those bodies to `cached::core_c` (deleted at task
+# #97-SWAP, well before this sweep) and left the readers as a SECOND `///
+# con-leche:` citation on the `Kernel/*.lean` function they also serve —
+# e.g. `is_ctor_app`'s Core.lean citation plus a second line naming
+# `Cached/StateC.lean:46-53 isCtorAppC`, "the same function".  Task #105
+# found the readers themselves dead (no caller anywhere, not even a test:
+# `cached` is gone, and the arena never built this data as an `Expr`) and
+# deleted them; the Kernel/*.lean declaration stays covered by the reader's
+# own citation, but the *Cached* declaration each one incidentally also
+# covered has no citation left.  These were never independently ported —
+# only ever covered as that second line — so they are exactly as "not to be
+# ported" as the rest of the already-uncovered `Cached/*.lean` tier this
+# ledger shows.
+
+ConLeche/Cached/CoreC.lean litToCtorIfNatI Was the second citation on `kernel/core_k.rs`'s `lit_to_ctor_if_nat` (deleted, task #105 sweep: dead, the retired `cached` checker's only caller is gone).
+ConLeche/Cached/CoreC.lean annotBinderMetaI Was the second citation on `kernel/core_k.rs`'s `annot_binder_meta` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Cached/ExprOpsC.lean MemoXP Was the citation on `kernel/expr_ops.rs`'s `memo1_get_if` (deleted, task #105 sweep: the memo dictionary type of the retired `cached` checker's `Expr`-tree walks).
+ConLeche/Cached/ExprOpsC.lean MemoXP.insert Was the citation on `kernel/expr_ops.rs`'s `memo1_insert_if`/`memo_e_record` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean MemoXP.shared Was the citation on `kernel/expr_ops.rs`'s `memo1_get_if`/`memo_e_probe` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean MemoXP0 Was the citation on `kernel/expr_ops.rs`'s `memo_e_probe` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean MemoXP0.shared Was the citation on `kernel/expr_ops.rs`'s `memo_e_probe` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean _root_.ConLeche.ProjEntry.typeAtI Was a citation reached only through `kernel/expr_ops.rs`'s deleted memo helpers' module note (task #105 sweep); no port of its own.
+ConLeche/Cached/ExprOpsC.lean MemoB Was the citation on `kernel/expr_ops.rs`'s `memo_b_probe` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean MemoB.insert Was the citation on `kernel/expr_ops.rs`'s `memo_b_record` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean MemoB0 Was the citation on `kernel/expr_ops.rs`'s `memo_b_probe` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/ExprOpsC.lean MemoB0.shared Was the citation on `kernel/expr_ops.rs`'s `memo_b_probe` (deleted, task #105 sweep, as `MemoXP` above).
+ConLeche/Cached/StateC.lean isCtorAppC Was the second citation on `kernel/core_k.rs`'s `is_ctor_app` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Cached/StateC.lean headHintC Was the second citation on `kernel/core_k.rs`'s `head_hint` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Cached/StateC.lean unfoldableHeadC Was the second citation on `kernel/core_k.rs`'s `unfoldable_head` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Cached/StateC.lean sameConstHeadsC Was the second citation on `kernel/core_k.rs`'s `same_const_heads` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Cached/StateC.lean rawNatLitC? Was the second citation on `kernel/core_k.rs`'s `raw_nat_lit` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Cached/StateC.lean etaCtorShapeC Was the second citation on `kernel/core_k.rs`'s `eta_ctor_shape` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
+ConLeche/Kernel/Core.lean whnfCoreLoopFuel Was `kernel/core_k.rs`'s `whnf_core_loop_fuel`, a fuel constant for the retired Expr-tree checker's loop (deleted, task #105 sweep): the arena's own loop fuel is `arena::core::WHNF_CORE_LOOP_FUEL`.
+ConLeche/Kernel/CoreDefs.lean betaGateFires Was `kernel/core_k.rs`'s `beta_gate_fires`, dead since the retired Expr-tree checker's `cached` bodies that called it are gone (deleted, task #105 sweep); the arena has its own `arena::core::beta_gate_fires`.
+ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
+ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
+ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).

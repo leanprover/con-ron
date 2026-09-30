@@ -1376,11 +1376,6 @@ impl PersTier {
         }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:466-471 EStore.nodeCount
-    /// Expression nodes in the tier — the boundary figure `--progress` prints.
-    pub fn e_count(&self) -> usize {
-        self.e.count()
-    }
 }
 
 // ---------------------------------------------------------------------------

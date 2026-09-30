@@ -183,66 +183,11 @@ pub fn memo_n_get(memo: &HashMap<Expr, u64>, k: &Expr) -> Option<u64> {
 // — so each of these is definitionally its unguarded predecessor and the
 // walks' refinement lemmas are the ones this port already had.
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:223-240 MemoXP.shared
-/// The cursored node→node probe, `excl`-gated: an exclusive node is not
-/// looked up, so it pays neither the hash nor the bucket walk.  `memo1_get`'s
-/// contract otherwise (the answer is owned, so the map's borrow ends here).
-pub fn memo1_get_if(memo: &HashMap<ExprNatKey, Expr>, excl: bool, k: &ExprNatKey) -> Option<Expr> {
-    if excl {
-        None
-    } else {
-        memo1_get(memo, k)
-    }
-}
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:215-221 MemoXP.insert
-/// The cursored node→node record, `excl`-gated: an exclusive node is not
-/// stored, so it pays neither the entry, nor the `dup` the entry would hold,
-/// nor the table's growth.  The key is **consumed either way** — that is the
-/// whole reason this is a function and not an `if` at each of the six call
-/// sites: the drop of an unused key belongs in one place, and the model of
-/// the `false` branch is then the bare insert the walks' proofs read.
-pub fn memo1_insert_if(memo: &mut HashMap<ExprNatKey, Expr>, excl: bool, k: ExprNatKey, r: &Expr) {
-    if !excl {
-        memo.insert(k, expr::dup(r));
-    }
-}
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:248-250 MemoXP0.shared
-/// The cursor-free node→node probe, `excl`-gated (`instLevelParams`).
-pub fn memo_e_probe(memo: &HashMap<Expr, Expr>, excl: bool, e: &Expr) -> Option<Expr> {
-    if excl {
-        None
-    } else {
-        memo_e_get(memo, e)
-    }
-}
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:215-221 MemoXP.insert
-/// The cursor-free node→node record, `excl`-gated.
-pub fn memo_e_record(memo: &mut HashMap<Expr, Expr>, excl: bool, e: &Expr, r: &Expr) {
-    if !excl {
-        memo.insert(expr::dup(e), expr::dup(r));
-    }
-}
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:970-972 MemoB0.shared
-/// The cursor-free node→`Bool` probe, `excl`-gated (the `Bool` walks).
-pub fn memo_b_probe(memo: &HashMap<Expr, bool>, excl: bool, e: &Expr) -> Option<bool> {
-    if excl {
-        None
-    } else {
-        memo_b_get(memo, e)
-    }
-}
 
-/// con-leche: ConLeche/Cached/ExprOpsC.lean:937-943 MemoB.insert
-/// The cursor-free node→`Bool` record, `excl`-gated.
-pub fn memo_b_record(memo: &mut HashMap<Expr, bool>, excl: bool, e: &Expr, r: bool) {
-    if !excl {
-        memo.insert(expr::dup(e), r);
-    }
-}
 
 /// con-leche: none — `List.take`/`List.append` over a `Vec<Expr>`
 /// The first `k` entries of `xs`, appended to `out`.  Lean's lists are

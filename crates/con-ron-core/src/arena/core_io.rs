@@ -32,39 +32,5 @@
 //! unmemoized `inferBodyIO`.  So this module is the io lane's **entry point**
 //! and nothing else; every clause of it lives in `arena::core`, cited there.
 
-use crate::arena::core::{knot_infer, LANE_IO};
-use crate::arena::env::IFEnv;
-use crate::arena::handle::EIdx;
-use crate::arena::monad::AState;
-use crate::kernel::core_types::CheckError;
-use crate::kernel::env::CheckMode;
-use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/CoreIO.lean:90-118 coreKnotIO
-/// con-leche: ConLeche/Kernel/CoreIO.lean:120-123 pureFnsIO
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO`
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:49-52 pureFnsIO` — **the io
-/// knot** (the leaf lane), tied at `AM`: the specification the `InferClaimIO`
-/// family is stated at.  Its own `inferIO` slot is the io body again — the io
-/// grade is idempotent, there being nothing below io to select — which is why
-/// `arena::core::knot_infer` and `knot_infer_io` are one function at this
-/// lane.  The record has no Rust counterpart (§3.4); the lane tag is what
-/// replaces it.
-pub const CORE_KNOT_IO: u32 = LANE_IO;
 
-/// con-leche: ConLeche/Kernel/CoreIO.lean:125-129 inferTypeCoreIO
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:54-59 inferTypeCoreIO` —
-/// infer-only (io-grade) type inference, fueled: the io lane's single entry
-/// point.
-pub fn infer_type_core_io(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    fuel: u64,
-    depth: u64,
-    e: &EIdx,
-) -> Result<EIdx, CheckError> {
-    knot_infer(pers, vis, st, mode, CORE_KNOT_IO, fuel, fe, depth, e)
-}

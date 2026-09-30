@@ -82,7 +82,7 @@ use crate::arena::handle::{
     ETAG_LAM, ETAG_LET_E, ETAG_PROJ,
 };
 use crate::arena::monad::{
-    AState, EIdxNat, abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fail_dangling_e, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set, inst_lp_set, intern_e, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, read_level_m, read_levels_m, read_names_m, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, intern_e_bind_i, view, view_app, view_bind, view_bind_i, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj,
+    AState, EIdxNat, abs1_clear, abs1_get, abs1_set, bvar_b_clear, bvar_b_get, bvar_b_set, derived_e, derived_l, eidx_nat_key, fail, fail_dangling_e, fvar_b_clear, fvar_b_get, fvar_b_set, inst1_clear, inst1_get, inst1_l_clear, inst1_l_get, inst1_l_set, inst1_set, inst_l_clear, inst_l_get, inst_l_set, inst_lp_clear, inst_lp_get, inst_lp_l_get, inst_lp_l_set, inst_lp_ls_get, inst_lp_ls_set, inst_lp_set, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_proj, intern_e_sort, intern_level, intern_levels, lift_clear, lift_get, lift_set, lower_clear, lower_get, lower_set, read_level_m, read_levels_m, read_names_m, rename_clear, rename_get, rename_set, reset_clear, reset_get, reset_set, intern_e_bind_i, view, view_app, view_bind, view_bind_i, view_bvar, view_fvar_idx, view_fvar_ty, view_let, view_proj,
 };
 use crate::arena::handle::BMIdx;
 use crate::arena::handle::ETAG_CONST;
@@ -91,7 +91,6 @@ use crate::arena::store::ENodeView;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::expr;
 use crate::kernel::expr::BinderMeta;
-use crate::kernel::expr::Literal;
 use crate::kernel::expr_ops::sub_nat;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -472,75 +471,7 @@ pub fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)
 // The UPWARD cutoff of a substituting walk (task #97-P6-5, lever 2)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — DESIGN.md §8.3's lesson 20, the UPWARD half
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:138-140 internRebuilt` —
-/// `internRebuilt`, one clause per rebuild site of the walks whose DOWNWARD
-/// cutoff is not exact.
-///
-/// **A rebuilt spine whose children did not change is the same node.**  `h`
-/// decodes to a view whose children this walk has just rewritten; if every
-/// rewritten child is the child it started from, then the view handed here IS
-/// the view `h` decodes to, and `intern` would answer `h` — the store is
-/// hash-consed, `denoteE` is injective, and §8.3's cross-tier rule ("a scratch
-/// entry never duplicates a persistent one") makes the answer `h` and not some
-/// twin of `h` in the other tier.  So the test replaces a cons-table probe —
-/// on Mathlib a guaranteed miss against a 10⁸-entry table over a 32 MB L3 —
-/// with one word comparison per child.
-///
-/// It is applied **only to the walks whose downward cutoff is inexact**, which
-/// is where it can fire at all:
-///
-///   * `abstract1Go` — the cutoff is `fvarB <= d`, i.e. "no `fvar` of index
-///     `≥ d`", where the arm abstracts the index `= d`;
-///   * `instLPGo` — the cutoff is the `hasLP` bit, and a level substitution
-///     that touches none of the parameters actually present is the identity;
-///   * `resetMetaGo` — no downward cutoff at all, so it rebuilds every node of
-///     a term whose binder data may already be the placeholder;
-///   * `renameConstsGo` — renames some constants and rebuilds the rest.
-///
-/// `instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo`, `lowerBVarsGo`
-/// and `instantiate1LiftGo` are NOT given it, and that is measured rather than
-/// assumed: their cutoff is `bvarB <= d` against a field that is EXACT below
-/// saturation (`expr::sat_range()`, 32 767, which no term of the corpus
-/// reaches), so past the cutoff a loose `bvar` at or above `d` really is
-/// present and really does move — the test could only ever cost.
-#[inline(always)]
-pub fn intern_rebuilt(
-    pers: &PersTier,
-    st: &mut AState,
-    h: &EIdx,
-    same: bool,
-    v: ENodeView,
-) -> Result<EIdx, CheckError> {
-    if same {
-        Ok(h.dup2())
-    } else {
-        intern_e(pers, st, v)
-    }
-}
 
-/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:142-145 internRebuiltBVar` —
-/// `internRebuiltBVar`, the `bvar` arm of `intern_rebuilt`: the same cutoff,
-/// over the arm's FIELDS.
-///
-/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
-/// walks that call it built one per rebuilt node and `EStore::intern`
-/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
-/// out of the other 276 intern sites.  These are the hottest of them all.
-pub fn intern_rebuilt_bvar(
-    pers: &PersTier,
-    st: &mut AState,
-    h: &EIdx,
-    same: bool,
-    i: u64,
-) -> Result<EIdx, CheckError> {
-    if same {
-        Ok(h.dup2())
-    } else {
-        intern_e_bvar(pers, st, i)
-    }
-}
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:146-148 internRebuiltFVar` —
@@ -712,28 +643,6 @@ pub fn intern_rebuilt_let_e(
     }
 }
 
-/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:169-171 internRebuiltLit` —
-/// `internRebuiltLit`, the `lit` arm of `intern_rebuilt`: the same cutoff, over
-/// the arm's FIELDS.
-///
-/// `intern_rebuilt` takes an `ENodeView`, so the twenty-three substituting
-/// walks that call it built one per rebuilt node and `EStore::intern`
-/// dispatched on its tag again — the two things task #97-P6-15's lever 1 took
-/// out of the other 276 intern sites.  These are the hottest of them all.
-pub fn intern_rebuilt_lit(
-    pers: &PersTier,
-    st: &mut AState,
-    h: &EIdx,
-    same: bool,
-    l: Literal,
-) -> Result<EIdx, CheckError> {
-    if same {
-        Ok(h.dup2())
-    } else {
-        intern_e_lit(pers, st, l)
-    }
-}
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:172-174 internRebuiltProj` —
@@ -760,29 +669,6 @@ pub fn intern_rebuilt_proj(
     }
 }
 
-/// con-leche: none — `internE` with task #97-P6-5's upward cutoff
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:176-182 internRebuiltBind` —
-/// `internRebuiltBind`, the two binder arms of `intern_rebuilt` at a tag the
-/// caller carries (`e_bind_view`'s own choice), for the two walks whose binder
-/// clause is shared between `lam` and `forallE`.
-pub fn intern_rebuilt_bind(
-    pers: &PersTier,
-    st: &mut AState,
-    h: &EIdx,
-    same: bool,
-    tag: u32,
-    ty: EIdx,
-    body: EIdx,
-    m: BinderMeta,
-) -> Result<EIdx, CheckError> {
-    if same {
-        Ok(h.dup2())
-    } else if tag == ETAG_LAM {
-        intern_e_lam(pers, st, ty, body, m)
-    } else {
-        intern_e_forall_e(pers, st, ty, body, m)
-    }
-}
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:184-191 internRebuiltBindI` —

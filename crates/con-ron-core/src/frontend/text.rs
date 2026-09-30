@@ -76,10 +76,6 @@ pub fn cps_beq(s: &Vec<u32>, lit: &[u32]) -> bool {
     true
 }
 
-/// con-leche: none — `String`'s `BEq` on two code-point strings
-pub fn cps_eq(a: &Vec<u32>, b: &Vec<u32>) -> bool {
-    cps_beq(a, &b[..])
-}
 
 /// con-leche: none — `Name.toString`, which DESIGN.md §3.7's skip list keeps
 /// out of the ported checker as driver-only rendering ("the theorem never

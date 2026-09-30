@@ -89,12 +89,6 @@ pub fn is_pinned_eq_basis(ci: &ConstantInfo) -> bool {
     env::constant_info_beq(ci, &eq_a())
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// Is the stored constant *the* pinned annotated `Nat` type former
-/// (`env.find? natName = some natA`, `reduceElemOk`)?
-pub fn is_pinned_nat_basis(ci: &ConstantInfo) -> bool {
-    env::constant_info_beq(ci, &nat_a())
-}
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
@@ -110,16 +104,6 @@ pub fn eq_basis_pinned(fe: &FEnv) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:180-187 reduceElemOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:281-287 reduceElemOkF
-/// The same for `Nat`: `decide (env.find? natName = some natA)`, the element
-/// inductive an `ofReduceNat` axiom needs.
-pub fn nat_basis_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &basis_names::nat_name()) {
-        Some(ci) => is_pinned_nat_basis(ci),
-        None => false,
-    }
-}
 #[cfg(test)]
 mod tests {
     // Task #97-SWAP: this module's tests ran the `Expr`-tree checker

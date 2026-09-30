@@ -36,20 +36,15 @@
 
 use crate::kernel::basis_builder;
 use crate::kernel::basis_names;
-use crate::kernel::basis_pins;
 use crate::kernel::core_types;
 use crate::kernel::core_k;
-use crate::kernel::env::{ConstantInfo, ConstantVal};
+use crate::kernel::env::ConstantVal;
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
-use crate::kernel::expr_ops;
-use crate::kernel::fenv;
-use crate::kernel::fenv::FEnv;
 use crate::kernel::level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::std_axioms;
-use crate::kernel::trust_pins;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -188,15 +183,6 @@ pub fn bool_cv_a() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:101-103 reduceElemName
-/// The element inductive of a reduce operation.
-pub fn reduce_elem_name(c: &Name) -> Name {
-    if name::beq(c, &reduce_nat_name()) {
-        basis_names::nat_name()
-    } else {
-        core_k::bool_name()
-    }
-}
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:105-107 reduceElemTy
 /// The element type of a reduce operation, as the pinned constant.
@@ -288,147 +274,15 @@ pub fn of_reduce_pin_a(n: &Name) -> ConstantVal {
 // The environment predicates (`TrustAxioms.lean:154-196`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:159-170 trustCompilerOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
-/// The stored `True` against its pin.  Factored out of the guard's `&&`
-/// cascade (task #3's pattern 9, task #14's borrow rule).
-pub fn true_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &true_name()) {
-        Some(ConstantInfo::IndInfo(cv_t, _)) => {
-            std_axioms::matches_pin_fast(cv_t, &true_cv_a())
-        }
-        _ => false,
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:159-170 trustCompilerOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
-/// The stored `True.intro` against its pin, at the pinned arity `0 0`.
-pub fn true_intro_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &true_intro_name()) {
-        Some(ConstantInfo::CtorInfo(cv_ti, n_p, n_f)) => {
-            if *n_p == 0 {
-                if *n_f == 0 {
-                    std_axioms::matches_pin_fast(cv_ti, &true_intro_cv_a())
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:159-170 trustCompilerOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
-/// Is `Lean.trustCompiler` installable here?  The `True` family must be
-/// stored with the pinned shapes — so the synthesized value `True.intro`
-/// resolves and inhabits the pinned type — and the checked axiom's type must
-/// match the pin.
-pub fn trust_compiler_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
-    if true_pinned(fe) {
-        if true_intro_pinned(fe) {
-            std_axioms::matches_pin_fast(cv_a, &trust_compiler_a())
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:172-178 reduceStoredOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:275-279 reduceStoredOkF
-/// Is the reduce operation `c` stored as a checked opaque (`axiomInfo`, the
-/// storage kind of every checked `opaque`) of the pinned type?
-pub fn reduce_stored_ok(fe: &FEnv, c: &Name) -> bool {
-    match fenv::find(fe, c) {
-        Some(ConstantInfo::AxiomInfo(cv_r)) => {
-            std_axioms::matches_pin_fast(cv_r, &reduce_op_cv_a(c))
-        }
-        _ => false,
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:180-187 reduceElemOk
-/// The element-inductive shape an `ofReduce*` axiom needs: the pinned `Nat`
-/// basis (`basis_pins::nat_basis_pinned`, which is the cited
-/// `decide (env.find? natName = some natA)`) resp. a standardly-shaped
-/// stored `Bool`.
-pub fn reduce_elem_ok(fe: &FEnv, c: &Name) -> bool {
-    if name::beq(c, &reduce_nat_name()) {
-        basis_pins::nat_basis_pinned(fe)
-    } else {
-        match fenv::find(fe, &core_k::bool_name()) {
-            Some(ConstantInfo::IndInfo(cv_b, _)) => {
-                std_axioms::matches_pin_fast(cv_b, &bool_cv_a())
-            }
-            _ => false,
-        }
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:189-199 ofReduceAxOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:289-295 ofReduceAxOkF
-/// Is this checked axiom a pinned `ofReduce*` over a standardly-shaped
-/// environment?  Requires the pinned `Eq` basis (the type is an equality
-/// implication), the element inductive, and the reduce operation stored as a
-/// pinned opaque — whose install already ran the identity certificate
-/// (`checker::check_reduce_pin`), the fact the model consumes here.
-pub fn of_reduce_ax_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
-    let c: Name = of_reduce_op(&cv_a.name);
-    if basis_pins::eq_basis_pinned(fe) {
-        if reduce_elem_ok(fe, &c) {
-            if reduce_stored_ok(fe, &c) {
-                std_axioms::matches_pin_fast(cv_a, &of_reduce_pin_a(&cv_a.name))
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The reduce-operation install pin (`TrustAxioms.lean:198-216`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:203-208 reduceDeclPin
-/// The pinned defining expression of a reduce operation (`trust_pins`: the
-/// plain identity, every toolchain's `have := trustCompiler; b` after zeta).
-pub fn reduce_decl_pin(c: &Name) -> Expr {
-    if name::beq(c, &reduce_nat_name()) {
-        trust_pins::reduce_nat_decl_pin()
-    } else {
-        trust_pins::reduce_bool_decl_pin()
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:210-214 reducePinGuard
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:297-301 reducePinGuardF
-/// Syntactic guards on the pin (checked once at install).
-pub fn reduce_pin_guard(fe: &FEnv, c: &Name) -> bool {
-    let pin: Expr = reduce_decl_pin(c);
-    if expr_ops::loose_bvars_bounded(0, &pin) {
-        if expr_ops::has_fvar(&pin) {
-            false
-        } else if expr_ops::all_level_params_defined_fast(&Vec::new(), &pin) {
-            core_k::consts_resolve(fe, &pin)
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:216-219 reduceCertVar
-/// The identity certificate's variable: `fvar 0` at the element type.
-pub fn reduce_cert_var(c: &Name) -> Expr {
-    expr::fvar(0, reduce_elem_ty(c))
-}

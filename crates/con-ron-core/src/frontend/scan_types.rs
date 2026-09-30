@@ -141,13 +141,6 @@ pub struct ScanErr {
     pub what: ErrTag,
 }
 
-/// con-leche: none — the copy of a `ScanErr` (Lean's value semantics)
-pub fn scan_err_dup(e: &ScanErr) -> ScanErr {
-    ScanErr {
-        offset: e.offset,
-        what: err_tag_dup(&e.what),
-    }
-}
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:100-121 ErrTag.describe
 /// The sentence the driver prints for a syntactic failure.

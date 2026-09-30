@@ -658,35 +658,7 @@ pub fn intern_e_lam(
     st.store.intern_lam(pers, ty, body, m)
 }
 
-/// con-leche: none — hash-cons an expression node
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:196-226 internLamIE` —
-/// `internLamIE`, the `lam` arm of `internE` at a binder datum the caller
-/// already holds as a HANDLE.
-#[inline(always)]
-pub fn intern_e_lam_i(
-    pers: &PersTier,
-    st: &mut AState,
-    ty: EIdx,
-    body: EIdx,
-    m: BMIdx,
-) -> Result<EIdx, CheckError> {
-    st.store.intern_lam_i(pers, ty, body, m)
-}
 
-/// con-leche: none — hash-cons an expression node
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:228-245 internForallEIE` —
-/// `internForallEIE`, the `forall_e` arm of `internE` at a binder datum the
-/// caller already holds as a HANDLE.
-#[inline(always)]
-pub fn intern_e_forall_e_i(
-    pers: &PersTier,
-    st: &mut AState,
-    ty: EIdx,
-    body: EIdx,
-    m: BMIdx,
-) -> Result<EIdx, CheckError> {
-    st.store.intern_forall_e_i(pers, ty, body, m)
-}
 
 /// con-leche: none — hash-cons an expression node
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:427-431 internBindIE` —

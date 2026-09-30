@@ -654,13 +654,3 @@ pub fn intern_decls_go(
     }
 }
 
-/// con-leche: none — intern a declaration list at ONE memo
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:656-662 internDecls`.
-pub fn intern_decls(
-    pers: &PersTier,
-    st: &mut AState,
-    ds: &Vec<Declaration>,
-) -> Result<Vec<IDeclaration>, CheckError> {
-    let mut m: EMemo = memo_empty();
-    intern_decls_go(pers, st, &mut m, ds, 0, Vec::new())
-}

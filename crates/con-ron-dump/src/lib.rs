@@ -65,8 +65,7 @@
 //! fixups, no cycles, no recursion over the term (the `E` records are already
 //! topologically sorted, so the reader needs no worklist either — the writer's
 //! is enough).  What the reader's resident set *is*, after that, is the terms
-//! themselves: [`node_sizes`] prints what one node of each kind weighs and
-//! [`peak_rss_kb`] is what a caller reports it against.
+//! themselves: [`node_sizes`] prints what one node of each kind weighs.
 
 // ---------------------------------------------------------------------------
 // The global allocator (task #35).
@@ -412,26 +411,6 @@ pub fn expr_node_bytes() -> usize {
     std::mem::size_of::<PBlock<ExprNode>>()
 }
 
-/// The peak resident set of this process in KB, `VmHWM` from
-/// `/proc/self/status` — a high-water mark, so it survives every `free` and
-/// is the number DESIGN.md's memory budgets are stated in.  `0` where the
-/// file is not readable.
-pub fn peak_rss_kb() -> u64 {
-    match std::fs::read_to_string("/proc/self/status") {
-        Err(_) => 0,
-        Ok(t) => {
-            for l in t.lines() {
-                if let Some(rest) = l.strip_prefix("VmHWM:") {
-                    let mut it = rest.split_whitespace();
-                    if let Some(n) = it.next() {
-                        return n.parse::<u64>().unwrap_or(0);
-                    }
-                }
-            }
-            0
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The reader's state

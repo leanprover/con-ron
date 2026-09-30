@@ -52,7 +52,7 @@
 
 use crate::arena::env;
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IDeclaration, IFEnv, IIndCaps, IProjTable, IRecRule,
+    IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjTable, IRecRule,
     IRecRuleFire,
 };
 use crate::arena::checker_split::ValueGroup;
@@ -928,18 +928,6 @@ pub fn promote_ci(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:318-326 promoteCIList
-/// Promote a block's constants at ONE memo, so that the sharing between a
-/// block's members survives.
-pub fn promote_ci_list(
-    tier: &mut PersTier,
-    st: &AState,
-    m: PMemo,
-    fuel: u64,
-    cs: &Vec<IConstantInfo>,
-) -> Result<(PMemo, Vec<IConstantInfo>), CheckError> {
-    promote_ci_list_from(tier, st, m, fuel, cs, 0, Vec::new())
-}
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:318-326 promoteCIList
 /// The cursor recursion behind `promote_ci_list` (DESIGN.md §3.4).
@@ -966,58 +954,6 @@ pub fn promote_ci_list_from(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:328-355 promoteDecl
-/// Promote a declaration record.  Not on the fold's path — the records arrive
-/// from the parse and are persistent — and written because the layer is
-/// twinned whole (the twin's `Frontend/Readback.lean` has the same seven
-/// clauses for the intern direction).
-pub fn promote_decl(
-    tier: &mut PersTier,
-    st: &AState,
-    m: PMemo,
-    fuel: u64,
-    d: &IDeclaration,
-) -> Result<(PMemo, IDeclaration), CheckError> {
-    match d {
-        IDeclaration::AxiomDecl(v) => match promote_cv(tier, st, m, fuel, v) {
-            Err(e) => Err(e),
-            Ok((m2, cv)) => Ok((m2, IDeclaration::AxiomDecl(cv))),
-        },
-        IDeclaration::DefnDecl(v, e, h) => match promote_cv(tier, st, m, fuel, v) {
-            Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(tier, st, m2, fuel, e) {
-                Err(er) => Err(er),
-                Ok((m3, x)) => Ok((
-                    m3,
-                    IDeclaration::DefnDecl(cv, x, cenv::reducibility_hint_dup(h)),
-                )),
-            },
-        },
-        IDeclaration::ThmDecl(v, e) => match promote_cv(tier, st, m, fuel, v) {
-            Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(tier, st, m2, fuel, e) {
-                Err(er) => Err(er),
-                Ok((m3, x)) => Ok((m3, IDeclaration::ThmDecl(cv, x))),
-            },
-        },
-        IDeclaration::OpaqueDecl(v, e) => match promote_cv(tier, st, m, fuel, v) {
-            Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(tier, st, m2, fuel, e) {
-                Err(er) => Err(er),
-                Ok((m3, x)) => Ok((m3, IDeclaration::OpaqueDecl(cv, x))),
-            },
-        },
-        IDeclaration::BasisDecl(k) => Ok((m, IDeclaration::BasisDecl(cenv::basis_kind_dup(k)))),
-        IDeclaration::IndDecl(block, n_p) => match promote_ci_list(tier, st, m, fuel, block) {
-            Err(e) => Err(e),
-            Ok((m2, b)) => Ok((m2, IDeclaration::IndDecl(b, *n_p))),
-        },
-        IDeclaration::QuotDecl(k, v) => match promote_cv(tier, st, m, fuel, v) {
-            Err(e) => Err(e),
-            Ok((m2, cv)) => Ok((m2, IDeclaration::QuotDecl(cenv::quot_kind_dup(k), cv))),
-        },
-    }
-}
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:357-365 promoteVG
 /// Promote the datum that crosses the install/check seam
