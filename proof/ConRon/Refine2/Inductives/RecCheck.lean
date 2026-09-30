@@ -5,7 +5,7 @@
 `crates/con-ron-core/src/arena/inductives/rec_check.rs` against
 `proof/ConRon/Arena/Inductives/RecCheck.lean`: the recursor stage's class kit.
 -/
-import ConRon.Refine2.Inductives.Positivity
+import ConRon.Refine2.Inductives.PositivityNest
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Arena.Inductives.RecCheck
 
@@ -1389,18 +1389,6 @@ attribute [local lockstep high] pos_i_constant_val_dup_spec
 /-! ## A recursor's major, resolved: `target_major_of` (with `_member`,
 `_outside`, `_outside_aux`: fragments of the one twin `targetMajorOf`) -/
 
-/-- PROVISIONAL (sorry): `nest_container` ⊑ `nestContainer`, the statement of
-`Inductives/PositivityNest.lean`'s `nest_container_ls` (branch `t105-fi-pn`),
-to be replaced by it once that module is below this one. -/
-theorem rc_nest_container_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
-    {lf : IFEnv} (hctx : CoreCtx vis rf lf) (c : arena.handle.NIdx) :
-    LSR pers (fun a b => b = a.map fun p => (absU p.1, absCtorsL p.2))
-      (arena.inductives.positivity.nest_container pers st vis rf c) st lst
-      (nestContainer lf (absNIdx c)) := by
-  sorry
-
-attribute [local lockstep] rc_nest_container_ls
 
 @[lockstep] theorem target_ctors_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {vis : Std.U64} {rf : arena.env.IFEnv}
@@ -1409,7 +1397,7 @@ attribute [local lockstep] rc_nest_container_ls
       (arena.inductives.rec_check.target_ctors_of pers st vis rf c) st lst
       (targetCtorsOf lf (absNIdx c)) := by
   rw [arena.inductives.rec_check.target_ctors_of, targetCtorsOf]
-  exact rc_nest_container_ls hrel hinv hctx c
+  exact nest_container_ls hrel hinv hctx c
 
 /-- The twin's `unwrapOr l[i]? e` as the bounds test the port makes. -/
 theorem rc_unwrapOr_getElem? {α : Type} (l : List α) (i : Nat) (e : Arena.CheckError) :
