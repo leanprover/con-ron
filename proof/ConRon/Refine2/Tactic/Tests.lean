@@ -23,8 +23,7 @@ a hand tail reappearing in some lane.
    and `inst_lp_fast_ls` never terminated).  Run under a heartbeat budget, so a
    loop is an error here rather than a hang.
 -/
-import ConRon.Refine2.Checker.KnotHyp
-import ConRon.Refine2.Inductives.Prims
+import ConRon.Refine2.Checker.Base
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
