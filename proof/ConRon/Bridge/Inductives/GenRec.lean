@@ -34,6 +34,7 @@ import ConRon.Bridge.Inductives.RecCheck
 import ConRon.Bridge.Inductives.ClassRead
 import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.Positivity
+import ConRon.Bridge.Inductives.BlockRec
 import ConLeche.Verify.Cached.GenRecC
 import ConLeche.Verify.Inductives.GenRecRun
 import ConLeche.Verify.Extend.Inversions
@@ -2905,5 +2906,145 @@ theorem classStreamRecs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     · simp only [ConLeche.classStreamRecs]
       exact FOk.bind ⟨F, by rw [checkConstantValF_datF, checkConstantValF_eq]; exact hF⟩
         (FOk.bind hF2 (FOk.pure _))
+
+/-! ### The rule-less recursors, pushed and popped (`classFeR`) -/
+
+namespace GR
+
+/-- con-leche: none — two indexes that answer alike: the same list, the same
+bound, the same row at every key. -/
+def FEq (a b : IFEnv) : Prop :=
+  a.env = b.env ∧ a.visibleBelow = b.visibleBelow ∧ ∀ n : NIdx, a.idx[n]? = b.idx[n]?
+
+theorem FEq.refl (a : IFEnv) : FEq a a := ⟨rfl, rfl, fun _ => rfl⟩
+
+theorem FEq.trans {a b c : IFEnv} (h₁ : FEq a b) (h₂ : FEq b c) : FEq a c :=
+  ⟨h₁.1.trans h₂.1, h₁.2.1.trans h₂.2.1, fun n => (h₁.2.2 n).trans (h₂.2.2 n)⟩
+
+theorem FEq.find? {a b : IFEnv} (h : FEq a b) : a.find? = b.find? := by
+  funext n
+  simp only [IFEnv.find?, h.2.2 n, h.2.1]
+
+theorem FEq.coh {a b : IFEnv} (h : FEq a b) (hb : IFEnvCoh b) : IFEnvCoh a :=
+  ⟨by rw [h.2.1, h.1]; exact hb.1, fun n => by rw [h.2.2 n, h.1]; exact hb.2 n⟩
+
+/-- con-leche: none — a temporary pop respects `FEq`. -/
+theorem FEq.popTemp {a b : IFEnv} (h : FEq a b) (n : NIdx) (prev : Option (Nat × IConstantInfo)) :
+    FEq (a.popTemp n prev) (b.popTemp n prev) := by
+  refine ⟨by simp only [IFEnv.popTemp, h.1], by simp only [IFEnv.popTemp, h.2.1], fun k => ?_⟩
+  simp only [IFEnv.popTemp]
+  cases prev with
+  | none =>
+    simp only [Std.HashMap.getElem?_erase]
+    split <;> simp [h.2.2 k]
+  | some r =>
+    simp only [Std.HashMap.getElem?_insert]
+    split <;> simp [h.2.2 k]
+
+/-- con-leche: none — **a pop undoes its push** (`IFEnv.popTemp`'s purpose, the
+port's `ifenv_pop_temp`): the list, the bound and every row as before. -/
+theorem popTemp_push (fe : IFEnv) (ci : IConstantInfo) :
+    FEq ((fe.push ci).popTemp ci.name fe.idx[ci.name]?) fe := by
+  refine ⟨rfl, by simp only [IFEnv.popTemp, IFEnv.push]; omega, fun k => ?_⟩
+  simp only [IFEnv.popTemp, IFEnv.push]
+  cases hprev : fe.idx[ci.name]? with
+  | none =>
+    simp only [Std.HashMap.getElem?_erase, Std.HashMap.getElem?_insert]
+    by_cases hk : (ci.name == k) = true
+    · have : ci.name = k := eq_of_beq hk
+      subst this
+      simp [hprev]
+    · simp [hk]
+  | some r =>
+    simp only [Std.HashMap.getElem?_insert]
+    by_cases hk : (ci.name == k) = true
+    · have : ci.name = k := eq_of_beq hk
+      subst this
+      simp [hprev]
+    · simp [hk]
+
+/-- con-leche: none — **the pops restore the index the pushes started from**:
+`classFeR.go`'s recorded rows, popped in reverse (`foldr`), give back an index
+answering exactly as the input. -/
+theorem classFeR_go_pop (p : Arena.BlockShape) :
+    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
+      (prevs : List (NIdx × Option (Nat × IConstantInfo))),
+      ∃ news, (Arena.classFeR.go p m l fe prevs).2 = prevs ++ news ∧
+        FEq (news.foldr (fun (x : NIdx × Option (Nat × IConstantInfo)) acc =>
+          acc.popTemp x.1 x.2) (Arena.classFeR.go p m l fe prevs).1) fe
+  | [], m, fe, prevs => ⟨[], by simp [Arena.classFeR.go], FEq.refl _⟩
+  | (cv, c) :: rest, m, fe, prevs => by
+    simp only [Arena.classFeR.go]
+    obtain ⟨news, hn, hf⟩ := classFeR_go_pop p rest (m + 1)
+      (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []))
+      (prevs ++ [(cv.name, fe.idx[cv.name]?)])
+    refine ⟨(cv.name, fe.idx[cv.name]?) :: news, by rw [hn]; simp, ?_⟩
+    simp only [List.foldr_cons]
+    exact (hf.popTemp _ _).trans (popTemp_push fe (.recInfo cv _ _ []))
+
+/-- con-leche: none — the whole pop, from `go`'s empty record. -/
+theorem classFeR_pop (p : Arena.BlockShape) (cvGs : List IConstantVal) (recCls : List Nat)
+    (fe : IFEnv) :
+    FEq ((Arena.classFeR p cvGs recCls fe).2.foldr
+      (fun (x : NIdx × Option (Nat × IConstantInfo)) acc => acc.popTemp x.1 x.2)
+      (Arena.classFeR p cvGs recCls fe).1) fe := by
+  obtain ⟨news, hn, hf⟩ := classFeR_go_pop p (cvGs.zip recCls) 0 fe []
+  simp only [Arena.classFeR]
+  rw [hn, List.nil_append]
+  exact hf
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-549 classFeR
+con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:338-346 consBlockRecsBare —
+**the pushed index is the rule-less recursors' environment's**: every push a
+value row whose denotation is con-leche's cons, so the index spec and the
+coherence survive (`IFEnvOK.push`, `IFEnvCoh.push`). -/
+theorem classFeR_go_ok {s : AState} (hst : StateOK s) (p : Arena.BlockShape)
+    (pP : ConLeche.BlockShape) (hsh : dShape s.store p = some pP) (f : Nat → Nat) :
+    ∀ (cvs : List IConstantVal) (cvsP : List ConstantVal) (rc : List Nat) (m : Nat)
+      (fe : IFEnv) (env : Env) (prevs : List (NIdx × Option (Nat × IConstantInfo))),
+      IFEnvOK env fe s → IFEnvCoh fe → cvs.mapM (Frontend.denoteCV s.store) = some cvsP →
+      IFEnvOK (consBlockRecsBare pP m ((cvsP.zip rc).map fun x => (x.1, f x.2)) env)
+          (Arena.classFeR.go p m (cvs.zip rc) fe prevs).1 s ∧
+        IFEnvCoh (Arena.classFeR.go p m (cvs.zip rc) fe prevs).1
+  | [], cvsP, rc, m, fe, env, prevs, hie, hcoh, hcvs => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hcvs
+    subst hcvs
+    exact ⟨hie, hcoh⟩
+  | cv :: cvs, cvsP, [], m, fe, env, prevs, hie, hcoh, hcvs => by
+    obtain ⟨cvP, cvsP', rfl, -, -⟩ := mapM_cons_inv hcvs
+    exact ⟨hie, hcoh⟩
+  | cv :: cvs, cvsP, c :: rc, m, fe, env, prevs, hie, hcoh, hcvs => by
+    obtain ⟨cvP, cvsP', rfl, hcv, hcvs'⟩ := mapM_cons_inv hcvs
+    obtain ⟨hmI, hrP⟩ := RC.recAt_eq hsh m
+    have hci : Frontend.denoteCI s.store (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []) =
+        some (.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m) []) := by
+      simp only [Frontend.denoteCI, hcv, hmI, hrP]; rfl
+    have hie' := hie.push hst hcoh (fun t h => by cases h) hci
+    simp only [List.zip_cons_cons, List.map_cons, Arena.classFeR.go, consBlockRecsBare]
+    exact classFeR_go_ok hst p pP hsh f cvs cvsP' rc (m + 1) _ _ _ hie' (hcoh.push _) hcvs'
+
+/-- con-leche: none — **the constructors' view stays put**: the pushed names
+fresh at the view `fe.restrictTo k`, every push lands above the bound
+(`RC.restrictTo_push_find?`). -/
+theorem classFeR_go_view (p : Arena.BlockShape) (k : Nat) :
+    ∀ (l : List (IConstantVal × Nat)) (m : Nat) (fe : IFEnv)
+      (prevs : List (NIdx × Option (Nat × IConstantInfo))),
+      k ≤ fe.visibleBelow → (∀ x ∈ l, (fe.restrictTo k).find? x.1.name = none) →
+      ((Arena.classFeR.go p m l fe prevs).1.restrictTo k).find? = (fe.restrictTo k).find? := by
+  intro l
+  induction l with
+  | nil => intro _ _ _ _ _; rfl
+  | cons x rest ih =>
+    intro m fe prevs hk hfr
+    obtain ⟨cv, c⟩ := x
+    simp only [Arena.classFeR.go]
+    have hnone : (fe.restrictTo k).find?
+        (IConstantInfo.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) []).name = none :=
+      hfr (cv, c) List.mem_cons_self
+    have hv := RC.restrictTo_push_find? hk hnone
+    rw [ih (m + 1) _ _ (by simp only [IFEnv.push]; omega)
+      (fun x hx => by rw [hv]; exact hfr x (List.mem_cons_of_mem _ hx)), hv]
+
+end GR
 
 end ConRon.Bridge.Inductives
