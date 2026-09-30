@@ -1,7 +1,9 @@
 /-
 `ConRon.Refine.PinsDec` — the **byte-level reference decoder** (task #64).
 
-`ConRon/Refine/Pins.lean`'s `pins_decode_refines` relates two programs that do
+The decoder's refinement (`pins_decode_refines`, deleted with `Refine/Pins.lean`
+at task #105 — nothing used the composition; its two halves below remain)
+relates two programs that do
 not have the same shape: `kernel::pins_decode::decode` walks a `&[u8]` with an
 index, while `ConRon.Dump.parsePins` splits a `String` into lines and each
 line into space-separated tokens.  Task #43's docstring called the missing

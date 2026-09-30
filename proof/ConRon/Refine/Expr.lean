@@ -2486,11 +2486,7 @@ hypothesis an alternative), so the induction hypotheses come out as
 
 `ExprWF.kids` is the children's well-formedness indexed by the observed kind,
 and the nine `ExprWF.*_kids` are the forward lemmas to register with
-`grind →` — the shape a `rust_norm`'d goal can trigger.  (`Refine/CoreKSupport.
-lean`'s `CoreK.ExprWF.children` is the same fact, added at task #49 for the
-guards; it is not reachable from here — that file imports this one — so the
-node-shaped copy lives here, where `ExprWF`'s inversion lemmas are.  Collapse
-the two when `CoreKSupport.lean` is next touched.) -/
+`grind →` — the shape a `rust_norm`'d goal can trigger. -/
 
 namespace ConRon.Refine
 

@@ -46,15 +46,8 @@ import ConRon.Refine.CoreKBase
 import ConRon.Refine.BasisNames
 import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
-import ConRon.Refine.CoreKVec
-import ConRon.Refine.CoreKLits
-import ConRon.Refine.CoreKSupport
-import ConRon.Refine.CoreKGuards
-import ConRon.Refine.CoreKNatOps
 import ConRon.Refine.PropRead
 import ConRon.Refine.CoreKShapes
-import ConRon.Refine.CoreKInfer
-import ConRon.Refine.CoreKProj
 import ConRon.Refine.PinsDec
 import ConRon.Refine.PinsAscii
 import ConRon.Refine.PinsBytes
@@ -63,7 +56,6 @@ import ConRon.Refine.PinsSplit
 import ConRon.Refine.PinsRecords
 import ConRon.Refine.PinsRead
 import ConRon.Refine.PinsRun
-import ConRon.Refine.Pins
 import ConRon.Refine.BasisPins
 import ConRon.Refine.StdAxioms
 import ConRon.Refine.TrustAxioms

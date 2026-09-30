@@ -36,8 +36,8 @@ Four things shaped the file.
    `rec_slots_all_f`, so its statement carries `FEnv.towerSlotsAllF` /
    `recSlotsAllF` where the cited block has `towerSlotsAll` / `recSlotsAll`,
    and `and_rescue_slots` is stated against `FEnv.andRescueSlotsF` (the cited
-   `andRescueSlotsOf` at `lfe.findProj?`).  `Refine/CoreKProj.lean` supplies
-   the three walks.
+   `andRescueSlotsOf` at `lfe.findProj?`).  `Refine/CoreKProj.lean` supplied
+   the three walks (deleted, task #105).
 3. **`prop_when::names_beq` and `level::name_is_proj_fn_shape` had no lemma.**
    They belong in `Refine/PropWhen.lean` and `Refine/Level.lean`; the only
    callers in `core_k.rs` are `struct_eta_shape_ok` and `rec_rule_eta_of`, so
@@ -56,7 +56,8 @@ Facts owned by *other* task-#49 agents are taken as explicit hypotheses:
 `ExprWF`-inversion that belongs in `Refine/Expr.lean`); the parent agent
 discharges both at merge.
 -/
-import ConRon.Refine.CoreKProj
+import ConRon.Refine.CoreKBase
+import ConLeche.Kernel.FEnv
 import ConLeche.Kernel.Core
 import ConLeche.Cached.StateC
 

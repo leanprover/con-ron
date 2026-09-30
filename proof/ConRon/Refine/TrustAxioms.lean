@@ -1,12 +1,6 @@
 import ConLeche.Kernel.DeclCheck
 import ConRon.Refine.CoreKNames
-import ConRon.Refine.CoreKVec
-import ConRon.Refine.CoreKLits
-import ConRon.Refine.CoreKSupport
-import ConRon.Refine.CoreKGuards
-import ConRon.Refine.CoreKNatOps
 import ConRon.Refine.CoreKShapes
-import ConRon.Refine.CoreKInfer
 
 /-! # `kernel::trust_axioms` and `kernel::trust_pins` — the compiler-trust
 family (task #56)
@@ -55,7 +49,7 @@ no Lean twin of their own and are stated against the matching conjunct of
 `trustCompilerOkF`, spelled out.
 
 `reduce_pin_guard` is the one guard whose last conjunct the port reaches
-through `core_k::consts_resolve`, whose refinement (`Refine/CoreKSupport.lean`)
+through `core_k::consts_resolve`, whose refinement (the deleted `Refine/CoreKSupport.lean`)
 is against the `Env`-indexed `Expr.constsResolve`; it therefore carries
 `CoreKSupport`'s own `henv` hypothesis (`lfe.find? = lenv.find?`), and the
 conclusion is the `F`-twin, the two being the same clauses.
@@ -85,7 +79,7 @@ Neither is a new claim; both are discharged where the sibling lands.
   replaced by `Refine/BasisBuilder.lean`'s on merge.**
 * **`constsResolve_eq_constsResolveF`**: the `Env`-indexed walk and its
   `F`-twin have the same clauses (`DeclCheck.lean:36-58`'s own docstring), and
-  `reducePinGuardF` names the twin while `Refine/CoreKSupport.lean` proved the
+  `reducePinGuardF` names the twin while the deleted `Refine/CoreKSupport.lean` proved the
   `Env` form.  It belongs in `Refine/DeclCheck.lean` beside `constsResolveF`.
 
 ## Deviations recorded

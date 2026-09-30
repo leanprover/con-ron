@@ -1,5 +1,4 @@
 import ConRon.Refine.CoreKBase
-import ConRon.Refine.CoreKSupport
 import ConRon.Refine.BasisNames
 import ConLeche.Kernel.StdAxioms
 import ConLeche.Kernel.DeclCheck
@@ -60,7 +59,7 @@ annotated pins are cited on the same items the raw ones are.
 
 Two things this file adds that belong elsewhere, each marked in place:
 `wf_kind_inv` and its nine wrappers (**to be moved to `Refine/Expr.lean`** beside
-`Refine/CoreKGuards.lean`'s three — the lockstep descent cases on the *second*
+the three the deleted `Refine/CoreKGuards.lean` had — the lockstep descent cases on the *second*
 term's kind, so it needs the inversion at every kind), and the eleven `bb_*`
 builder steps above (`kernel::basis_builder` is a module of its own).
 
@@ -644,7 +643,7 @@ the cited `@[csimp]` equation, transported through the abstraction. -/
 /-! ### A `Vec`-free `ExprWF` inversion, all ten kinds at once
 
 **To be moved to `Refine/Expr.lean`** beside the other `*_inv` lemmas, exactly
-as `Refine/CoreKGuards.lean`'s note says of the three it needed
+as the deleted `Refine/CoreKGuards.lean`'s note said of the three it needed
 (`wf_const_inv`, `wf_sort_inv`, `wf_app_inv`): the lockstep descent cases on the
 *other* term's kind, which throws its `ExprWF` derivation away, so it needs the
 inversion at every kind rather than at three. -/

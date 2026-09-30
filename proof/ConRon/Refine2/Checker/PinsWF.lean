@@ -62,7 +62,10 @@ changed.
 
 ## `sorry` count in this file: 0
 -/
-import ConRon.Refine.Pins
+import ConRon.Refine.PinsAbs
+import ConRon.Refine.PinsRun
+import ConRon.Refine.PinsRead
+import ConRon.Dump.Pins
 import ConRon.Refine.PinsDec
 import ConRon.Refine.PinsBytes
 import ConRon.Refine2.Checker.Shape

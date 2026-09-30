@@ -7,8 +7,8 @@ bridge at the top of `ConRon/Refine/Pins.lean`, when that file was four
 statements long.  Task #64 split them out so that the two halves of
 `pins_decode_refines` — the model against `ConRon.Refine.PinsDec` and
 `PinsDec` against `ConRon.Dump.parsePins` — can both import them without
-importing each other; `Refine/Pins.lean` still *states* everything and is
-still where a reader starts.
+importing each other; `Refine/Pins.lean`, which
+stated the composition, is deleted (task #105: nothing used it).
 
 Nothing here is new except `bytesOf` (the model's `&[u8]` as `PinsDec.Bytes`)
 and `absTables` (the decoder's five id-space `Vec`s as `PinsDec.Tables`),

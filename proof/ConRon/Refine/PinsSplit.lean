@@ -16,7 +16,7 @@ Everything `Refine/PinsRead.lean` does with lines and fields is those two
 applied to a suffix, which is why they live in their own file.
 
 The third lemma here is the other half of the bridge: `absText` of an **ASCII**
-byte string is the character-wise decode, so `ConRon/Refine/Pins.lean`'s
+byte string is the character-wise decode, so the decoder's
 `absText t` becomes a `List Char` that `PinsDec`'s byte list maps onto
 one for one.  (`Refine/PinsAscii.lean` is what supplies the hypothesis.)
 

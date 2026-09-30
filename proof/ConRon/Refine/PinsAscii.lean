@@ -1,7 +1,7 @@
 /-
 Every byte `ConRon.Refine.PinsDec` accepts is ASCII (task #64).
 
-`ConRon/Refine/Pins.lean`'s statement is about `absText t`, and `absText` is a
+The decoder's refinement is about `absText t`, and `absText` is a
 UTF-8 *decode*: to turn a byte suffix into a character suffix at all, the text
 has to be ASCII.  It is — every byte the decoder looks at it either compares to
 a fixed value (`32`, `10`, `92`, `59`, a record letter) or bounds into

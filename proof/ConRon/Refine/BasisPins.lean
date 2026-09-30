@@ -52,7 +52,7 @@ list a *parameter* (Charon OOMs on ~26 500 generated nodes) and task #43 then
 embedded it as text in the core, `kernel::pins_text::PINS_TEXT` plus the
 verified reader `kernel::pins_decode::decode`.  The record's abstraction
 (`absNatOpPinSet`) and the decoder's refinement therefore live in
-`Refine/Pins.lean`, and nothing about a table is owed here.
+`Refine/PinsAbs.lean` and `Refine/PinsRun.lean`, and nothing about a table is owed here.
 
 Nothing is owed about the *value* of the decoded list either, since **task
 #74**.  Task #43's closed computation
@@ -75,7 +75,10 @@ below it says how, and why it is not the second `step` tier task #56 expected.
 import ConRon.Refine.BasisTables
 import ConRon.Refine.BasisNames
 import ConRon.Refine.FEnv
-import ConRon.Refine.Pins
+import ConRon.Refine.PinsAbs
+import ConRon.Refine.PinsRun
+import ConRon.Refine.PinsRead
+import ConRon.Dump.Pins
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -404,14 +407,14 @@ agree by `FEnvRel`'s first clause, `absEnv fe.env = lfe.env`. -/
 /-! ## `kernel::nat_op_pins`
 
 The module declares the `NatOpPinSet` record and nothing else (the module
-note, and DESIGN.md tasks #31/#43); its abstraction is `Refine/Pins.lean`'s
+note, and DESIGN.md tasks #31/#43); its abstraction is `Refine/PinsAbs.lean`'s
 `absNatOpPinSet`, reused here and not redefined.  Nothing stands where
 `nat_op_pin_sets()` would have stood: since **task #74** the tower is stated at
 the abstract pin list, so there is no statement to make about the decoded
 list's value, and `nat_op_pin_sets_refines` — this file's copy of task #64's
 `check_decls_pins_refines`, which read the embedded text through
-`pins_text_decodes` — is deleted with it.  `Refine/Pins.lean`'s
-`pins_decode_refines` is what remains about the decoder, and
-`Refine/PinsWF.lean`'s `decode_embedded_wf` is what the capstones use. -/
+`pins_text_decodes` — is deleted with it.  `Refine/PinsRun.lean`'s
+`decode_refines` is what remains about the decoder, and
+`Refine2/Checker/PinsWF.lean`'s `decode_wf_refine2` is what the capstones use. -/
 
 end ConRon.Refine.BasisPins
