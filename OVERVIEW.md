@@ -324,7 +324,7 @@ empty scratch tier and FREEZES the store — its persistent tables leave it as
 the tier every read inside the bracket goes through (§4.4) — and
 `drop_scratch` discards the scratch tier, flushes the caches and thaws the
 tier back into the store
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11695-L11717)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11704-L11726)).
 Dropping the tier leaves persistent handles valid, because a persistent node
 never points into the scratch tier.
 
@@ -959,7 +959,7 @@ changed with a `CHANGED` line, which `check` rejects until the item is
 re-ported.  DESIGN.md §7 has the procedure.
 
 **Differential testing.**  `scripts/diff-e2e.sh` runs the binary on
-con-leche's own test fixtures (388 streams) and compares each exit code with
+con-leche's own test fixtures (389 streams) and compares each exit code with
 con-leche's recorded one, in both modes and at several worker counts.  This
 covers what the proof does not: the driver, the pool and the modeller.  CI
 runs it (`.github/workflows/ci.yml`).

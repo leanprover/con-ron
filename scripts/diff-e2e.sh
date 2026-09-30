@@ -198,16 +198,28 @@ want_for() {
   if [ -n "$line" ]; then echo "$line"; else echo "$cert"; fi
 }
 
+# Per-fixture timeouts BELOW `--timeout`, each with its reason — con-leche's
+# own `E2E_TIMEOUT` table (`tests/arena.sh`, its task #323), keyed the same way.
+# proj_stuck_struct: checks in milliseconds; a regression (a stuck
+# projection's structure argument replaced by its WHNF) is exponential in time
+# AND memory (~8 GB at 60 s), so it fails fast here instead (task #103).
+declare -A E2E_TIMEOUT=(
+  [proj_stuck_struct.ndjson]=10
+)
+
 one() { # one <suite> <label> <stream> <expected-exit>
   local suite=$1 label=$2 path=$3 want=$4
   if [ -n "$only" ] && ! printf '%s' "$suite/$label" | grep -qE "$only"; then return; fi
   total=$((total + 1))
   want=$(want_for "$suite" "$label" "$want")
-  local out rc
-  out=$(timeout "$TO" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
+  local out rc to=$TO
+  if [ "$suite" = e2e ] && [ -n "${E2E_TIMEOUT[$label]:-}" ] && [ "${E2E_TIMEOUT[$label]}" -lt "$to" ]; then
+    to=${E2E_TIMEOUT[$label]}
+  fi
+  out=$(timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
   if [ "$rc" = 124 ]; then
-    timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${TO}s, expected $want)"
+    timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${to}s, expected $want)"
   elif [ "$rc" = "$want" ]; then
     agree=$((agree + 1))
     [ "$verbose" -eq 1 ] && echo "ok      $suite/$label ($rc)"

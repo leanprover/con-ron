@@ -857,30 +857,30 @@
   1121  theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
   1122      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
-== crates/con-ron-core/src/arena/core.rs#L11695-L11717
- 11695  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 11696  /// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` — drop the
- 11697  /// scratch tier of the store and the cache entries that name it, in one
- 11698  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 11699  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 11700  /// store is owned and scratch-off again.
- 11701  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 11702      flush_caches(st);
- 11703      st.store.thaw(tier);
- 11704  }
- 11705  
- 11706  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 11707  /// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` — turn the
- 11708  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 11709  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 11710  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 11711  /// are handed back as the `PersTier` every read inside the bracket goes
- 11712  /// through and promotion writes, and every append inside it is a scratch
- 11713  /// append.
- 11714  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 11715      st.memos.reset();
- 11716      st.store.freeze()
- 11717  }
+== crates/con-ron-core/src/arena/core.rs#L11704-L11726
+ 11704  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
+ 11705  /// Lean twin: `proof/ConRon/Arena/Core.lean:3895-3903 dropScratch` — drop the
+ 11706  /// scratch tier of the store and the cache entries that name it, in one
+ 11707  /// operation, so the two halves cannot drift apart; and **thaw** the store:
+ 11708  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
+ 11709  /// store is owned and scratch-off again.
+ 11710  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
+ 11711      flush_caches(st);
+ 11712      st.store.thaw(tier);
+ 11713  }
+ 11714  
+ 11715  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
+ 11716  /// Lean twin: `proof/ConRon/Arena/Core.lean:3905-3912 enterScratch` — turn the
+ 11717  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
+ 11718  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
+ 11719  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
+ 11720  /// are handed back as the `PersTier` every read inside the bracket goes
+ 11721  /// through and promotion writes, and every append inside it is a scratch
+ 11722  /// append.
+ 11723  pub fn enter_scratch(st: &mut AState) -> PersTier {
+ 11724      st.memos.reset();
+ 11725      st.store.freeze()
+ 11726  }
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -1158,7 +1158,7 @@
    392  pub const CACHE_CAP: usize = 4194304;
 
 == crates/con-ron-core/src/arena/core.rs#L433-L447
-   433  /// con-leche: ConLeche/Kernel/Core.lean:1919-1958 coreKnot
+   433  /// con-leche: ConLeche/Kernel/Core.lean:1925-1964 coreKnot
    434  /// Lean twin: `proof/ConRon/Arena/Core.lean:3725-3815 coreKnot` — **the
    435  /// executed knot**: the memoized one, `pureFnsA`'s.
    436  pub const LANE_FULL: u32 = 0;
