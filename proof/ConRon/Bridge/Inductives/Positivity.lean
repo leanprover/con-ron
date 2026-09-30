@@ -2365,4 +2365,246 @@ theorem nestCont_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
 
 end Cont2
 
+section PosFn
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
+**The positivity function, one fuel up** (con-leche's `nestPosS_sim`, its
+successor case): the reduct's cases — hole-free, a `Π`, a hole application, a
+container application (`nestCont_spec`) — each the same verdict. -/
+theorem nestPos_succ (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) {fuel : Nat}
+    (ih : NestPosSpec μ env fe ctx ctxP fuel) : NestPosSpec μ env fe ctx ctxP (fuel + 1) := by
+  intro prog progP dep kb e eP ns nsP hw s₀ s' r hok hp hrun
+  obtain ⟨hctx, hprog, he, hns⟩ := hp
+  obtain ⟨hcnames, hcnP, hfind, -, -, -⟩ := dCtx_fields hctx
+  have hhi : ctx.hiAt prog.length = ctxP.hiAt progP.length := by
+    rw [hiAt_eq hctx, dProg_length hprog]
+  rw [Arena.nestPos.eq_def] at hrun
+  dsimp only at hrun
+  -- the reduct
+  obtain ⟨w, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨c1, wP, hwd, hww, hFw⟩ := whnf_crun hk henv hok he hw h1
+  have hn1 := denoteNListE_ext c1.ext _ _ hcnames
+  obtain ⟨b1, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨p2, hb1⟩ := nestOcc_spec ctx.names ctxP.names ctx.nP _ w wP s₁ s₂ b1 c1.ok.state
+    ⟨hn1, hwd⟩ h3
+  simp only [RV, hhi, hcnP] at hb1
+  subst hb1
+  have c2 := c1.trans (p2.toCore c1.ok)
+  have hx02 := c1.ext.trans p2.ext
+  cases hA : Expr.nestOcc ctxP.names ctxP.nP (ctxP.hiAt progP.length) wP with
+  | false =>
+    -- hole-free
+    rw [hA] at h4
+    simp only [Bool.not_false, ↓reduceIte] at h4
+    obtain ⟨b2, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨p3, hb2⟩ := nestOcc_spec ctx.names ctxP.names ctx.nP _ e eP s₂ s₃ b2 c2.ok.state
+      ⟨denoteNListE_ext p2.ext _ _ hn1, denote_ext he hx02⟩ h5
+    simp only [RV, hhi, hcnP] at hb2
+    subst hb2
+    have c3 := c2.trans (p3.toCore c2.ok)
+    refine ⟨?_, (.ordinary, if Expr.nestOcc ctxP.names ctxP.nP (ctxP.hiAt progP.length) eP
+      then wP else eP, nsP), ?_, ?_⟩
+    · split at h6 <;> (obtain ⟨rfl, rfl⟩ := pureOk h6; exact c3)
+    · split at h6
+      · rename_i hB
+        obtain ⟨rfl, rfl⟩ := pureOk h6
+        exact ⟨rfl, by rw [if_pos hB]; exact denote_ext hwd (p2.ext.trans p3.ext),
+          dState_ext (c1.ext.trans (p2.ext.trans p3.ext)) _ _ hns, by rw [if_pos hB]; exact hww⟩
+      · rename_i hB
+        obtain ⟨rfl, rfl⟩ := pureOk h6
+        exact ⟨rfl, by rw [if_neg hB]; exact denote_ext he (c1.ext.trans (p2.ext.trans p3.ext)),
+          dState_ext (c1.ext.trans (p2.ext.trans p3.ext)) _ _ hns, by rw [if_neg hB]; exact hw⟩
+    · simp only [ConLeche.nestPos]
+      refine FOk.bind hFw ?_
+      simp only [hA, Bool.not_false, ↓reduceIte]
+      exact FOk.pure _
+  | true =>
+  rw [hA] at h4
+  simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h4
+  by_cases htg : (w.tag == ETag.forallE) = true
+  · -- a `Π`
+    rw [if_pos htg] at h4
+    obtain ⟨o, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨hs3, ho⟩ := viewBind_run h5
+    rw [hs3] at h6
+    cases o with
+    | none => exact absurd h6 (fun hc => failDanglingE_ok hc)
+    | some q =>
+    obtain ⟨a, b, bm⟩ := q
+    have hwv := view_of_viewBind_tag_forallE htg ho.symm
+    obtain ⟨aP, bP, rfl, ha, hb⟩ :=
+      denote_forallE_inv c2.ok.state.wf hwv (denote_ext hwd p2.ext)
+    simp only [Expr.WScoped] at hww
+    dsimp only at h6
+    obtain ⟨b3, s₄, h7, h8⟩ := bindOk h6
+    obtain ⟨p4, hb3⟩ := nestOcc_spec ctx.names ctxP.names ctx.nP _ a aP s₂ s₄ b3 c2.ok.state
+      ⟨denoteNListE_ext p2.ext _ _ hn1, ha⟩ h7
+    simp only [RV, hhi, hcnP] at hb3
+    subst hb3
+    cases hB : Expr.nestOcc ctxP.names ctxP.nP (ctxP.hiAt progP.length) aP with
+    | true => rw [hB] at h8; simp only [↓reduceIte] at h8; exact absurd h8 (fun hc => failOk hc)
+    | false =>
+    rw [hB] at h8
+    simp only [Bool.false_eq_true, ↓reduceIte] at h8
+    obtain ⟨fv, s₅, h9, h10⟩ := bindOk h8
+    obtain ⟨p5, hfv⟩ := internFVarE_run p4.ok (denote_ext ha p4.ext) h9
+    obtain ⟨b2, s₆, h11, h12⟩ := bindOk h10
+    have hb5 : denoteE s₅.store b = some bP := denote_ext hb (p4.ext.trans p5.ext)
+    obtain ⟨q1, q2, q3, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run p5.ok hfv
+      (by rw [hb5]; rfl) h11
+    have p6 : PStep s₅ s₆ := PStep.of_caches q1 q2 q3 q4 q5
+    have hb6 : denoteE s₆.store b2 = some (bP.instantiate1 (.fvar dep aP) 0) := q7 _ hb5
+    have c6 := c2.trans ((p4.trans (p5.trans p6)).toCore c2.ok)
+    have hx26 := p4.ext.trans (p5.ext.trans p6.ext)
+    obtain ⟨q, s₇, h13, h14⟩ := bindOk h12
+    obtain ⟨c7, v1, ⟨hk1, hnb, hns1, hwb⟩, hF1⟩ := ih prog progP (dep + 1) (kb + 1) b2 _ ns nsP
+      (Expr.WScoped.instantiate1 hww.1 0 hww.2) s₆ s₇ q c6.ok
+      ⟨dCtx_ext _ (hx02.trans hx26) _ _ hctx, dProg_ext (hx02.trans hx26) _ _ hprog, hb6,
+        dState_ext (hx02.trans hx26) _ _ hns⟩ h13
+    obtain ⟨k, nb, ns2⟩ := q
+    dsimp only at h14 hk1 hnb hns1
+    obtain ⟨nb2, s₈, h15, h16⟩ := bindOk h14
+    obtain ⟨r1, r2, r3, r4, r5, -, r7⟩ := AM.of_run (P := fun t => t = s₇) rfl h15
+      (ExprOps.abstract1Fast_spec fvarBSpec Arena.coreWalkFuel s₇ nb dep 0 c7.ok.state
+        (by rw [hnb]; rfl))
+    have p8 : PStep s₇ s₈ := PStep.of_caches r1 r2 r3 r4 r5
+    obtain ⟨rr, s₉, h17, h18⟩ := bindOk h16
+    obtain ⟨p9, hrr⟩ := internForallEE_run p8.ok
+      (denote_ext ha (hx26.trans (c7.ext.trans p8.ext))) (r7 _ hnb) h17
+    obtain ⟨rfl, rfl⟩ := pureOk h18
+    refine ⟨c6.trans (c7.trans ((p8.trans p9).toCore c7.ok)),
+      (v1.1, .forallE aP (v1.2.1.abstract1 dep) bm, v1.2.2),
+      ⟨hk1, hrr, dState_ext (p8.ext.trans p9.ext) _ _ hns1, ?_⟩, ?_⟩
+    · simp only [Expr.WScoped]
+      exact ⟨hww.1, WScoped.abstract1 0 hwb⟩
+    · simp only [ConLeche.nestPos]
+      refine FOk.bind hFw ?_
+      simp only [hA, hB, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      exact FOk.bind hF1 (FOk.pure _)
+  · -- a head
+    rw [if_neg htg] at h4
+    have hnf : ∀ a b m, wP ≠ .forallE a b m := by
+      intro a b m hwe
+      rw [hwe] at hwd
+      exact htg (by rw [tag_forallE_of_denote c1.ok.state.wf hwd]; rfl)
+    have hwd2 := denote_ext hwd p2.ext
+    obtain ⟨args, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨hs3, hargs⟩ := getAppArgs_run c2.ok.state hwd2 h5
+    rw [hs3] at h6
+    obtain ⟨hd, s₄, h7, h8⟩ := bindOk h6
+    obtain ⟨hs4, hhd⟩ := getAppFn_run c2.ok.state hwd2 h7
+    rw [hs4] at h8
+    obtain ⟨vw, s₅, h9, h10⟩ := bindOk h8
+    obtain ⟨hs5, hvw⟩ := view_run h9
+    rw [hs5] at h10
+    have hn2 := denoteNListE_ext p2.ext _ _ hn1
+    cases vw
+    case fvar i ty =>
+      obtain ⟨tP, hg, -⟩ := denote_fvar_inv c2.ok.state.wf hvw hhd
+      dsimp only at h10
+      have hrel := nestHoleAt_rel (dCtx_ext _ hx02 _ _ hctx) (dProg_ext hx02 _ _ hprog) i
+      cases hh : Arena.nestHoleAt ctx prog i with
+      | none => rw [hh] at h10; exact absurd h10 (fun hc => failOk hc)
+      | some h =>
+      rw [hh] at h10 hrel
+      obtain ⟨hP, hhP, hdh⟩ := hrel
+      dsimp only at h10
+      obtain ⟨bA, s₆, h11, h12⟩ := bindOk h10
+      obtain ⟨p6, hbA⟩ := anyM_E_pstep (fun st => Frontend.denoteNList st.ns ctx.names =
+          some ctxP.names)
+        (fun hx h => denoteNListE_ext hx _ _ h)
+        (fun e eP s₀ s' b hok' hq hd hrun' =>
+          nestOcc_spec ctx.names ctxP.names ctx.nP _ e eP s₀ s' b hok' ⟨hq, hd⟩ hrun')
+        args _ s₂ s₆ bA c2.ok.state hn2 hargs h11
+      rw [hhi, hcnP] at hbA
+      subst hbA
+      cases hB : wP.getAppArgs.any fun x =>
+          Expr.nestOcc ctxP.names ctxP.nP (ctxP.hiAt progP.length) x with
+      | true => rw [hB] at h12; simp only [↓reduceIte] at h12; exact absurd h12 (fun hc => failOk hc)
+      | false =>
+      rw [hB] at h12
+      simp only [Bool.false_eq_true, ↓reduceIte] at h12
+      obtain ⟨ar, s₇, h13, h14⟩ := bindOk h12
+      simp only [dHole, Option.map_eq_some_iff] at hdh
+      obtain ⟨kP, hkP, rfl⟩ := hdh
+      obtain ⟨hkc, -, hkd⟩ := dKey_inv hkP
+      obtain ⟨p7, har⟩ := nestArity_spec ctxP hfind h.key.cname kP.cname s₆ s₇ ar p6.ok
+        ⟨c2.ok.ienv.toS.mono p6.ext, denoteN_ext hkc p6.ext⟩ h13
+      simp only [RV] at har
+      subst har
+      have hlen1 := PW.denoteEList_length hargs
+      have hlen2 := PW.denoteEList_length hkd
+      rw [hlen1, hlen2] at h14
+      by_cases hL : (wP.getAppArgs.length + kP.ds.length ==
+          ConLeche.nestArity ctxP kP.cname) = true
+      · rw [if_pos hL] at h14
+        obtain ⟨rfl, rfl⟩ := pureOk h14
+        have c7 := c2.trans ((p6.trans p7).toCore c2.ok)
+        refine ⟨c7, (if i < ctxP.hiAt 0 then
+            (if (kb == 0) = true then .recursive (i - ctxP.nP) else .reflexive (i - ctxP.nP))
+          else .inProgress, wP, nsP),
+          ⟨?_, denote_ext hwd (p2.ext.trans (p6.ext.trans p7.ext)),
+            dState_ext (hx02.trans (p6.ext.trans p7.ext)) _ _ hns, hww⟩, ?_⟩
+        · simp only [hiAt_eq hctx 0, hcnP]
+          by_cases hi1 : i < ctxP.hiAt 0 <;> by_cases hkb : (kb == 0) = true <;>
+            simp only [hi1, hkb, if_true, if_false] <;> rfl
+        · simp only [ConLeche.nestPos]
+          refine FOk.bind hFw ?_
+          simp only [hA, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+          cases wP with
+          | forallE a b bm => exact absurd rfl (hnf a b bm)
+          | _ =>
+            simp only [hg, hhP, ← List.not_any_eq_all_not, hB, Bool.not_false, Bool.true_and,
+              hL, ↓reduceIte]
+            exact FOk.pure _
+      · rw [if_neg hL] at h14; exact absurd h14 (fun hc => failOk hc)
+    case const n us =>
+      obtain ⟨nm, ls, hg, hn, hls⟩ := denote_const_inv c2.ok.state.wf hvw hhd
+      dsimp only at h10
+      have hcont := contains_handle_eq c2.ok.state.wf hn hn2
+      by_cases hC : ctx.names.contains n = true
+      · rw [if_pos hC] at h10; exact absurd h10 (fun hc => failOk hc)
+      rw [if_neg hC] at h10
+      have hC' : ctxP.names.contains nm = false := by rw [← hcont]; simpa using hC
+      obtain ⟨q, s₆, h11, h12⟩ := bindOk h10
+      obtain ⟨c6, v1, ⟨hk1, hns1⟩, hF1⟩ := nestCont_spec hk henv hc ih prog progP kb n nm us ls
+        args wP.getAppArgs ns nsP (Expr.WScoped.getAppArgs hww) s₂ s₆ q c2.ok
+        ⟨dCtx_ext _ hx02 _ _ hctx, dProg_ext hx02 _ _ hprog, hn, hls, hargs,
+          dState_ext hx02 _ _ hns⟩ h11
+      obtain ⟨k, ns2⟩ := q
+      dsimp only at h12 hk1 hns1
+      obtain ⟨rfl, rfl⟩ := pureOk h12
+      refine ⟨c2.trans c6, (v1.1, wP, v1.2),
+        ⟨hk1, denote_ext hwd (p2.ext.trans c6.ext), hns1, hww⟩, ?_⟩
+      simp only [ConLeche.nestPos]
+      refine FOk.bind hFw ?_
+      simp only [hA, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
+      cases wP with
+      | forallE a b bm => exact absurd rfl (hnf a b bm)
+      | _ =>
+        simp only [hg, hC', Bool.false_eq_true, ↓reduceIte]
+        exact FOk.bind hF1 (FOk.pure _)
+    all_goals exact absurd h10 (fun hc => failOk hc)
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
+**THE POSITIVITY FUNCTION** (con-leche's `nestPosS_sim`): at every fuel, an
+accepting twin run at a well-scoped input denotes a run of con-leche's
+`nestPos` at `fueledOpsM μ` — the kind read, the walked form (well scoped at
+the walk's depth) and the state. -/
+theorem nestPos_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (hc : NestCtxOk ctxP) :
+    ∀ fuel, NestPosSpec μ env fe ctx ctxP fuel := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro prog progP dep kb e eP ns nsP hw s₀ s' r hok hp hrun
+    rw [Arena.nestPos.eq_def] at hrun
+    exact absurd hrun (fun hc => failOk hc)
+  | succ fuel ih => exact nestPos_succ hk henv hc ih
+
+end PosFn
+
 end ConRon.Bridge.Inductives
