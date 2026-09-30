@@ -65785,3 +65785,79 @@ Shape lemmas (`prop_when_dup_spec`, `binder_meta_dup_spec`,
 `absIRecRule_*_eq`) have copies in `Core/LS`. GenRec pins Shape's
 `drop_eidx_n_twin` with `local lockstep high`, because three global
 `drop_eidx_n` lemmas exist and the import order decides between them.
+
+#### Lane SW-R2 — the final unused-code sweep of `Refine/` and `Refine2/` (Opus)
+
+Branch `t105-swr`, from the campaign tip `420abf41`; `t105-uinds` (SW-TOP)
+merged in once.  Census in scope before → after: `Refine` 79 / 1 214 dead
+owners → 23 / 1 158, `Refine2` 870 / 5 444 → 188 / 4 905, and **0 deletable
+outside `scripts/dead-census-allow.txt`** (`dead-census.py --check` OK).  The
+remaining dead owners are all *held*: 26 `@[simp]` lemmas a trace shows
+firing, and 50 `Tactic/Lockstep`/`Attr` meta helpers (`coreMove`, `specCore`,
+`applyRule`, …) whose users are `elab_rules` auxiliaries the census does not
+seed — live at elaboration.  ~814 owners deleted (755 `Refine2`, 55 `Refine`),
+twelve modules (`Refine/ExprOpsSpine`, `Refine/CoreK{Guards,Infer,Lits,NatOps,
+Proj,Support,Vec}`, `Refine/Pins`, and the pin reader's half
+`Refine/Pins{Split,Ascii,Read}`, whose composition was already gone), 96+
+section notes left introducing nothing, the unused tactics `dbg_ih`,
+`ind_dom_finish`, `of_kind_inv`, `dead_kind_arm`/`kind_split`,
+`lockstep_side_dear`, `lockstep_spec`; `git diff --shortstat t105-uinds` over
+the two tiers: 98 files, +150 / −9 245.
+
+**Method.**  Ranges from the olean (`declRangeExt`, which covers the doc
+comment and attributes), deletion bottom-up per file with the `omit … in`
+prefixes, then a scrub of every `attribute [...]` line and `#print axioms`
+guard naming a deleted owner; the build drove restores.  The restores are
+the census's blind spots, and a **`trace.Meta.Tactic.simp.rewrite` pass**
+(`lake env lean -Dtrace.Meta.Tactic.simp.rewrite=true -Dpp.fullNames=true`
+over every module downstream, ~9 min at 3 jobs) sorted them: of 170 round-1
+restores, 54 never fired and went again (the build agreed but for one), and
+34 held `@[simp]` lemmas that never fire went too.  What stays is
+allowlisted with its reason: 110 rfl lemmas seen rewriting, 21 lemmas tactic
+or macro code names (`applyRule ``…`` literals, `first` alternatives,
+`twin_reduce`'s set), one `@[lockstep]` row only `Tactic/Tests.lean`'s
+`example`s use (an `example` is no constant, so the census cannot see it).
+
+**Findings.**
+1. *`dead-census.py` could not see a declaration named with a subscript.*
+   `DECL_RE` took ASCII name components, so `SimRel.to₀`, `pin_and_run₀`,
+   `extract_go₁` were no source declarations and their constants folded into
+   a prefix — an unrelated owner, or none; 93 dead ones were invisible.  Fixed
+   (components take any letter and `\w`).
+2. *A restore is the census's word against the build's, and the trace
+   decides.*  Nearly every restore was an rfl `lockstep_simp` row (a
+   structure-field projection, a `Vec.new` value) that `simp`/`dsimp`
+   rewrites with and leaves no term reference.  Group restores on suspicion
+   overshoot; the trace (and one rebuild) takes the overshoot back.  One
+   miss: `Core/LS/Lits`' `usize_zero_val_lits` fires inside a `first`
+   branch whose messages are rolled back, so the trace does not show it.
+3. *A manual edit of a global `attribute [simp]` line cost an hour*: removing
+   the deleted `absBinderLFrom` also removed the live `absBinderL` (another
+   module's) from the list, and the failures surfaced three modules up.  The
+   scrub resolves a token against the owners visible from the file's import
+   closure and only drops the dead ones.
+4. *Duplicates merged*: `Inductives/Shape`'s `LS.twin_map` = `Core/LS/Leaves`'
+   `LS.tail_bind_pure`; `absIRecRule_{ctor,rhs}_eq` = `Iota`'s
+   `absIRecRule_{ctor,rhs}` (and `Iota`'s own `absIRecRule_ctor'`);
+   `Iota`'s `absIIndCaps_eta{,Ctor}` = `PrimsC1`'s; `Checker/Base`'s
+   `absIConstantVal_type` = `PrimsC1`'s.  The census had already made
+   `prop_when_dup_spec`, `binder_meta_dup_spec` and `absNIdxLFrom_zero`
+   single.  The three `drop_eidx_n` rows stay: they differ in statement form
+   (`absEIdxList`/`absEIdxL`, `=`/`TwinEq`) and all three are live.
+5. *The write-only memos `reset_c`/`rename_c`* (after SW-TOP deleted their
+   walks): removed from the Rust `Memos`, `Generated/*`, the twin's `Memos`,
+   `MemosRel`/`MemosInv`, `memos_empty`/`memos_reset`, `Capstone`'s initial
+   state; `twin-lines.py update` re-pointed 190 citations.  Checked with
+   `-D warnings` cargo build/test, lint, `dead-rust.py --check`,
+   `twin-lines.py check`, `extract.sh --check`, and e2e 602/602 for both the
+   Rust binary and `con-ron-lean`.
+
+**Left for the landing.**  `scripts/overview-links-expected.txt` is not
+regenerated (`--update` refuses while the campaign's other bad links stand);
+this lane re-pointed the 14 OVERVIEW links into its files whose text is
+unchanged.  Two OVERVIEW links cite proofs deleted with their Rust before
+this lane (`Frontend/Shape`'s `ModellerRefines`, `ExprOps/Mut`'s
+`inst_pis_from_aux`).  `Refine/Pins.lean` is still named in prose outside
+this lane's files: `crates/con-ron/src/driver.rs:278`,
+`crates/con-ron-core/src/kernel/pins_decode.rs:1343` (cited by the OVERVIEW
+gate), `proof/ConRon/Arena/Main.lean:463`, `proof/ConRon/Dump/Pins.lean:26,533`.
