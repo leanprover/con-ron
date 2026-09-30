@@ -102,6 +102,33 @@ attribute [local lockstep_inline] arena.inductives.block_tail.check_block_pass_c
   rw [arena.inductives.block_tail.check_block_rec, checkBlockRec]
   exact gen_rec_check_ls hrel hinv hfe _ _ _ _ _ _ _ _
 
+/-- `checkBlockTables` at a structure-like member (one constructor, one
+sort list). -/
+theorem checkBlockTables_one (p : BlockShape) (m : MemberShape) (ms : List MemberShape)
+    (cA : IConstantVal) (nF : Nat) (css : List (List (IConstantVal × Nat)))
+    (sorts : List LIdx) (sss : List (List (List LIdx))) (fe : IFEnv) :
+    checkBlockTables p (m :: ms) ([(cA, nF)] :: css) ([sorts] :: sss) fe =
+      (if m.nIdx == 0 then do
+        let guards ← structProjGuards cA.type p.nP nF sorts
+        let fe₂ ← checkStructProjTable m.cvT.name cA.name p.lps p.nP nF p.resSort
+          guards 1 cA fe
+        checkBlockTables p ms css sss fe₂
+      else checkBlockTables p ms css sss fe) := by
+  rw [checkBlockTables]
+
+/-- `checkBlockTables` at any other member: skipped. -/
+theorem checkBlockTables_other (p : BlockShape) (m : MemberShape) (ms : List MemberShape)
+    (cs : List (IConstantVal × Nat)) (css : List (List (IConstantVal × Nat)))
+    (ss : List (List LIdx)) (sss : List (List (List LIdx))) (fe : IFEnv)
+    (h : ¬ (cs.length = 1 ∧ ss.length = 1)) :
+    checkBlockTables p (m :: ms) (cs :: css) (ss :: sss) fe = checkBlockTables p ms css sss fe := by
+  match cs, ss, h with
+  | [], _, _ => (rw [checkBlockTables]; simp)
+  | _ :: _ :: _, _, _ => (rw [checkBlockTables]; simp)
+  | [_], [], _ => (rw [checkBlockTables]; simp)
+  | [_], _ :: _ :: _, _ => (rw [checkBlockTables]; simp)
+  | [_], [_], h => exact absurd ⟨rfl, rfl⟩ h
+
 /-- `check_block_tables` ⊑ `checkBlockTables`, from the cursor on: the three
 lists walked side by side. -/
 @[lockstep] theorem check_block_tables_ls {pers st lst} {rf lf}
@@ -116,7 +143,55 @@ lists walked side by side. -/
       (checkBlockTables (absBlockShape p) ((p.members.val.drop i.val).map absMemberShape)
         ((ctors_as.val.drop i.val).map absCtorsL) ((sortsss.val.drop i.val).map absLIdxLL)
         lf) := by
-  sorry
+  suffices H : ∀ (n : Nat) (i : Std.Usize) st lst rf lf, p.members.val.length - i.val = n →
+      AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
+      LS pers IFEnvRelI
+        (arena.inductives.block_tail.check_block_tables pers st p ctors_as sortsss i rf) lst
+        (checkBlockTables (absBlockShape p) ((p.members.val.drop i.val).map absMemberShape)
+          ((ctors_as.val.drop i.val).map absCtorsL) ((sortsss.val.drop i.val).map absLIdxLL)
+          lf) from H _ i st lst rf lf rfl hrel hinv hfe
+  intro n
+  induction n with
+  | zero =>
+    intro i st lst rf lf hn hrel hinv hfe
+    rw [arena.inductives.block_tail.check_block_tables.eq_def,
+      if_pos (by simp only [alloc.vec.Vec.len]; scalar_tac),
+      List.drop_eq_nil_of_le (by omega : p.members.val.length ≤ i.val)]
+    simp only [List.map_nil, checkBlockTables]
+    lockstep
+  | succ n ih =>
+    intro i st lst rf lf hn hrel hinv hfe
+    have hm : i.val < p.members.val.length := by omega
+    rw [arena.inductives.block_tail.check_block_tables.eq_def,
+      if_neg (by simp only [alloc.vec.Vec.len]; scalar_tac),
+      List.drop_eq_getElem_cons hm]
+    by_cases hc : i.val < ctors_as.val.length
+    · rw [if_neg (by simp only [alloc.vec.Vec.len]; scalar_tac), List.drop_eq_getElem_cons hc]
+      by_cases hs : i.val < sortsss.val.length
+      · rw [if_neg (by simp only [alloc.vec.Vec.len]; scalar_tac), List.drop_eq_getElem_cons hs]
+        simp only [List.map_cons]
+        by_cases h1 : (ctors_as.val[i.val]).val.length = 1 ∧ (sortsss.val[i.val]).val.length = 1
+        · obtain ⟨h1c, h1s⟩ := h1
+          obtain ⟨⟨cA, nF⟩, hcA⟩ := List.length_eq_one_iff.mp h1c
+          obtain ⟨sorts, hso⟩ := List.length_eq_one_iff.mp h1s
+          simp only [absCtorsL, absLIdxLL, hcA, hso, List.map_cons, List.map_nil,
+            checkBlockTables_one]
+          lockstep
+          all_goals
+            simp only [hcA, hso, List.getElem_cons_zero, usz_zero_val] at *
+            simp only [absMemberShape, absIConstantVal] at *
+            lockstep
+        · rw [checkBlockTables_other _ _ _ _ _ _ _ _
+            (by simpa [absCtorsL, absLIdxLL] using h1)]
+          lockstep
+      · rw [if_pos (by simp only [alloc.vec.Vec.len]; scalar_tac),
+          List.drop_eq_nil_of_le (by omega : sortsss.val.length ≤ i.val)]
+        simp only [List.map_cons, List.map_nil, checkBlockTables]
+        lockstep
+    · rw [if_pos (by simp only [alloc.vec.Vec.len]; scalar_tac),
+        List.drop_eq_nil_of_le (by omega : ctors_as.val.length ≤ i.val)]
+      simp only [List.map_cons, List.map_nil, checkBlockTables]
+      lockstep
 
 /-- `check_block_tail` ⊑ `checkBlockTail`, at a related pass. -/
 @[lockstep] theorem check_block_tail_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -127,7 +202,18 @@ lists walked side by side. -/
     LS pers IFEnvRelI
       (arena.inductives.block_tail.check_block_tail pers st mode block r) lst
       (checkBlockTail (ConRon.Refine.absMode mode) (absICIL block) q) := by
-  sorry
+  obtain ⟨henv, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hq
+  cases q
+  simp only at h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 henv
+  subst h1 h2 h3 h4 h5 h6 h7 h8 h9 h10
+  rw [arena.inductives.block_tail.check_block_tail, checkBlockTail]
+  lockstep
+  simp only [absCtorsLL, absBlockParts_shape, usz_zero_val, List.drop_zero] at *
+  obtain ⟨⟨_, _, hvb, _, _⟩, _⟩ := ‹IFEnvRelI _ (consBlockCtors _ _ _)›
+  have hout : ∀ v, absRuleOutL v = v.val.map absRecOut := fun _ => rfl
+  simp only [absBlockShape] at hvb ⊢
+  rw [hvb, hout]
+  lockstep
 
 /-- **`block_tail::check_block` ⊑ `checkBlock`** — the uniform install. -/
 @[lockstep] theorem check_block_ls {pers st lst} {mode : kernel.env.CheckMode} {rf lf}
