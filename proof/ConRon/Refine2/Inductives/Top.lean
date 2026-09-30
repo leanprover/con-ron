@@ -24,7 +24,7 @@ installs, because the checker's fold needs both for its next step).  No
 (`Refine2/Checker/KnotHyp.lean`).
 -/
 import ConRon.Refine2.Inductives.Abs
-import ConRon.Refine2.Inductives.SumInstallF
+import ConRon.Refine2.Inductives.SumInstall
 -- `checker_base::ind_params_ok` and `check_constant_val` are the checker
 -- tier's (`Checker/Base.lean`).
 import ConRon.Refine2.Checker.Base
