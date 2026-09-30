@@ -61,7 +61,7 @@ and the exemplar (`ensure_sort`, closed end to end).
 import ConRon.Refine2.Core.Arms.Sort
 import ConRon.Refine2.Core.Arms.Delta
 import ConRon.Refine2.Core.Arms.Loops
-import ConRon.Refine2.Core.Arms.Batched
+import ConRon.Refine2.Core.LS.WhnfCore
 import ConRon.Refine2.Core.LS.Infer
 import ConRon.Refine2.Core.LS.Annotate
 import ConRon.Refine2.Core.LS.PropRead
@@ -213,8 +213,5 @@ theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
 /-- **The knot, unconditionally** — the theorem the Checker tier wants. -/
 theorem knotRel (f : Nat) : KnotRel f := knot_rel bodyRel_of_knot f
 
-/-- `KnotRel` at the checker's own fuel. -/
-theorem knotRel_check : KnotRel (absU arena.core.CHECK_FUEL) :=
-  knotRel _
 
 end ConRon.Refine2

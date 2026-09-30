@@ -76,24 +76,9 @@ equations because that is the form every proof below wants — one `rw` turns
 a `dropScratch` fact into a fact about the store itself — and because it is
 exactly what the previous bracket left behind. -/
 
-/-- con-leche: none — the name store is at a declaration boundary. -/
-def NScratchClosed (st : NStore) : Prop := st.dropScratch = st
-/-- con-leche: none — the level store is at a declaration boundary. -/
-def LScratchClosed (st : LStore) : Prop := st.dropScratch = st
-/-- con-leche: none — the level-list store is at a declaration boundary. -/
-def LsScratchClosed (st : LsStore) : Prop := st.dropScratch = st
-/-- con-leche: none — **the arena is at a declaration boundary**: the scratch
-tier is closed and empty, which is what the previous `dropScratch` left. -/
-def ScratchClosed (st : EStore) : Prop := st.dropScratch = st
 
-theorem ScratchClosed.lss {st : EStore} (h : ScratchClosed st) :
-    LsScratchClosed st.lss := congrArg EStore.lss h
 
-theorem LsScratchClosed.ls {st : LsStore} (h : LsScratchClosed st) :
-    LScratchClosed st.ls := congrArg LsStore.ls h
 
-theorem LScratchClosed.ns {st : LStore} (h : LScratchClosed st) :
-    NScratchClosed st.ns := congrArg LStore.ns h
 
 /-! ### It is what `StoreWF` plus a closed flag says
 
@@ -103,41 +88,9 @@ fields carry the flag down through the four stores, so the boundary does not
 have to be assumed separately from the twin store's well-formedness: it is
 `StoreWF` and one flag. -/
 
-theorem NScratchClosed.of_wf {st : NStore} (h : NStoreWF st)
-    (hoff : st.scratchOn = false) : NScratchClosed st := by
-  obtain ⟨rk, h⟩ := h
-  have h1 : st.scr = NTables.empty := h.scrOff hoff
-  obtain ⟨p, s, f⟩ := st
-  subst h1; subst hoff; rfl
 
-theorem LScratchClosed.of_wf {st : LStore} (h : LStoreWF st)
-    (hoff : st.scratchOn = false) : LScratchClosed st := by
-  obtain ⟨rk, h⟩ := h
-  have hns : NScratchClosed st.ns :=
-    NScratchClosed.of_wf h.ns (by rw [← h.sync]; exact hoff)
-  have h1 : st.scr = LTables.empty := h.scrOff hoff
-  show LStore.dropScratch st = st
-  rw [LStore.dropScratch, show st.ns.dropScratch = st.ns from hns, h1.symm,
-    hoff.symm]
 
-theorem LsScratchClosed.of_wf {st : LsStore} (h : LsStoreWF st)
-    (hoff : st.scratchOn = false) : LsScratchClosed st := by
-  have hls : LScratchClosed st.ls :=
-    LScratchClosed.of_wf h.ls (by rw [← h.sync]; exact hoff)
-  have h1 : st.scr = LsTables.empty := h.scrOff hoff
-  show LsStore.dropScratch st = st
-  rw [LsStore.dropScratch, show st.ls.dropScratch = st.ls from hls, h1.symm,
-    hoff.symm]
 
-theorem ScratchClosed.of_wf {st : EStore} (h : StoreWF st)
-    (hoff : st.scratchOn = false) : ScratchClosed st := by
-  obtain ⟨rk, h⟩ := h
-  have hlss : LsScratchClosed st.lss :=
-    LsScratchClosed.of_wf h.lss (by rw [← h.sync]; exact hoff)
-  have h1 : st.scr = ETables.empty := h.scrOff hoff
-  show EStore.dropScratch st = st
-  rw [EStore.dropScratch, show st.lss.dropScratch = st.lss from hlss, h1.symm,
-    hoff.symm]
 
 
 /-! ### The flag, and what denotes at a boundary
@@ -147,47 +100,10 @@ PERSISTENT handle denotes.  That is the half of the bracket `Ext` that
 `dropScratch` needs and the reason the side condition is about the store the
 bracket is ENTERED at. -/
 
-theorem NScratchClosed.off {st : NStore} (h : NScratchClosed st) :
-    st.scratchOn = false := (congrArg NStore.scratchOn h).symm
-theorem LScratchClosed.off {st : LStore} (h : LScratchClosed st) :
-    st.scratchOn = false := (congrArg LStore.scratchOn h).symm
-theorem LsScratchClosed.off {st : LsStore} (h : LsScratchClosed st) :
-    st.scratchOn = false := (congrArg LsStore.scratchOn h).symm
-theorem ScratchClosed.off {st : EStore} (h : ScratchClosed st) :
-    st.scratchOn = false := (congrArg EStore.scratchOn h).symm
 
-theorem NScratchClosed.pers {st : NStore} (h : NScratchClosed st) {i : NIdx}
-    {x : ConLeche.Name} (hd : denoteN st i = some x) : i.isPersistent = true := by
-  by_contra hp
-  simp only [Bool.not_eq_true] at hp
-  have hv : st.view i = none := by simp [NStore.view, hp, h.off]
-  simp only [denoteN, denoteNAux, hv] at hd
-  simp at hd
 
-theorem LScratchClosed.pers {st : LStore} (h : LScratchClosed st) {i : LIdx}
-    {x : ConLeche.Level} (hd : denoteL st i = some x) : i.isPersistent = true := by
-  by_contra hp
-  simp only [Bool.not_eq_true] at hp
-  have hv : st.view i = none := by simp [LStore.view, hp, h.off]
-  simp only [denoteL, denoteLAux, hv] at hd
-  simp at hd
 
-theorem LsScratchClosed.pers {st : LsStore} (h : LsScratchClosed st) {i : LsIdx}
-    {x : List ConLeche.Level} (hd : denoteLs st i = some x) :
-    i.isPersistent = true := by
-  by_contra hp
-  simp only [Bool.not_eq_true] at hp
-  have hv : st.view i = none := by simp [LsStore.view, hp, h.off]
-  simp only [denoteLs, hv] at hd
-  simp at hd
 
-theorem ScratchClosed.pers {st : EStore} (h : ScratchClosed st) {i : EIdx}
-    {x : ConLeche.Expr} (hd : denoteE st i = some x) : i.isPersistent = true := by
-  by_contra hp
-  simp only [Bool.not_eq_true] at hp
-  have hv : denoteE st i = none := h ▸ denoteE_dropScratch_scr st hp
-  rw [hv] at hd
-  simp at hd
 
 /-! ## The bracket opened: `enterScratch` at a boundary
 
@@ -197,32 +113,9 @@ paid for in `Bridge/Promote/Pers.lean` and the one that makes this side free.
 At a boundary `st.dropScratch` is `st`, so opening the tier changes no
 denotation at all and `Ext` is an equality rather than an implication. -/
 
-theorem NScratchClosed.ext {st : NStore} (h : NScratchClosed st) :
-    NExt st st.enableScratch := by
-  intro i n hd
-  rw [denoteN_enableScratch_eq, show st.dropScratch = st from h]; exact hd
 
-theorem LScratchClosed.ext {st : LStore} (h : LScratchClosed st) :
-    LExt st st.enableScratch := by
-  refine ⟨h.ns.ext, ?_⟩
-  intro i u hd
-  rw [show st.enableScratch = st.enableScratch from rfl, denoteL_enableScratch_eq,
-    show st.dropScratch = st from h]
-  exact hd
 
-theorem LsScratchClosed.ext {st : LsStore} (h : LsScratchClosed st) :
-    LsExt st st.enableScratch := by
-  refine ⟨h.ls.ext, ?_⟩
-  intro i us hd
-  rw [denoteLs_enableScratch_eq, show st.dropScratch = st from h]; exact hd
 
-/-- con-leche: none — **the bracket opened**: at a declaration boundary
-`enterScratch` preserves every denotation. -/
-theorem ScratchClosed.ext {st : EStore} (h : ScratchClosed st) :
-    Ext st st.enableScratch := by
-  refine ⟨h.lss.ext, ?_⟩
-  intro i e hd
-  rw [denoteE_enableScratch_eq, show st.dropScratch = st from h]; exact hd
 
 /-! ## The bracket closed: `dropScratch` after a body
 
@@ -233,34 +126,7 @@ carry.  It cannot be dropped: without the tier discipline a persistent node
 may name a scratch child, and then it denotes before the drop and not after.
 DESIGN §… task #97-P5-Bracket §1 is the finding. -/
 
-theorem ext_dropScratch {a b : EStore} (hc : ScratchClosed a) (hwf : StoreWF b)
-    (h : Ext a b) : Ext a b.dropScratch := by
-  obtain ⟨rk, hwa⟩ := hwf
-  have hwfE : StoreWF b := ⟨rk, hwa⟩
-  have hlss : LsStoreWF b.lss := hwa.lss
-  have hls : LStoreWF b.lss.ls := hlss.ls
-  have hns : NStoreWF b.lss.ls.ns := by obtain ⟨rkl, hl⟩ := hls; exact hl.ns
-  refine ⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩
-  · intro i n hd
-    exact (NStore.dropScratch_spec hns).2.2 i n (hc.lss.ls.ns.pers hd)
-      (h.lss.ls.ns i n hd)
-  · intro i u hd
-    exact (LStore.dropScratch_spec hls).2.2 i u (hc.lss.ls.pers hd)
-      (h.lss.ls.lvl i u hd)
-  · intro i us hd
-    exact (LsStore.dropScratch_spec hlss).2.2 i us (hc.lss.pers hd)
-      (h.lss.lst i us hd)
-  · intro i e hd
-    exact EStore.dropScratch_denote_pers hwfE (hc.pers hd) (h.expr i e hd)
 
-/-- con-leche: none — **THE BRACKET, as an `Ext`.**  A step entered at a
-declaration boundary, whose body delivers `Ext` from the opened store, hands
-back `Ext` from the boundary — even though neither end of the bracket does on
-its own.  This is the lemma the checker tier's three bracketed steps consume,
-and DESIGN §8.2's `Ext` conjunct at those three statements is exactly it. -/
-theorem ext_bracket {a b : EStore} (hc : ScratchClosed a) (hwf : StoreWF b)
-    (h : Ext a.enableScratch b) : Ext a b.dropScratch :=
-  ext_dropScratch hc hwf (Ext.trans hc.ext h)
 
 /-! ## The tier reset, once
 
@@ -911,8 +777,6 @@ theorem leave_record_rel {tier st lst st'}
 
 /-! ## The axiom census -/
 
-/-- info: 'ConRon.Refine2.ext_bracket' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms ext_bracket
 
 /-- info: 'ConRon.Refine2.flush_caches_sim₀' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms flush_caches_sim₀

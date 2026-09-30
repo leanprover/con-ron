@@ -79,13 +79,6 @@ theorem EStore_view_of_tag_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort
 belong, and this tier consumes them from there.  The migration was the
 deletion that used to be here. -/
 
-/-- **A `.sort` view comes only from a `sort`-tagged handle** — the negative
-half the port's `else` arm (`Invalid`) needs: the twin must not succeed where
-the port declines.  An instance of `EStore_view_tagOf`, since
-`(ENodeView.sort u).tagOf` is `ETag.sort` by `rfl`. -/
-theorem EStore_tag_of_view_sort {st : EStore} {i : EIdx} {u : LIdx}
-    (h : st.view i = some (.sort u)) : i.tag = ETag.sort :=
-  EStore_view_tagOf h
 
 /-- `Arena.view`'s run, named: the store read, and the twin's `internal`
 decline where the port raises `fail_dangling_e`; a lemma because three arms
@@ -268,8 +261,6 @@ section Axioms
 /-- info: 'ConRon.Refine2.EStore_view_of_tag_sort' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms EStore_view_of_tag_sort
 
-/-- info: 'ConRon.Refine2.EStore_tag_of_view_sort' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms EStore_tag_of_view_sort
 
 /-- info: 'ConRon.Refine2.ensureSort_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ensureSort_run
