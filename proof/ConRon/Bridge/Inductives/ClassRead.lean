@@ -1042,4 +1042,111 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
     rw [e]
     exact classReadMinor_spec np motPos d dom domP _ s' r hok hd h2
 
+/-! ## `classReadSlots` -/
+
+/-- con-leche: none — a denoting slot moves the prefix-position list as con-leche's. -/
+theorem motPos_step {st : EStore} {slot : Arena.ClassSlot} {q : ConLeche.ClassSlot}
+    (h : dSlot st slot = some q) (motPos : List Nat) (d np : Nat) :
+    (match (generalizing := false) slot with
+      | .motive _ => motPos ++ [d - np]
+      | .minor _ _ _ => motPos) = motPosP motPos d np q := by
+  cases slot with
+  | motive k =>
+    simp only [dSlot, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, rfl⟩ := h
+    rfl
+  | minor c n ihs =>
+    simp only [dSlot, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, rfl⟩ := h
+    rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots —
+**the prefix binders read**, one at a time, each opened at `d` before the next;
+two-sided on the `Option`, the slot list denoting con-leche's. -/
+theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : Env)
+    (fe : IFEnv) (np : Nat) :
+    ∀ (n : Nat) (motPos : List Nat) (d : Nat) (e : EIdx) (eP : Expr),
+    PSpec (fun st => dShape st p = some pP ∧ IFEnvOKS env fe st ∧ denoteE st e = some eP)
+      (Arena.classReadSlots p fe np n motPos d e)
+      (ROp (fun q st r => r.mapM (dSlot st) = some q)
+        (ConLeche.classReadSlots (ConLeche.classNPcOf pP (mkFEnv env)) np n motPos d eP)) := by
+  intro n
+  induction n with
+  | zero =>
+    intro motPos d e eP s₀ s' r hok _ hrun
+    simp only [Arena.classReadSlots] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, [], by simp [ConLeche.classReadSlots], rfl⟩
+  | succ n ih =>
+    intro motPos d e eP s₀ s' r hok hp hrun
+    obtain ⟨hsh, hfe, hd⟩ := hp
+    simp only [Arena.classReadSlots] at hrun
+    by_cases htg : (e.tag == ETag.forallE) = true
+    · rw [if_pos htg] at hrun
+      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨rfl, ho⟩ := PW.viewBind_run h1
+      cases o with
+      | none => exact absurd h2 (fun hc => PW.failDanglingE_ok hc)
+      | some pr =>
+      obtain ⟨dom, body, m⟩ := pr
+      have hw := view_of_viewBind_tag_forallE htg ho.symm
+      obtain ⟨domP, bodyP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
+      rw [classReadSlots_succ]
+      dsimp only at h2
+      obtain ⟨os, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨p3, hos⟩ := classReadSlot_spec p pP env fe np motPos d dom domP _ _ _ hok
+        ⟨hsh, hfe, hdd⟩ h3
+      cases os with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk h4
+        refine ⟨p3, ?_⟩
+        simp only [ROp] at hos
+        simp [ROp, hos]
+      | some slot =>
+      obtain ⟨q, hq, hsl⟩ := hos
+      rw [hq]
+      simp only [Option.bind_some]
+      dsimp only at h4
+      have hmp := motPos_step hsl motPos d np
+      obtain ⟨mp, rfl, h4⟩ : ∃ mp, motPosP motPos d np q = mp ∧
+          (internFVarE d dom >>= fun fv => do
+            let b2 ← instantiate1Fast coreWalkFuel body fv
+            let o ← Arena.classReadSlots p fe np n mp (d + 1) b2
+            match o with
+            | none => pure none
+            | some rest => pure (some (slot :: rest))) s₂ = .ok (r, s') := by
+        cases slot <;> exact ⟨_, hmp.symm, h4⟩
+      obtain ⟨fv, s₃, h5, h6⟩ := bindOk h4
+      obtain ⟨p5, hfv⟩ := PW.internFVarE_run p3.ok (denote_ext hdd p3.ext) h5
+      obtain ⟨b2, s₄, h7, h8⟩ := bindOk h6
+      have hb3 : denoteE s₃.store body = some bodyP := denote_ext hbd (p3.ext.trans p5.ext)
+      obtain ⟨k1, k2, k3, k4, k5, -, k7⟩ := ExprOps.instantiate1Fast_run p5.ok hfv
+        (by rw [hb3]; rfl) h7
+      have p7 : PStep s₃ s₄ := PStep.of_caches k1 k2 k3 k4 k5
+      have hb2 : denoteE s₄.store b2 = some (bodyP.instantiate1 (.fvar d domP) 0) := k7 _ hb3
+      have p37 := p3.trans (p5.trans p7)
+      obtain ⟨o2, s₅, h9, h10⟩ := bindOk h8
+      obtain ⟨p9, ho2⟩ := ih (motPosP motPos d np q) (d + 1) b2 _ _ _ _ p7.ok
+        ⟨dShape_ext p37.ext _ _ hsh, hfe.mono p37.ext, hb2⟩ h9
+      cases o2 with
+      | none =>
+        obtain ⟨rfl, rfl⟩ := pureOk h10
+        refine ⟨p37.trans p9, ?_⟩
+        simp only [ROp] at ho2
+        simp [ROp, ho2]
+      | some rest =>
+      obtain ⟨qs, hqs, hrest⟩ := ho2
+      obtain ⟨rfl, rfl⟩ := pureOk h10
+      refine ⟨p37.trans p9, ?_⟩
+      refine ⟨q :: qs, by rw [hqs]; rfl, ?_⟩
+      simp only [List.mapM_cons, dSlot_ext (p5.trans (p7.trans p9)).ext _ _ hsl, hrest,
+        Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    · rw [if_neg htg] at hrun
+      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      refine ⟨PStep.refl hok, ?_⟩
+      show _ = none
+      cases eP with
+      | forallE a b m => exact absurd (PW.tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | _ => simp [ConLeche.classReadSlots]
+
 end ConRon.Bridge.Inductives
