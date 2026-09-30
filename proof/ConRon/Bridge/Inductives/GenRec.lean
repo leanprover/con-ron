@@ -34,6 +34,8 @@ import ConRon.Bridge.Inductives.RecCheck
 import ConRon.Bridge.Inductives.ClassRead
 import ConRon.Bridge.Inductives.FieldTele
 import ConRon.Bridge.Inductives.Positivity
+import ConLeche.Verify.Cached.GenRecC
+import ConLeche.Verify.Inductives.GenRecRun
 
 namespace ConRon.Bridge.Inductives
 
@@ -1833,5 +1835,317 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           exact FOk.seq hN hR
         · rw [if_neg hb] at z5
           exact absurd z5 (fun hc => failOk hc)
+
+/-- con-leche: none — a denoting table's entries at a constructor name. -/
+theorem filter_nfs {st : EStore} (hwf : StoreWF st) {C : NIdx} {CP : ConLeche.Name}
+    (hC : denoteN st.ns C = some CP) :
+    ∀ (es : List Arena.NestCtorNf) (esP : List ConLeche.NestCtorNf),
+      es.mapM (dCtorNf st) = some esP →
+      (es.filter (·.ctor == C)).mapM (dCtorNf st) = some (esP.filter (·.ctor == CP))
+  | [], esP, h => by
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | e :: es, esP, h => by
+    obtain ⟨eP, esP', rfl, he, hes⟩ := GR.mapM_cons_inv h
+    have ih := filter_nfs hwf hC es esP' hes
+    have hb := beq_handle_eq hwf (RC.dCtorNf_inv he).1 hC
+    simp only [List.filter_cons, hb]
+    split
+    · simp only [List.mapM_cons, he, ih, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    · exact ih
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:295-313 classCtorOf —
+**one constructor of class `c`, read for the generator**: its entries in the
+class's table (the first the DATUM), the minor premise's inductive hypotheses
+against the datum's recursive fields, node agreement at every entry, and the
+constructor's declared type at the class. -/
+theorem classCtorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
+    (formerTysP : List Expr) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
+    (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor) (c : Nat)
+    (cA : IConstantVal × Nat) (cAP : ConstantVal × Nat)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
+    (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some MsP ∧ dCtor st cA = some cAP)
+      (Arena.classCtorOf μ fe p formerTys rd ms c cA) (fun st r v => dClassCtor st r = some v)
+      (ConLeche.classCtorOf (fueledOpsM μ) env pP formerTysP rdP MsP c cAP) := by
+  intro s₀ s' r hok hpre hrun
+  obtain ⟨hsh, hft, hrd, hms, hcA⟩ := hpre
+  simp only [dCtor, Option.map_eq_some_iff] at hcA
+  obtain ⟨cvP, hcv, rfl⟩ := hcA
+  have hname := ConRon.Bridge.denoteCV_name hcv
+  obtain ⟨-, -, hnP, -, -, -, -⟩ := RC.dShape_inv hsh
+  have hk' := BlockShape.k_spec hsh
+  simp only [Arena.classCtorOf] at hrun
+  simp only [ConLeche.classCtorOf]
+  obtain ⟨m, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨p1, hm⟩ := targetMajorAt_spec ms MsP c s₀ s1 m hok.state hok.pins hms k1
+  obtain ⟨-, -, hmds, -, -, -, -, hnfs, -⟩ := dMajor_inv hm
+  have hE := filter_nfs p1.ok.wf (denoteN_ext hname p1.ext) _ _ hnfs
+  generalize hEs : m.nfs.filter (·.ctor == cA.1.name) = Es at z1 hE
+  generalize hEP : (MsP.getD c default).nfs.filter (·.ctor == cvP.name) = EsP at hE ⊢
+  cases Es with
+  | nil => exact absurd z1 (fun hc => failOk hc)
+  | cons e0 Es' =>
+    obtain ⟨e0P, EsP', rfl, he0, hEs'⟩ := GR.mapM_cons_inv hE
+    have he0ty := (RC.dCtorNf_inv he0).2.2.2
+    dsimp only at z1
+    obtain ⟨sl, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hsl⟩ := classMinorSlot_spec rd rdP c cA.1.name cvP.name s1 s2 sl p1.ok
+      ⟨dClassRead_ext p1.ext _ _ hrd, denoteN_ext hname p1.ext⟩ k2
+    obtain ⟨slot, ihs⟩ := sl
+    dsimp only at z2
+    obtain ⟨o, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨p3, ho⟩ := CR.openPisAtFvarsF_run p2.ok (denote_ext he0ty p2.ext) k3
+    rw [hnP, hk'] at ho
+    cases o with
+    | none => exact absurd z3 (fun hc => failOk hc)
+    | some q =>
+      obtain ⟨fvs, body⟩ := q
+      obtain ⟨fvsP, bodyP, hq, hfvs, -⟩ := CR.denoteOpen_some_inv ho
+      dsimp only at z3
+      have p13 := p1.trans (p2.trans p3)
+      obtain ⟨kinds, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨p4, hkinds⟩ := classFieldsOf_spec p pP cvP.name ihs fvs fvsP 0 s3 s4 kinds p3.ok
+        ⟨dShape_ext p13.ext _ _ hsh, hfvs⟩ k4
+      have p14 := p13.trans p4
+      have c14 := p14.toCore hok
+      obtain ⟨u, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨c5, ⟨⟩, -, hagree⟩ := classFieldsAgree_spec fe hk henv p pP formerTys formerTysP ms
+        MsP fvs fvsP (e0 :: Es') (e0P :: EsP') cvP.name hformer hMs kinds 0 s4 s5 u c14.ok
+        ⟨dShape_ext c14.ext _ _ hsh, denoteEList_ext c14.ext _ _ hft,
+          dMajor_ext.list c14.ext _ _ hms, denoteEList_ext p4.ext _ _ hfvs,
+          dCtorNf_ext.list (p2.trans (p3.trans p4)).ext _ _ hE⟩ k5
+      have c15 := c14.trans c5
+      obtain ⟨t0, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨c6, ht0⟩ := targetCtorAt_spec fe m _ cA.1 cvP s5 s6 t0 c5.ok
+        ⟨dMajor_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans c5.ext))) _ _ hm,
+          dExt_denoteCV c15.ext _ _ hcv⟩ k6
+      have c16 := c15.trans c6
+      obtain ⟨o2, s7, k7, z7⟩ := bindOk z6
+      obtain ⟨p7, ho2⟩ := instPisWith_spec m.ds _ t0 _ s6 s7 o2 c6.ok.state
+        ⟨denoteEList_ext (p2.ext.trans (p3.ext.trans (p4.ext.trans (c5.ext.trans c6.ext))))
+          _ _ hmds, ht0⟩ k7
+      have c17 := c16.trans (p7.toCore c6.ok)
+      cases o2 with
+      | none => exact absurd z7 (fun hc => failOk hc)
+      | some tyD =>
+        obtain ⟨tyDP, htyD, htyDd⟩ := ho2
+        dsimp only at z7
+        obtain ⟨rfl, rfl⟩ := pureOk z7
+        refine ⟨c17, ⟨cvP, cA.2, kinds.map cfOf, tyDP, e0P.ty⟩, ?_, ?_⟩
+        · simp only [dClassCtor, dExt_denoteCV c17.ext _ _ hcv, htyDd,
+            denote_ext he0ty (p2.ext.trans (p3.ext.trans (p4.ext.trans (c5.ext.trans
+              (c6.ext.trans p7.ext))))), Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+        · refine FOk.bind FOk.unwrapOr (FOk.bind hsl ?_)
+          dsimp only
+          rw [hq]
+          refine FOk.bind FOk.unwrapOr (FOk.bind hkinds (FOk.seq hagree ?_))
+          rw [htyD]
+          exact FOk.bind FOk.unwrapOr (FOk.pure _)
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:315-323 classCtorsOf —
+every constructor of class `c`. -/
+theorem classCtorsOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
+    (formerTysP : List Expr) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
+    (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor) (c : Nat)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
+    (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
+    ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat)),
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some MsP ∧ dCtors st cs = some csP)
+      (Arena.classCtorsOf μ fe p formerTys rd ms c cs)
+      (fun st r v => r.mapM (dClassCtor st) = some v)
+      (ConLeche.classCtorsOf (fueledOpsM μ) env pP formerTysP rdP MsP c csP) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, -, hcs⟩ := hpre
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
+    subst hcs
+    simp only [Arena.classCtorsOf] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classCtorsOf]; exact FOk.pure _⟩
+  | cons cA cs ih =>
+    intro csP s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hft, hrd, hms, hcs⟩ := hpre
+    obtain ⟨cAP, csP', rfl, hcA, hcs'⟩ := GR.mapM_cons_inv hcs
+    simp only [Arena.classCtorsOf] at hrun
+    obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, xP, hx, hF1⟩ := classCtorOf_spec fe hk henv p pP formerTys formerTysP rd rdP ms
+      MsP c cA cAP hformer hMs s₀ s1 x hok ⟨hsh, hft, hrd, hms, hcA⟩ k1
+    obtain ⟨xs, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨c2, xsP, hxs, hF2⟩ := ih csP' s1 s2 xs c1.ok
+      ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft, dClassRead_ext c1.ext _ _ hrd,
+        dMajor_ext.list c1.ext _ _ hms, dCtors_ext c1.ext _ _ hcs'⟩ k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c1.trans c2, xP :: xsP, ?_, ?_⟩
+    · simp only [List.mapM_cons, dClassCtor_ext c2.ext _ _ hx, hxs, Option.bind_eq_bind,
+        Option.bind_some, Option.pure_def]
+    · simp only [ConLeche.classCtorsOf]
+      exact FOk.bind hF1 (FOk.bind hF2 (FOk.pure _))
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:325-332 classesCtors —
+every class's constructors, from class `c` on. -/
+theorem classesCtors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
+    (formerTysP : List Expr) (rd : Arena.ClassRead) (rdP : ConLeche.ClassRead)
+    (ms : List Arena.TargetMajor) (MsP : List ConLeche.TargetMajor)
+    (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t)
+    (hMs : ∀ M ∈ MsP, Cached.TargetMajScoped M) :
+    ∀ (l : List Arena.TargetMajor) (lP : List ConLeche.TargetMajor) (c : Nat),
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
+        dClassRead st rd = some rdP ∧ ms.mapM (dMajor st) = some MsP ∧
+        l.mapM (dMajor st) = some lP)
+      (Arena.classesCtors μ fe p formerTys rd ms c l)
+      (fun st r v => r.mapM (fun xs => xs.mapM (dClassCtor st)) = some v)
+      (ConLeche.classesCtors (fueledOpsM μ) env pP formerTysP rdP MsP c lP) := by
+  intro l
+  induction l with
+  | nil =>
+    intro lP c s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, -, hl⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hl
+    subst hl
+    simp only [Arena.classesCtors] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], rfl, by simp only [ConLeche.classesCtors]; exact FOk.pure _⟩
+  | cons m l ih =>
+    intro lP c s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hft, hrd, hms, hl⟩ := hpre
+    obtain ⟨mP, lP', rfl, hm, hl'⟩ := GR.mapM_cons_inv hl
+    have hmc := (dMajor_inv hm).2.2.2.2.2.1
+    simp only [Arena.classesCtors] at hrun
+    obtain ⟨xs, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c1, xsP, hxs, hF1⟩ := classCtorsOf_spec fe hk henv p pP formerTys formerTysP rd rdP ms
+      MsP c hformer hMs m.ctors mP.ctors s₀ s1 xs hok ⟨hsh, hft, hrd, hms, hmc⟩ k1
+    obtain ⟨xss, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨c2, xssP, hxss, hF2⟩ := ih lP' (c + 1) s1 s2 xss c1.ok
+      ⟨dShape_ext c1.ext _ _ hsh, denoteEList_ext c1.ext _ _ hft, dClassRead_ext c1.ext _ _ hrd,
+        dMajor_ext.list c1.ext _ _ hms, dMajor_ext.list c1.ext _ _ hl'⟩ k2
+    obtain ⟨rfl, rfl⟩ := pureOk z2
+    refine ⟨c1.trans c2, xsP :: xssP, ?_, ?_⟩
+    · simp only [List.mapM_cons, dClassCtor_ext.list c2.ext _ _ hxs, hxss, Option.bind_eq_bind,
+        Option.bind_some, Option.pure_def]
+    · simp only [ConLeche.classesCtors]
+      exact FOk.bind hF1 (FOk.bind hF2 (FOk.pure _))
+
+/-- con-leche: none — **what a class checked as a major is** (the cached
+bridge's private `classMajorOf_shape`, at the pure run): its openers are the
+parameter openers; a member at the openers' parameters, an outside class's
+parameters among the class application's arguments, below the parameters. -/
+theorem classMajorOf_shape {fe : FEnv} {p : ConLeche.BlockShape}
+    {ctorsAs : List (List (ConstantVal × Nat))} {pfvs : List Expr} {mty : Expr}
+    {M : ConLeche.TargetMajor}
+    (h : FOk (ConLeche.targetMajorOf (m := FueledM) fe p ctorsAs pfvs pfvs mty) M) :
+    M.pfvs = pfvs ∧ (∀ t, M.member = some t → M.ds = pfvs.take p.nP) ∧
+      (M.member = none → ∀ x ∈ M.ds, x ∈ mty.getAppArgs ∧ x.fvarB ≤ p.nP) := by
+  obtain ⟨F, hF⟩ := h
+  rw [targetMajorOf_datF] at hF
+  obtain ⟨⟨R⟩, hpf⟩ := targetMajorOf_run hF
+  refine ⟨hpf, ?_, ?_⟩
+  · intro t ht
+    cases R with
+    | member => rfl
+    | outside => exact nomatch ht
+  · intro hn x hx
+    obtain ⟨-, -, -, -, -, hds, -, hsc, -⟩ := R.outside_facts hn
+    refine ⟨?_, (hsc x hx).2⟩
+    rw [hds] at hx
+    exact List.mem_of_mem_take hx
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:334-344 classMajors —
+**every class checked as a major** over the canonical parameters: each
+answer denotes con-leche's, and every class is scoped (`ClassMajScoped`,
+the cached bridge's `classMajorsS_sim`). -/
+theorem classMajors_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
+    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
+    (ctorsAs : List (List (IConstantVal × Nat))) (ctorsAsP : List (List (ConstantVal × Nat)))
+    (pfvs : List EIdx) (pfvsP : List Expr) (hpl : pfvsP.length = pP.nP)
+    (hp : ∀ x ∈ pfvsP, Expr.WScoped pP.nP x) :
+    ∀ (keys : List Arena.ClassKey) (keysP : List ConLeche.ClassKey),
+    (∀ key ∈ keysP, ∀ x ∈ key.ds, ∃ D, Expr.WScoped D x) →
+    CSpecF μ env fe
+      (fun st => dShape st p = some pP ∧ ctorsAs.mapM (dCtors st) = some ctorsAsP ∧
+        Frontend.denoteEList st pfvs = some pfvsP ∧ keys.mapM (dClassKey st) = some keysP)
+      (Arena.classMajors μ fe p ctorsAs pfvs keys)
+      (fun st r v => r.mapM (dMajor st) = some v ∧ ∀ M ∈ v, Cached.ClassMajScoped pP.nP M)
+      (ConLeche.classMajors (fueledOpsM μ) (mkFEnv env) pP ctorsAsP pfvsP keysP) := by
+  intro keys
+  induction keys with
+  | nil =>
+    intro keysP _ s₀ s' r hok hpre hrun
+    obtain ⟨-, -, -, hks⟩ := hpre
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hks
+    subst hks
+    simp only [Arena.classMajors] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨CoreStep.refl hok, [], ⟨rfl, fun _ h => nomatch h⟩, by
+      simp only [ConLeche.classMajors]; exact FOk.pure _⟩
+  | cons key keys ih =>
+    intro keysP hsc s₀ s' r hok hpre hrun
+    obtain ⟨hsh, hcas, hpf, hks⟩ := hpre
+    obtain ⟨keyP, keysP', rfl, hkey, hks'⟩ := GR.mapM_cons_inv hks
+    simp only [dClassKey, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at hkey
+    obtain ⟨ind, hind, lvls, hlvls, ds, hds, rfl⟩ := hkey
+    obtain ⟨-, -, hnP, -, -, -, -⟩ := RC.dShape_inv hsh
+    simp only [Arena.classMajors] at hrun
+    obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨p1, hhd⟩ := internConstE_run hok.state hind hlvls k1
+    obtain ⟨mty, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨p2, hmty⟩ := mkAppN_run _ _ p1.ok hhd (denoteEList_ext p1.ext _ _ hds) k2
+    have c12 := (p1.trans p2).toCore hok
+    obtain ⟨m, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨c3, MP, hm, hF1⟩ := targetMajorOf_spec fe p pP ctorsAs ctorsAsP pfvs pfvs pfvsP pfvsP
+      mty _ s2 s3 m c12.ok
+      ⟨dShape_ext c12.ext _ _ hsh, dCtors_ext.list c12.ext _ _ hcas,
+        denoteEList_ext c12.ext _ _ hpf, denoteEList_ext c12.ext _ _ hpf, hmty⟩ k3
+    obtain ⟨hMpf, hMmem, hMout⟩ := classMajorOf_shape hF1
+    have hdsN : MP.member = none → ∀ x ∈ MP.ds, x.fvarB ≤ pP.nP :=
+      fun hn x hx => (hMout hn x hx).2
+    have hdsW : ∀ x ∈ MP.ds, Expr.WScoped pP.nP x := by
+      intro x hx
+      cases hmm : MP.member with
+      | some t =>
+        rw [hMmem t hmm] at hx
+        exact hp x (List.mem_of_mem_take hx)
+      | none =>
+        obtain ⟨hxa, hfb⟩ := hMout hmm x hx
+        rw [ConLeche.Expr.getAppArgs_mkAppN] at hxa
+        simp only [ConLeche.Expr.getAppArgs, List.nil_append] at hxa
+        obtain ⟨D, hD⟩ := hsc _ List.mem_cons_self x hxa
+        exact ConLeche.WScoped.of_fvarsBelow hD (ConLeche.Expr.fvarB_le hfb)
+    obtain ⟨u, s4, k4, z4⟩ := bindOk z3
+    rw [hnP] at k4
+    obtain ⟨c4, ⟨⟩, -, hF2⟩ := targetMajorPins_spec fe hk henv pP.nP m MP
+      (fun _ => hdsW) s3 s4 u c3.ok hm k4
+    have c14 := (c12.trans c3).trans c4
+    obtain ⟨ms, s5, k5, z5⟩ := bindOk z4
+    obtain ⟨c5, MsP, ⟨hms, hMsc⟩, hF3⟩ := ih keysP' (fun k hk' => hsc k (List.mem_cons_of_mem _ hk'))
+      s4 s5 ms c4.ok ⟨dShape_ext c14.ext _ _ hsh, dCtors_ext.list c14.ext _ _ hcas,
+        denoteEList_ext c14.ext _ _ hpf, dClassKey_ext.list c14.ext _ _ hks'⟩ k5
+    obtain ⟨rfl, rfl⟩ := pureOk z5
+    refine ⟨c14.trans c5, MP :: MsP, ⟨?_, ?_⟩, ?_⟩
+    · simp only [List.mapM_cons, dMajor_ext (c4.ext.trans c5.ext) _ _ hm, hms,
+        Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    · intro N hN
+      rcases List.mem_cons.mp hN with rfl | hN
+      · refine ⟨⟨?_, ?_⟩, hdsN, by rw [hMpf, hpl]⟩
+        · rw [hMpf, hpl]; exact hp
+        · rw [hMpf, hpl]; exact hdsW
+      · exact hMsc N hN
+    · simp only [ConLeche.classMajors]
+      exact FOk.bind hF1 (FOk.seq hF2 (FOk.bind hF3 (FOk.pure _)))
 
 end ConRon.Bridge.Inductives
