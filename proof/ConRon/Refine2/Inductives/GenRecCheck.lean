@@ -393,4 +393,93 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
     0#u64 st lst hrel hinv
   simpa using h
 
+/-! ## Helpers for Shape/Abs — `block_parts` readers (BlockParts' own lemmas once they land) -/
+
+theorem gr_shape_k_twin (p : arena.inductives.block_parts.BlockShape) :
+    LSP (arena.inductives.block_parts.shape_k p)
+      (fun k => TwinEq (absBlockShape p).k (absU k)) := by
+  intro k h
+  rw [arena.inductives.block_parts.shape_k, Result.ok.injEq] at h
+  subst h
+  simp [TwinEq, absU, BlockShape.k, absBlockShape]
+
+theorem gr_major_idx_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_parts.major_idx_at p r)
+      (fun k => TwinEq ((absBlockShape p).majorIdxAt (absU r)) (absU k)) := by
+  intro k h
+  rw [arena.inductives.block_parts.major_idx_at] at h
+  simp only [lift, bind_tc_ok] at h
+  rw [TwinEq, BlockShape.majorIdxAt]
+  have hl := ConRon.Refine.ExprOps.usize_cast_u64_val p.recs.len
+  split at h
+  · rename_i hr
+    have hc : (UScalar.cast .Usize r).val = r.val :=
+      ConRon.Refine.ExprOps.u64_cast_usize_val (by have := p.recs.property; scalar_tac)
+    rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem (by
+      simp only [alloc.vec.Vec.len] at hl; scalar_tac)), bind_tc_ok, Result.ok.injEq] at h
+    subst h
+    simp [absBlockShape, absU, List.getElem?_eq_getElem (show r.val < p.recs.val.length by
+      simp only [alloc.vec.Vec.len] at hl; scalar_tac), absRecShape]
+  · rw [Result.ok.injEq] at h
+    subst h
+    rw [List.getElem?_eq_none (by simp [absBlockShape, absU]; simp only [alloc.vec.Vec.len] at hl; scalar_tac)]
+    rfl
+
+theorem gr_rule_prefix_at_twin (p : arena.inductives.block_parts.BlockShape) (r : Std.U64) :
+    LSP (arena.inductives.block_parts.rule_prefix_at p r)
+      (fun k => TwinEq ((absBlockShape p).rulePrefixAt (absU r)) (absU k)) := by
+  intro k h
+  rw [arena.inductives.block_parts.rule_prefix_at] at h
+  simp only [lift, bind_tc_ok] at h
+  rw [TwinEq, BlockShape.rulePrefixAt]
+  have hl := ConRon.Refine.ExprOps.usize_cast_u64_val p.recs.len
+  split at h
+  · rename_i hr
+    have hc : (UScalar.cast .Usize r).val = r.val :=
+      ConRon.Refine.ExprOps.u64_cast_usize_val (by have := p.recs.property; scalar_tac)
+    rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem (by
+      simp only [alloc.vec.Vec.len] at hl; scalar_tac)), bind_tc_ok, Result.ok.injEq] at h
+    subst h
+    simp [absBlockShape, absU, List.getElem?_eq_getElem (show r.val < p.recs.val.length by
+      simp only [alloc.vec.Vec.len] at hl; scalar_tac), absRecShape]
+  · rw [Result.ok.injEq] at h
+    subst h
+    rw [List.getElem?_eq_none (by simp [absBlockShape, absU]; simp only [alloc.vec.Vec.len] at hl; scalar_tac)]
+    rfl
+
+attribute [local lockstep] gr_shape_k_twin gr_major_idx_at_twin gr_rule_prefix_at_twin
+attribute [local lockstep high] rc_ctors_dup_spec
+
+/-! ## `class_ctor_of`, `class_ctors_of`, `classes_ctors` -/
+
+theorem gr_usz0 : ((0#usize : Std.Usize)).val = 0 := rfl
+
+/-- `class_ctor_of` ⊑ `classCtorOf`. -/
+@[lockstep] theorem class_ctor_of_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (rd : arena.inductives.class_read.ClassRead)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (c : Std.U64)
+    (c_a : arena.env.IConstantVal × Std.U64) :
+    LS pers (fun a b => b = absClassCtor a)
+      (arena.inductives.gen_rec.class_ctor_of pers st mode vis rf p former_tys rd ms c c_a) lst
+      (classCtorOf (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+        (absClassRead rd) (ms.val.map absTargetMajor) (absU c) (absIConstantVal c_a.1, absU c_a.2)) := by
+  rw [arena.inductives.gen_rec.class_ctor_of, classCtorOf]
+  lockstep
+  all_goals
+    rcases hes : (‹alloc.vec.Vec arena.inductives.positivity.NestCtorNf›).val with _ | ⟨e0, tl⟩
+    all_goals simp only [hes, List.map_nil, List.map_cons, gr_usz0, List.getElem_cons_zero]
+  all_goals first | (exfalso; simp_all [alloc.vec.Vec.len]; done) | lockstep
+  all_goals
+    have hd := ‹List.map absNestCtorNf _ = _ :: _›
+    rw [hes, List.map_cons, List.cons.injEq] at hd
+    obtain ⟨rfl, rfl⟩ := hd
+    lockstep
+  all_goals
+    refine LS.pure ?_ ‹_› ‹_›
+    simp only [absClassCtor, ‹absIConstantVal _ = absIConstantVal _›]
+    rfl
+
 end ConRon.Refine2
