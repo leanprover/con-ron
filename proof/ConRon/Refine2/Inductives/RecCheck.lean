@@ -831,4 +831,60 @@ theorem binders_beq_abs (a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
   rw [TwinEq, binders_beq_abs a b ha hb 0#usize o h, absBinderLFrom_zero, absBinderLFrom_zero]
   exact beq_eq_decide _ _
 
+/-! ## `target_pi_doms_with`: cursor and accumulator against the twin's
+non-tail `some (d :: ds)` -/
+
+theorem target_pi_doms_with_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst (e : arena.handle.EIdx) (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.map absEIdxL)
+        (arena.inductives.rec_check.target_pi_doms_with pers st xs i e out) lst
+        (do
+          let r ← targetPiDomsWith (absEIdxLFrom xs i) (absEIdx e)
+          pure (r.map (absEIdxL out ++ ·))) := by
+  intro i st lst e out hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun (w : arena.handle.EIdx × alloc.vec.Vec arena.handle.EIdx) l => do
+      let r ← targetPiDomsWith l (absEIdx w.1)
+      pure (r.map (absEIdxL w.2 ++ ·)))
+    (fun st k w => arena.inductives.rec_check.target_pi_doms_with pers st xs k w.1 w.2)
+    ?_ ?_ i st lst (e, out) hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.rec_check.target_pi_doms_with.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len xs by scalar_tac), targetPiDomsWith]
+    simp only [pure_bind, Option.map_some, List.append_nil]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : arena.handle.EIdx × alloc.vec.Vec arena.handle.EIdx),
+        j.val = k.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = a.map absEIdxL)
+          (arena.inductives.rec_check.target_pi_doms_with pers st' xs j w'.1 w'.2) lst'
+          (do
+            let r ← targetPiDomsWith ((xs.val.drop j.val).map absEIdx) (absEIdx w'.1)
+            pure (r.map (absEIdxL w'.2 ++ ·))) := ih
+    clear ih
+    rw [arena.inductives.rec_check.target_pi_doms_with.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac), targetPiDomsWith]
+    lockstep
+    rename_i d _ _ _ _ e2 acc hacc
+    have hj : a.val = k.val + 1 := by scalar_tac
+    refine LS.tail (ih' st1 lst1 a (e2, acc) hj hrel hinv) ?_ (fun _ _ h => h)
+    simp only [hj]
+    congr 1; funext x; cases x <;> simp [absEIdxL, hacc]
+
+@[lockstep] theorem target_pi_doms_with_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (xs : alloc.vec.Vec arena.handle.EIdx) (e : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absEIdxL)
+      (arena.inductives.rec_check.target_pi_doms_with pers st xs 0#usize e
+        (alloc.vec.Vec.new arena.handle.EIdx)) lst
+      (targetPiDomsWith (absEIdxL xs) (absEIdx e)) := by
+  have h := target_pi_doms_with_acc xs 0#usize st lst e (alloc.vec.Vec.new arena.handle.EIdx)
+    hrel hinv
+  have e' : (do
+      let r ← targetPiDomsWith (absEIdxLFrom xs 0#usize) (absEIdx e)
+      pure (r.map (absEIdxL (alloc.vec.Vec.new arena.handle.EIdx) ++ ·)) : AM _)
+      = targetPiDomsWith (absEIdxL xs) (absEIdx e) := by
+    simp [absEIdxL, absEIdxLFrom, alloc.vec.Vec.new]
+  rwa [e'] at h
+
 end ConRon.Refine2
