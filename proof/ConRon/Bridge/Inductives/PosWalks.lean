@@ -73,12 +73,12 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
   | zero =>
     intro s₀ s' r hok _ hrun
     simp only [Arena.mentionsAnyGo] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro s₀ s' r hok hp hrun
     obtain ⟨hT, hd, hm⟩ := hp
     simp only [Arena.mentionsAnyGo] at hrun
-    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨v, s₁, hv, h2⟩ := AM.bind_ok hrun
     obtain ⟨hv0, hw⟩ := view_run hv
     rw [hv0] at h2
     have fin : ∀ {s₂ s₃ : AState} {b : Bool} {mm : Std.HashMap EIdx Bool}
@@ -90,7 +90,7 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
         PStep s₀ s₃ ∧ r'.1 = Expr.mentionsAnyConst namesP hP ∧
           MentionsAnyMemoOK namesP r'.2 s₃.store := by
       intro s₂ s₃ b mm r' hs hb hmm hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       exact ⟨hs, hb, MentionsAnyMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
     have hit : ∀ {s₃ : AState} {r₀ : Bool}
         {r' : Bool × Std.HashMap EIdx Bool},
@@ -100,25 +100,25 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
         PStep s₀ s₃ ∧ r'.1 = Expr.mentionsAnyConst namesP hP ∧
           MentionsAnyMemoOK namesP r'.2 s₃.store := by
       intro s₃ r₀ r' hlk hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       obtain ⟨e, he, hre⟩ := hm h r₀ hlk
       obtain rfl := Option.some.inj (hd.symm.trans he)
       exact ⟨PStep.refl hok, hre, hm⟩
     cases v
     case bvar j =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_bvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case sort u =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case lit l =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_lit_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case const n us =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨nm, ls, rfl, hn, _⟩ := denote_const_inv hok.wf hw hd
       refine ⟨PStep.refl hok, ?_, hm⟩
       simp only [Expr.mentionsAnyConst]
@@ -129,7 +129,7 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p, s₂, hin, hz⟩ := bindOk h2
+        obtain ⟨p, s₂, hin, hz⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty t _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hin
         exact fin hsA (by simp only [Expr.mentionsAnyConst]; exact hrA) hmA hz
@@ -139,15 +139,15 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (b1, m1) hok ⟨hT, hf, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
           ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext ha hsA.ext, hmA⟩ hc2
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [Expr.mentionsAnyConst, hrA, hrB]) hmB hz
     case lam ty b m =>
@@ -156,15 +156,15 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
           ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [Expr.mentionsAnyConst, hrA, hrB]) hmB hz
     case forallE ty b m =>
@@ -173,15 +173,15 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
           ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [Expr.mentionsAnyConst, hrA, hrB]) hmB hz
     case letE lt lv lb =>
@@ -190,20 +190,20 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
           ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hval hsA.ext, hmA⟩ hc2
-        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨p3, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨b3, m3⟩ := p3
         obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (b3, m3) hsB.ok
           ⟨denoteNListE_ext (hsA.ext.trans hsB.ext) _ _ hT,
            denote_ext hbd (hsA.ext.trans hsB.ext), hmB⟩ hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC)
           (by simp only at hrA hrB hrC; simp only [Expr.mentionsAnyConst, hrA, hrB, hrC])
           hmC hz
@@ -213,11 +213,11 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (b1, m1) hok ⟨hT, hsub, hm⟩ hc1
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin hsA
           (by simp only at hrA
               simp only [Expr.mentionsAnyConst, hrA, contains_handle_eq hok.wf hn hT])
@@ -234,11 +234,11 @@ theorem mentionsAnyConst_spec (names : List NIdx) (namesP : List ConLeche.Name)
   intro s₀ s' r hok hp hrun
   obtain ⟨hT, hd⟩ := hp
   simp only [Arena.mentionsAnyConst] at hrun
-  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr, _⟩ :=
     mentionsAnyGo_spec names namesP ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok
       ⟨hT, hd, MentionsAnyMemoOK.empty⟩ h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:201-207 memberIdxAt?
@@ -254,7 +254,7 @@ theorem memberIdxAt?_spec (names : List NIdx) (namesP : List ConLeche.Name)
   simp only [Arena.memberIdxAt?] at hrun
   by_cases htg : (e.tag == ETag.const) = true
   · rw [if_pos htg] at hrun
-    obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨hs1, ho⟩ := viewConst_run h1
     subst hs1
     cases o with
@@ -267,21 +267,21 @@ theorem memberIdxAt?_spec (names : List NIdx) (namesP : List ConLeche.Name)
       have hb' := beq_lshandle_eq hok.wf hls hL
       by_cases hb : (us == lvls) = true
       · rw [if_pos hb] at h2
-        obtain ⟨rfl, rfl⟩ := pureOk h2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         refine ⟨PStep.refl hok, ?_⟩
         rw [hb'] at hb
         show _ = ConLeche.memberIdxAt? namesP lvlsP (.const nm ls)
         simp only [ConLeche.memberIdxAt?, hb, if_true]
         exact findIdx_handle_eq hok.wf hn hN
       · rw [if_neg hb] at h2
-        obtain ⟨rfl, rfl⟩ := pureOk h2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         refine ⟨PStep.refl hok, ?_⟩
         rw [hb'] at hb
         show _ = ConLeche.memberIdxAt? namesP lvlsP (.const nm ls)
         simp only [ConLeche.memberIdxAt?, hb]
         rfl
   · rw [if_neg htg] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
     show none = ConLeche.memberIdxAt? namesP lvlsP eP
     cases eP with
@@ -328,12 +328,12 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
   | zero =>
     intro s₀ s' r hok _ hrun
     simp only [Arena.nestOccGo] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro s₀ s' r hok hp hrun
     obtain ⟨hT, hd, hm⟩ := hp
     simp only [Arena.nestOccGo] at hrun
-    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨v, s₁, hv, h2⟩ := AM.bind_ok hrun
     obtain ⟨hv0, hw⟩ := view_run hv
     rw [hv0] at h2
     have fin : ∀ {s₂ s₃ : AState} {b : Bool} {mm : Std.HashMap EIdx Bool}
@@ -345,7 +345,7 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         PStep s₀ s₃ ∧ r'.1 = Expr.nestOcc namesP lo hi hP ∧
           NestOccMemoOK namesP lo hi r'.2 s₃.store := by
       intro s₂ s₃ b mm r' hs hb hmm hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       exact ⟨hs, hb, NestOccMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
     have hit : ∀ {s₃ : AState} {r₀ : Bool}
         {r' : Bool × Std.HashMap EIdx Bool},
@@ -355,30 +355,30 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         PStep s₀ s₃ ∧ r'.1 = Expr.nestOcc namesP lo hi hP ∧
           NestOccMemoOK namesP lo hi r'.2 s₃.store := by
       intro s₃ r₀ r' hlk hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       obtain ⟨e, he, hre⟩ := hm h r₀ hlk
       obtain rfl := Option.some.inj (hd.symm.trans he)
       exact ⟨PStep.refl hok, hre, hm⟩
     cases v
     case bvar j =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_bvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case sort u =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case lit l =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_lit_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case fvar k ty =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
       refine ⟨PStep.refl hok, ?_, hm⟩
       simp [Expr.nestOcc]
     case const n us =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨nm, ls, rfl, hn, _⟩ := denote_const_inv hok.wf hw hd
       refine ⟨PStep.refl hok, ?_, hm⟩
       simp only [Expr.nestOcc]
@@ -389,21 +389,21 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (b1, m1) hok ⟨hT, hf, hm⟩ hc1
         simp only at hrA
         cases b1
         · simp only [Bool.false_eq_true, if_false] at hn1
-          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext ha hsA.ext, hmA⟩ hc2
           simp only at hrB
           exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
         · simp only [if_true] at hn1
-          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
-          obtain ⟨rfl, rfl⟩ := pureOk hy
+          obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
     case lam ty b m =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
@@ -411,21 +411,21 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
         simp only at hrA
         cases b1
         · simp only [Bool.false_eq_true, if_false] at hn1
-          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
           simp only at hrB
           exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
         · simp only [if_true] at hn1
-          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
-          obtain ⟨rfl, rfl⟩ := pureOk hy
+          obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
     case forallE ty b m =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
@@ -433,21 +433,21 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
         simp only at hrA
         cases b1
         · simp only [Bool.false_eq_true, if_false] at hn1
-          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
           simp only at hrB
           exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
         · simp only [if_true] at hn1
-          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
-          obtain ⟨rfl, rfl⟩ := pureOk hy
+          obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
     case letE lt lv lb =>
       obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
@@ -455,20 +455,20 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
         simp only at hrA
         cases b1
         · simp only [Bool.false_eq_true, if_false] at hn1
-          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hval hsA.ext, hmA⟩ hc2
           simp only at hrB
           cases b2
           · simp only [Bool.false_eq_true, if_false] at hn2
-            obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+            obtain ⟨p3, sc, hc3, hn3⟩ := AM.bind_ok hn2
             obtain ⟨b3, m3⟩ := p3
             obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (b3, m3) hsB.ok
               ⟨denoteNListE_ext (hsA.ext.trans hsB.ext) _ _ hT,
@@ -477,12 +477,12 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
             exact fin ((hsA.trans hsB).trans hsC)
               (by simp only [Expr.nestOcc, ← hrA, ← hrB, ← hrC]; rfl) hmC hn3
           · simp only [if_true] at hn2
-            obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-            obtain ⟨rfl, rfl⟩ := pureOk hy
+            obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hz
         · simp only [if_true] at hn1
-          obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
-          obtain ⟨rfl, rfl⟩ := pureOk hy
+          obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
     case proj pn pk psub =>
       obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
@@ -490,7 +490,7 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (b1, m1) hok ⟨hT, hsub, hm⟩ hc1
         simp only at hrA
@@ -506,11 +506,11 @@ theorem nestOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi : 
   intro s₀ s' r hok hp hrun
   obtain ⟨hT, hd⟩ := hp
   simp only [Arena.nestOcc] at hrun
-  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr, _⟩ :=
     nestOccGo_spec names namesP lo hi ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok
       ⟨hT, hd, NestOccMemoOK.empty⟩ h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, hr⟩
 
 /-! ## `piDomsOcc` -/
@@ -527,7 +527,7 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
   | zero =>
     intro e eP s₀ s' r hok _ hrun
     simp only [Arena.piDomsOcc] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | succ n ih =>
     intro e eP s₀ s' r hok hp hrun
@@ -535,7 +535,7 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
     simp only [Arena.piDomsOcc] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [if_pos htg] at hrun
-      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
       cases o with
@@ -545,13 +545,13 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         have hw := view_of_viewBind_tag_forallE htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
-        obtain ⟨c, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨c, s₂, h3, h4⟩ := AM.bind_ok h2
         obtain ⟨p3, hc⟩ := nestOcc_spec names namesP lo hi d dP s₀ s₂ c hok ⟨hT, hdd⟩ h3
         simp only [RV] at hc
         subst hc
         by_cases hb : Expr.nestOcc namesP lo hi dP = true
         · rw [if_pos hb] at h4
-          obtain ⟨rfl, rfl⟩ := pureOk h4
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
           exact ⟨p3, by simp [Expr.piDomsOcc, hb]⟩
         · rw [if_neg hb] at h4
           obtain ⟨p4, h5⟩ := ih b bP s₂ s' r p3.ok
@@ -560,7 +560,7 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
           simp only [RV] at h5
           simp [Expr.piDomsOcc, hb, h5]
     · rw [if_neg htg] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show false = Expr.piDomsOcc namesP lo hi (n + 1) eP
       cases eP with
@@ -699,12 +699,12 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
   | zero =>
     intro s₀ s' r hok _ hrun
     simp only [Arena.depthGo] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro s₀ s' r hok hp hrun
     obtain ⟨hd, hm⟩ := hp
     simp only [Arena.depthGo] at hrun
-    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨v, s₁, hv, h2⟩ := AM.bind_ok hrun
     obtain ⟨hv0, hw⟩ := view_run hv
     rw [hv0] at h2
     have fin : ∀ {s₂ s₃ : AState} {b : Nat} {mm : Std.HashMap EIdx Nat}
@@ -714,7 +714,7 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
             AM (Nat × Std.HashMap EIdx Nat)) s₂ = .ok (r', s₃) →
         PStep s₀ s₃ ∧ r'.1 = depthS hP ∧ DepthMemoOK r'.2 s₃.store := by
       intro s₂ s₃ b mm r' hs hb hmm hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       exact ⟨hs, hb, DepthMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
     have hit : ∀ {s₃ : AState} {r₀ : Nat} {r' : Nat × Std.HashMap EIdx Nat},
         memo[h]? = some r₀ →
@@ -722,29 +722,29 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
             AM (Nat × Std.HashMap EIdx Nat)) s₀ = .ok (r', s₃) →
         PStep s₀ s₃ ∧ r'.1 = depthS hP ∧ DepthMemoOK r'.2 s₃.store := by
       intro s₃ r₀ r' hlk hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       obtain ⟨e, he, hre⟩ := hm h r₀ hlk
       obtain rfl := Option.some.inj (hd.symm.trans he)
       exact ⟨PStep.refl hok, hre, hm⟩
     cases v
     case bvar j =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_bvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case fvar k ty =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case sort u =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case const n us =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case lit l =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_lit_inv hok.wf hw hd
       exact ⟨PStep.refl hok, rfl, hm⟩
     case app f a =>
@@ -753,15 +753,15 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (b1, m1) hok ⟨hf, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
           ⟨denote_ext ha hsA.ext, hmA⟩ hc2
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
     case lam ty b m =>
@@ -770,15 +770,15 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
           ⟨denote_ext hbd hsA.ext, hmA⟩ hc2
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
     case forallE ty b m =>
@@ -787,15 +787,15 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
           ⟨denote_ext hbd hsA.ext, hmA⟩ hc2
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn2
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
     case letE lt lv lb =>
@@ -804,19 +804,19 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (b1, m1) hok ⟨hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
           ⟨denote_ext hval hsA.ext, hmA⟩ hc2
-        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨p3, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨b3, m3⟩ := p3
         obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (b3, m3) hsB.ok
           ⟨denote_ext hbd (hsA.ext.trans hsB.ext), hmB⟩ hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC)
           (by simp only at hrA hrB hrC; simp only [depthS, hrA, hrB, hrC]) hmC hz
     case proj pn pk psub =>
@@ -825,11 +825,11 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨b1, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (b1, m1) hok ⟨hsub, hm⟩ hc1
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn1
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin hsA (by simp only at hrA; simp only [depthS, hrA]) hmA hz
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:590-592 Expr.depth
@@ -838,10 +838,10 @@ theorem depth_spec (e : EIdx) (eP : Expr) :
     PSpec (fun st => denoteE st e = some eP) (Arena.depth e) (RV (Expr.depth eP)) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.depth] at hrun
-  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr, _⟩ :=
     depthGo_spec ∅ Arena.coreWalkFuel e eP s₀ s₁ q hok ⟨hd, DepthMemoOK.empty⟩ h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, by simp only [RV, depth_eq_depthS]; exact hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:594-596 whnfWalkFuel
@@ -851,9 +851,9 @@ theorem whnfWalkFuel_spec (e : EIdx) (eP : Expr) :
       (RV (ConLeche.whnfWalkFuel eP)) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.whnfWalkFuel] at hrun
-  obtain ⟨d, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨d, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr⟩ := depth_spec e eP s₀ s₁ d hok hd h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   simp only [RV] at hr
   exact ⟨hstep, by simp only [RV, ConLeche.whnfWalkFuel, hr]; rfl⟩
 
@@ -1034,23 +1034,23 @@ theorem fvMapAt_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
   | keyMap ds holes =>
     obtain ⟨dsP, holesP, h1, h2, rfl⟩ := hpre
     rw [Arena.fvMapAt] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, nestKeyMap_rel h1 h2 i⟩
   | erase =>
     subst hpre
     rw [Arena.fvMapAt] at hrun
-    obtain ⟨z, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨z, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨rfl, hz⟩ := zeroLevel_run hpins k1
-    obtain ⟨so, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨so, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hso⟩ := internSortE_run hok hz k2
-    obtain ⟨v, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨v, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, hv⟩ := internFVarE_run p2.ok hso k3
-    obtain ⟨rfl, rfl⟩ := pureOk z3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
     exact ⟨p2.trans p3, _, rfl, hv⟩
   | canon pfvs =>
     obtain ⟨pP, h1, rfl⟩ := hpre
     rw [Arena.fvMapAt] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, getElem?_ROp h1 i⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
@@ -1069,13 +1069,13 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
   | zero =>
     intro memo h hP s₀ s' r hok _ _ hrun
     rw [Arena.replaceFVarsGo] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro memo h hP s₀ s' r hok hpins hp hrun
     obtain ⟨hF, hd, hm⟩ := hp
     rw [Arena.replaceFVarsGo] at hrun
     dsimp only at hrun
-    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨v, s₁, hv, h2⟩ := AM.bind_ok hrun
     obtain ⟨hv0, hw⟩ := view_run hv
     rw [hv0] at h2
     have fin : ∀ {s₂ s₃ : AState} {rr : EIdx} {mm : Std.HashMap EIdx EIdx}
@@ -1087,7 +1087,7 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
         PStep s₀ s₃ ∧ denoteE s₃.store r'.1 = some (Expr.replaceFVars fP hP) ∧
           RFMemoOK fP r'.2 s₃.store := by
       intro s₂ s₃ rr mm r' hs hb hmm hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       exact ⟨hs, hb, RFMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
     have hit : ∀ {s₃ : AState} {r₀ : EIdx} {r' : EIdx × Std.HashMap EIdx EIdx},
         memo[h]? = some r₀ →
@@ -1096,40 +1096,40 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
         PStep s₀ s₃ ∧ denoteE s₃.store r'.1 = some (Expr.replaceFVars fP hP) ∧
           RFMemoOK fP r'.2 s₃.store := by
       intro s₃ r₀ r' hlk hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       obtain ⟨e, he, hre⟩ := hm h r₀ hlk
       obtain rfl := Option.some.inj (hd.symm.trans he)
       exact ⟨PStep.refl hok, hre, hm⟩
     cases v
     case bvar j =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_bvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case sort u =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case lit l =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_lit_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case const n us =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case fvar k ty =>
       obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
-      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨p3, ho⟩ := hfm k s₀ s₂ o hok hpins hF h3
       cases o with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨p3, ?_, hm.ext p3.ext⟩
         have : fP k = none := ho
         simp only [Expr.replaceFVars, this, Option.getD_none]
         exact denote_ext hd p3.ext
       | some a =>
-        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         obtain ⟨b, hb, hab⟩ := ho
         refine ⟨p3, ?_, hm.ext p3.ext⟩
         simp only [Expr.replaceFVars, hb, Option.getD_some]
@@ -1140,18 +1140,18 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (a2, m1) hok hpins
           ⟨hF, hf, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext ha hsA.ext, hmA⟩ hc2
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨hsC, hq⟩ := internAppE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
     case lam ty b m =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
@@ -1159,18 +1159,18 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
           ⟨hF, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨hsC, hq⟩ := internLamE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
     case forallE ty b m =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
@@ -1178,18 +1178,18 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
           ⟨hF, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext hbd hsA.ext, hmA⟩ hc2
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨hsC, hq⟩ := internForallEE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
     case letE lt lv lb =>
       obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
@@ -1197,23 +1197,23 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (a2, m1) hok hpins ⟨hF, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA) ⟨hF.ext hsA.ext, denote_ext hval hsA.ext, hmA⟩ hc2
         have hAB := hsA.trans hsB
-        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨p3, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨c2, m3⟩ := p3
         obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (c2, m3) hsB.ok
           (PinsOK.ofPStep hpins hAB) ⟨hF.ext hAB.ext, denote_ext hbd hAB.ext, hmB⟩ hc3
-        obtain ⟨q, sd, hc4, hn4⟩ := bindOk hn3
+        obtain ⟨q, sd, hc4, hn4⟩ := AM.bind_ok hn3
         obtain ⟨hsD, hq⟩ := internLetEE_run hsC.ok (denote_ext hrA (hsB.ext.trans hsC.ext))
           (denote_ext hrB hsC.ext) hrC hc4
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn4
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hAB.trans hsC).trans hsD) (by rw [hq]; rfl) (hmC.ext hsD.ext) hz
     case proj pn pk psub =>
       obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
@@ -1221,13 +1221,13 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (a2, m1) hok hpins ⟨hF, hsub, hm⟩ hc1
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn1
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn1
         obtain ⟨hsC, hq⟩ := internProjE_run hsA.ok (denoteN_ext hn hsA.ext) hrA hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:875-877 Expr.replaceFVarsFast
@@ -1239,10 +1239,10 @@ theorem replaceFVars_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
   intro s₀ s' r hok hpins hp hrun
   obtain ⟨hF, hd⟩ := hp
   rw [Arena.replaceFVars] at hrun
-  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr, _⟩ := replaceFVarsGo_spec_of f fP hfm Arena.coreWalkFuel ∅ e eP
     s₀ s₁ q hok hpins ⟨hF, hd, RFMemoOK.empty⟩ h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, hr⟩
 
 /-- con-leche: none — `List.mapM` of a pin-reading expression map over a
@@ -1263,7 +1263,7 @@ theorem mapM_RE_P {F : EIdx → AM EIdx} {G : Expr → Expr} (Q : EStore → Pro
     simp only [Frontend.denoteEList, Option.some.injEq] at h
     subst h
     simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons e es ih =>
     intro xsP s₀ s' r hok hpins hp hrun
@@ -1278,12 +1278,12 @@ theorem mapM_RE_P {F : EIdx → AM EIdx} {G : Expr → Expr} (Q : EStore → Pro
         rw [he, hes] at h
         obtain rfl := (Option.some.inj h).symm
         simp only [List.mapM_cons] at hrun
-        obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
         obtain ⟨p1, hx⟩ := hF e eP s₀ s1 x hok hpins ⟨hq, he⟩ k1
-        obtain ⟨xs', s2, k2, z2⟩ := bindOk z1
+        obtain ⟨xs', s2, k2, z2⟩ := AM.bind_ok z1
         obtain ⟨p2, hxs⟩ := ih esP s1 s2 xs' p1.ok (PinsOK.ofPStep hpins p1)
           ⟨hQ p1.ext hq, denoteEList_ext p1.ext _ _ hes⟩ k2
-        obtain ⟨rfl, rfl⟩ := pureOk z2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
         refine ⟨p1.trans p2, ?_⟩
         show Frontend.denoteEList _ (x :: xs') = _
         have hxs' : Frontend.denoteEList _ xs' = some (esP.map G) := hxs
@@ -1325,7 +1325,7 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
     | cons _ _ => simp [dProg] at h2
     | nil =>
     obtain ⟨namesP, lpsP, paramsP, sortP, rfl, hN, _, hPa, _, hLv⟩ := dCtx_inv h1
-    have hlen := denoteNList_length hN
+    have hlen := denoteNList_length _ _ hN
     rw [Arena.nestHoleImg] at hrun
     dsimp only at hrun
     have hiff : ((decide (ctx.nP ≤ i) && decide (i < ctx.hiAt 0)) = true) ↔
@@ -1340,19 +1340,19 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
       have hg : ctx.names.getD (i - ctx.nP) default = ctx.names[i - ctx.nP] := by
         simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj]
       rw [hg] at hrun
-      obtain ⟨hd, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨hd, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨p1, hhd⟩ := internConstE_run hok hn hLv k1
-      obtain ⟨q, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨q, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, hq⟩ := mkAppN_run ctx.params paramsP p1.ok hhd
         (denoteEList_ext p1.ext _ _ hPa) k2
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨p1.trans p2, _, ?_, hq⟩
       have hgP : namesP.getD (i - ctx.nP) .anonymous = nm := by
         simp [List.getD_eq_getElem?_getD, hnm]
       simp only [ConLeche.nestHoleImg, ConLeche.NestCtx.hiAt, hgP]
       rw [if_pos ⟨hlo, hhi⟩]
     · rw [if_neg hc] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show ConLeche.nestHoleImg _ [] i = none
       simp only [ConLeche.nestHoleImg, ConLeche.NestCtx.hiAt]
@@ -1363,7 +1363,7 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
     have hn : n < prog.length := by omega
     obtain ⟨hP, progP', rfl, hH, hprog', hlenP⟩ := dProg_take_succ hn h2
     obtain ⟨namesP, lpsP, paramsP, sortP, hctx, hN, _, _, _, _⟩ := dCtx_inv h1
-    have hlen := denoteNList_length hN
+    have hlen := denoteNList_length _ _ hN
     rw [Arena.nestHoleImg] at hrun
     dsimp only at hrun
     have hiff : (i == ctx.hiAt n) = true ↔ i = ctxP.hiAt progP'.length := by
@@ -1379,18 +1379,18 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
       obtain ⟨hcn, hcl, hcd⟩ := dKey_inv hk
       have hfm : FvMapAtSpec (.holeImg ctx prog n) (ConLeche.nestHoleImg ctxP progP') :=
         fvMapAt_spec_of _ _ (fun c p m heq => by cases heq; exact ih)
-      obtain ⟨ds, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨ds, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨p1, hds⟩ := mapM_RE_P
         (fun st => FvMapRel st (.holeImg ctx prog n) (ConLeche.nestHoleImg ctxP progP'))
         (fun hx h => h.ext hx)
         (fun e eP => replaceFVars_spec_of _ _ hfm e eP) _ _ s₀ s1 ds hok hpins
         ⟨⟨fnd, ctxP, progP', h1, hprog', by omega, rfl⟩, hcd⟩ k1
-      obtain ⟨hd, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨hd, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, hhd⟩ := internConstE_run p1.ok (denoteN_ext hcn p1.ext)
         (denoteLs_ext hcl p1.ext) k2
-      obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨q, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, hq⟩ := mkAppN_run ds _ p2.ok hhd (denoteEList_ext p2.ext _ _ hds) k3
-      obtain ⟨rfl, rfl⟩ := pureOk z3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨(p1.trans p2).trans p3, _, ?_, hq⟩
       simp only [ConLeche.nestHoleImg]
       rw [if_pos (hiff.mp hc)]
@@ -1439,7 +1439,7 @@ theorem phApp?_spec (b : Nat) :
     simp only [Arena.phApp?] at hrun
     by_cases htg : (e.tag == ETag.const) = true
     · rw [if_pos htg] at hrun
-      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewConst_run h1
       rw [hs1] at h2
       cases o with
@@ -1449,10 +1449,10 @@ theorem phApp?_spec (b : Nat) :
         have hw := view_of_viewConst_tag htg ho.symm
         obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hok.wf hw hd
         dsimp only at h2
-        obtain ⟨rfl, rfl⟩ := pureOk h2
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         exact ⟨PStep.refl hok, (nm, ls), rfl, hn, hls⟩
     · rw [if_neg htg] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show Expr.phApp? b eP 0 = none
       cases eP with
@@ -1463,7 +1463,7 @@ theorem phApp?_spec (b : Nat) :
     simp only [Arena.phApp?] at hrun
     by_cases htg : (e.tag == ETag.app) = true
     · rw [if_pos htg] at hrun
-      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewApp_run h1
       rw [hs1] at h2
       cases o with
@@ -1475,7 +1475,7 @@ theorem phApp?_spec (b : Nat) :
         dsimp only at h2
         by_cases hta : (a.tag == ETag.fvar) = true
         · rw [if_pos hta] at h2
-          obtain ⟨o2, s₂, h3, h4⟩ := bindOk h2
+          obtain ⟨o2, s₂, h3, h4⟩ := AM.bind_ok h2
           obtain ⟨hs2, ho2⟩ := viewFVarIdx_run h3
           rw [hs2] at h4
           cases o2 with
@@ -1491,20 +1491,20 @@ theorem phApp?_spec (b : Nat) :
               rw [heq]
               exact ih f fP s₀ s' r hok hf h4
             · rw [if_neg hj] at h4
-              obtain ⟨rfl, rfl⟩ := pureOk h4
+              obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
               refine ⟨PStep.refl hok, ?_⟩
               show Expr.phApp? b (.app fP (.fvar j t)) (n + 1) = none
               have hj' : ¬ j = b + n := by simpa using hj
               simp [Expr.phApp?, hj']
         · rw [if_neg hta] at h2
-          obtain ⟨rfl, rfl⟩ := pureOk h2
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
           refine ⟨PStep.refl hok, ?_⟩
           show Expr.phApp? b (.app fP aP) (n + 1) = none
           cases aP with
           | fvar j t => exact absurd (tag_fvar_of_denote hok.wf ha) (by simpa using hta)
           | _ => rfl
     · rw [if_neg htg] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show Expr.phApp? b eP (n + 1) = none
       cases eP with
@@ -1533,24 +1533,24 @@ theorem nestCanonSub_spec (names : List NIdx) (namesP : List ConLeche.Name)
     cases hm : names.findIdx? (· == c) with
     | none =>
       rw [hm] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show ConLeche.nestCanonSub namesP usP n cP vP = none
       simp only [ConLeche.nestCanonSub, hbP, if_true, ← hfi, hm, Option.map_none]
     | some m =>
       rw [hm] at hrun
       dsimp only at hrun
-      obtain ⟨z, s1, k1, z1⟩ := bindOk hrun
+      obtain ⟨z, s1, k1, z1⟩ := AM.bind_ok hrun
       obtain ⟨rfl, hz⟩ := zeroLevel_run hpins k1
-      obtain ⟨so, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨so, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, hso⟩ := internSortE_run hok hz k2
-      obtain ⟨q, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨q, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, hq⟩ := internFVarE_run p2.ok hso k3
-      obtain ⟨rfl, rfl⟩ := pureOk z3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨p2.trans p3, _, ?_, hq⟩
       simp only [ConLeche.nestCanonSub, hbP, if_true, ← hfi, hm, Option.map_some]
   · rw [if_neg hb] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
     have hbP : ¬ (vP == usP) = true := by rw [← hbv]; exact hb
     show ConLeche.nestCanonSub namesP usP n cP vP = none
@@ -1567,11 +1567,11 @@ theorem appHole?_spec (names : List NIdx) (namesP : List ConLeche.Name)
   intro s₀ s' r hok hpins hp hrun
   obtain ⟨hN, hU, hd⟩ := hp
   simp only [Arena.appHole?] at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := phApp?_spec b n e eP s₀ s₁ o hok hd h1
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk h2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     refine ⟨p1, ?_⟩
     have : Expr.phApp? b eP n = none := ho
     show Expr.appHole? _ b n eP = none
@@ -1640,12 +1640,12 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
   | zero =>
     intro memo h hP s₀ s' r hok _ _ hrun
     simp only [Arena.replaceAppsGo] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro memo h hP s₀ s' r hok hpins hp hrun
     obtain ⟨hN, hU, hd, hm⟩ := hp
     simp only [Arena.replaceAppsGo] at hrun
-    obtain ⟨v, s₁, hv, h2⟩ := bindOk hrun
+    obtain ⟨v, s₁, hv, h2⟩ := AM.bind_ok hrun
     obtain ⟨hv0, hw⟩ := view_run hv
     rw [hv0] at h2
     have fin : ∀ {s₂ s₃ : AState} {rr : EIdx} {mm : Std.HashMap EIdx EIdx}
@@ -1660,7 +1660,7 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
           some (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n hP) ∧
           RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n r'.2 s₃.store := by
       intro s₂ s₃ rr mm r' hs hb hmm hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       exact ⟨hs, hb, RAMemoOK.insert hmm (denote_ext hd hs.ext) hb⟩
     have hit : ∀ {s₃ : AState} {r₀ : EIdx} {r' : EIdx × Std.HashMap EIdx EIdx},
         memo[h]? = some r₀ →
@@ -1670,41 +1670,41 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
           some (Expr.replaceApps (ConLeche.nestCanonSub namesP usP n) b n hP) ∧
           RAMemoOK (ConLeche.nestCanonSub namesP usP n) b n r'.2 s₃.store := by
       intro s₃ r₀ r' hlk hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       obtain ⟨e, he, hre⟩ := hm h r₀ hlk
       obtain rfl := Option.some.inj (hd.symm.trans he)
       exact ⟨PStep.refl hok, hre, hm⟩
     cases v
     case bvar j =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_bvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case sort u =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨l, rfl, _⟩ := denote_sort_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case lit l =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain rfl := denote_lit_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case fvar k ty =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok.wf hw hd
       exact ⟨PStep.refl hok, hd, hm⟩
     case const c us' =>
       obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok.wf hw hd
-      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨p3, ho⟩ := appHole?_spec names namesP us usP b n h _ s₀ s₂ o hok hpins
         ⟨hN, hU, hd⟩ h3
       cases o with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨p3, ?_, hm.ext p3.ext⟩
         have : Expr.appHole? (ConLeche.nestCanonSub namesP usP n) b n (.const nm ls) = none := ho
         simp only [Expr.replaceApps, this, Option.getD_none]
         exact denote_ext hd p3.ext
       | some a =>
-        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         obtain ⟨bq, hb, hab⟩ := ho
         refine ⟨p3, ?_, hm.ext p3.ext⟩
         simp only [Expr.replaceApps, hb, Option.getD_some]
@@ -1715,38 +1715,38 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
         obtain ⟨p3, ho⟩ := appHole?_spec names namesP us usP b n h _ s₀ s₂ o hok hpins
           ⟨hN, hU, hd⟩ h3
         cases o with
         | some q =>
           obtain ⟨bq, hb, hab⟩ := ho
           dsimp only at h4
-          obtain ⟨y, sy, hy, hz⟩ := bindOk h4
-          obtain ⟨rfl, rfl⟩ := pureOk hy
+          obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok h4
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin p3 (by simp only [Expr.replaceApps, hb, Option.getD_some]; exact hab)
             (hm.ext p3.ext) hz
         | none =>
           have hnone : Expr.appHole? (ConLeche.nestCanonSub namesP usP n) b n
               (.app ef ea) = none := ho
           dsimp only at h4
-          obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h4
+          obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h4
           obtain ⟨a2, m1⟩ := p1
           obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (a2, m1) p3.ok
             (PinsOK.ofPStep hpins p3)
             ⟨denoteNListE_ext p3.ext _ _ hN, denoteLs_ext hU p3.ext, denote_ext hf p3.ext,
              hm.ext p3.ext⟩ hc1
           have h3A := p3.trans hsA
-          obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+          obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
             (PinsOK.ofPStep hpins h3A)
             ⟨denoteNListE_ext h3A.ext _ _ hN, denoteLs_ext hU h3A.ext,
              denote_ext ha h3A.ext, hmA⟩ hc2
-          obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+          obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn2
           obtain ⟨hsC, hq⟩ := internAppE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
-          obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-          obtain ⟨rfl, rfl⟩ := pureOk hy
+          obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin ((h3A.trans hsB).trans hsC)
             (by rw [hq]; simp only [Expr.replaceApps, hnone, Option.getD_none])
             (hmB.ext hsC.ext) hz
@@ -1756,20 +1756,20 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
           ⟨hN, hU, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 bd eb _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA)
           ⟨denoteNListE_ext hsA.ext _ _ hN, denoteLs_ext hU hsA.ext, denote_ext hbd hsA.ext,
            hmA⟩ hc2
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨hsC, hq⟩ := internLamE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
     case forallE ty bd m =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
@@ -1777,20 +1777,20 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (a2, m1) hok hpins
           ⟨hN, hU, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 bd eb _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA)
           ⟨denoteNListE_ext hsA.ext _ _ hN, denoteLs_ext hU hsA.ext, denote_ext hbd hsA.ext,
            hmA⟩ hc2
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨hsC, hq⟩ := internForallEE_run hsB.ok (denote_ext hrA hsB.ext) hrB hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
     case letE lt lv lb =>
       obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ := denote_letE_inv hok.wf hw hd
@@ -1798,28 +1798,28 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (a2, m1) hok hpins
           ⟨hN, hU, hty, hm⟩ hc1
-        obtain ⟨p2, sb, hc2, hn2⟩ := bindOk hn1
+        obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
         obtain ⟨b2, m2⟩ := p2
         obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
           (PinsOK.ofPStep hpins hsA)
           ⟨denoteNListE_ext hsA.ext _ _ hN, denoteLs_ext hU hsA.ext,
            denote_ext hval hsA.ext, hmA⟩ hc2
         have hAB := hsA.trans hsB
-        obtain ⟨p3, sc, hc3, hn3⟩ := bindOk hn2
+        obtain ⟨p3, sc, hc3, hn3⟩ := AM.bind_ok hn2
         obtain ⟨c2, m3⟩ := p3
         obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (c2, m3) hsB.ok
           (PinsOK.ofPStep hpins hAB)
           ⟨denoteNListE_ext hAB.ext _ _ hN, denoteLs_ext hU hAB.ext,
            denote_ext hbd hAB.ext, hmB⟩ hc3
-        obtain ⟨q, sd, hc4, hn4⟩ := bindOk hn3
+        obtain ⟨q, sd, hc4, hn4⟩ := AM.bind_ok hn3
         obtain ⟨hsD, hq⟩ := internLetEE_run hsC.ok (denote_ext hrA (hsB.ext.trans hsC.ext))
           (denote_ext hrB hsC.ext) hrC hc4
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn4
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hAB.trans hsC).trans hsD) (by rw [hq]; rfl) (hmC.ext hsD.ext) hz
     case proj pn pk psub =>
       obtain ⟨nm, es, rfl, hn, hsub⟩ := denote_proj_inv hok.wf hw hd
@@ -1827,14 +1827,14 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
       | none =>
         rw [hlk] at h2
-        obtain ⟨p1, sa, hc1, hn1⟩ := bindOk h2
+        obtain ⟨p1, sa, hc1, hn1⟩ := AM.bind_ok h2
         obtain ⟨a2, m1⟩ := p1
         obtain ⟨hsA, hrA, hmA⟩ := ih memo psub es _ _ (a2, m1) hok hpins
           ⟨hN, hU, hsub, hm⟩ hc1
-        obtain ⟨q, sc, hc3, hn3⟩ := bindOk hn1
+        obtain ⟨q, sc, hc3, hn3⟩ := AM.bind_ok hn1
         obtain ⟨hsC, hq⟩ := internProjE_run hsA.ok (denoteN_ext hn hsA.ext) hrA hc3
-        obtain ⟨y, sy, hy, hz⟩ := bindOk hn3
-        obtain ⟨rfl, rfl⟩ := pureOk hy
+        obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsC) (by rw [hq]; rfl) (hmA.ext hsC.ext) hz
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1077-1079 Expr.replaceAppsFast
@@ -1848,10 +1848,10 @@ theorem replaceApps_spec (names : List NIdx) (namesP : List ConLeche.Name)
   intro s₀ s' r hok hpins hp hrun
   obtain ⟨hN, hU, hd⟩ := hp
   simp only [Arena.replaceApps] at hrun
-  obtain ⟨q, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨q, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr, _⟩ := replaceAppsGo_spec names namesP us usP b n Arena.coreWalkFuel
     ∅ e eP s₀ s₁ q hok hpins ⟨hN, hU, hd, RAMemoOK.empty⟩ h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1086-1087 nestPhs
@@ -1868,21 +1868,21 @@ theorem nestPhs_go :
   | nil =>
     intro s₀ s' r hok _ _ hrun
     simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons i is ih =>
     intro s₀ s' r hok hpins _ hrun
     simp only [List.mapM_cons] at hrun
-    obtain ⟨x, s1, k1, z1⟩ := bindOk hrun
-    obtain ⟨z, t1, j1, y1⟩ := bindOk k1
+    obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨z, t1, j1, y1⟩ := AM.bind_ok k1
     obtain ⟨rfl, hz⟩ := zeroLevel_run hpins j1
-    obtain ⟨so, t2, j2, y2⟩ := bindOk y1
+    obtain ⟨so, t2, j2, y2⟩ := AM.bind_ok y1
     obtain ⟨q2, hso⟩ := internSortE_run hok hz j2
     obtain ⟨q3, hx⟩ := internFVarE_run q2.ok hso y2
     have p1 := q2.trans q3
-    obtain ⟨xs', s2, k2, z2⟩ := bindOk z1
+    obtain ⟨xs', s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hxs⟩ := ih s1 s2 xs' p1.ok (PinsOK.ofPStep hpins p1) trivial k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p1.trans p2, ?_⟩
     show Frontend.denoteEList _ (x :: xs') = _
     have hxs' : Frontend.denoteEList _ xs' = some _ := hxs
@@ -1903,7 +1903,7 @@ theorem hiAt_eq {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
     {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (h : dCtx st fnd ctx = some ctxP)
     (nf : Nat) : ctx.hiAt nf = ctxP.hiAt nf := by
   obtain ⟨namesP, _, _, _, rfl, hN, _⟩ := dCtx_inv h
-  simp only [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, denoteNList_length hN]
+  simp only [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, denoteNList_length _ _ hN]
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:723-727 NestCtx.rootHoles
 The root frame's entries denote the denoted context's: the interned `lvls`
@@ -2008,7 +2008,7 @@ theorem beq_key_eq {st : EStore} (hwf : StoreWF st) {k₁ k₂ : Arena.NestKey}
   obtain ⟨c2, l2, d2⟩ := dKey_inv h₂
   have e1 := beq_handle_eq hwf c1 c2
   have e2 := beq_lshandle_eq hwf l1 l2
-  have e3 := beq_ehandleList_eq hwf d1 d2
+  have e3 := beq_of_denoteEList hwf d1 d2
   obtain ⟨kc1, kl1, kd1⟩ := k₁
   obtain ⟨kc2, kl2, kd2⟩ := k₂
   obtain ⟨ac, al, ad⟩ := a

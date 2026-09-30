@@ -82,7 +82,7 @@ theorem paramLevels_go_run : ∀ (lps : List NIdx) {lpsP : List ConLeche.Name}
     simp only [Frontend.denoteNList, Option.some.injEq] at hd
     subst hd
     simp only [Arena.paramLevels.go] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons n ns ih =>
     intro lpsP s s' r hok hd hrun
@@ -96,12 +96,12 @@ theorem paramLevels_go_run : ∀ (lps : List NIdx) {lpsP : List ConLeche.Name}
         rw [hn, hns] at hd
         obtain rfl := Option.some.inj hd
         simp only [Arena.paramLevels.go] at hrun
-        obtain ⟨u, s₁, h1, h2⟩ := bindOk hrun
-        obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨u, s₁, h1, h2⟩ := AM.bind_ok hrun
+        obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
         obtain ⟨hstep1, hu⟩ := internParamL_run hok hn h1
         obtain ⟨hstep2, hrest⟩ :=
           ih hstep1.ok (denoteNListE_ext hstep1.ext _ _ hns) h3
-        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨hstep1.trans hstep2, ?_⟩
         simp only [denoteLList, opt2, denoteL_ext hu hstep2.ext, hrest,
           List.map_cons]
@@ -111,7 +111,7 @@ theorem paramLevels_spec (lps : List NIdx) (lpsP : List ConLeche.Name) :
       (Arena.paramLevels lps) (RLs (lpsP.map Level.param)) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.paramLevels] at hrun
-  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨us, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, hus⟩ := paramLevels_go_run lps hok hd h1
   obtain ⟨hstep2, hr⟩ := internLsNode_run hstep1.ok hus h2
   exact ⟨hstep1.trans hstep2, hr⟩
@@ -134,16 +134,16 @@ theorem structPsAt_go_run (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
   | zero =>
     intro k s s' r hok hrun
     simp only [Arena.structPsAt.go] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | succ n ih =>
     intro k s s' r hok hrun
     simp only [Arena.structPsAt.go] at hrun
-    obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
-    obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
+    obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
     obtain ⟨hstep2, hrest⟩ := ih (k + 1) hstep1.ok h3
-    obtain ⟨rfl, rfl⟩ := pureOk h4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
     refine ⟨hstep1.trans hstep2, ?_⟩
     have hkey : ((List.range (n + 1)).map fun j => Expr.bvar (o + nP - 1 - (k + j)))
         = Expr.bvar (o + nP - 1 - k) ::
@@ -194,8 +194,8 @@ and no target store — task #97-P3-0 §5's finding 1.
 **CLOSED** (task #97-P3-Ind round 3): `paramLevels_spec` and
 `structPsAt_spec` (both closed in round 2), `Bridge/ExprOps/Spine.lean`'s
 closed `getAppFn_spec`/`getAppArgs_spec` in run form, and the THREE handle
-comparisons — one at a handle (`beq_ehandle_eq`), one at a length
-(`denoteEList_len`) and one at a handle LIST (`beq_ehandleList_eq` after
+comparisons — one at a handle (`beq_of_denoteE`), one at a length
+(`denoteEList_len`) and one at a handle LIST (`beq_of_denoteEList` after
 `denoteEList_take`).  Two of the three are `denoteE_inj`, DESIGN §8.3's
 soundness obligation: this is the tier's first cash of it. -/
 theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
@@ -209,29 +209,29 @@ theorem structCtorResidOk_spec (T : NIdx) (TP : ConLeche.Name)
   intro s₀ s' r hok hp hrun
   obtain ⟨hT, hlps, hcb⟩ := hp
   simp only [Arena.structCtorResidOk] at hrun
-  obtain ⟨us, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨us, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hs1, hus⟩ := paramLevels_spec lps lpsP _ _ us hok hlps h1
-  obtain ⟨hd, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨hd, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨hs2, hhd⟩ := internConstE_run hs1.ok (denoteN_ext hT hs1.ext) hus h3
   have hcb2 : denoteE s₂.store cbody = some cbodyP :=
     denote_ext hcb (hs1.ext.trans hs2.ext)
-  obtain ⟨fn, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨fn, s₃, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨he3, hfn⟩ := getAppFn_run hs2.ok hcb2 h5
   rw [he3] at h6
-  obtain ⟨args, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨args, s₄, h7, h8⟩ := AM.bind_ok h6
   obtain ⟨he4, hargs⟩ := getAppArgs_run hs2.ok hcb2 h7
   rw [he4] at h8
-  obtain ⟨ps, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨ps, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨hs5, hps⟩ := structPsAt_spec o nP _ _ ps hs2.ok trivial h9
-  obtain ⟨rfl, rfl⟩ := pureOk h10
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h10
   refine ⟨hs1.trans (hs2.trans hs5), ?_⟩
   show _ = ConLeche.structCtorResidOk TP lpsP nP o nIdx cbodyP
   have hlen : ps.length = nP := by
     have := denoteEList_len hps
     simpa [ConLeche.structPsAt] using this.symm
   rw [hlen, ConLeche.structCtorResidOk,
-    beq_ehandle_eq hs5.ok.wf (denote_ext hfn hs5.ext) (denote_ext hhd hs5.ext),
-    beq_ehandleList_eq hs5.ok.wf
+    beq_of_denoteE hs5.ok.wf (denote_ext hfn hs5.ext) (denote_ext hhd hs5.ext),
+    beq_of_denoteEList hs5.ok.wf
       (denoteEList_take (denoteEList_ext hs5.ext _ _ hargs) nP) hps,
     denoteEList_len (denoteEList_ext hs5.ext _ _ hargs)]
 
@@ -269,7 +269,7 @@ theorem structProjArgP_spec (T : NIdx) (TP : ConLeche.Name) (j : Nat) :
       (Arena.structProjArgP T j) (RE (ConLeche.structProjArgP TP j)) := by
   intro s₀ s' r hok hT hrun
   simp only [Arena.structProjArgP] at hrun
-  obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
   obtain ⟨hstep2, hr⟩ :=
     internProjE_run hstep1.ok (denoteN_ext hT hstep1.ext) hb h2
@@ -376,12 +376,12 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
   | zero =>
     intro s₀ s' r hok hp hrun
     simp only [Arena.hasLooseBVarBGo] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro s₀ s' r hok hp hrun
     obtain ⟨hd, hm⟩ := hp
     simp only [Arena.hasLooseBVarBGo] at hrun
-    obtain ⟨bb, s₁, hb, h2⟩ := bindOk hrun
+    obtain ⟨bb, s₁, hb, h2⟩ := AM.bind_ok hrun
     obtain ⟨hstep0, hst0, rfl⟩ := bvarB_pstep hok hd hb
     have hok1 : StateOK s₁ := hstep0.ok
     have hd1 : denoteE s₁.store h = some hP := by rw [hst0]; exact hd
@@ -395,7 +395,7 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         PStep s₀ s₃ ∧ r'.1 = Expr.hasLooseBVarB i hP ∧
           LooseMemoOK r'.2 s₃.store := by
       intro s₂ s₃ y r' hs hy hmy hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       exact ⟨hstep0.trans hs, hy,
         LooseMemoOK.insert hmy (denote_ext hd1 hs.ext) hy⟩
     -- the shared memo HIT: the invariant is exactly what makes it sound
@@ -407,37 +407,37 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         PStep s₀ s₃ ∧ r'.1 = Expr.hasLooseBVarB i hP ∧
           LooseMemoOK r'.2 s₃.store := by
       intro s₃ r₀ r' hlk hz
-      obtain ⟨rfl, rfl⟩ := pureOk hz
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz
       obtain ⟨e, he, hre⟩ := hm1 (h, i) r₀ hlk
       obtain rfl := Option.some.inj (hd1.symm.trans he)
       exact ⟨hstep0, hre, hm1⟩
     split at h2
     · -- the packed-bound cutoff
       rename_i hc
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨hstep0, (hasLooseBVarB_cut hc).symm, hm1⟩
     · rename_i hc
-      obtain ⟨v, s₂, hv, h3⟩ := bindOk h2
+      obtain ⟨v, s₂, hv, h3⟩ := AM.bind_ok h2
       obtain ⟨rfl, hw⟩ := view_run hv
       cases v
       case bvar j =>
-        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
         obtain rfl := denote_bvar_inv hok1.wf hw hd1
         exact ⟨hstep0, (hasLooseBVarB_bvar hc).symm, hm1⟩
       case fvar k ty =>
-        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
         obtain ⟨t, rfl, _⟩ := denote_fvar_inv hok1.wf hw hd1
         exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
       case sort u =>
-        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
         obtain ⟨l, rfl, _⟩ := denote_sort_inv hok1.wf hw hd1
         exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
       case const n us =>
-        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
         obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hok1.wf hw hd1
         exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
       case lit l =>
-        obtain ⟨rfl, rfl⟩ := pureOk h3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h3
         obtain rfl := denote_lit_inv hok1.wf hw hd1
         exact ⟨hstep0, by rw [Expr.hasLooseBVarB]; split <;> rfl, hm1⟩
       case app f a =>
@@ -446,13 +446,13 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
         | none =>
           rw [hlk] at h3
-          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := AM.bind_ok h3
           obtain ⟨b1, m1⟩ := p1
           obtain ⟨hsA, hrA, hmA⟩ :=
             ih memo i f ef _ _ (b1, m1) hok1 ⟨hf, hm1⟩ hc1
           have hrA' : b1 = Expr.hasLooseBVarB i ef := hrA
           cases b1
-          · obtain ⟨p2, s₃, hc2, hz⟩ := bindOk h4
+          · obtain ⟨p2, s₃, hc2, hz⟩ := AM.bind_ok h4
             obtain ⟨b2, m2⟩ := p2
             obtain ⟨hsB, hrB, hmB⟩ :=
               ih m1 i a ea _ _ (b2, m2) hsA.ok
@@ -460,8 +460,8 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
             have hrB' : b2 = Expr.hasLooseBVarB i ea := hrB
             exact fin (hsA.trans hsB)
               (by simp [hasLooseBVarB_app hc, ← hrA', ← hrB']) hmB hz
-          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
-            obtain ⟨rfl, rfl⟩ := pureOk hy
+          · obtain ⟨y, s₂', hy, hz⟩ := AM.bind_ok h4
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin hsA (by simp [hasLooseBVarB_app hc, ← hrA']) hmA hz
       case lam ty b m =>
         obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok1.wf hw hd1
@@ -469,13 +469,13 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
         | none =>
           rw [hlk] at h3
-          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := AM.bind_ok h3
           obtain ⟨b1, m1⟩ := p1
           obtain ⟨hsA, hrA, hmA⟩ :=
             ih memo i ty et _ _ (b1, m1) hok1 ⟨hty, hm1⟩ hc1
           have hrA' : b1 = Expr.hasLooseBVarB i et := hrA
           cases b1
-          · obtain ⟨p2, s₃, hc2, hz⟩ := bindOk h4
+          · obtain ⟨p2, s₃, hc2, hz⟩ := AM.bind_ok h4
             obtain ⟨b2, m2⟩ := p2
             obtain ⟨hsB, hrB, hmB⟩ :=
               ih m1 (i + 1) b eb _ _ (b2, m2) hsA.ok
@@ -483,8 +483,8 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
             have hrB' : b2 = Expr.hasLooseBVarB (i + 1) eb := hrB
             exact fin (hsA.trans hsB)
               (by simp [hasLooseBVarB_lam hc, ← hrA', ← hrB']) hmB hz
-          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
-            obtain ⟨rfl, rfl⟩ := pureOk hy
+          · obtain ⟨y, s₂', hy, hz⟩ := AM.bind_ok h4
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin hsA (by simp [hasLooseBVarB_lam hc, ← hrA']) hmA hz
       case forallE ty b m =>
         obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok1.wf hw hd1
@@ -492,13 +492,13 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
         | none =>
           rw [hlk] at h3
-          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := AM.bind_ok h3
           obtain ⟨b1, m1⟩ := p1
           obtain ⟨hsA, hrA, hmA⟩ :=
             ih memo i ty et _ _ (b1, m1) hok1 ⟨hty, hm1⟩ hc1
           have hrA' : b1 = Expr.hasLooseBVarB i et := hrA
           cases b1
-          · obtain ⟨p2, s₃, hc2, hz⟩ := bindOk h4
+          · obtain ⟨p2, s₃, hc2, hz⟩ := AM.bind_ok h4
             obtain ⟨b2, m2⟩ := p2
             obtain ⟨hsB, hrB, hmB⟩ :=
               ih m1 (i + 1) b eb _ _ (b2, m2) hsA.ok
@@ -506,8 +506,8 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
             have hrB' : b2 = Expr.hasLooseBVarB (i + 1) eb := hrB
             exact fin (hsA.trans hsB)
               (by simp [hasLooseBVarB_forallE hc, ← hrA', ← hrB']) hmB hz
-          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
-            obtain ⟨rfl, rfl⟩ := pureOk hy
+          · obtain ⟨y, s₂', hy, hz⟩ := AM.bind_ok h4
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin hsA (by simp [hasLooseBVarB_forallE hc, ← hrA']) hmA hz
       case letE lt lv lb =>
         obtain ⟨et, ev, eb, rfl, hty, hval, hbd⟩ :=
@@ -516,20 +516,20 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
         | none =>
           rw [hlk] at h3
-          obtain ⟨p1, s₂, hc1, h4⟩ := bindOk h3
+          obtain ⟨p1, s₂, hc1, h4⟩ := AM.bind_ok h3
           obtain ⟨b1, m1⟩ := p1
           obtain ⟨hsA, hrA, hmA⟩ :=
             ih memo i lt et _ _ (b1, m1) hok1 ⟨hty, hm1⟩ hc1
           have hrA' : b1 = Expr.hasLooseBVarB i et := hrA
           cases b1
-          · obtain ⟨p2, s₃, hc2, h5⟩ := bindOk h4
+          · obtain ⟨p2, s₃, hc2, h5⟩ := AM.bind_ok h4
             obtain ⟨b2, m2⟩ := p2
             obtain ⟨hsB, hrB, hmB⟩ :=
               ih m1 i lv ev _ _ (b2, m2) hsA.ok
                 ⟨denote_ext hval hsA.ext, hmA⟩ hc2
             have hrB' : b2 = Expr.hasLooseBVarB i ev := hrB
             cases b2
-            · obtain ⟨p3, s₄, hc3, hz⟩ := bindOk h5
+            · obtain ⟨p3, s₄, hc3, hz⟩ := AM.bind_ok h5
               obtain ⟨b3, m3⟩ := p3
               obtain ⟨hsC, hrC, hmC⟩ :=
                 ih m2 (i + 1) lb eb _ _ (b3, m3) hsB.ok
@@ -538,12 +538,12 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
               exact fin ((hsA.trans hsB).trans hsC)
                 (by simp [hasLooseBVarB_letE hc, ← hrA', ← hrB', ← hrC'])
                 hmC hz
-            · obtain ⟨y, s₃', hy, hz⟩ := bindOk h5
-              obtain ⟨rfl, rfl⟩ := pureOk hy
+            · obtain ⟨y, s₃', hy, hz⟩ := AM.bind_ok h5
+              obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
               exact fin (hsA.trans hsB)
                 (by simp [hasLooseBVarB_letE hc, ← hrA', ← hrB']) hmB hz
-          · obtain ⟨y, s₂', hy, hz⟩ := bindOk h4
-            obtain ⟨rfl, rfl⟩ := pureOk hy
+          · obtain ⟨y, s₂', hy, hz⟩ := AM.bind_ok h4
+            obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin hsA (by simp [hasLooseBVarB_letE hc, ← hrA']) hmA hz
       case proj pn pk psub =>
         obtain ⟨nm, es, rfl, _, hsub⟩ := denote_proj_inv hok1.wf hw hd1
@@ -551,7 +551,7 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
         | none =>
           rw [hlk] at h3
-          obtain ⟨p1, s₂, hc1, hz⟩ := bindOk h3
+          obtain ⟨p1, s₂, hc1, hz⟩ := AM.bind_ok h3
           obtain ⟨b1, m1⟩ := p1
           obtain ⟨hsA, hrA, hmA⟩ :=
             ih memo i psub es _ _ (b1, m1) hok1 ⟨hsub, hm1⟩ hc1
@@ -568,11 +568,11 @@ theorem hasLooseBVarBFast_spec (i : Nat) (e : EIdx) (eP : Expr) :
       (Arena.hasLooseBVarBFast i e) (RV (Expr.hasLooseBVarB i eP)) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.hasLooseBVarBFast] at hrun
-  obtain ⟨p, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨hstep, hr, _⟩ :=
     hasLooseBVarBGo_spec ∅ i Arena.coreWalkFuel e eP s₀ s₁ p hok
       ⟨hd, LooseMemoOK.empty⟩ h1
-  obtain ⟨rfl, rfl⟩ := pureOk h2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
   exact ⟨hstep, hr⟩
 
 /-! ## The projection guards -/
@@ -589,13 +589,13 @@ theorem structUsedLater_spec (cty : EIdx) (ctyP : Expr) (nP j : Nat) :
       (RV (ConLeche.structUsedLater ctyP nP j)) := by
   intro s₀ s' r hok hd hrun
   simp only [Arena.structUsedLater] at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
   show PStep s₀ s' ∧ r = ConLeche.structUsedLater ctyP nP j
   rw [ConLeche.structUsedLater]
   obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk h2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     rw [stripPis_none hbp]
     exact ⟨PStep.refl hok, rfl⟩
   | some p =>
@@ -619,14 +619,14 @@ theorem structUsedLaterGo_spec (memo : Std.HashMap (EIdx × Nat) Bool)
   intro s₀ s' r hok hp hrun
   obtain ⟨hd, hm⟩ := hp
   simp only [Arena.structUsedLaterGo] at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
   show PStep s₀ s' ∧ r.1 = ConLeche.structUsedLater ctyP nP j ∧
     LooseMemoOK r.2 s'.store
   rw [ConLeche.structUsedLater]
   obtain ⟨rfl, hbp⟩ := stripPis_pstep hok hd h1
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk h2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     rw [stripPis_none hbp]
     exact ⟨PStep.refl hok, rfl, hm⟩
   | some p =>
@@ -653,19 +653,19 @@ theorem structUsedLaterList_spec (cty : EIdx) (ctyP : Expr) (nP : Nat)
   | zero =>
     intro s₀ s' r hok _ hrun
     simp only [Arena.structUsedLaterList] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp⟩
   | succ n ih =>
     intro s₀ s' r hok hp hrun
     obtain ⟨hd, hm⟩ := hp
     simp only [Arena.structUsedLaterList] at hrun
-    obtain ⟨p, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨p, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨hsA, hrA, hmA⟩ :=
       structUsedLaterGo_spec memo cty ctyP nP base _ _ p hok ⟨hd, hm⟩ h1
-    obtain ⟨rest, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨hsB, hrB⟩ :=
       ih p.2 (base + 1) _ _ rest hsA.ok ⟨denote_ext hd hsA.ext, hmA⟩ h3
-    obtain ⟨rfl, rfl⟩ := pureOk h4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
     refine ⟨hsA.trans hsB, ?_⟩
     show p.1 :: rest = _
     rw [hrA, hrB, List.range_succ_eq_map]
@@ -718,9 +718,9 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
   intro s₀ s' r hok hpins hp hrun
   obtain ⟨hd, hs⟩ := hp
   simp only [Arena.structProjGuards] at hrun
-  obtain ⟨z, s₁, hz, h2⟩ := bindOk hrun
+  obtain ⟨z, s₁, hz, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hzd⟩ := zeroLevel_run hpins hz
-  obtain ⟨used, s₂, hu, h3⟩ := bindOk h2
+  obtain ⟨used, s₂, hu, h3⟩ := AM.bind_ok h2
   obtain ⟨hsU, hrU⟩ :=
     structUsedLaterList_spec cty ctyP nP ∅ nF 0 _ _ used hok
       ⟨hd, LooseMemoOK.empty⟩ hu
@@ -747,7 +747,7 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
     | zero =>
       intro j acc accP sa sb rr hoka _ _ hacc _ hr
       simp only [Arena.structProjGuards.col] at hr
-      obtain ⟨rfl, rfl⟩ := pureOk hr
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
       exact ⟨PStep.refl hoka, by simpa using hacc⟩
     | succ k ih =>
       intro j acc accP sa sb rr hoka hsa hza hacc hle hr
@@ -759,7 +759,7 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
       split at hr
       · rename_i hcond
         rw [if_pos hcond]
-        obtain ⟨m, sm, hm, hr'⟩ := bindOk hr
+        obtain ⟨m, sm, hm, hr'⟩ := AM.bind_ok hr
         obtain ⟨hstepM, hmd⟩ :=
           internMaxL_run hoka hacc (denoteLList_getD hsa hza j) hm
         obtain ⟨hstepR, hrd⟩ :=
@@ -785,20 +785,20 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
     | zero =>
       intro i sa sb rr hoka _ _ _ hr
       simp only [Arena.structProjGuards.row] at hr
-      obtain ⟨rfl, rfl⟩ := pureOk hr
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr
       exact ⟨PStep.refl hoka, by simp [denoteLList]⟩
     | succ k ih =>
       intro i sa sb rr hoka hsa hza hle hr
       simp only [Arena.structProjGuards.row] at hr
-      obtain ⟨g, sg, hg, hr1⟩ := bindOk hr
+      obtain ⟨g, sg, hg, hr1⟩ := AM.bind_ok hr
       obtain ⟨hstepG, hgd⟩ :=
         hcol i 0 (sorts.getD i z) (sortsP.getD i .zero) sa sg g hoka hsa hza
           (denoteLList_getD hsa hza i) (by omega) hg
-      obtain ⟨rest, sr, hrest, hr2⟩ := bindOk hr1
+      obtain ⟨rest, sr, hrest, hr2⟩ := AM.bind_ok hr1
       obtain ⟨hstepR, hrd⟩ :=
         ih (i + 1) sg sr rest hstepG.ok (denoteLList_ext hstepG.ext.lss.ls _ _ hsa)
           (denoteL_ext hza hstepG.ext) (by omega) hrest
-      obtain ⟨rfl, rfl⟩ := pureOk hr2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
       refine ⟨hstepG.trans hstepR, ?_⟩
       rw [List.range'_succ]
       simp only [List.map_cons, Nat.add_one]
@@ -827,14 +827,14 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
   | zero =>
     intro s₀ s' r hok _ hrun
     simp only [Arena.structProjBodiesGo] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, [], by simp only [ConLeche.structProjBodiesGo], rfl⟩
   | succ k ih =>
     intro s₀ s' r hok hpre hrun
     obtain ⟨hT, hh⟩ := hpre
     simp only [Arena.structProjBodiesGo] at hrun
     obtain ⟨v0, hv0⟩ := denoteE_view hh
-    obtain ⟨v, s1, k1, hz1⟩ := bindOk (tagIf_view_run hv0
+    obtain ⟨v, s1, k1, hz1⟩ := AM.bind_ok (tagIf_view_run hv0
       (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) hrun)
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at hz1
@@ -843,21 +843,21 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     split at hz1
     case h_1 fdom body m =>
       obtain ⟨fdomP, bodyP, rfl, hfd, hbd⟩ := denote_forallE_inv hok.wf hv hh
-      obtain ⟨a, s2, k2, hz2⟩ := bindOk hz1
+      obtain ⟨a, s2, k2, hz2⟩ := AM.bind_ok hz1
       obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
-      obtain ⟨b, s3, k3, hz3⟩ := bindOk hz2
+      obtain ⟨b, s3, k3, hz3⟩ := AM.bind_ok hz2
       obtain ⟨hok3, hx3, hbm3, hc3, hp3, -, hb⟩ :=
         ExprOps.instantiate1LiftFast_run p2.ok ha
           (by rw [denote_ext hbd p2.ext]; rfl) k3
       have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hbm3 hc3 hp3
       have hb' := hb bodyP (denote_ext hbd p2.ext)
-      obtain ⟨o, s4, k4, hz4⟩ := bindOk hz3
+      obtain ⟨o, s4, k4, hz4⟩ := AM.bind_ok hz3
       obtain ⟨p4, ho⟩ := ih (i + 1) b _ s3 s4 o p3.ok
         ⟨denoteN_ext hT (p2.ext.trans p3.ext), hb'⟩ k4
       have q4 : PStep s₀ s4 := p2.trans (p3.trans p4)
       cases o with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk hz4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4
         refine ⟨q4, ?_⟩
         show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP m) = none
         simp only [ConLeche.structProjBodiesGo]
@@ -865,14 +865,14 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
         rfl
       | some l =>
         obtain ⟨lP, hl, hdl⟩ := ho
-        obtain ⟨rfl, rfl⟩ := pureOk hz4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4
         refine ⟨q4, fdomP :: lP, ?_, ?_⟩
         · simp only [ConLeche.structProjBodiesGo]
           rw [hl]; rfl
         · show Frontend.denoteEList _ (fdom :: l) = some (fdomP :: lP)
           simp only [Frontend.denoteEList, denote_ext hfd q4.ext, hdl]
     case h_2 hne =>
-      obtain ⟨rfl, rfl⟩ := pureOk hz1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz1
       refine ⟨PStep.refl hok, ?_⟩
       have hns := ExprOps.denoteEView_not_forallE hhv hne
       show _ = none
@@ -890,26 +890,26 @@ theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
   intro s₀ s' r hok hpre hrun
   obtain ⟨hT, hc⟩ := hpre
   simp only [Arena.structProjBodies] at hrun
-  obtain ⟨ps, s1, k1, hz1⟩ := bindOk hrun
+  obtain ⟨ps, s1, k1, hz1⟩ := AM.bind_ok hrun
   obtain ⟨p1, hps⟩ := structProjPs_spec nP s₀ s1 ps hok trivial k1
-  obtain ⟨o, s2, k2, hz2⟩ := bindOk hz1
+  obtain ⟨o, s2, k2, hz2⟩ := AM.bind_ok hz1
   obtain ⟨p2, ho⟩ := instPisAtLift_pstep p1.ok hps (denote_ext hc p1.ext) k2
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
     refine ⟨p1.trans p2, ?_⟩
     show ConLeche.structProjBodies TP nP nF ctyP = none
     simp only [ConLeche.structProjBodies]
     rw [show Expr.instPisAtLift (ConLeche.structProjPs nP) ctyP = none from ho]
   | some h =>
     obtain ⟨e, he, hd⟩ := ho
-    obtain ⟨o2, s3, k3, hz3⟩ := bindOk hz2
+    obtain ⟨o2, s3, k3, hz3⟩ := AM.bind_ok hz2
     obtain ⟨p3, ho2⟩ := structProjBodiesGo_spec T TP nF 0 h e s2 s3 o2 p2.ok
       ⟨denoteN_ext hT (p1.ext.trans p2.ext), hd⟩ k3
     have q3 : PStep s₀ s3 := p1.trans (p2.trans p3)
     cases o2 with
     | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk hz3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz3
       refine ⟨q3, ?_⟩
       show ConLeche.structProjBodies TP nP nF ctyP = none
       simp only [ConLeche.structProjBodies, he]
@@ -917,7 +917,7 @@ theorem structProjBodies_spec (T : NIdx) (TP : ConLeche.Name) (nP nF : Nat)
       rfl
     | some l =>
       obtain ⟨lP, hl, hdl⟩ := ho2
-      obtain ⟨rfl, rfl⟩ := pureOk hz3
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hz3
       refine ⟨q3, lP.toArray, ?_, ?_⟩
       · simp only [ConLeche.structProjBodies, he, hl]; rfl
       · show Frontend.denoteEArray _ l.toArray = _

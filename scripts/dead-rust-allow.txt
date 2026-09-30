@@ -48,12 +48,9 @@
 
 # --- (A) Lean/extraction: the compiled function is the theorem's subject ---
 
-crates/con-ron-core/src/arena/check_decl.rs:check_decls_pure	Theorem 2 headline (DESIGN §8.2's own sentence): `check_decls_pure_refines`/`check_decls_pure_go_refines` in proof/ConRon/Refine2/Checker/Top.lean, part of Capstone.lean's accept-soundness chain. The binary runs `install_then_check`/`check_decls_phased` instead; this pure fold is a deliberate second, simpler spec function with its own refinement theorem (task #105 sweep).
+crates/con-ron-core/src/arena/check_decl.rs:check_decls_pure	Theorem 2 headline (DESIGN §8.2's own sentence): `check_decls_pure_refines`/`check_decls_pure_go_refines` in proof/ConRon/Refine2/Checker/Top.lean, part of Capstone.lean's accept-soundness chain. The binary runs its two-phase driver instead; this pure fold is a deliberate second, simpler spec function with its own refinement theorem (task #105 sweep).
 crates/con-ron-core/src/arena/checker.rs:install_then_check	Theorem 2 headline (DESIGN §8.2's own sentence): `install_then_check_refines` in proof/ConRon/Refine2/Checker/Top.lean, referenced by proof/ConRon/Bridge/Frontend/Capstone.lean's `Arena.installThenCheck_bridge` chain. No Rust caller: the binary's own two-phase pool (`driver.rs`) is proved equivalent to it instead (task #105 sweep).
-crates/con-ron-core/src/arena/checker.rs:check_decls_phased	Theorem 2 headline: `check_decls_phased_refines`/`poolAccepts_of_check_decls_phased` in proof/ConRon/Refine2/Checker/Phased.lean, cited from Capstone.lean ("the one-worker walk is a pool"). The binary's own worker-pool driver is proved equivalent to this one-worker reference instead (task #105 sweep).
-crates/con-ron-core/src/arena/checker.rs:at_decl	only-tests: the test harness for `check_decls_pure`/`check_decls_phased` above, kept with them (task #105 sweep).
-crates/con-ron-core/src/arena/core.rs:whnf_core	The `ConLeche/Kernel/TypeChecker.lean:27-29 whnfCore` entry-point twin — one of the module's five "unary entry-point memos" (see the module doc), each a thin `knot_*` wrapper kept 1:1 with TypeChecker.lean (7/7 covered) even though every internal call site goes through `knot_whnf_core` directly (task #105 sweep).
-crates/con-ron-core/src/arena/core.rs:infer_type_io	Same TypeChecker.lean entry-point cluster as `whnf_core` above (`TypeChecker.lean:40-46 inferTypeIO`); kept for the same reason (task #105 sweep).
+crates/con-ron-core/src/arena/checker.rs:at_decl	only-tests: the test harness for `check_decls_pure` above, kept with them (task #105 sweep).
 crates/con-ron-core/src/arena/core.rs:PURE_FNS_A	Same TypeChecker.lean entry-point cluster (`TypeChecker.lean:23-25 pureFns`): the constant every entry point above passes, replacing the twin's function record (§3.4) (task #105 sweep).
 crates/con-ron-core/src/arena/core_state.rs:empty	`Caches::empty` is unfolded by name in proof/ConRon/Capstone.lean's `startState_eq` (`simp only [... arena.core_state.Caches.empty ...]`); no Rust caller needed once `AState::init` is expressed structurally, but the generated Lean definition must exist for the `simp` set (task #105 sweep).
 crates/con-ron-core/src/arena/pins.rs:empty	`Pins::empty` is unfolded the same way in `startState_eq` (`arena.pins.Pins.empty`); only-tests in Rust, required in Lean (task #105 sweep).
@@ -92,13 +89,7 @@ crates/con-ron-core/src/ron/hashmap2.rs:find_slot	Real caller `arena::store`/fri
 
 # --- (C) only-tests, kept: differential/regression test value for live code ---
 
-crates/con-ron-core/src/arena/expr_ops.rs:reset_meta_fast	Only-tests unit coverage of the live arena `ExprOps` fast path (task #105 sweep).
-crates/con-ron-core/src/arena/expr_ops.rs:rename_consts_fast	As `reset_meta_fast` above (task #105 sweep).
-crates/con-ron-core/src/arena/expr_ops.rs:lidx_has_param	As `reset_meta_fast` above (task #105 sweep).
-crates/con-ron-core/src/arena/expr_ops.rs:eidx_has_level_param	As `reset_meta_fast` above (task #105 sweep).
-crates/con-ron-core/src/frontend/export_c.rs:parse_export_d	Only-tests unit coverage of the live export parser (task #105 sweep).
-crates/con-ron-core/src/frontend/export_c.rs:concat_bytes	As `parse_export_d` above (task #105 sweep).
-crates/con-ron-core/src/frontend/export_c.rs:parse_chunks	As `parse_export_d` above; also the driver's own doc (`crates/con-ron/src/driver.rs`) names it as the reference the pooled reader is checked against (task #105 sweep).
+crates/con-ron-core/src/frontend/export_c.rs:parse_chunks	Only-tests unit coverage of the live export parser; also the driver's own doc (`crates/con-ron/src/driver.rs`) names it as the reference the pooled reader is checked against (task #105 sweep).
 crates/con-ron-core/src/frontend/export_c.rs:at_line	Only-tests helper for the `export_c` test suite above (task #105 sweep).
 crates/con-ron-core/src/frontend/prepare.rs:prelude_ix_empty	Only-tests unit coverage of the live prelude-index construction (task #105 sweep).
 crates/con-ron-core/src/frontend/scan_types.rs:err_tag_dup	Only-tests `dup`/`beq` pair for the live scanner's error tag (task #105 sweep).

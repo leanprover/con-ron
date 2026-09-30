@@ -109,8 +109,6 @@ con-leche elaborates.  The arena reads the results. -/
 def iffRaw : AM IConstantInfo := internCI ConLeche.iffRaw
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:212-220 iffIntroRaw -/
 def iffIntroRaw : AM IConstantInfo := internCI ConLeche.iffIntroRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:222-227 iffRecIntro -/
-def iffRecIntro : AM EIdx := internExpr ConLeche.iffRecIntro
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw -/
 def iffRecRaw : AM IConstantInfo := internCI ConLeche.iffRecRaw
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw -/

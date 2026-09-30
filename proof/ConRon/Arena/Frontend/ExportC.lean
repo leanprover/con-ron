@@ -44,14 +44,8 @@ checks the parse DOES make are all its own and are all here: the rebinding
 test, `validateIndD`'s block consistency checks, and the safety/kind
 recognisers.
 
-**Neither the projection-function rewrite nor the in-process modeller exist
-any more** (con-leche's `uniform-inds` merge, task #105): `Frontend/ProjRec.lean`
-and `Frontend/InModel*.lean` are deleted upstream, and with them this
-module's `projRewriteD`/`noteProjIota`/`registerProjOwners`/`blockRecOf`/
-`pushGenD`/`pushGenList`/`noteGen`/`noteDecl` — every inductive block is
-pushed as one `IndDecl`, unconditionally, and the uniform installer
-(`Arena/Inductives/**`, the kernel lane's) does what used to need a rewrite
-and a generated `_model` family.
+**Every inductive block is pushed as one `IndDecl`**, unconditionally; the
+uniform installer (`Arena/Inductives/**`) does the rest.
 
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
 index errors are `fail (.internal …)` with con-leche's own text and no line
@@ -581,12 +575,6 @@ def parseBytes (b : ByteArray) : AM (Except (CheckError × Nat) ParseResultD) :=
     else
       pure (.ok (.ofState st))
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:564-576 parseExportD — wholesale
-direct parse of a string (the built-in prelude, tests and small inputs):
-`parseBytes` of its UTF-8. -/
-def parseExportD (contents : String) : AM (Except (CheckError × Nat) ParseResultD) :=
-  parseBytes contents.toUTF8
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:577-587 chunkStep — one chunk of
 the stream, applied: the carried incomplete tail is put in front of the new
 bytes, every complete line of the buffer is fed, and the new incomplete tail is
@@ -609,12 +597,6 @@ def chunkFinish (st : StateD) (carry : ByteArray) (lineNo : Nat) :
   match ← applyFinalLine st carry 0 (lineNo + 1) with
   | .error e => pure (.error e)
   | .ok st => pure (.ok (.ofState st))
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:598-610 concatBytes — the bytes of
-a list of chunks, in order. -/
-def concatBytes : List ByteArray → ByteArray
-  | [] => .empty
-  | c :: cs => c ++ concatBytes cs
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:611-637 parseChunks — THE
 STREAMING PARSE, PURELY: `chunkStep` folded over a list of chunks,

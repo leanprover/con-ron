@@ -649,15 +649,14 @@ pub fn install_then_check(
 // binary does not: at the phase boundary it FREEZES the persistent tier into
 // one `PersTier` every phase-B worker borrows, and each worker checks its
 // records on a state of its own over that tier (`crates/con-ron/src/pool.rs`).
-// Every sequential piece of that is here, in the verified crate, so that the driver is a straight line
-// of calls into extracted functions and the one thing it does not share with
-// `check_decls_phased` below is the pool's scheduling:
+// Every sequential piece of that is here, in the verified crate, so that the
+// driver (`con_ron::driver::check_decls_driver`) is a straight line of calls
+// into extracted functions and the one thing it adds is the pool's
+// scheduling:
 //
 //   annot_fold_hooked       phase A (`annot_fold`, plus a read-only hook)
 //   freeze_tier             the boundary
 //   worker_state            a phase-B worker's state over the frozen tier
-//   check_pending_worker    phase B on one worker in record order — what the
-//                           pool is argued equal to, by record index
 //   thaw_tier               the boundary undone
 // ---------------------------------------------------------------------------
 
@@ -780,57 +779,6 @@ pub fn worker_state(pins: &Pins) -> AState {
     let mut st = AState::init(EStore::empty_frozen());
     st.pins = pins_dup(pins);
     st
-}
-
-/// con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList
-/// Lean twin: `proof/ConRon/Arena/Phased.lean:46-54 checkPendingWorker` —
-/// **phase B on ONE worker, in record order**: a worker's state
-/// (`worker_state`) and `check_pending_list` from it, over the frozen tier.
-/// This is the driver's `pool::parallel_all` at one worker call for call —
-/// the worker claims the records in order and folds `check_pending` over
-/// them on its one state — and at `n` workers each worker's fold is this
-/// walk over the records it claimed (`pool.rs`'s note, `ParallelAll` in
-/// `Refine2/Checker/Phased.lean`).
-pub fn check_pending_worker(
-    pers: &PersTier,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    pins: &Pins,
-    pend: &Vec<PendingCheck>,
-) -> Result<(), (CheckError, u64)> {
-    let mut st = worker_state(pins);
-    check_pending_list(pers, &mut st, mode, fe, pend, 0)
-}
-
-/// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
-/// Lean twin: `proof/ConRon/Arena/Phased.lean:56-67 installThenCheckPhased` —
-/// **the declaration fold the binary runs**, sequentially: phase A
-/// (`annot_fold_hooked`), the boundary (`freeze_tier`), phase B on one worker
-/// over the frozen tier (`check_pending_worker`), the boundary undone
-/// (`thaw_tier`).  `driver::check_decls_driver` is this function with the
-/// observer's read-only lines between the calls and `pool::parallel_all` in
-/// place of `check_pending_worker`; the capstone (`ConRon.Capstone`) is
-/// stated about this one.
-pub fn check_decls_phased<H: InstallHook>(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    ds: &Vec<IDeclaration>,
-    h: &H,
-) -> Result<IFEnv, (CheckError, u64)> {
-    match annot_fold_hooked(pers, st, mode, pins, fold_start(), ds, 0, h) {
-        Err(e) => Err(e),
-        Ok(p) => {
-            let tier: PersTier = freeze_tier(&mut st.store);
-            let r = check_pending_worker(&tier, mode, &p.1, &st.pins, &p.2);
-            thaw_tier(&mut st.store, tier);
-            match r {
-                Err(e) => Err(e),
-                Ok(()) => Ok(p.1),
-            }
-        }
-    }
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls

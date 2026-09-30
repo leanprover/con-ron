@@ -7,6 +7,8 @@
 #   1. cargo build                          the crate compiles, warning-free
 #   2. cargo test                           the unit tests pass
 #   3. scripts/lint-rust-style.sh           the Aeneas subset (§3.4), both crates
+#      scripts/dead-rust.py --check         no `pub` Rust item without a caller
+#                                           (task #105)
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
 #   5. scripts/provenance-selftest.py        the gate's Lean parser, on its fixture
 #   6. scripts/twin-lines.py check          every `Lean twin:` line names a
@@ -26,6 +28,9 @@
 #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
 #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
 #      has no jobs flag; the first con-leche build can exhaust memory, #74)
+#  14. scripts/dead-census-gate.sh          no declaration of proof/ConRon/**
+#                                           unreachable from the headline
+#                                           theorems, Tests and tooling (#105)
 #
 # One OK/FAIL line per gate; non-zero exit on the first failure.  Full output
 # of every gate goes to `_tmp/gates/<n>-<name>.log`.
@@ -75,6 +80,8 @@ run() { # run <name> <cmd...>
 run cargo-build   env RUSTFLAGS="-D warnings" cargo build --manifest-path "$root/Cargo.toml"
 run cargo-test    env RUSTFLAGS="-D warnings" cargo test  --manifest-path "$root/Cargo.toml"
 run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/src"
+# Task #105: `-D warnings` catches a private item nothing uses, not a `pub` one.
+run dead-rust     python3 "$root/scripts/dead-rust.py" --check
 run provenance    python3 "$root/scripts/provenance.py" check
 run provenance-self python3 "$root/scripts/provenance-selftest.py"
 # The other half of the same ledger: `provenance` checks what the Rust was
@@ -95,6 +102,9 @@ run extract-check flock "$root/_tmp/.extract-check.lock" "$root/scripts/extract.
 # Warning-free since task #101; `lake-build-wfail.sh` keeps it so (task #102)
 # without failing on the warnings Lake replays from Aeneas's logs.
 run lake-build    env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/lake-build-wfail.sh"
+# Task #105 (maintainer: "leave no unused code or proofs around"): the census
+# over the build the step above left, from the capstone's headline theorems.
+run dead-census   env ${LAKE_JOBS:+LEAN_NUM_THREADS="$LAKE_JOBS"} "$root/scripts/dead-census-gate.sh"
 # Until task #98-TIDY this was followed by three more steps, `lake build
 # ConRonRefine2`, `ConRonBridge` and `ConRonCapstone`, because those libraries
 # were not default targets and a green `lake-build` said nothing about either

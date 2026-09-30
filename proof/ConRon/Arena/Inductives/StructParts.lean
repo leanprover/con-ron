@@ -113,16 +113,6 @@ def structProjArgP (T : NIdx) (j : Nat) : AM EIdx := do
   let b ← internE (.bvar 0)
   internE (.proj T j b)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:103-109 structProjResidP
-`structProjResid` in the `.proj`-node spelling: the constructor telescope
-peeled at the parameters and the first `i` subject projections. -/
-def structProjResidP (T : NIdx) (nP : Nat) (cty : EIdx) : Nat → AM (Option EIdx)
-  | 0 => do instPisAtLift coreWalkFuel (← structProjPs nP) cty
-  | i + 1 => do
-    match ← structProjResidP T nP cty i with
-    | some r => do instPisAtLift coreWalkFuel [← structProjArgP T i] r
-    | none => pure none
-
 /-! ## `hasLooseBVar` — one twin for the pure walk, the cutoff and the memo -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:190-195 Expr.hasLooseBVarBIns

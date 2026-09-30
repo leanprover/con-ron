@@ -6,20 +6,14 @@ DESIGN §8.2's parser statement and the byte-level capstone:
     denoteDecls (Arena.parse chunks) = parseChunks chunks        (exactness)
     a file that declares a theorem of type `False` is rejected   (the letter)
 
-Six modules, in dependency order (task #105: the in-process modeller and the
-projection-function rewrite are gone from upstream and from the twin, so
-`Bridge/Frontend/{Modeller, ProjRec, ProjRecOwners, ProjRecValue}.lean` and
-`Scratch.lean` — the scratch-flag automation only their call trees needed —
-are deleted; the frontend capstone loses their premises):
+The modules, in dependency order:
 
 * `Bridge/Frontend/Rel.lean` — the parse-state relation (`StateDRel`,
-  `ParseResultRel`, `PersStateD`), the four generic shapes it is built from
-  (`OptRel`, `ListRel`, `IdTableRel`, `MapRel`), the transport that carries
+  `ParseResultRel`, `PersStateD`), the three generic shapes it is built from
+  (`OptRel`, `ListRel`, `IdTableRel`), the transport that carries
   it across an append (`StateDRel.ext`) and the parse's frame
   (`ParseStep`);
-* `Bridge/Frontend/Shared.lean` — `denoteEShared = denoteE`
-  (`Arena/Frontend/Readback.lean`'s own stated obligation) and the intern
-  direction;
+* `Bridge/Frontend/Shared.lean` — the intern direction;
 * `Bridge/Frontend/Lines.lean` — one scanned line, applied: the three entry
   parsers, the declaration records, `processLineCoreD` and `applyLine`;
 * `Bridge/Frontend/Chunks.lean` — **the parser's exactness**: `feedChunk`,

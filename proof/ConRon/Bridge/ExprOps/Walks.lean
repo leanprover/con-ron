@@ -79,36 +79,6 @@ Stated as a DISJUNCTION the closer takes it in one step — `grind` splits the
 `Bridge/Rel.lean`'s `denote_leaf_of_tag` played at the constructor rather
 than at the tag, and it **morally belongs in `Bridge/Rel.lean`**. -/
 
-/-- con-leche: none — a handle whose view is not a `lam` denotes a term that
-is not a `lam`, in the form `grind` can split. -/
-@[grind →] theorem denote_lam_or {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {v : ENodeView} {e : Expr} (hview : st.view h = some v)
-    (he : denoteE st h = some e) :
-    (∃ ty b m, v = .lam ty b m) ∨ (e.isLam = false ∧ Expr.lamPw e = none) := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hview he]; exact Or.inr ⟨rfl, rfl⟩
-  | fvar k t =>
-    obtain ⟨_, rfl, _⟩ := denote_fvar_inv hwf hview he; exact Or.inr ⟨rfl, rfl⟩
-  | sort u =>
-    obtain ⟨_, rfl, _⟩ := denote_sort_inv hwf hview he; exact Or.inr ⟨rfl, rfl⟩
-  | const n us =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hview he
-    exact Or.inr ⟨rfl, rfl⟩
-  | app f a =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_app_inv hwf hview he
-    exact Or.inr ⟨rfl, rfl⟩
-  | lam ty b m => exact Or.inl ⟨ty, b, m, rfl⟩
-  | forallE ty b m =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_forallE_inv hwf hview he
-    exact Or.inr ⟨rfl, rfl⟩
-  | letE ty w b =>
-    obtain ⟨_, _, _, rfl, _, _, _⟩ := denote_letE_inv hwf hview he
-    exact Or.inr ⟨rfl, rfl⟩
-  | lit l => rw [denote_lit_inv hwf hview he]; exact Or.inr ⟨rfl, rfl⟩
-  | proj n i sub =>
-    obtain ⟨_, _, rfl, _, _⟩ := denote_proj_inv hwf hview he
-    exact Or.inr ⟨rfl, rfl⟩
-
 /-! ## The two one-node readers — `ExprOps.lean:1000`, `:1008`
 
 One `view` and a test: no recursion, no fuel, so no `Spec` record and no

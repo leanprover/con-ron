@@ -327,35 +327,6 @@ def promoteCIList (m : PMemo) (fuel : Nat) :
     let (m, cs) ← promoteCIList m fuel cs
     pure (m, c :: cs)
 
-/-- con-leche: none — arena infrastructure; promote a declaration record.  Not
-on the fold's path — the records arrive from the parse and are persistent —
-and written because the layer is twinned whole (`Arena/Frontend/Readback.lean`
-has the same seven clauses for the intern direction). -/
-def promoteDecl (m : PMemo) (fuel : Nat) :
-    IDeclaration → AM (PMemo × IDeclaration)
-  | .axiomDecl v => do
-    let (m, cv) ← promoteCV m fuel v
-    pure (m, .axiomDecl cv)
-  | .defnDecl v e h => do
-    let (m, cv) ← promoteCV m fuel v
-    let (m, x) ← promoteE m fuel e
-    pure (m, .defnDecl cv x h)
-  | .thmDecl v e => do
-    let (m, cv) ← promoteCV m fuel v
-    let (m, x) ← promoteE m fuel e
-    pure (m, .thmDecl cv x)
-  | .opaqueDecl v e => do
-    let (m, cv) ← promoteCV m fuel v
-    let (m, x) ← promoteE m fuel e
-    pure (m, .opaqueDecl cv x)
-  | .basisDecl k => pure (m, .basisDecl k)
-  | .indDecl block nP => do
-    let (m, b) ← promoteCIList m fuel block
-    pure (m, .indDecl b nP)
-  | .quotDecl k v => do
-    let (m, cv) ← promoteCV m fuel v
-    pure (m, .quotDecl k cv)
-
 /-- con-leche: none — arena infrastructure; promote the datum that crosses the
 install/check seam (`Arena/CheckerSplit.lean`'s `ValueGroup`).  An `opaque`'s
 value is NOT in the environment — only the pending record holds it — so the

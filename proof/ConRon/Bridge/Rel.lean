@@ -65,6 +65,18 @@ theorem AM.of_run {α : Type} {prog : AM α} {s s' : AState} {a : α}
   rw [h] at hs
   exact hs hp
 
+/-- con-leche: none — `AM.of_run`'s converse: a partial-correctness triple
+from a statement about every accepting run. -/
+theorem AM.triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
+    {Q : α → AState → Prop}
+    (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') → Q a s') :
+    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
+  intro s hp
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hr : prog.run s with
+  | error e => trivial
+  | ok p => exact h s p.1 p.2 hp hr
+
 /-! ## 2. Transport
 
 Four facts; after them no proof in the bridge ever unfolds `denoteE`'s `Ext`
@@ -459,14 +471,6 @@ theorem ETables.get_of_getLet {t : ETables} {i : EIdx} {ty val b : EIdx}
   simp [ETables.get, htg, hr, ETag.letE, ETag.bvar, ETag.fvar, ETag.sort,
     ETag.const, ETag.app, ETag.isBind, ETag.lam, ETag.forallE]
 
-theorem ETables.get_of_getLit {t : ETables} {i : EIdx} {l : ConLeche.Literal}
-    (htg : i.tag = ETag.lit) (h : t.getLit i = some l) :
-    t.get i = some (.lit l) := by
-  simp only [ETables.getLit, Option.map_eq_some_iff] at h
-  obtain ⟨r, hr, rfl⟩ := h
-  simp [ETables.get, htg, hr, ETag.lit, ETag.bvar, ETag.fvar, ETag.sort,
-    ETag.const, ETag.app, ETag.isBind, ETag.lam, ETag.forallE, ETag.letE]
-
 theorem ETables.get_of_getProj {t : ETables} {i : EIdx} {n : NIdx} {k : Nat}
     {e : EIdx} (htg : i.tag = ETag.proj) (h : t.getProj i = some (n, k, e)) :
     t.get i = some (.proj n k e) := by
@@ -526,12 +530,6 @@ theorem view_of_viewLet {st : EStore} {i ty val b : EIdx}
     st.view i = some (.letE ty val b) :=
   EStore.view_of_proj (by rw [htg]; decide)
     (fun _ hh => ETables.get_of_getLet htg hh) h
-
-theorem view_of_viewLit {st : EStore} {i : EIdx} {l : ConLeche.Literal}
-    (htg : i.tag = ETag.lit) (h : st.viewLit i = some l) :
-    st.view i = some (.lit l) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getLit htg hh) h
 
 theorem view_of_viewProj {st : EStore} {i : EIdx} {n : NIdx} {k : Nat}
     {e : EIdx} (htg : i.tag = ETag.proj) (h : st.viewProj i = some (n, k, e)) :
@@ -596,11 +594,6 @@ derives the `view` fact itself and the arm proofs never mention it. -/
     {us : LsIdx} (htg : (i.tag == ETag.const) = true)
     (h : st.viewConst i = some (n, us)) : st.view i = some (.const n us) :=
   view_of_viewConst (by simpa using htg) h
-
-@[grind →] theorem view_of_viewLit_tag {st : EStore} {i : EIdx}
-    {l : ConLeche.Literal} (htg : (i.tag == ETag.lit) = true)
-    (h : st.viewLit i = some l) : st.view i = some (.lit l) :=
-  view_of_viewLit (by simpa using htg) h
 
 @[grind →] theorem view_of_viewLet_tag {st : EStore} {i ty val b : EIdx}
     (htg : (i.tag == ETag.letE) = true) (h : st.viewLet i = some (ty, val, b)) :
@@ -1527,74 +1520,9 @@ theorem RelE.self {f : Expr → Expr} {st : EStore} {c : EIdx}
     RelV f st0 c x :=
   fun e he => h e (denote_ext he hx)
 
-@[grind →] theorem RelV.retarget {α : Type} {f : Expr → α} {st st0 : EStore}
-    {c : EIdx} {x : α} (h : RelV f st c x) (hx : Ext st st0)
-    (hs : (denoteE st c).isSome = true) : RelV f st0 c x := by
-  intro e he
-  obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hs
-  have hh := denote_ext he0 hx
-  rw [he] at hh
-  rw [Option.some.inj hh]
-  exact h e0 he0
-
 theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x : α}
     (h : RelV f st c x) (hfg : ∀ e, f e = g e) : RelV g st c x :=
   fun e he => by rw [← hfg e]; exact h e he
-
-@[grind →] theorem RelEO.apply {f : Expr → Option Expr} {st st' : EStore}
-    {c : EIdx} {r : Option EIdx} {e : Expr} (h : RelEO f st c st' r)
-    (he : denoteE st c = some e) : denoteEO st' r = some (f e) := h e he
-
-@[grind →] theorem RelEO.ext {f : Expr → Option Expr} {st st' st'' : EStore}
-    {c : EIdx} {r : Option EIdx} (h : RelEO f st c st' r) (hx : Ext st' st'') :
-    RelEO f st c st'' r := by
-  intro e he
-  have hh := h e he
-  cases r with
-  | none => exact hh
-  | some j =>
-    simp only [denoteEO, Option.map_eq_some_iff] at hh ⊢
-    obtain ⟨x, hx1, hx2⟩ := hh
-    exact ⟨x, denote_ext hx1 hx, hx2⟩
-
-@[grind →] theorem RelEO.of_ext {f : Expr → Option Expr} {st st0 st' : EStore}
-    {c : EIdx} {r : Option EIdx} (h : RelEO f st c st' r) (hx : Ext st0 st) :
-    RelEO f st0 c st' r :=
-  fun e he => h e (denote_ext he hx)
-
-@[grind →] theorem RelEO.retarget {f : Expr → Option Expr} {st st0 st' : EStore}
-    {c : EIdx} {r : Option EIdx} (h : RelEO f st c st' r) (hx : Ext st st0)
-    (hs : (denoteE st c).isSome = true) : RelEO f st0 c st' r := by
-  intro e he
-  obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hs
-  have hh := denote_ext he0 hx
-  rw [he] at hh
-  rw [Option.some.inj hh]
-  exact h e0 he0
-
-@[grind →] theorem RelEL.apply {f : Expr → List Expr} {st st' : EStore}
-    {c : EIdx} {rs : List EIdx} {e : Expr} (h : RelEL f st c st' rs)
-    (he : denoteE st c = some e) : Frontend.denoteEList st' rs = some (f e) := h e he
-
-@[grind →] theorem RelEL.ext {f : Expr → List Expr} {st st' st'' : EStore}
-    {c : EIdx} {rs : List EIdx} (h : RelEL f st c st' rs) (hx : Ext st' st'') :
-    RelEL f st c st'' rs :=
-  fun e he => denoteEList_ext hx rs (f e) (h e he)
-
-@[grind →] theorem RelEL.of_ext {f : Expr → List Expr} {st st0 st' : EStore}
-    {c : EIdx} {rs : List EIdx} (h : RelEL f st c st' rs) (hx : Ext st0 st) :
-    RelEL f st0 c st' rs :=
-  fun e he => h e (denote_ext he hx)
-
-@[grind →] theorem RelEL.retarget {f : Expr → List Expr} {st st0 st' : EStore}
-    {c : EIdx} {rs : List EIdx} (h : RelEL f st c st' rs) (hx : Ext st st0)
-    (hs : (denoteE st c).isSome = true) : RelEL f st0 c st' rs := by
-  intro e he
-  obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hs
-  have hh := denote_ext he0 hx
-  rw [he] at hh
-  rw [Option.some.inj hh]
-  exact h e0 he0
 
 @[grind →] theorem RelL.apply {f : Level → Level} {st st' : EStore} {c r : LIdx}
     {u : Level} (h : RelL f st c st' r) (hu : denoteL st.ls c = some u) :
@@ -1609,11 +1537,6 @@ theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x :
     {c r : LIdx} (h : RelL f st c st' r) (hx : Ext st0 st) :
     RelL f st0 c st' r :=
   fun u hu => h u (denoteL_ext hu hx)
-
-@[grind →] theorem RelLs.apply {f : List Level → List Level} {st st' : EStore}
-    {c r : LsIdx} {us : List Level} (h : RelLs f st c st' r)
-    (hu : denoteLs st.lss c = some us) : denoteLs st'.lss r = some (f us) :=
-  h us hu
 
 @[grind →] theorem RelLs.ext {f : List Level → List Level}
     {st st' st'' : EStore} {c r : LsIdx} (h : RelLs f st c st' r)

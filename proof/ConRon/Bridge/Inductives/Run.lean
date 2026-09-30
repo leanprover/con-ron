@@ -4,7 +4,7 @@
 The half of the tier's vocabulary that reads no knot and no environment
 index: the pure frame `PStep`, the pure statement shapes (`PSpec`, `PSpecP`,
 `PSpecL`), the `Option` lift `ROp`, the answer relations, the binder and
-constructor-list denotations, the `AM` bind's inversion, the store
+constructor-list denotations, the store
 primitives in RUN form (`zeroLevel_run`, `mkAppN_run`, the views and the
 interners) and the tag and handle-list lemmas every walk reads.  The
 pure-grade twins of the uniform route — the positivity walk's memoised
@@ -13,6 +13,7 @@ and adds the core-grade shapes.
 -/
 import ConRon.Bridge.Inductives.Records
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Promote.Pers
 import ConRon.Bridge.ExprOps.TagFirst
 
 namespace ConRon.Bridge.Inductives
@@ -298,37 +299,6 @@ theorem denoteCI_not_ind {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
   cases ci <;>
     simp_all [Frontend.denoteCI, Option.map_eq_some_iff] <;> grind
 
-/-! ## The `AM` bind's inversion
-
-`Bridge/Promote/Pers.lean` has the same lemma under the name `AM.bind_ok`
-(and `AM.pure_ok` for `pureOk`); the tier's proofs are written against these
-names. -/
-
-/-- con-leche: none — the `AM` bind's inversion: an accepting composite is two
-accepting halves. -/
-theorem bindOk {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
-    {b : β} (h : (x >>= f) s = .ok (b, s')) :
-    ∃ a s₁, x s = .ok (a, s₁) ∧ f a s₁ = .ok (b, s') := by
-  have h' : ((x s) >>= (fun p => f p.1 p.2)) = .ok (b, s') := h
-  clear h
-  revert h'
-  cases hx : x s with
-  | error e => intro h; exact nomatch h
-  | ok p =>
-    obtain ⟨a, s₁⟩ := p
-    intro h
-    exact ⟨a, s₁, rfl, h⟩
-
-/-- con-leche: none — the `AM` `pure`'s inversion, the other half of
-`bindOk`: an accepting `pure` moved nothing and answered what it was given.
-Every `do` block of the tier ends in one. -/
-theorem pureOk {α : Type} {a r : α} {s s' : AState}
-    (h : (pure a : AM α) s = .ok (r, s')) : r = a ∧ s' = s := by
-  have h' : Except.ok ((a, s) : α × AState) = .ok (r, s') := h
-  injection h' with h''
-  injection h'' with h1 h2
-  exact ⟨h1.symm, h2.symm⟩
-
 /-! ## The primitives, in RUN form
 
 `Bridge/Specs.lean` states one `@[spec]` triple per `Monad.lean` primitive,
@@ -339,23 +309,9 @@ seven-way `obtain` over the frame equations — at some two hundred call sites.
 
 The primitives the generators actually use get their run form ONCE, here,
 each packaging the frame as a `PStep` and keeping only the conjunct its
-callers read.  A proof downstream is then `bindOk` plus one of these plus the
+callers read.  A proof downstream is then `AM.bind_ok` plus one of these plus the
 answer's own algebra, which is what task #97-P3-0 §4's rule 3 asks of a
 statement layer. -/
-
-/-- con-leche: none — a FAILING primitive cannot have accepted.  The other
-half of `pureOk`, for the fuel-exhaustion clause every walk of the tier
-opens with. -/
-theorem failOk {α : Type} {e : Arena.CheckError} {r : α} {s s' : AState}
-    (h : (fail e : AM α) s = .ok (r, s')) : False := by
-  simp only [Arena.fail, throwThe, MonadExceptOf.throw] at h
-  exact nomatch h
-
-/-- con-leche: none — **`view`, as a run**: it moves nothing and answers the
-store's own decoding.  The first line of every walk of this tier. -/
-theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
-    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
-  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
 
 /-- con-leche: none — **the tag-first twin's test, in run form** (task
 #97-P5-Core round 4): at a handle whose view is known, `if h.tag == t then
@@ -412,24 +368,6 @@ theorem denoteLList_mem {st : LStore} :
         rcases List.mem_cons.mp hc with rfl | hc'
         · exact ⟨y, hu⟩
         · exact ih hus hc'
-
-/-- con-leche: none — a universe-argument list handle that denotes has a
-view. -/
-theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List Level}
-    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
-  obtain ⟨v, hv, _⟩ := denoteLs_view hd
-  rw [hv]; rfl
-
-/-- con-leche: none — `EStore.viewBM` reads only `pers`, `scr` and
-`scratchOn`, so a primitive that leaves those three alone leaves the whole
-binder-datum store alone.  The three NESTED interners (name, level, level
-list) are exactly that. -/
-theorem bmExt_of_nested {st st' : EStore} (hp : st'.pers = st.pers)
-    (hs : st'.scr = st.scr) (hon : st'.scratchOn = st.scratchOn) :
-    BMExt st st' := by
-  intro mi m h
-  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, hon]
-  exact h
 
 /-- con-leche: none — **`internE`, as a run**: the arena grew, nothing else
 moved, and the new handle denotes what the node view says. -/
@@ -531,14 +469,14 @@ theorem internLamE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
     opt2]
 
 /-- con-leche: none — **`internLNode`, as a run**.  The nested stores keep
-`pers`/`scr`/`scratchOn`, so `BMExt` is `bmExt_of_nested`. -/
+`pers`/`scr`/`scratchOn`, so `BMExt` is `bmExt_of_tables`. -/
 theorem internLNode_run {s s' : AState} {v : LNodeView} {h : LIdx}
     (hok : StateOK s) (hv : s.store.ls.ViewOK v)
     (hrun : internLNode v s = .ok (h, s')) :
     PStep s s' ∧ denoteL s'.store.ls h = denoteLView s'.store.ls v := by
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLNode_spec s v hok.wf hv)
-  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8, h10⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_tables h3 h4 h5) h7 h8, h10⟩
 
 /-- con-leche: none — `internLNode` at `.zero`: `structElimLevel`'s small
 arm. -/
@@ -588,163 +526,6 @@ theorem internMaxL_run {s s' : AState} {a b : LIdx} {aP bP : Level} {h : LIdx}
   simp only [denoteLView, denoteL_ext ha hstep.ext, denoteL_ext hb hstep.ext,
     opt2]
 
-/-- con-leche: none — **a handle comparison IS a name comparison**, as an
-equation between `Bool`s: `Bridge/Checker/Base.lean`'s `beq_handle_iff` read
-at both signs (restated here rather than imported: that module is not in this
-tier's closure), which is the shape a walk that RETURNS the comparison needs
-(`mentionsConstGo`'s `.const` and `.proj` arms).  The `false` half is
-`denoteN_inj` — DESIGN §8.3's soundness obligation. -/
-theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {n p : NIdx}
-    {nm x : ConLeche.Name} (hn : denoteN st.ns n = some nm)
-    (hp : denoteN st.ns p = some x) : (n == p) = (nm == x) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  cases hb : n == p with
-  | true =>
-    obtain rfl := eq_of_beq hb
-    rw [hn] at hp
-    obtain rfl := Option.some.inj hp
-    simp
-  | false =>
-    symm
-    rw [beq_eq_false_iff_ne]
-    intro heq
-    subst heq
-    have hne : (n == p) = true := beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hp)
-    rw [hb] at hne
-    exact absurd hne (by simp)
-
-/-- con-leche: none — **an EXPRESSION-handle comparison is a structural
-comparison**, at both signs.  The `false` half is `denoteE_inj`
-(`Arena/WFProofs.lean`) — DESIGN §8.3's soundness obligation, which the two
-recognisers cash at every `==`. -/
-theorem beq_ehandle_eq {st : EStore} (hwf : StoreWF st) {a b : EIdx}
-    {x y : Expr} (ha : denoteE st a = some x) (hb : denoteE st b = some y) :
-    (a == b) = (x == y) := by
-  cases h1 : a == b with
-  | true =>
-    obtain rfl := eq_of_beq h1
-    rw [ha] at hb
-    obtain rfl := Option.some.inj hb
-    simp
-  | false =>
-    symm
-    rw [beq_eq_false_iff_ne]
-    intro heq
-    subst heq
-    have hne : (a == b) = true := beq_iff_eq.mpr (denoteE_inj hwf ha hb)
-    rw [h1] at hne
-    exact absurd hne (by simp)
-
-/-- con-leche: none — `denoteE_inj` at a LIST: two handle lists that denote
-the same terms ARE the same list. -/
-theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ {as bs : List EIdx} {xs : List Expr},
-      Frontend.denoteEList st as = some xs →
-      Frontend.denoteEList st bs = some xs → as = bs := by
-  intro as
-  induction as with
-  | nil =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteEList] at ha
-    obtain rfl := Option.some.inj ha
-    cases bs with
-    | nil => rfl
-    | cons b bs =>
-      simp only [Frontend.denoteEList] at hb
-      split at hb
-      · exact absurd hb (by simp)
-      · exact absurd hb (by simp)
-  | cons a as ih =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteEList] at ha
-    cases hx : denoteE st a with
-    | none => rw [hx] at ha; simp at ha
-    | some y =>
-      cases hxs : Frontend.denoteEList st as with
-      | none => rw [hx, hxs] at ha; simp at ha
-      | some ys =>
-        rw [hx, hxs] at ha
-        obtain rfl := Option.some.inj ha
-        cases bs with
-        | nil => simp only [Frontend.denoteEList] at hb; exact absurd hb (by simp)
-        | cons b bs =>
-          simp only [Frontend.denoteEList] at hb
-          cases hy : denoteE st b with
-          | none => rw [hy] at hb; simp at hb
-          | some z =>
-            cases hys : Frontend.denoteEList st bs with
-            | none => rw [hy, hys] at hb; simp at hb
-            | some zs =>
-              rw [hy, hys] at hb
-              obtain ⟨rfl, rfl⟩ := List.cons.inj (Option.some.inj hb)
-              rw [denoteE_inj hwf hx hy, ih hxs hys]
-
-/-- con-leche: none — and so a handle-LIST comparison is a structural one. -/
-theorem beq_ehandleList_eq {st : EStore} (hwf : StoreWF st)
-    {as bs : List EIdx} {xs ys : List Expr}
-    (ha : Frontend.denoteEList st as = some xs)
-    (hb : Frontend.denoteEList st bs = some ys) : (as == bs) = (xs == ys) := by
-  cases h1 : as == bs with
-  | true =>
-    obtain rfl := eq_of_beq h1
-    rw [ha] at hb
-    obtain rfl := Option.some.inj hb
-    simp
-  | false =>
-    symm
-    rw [beq_eq_false_iff_ne]
-    intro heq
-    subst heq
-    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteEList_inj hwf ha hb)
-    rw [h1] at hne
-    exact absurd hne (by simp)
-
-/-- con-leche: none — `denoteN_inj` at a LIST: two NAME-handle lists that
-denote the same names ARE the same list.  `denoteEList_inj`'s twin, for the
-level-parameter lists the recursor's pin compares. -/
-theorem denoteNListE_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ {as bs : List NIdx} {xs : List ConLeche.Name},
-      Frontend.denoteNList st.ns as = some xs →
-      Frontend.denoteNList st.ns bs = some xs → as = bs := by
-  obtain ⟨rk, hrk⟩ := hwf
-  intro as
-  induction as with
-  | nil =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteNList] at ha
-    obtain rfl := Option.some.inj ha
-    cases bs with
-    | nil => rfl
-    | cons b bs =>
-      simp only [Frontend.denoteNList] at hb
-      split at hb
-      · exact absurd hb (by simp)
-      · exact absurd hb (by simp)
-  | cons a as ih =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteNList] at ha
-    cases hx : denoteN st.ns a with
-    | none => rw [hx] at ha; simp at ha
-    | some y =>
-      cases hxs : Frontend.denoteNList st.ns as with
-      | none => rw [hx, hxs] at ha; simp at ha
-      | some ys =>
-        rw [hx, hxs] at ha
-        obtain rfl := Option.some.inj ha
-        cases bs with
-        | nil => simp only [Frontend.denoteNList] at hb; exact absurd hb (by simp)
-        | cons b bs =>
-          simp only [Frontend.denoteNList] at hb
-          cases hy : denoteN st.ns b with
-          | none => rw [hy] at hb; simp at hb
-          | some z =>
-            cases hys : Frontend.denoteNList st.ns bs with
-            | none => rw [hy, hys] at hb; simp at hb
-            | some zs =>
-              rw [hy, hys] at hb
-              obtain ⟨rfl, rfl⟩ := List.cons.inj (Option.some.inj hb)
-              rw [denoteN_inj hrk.nsWF hx hy, ih hxs hys]
-
 /-- con-leche: none — and so a NAME-handle-list comparison is a structural
 one, at both signs. -/
 theorem beq_nhandleList_eq {st : EStore} (hwf : StoreWF st)
@@ -762,7 +543,7 @@ theorem beq_nhandleList_eq {st : EStore} (hwf : StoreWF st)
     rw [beq_eq_false_iff_ne]
     intro heq
     subst heq
-    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteNListE_inj hwf ha hb)
+    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteNList_inj hwf _ _ _ ha hb)
     rw [h1] at hne
     exact absurd hne (by simp)
 
@@ -864,7 +645,7 @@ theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
         rw [ha, has] at hargs
         obtain rfl := Option.some.inj hargs
         simp only [ConRon.Arena.mkAppN] at hrun
-        obtain ⟨g, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨g, s₁, h1, h2⟩ := AM.bind_ok hrun
         obtain ⟨hstep1, hg⟩ :=
           internE_run hok (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl)) h1
         have hg' : denoteE s₁.store g = some (.app fP x) := by
@@ -949,7 +730,7 @@ theorem viewBind_run {s s' : AState} {h : EIdx}
 /-- con-leche: none — a failing `failDanglingE` cannot have accepted. -/
 theorem failDanglingE_ok {α : Type} {r : α} {s s' : AState}
     (h : (failDanglingE : AM α) s = .ok (r, s')) : False :=
-  failOk h
+  AM.fail_ok h
 
 /-- con-leche: none — **a denoting handle's tag is its view's**, with the
 view's denotation. -/
@@ -1036,29 +817,6 @@ theorem findIdx_handle_eq {st : EStore} (hwf : StoreWF st) {n : NIdx}
         rw [ha, has] at h
         obtain rfl := Option.some.inj h
         simp only [List.findIdx?_cons, beq_handle_eq hwf ha hn, ih has]
-
-/-- con-leche: none — a denoting name-handle list has the names' length. -/
-theorem denoteNList_length {st : NStore} :
-    ∀ {names : List NIdx} {namesP : List ConLeche.Name},
-      Frontend.denoteNList st names = some namesP → names.length = namesP.length := by
-  intro names
-  induction names with
-  | nil =>
-    intro namesP h
-    simp only [Frontend.denoteNList, Option.some.injEq] at h
-    subst h; rfl
-  | cons a as ih =>
-    intro namesP h
-    simp only [Frontend.denoteNList] at h
-    cases ha : denoteN st a with
-    | none => rw [ha] at h; simp at h
-    | some x =>
-      cases has : Frontend.denoteNList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some xs =>
-        rw [ha, has] at h
-        obtain rfl := Option.some.inj h
-        simp [ih has]
 
 /-- con-leche: none — a denoting name-handle list at an index. -/
 theorem denoteNList_getElem? {st : NStore} :
@@ -1170,24 +928,6 @@ theorem beq_lshandle_eq {st : EStore} (hwf : StoreWF st) {a b : LsIdx}
     have hne : (a == b) = true := beq_iff_eq.mpr (denoteLs_inj hrk.lssWF ha hb)
     rw [h1] at hne
     exact absurd hne (by simp)
-
-/-- con-leche: none — the `fvar` index projection read means the type
-projection reads too (one row of the `fvar` array): `TagFirst`'s
-`viewFVarIdx_of_viewFVarTy`, the other way. -/
-theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
-    (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
-  unfold EStore.viewFVarIdx at h
-  unfold EStore.viewFVarTy EStore.persGetFVarTy
-  unfold EStore.persGetFVarIdx at h
-  split at h
-  · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-    obtain ⟨r, hr, -⟩ := h
-    exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
-  · split at h
-    · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-      obtain ⟨r, hr, -⟩ := h
-      exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
-    · cases h
 
 /-- con-leche: none — an `fvar`-tagged handle's index projection, with its
 denotation: the term is that free variable. -/

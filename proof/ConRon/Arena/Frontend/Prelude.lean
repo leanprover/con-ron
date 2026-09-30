@@ -3,10 +3,9 @@
 
 con-leche's `ConLeche/Frontend/Prelude.lean`: the checker's own little prelude
 — the five pinned basis blocks (`Eq`, `Nat`, `Empty`, `False`, `Quot` with its
-soundness axiom; `PUnit` is no longer pinned, con-leche's `uniform-inds` merge,
-task #105), the `Bool` block, and the `And` block pinned by design — as a
-lean4export-format stream parsed by the ORDINARY parser
-(`parseBytes`, which is what `parseExportD` is) into declaration records.  `preparePrelude` puts them at the
+soundness axiom), the `Bool` block, and the `And` block pinned by design — as
+a lean4export-format stream parsed by the ORDINARY parser (`parseBytes`) into
+declaration records.  `preparePrelude` puts them at the
 front of every stream it prepares, which is what "in the env initially and
 unconditionally" means in practice.
 

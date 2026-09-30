@@ -71,9 +71,12 @@ the other's answers.
 The nine handle-valued tables are keyed `(EIdx × Nat)`: the node and the
 traversal cursor, which is what the answer depends on once the substituted
 term is fixed (nanoda's trick, DESIGN §8.3 "Caches").  Three of con-leche's
-walks have no cursor (`resetMetaGo`, `renameConstsGo`, `instLPGo` key on the
-node alone); the arena keys them at cursor `0` so that every handle-valued
-memo has ONE invariant and one insert lemma.  The two `Nat`-valued tables are
+walks have no cursor (`resetMeta`, `renameConsts`, `instantiateLevelParams`
+key on the node alone); the arena keys them at cursor `0` so that every
+handle-valued memo has ONE invariant and one insert lemma.  `resetC` and
+`renameC` have no walk on either side any more (the port runs neither
+`resetMeta` nor `renameConsts`); they stay field for field with the Rust's
+`Memos`.  The two `Nat`-valued tables are
 the saturated-branch recomputations of the packed range fields. -/
 structure Memos where
   /-- `instantiate1` (`ExprOps.lean:80-116`). -/
@@ -378,11 +381,6 @@ takes a binder apart and puts it back never looks inside the datum. -/
 @[inline] def viewBindI (h : EIdx) : AM (Option (EIdx × EIdx × BMIdx)) := do
   let s ← get; pure (s.store.viewBindI h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — decode a binder
-datum handle. -/
-@[inline] def viewBM (mi : BMIdx) : AM (Option ConLeche.BinderMeta) := do
-  let s ← get; pure (s.store.viewBM mi)
-
 /-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `letE`
 projection. -/
 @[inline] def viewLet (h : EIdx) : AM (Option (EIdx × EIdx × EIdx)) := do
@@ -498,13 +496,6 @@ handle. -/
   match s.store.ls.view h with
   | some v => pure v
   | none => fail (.internal "arena: dangling level handle")
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:39-52 Level — the level's derived
-pair (its 32-bit hash and its `hasParam` bit, the computed field at lines
-47-53), read in `O(1)`. -/
-@[inline] def derivedL (h : LIdx) : AM LDer := do
-  let s ← get
-  pure (s.store.lder h)
 
 /-- con-leche: none — hash-cons a level node, through the nesting. -/
 def internLNode (v : LNodeView) : AM LIdx := do
@@ -859,44 +850,6 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
 @[noinline] def liftClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with liftC := ∅ } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:657-693 resetMetaGo — probe the
-`resetMeta` memo. -/
-@[inline] def resetGet (k : EIdx × Nat) : AM (Option EIdx) := do
-  let s ← get; pure s.memos.resetC[k]?
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:657-693 resetMetaGo — record a
-`resetMeta` answer. -/
-@[noinline] def resetSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
-  let s ← get
-  let mp := s.memos.resetC
-  let s := { s with memos := { s.memos with resetC := ∅ } }
-  set { s with memos := { s.memos with resetC := mp.insert k r } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:765-766 resetMetaFast — drop the
-`resetMeta` memo. -/
-@[noinline] def resetClear : AM Unit := do
-  let s ← get
-  set { s with memos := { s.memos with resetC := ∅ } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1056-1093 renameConstsGo — probe
-the `renameConsts` memo. -/
-@[inline] def renameGet (k : EIdx × Nat) : AM (Option EIdx) := do
-  let s ← get; pure s.memos.renameC[k]?
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1056-1093 renameConstsGo — record a
-`renameConsts` answer. -/
-@[noinline] def renameSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
-  let s ← get
-  let mp := s.memos.renameC
-  let s := { s with memos := { s.memos with renameC := ∅ } }
-  set { s with memos := { s.memos with renameC := mp.insert k r } }
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1166-1168 renameConstsFast — drop
-the `renameConsts` memo (it depends on the renaming). -/
-@[noinline] def renameClear : AM Unit := do
-  let s ← get
-  set { s with memos := { s.memos with renameC := ∅ } }
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2066-2110 abstract1Go — probe the
 `abstract1` memo. -/

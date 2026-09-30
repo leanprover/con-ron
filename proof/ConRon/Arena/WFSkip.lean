@@ -11,14 +11,10 @@ under `StoreWF` a node with a scratch child is in no persistent cons table
 `bmConsP` for the datum handle), so the skipping probe IS the unconditional
 one:
 
-* `EStore.persFindMaybe_eq`     : `st.persFindMaybe v mi = st.pers.find? v mi`
-* `EStore.persFindBindMaybe_eq` : `st.persFindBindMaybe tag r = st.pers.findBind tag r`
+* `EStore.persFindMaybe_eq` : `st.persFindMaybe v mi = st.pers.find? v mi`
 
 plus three unconditional rewrites (scratch tier off, persistent probe
 `none`, persistent probe `some`) for proofs that carry no `StoreWF`.
-
-The `hchild_*` lemmas moved here from `Refine2/Specs.lean` unchanged in
-statement (Refine2 must not import Bridge, and they are Theorem 1's).
 -/
 import ConRon.Arena.WF
 
@@ -223,70 +219,5 @@ theorem EStore.persFindMaybe_eq {st : EStore} (hwf : StoreWF st) (v : ENodeView)
   cases hr : EStore.eRecHasScratchChild v mi
   · simp
   · simp [pers_find_none_of_eRecHasScratchChild hwf hr]
-
-/-! ## The per-constructor corollaries (moved from `Refine2/Specs.lean`)
-
-`findBMOfView` answers `some 0` off a binder, so at a non-binder view
-`persFind?` IS the per-constructor table probe the `estore_intern_*_abs`
-hypothesis asks for — `rfl` on top of the four lemmas above.  `bvar`, `lit`
-and the binder datum have no children and need none. -/
-
-theorem hchild_const {st : EStore} (hwf : StoreWF st) {n : NIdx} {us : LsIdx}
-    (h : n.isPersistent = false ∨ us.isPersistent = false) :
-    st.pers.consts.find? ⟨n, us⟩ = none := by
-  rcases h with h | h
-  · exact persFind?_none_of_nchild (v := .const n us) hwf
-      (by simp [ENodeView.nchildren]) h
-  · exact persFind?_none_of_lschild (v := .const n us) hwf
-      (by simp [ENodeView.lschildren]) h
-
-theorem hchild_let_e {st : EStore} (hwf : StoreWF st) {ty val b : EIdx}
-    (h : ty.isPersistent = false ∨ val.isPersistent = false ∨
-      b.isPersistent = false) : st.pers.lets.find? ⟨ty, val, b⟩ = none := by
-  rcases h with h | h | h
-  · exact persFind?_none_of_echild (v := .letE ty val b) hwf
-      (by simp [ENodeView.echildren]) h
-  · exact persFind?_none_of_echild (v := .letE ty val b) hwf
-      (by simp [ENodeView.echildren]) h
-  · exact persFind?_none_of_echild (v := .letE ty val b) hwf
-      (by simp [ENodeView.echildren]) h
-
-/-- **`hchild` at a binder view** (finding 14's first half, at the datum
-handle): at a store whose datum table answers `mi` for `m`, the persistent
-node probe at `mi` is `persFind?`, and a scratch child or a scratch datum
-keeps it from answering.  (Moved from `Refine2/Specs.lean`; `hfb` is no
-longer needed by the proof and is kept for the callers.) -/
-theorem persFind_bind_none_of_child {st : EStore} (hwf : StoreWF st) {v : ENodeView}
-    {m : ConLeche.BinderMeta} {mi : BMIdx} (hbm : v.bmOf = some m)
-    (_hfb : st.findBM m = some mi)
-    (hc : (∃ c ∈ v.echildren, c.isPersistent = false) ∨ mi.isPersistent = false) :
-    st.pers.find? v mi = none := by
-  have hv : ∃ ty b, (v = .lam ty b m ∨ v = .forallE ty b m) := by
-    cases v <;> simp [ENodeView.bmOf] at hbm
-    · exact ⟨_, _, Or.inl (by rw [hbm])⟩
-    · exact ⟨_, _, Or.inr (by rw [hbm])⟩
-  obtain ⟨ty, b, hv⟩ := hv
-  apply pers_find_bind_none_of_skip hwf hv
-  have hch : v.echildren = [ty, b] := by rcases hv with rfl | rfl <;> rfl
-  rw [hch] at hc
-  simp only [EStore.bindHasScratchChild]
-  rcases hc with ⟨c, hc, hcs⟩ | hmi
-  · simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
-    rcases hc with rfl | rfl
-    · simp [hcs]
-    · simp [hcs]
-  · simp [hmi]
-
-/-- The three-way child disjunction the `estore_intern_*_abs` binder
-hypotheses are stated with, as `persFind_bind_none_of_child`'s. -/
-theorem bind_child_disj {ty b : EIdx} {mi : BMIdx}
-    (v : ENodeView) (hv : v.echildren = [ty, b])
-    (hc : ty.isPersistent = false ∨ b.isPersistent = false ∨ mi.isPersistent = false) :
-    (∃ c ∈ v.echildren, c.isPersistent = false) ∨ mi.isPersistent = false := by
-  rw [hv]
-  rcases hc with hc | hc | hc
-  · exact Or.inl ⟨ty, by simp, hc⟩
-  · exact Or.inl ⟨b, by simp, hc⟩
-  · exact Or.inr hc
 
 end ConRon.Arena

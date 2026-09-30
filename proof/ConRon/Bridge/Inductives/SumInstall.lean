@@ -137,35 +137,35 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     intro s₀ s' r hok hpre hrun
     obtain ⟨he, hfe⟩ := hpre
     rw [whnfTelescope_zero_eq] at hrun
-    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hok1, hx1, hp1, hsim⟩ := AM.of_run (P := fun u => u = s₀)
       (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ env) i eP u.store r)
       rfl k1 (hknot.whnf s₀ i e eP hok he hws)
     obtain ⟨wP, hwP, -, F1, hF1⟩ := hsim
-    obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨v, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨hs2, hv⟩ := view_run k2
     rw [hs2] at z2
     cases v
     case sort u =>
       obtain ⟨uP, rfl, hu⟩ := denote_sort_inv hok1.state.wf hv hwP
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨⟨hok1, hx1, hp1⟩, F1, [], uP, ?_, rfl, hu⟩
       simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind, hF1]
       rfl
-    all_goals exact absurd z2 (fun h => failOk h)
+    all_goals exact absurd z2 (fun h => AM.fail_ok h)
   | succ n ih =>
     intro s₀ s' r hok hpre hrun
     obtain ⟨he, hfe⟩ := hpre
     rw [whnfTelescope_succ_eq] at hrun
-    obtain ⟨w, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨w, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hok1, hx1, hp1, hsim⟩ := AM.of_run (P := fun u => u = s₀)
       (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧ Core.SimE (ConLeche.whnf μ env) i eP u.store r)
       rfl k1 (hknot.whnf s₀ i e eP hok he hws)
     have c1 : CoreStep μ env fe s₀ s1 := ⟨hok1, hx1, hp1⟩
     obtain ⟨wP, hwP, hwsw, F1, hF1⟩ := hsim
-    obtain ⟨v, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨v, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨hs2, hv⟩ := view_run k2
     rw [hs2] at z2
     cases v
@@ -175,12 +175,12 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         simp only [Expr.WScoped] at hwsw; exact hwsw
       obtain ⟨hwsd, hwsb⟩ := hwsdb
       dsimp only at z2
-      obtain ⟨fv, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨fv, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, hfv⟩ := internE_run hok1.state (viewOK_fvar (by rw [hd]; rfl)) k3
       have hfv' : denoteE s3.store fv = some (.fvar i domP) := by
         rw [hfv]; simp [denoteEView, denote_ext hd p3.ext]
       have c3 := c1.trans (p3.toCore hok1)
-      obtain ⟨op, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨op, s4, k4, z4⟩ := AM.bind_ok z3
       have hb3 : denoteE s3.store body = some bodyP := denote_ext hb p3.ext
       obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c3.ok.state hfv'
         (by rw [hb3]; rfl) k4
@@ -188,11 +188,11 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       have hop : denoteE s4.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
         h7 _ hb3
       have c4 := c3.trans (p4.toCore c3.ok)
-      obtain ⟨br, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨br, s5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨c5, F2, bsP, sP, hF2, hbs, hsP⟩ := ih (i + 1) op _
         (Expr.WScoped.instantiate1 hwsd 0 hwsb) s4 s5 br c4.ok
-        ⟨hop, denoteFEnv_ext c4.ext hfe⟩ k5
-      obtain ⟨rfl, rfl⟩ := pureOk z5
+        ⟨hop, denoteFEnv_mono c4.ext hfe⟩ k5
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
       refine ⟨c4.trans c5, max F1 F2, (domP, bm) :: bsP, sP, ?_, ?_, hsP⟩
       · have hF1' := ConLeche.whnf_mono (Nat.le_max_left F1 F2) hF1
         have hF2' := whnfTelescope_mono (Nat.le_max_right F1 F2) hF2
@@ -201,7 +201,7 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         rw [hF2']
         rfl
       · simp only [denoteBinders, denote_ext hd (p3.ext.trans (p4.ext.trans c5.ext)), hbs]
-    all_goals exact absurd z2 (fun h => failOk h)
+    all_goals exact absurd z2 (fun h => AM.fail_ok h)
 
 /-- con-leche: none — a handle denoting a sort carries the sort tag (the
 tag-first test's `else` side cannot be a sort). -/
@@ -244,25 +244,25 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         Frontend.denoteCV s''.store r.1 = some cvAP ∧ denoteL s''.store.ls r.2 = some sP := by
     intro s₁ s'' r hck hcv hcv0 hfe hrun
     simp only [Arena.checkSumTele.checkSumTeleSlow] at hrun
-    obtain ⟨bs, s₂, k2, z2⟩ := bindOk hrun
+    obtain ⟨bs, s₂, k2, z2⟩ := AM.bind_ok hrun
     obtain ⟨c2, F₁, bsP, sP, hF₁, hbs, hsP⟩ := whnfTelescope_spec fe hk henv 0 n cvTa₀.type
       cvTa₀P.type hws s₁ s₂ bs hck ⟨denoteCV_type hcv0, hfe⟩ k2
     obtain ⟨bsI, sI⟩ := bs
     simp only at hbs hsP z2
-    obtain ⟨sortS, s₃, k3, z3⟩ := bindOk z2
+    obtain ⟨sortS, s₃, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, hsort⟩ := internSortE_run c2.ok.state hsP k3
-    obtain ⟨ty, s₄, k4, z4⟩ := bindOk z3
+    obtain ⟨ty, s₄, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨p4, hty⟩ := closeTelescope_spec bsI bsP 0 sortS (.sort sP) s₃ s₄ ty p3.ok
       ⟨denoteBinders_ext p3.ext _ _ hbs, hsort⟩ k4
     have c4 := c2.trans ((p3.trans p4).toCore c2.ok)
     have x14 : Ext s₁.store s₄.store := c4.ext
-    obtain ⟨cvA, s₅, k5, z5⟩ := bindOk z4
+    obtain ⟨cvA, s₅, k5, z5⟩ := AM.bind_ok z4
     have hcvT : Frontend.denoteCV s₄.store { cv with type := ty } =
         some { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } := by
       obtain ⟨hn, hl, -⟩ := denoteCV_inv hcv
       simp only [Frontend.denoteCV, denoteN_ext hn x14, denoteNListE_ext x14 _ _ hl, hty]
     obtain ⟨c5, cAP, F₂, hcA, hF₂⟩ := checkConstantVal_bridge hμ hk c4.ok henv hcvT k5
-    obtain ⟨rfl, rfl⟩ := pureOk z5
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
     refine ⟨c4.trans c5, max F₁ F₂, bsP, sP, cAP,
       whnfTelescope_mono (Nat.le_max_left F₁ F₂) hF₁,
       checkConstantVal_mono (Nat.le_max_right F₁ F₂) hF₂, hcA,
@@ -270,7 +270,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   intro s₀ s' r hck hpre hrun
   obtain ⟨hcv, hcv0, hfe⟩ := hpre
   simp only [Arena.checkSumTele] at hrun
-  obtain ⟨sq, s₁, k1, z1⟩ := bindOk hrun
+  obtain ⟨sq, s₁, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨hs1, hsq⟩ := stripPis_pstep hck.state (denoteCV_type hcv0) k1
   rw [hs1] at z1
   -- the slow arm, on both sides
@@ -303,7 +303,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   dsimp only at z1
   by_cases htg : (body.tag == ETag.sort) = true
   · rw [if_pos htg] at z1
-    obtain ⟨o, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨o, s₂, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨hs2, ho⟩ := AM.of_run (P := fun t => t = s₀) rfl k2 (viewSort_spec s₀ body)
     subst hs2
     cases o with
@@ -311,7 +311,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | some u =>
       have hv := view_of_viewSort_tag htg ho.symm
       obtain ⟨uP, rfl, hu⟩ := denote_sort_inv hck.state.wf hv hbody
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨CoreStep.refl hck, 0, cvTa₀P, uP, ?_, hcv0, hu⟩
       simp only [ConLeche.checkSumTele, hxs, pure, Except.pure]
   · rw [if_neg htg] at z1
@@ -348,7 +348,7 @@ theorem denoteLList_append {st : LStore} :
         simp only [List.cons_append, denoteLList, hx, ih hxs hb, opt2]
 
 /-- con-leche: none — **an expression-handle list's `contains` is the
-denotation's**, at both signs: `beq_ehandle_eq` at every element (the store is
+denotation's**, at both signs: `beq_of_denoteE` at every element (the store is
 hash-consed, so a handle equality IS a term equality). -/
 theorem denoteEList_contains {st : EStore} (hwf : StoreWF st) :
     ∀ {xs : List EIdx} {xsP : List Expr}, Frontend.denoteEList st xs = some xsP →
@@ -371,7 +371,7 @@ theorem denoteEList_contains {st : EStore} (hwf : StoreWF st) :
       | some ys =>
         rw [hx, hr] at hxs
         obtain rfl := (Option.some.inj hxs).symm
-        simp only [List.contains_cons, beq_ehandle_eq hwf hh hx, ih hr hh]
+        simp only [List.contains_cons, beq_of_denoteE hwf hh hx, ih hr hh]
 
 /-- con-leche: none — `checkStructFieldSortsI` is monotone in the fuel of its
 `inferType`/`ensureSort`. -/
@@ -455,26 +455,26 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | zero =>
     intro s₀ s' r hok _ hrun
     simp only [Arena.checkStructFieldSortsI] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hok, 0, [], rfl, rfl⟩
   | succ j ih =>
     intro s₀ s' r hok hpre hrun
     obtain ⟨hs, hfvs, hidx, hfe⟩ := hpre
     simp only [Arena.checkStructFieldSortsI] at hrun
-    obtain ⟨fv, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨fv, s1, k1, z1⟩ := AM.bind_ok hrun
     cases hfv : fvs[j]? with
     | none =>
-      rw [hfv] at k1; simp only [Arena.unwrapOr] at k1; exact absurd k1 (fun h => failOk h)
+      rw [hfv] at k1; simp only [Arena.unwrapOr] at k1; exact absurd k1 (fun h => AM.fail_ok h)
     | some fv' =>
     rw [hfv] at k1; simp only [Arena.unwrapOr] at k1
-    obtain ⟨rfl, hs1⟩ := pureOk k1
+    obtain ⟨rfl, hs1⟩ := AM.pure_ok k1
     rw [hs1] at z1
     obtain ⟨aP, haP, hda⟩ := ExprOps.denoteEList_getElem? fvs fvsP hfvs j fv hfv
-    obtain ⟨t, s2, k2, z2⟩ := bindOk z1
+    obtain ⟨t, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨hs2, ht⟩ := fvarTypeD_run hok.state hda k2
     rw [hs2] at z2
     have hwsa := hws j (Nat.lt_succ_self j) aP haP
-    obtain ⟨ty, s3, k3, z3⟩ := bindOk z2
+    obtain ⟨ty, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨hok3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun u => u = s₀)
       (Q := fun r u => CheckOK μ env fe u ∧ Ext s₀.store u.store ∧
         u.pins = s₀.pins ∧
@@ -482,7 +482,7 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rfl k3 (hknot.infer s₀ (nP + j) t aP.fvarTypeD hok ht hwsa)
     have c3 : CoreStep μ env fe s₀ s3 := ⟨hok3, hx3, hp3⟩
     obtain ⟨tyP, htyP, hwsty, F1, hF1⟩ := hsim3
-    obtain ⟨u, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨u, s4, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨hok4, hx4, hp4, hsim4⟩ := AM.of_run (P := fun u => u = s3)
       (Q := fun r u => CheckOK μ env fe u ∧ Ext s3.store u.store ∧
         u.pins = s3.pins ∧
@@ -500,11 +500,11 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           denoteLList s'.store.ls r = some (restP ++ [uP]) := by
       intro s5 c5 z5
       have c05 := c4.trans c5
-      obtain ⟨rest, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨rest, s6, k6, z6⟩ := AM.bind_ok z5
       obtain ⟨c6, F3, restP, hF3, hrest⟩ := ih (fun i hi => hws i (Nat.lt_succ_of_lt hi))
         s5 s6 rest c05.ok ⟨denoteL_ext hs c05.ext, denoteEList_ext c05.ext _ _ hfvs,
-          denoteEList_ext c05.ext _ _ hidx, denoteFEnv_ext c05.ext hfe⟩ k6
-      obtain ⟨rfl, rfl⟩ := pureOk z6
+          denoteEList_ext c05.ext _ _ hidx, denoteFEnv_mono c05.ext hfe⟩ k6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
       refine ⟨c05.trans c6, F3, restP, hF3, ?_⟩
       exact denoteLList_append hrest (by
         simp only [denoteLList, denoteL_ext huP (c5.ext.trans c6.ext), opt2])
@@ -516,13 +516,13 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     cases isProp with
     | false =>
       simp only [Bool.not_false, if_true] at z4
-      obtain ⟨lu, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨lu, s5, k5, z5⟩ := AM.bind_ok z4
       have hlu := (Core.readLevelM_denote hok4.caches.readL k5).1
       have c5 : CoreStep μ env fe s4 s5 := (readLevelM_pstep hok4.state k5).toCore hok4
-      obtain ⟨ls, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨ls, s6, k6, z6⟩ := AM.bind_ok z5
       have hls := (Core.readLevelM_denote c5.ok.caches.readL k6).1
       have c6 : CoreStep μ env fe s5 s6 := (readLevelM_pstep c5.ok.state k6).toCore c5.ok
-      obtain ⟨b, s7, k7, z7⟩ := bindOk z6
+      obtain ⟨b, s7, k7, z7⟩ := AM.bind_ok z6
       have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
       have hls' : ls = sP :=
         Option.some.inj (hls.symm.trans (denoteL_ext hs (c4.ext.trans c5.ext)))
@@ -530,20 +530,20 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       cases hleq : Level.leq lu ls with
       | none =>
         rw [hleq] at k7; simp only [Arena.liftFueled] at k7
-        exact absurd k7 (fun h => failOk h)
+        exact absurd k7 (fun h => AM.fail_ok h)
       | some bb =>
       rw [hleq] at k7; simp only [Arena.liftFueled] at k7
       cases bb with
       | false =>
-        obtain ⟨rfl, rfl⟩ := pureOk k7
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok k7
         simp only [Bool.false_eq_true, if_false] at z7
-        obtain ⟨_, _, k, _⟩ := bindOk z7
-        exact absurd k (fun h => failOk h)
+        obtain ⟨_, _, k, _⟩ := AM.bind_ok z7
+        exact absurd k (fun h => AM.fail_ok h)
       | true =>
-      obtain ⟨rfl, rfl⟩ := pureOk k7
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok k7
       simp only [if_true] at z7
-      obtain ⟨_, s8, k8, z8⟩ := bindOk z7
-      obtain ⟨-, rfl⟩ := pureOk k8
+      obtain ⟨_, s8, k8, z8⟩ := AM.bind_ok z7
+      obtain ⟨-, rfl⟩ := AM.pure_ok k8
       obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (c5.trans c6) z8
       refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
       have e1 := hF1' (max (max F1 F2) F3)
@@ -560,8 +560,8 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     cases large with
     | false =>
       simp only [Bool.not_true, Bool.false_eq_true, if_false] at z4
-      obtain ⟨_, s5, k5, z5⟩ := bindOk z4
-      obtain ⟨-, rfl⟩ := pureOk k5
+      obtain ⟨_, s5, k5, z5⟩ := AM.bind_ok z4
+      obtain ⟨-, rfl⟩ := AM.pure_ok k5
       obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z5
       refine ⟨c, max (max F1 F2) F3, restP ++ [uP], ?_, hr⟩
       have e1 := hF1' (max (max F1 F2) F3)
@@ -576,10 +576,10 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       simp [e3]
     | true =>
       simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true] at z4
-      obtain ⟨z, s5, k5, z5⟩ := bindOk z4
+      obtain ⟨z, s5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨hs5, hz⟩ := zeroLevel_run hok4.pins k5
       rw [hs5] at z5
-      obtain ⟨vv, s6, k6, z6⟩ := bindOk z5
+      obtain ⟨vv, s6, k6, z6⟩ := AM.bind_ok z5
       obtain ⟨hok6, hst6, hp6, lu, lz, hlu, hlz, hvv⟩ :=
         AM.of_run (P := fun t => t = s4) rfl k6 (Core.lvlEq?_spec s4 u z hok4)
       have hlu' : lu = uP := Option.some.inj (hlu.symm.trans huP)
@@ -592,10 +592,10 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rw [hvv, hcont] at z6
       split at z6
       case isFalse hn =>
-        obtain ⟨_, _, k, _⟩ := bindOk z6; exact absurd k (fun h => failOk h)
+        obtain ⟨_, _, k, _⟩ := AM.bind_ok z6; exact absurd k (fun h => AM.fail_ok h)
       case isTrue hy =>
-      obtain ⟨_, s8, k8, z8⟩ := bindOk z6
-      obtain ⟨-, rfl⟩ := pureOk k8
+      obtain ⟨_, s8, k8, z8⟩ := AM.bind_ok z6
+      obtain ⟨-, rfl⟩ := AM.pure_ok k8
       obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ c6 z8
       refine ⟨c, max (max F1 F2) F3, restP ++ [lu], ?_, hr⟩
       have e1 := hF1' (max (max F1 F2) F3)
@@ -624,7 +624,7 @@ theorem fvarTypeDs_run : ∀ (xs : List EIdx) (xsP : List Expr) {s₀ s' : AStat
     simp only [Frontend.denoteEList, Option.some.injEq] at hx
     subst hx
     simp only [Arena.fvarTypeDs] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | x :: xs, xsP, s₀, s', r, hok, hx, hrun => by
     simp only [Frontend.denoteEList] at hx
@@ -637,11 +637,11 @@ theorem fvarTypeDs_run : ∀ (xs : List EIdx) (xsP : List Expr) {s₀ s' : AStat
     rw [hx1, hxs] at hx
     obtain rfl := (Option.some.inj hx).symm
     simp only [Arena.fvarTypeDs] at hrun
-    obtain ⟨t, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨t, s₁, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨rfl, ht⟩ := fvarTypeD_run hok hx1 k1
-    obtain ⟨ts, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨ts, s₂, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hts⟩ := fvarTypeDs_run xs rest hok hxs k2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p2, ?_⟩
     simp only [Frontend.denoteEList, denote_ext ht p2.ext, hts, List.map_cons]
 
@@ -657,7 +657,7 @@ theorem fieldDomsResolve_spec {env₀ : Env} {fe₀ : IFEnv} :
     simp only [Frontend.denoteEList, Option.some.injEq] at hx
     subst hx
     simp only [Arena.fieldDomsResolve] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok.state, rfl⟩
   | x :: xs, xsP, s₀, s', b, hok, hx, hrun => by
     simp only [Frontend.denoteEList] at hx
@@ -670,15 +670,15 @@ theorem fieldDomsResolve_spec {env₀ : Env} {fe₀ : IFEnv} :
     rw [hx1, hxs] at hx
     obtain rfl := (Option.some.inj hx).symm
     simp only [Arena.fieldDomsResolve] at hrun
-    obtain ⟨t, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨t, s₁, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨rfl, ht⟩ := fvarTypeD_run hok.state hx1 k1
-    obtain ⟨c, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨c, s₂, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, hc⟩ := constsResolveFFast_pstep hok ht k2
     have hok₂ := hok.mono p2.ok p2.ext p2.pins
     cases c with
     | false =>
       simp only [Bool.false_eq_true, if_false] at z2
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       exact ⟨p2, by simp [List.all_cons, ← hc]⟩
     | true =>
       simp only [if_true] at z2
@@ -698,7 +698,7 @@ theorem idxArgsResolve_spec {env₀ : Env} {fe₀ : IFEnv} :
     simp only [Frontend.denoteEList, Option.some.injEq] at hx
     subst hx
     simp only [Arena.idxArgsResolve] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok.state, rfl⟩
   | x :: xs, esP, s₀, s', b, hok, hx, hrun => by
     simp only [Frontend.denoteEList] at hx
@@ -711,13 +711,13 @@ theorem idxArgsResolve_spec {env₀ : Env} {fe₀ : IFEnv} :
     rw [hx1, hxs] at hx
     obtain rfl := (Option.some.inj hx).symm
     simp only [Arena.idxArgsResolve] at hrun
-    obtain ⟨c, s₂, k2, z2⟩ := bindOk hrun
+    obtain ⟨c, s₂, k2, z2⟩ := AM.bind_ok hrun
     obtain ⟨p2, hc⟩ := constsResolveFFast_pstep hok hx1 k2
     have hok₂ := hok.mono p2.ok p2.ext p2.pins
     cases c with
     | false =>
       simp only [Bool.false_eq_true, if_false] at z2
-      obtain ⟨rfl, rfl⟩ := pureOk z2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       exact ⟨p2, by simp [List.all_cons, ← hc]⟩
     | true =>
       simp only [if_true] at z2
@@ -778,29 +778,29 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
       AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
   simp only [Arena.checkSumCtor] at hrun
   -- the constructor's own check (stored as declared)
-  obtain ⟨cvCa, s₂, k1, z2⟩ := bindOk hrun
+  obtain ⟨cvCa, s₂, k1, z2⟩ := AM.bind_ok hrun
   obtain ⟨c12, cAP, F₁, hcA, hF₁⟩ := checkConstantVal_bridge hμ hk hck henv hcvC k1
   have x1 := c12.ext
   -- the stored constructor is a checked constant: closed
   have hwsA : Expr.WScoped 0 cAP.type :=
     Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF₁).1
   -- the result shape
-  obtain ⟨o3, s₃, k3, z3⟩ := bindOk z2
+  obtain ⟨o3, s₃, k3, z3⟩ := AM.bind_ok z2
   obtain ⟨hs3, ho3⟩ := stripPis_pstep c12.ok.state (denoteCV_type hcA) k3
   rw [hs3] at z3
-  obtain ⟨q3, s₄, k4, z4⟩ := bindOk z3
+  obtain ⟨q3, s₄, k4, z4⟩ := AM.bind_ok z3
   cases o3 with
-  | none => simp only [Arena.unwrapOr] at k4; exact absurd k4 (fun h => failOk h)
+  | none => simp only [Arena.unwrapOr] at k4; exact absurd k4 (fun h => AM.fail_ok h)
   | some o3' =>
   simp only [Arena.unwrapOr] at k4
-  obtain ⟨hq3, hs4⟩ := pureOk k4
+  obtain ⟨hq3, hs4⟩ := AM.pure_ok k4
   subst hq3
   rw [hs4] at z4
   obtain ⟨cbs, cbody⟩ := q3
   obtain ⟨cxs, cbodyP, hsp, -, hcb⟩ := denoteBP_some ho3
   dsimp only at z4
   have x02 := c12.ext
-  obtain ⟨b5, s₅, k5, z5⟩ := bindOk z4
+  obtain ⟨b5, s₅, k5, z5⟩ := AM.bind_ok z4
   obtain ⟨p5, hb5⟩ := structCtorResidOk_spec T TP lps lpsP nP nF nIdx cbody cbodyP s₂ s₅ b5
     c12.ok.state ⟨denoteN_ext hT x02, denoteNListE_ext x02 _ _ hlps, hcb⟩ k5
   obtain ⟨hr5, z6⟩ := AM.dunless_ok hnever z5
@@ -808,38 +808,38 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   rw [hb5] at hr5
   have c5 := c12.trans (p5.toCore c12.ok)
   -- the constructor's parameters, opened
-  obtain ⟨o6, s₆, k6, z7⟩ := bindOk z6
+  obtain ⟨o6, s₆, k6, z7⟩ := AM.bind_ok z6
   obtain ⟨p6, ho6⟩ := openPisAtFvarsF_run c5.ok.state
     (denote_ext (denoteCV_type hcA) p5.ext) k6
-  obtain ⟨cq, s₇, k7, z8⟩ := bindOk z7
+  obtain ⟨cq, s₇, k7, z8⟩ := AM.bind_ok z7
   cases o6 with
-  | none => simp only [Arena.unwrapOr] at k7; exact absurd k7 (fun h => failOk h)
+  | none => simp only [Arena.unwrapOr] at k7; exact absurd k7 (fun h => AM.fail_ok h)
   | some o6' =>
   simp only [Arena.unwrapOr] at k7
-  obtain ⟨hq6, hs7⟩ := pureOk k7
+  obtain ⟨hq6, hs7⟩ := AM.pure_ok k7
   subst hq6
   rw [hs7] at z8
   obtain ⟨cfvsP, crestP, hcq, hcfvs, hcrest⟩ := denoteOpen_some_inv ho6
   -- the former's parameters, opened
   have c6 := c5.trans (p6.toCore c5.ok)
-  obtain ⟨o8, s₈, k8, z9⟩ := bindOk z8
+  obtain ⟨o8, s₈, k8, z9⟩ := AM.bind_ok z8
   obtain ⟨p8, ho8⟩ := openPisAtFvarsF_run c6.ok.state
     (denote_ext (denoteCV_type hcvTa) (x1.trans (p5.ext.trans p6.ext))) k8
-  obtain ⟨tq, s₉, k9, z10⟩ := bindOk z9
+  obtain ⟨tq, s₉, k9, z10⟩ := AM.bind_ok z9
   cases o8 with
-  | none => simp only [Arena.unwrapOr] at k9; exact absurd k9 (fun h => failOk h)
+  | none => simp only [Arena.unwrapOr] at k9; exact absurd k9 (fun h => AM.fail_ok h)
   | some o8' =>
   simp only [Arena.unwrapOr] at k9
-  obtain ⟨hq8, hs9⟩ := pureOk k9
+  obtain ⟨hq8, hs9⟩ := AM.pure_ok k9
   subst hq8
   rw [hs9] at z10
   obtain ⟨tfvsP, trestP, htq, htfvs, htrest⟩ := denoteOpen_some_inv ho8
   have c8 := c6.trans (p8.toCore c6.ok)
   -- the domains the pins compare
-  obtain ⟨doms, s₁₀, k10, z11⟩ := bindOk z10
+  obtain ⟨doms, s₁₀, k10, z11⟩ := AM.bind_ok z10
   obtain ⟨p10, hdoms⟩ := fvarTypeDs_run tq.1 tfvsP c8.ok.state htfvs k10
   have c10 := c8.trans (p10.toCore c8.ok)
-  obtain ⟨u11, s₁₁, k11, z12⟩ := bindOk z11
+  obtain ⟨u11, s₁₁, k11, z12⟩ := AM.bind_ok z11
   have x6_10 : Ext s₆.store s₁₀.store := p8.ext.trans p10.ext
   obtain ⟨c11, F₃, hF₃⟩ := checkStructDomsAt_spec fe hk henv 0 cq.1 doms cfvsP
     (tfvsP.map Expr.fvarTypeD) nP (by
@@ -852,35 +852,35 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
         rw [hti] at hb
         obtain rfl := (Option.some.inj hb).symm
         exact ConLeche.Cached.openers_typeD_WScoped htq hws i t hti) s₁₀ s₁₁ u11 c10.ok
-    ⟨denoteEList_ext x6_10 _ _ hcfvs, hdoms, denoteFEnv_ext c10.ext hfe⟩ k11
+    ⟨denoteEList_ext x6_10 _ _ hcfvs, hdoms, denoteFEnv_mono c10.ext hfe⟩ k11
   have c11' := c10.trans c11
   -- the fields, opened past the parameters
-  obtain ⟨o12, s₁₂, k12, z13⟩ := bindOk z12
+  obtain ⟨o12, s₁₂, k12, z13⟩ := AM.bind_ok z12
   obtain ⟨p12, ho12⟩ := openPisAtFvarsF_run c11'.ok.state
     (denote_ext hcrest ((p8.ext.trans p10.ext).trans c11.ext)) k12
-  obtain ⟨xq, s₁₃, k13, z14⟩ := bindOk z13
+  obtain ⟨xq, s₁₃, k13, z14⟩ := AM.bind_ok z13
   cases o12 with
-  | none => simp only [Arena.unwrapOr] at k13; exact absurd k13 (fun h => failOk h)
+  | none => simp only [Arena.unwrapOr] at k13; exact absurd k13 (fun h => AM.fail_ok h)
   | some o12' =>
   simp only [Arena.unwrapOr] at k13
-  obtain ⟨hq12, hs13⟩ := pureOk k13
+  obtain ⟨hq12, hs13⟩ := AM.pure_ok k13
   subst hq12
   rw [hs13] at z14
   obtain ⟨xfvsP, xrestP, hxq, hxfvs, hxrest⟩ := denoteOpen_some_inv ho12
   have c12' := c11'.trans (p12.toCore c11'.ok)
   -- the family head and the residual's spine
-  obtain ⟨us, s₁₄, k14, z15⟩ := bindOk z14
+  obtain ⟨us, s₁₄, k14, z15⟩ := AM.bind_ok z14
   have x0_12 := c12'.ext
   obtain ⟨p14, hus⟩ := paramLevels_spec lps lpsP s₁₂ s₁₄ us c12'.ok.state
     (denoteNListE_ext x0_12 _ _ hlps) k14
-  obtain ⟨hd, s₁₅, k15, z16⟩ := bindOk z15
+  obtain ⟨hd, s₁₅, k15, z16⟩ := AM.bind_ok z15
   obtain ⟨p15, hhd⟩ := internConstE_run p14.ok (denoteN_ext hT (x0_12.trans p14.ext)) hus k15
   have c15 := c12'.trans ((p14.trans p15).toCore c12'.ok)
   have x12_15 : Ext s₁₂.store s₁₅.store := p14.ext.trans p15.ext
-  obtain ⟨xfn, s₁₆, k16, z17⟩ := bindOk z16
+  obtain ⟨xfn, s₁₆, k16, z17⟩ := AM.bind_ok z16
   obtain ⟨hs16, hxfn⟩ := getAppFn_run c15.ok.state (denote_ext hxrest x12_15) k16
   rw [hs16] at z17
-  obtain ⟨xargs, s₁₇, k17, z18⟩ := bindOk z17
+  obtain ⟨xargs, s₁₇, k17, z18⟩ := AM.bind_ok z17
   obtain ⟨hs17, hxargs⟩ := getAppArgs_run c15.ok.state (denote_ext hxrest x12_15) k17
   rw [hs17] at z18
   have hwf15 := c15.ok.state.wf
@@ -889,20 +889,20 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   have hg := AM.dunless_ok hnever z18
   obtain ⟨hg1, z19⟩ := hg
   replace z19 := AM.pure_bind_ok z19
-  rw [beq_ehandle_eq hwf15 hxfn hhd,
-    beq_ehandleList_eq hwf15 (denoteEList_take hxargs nP) (denoteEList_ext x7_15 _ _ hcfvs),
+  rw [beq_of_denoteE hwf15 hxfn hhd,
+    beq_of_denoteEList hwf15 (denoteEList_take hxargs nP) (denoteEList_ext x7_15 _ _ hcfvs),
     show xargs.length = xrestP.getAppArgs.length from
       (ExprOps.denoteEList_length _ _ hxargs).symm] at hg1
   -- the fields' domains resolve before the block
   have hread₀ : ReadOK env₀ fe₀ s₁₅ :=
     ⟨c15.ok.state, c15.ok.pins, hok₀.mono c15.ext s₁₅ rfl⟩
-  obtain ⟨b20, s₂₀, k20, z20⟩ := bindOk z19
+  obtain ⟨b20, s₂₀, k20, z20⟩ := AM.bind_ok z19
   obtain ⟨p20, hb20⟩ := fieldDomsResolve_spec xq.1 xfvsP hread₀
     (denoteEList_ext x12_15 _ _ hxfvs) k20
   obtain ⟨hg2, z21⟩ := AM.dunless_ok hnever z20
   replace z21 := AM.pure_bind_ok z21
   rw [hb20] at hg2
-  obtain ⟨b22, s₂₂, k22, z22⟩ := bindOk z21
+  obtain ⟨b22, s₂₂, k22, z22⟩ := AM.bind_ok z21
   obtain ⟨p22, hb22⟩ := idxArgsResolve_spec (xargs.drop nP) (xrestP.getAppArgs.drop nP)
     (hread₀.mono p20.ok p20.ext p20.pins)
     (denoteEList_drop (denoteEList_ext p20.ext _ _ hxargs) nP) k22
@@ -912,7 +912,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   -- the field sorts
   have c22 := c15.trans ((p20.trans p22).toCore c15.ok)
   have x15_22 : Ext s₁₅.store s₂₂.store := p20.ext.trans p22.ext
-  obtain ⟨sorts, s₂₃, k23, z24⟩ := bindOk z23
+  obtain ⟨sorts, s₂₃, k23, z24⟩ := AM.bind_ok z23
   have hxpos : ∀ i, i < nF → ∀ a, xfvsP[i]? = some a → Expr.WScoped (nP + i) a.fvarTypeD := by
     intro i _ a ha
     have hwsc : Expr.WScoped nP crestP := by
@@ -923,8 +923,8 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     resSort resSortP nP xq.1 (xargs.drop nP) xfvsP (xrestP.getAppArgs.drop nP) nF hxpos
     s₂₂ s₂₃ sorts c22.ok
     ⟨denoteL_ext hrs c22.ext, denoteEList_ext (x12_15.trans x15_22) _ _ hxfvs,
-      denoteEList_drop (denoteEList_ext x15_22 _ _ hxargs) nP, denoteFEnv_ext c22.ext hfe⟩ k23
-  obtain ⟨rfl, rfl⟩ := pureOk z24
+      denoteEList_drop (denoteEList_ext x15_22 _ _ hxargs) nP, denoteFEnv_mono c22.ext hfe⟩ k23
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z24
   refine ⟨c22.trans c23, max F₁ (max F₃ F₄), cAP, sortsP, ?_,
     denoteCV_ext hcA ((p5.ext.trans p6.ext).trans (x7_15.trans (x15_22.trans c23.ext))),
     hsorts⟩
@@ -971,7 +971,7 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     simp only [denoteCtors, Option.some.injEq] at hcs
     subst hcs
     simp only [Arena.checkSumCtors] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨CoreStep.refl hck, 0, [], [], rfl, rfl, rfl⟩
   | cons c cs ih =>
     intro s₀ s' r hck hpre hrun
@@ -987,21 +987,21 @@ theorem checkSumCtors_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     rw [hcv, hrest] at hcs
     obtain rfl := (Option.some.inj hcs).symm
     simp only [Arena.checkSumCtors] at hrun
-    obtain ⟨t1, s₁, k1, z1⟩ := bindOk hrun
+    obtain ⟨t1, s₁, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, F₁, cvCaP, sortsP, hF₁, hcA, hsorts⟩ := checkSumCtor_spec fe₀ fe hμ hk henv T TP
       lps lpsP nP nIdx resSort resSortP isProp large cv cP n cvTa cvTaP env₀ hws s₀ s₁ t1 hck
       ⟨hT, hlps, hrs, hcv, hcvTa, hfe₀, hfe, hok₀⟩ k1
     obtain ⟨cvCa, sorts⟩ := t1
     simp only at hcA hsorts z1
     have x1 := c1.ext
-    obtain ⟨t2, s₂, k2, z2⟩ := bindOk z1
+    obtain ⟨t2, s₂, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨c2, F₂, restAP, srestP, hF₂, hra, hsr⟩ := ih restP s₁ s₂ t2 c1.ok
       ⟨denoteN_ext hT x1, denoteNListE_ext x1 _ _ hlps, denoteL_ext hrs x1,
-        denoteCV_ext hcvTa x1, denoteCtors_ext x1 _ _ hrest, denoteFEnv_ext x1 hfe₀,
-        denoteFEnv_ext x1 hfe, hok₀.mono x1⟩ k2
+        denoteCV_ext hcvTa x1, denoteCtors_ext x1 _ _ hrest, denoteFEnv_mono x1 hfe₀,
+        denoteFEnv_mono x1 hfe, hok₀.mono x1⟩ k2
     obtain ⟨rest, srest⟩ := t2
     simp only at hra hsr z2
-    obtain ⟨rfl, rfl⟩ := pureOk z2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨c1.trans c2, max F₁ F₂, (cvCaP, n) :: restAP, sortsP :: srestP, ?_, ?_, ?_⟩
     · have g₁ := checkSumCtor_up (Nat.le_max_left F₁ F₂) hF₁
       have g₂ : ConLeche.checkSumCtors (ConLeche.fueledOps μ (max F₁ F₂)) env₀ env TP lpsP nP
@@ -1089,7 +1089,7 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   cases hf : fe.find? ctor with
   | none =>
     rw [hf] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨rfl, ?_⟩
     simp only [ConLeche.recRuleKOf, IFEnvOK.miss hst hi hc hf]
   | some ci =>
@@ -1099,7 +1099,7 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   simp only [ConLeche.recRuleKOf, henv]
   cases ci
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := pureOk hrun
+    (obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
      refine ⟨rfl, ?_⟩
      have hnc := denoteCI_not_ctor hci (by intro v a b h; cases h)
      split
@@ -1110,20 +1110,20 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
   obtain ⟨cvjP, hcvj, rfl⟩ := hci
   dsimp only at hrun ⊢
-  obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨pr, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨fn, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts hst (denoteCV_type hcvj) k1 k2
   subst s1; subst s2
   obtain ⟨v0, hv0⟩ := denoteE_view hfn
-  obtain ⟨v, s3, k3, z3⟩ := bindOk (tagIf_view_run hv0
+  obtain ⟨v, s3, k3, z3⟩ := AM.bind_ok (tagIf_view_run hv0
     (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z2)
   obtain ⟨hs3, hv⟩ := view_run k3
   subst s3
   cases v
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := pureOk z3
+    (obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
      refine ⟨rfl, ?_⟩
-     have hnc := denote_not_const hst.wf hv hfn (by intro _ _ h; cases h)
+     have hnc := Core.denote_not_const hst.wf hv hfn (by intro _ _ h; cases h)
      split
      · rename_i T us heq; exact absurd heq (hnc _ _)
      · rfl)
@@ -1134,7 +1134,7 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   cases hfT : fe.find? T with
   | none =>
     rw [hfT] at z3
-    obtain ⟨rfl, rfl⟩ := pureOk z3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
     refine ⟨rfl, ?_⟩
     simp only [IFEnvOK.miss hst hi hT hfT]
   | some ciT =>
@@ -1144,7 +1144,7 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   rw [henvT]
   cases ciT
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := pureOk z3
+    (obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
      refine ⟨rfl, ?_⟩
      have hni := denoteCI_not_ind hciT (by intro v a h; cases h)
      split
@@ -1163,7 +1163,7 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   simp only [Frontend.denoteCaps] at hcaps
   split at hcaps
   · obtain rfl := (Option.some.inj hcaps).symm
-    obtain ⟨rfl, rfl⟩ := pureOk z3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
     exact ⟨rfl, rfl⟩
   · simp at hcaps
 
@@ -1180,7 +1180,7 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   cases hf : fe.find? ctor with
   | none =>
     rw [hf] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨Core.ReadbackFrame.refl _, ?_⟩
     simp only [ConLeche.recRuleEtaOf, IFEnvOK.miss hok.state hi hc hf]
   | some ci =>
@@ -1190,7 +1190,7 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   simp only [ConLeche.recRuleEtaOf, henv]
   cases ci
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := pureOk hrun
+    (obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
      refine ⟨Core.ReadbackFrame.refl _, ?_⟩
      have hnc := denoteCI_not_ctor hci (by intro v a b h; cases h)
      split
@@ -1201,20 +1201,20 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
   obtain ⟨cvjP, hcvj, rfl⟩ := hci
   dsimp only at hrun ⊢
-  obtain ⟨pr, s1, k1, z1⟩ := bindOk hrun
-  obtain ⟨fn, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨pr, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨fn, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨hs1, hs2, hfn⟩ := ctorHead_facts hok.state (denoteCV_type hcvj) k1 k2
   subst s1; subst s2
   obtain ⟨v0, hv0⟩ := denoteE_view hfn
-  obtain ⟨v, s3, k3, z3⟩ := bindOk (tagIf_view_run hv0
+  obtain ⟨v, s3, k3, z3⟩ := AM.bind_ok (tagIf_view_run hv0
     (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) z2)
   obtain ⟨hs3, hv⟩ := view_run k3
   subst s3
   cases v
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := pureOk z3
+    (obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
      refine ⟨Core.ReadbackFrame.refl _, ?_⟩
-     have hnc := denote_not_const hok.state.wf hv hfn (by intro _ _ h; cases h)
+     have hnc := Core.denote_not_const hok.state.wf hv hfn (by intro _ _ h; cases h)
      split
      · rename_i T us heq; exact absurd heq (hnc _ _)
      · rfl)
@@ -1225,7 +1225,7 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   cases hfT : fe.find? T with
   | none =>
     rw [hfT] at z3
-    obtain ⟨rfl, rfl⟩ := pureOk z3
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
     refine ⟨Core.ReadbackFrame.refl _, ?_⟩
     simp only [IFEnvOK.miss hok.state hi hT hfT]
   | some ciT =>
@@ -1235,7 +1235,7 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   rw [henvT]
   cases ciT
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := pureOk z3
+    (obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
      refine ⟨Core.ReadbackFrame.refl _, ?_⟩
      have hni := denoteCI_not_ind hciT (by intro v a h; cases h)
      split
@@ -1257,10 +1257,10 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
     obtain rfl := (Option.some.inj hcaps).symm
     dsimp only
     dsimp only at z3
-    obtain ⟨rn, s4, k4, z4⟩ := bindOk z3
+    obtain ⟨rn, s4, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s) rfl k4
       (readNameM_spec s recName hok.caches.readN)
-    obtain ⟨rfl, rfl⟩ := pureOk z4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
     obtain rfl : rn = recNameP := Option.some.inj (h5.symm.trans hrn)
     refine ⟨Core.ReadbackFrame.ofReadN h1 h2 h3 h4 h6, ?_⟩
     rw [beq_handle_eq hok.state.wf hct hc,
@@ -1278,12 +1278,12 @@ theorem recRuleBits_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s'
       Frontend.denoteRule s'.store rl' = some (ConLeche.recRuleBits env.find? recNameP rlP) := by
   obtain ⟨hctor, -⟩ := denoteRule_ctor hrl
   simp only [Arena.recRuleBits] at hrun
-  obtain ⟨k, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨k, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨hs1, hk⟩ := recRuleKOf_run hok.state hi hctor k1
   rw [hs1] at z1
-  obtain ⟨e, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨e, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨hfr, he⟩ := recRuleEtaOf_run hok hi hrn hctor k2
-  obtain ⟨rfl, rfl⟩ := pureOk z2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
   refine ⟨hfr, ?_⟩
   rw [hfr.store]
   simp only [Frontend.denoteRule] at hrl ⊢

@@ -43,29 +43,6 @@ def AState.worker (s : AState) : AState :=
   { s with store := s.store.dropScratch, memos := Memos.empty,
            caches := Caches.empty }
 
-/-- con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList —
-**phase B on one worker, in record order**: `checkPendingList` from
-`AState.worker`, and the phase-A state handed back as it was, which is what
-the Rust's `thaw_tier` restores. -/
-def checkPendingWorker (mode : CheckMode) (fe : IFEnv) (pend : List PendingCheck) :
-    AM (Except (CheckError × Nat) Unit) := fun s =>
-  match checkPendingList mode fe pend s.worker with
-  | .ok (r, _) => .ok (r, s)
-  | .error e => .error e
-
-/-- con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls — **the
-declaration fold as the driver runs it**: phase A (`annotFold`), then phase B
-on one worker (`checkPendingWorker`).  The twin of
-`arena::checker::check_decls_phased`. -/
-def installThenCheckPhased (mode : CheckMode) (pins : List INatOpPinSet)
-    (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IFEnv) := do
-  match ← annotFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList with
-  | .error e => pure (.error e)
-  | .ok (_, fe, pend) =>
-    match ← checkPendingWorker mode fe pend.toList with
-    | .error e => pure (.error e)
-    | .ok () => pure (.ok fe)
-
 /-! ## A worker is the phase-A state, as far as phase B can tell -/
 
 /-- **Opening a worker's scratch tier is opening the phase-A state's**, when
@@ -107,13 +84,5 @@ theorem checkPendingList_worker {mode : CheckMode} {fe : IFEnv}
     simp only [checkPendingList] at h ⊢
     rw [hpc] at h
     exact ⟨s', h⟩
-
-/-- A worker's walk, run: the phase-A state comes back whatever the walk
-left. -/
-theorem checkPendingWorker_run {mode : CheckMode} {fe : IFEnv}
-    {pend : List PendingCheck} {s s₂ : AState} {r : Except (CheckError × Nat) Unit}
-    (h : checkPendingList mode fe pend s.worker = .ok (r, s₂)) :
-    checkPendingWorker mode fe pend s = .ok (r, s) := by
-  simp only [checkPendingWorker, h]
 
 end ConRon.Arena

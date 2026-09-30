@@ -574,30 +574,6 @@ theorem Abs1At.proj_step' {d kk : Nat} {st st0 s1 s2 : EStore}
   exact Abs1At.proj_step hwf (view_of_viewProj_tag htg hvp.symm) hx1 hs hx2 hr
     hn0
 
-/-- con-leche: none — arena infrastructure: the `fvar` node's two projections
-read the SAME row, so the index read gives the type read.
-`abstract1ArmFVar` reads only the index (it never descends into the
-annotation), while `Bridge/Rel.lean`'s `view_of_viewFVar` needs both. -/
-theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
-    (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
-  simp only [EStore.viewFVarIdx, EStore.persGetFVarIdx] at h
-  simp only [EStore.viewFVarTy, EStore.persGetFVarTy]
-  by_cases hp : i.isPersistent = true
-  · rw [if_pos hp] at h ⊢
-    simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-    obtain ⟨r, hr, _⟩ := h
-    exact ⟨r.ty, by simp [ETables.getFVarTy, hr]⟩
-  · simp only [Bool.not_eq_true] at hp
-    rw [hp] at h ⊢
-    simp only [Bool.false_eq_true, if_false] at h ⊢
-    by_cases hon : st.scratchOn = true
-    · rw [if_pos hon] at h ⊢
-      simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-      obtain ⟨r, hr, _⟩ := h
-      exact ⟨r.ty, by simp [ETables.getFVarTy, hr]⟩
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon] at h; simp at h
-
 /-- con-leche: none — the `fvar` arm at the abstracted level, at the arm's own
 hypotheses. -/
 theorem Abs1At.fvar_hit' {d kk idx : Nat} {st st0 st' : EStore}

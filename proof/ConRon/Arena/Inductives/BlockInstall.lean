@@ -37,7 +37,7 @@ constructors' cons.  The Rust twin is `arena::inductives::block_install`.
   (`coreWalkFuel`): con-leche's is structural on the term.
 -/
 import ConRon.Arena.Inductives.BlockRec
-import ConRon.Arena.Inductives.SumInstallF
+import ConRon.Arena.Inductives.SumInstall
 
 namespace ConRon.Arena
 

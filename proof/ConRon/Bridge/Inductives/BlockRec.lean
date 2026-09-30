@@ -27,7 +27,7 @@ theorem blockLargeElimAllowed_spec (p : Arena.BlockShape) (pP : ConLeche.BlockSh
   have hk := BlockShape.k_spec hp
   have hn := BlockShape.numCtors_spec hp
   simp only [Arena.blockLargeElimAllowed] at hrun
-  obtain ⟨l, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨l, s₁, h1, h2⟩ := AM.bind_ok hrun
   have p1 := readLevelM_pstep hok h1
   have hl := readLevelM_denote_L hrl (PStep.refl hok) h1
   obtain ⟨-, -, -, -, hs, hlg, -⟩ := dShape_inv hp
@@ -37,14 +37,14 @@ theorem blockLargeElimAllowed_spec (p : Arena.BlockShape) (pP : ConLeche.BlockSh
   simp only [RV, ConLeche.blockLargeElimAllowed, hres, hlg, ← hk, ← hn]
   by_cases hz : Level.isNeverZero l = true
   · rw [if_pos hz] at h2
-    obtain ⟨rfl, rfl⟩ := pureOk h2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     exact ⟨p1, by simp [hz]⟩
   · rw [if_neg hz] at h2
     simp only [Bool.not_eq_true] at hz
     cases nested
-    · obtain ⟨rfl, rfl⟩ := pureOk h2
+    · obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨p1, by simp [hz]⟩
-    · obtain ⟨rfl, rfl⟩ := pureOk h2
+    · obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨p1, by simp [hz]⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockRec.lean:82-84 blockLargeElimAllowed

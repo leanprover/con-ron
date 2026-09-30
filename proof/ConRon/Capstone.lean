@@ -131,15 +131,6 @@ Former hypotheses, now theorems or gone (DESIGN.md's task #97-COMPOSE and
   is what the verified decoder read, at any text (as con-leche's theorems
   hold at every pin list); `model_exists_embedded` /
   `no_False_declaration_embedded` fix the text to the embedded `PINS_TEXT`;
-* ~~`hmr : ModellerRefines inst m inProcessModeller`~~ — the modeller seam
-  (the unextracted Rust `in_model/` against the twin's `inProcessModeller`):
-  gone since task #105, with the in-process modeller itself.  The parser
-  installs every inductive by the one uniform route, so `builtin_prelude_e`
-  and `parse_source` take no modeller, and there is nothing left to refine;
-* ~~`in_model = true`, `census = false`~~ — the two environment flags
-  (`CON_LECHE_INMODEL`, `CON_LECHE_INMODEL_CENSUS`; task #97-COMPOSE's
-  mismatch 4): parameters since task #98-HEADLINE, gone since task #105 with
-  the modeller they switched.
 -/
 
 open Aeneas Aeneas.Std Result

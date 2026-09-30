@@ -1,24 +1,22 @@
 /-
-# `ConRon.Bridge.ExprOps.Owed` — the eight twins the earlier round only stated
+# `ConRon.Bridge.ExprOps.Owed` — the five twins the earlier round only stated
 
-DESIGN §8.2's Theorem 1 for the eight twins of `Arena/ExprOps.lean` whose
-STATEMENT an earlier round owed and whose PROOF it did not reach.  **All eight
-are proved here** (task #97-P3-2): five `…Fast` entry brackets and the three
-walks whose fuel induction the round ran out on —
+DESIGN §8.2's Theorem 1 for the five twins of `Arena/ExprOps.lean` whose
+STATEMENT an earlier round owed and whose PROOF it did not reach (task
+#97-P3-2): three `…Fast` entry brackets and the two walks whose fuel
+induction the round ran out on —
 
 * `abstract1Fast` and `abstractRangeFast`, the two brackets over the EXECUTED
   abstraction walks, and `abstractRangeGo` itself;
-* `renameConstsGo` and `renameConstsFast`;
-* `resetMetaFast`, the bracket over `Reset.lean`'s `resetMetaGo_spec`;
 * `instLPGo` and `instLPFast`.
 
-`Bridge/ExprOps/{Abs,Reset,InstLP,MemoSpecs}.lean` carry the step-lemma layer
-each of them consumes; what is added here is the three `…Spec` records the
-three walks are inducted over (`AbsRangeGoSpec`, `RenameSpec`, `InstLPSpec`),
-the arm step lemmas those three need that the other modules do not already
-have, and four pieces of arena/spec infrastructure that belong further down
-the stack and are flagged in place (`ns_of_lss`, `view_eq_of_tables`,
-`readNameM_specF` / `readNamesM_specF`).
+`Bridge/ExprOps/{Abs,InstLP,MemoSpecs}.lean` carry the step-lemma layer
+each of them consumes; what is added here is the two `…Spec` records the
+two walks are inducted over (`AbsRangeGoSpec`, `InstLPSpec`),
+the arm step lemmas those two need that the other modules do not already
+have, and three pieces of arena/spec infrastructure that belong further down
+the stack and are flagged in place (`view_eq_of_tables`, `readNameM_specF` /
+`readNamesM_specF`).
 
 ## The deviations each statement carries
 
@@ -31,11 +29,6 @@ The ones `Arena/ExprOps.lean`'s own doc comments name:
   `fvarB` before they read the store, so both carry `Abs.lean`'s `FvarBSpec`
   as a hypothesis (this module does not import `ExprOps/Ranges.lean` and
   cannot discharge it);
-* `renameConstsGo`'s `f : NIdx → NIdx` is a map on HANDLES, so its theorem
-  carries the hypothesis that `f` denotes con-leche's `fn : Name → Name`.
-  That hypothesis is about `denoteN` at ONE store and the walk's recursive
-  calls run at later ones; it transports because the walk never interns a
-  NAME, which is what `RenameSpec`'s `s'.store.ns = ns0` conjunct records;
 * `instLPGo`'s `ks`/`us` are TRANSIENT `List Name` / `List Level` (DESIGN
   §8.3 lesson 4), so `instLPFast`'s theorem carries the readback hypotheses
   its entry establishes with `readNamesM` / `readLevelsM`.
@@ -52,8 +45,8 @@ worth keeping:
    `Abs1MemoA d` is the `abstract1` reading and is false of this walk for
    every `k ≠ 1`.
 2. **`abstractRangeFast_spec`'s and `instLPFast_spec`'s memo clause is a
-   DISJUNCTION**, `s'.memos.xC = ∅ ∨ s' = s₀`, where the other three entries
-   carry the equation.  Both of these entries test their cutoff FIRST and
+   DISJUNCTION**, `s'.memos.xC = ∅ ∨ s' = s₀`, where `abstract1Fast_spec`
+   carries the equation.  Both of these entries test their cutoff FIRST and
    return the subject without clearing anything — `abstractRangeFast` at
    `k = 0` (task #97-P6-11) and `instLPFast` at `hasLP = false` (the cutoff
    hoisted over the readbacks, task #97-P6-10).  The second disjunct is the
@@ -85,7 +78,7 @@ worth keeping:
    one `rfl`.
 -/
 import ConRon.Bridge.ExprOps.Abs
-import ConRon.Bridge.ExprOps.Reset
+import ConRon.Bridge.ExprOps.MemoSpecs
 import ConRon.Bridge.ExprOps.InstLP
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.ExprOps.TagFirst
@@ -453,272 +446,7 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
      rw [hx]
      simp only [abstractRange_zero_eq])
 
-/-! ## `resetMeta`'s entry -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:688 resetMetaFast — the bracket
-over `Reset.lean`'s `resetMetaGo_spec`, in `ExprOps/Inst1.lean`'s
-`instantiate1Fast_spec` shape: the memo is cleared before and after, and the
-cleared memo satisfies `ResetMemoA` for free (`MemoOK.of_empty`). -/
-theorem resetMetaFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
-    (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetMetaFast fuel e
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.resetC = ∅ ∧
-        RelE Expr.resetMeta s₀.store e s'.store r⌝⦄ := by
-  have hr := (resetMetaGo_spec fuel).run
-  mvcgen [resetMetaFast, hr]
-  all_goals bridge_vcs [Expr.resetMeta, BMExt]
-
-/-! ## `renameConsts`
-
-`f : NIdx → NIdx` is a map on HANDLES; con-leche's is `fn : Name → Name`.
-The hypothesis that relates them is what `Arena/ExprOps.lean`'s own note
-("the only call site is the modeled-block contract, whose map is a lookup in
-a table") says the `DeclCheck` tier will discharge. -/
-
-/-- con-leche: none — `EStore.ns` is a PROJECTION of `lss`
-(`Arena/Store.lean:1149`), so any step that frames `lss` frames the name
-store too.  `Arena/WFProofs.lean:2318` makes the same step inline; this is it
-as a lemma, which is what lets the walk below transport `hf`. -/
-theorem ns_of_lss {st st' : EStore} (h : st'.lss = st.lss) :
-    st'.ns = st.ns := by
-  simp only [EStore.ns, h]
-
-/-- con-leche: none — `renameConstsGo`'s arms intern unconditionally, as the
-port does (task #97-T2-LOCKSTEP); these are `internRebuilt*_specV` at
-`same = false`, so the arm proofs read the same conjuncts they did. -/
-theorem internConstE_specR (s₀ : AState) (n : NIdx) (us : LsIdx) (hwf : StoreWF s₀.store)
-    (hn : (s₀.store.ns.view n).isSome = true) (hus : (s₀.store.lss.view us).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internConstE n us
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
-  internRebuiltConst_specV s₀ ⟨0⟩ false n us hwf hn hus (fun h => nomatch h)
-
-theorem internFVarE_specR (s₀ : AState) (idx : Nat) (ty : EIdx) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internFVarE idx ty
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
-  internRebuiltFVar_specV s₀ ⟨0⟩ false idx ty hwf hty (fun h => nomatch h)
-
-theorem internAppE_specR (s₀ : AState) (f a : EIdx) (hwf : StoreWF s₀.store)
-    (hf : (denoteE s₀.store f).isSome = true) (ha : (denoteE s₀.store a).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internAppE f a
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
-  internRebuiltApp_specV s₀ ⟨0⟩ false f a hwf hf ha (fun h => nomatch h)
-
-theorem internLamE_specR (s₀ : AState) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true) (hb : (denoteE s₀.store b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLamE ty b m
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
-  internRebuiltLam_specV s₀ ⟨0⟩ false ty b m hwf hty hb (fun h => nomatch h)
-
-theorem internForallEE_specR (s₀ : AState) (ty b : EIdx) (m : BinderMeta)
-    (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true) (hb : (denoteE s₀.store b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internForallEE ty b m
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
-  internRebuiltForallE_specV s₀ ⟨0⟩ false ty b m hwf hty hb (fun h => nomatch h)
-
-theorem internLetEE_specR (s₀ : AState) (ty val b : EIdx) (hwf : StoreWF s₀.store)
-    (hty : (denoteE s₀.store ty).isSome = true) (hval : (denoteE s₀.store val).isSome = true)
-    (hb : (denoteE s₀.store b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLetEE ty val b
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.letE ty val b)⌝⦄ :=
-  internRebuiltLetE_specV s₀ ⟨0⟩ false ty val b hwf hty hval hb (fun h => nomatch h)
-
-theorem internProjE_specR (s₀ : AState) (n : NIdx) (i : Nat) (e : EIdx) (hwf : StoreWF s₀.store)
-    (hn : (s₀.store.ns.view n).isSome = true) (he : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internProjE n i e
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.lss = s₀.store.lss ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        denoteE s'.store r = denoteEView s'.store (.proj n i e)⌝⦄ :=
-  internRebuiltProj_specV s₀ ⟨0⟩ false n i e hwf hn he (fun h => nomatch h)
-
-attribute [local spec high] internConstE_specR internFVarE_specR internAppE_specR
-  internLamE_specR internForallEE_specR internLetEE_specR internProjE_specR
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo —
-Theorem 1's statement for one level of `renameConstsGo`'s recursion.
-
-**The name store is a parameter, not a state.**  The interface obligation
-`hf` ("the handle renaming denotes the name renaming") is a statement about
-`denoteN`, and the walk's recursive calls run at LATER stores.  It transports
-because the walk never interns a NAME: every intern spec of
-`ExprOps/MemoSpecs.lean` frames `s'.store.lss`, and `EStore.ns` is a
-projection of `lss` (`ns_of_lss`).  Carrying `s'.store.ns = ns0` as a
-postcondition conjunct — rather than re-proving the obligation at every
-intermediate store — is what makes the induction go through. -/
-structure RenameSpec (f : NIdx → NIdx) (fn : ConLeche.Name → ConLeche.Name)
-    (ns0 : NStore) (rec : EIdx → AM EIdx) : Prop where
-  run : ∀ (s₁ : AState) (h : EIdx), StateOK s₁ → RenameMemoA fn s₁ →
-    s₁.store.ns = ns0 → (denoteE s₁.store h).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec h
-    ⦃⇓? r s' => ⌜StateOK s' ∧ RenameMemoA fn s' ∧ Ext s₁.store s'.store ∧
-        s'.store.ns = ns0 ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
-        (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        RenameAt fn s₁.store h s'.store r⌝⦄
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:930-956 renameConsts
-con-leche: ConLeche/Kernel/ExprOps.lean:999-1036 renameConstsGo
-**THEOREM 1 for `renameConsts`**, at one level of the recursion, by induction
-on the fuel.  `resetMetaGo_spec`'s six rebuilding arms plus the inline
-`const` arm the walk exists for (`Reset.lean`'s `RenameAt.const_step`). -/
-theorem renameConstsGo_specS (f : NIdx → NIdx)
-    (fn : ConLeche.Name → ConLeche.Name) (ns0 : NStore)
-    (hf : ∀ (n : NIdx) (x : ConLeche.Name), denoteN ns0 n = some x →
-      denoteN ns0 (f n) = some (fn x)) :
-    ∀ fuel, RenameSpec f fn ns0 (renameConstsGo f fuel) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    constructor
-    intro s₀ h _ _ _ _
-    mvcgen [renameConstsGo_zero]
-    all_goals bridge_vcs [Expr.renameConsts]
-  | succ fuel ih =>
-    constructor
-    intro s₀ h hok hm hns hden
-    have hrec := ih.run
-    mvcgen [renameConstsGo_succ, renameArmFVar, renameArmApp, renameArmLam,
-      renameArmForallE, renameArmLet, renameArmProj, hrec, internConstE_specR,
-      internFVarE_specR, internAppE_specR, internLamE_specR, internForallEE_specR,
-      internLetEE_specR, internProjE_specR]
-    all_goals try bridge_vcs [Expr.renameConsts, EStore.ns]
-    -- Eleven structural verification conditions remain, in goal order: the
-    -- three LEAF views, the inline `const` arm (its postcondition and its
-    -- universe-argument `ViewOK` side condition), then the six rebuilding
-    -- arms.  `resetMetaGo_spec`'s list with `const` inserted.
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl, fun _ _ hi => hi,
-        fun _ _ hi => hi, RenameAt.leaf hok.wf (by arm_hyp2) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl, fun _ _ hi => hi,
-        fun _ _ hi => hi, RenameAt.leaf hok.wf (by arm_hyp2) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl, fun _ _ hi => hi,
-        fun _ _ hi => hi, RenameAt.leaf hok.wf (by arm_hyp2) (by grind)⟩
-    -- `const`: the arm the walk exists for, inline in the dispatcher and so
-    -- not memoised (`Arena/ExprOps.lean`'s own note).  This is the one place
-    -- `hf` is used.
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx hlss _hmem _hcach _hpin hvm hbm hr
-      have hns' := ns_of_lss hlss
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, Ext.refl], hx, hns', by grind, by grind,
-        hvm, hbm, ?_⟩
-      exact RenameAt.const_step hok.wf (by arm_hyp2)
-        (fun nm hnm => by rw [hns']; exact hf _ _ hnm)
-        (fun ls hls => denoteLs_ext hls hx) hr
-    next =>
-      intro s hs hv
-      subst_vars
-      obtain ⟨nm, ls, _, _, hl0⟩ := denote_eq_const hok.wf hv hden
-      obtain ⟨w, hw, _⟩ := denoteLs_view hl0
-      rw [hw]; rfl
-    -- `fvar`: the annotation is descended into
-    next =>
-      bridge_peel
-      subst_vars
-      have hans := RenameAt.fvar_step hok.wf (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
-        by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
-    -- `app`
-    next =>
-      bridge_peel
-      subst_vars
-      have hans := RenameAt.app_step hok.wf (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
-        by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
-    -- `lam` and `forallE`: the binder datum is carried through unchanged
-    next =>
-      bridge_peel
-      subst_vars
-      have hans := RenameAt.lam_step hok.wf (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
-        by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
-    next =>
-      bridge_peel
-      subst_vars
-      have hans := RenameAt.forallE_step hok.wf (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
-        by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
-    -- `letE`
-    next =>
-      bridge_peel
-      subst_vars
-      have hans := RenameAt.letE_step hok.wf (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) (by arm_hyp2)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
-        by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
-    -- `proj`
-    next =>
-      bridge_peel
-      subst_vars
-      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_proj hok.wf (by arm_hyp2) hden
-      have hans := RenameAt.proj_step hok.wf (by arm_hyp2) (by arm_hyp2)
-        (by arm_hyp2) (by arm_hyp2) (by arm_hyp2) hn0
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind [EStore.ns], by grind, by grind,
-        by grind, by grind, hans.ext (by grind only [Ext.refl])⟩
+/-! ## `instantiateLevelParams`' entry -/
 
 /-! ### The answer relation, the cutoff's licence and the step lemmas -/
 
@@ -737,24 +465,6 @@ theorem view_eq_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
     st'.view i = st.view i := by
   simp only [EStore.view, EStore.viewBind, EStore.viewBindI, EStore.viewBM,
     EStore.persGetBind, EStore.persGetBM, hp, hs, ho]
-
-/-- con-leche: none — arena infrastructure: `view_eq_of_tables` at the BINDER
-DATUM store.  `EStore.viewBM` reads `pers`, `scr` and `scratchOn` and nothing
-else, so a step that frames those three is a `BMExt` — which is what carries
-the round-5 `BMExt` conjunct of `InstLPSpec` across `substLMemoAt` /
-`substLsMemoAt`, the two steps of this walk that intern into the LEVEL store
-and frame the expression store by table equation rather than by `Ext`.
-
-`Bridge/Inductives/Rel.lean`'s `bmExt_of_nested` is the same three lines in
-another tier's file; the fact belongs beside `BMExt.intern` in
-`Bridge/StoreBM.lean` and a round that owns both files should collapse the
-two. -/
-theorem bmExt_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
-    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) :
-    BMExt st st' := by
-  intro mi m h
-  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, ho]
-  exact h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2465
 Expr.instantiateLevelParams_eq_self — **the `hasLP` cutoff's licence**, at the
@@ -1287,7 +997,6 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
 #print axioms abstract1Fast_spec
 #print axioms abstractRangeGo_spec
 #print axioms abstractRangeFast_spec
-#print axioms resetMetaFast_spec
 #print axioms instLPGo_spec
 #print axioms instLPFast_spec
 

@@ -86,36 +86,6 @@ def absPwOpt (o : Option kernel.prop_when.PropWhen) : Option ConLeche.PropWhen :
 
 attribute [lockstep_simp] absEIdxList absLeaves absPwOpt absBinders absStrip
 
-section size_b
-attribute [local lockstep_simp] sizeBArmApp sizeBArmBind sizeBArmLet sizeBArmProj
-
-end size_b
-
-section size_f
-attribute [local lockstep_simp] sizeFArmFVar sizeFArmApp sizeFArmBind sizeFArmLet sizeFArmProj
-
-end size_f
-
-section has_fvar
-attribute [local lockstep_simp] hasFvarArmApp hasFvarArmBind hasFvarArmLet
-
-end has_fvar
-
-section fvar_leaves
-attribute [local lockstep_simp] fvarLeavesArmFVar fvarLeavesArmApp fvarLeavesArmBind fvarLeavesArmLet
-
-end fvar_leaves
-
-section wscoped_b
-attribute [local lockstep_simp] wscopedBArmApp wscopedBArmBind wscopedBArmLet
-
-end wscoped_b
-
-section loose_bvars_bounded
-attribute [local lockstep_simp] looseBArmApp looseBArmBind looseBArmLet
-
-end loose_bvars_bounded
-
 section result_sort
 
 end result_sort
@@ -179,7 +149,6 @@ end pi_result
 section pi_arity
 
 end pi_arity
-
 
 section getAppArgs
 
@@ -263,11 +232,8 @@ theorem strip_pis_aux (n : Nat) :
 
 end strip
 
-
 section wscoped
 attribute [local lockstep_simp] wscopedBGoArmApp wscopedBGoArmBind wscopedBGoArmLet
-
-
 
 theorem wscoped_b_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
@@ -289,7 +255,6 @@ theorem wscoped_b_go_aux (n : Nat) :
     rw [arena.expr_ops.wscoped_b_go, wscopedBGo_succ]
     unfold arena.expr_ops.wscoped_b_node arena.expr_ops.wscoped_b_two
     lockstep
-
 
 end wscoped
 
@@ -402,7 +367,6 @@ section entries
   lockstep
 
 end entries
-
 
 /-! ## `getAppArgs`, the one-node readers and the telescope strips: the `@[lockstep]` forms -/
 

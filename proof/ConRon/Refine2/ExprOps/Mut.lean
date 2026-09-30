@@ -21,8 +21,7 @@ Rust-side representation invariant).  Every function has two lemmas:
 There is no premise about the twin's store: no `StoreWF`, no "the handle
 resolves", no memo clause, and no `Ext` in the conclusion (task #97-T2-AUDIT
 §2 ruled all of them Theorem-1 content).  What premises remain are facts
-about the RUST inputs (`NameWF`/`LevelWF` of a level substitution, the
-renaming dictionary's `RenameRel`).
+about the RUST inputs (`NameWF`/`LevelWF` of a level substitution).
 
 ## The proofs
 
@@ -43,8 +42,6 @@ own, `mkAppNFrom`, at the same cursor; `mk_app_n` meets the list twin
 
 **`instantiate_list*`'s `vs` is an `Array` and `inst_pis*`'s `args` a
 `List`**, both `Vec<EIdx>` in the Rust (`absEIdxArr` against `absEIdxList`).
-
-**`rename_consts_*` take a dictionary, not a function** (`RenameRel`).
 -/
 import ConRon.Refine2.Tactic.Prims
 import ConRon.Refine2.ExprOps.Pure
@@ -420,16 +417,6 @@ end lift_loose_bvars_go
   rw [arena.expr_ops.lift_loose_bvars_fast, liftLooseBVarsFast]
   lockstep
 
-section reset_meta_go
-attribute [local lockstep_simp] resetArmFVar resetArmApp resetArmLam resetArmForallE resetArmLet resetArmProj
-
-end reset_meta_go
-
-section abstract_range
-attribute [local lockstep_simp] absRangeArmApp absRangeArmLam absRangeArmForallE absRangeArmLet absRangeArmProj
-
-end abstract_range
-
 section bvar_bound_go
 attribute [local lockstep_simp] bvarBoundArmApp bvarBoundArmBind bvarBoundArmLet
 
@@ -748,16 +735,5 @@ theorem inst_pis_at_lift_from_aux (n : Nat) :
       (instPisAtLift (absU fuel) (absEIdxList args) (absEIdx h)) := by
   rw [arena.expr_ops.inst_pis_at_lift]
   lockstep
-
-
-
-/-! ## `renameConsts` — the module's one higher-order argument -/
-
-section rename
-attribute [local lockstep_simp] renameArmFVar renameArmApp renameArmLam renameArmForallE
-  renameArmLet renameArmProj
-
-end rename
-
 
 end ConRon.Refine2

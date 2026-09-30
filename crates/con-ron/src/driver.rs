@@ -527,10 +527,9 @@ pub fn phase_b_verdict(
 
 /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
 /// con-leche: Main.lean:319-422 checkDeclsIO
-/// **The driver**: `checker::check_decls_phased` with the boundary visible —
-/// a straight line of calls, with the observer's lines between them and the
-/// pool in the place of phase B's sequential walk (tasks #97-P5-Driver,
-/// #98-POOL).  Each step is one premise of the capstone:
+/// **The driver**: the two-phase fold with the boundary visible — a straight
+/// line of calls, with the observer's lines between them and the pool for
+/// phase B (tasks #97-P5-Driver, #98-POOL).  Each step is one premise of the capstone:
 ///
 /// | step | here | the capstone's premise |
 /// |---|---|---|

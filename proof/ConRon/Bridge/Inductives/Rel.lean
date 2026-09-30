@@ -303,7 +303,7 @@ theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hvok)
   have hstep : PStep s s' :=
-    PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8
+    PStep.of_caches ⟨h1⟩ h2 (bmExt_of_tables h3 h4 h5) h7 h8
   refine ⟨hstep, ?_⟩
   rw [h10]
   exact denoteLList_ext hstep.ext.lss.ls _ _ hv
@@ -315,7 +315,7 @@ theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
     PStep s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
   obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
-  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_nested h3 h4 h5) h7 h8, h10⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_tables h3 h4 h5) h7 h8, h10⟩
 
 /-- con-leche: none — `internNNode` at a `.str`: every name this tier builds
 (`N._model`, `T.proj`, `T._model.proj_i`) goes through it. -/
@@ -481,11 +481,11 @@ theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
   | zero =>
     intro h hP s₀ s' r hok hd hrun
     simp only [Arena.piSortTeleLen?] at hrun
-    exact absurd hrun (fun hc => failOk hc)
+    exact absurd hrun (fun hc => AM.fail_ok hc)
   | succ fuel ih =>
     intro h hP s₀ s' r hok hd hrun
     simp only [Arena.piSortTeleLen?] at hrun
-    obtain ⟨v, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨v, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨hs1, hw⟩ := view_run h1
     rw [hs1] at h2
     have hde : denoteEView s₀.store v = some hP := by
@@ -493,16 +493,16 @@ theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
     cases v
     case forallE ty body m =>
       obtain ⟨et, eb, rfl, hty, hb⟩ := denote_forallE_inv hok.wf hw hd
-      obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨hstep, ho⟩ := ih body eb s₀ s₂ o hok hb h3
-      obtain ⟨rfl, rfl⟩ := pureOk h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       exact ⟨hstep, by rw [ho]; rfl⟩
     case sort u =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       obtain ⟨uP, _, rfl⟩ := Option.map_eq_some_iff.mp hde
       exact ⟨PStep.refl hok, rfl⟩
     all_goals
-      (obtain ⟨rfl, rfl⟩ := pureOk h2
+      (obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
        refine ⟨PStep.refl hok, ?_⟩
        simp only [denoteEView] at hde
        first
@@ -528,36 +528,6 @@ theorem denoteCI_not_ctor {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
 `…_pext` twins at the WEAKER extension but not the plain `Ext` ones for the
 list and the environment.  This tier needs both, because every install
 function grows the arena while the environment it was handed stands still. -/
-
-/-- con-leche: none — a constant LIST survives an append. -/
-theorem denoteCIList_ext {st st' : EStore} (hx : Ext st st') :
-    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo),
-      Frontend.denoteCIList st cs = some xs →
-        Frontend.denoteCIList st' cs = some xs := by
-  intro cs
-  induction cs with
-  | nil => intro xs h; exact h
-  | cons a as ih =>
-    intro xs h
-    simp only [Frontend.denoteCIList] at h ⊢
-    cases ha : Frontend.denoteCI st a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteCIList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        rw [denoteCI_ext ha hx, ih ys has]
-        exact h
-
-/-- con-leche: none — **the environment survives an append**, which is what
-every install theorem of this tier needs of its own argument. -/
-theorem denoteFEnv_ext {st st' : EStore} (hx : Ext st st') {fe : IFEnv}
-    {env : Env} (h : denoteFEnv st fe = some env) :
-    denoteFEnv st' fe = some env := by
-  simp only [denoteFEnv, denoteIEnv, Option.map_eq_some_iff] at h ⊢
-  obtain ⟨xs, hxs, he⟩ := h
-  exact ⟨xs, denoteCIList_ext hx _ xs hxs, he⟩
 
 /-! ## The projection table's obligation
 
@@ -810,7 +780,7 @@ theorem denoteFEnv_push_inv {st : EStore} {fe : IFEnv} {env env' : Env}
 theorem InstRel.ext {fe fe' : IFEnv} {P : Env → Prop} {st st' : EStore}
     (h : InstRel fe P st fe') (hx : Ext st st') : InstRel fe P st' fe' := by
   obtain ⟨e, he, hp⟩ := h.denote
-  exact ⟨h.coh, h.pushed, h.visible, ⟨e, denoteFEnv_ext hx he, hp⟩, h.proj.mono hx⟩
+  exact ⟨h.coh, h.pushed, h.visible, ⟨e, denoteFEnv_mono hx he, hp⟩, h.proj.mono hx⟩
 
 /-- con-leche: none — an `InstRel` whose pure-side claim is implied by
 another's. -/
@@ -863,7 +833,7 @@ ask `lvlEq?` for `isProp`.  The run forms below put each of those at THIS
 tier's frame. -/
 
 /-- con-leche: none — the frame a name-only program leaves on the three
-fields `EStore.viewBM` reads: `bmExt_of_nested`'s hypotheses, as a relation
+fields `EStore.viewBM` reads: `bmExt_of_tables`'s hypotheses, as a relation
 between states that composes along a `do` block. -/
 def NestFrame (s s' : AState) : Prop :=
   StoreWF s.store → StoreWF s'.store ∧ s'.store.pers = s.store.pers ∧
@@ -878,14 +848,14 @@ it is the pin-table read `pinReserved` (twin fix D5). -/
 theorem reservedBasisNames_nest : NestProg Arena.reservedBasisNames := by
   intro s s' n h
   simp only [Arena.reservedBasisNames, Arena.pinReserved] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
   have e1 : t = s ∧ s₁ = s := by
     injection h1 with h1'; injection h1' with a b; exact ⟨a.symm, b.symm⟩
   obtain ⟨rfl, rfl⟩ := e1
   split at h2
-  · obtain ⟨-, rfl⟩ := pureOk h2
+  · obtain ⟨-, rfl⟩ := AM.pure_ok h2
     exact fun hw => ⟨hw, rfl, rfl, rfl⟩
-  · exact absurd h2 (fun hc => failOk hc)
+  · exact absurd h2 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s
@@ -898,7 +868,7 @@ theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
       Frontend.denoteNList s'.store.ns hs = some ConLeche.reservedBasisNames := by
   obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.wf hp hr
   obtain ⟨-, h1, h2, h3⟩ := reservedBasisNames_nest s s' hs hr hok.wf
-  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext (bmExt_of_nested h1 h2 h3)
+  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext (bmExt_of_tables h1 h2 h3)
     hps.caches hps.pins, ?_⟩
   rw [← reservedBasisNameValues_eq]
   exact denoteNL_toList _ _ hd
@@ -997,17 +967,17 @@ theorem mapM_pstep {α β γ : Type} (f : α → AM β) (g : α → γ)
   | nil =>
     intro s₀ s' bs hok _ hrun
     simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, trivial⟩
   | cons a as ih =>
     intro s₀ s' bs hok hP hrun
     simp only [List.mapM_cons] at hrun
-    obtain ⟨b, s1, k1, hz1⟩ := bindOk hrun
+    obtain ⟨b, s1, k1, hz1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hb⟩ := hf a s₀ s1 b hok (hP a (by simp)) k1
-    obtain ⟨cs, s2, k2, hz2⟩ := bindOk hz1
+    obtain ⟨cs, s2, k2, hz2⟩ := AM.bind_ok hz1
     obtain ⟨p2, hcs⟩ := ih s1 s2 cs p1.ok
       (fun x hx => hPx p1.ext (hP x (by simp [hx]))) k2
-    obtain ⟨rfl, rfl⟩ := pureOk hz2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hz2
     exact ⟨p1.trans p2, hRx p2.ext hb, hcs⟩
 
 /-- con-leche: none — `List.allM` of a pure-grade test over a denoting
@@ -1028,7 +998,7 @@ theorem allM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
     simp only [Frontend.denoteEList, Option.some.injEq] at h
     subst h
     simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons e es ih =>
     intro xs s₀ s' b hok hq h hrun
@@ -1042,11 +1012,11 @@ theorem allM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
         rw [he, hes] at h
         obtain rfl := (Option.some.inj h).symm
         simp only [List.allM] at hrun
-        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
         obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
         cases c with
         | false =>
-          obtain ⟨rfl, rfl⟩ := pureOk z1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
           refine ⟨p1, ?_⟩
           simp only [List.all_cons, ← hc, Bool.false_and]
         | true =>
@@ -1071,7 +1041,7 @@ theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
     simp only [Frontend.denoteEList, Option.some.injEq] at h
     subst h
     simp only [List.anyM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons e es ih =>
     intro xs s₀ s' b hok hq h hrun
@@ -1085,11 +1055,11 @@ theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
         rw [he, hes] at h
         obtain rfl := (Option.some.inj h).symm
         simp only [List.anyM] at hrun
-        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
         obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
         cases c with
         | true =>
-          obtain ⟨rfl, rfl⟩ := pureOk z1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
           refine ⟨p1, ?_⟩
           simp only [List.any_cons, ← hc, Bool.true_or]
         | false =>
@@ -1097,31 +1067,6 @@ theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
             (denoteEList_ext p1.ext _ _ hes) z1
           refine ⟨p1.trans p2, ?_⟩
           simp only [List.any_cons, ← hc, Bool.false_or, hb]
-
-/-- con-leche: none — a handle whose view is not a `.const` denotes a term
-that is not one (`Bridge/Core/Walks/Guards.lean`'s `isBoolTrue_of_not_const`
-argument, as a shape fact). -/
-theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
-    (he : denoteE st h = some e)
-    (hne : ∀ c us, v ≠ .const c us) : ∀ c us, e ≠ .const c us := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv he]; intro _ _ h; cases h
-  | fvar k t =>
-    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; intro _ _ h; cases h
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; intro _ _ h; cases h
-  | const n us => exact absurd rfl (hne n us)
-  | app f a =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; intro _ _ h; cases h
-  | lam ty b m =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; intro _ _ h; cases h
-  | forallE ty b m =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; intro _ _ h; cases h
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; intro _ _ h; cases h
-  | lit l => rw [denote_lit_inv hwf hv he]; intro _ _ h; cases h
-  | proj n i sub =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; intro _ _ h; cases h
 
 /-- con-leche: none — `List.anyM` of a pure-grade test over a denoting
 binder telescope, with a store invariant `Q`: the verdict is the pure
@@ -1141,7 +1086,7 @@ theorem anyM_B_pstep {f : EIdx × BinderMeta → AM Bool} {F : Expr × BinderMet
     simp only [denoteBinders, Option.some.injEq] at h
     subst h
     simp only [List.anyM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons b bs ih =>
     intro bsP s₀ s' x hok hq h hrun
@@ -1156,11 +1101,11 @@ theorem anyM_B_pstep {f : EIdx × BinderMeta → AM Bool} {F : Expr × BinderMet
         rw [ht, hbs] at h
         obtain rfl := (Option.some.inj h).symm
         simp only [List.anyM] at hrun
-        obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+        obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
         obtain ⟨p1, hc⟩ := hf (t, m) (tP, m) s₀ s1 c hok hq ht rfl k1
         cases c with
         | true =>
-          obtain ⟨rfl, rfl⟩ := pureOk z1
+          obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
           refine ⟨p1, ?_⟩
           simp only [List.any_cons, ← hc, Bool.true_or]
         | false =>
@@ -1198,122 +1143,6 @@ the record, so `abstract1Fast_spec` has its hypothesis and `closeTelescope`
 (`FieldTele.lean`) can call it; `fvarB_pstep` is the run form the walks read.  **On loan from the `ExprOps` tier**, whose
 module it belongs in: `Ranges.lean`'s `fvarB_spec` gaining the conjunct makes
 this section one line. -/
-
-/-- con-leche: none — `AM.of_run`'s converse: a partial-correctness triple
-from a statement about every accepting run. -/
-theorem AM.triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
-    {Q : α → AState → Prop}
-    (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') → Q a s') :
-    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
-  intro s hp
-  simp only [WP.wp, PredTrans.apply_pushArg]
-  cases hr : prog.run s with
-  | error e => trivial
-  | ok p => exact h s p.1 p.2 hp hr
-
-/-- con-leche: none — every accepting run leaves `abs1C` alone. -/
-def A1Prog {α : Type} (c : AM α) : Prop :=
-  ∀ (s s' : AState) (a : α), c s = .ok (a, s') → s'.memos.abs1C = s.memos.abs1C
-
-theorem A1Prog.pure {α : Type} (a : α) : A1Prog (pure a : AM α) := by
-  intro s s' b h; obtain ⟨-, rfl⟩ := pureOk h; rfl
-
-theorem A1Prog.bind {α β : Type} {x : AM α} {f : α → AM β}
-    (hx : A1Prog x) (hf : ∀ a, A1Prog (f a)) : A1Prog (x >>= f) := by
-  intro s s' b h
-  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
-  exact (hf a s₁ s' b h2).trans (hx s s₁ a h1)
-
-theorem A1Prog.fail {α : Type} (e : Arena.CheckError) : A1Prog (Arena.fail e : AM α) := by
-  intro s s' a h; exact absurd h (fun hc => failOk hc)
-
-theorem A1Prog.fvarBGet (k : EIdx) : A1Prog (Arena.fvarBGet k) := by
-  intro s s' a h
-  simp only [Arena.fvarBGet] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  obtain ⟨-, rfl⟩ := pureOk h2; rfl
-
-theorem A1Prog.fvarBSet (k : EIdx) (r : Nat) : A1Prog (Arena.fvarBSet k r) := by
-  intro s s' a h
-  simp only [Arena.fvarBSet] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  rw [Core.AM.set_ok h2]
-
-theorem A1Prog.fvarBClear : A1Prog Arena.fvarBClear := by
-  intro s s' a h
-  simp only [Arena.fvarBClear] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  rw [Core.AM.set_ok h2]
-
-theorem A1Prog.view (k : EIdx) : A1Prog (Arena.view k) := by
-  intro s s' a h
-  obtain ⟨rfl, -⟩ := view_run h; rfl
-
-theorem A1Prog.derivedE (k : EIdx) : A1Prog (Arena.derivedE k) := by
-  intro s s' a h
-  simp only [Arena.derivedE] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  obtain ⟨-, rfl⟩ := pureOk h2; rfl
-
-/-- con-leche: none — `fvarRangeGo`'s mutual block leaves `abs1C` alone, at
-every fuel. -/
-theorem fvarRangeGo_a1 : ∀ (fuel : Nat) (h : EIdx), A1Prog (Arena.fvarRangeGo fuel h) := by
-  intro fuel
-  induction fuel with
-  | zero => intro h; rw [Arena.fvarRangeGo_zero]; exact A1Prog.fail _
-  | succ fuel ih =>
-    intro h
-    rw [Arena.fvarRangeGo_succ]
-    refine A1Prog.bind (A1Prog.fvarBGet h) (fun o => ?_)
-    cases o with
-    | some r => exact A1Prog.pure r
-    | none =>
-      refine A1Prog.bind ?_ (fun r => A1Prog.bind (A1Prog.fvarBSet h r) (fun _ => A1Prog.pure r))
-      refine A1Prog.bind (A1Prog.view h) (fun v => ?_)
-      cases v with
-      | fvar idx t => exact A1Prog.pure _
-      | bvar _ => exact A1Prog.pure _
-      | sort _ => exact A1Prog.pure _
-      | const _ _ => exact A1Prog.pure _
-      | lit _ => exact A1Prog.pure _
-      | app f a =>
-        simp only [Arena.fvarRangeArmApp]
-        exact A1Prog.bind (ih f) (fun _ => A1Prog.bind (ih a) (fun _ => A1Prog.pure _))
-      | lam ty b _ =>
-        simp only [Arena.fvarRangeArmBind]
-        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
-      | forallE ty b _ =>
-        simp only [Arena.fvarRangeArmBind]
-        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
-      | letE ty w b =>
-        simp only [Arena.fvarRangeArmLet]
-        exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih w)
-          (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _)))
-      | proj _ _ sub => exact ih sub
-
-/-- con-leche: none — and so does `fvarB`. -/
-theorem fvarB_a1 (fuel : Nat) (e : EIdx) : A1Prog (Arena.fvarB fuel e) := by
-  simp only [Arena.fvarB]
-  refine A1Prog.bind (A1Prog.derivedE e) (fun der => ?_)
-  split
-  · simp only [Arena.fvarRangeMemo]
-    exact A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.bind (fvarRangeGo_a1 fuel e)
-      (fun r => A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.pure r)))
-  · exact A1Prog.pure _
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1436-1441 fvarB — **`Abs.lean`'s
-hypothesis, discharged**: `Ranges.lean`'s `fvarB_spec` plus `fvarB_a1`. -/
-theorem fvarBSpec : ExprOps.FvarBSpec where
-  run := fun fuel s₁ h hok hden => AM.triple_of_run (P := fun s => s = s₁) (by
-    intro s a s' hs hr
-    subst hs
-    obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s) rfl hr
-      (ExprOps.fvarB_spec fuel s h hok hden)
-    exact ⟨h1, h2, h3, fvarB_a1 fuel h s s' a hr, h4⟩)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1714 fvarB — **the free-variable
 cutoff's run form** at this tier's frame: `Bridge/ExprOps/Ranges.lean`'s
@@ -1377,7 +1206,7 @@ theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
     simp only [Frontend.denoteEList, Option.some.injEq] at h
     subst h
     simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok.state, rfl⟩
   | cons e es ih =>
     intro esP s₀ s' x hok hq h hrun
@@ -1391,11 +1220,11 @@ theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
     rw [he, hr] at h
     obtain rfl := (Option.some.inj h).symm
     simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hc⟩ := hf e eP s₀ s1 c hok hq he k1
     cases c with
     | false =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
     | true =>
       obtain ⟨p2, hx⟩ := ih rest s1 s' x (hok.mono p1.ok p1.ext p1.pins) (hQ p1.ext hq)
@@ -1417,16 +1246,16 @@ theorem allM_ck {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
   | nil =>
     intro s₀ s' b hok _ hrun
     simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok.state, rfl⟩
   | cons a as ih =>
     intro s₀ s' b hok hP hrun
     simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
     cases c with
     | false =>
-      obtain ⟨rfl, rfl⟩ := pureOk z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
     | true =>
       obtain ⟨p2, hb⟩ := ih s1 s' b (hok.mono p1.ok p1.ext p1.pins)
@@ -1442,7 +1271,7 @@ theorem projFnName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
     (hrun : Arena.projFnName T i s = .ok (h, s')) :
     PStep s s' ∧ denoteN s'.store.ns h = some (ConLeche.projFnName TP i) := by
   simp only [Arena.projFnName] at hrun
-  obtain ⟨m, s1, k1, h2⟩ := bindOk hrun
+  obtain ⟨m, s1, k1, h2⟩ := AM.bind_ok hrun
   obtain ⟨p1, hm⟩ := internStrN_run hok hT k1
   obtain ⟨p2, hr⟩ := internNumN_run p1.ok hm h2
   exact ⟨p1.trans p2, hr⟩
@@ -1610,7 +1439,7 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
   | zero =>
     intro i h hP s₀ s' r hok hh hrun
     simp only [Arena.openPisAtFvars] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp [denoteOpen, Frontend.denoteEList, hh,
       ConLeche.openPisAtFvars]⟩
   | succ n ih =>
@@ -1620,31 +1449,31 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
     obtain ⟨v₀, hv₀⟩ := denoteE_view hh
     replace hrun := tagIf_view_run hv₀
       (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
-    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨v, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
     cases v
     case forallE dom body bm =>
       obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
       dsimp only at z1
-      obtain ⟨fv, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨fv, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, hfv⟩ := internE_run hok (viewOK_fvar (by rw [hd]; rfl)) k2
       have hfv' : denoteE s2.store fv = some (.fvar i domP) := by
         rw [hfv]; simp [denoteEView, denote_ext hd p2.ext]
-      obtain ⟨op, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨op, s3, k3, z3⟩ := AM.bind_ok z2
       have hb2 : denoteE s2.store body = some bodyP := denote_ext hb p2.ext
       obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run p2.ok hfv'
         (by rw [hb2]; rfl) k3
       have p3 : PStep s2 s3 := PStep.of_caches h1 h2 h3 h4 h5
       have hop : denoteE s3.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
         h7 _ hb2
-      obtain ⟨o, s4, k4, z4⟩ := bindOk z3
+      obtain ⟨o, s4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨p4, ho⟩ := ih p3.ok hop k4
       have p24 := p2.trans (p3.trans p4)
       simp only [ConLeche.openPisAtFvars]
       cases o with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
         have hn : ConLeche.openPisAtFvars n (bodyP.instantiate1 (.fvar i domP)) (i + 1)
             = none := (Option.some.inj ho).symm
@@ -1652,26 +1481,19 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
       | some q =>
         obtain ⟨fvs, e⟩ := q
         obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
         rw [hx]
         exact denoteOpen_some (by
           simp only [Frontend.denoteEList, denote_ext hfv' (p3.ext.trans p4.ext),
             h1]) h2
     all_goals
-      obtain ⟨rfl, rfl⟩ := pureOk z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       refine ⟨PStep.refl hok, ?_⟩
       rw [denoteE_view_eq hok.wf hv] at hh
       cases hP
       case forallE a b m => simp [denoteEView] at hh
       all_goals rfl
-
-/-- con-leche: none — `InstLVec` grows by a push at the front of the list. -/
-theorem InstLVec_push {st : EStore} {acc : Array EIdx} {ws : List Expr} {x : EIdx}
-    {xP : Expr} (h : ExprOps.InstLVec st acc ws) (hx : denoteE st x = some xP) :
-    ExprOps.InstLVec st (acc.push x) (xP :: ws) := by
-  simp only [ExprOps.InstLVec, Array.toList_push, List.reverse_cons]
-  exact denoteEList_append h (by simp [Frontend.denoteEList, hx])
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo — **the
 one-pass opener's core, as a run**: the arena's push-order vector is
@@ -1686,10 +1508,10 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
   | zero =>
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
     simp only [Arena.openPisAtFvarsFGo] at hrun
-    obtain ⟨e, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨e, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
       (by rw [hh]; rfl) k1
-    obtain ⟨rfl, rfl⟩ := pureOk z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
     simp [denoteOpen, Frontend.denoteEList, h7 _ hh, ConLeche.openPisAtFvarsFGo]
   | succ n ih =>
@@ -1699,30 +1521,30 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
     obtain ⟨v₀, hv₀⟩ := denoteE_view hh
     replace hrun := tagIf_view_run hv₀
       (fun hne => by cases v₀ <;> first | rfl | exact absurd rfl hne) hrun
-    obtain ⟨v, s1, k1, z1⟩ := bindOk hrun
+    obtain ⟨v, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
     cases v
     case forallE dom body bm =>
       obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
       dsimp only at z1
-      obtain ⟨dd, s2, k2, z2⟩ := bindOk z1
+      obtain ⟨dd, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
         (by rw [hd]; rfl) k2
       have p2 : PStep s₀ s2 := PStep.of_caches h1 h2 h3 h4 h5
       have hdd : denoteE s2.store dd = some (domP.instantiateList ws 0) := h7 _ hd
-      obtain ⟨fv, s3, k3, z3⟩ := bindOk z2
+      obtain ⟨fv, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, hfv⟩ := internE_run p2.ok (viewOK_fvar (by rw [hdd]; rfl)) k3
       have hfv' : denoteE s3.store fv = some (.fvar i (domP.instantiateList ws 0)) := by
         rw [hfv]; simp [denoteEView, denote_ext hdd p3.ext]
-      obtain ⟨o, s4, k4, z4⟩ := bindOk z3
-      obtain ⟨p4, ho⟩ := ih p3.ok (InstLVec_push (hacc.ext (p2.ext.trans p3.ext)) hfv')
+      obtain ⟨o, s4, k4, z4⟩ := AM.bind_ok z3
+      obtain ⟨p4, ho⟩ := ih p3.ok (Core.InstLVec.push (hacc.ext (p2.ext.trans p3.ext)) hfv')
         (denote_ext hb (p2.ext.trans p3.ext)) k4
       have p24 := p2.trans (p3.trans p4)
       simp only [ConLeche.openPisAtFvarsFGo]
       cases o with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
         have hn : ConLeche.openPisAtFvarsFGo (.fvar i (domP.instantiateList ws) :: ws) n
             bodyP (i + 1) = none := (Option.some.inj ho).symm
@@ -1730,13 +1552,13 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
       | some q =>
         obtain ⟨fvs, e⟩ := q
         obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
         rw [hx]
         exact denoteOpen_some (by
           simp only [Frontend.denoteEList, denote_ext hfv' p4.ext, h1]) h2
     all_goals
-      obtain ⟨rfl, rfl⟩ := pureOk z1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       refine ⟨PStep.refl hok, ?_⟩
       rw [denoteE_view_eq hok.wf hv] at hh
       cases hP
@@ -1754,7 +1576,7 @@ theorem openPisAtFvarsF_run {n i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState
     PStep s₀ s' ∧ denoteOpen s'.store r = some (ConLeche.openPisAtFvars n hP i) := by
   rw [← ConLeche.openPisAtFvarsF_eq]
   simp only [Arena.openPisAtFvarsF] at hrun
-  obtain ⟨o, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := openPisAtFvarsFGo_run n hok
     (show ExprOps.InstLVec s₀.store #[] [] from rfl) hh k1
   simp only [ConLeche.openPisAtFvarsF]
@@ -1762,7 +1584,7 @@ theorem openPisAtFvarsF_run {n i : Nat} {h : EIdx} {hP : Expr} {s₀ s' : AState
   | some q =>
     obtain ⟨fvs, e⟩ := q
     obtain ⟨xs, x, hx, h1, h2⟩ := denoteOpen_some_inv ho
-    obtain ⟨rfl, rfl⟩ := pureOk z1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨p1, ?_⟩
     rw [hx]
     exact denoteOpen_some h1 h2

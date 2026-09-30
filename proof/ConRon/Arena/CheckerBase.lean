@@ -1,9 +1,8 @@
 /-
 # `ConRon.Arena.CheckerBase` — the declaration checker's common ground
 
-The twin of `ConLeche/Kernel/CheckerBase.lean`: the core entry-point record,
-the common per-declaration constant check, and the strategy-independent
-helpers the install paths share.
+The twin of `ConLeche/Kernel/CheckerBase.lean`: the common per-declaration
+constant check and the strategy-independent helpers the install paths share.
 
 ## The three systematic deviations
 
@@ -13,14 +12,11 @@ helpers the install paths share.
    (`DeclCheck.lean`'s `…F` mirrors); the arena has ONE environment type, so
    each pair collapses into one twin carrying a `con-leche:` line per
    collapsed declaration.
-2. **`CheckerOps` is present but not passed.**  DESIGN §8.2 is explicit that
-   the record is "a program seam at HEAD, not a proof seam" and that (B)
-   "calls its own bodies"; DESIGN §3.4 forbids a record of function values in
-   code Aeneas must translate, and `crates/con-ron-core/src/kernel/checker.rs`
-   drops the `ops` binder for exactly that reason.  So `CheckerOpsA` and its
-   ONE instantiation are twinned here — they are the statement subjects P3
-   will need, as `Arena/CoreIO.lean` is — and
-   every body below calls `Arena/Core.lean`'s fueled entry points directly.
+2. **`CheckerOps` is not a record here.**  DESIGN §8.2 is explicit that the
+   record is "a program seam at HEAD, not a proof seam" and that (B) "calls
+   its own bodies"; DESIGN §3.4 forbids a record of function values in code
+   Aeneas must translate.  So every body below calls `Arena/Core.lean`'s
+   fueled entry points directly.
 3. **`orElse` is `orElseAttempt`, the four-way step**, and it is the one place
    in (B) that recovers from a thrown error.  See its own note.
 -/
@@ -30,27 +26,6 @@ import ConRon.Arena.Inductives.StructParts
 namespace ConRon.Arena
 
 open ConLeche
-
-/-! ## The core entry-point record -/
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps — the core
-entry points the declaration checker runs on.  con-leche is polymorphic in
-the monad and instantiates the record twice (the pure knot for the proofs, the
-memoized one in `ConLeche/Cached/CheckerC.lean` for the binary); the arena is
-at `AM` with ONE knot, so the `m` parameter is gone and the name carries an
-`A`, exactly as `Arena/Core.lean`'s `CoreFnsA` does.
-
-**Not passed to anything** (module note 2): the record is the statement
-subject P3 needs, and the bodies call `Arena/Core.lean`'s entries by name. -/
-structure CheckerOpsA where
-  annotate : IFEnv → Nat → EIdx → AM EIdx
-  inferType : IFEnv → Nat → EIdx → AM EIdx
-  isDefEq : IFEnv → Nat → EIdx → EIdx → AM Bool
-  ensureSort : IFEnv → Nat → EIdx → AM LIdx
-  whnf : IFEnv → Nat → EIdx → AM EIdx
-  /-- The variant-fallback combinator.  See `orElseAttempt`, which is what
-  the checker actually runs. -/
-  orElse : AM Bool → (Option CheckError → AM Unit) → AM Unit
 
 /-! ## The variant fallback
 

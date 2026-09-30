@@ -120,29 +120,6 @@ theorem denoteLeaves_cons {st : EStore} {i : Nat} {t : EIdx}
     denoteLeaves st ((i, t) :: rest) = some ((i, t') :: rest') := by
   simp only [denoteLeaves, ht, hr]
 
-/-- con-leche: none — `denoteLeaves` commutes with `++`.  **Not a `grind`
-rule**: see the module doc, item 1. -/
-theorem denoteLeaves_append {st : EStore} :
-    ∀ (xs ys : List (Nat × EIdx)) (xs' ys' : List (Nat × Expr)),
-      denoteLeaves st xs = some xs' → denoteLeaves st ys = some ys' →
-      denoteLeaves st (xs ++ ys) = some (xs' ++ ys') := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro ys xs' ys' hx hy
-    simp only [denoteLeaves] at hx
-    obtain rfl := Option.some.inj hx
-    simpa using hy
-  | cons p ps ih =>
-    intro ys xs' ys' hx hy
-    obtain ⟨i, t⟩ := p
-    simp only [denoteLeaves] at hx
-    split at hx
-    · rename_i t' rest' ht hrest
-      obtain rfl := Option.some.inj hx
-      simp only [List.cons_append, denoteLeaves, ht, ih ys rest' ys' hrest hy]
-    · exact absurd hx (by simp)
-
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation at a
 LEAF-LIST result: `Bridge/Rel.lean`'s `RelEL` with `denoteEList` replaced by
 `denoteLeaves` and the target store dropped. -/
@@ -318,85 +295,6 @@ arm. -/
   intro e he
   rw [denote_lit_inv hwf hview he]
   simp [Expr.fvarLeaves, denoteLeaves]
-
-@[grind →] theorem RelFL.fvar_step {st : EStore} (hwf : StoreWF st)
-    {h ty : EIdx} {k : Nat} {rest : List (Nat × EIdx)}
-    (hview : st.view h = some (.fvar k ty))
-    (hr : RelFL Expr.fvarLeaves st ty rest) :
-    RelFL Expr.fvarLeaves st h ((k, ty) :: rest) := by
-  intro e he
-  obtain ⟨t, rfl, hdt⟩ := denote_fvar_inv hwf hview he
-  have hp : Expr.fvarLeaves (.fvar k t) = (k, t) :: Expr.fvarLeaves t := by
-    simp [Expr.fvarLeaves]
-  rw [hp]
-  exact denoteLeaves_cons hdt (hr t hdt)
-
-@[grind →] theorem RelFL.app_step {st : EStore} (hwf : StoreWF st)
-    {h f a : EIdx} {xs ys : List (Nat × EIdx)}
-    (hview : st.view h = some (.app f a))
-    (hf : RelFL Expr.fvarLeaves st f xs)
-    (ha : RelFL Expr.fvarLeaves st a ys) :
-    RelFL Expr.fvarLeaves st h (xs ++ ys) := by
-  intro e he
-  obtain ⟨ef, ea, rfl, hdf, hda⟩ := denote_app_inv hwf hview he
-  have hp : Expr.fvarLeaves (.app ef ea) =
-      Expr.fvarLeaves ef ++ Expr.fvarLeaves ea := by simp [Expr.fvarLeaves]
-  rw [hp]
-  exact denoteLeaves_append xs ys _ _ (hf ef hdf) (ha ea hda)
-
-@[grind →] theorem RelFL.lam_step {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {m : BinderMeta} {xs ys : List (Nat × EIdx)}
-    (hview : st.view h = some (.lam ty b m))
-    (ht : RelFL Expr.fvarLeaves st ty xs)
-    (hb : RelFL Expr.fvarLeaves st b ys) :
-    RelFL Expr.fvarLeaves st h (xs ++ ys) := by
-  intro e he
-  obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hview he
-  have hp : Expr.fvarLeaves (.lam et eb m) =
-      Expr.fvarLeaves et ++ Expr.fvarLeaves eb := by simp [Expr.fvarLeaves]
-  rw [hp]
-  exact denoteLeaves_append xs ys _ _ (ht et hdt) (hb eb hdb)
-
-@[grind →] theorem RelFL.forallE_step {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {m : BinderMeta} {xs ys : List (Nat × EIdx)}
-    (hview : st.view h = some (.forallE ty b m))
-    (ht : RelFL Expr.fvarLeaves st ty xs)
-    (hb : RelFL Expr.fvarLeaves st b ys) :
-    RelFL Expr.fvarLeaves st h (xs ++ ys) := by
-  intro e he
-  obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hview he
-  have hp : Expr.fvarLeaves (.forallE et eb m) =
-      Expr.fvarLeaves et ++ Expr.fvarLeaves eb := by simp [Expr.fvarLeaves]
-  rw [hp]
-  exact denoteLeaves_append xs ys _ _ (ht et hdt) (hb eb hdb)
-
-@[grind →] theorem RelFL.letE_step {st : EStore} (hwf : StoreWF st)
-    {h ty v b : EIdx} {xs ys zs : List (Nat × EIdx)}
-    (hview : st.view h = some (.letE ty v b))
-    (ht : RelFL Expr.fvarLeaves st ty xs)
-    (hv : RelFL Expr.fvarLeaves st v ys)
-    (hb : RelFL Expr.fvarLeaves st b zs) :
-    RelFL Expr.fvarLeaves st h (xs ++ ys ++ zs) := by
-  intro e he
-  obtain ⟨et, ev, eb, rfl, hdt, hdv, hdb⟩ := denote_letE_inv hwf hview he
-  have hp : Expr.fvarLeaves (.letE et ev eb) =
-      Expr.fvarLeaves et ++ Expr.fvarLeaves ev ++ Expr.fvarLeaves eb := by
-    simp [Expr.fvarLeaves]
-  rw [hp]
-  exact denoteLeaves_append (xs ++ ys) zs _ _
-    (denoteLeaves_append xs ys _ _ (ht et hdt) (hv ev hdv)) (hb eb hdb)
-
-@[grind →] theorem RelFL.proj_step {st : EStore} (hwf : StoreWF st)
-    {h sub : EIdx} {n : NIdx} {i : Nat} {rs : List (Nat × EIdx)}
-    (hview : st.view h = some (.proj n i sub))
-    (hs : RelFL Expr.fvarLeaves st sub rs) :
-    RelFL Expr.fvarLeaves st h rs := by
-  intro e he
-  obtain ⟨nm, es, rfl, _, hds⟩ := denote_proj_inv hwf hview he
-  have hp : Expr.fvarLeaves (.proj nm i es) = Expr.fvarLeaves es := by
-    simp [Expr.fvarLeaves]
-  rw [hp]
-  exact hs es hds
 
 /-! ## 6. `leafMem` — `ExprOps.lean:914`
 

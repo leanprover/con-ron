@@ -8,19 +8,9 @@ everything it asks EXCEPT the `abs1C` frame (`fvarB` writes only `fvarBC`).
 This module supplies that frame — a program-level fact over `fvarRangeGo`'s
 mutual block — and assembles the record as `ConRon.Bridge.Core.fvarBSpec`, so
 the Core tier's `abstract1Fast_spec` callers (`Arms/InferIO.lean`'s
-`inferBodyIO_lam`, and the batched binder clauses) have their hypothesis.
-
-**A duplicate.**  `Bridge/Inductives/Rel.lean:2598-2730` holds the same
-proof (`Inductives.A1Prog`, `fvarRangeGo_a1`, `fvarB_a1`,
-`Inductives.fvarBSpec`), which the Core tier cannot import (it sits above
-`Bridge/Checker/Hyp.lean`, which imports this tier).  This copy is the one
-below both tiers; **the Inductives lane should delete its copy and import
-this module.**  Better still, `Ranges.lean`'s `fvarB_spec` gaining the
-`abs1C` conjunct makes both one line.
-
-The run-form helpers (`bindOk`, `pureOk`, `failOk`, `view_run`) are
-`Inductives/Rel.lean`'s, copied under the `FvarB` namespace for the same
-import reason.
+`inferBodyIO_lam`, and the batched binder clauses) and the Inductives tier
+have their hypothesis.  `Ranges.lean`'s `fvarB_spec` gaining the `abs1C`
+conjunct would make this module one line.
 -/
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Ranges
@@ -33,76 +23,42 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 namespace FvarB
 
-/-- con-leche: none — the `AM` bind's inversion (`Inductives/Rel.lean`'s
-`bindOk`, copied). -/
-theorem bindOk {α β : Type} {x : AM α} {f : α → AM β} {s s' : AState}
-    {b : β} (h : (x >>= f) s = .ok (b, s')) :
-    ∃ a s₁, x s = .ok (a, s₁) ∧ f a s₁ = .ok (b, s') := by
-  have h' : ((x s) >>= (fun p => f p.1 p.2)) = .ok (b, s') := h
-  clear h
-  revert h'
-  cases hx : x s with
-  | error e => intro h; exact nomatch h
-  | ok p =>
-    obtain ⟨a, s₁⟩ := p
-    intro h
-    exact ⟨a, s₁, rfl, h⟩
-
-/-- con-leche: none — the `AM` `pure`'s inversion (copied). -/
-theorem pureOk {α : Type} {a r : α} {s s' : AState}
-    (h : (pure a : AM α) s = .ok (r, s')) : r = a ∧ s' = s := by
-  have h' : Except.ok ((a, s) : α × AState) = .ok (r, s') := h
-  injection h' with h''
-  injection h'' with h1 h2
-  exact ⟨h1.symm, h2.symm⟩
-
-/-- con-leche: none — a failing primitive cannot have accepted (copied). -/
-theorem failOk {α : Type} {e : Arena.CheckError} {r : α} {s s' : AState}
-    (h : (fail e : AM α) s = .ok (r, s')) : False := by
-  simp only [Arena.fail, throwThe, MonadExceptOf.throw] at h
-  exact nomatch h
-
-/-- con-leche: none — `view`, as a run (copied). -/
-theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
-    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
-  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
-
 /-- con-leche: none — every accepting run leaves `abs1C` alone. -/
 def A1Prog {α : Type} (c : AM α) : Prop :=
   ∀ (s s' : AState) (a : α), c s = .ok (a, s') → s'.memos.abs1C = s.memos.abs1C
 
 theorem A1Prog.pure {α : Type} (a : α) : A1Prog (pure a : AM α) := by
-  intro s s' b h; obtain ⟨-, rfl⟩ := pureOk h; rfl
+  intro s s' b h; obtain ⟨-, rfl⟩ := AM.pure_ok h; rfl
 
 theorem A1Prog.bind {α β : Type} {x : AM α} {f : α → AM β}
     (hx : A1Prog x) (hf : ∀ a, A1Prog (f a)) : A1Prog (x >>= f) := by
   intro s s' b h
-  obtain ⟨a, s₁, h1, h2⟩ := bindOk h
+  obtain ⟨a, s₁, h1, h2⟩ := AM.bind_ok h
   exact (hf a s₁ s' b h2).trans (hx s s₁ a h1)
 
 theorem A1Prog.fail {α : Type} (e : Arena.CheckError) : A1Prog (Arena.fail e : AM α) := by
-  intro s s' a h; exact absurd h (fun hc => failOk hc)
+  intro s s' a h; exact absurd h (fun hc => AM.fail_ok hc)
 
 theorem A1Prog.fvarBGet (k : EIdx) : A1Prog (Arena.fvarBGet k) := by
   intro s s' a h
   simp only [Arena.fvarBGet] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  obtain ⟨-, rfl⟩ := pureOk h2; rfl
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, rfl⟩ := AM.get_ok h1
+  obtain ⟨-, rfl⟩ := AM.pure_ok h2; rfl
 
 theorem A1Prog.fvarBSet (k : EIdx) (r : Nat) : A1Prog (Arena.fvarBSet k r) := by
   intro s s' a h
   simp only [Arena.fvarBSet] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  rw [Core.AM.set_ok h2]
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, rfl⟩ := AM.get_ok h1
+  rw [AM.set_ok h2]
 
 theorem A1Prog.fvarBClear : A1Prog Arena.fvarBClear := by
   intro s s' a h
   simp only [Arena.fvarBClear] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  rw [Core.AM.set_ok h2]
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, rfl⟩ := AM.get_ok h1
+  rw [AM.set_ok h2]
 
 theorem A1Prog.view (k : EIdx) : A1Prog (Arena.view k) := by
   intro s s' a h
@@ -111,9 +67,9 @@ theorem A1Prog.view (k : EIdx) : A1Prog (Arena.view k) := by
 theorem A1Prog.derivedE (k : EIdx) : A1Prog (Arena.derivedE k) := by
   intro s s' a h
   simp only [Arena.derivedE] at h
-  obtain ⟨t, s₁, h1, h2⟩ := bindOk h
-  obtain ⟨rfl, rfl⟩ := Core.AM.get_ok h1
-  obtain ⟨-, rfl⟩ := pureOk h2; rfl
+  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
+  obtain ⟨rfl, rfl⟩ := AM.get_ok h1
+  obtain ⟨-, rfl⟩ := AM.pure_ok h2; rfl
 
 /-- con-leche: none — `fvarRangeGo`'s mutual block leaves `abs1C` alone, at
 every fuel. -/
@@ -161,26 +117,13 @@ theorem fvarB_a1 (fuel : Nat) (e : EIdx) : A1Prog (Arena.fvarB fuel e) := by
       (fun r => A1Prog.bind A1Prog.fvarBClear (fun _ => A1Prog.pure r)))
   · exact A1Prog.pure _
 
-/-- con-leche: none — a run lemma is a triple (the converse of `AM.of_run`). -/
-theorem triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
-    {Q : α → AState → Prop}
-    (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') →
-      Q a s') :
-    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
-  intro s hp
-  simp only [WP.wp, PredTrans.apply_pushArg]
-  cases hr : prog.run s with
-  | error e => trivial
-  | ok p => exact h s p.1 p.2 hp hr
-
 end FvarB
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1436-1441 fvarB — **`Abs.lean`'s
 hypothesis, discharged for the Core tier**: `Ranges.lean`'s `fvarB_spec`
-plus `FvarB.fvarB_a1`.  (`Inductives.fvarBSpec` in `Bridge/Inductives/Rel.lean`
-is a duplicate, see the module note.) -/
+plus `FvarB.fvarB_a1`. -/
 theorem fvarBSpec : ExprOps.FvarBSpec where
-  run := fun fuel s₁ h hok hden => FvarB.triple_of_run (P := fun s => s = s₁) (by
+  run := fun fuel s₁ h hok hden => AM.triple_of_run (P := fun s => s = s₁) (by
     intro s a s' hs hr
     subst hs
     obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s) rfl hr

@@ -149,7 +149,7 @@ theorem matchOwner_denoteLs (x : Option LsNodeView) :
   grind
 
 /-- con-leche: none — the five `instantiate1Arm*` probe matches, shared by
-`ExprOps/{Abs,Inst1,Reset,Subst}.lean`.  They are the `Option` shape of a
+`ExprOps/{Abs,Inst1,Subst}.lean`.  They are the `Option` shape of a
 memo probe and of a `viewApp`/`viewBindI` projection, so every rebuilding
 walk of the tier grinds over one. -/
 theorem matchOwner_instantiate1ArmApp (x : Option (EIdx × EIdx)) :
@@ -182,10 +182,9 @@ theorem matchOwner_instantiate1ArmProj (x : Option (NIdx × Nat × EIdx)) :
       (fun _ => 1) (fun _ _ _ => 0) ≤ 1 := by
   grind
 
-/-- con-leche: none — the three TEN-way `ENodeView` dispatch matches:
-`fvarLeaves` (`ExprOps/{Leaves,Walks}.lean`), `liftLooseBVarsGo`
-(`ExprOps/{Abs,Ranges,Walks}.lean`) and `resetMetaGo`
-(`ExprOps/{Leaves,Reset,Walks}.lean`).  Ten `congr_eq`s each, and one `grind`
+/-- con-leche: none — the two TEN-way `ENodeView` dispatch matches:
+`fvarLeaves` (`ExprOps/{Leaves,Walks}.lean`) and `liftLooseBVarsGo`
+(`ExprOps/{Abs,Ranges,Walks}.lean`).  Ten `congr_eq`s each, and one `grind`
 derives all ten. -/
 theorem matchOwner_fvarLeaves (x : ENodeView) :
     ConRon.Arena.fvarLeaves.match_1 (motive := fun _ => Nat) x
@@ -197,13 +196,6 @@ theorem matchOwner_fvarLeaves (x : ENodeView) :
 theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
     ConRon.Arena.liftLooseBVarsGo.match_1 (motive := fun _ => Nat) x
       (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1)
-      (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
-      (fun _ _ _ => 0) ≤ 1 := by
-  grind
-
-theorem matchOwner_resetMetaGo (x : ENodeView) :
-    ConRon.Arena.resetMetaGo.match_1 (motive := fun _ => Nat) x
-      (fun _ => 1) (fun _ => 1) (fun _ _ => 1) (fun _ => 1) (fun _ _ => 1)
       (fun _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1) (fun _ _ _ => 1)
       (fun _ _ _ => 0) ≤ 1 := by
   grind
@@ -238,6 +230,234 @@ the state and returns the store's own decoding. -/
     ⦃⇓? v s' => ⌜s' = s₀ ∧ s₀.store.view h = some v⌝⦄ := by
   mvcgen [view]
   spec_ro
+
+/-- con-leche: none — **`view`, as a run**: it moves nothing and answers the
+store's own decoding.  The first line of every walk of this tier. -/
+theorem view_run {s s' : AState} {h : EIdx} {v : ENodeView}
+    (hrun : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
+  AM.of_run (P := fun t => t = s) rfl hrun (view_spec s h)
+
+/-! ## Readback injectivity, handle equality and the view frame
+
+Facts every tier reads about the denotation functions of
+`Arena/Frontend/Readback.lean` and `Arena/Denote.lean`, stated once here. -/
+
+/-- con-leche: none — `Frontend.denoteEList` is injective; the list twin of
+`Arena/WFProofs.lean`'s `denoteE_inj` (the level tier's `denoteLList_inj` is
+already there). -/
+theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ (is js : List EIdx) (xs : List Expr),
+      Frontend.denoteEList st is = some xs →
+      Frontend.denoteEList st js = some xs → is = js := by
+  intro is
+  induction is with
+  | nil =>
+    intro js xs hi hj
+    simp only [Frontend.denoteEList, Option.some.injEq] at hi
+    subst hi
+    cases js with
+    | nil => rfl
+    | cons b bs =>
+      simp only [Frontend.denoteEList] at hj
+      cases hb : denoteE st b with
+      | none => rw [hb] at hj; simp at hj
+      | some y =>
+        cases hbs : Frontend.denoteEList st bs with
+        | none => rw [hb, hbs] at hj; simp at hj
+        | some ys => rw [hb, hbs] at hj; simp at hj
+  | cons a as ih =>
+    intro js xs hi hj
+    simp only [Frontend.denoteEList] at hi
+    cases ha : denoteE st a with
+    | none => rw [ha] at hi; simp at hi
+    | some x =>
+      cases has : Frontend.denoteEList st as with
+      | none => rw [ha, has] at hi; simp at hi
+      | some xt =>
+        rw [ha, has] at hi
+        simp only [Option.some.injEq] at hi
+        subst hi
+        cases js with
+        | nil => simp only [Frontend.denoteEList] at hj; simp at hj
+        | cons b bs =>
+          simp only [Frontend.denoteEList] at hj
+          cases hb : denoteE st b with
+          | none => rw [hb] at hj; simp at hj
+          | some y =>
+            cases hbs : Frontend.denoteEList st bs with
+            | none => rw [hb, hbs] at hj; simp at hj
+            | some yt =>
+              rw [hb, hbs] at hj
+              simp only [Option.some.injEq, List.cons.injEq] at hj
+              obtain ⟨rfl, rfl⟩ := hj
+              rw [denoteE_inj hwf ha hb, ih bs _ has hbs]
+
+/-- con-leche: none — `Frontend.denoteNList` is injective; `denoteEList_inj`'s
+twin at the NAME store, off `Arena/WFProofs.lean`'s `denoteN_inj`.  The
+`.projInfo` comparison (`denoteProjTable_inj`) needs it at `levelParams`. -/
+theorem denoteNList_inj {st : EStore} (hwf : StoreWF st) :
+    ∀ (as bs : List NIdx) (xs : List ConLeche.Name),
+      Frontend.denoteNList st.ns as = some xs →
+      Frontend.denoteNList st.ns bs = some xs → as = bs := by
+  obtain ⟨rk, hrk⟩ := hwf
+  intro as
+  induction as with
+  | nil =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteNList, Option.some.injEq] at ha
+    subst ha
+    cases bs with
+    | nil => rfl
+    | cons b bt =>
+      simp only [Frontend.denoteNList] at hb
+      cases hbh : denoteN st.ns b with
+      | none => rw [hbh] at hb; simp at hb
+      | some y =>
+        cases hbt : Frontend.denoteNList st.ns bt with
+        | none => rw [hbh, hbt] at hb; simp at hb
+        | some ys => rw [hbh, hbt] at hb; simp at hb
+  | cons a at_ ih =>
+    intro bs xs ha hb
+    simp only [Frontend.denoteNList] at ha
+    cases hah : denoteN st.ns a with
+    | none => rw [hah] at ha; simp at ha
+    | some x =>
+      cases hat : Frontend.denoteNList st.ns at_ with
+      | none => rw [hah, hat] at ha; simp at ha
+      | some xt =>
+        rw [hah, hat] at ha
+        simp only [Option.some.injEq] at ha
+        subst ha
+        cases bs with
+        | nil => simp only [Frontend.denoteNList] at hb; simp at hb
+        | cons b bt =>
+          simp only [Frontend.denoteNList] at hb
+          cases hbh : denoteN st.ns b with
+          | none => rw [hbh] at hb; simp at hb
+          | some y =>
+            cases hbt : Frontend.denoteNList st.ns bt with
+            | none => rw [hbh, hbt] at hb; simp at hb
+            | some yt =>
+              rw [hbh, hbt] at hb
+              simp only [Option.some.injEq, List.cons.injEq] at hb
+              obtain ⟨rfl, rfl⟩ := hb
+              rw [denoteN_inj hrk.nsWF hah hbh, ih bt _ hat hbt]
+
+/-- con-leche: none — a name-handle list and its denotation are equally
+long. -/
+theorem denoteNList_length {ns : NStore} :
+    ∀ (hs : List NIdx) (xs : List ConLeche.Name),
+      Frontend.denoteNList ns hs = some xs → hs.length = xs.length := by
+  intro hs
+  induction hs with
+  | nil => intro xs h; simp only [Frontend.denoteNList, Option.some.injEq] at h
+           subst h; rfl
+  | cons a as ih =>
+    intro xs h
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN ns a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        simp [ih ys has]
+
+/-- con-leche: none — DESIGN §8.3 at the expression store. -/
+theorem beq_of_denoteE {st : EStore} (hwf : StoreWF st) {i j : EIdx}
+    {x y : Expr} (hi : denoteE st i = some x) (hj : denoteE st j = some y) :
+    (i == j) = (x == y) := by
+  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+  constructor
+  · rintro rfl; rw [hi] at hj; exact Option.some.inj hj
+  · rintro rfl; exact denoteE_inj hwf hi hj
+
+/-- con-leche: none — a pinned name handle against a denoted one: the `==`
+of the twin is con-leche's `==` of the names. -/
+theorem beq_handle_eq {st : EStore} (hwf : StoreWF st) {c n : NIdx}
+    {nm y : ConLeche.Name} (hn : denoteN st.ns c = some nm)
+    (hy : denoteN st.ns n = some y) : (c == n) = (nm == y) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  cases hb : c == n with
+  | true =>
+    obtain rfl := eq_of_beq hb
+    rw [hn] at hy
+    obtain rfl := Option.some.inj hy
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (c == n) = true := beq_iff_eq.mpr (denoteN_inj hrk.nsWF hn hy)
+    rw [hb] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — and so a handle-LIST comparison is a structural one. -/
+theorem beq_of_denoteEList {st : EStore} (hwf : StoreWF st)
+    {as bs : List EIdx} {xs ys : List Expr}
+    (ha : Frontend.denoteEList st as = some xs)
+    (hb : Frontend.denoteEList st bs = some ys) : (as == bs) = (xs == ys) := by
+  cases h1 : as == bs with
+  | true =>
+    obtain rfl := eq_of_beq h1
+    rw [ha] at hb
+    obtain rfl := Option.some.inj hb
+    simp
+  | false =>
+    symm
+    rw [beq_eq_false_iff_ne]
+    intro heq
+    subst heq
+    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteEList_inj hwf _ _ _ ha hb)
+    rw [h1] at hne
+    exact absurd hne (by simp)
+
+/-- con-leche: none — a universe-argument list handle that denotes has a
+view. -/
+theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List Level}
+    (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
+  obtain ⟨v, hv, _⟩ := denoteLs_view hd
+  rw [hv]; rfl
+
+/-- con-leche: none — the `fvar` index projection read means the type
+projection reads too (one row of the `fvar` array): `TagFirst`'s
+`viewFVarIdx_of_viewFVarTy`, the other way. -/
+theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
+    (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
+  unfold EStore.viewFVarIdx at h
+  unfold EStore.viewFVarTy EStore.persGetFVarTy
+  unfold EStore.persGetFVarIdx at h
+  split at h
+  · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
+    obtain ⟨r, hr, -⟩ := h
+    exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
+  · split at h
+    · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
+      obtain ⟨r, hr, -⟩ := h
+      exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
+    · cases h
+
+/-- con-leche: none — arena infrastructure: `view_eq_of_tables` at the BINDER
+DATUM store.  `EStore.viewBM` reads `pers`, `scr` and `scratchOn` and nothing
+else, so a step that frames those three is a `BMExt` — which is what carries
+the round-5 `BMExt` conjunct of `InstLPSpec` across `substLMemoAt` /
+`substLsMemoAt`, the two steps of this walk that intern into the LEVEL store
+and frame the expression store by table equation rather than by `Ext`.
+
+`Bridge/Inductives/Rel.lean`'s `bmExt_of_tables` is the same three lines in
+another tier's file; the fact belongs beside `BMExt.intern` in
+`Bridge/StoreBM.lean` and a round that owns both files should collapse the
+two. -/
+theorem bmExt_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
+    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) :
+    BMExt st st' := by
+  intro mi m h
+  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, ho]
+  exact h
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — `derivedE` does not
 touch the state and returns the packed word; with `EStore.derived_exact` that
@@ -990,38 +1210,6 @@ record bought. -/
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with liftC := ∅ } ∧
         ∀ amount, LiftMemoA amount s'⌝⦄ := by
   mvcgen [liftClear]
-  rename_i s hs
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
-
-@[spec] theorem resetGet_spec (s₀ : AState) (k : EIdx × Nat) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetGet k
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.resetC[k]?⌝⦄ := by
-  mvcgen [resetGet]
-  spec_ro
-
-@[spec] theorem resetClear_spec (s₀ : AState) :
-    ⦃fun s => ⌜s = s₀⌝⦄ resetClear
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with resetC := ∅ } ∧
-        ResetMemoA s'⌝⦄ := by
-  mvcgen [resetClear]
-  rename_i s hs
-  subst hs
-  exact ⟨rfl, rfl, rfl, rfl, MemoOK.of_empty rfl⟩
-
-@[spec] theorem renameGet_spec (s₀ : AState) (k : EIdx × Nat) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameGet k
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.renameC[k]?⌝⦄ := by
-  mvcgen [renameGet]
-  spec_ro
-
-@[spec] theorem renameClear_spec (s₀ : AState) :
-    ⦃fun s => ⌜s = s₀⌝⦄ renameClear
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with renameC := ∅ } ∧
-        ∀ fn, RenameMemoA fn s'⌝⦄ := by
-  mvcgen [renameClear]
   rename_i s hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩

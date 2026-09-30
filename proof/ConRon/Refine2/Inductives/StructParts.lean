@@ -69,7 +69,6 @@ Bridges this file needs: `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
 
 attribute [local lockstep_simp] core_walk_fuel_abs
 
-
 /-! ## The level lists -/
 
 /-- `param_levels_go` ⊑ `paramLevels`' inner `go`, from the cursor on. -/

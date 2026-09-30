@@ -53,8 +53,6 @@ namespace ConRon.Bridge
 #print axioms RelE.lam
 #print axioms RelE.letE
 #print axioms RelE.proj
-#print axioms RelEO.ext
-#print axioms RelEL.ext
 
 /-! ## The state invariant -/
 

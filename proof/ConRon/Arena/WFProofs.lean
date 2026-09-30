@@ -7390,171 +7390,6 @@ theorem EStore.dropScratch_spec {st : EStore} (h : StoreWF st) :
    fun _ _ hp hd => EStore.dropScratch_denote_pers h hp hd,
    fun _ hp => denoteE_dropScratch_scr st hp⟩
 
-/-! ### `enableScratch`'s DENOTE half (task #97-P3-CoreWalks, the Checker
-tier's ask 3)
-
-`EStore.dropScratch_spec` carries three conjuncts — the invariant, the view
-and **the denotation** — and `EStore.enableScratch_spec` carried only two.
-The declaration bracket needs the third (`Bridge/Checker/**`'s
-`PExt.enterScratch`: a pin handle interned before the prelude must still
-denote after the scratch tier is opened), so here it is.
-
-**The proof is one observation and no induction of its own.**
-`enableScratch` and `dropScratch` differ in exactly one field, `scratchOn`,
-and both set the scratch tier to `empty`.  A handle's `view` therefore does
-not tell them apart: a persistent handle reads the same `pers` array in both,
-and a scratch handle reads `none` in both — in `dropScratch` because the flag
-is off, in `enableScratch` because the table it reads is empty.  So
-`denote… st.enableScratch = denote… st.dropScratch` **as functions**, at all
-four stores, and every `enableScratch` fact is the corresponding
-`dropScratch` fact rewritten.  That is also why this is the honest way to
-state it: the two operations really do have the same denotation, and the
-`scratchOn` flag is about what `intern` will do NEXT, not about what the
-store means. -/
-
-theorem NStore.view_enableScratch_eq_dropScratch (st : NStore) (i : NIdx) :
-    st.enableScratch.view i = st.dropScratch.view i := by
-  simp only [NStore.view, NStore.enableScratch, NStore.dropScratch]
-  split
-  · rfl
-  · simp [NTables.get_empty]
-
-theorem LStore.view_enableScratch_eq_dropScratch (st : LStore) (i : LIdx) :
-    st.enableScratch.view i = st.dropScratch.view i := by
-  simp only [LStore.view, LStore.enableScratch, LStore.dropScratch]
-  split
-  · rfl
-  · simp [LTables.get_empty]
-
-theorem LsStore.view_enableScratch_eq_dropScratch (st : LsStore) (i : LsIdx) :
-    st.enableScratch.view i = st.dropScratch.view i := by
-  simp only [LsStore.view, LsStore.enableScratch, LsStore.dropScratch]
-  split
-  · rfl
-  · simp [LsTables.get_empty]
-
-theorem EStore.viewBM_enableScratch_eq_dropScratch (st : EStore) (i : BMIdx) :
-    st.enableScratch.viewBM i = st.dropScratch.viewBM i := by
-  simp only [EStore.viewBM, EStore.enableScratch, EStore.dropScratch,
-    EStore.persGetBM]
-  split
-  · rfl
-  · simp [ETables.getBM_empty]
-
-theorem EStore.viewBindI_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
-    st.enableScratch.viewBindI i = st.dropScratch.viewBindI i := by
-  simp only [EStore.viewBindI, EStore.enableScratch, EStore.dropScratch,
-    EStore.persGetBind]
-  split
-  · rfl
-  · simp [ETables.getBind_empty]
-
-theorem EStore.viewBind_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
-    st.enableScratch.viewBind i = st.dropScratch.viewBind i := by
-  simp only [EStore.viewBind, EStore.viewBindI_enableScratch_eq_dropScratch,
-    EStore.viewBM_enableScratch_eq_dropScratch]
-
-theorem EStore.view_enableScratch_eq_dropScratch (st : EStore) (i : EIdx) :
-    st.enableScratch.view i = st.dropScratch.view i := by
-  simp only [EStore.view, EStore.viewBind_enableScratch_eq_dropScratch]
-  split
-  · rfl
-  · simp only [EStore.enableScratch, EStore.dropScratch]
-    split
-    · rfl
-    · simp [ETables.get_empty]
-
-/-! The projections through the nesting, so that the congruences below can
-rewrite with the store-level lemmas instead of unfolding the record. -/
-
-theorem LStore.ns_enableScratch (st : LStore) :
-    st.enableScratch.ns = st.ns.enableScratch := rfl
-theorem LStore.ns_dropScratch (st : LStore) :
-    st.dropScratch.ns = st.ns.dropScratch := rfl
-theorem LsStore.ls_enableScratch (st : LsStore) :
-    st.enableScratch.ls = st.ls.enableScratch := rfl
-theorem LsStore.ls_dropScratch (st : LsStore) :
-    st.dropScratch.ls = st.ls.dropScratch := rfl
-theorem EStore.lss_enableScratch (st : EStore) :
-    st.enableScratch.lss = st.lss.enableScratch := rfl
-theorem EStore.lss_dropScratch (st : EStore) :
-    st.dropScratch.lss = st.lss.dropScratch := rfl
-theorem EStore.ls_enableScratch (st : EStore) :
-    st.enableScratch.ls = st.ls.enableScratch := rfl
-theorem EStore.ls_dropScratch (st : EStore) :
-    st.dropScratch.ls = st.ls.dropScratch := rfl
-theorem EStore.ns_enableScratch (st : EStore) :
-    st.enableScratch.ns = st.ns.enableScratch := rfl
-theorem EStore.ns_dropScratch (st : EStore) :
-    st.dropScratch.ns = st.ns.dropScratch := rfl
-
-theorem denoteNAux_enableScratch_eq (st : NStore) :
-    ∀ (f : Nat) (i : NIdx),
-      denoteNAux st.enableScratch f i = denoteNAux st.dropScratch f i := by
-  intro f
-  induction f with
-  | zero => intro _; rfl
-  | succ k ih =>
-    intro i
-    simp only [denoteNAux, NStore.view_enableScratch_eq_dropScratch, ih]
-
-theorem denoteN_enableScratch_eq (st : NStore) (i : NIdx) :
-    denoteN st.enableScratch i = denoteN st.dropScratch i := by
-  show denoteNAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
-  rw [denoteNAux_enableScratch_eq]
-  rfl
-
-theorem denoteLAux_enableScratch_eq (st : LStore) :
-    ∀ (f : Nat) (i : LIdx),
-      denoteLAux st.enableScratch f i = denoteLAux st.dropScratch f i := by
-  intro f
-  induction f with
-  | zero => intro _; rfl
-  | succ k ih =>
-    intro i
-    simp only [denoteLAux, LStore.view_enableScratch_eq_dropScratch, ih,
-      LStore.ns_enableScratch, LStore.ns_dropScratch, denoteN_enableScratch_eq]
-
-theorem denoteL_enableScratch_eq (st : LStore) (i : LIdx) :
-    denoteL st.enableScratch i = denoteL st.dropScratch i := by
-  show denoteLAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
-  rw [denoteLAux_enableScratch_eq]
-  rfl
-
-theorem denoteLList_enableScratch_eq (st : LStore) :
-    ∀ (us : List LIdx),
-      denoteLList st.enableScratch us = denoteLList st.dropScratch us
-  | [] => rfl
-  | u :: us => by
-    simp only [denoteLList, denoteL_enableScratch_eq,
-      denoteLList_enableScratch_eq st us]
-
-theorem denoteLs_enableScratch_eq (st : LsStore) (i : LsIdx) :
-    denoteLs st.enableScratch i = denoteLs st.dropScratch i := by
-  simp only [denoteLs, LsStore.view_enableScratch_eq_dropScratch,
-    LsStore.ls_enableScratch, LsStore.ls_dropScratch,
-    denoteLList_enableScratch_eq]
-
-theorem denoteEAux_enableScratch_eq (st : EStore) :
-    ∀ (f : Nat) (i : EIdx),
-      denoteEAux st.enableScratch f i = denoteEAux st.dropScratch f i := by
-  intro f
-  induction f with
-  | zero => intro _; rfl
-  | succ k ih =>
-    intro i
-    simp only [denoteEAux, EStore.view_enableScratch_eq_dropScratch, ih,
-      EStore.ls_enableScratch, EStore.ls_dropScratch, EStore.ns_enableScratch,
-      EStore.ns_dropScratch, EStore.lss_enableScratch, EStore.lss_dropScratch,
-      denoteL_enableScratch_eq, denoteN_enableScratch_eq,
-      denoteLs_enableScratch_eq]
-
-theorem denoteE_enableScratch_eq (st : EStore) (i : EIdx) :
-    denoteE st.enableScratch i = denoteE st.dropScratch i := by
-  show denoteEAux st.enableScratch (st.enableScratch.nodeCount + 1) i = _
-  rw [denoteEAux_enableScratch_eq]
-  rfl
-
 /-! ### The same, for the three stores underneath
 
 Names, levels and level lists have the identical shape; their `Ext`,
@@ -8323,12 +8158,6 @@ theorem EStore.internLevelsPersistent_ext (st : EStore) (w : LsNodeView) :
   Ext.of_view_mono (LsStore.internPersistent_ext st.lss w) (fun _ _ h => h)
     (Nat.le_refl _)
 
-theorem EStore.scratchOn_internName (st : EStore) (w : NNodeView) :
-    (st.internName w).1.scratchOn = st.scratchOn := rfl
-theorem EStore.scratchOn_internLevel (st : EStore) (w : LNodeView) :
-    (st.internLevel w).1.scratchOn = st.scratchOn := rfl
-theorem EStore.scratchOn_internLevels (st : EStore) (w : LsNodeView) :
-    (st.internLevels w).1.scratchOn = st.scratchOn := rfl
 
 theorem EStore.scratchOn_internNamePersistent (st : EStore) (w : NNodeView) :
     (st.internNamePersistent w).1.scratchOn = st.scratchOn := rfl
@@ -8487,11 +8316,6 @@ for concurrent rounds).
 namespace ConRon.Arena
 
 
-theorem NStore.scratchOn_intern (st : NStore) (w : NNodeView) :
-    (st.intern w).1.scratchOn = st.scratchOn := by
-  simp only [NStore.intern]
-  repeat (first | rfl | split)
-
 theorem NStore.derived_congr {st st' : NStore} {i : NIdx} {v : NNodeView}
     (hv : st.view i = some v) (hon : st'.scratchOn = st.scratchOn)
     (hp : ∀ j x, st.pers.get j = some x → st'.pers.derAt j = st.pers.derAt j)
@@ -8506,106 +8330,9 @@ theorem NStore.derived_congr {st st' : NStore} {i : NIdx} {v : NNodeView}
       exact hs i v (by rw [← NStore.view_scr (by simpa using hpp) hoc]; exact hv)
     · rfl
 
-theorem NStore.derived_intern_eq {st : NStore} (h : NStoreWF st) (w : NNodeView)
-    {i : NIdx} {v : NNodeView} (hi : st.view i = some v) :
-    (st.intern w).1.derived i = st.derived i := by
-  obtain ⟨rk, hwf⟩ := h
-  simp only [NStore.intern]
-  split
-  · rfl
-  · split
-    · split
-      · rfl
-      · exact NStore.derived_congr hi rfl (fun j x hj => rfl)
-          (fun j x hj => NTables.derAt_push_of_get hwf.sizedS hj)
-    · exact NStore.derived_congr hi rfl
-        (fun j x hj => NTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
-
 /-! ## The nested name intern keeps the arena well formed -/
 
-theorem LStore.internName_wf {st : LStore} (h : LStoreWF st) {v : NNodeView}
-    (hv : st.ns.ViewOK v) (hcap : st.ns.capOK v) :
-    LStoreWF (st.internName v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  refine ⟨rk, ?_⟩
-  have hns : (st.internName v).1.ns = (st.ns.intern v).1 := rfl
-  constructor
-  case ns => rw [hns]; exact NStore.intern_wf hwf.ns hv hcap
-  case childOK => exact hwf.childOK
-  case nchildOK =>
-    intro i u hi c hc
-    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
-    rw [hns]
-    have := (hwf.nchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp this
-    rw [NStore.view_intern_mono _ _ hx]; rfl
-  case rankP => exact hwf.rankP
-  case rankS => exact hwf.rankS
-  case consP => exact hwf.consP
-  case consS => exact hwf.consS
-  case fresh => exact hwf.fresh
-  case derExact =>
-    intro i u hi
-    have hcongr : (st.internName v).1.derOfView u = st.derOfView u := by
-      refine LStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
-      have hs := (hwf.nchildOK i u hi c hc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
-      show (st.ns.intern v).1.derived c = st.ns.derived c
-      exact NStore.derived_intern_eq hwf.ns v hx
-    show st.derived i = _
-    rw [hcongr]
-    exact hwf.derExact i u hi
-  case sizedP => exact hwf.sizedP
-  case sizedS => exact hwf.sizedS
-  case capP => exact hwf.capP
-  case capS => exact hwf.capS
-  case scrOff => exact hwf.scrOff
-  case sync => rw [hns, NStore.scratchOn_intern]; exact hwf.sync
-
-theorem LsStore.internName_wf {st : LsStore} (h : LsStoreWF st) {v : NNodeView}
-    (hv : st.ls.ns.ViewOK v) (hcap : st.ls.ns.capOK v) :
-    LsStoreWF (st.internName v).1 := by
-  refine { h with ls := LStore.internName_wf h.ls hv hcap, derExact := ?_ }
-  intro i u hi
-  have hc : (st.internName v).1.derOfView u = st.derOfView u :=
-    LsStore.derOfView_congr (st' := (st.internName v).1) u (fun c _ => rfl)
-  show st.derived i = _
-  rw [hc]
-  exact h.derExact i u hi
-
-theorem EStore.internName_wf {st : EStore} (h : StoreWF st) {v : NNodeView}
-    (hv : st.ns.ViewOK v) (hcap : st.ns.capOK v) :
-    StoreWF (st.internName v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  have hns : (st.internName v).1.ns = (st.ns.intern v).1 := rfl
-  refine ⟨rk, { hwf with lss := ?_, nchildOK := ?_, derExact := ?_ }⟩
-  · exact LsStore.internName_wf hwf.lss hv hcap
-  · intro i u hi c hc
-    refine ⟨?_, (hwf.nchildOK i u hi c hc).2⟩
-    rw [hns]
-    have hs := (hwf.nchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
-    rw [NStore.view_intern_mono _ _ hx]; rfl
-  · intro i u hi
-    have hcongr : (st.internName v).1.derOfView u = st.derOfView u := by
-      refine EStore.derOfView_congr (fun c _ => rfl) (fun c hc => ?_)
-        (fun c _ => rfl) (fun c _ => rfl)
-      have hs := (hwf.nchildOK i u hi c hc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hs
-      show (st.ns.intern v).1.derived c = st.ns.derived c
-      obtain ⟨rkl, hl⟩ := hwf.lss.ls
-      exact NStore.derived_intern_eq hl.ns v hx
-    show st.derived i = _
-    rw [hcongr]
-    exact hwf.derExact i u hi
-
-
 /-! ## The nested level intern keeps the arena well formed -/
-
-theorem LStore.scratchOn_intern (st : LStore) (w : LNodeView) :
-    (st.intern w).1.scratchOn = st.scratchOn := by
-  simp only [LStore.intern]
-  repeat (first | rfl | split)
 
 theorem LStore.derived_congr {st st' : LStore} {i : LIdx} {v : LNodeView}
     (hv : st.view i = some v) (hon : st'.scratchOn = st.scratchOn)
@@ -8621,83 +8348,7 @@ theorem LStore.derived_congr {st st' : LStore} {i : LIdx} {v : LNodeView}
       exact hs i v (by rw [← LStore.view_scr (by simpa using hpp) hoc]; exact hv)
     · rfl
 
-theorem LStore.derived_intern_eq {st : LStore} (h : LStoreWF st) (w : LNodeView)
-    {i : LIdx} {v : LNodeView} (hi : st.view i = some v) :
-    (st.intern w).1.derived i = st.derived i := by
-  obtain ⟨rk, hwf⟩ := h
-  simp only [LStore.intern]
-  split
-  · rfl
-  · split
-    · split
-      · rfl
-      · exact LStore.derived_congr hi rfl (fun j x hj => rfl)
-          (fun j x hj => LTables.derAt_push_of_get hwf.sizedS hj)
-    · exact LStore.derived_congr hi rfl
-        (fun j x hj => LTables.derAt_push_of_get hwf.sizedP hj) (fun j x hj => rfl)
-
-theorem LsStore.internLevel_wf {st : LsStore} (h : LsStoreWF st) {v : LNodeView}
-    (hv : st.ls.ViewOK v) (hcap : st.ls.capOK v) :
-    LsStoreWF (st.internLevel v).1 := by
-  have hls : (st.internLevel v).1.ls = (st.ls.intern v).1 := rfl
-  refine { h with ls := ?_, lchildOK := ?_, derExact := ?_, sync := ?_ }
-  · rw [hls]; exact LStore.intern_wf_of_sync h.ls (LStoreWF.scratchSync h.ls) hv hcap
-  · intro i u hi c hc
-    refine ⟨?_, (h.lchildOK i u hi c hc).2⟩
-    rw [hls]
-    have hsm := (h.lchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-    rw [LStore.view_intern_mono _ _ hx]; rfl
-  · intro i u hi
-    have hc : (st.internLevel v).1.derOfView u = st.derOfView u := by
-      refine LsStore.derOfView_congr (st' := (st.internLevel v).1) u (fun c hcc => ?_)
-      have hsm := (h.lchildOK i u hi c hcc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-      show (st.ls.intern v).1.derived c = st.ls.derived c
-      exact LStore.derived_intern_eq h.ls v hx
-    show st.derived i = _
-    rw [hc]
-    exact h.derExact i u hi
-  · rw [hls, LStore.scratchOn_intern]; exact h.sync
-
-theorem EStore.internLevel_wf {st : EStore} (h : StoreWF st) {v : LNodeView}
-    (hv : st.ls.ViewOK v) (hcap : st.ls.capOK v) :
-    StoreWF (st.internLevel v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  have hls : (st.internLevel v).1.ls = (st.ls.intern v).1 := rfl
-  have hnsE : (st.internLevel v).1.ns = st.ns := LStore.ns_intern st.ls v
-  refine ⟨rk, { hwf with lss := ?_, lchildOK := ?_, nchildOK := ?_, derExact := ?_ }⟩
-  · exact LsStore.internLevel_wf hwf.lss hv hcap
-  · intro i u hi c hc
-    rw [hnsE]
-    exact hwf.nchildOK i u hi c hc
-  · intro i u hi c hc
-    refine ⟨?_, (hwf.lchildOK i u hi c hc).2⟩
-    rw [hls]
-    have hsm := (hwf.lchildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-    rw [LStore.view_intern_mono _ _ hx]; rfl
-  · intro i u hi
-    have hcg : (st.internLevel v).1.derOfView u = st.derOfView u := by
-      refine EStore.derOfView_congr (fun c _ => rfl)
-        (fun c _ => by show (st.ls.intern v).1.ns.derived c = st.ns.derived c
-                       rw [LStore.ns_intern]; rfl)
-        (fun c hcc => ?_) (fun c _ => rfl)
-      have hsm := (hwf.lchildOK i u hi c hcc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-      show (st.ls.intern v).1.derived c = st.ls.derived c
-      obtain ⟨rkl, hl⟩ := hwf.lss.ls
-      exact LStore.derived_intern_eq ⟨rkl, hl⟩ v hx
-    show st.derived i = _
-    rw [hcg]
-    exact hwf.derExact i u hi
-
 /-! ## The nested level-list intern keeps the arena well formed -/
-
-theorem LsStore.scratchOn_intern (st : LsStore) (w : LsNodeView) :
-    (st.intern w).1.scratchOn = st.scratchOn := by
-  simp only [LsStore.intern]
-  repeat (first | rfl | split)
 
 theorem LsStore.derived_congr {st st' : LsStore} {i : LsIdx} {v : LsNodeView}
     (hv : st.view i = some v) (hon : st'.scratchOn = st.scratchOn)
@@ -8712,63 +8363,6 @@ theorem LsStore.derived_congr {st st' : LsStore} {i : LsIdx} {v : LsNodeView}
     · rename_i hoc
       exact hs i v (by rw [← LsStore.view_scr (by simpa using hpp) hoc]; exact hv)
     · rfl
-
-theorem LsStore.derived_intern_eq {st : LsStore} (h : LsStoreWF st) (w : LsNodeView)
-    {i : LsIdx} {v : LsNodeView} (hi : st.view i = some v) :
-    (st.intern w).1.derived i = st.derived i := by
-  simp only [LsStore.intern]
-  split
-  · rfl
-  · split
-    · split
-      · rfl
-      · exact LsStore.derived_congr hi rfl (fun j x hj => rfl)
-          (fun j x hj => LsTables.derAt_push_of_get h.sizedS hj)
-    · exact LsStore.derived_congr hi rfl
-        (fun j x hj => LsTables.derAt_push_of_get h.sizedP hj) (fun j x hj => rfl)
-
-theorem EStore.internLevels_wf {st : EStore} (h : StoreWF st) {v : LsNodeView}
-    (hv : st.lss.ViewOK v) (hcap : st.lss.capOK v) :
-    StoreWF (st.internLevels v).1 := by
-  obtain ⟨rk, hwf⟩ := h
-  have hlss : (st.internLevels v).1.lss = (st.lss.intern v).1 := rfl
-  have hlsE : (st.internLevels v).1.ls = st.ls := LsStore.ls_intern st.lss v
-  have hnsE : (st.internLevels v).1.ns = st.ns := by
-    show (st.lss.intern v).1.ls.ns = st.lss.ls.ns
-    rw [LsStore.ls_intern]
-  refine ⟨rk, { hwf with
-    lss := ?_, nchildOK := ?_, lchildOK := ?_, lschildOK := ?_,
-    derExact := ?_, sync := ?_ }⟩
-  · exact LsStore.intern_wf_of_sync hwf.lss (LsStoreWF.scratchSync hwf.lss) hv hcap
-  · intro i u hi c hc
-    rw [hnsE]
-    exact hwf.nchildOK i u hi c hc
-  · intro i u hi c hc
-    rw [hlsE]
-    exact hwf.lchildOK i u hi c hc
-  · intro i u hi c hc
-    refine ⟨?_, (hwf.lschildOK i u hi c hc).2⟩
-    rw [hlss]
-    have hsm := (hwf.lschildOK i u hi c hc).1
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-    rw [LsStore.view_intern_mono _ _ hx]; rfl
-  · intro i u hi
-    have hcg : (st.internLevels v).1.derOfView u = st.derOfView u := by
-      refine EStore.derOfView_congr (fun c _ => rfl)
-        (fun c _ => by show (st.lss.intern v).1.ls.ns.derived c = st.ns.derived c
-                       rw [LsStore.ls_intern]; rfl)
-        (fun c _ => by show (st.lss.intern v).1.ls.derived c = st.ls.derived c
-                       rw [LsStore.ls_intern]; rfl)
-        (fun c hcc => ?_)
-      have hsm := (hwf.lschildOK i u hi c hcc).1
-      obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hsm
-      show (st.lss.intern v).1.derived c = st.lss.derived c
-      exact LsStore.derived_intern_eq hwf.lss v hx
-    show st.derived i = _
-    rw [hcg]
-    exact hwf.derExact i u hi
-  · rw [hlss, LsStore.scratchOn_intern]; exact hwf.sync
-
 
 /-! ### ============================================================
     `internPersistent` AT A LIVE SCRATCH TIER — the promote window
@@ -9749,7 +9343,6 @@ theorem EStore.wf_push_pers' {st st' : EStore} {rk : EIdx → Nat} {w : ENodeVie
   case scrOff => intro hoff; rw [hon] at hoff; rw [hscr]; exact h.scrOff hoff
 
 
-
 /-! ### The three nested promote-interns, lifted
 
 `Arena/Promote.lean`'s `internPersistentN` / `internPersistentL` /
@@ -10181,10 +9774,6 @@ that view is interned, never a wrong denotation and never a wrong verdict.
 `Bridge/Promote/StoreP.lean`'s `EWFAtP` keeps `consS` as an `↔`, so
 `EStore.internPersistent_spec` there is false as stated at a binder view whose
 datum is not yet persistent; see this task's DESIGN section. -/
-
-theorem ETables.getBM_eq_none_of_size {t : ETables} {i : BMIdx}
-    (hix : i.idxNat = t.bms.size) : t.getBM i = none := by
-  simp [ETables.getBM, hix, Tbl.node?_size]
 
 /-! ## THE PROMOTE WINDOW'S DATUM AND NODE APPENDS (task #97-P5-Specs round 3)
 

@@ -623,7 +623,7 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
 
 /-- con-leche: none — arena infrastructure; a block's denotation survives an
 append (the lanes above have their own copies; this tier cannot import them). -/
-theorem denoteCIList_promote_ext {st st' : EStore} (hx : Ext st st') :
+theorem denoteCIList_mono {st st' : EStore} (hx : Ext st st') :
     ∀ (cs : List IConstantInfo) (xs : List ConstantInfo),
       Frontend.denoteCIList st cs = some xs → Frontend.denoteCIList st' cs = some xs := by
   intro cs
@@ -701,7 +701,7 @@ theorem promoteCIList_step {fuel : Nat} : ∀ (cs : List IConstantInfo) {m m' : 
           rw [ha, has] at hxs
           simp only [Option.some.injEq] at hxs
           subst hxs
-          rw [denoteCI_ext (hd1 a ha) hx2, hd2 as (denoteCIList_promote_ext hx1 cs as has)]
+          rw [denoteCI_ext (hd1 a ha) hx2, hd2 as (denoteCIList_mono hx1 cs as has)]
 
 /-! ## The install/check seam -/
 

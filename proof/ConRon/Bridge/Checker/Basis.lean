@@ -760,9 +760,9 @@ theorem erasePwEq_run :
     obtain ⟨rk, hrk⟩ := hwf'
     simp only [Arena.erasePwEq] at hrun
     obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨rfl, hva⟩ := viewE_run g1
+    obtain ⟨rfl, hva⟩ := view_run g1
     obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
-    obtain ⟨rfl, hvb⟩ := viewE_run g2
+    obtain ⟨rfl, hvb⟩ := view_run g2
     cases va <;> cases vb
     all_goals first
       | obtain rfl := denote_bvar_inv hwf hva hx
