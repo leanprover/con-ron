@@ -1264,11 +1264,25 @@ theorem denoteCI_inj_ind {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInf
     cases he' : denoteN st.ns cap'.etaCtor with
     | none => rw [he'] at hc'; simp at hc'
     | some ct' =>
-      rw [he] at hc; rw [he'] at hc'
+      cases ha : Frontend.denoteNList st.ns cap.all with
+      | none => rw [he, ha] at hc; simp at hc
+      | some al =>
+      cases ha' : Frontend.denoteNList st.ns cap'.all with
+      | none => rw [he', ha'] at hc'; simp at hc'
+      | some al' =>
+      cases hk : Frontend.denoteNList st.ns cap.ctors with
+      | none => rw [he, ha, hk] at hc; simp at hc
+      | some ks =>
+      cases hk' : Frontend.denoteNList st.ns cap'.ctors with
+      | none => rw [he', ha', hk'] at hc'; simp at hc'
+      | some ks' =>
+      rw [he, ha, hk] at hc; rw [he', ha', hk'] at hc'
       rw [← hc'] at hc
       simp only [Option.some.injEq, IndCaps.mk.injEq] at hc
-      obtain ⟨e1, rfl, e3, e4, e5, e6, e7, e8⟩ := hc
+      obtain ⟨e1, rfl, e3, e4, e5, e6, e7, e8, rfl, e10, rfl⟩ := hc
       have := denoteN_inj hrk.nsWF he he'
+      have hA := denoteNList_inj hwf _ _ _ ha ha'
+      have hK := denoteNList_inj hwf _ _ _ hk hk'
       cases cap; cases cap'
       simp_all
 
