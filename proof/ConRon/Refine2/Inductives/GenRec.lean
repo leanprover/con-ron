@@ -1599,4 +1599,16 @@ theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
   funext r
   cases r <;> rfl
 
+/-- `class_gen_rec_ty` ⊑ `classGenRecTy`. -/
+@[lockstep] theorem class_gen_rec_ty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g)
+    (c : Std.U64) :
+    LS pers (fun a b => b = a.map absEIdx)
+      (arena.inductives.gen_rec.class_gen_rec_ty pers st g c) lst
+      (classGenRecTy (absClassGen g) (absU c)) := by
+  have hbm := hg.bm
+  have hpre := hg.pre
+  rw [arena.inductives.gen_rec.class_gen_rec_ty, classGenRecTy]
+  lockstep
+
 end ConRon.Refine2
