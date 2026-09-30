@@ -1628,4 +1628,130 @@ def absCtorsLL (v : alloc.vec.Vec (alloc.vec.Vec (arena.env.IConstantVal × Std.
       if_neg (show ¬ i ≥ alloc.vec.Vec.len css by scalar_tac), nestUniform]
     lockstep
 
+/-! ## The seeds' low part: `nest_seed_param(s)`, `nest_seed_of`, `seed_fuel` -/
+
+/-- One `List.mapM` step behind an accumulator, the element's action kept whole. -/
+theorem mapM_cons_acc {α β : Type} (F : α → AM β) (a : α) (l : List α) (w : List β) :
+    ((a :: l).mapM F >>= fun r => pure (w ++ r)) =
+      (F a >>= fun b => l.mapM F >>= fun bs => pure (w ++ b :: bs)) := by
+  simp [List.mapM_cons]
+
+/-- `nest_seed_param` — `nestSeedOf`'s per-parameter lambda. -/
+@[lockstep] theorem nest_seed_param_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (holes : alloc.vec.Vec arena.handle.EIdx) (x : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.inductives.positivity.nest_seed_param pers st ctx holes x) lst
+      (do
+        let y ← replaceApps (absNIdxL ctx.names) (absLsIdx ctx.lvls) 0 (absU ctx.n_p) (absEIdx x)
+        replaceFVars (.keyMap (absEIdxL ctx.params) (absEIdxL holes)) y) := by
+  rw [arena.inductives.positivity.nest_seed_param]
+  lockstep
+
+/-- `nest_seed_params` ⊑ `List.mapM` of the lambda from the cursor on, behind
+the accumulator. -/
+theorem nest_seed_params_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
+    (holes ds : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.nest_seed_params pers st ctx holes ds i out) lst
+        (do
+          let r ← (absEIdxLFrom ds i).mapM fun x => do
+            let y ← replaceApps (absNIdxL ctx.names) (absLsIdx ctx.lvls) 0 (absU ctx.n_p) x
+            replaceFVars (.keyMap (absEIdxL ctx.params) (absEIdxL holes)) y
+          pure (absEIdxL out ++ r)) := by
+  intro i st lst out hrel hinv
+  refine ls_cursor_acc ds absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l => do
+      let r ← l.mapM fun x => do
+        let y ← replaceApps (absNIdxL ctx.names) (absLsIdx ctx.lvls) 0 (absU ctx.n_p) x
+        replaceFVars (.keyMap (absEIdxL ctx.params) (absEIdxL holes)) y
+      pure (absEIdxL w ++ r))
+    (fun st k w => arena.inductives.positivity.nest_seed_params pers st ctx holes ds k w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst k w hn hrel hinv
+    rw [arena.inductives.positivity.nest_seed_params.eq_def,
+      if_pos (show k ≥ alloc.vec.Vec.len ds by scalar_tac)]
+    simp only [List.mapM_nil, pure_bind, List.append_nil]
+    lockstep
+  · intro st lst k w hk hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize) (w' : alloc.vec.Vec arena.handle.EIdx),
+        j.val = k.val + 1 → AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun a b => b = absEIdxL a)
+          (arena.inductives.positivity.nest_seed_params pers st' ctx holes ds j w') lst'
+          (do
+            let r ← (absEIdxLFrom ds j).mapM fun x => do
+              let y ← replaceApps (absNIdxL ctx.names) (absLsIdx ctx.lvls) 0 (absU ctx.n_p) x
+              replaceFVars (.keyMap (absEIdxL ctx.params) (absEIdxL holes)) y
+            pure (absEIdxL w' ++ r)) := ih
+    clear ih
+    rw [arena.inductives.positivity.nest_seed_params.eq_def,
+      if_neg (show ¬ k ≥ alloc.vec.Vec.len ds by scalar_tac), mapM_cons_acc]
+    unfold arena.inductives.positivity.nest_seed_param
+    lockstep
+
+@[lockstep] theorem nest_seed_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (ctx : arena.inductives.positivity.NestCtx)
+    (holes : alloc.vec.Vec arena.handle.EIdx) (iname : arena.handle.NIdx)
+    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) (npc : Std.U64) :
+    LS pers (fun a b => b = (absNestKey a.1, absU a.2))
+      (arena.inductives.positivity.nest_seed_of pers st ctx holes iname us ds npc) lst
+      (nestSeedOf (absNestCtx ctx) (absEIdxL holes) (absNIdx iname) (absLsIdx us)
+        (absEIdxL ds) (absU npc)) := by
+  have hp := nest_seed_params_acc (pers := pers) ctx holes ds
+  have hp' : ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.positivity.nest_seed_params pers st ctx holes ds 0#usize
+          (alloc.vec.Vec.new arena.handle.EIdx)) lst
+        ((absEIdxL ds).mapM fun x => do
+          let y ← replaceApps (absNIdxL ctx.names) (absLsIdx ctx.lvls) 0 (absU ctx.n_p) x
+          replaceFVars (.keyMap (absEIdxL ctx.params) (absEIdxL holes)) y) := by
+    intro st lst hrel hinv
+    have h := hp 0#usize st lst (alloc.vec.Vec.new arena.handle.EIdx) hrel hinv
+    simpa [absEIdxL, alloc.vec.Vec.new] using h
+  clear hp
+  rw [arena.inductives.positivity.nest_seed_of, nestSeedOf]
+  lockstep
+
+/-- `seed_fuel` ⊑ `nestSeeds`' `foldlM` from the cursor on, at the
+accumulator. -/
+@[lockstep] theorem seed_fuel_ls {pers st} (ds : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) (acc : Std.U64) lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absU a)
+        (arena.inductives.positivity.seed_fuel pers st ds i acc) st lst
+        ((absEIdxLFrom ds i).foldlM (fun a d => do
+          let w ← whnfWalkFuel d
+          pure (max a w)) (absU acc)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ds.val.length
+    (fun i (_ : Unit) => ∀ (acc : Std.U64) lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absU a)
+        (arena.inductives.positivity.seed_fuel pers st ds i acc) st lst
+        ((absEIdxLFrom ds i).foldlM (fun a d => do
+          let w ← whnfWalkFuel d
+          pure (max a w)) (absU acc))) ?_ ?_ i ()
+  · intro i _ hn acc lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.seed_fuel.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ds by scalar_tac), absEIdxLFrom,
+      List.drop_eq_nil_of_le hn, List.map_nil, List.foldlM_nil]
+    lockstep
+  · intro i _ hlt ih acc lst hrel hinv
+    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ (acc : Std.U64) lst,
+        AStateRel₀ pers st lst → AStateInv pers st →
+        LSR pers (fun a b => b = absU a)
+          (arena.inductives.positivity.seed_fuel pers st ds j acc) st lst
+          ((absEIdxLFrom ds j).foldlM (fun a d => do
+            let w ← whnfWalkFuel d
+            pure (max a w)) (absU acc)) :=
+      fun j hj => ih j () hj
+    clear ih
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.seed_fuel.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ds by scalar_tac), absEIdxLFrom,
+      List.drop_eq_getElem_cons hlt, List.map_cons, List.foldlM_cons]
+    simp only [bind_assoc, pure_bind]
+    lockstep
+
 end ConRon.Refine2
