@@ -733,4 +733,264 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
     have := cv_tas.property
     scalar_tac
 
+theorem class_former_tys_acc {pers} {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.gen_rec.class_former_tys pers st rf cv_tas ms i out) lst
+        (List.mapM.loop (classFormerTy lf (cv_tas.val.map absIConstantVal))
+          ((ms.val.drop i.val).map absTargetMajor) (absEIdxL out).reverse) := by
+  intro i out st lst hrel hinv
+  refine ls_cursor_acc ms absTargetMajor
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l =>
+      List.mapM.loop (classFormerTy lf (cv_tas.val.map absIConstantVal)) l (absEIdxL w).reverse)
+    (fun st i w => arena.inductives.gen_rec.class_former_tys pers st rf cv_tas ms i w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.gen_rec.class_former_tys.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac)]
+    simp only [List.mapM.loop, List.reverse_reverse]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.inductives.gen_rec.class_former_tys.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)]
+    simp only [List.mapM.loop]
+    lockstep
+
+@[lockstep] theorem class_former_tys_ls {pers st lst} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf)
+    (cv_tas : alloc.vec.Vec arena.env.IConstantVal)
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.gen_rec.class_former_tys pers st rf cv_tas ms 0#usize (alloc.vec.Vec.new _))
+      lst ((ms.val.map absTargetMajor).mapM (classFormerTy lf (cv_tas.val.map absIConstantVal))) := by
+  have h := class_former_tys_acc (pers := pers) hfe cv_tas ms 0#usize (alloc.vec.Vec.new _) st lst
+    hrel hinv
+  simpa [absEIdxL, alloc.vec.Vec.new, List.mapM] using h
+
+/-! ## The class keys: `class_key_canon`, `annotate_list`, `class_key_of`, `class_keys_of` -/
+
+theorem class_key_canon_acc {pers} (params : alloc.vec.Vec arena.handle.EIdx)
+    (k : arena.inductives.class_read.ClassKey) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absClassKey a)
+        (arena.inductives.gen_rec.class_key_canon pers st params k i out) lst
+        (do
+          let ds ← List.mapM.loop (targetCanonParams (absEIdxL params))
+            ((k.ds.val.drop i.val).map absEIdx) (absEIdxL out).reverse
+          pure { absClassKey k with ds := ds }) := by
+  intro i out st lst hrel hinv
+  refine ls_cursor_acc k.ds absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l => do
+      let ds ← List.mapM.loop (targetCanonParams (absEIdxL params)) l (absEIdxL w).reverse
+      pure { absClassKey k with ds := ds })
+    (fun st i w => arena.inductives.gen_rec.class_key_canon pers st params k i w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.gen_rec.class_key_canon.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len k.ds by scalar_tac)]
+    simp only [List.mapM.loop, List.reverse_reverse]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.inductives.gen_rec.class_key_canon.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len k.ds by scalar_tac)]
+    simp only [List.mapM.loop, bind_assoc]
+    lockstep
+
+@[lockstep] theorem class_key_canon_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (params : alloc.vec.Vec arena.handle.EIdx)
+    (k : arena.inductives.class_read.ClassKey) :
+    LS pers (fun a b => b = absClassKey a)
+      (arena.inductives.gen_rec.class_key_canon pers st params k 0#usize (alloc.vec.Vec.new _)) lst
+      (classKeyCanon (absEIdxL params) (absClassKey k)) := by
+  have h := class_key_canon_acc (pers := pers) params k 0#usize (alloc.vec.Vec.new _) st lst
+    hrel hinv
+  simpa [absEIdxL, alloc.vec.Vec.new, List.mapM, classKeyCanon, absClassKey] using h
+
+theorem annotate_list_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) (d : Std.U64)
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absEIdxL a)
+        (arena.inductives.gen_rec.annotate_list pers st mode rf d xs i out) lst
+        (List.mapM.loop (fun x => annotateCore (ConRon.Refine.absMode mode) lf checkFuel (absU d) x)
+          ((xs.val.drop i.val).map absEIdx) (absEIdxL out).reverse) := by
+  intro i out st lst hrel hinv
+  refine ls_cursor_acc xs absEIdx
+    (fun (w : alloc.vec.Vec arena.handle.EIdx) l =>
+      List.mapM.loop (fun x => annotateCore (ConRon.Refine.absMode mode) lf checkFuel (absU d) x) l
+        (absEIdxL w).reverse)
+    (fun st i w => arena.inductives.gen_rec.annotate_list pers st mode rf d xs i w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.gen_rec.annotate_list.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.mapM.loop, List.reverse_reverse]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.inductives.gen_rec.annotate_list.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)]
+    simp only [List.mapM.loop]
+    lockstep
+
+@[lockstep] theorem annotate_list_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (d : Std.U64)
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdxL a)
+      (arena.inductives.gen_rec.annotate_list pers st mode rf d xs 0#usize (alloc.vec.Vec.new _)) lst
+      ((absEIdxL xs).mapM fun x => annotateCore (ConRon.Refine.absMode mode) lf checkFuel (absU d) x) := by
+  have h := annotate_list_acc (pers := pers) (mode := mode) hfe d xs 0#usize (alloc.vec.Vec.new _)
+    st lst hrel hinv
+  simpa [absEIdxL, alloc.vec.Vec.new, List.mapM] using h
+
+/-- `class_key_of` ⊑ `classKeyOf`. -/
+@[lockstep] theorem class_key_of_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (params : alloc.vec.Vec arena.handle.EIdx) (k : arena.inductives.class_read.ClassKey) :
+    LS pers (fun a b => b = absClassKey a)
+      (arena.inductives.gen_rec.class_key_of pers st mode rf n_p params k) lst
+      (classKeyOf (ConRon.Refine.absMode mode) lf (absU n_p) (absEIdxL params) (absClassKey k)) := by
+  rw [arena.inductives.gen_rec.class_key_of, classKeyOf]
+  lockstep
+
+theorem class_keys_of_acc {pers} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (params : alloc.vec.Vec arena.handle.EIdx)
+    (ks : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.inductives.class_read.ClassKey) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a.val.map absClassKey)
+        (arena.inductives.gen_rec.class_keys_of pers st mode rf n_p params ks i out) lst
+        (List.mapM.loop (classKeyOf (ConRon.Refine.absMode mode) lf (absU n_p) (absEIdxL params))
+          ((ks.val.drop i.val).map absClassKey) (out.val.map absClassKey).reverse) := by
+  intro i out st lst hrel hinv
+  refine ls_cursor_acc ks absClassKey
+    (fun (w : alloc.vec.Vec arena.inductives.class_read.ClassKey) l =>
+      List.mapM.loop (classKeyOf (ConRon.Refine.absMode mode) lf (absU n_p) (absEIdxL params)) l
+        (w.val.map absClassKey).reverse)
+    (fun st i w => arena.inductives.gen_rec.class_keys_of pers st mode rf n_p params ks i w)
+    ?_ ?_ i st lst out hrel hinv
+  · intro st lst i w hn hrel hinv
+    rw [arena.inductives.gen_rec.class_keys_of.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac)]
+    simp only [List.mapM.loop, List.reverse_reverse]
+    lockstep
+  · intro st lst i w hi hrel hinv ih
+    rw [arena.inductives.gen_rec.class_keys_of.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by scalar_tac)]
+    simp only [List.mapM.loop]
+    lockstep
+
+@[lockstep] theorem class_keys_of_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (params : alloc.vec.Vec arena.handle.EIdx)
+    (ks : alloc.vec.Vec arena.inductives.class_read.ClassKey) :
+    LS pers (fun a b => b = a.val.map absClassKey)
+      (arena.inductives.gen_rec.class_keys_of pers st mode rf n_p params ks 0#usize
+        (alloc.vec.Vec.new _)) lst
+      ((ks.val.map absClassKey).mapM
+        (classKeyOf (ConRon.Refine.absMode mode) lf (absU n_p) (absEIdxL params))) := by
+  have h := class_keys_of_acc (pers := pers) (mode := mode) hfe n_p params ks 0#usize
+    (alloc.vec.Vec.new _) st lst hrel hinv
+  simpa [alloc.vec.Vec.new, List.mapM] using h
+
+/-! ## One class per member -/
+
+theorem classes_at_member_abs (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
+    (t : Std.U64) :
+    ∀ (i : Std.Usize) (acc o : Std.U64),
+      arena.inductives.gen_rec.classes_at_member ms t i acc = ok o →
+      o.val = acc.val + (((ms.val.drop i.val).map absTargetMajor).filter
+        (·.member == some (absU t))).length := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) ms.val.length
+    (fun i (_ : Unit) => ∀ acc o, arena.inductives.gen_rec.classes_at_member ms t i acc = ok o →
+      o.val = acc.val + (((ms.val.drop i.val).map absTargetMajor).filter
+        (·.member == some (absU t))).length) ?_ ?_ i ()
+  · intro i _ hn acc o h
+    rw [arena.inductives.gen_rec.classes_at_member.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), Result.ok.injEq] at h
+    subst h; rw [List.drop_eq_nil_of_le hn]; simp
+  · intro i _ hi ih acc o h
+    rw [arena.inductives.gen_rec.classes_at_member.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)] at h
+    rw [List.drop_eq_getElem_cons hi, List.map_cons, List.filter_cons]
+    obtain ⟨tm, htm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hx := vec_index_some htm
+    obtain ⟨hxb, hxv⟩ := List.getElem?_eq_some_iff.mp hx
+    obtain ⟨hit, hhit, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hhv : hit = ((absTargetMajor tm).member == some (absU t)) := by
+      cases hm : tm.member with
+      | none => rw [hm, Result.ok.injEq] at hhit; subst hhit; simp [absTargetMajor, hm]
+      | some u =>
+        rw [hm, Result.ok.injEq] at hhit; subst hhit
+        simp only [absTargetMajor, hm, Option.map_some]
+        by_cases hu : u = t
+        · subst hu; simp
+        · have : absU u ≠ absU t := fun h' => hu (u64_eq_iff_val.mpr h')
+          simp [hu, this]
+    rw [hxv, ← hhv]
+    cases hit
+    · rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      rw [ih i2 () hi2v acc o h, hi2v]; simp
+    · rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨a2, ha2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
+      have ha2v : a2.val = acc.val + 1 := ConRon.Refine.Nat.uadd_val ha2
+      rw [ih i2 () hi2v a2 o h, hi2v, ha2v]; simp; omega
+
+theorem one_class_per_member_abs (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor)
+    (k : Std.U64) :
+    ∀ (m : Nat) (t : Std.U64) (o : Bool), k.val - t.val = m →
+      arena.inductives.gen_rec.one_class_per_member ms k t = ok o →
+      o = (List.range' t.val m).all (fun t =>
+        ((ms.val.map absTargetMajor).filter (·.member == some t)).length == 1) := by
+  intro m
+  induction m with
+  | zero =>
+    intro t o hm h
+    rw [arena.inductives.gen_rec.one_class_per_member.eq_def, if_pos (by scalar_tac),
+      Result.ok.injEq] at h
+    subst h; rfl
+  | succ m ih =>
+    intro t o hm h
+    rw [arena.inductives.gen_rec.one_class_per_member.eq_def, if_neg (by scalar_tac)] at h
+    rw [List.range'_succ, List.all_cons]
+    obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hnv := classes_at_member_abs ms t 0#usize 0#u64 n hn
+    simp only [gr_usz0, List.drop_zero] at hnv
+    by_cases h1 : n = 1#u64
+    · rw [if_pos h1] at h
+      obtain ⟨t2, ht2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have ht2v : t2.val = t.val + 1 := ConRon.Refine.Nat.uadd_val ht2
+      rw [ih t2 o (by omega) h, ht2v]
+      have : ((List.map absTargetMajor ms.val).filter (·.member == some t.val)).length = 1 := by
+        have h1v : n.val = 1 := by rw [h1]; rfl
+        simp [absU] at hnv; omega
+      simp [this]
+    · rw [if_neg h1, Result.ok.injEq] at h
+      subst h
+      have : ((List.map absTargetMajor ms.val).filter (·.member == some t.val)).length ≠ 1 := by
+        intro h2; apply h1; simp [absU] at hnv; scalar_tac
+      simp [this]
+
+@[lockstep] theorem one_class_per_member_twin
+    (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMajor) (k : Std.U64) :
+    LSP (arena.inductives.gen_rec.one_class_per_member ms k 0#u64)
+      (fun o => TwinEq ((List.range (absU k)).all (fun t =>
+        ((ms.val.map absTargetMajor).filter (·.member == some t)).length == 1)) o) := by
+  intro o h
+  rw [TwinEq, one_class_per_member_abs ms k _ 0#u64 o rfl h]
+  simp [List.range_eq_range', absU]
+
 end ConRon.Refine2
