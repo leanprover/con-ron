@@ -876,4 +876,228 @@ theorem nidx_vec_beq_off_abs {a b : alloc.vec.Vec arena.handle.NIdx} {off : Std.
     · rw [if_neg (by scalar_tac), if_neg (by scalar_tac), if_neg (by scalar_tac)] at h
       exact nidx_vec_beq_off_cmp hi1v hi (by omega) (fun j o hj h => ih j () hj o h) h
 
+/-! ## The recogniser's readers -/
+
+/-- `rec_target_of` ⊑ `recTargetOf`. -/
+@[lockstep] theorem rec_target_of_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (m_i : Std.U64)
+    (ty : arena.handle.EIdx) :
+    LSR pers (fun a b => b = absU a)
+      (arena.inductives.block_parts.rec_target_of pers st names m_i ty) st lst
+      (recTargetOf (absNIdxL names) (absU m_i) (absEIdx ty)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.block_parts.rec_target_of, recTargetOf]
+  lockstep
+
+attribute [local lockstep_inline] arena.inductives.block_parts.block_counts_rec
+attribute [local lockstep_simp] absNatPair
+
+set_option maxHeartbeats 2000000 in
+/-- `block_counts` ⊑ `blockCounts?` (the Rust's `block_counts_rec` is its
+second arm, unfolded in place). -/
+@[lockstep] theorem block_counts_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_pd k n_c n_r : Std.U64) (cv_t : arena.env.IConstantVal)
+    (r : Option (Std.U64 × Std.U64)) :
+    LSR pers (fun a b => b = a.map absNatPair)
+      (arena.inductives.block_parts.block_counts pers st n_pd k n_c n_r cv_t r) st lst
+      (blockCounts? (absU n_pd) (absU k) (absU n_c) (absU n_r) (absIConstantVal cv_t)
+        (r.map absNatPair)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.block_parts.block_counts, blockCounts?.eq_def]
+  lockstep
+  refine LS.pure ?_ hrel hinv
+  simp_all [absNatPair, absU, absBinderL]
+
+/-- `ctor_member` ⊑ `ctorMember?`. -/
+@[lockstep] theorem ctor_member_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (lvls : arena.handle.LsIdx) (n_p : Std.U64) (c : arena.env.IConstantVal × Std.U64) :
+    LSR pers (fun a b => b = a.map absU)
+      (arena.inductives.block_parts.ctor_member pers st names lvls n_p c) st lst
+      (ctorMember? (absNIdxL names) (absLsIdx lvls) (absU n_p) (absIConstantVal c.1, absU c.2)) := by
+  apply LSR.of_LS
+  obtain ⟨cv, n⟩ := c
+  rw [arena.inductives.block_parts.ctor_member, ctorMember?]
+  lockstep
+
+theorem absRecsLFrom_cons {rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))} {i : Std.Usize} (hi : i.val < rs.val.length) :
+    absRecsLFrom rs i = (absIConstantVal rs.val[i.val].1, absU rs.val[i.val].2.1,
+      absU rs.val[i.val].2.2.1, rs.val[i.val].2.2.2.val.map absIRecRule) ::
+      (rs.val.drop (i.val + 1)).map (fun p => (absIConstantVal p.1, absU p.2.1, absU p.2.2.1,
+        p.2.2.2.val.map absIRecRule)) := by
+  rw [absRecsLFrom, List.drop_eq_getElem_cons hi, List.map_cons]
+
+/-- `rec_for_member` ⊑ `findM?` from the cursor on: the first recursor whose
+major names member `m`, its `(mI, rP)`. -/
+theorem rec_for_member_ls {pers st} (names : alloc.vec.Vec arena.handle.NIdx)
+    (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))) (m : Std.U64) :
+    ∀ (i : Std.Usize) lst, AStateRel₀ pers st lst → AStateInv pers st →
+    LSR pers (fun a b => b = a.map absNatPair)
+      (arena.inductives.block_parts.rec_for_member pers st names rs m i) st lst
+      (do
+        let q ← (absRecsLFrom rs i).findM? fun q => do
+          pure ((← recTargetOf (absNIdxL names) q.2.1 q.1.type) == absU m)
+        pure (q.map fun q => (q.2.1, q.2.2.1))) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) rs.val.length
+    (fun i (_ : Unit) => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = a.map absNatPair)
+        (arena.inductives.block_parts.rec_for_member pers st names rs m i) st lst
+        (do
+          let q ← (absRecsLFrom rs i).findM? fun q => do
+            pure ((← recTargetOf (absNIdxL names) q.2.1 q.1.type) == absU m)
+          pure (q.map fun q => (q.2.1, q.2.2.1)))) ?_ ?_ i ()
+  · intro i _ hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.rec_for_member.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac)]
+    rw [absRecsLFrom, List.drop_eq_nil_of_le hn, List.map_nil, List.findM?]
+    lockstep
+  · intro i _ hi ih lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.rec_for_member.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)]
+    rw [absRecsLFrom_cons hi, List.findM?]
+    lockstep
+
+/-- A read against `do let q ← X; pure (f q)` is a read against `X` at the
+relation composed with `f`. -/
+theorem LSR.of_map {α β γ : Type} {pers : arena.store.PersTier} {R : α → γ → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError)}
+    {st : arena.monad.AState} {lst : AState} {X : AM β} {f : β → γ}
+    (h : LSR pers R m st lst (do let q ← X; pure (f q))) :
+    LSR pers (fun a q => R a (f q)) m st lst X := by
+  intro o hm
+  have h1 := h o hm
+  cases o with
+  | Err e =>
+    intro k hk
+    obtain ⟨le, hx, hle⟩ := h1 k hk
+    refine ⟨le, ?_, hle⟩
+    rw [StateT.run_bind] at hx
+    cases hX : X.run lst with
+    | error e' => rw [hX] at hx; simpa using hx
+    | ok p => rw [hX] at hx; cases hx
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h3, h4⟩ := h1
+    rw [StateT.run_bind] at hx
+    cases hX : X.run lst with
+    | error e' => rw [hX] at hx; cases hx
+    | ok p =>
+      obtain ⟨q, s⟩ := p
+      rw [hX] at hx
+      cases hx
+      exact ⟨q, s, rfl, hR, h3, h4⟩
+
+/-- `rec_for_member` from `0`: the Rust's `(mI, rP)` is the found recursor's. -/
+@[lockstep] theorem rec_for_member_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
+    (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))) (m : Std.U64) :
+    LSR pers (fun a q => q.map (fun q => (q.2.1, q.2.2.1)) = a.map absNatPair)
+      (arena.inductives.block_parts.rec_for_member pers st names rs m 0#usize) st lst
+      ((absRecsL rs).findM? fun q => do
+          pure ((← recTargetOf (absNIdxL names) q.2.1 q.1.type) == absU m)) := by
+  have h := rec_for_member_ls names rs m 0#usize lst hrel hinv
+  rw [absRecsLFrom_zero] at h
+  exact LSR.of_map h
+
+/-- `blockMemberCounts?` at a member, with the recursor search's answer
+projected in one step (the twin's `let r := match q with …`). -/
+theorem blockMemberCounts?_cons (nPd k nC : Nat) (names : List NIdx)
+    (rs : List (IConstantVal × Nat × Nat × List IRecRule)) (m : Nat) (cvT : IConstantVal)
+    (ts : List IConstantVal) :
+    blockMemberCounts? nPd k nC names rs m (cvT :: ts) = (do
+      let r ← (do
+        let q ← rs.findM? fun q => do pure ((← recTargetOf names q.2.1 q.1.type) == m)
+        pure (q.map fun q => (q.2.1, q.2.2.1)))
+      match ← blockCounts? nPd k nC rs.length cvT r with
+      | none => pure none
+      | some c => do
+        let ns ← blockMemberCounts? nPd k nC names rs (m + 1) ts
+        pure (ns.map (c.2 :: ·))) := by
+  rw [blockMemberCounts?, bind_assoc]
+  refine am_bind_congr₂ rfl fun q => ?_
+  rw [pure_bind]
+  cases q <;>
+  · refine am_bind_congr₂ rfl fun c => ?_
+    cases c with
+    | none => rfl
+    | some c =>
+      refine am_bind_congr₂ rfl fun ns => ?_
+      cases ns <;> rfl
+
+theorem absICVL_drop_cons {cv_ts : alloc.vec.Vec arena.env.IConstantVal} {m : Nat}
+    (hm : m < cv_ts.val.length) :
+    (absICVL cv_ts).drop m = absIConstantVal cv_ts.val[m] :: (absICVL cv_ts).drop (m + 1) := by
+  rw [absICVL, List.drop_eq_getElem_cons (by simpa using hm)]
+  simp
+
+/-- `block_member_counts` ⊑ `blockMemberCounts?` from member `m` on, the
+accumulated counts in front. -/
+theorem block_member_counts_ls {pers st} (n_pd k n_c : Std.U64)
+    (names : alloc.vec.Vec arena.handle.NIdx)
+    (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))) (cv_ts : alloc.vec.Vec arena.env.IConstantVal) :
+    ∀ (m : Std.U64) (out : alloc.vec.Vec Std.U64) lst, AStateRel₀ pers st lst →
+      AStateInv pers st →
+      LSR pers (fun a b => b = a.map absNatL)
+        (arena.inductives.block_parts.block_member_counts pers st n_pd k n_c names rs m cv_ts out)
+        st lst
+        (do
+          let r ← blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names)
+            (absRecsL rs) (absU m) ((absICVL cv_ts).drop m.val)
+          pure (r.map (absNatL out ++ ·))) := by
+  refine cursor_induction (fun m : Std.U64 => m.val) cv_ts.val.length
+    (fun m (out : alloc.vec.Vec Std.U64) => ∀ lst, AStateRel₀ pers st lst →
+      AStateInv pers st →
+      LSR pers (fun a b => b = a.map absNatL)
+        (arena.inductives.block_parts.block_member_counts pers st n_pd k n_c names rs m cv_ts out)
+        st lst
+        (do
+          let r ← blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names)
+            (absRecsL rs) (absU m) ((absICVL cv_ts).drop m.val)
+          pure (r.map (absNatL out ++ ·)))) ?_ ?_
+  · intro m out hn lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.block_member_counts.eq_def,
+      List.drop_eq_nil_of_le (by simpa [absICVL] using hn), blockMemberCounts?]
+    lockstep
+  · intro m out hm ih lst hrel hinv
+    apply LSR.of_LS
+    rw [arena.inductives.block_parts.block_member_counts.eq_def, absICVL_drop_cons hm,
+      blockMemberCounts?_cons]
+    lockstep
+    rename_i sn out1 hout1
+    refine LSR.tail_ls (ih a out1 (by simp [hP]) lst1 hrel hinv) ?_ (fun _ _ h => h)
+    have ha : a.val = m.val + 1 := by simp [hP]
+    rw [show absU a = m.val + 1 from ha, ha]
+    refine am_bind_congr₂ rfl fun x => ?_
+    cases x <;> simp [absNatL, hout1]
+
+/-- `block_member_counts` from member `0` into an empty accumulator IS
+`blockMemberCounts? … 0 cvTs`. -/
+@[lockstep] theorem block_member_counts_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (n_pd k n_c : Std.U64)
+    (names : alloc.vec.Vec arena.handle.NIdx)
+    (rs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 × Std.U64 ×
+      (alloc.vec.Vec arena.env.IRecRule))) (cv_ts : alloc.vec.Vec arena.env.IConstantVal) :
+    LSR pers (fun a b => b = a.map absNatL)
+      (arena.inductives.block_parts.block_member_counts pers st n_pd k n_c names rs 0#u64 cv_ts
+        (alloc.vec.Vec.new _)) st lst
+      (blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names) (absRecsL rs) 0
+        (absICVL cv_ts)) := by
+  have h := block_member_counts_ls n_pd k n_c names rs cv_ts 0#u64 (alloc.vec.Vec.new _) lst
+    hrel hinv
+  have e : (do
+      let r ← blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names)
+        (absRecsL rs) (absU (0#u64 : Std.U64)) ((absICVL cv_ts).drop (0#u64 : Std.U64).val)
+      pure (r.map (absNatL (alloc.vec.Vec.new Std.U64) ++ ·)) : AM _) =
+      blockMemberCounts? (absU n_pd) (absU k) (absU n_c) (absNIdxL names) (absRecsL rs) 0
+        (absICVL cv_ts) := by
+    simp [absNatL, absU]
+  rwa [e] at h
+
 end ConRon.Refine2
