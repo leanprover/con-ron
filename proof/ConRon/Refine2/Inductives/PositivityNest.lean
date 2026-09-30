@@ -590,4 +590,80 @@ theorem nest_ctors_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
       have ha : a.val = i.val + 1 := by scalar_tac
       simp [absCtorsLFrom, ha, absNestState, hnfv, houts, absCtorOut]
 
+/-- A container frame's constructors (`root = false`, from `0`, no outputs
+yet) at a fuel whose `nest_pos` is related. -/
+theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx ctx.vis rf lf)
+    {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (hi : Std.U64)
+    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx)
+    (names : alloc.vec.Vec arena.handle.NIdx) (holes : alloc.vec.Vec arena.handle.EIdx)
+    (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
+    (ns : arena.inductives.positivity.NestState) st lst
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers RCtors
+      (arena.inductives.positivity.nest_ctors pers st mode rf ctx false fuel prog hi us ds names
+        holes cs 0#usize ns (alloc.vec.Vec.new _)) lst
+      (nestCtors (ConRon.Refine.absMode mode) lf (absNestCtx ctx) false (absU fuel)
+        (prog.val.map absNestHole) (absU hi) (absLsIdx us) (absEIdxL ds) (absNIdxL names)
+        (absEIdxL holes) (absCtorsL cs) (absNestState ns) []) := by
+  have h := nest_ctors_of (mode := mode) hctx false fuel ?_ prog hi us ds names holes cs 0#usize ns
+    (alloc.vec.Vec.new _) st lst hrel hinv
+  · rwa [absCtorsLFrom_zero] at h
+  · rintro fuel_c (h | rfl)
+    · cases h
+    intro prog base n_f cur ns st lst hrel hinv
+    exact nest_fields_of hP _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl TeleWF.new
+      hrel hinv
+
+-- A container frame's fragments (the instantiation typed; the stack, the
+-- group's constructors and the walk).
+attribute [lockstep_inline] arena.inductives.positivity.nest_frame_at
+  arena.inductives.positivity.nest_frame_walk
+
+/-- `nest_frame` ⊑ `nestFrame` at a fuel whose `nest_pos` is related. -/
+theorem nest_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
+    {lf : IFEnv} {ctx : arena.inductives.positivity.NestCtx} (hctx : CoreCtx ctx.vis rf lf)
+    {fuel : Std.U64} (hP : NestPosRel pers mode rf lf ctx fuel.val)
+    (prog : alloc.vec.Vec arena.inductives.positivity.NestHole) (hi : Std.U64)
+    (us : arena.handle.LsIdx) (ds : alloc.vec.Vec arena.handle.EIdx) (n_pc : Std.U64)
+    (grp : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx))
+    (ns : arena.inductives.positivity.NestState) st lst
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absNestState a)
+      (arena.inductives.positivity.nest_frame pers st mode rf ctx fuel prog hi us ds n_pc grp ns)
+      lst
+      (nestFrame (ConRon.Refine.absMode mode) lf (absNestCtx ctx) (absU fuel)
+        (prog.val.map absNestHole) (absU hi) (absLsIdx us) (absEIdxL ds) (absU n_pc)
+        (absGrpL grp) (absNestState ns)) := by
+  have hC := nest_ctors_frame_of hctx hP
+  rw [arena.inductives.positivity.nest_frame, nestFrame.eq_def]
+  lockstep
+  · -- the empty group: the twin's `match grp` at `[]`
+    split
+    · lockstep
+    · rename_i heq
+      exfalso
+      have : grp.val.length = 0 := by scalar_tac
+      simp [absGrpL, List.eq_nil_of_length_eq_zero this] at heq
+  · -- a group: the twin's `match grp` at its head
+    split
+    · rename_i heq
+      exfalso
+      simp [absGrpL] at heq
+      scalar_tac
+    · rename_i c _ _ heq
+      have hc : c = absNIdx (grp.val[0]'(by scalar_tac)).1 := by
+        have e : grp.val = grp.val[0]'(by scalar_tac) :: grp.val.drop 1 := by
+          rw [← List.drop_eq_getElem_cons (by scalar_tac)]; rfl
+        rw [absGrpL, e, List.map_cons, List.cons.injEq, Prod.mk.injEq] at heq
+        exact heq.1.1.symm
+      subst hc
+      lockstep
+      rename_i gl hgl
+      have e : absU a = absU hi + (absGrpL grp).length := by
+        simp only [absU, absGrpL, List.length_map]; scalar_tac
+      rw [← e]
+      lockstep
+
 end ConRon.Refine2
