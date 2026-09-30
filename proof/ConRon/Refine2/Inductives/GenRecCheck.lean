@@ -32,9 +32,8 @@ open Lockstep
 open scoped IndSide
 open scoped GenRecSide
 
-attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
-  gr_absIConstantVal_name gr_absIConstantVal_levelParams gr_absIConstantVal_type
-attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
+attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
+attribute [local lockstep] Lockstep.PC2.i_constant_val_dup_ls
 
 /-! ## The cons tails -/
 
@@ -399,8 +398,6 @@ attribute [local lockstep high] rc_ctors_dup_spec
 
 /-! ## `class_ctor_of`, `class_ctors_of`, `classes_ctors` -/
 
-theorem gr_usz0 : ((0#usize : Std.Usize)).val = 0 := rfl
-
 /-- `class_ctor_of` ⊑ `classCtorOf`. -/
 @[lockstep] theorem class_ctor_of_ls {pers st lst} {mode : kernel.env.CheckMode}
     {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv} (hrel : AStateRel₀ pers st lst)
@@ -417,7 +414,7 @@ theorem gr_usz0 : ((0#usize : Std.Usize)).val = 0 := rfl
   lockstep
   all_goals
     rcases hes : (‹alloc.vec.Vec arena.inductives.positivity.NestCtorNf›).val with _ | ⟨e0, tl⟩
-    all_goals simp only [hes, List.map_nil, List.map_cons, gr_usz0, List.getElem_cons_zero]
+    all_goals simp only [hes, List.map_nil, List.map_cons, Lockstep.usize_zero_val', List.getElem_cons_zero]
   all_goals first | (exfalso; simp_all [alloc.vec.Vec.len]; done) | lockstep
   all_goals
     have hd := ‹List.map absNestCtorNf _ = _ :: _›
@@ -541,7 +538,7 @@ theorem classes_ctors_acc {pers} {mode : kernel.env.CheckMode}
         (absClassRead rd) (ms.val.map absTargetMajor) 0 (ms.val.map absTargetMajor)) := by
   have h := classes_ctors_acc (pers := pers) (mode := mode) hctx p former_tys rd ms 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absClassCtorLL, alloc.vec.Vec.new] using h1.symm)
 
 /-! ## `class_majors`, `classes_nfs`, `class_former_ty(s)` -/
@@ -602,7 +599,7 @@ theorem class_majors_acc {pers} {mode : kernel.env.CheckMode}
         (absEIdxL pfvs) (keys.val.map absClassKey)) := by
   have h := class_majors_acc (pers := pers) (mode := mode) hfe p ctors_as pfvs keys 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
 
 theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
@@ -653,7 +650,7 @@ theorem classes_nfs_acc {pers} {mode : kernel.env.CheckMode}
         (tbl.val.map absNestCtorNf) (ms.val.map absTargetMajor)) := by
   have h := classes_nfs_acc (pers := pers) (mode := mode) hctx p former_tys tbl ms 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absTargetMajorL, alloc.vec.Vec.new] using h1.symm)
 
 /-- `class_former_ty` ⊑ `classFormerTy`. -/
@@ -915,7 +912,7 @@ theorem one_class_per_member_abs (ms : alloc.vec.Vec arena.inductives.rec_check.
     rw [List.range'_succ, List.all_cons]
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hnv := classes_at_member_abs ms t 0#usize 0#u64 n hn
-    simp only [gr_usz0, List.drop_zero] at hnv
+    simp only [Lockstep.usize_zero_val', List.drop_zero] at hnv
     by_cases h1 : n = 1#u64
     · rw [if_pos h1] at h
       obtain ⟨t2, ht2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1243,7 +1240,7 @@ theorem class_rec_tys_ok_acc {pers} {mode : kernel.env.CheckMode}
         (rcs.val.map absRecShape) (cvs.val.map absIConstantVal) (cs.val.map absU)) := by
   have h := class_rec_tys_ok_acc (pers := pers) (mode := mode) hfe g hg k rcs cvs cs 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absICVList, alloc.vec.Vec.new] using h1.symm)
 
 /-! ## `class_stream_recs`, `class_seeds` -/
@@ -1290,7 +1287,7 @@ theorem class_stream_recs_acc {pers} {mode : kernel.env.CheckMode}
       lst (classStreamRecs (ConRon.Refine.absMode mode) lf (rcs.val.map absRecShape)) := by
   have h := class_stream_recs_acc (pers := pers) (mode := mode) hfe rcs 0#usize
     (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absICVList, alloc.vec.Vec.new] using h1.symm)
 
 def absSeedL (v : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std.U64)) :
@@ -1343,7 +1340,7 @@ theorem class_seeds_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
       (classSeeds (absNestCtx ctx) (absEIdxL holes) (ms.val.map absTargetMajor)) := by
   have h := class_seeds_acc (pers := pers) ctx holes ms 0#usize (alloc.vec.Vec.new _) st lst
     hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absSeedL, alloc.vec.Vec.new] using h1.symm)
 
 /-! ## `class_rules_ok`, `class_recs_rules_ok` -/
@@ -1405,7 +1402,7 @@ theorem class_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
         (ConRon.Refine.absPropWhen pw) (absU c) (xs.val.map absClassCtor)) := by
   have h := class_rules_ok_acc (pers := pers) (mode := mode) (vis_t := vis_t) hfe hvr g hg rec_cls cv_gs cv_r pw
     hpw c xs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absEIdxL, alloc.vec.Vec.new] using h1.symm)
 
 def absRuleOut (t : arena.env.IConstantVal × arena.inductives.rec_check.TargetMajor ×
@@ -1484,7 +1481,7 @@ theorem class_recs_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
         (cv_gs.val.map absIConstantVal) (rec_cls.val.map absU)) := by
   have h := class_recs_rules_ok_acc (pers := pers) (mode := mode) (vis_t := vis_t) hfe hvr g hg
     rec_cls pw hpw cv_gs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
-  simp only [gr_usz0, List.drop_zero] at h
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h
   exact LS.tail h rfl (fun a b h1 => by simpa [absRuleOutL, alloc.vec.Vec.new] using h1.symm)
 
 /-! ## The temporary recursors: `class_fe_r_push` / `class_fe_r_pop`
@@ -1749,7 +1746,7 @@ theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
     rw [List.getElem?_eq_getElem hm1, Option.some.injEq] at hivx
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [pos_i_constant_val_dup_spec _ _ hiv1] at h
+    rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hiv1] at h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i4, hi4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1847,7 +1844,7 @@ theorem class_fe_r_push_spec (p : arena.inductives.block_parts.BlockShape)
   obtain ⟨rfK, prevsK⟩ := r
   obtain ⟨h1, ⟨Q, hQ, hQl⟩, h3⟩ := gr_fe_r_push_aux p cv_gs rec_cls _ 0#usize rf lf
     (alloc.vec.Vec.new _) [] rfK prevsK rfl hfe hr
-  simp only [gr_usz0, List.drop_zero] at h1
+  simp only [Lockstep.usize_zero_val', List.drop_zero] at h1
   refine ⟨h1, fun j out hj hpop => ?_⟩
   obtain ⟨rfY, hY, hYi, hpopY⟩ := h3 rfK (RFEq.refl _) h1.inv.1 j out
     (by rw [hj, hQ]; simp [alloc.vec.Vec.new, hQl]) hpop

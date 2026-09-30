@@ -66,10 +66,7 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-@[local lockstep_simp] theorem bi_core_walk_fuel_val :
-    (arena.core.CORE_WALK_FUEL).val = coreWalkFuel := core_walk_fuel_abs
-
-attribute [local lockstep_simp] absMemberShape_cvT
+attribute [local lockstep_simp] Lockstep.core_walk_fuel_val absMemberShape_cvT
 @[local lockstep_simp] theorem absMemberShape_nIdx (m : arena.inductives.block_parts.MemberShape) :
     (absMemberShape m).nIdx = absU m.n_idx := rfl
 @[local lockstep_simp] theorem absMemberShape_ctors (m : arena.inductives.block_parts.MemberShape) :
@@ -304,8 +301,7 @@ def absMemberShapeLFrom (v : alloc.vec.Vec arena.inductives.block_parts.MemberSh
 
 @[local lockstep_simp] theorem absBlockParts_shape (p : arena.inductives.block_parts.BlockParts) :
     (absBlockParts p).shape = absBlockShape p.shape := rfl
-@[local lockstep_simp] theorem absBlockShape_members (p : arena.inductives.block_parts.BlockShape) :
-    (absBlockShape p).members = p.members.val.map absMemberShape := rfl
+attribute [local lockstep_simp] absBlockShape_members
 
 /-- `block_raw_rec` ⊑ `blockRawRec` — official's `is_rec`. -/
 @[lockstep] theorem block_raw_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -355,12 +351,12 @@ theorem check_block_teles_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
     rw [arena.inductives.block_install.check_block_teles, if_pos (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega), checkBlockTeles]
+      absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega), checkBlockTeles]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
     rw [arena.inductives.block_install.check_block_teles, if_neg (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_cons _ _ _ (by omega), checkBlockTeles]
+      absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega), checkBlockTeles]
     lockstep
     rename_i o1 ho1
     have ha : a.val = i.val + 1 := by scalar_tac
@@ -392,11 +388,7 @@ theorem bi_u64_sub_one (x : Std.U64) : LSP (x - 1#u64) (fun z => z.val = x.val -
 
 attribute [local lockstep high] bi_u64_sub_one
 
-@[local lockstep_simp] theorem bi_unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
-    unwrapOr (some a) e = pure a := rfl
-
-@[local lockstep_simp] theorem bi_unwrapOr_none {α : Type} (e : Arena.CheckError) :
-    unwrapOr (none : Option α) e = Arena.fail e := rfl
+attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapOr_none'
 
 /-- `check_block_doms_at` ⊑ `checkBlockDomsAt`, on the binder count. -/
 @[lockstep] theorem check_block_doms_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -627,15 +619,15 @@ theorem check_block_ctors_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
     rw [arena.inductives.block_install.check_block_ctors, if_pos (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+      absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega)]
     simp only [checkBlockCtors]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
     rw [arena.inductives.block_install.check_block_ctors, if_neg (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_cons _ _ _ (by omega)]
+      absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < cv_tas.val.length
-    · rw [if_neg (by scalar_tac), absICVLFrom, sp_vecFrom_cons _ _ _ hc, checkBlockCtors]
+    · rw [if_neg (by scalar_tac), absICVLFrom, vecFrom_cons _ _ _ hc, checkBlockCtors]
       lockstep
       rename_i oc hoc os hos
       have ha : a.val = i.val + 1 := by scalar_tac
@@ -644,7 +636,7 @@ theorem check_block_ctors_aux (m : Nat) :
       simp only [absMemberShapeLFrom, absICVLFrom, ha, absCtorsLL, absLIdxLLL, hoc, hos,
         List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
         List.nil_append]
-    · rw [if_pos (by scalar_tac), absICVLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+    · rw [if_pos (by scalar_tac), absICVLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [checkBlockCtors]
       lockstep
 
@@ -703,18 +695,18 @@ theorem check_abs_ctor_sorts_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
     rw [arena.inductives.block_install.check_abs_ctor_sorts, if_pos (by scalar_tac),
-      absCtorsLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+      absCtorsLFrom, vecFrom_nil _ _ _ (by omega)]
     simp only [checkAbsCtorSorts]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
     have hvis := bi_hvis hfe
     rw [arena.inductives.block_install.check_abs_ctor_sorts, if_neg (by scalar_tac),
-      absCtorsLFrom, sp_vecFrom_cons _ _ _ (by omega)]
+      absCtorsLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < os.val.length
-    · rw [if_neg (by scalar_tac), sp_vecFrom_cons _ _ _ hc, checkAbsCtorSorts]
+    · rw [if_neg (by scalar_tac), vecFrom_cons _ _ _ hc, checkAbsCtorSorts]
       lockstep
-    · rw [if_pos (by scalar_tac), sp_vecFrom_nil _ _ _ (by omega)]
+    · rw [if_pos (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
       simp only [checkAbsCtorSorts]
       lockstep
 
@@ -751,17 +743,17 @@ theorem check_abs_ctor_sorts_all_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf lf ctx is_prop css oss i hn hrel hinv hfe
     rw [arena.inductives.block_install.check_abs_ctor_sorts_all, if_pos (by scalar_tac),
-      sp_vecFrom_nil _ _ _ (by omega)]
+      vecFrom_nil _ _ _ (by omega)]
     simp only [checkAbsCtorSortsAll]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf ctx is_prop css oss i hn hrel hinv hfe
     rw [arena.inductives.block_install.check_abs_ctor_sorts_all, if_neg (by scalar_tac),
-      sp_vecFrom_cons _ _ _ (by omega)]
+      vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < oss.val.length
-    · rw [if_neg (by scalar_tac), sp_vecFrom_cons _ _ _ hc, checkAbsCtorSortsAll]
+    · rw [if_neg (by scalar_tac), vecFrom_cons _ _ _ hc, checkAbsCtorSortsAll]
       lockstep
-    · rw [if_pos (by scalar_tac), sp_vecFrom_nil _ _ _ (by omega)]
+    · rw [if_pos (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
       simp only [checkAbsCtorSortsAll]
       lockstep
 
@@ -925,12 +917,12 @@ theorem split_outs_abs {outs : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
     · rw [e1, hd]
       simp only [absKindsLLL, hks, List.map_append, List.map_cons, List.map_nil,
         List.append_assoc, List.cons_append, List.nil_append]
-      simp only [alloc.vec.Vec.new, usz_zero_val, List.drop_zero] at k1
+      simp only [alloc.vec.Vec.new, Lockstep.usize_zero_val', List.drop_zero] at k1
       simp [k1, absCtorOut, Function.comp_def]
     · rw [e2, hd]
       simp only [absEIdxLL, hnf, List.map_append, List.map_cons, List.map_nil,
         List.append_assoc, List.cons_append, List.nil_append]
-      simp only [alloc.vec.Vec.new, usz_zero_val, List.drop_zero] at k2
+      simp only [alloc.vec.Vec.new, Lockstep.usize_zero_val', List.drop_zero] at k2
       simp [absEIdxL, k2, absCtorOut, Function.comp_def]
 
 /-- `split_outs` from `0` with empty accumulators: the twin's two `map`s. -/
@@ -942,7 +934,7 @@ theorem split_outs_abs {outs : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
         TwinEq ((absCtorOutsL outs).map (·.map (·.2))) (absEIdxLL q.2)) := by
   intro q h
   obtain ⟨e1, e2⟩ := split_outs_abs _ _ _ q h
-  simp only [absKindsLLL, absEIdxLL, alloc.vec.Vec.new, usz_zero_val, List.drop_zero] at e1 e2
+  simp only [absKindsLLL, absEIdxLL, alloc.vec.Vec.new, Lockstep.usize_zero_val', List.drop_zero] at e1 e2
   exact ⟨e1.symm, e2.symm⟩
 
 /-- `check_block_positivity` ⊑ `checkBlockPositivity` — the block's positivity
@@ -981,16 +973,16 @@ theorem check_block_idx_sorts_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf lf p cv_tas i out hn hrel hinv hfe
     rw [arena.inductives.block_install.check_block_idx_sorts, if_pos (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+      absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega)]
     simp only [checkBlockIdxSorts]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf p cv_tas i out hn hrel hinv hfe
     have hvis := bi_hvis hfe
     rw [arena.inductives.block_install.check_block_idx_sorts, if_neg (by scalar_tac),
-      absMemberShapeLFrom, sp_vecFrom_cons _ _ _ (by omega)]
+      absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < cv_tas.val.length
-    · rw [if_neg (by scalar_tac), absICVLFrom, sp_vecFrom_cons _ _ _ hc, checkBlockIdxSorts]
+    · rw [if_neg (by scalar_tac), absICVLFrom, vecFrom_cons _ _ _ hc, checkBlockIdxSorts]
       lockstep
       rename_i o1 ho1
       have ha : a.val = i.val + 1 := by scalar_tac
@@ -998,7 +990,7 @@ theorem check_block_idx_sorts_aux (m : Nat) :
       simp only [absMemberShapeLFrom, absICVLFrom, ha, absLIdxLL, ho1, absLIdxL,
         List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
         List.nil_append]
-    · rw [if_pos (by scalar_tac), absICVLFrom, sp_vecFrom_nil _ _ _ (by omega)]
+    · rw [if_pos (by scalar_tac), absICVLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [checkBlockIdxSorts]
       lockstep
 

@@ -75,6 +75,11 @@ def absBlockShape (p : arena.inductives.block_parts.BlockShape) : BlockShape :=
 def absBlockParts (p : arena.inductives.block_parts.BlockParts) : BlockParts :=
   ⟨absBlockShape p.shape⟩
 
+theorem absBlockShape_members (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).members = p.members.val.map absMemberShape := rfl
+theorem absBlockShape_recs (p : arena.inductives.block_parts.BlockShape) :
+    (absBlockShape p).recs = p.recs.val.map absRecShape := rfl
+
 /-! ## `class_read` -/
 
 def absClassKey (k : arena.inductives.class_read.ClassKey) : ClassKey :=

@@ -1099,6 +1099,17 @@ theorem absEIdxL_of_takeEidx {a b : alloc.vec.Vec arena.handle.EIdx} {n : Nat}
   rw [ind_takeEidx_toList] at this
   simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL, absEIdxL] using this
 
+open Lockstep in
+/-- `arena::expr_ops::take_eidx_n` is the twin's `List.take` (`drop_eidx_n_twin`'s
+sibling; not `@[lockstep]`: a caller registers it `local lockstep high` ahead
+of the array-level `take_eidx_n_spec`). -/
+theorem take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs n)
+      (fun r => TwinEq ((absEIdxL xs).take (absU n)) (absEIdxL r)) := by
+  intro r h
+  have := absEIdxL_of_takeEidx (take_eidx_n_spec xs n r h)
+  simpa [TwinEq, absU] using this.symm
+
 /-! ## Round 6: a binder telescope the port re-interns is well formed
 
 `intern_e_{lam,forall_e}_wf_ls` need `PropWhenWF` of the datum (the erased
@@ -1179,6 +1190,20 @@ theorem LS.twin_map {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α �
 
 end Lockstep
 
+/-! ## `unwrapOr` at a constructor
+
+The port matches the `Option` itself where the twin `unwrapOr`s it.  Scoped:
+`open scoped ConRon.Refine2.IndInstPrims`, or registered `local`. -/
+
+namespace IndInstPrims
+
+@[scoped lockstep_simp] theorem unwrapOr_some' {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+
+@[scoped lockstep_simp] theorem unwrapOr_none' {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
+end IndInstPrims
 
 namespace IndSide
 

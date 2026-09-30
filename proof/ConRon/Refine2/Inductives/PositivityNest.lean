@@ -290,25 +290,17 @@ attribute [lockstep_inline] arena.inductives.positivity.nest_inst_type_at
   arena.inductives.positivity.nest_inst_type_sort
 
 -- `unwrap_or` of the looked-up container: the port matches the `Option` it
--- just built, the twin `unwrapOr`s it (local; `StructInstall`'s
--- `IndInstPrims.unwrapOr_*'` are the same equations, scoped there).
+-- just built, the twin `unwrapOr`s it (`Shape`'s `IndInstPrims.unwrapOr_*'`,
+-- registered locally below).
 attribute [local lockstep_inline] arena.checker_base.unwrap_or
 -- The constant's copy IS the constant (`Positivity.lean`'s local spec).
-attribute [local lockstep high] pos_i_constant_val_dup_spec
+attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 
-/-- `eidx_vec_dup` is the identity (the exact form, ahead of the generic
-abstraction-level spec, so that a copied key's parameters ARE the original's). -/
-theorem pn_eidx_vec_dup_spec (v : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.env.eidx_vec_dup v) (fun o => o = v) :=
-  fun _ h => alloc.vec.Vec.ext _ _ (eidx_vec_dup_val h)
+-- `eidx_vec_dup` is the identity (the exact form, ahead of the generic
+-- abstraction-level spec, so that a copied key's parameters ARE the original's).
+attribute [local lockstep high] Lockstep.PA1.eidx_vec_dup_ls
 
-attribute [local lockstep high] pn_eidx_vec_dup_spec
-
-@[local lockstep_simp] theorem pn_unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
-    unwrapOr (some a) e = pure a := rfl
-
-@[local lockstep_simp] theorem pn_unwrapOr_none {α : Type} (e : Arena.CheckError) :
-    unwrapOr (none : Option α) e = Arena.fail e := rfl
+attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapOr_none'
 
 /-- `nest_inst_type` ⊑ `nestInstType`. -/
 @[lockstep] theorem nest_inst_type_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -803,7 +795,7 @@ theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   · have e1 : absU hw = absU ctx.n_p + ctx.names.val.length + (wp.val.map absNestHole).length := by
       simp only [absU, List.length_map]; scalar_tac
     simp only [TwinEq] at hv
-    simp only [absNestState, e1, hP, List.map_append, ← hv, vec_new_val', List.map_nil,
+    simp only [absNestState, e1, hP, List.map_append, ← hv, Lockstep.vec_new_val', List.map_nil,
       List.nil_append, absGrpL, List.map_map]
     rfl
   · intro r b st2 lst2 hR hrel hinv
@@ -840,22 +832,10 @@ theorem nest_keys_contain_keys_twin (ns : arena.inductives.positivity.NestState)
   intro o h
   exact nest_keys_contain_twin _ _ o h
 
-/-- The handle copies are the identity (exact, ahead of the generic specs, so
-that a rebuilt key IS the key). -/
-theorem pn_nidx_dup2_spec (x : arena.handle.NIdx) :
-    LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
-  fun _ h => dupId_nidx _ _ h
-
-theorem pn_lsidx_dup2_spec (x : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
-  fun _ h => dupId_lsidx _ _ h
-
-theorem pn_eidx_dup2_spec (x : arena.handle.EIdx) :
-    LSP (arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 x) (fun o => o = x) :=
-  fun _ h => dupId_eidx _ _ h
-
+-- The handle copies are the identity (`Tactic/Prims`' exact rows, ahead of the
+-- generic specs, so that a rebuilt key IS the key).
 attribute [local lockstep high] nest_keys_contain_active_twin nest_keys_contain_keys_twin
-  pn_nidx_dup2_spec pn_lsidx_dup2_spec
+  Lockstep.dup2_nidx Lockstep.dup2_lsidx
 
 /-- `nest_cont_key` ⊑ `nestContKey` at a fuel whose `nest_pos` is related. -/
 theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
@@ -878,26 +858,9 @@ theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   show _ = _
   simp only [absNestFieldKind, pn_u64_bne_zero]
 
-/-- `drop_eidx_n` / `take_eidx_n` as the twin's `List.drop` / `List.take` of
-the arguments (the `TwinEq` form of `Core/LS`'s `drop_eidx_n_ls` /
-`take_eidx_n_ls`, local). -/
-theorem pn_drop_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
-    LSP (arena.core.drop_eidx_n xs n)
-      (fun r => TwinEq ((List.map absEIdx xs.val).drop (absU n)) (List.map absEIdx r.val)) := by
-  intro r h
-  have := Lockstep.PC1.drop_eidx_n_ls xs n r h
-  simp only [absEIdxList] at this
-  exact this.symm
-
-theorem pn_take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
-    LSP (arena.expr_ops.take_eidx_n xs n)
-      (fun r => TwinEq ((List.map absEIdx xs.val).take (absU n)) (List.map absEIdx r.val)) := by
-  intro r h
-  have := Lockstep.PC1.take_eidx_n_ls xs n r h
-  simp only [absEIdxList] at this
-  exact this.symm
-
-attribute [local lockstep high] pn_drop_eidx_n_twin pn_take_eidx_n_twin
+-- `drop_eidx_n` / `take_eidx_n` as the twin's `List.drop` / `List.take` (`Shape`'s rows,
+-- ahead of `Core/LS`'s `absEIdxList` forms).
+attribute [local lockstep high] drop_eidx_n_twin take_eidx_n_twin
 
 -- `nest_cont_params` is the tail of `nestCont` (the parameters' closedness,
 -- the former, full application).
@@ -1169,10 +1132,7 @@ constructors at the root key, each at its own input-derived fuel. -/
 
 /-! ## The seeds: `nest_seeds` -/
 
-theorem pn_fuel_slack_val : (arena.inductives.positivity.FUEL_SLACK).val = fuelSlack := by
-  rw [arena.inductives.positivity.FUEL_SLACK, fuelSlack]; rfl
-
-attribute [local lockstep_simp] pn_fuel_slack_val
+attribute [local lockstep_simp] fuel_slack_val
 
 /-- The seeds as the twin's `(NestKey × Nat)` list. -/
 def absSeedsLFrom (v : alloc.vec.Vec (arena.inductives.positivity.NestKey × Std.U64))

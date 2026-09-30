@@ -43,19 +43,6 @@ structure BlockPassRel (r : arena.inductives.block_tail.BlockPass) (q : BlockPas
   cls : q.cls = absTargetMajorL r.cls
   tbl : q.tbl = r.tbl.val.map absNestCtorNf
 
-/-- An `LS` at a weaker answer relation. -/
-theorem LS.mono_rel {α β : Type} {pers : arena.store.PersTier} {R R' : α → β → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM β} (h : LS pers R m lst x) (hR : ∀ a b, R a b → R' a b) :
-    LS pers R' m lst x := by
-  intro o st' hm
-  have h1 := h o st' hm
-  cases o with
-  | Err e => exact h1
-  | Ok a =>
-    obtain ⟨b, lst', hx, hR1, h2, h3⟩ := h1
-    exact ⟨b, lst', hx, hR _ _ hR1, h2, h3⟩
-
 /-- `check_block_inds` with the pair of abstractions as ONE equation, so the
 twin's `let (fe₁, cvTas, p₁) ← …` destructures a known term. -/
 @[lockstep high] theorem check_block_inds_pair_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -64,7 +51,7 @@ twin's `let (fe₁, cvTas, p₁) ← …` destructures a known term. -/
     LS pers (fun a b => IFEnvRelI a.1 b.1 ∧ b.2 = (absICVL a.2.1, absBlockShape a.2.2))
       (arena.inductives.block_install.check_block_inds pers st mode rf p is_rec) lst
       (checkBlockInds (ConRon.Refine.absMode mode) lf (absBlockParts p) is_rec) :=
-  LS.mono_rel (check_block_inds_ls hrel hinv mode hfe p is_rec)
+  Lockstep.PPR.LS.weaken (check_block_inds_ls hrel hinv mode hfe p is_rec)
     (fun _ _ h => ⟨h.1, Prod.ext h.2.1 h.2.2⟩)
 
 attribute [local lockstep_inline] arena.inductives.block_tail.check_block_pass_classes
@@ -178,7 +165,7 @@ lists walked side by side. -/
             checkBlockTables_one]
           lockstep
           all_goals
-            simp only [hcA, hso, List.getElem_cons_zero, usz_zero_val] at *
+            simp only [hcA, hso, List.getElem_cons_zero, Lockstep.usize_zero_val'] at *
             simp only [absMemberShape, absIConstantVal] at *
             lockstep
         · rw [checkBlockTables_other _ _ _ _ _ _ _ _
@@ -208,7 +195,7 @@ lists walked side by side. -/
   subst h1 h2 h3 h4 h5 h6 h7 h8 h9 h10
   rw [arena.inductives.block_tail.check_block_tail, checkBlockTail]
   lockstep
-  simp only [absCtorsLL, absBlockParts_shape, usz_zero_val, List.drop_zero] at *
+  simp only [absCtorsLL, absBlockParts_shape, Lockstep.usize_zero_val', List.drop_zero] at *
   obtain ⟨⟨_, _, hvb, _, _⟩, _⟩ := ‹IFEnvRelI _ (consBlockCtors _ _ _)›
   have hout : ∀ v, absRuleOutL v = v.val.map absRecOut := fun _ => rfl
   simp only [absBlockShape] at hvb ⊢

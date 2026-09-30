@@ -34,8 +34,10 @@ open ConRon.Arena
 open Lockstep
 open scoped IndSide
 
-attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
-attribute [local lockstep] pos_zero_level_ls pos_i_constant_val_dup_spec
+attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
+attribute [local lockstep] Lockstep.PC2.i_constant_val_dup_ls
+-- three `drop_eidx_n` rows are global (`Shape`, `PC1`, `PC2`); the proofs here read `Shape`'s
+attribute [local lockstep high] drop_eidx_n_twin
 
 /-! ## The records' fields -/
 
@@ -88,38 +90,10 @@ theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g
   cases k <;> simp only [arena.inductives.gen_rec.class_field_dup, Result.ok.injEq] at h <;>
     exact h.symm
 
-/-- A copy loop whose element copy is the identity (`Positivity.lean`'s
-private `copy_loop_id`, restated). -/
-theorem gr_copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x = ok y → y = x)
-    (xs : alloc.vec.Vec α) (F : Std.Usize → alloc.vec.Vec α → Result (alloc.vec.Vec α))
-    (heq : ∀ i out, F i out = (if i ≥ alloc.vec.Vec.len xs then ok out else do
-      let x ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice α) xs i
-      let y ← dup x
-      let out1 ← alloc.vec.Vec.push out y
-      let i2 ← i + 1#usize
-      F i2 out1)) :
-    ∀ (o : alloc.vec.Vec α), F 0#usize (alloc.vec.Vec.new α) = ok o → o = xs := by
-  refine vec_copy_id xs F ?_ ?_
-  · intro i out o hn h
-    rw [heq, if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
-    rw [h]
-  · intro i x out o hx h
-    rw [heq, if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
-      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
-    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hqx : q = x := by
-      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
-    subst hqx
-    obtain ⟨y, hy, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [hd _ _ hy] at hout1
-    exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
-
 @[lockstep] theorem class_fields_dup_spec (ks : alloc.vec.Vec arena.inductives.gen_rec.ClassField) :
     LSP (arena.inductives.gen_rec.class_fields_dup ks 0#usize (alloc.vec.Vec.new _))
       (fun o => o = ks) :=
-  gr_copy_loop_id _ (fun x y h => class_field_dup_spec x y h) ks
+  copy_loop_id _ (fun x y h => class_field_dup_spec x y h) ks
     (arena.inductives.gen_rec.class_fields_dup ks)
     (fun i out => by rw [arena.inductives.gen_rec.class_fields_dup.eq_def])
 
@@ -132,13 +106,13 @@ theorem gr_copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup 
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
-  rw [pos_i_constant_val_dup_spec _ _ hcv, class_fields_dup_spec _ _ hv, dupId_eidx _ _ he,
+  rw [Lockstep.PC2.i_constant_val_dup_ls _ _ hcv, class_fields_dup_spec _ _ hv, dupId_eidx _ _ he,
     dupId_eidx _ _ he1]
 
 @[lockstep] theorem class_ctors_dup_spec (xs : alloc.vec.Vec arena.inductives.gen_rec.ClassCtor) :
     LSP (arena.inductives.gen_rec.class_ctors_dup xs 0#usize (alloc.vec.Vec.new _))
       (fun o => o = xs) :=
-  gr_copy_loop_id _ (fun x y h => class_ctor_dup_spec x y h) xs
+  copy_loop_id _ (fun x y h => class_ctor_dup_spec x y h) xs
     (arena.inductives.gen_rec.class_ctors_dup xs)
     (fun i out => by rw [arena.inductives.gen_rec.class_ctors_dup.eq_def])
 
@@ -278,48 +252,6 @@ theorem mapM_loop_acc {α β : Type} (f : α → AM β) (l : List α) (acc : Lis
     rw [ih, ih (b :: [])]
     simp
 
-/-- A twin-only `map` on a read's answer, taken off: the relation composed
-with it. -/
-theorem LSR.of_twin_map {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α → γ → Prop}
-    {m : Result (core.result.Result α kernel.core_types.CheckError)}
-    {st : arena.monad.AState} {lst : AState} {x : AM β} {f : β → γ}
-    (h : LSR pers R₁ m st lst (x >>= fun b => pure (f b))) :
-    LSR pers (fun a b => R₁ a (f b)) m st lst x := by
-  intro o hm
-  have h1 := h o hm
-  rw [StateT.run_bind] at h1
-  cases hx : x.run lst with
-  | error le =>
-    rw [hx] at h1
-    cases o with
-    | Err e =>
-      intro k hk
-      obtain ⟨le', hle, hk'⟩ := h1 k hk
-      have : le' = le := by
-        change Except.error le = Except.error le' at hle
-        cases hle; rfl
-      subst this
-      exact ⟨le', rfl, hk'⟩
-    | Ok a =>
-      obtain ⟨b, lst', hb, -⟩ := h1
-      exact absurd hb (by simp [Bind.bind, Except.bind])
-  | ok p =>
-    rw [hx] at h1
-    obtain ⟨b, l1⟩ := p
-    cases o with
-    | Err e =>
-      intro k hk
-      obtain ⟨le, hle, -⟩ := h1 k hk
-      exact absurd hle (by
-        show Except.bind (Except.ok (b, l1)) (fun p => (pure (f p.1) : AM γ).run p.2) ≠ _
-        simp [Except.bind, Pure.pure, StateT.pure, StateT.run, Except.pure])
-    | Ok a =>
-      obtain ⟨c, lst', hc, hR, h2, h3⟩ := h1
-      simp only [Bind.bind, Except.bind, Pure.pure, StateT.pure, Except.pure, StateT.run,
-        Except.ok.injEq, Prod.mk.injEq] at hc
-      obtain ⟨rfl, rfl⟩ := hc
-      exact ⟨b, l1, rfl, hR, h2, h3⟩
-
 /-- `gen_binders` seeded with a prefix `out` ⊑ `xs.mapM g.binder`, the prefix
 in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
 @[lockstep] theorem gen_binders_pre_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -331,7 +263,7 @@ in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
       ((absEIdxL xs).mapM (absClassGen g).binder) := by
   have h := gen_binders_acc (pers := pers) g hbm xs 0#usize out lst hrel hinv hout
   rw [mapM_loop_acc, List.reverse_reverse] at h
-  have h2 := LSR.of_twin_map h
+  have h2 := LSR.of_map h
   have e : (List.mapM.loop (absClassGen g).binder
       ((xs.val.drop (0#usize : Std.Usize).val).map absEIdx) []) =
       (absEIdxL xs).mapM (absClassGen g).binder := by
@@ -911,15 +843,6 @@ theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConR
 
 /-! ## `classGenRule`'s parts: `prefix_vars`, `rule_calls`/`rule_call`, `class_gen_rule_close` -/
 
-theorem gr_absIConstantVal_name (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).name = absNIdx cv.name := rfl
-theorem gr_absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).levelParams = absNIdxL cv.level_params := rfl
-theorem gr_absIConstantVal_type (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).type = absEIdx cv.ty := rfl
-attribute [local lockstep_simp] gr_absIConstantVal_name gr_absIConstantVal_levelParams
-  gr_absIConstantVal_type
-
 /-- `classGenRule`'s prefix variable `i`. -/
 def grPVar (g : ClassGen) (i : Nat) : AM EIdx :=
   if i < g.nP then exprGetD g.params i else g.slotVar (i - g.nP)
@@ -1260,7 +1183,7 @@ theorem ctor_count_abs (xss : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_
   intro o h
   have := vec_cursor_filterMap cvs (fun cv => some (absEIdx cv.ty)) absEIdxL
     (arena.inductives.gen_rec.former_types cvs) ?_ ?_ 0#usize _ o h
-  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, gr_absIConstantVal_type]
+  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, ConRon.Refine2.absIConstantVal_type]
   · intro i out o hn h
     rw [arena.inductives.gen_rec.former_types.eq_def,
       if_pos (show i ≥ alloc.vec.Vec.len cvs by scalar_tac), Result.ok.injEq] at h
