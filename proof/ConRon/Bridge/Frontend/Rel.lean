@@ -112,6 +112,12 @@ theorem AM.fail_ok {α : Type} {e : Arena.CheckError} {s s' : AState} {a : α}
   simp only [fail, throwThe, MonadExceptOf.throw] at h
   exact nomatch h
 
+/-- con-leche: none — the name store's own well-formedness, off `StateOK`
+(`Arena/WFProofs.lean`'s `EWFAt.nsWF`, unpacked once). -/
+theorem nsWF_of_StateOK {s : AState} (hok : StateOK s) : NStoreWF s.store.ns := by
+  obtain ⟨rk, hrk⟩ := hok.wf
+  exact hrk.nsWF
+
 /-! ## Persistence, from a view and the closed scratch tier
 
 The `PersStateD` half of every theorem of this tier is this observation and

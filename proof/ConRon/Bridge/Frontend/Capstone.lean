@@ -45,22 +45,22 @@ re-implement it, and proving the re-implementation right was seven files and
 
 ## The named hypotheses
 
-Four, and every one of them is a hypothesis of the STATEMENT rather than an
-axiom of the environment — which is what makes "four named hypotheses" a
+Two, and every one of them is a hypothesis of the STATEMENT rather than an
+axiom of the environment — which is what makes "two named hypotheses" a
 checkable claim (`#print axioms` in `Bridge/Frontend/Axioms.lean` shows none
 of them):
 
 * `hk : CoreSpec .verified Arena.checkFuel` — the Core tier's
   (`Bridge/Core/**`; its `knot` field is already discharged by
   `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel`);
-* `hind : IndSpec .verified` — the Inductives tier's;
-* `hmw : ModellerWF md` and `hmr : ModellerRefines md` — the seam's two
-  promises (`Bridge/Frontend/Modeller.lean`), the twins of
-  `conron.no_False_declaration`'s own `hgen` and `hmr`.  At the instantiation
-  the driver runs they are THEOREMS (`inProcessModeller_wf`,
-  `inProcessModeller_refines`), because that instantiation delegates to
-  con-leche's own generator — which is why
-  `Arena.no_False_declaration_pipeline` carries neither.
+* `hind : IndSpec .verified` — the Inductives tier's.
+
+**Task #105**: the original campaign's `hgen`/`hmr` — the seam's two promises
+about the in-process modeller (`Bridge/Frontend/Modeller.lean`, deleted) —
+are gone.  The uniform installer (`Arena/Inductives/**`) replaces the
+modeller and needs no analogous premise: `hind` alone covers it, so
+`Arena.no_False_declaration_pipeline` carries two named hypotheses where the
+original campaign's `conron.no_False_declaration` carried four.
 -/
 import ConRon.Bridge.Frontend.Prepare
 import ConRon.Bridge.Checker

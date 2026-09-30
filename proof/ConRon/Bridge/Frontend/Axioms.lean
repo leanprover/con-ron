@@ -12,13 +12,15 @@ three, which come in through `Std.HashMap`, `Classical` in `Option`'s lemmas
 and `Quot` in `String`, and which every tier of this repository already
 carries.  No `sorryAx`, no `bv_decide` axiom.
 
-**The four named hypotheses are hypotheses, not axioms.**  `CoreSpec`,
-`IndSpec`, `ModellerWF` and `ModellerRefines` appear in the capstone's
-STATEMENT; `#print axioms` on it therefore names none of them, which is what
-makes "four named hypotheses" a checkable claim rather than an editorial one
-(`Bridge/Checker/Axioms.lean` makes the same point about its two).  The
-capstones carried `sorryAx` until the tier closed and are printed in the
-last sections below; they read Lean's own three now (task #97-MILESTONE).
+**The named hypotheses are hypotheses, not axioms.**  `CoreSpec` and
+`IndSpec` appear in the capstone's STATEMENT; `#print axioms` on it therefore
+names neither, which is what makes "two named hypotheses" a checkable claim
+rather than an editorial one (`Bridge/Checker/Axioms.lean` makes the same
+point about its two).  The capstones carried `sorryAx` until the tier closed
+and are printed in the last sections below; they read Lean's own three now
+(task #97-MILESTONE).  **Task #105**: the original campaign's `ModellerWF`/
+`ModellerRefines` are gone with the in-process modeller — the uniform
+installer needs no analogous premise.
 
 **Round two (task #97-P3-Frontend-2)** added the chunk tier, the preparation's
 composition, the pure fold's stream ingredient and two of the three capstone
@@ -126,11 +128,6 @@ namespace ConRon.Bridge.Frontend
 The eighteen-clause relation and the seven-clause result relation both survive
 an `intern`, which is what the streaming fold's induction rests on. -/
 
-#print axioms ProjRecOwnerRel.ext
-#print axioms MIndTypeRecRel.ext
-#print axioms MIndCtorRecRel.ext
-#print axioms MIndRecRecRel.ext
-#print axioms BlockRecRel.ext
 #print axioms StateDRel.ext
 
 /-! ## The parse's frame -/
@@ -179,10 +176,6 @@ Item 1 in full: the ten-arm fuel induction both ways (`denoteEGo_spec_le` and
 #print axioms denoteEGo_isSome
 #print axioms denoteEShared_isSome
 #print axioms denoteEShared_eq_denoteE
-#print axioms denoteBlockRec_eq_of_rel
-#print axioms nameHandle?_sound
-#print axioms nameHandle?_isSome
-#print axioms ctxOf_eq_of_rel
 
 /-! ## The intern direction (round 3) — CLOSED
 
@@ -210,51 +203,25 @@ between this tier and them was an import line. -/
 #print axioms internNNode_istep
 #print axioms internDecls_istep
 
-/-! ## The seam (round 3) — CLOSED
+/-! ## General readback helpers (rounds 3 and 4)
 
-Item 8.  `inProcessModeller` delegates to con-leche's own generator, so both
-promises are theorems about the readback and the intern rather than
-assumptions about a foreign program: `ctxOf_eq_of_rel` and
-`denoteBlockRec_eq_of_rel` on the way in, `internDecls_istep` on the way out.
-
-Round 3's finding 14 is what made them provable: both promises were stated at
-an ARBITRARY start state and concluded `StateOK s'`, which is false of a
-modeller that returns `[]` at a state whose store is not well formed.  They
-now take `StateOK s` and the closed scratch tier, which every call site
-has. -/
-
-#print axioms inProcessModeller_wf
-#print axioms inProcessModeller_refines
-
-/-! ## The projection artifact's name and level (rounds 3 and 4)
-
-Round 4 adds the recogniser (`isProjIotaName_run`), the `Eq`-level read
-(`projIotaLevel_run` — restated over `ParseStep` and as a two-sided `OptRel`,
-finding 15) and the two telescope peels the rewrite is built out of. -/
+**Task #105**: round 3's seam section named `inProcessModeller`'s two
+promises (`ctxOf_eq_of_rel`, `denoteBlockRec_eq_of_rel`, `internDecls_istep`)
+and round 4's recogniser/level-read section named `isProjIotaName_run`/
+`projIotaLevel_run` — all `Bridge/Frontend/ProjRec.lean`, deleted with the
+modeller and the projection rewrite.  What survives from that file is the
+handful of general-purpose readback helpers it happened to define alongside
+them (`view_run`, `viewN_run`, `piResultD_run`, `readLevel_run`,
+`nsWF_of_StateOK`, `denoteN_str_inv`, `view_str_of_denoteN`), relocated into
+`Bridge/Frontend/{Rel,Lines}.lean`. -/
 
 #print axioms viewN_run
-#print axioms viewLs_run
 #print axioms readLevel_run
 #print axioms view_run
-#print axioms piResult_run
-#print axioms getAppFn_run
+#print axioms piResultD_run
 #print axioms nsWF_of_StateOK
 #print axioms denoteN_str_inv
 #print axioms view_str_of_denoteN
-#print axioms projIotaName_run
-#print axioms clIsProjIotaName_false
-#print axioms isProjIotaName_run
-#print axioms denoteLList_length
-#print axioms denoteLList_singleton
-#print axioms clProjIotaLevel_eq
-#print axioms projIotaLevel_none
-#print axioms projIotaLevel_run
-
-/-! ## The rewrite's two telescope peels (round 4) -/
-
-#print axioms stripPisAll_stop
-#print axioms stripPisAll_run
-#print axioms mkLams_run
 
 /-! ## The parse's initial state (round 2) — CLOSED
 
@@ -288,7 +255,6 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 /-! ## The parsed block, resolved (round 4) -/
 
 #print axioms parseRules_run
-#print axioms blockRecOf_run
 
 /-! ## The line's sum -/
 
@@ -302,7 +268,6 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 
 /-! ## The seam -/
 
-#print axioms declineModeller_wf
 
 /-! ## The pure fold's stream ingredient (round two) — CLOSED
 
@@ -355,36 +320,17 @@ The machinery `installIndD_run`, `processLineCoreD_run`,
 `hoistNatOpGround_run` and `projRewriteD_run` stand on.  Everything here is
 at Lean's own three. -/
 
-#print axioms noteProjIota_run
-#print axioms pushGenD_run
-#print axioms ListRel.of_denoteNList
-#print axioms MapRel.foldl_insert
-#print axioms noteGen_run
-#print axioms pushGenList_run
-#print axioms mapM_sim'
 #print axioms ListRel.append
 #print axioms denoteCIList_of_listRel
 #print axioms denoteCaps_default
-#print axioms wants_eq
 #print axioms MapRel.getElem?_rel
-#print axioms MapRel.foldl_insert_by
-#print axioms ctxRel_of_maps
-#print axioms head_name_rel
-#print axioms ListRel.forall_left
-#print axioms StateDRel.setDeclined
-#print axioms StateDRel.setModelled
-#print axioms MapRel.foldl_insert_owners
 #print axioms pushDecl_built_run
-#print axioms StateDRel.setProjRewrites
-#print axioms StateDRel.bumpIndCount
 #print axioms reorder_toList
 #print axioms denoteDecls_filterMap
 #print axioms movedNames_toList
 #print axioms denoteNList_append'
 #print axioms denoteNList_flatMap_names
 #print axioms applyHoist_run
-#print axioms lamBody_run
-#print axioms denoteNList_beq
 
 /-! ## Round eight — the target map, CLOSED
 
@@ -414,53 +360,20 @@ else.  Everything here is at Lean's own three. -/
 #print axioms hoistTargets_run
 #print axioms hoistNatOpGround_run
 
-/-! ## Round eight — the owner census's candidates
+/-! ## Round eight — the projection rewrite and owner census, DELETED
 
-`Bridge/Frontend/ProjRecOwners.lean`.  `projRecOwners_run` itself is closed
-modulo `occursConstFast_run`'s two con-leche-tier asks (through
-`ctorsMentionBlock_run`), so it and the three recursion-test walks are NOT
-listed; the candidate half is at Lean's own three. -/
+**Task #105**: `Bridge/Frontend/{ProjRec,ProjRecOwners,ProjRecValue,
+Scratch}.lean` are gone with the in-process modeller and the projection
+rewrite; every result the two "round eight" sections here used to name
+(`projRecOwners_run`, `projRecValue_run`, `projRewriteD_run`, the
+scratch-frame family) went with them.  `ReadCachesOK` itself survives —
+`Bridge/Frontend/Rel.lean` keeps the structure and its two lemmas because
+`proof/ConRon/Capstone.lean` (a later task's file) still cites
+`ReadCachesOK.ofEmpty` — but nothing in this tier threads it any more, since
+nothing downstream of the parse reads a per-declaration cache. -/
 
-#print axioms listRel_of_denoteNList
-#print axioms beq_denoteN
-#print axioms findCtorRec_rel
-#print axioms findRecRec_rel
-#print axioms projRecCandidates_run
-#print axioms any_isRec_eq
-#print axioms blockNames_rel
-#print axioms headNP_eq
-
-/-! ## Round eight — the projection rewrite, CLOSED
-
-`Bridge/Frontend/ProjRecValue.lean` and `Bridge/Frontend/Scratch.lean`:
-`projRecValue_run` with its whole cone, and the scratch-frame family that
-turns the Inductives tier's `PStep` into the parse's `ParseStep`.  Every one
-at Lean's own three.  `projRewriteD_run` moved with it and is closed too. -/
-
-#print axioms projRecValue_scratch
-#print axioms projRecOwners_scratch
-#print axioms ParseStep.ofPStep
-#print axioms ReadCachesOK.pstep
 #print axioms ReadCachesOK.step
 #print axioms ReadCachesOK.ofEmpty
-#print axioms internName_pstep
-#print axioms denoteBL_of_listRel
-#print axioms denoteBL_length
-#print axioms mkLams_pstep
-#print axioms headIs_run
-#print axioms instPisOpen_run
-#print axioms denoteEList_getLast?
-#print axioms mkProjMotive_run
-#print axioms mkProjMinor_run
-#print axioms buildBinders_run
-#print axioms buildMotives_run
-#print axioms buildMinors_run
-#print axioms clProjRecValue_eq
-#print axioms denoteBP_some_bl
-#print axioms internParamLevels_run
-#print axioms instLPFast_pstep
-#print axioms projRecValue_run
-#print axioms projRewriteD_run
 
 /-! ## PROVED, and once resting on an open leaf
 
@@ -484,9 +397,9 @@ what rested on what.
   else; `FoldOK_post_pins` on the Checker tier's `internAllPins_run`.
   (`hoistNatOpGround_run` and `projRewriteD_run` left this list in round 8.) -/
 
-#print axioms registerProjOwners_run
 #print axioms installIndD_run
 #print axioms processLineCoreD_run
+#print axioms applyDeclD_run
 #print axioms applyLine_run
 #print axioms applyFinalLine_run
 #print axioms feedChunk_run_le
@@ -497,9 +410,6 @@ what rested on what.
 #print axioms parseChunksGo_run
 #print axioms toConstantVal_run
 #print axioms toConstantVal_type_run
-#print axioms noteBlock_run
-#print axioms noteFold_rel
-#print axioms noteDecl_run
 #print axioms pushDecl_run
 #print axioms denoteNList_contains
 #print axioms declares_denote
@@ -519,8 +429,6 @@ what rested on what.
 #print axioms ucBlockStep_denote
 #print axioms usedConstsBlock_run
 #print axioms usedConsts_run
-#print axioms OccSeen.insert
-#print axioms occursConstGo_run
 
 #print axioms parseChunks_run
 #print axioms builtinPreludeE_run
@@ -536,13 +444,6 @@ census prints — the "resting on an open leaf" list above and the headlines
 below included — reads at Lean's own three or fewer; the section titles
 record where each stood when it was written. -/
 
-#print axioms clOccursConstB_eq
-#print axioms clOccursMemoInv_insert
-#print axioms clOccursConstGo_inv
-#print axioms clOccursConstGo_eq
-#print axioms clOccursConstFast_eq
-#print axioms occursConstFast_run
-#print axioms projRecOwners_run
 
 /-! ## The headlines, and the four named hypotheses
 

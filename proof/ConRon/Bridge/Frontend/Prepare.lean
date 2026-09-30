@@ -85,11 +85,10 @@ capstones hold at any prelude (see the module note; the byte equality is the
 gate `scripts/gen-prelude-lean.sh --check`, not a hypothesis).
 
 `parseBytes_run`. -/
-theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
-    (hmr : ModellerRefines md)
+theorem builtinPreludeE_run
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
-    (hpins : PinsOK s) (hrb : ReadCachesOK s)
-    {pre : PreludeIx} (hrun : builtinPreludeE md s = .ok (.ok pre, s')) :
+    (hpins : PinsOK s)
+    {pre : PreludeIx} (hrun : builtinPreludeE s = .ok (.ok pre, s')) :
     ParseStep s s' ∧ PersPreludeIx pre ∧ DeclsProjNamed s'.store pre.decls ∧
       ∃ preC, PreludeIxRel s'.store pre preC := by
   rw [builtinPreludeE] at hrun
@@ -103,7 +102,7 @@ theorem builtinPreludeE_run {md : Modeller} (hmw : ModellerWF md)
     obtain ⟨hv, hs⟩ := AM.pure_ok hrest
     simp only [Except.ok.injEq] at hv
     subst hv; subst hs
-    obtain ⟨hstep, hpers, rc, -, hrel⟩ := parseBytes_run hmw hmr hok hoff hpins hrb hpb
+    obtain ⟨hstep, hpers, rc, -, hrel⟩ := parseBytes_run hok hoff hpins hpb
     exact ⟨hstep, hpers, hrel.projNamed, ⟨rc.decls⟩, hrel.decls⟩
 
 /-! ## The prelude's front -/
@@ -514,10 +513,10 @@ theorem frontOf_run :
 /-! ### The used-constant walk's memo, and why THIS one is gray
 
 `usedConstsGo` (`Arena/Frontend/NatOpGround.lean:52-71`) inserts the node into
-`seen` BEFORE it matches — so unlike `Bridge/Frontend/ProjRec.lean`'s
-`occursConstGo`, whose insert is at the end of the all-`false` branch, this
-memo does carry nodes on the descent path.  It costs nothing here all the
-same, because the walk's answer does not depend on WHY a key is in the set:
+`seen` BEFORE it matches — unlike a walk that inserts only at the end of an
+all-`false` branch, this memo does carry nodes on the descent path.  It costs
+nothing here all the same, because the walk's answer does not depend on WHY a
+key is in the set:
 `seen` is only ever consulted as "stop", and the statement below relates the
 two sets ELEMENTWISE rather than claiming anything about their members.
 
