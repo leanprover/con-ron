@@ -1580,10 +1580,6 @@ elab "lockstep_side_cheap" : tactic => strict do
   clearForallHyps
   firstTimed "side" (← sideCheap)
 
-elab "lockstep_side_dear" : tactic => strict do
-  clearForallHyps
-  firstTimed "sideD" (← sideDear)
-
 /-- A twin test the cheap tier could not decide: arithmetic, then the context. -/
 elab "lockstep_side_ite" : tactic => strict do
   clearForallHyps
@@ -1769,12 +1765,6 @@ def specCore (g : MVarId) (after : TacticM Unit := pure ()) : TacticM Unit := g.
       errs := errs.push m!"{c}: {e.toMessageData}"
       s.restore
   throwError "lockstep: no candidate for `{k}` closes{indentExpr ty}\n{MessageData.joinSep errs.toList "\n"}"
-
-elab "lockstep_spec" : tactic => strict do
-  let g ← getMainGoal
-  let others := (← getGoals).tail
-  specCore g
-  setGoals others
 
 /-- Head-normalise one side of a judgement, by definitional steps only: beta,
 `let`, `uncurry` at a pair, and a `match` whose discriminants reduce to
