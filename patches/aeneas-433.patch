@@ -197,6 +197,26 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
  
  Note: This linter can be disabled with `set_option linter.unusedVariables false`
  -/
+diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Extract/Extract.lean aeneas-lean-433/Aeneas/Extract/Extract.lean
+--- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Extract/Extract.lean	2026-09-12 07:32:55.301809670 +0000
++++ aeneas-lean-433/Aeneas/Extract/Extract.lean	2026-09-30 08:59:16.762325245 +0000
+@@ -213,7 +213,15 @@
+      Lean definitions, so we can simply reuse the original name. -/
+   if found
+   then pure (List.foldl (fun s0 s1 => s0 ++ "/" ++ s1) "Aeneas" out)
+-  else pure name
++  else
++    /- con-ron patch (task #104): otherwise the path is stored relative to the
++       working directory (the Lake package root), when it lies below it.  The
++       absolute path ended up in every generated `.olean`, and since Lake's
++       cache key includes the bytes of imported artifacts, a tree compiled at
++       one path never matched a cache seeded from another. -/
++    let cwd := (← IO.currentDir).toString
++    let pre := if cwd.endsWith "/" then cwd else cwd ++ "/"
++    if name.startsWith pre then pure (toString (name.drop pre.length)) else pure name
+ 
+ structure Span where
+   fileName : String
 diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean aeneas-lean-433/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
 --- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean	2026-09-12 07:32:55.305809609 +0000
 +++ aeneas-lean-433/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean	2026-09-12 07:40:12.016125593 +0000

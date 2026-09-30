@@ -65350,3 +65350,36 @@ relative to the package (or the bare file name) in `aeneas-433.patch`.  That
 patch is one line, but it rebuilds the shared Aeneas library and
 invalidates every cache entry once, so it is the maintainer's call and was
 not made here.
+
+### Task #104 — Aeneas stores a relative source path; the cache hits across worktrees (2026-09-30, Opus under Fable)
+
+Maintainer, on #103's cache finding: "since we are patching aeneas anyways,
+do that".
+
+**The patch.**  `patches/aeneas-433.patch` gains a hunk for
+`Aeneas/Extract/Extract.lean`'s `getLocalFileName`: when the path has no
+`Aeneas` component (every file of ours), it is stored relative to the
+working directory — Lake's package root, `proof/` — when it lies below it,
+and as before otherwise.  The stored name is only used by Aeneas's
+standard-library model listing, which this project never produces.
+Applied to the shared `_tmp/aeneas-lean` by `scripts/setup-aeneas-lean.sh`
+(its fingerprint covers the patch); CI's cache key hashes the patch, so CI
+rebuilds Aeneas once too.
+
+**Cost.**  One full rebuild of Aeneas and the proof at `LEAN_NUM_THREADS=8`:
+28 min 20 s.  Every cache entry downstream of Aeneas went stale once; the
+cache was reseeded from the main tree (5.5 GB; the stale entries stay
+until someone runs `rm -rf _tmp/lake-cache` and reseeds).
+
+**Checked.**  `strings proof/.lake/build/lib/lean/ConRon/Generated/*.olean
+| grep /home/` finds nothing (was
+`/home/joachim/con-ron/_tmp/wt-t103/proof/ConRon/Generated/Funs.lean`); the
+name is now `ConRon/Generated/Funs.lean`.  The case #103 diagnosed, run end
+to end: a fresh worktree at another path (`_tmp/wt-t104`) compiled
+`ConRon.Generated.Funs` itself against an EMPTY cache (2 040 jobs, 3 min
+30 s), then `lake build` against the shared cache restored the other
+modules, `Refine2/Core/Eqns.olean` included, in **2.5 s**.  Before the
+patch that build re-elaborated everything from `Generated` down (#100's
+28-minute rebuild).  #103's procedural advice (build the main tree from an
+empty `proof/.lake/build` after a landing) is no longer needed; it is
+harmless.

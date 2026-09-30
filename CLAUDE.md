@@ -72,7 +72,11 @@ section for every task you land.
   then miss the cache all the way down to `Refine2/Core/Eqns.lean`, while a
   worktree with *no* build directory restored everything from the cache.
   Start with no `proof/.lake/build`.  The copy advice below is the fallback
-  for an unseeded cache only.
+  for an unseeded cache only.  (The cause, found by task #103: Aeneas wrote
+  the absolute source path into the `Generated/*.olean`s, so a tree that
+  compiled them at one path never matched a seed from another.  Task #104
+  patched that; a tree that compiles its own `Generated` now restores the
+  rest from the cache too.)
 * **(Fallback) A new worktree can copy the build instead of rebuilding it.**  A fresh
   worktree with no `proof/.lake/build` pays ~17 minutes and 6 GB
   re-deriving `Refine2/Core/Eqns.lean`'s 109 `partial_fixpoint` equations.
