@@ -2863,6 +2863,7 @@ theorem check_div_mod_certs_aux (k : Nat) :
       subst hp
       simp only [arena.decl_check.check_div_mod_cert_at, arena.decl_check.check_div_mod_cert_tail]
       simp only [absStmtsFrom, absEIdxLFrom] at ih
+      have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
       lockstep
     · have : absEIdxLFrom proofs i = [] := by
         simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl

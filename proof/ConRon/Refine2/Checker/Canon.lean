@@ -1497,7 +1497,7 @@ open Lockstep in
 /-- One `lockstep` per pair of constructors.  The `.defnInfo` arm zips only
 since the twin tests the hints first, as the port does (task #97-T2-LOCKSTEP
 lane Checker Canon). -/
-@[local lockstep] private theorem i_constant_info_canon_eq_lsc {pers st lst}
+@[lockstep] theorem i_constant_info_canon_eq_ls {pers st lst}
     {ci ci2 : arena.env.IConstantInfo}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = id a) (arena.canon.i_constant_info_canon_eq pers st ci ci2) lst
@@ -1515,7 +1515,7 @@ theorem i_constant_info_canon_eq_refines {pers st lst}
     (hrun : arena.canon.i_constant_info_canon_eq pers st ci ci2 = ok o) :
     Sim₀ id pers lst o
       ((absIConstantInfo ci).canonEq (absIConstantInfo ci2)) :=
-  Lockstep.LS.toSim₀ (i_constant_info_canon_eq_lsc hrel hinv) hrun
+  Lockstep.LS.toSim₀ (i_constant_info_canon_eq_ls hrel hinv) hrun
 
 open Lockstep in
 private theorem canon_eq_list_aux (n : Nat) :
