@@ -10,16 +10,11 @@ a stream needs an invariant, and the invariant is this module: **the twin's
 parse state denotes con-leche's, field for field**.
 
 `Arena/Frontend/ExportC.lean`'s `StateD` is a field-for-field mirror of
-`ConLeche/Frontend/ExportC.lean`'s — **four fields** (task #105 dropped the
-in-process modeller's and the projection rewrite's fourteen census fields:
-`projOwners`, `projLevels`, `projRewrites`, `constTypes`, `heights`,
-`inModel`, `inModelled`, `genRecords`, `genOwner`, `inModelGen`, `indCount`,
-`indBlocks`, `inModelCensus`, `inModelDeclined` are all gone), in the same
-order, with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` —
-plus the projection-table naming invariant (`projNamed`, unrelated to the
-deleted rewrite: it is about `IProjTable.tableName`, the kernel's own struct
-projection bookkeeping, DESIGN §8.3) — so the relation is a field-for-field
-conjunction, and the four shapes it needs are:
+`ConLeche/Frontend/ExportC.lean`'s — **four fields**, in the same order,
+with `NIdx`/`LIdx`/`EIdx` where con-leche has `Name`/`Level`/`Expr` — plus the
+projection-table naming invariant (`projNamed`: `IProjTable.tableName`, the
+kernel's own struct projection bookkeeping, DESIGN §8.3) — so the relation is
+a field-for-field conjunction, and the three shapes it needs are:
 
 * **`OptRel`** — a relation lifted to `Option`, `none` matching `none`.  The
   three stream-index tables are `IdTable`s of handles against `IdTable`s of
@@ -28,11 +23,6 @@ conjunction, and the four shapes it needs are:
   the semantic layer uses about the table"), so `IdTableRel` is `OptRel` at
   every index and its three laws come from con-leche's three
   (`Scan/Types.lean:383/386/390`);
-* **`MapRel`** — a `Std.HashMap NIdx _` against a `Std.HashMap Name _`, keyed
-  through `denoteN`.  Stated in BOTH directions (`hit` and `cover`,
-  `Bridge/StateOK.lean`'s `IFEnvOK` shape and for the same reason: the naive
-  "a miss is a miss" is not preserved by an arena extension, but "every entry
-  of the value side is named by a handle the twin's side knows" is);
 * **`ListRel`** — Mathlib's `List.Forall₂` under another name; the library
   imports no Mathlib (task #97-P3-0) and core has no such relation, so the
   tier carries its own four-line inductive;
@@ -91,26 +81,6 @@ s')` and has to take it apart one `do`-step at a time.  The bind's inversion
 is the Checker tier's (`Bridge/Checker/Fold.lean`'s `AM.bind_ok`); what the
 frontend adds is the two leaves, because its functions end in a `pure` or a
 `fail` in almost every arm. -/
-
-/-- con-leche: none — `get` moves nothing and answers the state. -/
-theorem AM.get_ok {s s' t : AState} (h : (get : AM AState) s = .ok (t, s')) :
-    t = s ∧ s' = s := by
-  have he : ((s, s) : AState × AState) = (t, s') := Except.ok.inj h
-  exact ⟨(congrArg Prod.fst he).symm, (congrArg Prod.snd he).symm⟩
-
-/-- con-leche: none — a `pure` moves nothing and answers itself. -/
-theorem AM.pure_ok {α : Type} {a b : α} {s s' : AState}
-    (h : (pure a : AM α) s = .ok (b, s')) : b = a ∧ s' = s := by
-  simp only [pure, StateT.pure, Except.pure, Except.ok.injEq, Prod.mk.injEq]
-    at h
-  exact ⟨h.1.symm, h.2.symm⟩
-
-/-- con-leche: none — a `fail` never returns, so a theorem premised on a
-successful run never reaches one. -/
-theorem AM.fail_ok {α : Type} {e : Arena.CheckError} {s s' : AState} {a : α}
-    (h : (fail e : AM α) s = .ok (a, s')) : False := by
-  simp only [fail, throwThe, MonadExceptOf.throw] at h
-  exact nomatch h
 
 /-- con-leche: none — the name store's own well-formedness, off `StateOK`
 (`Arena/WFProofs.lean`'s `EWFAt.nsWF`, unpacked once). -/
@@ -203,28 +173,14 @@ back.**  It never enters the scratch tier (`Arena/Main.lean` runs
 touches the pin table — which is what makes `PersStateD` free and what makes
 the fold theorems' `FoldOK` (their `hok`) reachable at the post-parse state.
 
-**No memo clause** (task #97-P3-Frontend round 8).  Until then the record
-said `s'.memos = s.memos`, and that is false of the projection rewrite: every
-`…Fast` walk it runs (`liftLooseBVarsFast`, `instantiate1LiftFast`,
-`resetMetaFast`, `instLPFast`) CLEARS its per-call table on exit, so the
-equation fails from any start with a non-empty table.  Nothing read it — the
-capstones consume `ok`, `ext`, `scratch`, `cframe` and `pins` — so it is gone
-rather than repaired.
+**No memo clause**: nothing reads one — the capstones consume `ok`, `ext`,
+`scratch`, `cframe` and `pins`.
 
-**The cache conjunct is a FRAME and not an equation** (task #97-P3-Frame).
-Round one said `s'.caches = s.caches`, and that is false of the parse:
-`registerProjOwners` (`Arena/Frontend/ExportC.lean:401`) calls `projRecOwners`
-(`Arena/Frontend/ProjRec.lean:510-515`), which calls `structPartsCore?` and
-`nativeParts?`, each of which computes its `isProp` field with
-`Arena/Core.lean`'s `lvlEq?` — a cached verdict walk that probes `lvlEqC` and
-on a miss writes `readLC` (twice, through `readLevelM`) and `lvlEqC`.  The
-Rust does the same at the same three call sites, so the port is not at fault
-and the statement was.  `Bridge/StateOK.lean`'s `CacheFrame` is the honest
-clause: the record equation that names those two tables — and, since round 8,
-the two other readback tables `readNC`/`readLsC`, which `projRecValue`'s
-`instLPFast` writes — plus their invariants as implications.  A caller holding `CheckOK` — which is where the invariants
-live — gets them back through `CheckOK.monoF`; a caller at `StateOK` does not
-need them. -/
+**The cache conjunct is a FRAME** (`Bridge/StateOK.lean`'s `CacheFrame`):
+the record equation up to the four tables a level comparison or a readback
+writes, plus their invariants as implications.  A caller holding `CheckOK` —
+which is where the invariants live — gets them back through
+`CheckOK.monoF`; a caller at `StateOK` does not need them. -/
 
 /-- con-leche: none — **the parse's frame**: the store only grew, the scratch
 tier stayed as it was, the pin table stood still, and the per-declaration
@@ -1125,15 +1081,7 @@ Every clause of `StateDRel` is a denotation, and `Bridge/Rel.lean`'s ten
 does, and the parse's induction never has to re-establish it.  This is the
 `Ext` twin of `Bridge/Checker/Inv.lean`'s nineteen `…_pext` transports; the
 frontend tier needs only the `Ext` one, because the parse never opens the
-scratch tier.
-
-**`MapRel`'s `cover` clause transports too, and it costs nothing.**  That is
-worth saying, because `Bridge/StateOK.lean`'s `IFEnvOK` needs `cover` exactly
-where the naive "a miss is a miss" fails: a handle that decoded to nothing
-before an extension may decode after it.  `cover` says the opposite direction
-— *every entry of the value side is named by a handle the twin's side knows*
-— and an extension keeps that handle decoding, so the clause survives by
-`denoteN_ext` alone. -/
+scratch tier. -/
 
 theorem IdTableRel.mono {α β : Type} {R R' : α → β → Prop}
     (hR : ∀ a b, R a b → R' a b) {t : ConLeche.Frontend.IdTable α}
@@ -1146,29 +1094,6 @@ theorem IdTableRel.mono {α β : Type} {R R' : α → β → Prop}
   | some a =>
     obtain ⟨b, hv, hab⟩ := hi.some_left hu
     rw [hv]; exact hR _ _ hab
-
-/-- con-leche: none — `Bridge/Rel.lean`'s `denoteCI_ext` at a BLOCK.  It has a
-`…_pext` twin (`Bridge/Checker/Inv.lean:320`) and no `…_ext` one, because the
-Checker tier only ever moves a block across a drop. -/
-theorem denoteCIList_ext {st st' : EStore} (hx : Ext st st') :
-    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo),
-      ConRon.Arena.Frontend.denoteCIList st cs = some xs →
-        ConRon.Arena.Frontend.denoteCIList st' cs = some xs := by
-  intro cs
-  induction cs with
-  | nil => intro _ h; exact h
-  | cons a as ih =>
-    intro xs h
-    simp only [ConRon.Arena.Frontend.denoteCIList] at h ⊢
-    cases ha : ConRon.Arena.Frontend.denoteCI st a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : ConRon.Arena.Frontend.denoteCIList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        rw [denoteCI_ext ha hx, ih ys has]
-        exact h
 
 /-- con-leche: none — a declaration record survives an append.  The `…_ext`
 twin of `Bridge/Checker/Inv.lean`'s `denoteDecl_pext`. -/
@@ -1189,7 +1114,7 @@ theorem denoteDecl_ext {st st' : EStore} (hx : Ext st st') {pd : IDeclaration}
   | indDecl block nP =>
     simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at h ⊢
     obtain ⟨b, hb, hc⟩ := h
-    exact ⟨b, denoteCIList_ext hx _ b hb, hc⟩
+    exact ⟨b, denoteCIList_mono hx _ b hb, hc⟩
   | defnDecl v e hint =>
     simp only [ConRon.Arena.Frontend.denoteDecl] at h ⊢
     cases hcv : ConRon.Arena.Frontend.denoteCV st v with

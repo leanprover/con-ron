@@ -1,49 +1,14 @@
 /-
-# `ConRon.Bridge.Frontend.Shared` — the memoised readback IS the denotation,
-and its inverse
+# `ConRon.Bridge.Frontend.Shared` — the intern direction
 
-`Arena/Frontend/Readback.lean`'s module note states the obligation this module
-discharges, in its own words:
-
-> `denoteEShared st h = denoteE st h` is the exactness obligation this owes
-> P3; the two differ only in how many times the tree is built.
-
-The reason the two functions exist at all is measured, not stylistic:
-`Arena/Denote.lean`'s `denoteE` recurses at each child independently, so on a
-DAG whose expression table doubles at every second entry (con-leche's own
-`tests/e2e/tower_struct.ndjson`) it unfolds the sharing and does not finish.
-`denoteEGo` threads a `Std.HashMap EIdx Expr` and rebuilds each node once.
-**The value is the same and the sharing is the same; only the work differs.**
-
-## What the equation costs
-
-The memo makes the induction a two-parameter one — the fuel AND the memo's
-own invariant — and the invariant is exactly the shape task #97-P3-0 §6
-records for `fvarLeavesGo_spec`:
-
-    DMemoOK st m  :  ∀ h e, m[h]? = some e → denoteE st h = some e
-
-with the difference that `denoteEGo`'s memo is WHITE (a node is inserted after
-its children are built), so there is no gray phase and no second induction on
-`StoreWF`'s rank.  That is why this one is a straight fuel induction where
-`fvarLeavesGo_spec`'s is not.
-
-## The other direction
-
-`internExpr` is the readback's inverse; the frontend needs it for the pin
-variants (`Bridge/Checker/Pins.lean`'s item 13) — the in-process modeller
-(`Arena/Frontend/InModel.lean`) and the projection rewrite's two recognisers
-that used to need it too are gone (task #105).  Its exactness is the mirror
-statement, `denoteE st' (internExpr e) = some e`, with `Ext` and `StoreWF`
-threaded: it is `Bridge/Specs.lean`'s `internE_spec` composed along a
-`ConLeche.Expr`'s own structural recursion, with the `EMemo` invariant in the
-same shape.
-
-**Task #105 deletion**: the tail section relating `BlockRec`/`Ctx`
-(`denoteM{Type,Ctor,Rec}Go_of_rel`, `denoteBlockRec_eq_of_rel`,
-`nameHandle?_sound`, `find?_isSome_of_view`, `nameHandle?_isSome`,
-`ctxOf_eq_of_rel`, eleven lemmas) served only the modeller seam's context
-readback and is gone with it.
+`Arena/Frontend/Readback.lean`'s `internExpr` puts a transient con-leche value
+into the store; the frontend needs it for the pin variants
+(`Bridge/Checker/Pins.lean`'s item 13).  Its exactness is
+`denoteE st' (internExpr e) = some e`, with `Ext` and `StoreWF` threaded: it
+is `Bridge/Specs.lean`'s `internE_spec` composed along a `ConLeche.Expr`'s own
+structural recursion, with the `EMemo` invariant
+(`EMemoOK st m : ∀ e h, m[e]? = some h → denoteE st h = some e`) carried
+along.
 -/
 import ConRon.Bridge.Frontend.Rel
 import ConRon.Bridge.SpecsL
@@ -54,8 +19,6 @@ namespace ConRon.Bridge.Frontend
 set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
-
-/-! ## The readback's memo -/
 
 /-! ## The intern direction -/
 
@@ -1073,20 +1036,13 @@ theorem internCIList_sstep : ∀ (cs : List ConstantInfo) {s s' : AState}
     · exact hnc.mono hstep2.ext
     · exact hncs x hx
 
-/-! ## The same twenty-two, with the scratch tier CLOSED
+/-! ## The view leaves, with the scratch tier CLOSED
 
-The `IStep` face of the family above, and the shape every caller of this module
-had before round 6.  Seventeen of them are three lines — `IStepS.toIStep` for
-the frame, `Bridge/Frontend/Rel.lean`'s `Pers…_of_denote` for the persistence
-conjunct, the denotation carried across unchanged — because **persistence is a
-consequence of the denotation** at a state whose scratch tier is closed.
-
-The five that are not are the VIEW leaves.  Their conclusion is a
-`denoteEView` / `denoteNView` / `denoteLView` equation rather than a `some`,
-and a handle known only to denote whatever some view denotes is not yet known
-to denote at all; so those five read the spec's `view` conjunct directly
-through `Pers…_of_view`, exactly as they did before.  DESIGN #97-P3-Frontend
-round 6. -/
+The `IStep` face of the family above.  Their conclusion is a `denoteEView` /
+`denoteNView` / `denoteLView` equation rather than a `some`, and a handle
+known only to denote whatever some view denotes is not yet known to denote at
+all; so they read the spec's `view` conjunct directly through
+`Pers…_of_view`. -/
 
 /-- con-leche: none — `internE`, with the scratch tier closed: a view leaf. -/
 theorem internE_istep {s s' : AState} (hok : StateOK s)
@@ -1146,10 +1102,5 @@ theorem internExpr_sstep {s s' : AState} (hok : StateOK s) {e : Expr}
   obtain ⟨hstep, hden, -⟩ :=
     internExprGo_sstep e hok (EMemoOK.empty s.store) hgo
   exact ⟨hstep, hden⟩
-
-/-! ### The readback's existence direction, at the record layers
-
-`denoteEGo_isSome` is the leaf; each layer above it is the same three lines
-(destructure the plain denotation, apply the layer below, rebuild). -/
 
 end ConRon.Bridge.Frontend

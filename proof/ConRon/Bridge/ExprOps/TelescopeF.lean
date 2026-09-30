@@ -124,74 +124,6 @@ theorem denoteEList_takePrefix {st : EStore} :
           simp only [List.take_succ_cons, Frontend.denoteEList, hj,
             ih ys k hjs]
 
-/-- con-leche: none — **exactness at a LIST**: two handle lists that denote
-the same expression list are equal.  `WFProofs.lean`'s `denoteE_inj`, lifted;
-this is what makes `recRulePlain`'s index comparison con-leche's structural
-one. -/
-theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ (l1 l2 : List EIdx) (x : List Expr),
-      Frontend.denoteEList st l1 = some x →
-        Frontend.denoteEList st l2 = some x → l1 = l2 := by
-  intro l1
-  induction l1 with
-  | nil =>
-    intro l2 x h1 h2
-    simp only [Frontend.denoteEList, Option.some.injEq] at h1
-    subst h1
-    cases l2 with
-    | nil => rfl
-    | cons k ks =>
-      simp only [Frontend.denoteEList] at h2
-      cases hk : denoteE st k with
-      | none => rw [hk] at h2; simp at h2
-      | some y =>
-        cases hks : Frontend.denoteEList st ks with
-        | none => rw [hk, hks] at h2; simp at h2
-        | some ys => rw [hk, hks] at h2; simp at h2
-  | cons j js ih =>
-    intro l2 x h1 h2
-    simp only [Frontend.denoteEList] at h1
-    cases hj : denoteE st j with
-    | none => rw [hj] at h1; simp at h1
-    | some y =>
-      cases hjs : Frontend.denoteEList st js with
-      | none => rw [hj, hjs] at h1; simp at h1
-      | some ys =>
-        rw [hj, hjs] at h1
-        simp only [Option.some.injEq] at h1
-        subst h1
-        cases l2 with
-        | nil => simp [Frontend.denoteEList] at h2
-        | cons k ks =>
-          simp only [Frontend.denoteEList] at h2
-          cases hk : denoteE st k with
-          | none => rw [hk] at h2; simp at h2
-          | some z =>
-            cases hks : Frontend.denoteEList st ks with
-            | none => rw [hk, hks] at h2; simp at h2
-            | some zs =>
-              rw [hk, hks] at h2
-              simp only [Option.some.injEq, List.cons.injEq] at h2
-              obtain ⟨rfl, rfl⟩ := h2
-              rw [denoteE_inj hwf hj hk, ih ks zs hjs hks]
-
-/-- con-leche: none — and therefore the two `==` agree: the twin's index
-comparison IS con-leche's structural one. -/
-theorem denoteEList_beq {st : EStore} (hwf : StoreWF st) {l1 l2 : List EIdx}
-    {x1 x2 : List Expr} (h1 : Frontend.denoteEList st l1 = some x1)
-    (h2 : Frontend.denoteEList st l2 = some x2) : (l1 == l2) = (x1 == x2) := by
-  by_cases he : l1 = l2
-  · subst he
-    rw [h1] at h2
-    obtain rfl := Option.some.inj h2
-    simp
-  · have hne : x1 ≠ x2 := by
-      intro hx
-      subst hx
-      exact he (denoteEList_inj hwf l1 l2 x1 h1 h2)
-    rw [show (l1 == l2) = false from by simp only [beq_eq_false_iff_ne]; exact he,
-      show (x1 == x2) = false from by simp only [beq_eq_false_iff_ne]; exact hne]
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — the
 comparand list at cursor `0`, which is what `recRulePlain` cites. -/
 theorem bvarRangeSpec_zero (mI n : Nat) :
@@ -316,7 +248,7 @@ theorem denoteEList_length_tf {st : EStore} :
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — **the
 canonical arm**, where the two halves con-leche does not have come in:
 `bvarRangeSpec_zero` (the interned comparand list IS con-leche's `List.range`
-literal) and `denoteEList_beq` (the twin's INDEX comparison is con-leche's
+literal) and `beq_of_denoteEList` (the twin's INDEX comparison is con-leche's
 structural one, by `denoteE_inj`). -/
 theorem recRulePlain_canonical {st : EStore} (hwf : StoreWF st)
     {recTy : EIdx} {erecTy : Expr} (hrecTy : denoteE st recTy = some erecTy)
@@ -344,7 +276,7 @@ theorem recRulePlain_canonical {st : EStore} (hwf : StoreWF st)
   obtain ⟨edom, ebody, rfl, hdt, _⟩ := denote_forallE_inv hwf hview he2
   show (args.take cnP == want) = Expr.recRulePlain erecTy mI rP cnP
   rw [recRulePlain_eq_beq hle hsp, ← bvarRangeSpec_zero]
-  exact denoteEList_beq hok1.wf
+  exact beq_of_denoteEList hok1.wf
     (denoteEList_takePrefix args edom.getAppArgs cnP
       (denoteEList_ext hx args edom.getAppArgs (hargs edom hdt))) hwant
 
@@ -398,7 +330,7 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
 
 #print axioms recRulePlain_spec
 #print axioms denoteEList_inj
-#print axioms denoteEList_beq
+#print axioms beq_of_denoteEList
 #print axioms denoteEList_takePrefix
 #print axioms bvarRangeSpec_zero
 

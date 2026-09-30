@@ -186,29 +186,6 @@ structure CanonMapD (ns : NStore) (ps cs : List NIdx)
     = some ((List.range cs.length).map (fun i => ConLeche.Name.num .anonymous i))
   len : ps.length = cs.length
 
-/-- con-leche: none — a name-handle list and its denotation are equally
-long. -/
-theorem denoteNList_length {ns : NStore} :
-    ∀ (hs : List NIdx) (xs : List ConLeche.Name),
-      Frontend.denoteNList ns hs = some xs → hs.length = xs.length := by
-  intro hs
-  induction hs with
-  | nil => intro xs h; simp only [Frontend.denoteNList, Option.some.injEq] at h
-           subst h; rfl
-  | cons a as ih =>
-    intro xs h
-    simp only [Frontend.denoteNList] at h
-    cases ha : denoteN ns a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteNList ns as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        simp [ih ys has]
-
 /-- con-leche: none — a name-handle list's `i`-th handle denotes the denoted
 list's `i`-th name.  (`Bridge/Rel.lean` has the same three lines for `denoteE`
 and `denoteL`; the name tier's copy is wanted only here.) -/
@@ -668,9 +645,9 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
     have hns : NStoreWF s.store.ns := hrk.nsWF
     simp only [Arena.canonExprEq] at hrun
     obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨rfl, hva⟩ := viewE_run g1
+    obtain ⟨rfl, hva⟩ := view_run g1
     obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
-    obtain ⟨rfl, hvb⟩ := viewE_run g2
+    obtain ⟨rfl, hvb⟩ := view_run g2
     cases va with
     | bvar iA =>
       obtain rfl := denote_bvar_inv hwf hva hx
@@ -1218,107 +1195,6 @@ common `rhs` and its right-hand side by the term walk.  Over handles the
 record equality is a HANDLE record equality, so the bridge needs the readback
 to be injective at each field a rule carries — `denoteN_inj` at `ctor`,
 `denoteLList_inj`/`denoteEList_inj` inside a `.nested` firing mode. -/
-
-/-- con-leche: none — `Frontend.denoteEList` is injective; the list twin of
-`Arena/WFProofs.lean`'s `denoteE_inj` (the level tier's `denoteLList_inj` is
-already there). -/
-theorem denoteEList_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ (is js : List EIdx) (xs : List Expr),
-      Frontend.denoteEList st is = some xs →
-      Frontend.denoteEList st js = some xs → is = js := by
-  intro is
-  induction is with
-  | nil =>
-    intro js xs hi hj
-    simp only [Frontend.denoteEList, Option.some.injEq] at hi
-    subst hi
-    cases js with
-    | nil => rfl
-    | cons b bs =>
-      simp only [Frontend.denoteEList] at hj
-      cases hb : denoteE st b with
-      | none => rw [hb] at hj; simp at hj
-      | some y =>
-        cases hbs : Frontend.denoteEList st bs with
-        | none => rw [hb, hbs] at hj; simp at hj
-        | some ys => rw [hb, hbs] at hj; simp at hj
-  | cons a as ih =>
-    intro js xs hi hj
-    simp only [Frontend.denoteEList] at hi
-    cases ha : denoteE st a with
-    | none => rw [ha] at hi; simp at hi
-    | some x =>
-      cases has : Frontend.denoteEList st as with
-      | none => rw [ha, has] at hi; simp at hi
-      | some xt =>
-        rw [ha, has] at hi
-        simp only [Option.some.injEq] at hi
-        subst hi
-        cases js with
-        | nil => simp only [Frontend.denoteEList] at hj; simp at hj
-        | cons b bs =>
-          simp only [Frontend.denoteEList] at hj
-          cases hb : denoteE st b with
-          | none => rw [hb] at hj; simp at hj
-          | some y =>
-            cases hbs : Frontend.denoteEList st bs with
-            | none => rw [hb, hbs] at hj; simp at hj
-            | some yt =>
-              rw [hb, hbs] at hj
-              simp only [Option.some.injEq, List.cons.injEq] at hj
-              obtain ⟨rfl, rfl⟩ := hj
-              rw [denoteE_inj hwf ha hb, ih bs _ has hbs]
-
-/-- con-leche: none — `Frontend.denoteNList` is injective; `denoteEList_inj`'s
-twin at the NAME store, off `Arena/WFProofs.lean`'s `denoteN_inj`.  The
-`.projInfo` comparison (`denoteProjTable_inj`) needs it at `levelParams`. -/
-theorem denoteNList_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ (as bs : List NIdx) (xs : List ConLeche.Name),
-      Frontend.denoteNList st.ns as = some xs →
-      Frontend.denoteNList st.ns bs = some xs → as = bs := by
-  obtain ⟨rk, hrk⟩ := hwf
-  intro as
-  induction as with
-  | nil =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteNList, Option.some.injEq] at ha
-    subst ha
-    cases bs with
-    | nil => rfl
-    | cons b bt =>
-      simp only [Frontend.denoteNList] at hb
-      cases hbh : denoteN st.ns b with
-      | none => rw [hbh] at hb; simp at hb
-      | some y =>
-        cases hbt : Frontend.denoteNList st.ns bt with
-        | none => rw [hbh, hbt] at hb; simp at hb
-        | some ys => rw [hbh, hbt] at hb; simp at hb
-  | cons a at_ ih =>
-    intro bs xs ha hb
-    simp only [Frontend.denoteNList] at ha
-    cases hah : denoteN st.ns a with
-    | none => rw [hah] at ha; simp at ha
-    | some x =>
-      cases hat : Frontend.denoteNList st.ns at_ with
-      | none => rw [hah, hat] at ha; simp at ha
-      | some xt =>
-        rw [hah, hat] at ha
-        simp only [Option.some.injEq] at ha
-        subst ha
-        cases bs with
-        | nil => simp only [Frontend.denoteNList] at hb; simp at hb
-        | cons b bt =>
-          simp only [Frontend.denoteNList] at hb
-          cases hbh : denoteN st.ns b with
-          | none => rw [hbh] at hb; simp at hb
-          | some y =>
-            cases hbt : Frontend.denoteNList st.ns bt with
-            | none => rw [hbh, hbt] at hb; simp at hb
-            | some yt =>
-              rw [hbh, hbt] at hb
-              simp only [Option.some.injEq, List.cons.injEq] at hb
-              obtain ⟨rfl, rfl⟩ := hb
-              rw [denoteN_inj hrk.nsWF hah hbh, ih bt _ hat hbt]
 
 /-- con-leche: none — `Frontend.denoteEArray` is injective: it is
 `denoteEList` on `toList`, and `Array.toList` is injective. -/

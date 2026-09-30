@@ -782,12 +782,10 @@ miss the verdict inserted into `lvlEqC` is `Level.isEquiv` of whatever
 `readLevelM` answered, so a poisoned `readLC` poisons `lvlEqC`.  `LvlEqCacheOK`
 alone does not survive the call; the pair does.
 
-**Four tables since task #97-P3-Frontend round 8.**  The parse's projection
-rewrite (`Arena/Frontend/ProjRec.lean`'s `projRecValue`) instantiates the
-recursor's level parameters with `instLPFast`, whose readbacks write
-`readNC` and `readLsC` as well (`Bridge/ExprOps/Owed.lean`'s
-`instLPFast_spec`), so the frame names the two other readback tables too,
-with their invariants carried as implications in the same way.  A call that
+**Four tables.**  `instLPFast`'s readbacks write `readNC` and `readLsC` as
+well (`Bridge/ExprOps/Owed.lean`'s `instLPFast_spec`), so the frame names the
+two other readback tables too, with their invariants carried as implications
+in the same way.  A call that
 compares levels only is the special case, and every consumer reads the frame
 through `CacheOK.monoF`, which is unchanged in statement. -/
 

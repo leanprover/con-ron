@@ -131,18 +131,18 @@ theorem checkStructProjTable_shape {T C : NIdx} {lps : List NIdx} {nP nF : Nat}
   have hnever : ∀ {α β : Type} {e : Arena.CheckError} {g : α → AM β},
       AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
   simp only [Arena.checkStructProjTable] at hrun
-  obtain ⟨o, s₁, -, z1⟩ := bindOk hrun
-  obtain ⟨bodies, s₂, -, z2⟩ := bindOk z1
-  obtain ⟨sc, s₃, -, z3⟩ := bindOk z2
+  obtain ⟨o, s₁, -, z1⟩ := AM.bind_ok hrun
+  obtain ⟨bodies, s₂, -, z2⟩ := AM.bind_ok z1
+  obtain ⟨sc, s₃, -, z3⟩ := AM.bind_ok z2
   obtain ⟨-, z4⟩ := AM.dunless_ok hnever z3
   replace z4 := AM.pure_bind_ok z4
-  obtain ⟨b5, s₅, -, z5⟩ := bindOk z4
+  obtain ⟨b5, s₅, -, z5⟩ := AM.bind_ok z4
   obtain ⟨-, z6⟩ := AM.dunless_ok hnever z5
   replace z6 := AM.pure_bind_ok z6
-  obtain ⟨tn, s₆, -, z7⟩ := bindOk z6
+  obtain ⟨tn, s₆, -, z7⟩ := AM.bind_ok z6
   obtain ⟨-, z8⟩ := AM.dunless_ok hnever z7
   replace z8 := AM.pure_bind_ok z8
-  obtain ⟨rfl, rfl⟩ := pureOk z8
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z8
   exact ⟨_, rfl⟩
 
 /-- con-leche: none — `denoteLLists` at a cons, inverted. -/
@@ -228,11 +228,11 @@ theorem consBlockRecsTF_shape (vis₂ : Nat) (p : Arena.BlockShape) :
         fe' = l.foldl IFEnv.push fe
   | _, [], fe, s, s', fe', h => by
     simp only [Arena.consBlockRecsTF] at h
-    obtain ⟨rfl, -⟩ := pureOk h
+    obtain ⟨rfl, -⟩ := AM.pure_ok h
     exact ⟨[], by simp, rfl⟩
   | m, (cv, M, rhss) :: rest, fe, s, s', fe', h => by
     simp only [Arena.consBlockRecsTF] at h
-    obtain ⟨rules, s₁, -, h2⟩ := bindOk h
+    obtain ⟨rules, s₁, -, h2⟩ := AM.bind_ok h
     obtain ⟨l, hl, rfl⟩ := consBlockRecsTF_shape vis₂ p _ rest _ s₁ s' fe' h2
     refine ⟨_ :: l, fun ci hci t => ?_, rfl⟩
     rcases List.mem_cons.1 hci with rfl | hci
@@ -407,25 +407,25 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       simp only [Arena.checkBlockTables] at hrun
       by_cases hi : (m.nIdx == 0) = true
       · rw [if_pos hi] at hrun
-        obtain ⟨guards, s₁, h1, h2⟩ := bindOk hrun
+        obtain ⟨guards, s₁, h1, h2⟩ := AM.bind_ok hrun
         obtain ⟨p1, hg⟩ := structProjGuards_spec cA.type cAP.type p.nP nF sorts sortsP s₀ s₁
           guards hok hpins ⟨denoteCV_type hcAP, hsorts⟩ h1
         have hglen : guards.length = nF := by
           rw [denoteLList_length _ _ hg, structProjGuards_length]
         obtain ⟨-, -, hnP, -, hrs, -, -⟩ := dShape_inv hsh
         have x1 := p1.ext
-        obtain ⟨fe₂, s₂, h3, h4⟩ := bindOk h2
+        obtain ⟨fe₂, s₂, h3, h4⟩ := AM.bind_ok h2
         obtain ⟨p3, hrel3⟩ := checkStructProjTable_runF fe env m.cvT.name cA.name mP.cvT.name
           cAP.name p.lps pP.lps p.nP nF p.resSort pP.resSort guards
           (ConLeche.structProjGuards cAP.type p.nP nF sortsP) 1 cA cAP hglen hcoh s₁ s₂ fe₂
           p1.ok (hpins.mono x1 p1.pins)
           ⟨denoteN_ext (denoteCV_name hcvT) x1, denoteN_ext (denoteCV_name hcAP) x1,
             denoteNListE_ext x1 _ _ (BlockShape.lps_spec hsh), denoteL_ext hrs x1, hg,
-            denoteCV_ext hcAP x1, denoteFEnv_ext x1 hfe, (hienv.mono x1).toS⟩ h3
+            denoteCV_ext hcAP x1, denoteFEnv_mono x1 hfe, (hienv.mono x1).toS⟩ h3
         have x13 : Ext s₀.store s₂.store := x1.trans p3.ext
         obtain ⟨t, rfl⟩ := checkStructProjTable_shape h3
         obtain ⟨env₁, hden₁, hF₁⟩ := hrel3.denote
-        obtain ⟨c, hc, rfl⟩ := denoteFEnv_push_inv (denoteFEnv_ext x13 hfe) hden₁
+        obtain ⟨c, hc, rfl⟩ := denoteFEnv_push_inv (denoteFEnv_mono x13 hfe) hden₁
         have htab : IProjTableOK s₂.store t := by
           have hself : (fe.push (.projInfo t)).find? (IConstantInfo.projInfo t).name
               = some (.projInfo t) := by
@@ -479,14 +479,14 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       hrun => by
     obtain rfl := mapM_option_nil_inv hms
     simp only [Arena.checkBlockTables] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, FOk.pure env⟩,
       ProjOut.refl _ _⟩
   | _ :: _, msP, [], cssP, sss, sssP, fe, env, s₀, s', fe', hok, _, hcoh, _, hfe, _, _, hcss,
       _, hrun => by
     obtain rfl := mapM_option_nil_inv hcss
     simp only [Arena.checkBlockTables] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, ?_⟩,
       ProjOut.refl _ _⟩
     simp only [List.zip_nil_left, List.zip_nil_right]
@@ -495,7 +495,7 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       hsss, hrun => by
     obtain rfl := mapM_option_nil_inv hsss
     simp only [Arena.checkBlockTables] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, hcoh, Pushed.refl _, Nat.le_refl _, ⟨env, hfe, ?_⟩,
       ProjOut.refl _ _⟩
     simp only [List.zip_nil_right]
@@ -596,13 +596,13 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   obtain ⟨hms, -, hnP, -, -, -, -⟩ := dShape_inv hsh
   simp only [Arena.checkBlockTail] at hrun
   -- the index binders' sorts
-  obtain ⟨isorts, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨isorts, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨c1, isP, -, hisF⟩ := checkBlockIdxSorts_specF q.env1 hk henv₁ q.p.shape shP
     q.p.shape.members shP.members q.cvTas qP.cvTas hT s s₁ isorts hck ⟨hsh, hms, hcv, hden⟩ h1
   have x1 := c1.ext
   -- the constructors consed
   obtain ⟨hcons, hconsOK⟩ := consBlockCtors_spec s₁.store q.p.shape.nP q.ctorsAs qP.ctorsAs
-    q.env1 env₁ (dCtors_ext.list x1 _ _ hca) (denoteFEnv_ext x1 hden) hcoh
+    q.env1 env₁ (dCtors_ext.list x1 _ _ hca) (denoteFEnv_mono x1 hden) hcoh
   rw [hnP, ← show qP.p.nP = shP.nP by rw [hpP]] at hcons hconsOK
   rw [← show qP.p.nP = shP.nP by rw [hpP]] at hnP
   generalize hfe₂ : Arena.consBlockCtors q.p.shape.nP q.ctorsAs q.env1 = fe₂ at h2
@@ -612,30 +612,30 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   have hden₂ : denoteFEnv s₁.store (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1) = some env₂ := by
     obtain ⟨e, h, rfl⟩ := hcons.denote; exact h
   -- the flush entering them
-  obtain ⟨u, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨u, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨c2, i2, hs2⟩ := ReadOK.flush (μ := μ)
     (⟨c1.ok.state, c1.ok.pins, hconsOK c1.ok.state.wf (c1.ok.ienv.toS) s₁ rfl⟩ :
       ReadOK env₂ (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1) s₁) h3
   have x2 : Ext s.store s₂.store := by rw [hs2]; exact x1
   -- the recursor stage
-  obtain ⟨⟨fe₂b, out⟩, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨⟨fe₂b, out⟩, s₃, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨-, hcv', hp', hca', hss', -, hnf', hpa', hrd', hcl', htb'⟩ :=
     dPass_inv (dPass_ext x2 _ _ hq)
   obtain ⟨c3, outP, ⟨hcoh₂b, hfe₂b, hout, hfresh⟩, hGRF⟩ := hGR _ env₂ q.p qP.p _ q.params
     qP.params q.tbl qP.tbl.toList q.rd qP.rd q.cls qP.cls q.cvTas qP.cvTas block blockP henv₂
     hcons.coh hT hMs s₂ s₃ (fe₂b, out) c2
-    ⟨by rw [hs2]; exact hden₂, hp', hpa', htb', hrd', hcl', hcv', denoteCIList_ext x2 _ _ hb⟩ h5
+    ⟨by rw [hs2]; exact hden₂, hp', hpa', htb', hrd', hcl', hcv', denoteCIList_mono x2 _ _ hb⟩ h5
   rw [blockNestedBit_eq hsh, ← hkd, ← show qP.p.toBlockShape = shP by rw [hpP]] at hGRF
   have x3 := c3.ext
   dsimp only at h6
   -- the recursors consed at the constructors' view
-  obtain ⟨fe₃, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨fe₃, s₄, h7, h8⟩ := AM.bind_ok h6
   have hvis : fe₂b.visibleBelow = (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).visibleBelow := by
     rw [hcoh₂b.1, hcons.coh.1, hfe₂b]
   have hfind₂b : fe₂b.find? = (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).find? := by
     funext n; rw [hcoh₂b.find?, hcons.coh.find?, hfe₂b]
   have hden₂b : denoteFEnv s₃.store fe₂b = some env₂ := by
-    have h' := denoteFEnv_ext (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hden₂
+    have h' := denoteFEnv_mono (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hden₂
     simp only [denoteFEnv] at h' ⊢; rw [hfe₂b]; exact h'
   have x03 : Ext s.store s₃.store := x2.trans x3
   have hview : (fe₂b.restrictTo (Arena.consBlockCtors qP.p.nP q.ctorsAs q.env1).visibleBelow).find?
@@ -652,7 +652,7 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
       fe₃ s₄ := by
     subst hfe₃
     exact IFEnvOK_pushAll c4.ok.state l fe₂b env₂ _
-      (RC.IFEnvOK.of_find? c4.ok.ienv hfind₂b) hcoh₂b hl (denoteFEnv_ext x4 hden₂b) hden₃
+      (RC.IFEnvOK.of_find? c4.ok.ienv hfind₂b) hcoh₂b hl (denoteFEnv_mono x4 hden₂b) hden₃
   have x04 : Ext s.store s₄.store := x03.trans x4
   -- the projection tables
   obtain ⟨p5, hrel5⟩ := checkBlockTables_spec q.p.shape shP q.p.shape.members shP.members
@@ -664,7 +664,7 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   have x5 := p5.ext
   -- the chain
   have r12 := InstRel.same (st := s₃.store) hcons.coh hcoh₂b hfe₂b
-    (denoteFEnv_ext (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hden₂)
+    (denoteFEnv_mono (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hden₂)
   have r0 := InstRel.trans (show Ext s₁.store s₃.store by rw [← hs2]; exact x3) hcons r12
   have r03 := InstRel.trans x4 r0 hrel4
   have r05 := InstRel.trans x5 r03 hrel5
@@ -704,7 +704,7 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
       FOk (ConLeche.checkBlockPass (fueledOpsM μ) env p₀P isRec) qP := by
   simp only [Arena.checkBlockPass] at hrun
   -- the formers
-  obtain ⟨⟨fe₁, cvTas, p₁⟩, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨⟨fe₁, cvTas, p₁⟩, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨c1, ⟨env₁, cvTasP, p₁P⟩, ⟨hrel1, hOKS1, hcvs, hsh1, hT⟩, hF1⟩ :=
     checkBlockInds_spec fe hμ hk henv hcoh p₀ p₀P isRec s s₁ _ hck ⟨hp, hden⟩ h1
   dsimp only at h2 hrel1 hOKS1 hcvs hsh1 hT hF1
@@ -715,23 +715,23 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have hden₁ : denoteFEnv s₁.store fe₁ = some env₁ := by
     obtain ⟨e, h, rfl⟩ := hrel1.denote; exact h
   -- the flush entering the formers' index
-  obtain ⟨u, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨u, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨c2, i2, hs2⟩ := ReadOK.flush (μ := μ)
     (⟨c1.ok.state, c1.ok.pins, hOKS1 s₁ rfl⟩ : ReadOK env₁ fe₁ s₁) h3
   simp only [Arena.BlockParts.complete] at h4
   have x2 : Ext s₁.store s₂.store := by rw [hs2]; exact Ext.refl _
   obtain ⟨hms1, -⟩ := dShape_inv hsh1
   -- the constructors
-  obtain ⟨⟨ctorsAs, sortsss⟩, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨⟨ctorsAs, sortsss⟩, s₃, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨c3, ⟨ctorsAsP, sortsssP⟩, ⟨hca, hss⟩, hF3⟩ :=
     checkBlockCtors_specF fe₁ fe₁ hμ hk henv₁ p₁ p₁P env₁ p₁.members p₁P.members cvTas cvTasP
       hT s₂ s₃ _ c2
       ⟨dShape_ext x2 _ _ hsh1, dMember_ext.list x2 _ _ hms1, dExt_denoteCV.list x2 _ _ hcvs,
-        denoteFEnv_ext x2 hden₁, denoteFEnv_ext x2 hden₁, c2.ienv.toS⟩ h5
+        denoteFEnv_mono x2 hden₁, denoteFEnv_mono x2 hden₁, c2.ienv.toS⟩ h5
   dsimp only at h6 hca hss hF3
   have x3 := c3.ext
   -- the walk's context
-  obtain ⟨⟨ctx, holes⟩, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨⟨ctx, holes⟩, s₄, h7, h8⟩ := AM.bind_ok h6
   obtain ⟨c4, ⟨ctxP, holesP⟩, ⟨hctx, hholes, hctxOk, hhw, hpar, hlen, hnh, hnP⟩, hF4⟩ :=
     blockNestCtx_spec (μ := μ) fe₁ henv₁ p₁ p₁P cvTas cvTasP hT s₃ s₄ _ c3.ok
       ⟨dShape_ext (x2.trans x3) _ _ hsh1, dExt_denoteCV.list (x2.trans x3) _ _ hcvs⟩ h7
@@ -742,34 +742,34 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have x14 : Ext s₁.store s₄.store := x2.trans (x3.trans x4)
   obtain ⟨namesP, lpsP, paramsP, sortP, hctxEq, -, -, hparams, -, -⟩ := dCtx_inv hctx
   -- the classes
-  obtain ⟨⟨rd, ms⟩, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨⟨rd, ms⟩, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨c5, ⟨rdP, msP⟩, ⟨hrd, hmsP, hMsc⟩, hF5⟩ :=
     hCL fe₁ env₁ p₁ p₁P ctx.params ctxP.params ctorsAs ctorsAsP henv₁ (by rw [hlen, hnP])
       (by rw [← hnP]; exact fun x hx => by rw [hnP]; exact hparN x hx) s₄ s₅ _ c4.ok
       ⟨dShape_ext x14 _ _ hsh1, by rw [hctxEq]; exact hparams,
-        dCtors_ext.list x4 _ _ hca, denoteFEnv_ext x14 hden₁⟩ h9
+        dCtors_ext.list x4 _ _ hca, denoteFEnv_mono x14 hden₁⟩ h9
   dsimp only at h10 hrd hmsP hMsc hF5
   have x5 := c5.ext
   have x15 : Ext s₁.store s₅.store := x14.trans x5
   -- the positivity function, on the stored constructors (the root frame)
-  obtain ⟨⟨kinds, nfs, pos⟩, s₆, h11, h12⟩ := bindOk h10
+  obtain ⟨⟨kinds, nfs, pos⟩, s₆, h11, h12⟩ := AM.bind_ok h10
   obtain ⟨c6, ⟨kindsP, nfsP, posP⟩, ⟨hkinds, hnfs, hpos⟩, hF6⟩ :=
     checkBlockPositivity_spec fe₁ hk henv₁ ⟨p₁⟩ ⟨p₁P⟩ cvTas cvTasP ctorsAs ctorsAsP hT
       (checkBlockCtors_types hF3) s₅ s₆ _ c5.ok
       ⟨by simp only [dParts, dShape_ext x15 _ _ hsh1, Option.map_some],
         dExt_denoteCV.list x15 _ _ hcvs, dCtors_ext.list (x4.trans x5) _ _ hca,
-        denoteFEnv_ext x15 hden₁⟩ h11
+        denoteFEnv_mono x15 hden₁⟩ h11
   dsimp only at h12 hkinds hnfs hpos hF6
   subst hkinds
   have x6 := c6.ext
   -- the seeds: every outside class
-  obtain ⟨seeds, s₇, h13, h14⟩ := bindOk h12
+  obtain ⟨seeds, s₇, h13, h14⟩ := AM.bind_ok h12
   obtain ⟨p7, hseeds⟩ := hCS ctx ctxP holes holesP ms msP env₁.find? s₆ s₇ seeds c6.ok.state c6.ok.pins
     ⟨dCtx_ext _ (x5.trans x6) _ _ hctx, denoteEList_ext (x5.trans x6) _ _ hholes,
       dMajor_ext.list x6 _ _ hmsP⟩ h13
   have c7 := p7.toCore c6.ok
   -- every outside class, walked from the root frame's state
-  obtain ⟨ns, s₈, h15, h16⟩ := bindOk h14
+  obtain ⟨ns, s₈, h15, h16⟩ := AM.bind_ok h14
   obtain ⟨c8, nsP, hns, hF8⟩ := nestSeeds_spec (μ := μ) (env := env₁) (fe := fe₁) hk henv₁
     hctxOk seeds (ConLeche.classSeeds ctxP holesP msP) pos posP
     (fun k hk x hx => by
@@ -779,7 +779,7 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     s₇ s₈ ns c7.ok
     ⟨dCtx_ext _ (x5.trans (x6.trans c7.ext)) _ _ hctx, hseeds, dState_ext c7.ext _ _ hpos⟩
     h15
-  obtain ⟨rfl, rfl⟩ := pureOk h16
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok h16
   have x8 := c8.ext
   have x7 := c7.ext
   have x58 : Ext s₅.store s'.store := x6.trans (x7.trans x8)
@@ -837,7 +837,7 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have hnM := nameNodup_spec hok.state.wf _ _ (BlockShape.memberNames_spec hsh)
   by_cases hc : (!nameNodup (p₀.shape.allCtors.map (·.1.name)) ||
       !nameNodup p₀.shape.memberNames) = true
-  · rw [if_pos hc] at hrun; exact absurd hrun (fun h => failOk h)
+  · rw [if_pos hc] at hrun; exact absurd hrun (fun h => AM.fail_ok h)
   rw [if_neg hc] at hrun
   have hnd : (shP.allCtors.map (·.1.name)).Nodup ∧ shP.memberNames.Nodup := by
     rw [hnC, hnM] at hc
@@ -845,11 +845,11 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
       cases ConLeche.Name.nodup (shP.allCtors.map (·.1.name)) <;>
       cases ConLeche.Name.nodup shP.memberNames <;> simp
   -- the flush
-  obtain ⟨u, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨u, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨c1, i1, hs1⟩ := ReadOK.flush (μ := μ) hok.toR h1
   have x1 : Ext s.store s₁.store := by rw [hs1]; exact Ext.refl _
   -- official's `is_rec`
-  obtain ⟨raw, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨raw, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨p2, hraw⟩ := blockRawRec_spec p₀ ⟨shP⟩ s₁ s₂ raw c1.state
     (by simp only [dParts, dShape_ext x1 _ _ hsh, Option.map_some]) h3
   simp only [RV] at hraw
@@ -857,15 +857,15 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have c2 := p2.toCore c1
   have x12 := x1.trans p2.ext
   -- the pass
-  obtain ⟨q, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨q, s₃, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨env₁, qP, i3, c3, hrel3, henv₁, hq, hT, henv₂, hMs, hFP⟩ :=
-    checkBlockPass_of (p₀P := ⟨shP⟩) hμ hk hCL hCS henv c2.ok hcoh (denoteFEnv_ext x12 hden)
+    checkBlockPass_of (p₀P := ⟨shP⟩) hμ hk hCL hCS henv c2.ok hcoh (denoteFEnv_mono x12 hden)
       (by simp only [dParts, dShape_ext x12 _ _ hsh, Option.map_some]) h5
   have x3 := i3.ext
   obtain ⟨e₁, hden₁, rfl⟩ := hrel3.denote
   -- the install after it
   obtain ⟨i4, hrel4⟩ := checkBlockTail_of hk hGR henv₁ c3 hrel3.coh hden₁ hq
-    (denoteCIList_ext (x12.trans x3) _ _ hb) hT henv₂ hMs h6
+    (denoteCIList_mono (x12.trans x3) _ _ hb) hT henv₂ hMs h6
   have hrel := InstRel.trans i4.ext hrel3 hrel4
   have hFB : ∀ e, FOk (ConLeche.checkBlockTail (fueledOpsM μ) b qP) e →
       FOk (ConLeche.checkBlock (fueledOpsM μ) env b ⟨shP⟩) e := by

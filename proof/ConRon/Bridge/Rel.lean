@@ -65,6 +65,18 @@ theorem AM.of_run {α : Type} {prog : AM α} {s s' : AState} {a : α}
   rw [h] at hs
   exact hs hp
 
+/-- con-leche: none — `AM.of_run`'s converse: a partial-correctness triple
+from a statement about every accepting run. -/
+theorem AM.triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
+    {Q : α → AState → Prop}
+    (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') → Q a s') :
+    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
+  intro s hp
+  simp only [WP.wp, PredTrans.apply_pushArg]
+  cases hr : prog.run s with
+  | error e => trivial
+  | ok p => exact h s p.1 p.2 hp hr
+
 /-! ## 2. Transport
 
 Four facts; after them no proof in the bridge ever unfolds `denoteE`'s `Ext`

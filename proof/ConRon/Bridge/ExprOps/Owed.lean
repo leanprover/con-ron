@@ -466,24 +466,6 @@ theorem view_eq_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
   simp only [EStore.view, EStore.viewBind, EStore.viewBindI, EStore.viewBM,
     EStore.persGetBind, EStore.persGetBM, hp, hs, ho]
 
-/-- con-leche: none — arena infrastructure: `view_eq_of_tables` at the BINDER
-DATUM store.  `EStore.viewBM` reads `pers`, `scr` and `scratchOn` and nothing
-else, so a step that frames those three is a `BMExt` — which is what carries
-the round-5 `BMExt` conjunct of `InstLPSpec` across `substLMemoAt` /
-`substLsMemoAt`, the two steps of this walk that intern into the LEVEL store
-and frame the expression store by table equation rather than by `Ext`.
-
-`Bridge/Inductives/Rel.lean`'s `bmExt_of_nested` is the same three lines in
-another tier's file; the fact belongs beside `BMExt.intern` in
-`Bridge/StoreBM.lean` and a round that owns both files should collapse the
-two. -/
-theorem bmExt_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
-    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) :
-    BMExt st st' := by
-  intro mi m h
-  simp only [EStore.viewBM, EStore.persGetBM, hp, hs, ho]
-  exact h
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2465
 Expr.instantiateLevelParams_eq_self — **the `hasLP` cutoff's licence**, at the
 packed bit the arena reads: a subtree with no level parameter is its own

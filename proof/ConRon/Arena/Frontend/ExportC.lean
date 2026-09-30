@@ -44,14 +44,8 @@ checks the parse DOES make are all its own and are all here: the rebinding
 test, `validateIndD`'s block consistency checks, and the safety/kind
 recognisers.
 
-**Neither the projection-function rewrite nor the in-process modeller exist
-any more** (con-leche's `uniform-inds` merge, task #105): `Frontend/ProjRec.lean`
-and `Frontend/InModel*.lean` are deleted upstream, and with them this
-module's `projRewriteD`/`noteProjIota`/`registerProjOwners`/`blockRecOf`/
-`pushGenD`/`pushGenList`/`noteGen`/`noteDecl` — every inductive block is
-pushed as one `IndDecl`, unconditionally, and the uniform installer
-(`Arena/Inductives/**`, the kernel lane's) does what used to need a rewrite
-and a generated `_model` family.
+**Every inductive block is pushed as one `IndDecl`**, unconditionally; the
+uniform installer (`Arena/Inductives/**`) does the rest.
 
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
 index errors are `fail (.internal …)` with con-leche's own text and no line

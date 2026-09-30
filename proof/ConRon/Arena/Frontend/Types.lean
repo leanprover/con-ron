@@ -1,18 +1,12 @@
 /-
 # `ConRon.Arena.Frontend.Types` — the frontend's own types over handles
-(DESIGN.md §8, task #97e; task #105 shrinks this to one record)
+(DESIGN.md §8, task #97e)
 
 The representation-free half of con-leche's frontend
-(`ConLeche/Frontend/Export.lean`) that survives con-leche's `uniform-inds`
-merge (445b9cf4).  Before task #105 this module also carried the
-projection-function rewrite's owner (`ProjRecOwner`), the in-process
-modeller's resolved block records (`MIndTypeRec`/`MIndCtorRec`/`MIndRecRec`/
-`BlockRec`/`ConstTable`/`Ctx`/`hintHeight`/`wants`) and the modeller seam
-itself (`Modeller`/`declineModeller`) — all deleted upstream (con-leche's
-`Frontend/{InModel*, ProjRec}.lean` are gone) and with them here: every
-inductive block, mutual and nested included, now installs through one
-uniform kernel installer (`crate::arena::inductives`, the kernel lane's),
-so the frontend has nothing left to generate or rewrite.
+(`ConLeche/Frontend/Export.lean`).  Every inductive block, mutual and nested
+included, installs through the one uniform kernel installer
+(`Arena/Inductives/**`), so the frontend has nothing to generate or rewrite
+and this module is one record.
 
 **The error monad `M` is gone.**  con-leche's frontend runs in
 `abbrev M := Except String` and pairs a failure with the input LINE at the

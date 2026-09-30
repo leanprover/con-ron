@@ -103,20 +103,20 @@ theorem fvarHead_run {e : EIdx} {eP : Expr} {s₀ s' : AState} {r : Option Nat}
     (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
     (hrun : Arena.fvarHead e s₀ = .ok (r, s')) : s' = s₀ ∧ r = fvarHeadP eP := by
   simp only [Arena.fvarHead] at hrun
-  obtain ⟨hdh, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hdh, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hhd⟩ := getAppFn_run hok hd h1
   by_cases htg : (hdh.tag == ETag.fvar) = true
   · rw [if_pos htg] at h2
-    obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨rfl, ho⟩ := viewFVarIdx_run h3
     cases o with
     | none => exact absurd h4 (fun hc => failDanglingE_ok hc)
     | some p =>
-      obtain ⟨rfl, rfl⟩ := pureOk h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       obtain ⟨t, ht⟩ := denote_of_viewFVarIdx hok.wf htg ho.symm hhd
       exact ⟨rfl, by simp [fvarHeadP, ht]⟩
   · rw [if_neg htg] at h2
-    obtain ⟨rfl, rfl⟩ := pureOk h2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     refine ⟨rfl, ?_⟩
     unfold fvarHeadP
     split
@@ -228,7 +228,7 @@ theorem filterMapM_run {β : Type} {f : EIdx → AM (Option β)} {g : Expr → O
     simp only [Frontend.denoteEList, Option.some.injEq] at hd
     subst hd
     rw [List.filterMapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons a as ih =>
     intro xsP s s' r hok hd hrun
@@ -242,7 +242,7 @@ theorem filterMapM_run {β : Type} {f : EIdx → AM (Option β)} {g : Expr → O
     rw [ha, has] at hd
     obtain rfl := Option.some.inj hd
     rw [List.filterMapM_cons] at hrun
-    obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨p1, rfl⟩ := hf a aP s s₁ o hok ha h1
     have has' := denoteEList_ext p1.ext _ _ has
     cases hg : g aP with
@@ -252,9 +252,9 @@ theorem filterMapM_run {β : Type} {f : EIdx → AM (Option β)} {g : Expr → O
       exact ⟨p1.trans p2, by simp [hg]⟩
     | some b =>
       rw [hg] at h2
-      obtain ⟨rs, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨rs, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨p2, rfl⟩ := ih asP s₁ s₂ rs p1.ok has' h3
-      obtain ⟨rfl, rfl⟩ := pureOk h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       exact ⟨p1.trans p2, by simp [hg]⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:82-105 classReadMinor —
@@ -267,14 +267,14 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
   rw [classReadMinor_eq]
   unfold classReadMinorP
   simp only [Arena.classReadMinor] at hrun
-  obtain ⟨⟨bs, e⟩, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨⟨bs, e⟩, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hbs, -⟩ := piBinders_run _ hok hd h1
   rw [denoteBinders_length hbs] at h2
-  obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨p3, ho⟩ := openPisAtFvarsF_run hok hd h3
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk h4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
     refine ⟨p3, ?_⟩
     have hn := (Option.some.inj ho).symm
     simp [ROp, hn]
@@ -284,12 +284,12 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
   rw [hq]
   simp only [Option.bind_some]
   dsimp only at h4
-  obtain ⟨hp, s₃, h5, h6⟩ := bindOk h4
+  obtain ⟨hp, s₃, h5, h6⟩ := AM.bind_ok h4
   obtain ⟨rfl, rfl⟩ := fvarHead_run p3.ok hconcl h5
   cases hfp : fvarHeadP conclP with
   | none =>
     rw [hfp] at h6
-    obtain ⟨rfl, rfl⟩ := pureOk h6
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
     exact ⟨p3, rfl⟩
   | some p =>
   rw [hfp] at h6
@@ -299,19 +299,19 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
   cases hc : ConLeche.classOfMotiveVar nP motPos p with
   | none =>
     rw [hc] at h6
-    obtain ⟨rfl, rfl⟩ := pureOk h6
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
     exact ⟨p3, rfl⟩
   | some c =>
   rw [hc] at h6
   simp only [Option.bind_some]
   dsimp only at h6
-  obtain ⟨args, s₄, h7, h8⟩ := bindOk h6
+  obtain ⟨args, s₄, h7, h8⟩ := AM.bind_ok h6
   obtain ⟨rfl, hargs⟩ := getAppArgs_run p3.ok hconcl h7
   obtain ⟨hl1, hl2⟩ := denoteEList_getLast? hargs
   cases hl : args.getLast? with
   | none =>
     rw [hl] at h8
-    obtain ⟨rfl, rfl⟩ := pureOk h8
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h8
     refine ⟨p3, ?_⟩
     simp [ROp, hl1 hl]
   | some last =>
@@ -320,11 +320,11 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
   rw [hlP]
   simp only [Option.bind_some]
   dsimp only at h8
-  obtain ⟨hdh, s₅, h9, h10⟩ := bindOk h8
+  obtain ⟨hdh, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨rfl, hhd⟩ := getAppFn_run p3.ok hlast h9
   by_cases htg : (hdh.tag == ETag.const) = true
   · rw [if_pos htg] at h10
-    obtain ⟨o, s₆, h11, h12⟩ := bindOk h10
+    obtain ⟨o, s₆, h11, h12⟩ := AM.bind_ok h10
     obtain ⟨rfl, ho⟩ := viewConst_run h11
     cases o with
     | none => exact absurd h12 (fun hc => failDanglingE_ok hc)
@@ -334,20 +334,20 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
     obtain ⟨nm, ls, hgl, hn, -⟩ := denote_const_inv p3.ok.wf hw hhd
     rw [hgl]
     dsimp only at h12
-    obtain ⟨ihs, s₇, h13, h14⟩ := bindOk h12
+    obtain ⟨ihs, s₇, h13, h14⟩ := AM.bind_ok h12
     obtain ⟨p13, rfl⟩ := filterMapM_run (g := ihP nP motPos d) (by
       intro x xP s s'' o hs hx hrun'
-      obtain ⟨ty, t1, k1, z1⟩ := bindOk hrun'
+      obtain ⟨ty, t1, k1, z1⟩ := AM.bind_ok hrun'
       obtain ⟨rfl, hty⟩ := fvarTypeD_run hs hx k1
-      obtain ⟨rr, t2, k2, z2⟩ := bindOk z1
+      obtain ⟨rr, t2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨rfl, hrr⟩ := piResult_run hs hty k2
-      obtain ⟨o2, t3, k3, z3⟩ := bindOk z2
+      obtain ⟨o2, t3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨rfl, rfl⟩ := fvarHead_run hs hrr k3
       unfold ihP
       cases hf1 : fvarHeadP xP.fvarTypeD.piResult with
       | none =>
         rw [hf1] at z3
-        obtain ⟨rfl, rfl⟩ := pureOk z3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
         exact ⟨PStep.refl hs, rfl⟩
       | some p2 =>
       rw [hf1] at z3
@@ -356,19 +356,19 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
       cases hc2 : ConLeche.classOfMotiveVar nP motPos p2 with
       | none =>
         rw [hc2] at z3
-        obtain ⟨rfl, rfl⟩ := pureOk z3
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
         exact ⟨PStep.refl hs, rfl⟩
       | some t =>
       rw [hc2] at z3
       simp only [Option.bind_some]
       dsimp only at z3
-      obtain ⟨rargs, t4, k4, z4⟩ := bindOk z3
+      obtain ⟨rargs, t4, k4, z4⟩ := AM.bind_ok z3
       obtain ⟨rfl, hra⟩ := getAppArgs_run hs hrr k4
       obtain ⟨hr1, hr2⟩ := denoteEList_getLast? hra
       cases hrl : rargs.getLast? with
       | none =>
         rw [hrl] at z4
-        obtain ⟨rfl, rfl⟩ := pureOk z4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         exact ⟨PStep.refl hs, by simp [hr1 hrl]⟩
       | some a =>
       rw [hrl] at z4
@@ -376,22 +376,22 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
       rw [haP]
       simp only [Option.bind_some]
       dsimp only at z4
-      obtain ⟨o5, t5, k5, z5⟩ := bindOk z4
+      obtain ⟨o5, t5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨rfl, rfl⟩ := fvarHead_run hs ha k5
       cases hf5 : fvarHeadP aP with
       | none =>
         rw [hf5] at z5
-        obtain ⟨rfl, rfl⟩ := pureOk z5
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
         exact ⟨PStep.refl hs, rfl⟩
       | some f =>
         rw [hf5] at z5
-        obtain ⟨rfl, rfl⟩ := pureOk z5
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
         exact ⟨PStep.refl hs, rfl⟩) fvs fvsP _ _ _ p3.ok (denoteEList_ext (PStep.refl p3.ok).ext _ _ hfvs) h13
-    obtain ⟨rfl, rfl⟩ := pureOk h14
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h14
     refine ⟨p3.trans p13, ?_⟩
     exact ⟨_, rfl, by simp [dSlot, denoteN_ext hn p13.ext]⟩
   · rw [if_neg htg] at h10
-    obtain ⟨rfl, rfl⟩ := pureOk h10
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h10
     refine ⟨p3, ?_⟩
     show _ = none
     split
@@ -657,7 +657,7 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
   intro s₀ s' r hok hp hrun
   obtain ⟨hsh, hfe, hd⟩ := hp
   simp only [Arena.classReadSlot] at hrun
-  obtain ⟨rr, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨rr, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hrr⟩ := piResult_run hok hd h1
   by_cases htg : (rr.tag == ETag.sort) = true
   · rw [if_pos htg] at h2
@@ -665,14 +665,14 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
     unfold slotP
     rw [hu]
     simp only
-    obtain ⟨⟨bs, e⟩, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨⟨bs, e⟩, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨rfl, hbs, -⟩ := piBinders_run _ hok hd h3
     obtain ⟨hl1, hl2⟩ := denoteBinders_getLast? hbs
     dsimp only at h4
     cases hl : bs.getLast? with
     | none =>
       rw [hl] at h4
-      obtain ⟨rfl, rfl⟩ := pureOk h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       refine ⟨PStep.refl hok, ?_⟩
       simp [ROp, hl1 hl]
     | some bm =>
@@ -682,11 +682,11 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
     rw [hlP]
     simp only [Option.bind_eq_bind, Option.bind_some]
     dsimp only at h4
-    obtain ⟨hdh, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨hdh, s₃, h5, h6⟩ := AM.bind_ok h4
     obtain ⟨rfl, hhd⟩ := getAppFn_run hok hmd h5
     by_cases htc : (hdh.tag == ETag.const) = true
     · rw [if_pos htc] at h6
-      obtain ⟨o, s₄, h7, h8⟩ := bindOk h6
+      obtain ⟨o, s₄, h7, h8⟩ := AM.bind_ok h6
       obtain ⟨rfl, ho⟩ := viewConst_run h7
       cases o with
       | none => exact absurd h8 (fun hc => failDanglingE_ok hc)
@@ -696,15 +696,15 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
       obtain ⟨nm, ls, hgl, hn, hls⟩ := denote_const_inv hok.wf hw hhd
       rw [hgl]
       dsimp only at h8
-      obtain ⟨args, s₅, h9, h10⟩ := bindOk h8
+      obtain ⟨args, s₅, h9, h10⟩ := AM.bind_ok h8
       obtain ⟨rfl, hargs⟩ := getAppArgs_run hok hmd h9
-      obtain ⟨rfl, rfl⟩ := pureOk h10
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h10
       refine ⟨PStep.refl hok, ?_⟩
       refine ⟨_, rfl, ?_⟩
       rw [classNPcOf_eq hok (hfe _ rfl) hsh hn]
       simp [dSlot, dClassKey, hn, hls, denoteEList_take hargs]
     · rw [if_neg htc] at h6
-      obtain ⟨rfl, rfl⟩ := pureOk h6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
       split
@@ -759,7 +759,7 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
   | zero =>
     intro motPos d e eP s₀ s' r hok _ hrun
     simp only [Arena.classReadSlots] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, [], by simp [ConLeche.classReadSlots], rfl⟩
   | succ n ih =>
     intro motPos d e eP s₀ s' r hok hp hrun
@@ -767,7 +767,7 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
     simp only [Arena.classReadSlots] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
     · rw [if_pos htg] at hrun
-      obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+      obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨rfl, ho⟩ := viewBind_run h1
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
@@ -777,12 +777,12 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       obtain ⟨domP, bodyP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
       rw [classReadSlots_succ]
       dsimp only at h2
-      obtain ⟨os, s₂, h3, h4⟩ := bindOk h2
+      obtain ⟨os, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨p3, hos⟩ := classReadSlot_spec p pP env fe np motPos d dom domP _ _ _ hok
         ⟨hsh, hfe, hdd⟩ h3
       cases os with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk h4
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨p3, ?_⟩
         simp only [ROp] at hos
         simp [ROp, hos]
@@ -800,33 +800,33 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
             | none => pure none
             | some rest => pure (some (slot :: rest))) s₂ = .ok (r, s') := by
         cases slot <;> exact ⟨_, hmp.symm, h4⟩
-      obtain ⟨fv, s₃, h5, h6⟩ := bindOk h4
+      obtain ⟨fv, s₃, h5, h6⟩ := AM.bind_ok h4
       obtain ⟨p5, hfv⟩ := internFVarE_run p3.ok (denote_ext hdd p3.ext) h5
-      obtain ⟨b2, s₄, h7, h8⟩ := bindOk h6
+      obtain ⟨b2, s₄, h7, h8⟩ := AM.bind_ok h6
       have hb3 : denoteE s₃.store body = some bodyP := denote_ext hbd (p3.ext.trans p5.ext)
       obtain ⟨k1, k2, k3, k4, k5, -, k7⟩ := ExprOps.instantiate1Fast_run p5.ok hfv
         (by rw [hb3]; rfl) h7
       have p7 : PStep s₃ s₄ := PStep.of_caches k1 k2 k3 k4 k5
       have hb2 : denoteE s₄.store b2 = some (bodyP.instantiate1 (.fvar d domP) 0) := k7 _ hb3
       have p37 := p3.trans (p5.trans p7)
-      obtain ⟨o2, s₅, h9, h10⟩ := bindOk h8
+      obtain ⟨o2, s₅, h9, h10⟩ := AM.bind_ok h8
       obtain ⟨p9, ho2⟩ := ih (motPosP motPos d np q) (d + 1) b2 _ _ _ _ p7.ok
         ⟨dShape_ext p37.ext _ _ hsh, hfe.mono p37.ext, hb2⟩ h9
       cases o2 with
       | none =>
-        obtain ⟨rfl, rfl⟩ := pureOk h10
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h10
         refine ⟨p37.trans p9, ?_⟩
         simp only [ROp] at ho2
         simp [ROp, ho2]
       | some rest =>
       obtain ⟨qs, hqs, hrest⟩ := ho2
-      obtain ⟨rfl, rfl⟩ := pureOk h10
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h10
       refine ⟨p37.trans p9, ?_⟩
       refine ⟨q :: qs, by rw [hqs]; rfl, ?_⟩
       simp only [List.mapM_cons, dSlot_ext (p5.trans (p7.trans p9)).ext _ _ hsl, hrest,
         Option.bind_eq_bind, Option.bind_some, Option.pure_def]
     · rw [if_neg htg] at hrun
-      obtain ⟨rfl, rfl⟩ := pureOk hrun
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
       cases eP with
@@ -855,7 +855,7 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hp
     subst hp
     simp only [Arena.classReadRecCls] at hrun
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons rc rest ih =>
     intro recsP s₀ s' r hok hp hrun
@@ -874,12 +874,12 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     have hty := denoteCV_type hcv
     simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def]
     simp only [Arena.classReadRecCls] at hrun
-    obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok hty h1
     rw [hmI] at ho
     cases o with
     | none =>
-      obtain ⟨rfl, rfl⟩ := pureOk h2
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       refine ⟨p1, ?_⟩
       have hn := (Option.some.inj ho).symm
       simp [RV, recClsP, hn]
@@ -887,7 +887,7 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     obtain ⟨fvs, concl⟩ := q
     obtain ⟨fvsP, conclP, hq, -, hconcl⟩ := denoteOpen_some_inv ho
     dsimp only at h2
-    obtain ⟨hp, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨hp, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨rfl, rfl⟩ := fvarHead_run p1.ok hconcl h3
     have hrc : recClsP nP motPos rcP = (fvarHeadP conclP).bind fun p =>
         ConLeche.classOfMotiveVar nP motPos p := by
@@ -896,7 +896,7 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     cases hfp : fvarHeadP conclP with
     | none =>
       rw [hfp] at h4
-      obtain ⟨rfl, rfl⟩ := pureOk h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       exact ⟨p1, by simp [RV]⟩
     | some p =>
     rw [hfp] at h4
@@ -906,12 +906,12 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     cases hc : ConLeche.classOfMotiveVar nP motPos p with
     | none =>
       rw [hc] at h4
-      obtain ⟨rfl, rfl⟩ := pureOk h4
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       exact ⟨p1, by simp [RV]⟩
     | some c =>
     rw [hc] at h4
     dsimp only at h4
-    obtain ⟨o2, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨o2, s₃, h5, h6⟩ := AM.bind_ok h4
     obtain ⟨p5, ho2⟩ := ih restP _ _ _ p1.ok (dRec_ext.list p1.ext _ _ hxs) h5
     simp only [RV] at ho2
     subst ho2
@@ -919,11 +919,11 @@ theorem classReadRecCls_spec (nP : Nat) (motPos : List Nat) :
     cases hrs : restP.mapM (recClsP nP motPos) with
     | none =>
       rw [hrs] at h6
-      obtain ⟨rfl, rfl⟩ := pureOk h6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
       exact ⟨p1.trans p5, by simp [RV]⟩
     | some cs =>
       rw [hrs] at h6
-      obtain ⟨rfl, rfl⟩ := pureOk h6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
       exact ⟨p1.trans p5, by simp [RV]⟩
 
 /-! ## The headline: `classRead` -/
@@ -949,7 +949,7 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
   | nil =>
     simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrecs
     subst hrecs
-    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, rfl⟩
   | cons rc0 rest =>
   have hrecs' := hrecs
@@ -969,11 +969,11 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
   replace hrP := hrP.symm
   simp only [List.head?_cons, Option.bind_eq_bind, Option.bind_some]
   dsimp only at hrun
-  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨p1, ho⟩ := openPisAtFvarsF_run hok hty h1
   cases o with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk h2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     refine ⟨p1, ?_⟩
     have hn := (Option.some.inj ho).symm
     simp [ROp, hn]
@@ -983,13 +983,13 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
   rw [hq]
   simp only [Option.bind_some]
   dsimp only at h2
-  obtain ⟨os, s₂, h3, h4⟩ := bindOk h2
+  obtain ⟨os, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨p3, hos⟩ := classReadSlots_spec p pP env fe nP (rc0.rP - nP) [] nP body bodyP _ _ _
     p1.ok ⟨dShape_ext p1.ext _ _ hsh, hfe.mono p1.ext, hbody⟩ h3
   rw [hrP]
   cases os with
   | none =>
-    obtain ⟨rfl, rfl⟩ := pureOk h4
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
     refine ⟨p1.trans p3, ?_⟩
     simp only [ROp] at hos
     simp [ROp, hos]
@@ -1007,7 +1007,7 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
       (fun _ => rfl) (fun _ => rfl)
   subst hmT
   rw [mapM_option_congr (g := recClsP nP mT) ?_]
-  · obtain ⟨o2, s₃, h5, h6⟩ := bindOk h4
+  · obtain ⟨o2, s₃, h5, h6⟩ := AM.bind_ok h4
     have p13 := p1.trans p3
     obtain ⟨p5, ho2⟩ := classReadRecCls_spec nP mT (rc0 :: rest) (rc0P :: restP) _ _ _
       p3.ok (dRec_ext.list p13.ext _ _ hrecs) h5
@@ -1017,11 +1017,11 @@ theorem classRead_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : 
     cases hrc : (rc0P :: restP).mapM (recClsP nP mT) with
     | none =>
       rw [hrc] at h6
-      obtain ⟨rfl, rfl⟩ := pureOk h6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
       exact ⟨p15, by simp [ROp]⟩
     | some cs =>
       rw [hrc] at h6
-      obtain ⟨rfl, rfl⟩ := pureOk h6
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
       refine ⟨p15, _, rfl, ?_⟩
       simp [dClassRead, dSlot_ext.list p5.ext _ _ hsl]
   · intro rc

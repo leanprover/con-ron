@@ -1362,16 +1362,6 @@ theorem storeFuel_run {s s' : AState} {n : Nat} (hrun : storeFuel s = .ok (n, s'
   obtain ⟨rfl, rfl⟩ := AM.get_ok h1
   exact (AM.pure_ok h2).2
 
-/-- con-leche: none — `view` moves nothing and answers the store's own
-`view`.  `Bridge/Checker/Hyp.lean` has the same three lines under the same
-name, one tier above the one `Bridge/Frontend/Rel.lean`'s import note limits
-this file to (`Bridge/Checker/Inv.lean`, not the whole checker tier), so this
-tier carries its own rather than widen the import. -/
-theorem view_run {h : EIdx} {s s' : AState} {v : ENodeView}
-    (hr : view h s = .ok (v, s')) : s' = s ∧ s.store.view h = some v :=
-  AM.of_run (P := fun t => t = s)
-    (Q := fun r t => t = s ∧ s.store.view h = some r) rfl hr (view_spec s h)
-
 /-- con-leche: none — `viewN` in run form, off `Bridge/Specs.lean`'s
 triple. -/
 theorem viewN_run {s s' : AState} {h : NIdx} {v : NNodeView}

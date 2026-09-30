@@ -12,7 +12,7 @@ name (`ConLeche/Kernel/CoreDefs.lean:301-403`) — `Walks/Nat.lean`'s
 `natIndOk`/`natZeroOk`/`natSuccOk` shape: the twin interns the expected
 shape's pieces and compares handles, con-leche matches the stored type, and
 DESIGN §8.3's *index equality is structural equality* (`beq_of_denoteE`,
-`beq_of_denoteLs`, `pinBeq`) makes the two the same test.
+`beq_of_denoteLs`, `beq_handle_eq`) makes the two the same test.
 
 Also here, because the two inference bodies' `.const` clauses need it and a
 `Walks/` module is where a callee fact belongs: `denoteCI_nonTower`, the
@@ -554,7 +554,7 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         rw [dls_r1_s0]
         simp [denoteLsView, denoteLList, opt2,
           show denoteL s0.store.lss.ls r4 = some (Level.param P) from hpl]
-      rw [pinBeq wf_s0 hL (hpin _ rfl),
+      rw [beq_handle_eq wf_s0 hL (hpin _ rfl),
         beq_of_denoteLs (StoreWF.lssWF' wf_s0) hUS hps]
       simp [listNilCod]
     case vc13 =>
@@ -868,12 +868,6 @@ theorem denoteLs_view_single {st : EStore} {h : LsIdx} {u : LIdx}
   rw [hd]
   simp [denoteLsView, denoteLList, opt2,
     show denoteL st.lss.ls u = some U from hu]
-
-/-- con-leche: none — a denoting level-list handle has a view. -/
-theorem lsview_isSome_of_denote {st : LsStore} {h : LsIdx}
-    {xs : List Level} (hd : denoteLs st h = some xs) :
-    (st.view h).isSome = true := by
-  obtain ⟨w, hw, _⟩ := denoteLs_view hd; rw [hw]; rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk — **THEOREM
 1 for `listConsTyOk`**. -/

@@ -1092,7 +1092,7 @@ theorem natSuccOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
       refine ⟨hs1, RunsB.tagView hv0
         (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne)
         (RunsB.bind fun {vw s2} g2 => ?_)⟩
-      obtain ⟨rfl, hvw⟩ := viewE_run g2
+      obtain ⟨rfl, hvw⟩ := view_run g2
       refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
       have hwf := hs1.ok.wf
       cases vw
@@ -1346,7 +1346,7 @@ theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
   · refine RunsB.tagView hv0
       (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) ?_
     refine RunsB.bind fun {vw s2} g2 => ?_
-    obtain ⟨rfl, hvw⟩ := viewE_run g2
+    obtain ⟨rfl, hvw⟩ := view_run g2
     refine ⟨Frontend.IStepS.refl st1, ?_⟩
     cases vw
     case forallE dom body mb =>
@@ -1366,7 +1366,7 @@ theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
   · refine RunsB.tagView hv0
       (fun hne => by cases v0 <;> first | rfl | exact absurd rfl hne) ?_
     refine RunsB.bind fun {vw s2} g2 => ?_
-    obtain ⟨rfl, hvw⟩ := viewE_run g2
+    obtain ⟨rfl, hvw⟩ := view_run g2
     refine ⟨Frontend.IStepS.refl st1, ?_⟩
     cases vw
     case forallE dom rest mb =>
@@ -1375,7 +1375,7 @@ theorem natOpTyPinned_run {env : Env} {fe : IFEnv} {cH : NIdx}
       refine RunsB.tagView hv1
         (fun hne => by cases v1 <;> first | rfl | exact absurd rfl hne) ?_
       refine RunsB.bind fun {vr s3} g3 => ?_
-      obtain ⟨rfl, hvr⟩ := viewE_run g3
+      obtain ⟨rfl, hvr⟩ := view_run g3
       refine ⟨Frontend.IStepS.refl st1, ?_⟩
       cases vr
       case forallE dom2 body mb2 =>
@@ -1720,7 +1720,7 @@ theorem substConst0_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} 
     obtain ⟨rk, hrk⟩ := hwf'
     simp only [Arena.substConst0] at hrun
     obtain ⟨v, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨e1s, hv⟩ := viewE_run g1
+    obtain ⟨e1s, hv⟩ := view_run g1
     rw [e1s] at k1
     cases v
     case const c us =>

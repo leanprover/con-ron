@@ -548,30 +548,9 @@ theorem denoteDecls_pext {st st' : EStore} (hx : PExt st st') :
 
 `Bridge/Rel.lean` stops at `denoteCI_ext`; the fold and the arms need the list
 and the environment too.  Named `…_mono` rather than `…_ext` because
-`Bridge/Inductives/Rel.lean` has its own `denoteCIList_ext` / `denoteFEnv_ext`
+`Bridge/Inductives/Rel.lean` has its own `denoteCIList_mono` / `denoteFEnv_mono`
 in a namespace that opens this one, and two equally-reachable names of the
 same spelling are an ambiguity error rather than a shadowing. -/
-
-/-- con-leche: none — a block's denotation survives an append. -/
-theorem denoteCIList_mono {st st' : EStore} (hx : Ext st st') :
-    ∀ (cs : List IConstantInfo) (xs : List ConstantInfo),
-      Frontend.denoteCIList st cs = some xs →
-        Frontend.denoteCIList st' cs = some xs := by
-  intro cs
-  induction cs with
-  | nil => intro xs h; exact h
-  | cons a as ih =>
-    intro xs h
-    simp only [Frontend.denoteCIList] at h ⊢
-    cases ha : Frontend.denoteCI st a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteCIList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        rw [denoteCI_ext ha hx, ih ys has]
-        exact h
 
 /-- con-leche: none — the environment's denotation survives an append. -/
 theorem denoteFEnv_mono {st st' : EStore} (hx : Ext st st') {fe : IFEnv}

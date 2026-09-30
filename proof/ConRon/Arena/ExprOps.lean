@@ -1349,8 +1349,7 @@ first 27 920 declarations the unmemoized `fabScopeOk` was **43.9 % of the
 cycles**, with `fvarLeaves` 2.6 % and `wscopedB` 1.6 % beside it.
 
 Each memo is threaded as an argument-and-result pair rather than put in
-`Memos`, which is con-leche's own spelling and the one `Frontend/ProjRec.lean`
-already uses for its `seen` set: the tables are per-CALL and two of the three
+`Memos`, which is con-leche's own spelling: the tables are per-CALL and two of the three
 depend on data that is not in the key (`leavesSubGo`'s base list), so a
 state-carried table would need a clear at every entry anyway.
 

@@ -16,58 +16,7 @@ carries.  No `sorryAx`, no `bv_decide` axiom.
 `IndSpec` appear in the capstone's STATEMENT; `#print axioms` on it therefore
 names neither, which is what makes "two named hypotheses" a checkable claim
 rather than an editorial one (`Bridge/Checker/Axioms.lean` makes the same
-point about its two).  The capstones carried `sorryAx` until the tier closed
-and are printed in the last sections below; they read Lean's own three now
-(task #97-MILESTONE).  **Task #105**: the original campaign's `ModellerWF`/
-`ModellerRefines` are gone with the in-process modeller — the uniform
-installer needs no analogous premise.
-
-**Round two (task #97-P3-Frontend-2)** added the chunk tier, the preparation's
-composition, the pure fold's stream ingredient and two of the three capstone
-letters to the closed list; they are in their own sections below.
-
-**Round four** adds item 5 in full (the three table entries), `blockRecOf_run`
-of item 6, and four of `ProjRec.lean`'s nine — `isProjIotaName_run`,
-`projIotaLevel_run`, `stripPisAll_run`, `mkLams_run`.  Its two findings are
-statement defects, not proof gaps: finding 15 (`projIotaLevel_run`'s frame was
-`s' = s` at a walk that interns `Eq`) is REPAIRED and closed here; finding 16
-(`IConstantInfo.toConstantVal` and `IDeclaration.names` are not exact at a
-`.projInfo` without `IProjTableOK`) is reported and left open, because the
-repair adds a hypothesis and that is the maintainer's call.
-
-**Round six** makes the intern family scratch-agnostic (the `IStepS` face of
-`Bridge/Frontend/Shared.lean`, with the `IStep` one as a corollary through
-`Bridge/Frontend/Rel.lean`'s `Pers…_of_denote`) and closes the two gray-memo
-walks the tier still owed: `occursConstFast_run` — whose memo turns out to be
-BLACK-only, so it needed no rank — and `usedConsts_run` with its three helpers,
-whose memo IS gray and whose two sets are keyed differently on the two sides
-(handle against `Expr`), which is where `denoteE_inj` earns its keep.
-`toConstantVal_type_run` is the half of `toConstantVal` that needs no name
-clause, stated so that `usedConsts_run` does not have to assume one.
-
-**Round five** repairs finding 16 and closes five more.  The repair is two
-things, and the census records both: the frame half is a CORRECTION (five
-statements said `s' = s` of a run that interns `Sort 1` at a `.projInfo`) and
-the name half is a STRENGTHENING of the seam's promise plus a new clause on
-`StateDRel`/`ParseResultRel` — `projNamed`, the move `Bridge/StateOK.lean`'s
-`IFEnvOK.proj` made one module over, for exactly the same reason.  What closes
-on top of it is `noteDecl_run`/`pushDecl_run` (item 6) and the prelude's front,
-`preludeKey_run`/`pick_denote`/`frontOf_run` (item 20), with the new
-vocabulary and its name equations below.
-
-It also states the two con-leche-tier facts `occursConstFast_run` needs and
-con-leche does not have (`Bridge/Frontend/ProjRec.lean`'s `clOccursConstB_eq`
-and `clOccursConstGo_eq`, §5's finding-6 shape).  Their corollary
-`clOccursConstFast_eq` is proved on top of them and therefore carried
-`sorryAx` until task #97-T1-OCC proved the two here (see the last section
-below).
-
-**Round three** adds the INTERN direction (item 2) and the seam (item 8).  Two
-of the four named hypotheses are therefore no longer only hypotheses:
-`ModellerWF` and `ModellerRefines` hold of the modeller the driver actually
-runs, as theorems — `inProcessModeller_wf` and `inProcessModeller_refines`
-below — and they still do not appear in any capstone's axiom list, because the
-capstones are stated at an arbitrary `Modeller`.
+point about its two).  The capstones are printed in the last sections below.
 -/
 import ConRon.Bridge.Frontend.Capstone
 
@@ -114,7 +63,7 @@ namespace ConRon.Bridge.Frontend
 #print axioms denoteDeclArray_iff
 #print axioms denoteDecls_append
 #print axioms denoteDeclArray_append
-#print axioms denoteCIList_ext
+#print axioms denoteCIList_mono
 #print axioms denoteDecl_ext
 #print axioms denoteDecls_ext
 #print axioms denoteDeclArray_ext
@@ -149,19 +98,13 @@ an `intern`, which is what the streaming fold's induction rests on. -/
 
 /-! ## The record headers (round two)
 
-The three steps of items 5-6 that read the tables and nothing else; what is
-left of those items is the three INTERNING entry parsers and the two that
-write a `MapRel`. -/
+The three steps of items 5-6 that read the tables and nothing else. -/
 
 #print axioms parsePwD_run
 #print axioms parseCVD_run
 #print axioms parseRuleD_run
 
-/-! ## The readback (round 2) — CLOSED
-
-Item 1 in full: the ten-arm fuel induction both ways (`denoteEGo_spec_le` and
-`denoteEGo_isSome`), the record layers over it, and the two `AM` faces.  Item
-3 with them: `ctxOf_eq_of_rel`, over `nameHandle?`'s two exactness halves. -/
+/-! ## The intern memo's invariant, empty -/
 
 #print axioms EMemoOK.empty
 
@@ -171,14 +114,7 @@ Item 2 in full: the ten-arm structural recursion over `ConLeche.Expr` with the
 intern memo carried (`internExprGo_istep`) and the twelve record layers over
 it.  `IStep` is the frame every one of them answers in — `StateOK`, `Ext`, the
 closed scratch tier and the three untouched state fields — and
-`IStep.toParse` is the one line that turns it into the tier's `ParseStep`.
-
-**Round 2's finding 13 was wrong** and this round withdraws it:
-`internLevel_spec`, `internLevelList_spec` and `internLevels_spec` were not
-missing at all — they have been in `Bridge/SpecsL.lean` since task #97-P3-0
-(that module's own note says it holds "the four `@[spec]` theorems of
-`Monad.lean` that `Bridge/Specs.lean` does not carry"), and the only thing
-between this tier and them was an import line. -/
+`IStep.toParse` is the one line that turns it into the tier's `ParseStep`. -/
 
 #print axioms EMemoOK.mono
 #print axioms EMemoOK.insert
@@ -189,17 +125,7 @@ between this tier and them was an import line. -/
 #print axioms internE_istep
 #print axioms internNNode_istep
 
-/-! ## General readback helpers (rounds 3 and 4)
-
-**Task #105**: round 3's seam section named `inProcessModeller`'s two
-promises (`ctxOf_eq_of_rel`, `denoteBlockRec_eq_of_rel`, `internDecls_istep`)
-and round 4's recogniser/level-read section named `isProjIotaName_run`/
-`projIotaLevel_run` — all `Bridge/Frontend/ProjRec.lean`, deleted with the
-modeller and the projection rewrite.  What survives from that file is the
-handful of general-purpose readback helpers it happened to define alongside
-them (`view_run`, `viewN_run`, `piResultD_run`, `readLevel_run`,
-`nsWF_of_StateOK`, `denoteN_str_inv`, `view_str_of_denoteN`), relocated into
-`Bridge/Frontend/{Rel,Lines}.lean`. -/
+/-! ## General readback helpers -/
 
 #print axioms viewN_run
 #print axioms readLevel_run
@@ -213,7 +139,7 @@ them (`view_run`, `viewN_run`, `piResultD_run`, `readLevel_run`,
 
 `StateD_init_run` is the base case of the streaming fold's induction, and
 round 2 closed it: the two intern specs through `AM.of_run`, `IdTableRel`'s
-`singleton` and `empty`, `MapRel.empty`, and — the `PersStateD` half —
+`singleton` and `empty`, and — the `PersStateD` half —
 `PersN_of_view` / `PersL_of_view`. -/
 
 #print axioms StateD_init_run
@@ -238,10 +164,7 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 #print axioms parseLevelEntryD_run
 #print axioms parseExprEntryD_run
 
-/-! ## The recursor rule list (round 4)
-
-**Task #105**: `blockRecOf_run` (`BlockRec`, the modeller's own resolved-block
-record) is gone with the modeller; `parseRules_run` is general and stays. -/
+/-! ## The recursor rule list -/
 
 #print axioms parseRules_run
 
@@ -345,19 +268,6 @@ else.  Everything here is at Lean's own three. -/
 #print axioms hoistTargets_run
 #print axioms hoistNatOpGround_run
 
-/-! ## Round eight — the projection rewrite and owner census, DELETED
-
-**Task #105**: `Bridge/Frontend/{ProjRec,ProjRecOwners,ProjRecValue,
-Scratch}.lean` are gone with the in-process modeller and the projection
-rewrite; every result the two "round eight" sections here used to name
-(`projRecOwners_run`, `projRecValue_run`, `projRewriteD_run`, the
-scratch-frame family) went with them.  `ReadCachesOK` itself survives —
-`Bridge/Frontend/Rel.lean` keeps the structure and its two lemmas because
-`proof/ConRon/Capstone.lean` (a later task's file) still cites
-`ReadCachesOK.ofEmpty` — but nothing in this tier threads it any more, since
-nothing downstream of the parse reads a per-declaration cache. -/
-
-
 /-! ## PROVED, and once resting on an open leaf
 
 When this section was written, each result below had a COMPLETE proof of its
@@ -420,14 +330,8 @@ what rested on what.
 
 /-! ## The headlines, and the two named hypotheses
 
-**Task #105**: `Bridge/Frontend/ProjRec.lean`'s two con-leche-tier occurrence
-lemmas (`clOccursConstB_eq`, `clOccursConstGo_eq`) that task #97-T1-OCC's
-section here used to close are gone with the file; they served only
-`occursConstFast_run`/`occursConstGo_run`, the projection rewrite's own
-walks, which are gone too.
-
 These five reported `sorryAx` while they rested on leaves of the sorry list
-(the memoised readback, the intern direction, the `ExprOps` walks, the
+(the intern direction, the `ExprOps` walks, the
 record-assembly steps and `processLineCoreD`'s six arms); those are closed,
 and the five are printed for the one thing the census is for: **none of
 them names `CoreSpec` or `IndSpec`.**  Those two are hypotheses of
@@ -441,16 +345,5 @@ With the tier closed, the reading of all five is
 the original campaign's for `conron.no_False_declaration`
 (`RefineOld/Main.lean:775`). -/
 
-
-/-! ## What the third letter no longer carries
-
-Round 2 assembled `Arena.no_False_declaration_pipeline` on a named hypothesis
-`InternAllPinsFrame`, standing in for the one conjunct
-`Bridge/Checker/Pins.lean`'s `internAllPins_run` did not state.  Task
-#97-P3-Checker-2 landed the strengthening (`s'.caches = s.caches ∧ s'.memos =
-s.memos`), so round 3 deleted the definition and the hypothesis: the letter's
-hypotheses are again `CoreSpec`, `IndSpec` and the prelude gate, and nothing
-else.  Task #98-HEADLINE dropped the prelude gate too (`builtinPreludeE_run`
-is parametric in the bytes): the letter takes `CoreSpec` and `IndSpec`. -/
 
 end ConRon.Bridge.Frontend

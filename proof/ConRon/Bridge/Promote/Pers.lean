@@ -99,6 +99,25 @@ theorem AM.pure_ok {α : Type} {a b : α} {s s' : AState}
   simp only [pure, StateT.pure, Except.pure, Except.ok.injEq, Prod.mk.injEq] at h
   exact ⟨h.1.symm, h.2.symm⟩
 
+/-- con-leche: none — a `fail` never returns, so a theorem premised on a
+successful run never reaches one. -/
+theorem AM.fail_ok {α : Type} {e : Arena.CheckError} {s s' : AState} {a : α}
+    (h : (fail e : AM α) s = .ok (a, s')) : False := by
+  simp only [fail, throwThe, MonadExceptOf.throw] at h
+  exact nomatch h
+
+/-- con-leche: none — `get` moves nothing and answers the state. -/
+theorem AM.get_ok {s s' t : AState} (h : (get : AM AState) s = .ok (t, s')) :
+    t = s ∧ s' = s := by
+  have he : ((s, s) : AState × AState) = (t, s') := Except.ok.inj h
+  exact ⟨(congrArg Prod.fst he).symm, (congrArg Prod.snd he).symm⟩
+
+/-- con-leche: none — `set` answers `()` at the state it was handed. -/
+theorem AM.set_ok {s s' t : AState} {u : Unit}
+    (h : (set t : AM Unit) s = .ok (u, s')) : s' = t := by
+  have he : (((), t) : Unit × AState) = (u, s') := Except.ok.inj h
+  exact (congrArg Prod.snd he).symm
+
 /-- con-leche: none — a bind whose FIRST half cannot succeed cannot succeed. -/
 theorem AM.Never.of_bind_left {α β : Type} {x : AM α} {g : α → AM β}
     (h : AM.Never x) : AM.Never (x >>= g) := by

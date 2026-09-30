@@ -318,7 +318,7 @@ theorem promoteNew_spec {m m' : PMemo} {fuel k : Nat} {fe0 fe fe' : IFEnv}
     rw [← List.take_append_drop k fe.env.consts] at hzs
     obtain ⟨za, zb, hza, hzb, rfl⟩ := denoteCIList_append _ _ zs hzs
     exact ⟨za ++ zb, denoteCIList_append_of _ _ za zb (hd1 za hza)
-      (denoteCIList_promote_ext hx1 _ zb hzb), rfl⟩
+      (denoteCIList_mono hx1 _ zb hzb), rfl⟩
 
 /-! ## Census -/
 

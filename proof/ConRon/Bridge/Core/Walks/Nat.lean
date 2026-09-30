@@ -30,15 +30,6 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 1. Index equality is value equality, at the three stores -/
 
-/-- con-leche: none — DESIGN §8.3 at the expression store. -/
-theorem beq_of_denoteE {st : EStore} (hwf : StoreWF st) {i j : EIdx}
-    {x y : Expr} (hi : denoteE st i = some x) (hj : denoteE st j = some y) :
-    (i == j) = (x == y) := by
-  rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
-  constructor
-  · rintro rfl; rw [hi] at hj; exact Option.some.inj hj
-  · rintro rfl; exact denoteE_inj hwf hi hj
-
 /-- con-leche: none — DESIGN §8.3 at the level-list store. -/
 theorem beq_of_denoteLs {st : LsStore} (hwf : LsStoreWF st) {i j : LsIdx}
     {x y : List Level} (hi : denoteLs st i = some x)
@@ -109,14 +100,6 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
 
 /-! ## 3. The name tests -/
 
-/-- con-leche: none — a pinned name handle against a denoted one: the `==`
-of the twin is con-leche's `==` of the names. -/
-theorem pinBeq {st : EStore} (hwf : StoreWF st) {c n : NIdx}
-    {nm y : ConLeche.Name} (hn : denoteN st.ns c = some nm)
-    (hy : denoteN st.ns n = some y) : (c == n) = (nm == y) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  exact beq_of_denoteN hrk.nsWF hn hy
-
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
 `natBinOpName`**: the binary literal acceleration's fourteen-way name test is
 con-leche's disjunction. -/
@@ -144,21 +127,21 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
   all_goals (bridge_peel; subst_vars)
   all_goals first | exact hp | skip
   refine ⟨rfl, ?_⟩
-  have pinBeq := fun {n : NIdx} {y : ConLeche.Name} => @pinBeq _ hwf c n nm y
-  rw [pinBeq hn (‹∀ x, pinNames[PIN_NAT_ADD]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_SUB]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_MUL]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_POW]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_BEQ]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_BLE]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl),
-      pinBeq hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)]
+  have beq_handle_eq := fun {n : NIdx} {y : ConLeche.Name} => @beq_handle_eq _ hwf c n nm y
+  rw [beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_ADD]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_SUB]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_MUL]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_POW]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_BEQ]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_BLE]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl),
+      beq_handle_eq hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)]
   simp only [Bool.or_eq_true, beq_iff_eq, or_assoc]
   exact Iff.rfl
 
@@ -194,14 +177,14 @@ theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
   refine ⟨rfl, fun c nm hn => ?_⟩
   simp only [List.contains_cons, List.contains_nil, Bool.or_false,
     ConLeche.natOpWfNames]
-  rw [pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl),
-    pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)]
+  rw [beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl),
+    beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)]
   rfl
 
 /-! ## 4. `natOpResult` -/
@@ -210,21 +193,21 @@ set_option hygiene false in
 /-- con-leche: none — the fifteen name tests of `natOpResult`'s chain, turned
 into con-leche's `Name` tests at one arm. -/
 local macro "nat_tests" : tactic => `(tactic| (
-   have e0 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_PRED]? = some x → denoteN _ _ = some x› _ rfl)
-   have e1 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_ADD]? = some x → denoteN _ _ = some x› _ rfl)
-   have e2 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_SUB]? = some x → denoteN _ _ = some x› _ rfl)
-   have e3 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_MUL]? = some x → denoteN _ _ = some x› _ rfl)
-   have e4 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_POW]? = some x → denoteN _ _ = some x› _ rfl)
-   have e5 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_BEQ]? = some x → denoteN _ _ = some x› _ rfl)
-   have e6 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_BLE]? = some x → denoteN _ _ = some x› _ rfl)
-   have e7 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl)
-   have e8 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl)
-   have e9 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl)
-   have e10 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl)
-   have e11 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl)
-   have e12 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl)
-   have e13 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl)
-   have e14 := pinBeq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)
+   have e0 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_PRED]? = some x → denoteN _ _ = some x› _ rfl)
+   have e1 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_ADD]? = some x → denoteN _ _ = some x› _ rfl)
+   have e2 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SUB]? = some x → denoteN _ _ = some x› _ rfl)
+   have e3 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_MUL]? = some x → denoteN _ _ = some x› _ rfl)
+   have e4 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_POW]? = some x → denoteN _ _ = some x› _ rfl)
+   have e5 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_BEQ]? = some x → denoteN _ _ = some x› _ rfl)
+   have e6 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_BLE]? = some x → denoteN _ _ = some x› _ rfl)
+   have e7 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_DIV]? = some x → denoteN _ _ = some x› _ rfl)
+   have e8 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_MOD]? = some x → denoteN _ _ = some x› _ rfl)
+   have e9 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_GCD]? = some x → denoteN _ _ = some x› _ rfl)
+   have e10 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LAND]? = some x → denoteN _ _ = some x› _ rfl)
+   have e11 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_LOR]? = some x → denoteN _ _ = some x› _ rfl)
+   have e12 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_XOR]? = some x → denoteN _ _ = some x› _ rfl)
+   have e13 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_LEFT]? = some x → denoteN _ _ = some x› _ rfl)
+   have e14 := beq_handle_eq hwf hn (‹∀ x, pinNames[PIN_NAT_SHIFT_RIGHT]? = some x → denoteN _ _ = some x› _ rfl)
    simp only [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, beq_iff_eq] at *))
 
 set_option hygiene false in
@@ -968,7 +951,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     rename_i _ _ _ _ _ hus _ s0 s1 _ n s2 _ s3 hck1 hwf3 hx01 hx23 hp10 _ _ hc32 hp32 _ _ _ hlit hsucc hel hvc hve hg hck2 hr hx12 hp21 hwa
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
-    rw [pinBeq hwf hn (hsucc _ rfl)] at hg
+    rw [beq_handle_eq hwf hn (hsucc _ rfl)] at hg
     simp only [Bool.and_eq_true, beq_iff_eq] at hg
     obtain ⟨w, hw, _, F, hF⟩ := hwa ax (denote_ext ha hx01)
     have hraw := hr w hw
@@ -984,7 +967,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     rename_i _ _ _ _ _ hus _ s0 s1 _ s2 hck1 hx01 hp10 hsucc hel hvc hve hg hck2 hr hx12 hp21 hwa
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
-    rw [pinBeq hwf hn (hsucc _ rfl)] at hg
+    rw [beq_handle_eq hwf hn (hsucc _ rfl)] at hg
     simp only [Bool.and_eq_true, beq_iff_eq] at hg
     obtain ⟨w, hw, _, F, hF⟩ := hwa ax (denote_ext ha hx01)
     have hraw := hr w hw
@@ -996,7 +979,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     rename_i _ _ _ _ _ hus _ s0 s1 hck1 hx01 hp10 hsucc hel hvc hve hng
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
-    rw [pinBeq hwf hn (hsucc _ rfl)] at hng
+    rw [beq_handle_eq hwf hn (hsucc _ rfl)] at hng
     have hng' : ¬ (nm = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true) := by
       simpa using hng
     refine ⟨hck1, hx01, hp10, fun x' hx' => ?_⟩

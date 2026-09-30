@@ -195,8 +195,7 @@ abbrev EMemo := Std.HashMap Expr EIdx
 subterms already interned.  Structural on `Expr`, so no fuel: the argument is
 a value, not a DAG.  The memo is probed only at the four compound
 constructors; a leaf is one `internE`, and the store's own cons table already
-answers a repeat of it in `O(1)`.  (The `e@(…)` shape is con-leche's own, at
-`ConLeche/Frontend/ProjRec.lean:182-225`'s `occursConstGo`.) -/
+answers a repeat of it in `O(1)`. -/
 def internExprGo (m : EMemo) : Expr → AM (EMemo × EIdx)
   | .bvar i => do pure (m, ← internE (.bvar i))
   | .sort u => do
