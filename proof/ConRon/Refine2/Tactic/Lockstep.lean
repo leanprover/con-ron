@@ -1215,38 +1215,6 @@ theorem tagView_lit (st : EStore) (i : EIdx) (hi : i.tag = ETag.lit) :
     · rw [if_pos hs, if_pos hs]; exact key _
     · rw [if_neg hs, if_neg hs]; rfl
 
-theorem tagView_letE (st : EStore) (i : EIdx) (hi : i.tag = ETag.letE) :
-    st.view i = (st.viewLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
-  have key : ∀ t : ETables, t.get i = (t.getLet i).map (fun p => ENodeView.letE p.1 p.2.1 p.2.2) := by
-    intro t
-    simp only [ETables.get, ETables.getLet, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
-    rfl
-  rw [EStore.view, EStore.viewLet,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.letE])]
-  by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetLet]; exact key _
-  · rw [if_neg hp, if_neg hp]
-    by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
-
-theorem tagView_proj (st : EStore) (i : EIdx) (hi : i.tag = ETag.proj) :
-    st.view i = (st.viewProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
-  have key : ∀ t : ETables, t.get i = (t.getProj i).map (fun p => ENodeView.proj p.1 p.2.1 p.2.2) := by
-    intro t
-    simp only [ETables.get, ETables.getProj, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
-    rfl
-  rw [EStore.view, EStore.viewProj,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.proj])]
-  by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetProj]; exact key _
-  · rw [if_neg hp, if_neg hp]
-    by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
-
 theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
     st.view i = (st.viewBVar i).map ENodeView.bvar := by
   have key : ∀ t : ETables, t.get i = (t.getBVar i).map ENodeView.bvar := by
@@ -1262,13 +1230,6 @@ theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
     by_cases hs : st.scratchOn
     · rw [if_pos hs, if_pos hs]; exact key _
     · rw [if_neg hs, if_neg hs]; rfl
-
-theorem tagView_lam (st : EStore) (i : EIdx) (hi : i.tag = ETag.lam) :
-    st.view i = (st.viewBind i).map (fun p => ENodeView.lam p.1 p.2.1 p.2.2) := by
-  rw [EStore.view, if_pos (by rw [hi]; rfl)]
-  cases st.viewBind i with
-  | none => rfl
-  | some p => obtain ⟨ty, b, m⟩ := p; simp [eBindView, hi]
 
 theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
     st.view i = (st.viewBind i).map (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) := by
