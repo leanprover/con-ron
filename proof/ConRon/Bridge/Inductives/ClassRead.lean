@@ -707,4 +707,339 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
       exact absurd (PW.tag_const_of_denote p3.ok.wf hhd) (by simpa using htg)
     · rfl
 
+/-! ## `ClassRead.classes`, `ClassRead.motiveSlot` -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:65-67 ClassRead.classes —
+the classes of a denoting slot list denote con-leche's (the twin takes the
+slot list, con-leche the record: any `recCls`). -/
+theorem classes_denote {st : EStore} (rc : List Nat) :
+    ∀ {slots : List Arena.ClassSlot} {slotsP : List ConLeche.ClassSlot},
+      slots.mapM (dSlot st) = some slotsP →
+      (Arena.ClassRead.classes slots).mapM (dClassKey st) =
+        some (ConLeche.ClassRead.classes ⟨slotsP, rc⟩) := by
+  intro slots
+  simp only [Arena.ClassRead.classes, ConLeche.ClassRead.classes]
+  induction slots with
+  | nil =>
+    intro slotsP h
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | cons x xs ih =>
+    intro slotsP h
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h
+    cases hx : dSlot st x with
+    | none => rw [hx] at h; simp at h
+    | some y =>
+    rw [hx] at h
+    cases hxs : xs.mapM (dSlot st) with
+    | none => rw [hxs] at h; simp at h
+    | some ys =>
+    rw [hxs] at h
+    simp only [Option.bind_some, Option.some.injEq] at h
+    subst h
+    have ih' := ih hxs
+    cases x with
+    | motive k =>
+      simp only [dSlot, Option.map_eq_some_iff] at hx
+      obtain ⟨kP, hk, rfl⟩ := hx
+      simp only [List.filterMap_cons, List.mapM_cons, hk, ih', Option.bind_eq_bind,
+        Option.bind_some, Option.pure_def]
+    | minor c n ihs =>
+      simp only [dSlot, Option.map_eq_some_iff] at hx
+      obtain ⟨nP, -, rfl⟩ := hx
+      simpa only [List.filterMap_cons] using ih'
+
+/-- con-leche: none — the motive filter over a denoting slot list: any two
+predicates that both test "is a motive" select the same positions. -/
+theorem motive_filter_eq {st : EStore} {slots : List Arena.ClassSlot}
+    {slotsP : List ConLeche.ClassSlot} (h : slots.mapM (dSlot st) = some slotsP)
+    (pA : Option Arena.ClassSlot → Bool) (pC : Option ConLeche.ClassSlot → Bool)
+    (hA : ∀ o, pA o = match o with | some (.motive _) => true | _ => false)
+    (hC : ∀ o, pC o = match o with | some (.motive _) => true | _ => false) :
+    (List.range slots.length).filter (fun s => pA slots[s]?) =
+      (List.range slotsP.length).filter (fun s => pC slotsP[s]?) := by
+  rw [mapM_option_length h]
+  apply List.filter_congr
+  intro j _
+  have hj := mapM_option_getElem? (st := st) h j
+  rw [hA, hC]
+  cases hs : slots[j]? with
+  | none =>
+    rw [hs] at hj
+    simp only [ROp] at hj
+    rw [hj]
+  | some x =>
+    rw [hs] at hj
+    obtain ⟨y, hy, hxy⟩ := hj
+    rw [hy]
+    cases x with
+    | motive k =>
+      simp only [dSlot, Option.map_eq_some_iff] at hxy
+      obtain ⟨_, _, rfl⟩ := hxy
+      rfl
+    | minor c n ihs =>
+      simp only [dSlot, Option.map_eq_some_iff] at hxy
+      obtain ⟨_, _, rfl⟩ := hxy
+      rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:69-73 ClassRead.motiveSlot
+— over a denoting slot list, the twin's answer IS con-leche's. -/
+theorem motiveSlot_eq {st : EStore} {slots : List Arena.ClassSlot}
+    {slotsP : List ConLeche.ClassSlot} (rc : List Nat)
+    (h : slots.mapM (dSlot st) = some slotsP) (c : Nat) :
+    Arena.ClassRead.motiveSlot slots c = ConLeche.ClassRead.motiveSlot ⟨slotsP, rc⟩ c := by
+  simp only [Arena.ClassRead.motiveSlot, ConLeche.ClassRead.motiveSlot]
+  congr 1
+  exact motive_filter_eq h (fun o => match o with | some (.motive _) => true | _ => false)
+    (fun o => match o with | some (.motive _) => true | _ => false)
+    (fun _ => rfl) (fun _ => rfl)
+
+/-! ## `classNPcOf` -/
+
+/-- con-leche: none — a denoting constant value's name handle denotes its name. -/
+theorem denoteCV_name {st : EStore} {cv : IConstantVal} {c : ConstantVal}
+    (h : Frontend.denoteCV st cv = some c) : denoteN st.ns cv.name = some c.name := by
+  unfold Frontend.denoteCV at h
+  split at h
+  · rename_i n lps ty hn _ _
+    cases h; exact hn
+  · cases h
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:138 memberNames — a
+denoting shape's member names denote con-leche's. -/
+theorem memberNames_denote {st : EStore} {p : Arena.BlockShape} {pP : ConLeche.BlockShape}
+    (h : dShape st p = some pP) :
+    Frontend.denoteNList st.ns p.memberNames = some pP.memberNames ∧ pP.nP = p.nP := by
+  simp only [dShape, Option.bind_eq_bind] at h
+  cases h1 : p.members.mapM (dMember st) with
+  | none => rw [h1] at h; exact nomatch h
+  | some ms =>
+  rw [h1] at h
+  simp only [Option.bind_some] at h
+  cases h2 : p.recs.mapM (dRec st) with
+  | none => rw [h2] at h; exact nomatch h
+  | some rs =>
+  rw [h2] at h
+  simp only [Option.bind_some] at h
+  cases h3 : denoteN st.ns p.elim with
+  | none => rw [h3] at h; exact nomatch h
+  | some el =>
+  rw [h3] at h
+  simp only [Option.bind_some] at h
+  cases h4 : denoteL st.ls p.resSort with
+  | none => rw [h4] at h; exact nomatch h
+  | some so =>
+  rw [h4] at h
+  simp only [Option.bind_some, Option.pure_def, Option.some.injEq] at h
+  subst h
+  refine ⟨?_, rfl⟩
+  simp only [Arena.BlockShape.memberNames, ConLeche.BlockShape.memberNames]
+  clear h2 h3 h4
+  generalize p.members = xs at h1
+  induction xs generalizing ms with
+  | nil =>
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h1
+    subst h1; rfl
+  | cons x xs ih =>
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at h1
+    cases hx : dMember st x with
+    | none => rw [hx] at h1; simp at h1
+    | some y =>
+    rw [hx] at h1
+    cases hxs : xs.mapM (dMember st) with
+    | none => rw [hxs] at h1; simp at h1
+    | some ys =>
+    rw [hxs] at h1
+    simp only [Option.bind_some, Option.some.injEq] at h1
+    subst h1
+    simp only [dMember, Option.bind_eq_bind] at hx
+    cases hcv : Frontend.denoteCV st x.cvT with
+    | none => rw [hcv] at hx; simp at hx
+    | some cv =>
+    rw [hcv] at hx
+    simp only [Option.bind_some] at hx
+    cases hcs : dCtors st x.ctors with
+    | none => rw [hcs] at hx; simp at hx
+    | some cs =>
+    rw [hcs] at hx
+    simp only [Option.bind_some, Option.pure_def, Option.some.injEq] at hx
+    subst hx
+    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hcv, ih ys hxs]
+
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:488-492 classNPcOf — **the
+parameter count the pre-pass reads**: the twin reads the formers' index `fe`,
+con-leche `mkFEnv env`; the index invariant makes them one (`mkFEnv_find?`). -/
+theorem classNPcOf_eq {env : Env} {fe : IFEnv} {s : AState} {p : Arena.BlockShape}
+    {pP : ConLeche.BlockShape} {i : NIdx} {I : ConLeche.Name} (hok : StateOK s)
+    (hfe : IFEnvOK env fe s) (hp : dShape s.store p = some pP)
+    (hi : denoteN s.store.ns i = some I) :
+    Arena.classNPcOf p fe i = ConLeche.classNPcOf pP (mkFEnv env) I := by
+  obtain ⟨hmn, hnP⟩ := memberNames_denote hp
+  unfold Arena.classNPcOf ConLeche.classNPcOf
+  rw [PW.contains_handle_eq hok.wf hi hmn, hnP, mkFEnv_find?]
+  split
+  · rfl
+  · cases hf : fe.find? i with
+    | none =>
+      rw [IFEnvOK.miss hok hfe hi hf]
+    | some ci =>
+      obtain ⟨nm, c, hn, hci, henv⟩ := hfe.hit i ci hf
+      rw [hi] at hn
+      obtain rfl := Option.some.inj hn
+      rw [henv]
+      cases ci with
+      | indInfo v caps =>
+        simp only [Frontend.denoteCI] at hci
+        split at hci
+        · rename_i cv capsP _ hcaps
+          cases hci
+          simp only [Frontend.denoteCaps] at hcaps
+          split at hcaps
+          · cases hcaps; rfl
+          · cases hcaps
+        · cases hci
+      | _ =>
+        have hne := denoteCI_not_ind hci (by intro v caps hc; cases hc)
+        cases c with
+        | indInfo v caps => exact absurd rfl (hne v caps)
+        | _ => rfl
+
+/-! ## `classReadSlot` -/
+
+/-- con-leche: none — a denoting binder telescope's last binder, both ways. -/
+theorem denoteBinders_getLast? {st : EStore} {bs : List (EIdx × BinderMeta)}
+    {xs : List (Expr × BinderMeta)} (h : denoteBinders st bs = some xs) :
+    (bs.getLast? = none → xs.getLast? = none) ∧
+      ∀ b m, bs.getLast? = some (b, m) →
+        ∃ x, xs.getLast? = some (x, m) ∧ denoteE st b = some x := by
+  have hl := denoteBinders_length h
+  have hg := denoteBinders_getElem? h (bs.length - 1)
+  rw [List.getLast?_eq_getElem?, List.getLast?_eq_getElem?, ← hl]
+  exact ⟨hg.2, hg.1⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:111-117 classReadSlots —
+the per-binder reading (a motive when the domain's telescope ends in a sort,
+else a minor premise), as a function; `classReadSlots_succ` identifies it with
+the inline block. -/
+def slotP (nPc : ConLeche.Name → Nat) (np : Nat) (motPos : List Nat) (d : Nat)
+    (dom : Expr) : Option ConLeche.ClassSlot :=
+  match dom.piResult with
+  | .sort _ => do
+    let (bs, _) := dom.piBinders
+    let (mdom, _) ← bs.getLast?
+    let .const I us := mdom.getAppFn | none
+    pure (ConLeche.ClassSlot.motive ⟨I, us, mdom.getAppArgs.take (nPc I)⟩)
+  | _ => ConLeche.classReadMinor np motPos d dom
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:118 classReadSlots —
+the prefix-position list after one slot, as a function. -/
+def motPosP (motPos : List Nat) (d np : Nat) : ConLeche.ClassSlot → List Nat
+  | .motive _ => motPos ++ [d - np]
+  | _ => motPos
+
+theorem classReadSlots_succ (nPc : ConLeche.Name → Nat) (np n : Nat) (motPos : List Nat)
+    (d : Nat) (dom body : Expr) (m : BinderMeta) :
+    ConLeche.classReadSlots nPc np (n + 1) motPos d (.forallE dom body m) =
+      (slotP nPc np motPos d dom).bind fun slot =>
+        (ConLeche.classReadSlots nPc np n (motPosP motPos d np slot) (d + 1)
+          (body.instantiate1 (.fvar d dom))).bind fun rest => some (slot :: rest) := by
+  rw [ConLeche.classReadSlots]
+  unfold slotP
+  split
+  · rename_i hu
+    rw [hu]
+    obtain ⟨bs, e⟩ := dom.piBinders
+    dsimp only
+    cases bs.getLast? with
+    | none => rfl
+    | some q =>
+      obtain ⟨mdom, _⟩ := q
+      simp only [Option.bind_eq_bind, Option.bind_some]
+      cases mdom.getAppFn <;> rfl
+  · rename_i hu
+    split
+    · rename_i hu'; exact absurd hu' (hu _)
+    · rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:111-117 classReadSlots —
+**one prefix binder read**, two-sided on the `Option`; the parameter counts
+are `classNPcOf` at the formers' index (`classNPcOf_eq`). -/
+theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (env : Env)
+    (fe : IFEnv) (np : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx) (domP : Expr) :
+    PSpec (fun st => dShape st p = some pP ∧ IFEnvOKS env fe st ∧ denoteE st dom = some domP)
+      (Arena.classReadSlot p fe np motPos d dom)
+      (ROp (fun q st r => dSlot st r = some q)
+        (slotP (ConLeche.classNPcOf pP (mkFEnv env)) np motPos d domP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hsh, hfe, hd⟩ := hp
+  simp only [Arena.classReadSlot] at hrun
+  obtain ⟨rr, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨rfl, hrr⟩ := CR.piResult_run hok hd h1
+  by_cases htg : (rr.tag == ETag.sort) = true
+  · rw [if_pos htg] at h2
+    obtain ⟨u, hu⟩ := CR.sort_of_tag hok.wf htg hrr
+    unfold slotP
+    rw [hu]
+    simp only
+    obtain ⟨⟨bs, e⟩, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨rfl, hbs, -⟩ := CR.piBinders_run _ hok hd h3
+    obtain ⟨hl1, hl2⟩ := denoteBinders_getLast? hbs
+    dsimp only at h4
+    cases hl : bs.getLast? with
+    | none =>
+      rw [hl] at h4
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      refine ⟨PStep.refl hok, ?_⟩
+      simp [ROp, hl1 hl]
+    | some bm =>
+    obtain ⟨mdom, m⟩ := bm
+    rw [hl] at h4
+    obtain ⟨mdomP, hlP, hmd⟩ := hl2 mdom m hl
+    rw [hlP]
+    simp only [Option.bind_eq_bind, Option.bind_some]
+    dsimp only at h4
+    obtain ⟨hdh, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨rfl, hhd⟩ := getAppFn_run hok hmd h5
+    by_cases htc : (hdh.tag == ETag.const) = true
+    · rw [if_pos htc] at h6
+      obtain ⟨o, s₄, h7, h8⟩ := bindOk h6
+      obtain ⟨rfl, ho⟩ := PW.viewConst_run h7
+      cases o with
+      | none => exact absurd h8 (fun hc => PW.failDanglingE_ok hc)
+      | some pr =>
+      obtain ⟨cn, us⟩ := pr
+      have hw := view_of_viewConst_tag htc ho.symm
+      obtain ⟨nm, ls, hgl, hn, hls⟩ := denote_const_inv hok.wf hw hhd
+      rw [hgl]
+      dsimp only at h8
+      obtain ⟨args, s₅, h9, h10⟩ := bindOk h8
+      obtain ⟨rfl, hargs⟩ := getAppArgs_run hok hmd h9
+      obtain ⟨rfl, rfl⟩ := pureOk h10
+      refine ⟨PStep.refl hok, ?_⟩
+      refine ⟨_, rfl, ?_⟩
+      rw [classNPcOf_eq hok (hfe _ rfl) hsh hn]
+      simp [dSlot, dClassKey, hn, hls, denoteEList_take hargs]
+    · rw [if_neg htc] at h6
+      obtain ⟨rfl, rfl⟩ := pureOk h6
+      refine ⟨PStep.refl hok, ?_⟩
+      show _ = none
+      split
+      · rename_i C us hg
+        rw [hg] at hhd
+        exact absurd (PW.tag_const_of_denote hok.wf hhd) (by simpa using htc)
+      · rfl
+  · rw [if_neg htg] at h2
+    have hns : ∀ u, domP.piResult ≠ .sort u := by
+      intro u hu
+      rw [hu] at hrr
+      exact htg (by simp [CR.tag_sort_of_denote hok.wf hrr])
+    have e : slotP (ConLeche.classNPcOf pP (mkFEnv env)) np motPos d domP =
+        ConLeche.classReadMinor np motPos d domP := by
+      unfold slotP
+      split
+      · rename_i u hu; exact absurd hu (hns u)
+      · rfl
+    rw [e]
+    exact classReadMinor_spec np motPos d dom domP _ s' r hok hd h2
+
 end ConRon.Bridge.Inductives
