@@ -583,4 +583,34 @@ theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec St
   rw [arena.inductives.class_read.class_read_minor, classReadMinor_eq, classReadMinor']
   lockstep
 
+/-! ## `class_read_slot` -/
+
+@[lockstep] theorem class_read_slot_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (np : Std.U64)
+    (mot_pos : alloc.vec.Vec Std.U64) (d : Std.U64) (dom : arena.handle.EIdx) :
+    LS pers (fun a b => b = a.map absClassSlot)
+      (arena.inductives.class_read.class_read_slot pers st p rf np mot_pos d dom) lst
+      (classReadSlot (absBlockShape p) lf (absU np) (absNatL mot_pos) (absU d)
+        (absEIdx dom)) := by
+  rw [arena.inductives.class_read.class_read_slot, classReadSlot]
+  lockstep
+  rename_i bs _
+  have hnil : (absBinderL bs).getLast? = none := by
+    have : bs.val.length = 0 := by scalar_tac
+    simp [absBinderL, List.eq_nil_of_length_eq_zero this]
+  rw [hnil]
+  exact LS.pure rfl (by assumption) (by assumption)
+  rename_i bs _ hlt v hv
+  have hv' : (absBinderL bs).getLast? =
+      some ((fun q => (absEIdx q.1, ConRon.Refine.absBinderMeta q.2)) bs.val[a.val]) := by
+    rw [absBinderL, List.getLast?_map, List.getLast?_eq_getElem?,
+      show bs.val.length - 1 = a.val by scalar_tac, List.getElem?_eq_getElem hlt]
+    rfl
+  obtain rfl := Option.some_inj.mp (hv.symm.trans hv')
+  lockstep
+  refine LS.pure ?_ (by assumption) (by assumption)
+  simp only [Option.map_some, absClassSlot, absClassKey, absEIdxL_of_takeEidx hP]
+  rfl
+
 end ConRon.Refine2
