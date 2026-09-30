@@ -799,4 +799,184 @@ theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : Const
            · rename_i hc3; obtain ⟨rfl, rfl⟩ := pureOk hz2
              exact ⟨p1, by simp only [hc, hc2, hc3]; simp_all⟩)
 
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:301-308 ctorMember?
+The member a constructor belongs to: `stripPis`, `getAppFn`, then
+`memberIdxAt?_spec` at the block's interned level list. -/
+theorem ctorMember?_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls : LsIdx)
+    (lpsP : List ConLeche.Name) (nP : Nat) (c : IConstantVal × Nat)
+    (cP : ConstantVal × Nat) :
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss lvls = some (lpsP.map Level.param) ∧ dCtor st c = some cP)
+      (Arena.ctorMember? names lvls nP c) (RV (ConLeche.ctorMember? namesP lpsP nP cP)) := by
+  intro s₀ s' r hok hp hrun
+  obtain ⟨hN, hL, hc⟩ := hp
+  simp only [dCtor, Option.map_eq_some_iff] at hc
+  obtain ⟨cv, hcv, rfl⟩ := hc
+  simp only [Arena.ctorMember?] at hrun
+  obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨hs1, hbp⟩ := stripPis_pstep hok (denoteCV_type hcv) h1
+  rw [hs1] at h2
+  cases o with
+  | none =>
+    obtain ⟨rfl, rfl⟩ := pureOk h2
+    refine ⟨PStep.refl hok, ?_⟩
+    show none = _
+    simp only [ConLeche.ctorMember?, stripPis_none hbp]
+  | some q =>
+    obtain ⟨bs, e⟩ := q
+    obtain ⟨xs, x, hsp, hx⟩ := stripPis_some hbp
+    dsimp only at h2
+    obtain ⟨hh, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨hs2, hhd⟩ := getAppFn_run hok hx h3
+    rw [hs2] at h4
+    obtain ⟨p4, h5⟩ := memberIdxAt?_spec names namesP lvls _ hh _ s₀ s' r hok
+      ⟨hN, hL, hhd⟩ h4
+    refine ⟨p4, ?_⟩
+    simp only [RV] at h5 ⊢
+    rw [h5]
+    simp only [ConLeche.ctorMember?, hsp]
+
+/-- con-leche: none — `Option`'s `mapM` of a reversed list. -/
+theorem mapM_option_reverse {α β : Type} {f : α → Option β} :
+    ∀ {xs : List α} {ys : List β}, xs.mapM f = some ys → xs.reverse.mapM f = some ys.reverse := by
+  intro xs
+  induction xs with
+  | nil => intro ys h; simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+           subst h; rfl
+  | cons x xs ih =>
+    intro ys h
+    obtain ⟨y, ys', rfl, hx, hxs⟩ := mapM_option_cons_inv h
+    simp only [List.reverse_cons, List.mapM_append, ih hxs, List.mapM_cons, List.mapM_nil, hx,
+      Option.bind_eq_bind, Option.pure_def, Option.bind_some]
+
+/-- con-leche: none — **`List.filterM` of a pure-grade test** (the accumulator
+form `List.filterAuxM`): the kept elements denote the pure `filter`, reversed
+onto the accumulator. -/
+theorem filterAuxM_pstep {α β : Type} (d : EStore → α → Option β) (hd : DExt d)
+    (P : EStore → Prop) (hP : ∀ {st st' : EStore}, Ext st st' → P st → P st')
+    (f : α → AM Bool) (g : β → Bool)
+    (hf : ∀ (a : α) (aP : β) (s₀ s' : AState) (b : Bool), StateOK s₀ → P s₀.store →
+      d s₀.store a = some aP → f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g aP) :
+    ∀ (xs : List α) (xsP : List β) (acc : List α) (accP : List β) (s₀ s' : AState)
+      (r : List α), StateOK s₀ → P s₀.store → xs.mapM (d s₀.store) = some xsP →
+      acc.mapM (d s₀.store) = some accP → List.filterAuxM f xs acc s₀ = .ok (r, s') →
+      PStep s₀ s' ∧ r.mapM (d s'.store) = some ((xsP.filter g).reverse ++ accP) := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro xsP acc accP s₀ s' r hok _ hxs hacc hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hxs
+    subst hxs
+    simp only [List.filterAuxM] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, by simpa using hacc⟩
+  | cons a as ih =>
+    intro xsP acc accP s₀ s' r hok hp hxs hacc hrun
+    obtain ⟨aP, asP, rfl, ha, has⟩ := mapM_option_cons_inv hxs
+    simp only [List.filterAuxM] at hrun
+    obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨p1, rfl⟩ := hf a aP s₀ s₁ b hok hp ha h1
+    have hacc' : (cond (g aP) (a :: acc) acc).mapM (d s₁.store) =
+        some (cond (g aP) (aP :: accP) accP) := by
+      cases g aP
+      · exact mapM_option_ext (fun x y h => hd p1.ext x y h) _ _ hacc
+      · exact mapM_option_cons (hd p1.ext _ _ ha)
+          (mapM_option_ext (fun x y h => hd p1.ext x y h) _ _ hacc)
+    obtain ⟨p2, hr⟩ := ih asP _ _ s₁ s' r p1.ok (hP p1.ext hp)
+      (mapM_option_ext (fun x y h => hd p1.ext x y h) _ _ has) hacc' h2
+    refine ⟨p1.trans p2, ?_⟩
+    rw [hr]
+    cases hg : g aP <;> simp [hg]
+
+theorem filterM_pstep {α β : Type} (d : EStore → α → Option β) (hd : DExt d)
+    (P : EStore → Prop) (hP : ∀ {st st' : EStore}, Ext st st' → P st → P st')
+    (f : α → AM Bool) (g : β → Bool)
+    (hf : ∀ (a : α) (aP : β) (s₀ s' : AState) (b : Bool), StateOK s₀ → P s₀.store →
+      d s₀.store a = some aP → f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g aP)
+    (xs : List α) (xsP : List β) (s₀ s' : AState) (r : List α) (hok : StateOK s₀)
+    (hp : P s₀.store) (hxs : xs.mapM (d s₀.store) = some xsP)
+    (hrun : xs.filterM f s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ r.mapM (d s'.store) = some (xsP.filter g) := by
+  simp only [List.filterM] at hrun
+  obtain ⟨as, s₁, h1, h2⟩ := bindOk hrun
+  obtain ⟨p1, has⟩ := filterAuxM_pstep d hd P hP f g hf xs xsP [] [] s₀ s₁ as hok hp hxs rfl h1
+  obtain ⟨rfl, rfl⟩ := pureOk h2
+  refine ⟨p1, ?_⟩
+  simpa using mapM_option_reverse has
+
+/-- con-leche: none — a pointwise `Option` relation is a `mapM`. -/
+theorem ListRel.toMapM {β γ : Type} {d : EStore → β → Option γ} {st : EStore} :
+    ∀ {bs : List β} {cs : List γ}, ListRel (fun st b c => d st b = some c) st bs cs →
+      bs.mapM (d st) = some cs := by
+  intro bs
+  induction bs with
+  | nil => intro cs h; cases cs with
+    | nil => rfl
+    | cons _ _ => exact h.elim
+  | cons b bs ih =>
+    intro cs h
+    cases cs with
+    | nil => exact h.elim
+    | cons c cs => exact mapM_option_cons h.1 (ih h.2)
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:310-323 blockGroups
+The constructors grouped by member: one `mapM` over the members, one `filterM`
+over the constructors (`filterM_pstep`), `ctorMember?_spec` at each. -/
+theorem blockGroups_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls : LsIdx)
+    (lpsP : List ConLeche.Name) (nP k : Nat) (cs : List (IConstantVal × Nat))
+    (csP : List (ConstantVal × Nat)) :
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss lvls = some (lpsP.map Level.param) ∧ dCtors st cs = some csP)
+      (Arena.blockGroups names lvls nP k cs)
+      (fun st r => r.mapM (dCtors st) = some (ConLeche.blockGroups namesP lpsP nP k csP)) := by
+  intro s₀ s' r hok hp hrun
+  simp only [Arena.blockGroups] at hrun
+  simp only [ConLeche.blockGroups]
+  have hPx : ∀ {st st' : EStore}, Ext st st' →
+      (Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss lvls = some (lpsP.map Level.param) ∧ dCtors st cs = some csP) →
+      (Frontend.denoteNList st'.ns names = some namesP ∧
+        denoteLs st'.lss lvls = some (lpsP.map Level.param) ∧ dCtors st' cs = some csP) :=
+    fun hx h => ⟨denoteNListE_ext hx _ _ h.1, denoteLs_ext h.2.1 hx,
+      dCtors_ext hx _ _ h.2.2⟩
+  split at hrun
+  · rename_i hk
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    rw [if_pos hk]
+    exact mapM_option_cons hp.2.2 rfl
+  · rename_i hk
+    rw [if_neg hk]
+    obtain ⟨p1, hrel⟩ := mapM_pstep _ (fun m => csP.filter fun c =>
+        ConLeche.ctorMember? namesP lpsP nP c == some m)
+      (fun st b c => dCtors st b = some c)
+      (fun _ st => Frontend.denoteNList st.ns names = some namesP ∧
+        denoteLs st.lss lvls = some (lpsP.map Level.param) ∧ dCtors st cs = some csP)
+      (fun hx h => dCtors_ext hx _ _ h) (fun hx h => hPx hx h)
+      (by
+        intro m s₁ s₂ b hok1 hp1 hrun1
+        exact filterM_pstep dCtor dCtor_ext
+          (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+            denoteLs st.lss lvls = some (lpsP.map Level.param)) 
+          (fun hx h => ⟨denoteNListE_ext hx _ _ h.1, denoteLs_ext h.2 hx⟩) _ _
+          (by
+            intro c cP t₀ t' bb hokt hpt hct hrunt
+            obtain ⟨o, t₁, g1, g2⟩ := bindOk hrunt
+            obtain ⟨q1, ho⟩ := ctorMember?_spec names namesP lvls lpsP nP c cP t₀ t₁ o hokt
+              ⟨hpt.1, hpt.2, hct⟩ g1
+            simp only [RV] at ho
+            subst ho
+            cases hcm : ConLeche.ctorMember? namesP lpsP nP cP with
+            | none =>
+              rw [hcm] at g2
+              obtain ⟨rfl, rfl⟩ := pureOk g2
+              exact ⟨q1, rfl⟩
+            | some t =>
+              rw [hcm] at g2
+              obtain ⟨rfl, rfl⟩ := pureOk g2
+              exact ⟨q1, by simp⟩)
+          cs csP s₁ s₂ b hok1 ⟨hp1.1, hp1.2.1⟩ hp1.2.2 hrun1)
+      (List.range k) s₀ s' r hok (fun _ _ => hp) hrun
+    exact ⟨p1, ListRel.toMapM hrel⟩
+
 end ConRon.Bridge.Inductives
