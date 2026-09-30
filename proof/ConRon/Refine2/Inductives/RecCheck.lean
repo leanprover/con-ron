@@ -1142,4 +1142,147 @@ end MajorNfs
   rw [e, arena.inductives.rec_check.target_major_nfs]
   lockstep
 
+/-! ## A stripped telescope's binder data are well formed (for `binders_beq`)
+
+`strip_pis` conses the viewed binders (`AStateInv`'s datum clause) onto a
+copy of the rest; a copy of a `Vec` of binders is the identity on the raw
+data. -/
+
+theorem rc_binder_copy_from_val (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    ∀ (i : Std.Usize) (out o : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+      arena.expr_ops.binder_copy_from xs i out = ok o → o.val = out.val ++ xs.val.drop i.val := by
+  intro i out o h
+  have key := vec_cursor_copy xs id id (fun i out => arena.expr_ops.binder_copy_from xs i out)
+    ?_ ?_ i out o h
+  · simpa using key
+  · intro i out o hn h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.expr_ops.binder_copy_from.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨⟨e, bm⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : (e, bm) = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    refine ⟨i2, (e1, bm1), out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, ?_, h⟩
+    rw [dupId_eidx _ _ he1, binder_meta_dup_spec _ _ hbm1]
+
+theorem rc_cons_binder_val {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    {xs r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    (h : arena.expr_ops.cons_binder ty m xs = ok r) : r.val = (ty, m) :: xs.val := by
+  rw [arena.expr_ops.cons_binder] at h
+  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  rw [rc_binder_copy_from_val xs _ out r h, ConRon.Refine.vec_push_val hout,
+    dupId_eidx _ _ he, binder_meta_dup_spec _ _ hbm]
+  simp [alloc.vec.Vec.new]
+
+theorem rc_strip_pis_wf {pers st} (hinv : AStateInv pers st) (n : Nat) :
+    ∀ (k : Std.U64) (h : arena.handle.EIdx) bs leaf, k.val = n →
+      arena.expr_ops.strip_pis pers st k h = ok (.Ok (some (bs, leaf))) → TeleWF bs := by
+  induction n with
+  | zero =>
+    intro k h bs leaf hk hrun
+    rw [arena.expr_ops.strip_pis, if_pos (by scalar_tac)] at hrun
+    obtain ⟨e, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases Result.ok_injective hrun
+    exact TeleWF.new
+  | succ n ih =>
+    intro k h bs leaf hk hrun
+    rw [arena.expr_ops.strip_pis, if_neg (by scalar_tac)] at hrun
+    obtain ⟨tg, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    split at hrun
+    · obtain ⟨o, hvb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      cases o with
+      | none => simp [arena.monad.fail_dangling_e, arena.monad.fail] at hrun
+      | some t =>
+        obtain ⟨ty, b, m⟩ := t
+        have hm := view_bind_meta_wf hinv hvb
+        simp only at hrun
+        obtain ⟨k1, hk1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        cases r with
+        | Err _ => cases Result.ok_injective hrun
+        | Ok o1 =>
+          cases o1 with
+          | none => cases Result.ok_injective hrun
+          | some q =>
+            obtain ⟨v, e⟩ := q
+            simp only at hrun
+            obtain ⟨v1, hv1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+            have hvr := ih k1 b v e
+            cases Result.ok_injective hrun
+            have hv := hvr (by have := ConRon.Refine.Nat.usub_val hk1; scalar_tac) hr
+            intro p hp
+            rw [rc_cons_binder_val hv1] at hp
+            rcases List.mem_cons.mp hp with rfl | hp
+            · exact hm
+            · exact hv p hp
+    · cases Result.ok_injective hrun
+
+/-- A `strip_pis` answer's telescope is well formed. -/
+def StripWF : Option (alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta) ×
+    arena.handle.EIdx) → Prop
+  | some q => TeleWF q.1
+  | none => True
+
+@[lockstep_simp] theorem stripWF_some (q : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta) ×
+    arena.handle.EIdx) : StripWF (some q) = TeleWF q.1 := rfl
+
+/-- `strip_pis` with its telescope's well-formedness in the answer. -/
+theorem rc_strip_pis_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (k : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => b = ExprOps.absStrip a ∧ StripWF a)
+      (arena.expr_ops.strip_pis pers st k h) st lst (stripPis (absU k) (absEIdx h)) := by
+  intro o hrun
+  have h1 := ExprOps.strip_pis_ls hrel hinv k h o hrun
+  cases o with
+  | Err e => exact h1
+  | Ok a =>
+    obtain ⟨b, lst', hx, hR, h2, h3⟩ := h1
+    refine ⟨b, lst', hx, ⟨hR, ?_⟩, h2, h3⟩
+    cases a with
+    | none => trivial
+    | some q => exact rc_strip_pis_wf hinv _ k h q.1 q.2 rfl hrun
+
+/-! ## `target_k53` (with `_leaf`, `_args`, `_class`: fragments of the one twin
+`targetK53`, unfolded in place) -/
+
+attribute [local lockstep_inline] arena.inductives.rec_check.target_k53_leaf
+  arena.inductives.rec_check.target_k53_args arena.inductives.rec_check.target_k53_class
+attribute [local lockstep high] rc_strip_pis_wf_ls
+
+/-- `take_eidx_n` as the twin's `List.take` on the abstracted list. -/
+theorem rc_take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (c : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs c)
+      (fun r => TwinEq ((xs.val.map absEIdx).take c.val) (r.val.map absEIdx)) := by
+  intro r h
+  have := absEIdxL_of_takeEidx (take_eidx_n_spec xs c r h)
+  simpa [TwinEq, absEIdxL] using this.symm
+
+attribute [local lockstep high] rc_take_eidx_n_twin
+
+@[lockstep] theorem target_k53_ls {pers st lst} {mode : kernel.env.CheckMode}
+    {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf)
+    (p : arena.inductives.block_parts.BlockShape) (former_tys : alloc.vec.Vec arena.handle.EIdx)
+    (mc : arena.inductives.rec_check.TargetMajor)
+    (tele : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (htele : TeleWF tele)
+    (maj_dom f : arena.handle.EIdx) :
+    LS pers (fun a b => b = a)
+      (arena.inductives.rec_check.target_k53 pers st mode vis rf p former_tys mc tele maj_dom f)
+      lst
+      (targetK53 (ConRon.Refine.absMode mode) lf (absBlockShape p) (absEIdxL former_tys)
+        (absTargetMajor mc) (absBinderL tele) (absEIdx maj_dom) (absEIdx f)) := by
+  rw [arena.inductives.rec_check.target_k53, targetK53]
+  lockstep
+
 end ConRon.Refine2
