@@ -236,4 +236,49 @@ attribute [local lockstep high] bi_u64_sub_one
     refine LS.tail (ih hrel hinv k hk) ?_ (fun _ _ h => h)
     simp only [absEIdxL, absU, hk]
 
+/-- `check_block_agree` ⊑ `checkBlockAgree`, the other members from the
+cursor on. -/
+@[lockstep] theorem check_block_agree_ls {pers} (mode : kernel.env.CheckMode)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (cv_ta0 : arena.env.IConstantVal) (s0 : arena.handle.LIdx)
+    (rest : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun _ _ => True)
+        (arena.inductives.block_install.check_block_agree pers st mode rf n_p cv_ta0 s0 rest i) lst
+        (checkBlockAgree (ConRon.Refine.absMode mode) lf (absU n_p) (absIConstantVal cv_ta0)
+          (absLIdx s0) ((rest.val.drop i.val).map fun p => (absIConstantVal p.1, absLIdx p.2))) := by
+  refine ls_cursor rest (fun p => (absIConstantVal p.1, absLIdx p.2))
+    (checkBlockAgree (ConRon.Refine.absMode mode) lf (absU n_p) (absIConstantVal cv_ta0) (absLIdx s0))
+    (fun st i => arena.inductives.block_install.check_block_agree pers st mode rf n_p cv_ta0 s0 rest i)
+    ?_ ?_
+  · intro st lst i hn hrel hinv
+    rw [arena.inductives.block_install.check_block_agree.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
+    lockstep
+  · intro st lst i hi hrel hinv ih
+    have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers (fun _ _ => True)
+          (arena.inductives.block_install.check_block_agree pers st' mode rf n_p cv_ta0 s0 rest j) lst'
+          (checkBlockAgree (ConRon.Refine.absMode mode) lf (absU n_p) (absIConstantVal cv_ta0)
+            (absLIdx s0) ((rest.val.drop j.val).map fun p => (absIConstantVal p.1, absLIdx p.2))) := ih
+    clear ih
+    have hvis := bi_hvis hfe
+    rw [arena.inductives.block_install.check_block_agree.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
+    lockstep
+
+/-- `check_block_agree` at the cursor `0` (the install's call). -/
+@[lockstep] theorem check_block_agree_ls0 {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (mode : kernel.env.CheckMode)
+    {rf : arena.env.IFEnv} {lf : IFEnv} (hfe : IFEnvRelI rf lf) (n_p : Std.U64)
+    (cv_ta0 : arena.env.IConstantVal) (s0 : arena.handle.LIdx)
+    (rest : alloc.vec.Vec (arena.env.IConstantVal × arena.handle.LIdx)) :
+    LS pers (fun _ _ => True)
+      (arena.inductives.block_install.check_block_agree pers st mode rf n_p cv_ta0 s0 rest 0#usize) lst
+      (checkBlockAgree (ConRon.Refine.absMode mode) lf (absU n_p) (absIConstantVal cv_ta0)
+        (absLIdx s0) (absTeleL rest)) := by
+  have h := check_block_agree_ls mode hfe n_p cv_ta0 s0 rest 0#usize st lst hrel hinv
+  simpa [absTeleL] using h
+
 end ConRon.Refine2
