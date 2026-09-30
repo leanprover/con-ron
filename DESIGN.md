@@ -65051,3 +65051,133 @@ landing report) before other worktrees build against the new manifest.
 152 s with no diff.  The pin (`proof/lakefile.toml`,
 `proof/lake-manifest.json`) is the last commit of the branch, staged by
 name (§7 step 9).
+
+### Task #101 — the `proof/` build's warnings: 1 257 fixed, none silenced (2026-09-30, Opus under Fable)
+
+The maintainer: "the build is full of warnings (unreachable tactics, unused
+simp arguments) … fix all the warnings (or make a justified call why we want
+to ignore the warning, and then set the appropriate flag in the lakefile)".
+**Result: a from-scratch `lake build` (every default target, plus the
+modules no default target reaches: the `ConRon.Bridge`/`ConRon.Refine2`
+roots, `Arena.Bench`, `Arena.Exe`, `Gen.Emit`, `Gen.Main`) prints 0
+warnings from `proof/ConRon/**`.**  The 350 warnings it still prints are
+Aeneas's (346) and AeneasMeta's (4), replayed from the shared
+`_tmp/aeneas-lean` packages, and out of scope.  No `leanOptions` entry
+was added.  The 22 `set_option linter.unusedSimpArgs false` the tree
+already had, with no stated reason, were removed and the warnings they hid
+fixed.
+
+**Getting the census at all.**  A module restored from the shared Lake cache
+(task #97-CACHE) has a *synthetic* trace, `"log": []`, so Lake replays no
+warnings for it: a normal `lake build` in a fresh worktree prints none of
+ours.  The census build points `LAKE_CACHE_DIR` at an empty directory
+(`LAKE_CACHE_DIR=<empty dir> lake build` over no `proof/.lake/build`),
+which re-elaborates the project's 352 modules (27 min at `LAKE_JOBS=4`)
+and leaves the dependency packages' real traces alone.  **Anyone auditing
+warnings later has to do the same.**
+
+**Census, before → after** (unique `warning:` lines under `ConRon/`):
+
+| kind | before | after | how |
+|---|---:|---:|---|
+| `linter.unusedSimpArgs` | 973 (+45 hidden by `set_option`) | 0 | `scripts/fix-lean-warnings.py` |
+| `linter.unusedVariables` | 140 | 0 | the same script: `x` → `_x` (2 were dead implicits instead, below) |
+| `linter.unusedTactic` | 71 | 0 | by hand (three Sonnet workers, disjoint files) |
+| `linter.unreachableTactic` | 46 | 0 | by hand |
+| `linter.dupNamespace` | 15 | 0 | `Refine2/Tactic/Prims.lean`, below |
+| `linter.unnecessarySeqFocus` | 9 | 0 | by hand |
+| deprecation (`List.take_succ`) | 1 | 0 | `List.take_add_one` |
+| `linter.style.haveILetI` | 1 | 0 | `have` |
+| "Try this: intro A L" | 1 | 0 | applied |
+| **total** | **1 257** | **0** | |
+
+By file, 973 of the simp arguments were in twelve files, led by
+`Refine2/Frontend/Scan/Kit.lean` (253: the `litFrom_n` lemmas all pass the
+full `lit1…lit10, uA*, uB*` list), `Refine/ExprOpsSpine.lean` (160),
+`Refine/ExprOpsFields.lean` (90) and `Refine2/Tactic/Lockstep.lean` (77).
+422 of them were one name, `arc_deref_eq`, in the `Refine/` tier.  There
+were no `sorry` warnings before or after, *Test* files included.
+
+**Tooling.**  Mathlib has scripts for this, in `scripts/`:
+`fix_unused_simp_args.py` (parses the log, drops the argument from its
+`[…]` list, turns `← X` into `- X`), `fix_unused.py` (unused variables →
+`_`, but it parses the old "unused variable `x`" message, not Lean 4.33's
+"Variable name `x` is not explicitly referenced"), `fix_deprecations.py`,
+and `runSkimmer.sh` (Skimmer's `lake build <tgt>:applyCurrentTryThis`,
+which applies every "Try this"/`[apply]` suggestion).  Skimmer needs a
+side package that depends on the project, which is more machinery than one
+"Try this" deserves.  **`scripts/fix-lean-warnings.py LOG`** (run from
+`proof/`) is the reusable piece: it runs Mathlib's simp-argument fixer,
+read from the Mathlib dependency and not vendored, over a deduplicated log.
+It then writes an emptied `simp only []`/`simp []` as `simp only`/`simp`
+and `[ x` as `[x`, on the touched lines only.  For unused variables it
+applies the linter's own `[apply] _x` hint, after checking that the
+identifier sits at the reported position.  The renames run first, because
+dropping simp arguments can join lines and shift the log's positions.  It
+fixed all 973 + 45 simp arguments and all 140 names with no failures.
+
+**Judgement calls.**
+* *Renamed binders passed by name.*  Two `_x` renames broke named-argument
+  callers, and both were **dead implicits**, which a name cannot fix:
+  `checkBasisDecl_bridge {F : Nat}` (Bridge/Checker/Basis.lean, three
+  `(F := 0)` callers in `Arms.lean`) and `IFEnvOK_of_denote {μ :
+  CheckMode}` (Bridge/Checker/Inv.lean, `(μ := μ)` in `Split.lean` and
+  `Frontend/Capstone.lean`).  Both binders are deleted.
+* *`dupNamespace` in `Prims.lean`* was a real defect.  A second
+  `namespace ConRon.Refine2.Lockstep` inside the first put the task-#97-T2
+  Inductives-Modeled block under
+  `ConRon.Refine2.Lockstep.ConRon.Refine2.Lockstep`.  That hid that the
+  block re-proved `read_name_wf`, `read_names_from_wf`, `read_levels_wf`
+  and the `@[lockstep]` pair `read_names_ls`/`read_levels_ls`, already
+  proved 900 lines earlier by the Checker lane (the `_ls` pair with
+  identical statements, so `lockstep` saw each prim twice).  The five
+  copies are deleted.  `read_name_ls`, the one new prim, stays and now
+  uses the first `read_name_wf`.
+* *`Lockstep.lean` (shared core)* is a separate commit: 77 arguments, all
+  in the `tagView_*` lemmas' `simp (config := {decide := true}) only
+  [ETag.bvar, …, if_false, if_true]` (7 lemmas × 11 `ETag` names).  No
+  tactic alternative changed.
+* *Tactic-linter warnings* are all genuinely dead code: `all_goals` blocks
+  after a `lockstep` that already closed everything, `first` tails never
+  reached, `<;> trivial` after `twin_abs`, 23 `of_kind_inv hkb`/`hk0` no-ops
+  in `Refine/Pins{Records,Bytes}.lean`, a `done` or `skip`.  No false
+  positive was found, so there is no per-site `set_option`.  One trap,
+  reported by the worker: an under-indented `try rfl` inside `( … ;\n …)`
+  parsed as an error that elaboration recovered from with `sorryAx`.  The
+  first sign was a `#guard_msgs` axiom-list mismatch two modules
+  downstream, not an error in the file.  The `Axioms.lean` guards caught it.
+* *What stays silenced*: the two `set_option … false in` in
+  `Refine2/Tactic/Tests.lean`, a test file, on two `example`s about the
+  tactic itself (`unusedTactic` on §7's test that `lockstep` hands an
+  undecided twin `if` back unsplit, `unusedVariables` on the `msgTwin`
+  test, whose hypotheses are the context `lockstep` searches).  Also the `set_option linter.* false`
+  header Aeneas writes into `Generated/*.lean`, which is extraction output
+  and is not edited.
+
+**Elaboration cost** (`perf stat -e instructions:u`, `lake env lean
+-Dbackward.isDefEq.respectTransparency=false -Dbackward.do.legacy=true`,
+two runs each, spread < 0.02 %).  **Master's and the branch's text were
+both copied to the same scratch path**, because the path sets the module
+name and moved the count by 2 G instructions (a first comparison, master
+in `_tmp/` against the branch in tree, read as a 2.6 % *slowdown* of
+`Lockstep.lean`).  Same path, same dependencies:
+
+| module | master (G) | branch (G) | Δ |
+|---|---:|---:|---:|
+| `Refine2/Frontend/Scan/Kit` | 269.92 | 267.41 | −0.9 % |
+| `Refine/ExprOpsSpine` | 58.70 | 58.26 | −0.8 % |
+| `Refine2/Tactic/Lockstep` | 78.79 | 78.36 | −0.5 % |
+| `Refine/ExprOpsFields` | 67.04 | 66.75 | −0.4 % |
+| `Refine/PropRead` | 25.97 | 25.82 | −0.6 % |
+| `Refine2/Checker/Base` | 260.51 | 260.42 | −0.03 % |
+| `Refine2/Inductives/NativeParts` | 447.08 | 447.03 | −0.01 % |
+
+Nothing got slower.  (For `Lockstep.lean`, dropping the second `simp`
+entirely and letting the trailing `rfl` decide the tags measured −1.0 %,
+but that is a proof change no linter asked for, so it was not taken.)
+
+**Also found.**  `lean_lib`s with `globs = ["X.+"]` (`ConRonBridge`,
+`ConRonRefine2`) do not build their root module `X` itself, and nothing
+else imports `ConRon.Bridge` or `ConRon.Refine2`.  Both were built
+separately here and are warning-free.  Unchanged, since they are index
+files.
