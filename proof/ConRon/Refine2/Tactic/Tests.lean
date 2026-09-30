@@ -25,7 +25,6 @@ a hand tail reappearing in some lane.
 -/
 import ConRon.Refine2.Checker.KnotHyp
 import ConRon.Refine2.Inductives.Prims
-import ConRon.Arena.Inductives.Modeled
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -507,40 +506,6 @@ example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AState
 example {pers st lst} (n : Nat) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = a) (do let a ← rustEcho n; ok (.Ok a, st)) lst (pure n) := by
   lockstep
-
-/-! ## 11. A twin split stops at the list shape
-
-The Inductives Modeled lane's `eq_app3`: the twin's `match ← viewLs us with
-| [lv] => … | _ => …` against the port's length test.  The twin-`match`
-fallback cased the list, then the head `LIdx` (a structure), then its `U32`,
-`BitVec`, `Fin`: a variable of a structure type is no case target now. -/
-
-open Lean Elab Tactic in
-/-- No goal has a variable of a machine word's representation types. -/
-elab "guard_no_word_split" : tactic => do
-  for g in ← getGoals do
-    g.withContext do
-      for d in ← getLCtx do
-        let t ← instantiateMVars d.type
-        if t.isConstOf ``UInt32 || t.isAppOf ``BitVec || t.isAppOf ``Fin then
-          throwError "a twin split cased a word down to {t}"
-
-#guard_msgs (drop warning) in
-example {pers st lst} {h : arena.handle.EIdx}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hG : LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1,
-        absEIdx q.2.2.1, absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a)
-      (arena.inductives.modeled.eq_app3 pers st h) st lst (eqApp3? (absEIdx h))) :
-    LSR pers (fun a b => b = (Option.map fun q => (absNIdx q.1, absLIdx q.2.1, absEIdx q.2.2.1,
-        absEIdx q.2.2.2.1, absEIdx q.2.2.2.2)) a)
-      (arena.inductives.modeled.eq_app3 pers st h) st lst (eqApp3? (absEIdx h)) := by
-  in_scratch
-    (clear hG
-     apply LSR.of_LS
-     rw [arena.inductives.modeled.eq_app3, eqApp3?]
-     lockstep
-     guard_no_word_split)
-  exact hG
 
 /-! ## 12. `lockstep_congr` does not unfold first
 

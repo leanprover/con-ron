@@ -916,6 +916,14 @@ theorem inter_case_one_one {x y : name.Name} {c : prop_when.PropWhen}
     ConLeche.PropWhen.inter_ifAllZero]
   rfl
 
+/-- The shape of `inter` away from `never`: the parameter lists append (and
+the smart constructor normalizes).  con-leche's `PropWhen.inter_eq_toList`,
+which its task #105-era sweep deleted as unused upstream. -/
+theorem inter_eq_toList {p q : ConLeche.PropWhen} (hp : p ≠ .never) (hq : q ≠ .never) :
+    p.inter q = ConLeche.PropWhen.ifAllZero (p.toList ++ q.toList) := by
+  have h := ConLeche.PropWhen.inter_ifAllZero p.toList q.toList
+  rwa [ConLeche.PropWhen.ifAllZero_toList hp, ConLeche.PropWhen.ifAllZero_toList hq] at h
+
 theorem inter_case_generic {a b c : prop_when.PropWhen} (ha : WFShape a) (hb : WFShape b)
     (hane : a.repr ≠ .Never) (hbne : b.repr ≠ .Never)
     (h : (do let v ← prop_when.to_list a
@@ -940,7 +948,7 @@ theorem inter_case_generic {a b c : prop_when.PropWhen} (ha : WFShape a) (hb : W
   obtain ⟨hsh, hne, -⟩ := of_sorted_shape hv2WF hv2S h
   refine ⟨hsh, ?_⟩
   rw [of_sorted_abs h, hv2E,
-    ConLeche.PropWhen.inter_eq_toList (abs_ne_never hane) (abs_ne_never hbne),
+    inter_eq_toList (abs_ne_never hane) (abs_ne_never hbne),
     wfShape_toList ha, wfShape_toList hb]
   refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
   intro n

@@ -468,12 +468,6 @@ theorem basis_decls_nat_refines : BasisSpec .NatK := by
 
 set_option maxRecDepth 1000000 in
 set_option maxHeartbeats 4000000 in
-theorem basis_decls_punit_refines : BasisSpec .PunitK := by
-  unfold BasisSpec basis_tables.basis_decls_a basis_tables.basis_decls_punit
-  basis_block
-
-set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 4000000 in
 theorem basis_decls_quot_refines : BasisSpec .QuotK := by
   unfold BasisSpec basis_tables.basis_decls_a basis_tables.basis_decls_quot
   basis_block
@@ -482,7 +476,6 @@ theorem basis_decls_quot_refines : BasisSpec .QuotK := by
 theorem basis_decls_a_refines : ∀ k : env.BasisKind, BasisSpec k
   | .EqK => basis_decls_eq_refines
   | .NatK => basis_decls_nat_refines
-  | .PunitK => basis_decls_punit_refines
   | .EmptyK => basis_decls_empty_refines
   | .FalseK => basis_decls_false_refines
   | .QuotK => basis_decls_quot_refines
