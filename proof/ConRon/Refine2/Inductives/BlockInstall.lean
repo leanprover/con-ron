@@ -2,11 +2,53 @@
 # `ConRon.Refine2.Inductives.BlockInstall` — Theorem 2 for `arena::inductives::block_install`
 
 **Task #105** (DESIGN.md §8.2, Theorem 2).
-`crates/con-ron-core/src/arena/inductives/block_install.rs` against
-`proof/ConRon/Arena/Inductives/BlockInstall.lean`: the capability record per
-member, official's `is_rec`, the formers' stage, the constructors' stage, the
-positivity check on the stored constructors, the index sorts and the
+`crates/con-ron-core/src/arena/inductives/block_install.rs` (25 functions)
+against `proof/ConRon/Arena/Inductives/BlockInstall.lean`: the capability record
+per member, official's `is_rec`, the formers' stage, the constructors' stage,
+the positivity check on the stored constructors, the index sorts and the
 constructors' cons.
+
+## Audit
+
+No divergence in the order or the set of effectful operations, and every
+decline has the twin's kind (`internal`/`invalid`) and message.  The Rust-only
+steps are pure: repeated `members[mi]`/`ctors[0]` reads and `dup2`s in
+`block_caps_at`, `block_shape_dup` before `with_sort`, the `dup2` before
+`intern_e_sort` in `check_block_tele`, the list copies (`ctor_name_list`,
+`tele_vals`, `split_outs`/`split_kinds`/`kinds_dup`/`split_nfs`).
+
+## Shapes
+
+* **Inline `map`s** (`ctor_name_list`, `tele_vals`, `split_*`, `kinds_dup`):
+  copy loops, stated as `TwinEq`s of the twin's `map` (`vec_cursor_copy`);
+  `tele_vals` onto `[cv_ta0]` is `cvTa₀ :: cvs.map (·.1)`
+  (`tele_vals_cons_abs`, used in place inside `check_block_inds_ls`).
+* **`block_caps_at`**: the Rust tests `mi < len && ctors.len() == 1` where the
+  twin matches `members[mi]?` and `[c]`, and builds the record by branches
+  (Aeneas lowers `rule_k` through a tuple).  The proof decides the Rust's tests
+  first (`bi_vec_index_eq`), then zips; the leaves compare the records field
+  by field (`bi_caps_leaf`, `bi_caps_leaf1`).  The answer carries the
+  `sort_z`'s `PropWhenWF` (`ifenv_push`'s `IConstantInfoWF`).
+* **Cursor loops against structural recursion** (`ctors/members_mention_any`,
+  `check_block_teles`, `check_block_agree`, `cons_block_inds`,
+  `check_block_ctors`, `check_abs_ctor_sorts(_all)`, `check_block_idx_sorts`,
+  `cons_block_ctors`): stated at the cursor (`(v.val.drop i).map abs`), with
+  the accumulator in front where the Rust pushes; the zipped twins
+  (`checkBlockCtors`, `checkAbsCtorSorts(All)`, `checkBlockIdxSorts`) stop at
+  the shorter list exactly as the Rust's two tests do.  The callers' forms
+  (`…_ls0`, `…_new_ls`) are separate `@[lockstep]` lemmas.
+* **`check_block_inds`**: the Rust's `len == 0` / `members[0]` against the
+  twin's `ms₀ :: rest` match is decided first; the Rust calls
+  `check_block_teles` at cursor `1` where the twin recurses on `rest`.
+* **`vis`**: `shape_nest_ctx` stores its `vis` in `NestCtx.vis`, which
+  `absNestCtx` drops — its answer carries `a.vis = vis`; `block_nest_ctx`'s
+  answer carries `absU ctx.vis = lf.visibleBelow` (what `CoreCtx ctx.vis rf lf`
+  needs beside `IFEnvRelI rf lf`).
+* **`pi_doms_mention_any`** takes the twin's fuel (`coreWalkFuel`), one unit per
+  binder: induction on the fuel.
+* **Environments** are `IFEnvRelI rf lf`; `cons_block_inds`,
+  `check_block_inds` and `cons_block_ctors` answer `IFEnvRelI` of the extended
+  environments.  `cons_block_ctors` is pure on both sides (`LSP`).
 -/
 import ConRon.Refine2.Inductives.PositivityNest
 import ConRon.Refine2.Inductives.SumInstall
@@ -77,14 +119,6 @@ theorem tele_vals_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena.hand
 
 /-! ## The capability record: `block_caps_at` -/
 
-theorem shape_k_spec (p : arena.inductives.block_parts.BlockShape) :
-    LSP (arena.inductives.block_parts.shape_k p) (fun r => r.val = p.members.val.length) := by
-  intro r h
-  rw [arena.inductives.block_parts.shape_k] at h
-  have := lift_cast_u64_of_usize _ r h
-  simpa [alloc.vec.Vec.len] using this
-
-attribute [local lockstep] shape_k_spec
 
 theorem bi_vec_index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize) (k : Nat)
     (hi : i.val = k) (hk : k < v.val.length) :
@@ -527,6 +561,7 @@ theorem tele_vals_cons_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena
       intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hms] at this
     have hidx := bi_vec_index_eq p.shape.members 0#usize 0 rfl (by simp [hms])
     simp only [hms, List.getElem_cons_zero] at hidx
+    -- the Rust's cursor `1` is the twin's `rest` (the side tier reads this)
     have hrest : absMemberShapeLFrom p.shape.members 1#usize = rest.map absMemberShape := by
       simp [absMemberShapeLFrom, hms]
     simp only [h0, ↓reduceIte, hidx, bind_tc_ok, List.map_cons]
@@ -1050,5 +1085,28 @@ related environment after the folds. -/
     LSP (arena.inductives.block_install.cons_block_ctors n_p ctors_as 0#usize rf)
       (fun o => IFEnvRelI o (consBlockCtors (absU n_p) (absCtorsLL ctors_as) lf)) :=
   fun _ h => by simpa [absCtorsLL] using cons_block_ctors_refines hfe h
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.block_caps_at_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_caps_at_ls
+
+/-- info: 'ConRon.Refine2.check_block_inds_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_block_inds_ls
+
+/-- info: 'ConRon.Refine2.check_block_positivity_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_block_positivity_ls
+
+/-- info: 'ConRon.Refine2.check_block_ctors_new_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_block_ctors_new_ls
+
+/-- info: 'ConRon.Refine2.check_block_idx_sorts_new_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_block_idx_sorts_new_ls
+
+/-- info: 'ConRon.Refine2.cons_block_ctors_ls0' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms cons_block_ctors_ls0
+
+/-- info: 'ConRon.Refine2.block_raw_rec_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms block_raw_rec_ls
 
 end ConRon.Refine2
