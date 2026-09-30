@@ -20,6 +20,7 @@ import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.Prims
 import ConRon.Refine2.Inductives.StructParts
 import ConRon.Refine2.Inductives.ClassRead
+import ConRon.Refine2.Inductives.RecCheck
 import ConRon.Arena.Inductives.GenRec
 
 open Aeneas Aeneas.Std Result
@@ -734,7 +735,7 @@ attribute [local lockstep high] binder_copy_from_new_spec
       simp only [TwinEq] at hP
       simp only [absEIdxL, Option.map_some] at hP ⊢
       rw [← hP, e]
-      rfl
+      try rfl
     · exfalso
       have := g.cls.property
       simp only [absU] at hb
