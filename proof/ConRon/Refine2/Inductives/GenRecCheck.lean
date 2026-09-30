@@ -33,7 +33,6 @@ open scoped IndSide
 open scoped GenRecSide
 
 attribute [local lockstep_simp] core_walk_fuel_abs Lockstep.core_walk_fuel_val
-  gr_absIConstantVal_name gr_absIConstantVal_levelParams gr_absIConstantVal_type
 attribute [local lockstep] Lockstep.PC2.i_constant_val_dup_ls
 
 /-! ## The cons tails -/

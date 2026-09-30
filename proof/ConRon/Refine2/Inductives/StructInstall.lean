@@ -89,14 +89,6 @@ theorem unwrap_or_lsr {T β : Type} {A : T → β} {pers st lst} {o : Option T}
         (ConRon.Refine.absLevel r)) o) :=
   fun _ h => ConRon.Refine.Level.leq_refines hl hr h
 
-/-- The twin's `unwrapOr` at a constructor (the port matches the `Option`
-itself).  Scoped: `open scoped ConRon.Refine2.IndInstPrims`. -/
-@[scoped lockstep_simp] theorem unwrapOr_some' {α : Type} (a : α) (e : Arena.CheckError) :
-    unwrapOr (some a) e = pure a := rfl
-
-@[scoped lockstep_simp] theorem unwrapOr_none' {α : Type} (e : Arena.CheckError) :
-    unwrapOr (none : Option α) e = Arena.fail e := rfl
-
 end IndInstPrims
 
 /-! ## The binder-domain walk -/

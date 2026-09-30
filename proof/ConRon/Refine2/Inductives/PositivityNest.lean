@@ -290,8 +290,8 @@ attribute [lockstep_inline] arena.inductives.positivity.nest_inst_type_at
   arena.inductives.positivity.nest_inst_type_sort
 
 -- `unwrap_or` of the looked-up container: the port matches the `Option` it
--- just built, the twin `unwrapOr`s it (local; `StructInstall`'s
--- `IndInstPrims.unwrapOr_*'` are the same equations, scoped there).
+-- just built, the twin `unwrapOr`s it (`Shape`'s `IndInstPrims.unwrapOr_*'`,
+-- registered locally below).
 attribute [local lockstep_inline] arena.checker_base.unwrap_or
 -- The constant's copy IS the constant (`Positivity.lean`'s local spec).
 attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
@@ -304,11 +304,7 @@ theorem pn_eidx_vec_dup_spec (v : alloc.vec.Vec arena.handle.EIdx) :
 
 attribute [local lockstep high] pn_eidx_vec_dup_spec
 
-@[local lockstep_simp] theorem pn_unwrapOr_some {α : Type} (a : α) (e : Arena.CheckError) :
-    unwrapOr (some a) e = pure a := rfl
-
-@[local lockstep_simp] theorem pn_unwrapOr_none {α : Type} (e : Arena.CheckError) :
-    unwrapOr (none : Option α) e = Arena.fail e := rfl
+attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapOr_none'
 
 /-- `nest_inst_type` ⊑ `nestInstType`. -/
 @[lockstep] theorem nest_inst_type_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

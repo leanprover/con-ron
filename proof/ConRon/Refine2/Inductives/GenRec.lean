@@ -885,15 +885,6 @@ theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConR
 
 /-! ## `classGenRule`'s parts: `prefix_vars`, `rule_calls`/`rule_call`, `class_gen_rule_close` -/
 
-theorem gr_absIConstantVal_name (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).name = absNIdx cv.name := rfl
-theorem gr_absIConstantVal_levelParams (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).levelParams = absNIdxL cv.level_params := rfl
-theorem gr_absIConstantVal_type (cv : arena.env.IConstantVal) :
-    (absIConstantVal cv).type = absEIdx cv.ty := rfl
-attribute [local lockstep_simp] gr_absIConstantVal_name gr_absIConstantVal_levelParams
-  gr_absIConstantVal_type
-
 /-- `classGenRule`'s prefix variable `i`. -/
 def grPVar (g : ClassGen) (i : Nat) : AM EIdx :=
   if i < g.nP then exprGetD g.params i else g.slotVar (i - g.nP)
@@ -1234,7 +1225,7 @@ theorem ctor_count_abs (xss : alloc.vec.Vec (alloc.vec.Vec arena.inductives.gen_
   intro o h
   have := vec_cursor_filterMap cvs (fun cv => some (absEIdx cv.ty)) absEIdxL
     (arena.inductives.gen_rec.former_types cvs) ?_ ?_ 0#usize _ o h
-  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, gr_absIConstantVal_type]
+  · rw [TwinEq, this]; simp [absEIdxL, alloc.vec.Vec.new, ConRon.Refine2.absIConstantVal_type]
   · intro i out o hn h
     rw [arena.inductives.gen_rec.former_types.eq_def,
       if_pos (show i ≥ alloc.vec.Vec.len cvs by scalar_tac), Result.ok.injEq] at h

@@ -1179,6 +1179,20 @@ theorem LS.twin_map {α β γ : Type} {pers : arena.store.PersTier} {R₁ : α �
 
 end Lockstep
 
+/-! ## `unwrapOr` at a constructor
+
+The port matches the `Option` itself where the twin `unwrapOr`s it.  Scoped:
+`open scoped ConRon.Refine2.IndInstPrims`, or registered `local`. -/
+
+namespace IndInstPrims
+
+@[scoped lockstep_simp] theorem unwrapOr_some' {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+
+@[scoped lockstep_simp] theorem unwrapOr_none' {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
+end IndInstPrims
 
 namespace IndSide
 

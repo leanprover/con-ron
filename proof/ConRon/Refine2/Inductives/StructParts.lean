@@ -45,6 +45,7 @@ spine readers (`get_app_fn`, `get_app_args`), and `Refine2/Inductives/Spec.lean`
 import ConRon.Refine2.Inductives.Spec
 import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Prims
+import ConRon.Refine2.Checker.Base
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -60,20 +61,13 @@ open ConRon.Refine2.ExprOps (WMemoRel LMemoRel)
 
 /-! ## Helpers for Shape/Abs
 
-Bridges this file needs from tiers that do not reach it: `Checker/Base`'s
-`absU_beq_u64` (restated), `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
+Bridges this file needs: `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
 `lockstep_simp` fact (it is one in `Checker/KnotHyp`), and `inst_pis_at_lift`'s
-`ExprOps` companion at the walk fuel and this tier's abstractions.  All three
-are `local` so nothing clashes when those tiers are imported together. -/
+`ExprOps` companion at the walk fuel and this tier's abstractions.  Both are
+`local` so nothing clashes when those tiers are imported together
+(`Checker/Base`'s `absU_beq_u64` is a global `lockstep_simp` row). -/
 
-theorem sp_absU_beq_u64 (a b : Std.U64) :
-    (absU a == absU b) = decide (a = b) := by
-  by_cases h : a = b
-  · subst h; simp
-  · have : absU a ≠ absU b := fun e => h (Std.UScalar.eq_of_val_eq e)
-    simp [h, this]
-
-attribute [local lockstep_simp] sp_absU_beq_u64 core_walk_fuel_abs
+attribute [local lockstep_simp] core_walk_fuel_abs
 
 open Lockstep in
 theorem sp_inst_pis_at_lift_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

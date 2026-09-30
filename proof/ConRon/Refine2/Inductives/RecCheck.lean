@@ -106,15 +106,6 @@ attribute [local lockstep_simp] absIRecRule_ctor_eq absIRecRule_nfields_eq
   rw [arena.core.rec_rule_bits, recRuleBits]
   lockstep
 
-theorem rc_vecFrom_nil {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
-    (hi : v.val.length ≤ i.val) : (v.val.drop i.val).map f = [] := by
-  rw [List.drop_eq_nil_of_le hi]; rfl
-
-theorem rc_vecFrom_cons {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
-    (hi : i.val < v.val.length) :
-    (v.val.drop i.val).map f = f v.val[i.val] :: (v.val.drop (i.val + 1)).map f := by
-  rw [List.drop_eq_getElem_cons hi]; rfl
-
 set_option maxHeartbeats 800000 in
 theorem sum_rules_ctx_aux (m : Nat) :
     ∀ {pers st lst} {vis : Std.U64} {rf lf} {rec_name : arena.handle.NIdx}
@@ -134,18 +125,18 @@ theorem sum_rules_ctx_aux (m : Nat) :
   | zero =>
     intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hctx
     rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
-      rc_vecFrom_nil _ _ _ (by omega)]
+      vecFrom_nil _ _ _ (by omega)]
     simp only [sumRules]
     lockstep
   | succ m ih =>
     intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hctx
     rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
-      rc_vecFrom_cons _ _ _ (by omega)]
+      vecFrom_cons _ _ _ (by omega)]
     by_cases hr : i.val < rhss.val.length
-    · rw [if_neg (by scalar_tac), absEIdxLFrom, rc_vecFrom_cons _ _ _ hr]
+    · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
       simp only [sumRules]
       lockstep
-    · rw [if_pos (by scalar_tac), absEIdxLFrom, rc_vecFrom_nil _ _ _ (by omega)]
+    · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [sumRules]
       lockstep
 
@@ -1987,11 +1978,6 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
 /-! ## `target_rec_pins`, `_aux`, `_names`: one twin `targetRecPins`, split
 at its two binds (`rcPinsTail` is the twin's continuation after `n₀`) -/
 
-theorem rc_absBlockShape_members (p : arena.inductives.block_parts.BlockShape) :
-    (absBlockShape p).members = p.members.val.map absMemberShape := rfl
-theorem rc_absBlockShape_recs (p : arena.inductives.block_parts.BlockShape) :
-    (absBlockShape p).recs = p.recs.val.map absRecShape := rfl
-
 /-- `targetRecPins` after `n₀` (the Rust's `target_rec_pins_names`). -/
 def rcPinsTail (p : BlockShape) (block : List IConstantInfo) (n₀ : NIdx) : AM Unit := do
   let aux := p.recs.filter fun rc => !(rc.tgt < p.k)
@@ -2039,7 +2025,7 @@ theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
       (arena.inductives.rec_check.target_rec_pins_names pers st p block n0) lst
       (rcPinsTail (absBlockShape p) (absICIL block) (absNIdx n0)) := by
   rw [arena.inductives.rec_check.target_rec_pins_names, rcPinsTail]
-  simp only [rc_absBlockShape_recs]
+  simp only [absBlockShape_recs]
   lockstep
 
 @[lockstep] theorem target_rec_pins_aux_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -2049,7 +2035,7 @@ theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
       (arena.inductives.rec_check.target_rec_pins_aux pers st p block) lst
       (rcPinsAux (absBlockShape p) (absICIL block)) := by
   rw [arena.inductives.rec_check.target_rec_pins_aux, rcPinsAux]
-  simp only [rc_absBlockShape_members]
+  simp only [absBlockShape_members]
   rcases hm : p.members.val with _ | ⟨m0, ms⟩
   · simp only [List.map_nil]
     rw [if_pos (by have : p.members.val.length = 0 := by simp [hm]
@@ -2066,7 +2052,7 @@ theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
       (arena.inductives.rec_check.target_rec_pins pers st p block) lst
       (targetRecPins (absBlockShape p) (absICIL block)) := by
   rw [arena.inductives.rec_check.target_rec_pins, targetRecPins_split]
-  simp only [rc_absBlockShape_members, rc_absBlockShape_recs]
+  simp only [absBlockShape_members, absBlockShape_recs]
   lockstep
 
 
