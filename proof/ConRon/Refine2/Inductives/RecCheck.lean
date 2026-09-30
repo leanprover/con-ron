@@ -22,6 +22,113 @@ open scoped IndSide
 
 attribute [local lockstep_simp] pos_core_walk_fuel_abs pos_core_walk_fuel_val
 
+
+/-! ## Helpers for Shape/Abs
+
+`core::rec_rule_*` and `sum_install::sum_rules` at a SPLIT counter: the
+statements in `Inductives/Prims.lean` / `Inductives/SumInstall.lean` take
+`IFEnvRelI rf lf` and `absU vis = lf.visibleBelow`, which `cons_block_recs_t`
+(the constructors' `vis2` beside the growing index) cannot supply; these take
+`CoreCtx vis rf lf`, which `IFEnvInv.coreCtxAt` builds there.  They belong
+beside their `IFEnvRelI` forms. -/
+
+section CtxHelpers
+open IndModeledPrims
+attribute [local lockstep_simp] IndModeledPrims.absIRecRule_ctor IndModeledPrims.absIRecRule_nfields
+  IndModeledPrims.absIRecRule_ctorParams IndModeledPrims.absIRecRule_fire
+  IndModeledPrims.absIRecRule_rhs IndModeledPrims.absIRecRule_k IndModeledPrims.absIRecRule_eta
+  IndModeledPrims.absIRecRule_paramsBlind IndModeledPrims.absIIndCaps_eta
+  IndModeledPrims.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK
+  IndModeledPrims.decide_u64_eq_zero etag_const_abs
+
+@[lockstep] theorem rec_rule_k_of_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) (ctor : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.core.rec_rule_k_of pers vis st rf ctor) lst
+      (recRuleKOf lf (absNIdx ctor)) := by
+  rw [arena.core.rec_rule_k_of, recRuleKOf]
+  lockstep
+
+@[lockstep] theorem rec_rule_eta_of_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) (rn ctor : arena.handle.NIdx) :
+    LS pers (fun a b => b = a) (arena.core.rec_rule_eta_of pers vis st rf rn ctor) lst
+      (recRuleEtaOf lf (absNIdx rn) (absNIdx ctor)) := by
+  rw [arena.core.rec_rule_eta_of, recRuleEtaOf]
+  lockstep
+  all_goals
+    refine LS.pure ?_ ‹_› ‹_›
+    simp_all [absNIdxList]
+    exact beq_eq_decide _ _
+
+@[lockstep] theorem rec_rule_bits_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis rf lf) (rn : arena.handle.NIdx) (rl : arena.env.IRecRule) :
+    LS pers (fun a b => b = absIRecRule a) (arena.core.rec_rule_bits pers vis st rf rn rl) lst
+      (recRuleBits lf (absNIdx rn) (absIRecRule rl)) := by
+  rw [arena.core.rec_rule_bits, recRuleBits]
+  lockstep
+
+theorem rc_vecFrom_nil {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
+    (hi : v.val.length ≤ i.val) : (v.val.drop i.val).map f = [] := by
+  rw [List.drop_eq_nil_of_le hi]; rfl
+
+theorem rc_vecFrom_cons {α β : Type} (v : alloc.vec.Vec α) (f : α → β) (i : Std.Usize)
+    (hi : i.val < v.val.length) :
+    (v.val.drop i.val).map f = f v.val[i.val] :: (v.val.drop (i.val + 1)).map f := by
+  rw [List.drop_eq_getElem_cons hi]; rfl
+
+set_option maxHeartbeats 800000 in
+theorem sum_rules_ctx_aux (m : Nat) :
+    ∀ {pers st lst} {vis : Std.U64} {rf lf} {rec_name : arena.handle.NIdx}
+      {n_p m_i r_p : Std.U64} {rec_ty : arena.handle.EIdx}
+      {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+      {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+      {out : alloc.vec.Vec arena.env.IRecRule},
+      ctors.val.length - i.val = m → AStateRel₀ pers st lst → AStateInv pers st →
+      CoreCtx vis rf lf →
+      Lockstep.LS pers (fun a b => b = absIRecRuleL a)
+        (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i
+          r_p rec_ty ctors rhss i out) lst
+        (do pure (absIRecRuleL out ++
+          (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+            (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) := by
+  induction m with
+  | zero =>
+    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hctx
+    rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
+      rc_vecFrom_nil _ _ _ (by omega)]
+    simp only [sumRules]
+    lockstep
+  | succ m ih =>
+    intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hctx
+    rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
+      rc_vecFrom_cons _ _ _ (by omega)]
+    by_cases hr : i.val < rhss.val.length
+    · rw [if_neg (by scalar_tac), absEIdxLFrom, rc_vecFrom_cons _ _ _ hr]
+      simp only [sumRules]
+      lockstep
+    · rw [if_pos (by scalar_tac), absEIdxLFrom, rc_vecFrom_nil _ _ _ (by omega)]
+      simp only [sumRules]
+      lockstep
+
+/-- `sum_rules` ⊑ `sumRules` at a split counter (`CoreCtx`). -/
+@[lockstep] theorem sum_rules_ctx_ls {pers st lst} {vis : Std.U64} {rf lf}
+    {rec_name : arena.handle.NIdx} {n_p m_i r_p : Std.U64} {rec_ty : arena.handle.EIdx}
+    {ctors : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)}
+    {rhss : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+    {out : alloc.vec.Vec arena.env.IRecRule}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis rf lf) :
+    LS pers (fun a b => b = absIRecRuleL a)
+      (arena.inductives.sum_install.sum_rules pers vis st rf rec_name n_p m_i r_p rec_ty ctors
+        rhss i out) lst
+      (do pure (absIRecRuleL out ++
+        (← sumRules lf (absNIdx rec_name) (absU n_p) (absU m_i) (absU r_p)
+          (absEIdx rec_ty) (absCtorsLFrom ctors i) (absEIdxLFrom rhss i)))) :=
+  sum_rules_ctx_aux _ rfl hrel hinv hctx
+
+end CtxHelpers
+
 /-! ## The member abstraction: `target_abs_go` / `target_abs_node` / `target_abs` -/
 
 theorem target_abs_go_aux {pers} (names : alloc.vec.Vec arena.handle.NIdx)
