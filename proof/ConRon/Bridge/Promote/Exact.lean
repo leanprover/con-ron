@@ -49,60 +49,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-/-- con-leche: none — arena infrastructure; **`promoteN` is exact.**
-
-PROVED (task #97-P3-Promote): `Bridge/Promote/Walk.lean`'s `promoteN_core`, with `Ext` and the frame from `Arena/PromoteExt.lean`. -/
-theorem promoteN_spec {m m' : PMemo} {fuel : Nat} {h r : NIdx} {x : ConLeche.Name}
-    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
-    (hd : denoteN s.store.ns h = some x)
-    (hrun : promoteN m fuel h s = .ok ((m', r), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersN r ∧ denoteN s'.store.ns r = some x ∧ PFrame s s' := by
-  obtain ⟨a, b, c, d⟩ := promoteN_core fuel m h s m' r s' hwf hm hrun
-  have hx := promoteN_aext m fuel h s (m', r) s' hrun
-  exact ⟨a, hx.ext, b, c, d x hd, PFrame.of_aext hx⟩
-
-/-- con-leche: none — arena infrastructure; **`promoteL` is exact.**
-
-PROVED (task #97-P3-Promote): `promoteL_core`. -/
-theorem promoteL_spec {m m' : PMemo} {fuel : Nat} {h r : LIdx} {u : Level}
-    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
-    (hd : denoteL s.store.ls h = some u)
-    (hrun : promoteL m fuel h s = .ok ((m', r), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersL r ∧ denoteL s'.store.ls r = some u ∧ PFrame s s' := by
-  obtain ⟨a, b, c, d⟩ := promoteL_core fuel m h s m' r s' hwf hm hrun
-  have hx := promoteL_aext m fuel h s (m', r) s' hrun
-  exact ⟨a, hx.ext, b, c, d u hd, PFrame.of_aext hx⟩
-
-/-- con-leche: none — arena infrastructure; **`promoteLs` is exact.**
-
-PROVED (task #97-P3-Promote): `promoteLs_step`. -/
-theorem promoteLs_spec {m m' : PMemo} {fuel : Nat} {h r : LsIdx}
-    {us : List Level} {s s' : AState} (hwf : StoreWF' s.store)
-    (hm : PMemoOK m s.store) (hd : denoteLs s.store.lss h = some us)
-    (hrun : promoteLs m fuel h s = .ok ((m', r), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersLs r ∧ denoteLs s'.store.lss r = some us ∧ PFrame s s' := by
-  obtain ⟨a, b, -, c, d⟩ := promoteLs_step hwf hm hrun
-  have hx := promoteLs_aext m fuel h s (m', r) s' hrun
-  exact ⟨a, hx.ext, b, c, d us hd, PFrame.of_aext hx⟩
-
-/-- con-leche: none — arena infrastructure; **`promoteE` is exact** — THE
-exactness lemma `Arena/Promote.lean` names ("`denote (promote h) = denote h`
-is the exactness lemma P3 owes").
-
-PROVED (task #97-P3-Promote): `promoteE_core`, the ten-arm fuel induction. -/
-theorem promoteE_spec {m m' : PMemo} {fuel : Nat} {h r : EIdx} {e : Expr}
-    {s s' : AState} (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
-    (hd : denoteE s.store h = some e)
-    (hrun : promoteE m fuel h s = .ok ((m', r), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersE r ∧ denoteE s'.store r = some e ∧ PFrame s s' := by
-  obtain ⟨a, b, c, d⟩ := promoteE_core fuel m h s m' r s' hwf hm hrun
-  have hx := promoteE_aext m fuel h s (m', r) s' hrun
-  exact ⟨a, hx.ext, b, c, d e hd, PFrame.of_aext hx⟩
-
 /-! ## The declaration layer
 
 `Arena/Promote.lean`'s record walk, field for field, and the two entries the
@@ -110,49 +56,6 @@ fold calls.  Each is do-notation over the four above, so each is mechanical;
 each is stated at the DENOTATION its consumer wants, which for the
 declaration layer is `Arena/Frontend/Readback.lean`'s `denoteCV` / `denoteCI`
 family. -/
-
-/-- con-leche: none — arena infrastructure; **promoting a constant's header
-keeps its denotation.**
-
-PROVED (task #97-P3-Promote): `Bridge/Promote/WalkDecl.lean`'s `promoteCV_step`. -/
-theorem promoteCV_spec {m m' : PMemo} {fuel : Nat} {cv cv' : IConstantVal}
-    {c : ConstantVal} {s s' : AState} (hwf : StoreWF' s.store)
-    (hm : PMemoOK m s.store) (hd : Frontend.denoteCV s.store cv = some c)
-    (hrun : promoteCV m fuel cv s = .ok ((m', cv'), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersCV cv' ∧ Frontend.denoteCV s'.store cv' = some c ∧ PFrame s s' := by
-  obtain ⟨a, b, -, c, -, d⟩ := promoteCV_step hwf hm hrun
-  have hx := promoteCV_aext m fuel cv s (m', cv') s' hrun
-  exact ⟨a, hx.ext, b, c, d _ hd, PFrame.of_aext hx⟩
-
-/-- con-leche: none — arena infrastructure; **promoting a stored constant
-keeps its denotation** — the seven `IConstantInfo` constructors.
-
-PROVED (task #97-P3-Promote): `promoteCI_step`. -/
-theorem promoteCI_spec {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
-    {c : ConstantInfo} {s s' : AState} (hwf : StoreWF' s.store)
-    (hm : PMemoOK m s.store) (hd : Frontend.denoteCI s.store ci = some c)
-    (hrun : promoteCI m fuel ci s = .ok ((m', ci'), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersCI ci' ∧ Frontend.denoteCI s'.store ci' = some c ∧ PFrame s s' := by
-  obtain ⟨a, b, -, c, -, -, d⟩ := promoteCI_step hwf hm hrun
-  have hx := promoteCI_aext m fuel ci s (m', ci') s' hrun
-  exact ⟨a, hx.ext, b, c, d _ hd, PFrame.of_aext hx⟩
-
-/-- con-leche: none — arena infrastructure; a block's constants, at ONE memo.
-
-PROVED (task #97-P3-Promote): `promoteCIList_step`. -/
-theorem promoteCIList_spec {m m' : PMemo} {fuel : Nat}
-    {cs cs' : List IConstantInfo} {xs : List ConstantInfo} {s s' : AState}
-    (hwf : StoreWF' s.store) (hm : PMemoOK m s.store)
-    (hd : Frontend.denoteCIList s.store cs = some xs)
-    (hrun : promoteCIList m fuel cs s = .ok ((m', cs'), s')) :
-    StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
-      PersCIList cs' ∧ Frontend.denoteCIList s'.store cs' = some xs ∧
-      PFrame s s' := by
-  obtain ⟨a, b, -, c, -, -, d⟩ := promoteCIList_step cs hwf hm hrun
-  have hx := promoteCIList_aext m fuel cs s (m', cs') s' hrun
-  exact ⟨a, hx.ext, b, c, d _ hd, PFrame.of_aext hx⟩
 
 /-- con-leche: none — arena infrastructure; **the install/check seam is
 promoted exactly**: an `opaque`'s value is not in the environment, so the
@@ -538,27 +441,6 @@ theorem promoteBracket_close {s0 s : AState} (hwf0 : StoreWF s0.store)
     PExt.dropScratch' hwf⟩
 
 /-! ## Census -/
-
-/-- info: 'ConRon.Bridge.promoteN_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteN_spec
-
-/-- info: 'ConRon.Bridge.promoteL_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteL_spec
-
-/-- info: 'ConRon.Bridge.promoteLs_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteLs_spec
-
-/-- info: 'ConRon.Bridge.promoteE_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteE_spec
-
-/-- info: 'ConRon.Bridge.promoteCV_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteCV_spec
-
-/-- info: 'ConRon.Bridge.promoteCI_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteCI_spec
-
-/-- info: 'ConRon.Bridge.promoteCIList_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms promoteCIList_spec
 
 /-- info: 'ConRon.Bridge.promoteVG_spec' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms promoteVG_spec

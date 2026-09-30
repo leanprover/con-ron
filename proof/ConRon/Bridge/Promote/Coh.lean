@@ -37,13 +37,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena
 
-/-! ## The extensional coherence
-
-`IFEnvCohX` was defined here; on the coordinator's ruling (task
-#97-P3-Checker round 9) it IS `IFEnvCoh` now (`Bridge/Promote/Exact.lean`),
-and its `find?`/`push` lemmas are `IFEnvCoh.find?` (`Bridge/Checker/Inv.lean`)
-and `IFEnvCoh.push`. -/
-
 /-! ## The two index builds, as lookups -/
 
 /-- con-leche: none — arena infrastructure; the first entry of `cs` filed
@@ -62,21 +55,6 @@ theorem lookupIdx_none {n : NIdx} : ∀ (as : List IConstantInfo) (c : Nat),
     intro c h
     simp only [lookupIdx]
     rw [if_neg (by simpa using h a (by simp)), ih _ (fun b hb => h b (by simp [hb]))]
-
-theorem lookupIdx_some {n : NIdx} : ∀ (as : List IConstantInfo) (c : Nat)
-    (p : Nat × IConstantInfo), lookupIdx n as c = some p → p.2 ∈ as ∧ p.2.name = n := by
-  intro as
-  induction as with
-  | nil => intro c p h; simp [lookupIdx] at h
-  | cons a as ih =>
-    intro c p h
-    simp only [lookupIdx] at h
-    split at h
-    · rename_i he
-      obtain rfl := Option.some.inj h
-      exact ⟨by simp, eq_of_beq he⟩
-    · obtain ⟨h1, h2⟩ := ih _ p h
-      exact ⟨List.mem_cons_of_mem _ h1, h2⟩
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — the index of
 `as ++ b` answers from `as` first, counting down from the whole length. -/
