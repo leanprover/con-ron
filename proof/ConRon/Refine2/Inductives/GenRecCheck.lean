@@ -1865,16 +1865,6 @@ theorem class_fe_r_push_spec (p : arena.inductives.block_parts.BlockShape)
 
 /-! ## `gen_rec_check` (with `gen_rec_classes` and `gen_rec_generate` inline) -/
 
-/-- PLACEHOLDER for `RecCheck.lean`'s `target_rec_pins` companion (sub-agent
-`rc`'s; not yet written): the statement it will have. -/
-theorem gr_target_rec_pins_stub {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (p : arena.inductives.block_parts.BlockShape)
-    (block : alloc.vec.Vec arena.env.IConstantInfo) :
-    LS pers (fun _ _ => True) (arena.inductives.rec_check.target_rec_pins pers st p block) lst
-      (targetRecPins (absBlockShape p) (block.val.map absIConstantInfo)) := by
-  sorry
-
-attribute [local lockstep] gr_target_rec_pins_stub
 
 /-- The pop lambda, named (the twin's `fun (n, prev) acc => acc.popTemp n prev`). -/
 def grPop (x : NIdx × Option (Nat × IConstantInfo)) (acc : IFEnv) : IFEnv :=
@@ -1942,6 +1932,12 @@ index handed back related to the twin's popped one, the rules alike. -/
     exact hpop _ _ (by simp [alloc.vec.Vec.len]) hf
 
 /-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.gen_rec_check_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms gen_rec_check_ls
+
+/-- info: 'ConRon.Refine2.check_block_classes_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms check_block_classes_ls
 
 /-- info: 'ConRon.Refine2.class_keys_of_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms class_keys_of_ls
