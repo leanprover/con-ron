@@ -37,8 +37,8 @@
 //!
 //! ## What is pinned
 //!
-//! The forty-nine names below and `basis_names::reserved_basis_names()`'s
-//! nineteen, plus the three interned values every `pin` site around them
+//! The forty-eight names below and `basis_names::reserved_basis_names()`'s
+//! sixteen, plus the three interned values every `pin` site around them
 //! needs: the empty universe-argument list, the level `0` and the expression
 //! `Sort 1` (`arena::core`'s `empty_levels`, `zero_level` and `sort_one`,
 //! which now read this record instead of interning).
@@ -98,113 +98,112 @@ const M_PINS_UNSET: [u32; 38] = [
 
 /// con-leche: none — the arena's own pin table; the number of pinned names
 /// The length `intern_reserved_pins` fills and `pin_at` bounds-checks against.
-pub const PIN_COUNT: usize = 49;
+pub const PIN_COUNT: usize = 48;
 
 // `basis_names`
 /// con-leche: none — the arena's own pin table; `basis_names::eq_name()`'s slot
 pub const PIN_EQ: usize = 0;
-/// con-leche: none — the arena's own pin table; `basis_names::punit_name()`'s slot
-pub const PIN_PUNIT: usize = 1;
-/// con-leche: none — the arena's own pin table; `basis_names::punit_rec_name()`'s slot
-pub const PIN_PUNIT_REC: usize = 2;
 /// con-leche: none — the arena's own pin table; `basis_names::nat_name()`'s slot
-pub const PIN_NAT: usize = 3;
+pub const PIN_NAT: usize = 1;
 /// con-leche: none — the arena's own pin table; `basis_names::nat_zero_name()`'s slot
-pub const PIN_NAT_ZERO: usize = 4;
+pub const PIN_NAT_ZERO: usize = 2;
 /// con-leche: none — the arena's own pin table; `basis_names::nat_succ_name()`'s slot
-pub const PIN_NAT_SUCC: usize = 5;
+pub const PIN_NAT_SUCC: usize = 3;
 /// con-leche: none — the arena's own pin table; `basis_names::quot_sound_name()`'s slot
-pub const PIN_QUOT_SOUND: usize = 6;
+pub const PIN_QUOT_SOUND: usize = 4;
 /// con-leche: none — the arena's own pin table; `basis_names::string_name()`'s slot
-pub const PIN_STRING: usize = 7;
+pub const PIN_STRING: usize = 5;
 /// con-leche: none — the arena's own pin table; `basis_names::string_of_list_name()`'s slot
-pub const PIN_STRING_OF_LIST: usize = 8;
+pub const PIN_STRING_OF_LIST: usize = 6;
 /// con-leche: none — the arena's own pin table; `basis_names::list_name()`'s slot
-pub const PIN_LIST: usize = 9;
+pub const PIN_LIST: usize = 7;
 /// con-leche: none — the arena's own pin table; `basis_names::list_nil_name()`'s slot
-pub const PIN_LIST_NIL: usize = 10;
+pub const PIN_LIST_NIL: usize = 8;
 /// con-leche: none — the arena's own pin table; `basis_names::list_cons_name()`'s slot
-pub const PIN_LIST_CONS: usize = 11;
+pub const PIN_LIST_CONS: usize = 9;
 /// con-leche: none — the arena's own pin table; `basis_names::char_name()`'s slot
-pub const PIN_CHAR: usize = 12;
+pub const PIN_CHAR: usize = 10;
 /// con-leche: none — the arena's own pin table; `basis_names::and_name()`'s slot
-pub const PIN_AND: usize = 13;
+pub const PIN_AND: usize = 11;
 /// con-leche: none — the arena's own pin table; `basis_names::char_of_nat_name()`'s slot
-pub const PIN_CHAR_OF_NAT: usize = 14;
+pub const PIN_CHAR_OF_NAT: usize = 12;
 /// con-leche: none — the arena's own pin table; `basis_names::sorry_ax_name()`'s slot
-pub const PIN_SORRY_AX: usize = 15;
+pub const PIN_SORRY_AX: usize = 13;
 
 // `core_k`
 /// con-leche: none — the arena's own pin table; `core_k::nat_pred_name()`'s slot
-pub const PIN_NAT_PRED: usize = 16;
+pub const PIN_NAT_PRED: usize = 14;
 /// con-leche: none — the arena's own pin table; `core_k::nat_add_name()`'s slot
-pub const PIN_NAT_ADD: usize = 17;
+pub const PIN_NAT_ADD: usize = 15;
 /// con-leche: none — the arena's own pin table; `core_k::nat_sub_name()`'s slot
-pub const PIN_NAT_SUB: usize = 18;
+pub const PIN_NAT_SUB: usize = 16;
 /// con-leche: none — the arena's own pin table; `core_k::nat_mul_name()`'s slot
-pub const PIN_NAT_MUL: usize = 19;
+pub const PIN_NAT_MUL: usize = 17;
 /// con-leche: none — the arena's own pin table; `core_k::nat_pow_name()`'s slot
-pub const PIN_NAT_POW: usize = 20;
+pub const PIN_NAT_POW: usize = 18;
 /// con-leche: none — the arena's own pin table; `core_k::nat_beq_name()`'s slot
-pub const PIN_NAT_BEQ: usize = 21;
+pub const PIN_NAT_BEQ: usize = 19;
 /// con-leche: none — the arena's own pin table; `core_k::nat_ble_name()`'s slot
-pub const PIN_NAT_BLE: usize = 22;
+pub const PIN_NAT_BLE: usize = 20;
 /// con-leche: none — the arena's own pin table; `core_k::nat_div_name()`'s slot
-pub const PIN_NAT_DIV: usize = 23;
+pub const PIN_NAT_DIV: usize = 21;
 /// con-leche: none — the arena's own pin table; `core_k::nat_mod_name()`'s slot
-pub const PIN_NAT_MOD: usize = 24;
+pub const PIN_NAT_MOD: usize = 22;
 /// con-leche: none — the arena's own pin table; `core_k::nat_gcd_name()`'s slot
-pub const PIN_NAT_GCD: usize = 25;
+pub const PIN_NAT_GCD: usize = 23;
 /// con-leche: none — the arena's own pin table; `core_k::nat_land_name()`'s slot
-pub const PIN_NAT_LAND: usize = 26;
+pub const PIN_NAT_LAND: usize = 24;
 /// con-leche: none — the arena's own pin table; `core_k::nat_lor_name()`'s slot
-pub const PIN_NAT_LOR: usize = 27;
+pub const PIN_NAT_LOR: usize = 25;
 /// con-leche: none — the arena's own pin table; `core_k::nat_xor_name()`'s slot
-pub const PIN_NAT_XOR: usize = 28;
+pub const PIN_NAT_XOR: usize = 26;
 /// con-leche: none — the arena's own pin table; `core_k::nat_shift_left_name()`'s slot
-pub const PIN_NAT_SHIFT_LEFT: usize = 29;
+pub const PIN_NAT_SHIFT_LEFT: usize = 27;
 /// con-leche: none — the arena's own pin table; `core_k::nat_shift_right_name()`'s slot
-pub const PIN_NAT_SHIFT_RIGHT: usize = 30;
+pub const PIN_NAT_SHIFT_RIGHT: usize = 28;
 /// con-leche: none — the arena's own pin table; `core_k::bool_name()`'s slot
-pub const PIN_BOOL: usize = 31;
+pub const PIN_BOOL: usize = 29;
 /// con-leche: none — the arena's own pin table; `core_k::bool_true_name()`'s slot
-pub const PIN_BOOL_TRUE: usize = 32;
+pub const PIN_BOOL_TRUE: usize = 30;
 /// con-leche: none — the arena's own pin table; `core_k::bool_false_name()`'s slot
-pub const PIN_BOOL_FALSE: usize = 33;
+pub const PIN_BOOL_FALSE: usize = 31;
 
 // `cstd` (`con_ron_core::kernel::std_axioms`)
 /// con-leche: none — the arena's own pin table; `cstd::propext_name()`'s slot
-pub const PIN_PROPEXT: usize = 34;
+pub const PIN_PROPEXT: usize = 32;
 /// con-leche: none — the arena's own pin table; `cstd::choice_name()`'s slot
-pub const PIN_CHOICE: usize = 35;
+pub const PIN_CHOICE: usize = 33;
 /// con-leche: none — the arena's own pin table; `cstd::iff_name()`'s slot
-pub const PIN_IFF: usize = 36;
+pub const PIN_IFF: usize = 34;
 /// con-leche: none — the arena's own pin table; `cstd::iff_intro_name()`'s slot
-pub const PIN_IFF_INTRO: usize = 37;
+pub const PIN_IFF_INTRO: usize = 35;
 /// con-leche: none — the arena's own pin table; `cstd::iff_rec_name()`'s slot
-pub const PIN_IFF_REC: usize = 38;
+pub const PIN_IFF_REC: usize = 36;
 /// con-leche: none — the arena's own pin table; `cstd::nonempty_name()`'s slot
-pub const PIN_NONEMPTY: usize = 39;
+pub const PIN_NONEMPTY: usize = 37;
 /// con-leche: none — the arena's own pin table; `cstd::nonempty_intro_name()`'s slot
-pub const PIN_NONEMPTY_INTRO: usize = 40;
+pub const PIN_NONEMPTY_INTRO: usize = 38;
 /// con-leche: none — the arena's own pin table; `cstd::nonempty_rec_name()`'s slot
-pub const PIN_NONEMPTY_REC: usize = 41;
+pub const PIN_NONEMPTY_REC: usize = 39;
 
 // `ctrust` (`con_ron_core::kernel::trust_axioms`)
 /// con-leche: none — the arena's own pin table; `ctrust::true_name()`'s slot
-pub const PIN_TRUE: usize = 42;
+pub const PIN_TRUE: usize = 40;
 /// con-leche: none — the arena's own pin table; `ctrust::true_intro_name()`'s slot
-pub const PIN_TRUE_INTRO: usize = 43;
+pub const PIN_TRUE_INTRO: usize = 41;
 /// con-leche: none — the arena's own pin table; `ctrust::trust_compiler_name()`'s slot
-pub const PIN_TRUST_COMPILER: usize = 44;
+pub const PIN_TRUST_COMPILER: usize = 42;
 /// con-leche: none — the arena's own pin table; `ctrust::reduce_nat_name()`'s slot
-pub const PIN_REDUCE_NAT: usize = 45;
+pub const PIN_REDUCE_NAT: usize = 43;
 /// con-leche: none — the arena's own pin table; `ctrust::reduce_bool_name()`'s slot
-pub const PIN_REDUCE_BOOL: usize = 46;
+pub const PIN_REDUCE_BOOL: usize = 44;
 /// con-leche: none — the arena's own pin table; `ctrust::of_reduce_nat_name()`'s slot
-pub const PIN_OF_REDUCE_NAT: usize = 47;
+pub const PIN_OF_REDUCE_NAT: usize = 45;
 /// con-leche: none — the arena's own pin table; `ctrust::of_reduce_bool_name()`'s slot
-pub const PIN_OF_REDUCE_BOOL: usize = 48;
+pub const PIN_OF_REDUCE_BOOL: usize = 46;
+/// con-leche: none — the arena's own pin table; `basis_names::quot_name()`'s slot
+/// (task #105: the positivity check's one container name, `nestCont`'s `quotName`)
+pub const PIN_QUOT: usize = 47;
 
 // ---------------------------------------------------------------------------
 // The record
@@ -226,10 +225,10 @@ pub const PIN_OF_REDUCE_BOOL: usize = 48;
 pub struct Pins {
     /// The `PIN_COUNT` reserved-name handles, indexed by the `PIN_*` slots.
     pub names: Vec<NIdx>,
-    /// `basis_names::reserved_basis_names()`, interned: the nineteen names a
-    /// stream may not declare.  Its own list rather than nineteen slots of
+    /// `basis_names::reserved_basis_names()`, interned: the sixteen names a
+    /// stream may not declare.  Its own list rather than sixteen slots of
     /// `names`, because its only reader wants the whole vector
-    /// (`nidx_contains_from`) and because five of the nineteen are `rec_of`
+    /// (`nidx_contains_from`) and because four of the sixteen are `rec_of`
     /// forms that nothing else pins.
     pub reserved: Vec<NIdx>,
     /// `arena::core::empty_levels`: the empty universe-argument list.
@@ -261,19 +260,17 @@ impl Pins {
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
-/// The forty-nine reserved names as VALUES, in `PIN_*` order.  This is the
+/// The forty-eight reserved names as VALUES, in `PIN_*` order.  This is the
 /// one place they are built, and it runs once per process.
 ///
 /// Spelled as pushes rather than a `vec![…]` literal because the extraction
 /// takes the pushes as they are; the order is the `PIN_*` constants', which
 /// `pins_table_is_in_slot_order` in this module's tests checks name by name.
 /// Lean twin: `proof/ConRon/Arena/Pins.lean:167-193 pinNames` — the same
-/// forty-nine names, in `PIN_*` order.
+/// forty-eight names, in `PIN_*` order.
 pub fn pin_names() -> Vec<Name> {
     let mut out: Vec<Name> = Vec::new();
     out.push(basis_names::eq_name());
-    out.push(basis_names::punit_name());
-    out.push(basis_names::punit_rec_name());
     out.push(basis_names::nat_name());
     out.push(basis_names::nat_zero_name());
     out.push(basis_names::nat_succ_name());
@@ -320,6 +317,7 @@ pub fn pin_names() -> Vec<Name> {
     out.push(ctrust::reduce_bool_name());
     out.push(ctrust::of_reduce_nat_name());
     out.push(ctrust::of_reduce_bool_name());
+    out.push(basis_names::quot_name());
     out
 }
 
@@ -377,12 +375,12 @@ pub fn pins_ready(st: &AState) -> bool {
 }
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
-/// The nineteen reserved basis names, off the table.  `arena::core`'s
-/// `reserved_basis_names` used to build and intern all nineteen on every
+/// The sixteen reserved basis names, off the table.  `arena::core`'s
+/// `reserved_basis_names` used to build and intern all sixteen on every
 /// call, which task #97-P6-4a's profile put at 1.1 % of `Init`'s cycles in
 /// the `Name` construction alone; its readers copy the vector.
 /// Lean twin: `proof/ConRon/Arena/Pins.lean:251-256 pinReserved` — the
-/// nineteen reserved basis handles, off the table.
+/// sixteen reserved basis handles, off the table.
 pub fn pin_reserved(st: &AState) -> Result<Vec<NIdx>, CheckError> {
     if pins_ready(st) {
         Ok(nidx_vec_dup(&st.pins.reserved))
@@ -443,7 +441,7 @@ pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
 }
 
 // ---------------------------------------------------------------------------
-// The forty-nine named readers: one per `PIN_*` slot
+// The forty-eight named readers: one per `PIN_*` slot
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
@@ -452,22 +450,6 @@ pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
 /// read through `pinAt`.
 pub fn pin_eq(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_EQ)
-}
-
-/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
-/// `basis_names::punit_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:280-281 pinPUnit` — the same slot,
-/// read through `pinAt`.
-pub fn pin_punit(st: &AState) -> Result<NIdx, CheckError> {
-    pin_at(st, PIN_PUNIT)
-}
-
-/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
-/// `basis_names::punit_rec_name()`'s handle, off the record `intern_reserved_pins` filled.
-/// Lean twin: `proof/ConRon/Arena/Pins.lean:282-283 pinPUnitRec` — the same
-/// slot, read through `pinAt`.
-pub fn pin_punit_rec(st: &AState) -> Result<NIdx, CheckError> {
-    pin_at(st, PIN_PUNIT_REC)
 }
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
@@ -836,6 +818,15 @@ pub fn pin_of_reduce_nat(st: &AState) -> Result<NIdx, CheckError> {
 /// same slot, read through `pinAt`.
 pub fn pin_of_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_OF_REDUCE_BOOL)
+}
+
+/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
+/// `basis_names::quot_name()`'s handle, off the record `intern_reserved_pins`
+/// filled (task #105: the positivity check's `n == quotName`).
+/// Lean twin: `proof/ConRon/Arena/Pins.lean pinQuot` — the same slot, read
+/// through `pinAt`.
+pub fn pin_quot(st: &AState) -> Result<NIdx, CheckError> {
+    pin_at(st, PIN_QUOT)
 }
 
 

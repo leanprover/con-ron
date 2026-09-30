@@ -301,7 +301,6 @@ pub fn i_rec_rules_dup_from(rs: &Vec<IRecRule>, i: usize, out: Vec<IRecRule>) ->
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::IIndCaps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:109-125 IIndCaps` — the
 /// definitional capabilities of a stored inductive type.  `eta_ctor` is a
 /// handle; `sort_z` stays con-leche's `PropWhen`, which is the datum the
@@ -318,10 +317,15 @@ pub struct IIndCaps {
     pub unit_params: u64,
     pub rule_k: bool,
     pub sort_z: PropWhen,
+    /// the block's members (official's `all`), itself included
+    pub all: Vec<NIdx>,
+    /// the family's parameter count (official's `inductive_val.nparams`)
+    pub nparams: u64,
+    /// the family's constructors, in declaration order (official's `cnstrs`)
+    pub ctors: Vec<NIdx>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not — and, as
 /// con-ron-core's `env::ind_caps_default` records, the one that is not the
 /// obvious zero is **`sortZ := .ifAllZero []`**, which reads "zero at every
@@ -337,11 +341,13 @@ pub fn i_ind_caps_default() -> IIndCaps {
         unit_params: 0,
         rule_k: false,
         sort_z: prop_when::if_all_zero(Vec::new()),
+        all: Vec::new(),
+        nparams: 0,
+        ctors: Vec::new(),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
     IIndCaps {
@@ -353,6 +359,9 @@ pub fn i_ind_caps_dup(c: &IIndCaps) -> IIndCaps {
         unit_params: c.unit_params,
         rule_k: c.rule_k,
         sort_z: prop_when::dup(&c.sort_z),
+        all: nidx_vec_dup(&c.all),
+        nparams: c.nparams,
+        ctors: nidx_vec_dup(&c.ctors),
     }
 }
 
@@ -652,42 +661,6 @@ pub fn i_constant_info_is_tower_entry(c: &IConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.type
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_constant_info_type_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:246-249 IConstantInfo.type` — the
-/// constant's declared type.
-pub fn i_constant_info_type(
-    pers: &PersTier,
-    ar: &mut EStore,
-    c: &IConstantInfo,
-) -> Result<EIdx, CheckError>  {
-    match i_constant_info_to_constant_val(pers, ar, c) {
-        Err(e) => Err(e),
-        Ok(v) => Ok(v.ty),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:643 name
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::i_declaration_name_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:251-257 IDeclaration.name` — the
-/// name of a non-basis declaration.  con-leche's `.anonymous` fall-through is
-/// the interned anonymous name here, which is why the store is in hand.
-pub fn i_declaration_name(
-    pers: &PersTier,
-    ar: &mut EStore,
-    d: &IDeclaration,
-) -> Result<NIdx, CheckError>  {
-    match d {
-        IDeclaration::AxiomDecl(v) => Ok(v.name.dup2()),
-        IDeclaration::DefnDecl(v, _, _) => Ok(v.name.dup2()),
-        IDeclaration::ThmDecl(v, _) => Ok(v.name.dup2()),
-        IDeclaration::OpaqueDecl(v, _) => Ok(v.name.dup2()),
-        IDeclaration::QuotDecl(_, v) => Ok(v.name.dup2()),
-        IDeclaration::BasisDecl(_) => ar.intern_name(pers, NNodeView::Anonymous),
-        IDeclaration::IndDecl(_, _) => ar.intern_name(pers, NNodeView::Anonymous),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names
 /// Lean twin: `proof/ConRon/Arena/Env.lean:259-266 IDeclaration.names` — the
 /// names a declaration record declares; `prepare::prelude_key`'s lookup and
@@ -924,6 +897,18 @@ pub fn ifenv_push(fe: IFEnv, ci: IConstantInfo) -> IFEnv {
     fe.env.consts.push(ci);
     fe.visible_below = c + 1;
     fe
+}
+
+/// con-leche: ConLeche/Kernel/Env.lean:183-188 ConstantVal
+/// Lean twin: the `Inhabited ConstantVal` default — `⟨.anonymous, [], default⟩`
+/// with the zero handles (the twin's `default : NIdx`/`EIdx`).  Only a
+/// total function's unreachable arm reads it.
+pub fn i_constant_info_dummy_val() -> IConstantVal {
+    IConstantVal {
+        name: NIdx::of_word(0),
+        level_params: Vec::new(),
+        ty: EIdx::of_word(0),
+    }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo

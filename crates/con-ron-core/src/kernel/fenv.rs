@@ -40,7 +40,7 @@
 //!
 //! The one place a *second* view is unavoidable is the inductive install
 //! routes, which hold two or three views of one index at once
-//! (`inductives::native_install`, `inductives::modeled`); they take `dup`,
+//! (the pre-#105 native and modelled installers); they took `dup`,
 //! which rebuilds the index with `mk_fenv_go`.  Task #34 measured what that
 //! costs and what the alternatives cost:
 //!
@@ -272,12 +272,11 @@ pub fn rec_slots_all_f_from(fe: &FEnv, t: &Name, n_f: u64, j: u64) -> bool {
 
 /// con-leche: ConLeche/Kernel/FEnv.lean:103-107 FEnv.recSlotsAllF
 /// The cited body's one-slot test, as its own function so that the borrow of
-/// the index ends before the recursion resumes; `env::is_rec_info` is the
-/// cited `| some (.recInfo _ _ _ _) => true | _ => false`.
+/// the index ends before the recursion resumes.
 pub fn rec_slot_ok(fe: &FEnv, n: &Name) -> bool {
     match find(fe, n) {
-        Some(ci) => env::is_rec_info(ci),
-        None => false,
+        Some(ConstantInfo::RecInfo(_, _, _, _)) => true,
+        _ => false,
     }
 }
 

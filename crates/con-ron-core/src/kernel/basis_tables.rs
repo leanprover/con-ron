@@ -1,7 +1,6 @@
 //! The annotated basis blocks, generated (DESIGN.md §5 P1.5, task #22).
 //!
 //! con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-//! con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove crates/con-ron-core/src/kernel/basis_tables.rs_refines, then delete this line
 //!
 //! **Generated file — do not edit.**  Written by
 //! `proof/ConRon/Gen/Main.lean` (`cd proof && lake exe con-ron-gen-tables`)
@@ -36,9 +35,7 @@ use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:30-36 eqReflRaw
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:38-42 eqRecMotive
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:44-61 eqRecRaw
@@ -75,29 +72,33 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e6) };
     let ns1: Vec<Name> = Vec::new();
     let w3 = prop_when::if_all_zero(ns1);
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: true, sort_z: w3 };
-    let ci0 = ConstantInfo::IndInfo(cv0, ic0);
+    let mut ns2: Vec<Name> = Vec::new();
+    ns2.push(name::dup(&n1));
     let mut s2: Vec<u32> = Vec::new();  // "refl"
     s2.push(114);
     s2.push(101);
     s2.push(102);
     s2.push(108);
     let n3 = name::mk_str(name::dup(&n1), s2);
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n2));
+    let mut ns3: Vec<Name> = Vec::new();
+    ns3.push(name::dup(&n3));
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: true, sort_z: w3, all: ns2, nparams: 2, ctors: ns3 };
+    let ci0 = ConstantInfo::IndInfo(cv0, ic0);
+    let mut ns4: Vec<Name> = Vec::new();
+    ns4.push(name::dup(&n2));
     let mut us0: Vec<Level> = Vec::new();
     us0.push(level::dup(&u1));
     let e7 = expr::mk_const(name::dup(&n1), us0);
     let e8 = expr::app(expr::dup(&e7), expr::dup(&e1));
     let e9 = expr::app(expr::dup(&e8), expr::dup(&e3));
     let e10 = expr::app(expr::dup(&e9), expr::dup(&e3));
-    let ns3: Vec<Name> = Vec::new();
-    let w4 = prop_when::if_all_zero(ns3);
+    let ns5: Vec<Name> = Vec::new();
+    let w4 = prop_when::if_all_zero(ns5);
     let e11 = expr::forall_e(expr::dup(&e3), expr::dup(&e10), expr::binder_meta(w4));
-    let ns4: Vec<Name> = Vec::new();
-    let w5 = prop_when::if_all_zero(ns4);
+    let ns6: Vec<Name> = Vec::new();
+    let w5 = prop_when::if_all_zero(ns6);
     let e12 = expr::forall_e(expr::dup(&e5), expr::dup(&e11), expr::binder_meta(w5));
-    let cv1 = ConstantVal { name: name::dup(&n3), level_params: ns2, ty: expr::dup(&e12) };
+    let cv1 = ConstantVal { name: name::dup(&n3), level_params: ns4, ty: expr::dup(&e12) };
     let ci1 = ConstantInfo::CtorInfo(cv1, 2, 0);
     let mut s3: Vec<u32> = Vec::new();  // "rec"
     s3.push(114);
@@ -109,9 +110,9 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     s4.push(95);
     s4.push(49);
     let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns5: Vec<Name> = Vec::new();
-    ns5.push(name::dup(&n5));
-    ns5.push(name::dup(&n2));
+    let mut ns7: Vec<Name> = Vec::new();
+    ns7.push(name::dup(&n5));
+    ns7.push(name::dup(&n2));
     let e13 = expr::mk_bvar(3);
     let e14 = expr::app(expr::dup(&e13), expr::dup(&e1));
     let e15 = expr::app(expr::dup(&e14), expr::dup(&e3));
@@ -119,13 +120,13 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let e17 = expr::app(expr::dup(&e7), expr::dup(&e16));
     let e18 = expr::app(expr::dup(&e17), expr::dup(&e13));
     let e19 = expr::app(expr::dup(&e18), expr::dup(&e3));
-    let mut ns6: Vec<Name> = Vec::new();
-    ns6.push(name::dup(&n5));
-    let w6 = prop_when::if_all_zero(ns6);
+    let mut ns8: Vec<Name> = Vec::new();
+    ns8.push(name::dup(&n5));
+    let w6 = prop_when::if_all_zero(ns8);
     let e20 = expr::forall_e(expr::dup(&e19), expr::dup(&e15), expr::binder_meta(w6));
-    let mut ns7: Vec<Name> = Vec::new();
-    ns7.push(name::dup(&n5));
-    let w7 = prop_when::if_all_zero(ns7);
+    let mut ns9: Vec<Name> = Vec::new();
+    ns9.push(name::dup(&n5));
+    let w7 = prop_when::if_all_zero(ns9);
     let e21 = expr::forall_e(expr::dup(&e13), expr::dup(&e20), expr::binder_meta(w7));
     let e22 = expr::mk_bvar(2);
     let mut us1: Vec<Level> = Vec::new();
@@ -135,9 +136,9 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let e25 = expr::app(expr::dup(&e24), expr::dup(&e1));
     let e26 = expr::app(expr::dup(&e3), expr::dup(&e1));
     let e27 = expr::app(expr::dup(&e26), expr::dup(&e25));
-    let mut ns8: Vec<Name> = Vec::new();
-    ns8.push(name::dup(&n5));
-    let w8 = prop_when::if_all_zero(ns8);
+    let mut ns10: Vec<Name> = Vec::new();
+    ns10.push(name::dup(&n5));
+    let w8 = prop_when::if_all_zero(ns10);
     let e28 = expr::forall_e(expr::dup(&e27), expr::dup(&e21), expr::binder_meta(w8));
     let u2 = level::param(name::dup(&n5));
     let e29 = expr::sort(level::dup(&u2));
@@ -148,34 +149,34 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let e33 = expr::forall_e(expr::dup(&e32), expr::dup(&e29), expr::binder_meta(w9));
     let w10 = prop_when::never();
     let e34 = expr::forall_e(expr::dup(&e1), expr::dup(&e33), expr::binder_meta(w10));
-    let mut ns9: Vec<Name> = Vec::new();
-    ns9.push(name::dup(&n5));
-    let w11 = prop_when::if_all_zero(ns9);
-    let e35 = expr::forall_e(expr::dup(&e34), expr::dup(&e28), expr::binder_meta(w11));
-    let mut ns10: Vec<Name> = Vec::new();
-    ns10.push(name::dup(&n5));
-    let w12 = prop_when::if_all_zero(ns10);
-    let e36 = expr::forall_e(expr::dup(&e3), expr::dup(&e35), expr::binder_meta(w12));
     let mut ns11: Vec<Name> = Vec::new();
     ns11.push(name::dup(&n5));
-    let w13 = prop_when::if_all_zero(ns11);
-    let e37 = expr::forall_e(expr::dup(&e5), expr::dup(&e36), expr::binder_meta(w13));
-    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns5, ty: expr::dup(&e37) };
+    let w11 = prop_when::if_all_zero(ns11);
+    let e35 = expr::forall_e(expr::dup(&e34), expr::dup(&e28), expr::binder_meta(w11));
     let mut ns12: Vec<Name> = Vec::new();
     ns12.push(name::dup(&n5));
-    let w14 = prop_when::if_all_zero(ns12);
-    let e38 = expr::lam(expr::dup(&e27), expr::dup(&e3), expr::binder_meta(w14));
+    let w12 = prop_when::if_all_zero(ns12);
+    let e36 = expr::forall_e(expr::dup(&e3), expr::dup(&e35), expr::binder_meta(w12));
     let mut ns13: Vec<Name> = Vec::new();
     ns13.push(name::dup(&n5));
-    let w15 = prop_when::if_all_zero(ns13);
-    let e39 = expr::lam(expr::dup(&e34), expr::dup(&e38), expr::binder_meta(w15));
+    let w13 = prop_when::if_all_zero(ns13);
+    let e37 = expr::forall_e(expr::dup(&e5), expr::dup(&e36), expr::binder_meta(w13));
+    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns7, ty: expr::dup(&e37) };
     let mut ns14: Vec<Name> = Vec::new();
     ns14.push(name::dup(&n5));
-    let w16 = prop_when::if_all_zero(ns14);
-    let e40 = expr::lam(expr::dup(&e3), expr::dup(&e39), expr::binder_meta(w16));
+    let w14 = prop_when::if_all_zero(ns14);
+    let e38 = expr::lam(expr::dup(&e27), expr::dup(&e3), expr::binder_meta(w14));
     let mut ns15: Vec<Name> = Vec::new();
     ns15.push(name::dup(&n5));
-    let w17 = prop_when::if_all_zero(ns15);
+    let w15 = prop_when::if_all_zero(ns15);
+    let e39 = expr::lam(expr::dup(&e34), expr::dup(&e38), expr::binder_meta(w15));
+    let mut ns16: Vec<Name> = Vec::new();
+    ns16.push(name::dup(&n5));
+    let w16 = prop_when::if_all_zero(ns16);
+    let e40 = expr::lam(expr::dup(&e3), expr::dup(&e39), expr::binder_meta(w16));
+    let mut ns17: Vec<Name> = Vec::new();
+    ns17.push(name::dup(&n5));
+    let w17 = prop_when::if_all_zero(ns17);
     let e41 = expr::lam(expr::dup(&e5), expr::dup(&e40), expr::binder_meta(w17));
     let rr0 = RecRule { ctor: name::dup(&n3), nfields: 0, ctor_params: 2, fire: RecRuleFire::Plain, rhs: expr::dup(&e41), k: true, eta: false, params_blind: true };
     let mut rs0: Vec<RecRule> = Vec::new();
@@ -189,10 +190,8 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:21-22 natT
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:28-30 natZeroRaw
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:32-34 natSuccRaw
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:36-37 natRecMotive
@@ -219,29 +218,34 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e0) };
     let ns1: Vec<Name> = Vec::new();
     let w0 = prop_when::if_all_zero(ns1);
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0 };
-    let ci0 = ConstantInfo::IndInfo(cv0, ic0);
+    let mut ns2: Vec<Name> = Vec::new();
+    ns2.push(name::dup(&n1));
     let mut s1: Vec<u32> = Vec::new();  // "zero"
     s1.push(122);
     s1.push(101);
     s1.push(114);
     s1.push(111);
     let n2 = name::mk_str(name::dup(&n1), s1);
-    let ns2: Vec<Name> = Vec::new();
-    let us0: Vec<Level> = Vec::new();
-    let e1 = expr::mk_const(name::dup(&n1), us0);
-    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns2, ty: expr::dup(&e1) };
-    let ci1 = ConstantInfo::CtorInfo(cv1, 0, 0);
     let mut s2: Vec<u32> = Vec::new();  // "succ"
     s2.push(115);
     s2.push(117);
     s2.push(99);
     s2.push(99);
     let n3 = name::mk_str(name::dup(&n1), s2);
-    let ns3: Vec<Name> = Vec::new();
+    let mut ns3: Vec<Name> = Vec::new();
+    ns3.push(name::dup(&n2));
+    ns3.push(name::dup(&n3));
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns2, nparams: 0, ctors: ns3 };
+    let ci0 = ConstantInfo::IndInfo(cv0, ic0);
+    let ns4: Vec<Name> = Vec::new();
+    let us0: Vec<Level> = Vec::new();
+    let e1 = expr::mk_const(name::dup(&n1), us0);
+    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns4, ty: expr::dup(&e1) };
+    let ci1 = ConstantInfo::CtorInfo(cv1, 0, 0);
+    let ns5: Vec<Name> = Vec::new();
     let w1 = prop_when::never();
     let e2 = expr::forall_e(expr::dup(&e1), expr::dup(&e1), expr::binder_meta(w1));
-    let cv2 = ConstantVal { name: name::dup(&n3), level_params: ns3, ty: expr::dup(&e2) };
+    let cv2 = ConstantVal { name: name::dup(&n3), level_params: ns5, ty: expr::dup(&e2) };
     let ci2 = ConstantInfo::CtorInfo(cv2, 0, 1);
     let mut s3: Vec<u32> = Vec::new();  // "rec"
     s3.push(114);
@@ -251,14 +255,14 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let mut s4: Vec<u32> = Vec::new();  // "u"
     s4.push(117);
     let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns4: Vec<Name> = Vec::new();
-    ns4.push(name::dup(&n5));
+    let mut ns6: Vec<Name> = Vec::new();
+    ns6.push(name::dup(&n5));
     let e3 = expr::mk_bvar(0);
     let e4 = expr::mk_bvar(3);
     let e5 = expr::app(expr::dup(&e4), expr::dup(&e3));
-    let mut ns5: Vec<Name> = Vec::new();
-    ns5.push(name::dup(&n5));
-    let w2 = prop_when::if_all_zero(ns5);
+    let mut ns7: Vec<Name> = Vec::new();
+    ns7.push(name::dup(&n5));
+    let w2 = prop_when::if_all_zero(ns7);
     let e6 = expr::forall_e(expr::dup(&e1), expr::dup(&e5), expr::binder_meta(w2));
     let e7 = expr::mk_bvar(1);
     let us1: Vec<Level> = Vec::new();
@@ -267,45 +271,45 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let e10 = expr::app(expr::dup(&e4), expr::dup(&e9));
     let e11 = expr::mk_bvar(2);
     let e12 = expr::app(expr::dup(&e11), expr::dup(&e3));
-    let mut ns6: Vec<Name> = Vec::new();
-    ns6.push(name::dup(&n5));
-    let w3 = prop_when::if_all_zero(ns6);
-    let e13 = expr::forall_e(expr::dup(&e12), expr::dup(&e10), expr::binder_meta(w3));
-    let mut ns7: Vec<Name> = Vec::new();
-    ns7.push(name::dup(&n5));
-    let w4 = prop_when::if_all_zero(ns7);
-    let e14 = expr::forall_e(expr::dup(&e1), expr::dup(&e13), expr::binder_meta(w4));
     let mut ns8: Vec<Name> = Vec::new();
     ns8.push(name::dup(&n5));
-    let w5 = prop_when::if_all_zero(ns8);
+    let w3 = prop_when::if_all_zero(ns8);
+    let e13 = expr::forall_e(expr::dup(&e12), expr::dup(&e10), expr::binder_meta(w3));
+    let mut ns9: Vec<Name> = Vec::new();
+    ns9.push(name::dup(&n5));
+    let w4 = prop_when::if_all_zero(ns9);
+    let e14 = expr::forall_e(expr::dup(&e1), expr::dup(&e13), expr::binder_meta(w4));
+    let mut ns10: Vec<Name> = Vec::new();
+    ns10.push(name::dup(&n5));
+    let w5 = prop_when::if_all_zero(ns10);
     let e15 = expr::forall_e(expr::dup(&e14), expr::dup(&e6), expr::binder_meta(w5));
     let us2: Vec<Level> = Vec::new();
     let e16 = expr::mk_const(name::dup(&n2), us2);
     let e17 = expr::app(expr::dup(&e3), expr::dup(&e16));
-    let mut ns9: Vec<Name> = Vec::new();
-    ns9.push(name::dup(&n5));
-    let w6 = prop_when::if_all_zero(ns9);
+    let mut ns11: Vec<Name> = Vec::new();
+    ns11.push(name::dup(&n5));
+    let w6 = prop_when::if_all_zero(ns11);
     let e18 = expr::forall_e(expr::dup(&e17), expr::dup(&e15), expr::binder_meta(w6));
     let u2 = level::param(name::dup(&n5));
     let e19 = expr::sort(level::dup(&u2));
     let w7 = prop_when::never();
     let e20 = expr::forall_e(expr::dup(&e1), expr::dup(&e19), expr::binder_meta(w7));
-    let mut ns10: Vec<Name> = Vec::new();
-    ns10.push(name::dup(&n5));
-    let w8 = prop_when::if_all_zero(ns10);
-    let e21 = expr::forall_e(expr::dup(&e20), expr::dup(&e18), expr::binder_meta(w8));
-    let cv3 = ConstantVal { name: name::dup(&n4), level_params: ns4, ty: expr::dup(&e21) };
-    let mut ns11: Vec<Name> = Vec::new();
-    ns11.push(name::dup(&n5));
-    let w9 = prop_when::if_all_zero(ns11);
-    let e22 = expr::lam(expr::dup(&e14), expr::dup(&e7), expr::binder_meta(w9));
     let mut ns12: Vec<Name> = Vec::new();
     ns12.push(name::dup(&n5));
-    let w10 = prop_when::if_all_zero(ns12);
-    let e23 = expr::lam(expr::dup(&e17), expr::dup(&e22), expr::binder_meta(w10));
+    let w8 = prop_when::if_all_zero(ns12);
+    let e21 = expr::forall_e(expr::dup(&e20), expr::dup(&e18), expr::binder_meta(w8));
+    let cv3 = ConstantVal { name: name::dup(&n4), level_params: ns6, ty: expr::dup(&e21) };
     let mut ns13: Vec<Name> = Vec::new();
     ns13.push(name::dup(&n5));
-    let w11 = prop_when::if_all_zero(ns13);
+    let w9 = prop_when::if_all_zero(ns13);
+    let e22 = expr::lam(expr::dup(&e14), expr::dup(&e7), expr::binder_meta(w9));
+    let mut ns14: Vec<Name> = Vec::new();
+    ns14.push(name::dup(&n5));
+    let w10 = prop_when::if_all_zero(ns14);
+    let e23 = expr::lam(expr::dup(&e17), expr::dup(&e22), expr::binder_meta(w10));
+    let mut ns15: Vec<Name> = Vec::new();
+    ns15.push(name::dup(&n5));
+    let w11 = prop_when::if_all_zero(ns15);
     let e24 = expr::lam(expr::dup(&e20), expr::dup(&e23), expr::binder_meta(w11));
     let rr0 = RecRule { ctor: name::dup(&n2), nfields: 0, ctor_params: 0, fire: RecRuleFire::Plain, rhs: expr::dup(&e24), k: false, eta: false, params_blind: true };
     let mut us3: Vec<Level> = Vec::new();
@@ -317,21 +321,21 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let e29 = expr::app(expr::dup(&e28), expr::dup(&e3));
     let e30 = expr::app(expr::dup(&e7), expr::dup(&e3));
     let e31 = expr::app(expr::dup(&e30), expr::dup(&e29));
-    let mut ns14: Vec<Name> = Vec::new();
-    ns14.push(name::dup(&n5));
-    let w12 = prop_when::if_all_zero(ns14);
-    let e32 = expr::lam(expr::dup(&e1), expr::dup(&e31), expr::binder_meta(w12));
-    let mut ns15: Vec<Name> = Vec::new();
-    ns15.push(name::dup(&n5));
-    let w13 = prop_when::if_all_zero(ns15);
-    let e33 = expr::lam(expr::dup(&e14), expr::dup(&e32), expr::binder_meta(w13));
     let mut ns16: Vec<Name> = Vec::new();
     ns16.push(name::dup(&n5));
-    let w14 = prop_when::if_all_zero(ns16);
-    let e34 = expr::lam(expr::dup(&e17), expr::dup(&e33), expr::binder_meta(w14));
+    let w12 = prop_when::if_all_zero(ns16);
+    let e32 = expr::lam(expr::dup(&e1), expr::dup(&e31), expr::binder_meta(w12));
     let mut ns17: Vec<Name> = Vec::new();
     ns17.push(name::dup(&n5));
-    let w15 = prop_when::if_all_zero(ns17);
+    let w13 = prop_when::if_all_zero(ns17);
+    let e33 = expr::lam(expr::dup(&e14), expr::dup(&e32), expr::binder_meta(w13));
+    let mut ns18: Vec<Name> = Vec::new();
+    ns18.push(name::dup(&n5));
+    let w14 = prop_when::if_all_zero(ns18);
+    let e34 = expr::lam(expr::dup(&e17), expr::dup(&e33), expr::binder_meta(w14));
+    let mut ns19: Vec<Name> = Vec::new();
+    ns19.push(name::dup(&n5));
+    let w15 = prop_when::if_all_zero(ns19);
     let e35 = expr::lam(expr::dup(&e20), expr::dup(&e34), expr::binder_meta(w15));
     let rr1 = RecRule { ctor: name::dup(&n3), nfields: 1, ctor_params: 0, fire: RecRuleFire::Plain, rhs: expr::dup(&e35), k: false, eta: false, params_blind: true };
     let mut rs0: Vec<RecRule> = Vec::new();
@@ -347,118 +351,7 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_punit_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:24-29 punitRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_punit_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:31-33 punitUnitRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_punit_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:35-37 punitRecMotive
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_punit_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:39-50 punitRecRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_punit_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Basis/PUnit.lean:52-53 punitBasis
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_punit_refines, then delete this line
-/// The annotated `punit` block (`BasisKind.declsA .punitK` = [punitA, punitUnitA, punitRecA]).
-///
-/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
-/// constants from the 5 raw declarations cited above, while
-/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
-/// emitted as source (the module note).
-pub fn basis_decls_punit() -> Vec<ConstantInfo> {
-    let n0 = name::anonymous();
-    let mut s0: Vec<u32> = Vec::new();  // "PUnit"
-    s0.push(80);
-    s0.push(85);
-    s0.push(110);
-    s0.push(105);
-    s0.push(116);
-    let n1 = name::mk_str(name::dup(&n0), s0);
-    let mut s1: Vec<u32> = Vec::new();  // "u"
-    s1.push(117);
-    let n2 = name::mk_str(name::dup(&n0), s1);
-    let mut ns0: Vec<Name> = Vec::new();
-    ns0.push(name::dup(&n2));
-    let u0 = level::param(name::dup(&n2));
-    let e0 = expr::sort(level::dup(&u0));
-    let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e0) };
-    let mut s2: Vec<u32> = Vec::new();  // "unit"
-    s2.push(117);
-    s2.push(110);
-    s2.push(105);
-    s2.push(116);
-    let n3 = name::mk_str(name::dup(&n1), s2);
-    let mut ns1: Vec<Name> = Vec::new();
-    ns1.push(name::dup(&n2));
-    let w0 = prop_when::if_all_zero(ns1);
-    let ic0 = IndCaps { eta: true, eta_ctor: name::dup(&n3), eta_params: 0, eta_fields: 0, unitlike: true, unit_params: 0, rule_k: false, sort_z: w0 };
-    let ci0 = ConstantInfo::IndInfo(cv0, ic0);
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n2));
-    let mut us0: Vec<Level> = Vec::new();
-    us0.push(level::dup(&u0));
-    let e1 = expr::mk_const(name::dup(&n1), us0);
-    let cv1 = ConstantVal { name: name::dup(&n3), level_params: ns2, ty: expr::dup(&e1) };
-    let ci1 = ConstantInfo::CtorInfo(cv1, 0, 0);
-    let mut s3: Vec<u32> = Vec::new();  // "rec"
-    s3.push(114);
-    s3.push(101);
-    s3.push(99);
-    let n4 = name::mk_str(name::dup(&n1), s3);
-    let mut s4: Vec<u32> = Vec::new();  // "u_1"
-    s4.push(117);
-    s4.push(95);
-    s4.push(49);
-    let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns3: Vec<Name> = Vec::new();
-    ns3.push(name::dup(&n5));
-    ns3.push(name::dup(&n2));
-    let e2 = expr::mk_bvar(0);
-    let e3 = expr::mk_bvar(2);
-    let e4 = expr::app(expr::dup(&e3), expr::dup(&e2));
-    let mut ns4: Vec<Name> = Vec::new();
-    ns4.push(name::dup(&n5));
-    let w1 = prop_when::if_all_zero(ns4);
-    let e5 = expr::forall_e(expr::dup(&e1), expr::dup(&e4), expr::binder_meta(w1));
-    let mut us1: Vec<Level> = Vec::new();
-    us1.push(level::dup(&u0));
-    let e6 = expr::mk_const(name::dup(&n3), us1);
-    let e7 = expr::app(expr::dup(&e2), expr::dup(&e6));
-    let mut ns5: Vec<Name> = Vec::new();
-    ns5.push(name::dup(&n5));
-    let w2 = prop_when::if_all_zero(ns5);
-    let e8 = expr::forall_e(expr::dup(&e7), expr::dup(&e5), expr::binder_meta(w2));
-    let u1 = level::param(name::dup(&n5));
-    let e9 = expr::sort(level::dup(&u1));
-    let w3 = prop_when::never();
-    let e10 = expr::forall_e(expr::dup(&e1), expr::dup(&e9), expr::binder_meta(w3));
-    let mut ns6: Vec<Name> = Vec::new();
-    ns6.push(name::dup(&n5));
-    let w4 = prop_when::if_all_zero(ns6);
-    let e11 = expr::forall_e(expr::dup(&e10), expr::dup(&e8), expr::binder_meta(w4));
-    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns3, ty: expr::dup(&e11) };
-    let mut ns7: Vec<Name> = Vec::new();
-    ns7.push(name::dup(&n5));
-    let w5 = prop_when::if_all_zero(ns7);
-    let e12 = expr::lam(expr::dup(&e7), expr::dup(&e2), expr::binder_meta(w5));
-    let mut ns8: Vec<Name> = Vec::new();
-    ns8.push(name::dup(&n5));
-    let w6 = prop_when::if_all_zero(ns8);
-    let e13 = expr::lam(expr::dup(&e10), expr::dup(&e12), expr::binder_meta(w6));
-    let rr0 = RecRule { ctor: name::dup(&n3), nfields: 0, ctor_params: 0, fire: RecRuleFire::Plain, rhs: expr::dup(&e13), k: false, eta: true, params_blind: true };
-    let mut rs0: Vec<RecRule> = Vec::new();
-    rs0.push(rr0);
-    let ci2 = ConstantInfo::RecInfo(cv2, 2, 2, rs0);
-    let mut out0: Vec<ConstantInfo> = Vec::new();
-    out0.push(ci0);
-    out0.push(ci1);
-    out0.push(ci2);
-    out0
-}
-
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:25-32 emptyRecRaw
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:34-35 emptyBasis
 /// The annotated `empty` block (`BasisKind.declsA .emptyK` = [emptyA, emptyRecA]).
@@ -483,7 +376,10 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e0) };
     let ns1: Vec<Name> = Vec::new();
     let w0 = prop_when::if_all_zero(ns1);
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0 };
+    let mut ns2: Vec<Name> = Vec::new();
+    ns2.push(name::dup(&n1));
+    let ns3: Vec<Name> = Vec::new();
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns2, nparams: 0, ctors: ns3 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
     let mut s1: Vec<u32> = Vec::new();  // "rec"
     s1.push(114);
@@ -493,26 +389,26 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     let mut s2: Vec<u32> = Vec::new();  // "u"
     s2.push(117);
     let n3 = name::mk_str(name::dup(&n0), s2);
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n3));
+    let mut ns4: Vec<Name> = Vec::new();
+    ns4.push(name::dup(&n3));
     let e1 = expr::mk_bvar(0);
     let e2 = expr::mk_bvar(1);
     let e3 = expr::app(expr::dup(&e2), expr::dup(&e1));
     let us0: Vec<Level> = Vec::new();
     let e4 = expr::mk_const(name::dup(&n1), us0);
-    let mut ns3: Vec<Name> = Vec::new();
-    ns3.push(name::dup(&n3));
-    let w1 = prop_when::if_all_zero(ns3);
+    let mut ns5: Vec<Name> = Vec::new();
+    ns5.push(name::dup(&n3));
+    let w1 = prop_when::if_all_zero(ns5);
     let e5 = expr::forall_e(expr::dup(&e4), expr::dup(&e3), expr::binder_meta(w1));
     let u2 = level::param(name::dup(&n3));
     let e6 = expr::sort(level::dup(&u2));
     let w2 = prop_when::never();
     let e7 = expr::forall_e(expr::dup(&e4), expr::dup(&e6), expr::binder_meta(w2));
-    let mut ns4: Vec<Name> = Vec::new();
-    ns4.push(name::dup(&n3));
-    let w3 = prop_when::if_all_zero(ns4);
+    let mut ns6: Vec<Name> = Vec::new();
+    ns6.push(name::dup(&n3));
+    let w3 = prop_when::if_all_zero(ns6);
     let e8 = expr::forall_e(expr::dup(&e7), expr::dup(&e5), expr::binder_meta(w3));
-    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns2, ty: expr::dup(&e8) };
+    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns4, ty: expr::dup(&e8) };
     let rs0: Vec<RecRule> = Vec::new();
     let ci1 = ConstantInfo::RecInfo(cv1, 1, 1, rs0);
     let mut out0: Vec<ConstantInfo> = Vec::new();
@@ -522,9 +418,7 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_false_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/False.lean:38-40 falseRaw
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_false_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/False.lean:42-49 falseRecRaw
 /// con-leche: ConLeche/Kernel/Basis/False.lean:51-52 falseBasis
 /// The annotated `false` block (`BasisKind.declsA .falseK` = [falseA, falseRecA]).
@@ -548,7 +442,10 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e0) };
     let ns1: Vec<Name> = Vec::new();
     let w0 = prop_when::if_all_zero(ns1);
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0 };
+    let mut ns2: Vec<Name> = Vec::new();
+    ns2.push(name::dup(&n1));
+    let ns3: Vec<Name> = Vec::new();
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns2, nparams: 0, ctors: ns3 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
     let mut s1: Vec<u32> = Vec::new();  // "rec"
     s1.push(114);
@@ -558,26 +455,26 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
     let mut s2: Vec<u32> = Vec::new();  // "u"
     s2.push(117);
     let n3 = name::mk_str(name::dup(&n0), s2);
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n3));
+    let mut ns4: Vec<Name> = Vec::new();
+    ns4.push(name::dup(&n3));
     let e1 = expr::mk_bvar(0);
     let e2 = expr::mk_bvar(1);
     let e3 = expr::app(expr::dup(&e2), expr::dup(&e1));
     let us0: Vec<Level> = Vec::new();
     let e4 = expr::mk_const(name::dup(&n1), us0);
-    let mut ns3: Vec<Name> = Vec::new();
-    ns3.push(name::dup(&n3));
-    let w1 = prop_when::if_all_zero(ns3);
+    let mut ns5: Vec<Name> = Vec::new();
+    ns5.push(name::dup(&n3));
+    let w1 = prop_when::if_all_zero(ns5);
     let e5 = expr::forall_e(expr::dup(&e4), expr::dup(&e3), expr::binder_meta(w1));
     let u1 = level::param(name::dup(&n3));
     let e6 = expr::sort(level::dup(&u1));
     let w2 = prop_when::never();
     let e7 = expr::forall_e(expr::dup(&e4), expr::dup(&e6), expr::binder_meta(w2));
-    let mut ns4: Vec<Name> = Vec::new();
-    ns4.push(name::dup(&n3));
-    let w3 = prop_when::if_all_zero(ns4);
+    let mut ns6: Vec<Name> = Vec::new();
+    ns6.push(name::dup(&n3));
+    let w3 = prop_when::if_all_zero(ns6);
     let e8 = expr::forall_e(expr::dup(&e7), expr::dup(&e5), expr::binder_meta(w3));
-    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns2, ty: expr::dup(&e8) };
+    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns4, ty: expr::dup(&e8) };
     let rs0: Vec<RecRule> = Vec::new();
     let ci1 = ConstantInfo::RecInfo(cv1, 1, 1, rs0);
     let mut out0: Vec<ConstantInfo> = Vec::new();
@@ -587,7 +484,6 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:26-28 quotRel
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:30-34 quotRaw
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:36-42 quotMkRaw
@@ -635,33 +531,35 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e7) };
     let ns1: Vec<Name> = Vec::new();
     let w4 = prop_when::if_all_zero(ns1);
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w4 };
+    let ns2: Vec<Name> = Vec::new();
+    let ns3: Vec<Name> = Vec::new();
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w4, all: ns2, nparams: 0, ctors: ns3 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
     let mut s2: Vec<u32> = Vec::new();  // "mk"
     s2.push(109);
     s2.push(107);
     let n3 = name::mk_str(name::dup(&n1), s2);
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n2));
+    let mut ns4: Vec<Name> = Vec::new();
+    ns4.push(name::dup(&n2));
     let e8 = expr::mk_bvar(2);
     let mut us0: Vec<Level> = Vec::new();
     us0.push(level::dup(&u0));
     let e9 = expr::mk_const(name::dup(&n1), us0);
     let e10 = expr::app(expr::dup(&e9), expr::dup(&e8));
     let e11 = expr::app(expr::dup(&e10), expr::dup(&e2));
-    let mut ns3: Vec<Name> = Vec::new();
-    ns3.push(name::dup(&n2));
-    let w5 = prop_when::if_all_zero(ns3);
-    let e12 = expr::forall_e(expr::dup(&e2), expr::dup(&e11), expr::binder_meta(w5));
-    let mut ns4: Vec<Name> = Vec::new();
-    ns4.push(name::dup(&n2));
-    let w6 = prop_when::if_all_zero(ns4);
-    let e13 = expr::forall_e(expr::dup(&e5), expr::dup(&e12), expr::binder_meta(w6));
     let mut ns5: Vec<Name> = Vec::new();
     ns5.push(name::dup(&n2));
-    let w7 = prop_when::if_all_zero(ns5);
+    let w5 = prop_when::if_all_zero(ns5);
+    let e12 = expr::forall_e(expr::dup(&e2), expr::dup(&e11), expr::binder_meta(w5));
+    let mut ns6: Vec<Name> = Vec::new();
+    ns6.push(name::dup(&n2));
+    let w6 = prop_when::if_all_zero(ns6);
+    let e13 = expr::forall_e(expr::dup(&e5), expr::dup(&e12), expr::binder_meta(w6));
+    let mut ns7: Vec<Name> = Vec::new();
+    ns7.push(name::dup(&n2));
+    let w7 = prop_when::if_all_zero(ns7);
     let e14 = expr::forall_e(expr::dup(&e0), expr::dup(&e13), expr::binder_meta(w7));
-    let cv1 = ConstantVal { name: name::dup(&n3), level_params: ns2, ty: expr::dup(&e14) };
+    let cv1 = ConstantVal { name: name::dup(&n3), level_params: ns4, ty: expr::dup(&e14) };
     let ci1 = ConstantInfo::CtorInfo(cv1, 2, 1);
     let mut s3: Vec<u32> = Vec::new();  // "lift"
     s3.push(108);
@@ -672,16 +570,16 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let mut s4: Vec<u32> = Vec::new();  // "v"
     s4.push(118);
     let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns6: Vec<Name> = Vec::new();
-    ns6.push(name::dup(&n2));
-    ns6.push(name::dup(&n5));
+    let mut ns8: Vec<Name> = Vec::new();
+    ns8.push(name::dup(&n2));
+    ns8.push(name::dup(&n5));
     let e15 = expr::mk_bvar(3);
     let e16 = expr::mk_bvar(4);
     let e17 = expr::app(expr::dup(&e9), expr::dup(&e16));
     let e18 = expr::app(expr::dup(&e17), expr::dup(&e15));
-    let mut ns7: Vec<Name> = Vec::new();
-    ns7.push(name::dup(&n5));
-    let w8 = prop_when::if_all_zero(ns7);
+    let mut ns9: Vec<Name> = Vec::new();
+    ns9.push(name::dup(&n5));
+    let w8 = prop_when::if_all_zero(ns9);
     let e19 = expr::forall_e(expr::dup(&e18), expr::dup(&e15), expr::binder_meta(w8));
     let e20 = expr::app(expr::dup(&e15), expr::dup(&e2));
     let e21 = expr::app(expr::dup(&e15), expr::dup(&e8));
@@ -698,65 +596,65 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let e25 = expr::app(expr::dup(&e24), expr::dup(&e20));
     let e26 = expr::app(expr::dup(&e16), expr::dup(&e2));
     let e27 = expr::app(expr::dup(&e26), expr::dup(&e4));
-    let ns8: Vec<Name> = Vec::new();
-    let w9 = prop_when::if_all_zero(ns8);
-    let e28 = expr::forall_e(expr::dup(&e27), expr::dup(&e25), expr::binder_meta(w9));
-    let ns9: Vec<Name> = Vec::new();
-    let w10 = prop_when::if_all_zero(ns9);
-    let e29 = expr::forall_e(expr::dup(&e16), expr::dup(&e28), expr::binder_meta(w10));
     let ns10: Vec<Name> = Vec::new();
-    let w11 = prop_when::if_all_zero(ns10);
+    let w9 = prop_when::if_all_zero(ns10);
+    let e28 = expr::forall_e(expr::dup(&e27), expr::dup(&e25), expr::binder_meta(w9));
+    let ns11: Vec<Name> = Vec::new();
+    let w10 = prop_when::if_all_zero(ns11);
+    let e29 = expr::forall_e(expr::dup(&e16), expr::dup(&e28), expr::binder_meta(w10));
+    let ns12: Vec<Name> = Vec::new();
+    let w11 = prop_when::if_all_zero(ns12);
     let e30 = expr::forall_e(expr::dup(&e15), expr::dup(&e29), expr::binder_meta(w11));
-    let mut ns11: Vec<Name> = Vec::new();
-    ns11.push(name::dup(&n5));
-    let w12 = prop_when::if_all_zero(ns11);
-    let e31 = expr::forall_e(expr::dup(&e30), expr::dup(&e19), expr::binder_meta(w12));
-    let mut ns12: Vec<Name> = Vec::new();
-    ns12.push(name::dup(&n5));
-    let w13 = prop_when::if_all_zero(ns12);
-    let e32 = expr::forall_e(expr::dup(&e8), expr::dup(&e2), expr::binder_meta(w13));
     let mut ns13: Vec<Name> = Vec::new();
     ns13.push(name::dup(&n5));
-    let w14 = prop_when::if_all_zero(ns13);
-    let e33 = expr::forall_e(expr::dup(&e32), expr::dup(&e31), expr::binder_meta(w14));
-    let e34 = expr::sort(level::dup(&u2));
+    let w12 = prop_when::if_all_zero(ns13);
+    let e31 = expr::forall_e(expr::dup(&e30), expr::dup(&e19), expr::binder_meta(w12));
     let mut ns14: Vec<Name> = Vec::new();
     ns14.push(name::dup(&n5));
-    let w15 = prop_when::if_all_zero(ns14);
-    let e35 = expr::forall_e(expr::dup(&e34), expr::dup(&e33), expr::binder_meta(w15));
+    let w13 = prop_when::if_all_zero(ns14);
+    let e32 = expr::forall_e(expr::dup(&e8), expr::dup(&e2), expr::binder_meta(w13));
     let mut ns15: Vec<Name> = Vec::new();
     ns15.push(name::dup(&n5));
-    let w16 = prop_when::if_all_zero(ns15);
-    let e36 = expr::forall_e(expr::dup(&e5), expr::dup(&e35), expr::binder_meta(w16));
+    let w14 = prop_when::if_all_zero(ns15);
+    let e33 = expr::forall_e(expr::dup(&e32), expr::dup(&e31), expr::binder_meta(w14));
+    let e34 = expr::sort(level::dup(&u2));
     let mut ns16: Vec<Name> = Vec::new();
     ns16.push(name::dup(&n5));
-    let w17 = prop_when::if_all_zero(ns16);
-    let e37 = expr::forall_e(expr::dup(&e0), expr::dup(&e36), expr::binder_meta(w17));
-    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns6, ty: expr::dup(&e37) };
-    let e38 = expr::app(expr::dup(&e8), expr::dup(&e4));
+    let w15 = prop_when::if_all_zero(ns16);
+    let e35 = expr::forall_e(expr::dup(&e34), expr::dup(&e33), expr::binder_meta(w15));
     let mut ns17: Vec<Name> = Vec::new();
     ns17.push(name::dup(&n5));
-    let w18 = prop_when::if_all_zero(ns17);
-    let e39 = expr::lam(expr::dup(&e16), expr::dup(&e38), expr::binder_meta(w18));
+    let w16 = prop_when::if_all_zero(ns17);
+    let e36 = expr::forall_e(expr::dup(&e5), expr::dup(&e35), expr::binder_meta(w16));
     let mut ns18: Vec<Name> = Vec::new();
     ns18.push(name::dup(&n5));
-    let w19 = prop_when::if_all_zero(ns18);
-    let e40 = expr::lam(expr::dup(&e30), expr::dup(&e39), expr::binder_meta(w19));
+    let w17 = prop_when::if_all_zero(ns18);
+    let e37 = expr::forall_e(expr::dup(&e0), expr::dup(&e36), expr::binder_meta(w17));
+    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns8, ty: expr::dup(&e37) };
+    let e38 = expr::app(expr::dup(&e8), expr::dup(&e4));
     let mut ns19: Vec<Name> = Vec::new();
     ns19.push(name::dup(&n5));
-    let w20 = prop_when::if_all_zero(ns19);
-    let e41 = expr::lam(expr::dup(&e32), expr::dup(&e40), expr::binder_meta(w20));
+    let w18 = prop_when::if_all_zero(ns19);
+    let e39 = expr::lam(expr::dup(&e16), expr::dup(&e38), expr::binder_meta(w18));
     let mut ns20: Vec<Name> = Vec::new();
     ns20.push(name::dup(&n5));
-    let w21 = prop_when::if_all_zero(ns20);
-    let e42 = expr::lam(expr::dup(&e34), expr::dup(&e41), expr::binder_meta(w21));
+    let w19 = prop_when::if_all_zero(ns20);
+    let e40 = expr::lam(expr::dup(&e30), expr::dup(&e39), expr::binder_meta(w19));
     let mut ns21: Vec<Name> = Vec::new();
     ns21.push(name::dup(&n5));
-    let w22 = prop_when::if_all_zero(ns21);
-    let e43 = expr::lam(expr::dup(&e5), expr::dup(&e42), expr::binder_meta(w22));
+    let w20 = prop_when::if_all_zero(ns21);
+    let e41 = expr::lam(expr::dup(&e32), expr::dup(&e40), expr::binder_meta(w20));
     let mut ns22: Vec<Name> = Vec::new();
     ns22.push(name::dup(&n5));
-    let w23 = prop_when::if_all_zero(ns22);
+    let w21 = prop_when::if_all_zero(ns22);
+    let e42 = expr::lam(expr::dup(&e34), expr::dup(&e41), expr::binder_meta(w21));
+    let mut ns23: Vec<Name> = Vec::new();
+    ns23.push(name::dup(&n5));
+    let w22 = prop_when::if_all_zero(ns23);
+    let e43 = expr::lam(expr::dup(&e5), expr::dup(&e42), expr::binder_meta(w22));
+    let mut ns24: Vec<Name> = Vec::new();
+    ns24.push(name::dup(&n5));
+    let w23 = prop_when::if_all_zero(ns24);
     let e44 = expr::lam(expr::dup(&e0), expr::dup(&e43), expr::binder_meta(w23));
     let rr0 = RecRule { ctor: name::dup(&n3), nfields: 1, ctor_params: 2, fire: RecRuleFire::Plain, rhs: expr::dup(&e44), k: false, eta: false, params_blind: true };
     let mut rs0: Vec<RecRule> = Vec::new();
@@ -767,12 +665,12 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     s6.push(110);
     s6.push(100);
     let n7 = name::mk_str(name::dup(&n1), s6);
-    let mut ns23: Vec<Name> = Vec::new();
-    ns23.push(name::dup(&n2));
+    let mut ns25: Vec<Name> = Vec::new();
+    ns25.push(name::dup(&n2));
     let e45 = expr::app(expr::dup(&e9), expr::dup(&e15));
     let e46 = expr::app(expr::dup(&e45), expr::dup(&e8));
-    let ns24: Vec<Name> = Vec::new();
-    let w24 = prop_when::if_all_zero(ns24);
+    let ns26: Vec<Name> = Vec::new();
+    let w24 = prop_when::if_all_zero(ns26);
     let e47 = expr::forall_e(expr::dup(&e46), expr::dup(&e38), expr::binder_meta(w24));
     let mut us2: Vec<Level> = Vec::new();
     us2.push(level::dup(&u0));
@@ -781,41 +679,41 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let e50 = expr::app(expr::dup(&e49), expr::dup(&e8));
     let e51 = expr::app(expr::dup(&e50), expr::dup(&e4));
     let e52 = expr::app(expr::dup(&e2), expr::dup(&e51));
-    let ns25: Vec<Name> = Vec::new();
-    let w25 = prop_when::if_all_zero(ns25);
+    let ns27: Vec<Name> = Vec::new();
+    let w25 = prop_when::if_all_zero(ns27);
     let e53 = expr::forall_e(expr::dup(&e8), expr::dup(&e52), expr::binder_meta(w25));
-    let ns26: Vec<Name> = Vec::new();
-    let w26 = prop_when::if_all_zero(ns26);
+    let ns28: Vec<Name> = Vec::new();
+    let w26 = prop_when::if_all_zero(ns28);
     let e54 = expr::forall_e(expr::dup(&e53), expr::dup(&e47), expr::binder_meta(w26));
     let e55 = expr::app(expr::dup(&e9), expr::dup(&e2));
     let e56 = expr::app(expr::dup(&e55), expr::dup(&e4));
     let w27 = prop_when::never();
     let e57 = expr::forall_e(expr::dup(&e56), expr::dup(&e1), expr::binder_meta(w27));
-    let ns27: Vec<Name> = Vec::new();
-    let w28 = prop_when::if_all_zero(ns27);
-    let e58 = expr::forall_e(expr::dup(&e57), expr::dup(&e54), expr::binder_meta(w28));
-    let ns28: Vec<Name> = Vec::new();
-    let w29 = prop_when::if_all_zero(ns28);
-    let e59 = expr::forall_e(expr::dup(&e5), expr::dup(&e58), expr::binder_meta(w29));
     let ns29: Vec<Name> = Vec::new();
-    let w30 = prop_when::if_all_zero(ns29);
-    let e60 = expr::forall_e(expr::dup(&e0), expr::dup(&e59), expr::binder_meta(w30));
-    let cv3 = ConstantVal { name: name::dup(&n7), level_params: ns23, ty: expr::dup(&e60) };
-    let e61 = expr::app(expr::dup(&e2), expr::dup(&e4));
+    let w28 = prop_when::if_all_zero(ns29);
+    let e58 = expr::forall_e(expr::dup(&e57), expr::dup(&e54), expr::binder_meta(w28));
     let ns30: Vec<Name> = Vec::new();
-    let w31 = prop_when::if_all_zero(ns30);
-    let e62 = expr::lam(expr::dup(&e15), expr::dup(&e61), expr::binder_meta(w31));
+    let w29 = prop_when::if_all_zero(ns30);
+    let e59 = expr::forall_e(expr::dup(&e5), expr::dup(&e58), expr::binder_meta(w29));
     let ns31: Vec<Name> = Vec::new();
-    let w32 = prop_when::if_all_zero(ns31);
-    let e63 = expr::lam(expr::dup(&e53), expr::dup(&e62), expr::binder_meta(w32));
+    let w30 = prop_when::if_all_zero(ns31);
+    let e60 = expr::forall_e(expr::dup(&e0), expr::dup(&e59), expr::binder_meta(w30));
+    let cv3 = ConstantVal { name: name::dup(&n7), level_params: ns25, ty: expr::dup(&e60) };
+    let e61 = expr::app(expr::dup(&e2), expr::dup(&e4));
     let ns32: Vec<Name> = Vec::new();
-    let w33 = prop_when::if_all_zero(ns32);
-    let e64 = expr::lam(expr::dup(&e57), expr::dup(&e63), expr::binder_meta(w33));
+    let w31 = prop_when::if_all_zero(ns32);
+    let e62 = expr::lam(expr::dup(&e15), expr::dup(&e61), expr::binder_meta(w31));
     let ns33: Vec<Name> = Vec::new();
-    let w34 = prop_when::if_all_zero(ns33);
-    let e65 = expr::lam(expr::dup(&e5), expr::dup(&e64), expr::binder_meta(w34));
+    let w32 = prop_when::if_all_zero(ns33);
+    let e63 = expr::lam(expr::dup(&e53), expr::dup(&e62), expr::binder_meta(w32));
     let ns34: Vec<Name> = Vec::new();
-    let w35 = prop_when::if_all_zero(ns34);
+    let w33 = prop_when::if_all_zero(ns34);
+    let e64 = expr::lam(expr::dup(&e57), expr::dup(&e63), expr::binder_meta(w33));
+    let ns35: Vec<Name> = Vec::new();
+    let w34 = prop_when::if_all_zero(ns35);
+    let e65 = expr::lam(expr::dup(&e5), expr::dup(&e64), expr::binder_meta(w34));
+    let ns36: Vec<Name> = Vec::new();
+    let w35 = prop_when::if_all_zero(ns36);
     let e66 = expr::lam(expr::dup(&e0), expr::dup(&e65), expr::binder_meta(w35));
     let rr1 = RecRule { ctor: name::dup(&n3), nfields: 1, ctor_params: 2, fire: RecRuleFire::Plain, rhs: expr::dup(&e66), k: false, eta: false, params_blind: true };
     let mut rs1: Vec<RecRule> = Vec::new();
@@ -828,8 +726,8 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     s7.push(110);
     s7.push(100);
     let n8 = name::mk_str(name::dup(&n1), s7);
-    let mut ns35: Vec<Name> = Vec::new();
-    ns35.push(name::dup(&n2));
+    let mut ns37: Vec<Name> = Vec::new();
+    ns37.push(name::dup(&n2));
     let e67 = expr::app(expr::dup(&e48), expr::dup(&e16));
     let e68 = expr::app(expr::dup(&e67), expr::dup(&e15));
     let e69 = expr::app(expr::dup(&e68), expr::dup(&e2));
@@ -842,22 +740,22 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let e74 = expr::app(expr::dup(&e73), expr::dup(&e69));
     let e75 = expr::app(expr::dup(&e8), expr::dup(&e2));
     let e76 = expr::app(expr::dup(&e75), expr::dup(&e4));
-    let ns36: Vec<Name> = Vec::new();
-    let w36 = prop_when::if_all_zero(ns36);
-    let e77 = expr::forall_e(expr::dup(&e76), expr::dup(&e74), expr::binder_meta(w36));
-    let ns37: Vec<Name> = Vec::new();
-    let w37 = prop_when::if_all_zero(ns37);
-    let e78 = expr::forall_e(expr::dup(&e8), expr::dup(&e77), expr::binder_meta(w37));
     let ns38: Vec<Name> = Vec::new();
-    let w38 = prop_when::if_all_zero(ns38);
-    let e79 = expr::forall_e(expr::dup(&e2), expr::dup(&e78), expr::binder_meta(w38));
+    let w36 = prop_when::if_all_zero(ns38);
+    let e77 = expr::forall_e(expr::dup(&e76), expr::dup(&e74), expr::binder_meta(w36));
     let ns39: Vec<Name> = Vec::new();
-    let w39 = prop_when::if_all_zero(ns39);
-    let e80 = expr::forall_e(expr::dup(&e5), expr::dup(&e79), expr::binder_meta(w39));
+    let w37 = prop_when::if_all_zero(ns39);
+    let e78 = expr::forall_e(expr::dup(&e8), expr::dup(&e77), expr::binder_meta(w37));
     let ns40: Vec<Name> = Vec::new();
-    let w40 = prop_when::if_all_zero(ns40);
+    let w38 = prop_when::if_all_zero(ns40);
+    let e79 = expr::forall_e(expr::dup(&e2), expr::dup(&e78), expr::binder_meta(w38));
+    let ns41: Vec<Name> = Vec::new();
+    let w39 = prop_when::if_all_zero(ns41);
+    let e80 = expr::forall_e(expr::dup(&e5), expr::dup(&e79), expr::binder_meta(w39));
+    let ns42: Vec<Name> = Vec::new();
+    let w40 = prop_when::if_all_zero(ns42);
     let e81 = expr::forall_e(expr::dup(&e0), expr::dup(&e80), expr::binder_meta(w40));
-    let cv4 = ConstantVal { name: name::dup(&n8), level_params: ns35, ty: expr::dup(&e81) };
+    let cv4 = ConstantVal { name: name::dup(&n8), level_params: ns37, ty: expr::dup(&e81) };
     let ci4 = ConstantInfo::AxiomInfo(cv4);
     let mut out0: Vec<ConstantInfo> = Vec::new();
     out0.push(ci0);
@@ -873,7 +771,6 @@ pub fn basis_decls_a(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
         BasisKind::EqK => basis_decls_eq(),
         BasisKind::NatK => basis_decls_nat(),
-        BasisKind::PunitK => basis_decls_punit(),
         BasisKind::EmptyK => basis_decls_empty(),
         BasisKind::FalseK => basis_decls_false(),
         BasisKind::QuotK => basis_decls_quot(),

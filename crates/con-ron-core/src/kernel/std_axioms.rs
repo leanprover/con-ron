@@ -382,17 +382,6 @@ pub fn iff_rec_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:241-243 iffFamily
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove std_axioms::iff_family_refines, then delete this line
-/// The raw `Iff` family, as an export carries it (dependency order).
-pub fn iff_family() -> Vec<ConstantInfo> {
-    let mut fam: Vec<ConstantInfo> = Vec::new();
-    fam.push(iff_raw());
-    fam.push(iff_intro_raw());
-    fam.push(iff_rec_raw());
-    fam
-}
-
 /// con-leche: none — the level list `[.succ .zero]` the pinned `Eq` carries
 /// Lean writes it inline; a `Vec` literal needs a push (task #18's point 10).
 pub fn one_level() -> Vec<Level> {
@@ -532,17 +521,6 @@ pub fn nonempty_rec_raw() -> ConstantInfo {
         3,
         Vec::new(),
     )
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:280-282 nonemptyFamily
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove std_axioms::nonempty_family_refines, then delete this line
-/// The raw `Nonempty` family.
-pub fn nonempty_family() -> Vec<ConstantInfo> {
-    let mut fam: Vec<ConstantInfo> = Vec::new();
-    fam.push(nonempty_raw());
-    fam.push(nonempty_intro_raw());
-    fam.push(nonempty_rec_raw());
-    fam
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
@@ -802,8 +780,6 @@ mod tests {
     /// pattern is part of the pin.
     #[test]
     fn the_pinned_families_and_their_arities() {
-        assert_eq!(std_axioms::iff_family().len(), 3);
-        assert_eq!(std_axioms::nonempty_family().len(), 3);
         // `Iff.intro` and `Iff.rec` are children of `Iff`
         assert!(name::beq(
             &std_axioms::iff_intro_name(),

@@ -342,25 +342,21 @@ pub fn reducibility_hint_same_regular(h1: &ReducibilityHint, h2: &ReducibilityHi
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:332-335 BasisKind
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::BasisKind_refines, then delete this line
 /// The trusted basis inductives.
 pub enum BasisKind {
     EqK,
     NatK,
-    PunitK,
     EmptyK,
     FalseK,
     QuotK,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:332-335 BasisKind
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::basis_kind_dup_refines, then delete this line
 /// The copy.
 pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
     match k {
         BasisKind::EqK => BasisKind::EqK,
         BasisKind::NatK => BasisKind::NatK,
-        BasisKind::PunitK => BasisKind::PunitK,
         BasisKind::EmptyK => BasisKind::EmptyK,
         BasisKind::FalseK => BasisKind::FalseK,
         BasisKind::QuotK => BasisKind::QuotK,
@@ -368,7 +364,6 @@ pub fn basis_kind_dup(k: &BasisKind) -> BasisKind {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::IndCaps_refines, then delete this line
 /// Definitional capabilities of a stored inductive type, recorded at
 /// install.  Every field of the cited structure has a default; see
 /// `ind_caps_default`.
@@ -381,10 +376,15 @@ pub struct IndCaps {
     pub unit_params: u64,
     pub rule_k: bool,
     pub sort_z: PropWhen,
+    /// the block's members (official's `all`), itself included
+    pub all: Vec<Name>,
+    /// the family's parameter count (official's `inductive_val.nparams`)
+    pub nparams: u64,
+    /// the family's constructors, in declaration order (official's `cnstrs`)
+    pub ctors: Vec<Name>,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::ind_caps_default_refines, then delete this line
 /// The cited structure's *field defaults*, which Rust has not: `eta :=
 /// false`, `etaCtor := .anonymous`, `etaParams := etaFields := 0`,
 /// `unitlike := false`, `unitParams := 0`, `ruleK := false` and — the one
@@ -402,11 +402,13 @@ pub fn ind_caps_default() -> IndCaps {
         unit_params: 0,
         rule_k: false,
         sort_z: prop_when::if_all_zero(Vec::new()),
+        all: Vec::new(),
+        nparams: 0,
+        ctors: Vec::new(),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::ind_caps_dup_refines, then delete this line
 /// The record copy.
 pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     IndCaps {
@@ -418,6 +420,9 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
         unit_params: c.unit_params,
         rule_k: c.rule_k,
         sort_z: prop_when::dup(&c.sort_z),
+        all: prop_when::names_copy(&c.all),
+        nparams: c.nparams,
+        ctors: prop_when::names_copy(&c.ctors),
     }
 }
 
@@ -717,7 +722,6 @@ pub fn reducibility_hint_beq(a: &ReducibilityHint, b: &ReducibilityHint) -> bool
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:337-384 IndCaps
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::ind_caps_beq_refines, then delete this line
 /// Lean's `deriving DecidableEq` on `IndCaps`, componentwise — the
 /// result-sort zero-ness datum `sort_z` through `prop_when::beq`.
 pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
@@ -729,6 +733,9 @@ pub fn ind_caps_beq(a: &IndCaps, b: &IndCaps) -> bool {
                         if a.unit_params == b.unit_params {
                             if a.rule_k == b.rule_k {
                                 prop_when::beq(&a.sort_z, &b.sort_z)
+                                    && prop_when::names_beq(&a.all, &b.all)
+                                    && a.nparams == b.nparams
+                                    && prop_when::names_beq(&a.ctors, &b.ctors)
                             } else {
                                 false
                             }
@@ -795,13 +802,12 @@ pub fn proj_table_beq(a: &ProjTable, b: &ProjTable) -> bool {
 /// Lean's `deriving DecidableEq` on `ConstantInfo` — **the equality the two
 /// pinned-basis guards read** as `env.find? eqName == some eqA` and
 /// `decide (env.find? natName = some natA)`
-/// (`Kernel/StdAxioms.lean:346`, `Kernel/TrustAxioms.lean:180`,
-/// `Kernel/Checker.lean:284,528`,
-/// `Kernel/Inductives/Modeled.lean:448,493,603,653`).  Different
+/// (`Kernel/StdAxioms.lean:324`, `Kernel/TrustAxioms.lean:183,196`,
+/// `Kernel/Checker.lean:282,433`).  Different
 /// constructors are unequal; each arm is componentwise.
 ///
 /// It is a *whole-constant* comparison, not `ConstantVal.matchesPin`: the
-/// other seventeen annotated basis pins are consumed up to `Expr.erasePw`
+/// other fourteen annotated basis pins are consumed up to `Expr.erasePw`
 /// and so need no table at all (task #24's note in
 /// `std_axioms`/`trust_axioms`), while these two read the capabilities and
 /// the recursor rules too.
@@ -941,22 +947,6 @@ pub enum Declaration {
     BasisDecl(BasisKind),
     IndDecl(Vec<ConstantInfo>, u64),
     QuotDecl(QuotKind, ConstantVal),
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:643 Declaration.name
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::declaration_name_refines, then delete this line
-/// The name of a non-basis declaration (basis and inductive blocks install
-/// several, so they answer `.anonymous`).
-pub fn declaration_name(d: &Declaration) -> Name {
-    match d {
-        Declaration::AxiomDecl(v) => name::dup(&v.name),
-        Declaration::DefnDecl(v, _, _) => name::dup(&v.name),
-        Declaration::ThmDecl(v, _) => name::dup(&v.name),
-        Declaration::OpaqueDecl(v, _) => name::dup(&v.name),
-        Declaration::QuotDecl(_, v) => name::dup(&v.name),
-        Declaration::BasisDecl(_) => name::anonymous(),
-        Declaration::IndDecl(_, _) => name::anonymous(),
-    }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:656-667 Declaration.names
@@ -1156,21 +1146,6 @@ pub fn is_tower_entry(c: &ConstantInfo) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.type
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::constant_info_type_refines, then delete this line
-/// `c.toConstantVal.type`, spelled as a direct match (see `to_constant_val`).
-pub fn constant_info_type(c: &ConstantInfo) -> Expr {
-    match c {
-        ConstantInfo::AxiomInfo(v) => expr::dup(&v.ty),
-        ConstantInfo::DefnInfo(v, _, _) => expr::dup(&v.ty),
-        ConstantInfo::ThmInfo(v, _) => expr::dup(&v.ty),
-        ConstantInfo::IndInfo(v, _) => expr::dup(&v.ty),
-        ConstantInfo::CtorInfo(v, _, _) => expr::dup(&v.ty),
-        ConstantInfo::RecInfo(v, _, _, _) => expr::dup(&v.ty),
-        ConstantInfo::ProjInfo(_) => expr::sort(level::succ(level::zero())),
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The environment (`Env.lean:627-645`)
 // ---------------------------------------------------------------------------
@@ -1310,71 +1285,6 @@ pub fn find_proj(env: &Env, t: &Name, i: u64) -> Option<ProjEntry> {
 // ---------------------------------------------------------------------------
 // The block's recursor suffix, decided on the tags (`Env.lean:666-675`)
 // ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo.isRecInfo
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::is_rec_info_refines, then delete this line
-/// Is this member a recursor record?
-pub fn is_rec_info(c: &ConstantInfo) -> bool {
-    match c {
-        ConstantInfo::RecInfo(_, _, _, _) => true,
-        ConstantInfo::AxiomInfo(_) => false,
-        ConstantInfo::DefnInfo(_, _, _) => false,
-        ConstantInfo::ThmInfo(_, _) => false,
-        ConstantInfo::IndInfo(_, _) => false,
-        ConstantInfo::CtorInfo(_, _, _) => false,
-        ConstantInfo::ProjInfo(_) => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:721-725 recsFormSuffix
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::recs_form_suffix_refines, then delete this line
-/// Do the recursors form a suffix of the block?  The tag pass — one pass, no
-/// expression compared, which is the whole point of the cited function (the
-/// derived `DecidableEq (List ConstantInfo)` compares DAG-shared towers as
-/// trees and exhausts memory).
-pub fn recs_form_suffix(block: &Vec<ConstantInfo>) -> bool {
-    recs_form_suffix_from(block, 0)
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:721-725 recsFormSuffix
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::recs_form_suffix_from_refines, then delete this line
-/// The index recursion the cited `List` recursion becomes; the inner
-/// `rest.all ConstantInfo.isRecInfo` is `all_rec_info_from`.
-pub fn recs_form_suffix_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
-    if i >= block.len() {
-        true
-    } else if is_rec_info(&block[i]) {
-        all_rec_info_from(block, i + 1)
-    } else {
-        recs_form_suffix_from(block, i + 1)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:721-725 recsFormSuffix
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::all_rec_info_from_refines, then delete this line
-/// The cited `rest.all ConstantInfo.isRecInfo`, as an index recursion.
-pub fn all_rec_info_from(block: &Vec<ConstantInfo>, i: usize) -> bool {
-    if i >= block.len() {
-        true
-    } else if is_rec_info(&block[i]) {
-        all_rec_info_from(block, i + 1)
-    } else {
-        false
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:786-792 blockRecSuffixDec
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::block_rec_suffix_ok_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Env.lean:720-725 recsFormSuffix
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove env::block_rec_suffix_ok_refines, then delete this line
-/// The substituted decision behind `@decide _ (blockRecSuffixDec block)`: the
-/// recursors form a suffix of the block.  `recsFormSuffix_iff` is the cited
-/// equivalence that licenses deciding it by the tag pass instead of by the
-/// derived `DecidableEq (List ConstantInfo)`, which would compare DAG-shared
-/// towers as trees.
-pub fn block_rec_suffix_ok(block: &Vec<ConstantInfo>) -> bool {
-    recs_form_suffix(block)
-}
 
 #[cfg(test)]
 mod tests {
@@ -1520,10 +1430,6 @@ mod tests {
             &env::constant_info_name(&ci),
             &env::to_constant_val(&ci).name
         ));
-        assert!(expr::beq(
-            &env::constant_info_type(&ci),
-            &env::to_constant_val(&ci).ty
-        ));
         assert!(!env::is_tower_entry(&ci));
     }
 
@@ -1567,17 +1473,6 @@ mod tests {
     }
 
     #[test]
-    fn recs_form_suffix_on_tags() {
-        let rec = |n: &str| ConstantInfo::RecInfo(cv(n), 0, 0, Vec::new());
-        let ind = |n: &str| ConstantInfo::IndInfo(cv(n), env::ind_caps_default());
-        assert!(env::recs_form_suffix(&Vec::new()));
-        assert!(env::recs_form_suffix(&vec![ind("A"), rec("A.rec")]));
-        assert!(env::recs_form_suffix(&vec![rec("A.rec"), rec("B.rec")]));
-        assert!(!env::recs_form_suffix(&vec![rec("A.rec"), ind("B")]));
-        assert!(env::recs_form_suffix(&vec![ind("A"), ind("B")]));
-    }
-
-    #[test]
     fn dups_are_faithful() {
         let ci = ConstantInfo::RecInfo(
             cv("R"),
@@ -1611,10 +1506,6 @@ mod tests {
         let caps2 = env::ind_caps_dup(&caps);
         assert!(prop_when::beq(&caps.sort_z, &caps2.sort_z));
         // the remaining copies
-        let d = env::Declaration::BasisDecl(BasisKind::NatK);
-        assert!(name::beq(&env::declaration_name(&d), &name::anonymous()));
-        let d2 = env::Declaration::ThmDecl(cv("t"), expr::bvar(0));
-        assert!(name::beq(&env::declaration_name(&d2), &nm("t")));
         let e = env::env_of(&vec![ConstantInfo::AxiomInfo(cv("x"))]);
         assert_eq!(env::env_dup(&e).consts.len(), 1);
         assert!(matches!(

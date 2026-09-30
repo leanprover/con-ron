@@ -29,17 +29,8 @@ ConLeche/Kernel/TrustAxioms.lean trustPinEnv The private environment `#annotate_
 # Proof-tier and mode-gated variants of bodies the port has once (§3.1)
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/CoreGated.lean * The gated (proof-tier) variants of `Kernel/Core.lean`'s bodies and knot: not executed by the shipped path, and the port has one knot, the cached one (`cached::core_c`).
-ConLeche/Kernel/CheckerGated.lean * The gated `CheckerOps` instantiations (`fueledOpsGated`, `pureOpsGated`): the proof tier's variants of `fueledOps`/`pureOps`, which `kernel::type_checker` has once.
 ConLeche/Kernel/CoreIO.lean * The io-grade knot variant: the port's `infer_at_i` carries the io grade as a runtime flag (task #18's deviation 4), so `coreKnotIO`/`pureFnsIO`/`inferTypeCoreIO` have no second spelling.
 ConLeche/Kernel/TypeChecker.lean pureFns The PURE knot at `CheckM`; §3.1 gives the port one knot — the cached one it executes (`cached::core_c`) — and `kernel/type_checker.rs`'s module note records the deviation, with every refinement lemma stated against `coreKnotI`.
-ConLeche/Cached/CoreC.lean whnfCoreBodyPC One cached body instantiated at a literal `CheckMode`; the port's mode is a runtime `&CheckMode` parameter, so `whnf_core_body_i(&CheckMode::Verified, …)` IS this definition (`cached/core_c.rs`'s closing note).
-ConLeche/Cached/CoreC.lean inferBodyPC As `whnfCoreBodyPC`: `infer_body_i` at `CheckMode::Verified`.
-ConLeche/Cached/CoreC.lean defeqBodyPC As `whnfCoreBodyPC`: `defeq_body_i` at `CheckMode::Verified`.
-ConLeche/Cached/CoreC.lean annotateBodyPC As `whnfCoreBodyPC`: `annotate_body_i`, which reads no mode at all (hence no `TC` sibling).
-ConLeche/Cached/CoreC.lean whnfCoreBodyTC As `whnfCoreBodyPC`: `whnf_core_body_i` at `CheckMode::Trusted`.
-ConLeche/Cached/CoreC.lean inferBodyTC As `whnfCoreBodyPC`: `infer_body_i` at `CheckMode::Trusted`.
-ConLeche/Cached/CoreC.lean defeqBodyTC As `whnfCoreBodyPC`: `defeq_body_i` at `CheckMode::Trusted`.
 
 # ---------------------------------------------------------------------------
 # `Prop`s and proof-carrying apparatus: Rust has no `Prop` (§3.5)
@@ -58,16 +49,13 @@ ConLeche/Kernel/ExprOps.lean Inst1LMemoInv A `Prop`-valued memo invariant, as `I
 ConLeche/Kernel/ExprOps.lean ILPMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/Level.lean LPMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/DeclCheck.lean CRFMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/Inductives/NativeInstall.lean MentionsFvarMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/StructParts.lean LooseBVarMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/StructParts.lean MentionsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/PropWhen.lean casesZ The registered `cases`/`induction` eliminator of `PropWhen` — an elaboration-time device for writing proofs against the two-constructor view, with no run-time content.
 ConLeche/Cached/Installed.lean InstallRun Phase A's accepting run, an `inductive … : Prop`; the parallel driver's evidence plumbing (`cached/installed.rs`'s module note), whose verdict is `check_pending_list`, which IS ported.
 ConLeche/Cached/Installed.lean InstalledEnv A structure indexed by an `InstallRun` proof; evidence plumbing, as `InstallRun`.
-ConLeche/Cached/Installed.lean InstalledEnv.env The `.env` projection of that proof-carrying structure.
 ConLeche/Cached/Installed.lean GroupChecked "Record `i` has been checked", a `Prop`; evidence plumbing, as `InstallRun`.
 ConLeche/Cached/Installed.lean FullyChecked A subtype over `GroupChecked`; evidence plumbing, as `InstallRun`.
-ConLeche/Cached/Installed.lean FullyChecked.assemble Builds that subtype from the proofs; evidence plumbing, as `InstallRun`.
 ConLeche/Cached/Installed.lean FullyChecked.env The `.env` projection of that subtype.
 ConLeche/Cached/Installed.lean checkRecord Runs `checkPending` and throws its value away for a `PLift (GroupChecked …)`; the ported `check_pending` is the whole run-time content.
 ConLeche/Cached/Installed.lean CheckedRecord `{ k : Nat // GroupChecked … }` — a `Nat` at run time, a proof at compile time; evidence plumbing, as `InstallRun`.
@@ -214,3 +202,38 @@ ConLeche/Cached/StateC.lean constsResolveFP The plain descent `constsResolveFXP`
 ConLeche/Cached/StateC.lean enterCRF The child step of `constsResolveFXP`; as `enter1P`, through `expr_ops_c::memo_skip`.
 ConLeche/Kernel/Exclusive.lean withExclusiveUnsafe The `@[implemented_by]` half of `withExclusive`: `k (isExclusiveUnsafe a)`, Lean's own `unsafe` count read.  The port's `ron::node::is_exclusive` IS that read, and it cites `withExclusive`, the logical half.
 ConLeche/Kernel/Exclusive.lean withExcl `withExclusive` into a subsingleton, so that the obligation `k true = k false` is `Subsingleton.elim`.  The port has no obligation to discharge: `is_exclusive` is an external hole modelled `ok false`, and OVERVIEW §8.1's row is what stands where the obligation stands here.
+
+# ---------------------------------------------------------------------------
+# The uniform inductive route (task #105, con-leche 445b9cf4)
+# ---------------------------------------------------------------------------
+
+ConLeche/Kernel/Inductives/FieldTele.lean RecFieldKind The field-kind datum of the positivity function's specification; nothing executed outside `FieldTele.lean` reads it (the executed walk classifies with `NestFieldKind`, `positivity.rs`).
+ConLeche/Kernel/Inductives/FieldTele.lean recIdxOf A reading of `RecFieldKind` lists for the specification; no executed caller.
+ConLeche/Kernel/Inductives/FieldTele.lean Expr.mkPisOf The inverse of `piBinders`, stated for the specification's round-trip lemmas; no executed caller.
+ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvar The specification of the variable-occurrence test; no executed caller outside `FieldTele.lean` (the positivity walk's occurrence tests are `mentionsAny`/`nestOcc`, `positivity.rs`).
+ConLeche/Kernel/Inductives/FieldTele.lean MentionsFvarMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
+ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvarIns The memo insert of that unexecuted walk.
+ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvarGo The memoised walk of that unexecuted test.
+ConLeche/Kernel/Inductives/FieldTele.lean Expr.mentionsFvarFast The entry of that unexecuted walk.
+ConLeche/Kernel/Inductives/Positivity.lean MentionsAnyMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
+ConLeche/Kernel/Inductives/Positivity.lean NestOccMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
+ConLeche/Kernel/Inductives/Positivity.lean ReplaceFVarsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
+ConLeche/Kernel/Inductives/Positivity.lean ReplaceAppsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
+ConLeche/Kernel/Inductives/Positivity.lean NestedPositivity The `Prop`-valued specification of nested positivity that `nestPos` decides; no run-time content.
+ConLeche/Kernel/Inductives/Positivity.lean nestedBlockPositivity The specification's block-level reading of `NestedPositivity`; the executed test is `checkBlockPositivity` (`block_install.rs`), which is ported.
+ConLeche/Kernel/Inductives/BlockParts.lean offs A constructor-offset reading of `BlockShape` for the proofs; no executed caller.
+ConLeche/Kernel/Inductives/BlockParts.lean recTgtAt A recursor-to-target reading of `BlockShape` for the proofs; no executed caller.
+ConLeche/Kernel/Inductives/BlockInstall.lean consBlockRecs The pure-knot spelling of the recursors' cons; the port has one fold, the cached one, whose cons is `consBlockRecsT` (`rec_check::cons_block_recs_t`).
+ConLeche/Kernel/Inductives/BlockInstall.lean openPisParamsIdx A `Prop`-side index reading of the parameter opening, used only by the Verify tier.
+ConLeche/Kernel/Inductives/BlockInstallF.lean consBlockRecsF As `consBlockRecs`: the `FEnv` spelling of the same cons, which the port writes once as `cons_block_recs_t`.
+ConLeche/Kernel/Inductives/BlockInstallF.lean blockRecInfosF The `ConstantInfo` list `consBlockRecsF` pushes; as `consBlockRecsF`.
+ConLeche/Kernel/Inductives/BlockInstallF.lean FEnv.pushAll The list push `consBlockRecsF` runs; the port pushes one by one in `cons_block_recs_t`.
+ConLeche/Kernel/Inductives/BlockInstallF.lean consBlockRecsFFast The fast twin of `consBlockRecsF`; as `consBlockRecsF`.
+ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps The operations record the recursor check is parameterised by; the port has one instance, the cached one (`shadowOpsC`), and calls the core entry points and `flush_caches` directly (`gen_rec.rs`'s module note).
+ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.ofOps The pure-knot instance of `ShadowOps`; as `ShadowOps`.
+ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.fueled The fueled pure instance of `ShadowOps`; as `ShadowOps`.
+ConLeche/Kernel/Inductives/RecCheck.lean TargetAbsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
+ConLeche/Kernel/Inductives/RecCheck.lean tgtRs The recursor-list format of the targets for `consBlockRecs`; the port's `cons_block_recs_t` reads the targets directly.
+ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers The walkers record `classRuleOk` is parameterised by; the port has its one instance (`structWalkersC`: `consts_resolve_f`, `struct_proj_bodies_c`) and calls it directly.
+ConLeche/Kernel/Inductives/StructInstallF.lean StructWalkers.plain The pure instance of `StructWalkers`; as `StructWalkers`.
+ConLeche/Kernel/Inductives/SumParts.lean InductiveShape A block member read as one inductive, for the proofs' statement of the recursor's shape; no executed caller.

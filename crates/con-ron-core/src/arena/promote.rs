@@ -790,11 +790,19 @@ pub fn promote_caps(
 ) -> Result<(PMemo, IIndCaps), CheckError> {
     match promote_n(tier, st, m, fuel, &c.eta_ctor) {
         Err(e) => Err(e),
-        Ok((m2, ct)) => {
-            let mut caps: IIndCaps = env::i_ind_caps_dup(c);
-            caps.eta_ctor = ct;
-            Ok((m2, caps))
-        }
+        Ok((m2, ct)) => match promote_n_list(tier, st, m2, fuel, &c.all) {
+            Err(e) => Err(e),
+            Ok((m3, all)) => match promote_n_list(tier, st, m3, fuel, &c.ctors) {
+                Err(e) => Err(e),
+                Ok((m4, ctors)) => {
+                    let mut caps: IIndCaps = env::i_ind_caps_dup(c);
+                    caps.eta_ctor = ct;
+                    caps.all = all;
+                    caps.ctors = ctors;
+                    Ok((m4, caps))
+                }
+            },
+        },
     }
 }
 

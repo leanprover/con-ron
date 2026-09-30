@@ -38,42 +38,32 @@
 //! would compare unequal to the stream's own persistent copy of it, which is
 //! the one way hash-consing can go wrong across the tier boundary.
 
-use crate::arena::basis::{basis_kind_decls, basis_kind_decls_a, basis_pin_hit, quot_pin_hit};
-use crate::arena::canon::i_constant_info_canon_eq;
-use crate::arena::checker_base::{check_constant_val, nidx_contains_from};
+use crate::arena::basis::{basis_kind_decls, basis_kind_decls_a};
+use crate::arena::checker_base::nidx_contains_from;
 use crate::arena::checker_split::{
     check_value_group, install_constant_val, install_value, ValueGroup, ValueKind,
 };
 use crate::arena::core::{
-    drop_scratch, enter_record, enter_scratch, flush_caches, leave_record, nat_div_mod_names, nat_op_deps,
-    nat_op_equations, nat_op_guard, nat_op_names, CORE_WALK_FUEL,
+    drop_scratch, enter_record, enter_scratch, flush_caches, leave_record, nat_div_mod_names, nat_op_names, CORE_WALK_FUEL,
 };
-use crate::arena::decl_check::{
-    certify_nat_eqs, check_defn_val, check_div_mod_pin, check_opaque_val, check_reduce_pin,
-    check_thm_val, defn_value, install_basis_decls, nat_op_stored_ok_all, of_reduce_ax_ok,
-    std_axiom_ok, subst_const0_pairs, trust_compiler_ok,
-};
+use crate::arena::decl_check::install_basis_decls;
 use crate::arena::env::{
-    i_constant_info_dup, i_constant_infos_dup, i_constant_val_dup, i_env_empty,
-    ifenv_restrict_to, mk_ifenv, IConstantInfo, IConstantVal, IDeclaration, IFEnv,
+    i_constant_val_dup, i_env_empty, mk_ifenv, IConstantInfo, IConstantVal, IDeclaration, IFEnv,
 };
-use crate::arena::handle::{EIdx, NIdx};
+use crate::arena::handle::EIdx;
 use crate::arena::monad::{fail, AState};
 use crate::arena::nat_op_pin_set::{intern_pin_sets, INatOpPinSet};
 use crate::arena::promote::{promote_new, promote_vg, PMemo};
-use crate::arena::std_axioms::{choice_name, propext_name};
-use crate::arena::trust_axioms::{
-    of_reduce_bool_name, of_reduce_nat_name, reduce_op_names, trust_compiler_name,
-};
+use crate::arena::trust_axioms::reduce_op_names;
 use crate::arena::pins::{pin_quot_sound, pin_sorry_ax, Pins};
 use crate::arena::env::nidx_vec_dup;
 use crate::arena::store::{EStore, ETables, LTables, LsTables, NTables};
 use crate::kernel::core_k;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env as cenv;
-use crate::kernel::env::{BasisKind, CheckMode, QuotKind, ReducibilityHint};
+use crate::kernel::env::{BasisKind, CheckMode, ReducibilityHint};
 use crate::kernel::nat_op_pins::NatOpPinSet;
-use crate::ron::hashmap::{Dup, Eq2};
+use crate::ron::hashmap::Dup;
 use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------
@@ -86,70 +76,6 @@ pub const M_QUOT_BASIS_EQ: [u32; 43] = [
     113, 117, 111, 116, 105, 101, 110, 116, 32, 98, 97, 115, 105, 115, 32, 114, 101, 113,
     117, 105, 114, 101, 115, 32, 116, 104, 101, 32, 112, 105, 110, 110, 101, 100, 32, 69,
     113, 32, 98, 97, 115, 105, 115
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"quotient soundness axiom mismatch"`, as code points.
-pub const M_QUOT_SOUND_MISMATCH: [u32; 33] = [
-    113, 117, 111, 116, 105, 101, 110, 116, 32, 115, 111, 117, 110, 100, 110, 101, 115,
-    115, 32, 97, 120, 105, 111, 109, 32, 109, 105, 115, 109, 97, 116, 99, 104
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"quotient declaration mismatch"`, as code points.
-pub const M_QUOT_DECL_MISMATCH: [u32; 29] = [
-    113, 117, 111, 116, 105, 101, 110, 116, 32, 100, 101, 99, 108, 97, 114, 97, 116, 105,
-    111, 110, 32, 109, 105, 115, 109, 97, 116, 99, 104
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"nonstandard structural Nat operation environment"`, as code points.
-pub const M_NONSTD_NAT_ENV: [u32; 48] = [
-    110, 111, 110, 115, 116, 97, 110, 100, 97, 114, 100, 32, 115, 116, 114, 117, 99, 116,
-    117, 114, 97, 108, 32, 78, 97, 116, 32, 111, 112, 101, 114, 97, 116, 105, 111, 110,
-    32, 101, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"structural Nat operation not stored"`, as code points.
-pub const M_NAT_NOT_STORED: [u32; 35] = [
-    115, 116, 114, 117, 99, 116, 117, 114, 97, 108, 32, 78, 97, 116, 32, 111, 112, 101,
-    114, 97, 116, 105, 111, 110, 32, 110, 111, 116, 32, 115, 116, 111, 114, 101, 100
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"nonstandard structural Nat operation"`, as code points.
-pub const M_NONSTD_NAT: [u32; 36] = [
-    110, 111, 110, 115, 116, 97, 110, 100, 97, 114, 100, 32, 115, 116, 114, 117, 99, 116,
-    117, 114, 97, 108, 32, 78, 97, 116, 32, 111, 112, 101, 114, 97, 116, 105, 111, 110
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"unsupported Lean.trustCompiler shape"`, as code points.
-pub const M_TRUSTCOMPILER_SHAPE: [u32; 36] = [
-    117, 110, 115, 117, 112, 112, 111, 114, 116, 101, 100, 32, 76, 101, 97, 110, 46, 116,
-    114, 117, 115, 116, 67, 111, 109, 112, 105, 108, 101, 114, 32, 115, 104, 97, 112, 101
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"unsupported compiler-trust axiom environment"`, as code points.
-pub const M_TRUST_AXIOM_ENV: [u32; 44] = [
-    117, 110, 115, 117, 112, 112, 111, 114, 116, 101, 100, 32, 99, 111, 109, 112, 105,
-    108, 101, 114, 45, 116, 114, 117, 115, 116, 32, 97, 120, 105, 111, 109, 32, 101, 110,
-    118, 105, 114, 111, 110, 109, 101, 110, 116
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"standard axiom shape mismatch"`, as code points.
-pub const M_STD_AXIOM_SHAPE: [u32; 29] = [
-    115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109, 32, 115, 104, 97,
-    112, 101, 32, 109, 105, 115, 109, 97, 116, 99, 104
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"non-standard axiom"`, as code points.
-pub const M_NONSTD_AXIOM: [u32; 18] = [
-    110, 111, 110, 45, 115, 116, 97, 110, 100, 97, 114, 100, 32, 97, 120, 105, 111, 109
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -208,642 +134,6 @@ pub fn check_basis_decl_install(
         Err(e) => Err(e),
         Ok(decls) => install_basis_decls(fe, &decls, 0),
     }
-}
-
-// ---------------------------------------------------------------------------
-// One declaration (`Checker.lean:80-192` of the twin)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — **check a
-/// single declaration, extending the environment on success.**  The twin's one
-/// `match d with` is one dispatch and seven arm functions here, so every arm
-/// stays a tail call (task #97-P4c's split rule).
-pub fn check_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe: IFEnv,
-    d: &IDeclaration,
-) -> Result<IFEnv, CheckError> {
-    match d {
-        IDeclaration::DefnDecl(cv, value, hint) => {
-            check_defn_decl(pers, st, mode, pins, fe, cv, value, hint)
-        }
-        IDeclaration::ThmDecl(cv, value) => check_thm_decl(pers, st, mode, fe, cv, value),
-        IDeclaration::OpaqueDecl(cv, value) => check_opaque_decl(pers, st, mode, fe, cv, value),
-        IDeclaration::AxiomDecl(cv) => check_axiom_decl(pers, st, mode, fe, cv),
-        IDeclaration::BasisDecl(kind) => check_basis_decl(pers, st, fe, kind),
-        IDeclaration::IndDecl(block, n_p) => check_ind_decl(pers, st, mode, fe, block, *n_p),
-        IDeclaration::QuotDecl(k, cv) => check_quot_decl(pers, st, fe, k, cv),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_defn_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.defnDecl` arm: the common constant check, the value check, then the two
-/// pinned-`Nat` gates.
-///
-/// Deviation: the twin holds `fe` (pre-insertion) and `fe2` (extended) at once;
-/// `IFEnv` has no cheap copy, so the port keeps ONE index and remembers the
-/// pre-insertion visibility bound `k_pre` —
-/// `con_ron_core::kernel::checker::check_defn_decl`'s own arrangement.
-pub fn check_defn_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe: IFEnv,
-    cv: &IConstantVal,
-    value: &EIdx,
-    hint: &ReducibilityHint,
-) -> Result<IFEnv, CheckError> {
-    let k_pre: u64 = fe.visible_below;
-    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
-        Err(e) => Err(e),
-        Ok(cv_a) => match check_defn_val(pers, st, mode, fe, &cv_a, value, hint) {
-            Err(e) => Err(e),
-            Ok(fe2) => check_defn_pins(pers, st, mode, pins, fe2, k_pre, &cv_a.name),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_defn_pins_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.defnDecl` arm's two pinned-`Nat` gates, in the twin's order.
-pub fn check_defn_pins(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe2: IFEnv,
-    k_pre: u64,
-    n: &NIdx,
-) -> Result<IFEnv, CheckError> {
-    match nat_op_names(st) {
-        Err(e) => Err(e),
-        Ok(ns) => {
-            if nidx_contains_from(&ns, 0, n) {
-                match check_structural_nat_pin(pers, st, mode, fe2, k_pre, n) {
-                    Err(e) => Err(e),
-                    Ok(fe3) => check_defn_div_mod_pin(pers, st, mode, pins, fe3, k_pre, n),
-                }
-            } else {
-                check_defn_div_mod_pin(pers, st, mode, pins, fe2, k_pre, n)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_defn_div_mod_pin_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `natDivModNames.contains` gate of the `.defnDecl` arm.
-pub fn check_defn_div_mod_pin(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe2: IFEnv,
-    k_pre: u64,
-    n: &NIdx,
-) -> Result<IFEnv, CheckError> {
-    match nat_div_mod_names(st) {
-        Err(e) => Err(e),
-        Ok(ns) => {
-            if nidx_contains_from(&ns, 0, n) {
-                check_div_mod_pin(pers, st, mode, pins, fe2, k_pre, n)
-            } else {
-                Ok(fe2)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_structural_nat_pin_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// structural-`Nat` gate: the environment guards at the EXTENDED environment,
-/// then `certifyNatEqs` at the PRE-insertion one over the equations with the
-/// operation's self-references substituted.  Certifying after insertion would
-/// let the operation's own fast path discharge its all-literal equations
-/// vacuously.
-pub fn check_structural_nat_pin(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe2: IFEnv,
-    k_pre: u64,
-    n: &NIdx,
-) -> Result<IFEnv, CheckError> {
-    match nat_op_guard(pers, fe2.visible_below, st, &fe2, n) {
-        Err(e) => Err(e),
-        Ok(g) => match nat_op_deps(st, n) {
-            Err(e) => Err(e),
-            Ok(deps) => match nat_op_stored_ok_all(pers, fe2.visible_below, st, &fe2, &deps, 0) {
-                Err(e) => Err(e),
-                Ok(d) => {
-                    if !g || !d {
-                        fail(CheckError::NotImplemented(code_points(&M_NONSTD_NAT_ENV)))
-                    } else {
-                        check_structural_nat_pin_eqs(pers, st, mode, fe2, k_pre, n)
-                    }
-                }
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_structural_nat_pin_eqs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the stored
-/// value, the equations, and their certification at the pre-insertion view.
-pub fn check_structural_nat_pin_eqs(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe2: IFEnv,
-    k_pre: u64,
-    n: &NIdx,
-) -> Result<IFEnv, CheckError> {
-    match defn_value(fe2.visible_below, &fe2, n) {
-        None => fail(CheckError::Internal(code_points(&M_NAT_NOT_STORED))),
-        Some(value2) => match nat_op_equations(pers, st, 0, n) {
-            Err(e) => Err(e),
-            Ok(eqs) => match subst_const0_pairs(pers, st, n, &value2, &eqs, 0, Vec::new()) {
-                Err(e) => Err(e),
-                Ok(seqs) => check_structural_nat_pin_certify(pers, st, mode, fe2, k_pre, &seqs),
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_structural_nat_pin_certify_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// certification itself, with the index restricted to the pre-insertion bound
-/// and handed back at the bound it came in at (the arm's standing deviation).
-pub fn check_structural_nat_pin_certify(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe2: IFEnv,
-    k_pre: u64,
-    seqs: &Vec<(EIdx, EIdx)>,
-) -> Result<IFEnv, CheckError> {
-    let k2: u64 = fe2.visible_below;
-    let fe_pre: IFEnv = ifenv_restrict_to(fe2, k_pre);
-    let r: Result<bool, CheckError> = certify_nat_eqs(pers, fe_pre.visible_below, st, mode, &fe_pre, seqs, 0);
-    let fe3: IFEnv = ifenv_restrict_to(fe_pre, k2);
-    match r {
-        Err(e) => Err(e),
-        Ok(ok) => {
-            if ok {
-                Ok(fe3)
-            } else {
-                fail(CheckError::NotImplemented(code_points(&M_NONSTD_NAT)))
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_thm_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.thmDecl` arm.
-pub fn check_thm_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    cv: &IConstantVal,
-    value: &EIdx,
-) -> Result<IFEnv, CheckError> {
-    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
-        Err(e) => Err(e),
-        Ok(cv_a) => check_thm_val(pers, st, mode, fe, &cv_a, value),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_opaque_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.opaqueDecl` arm: the opaque check, then the compiler-trust gate for
-/// `Lean.reduceNat`/`Lean.reduceBool`.
-pub fn check_opaque_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    cv: &IConstantVal,
-    value: &EIdx,
-) -> Result<IFEnv, CheckError> {
-    let k_pre: u64 = fe.visible_below;
-    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
-        Err(e) => Err(e),
-        Ok(cv_a) => match check_opaque_val(pers, st, mode, fe, &cv_a, value) {
-            Err(e) => Err(e),
-            Ok(fe2) => check_opaque_reduce_pin(pers, st, mode, fe2, k_pre, &cv_a.name, value),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_opaque_reduce_pin_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `reduceOpNames.contains` gate of the `.opaqueDecl` arm.
-pub fn check_opaque_reduce_pin(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe2: IFEnv,
-    k_pre: u64,
-    n: &NIdx,
-    value: &EIdx,
-) -> Result<IFEnv, CheckError> {
-    match reduce_op_names(st) {
-        Err(e) => Err(e),
-        Ok(ns) => {
-            if nidx_contains_from(&ns, 0, n) {
-                check_reduce_pin(pers, st, mode, fe2, k_pre, n, value)
-            } else {
-                Ok(fe2)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_axiom_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.axiomDecl` arm.  **`Quot.sound` is the pinned quotient BLOCK's own
-/// record**: the export writes it as an ordinary axiom record beside the four
-/// `#QUOT` ones, so it arrives here — compared with the pin and installing
-/// NOTHING of its own, and DECLINING when it does not match.  The comparison
-/// precedes the common checks because the name is a reserved basis name: this
-/// record IS the pinned block's, not a redeclaration of it.
-pub fn check_axiom_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    cv: &IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match pin_quot_sound(st) {
-        Err(e) => Err(e),
-        Ok(qs) => {
-            if cv.name.eq2(&qs) {
-                check_quot_sound_record(pers, st, fe, cv)
-            } else {
-                check_axiom_decl_std(pers, st, mode, fe, cv)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_quot_sound_record_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.axiomDecl` arm's `Quot.sound` test, against slot 4 of the pinned quotient
-/// block.  The twin's `blk[4]?` is the bound test; the block has exactly five
-/// members, so the `none` arm is unreachable and declines, as the twin's does.
-pub fn check_quot_sound_record(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: IFEnv,
-    cv: &IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match basis_kind_decls(pers, st, &BasisKind::QuotK) {
-        Err(e) => Err(e),
-        Ok(blk) => {
-            if blk.len() <= 4 {
-                fail(CheckError::NotImplemented(code_points(
-                    &M_QUOT_SOUND_MISMATCH,
-                )))
-            } else {
-                let pinned: IConstantInfo = i_constant_info_dup(&blk[4]);
-                let mine: IConstantInfo =
-                    IConstantInfo::AxiomInfo(i_constant_val_dup(cv));
-                match i_constant_info_canon_eq(pers, st, &mine, &pinned) {
-                    Err(e) => Err(e),
-                    Ok(r) => {
-                        if r {
-                            Ok(fe)
-                        } else {
-                            fail(CheckError::NotImplemented(code_points(
-                                &M_QUOT_SOUND_MISMATCH,
-                            )))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_axiom_decl_std_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the rest of
-/// the `.axiomDecl` arm: the two standard axioms and the `Init` compiler-trust
-/// family are INSTALLED, `sorryAx` is tolerated and installs nothing, and
-/// anything else — including a pinned NAME with a non-pinned shape — is a
-/// positive decline at its own record.
-pub fn check_axiom_decl_std(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    cv: &IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match check_constant_val(pers, fe.visible_below, st, mode, &fe, cv) {
-        Err(e) => Err(e),
-        Ok(cv_a) => match std_axiom_ok(pers, fe.visible_below, st, &fe, &cv_a) {
-            Err(e) => Err(e),
-            Ok(ok) => {
-                if ok {
-                    Ok(crate::arena::env::ifenv_push(
-                        fe,
-                        IConstantInfo::AxiomInfo(cv_a),
-                    ))
-                } else {
-                    check_axiom_decl_trust(pers, st, fe, cv_a)
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_axiom_decl_trust_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `Lean.trustCompiler` branch: `True` is trivially realizable, so the axiom is
-/// installed exactly like a checked `opaque` with witness `True.intro` over the
-/// pinned `True` family.
-pub fn check_axiom_decl_trust(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: IFEnv,
-    cv_a: IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match trust_compiler_name(st) {
-        Err(e) => Err(e),
-        Ok(tn) => {
-            if cv_a.name.eq2(&tn) {
-                match trust_compiler_ok(pers, fe.visible_below, st, &fe, &cv_a) {
-                    Err(e) => Err(e),
-                    Ok(ok) => {
-                        if ok {
-                            Ok(crate::arena::env::ifenv_push(
-                                fe,
-                                IConstantInfo::AxiomInfo(cv_a),
-                            ))
-                        } else {
-                            fail(CheckError::NotImplemented(code_points(
-                                &M_TRUSTCOMPILER_SHAPE,
-                            )))
-                        }
-                    }
-                }
-            } else {
-                check_axiom_decl_of_reduce(pers, st, fe, cv_a)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_axiom_decl_of_reduce_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the pinned
-/// `ofReduce*` axioms: over the pinned `Eq` basis, the element inductive and
-/// the identity-certified reduce opaque, `∀ a b, reduce a = b → a = b`
-/// interprets to an inhabited proposition.
-pub fn check_axiom_decl_of_reduce(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: IFEnv,
-    cv_a: IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match of_reduce_nat_name(st) {
-        Err(e) => Err(e),
-        Ok(on) => match of_reduce_bool_name(st) {
-            Err(e) => Err(e),
-            Ok(ob) => {
-                if cv_a.name.eq2(&on) || cv_a.name.eq2(&ob) {
-                    match of_reduce_ax_ok(pers, fe.visible_below, st, &fe, &cv_a) {
-                        Err(e) => Err(e),
-                        Ok(ok) => {
-                            if ok {
-                                Ok(crate::arena::env::ifenv_push(
-                                    fe,
-                                    IConstantInfo::AxiomInfo(cv_a),
-                                ))
-                            } else {
-                                fail(CheckError::NotImplemented(code_points(
-                                    &M_TRUST_AXIOM_ENV,
-                                )))
-                            }
-                        }
-                    }
-                } else {
-                    check_axiom_decl_rest(st, fe, cv_a)
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_axiom_decl_rest_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the last
-/// three tests: a pinned standard-axiom NAME whose shape did not match
-/// declines under its own message, `sorryAx` is tolerated as a DECLARATION and
-/// installs nothing (a USE of it declines at the record that uses it), and
-/// every other axiom is a positive decline.
-pub fn check_axiom_decl_rest(
-    st: &mut AState,
-    fe: IFEnv,
-    cv_a: IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match propext_name(st) {
-        Err(e) => Err(e),
-        Ok(pn) => match choice_name(st) {
-            Err(e) => Err(e),
-            Ok(cn) => {
-                if cv_a.name.eq2(&pn) || cv_a.name.eq2(&cn) {
-                    fail(CheckError::NotImplemented(code_points(&M_STD_AXIOM_SHAPE)))
-                } else {
-                    match pin_sorry_ax(st) {
-                        Err(e) => Err(e),
-                        Ok(sa) => {
-                            if cv_a.name.eq2(&sa) {
-                                Ok(fe)
-                            } else {
-                                fail(CheckError::NotImplemented(code_points(
-                                    &M_NONSTD_AXIOM,
-                                )))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_ind_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — the
-/// `.indDecl` arm.  **THE PINNED BASIS BLOCKS FIRST**: a stream's `Nat` block
-/// arrives as an ordinary inductive block and is recognised HERE; a block under
-/// a pinned name that does NOT match falls through to the ordinary route, where
-/// `check_constant_val`'s reserved-name check REJECTS it.  The route itself is
-/// `arena::inductives`' seam (task #97-P4d part 2).
-pub fn check_ind_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    block: &Vec<IConstantInfo>,
-    n_p: u64,
-) -> Result<IFEnv, CheckError> {
-    match basis_pin_hit(pers, st, block) {
-        Err(e) => Err(e),
-        Ok(Some(kind)) => check_basis_decl(pers, st, fe, &kind),
-        Ok(None) => crate::arena::inductives::check_ind_decl(
-            pers,
-            cenv::check_mode_dup(mode),
-            fe,
-            i_constant_infos_dup(block),
-            n_p,
-            st,
-        ),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::check_quot_decl_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:93-213 checkDecl` — **the
-/// quotient package**: the export writes it as four records; each is compared
-/// with the pinned block's constant at its own kind, and the FIRST that matches
-/// installs the pinned block whole.
-pub fn check_quot_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: IFEnv,
-    k: &QuotKind,
-    cv: &IConstantVal,
-) -> Result<IFEnv, CheckError> {
-    match quot_pin_hit(pers, st, k, cv) {
-        Err(e) => Err(e),
-        Ok(hit) => {
-            if hit {
-                match k {
-                    QuotKind::Type => check_basis_decl(pers, st, fe, &BasisKind::QuotK),
-                    _ => Ok(fe),
-                }
-            } else {
-                match k {
-                    QuotKind::Sound => fail(CheckError::NotImplemented(code_points(
-                        &M_QUOT_SOUND_MISMATCH,
-                    ))),
-                    _ => fail(CheckError::NotImplemented(code_points(
-                        &M_QUOT_DECL_MISMATCH,
-                    ))),
-                }
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// The theorem's fold (`Checker.lean:194-208` of the twin)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:215-235 checkDeclStep` — **one
-/// step of the pure fold, bracketed**: `check_decl` inside the per-declaration
-/// scratch tier, with the constants it installed promoted before the tier
-/// goes.
-///
-/// The bracket is `annot_step`'s, letter for letter — one `check_decl` where
-/// phase A has an install half, and no `ValueGroup` because the pure fold
-/// checks what it installs in the same step.  DESIGN.md §8.3's amendment (task
-/// #97-P6-2) puts it here too, so that **the two folds stay one algorithm**:
-/// the tier regime is not an optimisation of the driver's fold that the
-/// theorem's fold may do without, it is where every term the checker builds
-/// lives, and a Theorem-1 statement about a fold with no tiers would say
-/// nothing about the fold the binary runs.
-pub fn check_decl_step(
-    _pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe: IFEnv,
-    d: &IDeclaration,
-) -> Result<IFEnv, CheckError> {
-    let vis: u64 = fe.visible_below;
-    flush_caches(st);
-    let mut tier: PersTier = enter_scratch(st);
-    match check_decl(&tier, st, mode, pins, fe, d) {
-        Err(e) => {
-            drop_scratch(st, tier);
-            Err(e)
-        }
-        Ok(fe2) => {
-            let k: u64 = fe2.visible_below - vis;
-            match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
-                Err(e) => {
-                    drop_scratch(st, tier);
-                    Err(e)
-                }
-                Ok((_, fe3)) => {
-                    drop_scratch(st, tier);
-                    Ok(fe3)
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:237-246 checkDeclsPureGo` — the
-/// cited `foldlM` as an index recursion threading the index by value (§3.4
-/// forbids the closure).  The step is the bracketed one.
-pub fn check_decls_pure_go(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    fe: IFEnv,
-    ds: &Vec<IDeclaration>,
-    i: usize,
-) -> Result<IFEnv, CheckError> {
-    if i >= ds.len() {
-        Ok(fe)
-    } else {
-        match check_decl_step(pers, st, mode, pins, fe, &ds[i]) {
-            Err(e) => Err(e),
-            Ok(fe2) => check_decls_pure_go(pers, st, mode, pins, fe2, ds, i + 1),
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckDecl.lean:216-220 checkDeclsPure
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:248-252 checkDeclsPure` — the
-/// fold from the empty environment.  THE THEOREM'S SHAPE (module note): one
-/// step per record, install and check together, each step bracketed.
-pub fn check_decls_pure(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    pins: &Vec<INatOpPinSet>,
-    ds: &Vec<IDeclaration>,
-) -> Result<IFEnv, CheckError> {
-    check_decls_pure_go(pers, st, mode, pins, mk_ifenv(i_env_empty()), ds, 0)
 }
 
 // ---------------------------------------------------------------------------
@@ -1183,7 +473,7 @@ pub fn annot_step_other(
     fe: IFEnv,
     pd: &IDeclaration,
 ) -> Result<(IFEnv, Option<ValueGroup>), CheckError> {
-    match check_decl(pers, st, mode, pins, fe, pd) {
+    match crate::arena::check_decl::check_decl(pers, st, mode, pins, fe, pd) {
         Err(e) => Err(e),
         Ok(fe2) => Ok((fe2, None)),
     }
@@ -1478,7 +768,6 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: Main.lean:263-279 checkWorker
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:37-44 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
@@ -1590,13 +879,12 @@ pub fn cp_append(out: Vec<u32>, s: &Vec<u32>, i: usize) -> Vec<u32> {
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::intern_all_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — **the
 /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
 /// a stream record against, interned into the tier that is live at the call —
 /// which, at the driver's call, is the persistent one.
 ///
-/// The six basis blocks in both forms (the RAW ones `basis_pin_hit` and
+/// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
 /// `quot_pin_hit` compare against, the ANNOTATED ones `check_basis_decl`
 /// installs), the standard and compiler-trust axiom pins, the reserved names
 /// the guards compare by handle, and the `Nat`-operation pin variants, whose
@@ -1619,8 +907,7 @@ pub fn intern_all_pins(
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::intern_all_basis_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the six
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the five
 /// basis blocks in both forms, as a cursor over
 /// `con_ron_core::kernel::basis_raw::block_pin_kinds` plus `quotK` (the twin
 /// spells the twelve calls out).
@@ -1640,14 +927,12 @@ pub fn intern_all_basis(pers: &PersTier, st: &mut AState, i: usize) -> Result<()
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove checker::all_basis_kinds_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the six
+/// Lean twin: `proof/ConRon/Arena/Checker.lean:472-508 internAllPins` — the five
 /// kinds the startup walk interns, in the twin's order.
 pub fn all_basis_kinds() -> Vec<BasisKind> {
-    let mut ks: Vec<BasisKind> = Vec::with_capacity(6);
+    let mut ks: Vec<BasisKind> = Vec::with_capacity(5);
     ks.push(BasisKind::EqK);
     ks.push(BasisKind::NatK);
-    ks.push(BasisKind::PunitK);
     ks.push(BasisKind::EmptyK);
     ks.push(BasisKind::FalseK);
     ks.push(BasisKind::QuotK);
@@ -1788,6 +1073,8 @@ mod tests {
     use crate::arena::intern::{intern_ci_list, intern_cv};
     use crate::arena::std_axioms::i_constant_val_matches_pin;
     use crate::arena::store::EStore;
+    use crate::arena::basis::basis_pin_hit;
+    use crate::arena::check_decl::M_NONSTD_AXIOM;
     use crate::kernel::basis_names;
     use crate::kernel::basis_raw;
     use crate::kernel::canon as ccanon;
@@ -2039,12 +1326,11 @@ mod tests {
         }
     }
 
-    /// The six-constructor enum's equality, which `kernel::env` does not carry.
+    /// The five-constructor enum's equality, which `kernel::env` does not carry.
     fn basis_kind_beq(a: &BasisKind, b: &BasisKind) -> bool {
         match (a, b) {
             (BasisKind::EqK, BasisKind::EqK) => true,
             (BasisKind::NatK, BasisKind::NatK) => true,
-            (BasisKind::PunitK, BasisKind::PunitK) => true,
             (BasisKind::EmptyK, BasisKind::EmptyK) => true,
             (BasisKind::FalseK, BasisKind::FalseK) => true,
             (BasisKind::QuotK, BasisKind::QuotK) => true,
@@ -2056,7 +1342,6 @@ mod tests {
     fn basis_pin_hit_agrees() {
         assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::NatK)));
         assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::EqK)));
-        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::PunitK)));
         assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::QuotK)));
         assert!(chk_basis_pin_hit(&Vec::new()));
     }

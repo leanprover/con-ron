@@ -1,10 +1,10 @@
-//! `arena::inductives::sum_install` — the direct install's stages.
+//! `arena::inductives::sum_install` — the block install's shared stages.
 //!
 //! The Rust twin of `proof/ConRon/Arena/Inductives/SumInstall.lean`, which is
 //! `ConLeche/Kernel/Inductives/SumInstall.lean` whole over handles: official's
-//! telescope loop, the type former's stage, the per-field universe bound,
-//! official's positivity walk as a normalisation, the constructors' stage and
-//! the stored rules.
+//! telescope loop, the type former's telescope, the per-field universe bound,
+//! the constructors' stage (every constructor stored AS DECLARED) and the
+//! stored rules.
 //!
 //! ## The twin's deviations
 //!
@@ -16,28 +16,22 @@
 //! * **`sumRules` takes `fe : IFEnv`, not `find?`**: con-leche abstracts the
 //!   lookup so that the pure and the indexed tier share one body; the arena has
 //!   one environment, and a `find?` passed as an argument is a closure.
-//! * **`checkSumInd` takes `isRec : bool`, not `capsOf : InductiveShape →
-//!   IndCaps`.**  A function argument is a closure and there is exactly ONE
-//!   instantiation left in con-leche, so `nativeCapsAt` is twinned HERE, one
-//!   module earlier than con-leche places it, and `checkSumInd` calls it.
 //! * **`consSumCtors` stays pure** — the index push touches no term.
 //! * **The fields' sorts are a `Vec<LIdx>`**, not an interned `LsIdx`
 //!   (`arena::inductives::struct_parts`' module note).
 
 use super::struct_install;
 use super::struct_parts;
-use super::sum_parts;
-use super::sum_parts::InductiveShape;
 use crate::arena::canon;
 use crate::arena::checker_base;
 use crate::arena::core;
 use crate::arena::core::CORE_WALK_FUEL;
 use crate::arena::env;
-use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IIndCaps, IRecRule, IRecRuleFire};
+use crate::arena::env::{IConstantInfo, IConstantVal, IFEnv, IRecRule, IRecRuleFire};
 use crate::arena::expr_ops;
-use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_FORALL_E, ETAG_SORT};
+use crate::arena::handle::{EIdx, LIdx, NIdx, ETAG_SORT};
 use crate::arena::monad::{
-    AState, fail, fail_dangling_e, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_sort, read_level_m, view, view_bind, view_sort,
+    AState, fail, fail_dangling_e, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_sort, read_level_m, view, view_sort,
 };
 use crate::arena::store::ENodeView;
 use crate::kernel::core_types;
@@ -72,21 +66,6 @@ pub const M_TELE_SHAPE: [u32; 70] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: type former telescope       `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_IND_TELE: [u32; 40] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 116, 121, 112, 101, 32, 102, 111, 114,
-    109, 101, 114, 32, 116, 101, 108, 101, 115, 99, 111, 112, 101, 32, 32, 32, 32, 32, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: type former result sort        `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_IND_SORT: [u32; 43] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 116, 121, 112, 101, 32, 102, 111, 114,
-    109, 101, 114, 32, 114, 101, 115, 117, 108, 116, 32, 115, 111, 114, 116, 32, 32, 32, 32, 32,
-    32, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `direct sum: field index     `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
 pub const M_FLD_IDX: [u32; 28] = [
     100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 102, 105, 101, 108, 100, 32, 105, 110,
@@ -107,21 +86,6 @@ pub const M_FLD_ELIM: [u32; 72] = [
     105, 109, 105, 110, 97, 116, 111, 114, 32, 119, 105, 116, 104, 32, 97, 32, 110, 111, 110, 45,
     112, 114, 111, 112, 111, 115, 105, 116, 105, 111, 110, 97, 108, 32, 102, 105, 101, 108, 100,
     32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: positivity walk fuel  `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_POS_FUEL: [u32; 34] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 112, 111, 115, 105, 116, 105, 118, 105,
-    116, 121, 32, 119, 97, 108, 107, 32, 102, 117, 101, 108, 32, 32,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `direct sum: non positive occurrence of the inductive   `, as code points — `con_ron_core::kernel::inductives::sum_install`'s own, so the differential test can compare error text.
-pub const M_POS_NEG: [u32; 55] = [
-    100, 105, 114, 101, 99, 116, 32, 115, 117, 109, 58, 32, 110, 111, 110, 32, 112, 111, 115, 105,
-    116, 105, 118, 101, 32, 111, 99, 99, 117, 114, 114, 101, 110, 99, 101, 32, 111, 102, 32, 116,
-    104, 101, 32, 105, 110, 100, 117, 99, 116, 105, 118, 101, 32, 32, 32,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -338,123 +302,6 @@ pub fn check_sum_tele_slow(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/NativeInstall.lean:59-98 nativeCapsAt
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::native_caps_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:105-123 nativeCapsAt`
-/// — the capabilities a block on the fixpoint route earns (con-leche's task
-/// #210 Part A): structure eta at a non-`Prop` structure-like block,
-/// unit-likeness at a fieldless constructor, rule K at official's
-/// `is_K_target`, nothing at any other block.  Twinned here rather than in
-/// `arena::inductives::native_install` — see the module note.
-pub fn native_caps_at(
-    pers: &PersTier,
-    st: &mut AState,
-    p: &InductiveShape,
-    is_rec: bool,
-) -> Result<IIndCaps, CheckError> {
-    if p.ctors.len() != 1 {
-        Ok(env::i_ind_caps_default())
-    } else {
-        // the constructor's name and field count are read out FIRST: a `&&`
-        // that still holds a loan into `p.ctors[0]` while the record is built
-        // is what Aeneas cannot join (task #97-P4a's second extraction rule)
-        let c_name: NIdx = p.ctors[0].0.name.dup2();
-        let c_fields: u64 = p.ctors[0].1;
-        // `eta`'s three-way conjunction is spelled as a branch nest rather
-        // than `a && !b && !c` (task #97-SWAP, AENEAS_FINDINGS.md F18):
-        // Aeneas renders the trailing `!is_rec` as Lean's `¬ is_rec`, a
-        // `Prop`, and the `if` nest it joins this with returns a tuple, so
-        // the `Prop` reaches a `Bool × Bool` slot and the generated model
-        // does not elaborate.
-        let eta: bool = if p.n_idx != 0 {
-            false
-        } else if p.is_prop {
-            false
-        } else if is_rec {
-            false
-        } else {
-            true
-        };
-        match read_level_m(pers, st, &p.res_sort) {
-            Err(e) => Err(e),
-            Ok(l) => Ok(IIndCaps {
-                eta,
-                eta_ctor: c_name,
-                eta_params: p.n_p,
-                eta_fields: c_fields,
-                unitlike: p.n_idx == 0 && c_fields == 0,
-                unit_params: p.n_p,
-                rule_k: c_fields == 0 && p.is_prop,
-                sort_z: level::zeroness_of(&l),
-            }),
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:96-112 checkSumInd
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ind_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-43 checkSumIndF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ind_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:125-140 checkSumInd`
-/// — stage 1: the type former, stored with the block's capability record at
-/// its telescope; returns the record completed with the result sort.
-pub fn check_sum_ind(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: IFEnv,
-    p: &InductiveShape,
-    is_rec: bool,
-) -> Result<(IFEnv, IConstantVal, InductiveShape), CheckError> {
-    match checker_base::check_constant_val(pers, fe.visible_below, st, mode, &fe, &p.cv_t) {
-        Err(e) => Err(e),
-        Ok(cv_ta0) => match check_sum_tele(pers, fe.visible_below, st, mode, &fe, &p.cv_t, p.n_p + p.n_idx, &cv_ta0) {
-            Err(e) => Err(e),
-            Ok(q) => check_sum_ind_at(pers, st, fe, p, is_rec, q.0, q.1),
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:96-112 checkSumInd
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ind_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:125-140 checkSumInd`
-/// — the checked telescope's residual sort, the completed record and the
-/// install.
-pub fn check_sum_ind_at(
-    pers: &PersTier,
-    st: &mut AState,
-    fe: IFEnv,
-    p: &InductiveShape,
-    is_rec: bool,
-    cv_ta: IConstantVal,
-    s: LIdx,
-) -> Result<(IFEnv, IConstantVal, InductiveShape), CheckError> {
-    match expr_ops::strip_pis(pers, st, p.n_p + p.n_idx, &cv_ta.ty) {
-        Err(e) => Err(e),
-        Ok(None) => fail(core_types::internal(code_points(&M_IND_TELE))),
-        Ok(Some(q)) => match intern_e_sort(pers, st, s.dup2()) {
-            Err(e) => Err(e),
-            Ok(sort_s) => {
-                if !q.1.eq2(&sort_s) {
-                    fail(core_types::internal(code_points(&M_IND_SORT)))
-                } else {
-                    match sum_parts::with_sort(pers, st, sum_parts::inductive_shape_dup(p), s) {
-                        Err(e) => Err(e),
-                        Ok(p2) => match native_caps_at(pers, st, &p2, is_rec) {
-                            Err(e) => Err(e),
-                            Ok(caps) => {
-                                let stored =
-                                    IConstantInfo::IndInfo(env::i_constant_val_dup(&cv_ta), caps);
-                                Ok((env::ifenv_push(fe, stored), cv_ta, p2))
-                            }
-                        },
-                    }
-                }
-            }
-        },
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The constructors' stage (`SumInstall.lean:141-326` of the twin)
 // ---------------------------------------------------------------------------
@@ -603,228 +450,8 @@ pub fn field_sort_bound(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:141-175 normPosDom
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::norm_pos_dom_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:170-193 normPosDom`
-/// — **official's positivity walk, as a normalisation** (con-leche's task #210
-/// Part D): the field's domain is REPLACED by the form official classifies —
-/// whnf'd at its own depth, and, while the block occurs, walked under its Π
-/// binders.
-pub fn norm_pos_dom(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    t: &NIdx,
-    d: u64,
-    fuel: u64,
-    e: &EIdx,
-) -> Result<EIdx, CheckError> {
-    if fuel == 0 {
-        fail(core_types::not_implemented(code_points(&M_POS_FUEL)))
-    } else {
-        match struct_parts::mentions_const(pers, st, t, e) {
-            Err(er) => Err(er),
-            Ok(false) => Ok(e.dup2()),
-            Ok(true) => match core::whnf(pers, vis, st, mode, fe, core::CHECK_FUEL, d, e) {
-                Err(er) => Err(er),
-                Ok(w) => match struct_parts::mentions_const(pers, st, t, &w) {
-                    Err(er) => Err(er),
-                    Ok(false) => Ok(w),
-                    Ok(true) => norm_pos_dom_at(pers, vis, st, mode, fe, t, d, fuel - 1, &w),
-                },
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:141-175 normPosDom
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::norm_pos_dom_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:170-193 normPosDom`
-/// — the walk under a Π binder: a domain that mentions the block is official's
-/// non-positive occurrence, and the body is normalised one frame down.
-pub fn norm_pos_dom_at(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    t: &NIdx,
-    d: u64,
-    fuel: u64,
-    w: &EIdx,
-) -> Result<EIdx, CheckError> {
-    if w.tag() == ETAG_FORALL_E {
-        match view_bind(pers, st, w) {
-            None => fail_dangling_e(),
-            Some((dom, body, bm)) => match struct_parts::mentions_const(pers, st, t, &dom) {
-                Err(er) => Err(er),
-                Ok(true) => fail(core_types::invalid(code_points(&M_POS_NEG))),
-                Ok(false) => match intern_e_fvar(pers, st, d, dom.dup2()) {
-                    Err(er) => Err(er),
-                    Ok(fv) => match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
-                        Err(er) => Err(er),
-                        Ok(opened) => match norm_pos_dom(pers, vis, st, mode, fe, t, d + 1, fuel, &opened) {
-                            Err(er) => Err(er),
-                            Ok(body2) => {
-                                match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &body2, d, 0) {
-                                    Err(er) => Err(er),
-                                    Ok(closed) => intern_e_forall_e(pers, st, dom, closed, bm),
-                                }
-                            }
-                        },
-                    },
-                },
-            },
-        }
-    } else {
-        Ok(w.dup2())
-    }
-}
-
-/// con-leche: none — the twin's `normPosDom … 1024 dom`, the positivity walk's own budget
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:195-212 normFieldDoms`.
-pub const POS_WALK_FUEL: u64 = 1024;
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:177-188 normFieldDoms
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::norm_field_doms_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:195-212 normFieldDoms`
-/// — the constructor's field binders with their domains normalised, opened at
-/// the free variables `i ..< i + n`; the residual returned scoped at those
-/// variables.  Lean conses on the way out; the port pushes on the way in.
-#[allow(clippy::too_many_arguments)]
-pub fn norm_field_doms(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    t: &NIdx,
-    i: u64,
-    n: u64,
-    h: &EIdx,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<(Vec<(EIdx, BinderMeta)>, EIdx), CheckError> {
-    if n == 0 {
-        Ok((out, h.dup2()))
-    } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((dom, body, bm)) => {
-                    match norm_pos_dom(pers, vis, st, mode, fe, t, i, POS_WALK_FUEL, &dom) {
-                        Err(e) => Err(e),
-                        Ok(dom2) => match intern_e_fvar(pers, st, i, dom) {
-                            Err(e) => Err(e),
-                            Ok(fv) => {
-                                match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
-                                    Err(e) => Err(e),
-                                    Ok(opened) => {
-                                        let mut o: Vec<(EIdx, BinderMeta)> = out;
-                                        o.push((dom2, bm));
-                                        norm_field_doms(pers, vis, st, mode, fe, t, i + 1, n - 1, &opened, o)
-                                    }
-                                }
-                            }
-                        },
-                    }
-                },
-            }
-        } else {
-            fail(core_types::not_implemented(code_points(&M_FIELD_TELE)))
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::zip_fvar_doms_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:214-223 zipFvarDoms`
-/// — `List.zipWith (fun x b => (x.fvarTypeD, b.2)) fvsP cbs`, as a cursor
-/// recursion: the map's body reads the store, so con-leche's `zipWith` closure
-/// becomes a helper.
-pub fn zip_fvar_doms(
-    pers: &PersTier,
-    st: &AState,
-    xs: &Vec<EIdx>,
-    bs: &Vec<(EIdx, BinderMeta)>,
-    i: usize,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<Vec<(EIdx, BinderMeta)>, CheckError> {
-    if i >= xs.len() || i >= bs.len() {
-        Ok(out)
-    } else {
-        match expr_ops::fvar_type_d(pers, st, &xs[i]) {
-            Err(e) => Err(e),
-            Ok(t) => {
-                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((t, expr::binder_meta_dup(&bs[i].1)));
-                zip_fvar_doms(pers, st, xs, bs, i + 1, o)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:190-205 normCtorVal
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::norm_ctor_val_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:83-95 normCtorValF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::norm_ctor_val_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:225-240 normCtorVal`
-/// — the checked constructor with its field domains normalised, closed back
-/// into a telescope and — when anything changed — checked as the constructor's
-/// type in its place, from scratch.
-#[allow(clippy::too_many_arguments)]
-pub fn norm_ctor_val(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    t: &NIdx,
-    n_p: u64,
-    n_f: u64,
-    cv_c: &IConstantVal,
-    cv_ca: &IConstantVal,
-) -> Result<IConstantVal, CheckError> {
-    match expr_ops::strip_pis(pers, st, n_p, &cv_ca.ty) {
-        Err(e) => Err(e),
-        Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
-        Ok(Some(cq)) => match checker_base::open_pis_at_fvars_f(pers, st, n_p, &cv_ca.ty, 0) {
-            Err(e) => Err(e),
-            Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
-            Ok(Some(pq)) => match zip_fvar_doms(pers, st, &pq.0, &cq.0, 0, Vec::new()) {
-                Err(e) => Err(e),
-                Ok(pbs) => match norm_field_doms(pers, vis, st, mode, fe, t, n_p, n_f, &pq.1, Vec::new()) {
-                    Err(e) => Err(e),
-                    Ok(fq) => {
-                        let all: Vec<(EIdx, BinderMeta)> =
-                            expr_ops::binder_copy_from(&fq.0, 0, pbs);
-                        match close_telescope(pers, st, &all, 0, 0, &fq.1) {
-                            Err(e) => Err(e),
-                            Ok(ty2) => {
-                                if ty2.eq2(&cv_ca.ty) {
-                                    Ok(env::i_constant_val_dup(cv_ca))
-                                } else {
-                                    let cv2 = IConstantVal {
-                                        name: cv_c.name.dup2(),
-                                        level_params: env::nidx_vec_dup(&cv_c.level_params),
-                                        ty: ty2,
-                                    };
-                                    checker_base::check_constant_val(pers, vis, st, mode, fe, &cv2)
-                                }
-                            }
-                        }
-                    }
-                },
-            },
-        },
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ctor_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:70-100 checkSumCtorF
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ctor_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:242-282 checkSumCtor`
 /// — stage 2, one constructor's type: the ordinary constant check, the
 /// annotated result shape, the parameter pins against the type former's opened
@@ -850,9 +477,7 @@ pub fn check_sum_ctor(
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
     match checker_base::check_constant_val(pers, fe.visible_below, st, mode, fe, cv_c) {
         Err(e) => Err(e),
-        Ok(cv_ca0) => match norm_ctor_val(pers, fe.visible_below, st, mode, fe, t, n_p, n_f, cv_c, &cv_ca0) {
-            Err(e) => Err(e),
-            Ok(cv_ca) => match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_ca.ty) {
+        Ok(cv_ca) => match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_ca.ty) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
                 Ok(Some(cq)) => {
@@ -866,13 +491,11 @@ pub fn check_sum_ctor(
                         ),
                     }
                 }
-            },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ctor_frames_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:242-282 checkSumCtor`
 /// — the opened frames: the constructor's parameters against the former's, the
 /// opened residual's shape, the field domains' pre-block resolution and the
@@ -926,7 +549,6 @@ pub fn check_sum_ctor_frames(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ctor_resid_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:242-282 checkSumCtor`
 /// — the opened residual is the family at the opened parameter variables
 /// followed by the index expressions, the field domains and the index
@@ -982,7 +604,6 @@ pub fn check_sum_ctor_resid(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::check_sum_ctor_sorts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:242-282 checkSumCtor`
 /// — the field domains and the index expressions resolve BEFORE the block, and
 /// the fields' sorts are measured under the official bound.
@@ -1019,7 +640,6 @@ pub fn check_sum_ctor_sorts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::field_doms_resolve_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:242-282 checkSumCtor`
 /// — every field domain resolves at the PRE-BLOCK environment.
 pub fn field_doms_resolve(
@@ -1045,7 +665,6 @@ pub fn field_doms_resolve(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-/// con-leche: CHANGED since 3ca9e2fe — re-port, re-test, re-prove sum_install::idx_args_resolve_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:242-282 checkSumCtor`
 /// — the index expressions never mention the block.
 pub fn idx_args_resolve(
