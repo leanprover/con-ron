@@ -1412,4 +1412,415 @@ theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
         obtain ⟨rfl, rfl⟩ := pureOk h6
         exact ⟨(p1.trans p3).trans p5, rfl⟩
 
+/-! ## The recogniser -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+(the result sort) — member 0's sort, or the placeholder `0`. -/
+def resSortOfP (ty : Expr) (k : Nat) : Level :=
+  match ty.stripPis k with
+  | some (_, .sort s) => s
+  | _ => .zero
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+(`large?`) — which eliminator the first recursor claims. -/
+def largeOfP (lps : List ConLeche.Name) : List ConLeche.Name → Option ConLeche.Name
+  | elim :: relps => if relps == lps && !lps.contains elim then some elim else none
+  | [] => none
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+(after the pins) — the record, the pure side's stretch the twin duplicates
+into its three result-sort arms. -/
+def shapeTailP (nPd : Nat) (cvT0 cvR0 : ConstantVal) (cvTs : List ConstantVal)
+    (cs : List (ConstantVal × Nat × Nat)) (rs : List (ConstantVal × Nat × Nat × List RecRule))
+    (nIdxs : List Nat) : Option ConLeche.BlockShape :=
+  let lps := cvT0.levelParams
+  let names := cvTs.map (·.name)
+  let k := cvTs.length
+  let s := resSortOfP cvT0.type (nPd + nIdxs.headD 0)
+  let isProp := Level.isEquiv s .zero == some true
+  let ctors : List (ConstantVal × Nat) := cs.map fun c => (c.1, c.2.2)
+  let groups := ConLeche.blockGroups names lps nPd k ctors
+  let members := ((cvTs.zip nIdxs).zip groups).map
+    fun (a : (ConstantVal × Nat) × List (ConstantVal × Nat)) =>
+      (⟨a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape)
+  let recsL := rs.map fun (r : ConstantVal × Nat × Nat × List RecRule) =>
+    (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf names r.2.1 r.1.type,
+      r.2.2.2.map RecRule.rhs⟩ : ConLeche.RecShape)
+  match largeOfP lps cvR0.levelParams with
+  | some elim => some ⟨members, recsL, nPd, elim, s, true, isProp⟩
+  | none => some ⟨members, recsL, nPd, .anonymous, s, false, isProp⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+(after the split) — the pure recogniser with its inline `match`es named. -/
+def shapeOfSplitP (nPd : Nat) (cvTs : List ConstantVal) (cs : List (ConstantVal × Nat × Nat))
+    (rs : List (ConstantVal × Nat × Nat × List RecRule)) : Option ConLeche.BlockShape :=
+  match cvTs, rs with
+  | cvT0 :: _, (cvR0, _, _, _) :: _ =>
+    let lps := cvT0.levelParams
+    let names := cvTs.map (·.name)
+    let k := cvTs.length
+    match ConLeche.blockMemberCounts? nPd k cs.length names rs 0 cvTs with
+    | none => none
+    | some nIdxs =>
+      if (cvTs.all fun c => reservedBasisNames.contains c.name == false) &&
+          (rs.all fun r => reservedBasisNames.contains r.1.name == false) &&
+          (cvTs.all fun c => c.levelParams == lps) &&
+          cs.all (fun c => c.2.1 == nPd && c.1.levelParams == lps &&
+            reservedBasisNames.contains c.1.name == false) then
+        shapeTailP nPd cvT0 cvR0 cvTs cs rs nIdxs
+      else none
+  | _, _ => none
+
+theorem blockShape_eq (nPd : Nat) (block : List ConstantInfo) :
+    ConLeche.blockShape? nPd block =
+      (ConLeche.blockSplit block).bind fun q => shapeOfSplitP nPd q.1 q.2.1 q.2.2 := by
+  unfold ConLeche.blockShape?
+  rcases ConLeche.blockSplit block with _ | ⟨cvTs, cs, rs⟩
+  · rfl
+  · simp only [Option.bind_some, shapeOfSplitP]
+    rcases cvTs with _ | ⟨cvT0, cvTs⟩ <;> rcases rs with _ | ⟨⟨cvR0, a, b, c⟩, rs⟩ <;> rfl
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+(after the result sort) — the twin's stretch its `do` block duplicates into
+the three result-sort arms, written once. -/
+def shapeTailM (nPd : Nat) (cvT0 cvR0 : IConstantVal) (cvTs : List IConstantVal)
+    (cs : List (IConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
+    (nIdxs : List Nat) (y : LIdx) : AM (Option Arena.BlockShape) := do
+  let z ← zeroLevel
+  let eq ← lvlEq? y z
+  let lvls ← paramLevels cvT0.levelParams
+  let groups ← Arena.blockGroups (cvTs.map (·.name)) lvls nPd cvTs.length
+    (cs.map fun c => (c.1, c.2.2))
+  let recsL ← rs.mapM fun r => do
+    let tgt ← Arena.recTargetOf (cvTs.map (·.name)) r.2.1 r.1.type
+    pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : Arena.RecShape)
+  match (match cvR0.levelParams with
+      | [] => none
+      | elim :: relps =>
+        if (relps == cvT0.levelParams && !cvT0.levelParams.contains elim) = true then some elim
+        else none) with
+  | some elim =>
+    pure (some { members := ((cvTs.zip nIdxs).zip groups).map
+                   (fun a => { cvT := a.1.1, nIdx := a.1.2, ctors := a.2 }),
+                 recs := recsL, nP := nPd, elim := elim, resSort := y, large := true,
+                 isProp := match eq with
+                   | some true => true
+                   | some false => false
+                   | none => false })
+  | none => do
+    let anon ← internNNode NNodeView.anonymous
+    pure (some { members := ((cvTs.zip nIdxs).zip groups).map
+                   (fun a => { cvT := a.1.1, nIdx := a.1.2, ctors := a.2 }),
+                 recs := recsL, nP := nPd, elim := anon, resSort := y, large := false,
+                 isProp := match eq with
+                   | some true => true
+                   | some false => false
+                   | none => false })
+
+/-- con-leche: none — the formers' names, over the former list. -/
+theorem cvNames_go {st : EStore} :
+    ∀ {cvs : List IConstantVal} {cvsP : List ConstantVal},
+      cvs.mapM (Frontend.denoteCV st) = some cvsP →
+      Frontend.denoteNList st.ns (cvs.map (·.name)) = some (cvsP.map (·.name)) := by
+  intro cvs
+  induction cvs with
+  | nil =>
+    intro cvsP h
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h
+    subst h; rfl
+  | cons c cs ih =>
+    intro cvsP h
+    obtain ⟨cP, csP, rfl, hc, hcs⟩ := mapM_option_cons_inv h
+    simp only [List.map_cons, Frontend.denoteNList, denoteCV_name hc, ih hcs]
+
+/-- con-leche: none — the recogniser's constructor list, read off the
+split's. -/
+theorem denoteCtors3_dCtors {st : EStore} :
+    ∀ (cs : List (IConstantVal × Nat × Nat)) (csP : List (ConstantVal × Nat × Nat)),
+      denoteCtors3 st cs = some csP →
+      dCtors st (cs.map fun c => (c.1, c.2.2)) = some (csP.map fun c => (c.1, c.2.2)) := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; simp only [denoteCtors3, Option.some.injEq] at h; subst h; rfl
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cv, a, b⟩ := c
+    simp only [denoteCtors3] at h
+    cases h1 : Frontend.denoteCV st cv with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : denoteCtors3 st cs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        obtain rfl := (Option.some.inj h).symm
+        have := ih xs h2
+        simp only [dCtors] at this ⊢
+        simp only [List.map_cons]
+        exact mapM_option_cons (by simp [dCtor, h1]) this
+
+/-- con-leche: none — a three-tuple constructor list survives an append. -/
+theorem denoteCtors3_extB {st st' : EStore} (hx : Ext st st') :
+    ∀ (cs : List (IConstantVal × Nat × Nat)) (csP : List (ConstantVal × Nat × Nat)),
+      denoteCtors3 st cs = some csP → denoteCtors3 st' cs = some csP := by
+  intro cs
+  induction cs with
+  | nil => intro csP h; exact h
+  | cons c cs ih =>
+    intro csP h
+    obtain ⟨cv, a, b⟩ := c
+    simp only [denoteCtors3] at h ⊢
+    cases h1 : Frontend.denoteCV st cv with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : denoteCtors3 st cs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        rw [denoteCV_ext h1 hx, ih xs h2]
+        exact h
+
+/-- con-leche: none — the rules' right-hand sides denote. -/
+theorem denoteRules_rhssB {st : EStore} :
+    ∀ (rs : List IRecRule) (rsP : List RecRule),
+      Frontend.denoteRules st rs = some rsP →
+      Frontend.denoteEList st (rs.map (·.rhs)) = some (rsP.map (·.rhs)) := by
+  intro rs
+  induction rs with
+  | nil => intro rsP h; simp only [Frontend.denoteRules, Option.some.injEq] at h; subst h; rfl
+  | cons r rs ih =>
+    intro rsP h
+    simp only [Frontend.denoteRules] at h
+    cases h1 : Frontend.denoteRule st r with
+    | none => rw [h1] at h; simp at h
+    | some x =>
+      cases h2 : Frontend.denoteRules st rs with
+      | none => rw [h1, h2] at h; simp at h
+      | some xs =>
+        rw [h1, h2] at h
+        obtain rfl := (Option.some.inj h).symm
+        simp only [List.map_cons, Frontend.denoteEList, denoteRule_rhs h1, ih xs h2]
+
+/-- con-leche: none — the recursor records, each with the member its MAJOR
+names (`recTargetOf_spec` at each). -/
+theorem recsL_run (names : List NIdx) (namesP : List ConLeche.Name) :
+    ∀ (rs : List (IConstantVal × Nat × Nat × List IRecRule))
+      (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (s₀ s' : AState)
+      (out : List Arena.RecShape), StateOK s₀ →
+      Frontend.denoteNList s₀.store.ns names = some namesP →
+      rs.mapM (dRec4 s₀.store) = some rsP →
+      (rs.mapM fun r => (do
+          let tgt ← Arena.recTargetOf names r.2.1 r.1.type
+          pure (⟨r.1, r.2.2.1, r.2.1, tgt, r.2.2.2.map (·.rhs)⟩ : Arena.RecShape) :
+            AM Arena.RecShape)) s₀ =
+        .ok (out, s') →
+      PStep s₀ s' ∧ out.mapM (dRec s'.store) = some (rsP.map fun r =>
+        (⟨r.1, r.2.2.1, r.2.1, ConLeche.recTargetOf namesP r.2.1 r.1.type,
+          r.2.2.2.map RecRule.rhs⟩ : ConLeche.RecShape)) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP s₀ s' out hok _ hrs hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs
+    subst hrs
+    simp only [List.mapM_nil] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons q qs ih =>
+    intro rsP s₀ s' out hok hN hrs hrun
+    obtain ⟨qP, qsP, rfl, hq, hqs⟩ := mapM_option_cons_inv hrs
+    obtain ⟨hcv, hmI, hrP, hru⟩ := dRec4_inv hq
+    simp only [List.mapM_cons] at hrun
+    obtain ⟨x, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨t, s₂, h3, h4⟩ := bindOk h1
+    obtain ⟨p3, ht⟩ := recTargetOf_spec names namesP q.2.1 q.1.type qP.1.type s₀ s₂ t hok
+      ⟨hN, denoteCV_type hcv⟩ h3
+    simp only [RV] at ht
+    subst ht
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    obtain ⟨xs, s₃, h5, h6⟩ := bindOk h2
+    obtain ⟨p5, h7⟩ := ih qsP _ s₃ xs p3.ok (denoteNListE_ext p3.ext _ _ hN)
+      (mapM_option_ext (fun x y h => dRec4_ext p3.ext x y h) _ _ hqs) h5
+    obtain ⟨rfl, rfl⟩ := pureOk h6
+    refine ⟨p3.trans p5, ?_⟩
+    have x5 := p3.ext.trans p5.ext
+    simp only [List.map_cons]
+    refine mapM_option_cons ?_ h7
+    simp only [dRec, denoteCV_ext hcv x5, denoteRules_rhssB _ _ (denoteRules_ext x5 _ _ hru),
+      Option.bind_eq_bind, Option.bind_some, Option.pure_def, hmI, hrP]
+
+/-- con-leche: none — the members, zipped from the formers, their counts and
+their groups. -/
+theorem members_denote {st : EStore} :
+    ∀ (cvTs : List IConstantVal) (cvTsP : List ConstantVal) (nIdxs : List Nat)
+      (groups : List (List (IConstantVal × Nat))) (groupsP : List (List (ConstantVal × Nat))),
+      cvTs.mapM (Frontend.denoteCV st) = some cvTsP → groups.mapM (dCtors st) = some groupsP →
+      (((cvTs.zip nIdxs).zip groups).map
+          (fun a => ({ cvT := a.1.1, nIdx := a.1.2, ctors := a.2 } : Arena.MemberShape))).mapM
+        (dMember st) =
+        some (((cvTsP.zip nIdxs).zip groupsP).map
+          (fun a => (⟨a.1.1, a.1.2, a.2⟩ : ConLeche.MemberShape))) := by
+  intro cvTs
+  induction cvTs with
+  | nil =>
+    intro cvTsP nIdxs groups groupsP h1 _
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h1
+    subst h1; rfl
+  | cons c cs ih =>
+    intro cvTsP nIdxs groups groupsP h1 h2
+    obtain ⟨cP, csP, rfl, hc, hcs⟩ := mapM_option_cons_inv h1
+    cases nIdxs with
+    | nil => rfl
+    | cons n ns =>
+      cases groups with
+      | nil =>
+        simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h2
+        subst h2; rfl
+      | cons g gs =>
+        obtain ⟨gP, gsP, rfl, hg, hgs⟩ := mapM_option_cons_inv h2
+        simp only [List.zip_cons_cons, List.map_cons]
+        refine mapM_option_cons ?_ (ih csP ns gs gsP hcs hgs)
+        simp only [dMember, hc, hg, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:385-442 blockShape?
+— **the record, once the result sort is read**: `lvlEq?` (CORE: the cache
+licence), `paramLevels`, `blockGroups_spec`, `recsL_run`, the eliminator. -/
+theorem shapeTail_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
+    (cvT0 cvR0 : IConstantVal) (cvT0P cvR0P : ConstantVal) (cvTs : List IConstantVal)
+    (cvTsP : List ConstantVal) (cs : List (IConstantVal × Nat × Nat))
+    (csP : List (ConstantVal × Nat × Nat)) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
+    (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (nIdxs : List Nat) (y : LIdx)
+    {s₀ s s' : AState} {r : Option Arena.BlockShape}
+    (hc : CheckOK μ env fe s₀) (q : PStep s₀ s)
+    (hT0 : Frontend.denoteCV s.store cvT0 = some cvT0P)
+    (hR0 : Frontend.denoteCV s.store cvR0 = some cvR0P)
+    (hTs : cvTs.mapM (Frontend.denoteCV s.store) = some cvTsP)
+    (hcs : denoteCtors3 s.store cs = some csP) (hrs : rs.mapM (dRec4 s.store) = some rsP)
+    (hy : denoteL s.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)))
+    (hrun : shapeTailM nPd cvT0 cvR0 cvTs cs rs nIdxs y s = .ok (r, s')) :
+    PStep s₀ s' ∧ ROp (fun q st p => dShape st p = some q)
+      (shapeTailP nPd cvT0P cvR0P cvTsP csP rsP nIdxs) s'.store r := by
+  simp only [shapeTailM] at hrun
+  obtain ⟨z, s1, k1, z1⟩ := bindOk hrun
+  obtain ⟨e, s2, k2, z2⟩ := bindOk z1
+  obtain ⟨-, he⟩ := lvlEqZero_run hc q hy k1 k2
+  obtain ⟨hs1, -⟩ := zeroLevel_run (hc.pins.mono q.ext q.pins) k1
+  subst hs1
+  have p2 : PStep s1 s2 := lvlEq?_pstep q.ok k2
+  obtain ⟨lvls, s3, k3, z3⟩ := bindOk z2
+  have hlps := denoteCV_lps hT0
+  obtain ⟨p3, hl⟩ := paramLevels_spec _ _ s2 s3 lvls p2.ok
+    (denoteNListE_ext p2.ext _ _ hlps) k3
+  have x3 := p2.ext.trans p3.ext
+  obtain ⟨groups, s4, k4, z4⟩ := bindOk z3
+  have hlenT : cvTs.length = cvTsP.length := (mapM_option_length hTs).symm
+  rw [hlenT] at k4
+  have g1 := denoteNListE_ext x3 _ _ (cvNames_go hTs)
+  have g3 := dCtors_ext x3 _ _ (denoteCtors3_dCtors cs csP hcs)
+  have G := blockGroups_spec (cvTs.map (·.name)) (cvTsP.map (·.name)) lvls
+    cvT0P.levelParams nPd cvTsP.length (cs.map fun c => (c.1, c.2.2))
+    (csP.map fun c => (c.1, c.2.2))
+  have G2 := G s3 s4 groups p3.ok ⟨g1, hl, g3⟩
+  have k4' : Arena.blockGroups (cvTs.map (·.name)) lvls nPd cvTsP.length
+      (cs.map fun c => (c.1, c.2.2)) s3 = .ok (groups, s4) := k4
+  have R := G2 k4'
+  have p4 := R.1
+  have hg : groups.mapM (dCtors s4.store) = some (ConLeche.blockGroups (cvTsP.map (·.name))
+      cvT0P.levelParams nPd cvTsP.length (csP.map fun c => (c.1, c.2.2))) := R.2
+  have x4 := x3.trans p4.ext
+  obtain ⟨recsL, s5, k5, z5⟩ := bindOk z4
+  obtain ⟨p5, hR⟩ := recsL_run (cvTs.map (·.name)) (cvTsP.map (·.name)) rs rsP s4 s5 recsL
+    p4.ok (denoteNListE_ext x4 _ _ (cvNames_go hTs))
+    (mapM_option_ext (fun a b h => dRec4_ext x4 a b h) _ _ hrs) k5
+  have x5 := x4.trans p5.ext
+  have q5 : PStep s1 s5 := ((p2.trans p3).trans p4).trans p5
+  have hmem := members_denote cvTs cvTsP nIdxs groups _
+    (mapM_option_ext (fun a b h => denoteCV_ext h (x4.trans p5.ext)) _ _ hTs)
+    (mapM_option_ext (fun a b h => dCtors_ext p5.ext a b h) _ _ hg)
+  have hy5 : denoteL s5.store.ls y = some (resSortOfP cvT0P.type (nPd + nIdxs.headD 0)) :=
+    denoteL_ext hy x5
+  have hRlps := denoteCV_lps hR0
+  simp only [shapeTailP]
+  cases hlp : cvR0.levelParams with
+  | nil =>
+    have hlpP : cvR0P.levelParams = [] := by
+      rw [hlp] at hRlps; simp [Frontend.denoteNList] at hRlps; exact hRlps
+    rw [hlp] at z5
+    simp only [hlpP, largeOfP]
+    obtain ⟨anon, sA, kA, zA⟩ := bindOk z5
+    obtain ⟨pA, hanon⟩ := internNNode_run p5.ok
+      (by intro c hc; simp [NNodeView.children] at hc) kA
+    obtain ⟨rfl, rfl⟩ := pureOk zA
+    refine ⟨q.trans (q5.trans pA), _, rfl, ?_⟩
+    simp only [dShape, mapM_option_ext (fun a b h => dMember_ext pA.ext a b h) _ _ hmem,
+      mapM_option_ext (fun a b h => dRec_ext pA.ext a b h) _ _ hR, hanon, denoteNView,
+      denoteL_ext hy5 pA.ext, he, isProp_match_eq, Option.bind_eq_bind, Option.bind_some,
+      Option.pure_def]
+  | cons elim relps =>
+    rw [hlp] at hRlps
+    simp only [Frontend.denoteNList] at hRlps
+    cases helim : denoteN s1.store.ns elim with
+    | none => rw [helim] at hRlps; simp at hRlps
+    | some elimP =>
+    cases hrel : Frontend.denoteNList s1.store.ns relps with
+    | none => rw [helim, hrel] at hRlps; simp at hRlps
+    | some relpsP =>
+    rw [helim, hrel] at hRlps
+    have hlpP : cvR0P.levelParams = elimP :: relpsP := (Option.some.inj hRlps).symm
+    have xs5 : Ext s1.store s5.store := q5.ext
+    have g8 : (relps == cvT0.levelParams) = (relpsP == cvT0P.levelParams) :=
+      beq_nhandleList_eq p5.ok.wf (denoteNListE_ext xs5 _ _ hrel)
+        (denoteNListE_ext xs5 _ _ hlps)
+    have g9 : cvT0.levelParams.contains elim = cvT0P.levelParams.contains elimP :=
+      denoteNList_contains p5.ok.wf _ _ (denoteNListE_ext xs5 _ _ hlps) _ _
+        (denoteN_ext helim xs5)
+    rw [hlp] at z5
+    dsimp only at z5
+    simp only [hlpP, largeOfP]
+    rw [g8, g9] at z5
+    by_cases hc2 : (relpsP == cvT0P.levelParams && !cvT0P.levelParams.contains elimP) = true
+    · rw [if_pos hc2] at z5 ⊢
+      obtain ⟨rfl, rfl⟩ := pureOk z5
+      refine ⟨q.trans q5, _, rfl, ?_⟩
+      simp only [dShape, hmem, hR, denoteN_ext helim xs5, hy5, he, isProp_match_eq,
+        Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+    · rw [if_neg hc2] at z5 ⊢
+      obtain ⟨anon, sA, kA, zA⟩ := bindOk z5
+      obtain ⟨pA, hanon⟩ := internNNode_run p5.ok
+        (by intro c hc; simp [NNodeView.children] at hc) kA
+      obtain ⟨rfl, rfl⟩ := pureOk zA
+      refine ⟨q.trans (q5.trans pA), _, rfl, ?_⟩
+      simp only [dShape, mapM_option_ext (fun a b h => dMember_ext pA.ext a b h) _ _ hmem,
+        mapM_option_ext (fun a b h => dRec_ext pA.ext a b h) _ _ hR, hanon, denoteNView,
+        denoteL_ext hy5 pA.ext, he, isProp_match_eq, Option.bind_eq_bind, Option.bind_some,
+        Option.pure_def]
+
+theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
+    (block : List IConstantInfo) (blockP : List ConstantInfo) (s₀ s' : AState)
+    (r : Option Arena.BlockShape) (hc : CheckOK μ env fe s₀)
+    (hb : Frontend.denoteCIList s₀.store block = some blockP)
+    (hrun : Arena.blockShape? nPd block s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧
+      ROp (fun q st p => dShape st p = some q) (ConLeche.blockShape? nPd blockP) s'.store r := by
+  have hok := hc.state
+  rw [blockShape_eq]
+  have hsp := blockSplit_spec s₀.store block blockP hb
+  unfold Arena.blockShape? at hrun
+  cases hA : Arena.blockSplit block with
+  | none =>
+    rw [hA] at hrun hsp
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨PStep.refl hok, ?_⟩
+    simp only [ROp] at hsp ⊢
+    rw [hsp]; rfl
+  | some a =>
+    rw [hA] at hrun hsp
+    obtain ⟨q, hq, hrel⟩ := hsp
+    rw [hq, Option.bind_some]
+    obtain ⟨cvTs, cs, rs⟩ := a
+    obtain ⟨cvTsP, csP, rsP⟩ := q
+    obtain ⟨hTs, hcs, hrs⟩ := hrel
+    dsimp only at hTs hcs hrs hrun ⊢
+    fail "GOAL"
+
 end ConRon.Bridge.Inductives
