@@ -1921,4 +1921,107 @@ theorem ctor_pairs_append_abs (ys : alloc.vec.Vec (arena.env.IConstantVal × Std
   rw [TwinEq, absCtorsL, absCtorsL, absCtorsL, ctor_pairs_append_abs ys _ xs o h]
   simp
 
+/-! ## The field kinds -/
+
+@[lockstep] theorem nest_field_kind_flat_twin (k : arena.inductives.positivity.NestFieldKind) :
+    LSP (arena.inductives.positivity.nest_field_kind_flat k)
+      (fun b => TwinEq (absNestFieldKind k).flat b) := by
+  intro b h
+  cases k <;> simp only [arena.inductives.positivity.nest_field_kind_flat,
+    Result.ok.injEq] at h <;> subst h <;> rfl
+
+@[lockstep] theorem nest_field_kind_is_ordinary_twin
+    (k : arena.inductives.positivity.NestFieldKind) :
+    LSP (arena.inductives.positivity.nest_field_kind_is_ordinary k)
+      (fun b => TwinEq (absNestFieldKind k == .ordinary) b) := by
+  intro b h
+  cases k <;> simp only [arena.inductives.positivity.nest_field_kind_is_ordinary,
+    Result.ok.injEq] at h <;> subst h <;> rfl
+
+theorem nest_kinds_flat_ctor_abs (ks : alloc.vec.Vec arena.inductives.positivity.NestFieldKind) :
+    ∀ (i : Std.Usize) (o : Bool), arena.inductives.positivity.nest_kinds_flat_ctor ks i = ok o →
+      o = (ks.val.drop i.val).all fun k => (absNestFieldKind k).flat := by
+  refine vec_cursor_all ks _ (arena.inductives.positivity.nest_kinds_flat_ctor ks) ?_ ?_
+  · intro i o hn h
+    rw [arena.inductives.positivity.nest_kinds_flat_ctor.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+    exact h.symm
+  · intro i x o hx h
+    rw [arena.inductives.positivity.nest_kinds_flat_ctor.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv : (absNestFieldKind q).flat = b := nest_field_kind_flat_twin q b hb
+    cases b
+    · rw [if_neg (by simp), Result.ok.injEq] at h
+      exact Or.inr ⟨hbv, h.symm⟩
+    · rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inl ⟨hbv, i2, absSz_add_one hi2, h⟩
+
+theorem nest_kinds_flat_member_abs
+    (ks : alloc.vec.Vec (alloc.vec.Vec arena.inductives.positivity.NestFieldKind)) :
+    ∀ (i : Std.Usize) (o : Bool), arena.inductives.positivity.nest_kinds_flat_member ks i = ok o →
+      o = (ks.val.drop i.val).all fun v => v.val.all fun k => (absNestFieldKind k).flat := by
+  refine vec_cursor_all ks _ (arena.inductives.positivity.nest_kinds_flat_member ks) ?_ ?_
+  · intro i o hn h
+    rw [arena.inductives.positivity.nest_kinds_flat_member.eq_def,
+      if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+    exact h.symm
+  · intro i x o hx h
+    rw [arena.inductives.positivity.nest_kinds_flat_member.eq_def,
+      if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by
+        have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hbv := nest_kinds_flat_ctor_abs q 0#usize b hb
+    simp only [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero] at hbv
+    cases b
+    · rw [if_neg (by simp), Result.ok.injEq] at h
+      exact Or.inr ⟨hbv.symm, h.symm⟩
+    · rw [if_pos rfl] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      exact Or.inl ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+
+@[lockstep] theorem nest_kinds_flat_twin
+    (kss : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec arena.inductives.positivity.NestFieldKind))) :
+    LSP (arena.inductives.positivity.nest_kinds_flat kss 0#usize)
+      (fun o => TwinEq (nestKindsFlat (kss.val.map fun v => v.val.map fun w =>
+        w.val.map absNestFieldKind)) o) := by
+  have key : ∀ (i : Std.Usize) (o : Bool), arena.inductives.positivity.nest_kinds_flat kss i = ok o →
+      o = (kss.val.drop i.val).all fun v => v.val.all fun w => w.val.all fun k =>
+        (absNestFieldKind k).flat := by
+    refine vec_cursor_all kss _ (arena.inductives.positivity.nest_kinds_flat kss) ?_ ?_
+    · intro i o hn h
+      rw [arena.inductives.positivity.nest_kinds_flat.eq_def,
+        if_pos (show i ≥ alloc.vec.Vec.len kss by scalar_tac), Result.ok.injEq] at h
+      exact h.symm
+    · intro i x o hx h
+      rw [arena.inductives.positivity.nest_kinds_flat.eq_def,
+        if_neg (show ¬ i ≥ alloc.vec.Vec.len kss by
+          have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+      obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hqx : q = x := by
+        have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+      subst hqx
+      obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hbv := nest_kinds_flat_member_abs q 0#usize b hb
+      simp only [show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero] at hbv
+      cases b
+      · rw [if_neg (by simp), Result.ok.injEq] at h
+        exact Or.inr ⟨hbv.symm, h.symm⟩
+      · rw [if_pos rfl] at h
+        obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+        exact Or.inl ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
+  intro o h
+  rw [TwinEq, key _ o h, nestKindsFlat]
+  simp [List.all_map, Function.comp_def]
+
 end ConRon.Refine2
