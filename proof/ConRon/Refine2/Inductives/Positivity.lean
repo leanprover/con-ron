@@ -14,7 +14,7 @@ block are in `PositivityNest.lean`.
 ## Shapes
 
 * A Rust memo is a `HashMap2`, the twin's a `Std.HashMap`: related by
-  `RelOn` + `Inv` (`ExprOps.LMemoRel` for the `bool` memos, `EMemoRel` /
+  `RelOn` + `Inv` (`ExprOps.LMemoRel` for the `bool` memos, `PEMemoRel` /
   `NMemoRel` below for the `EIdx`/`u64` ones), threaded through the answer.
 * The Rust's `…_node` fragments are unfolded in place (they are the twin's
   inner `match`).
@@ -420,5 +420,157 @@ the cursor on. -/
     rw [arena.inductives.positivity.inst_pis_with.eq_def,
       if_neg (show ¬ k ≥ alloc.vec.Vec.len args by scalar_tac), instPisWith]
     lockstep
+
+/-! ## The `u64` and `EIdx` memos -/
+
+/-- `depth_go`'s memo: handle to depth. -/
+def NMemoRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Std.U64)
+    (lm : Std.HashMap EIdx Nat) : Prop :=
+  ConRon.Refine.HashMap2.RelOn (fun _ => True) rm lm absEIdx absU ∧
+    ConRon.Refine.HashMap2.Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
+
+/-- `replace_fvars_go`'s and `replace_apps_go`'s memo: handle to handle. -/
+def PEMemoRel (rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx)
+    (lm : Std.HashMap EIdx EIdx) : Prop :=
+  ConRon.Refine.HashMap2.RelOn (fun _ => True) rm lm absEIdx absEIdx ∧
+    ConRon.Refine.HashMap2.Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm
+
+@[lockstep] theorem depth_probe_twin
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Std.U64}
+    {lm : Std.HashMap EIdx Nat} {k : arena.handle.EIdx} (hm : NMemoRel rm lm) :
+    LSP (arena.inductives.positivity.depth_probe rm k)
+      (fun o => TwinEq (lm[absEIdx k]?) (o.map absU)) := by
+  intro o hrun
+  rw [arena.inductives.positivity.depth_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hg := ConRon.Refine.HashMap2.Rel_get_wf eidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true hm.1 trivial hr
+  rw [TwinEq, ← hg]
+  cases r with
+  | none => cases Result.ok_injective hrun; rfl
+  | some v => cases Result.ok_injective hrun; rfl
+
+@[lockstep] theorem memo_e_probe_twin
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx}
+    {lm : Std.HashMap EIdx EIdx} {k : arena.handle.EIdx} (hm : PEMemoRel rm lm) :
+    LSP (arena.inductives.positivity.memo_e_probe rm k)
+      (fun o => TwinEq (lm[absEIdx k]?) (o.map absEIdx)) := by
+  intro o hrun
+  rw [arena.inductives.positivity.memo_e_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hg := ConRon.Refine.HashMap2.Rel_get_wf eidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true hm.1 trivial hr
+  rw [TwinEq, ← hg]
+  cases r with
+  | none => cases Result.ok_injective hrun; rfl
+  | some v =>
+    obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    cases Result.ok_injective hrun
+    rw [dupId_eidx _ _ he]
+
+@[lockstep] theorem hashmap2_insert_eidx_u64_spec
+    {memo : ron.hashmap2.HashMap2 arena.handle.EIdx Std.U64}
+    {lm : Std.HashMap EIdx Nat} (hm : NMemoRel memo lm) (k : arena.handle.EIdx)
+    (r : Std.U64) :
+    LSP (ron.hashmap2.HashMap2.insert arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 memo k r)
+      (fun p => NMemoRel p.2 (lm.insert (absEIdx k) (absU r))) := by
+  intro ⟨old, m'⟩ h
+  have hinj : ∀ a b : arena.handle.EIdx, True → True → absEIdx a = absEIdx b → a = b :=
+    fun a b _ _ hab => absEIdx_inj hab
+  obtain ⟨hrel', -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf eidx_eq2 hinj hm.2
+    ConRon.Refine.HashMap2.KeysOk_true hm.1 trivial h
+  exact ⟨hrel', (ConRon.Refine.HashMap2.insert_refines_wf eidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h).1⟩
+
+@[lockstep] theorem hashmap2_insert_eidx_eidx_spec
+    {memo : ron.hashmap2.HashMap2 arena.handle.EIdx arena.handle.EIdx}
+    {lm : Std.HashMap EIdx EIdx} (hm : PEMemoRel memo lm) (k : arena.handle.EIdx)
+    (r : arena.handle.EIdx) :
+    LSP (ron.hashmap2.HashMap2.insert arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+        arena.handle.EIdx.Insts.Con_ron_coreRonHashmapEq2 memo k r)
+      (fun p => PEMemoRel p.2 (lm.insert (absEIdx k) (absEIdx r))) := by
+  intro ⟨old, m'⟩ h
+  have hinj : ∀ a b : arena.handle.EIdx, True → True → absEIdx a = absEIdx b → a = b :=
+    fun a b _ _ hab => absEIdx_inj hab
+  obtain ⟨hrel', -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf eidx_eq2 hinj hm.2
+    ConRon.Refine.HashMap2.KeysOk_true hm.1 trivial h
+  exact ⟨hrel', (ConRon.Refine.HashMap2.insert_refines_wf eidx_eq2 hm.2
+    ConRon.Refine.HashMap2.KeysOk_true trivial h).1⟩
+
+@[lockstep] theorem hashmap2_new_eidx_u64_spec :
+    LSP (ron.hashmap2.HashMap2.new arena.handle.EIdx Std.U64) (fun m => NMemoRel m ∅) := by
+  intro m h
+  obtain ⟨hnInv, -, hnNone⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) h
+  exact ⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩
+
+@[lockstep] theorem hashmap2_new_eidx_eidx_spec :
+    LSP (ron.hashmap2.HashMap2.new arena.handle.EIdx arena.handle.EIdx)
+      (fun m => PEMemoRel m ∅) := by
+  intro m h
+  obtain ⟨hnInv, -, hnNone⟩ := ConRon.Refine.HashMap2.new_refines
+    (HashableInst := arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable) h
+  exact ⟨ConRon.Refine.HashMap2.RelOn_empty hnNone, hnInv⟩
+
+/-! ## `depth_go` / `expr_depth` / `whnf_walk_fuel` -/
+
+@[lockstep] theorem pos_max_u64_spec (a b : Std.U64) :
+    LSP (arena.inductives.positivity.max_u64 a b) (fun r => r.val = max a.val b.val) := by
+  intro r h
+  rw [arena.inductives.positivity.max_u64] at h
+  split at h <;> (have := Result.ok_injective h; subst this) <;> scalar_tac
+
+theorem depth_go_aux (n : Nat) :
+    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
+      (rm : ron.hashmap2.HashMap2 arena.handle.EIdx Std.U64)
+      (lm : Std.HashMap EIdx Nat) (fuel : Std.U64) (h : arena.handle.EIdx),
+      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st → NMemoRel rm lm →
+      LSR pers (fun a b => ∃ m', NMemoRel a.2 m' ∧ b = (absU a.1, m'))
+        (arena.inductives.positivity.depth_go pers st rm fuel h) st lst
+        (depthGo lm n (absEIdx h)) := by
+  induction n with
+  | zero =>
+    intro pers st lst rm lm fuel h hn hrel hinv hm
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.depth_go, depthGo]
+    lockstep
+  | succ m ih =>
+    intro pers st lst rm lm fuel h hn hrel hinv hm
+    apply LSR.of_LS
+    rw [arena.inductives.positivity.depth_go, depthGo]
+    unfold arena.inductives.positivity.depth_node
+    lockstep
+
+@[lockstep] theorem depth_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st)
+    {rm : ron.hashmap2.HashMap2 arena.handle.EIdx Std.U64} {lm : Std.HashMap EIdx Nat}
+    (hm : NMemoRel rm lm) (fuel : Std.U64) (h : arena.handle.EIdx) :
+    LSR pers (fun a b => ∃ m', NMemoRel a.2 m' ∧ b = (absU a.1, m'))
+      (arena.inductives.positivity.depth_go pers st rm fuel h) st lst
+      (depthGo lm (absU fuel) (absEIdx h)) :=
+  depth_go_aux _ rm lm fuel h rfl hrel hinv hm
+
+theorem fuel_slack_val : (arena.inductives.positivity.FUEL_SLACK).val = fuelSlack := by
+  rw [arena.inductives.positivity.FUEL_SLACK, fuelSlack]; rfl
+
+attribute [local lockstep_simp] fuel_slack_val
+
+@[lockstep] theorem expr_depth_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = absU a)
+      (arena.inductives.positivity.expr_depth pers st e) st lst (depth (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.expr_depth, depth]
+  lockstep
+
+@[lockstep] theorem whnf_walk_fuel_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (e : arena.handle.EIdx) :
+    LSR pers (fun a b => b = absU a)
+      (arena.inductives.positivity.whnf_walk_fuel pers st e) st lst
+      (whnfWalkFuel (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.inductives.positivity.whnf_walk_fuel, whnfWalkFuel]
+  lockstep
 
 end ConRon.Refine2
