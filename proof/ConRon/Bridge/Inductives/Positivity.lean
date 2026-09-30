@@ -1646,4 +1646,257 @@ theorem nestFields_spec {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} {F : Nat
 
 end Walk
 
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:643-654 NestCtx — the
+context's own fields, read off its denotation. -/
+theorem dCtx_fields {st : EStore} {fnd : ConLeche.Name → Option ConstantInfo}
+    {c : Arena.NestCtx} {cP : ConLeche.NestCtx} (h : dCtx st fnd c = some cP) :
+    Frontend.denoteNList st.ns c.names = some cP.names ∧ c.nP = cP.nP ∧ cP.find? = fnd ∧
+      Frontend.denoteEList st c.params = some cP.params ∧
+      denoteLs st.lss c.lvls = some (cP.lps.map .param) ∧
+      Frontend.denoteNList st.ns c.lps = some cP.lps := by
+  obtain ⟨namesP, lpsP, paramsP, sortP, rfl, h1, h2, h3, h4, h5⟩ := dCtx_inv h
+  exact ⟨h1, rfl, rfl, h3, h5, h2⟩
+
+section Ctors
+
+variable {μ : CheckMode} {env : Env} {fe : IFEnv}
+
+/-- con-leche: none — the twin's `if _h : root then (do let F ← m; k F) else k
+fuel`, as ONE bind (the `do` elaborator duplicates the continuation into both
+arms). -/
+theorem dite_bind_AM {α β : Type} (b : Bool) (m : AM α) (a : α) (X : α → AM β) :
+    (if _h : b = true then m >>= X else X a) = ((if b = true then m else pure a) >>= X) := by
+  cases b <;> simp
+
+/-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1198-1262 nestCtors
+**A frame's constructors** (con-leche's `nestCtorsS_sim`), the root frame's
+(`root`) and a container frame's alike: the twin's `root` flag and `fuel`
+denote con-leche's continuation `rec` (`hrec`), and the walk is correct at the
+fuel it runs at (`hps`).  The accumulator `outs` is the prefix of con-leche's
+answer; every walked form is well scoped at the frame's depth. -/
+theorem nestCtors_spec (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
+    {ctx : Arena.NestCtx} {ctxP : ConLeche.NestCtx} (root : Bool) (fuel : Nat)
+    (rec : Expr → List ConLeche.NestHole → Nat → Nat → Expr → ConLeche.NestState →
+      FueledM (ConLeche.NestFieldKind × Expr × ConLeche.NestState))
+    (hrec : ∀ crestP, rec crestP =
+      ConLeche.nestPos (fueledOpsM μ) env ctxP (if root then whnfWalkFuel crestP else fuel))
+    (hps : ∀ crestP, NestPosSpec μ env fe ctx ctxP (if root then whnfWalkFuel crestP else fuel))
+    (prog : List Arena.NestHole) (progP : List ConLeche.NestHole) (hi : Nat) (us : LsIdx)
+    (usP : List Level) (ds : List EIdx) (dsP : List Expr) (names : List NIdx)
+    (namesP : List ConLeche.Name) (holes : List EIdx) (holesP : List Expr)
+    (hds : ∀ d ∈ dsP, Expr.WScoped hi d) (hholes : ∀ x ∈ holesP, Expr.WScoped hi x)
+    (hlen : namesP.length ≤ holesP.length) :
+    ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
+      (ns : Arena.NestState) (nsP : ConLeche.NestState)
+      (outs : List (List Arena.NestFieldKind × EIdx))
+      (outsP : List (List ConLeche.NestFieldKind × Expr)),
+      (∀ c ∈ csP, c.1.type.hasFvar = false) →
+      CSpecF μ env fe (fun st => dCtx st env.find? ctx = some ctxP ∧
+          dProg st prog = some progP ∧ denoteLs st.lss us = some usP ∧
+          Frontend.denoteEList st ds = some dsP ∧
+          Frontend.denoteNList st.ns names = some namesP ∧
+          Frontend.denoteEList st holes = some holesP ∧ dCtors st cs = some csP ∧
+          dState st ns = some nsP ∧ outs.mapM (dOut st) = some outsP)
+        (Arena.nestCtors μ fe ctx root fuel prog hi us ds names holes cs ns outs)
+        (fun st r v => r.1.mapM (dOut st) = some (outsP ++ v.1) ∧ dState st r.2 = some v.2 ∧
+          ∀ o ∈ v.1, Expr.WScoped hi o.2)
+        (ConLeche.nestCtors ctxP (fueledOpsM μ) env rec progP hi usP dsP namesP holesP csP
+          nsP) := by
+  intro cs
+  induction cs with
+  | nil =>
+    intro csP ns nsP outs outsP hcs s₀ s' r hok hp hrun
+    obtain ⟨-, -, -, -, -, -, hcs', hns, houts⟩ := hp
+    simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs'
+    subst hcs'
+    rw [Arena.nestCtors] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    refine ⟨CoreStep.refl hok, ([], nsP), ⟨by simpa using houts, hns, fun _ h => nomatch h⟩, ?_⟩
+    simp only [ConLeche.nestCtors]
+    exact FOk.pure _
+  | cons c cs ih =>
+    intro csP ns nsP outs outsP hcs s₀ s' r hok hp hrun
+    obtain ⟨hctx, hprog, hus, hds', hnames, hholes', hcs', hns, houts⟩ := hp
+    obtain ⟨cv, nF⟩ := c
+    simp only [dCtors, List.mapM_cons, Option.bind_eq_bind, Option.pure_def] at hcs'
+    cases hc1 : dCtor s₀.store (cv, nF) with
+    | none => rw [hc1] at hcs'; simp at hcs'
+    | some cP =>
+    cases hcs1 : cs.mapM (dCtor s₀.store) with
+    | none => rw [hc1, hcs1] at hcs'; simp at hcs'
+    | some csP' =>
+    rw [hc1, hcs1] at hcs'
+    simp only [Option.bind_some, Option.some.injEq] at hcs'
+    subst hcs'
+    simp only [dCtor, Option.map_eq_some_iff] at hc1
+    obtain ⟨cvP, hcvP, rfl⟩ := hc1
+    obtain ⟨hcvn, hcvl, hcvt⟩ := denoteCV_inv hcvP
+    obtain ⟨hcnames, hcnP, -, -, -, -⟩ := dCtx_fields hctx
+    have hcl : cvP.type.hasFvar = false := hcs _ List.mem_cons_self
+    rw [Arena.nestCtors] at hrun
+    dsimp only at hrun
+    have hnod := nameNodup_spec hok.state.wf _ _ hcvl
+    by_cases hn : (!nameNodup cv.levelParams) = true
+    · rw [if_pos hn] at hrun; exact absurd hrun (fun hc => failOk hc)
+    rw [if_neg hn] at hrun
+    have hnod' : ConLeche.Name.nodup cvP.levelParams = true := by
+      rw [← hnod]; simpa using hn
+    -- the level instantiation
+    obtain ⟨cty, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨c1, hcty⟩ := instLPFast_cstep hok hcvl hus hcvt h1
+    -- the crest
+    obtain ⟨o, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨p2, ho⟩ := nestCrest_spec names namesP us usP ds dsP holes holesP cty _ s₁ s₂ o
+      c1.ok.state c1.ok.pins ⟨denoteNListE_ext c1.ext _ _ hnames, denoteLs_ext hus c1.ext,
+        denoteEList_ext c1.ext _ _ hds', denoteEList_ext c1.ext _ _ hholes', hcty⟩ h3
+    have c2 := c1.trans (p2.toCore c1.ok)
+    cases o with
+    | none => exact absurd h4 (fun hc => failOk hc)
+    | some crest =>
+    obtain ⟨crestP, hcrestP, hcrest⟩ := ho
+    dsimp only at h4
+    have hwc : Expr.WScoped hi crestP :=
+      WScoped_nestCrest (by rw [Expr.hasFvar_instantiateLevelParams]; exact hcl) hlen
+        (fun x hx => (List.mem_append.mp hx).elim (hds x) (hholes x)) hcrestP
+    -- typed at the frame's depth
+    obtain ⟨ty, s₃, h5, h6⟩ := bindOk h4
+    obtain ⟨c3, tyP, hty, hwty, hFty⟩ := infer_crun hk henv c2.ok hcrest hwc h5
+    obtain ⟨u, s₄, h7, h8⟩ := bindOk h6
+    obtain ⟨c4, uP, hu, hFu⟩ := ensureSort_crun hk henv c3.ok hty hwty h7
+    have c14 := c2.trans (c3.trans c4)
+    -- the fields, at the fuel `root` picks
+    rw [dite_bind_AM] at h8
+    obtain ⟨fc, s₄', h9, h9a⟩ := bindOk h8
+    have hcr4 : denoteE s₄.store crest = some crestP := denote_ext hcrest (c3.ext.trans c4.ext)
+    have hfld : PStep s₄ s₄' ∧ fc = (if root then whnfWalkFuel crestP else fuel) := by
+      cases root with
+      | true =>
+        simp only [↓reduceIte] at h9
+        obtain ⟨p, hfc⟩ := whnfWalkFuel_spec crest crestP s₄ s₄' fc c4.ok.state hcr4 h9
+        exact ⟨p, by simpa using hfc⟩
+      | false =>
+        simp only [Bool.false_eq_true, ↓reduceIte] at h9
+        obtain ⟨rfl, rfl⟩ := pureOk h9
+        exact ⟨PStep.refl c4.ok.state, by simp⟩
+    obtain ⟨p4', hfc⟩ := hfld
+    subst hfc
+    obtain ⟨q, s₅, h9', h10⟩ := bindOk h9a
+    have c4' := c14.trans (p4'.toCore c14.ok)
+    have hx04 := c14.ext.trans p4'.ext
+    obtain ⟨c5, vf, ⟨hks, hnds, hcur, hns2, hwnds, hwcur⟩, hFf⟩ :=
+      nestFields_spec (hps crestP) prog progP hi
+        (.invalid "nested positivity: invalid nested inductive datatype, its constructor type does not bind its fields (official: ill-formed constructor)")
+        nF 0 crest crestP ns nsP [] [] [] (by simpa using hwc) s₄' s₅ q c4'.ok
+        ⟨dCtx_ext _ hx04 _ _ hctx, dProg_ext hx04 _ _ hprog, denote_ext hcr4 p4'.ext,
+          dState_ext hx04 _ _ hns, rfl⟩ h9'
+    obtain ⟨ks, nds, cur, ns2⟩ := q
+    simp only [List.map_nil, List.nil_append] at hks hnds
+    dsimp only at h10 hks hnds hcur hns2
+    -- the walked telescope, closed
+    obtain ⟨closed, s₆, h11, h12⟩ := bindOk h10
+    obtain ⟨p6, hclosed⟩ := closeTelescope_spec nds vf.2.1 hi cur vf.2.2.1 s₅ s₆ closed
+      c5.ok.state ⟨hnds, hcur⟩ h11
+    -- U4
+    obtain ⟨u4, s₇, h13, h14⟩ := bindOk h12
+    obtain ⟨p7, hu4⟩ := anyM_pstep (fun _ st => denoteE st closed =
+        some (ConLeche.closeTelescope vf.2.1 hi vf.2.2.1))
+      (g := fun i => vf.1.getD i .ordinary != .ordinary &&
+        ConLeche.structUsedLater (ConLeche.closeTelescope vf.2.1 hi vf.2.2.1) 0 i)
+      (fun hx h => denote_ext h hx)
+      (fun i s₀ s' b hok' hq hrun' => by
+        rw [u4_kind, hks] at hrun'
+        cases hkd : (vf.1.getD i .ordinary != .ordinary) with
+        | true =>
+          rw [hkd] at hrun'
+          simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hrun'
+          obtain ⟨p, hb⟩ := structUsedLater_spec closed _ 0 i s₀ s' b hok' hq hrun'
+          exact ⟨p, by simp only [RV] at hb; rw [hb, Bool.true_and]⟩
+        | false =>
+          rw [hkd] at hrun'
+          simp only [Bool.not_false, ↓reduceIte] at hrun'
+          obtain ⟨rfl, rfl⟩ := pureOk hrun'
+          exact ⟨PStep.refl hok', by rw [Bool.false_and]⟩)
+      (List.range nF) s₆ s₇ u4 p6.ok (fun _ _ => hclosed) h13
+    cases u4 with
+    | true => simp only [↓reduceIte] at h14; exact absurd h14 (fun hc => failOk hc)
+    | false =>
+    simp only [Bool.false_eq_true, ↓reduceIte] at h14
+    -- the result
+    have hx57 := p6.ext.trans p7.ext
+    have hcur7 : denoteE s₇.store cur = some vf.2.2.1 := denote_ext hcur hx57
+    obtain ⟨rh, s₈, h15, h16⟩ := bindOk h14
+    obtain ⟨p8, hrh⟩ := nestResHead_spec cur vf.2.2.1 s₇ s₈ rh p7.ok hcur7 h15
+    simp only [RV] at hrh
+    cases rh with
+    | false =>
+      simp only [Bool.false_eq_true, ↓reduceIte, pure_bind, Bool.not_false] at h16
+      exact absurd h16 (fun hc => failOk hc)
+    | true =>
+    simp only [↓reduceIte] at h16
+    obtain ⟨args, s₉, h17, h18⟩ := bindOk h16
+    obtain ⟨hs9, hargs⟩ := getAppArgs_run p8.ok (denote_ext hcur7 p8.ext) h17
+    rw [hs9] at h18
+    obtain ⟨occ, s₁₀, h19, h20⟩ := bindOk h18
+    have hx08 := c4'.ext.trans (c5.ext.trans (hx57.trans p8.ext))
+    obtain ⟨p10, hocc⟩ := anyM_E_pstep (fun st => Frontend.denoteNList st.ns ctx.names =
+        some ctxP.names)
+      (fun hx h => denoteNListE_ext hx _ _ h)
+      (fun e eP s₀ s' b hok' hq hd hrun' =>
+        nestOcc_spec ctx.names ctxP.names ctx.nP hi e eP s₀ s' b hok' ⟨hq, hd⟩ hrun')
+      args _ s₈ s₁₀ occ p8.ok (denoteNListE_ext hx08 _ _ hcnames) hargs h19
+    simp only [pure_bind] at h20
+    cases occ with
+    | true => simp only [Bool.not_true, Bool.not_false, ↓reduceIte] at h20
+              exact absurd h20 (fun hc => failOk hc)
+    | false =>
+    simp only [Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at h20
+    -- the record
+    have hx010 := hx08.trans p10.ext
+    have hx510 := hx57.trans (p8.ext.trans p10.ext)
+    obtain ⟨nf, s₁₁, h21, h22⟩ := bindOk h20
+    have c10 := c4'.trans (c5.trans ((p6.trans (p7.trans (p8.trans p10))).toCore c5.ok))
+    obtain ⟨p11, hnf⟩ := nestCtorNf_spec ctx prog us ds cv closed env.find? ctxP progP usP dsP
+      cvP (ConLeche.closeTelescope vf.2.1 hi vf.2.2.1) s₁₀ s₁₁ nf c10.ok.state c10.ok.pins
+      ⟨dCtx_ext _ hx010 _ _ hctx, dProg_ext hx010 _ _ hprog, denoteLs_ext hus hx010,
+        denoteEList_ext hx010 _ _ hds', denoteCV_ext hcvP hx010,
+        denote_ext hclosed (p7.ext.trans (p8.ext.trans p10.ext))⟩ h21
+    have c11 := c10.trans (p11.toCore c10.ok)
+    have hx511 := hx510.trans p11.ext
+    have hx011 := hx010.trans p11.ext
+    have hwN : Expr.WScoped hi (ConLeche.closeTelescope vf.2.1 hi vf.2.2.1) :=
+      Cached.closeTelescope_wscoped vf.2.1 hi vf.2.2.1
+        (fun k nd hk => by simpa using hwnds k nd hk) (by simpa using hwcur)
+    obtain ⟨c12, vr, ⟨hvr1, hvr2, hvr3⟩, hFr⟩ := ih csP' _
+      ({ keys := vf.2.2.2.keys, active := vf.2.2.2.active, ctorNfs := vf.2.2.2.ctorNfs.push (ConLeche.nestCtorNf ctxP progP hi usP dsP cvP vf.2.1 vf.2.2.1) } : ConLeche.NestState)
+      (outs ++ [(ks, closed)]) (outsP ++ [(vf.1, ConLeche.closeTelescope vf.2.1 hi vf.2.2.1)])
+      (fun c hc => hcs c (List.mem_cons_of_mem _ hc)) s₁₁ s' r c11.ok
+      ⟨dCtx_ext _ hx011 _ _ hctx, dProg_ext hx011 _ _ hprog, denoteLs_ext hus hx011,
+        denoteEList_ext hx011 _ _ hds', denoteNListE_ext hx011 _ _ hnames,
+        denoteEList_ext hx011 _ _ hholes', dCtors_ext hx011 _ _ hcs1,
+        dState_push (dState_ext hx511 _ _ hns2) hnf,
+        mapM_option_append (dOut_ext.list hx011 _ _ houts)
+          (by simp [dOut, denote_ext hclosed (p7.ext.trans (p8.ext.trans (p10.ext.trans
+            p11.ext))), hks])⟩ h22
+    refine ⟨c11.trans c12, ((vf.1, ConLeche.closeTelescope vf.2.1 hi vf.2.2.1) :: vr.1, vr.2),
+      ⟨by rw [hvr1]; simp, hvr2, fun o ho => ?_⟩, ?_⟩
+    · rcases List.mem_cons.mp ho with rfl | ho
+      · exact hwN
+      · exact hvr3 o ho
+    · have hu4' : ((List.range nF).any fun i => vf.1.getD i .ordinary != .ordinary &&
+          ConLeche.structUsedLater (ConLeche.closeTelescope vf.2.1 hi vf.2.2.1) 0 i) = false :=
+        hu4.symm
+      have hres' : (ConLeche.nestResHead vf.2.2.1 &&
+          vf.2.2.1.getAppArgs.all fun x => !Expr.nestOcc ctxP.names ctxP.nP hi x) = true := by
+        rw [← hrh, ← List.not_any_eq_all_not, ← hcnP, ← hocc]; rfl
+      simp only [ConLeche.nestCtors, if_pos hnod', hcrestP]
+      refine FOk.bind FOk.unwrapOr ?_
+      refine FOk.bind hFty ?_
+      refine FOk.bind hFu ?_
+      rw [hrec crestP]
+      refine FOk.bind hFf ?_
+      simp only [hu4', hres', Bool.false_eq_true, ↓reduceIte]
+      exact FOk.bind hFr (FOk.pure _)
+
+end Ctors
+
 end ConRon.Bridge.Inductives
