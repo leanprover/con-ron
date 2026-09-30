@@ -1292,4 +1292,124 @@ theorem blockRecNamesUnreserved_spec (pP : ConLeche.BlockShape) :
       simp only [RV] at h3 ⊢
       simp [hc, h3]
 
+/-! ## The members' counts -/
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:370-383 blockMemberCounts?
+(`rec_for_member`) — the twin's `findM?` over the recursors is con-leche's
+`find?`, read at the two counts the member's reader takes. -/
+theorem recForMember_run (names : List NIdx) (namesP : List ConLeche.Name) (m : Nat) :
+    ∀ (rs : List (IConstantVal × Nat × Nat × List IRecRule))
+      (rsP : List (ConstantVal × Nat × Nat × List RecRule)) (s₀ s' : AState)
+      (o : Option (IConstantVal × Nat × Nat × List IRecRule)), StateOK s₀ →
+      Frontend.denoteNList s₀.store.ns names = some namesP →
+      rs.mapM (dRec4 s₀.store) = some rsP →
+      (rs.findM? (fun q => (do pure ((← Arena.recTargetOf names q.2.1 q.1.type) == m) :
+        AM Bool)) : AM _) s₀ = .ok (o, s') →
+      PStep s₀ s' ∧ o.map (fun q => (q.2.1, q.2.2.1)) =
+        (rsP.find? fun q => ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map
+          (fun q => (q.2.1, q.2.2.1)) := by
+  intro rs
+  induction rs with
+  | nil =>
+    intro rsP s₀ s' o hok _ hrs hrun
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrs
+    subst hrs
+    simp only [List.findM?] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons q qs ih =>
+    intro rsP s₀ s' o hok hN hrs hrun
+    obtain ⟨qP, qsP, rfl, hq, hqs⟩ := mapM_option_cons_inv hrs
+    obtain ⟨hcv, hmI, hrP, -⟩ := dRec4_inv hq
+    simp only [List.findM?] at hrun
+    obtain ⟨b, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨t, s₂, h3, h4⟩ := bindOk h1
+    obtain ⟨p3, ht⟩ := recTargetOf_spec names namesP q.2.1 q.1.type qP.1.type s₀ s₂ t hok
+      ⟨hN, denoteCV_type hcv⟩ h3
+    simp only [RV] at ht
+    subst ht
+    obtain ⟨rfl, rfl⟩ := pureOk h4
+    simp only [List.find?_cons]
+    cases hb : (ConLeche.recTargetOf namesP qP.2.1 qP.1.type == m) with
+    | true =>
+      rw [hmI, hb] at h2
+      obtain ⟨rfl, rfl⟩ := pureOk h2
+      exact ⟨p3, by simp [hmI, hrP]⟩
+    | false =>
+      rw [hmI, hb] at h2
+      obtain ⟨p4, h5⟩ := ih qsP _ s' o p3.ok (denoteNListE_ext p3.ext _ _ hN)
+        (mapM_option_ext (fun x y h => dRec4_ext p3.ext x y h) _ _ hqs) h2
+      exact ⟨p3.trans p4, h5⟩
+
+/-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:370-383 blockMemberCounts?
+The members' index counts, member by member: `recForMember_run`, then
+`blockCounts?_spec`. -/
+theorem blockMemberCounts?_spec (nPd k nC : Nat) (names : List NIdx)
+    (namesP : List ConLeche.Name) (rs : List (IConstantVal × Nat × Nat × List IRecRule))
+    (rsP : List (ConstantVal × Nat × Nat × List RecRule)) :
+    ∀ (m : Nat) (cvTs : List IConstantVal) (cvTsP : List ConstantVal),
+    PSpec (fun st => Frontend.denoteNList st.ns names = some namesP ∧
+        rs.mapM (dRec4 st) = some rsP ∧ cvTs.mapM (Frontend.denoteCV st) = some cvTsP)
+      (Arena.blockMemberCounts? nPd k nC names rs m cvTs)
+      (RV (ConLeche.blockMemberCounts? nPd k nC namesP rsP m cvTsP)) := by
+  intro m cvTs
+  induction cvTs generalizing m with
+  | nil =>
+    intro cvTsP s₀ s' r hok hp hrun
+    obtain ⟨-, -, hc⟩ := hp
+    simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hc
+    subst hc
+    simp only [Arena.blockMemberCounts?] at hrun
+    obtain ⟨rfl, rfl⟩ := pureOk hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons cvT ts ih =>
+    intro cvTsP s₀ s' r hok hp hrun
+    obtain ⟨hN, hrs, hc⟩ := hp
+    obtain ⟨cvTP, tsP, rfl, hcv, hts⟩ := mapM_option_cons_inv hc
+    have hlen : rs.length = rsP.length := (mapM_option_length hrs).symm
+    simp only [Arena.blockMemberCounts?] at hrun
+    obtain ⟨o, s₁, h1, h2⟩ := bindOk hrun
+    obtain ⟨p1, ho⟩ := recForMember_run names namesP m rs rsP s₀ s₁ o hok hN hrs h1
+    obtain ⟨c, s₂, h3, h4⟩ := bindOk h2
+    obtain ⟨rr, hrr, h3⟩ : ∃ rr, rr = (rsP.find? fun q =>
+          ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map (fun q => (q.2.1, q.2.2.1)) ∧
+        Arena.blockCounts? nPd k nC rs.length cvT rr s₁ = .ok (c, s₂) := by
+      cases o with
+      | none => exact ⟨none, by rw [← ho]; rfl, h3⟩
+      | some q => exact ⟨_, by rw [← ho]; rfl, h3⟩
+    subst hrr
+    rw [hlen] at h3
+    obtain ⟨p3, hc3⟩ := blockCounts?_spec nPd k nC rsP.length cvT cvTP _ s₁ s₂ c p1.ok
+      (denoteCV_ext hcv p1.ext) h3
+    simp only [RV] at hc3
+    subst hc3
+    simp only [ConLeche.blockMemberCounts?]
+    cases hbc : ConLeche.blockCounts? nPd k nC rsP.length cvTP
+        ((rsP.find? fun q => ConLeche.recTargetOf namesP q.2.1 q.1.type == m).map
+          fun q => (q.2.1, q.2.2.1)) with
+    | none =>
+      rw [hbc] at h4
+      obtain ⟨rfl, rfl⟩ := pureOk h4
+      exact ⟨p1.trans p3, rfl⟩
+    | some cc =>
+      rw [hbc] at h4
+      dsimp only at h4
+      obtain ⟨ns, s₃, h5, h6⟩ := bindOk h4
+      have x3 := p1.ext.trans p3.ext
+      obtain ⟨p5, hns⟩ := ih (m + 1) tsP s₂ s₃ ns p3.ok
+        ⟨denoteNListE_ext x3 _ _ hN,
+         mapM_option_ext (fun x y h => dRec4_ext x3 x y h) _ _ hrs,
+         mapM_option_ext (fun x y h => denoteCV_ext h x3) _ _ hts⟩ h5
+      simp only [RV] at hns
+      subst hns
+      cases hrest : ConLeche.blockMemberCounts? nPd k nC namesP rsP (m + 1) tsP with
+      | none =>
+        rw [hrest] at h6
+        obtain ⟨rfl, rfl⟩ := pureOk h6
+        exact ⟨(p1.trans p3).trans p5, rfl⟩
+      | some ns =>
+        rw [hrest] at h6
+        obtain ⟨rfl, rfl⟩ := pureOk h6
+        exact ⟨(p1.trans p3).trans p5, rfl⟩
+
 end ConRon.Bridge.Inductives
