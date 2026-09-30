@@ -248,14 +248,6 @@ declared type. -/
 def IConstantInfo.type (c : IConstantInfo) : AM EIdx := do
   pure (← c.toConstantVal).type
 
-/-- con-leche: ConLeche/Kernel/Env.lean:565-568 name — the name of a
-non-basis declaration, `Declaration.name` at lines 565-568.  con-leche's
-`.anonymous` fall-through is the interned anonymous name here. -/
-def IDeclaration.name : IDeclaration → AM NIdx
-  | .axiomDecl v | .defnDecl v .. | .thmDecl v .. | .opaqueDecl v .. => pure v.name
-  | .quotDecl _ v => pure v.name
-  | .basisDecl _ | .indDecl _ _ => internNNode .anonymous
-
 /-- con-leche: ConLeche/Kernel/Env.lean:659-670 Declaration.names — the names a
 declaration record declares; `preparePrelude`'s lookup and the ground hoist's
 name index read it. -/

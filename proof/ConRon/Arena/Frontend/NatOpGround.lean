@@ -280,49 +280,6 @@ theorem hoistClosure_pushOne_lt {ds : Array IDeclaration} {idx : Std.HashMap NId
       · exact hs
     · exact hoistClosure_pushOne_lt hidx k ns stack hs
 
-/-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets —
-**the twin's fuel is sufficient**: with every stack entry and every name-index
-value below `ds.size`, a fuel at least the pending count answers exactly what
-one more unit of fuel answers.  So the fuel-0 `fail` is unreachable from the
-caller's `ds.size`, and the fuelled worklist is the unfuelled loop. -/
-theorem hoistClosure_fuel_succ {ds : Array IDeclaration} {idx : Std.HashMap NIdx Nat}
-    {i : Nat} (hidx : ∀ (n : NIdx) m, idx[n]? = some m → m < ds.size) :
-    ∀ (fuel : Nat) (target : Std.HashMap Nat Nat) (stack : List Nat),
-      (∀ x ∈ stack, x < ds.size) → hoistPending ds.size target i ≤ fuel →
-      hoistClosure ds idx i (fuel + 1) target stack
-        = hoistClosure ds idx i fuel target stack := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro target stack hs hp
-    conv => lhs; rw [hoistClosure]
-    conv => rhs; rw [hoistClosure]
-    split
-    · rfl
-    · rename_i k rest hdrop
-      have hk := hs k (hoistDropDone_sub target i (by rw [hdrop]; exact List.mem_cons_self))
-      have := hoistPending_insert hk (hoistDropDone_head target i hdrop)
-      omega
-  | succ f ih =>
-    intro target stack hs hp
-    conv => lhs; rw [hoistClosure]
-    conv => rhs; rw [hoistClosure]
-    split
-    · rfl
-    · rename_i k rest hdrop
-      have hk := hs k (hoistDropDone_sub target i (by rw [hdrop]; exact List.mem_cons_self))
-      have hlt := hoistPending_insert hk (hoistDropDone_head target i hdrop)
-      have hrest : ∀ x ∈ rest, x < ds.size := fun x hx =>
-        hs x (hoistDropDone_sub target i (by rw [hdrop]; exact List.mem_cons_of_mem k hx))
-      simp only []
-      unfold hoistClosure.pushDeps
-      by_cases hkd : k < ds.size
-      · simp only [dif_pos hkd, bind_assoc, pure_bind]
-        congr 1; funext ns
-        exact ih _ _ (hoistClosure_pushOne_lt hidx k _ rest hrest) (by omega)
-      · simp only [dif_neg hkd, pure_bind]
-        exact ih _ _ hrest (by omega)
-
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:106-136 hoistTargets — the
 outer `for i in [0:ds.size]` loop: for every pinned-operation record, every
 ground of its `natOpDeps` declared LATER pulls its own closure forward. -/

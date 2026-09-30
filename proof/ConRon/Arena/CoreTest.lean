@@ -737,14 +737,6 @@ reused by the next declaration. -/
   let after := (← get).caches.whnfC.contains h
   pure (inside && scratch && !after))
 
-/- The specification of a surviving row is still there, and still says a
-persistent-through row could have stayed: `dropScratchEntries` keeps it. -/
-#guard runB (do
-  let _ ← whnf MU FX.fe F 0 FX.two
-  let before := (← get).caches.whnfC.size
-  let kept := ((← get).caches.dropScratchEntries).whnfC.size
-  pure (before > 0 && kept == before))
-
 /-! ## The gated and io knots agree with the executed one on the fixture
 
 `CoreGated.lean`'s β gate and `CoreIO.lean`'s leaf lane are statement
@@ -758,8 +750,6 @@ fixture the way con-leche's own do. -/
   (ConLeche.whnfGated MU envCL F 0 tTwo)
 #guard chkE (inferTypeCoreGated MU FX.fe F 0 FX.succ3)
   (ConLeche.inferTypeCoreGated MU envCL F 0 tSucc3)
-#guard chkE (inferTypeCoreIO MU FX.fe F 0 FX.succ3)
-  (ConLeche.inferTypeCoreIO MU envCL F 0 tSucc3)
 #guard chkE (annotateCoreGated MU FX.fe F 0 FX.idProp)
   (ConLeche.annotateCoreGated MU envCL F 0 tIdProp)
 #guard chkB (isDefEqCoreGated MU FX.fe F 0 FX.pfA FX.pfB)

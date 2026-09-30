@@ -105,11 +105,6 @@ of fields: an unfilled table is EMPTY, so `pinAt` takes its bounds branch and
 stops.  `pin` itself survives for the names that are NOT reserved (the
 recursor and projection-function names the modeller builds). -/
 
-/-- con-leche: none — intern a reserved `ConLeche.Name` and hand back its
-handle.  The one place the arena turns a name VALUE into a name HANDLE
-outside the parser. -/
-@[inline] def pin (n : ConLeche.Name) : AM NIdx := internName n
-
 /-- con-leche: none — the empty universe-argument list, off the pin table.
 `us == emptyLevels` is con-leche's pattern `.const _ []`. -/
 def emptyLevels : AM LsIdx := pinEmptyLevels
@@ -1721,13 +1716,6 @@ def andRescueSlots (fe : IFEnv) (ctor : NIdx) (nP : Nat) (ust : LsIdx) :
 
 con-leche's `Core.lean`:1311-1832. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor — the
-fabrication's fvar-leaf containment, `fab.fvarLeaves.all (fun l =>
-major.fvarLeaves.contains l)`, as a named recursion (DESIGN §3.4). -/
-def fvarLeavesSubset : List (Nat × EIdx) → List (Nat × EIdx) → Bool
-  | [], _ => true
-  | l :: ls, ms => ms.contains l && fvarLeavesSubset ls ms
-
 /-- con-leche: ConLeche/Kernel/Core.lean:544-726 majorToCtor
 con-leche: ConLeche/Cached/CoreC.lean:544-569 majorToCtorI — the scope guard
 the three rescue branches share (cf. `annotateProjElim`): the fabricated major
@@ -2389,23 +2377,6 @@ def projCertAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (verified lic : Bool)
     (c : NIdx) (us : LsIdx) (args : List EIdx) : AM Bool :=
   if verified then projCert r fe depth lic c us args else pure true
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:981-1013 betaGateFires — **THE β
-SITE'S GATE**, the SPEC's form: at `mode.betaGate` a λ-binder whose
-*validated* annotation datum is `.never` licenses skipping the certificate.
-Mode-and-datum only, so it is decidable before the certificate would have
-started.
-
-It has **no reader here**, for the reason `whnfCoreLoopFuel` has none: the β
-site of the twin runs `CheckMode.betaSkip`, which is what
-`Cached/CoreC.lean:876` and `:918` — the EXECUTED core, the one this module
-twins — read, and which is `betaGateFires` weakened by
-`!mode.certs` (the β certificate is a certificate FAMILY, skipped wholesale at
-`.trusted`).  The two agree at `.verified`, the mode the bridge is stated at;
-task #97f's `--trusted` sweep is what made the difference matter.  Twinned so
-P3 has the spec's subject by name. -/
-@[inline] def betaGateFires (mode : CheckMode) (pw : PropWhen) : Bool :=
-  mode.betaGate && pw.isNever
-
 /-- con-leche: ConLeche/Kernel/Core.lean:963-1058 whnfCoreBody — the
 head-normalization body: beta (with the per-redex argument certificate),
 iota (with the stuck-major machinery) and the projection rule — but **no
@@ -2465,15 +2436,6 @@ def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       fail (.internal "whnfCore: `let` in an annotated expression")
     | .bvar _ =>
       fail (.notImplemented "whnf beyond the supported fragment")
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1060-1068 whnfCoreLoopFuel — step
-budget of the `whnfCore` head-normalization loop.  The arena's
-`whnfCoreBody` is con-leche's SPEC shape — beta, iota and projection steps
-chained through the knot, not iterated in a local loop — so this budget has
-no reader here yet; it is twinned because the executed loop
-(`Cached/CoreC.lean`'s `whnfCoreLoopI`) is what P2g will measure against,
-and its budget must be the same number. -/
-def whnfCoreLoopFuel : Nat := 1000000
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1070-1077 whnfLoopFuel — step budget
 of the `whnf` reduction loop (lean4lean's `FuelConfig.whnf`, same value).

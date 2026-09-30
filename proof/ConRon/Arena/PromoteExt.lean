@@ -108,14 +108,6 @@ theorem AExtOf.of_fail {α : Type} (e : CheckError) : AExtOf (fail e : AM α) :=
   rw [fail_apply] at h
   exact absurd h (by simp)
 
-/-- con-leche: none — arena infrastructure; `get` moves nothing. -/
-theorem AExtOf.of_get : AExtOf (get : AM AState) := by
-  intro s r s' h
-  simp only [get, getThe, MonadStateOf.get, StateT.get, Except.ok.injEq,
-    Prod.mk.injEq, pure, Except.pure] at h
-  obtain ⟨-, rfl⟩ := h
-  exact AExt.refl _
-
 /-- con-leche: none — arena infrastructure; **the closure property**: a step
 followed by a step is a step.  This is the whole content of the walks below. -/
 theorem AExtOf.bind {α β : Type} {a : AM α} {f : α → AM β}
@@ -466,88 +458,13 @@ theorem promoteCIList_aext (m : PMemo) (fuel : Nat) (cs : List IConstantInfo) :
 theorem AExtOf.of_promoteCIList (m : PMemo) (fuel : Nat) (cs : List IConstantInfo) :
     AExtOf (promoteCIList m fuel cs) := promoteCIList_aext m fuel cs
 
-theorem promoteDecl_aext (m : PMemo) (fuel : Nat) (d : IDeclaration) :
-    AExtOf (promoteDecl m fuel d) := by
-  cases d <;> (unfold promoteDecl; aext_auto)
-
-theorem AExtOf.of_promoteDecl (m : PMemo) (fuel : Nat) (d : IDeclaration) :
-    AExtOf (promoteDecl m fuel d) := promoteDecl_aext m fuel d
-
 theorem promoteVG_aext (m : PMemo) (fuel : Nat) (g : ValueGroup) :
     AExtOf (promoteVG m fuel g) := by
   unfold promoteVG; aext_auto
 
-theorem AExtOf.of_promoteVG (m : PMemo) (fuel : Nat) (g : ValueGroup) :
-    AExtOf (promoteVG m fuel g) := promoteVG_aext m fuel g
-
 theorem promoteNew_aext (m : PMemo) (fuel k : Nat) (fe : IFEnv) :
     AExtOf (promoteNew m fuel k fe) := by
   unfold promoteNew; aext_auto
-
-theorem AExtOf.of_promoteNew (m : PMemo) (fuel k : Nat) (fe : IFEnv) :
-    AExtOf (promoteNew m fuel k fe) := promoteNew_aext m fuel k fe
-
-
-/-! ## The `Ext` corollaries
-
-What `Bridge/Promote/Exact.lean`'s `promote*_spec` conjuncts ask for, in the
-shape they ask for it.  `AExt` carries the frame too (`.memos`, `.caches`,
-`.pins`, `.scratchOn`), so a consumer that wants `PFrame` reads the same
-value. -/
-
-/-- con-leche: none — arena infrastructure; **promoting a NAME extends the
-arena.** -/
-theorem promoteN_ext {m m' : PMemo} {fuel : Nat} {h r : NIdx} {s s' : AState}
-    (hrun : promoteN m fuel h s = .ok ((m', r), s')) : Ext s.store s'.store :=
-  (promoteN_aext m fuel h s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; **promoting a LEVEL extends the
-arena.** -/
-theorem promoteL_ext {m m' : PMemo} {fuel : Nat} {h r : LIdx} {s s' : AState}
-    (hrun : promoteL m fuel h s = .ok ((m', r), s')) : Ext s.store s'.store :=
-  (promoteL_aext m fuel h s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; **promoting a universe-argument
-LIST extends the arena.** -/
-theorem promoteLs_ext {m m' : PMemo} {fuel : Nat} {h r : LsIdx} {s s' : AState}
-    (hrun : promoteLs m fuel h s = .ok ((m', r), s')) : Ext s.store s'.store :=
-  (promoteLs_aext m fuel h s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; **promoting an EXPRESSION extends
-the arena** — the `Ext` conjunct of `Bridge/Promote/Exact.lean`'s
-`promoteE_spec`, THE exactness lemma of promotion (proved; it takes the
-conjunct from `promoteE_aext` directly, as this lemma does). -/
-theorem promoteE_ext {m m' : PMemo} {fuel : Nat} {h r : EIdx} {s s' : AState}
-    (hrun : promoteE m fuel h s = .ok ((m', r), s')) : Ext s.store s'.store :=
-  (promoteE_aext m fuel h s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; promoting a stored CONSTANT
-extends the arena. -/
-theorem promoteCI_ext {m m' : PMemo} {fuel : Nat} {ci r : IConstantInfo}
-    {s s' : AState} (hrun : promoteCI m fuel ci s = .ok ((m', r), s')) :
-    Ext s.store s'.store :=
-  (promoteCI_aext m fuel ci s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; promoting a DECLARATION record
-extends the arena. -/
-theorem promoteDecl_ext {m m' : PMemo} {fuel : Nat} {d r : IDeclaration}
-    {s s' : AState} (hrun : promoteDecl m fuel d s = .ok ((m', r), s')) :
-    Ext s.store s'.store :=
-  (promoteDecl_aext m fuel d s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; promoting the install/check seam
-extends the arena. -/
-theorem promoteVG_ext {m m' : PMemo} {fuel : Nat} {g r : ValueGroup}
-    {s s' : AState} (hrun : promoteVG m fuel g s = .ok ((m', r), s')) :
-    Ext s.store s'.store :=
-  (promoteVG_aext m fuel g s (m', r) s' hrun).ext
-
-/-- con-leche: none — arena infrastructure; **the phase-A bracket's promotion
-half extends the arena** — the fold's own entry. -/
-theorem promoteNew_ext {m m' : PMemo} {fuel k : Nat} {fe r : IFEnv}
-    {s s' : AState} (hrun : promoteNew m fuel k fe s = .ok ((m', r), s')) :
-    Ext s.store s'.store :=
-  (promoteNew_aext m fuel k fe s (m', r) s' hrun).ext
 
 /-! ## The trust census
 
@@ -555,7 +472,6 @@ theorem promoteNew_ext {m m' : PMemo} {fuel k : Nat} {fe r : IFEnv}
 and (task #97a's arithmetic packing) no `bv_decide` axiom. -/
 
 #print axioms Ext.of_view_mono
-#print axioms EStore.internBindI_ext
 #print axioms EStore.internBM_ext
 #print axioms EStore.internAt_ext
 #print axioms EStore.internPersistent_ext
@@ -565,13 +481,5 @@ and (task #97a's arithmetic packing) no `bv_decide` axiom. -/
 #print axioms NStore.internPersistent_ext
 #print axioms LStore.internPersistent_ext
 #print axioms LsStore.internPersistent_ext
-#print axioms promoteN_ext
-#print axioms promoteL_ext
-#print axioms promoteLs_ext
-#print axioms promoteE_ext
-#print axioms promoteCI_ext
-#print axioms promoteDecl_ext
-#print axioms promoteVG_ext
-#print axioms promoteNew_ext
 
 end ConRon.Arena

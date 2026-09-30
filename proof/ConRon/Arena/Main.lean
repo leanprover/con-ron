@@ -197,41 +197,6 @@ def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
   | .error (e, n) => pure (.error (atDecl e n))
   | .ok _ => pure (.ok records)
 
-/-- con-leche: Main.lean:461-711 checkMain
-**THE PURE SEAM'S BODY**: the prelude, `parseChunks` (which is `chunkStep`
-folded over the chunk list with `chunkFinish` at its end), and the tail.  The
-driver's `readFold` is the same fold over the same steps with the buffers read
-one at a time; see the module note. -/
-def runPipelineM (md : Frontend.Modeller) (mode : CheckMode)
-    (pins : List NatOpPinSet) (chunks : List ByteArray) (im : Bool := true)
-    (ce : Bool := false) :
-    AM (Except CheckError Nat) := do
-  match ← runPipelineHead md im ce with
-  | .error (e, n) => pure (.error (Frontend.atLine e n))
-  | .ok (pre, st) =>
-    match ← Frontend.parseChunksGo md st .empty 0 0 chunks with
-    | .error (e, n) => pure (.error (Frontend.atLine e n))
-    | .ok r => runPipelineTail mode pins pre r
-
-/-- con-leche: Main.lean:461-711 checkMain
-**THE SEAM ITSELF**: `runPipelineM` run at the empty store, with the parse's
-own `(CheckError × Nat)` position folded into the message (`Frontend.atLine`)
-because this signature has no position channel.
-
-`im`/`ce` are the binary's two environment flags (`CON_LECHE_INMODEL`,
-`CON_LECHE_INMODEL_CENSUS`; `crates/con-ron/src/bin/con-ron.rs` reads them
-and `driver.rs` hands them to `state_d_init`), defaulting to the binary's own
-defaults.  Task #97-COMPOSE's mismatch 4: until round 7 of task
-#97-P3-Frontend they were hard-coded here, so a run with a non-default flag
-was outside the theorem. -/
-def runPipeline (chunks : List ByteArray) (mode : CheckMode)
-    (pins : List NatOpPinSet) (im : Bool := true) (ce : Bool := false) :
-    Except CheckError Nat :=
-  match (runPipelineM Frontend.inProcessModeller mode pins chunks im ce).run
-      (AState.init EStore.empty) with
-  | .error e => .error e
-  | .ok (r, _) => r
-
 /-- con-leche: Main.lean:423-434 progressStride
 The progress heartbeat's stride, read off `--progress[=<stride>]`.  No
 flag is off; bare `--progress` is stride 1.  A value that is not a decimal

@@ -73,18 +73,6 @@ element type of a reduce operation, as the pinned constant. -/
 def reduceElemTy (c : NIdx) : AM EIdx := do
   constE (← reduceElemName c)
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:108-110 reduceOpRaw — the raw
-pinned type of `Lean.reduceNat` / `Lean.reduceBool`.  The con-leche constant
-is a function of the operation's `Name`, so the twin reads the handle back to
-call it and interns the result. -/
-def reduceOpRaw (c : NIdx) : AM IConstantVal := do
-  internCV (ConLeche.reduceOpRaw (← readName c))
-
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:112-122 ofReduceRaw — the raw
-pinned type of `Lean.ofReduceNat` / `Lean.ofReduceBool`. -/
-def ofReduceRaw (n : NIdx) : AM IConstantVal := do
-  internCV (ConLeche.ofReduceRaw (← readName n))
-
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:139-141 _ — the annotated
 pinned type of `Lean.reduceNat` (`#annotate_pins`' `reduceNatCvA`). -/
 def reduceNatCvA : AM IConstantVal := internCV ConLeche.reduceNatCvA
@@ -127,17 +115,5 @@ def reduceDeclPin (c : NIdx) : AM EIdx := do
 identity certificate's variable: `fvar 0` at the element type. -/
 def reduceCertVar (c : NIdx) : AM EIdx := do
   internE (.fvar 0 (← reduceElemTy c))
-
-/-! ## Why `ofReduceNatA` / `ofReduceBoolA` intern the RAW pins
-
-Task #97-P5-Top round 2, ruling (a).  The port's `of_reduce_nat_a` /
-`of_reduce_bool_a` intern `kernel::trust_axioms::of_reduce_pin_a`, which is
-the RAW `ofReduceRaw` (con-ron-core's standing ruling: `matchesPin` erases the
-`pw` datum, the only thing `#annotate_pins` writes), and Theorem 2's store
-relation is exact, so the twin interns the same value.  con-leche's annotated
-`ofReduceNatA` differs from it in the three binders' `pw` data alone, so every
-`matchesPin` verdict is unchanged (`Bridge/Checker/Basis.lean`'s
-`ofReducePinA_matchesPin_raw`); the slots keep their names so that the port's
-`Lean twin:` citations stay put. -/
 
 end ConRon.Arena
