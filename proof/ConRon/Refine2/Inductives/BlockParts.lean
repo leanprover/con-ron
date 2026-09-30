@@ -2028,7 +2028,7 @@ macro_rules
 theorem absMemberShape_cvT (m : arena.inductives.block_parts.MemberShape) :
     (absMemberShape m).cvT = absIConstantVal m.cv_t := rfl
 
-attribute [local lockstep_simp] absMemberShape_cvT absIConstantVal_name
+attribute [local lockstep_simp] absMemberShape_cvT bp_absIConstantVal_name
 
 /-- `want_rec_names` ⊑ `members.mapM (internNNode (.str · "rec"))` from the cursor on. -/
 theorem want_rec_names_ls {pers}
