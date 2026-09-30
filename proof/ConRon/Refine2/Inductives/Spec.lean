@@ -1,13 +1,15 @@
 /-
 # `ConRon.Refine2.Inductives.Spec` — the twin-side transcriptions of this tier
 
-**Task #97-P5-Ind** (DESIGN.md §8.2).  `arena::inductives` is **306 `pub fn`s
-against 152 twin `def`s** — DESIGN §3.4's rules (no closure, no `let`-bound
-handle outliving a `match` arm, every `List` operation a named cursor
-recursion) split a twin's `do` block wherever it has a `let`-boundary, and
-task #97-P4d-2's own table calls this *"the densest use of the rule in the
-port"*.  A Rust function produced by such a split has **no named twin**, so its
-statement has no subject until the fragment is given one.
+**Task #97-P5-Ind** (DESIGN.md §8.2); pruned by **task #105** to the three
+modules of the old tier that survive the uniform inductive route
+(`struct_parts`, `struct_install`, `sum_install`) — the transcriptions of the
+deleted generators, recognisers and native/modeled checks went with their
+Rust.  DESIGN §3.4's rules (no closure, no `let`-bound handle outliving a
+`match` arm, every `List` operation a named cursor recursion) split a twin's
+`do` block wherever it has a `let`-boundary.  A Rust function produced by such
+a split has **no named twin**, so its statement has no subject until the
+fragment is given one.
 
 This file is that subject, once, for the whole tier — the arrangement task
 #97-P5-Checker §9 asks for (*"one collected transcription file per tier, with
@@ -89,7 +91,10 @@ theorem structPsAt_unfold (o nP : Nat) :
     | succ n ih => intro k; simp only [structPsAt.go, structPsAtGoSpec, ih]
   simp only [structPsAt, hgo]
 
-/-! ## The two memoised walks' arm dispatches -/
+/-! ## The memoised walk's arm dispatch
+
+(`mentionsConst`'s walk is proved in `Refine2/Checker/Leaves.lean`, which needs
+no transcription.) -/
 
 /-- `hasLooseBVarBGo`'s arm dispatch below the cutoff and the probe
 (`Arena/Inductives/StructParts.lean:346-392`).  `has_loose_bvar_b_node` is the
@@ -147,52 +152,6 @@ theorem hasLooseBVarBGo_unfold (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel :
       | (cases hm : memo[(h, i)]? with
          | some r => rfl
          | none => pair_peel))
-
-/-- `mentionsConstGo`'s arm dispatch below the probe
-(`Arena/Inductives/StructParts.lean:482-523`). -/
-def mentionsConstNodeSpec (T : NIdx) (memo : Std.HashMap EIdx Bool) (fuel : Nat) :
-    ENodeView → AM (Bool × Std.HashMap EIdx Bool)
-  | .fvar _ ty => mentionsConstGo T memo fuel ty
-  | .app f a => do
-    let (b₁, memo) ← mentionsConstGo T memo fuel f
-    let (b₂, memo) ← mentionsConstGo T memo fuel a
-    pure (b₁ || b₂, memo)
-  | .lam ty body _ => do
-    let (b₁, memo) ← mentionsConstGo T memo fuel ty
-    let (b₂, memo) ← mentionsConstGo T memo fuel body
-    pure (b₁ || b₂, memo)
-  | .forallE ty body _ => do
-    let (b₁, memo) ← mentionsConstGo T memo fuel ty
-    let (b₂, memo) ← mentionsConstGo T memo fuel body
-    pure (b₁ || b₂, memo)
-  | .letE ty val body => do
-    let (b₁, memo) ← mentionsConstGo T memo fuel ty
-    let (b₂, memo) ← mentionsConstGo T memo fuel val
-    let (b₃, memo) ← mentionsConstGo T memo fuel body
-    pure (b₁ || b₂ || b₃, memo)
-  | .proj s _ sub => do
-    let (b, memo) ← mentionsConstGo T memo fuel sub
-    pure (s == T || b, memo)
-  | _ => pure (false, memo)
-
-/-- The owed equation: `mentionsConstGo` at `fuel + 1` IS the four leaf arms,
-the probe, `mentionsConstNodeSpec` at the view and the insert. -/
-theorem mentionsConstGo_unfold (T : NIdx) (memo : Std.HashMap EIdx Bool) (fuel : Nat)
-    (h : EIdx) :
-    mentionsConstGo T memo (fuel + 1) h = (do
-      match ← view h with
-      | .bvar _ | .sort _ | .lit _ => pure (false, memo)
-      | .const n _ => pure (n == T, memo)
-      | v =>
-        match memo[h]? with
-        | some r => pure (r, memo)
-        | none => do
-          let (r, memo) ← mentionsConstNodeSpec T memo fuel v
-          pure (r, memo.insert h r)) := by
-  rw [mentionsConstGo]
-  refine am_bind_congr _ ?_
-  intro v
-  cases v <;> twin_reduce [mentionsConstNodeSpec] <;> rfl
 
 /-! ## `structProjGuards`' two inner `let rec`s -/
 

@@ -1,23 +1,23 @@
 /-
 # `ConRon.Refine2.Inductives.StructParts` — Theorem 2 for `arena::inductives::struct_parts`
 
-**Task #97-P5-Ind** (DESIGN.md §8.2).
+**Task #97-P5-Ind** (DESIGN.md §8.2); repaired by **task #105**.
 `crates/con-ron-core/src/arena/inductives/struct_parts.rs` against
-`proof/ConRon/Arena/Inductives/StructParts.lean`: the direct install's
-generators — the type-former family, the constructor spines, the rule bodies,
-the Π→Π/λ rewrites — `StructParts` and its recogniser, the projection bodies
-and guards, and the two memoised walks (`hasLooseBVarB`, `mentionsConst`).
-
-**Fifty `pub fn`s against twenty-nine twin `def`s.**  The difference is
-DESIGN §3.4's three rules and nothing else; `Refine2/Inductives/Spec.lean`
-carries the transcription of every fragment they cut out, and every statement
-below is either against a named twin or against one of those.
+`proof/ConRon/Arena/Inductives/StructParts.lean`: what survives of the direct
+install's parts under the uniform inductive route — the level list and the
+parameter spine, the elimination level, a constructor residual's shape, the
+projection bodies and guards, and the memoised `hasLooseBVarB` walk
+(`mentionsConst` is proved in `Refine2/Checker/Leaves.lean`).  The generators
+of the old direct recursor (families, spines, rule bodies, the Π→Π/λ
+rewrites, `structShape`, `structPartsCore?`) left with their Rust in task
+#105.  `Refine2/Inductives/Spec.lean` carries the transcription of every
+fragment DESIGN §3.4's rules cut out.
 
 ## What the cursor companions claim
 
-Nine of the fifty are `…_from` / `…_go` cursor recursions with an
+The `…_from` / `…_go` cursor recursions carry an
 accumulator.  Every one of them PUSHES on the way in where the twin CONSES on
-the way out, so the shape is the same in all nine:
+the way out, so the shape is the same in all of them:
 
     <abs> o = <abs> out ++ <the twin from the cursor on>
 
@@ -37,16 +37,14 @@ the third time and the answer has not changed.
 
 ## What these lemmas wait on
 
-`Refine2/Specs.lean`'s `intern_e` family and its `intern_l_node` /
-`intern_n_node` siblings (the generators intern at every step),
-`Refine2/ExprOps/**`'s `strip_pis` / `strip_lams` / `mk_app_n` /
-`instantiate1_lift_fast` / `inst_pis_at_lift` (then statements only), and
-`Refine2/Inductives/Spec.lean`'s own six `_unfold` equations.  **No clause of
-`KnotRel` and no clause of `IndRel`**: this module calls nothing of
-`arena::core` but `zero_level`, `lvl_eq`, `bvar_b` and
-`reserved_basis_names`, none of which is knotted.
+`Refine2/Specs.lean`'s `intern_*` family, `Refine2/ExprOps/**`'s
+`inst_pis_at_lift`, `Refine2/Core/LS/{Leaves,Prims}.lean`'s `zero_level` and
+spine readers (`get_app_fn`, `get_app_args`), and `Refine2/Inductives/Spec.lean`'s
+`_unfold` equations.  **No clause of `KnotRel`.**
 -/
 import ConRon.Refine2.Inductives.Spec
+import ConRon.Refine2.Core.LS.Leaves
+import ConRon.Refine2.Core.LS.Prims
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
@@ -59,6 +57,36 @@ open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 open ConRon.Refine2.ExprOps (WMemoRel LMemoRel)
+
+/-! ## Helpers for Shape/Abs
+
+Bridges this file needs from tiers that do not reach it: `Checker/Base`'s
+`absU_beq_u64` (restated), `Core/Arms/Delta`'s `core_walk_fuel_abs` as a
+`lockstep_simp` fact (it is one in `Checker/KnotHyp`), and `inst_pis_at_lift`'s
+`ExprOps` companion at the walk fuel and this tier's abstractions.  All three
+are `local` so nothing clashes when those tiers are imported together. -/
+
+theorem sp_absU_beq_u64 (a b : Std.U64) :
+    (absU a == absU b) = decide (a = b) := by
+  by_cases h : a = b
+  · subst h; simp
+  · have : absU a ≠ absU b := fun e => h (Std.UScalar.eq_of_val_eq e)
+    simp [h, this]
+
+attribute [local lockstep_simp] sp_absU_beq_u64 core_walk_fuel_abs
+
+open Lockstep in
+theorem sp_inst_pis_at_lift_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (args : alloc.vec.Vec arena.handle.EIdx)
+    (h : arena.handle.EIdx) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.expr_ops.inst_pis_at_lift pers st arena.core.CORE_WALK_FUEL args h) lst
+      (instPisAtLift coreWalkFuel (absEIdxL args) (absEIdx h)) := by
+  have := inst_pis_at_lift_ls hrel hinv arena.core.CORE_WALK_FUEL args h
+  rw [core_walk_fuel_abs] at this
+  exact this
+
+attribute [local lockstep] sp_inst_pis_at_lift_ls
 
 /-! ## The level lists -/
 
@@ -133,7 +161,7 @@ accumulator, then the list node. -/
   have e : (do pure (absLIdxL (alloc.vec.Vec.new arena.handle.LIdx) ++
       (← paramLevelsGoSpec (absNIdxLFrom lps 0#usize))) : AM _) =
       paramLevelsGoSpec (absNIdxL lps) := by
-    simp [absLIdxL, alloc.vec.Vec.new, absNIdxLFrom_zero]
+    simp [absLIdxL, alloc.vec.Vec.new]
   rw [e] at hgo
   rw [arena.inductives.struct_parts.param_levels, paramLevels_unfold]
   lockstep
@@ -509,19 +537,6 @@ theorem has_loose_bvar_b_go_aux (n : Nat) :
     rw [if_neg (by scalar_tac)]
     lockstep
 
-/-- `has_loose_bvar_b_node` ⊑ `hasLooseBVarBGo`'s arm dispatch. -/
-theorem has_loose_bvar_b_node_refines {pers st lst}
-    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
-    {lm : Std.HashMap (EIdx × Nat) Bool} {i fuel : Std.U64}
-    {v : arena.store.ENodeView} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hm : WMemoRel rm lm)
-    (hrun : arena.inductives.struct_parts.has_loose_bvar_b_node pers st rm i fuel v
-      = ok o) :
-    SimRel₀ WOutRel pers lst o
-      (hasLooseBVarBNodeSpec lm (absU i) (absU fuel) (absENodeView v)) :=
-  Lockstep.LS.toSimRel₀ (has_loose_bvar_b_node_of_go (m := fuel.val)
-    (fun {st lst} => @has_loose_bvar_b_go_aux _ pers st lst) st lst rm lm i fuel v rfl hrel hinv hm) hrun
-
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_node_ls
     {pers st lst}
@@ -534,19 +549,8 @@ open Lockstep in
     (hm : WMemoRel rm lm) :
     LS pers WOutRel (arena.inductives.struct_parts.has_loose_bvar_b_node pers st rm i fuel v) lst
       (hasLooseBVarBNodeSpec lm (absU i) (absU fuel) (absENodeView v)) :=
-  LS.ofSimRel₀ fun _ h => has_loose_bvar_b_node_refines hrel hinv hm h
-
-/-- `has_loose_bvar_b_go` ⊑ `hasLooseBVarBGo`. -/
-theorem has_loose_bvar_b_go_refines {pers st lst}
-    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
-    {lm : Std.HashMap (EIdx × Nat) Bool} {i fuel : Std.U64}
-    {h : arena.handle.EIdx} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hm : WMemoRel rm lm)
-    (hrun : arena.inductives.struct_parts.has_loose_bvar_b_go pers st rm i fuel h
-      = ok o) :
-    SimRel₀ WOutRel pers lst o
-      (hasLooseBVarBGo lm (absU i) (absU fuel) (absEIdx h)) :=
-  Lockstep.LS.toSimRel₀ (has_loose_bvar_b_go_aux _ rm lm i fuel h rfl hrel hinv hm) hrun
+  has_loose_bvar_b_node_of_go (m := fuel.val)
+    (fun {st lst} => @has_loose_bvar_b_go_aux _ pers st lst) st lst rm lm i fuel v rfl hrel hinv hm
 
 open Lockstep in
 @[lockstep] theorem has_loose_bvar_b_go_ls
@@ -560,7 +564,7 @@ open Lockstep in
     (hm : WMemoRel rm lm) :
     LS pers WOutRel (arena.inductives.struct_parts.has_loose_bvar_b_go pers st rm i fuel h) lst
       (hasLooseBVarBGo lm (absU i) (absU fuel) (absEIdx h)) :=
-  LS.ofSimRel₀ fun _ h => has_loose_bvar_b_go_refines hrel hinv hm h
+  has_loose_bvar_b_go_aux _ rm lm i fuel h rfl hrel hinv hm
 
 /-- `has_loose_bvar_b_fast` ⊑ `hasLooseBVarBFast` — one memoised walk from the
 empty memo. -/
@@ -611,21 +615,6 @@ open Lockstep in
       (structUsedLater (absEIdx cty) (absU n_p) (absU j)) :=
   LS.ofSim₀ fun _ h => struct_used_later_refines hrel hinv h
 
-/-- `struct_used_later_go` ⊑ `structUsedLaterGo`. -/
-theorem struct_used_later_go_refines {pers st lst}
-    {rm : ron.hashmap2.HashMap2 arena.monad.EIdxNat Bool}
-    {lm : Std.HashMap (EIdx × Nat) Bool} {cty : arena.handle.EIdx}
-    {n_p j : Std.U64} {o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hm : WMemoRel rm lm)
-    (hrun : arena.inductives.struct_parts.struct_used_later_go pers st rm cty n_p j
-      = ok o) :
-    SimRel₀ WOutRel pers lst o
-      (structUsedLaterGo lm (absEIdx cty) (absU n_p) (absU j)) := by
-  refine Lockstep.LS.toSimRel₀ ?_ hrun
-  clear hrun
-  rw [arena.inductives.struct_parts.struct_used_later_go, structUsedLaterGo]
-  lockstep
-
 open Lockstep in
 @[lockstep] theorem struct_used_later_go_ls
     {pers st lst}
@@ -637,8 +626,9 @@ open Lockstep in
     (hinv : AStateInv pers st)
     (hm : WMemoRel rm lm) :
     LS pers WOutRel (arena.inductives.struct_parts.struct_used_later_go pers st rm cty n_p j) lst
-      (structUsedLaterGo lm (absEIdx cty) (absU n_p) (absU j)) :=
-  LS.ofSimRel₀ fun _ h => struct_used_later_go_refines hrel hinv hm h
+      (structUsedLaterGo lm (absEIdx cty) (absU n_p) (absU j)) := by
+  rw [arena.inductives.struct_parts.struct_used_later_go, structUsedLaterGo]
+  lockstep
 
 open Lockstep in
 theorem struct_used_later_list_aux {pers} {cty : arena.handle.EIdx} {n_p : Std.U64} (N : Nat) :
