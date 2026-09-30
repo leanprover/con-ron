@@ -17,8 +17,6 @@ namespace ConRon.Bridge
 
 set_option autoImplicit false
 
-/-! ## The two pinned-variant gates -/
-
 /-! ## The `Nat.div`/`Nat.mod` variant gate, skeletonised (round 9)
 
 `checkDivModPin` is an environment guard, a lookup of the stored value, and
@@ -33,56 +31,6 @@ none` (`fueledOps_orElse`): whether the pure side's guards or attempt agree or
 not, it either stops with `.ok ()` or recurses — and the recursion is the
 induction hypothesis, at the SAME fuel.  Only the `matched` step has to line
 the two sides up: guards `true` and the pure attempt `.ok true`. -/
-
-/-- con-leche: none — a stored constant's TYPE compared against an interned
-expression, as a guard in front of a continuation (`divModEnvGuard`'s `Bool.true`
-lookup). -/
-theorem RunsB.matchTyAnd {x : Option IConstantInfo} {y : Option ConstantInfo}
-    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
-    (hpn : ∀ ci, x = some ci → Frontend.CIProjNamed s.store ci)
-    {ty : EIdx} {T : Expr} (hty : denoteE s.store ty = some T)
-    {Y : AM Bool} {B : Bool}
-    (hY : ∀ {s₁ : AState}, Frontend.IStepS s s₁ → RunsB Y s₁ B) :
-    RunsB (match (generalizing := false) x with
-        | some ci => do
-          let cv ← ci.toConstantVal
-          if (cv.type != ty) = true then pure false else Y
-        | none => pure false) s
-      ((match (generalizing := false) y with
-        | some ci => ci.toConstantVal.type == T
-        | none => false) && B) := by
-  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
-  · exact RunsB.ret hok
-  · refine RunsB.bind fun {v s₁} g1 => ?_
-    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (hpn ci rfl) hd g1
-    refine ⟨hs1, ?_⟩
-    obtain ⟨-, -, hvt⟩ := denoteCV_inv hv
-    exact RunsB.guard hs1.ok
-      (by simp only [bne, beqE_of_denote hs1.ok.wf hvt (denote_ext hty hs1.ext)])
-      fun _ => hY hs1
-
-/-- con-leche: none — the same comparison as the chain's last link
-(`divModEnvGuard`'s `Bool.false` lookup). -/
-theorem RunsB.matchTy {x : Option IConstantInfo} {y : Option ConstantInfo}
-    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
-    (hpn : ∀ ci, x = some ci → Frontend.CIProjNamed s.store ci)
-    {ty : EIdx} {T : Expr} (hty : denoteE s.store ty = some T) :
-    RunsB (match (generalizing := false) x with
-        | some ci => do
-          let cv ← ci.toConstantVal
-          pure (cv.type == ty)
-        | none => pure false) s
-      (match (generalizing := false) y with
-        | some ci => ci.toConstantVal.type == T
-        | none => false) := by
-  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
-  · exact RunsB.ret hok
-  · refine RunsB.bind fun {v s₁} g1 => ?_
-    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (hpn ci rfl) hd g1
-    refine ⟨hs1, ?_⟩
-    obtain ⟨-, -, hvt⟩ := denoteCV_inv hv
-    rw [beqE_of_denote hs1.ok.wf hvt (denote_ext hty hs1.ext)]
-    exact RunsB.ret hs1.ok
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:285-290 divModEnvGuard (one
 `Bool` constructor's clause) — the twin's `boolCtorTyped` is con-leche's

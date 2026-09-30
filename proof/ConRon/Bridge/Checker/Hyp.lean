@@ -156,12 +156,6 @@ def SimL (op : Nat → Nat → Expr → CheckM Level) (d : Nat) (e : Expr)
     (st' : EStore) (r : LIdx) : Prop :=
   ∃ u, denoteL st'.ls r = some u ∧ ∃ F, op F d e = .ok u
 
-theorem SimL.ext {op : Nat → Nat → Expr → CheckM Level} {d : Nat} {e : Expr}
-    {st st' : EStore} {r : LIdx} (h : SimL op d e st r) (hx : Ext st st') :
-    SimL op d e st' r := by
-  obtain ⟨u, hu, F, hF⟩ := h
-  exact ⟨u, hx.lss.ls.lvl _ _ hu, F, hF⟩
-
 /-- con-leche: ConLeche/Kernel/TypeChecker.lean:56-58 ensureSortCore — **the
 seventh entry point, which is not a slot**.  `Bridge/Core/Knot.lean`'s
 six-field `KnotSpec` does not cover it because `coreKnot` does not have it;

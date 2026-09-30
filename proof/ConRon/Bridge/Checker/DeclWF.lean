@@ -55,14 +55,6 @@ theorem constWF_le {envA envB : Env}
     obtain ⟨p1, p2, p3, p4⟩ := n3 pin hp
     exact ⟨p1, p2, Expr.constsResolve_le hle p3, p4⟩
 
-/-- con-leche: none — a rule whose firing mode is decidably not `.nested`
-fires no nested certificate (`nomatch` would have to evaluate the mode in the
-elaborator, which the pinned recursors' `recRulePlain` tests make slow). -/
-theorem RecRuleFire.ne_nested {f : RecRuleFire}
-    (h : (match f with | .nested _ _ => true | _ => false) = false)
-    (lvls : List Level) (pins : List Expr) : f ≠ .nested lvls pins := by
-  intro he; subst he; exact nomatch h
-
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF (the `.recInfo` clause)
 — a recursor's rules, all at once, from one Boolean test (the rule list of a
 pinned recursor need not be a literal, so the clause cannot be split rule by
