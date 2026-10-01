@@ -893,6 +893,7 @@ in §3.
 
 ## 9. Performance
 
+<!-- perf-table:begin -->
 Measured with `perf stat -e instructions:u,cycles:u`.  Instruction counts
 are the measure of record, because they do not depend on machine load; wall
 time and peak memory are secondary.  All runs are `--verified` release
@@ -919,6 +920,7 @@ instruction count.  Every con-ron peak is within 3× con-leche's on the same
 export.  `scripts/bench-baselines.sh` measures con-ron and nanoda, and
 `scripts/corpus.sh` builds the exports; the raw numbers are in DESIGN.md's
 task #97-REMEASURE section.
+<!-- perf-table:end -->
 
 ## 10. Keeping the port honest
 
