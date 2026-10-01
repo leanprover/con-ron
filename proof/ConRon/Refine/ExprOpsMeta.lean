@@ -145,21 +145,10 @@ theorem subst_pw_refines {ks : alloc.vec.Vec name.Name} {vs : alloc.vec.Vec leve
 
 /-! ## `allLevelParamsDefined` (`Kernel/Level.lean:251-268`, memoized at `:299`)
 
-The last family of `expr_ops.rs`: the specification walk, its two `Vec` loops,
-and the node-keyed memoized walk that con-leche's `@[csimp]` equation
-(`Level.lean:409-412`) swaps in.  `level::all_params_defined` belongs to
-`level.rs` and has no lemma there; its only caller is this family, so its
-refinement is stated here, exactly as task #13 put `level::zeroness_of` and
-`level::subst_pw` in this file.
-
-`bool_and`/`bool_and3` are the port's `&&` *as a call* (task #18's rule: a
-gated result whose arms rejoin must become a call, or Aeneas cannot match the
-contexts), so they are total and get plain equations rather than
-`ok`-hypothesis lemmas. -/
-
-/-- `expr_ops::bool_and` is `&&`. -/
-@[simp] theorem bool_and_val (a b : Bool) : expr_ops.bool_and a b = ok (a && b) := by
-  rw [expr_ops.bool_and]; cases a <;> simp
+`level::all_params_defined` belongs to `level.rs` and has no lemma there; its
+refinement is stated here, as task #13 put `level::zeroness_of` and
+`level::subst_pw` in this file.  (The `expr_ops.rs` walks that called it went
+with the `Expr`-tree reference code, task #105.) -/
 
 /-- `level::all_params_defined` refines `Level.allParamsDefined`
 (`Kernel/Level.lean:39-44`).  The `.param` arm is `name::contains`, which is
