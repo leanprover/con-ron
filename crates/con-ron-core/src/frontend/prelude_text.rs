@@ -1,7 +1,7 @@
 //! The embedded lean4export text of con-leche's built-in prelude
-//! (`ConLeche/Frontend/Prelude.lean:60-61`, task #84).
+//! (`ConLeche/Frontend/Prelude.lean:59-60`, task #84).
 //!
-//! con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+//! con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-prelude.sh`
 //! from con-leche's own committed `pins/leanprover-lean4-v4.33.0.prelude.ndjson`, the file its
@@ -37,7 +37,7 @@
 //! the ordinary way, and `prelude_text()` concatenates them.  The
 //! concatenation is `O(n)` and runs once per process.
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 0..256 of the prelude (the module note says why it is split).
 const P00: [u8; 256] = [
     123, 34, 109, 101, 116, 97, 34, 58, 123, 34, 101, 120, 112, 111, 114,
@@ -58,7 +58,7 @@ const P00: [u8; 256] = [
     58, 34, 117, 95, 49, 34, 125, 125, 10, 123, 34, 105, 108, 34, 58, 49, 44,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 256..512 of the prelude (the module note says why it is split).
 const P01: [u8; 256] = [
     34, 112, 97, 114, 97, 109, 34, 58, 50, 125, 10, 123, 34, 105, 110, 34,
@@ -79,7 +79,7 @@ const P01: [u8; 256] = [
     114, 101, 34, 58, 55, 125, 125, 10, 123, 34, 98, 118, 97, 114, 34, 58,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 512..768 of the prelude (the module note says why it is split).
 const P02: [u8; 256] = [
     48, 44, 34, 105, 101, 34, 58, 49, 125, 10, 123, 34, 98, 118, 97, 114,
@@ -101,7 +101,7 @@ const P02: [u8; 256] = [
     34, 105, 101, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 768..1024 of the prelude (the module note says why it is split).
 const P03: [u8; 256] = [
     58, 54, 125, 10, 123, 34, 105, 110, 34, 58, 57, 44, 34, 115, 116, 114,
@@ -123,7 +123,7 @@ const P03: [u8; 256] = [
     97, 108,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 1024..1280 of the prelude (the module note says why it is split).
 const P04: [u8; 256] = [
     108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102,
@@ -144,7 +144,7 @@ const P04: [u8; 256] = [
     34, 97, 114, 103, 34, 58, 49, 44, 34, 102, 110, 34, 58, 49, 53, 125, 44,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 1280..1536 of the prelude (the module note says why it is split).
 const P05: [u8; 256] = [
     34, 105, 101, 34, 58, 49, 54, 125, 10, 123, 34, 105, 110, 34, 58, 49,
@@ -166,7 +166,7 @@ const P05: [u8; 256] = [
     44,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 1536..1792 of the prelude (the module note says why it is split).
 const P06: [u8; 256] = [
     34, 115, 116, 114, 34, 58, 34, 114, 101, 102, 108, 34, 125, 125, 10,
@@ -187,7 +187,7 @@ const P06: [u8; 256] = [
     101, 34, 58, 49, 51, 44, 34, 116, 121, 112, 101, 34, 58, 50,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 1792..2048 of the prelude (the module note says why it is split).
 const P07: [u8; 256] = [
     52, 125, 125, 10, 123, 34, 105, 101, 34, 58, 50, 54, 44, 34, 108, 97,
@@ -209,7 +209,7 @@ const P07: [u8; 256] = [
     98, 118,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 2048..2304 of the prelude (the module note says why it is split).
 const P08: [u8; 256] = [
     97, 114, 34, 58, 51, 44, 34, 105, 101, 34, 58, 50, 57, 125, 10, 123, 34,
@@ -230,7 +230,7 @@ const P08: [u8; 256] = [
     34, 58, 51, 53, 44, 34, 110, 97, 109, 101, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 2304..2560 of the prelude (the module note says why it is split).
 const P09: [u8; 256] = [
     58, 49, 49, 44, 34, 116, 121, 112, 101, 34, 58, 51, 51, 125, 44, 34,
@@ -252,7 +252,7 @@ const P09: [u8; 256] = [
     114, 97,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 2560..2816 of the prelude (the module note says why it is split).
 const P10: [u8; 256] = [
     108, 108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110,
@@ -274,7 +274,7 @@ const P10: [u8; 256] = [
     115, 34, 58,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 2816..3072 of the prelude (the module note says why it is split).
 const P11: [u8; 256] = [
     50, 44, 34, 116, 121, 112, 101, 34, 58, 49, 50, 125, 93, 44, 34, 114,
@@ -295,7 +295,7 @@ const P11: [u8; 256] = [
     34, 58, 102, 97, 108, 115, 101, 44, 34, 105, 115, 82, 101, 102, 108, 101,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 3072..3328 of the prelude (the module note says why it is split).
 const P12: [u8; 256] = [
     120, 105, 118, 101, 34, 58, 102, 97, 108, 115, 101, 44, 34, 105, 115,
@@ -317,7 +317,7 @@ const P12: [u8; 256] = [
     114,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 3328..3584 of the prelude (the module note says why it is split).
 const P13: [u8; 256] = [
     34, 58, 34, 115, 117, 99, 99, 34, 125, 125, 10, 123, 34, 99, 111, 110,
@@ -339,7 +339,7 @@ const P13: [u8; 256] = [
     101, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 3584..3840 of the prelude (the module note says why it is split).
 const P14: [u8; 256] = [
     58, 48, 44, 34, 115, 116, 114, 34, 58, 34, 122, 101, 114, 111, 34, 125,
@@ -360,7 +360,7 @@ const P14: [u8; 256] = [
     112, 112, 34, 58, 123, 34, 97, 114, 103, 34, 58, 50, 44,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 3840..4096 of the prelude (the module note says why it is split).
 const P15: [u8; 256] = [
     34, 102, 110, 34, 58, 52, 57, 125, 44, 34, 105, 101, 34, 58, 53, 48,
@@ -382,7 +382,7 @@ const P15: [u8; 256] = [
     109, 101,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 4096..4352 of the prelude (the module note says why it is split).
 const P16: [u8; 256] = [
     34, 58, 50, 48, 44, 34, 116, 121, 112, 101, 34, 58, 53, 51, 125, 125,
@@ -403,7 +403,7 @@ const P16: [u8; 256] = [
     58, 123, 34, 110, 97, 109, 101, 34, 58, 50, 50, 44, 34, 117, 115, 34, 58,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 4352..4608 of the prelude (the module note says why it is split).
 const P17: [u8; 256] = [
     91, 50, 93, 125, 44, 34, 105, 101, 34, 58, 53, 56, 125, 10, 123, 34, 97,
@@ -424,7 +424,7 @@ const P17: [u8; 256] = [
     34, 116, 121, 112, 101, 34, 58, 52, 51, 125,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 4608..4864 of the prelude (the module note says why it is split).
 const P18: [u8; 256] = [
     125, 10, 123, 34, 105, 101, 34, 58, 54, 53, 44, 34, 108, 97, 109, 34,
@@ -445,7 +445,7 @@ const P18: [u8; 256] = [
     34, 105, 101, 34, 58, 54, 56, 125, 10, 123, 34, 102, 111, 114, 97, 108,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 4864..5120 of the prelude (the module note says why it is split).
 const P19: [u8; 256] = [
     108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102,
@@ -467,7 +467,7 @@ const P19: [u8; 256] = [
     44, 34, 98,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 5120..5376 of the prelude (the module note says why it is split).
 const P20: [u8; 256] = [
     111, 100, 121, 34, 58, 55, 49, 44, 34, 110, 97, 109, 101, 34, 58, 49,
@@ -489,7 +489,7 @@ const P20: [u8; 256] = [
     115,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 5376..5632 of the prelude (the module note says why it is split).
 const P21: [u8; 256] = [
     34, 58, 48, 44, 34, 116, 121, 112, 101, 34, 58, 52, 52, 125, 93, 44, 34,
@@ -510,7 +510,7 @@ const P21: [u8; 256] = [
     121, 112, 101, 115, 34, 58, 91, 123, 34, 97, 108, 108, 34, 58, 91, 49,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 5632..5888 of the prelude (the module note says why it is split).
 const P22: [u8; 256] = [
     53, 93, 44, 34, 99, 116, 111, 114, 115, 34, 58, 91, 49, 54, 44, 49, 55,
@@ -531,7 +531,7 @@ const P22: [u8; 256] = [
     34, 58, 123, 34, 110, 97, 109, 101, 34, 58, 50, 51, 44, 34, 117, 115, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 5888..6144 of the prelude (the module note says why it is split).
 const P23: [u8; 256] = [
     58, 91, 93, 125, 44, 34, 105, 101, 34, 58, 55, 51, 125, 10, 123, 34,
@@ -553,7 +553,7 @@ const P23: [u8; 256] = [
     34, 99, 116,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 6144..6400 of the prelude (the module note says why it is split).
 const P24: [u8; 256] = [
     111, 114, 115, 34, 58, 91, 93, 44, 34, 114, 101, 99, 115, 34, 58, 91,
@@ -575,7 +575,7 @@ const P24: [u8; 256] = [
     108, 80, 97,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 6400..6656 of the prelude (the module note says why it is split).
 const P25: [u8; 256] = [
     114, 97, 109, 115, 34, 58, 91, 93, 44, 34, 110, 97, 109, 101, 34, 58,
@@ -597,7 +597,7 @@ const P25: [u8; 256] = [
     55,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 6656..6912 of the prelude (the module note says why it is split).
 const P26: [u8; 256] = [
     55, 125, 44, 34, 105, 101, 34, 58, 55, 56, 125, 10, 123, 34, 102, 111,
@@ -618,7 +618,7 @@ const P26: [u8; 256] = [
     80, 97, 114, 97, 109, 115, 34, 58, 91, 49, 50, 93, 44, 34, 110, 97,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 6912..7168 of the prelude (the module note says why it is split).
 const P27: [u8; 256] = [
     109, 101, 34, 58, 50, 54, 44, 34, 110, 117, 109, 73, 110, 100, 105, 99,
@@ -640,7 +640,7 @@ const P27: [u8; 256] = [
     10, 123, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 7168..7424 of the prelude (the module note says why it is split).
 const P28: [u8; 256] = [
     105, 110, 34, 58, 50, 55, 44, 34, 115, 116, 114, 34, 58, 123, 34, 112,
@@ -662,7 +662,7 @@ const P28: [u8; 256] = [
     97, 109,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 7424..7680 of the prelude (the module note says why it is split).
 const P29: [u8; 256] = [
     115, 34, 58, 91, 49, 50, 93, 44, 34, 110, 97, 109, 101, 34, 58, 50, 55,
@@ -683,7 +683,7 @@ const P29: [u8; 256] = [
     58, 56, 54, 125, 10, 123, 34, 102, 111, 114, 97, 108,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 7680..7936 of the prelude (the module note says why it is split).
 const P30: [u8; 256] = [
     108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102,
@@ -704,7 +704,7 @@ const P30: [u8; 256] = [
     102, 116, 34, 125, 125, 10, 123, 34, 105, 110, 34, 58, 51, 49, 44, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 7936..8192 of the prelude (the module note says why it is split).
 const P31: [u8; 256] = [
     115, 116, 114, 34, 58, 123, 34, 112, 114, 101, 34, 58, 48, 44, 34, 115,
@@ -725,7 +725,7 @@ const P31: [u8; 256] = [
     34, 58, 34, 98, 34, 125, 125, 10, 123, 34, 97, 112, 112, 34, 58, 123, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 8192..8448 of the prelude (the module note says why it is split).
 const P32: [u8; 256] = [
     97, 114, 103, 34, 58, 50, 44, 34, 102, 110, 34, 58, 51, 48, 125, 44, 34,
@@ -746,7 +746,7 @@ const P32: [u8; 256] = [
     34, 58, 123, 34, 98, 105, 110, 100, 101, 114,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 8448..8704 of the prelude (the module note says why it is split).
 const P33: [u8; 256] = [
     73, 110, 102, 111, 34, 58, 34, 100, 101, 102, 97, 117, 108, 116, 34, 44,
@@ -767,7 +767,7 @@ const P33: [u8; 256] = [
     123, 34, 97, 112, 112, 34, 58, 123, 34, 97, 114, 103, 34, 58, 50,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 8704..8960 of the prelude (the module note says why it is split).
 const P34: [u8; 256] = [
     57, 44, 34, 102, 110, 34, 58, 49, 48, 49, 125, 44, 34, 105, 101, 34, 58,
@@ -788,7 +788,7 @@ const P34: [u8; 256] = [
     125, 44, 34, 105, 101, 34, 58, 49, 48, 53, 125, 10, 123, 34, 102, 111,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 8960..9216 of the prelude (the module note says why it is split).
 const P35: [u8; 256] = [
     114, 97, 108, 108, 69, 34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73,
@@ -809,7 +809,7 @@ const P35: [u8; 256] = [
     110, 100, 34, 58, 34, 108, 105, 102, 116, 34, 44, 34, 108, 101, 118, 101,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 9216..9472 of the prelude (the module note says why it is split).
 const P36: [u8; 256] = [
     108, 80, 97, 114, 97, 109, 115, 34, 58, 91, 49, 50, 44, 51, 49, 93, 44,
@@ -830,7 +830,7 @@ const P36: [u8; 256] = [
     114, 101, 34, 58, 48, 44, 34, 115, 116, 114, 34, 58, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 9472..9728 of the prelude (the module note says why it is split).
 const P37: [u8; 256] = [
     109, 107, 34, 125, 125, 10, 123, 34, 99, 111, 110, 115, 116, 34, 58,
@@ -851,7 +851,7 @@ const P37: [u8; 256] = [
     58, 52, 44, 34, 116, 121, 112, 101, 34, 58, 49, 51,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 9728..9984 of the prelude (the module note says why it is split).
 const P38: [u8; 256] = [
     125, 44, 34, 105, 101, 34, 58, 49, 49, 55, 125, 10, 123, 34, 105, 110,
@@ -872,7 +872,7 @@ const P38: [u8; 256] = [
     44, 34, 110, 97, 109, 101, 34, 58, 51, 54, 44, 34, 116,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 9984..10240 of the prelude (the module note says why it is split).
 const P39: [u8; 256] = [
     121, 112, 101, 34, 58, 49, 49, 55, 125, 44, 34, 105, 101, 34, 58, 49,
@@ -893,7 +893,7 @@ const P39: [u8; 256] = [
     55, 125, 44, 34, 105, 101, 34, 58, 49, 50, 52, 125, 10, 123, 34, 113,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 10240..10496 of the prelude (the module note says why it is split).
 const P40: [u8; 256] = [
     117, 111, 116, 34, 58, 123, 34, 107, 105, 110, 100, 34, 58, 34, 105,
@@ -914,7 +914,7 @@ const P40: [u8; 256] = [
     34, 58, 49, 50, 56, 125, 10, 123, 34, 97, 112, 112, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 10496..10752 of the prelude (the module note says why it is split).
 const P41: [u8; 256] = [
     58, 123, 34, 97, 114, 103, 34, 58, 51, 48, 44, 34, 102, 110, 34, 58, 49,
@@ -935,7 +935,7 @@ const P41: [u8; 256] = [
     97, 117, 108, 116, 34, 44, 34, 98, 111, 100,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 10752..11008 of the prelude (the module note says why it is split).
 const P42: [u8; 256] = [
     121, 34, 58, 49, 51, 52, 44, 34, 110, 97, 109, 101, 34, 58, 56, 44, 34,
@@ -957,7 +957,7 @@ const P42: [u8; 256] = [
     34, 58,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 11008..11264 of the prelude (the module note says why it is split).
 const P43: [u8; 256] = [
     53, 125, 44, 34, 105, 101, 34, 58, 49, 51, 56, 125, 10, 123, 34, 102,
@@ -979,7 +979,7 @@ const P43: [u8; 256] = [
     112, 101,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 11264..11520 of the prelude (the module note says why it is split).
 const P44: [u8; 256] = [
     34, 58, 51, 125, 44, 34, 105, 101, 34, 58, 49, 52, 48, 125, 10, 123, 34,
@@ -1000,7 +1000,7 @@ const P44: [u8; 256] = [
     101, 34, 58, 49, 52, 50, 125, 10, 123, 34, 97, 112, 112, 34, 58,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 11520..11776 of the prelude (the module note says why it is split).
 const P45: [u8; 256] = [
     123, 34, 97, 114, 103, 34, 58, 50, 57, 44, 34, 102, 110, 34, 58, 49, 52,
@@ -1021,7 +1021,7 @@ const P45: [u8; 256] = [
     102, 111, 34, 58, 34, 105, 109, 112, 108, 105, 99, 105, 116, 34, 44, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 11776..12032 of the prelude (the module note says why it is split).
 const P46: [u8; 256] = [
     98, 111, 100, 121, 34, 58, 49, 52, 54, 44, 34, 110, 97, 109, 101, 34,
@@ -1042,7 +1042,7 @@ const P46: [u8; 256] = [
     34, 116, 121, 112, 101, 34, 58, 49, 53, 48, 125, 44, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 12032..12288 of the prelude (the module note says why it is split).
 const P47: [u8; 256] = [
     105, 101, 34, 58, 49, 53, 49, 125, 10, 123, 34, 105, 110, 34, 58, 52,
@@ -1063,7 +1063,7 @@ const P47: [u8; 256] = [
     114, 103, 34, 58, 49, 53, 54, 44, 34, 102, 110, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 12288..12544 of the prelude (the module note says why it is split).
 const P48: [u8; 256] = [
     58, 49, 51, 125, 44, 34, 105, 101, 34, 58, 49, 53, 55, 125, 10, 123, 34,
@@ -1084,7 +1084,7 @@ const P48: [u8; 256] = [
     125, 10, 123, 34, 105, 101, 34, 58, 49, 54, 49, 44, 34, 108, 97, 109,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 12544..12800 of the prelude (the module note says why it is split).
 const P49: [u8; 256] = [
     34, 58, 123, 34, 98, 105, 110, 100, 101, 114, 73, 110, 102, 111, 34, 58,
@@ -1105,7 +1105,7 @@ const P49: [u8; 256] = [
     97, 117, 108, 116, 34, 44, 34, 98, 111, 100, 121, 34, 58, 49, 54,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 12800..13056 of the prelude (the module note says why it is split).
 const P50: [u8; 256] = [
     51, 44, 34, 110, 97, 109, 101, 34, 58, 51, 52, 44, 34, 116, 121, 112,
@@ -1126,7 +1126,7 @@ const P50: [u8; 256] = [
     97, 117, 108, 116, 34, 44, 34, 98, 111, 100, 121, 34, 58, 49, 54, 54, 44,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 13056..13312 of the prelude (the module note says why it is split).
 const P51: [u8; 256] = [
     34, 110, 97, 109, 101, 34, 58, 52, 51, 44, 34, 116, 121, 112, 101, 34,
@@ -1148,7 +1148,7 @@ const P51: [u8; 256] = [
     34, 105,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 13312..13568 of the prelude (the module note says why it is split).
 const P52: [u8; 256] = [
     101, 34, 58, 49, 55, 48, 125, 10, 123, 34, 105, 110, 100, 117, 99, 116,
@@ -1169,7 +1169,7 @@ const P52: [u8; 256] = [
     49, 44, 34, 110, 117, 109, 77, 111, 116, 105, 118, 101, 115, 34, 58,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 13568..13824 of the prelude (the module note says why it is split).
 const P53: [u8; 256] = [
     49, 44, 34, 110, 117, 109, 80, 97, 114, 97, 109, 115, 34, 58, 50, 44,
@@ -1191,7 +1191,7 @@ const P53: [u8; 256] = [
     114,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 13824..14080 of the prelude (the module note says why it is split).
 const P54: [u8; 256] = [
     34, 58, 123, 34, 112, 114, 101, 34, 58, 48, 44, 34, 115, 116, 114, 34,
@@ -1212,7 +1212,7 @@ const P54: [u8; 256] = [
     112, 114, 101, 34, 58, 48, 44, 34, 115, 116, 114, 34, 58, 34, 102, 97,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 14080..14336 of the prelude (the module note says why it is split).
 const P55: [u8; 256] = [
     108, 115, 101, 34, 125, 125, 10, 123, 34, 99, 111, 110, 115, 116, 34,
@@ -1233,7 +1233,7 @@ const P55: [u8; 256] = [
     58, 50, 44, 34, 110, 97, 109, 101, 34, 58, 52, 57, 44, 34,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 14336..14592 of the prelude (the module note says why it is split).
 const P56: [u8; 256] = [
     116, 121, 112, 101, 34, 58, 49, 55, 54, 125, 125, 10, 123, 34, 105, 101,
@@ -1255,7 +1255,7 @@ const P56: [u8; 256] = [
     114,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 14592..14848 of the prelude (the module note says why it is split).
 const P57: [u8; 256] = [
     73, 110, 102, 111, 34, 58, 34, 100, 101, 102, 97, 117, 108, 116, 34, 44,
@@ -1276,7 +1276,7 @@ const P57: [u8; 256] = [
     34, 102, 111, 114, 97, 108, 108, 69, 34, 58, 123, 34, 98, 105, 110,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 14848..15104 of the prelude (the module note says why it is split).
 const P58: [u8; 256] = [
     100, 101, 114, 73, 110, 102, 111, 34, 58, 34, 100, 101, 102, 97, 117,
@@ -1298,7 +1298,7 @@ const P58: [u8; 256] = [
     105, 110, 100,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 15104..15360 of the prelude (the module note says why it is split).
 const P59: [u8; 256] = [
     117, 99, 116, 34, 58, 52, 53, 44, 34, 105, 115, 85, 110, 115, 97, 102,
@@ -1320,7 +1320,7 @@ const P59: [u8; 256] = [
     114, 97,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 15360..15616 of the prelude (the module note says why it is split).
 const P60: [u8; 256] = [
     109, 115, 34, 58, 91, 49, 50, 93, 44, 34, 110, 97, 109, 101, 34, 58, 53,
@@ -1341,7 +1341,7 @@ const P60: [u8; 256] = [
     115, 85, 110, 115, 97, 102, 101, 34, 58, 102, 97, 108, 115, 101, 44,
 ];
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// Bytes 15616..15700 of the prelude (the module note says why it is split).
 const P61: [u8; 84] = [
     34, 108, 101, 118, 101, 108, 80, 97, 114, 97, 109, 115, 34, 58, 91, 93,
@@ -1361,7 +1361,7 @@ fn push_chunk(out: Vec<u8>, c: &[u8]) -> Vec<u8> {
     v
 }
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// The committed prelude for the pinned toolchain (con-leche's
 /// `lean-toolchain`), verbatim: the `meta` header, the name, level and
 /// expression table entries, and the declaration records of the six pinned

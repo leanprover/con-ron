@@ -65987,8 +65987,14 @@ con-leche goes from `445b9cf4` to **`a31e82979`**, four commits:
 | `a31e82979` | `--help`'s NO PREPROCESSOR paragraph: the installer generates the recursors, the stream's rule bodies are ignored | the help text |
 
 PRELAND and ANDPIN together leave the prelude where it was (`pins/` is
-untouched between the two pins), so `gen-prelude`, `gen-prelude-lean` and
-`gen-pins` have nothing to regenerate.
+untouched between the two pins): `gen-pins` regenerates nothing, and
+`gen-prelude`/`gen-prelude-lean` only re-cite `builtinPreludeText`, which
+moved up a line, the 15 700 bytes unchanged.  The two generators carry that
+citation in their own text (`scripts/gen-prelude{,-lean}.py`), as
+`gen-pins.sh`'s heredoc does (§7 step 8), and no gate rewrites it:
+`provenance.py update` relocated the generated files' citations, after
+which `gen-prelude --check` failed until the scripts were re-pointed by
+hand (`:59-60` and `:55-60`).
 
 **Findings.**  `provenance.py update` (no `--old`): **102 `CHANGED`, 0
 `GONE`**, 174 citations merely moved.  `progress.py`'s `stale (CHANGED

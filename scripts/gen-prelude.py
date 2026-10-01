@@ -8,9 +8,9 @@ parts = [data[i:i + CHUNK] for i in range(0, n, CHUNK)]
 
 out = []
 out.append('''//! The embedded lean4export text of con-leche's built-in prelude
-//! (`ConLeche/Frontend/Prelude.lean:60-61`, task #84).
+//! (`ConLeche/Frontend/Prelude.lean:59-60`, task #84).
 //!
-//! con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+//! con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-prelude.sh`
 //! from con-leche's own committed `%s`, the file its
@@ -51,7 +51,7 @@ out.append('''//! The embedded lean4export text of con-leche's built-in prelude
 for i, part in enumerate(parts):
     body = textwrap.fill(", ".join(str(b) for b in part), width=76,
                          initial_indent="    ", subsequent_indent="    ")
-    out.append('/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText\n'
+    out.append('/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText\n'
                '/// Bytes %d..%d of the prelude (the module note says why it is split).\n'
                'const P%02d: [u8; %d] = [\n%s,\n];\n\n'
                % (i * CHUNK, i * CHUNK + len(part), i, len(part), body))
@@ -65,7 +65,7 @@ fn push_chunk(out: Vec<u8>, c: &[u8]) -> Vec<u8> {
     v
 }
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:60-61 builtinPreludeText
+/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 /// The committed prelude for the pinned toolchain (con-leche's
 /// `lean-toolchain`), verbatim: the `meta` header, the name, level and
 /// expression table entries, and the declaration records of the six pinned
