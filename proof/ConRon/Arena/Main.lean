@@ -458,6 +458,5 @@ end ConRon.Arena
 -- (The top-level `main` Lake's `con-ron-lean` executable needs lives in
 -- `ConRon/Arena/Exe.lean`, not here: task #97-COMPOSE found that a top-level
 -- `main` in this module collides with `ConRon/Dump/Pins.lean`'s the moment
--- one file imports both Theorem 1's capstone, which imports this module for
--- `runPipeline`, and Theorem 2's tier, which reaches `ConRon.Dump.Pins`
--- through `ConRon.Refine.Pins`.)
+-- one file imports both this module and the pin dump, as the capstone's
+-- import closure once did.)
