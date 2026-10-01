@@ -1811,7 +1811,7 @@
 
 == crates/con-ron-core/src/arena/checker.rs#L682-L695
    682  /// con-leche: Main.lean:263-279 checkWorker
-   683  /// Lean twin: `proof/ConRon/Arena/Phased.lean:37-44 AState.worker` — the twin's
+   683  /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
    684  /// phase-B worker reads the persistent tier where it is.
    685  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
    686  /// moved here by task #97-P5-Driver): the empty store, FROZEN
