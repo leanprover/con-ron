@@ -1837,11 +1837,9 @@ theorem intern_all_pins_refines {pers st lst}
 /-! ## The axiom census
 
 **The spine is closed, leaves included** (task #97-MILESTONE, `arena`
-`db1131f1`).  `install_then_check_refines` is `annot_fold_refines` and
-`check_pending_list_refines` composed, `check_decls_pure_refines` is
-`check_decls_pure_go_refines` at the empty environment, and the three leaves
-the fold stands on — `annot_step_refines`, `check_pending_refines` and
-`check_decl_step_refines` — are proved; every row below prints the three
+`db1131f1`; the whole-list folds it then also covered went with task #105).
+The leaves the folds stand on — `annot_step_refines` and
+`check_pending_refines` — are proved; every row below prints the three
 standard axioms and nothing else.  (Until the lane Inductives Install
 slice 2 and lane Inductives round 6 slice 2 landings these rows printed
 `sorryAx` through the leaves' bodies; the `#guard_msgs` pins keep them from

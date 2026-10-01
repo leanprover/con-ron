@@ -15,7 +15,7 @@
 //! carrying the sorted list — was rejected because it does not keep the
 //! *operations* one-to-one, which is what DESIGN.md §3.1 asks for and what
 //! the refinement proof spends its budget on.  Every operation here
-//! (`holds`, `inter`, `params_defined`, `to_list`, `has_params`, `hash`,
+//! (`holds` — the tests' oracle since task #105 —, `inter`, `params_defined`, `to_list`, `has_params`, `hash`,
 //! `equiv_r`, `bind_z`) dispatches on the five constructors in the Lean's own
 //! arm order, so each Rust arm refines one Lean arm by `rfl`.  Collapsing to
 //! one list constructor turns each of those five-way matches into a
@@ -52,7 +52,7 @@
 //! it replaces.
 //!
 //! Two of the Lean's arguments are *functions* (`holds`'s valuation
-//! `φ : Name → Nat`, `bindZ`'s substitution `f : Name → PropWhen`).  §3.4
+//! `φ : Name → Nat`, in the tests, `bindZ`'s substitution `f : Name → PropWhen`).  §3.4
 //! forbids closures, so each becomes a one-method trait the caller
 //! implements — the `Eq2`/`Hashable` pattern of `hashmap.rs`, which task #7
 //! measured against `core` traits and preferred.
@@ -156,20 +156,6 @@ pub fn name_cmp(a: &Name, b: &Name) -> Ordering {
         (NameKind::Num(p, m), NameKind::Num(q, n)) => {
             ord_then(name_cmp(p, q), nat_compare(*m, *n))
         }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/PropWhen.lean:86-87 _
-/// The cited `instance : LT Name := ⟨fun a b => cmp a b = .lt⟩`, as a
-/// decision procedure — the Lean's `Decidable (a < b)` instance
-/// (`:90-91`) is `inferInstanceAs (Decidable (cmp a b = .lt))`, the same
-/// test.  Nothing in the executed code calls it (the sorted layer compares
-/// with `Name.cmp` directly); it is here because the representation
-/// invariant is stated with it.
-pub fn name_lt(a: &Name, b: &Name) -> bool {
-    match name_cmp(a, b) {
-        Ordering::Lt => true,
-        _ => false,
     }
 }
 
@@ -531,50 +517,6 @@ pub fn to_list_opt(pw: &PropWhen) -> Option<Vec<Name>> {
 // The observers (`PropWhen.lean:684-799`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — Lean's `φ : Name → Nat` argument of `holds`; §3.4 forbids closures
-/// A valuation of the level parameters.  Level-parameter values are `u64`
-/// (DESIGN.md §3.3: the `Nat`s that are never large).
-pub trait Valuation {
-    /// con-leche: none — the application `φ n` of `holds`'s valuation
-    /// The value of a parameter under this valuation.
-    fn value_at(&self, n: &Name) -> u64;
-}
-
-/// con-leche: none — the `ps.all fun n => φ n == 0` of `holds`'s `many` arm
-/// The index recursion the cited `List.all` becomes.
-pub fn all_zero_from<V>(phi: &V, ps: &Vec<Name>, i: usize) -> bool
-where
-    V: Valuation,
-{
-    if i >= ps.len() {
-        true
-    } else if phi.value_at(&ps[i]) == 0 {
-        all_zero_from(phi, ps, i + 1)
-    } else {
-        false
-    }
-}
-
-/// con-leche: ConLeche/Kernel/PropWhen.lean:685-694 PropWhen.holds
-/// Does the datum hold at a valuation — is the codomain sort zero there?
-/// (The model side's dispatch bit; the kernel never evaluates this, it only
-/// compares data with `==`.)  Deviation: the valuation is a trait
-/// dictionary, not a closure.
-pub fn holds<V>(phi: &V, pw: &PropWhen) -> bool
-where
-    V: Valuation,
-{
-    match &pw.repr {
-        PropWhenRepr::Never => false,
-        PropWhenRepr::Always => true,
-        PropWhenRepr::One(p) => phi.value_at(p) == 0,
-        PropWhenRepr::Two(pq) => {
-            phi.value_at(&pq.0) == 0 && phi.value_at(&pq.1) == 0
-        }
-        PropWhenRepr::Many(ps) => all_zero_from(phi, ps, 0),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/PropWhen.lean:710-732 PropWhen.isNever
 /// Is the datum `never`?  The only kernel-decidable reading of the
 /// annotation that the verification tier licenses a check-skip on, and only
@@ -701,10 +643,62 @@ mod tests {
     use crate::kernel::name;
     use crate::kernel::name::Name;
     use crate::kernel::prop_when::{
-        beq, bind_z, bind_z_go, canon, dup, has_params, hash_pw, holds, if_all_zero, inter,
-        is_never, name_cmp, name_lt, names_beq, never, params_defined, to_list, to_list_opt,
-        NameToPw, Ordering, PropWhen, Valuation,
+        beq, bind_z, bind_z_go, canon, dup, has_params, hash_pw, if_all_zero, inter,
+        is_never, name_cmp, names_beq, never, params_defined, to_list, to_list_opt,
+        NameToPw, Ordering, PropWhen,
     };
+    use crate::kernel::prop_when::PropWhenRepr;
+
+    /// `Name`'s `<` (`PropWhen.lean:86-87`: `cmp a b = .lt`), the order the
+    /// canonical lists are sorted in.
+    fn name_lt(a: &Name, b: &Name) -> bool {
+        matches!(name_cmp(a, b), Ordering::Lt)
+    }
+
+    /// The model-side semantics of a `PropWhen` (`PropWhen.holds`,
+    /// `PropWhen.lean:685-694`): the oracle the laws below are checked against,
+    /// test-only since task #105 (the kernel never evaluates a datum, it only
+    /// compares data).  This is Lean's `φ : Name → Nat` argument, as a trait
+    /// (§3.4): a valuation of the level parameters, values `u64` (DESIGN.md
+    /// §3.3: the `Nat`s that are never large).
+    trait Valuation {
+        /// The value of a parameter under this valuation.
+        fn value_at(&self, n: &Name) -> u64;
+    }
+
+    /// The `ps.all fun n => φ n == 0` of `holds`'s `many` arm.
+    /// The index recursion the cited `List.all` becomes.
+    fn all_zero_from<V>(phi: &V, ps: &Vec<Name>, i: usize) -> bool
+    where
+        V: Valuation,
+    {
+        if i >= ps.len() {
+            true
+        } else if phi.value_at(&ps[i]) == 0 {
+            all_zero_from(phi, ps, i + 1)
+        } else {
+            false
+        }
+    }
+
+    /// Does the datum hold at a valuation — is the codomain sort zero there?
+    /// (The model side's dispatch bit; the kernel never evaluates this, it only
+    /// compares data with `==`.)  Deviation: the valuation is a trait
+    /// dictionary, not a closure.
+    fn holds<V>(phi: &V, pw: &PropWhen) -> bool
+    where
+        V: Valuation,
+    {
+        match &pw.repr {
+            PropWhenRepr::Never => false,
+            PropWhenRepr::Always => true,
+            PropWhenRepr::One(p) => phi.value_at(p) == 0,
+            PropWhenRepr::Two(pq) => {
+                phi.value_at(&pq.0) == 0 && phi.value_at(&pq.1) == 0
+            }
+            PropWhenRepr::Many(ps) => all_zero_from(phi, ps, 0),
+        }
+    }
 
     fn nm(s: &str) -> Name {
         let cs: Vec<u32> = s.chars().map(|c| c as u32).collect();

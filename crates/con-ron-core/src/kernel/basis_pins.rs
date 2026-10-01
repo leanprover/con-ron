@@ -42,12 +42,9 @@
 //! change upstream a *test* failure (`basis_tables`' regeneration) instead
 //! of a silent verdict change.
 
-use crate::kernel::basis_names;
 use crate::kernel::basis_tables;
 use crate::kernel::env;
 use crate::kernel::env::ConstantInfo;
-use crate::kernel::fenv;
-use crate::kernel::fenv::FEnv;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
@@ -79,29 +76,6 @@ pub fn eq_a() -> ConstantInfo {
 pub fn nat_a() -> ConstantInfo {
     let block: Vec<ConstantInfo> = basis_tables::basis_decls_nat();
     env::constant_info_dup(&block[0])
-}
-
-/// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// Is the stored constant *the* pinned annotated `Eq` type former?  This is
-/// the `some ci = some eqA` half of `env.find? eqName = some eqA`, i.e. the
-/// derived `DecidableEq (ConstantInfo)` against the table's pin.
-pub fn is_pinned_eq_basis(ci: &ConstantInfo) -> bool {
-    env::constant_info_beq(ci, &eq_a())
-}
-
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// **"The pinned `Eq` basis is installed, unmodified"** — the whole guard
-/// `decide (env.find? eqName = some eqA)`, through the index.  Nine sites
-/// spell it (the module note lists them); two of those are in a pure `Bool`,
-/// so a monadic "run the annotation pass now" is not available and the
-/// comparison has to be against a value the core can write down.
-pub fn eq_basis_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &basis_names::eq_name()) {
-        Some(ci) => is_pinned_eq_basis(ci),
-        None => false,
-    }
 }
 
 #[cfg(test)]

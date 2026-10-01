@@ -50,18 +50,14 @@
 use crate::kernel::basis_builder;
 use crate::kernel::basis_names;
 use crate::kernel::core_types;
-use crate::kernel::basis_pins;
 use crate::kernel::env;
 use crate::kernel::env::{ConstantInfo, ConstantVal};
 use crate::kernel::expr;
-use crate::kernel::expr::{Expr, ExprView};
-use crate::kernel::fenv;
-use crate::kernel::fenv::FEnv;
+use crate::kernel::expr::Expr;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when;
 use std::vec::Vec;
 
 // ---------------------------------------------------------------------------
@@ -125,124 +121,6 @@ pub fn nonempty_intro_name() -> Name {
 /// The name `Nonempty.rec`.
 pub fn nonempty_rec_name() -> Name {
     name::mk_str(nonempty_name(), { const S: [u32; 3] = [114, 101, 99]; core_types::code_points(&S) })
-}
-
-// ---------------------------------------------------------------------------
-// The pin comparison (`StdAxioms.lean:71-215`)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:62-113 Expr.erasePw
-/// Reset every binder's prop-ness datum to `.never`, leaving every other
-/// field alone.  **The specification** of `matchesPin`'s type test; the
-/// executed comparison is `erase_pw_eq` below (`@[csimp]`).  Ported, and
-/// uncalled, so the provenance gate stays in step with its source.
-pub fn erase_pw(e: &Expr) -> Expr {
-    match expr::view(&e) {
-        ExprView::Bvar(i) => expr::bvar(*i),
-        ExprView::Fvar(i, ty) => expr::fvar(*i, erase_pw(ty)),
-        ExprView::Sort(u) => expr::sort(level::dup(u)),
-        ExprView::Const(n, us) => expr::mk_const(name::dup(n), env::levels_copy(us)),
-        ExprView::App(f, a) => expr::app(erase_pw(f), erase_pw(a)),
-        ExprView::Lam(ty, b, _) => {
-            expr::lam(erase_pw(ty), erase_pw(b), basis_builder::never_meta())
-        }
-        ExprView::ForallE(ty, b, _) => {
-            expr::forall_e(erase_pw(ty), erase_pw(b), basis_builder::never_meta())
-        }
-        ExprView::LetE(ty, v, b) => expr::let_e(erase_pw(ty), erase_pw(v), erase_pw(b)),
-        ExprView::Lit(l) => expr::lit(expr::literal_dup(l)),
-        ExprView::Proj(s, i, sub) => expr::proj(name::dup(s), *i, erase_pw(sub)),
-    }
-}
-
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq
-/// `a.erasePw = b.erasePw`, decided by descending **both** terms together and
-/// stopping at the first disagreement: wherever the two agree they have the
-/// pin's shape, so the walk is bounded by the PIN's tree size however large
-/// the stream side is.
-pub fn erase_pw_eq(a: &Expr, b: &Expr) -> bool {
-    match (expr::view(&a), expr::view(&b)) {
-        (ExprView::Bvar(i), ExprView::Bvar(j)) => *i == *j,
-        (ExprView::Fvar(i, t), ExprView::Fvar(j, t2)) => {
-            if *i == *j {
-                erase_pw_eq(t, t2)
-            } else {
-                false
-            }
-        }
-        (ExprView::Sort(u), ExprView::Sort(v)) => level::beq(u, v),
-        (ExprView::Const(n, us), ExprView::Const(n2, us2)) => {
-            if name::beq(n, n2) {
-                expr::levels_beq(us, us2)
-            } else {
-                false
-            }
-        }
-        (ExprView::App(f, x), ExprView::App(f2, x2)) => {
-            if erase_pw_eq(f, f2) {
-                erase_pw_eq(x, x2)
-            } else {
-                false
-            }
-        }
-        (ExprView::Lam(t, b, _), ExprView::Lam(t2, b2, _)) => {
-            if erase_pw_eq(t, t2) {
-                erase_pw_eq(b, b2)
-            } else {
-                false
-            }
-        }
-        (ExprView::ForallE(t, b, _), ExprView::ForallE(t2, b2, _)) => {
-            if erase_pw_eq(t, t2) {
-                erase_pw_eq(b, b2)
-            } else {
-                false
-            }
-        }
-        (ExprView::LetE(t, v, b), ExprView::LetE(t2, v2, b2)) => {
-            if erase_pw_eq(t, t2) {
-                if erase_pw_eq(v, v2) {
-                    erase_pw_eq(b, b2)
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        (ExprView::Lit(l), ExprView::Lit(l2)) => expr::literal_beq(l, l2),
-        (ExprView::Proj(s, i, e), ExprView::Proj(s2, j, e2)) => {
-            if name::beq(s, s2) {
-                if *i == *j {
-                    erase_pw_eq(e, e2)
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:197-201 ConstantVal.matchesPinFast
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:203-206 ConstantVal.matchesPin_eq_matchesPinFast
-/// `matchesPin` at the lockstep comparison: **the executed shape test**, and
-/// the one every pin guard below calls.  The cited `@[csimp]` lemma is a
-/// kernel-checked equation with `matches_pin`, so the refinement of the
-/// specification is that equation.
-pub fn matches_pin_fast(cv: &ConstantVal, pin: &ConstantVal) -> bool {
-    if name::beq(&cv.name, &pin.name) {
-        if prop_when::names_beq(&cv.level_params, &pin.level_params) {
-            erase_pw_eq(&cv.ty, &pin.ty)
-        } else {
-            false
-        }
-    } else {
-        false
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -534,265 +412,23 @@ pub fn choice_raw() -> ConstantVal {
 // The install guard (`StdAxioms.lean:322-373`, `DeclCheck.lean:240-273`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// The stored `Iff` type former against the pin.  Factored out of the guard's
-/// `&&` cascade (task #3's pattern 9), so each `match` on a lookup ends
-/// before the next one begins (task #14's borrow rule).
-pub fn iff_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &iff_name()) {
-        Some(ConstantInfo::IndInfo(cv_i, _)) => {
-            matches_pin_fast(cv_i, &env::to_constant_val(&iff_raw()))
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// The stored `Iff.intro` against the pin, at the pinned arity `2 2`.
-pub fn iff_intro_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &iff_intro_name()) {
-        Some(ConstantInfo::CtorInfo(cv_ii, n_p, n_f)) => {
-            if *n_p == 2 {
-                if *n_f == 2 {
-                    matches_pin_fast(cv_ii, &env::to_constant_val(&iff_intro_raw()))
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// The stored `Iff.rec` against the pin, at the pinned arity `4 4`.  Only its
-/// *type* is used, never its reduction rules (the cited note).
-pub fn iff_rec_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &iff_rec_name()) {
-        Some(ConstantInfo::RecInfo(cv_ir, m_i, r_p, _)) => {
-            if *m_i == 4 {
-                if *r_p == 4 {
-                    matches_pin_fast(cv_ir, &env::to_constant_val(&iff_rec_raw()))
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// The stored `Nonempty` type former against the pin.
-pub fn nonempty_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &nonempty_name()) {
-        Some(ConstantInfo::IndInfo(cv_n, _)) => {
-            matches_pin_fast(cv_n, &env::to_constant_val(&nonempty_raw()))
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// The stored `Nonempty.intro` against the pin, at the pinned arity `1 1`.
-pub fn nonempty_intro_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &nonempty_intro_name()) {
-        Some(ConstantInfo::CtorInfo(cv_ni, n_p, n_f)) => {
-            if *n_p == 1 {
-                if *n_f == 1 {
-                    matches_pin_fast(cv_ni, &env::to_constant_val(&nonempty_intro_raw()))
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// The stored `Nonempty.rec` against the pin, at the pinned arity `3 3`.
-pub fn nonempty_rec_pinned(fe: &FEnv) -> bool {
-    match fenv::find(fe, &nonempty_rec_name()) {
-        Some(ConstantInfo::RecInfo(cv_nr, m_i, r_p, _)) => {
-            if *m_i == 3 {
-                if *r_p == 3 {
-                    matches_pin_fast(cv_nr, &env::to_constant_val(&nonempty_rec_raw()))
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        }
-        _ => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:305-351 stdAxiomOk
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// Is this checked axiom one of the two recognized standard axioms, over
-/// standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
-/// basis)?  A pure predicate, so `check_decl`'s `axiomDecl` arm stays a
-/// single conditional.  All three of each family's constants are pinned, not
-/// just the type: the verification has to *realize* the axiom, and nothing
-/// turns an inhabitant of an opaque family into its fields except that
-/// family's own recursor.
-///
-/// Deviation (task #18's point 3): the `Env` and `FEnv` twins are this one
-/// function, and the pins compared against are the raw ones (module note).
-pub fn std_axiom_ok(fe: &FEnv, cv_a: &ConstantVal) -> bool {
-    if name::beq(&cv_a.name, &propext_name()) {
-        if basis_pins::eq_basis_pinned(fe) {
-            if iff_pinned(fe) {
-                if iff_intro_pinned(fe) {
-                    if iff_rec_pinned(fe) {
-                        matches_pin_fast(cv_a, &propext_raw())
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else if name::beq(&cv_a.name, &choice_name()) {
-        if nonempty_pinned(fe) {
-            if nonempty_intro_pinned(fe) {
-                if nonempty_rec_pinned(fe) {
-                    matches_pin_fast(cv_a, &choice_raw())
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::kernel::basis_builder;
-    use crate::kernel::basis_pins;
-    use crate::kernel::env;
-    use crate::kernel::env::{ConstantInfo, ConstantVal};
     use crate::kernel::expr;
-    use crate::kernel::expr::Expr;
-    use crate::kernel::fenv;
-    use crate::kernel::level;
     use crate::kernel::name;
     use crate::kernel::prop_when;
     use crate::kernel::std_axioms;
-    use crate::kernel::trust_axioms;
 
-    /// The lockstep comparison and the spec agree on every pair the pins
-    /// produce, and both forgive exactly the binder prop-ness datum.  This is
-    /// the module's whole justification for comparing against the *raw* pins
-    /// rather than the generated annotated ones.
+    /// The pinned names: `Iff.intro` is a child of `Iff`; and the raw pins
+    /// carry the parse placeholder on every binder.
     #[test]
-    fn erase_pw_eq_is_erase_pw_equality() {
-        let pins: Vec<Expr> = vec![
-            std_axioms::propext_raw().ty,
-            std_axioms::choice_raw().ty,
-            env::to_constant_val(&std_axioms::iff_raw()).ty,
-            env::to_constant_val(&std_axioms::iff_intro_raw()).ty,
-            env::to_constant_val(&std_axioms::iff_rec_raw()).ty,
-            env::to_constant_val(&std_axioms::nonempty_raw()).ty,
-            env::to_constant_val(&std_axioms::nonempty_intro_raw()).ty,
-            env::to_constant_val(&std_axioms::nonempty_rec_raw()).ty,
-            trust_axioms::reduce_op_raw(&trust_axioms::reduce_nat_name()).ty,
-            trust_axioms::of_reduce_raw(&trust_axioms::of_reduce_bool_name()).ty,
-        ];
-        for a in pins.iter() {
-            for b in pins.iter() {
-                let spec = expr::beq(&std_axioms::erase_pw(a), &std_axioms::erase_pw(b));
-                assert_eq!(
-                    std_axioms::erase_pw_eq(a, b),
-                    spec,
-                    "the lockstep descent must answer what the spec answers"
-                );
-            }
-        }
-        // reflexive, and blind to a rewritten `pw`
-        for a in pins.iter() {
-            assert!(std_axioms::erase_pw_eq(a, a));
-            let repw = rewrite_pw(a);
-            assert!(std_axioms::erase_pw_eq(a, &repw));
-            assert!(std_axioms::erase_pw_eq(&std_axioms::erase_pw(a), a));
-        }
-        // …but not to anything else: `Iff` and `Nonempty` do not match
-        assert!(!std_axioms::erase_pw_eq(
-            &env::to_constant_val(&std_axioms::iff_raw()).ty,
-            &env::to_constant_val(&std_axioms::nonempty_raw()).ty
-        ));
-    }
-
-    fn rewrite_pw(e: &Expr) -> Expr {
-        let m = expr::binder_meta(prop_when::if_all_zero(Vec::new()));
-        match expr::view(&e) {
-            expr::ExprView::ForallE(t, b, _) => expr::forall_e(rewrite_pw(t), rewrite_pw(b), m),
-            expr::ExprView::Lam(t, b, _) => expr::lam(rewrite_pw(t), rewrite_pw(b), m),
-            expr::ExprView::App(f, a) => expr::app(rewrite_pw(f), rewrite_pw(a)),
-            _ => expr::dup(e),
-        }
-    }
-
-    /// The pinned names, the families' order, and the guards' arity tests:
-    /// `stdAxiomOk` refuses a stored `Iff.intro` at the wrong arity even when
-    /// its type is the pinned one, because the `some (.ctorInfo cvIi 2 2)`
-    /// pattern is part of the pin.
-    #[test]
-    fn the_pinned_families_and_their_arities() {
-        // `Iff.intro` and `Iff.rec` are children of `Iff`
+    fn the_pinned_names() {
         assert!(name::beq(
             &std_axioms::iff_intro_name(),
             &name::mk_str(std_axioms::iff_name(), vec![105, 110, 116, 114, 111])
         ));
-        // the raw pins carry the parse placeholder on every binder
         let m = expr::binder_meta(prop_when::never());
         assert!(expr::binder_meta_beq(&basis_builder::never_meta(), &m));
-        // the `Iff` guard: right type, wrong arity
-        let cv_ii = env::to_constant_val(&std_axioms::iff_intro_raw());
-        let mut consts: Vec<ConstantInfo> = Vec::new();
-        consts.push(ConstantInfo::CtorInfo(env::constant_val_dup(&cv_ii), 1, 2));
-        let fe_bad = fenv::mk_fenv(env::env_of(&consts));
-        assert!(!std_axioms::iff_intro_pinned(&fe_bad));
-        let mut consts2: Vec<ConstantInfo> = Vec::new();
-        consts2.push(ConstantInfo::CtorInfo(env::constant_val_dup(&cv_ii), 2, 2));
-        let fe_ok = fenv::mk_fenv(env::env_of(&consts2));
-        assert!(std_axioms::iff_intro_pinned(&fe_ok));
-        // …and the pinned `Eq` basis is not there, so `stdAxiomOk` still says
-        // no (`basis_pins`' stub; task #22 supplies the table)
-        assert!(!basis_pins::eq_basis_pinned(&fe_ok));
-        let propext: ConstantVal = std_axioms::propext_raw();
-        assert!(!std_axioms::std_axiom_ok(&fe_ok, &propext));
-        // an unrelated name is never a standard axiom
-        let other = ConstantVal {
-            name: name::mk_str(name::anonymous(), vec![120]),
-            level_params: Vec::new(),
-            ty: expr::sort(level::zero()),
-        };
-        assert!(!std_axioms::std_axiom_ok(&fe_ok, &other));
     }
 }

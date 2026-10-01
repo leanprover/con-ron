@@ -6,11 +6,10 @@ unverified) is a straight line of calls into the verified crate:
 
     annot_fold_hooked → freeze_tier → pool::parallel_all → thaw_tier
 
-and `arena::checker::check_decls_phased` is the same line with the one call
-that is not the verified crate's — the pool — replaced by the walk it is
-argued equal to, `check_pending_worker` (one `worker_state`, and
-`check_pending_list` from it over the frozen tier).  This module is Theorem 2
-for that function, against `Arena/Phased.lean`'s `installThenCheckPhased`:
+and phase B is the pool's fold of the verified `check_pending` over the
+records, from one `worker_state` over the frozen tier.  This module is
+Theorem 2 for that line, against `Arena/Phased.lean`'s
+`installThenCheckPhased`:
 
 * **phase A** — `annot_fold_hooked` IS `annot_fold` (`annot_fold_hooked_eq`:
   the hook is `Unit`-valued and reads only), so `annot_fold_refines` applies;
@@ -23,7 +22,7 @@ for that function, against `Arena/Phased.lean`'s `installThenCheckPhased`:
   at the TIER as the reader parameter (`worker_state_rel`): its persistent
   reads go to the tier, which is exactly what the phase-A store's reads went
   to because phase A's reader is an owned store's (`hpers`).  So
-  `check_pending_list_refines` applies at `pers := tier`;
+  `check_pending_refines` applies at `pers := tier`, record by record;
 * **the result** — the Rust's state after the fold is the phase-A state (the
   store thawed back), which is what the twin's `checkPendingWorker` hands
   back too, so `AStateRel₀` carries over unchanged.

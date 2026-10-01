@@ -21,16 +21,16 @@
 //! that puts a non-`Sync` field anywhere in the state will be caught here,
 //! before the pool is written rather than after.
 
-use con_ron_core::kernel::env::{ConstantInfo, Env};
+use con_ron_core::kernel::env::ConstantInfo;
 use con_ron_core::kernel::expr::Expr;
-use con_ron_core::kernel::fenv::FEnv;
 use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name::Name;
 
 /// Typechecks only for `T: Send + Sync`; the whole assertion is the bound.
 fn assert_send_sync<T: Send + Sync>() {}
 
-/// The three the pinned data is written in (`Expr`, `FEnv`, `Env`), plus the
+/// The one the pinned data is written in (`Expr`; `FEnv`/`Env` went with the
+/// `Expr`-tree reference code at task #105), plus the
 /// two handle types underneath them and the value the pinned blocks compare.
 /// (`CState` went with the `Expr`-tree checker at task #97-SWAP; the arena's
 /// own state is `AState`, and the pool shares a frozen `PersTier` by
@@ -38,8 +38,6 @@ fn assert_send_sync<T: Send + Sync>() {}
 #[test]
 fn core_values_are_send_and_sync() {
     assert_send_sync::<Expr>();
-    assert_send_sync::<FEnv>();
-    assert_send_sync::<Env>();
     assert_send_sync::<Name>();
     assert_send_sync::<Level>();
     assert_send_sync::<ConstantInfo>();

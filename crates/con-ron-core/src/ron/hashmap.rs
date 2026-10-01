@@ -165,10 +165,6 @@ const MIN_CAPACITY: usize = 32;
 const LOAD_NUM: usize = 3;
 const LOAD_DEN: usize = 4;
 
-/// Fuel for `pow2_at_least`: a `usize` has at most 64 bits, so doubling from
-/// `MIN_CAPACITY` reaches the maximum in fewer than this many steps.
-const POW2_FUEL: usize = 64;
-
 /// The bucket a hash selects, among `n` buckets (`n > 0`, a power of two).
 ///
 /// `h & (n - 1)` is `h % n` for a power-of-two `n` (the module note has the
@@ -195,21 +191,6 @@ fn bucket_index(h: u64, n: usize) -> usize {
 fn max_load_for(capacity: usize) -> usize {
     let q = capacity / LOAD_DEN;
     q * LOAD_NUM
-}
-
-/// The smallest power of two that is `>= n`, starting from `cap` (itself a
-/// power of two) and doubling.  Saturates instead of overflowing.
-/// Replaces the `while` a `n.next_power_of_two()` would be.
-fn pow2_at_least(n: usize, cap: usize, fuel: usize) -> usize {
-    if fuel == 0 {
-        cap
-    } else if cap >= n {
-        cap
-    } else if cap > usize::MAX / 2 {
-        cap
-    } else {
-        pow2_at_least(n, cap * 2, fuel - 1)
-    }
 }
 
 /// Look a key up in a bucket.
@@ -326,19 +307,11 @@ impl<K, V> HashMap<K, V> {
         }
     }
 
-    /// An empty map sized so that `capacity` buckets are available (rounded
-    /// up to a power of two, at least `MIN_CAPACITY`).
-    pub fn with_capacity(capacity: usize) -> HashMap<K, V> {
-        let c = pow2_at_least(capacity, MIN_CAPACITY, POW2_FUEL);
-        HashMap::new_with_capacity_pow2(c)
-    }
-
     /// The number of entries.
     /// Source: `vendor/aeneas/tests/src/hashmap.rs:105` (`len`).
     pub fn len(&self) -> usize {
         self.num_entries
     }
-
 }
 
 impl<K, V> HashMap<K, V>
@@ -435,7 +408,6 @@ where
             }
         }
     }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -504,7 +476,6 @@ where
     K: Dup,
     V: Dup,
 {
-
 }
 
 // ---------------------------------------------------------------------------
@@ -653,28 +624,6 @@ mod tests {
         // A second insert does not reallocate.
         assert_eq!(m.insert(8, 80), None);
         assert_eq!(m.slots.len(), MIN_CAPACITY);
-        // `with_capacity` still allocates eagerly.
-        let w: HashMap<u64, u64> = HashMap::with_capacity(100);
-        assert_eq!(w.slots.len(), 128);
-    }
-
-    #[test]
-    fn with_capacity_rounds_up_to_a_power_of_two() {
-        // Small requests keep the minimum.
-        let m: HashMap<u64, u64> = HashMap::with_capacity(0);
-        assert_eq!(m.slots.len(), MIN_CAPACITY);
-        let m: HashMap<u64, u64> = HashMap::with_capacity(32);
-        assert_eq!(m.slots.len(), 32);
-        let m: HashMap<u64, u64> = HashMap::with_capacity(33);
-        assert_eq!(m.slots.len(), 64);
-        let m: HashMap<u64, u64> = HashMap::with_capacity(1000);
-        assert_eq!(m.slots.len(), 1024);
-        // Saturation instead of overflow (checked on the pure function: a
-        // table that big cannot be allocated).
-        let c = pow2_at_least(usize::MAX, MIN_CAPACITY, POW2_FUEL);
-        assert!(c.is_power_of_two());
-        assert!(c > usize::MAX / 2);
-        assert_eq!(pow2_at_least(usize::MAX, MIN_CAPACITY, 0), MIN_CAPACITY);
     }
 
     #[test]

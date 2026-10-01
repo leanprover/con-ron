@@ -135,16 +135,6 @@ pub fn binder_meta_beq(a: &BinderMeta, b: &BinderMeta) -> bool {
     prop_when::beq(&a.pw, &b.pw)
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// The cited `deriving Hashable`: the constructor index (a structure has
-/// one, `0`) then `mixHash` folded over the fields
-/// (`Lean/Elab/Deriving/Hashable.lean:50`).  Nothing in this file calls it —
-/// the packed word hashes `m.pw` directly — but it is what a memo keyed by a
-/// `BinderMeta` would probe with.
-pub fn binder_meta_hash(m: &BinderMeta) -> u64 {
-    name::mix_hash(0, prop_when::hash_pw(&m.pw))
-}
-
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
 /// Share a binder datum.  Task #90: `PropWhen`'s own `dup` (a reference bump
 /// on its rare `Two`/`Many` arms, a plain copy otherwise), not `ptr::clone` —
@@ -629,29 +619,6 @@ pub fn hash(e: &Expr) -> u64 {
     hash_of_data(data(e))
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:408-410 Expr.hasLP
-/// Has-level-param: is level instantiation ever non-trivial here?  One bit,
-/// so this read is *exact*.
-pub fn has_lp(e: &Expr) -> bool {
-    lp_of_data(data(e))
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:412-413 Expr.bvarBRaw
-/// The stored loose-bvar bound, saturating at `satRange`.  Deviation: a
-/// `u64` rather than the `Nat` the cited `.toNat` produces (DESIGN.md §3.3).
-/// The *exact* accessor `Expr.bvarB`, which recovers exactness on the
-/// saturated branch with a memoized walk, lives in `Kernel/ExprOps.lean` and
-/// is not part of this file.
-pub fn bvar_b_raw(e: &Expr) -> u64 {
-    bvar_of_data(data(e))
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:415-416 Expr.fvarBRaw
-/// The stored fvar range, saturating at `satRange`.
-pub fn fvar_b_raw(e: &Expr) -> u64 {
-    fvar_of_data(data(e))
-}
-
 // ---------------------------------------------------------------------------
 // Equality (`Expr.lean:678-988`)
 // ---------------------------------------------------------------------------
@@ -812,32 +779,6 @@ pub fn levels_beq_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> bool {
         true
     } else if level::beq(&ls[i], &rs[i]) {
         levels_beq_from(ls, rs, i + 1)
-    } else {
-        false
-    }
-}
-
-/// con-leche: none — `List Expr` equality (the `==` of a `List Expr` field)
-/// The twin of `levels_beq` one level up: what Lean's `BEq (List Expr)`
-/// decides, and what the `deriving DecidableEq`s of `Kernel/Env.lean`'s
-/// stored-constant records (`env::rec_rule_fire_beq`, `env::proj_table_beq`)
-/// and the inductive recognisers' `==` conjuncts read.  Entry point of the
-/// index recursion below.
-pub fn exprs_beq(xs: &Vec<Expr>, ys: &Vec<Expr>) -> bool {
-    if xs.len() == ys.len() {
-        exprs_beq_from(xs, ys, 0)
-    } else {
-        false
-    }
-}
-
-/// con-leche: none — the index recursion behind `exprs_beq`
-/// Lean's `List.beq` over `BEq Expr`; no loops (DESIGN.md §3.4).
-pub fn exprs_beq_from(xs: &Vec<Expr>, ys: &Vec<Expr>, i: usize) -> bool {
-    if i >= xs.len() {
-        true
-    } else if beq(&xs[i], &ys[i]) {
-        exprs_beq_from(xs, ys, i + 1)
     } else {
         false
     }
@@ -1116,13 +1057,6 @@ pub fn beq(a: &Expr, b: &Expr) -> bool {
 // The `bvar` smart constructor (`Expr.lean:990-1037`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Expr.lean:1031-1032 Expr.bvarPoolSize
-/// Size of con-leche's static `bvar` pool.  Kept for the record; nothing
-/// here reads it, because the pool itself is not ported (see `mk_bvar`).
-pub fn bvar_pool_size() -> u64 {
-    4096
-}
-
 /// con-leche: ConLeche/Kernel/Expr.lean:1034-1035 Expr.bvarPool
 /// con-leche: ConLeche/Kernel/Expr.lean:1037-1040 Expr.mkBvar
 /// con-leche: ConLeche/Kernel/Expr.lean:1042-1046 Expr.mkBvar_eq
@@ -1222,6 +1156,20 @@ mod tests {
     use crate::kernel::name::Name;
     use crate::ron::nat;
     use crate::kernel::prop_when;
+
+    /// The three fields of a node's data word, read back (con-leche's
+    /// `Expr.hasLevelParam'`/`bvarBRaw`/`fvarBRaw`; test-only since task #105).
+    fn has_lp(e: &Expr) -> bool {
+        expr::lp_of_data(expr::data(e))
+    }
+
+    fn bvar_b_raw(e: &Expr) -> u64 {
+        expr::bvar_of_data(expr::data(e))
+    }
+
+    fn fvar_b_raw(e: &Expr) -> u64 {
+        expr::fvar_of_data(expr::data(e))
+    }
 
     /// A single `str` component under `anonymous` — `nm("foo")` is `` `foo ``.
     fn nm(s: &str) -> Name {
@@ -1345,26 +1293,26 @@ mod tests {
     #[test]
     fn bvar_b_saturates_at_32767() {
         // A leaf below the bound is exact...
-        assert_eq!(expr::bvar_b_raw(&expr::bvar(0)), 1);
-        assert_eq!(expr::bvar_b_raw(&expr::bvar(4095)), 4096);
-        assert_eq!(expr::bvar_b_raw(&expr::bvar(32765)), 32766);
+        assert_eq!(bvar_b_raw(&expr::bvar(0)), 1);
+        assert_eq!(bvar_b_raw(&expr::bvar(4095)), 4096);
+        assert_eq!(bvar_b_raw(&expr::bvar(32765)), 32766);
         // ... and from `satRange - 1` on it pins to `satRange`.
-        assert_eq!(expr::bvar_b_raw(&expr::bvar(32766)), 32767);
-        assert_eq!(expr::bvar_b_raw(&expr::bvar(32767)), 32767);
-        assert_eq!(expr::bvar_b_raw(&expr::bvar(1000000)), 32767);
+        assert_eq!(bvar_b_raw(&expr::bvar(32766)), 32767);
+        assert_eq!(bvar_b_raw(&expr::bvar(32767)), 32767);
+        assert_eq!(bvar_b_raw(&expr::bvar(1000000)), 32767);
         // A binder drops one — but a saturated body stays saturated, since
         // the stored value means "at least".
         let ty = expr::sort(level::zero());
         let deep = expr::lam(expr::dup(&ty), expr::bvar(1000000), bm_never());
-        assert_eq!(expr::bvar_b_raw(&deep), 32767);
+        assert_eq!(bvar_b_raw(&deep), 32767);
         let shallow = expr::lam(expr::dup(&ty), expr::bvar(5), bm_never());
-        assert_eq!(expr::bvar_b_raw(&shallow), 5);
+        assert_eq!(bvar_b_raw(&shallow), 5);
         let closed = expr::lam(expr::dup(&ty), expr::bvar(0), bm_never());
-        assert_eq!(expr::bvar_b_raw(&closed), 0);
+        assert_eq!(bvar_b_raw(&closed), 0);
         // The fvar range saturates the same way, and does not descend into
         // an `fvar`'s type annotation.
-        assert_eq!(expr::fvar_b_raw(&expr::fvar(9, expr::dup(&ty))), 10);
-        assert_eq!(expr::fvar_b_raw(&expr::fvar(1000000, ty)), 32767);
+        assert_eq!(fvar_b_raw(&expr::fvar(9, expr::dup(&ty))), 10);
+        assert_eq!(fvar_b_raw(&expr::fvar(1000000, ty)), 32767);
     }
 
     #[test]
@@ -1373,39 +1321,39 @@ mod tests {
         let s0 = expr::sort(level::zero());
         let su = expr::sort(level::dup(&u));
         // `sort`: both ranges 0, the bit is `levelHasParam`.
-        assert_eq!(expr::bvar_b_raw(&s0), 0);
-        assert_eq!(expr::fvar_b_raw(&s0), 0);
-        assert!(!expr::has_lp(&s0));
-        assert!(expr::has_lp(&su));
+        assert_eq!(bvar_b_raw(&s0), 0);
+        assert_eq!(fvar_b_raw(&s0), 0);
+        assert!(!has_lp(&s0));
+        assert!(has_lp(&su));
         // `const`: the bit is `levelsHaveParam`.
-        assert!(!expr::has_lp(&expr::mk_const(nm("Nat"), Vec::new())));
+        assert!(!has_lp(&expr::mk_const(nm("Nat"), Vec::new())));
         let lu: Vec<Level> = vec![level::dup(&u)];
-        assert!(expr::has_lp(&expr::mk_const(nm("List"), lu)));
+        assert!(has_lp(&expr::mk_const(nm("List"), lu)));
         // `app`: componentwise max, disjunction.
         let a = expr::app(expr::bvar(2), expr::fvar(4, expr::dup(&s0)));
-        assert_eq!(expr::bvar_b_raw(&a), 3);
-        assert_eq!(expr::fvar_b_raw(&a), 5);
-        assert!(!expr::has_lp(&a));
-        assert!(expr::has_lp(&expr::app(expr::dup(&su), expr::bvar(0))));
+        assert_eq!(bvar_b_raw(&a), 3);
+        assert_eq!(fvar_b_raw(&a), 5);
+        assert!(!has_lp(&a));
+        assert!(has_lp(&expr::app(expr::dup(&su), expr::bvar(0))));
         // `letE`: only the body is under the binder.
         let l = expr::let_e(expr::bvar(3), expr::bvar(1), expr::bvar(6));
-        assert_eq!(expr::bvar_b_raw(&l), 6);
-        assert_eq!(expr::fvar_b_raw(&l), 0);
+        assert_eq!(bvar_b_raw(&l), 6);
+        assert_eq!(fvar_b_raw(&l), 0);
         // `lam`'s bit picks up the binder datum's parameters.
         let m = expr::lam(expr::dup(&s0), expr::bvar(0), bm(&["u"]));
-        assert!(expr::has_lp(&m));
+        assert!(has_lp(&m));
         let m2 = expr::lam(expr::dup(&s0), expr::bvar(0), bm_never());
-        assert!(!expr::has_lp(&m2));
+        assert!(!has_lp(&m2));
         // `proj` copies its subterm's fields.
         let p = expr::proj(nm("Prod"), 0, expr::dup(&a));
-        assert_eq!(expr::bvar_b_raw(&p), expr::bvar_b_raw(&a));
-        assert_eq!(expr::fvar_b_raw(&p), expr::fvar_b_raw(&a));
-        assert_eq!(expr::has_lp(&p), expr::has_lp(&a));
+        assert_eq!(bvar_b_raw(&p), bvar_b_raw(&a));
+        assert_eq!(fvar_b_raw(&p), fvar_b_raw(&a));
+        assert_eq!(has_lp(&p), has_lp(&a));
         // `lit` is closed.
         let li = expr::lit(expr::literal_nat(nat::from_u64(7)));
-        assert_eq!(expr::bvar_b_raw(&li), 0);
-        assert_eq!(expr::fvar_b_raw(&li), 0);
-        assert!(!expr::has_lp(&li));
+        assert_eq!(bvar_b_raw(&li), 0);
+        assert_eq!(fvar_b_raw(&li), 0);
+        assert!(!has_lp(&li));
     }
 
     // -----------------------------------------------------------------------
@@ -1552,9 +1500,9 @@ mod tests {
         for i in 0..xs.len() {
             assert_eq!(expr::data(&xs[i]), expr::data(&ys[i]));
             assert_eq!(expr::hash(&xs[i]), expr::hash(&ys[i]));
-            assert_eq!(expr::has_lp(&xs[i]), expr::has_lp(&ys[i]));
-            assert_eq!(expr::bvar_b_raw(&xs[i]), expr::bvar_b_raw(&ys[i]));
-            assert_eq!(expr::fvar_b_raw(&xs[i]), expr::fvar_b_raw(&ys[i]));
+            assert_eq!(has_lp(&xs[i]), has_lp(&ys[i]));
+            assert_eq!(bvar_b_raw(&xs[i]), bvar_b_raw(&ys[i]));
+            assert_eq!(fvar_b_raw(&xs[i]), fvar_b_raw(&ys[i]));
         }
         // The hash is 32 bits and the ten tags are distinct, so the battery
         // has no collision — not required of a hash, but a mistyped tag or a
@@ -1778,7 +1726,6 @@ mod tests {
     fn mk_bvar_is_the_bare_constructor() {
         // `mkBvar_eq`: the pool is not ported, so what is a transparency
         // lemma in Lean is an outright equality here.
-        assert_eq!(expr::bvar_pool_size(), 4096);
         for i in [0u64, 1, 4095, 4096, 100000].iter() {
             let a = expr::mk_bvar(*i);
             let b = expr::bvar(*i);
@@ -1797,7 +1744,6 @@ mod tests {
         let m2 = bm(&["v", "u"]);
         // `PropWhen` is canonical, so the two orderings are one datum.
         assert!(expr::binder_meta_beq(&m1, &m2));
-        assert_eq!(expr::binder_meta_hash(&m1), expr::binder_meta_hash(&m2));
         assert!(!expr::binder_meta_beq(&m1, &bm_never()));
         let d = expr::binder_meta_dup(&m1);
         assert!(expr::binder_meta_beq(&m1, &d));

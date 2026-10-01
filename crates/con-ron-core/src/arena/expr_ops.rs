@@ -125,24 +125,10 @@ const M_FUEL_LIFT: [u32; 30] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: sizeB"`, as code points.
-const M_FUEL_SIZE_B: [u32; 21] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 115, 105, 122,
-    101, 66,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: abstractRange"`, as code points.
 const M_FUEL_ABS_RANGE: [u32; 29] = [
     102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 97, 98, 115, 116,
     114, 97, 99, 116, 82, 97, 110, 103, 101,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: fvarLeaves"`, as code points.
-const M_FUEL_FVAR_LEAVES: [u32; 26] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 102, 118, 97,
-    114, 76, 101, 97, 118, 101, 115,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -397,33 +383,9 @@ pub fn binder_copy_from(
     }
 }
 
-/// con-leche: none — `List.append` over a `Vec<(Nat × EIdx)>`
-/// `fvarLeaves`' `x ++ y`: the cursor recursion that copies `xs` onto `out`.
-pub fn fvl_copy_from(
-    xs: &Vec<(u64, EIdx)>,
-    i: usize,
-    out: Vec<(u64, EIdx)>,
-) -> Vec<(u64, EIdx)> {
-    if i >= xs.len() {
-        out
-    } else {
-        let mut o: Vec<(u64, EIdx)> = out;
-        o.push((xs[i].0, xs[i].1.dup2()));
-        fvl_copy_from(xs, i + 1, o)
-    }
-}
-
-/// con-leche: none — `List.append` over a `Vec<(Nat × EIdx)>`
-/// `x ++ y`.
-pub fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)> {
-    fvl_copy_from(y, 0, fvl_copy_from(x, 0, Vec::new()))
-}
-
 // ---------------------------------------------------------------------------
 // The UPWARD cutoff of a substituting walk (task #97-P6-5, lever 2)
 // ---------------------------------------------------------------------------
-
-
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:139-141 internRebuiltFVar` —
@@ -595,7 +557,6 @@ pub fn intern_rebuilt_let_e(
     }
 }
 
-
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:162-164 internRebuiltProj` —
 /// `internRebuiltProj`, the `proj` arm of `intern_rebuilt`: the same cutoff,
@@ -620,7 +581,6 @@ pub fn intern_rebuilt_proj(
         intern_e_proj(pers, st, n, i, e)
     }
 }
-
 
 /// con-leche: none — `internE` with task #97-P6-5's upward cutoff
 /// Lean twin: `proof/ConRon/Arena/ExprOps.lean:166-173 internRebuiltBindI` —
@@ -1319,132 +1279,8 @@ pub fn lift_loose_bvars_fast(
 }
 
 // ---------------------------------------------------------------------------
-// `resetMeta` — `ExprOps.lean:552-559`, `:579-615`, `:687-688`
-//
-// The memo has no cursor in con-leche; the twin keys it at `0` so that every
-// handle-valued memo has one shape, and so does this.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // The measures and the scope predicates
 // ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:819-826 sizeB
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:809-823 sizeB` — node count
-/// with `fvar` a leaf (its annotated type ignored): the termination measure
-/// for recursion into instantiated binder bodies.
-pub fn size_b(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_SIZE_B)))
-    } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::BVar(_)) => Ok(1),
-            Ok(ENodeView::FVar(_, _)) => Ok(1),
-            Ok(ENodeView::Sort(_)) => Ok(1),
-            Ok(ENodeView::Const(_, _)) => Ok(1),
-            Ok(ENodeView::Lit(_)) => Ok(1),
-            Ok(ENodeView::App(f, a)) => match size_b(pers, st, fuel - 1, &f) {
-                Err(e) => Err(e),
-                Ok(x) => match size_b(pers, st, fuel - 1, &a) {
-                    Err(e) => Err(e),
-                    Ok(y) => Ok(x + y + 1),
-                },
-            },
-            Ok(ENodeView::Lam(ty, body, _)) => match size_b(pers, st, fuel - 1, &ty) {
-                Err(e) => Err(e),
-                Ok(x) => match size_b(pers, st, fuel - 1, &body) {
-                    Err(e) => Err(e),
-                    Ok(y) => Ok(x + y + 1),
-                },
-            },
-            Ok(ENodeView::ForallE(ty, body, _)) => match size_b(pers, st, fuel - 1, &ty) {
-                Err(e) => Err(e),
-                Ok(x) => match size_b(pers, st, fuel - 1, &body) {
-                    Err(e) => Err(e),
-                    Ok(y) => Ok(x + y + 1),
-                },
-            },
-            Ok(ENodeView::LetE(ty, val, body)) => match size_b(pers, st, fuel - 1, &ty) {
-                Err(e) => Err(e),
-                Ok(x) => match size_b(pers, st, fuel - 1, &val) {
-                    Err(e) => Err(e),
-                    Ok(y) => match size_b(pers, st, fuel - 1, &body) {
-                        Err(e) => Err(e),
-                        Ok(z) => Ok(x + y + z + 1),
-                    },
-                },
-            },
-            Ok(ENodeView::Proj(_, _, sub)) => match size_b(pers, st, fuel - 1, &sub) {
-                Err(e) => Err(e),
-                Ok(x) => Ok(x + 1),
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/ExprOps.lean:899-911 fvarLeaves
-/// Lean twin: `proof/ConRon/Arena/ExprOps.lean:861-875 fvarLeaves` — all
-/// reachable `fvar` leaves, hereditarily through their annotations.  Lean's
-/// `::` and `++` are the copying combinators above.
-pub fn fvar_leaves(
-    pers: &PersTier,
-    st: &AState,
-    fuel: u64,
-    h: &EIdx,
-) -> Result<Vec<(u64, EIdx)>, CheckError> {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_FVAR_LEAVES)))
-    } else {
-        match view(pers, st, h) {
-            Err(e) => Err(e),
-            Ok(ENodeView::FVar(idx, ty)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
-                Err(e) => Err(e),
-                Ok(rest) => {
-                    let mut out: Vec<(u64, EIdx)> = Vec::new();
-                    out.push((idx, ty.dup2()));
-                    Ok(fvl_copy_from(&rest, 0, out))
-                }
-            },
-            Ok(ENodeView::App(f, a)) => match fvar_leaves(pers, st, fuel - 1, &f) {
-                Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &a) {
-                    Err(e) => Err(e),
-                    Ok(y) => Ok(fvl_append(&x, &y)),
-                },
-            },
-            Ok(ENodeView::Lam(ty, b, _)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
-                Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &b) {
-                    Err(e) => Err(e),
-                    Ok(y) => Ok(fvl_append(&x, &y)),
-                },
-            },
-            Ok(ENodeView::ForallE(ty, b, _)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
-                Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &b) {
-                    Err(e) => Err(e),
-                    Ok(y) => Ok(fvl_append(&x, &y)),
-                },
-            },
-            Ok(ENodeView::LetE(t, v, b)) => match fvar_leaves(pers, st, fuel - 1, &t) {
-                Err(e) => Err(e),
-                Ok(x) => match fvar_leaves(pers, st, fuel - 1, &v) {
-                    Err(e) => Err(e),
-                    Ok(y) => match fvar_leaves(pers, st, fuel - 1, &b) {
-                        Err(e) => Err(e),
-                        Ok(z) => Ok(fvl_append(&fvl_append(&x, &y), &z)),
-                    },
-                },
-            },
-            Ok(ENodeView::Proj(_, _, sub)) => fvar_leaves(pers, st, fuel - 1, &sub),
-            Ok(ENodeView::BVar(_)) => Ok(Vec::new()),
-            Ok(ENodeView::Sort(_)) => Ok(Vec::new()),
-            Ok(ENodeView::Const(_, _)) => Ok(Vec::new()),
-            Ok(ENodeView::Lit(_)) => Ok(Vec::new()),
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The scope queries, MEMOIZED (`ExprOps.lean:636-795`, task #97g item 5)
@@ -3971,13 +3807,103 @@ mod tests {
     fn fvar_leaves_subset(xs: &Vec<(u64, EIdx)>, ys: &Vec<(u64, EIdx)>) -> bool {
         xs.iter().all(|x| ys.iter().any(|y| y.0 == x.0 && y.1.eq2(&x.1)))
     }
+
+    // The pure `fvarLeaves` (con-leche `Kernel/ExprOps.lean:899-911`, twin
+    // `Arena/ExprOps.lean` `fvarLeaves`): the oracle `fvar_leaves_fast`,
+    // `leaf_guard` and `fab_scope_ok` are checked against below.  Test-only
+    // since task #105 — the checker runs the memoized one.
+    const M_FUEL_FVAR_LEAVES: [u32; 26] = [
+        102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 102, 118, 97,
+        114, 76, 101, 97, 118, 101, 115,
+    ];
+
+    /// `fvarLeaves`' `x ++ y`: the cursor recursion that copies `xs` onto `out`.
+    fn fvl_copy_from(
+        xs: &Vec<(u64, EIdx)>,
+        i: usize,
+        out: Vec<(u64, EIdx)>,
+    ) -> Vec<(u64, EIdx)> {
+        if i >= xs.len() {
+            out
+        } else {
+            let mut o: Vec<(u64, EIdx)> = out;
+            o.push((xs[i].0, xs[i].1.dup2()));
+            fvl_copy_from(xs, i + 1, o)
+        }
+    }
+
+    /// `x ++ y`.
+    fn fvl_append(x: &Vec<(u64, EIdx)>, y: &Vec<(u64, EIdx)>) -> Vec<(u64, EIdx)> {
+        fvl_copy_from(y, 0, fvl_copy_from(x, 0, Vec::new()))
+    }
+
+    /// reachable `fvar` leaves, hereditarily through their annotations.  Lean's
+    /// `::` and `++` are the copying combinators above.
+    fn fvar_leaves(
+        pers: &PersTier,
+        st: &AState,
+        fuel: u64,
+        h: &EIdx,
+    ) -> Result<Vec<(u64, EIdx)>, CheckError> {
+        if fuel == 0 {
+            fail(CheckError::Internal(code_points(&M_FUEL_FVAR_LEAVES)))
+        } else {
+            match view(pers, st, h) {
+                Err(e) => Err(e),
+                Ok(ENodeView::FVar(idx, ty)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
+                    Err(e) => Err(e),
+                    Ok(rest) => {
+                        let mut out: Vec<(u64, EIdx)> = Vec::new();
+                        out.push((idx, ty.dup2()));
+                        Ok(fvl_copy_from(&rest, 0, out))
+                    }
+                },
+                Ok(ENodeView::App(f, a)) => match fvar_leaves(pers, st, fuel - 1, &f) {
+                    Err(e) => Err(e),
+                    Ok(x) => match fvar_leaves(pers, st, fuel - 1, &a) {
+                        Err(e) => Err(e),
+                        Ok(y) => Ok(fvl_append(&x, &y)),
+                    },
+                },
+                Ok(ENodeView::Lam(ty, b, _)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
+                    Err(e) => Err(e),
+                    Ok(x) => match fvar_leaves(pers, st, fuel - 1, &b) {
+                        Err(e) => Err(e),
+                        Ok(y) => Ok(fvl_append(&x, &y)),
+                    },
+                },
+                Ok(ENodeView::ForallE(ty, b, _)) => match fvar_leaves(pers, st, fuel - 1, &ty) {
+                    Err(e) => Err(e),
+                    Ok(x) => match fvar_leaves(pers, st, fuel - 1, &b) {
+                        Err(e) => Err(e),
+                        Ok(y) => Ok(fvl_append(&x, &y)),
+                    },
+                },
+                Ok(ENodeView::LetE(t, v, b)) => match fvar_leaves(pers, st, fuel - 1, &t) {
+                    Err(e) => Err(e),
+                    Ok(x) => match fvar_leaves(pers, st, fuel - 1, &v) {
+                        Err(e) => Err(e),
+                        Ok(y) => match fvar_leaves(pers, st, fuel - 1, &b) {
+                            Err(e) => Err(e),
+                            Ok(z) => Ok(fvl_append(&fvl_append(&x, &y), &z)),
+                        },
+                    },
+                },
+                Ok(ENodeView::Proj(_, _, sub)) => fvar_leaves(pers, st, fuel - 1, &sub),
+                Ok(ENodeView::BVar(_)) => Ok(Vec::new()),
+                Ok(ENodeView::Sort(_)) => Ok(Vec::new()),
+                Ok(ENodeView::Const(_, _)) => Ok(Vec::new()),
+                Ok(ENodeView::Lit(_)) => Ok(Vec::new()),
+            }
+        }
+    }
     use super::*;
     use crate::arena::monad::{
         AState, denote_l, denote_ls, denote_n, intern_e_lit, intern_e_sort, intern_l_node, intern_ls_node, intern_n_node,
     };
     use crate::arena::store::{EStore, LNodeView, NNodeView};
     use crate::kernel::expr::Expr;
-    use crate::kernel::expr_ops as core_ops;
+
     use crate::kernel::prop_when;
     use crate::kernel::level as core_level;
     use crate::kernel::name;
@@ -4143,82 +4069,23 @@ mod tests {
         expr::beq(&den(pers, st, got), want)
     }
 
-    fn eq_le(pers: &PersTier, st: &AState, got: &Vec<EIdx>, want: &Vec<Expr>) -> bool {
-        got.len() == want.len()
-            && (0..got.len()).all(|i| expr::beq(&den(pers, st, &got[i]), &want[i]))
-    }
-
-    fn eq_ope(pers: &PersTier, st: &AState, got: &Option<EIdx>, want: &Option<Expr>) -> bool {
-        match (got, want) {
-            (Some(g), Some(w)) => eq_e(pers, st, g, w),
-            (None, None) => true,
-            _ => false,
-        }
-    }
-
-    fn eq_binders(
-    pers: &PersTier,
-        st: &AState,
-        got: &Option<(Vec<(EIdx, BinderMeta)>, EIdx)>,
-        want: &Option<(Vec<(Expr, BinderMeta)>, Expr)>,
-    ) -> bool {
-        match (got, want) {
-            (Some(g), Some(w)) => {
-                g.0.len() == w.0.len()
-                    && (0..g.0.len()).all(|i| {
-                        expr::beq(&den(pers, st, &g.0[i].0), &w.0[i].0)
-                            && expr::binder_meta_beq(&g.0[i].1, &w.0[i].1)
-                    })
-                    && eq_e(pers, st, &g.1, &w.1)
-            }
-            (None, None) => true,
-            _ => false,
-        }
-    }
-
-    fn eq_fvl(
-        pers: &PersTier,
-        st: &AState,
-        got: &Vec<(u64, EIdx)>,
-        want: &Vec<(u64, Expr)>,
-    ) -> bool  {
-        got.len() == want.len()
-            && (0..got.len())
-                .all(|i| got[i].0 == want[i].0 && expr::beq(&den(pers, st, &got[i].1), &want[i].1))
-    }
-
-    fn eq_opw(got: &Option<PropWhen>, want: &Option<PropWhen>) -> bool {
-        match (got, want) {
-            (Some(g), Some(w)) => prop_when::beq(g, w),
-            (None, None) => true,
-            _ => false,
-        }
-    }
-
     // --- the fixture --------------------------------------------------------
 
     /// The handles the checks below name — the twin's `Fx`, built by the same
     /// `intern` calls in the same order, so that a handle here is the same
     /// machine word as a handle there.
     struct Fx {
-        z: LIdx,
         pu: LIdx,
-        foo: NIdx,
-        u_n: NIdx,
         us_z: LsIdx,
-        us_u: LsIdx,
+        foo: NIdx,
         s0: EIdx,
         s1: EIdx,
         su: EIdx,
         cf: EIdx,
         cb: EIdx,
-        b0: EIdx,
-        b1: EIdx,
-        b2: EIdx,
         lit7: EIdx,
         fv0: EIdx,
         fv1: EIdx,
-        ap1: EIdx,
         pj: EIdx,
         lam_t: EIdx,
         all_t: EIdx,
@@ -4281,24 +4148,17 @@ mod tests {
         let sp1 = ok(intern_e_app(pers, &mut st, cf.dup2(), fv0.dup2()));
         let spine = ok(intern_e_app(pers, &mut st, sp1.dup2(), b0.dup2()));
         let fx = Fx {
-            z,
             pu,
-            foo,
-            u_n,
             us_z,
-            us_u,
+            foo,
             s0,
             s1,
             su,
             cf,
             cb,
-            b0,
-            b1,
-            b2,
             lit7,
             fv0,
             fv1,
-            ap1,
             pj,
             lam_t,
             all_t,
@@ -4314,9 +4174,9 @@ mod tests {
 
     // --- the fixture denotes what it should (19) ----------------------------
     //
-    // The one place a con-leche value is written out by hand.  Everything
-    // after this compares the twin's answer against `con-ron-core`'s function
-    // applied to `den(h)`, which is only meaningful because these hold.
+    // The one place a con-leche value is written out by hand; the checks
+    // below read the fixture's handles, which is only meaningful because
+    // these hold.
 
     #[test]
     fn fixture_denotes_what_it_should() {
@@ -4464,193 +4324,6 @@ mod tests {
         assert!(h.eq2(&fx.big));
     }
 
-    // --- `instantiate1` (8) --------------------------------------------------
-
-    #[test]
-    fn t_instantiate1() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let cf = den(pers, &st, &fx.cf);
-        let let_t = den(pers, &st, &fx.let_t);
-        let s1 = den(pers, &st, &fx.s1);
-        let b2 = den(pers, &st, &fx.b2);
-        let b0 = den(pers, &st, &fx.b0);
-        let lit7 = den(pers, &st, &fx.lit7);
-        let pj = den(pers, &st, &fx.pj);
-        let fv0 = den(pers, &st, &fx.fv0);
-
-        let w = core_ops::instantiate1(&big, &cf, 0);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.big, &fx.cf, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1(&big, &cf, 1);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.big, &fx.cf, 1));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1(&let_t, &s1, 0);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.let_t, &fx.s1, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1(&b2, &cf, 0);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.b2, &fx.cf, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1(&b0, &cf, 0);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.b0, &fx.cf, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1(&lit7, &cf, 0);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.lit7, &fx.cf, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1(&pj, &fv0, 0);
-        let r = ok(instantiate1_fast(pers, &mut st, F, &fx.pj, &fx.fv0, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        // the memoized walk without the top-level bracket is the same answer
-        let w = core_ops::instantiate1(&big, &cf, 0);
-        let r = ok(instantiate1_go(pers, &mut st, &fx.cf, F, &fx.big, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
-    // --- `instantiateList` (6) ----------------------------------------------
-
-    #[test]
-    fn t_instantiate_list() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let cf = den(pers, &st, &fx.cf);
-        let s1 = den(pers, &st, &fx.s1);
-        let let_t = den(pers, &st, &fx.let_t);
-        let fv0 = den(pers, &st, &fx.fv0);
-        let b2 = den(pers, &st, &fx.b2);
-        let two = vec![expr::dup(&cf), expr::dup(&s1)];
-        // **The vector is the list REVERSED** (task #97-P6-15): the arena's
-        // substitution vectors are built by `Vec::push` and read from the
-        // end, so `two`'s head — the replacement for `bvar d` — is this
-        // vector's LAST entry.
-        let hs2 = vec![fx.s1.dup2(), fx.cf.dup2()];
-
-        let w = core_ops::instantiate_list(&big, &two, 0);
-        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.big, &hs2, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_list(&big, &two, 1);
-        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.big, &hs2, 1));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_list(&let_t, &vec![expr::dup(&fv0)], 0);
-        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.let_t, &vec![fx.fv0.dup2()], 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_list(&b2, &vec![expr::dup(&cf)], 0);
-        let r = ok(instantiate_list_fast(pers, &mut st, F, &fx.b2, &vec![fx.cf.dup2()], 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        // the unmemoized walk (the one `instantiate_list_go`'s `bvar` arm calls)
-        let w = core_ops::instantiate_list(&big, &two, 0);
-        let r = ok(instantiate_list(pers, &mut st, &hs2, F, &fx.big, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let b0 = den(pers, &st, &fx.b0);
-        let w = core_ops::instantiate_list(&b0, &vec![expr::dup(&cf)], 0);
-        let r = ok(instantiate_list(pers, &mut st, &vec![fx.cf.dup2()], F, &fx.b0, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        // The ORDER, which nothing above distinguishes (`big` and `let_t`
-        // reach entry 0 only): `app (bvar 0) (bvar 1)` uses both entries and
-        // so tells `[cf, s1]` from `[s1, cf]`.
-        let apbb = ok(intern_e_app(pers, &mut st, fx.b0.dup2(), fx.b1.dup2()));
-        let apbb_d = expr::app(expr::bvar(0), expr::bvar(1));
-        let w = core_ops::instantiate_list(&apbb_d, &two, 0);
-        let r = ok(instantiate_list_fast(pers, &mut st, F, &apbb, &hs2, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let r = ok(instantiate_list(pers, &mut st, &hs2, F, &apbb, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
-    // --- `liftLooseBVars` (4) -----------------------------------------------
-
-    #[test]
-    fn t_lift_loose_bvars() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let let_t = den(pers, &st, &fx.let_t);
-
-        let w = core_ops::lift_loose_bvars(2, 0, &big);
-        let r = ok(lift_loose_bvars_fast(pers, &mut st, F, 2, 0, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lift_loose_bvars(3, 1, &big);
-        let r = ok(lift_loose_bvars_fast(pers, &mut st, F, 3, 1, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lift_loose_bvars(1, 0, &let_t);
-        let r = ok(lift_loose_bvars_fast(pers, &mut st, F, 1, 0, &fx.let_t));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lift_loose_bvars(2, 0, &big);
-        let r = ok(lift_loose_bvars_go(pers, &mut st, 2, F, &fx.big, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
-    // --- `resetMeta` (4) -----------------------------------------------------
-
-
-    // --- the measures and the scope predicates (17) -------------------------
-
-    #[test]
-    fn t_measures_and_scope() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let fv1 = den(pers, &st, &fx.fv1);
-        let all_t = den(pers, &st, &fx.all_t);
-        let let_t = den(pers, &st, &fx.let_t);
-        let s0 = den(pers, &st, &fx.s0);
-
-        assert_eq!(ok(size_b(pers, &st, F, &fx.big)), core_ops::size_b(&big));
-        assert_eq!(ok(size_b(pers, &st, F, &fx.fv1)), core_ops::size_b(&fv1));
-
-
-        // the EXECUTED `abstractRange` (the cutoff, the memo and the `k = 0`
-        // identity) against the kernel's, on three subjects
-        let w = core_ops::abstract_range(&big, 0, 2, 0);
-        let r = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 0, 2, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract_range(&big, 1, 1, 0);
-        let r = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 1, 1, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract_range(&all_t, 0, 3, 1);
-        let r = ok(abstract_range_fast(pers, &mut st, F, &fx.all_t, 0, 3, 1));
-        assert!(eq_e(pers, &st, &r, &w));
-        // `k = 0` is the identity, on a term that HAS free variables
-        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 0, 0, 0));
-        assert!(r1.eq2(&fx.big));
-        // one binder is `abstract1` (con-leche's `abstractRange_succ` at k = 1)
-        let r0 = ok(abstract1_fast(pers, &mut st, F, &fx.big, 0, 0));
-        let r1 = ok(abstract_range_fast(pers, &mut st, F, &fx.big, 0, 1, 0));
-        assert!(r0.eq2(&r1));
-
-        let w = core_ops::fvar_leaves(&big);
-        let r = ok(fvar_leaves(pers, &st, F, &fx.big));
-        assert!(eq_fvl(pers, &st, &r, &w));
-        let w = core_ops::fvar_leaves(&fv1);
-        let r = ok(fvar_leaves(pers, &st, F, &fx.fv1));
-        assert!(eq_fvl(pers, &st, &r, &w));
-        let w = core_ops::fvar_leaves(&s0);
-        let r = ok(fvar_leaves(pers, &st, F, &fx.s0));
-        assert!(eq_fvl(pers, &st, &r, &w));
-
-        assert_eq!(ok(wscoped_b_fast(pers, &st, F, 5, &fx.big)), core_ops::wscoped_b(5, &big));
-        assert_eq!(ok(wscoped_b_fast(pers, &st, F, 1, &fx.big)), core_ops::wscoped_b(1, &big));
-        assert_eq!(ok(wscoped_b_fast(pers, &st, F, 0, &fx.big)), core_ops::wscoped_b(0, &big));
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 2, &fx.let_t)),
-            core_ops::wscoped_b(2, &let_t)
-        );
-
-        assert_eq!(
-            ok(loose_bvars_bounded_fast(pers, &mut st, F, 3, &fx.big)),
-            core_ops::loose_bvars_bounded(3, &big)
-        );
-        assert_eq!(
-            ok(loose_bvars_bounded_fast(pers, &mut st, F, 0, &fx.big)),
-            core_ops::loose_bvars_bounded(0, &big)
-        );
-        assert_eq!(
-            ok(loose_bvars_bounded_fast(pers, &mut st, F, 1, &fx.let_t)),
-            core_ops::loose_bvars_bounded(1, &let_t)
-        );
-    }
-
     // --- the scope queries, MEMOIZED against the pure ones (16) -------------
 
     /// Task #97g's item 5, differentially: each memoized walk against the
@@ -4665,31 +4338,6 @@ mod tests {
         let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
 
-        // `wscoped_b_fast` == `wscoped_b`, at four depths on three subjects
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 5, &fx.big)),
-            ok(wscoped_b_fast(pers, &st, F, 5, &fx.big))
-        );
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 1, &fx.big)),
-            ok(wscoped_b_fast(pers, &st, F, 1, &fx.big))
-        );
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 0, &fx.big)),
-            ok(wscoped_b_fast(pers, &st, F, 0, &fx.big))
-        );
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 2, &fx.let_t)),
-            ok(wscoped_b_fast(pers, &st, F, 2, &fx.let_t))
-        );
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 2, &fx.fv1)),
-            ok(wscoped_b_fast(pers, &st, F, 2, &fx.fv1))
-        );
-        assert_eq!(
-            ok(wscoped_b_fast(pers, &st, F, 0, &fx.s0)),
-            ok(wscoped_b_fast(pers, &st, F, 0, &fx.s0))
-        );
         // the `fvar_b == 0` short-circuit answers `true` without a walk
         assert!(ok(wscoped_b_fast(pers, &st, F, 0, &fx.s0)));
 
@@ -4736,419 +4384,6 @@ mod tests {
         }
     }
 
-    // --- the one-node readers (9) -------------------------------------------
-
-    #[test]
-    fn t_one_node_readers() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let pi_t = den(pers, &st, &fx.pi_t);
-        let fv0 = den(pers, &st, &fx.fv0);
-
-        assert!(eq_opw(&ok(lam_pw(pers, &st, &fx.big)), &core_ops::lam_pw(&big)));
-        assert!(eq_opw(&ok(lam_pw(pers, &st, &fx.pi_t)), &core_ops::lam_pw(&pi_t)));
-        assert_eq!(ok(has_fvar_fast(pers, &mut st, F, &fx.big)), core_ops::has_fvar(&big));
-        assert_eq!(ok(has_fvar_fast(pers, &mut st, F, &fx.pi_t)), core_ops::has_fvar(&pi_t));
-        assert_eq!(ok(has_fvar_fast(pers, &mut st, F, &fx.fv0)), core_ops::has_fvar(&fv0));
-    }
-
-    // --- application spines (6) ---------------------------------------------
-
-    #[test]
-    fn t_spines() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let spine = den(pers, &st, &fx.spine);
-        let cf = den(pers, &st, &fx.cf);
-        let fv0 = den(pers, &st, &fx.fv0);
-        let b0 = den(pers, &st, &fx.b0);
-
-        let w = core_ops::get_app_fn(&spine);
-        let r = ok(get_app_fn(pers, &st, F, &fx.spine));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::get_app_fn(&cf);
-        let r = ok(get_app_fn(pers, &st, F, &fx.cf));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::get_app_args(&spine);
-        let r = ok(get_app_args(pers, &st, F, &fx.spine));
-        assert!(eq_le(pers, &st, &r, &w));
-        let w = core_ops::get_app_args(&cf);
-        let r = ok(get_app_args(pers, &st, F, &fx.cf));
-        assert!(eq_le(pers, &st, &r, &w));
-        let w = core_ops::mk_app_n(
-            expr::dup(&cf),
-            &vec![expr::dup(&fv0), expr::dup(&b0)],
-        );
-        let r = ok(mk_app_n(
-            pers,
-            &mut st,
-            &fx.cf,
-            &vec![fx.fv0.dup2(), fx.b0.dup2()],
-        ));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::mk_app_n(expr::dup(&cf), &Vec::new());
-        let r = ok(mk_app_n(pers, &mut st, &fx.cf, &Vec::new()));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
-    // --- `renameConsts` (4) --------------------------------------------------
-    //
-    // The twin's renaming is a map on name HANDLES; the bridge's obligation is
-    // that it denotes con-leche's map on names, and here the two are written
-    // side by side.
-
-
-    // --- telescopes, part 1: strip / result / arity / sort (13) --------------
-
-    #[test]
-    fn t_telescopes_readers() {
-        let pers: &PersTier = &PersTier::empty();
-        let (st, fx) = fixture();
-        let lam_t2 = den(pers, &st, &fx.lam_t2);
-        let pi_t = den(pers, &st, &fx.pi_t);
-        let cf = den(pers, &st, &fx.cf);
-
-        assert!(eq_binders(
-            pers,
-            &st,
-            &ok(strip_lams(pers, &st, 2, &fx.lam_t2)),
-            &core_ops::strip_lams(2, &lam_t2)
-        ));
-        assert!(eq_binders(
-            pers,
-            &st,
-            &ok(strip_lams(pers, &st, 0, &fx.lam_t2)),
-            &core_ops::strip_lams(0, &lam_t2)
-        ));
-        assert!(eq_binders(
-            pers,
-            &st,
-            &ok(strip_lams(pers, &st, 3, &fx.lam_t2)),
-            &core_ops::strip_lams(3, &lam_t2)
-        ));
-        assert!(eq_binders(
-            pers,
-            &st,
-            &ok(strip_pis(pers, &st, 2, &fx.pi_t)),
-            &core_ops::strip_pis(2, &pi_t)
-        ));
-        assert!(eq_binders(
-            pers,
-            &st,
-            &ok(strip_pis(pers, &st, 1, &fx.pi_t)),
-            &core_ops::strip_pis(1, &pi_t)
-        ));
-        assert!(eq_binders(
-            pers,
-            &st,
-            &ok(strip_pis(pers, &st, 3, &fx.pi_t)),
-            &core_ops::strip_pis(3, &pi_t)
-        ));
-
-        let w = core_ops::pi_result(&pi_t);
-        assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.pi_t)), &w));
-        let w = core_ops::pi_result(&cf);
-        assert!(eq_e(pers, &st, &ok(pi_result(pers, &st, F, &fx.cf)), &w));
-    }
-
-    // --- telescopes, part 2: the instantiating entries (17) ------------------
-
-    #[test]
-    fn t_telescopes_instantiation() {
-        let pers: &PersTier = &PersTier::empty();
-        let (st, fx) = fixture();
-        let cf = den(pers, &st, &fx.cf);
-
-        let fv1 = den(pers, &st, &fx.fv1);
-        let w = core_ops::fvar_type_d(&fv1);
-        assert!(eq_e(pers, &st, &ok(fvar_type_d(pers, &st, &fx.fv1)), &w));
-        let w = core_ops::fvar_type_d(&cf);
-        assert!(eq_e(pers, &st, &ok(fvar_type_d(pers, &st, &fx.cf)), &w));
-    }
-
-    // --- telescopes, part 3: spine, recursor rules, rebuilding (12) ----------
-
-    #[test]
-    fn t_telescopes_rebuilding() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let pi_t = den(pers, &st, &fx.pi_t);
-        let cf = den(pers, &st, &fx.cf);
-        let s1 = den(pers, &st, &fx.s1);
-        let two = vec![expr::dup(&cf), expr::dup(&s1)];
-        let hs2 = vec![fx.cf.dup2(), fx.s1.dup2()];
-
-        let w = core_ops::inst_spine(&two, 1, &big);
-        let r = ok(inst_spine(pers, &mut st, F, &hs2, 1, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::inst_spine(&Vec::new(), 0, &big);
-        let r = ok(inst_spine(pers, &mut st, F, &Vec::new(), 0, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-
-        assert_eq!(
-            ok(rec_rule_plain(pers, &mut st, F, &fx.pi_t, 2, 2, 1)),
-            core_ops::rec_rule_plain(&pi_t, 2, 2, 1)
-        );
-        assert_eq!(
-            ok(rec_rule_plain(pers, &mut st, F, &fx.pi_t, 1, 1, 1)),
-            core_ops::rec_rule_plain(&pi_t, 1, 1, 1)
-        );
-        assert_eq!(
-            ok(rec_rule_plain(pers, &mut st, F, &fx.pi_t, 2, 1, 2)),
-            core_ops::rec_rule_plain(&pi_t, 2, 1, 2)
-        );
-        assert_eq!(
-            ok(rec_rule_plain(pers, &mut st, F, &fx.big, 2, 2, 1)),
-            core_ops::rec_rule_plain(&big, 2, 2, 1)
-        );
-
-    }
-
-    // --- the packed range fields (19) ---------------------------------------
-
-    #[test]
-    fn t_packed_range_fields() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let let_t = den(pers, &st, &fx.let_t);
-        let b2 = den(pers, &st, &fx.b2);
-        let fv1 = den(pers, &st, &fx.fv1);
-        let pi_t = den(pers, &st, &fx.pi_t);
-
-        assert_eq!(
-            ok(bvar_bound_memo(pers, &mut st, F, &fx.big)),
-            core_ops::bvar_bound(&big)
-        );
-        assert_eq!(
-            ok(bvar_bound_memo(pers, &mut st, F, &fx.let_t)),
-            core_ops::bvar_bound(&let_t)
-        );
-        assert_eq!(
-            ok(bvar_bound_memo(pers, &mut st, F, &fx.b2)),
-            core_ops::bvar_bound(&b2)
-        );
-        assert_eq!(
-            ok(bvar_bound_go(pers, &mut st, F, &fx.big)),
-            core_ops::bvar_bound(&big)
-        );
-        assert_eq!(
-            ok(fvar_range_memo(pers, &mut st, F, &fx.big)),
-            core_ops::fvar_range(&big)
-        );
-        assert_eq!(
-            ok(fvar_range_memo(pers, &mut st, F, &fx.fv1)),
-            core_ops::fvar_range(&fv1)
-        );
-        assert_eq!(
-            ok(fvar_range_go(pers, &mut st, F, &fx.big)),
-            core_ops::fvar_range(&big)
-        );
-        assert_eq!(ok(bvar_b(pers, &mut st, F, &fx.big)), core_ops::bvar_b(&big));
-        assert_eq!(ok(bvar_b(pers, &mut st, F, &fx.b2)), core_ops::bvar_b(&b2));
-        assert_eq!(ok(fvar_b(pers, &mut st, F, &fx.big)), core_ops::fvar_b(&big));
-        assert_eq!(ok(fvar_b(pers, &mut st, F, &fx.fv1)), core_ops::fvar_b(&fv1));
-        // `Expr.hasFvarFast` and `Expr.looseBVarsBoundedFast` are the field
-        // reads themselves; con-ron-core spells them at the call site, so the
-        // comparison partner is the definition.
-        assert_eq!(
-            ok(has_fvar_fast(pers, &mut st, F, &fx.big)),
-            core_ops::fvar_b(&big) != 0
-        );
-        assert_eq!(
-            ok(has_fvar_fast(pers, &mut st, F, &fx.pi_t)),
-            core_ops::fvar_b(&pi_t) != 0
-        );
-        assert_eq!(
-            ok(loose_bvars_bounded_fast(pers, &mut st, F, 3, &fx.big)),
-            core_ops::bvar_b(&big) <= 3
-        );
-        assert_eq!(
-            ok(loose_bvars_bounded_fast(pers, &mut st, F, 0, &fx.big)),
-            core_ops::bvar_b(&big) <= 0
-        );
-        // the field read and the walk agree, which is con-leche's `bvarB_eq` /
-        // `fvarB_eq` / `hasFvar_eq` at the fixture
-        assert_eq!(ok(bvar_b(pers, &mut st, F, &fx.big)), core_ops::bvar_bound(&big));
-        assert_eq!(ok(fvar_b(pers, &mut st, F, &fx.big)), core_ops::fvar_range(&big));
-        assert_eq!(
-            ok(has_fvar_fast(pers, &mut st, F, &fx.big)),
-            core_ops::has_fvar(&big)
-        );
-        assert_eq!(
-            ok(loose_bvars_bounded_fast(pers, &mut st, F, 3, &fx.big)),
-            core_ops::loose_bvars_bounded(3, &big)
-        );
-    }
-
-    // --- `abstract1` (6) -----------------------------------------------------
-
-    #[test]
-    fn t_abstract1() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let fv0 = den(pers, &st, &fx.fv0);
-
-        let w = core_ops::abstract1(&big, 0, 0);
-        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 0, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract1(&big, 1, 0);
-        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 1, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract1(&big, 2, 0);
-        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 2, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract1(&big, 1, 3);
-        let r = ok(abstract1_fast(pers, &mut st, F, &fx.big, 1, 3));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract1(&fv0, 0, 0);
-        let r = ok(abstract1_fast(pers, &mut st, F, &fx.fv0, 0, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::abstract1(&big, 1, 0);
-        let r = ok(abstract1_go(pers, &mut st, 1, F, &fx.big, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
-    // --- `lowerBVars` (5) ----------------------------------------------------
-
-    #[test]
-    fn t_lower_bvars() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-
-        let w = core_ops::lower_bvars(1, 0, &big);
-        let r = ok(lower_bvars_fast(pers, &mut st, F, 1, 0, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lower_bvars(2, 0, &big);
-        let r = ok(lower_bvars_fast(pers, &mut st, F, 2, 0, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lower_bvars(1, 1, &big);
-        let r = ok(lower_bvars_fast(pers, &mut st, F, 1, 1, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lower_bvars(5, 0, &big);
-        let r = ok(lower_bvars_fast(pers, &mut st, F, 5, 0, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::lower_bvars(1, 0, &big);
-        let r = ok(lower_bvars_go(pers, &mut st, 1, F, &fx.big, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
-    // --- `instantiate1Lift` and `instPisAtLift` (8) --------------------------
-
-    #[test]
-    fn t_instantiate1_lift() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let cf = den(pers, &st, &fx.cf);
-        let b1 = den(pers, &st, &fx.b1);
-        let let_t = den(pers, &st, &fx.let_t);
-        let b0 = den(pers, &st, &fx.b0);
-        let pi_t = den(pers, &st, &fx.pi_t);
-        let lam_t2 = den(pers, &st, &fx.lam_t2);
-
-        let w = core_ops::instantiate1_lift(&big, &cf, 0);
-        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.big, &fx.cf, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1_lift(&big, &b1, 0);
-        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.big, &fx.b1, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1_lift(&big, &let_t, 1);
-        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.big, &fx.let_t, 1));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1_lift(&let_t, &b0, 0);
-        let r = ok(instantiate1_lift_fast(pers, &mut st, F, &fx.let_t, &fx.b0, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate1_lift(&big, &cf, 0);
-        let r = ok(instantiate1_lift_go(pers, &mut st, &fx.cf, F, &fx.big, 0));
-        assert!(eq_e(pers, &st, &r, &w));
-
-        let w = core_ops::inst_pis_at_lift(&vec![expr::dup(&cf), expr::dup(&b0)], &pi_t);
-        let r = ok(inst_pis_at_lift(
-            pers,
-            &mut st,
-            F,
-            &vec![fx.cf.dup2(), fx.b0.dup2()],
-            &fx.pi_t,
-        ));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::inst_pis_at_lift(&Vec::new(), &pi_t);
-        let r = ok(inst_pis_at_lift(pers, &mut st, F, &Vec::new(), &fx.pi_t));
-        assert!(eq_ope(pers, &st, &r, &w));
-        let w = core_ops::inst_pis_at_lift(&vec![expr::dup(&cf)], &lam_t2);
-        let r = ok(inst_pis_at_lift(pers, &mut st, F, &vec![fx.cf.dup2()], &fx.lam_t2));
-        assert!(eq_ope(pers, &st, &r, &w));
-    }
-
-    // --- equality, and the two derived bits (11) ----------------------------
-
-    #[test]
-    fn t_equality_and_bits() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let let_t = den(pers, &st, &fx.let_t);
-        let s0 = den(pers, &st, &fx.s0);
-        let s1 = den(pers, &st, &fx.s1);
-
-        assert_eq!(
-            fx.big.eq2(&fx.big),
-            core_ops::expr_ptr_beq(&big, &big)
-        );
-        assert_eq!(
-            fx.big.eq2(&fx.let_t),
-            core_ops::expr_ptr_beq(&big, &let_t)
-        );
-        assert_eq!(
-            fx.s0.eq2(&fx.s1),
-            core_ops::expr_ptr_beq(&s0, &s1)
-        );
-        // interning is hash-consing, so a rebuilt node is the SAME handle and
-        // the index test is the structural test (`denoteE_inj`, task #97a)
-        let r = ok(intern_e_app(pers, &mut st, fx.cf.dup2(), fx.b0.dup2()));
-        assert!(r.eq2(&fx.ap1));
-
-    }
-
-    // --- `instantiateLevelParams` (6) ---------------------------------------
-
-    #[test]
-    fn t_instantiate_level_params() {
-        let pers: &PersTier = &PersTier::empty();
-        let (mut st, fx) = fixture();
-        let big = den(pers, &st, &fx.big);
-        let su = den(pers, &st, &fx.su);
-        let cb = den(pers, &st, &fx.cb);
-        let pi_t = den(pers, &st, &fx.pi_t);
-        let ks = vec![den_n(pers, &st, &fx.u_n)];
-        let zs = vec![den_l(pers, &st, &fx.z)];
-        let ps = vec![den_l(pers, &st, &fx.pu)];
-        let hks = vec![fx.u_n.dup2()];
-
-        let w = core_ops::instantiate_level_params(&ks, &zs, &big);
-        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_level_params(&ks, &ps, &big);
-        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_u, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_level_params(&ks, &zs, &su);
-        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.su));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_level_params(&ks, &zs, &cb);
-        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.cb));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_level_params(&ks, &zs, &pi_t);
-        let r = ok(inst_lp_fast(pers, &mut st, F, &hks, &fx.us_z, &fx.pi_t));
-        assert!(eq_e(pers, &st, &r, &w));
-        let w = core_ops::instantiate_level_params(&ks, &zs, &big);
-        let r = ok(inst_lp_go(pers, &mut st, &ks, &zs, F, &fx.big));
-        assert!(eq_e(pers, &st, &r, &w));
-    }
-
     // --- the store primitives of `Monad.lean` (6) ---------------------------
 
     #[test]
@@ -5190,19 +4425,17 @@ mod tests {
         assert!(core_level::beq(&back[1], &us[1]));
     }
 
-    // --- fuel exhaustion fails rather than answering wrongly (3) ------------
+    // --- fuel exhaustion fails rather than answering wrongly -----------------
 
+    /// Fuel: `big`'s loose-bvar bound is 0, so the derived-word cutoff
+    /// answers it at any fuel (with `big` itself); `let_t`'s is 1, so the walk
+    /// really descends and fuel 1 runs out.
     #[test]
     fn t_fuel_exhaustion() {
         let pers: &PersTier = &PersTier::empty();
         let (mut st, fx) = fixture();
-        // `big`'s loose-bvar bound is 0, so the derived-word cutoff answers it
-        // at any fuel; `let_t`'s is 1, so the walk really descends and fuel 1
-        // runs out.
-        let w = core_ops::instantiate1(&den(pers, &st, &fx.big), &den(pers, &st, &fx.cf), 0);
         let r = ok(instantiate1_fast(pers, &mut st, 1, &fx.big, &fx.cf, 0));
-        assert!(eq_e(pers, &st, &r, &w));
+        assert!(r.eq2(&fx.big));
         assert!(instantiate1_fast(pers, &mut st, 1, &fx.let_t, &fx.cf, 0).is_err());
-        assert!(size_b(pers, &st, 0, &fx.big).is_err());
     }
 }

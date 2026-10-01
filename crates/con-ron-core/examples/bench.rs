@@ -230,9 +230,6 @@ fn run() {
     timed("bvarBoundMemo     ", &mut st, |s| {
         bvar_bound_memo(pers, s, BENCH_FUEL, &fx.spine)
     });
-    timed("sizeB             ", &mut st, |s| {
-        size_b(pers, s, BENCH_FUEL, &fx.spine)
-    });
     println!("  arena now {} nodes", st.store.node_count(pers));
 
     println!("the telescope (the cursor moves under every binder)");

@@ -281,3 +281,35 @@ ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` 
 ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/CheckDecl.lean checkDeclsPure Was `arena/check_decl.rs`'s `check_decls_pure` (and its `_go` fold), the one-step-per-record spec fold whose refinement theorem task #105 SW-R2 deleted as dead; the binary runs the two-phase driver (`crates/con-ron/src/driver.rs`), so with the theorem gone the Rust had no caller either (deleted, task #105 R-SWEEP2).
+ConLeche/Cached/CheckerC.lean instPisAtLiftC Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/Env.lean find? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/Env.lean findProj? Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/Expr.lean hasLP Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
+ConLeche/Kernel/Expr.lean bvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
+ConLeche/Kernel/Expr.lean fvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
+ConLeche/Kernel/Expr.lean bvarPoolSize Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean resetMeta Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean resetMetaGo Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean resetMetaFast Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean sizeF Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean renameConsts Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean renameConstsGo Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean renameConstsFast Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean instPisAt Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean instLamsAt Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean instPisAtFGo Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean instPisAtF Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean instLamsAtFGo Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean instLamsAtF Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean abstractRange Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean wscopedB Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean looseBVarsBounded Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean hasFvar Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean exprPtrBEq Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/ExprOps.lean _root_.ConLeche.Expr.hasLevelParam Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/Level.lean isNonZero Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
+ConLeche/Kernel/Level.lean Expr.instantiateLevelParams Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
+ConLeche/Kernel/PropWhen.lean holds Ported as `kernel::prop_when::holds`, used only as the tests' oracle for the `PropWhen` laws; now a private helper in that test module (tests are not provenance-scanned), task #105.
+ConLeche/Cached/Installed.lean checkPendingList Was `arena::checker::check_pending_list`, whose only user was `crates/con-ron/src/pool.rs`'s test that the pool equals the one-worker walk; now that test's private helper (tests are not provenance-scanned), task #105 — the driver runs the pool over the verified `check_pending`.
+ConLeche/Kernel/ExprOps.lean sizeB Ported only as a benchmark row (`examples/bench.rs`) and a tree-oracle comparison; deleted with them, task #105.
+ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the pure walk the memoized `fvar_leaves_fast`/`leaf_guard`/`fab_scope_ok` are tested against; now a private helper of that test module (tests are not provenance-scanned), task #105.

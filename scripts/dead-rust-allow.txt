@@ -24,48 +24,4 @@
 
 crates/con-ron-core/src/frontend/export_c.rs:parse_chunks	`frontend.export_c.parse_chunks` is the subject of `parse_chunks_refines` (proof/ConRon/Refine2/Frontend/Top.lean), which proof/ConRon/Capstone.lean applies (`parse_chunks_refines scanSpec …`) and `Refine2/Frontend/Source.lean` equates with the pooled reader the driver runs (`rw [frontend.export_c.parse_chunks]`).
 crates/con-ron-core/src/frontend/prepare.rs:prepare_prelude	`frontend.prepare.prepare_prelude` is hypothesis and `rw` material in proof/ConRon/Capstone.lean itself (`h4 : frontend.prepare.prepare_prelude … = ok …`, `rw [frontend.prepare.prepare_prelude, h]`); the driver runs its pieces directly.
-
-# --- PENDING (this lane's next batch): kernel/* only-tests items ---
-
-crates/con-ron-core/src/kernel/basis_raw.rs:basis_pin_hit	Only-tests, but a differential check of the live basis-pin recognition the arena checker relies on (`arena::basis` delegates to this module's data) (task #105 sweep).
-crates/con-ron-core/src/kernel/basis_raw.rs:quot_pin_hit	As `basis_pin_hit` above (task #105 sweep).
-crates/con-ron-core/src/kernel/core_types.rs:dup	Only-tests `dup`/`beq` pair for `CheckError`, a value type arena still imports (`kernel::core_types::CheckError`); own unit test, not a retired-checker leftover (task #105 sweep).
-crates/con-ron-core/src/kernel/core_types.rs:beq	As `dup` above (task #105 sweep).
-crates/con-ron-core/src/kernel/env.rs:check_mode_dup	Only-tests `dup` for `CheckMode`, a value type arena still imports; own unit test (`check_mode_dup_test`-style), not a retired-checker leftover (task #105 sweep).
-crates/con-ron-core/src/kernel/env.rs:rec_rule_compare_params	Only-tests, own unit test (`rec_rule_and_shadow_ops`-style) of a live `RecRule` predicate (task #105 sweep).
-crates/con-ron-core/src/kernel/env.rs:ind_params_ok	Only-tests, own unit test `ind_params_ok_is_one_sided` of a live `Env`-tier predicate (task #105 sweep).
-crates/con-ron-core/src/kernel/env.rs:empty	`Env::empty` — real, non-test caller `kernel::prop_read::env::empty()`, and `arena::checker`'s own test module calls the `kernel::env` sibling directly too (task #105 sweep).
-crates/con-ron-core/src/kernel/env.rs:env_of	`Env::env_of` — real, non-test caller `kernel::prop_read` (`env::env_of(&consts)`) and `arena::checker`'s test module (`kernel::env::env_of(&cs)`) (task #105 sweep).
-crates/con-ron-core/src/kernel/env.rs:find_proj	Only-tests, own unit test `proj_table_entry_and_find_proj` of a live `Env`/`ProjTable` predicate (task #105 sweep).
-crates/con-ron-core/src/kernel/expr.rs:binder_meta_hash	Only-tests unit coverage of the live `kernel::expr` value type arena imports for pinned data (task #105 sweep).
-crates/con-ron-core/src/kernel/expr.rs:bvar_pool_size	As `binder_meta_hash` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:reset_meta	Only-tests, own unit test of an `Expr`-tree operation; `Expr` is still the value type arena's pinned axiom/basis data imports (§8.7's "why Expr survives the arena rewrite"), so this is not a retired-checker leftover (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:lower_bvars	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:abstract1	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:fvar_leaves	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:loose_bvars_bounded	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:lam_pw	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:has_fvar	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:rename_consts	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:dom_at_n	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:inst_pis_at_f	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:inst_lams_at_f	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:inst_spine	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:expr_ptr_beq	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:instantiate_level_params	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:all_level_params_defined_fast	As `reset_meta` above (task #105 sweep).
-crates/con-ron-core/src/kernel/fenv.rs:mk_fenv	`FEnv::mk_fenv` — real, non-test caller `kernel::prop_read` (`fenv::mk_fenv(env::env_of(&consts))`) and `arena::checker`'s test module (`fenv::mk_fenv(crate::kernel::env::env_dup(env_cl))`) (task #105 sweep).
-crates/con-ron-core/src/kernel/fenv.rs:restrict_to	Only-tests, own unit test of a live `FEnv` operation (`FEnv` is the pinned-data lookup arena imports through) (task #105 sweep).
-crates/con-ron-core/src/kernel/fenv.rs:tower_slots_all_f	As `restrict_to` above (task #105 sweep).
-crates/con-ron-core/src/kernel/fenv.rs:rec_slots_all_f	As `restrict_to` above (task #105 sweep).
-crates/con-ron-core/src/kernel/fenv.rs:dup	As `restrict_to` above (task #105 sweep).
-crates/con-ron-core/src/kernel/level.rs:name_nodup	Only-tests unit coverage of the live `kernel::level` value type (task #105 sweep).
-crates/con-ron-core/src/kernel/prop_when.rs:name_lt	`prop_when::name_lt` — real, non-test caller `con-ron-dump/src/lib.rs`'s canonical-name-ordering test (`assert!(prop_when::name_lt(…))`) (task #105 sweep).
-crates/con-ron-core/src/kernel/prop_when.rs:holds	Only-tests unit coverage of the live `PropWhen` value type arena's pinned data uses (task #105 sweep).
-crates/con-ron-core/src/kernel/std_axioms.rs:std_axiom_ok	`kernel::std_axioms::std_axiom_ok` — real, non-test caller `arena::checker`'s own test module, cross-checking the arena's `std_axiom_ok` against this reference (`cstd::std_axiom_ok`, aliased `use crate::kernel::std_axioms as cstd;`) (task #105 sweep).
-crates/con-ron-core/src/kernel/expr_ops.rs:strip_lams	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
-crates/con-ron-core/src/kernel/expr_ops.rs:fvar_type_d	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
-crates/con-ron-core/src/kernel/expr_ops.rs:rec_rule_plain	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
-crates/con-ron-core/src/kernel/expr_ops.rs:inst_pis_at_lift	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
-crates/con-ron-core/src/kernel/prop_read.rs:not_proof_fast	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
-crates/con-ron-core/src/kernel/prop_read.rs:is_proof_fast	only-tests; found once dead-rust.py stopped counting uses through other modules of the same name (pending this lane's kernel batch).
+crates/con-ron-core/src/arena/checker.rs:annot_fold	`arena.checker.annot_fold` is the subject of `annot_fold_refines` (proof/ConRon/Refine2/Checker/Top.lean), which `Refine2/Checker/Phased.lean`'s phase-B-boundary theorem applies after `annot_fold_hooked_eq` rewrites the driver's hooked fold (`annot_fold_hooked`, which the binary runs) into it; Capstone.lean imports that module.

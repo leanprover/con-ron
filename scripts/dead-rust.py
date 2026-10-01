@@ -24,11 +24,16 @@ resolved per occurrence:
 
     scripts/dead-rust.py [--tests-count] [--check] [--why <name>]
 
-Output, one per line: `<file>:<line>  <kind> <name>  [only-tests]`.
+Output, one per line: `<file>:<line>  <kind> <name>  [only-dead-callers]
+[only-tests]`.  Liveness is a fixpoint: a use from inside the body of an item
+that is itself dead (its own recursion, or a chain of dead callers) does not
+count, and such an item is tagged `only-dead-callers`; an allowlisted item
+counts as live.
 An item used only from `#[cfg(test)]` code (a `#[cfg(test)] mod x;` file
 included), `tests/` or `examples/` is
 listed as `only-tests` (dead in the binary; a test of dead code is dead
-code too) unless `--tests-count` is given.  `--why <name>` prints, for
+code too); `--tests-count` counts test code as live instead, which lists
+what can go without touching a test.  `--why <name>` prints, for
 every item called `<name>`, the non-test occurrences counted as its uses.
 Heuristic by design: a hit is a candidate for reading, not a verdict; the
 compiler is the arbiter when the item is cut.  `--check` exits 1 if
@@ -130,6 +135,27 @@ IMPL_RE = re.compile(r"^\s*impl\b(?:\s*<[^{]*?>)?\s+(?:[^{]*?\bfor\s+)?(?:[A-Za-
 STRUCT_RE = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)")
 FIELD_RE = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?([a-z_][A-Za-z0-9_]*)\s*:\s*[^A-Z]*?([A-Z][A-Za-z0-9_]*)")
 DEF_RE = re.compile(r"\b(?:fn|struct|enum|type|trait|const|static|mod)\s*$")
+
+
+def item_end(lines, i):
+    """the last line of the item whose header is line `i`: its body's closing
+    brace, or the `;` that ends a `const`/`static`/bodiless declaration"""
+    depth, bracket = 0, 0
+    for j in range(i, len(lines)):
+        for ch in lines[j]:
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return j
+            elif ch in "([":
+                bracket += 1
+            elif ch in ")]":
+                bracket -= 1
+            elif ch == ";" and depth == 0 and bracket == 0:
+                return j
+    return len(lines) - 1
 
 
 def use_leaves(tree, prefix, out):
@@ -339,26 +365,54 @@ def main():
         return (name not in local_defs[g]
                 and any(is_suffix(p, fi.mod, gi.mod) for p in gi.globs))
 
-    listed = []
+    # every reaching occurrence of every item, once: (file, line, in a test?)
+    hits = []
     for f, i, kind, name, owner in items:
-        uses, test_uses = 0, 0
+        hs = []
         for g, occs in occ[name].items():
             for j, qual, recv in occs:
-                if g == f and j == i:
-                    continue
-                if not reaches(f, owner, name, g, qual, recv):
-                    continue
-                if j in tests[g] or "/tests/" in g or "/examples/" in g or "/benches/" in g:
-                    test_uses += 1
-                else:
-                    uses += 1
-                    if why == name:
-                        print(f"  {os.path.relpath(f, ROOT)}:{i + 1} <- "
-                              f"{os.path.relpath(g, ROOT)}:{j + 1}", file=sys.stderr)
-        if uses == 0 and (test_uses == 0 or not tests_count):
-            rel = os.path.relpath(f, ROOT)
-            tag = "  only-tests" if test_uses else ""
-            listed.append((rel, i + 1, kind, name, tag))
+                if (g != f or j != i) and reaches(f, owner, name, g, qual, recv):
+                    hs.append((g, j, j in tests[g] or "/tests/" in g or "/examples/" in g
+                               or "/benches/" in g))
+        hits.append(hs)
+    # the item whose body each line is in (the innermost), so that a use from
+    # inside a dead item's own body — its recursion, or a call from another
+    # dead item — does not keep it alive
+    within = defaultdict(dict)
+    for k, (f, i, kind, name, owner) in enumerate(items):
+        for j in range(i, item_end(text[f], i) + 1):
+            within[f][j] = k
+    keys = [f"{os.path.relpath(f, ROOT)}:{name}" for f, i, kind, name, owner in items]
+    dead = set()
+    while True:
+        grew = False
+        for k, hs in enumerate(hits):
+            if k in dead or keys[k] in allow:
+                continue
+            if not any((tests_count or not t) and within[g].get(j) not in dead
+                       and within[g].get(j) != k for g, j, t in hs):
+                dead.add(k)
+                grew = True
+        if not grew:
+            break
+    listed = []
+    for k, (f, i, kind, name, owner) in enumerate(items):
+        live = [(g, j) for g, j, t in hits[k]
+                if (tests_count or not t) and within[g].get(j) not in dead
+                and within[g].get(j) != k]
+        if why == name:
+            for g, j in live:
+                print(f"  {os.path.relpath(f, ROOT)}:{i + 1} <- "
+                      f"{os.path.relpath(g, ROOT)}:{j + 1}", file=sys.stderr)
+        if live:
+            continue
+        test_uses = sum(1 for g, j, t in hits[k] if t)
+        tag = ""
+        if any(not t and within[g].get(j) != k for g, j, t in hits[k]):
+            tag += "  only-dead-callers"
+        if test_uses:
+            tag += "  only-tests"
+        listed.append((os.path.relpath(f, ROOT), i + 1, kind, name, tag))
     bad = 0
     for rel, ln, kind, name, tag in listed:
         if f"{rel}:{name}" not in allow:

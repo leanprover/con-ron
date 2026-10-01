@@ -495,8 +495,31 @@ mod tests {
         }
     }
 
+    /// Phase B as a pure walk (the twin's `checkPendingList`,
+    /// `Arena/Checker.lean`): every record checked by the verified
+    /// `checker::check_pending` at its own prefix view, a failure tagged with
+    /// the record's fold position.  The oracle the pool is checked against;
+    /// test-only since task #105 — the driver runs the pool.
+    fn check_pending_list(
+        pers: &PersTier,
+        st: &mut AState,
+        mode: &CheckMode,
+        fe: &IFEnv,
+        pend: &Vec<PendingCheck>,
+        i: usize,
+    ) -> Result<(), (CheckError, u64)> {
+        if i >= pend.len() {
+            Ok(())
+        } else {
+            match checker::check_pending(pers, st, mode, fe, &pend[i]) {
+                Err(e) => Err((e, pend[i].pos)),
+                Ok(()) => check_pending_list(pers, st, mode, fe, pend, i + 1),
+            }
+        }
+    }
+
     /// **The trusted claim, as a test**: at every worker count the pool
-    /// returns what the verified one-worker walk (`checker::check_pending_list`
+    /// returns what the one-worker walk (`check_pending_list` below
     /// from one `checker::worker_state`) returns — the same verdict, and on a
     /// failure the same fold position.
     #[test]
@@ -513,7 +536,7 @@ mod tests {
         for oks in lists {
             let (tier, pins, pend) = fixture(&oks);
             let mut st = checker::worker_state(&pins);
-            let seq = checker::check_pending_list(&tier, &mut st, &mode, &fe, &pend, 0);
+            let seq = check_pending_list(&tier, &mut st, &mode, &fe, &pend, 0);
             for workers in [1usize, 2, 3, 4, 8] {
                 let mut obs = Silent;
                 let lock = Mutex::new(&mut obs);

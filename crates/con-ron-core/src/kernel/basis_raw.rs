@@ -43,14 +43,12 @@
 use crate::kernel::basis_builder::{ap2, ap3, bv, cnst, lm, pi, prop, srt, type1, u, u1};
 use crate::kernel::basis_builder::{u1_n, u_n, v, v_n};
 use crate::kernel::basis_names as bnm;
-use crate::kernel::canon;
 use crate::kernel::env;
-use crate::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps, QuotKind, RecRule};
+use crate::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps, RecRule};
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
 use crate::kernel::name;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when;
 
 // ---------------------------------------------------------------------------
 // `vec![…]` without the macro (§3.4)
@@ -93,7 +91,6 @@ pub fn vec5<T>(a: T, b: T, c: T, d: T, e: T) -> Vec<T> {
     v.push(e);
     v
 }
-
 
 /// con-leche: none — `ConstantVal.mk` at the anonymous-constructor literal
 /// `⟨name, lps, ty⟩` every pin below opens with.
@@ -697,136 +694,17 @@ pub fn block_pin_kinds() -> Vec<BasisKind> {
     vec4(BasisKind::EqK, BasisKind::NatK, BasisKind::EmptyK, BasisKind::FalseK)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
-/// **The basis-pin match**, with con-leche task #215's NAME pre-filter.
-/// `ConstantInfo.canon` rebuilds the whole block as an unshared tree — on a
-/// heavily DAG-shared block that was the frontend's single largest cost — so
-/// a block that is not one of the four pinned ones must not reach it.  `canon`
-/// renames only *level parameters*, leaving every constant name alone, so a
-/// block can match a pin only when its members' names are the pin's, member
-/// for member, and that test is a handful of `Name` comparisons.
-///
-/// The two phases stay in the cited order: `List.find?` picks the candidate
-/// by NAMES, and only that one candidate is then `List.filter`ed by
-/// `canonEqList`.  Deviation: the cited `find?`/`filter` closures are an
-/// explicit index recursion (§3.4 forbids closures).
-pub fn basis_pin_hit(block: &Vec<ConstantInfo>) -> Option<BasisKind> {
-    let ks: Vec<BasisKind> = block_pin_kinds();
-    basis_pin_hit_from(&ks, block, 0)
-}
-
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
-/// The index recursion behind `basis_pin_hit`: `ks[i..]`'s `find?` by name,
-/// then the single `filter` by `canonEqList` on whatever it found.  A name
-/// mismatch moves to the next kind; a name MATCH ends the search, and the
-/// canonical comparison decides the result — exactly the cited
-/// `(… .find? …).filter …`.
-pub fn basis_pin_hit_from(
-    ks: &Vec<BasisKind>,
-    block: &Vec<ConstantInfo>,
-    i: usize,
-) -> Option<BasisKind> {
-    if i >= ks.len() {
-        None
-    } else {
-        let decls: Vec<ConstantInfo> = basis_kind_decls(&ks[i]);
-        if !basis_pin_names_eq(&decls, block) {
-            basis_pin_hit_from(ks, block, i + 1)
-        } else if canon::canon_eq_list(block, &decls) {
-            Some(env::basis_kind_dup(&ks[i]))
-        } else {
-            None
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
-/// The pre-filter's test, `k.decls.map (·.name) == block.map (·.name)`.
-pub fn basis_pin_names_eq(decls: &Vec<ConstantInfo>, block: &Vec<ConstantInfo>) -> bool {
-    prop_when::names_beq(
-        &env::constant_info_names_from(decls, 0, Vec::new()),
-        &env::constant_info_names_from(block, 0, Vec::new()),
-    )
-}
-
-/// con-leche: ConLeche/Kernel/Basis.lean:65-70 quotPinHit
-/// `BasisKind.quotK.decls.getD slot (.axiomInfo default)`: the pinned
-/// quotient package's constant at one slot, with the total-function fallback
-/// the cited `getD` spells.  A separate function because `check_decl`'s
-/// `Quot.sound` axiom arm reads slot 4 directly, as con-leche does.
-///
-/// Deviation: Lean's `default : ConstantVal` is the derived `Inhabited`
-/// instance — `⟨.anonymous, [], .bvar 0⟩`, `Expr`'s own default being its
-/// first constructor.  The fallback is unreachable: `quot_basis` has exactly
-/// the five members `quot_kind_slot` indexes.
-pub fn quot_basis_at(slot: u64) -> ConstantInfo {
-    let decls: Vec<ConstantInfo> = quot_basis();
-    if slot < decls.len() as u64 {
-        env::constant_info_dup(&decls[slot as usize])
-    } else {
-        ConstantInfo::AxiomInfo(cv(name::anonymous(), Vec::new(), expr::bvar(0)))
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Basis.lean:65-70 quotPinHit
-/// **The quotient-pin match**: the record is the pinned package's constant at
-/// the slot it declares itself at.  The two are compared at `toConstantVal`,
-/// which con-leche's `ConstantInfo.canon_toConstantVal` identifies with
-/// `ConstantVal.canon` of each side — so the port compares the two
-/// `ConstantVal`s with `canon::constant_val_canon_eq`, the lockstep twin of
-/// the cited `ConstantVal.canonEq`.
-pub fn quot_pin_hit(k: &QuotKind, cv: &ConstantVal) -> bool {
-    canon::constant_val_canon_eq(cv, &env::to_constant_val(&quot_basis_at(env::quot_kind_slot(k))))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::kernel::basis_tables;
 
     /// The raw pins and the *annotated* tables of `con-ron-core` are the same
-    /// blocks up to the annotation — which is exactly what
-    /// `ConstantInfo.canon` erases (binder metadata, `IndCaps`) and what it
-    /// does NOT (a recursor rule's install-computed fields).  So the module
-    /// note's claim is testable both ways: every block has the pin's member
-    /// NAMES in the pin's order (the task-#215 pre-filter), and the
-    /// `canonEq` comparison of the raw block against the annotated one FAILS
-    /// wherever the annotation moved a rule field — which is why the raw pins
-    /// have to exist.
+    /// blocks up to the annotation: member for member.  (That the annotation
+    /// moves a recursor rule's install-computed fields, so the raw pins have
+    /// to exist, is `arena::checker`'s `canon_eq_list_answers`.)
     #[test]
-    fn raw_pins_have_the_annotated_blocks_names_but_not_their_rules() {
-        let kinds = [
-            BasisKind::EqK,
-            BasisKind::NatK,
-            BasisKind::EmptyK,
-            BasisKind::FalseK,
-            BasisKind::QuotK,
-        ];
-        let mut differed = 0;
-        for k in kinds.iter() {
-            let raw = basis_kind_decls(k);
-            let ann = basis_tables::basis_decls_a(k);
-            assert_eq!(raw.len(), ann.len());
-            for (r, a) in raw.iter().zip(ann.iter()) {
-                assert!(
-                    name::beq(&env::constant_info_name(r), &env::constant_info_name(a)),
-                    "member names differ"
-                );
-            }
-            if !canon::canon_eq_list(&raw, &ann) {
-                differed += 1;
-            }
-        }
-        // `Eq`, `Nat` and `Quot` carry iota rules whose install-computed
-        // fields the annotation fills in; `Empty` and `False` have no rules
-        // at all and compare equal.
-        assert_eq!(differed, 3);
-    }
-
-    /// A raw block matches itself up to the canonical form, which is the
-    /// property the pin match relies on.
-    #[test]
-    fn raw_pins_match_themselves() {
+    fn raw_pins_have_the_annotated_blocks_shape() {
         for k in [
             BasisKind::EqK,
             BasisKind::NatK,
@@ -834,84 +712,7 @@ mod tests {
             BasisKind::FalseK,
             BasisKind::QuotK,
         ] {
-            assert!(canon::canon_eq_list(
-                &basis_kind_decls(&k),
-                &basis_kind_decls(&k)
-            ));
+            assert_eq!(basis_kind_decls(&k).len(), basis_tables::basis_decls_a(&k).len());
         }
-    }
-
-    fn kind_ix(k: &BasisKind) -> u64 {
-        match k {
-            BasisKind::EqK => 0,
-            BasisKind::NatK => 1,
-            BasisKind::EmptyK => 2,
-            BasisKind::FalseK => 3,
-            BasisKind::QuotK => 4,
-        }
-    }
-
-    /// The fold's block test: each of the four pins is recognised as itself,
-    /// the annotated block is NOT (its recursor rules carry the
-    /// install-computed fields the parse cannot know), and a block under none
-    /// of the four names never reaches the canonical comparison at all.
-    #[test]
-    fn basis_pin_hit_recognises_the_four_and_nothing_else() {
-        for k in block_pin_kinds() {
-            match basis_pin_hit(&basis_kind_decls(&k)) {
-                Some(hit) => assert_eq!(kind_ix(&hit), kind_ix(&k)),
-                None => panic!("pin not recognised"),
-            }
-        }
-        // the annotated `Nat` block has the pin's NAMES but not its rules
-        let ann = basis_tables::basis_decls_a(&BasisKind::NatK);
-        assert!(basis_pin_names_eq(&basis_kind_decls(&BasisKind::NatK), &ann));
-        assert!(basis_pin_hit(&ann).is_none());
-        // a block whose members are nobody's pin: the name pre-filter refuses
-        // it, so `canon_eq_list` is never reached
-        let stranger = vec![ConstantInfo::AxiomInfo(cv(
-            bnm::list_name(),
-            Vec::new(),
-            srt(u()),
-        ))];
-        assert!(!basis_pin_names_eq(
-            &basis_kind_decls(&BasisKind::EqK),
-            &stranger
-        ));
-        assert!(basis_pin_hit(&stranger).is_none());
-        // `quot` is not a block pin: its records arrive one at a time
-        assert!(basis_pin_hit(&quot_basis()).is_none());
-    }
-
-    /// The fold's quotient test: each of the five slots matches its own pin
-    /// and no other.
-    #[test]
-    fn quot_pin_hit_matches_its_own_slot() {
-        let kinds = [
-            QuotKind::Type,
-            QuotKind::Ctor,
-            QuotKind::Lift,
-            QuotKind::Ind,
-            QuotKind::Sound,
-        ];
-        for k in kinds.iter() {
-            let own = env::to_constant_val(&quot_basis_at(env::quot_kind_slot(k)));
-            assert!(quot_pin_hit(k, &own));
-            for k2 in kinds.iter() {
-                if env::quot_kind_slot(k) != env::quot_kind_slot(k2) {
-                    assert!(!quot_pin_hit(k2, &own));
-                }
-            }
-        }
-        // slot 4 is `Quot.sound`, which `check_decl`'s axiom arm reads directly
-        assert!(name::beq(
-            &env::constant_info_name(&quot_basis_at(4)),
-            &bnm::quot_sound_name()
-        ));
-        // the out-of-range fallback is the anonymous placeholder axiom
-        assert!(name::beq(
-            &env::constant_info_name(&quot_basis_at(5)),
-            &name::anonymous()
-        ));
     }
 }

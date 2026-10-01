@@ -928,33 +928,6 @@ pub fn promote_ci(
     }
 }
 
-
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:320-328 promoteCIList
-/// The cursor recursion behind `promote_ci_list` (DESIGN.md §3.4).
-pub fn promote_ci_list_from(
-    tier: &mut PersTier,
-    st: &AState,
-    m: PMemo,
-    fuel: u64,
-    cs: &Vec<IConstantInfo>,
-    i: usize,
-    out: Vec<IConstantInfo>,
-) -> Result<(PMemo, Vec<IConstantInfo>), CheckError> {
-    if i >= cs.len() {
-        Ok((m, out))
-    } else {
-        match promote_ci(tier, st, m, fuel, &cs[i]) {
-            Err(e) => Err(e),
-            Ok((m2, c)) => {
-                let mut o: Vec<IConstantInfo> = out;
-                o.push(c);
-                promote_ci_list_from(tier, st, m2, fuel, cs, i + 1, o)
-            }
-        }
-    }
-}
-
-
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:330-338 promoteVG
 /// Promote the datum that crosses the install/check seam
 /// (`arena::checker_split`'s `ValueGroup`).  An `opaque`'s value is NOT in the

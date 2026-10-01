@@ -59,7 +59,6 @@
 //! `code_points` is the port's general spelling of a Lean string literal —
 //! `env::proj_fn_name`'s `"proj"` goes through it too.
 
-use crate::kernel::name;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
@@ -165,58 +164,6 @@ pub fn message(e: CheckError) -> Vec<u32> {
     }
 }
 
-/// con-leche: none — a `Vec<u32>` copy; Lean's `String` is shared by value
-/// The code-point copy a reused message needs.
-pub fn str_copy(s: &Vec<u32>) -> Vec<u32> {
-    code_points_from(s, 0, Vec::with_capacity(s.len()))
-}
-
-/// con-leche: none — the `dup` of `CheckError`, which Lean's value semantics hides
-/// DESIGN.md §3.4: no `derive(Clone)` on the core types; an explicit copy per
-/// type, as `nat.rs` and `name.rs` do.
-pub fn dup(e: &CheckError) -> CheckError {
-    match e {
-        CheckError::NotImplemented(w) => CheckError::NotImplemented(str_copy(w)),
-        CheckError::Invalid(m) => CheckError::Invalid(str_copy(m)),
-        CheckError::Internal(m) => CheckError::Internal(str_copy(m)),
-        CheckError::Native(m) => CheckError::Native(str_copy(m)),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:65-69 CheckError
-/// The structural equality the cited `inductive` would derive; the payloads
-/// are compared with `name::str_eq`, the port's code-point equality.  Nothing
-/// in the checker branches on an error, so this exists for the tests and for
-/// the differential harness's verdict comparison.
-pub fn beq(a: &CheckError, b: &CheckError) -> bool {
-    match a {
-        CheckError::NotImplemented(x) => match b {
-            CheckError::NotImplemented(y) => name::str_eq(x, y),
-            CheckError::Invalid(_) => false,
-            CheckError::Internal(_) => false,
-            CheckError::Native(_) => false,
-        },
-        CheckError::Invalid(x) => match b {
-            CheckError::NotImplemented(_) => false,
-            CheckError::Invalid(y) => name::str_eq(x, y),
-            CheckError::Internal(_) => false,
-            CheckError::Native(_) => false,
-        },
-        CheckError::Internal(x) => match b {
-            CheckError::NotImplemented(_) => false,
-            CheckError::Invalid(_) => false,
-            CheckError::Internal(y) => name::str_eq(x, y),
-            CheckError::Native(_) => false,
-        },
-        CheckError::Native(x) => match b {
-            CheckError::NotImplemented(_) => false,
-            CheckError::Invalid(_) => false,
-            CheckError::Internal(_) => false,
-            CheckError::Native(y) => name::str_eq(x, y),
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::kernel::core_types;
@@ -234,21 +181,6 @@ mod tests {
         assert_eq!(v.len(), 9);
         assert_eq!(v, vec![0x64, 0x75, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x74, 0x65]);
         assert_eq!(core_types::code_points(&[]), Vec::<u32>::new());
-    }
-
-    #[test]
-    fn beq_separates_kind_and_payload() {
-        let a = core_types::invalid(core_types::code_points(&M_DUP));
-        let b = core_types::invalid(core_types::code_points(&M_DUP));
-        let c = core_types::invalid(core_types::code_points(&M_OTHER));
-        let d = core_types::internal(core_types::code_points(&M_DUP));
-        let e = core_types::not_implemented(core_types::code_points(&M_DUP));
-        assert!(core_types::beq(&a, &b));
-        assert!(!core_types::beq(&a, &c));
-        assert!(!core_types::beq(&a, &d));
-        assert!(!core_types::beq(&a, &e));
-        assert!(!core_types::beq(&d, &e));
-        assert!(core_types::beq(&a, &core_types::dup(&a)));
     }
 
     /// The `CheckM` convention of the module note: `Ok`/`Err`, no `?`.

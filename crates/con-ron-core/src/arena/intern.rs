@@ -45,14 +45,14 @@
 //! tier is live (DESIGN.md §8.3).
 
 use crate::arena::env::{
-    IConstantInfo, IConstantVal, IDeclaration, IIndCaps, IProjTable, IRecRule, IRecRuleFire,
+    IConstantInfo, IConstantVal, IIndCaps, IProjTable, IRecRule, IRecRuleFire,
 };
 use crate::arena::handle::{EIdx, LIdx, NIdx};
 use crate::arena::monad::{intern_e, intern_level, intern_levels, intern_name, AState};
 use crate::arena::store::ENodeView;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::env as cenv;
-use crate::kernel::env::{ConstantInfo, ConstantVal, Declaration, IndCaps, ProjTable, RecRule, RecRuleFire};
+use crate::kernel::env::{ConstantInfo, ConstantVal, IndCaps, ProjTable, RecRule, RecRuleFire};
 use crate::kernel::expr;
 use crate::kernel::expr::{Expr, ExprView};
 use crate::kernel::level::Level;
@@ -577,80 +577,3 @@ pub fn intern_ci_list(
     let mut m: EMemo = memo_empty();
     intern_ci_list_go(pers, st, &mut m, cs, 0, Vec::new())
 }
-
-/// con-leche: none — intern a declaration record
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:366-391 internDecl` —
-/// the inverse of `denoteDecl`.  The parser builds handles directly, so this
-/// is the differential test's road from a con-ron-core declaration list to the
-/// arena's; it is shipped rather than test-only because `Readback.lean` ships
-/// it and the two modules are twins.
-pub fn intern_decl(
-    pers: &PersTier,
-    st: &mut AState,
-    m: &mut EMemo,
-    d: &Declaration,
-) -> Result<IDeclaration, CheckError> {
-    match d {
-        Declaration::AxiomDecl(v) => match intern_cv_go(pers, st, m, v) {
-            Err(err) => Err(err),
-            Ok(cv) => Ok(IDeclaration::AxiomDecl(cv)),
-        },
-        Declaration::DefnDecl(v, e, h) => match intern_cv_go(pers, st, m, v) {
-            Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(pers, st, m, e) {
-                Err(err) => Err(err),
-                Ok(x) => Ok(IDeclaration::DefnDecl(cv, x, cenv::reducibility_hint_dup(h))),
-            },
-        },
-        Declaration::ThmDecl(v, e) => match intern_cv_go(pers, st, m, v) {
-            Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(pers, st, m, e) {
-                Err(err) => Err(err),
-                Ok(x) => Ok(IDeclaration::ThmDecl(cv, x)),
-            },
-        },
-        Declaration::OpaqueDecl(v, e) => match intern_cv_go(pers, st, m, v) {
-            Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(pers, st, m, e) {
-                Err(err) => Err(err),
-                Ok(x) => Ok(IDeclaration::OpaqueDecl(cv, x)),
-            },
-        },
-        Declaration::BasisDecl(k) => Ok(IDeclaration::BasisDecl(cenv::basis_kind_dup(k))),
-        Declaration::IndDecl(block, n_p) => {
-            match intern_ci_list_go(pers, st, m, block, 0, Vec::new()) {
-                Err(err) => Err(err),
-                Ok(b) => Ok(IDeclaration::IndDecl(b, *n_p)),
-            }
-        }
-        Declaration::QuotDecl(k, v) => match intern_cv_go(pers, st, m, v) {
-            Err(err) => Err(err),
-            Ok(cv) => Ok(IDeclaration::QuotDecl(cenv::quot_kind_dup(k), cv)),
-        },
-    }
-}
-
-/// con-leche: none — intern a declaration list
-/// Lean twin: `proof/ConRon/Arena/Frontend/Readback.lean:393-399 internDecls`.
-pub fn intern_decls_go(
-    pers: &PersTier,
-    st: &mut AState,
-    m: &mut EMemo,
-    ds: &Vec<Declaration>,
-    i: usize,
-    out: Vec<IDeclaration>,
-) -> Result<Vec<IDeclaration>, CheckError> {
-    if i >= ds.len() {
-        Ok(out)
-    } else {
-        match intern_decl(pers, st, m, &ds[i]) {
-            Err(err) => Err(err),
-            Ok(h) => {
-                let mut out2 = out;
-                out2.push(h);
-                intern_decls_go(pers, st, m, ds, i + 1, out2)
-            }
-        }
-    }
-}
-

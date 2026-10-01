@@ -725,26 +725,6 @@ pub fn i_env_empty() -> IEnv {
     IEnv { consts: Vec::new() }
 }
 
-
-/// con-leche: ConLeche/Kernel/Env.lean:683-684 Env.find?
-/// The index recursion the cited `List.find?` becomes, counting **down**:
-/// `i_env_find_from(cs, i, n)` searches `cs[..i]` from the top, which is the
-/// cited list from the front (the `IEnv` deviation).
-pub fn i_env_find_from<'a>(
-    cs: &'a Vec<IConstantInfo>,
-    i: usize,
-    n: &NIdx,
-) -> Option<&'a IConstantInfo> {
-    if i == 0 {
-        None
-    } else if i_constant_info_name(&cs[i - 1]).eq2(n) {
-        Some(&cs[i - 1])
-    } else {
-        i_env_find_from(cs, i - 1, n)
-    }
-}
-
-
 /// con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv
 /// Lean twin: `proof/ConRon/Arena/Env.lean:279-285 IFEnv` — the environment
 /// with its `O(1)` index (DESIGN.md §8.3 lesson 13).  Entries with counter
@@ -954,7 +934,6 @@ pub fn ifenv_pop_temp(fe: &mut IFEnv, n: &NIdx, prev: Option<(u64, u64)>) {
     fe.visible_below = fe.visible_below - 1;
 }
 
-
 /// con-leche: ConLeche/Kernel/FEnv.lean:88-92 FEnv.findProj?
 /// Lean twin: `proof/ConRon/Arena/Env.lean:332-337 IFEnv.findProj?` — indexed
 /// projection-table lookup.
@@ -1001,9 +980,6 @@ impl Dup for IConstantInfo {
         i_constant_info_dup(self)
     }
 }
-
-
-
 
 // ---------------------------------------------------------------------------
 // `Monad.lean`'s primitives, pending `arena/monad.rs` (task #97 P4b)

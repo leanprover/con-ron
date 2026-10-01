@@ -499,18 +499,6 @@ pub fn is_equiv_list_from(ls: &Vec<Level>, rs: &Vec<Level>, i: usize) -> Option<
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:176-184 isNonZero
-/// `Level.isNonZero`.
-pub fn is_non_zero(u: &Level) -> bool {
-    match &u.0.kind {
-        LevelKind::Zero => false,
-        LevelKind::Succ(_) => true,
-        LevelKind::Max(a, b) => is_non_zero(a) || is_non_zero(b),
-        LevelKind::Imax(_, b) => is_non_zero(b),
-        LevelKind::Param(_) => false,
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Level.lean:186-196 zeronessOf
 /// `Level.zeronessOf`: the zero-ness datum of a level — a `max` is zero iff
 /// both sides are (`inter`), an `imax` iff its right side is.  Filled in at
@@ -563,25 +551,6 @@ pub fn subst_pw(ks: &Vec<Name>, vs: &Vec<Level>, pw: &PropWhen) -> PropWhen {
    `Expr` operations spelled in this file for import order; all three are in
    `crate::kernel::expr_ops` (the first at task #13, the other two at task
    #24, where `checkConstantVal` first needed them). */
-
-/// con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup
-/// `Name.nodup`.
-pub fn name_nodup(ns: &Vec<Name>) -> bool {
-    name_nodup_from(ns, 0)
-}
-
-/// con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup
-/// The index recursion the cited `List` recursion becomes: Lean tests the
-/// *tail*, so this one starts at `i + 1`.
-pub fn name_nodup_from(ns: &Vec<Name>, i: usize) -> bool {
-    if i >= ns.len() {
-        true
-    } else if name::contains_from(ns, i + 1, &ns[i]) {
-        false
-    } else {
-        name_nodup_from(ns, i + 1)
-    }
-}
 
 /// con-leche: none — the `"proj"` string literal of `Name.isProjFnShape`
 /// `s == "proj"` on code points.
@@ -671,16 +640,6 @@ mod tests {
         let tbl = name::mk_num(nm("projTable"), 0);
         assert!(level::name_is_proj_fn_shape(&tbl));
         assert!(!level::name_is_proj_fn_shape(&nm("proj")));
-    }
-
-    #[test]
-    fn name_nodup() {
-        let mut ns: Vec<Name> = Vec::new();
-        ns.push(nm("u"));
-        ns.push(nm("v"));
-        assert!(level::name_nodup(&ns));
-        ns.push(nm("u"));
-        assert!(!level::name_nodup(&ns));
     }
 
     #[test]
@@ -800,12 +759,10 @@ mod tests {
     }
 
     #[test]
-    fn never_zero_and_non_zero() {
+    fn never_zero() {
         assert!(level::is_never_zero(&level::succ(p("u"))));
         assert!(!level::is_never_zero(&level::imax(level::succ(p("u")), p("v"))));
         assert!(level::is_never_zero(&level::max(level::zero(), level::succ(p("u")))));
-        assert!(level::is_non_zero(&level::imax(p("u"), level::succ(p("v")))));
-        assert!(!level::is_non_zero(&p("u")));
     }
 
     /// The fueled `leqCore` reports exhaustion as `none`, never as a verdict.

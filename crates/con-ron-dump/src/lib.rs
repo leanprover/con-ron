@@ -345,7 +345,6 @@ impl Tables {
     }
 }
 
-
 /// The cursor over **one** record: the tables it grows, the line's text, the
 /// token spans [`split_spans`] found in it, and how far the record has been
 /// consumed.  `'l` is the line buffer's lifetime and is *not* the tables' —
@@ -703,7 +702,6 @@ impl<'s, 'l> Rec<'s, 'l> {
             _ => self.err(format!("unknown record kind '{}'", kind)),
         }
     }
-
 }
 
 // ---------------------------------------------------------------------------
@@ -858,7 +856,6 @@ mod tests {
     use con_ron_core::ron::nat;
     use con_ron_core::ron::ptr::P;
     use con_ron_core::kernel::env::ConstantInfo;
-    use con_ron_core::kernel::env::Declaration;
     use con_ron_core::kernel::env::ConstantVal;
     use con_ron_core::kernel::expr::ExprKind;
     use con_ron_core::kernel::expr::ExprNode;
@@ -956,7 +953,6 @@ mod tests {
             row::<PropWhen>("  PropWhen", false),
             row::<Vec<u32>>("Vec<u32> (a string's header)", false),
             row::<Nat>("Nat (limb Vec header)", false),
-            row::<Declaration>("Declaration", false),
             row::<ConstantInfo>("ConstantInfo (inline)", false),
             row::<ConstantVal>("ConstantVal (inline)", false),
         ]
@@ -1190,7 +1186,10 @@ mod tests {
         // canonical: sorted by `Name.cmp`, duplicate-free
         assert_eq!(canonical.len(), 5);
         for i in 1..canonical.len() {
-            assert!(prop_when::name_lt(&canonical[i - 1], &canonical[i]));
+            assert!(matches!(
+                prop_when::name_cmp(&canonical[i - 1], &canonical[i]),
+                prop_when::Ordering::Lt
+            ));
         }
         // ... and feeding it back is the identity, on the datum and on the list
         let again = prop_when::if_all_zero(prop_when::to_list(&pw));

@@ -6614,7 +6614,6 @@ pub fn iota_rec_major(
     }
 }
 
-
 /// con-leche: ConLeche/Kernel/Core.lean:820-932 iotaRec
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2023-2122 iotaRecAt` — `iotaRec` with
 /// its two spine walks HOISTED: the head and the argument vector are the
@@ -6710,20 +6709,6 @@ pub fn iota_rec_at(
 // The projection certificate and the reduction bodies (`Core.lean:1939-2087`)
 // ---------------------------------------------------------------------------
 
-
-/// con-leche: none — `List.reverse` on a `Vec`; Lean's list reverse is a value
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2298-2309 IProjEntry.typeAt` — the
-/// cursor recursion behind `rev_eidx`, counting down.
-pub fn rev_eidx_from(xs: &Vec<EIdx>, i: usize, out: Vec<EIdx>) -> Vec<EIdx> {
-    if i == 0 {
-        out
-    } else {
-        let mut out = out;
-        out.push(xs[i - 1].dup2());
-        rev_eidx_from(xs, i - 1, out)
-    }
-}
-
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:896-905 ProjEntry.typeAt
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2298-2309 IProjEntry.typeAt` —
 /// **the type of a `.proj` node at a tower-backed entry**: the stored body,
@@ -6808,7 +6793,6 @@ pub fn proj_cert_at(
         Ok(true)
     }
 }
-
 
 /// con-leche: ConLeche/Kernel/Core.lean:977-1072 whnfCoreBody
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2330-2388 whnfCoreBody`
@@ -7330,7 +7314,6 @@ pub fn intern_app_rebuilt(
     }
 }
 
-
 /// con-leche: ConLeche/Kernel/Core.lean:977-1072 whnfCoreBody
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2330-2388 whnfCoreBody` — the
 /// head-normalization body: beta (with the per-redex argument certificate),
@@ -7399,7 +7382,6 @@ pub fn whnf_core_body(
         }
     }
 }
-
 
 /// con-leche: ConLeche/Kernel/Core.lean:1084-1091 whnfLoopFuel
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2390-2393 whnfLoopFuel` — step budget of

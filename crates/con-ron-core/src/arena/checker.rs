@@ -554,28 +554,6 @@ pub fn check_pending(
     r
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:419-426 checkPendingList
-/// Lean twin: `proof/ConRon/Arena/Checker.lean:254-263 checkPendingList` —
-/// phase B as a pure walk: every record checked at its own prefix view, a
-/// failure tagged with the record's fold position.
-pub fn check_pending_list(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    pend: &Vec<PendingCheck>,
-    i: usize,
-) -> Result<(), (CheckError, u64)> {
-    if i >= pend.len() {
-        Ok(())
-    } else {
-        match check_pending(pers, st, mode, fe, &pend[i]) {
-            Err(e) => Err((e, pend[i].pos)),
-            Ok(()) => check_pending_list(pers, st, mode, fe, pend, i + 1),
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The driver's fold: the phase boundary and phase B on a worker
 // (task #97-P5-Driver)
@@ -714,20 +692,6 @@ pub fn worker_state(pins: &Pins) -> AState {
     let mut st = AState::init(EStore::empty_frozen());
     st.pins = pins_dup(pins);
     st
-}
-
-/// con-leche: none — `String.append`; the port stores a message as `Vec<u32>` (DESIGN.md §3.3)
-/// The cursor push behind `at_decl_text`: `Vec::append` is not in the Aeneas
-/// subset (it would be a new external), so the code points are pushed one at a
-/// time, which is what every other accumulator of the port does.
-pub fn cp_append(out: Vec<u32>, s: &Vec<u32>, i: usize) -> Vec<u32> {
-    if i >= s.len() {
-        out
-    } else {
-        let mut out2 = out;
-        out2.push(s[i]);
-        cp_append(out2, s, i + 1)
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -933,20 +897,18 @@ mod tests {
     
     use crate::kernel::basis_names;
     use crate::kernel::basis_raw;
-    use crate::kernel::canon as ccanon;
-    use crate::kernel::env::{ConstantInfo, ConstantVal, Env};
+
+    use crate::kernel::env::{ConstantInfo, ConstantVal};
     use crate::kernel::expr;
     use crate::kernel::expr::{BinderMeta, Expr};
-    use crate::kernel::fenv;
+
     use crate::kernel::level;
     use crate::kernel::name;
     use crate::kernel::name::Name;
     use crate::kernel::prop_when;
     use crate::kernel::std_axioms as cstd;
-    use crate::ron::ptr::P;
 
     // --- the mode, the pins, and the outcome comparisons ---------------------
-
 
     /// The empty pin list, which is what `CheckerTest.lean` passes: no subject
     /// below reaches the `Nat.div`/`Nat.mod` variant loop with its guards
@@ -955,7 +917,6 @@ mod tests {
         Vec::new()
     }
 
-
     fn ok<T>(r: Result<T, CheckError>) -> T {
         match r {
             Ok(x) => x,
@@ -963,28 +924,7 @@ mod tests {
         }
     }
 
-
-    /// `Env.consts` as owned records: con-ron-core shares a stored constant
-    /// through a `P`, and `intern_ci_list` wants the values.
-    fn unshare(cs: &Vec<P<ConstantInfo>>) -> Vec<ConstantInfo> {
-        let mut out: Vec<ConstantInfo> = Vec::with_capacity(cs.len());
-        let mut i: usize = 0;
-        while i < cs.len() {
-            out.push(crate::kernel::env::constant_info_dup(&cs[i]));
-            i += 1;
-        }
-        out
-    }
-
-
     // --- the three runs ------------------------------------------------------
-
-
-
-
-
-
-
 
     // --- the subjects, written once as con-ron-core values -------------------
 
@@ -1000,78 +940,27 @@ mod tests {
         expr::mk_const(basis_names::nat_name(), Vec::new())
     }
 
-
-
     fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {
         ConstantVal { name: n, level_params: lps, ty }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     // --- the lists -----------------------------------------------------------
-
-
-
-
-
-
-
 
     // --- what con-ron-core itself says ---------------------------------------
 
-
     // --- the differential: `check_decls_pure` --------------------------------
-
-
-
-
 
     // --- the differential: `check_decl` at a non-empty environment ------------
 
-
-
-
     // --- the differential: the TWO-PHASE fold --------------------------------
-
-
 
     // --- the pieces below `check_decl` ---------------------------------------
 
-    /// The arena's `std_axiom_ok` against con-ron-core's.
-    fn chk_std_axiom(env_cl: &Env, c: &ConstantVal) -> bool {
-        let pers: &PersTier = &PersTier::empty();
-        let mut st = pinned_state();
-        let cs = ok(intern_ci_list(pers, &mut st, &unshare(&env_cl.consts)));
-        let icv = ok(intern_cv(pers, &mut st, c));
-        let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
-        let got = ok(crate::arena::decl_check::std_axiom_ok(pers, fe.visible_below, &mut st, &fe, &icv));
-        let fe_cl = fenv::mk_fenv(crate::kernel::env::env_dup(env_cl));
-        got == cstd::std_axiom_ok(&fe_cl, c)
-    }
-
     /// The environment the basis prefix installs, built directly rather than
     /// by running a checker over `basis_prefix()`: a `.basisDecl` install IS
-    /// `BasisKind.declsA`, pushed in order (task #97-SWAP — the `Expr`-tree
-    /// checker that used to produce this environment is gone, and the table it
-    /// would have installed is right here).
-    fn env_basis() -> Env {
+    /// `BasisKind.declsA`, pushed in order (task #97-SWAP), and the stored
+    /// list is that one reversed (the `Env` deviation).
+    fn basis_consts() -> Vec<ConstantInfo> {
         let mut cs: Vec<ConstantInfo> = Vec::new();
         for k in [BasisKind::EqK, BasisKind::NatK] {
             let mut b = crate::kernel::basis_tables::basis_decls_a(&k);
@@ -1079,48 +968,55 @@ mod tests {
                 cs.push(b.remove(0));
             }
         }
-        crate::kernel::env::env_of(&cs)
+        cs.reverse();
+        cs
     }
 
+    /// The arena's `std_axiom_ok` of `c` in the basis environment.
+    fn std_axiom(c: &ConstantVal) -> bool {
+        let pers: &PersTier = &PersTier::empty();
+        let mut st = pinned_state();
+        let cs = ok(intern_ci_list(pers, &mut st, &basis_consts()));
+        let icv = ok(intern_cv(pers, &mut st, c));
+        let fe: IFEnv = mk_ifenv(crate::arena::env::IEnv { consts: cs });
+        ok(crate::arena::decl_check::std_axiom_ok(pers, fe.visible_below, &mut st, &fe, &icv))
+    }
+
+    /// The expected answers are what the `Expr`-tree reference implementation
+    /// (`kernel::std_axioms`, deleted by task #105) gave on the same inputs,
+    /// which this test used to compare against.
     #[test]
-    fn std_axiom_ok_agrees() {
-        let e = env_basis();
-        assert!(chk_std_axiom(
-            &e,
-            &cv(cstd::propext_name(), Vec::new(), expr::sort(level::zero()))
-        ));
-        assert!(chk_std_axiom(
-            &e,
-            &cv(cstd::choice_name(), Vec::new(), expr::sort(level::zero()))
-        ));
-        assert!(chk_std_axiom(&e, &cv(nm("x"), Vec::new(), nat_ty())));
+    fn std_axiom_ok_answers() {
+        assert_eq!(std_axiom(&cv(cstd::propext_name(), Vec::new(), expr::sort(level::zero()))), false);
+        assert_eq!(std_axiom(&cv(cstd::choice_name(), Vec::new(), expr::sort(level::zero()))), false);
+        assert_eq!(std_axiom(&cv(nm("x"), Vec::new(), nat_ty())), false);
     }
 
-    /// The arena's `matchesPin` against con-ron-core's, on a term that differs
-    /// only in a binder's `pw` datum (which the comparison forgives), on one
-    /// that differs in its type (which it does not), and on one that differs in
-    /// its level parameters.
-    fn chk_matches_pin(c: &ConstantVal, pin: &ConstantVal) -> bool {
+    /// The arena's `matchesPin`.
+    fn matches_pin(c: &ConstantVal, pin: &ConstantVal) -> bool {
         let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
         let a = ok(intern_cv(pers, &mut st, c));
         let b = ok(intern_cv(pers, &mut st, pin));
-        let got = ok(i_constant_val_matches_pin(pers, &st, &a, &b));
-        got == cstd::matches_pin_fast(c, pin)
+        ok(i_constant_val_matches_pin(pers, &st, &a, &b))
     }
 
+    /// On an identical term, one that differs in its type, one that differs
+    /// only in a binder's `pw` datum (which the comparison forgives), and one
+    /// that differs in its level parameters.  Expected answers as in
+    /// `std_axiom_ok_answers`.
     #[test]
-    fn matches_pin_agrees() {
+    fn matches_pin_answers() {
         let two = nm("two");
-        assert!(chk_matches_pin(
+        assert_eq!(matches_pin(
             &cv(name::dup(&two), Vec::new(), nat_ty()),
             &cv(name::dup(&two), Vec::new(), nat_ty())
-        ));
-        assert!(chk_matches_pin(
+        ), true);
+        assert_eq!(matches_pin(
             &cv(name::dup(&two), Vec::new(), nat_ty()),
             &cv(name::dup(&two), Vec::new(), expr::sort(level::zero()))
-        ));
-        assert!(chk_matches_pin(
+        ), false);
+        assert_eq!(matches_pin(
             &cv(
                 name::dup(&two),
                 Vec::new(),
@@ -1135,71 +1031,63 @@ mod tests {
                     expr::binder_meta(prop_when::if_all_zero(Vec::new()))
                 )
             )
-        ));
+        ), true);
         let mut lps: Vec<Name> = Vec::with_capacity(1);
         lps.push(nm("u"));
-        assert!(chk_matches_pin(
+        assert_eq!(matches_pin(
             &cv(name::dup(&two), lps, nat_ty()),
             &cv(name::dup(&two), Vec::new(), nat_ty())
-        ));
+        ), false);
     }
 
-    /// The arena's `canonEqList` against con-ron-core's, on the pinned blocks
-    /// and on a block that is not one.
-    fn chk_canon_list(xs: &Vec<ConstantInfo>, ys: &Vec<ConstantInfo>) -> bool {
+    /// The arena's `canonEqList`.
+    fn canon_list(xs: &Vec<ConstantInfo>, ys: &Vec<ConstantInfo>) -> bool {
         let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
         let a = ok(intern_ci_list(pers, &mut st, xs));
         let b = ok(intern_ci_list(pers, &mut st, ys));
-        let got = ok(crate::arena::canon::canon_eq_list(pers, &mut st, &a, &b, 0));
-        got == ccanon::canon_eq_list(xs, ys)
+        ok(crate::arena::canon::canon_eq_list(pers, &mut st, &a, &b, 0))
     }
 
+    /// On the pinned blocks and on a block that is not one.  Expected answers
+    /// as in `std_axiom_ok_answers`.
     #[test]
-    fn canon_eq_list_agrees() {
+    fn canon_eq_list_answers() {
         let nat = basis_raw::basis_kind_decls(&BasisKind::NatK);
         let eq = basis_raw::basis_kind_decls(&BasisKind::EqK);
-        assert!(chk_canon_list(&nat, &basis_raw::basis_kind_decls(&BasisKind::NatK)));
-        assert!(chk_canon_list(&eq, &basis_raw::basis_kind_decls(&BasisKind::EqK)));
-        assert!(chk_canon_list(&eq, &nat));
-        assert!(chk_canon_list(
+        assert_eq!(canon_list(&nat, &basis_raw::basis_kind_decls(&BasisKind::NatK)), true);
+        assert_eq!(canon_list(&eq, &basis_raw::basis_kind_decls(&BasisKind::EqK)), true);
+        assert_eq!(canon_list(&eq, &nat), false);
+        assert_eq!(canon_list(
             &crate::kernel::basis_tables::basis_decls_a(&BasisKind::EqK),
             &eq
-        ));
+        ), false);
     }
 
-    /// The arena's `basisPinHit` against con-ron-core's.
-    fn chk_basis_pin_hit(block: &Vec<ConstantInfo>) -> bool {
+    /// The arena's `basisPinHit`, as the kind's ordinal (`None` as 9).
+    fn pin_hit(block: &Vec<ConstantInfo>) -> u8 {
         let pers: &PersTier = &PersTier::empty();
         let mut st = pinned_state();
         let b = ok(intern_ci_list(pers, &mut st, block));
-        let got = ok(basis_pin_hit(pers, &mut st, &b));
-        let want = basis_raw::basis_pin_hit(block);
-        match (got, want) {
-            (None, None) => true,
-            (Some(x), Some(y)) => basis_kind_beq(&x, &y),
-            _ => false,
+        match ok(basis_pin_hit(pers, &mut st, &b)) {
+            None => 9,
+            Some(BasisKind::EqK) => 0,
+            Some(BasisKind::NatK) => 1,
+            Some(BasisKind::EmptyK) => 2,
+            Some(BasisKind::FalseK) => 3,
+            Some(BasisKind::QuotK) => 4,
         }
     }
 
-    /// The five-constructor enum's equality, which `kernel::env` does not carry.
-    fn basis_kind_beq(a: &BasisKind, b: &BasisKind) -> bool {
-        match (a, b) {
-            (BasisKind::EqK, BasisKind::EqK) => true,
-            (BasisKind::NatK, BasisKind::NatK) => true,
-            (BasisKind::EmptyK, BasisKind::EmptyK) => true,
-            (BasisKind::FalseK, BasisKind::FalseK) => true,
-            (BasisKind::QuotK, BasisKind::QuotK) => true,
-            _ => false,
-        }
-    }
-
+    /// The raw blocks hit their own kind; the quotient package is not a block
+    /// pin (its records arrive one at a time) and neither is nothing.
+    /// Expected answers as in `std_axiom_ok_answers`.
     #[test]
-    fn basis_pin_hit_agrees() {
-        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::NatK)));
-        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::EqK)));
-        assert!(chk_basis_pin_hit(&basis_raw::basis_kind_decls(&BasisKind::QuotK)));
-        assert!(chk_basis_pin_hit(&Vec::new()));
+    fn basis_pin_hit_answers() {
+        assert_eq!(pin_hit(&basis_raw::basis_kind_decls(&BasisKind::NatK)), 1);
+        assert_eq!(pin_hit(&basis_raw::basis_kind_decls(&BasisKind::EqK)), 0);
+        assert_eq!(pin_hit(&basis_raw::basis_kind_decls(&BasisKind::QuotK)), 9);
+        assert_eq!(pin_hit(&Vec::new()), 9);
     }
 
     // --- the startup walk and `atDecl` ---------------------------------------
