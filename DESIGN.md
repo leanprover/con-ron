@@ -66128,3 +66128,122 @@ landing), 0 deletable.  The pin (`proof/lakefile.toml`,
 **Shared state.**  The campaign ran on a private reflink copy of the
 packages directory, `_tmp/t106-packages`, deleted at the end.  The shared
 con-leche checkout was not touched and is still at `445b9cf4`.
+
+### Task #107 — OVERVIEW §9's performance table, scripted end to end, and refreshed (2026-10-01, Opus under Fable)
+
+The maintainer: "I hope the table update is fully scripted? no creativity
+here please."  It was not: §9 was a hand-written snapshot (task
+#97-REMEASURE plus a hand re-take of two `Init` cells at `46450386`), and
+`scripts/bench-baselines.sh` ran only two of its four rows.  Worktree
+`_tmp/wt-t107`, branch `t107-perf` off master `d3c1d43d`.
+
+**The pipeline.**  One command refreshes §9:
+
+```
+scripts/bench-baselines.sh --build --render --task '#NNN'
+```
+
+* `scripts/bench-baselines.sh` (extended, still the one runner) now has four
+  rows: `con-ron` (`--verified --jobs=1 --progress=1000000`, the driver
+  convention of #97-P6-3), `con-ron-j8` (`--jobs=8`), `con-leche`
+  (`--verified --jobs=1`) and `nanoda` (`num_threads: 0`).  Default exports
+  are `init mathlib` (the table's; `core` stays available).  `--build` runs
+  `cargo build --release -p con-ron` and builds con-leche as #97-REMEASURE
+  did: a private `git clone` of `scripts/provenance.py dir`'s checkout under
+  `--out`, detached at `scripts/provenance.py pin`'s rev, then `lake build
+  con-leche` there (the shared Lake cache restored all of it; the shared
+  package directory is only read).  The matrix runs one checker at a time,
+  `init`'s rounds interleaved (round r runs all four binaries).  It writes
+  `identity.json` (date, commit, dirty flag and md5 of each binary, the
+  exports' stream headers, `nproc`), `matrix.{start,end}`, and per run a
+  `.load` (`/proc/loadavg` at its start) beside the old
+  `.perf/.time/.out/.err/.exit`.
+* **The caps.**  The script's `Init` cap of 2.6 GB had been dead since
+  #97-REMEASURE found that it kills both con-leche and con-ron at thread
+  creation (address space is not memory).  Decided here: the script now
+  carries the caps every measurement since then has used — 8 GiB for one
+  worker on `init`/`core`, 27 000 000 KB for `con-ron-j8` there, 27 GiB on
+  Mathlib — and the 3× budget is checked on peak RSS by the renderer.
+  Timeouts unchanged (1 800 / 3 600 / 9 000 s).
+* `scripts/perf-table.py` (new) reads only those files.  It rewrites OVERVIEW
+  between `<!-- perf-table:begin -->` and `<!-- perf-table:end -->`: the
+  snapshot paragraph (dates, commits, declaration counts and run counts from
+  the files), the table (median instructions; wall and peak-RSS ranges) and
+  the comparison paragraph.  Every number there is computed; the ratios are
+  plain percentages (no adjectives); the 3× budget sentence compares each
+  con-ron row's largest peak with three times con-leche's smallest on the
+  same export and names any row that exceeds it.  The sentences without
+  numbers are the old text, kept as fixed template.  It refuses to render
+  when a run is missing, exited non-zero (cap, timeout, rejection), lacks a
+  count, when con-ron and con-leche disagree on the accepted count, or when
+  con-ron or con-leche was built from a dirty tree.  `--raw` prints the
+  block below; `--previous DESIGN.md --previous-task ID` appends a per-row
+  comparison against an earlier task's raw block (the format is
+  #97-REMEASURE's, so this task's block is the next refresh's `--previous`).
+* nanoda's build is always "dirty": `_tmp/t97/nanoda-build` is the copy with
+  an empty `[workspace]` table appended to `Cargo.toml` (#97-P6-3).  The raw
+  block says so; OVERVIEW names its commit only.
+
+**The run.**  Exports `_tmp/corpus/{init,mathlib}.ndjson` as they are: dated
+2026-09-12, unchanged since task #29, `lean4export` 3.1.0 on Lean 4.33.0
+(`d8b18978`) — the files #97-REMEASURE used.  Command:
+
+```
+scripts/bench-baselines.sh --build --out _tmp/t107/perf
+scripts/perf-table.py --overview OVERVIEW.md --task '#107' --raw \
+  --previous DESIGN.md --previous-task '#97-REMEASURE' _tmp/t107/perf
+```
+
+(the second line is what `--render` runs, plus the comparison).  The
+output below is pasted verbatim.
+
+
+**Identities** (`identity.json`): con-ron `fd543c551cf845f188061bb3f1328efc03708379` (md5 `c2815113547a…`), con-leche `a31e829790101f7c523e79b6b5ede03834b9e9f6` (md5 `7e2b1a0b6a26…`), nanoda `4c544ed4099c8227f07d5de77ad1e69fb0740a27` (dirty) (md5 `e1a717d9366f…`); 2026-10-01; 96 hardware threads.
+
+| export | checker | instructions:u | wall | peak RSS (KB) | accepted | load (1 min) |
+|---|---|---:|---:|---:|---:|---:|
+| `Init` | con-ron ×1 | 204 237 025 546 / 204 237 156 084 / 204 236 930 915 | 21.39 / 21.30 / 21.54 s | 592 068 / 587 260 / 587 104 | 57 977 | 0.94 / 1.70 / 1.22 |
+| `Init` | con-ron ×8 | 205 780 494 297 / 205 815 061 352 / 205 632 231 131 | 5.32 / 5.34 / 5.29 s | 891 864 / 887 112 / 884 464 | 57 977 | 1.03 / 1.56 / 1.23 |
+| `Init` | con-leche ×1 | 454 978 225 204 / 455 010 287 291 / 455 000 166 305 | 44.59 / 44.29 / 43.95 s | 477 280 / 478 336 / 477 404 | 57 977 | 1.10 / 1.52 / 1.21 |
+| `Init` | nanoda | 230 513 015 899 / 230 513 015 621 / 230 513 015 368 | 24.03 / 23.92 / 23.96 s | 362 824 / 362 748 / 364 164 | 59 433 | 1.72 / 1.24 / 1.75 |
+| Mathlib | con-ron ×1 | 3 714 040 501 314 | 444.04 s | 6 756 120 | 691 128 | 1.67 |
+| Mathlib | con-ron ×8 | 3 729 798 020 029 | 114.39 s | 7 351 148 | 691 128 | 1.76 |
+| Mathlib | con-leche ×1 | 8 057 677 638 979 | 846.75 s | 8 688 760 | 691 128 | 5.57 |
+| Mathlib | nanoda | 6 053 980 232 013 | 994.80 s | 7 115 748 | 707 508 | 1.85 |
+
+Against task #97-REMEASURE's raw block (medians; peak RSS is the largest run):
+
+| export | checker | instructions:u then | now | change | peak RSS then | now | change |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `Init` | con-ron ×1 | 211 981 142 729 | 204 237 025 546 | −3.7 % | 649 480 | 592 068 | −8.8 % |
+| `Init` | con-ron ×8 | 214 168 440 046 | 205 780 494 297 | −3.9 % | 872 192 | 891 864 | +2.3 % |
+| `Init` | con-leche ×1 | 453 953 571 583 | 455 000 166 305 | +0.2 % | 492 568 | 478 336 | −2.9 % |
+| `Init` | nanoda | 231 248 157 087 | 230 513 015 621 | −0.3 % | 365 116 | 364 164 | −0.3 % |
+| Mathlib | con-ron ×1 | 3 880 262 437 632 | 3 714 040 501 314 | −4.3 % | 6 888 472 | 6 756 120 | −1.9 % |
+| Mathlib | con-ron ×8 | 3 901 771 103 996 | 3 729 798 020 029 | −4.4 % | 7 444 016 | 7 351 148 | −1.2 % |
+| Mathlib | con-leche ×1 | 8 099 094 775 377 | 8 057 677 638 979 | −0.5 % | 8 703 428 | 8 688 760 | −0.2 % |
+| Mathlib | nanoda | 6 057 226 107 146 | 6 053 980 232 013 | −0.1 % | 7 084 484 | 7 115 748 | +0.4 % |
+
+The matrix ran 0 h 44 min (2 686 s).
+
+**Reading the comparison.**  The "then" column is #97-REMEASURE's raw block
+(`c6e5f220`), not OVERVIEW's last table: two of that table's cells, con-ron's
+`Init` instructions (204.62 G and 206.20 G), were a hand re-take at
+`46450386` whose raw files were never recorded as a block.  Against those
+two cells the new medians are 204.24 G and 205.78 G (−0.2 % each).
+con-leche moved pin (`78ded4b6` → `a31e8297`, task #106) and nanoda did not
+move at all (same binary), so their rows are the noise floor of a
+re-measurement: within 0.5 % in instructions.  No run hit a cap or a
+timeout; every run exited 0 with the expected acceptance counts.
+
+**What was decided.**  (1) The `Init` caps (above).  (2) Medians in the
+table, all runs in the raw block.  (3) The 3× budget is checked as each
+con-ron row's *largest* peak against three times con-leche's *smallest* on
+the same export — the strict reading.  (4) Percentages to one decimal, no
+adjectives.  (5) The old prose "on a shared, loaded machine" became the
+measured one-minute load average at the starts of the runs.  (6) The table
+names con-ron's commit `fd543c55` — the commit the binary was built from,
+whose crates are master `d3c1d43d`'s (it adds only the two scripts and the
+markers).  README.md's "Performance" paragraph links to §9 and carries no
+numbers; it is untouched.  The raw files `_tmp/t107/` (and the con-leche
+clone in it) are deleted.
