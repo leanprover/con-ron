@@ -584,16 +584,6 @@ theorem pin_and_rec_run₀ {pers st lst} {o}
     LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_quot st) st lst pinQuot :=
   pinRE_lsr hrel hinv fun _ h => pin_quot_run₀ hrel hinv h
 
-@[lockstep] theorem pin_and_intro_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_and_intro st) st lst pinAndIntro :=
-  pinRE_lsr hrel hinv fun _ h => pin_and_intro_run₀ hrel hinv h
-
-@[lockstep] theorem pin_and_rec_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = absNIdx a) (arena.pins.pin_and_rec st) st lst pinAndRec :=
-  pinRE_lsr hrel hinv fun _ h => pin_and_rec_run₀ hrel hinv h
-
 /-! ## Handle `dup2` / `eq2` (Rust-only steps) -/
 
 @[lockstep] theorem dup2_nidx (h : arena.handle.NIdx) :

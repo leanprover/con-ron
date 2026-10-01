@@ -396,13 +396,6 @@ theorem and_pin_ok_refines {pers st lst} {pd : arena.env.IDeclaration} {o}
   cases pd <;> unfold arena.basis.and_pin_ok <;>
     simp only [absIDeclaration, andPinOk] <;> lockstep
 
-open Lockstep in
-@[lockstep] theorem and_pin_ok_ls {pers st lst} {pd : arena.env.IDeclaration}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = id a) (arena.basis.and_pin_ok pers st pd) lst
-      (andPinOk (absIDeclaration pd)) :=
-  LS.ofSim₀ fun _ h => and_pin_ok_refines hrel hinv h
-
 /-- `check_ind_decl` ⊑ `checkDecl`'s `.indDecl` arm — the pinned basis blocks
 recognised first (a stream's `Nat` block arrives as an ordinary `indDecl`),
 then the declared parameter count, the recogniser and the one uniform route
