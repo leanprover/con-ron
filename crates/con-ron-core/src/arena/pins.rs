@@ -37,7 +37,7 @@
 //!
 //! ## What is pinned
 //!
-//! The forty-eight names below and `basis_names::reserved_basis_names()`'s
+//! The fifty names below and `basis_names::reserved_basis_names()`'s
 //! sixteen, plus the three interned values every `pin` site around them
 //! needs: the empty universe-argument list, the level `0` and the expression
 //! `Sort 1` (`arena::core`'s `empty_levels`, `zero_level` and `sort_one`,
@@ -71,6 +71,7 @@ use crate::arena::monad::{
 };
 use crate::arena::store::LNodeView;
 use crate::kernel::basis_names;
+use crate::kernel::basis_raw;
 use crate::kernel::core_k;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::name::Name;
@@ -98,7 +99,7 @@ const M_PINS_UNSET: [u32; 38] = [
 
 /// con-leche: none — the arena's own pin table; the number of pinned names
 /// The length `intern_reserved_pins` fills and `pin_at` bounds-checks against.
-pub const PIN_COUNT: usize = 48;
+pub const PIN_COUNT: usize = 50;
 
 // `basis_names`
 /// con-leche: none — the arena's own pin table; `basis_names::eq_name()`'s slot
@@ -204,6 +205,12 @@ pub const PIN_OF_REDUCE_BOOL: usize = 46;
 /// con-leche: none — the arena's own pin table; `basis_names::quot_name()`'s slot
 /// (task #105: the positivity check's one container name, `nestCont`'s `quotName`)
 pub const PIN_QUOT: usize = 47;
+/// con-leche: none — the arena's own pin table; `basis_raw::and_intro_name()`'s slot
+/// (task #106: the fold's `And` pin, `andPinOk`'s `andPinNames`)
+pub const PIN_AND_INTRO: usize = 48;
+/// con-leche: none — the arena's own pin table; `basis_raw::and_rec_name()`'s slot
+/// (task #106: the fold's `And` pin, `andPinOk`'s `andPinNames`)
+pub const PIN_AND_REC: usize = 49;
 
 // ---------------------------------------------------------------------------
 // The record
@@ -260,14 +267,14 @@ impl Pins {
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3, task #97c)
-/// The forty-eight reserved names as VALUES, in `PIN_*` order.  This is the
+/// The fifty reserved names as VALUES, in `PIN_*` order.  This is the
 /// one place they are built, and it runs once per process.
 ///
 /// Spelled as pushes rather than a `vec![…]` literal because the extraction
 /// takes the pushes as they are; the order is the `PIN_*` constants', which
 /// `pins_table_is_in_slot_order` in this module's tests checks name by name.
 /// Lean twin: `proof/ConRon/Arena/Pins.lean:166-191 pinNames` — the same
-/// forty-eight names, in `PIN_*` order.
+/// fifty names, in `PIN_*` order.
 pub fn pin_names() -> Vec<Name> {
     let mut out: Vec<Name> = Vec::new();
     out.push(basis_names::eq_name());
@@ -318,6 +325,8 @@ pub fn pin_names() -> Vec<Name> {
     out.push(ctrust::of_reduce_nat_name());
     out.push(ctrust::of_reduce_bool_name());
     out.push(basis_names::quot_name());
+    out.push(basis_raw::and_intro_name());
+    out.push(basis_raw::and_rec_name());
     out
 }
 
@@ -441,7 +450,7 @@ pub fn pin_sort_one(st: &AState) -> Result<EIdx, CheckError> {
 }
 
 // ---------------------------------------------------------------------------
-// The forty-eight named readers: one per `PIN_*` slot
+// The fifty named readers: one per `PIN_*` slot
 // ---------------------------------------------------------------------------
 
 /// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
@@ -827,6 +836,24 @@ pub fn pin_of_reduce_bool(st: &AState) -> Result<NIdx, CheckError> {
 /// through `pinAt`.
 pub fn pin_quot(st: &AState) -> Result<NIdx, CheckError> {
     pin_at(st, PIN_QUOT)
+}
+
+/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
+/// `basis_raw::and_intro_name()`'s handle, off the record `intern_reserved_pins`
+/// filled (task #106: the fold's `And` pin).
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:368-370 pinAndIntro` — the same slot,
+/// read through `pinAt`.
+pub fn pin_and_intro(st: &AState) -> Result<NIdx, CheckError> {
+    pin_at(st, PIN_AND_INTRO)
+}
+
+/// con-leche: none — the arena's own pin table (DESIGN.md §8.3)
+/// `basis_raw::and_rec_name()`'s handle, off the record `intern_reserved_pins`
+/// filled (task #106: the fold's `And` pin).
+/// Lean twin: `proof/ConRon/Arena/Pins.lean:368-370 pinAndRec` — the same slot,
+/// read through `pinAt`.
+pub fn pin_and_rec(st: &AState) -> Result<NIdx, CheckError> {
+    pin_at(st, PIN_AND_REC)
 }
 
 

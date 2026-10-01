@@ -77,7 +77,6 @@ use con_ron_core::arena::store::PersTier;
 // reproduced.
 
 /// con-leche: Main.lean:651-848 usage
-/// con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -199,9 +198,10 @@ NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is
 no external tool, no dependency and no spawn.  Every inductive block --
 structures, sums, indexed families, recursive, reflexive, mutual and nested
 blocks -- is installed by the ONE uniform installer: it checks the type
-formers and constructors, runs the positivity check, and CHECKS the stream's
-recursor records against the block; nothing is generated in their place.  No
-model is ever read from the input: a stream record whose name carries a
+formers and constructors, runs the positivity check, and GENERATES the block's
+recursors; the stream's recursor records supply only their types, compared with
+the generated ones up to definitional equality, and their classes -- the rule
+bodies the stream carries are ignored.  No model is ever read from the input: a stream record whose name carries a
 `_model` component is an ordinary declaration with no effect on any block.  A
 block whose shape the installer does not recognise declines (exit 2), naming
 it.  The binary reads no environment variable.";

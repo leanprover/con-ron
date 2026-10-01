@@ -1,5 +1,6 @@
-//! `ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot}.lean` and
-//! `ConLeche/Kernel/Basis.lean` — the **raw** pinned basis blocks: each block
+//! `ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot,And}.lean` and
+//! `ConLeche/Kernel/Basis.lean` — the **raw** pinned basis blocks (and the
+//! pinned `And` block, which the fold recognises but never installs from here): each block
 //! exactly as an export carries it, the toolchain's `Init.Prelude`
 //! declaration at the parser's raw binder annotations — plus the two tests
 //! that recognise one in a stream record.
@@ -40,9 +41,10 @@
 //! `lm`/`lmI` are one, because `Expr` carries neither a binder name nor a
 //! binder info.
 
-use crate::kernel::basis_builder::{ap2, ap3, bv, cnst, lm, pi, prop, srt, type1, u, u1};
+use crate::kernel::basis_builder::{ap2, ap3, ap4, bv, cnst, lm, pi, prop, srt, type1, u, u1};
 use crate::kernel::basis_builder::{u1_n, u_n, v, v_n};
 use crate::kernel::basis_names as bnm;
+use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps, RecRule};
 use crate::kernel::expr;
@@ -671,6 +673,135 @@ pub fn quot_sound_raw() -> ConstantInfo {
 /// The pinned `Quot` basis block, in install order.
 pub fn quot_basis() -> Vec<ConstantInfo> {
     vec5(quot_raw(), quot_mk_raw(), quot_lift_raw(), quot_ind_raw(), quot_sound_raw())
+}
+
+// --- And -------------------------------------------------------------------
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:39-40 andIntroName
+/// The name `And.intro`.
+pub fn and_intro_name() -> Name {
+    const S: [u32; 5] = [105, 110, 116, 114, 111];
+    name::mk_str(bnm::and_name(), core_types::code_points(&S))
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:42-43 andRecName
+/// The name `And.rec`.
+pub fn and_rec_name() -> Name {
+    bnm::rec_of(bnm::and_name())
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:45-48 andRaw
+/// `And (a b : Prop) : Prop`.
+pub fn and_raw() -> ConstantInfo {
+    let caps = IndCaps {
+        all: vec1(bnm::and_name()),
+        nparams: 2,
+        ctors: vec1(and_intro_name()),
+        ..env::ind_caps_default()
+    };
+    ConstantInfo::IndInfo(cv(bnm::and_name(), Vec::new(), pi(prop(), pi(prop(), prop()))), caps)
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:50-58 andIntroRaw
+/// `And.intro {a b : Prop} (left : a) (right : b) : And a b`.
+pub fn and_intro_raw() -> ConstantInfo {
+    ConstantInfo::CtorInfo(
+        cv(
+            and_intro_name(),
+            Vec::new(),
+            pi(
+                prop(),
+                pi(
+                    prop(),
+                    pi(
+                        bv(1),
+                        pi(bv(1), ap2(cnst(bnm::and_name(), Vec::new()), bv(3), bv(2))),
+                    ),
+                ),
+            ),
+        ),
+        2,
+        2,
+    )
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:60-63 andRecMotive
+/// The motive of `And.rec`: `And a b → Sort u`, in the `a`/`b` binder context
+/// (`a` is `#1`, `b` is `#0`).
+pub fn and_rec_motive() -> Expr {
+    pi(ap2(cnst(bnm::and_name(), Vec::new()), bv(1), bv(0)), srt(u()))
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:65-71 andRecMinor
+/// The minor premise of `And.rec`: `(left : a) → (right : b) → motive
+/// (And.intro left right)`, in the `a`/`b`/`motive` binder context.
+pub fn and_rec_minor() -> Expr {
+    pi(
+        bv(2),
+        pi(
+            bv(2),
+            expr::app(
+                bv(2),
+                ap4(cnst(and_intro_name(), Vec::new()), bv(4), bv(3), bv(1), bv(0)),
+            ),
+        ),
+    )
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:73-92 andRecRaw
+/// `And.rec.{u} {a b : Prop} {motive : And a b → Sort u} (intro : (left : a)
+/// → (right : b) → motive ⟨left, right⟩) (t : And a b) : motive t`.
+pub fn and_rec_raw() -> ConstantInfo {
+    ConstantInfo::RecInfo(
+        cv(
+            and_rec_name(),
+            vec1(u_n()),
+            pi(
+                prop(),
+                pi(
+                    prop(),
+                    pi(
+                        and_rec_motive(),
+                        pi(
+                            and_rec_minor(),
+                            pi(
+                                ap2(cnst(bnm::and_name(), Vec::new()), bv(3), bv(2)),
+                                expr::app(bv(2), bv(0)),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        4,
+        4,
+        vec1(rule(
+            and_intro_name(),
+            2,
+            lm(
+                prop(),
+                lm(
+                    prop(),
+                    lm(
+                        and_rec_motive(),
+                        lm(
+                            and_rec_minor(),
+                            lm(bv(3), lm(bv(3), ap2(bv(2), bv(1), bv(0)))),
+                        ),
+                    ),
+                ),
+            ),
+        )),
+    )
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:94-95 andPin
+/// The pinned `And` block, in the order an export lists it.  Unlike the five
+/// basis blocks it is never installed from here: the fold only compares a
+/// stream block against it (`arena::basis::and_pin_ok`), and the matching
+/// block goes through the ordinary inductive installer.
+pub fn and_pin() -> Vec<ConstantInfo> {
+    vec3(and_raw(), and_intro_raw(), and_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:36-42 BasisKind.decls

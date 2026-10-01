@@ -77,6 +77,14 @@ pub const M_QUOT_BASIS_EQ: [u32; 43] = [
     113, 32, 98, 97, 115, 105, 115
 ];
 
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// ``"`And` must be the standard `And`"``, as code points: `annotDeclStep`'s
+/// reject of a record that fails the `And` pin.
+pub const M_AND_PIN: [u32; 32] = [
+    96, 65, 110, 100, 96, 32, 109, 117, 115, 116, 32, 98, 101, 32, 116, 104, 101, 32, 115,
+    116, 97, 110, 100, 97, 114, 100, 32, 96, 65, 110, 100, 96
+];
+
 // ---------------------------------------------------------------------------
 // The pinned basis install (`Checker.lean:65-78` of the twin)
 // ---------------------------------------------------------------------------
@@ -469,11 +477,16 @@ pub fn annot_step_other(
 }
 
 /// con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep
-/// con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove checker::annot_decl_step_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:207-221 annotDeclStep` — phase
 /// A's step with the position carried and the error tagged: a failing step
 /// reports the `CheckError` together with `i`, the fold position of the
 /// declaration that failed.
+///
+/// **The `And` pin comes first** (con-leche's ANDPIN, `basis::and_pin_ok`): a
+/// record that declares `And`, `And.intro` or `And.rec` and is not the
+/// toolchain's `And` block is rejected here, whatever its kind, ahead of the
+/// kind dispatch and outside the scratch bracket — so the comparison's
+/// interning (the pin block, once a run) lands in the persistent tier.
 ///
 /// Deviation: the twin restores the PRE-step state on a failure (it is written
 /// as a state function); a failure aborts the whole fold here, so nothing reads
@@ -488,9 +501,18 @@ pub fn annot_decl_step(
     pd: &IDeclaration,
 ) -> Result<(u64, IFEnv, Vec<PendingCheck>), (CheckError, u64)> {
     let i: u64 = p.0;
-    match annot_step(pers, st, mode, pins, i, p.1, p.2, pd) {
+    match crate::arena::basis::and_pin_ok(pers, st, pd) {
         Err(e) => Err((e, i)),
-        Ok(q) => Ok((i + 1, q.0, q.1)),
+        Ok(ok_and) => {
+            if ok_and {
+                match annot_step(pers, st, mode, pins, i, p.1, p.2, pd) {
+                    Err(e) => Err((e, i)),
+                    Ok(q) => Ok((i + 1, q.0, q.1)),
+                }
+            } else {
+                Err((CheckError::Invalid(code_points(&M_AND_PIN)), i))
+            }
+        }
     }
 }
 

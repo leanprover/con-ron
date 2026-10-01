@@ -3,7 +3,10 @@
 //! The Rust twin of `proof/ConRon/Arena/Basis.lean`, which is con-leche's
 //! `Kernel/Basis.lean` and `Kernel/BasisA.lean`: the constants of the five
 //! pinned blocks (`Eq`, `Nat`, `Empty`, `False`, `Quot`) and the two
-//! tests that recognise a stream record as one of them.
+//! tests that recognise a stream record as one of them, and the fold's
+//! `And` pin (`and_pin_ok`, con-leche's ANDPIN): a record that declares
+//! `And`, `And.intro` or `And.rec` and is not the toolchain's block is
+//! rejected.
 //!
 //! **The blocks are values, interned** (`arena::intern`'s module note).  The
 //! Lean twin interns con-leche's `BasisKind.decls` / `declsA`; the Rust interns
@@ -19,7 +22,7 @@
 //! against the raw block and `check_basis_decl` installs the annotated one, so
 //! the arena keeps the two apart exactly as con-leche does.
 
-use crate::arena::env::{i_constant_info_name, i_constant_info_to_constant_val, IConstantInfo, IConstantVal};
+use crate::arena::env::{i_constant_info_name, i_constant_info_to_constant_val, IConstantInfo, IConstantVal, IDeclaration};
 use crate::arena::handle::NIdx;
 use crate::arena::intern::intern_ci_list;
 use crate::arena::monad::AState;
@@ -155,5 +158,90 @@ pub fn quot_pin_hit(
                 }
             }
         }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis/And.lean:97-99 andPinNames
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:90-95 andPinNameHs` — the names
+/// the pinned `And` block declares, as handles: `And`, `And.intro`, `And.rec`,
+/// off the reserved-name table (`arena::pins`), so the test below costs three
+/// slot reads per record and interns nothing.
+pub fn and_pin_name_hs(st: &AState) -> Result<Vec<NIdx>, CheckError> {
+    match crate::arena::pins::pin_and(st) {
+        Err(e) => Err(e),
+        Ok(a) => match crate::arena::pins::pin_and_intro(st) {
+            Err(e) => Err(e),
+            Ok(i) => match crate::arena::pins::pin_and_rec(st) {
+                Err(e) => Err(e),
+                Ok(r) => {
+                    let mut hs: Vec<NIdx> = Vec::new();
+                    hs.push(a);
+                    hs.push(i);
+                    hs.push(r);
+                    Ok(hs)
+                }
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:97-102 blockAndNamed` — the
+/// `.indDecl` arm's `block.any fun c => andPinNames.contains c.name`, as a
+/// cursor recursion (§3.4 forbids the closure).
+pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> bool {
+    if i >= block.len() {
+        false
+    } else if crate::arena::env::nidx_vec_contains(hs, &i_constant_info_name(&block[i])) {
+        true
+    } else {
+        block_and_named(block, hs, i + 1)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:104-108 andPinNameFree` — the
+/// arm of every one-constant record: it may not declare one of the pinned
+/// `And` block's names.
+pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
+    match and_pin_name_hs(st) {
+        Err(e) => Err(e),
+        Ok(hs) => Ok(!crate::arena::env::nidx_vec_contains(&hs, n)),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:110-133 andPinOk` — **the `And`
+/// pin's test**: the record declares none of the pinned `And` block's names,
+/// or it IS that block — two parameters, and equal to `andPin` up to
+/// `ConstantInfo.canon`.  The block comparison is `basis_pin_hit`'s: the pin
+/// is interned and compared with `canon_eq_list`, and only a block that
+/// declares one of the three names gets that far, so an ordinary record pays
+/// the three slot reads and a handle scan.
+pub fn and_pin_ok(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result<bool, CheckError> {
+    match pd {
+        IDeclaration::IndDecl(block, n_p) => match and_pin_name_hs(st) {
+            Err(e) => Err(e),
+            Ok(hs) => {
+                if block_and_named(block, &hs, 0) {
+                    if *n_p == 2 {
+                        match intern_ci_list(pers, st, &basis_raw::and_pin()) {
+                            Err(e) => Err(e),
+                            Ok(pinned) => crate::arena::canon::canon_eq_list(pers, st, block, &pinned, 0),
+                        }
+                    } else {
+                        Ok(false)
+                    }
+                } else {
+                    Ok(true)
+                }
+            }
+        },
+        IDeclaration::AxiomDecl(cv) => and_pin_name_free(st, &cv.name),
+        IDeclaration::DefnDecl(cv, _, _) => and_pin_name_free(st, &cv.name),
+        IDeclaration::ThmDecl(cv, _) => and_pin_name_free(st, &cv.name),
+        IDeclaration::OpaqueDecl(cv, _) => and_pin_name_free(st, &cv.name),
+        IDeclaration::QuotDecl(_, cv) => and_pin_name_free(st, &cv.name),
+        IDeclaration::BasisDecl(_) => Ok(true),
     }
 }

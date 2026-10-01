@@ -647,7 +647,7 @@ structure arena.store.EStore where
   scratch_on : Bool
 
 /-- [con_ron_core::arena::pins::Pins]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 225:0-240:1
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 232:0-247:1
     Visibility: public -/
 structure arena.pins.Pins where
   names : alloc.vec.Vec arena.handle.NIdx
@@ -990,6 +990,35 @@ inductive kernel.env.QuotKind where
 | Ind : kernel.env.QuotKind
 | Sound : kernel.env.QuotKind
 
+/-- [con_ron_core::arena::env::IDeclaration]
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 528:0-536:1
+    Visibility: public -/
+@[discriminant isize]
+inductive arena.env.IDeclaration where
+| AxiomDecl : arena.env.IConstantVal → arena.env.IDeclaration
+| DefnDecl :
+  arena.env.IConstantVal →
+  arena.handle.EIdx →
+  kernel.env.ReducibilityHint →
+  arena.env.IDeclaration
+| ThmDecl :
+  arena.env.IConstantVal →
+  arena.handle.EIdx →
+  arena.env.IDeclaration
+| OpaqueDecl :
+  arena.env.IConstantVal →
+  arena.handle.EIdx →
+  arena.env.IDeclaration
+| BasisDecl : kernel.env.BasisKind → arena.env.IDeclaration
+| IndDecl :
+  alloc.vec.Vec arena.env.IConstantInfo →
+  Std.U64 →
+  arena.env.IDeclaration
+| QuotDecl :
+  kernel.env.QuotKind →
+  arena.env.IConstantVal →
+  arena.env.IDeclaration
+
 /-- [con_ron_core::kernel::env::CheckMode]
     Source: 'crates/con-ron-core/src/kernel/env.rs', lines 64:0-67:1
     Visibility: public -/
@@ -1081,35 +1110,6 @@ structure arena.nat_op_pin_set.INatOpPinSet where
   xor_proofs : alloc.vec.Vec arena.handle.EIdx
   shift_left_proofs : alloc.vec.Vec arena.handle.EIdx
   shift_right_proofs : alloc.vec.Vec arena.handle.EIdx
-
-/-- [con_ron_core::arena::env::IDeclaration]
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 528:0-536:1
-    Visibility: public -/
-@[discriminant isize]
-inductive arena.env.IDeclaration where
-| AxiomDecl : arena.env.IConstantVal → arena.env.IDeclaration
-| DefnDecl :
-  arena.env.IConstantVal →
-  arena.handle.EIdx →
-  kernel.env.ReducibilityHint →
-  arena.env.IDeclaration
-| ThmDecl :
-  arena.env.IConstantVal →
-  arena.handle.EIdx →
-  arena.env.IDeclaration
-| OpaqueDecl :
-  arena.env.IConstantVal →
-  arena.handle.EIdx →
-  arena.env.IDeclaration
-| BasisDecl : kernel.env.BasisKind → arena.env.IDeclaration
-| IndDecl :
-  alloc.vec.Vec arena.env.IConstantInfo →
-  Std.U64 →
-  arena.env.IDeclaration
-| QuotDecl :
-  kernel.env.QuotKind →
-  arena.env.IConstantVal →
-  arena.env.IDeclaration
 
 /-- [con_ron_core::arena::inductives::positivity::NestCtorNf]
     Source: 'crates/con-ron-core/src/arena/inductives/positivity.rs', lines 999:0-1004:1
@@ -1385,7 +1385,7 @@ structure arena.checker_split.ValueGroup where
   jv : arena.handle.EIdx
 
 /-- [con_ron_core::arena::checker::PendingCheck]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 137:0-141:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 145:0-149:1
     Visibility: public -/
 structure arena.checker.PendingCheck where
   vg : arena.checker_split.ValueGroup
@@ -1402,7 +1402,7 @@ structure arena.promote.PMemo where
   ls_m : ron.hashmap2.HashMap2 arena.handle.LsIdx arena.handle.LsIdx
 
 /-- Trait declaration: [con_ron_core::arena::checker::InstallHook]
-    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 584:0-588:1
+    Source: 'crates/con-ron-core/src/arena/checker.rs', lines 607:0-611:1
     Visibility: public -/
 structure arena.checker.InstallHook (Self : Type) where
   install_before : Self → arena.store.PersTier → arena.store.EStore →

@@ -130,13 +130,14 @@ mod tests {
         // hash-consed, so what the prelude ADDS is the twin's count minus
         // what the two share: the pins' one expression node (`Sort 1`) and
         // both its level nodes (`0`, `1`) are the prelude's too, and some of
-        // their 61 name nodes are.
+        // their 63 name nodes are (task #106: `And.intro` and `And.rec` are
+        // pinned now, so two of the prelude's name nodes moved to the pins).
         assert_eq!(e0, 1, "the pins' expression nodes");
         assert_eq!(l0, 2, "the pins' level nodes");
-        assert_eq!(n0, 61, "the pins' name nodes");
+        assert_eq!(n0, 63, "the pins' name nodes");
         assert_eq!(ar.store.node_count(pers) - e0, 186, "expression nodes added");
         assert_eq!(ar.store.ls().node_count(pers) - l0, 3, "level nodes added");
-        assert_eq!(ar.store.ns().node_count(pers) - n0, 30, "name nodes added");
+        assert_eq!(ar.store.ns().node_count(pers) - n0, 28, "name nodes added");
         // …so the union on the two stores whose pinned nodes the prelude
         // re-declares is:
         assert_eq!(ar.store.node_count(pers), 187, "expression nodes");
