@@ -66117,6 +66117,14 @@ demand, not by `intern_all_pins`).  Pin-count prose ("forty-eight",
 4. *`and_pin_decls`/`andPinDecls` is the port's own step* (`andPin`
    interned), cited at `andPin`, for the lockstep's sake.
 
+**Gates.**  `scripts/gates.sh` (`LAKE_JOBS=4`) **all 15 OK**:
+`provenance` 5 621 items / 3 324 citations, all current at `a31e82979`;
+coverage 816/940; `twin-lines` 1 747 citations; the link gate 100 links;
+`extract-check` 79 s; `lake-build` no warning from `ConRon/`;
+`dead-census` 246 dead owners, every one allowlisted or held (as at #105's
+landing), 0 deletable.  The pin (`proof/lakefile.toml`,
+`proof/lake-manifest.json`) is the branch's last commit (§7 step 9).
+
 **Shared state.**  The campaign ran on a private reflink copy of the
 packages directory, `_tmp/t106-packages`, deleted at the end.  The shared
 con-leche checkout was not touched and is still at `445b9cf4`.
