@@ -4,7 +4,9 @@
 The twin of `ConLeche/Kernel/Basis.lean` and `ConLeche/Kernel/BasisA.lean`:
 the constants of the five pinned blocks (`Eq`, `Nat`, `Empty`, `False`,
 `Quot`) and the two tests that recognise a stream record as one of
-them.
+them, and the fold's `And` pin (`andPinOk`, con-leche's ANDPIN): a record
+that declares `And`, `And.intro` or `And.rec` and is not the toolchain's block
+is rejected.
 
 **The blocks are con-leche's values, interned** (`Arena/Intern.lean`'s module
 note, and DESIGN §8.6 P2d: "intern con-leche's `BasisKind.declsA` at
@@ -86,5 +88,52 @@ def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
     let pcv ← ci.toConstantVal
     cv.canonEq pcv
   | none => pure false
+
+/-! ## The pinned `And` (con-leche's ANDPIN) -/
+
+/-- con-leche: ConLeche/Kernel/Basis/And.lean:97-99 andPinNames — the names
+the pinned `And` block declares, as handles, off the reserved-name table: three
+slot reads, no interning. -/
+def andPinNameHs : AM (List NIdx) := do
+  let a ← pinAnd
+  let i ← pinAndIntro
+  let r ← pinAndRec
+  pure [a, i, r]
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — the `.indDecl`
+arm's `block.any fun c => andPinNames.contains c.name`, over handles (a name
+comparison is a handle comparison, `denoteN` being injective). -/
+def blockAndNamed (hs : List NIdx) : List IConstantInfo → Bool
+  | [] => false
+  | c :: cs => hs.contains c.name || blockAndNamed hs cs
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — the arm of every
+one-constant record: it may not declare one of the pinned `And` block's
+names. -/
+def andPinNameFree (n : NIdx) : AM Bool := do
+  let hs ← andPinNameHs
+  pure !(hs.contains n)
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — **the `And` pin's
+test**: the record declares none of the pinned `And` block's names, or it IS
+that block — two parameters, and equal to `andPin` up to `ConstantInfo.canon`.
+The block comparison is `basisPinHit`'s: the pin is interned and compared with
+`canonEqList`, and only a block that declares one of the three names gets that
+far. -/
+def andPinOk : IDeclaration → AM Bool
+  | .indDecl block nP => do
+    let hs ← andPinNameHs
+    if blockAndNamed hs block then
+      if nP == 2 then do
+        let pinned ← internCIList ConLeche.andPin
+        canonEqList block pinned
+      else pure false
+    else pure true
+  | .axiomDecl cv => andPinNameFree cv.name
+  | .defnDecl cv _ _ => andPinNameFree cv.name
+  | .thmDecl cv _ => andPinNameFree cv.name
+  | .opaqueDecl cv _ => andPinNameFree cv.name
+  | .quotDecl _ cv => andPinNameFree cv.name
+  | .basisDecl _ => pure true
 
 end ConRon.Arena

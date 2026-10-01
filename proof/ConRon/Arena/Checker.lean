@@ -76,7 +76,6 @@ open ConLeche
 /-! ## The two-phase fold the binary runs -/
 
 /-- con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep
--- con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
 con-leche: ConLeche/Cached/Installed.lean:433-440 checkPendingList
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
@@ -206,10 +205,14 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep — phase
--- con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove Checker.annotDeclStep_bridge, then delete this line
 A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the
 declaration that failed.
+
+**The `And` pin comes first** (con-leche's ANDPIN, `andPinOk`): a record that
+declares `And`, `And.intro` or `And.rec` and is not the toolchain's `And`
+block is rejected here, whatever its kind, ahead of the kind dispatch and
+outside the scratch bracket.
 
 con-leche changes monad here (`StateT CState (Except (CheckError × Nat))`);
 (B) has ONE monad (DESIGN §8.4), so the tag is produced as a VALUE by reading
@@ -218,8 +221,13 @@ position-carrying failures. -/
 def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     (p : Nat × IFEnv × Array PendingCheck) (pd : IDeclaration) :
     AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck)) := fun s =>
-  match annotStep mode pins p.1 p.2.1 p.2.2 pd s with
-  | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
+  match andPinOk pd s with
+  | .ok (true, s₁) =>
+    match annotStep mode pins p.1 p.2.1 p.2.2 pd s₁ with
+    | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
+    | .error e => .ok (.error (e, p.1), AState.abandoned)
+  | .ok (false, _) =>
+    .ok (.error (.invalid "`And` must be the standard `And`", p.1), AState.abandoned)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls — phase A as

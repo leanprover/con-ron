@@ -297,7 +297,6 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
 /-- con-leche: Main.lean:651-848 usage
--- con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove Main.usage_bridge, then delete this line
 The usage text, on stdout under `--help` and on stderr before a usage
 error.  It is con-leche's, shortened to what this binary actually has and
 saying plainly what it does not: the shape and the vocabulary are the same

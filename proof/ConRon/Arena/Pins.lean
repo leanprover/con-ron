@@ -28,7 +28,7 @@ raises `.internal` — a loud stop, never a quiet wrong answer.
 
 ## What is pinned
 
-The forty-eight names below and `reservedBasisNames`' sixteen, plus the three
+The fifty names below and `reservedBasisNames`' sixteen, plus the three
 interned values every `pin` site around them needs: the empty
 universe-argument list, the level `0` and the expression `Sort 1`
 (`Arena/Core.lean`'s `emptyLevels`, `zeroLevel` and `sortOne`, which now read
@@ -51,6 +51,7 @@ owes is an instance of `intern_spec`:
 -/
 import ConRon.Arena.Monad
 import ConLeche.Kernel.Basis.Names
+import ConLeche.Kernel.Basis.And
 import ConLeche.Kernel.StdAxioms
 import ConLeche.Kernel.TrustAxioms
 
@@ -61,7 +62,7 @@ open ConLeche
 /-! ## The slots -/
 
 /-- con-leche: none — the arena's own pin table; the number of pinned names. -/
-def pinCount : Nat := 48
+def pinCount : Nat := 50
 
 /-- con-leche: none — the arena's own pin table; `eqName`'s slot. -/
 def PIN_EQ : Nat := 0
@@ -160,6 +161,12 @@ def PIN_OF_REDUCE_BOOL : Nat := 46
 /-- con-leche: none — the arena's own pin table; `quotName`'s slot (task
 #105: the positivity check's `n == quotName`). -/
 def PIN_QUOT : Nat := 47
+/-- con-leche: none — the arena's own pin table; `andIntroName`'s slot (task
+#106: the fold's `And` pin, `andPinOk`'s `andPinNames`). -/
+def PIN_AND_INTRO : Nat := 48
+/-- con-leche: none — the arena's own pin table; `andRecName`'s slot (task
+#106: the fold's `And` pin, `andPinOk`'s `andPinNames`). -/
+def PIN_AND_REC : Nat := 49
 
 /-! ## Filling the table -/
 
@@ -188,7 +195,8 @@ def pinNames : List ConLeche.Name :=
     ConLeche.nonemptyIntroName, ConLeche.nonemptyRecName,
     ConLeche.trueName, ConLeche.trueIntroName, ConLeche.trustCompilerName,
     ConLeche.reduceNatName, ConLeche.reduceBoolName,
-    ConLeche.ofReduceNatName, ConLeche.ofReduceBoolName, ConLeche.quotName]
+    ConLeche.ofReduceNatName, ConLeche.ofReduceBoolName, ConLeche.quotName,
+    ConLeche.andIntroName, ConLeche.andRecName]
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames —
 the sixteen names a stream may not declare, as con-leche's values.  Its own
@@ -269,7 +277,7 @@ def pinSortOne : AM EIdx := do
   if pinsReady s then pure s.pins.sortOne
   else fail (.internal "arena: reserved-name pins not interned")
 
-/-! ## The forty-eight named readers, one per slot -/
+/-! ## The fifty named readers, one per slot -/
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:18 eqName — off the table. -/
 def pinEq : AM NIdx := pinAt PIN_EQ
@@ -368,5 +376,11 @@ def pinOfReduceBool : AM NIdx := pinAt PIN_OF_REDUCE_BOOL
 /-- con-leche: none — the arena's own pin table; `quotName`'s handle, off the
 table (task #105: the positivity check's `n == quotName`). -/
 def pinQuot : AM NIdx := pinAt PIN_QUOT
+/-- con-leche: ConLeche/Kernel/Basis/And.lean:40 andIntroName — off the table
+(task #106: the fold's `And` pin). -/
+def pinAndIntro : AM NIdx := pinAt PIN_AND_INTRO
+/-- con-leche: ConLeche/Kernel/Basis/And.lean:43 andRecName — off the table
+(task #106: the fold's `And` pin). -/
+def pinAndRec : AM NIdx := pinAt PIN_AND_REC
 
 end ConRon.Arena
