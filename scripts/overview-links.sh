@@ -65,6 +65,27 @@
 # and while no document carries a link of this form, the gate passes
 # trivially so that it can sit in `scripts/gates.sh` from now on.
 #
+# `--follow` (task #108): THE MECHANICAL HALF OF A RELOCATION.  Every sync
+# (#100, #103, #105, #106) had a commit that moved anchors whose cited text
+# had not changed: lines inserted above them, or con-leche's pin moving.
+# `--follow` does that pile and nothing else.  For each link whose committed
+# text (the expectation file's segment for that exact `<path>#L<a>-L<b>`) is
+# no longer at its lines, it looks for that text VERBATIM in the same file
+# and, when it is there, rewrites the anchor to where it is (the occurrence
+# nearest the old one); a link into con-leche at a commit other than the pin
+# is re-pinned to the pin.  The expectation file is then rewritten for the
+# followed links only.  A link whose text is nowhere in the file keeps its
+# anchor and its OLD expectation, so the plain gate still fails on exactly
+# those — the paragraphs to re-read — and a link that has no expectation yet
+# is left out of it, for the same reason.  It changes numbers and pins in
+# README.md/OVERVIEW.md, never words.
+#
+# The gate itself stays a pure check: a run without `--follow` writes
+# nothing, and a moved anchor still fails it until someone (a person, or
+# `scripts/bump-con-leche.sh`) runs `--follow`.  Accepting moves inside the
+# gate would make every gate run a potential source edit, which `gates.sh`
+# promises it never does.
+#
 # NO BUILD REQUIRED.  This is a pure source-tree gate: it reads the two
 # documents and the cited files and nothing else, so it costs milliseconds.
 set -u
@@ -74,14 +95,112 @@ DOCS="README.md OVERVIEW.md"
 EXPECTED=scripts/overview-links-expected.txt
 
 update=0
+follow=0
 case "${1:-}" in
   --update) update=1 ;;
+  --follow) follow=1 ;;
   "") ;;
-  *) echo "usage: scripts/overview-links.sh [--update]" >&2; exit 2 ;;
+  *) echo "usage: scripts/overview-links.sh [--update | --follow]" >&2; exit 2 ;;
 esac
 
 tmp=$(mktemp) || exit 3
-trap 'rm -f "$tmp"' EXIT
+changed=$(mktemp) || exit 3
+trap 'rm -f "$tmp" "$changed"' EXIT
+
+# `--follow`, first half: rewrite the anchors (and con-leche pins) of the
+# links whose committed text is found verbatim at other lines.  Writes the
+# keys of the links whose text was NOT found ("changed <key>") and of those
+# with no expectation at all ("fresh <key>") to "$changed".
+if [ "$follow" = 1 ]; then
+  [ -f "$EXPECTED" ] || { echo "overview-links --follow: $EXPECTED missing" >&2; exit 2; }
+  python3 - "$EXPECTED" "$changed" $DOCS <<'PY' || exit 1
+import re, sys, os
+expected, changed_out, docs = sys.argv[1], sys.argv[2], sys.argv[3:]
+sys.path.insert(0, 'scripts')
+import provenance as P  # noqa: E402
+
+LINK = re.compile(
+    r'https://github\.com/([^/\s)]+)/([^/\s)]+)/blob/([^/\s)]+)/'
+    r'([^)\s#]+)#L(\d+)(?:-L(\d+))?')
+PIN, CLD = P.current_submodule_commit(), P.con_leche_dir()
+
+segs, key = {}, None
+for line in open(expected, encoding='utf-8').read().split('\n'):
+    if line.startswith('== '):
+        key = line[3:]
+        segs[key] = []
+    elif key is not None and re.match(r'^ {0,5}\d+  ', line):
+        segs[key].append(line[8:])
+
+def file_lines(p):
+    if not os.path.isfile(p):
+        return None
+    ls = open(p, encoding='utf-8').read().split('\n')
+    if ls and ls[-1] == '':
+        ls.pop()
+    return ls
+
+followed = repinned = 0
+changed, fresh = [], []
+for doc in docs:
+    if not os.path.isfile(doc):
+        continue
+    text = open(doc, encoding='utf-8').read()
+    out, last = [], 0
+    for m in LINK.finditer(text):
+        owner, repo, ref, path, a, b = m.groups()
+        a = int(a); b = int(b) if b is not None else a
+        newref = ref
+        if repo == 'con-ron':
+            if ref != 'master':
+                continue
+            label, read = path, path
+        elif repo == 'con-leche':
+            if not (re.fullmatch(r'[0-9a-f]{7,40}', ref) and PIN and CLD):
+                continue
+            label, read = 'con-leche/' + path, os.path.join(CLD, path)
+            newref = ref if PIN.startswith(ref) else PIN[:len(ref)]
+        else:
+            continue
+        anchor = f"#L{a}" if b == a else f"#L{a}-L{b}"
+        want = segs.get(label + anchor)
+        lines = file_lines(read)
+        na, nb = a, b
+        if want is None:
+            fresh.append(label + anchor)
+        elif lines is not None and lines[a - 1:b] != want:
+            n = len(want)
+            hits = [i for i in range(len(lines) - n + 1) if lines[i:i + n] == want]
+            if hits:
+                i = min(hits, key=lambda i: abs(i + 1 - a))
+                na, nb = i + 1, i + n
+                followed += 1
+            else:
+                changed.append(label + anchor)
+        if (na, nb, newref) == (a, b, ref):
+            continue
+        repinned += newref != ref
+        new = f"https://github.com/{owner}/{repo}/blob/{newref}/{path}" + (
+            f"#L{na}" if (m.group(6) is None and na == nb) else f"#L{na}-L{nb}")
+        out.append(text[last:m.start()])
+        out.append(new)
+        last = m.end()
+    if out:
+        out.append(text[last:])
+        with open(doc, 'w', encoding='utf-8') as f:
+            f.write(''.join(out))
+with open(changed_out, 'w', encoding='utf-8') as f:
+    f.write(''.join('changed ' + k + '\n' for k in changed))
+    f.write(''.join('fresh ' + k + '\n' for k in fresh))
+print(f"overview-links --follow: {followed} anchor(s) followed their text, "
+      f"{repinned} con-leche link(s) re-pinned, {len(changed)} link(s) whose "
+      f"text changed and {len(fresh)} with no expectation yet (left for a reader):")
+for k in changed:
+    print("  changed " + k)
+for k in fresh:
+    print("  new     " + k)
+PY
+fi
 
 # The extractor.  Reads the documents that exist, walks their links in
 # order, and writes the segment text to the output file (or reports EVERY
@@ -225,6 +344,42 @@ if [ ! -f OVERVIEW.md ] && [ "$nlinks" = 0 ] && [ ! -f "$EXPECTED" ]; then
   exit 0
 fi
 
+# `--follow`, second half: the new expectation is the tree's, except for
+# the links whose text changed (their OLD segment is kept, so the gate keeps
+# failing on them) and the links that have none yet (left out, ditto).
+if [ "$follow" = 1 ]; then
+  python3 - "$EXPECTED" "$tmp" "$changed" <<'PY'
+import sys
+expected, new, changed = sys.argv[1:]
+def segments(p):
+    text = open(p, encoding='utf-8').read()
+    head, _, body = text.partition('\n== ')
+    out = []
+    for s in ('== ' + body).split('\n== ') if body else []:
+        s = s if s.startswith('== ') else '== ' + s
+        out.append((s.split('\n', 1)[0][3:], s.rstrip('\n') + '\n'))
+    return head + '\n', out
+head, old = segments(expected)
+_, cur = segments(new)
+oldmap = dict(old)
+marks = [l.split(' ', 1) for l in open(changed, encoding='utf-8').read().split('\n') if l]
+keep = {k for t, k in marks if t == 'changed'}
+fresh = {k for t, k in marks if t == 'fresh'}
+segs = [oldmap[k] if k in keep else s for k, s in cur if k not in fresh]
+with open(expected, 'w', encoding='utf-8') as f:
+    f.write(head)
+    f.write('\n'.join(segs))
+    if segs:
+        f.write('\n')
+PY
+  if diff -q "$EXPECTED" "$tmp" >/dev/null; then
+    echo "overview-links: $nlinks links, $nfiles files, OK after --follow"
+    exit 0
+  fi
+  echo "overview-links --follow: the links above still fail the gate; re-read their paragraphs, then --update" >&2
+  exit 1
+fi
+
 if [ "$update" = 1 ]; then
   if [ -f "$EXPECTED" ] && cmp -s "$tmp" "$EXPECTED"; then
     echo "overview-links: $nlinks links, $nfiles files, expectation already current"
@@ -250,9 +405,11 @@ cat >&2 <<'MSG'
 overview-links: FAIL — the cited lines are not what the documents were
 written against.  `-` is the committed expectation, `+` the tree.
 
-  * If a citation MOVED (the text is the same, the numbers shifted),
-    update the `#L<a>-L<b>` anchor in README.md / OVERVIEW.md.  (`DESIGN.md` is the working log and is not
-    checked, maintainer's ruling 2026-09-24.)
+  * If a citation MOVED (the text is the same, the numbers shifted, or
+    con-leche's pin moved), `scripts/overview-links.sh --follow` updates
+    the anchors in README.md / OVERVIEW.md and leaves only the rest.
+    (`DESIGN.md` is the working log and is not checked, maintainer's
+    ruling 2026-09-24.)
   * If the cited lines CHANGED, re-read the paragraph that cites them —
     the document may now be stale.
 
