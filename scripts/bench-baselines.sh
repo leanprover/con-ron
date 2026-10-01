@@ -160,11 +160,13 @@ if [[ $BUILD -eq 1 && $DRY -eq 0 ]]; then
   fi
   if has_bin con-leche; then
     pkg="$(cd "$ROOT" && python3 scripts/provenance.py dir)"
-    rev="$(git -C "$pkg" rev-parse HEAD)"
+    # The pin is the manifest's rev, not whatever the shared checkout has.
+    rev="$(cd "$ROOT" && python3 scripts/provenance.py pin)"
     if [[ ! -d $CONLECHE_SRC/.git ]]; then
       echo "== cloning con-leche $rev into $CONLECHE_SRC" >&2
       git clone --quiet --no-checkout "$pkg" "$CONLECHE_SRC"
     fi
+    git -C "$CONLECHE_SRC" fetch --quiet "$pkg" "$rev" 2>/dev/null || true
     git -C "$CONLECHE_SRC" checkout --quiet --detach "$rev"
     echo "== lake build con-leche (in $CONLECHE_SRC)" >&2
     (cd "$CONLECHE_SRC" && lake build con-leche)

@@ -280,8 +280,11 @@ def parse_previous(path, task):
     body = text[m.end(): m.end() + nxt.start() if nxt else len(text)]
     prev = {}
     for line in body.splitlines():
+        # The first table of the section is the raw block; a later one (a
+        # comparison like `render_delta`'s) has the same first columns, so
+        # the first row per key wins.
         r = RAW_ROW.match(line)
-        if r:
+        if r and (r.group(1), r.group(2).strip()) not in prev:
             prev[r.group(1), r.group(2).strip()] = (ints(r.group(3)), ints(r.group(5)))
     if not prev:
         sys.exit(f"perf-table.py: no raw rows in section 'Task {task}'")
