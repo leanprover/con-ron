@@ -261,7 +261,7 @@ work_order() {
   git -C "$cl" log --oneline --first-parent "$old..$new" | head -40
   echo
   git -C "$cl" diff --shortstat "$old" "$new" -- ConLeche Main.lean | sed 's/^ */executed tiers and the rest of ConLeche\/, Main.lean: /'
-  echo "(read upstream DESIGN.md's task sections between the two commits first: §7 step 0)"
+  echo "(read upstream DESIGN.md's task sections between the two commits first: §7 step 1)"
   echo
   echo "## Findings ($state/findings.tsv)"
   sed -n '/^update --auto:/,$p' "$state/update.log"

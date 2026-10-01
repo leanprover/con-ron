@@ -36,7 +36,8 @@ section for every task you land.
   run the gates to check a single proof.
 * **`scripts/gates.sh` is the one command every task must run before
   committing**: `cargo build`, `cargo test`, the style lint, the provenance
-  check, the OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
+  check, `pin-last` (only a branch's tip moves the con-leche pin), the
+  OVERVIEW link gate, the pin check, `scripts/extract.sh --check`
   and `cd proof && lake build` (all default targets: both theorems and the
   capstone; **failing on any warning from `proof/`'s own sources**, task
   #102 — fix the warning, do not silence it without a reason in DESIGN), in
@@ -123,14 +124,16 @@ section for every task you land.
   reason.  Since task #91 this extends to con-leche: its lake package
   directory lives under that same shared `_tmp/aeneas-lean/.lake/packages`,
   so `lake update con-leche` in one worktree's `proof/` moves the checkout
-  every other worktree reads.  Never edit it directly from an agent.  A
-  bump campaign (editing the `rev` in `lakefile.toml` and running `lake
-  update con-leche` repeatedly while reconciling) must give that worktree
-  its own packages directory instead of the shared symlink — copy
-  `_tmp/aeneas-lean` once (`AENEAS_LEAN_DEST` in `scripts/setup-aeneas-lean.sh`
-  supports a private destination) rather than sharing it for the campaign's
-  duration, and only merge the result back through the normal commit, not
-  by touching the shared directory.
+  every other worktree reads.  Never edit it directly from an agent.  **A
+  con-leche bump (a sync) is `scripts/bump-con-leche.sh`** (task #108,
+  DESIGN.md §7): `start <rev> --task '#N'` makes the worktree with its own
+  reflink copy of the packages, moves the pin in the working tree only,
+  classifies the provenance findings and prints the work order; `measure`,
+  `pin` (the pin files, committed LAST — `scripts/pin-last.py` gates it) and
+  `land` (fast-forward, cache seed, drop, then
+  `scripts/sync-shared-con-leche.sh`, the only sanctioned move of the shared
+  checkout) follow.  Never `lake update con-leche` against the shared
+  directory.
 * **`lake env lean <file>` does not inherit `proof/lakefile.toml`'s
   `weak.backward.do.legacy = true`**, so it runs a *different* `do`
   elaborator: join points land elsewhere, and a proof that passes under
@@ -214,6 +217,7 @@ section for every task you land.
   agent looks exactly like a working one, so the step is invisible when it is
   skipped and they pile up.  `scripts/drop-worktree.sh` prints the agent id to
   stop as its last line — do it then, not in a later sweep.  The same goes for
-  the scratch: the script deletes `_tmp/{gates,extract,extract-check}-<key>`,
-  and skipping it once cost 13 GB of orphans on a shared machine.
+  the scratch: the script deletes every `_tmp/*-<key>` (the naming rule of
+  all per-checkout scratch, task #108), and skipping it once cost 13 GB of
+  orphans on a shared machine.
 * Commit often; the maintainer pushes and opens PRs.

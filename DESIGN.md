@@ -1640,7 +1640,9 @@ measured.
   link of `README.md`, `OVERVIEW.md` and of this document, in document
   order, copies the cited lines into `scripts/overview-links-expected.txt`
   and diffs.  A moved or edited citation is a diff — re-read the citing
-  paragraph, then `scripts/overview-links.sh --update`; a link that names a
+  paragraph, then `scripts/overview-links.sh --update`
+  (`--follow`, task #108, moves the anchors whose text did not change and
+  leaves the gate failing on the rest); a link that names a
   file that is gone or overruns it is a hard error.  Paths resolve from the
   repository root.  No build; `gates.sh` runs it between `provenance` and
   `gen-pins`.  Until `OVERVIEW.md` exists and while no document carries such
@@ -1685,220 +1687,185 @@ measured.
   prove and measure.  Delegate anything mechanical.
 * Large artifacts (exports, builds) go to `_tmp/` (gitignored).
 
-### Bumping con-leche
+### Bumping con-leche (a sync)
 
-The procedure below is what task #83 (con-leche `732730a5` → `c431b1ca`, 101
-upstream commits, 583 provenance findings) actually took, written as the next
-porter would want to find it; task #91 rewrote steps 1–2 for the plain lake
-dependency that replaced the vendored subtree, and everything else is
-unchanged.  §3.7 says what `provenance.py` does; this says in what order to
-do it and what goes wrong.
+A **sync** moves the con-leche pin to a newer upstream commit and makes the
+port follow it: every citation of con-leche in con-ron is reconciled, what
+changed in the executed checker is ported to the Rust, the twin, Theorem 1
+and Theorem 2, and the pin itself is committed last.  Since task #108 the
+procedure IS `scripts/bump-con-leche.sh`: each step below is one command,
+and the porting in between is the only hand work.  Tasks #83, #98, #100,
+#103, #105 and #106 are the syncs this was distilled from; their sections
+keep the numbers.
 
-**The shared-packages hazard (task #91).**  con-leche's package directory
-lives under `_tmp/aeneas-lean/.lake/packages`, which every agent worktree
-shares through a symlink (CLAUDE.md).  `lake update con-leche` in one
-worktree's `proof/` moves the checkout every other worktree reads, mid-bump
-and all.  Run a bump campaign in a worktree with its **own** copy instead of
-the shared one: `AENEAS_LEAN_DEST=<private dir> scripts/setup-aeneas-lean.sh`
-builds a private `_tmp/aeneas-lean`, then point `proof/.lake/packages` at
-`<private dir>/.lake/packages` for the campaign's duration.  Only the
-final, reconciled commit is meant to be shared — never bump in place in a
-worktree other agents are reading from.
-
-**0. Before anything, know the size.**  In a scratch clone,
-`git diff --stat <old> <new> -- ConLeche/ Main.lean`, and con-leche's own
-`DESIGN.md` task sections between the two commits.  The task sections are the
-only place that says whether a change touches the *executed checker* (which
-the port must mirror) or only the proofs, the docs and the tooling (which it
-must not).  Read them first; the diff alone cannot tell you, and a bump that
-looks like 1 300 changed lines in `Cached/` can be one rename.
-
-**1. Edit the rev, `lake update`.**
+**1. Start.**  From the main tree (or any worktree):
 
 ```
-$EDITOR proof/lakefile.toml   # rev = "<new sha>"
-cd proof && lake update con-leche
+scripts/bump-con-leche.sh start <rev> --task '#N'        # <rev>: a sha, or master
 ```
 
-This resolves the new commit into `proof/lake-manifest.json` (its
-`con-leche` entry's `rev`) and checks it out into the package directory
-(`provenance.py dir` prints where) — **but commits nothing**: the manifest
-and the checked-out package are both working-tree state until you `git add`
-them.  That is deliberate (step 9).  Afterwards check the checked-out tree
-is what you expect: `git -C "$(python3 scripts/provenance.py dir)" log
---oneline <old>..<new>` is upstream's own task log for the bump.
+It makes everything a sync needs and changes nothing anyone else reads:
 
-**2. `provenance.py update`, no `--old` needed.**  With the package
-directory checked out at the new commit and `proof/lake-manifest.json`
-correspondingly updated but not yet committed, the default (no `--old`)
-comparison in §3.7 is exactly the case it exists for — it diffs the commit
-recorded in `HEAD`'s `proof/lake-manifest.json` against the working tree's:
+* a reflink copy of the shared packages directory, `_tmp/bump-<short>/packages`
+  (the con-leche checkout is shared by every worktree, task #91; the Aeneas
+  library is a path dependency a sync does not change, so `AENEAS_LEAN_DEST`
+  is not needed);
+* the worktree `_tmp/wt-bump-<short>` on branch `bump-<short>`, `_tmp`
+  linked to the shared one, `proof/.lake/packages` to the private copy, and
+  no `proof/.lake/build` (the shared Lake cache restores it);
+* the baseline: the private con-leche at the old pin, master's release
+  binary (`_tmp/bump-<short>/con-ron-master`), `provenance.py coverage`;
+* the pin in the WORKING TREE: `rev` in `proof/lakefile.toml`, `lake update
+  con-leche` in `proof/`.  It is not committed (step 6);
+* `provenance.py update --auto` — the classifier, below — then `coverage`
+  again, `overview-links.sh --follow`, the prelude generators' `--check`,
+  and `scripts/diff-e2e.sh` with master's binary at the new pin;
+* one commit of what changed (never the pin files), and the WORK ORDER,
+  printed and kept in `_tmp/bump-<short>/work-order.txt`: the upstream log
+  and diffstat, the bucket table, the markers left by part (Rust core,
+  unverified Rust, twin), the declarations newly uncovered, the e2e
+  differences, the generators, and the links whose text changed.
+
+Read upstream's own DESIGN.md task sections between the two commits before
+anything else: they are the only place that says whether a change touches the
+executed checker (which the port must mirror) or only upstream's proofs,
+docs and tooling (which it must not).  A diff that looks like 1 300 changed
+lines in `Cached/` can be one rename.
+
+**The classifier** (`provenance.py update --auto`, task #108; it was a
+thirty-line throwaway script in every sync before, #83's, #98's, #105's
+`classify.py`/`apply-mech.py`, and #106 deleted 97 markers by hand).  It runs
+the plain `update` — relocate what moved, mark what changed — and sorts every
+finding:
+
+| bucket | what it is | marker |
+|---|---|---|
+| doc-only | the comment-stripped text (`/- -/`, `/-- -/`, `--`) is identical | deleted |
+| moved | GONE here, found by its exact qualified name in another file, byte-identical | deleted, citation repointed |
+| moved-doc | the same, identical up to comments | deleted, citation repointed |
+| moved-changed | the same, the code changed | kept, citation repointed |
+| moved-by-name | only the short name is found (another namespace, or the name twice) over different code | kept: a deletion until a human finds the move |
+| changed | really changed | kept |
+| deleted | gone upstream | kept |
+
+The hunt is EXACT, by namespace-qualified name (a short-name match counts
+only over identical text), because `names_compatible` lets a citation of
+`Expr.beqGo` land on the `Expr` inductive (task #98 found eleven such).  For
+the same reason `update` no longer accepts a relocation by name onto a strict
+PREFIX of the cited name, unless the citation sat on that parent at the old
+pin (a `where` clause).  `--auto` prints `progress.py`'s `stale (CHANGED
+marker)` count at the moment every finding is marked — the only moment it
+means anything — and writes `findings.tsv` (bucket, part, where, item, old
+citation, new citation, note).  Reproduced on #106's bump: 102 `CHANGED`,
+97 doc-only, 5 real, stale 4 — the task's own numbers; on #105's: 1 537
+findings, 883 deleted, 444 applied mechanically (task #108's section).
+
+**2. Port, in the order that keeps the tree buildable.**  Rust first, in one
+pass (split across agents on disjoint files: `con-ron-core/src/kernel`,
+`…/arena`, `…/frontend`, `crates/con-ron`), then `scripts/extract.sh`, then
+the twin (`proof/ConRon/Arena/**`), Theorem 1 (`Bridge/**`), Theorem 2
+(`Refine2/**`, lockstep: a mismatch is fixed in the twin, never with an
+invariant).  Delete each marker as its item is reconciled;
+`scripts/bump-con-leche.sh status` prints what is left — markers,
+`check`'s verdict, the new declarations still uncovered (port them, or put
+them in `scripts/provenance-skip.txt` with the reason) and `pin-last.py`.
+Do not start the proofs before the model is regenerated, and say in every
+WIP commit that the tree does not build.  Lane agents never commit
+`proof/lakefile.toml` or `proof/lake-manifest.json`: `scripts/pin-last.py`
+(a gate step) fails a branch on which any commit but the tip moves the pin,
+which is where #105's sub-agent slip would have been caught.  What the
+porting itself has taught:
+
+* *The crate boundary.*  `crates/con-ron-core/src` is inside the style lint
+  (§3.4) and the extraction; `crates/con-ron/src` is inside neither.  A
+  function upstream moves into the kernel (#293's basis-pin match) is a
+  rewrite for the port: no closures, iterators or `for` loops, a citation on
+  every item, a larger generated model.  Budget for it apart.
+* *A REDESIGN upstream is not "re-port the arms".*  First establish whether
+  the COMPUTATION moved (compare the old walk's arms, plumbing stripped, with
+  the new one); if not, mirror the discipline, keep the port's own walk,
+  cite the new declaration with the deviation written down, and skip the
+  new helper declarations with their reason (#98: twelve walks, no arm
+  changed, 43 real findings, 23 % faster).
+* *A change that only adds a decision should leave the generated model's
+  bind structure alone*; when it cannot, the one bind it adds is worth a
+  lemma rather than seventy-five proof edits (#98's gate helpers).
+* *A rename is still proof work*: every statement that names the old
+  declaration breaks (#83: 253 rename-only findings, 667 proof edits, no
+  Rust).
+* *Generated files follow by themselves*: `gen-prelude{,-lean}.py` and
+  `gen-pins.sh` read their con-leche citation from the output they wrote
+  (whose `con-leche:` lines `update` relocates), so re-running them is all a
+  bump asks of them; `start` reports whether their `--check` still passes.
+  `gen-pins.sh --check` needs a build and runs with the gates.
+
+**3. Measure, once, when the Rust is final** (§7.x: a sync only has to catch
+an unexpected regression):
 
 ```
-python3 scripts/provenance.py update
+scripts/bump-con-leche.sh measure
 ```
 
-Do not commit `proof/lakefile.toml` or `proof/lake-manifest.json` yet —
-that is the *last* thing this procedure commits (step 9), once the port is
-fully reconciled; every commit along the way carries an uncommitted bump,
-which is fine, because `provenance.py check`, `gen-pins.sh` and the Lean
-build all read the package directory's checked-out work tree directly and
-do not care whether the manifest has caught up.  Keep `update`'s output in
-`_tmp/`: it is the work order, and the line numbers in the tree move under
-you.
+`Init`, con-ron only, one worker, `instructions:u`, master's binary and the
+branch's, one run each, through `scripts/bench-baselines.sh`; it prints the
+table for the task section and records which crates it measured.  No wall
+time, no repeats, no OVERVIEW §9 (a post-merge task of its own).  The Mathlib
+landing run of §12 is added by hand only when the sync touches memory.
 
-**3. Classify the findings before touching a line.**  Most of a large bump is
-one or two upstream renames, one or two upstream FILE MOVES, and a docstring
-sweep — applied everywhere.  Write a thirty-line script
-that parses `update`'s unified diffs, applies the renames you know about to
-the *old* side, and buckets each record: *rename-only*, *doc-only*,
-*whitespace*, *real*.  Task #83's 500 `CHANGED` findings came out 253
-rename-only, 74 doc-only, 11 namespace-only and **162 real**; deleting the 338
-citation-only markers mechanically (match each marker against the citation
-line above it, keyed by Rust file and cited range) took minutes and left a
-legible work order.  Do this before opening a Rust file; it is the difference
-between a day and a week.
+**4. Gate, with master merged.**  Write the task section (upstream tasks
+absorbed, the bucket table, markers before and after, the measurement) and
+commit it; `git merge master`; `LAKE_JOBS=4 scripts/gates.sh`.  Build modules
+in the inner loop; the gates are the landing check.
 
-Task #98 (`c431b1ca` → `78ded4b6`, 150 upstream commits) had **193 findings,
-150 `GONE` and 43 `CHANGED`**, and the classifier cut them to **43 real** in
-two passes:
+**5. The links.**  `scripts/overview-links.sh --follow` (which `start` and
+`pin` also run) moves every README/OVERVIEW anchor whose cited text is
+unchanged — numbers, pins, and the line numbers inside the cited text's own
+`con-leche:` citations — and leaves the gate failing on exactly the links
+whose text changed.  Those are a reading exercise: re-read each citing
+paragraph; if it is still true, `--update`; if the document is now wrong
+(#83 found two: a copied exit-code table and a retired con-leche theorem),
+fix the prose first.  `README.md` is human-written: change its numbers,
+never its words.
 
-| bucket | count | what it cost |
-|---|---:|---|
-| a FILE MOVE, byte-identical (`Kernel/Core.lean` → `Kernel/CoreDefs.lean`) | 114 | a scripted citation repoint |
-| doc-only (`Model/Steps/*` → `Model/Rules/*` in the docstrings) | 5 | nothing |
-| deleted upstream | 35 | the port |
-| really changed | 39 | the port |
+**6. Pin, last.**
 
-The two mechanical buckets are found by **comparing the block text, not the
-line numbers**: for a `GONE` finding, hunt the declaration by name across the
-whole new `ConLeche/` tree and compare the old cited block with what you find
-(`provenance.py`'s own `locate_decl` and `lean_text(path, old)` are the two
-pieces; forty lines).  For a `CHANGED` finding, strip every comment line from
-both blocks and compare what is left — `provenance.py`'s `comment_lines` is
-that function — and a docstring sweep comes out as zero work.
+```
+scripts/bump-con-leche.sh pin
+```
 
-While you are there, run `scripts/progress.py --summary` **once, before
-deleting a single marker**: its `stale (CHANGED marker)` count is only
-meaningful at that moment, and it is the number the task log should quote.
-Delete the citation-only markers first and it reads zero for the rest of the
-task, which is true and useless.
+runs `--follow` once more (its own commit if it moved anything), then commits
+`proof/lakefile.toml` and `proof/lake-manifest.json` and nothing else, and
+confirms with `scripts/pin-last.py --tip-is-pin`.  The pin is the last commit
+so that every commit before it is reproducible with `provenance.py update`
+and no `--old`.  Then `LAKE_JOBS=4 scripts/gates.sh` once more: it leaves a
+green stamp naming the commit.  If it is red, `git reset HEAD~1` (the pin
+files go back to uncommitted; nothing is pushed), fix, commit, `pin` again.
 
-**4. `GONE` is where the hand work is.**  `update` relocates a citation by its
-*text* first and by its declaration *name* second, so a declaration upstream
-**renamed** comes out `GONE`, its citation is left pointing at a stale range,
-and `provenance.py check` then reports `NAME`/`NODECL`/`RANGE` rather than an
-unreconciled marker.  Build an `(old path, old decl) → (new path, new decl)`
-map from the upstream task log, rewrite the citations with
-`provenance.py locate` (which prints the canonical `path:a-b decl`), and drop
-the marker in the same pass.  Of task #83's 83 `GONE` findings, 74 were a
-rename or a move and nine were a genuine deletion — and a deletion is never a
-citation edit: it is Rust and proof code to remove, and `check` stays red
-until it is gone.
+**7. Land.**
 
-**And check where `update` put the citations it DID relocate.**
-`names_compatible` lets a citation of `Expr.beqGo` match a block that
-declares `Expr` — the rule that makes a namespace-qualified citation work —
-so when upstream renames `Expr.beqGo` to `Expr.beqGoX`, `locate_decl` can
-land the citation on the `Expr` INDUCTIVE instead of failing, and `check`
-then passes on a citation that points at the wrong thing.  Task #98 had
-eleven of those and no other kind.  The scan is ten lines: every citation
-whose declared head is a strict PREFIX of the cited name is suspect.
+```
+scripts/bump-con-leche.sh land
+```
 
-**5. Port in dependency order, and mind the crate boundary.**
-`crates/con-ron-core/src` is inside the style lint (§3.4) and inside the
-extraction; `crates/con-ron/src` is inside neither, and only inside the
-provenance gate.  So a function upstream moves *out of* the frontend *into*
-the kernel — con-leche's task #293 moved the basis-pin match there — is not a
-move for the port but a rewrite: closures, iterators and `for` loops have to
-go, every item needs a citation the gate accepts, and the generated Lean grows
-by the whole module.  Budget for that separately from the porting itself.
+refuses unless the worktree is clean, the tip is the pin commit and the only
+one moving the pin, master is merged, the gates were green at exactly this
+commit, and `measure` saw the crates as they are.  Then: the fast-forward of
+master, seeding the shared Lake cache from the worktree (the private packages
+are its own, so CLAUDE.md's caveat does not bite), `drop-worktree.sh`,
+deleting `_tmp/bump-<short>` with the private packages, and step 8.
 
-**A REDESIGN upstream is not "re-port the arms".**  Task #98 absorbed
-con-leche's #313–#319, which rewrote every traversal memo: one walk became
-three declarations (`<name>P` the plain descent, `enter<X>P` the child step,
-`<name>XP` the walk), the key went from structural to an address, and the
-entries became self-proving.  The first thing to establish is whether the
-COMPUTATION moved at all — compare the old walk's arms, memo plumbing
-stripped, against the new `<name>P` — because if it did not, the port's own
-walk is still correct and the only question is which parts of the new design
-to mirror and what to cite.  There the answer was: mirror the discipline (the
-exclusivity read and the compound test), keep the structural key and the
-inlined walk, cite `<name>XP` with the deviation written down, and put every
-`<name>P`/`enter<X>P`/`PEnt`/`Squash` declaration on the skip list with its
-reason.  Twelve walks, no arm changed, 43 real findings — and the port got
-23 % faster.
+**8. Move the shared checkout.**  `scripts/sync-shared-con-leche.sh` (run by
+`land`; by hand when it refused): `git checkout --detach` of master's pinned
+rev in the shared package directory — never `lake update`, which re-resolves
+the dependency and is the bump itself — refusing while another worktree
+reading that directory has a manifest at a different rev (`--force` to
+override, and say why), then `lake build` in the main tree's `proof/`, which
+restores the new pin's modules from the cache.
 
-**6. A rename-only marker is still proof work.**  The Rust needs nothing when
-only a con-leche *name* changed, but every statement in `proof/ConRon/Refine/`
-that names the old declaration breaks.  Task #83's 253 rename-only findings
-cost 667 edits in the proof tier and not one line of Rust.  Script that from
-the same map as step 4, and expect a residue: a `_spec` lemma that upstream
-deleted because it became `x = x` leaves a `rw` at each of its consumers,
-which only a human or a build can find.
-
-**7. The order that keeps the tree buildable.**  Rust first, in one pass, the
-crate split across agents on **disjoint files** (`con-ron-core/src/kernel`,
-`con-ron-core/src/cached`, `con-ron/src/frontend`, the driver and the
-binaries); then `scripts/extract.sh`; only then `cd proof && lake build`,
-whose error list is the real proof work order.  Do not start the proofs before
-the model is regenerated: a statement about a generated definition that no
-longer has that shape wastes the whole edit.
-
-**The shape of a ported helper decides the proof cost, and it is worth one
-iteration to find the cheap one.**  Task #98's gate began as a pair of
-helpers that took the node and the cursor and built the memo key themselves —
-tidy Rust, and it cost the key twice on the memoising path *and* moved a bind
-that every arm of every walk destructures, which is 75 proof sites. The
-shipped shape takes the key the walk already built, so each helper is a
-`rfl`-unfolding of the operation it replaced and the proof delta is one extra
-`simp only` argument per arm plus one "read the record back" lemma per memo.
-The rule: **a change that only adds a decision should leave the generated
-model's bind structure alone**, and when it cannot, the one bind it does add
-is worth a lemma rather than seventy-five edits.  The tree does not build between
-the first Rust edit and the last — say so in every WIP commit message.
-
-**8. Two operational traps.**  `lake build` of con-leche's package under a
-`ulimit -v` cap dies with *"failed to create thread"*: Lean reserves per-thread
-stack against the address-space limit, so `CLAUDE.md`'s `ulimit -v` rule is
-for *checker runs*, not for Lean builds — cap `LEAN_NUM_THREADS` instead.  And
-`scripts/gen-pins.sh` carries a con-leche citation inside its own heredoc
-(task #74), which no gate rewrites: check it by hand against
-`provenance.py locate` whenever `ConLeche/Kernel/NatOpPins.lean` moves.
-
-**9. Land it.**  `provenance.py check` clean (no marker left, every citation
-resolving), `provenance.py coverage` back at 100 % with
-`scripts/provenance-skip.txt` extended for anything upstream added that the
-port deliberately will not have, `gen-pins.sh --check` green at the same
-record count (which is the measurement that the bump did not touch the pin
-*values*), `scripts/gates.sh` all nine green, `scripts/diff-e2e.sh` green at
-the new fixture count — the fixtures move with upstream, so the count itself
-changes — and §12's Mathlib landing rule.  Only now `git add
-proof/lakefile.toml proof/lake-manifest.json` and commit the pin — the last
-commit of the bump, not the first, so that every commit before it stays
-reproducible with `provenance.py update` and no `--old`.  Then OVERVIEW.md's
-numbers and quotes (`scripts/overview-links.sh --update` after editing,
-never before), and a task-log section that records the upstream tasks
-absorbed and the marker
-counts before and after.
-
-**10. The link gate is the last gate, and it is a reading exercise, not a
-`--update`.**  A bump moves most of the anchored lines.  Sort its diff into
-three piles: the anchors whose *text* is unchanged (relocate them
-mechanically — a twenty-line script that searches the file for the committed
-text and reports the new range does the whole pile), the anchors whose text
-changed but whose citing paragraph is still true (relocate, then `--update`),
-and the anchors whose text changed *because the document is now wrong*.  Task
-#83 had two of the third kind, and neither would have been found any other
-way: OVERVIEW §0's exit-code table is a verbatim copy of `driver.rs`'s and
-`driver.rs`'s wording had changed, and §2 still said the capstones compose
-with con-leche's `model_exists_with`, which upstream had retired.  Only ever
-run `--update` after that reading; it blesses whatever the anchors point at,
-so an unread anchor turns a stale document into a *committed* stale document.
-`README.md` is human-written and is not to be edited — but its `#L<a>-L<b>`
-fragments are anchors, not prose, and relocating one is the maintenance the
-gate exists to demand.  Change the numbers, never the words, and say so in the
-task log.
+**Two traps that remain.**  `lake build` under a `ulimit -v` cap dies with
+*"failed to create thread"* (cap `LEAN_NUM_THREADS` instead; CLAUDE.md's
+`ulimit` rule is for checker runs).  And never `lake -d proof` from the
+root: elan picks another toolchain and rewrites shared oleans.
 
 ### CI
 
@@ -66247,3 +66214,175 @@ whose crates are master `d3c1d43d`'s (it adds only the two scripts and the
 markers).  README.md's "Performance" paragraph links to §9 and carries no
 numbers; it is untouched.  The raw files `_tmp/t107/` (and the con-leche
 clone in it) are deleted.
+
+### Task #108 — the con-leche sync protocol as scripts (2026-10-01, Opus under Fable)
+
+The maintainer asked how the sync protocol is working.  The order and the
+discipline worked; the mechanics were hand-run and re-explained in every task
+prompt.  This task makes the protocol the scripts; §7 "Bumping con-leche" is
+rewritten around them.  Worktree `_tmp/wt-t108`, branch `t108-synctools`
+off master `2437f9f6`.
+
+**What was built, item by item.**
+
+1. *The classifier in `provenance.py`* — `update --auto [--tsv FILE]`
+   (#105's `classify.py`/`apply-mech.py`, deleted at its cleanup, rebuilt
+   from its §2): the plain `update`, then every finding sorted into seven
+   buckets (§7's table: doc-only, moved, moved-doc, moved-changed,
+   moved-by-name, changed, deleted), the markers of the three mechanical
+   ones taken back out, the bucket table printed, the findings TSV written,
+   and `progress.py`'s stale count printed at the one moment it means
+   anything.  `moved-doc` is new against #105's six buckets (a move whose
+   only difference is a comment; mechanical like doc-only).  The comment
+   stripper removes `/- -/` (nested), `/-- -/` and `--` comments, string
+   literals respected.  The move hunt is by namespace-qualified name
+   (namespaces, sections and `mutual` tracked per file); a short-name match
+   counts only over identical text (up to comments).  Task #98's warning
+   applies to plain `update` as well now: a relocation by name onto a strict
+   prefix of the cited name (`Expr.beqGo` → the `Expr` inductive) is a GONE
+   unless the citation sat on that parent at the old pin (a `where`
+   clause).  *Tested* by a new `provenance-selftest.py` case: a two-commit
+   git repository built from `scripts/testdata/provenance/buckets/{old,new}`
+   stands in for con-leche (`PROVENANCE_CON_LECHE_DIR`), `citer/citer.rs`
+   cites one item per bucket — twelve findings, #98's trap among them — and
+   the rewritten file must equal `expected.rs`; a second run without
+   `--auto` must report the trap GONE.  Disabling the prefix check makes the
+   self-test fail (checked).
+2. *`scripts/bump-con-leche.sh`* with `start <rev> --task ID [--from C]`,
+   `status`, `measure`, `pin`, `land`, `abort --yes`; everything it keeps is
+   in `_tmp/bump-<short>/`.  `start` does exactly §7 step 1 and commits the
+   mechanical result (never the pin files).  The pin is a subcommand of its
+   own (`pin`), the branch's last commit.  `land`'s preconditions are a
+   clean worktree, `pin-last.py --tip-is-pin`, master merged, a green gates
+   stamp at HEAD (new: a full green `gates.sh` run on a clean tree writes
+   `_tmp/gates-<key>/green` with the commit) and a measurement of the
+   crates as they are; then the fast-forward, the cache seed, the drop, the
+   private packages deleted, and item 3.  `--overlay-scripts` exists for
+   testing the script on an old `--from` (it commits this tree's programs,
+   not its data files, onto the throwaway branch).  *Tested*: the two dry
+   runs below, `status`, `measure` (master `2437f9f6` against the dry
+   branch, 204 225 819 689 against 204 226 069 761 `instructions:u`), `pin`
+   (the pin commit carries the two files only), `land`'s refusals (master
+   not merged; after a commit on top of the pin, `pin-last`) and `abort`
+   (worktree, branch, `_tmp/bump-<short>` and every `_tmp/*-<key>` gone).
+   `land`'s fast-forward, seed and drop were not run: that needs a sync to
+   land (below).
+3. *`scripts/sync-shared-con-leche.sh [--force] [--no-build] [--tree D]`*:
+   reads the rev of the `«con-leche»` entry of the main tree's manifest,
+   refuses while another worktree READING THE SAME packages directory has a
+   manifest at another rev (a worktree on a private copy is not counted),
+   refuses over local modifications, fetches from origin when the commit is
+   missing, `git checkout --detach <rev>`, then `lake build` in the main
+   tree's `proof/`.  Never `lake update`.  *Tested* on a dry run's private
+   copy (`--tree` the dry worktree, `--no-build`): refused with a second
+   worktree linked to the same copy at the old pin, moved `445b9cf4` →
+   `a31e8297` once it was gone, and "already at" on a re-run.  Not run on
+   the shared directory: there was no real sync to land.
+4. *`overview-links.sh --follow`*: a link whose committed text is no longer
+   at its lines is moved to where that text is, verbatim (nearest
+   occurrence), and a con-leche link is re-pinned to the pin; the
+   expectation file is rewritten for the followed links only, so the gate
+   keeps failing on exactly the links whose text changed (old expectation
+   kept) and on links that never had one (left out).  "Verbatim" allows one
+   difference, found in the first dry run: the line numbers inside the
+   cited text's own `con-leche:` citations, which `update` relocates at
+   every bump (`driver.rs`'s cited fold carries two).  **Decision: the gate
+   stays a pure check** — a gate run that can edit README/OVERVIEW would
+   break `gates.sh`'s promise that it changes nothing — and `start` and
+   `pin` run `--follow`.  *Tested*: a line inserted at the top of
+   `driver.rs` and a word changed in `Capstone.lean`'s cited docstring —
+   six anchors followed, the two Capstone links left failing, idempotent on
+   a second run; and the dry runs (below).
+5. *`scripts/pin-last.py`*: on the first-parent line of `master..HEAD`,
+   every commit but the tip carries the pin of `merge-base(commit,
+   master)`; a merge that brings in master's own pin change passes.
+   **Decision: a gate step** (after `provenance`), because the slip happens
+   in a sub-agent's worktree and its own gate run is the earliest point
+   that can see it; `land` runs it again with `--tip-is-pin`.  *Tested* on
+   history: green at `bcde150c` (#105's landing, 89 commits, the pin moving
+   in the tip only) and red at `05321985` (#106's first commit, where #105's
+   pin commit is no longer the tip).
+6. *Measuring*: `bump-con-leche.sh measure` — `scripts/bench-baselines.sh
+   --bin con-ron --export init --runs 1` for master's binary (built from
+   `git archive`, rebuilt when master moves) and the branch's, the delta as
+   a table for the task section.  bench-baselines takes `CONRON`/
+   `CONRON_SRC` for the second binary.  "A bump measures only its landing
+   run" is read as §7.x: one `Init` `instructions:u` run per side, on the
+   binary that lands (so `land` refuses when `crates/` changed after the
+   measurement), no wall time, no repeats, Mathlib only by hand when the
+   sync touches memory, and OVERVIEW §9 never.
+7. *Generator citations*: `gen-prelude.py`, `gen-prelude-lean.py` and
+   `gen-pins.sh`'s heredoc read their con-leche citation from the output
+   they generate — the `con-leche:` line `provenance.py update` relocates —
+   instead of a literal range (`gen-pins`' `_` citation of
+   `#load_natop_pins` cannot be found by name, so reading the relocated line
+   is the one rule that serves all three); a missing output falls back to
+   `provenance.py locate`.  The two prelude headers' prose ranges
+   (`Prelude.lean:59-60`, `:55-60`) became the declaration's name, so the
+   outputs changed by one comment line each (same line count, no extraction
+   change).  *Tested*: the Rust citation moved by hand to `58-59`,
+   `gen-prelude --check` stays green; `gen-pins --check` green.
+8. *`drop-worktree.sh`* deletes every `_tmp/*-<key>`: the naming rule every
+   checkout-keyed script follows, so the list is derived, not enumerated
+   (the old list missed `diff-e2e-` and `deadcode-`).  `gen-pins.sh` and
+   `gen-prelude.sh` were the two scripts with a fixed scratch directory;
+   they are keyed now too (and `diff-e2e.sh --pins-file` reads the keyed
+   dump).  *Tested* by `abort`, which uses the same rule.
+9. *The perf template*: "All runs are `--verified` release builds with
+   mimalloc" now reads: con-ron is its `cargo build --release` binary
+   (mimalloc, its default allocator) and con-leche its `lake build` binary,
+   both run with `--verified`; nanoda its `cargo build --release` binary
+   (the system allocator; its `src/` declares no global allocator) in its
+   default serial configuration.  OVERVIEW §9's paragraph was re-rendered
+   with the new template from #107's raw block (its raw files are gone), and
+   only the sentence was taken: a re-render from the block's two-decimal
+   walls rounds one cell differently (43.95 s), so that cell keeps the
+   measured `43.9`.
+10. *DESIGN §7* "Bumping con-leche (a sync)" is now eight steps, each one
+    command, with the porting lessons of #83/#98 kept; CLAUDE.md's
+    bump-campaign bullet points at `bump-con-leche.sh`; OVERVIEW's gates
+    paragraph names `pin-last` (and its anchor covers the whole list).
+
+**con-leche had not moved.**  `git ls-remote` of
+`github.com/leanprover/con-leche` `master` on 2026-10-01 was `a31e82979`, the
+pin (fetched in a private clone).  So no real sync; the dry runs instead,
+each on a throwaway branch from the commit before that sync, with
+`--overlay-scripts`, then `abort`:
+
+| | #106 (`bcde150c`, `start a31e82979`) | task #106's numbers |
+|---|---|---|
+| findings | 102 `CHANGED`, 0 `GONE`, 174 moved | the same |
+| doc-only / real | **97 / 5** (`annotDeclStep` ×3 parts, `usage` ×2) | 97 / 5 |
+| stale (CHANGED marker) before deletion | 4 | 4 |
+| coverage | 806/930 → 806/940, the ten `And` declarations new | 806/930 → 816/940 after the port |
+| e2e, master's binary at the new pin | 604/607, the three `corner_andpin_*_bad` | 604/607, the same three |
+| links | 7 anchors followed, 2 renumbered citations, README's two links re-pinned | "six anchors relocated", README's two re-pinned |
+| wall | 59 s | |
+
+| | #105 (`723616b1`, `start 445b9cf4`) | task #105's classifier |
+|---|---|---|
+| findings | 1 537: 575 `CHANGED`, 962 `GONE`; 2 133 moved; stale 65 | 1 537: 585, 952; 2 133; 65 |
+| doc-only | 408 | 402 |
+| moved + moved-doc | 25 + 11 | 32 (byte-identical) |
+| moved-changed | 21 | 34 |
+| moved-by-name | 22 | 3 |
+| changed | 167 | 183 |
+| deleted | **883** | **883** |
+| applied mechanically / left | 444 / 1 093 | 434 / "1 069" |
+| e2e, master's binary | 472/602 | 472/602 |
+| wall | 77 s | |
+
+The differences are the two rules: ten citations `update` used to relocate
+onto a strict prefix of their name (e.g. `ConstantInfo.type` onto the new
+`ConstantInfo` structure) are GONE now, and of #105's "byte-identical
+moves" found by short name, the ones over different code (`Kit.piBinders` →
+`FieldTele`'s `Expr.piBinders`, a different function) are `moved-by-name`,
+marker kept; six more findings are doc-only because `--` comments are
+stripped (#106's refinement).
+
+**Left.**  `land`'s fast-forward, cache seed and drop, and
+`sync-shared-con-leche.sh` on the shared directory, run for the first time
+at the next real sync.  `update --auto` keeps the old declaration name in a
+citation it repoints across namespaces (`Baz.thirteen` at `Qux.thirteen`;
+`check` accepts it by suffix).  The merge queue's path→step table (#97-MQ)
+does not list `pin-last`, which is git-only and costs nothing to run.
