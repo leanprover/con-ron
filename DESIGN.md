@@ -65861,3 +65861,113 @@ this lane (`Frontend/Shape`'s `ModellerRefines`, `ExprOps/Mut`'s
 this lane's files: `crates/con-ron/src/driver.rs:278`,
 `crates/con-ron-core/src/kernel/pins_decode.rs:1343` (cited by the OVERVIEW
 gate), `proof/ConRon/Arena/Main.lean:463`, `proof/ConRon/Dump/Pins.lean:26,533`.
+
+#### 6. What landed (campaign lead's summary)
+
+Twenty lanes, every one in its own worktree on the campaign's private
+packages copy, merged into `t105-uinds` by the lead; 419 commits from
+`723616b1`.  The order of §4 held: Rust → measure → twin → Theorem 1 →
+Theorem 2 → sweep → pin.
+
+| phase | lanes | outcome |
+|---|---|---|
+| Rust | R-KERNEL (Opus), R-FRONT (Sonnet) | the uniform route ported (`arena/check_decl.rs`, `arena/inductives/{field_tele, positivity, block_parts, block_rec, class_read, rec_check, gen_rec, block_install, block_tail}.rs`); `native_parts`, `sum_parts`, `native_install(_f)`, `modeled`, `core_gated`, `checker_gated`, `frontend/proj_rec.rs`, `crates/con-ron/src/{in_model*, tree/*}`, the driver's modeller flags deleted; e2e **602/602** at once |
+| twin | T-KERNEL (Opus + four sub-agents), T-FRONT (Sonnet) | `Arena/CheckDecl.lean`, `Arena/Inductives/{FieldTele 1, Positivity 65, BlockParts 28, BlockRec 1, ClassRead 13, BlockInstall 17, RecCheck 24, GenRec 43, BlockTail 6}` declarations; the old routes, the gated core, `Frontend/{InModel, ProjRec}` deleted; `con-ron-lean` **602/602** |
+| Theorem 1 | B-CORE (Opus), B-IND (Opus + sub-agents), B-FRONT (Sonnet) | the new route bridged module for module (≈ 500 theorems, 23 832 lines in `Bridge/Inductives`); `IndOut`/`IndSpec` unchanged, now over `checkIndRoute`; no twin change |
+| Theorem 2 | F-CORE (Opus), F-CHK (Opus), F-IND (Opus + nine sub-agents), F-FRONT (Sonnet), CAP (Opus) | the new route in lockstep (837 theorems, 17 468 lines in `Refine2/Inductives`); one Rust change, `pi_doms_mention_any`'s fuel (`5da0ea94`); no twin change |
+| sweep | DC-top, DC-refine, DC-refine2 (Sonnet, from master); R-SWEEP, R-SWEEP2 (Rust); SW-TOP, SW-R2 (Opus); DOC (Opus) | below |
+
+**Counts, master → landing** (lines of the tree):
+
+| part | master | landing | `git diff --shortstat` |
+|---|---:|---:|---|
+| Rust, all crates | 132 992 | 105 671 | 96 files, +16 316 / −43 637 |
+| twin `Arena/` | 43 153 | 39 056 | 64 files changed |
+| Theorem 1 `Bridge/` | 110 009 | 95 335 | 120 files changed |
+| Theorem 2 `Refine2/` | 127 062 | 105 318 | 112 files changed |
+| leaf tier `Refine/` | 55 689 | 24 871 | 45 files changed |
+| `proof/` without `Generated/` | | | 348 files, +43 220 / −114 634 |
+
+**The capstone lost a premise.**  `hmr : ModellerRefines …` (the Rust
+modeller answers what the twin's `inProcessModeller` answers) and the
+`{G} {inst : Modeller G} {m : G}`, `{inModel census : Bool}` parameters are
+gone from `ConRon.Capstone.{model_exists, no_False_declaration}{,_embedded}`;
+`h2`/`h3` lost those arguments and nothing else.  `hreads` is the one named
+hypothesis left beside `SetTheory V`, `hfalse` and one premise per call.  The
+four headlines depend on `[propext, Classical.choice, Quot.sound]` (the
+`_embedded` pair also on `PINS_TEXT`'s `native_decide` instance, as before);
+the sorry frontier is empty.
+
+**Differential and performance** (`instructions:u`, `--verified --jobs=1`,
+`timeout`, `ulimit -v` 8 GB / 27 GB for Mathlib, one run each, §7.x; master =
+`723616b1`'s binary on the same exports):
+
+| export | master | landing | Δ | peak RSS |
+|---|---:|---:|---:|---|
+| `Init` (57 977 accepted) | 204 104 796 255 | 204 221 403 900 | +0.06 % | 0.64 → 0.60 GB |
+| `Init`+`Std`+`Lean` (163 396) | 392 618 148 330 | 382 914 480 878 | −2.47 % | 1.20 → 1.12 GB |
+| Mathlib (691 128) | 3 719 212 543 193 | 3 713 986 076 362 | −0.14 % | 6.81 → 6.72 GB |
+
+The Mathlib run is §12's landing run, within the 3× budget (25.8 GB).
+`diff-e2e.sh`: master's binary agreed on 472 of the new pin's 602 fixtures;
+the landing binary agrees on **602/602** at `--jobs=1` and `--jobs=4`, and
+`con-ron-lean` on 602/602.
+
+**The unused-code census** (`scripts/dead-census.py`, §5): at master
+19 410 source owners, **3 320 dead**; at the landing 15 253, **246 dead**, every
+one of them in `scripts/dead-census-allow.txt` with its reason (one-line rfl
+lemmas a `simp` trace shows firing, names that tactic code quotes, the
+`matchOwner_*` elaboration owners, the `WFProofs` simp set, `example`-only
+rows) or *held* behind them (`@[simp]` in a surviving module; the lockstep
+tactic's meta helpers, used from `elab_rules`).  Rust: `scripts/dead-rust.py`
+(written here, made a fixpoint by R-SWEEP2) found 244 `pub` items without a
+non-test use at master and finds **0** now, beside three allowlisted
+functions that exist to be the subject of a live Theorem-2 statement
+(`parse_chunks`, `prepare_prelude`, `annot_fold`).  **Both are gate steps
+now** (`dead-rust` after the lint, `dead-census` after `lake-build`, the
+latter via `scripts/dead-census-gate.sh`, which also builds the executables
+and the two index roots the census imports; ~2.5 min).
+
+**The gates**: `scripts/gates.sh` (`LAKE_JOBS=4`) **all 15 OK**:
+`provenance` 6 071 items, every citation current at `445b9cf4`; coverage
+806/930 (86.7 %), 124 uncovered (master's `Cached/*` set), 195 deliberately
+skipped; `twin-lines` 1 804 citations; the link gate 100 links;
+`extract-check` 78 s; `lake-build` 1 493 s with no warning from `ConRon/`;
+`dead-census` 141 s.
+
+**Decisions taken, flagged for the maintainer.**
+1. *The tree-kernel test oracles are gone* (R-SWEEP2, option 2 of three):
+   most of `kernel/expr_ops.rs`, all of `kernel/canon.rs` and `kernel/fenv.rs`,
+   and parts of `kernel/{env, expr, level, prop_read, std_axioms, basis_raw,
+   basis_pins, core_types}.rs` were alive only as the oracle of arena
+   differential unit tests.  They were deleted with those tests (the arena
+   functions are covered by Theorem 2 against the twin, Theorem 1 against
+   con-leche and the 602-fixture differential); 34 upstream declarations whose
+   only citation was there went to the skip list with that reason.  The
+   alternatives were `#[cfg(test)]` in place or moving ~3 000 lines into test
+   modules.
+2. *`pi_doms_mention_any` takes fuel* (`5da0ea94`): the twin cannot recurse
+   over handles without fuel, so the Rust follows it (`CORE_WALK_FUEL`, one
+   unit per binder).  Verdict-neutral (602/602).
+3. *The help text of `con-ron` still says the installer "CHECKS the stream's
+   recursor records … nothing is generated in their place"*: it is
+   con-leche's own `Main.lean:833` wording, copied verbatim as the port's
+   convention; upstream's text is stale against its GENREC flip, not ours to
+   reword.
+
+**Process deviations.**  A sub-agent of F-IND committed the pin files once
+(`c4e012cb`); every merge restored them, so no commit on the branch's
+first-parent line changes them before the pin commit.  The early dead-code
+lanes DC-top/DC-refine/DC-refine2 branched from master and were merged into
+the campaign branch (resolving conflicts mechanically); DC-refine2 reverted
+most of its own deletions after cascades, which SW-R2 redid module by module
+with a `simp`-rewrite trace as the arbiter.
+
+**Left over.**  Seven Theorem-2 lemmas need `maxHeartbeats` 1–4 M (F-IND's
+list).  `scripts/dead-census.py` cannot see `elab_rules` users, `example`s or
+backtick name literals (the allowlist records each).  Upstream wishes:
+`genRecCheck_recsWF` lives in con-leche's cached tier, so our
+`Bridge/Inductives/BlockWF` imports it.  OVERVIEW §9's performance table is
+not refreshed (§7.x).  `progress.py`'s "verified" column reads 8 %: it counts
+the retired `Refine/*_refines` lemmas, most of which this campaign deleted as
+unused; `arena-census.py` is the arena's ledger.
