@@ -153,7 +153,7 @@
   1296      pub bms: Tbl<BMNode, BMIdx, u64>,
   1297  }
 
-== crates/con-ron/src/bin/con-ron.rs#L86-L206
+== crates/con-ron/src/bin/con-ron.rs#L86-L208
     86  usage: con-ron [--verified|--trusted] [--jobs=<n>] [--no-mark-persistent]
     87                 [--progress[=<stride>]] [--pins FILE|--no-pins]
     88                 FILE.ndjson
@@ -265,16 +265,18 @@
    194  what the persistent tier is for: the prelude's nodes and the stream's are
    195  hash-consed together.
    196  
-   197  NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is
-   198  no external tool, no dependency and no spawn.  Every inductive block --
+   197  NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is no
+   198  external tool, no dependency and no spawn.  Every inductive block --
    199  structures, sums, indexed families, recursive, reflexive, mutual and nested
-   200  blocks -- is installed by the ONE uniform installer: it checks the type
-   201  formers and constructors, runs the positivity check, and CHECKS the stream's
-   202  recursor records against the block; nothing is generated in their place.  No
-   203  model is ever read from the input: a stream record whose name carries a
-   204  `_model` component is an ordinary declaration with no effect on any block.  A
-   205  block whose shape the installer does not recognise declines (exit 2), naming
-   206  it.  The binary reads no environment variable.";
+   200  blocks -- is installed by the ONE uniform installer: it checks the type formers
+   201  and constructors, runs the positivity check, and GENERATES the block's
+   202  recursors; the stream's recursor records supply only their types, compared with
+   203  the generated ones up to definitional equality, and their classes -- the rule
+   204  bodies the stream carries are ignored.  No model is ever read from the input: a
+   205  stream record whose name carries a `_model` component is an ordinary
+   206  declaration with no effect on any block.  A block whose shape the installer
+   207  does not recognise declines (exit 2), naming it.  The binary reads no
+   208  environment variable.";
 
 == crates/con-ron/src/driver.rs#L18-L23
     18  //! | exit | verdict | meaning |
@@ -534,27 +536,27 @@
    529      AStateRel emptyTier st lst ∧ IFEnvRel fe lfe ∧
    530      ConRon.Bridge.denoteFEnv lst.store lfe = some env
 
-== crates/con-ron/src/bin/con-ron.rs#L361-L380
-   361      let mut st = AState::empty();
-   362      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
-   363      // #97-P6-6b).  The parse and phase A's setup own their own — the store
-   364      // is owned (not frozen) outside a declaration bracket — so what they are
-   365      // handed here is the EMPTY tier, and the single-lane computation is
-   366      // unchanged.  Each phase-A bracket freezes the store and reads through
-   367      // the tier it took out; phase B freezes the store's tier into a
-   368      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
-   369      // where that happens.
-   370      // ConRon.Capstone: `emptyTier`
-   371      let pers: &PersTier = &PersTier::empty();
-   372      // THE RESERVED-NAME PINS, interned once into that persistent tier before
-   373      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
-   374      // tier is closed here, so every pinned handle is persistent and survives
-   375      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
-   376      // read raises `Internal` rather than answering — which is what makes the
-   377      // initialisation-order hazard task #97c named impossible rather than
-   378      // unlikely.
-   379      // ConRon.Capstone: h1
-   380      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
+== crates/con-ron/src/bin/con-ron.rs#L363-L382
+   363      let mut st = AState::empty();
+   364      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
+   365      // #97-P6-6b).  The parse and phase A's setup own their own — the store
+   366      // is owned (not frozen) outside a declaration bracket — so what they are
+   367      // handed here is the EMPTY tier, and the single-lane computation is
+   368      // unchanged.  Each phase-A bracket freezes the store and reads through
+   369      // the tier it took out; phase B freezes the store's tier into a
+   370      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
+   371      // where that happens.
+   372      // ConRon.Capstone: `emptyTier`
+   373      let pers: &PersTier = &PersTier::empty();
+   374      // THE RESERVED-NAME PINS, interned once into that persistent tier before
+   375      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+   376      // tier is closed here, so every pinned handle is persistent and survives
+   377      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
+   378      // read raises `Internal` rather than answering — which is what makes the
+   379      // initialisation-order hazard task #97c named impossible rather than
+   380      // unlikely.
+   381      // ConRon.Capstone: h1
+   382      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
 
 == proof/ConRon/Refine2/Frontend/Source.lean#L34-L38
     34  def ReadsAs {S : Type} (inst : frontend.export_c.ChunkSource S) :
@@ -579,7 +581,7 @@
    320      /// per-declaration drop are different operations on different lifetimes.
    321      pub caches: Caches,
    322      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
-   323      /// forty-nine constant names, the empty level list, the level `0` and
+   323      /// fifty constant names, the empty level list, the level `0` and
    324      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
    325      /// `intern_all_pins` and read by handle ever after.  Empty until then,
    326      /// which is what makes a premature read a stop rather than a wrong
@@ -888,30 +890,30 @@
     39  //!   `seen` set and `arena::expr_ops`' for the three memoized scope walks;
     40  //! * **`intern_persistent` probes the persistent cons table first**, so
 
-== crates/con-ron-core/src/arena/checker.rs#L628-L650
-   628  /// con-leche: none — the phase boundary, which con-leche has no tier to make
-   629  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
-   630  /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
-   631  /// **The persistent tier out of the store and into a value** (task
-   632  /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
-   633  /// persistent tables move into one `PersTier` handed back `frozen`, for the
-   634  /// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
-   635  /// store's scratch tiers and flags are untouched (a worker's store is its own,
-   636  /// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
-   637  /// is gone), and `thaw_tier` puts the tables back where they were.  The
-   638  /// driver's store is not read between the two.
-   639  pub fn freeze_tier(ar: &mut EStore) -> PersTier {
-   640      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
-   641      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
-   642      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
-   643      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
-   644      PersTier {
-   645          frozen: true,
-   646          n,
-   647          l,
-   648          ls,
-   649          e,
-   650      }
+== crates/con-ron-core/src/arena/checker.rs#L651-L673
+   651  /// con-leche: none — the phase boundary, which con-leche has no tier to make
+   652  /// Lean twin: none — the twin has no tier to move; its phase-B worker reads the
+   653  /// persistent tier where it is (`AState.worker`, `Arena/Phased.lean`).
+   654  /// **The persistent tier out of the store and into a value** (task
+   655  /// #97-P6-6b's driver function, moved here by task #97-P5-Driver): the four
+   656  /// persistent tables move into one `PersTier` handed back `frozen`, for the
+   657  /// phase-B workers to read.  Task #98-FREEZE: this is a pure MOVE — the
+   658  /// store's scratch tiers and flags are untouched (a worker's store is its own,
+   659  /// `worker_state`), there is no flag to test and so no decline (`M_REFREEZE`
+   660  /// is gone), and `thaw_tier` puts the tables back where they were.  The
+   661  /// driver's store is not read between the two.
+   662  pub fn freeze_tier(ar: &mut EStore) -> PersTier {
+   663      let n: NTables = core::mem::replace(&mut ar.lss.ls.ns.pers, NTables::empty());
+   664      let l: LTables = core::mem::replace(&mut ar.lss.ls.pers, LTables::empty());
+   665      let ls: LsTables = core::mem::replace(&mut ar.lss.pers, LsTables::empty());
+   666      let e: ETables = core::mem::replace(&mut ar.pers, ETables::empty());
+   667      PersTier {
+   668          frozen: true,
+   669          n,
+   670          l,
+   671          ls,
+   672          e,
+   673      }
 
 == crates/con-ron-core/src/arena/store.rs#L1353-L1362
   1353  pub struct PersTier {
@@ -1171,195 +1173,195 @@
     39  //! * A `Live` slot is **live only if its stamp is the table's `epoch`**;
     40  //!   a `Live` slot with a stale stamp is free space, indistinguishable from
 
-== crates/con-ron/src/bin/con-ron.rs#L346-L533
-   346  fn check_main(a: &Args, file: &str) -> u8 {
-   347      let t0 = Instant::now();
-   348      let mode_tag = if a.verified {
-   349          "--verified"
-   350      } else {
-   351          "--trusted"
-   352      };
-   353      let mode = if a.verified {
-   354          CheckMode::Verified
-   355      } else {
-   356          CheckMode::Trusted
-   357      };
-   358      // ONE store for the whole run: the prelude, the stream and the pins are
-   359      // hash-consed together into its persistent tier (DESIGN.md §8.3).
-   360      // ConRon.Capstone: `startState`
-   361      let mut st = AState::empty();
-   362      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
-   363      // #97-P6-6b).  The parse and phase A's setup own their own — the store
-   364      // is owned (not frozen) outside a declaration bracket — so what they are
-   365      // handed here is the EMPTY tier, and the single-lane computation is
-   366      // unchanged.  Each phase-A bracket freezes the store and reads through
-   367      // the tier it took out; phase B freezes the store's tier into a
-   368      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
-   369      // where that happens.
-   370      // ConRon.Capstone: `emptyTier`
-   371      let pers: &PersTier = &PersTier::empty();
-   372      // THE RESERVED-NAME PINS, interned once into that persistent tier before
-   373      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
-   374      // tier is closed here, so every pinned handle is persistent and survives
-   375      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
-   376      // read raises `Internal` rather than answering — which is what makes the
-   377      // initialisation-order hazard task #97c named impossible rather than
-   378      // unlikely.
-   379      // ConRon.Capstone: h1
-   380      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
-   381          Ok(()) => (),
-   382          Err(e) => {
-   383              eprintln!(
-   384                  "con-ron: the reserved-name pins do not intern ({}) ({})",
-   385                  con_ron::driver::message(&e),
-   386                  mode_tag
-   387              );
-   388              return 3;
-   389          }
-   390      }
-   391      // THE BUILT-IN PRELUDE, parsed into that store before anything else.
-   392      // ConRon.Capstone: h2
-   393      let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
-   394          Ok(p) => p,
-   395          Err((e, line)) => {
-   396              let what = match classify(&e) {
-   397                  FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
-   398                  FrontendClass::Declined(w) => format!("is unsupported ({})", w),
-   399                  FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
-   400              };
-   401              eprintln!(
-   402                  "con-ron: the built-in prelude {}; regenerate it with \
-   403                   `lake exe natop-pins-export` ({})",
-   404                  what, mode_tag
-   405              );
-   406              return 3;
-   407          }
-   408      };
-   409      // Streaming frontend: the file is read 4 MiB at a time and each buffer is
-   410      // parsed and dropped, so neither a wholesale text buffer nor a scratch
-   411      // file exists.  What comes out is the FILE's records as HANDLES into the
-   412      // store above.  No model is ever read from the input: every inductive
-   413      // block — mutual and nested included — installs through the kernel's
-   414      // uniform installer, unconditionally (task #105).
-   415      // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
-   416      let parsed: ParseResultD = match driver::parse_export_stream_d(
-   417          pers,
-   418          &mut st,
-   419          file,
-   420          export_c::CHUNK_SIZE,
-   421      ) {
-   422          Err(e) => {
-   423              eprintln!("con-ron: {}: {}", file, e);
-   424              return 3;
-   425          }
-   426          Ok((Err((e, line)), _)) => match classify(&e) {
-   427              FrontendClass::Declined(what) => {
-   428                  eprintln!("con-ron: declined: {} ({})", what, mode_tag);
-   429                  return 2;
-   430              }
-   431              // A stream whose inductive block contradicts its own declarations
-   432              // in a REDUNDANT field is rejected at the parse.
-   433              FrontendClass::Invalid(what) => {
-   434                  eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
-   435                  return 1;
-   436              }
-   437              FrontendClass::Internal(msg) => {
-   438                  eprintln!("con-ron: {}:{}: {}", file, line, msg);
-   439                  return 3;
-   440              }
-   441          },
-   442          Ok((Ok(r), _)) => r,
-   443      };
-   444      let file_records = parsed.decls.len();
-   445      // From here on the store is the checker's state: the memo tables and the
-   446      // per-declaration caches join it (`AState`), and every handle the parse
-   447      // produced indexes into it.
-   448      // **PREPARE** (`frontend::prepare`): what the fold runs over is
-   449      // `prepare_prelude` of the file's records — the prelude's declarations
-   450      // first (the stream's own copies where it has them, the rest synthesised),
-   451      // then the stream's, with every pinned `Nat` operation's stream-certified
-   452      // ground hoisted ahead of it.  It takes the whole state since task
-   453      // #97-P4d: step 2 is the real ground hoist, which interns.
-   454      // ConRon.Capstone: h4
-   455      let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
-   456          Ok(p) => p,
-   457          Err(e) => return frontend_exit(&e, mode_tag),
-   458      };
-   459      // the ground hoist's receipt
-   460      if !prepared.hoisted.is_empty() {
-   461          let names: Vec<String> = prepared
-   462              .hoisted
-   463              .iter()
-   464              .map(|n| driver::name_of(pers, &st.store, n))
-   465              .collect();
-   466          eprintln!(
-   467              "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
-   468               they ground: {}",
-   469              prepared.hoisted.len(),
-   470              names.join(", ")
-   471          );
-   472      }
-   473      // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
-   474      // outside the theorems)
-   475      let pins = match con_ron::driver::pins_for_run(&a.pins, a.no_pins) {
-   476          Ok(p) => p,
-   477          Err(e) => {
-   478              eprintln!("con-ron: {}", e);
-   479              return 3;
-   480          }
-   481      };
-   482      // The heartbeat's first line: the parse and the preparation are done.
-   483      let mut hb = Heartbeat::new(a.progress, t0);
-   484      hb.parse_done(
-   485          prepared.decls.len(),
-   486          file_records,
-   487          prepared.synthesised,
-   488          (
-   489              st.store.node_count(pers),
-   490              st.store.ls().node_count(pers),
-   491              st.store.ns().node_count(pers),
-   492          ),
-   493      );
-   494      // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
-   495      // pinned datum the checker compares a stream record against — the six
-   496      // basis blocks in both forms, the axiom pins, the reserved names and the
-   497      // `Nat`-operation variants — interned ONCE, here, while the scratch tier
-   498      // is still off, so that nothing the fold compares against lives in a tier
-   499      // that is about to vanish.  Its result is the fold's pin parameter.
-   500      // ConRon.Capstone: h5
-   501      let ipins = match checker::intern_all_pins(pers, &mut st, &pins) {
-   502          Ok(p) => p,
-   503          Err(e) => return frontend_exit(&e, mode_tag),
-   504      };
-   505      // ONE driver, and the heartbeat is printed between its steps
-   506      // (`driver::check_decls_driver`: phase A, the frozen tier, and the pool
-   507      // for its phase B).
-   508      let jobs: u64 = match a.jobs {
-   509          Some(n) => n,
-   510          None => con_ron::driver::default_jobs(),
-   511      };
-   512      // ONE lane, whatever the flags: the driver is what freezes the persistent
-   513      // tier at the phase boundary and phase B is the pool at every worker count
-   514      // (task #97-P6-6b), so a run with no heartbeat is the same computation as
-   515      // a run with one and `install_then_check` is no longer a second path.
-   516      // ConRon.Capstone: h6, h7, h8 (the driver's three steps, either observer)
-   517      let verdict = if a.progress > 0 {
-   518          driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
-   519      } else {
-   520          let mut silent = driver::Silent;
-   521          driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
-   522      };
-   523      // **The headline number is the FILE's declaration-record count**: the
-   524      // records the PARSE produced, which are the file's own.  Nothing the
-   525      // preparation does moves it.
-   526      let stream_records = file_records as u64;
-   527      match &verdict {
-   528          Ok(_) => driver::verdict_accept(stream_records, mode_tag),
-   529          Err((e, i)) => {
-   530              driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0)
-   531          }
-   532      }
-   533  }
+== crates/con-ron/src/bin/con-ron.rs#L348-L535
+   348  fn check_main(a: &Args, file: &str) -> u8 {
+   349      let t0 = Instant::now();
+   350      let mode_tag = if a.verified {
+   351          "--verified"
+   352      } else {
+   353          "--trusted"
+   354      };
+   355      let mode = if a.verified {
+   356          CheckMode::Verified
+   357      } else {
+   358          CheckMode::Trusted
+   359      };
+   360      // ONE store for the whole run: the prelude, the stream and the pins are
+   361      // hash-consed together into its persistent tier (DESIGN.md §8.3).
+   362      // ConRon.Capstone: `startState`
+   363      let mut st = AState::empty();
+   364      // THE PERSISTENT TIER a phase-B worker reads (DESIGN.md §8.3, task
+   365      // #97-P6-6b).  The parse and phase A's setup own their own — the store
+   366      // is owned (not frozen) outside a declaration bracket — so what they are
+   367      // handed here is the EMPTY tier, and the single-lane computation is
+   368      // unchanged.  Each phase-A bracket freezes the store and reads through
+   369      // the tier it took out; phase B freezes the store's tier into a
+   370      // `PersTier` and hands `&` it to every worker; `check_decls_driver` is
+   371      // where that happens.
+   372      // ConRon.Capstone: `emptyTier`
+   373      let pers: &PersTier = &PersTier::empty();
+   374      // THE RESERVED-NAME PINS, interned once into that persistent tier before
+   375      // anything else touches it (task #97-P6-4a, `arena::pins`): the scratch
+   376      // tier is closed here, so every pinned handle is persistent and survives
+   377      // every `drop_scratch` of the run.  Until this has run, every `pin_*`
+   378      // read raises `Internal` rather than answering — which is what makes the
+   379      // initialisation-order hazard task #97c named impossible rather than
+   380      // unlikely.
+   381      // ConRon.Capstone: h1
+   382      match con_ron_core::arena::pins::intern_reserved_pins(pers, &mut st) {
+   383          Ok(()) => (),
+   384          Err(e) => {
+   385              eprintln!(
+   386                  "con-ron: the reserved-name pins do not intern ({}) ({})",
+   387                  con_ron::driver::message(&e),
+   388                  mode_tag
+   389              );
+   390              return 3;
+   391          }
+   392      }
+   393      // THE BUILT-IN PRELUDE, parsed into that store before anything else.
+   394      // ConRon.Capstone: h2
+   395      let prelude_ix = match prelude::builtin_prelude_e(pers, &mut st) {
+   396          Ok(p) => p,
+   397          Err((e, line)) => {
+   398              let what = match classify(&e) {
+   399                  FrontendClass::Internal(m) => format!("does not parse (line {}: {})", line, m),
+   400                  FrontendClass::Declined(w) => format!("is unsupported ({})", w),
+   401                  FrontendClass::Invalid(w) => format!("contradicts itself ({})", w),
+   402              };
+   403              eprintln!(
+   404                  "con-ron: the built-in prelude {}; regenerate it with \
+   405                   `lake exe natop-pins-export` ({})",
+   406                  what, mode_tag
+   407              );
+   408              return 3;
+   409          }
+   410      };
+   411      // Streaming frontend: the file is read 4 MiB at a time and each buffer is
+   412      // parsed and dropped, so neither a wholesale text buffer nor a scratch
+   413      // file exists.  What comes out is the FILE's records as HANDLES into the
+   414      // store above.  No model is ever read from the input: every inductive
+   415      // block — mutual and nested included — installs through the kernel's
+   416      // uniform installer, unconditionally (task #105).
+   417      // ConRon.Capstone: hreads, h3 (`parse_source` over the file's handle)
+   418      let parsed: ParseResultD = match driver::parse_export_stream_d(
+   419          pers,
+   420          &mut st,
+   421          file,
+   422          export_c::CHUNK_SIZE,
+   423      ) {
+   424          Err(e) => {
+   425              eprintln!("con-ron: {}: {}", file, e);
+   426              return 3;
+   427          }
+   428          Ok((Err((e, line)), _)) => match classify(&e) {
+   429              FrontendClass::Declined(what) => {
+   430                  eprintln!("con-ron: declined: {} ({})", what, mode_tag);
+   431                  return 2;
+   432              }
+   433              // A stream whose inductive block contradicts its own declarations
+   434              // in a REDUNDANT field is rejected at the parse.
+   435              FrontendClass::Invalid(what) => {
+   436                  eprintln!("con-ron: invalid: {} ({})", what, mode_tag);
+   437                  return 1;
+   438              }
+   439              FrontendClass::Internal(msg) => {
+   440                  eprintln!("con-ron: {}:{}: {}", file, line, msg);
+   441                  return 3;
+   442              }
+   443          },
+   444          Ok((Ok(r), _)) => r,
+   445      };
+   446      let file_records = parsed.decls.len();
+   447      // From here on the store is the checker's state: the memo tables and the
+   448      // per-declaration caches join it (`AState`), and every handle the parse
+   449      // produced indexes into it.
+   450      // **PREPARE** (`frontend::prepare`): what the fold runs over is
+   451      // `prepare_prelude` of the file's records — the prelude's declarations
+   452      // first (the stream's own copies where it has them, the rest synthesised),
+   453      // then the stream's, with every pinned `Nat` operation's stream-certified
+   454      // ground hoisted ahead of it.  It takes the whole state since task
+   455      // #97-P4d: step 2 is the real ground hoist, which interns.
+   456      // ConRon.Capstone: h4
+   457      let prepared = match prepare::prepare_d(pers, &mut st, prelude_ix, parsed.decls) {
+   458          Ok(p) => p,
+   459          Err(e) => return frontend_exit(&e, mode_tag),
+   460      };
+   461      // the ground hoist's receipt
+   462      if !prepared.hoisted.is_empty() {
+   463          let names: Vec<String> = prepared
+   464              .hoisted
+   465              .iter()
+   466              .map(|n| driver::name_of(pers, &st.store, n))
+   467              .collect();
+   468          eprintln!(
+   469              "con-ron: {} declarations hoisted ahead of the pinned Nat operations \
+   470               they ground: {}",
+   471              prepared.hoisted.len(),
+   472              names.join(", ")
+   473          );
+   474      }
+   475      // ConRon.Capstone: hpins (`decode_embedded`; `--pins`/`--no-pins` are
+   476      // outside the theorems)
+   477      let pins = match con_ron::driver::pins_for_run(&a.pins, a.no_pins) {
+   478          Ok(p) => p,
+   479          Err(e) => {
+   480              eprintln!("con-ron: {}", e);
+   481              return 3;
+   482          }
+   483      };
+   484      // The heartbeat's first line: the parse and the preparation are done.
+   485      let mut hb = Heartbeat::new(a.progress, t0);
+   486      hb.parse_done(
+   487          prepared.decls.len(),
+   488          file_records,
+   489          prepared.synthesised,
+   490          (
+   491              st.store.node_count(pers),
+   492              st.store.ls().node_count(pers),
+   493              st.store.ns().node_count(pers),
+   494          ),
+   495      );
+   496      // **THE STARTUP PIN WALK** (DESIGN.md §8.6 P2d, task #97-P4d): every
+   497      // pinned datum the checker compares a stream record against — the six
+   498      // basis blocks in both forms, the axiom pins, the reserved names and the
+   499      // `Nat`-operation variants — interned ONCE, here, while the scratch tier
+   500      // is still off, so that nothing the fold compares against lives in a tier
+   501      // that is about to vanish.  Its result is the fold's pin parameter.
+   502      // ConRon.Capstone: h5
+   503      let ipins = match checker::intern_all_pins(pers, &mut st, &pins) {
+   504          Ok(p) => p,
+   505          Err(e) => return frontend_exit(&e, mode_tag),
+   506      };
+   507      // ONE driver, and the heartbeat is printed between its steps
+   508      // (`driver::check_decls_driver`: phase A, the frozen tier, and the pool
+   509      // for its phase B).
+   510      let jobs: u64 = match a.jobs {
+   511          Some(n) => n,
+   512          None => con_ron::driver::default_jobs(),
+   513      };
+   514      // ONE lane, whatever the flags: the driver is what freezes the persistent
+   515      // tier at the phase boundary and phase B is the pool at every worker count
+   516      // (task #97-P6-6b), so a run with no heartbeat is the same computation as
+   517      // a run with one and `install_then_check` is no longer a second path.
+   518      // ConRon.Capstone: h6, h7, h8 (the driver's three steps, either observer)
+   519      let verdict = if a.progress > 0 {
+   520          driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut hb)
+   521      } else {
+   522          let mut silent = driver::Silent;
+   523          driver::check_decls_driver(pers, &mut st, &mode, &ipins, &prepared.decls, jobs, &mut silent)
+   524      };
+   525      // **The headline number is the FILE's declaration-record count**: the
+   526      // records the PARSE produced, which are the file's own.  Nothing the
+   527      // preparation does moves it.
+   528      let stream_records = file_records as u64;
+   529      match &verdict {
+   530          Ok(_) => driver::verdict_accept(stream_records, mode_tag),
+   531          Err((e, i)) => {
+   532              driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0)
+   533          }
+   534      }
+   535  }
 
 == crates/con-ron-core/src/arena/pins.rs#L1-L60
      1  //! `arena::pins` — the reserved names, interned ONCE (task #97-P6-4a).
@@ -1401,7 +1403,7 @@
     37  //!
     38  //! ## What is pinned
     39  //!
-    40  //! The forty-eight names below and `basis_names::reserved_basis_names()`'s
+    40  //! The fifty names below and `basis_names::reserved_basis_names()`'s
     41  //! sixteen, plus the three interned values every `pin` site around them
     42  //! needs: the empty universe-argument list, the level `0` and the expression
     43  //! `Sort 1` (`arena::core`'s `empty_levels`, `zero_level` and `sort_one`,
@@ -1475,35 +1477,35 @@
     49  //! module's tests, where it still checks `pick_idx` against the specification
     50  //! on every `cargo test`.
 
-== crates/con-ron-core/src/arena/checker.rs#L701-L728
-   701  /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-   702  /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-   703  /// Lean twin: `proof/ConRon/Arena/Checker.lean:294-329 internAllPins` — **the
-   704  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
-   705  /// a stream record against, interned into the tier that is live at the call —
-   706  /// which, at the driver's call, is the persistent one.
-   707  ///
-   708  /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
-   709  /// `quot_pin_hit` compare against, the ANNOTATED ones `check_basis_decl`
-   710  /// installs), the standard and compiler-trust axiom pins, the reserved names
-   711  /// the guards compare by handle, and the `Nat`-operation pin variants, whose
-   712  /// interned form is the checker's pin-list parameter (con-leche's task #304).
-   713  pub fn intern_all_pins(
-   714      pers: &PersTier,
-   715      st: &mut AState,
-   716      pins: &Vec<NatOpPinSet>,
-   717  ) -> Result<Vec<INatOpPinSet>, CheckError> {
-   718      match intern_all_basis(pers, st, 0) {
-   719          Err(e) => Err(e),
-   720          Ok(()) => match intern_all_axiom_pins(pers, st) {
-   721              Err(e) => Err(e),
-   722              Ok(()) => match intern_all_names(st) {
-   723                  Err(e) => Err(e),
-   724                  Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
-   725              },
-   726          },
-   727      }
-   728  }
+== crates/con-ron-core/src/arena/checker.rs#L724-L751
+   724  /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+   725  /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+   726  /// Lean twin: `proof/ConRon/Arena/Checker.lean:304-339 internAllPins` — **the
+   727  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
+   728  /// a stream record against, interned into the tier that is live at the call —
+   729  /// which, at the driver's call, is the persistent one.
+   730  ///
+   731  /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
+   732  /// `quot_pin_hit` compare against, the ANNOTATED ones `check_basis_decl`
+   733  /// installs), the standard and compiler-trust axiom pins, the reserved names
+   734  /// the guards compare by handle, and the `Nat`-operation pin variants, whose
+   735  /// interned form is the checker's pin-list parameter (con-leche's task #304).
+   736  pub fn intern_all_pins(
+   737      pers: &PersTier,
+   738      st: &mut AState,
+   739      pins: &Vec<NatOpPinSet>,
+   740  ) -> Result<Vec<INatOpPinSet>, CheckError> {
+   741      match intern_all_basis(pers, st, 0) {
+   742          Err(e) => Err(e),
+   743          Ok(()) => match intern_all_axiom_pins(pers, st) {
+   744              Err(e) => Err(e),
+   745              Ok(()) => match intern_all_names(st) {
+   746                  Err(e) => Err(e),
+   747                  Ok(()) => intern_pin_sets(pers, st, pins, 0, Vec::new()),
+   748              },
+   749          },
+   750      }
+   751  }
 
 == crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
     40  pub const PINS_TEXT: &str = "\
@@ -1639,65 +1641,65 @@
     39  //! the one way hash-consing can go wrong across the tier boundary.
     40  
 
-== crates/con-ron-core/src/arena/checker.rs#L217-L257
-   217  pub fn annot_step(
-   218      _pers: &PersTier,
-   219      st: &mut AState,
-   220      mode: &CheckMode,
-   221      pins: &Vec<INatOpPinSet>,
-   222      i: u64,
-   223      fe: IFEnv,
-   224      pend: Vec<PendingCheck>,
-   225      pd: &IDeclaration,
-   226  ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
-   227      let vis: u64 = fe.visible_below;
-   228      flush_caches(st);
-   229      let mut tier: PersTier = enter_scratch(st);
-   230      match annot_step_go(&tier, st, mode, pins, fe, pd) {
-   231          Err(e) => {
-   232              drop_scratch(st, tier);
-   233              Err(e)
-   234          }
-   235          Ok((fe2, vg_opt)) => {
-   236              let k: u64 = fe2.visible_below - vis;
-   237              match vg_opt {
-   238                  None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
-   239                      Err(e) => {
-   240                          drop_scratch(st, tier);
-   241                          Err(e)
-   242                      }
-   243                      Ok((_, fe3)) => {
-   244                          drop_scratch(st, tier);
-   245                          Ok((fe3, pend))
-   246                      }
-   247                  },
-   248                  Some(vg) => annot_step_promote(tier, st, i, vis, k, fe2, pend, vg),
-   249              }
-   250          }
-   251      }
-   252  }
-   253  
-   254  /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
-   255  /// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — the
-   256  /// bracket's `some vg` arm: the seam promoted first and the environment at the
-   257  /// SAME memo, then the tier dropped and the record pushed.
+== crates/con-ron-core/src/arena/checker.rs#L225-L265
+   225  pub fn annot_step(
+   226      _pers: &PersTier,
+   227      st: &mut AState,
+   228      mode: &CheckMode,
+   229      pins: &Vec<INatOpPinSet>,
+   230      i: u64,
+   231      fe: IFEnv,
+   232      pend: Vec<PendingCheck>,
+   233      pd: &IDeclaration,
+   234  ) -> Result<(IFEnv, Vec<PendingCheck>), CheckError> {
+   235      let vis: u64 = fe.visible_below;
+   236      flush_caches(st);
+   237      let mut tier: PersTier = enter_scratch(st);
+   238      match annot_step_go(&tier, st, mode, pins, fe, pd) {
+   239          Err(e) => {
+   240              drop_scratch(st, tier);
+   241              Err(e)
+   242          }
+   243          Ok((fe2, vg_opt)) => {
+   244              let k: u64 = fe2.visible_below - vis;
+   245              match vg_opt {
+   246                  None => match promote_new(&mut tier, st, PMemo::empty(), CORE_WALK_FUEL, k, fe2) {
+   247                      Err(e) => {
+   248                          drop_scratch(st, tier);
+   249                          Err(e)
+   250                      }
+   251                      Ok((_, fe3)) => {
+   252                          drop_scratch(st, tier);
+   253                          Ok((fe3, pend))
+   254                      }
+   255                  },
+   256                  Some(vg) => annot_step_promote(tier, st, i, vis, k, fe2, pend, vg),
+   257              }
+   258          }
+   259      }
+   260  }
+   261  
+   262  /// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+   263  /// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — the
+   264  /// bracket's `some vg` arm: the seam promoted first and the environment at the
+   265  /// SAME memo, then the tier dropped and the record pushed.
 
-== crates/con-ron-core/src/arena/checker.rs#L544-L555
-   544  pub fn check_pending(
-   545      pers: &PersTier,
-   546      st: &mut AState,
-   547      mode: &CheckMode,
-   548      fe: &IFEnv,
-   549      pc: &PendingCheck,
-   550  ) -> Result<(), CheckError> {
-   551      enter_record(st);
-   552      let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
-   553      leave_record(st);
-   554      r
-   555  }
+== crates/con-ron-core/src/arena/checker.rs#L567-L578
+   567  pub fn check_pending(
+   568      pers: &PersTier,
+   569      st: &mut AState,
+   570      mode: &CheckMode,
+   571      fe: &IFEnv,
+   572      pc: &PendingCheck,
+   573  ) -> Result<(), CheckError> {
+   574      enter_record(st);
+   575      let r: Result<(), CheckError> = check_value_group(pers, pc.vis, st, mode, fe, &pc.vg);
+   576      leave_record(st);
+   577      r
+   578  }
 
 == crates/con-ron/src/driver.rs#L529-L623
-   529  /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
+   529  /// con-leche: ConLeche/Cached/Installed.lean:442-459 checkDecls
    530  /// con-leche: Main.lean:319-422 checkDeclsIO
    531  /// **The driver**: the two-phase fold with the boundary visible — a straight
    532  /// line of calls, with the observer's lines between them and the pool for
@@ -1809,21 +1811,21 @@
     42  //! prefix bound as a scalar, `pc.vis`, so a worker costs no environment copy
     43  //! at all — task #97-P6-6b).
 
-== crates/con-ron-core/src/arena/checker.rs#L682-L695
-   682  /// con-leche: Main.lean:263-279 checkWorker
-   683  /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
-   684  /// phase-B worker reads the persistent tier where it is.
-   685  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
-   686  /// moved here by task #97-P5-Driver): the empty store, FROZEN
-   687  /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
-   688  /// goes to the `PersTier` the boundary froze and every append is a scratch
-   689  /// append; fresh memos and caches; and a copy of the pins.  The store stays
-   690  /// frozen for the worker's life: `check_pending` only empties its scratch tier.
-   691  pub fn worker_state(pins: &Pins) -> AState {
-   692      let mut st = AState::init(EStore::empty_frozen());
-   693      st.pins = pins_dup(pins);
-   694      st
-   695  }
+== crates/con-ron-core/src/arena/checker.rs#L705-L718
+   705  /// con-leche: Main.lean:263-279 checkWorker
+   706  /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
+   707  /// phase-B worker reads the persistent tier where it is.
+   708  /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
+   709  /// moved here by task #97-P5-Driver): the empty store, FROZEN
+   710  /// (`EStore::empty_frozen`, task #98-FREEZE), so that every persistent read
+   711  /// goes to the `PersTier` the boundary froze and every append is a scratch
+   712  /// append; fresh memos and caches; and a copy of the pins.  The store stays
+   713  /// frozen for the worker's life: `check_pending` only empties its scratch tier.
+   714  pub fn worker_state(pins: &Pins) -> AState {
+   715      let mut st = AState::init(EStore::empty_frozen());
+   716      st.pins = pins_dup(pins);
+   717      st
+   718  }
 
 == crates/con-ron/src/pool.rs#L227-L253
    227  /// con-leche: Main.lean:295-322 checkPool
@@ -2672,7 +2674,7 @@
     60  //! read strictly forward 4 MiB at a time, each buffer fed to `chunk_step` and
 
 == crates/con-ron/src/driver.rs#L529-L623
-   529  /// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
+   529  /// con-leche: ConLeche/Cached/Installed.lean:442-459 checkDecls
    530  /// con-leche: Main.lean:319-422 checkDeclsIO
    531  /// **The driver**: the two-phase fold with the boundary visible — a straight
    532  /// line of calls, with the observer's lines between them and the pool for
