@@ -33,7 +33,9 @@ tree lives wherever that manifest's `packagesDir` puts it (ordinarily
 in the source.  `check` verifies every citation against the pinned package
 and demands one on every item; `update --old <commit>` diffs the old pin
 against the new one, relocates what merely moved and marks what changed
-with a `CHANGED` marker line the porter deletes once reconciled; `coverage`
+with a `CHANGED` marker line the porter deletes once reconciled (`update
+--auto` also sorts the findings into buckets and takes the markers of the
+mechanical ones back out, task #108 — see `BUCKETS`); `coverage`
 prints the port ledger.  Pure source-tree work: no build, no network (once
 the package is fetched), python3 stdlib only, milliseconds.
 
@@ -138,7 +140,14 @@ def con_leche_dir():
     """The absolute path of the con-leche lake package directory, resolved
     from `proof/lake-manifest.json` (task #91: con-leche is a plain lake
     dependency, not vendored) — or None if `lake update`/`lake build` has
-    not been run in `proof/` yet, or the package is not there."""
+    not been run in `proof/` yet, or the package is not there.
+
+    `PROVENANCE_CON_LECHE_DIR` overrides it: the self-test's bucket fixture
+    (task #108) is a two-commit git repository of its own, standing in for
+    con-leche, so that `update --auto` can be run against a known bump."""
+    env = os.environ.get("PROVENANCE_CON_LECHE_DIR")
+    if env:
+        return env if os.path.isdir(env) else None
     try:
         with open(os.path.join(REPO, MANIFEST_FILE), encoding="utf-8") as f:
             data = json.load(f)
@@ -235,10 +244,13 @@ class Cite:
     def range(self):
         return str(self.a) if self.a == self.b else "%d-%d" % (self.a, self.b)
 
-    def rebase(self, a, b):
-        """This citation with the range `(a, b)`, everything else kept."""
-        return Cite(self.rust_file, self.lineno, self.path, a, b, self.decl,
-                    self.pfx, self.source, self.head, self.tail, self.prose)
+    def rebase(self, a, b, path=None):
+        """This citation with the range `(a, b)` — and, for a declaration
+        upstream moved to another file (`update --auto`, task #108), the
+        path — everything else kept."""
+        return Cite(self.rust_file, self.lineno, path or self.path, a, b,
+                    self.decl, self.pfx, self.source, self.head, self.tail,
+                    self.prose)
 
     def render(self, indent):
         if self.source == "arena":
@@ -950,6 +962,223 @@ def rewrite(edits):
             f.write("\n".join(lines))
 
 
+# ------------------------------------------- the bump classifier (task #108)
+#
+# `update --auto` is task #105's `classify.py` + `apply-mech.py` and task
+# #106's hand deletion of 97 doc-only markers, made part of the gate.  It
+# runs the plain `update` (relocate what moved, mark what changed), sorts
+# every finding into one of the buckets below, and then takes the markers of
+# the MECHANICAL buckets back out.  What is left marked is the work order.
+#
+#   bucket         what it is                                       marker
+#   doc-only       comment-stripped text identical (a docstring      deleted
+#                  or `--` comment edit, nothing else)
+#   moved          a GONE declaration found, by its exact qualified   deleted,
+#                  name, in another file, byte-identical              citation repointed
+#   moved-doc      the same, identical up to comments                 deleted, repointed
+#   moved-changed  the same, but the code changed                     kept, repointed
+#   moved-by-name  only the short name is found elsewhere (another    kept
+#                  namespace), or the qualified name more than once:
+#                  not trusted as a move — a deletion until a human
+#                  says otherwise
+#   changed        really changed (the code, not just the comments)   kept
+#   deleted        gone upstream                                      kept
+#
+# The hunt is EXACT (task #98's warning): a declaration is found by its
+# namespace-qualified name, never by `names_compatible`, which lets a
+# citation of `Expr.beqGo` land on the `Expr` inductive.  The same warning
+# is why `update` (with or without `--auto`) no longer accepts a relocation
+# by name that matched only a strict PREFIX of the cited name, unless the
+# citation already sat on that parent at the old pin (a `where` clause).
+
+BUCKETS = [
+    ("doc-only", True, "marker deleted"),
+    ("moved", True, "citation repointed, marker deleted"),
+    ("moved-doc", True, "citation repointed, marker deleted"),
+    ("moved-changed", False, "citation repointed, marker kept: the port"),
+    ("moved-by-name", False, "marker kept: a deletion unless a human finds the move"),
+    ("changed", False, "marker kept: the port"),
+    ("deleted", False, "marker kept: the port, delete all the way down"),
+]
+MECHANICAL = {b for b, mech, _ in BUCKETS if mech}
+
+
+def strip_comments(lines):
+    """A block's code: every `/- … -/` (nested, doc comments included) and
+    every `-- …` comment removed, string literals respected, trailing blanks
+    and empty lines dropped.  Two blocks with the same code compare equal
+    here whatever their docstrings say (task #105's doc-only test, with
+    task #106's `--` comments)."""
+    text = "\n".join(lines)
+    out, i, n, depth = [], 0, len(text), 0
+    while i < n:
+        two = text[i:i + 2]
+        if depth:
+            if two == "/-":
+                depth, i = depth + 1, i + 2
+            elif two == "-/":
+                depth, i = depth - 1, i + 2
+            else:
+                if text[i] == "\n":
+                    out.append("\n")
+                i += 1
+            continue
+        if two == "/-":
+            depth, i = 1, i + 2
+            continue
+        if two == "--":
+            j = text.find("\n", i)
+            i = n if j < 0 else j
+            continue
+        if text[i] == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            out.append(text[i:j + 1])
+            i = j + 1
+            continue
+        out.append(text[i])
+        i += 1
+    return [l.rstrip() for l in "".join(out).split("\n") if l.strip()]
+
+
+SCOPE_RE = re.compile(
+    r"^(?:(?:noncomputable|public|private)\s+)*(?P<kw>namespace|section)\b[ \t]*(?P<name>\S*)")
+MUTUAL_RE = re.compile(r"^mutual\b")
+END_RE = re.compile(r"^end\b")
+
+
+def qualified_decls(lines):
+    """[(0-based line, qualified name, written name)] for every column-0
+    declaration: the written name under the `namespace`s open at that line
+    (`_root_.` taken off).  `section`s and `mutual` blocks are tracked only
+    so that their `end` closes the right scope."""
+    skip = comment_lines(lines)
+    stack, out = [], []
+    for i, line in enumerate(lines):
+        if i in skip or not line or line[:1].isspace():
+            continue
+        m = SCOPE_RE.match(line)
+        if m:
+            stack.append((m.group("kw"), m.group("name")))
+            continue
+        if MUTUAL_RE.match(line):
+            stack.append(("mutual", ""))
+            continue
+        if END_RE.match(line):
+            if stack:
+                stack.pop()
+            continue
+        got = decl_name_at(lines, i, skip)
+        if not got:
+            continue
+        nm = got[1]
+        if nm.startswith("_root_."):
+            q = nm[len("_root_."):]
+        else:
+            q = ".".join([s for k, s in stack if k == "namespace" and s] + [nm])
+        out.append((i, q, nm))
+    return out
+
+
+def decl_head(lines, a, b):
+    """(0-based line, qualified name, written name) of the first declaration
+    inside the 1-based range `a..b`, or None."""
+    for i, q, nm in qualified_decls(lines):
+        if a - 1 <= i <= b - 1:
+            return i, q, nm
+        if i > b - 1:
+            break
+    return None
+
+
+class TreeIndex:
+    """Every declaration of the new con-leche tree by qualified name, and by
+    the last component of its name — the move hunt's two lookups."""
+
+    def __init__(self):
+        self.by_q, self.by_short, self.files = {}, {}, {}
+        d = con_leche_dir()
+        for dirpath, dirnames, filenames in os.walk(d):
+            dirnames[:] = sorted(x for x in dirnames
+                                 if x not in (".lake", ".git", "tests"))
+            for fn in sorted(filenames):
+                if not fn.endswith(".lean"):
+                    continue
+                path = os.path.relpath(os.path.join(dirpath, fn), d)
+                lines = lean_text(path)
+                if lines is None:
+                    continue
+                self.files[path] = lines
+                for i, q, nm in qualified_decls(lines):
+                    self.by_q.setdefault(q, []).append((path, i))
+                    self.by_short.setdefault(q.split(".")[-1], []).append((path, i))
+
+
+def suspect_parent(lines, olines, c, loc):
+    """Did `locate_decl` put this citation on a strict PREFIX of its name —
+    `Expr.beqGo` on the `Expr` inductive (task #98) — when it did not sit on
+    that parent at the old pin?  Then it is not a relocation."""
+    head = first_decl_line(lines, loc[0], loc[1])
+    if head is None or head == c.decl:
+        return False
+    hs, xs = head.split("."), c.decl.split(".")
+    if not (len(hs) < len(xs) and xs[:len(hs)] == hs):
+        return False
+    if olines is not None and 1 <= c.a <= c.b <= len(olines):
+        if first_decl_line(olines, c.a, c.b) == head:
+            return False  # a `where` clause, cited on its parent all along
+    return True
+
+
+def hunt(index, olines, c, old_text):
+    """A GONE citation, looked for across the whole new tree by the exact
+    qualified name of what it cited at the old pin.  Returns
+    (bucket, new_path, a, b, note)."""
+    head = None
+    if olines is not None and 1 <= c.a <= c.b <= len(olines):
+        head = decl_head(olines, c.a, c.b)
+    if head is None:
+        return "deleted", None, None, None, "no declaration in the old block"
+    oi, q, _nm = head
+    hits = index.by_q.get(q, [])
+    if len(hits) == 1:
+        path, i = hits[0]
+        lines = index.files[path]
+        exact = find_block(lines, old_text, i + 1) if old_text else None
+        if exact:
+            return "moved", path, exact[0], exact[1], q
+        a, b = extend_block(lines, i)
+        new = [l.rstrip() for l in lines[a - 1:b]]
+        oa, ob = extend_block(olines, oi)
+        olds = [old_text or [], [l.rstrip() for l in olines[oa - 1:ob]]]
+        if any(o == new for o in olds):
+            return "moved", path, a, b, q
+        if any(strip_comments(o) == strip_comments(new) for o in olds):
+            return "moved-doc", path, a, b, q
+        return "moved-changed", path, a, b, q
+    if len(hits) > 1:
+        return ("moved-by-name", None, None, None, "%s declared %d times: %s"
+                % (q, len(hits), ", ".join("%s:%d" % (p, i + 1) for p, i in hits)))
+    short = index.by_short.get(q.split(".")[-1], [])
+    if short:
+        return ("moved-by-name", None, None, None, "only the short name: %s"
+                % ", ".join("%s:%d" % (p, i + 1) for p, i in short[:5]))
+    return "deleted", None, None, None, q
+
+
+def part_of(path):
+    """Which part of con-ron a citing file belongs to (the findings TSV's
+    second column, task #105's "citing parts")."""
+    r = rel(path).replace(os.sep, "/")
+    for pfx, name in (("crates/con-ron-core/", "rust-core"),
+                      ("crates/con-ron/", "rust-unverified"),
+                      ("proof/ConRon/Arena/", "twin")):
+        if r.startswith(pfx):
+            return name
+    return "other"
+
+
 def cmd_update(args):
     old = args.old
     if old is None:
@@ -961,6 +1190,7 @@ def cmd_update(args):
                   "manifest's rev matches HEAD's); pass --old <commit>",
                   file=sys.stderr)
             return 2
+    auto = args.auto
 
     _, cites, malformed, markers = collect(args.roots)
     findings = len(malformed)
@@ -972,7 +1202,29 @@ def cmd_update(args):
 
     edits = {}
     moved = 0
+    records = []  # (bucket, cite, item, newcite or None, note)
+    index = TreeIndex() if auto else None
     cache, oldcache = {}, {}
+
+    def mark(c, item, newcite, bucket, note=""):
+        edits.setdefault(c.rust_file, []).append(
+            (c.lineno, newcite.render if newcite is not None else None,
+             [] if has_marker(c) else [marker(old, item, c.pfx, c.source)]))
+        records.append((bucket, c, item, newcite, note))
+
+    def gone(c, item, olines, old_text, why):
+        if not auto:
+            print("GONE %s — %s → re-port %s" % (c.where(), why, item))
+            mark(c, item, None, "deleted")
+            return
+        bucket, path, a, b, note = hunt(index, olines, c, old_text)
+        newcite = c.rebase(a, b, path) if path else None
+        print("GONE %s — %s; %s%s → %s"
+              % (c.where(), why, bucket,
+                 (" to %s:%s" % (path, newcite.range)) if newcite else "",
+                 note))
+        mark(c, item, newcite, bucket, note)
+
     for c in cites:
         if c.path not in cache:
             cache[c.path] = lean_text(c.path)
@@ -981,18 +1233,15 @@ def cmd_update(args):
         lines, olines = cache[c.path], oldcache[c.path]
         item = item_of(c)
 
-        if lines is None:
-            print("GONE %s — %s no longer exists at the new pin → re-port %s"
-                  % (c.where(), c.path, item))
-            if not has_marker(c):
-                edits.setdefault(c.rust_file, []).append(
-                    (c.lineno, None, [marker(old, item, c.pfx, c.source)]))
-            findings += 1
-            continue
-
         old_text = None
         if olines is not None and 1 <= c.a <= c.b <= len(olines):
             old_text = [l.rstrip() for l in olines[c.a - 1:c.b]]
+
+        if lines is None:
+            gone(c, item, olines, old_text,
+                 "%s no longer exists at the new pin" % c.path)
+            findings += 1
+            continue
 
         # Relocate by text first: the cited block, verbatim, nearest to where
         # it was.  This is what makes an anonymous `_` citation (an
@@ -1002,12 +1251,11 @@ def cmd_update(args):
         loc = find_block(lines, old_text, c.a) if old_text else None
         if loc is None:
             loc = locate_decl(lines, c.decl)
+            if loc is not None and suspect_parent(lines, olines, c, loc):
+                loc = None  # `Expr.beqGo` is not the `Expr` inductive (#98)
         if loc is None:
-            print("GONE %s — `%s` not found in %s at the new pin → re-port %s"
-                  % (c.where(), c.decl, c.path, item))
-            if not has_marker(c):
-                edits.setdefault(c.rust_file, []).append(
-                    (c.lineno, None, [marker(old, item, c.pfx, c.source)]))
+            gone(c, item, olines, old_text,
+                 "`%s` not found in %s at the new pin" % (c.decl, c.path))
             findings += 1
             continue
         na, nb = loc
@@ -1017,6 +1265,7 @@ def cmd_update(args):
         # closer and the porter's ` — …` sentence after the name.
         newcite = c.rebase(na, nb)
 
+        old_alt = None
         if old_text != new_text and olines is not None:
             # The cited range may already have been rewritten (a second
             # `update` for the same bump); fall back to the old pin's block
@@ -1024,9 +1273,9 @@ def cmd_update(args):
             # into a MOVED: if the text really changed, neither matches.
             oloc = locate_decl(olines, c.decl)
             if oloc is not None:
-                alt = [l.rstrip() for l in olines[oloc[0] - 1:oloc[1]]]
-                if alt == new_text:
-                    old_text = alt
+                old_alt = [l.rstrip() for l in olines[oloc[0] - 1:oloc[1]]]
+                if old_alt == new_text:
+                    old_text = old_alt
 
         if old_text is not None and old_text == new_text:
             if (na, nb) != (c.a, c.b):
@@ -1037,20 +1286,28 @@ def cmd_update(args):
                     (c.lineno, newcite.render, []))
             continue
 
+        bucket = "changed"
+        if auto:
+            code = strip_comments(new_text)
+            if any(o is not None and strip_comments(o) == code
+                   for o in (old_text, old_alt)):
+                bucket = "doc-only"
         print("CHANGED %s %s → re-port %s (%s), re-run differential tests, "
-              "re-prove %s%s" % (c.path, c.decl, item, c.where(), item,
-                                 LEMMA_SUFFIX[c.source]))
-        for dl in difflib.unified_diff(
-                old_text or [], new_text,
-                fromfile="%s:%s@%s" % (c.path, c.range, old[:8]),
-                tofile="%s:%d-%d@current" % (c.path, na, nb), lineterm=""):
-            print("  " + dl)
-        edits.setdefault(c.rust_file, []).append(
-            (c.lineno, newcite.render,
-             [] if has_marker(c) else [marker(old, item, c.pfx, c.source)]))
+              "re-prove %s%s%s" % (c.path, c.decl, item, c.where(), item,
+                                   LEMMA_SUFFIX[c.source],
+                                   " [doc-only]" if bucket == "doc-only" else ""))
+        if bucket != "doc-only":
+            for dl in difflib.unified_diff(
+                    old_text or [], new_text,
+                    fromfile="%s:%s@%s" % (c.path, c.range, old[:8]),
+                    tofile="%s:%d-%d@current" % (c.path, na, nb), lineterm=""):
+                print("  " + dl)
+        mark(c, item, newcite, bucket)
         findings += 1
 
     rewrite(edits)
+    if auto:
+        return finish_auto(args, old, edits, records, moved, findings)
     if findings:
         print("%d moved, %d need reconciling: re-port, re-test, re-prove, then "
               "delete the `CHANGED` marker lines (`check` fails while any "
@@ -1058,6 +1315,77 @@ def cmd_update(args):
         return 1
     print("provenance: %d citation(s) relocated, nothing changed." % moved)
     return 0
+
+
+def finish_auto(args, old, edits, records, moved, findings):
+    """`update --auto`'s second half: every finding is marked on disk now,
+    as a plain `update` leaves it; report `progress.py`'s stale count at
+    that moment (§7: the only moment it means anything), take the markers
+    of the mechanical buckets back out, and print the bucket table and the
+    findings TSV."""
+    stale = "n/a (not the default roots)"
+    if sorted(args.roots) == sorted(DEFAULT_ROOTS):
+        prog = subprocess.run([sys.executable,
+                               os.path.join(REPO, "scripts", "progress.py"),
+                               "--summary"], capture_output=True, text=True)
+        m = re.search(r"stale \(CHANGED marker\) (\d+)", prog.stdout)
+        stale = m.group(1) if m else "?"
+
+    # Where each citation line sits after `rewrite`: above it, `rewrite`
+    # inserted one marker line per earlier marked citation of the same file.
+    def final_lineno(f, ln):
+        return ln + sum(len(ins) for (l, _r, ins) in edits.get(f, []) if l < ln)
+
+    drop = {}
+    for bucket, c, _item, _nc, _note in records:
+        if bucket in MECHANICAL:  # a re-run's old marker sits there too
+            drop.setdefault(c.rust_file, []).append(final_lineno(c.rust_file, c.lineno))
+    for f, lns in drop.items():
+        with open(f, encoding="utf-8") as fh:
+            lines = fh.read().split("\n")
+        for ln in sorted(lns, reverse=True):
+            # 0-based index `ln` is the line right below the citation
+            if ln < len(lines) and MARKER_RE.match(lines[ln]):
+                del lines[ln]
+            else:
+                print("error: no marker below %s:%d to delete" % (rel(f), ln),
+                      file=sys.stderr)
+                return 2
+        with open(f, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(lines))
+
+    counts = {b: 0 for b, _, _ in BUCKETS}
+    for r in records:
+        counts[r[0]] += 1
+    tsv = args.tsv
+    if tsv:
+        os.makedirs(os.path.dirname(os.path.abspath(tsv)), exist_ok=True)
+        with open(tsv, "w", encoding="utf-8") as fh:
+            fh.write("bucket\tpart\twhere\titem\told\tnew\tnote\n")
+            for bucket, c, item, nc, note in records:
+                fh.write("%s\t%s\t%s\t%s\t%s:%s %s\t%s\t%s\n" % (
+                    bucket, part_of(c.rust_file), c.where(), item,
+                    c.path, c.range, c.decl,
+                    "%s:%s" % (nc.path, nc.range) if nc is not None else "-",
+                    note))
+    print()
+    print("update --auto: %d finding(s) against %s (%d CHANGED, %d GONE), "
+          "%d citation(s) merely moved; progress.py's stale (CHANGED marker) "
+          "count before any marker was deleted: %s"
+          % (len(records), old[:8],
+             sum(1 for r in records if r[0] in ("doc-only", "changed")),
+             sum(1 for r in records if r[0] not in ("doc-only", "changed")),
+             moved, stale))
+    print()
+    print("| bucket | count | what happened |")
+    print("|---|---:|---|")
+    for b, _mech, what in BUCKETS:
+        print("| %s | %d | %s |" % (b, counts[b], what))
+    left = sum(counts[b] for b in counts if b not in MECHANICAL)
+    print()
+    print("%d marker(s) deleted mechanically, %d left: the work order%s."
+          % (len(records) - left, left, (" (%s)" % tsv) if tsv else ""))
+    return 1 if (left or findings > len(records)) else 0
 
 
 def find_block(lines, block, near):
@@ -1378,6 +1706,11 @@ def main(argv):
     up = sub.add_parser("update", parents=[common])
     up.add_argument("--old", default=None,
                     help="the con-leche commit the citations were written against")
+    up.add_argument("--auto", action="store_true",
+                    help="classify the findings into buckets and apply the "
+                         "mechanical ones (task #108)")
+    up.add_argument("--tsv", default=None,
+                    help="with --auto: write the findings, one per line, here")
     sub.add_parser("coverage", parents=[common])
     lc = sub.add_parser("locate", parents=[common])
     lc.add_argument("path", help="a con-leche-relative Lean path")

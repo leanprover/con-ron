@@ -25,6 +25,7 @@ directly, as a third case.
 Exit codes: 0 the parser behaves, 1 it does not, 2 usage/IO error.
 """
 
+import difflib
 import hashlib
 import os
 import re
@@ -133,6 +134,81 @@ def kinds(out):
     return got
 
 
+BUCKETS = os.path.join(FIXTURES, "buckets")
+EXPECTED_BUCKETS = {"doc-only": 3, "moved": 2, "moved-doc": 1,
+                    "moved-changed": 1, "moved-by-name": 1, "changed": 1,
+                    "deleted": 2}
+
+
+def git(cwd, *argv):
+    env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+               GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+    return subprocess.run(["git", "-C", cwd] + list(argv), env=env, check=True,
+                          capture_output=True, text=True).stdout.strip()
+
+
+def bucket_case(work, verbose):
+    out = []
+    repo = os.path.join(work, "repo")
+    os.makedirs(repo)
+    git(repo, "init", "-q")
+    shutil.copytree(os.path.join(BUCKETS, "old", "ConLeche"),
+                    os.path.join(repo, "ConLeche"))
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "old")
+    old = git(repo, "rev-parse", "HEAD")
+    shutil.rmtree(os.path.join(repo, "ConLeche"))
+    shutil.copytree(os.path.join(BUCKETS, "new", "ConLeche"),
+                    os.path.join(repo, "ConLeche"))
+    git(repo, "add", "-A")
+    git(repo, "commit", "-qm", "new")
+    env = dict(os.environ, PROVENANCE_CON_LECHE_DIR=repo)
+
+    def run(mode):
+        citer = os.path.join(work, mode)
+        os.makedirs(citer)
+        shutil.copy(os.path.join(BUCKETS, "citer", "citer.rs"), citer)
+        tsv = os.path.join(work, mode + ".tsv")
+        argv = [sys.executable, os.path.join(HERE, "provenance.py"), "update",
+                "--old", old, "--roots", citer]
+        if mode == "auto":
+            argv += ["--auto", "--tsv", tsv]
+        r = subprocess.run(argv, env=env, capture_output=True, text=True)
+        if verbose:
+            print(r.stdout.rstrip())
+        return r, os.path.join(citer, "citer.rs"), tsv
+
+    r, got_file, tsv = run("auto")
+    if r.returncode != 1:
+        out.append("buckets: expected exit 1, got %d:\n%s%s"
+                   % (r.returncode, r.stdout, r.stderr))
+        return out
+    with open(got_file, encoding="utf-8") as f:
+        got = f.read().replace("CHANGED since " + old[:8], "CHANGED since @@OLD@@")
+    with open(os.path.join(BUCKETS, "expected.rs"), encoding="utf-8") as f:
+        want = f.read()
+    if got != want:
+        out.append("buckets: the rewritten citer.rs is not expected.rs:\n" +
+                   "".join(difflib.unified_diff(want.splitlines(True),
+                                                got.splitlines(True),
+                                                "expected.rs", "got")))
+    counts = {}
+    with open(tsv, encoding="utf-8") as f:
+        for line in f.read().split("\n")[1:]:
+            if line:
+                counts[line.split("\t")[0]] = counts.get(line.split("\t")[0], 0) + 1
+    if counts != EXPECTED_BUCKETS:
+        out.append("buckets: expected %s, got %s" % (EXPECTED_BUCKETS, counts))
+
+    # Without --auto, task #98's trap is still a GONE and not a relocation
+    # onto the `Expr` inductive.
+    r, got_file, _ = run("plain")
+    if "GONE" not in "".join(l for l in r.stdout.split("\n") if "Expr.beqGo" in l):
+        out.append("buckets: plain update did not report `Expr.beqGo` GONE:\n"
+                   + r.stdout)
+    return out
+
+
 def main(argv):
     verbose = "--verbose" in argv
     if P.con_leche_dir() is None:
@@ -211,6 +287,15 @@ def main(argv):
                                 "%s:%d:\n  %r\n  %r"
                                 % (fn, c.lineno, want, got_line))
 
+    # 5. `update --auto`'s buckets (task #108), on a con-leche of its own:
+    #    `testdata/provenance/buckets/{old,new}` committed as two commits of
+    #    a scratch git repository that `PROVENANCE_CON_LECHE_DIR` puts in
+    #    con-leche's place, and `citer/citer.rs` citing the old one.  One
+    #    item per bucket; the rewritten file must be `expected.rs` (the old
+    #    commit's hash, which varies, spelled `@@OLD@@`) and the TSV must
+    #    count each bucket as specified.
+    failures.extend(bucket_case(os.path.join(work, "buckets"), verbose))
+
     if failures:
         for f in failures:
             print("FAIL " + f)
@@ -218,8 +303,10 @@ def main(argv):
         return 1
     shutil.rmtree(work, ignore_errors=True)
     print("provenance-selftest: the Lean parser accepts %d clean shapes, "
-          "raises %d findings and exempts %d path(s), as specified."
-          % (EXPECTED_GOOD, len(EXPECTED_BAD), len(P.ARENA_EXEMPT)))
+          "raises %d findings and exempts %d path(s); update --auto sorts "
+          "%d findings into %d buckets; as specified."
+          % (EXPECTED_GOOD, len(EXPECTED_BAD), len(P.ARENA_EXEMPT),
+             sum(EXPECTED_BUCKETS.values()), len(EXPECTED_BUCKETS)))
     return 0
 
 
