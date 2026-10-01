@@ -33,7 +33,7 @@
 # run uses con-leche's own pins.  `--no-pins` passes the empty list, under which
 # the 17 fixtures that define `Nat.div` decline (task #28's numbers), and
 # `--pins-file` reads the `con-ron-pins/1` dump `scripts/gen-pins.sh` writes
-# (`_tmp/gen-pins/pins.dump`) through the unverified reader instead (task
+# (`_tmp/gen-pins-<key>/pins.dump`) through the unverified reader instead (task
 # #31's arrangement, kept as a test route).
 #
 # The IN-PROCESS MODELLER IS GONE (task #105, con-leche's `uniform-inds`
@@ -98,7 +98,7 @@ cd "$(dirname "$0")/.."
 root="$PWD"
 
 CL="$(python3 "$root/scripts/provenance.py" dir)" || exit 3
-PINDUMP="${PINDUMP:-$root/_tmp/gen-pins/pins.dump}"
+PINDUMP="${PINDUMP:-$root/_tmp/gen-pins-$(printf '%s' "$root" | sha256sum | cut -c1-12)/pins.dump}"
 ARENA_DIR="${ARENA_DIR:-$root/_tmp/arena-tests}"
 TO=600
 MODE=--verified

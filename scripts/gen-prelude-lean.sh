@@ -67,7 +67,7 @@ mkdir -p "$work"
 
 echo "gen-prelude-lean: con-leche/$src_rel"
 
-python3 "$root/scripts/gen-prelude-lean.py" "$src" "$src_rel" "$CHUNK" \
+python3 "$root/scripts/gen-prelude-lean.py" "$src" "$src_rel" "$CHUNK" "$out" \
   > "$work/PreludeText.lean"
 
 lines=$(wc -l < "$src")

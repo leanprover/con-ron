@@ -896,11 +896,14 @@ in §3.
 <!-- perf-table:begin -->
 Measured with `perf stat -e instructions:u,cycles:u`.  Instruction counts
 are the measure of record, because they do not depend on machine load; wall
-time and peak memory are secondary.  All runs are `--verified` release
-builds with mimalloc, on `lean4export` exports of Lean's `Init` (57 977
-declarations) and of Mathlib (691 128).  The table is one snapshot, taken on
-2026-10-01: con-ron at `fd543c55`, con-leche at its pin `a31e8297`, nanoda
-at `4c544ed4`.  `Init` wall time is the range of 3 runs on a shared machine
+time and peak memory are secondary.  con-ron is its `cargo build --release`
+binary (mimalloc, its default allocator) and con-leche its `lake build`
+binary, both run with `--verified`; nanoda is its `cargo build --release`
+binary (the system allocator) in its default serial configuration.  The
+inputs are `lean4export` exports of Lean's `Init` (57 977 declarations) and
+of Mathlib (691 128).  The table is one snapshot, taken on 2026-10-01:
+con-ron at `fd543c55`, con-leche at its pin `a31e8297`, nanoda at
+`4c544ed4`.  `Init` wall time is the range of 3 runs on a shared machine
 (one-minute load average 0.9–5.6 at the starts of the runs); Mathlib was run
 once per checker, so it has no wall-time column.
 
@@ -949,10 +952,12 @@ covers what the proof does not: the driver and the pool.  CI
 runs it (`.github/workflows/ci.yml`).
 
 **The gates.**  `scripts/gates.sh` runs before every commit
-([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L30)).
+([the steps](https://github.com/leanprover/con-ron/blob/master/scripts/gates.sh#L6-L36)).
 It stops at the first failure of: `cargo build` (warnings denied) and
 `cargo test`; the style lint and the dead-code check (`scripts/dead-rust.py`,
-no public Rust item without a caller); the provenance and twin-line checks; this
+no public Rust item without a caller); the provenance check, the check that
+only a branch's last commit moves the con-leche pin (`scripts/pin-last.py`),
+and the twin-line check; this
 document's link check (`scripts/overview-links.sh`) and holes table
 (`scripts/holes.sh --check`); the checks that the embedded pin text, the
 Rust prelude text and the twin's prelude bytes are con-leche's

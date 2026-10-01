@@ -71,13 +71,15 @@ src_rel=$(sed -n 's|.*include_str "\.\./\.\./\(pins/[^"]*\)".*|\1|p' \
 src="$cl/$src_rel"
 [ -s "$src" ] || { echo "error: $src is missing or empty" >&2; exit 1; }
 
-work="$root/_tmp/gen-prelude"
+# Keyed by the checkout, like every per-checkout scratch directory under the
+# shared `_tmp/` (task #108: `drop-worktree.sh` deletes `_tmp/*-<key>`).
+work="$root/_tmp/gen-prelude-$(printf '%s' "$root" | sha256sum | cut -c1-12)"
 rm -rf "$work"
 mkdir -p "$work"
 
 echo "gen-prelude: con-leche/$src_rel"
 
-python3 "$root/scripts/gen-prelude.py" "$src" "$src_rel" "$CHUNK" \
+python3 "$root/scripts/gen-prelude.py" "$src" "$src_rel" "$CHUNK" "$out" \
   > "$work/prelude_text.rs"
 
 lines=$(wc -l < "$src")

@@ -1,5 +1,5 @@
 //! The embedded lean4export text of con-leche's built-in prelude
-//! (`ConLeche/Frontend/Prelude.lean:59-60`, task #84).
+//! (`ConLeche/Frontend/Prelude.lean`'s `builtinPreludeText`, task #84).
 //!
 //! con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
 //!

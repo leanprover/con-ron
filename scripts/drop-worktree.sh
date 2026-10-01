@@ -2,7 +2,7 @@
 # scripts/drop-worktree.sh [--into <ref>] <worktree-path> — the landing step
 # after an agent branch is merged and the gates are green: remove exactly that
 # worktree, delete its branch, and delete its per-checkout scratch
-# (`_tmp/gates-<key>`, `_tmp/extract-<key>`, `_tmp/extract-check-<key>`).
+# (`_tmp/*-<key>`, see below).
 #
 # The integration ref defaults to the MAIN WORKTREE'S CURRENT BRANCH, not to
 # `master`: during a campaign the branches land on the campaign branch (task
@@ -45,9 +45,23 @@ git worktree remove --force "$path"
 # checks the MAIN worktree's HEAD, which refuses a branch merged into a
 # campaign branch (task #105).
 git branch -D "$branch" >/dev/null
+# The per-checkout scratch.  Every script that keeps scratch under the shared
+# `_tmp/` keys it by the checkout and names it `_tmp/<name>-<key>`, where
+# <key> is the first 12 hex digits of sha256(checkout root) — today
+# `gates.sh` (gates-), `extract.sh` (extract-, extract-check-),
+# `diff-e2e.sh` (diff-e2e-), `frontier.sh` (frontier-), `gen-pins.sh`
+# (gen-pins-), `gen-prelude.sh` (gen-prelude-), `gen-prelude-lean.sh`
+# (gen-prelude-lean-), `dead-census.py` via `dead-census-gate.sh`
+# (deadcode-) and `provenance-selftest.py` (provenance-selftest-).  So the
+# list is not enumerated here, it is that naming rule: everything directly
+# under `_tmp/` whose name ends in `-<key>` (task #108 — the enumerated list
+# this replaced had missed `diff-e2e-` and `deadcode-`, which #106 and #107
+# then deleted by hand).  A new script that keys its scratch the same way is
+# covered without an edit here; `grep -n sha256 scripts/*` lists them.
 key=$(printf '%s' "$path" | sha256sum | cut -c1-12)
-rm -rf "_tmp/gates-$key" "_tmp/extract-$key" "_tmp/extract-check-$key" \
-       "_tmp/frontier-$key" "_tmp/gen-prelude-lean-$key"
+for d in _tmp/*-"$key"; do
+  [ -e "$d" ] && rm -rf "$d"
+done
 echo "dropped $path ($branch, merged into $into), $(git worktree list | wc -l) worktree(s) remain"
 # The worktree is only half of a landing.  An agent that has reported is still
 # a live subagent holding its context until it is stopped explicitly, and

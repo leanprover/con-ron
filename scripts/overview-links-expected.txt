@@ -2838,7 +2838,7 @@
    510  /// constructor, line 344.
    511  pub const ETAG_BVAR: u32 = 0;
 
-== scripts/gates.sh#L6-L30
+== scripts/gates.sh#L6-L36
      6  # Runs, in order, and stops at the first failure:
      7  #   1. cargo build                          the crate compiles, warning-free
      8  #   2. cargo test                           the unit tests pass
@@ -2846,24 +2846,30 @@
     10  #      scripts/dead-rust.py --check         no `pub` Rust item without a caller
     11  #                                           (task #105)
     12  #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
-    13  #   5. scripts/provenance-selftest.py        the gate's Lean parser, on its fixture
-    14  #   6. scripts/twin-lines.py check          every `Lean twin:` line names a
-    15  #                                           declaration of `proof/ConRon/**` at
-    16  #                                           its current lines (§3.7)
-    17  #   7. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
-    18  #   8. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
-    19  #   9. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
-    20  #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
-    21  #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
-    22  #  12. scripts/extract.sh --check           committed generated Lean == crate
-    23  #  13. cd proof && lake build               the default targets elaborate: every
-    24  #                                           library of the chain, Theorem 1
-    25  #                                           (`ConRonBridge`), Theorem 2
-    26  #                                           (`ConRonRefine2`), the composition
-    27  #                                           (`ConRonCapstone`) included; any
-    28  #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
-    29  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
-    30  #      has no jobs flag; the first con-leche build can exhaust memory, #74)
+    13  #      scripts/pin-last.py                  no commit but the tip moves the
+    14  #                                           con-leche pin (§7, task #108)
+    15  #   5. scripts/provenance-selftest.py        the gate's Lean parser and the
+    16  #                                           bump classifier, on their fixtures
+    17  #   6. scripts/twin-lines.py check          every `Lean twin:` line names a
+    18  #                                           declaration of `proof/ConRon/**` at
+    19  #                                           its current lines (§3.7)
+    20  #   7. scripts/overview-links.sh            OVERVIEW.md/DESIGN.md line anchors
+    21  #   8. scripts/holes.sh --check             OVERVIEW.md §8.1 == the model's holes
+    22  #   9. scripts/gen-pins.sh --check          embedded pin text == natOpPinSets
+    23  #  10. scripts/gen-prelude.sh --check       embedded prelude text == con-leche's
+    24  #  11. scripts/gen-prelude-lean.sh --check  (B)'s embedded prelude bytes, ditto
+    25  #  12. scripts/extract.sh --check           committed generated Lean == crate
+    26  #  13. cd proof && lake build               the default targets elaborate: every
+    27  #                                           library of the chain, Theorem 1
+    28  #                                           (`ConRonBridge`), Theorem 2
+    29  #                                           (`ConRonRefine2`), the composition
+    30  #                                           (`ConRonCapstone`) included; any
+    31  #      warning from proof/'s own sources fails it (lake-build-wfail.sh, #102)
+    32  #      (LAKE_JOBS=N caps lake's parallelism through LEAN_NUM_THREADS — Lake 5
+    33  #      has no jobs flag; the first con-leche build can exhaust memory, #74)
+    34  #  14. scripts/dead-census-gate.sh          no declaration of proof/ConRon/**
+    35  #                                           unreachable from the headline
+    36  #                                           theorems, Tests and tooling (#105)
 
 == crates/con-ron-core/src/arena/mod.rs#L1-L22
      1  //! The arena: handles and the four interned stores (DESIGN.md §8.3/§8.5).

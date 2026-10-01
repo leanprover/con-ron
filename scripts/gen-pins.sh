@@ -39,7 +39,9 @@ case "${1-}" in
 esac
 [ "$#" -le 1 ] || { echo "usage: $0 [--check]" >&2; exit 2; }
 
-work="$root/_tmp/gen-pins"
+# Keyed by the checkout, like every per-checkout scratch directory under the
+# shared `_tmp/` (task #108: `drop-worktree.sh` deletes `_tmp/*-<key>`).
+work="$root/_tmp/gen-pins-$(printf '%s' "$root" | sha256sum | cut -c1-12)"
 rm -rf "$work"
 mkdir -p "$work"
 
@@ -54,12 +56,22 @@ echo "gen-pins: lake exe con-ron-dump-pins (con-leche's natOpPinSets)"
 # printable ASCII character, a space or the newline (FORMAT.md §3's escape is
 # what makes that true), and the literal's value is therefore the dump's bytes
 # exactly, including the final newline.
+#
+# The citation of `#load_natop_pins` (an anonymous command, cited as `_`, so
+# `provenance.py locate` cannot find it by name) is read from the committed
+# output's own module line: `provenance.py update` relocates that line by its
+# text like any other citation, so a con-leche bump moves it and this script
+# keeps it (task #108; #74 and #106 had to re-point the hard-coded range).
+cite=$(sed -n 's|^//! con-leche: \(ConLeche/Kernel/NatOpPins\.lean:[0-9-]* _\)$|\1|p' "$out" 2>/dev/null | head -1)
+[ -n "$cite" ] || {
+  echo "error: no \`//! con-leche: ConLeche/Kernel/NatOpPins.lean:<range> _\` line in $out to keep" >&2
+  exit 1; }
 emit() {
-  cat <<'EOF'
+  cat <<'EOF' | sed "s|@@CITE@@|$cite|"
 //! The embedded `con-ron-pins/1` text of con-leche's `natOpPinSets`
 //! (DESIGN.md §3, task #43).
 //!
-//! con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+//! con-leche: @@CITE@@
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
@@ -87,7 +99,7 @@ emit() {
 //! that Lean cannot elaborate (task #43: `std::bad_alloc`).  The decoder
 //! therefore takes `PINS_TEXT.as_bytes()`.
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+/// con-leche: @@CITE@@
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)

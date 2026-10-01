@@ -10,7 +10,10 @@
 #      scripts/dead-rust.py --check         no `pub` Rust item without a caller
 #                                           (task #105)
 #   4. scripts/provenance.py check          every item cites con-leche (§3.7)
-#   5. scripts/provenance-selftest.py        the gate's Lean parser, on its fixture
+#      scripts/pin-last.py                  no commit but the tip moves the
+#                                           con-leche pin (§7, task #108)
+#   5. scripts/provenance-selftest.py        the gate's Lean parser and the
+#                                           bump classifier, on their fixtures
 #   6. scripts/twin-lines.py check          every `Lean twin:` line names a
 #                                           declaration of `proof/ConRon/**` at
 #                                           its current lines (§3.7)
@@ -33,7 +36,8 @@
 #                                           theorems, Tests and tooling (#105)
 #
 # One OK/FAIL line per gate; non-zero exit on the first failure.  Full output
-# of every gate goes to `_tmp/gates/<n>-<name>.log`.
+# of every gate goes to `_tmp/gates-<key>/<n>-<name>.log`, and a full green
+# run on a clean tree leaves `_tmp/gates-<key>/green` holding the commit.
 set -uo pipefail
 
 # `--only a,b,c` runs just the named steps (the merge queue, task #97-MQ,
@@ -83,6 +87,9 @@ run lint-rust     "$root/scripts/lint-rust-style.sh" "$root/crates/con-ron-core/
 # Task #105: `-D warnings` catches a private item nothing uses, not a `pub` one.
 run dead-rust     python3 "$root/scripts/dead-rust.py" --check
 run provenance    python3 "$root/scripts/provenance.py" check
+# Task #108: the pin files change in a bump's LAST commit only (§7); a
+# sub-agent's early commit of them (task #105) fails here, in its own run.
+run pin-last      python3 "$root/scripts/pin-last.py"
 run provenance-self python3 "$root/scripts/provenance-selftest.py"
 # The other half of the same ledger: `provenance` checks what the Rust was
 # ported FROM (con-leche, a pinned tree), `twin-lines` what it is a port OF
@@ -116,6 +123,13 @@ if [ -n "$only" ]; then
   exit 0   # a partial run is a re-gate, not a landing report
 fi
 echo "gates: all $n OK"
+# The green stamp `scripts/bump-con-leche.sh land` reads (task #108): the
+# commit this full run was green at, written only when the tree was clean, so
+# that the stamp says exactly which commit passed.  The log directory is
+# emptied at the start of every run, so a red or partial run leaves none.
+if [ -z "$(git -C "$root" status --porcelain --untracked-files=no)" ]; then
+  git -C "$root" rev-parse HEAD > "$logdir/green"
+fi
 
 # The standing progress report (DESIGN.md §7), printed after a green run so
 # every landing shows where the port and the proof stand.

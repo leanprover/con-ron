@@ -1,6 +1,32 @@
-import sys, textwrap
+import os, re, subprocess, sys, textwrap
 
-src, src_rel, chunk_s = sys.argv[1], sys.argv[2], sys.argv[3]
+
+def citation(out, path, decl):
+    """The `<path>:<range> <decl>` this module cites, read from the committed
+    output's own `con-leche:` line.  `provenance.py update` relocates that
+    line like any other citation, so a con-leche bump moves it and this
+    script keeps it — no generator edit per bump (task #108; #106 had to
+    re-point the hard-coded range by hand).  With no output yet, the range
+    is what `provenance.py locate` computes."""
+    pat = re.compile(r"con-leche: (%s:\d+(?:-\d+)? %s)(?:\s|$)"
+                     % (re.escape(path), re.escape(decl)))
+    try:
+        with open(out, encoding="utf-8") as f:
+            for line in f:
+                m = pat.search(line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    r = subprocess.run([sys.executable,
+                        os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                     "provenance.py"), "locate", path, decl],
+                       capture_output=True, text=True, check=True)
+    return r.stdout.strip()
+
+
+src, src_rel, chunk_s, out_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+CITE = citation(out_path, "ConLeche/Frontend/Prelude.lean", "builtinPreludeText")
 CHUNK = int(chunk_s)
 data = open(src, "rb").read()
 n = len(data)
@@ -8,9 +34,9 @@ parts = [data[i:i + CHUNK] for i in range(0, n, CHUNK)]
 
 out = []
 out.append('''//! The embedded lean4export text of con-leche's built-in prelude
-//! (`ConLeche/Frontend/Prelude.lean:59-60`, task #84).
+//! (`ConLeche/Frontend/Prelude.lean`'s `builtinPreludeText`, task #84).
 //!
-//! con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
+//! con-leche: %s
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-prelude.sh`
 //! from con-leche's own committed `%s`, the file its
@@ -46,15 +72,15 @@ out.append('''//! The embedded lean4export text of con-leche's built-in prelude
 //! the ordinary way, and `prelude_text()` concatenates them.  The
 //! concatenation is `O(n)` and runs once per process.
 
-''' % (src_rel, len(parts), n, n, len(parts), CHUNK))
+''' % (CITE, src_rel, len(parts), n, n, len(parts), CHUNK))
 
 for i, part in enumerate(parts):
     body = textwrap.fill(", ".join(str(b) for b in part), width=76,
                          initial_indent="    ", subsequent_indent="    ")
-    out.append('/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText\n'
+    out.append('/// con-leche: %s\n'
                '/// Bytes %d..%d of the prelude (the module note says why it is split).\n'
                'const P%02d: [u8; %d] = [\n%s,\n];\n\n'
-               % (i * CHUNK, i * CHUNK + len(part), i, len(part), body))
+               % (CITE, i * CHUNK, i * CHUNK + len(part), i, len(part), body))
 
 out.append('''/// con-leche: none — `Vec::extend_from_slice` is in the subset, but the
 /// accumulator is passed by value and returned (DESIGN.md §3.4 reserves
@@ -65,7 +91,7 @@ fn push_chunk(out: Vec<u8>, c: &[u8]) -> Vec<u8> {
     v
 }
 
-/// con-leche: ConLeche/Frontend/Prelude.lean:59-60 builtinPreludeText
+/// con-leche: %s
 /// The committed prelude for the pinned toolchain (con-leche's
 /// `lean-toolchain`), verbatim: the `meta` header, the name, level and
 /// expression table entries, and the declaration records of the six pinned
@@ -77,7 +103,7 @@ fn push_chunk(out: Vec<u8>, c: &[u8]) -> Vec<u8> {
 /// process, at the driver's first step.
 pub fn prelude_text() -> Vec<u8> {
     let out: Vec<u8> = Vec::with_capacity(%d);
-''' % (len(parts), n))
+''' % (CITE, len(parts), n))
 for i in range(len(parts)):
     out.append("    let out = push_chunk(out, &P%02d);\n" % i)
 out.append("    out\n}\n")

@@ -1,6 +1,6 @@
 /-
 # `ConRon.Arena.Frontend.PreludeText` — the built-in prelude's bytes
-(`ConLeche/Frontend/Prelude.lean:55-60`, task #97e part 2)
+(`ConLeche/Frontend/Prelude.lean`'s `builtinPreludeText`, task #97e part 2)
 
 **Generated file — do not edit.**  Written by `scripts/gen-prelude-lean.sh`
 from con-leche's own committed `pins/leanprover-lean4-v4.33.0.prelude.ndjson`, the file its
