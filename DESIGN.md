@@ -65974,3 +65974,143 @@ backtick name literals (the allowlist records each).  Upstream wishes:
 not refreshed (§7.x).  `progress.py`'s "verified" column reads 8 %: it counts
 the retired `Refine/*_refines` lemmas, most of which this campaign deleted as
 unused; `arena-census.py` is the arena's ledger.
+
+### Task #106 — con-leche sync 445b9cf4 → a31e82979: the fold's `And` pin (2026-10-01, Opus under Fable)
+
+con-leche goes from `445b9cf4` to **`a31e82979`**, four commits:
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| `4ce95c9dd` OVEDIT | OVERVIEW copy-edit | no |
+| `45e2ac019` PRELAND | `And` dropped from the built-in prelude; "uniform route"/"fixpoint route" comments restated | the prelude only, and ANDPIN reverts it |
+| **`10fe085e2`** ANDPIN | a record declaring `And`, `And.intro` or `And.rec` must be the toolchain's block: `andPin`/`andPinNames` (new `Kernel/Basis/And.lean`), `andPinOk` (`Kernel/Basis.lean`, up to `ConstantInfo.canon`), asked by the fold's step `annotDeclStep` (`Cached/Installed.lean`) before the kind dispatch; anything else is `.invalid "`And` must be the standard `And`"` (exit 1).  The prelude membership is restored; five new e2e fixtures | **yes** |
+| `a31e82979` | `--help`'s NO PREPROCESSOR paragraph: the installer generates the recursors, the stream's rule bodies are ignored | the help text |
+
+PRELAND and ANDPIN together leave the prelude where it was (`pins/` is
+untouched between the two pins), so `gen-prelude`, `gen-prelude-lean` and
+`gen-pins` have nothing to regenerate.
+
+**Findings.**  `provenance.py update` (no `--old`): **102 `CHANGED`, 0
+`GONE`**, 174 citations merely moved.  `progress.py`'s `stale (CHANGED
+marker)` read **4** before a marker was touched (`basisnames.and_name`,
+`env.proj_table_dup`, `env.rec_rule_dup`, `env.rec_rule_parsed`, all
+doc-only).  The comment-stripping classifier (`_tmp/t106/classify.py`, §7
+step 3, `--` line comments stripped as well as block comments) put **97**
+in doc-only — `checkDecl` ×19, `nestedRuleSyn` ×16, `majorToCtor` ×13,
+`RecRule` ×9, `ProjTable` ×6, `checkShapeless`/`andRescueSlotsOf` ×4, the
+rest ×1–3: PRELAND's route renames in comments — and deleted those markers
+mechanically.  **Five were real**: `annotDeclStep` (Rust
+`checker::annot_decl_step`, twin `Checker.annotDeclStep` and the
+`AState.abandoned` note that cites it) and `Main.lean usage` (Rust `USAGE`,
+twin `Main.usage`, whose text has no such paragraph, so the twin's marker
+was citation-only).  Coverage **806/930 → 816/940**: the ten new
+declarations of `Basis/And.lean` and `Basis.lean` are all covered, nothing
+new is skipped.
+
+**Rust** (`con-ron-core`).
+* `kernel/basis_raw.rs`: `and_intro_name`, `and_rec_name`, `and_raw`,
+  `and_intro_raw`, `and_rec_motive`, `and_rec_minor`, `and_rec_raw`,
+  `and_pin` — `Basis/And.lean` through the raw-pin DSL, as the five basis
+  blocks are.  `andPinNames` is not a value in the port: its three names are
+  pinned handles (below).
+* `arena/pins.rs`: two new slots, `PIN_AND_INTRO` (48) and `PIN_AND_REC`
+  (49), `PIN_COUNT` 50, readers `pin_and_intro`/`pin_and_rec`.  The test
+  runs on every record, so its names are slot reads, not interns.
+* `arena/basis.rs`: `and_pin_decls` (the pin interned — `basis_kind_decls`'
+  shape, so Theorem 2 pairs it with one lemma), `and_pin_name_hs`
+  (`andPinNames` as three slot reads), `block_and_named` (the `.indDecl`
+  arm's `block.any`), `and_pin_name_free` (the one-constant arms),
+  `and_pin_ok`.  Only a block declaring one of the names reaches
+  `canon_eq_list`, so an ordinary record pays three slot reads and a handle
+  scan.
+* `arena/checker.rs`: `annot_decl_step` asks `and_pin_ok` first, OUTSIDE
+  `annot_step`'s scratch bracket (where con-leche asks it), and rejects with
+  `M_AND_PIN`.  The comparison's interning therefore lands in the persistent
+  tier, once a run (the stream's or the prelude's `And` block).
+* `crates/con-ron/src/bin/con-ron.rs`: the help paragraph takes upstream's
+  wording — #105's flagged decision 3 ("our copy is stale but so is
+  upstream's") is resolved by upstream.
+* `frontend/prelude.rs`'s node-count test: the pins now hold 63 name nodes
+  (was 61) and the prelude adds 28 (was 30): `And.intro` and `And.rec` moved
+  from the prelude's share to the pins'; the union, 91, is unchanged.
+
+`scripts/extract.sh`: `Generated/Funs.lean` +~350 lines (the new
+functions), `Types.lean` reorders `IDeclaration` ahead of `arena.basis`.
+
+**The twin** (`Arena/`): `Pins.lean` gains the two slots (`pinNames` +
+`andIntroName`, `andRecName`; `pinCount` 50); `Basis.lean` gains
+`andPinDecls`, `andPinNameHs`, `blockAndNamed`, `andPinNameFree`,
+`andPinOk`; `Checker.annotDeclStep` asks `andPinOk` first, its two new
+failure arms answering `AState.abandoned` like the old one.
+`con-ron-lean` agrees on 607/607.
+
+**Theorem 1** (`Bridge/`).  Theorem 1 is about ACCEPTING runs and
+con-leche's own soundness chain never reads the pin (its note on
+`annotDeclStep`: the rescue it keeps available is sound for any `And`), so
+what the fold theorem needs is the frame: `andPinOk_run`
+(`Bridge/Checker/Basis.lean`) — an accepting test only grew the store
+(`StateOK`, `Ext`) and moved neither the caches nor the pin table — and
+`Arena.annotFold_bridge` (`Bridge/Checker/Split.lean`) carries `FoldOK`,
+`PinsDenote` and the record's denotation across it (`FoldOK.step`,
+`CheckOK.mono`, `denoteDecl_pext`) before `annotStep_split`; the two
+failure arms are errors an accepting run never took.  **No headline
+statement changed**, and `PhaseA` is untouched.  The pin list growing to
+fifty cost nothing: every Bridge lemma reads `pinNames` by index.
+
+**Theorem 2** (`Refine/`, `Refine2/`), lockstep, no twin change, no
+invariant:
+* `Refine/BasisRaw.lean`: one `_refines` per new `basis_raw` function (plus
+  `ap4_refines` and the `{all, nparams, ctors}` reading of `IndCaps`),
+  `and_pin_refines` closing at `ConLeche.andPin`;
+* `Refine2/Core/LS/PrimsA1.lean`: `pin_and_run₀` (it had only an `LSR`
+  form), `pin_and_intro_run₀`, `pin_and_rec_run₀`;
+  `Refine2/Checker/Pins.lean`'s `pin_names_refines` at fifty names;
+* `Refine2/Checker/Top.lean`: `and_pin_decls_ls`, `and_pin_name_hs_run₀`
+  (a `PinRE`: the three reads move no state) and its `_ls`,
+  `block_and_named_aux`/`_spec` (cursor against structural recursion),
+  `and_pin_name_free_ls`, `and_pin_ok_refines` — one `cases pd` and one
+  `lockstep` call — and `annot_decl_step_refines` with the pin's three arms
+  in front of the old proof.  They sit in `Top.lean` rather than beside
+  `basis_pin_hit_refines` in `Axioms.lean` because the `nidx_vec_contains`
+  spec is not in `Axioms.lean`'s import closure.
+The census found three of the first draft's `@[lockstep]` wrappers unused
+(`pin_and_{intro,rec}_ls`, `and_pin_ok_ls`); they are gone.
+
+**Fixtures and measurements.**  `diff-e2e.sh`: master's binary at the new
+pin agrees on **604/607** (the three `corner_andpin_{swapped,type,def}_bad`
+rejects it accepts); the branch's on **607/607** at `--jobs=1` and
+`--jobs=4`, and `con-ron-lean` on 607/607.  `Init`, `--verified --jobs=1`,
+`perf stat -e instructions:u,cycles:u` under `timeout 900` and `ulimit -v
+8388608`, one run each (§7.x), both accepting 57 977:
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `bcde150c` | 204 219 398 541 | 94 629 635 173 |
+| this branch | **204 230 786 364** (+0.006 %) | 94 826 210 881 |
+
+(the branch's cycles were taken with a Lean build running; instructions are
+the measure of record).  No Mathlib landing run: the change allocates
+nothing per record beyond three slot reads.
+
+**Docs.**  README's two con-leche anchors move to the new pin (numbers
+only).  OVERVIEW: six anchors relocated by their unchanged text; the usage
+text's (two lines longer) and `intern_all_pins`' (+23 lines) re-ranged
+after reading their paragraphs, which stay true (the And pin is interned on
+demand, not by `intern_all_pins`).  Pin-count prose ("forty-eight",
+"forty-nine", "sixty-eight") updated in comments.
+
+**Decisions, flagged.**
+1. *Theorem 1 states the pin as a frame, not as an equation with
+   `ConLeche.andPinOk`.*  The accept-direction chain does not need the
+   answer, and a conjunct nothing consumes is the kind of dead proof the
+   census cannot see.  The pin's verdict agrees with con-leche's by the
+   lockstep (Rust = twin) and by the five new fixtures.
+2. *`And.intro`/`And.rec` are pinned slots*, not per-record interns.
+3. *The pin block is interned on demand* in phase A outside the scratch
+   bracket (persistent tier), not added to `intern_all_pins`.
+4. *`and_pin_decls`/`andPinDecls` is the port's own step* (`andPin`
+   interned), cited at `andPin`, for the lockstep's sake.
+
+**Shared state.**  The campaign ran on a private reflink copy of the
+packages directory, `_tmp/t106-packages`, deleted at the end.  The shared
+con-leche checkout was not touched and is still at `445b9cf4`.
