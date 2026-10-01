@@ -194,17 +194,18 @@ the export chose.  It is parsed into the SAME store as the stream, which is
 what the persistent tier is for: the prelude's nodes and the stream's are
 hash-consed together.
 
-NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is
-no external tool, no dependency and no spawn.  Every inductive block --
+NO PREPROCESSOR, NO MODELS.  The input is a RAW lean4export stream: there is no
+external tool, no dependency and no spawn.  Every inductive block --
 structures, sums, indexed families, recursive, reflexive, mutual and nested
-blocks -- is installed by the ONE uniform installer: it checks the type
-formers and constructors, runs the positivity check, and GENERATES the block's
+blocks -- is installed by the ONE uniform installer: it checks the type formers
+and constructors, runs the positivity check, and GENERATES the block's
 recursors; the stream's recursor records supply only their types, compared with
 the generated ones up to definitional equality, and their classes -- the rule
-bodies the stream carries are ignored.  No model is ever read from the input: a stream record whose name carries a
-`_model` component is an ordinary declaration with no effect on any block.  A
-block whose shape the installer does not recognise declines (exit 2), naming
-it.  The binary reads no environment variable.";
+bodies the stream carries are ignored.  No model is ever read from the input: a
+stream record whose name carries a `_model` component is an ordinary
+declaration with no effect on any block.  A block whose shape the installer
+does not recognise declines (exit 2), naming it.  The binary reads no
+environment variable.";
 
 /// con-leche: Main.lean:850-864 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so

@@ -2,7 +2,7 @@
 `kernel::basis_raw`, refined (DESIGN.md §3.5, task #83).
 
 `crates/con-ron-core/src/kernel/basis_raw.rs` is the port of
-`vendor/con-leche/ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot}.lean`
+`vendor/con-leche/ConLeche/Kernel/Basis/{Eq,Nat,Empty,False,Quot,And}.lean`
 and of `ConLeche/Kernel/Basis.lean:40-78` — the **raw** pinned basis blocks
 (each block exactly as an export carries it, the toolchain's `Init.Prelude`
 declaration at the parser's raw binder annotations) plus the two tests that
@@ -189,6 +189,17 @@ theorem ap3_refines {f a b c e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a)
   obtain ⟨hxabs, hxwf⟩ := ap2_refines hf ha hb hx
   exact ⟨by rw [Expr.app_refines hy, hxabs]; rfl, Expr.app_wf hxwf hc hy⟩
 
+theorem ap4_refines {f a b c d e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a)
+    (hb : ExprWF b) (hc : ExprWF c) (hd : ExprWF d)
+    (h : basis_builder.ap4 f a b c d = ok e) :
+    absExpr e = ConLeche.BasisDSL.ap4 (absExpr f) (absExpr a) (absExpr b) (absExpr c)
+        (absExpr d) ∧ ExprWF e := by
+  rw [basis_builder.ap4] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨x, hx, hy⟩ := h
+  obtain ⟨hxabs, hxwf⟩ := ap3_refines hf ha hb hc hx
+  exact ⟨by rw [Expr.app_refines hy, hxabs]; rfl, Expr.app_wf hxwf hd hy⟩
+
 /-- `expr::app` in the pair shape the pins are read in (`Quot.ind`'s body is
 the one place a pin applies a single argument). -/
 theorem mk_app_refines {f a e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a)
@@ -330,6 +341,16 @@ theorem absIndCaps_all_ctors {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
       = { all := absNames v, ctors := absNames w } := by
   rw [show ({ all := absNames v, ctors := absNames w } : ConLeche.IndCaps)
       = { ({} : ConLeche.IndCaps) with all := absNames v, ctors := absNames w } from rfl, ← h]
+  rfl
+
+/-- `{ ic with all, nparams := 2, ctors }`, the three fields `and_raw` sets. -/
+theorem absIndCaps_all_nparams_ctors {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
+    (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
+    absIndCaps { c with all := v, nparams := 2#u64, ctors := w }
+      = { all := absNames v, nparams := 2, ctors := absNames w } := by
+  rw [show ({ all := absNames v, nparams := 2, ctors := absNames w } : ConLeche.IndCaps)
+      = { ({} : ConLeche.IndCaps) with
+          all := absNames v, nparams := 2, ctors := absNames w } from rfl, ← h]
   rfl
 
 /-- `{ ic with all }`, the one field `empty_raw`/`false_raw` set. -/
@@ -1069,6 +1090,171 @@ theorem quot_basis_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.q
   refine ⟨?_, wres⟩
   simp [absConstantInfos, absConstantInfos, ares, aci4, aci3, aci2, aci1, aci,
     ConLeche.quotBasis]
+
+/-! ### `And` (con-leche's ANDPIN: recognised by the fold, never installed
+from here) -/
+
+/-- `ConLeche/Kernel/Basis/And.lean:39-40 andIntroName` -/
+theorem and_intro_name_refines {n : name.Name} (h : basis_raw.and_intro_name = ok n) :
+    absName n = ConLeche.andIntroName ∧ NameWF n := by
+  rw [basis_raw.and_intro_name] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨a, ha, s, hs, v, hv, hmk⟩ := h
+  obtain ⟨hp, hpwf⟩ := BasisNames.and_name_refines ha
+  obtain ⟨h1, h1wf⟩ := str_lit_step hpwf hs hv hmk
+    (L := [105#u32, 110#u32, 116#u32, 114#u32, 111#u32])
+    (by simp [basis_raw.and_intro_name.S]) (by decide)
+  exact ⟨by rw [h1, hp]; rfl, h1wf⟩
+
+/-- `ConLeche/Kernel/Basis/And.lean:42-43 andRecName` -/
+theorem and_rec_name_refines {n : name.Name} (h : basis_raw.and_rec_name = ok n) :
+    absName n = ConLeche.andRecName ∧ NameWF n := by
+  rw [basis_raw.and_rec_name] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨a, ha, hr⟩ := h
+  obtain ⟨hp, hpwf⟩ := BasisNames.and_name_refines ha
+  obtain ⟨h1, h1wf⟩ := BasisNames.rec_of_refines hpwf hr
+  exact ⟨by rw [h1, hp]; rfl, h1wf⟩
+
+/-- `ConLeche/Kernel/Basis/And.lean:45-48 andRaw` -/
+theorem and_raw_refines {ci : env.ConstantInfo} (h : basis_raw.and_raw = ok ci) :
+    absConstantInfo ci = ConLeche.andRaw ∧ ConstantInfoWF ci := by
+  rw [basis_raw.and_raw] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨n, hn, v, hv, n1, hn1, v1, hv1, ic, hic, e, he, e1, he1, e2, he2, cv, hcv, rfl⟩ := h
+  obtain ⟨an, wn⟩ := BasisNames.and_name_refines hn
+  obtain ⟨av, wv⟩ := vec1_refines wn hv
+  obtain ⟨an1, wn1⟩ := and_intro_name_refines hn1
+  obtain ⟨av1, wv1⟩ := vec1_refines wn1 hv1
+  obtain ⟨aic, wic⟩ := ind_caps_default_refines hic
+  obtain ⟨ae, we⟩ := prop_refines he
+  obtain ⟨ae1, we1⟩ := pi_refines we we he1
+  obtain ⟨ae2, we2⟩ := pi_refines we we1 he2
+  obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we2 hcv
+  refine ⟨?_, ⟨wcv, wic.1, wic.2.1, wv, wv1⟩⟩
+  simp [absConstantInfo, absNames, absIndCaps_all_nparams_ctors aic, acv, ae2, ae1, ae,
+    an, av, av1, an1, ConLeche.andRaw]
+
+/-- `ConLeche/Kernel/Basis/And.lean:50-58 andIntroRaw` -/
+theorem and_intro_raw_refines {r : env.ConstantInfo} (h : basis_raw.and_intro_raw = ok r) :
+    absConstantInfo r = ConLeche.andIntroRaw ∧ ConstantInfoWF r := by
+  rw [basis_raw.and_intro_raw] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨n, hn, e, he, e1, he1, n1, hn1, e2, he2, e3, he3, e4, he4, e5, he5, e6, he6,
+    e7, he7, e8, he8, e9, he9, cv, hcv, rfl⟩ := h
+  obtain ⟨an, wn⟩ := and_intro_name_refines hn
+  obtain ⟨ae, we⟩ := prop_refines he
+  obtain ⟨ae1, we1⟩ := bv_refines he1
+  obtain ⟨an1, wn1⟩ := BasisNames.and_name_refines hn1
+  obtain ⟨ae2, we2⟩ := cnst_refines wn1 vec_new_wf he2
+  obtain ⟨ae3, we3⟩ := bv_refines he3
+  obtain ⟨ae4, we4⟩ := bv_refines he4
+  obtain ⟨ae5, we5⟩ := ap2_refines we2 we3 we4 he5
+  obtain ⟨ae6, we6⟩ := pi_refines we1 we5 he6
+  obtain ⟨ae7, we7⟩ := pi_refines we1 we6 he7
+  obtain ⟨ae8, we8⟩ := pi_refines we we7 he8
+  obtain ⟨ae9, we9⟩ := pi_refines we we8 he9
+  obtain ⟨acv, wcv⟩ := cv_refines wn vec_new_wf we9 hcv
+  refine ⟨?_, wcv⟩
+  simp [absConstantInfo, absNames, absLevels, acv, ae9, ae8, ae7, ae6, ae5, ae4, ae3, ae2,
+    an1, ae1, ae, an, ConLeche.andIntroRaw]
+
+/-- `ConLeche/Kernel/Basis/And.lean:60-63 andRecMotive` -/
+theorem and_rec_motive_refines {r : expr.Expr} (h : basis_raw.and_rec_motive = ok r) :
+    absExpr r = ConLeche.andRecMotive ∧ ExprWF r := by
+  rw [basis_raw.and_rec_motive] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨n, hn, e, he, e1, he1, e2, he2, e3, he3, l, hl, e4, he4, hres⟩ := h
+  obtain ⟨an, wn⟩ := BasisNames.and_name_refines hn
+  obtain ⟨ae, we⟩ := cnst_refines wn vec_new_wf he
+  obtain ⟨ae1, we1⟩ := bv_refines he1
+  obtain ⟨ae2, we2⟩ := bv_refines he2
+  obtain ⟨ae3, we3⟩ := ap2_refines we we1 we2 he3
+  obtain ⟨al, wl⟩ := u_refines hl
+  obtain ⟨ae4, we4⟩ := srt_refines wl he4
+  obtain ⟨ares, wres⟩ := pi_refines we3 we4 hres
+  refine ⟨?_, wres⟩
+  simp [absLevels, ares, ae4, al, ae3, ae2, ae1, ae, an, ConLeche.andRecMotive]
+
+/-- `ConLeche/Kernel/Basis/And.lean:65-71 andRecMinor` -/
+theorem and_rec_minor_refines {r : expr.Expr} (h : basis_raw.and_rec_minor = ok r) :
+    absExpr r = ConLeche.andRecMinor ∧ ExprWF r := by
+  rw [basis_raw.and_rec_minor] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨e, he, n, hn, e1, he1, e2, he2, e3, he3, e4, he4, e5, he5, e6, he6, e7, he7,
+    e8, he8, hres⟩ := h
+  obtain ⟨ae, we⟩ := bv_refines he
+  obtain ⟨an, wn⟩ := and_intro_name_refines hn
+  obtain ⟨ae1, we1⟩ := cnst_refines wn vec_new_wf he1
+  obtain ⟨ae2, we2⟩ := bv_refines he2
+  obtain ⟨ae3, we3⟩ := bv_refines he3
+  obtain ⟨ae4, we4⟩ := bv_refines he4
+  obtain ⟨ae5, we5⟩ := bv_refines he5
+  obtain ⟨ae6, we6⟩ := ap4_refines we1 we2 we3 we4 we5 he6
+  obtain ⟨ae7, we7⟩ := mk_app_refines we we6 he7
+  obtain ⟨ae8, we8⟩ := pi_refines we we7 he8
+  obtain ⟨ares, wres⟩ := pi_refines we we8 hres
+  refine ⟨?_, wres⟩
+  simp [absLevels, ares, ae8, ae7, ae6, ae5, ae4, ae3, ae2, ae1, an, ae,
+    ConLeche.andRecMinor]
+
+/-- `ConLeche/Kernel/Basis/And.lean:73-92 andRecRaw` -/
+theorem and_rec_raw_refines {r : env.ConstantInfo} (h : basis_raw.and_rec_raw = ok r) :
+    absConstantInfo r = ConLeche.andRecRaw ∧ ConstantInfoWF r := by
+  rw [basis_raw.and_rec_raw] at h
+  simp only [bind_eq_ok_iff, Result.ok.injEq] at h
+  obtain ⟨n, hn, n1, hn1, v, hv, e, he, e1, he1, e2, he2, n2, hn2, e3, he3, e4, he4,
+    e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, e11, he11, e12, he12,
+    e13, he13, cv, hcv, n3, hn3, e14, he14, e15, he15, e16, he16, e17, he17, e18, he18,
+    e19, he19, e20, he20, e21, he21, rr, hrr, v1, hv1, rfl⟩ := h
+  obtain ⟨an, wn⟩ := and_rec_name_refines hn
+  obtain ⟨an1, wn1⟩ := u_n_refines hn1
+  obtain ⟨av, wv⟩ := vec1_refines wn1 hv
+  obtain ⟨ae, we⟩ := prop_refines he
+  obtain ⟨ae1, we1⟩ := and_rec_motive_refines he1
+  obtain ⟨ae2, we2⟩ := and_rec_minor_refines he2
+  obtain ⟨an2, wn2⟩ := BasisNames.and_name_refines hn2
+  obtain ⟨ae3, we3⟩ := cnst_refines wn2 vec_new_wf he3
+  obtain ⟨ae4, we4⟩ := bv_refines he4
+  obtain ⟨ae5, we5⟩ := bv_refines he5
+  obtain ⟨ae6, we6⟩ := ap2_refines we3 we4 we5 he6
+  obtain ⟨ae7, we7⟩ := bv_refines he7
+  obtain ⟨ae8, we8⟩ := mk_app_refines we5 we7 he8
+  obtain ⟨ae9, we9⟩ := pi_refines we6 we8 he9
+  obtain ⟨ae10, we10⟩ := pi_refines we2 we9 he10
+  obtain ⟨ae11, we11⟩ := pi_refines we1 we10 he11
+  obtain ⟨ae12, we12⟩ := pi_refines we we11 he12
+  obtain ⟨ae13, we13⟩ := pi_refines we we12 he13
+  obtain ⟨acv, wcv⟩ := cv_refines wn wv we13 hcv
+  obtain ⟨an3, wn3⟩ := and_intro_name_refines hn3
+  obtain ⟨ae14, we14⟩ := bv_refines he14
+  obtain ⟨ae15, we15⟩ := ap2_refines we5 we14 we7 he15
+  obtain ⟨ae16, we16⟩ := lm_refines we4 we15 he16
+  obtain ⟨ae17, we17⟩ := lm_refines we4 we16 he17
+  obtain ⟨ae18, we18⟩ := lm_refines we2 we17 he18
+  obtain ⟨ae19, we19⟩ := lm_refines we1 we18 he19
+  obtain ⟨ae20, we20⟩ := lm_refines we we19 he20
+  obtain ⟨ae21, we21⟩ := lm_refines we we20 he21
+  obtain ⟨arr, wrr⟩ := rule_refines wn3 we21 hrr
+  obtain ⟨av1, wv1⟩ := vec1_refines wrr hv1
+  refine ⟨?_, ⟨wcv, wv1⟩⟩
+  simp [absConstantInfo, absNames, absLevels, av1, arr, ae21, ae20, ae19, ae18, ae17, ae16,
+    ae15, ae14, an3, acv, ae13, ae12, ae11, ae10, ae9, ae8, ae7, ae6, ae5, ae4, ae3, an2,
+    ae2, ae1, ae, av, an1, an, ConLeche.andRecRaw]
+
+/-- `ConLeche/Kernel/Basis/And.lean:94-95 andPin` — the pinned `And` block the
+fold compares a stream block against (`arena::basis::and_pin_ok`). -/
+theorem and_pin_refines {r : alloc.vec.Vec env.ConstantInfo} (h : basis_raw.and_pin = ok r) :
+    absConstantInfos r = ConLeche.andPin ∧ ConstantInfosWF r := by
+  rw [basis_raw.and_pin] at h
+  simp only [bind_eq_ok_iff] at h
+  obtain ⟨ci, hci, ci1, hci1, ci2, hci2, hres⟩ := h
+  obtain ⟨aci, wci⟩ := and_raw_refines hci
+  obtain ⟨aci1, wci1⟩ := and_intro_raw_refines hci1
+  obtain ⟨aci2, wci2⟩ := and_rec_raw_refines hci2
+  obtain ⟨ares, wres⟩ := vec3_refines wci wci1 wci2 hres
+  refine ⟨?_, wres⟩
+  simp [absConstantInfos, ares, aci2, aci1, aci, ConLeche.andPin]
 
 /-! ## `BasisKind.decls` -/
 

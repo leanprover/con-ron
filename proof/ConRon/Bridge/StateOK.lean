@@ -442,7 +442,7 @@ def denoteNL (st : EStore) : List NIdx → List ConLeche.Name → Prop
   | _, _ => False
 
 /-- con-leche: none — **the pin table denotes** (task #97-P6-4a): the
-forty-nine `PIN_*` slots hold handles for `pinNames`, the reserved-basis list
+fifty `PIN_*` slots hold handles for `pinNames`, the reserved-basis list
 holds handles for `reservedBasisNameValues`, and the three nullary values
 denote `[]`, `Level.zero` and `Sort 1`.  `pinsReady` is the executable half of
 the first conjunct and is what makes an early read a stop rather than a wrong

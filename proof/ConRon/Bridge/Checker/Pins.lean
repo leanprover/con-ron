@@ -8,7 +8,7 @@ the fold carries:
 
 | | |
 |---|---|
-| `PinsOK s` | the forty-nine `PIN_*` slots denote `pinNames`, the reserved list denotes `reservedBasisNameValues`, the three nullary values denote, and **the zero name handle decodes to `.anonymous`** (`Bridge/StateOK.lean`; the last clause is task #97-P3-Ind round 5's, and this theorem is its debtor — see `PinsOK.anon`) |
+| `PinsOK s` | the fifty `PIN_*` slots denote `pinNames`, the reserved list denotes `reservedBasisNameValues`, the three nullary values denote, and **the zero name handle decodes to `.anonymous`** (`Bridge/StateOK.lean`; the last clause is task #97-P3-Ind round 5's, and this theorem is its debtor — see `PinsOK.anon`) |
 | `PersPins s` | **every pin handle is persistent** — task #97-P3-0 §7's "one more clause", the one that makes `PinsOK` survive `dropScratch` (`Bridge/Checker/Inv.lean`'s `PinsOK.pmono`) |
 | `PinsDenote s.store pins pinsP` | the interned `Nat`-operation pin variants denote con-leche's (`Bridge/Checker/Decl.lean`) |
 

@@ -689,7 +689,7 @@ pub fn thaw_tier(ar: &mut EStore, tier: PersTier) {
 
 /// con-leche: none — the pin table is handles, so a copy is a copy of words
 /// Lean twin: none — the value is `Pins` itself (`Refine2`'s `pins_dup_val`).
-/// A phase-B worker's copy of the driver's `Pins`: sixty-eight handles into the
+/// A phase-B worker's copy of the driver's `Pins`: seventy handles into the
 /// frozen tier and nothing else, so every record's state may own one and none
 /// of them has to intern anything to fill it.
 pub fn pins_dup(p: &Pins) -> Pins {

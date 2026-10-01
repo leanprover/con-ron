@@ -110,7 +110,7 @@ instance : Inhabited Caches := ⟨Caches.empty⟩
 reserved constant names and the three interned values the checker compares
 against, interned ONCE at the driver instead of once per comparison.
 
-The name table is an `Array` rather than forty-nine fields for the reason task
+The name table is an `Array` rather than fifty fields for the reason task
 #97c declined the record in the first place: every 32-bit word is a
 syntactically valid handle, so a record of fields read before it is filled
 silently answers "not `Nat`", while an EMPTY array makes `pinAt` take its

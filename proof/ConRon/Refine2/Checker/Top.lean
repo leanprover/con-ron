@@ -236,6 +236,173 @@ open Lockstep in
       (arena.basis.basis_pin_hit pers st block) lst (basisPinHit (absICIL block)) :=
   LS.ofSim₀ fun _ h => basis_pin_hit_refines hrel hinv h
 
+/-! ## The pinned `And` (con-leche's ANDPIN, task #106) -/
+
+/-- `and_pin_decls` ⊑ `andPinDecls` — the pinned `And` block, interned. -/
+theorem and_pin_decls_refines {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.basis.and_pin_decls pers st = ok o) :
+    Sim₀ absICIL pers lst o andPinDecls := by
+  rw [arena.basis.and_pin_decls] at hrun
+  exact sim_intern_ci_list_of hrel hinv
+    (fun _ h => ConRon.Refine.BasisRaw.and_pin_refines h) hrun
+
+open Lockstep in
+@[lockstep] theorem and_pin_decls_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absICIL a) (arena.basis.and_pin_decls pers st) lst
+      andPinDecls :=
+  LS.ofSim₀ fun _ h => and_pin_decls_refines hrel hinv h
+
+/-- `and_pin_name_hs` ⊑ `andPinNameHs` — the three slot reads, as a handle
+list; a pin read moves neither state, so neither does the list. -/
+theorem and_pin_name_hs_run₀ {pers st lst} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.basis.and_pin_name_hs st = ok o) :
+    Lockstep.PA1.PinRE absNIdxList lst o andPinNameHs := by
+  rw [arena.basis.and_pin_name_hs] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have h1 := Lockstep.PA1.pin_and_run₀ hrel hinv hr
+  simp only [andPinNameHs, Lockstep.PA1.PinRE, StateT.run_bind] at h1 ⊢
+  cases r with
+  | Err e =>
+    obtain rfl := (Result.ok_injective hrun).symm
+    exact AErrSim.bind h1 _
+  | Ok a =>
+    simp only at hrun h1
+    rw [h1]
+    obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 := Lockstep.PA1.pin_and_intro_run₀ hrel hinv hr1
+    simp only [Lockstep.PA1.PinRE] at h2
+    cases r1 with
+    | Err e =>
+      obtain rfl := (Result.ok_injective hrun).symm
+      exact AErrSim.bind h2 _
+    | Ok i =>
+      simp only at hrun h2
+      dsimp only [Bind.bind, Except.bind]
+      rw [h2]
+      obtain ⟨r2, hr2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have h3 := Lockstep.PA1.pin_and_rec_run₀ hrel hinv hr2
+      simp only [Lockstep.PA1.PinRE] at h3
+      cases r2 with
+      | Err e =>
+        obtain rfl := (Result.ok_injective hrun).symm
+        exact AErrSim.bind h3 _
+      | Ok r3 =>
+        simp only at hrun h3
+        dsimp only [Bind.bind, Except.bind]
+        rw [h3]
+        obtain ⟨hs, hhs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨hs1, hhs1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain ⟨hs2, hhs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        obtain rfl := (Result.ok_injective hrun).symm
+        have e2 := ConRon.Refine.vec_push_val hhs2
+        have e1 := ConRon.Refine.vec_push_val hhs1
+        have e0 := ConRon.Refine.vec_push_val hhs
+        simp [absNIdxList, e2, e1, e0, alloc.vec.Vec.new]
+        rfl
+
+open Lockstep in
+@[lockstep] theorem and_pin_name_hs_ls {pers st lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = absNIdxList a) (arena.basis.and_pin_name_hs st) st lst
+      andPinNameHs :=
+  PA1.pinRE_lsr hrel hinv fun _ h => and_pin_name_hs_run₀ hrel hinv h
+
+/-- `block_and_named` ⊑ `blockAndNamed` at the cursor. -/
+theorem block_and_named_aux (k : Nat) :
+    ∀ (block : alloc.vec.Vec arena.env.IConstantInfo)
+      (hs : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) {o},
+      block.val.length - i.val = k →
+      arena.basis.block_and_named block hs i = ok o →
+      o = blockAndNamed (absNIdxList hs) (absICILFrom block i) := by
+  induction k with
+  | zero =>
+    intro block hs i o hn h
+    rw [arena.basis.block_and_named] at h
+    have hl := alloc.vec.Vec.len_val block
+    rw [if_pos (by scalar_tac)] at h
+    obtain rfl := (Result.ok_injective h).symm
+    have : absICILFrom block i = [] := by
+      simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
+    rw [this]; rfl
+  | succ m ih =>
+    intro block hs i o hn h
+    rw [arena.basis.block_and_named] at h
+    have hl := alloc.vec.Vec.len_val block
+    rw [if_neg (by scalar_tac)] at h
+    obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨n, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hi : i.val < block.val.length := by omega
+    have hx : block.val[i.val] = ii := by
+      have h1 := vec_index_some hii
+      rw [List.getElem?_eq_getElem hi] at h1
+      exact Option.some_inj.mp h1
+    have hbv : b = (absNIdxList hs).contains (absNIdx n) :=
+      Lockstep.nidx_vec_contains_spec hs n b hb
+    have hcons : absICILFrom block i =
+        absIConstantInfo ii :: (block.val.drop (i.val + 1)).map absIConstantInfo := by
+      simp only [absICILFrom]; rw [List.drop_eq_getElem_cons hi, hx]; rfl
+    rw [hcons, blockAndNamed, ← i_constant_info_name_abs hn2, ← hbv]
+    cases b with
+    | true =>
+      rw [if_pos rfl] at h
+      exact (Result.ok_injective h).symm
+    | false =>
+      rw [if_neg (by simp)] at h
+      obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have hi2v := ConRon.Refine.Nat.uadd_val hi2
+      rw [ih block hs i2 (by simp at hi2v; omega) h, Bool.false_or]
+      simp only [absICILFrom]
+      simp at hi2v; rw [hi2v]
+
+open Lockstep in
+/-- `block_and_named` from its entry. -/
+@[lockstep] theorem block_and_named_spec (block : alloc.vec.Vec arena.env.IConstantInfo)
+    (hs : alloc.vec.Vec arena.handle.NIdx) :
+    LSP (arena.basis.block_and_named block hs 0#usize)
+      (fun o => o = blockAndNamed (absNIdxList hs) (absICIL block)) := by
+  intro o h
+  have := block_and_named_aux _ block hs 0#usize rfl h
+  simpa [absICILFrom, absICIL] using this
+
+open Lockstep in
+/-- `and_pin_name_free` ⊑ `andPinNameFree` — a one-constant record's arm. -/
+@[lockstep] theorem and_pin_name_free_ls {pers st lst} {n : arena.handle.NIdx}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.basis.and_pin_name_free st n) st lst
+      (andPinNameFree (absNIdx n)) := by
+  apply LSR.of_LS
+  rw [arena.basis.and_pin_name_free, andPinNameFree]
+  lockstep
+
+/-- `and_pin_ok` ⊑ `andPinOk` — **the fold's `And` pin**: the record declares
+none of the pinned `And` block's names, or it is that block. -/
+theorem and_pin_ok_refines {pers st lst} {pd : arena.env.IDeclaration} {o}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hrun : arena.basis.and_pin_ok pers st pd = ok o) :
+    Sim₀ id pers lst o (andPinOk (absIDeclaration pd)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  have hcanon : ∀ {st lst} (xs ys : alloc.vec.Vec arena.env.IConstantInfo),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers (fun a b => b = id a) (arena.canon.canon_eq_list pers st xs ys 0#usize) lst
+        (canonEqList (absICIL xs) (absICIL ys)) := by
+    intro st lst xs ys hrel hinv
+    refine Lockstep.LS.ofSim₀ fun _ h => ?_
+    have := canon_eq_list_refines hrel hinv h
+    simpa [absICILFrom, absICIL] using this
+  cases pd <;> unfold arena.basis.and_pin_ok <;>
+    simp only [absIDeclaration, andPinOk] <;> lockstep
+
+open Lockstep in
+@[lockstep] theorem and_pin_ok_ls {pers st lst} {pd : arena.env.IDeclaration}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = id a) (arena.basis.and_pin_ok pers st pd) lst
+      (andPinOk (absIDeclaration pd)) :=
+  LS.ofSim₀ fun _ h => and_pin_ok_refines hrel hinv h
+
 /-- `check_ind_decl` ⊑ `checkDecl`'s `.indDecl` arm — the pinned basis blocks
 recognised first (a stream's `Nat` block arrives as an ordinary `indDecl`),
 then the declared parameter count, the recogniser and the one uniform route
@@ -1139,33 +1306,61 @@ theorem annot_decl_step_refines {pers st lst} {lf}
         (absU p.1, lf, (absPendingCheckL p.2.2).toArray) (absIDeclaration pd)) := by
   obtain ⟨pi, prf, ppend⟩ := p
   rw [arena.checker.annot_decl_step] at hrun
-  obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hA := annot_step_refines (lf := lf) (i := pi) (pend := ppend) (pd := pd)
-    hrel hinv hpers hfe hfinv hq
-  obtain ⟨qr, qst⟩ := q
-  simp only [SimRel₀, AOutRel₀, StateT.run] at hA
+  -- the `And` pin first (con-leche's ANDPIN)
+  obtain ⟨q0, hq0, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hP := and_pin_ok_refines (pd := pd) hrel hinv hq0
+  obtain ⟨r0, st0⟩ := q0
+  simp only [Sim₀, StateT.run] at hP
   simp only [SimFold, StateT.run, annotDeclStep]
-  cases hqr : qr with
+  cases hr0 : r0 with
   | Err e =>
-    rw [hqr] at hA hrun
+    rw [hr0] at hP hrun
     have ho := Result.ok_injective hrun
     subst ho
     intro k hk
-    obtain ⟨le, hle, hlk⟩ := hA k hk
-    exact ⟨le, AState.abandoned, by rw [hle]; try rfl, hlk⟩
-  | Ok q' =>
-    rw [hqr] at hA hrun
-    obtain ⟨v, lst1, hx, hv, hrel1, hinv1⟩ := hA
-    obtain ⟨qf, qpend⟩ := q'
-    obtain ⟨v1, v2⟩ := v
-    obtain ⟨hv1, hv2⟩ := hv
-    subst hv2
-    obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hi2v : i2.val = pi.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
-    have ho := Result.ok_injective hrun
-    subst ho
-    exact ⟨(absU pi + 1, v1, (absPendingCheckL qpend).toArray), lst1,
-      by rw [hx], ⟨by simp [hi2v], hv1, rfl⟩, hrel1, hinv1⟩
+    obtain ⟨le, hle, hlk⟩ := hP k hk
+    exact ⟨le, AState.abandoned, by rw [hle], hlk⟩
+  | Ok b =>
+    rw [hr0] at hP hrun
+    obtain ⟨lst0, hx0, hrel0, hinv0⟩ := hP
+    rw [hx0]
+    cases b with
+    | false =>
+      simp only [id] at hrun ⊢
+      obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      obtain ⟨v1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have ho := Result.ok_injective hrun
+      subst ho
+      intro k hk
+      exact ⟨_, AState.abandoned, rfl, by simpa using hk⟩
+    | true =>
+      simp only [id] at hrun ⊢
+      obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      have hA := annot_step_refines (lf := lf) (i := pi) (pend := ppend) (pd := pd)
+        hrel0 hinv0 hpers hfe hfinv hq
+      obtain ⟨qr, qst⟩ := q
+      simp only [SimRel₀, AOutRel₀, StateT.run] at hA
+      cases hqr : qr with
+      | Err e =>
+        rw [hqr] at hA hrun
+        have ho := Result.ok_injective hrun
+        subst ho
+        intro k hk
+        obtain ⟨le, hle, hlk⟩ := hA k hk
+        exact ⟨le, AState.abandoned, by rw [hle]; try rfl, hlk⟩
+      | Ok q' =>
+        rw [hqr] at hA hrun
+        obtain ⟨v, lst1, hx, hv, hrel1, hinv1⟩ := hA
+        obtain ⟨qf, qpend⟩ := q'
+        obtain ⟨v1, v2⟩ := v
+        obtain ⟨hv1, hv2⟩ := hv
+        subst hv2
+        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+        have hi2v : i2.val = pi.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
+        have ho := Result.ok_injective hrun
+        subst ho
+        exact ⟨(absU pi + 1, v1, (absPendingCheckL qpend).toArray), lst1,
+          by rw [hx], ⟨by simp [hi2v], hv1, rfl⟩, hrel1, hinv1⟩
 
 /-- Phase A's fold, by the cursor's measure — `check_decls_pure_go_aux`'s
 shape at the other fold. -/
