@@ -1780,5 +1780,98 @@ theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
   exact RunsB.pinLastOf hcv3 fun h =>
     ofReducePinA_run st3 hp3 (denoteCV_inv hcv3).1 h
 
-end ConRon.Bridge
+/-! ## The pinned `And` (con-leche's ANDPIN)
 
+The fold asks `andPinOk` of every record before its dispatch
+(`Arena.annotDeclStep`).  Theorem 1 is about ACCEPTING runs, and con-leche's
+soundness chain never reads the test (`Cached/Installed.lean`'s note on
+`annotDeclStep`: the stuck-proof rescue it keeps available is sound for any
+`And`), so what the fold theorem needs of it is the frame: an accepting test
+only grew the store, and moved neither the caches nor the pin table. -/
+
+/-- con-leche: ConLeche/Kernel/Basis/And.lean:94-95 andPin — the pinned `And`
+block holds no projection table. -/
+theorem andPin_no_proj : ∀ x ∈ ConLeche.andPin, x.isTowerEntry = false := by
+  decide
+
+/-- con-leche: ConLeche/Kernel/Basis/And.lean:97-99 andPinNames — the three
+slot reads move nothing. -/
+theorem andPinNameHs_run {hs : List NIdx} {s s' : AState} (hp : PinsOK s)
+    (hrun : andPinNameHs s = .ok (hs, s')) : s' = s := by
+  simp only [ConRon.Arena.andPinNameHs, pinAnd, pinAndIntro, pinAndRec] at hrun
+  obtain ⟨a, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain ⟨rfl, -⟩ := pinAt_run (x := ConLeche.andName) hp rfl g1
+  obtain ⟨i, s₂, g2, k2⟩ := AM.bind_ok k1
+  obtain ⟨rfl, -⟩ := pinAt_run (x := ConLeche.andIntroName) hp rfl g2
+  obtain ⟨r, s₃, g3, k3⟩ := AM.bind_ok k2
+  obtain ⟨rfl, -⟩ := pinAt_run (x := ConLeche.andRecName) hp rfl g3
+  exact (AM.pure_ok k3).2
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — the one-constant
+arm moves nothing. -/
+theorem andPinNameFree_run {n : NIdx} {r : Bool} {s s' : AState} (hp : PinsOK s)
+    (hrun : andPinNameFree n s = .ok (r, s')) : s' = s := by
+  simp only [ConRon.Arena.andPinNameFree] at hrun
+  obtain ⟨hs, s₁, g1, k1⟩ := AM.bind_ok hrun
+  obtain rfl := andPinNameHs_run hp g1
+  exact (AM.pure_ok k1).2
+
+/-- con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk — **the fold's `And`
+pin, as a frame**: the test only grows the store (the pinned block is interned
+and compared with `canonEqList` when a block declares one of its names) and
+moves neither the caches nor the pin table. -/
+theorem andPinOk_run {pd : IDeclaration} {d : Declaration} {r : Bool}
+    {s s' : AState} (hok : StateOK s) (hp : PinsOK s)
+    (hd : Frontend.denoteDecl s.store pd = some d)
+    (hrun : andPinOk pd s = .ok (r, s')) :
+    StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+      s'.pins = s.pins := by
+  have hfree : ∀ {n : NIdx}, andPinNameFree n s = .ok (r, s') →
+      StateOK s' ∧ Ext s.store s'.store ∧ s'.caches = s.caches ∧
+        s'.pins = s.pins := fun h => by
+    obtain rfl := andPinNameFree_run hp h
+    exact ⟨hok, Ext.refl _, rfl, rfl⟩
+  cases pd with
+  | axiomDecl cv => exact hfree hrun
+  | defnDecl cv _ _ => exact hfree hrun
+  | thmDecl cv _ => exact hfree hrun
+  | opaqueDecl cv _ => exact hfree hrun
+  | quotDecl _ cv => exact hfree hrun
+  | basisDecl _ =>
+    simp only [ConRon.Arena.andPinOk] at hrun
+    obtain ⟨-, rfl⟩ := AM.pure_ok hrun
+    exact ⟨hok, Ext.refl _, rfl, rfl⟩
+  | indDecl block nP =>
+    simp only [Frontend.denoteDecl, Option.map_eq_some_iff] at hd
+    obtain ⟨b, hb, -⟩ := hd
+    simp only [ConRon.Arena.andPinOk] at hrun
+    obtain ⟨hs, s₁, g1, k1⟩ := AM.bind_ok hrun
+    obtain rfl := andPinNameHs_run hp g1
+    rcases AM.ite_ok k1 with ⟨-, k2⟩ | ⟨-, k2⟩
+    · rcases AM.ite_ok k2 with ⟨-, k3⟩ | ⟨-, k3⟩
+      · obtain ⟨pinned, s₂, g2, k4⟩ := AM.bind_ok k3
+        simp only [ConRon.Arena.internCIList] at g2
+        obtain ⟨p, s₃, hgo, hrest⟩ := AM.bind_ok g2
+        obtain ⟨m1, cis⟩ := p
+        obtain ⟨hv, hst⟩ := AM.pure_ok hrest
+        subst hv; subst hst
+        obtain ⟨hstep, hdp, -, -⟩ :=
+          Frontend.internCIList_sstep ConLeche.andPin hok
+            (Frontend.EMemoOK.empty _) hgo
+        obtain ⟨hok2, hx2, hc2, hp2, -⟩ :=
+          canonEqList_run hstep.ok
+            (fun t t' _ hb' => by
+              obtain ⟨y, hy1, hy2⟩ := denoteCIList_mem _ _ hdp _ hb'
+              simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hy2
+              obtain ⟨pt, -, rfl⟩ := hy2
+              exact absurd (andPin_no_proj _ hy1)
+                (by simp [ConstantInfo.isTowerEntry]))
+            (denoteCIList_mono hstep.ext _ _ hb) hdp k4
+        exact ⟨hok2, hstep.ext.trans hx2, by rw [hc2, hstep.caches],
+          by rw [hp2, hstep.pins]⟩
+      · obtain ⟨-, rfl⟩ := AM.pure_ok k3
+        exact ⟨hok, Ext.refl _, rfl, rfl⟩
+    · obtain ⟨-, rfl⟩ := AM.pure_ok k2
+      exact ⟨hok, Ext.refl _, rfl, rfl⟩
+
+end ConRon.Bridge

@@ -1670,7 +1670,36 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
         simp only [Arena.annotFold] at hrun
         obtain ⟨r1, s₁, hstep, htail⟩ := AM.bind_ok hrun
         simp only [Arena.annotDeclStep] at hstep
-        cases hA : Arena.annotStep μ pins i fe pend a s with
+        -- the `And` pin first (con-leche's ANDPIN): an accepting run passed
+        -- it, and it only grew the store
+        cases hP : andPinOk a s with
+        | error e =>
+          rw [hP] at hstep
+          simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+          obtain ⟨rfl, rfl⟩ := hstep
+          obtain ⟨hbad, -⟩ := AM.pure_ok htail
+          exact absurd hbad (by simp)
+        | ok w =>
+        obtain ⟨bA, s₀⟩ := w
+        cases bA with
+        | false =>
+          rw [hP] at hstep
+          simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
+          obtain ⟨rfl, rfl⟩ := hstep
+          obtain ⟨hbad, -⟩ := AM.pure_ok htail
+          exact absurd hbad (by simp)
+        | true =>
+        obtain ⟨hok0, hx0, hc0, hp0⟩ :=
+          andPinOk_run hok.check.state hok.check.pins ha hP
+        have hok' : FoldOK μ env fe s₀ :=
+          hok.step (hok.check.mono hok0 hx0 hc0 hp0) hx0 hp0
+        have hx0' : PExt s.store s₀.store := PExt.of_ext hx0
+        have hpins0 := PinsDenote.pmono hx0' _ _ hpp hpins
+        have ha0 : Frontend.denoteDecl s₀.store a = some x :=
+          denoteDecl_pext hx0' (hpd a (by simp)) ha
+        rw [hP] at hstep
+        simp only at hstep
+        cases hA : Arena.annotStep μ pins i fe pend a s₀ with
         | error e =>
           rw [hA] at hstep
           simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
@@ -1684,9 +1713,10 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
           obtain ⟨h1, h2⟩ := hstep
           subst h1
           subst s₁'
-          obtain ⟨env₁, hok₁, hx₁, -, -, hc₁, hext₁, hcase⟩ :=
-            Arena.annotStep_split hμ hk hind hok hnd hpins hpp
-              (PendRel.listRel_pers hrel) (hpd a (by simp)) ha hA
+          obtain ⟨env₁, hok₁, hx₁', -, -, hc₁, hext₁, hcase⟩ :=
+            Arena.annotStep_split hμ hk hind hok' hnd hpins0 hpp
+              (PendRel.listRel_pers hrel) (hpd a (by simp)) ha0 hA
+          have hx₁ : PExt s.store s₁.store := hx0'.trans hx₁'
           have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hrel
           have hpins₁ := PinsDenote.pmono hx₁ _ _ hpp hpins
           have hpd₁ : ∀ c ∈ as, PersDecl c := fun c hc => hpd c (by simp [hc])
