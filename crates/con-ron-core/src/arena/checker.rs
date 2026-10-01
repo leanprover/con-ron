@@ -680,7 +680,7 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: Main.lean:263-279 checkWorker
-/// Lean twin: `proof/ConRon/Arena/Phased.lean:37-44 AState.worker` — the twin's
+/// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,
 /// moved here by task #97-P5-Driver): the empty store, FROZEN
