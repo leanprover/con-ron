@@ -76,7 +76,8 @@ use con_ron_core::arena::store::PersTier;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: Main.lean:651-846 usage
+/// con-leche: Main.lean:651-848 usage
+/// con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -205,7 +206,7 @@ model is ever read from the input: a stream record whose name carries a
 block whose shape the installer does not recognise declines (exit 2), naming
 it.  The binary reads no environment variable.";
 
-/// con-leche: Main.lean:848-862 Args
+/// con-leche: Main.lean:850-864 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -219,7 +220,7 @@ struct Args {
     bad: Option<String>,
 }
 
-/// con-leche: Main.lean:864-892 parseArgs
+/// con-leche: Main.lean:866-894 parseArgs
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -532,7 +533,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     }
 }
 
-/// con-leche: Main.lean:894-921 main
+/// con-leche: Main.lean:896-923 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did

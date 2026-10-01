@@ -163,7 +163,7 @@ def PIN_QUOT : Nat := 47
 
 /-! ## Filling the table -/
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames —
 the pinned names, in `PIN_*` order.  This is the list `internReservedPins` interns
 and `pinAt` indexes. -/
 def pinNames : List ConLeche.Name :=
@@ -190,7 +190,7 @@ def pinNames : List ConLeche.Name :=
     ConLeche.reduceNatName, ConLeche.reduceBoolName,
     ConLeche.ofReduceNatName, ConLeche.ofReduceBoolName, ConLeche.quotName]
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames —
 the sixteen names a stream may not declare, as con-leche's values.  Its own
 list rather than sixteen slots of `names`, because its only reader wants the
 whole vector and because four of the sixteen are `rec` forms that nothing
@@ -244,7 +244,7 @@ happens to parse as a handle. -/
   if h : i < s.pins.names.size then pure s.pins.names[i]
   else fail (.internal "arena: reserved-name pins not interned")
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames —
 the sixteen reserved names, off the table. -/
 def pinReserved : AM (List NIdx) := do
   let s ← get
@@ -293,11 +293,11 @@ def pinListNil : AM NIdx := pinAt PIN_LIST_NIL
 def pinListCons : AM NIdx := pinAt PIN_LIST_CONS
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:78 charName — off the table. -/
 def pinChar : AM NIdx := pinAt PIN_CHAR
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:86 andName — off the table. -/
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:90 andName — off the table. -/
 def pinAnd : AM NIdx := pinAt PIN_AND
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:89 charOfNatName — off the table. -/
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:93 charOfNatName — off the table. -/
 def pinCharOfNat : AM NIdx := pinAt PIN_CHAR_OF_NAT
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:114 sorryAxName — off the table. -/
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:118 sorryAxName — off the table. -/
 def pinSorryAx : AM NIdx := pinAt PIN_SORRY_AX
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:359 natPredName — off the table. -/
 def pinNatPred : AM NIdx := pinAt PIN_NAT_PRED

@@ -1440,7 +1440,7 @@ def etaProjs (fe : IFEnv) (T : NIdx) (us : LsIdx) (targs : List EIdx)
   if ← towerSlotsAll fe T nF then projNodesGo T b nF 0
   else projAppsGo T us targs b nF 0
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames —
 the names reserved for the pinned basis blocks, interned.  `contains` is
 then handle equality, as everywhere else in this module. -/
 def reservedBasisNames : AM (List NIdx) :=

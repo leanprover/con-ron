@@ -204,7 +204,7 @@ pub fn verdict_word(code: u8) -> &'static str {
 /// (`pool`'s module note), tens of MB.
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
-/// con-leche: Main.lean:894-921 main
+/// con-leche: Main.lean:896-923 main
 /// The `--jobs` default, which con-leche reads in `main` off
 /// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
 /// hardware thread", and one worker on a machine that reports none — capped
@@ -505,7 +505,7 @@ fn check_line<O: PhaseObserver>(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:382-406 collectChecks
+/// con-leche: ConLeche/Cached/Installed.lean:396-420 collectChecks
 /// Phase B's answer as a verdict: `parallel_all`'s first failing INDEX named
 /// by its record's fold position, and the pool's own failures (a missing
 /// result, a panicked worker) as internal errors — exit 3, never a verdict on
@@ -526,7 +526,7 @@ pub fn phase_b_verdict(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:428-445 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:442-459 checkDecls
 /// con-leche: Main.lean:319-422 checkDeclsIO
 /// **The driver**: the two-phase fold with the boundary visible — a straight
 /// line of calls, with the observer's lines between them and the pool for

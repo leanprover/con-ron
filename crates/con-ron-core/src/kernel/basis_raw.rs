@@ -673,7 +673,7 @@ pub fn quot_basis() -> Vec<ConstantInfo> {
     vec5(quot_raw(), quot_mk_raw(), quot_lift_raw(), quot_ind_raw(), quot_sound_raw())
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:33-39 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:36-42 BasisKind.decls
 /// The constants of one basis block, in dependency order.
 pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
@@ -685,7 +685,7 @@ pub fn basis_kind_decls(k: &BasisKind) -> Vec<ConstantInfo> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
 /// The four blocks the pin match tries, as a list: con-leche writes the
 /// literal `[BasisKind.eqK, .natK, .emptyK, .falseK]` inline in
 /// `basisPinHit`'s `List.find?`.  `quot` is not among them — its records

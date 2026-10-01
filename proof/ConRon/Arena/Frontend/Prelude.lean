@@ -36,7 +36,7 @@ import ConRon.Arena.Frontend.PreludeText
 
 namespace ConRon.Arena.Frontend
 
-/-- con-leche: ConLeche/Frontend/Prelude.lean:63-67 builtinPreludeE — the
+/-- con-leche: ConLeche/Frontend/Prelude.lean:62-66 builtinPreludeE — the
 parsed, indexed prelude: an error channel because a committed file can in
 principle be corrupted, and a prelude that does not parse must be a loud error
 rather than a silently empty prelude.

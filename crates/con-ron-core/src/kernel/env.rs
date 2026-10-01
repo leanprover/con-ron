@@ -403,7 +403,7 @@ pub fn ind_caps_dup(c: &IndCaps) -> IndCaps {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:408-438 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:386-438 ProjTable
 /// One structure's projection table: everything the checker's `.proj` rules
 /// consume about a structure `T`, stored once at the structure's install as
 /// one constant under `proj_table_name T`.
@@ -419,7 +419,7 @@ pub struct ProjTable {
     pub off: u64,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:408-438 ProjTable
+/// con-leche: ConLeche/Kernel/Env.lean:386-438 ProjTable
 /// The record copy.
 pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
     ProjTable {

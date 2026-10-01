@@ -42,7 +42,7 @@ pub fn eq_refl_name() -> Name {
     name::mk_str(eq_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames
 /// `n.str "rec"`, the recursor-name suffix four of the reserved names share
 /// (`eqName.str "rec"`, `natName.str "rec"`, …).  A named helper because
 /// Rust has no string literals in the core; the Lean spells the suffix out
@@ -164,7 +164,7 @@ pub fn char_name() -> Name {
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:80-86 andName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:80-90 andName
 /// The name `And`: the one propositional structure whose recursor is rescued
 /// on a stuck proof (`core_k::major_to_ctor`'s `And` branch).
 pub fn and_name() -> Name {
@@ -172,14 +172,14 @@ pub fn and_name() -> Name {
     name::mk_str(name::anonymous(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:88-89 charOfNatName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:92-93 charOfNatName
 /// The name `Char.ofNat`.
 pub fn char_of_nat_name() -> Name {
     const S: [u32; 5] = [111, 102, 78, 97, 116];
     name::mk_str(char_name(), core_types::code_points(&S))
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames
 /// Names reserved for the pinned basis blocks; no other declaration may use
 /// them.  The cited `List Name` is a `Vec<Name>` built in the cited order,
 /// and the four `… .str "rec"` entries go through `rec_of`.  `PSigma'` is not
@@ -205,7 +205,7 @@ pub fn reserved_basis_names() -> Vec<Name> {
     ns
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:113-114 sorryAxName
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:117-118 sorryAxName
 /// The name `sorryAx` — the one axiom the checker tolerates as a
 /// *declaration* (its record installs nothing), which makes any *use* of it a
 /// positively detected unsupported feature: the decline is decided where the

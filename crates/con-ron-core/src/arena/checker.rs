@@ -468,7 +468,8 @@ pub fn annot_step_other(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:184-194 annotDeclStep
+/// con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep
+/// con-leche: CHANGED since 445b9cf4 — re-port, re-test, re-prove checker::annot_decl_step_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:207-221 annotDeclStep` — phase
 /// A's step with the position carried and the error tagged: a failing step
 /// reports the `CheckError` together with `i`, the fold position of the
@@ -493,7 +494,7 @@ pub fn annot_decl_step(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-445 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:223-234 annotFold` — phase A as
 /// a fold over the records, as an index recursion threading the accumulator by
 /// value.
@@ -516,7 +517,7 @@ pub fn annot_fold(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:255-269 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:269-283 checkPending
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:236-252 checkPending` —
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
@@ -587,7 +588,7 @@ pub trait InstallHook {
     fn install_before(&self, pers: &PersTier, ar: &EStore, pos: u64, total: usize, d: &IDeclaration);
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-445 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls
 /// Lean twin: none — `annot_fold` with the driver's hook; the twin has no hook
 /// and the refinement is `annot_fold`'s, through the equation
 /// `annot_fold_hooked_eq` (`Refine2/Checker/Phased.lean`).
@@ -616,7 +617,7 @@ pub fn annot_fold_hooked<H: InstallHook>(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-445 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls
 /// Lean twin: none — the fold's start triple, `(0, mkIFEnv IEnv.empty, #[])`,
 /// which `installThenCheck` writes inline.
 /// Phase A's starting accumulator, so that the driver builds it with the same

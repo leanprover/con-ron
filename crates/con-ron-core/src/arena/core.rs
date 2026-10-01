@@ -4488,7 +4488,7 @@ pub fn eta_projs(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames
+/// con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1443-1447 reservedBasisNames` — the
 /// names reserved for the pinned basis blocks, interned.  `contains` is then
 /// handle equality, as everywhere else in this module.  The nineteen

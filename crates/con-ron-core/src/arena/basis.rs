@@ -30,7 +30,7 @@ use crate::kernel::env as cenv;
 use crate::kernel::env::{BasisKind, QuotKind};
 use crate::arena::store::PersTier;
 
-/// con-leche: ConLeche/Kernel/Basis.lean:33-39 BasisKind.decls
+/// con-leche: ConLeche/Kernel/Basis.lean:36-42 BasisKind.decls
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:34-37 BasisKind.decls` — the RAW
 /// constants of one basis block, in dependency order, interned.
 pub fn basis_kind_decls(
@@ -53,7 +53,7 @@ pub fn basis_kind_decls_a(
     intern_ci_list(pers, st, &basis_tables::basis_decls_a(k))
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:45-49 blockNames` — the names of
 /// a block's members, for `basis_pin_hit`'s name pre-filter.
 /// `i_constant_info_name` is pure (task #97e), so this is a plain map, spelled
@@ -68,7 +68,7 @@ pub fn block_names(block: &Vec<IConstantInfo>, i: usize, out: Vec<NIdx>) -> Vec<
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:51-67 basisPinHitGo` — the four
 /// kinds tried in con-leche's order, with con-leche's task-#215 NAME
 /// pre-filter in front: `canon` renames only level parameters, so a block can
@@ -114,7 +114,7 @@ pub fn basis_pin_hit_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:52-63 basisPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:55-66 basisPinHit
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:69-77 basisPinHit` — the four
 /// pinned blocks, in con-leche's order.  `.quotK` is deliberately not among
 /// them (a quotient block arrives as four `quotDecl` records, which
@@ -129,7 +129,7 @@ pub fn basis_pin_hit(
     basis_pin_hit_go(pers, st, block, &ks, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Basis.lean:65-70 quotPinHit
+/// con-leche: ConLeche/Kernel/Basis.lean:68-73 quotPinHit
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:79-88 quotPinHit` — **the
 /// quotient-pin match**: the record is the pinned package's constant at the
 /// slot it declares itself at, compared at `toConstantVal`.  The twin's
