@@ -355,7 +355,7 @@ print(f"| master `{m}` | {g(mi)} | {g(mc)} |")
 print(f"| this branch `{b}` | **{g(bi)}** ({'+' if d >= 0 else '−'}{abs(d):.3f} %) | {g(bc)} |")
 PY
   cat "$state/measure.md"
-  { echo "head=$head"; echo "crates=$(git -C "$wt" rev-parse "HEAD:crates")"; } > "$state/measured"
+  { echo "measured_head=$head"; echo "measured_crates=$(git -C "$wt" rev-parse "HEAD:crates")"; } > "$state/measured"
   [ "$ma" = "$ba" ] || echo "WARNING: the two binaries accept different counts ($ma, $ba)"
 }
 
@@ -408,10 +408,11 @@ cmd_land() {
     || die "no green scripts/gates.sh run at ${head:0:8} (_tmp/gates-$key/green); run LAKE_JOBS=4 scripts/gates.sh in $wt"
   if [ "$nomeasure" -eq 0 ]; then
     [ -f "$state/measured" ] || die "not measured: scripts/bump-con-leche.sh measure (or --no-measure, and say why)"
+    local measured_head="" measured_crates=""
     # shellcheck disable=SC1091
     . "$state/measured"
-    [ "$crates" = "$(git -C "$wt" rev-parse HEAD:crates)" ] \
-      || die "crates/ changed since the measurement at ${head:0:8}; measure again"
+    [ "$measured_crates" = "$(git -C "$wt" rev-parse HEAD:crates)" ] \
+      || die "crates/ changed since the measurement at ${measured_head:0:8}; measure again"
   fi
   [ "$(git -C "$main" symbolic-ref --quiet --short HEAD)" = master ] || die "the main tree is not on master"
   [ -z "$(git -C "$main" status --porcelain --untracked-files=no)" ] || die "the main tree has uncommitted changes"
@@ -421,12 +422,10 @@ cmd_land() {
   say "seeding the shared Lake cache from $wt (the private packages are the bump's own)"
   (cd "$wt/proof" && LAKE_ARTIFACT_CACHE=true LAKE_RESTORE_ARTIFACTS=true lake build) \
     > "$state/seed.log" 2>&1 || echo "WARNING: seeding failed ($state/seed.log); the main tree will build what it misses"
-  cp "$state/work-order.txt" "$state/measure.md" "$TMP/" 2>/dev/null || true
   say "dropping the worktree"
   (cd "$main" && scripts/drop-worktree.sh "$wt")
   say "deleting $state (the private packages, the logs)"
   rm -rf "$state"
-  rm -f "$TMP/work-order.txt" "$TMP/measure.md"
   say "moving the shared con-leche checkout"
   if ! (cd "$main" && scripts/sync-shared-con-leche.sh); then
     echo "NOT MOVED: the shared con-leche checkout stays at ${old:0:8} for now."
