@@ -1850,7 +1850,7 @@ theorem andPinOk_run {pd : IDeclaration} {d : Declaration} {r : Bool}
     rcases AM.ite_ok k1 with ⟨-, k2⟩ | ⟨-, k2⟩
     · rcases AM.ite_ok k2 with ⟨-, k3⟩ | ⟨-, k3⟩
       · obtain ⟨pinned, s₂, g2, k4⟩ := AM.bind_ok k3
-        simp only [ConRon.Arena.internCIList] at g2
+        simp only [ConRon.Arena.andPinDecls, ConRon.Arena.internCIList] at g2
         obtain ⟨p, s₃, hgo, hrest⟩ := AM.bind_ok g2
         obtain ⟨m1, cis⟩ := p
         obtain ⟨hv, hst⟩ := AM.pure_ok hrest

@@ -12804,175 +12804,6 @@ def arena.basis.quot_pin_hit
         ok (core.result.Result.Err e1, { st1 with store := e })
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
 
-/-- [con_ron_core::arena::pins::M_PINS_UNSET]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 91:0-94:2 -/
-@[global_simps, irreducible]
-def arena.pins.M_PINS_UNSET : Array Std.U32 38#usize :=
-  Array.make 38#usize [
-    97#u32, 114#u32, 101#u32, 110#u32, 97#u32, 58#u32, 32#u32, 114#u32,
-    101#u32, 115#u32, 101#u32, 114#u32, 118#u32, 101#u32, 100#u32, 45#u32,
-    110#u32, 97#u32, 109#u32, 101#u32, 32#u32, 112#u32, 105#u32, 110#u32,
-    115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32, 105#u32, 110#u32,
-    116#u32, 101#u32, 114#u32, 110#u32, 101#u32, 100#u32
-    ]
-
-/-- [con_ron_core::arena::pins::pin_at]:
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 408:0-414:1
-    Visibility: public -/
-def arena.pins.pin_at
-  (st : arena.monad.AState) (i : Std.Usize) :
-  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-  := do
-  let i1 := alloc.vec.Vec.len st.pins.names
-  if i >= i1
-  then
-    let s ← lift (Array.to_slice arena.pins.M_PINS_UNSET)
-    let v ← kernel.core_types.code_points s
-    arena.monad.fail arena.handle.NIdx (kernel.core_types.CheckError.Internal
-      v)
-  else
-    let n ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) st.pins.names i
-    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
-    ok (core.result.Result.Ok n1)
-
-/-- [con_ron_core::arena::pins::PIN_AND_REC]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 213:0-213:34
-    Visibility: public -/
-@[global_simps, irreducible] def arena.pins.PIN_AND_REC : Std.Usize := 49#usize
-
-/-- [con_ron_core::arena::pins::pin_and_rec]:
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 855:0-857:1
-    Visibility: public -/
-def arena.pins.pin_and_rec
-  (st : arena.monad.AState) :
-  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-  := do
-  arena.pins.pin_at st arena.pins.PIN_AND_REC
-
-/-- [con_ron_core::arena::pins::PIN_AND_INTRO]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 210:0-210:36
-    Visibility: public -/
-@[global_simps, irreducible]
-def arena.pins.PIN_AND_INTRO : Std.Usize := 48#usize
-
-/-- [con_ron_core::arena::pins::pin_and_intro]:
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 846:0-848:1
-    Visibility: public -/
-def arena.pins.pin_and_intro
-  (st : arena.monad.AState) :
-  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-  := do
-  arena.pins.pin_at st arena.pins.PIN_AND_INTRO
-
-/-- [con_ron_core::arena::pins::PIN_AND]
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 128:0-128:30
-    Visibility: public -/
-@[global_simps, irreducible] def arena.pins.PIN_AND : Std.Usize := 11#usize
-
-/-- [con_ron_core::arena::pins::pin_and]:
-    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 548:0-550:1
-    Visibility: public -/
-def arena.pins.pin_and
-  (st : arena.monad.AState) :
-  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
-  := do
-  arena.pins.pin_at st arena.pins.PIN_AND
-
-/-- [con_ron_core::arena::basis::and_pin_name_hs]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 169:0-186:1
-    Visibility: public -/
-def arena.basis.and_pin_name_hs
-  (st : arena.monad.AState) :
-  Result (core.result.Result (alloc.vec.Vec arena.handle.NIdx)
-    kernel.core_types.CheckError)
-  := do
-  let r ← arena.pins.pin_and st
-  match r with
-  | core.result.Result.Ok a =>
-    let r1 ← arena.pins.pin_and_intro st
-    match r1 with
-    | core.result.Result.Ok i =>
-      let r2 ← arena.pins.pin_and_rec st
-      match r2 with
-      | core.result.Result.Ok r3 =>
-        let hs ← alloc.vec.Vec.push (alloc.vec.Vec.new arena.handle.NIdx) a
-        let hs1 ← alloc.vec.Vec.push hs i
-        let hs2 ← alloc.vec.Vec.push hs1 r3
-        ok (core.result.Result.Ok hs2)
-      | core.result.Result.Err e => ok (core.result.Result.Err e)
-    | core.result.Result.Err e => ok (core.result.Result.Err e)
-  | core.result.Result.Err e => ok (core.result.Result.Err e)
-
-/-- [con_ron_core::arena::env::nidx_vec_contains_from]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 134:0-142:1
-    Visibility: public -/
-def arena.env.nidx_vec_contains_from
-  (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize)
-  (n : arena.handle.NIdx) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len ns
-  if i >= i1
-  then ok false
-  else
-    let n1 ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.handle.NIdx) ns i
-    let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n1 n
-    if b
-    then ok true
-    else let i2 ← i + 1#usize
-         arena.env.nidx_vec_contains_from ns i2 n
-partial_fixpoint
-
-/-- [con_ron_core::arena::env::nidx_vec_contains]:
-    Source: 'crates/con-ron-core/src/arena/env.rs', lines 128:0-130:1
-    Visibility: public -/
-def arena.env.nidx_vec_contains
-  (ns : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx) :
-  Result Bool
-  := do
-  arena.env.nidx_vec_contains_from ns 0#usize n
-
-/-- [con_ron_core::arena::basis::block_and_named]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 192:0-200:1
-    Visibility: public -/
-def arena.basis.block_and_named
-  (block : alloc.vec.Vec arena.env.IConstantInfo)
-  (hs : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) :
-  Result Bool
-  := do
-  let i1 := alloc.vec.Vec.len block
-  if i >= i1
-  then ok false
-  else
-    let ii ←
-      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        arena.env.IConstantInfo) block i
-    let n ← arena.env.i_constant_info_name ii
-    let b ← arena.env.nidx_vec_contains hs n
-    if b
-    then ok true
-    else let i2 ← i + 1#usize
-         arena.basis.block_and_named block hs i2
-partial_fixpoint
-
-/-- [con_ron_core::arena::basis::and_pin_name_free]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 206:0-211:1
-    Visibility: public -/
-def arena.basis.and_pin_name_free
-  (st : arena.monad.AState) (n : arena.handle.NIdx) :
-  Result (core.result.Result Bool kernel.core_types.CheckError)
-  := do
-  let r ← arena.basis.and_pin_name_hs st
-  match r with
-  | core.result.Result.Ok hs =>
-    let b ← arena.env.nidx_vec_contains hs n
-    ok (core.result.Result.Ok (¬ b))
-  | core.result.Result.Err e => ok (core.result.Result.Err e)
-
 /-- [con_ron_core::kernel::basis_raw::and_intro_name::S]
     Source: 'crates/con-ron-core/src/kernel/basis_raw.rs', lines 683:4-683:50 -/
 @[global_simps, irreducible]
@@ -13133,8 +12964,188 @@ def kernel.basis_raw.and_pin
   let ci2 ← kernel.basis_raw.and_rec_raw
   kernel.basis_raw.vec3 ci ci1 ci2
 
+/-- [con_ron_core::arena::basis::and_pin_decls]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 168:0-170:1
+    Visibility: public -/
+def arena.basis.and_pin_decls
+  (pers : arena.store.PersTier) (st : arena.monad.AState) :
+  Result ((core.result.Result (alloc.vec.Vec arena.env.IConstantInfo)
+    kernel.core_types.CheckError) × arena.monad.AState)
+  := do
+  let v ← kernel.basis_raw.and_pin
+  arena.intern.intern_ci_list pers st v
+
+/-- [con_ron_core::arena::pins::M_PINS_UNSET]
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 91:0-94:2 -/
+@[global_simps, irreducible]
+def arena.pins.M_PINS_UNSET : Array Std.U32 38#usize :=
+  Array.make 38#usize [
+    97#u32, 114#u32, 101#u32, 110#u32, 97#u32, 58#u32, 32#u32, 114#u32,
+    101#u32, 115#u32, 101#u32, 114#u32, 118#u32, 101#u32, 100#u32, 45#u32,
+    110#u32, 97#u32, 109#u32, 101#u32, 32#u32, 112#u32, 105#u32, 110#u32,
+    115#u32, 32#u32, 110#u32, 111#u32, 116#u32, 32#u32, 105#u32, 110#u32,
+    116#u32, 101#u32, 114#u32, 110#u32, 101#u32, 100#u32
+    ]
+
+/-- [con_ron_core::arena::pins::pin_at]:
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 408:0-414:1
+    Visibility: public -/
+def arena.pins.pin_at
+  (st : arena.monad.AState) (i : Std.Usize) :
+  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
+  := do
+  let i1 := alloc.vec.Vec.len st.pins.names
+  if i >= i1
+  then
+    let s ← lift (Array.to_slice arena.pins.M_PINS_UNSET)
+    let v ← kernel.core_types.code_points s
+    arena.monad.fail arena.handle.NIdx (kernel.core_types.CheckError.Internal
+      v)
+  else
+    let n ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) st.pins.names i
+    let n1 ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2 n
+    ok (core.result.Result.Ok n1)
+
+/-- [con_ron_core::arena::pins::PIN_AND_REC]
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 213:0-213:34
+    Visibility: public -/
+@[global_simps, irreducible] def arena.pins.PIN_AND_REC : Std.Usize := 49#usize
+
+/-- [con_ron_core::arena::pins::pin_and_rec]:
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 855:0-857:1
+    Visibility: public -/
+def arena.pins.pin_and_rec
+  (st : arena.monad.AState) :
+  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
+  := do
+  arena.pins.pin_at st arena.pins.PIN_AND_REC
+
+/-- [con_ron_core::arena::pins::PIN_AND_INTRO]
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 210:0-210:36
+    Visibility: public -/
+@[global_simps, irreducible]
+def arena.pins.PIN_AND_INTRO : Std.Usize := 48#usize
+
+/-- [con_ron_core::arena::pins::pin_and_intro]:
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 846:0-848:1
+    Visibility: public -/
+def arena.pins.pin_and_intro
+  (st : arena.monad.AState) :
+  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
+  := do
+  arena.pins.pin_at st arena.pins.PIN_AND_INTRO
+
+/-- [con_ron_core::arena::pins::PIN_AND]
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 128:0-128:30
+    Visibility: public -/
+@[global_simps, irreducible] def arena.pins.PIN_AND : Std.Usize := 11#usize
+
+/-- [con_ron_core::arena::pins::pin_and]:
+    Source: 'crates/con-ron-core/src/arena/pins.rs', lines 548:0-550:1
+    Visibility: public -/
+def arena.pins.pin_and
+  (st : arena.monad.AState) :
+  Result (core.result.Result arena.handle.NIdx kernel.core_types.CheckError)
+  := do
+  arena.pins.pin_at st arena.pins.PIN_AND
+
+/-- [con_ron_core::arena::basis::and_pin_name_hs]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 177:0-194:1
+    Visibility: public -/
+def arena.basis.and_pin_name_hs
+  (st : arena.monad.AState) :
+  Result (core.result.Result (alloc.vec.Vec arena.handle.NIdx)
+    kernel.core_types.CheckError)
+  := do
+  let r ← arena.pins.pin_and st
+  match r with
+  | core.result.Result.Ok a =>
+    let r1 ← arena.pins.pin_and_intro st
+    match r1 with
+    | core.result.Result.Ok i =>
+      let r2 ← arena.pins.pin_and_rec st
+      match r2 with
+      | core.result.Result.Ok r3 =>
+        let hs ← alloc.vec.Vec.push (alloc.vec.Vec.new arena.handle.NIdx) a
+        let hs1 ← alloc.vec.Vec.push hs i
+        let hs2 ← alloc.vec.Vec.push hs1 r3
+        ok (core.result.Result.Ok hs2)
+      | core.result.Result.Err e => ok (core.result.Result.Err e)
+    | core.result.Result.Err e => ok (core.result.Result.Err e)
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
+/-- [con_ron_core::arena::env::nidx_vec_contains_from]:
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 134:0-142:1
+    Visibility: public -/
+def arena.env.nidx_vec_contains_from
+  (ns : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize)
+  (n : arena.handle.NIdx) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len ns
+  if i >= i1
+  then ok false
+  else
+    let n1 ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.handle.NIdx) ns i
+    let b ← arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 n1 n
+    if b
+    then ok true
+    else let i2 ← i + 1#usize
+         arena.env.nidx_vec_contains_from ns i2 n
+partial_fixpoint
+
+/-- [con_ron_core::arena::env::nidx_vec_contains]:
+    Source: 'crates/con-ron-core/src/arena/env.rs', lines 128:0-130:1
+    Visibility: public -/
+def arena.env.nidx_vec_contains
+  (ns : alloc.vec.Vec arena.handle.NIdx) (n : arena.handle.NIdx) :
+  Result Bool
+  := do
+  arena.env.nidx_vec_contains_from ns 0#usize n
+
+/-- [con_ron_core::arena::basis::block_and_named]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 200:0-208:1
+    Visibility: public -/
+def arena.basis.block_and_named
+  (block : alloc.vec.Vec arena.env.IConstantInfo)
+  (hs : alloc.vec.Vec arena.handle.NIdx) (i : Std.Usize) :
+  Result Bool
+  := do
+  let i1 := alloc.vec.Vec.len block
+  if i >= i1
+  then ok false
+  else
+    let ii ←
+      alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+        arena.env.IConstantInfo) block i
+    let n ← arena.env.i_constant_info_name ii
+    let b ← arena.env.nidx_vec_contains hs n
+    if b
+    then ok true
+    else let i2 ← i + 1#usize
+         arena.basis.block_and_named block hs i2
+partial_fixpoint
+
+/-- [con_ron_core::arena::basis::and_pin_name_free]:
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 214:0-219:1
+    Visibility: public -/
+def arena.basis.and_pin_name_free
+  (st : arena.monad.AState) (n : arena.handle.NIdx) :
+  Result (core.result.Result Bool kernel.core_types.CheckError)
+  := do
+  let r ← arena.basis.and_pin_name_hs st
+  match r with
+  | core.result.Result.Ok hs =>
+    let b ← arena.env.nidx_vec_contains hs n
+    ok (core.result.Result.Ok (¬ b))
+  | core.result.Result.Err e => ok (core.result.Result.Err e)
+
 /-- [con_ron_core::arena::basis::and_pin_ok]:
-    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 221:0-247:1
+    Source: 'crates/con-ron-core/src/arena/basis.rs', lines 229:0-255:1
     Visibility: public -/
 def arena.basis.and_pin_ok
   (pers : arena.store.PersTier) (st : arena.monad.AState)
@@ -13165,8 +13176,7 @@ def arena.basis.and_pin_ok
       then
         if n_p = 2#u64
         then
-          let v ← kernel.basis_raw.and_pin
-          let (r1, st1) ← arena.intern.intern_ci_list pers st v
+          let (r1, st1) ← arena.basis.and_pin_decls pers st
           match r1 with
           | core.result.Result.Ok pinned =>
             arena.canon.canon_eq_list pers st1 block pinned 0#usize

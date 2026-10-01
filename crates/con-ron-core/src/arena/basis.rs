@@ -161,8 +161,16 @@ pub fn quot_pin_hit(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Basis/And.lean:94-95 andPin
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:94-98 andPinDecls` — the pinned
+/// `And` block, interned: `basis_kind_decls`'s shape for the one pinned block
+/// that is recognised and never installed from literals.
+pub fn and_pin_decls(pers: &PersTier, st: &mut AState) -> Result<Vec<IConstantInfo>, CheckError> {
+    intern_ci_list(pers, st, &basis_raw::and_pin())
+}
+
 /// con-leche: ConLeche/Kernel/Basis/And.lean:97-99 andPinNames
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:94-101 andPinNameHs` — the names
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:100-107 andPinNameHs` — the names
 /// the pinned `And` block declares, as handles: `And`, `And.intro`, `And.rec`,
 /// off the reserved-name table (`arena::pins`), so the test below costs three
 /// slot reads per record and interns nothing.
@@ -186,7 +194,7 @@ pub fn and_pin_name_hs(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:103-108 blockAndNamed` — the
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:109-114 blockAndNamed` — the
 /// `.indDecl` arm's `block.any fun c => andPinNames.contains c.name`, as a
 /// cursor recursion (§3.4 forbids the closure).
 pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> bool {
@@ -200,7 +208,7 @@ pub fn block_and_named(block: &Vec<IConstantInfo>, hs: &Vec<NIdx>, i: usize) -> 
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:110-115 andPinNameFree` — the
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:116-121 andPinNameFree` — the
 /// arm of every one-constant record: it may not declare one of the pinned
 /// `And` block's names.
 pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
@@ -211,7 +219,7 @@ pub fn and_pin_name_free(st: &AState, n: &NIdx) -> Result<bool, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Basis.lean:87-96 andPinOk
-/// Lean twin: `proof/ConRon/Arena/Basis.lean:117-137 andPinOk` — **the `And`
+/// Lean twin: `proof/ConRon/Arena/Basis.lean:123-143 andPinOk` — **the `And`
 /// pin's test**: the record declares none of the pinned `And` block's names,
 /// or it IS that block — two parameters, and equal to `andPin` up to
 /// `ConstantInfo.canon`.  The block comparison is `basis_pin_hit`'s: the pin
@@ -225,7 +233,7 @@ pub fn and_pin_ok(pers: &PersTier, st: &mut AState, pd: &IDeclaration) -> Result
             Ok(hs) => {
                 if block_and_named(block, &hs, 0) {
                     if *n_p == 2 {
-                        match intern_ci_list(pers, st, &basis_raw::and_pin()) {
+                        match and_pin_decls(pers, st) {
                             Err(e) => Err(e),
                             Ok(pinned) => crate::arena::canon::canon_eq_list(pers, st, block, &pinned, 0),
                         }

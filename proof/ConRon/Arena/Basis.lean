@@ -91,6 +91,12 @@ def quotPinHit (k : QuotKind) (cv : IConstantVal) : AM Bool := do
 
 /-! ## The pinned `And` (con-leche's ANDPIN) -/
 
+/-- con-leche: ConLeche/Kernel/Basis/And.lean:94-95 andPin — the pinned `And`
+block, interned: `BasisKind.decls`'s shape for the one pinned block that is
+recognised and never installed from literals. -/
+def andPinDecls : AM (List IConstantInfo) :=
+  internCIList ConLeche.andPin
+
 /-- con-leche: ConLeche/Kernel/Basis/And.lean:97-99 andPinNames — the names
 the pinned `And` block declares, as handles, off the reserved-name table: three
 slot reads, no interning. -/
@@ -125,7 +131,7 @@ def andPinOk : IDeclaration → AM Bool
     let hs ← andPinNameHs
     if blockAndNamed hs block then
       if nP == 2 then do
-        let pinned ← internCIList ConLeche.andPin
+        let pinned ← andPinDecls
         canonEqList block pinned
       else pure false
     else pure true
