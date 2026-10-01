@@ -65957,7 +65957,10 @@ skipped; `twin-lines` 1 804 citations; the link gate 100 links;
 
 **Process deviations.**  A sub-agent of F-IND committed the pin files once
 (`c4e012cb`); every merge restored them, so no commit on the branch's
-first-parent line changes them before the pin commit.  The early dead-code
+first-parent line changes them before the pin commit.  The lead's own
+`git add -u proof` swept them into a docstring commit once more (§7 step 9's
+trap, again); the unpushed tail was replayed without them before the pin
+commit.  The early dead-code
 lanes DC-top/DC-refine/DC-refine2 branched from master and were merged into
 the campaign branch (resolving conflicts mechanically); DC-refine2 reverted
 most of its own deletions after cascades, which SW-R2 redid module by module
