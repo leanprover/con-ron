@@ -7,24 +7,16 @@ import ConRon.Arena.Checker
 ONE state through both phases.  The Rust driver does not: at the phase
 boundary it freezes the persistent tier (`arena::checker::freeze_tier`) and
 runs phase B on WORKERS, each with a state of its own over that tier
-(`arena::checker::worker_state`), and the sequential projection it is argued
-equal to is one such worker checking every record in order
-(`arena::checker::check_pending_worker`).  This module is the twin of that
-shape, so that Theorem 2 can relate the driver's sequential projection
-(`arena::checker::check_decls_phased`) to something:
+(`arena::checker::worker_state`).  This module is the twin of that shape:
 
 * `AState.worker` — the twin has no tier to freeze, so a worker's state is the
   phase-A state with the scratch tier closed and emptied and the per-call memos
   and per-declaration caches fresh; the persistent tier and the pins are the
-  phase-A state's own;
-* `checkPendingWorker` — `checkPendingList` from that state, the phase-A state
-  handed back untouched (the Rust thaws its store to exactly what phase A
-  left);
-* `installThenCheckPhased` — `installThenCheck` with that phase B.
+  phase-A state's own.
 
-**It is `installThenCheck` whenever phase A leaves the caches empty**, which
-the fold does (every phase-A step ends in `dropScratch`):
-`checkPendingList_worker` below says so, and it rests on one structural fact
+**A worker's `checkPendingList` is the one-state fold's whenever phase A
+leaves the caches empty**, which the fold does (every phase-A step ends in
+`dropScratch`): `checkPendingList_worker` below says so, and it rests on one structural fact
 — `enterScratch`, which opens every phase-B record, overwrites exactly what
 `AState.worker` changes, except the caches.  `Bridge/Checker/Phased.lean`
 uses it to carry Theorem 1 over.

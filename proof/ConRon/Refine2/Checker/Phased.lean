@@ -265,8 +265,7 @@ private theorem mk_ifenv_empty_refines' {e f}
 
 /-! ## The pool (tasks #97-P5-POOL, #98-POOL)
 
-The binary does not run `check_decls_phased`'s one-worker walk: its phase B
-is `pool::parallel_all` (`crates/con-ron/src/pool.rs`), a generic combinator
+The binary's phase B is `pool::parallel_all` (`crates/con-ron/src/pool.rs`), a generic combinator
 that runs a per-index `step` on a pool of workers, each folding it over the
 indices it claimed on ONE state it built with `init`.  Its contract is
 `ParallelAll`, stated here generically — nothing in it is about checking —
@@ -283,9 +282,7 @@ checked, together covering the pending list), and `pool_accepts_refines`
 walks that into the twin's `PooledAccepts` with no argument about a worker's
 history: `worker_state_rel` relates each worker's start state, and
 `foldAllOk_check_pending_refines` walks its fold, step by step, whatever list
-it was.  `poolAccepts_of_check_decls_phased` shows the
-sequential walk is one such pool (a single worker claiming `0, 1, …, m-1`),
-so the hypothesis is met by the verified crate. -/
+it was. -/
 
 /-- **A fold with every step `Ok`**: `step` from `s` over `ks` in order,
 threading the state, every call answering `.Ok ()`. -/
@@ -303,8 +300,9 @@ order, every step answering `Ok(())`.  Nothing more is promised about the
 claims (task #98-H8): not that each index was claimed only once, nor that a
 worker's claims increase.  `pool.rs` does hand them out off a monotone
 counter, so both hold, but the proof uses neither — each record is checked
-against its own prefix environment, and `Bridge/Checker/Grouping.lean`'s
-`checkPendingList_grouping` covers any order, any split and any repetition.
+against its own prefix environment, so Theorem 1's
+`Arena.pooledAccepts_bridge` (`Bridge/Checker/Phased.lean`) covers any order,
+any split and any repetition.
 An index `≥ n` needs no clause either: the driver's `step` fails there
 (`pendingStep`), so an accepting fold never claims one.  `init` and `step` are the Aeneas models
 of the two closures (`init` in `Result`, as every extracted function is);
@@ -486,7 +484,7 @@ worker's fold of `check_pending` over its records — implies the twin's
 `PooledAccepts` from the related state, with the related environment, ending
 in a related state.*
 
-`check_decls_phased_refines`' hypotheses verbatim (lockstep: `AStateRel₀`
+Lockstep hypotheses (`AStateRel₀`
 and `AStateInv`, nothing about the twin — task #97-T2-LOCKSTEP lane Checker).  Each worker is related on
 its own: `worker_state_rel` puts its fresh state against `lst'.worker`, and
 `foldAllOk_check_pending_refines` walks that worker's list — whatever list

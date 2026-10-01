@@ -13,7 +13,7 @@
 //! One Rust module per Lean file, as everywhere in the core.  The first five
 //! rows are the byte recogniser and the rendering helpers, which are
 //! representation-free and were not rewritten by the arena campaign; the last
-//! six are the parse proper, whose Lean twin is `proof/ConRon/Arena/Frontend/*`
+//! five are the parse proper, whose Lean twin is `proof/ConRon/Arena/Frontend/*`
 //! (task #97-SWAP moved them here from `arena-core`):
 //!
 //! | Rust | Lean twin | con-leche |

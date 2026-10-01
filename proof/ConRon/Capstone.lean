@@ -44,8 +44,8 @@ The headlines (§4) take one premise per call, from the binary's own start
 values `startState`/`emptyTier` (§3); §4's table maps each premise to its line
 of `check_main`.
 
-and the twin's `Arena.runPipeline` (`Arena/Main.lean`) is the same six
-stages with `installThenCheck` last.  **The sixth stage is the fold the
+and the twin runs the same six stages (`Arena/Main.lean`'s
+`runPipelineHead`/`runPipelineTail` drive them for `con-ron-lean`).  **The sixth stage is the fold the
 binary's driver runs, pool and all** (task #97-P5-POOL):
 `driver::check_decls_driver` runs phase A with the heartbeat as its hook,
 freezes the tier, runs phase B on `pool::parallel_all`, and thaws the tier.
@@ -59,8 +59,7 @@ worker, covering every pending record, and for each a `foldlM` of
 contract is the pool's trusted claim (OVERVIEW §8.2): control flow of
 `pool.rs`, nothing about the checker.  `parallelAll_of_pool` reads it as
 `Phased.lean`'s `ParallelAll`, and `PoolAccepts.toParts` turns that into one
-accepting fold per worker over the records it checked.  The sequential walk
-`check_decls_phased` is one such pool (`poolAccepts_of_check_decls_phased`).
+accepting fold per worker over the records it checked.
 The theorems hold for EVERY install hook, so they cover the plain run and
 `--progress` alike.  `pool_accepts_refines` relates the stage to the twin's
 `Arena.PooledAccepts`, and `Bridge/Checker/Phased.lean`'s
@@ -77,8 +76,7 @@ line, exactly as it was for the original campaign), and the proof is:
    pure fold accepts the denoted stream: con-leche's
    `checkDeclsPure_sound_of` gives the model, and
    `no_False_theorem_accepted_pure` refutes a `False` theorem in the stream
-   (`stages_no_False`, `Arena.no_False_declaration_pipeline`'s route through
-   the pure fold);
+   (`stages_no_False`, through the pure fold);
 3. **con-leche** — `checkDeclsPure_sound_of` turns the pure accept into a
    model.
 
@@ -144,10 +142,9 @@ universe w
 
 /-! ## 1. The twin side: the stages, from the driver's start state
 
-`Bridge/Frontend/Capstone.lean`'s `Arena.no_False_declaration_pipeline` is
-stated about `Arena.runPipeline` as a whole; Theorem 2 hands us its stages
-one at a time.  The glue lemmas below are that proof's own steps, re-used
-rather than re-proved: the stages carry the frame facts Theorem 2 needs at
+Theorem 2 hands us the pipeline's stages one at a time, and the glue lemmas
+below take Theorem 1's stage lemmas (`Bridge/Frontend/**`, `Bridge/Checker/**`)
+step by step: the stages carry the frame facts Theorem 2 needs at
 the fold's entry and the fold's start invariant Theorem 1 needs
 (`stages_frame`), and the file's `False` theorem into the denoted stream
 (`stages_false_mem`). -/
@@ -161,8 +158,7 @@ open ConRon.Bridge ConRon.Bridge.Frontend
 **the stages' frame, up to the fold**: after the first five stages from the
 driver's start state, the scratch tier is closed, the fold's start invariant
 holds, and the pins
-and the prepared stream denote.  `Arena.no_False_declaration_pipeline`'s own
-steps, stopped before the fold. -/
+and the prepared stream denote. -/
 theorem stages_frame {chunks : List ByteArray} {pins : List NatOpPinSet}
     {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
     {ds : Array IDeclaration} {ipins : List INatOpPinSet}
@@ -238,8 +234,8 @@ stages' stream carries the file's `False` theorem**: after the first five
 stages, the prepared stream denotes, and a file that declares a theorem of
 type `False` puts one in the denoted stream.  `stages_frame`'s steps with the
 pure parse kept (`parseChunks_run`'s fourth conjunct), then con-leche's
-`parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude` — the steps
-`Arena.no_False_declaration_pipeline` takes, stopped before the fold. -/
+`parseChunks_jsonWithTheoremFalse` and `mem_preparePrelude`, stopped before
+the fold. -/
 theorem stages_false_mem {chunks : List ByteArray} {pins : List NatOpPinSet}
     (hfalse : ConLeche.jsonWithTheoremFalse chunks)
     {sA sB sC sD sE : AState} {pre : PreludeIx} {r : ParseResultD}
@@ -281,10 +277,9 @@ theorem stages_false_mem {chunks : List ByteArray} {pins : List NatOpPinSet}
 /-- con-leche: ConLeche/MainTheorem.lean:110 no_False_declaration — **a pooled
 accept of a file declaring a `False` theorem is impossible, at (B)**:
 `stages_frame` and `stages_false_mem`, then `Arena.pooledAccepts_bridge` (the
-pure fold accepts the stream), then `no_False_theorem_accepted_pure`.  The
-route `Arena.no_False_declaration_pipeline` takes, through the pure fold
-rather than through `Arena.runPipeline` — the pooled phase B is not one twin
-walk, so there is no `runPipeline` run to refute (task #97-P5-POOL). -/
+pure fold accepts the stream), then `no_False_theorem_accepted_pure` — through
+the pure fold, because the pooled phase B is not one twin walk (task
+#97-P5-POOL). -/
 theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
     (hk : CoreSpec .verified Arena.checkFuel) (hind : IndSpec .verified)
     {chunks : List ByteArray} {pins : List NatOpPinSet}
