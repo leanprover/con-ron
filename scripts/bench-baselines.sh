@@ -70,7 +70,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CORPUS="${CORPUS:-$ROOT/_tmp/corpus}"
 NANODA="${NANODA:-$ROOT/_tmp/t97/nanoda-build/target/release/nanoda_bin}"
-CONRON="$ROOT/target/release/con-ron"
+# `CONRON`/`CONRON_SRC` name another con-ron binary and the tree it was built
+# from (task #108: `scripts/bump-con-leche.sh measure` runs master's binary and
+# the branch's one after the other).  `--build` always builds `$ROOT`'s.
+CONRON="${CONRON:-$ROOT/target/release/con-ron}"
+CONRON_SRC="${CONRON_SRC:-$ROOT}"
 OUT="$ROOT/_tmp/perf"
 
 # GNU time, not the shell builtin: `time -v` is what reports peak RSS.
@@ -188,7 +192,7 @@ if [[ $DRY -eq 0 ]]; then
   has_bin nanoda && { [[ -x $NANODA ]] || { echo "bench-baselines.sh: $NANODA not built; see DESIGN.md \"Task #97-P6-3\"" >&2; exit 2; }; }
   cat > "$OUT/identity.json" <<EOF
 {"date": "$(date -u +%Y-%m-%d)",
- "con-ron":   {"commit": "$(commit_of "$ROOT")", "dirty": $(dirty_of "$ROOT"), "md5": "$(md5_of "$CONRON")"},
+ "con-ron":   {"commit": "$(commit_of "$CONRON_SRC")", "dirty": $(dirty_of "$CONRON_SRC"), "md5": "$(md5_of "$CONRON")"},
  "con-leche": {"commit": "$(commit_of "$CONLECHE_SRC")", "dirty": $(dirty_of "$CONLECHE_SRC"), "md5": "$(md5_of "$CONLECHE")"},
  "nanoda":    {"commit": "$(commit_of "$NANODA_SRC")", "dirty": $(dirty_of "$NANODA_SRC"), "md5": "$(md5_of "$NANODA")"},
  "exports":   {$(for e in "${EXPORTS[@]}"; do printf '"%s": %s, ' "$e" "$(head -1 "$CORPUS/$e.ndjson")"; done | sed 's/, $//')},

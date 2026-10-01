@@ -1134,36 +1134,61 @@ def suspect_parent(lines, olines, c, loc):
 def hunt(index, olines, c, old_text):
     """A GONE citation, looked for across the whole new tree by the exact
     qualified name of what it cited at the old pin.  Returns
-    (bucket, new_path, a, b, note)."""
+    (bucket, new_path, a, b, note).
+
+    A declaration whose qualified name is not found, but whose SHORT name
+    is, counts as moved only when the text there is the old text (up to
+    comments): identical code under a moved namespace is the same
+    declaration (`Frontend/InModel/Kit.lean`'s `piBinders` →
+    `Kernel/Inductives/FieldTele.lean`, task #105), while a name match
+    over different code is exactly task #98's trap, and stays a deletion
+    until a human says otherwise (`moved-by-name`)."""
     head = None
     if olines is not None and 1 <= c.a <= c.b <= len(olines):
         head = decl_head(olines, c.a, c.b)
     if head is None:
         return "deleted", None, None, None, "no declaration in the old block"
     oi, q, _nm = head
-    hits = index.by_q.get(q, [])
-    if len(hits) == 1:
-        path, i = hits[0]
+    oa, ob = extend_block(olines, oi)
+    olds = [o for o in (old_text, [l.rstrip() for l in olines[oa - 1:ob]]) if o]
+
+    def compare(path, i):
+        """(bucket, a, b) of the candidate at `path`, 0-based line `i`."""
         lines = index.files[path]
         exact = find_block(lines, old_text, i + 1) if old_text else None
         if exact:
-            return "moved", path, exact[0], exact[1], q
+            return "moved", exact[0], exact[1]
         a, b = extend_block(lines, i)
         new = [l.rstrip() for l in lines[a - 1:b]]
-        oa, ob = extend_block(olines, oi)
-        olds = [old_text or [], [l.rstrip() for l in olines[oa - 1:ob]]]
         if any(o == new for o in olds):
-            return "moved", path, a, b, q
+            return "moved", a, b
         if any(strip_comments(o) == strip_comments(new) for o in olds):
-            return "moved-doc", path, a, b, q
-        return "moved-changed", path, a, b, q
-    if len(hits) > 1:
+            return "moved-doc", a, b
+        return "moved-changed", a, b
+
+    def where(hits):
+        return ", ".join("%s:%d" % (p, i + 1) for p, i in hits[:5])
+
+    hits = index.by_q.get(q, [])
+    if len(hits) == 1:
+        bucket, a, b = compare(*hits[0])
+        return bucket, hits[0][0], a, b, q
+    # several declarations of that qualified name (a `private` one in two
+    # files), or none: only a candidate whose text is the old one is a move
+    cands = hits or index.by_short.get(q.split(".")[-1], [])
+    same = [(h, compare(*h)) for h in cands]
+    same = [(h, r) for h, r in same if r[0] in ("moved", "moved-doc")]
+    if len(same) == 1:
+        (path, _i), (bucket, a, b) = same[0]
+        return bucket, path, a, b, "%s, %s; the text %s" % (
+            q, "declared %d times" % len(hits) if hits else "under another namespace",
+            "identical" if bucket == "moved" else "identical up to comments")
+    if hits:
         return ("moved-by-name", None, None, None, "%s declared %d times: %s"
-                % (q, len(hits), ", ".join("%s:%d" % (p, i + 1) for p, i in hits)))
-    short = index.by_short.get(q.split(".")[-1], [])
-    if short:
-        return ("moved-by-name", None, None, None, "only the short name: %s"
-                % ", ".join("%s:%d" % (p, i + 1) for p, i in short[:5]))
+                % (q, len(hits), where(hits)))
+    if cands:
+        return ("moved-by-name", None, None, None, "only the short name, "
+                "over different code: %s" % where(cands))
     return "deleted", None, None, None, q
 
 

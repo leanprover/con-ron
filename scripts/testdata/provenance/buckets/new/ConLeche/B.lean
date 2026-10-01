@@ -19,4 +19,11 @@ end Bar
 /-- Twelve, in a file that is deleted. -/
 def twelve : Nat := 12
 
+namespace Qux
+
+/-- Thirteen moves to another namespace, its code unchanged. -/
+def thirteen : Nat := 13
+
+end Qux
+
 end ConLeche

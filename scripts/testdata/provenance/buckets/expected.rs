@@ -54,3 +54,8 @@ pub fn subst_go() {}
 /// con-leche: ConLeche/B.lean:19-20 twelve
 /// Its whole file is gone; byte-identical in B.lean (moved).
 pub fn twelve() {}
+
+/// con-leche: ConLeche/B.lean:24-25 Baz.thirteen
+/// Under another namespace now, byte-identical: found by its short name
+/// and trusted because the text is the same (moved).
+pub fn thirteen() {}

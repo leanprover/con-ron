@@ -73,7 +73,10 @@
 # no longer at its lines, it looks for that text VERBATIM in the same file
 # and, when it is there, rewrites the anchor to where it is (the occurrence
 # nearest the old one); a link into con-leche at a commit other than the pin
-# is re-pinned to the pin.  The expectation file is then rewritten for the
+# is re-pinned to the pin.  "Verbatim" has one exception: the line numbers
+# inside a `con-leche: <path>:<a>-<b>` citation the cited text carries, which
+# `provenance.py update` relocates at every bump (seen in the first dry run of
+# `bump-con-leche.sh start`: `driver.rs`'s cited fold carries two of them).  The expectation file is then rewritten for the
 # followed links only.  A link whose text is nowhere in the file keeps its
 # anchor and its OLD expectation, so the plain gate still fails on exactly
 # those — the paragraphs to re-read — and a link that has no expectation yet
@@ -140,8 +143,12 @@ def file_lines(p):
         ls.pop()
     return ls
 
-followed = repinned = 0
+followed = repinned = renumbered = 0
 changed, fresh = [], []
+CITE_NUM = re.compile(r'(con-leche: [^\s:]+:)\d+(?:-\d+)?')
+
+def norm(ls):
+    return [CITE_NUM.sub(r'\1#', l) for l in ls]
 for doc in docs:
     if not os.path.isfile(doc):
         continue
@@ -171,10 +178,17 @@ for doc in docs:
         elif lines is not None and lines[a - 1:b] != want:
             n = len(want)
             hits = [i for i in range(len(lines) - n + 1) if lines[i:i + n] == want]
+            if not hits:
+                # the same text but for the numbers of its own `con-leche:`
+                # citations, which `provenance.py update` relocated
+                nw = norm(want)
+                hits = [i for i in range(len(lines) - n + 1)
+                        if norm(lines[i:i + n]) == nw]
+                renumbered += bool(hits)
             if hits:
                 i = min(hits, key=lambda i: abs(i + 1 - a))
                 na, nb = i + 1, i + n
-                followed += 1
+                followed += (na, nb) != (a, b)
             else:
                 changed.append(label + anchor)
         if (na, nb, newref) == (a, b, ref):
@@ -193,6 +207,8 @@ with open(changed_out, 'w', encoding='utf-8') as f:
     f.write(''.join('changed ' + k + '\n' for k in changed))
     f.write(''.join('fresh ' + k + '\n' for k in fresh))
 print(f"overview-links --follow: {followed} anchor(s) followed their text, "
+      f"{renumbered} cited text(s) differing only in the line numbers of their "
+      f"own `con-leche:` citations accepted, "
       f"{repinned} con-leche link(s) re-pinned, {len(changed)} link(s) whose "
       f"text changed and {len(fresh)} with no expectation yet (left for a reader):")
 for k in changed:

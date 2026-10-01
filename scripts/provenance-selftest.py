@@ -135,7 +135,7 @@ def kinds(out):
 
 
 BUCKETS = os.path.join(FIXTURES, "buckets")
-EXPECTED_BUCKETS = {"doc-only": 3, "moved": 2, "moved-doc": 1,
+EXPECTED_BUCKETS = {"doc-only": 3, "moved": 3, "moved-doc": 1,
                     "moved-changed": 1, "moved-by-name": 1, "changed": 1,
                     "deleted": 2}
 
