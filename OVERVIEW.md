@@ -138,10 +138,10 @@ They are stated about the Aeneas model of the Rust functions the binary's
 the binary's own start values.  Both depend on con-leche's three axioms
 (`propext`, `Classical.choice`, `Quot.sound`) and on nothing else: no
 `sorry`, no `native_decide`.  A `#guard_msgs` check keeps it that way
-([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L882-L898)).
+([the census](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L883-L899)).
 
 **Soundness**
-([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L742-L777)),
+([`ConRon.Capstone.no_False_declaration`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L743-L778)),
 with the implicit arguments left out:
 
 ```lean
@@ -181,7 +181,7 @@ returned `Ok`; the first starts from `startState`, the value of the binary's
 of `check_main`.
 
 **The model statement**
-([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L678-L712))
+([`ConRon.Capstone.model_exists`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L679-L713))
 takes the same premises without `hfalse` and concludes
 
 ```lean
@@ -189,7 +189,7 @@ takes the same premises without `hfalse` and concludes
 ```
 
 where
-[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L526-L530)
+[`RustDenotes`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Capstone.lean#L527-L531)
 says that the environment the Rust accepted (`fe`) is related to a twin
 environment, which denotes the con-leche environment `env`; `env` has a
 model (con-leche's `Model V env`) in every set theory `V`.  The statement

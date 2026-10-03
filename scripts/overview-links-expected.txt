@@ -44,80 +44,80 @@
     41    obtain ⟨fc, rfl⟩ := checkDecls_fullyChecked μ h
     42    exact fullyChecked_sound V hμ fc
 
-== proof/ConRon/Capstone.lean#L678-L712
-   678  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-   679      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   680      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   681      {pre : frontend.prepare.PreludeIx}
-   682      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   683      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   684      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   685      (hreads : ReadsAs sinst src chunks.val)
-   686      {r : frontend.export_c.ParseResultD}
-   687      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   688      {prepared : frontend.prepare.Prepared}
-   689      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
-   690      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   691      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   692      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   693      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
-   694      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-   695      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
-   696      (h6 : (do
-   697          let t ← arena.checker.fold_start
-   698          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
-   699            prepared.decls 0#usize hook)
-   700        = ok (.Ok (n, fe, pend), st6))
-   701      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   702      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
-   703      (h8 : ∃ ws : List (List (Fin pend.length)),
-   704        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
-   705        ∀ w ∈ ws, ∃ st', (do
-   706          let st ← arena.checker.worker_state st6.pins
-   707          w.foldlM (fun st (k : Fin pend.length) => do
-   708            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
-   709            match r with
-   710            | .Ok () => ok st
-   711            | .Err _ => fail .panic) st) = ok st') :
-   712      ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
+== proof/ConRon/Capstone.lean#L679-L713
+   679  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
+   680      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   681      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   682      {pre : frontend.prepare.PreludeIx}
+   683      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   684      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   685      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   686      (hreads : ReadsAs sinst src chunks.val)
+   687      {r : frontend.export_c.ParseResultD}
+   688      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   689      {prepared : frontend.prepare.Prepared}
+   690      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
+   691      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   692      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   693      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   694      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+   695      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   696      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+   697      (h6 : (do
+   698          let t ← arena.checker.fold_start
+   699          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+   700            prepared.decls 0#usize hook)
+   701        = ok (.Ok (n, fe, pend), st6))
+   702      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   703      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
+   704      (h8 : ∃ ws : List (List (Fin pend.length)),
+   705        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+   706        ∀ w ∈ ws, ∃ st', (do
+   707          let st ← arena.checker.worker_state st6.pins
+   708          w.foldlM (fun st (k : Fin pend.length) => do
+   709            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+   710            match r with
+   711            | .Ok () => ok st
+   712            | .Err _ => fail .panic) st) = ok st') :
+   713      ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
 
-== proof/ConRon/Capstone.lean#L742-L777
-   742  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   743      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   744      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
-   745      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   746      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   747      {pre : frontend.prepare.PreludeIx}
-   748      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   749      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   750      (hreads : ReadsAs sinst src chunks.val)
-   751      {r : frontend.export_c.ParseResultD}
-   752      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   753      {prepared : frontend.prepare.Prepared}
-   754      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
-   755      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   756      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   757      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   758      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
-   759      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-   760      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
-   761      (h6 : (do
-   762          let t ← arena.checker.fold_start
-   763          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
-   764            prepared.decls 0#usize hook)
-   765        = ok (.Ok (n, fe, pend), st6))
-   766      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   767      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
-   768      (h8 : ∃ ws : List (List (Fin pend.length)),
-   769        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
-   770        ∀ w ∈ ws, ∃ st', (do
-   771          let st ← arena.checker.worker_state st6.pins
-   772          w.foldlM (fun st (k : Fin pend.length) => do
-   773            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
-   774            match r with
-   775            | .Ok () => ok st
-   776            | .Err _ => fail .panic) st) = ok st') :
-   777      False := by
+== proof/ConRon/Capstone.lean#L743-L778
+   743  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   744      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   745      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+   746      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   747      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   748      {pre : frontend.prepare.PreludeIx}
+   749      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   750      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   751      (hreads : ReadsAs sinst src chunks.val)
+   752      {r : frontend.export_c.ParseResultD}
+   753      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   754      {prepared : frontend.prepare.Prepared}
+   755      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
+   756      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   757      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   758      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   759      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+   760      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   761      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+   762      (h6 : (do
+   763          let t ← arena.checker.fold_start
+   764          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+   765            prepared.decls 0#usize hook)
+   766        = ok (.Ok (n, fe, pend), st6))
+   767      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   768      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
+   769      (h8 : ∃ ws : List (List (Fin pend.length)),
+   770        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+   771        ∀ w ∈ ws, ∃ st', (do
+   772          let st ← arena.checker.worker_state st6.pins
+   773          w.foldlM (fun st (k : Fin pend.length) => do
+   774            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+   775            match r with
+   776            | .Ok () => ok st
+   777            | .Err _ => fail .panic) st) = ok st') :
+   778      False := by
 
 == crates/con-ron-core/src/arena/handle.rs#L4-L10
      4  //! One 32-bit word per handle:
@@ -435,106 +435,106 @@
    131    `no_False_declaration_embedded` fix the text to the embedded `PINS_TEXT`;
    132  -/
 
-== proof/ConRon/Capstone.lean#L882-L898
-   882  /-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   883  #guard_msgs in #print axioms model_exists
-   884  
-   885  /-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-   886  #guard_msgs in #print axioms no_False_declaration
-   887  
-   888  /-- info: 'ConRon.Capstone.model_exists_embedded' depends on axioms: [propext,
-   889   Classical.choice,
-   890   Quot.sound,
-   891   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
-   892  #guard_msgs in #print axioms model_exists_embedded
-   893  
-   894  /-- info: 'ConRon.Capstone.no_False_declaration_embedded' depends on axioms: [propext,
-   895   Classical.choice,
-   896   Quot.sound,
-   897   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
-   898  #guard_msgs in #print axioms no_False_declaration_embedded
+== proof/ConRon/Capstone.lean#L883-L899
+   883  /-- info: 'ConRon.Capstone.model_exists' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   884  #guard_msgs in #print axioms model_exists
+   885  
+   886  /-- info: 'ConRon.Capstone.no_False_declaration' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+   887  #guard_msgs in #print axioms no_False_declaration
+   888  
+   889  /-- info: 'ConRon.Capstone.model_exists_embedded' depends on axioms: [propext,
+   890   Classical.choice,
+   891   Quot.sound,
+   892   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+   893  #guard_msgs in #print axioms model_exists_embedded
+   894  
+   895  /-- info: 'ConRon.Capstone.no_False_declaration_embedded' depends on axioms: [propext,
+   896   Classical.choice,
+   897   Quot.sound,
+   898   kernel.pins_text.PINS_TEXT._native.decide.ax_1] -/
+   899  #guard_msgs in #print axioms no_False_declaration_embedded
 
-== proof/ConRon/Capstone.lean#L742-L777
-   742  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
-   743      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   744      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
-   745      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   746      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   747      {pre : frontend.prepare.PreludeIx}
-   748      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   749      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   750      (hreads : ReadsAs sinst src chunks.val)
-   751      {r : frontend.export_c.ParseResultD}
-   752      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   753      {prepared : frontend.prepare.Prepared}
-   754      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
-   755      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   756      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   757      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   758      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
-   759      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-   760      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
-   761      (h6 : (do
-   762          let t ← arena.checker.fold_start
-   763          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
-   764            prepared.decls 0#usize hook)
-   765        = ok (.Ok (n, fe, pend), st6))
-   766      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   767      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
-   768      (h8 : ∃ ws : List (List (Fin pend.length)),
-   769        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
-   770        ∀ w ∈ ws, ∃ st', (do
-   771          let st ← arena.checker.worker_state st6.pins
-   772          w.foldlM (fun st (k : Fin pend.length) => do
-   773            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
-   774            match r with
-   775            | .Ok () => ok st
-   776            | .Err _ => fail .panic) st) = ok st') :
-   777      False := by
+== proof/ConRon/Capstone.lean#L743-L778
+   743  theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
+   744      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   745      (hfalse : ConLeche.jsonWithTheoremFalse (absChunks chunks))
+   746      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   747      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   748      {pre : frontend.prepare.PreludeIx}
+   749      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   750      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   751      (hreads : ReadsAs sinst src chunks.val)
+   752      {r : frontend.export_c.ParseResultD}
+   753      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   754      {prepared : frontend.prepare.Prepared}
+   755      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
+   756      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   757      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   758      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   759      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+   760      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   761      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+   762      (h6 : (do
+   763          let t ← arena.checker.fold_start
+   764          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+   765            prepared.decls 0#usize hook)
+   766        = ok (.Ok (n, fe, pend), st6))
+   767      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   768      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
+   769      (h8 : ∃ ws : List (List (Fin pend.length)),
+   770        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+   771        ∀ w ∈ ws, ∃ st', (do
+   772          let st ← arena.checker.worker_state st6.pins
+   773          w.foldlM (fun st (k : Fin pend.length) => do
+   774            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+   775            match r with
+   776            | .Ok () => ok st
+   777            | .Err _ => fail .panic) st) = ok st') :
+   778      False := by
 
-== proof/ConRon/Capstone.lean#L678-L712
-   678  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
-   679      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
-   680      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
-   681      {pre : frontend.prepare.PreludeIx}
-   682      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
-   683      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
-   684      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
-   685      (hreads : ReadsAs sinst src chunks.val)
-   686      {r : frontend.export_c.ParseResultD}
-   687      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
-   688      {prepared : frontend.prepare.Prepared}
-   689      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
-   690      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
-   691      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
-   692      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
-   693      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
-   694      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
-   695      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
-   696      (h6 : (do
-   697          let t ← arena.checker.fold_start
-   698          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
-   699            prepared.decls 0#usize hook)
-   700        = ok (.Ok (n, fe, pend), st6))
-   701      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
-   702      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
-   703      (h8 : ∃ ws : List (List (Fin pend.length)),
-   704        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
-   705        ∀ w ∈ ws, ∃ st', (do
-   706          let st ← arena.checker.worker_state st6.pins
-   707          w.foldlM (fun st (k : Fin pend.length) => do
-   708            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
-   709            match r with
-   710            | .Ok () => ok st
-   711            | .Err _ => fail .panic) st) = ok st') :
-   712      ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
+== proof/ConRon/Capstone.lean#L679-L713
+   679  theorem model_exists (V : Type w) [ConLeche.SetTheory V]
+   680      {st1 st2 st3 st4 st5 st6 : arena.monad.AState}
+   681      (h1 : arena.pins.intern_reserved_pins emptyTier startState = ok (.Ok (), st1))
+   682      {pre : frontend.prepare.PreludeIx}
+   683      (h2 : frontend.prelude.builtin_prelude_e emptyTier st1 = ok (.Ok pre, st2))
+   684      {Sc : Type} {sinst : frontend.export_c.ChunkSource Sc} {src src' : Sc}
+   685      {chunks : alloc.vec.Vec (alloc.vec.Vec Std.U8)}
+   686      (hreads : ReadsAs sinst src chunks.val)
+   687      {r : frontend.export_c.ParseResultD}
+   688      (h3 : frontend.export_c.parse_source sinst emptyTier st2 src = ok (.Ok r, st3, src'))
+   689      {prepared : frontend.prepare.Prepared}
+   690      (h4 : frontend.prepare.prepare_d emptyTier st3 pre r.decls = ok (.Ok prepared, st4))
+   691      {pinText : Slice Std.U8} {pins : alloc.vec.Vec kernel.nat_op_pins.NatOpPinSet}
+   692      (hpins : kernel.pins_decode.decode pinText = ok (.Ok pins))
+   693      {ipins : alloc.vec.Vec arena.nat_op_pin_set.INatOpPinSet}
+   694      (h5 : arena.checker.intern_all_pins emptyTier st4 pins = ok (.Ok ipins, st5))
+   695      {Hk : Type} {hinst : arena.checker.InstallHook Hk} {hook : Hk}
+   696      {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
+   697      (h6 : (do
+   698          let t ← arena.checker.fold_start
+   699          arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+   700            prepared.decls 0#usize hook)
+   701        = ok (.Ok (n, fe, pend), st6))
+   702      {tier : arena.store.PersTier} {frozen : arena.store.EStore}
+   703      (h7 : arena.checker.freeze_tier st6.store = ok (tier, frozen))
+   704      (h8 : ∃ ws : List (List (Fin pend.length)),
+   705        (∀ k, ∃ w ∈ ws, k ∈ w) ∧
+   706        ∀ w ∈ ws, ∃ st', (do
+   707          let st ← arena.checker.worker_state st6.pins
+   708          w.foldlM (fun st (k : Fin pend.length) => do
+   709            let (r, st) ← arena.checker.check_pending tier st .Verified fe pend.val[k]
+   710            match r with
+   711            | .Ok () => ok st
+   712            | .Err _ => fail .panic) st) = ok st') :
+   713      ∃ env, RustDenotes fe st6 env ∧ Nonempty (ConLeche.Model V env) := by
 
-== proof/ConRon/Capstone.lean#L526-L530
-   526  def RustDenotes (fe : arena.env.IFEnv) (st : arena.monad.AState)
-   527      (env : ConLeche.Env) : Prop :=
-   528    ∃ (lst : ConRon.Arena.AState) (lfe : ConRon.Arena.IFEnv),
-   529      AStateRel emptyTier st lst ∧ IFEnvRel fe lfe ∧
-   530      ConRon.Bridge.denoteFEnv lst.store lfe = some env
+== proof/ConRon/Capstone.lean#L527-L531
+   527  def RustDenotes (fe : arena.env.IFEnv) (st : arena.monad.AState)
+   528      (env : ConLeche.Env) : Prop :=
+   529    ∃ (lst : ConRon.Arena.AState) (lfe : ConRon.Arena.IFEnv),
+   530      AStateRel emptyTier st lst ∧ IFEnvRel fe lfe ∧
+   531      ConRon.Bridge.denoteFEnv lst.store lfe = some env
 
 == crates/con-ron/src/bin/con-ron.rs#L363-L382
    363      let mut st = AState::empty();
