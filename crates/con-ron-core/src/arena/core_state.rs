@@ -63,7 +63,8 @@ use std::vec::Vec;
 // hashing), mixed pairwise as Lean's `instHashableProd` mixes.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:111-140 CState
+/// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
+/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::EIdxPair_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:74-76 Caches.defeqC` — the
 /// ORDERED pair of expression handles the `defeq` verdict is stored at.
 pub struct EIdxPair {
@@ -189,7 +190,8 @@ pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
     LsIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:111-140 CState
+/// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
+/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::NLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:81-82 Caches.constTyC` — a
 /// stored constant's name together with a universe-argument list: the key of
 /// the two instantiated-constant caches.
@@ -232,7 +234,8 @@ pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
     NLsKey { n: n.dup2(), us: us.dup2() }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:111-140 CState
+/// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
+/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::NNLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:85-88 Caches.ruleRhsC` — the
 /// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
 /// constructor and the levels.
@@ -295,7 +298,8 @@ pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
 // The record (`CoreState.lean:50-85`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/StateC.lean:111-140 CState
+/// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
+/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:53-99 Caches` — the
 /// per-declaration caches of the arena checker, in one record beside
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
@@ -350,7 +354,8 @@ pub struct Caches {
     pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:115-140 CState
+/// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
+/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
 /// `ron::HashMap::new` allocates nothing (task #35), so eleven empty tables
@@ -358,7 +363,8 @@ pub struct Caches {
 /// start from; the per-declaration flush is `Caches::reset` below, which
 /// reaches the same value without freeing the buckets.
 impl Caches {
-    /// con-leche: ConLeche/Cached/StateC.lean:115-140 CState
+    /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
+    /// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::empty_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
@@ -496,12 +502,14 @@ pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
     }
 }
 
-/// con-leche: ConLeche/Cached/StateC.lean:355-359 CState.flushed
+/// con-leche: ConLeche/Cached/StateC.lean:355-363 CState.flushed
+/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty` — the
 /// per-declaration flush, as an in-place reset of the eleven tables rather
 /// than eleven fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
-    /// con-leche: ConLeche/Cached/StateC.lean:355-359 CState.flushed
+    /// con-leche: ConLeche/Cached/StateC.lean:355-363 CState.flushed
+    /// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::reset_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);

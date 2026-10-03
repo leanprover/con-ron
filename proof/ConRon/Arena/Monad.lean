@@ -114,7 +114,8 @@ instance : Inhabited Memos := ⟨Memos.empty⟩
 
 /-! ## The state and the monad -/
 
-/-- con-leche: ConLeche/Cached/StateC.lean:111-140 CState — the checker state of
+/-- con-leche: ConLeche/Cached/StateC.lean:111-144 CState — the checker state of
+-- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Monad.AState_bridge, then delete this line
 (B) as P2b needs it: the arena and the per-call memo tables.  P2c extends it
 with the per-declaration caches (`whnfCore`, `whnf`, the three infer grades,
 `defeq`) and the environment index. -/
@@ -133,7 +134,7 @@ structure AState where
   answer. -/
   pins : Pins
 
-/-- con-leche: ConLeche/Cached/StateC.lean:147-149 CheckCM
+/-- con-leche: ConLeche/Cached/StateC.lean:151-153 CheckCM
 con-leche: ConLeche/Kernel/Core.lean:77 CheckM
 The one monad of (B)
 (DESIGN §8.4: "`AM := StateT AState (Except CheckError)` and nothing

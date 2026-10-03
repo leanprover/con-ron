@@ -310,7 +310,7 @@ empty scratch tier and FREEZES the store — its persistent tables leave it as
 the tier every read inside the bracket goes through (§4.4) — and
 `drop_scratch` discards the scratch tier, flushes the caches and thaws the
 tier back into the store
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11358-L11380)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11399-L11421)).
 Dropping the tier leaves persistent handles valid, because a persistent node
 never points into the scratch tier.
 
@@ -373,11 +373,11 @@ Two more tables sit in the same record for their allocation only: the
 declaration guards `allLevelParamsDefined` and `constsResolve` thread their
 memo as an argument, as con-leche does, and the port parks it in the state
 between calls, moving it out and emptying it at each entry
-([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L450-L497)),
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L456-L503)),
 or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
-([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L304-L351)).
+([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L308-L355)).
 These are con-leche's memo tables:
 
 * `whnfCore`, `whnf`, `infer`, `inferIO` and `annotate`, each `EIdx ↦ EIdx`.
@@ -395,7 +395,7 @@ step, as con-leche's `flushC` is.  A cache entry can name a scratch handle,
 so it must go with the tier.  The memos are cleared when a bracket opens and
 at every walk's entry.  No table evicts single entries; a table that
 reaches
-[`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L387-L392)
+[`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L393-L398)
 (2²² entries) is emptied whole.
 
 The type checker runs in two **lanes**

@@ -28,6 +28,7 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CoreIO.lean:90-118 coreKnotIO — **the io
+-- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove CoreIO.coreKnotIO_bridge, then delete this line
 knot** (the leaf lane).  Its own `inferIO` slot is the io body again: the io
 grade is idempotent, there being nothing below io to select. -/
 def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
