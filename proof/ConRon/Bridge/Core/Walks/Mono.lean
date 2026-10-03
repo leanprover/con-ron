@@ -9,7 +9,7 @@ module's contents and prices them:
 > never touches it."*  **That is true of a body and false of a LOOP.**  A walk
 > that calls the knot ONCE per clause hands its `∃ F` straight out.  A walk
 > that calls it in a `List` recursion (`defEqList`, `iotaCerts`,
-> `structEtaProjCerts`) or in a fuel loop (`whnfLoop`, `defeqLoop`) gets one
+> `structEtaProjCerts`) or in a fuel loop (`whnfLoop`, `lazyDeltaReduction`, `lazyDeltaProjReduction`) gets one
 > existential per iteration and has to merge them into one — which is exactly
 > `Verify/Mono.lean`'s job.  con-leche has `isDefEqCore_mono` and
 > `pureFns_mono`; it does NOT have `defEqList_mono`, because its own proof
@@ -49,7 +49,7 @@ At a `List` recursion the bridge holds the head's `∃ F₁` (from
 hypothesis).  It takes `F := max F₁ F₂`, lifts the head with con-leche's own
 `isDefEqCore_mono` and the tail with `defEqListFueled_mono` below, and then
 the step equation applies at ONE fuel.  The same at a fuel loop, with
-`whnfLoopFueled_mono` / `defeqLoopFueled_mono` — and those two are the debt
+`whnfLoopFueled_mono` / `lazyDeltaReductionFueled_mono` — and those two are the debt
 DESIGN §6.1 says sits unpaid under `whnfBody_spec` and `defeqBody_spec`.
 
 **This module mentions no arena state at all**: it is pure con-leche, and it
@@ -241,12 +241,21 @@ theorem whnfLoop_mono (h : FnsRefines r₁ r₂) (d n : Nat) (e : Expr) :
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
 lazy-delta loop at an arbitrary step budget**, the same debt at
 `defeqBody_spec`. -/
-theorem defeqLoop_mono (h : FnsRefines r₁ r₂) (d n : Nat) (pi : Bool)
+theorem lazyDeltaReduction_mono (h : FnsRefines r₁ r₂) (d n : Nat)
     (a b : Expr) :
-    MRefines (defeqLoop mode r₁ env d n pi a b)
-      (defeqLoop mode r₂ env d n pi a b) := by
-  have := (defeqLoop mode (pairFns r₁ r₂ h) env d n pi a b).property
-  rwa [defeqLoop_fst_proj, defeqLoop_snd_proj] at this
+    MRefines (lazyDeltaReduction mode r₁ env d n a b)
+      (lazyDeltaReduction mode r₂ env d n a b) := by
+  have := (lazyDeltaReduction mode (pairFns r₁ r₂ h) env d n a b).property
+  rwa [lazyDeltaReduction_fst_proj, lazyDeltaReduction_snd_proj] at this
+
+/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
+lazy-delta PROJECTION loop at an arbitrary step budget**. -/
+theorem lazyDeltaProjReduction_mono (h : FnsRefines r₁ r₂) (d : Nat)
+    (sn : Name) (i n : Nat) (a b : Expr) :
+    MRefines (lazyDeltaProjReduction mode r₁ env d sn i n a b)
+      (lazyDeltaProjReduction mode r₂ env d sn i n a b) := by
+  have := (lazyDeltaProjReduction mode (pairFns r₁ r₂ h) env d sn i n a b).property
+  rwa [lazyDeltaProjReduction_fst_proj, lazyDeltaProjReduction_snd_proj] at this
 
 /-! ## 2. The fueled corollaries — THE MERGE
 
@@ -422,11 +431,20 @@ theorem whnfLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
 
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — **the merge
 `defeqBody_spec` needs**, at an arbitrary lazy-delta budget. -/
-theorem defeqLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
-    {pi : Bool} {a b : Expr} {r : Bool}
-    (hr : defeqLoop mode (pureFns mode env f) env d n pi a b = .ok r) :
-    defeqLoop mode (pureFns mode env f') env d n pi a b = .ok r :=
-  defeqLoop_mono (pureFns_mono env hle) d n pi a b r hr
+theorem lazyDeltaReductionFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
+    {a b : Expr} {r : LazyRes}
+    (hr : lazyDeltaReduction mode (pureFns mode env f) env d n a b = .ok r) :
+    lazyDeltaReduction mode (pureFns mode env f') env d n a b = .ok r :=
+  lazyDeltaReduction_mono (pureFns_mono env hle) d n a b r hr
+
+/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the same merge
+at the lazy-delta PROJECTION loop. -/
+theorem lazyDeltaProjReductionFueled_mono {f f' : Nat} (hle : f ≤ f')
+    {d : Nat} {sn : Name} {i n : Nat} {a b : Expr} {r : Bool}
+    (hr : lazyDeltaProjReduction mode (pureFns mode env f) env d sn i n a b
+      = .ok r) :
+    lazyDeltaProjReduction mode (pureFns mode env f') env d sn i n a b = .ok r :=
+  lazyDeltaProjReduction_mono (pureFns_mono env hle) d sn i n a b r hr
 
 /-! ## 4. The axiom census -/
 
@@ -435,7 +453,8 @@ section Census
 #print axioms defEqList_mono
 #print axioms defEqListFueled_mono
 #print axioms whnfLoopFueled_mono
-#print axioms defeqLoopFueled_mono
+#print axioms lazyDeltaReductionFueled_mono
+#print axioms lazyDeltaProjReductionFueled_mono
 
 end Census
 
