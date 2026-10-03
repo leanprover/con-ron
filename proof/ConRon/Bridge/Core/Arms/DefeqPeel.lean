@@ -73,13 +73,46 @@ theorem isDefEqCore_refl_one {F d : Nat} {e : Expr} :
   rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
   simp only [beq_self_eq_true, if_true, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1636-1662 defeqStep — **the chain's
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **the binder
+arm of the easy cases**: at two distinct binders of one kind `quickDefEq` is
+the domain comparison, then the bodies opened at the second domain's free
+variable, then the annotation test.  Stated for the three ways the arm
+answers. -/
+theorem quickDefEq_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
+    {m₁ m₂ : BinderMeta} {x : Bool}
+    (hne : (bndE isLam t₁ c₁ m₁ == bndE isLam t₂ c₂ m₂) = false)
+    (h : (ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok false ∧
+            x = false) ∨
+         (ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok true ∧
+            ConLeche.isDefEqCore mode env F (d + 1)
+              (c₁.instantiate1 (.fvar d t₂)) (c₂.instantiate1 (.fvar d t₂))
+              = .ok false ∧ x = false) ∨
+         (ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok true ∧
+            ConLeche.isDefEqCore mode env F (d + 1)
+              (c₁.instantiate1 (.fvar d t₂)) (c₂.instantiate1 (.fvar d t₂))
+              = .ok true ∧
+            (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false ∧ x = true)) :
+    ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
+      (bndE isLam t₁ c₁ m₁) (bndE isLam t₂ c₂ m₂) = .ok (some x) := by
+  unfold ConLeche.quickDefEq
+  simp only [← ConLeche.defeq_def] at h
+  cases isLam
+  · simp only [bndE, Bool.false_eq_true, if_false] at hne ⊢
+    rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
+    · simp [hne, h1, bind, Except.bind, pure, Except.pure]
+    · simp [hne, h1, h2, bind, Except.bind, pure, Except.pure]
+    · simp [hne, h1, h2, hm, bind, Except.bind, pure, Except.pure]
+  · simp only [bndE, if_true] at hne ⊢
+    rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
+    · simp [hne, h1, bind, Except.bind, pure, Except.pure]
+    · simp [hne, h1, h2, bind, Except.bind, pure, Except.pure]
+    · simp [hne, h1, h2, hm, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the chain's
 binder arm, as the peel needs it**: at two distinct binders of one kind the
-entry point is the domain comparison, then the bodies opened at the second
-domain's free variable, then the annotation test, because every earlier arm
-of the step is a no-op on two binders (`whnfCore` is the identity,
-`isBoolTrue` is `false`, `quickPair` holds, `reduceNat` declines,
-`unfoldableHead` is `false`).  Stated for the three ways the arm answers. -/
+entry point IS `quickDefEq`'s binder arm, because every earlier step of the
+body is a no-op on two binders (`isBoolTrue` is `false`, the cheap `whnfCore`
+is the identity) and the arm answers `some`. -/
 theorem isDefEqCore_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
     {m₁ m₂ : BinderMeta} {x : Bool}
     (hne : (bndE isLam t₁ c₁ m₁ == bndE isLam t₂ c₂ m₂) = false)
@@ -96,35 +129,16 @@ theorem isDefEqCore_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
             (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false ∧ x = true)) :
     ConLeche.isDefEqCore mode env (F + 2) d (bndE isLam t₁ c₁ m₁)
       (bndE isLam t₂ c₂ m₂) = .ok x := by
+  have hq := quickDefEq_bnd isLam hne h
   rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
-  simp only [ConLeche.isDefEqCore_succ] at h
-  cases isLam
-  · simp only [bndE, Bool.false_eq_true, if_false] at hne ⊢
-    have ha : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
-        (.forallE t₁ c₁ m₁) = .ok (.forallE t₁ c₁ m₁) := rfl
-    have hb : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
-        (.forallE t₂ c₂ m₂) = .ok (.forallE t₂ c₂ m₂) := rfl
-    simp only [ha, hb]
-    rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
-    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
-        bind, Except.bind, pure, Except.pure]
-    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
-        h2, bind, Except.bind, pure, Except.pure]
-    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
-        h2, hm, bind, Except.bind, pure, Except.pure]
-  · simp only [bndE, if_true] at hne ⊢
-    have ha : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
-        (.lam t₁ c₁ m₁) = .ok (.lam t₁ c₁ m₁) := rfl
-    have hb : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
-        (.lam t₂ c₂ m₂) = .ok (.lam t₂ c₂ m₂) := rfl
-    simp only [ha, hb]
-    rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
-    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
-        bind, Except.bind, pure, Except.pure]
-    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
-        h2, bind, Except.bind, pure, Except.pure]
-    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
-        h2, hm, bind, Except.bind, pure, Except.pure]
+  have hw : ∀ (e : Expr), e = bndE isLam t₁ c₁ m₁ ∨ e = bndE isLam t₂ c₂ m₂ →
+      (ConLeche.pureFns mode env (F + 1)).whnfCore true d e = .ok e := by
+    rintro e (rfl | rfl) <;> cases isLam <;> rfl
+  have hbt : (bndE isLam t₂ c₂ m₂).isBoolTrue = false := by
+    cases isLam <;> rfl
+  rw [hw _ (.inl rfl), hw _ (.inr rfl)]
+  simp only [hne, hbt, Bool.false_and, Bool.false_eq_true, if_false, bind,
+    Except.bind, pure, Except.pure, hq]
 
 /-- con-leche: none — **the peel's invariant**: the peel's answer `x` is the
 chain's continuation at the opened pair `oa`, `ob` — the entry point's
@@ -202,6 +216,34 @@ theorem peel_step_pure {j F1 F2 : Nat} (L : Bool) {A1 c1 A2 c2 : Expr}
         have hm2 : mm = false := by cases mm <;> simp_all
         exact .inr ⟨isDefEqCore_bnd L hne (.inr (.inr ⟨hd,
           ConLeche.isDefEqCore_mono (by omega) h1, hmm hm2, rfl⟩)), hm1, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **the first
+binder level, on the pure side**: `peel_step_pure` at the top of the
+telescope, where the twin's `quickDefEq` has already ruled out equal
+binders and nothing is pending; the conclusion is `quickDefEq`'s own
+answer. -/
+theorem quick_step_pure {j F1 F2 : Nat} (L : Bool) {A1 c1 A2 c2 : Expr}
+    {m1 m2 : BinderMeta} {dq mm x : Bool}
+    (hne : (bndE L A1 c1 m1 == bndE L A2 c2 m2) = false)
+    (hdq : ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode env F j A1 A2 = .ok dq)
+    (hx : dq = false → x = false)
+    (hin : dq = true → PeelOK mode env F2 (j + 1)
+      (c1.instantiate1 (.fvar j A2)) (c2.instantiate1 (.fvar j A2)) mm x)
+    (hmm : mm = false → (mode.verifiedChecks && !(m1.pw == m2.pw)) = false) :
+    ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) j
+      (bndE L A1 c1 m1) (bndE L A2 c2 m2) = .ok (some x) := by
+  refine ⟨max F1 F2, ?_⟩
+  have hd := hdq (max F1 F2) (by omega)
+  cases dq with
+  | false =>
+    obtain rfl := hx rfl
+    exact quickDefEq_bnd L hne (.inl ⟨hd, rfl⟩)
+  | true =>
+    rcases hin rfl with ⟨h1, rfl⟩ | ⟨h1, hm, rfl⟩
+    · exact quickDefEq_bnd L hne
+        (.inr (.inl ⟨hd, ConLeche.isDefEqCore_mono (by omega) h1, rfl⟩))
+    · exact quickDefEq_bnd L hne (.inr (.inr ⟨hd,
+        ConLeche.isDefEqCore_mono (by omega) h1, hmm hm, rfl⟩))
 
 /-! ## 2. The twin's three pieces -/
 
@@ -550,7 +592,6 @@ it, then `defeqPeel_spec` at budget `peelFuel` from depth `d + 1`, and one
 more `peel_step_pure` to fold the first level in.  `henv` is carried for the
 published statement and not spent. -/
 theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
-    (_henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (ty1 body1 ty2 body2 : EIdx)
     (m1 m2 : BinderMeta) (isLam : Bool) (t1 b1 t2 b2 : Expr)
@@ -561,27 +602,19 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     (hb2 : denoteE s₀.store body2 = some b2)
     (hwa : Expr.WScoped d (if isLam then .lam t1 b1 m1 else .forallE t1 b1 m1))
     (hwb : Expr.WScoped d
-      (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2)) :
+      (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2))
+    (hne : (bndE isLam t1 b1 m1 == bndE isLam t2 b2 m2) = false) :
     ⦃fun s => ⌜s = s₀⌝⦄
       defeqBinders mode (coreKnot mode fe id fuel) d ty1 body1 m1 ty2 body2 m2
         isLam
     ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode env) d
-          (if isLam then .lam t1 b1 m1 else .forallE t1 b1 m1)
-          (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2) x⌝⦄ := by
+        ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
+          (bndE isLam t1 b1 m1) (bndE isLam t2 b2 m2) = .ok (some x)⌝⦄ := by
   obtain ⟨hwt1, hwb1⟩ := wscoped_bndE.mp
     (show Expr.WScoped d (bndE isLam t1 b1 m1) from hwa)
   obtain ⟨hwt2, hwb2⟩ := wscoped_bndE.mp
     (show Expr.WScoped d (bndE isLam t2 b2 m2) from hwb)
-  have fin : ∀ x, (∃ F, PeelOK mode env F d (bndE isLam t1 b1 m1)
-      (bndE isLam t2 b2 m2) false x) →
-      SimV (ConLeche.isDefEqCore mode env) d
-        (if isLam then .lam t1 b1 m1 else .forallE t1 b1 m1)
-        (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2) x := by
-    rintro x ⟨F, (⟨h, rfl⟩ | ⟨h, _, rfl⟩)⟩
-    · exact ⟨F, h⟩
-    · exact ⟨F, h⟩
   unfold defeqBinders
   -- stage 1: the first domains, through the knot
   refine triple_seq (hsim.defeq s₀ d ty1 ty2 t1 t2 hok ht1 ht2 hwt1 hwt2) ?_
@@ -593,9 +626,9 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     simp only [Bool.not_false, if_true]
     mvcgen
     bridge_peel; subst_vars
-    exact ⟨hok1, hx1, hp1, fin _ (peel_step_pure (F2 := 0) (mism := false)
-      (mm := mode.verifiedChecks && !(m1.pw == m2.pw)) isLam hdq
-      (fun _ => rfl) (fun h => absurd h (by simp)) id)⟩
+    exact ⟨hok1, hx1, hp1, quick_step_pure (F2 := 0)
+      (mm := mode.verifiedChecks && !(m1.pw == m2.pw)) isLam hne hdq
+      (fun _ => rfl) (fun h => absurd h (by simp)) id⟩
   | true =>
     simp only [Bool.not_true, Bool.false_eq_true, if_false]
     -- stage 2: the first free variable, at the second domain
@@ -620,9 +653,9 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     rintro x s3 ⟨hok3, hx3, hp3, F2, hF2⟩
     rw [peel_open_body, peel_open_body, Expr.instantiateList_nil,
       Expr.instantiateList_nil] at hF2
-    refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), fin _ ?_⟩
-    exact peel_step_pure isLam hdq (fun h => absurd h (by simp))
-      (fun _ => by rw [Bool.false_or]; exact hF2) id
+    refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
+    exact quick_step_pure isLam hne hdq (fun h => absurd h (by simp))
+      (fun _ => hF2) id
 
 /-! `sorryAx` expected nowhere: the module is closed. -/
 
