@@ -739,7 +739,7 @@ theorem ds_whnf_quick_exit_r (hsim : KnotSpec mode env fe fuel) (p q : EIdx)
   exact ds_quick_exit hsim p q₃ u w₃ hok1 (hxs.trans hx1) (hp1.trans hps)
     (denote_ext hp hx1) hd3 hwu hw3 ((hred.and hW).imp fun _ ⟨h1, h2⟩ => h1 w₃ h2)
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean unfoldDefinition — **an unfolding
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:62-81 unfoldDefinition — **an unfolding
 and what follows it**, in the step's postcondition. -/
 theorem ds_unfold_seq (henv : ConLeche.EnvWF env) (e : EIdx) (u : Expr)
     (f : Option EIdx → AM DeltaStepA)

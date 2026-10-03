@@ -39,7 +39,7 @@ section Arms
 
 variable {fe : IFEnv} {fuel d : Nat} {s₀ s₁ : AState} {G : Nat → Bool → Prop}
 
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **the stuck
+/-- con-leche: ConLeche/Kernel/Core.lean:569-576 stuckIrrel — **the stuck
 fallback arm**, at any pair the dispatch sends there. -/
 theorem dqArm_stuck (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
@@ -57,7 +57,7 @@ theorem dqArm_stuck (hμ : mode.verifiedChecks = true)
   dq_stuck_exit hμ henv hsim a' b' x' y' hok hx₁ hp₁ hx hy hwx hwy
     (hG.imp fun F h r hr => h r (by rw [hred F]; exact hr))
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1685-1688 defeqStep — **η, the λ on
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **η, the λ on
 the left**. -/
 theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' ty₁ bd₁ : EIdx)
@@ -102,7 +102,7 @@ theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
       ((hG.and hE).imp fun F ⟨h, h2⟩ => h true (by
         rw [hred F]; simp only [bind, Except.bind, h2, ↓reduceIte]; rfl))
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1689-1692 defeqStep — **η, the λ on
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **η, the λ on
 the right**. -/
 theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' ty₂ bd₂ : EIdx)
@@ -148,7 +148,7 @@ theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
         rw [hred F]; simp only [bind, Except.bind, h2, ↓reduceIte]; rfl))
 
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1605-1608 defeqStep — **two free
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two free
 variables**: equal indices are defeq, else stuck. -/
 theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
@@ -175,7 +175,7 @@ theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
         show (if (i == j) = true then _ else _) = _
         rw [if_neg h]; exact hr))
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1609-1615 defeqStep — **two
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two
 constants**: the same name at equivalent universe arguments, else stuck. -/
 theorem dqArm_const (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' : EIdx)
@@ -237,7 +237,7 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
         ((if_neg (fun h' => h (hiff.mpr h'))).trans hr))
 
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1595-1599 defeqStep — **a `String`
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **a `String`
 literal against a unary `String.ofList` application, literal on the left**:
 the literal's constructor form against the application. -/
 theorem dqArm_strL (hμ : mode.verifiedChecks = true)
@@ -306,7 +306,7 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun _ h r hr => h r hr)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1600-1604 defeqStep — the same,
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — the same,
 literal on the right. -/
 theorem dqArm_strR (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' fo : EIdx)
@@ -374,7 +374,7 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun _ h r hr => h r hr)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1663-1675 defeqStep — **two stuck
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two stuck
 applications**: spine-wise congruence (equal lengths, the heads, the
 argument lists), else stuck. -/
 theorem dqArm_app (hμ : mode.verifiedChecks = true)

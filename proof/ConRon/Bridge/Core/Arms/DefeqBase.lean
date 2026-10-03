@@ -4,16 +4,17 @@
 Task #109 (con-leche 8afe1815, `is_def_eq_core` restructured).  The pieces
 every spec of `Arms/DefeqLazy.lean`, `Arms/DefeqStuck.lean` and
 `Arms/Defeq.lean` shares, moved here from the old `Arms/Defeq.lean` (where
-they served `defeqStep`) so that the three can build in parallel:
+they served `defeqStep`, the loop step con-leche 8afe1815 replaced) so that
+the three can build in parallel:
 
 | group | contents |
 |---|---|
 | fuel | `Ev` ("from some fuel on") and its rules; `DqPost`, the frame-and-verdict postcondition |
 | stage rules | `triple_pure_post`, `triple_ite_bind`, `CheckOK.of_store_eq` |
-| guarded calls | `boolTrueShortcutIf_spec`, `defeqNoFvars_spec`, `reduceNatIf_spec`, `propIrrelIf_spec` |
+| guarded calls | `boolTrueShortcutIf_spec`, `defeqNoFvars_spec`, `reduceNatIf_spec` |
 | denotations | `exprTag` / `tag_of_denote`, `VD` / `VD.of_view`, `ls_eq_iff_nil`, `n_eq_iff_pin` |
-| exits | `dq_pure_exit`, `dq_defeq_exit`, `dq_stuck_exit`, `dq_unfold_seq` |
-| monotonicity | `…Fueled_mono'` for every helper of the new defeq block (`Walks/Mono.lean`'s shape) |
+| exits | `dq_pure_exit`, `dq_defeq_exit`, `dq_stuck_exit` |
+| monotonicity | `…F_mono` for the helpers of the new defeq block the specs merge at (`Walks/Mono.lean`'s shape) |
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.PropRead
@@ -117,7 +118,7 @@ theorem _root_.ConRon.Bridge.CheckOK.of_store_eq {mode : CheckMode} {env : Env} 
     CheckOK mode env fe s' :=
   h.mono ⟨by rw [hst]; exact h.state.wf⟩ (by rw [hst]; exact Ext.refl _) hc hp
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1406-1418 boolTrueShortcut —
+/-- con-leche: ConLeche/Kernel/Core.lean:1443-1455 boolTrueShortcut —
 **the eq-true shortcut's guarded call**, both guard outcomes: the twin's
 `boolTrueShortcut` is `KnotSpec.whnf` then `isBoolTrue`, con-leche's is
 `whnf` then `Expr.isBoolTrue`. -/
@@ -187,7 +188,7 @@ theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
 
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1500-1516 defeqStep — the literal
+/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — the literal
 guard: the twin's two eager fvar-range reads are con-leche's
 `!a'.hasFvar && !b'.hasFvar`. -/
 theorem defeqNoFvars_spec {fe : IFEnv} (s₀ : AState) (a b : EIdx) (x y : Expr)
@@ -215,7 +216,7 @@ theorem defeqNoFvars_spec {fe : IFEnv} (s₀ : AState) (a b : EIdx) (x y : Expr)
   · simp only [if_true]
     exact triple_pure_post ⟨hok1, hst1, hp1, by simp⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1517-1525 defeqStep — **the
+/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — **the
 guarded literal acceleration**, both guard outcomes, in the `SimOOp` shape
 with the fuel carried eventually. -/
 theorem reduceNatIf_spec {fe : IFEnv} {fuel : Nat}
@@ -246,34 +247,6 @@ theorem reduceNatIf_spec {fe : IFEnv} {fuel : Nat}
         (ConLeche.pureFns mode env F) env d x = .ok v)
         (fun hle h => reduceNatFueled_mono hle h) hF⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1475-1499 defeqStep — **the
-hoisted proof-irrelevance test's guarded call**, both guard outcomes, over
-`propIrrel_spec` (`Walks/PropRead.lean`). -/
-theorem propIrrelIf_spec {fe : IFEnv} {fuel : Nat}
-    (hsim : KnotSpec mode env fe fuel) (s₀ : AState) (d : Nat) (a b : EIdx)
-    (x y : Expr) (c : Bool) (hok : CheckOK mode env fe s₀)
-    (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
-    (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
-      (if c = true then
-        ConRon.Arena.propIrrel (coreKnot mode fe id fuel) fe d a b
-      else pure false)
-    ⦃⇓? pir s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        Ev (fun F => (if c then
-          ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x y
-          else pure false) = (.ok pir : CheckM Bool))⌝⦄ := by
-  cases c
-  · simp only [Bool.false_eq_true, if_false]
-    exact triple_pure_post ⟨hok, Ext.refl _, rfl, Ev.const rfl⟩
-  · simp only [if_true]
-    refine triple_mono (propIrrel_spec hsim s₀ d a b x y hok hx hy hwx hwy) ?_
-    rintro pir s1 ⟨hok1, hx1, hp1, hF⟩
-    exact ⟨hok1, hx1, hp1, Ev.of_mono (p := fun F => ConLeche.propIrrel
-      (ConLeche.pureFns mode env F) env d x y = .ok pir)
-      (fun hle h => propIrrelFueled_mono hle h) hF⟩
-
-
 /-! ## 3. The exits, once
 
 Every exit of a `Bool`-valued spec ends in a `pure` verdict, a knot `defeq`,
@@ -289,7 +262,7 @@ theorem dq_pure_exit {fe : IFEnv} {s₀ s : AState} {G : Nat → Bool → Prop}
   triple_pure_post ⟨hok, hxs, hps, hG.exists⟩
 
 
-/-- con-leche: ConLeche/Kernel/TypeChecker.lean isDefEqCore — **a knot
+/-- con-leche: ConLeche/Kernel/TypeChecker.lean:51 isDefEqCore — **a knot
 `defeq`** as the verdict. -/
 theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
     (hsim : KnotSpec mode env fe fuel) {s₀ s : AState}
@@ -308,7 +281,7 @@ theorem dq_defeq_exit {fe : IFEnv} {fuel d : Nat}
     Ev.finish (hG.imp fun _ h => h r)
       (Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) hr)⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — **the stuck
+/-- con-leche: ConLeche/Kernel/Core.lean:569-576 stuckIrrel — **the stuck
 fallback** as the verdict, over `stuckIrrel_spec` (`Walks/Owed.lean`,
 closed since).  The one call site of that rule in this module. -/
 theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
@@ -329,37 +302,6 @@ theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
   exact ⟨hok', hxs.trans hx', hp'.trans hps,
     Ev.finish (hG.imp fun _ h => h r)
       (Ev.of_mono (fun hle h => stuckIrrelFueled_mono hle h) hr)⟩
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:145-155 unfoldDefinition — **an
-unfolding and what follows it**: `unfoldDefinition` at a named subject, its
-answer handed on with its denotation. -/
-theorem dq_unfold_seq {fe : IFEnv} {d : Nat} (henv : ConLeche.EnvWF env)
-    {s₀ s : AState} {G : Nat → Bool → Prop} (e : EIdx) (u : Expr)
-    (f : Option EIdx → AM Bool)
-    (hok : CheckOK mode env fe s) (he : denoteE s.store e = some u)
-    (hwu : Expr.WScoped d u)
-    (hsome : ∀ (s' : AState) (e₂ : EIdx) (u₂ : Expr),
-      CheckOK mode env fe s' → Ext s.store s'.store → s'.pins = s.pins →
-      denoteE s'.store e₂ = some u₂ → Expr.WScoped d u₂ →
-      unfoldDefinition env u = some u₂ →
-      ⦃fun t => ⌜t = s'⌝⦄ f (some e₂) ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄)
-    (hnone : ∀ (s' : AState), CheckOK mode env fe s' →
-      Ext s.store s'.store → s'.pins = s.pins →
-      unfoldDefinition env u = none →
-      ⦃fun t => ⌜t = s'⌝⦄ f none ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄) :
-    ⦃fun t => ⌜t = s⌝⦄ (ConRon.Arena.unfoldDefinition fe e >>= f)
-    ⦃⇓? r t => ⌜DqPost mode env fe s₀ G r t⌝⦄ := by
-  refine triple_seq (unfoldDefinition_spec henv s d e hok ⟨u, he, hwu⟩) ?_
-  rintro o s1 ⟨hok1, hx1, hp1, ho⟩
-  obtain ⟨hdo, hwo⟩ := ho u he
-  cases o with
-  | some e₂ =>
-    obtain ⟨u₂, hu₂, hd₂⟩ := denoteEO_some_inv hdo
-    exact hsome s1 e₂ u₂ hok1 hx1 hp1 hd₂ (hwo u₂ hu₂) hu₂
-  | none =>
-    exact hnone s1 hok1 hx1 hp1 (denoteEO_none_inv hdo)
-
-
 
 /-! ### The congruence arms
 
@@ -464,46 +406,6 @@ theorem quickDefEq_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
   have := (ConLeche.quickDefEq mode (pairFns r₁ r₂ h) d a b).property
   rwa [quickDefEq_fst_proj, quickDefEq_snd_proj] at this
 
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the offset
-check. -/
-theorem defeqOffset_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (ConLeche.defeqOffset r₁ d a b) (ConLeche.defeqOffset r₂ d a b) := by
-  have := (ConLeche.defeqOffset (pairFns r₁ r₂ h) d a b).property
-  rwa [defeqOffset_fst_proj, defeqOffset_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
-projection-application unfolding. -/
-theorem tryUnfoldProjApp_monoR (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
-    MRefines (ConLeche.tryUnfoldProjApp r₁ d e)
-      (ConLeche.tryUnfoldProjApp r₂ d e) := by
-  have := (ConLeche.tryUnfoldProjApp (pairFns r₁ r₂ h) d e).property
-  rwa [tryUnfoldProjApp_fst_proj, tryUnfoldProjApp_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — one lazy-delta
-step. -/
-theorem lazyDeltaStep_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (ConLeche.lazyDeltaStep mode r₁ env d a b)
-      (ConLeche.lazyDeltaStep mode r₂ env d a b) := by
-  have := (ConLeche.lazyDeltaStep mode (pairFns r₁ r₂ h) env d a b).property
-  rwa [lazyDeltaStep_fst_proj, lazyDeltaStep_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the end of a
-lazy-delta step. -/
-theorem deltaQuick_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (ConLeche.deltaQuick mode r₁ d a b)
-      (ConLeche.deltaQuick mode r₂ d a b) := by
-  have := (ConLeche.deltaQuick mode (pairFns r₁ r₂ h) d a b).property
-  rwa [deltaQuick_fst_proj, deltaQuick_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
-projection rule. -/
-theorem reduceProjCore_monoR (h : FnsRefines r₁ r₂) (d : Nat) (sn : Name)
-    (i : Nat) (e : Expr) :
-    MRefines (ConLeche.reduceProjCore mode r₁ env d sn i e)
-      (ConLeche.reduceProjCore mode r₂ env d sn i e) := by
-  have := (ConLeche.reduceProjCore mode (pairFns r₁ r₂ h) env d sn i e).property
-  rwa [reduceProjCore_fst_proj, reduceProjCore_snd_proj] at this
-
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the proj/proj
 check. -/
 theorem defeqProjPair_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
@@ -529,46 +431,6 @@ theorem quickDefEqF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
     (hr : ConLeche.quickDefEq mode (pureFns mode env f) d a b = .ok r) :
     ConLeche.quickDefEq mode (pureFns mode env f') d a b = .ok r :=
   quickDefEq_monoR (pureFns_mono env hle) d a b r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`defeqOffset`. -/
-theorem defeqOffsetF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
-    {r : Option Bool}
-    (hr : ConLeche.defeqOffset (pureFns mode env f) d a b = .ok r) :
-    ConLeche.defeqOffset (pureFns mode env f') d a b = .ok r :=
-  defeqOffset_monoR (pureFns_mono env hle) d a b r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`tryUnfoldProjApp`. -/
-theorem tryUnfoldProjAppF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e : Expr}
-    {r : Option Expr}
-    (hr : ConLeche.tryUnfoldProjApp (pureFns mode env f) d e = .ok r) :
-    ConLeche.tryUnfoldProjApp (pureFns mode env f') d e = .ok r :=
-  tryUnfoldProjApp_monoR (pureFns_mono env hle) d e r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`deltaQuick`. -/
-theorem deltaQuickF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
-    {r : DeltaStep}
-    (hr : ConLeche.deltaQuick mode (pureFns mode env f) d a b = .ok r) :
-    ConLeche.deltaQuick mode (pureFns mode env f') d a b = .ok r :=
-  deltaQuick_monoR (pureFns_mono env hle) d a b r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`lazyDeltaStep`. -/
-theorem lazyDeltaStepF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
-    {r : DeltaStep}
-    (hr : ConLeche.lazyDeltaStep mode (pureFns mode env f) env d a b = .ok r) :
-    ConLeche.lazyDeltaStep mode (pureFns mode env f') env d a b = .ok r :=
-  lazyDeltaStep_monoR (pureFns_mono env hle) d a b r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`reduceProjCore`. -/
-theorem reduceProjCoreF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {sn : Name}
-    {i : Nat} {e : Expr} {r : Option Expr}
-    (hr : ConLeche.reduceProjCore mode (pureFns mode env f) env d sn i e = .ok r) :
-    ConLeche.reduceProjCore mode (pureFns mode env f') env d sn i e = .ok r :=
-  reduceProjCore_monoR (pureFns_mono env hle) d sn i e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
 `defeqProjPair`. -/

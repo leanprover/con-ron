@@ -218,7 +218,7 @@ theorem ldprTail_spec (henv : ConLeche.EnvWF env)
   rintro o1 s2 ⟨hok2, hx2, hp2, v1, hv1, hwv1, F1, hF1⟩
   have hR1 : Ev (fun F => ConLeche.reduceProjCore mode (ConLeche.pureFns mode env F)
       env d nm i x = .ok v1) :=
-    Ev.of_mono (fun hle h => reduceProjCoreF_mono hle h) ⟨F1, hF1⟩
+    Ev.of_mono (fun hle h => reduceProjCoreFueled_mono hle h) ⟨F1, hF1⟩
   have hx12 := hx₁.trans hx2
   have hp12 : s2.pins = s₀.pins := hp2.trans hp₁
   cases o1 with
@@ -235,7 +235,7 @@ theorem ldprTail_spec (henv : ConLeche.EnvWF env)
     rintro o2 s3 ⟨hok3, hx3, hp3, v2, hv2, hwv2, F2, hF2⟩
     have hR2 : Ev (fun F => ConLeche.reduceProjCore mode (ConLeche.pureFns mode env F)
         env d nm i y = .ok v2) :=
-      Ev.of_mono (fun hle h => reduceProjCoreF_mono hle h) ⟨F2, hF2⟩
+      Ev.of_mono (fun hle h => reduceProjCoreFueled_mono hle h) ⟨F2, hF2⟩
     have hx13 := hx12.trans hx3
     have hp13 : s3.pins = s₀.pins := hp3.trans hp12
     cases o2 with

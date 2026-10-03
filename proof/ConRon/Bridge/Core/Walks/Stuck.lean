@@ -4,7 +4,7 @@
 Task #97-P3-Core round 5.  `stuckIrrel` is the `defeq` body's fallback at two
 structurally distinct stuck terms — structure-η in both directions, then
 unit-likeness, then proof irrelevance — and every congruence failure of
-`defeqStep` ends in it.  Round 4 left it in `Walks/Owed.lean` as one
+`defeqStuck` (the old `defeqStep` before task #109) ends in it.  Round 4 left it in `Walks/Owed.lean` as one
 statement over a tower; this module skeletonises the tower top-down:
 
 | walk | twin | con-leche | status |
