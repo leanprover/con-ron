@@ -2312,7 +2312,8 @@ def projCertAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (verified lic : Bool)
     (c : NIdx) (us : LsIdx) (args : List EIdx) : AM Bool :=
   if verified then projCert r fe depth lic c us args else pure true
 
-/-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — **the
+/-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore
+con-leche: ConLeche/Cached/CoreC.lean:838-861 reduceProjCoreI — **the
 projection rule on a reduced scrutinee** (the official kernel's
 `reduce_proj_core`): `proj_i (ctor p⃗ x⃗) ↦ x_i`, driven by the projection
 table.  A string-literal scrutinee first expands to its reduced constructor
@@ -3125,7 +3126,8 @@ def defeqBinders (mode : CheckMode) (r : CoreFnsA) (depth : Nat)
     let ml := if mm then isLam else false
     defeqPeel mode r depth peelFuel body1 body2 1 #[fv] mm ml
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **the easy
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq
+con-leche: ConLeche/Cached/CoreC.lean:1445-1472 quickDefEqI — **the easy
 cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
 and the pairs decided on the spot — two sorts, two literals, two `∀`s and two
 `λ`s (binder congruence, batched: `defeqBinders`).  `none` is "not an easy
@@ -3192,7 +3194,8 @@ def natPred? (e : EIdx) : AM (Option EIdx) := do
       else pure none
   else pure none
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1535-1547 defeqOffset — **offsets**
+/-- con-leche: ConLeche/Kernel/Core.lean:1535-1547 defeqOffset
+con-leche: ConLeche/Cached/CoreC.lean:1474-1483 defeqOffsetI — **offsets**
 (the official kernel's `is_def_eq_offset`): two zeros are equal, two
 successor forms compare their predecessors; two literals are left to
 `quickDefEq`.  (`Expr.isLit` is the tag test.)  The second side's
@@ -3217,7 +3220,8 @@ def headIsProj (e : EIdx) : AM Bool := do
   let h ← getAppFn coreWalkFuel e
   pure (h.tag == ETag.proj)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1555-1563 tryUnfoldProjApp — official
+/-- con-leche: ConLeche/Kernel/Core.lean:1555-1563 tryUnfoldProjApp
+con-leche: ConLeche/Cached/CoreC.lean:1485-1491 tryUnfoldProjAppI — official
 `try_unfold_proj_app`: a projection-headed term through the FULL `whnfCore`;
 `some` whenever that changed it. -/
 def tryUnfoldProjApp (r : CoreFnsA) (depth : Nat) (e : EIdx) :
@@ -3235,7 +3239,8 @@ inductive DeltaStepA where
   | diff
   | unknown
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1574-1579 deltaQuick — the end of a
+/-- con-leche: ConLeche/Kernel/Core.lean:1574-1579 deltaQuick
+con-leche: ConLeche/Cached/CoreC.lean:1493-1498 deltaQuickI — the end of a
 lazy-delta step: `quickDefEq` on the new pair. -/
 def deltaQuick (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
     AM DeltaStepA := do
@@ -3244,7 +3249,8 @@ def deltaQuick (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
   | some false => pure .diff
   | none => pure (.cont a b)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1581-1642 lazyDeltaStep — **one
+/-- con-leche: ConLeche/Kernel/Core.lean:1581-1642 lazyDeltaStep
+con-leche: ConLeche/Cached/CoreC.lean:1500-1547 lazyDeltaStepI — **one
 lazy-delta step** (the official kernel's `lazy_delta_reduction_step`): unfold
 the side with the greater height (both at equal hints, after the same-head
 spine shortcut at equal *regular* hints), put the unfolded side through the
@@ -3313,7 +3319,8 @@ budget of the two lazy-delta loops (lean4lean's `FuelConfig.lazyDelta`).
 Exhaustion is an internal error, never a verdict. -/
 def defeqLoopFuel : Nat := 100000
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — **the
+/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction
+con-leche: ConLeche/Cached/CoreC.lean:1549-1572 lazyDeltaReductionI — **the
 lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
 iteration the offset check, the fvar-guarded literal acceleration — whose
 reduct restarts the comparison (`defeq`) — then one `lazyDeltaStep`, each
@@ -3342,7 +3349,8 @@ def lazyDeltaReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
     | .diff => pure (.verdict false)
     | .unknown => pure (.unknown a b)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1691-1709 lazyDeltaProjReduction —
+/-- con-leche: ConLeche/Kernel/Core.lean:1691-1709 lazyDeltaProjReduction
+con-leche: ConLeche/Cached/CoreC.lean:1574-1588 lazyDeltaProjReductionI —
 **`a.i =?= b.i` by its scrutinees** (the official kernel's
 `lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees; when
 neither unfolds any more (or the step found them different), the projection
@@ -3363,7 +3371,8 @@ def lazyDeltaProjReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
         | none => r.defeq depth a b
       | none => r.defeq depth a b
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1711-1720 defeqProjPair — the
+/-- con-leche: ConLeche/Kernel/Core.lean:1711-1720 defeqProjPair
+con-leche: ConLeche/Cached/CoreC.lean:1590-1598 defeqProjPairI — the
 proj/proj check of `is_def_eq_core`: two projections at the same slot go
 through `lazyDeltaProjReduction` on their scrutinees. -/
 def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
@@ -3377,7 +3386,8 @@ def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     | _, _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **the stuck
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck
+con-leche: ConLeche/Cached/CoreC.lean:1600-1647 defeqStuckI — **the stuck
 comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 literal against `String.ofList`, the same free variable, the same constant at
 equivalent levels, the application spine, η on a one-sided λ; every failing

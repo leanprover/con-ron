@@ -739,7 +739,7 @@ structure arena.core_state.Caches where
     kernel.level.Level)
 
 /-- [con_ron_core::arena::monad::AState]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 314:0-330:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 313:0-330:1
     Visibility: public -/
 structure arena.monad.AState where
   store : arena.store.EStore
@@ -1071,7 +1071,7 @@ structure kernel.level.SubstZ where
   vs : alloc.vec.Vec kernel.level.Level
 
 /-- [con_ron_core::arena::core::LazyResA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9832:0-9839:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9838:0-9845:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.LazyResA where
@@ -1079,7 +1079,7 @@ inductive arena.core.LazyResA where
 | Unknown : arena.handle.EIdx → arena.handle.EIdx → arena.core.LazyResA
 
 /-- [con_ron_core::arena::core::DeltaStepA]
-    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9601:0-9614:1
+    Source: 'crates/con-ron-core/src/arena/core.rs', lines 9605:0-9618:1
     Visibility: public -/
 @[discriminant isize]
 inductive arena.core.DeltaStepA where
