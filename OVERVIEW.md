@@ -382,7 +382,9 @@ These are con-leche's memo tables:
 
 * `whnfCore`, `whnf`, `infer`, `inferIO` and `annotate`, each `EIdx ↦ EIdx`.
   The inference grades have separate tables, so an answer computed at one
-  grade never serves another;
+  grade never serves another, and so do `whnfCore`'s two modes (the
+  official kernel's cheap projections, which definitional equality runs,
+  and the full mode, which `whnf` runs);
 * `defeq` on the ordered pair, storing both `true` and `false` verdicts;
 * level and level-list equivalence verdicts;
 * a stored constant's type or value, and a recursor rule's right-hand side,
