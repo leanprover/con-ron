@@ -249,12 +249,13 @@ def unknownConstError (n : NIdx) : AM CheckError := do
 /-! ## The record of mutually recursive entry points -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:143-170 CoreFns — the record of
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.CoreFnsA_bridge, then delete this line
 mutually recursive core entry points, over handles.  con-leche is
 polymorphic in the monad; the arena is at `AM` and nothing else (DESIGN
 §8.4), so the `m` parameter is gone and the name carries an `A`. -/
 structure CoreFnsA where
-  whnfCore : Nat → EIdx → AM EIdx
+  /-- Head normalization without delta; the `Bool` is the official kernel's
+  `cheap_proj` (`whnfCoreBody`). -/
+  whnfCore : Bool → Nat → EIdx → AM EIdx
   whnf : Nat → EIdx → AM EIdx
   infer : Nat → EIdx → AM EIdx
   defeq : Nat → EIdx → EIdx → AM Bool
@@ -807,24 +808,6 @@ def isBoolTrue (h : EIdx) : AM Bool := do
         pure (c == bt)
     | _ => pure false
   else pure false
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-397 Expr.quickPair — the pairs
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.quickPair_bridge, then delete this line
-official's `quick_is_def_eq` decides by itself: two sorts, two literals, two
-∀s, two λs.
-
-**The one place the arena compares TAGS and not handles.**  con-leche's
-clause is a four-arm structural match that reads only the two constructors;
-DESIGN §8.3 makes index inequality structural inequality, so the twin of a
-match on the CONSTRUCTOR is a comparison of the handle's four tag bits —
-`Idx.tag`, no `view`, no state, no monad.  Comparing the handles themselves
-would be the twin of `a == b`, which is a different (and wrong)
-predicate. -/
-def quickPair (a b : EIdx) : Bool :=
-  (a.tag == ETag.sort && b.tag == ETag.sort) ||
-  (a.tag == ETag.lit && b.tag == ETag.lit) ||
-  (a.tag == ETag.forallE && b.tag == ETag.forallE) ||
-  (a.tag == ETag.lam && b.tag == ETag.lam)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-393 natOpNames — the certified
 structural-`Nat` operations. -/
@@ -2165,7 +2148,6 @@ def headAndArgs (v : EIdx) : AM (EIdx × Array EIdx) := do
   else pure (v, #[])
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1012-1089 whnfCoreBody — **the head
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.whnfCoreStuckTag_bridge, then delete this line
 kinds `whnfCoreBody` returns unchanged, off the handle's TAG** (task
 #97-P6-7's lever 2): `sort`, `fvar`, `forallE`, `lam`, `const` and `lit` are
 the body's own first six clauses, and a handle carries the tag of its own view
@@ -2212,8 +2194,8 @@ mutual
 arguments, applying each to the head's reduct: a λ head opens a peel group, a
 stuck head applies the argument and tries one iota step at the spine the walk
 already holds. -/
-def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (v hd : EIdx) (vargs : Array EIdx) (same : Bool)
+def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) (v hd : EIdx) (vargs : Array EIdx) (same : Bool)
     (args nodes : Array EIdx) (i : Nat) : AM EIdx := do
   if hi : i < args.size then do
     let a := args[i]
@@ -2225,13 +2207,13 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         -- **THE β SITE'S GATE**: the EXECUTED core reads `CheckMode.betaSkip`
         -- (`Cached/CoreC.lean:876`/`:918`).
         if mode.betaSkip mb.pw then
-          betaPeel mode r fe depth body #[a] args nodes (i + 1)
+          betaPeel mode r fe cheap depth body #[a] args nodes (i + 1)
         else do
           -- con-leche's task #172 B4: the certificate's inference runs at the
           -- io grade.
           let ta ← r.inferIO depth a
           if ← r.defeq depth ta ty then
-            betaPeel mode r fe depth body #[a] args nodes (i + 1)
+            betaPeel mode r fe cheap depth body #[a] args nodes (i + 1)
           else do
             -- The certificate failed: the redex is stuck.  ι cannot fire under
             -- a λ head, so the rest is re-applied without another ι attempt.
@@ -2248,19 +2230,19 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         -- prefix: con-leche's `iotaArityOk` guard, off the handle's tag.
         else pure none
       match step with
-      | none => whnfApp mode r fe depth ap hd va same2 args nodes (i + 1)
+      | none => whnfApp mode r fe cheap depth ap hd va same2 args nodes (i + 1)
       | some e2 => do
-        let v2 ← r.whnfCore depth e2
+        let v2 ← r.whnfCore cheap depth e2
         let hv ← headAndArgs v2
-        whnfApp mode r fe depth v2 hv.1 hv.2 false args nodes (i + 1)
+        whnfApp mode r fe cheap depth v2 hv.1 hv.2 false args nodes (i + 1)
   else pure v
 termination_by (args.size - i, 0)
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:910-946 betaPeelI — peel a
 consecutive run of λ binders, collecting their arguments, and substitute the
 whole run in ONE `instantiateList`. -/
-def betaPeel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (t : EIdx) (acc : Array EIdx) (args nodes : Array EIdx) (i : Nat) :
+def betaPeel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) (t : EIdx) (acc : Array EIdx) (args nodes : Array EIdx) (i : Nat) :
     AM EIdx := do
   if hi : i < args.size then do
     let a := args[i]
@@ -2269,27 +2251,27 @@ def betaPeel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
       | none => failDanglingE
       | some (ty, body, mb) => do
         if mode.betaSkip mb.pw then
-          betaPeel mode r fe depth body (acc.push a) args nodes (i + 1)
+          betaPeel mode r fe cheap depth body (acc.push a) args nodes (i + 1)
         else do
           let ty2 ← instantiateListFast coreWalkFuel ty acc 0
           let ta ← r.inferIO depth a
           if ← r.defeq depth ta ty2 then
-            betaPeel mode r fe depth body (acc.push a) args nodes (i + 1)
+            betaPeel mode r fe cheap depth body (acc.push a) args nodes (i + 1)
           else do
             let f2 ← instantiateListFast coreWalkFuel t acc 0
             let fa ← internE (.app f2 a)
             mkAppNFrom fa args (i + 1)
     else do
       let e2 ← instantiateListFast coreWalkFuel t acc 0
-      let v2 ← r.whnfCore depth e2
+      let v2 ← r.whnfCore cheap depth e2
       -- The peeled group is over and the spine is not: re-enter `whnfApp` at
       -- the SAME argument.  A β has happened, so the accumulated head is no
       -- longer the original prefix and the upward cutoff is OFF.
       let hv ← headAndArgs v2
-      whnfApp mode r fe depth v2 hv.1 hv.2 false args nodes i
+      whnfApp mode r fe cheap depth v2 hv.1 hv.2 false args nodes i
   else do
     let e2 ← instantiateListFast coreWalkFuel t acc 0
-    r.whnfCore depth e2
+    r.whnfCore cheap depth e2
 termination_by (args.size - i, 1)
 
 end
@@ -2330,59 +2312,73 @@ def projCertAt (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (verified lic : Bool)
     (c : NIdx) (us : LsIdx) (args : List EIdx) : AM Bool :=
   if verified then projCert r fe depth lic c us args else pure true
 
+/-- con-leche: ConLeche/Kernel/Core.lean:978-1010 reduceProjCore — **the
+projection rule on a reduced scrutinee** (the official kernel's
+`reduce_proj_core`): `proj_i (ctor p⃗ x⃗) ↦ x_i`, driven by the projection
+table.  A string-literal scrutinee first expands to its reduced constructor
+form; at the verified mode the fire is certified (`projCertAt`).  `none` when
+the rule does not fire.  Callers: `whnfCoreBody`'s `.proj` clause and
+`lazyDeltaProjReduction`. -/
+def reduceProjCore (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (sn : NIdx) (i : Nat) (c : EIdx) : AM (Option EIdx) := do
+  let e' ← projLitToCtor r fe depth c
+  match ← fe.findProj? sn i with
+  | some entry => do
+    let hh ← getAppFn coreWalkFuel e'
+    if hh.tag == ETag.const then
+      match ← view hh with
+      | .const k us => do
+        let args ← getAppArgs coreWalkFuel e'
+        match ← viewLsLen us with
+        | none => failDanglingLs
+        | some usl =>
+        let fok ← entry.fireOk us
+        if k = entry.ctor ∧ i < entry.numFields ∧
+            args.length = entry.numParams + entry.numFields ∧
+            usl = entry.levelParams.length ∧ fok = true then do
+          let b0 ← internE (.bvar 0)
+          let arg := args.getD (entry.numParams + i) b0
+          if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate k us
+              args then
+            pure (some arg)
+          else pure none
+        else pure none
+      | _ => pure none
+    else pure none
+  | none => pure none
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1012-1089 whnfCoreBody — the
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.whnfCoreBody_bridge, then delete this line
 head-normalization body: beta (with the per-redex argument certificate),
 iota (with the stuck-major machinery) and the projection rule — but **no
 delta**.  Values return themselves, which over handles is the handle itself:
 hash-consing makes `.sort u` interned from a `.sort u` view the same
-node. -/
+node.  `cheap` is the official kernel's `cheap_proj`: a projection's
+scrutinee is reduced by `whnfCore` itself instead of `whnf`, and the flag
+propagates to every recursive head normalization. -/
 def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
-    Nat → EIdx → AM EIdx :=
-  fun depth e => do
+    Bool → Nat → EIdx → AM EIdx :=
+  fun cheap depth e => do
     match ← view e with
     | .sort _ | .fvar _ _ | .forallE _ _ _ | .lam _ _ _ | .const _ _
     | .lit _ => pure e
     -- **The batched β spine** (task #97-P6-9), con-leche's
-    -- `Cached/CoreC.lean:942-996 whnfCoreStepI`'s own `.app` clause: the
+    -- `Cached/CoreC.lean:950-986 whnfCoreStepI`'s own `.app` clause: the
     -- spine's head is normalized once and the whole argument vector is run
     -- through `whnfApp`, which batches a consecutive run of λ binders into
     -- ONE `instantiateList` walk.  The spec-shaped clause this replaces
     -- re-entered the knot per argument.
     | .app _ _ => do
       let sp ← getAppSpine coreWalkFuel e
-      let v ← r.whnfCore depth sp.1
+      let v ← r.whnfCore cheap depth sp.1
       let same := v == sp.1
       let hv ← headAndArgs v
-      whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
+      whnfApp mode r fe cheap depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
     | .proj sn i pe => do
-      let e0 ← r.whnf depth pe
-      -- a string-literal scrutinee first expands to its reduced
-      -- constructor form
-      let e' ← projLitToCtor r fe depth e0
-      match ← fe.findProj? sn i with
-      | some entry => do
-        let hh ← getAppFn coreWalkFuel e'
-        if hh.tag == ETag.const then
-          match ← view hh with
-          | .const c us => do
-            let args ← getAppArgs coreWalkFuel e'
-            match ← viewLsLen us with
-            | none => failDanglingLs
-            | some usl =>
-            let fok ← entry.fireOk us
-            if c = entry.ctor ∧ i < entry.numFields ∧
-                args.length = entry.numParams + entry.numFields ∧
-                usl = entry.levelParams.length ∧ fok = true then do
-              let b0 ← internE (.bvar 0)
-              let arg := args.getD (entry.numParams + i) b0
-              if ← projCertAt r fe depth mode.verifiedChecks mode.betaGate c us
-                  args then
-                r.whnfCore depth arg
-              else pure e
-            else pure e
-          | _ => pure e
-        else pure e
+      -- official `reduce_proj`: the scrutinee by `whnf`, or by the cheap
+      -- `whnfCore` in the cheap mode; stuck: the INPUT itself
+      let c ← if cheap then r.whnfCore true depth pe else r.whnf depth pe
+      match ← reduceProjCore mode r fe depth sn i c with
+      | some m' => r.whnfCore cheap depth m'
       | none => pure e
     | .letE _ _ _ =>
       -- **Unreachable by construction** (con-leche's task #241): annotate
@@ -2397,12 +2393,11 @@ Literal-acceleration and delta steps are *iteration*, not recursion. -/
 def whnfLoopFuel : Nat := 100000
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1110-1125 whnfStep — one iteration
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.whnfStep_bridge, then delete this line
 of the reduction loop: head-normalize, try literal acceleration, unfold one
 definition — and hand the reduct to the loop's continuation `k`. -/
 def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (k : EIdx → AM EIdx)
     (e : EIdx) : AM EIdx := do
-  let e₁ ← r.whnfCore depth e
+  let e₁ ← r.whnfCore false depth e
   match ← reduceNat r fe depth e₁ with
   | some e₂ => k e₂
   | none =>
@@ -2978,8 +2973,7 @@ def defeqSpine (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (a b : EIdx) :
     | _ => pure false
   else pure false
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1461-1721 defeqStep — the
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqNoFvars_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — the
 literal-acceleration guard: *both* sides free of free variables, mirroring
 the official kernel's `lazy_delta_reduction`.  The arena reads the `O(1)`
 eager per-node fvar range where the specification walks. -/
@@ -2999,8 +2993,7 @@ own identification lemma.  Licensed by the maintainer's ruling before
 DESIGN §8.7 ("do it here — with its own identification lemma against the pure
 tier's chained arms owed by the bridge (P3)"). -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1461-1721 defeqStep — the peel's
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqPeelDone_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — the peel's
 OUTWARD step, the arm's trailing annotation test: the chain tests the binder
 data on the way out, innermost binder first, and only once the body's
 comparison has returned `true`.  The loop carries the INNERMOST mismatching
@@ -3012,8 +3005,7 @@ def defeqPeelDone (mism mismLam : Bool) : AM Bool :=
     else fail (.notImplemented "sort-annotation mismatch (defeq-forall)")
   else pure true
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1461-1721 defeqStep — the batched
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqPeelLeaf_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — the batched
 descent's LEAF: open both residuals ONCE against the whole `fvs` and hand the
 pair back to the knot, which is the chain's own next step. -/
 def defeqPeelLeaf (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
@@ -3023,8 +3015,7 @@ def defeqPeelLeaf (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
   if !(← r.defeq (d + k) o1 o2) then pure false
   else defeqPeelDone mism mismLam
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1461-1721 defeqStep — **the batched
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqPeel_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **the batched
 defeq binder descent**.
 
 `a` and `b` are the two RAW bodies of the binders peeled so far — never
@@ -3046,15 +3037,12 @@ loop's guard what it is:
    tasks #97-P6-9, -11 and -12 already cite.  The same equation identifies the
    leaf's single open with the chain's last one.
 2. *The chain really reaches this arm at every peeled level.*  At level `j`
-   the chain runs a WHOLE `defeqStep` on the opened pair, so the peel is sound
-   only because every earlier arm is a no-op on a pair of same-kind binder
-   nodes: `whnfCore` is the identity on `.forallE` and `.lam` (its first four
-   clauses), `isBoolTrue` is `false` off any non-`.const`, the hoisted proof
-   irrelevance is skipped because `quickPair` holds of two `∀`s and of two
-   `λ`s, `reduceNat` is `none` off any non-`.app`, and `unfoldableHead` is
-   `false` on both sides because `getAppFn` of a binder is the binder — so
-   lazy delta falls straight through to the structural stage and its binder
-   arm.  The guard peels only when both handles carry the same binder tag, and
+   the chain runs a WHOLE `defeqBody` on the opened pair, so the peel is sound
+   only because every earlier step is a no-op on a pair of same-kind binder
+   nodes: `isBoolTrue` is `false` off any non-`.const`, and `whnfCore` (in
+   either mode) is the identity on `.forallE` and `.lam` (its first four
+   clauses) — so `quickDefEq` is reached on the pair itself, and its binder
+   arm is the one this loop continues.  The guard peels only when both handles carry the same binder tag, and
    stopping EARLIER is always safe: the leaf hands the pair to the knot, which
    is the chain's own next step.
 3. *A failure lands at the same binder.*  The domain comparison at level `j`
@@ -3080,8 +3068,8 @@ The stack the chain would hold is two scalars because the only per-level datum
 the outward pass needs is that innermost mismatch; the domains and the binder
 kinds are not revisited.
 
-Two equality short-circuits ride with it, and both are `defeqStep`'s own first
-arm one level up: the peel returns at `a == b` (the chain opens these two
+Two equality short-circuits ride with it, and both are `quickDefEq`'s own first
+test one level up: the peel returns at `a == b` (the chain opens these two
 residuals against the same free variables and hands the pair to the knot,
 whose `a == b` test then decides `true`), and the domain's knot call is
 skipped when the two RAW domains are the same handle. -/
@@ -3123,8 +3111,7 @@ def defeqPeel (mode : CheckMode) (r : CoreFnsA) (d : Nat) :
             | 0 => defeqPeelLeaf r d ba bb (k + 1) (fvs.push fv) m2 ml2
             | p + 1 => defeqPeel mode r d p ba bb (k + 1) (fvs.push fv) m2 ml2
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1461-1721 defeqStep — `defeqStep`'s
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqBinders_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — `quickDefEq`'s
 `.forallE`/`.lam` binder-congruence arm: con-leche's clause for the FIRST
 binder (the domains are compared and the fresh free variable is made), then
 the batched descent for the rest of the two telescopes. -/
@@ -3138,205 +3125,362 @@ def defeqBinders (mode : CheckMode) (r : CoreFnsA) (depth : Nat)
     let ml := if mm then isLam else false
     defeqPeel mode r depth peelFuel body1 body2 1 #[fv] mm ml
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1461-1721 defeqStep — the
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqStep_bridge, then delete this line
-definitional-equality body: syntactic fast path, head normalization of both
-sides (**no delta**), proof irrelevance, then the *lazy delta* strategy of
-real kernels.  Each literal-acceleration and unfolding step is one
-**iteration of this loop**, handed to `k`. -/
-def defeqStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
-    (k : Bool → EIdx → EIdx → AM Bool) (pi : Bool) (a b : EIdx) : AM Bool := do
-  -- syntactic fast path (the references' most-hit branch)
-  if a == b then pure true else do
-  -- the eq-true shortcut (E2): right side `Bool.true`, left side fvar-free,
-  -- at an entry only
-  let sc ←
-    if pi && (← isBoolTrue b) && !(← hasFvarFast coreWalkFuel a) then
-      boolTrueShortcut r depth a
-    else pure false
-  if sc then pure true else do
-  let a' ← r.whnfCore depth a
-  let b' ← r.whnfCore depth b
-  if a' == b' then pure true else do
-  -- proof irrelevance, hoisted before lazy delta exactly as in the official
-  -- kernel; once per `is_def_eq_core` entry (D3), and never on a pair
-  -- official's `quick_is_def_eq` decides itself (D4)
-  let pir ←
-    if pi && !(quickPair a' b') then propIrrel r fe depth a' b'
-    else pure false
-  if pir then pure true else do
-  let nf ← defeqNoFvars a' b'
-  match ← (if nf then reduceNat r fe depth a' else pure none) with
-  | some a₂ => k true a₂ b'
-  | none =>
-  match ← (if nf then reduceNat r fe depth b' else pure none) with
-  | some b₂ => k true a' b₂
-  | none => do
-  -- Lazy delta, **decision before materialization**
-  let ua ← unfoldableHead fe a'
-  let ub ← unfoldableHead fe b'
-  match ua, ub with
-  | true, false =>
-    match ← unfoldDefinition fe a' with
-    | some a₂ => k false a₂ b'
-    | none => pure false
-  | false, true =>
-    match ← unfoldDefinition fe b' with
-    | some b₂ => k false a' b₂
-    | none => pure false
-  | true, true => do
-    let ha ← headHint fe a'
-    let hb ← headHint fe b'
-    if ReducibilityHint.lt hb ha then
-      match ← unfoldDefinition fe a' with
-      | some a₂ => k false a₂ b'
-      | none => pure false
-    else if ReducibilityHint.lt ha hb then
-      match ← unfoldDefinition fe b' with
-      | some b₂ => k false a' b₂
-      | none => pure false
-    else if ReducibilityHint.sameRegular ha hb && (← sameConstHeads a' b') then do
-      -- same constant at equal *regular* hints: cheap congruence first
-      if ← defeqSpine r fe depth a' b' then pure true
-      else
-        match ← unfoldDefinition fe a', ← unfoldDefinition fe b' with
-        | some a₂, some b₂ => k false a₂ b₂
-        | _, _ => pure false
-    else
-      match ← unfoldDefinition fe a', ← unfoldDefinition fe b' with
-      | some a₂, some b₂ => k false a₂ b₂
-      | _, _ => pure false
-  | false, false =>
-    match ← view a', ← view b' with
-    | .sort u, .sort v => liftFueled "level comparison" (← lvlEq? u v)
-    | .lit l₁, .lit l₂ => pure (l₁ == l₂)
-    -- a packed literal against a constructor form: compare shape-directed
-    | .lit (.natVal n), .const c us => do
-      let el ← emptyLevels
-      let nz ← pinNatZero
-      if c = nz ∧ us = el then pure (n == 0)
-      else stuckIrrel mode r fe depth a' b'
-    | .const c us, .lit (.natVal n) => do
-      let el ← emptyLevels
-      let nz ← pinNatZero
-      if c = nz ∧ us = el then pure (n == 0)
-      else stuckIrrel mode r fe depth a' b'
-    | .lit (.natVal nn), .app f x => do
-      match nn with
-      | k' + 1 => do
-        if f.tag == ETag.const then
-          match ← view f with
-          | .const c us => do
-            let el ← emptyLevels
-            let ns ← pinNatSucc
-            if c = ns ∧ us = el then do
-              let l ← internE (.lit (.natVal k'))
-              r.defeq depth l x
-            else stuckIrrel mode r fe depth a' b'
-          | _ => stuckIrrel mode r fe depth a' b'
-        else stuckIrrel mode r fe depth a' b'
-      | _ => stuckIrrel mode r fe depth a' b'
-    | .app f x, .lit (.natVal nn) => do
-      match nn with
-      | k' + 1 => do
-        if f.tag == ETag.const then
-          match ← view f with
-          | .const c us => do
-            let el ← emptyLevels
-            let ns ← pinNatSucc
-            if c = ns ∧ us = el then do
-              let l ← internE (.lit (.natVal k'))
-              r.defeq depth x l
-            else stuckIrrel mode r fe depth a' b'
-          | _ => stuckIrrel mode r fe depth a' b'
-        else stuckIrrel mode r fe depth a' b'
-      | _ => stuckIrrel mode r fe depth a' b'
-    -- a string literal against a unary `String.ofList` application
-    | .lit (.strVal st), .app fo _ => do
-      if fo.tag == ETag.const then
-        match ← view fo with
-        | .const cO usO => do
-          let el ← emptyLevels
-          let sl ← pinStringOfList
-          if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
-            let c ← strLitToConstructor st
-            r.defeq depth c b'
-          else stuckIrrel mode r fe depth a' b'
-        | _ => stuckIrrel mode r fe depth a' b'
-      else stuckIrrel mode r fe depth a' b'
-    | .app fo _, .lit (.strVal st) => do
-      if fo.tag == ETag.const then
-        match ← view fo with
-        | .const cO usO => do
-          let el ← emptyLevels
-          let sl ← pinStringOfList
-          if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
-            let c ← strLitToConstructor st
-            r.defeq depth a' c
-          else stuckIrrel mode r fe depth a' b'
-        | _ => stuckIrrel mode r fe depth a' b'
-      else stuckIrrel mode r fe depth a' b'
-    | .fvar i _, .fvar j _ =>
-      if i == j then pure true else stuckIrrel mode r fe depth a' b'
-    | .const n us, .const n' us' => do
-      if n = n' then do
-        if ← liftFueled "level comparison" (← lvlsEq? us us') then pure true
-        else stuckIrrel mode r fe depth a' b'
-      else stuckIrrel mode r fe depth a' b'
-    -- binder congruence, BATCHED (task #97-P6-14); the annotation comparison
-    -- runs LAST, innermost binder first
-    | .forallE ty₁ body₁ m₁, .forallE ty₂ body₂ m₂ =>
-      defeqBinders mode r depth ty₁ body₁ m₁ ty₂ body₂ m₂ false
-    | .lam ty₁ body₁ m₁, .lam ty₂ body₂ m₂ =>
-      defeqBinders mode r depth ty₁ body₁ m₁ ty₂ body₂ m₂ true
-    | .app _ _, .app _ _ => do
-      -- stuck applications: **spine-wise** congruence (official's
-      -- `is_def_eq_app`), never a recursion on the partial applications
-      let aa ← getAppArgs coreWalkFuel a'
-      let bb ← getAppArgs coreWalkFuel b'
-      if aa.length = bb.length then do
-        let fa ← getAppFn coreWalkFuel a'
-        let fb ← getAppFn coreWalkFuel b'
-        if ← r.defeq depth fa fb then do
-          if ← defEqList r fe depth aa bb then pure true
-          else stuckIrrel mode r fe depth a' b'
-        else stuckIrrel mode r fe depth a' b'
-      else stuckIrrel mode r fe depth a' b'
-    | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ => do
-      if s₁ == s₂ && i₁ == i₂ then do
-        if ← r.defeq depth e₁ e₂ then pure true
-        else stuckIrrel mode r fe depth a' b'
-      else stuckIrrel mode r fe depth a' b'
-    -- one-sided λ: eta, else the stuck fallbacks
-    | .lam ty₁ body₁ m₁, _ => do
-      if ← etaCert mode r fe depth ty₁ body₁ m₁ b' then pure true
-      else stuckIrrel mode r fe depth a' b'
-    | _, .lam ty₂ body₂ m₂ => do
-      if ← etaCert mode r fe depth ty₂ body₂ m₂ a' then pure true
-      else stuckIrrel mode r fe depth a' b'
-    -- distinct whnf-stuck head symbols
-    | _, _ => stuckIrrel mode r fe depth a' b'
+/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **the easy
+cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
+and the pairs decided on the spot — two sorts, two literals, two `∀`s and two
+`λ`s (binder congruence, batched: `defeqBinders`).  `none` is "not an easy
+case".  The pair match is on the two handles' TAGS first: only a pair of
+equal tags among the four kinds is viewed. -/
+def quickDefEq (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
+    AM (Option Bool) := do
+  if a == b then pure (some true) else do
+  let ta := a.tag
+  if ta != b.tag then pure none
+  else if ta == ETag.sort || ta == ETag.lit || ta == ETag.forallE ||
+      ta == ETag.lam then
+    match ← view a, ← view b with
+    | .sort u, .sort v => do
+      let ok ← liftFueled "level comparison" (← lvlEq? u v)
+      pure (some ok)
+    | .lit l₁, .lit l₂ => pure (some (l₁ == l₂))
+    | .forallE ty₁ body₁ m₁, .forallE ty₂ body₂ m₂ => do
+      let ok ← defeqBinders mode r depth ty₁ body₁ m₁ ty₂ body₂ m₂ false
+      pure (some ok)
+    | .lam ty₁ body₁ m₁, .lam ty₂ body₂ m₂ => do
+      let ok ← defeqBinders mode r depth ty₁ body₁ m₁ ty₂ body₂ m₂ true
+      pure (some ok)
+    | _, _ => pure none
+  else pure none
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1723-1728 defeqLoop — the lazy-delta
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqLoop_bridge, then delete this line
-loop: iterate `defeqStep` on its own step budget. -/
-def defeqLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat) :
-    Nat → Bool → EIdx → EIdx → AM Bool
-  | 0, _, _, _ => fail (.internal "fuel exhausted: defeq loop")
-  | fl + 1, pi, a, b =>
-    defeqStep mode r fe depth (defeqLoop mode r fe depth fl) pi a b
+/-- con-leche: ConLeche/Kernel/Core.lean:1517-1521 Expr.isNatZero — `Nat.zero`
+or the literal `0` (official `is_nat_zero`). -/
+def isNatZero (e : EIdx) : AM Bool := do
+  if e.tag == ETag.lit then
+    match ← view e with
+    | .lit (.natVal n) => pure (n == 0)
+    | _ => pure false
+  else if e.tag == ETag.const then
+    match ← view e with
+    | .const c us => do
+      let el ← emptyLevels
+      let nz ← pinNatZero
+      pure (c == nz && us == el)
+    | _ => pure false
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — the
+predecessor of a successor form (official `is_nat_succ`): a nonzero literal
+(its predecessor literal interned), or `Nat.succ x`. -/
+def natPred? (e : EIdx) : AM (Option EIdx) := do
+  if e.tag == ETag.lit then
+    match ← view e with
+    | .lit (.natVal (n + 1)) => do
+      let l ← internE (.lit (.natVal n))
+      pure (some l)
+    | _ => pure none
+  else if e.tag == ETag.app then
+    match ← viewApp e with
+    | none => failDanglingE
+    | some (f, x) =>
+      if f.tag == ETag.const then
+        match ← view f with
+        | .const c us => do
+          let el ← emptyLevels
+          let ns ← pinNatSucc
+          if c == ns && us == el then pure (some x) else pure none
+        | _ => pure none
+      else pure none
+  else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1535-1547 defeqOffset — **offsets**
+(the official kernel's `is_def_eq_offset`): two zeros are equal, two
+successor forms compare their predecessors; two literals are left to
+`quickDefEq`.  (`Expr.isLit` is the tag test.)  The second side's
+predecessor is only computed when the first has one, which is the pure
+`match`'s verdict. -/
+def defeqOffset (r : CoreFnsA) (depth : Nat) (a b : EIdx) : AM (Option Bool) := do
+  if (← isNatZero a) && (← isNatZero b) then pure (some true)
+  else if a.tag == ETag.lit && b.tag == ETag.lit then pure none
+  else
+    match ← natPred? a with
+    | none => pure none
+    | some x =>
+      match ← natPred? b with
+      | none => pure none
+      | some y => do
+        let ok ← r.defeq depth x y
+        pure (some ok)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1549-1553 Expr.headIsProj — is the
+head of the application spine a projection? -/
+def headIsProj (e : EIdx) : AM Bool := do
+  let h ← getAppFn coreWalkFuel e
+  pure (h.tag == ETag.proj)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1555-1563 tryUnfoldProjApp — official
+`try_unfold_proj_app`: a projection-headed term through the FULL `whnfCore`;
+`some` whenever that changed it. -/
+def tryUnfoldProjApp (r : CoreFnsA) (depth : Nat) (e : EIdx) :
+    AM (Option EIdx) := do
+  if ← headIsProj e then do
+    let e' ← r.whnfCore false depth e
+    if e' == e then pure none else pure (some e')
+  else pure none
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1565-1572 DeltaStep — the outcome of
+one lazy-delta step (official `reduction_status`), over handles. -/
+inductive DeltaStepA where
+  | cont (a b : EIdx)
+  | eq
+  | diff
+  | unknown
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1574-1579 deltaQuick — the end of a
+lazy-delta step: `quickDefEq` on the new pair. -/
+def deltaQuick (mode : CheckMode) (r : CoreFnsA) (depth : Nat) (a b : EIdx) :
+    AM DeltaStepA := do
+  match ← quickDefEq mode r depth a b with
+  | some true => pure .eq
+  | some false => pure .diff
+  | none => pure (.cont a b)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1581-1642 lazyDeltaStep — **one
+lazy-delta step** (the official kernel's `lazy_delta_reduction_step`): unfold
+the side with the greater height (both at equal hints, after the same-head
+spine shortcut at equal *regular* hints), put the unfolded side through the
+CHEAP `whnfCore`, and finish with `quickDefEq`; with one side unfoldable, a
+projection application on the other side is reduced instead. -/
+def lazyDeltaStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (a b : EIdx) : AM DeltaStepA := do
+  let ua ← unfoldableHead fe a
+  let ub ← unfoldableHead fe b
+  match ua, ub with
+  | false, false => pure .unknown
+  | true, false =>
+    match ← tryUnfoldProjApp r depth b with
+    | some b₂ => deltaQuick mode r depth a b₂
+    | none =>
+      match ← unfoldDefinition fe a with
+      | some a₂ => do
+        let a₃ ← r.whnfCore true depth a₂
+        deltaQuick mode r depth a₃ b
+      | none => pure .unknown
+  | false, true =>
+    match ← tryUnfoldProjApp r depth a with
+    | some a₂ => deltaQuick mode r depth a₂ b
+    | none =>
+      match ← unfoldDefinition fe b with
+      | some b₂ => do
+        let b₃ ← r.whnfCore true depth b₂
+        deltaQuick mode r depth a b₃
+      | none => pure .unknown
+  | true, true => do
+    let ha ← headHint fe a
+    let hb ← headHint fe b
+    if ReducibilityHint.lt hb ha then
+      match ← unfoldDefinition fe a with
+      | some a₂ => do
+        let a₃ ← r.whnfCore true depth a₂
+        deltaQuick mode r depth a₃ b
+      | none => pure .unknown
+    else if ReducibilityHint.lt ha hb then
+      match ← unfoldDefinition fe b with
+      | some b₂ => do
+        let b₃ ← r.whnfCore true depth b₂
+        deltaQuick mode r depth a b₃
+      | none => pure .unknown
+    else do
+      let sch ← sameConstHeads a b
+      let sp ← if ReducibilityHint.sameRegular ha hb && sch then
+          defeqSpine r fe depth a b else pure false
+      if sp then pure .eq
+      else
+        match ← unfoldDefinition fe a, ← unfoldDefinition fe b with
+        | some a₂, some b₂ => do
+          let a₃ ← r.whnfCore true depth a₂
+          let b₃ ← r.whnfCore true depth b₂
+          deltaQuick mode r depth a₃ b₃
+        | _, _ => pure .unknown
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1644-1649 LazyRes — the outcome of the
+lazy-delta loop, over handles: a verdict, or the pair it got stuck on. -/
+inductive LazyResA where
+  | verdict (v : Bool)
+  | unknown (a b : EIdx)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1651-1654 defeqLoopFuel — step
-budget of the lazy-delta loop (lean4lean's `FuelConfig.lazyDelta`).
+budget of the two lazy-delta loops (lean4lean's `FuelConfig.lazyDelta`).
 Exhaustion is an internal error, never a verdict. -/
 def defeqLoopFuel : Nat := 100000
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.defeqBody_bridge, then delete this line
-definitional-equality body: the lazy-delta loop at its own step budget. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — **the
+lazy-delta loop** (the official kernel's `lazy_delta_reduction`): per
+iteration the offset check, the fvar-guarded literal acceleration — whose
+reduct restarts the comparison (`defeq`) — then one `lazyDeltaStep`, each
+unfolding one iteration on the loop's own budget. -/
+def lazyDeltaReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) : Nat → EIdx → EIdx → AM LazyResA
+  | 0, _, _ => fail (.internal "fuel exhausted: defeq loop")
+  | n + 1, a, b => do
+    match ← defeqOffset r depth a b with
+    | some v => pure (.verdict v)
+    | none =>
+    let nf ← defeqNoFvars a b
+    match ← (if nf then reduceNat r fe depth a else pure none) with
+    | some a₂ => do
+      let v ← r.defeq depth a₂ b
+      pure (.verdict v)
+    | none =>
+    match ← (if nf then reduceNat r fe depth b else pure none) with
+    | some b₂ => do
+      let v ← r.defeq depth a b₂
+      pure (.verdict v)
+    | none =>
+    match ← lazyDeltaStep mode r fe depth a b with
+    | .cont a' b' => lazyDeltaReduction mode r fe depth n a' b'
+    | .eq => pure (.verdict true)
+    | .diff => pure (.verdict false)
+    | .unknown => pure (.unknown a b)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1691-1709 lazyDeltaProjReduction —
+**`a.i =?= b.i` by its scrutinees** (the official kernel's
+`lazy_delta_proj_reduction`): lazy-delta steps on the two scrutinees; when
+neither unfolds any more (or the step found them different), the projection
+is tried on both and only the projected fields are compared; failing that,
+the scrutinees themselves. -/
+def lazyDeltaProjReduction (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (depth : Nat) (sn : NIdx) (i : Nat) : Nat → EIdx → EIdx → AM Bool
+  | 0, _, _ => fail (.internal "fuel exhausted: lazy delta projection loop")
+  | n + 1, a, b => do
+    match ← lazyDeltaStep mode r fe depth a b with
+    | .cont a' b' => lazyDeltaProjReduction mode r fe depth sn i n a' b'
+    | .eq => pure true
+    | .diff | .unknown =>
+      match ← reduceProjCore mode r fe depth sn i a with
+      | some x =>
+        match ← reduceProjCore mode r fe depth sn i b with
+        | some y => r.defeq depth x y
+        | none => r.defeq depth a b
+      | none => r.defeq depth a b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1711-1720 defeqProjPair — the
+proj/proj check of `is_def_eq_core`: two projections at the same slot go
+through `lazyDeltaProjReduction` on their scrutinees. -/
+def defeqProjPair (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (a b : EIdx) : AM Bool := do
+  if a.tag == ETag.proj && b.tag == ETag.proj then
+    match ← view a, ← view b with
+    | .proj s₁ i₁ e₁, .proj s₂ i₂ e₂ =>
+      if s₁ == s₂ && i₁ == i₂ then
+        lazyDeltaProjReduction mode r fe depth s₁ i₁ defeqLoopFuel e₁ e₂
+      else pure false
+    | _, _ => pure false
+  else pure false
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **the stuck
+comparison** (the tail of the official kernel's `is_def_eq_core`): a string
+literal against `String.ofList`, the same free variable, the same constant at
+equivalent levels, the application spine, η on a one-sided λ; every failing
+arm ends in `stuckIrrel`. -/
+def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (a b : EIdx) : AM Bool := do
+  match ← view a, ← view b with
+  -- a string literal against a unary `String.ofList` application
+  | .lit l, .app fo _ => do
+    match l with
+    | .strVal st =>
+      if fo.tag == ETag.const then
+        match ← view fo with
+        | .const cO usO => do
+          let el ← emptyLevels
+          let sl ← pinStringOfList
+          if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+            let c ← strLitToConstructor st
+            r.defeq depth c b
+          else stuckIrrel mode r fe depth a b
+        | _ => stuckIrrel mode r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    | _ => stuckIrrel mode r fe depth a b
+  | .app fo _, .lit l => do
+    match l with
+    | .strVal st =>
+      if fo.tag == ETag.const then
+        match ← view fo with
+        | .const cO usO => do
+          let el ← emptyLevels
+          let sl ← pinStringOfList
+          if cO = sl ∧ usO = el ∧ (← strLitSupported fe) then do
+            let c ← strLitToConstructor st
+            r.defeq depth a c
+          else stuckIrrel mode r fe depth a b
+        | _ => stuckIrrel mode r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    | _ => stuckIrrel mode r fe depth a b
+  | .fvar i _, .fvar j _ =>
+    if i == j then pure true else stuckIrrel mode r fe depth a b
+  | .const n us, .const n' us' => do
+    if n = n' then do
+      if ← liftFueled "level comparison" (← lvlsEq? us us') then pure true
+      else stuckIrrel mode r fe depth a b
+    else stuckIrrel mode r fe depth a b
+  | .app _ _, .app _ _ => do
+    -- stuck applications: **spine-wise** congruence (official's
+    -- `is_def_eq_app`), never a recursion on the partial applications
+    let aa ← getAppArgs coreWalkFuel a
+    let bb ← getAppArgs coreWalkFuel b
+    if aa.length = bb.length then do
+      let fa ← getAppFn coreWalkFuel a
+      let fb ← getAppFn coreWalkFuel b
+      if ← r.defeq depth fa fb then do
+        if ← defEqList r fe depth aa bb then pure true
+        else stuckIrrel mode r fe depth a b
+      else stuckIrrel mode r fe depth a b
+    else stuckIrrel mode r fe depth a b
+  -- one-sided λ: eta, else the stuck fallbacks (two λs never get here:
+  -- `quickDefEq` decides them)
+  | .lam ty₁ body₁ m₁, _ => do
+    if ← etaCert mode r fe depth ty₁ body₁ m₁ b then pure true
+    else stuckIrrel mode r fe depth a b
+  | _, .lam ty₂ body₂ m₂ => do
+    if ← etaCert mode r fe depth ty₂ body₂ m₂ a then pure true
+    else stuckIrrel mode r fe depth a b
+  -- distinct whnf-stuck head symbols
+  | _, _ => stuckIrrel mode r fe depth a b
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the
+definitional-equality body** (the official kernel's `is_def_eq_core`, clause
+for clause): the syntactic fast path; the `Bool.true` shortcut; the CHEAP head
+normalization of both sides; `quickDefEq`; proof irrelevance; the lazy-delta
+loop; the proj/proj check; the FULL `whnfCore` of both sides (only when one
+of them is projection-headed — elsewhere the two modes agree) and, if either
+changed, a restart; and the stuck comparison. -/
 def defeqBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     Nat → EIdx → EIdx → AM Bool :=
-  fun depth a b => defeqLoop mode r fe depth defeqLoopFuel true a b
+  fun depth a b => do
+  if a == b then pure true else do
+  -- the eq-true shortcut (E2): right side `Bool.true`, left side fvar-free
+  let sc ←
+    if (← isBoolTrue b) && !(← hasFvarFast coreWalkFuel a) then
+      boolTrueShortcut r depth a
+    else pure false
+  if sc then pure true else do
+  let a' ← r.whnfCore true depth a
+  let b' ← r.whnfCore true depth b
+  match ← quickDefEq mode r depth a' b' with
+  | some v => pure v
+  | none =>
+  if ← propIrrel r fe depth a' b' then pure true else do
+  match ← lazyDeltaReduction mode r fe depth defeqLoopFuel a' b' with
+  | .verdict v => pure v
+  | .unknown a₁ b₁ =>
+  if ← defeqProjPair mode r fe depth a₁ b₁ then pure true else do
+  let pa ← headIsProj a₁
+  let pb ← headIsProj b₁
+  if !pa && !pb then defeqStuck mode r fe depth a₁ b₁ else do
+  let a₂ ← r.whnfCore false depth a₁
+  let b₂ ← r.whnfCore false depth b₁
+  if a₂ == a₁ && b₂ == b₁ then defeqStuck mode r fe depth a₁ b₁
+  else r.defeq depth a₂ b₂
 
 /-! ## The untrusted annotation writes
 
@@ -3591,6 +3735,16 @@ DESIGN §8.3's lesson 10 — past `cacheCap` the table is dropped whole). -/
   let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
   set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
 
+/-- con-leche: ConLeche/Cached/CoreC.lean:1910-1928 memoEI — record a
+CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
+`whnfCoreCheapC`: the two modes differ on a stuck projection). -/
+@[noinline] def whnfCoreCheapSet (e r : EIdx) : AM Unit := do
+  let s ← get
+  let mp := s.caches.whnfCoreCheapC
+  let mp := if mp.size < cacheCap then mp else ∅
+  let s := { s with caches := { s.caches with whnfCoreCheapC := ∅ } }
+  set { s with caches := { s.caches with whnfCoreCheapC := mp.insert e r } }
+
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1929 memoEI — record a `whnf`
 answer. -/
 @[noinline] def whnfSet (e r : EIdx) : AM Unit := do
@@ -3639,9 +3793,7 @@ verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
   set { s with caches := { s.caches with defeqC := mp.insert (a, b) r } }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:2019-2058 coreKnot
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.coreKnot_bridge, then delete this line
 con-leche: ConLeche/Cached/CoreC.lean:1945-2021 coreKnotI
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Core.coreKnot_bridge, then delete this line
 Tie the bodies together: the record whose entry points are the bodies applied
 to the record one fuel level down, each under its own memo.  Fuel is *only*
 here — exhaustion is an internal error, never a verdict — and the next level
@@ -3659,11 +3811,13 @@ keeps it.  They agree at `.verified`, the mode the bridge is stated at.  The
 clause structure the twin mirrors.
 
 The io body runs under its own table (`inferIOC`), the full body under
-`inferC`: a hit in one grade never serves the other (DESIGN §8.3, lesson 9). -/
+`inferC`: a hit in one grade never serves the other (DESIGN §8.3, lesson 9).
+The same holds of `whnfCore`'s two modes (official `cheap_proj`): the cheap
+mode runs under `whnfCoreCheapC`, the full mode under `whnfCoreC`. -/
 def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
     Nat → CoreFnsA
   | 0 =>
-    { whnfCore := fun _ _ => fail (.internal "fuel exhausted: whnfCore")
+    { whnfCore := fun _ _ _ => fail (.internal "fuel exhausted: whnfCore")
       whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
       infer := fun _ _ => fail (.internal "fuel exhausted: infer")
       defeq := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
@@ -3671,18 +3825,25 @@ def coreKnot (mode : CheckMode) (fe : IFEnv) (wrap : CoreFnsA → CoreFnsA) :
       inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
   | fuel + 1 =>
     wrap
-      { whnfCore := fun d e => do
+      { whnfCore := fun c d e => do
           -- **The answer IS the argument, off the tag** (task #97-P6-7's
           -- lever 2): the six head kinds `whnfCoreBody` returns unchanged are
           -- read off the handle word, so neither the memo nor the store is
           -- touched — and neither is the memo WRITTEN, which is what keeps the
           -- table small enough for `clear_fit`'s high-water mark to settle.
           if whnfCoreStuckTag e then pure e
+          else if c then
+            match (← get).caches.whnfCoreCheapC[e]? with
+            | some x => pure x
+            | none => do
+              let x ← whnfCoreBody mode (coreKnot mode fe wrap fuel) fe true d e
+              whnfCoreCheapSet e x
+              pure x
           else
           match (← get).caches.whnfCoreC[e]? with
           | some x => pure x
           | none => do
-            let x ← whnfCoreBody mode (coreKnot mode fe wrap fuel) fe d e
+            let x ← whnfCoreBody mode (coreKnot mode fe wrap fuel) fe false d e
             whnfCoreSet e x
             pure x
         whnf := fun d e => do

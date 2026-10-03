@@ -64,7 +64,6 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
-/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::EIdxPair_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:74-76 Caches.defeqC` — the
 /// ORDERED pair of expression handles the `defeq` verdict is stored at.
 pub struct EIdxPair {
@@ -191,7 +190,6 @@ pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
-/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::NLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:81-82 Caches.constTyC` — a
 /// stored constant's name together with a universe-argument list: the key of
 /// the two instantiated-constant caches.
@@ -235,7 +233,6 @@ pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
-/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::NNLsKey_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:85-88 Caches.ruleRhsC` — the
 /// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
 /// constructor and the levels.
@@ -299,7 +296,6 @@ pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
-/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:53-99 Caches` — the
 /// per-declaration caches of the arena checker, in one record beside
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
@@ -310,6 +306,10 @@ pub struct Caches {
     /// NOT in the key: a handle carries its own typing context, because an
     /// `fvar` node carries its type (DESIGN.md §8.3, "Free variables").
     pub whnf_core_c: HashMap<EIdx, EIdx>,
+    /// `whnfCore` at the node in the CHEAP-projection mode (con-leche
+    /// `CState.whnfCoreCheapC`, official `cheap_proj`): a separate table,
+    /// since the two modes' answers differ on a stuck projection.
+    pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
     /// The full reduction loop at the node (`CState.whnfC`).
     pub whnf_c: HashMap<EIdx, EIdx>,
     /// Full-grade inference (`CState.inferC`).
@@ -355,7 +355,6 @@ pub struct Caches {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
-/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
 /// `ron::HashMap::new` allocates nothing (task #35), so eleven empty tables
@@ -364,11 +363,11 @@ pub struct Caches {
 /// reaches the same value without freeing the buckets.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
-    /// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::empty_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty`.
+        /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
             whnf_core_c: HashMap::new(),
+            whnf_core_cheap_c: HashMap::new(),
             whnf_c: HashMap::new(),
             infer_c: HashMap::new(),
             infer_io_c: HashMap::new(),
@@ -503,16 +502,15 @@ pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:355-363 CState.flushed
-/// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty` — the
 /// per-declaration flush, as an in-place reset of the eleven tables rather
 /// than eleven fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:355-363 CState.flushed
-    /// con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove core_state::reset_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty`.
+        /// Lean twin: `proof/ConRon/Arena/CoreState.lean:101-103 Caches.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
+        reset_map(&mut self.whnf_core_cheap_c);
         reset_map(&mut self.whnf_c);
         reset_map(&mut self.infer_c);
         reset_map(&mut self.infer_io_c);

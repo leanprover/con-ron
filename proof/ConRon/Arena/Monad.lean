@@ -115,7 +115,6 @@ instance : Inhabited Memos := ⟨Memos.empty⟩
 /-! ## The state and the monad -/
 
 /-- con-leche: ConLeche/Cached/StateC.lean:111-144 CState — the checker state of
--- con-leche: CHANGED since a31e8297 — re-port, re-test, re-prove Monad.AState_bridge, then delete this line
 (B) as P2b needs it: the arena and the per-call memo tables.  P2c extends it
 with the per-declaration caches (`whnfCore`, `whnf`, the three infer grades,
 `defeq`) and the environment index. -/
@@ -123,7 +122,7 @@ structure AState where
   store : EStore
   memos : Memos
   /-- The per-DECLARATION caches (task #97c, `Arena/CoreState.lean`): the
-  five entry-point memos, the `defeq` verdict table, the two level-verdict
+  five entry-point memos (and `whnfCore`'s cheap-projection mode's own), the `defeq` verdict table, the two level-verdict
   tables and the three lazy instantiated-constant tables.  A record of its
   own beside `memos`, because the per-call clear and the per-declaration
   drop are different operations on different lifetimes. -/

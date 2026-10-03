@@ -29,7 +29,7 @@
 //!
 //! * the syntactic readers and guards — `unfoldable_head`, `head_hint`,
 //!   `same_const_heads`, `raw_nat_lit`, `is_ctor_app`,
-//!   `eta_ctor_shape`, `is_bool_true`, `quick_pair`, `succ_of`,
+//!   `eta_ctor_shape`, `is_bool_true`, `succ_of`,
 //!   `str_expansion_fires`, `pw_written`, `lift_fueled`.  **Six of these
 //!   carry a second citation to `Cached/StateC.lean`'s `*C` index guards**
 //!   (`isCtorAppC`, `headHintC`, `unfoldableHeadC`,

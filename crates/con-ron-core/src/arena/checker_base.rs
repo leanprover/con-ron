@@ -219,6 +219,7 @@ pub fn memos_dup(m: &Memos) -> Memos {
 pub fn caches_dup(c: &Caches) -> Caches {
     Caches {
         whnf_core_c: c.whnf_core_c.dup(),
+        whnf_core_cheap_c: c.whnf_core_cheap_c.dup(),
         whnf_c: c.whnf_c.dup(),
         infer_c: c.infer_c.dup(),
         infer_io_c: c.infer_io_c.dup(),

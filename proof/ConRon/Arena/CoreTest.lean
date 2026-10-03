@@ -477,12 +477,12 @@ with the con-leche side computed from the denotation. -/
 
 The same subjects: `whnfCore` must NOT unfold `two`, where `whnf` does. -/
 
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.two) (ConLeche.whnfCore MU envCL F 0 tTwo)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.betaTwo)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.two) (ConLeche.whnfCore MU envCL F 0 tTwo)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.betaTwo)
   (ConLeche.whnfCore MU envCL F 0 tBetaTwo)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.succ3)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.succ3)
   (ConLeche.whnfCore MU envCL F 0 tSucc3)
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.piPi) (ConLeche.whnfCore MU envCL F 0 tPiPi)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.piPi) (ConLeche.whnfCore MU envCL F 0 tPiPi)
 
 /-! ## `infer` — twelve subjects, the last two failures -/
 
@@ -602,7 +602,7 @@ against `ConLeche`'s chained body on the denotation. -/
 #guard chkE (annotateCore MU FX.fe F 0 FX.lam2)
   (ConLeche.annotateCore MU envCL F 0 tLam2)
 -- `whnfApp` / `betaPeel`: a two-argument β redex peeled in ONE group
-#guard chkE ((pureFnsA MU FX.fe F).whnfCore 0 FX.beta2)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.beta2)
   (ConLeche.whnfCore MU envCL F 0 tBeta2)
 #guard chkE (whnf MU FX.fe F 0 FX.beta2) (ConLeche.whnf MU envCL F 0 tBeta2)
 -- `inferApp` / `inferSpine`: the same spine, inferred head-first
