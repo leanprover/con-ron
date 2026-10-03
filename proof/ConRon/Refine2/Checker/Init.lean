@@ -237,12 +237,13 @@ theorem caches_empty {rc : arena.core_state.Caches}
     (HashableInst := arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable) hm8
   refine ⟨⟨ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
       ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
-      ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n1,
+      ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
+      ConRon.Refine.HashMap2.RelOn_empty n1,
       ConRon.Refine.HashMap2.RelOn_empty n2, ConRon.Refine.HashMap2.RelOn_empty n3,
       ConRon.Refine.HashMap2.RelOn_empty n4, ConRon.Refine.HashMap2.RelOn_empty n4,
       ConRon.Refine.HashMap2.RelOn_empty n5, ConRon.Refine.HashMap2.RelOn_empty n6,
       ConRon.Refine.HashMap2.RelOn_empty n7, ConRon.Refine.HashMap2.RelOn_empty n8⟩,
-    ⟨i0, i0, i0, i0, i0, i1, i2, i3, i4, i4, i5, i6, i7, i8, ?_, ?_, ?_⟩⟩
+    ⟨i0, i0, i0, i0, i0, i0, i1, i2, i3, i4, i4, i5, i6, i7, i8, ?_, ?_, ?_⟩⟩
   · intro p hp; rw [s6] at hp; cases hp
   · intro p hp; rw [s7] at hp; cases hp
   · intro p hp; rw [s8] at hp; cases hp

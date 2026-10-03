@@ -218,7 +218,7 @@ structure MemosInv (rm : arena.monad.Memos) : Prop where
 
 /-! ## The per-declaration caches
 
-Eleven handle-valued tables plus the three readback memos of task #97-P6-13,
+Twelve handle-valued tables plus the three readback memos of task #97-P6-13,
 whose VALUES are transient `ConLeche.Level` / `Name` / `List Level` trees —
 so those three carry a value-well-formedness clause in `CachesInv`, which is
 what makes a memo HIT hand its caller a `LevelWF` answer (the same clause
@@ -226,6 +226,8 @@ what makes a memo HIT hand its caller a `LevelWF` answer (the same clause
 
 structure CachesRel (rc : arena.core_state.Caches) (lc : Caches) : Prop where
   whnfCoreC : RelOn (fun _ => True) rc.whnf_core_c lc.whnfCoreC absEIdx absEIdx
+  whnfCoreCheapC : RelOn (fun _ => True) rc.whnf_core_cheap_c lc.whnfCoreCheapC
+    absEIdx absEIdx
   whnfC : RelOn (fun _ => True) rc.whnf_c lc.whnfC absEIdx absEIdx
   inferC : RelOn (fun _ => True) rc.infer_c lc.inferC absEIdx absEIdx
   inferIOC : RelOn (fun _ => True) rc.infer_io_c lc.inferIOC absEIdx absEIdx
@@ -246,6 +248,8 @@ structure CachesRel (rc : arena.core_state.Caches) (lc : Caches) : Prop where
 structure CachesInv (rc : arena.core_state.Caches) : Prop where
   whnfCoreC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
     rc.whnf_core_c
+  whnfCoreCheapC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable
+    rc.whnf_core_cheap_c
   whnfC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.whnf_c
   inferC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.infer_c
   inferIOC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.infer_io_c

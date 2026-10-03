@@ -1,8 +1,9 @@
 /-
-# `ConRon.Refine2.Core.LS.Defeq` — region F: the `defeq` loop, lockstep
+# `ConRon.Refine2.Core.LS.Defeq` — region F: definitional equality, lockstep
 
-Task #97-P5-Core round 5, region F.  The Theorem-2 lockstep lemmas of the
-`defeq` half of `arena::core` against `Arena/Core.lean`:
+Task #97-P5-Core round 5, region F; restructured by task #109 (con-leche
+8afe1815: the official kernel's `is_def_eq_core`).  The Theorem-2 lockstep
+lemmas of the `defeq` half of `arena::core` against `Arena/Core.lean`:
 
 | twin | Rust |
 |---|---|
@@ -11,21 +12,30 @@ Task #97-P5-Core round 5, region F.  The Theorem-2 lockstep lemmas of the
 | `defeqBinders` | `defeq_binders` |
 | `defeqSpine` | `defeq_spine` |
 | `boolTrueShortcut` | `bool_true_shortcut` |
-| `defeqStep` | `defeq_step` + the fragments `defeq_after_whnf`, `defeq_delta`, `defeq_delta_both`, `defeq_unfold_both`, `defeq_struct`, `defeq_apps`, `defeq_lit_app`, `defeq_lit_const` |
-| `defeqLoop` | `defeq_loop` (the second fuel dimension) |
-| `defeqBody` | `defeq_body` |
+| `quickDefEq` | `quick_defeq` |
+| `isNatZero`, `natPred?`, `defeqOffset` | `is_nat_zero`, `nat_pred`, `defeq_offset` |
+| `headIsProj`, `tryUnfoldProjApp` | `head_is_proj`, `try_unfold_proj_app` |
+| `deltaQuick` | `delta_quick` |
+| `lazyDeltaStep` | `lazy_delta_step` + the fragments `lazy_delta_side`, `lazy_delta_one` (the two mirrored one-sided arms, a `flipped` flag), `lazy_delta_both`, `lazy_delta_unfold_both` |
+| `lazyDeltaReduction` | `lazy_delta_reduction` (its own budget: induction on `n`) + the fragment `lazy_delta_nat` |
+| `lazyDeltaProjReduction` | `lazy_delta_proj_reduction` (its own budget: induction on `n`) + the fragment `lazy_delta_proj_fields` |
+| `defeqProjPair` | `defeq_proj_pair` |
+| `defeqStuck` | `defeq_stuck` + the fragments `defeq_str_app` (the two mirrored string-literal arms, a `flipped` flag), `defeq_apps` |
+| `defeqBody` | `defeq_body` + the fragments `defeq_after_whnf`, `defeq_after_lazy` |
 
-The loop is `Core/Arms/Loops.lean`'s `whnf_loop_aux` shape: the step is proved
-parametric in the continuation (a hypothesis `hcont` on `defeq_loop … n`,
-found by `lockstep_core` in the context under its head constant), and the loop
-by induction on the port's counter — finding 13: the port's `n` IS the twin's
-continuation `defeqLoop … (absU n)`, no `- 1`.
+The two loops recurse on their OWN budget, `n + 1 ↦ n` in the twin and
+`n - 1` at `n ≠ 0` in the port: the port's counter IS the twin's argument
+(`absU n`), so each is an induction on it with no continuation — unlike the
+old `defeqStep`/`defeqLoop` pair, whose step took the loop as a closure
+(`Core/Arms/Loops.lean`'s finding 13).  The port's step and loop results
+(`DeltaStepA`, `LazyResA`) are read through `absDeltaStepA`/`absLazyResA`.
 -/
 import ConRon.Refine2.Core.LS.PrimsF
 import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.Certs
+import ConRon.Refine2.Core.LS.WhnfCore
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PF.CoreLSReg
@@ -338,107 +348,319 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
   rw [arena.core.defeq_binders, defeqBinders]
   lockstep_f
 
-/-! ## The lazy-delta loop
+/-! ## `quickDefEq` — the easy cases
 
-`defeq_step`'s fragments have no twin of their own: they are the tail of
-`defeqStep` (task #97-P5-0's finding-6 splits), so they are unfolded in place. -/
+The new region's twin tests a handle's tag as a `Prop` equality on the twin's
+word (`a.tag == ETag.sort` after `lockstep_simp`'s `beq` rewriting, or
+`h.tag == ETag.proj` under a `decide`): one equation per tag, as the port's
+scalar test.  `PrimsF` has `lam`/`forallE`/`const`, local there. -/
 
-attribute [lockstep_inline] arena.core.defeq_after_whnf arena.core.defeq_delta
-  arena.core.defeq_delta_both arena.core.defeq_unfold_both arena.core.defeq_struct
-  arena.core.defeq_apps arena.core.defeq_lit_app arena.core.defeq_lit_const
+theorem absU32_eq_sort (t : Std.U32) :
+    (absU32 t = ETag.sort) = (t = arena.handle.ETAG_SORT) := by
+  rw [← etag_sort_abs, PF.absU32_eq_absU32]
+
+theorem absU32_eq_lit (t : Std.U32) :
+    (absU32 t = ETag.lit) = (t = arena.handle.ETAG_LIT) := by
+  rw [← etag_lit_abs, PF.absU32_eq_absU32]
+
+theorem absU32_eq_app (t : Std.U32) :
+    (absU32 t = ETag.app) = (t = arena.handle.ETAG_APP) := by
+  rw [← etag_app_abs, PF.absU32_eq_absU32]
+
+theorem absU32_eq_proj (t : Std.U32) :
+    (absU32 t = ETag.proj) = (t = arena.handle.ETAG_PROJ) := by
+  rw [← etag_proj_abs, PF.absU32_eq_absU32]
+
+attribute [local lockstep_simp] absU32_eq_sort absU32_eq_lit absU32_eq_app absU32_eq_proj
+  PF.absU32_eq_lam PF.absU32_eq_forallE PF.absU32_eq_const
+
+
+/-- `lift_fueled_ls` takes the twin's message as an explicit argument, which
+the port does not determine: specialised to the defeq region's. -/
+theorem lift_fueled_level_ls {pers : arena.store.PersTier} {st : arena.monad.AState}
+    {lst : AState} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (o : Option Bool) :
+    LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
+      (liftFueled "level comparison" o) :=
+  lift_fueled_ls hrel hinv o "level comparison"
 
 set_option maxRecDepth 8000 in
-set_option maxHeartbeats 40000000 in
-/-- `defeq_step`'s body, once, parametric in the continuation: the port's
-`n` IS the twin's `defeqLoop … (absU n)` (finding 13), and `hcont` — the
-loop at `n` — is found by `lockstep_core` in the context under
-`arena.core.defeq_loop`. -/
-theorem defeq_step_of_cont {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
-    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
-    (hf : absU fu = f) (depth n : Std.U64)
-    (hcont : ∀ {st : arena.monad.AState} {lst : AState} (pi : Bool) (a b : arena.handle.EIdx),
-      AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = a)
-        (arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b) lst
-        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-          lfe (absU depth) (absU n) pi (absEIdx a) (absEIdx b)))
-    {st : arena.monad.AState} {lst : AState} (pi : Bool) (a b : arena.handle.EIdx)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = a)
-      (arena.core.defeq_step pers vis st mode lane fu fe depth n pi a b) lst
-      (defeqStep (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth)
-        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-          lfe (absU depth) (absU n)) pi (absEIdx a) (absEIdx b)) := by
-  have hview := @PF.view_wf_ls
-  have hpush := @PF.vec_push_eidx_ls
-  -- `lift_fueled_ls` takes the twin's message as an explicit argument, which
-  -- the port's step does not determine: specialised to `defeqStep`'s.
-  have hlift : ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState},
-      AStateRel₀ pers st lst → AStateInv pers st → ∀ (o : Option Bool),
-      LSR pers (fun a b => b = a) (arena.core.lift_fueled o) st lst
-        (liftFueled "level comparison" o) :=
-    fun hrel hinv o => lift_fueled_ls hrel hinv o "level comparison"
-  rw [arena.core.defeq_step]
-  delta defeqStep
-  lockstep_f
-
-theorem defeqLoop_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (d : Nat)
-    (pi : Bool) (a b : EIdx) :
-    defeqLoop mode r fe d 0 pi a b = Arena.fail (.internal "fuel exhausted: defeq loop") := rfl
-
-theorem defeqLoop_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv) (d m : Nat)
-    (pi : Bool) (a b : EIdx) :
-    defeqLoop mode r fe d (m + 1) pi a b = defeqStep mode r fe d (defeqLoop mode r fe d m) pi a b :=
-  rfl
-
-/-- The loop, by induction on the port's counter (`Core/Arms/Loops.lean`'s
-`whnf_loop_aux` shape): the step at `n - 1` is `defeq_step_of_cont` with the
-induction hypothesis as its continuation. -/
-theorem defeq_loop_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
-    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
-    (hf : absU fu = f) (depth : Std.U64) (m : Nat) :
-    ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (pi : Bool) (a b : arena.handle.EIdx),
-      absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = a)
-        (arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b) lst
-        (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-          lfe (absU depth) m pi (absEIdx a) (absEIdx b)) := by
-  induction m with
-  | zero =>
-    intro st lst n pi a b hn hrel hinv
-    rw [arena.core.defeq_loop, defeqLoop_zero]
-    lockstep_f
-  | succ m ih =>
-    intro st lst n pi a b hn hrel hinv
-    have hstep : ∀ {st : arena.monad.AState} {lst : AState} (i : Std.U64) (pi : Bool)
-        (a b : arena.handle.EIdx), absU i = m → AStateRel₀ pers st lst → AStateInv pers st →
-        LS pers (fun a b => b = a)
-          (arena.core.defeq_step pers vis st mode lane fu fe depth i pi a b) lst
-          (defeqStep (ConRon.Refine.absMode mode)
-            (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-            (defeqLoop (ConRon.Refine.absMode mode)
-              (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) m)
-            pi (absEIdx a) (absEIdx b)) := by
-      intro st lst i pi a b hi hrel hinv
-      subst hi
-      exact defeq_step_of_cont hk hx hctx hf depth i
-        (fun pi a b hr hv => ih i pi a b rfl hr hv) pi a b hrel hinv
-    clear ih
-    rw [arena.core.defeq_loop, defeqLoop_succ]
-    lockstep_f
-
-/-- `arena::core::defeq_loop` against `Arena.defeqLoop`. -/
-@[lockstep] theorem defeq_loop_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth n pi a b lst}
+set_option maxHeartbeats 8000000 in
+@[lockstep] theorem quick_defeq_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b) lst
-      (defeqLoop (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        lfe (absU depth) (absU n) pi (absEIdx a) (absEIdx b)) :=
-  defeq_loop_aux hk hx hctx hf depth _ n pi a b rfl hrel hinv
+      (arena.core.quick_defeq pers vis st mode lane fu fe depth a b) lst
+      (quickDefEq (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  have hview := @PF.view_wf_ls
+  have hlift := @lift_fueled_level_ls
+  rw [arena.core.quick_defeq, quickDefEq]
+  lockstep_f
+
+/-! ## Offsets: `isNatZero`, `natPred?`, `defeqOffset` -/
+
+@[lockstep] theorem is_nat_zero_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.is_nat_zero pers st e) lst
+      (isNatZero (absEIdx e)) := by
+  rw [arena.core.is_nat_zero, isNatZero]
+  lockstep_f
+
+@[lockstep] theorem nat_pred_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = Option.map absEIdx a) (arena.core.nat_pred pers st e) lst
+      (natPred? (absEIdx e)) := by
+  rw [arena.core.nat_pred, natPred?]
+  lockstep_f
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+@[lockstep] theorem defeq_offset_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_offset pers vis st mode lane fu fe depth a b) lst
+      (defeqOffset (laneKnot (ConRon.Refine.absMode mode) lfe lane f) (absU depth)
+        (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.defeq_offset, defeqOffset]
+  lockstep_f
+
+/-! ## Projection-headed terms -/
+
+@[lockstep] theorem head_is_proj_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = a) (arena.core.head_is_proj pers st e) lst
+      (headIsProj (absEIdx e)) := by
+  rw [arena.core.head_is_proj, headIsProj]
+  lockstep_f
+
+@[lockstep] theorem try_unfold_proj_app_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = Option.map absEIdx a)
+      (arena.core.try_unfold_proj_app pers vis st mode lane fu fe depth e) lst
+      (tryUnfoldProjApp (laneKnot (ConRon.Refine.absMode mode) lfe lane f) (absU depth)
+        (absEIdx e)) := by
+  rw [arena.core.try_unfold_proj_app, tryUnfoldProjApp]
+  lockstep_f
+
+/-! ## One lazy-delta step
+
+The two result types, abstracted: `arena::core::DeltaStepA` /
+`LazyResA` carry handles where the twin's carry `EIdx`. -/
+
+/-- The port's lazy-delta step outcome as the twin's. -/
+def absDeltaStepA : arena.core.DeltaStepA → DeltaStepA
+  | .Cont a b => .cont (absEIdx a) (absEIdx b)
+  | .Eq => .eq
+  | .Diff => .diff
+  | .Unknown => .unknown
+
+/-- The port's lazy-delta loop outcome as the twin's. -/
+def absLazyResA : arena.core.LazyResA → LazyResA
+  | .Verdict v => .verdict v
+  | .Unknown a b => .unknown (absEIdx a) (absEIdx b)
+
+attribute [local lockstep_simp] absDeltaStepA absLazyResA
+
+@[lockstep] theorem delta_quick_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absDeltaStepA a)
+      (arena.core.delta_quick pers vis st mode lane fu fe depth a b) lst
+      (deltaQuick (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.delta_quick, deltaQuick]
+  lockstep_f
+
+/-! The port's step fragments have no twin of their own: `lazy_delta_side`
+and `lazy_delta_one` are the twin's two mirrored one-sided arms at once (the
+`flipped` flag), `lazy_delta_both` / `lazy_delta_unfold_both` its both-sides
+arm; each is unfolded in place, where `flipped` is a literal. -/
+attribute [lockstep_inline] arena.core.lazy_delta_side arena.core.lazy_delta_one
+  arena.core.lazy_delta_both arena.core.lazy_delta_unfold_both
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+@[lockstep] theorem lazy_delta_step_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absDeltaStepA a)
+      (arena.core.lazy_delta_step pers vis st mode lane fu fe depth a b) lst
+      (lazyDeltaStep (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.lazy_delta_step, lazyDeltaStep]
+  lockstep_f
+
+/-! ## The two lazy-delta loops: induction on the port's own budget
+
+Each loop recurses on its own counter, `n - 1` in the port at `n ≠ 0` and the
+pattern `n + 1 ↦ n` in the twin, so the port's `n` IS the twin's `absU n` —
+no closure and no continuation, unlike the old `defeqLoop` (finding 13 of
+`Core/Arms/Loops.lean`). -/
+
+attribute [lockstep_inline] arena.core.lazy_delta_nat arena.core.lazy_delta_proj_fields
+
+theorem lazyDeltaReduction_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (d : Nat) (a b : EIdx) :
+    lazyDeltaReduction mode r fe d 0 a b
+      = Arena.fail (.internal "fuel exhausted: defeq loop") := by
+  rw [lazyDeltaReduction]
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+theorem lazy_delta_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
+    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
+    (hf : absU fu = f) (depth : Std.U64) (m : Nat) :
+    ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (a b : arena.handle.EIdx),
+      absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = absLazyResA a)
+        (arena.core.lazy_delta_reduction pers vis st mode lane fu fe depth n a b) lst
+        (lazyDeltaReduction (ConRon.Refine.absMode mode)
+          (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) m
+          (absEIdx a) (absEIdx b)) := by
+  induction m with
+  | zero =>
+    intro st lst n a b hn hrel hinv
+    rw [arena.core.lazy_delta_reduction, lazyDeltaReduction_zero]
+    lockstep_f
+  | succ m ih =>
+    intro st lst n a b hn hrel hinv
+    rw [arena.core.lazy_delta_reduction, lazyDeltaReduction]
+    lockstep_f
+
+/-- `arena::core::lazy_delta_reduction` against `Arena.lazyDeltaReduction`. -/
+@[lockstep] theorem lazy_delta_reduction_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth n a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absLazyResA a)
+      (arena.core.lazy_delta_reduction pers vis st mode lane fu fe depth n a b) lst
+      (lazyDeltaReduction (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absU n)
+        (absEIdx a) (absEIdx b)) :=
+  lazy_delta_reduction_aux hk hx hctx hf depth _ n a b rfl hrel hinv
+
+theorem lazyDeltaProjReduction_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (fe : IFEnv)
+    (d : Nat) (sn : NIdx) (i : Nat) (a b : EIdx) :
+    lazyDeltaProjReduction mode r fe d sn i 0 a b
+      = Arena.fail (.internal "fuel exhausted: lazy delta projection loop") := by
+  rw [lazyDeltaProjReduction]
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+theorem lazy_delta_proj_reduction_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
+    (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
+    (hf : absU fu = f) (depth : Std.U64) (sn : arena.handle.NIdx) (i : Std.U64) (m : Nat) :
+    ∀ {st : arena.monad.AState} {lst : AState} (n : Std.U64) (a b : arena.handle.EIdx),
+      absU n = m → AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers (fun a b => b = a)
+        (arena.core.lazy_delta_proj_reduction pers vis st mode lane fu fe depth sn i n a b) lst
+        (lazyDeltaProjReduction (ConRon.Refine.absMode mode)
+          (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absNIdx sn)
+          (absU i) m (absEIdx a) (absEIdx b)) := by
+  induction m with
+  | zero =>
+    intro st lst n a b hn hrel hinv
+    rw [arena.core.lazy_delta_proj_reduction, lazyDeltaProjReduction_zero]
+    lockstep_f
+  | succ m ih =>
+    intro st lst n a b hn hrel hinv
+    rw [arena.core.lazy_delta_proj_reduction, lazyDeltaProjReduction]
+    lockstep_f
+
+/-- `arena::core::lazy_delta_proj_reduction` against
+`Arena.lazyDeltaProjReduction`. -/
+@[lockstep] theorem lazy_delta_proj_reduction_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth sn i n a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.lazy_delta_proj_reduction pers vis st mode lane fu fe depth sn i n a b) lst
+      (lazyDeltaProjReduction (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absNIdx sn)
+        (absU i) (absU n) (absEIdx a) (absEIdx b)) :=
+  lazy_delta_proj_reduction_aux hk hx hctx hf depth sn i _ n a b rfl hrel hinv
+
+/-- The two step budgets agree: `DEFEQ_LOOP_FUEL = defeqLoopFuel = 100000`. -/
+@[lockstep_simp] theorem absU_DEFEQ_LOOP_FUEL :
+    absU arena.core.DEFEQ_LOOP_FUEL = defeqLoopFuel := by
+  rw [arena.core.DEFEQ_LOOP_FUEL, defeqLoopFuel]; rfl
+
+/-! ## The proj/proj check and the stuck comparison -/
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+@[lockstep] theorem defeq_proj_pair_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_proj_pair pers vis st mode lane fu fe depth a b) lst
+      (defeqProjPair (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.defeq_proj_pair, defeqProjPair]
+  lockstep_f
+
+/-! `defeq_str_app` is the twin's two mirrored string-literal arms at once
+(the `flipped` flag) and `defeq_apps` its spine-wise application arm: both
+unfolded in place. -/
+attribute [lockstep_inline] arena.core.defeq_str_app arena.core.defeq_apps
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 40000000 in
+@[lockstep] theorem defeq_stuck_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_stuck pers vis st mode lane fu fe depth a b) lst
+      (defeqStuck (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  have hview := @PF.view_wf_ls
+  have hlift := @lift_fueled_level_ls
+  rw [arena.core.defeq_stuck, defeqStuck]
+  lockstep_f
+
+/-! ## The body
+
+`defeq_after_whnf` / `defeq_after_lazy` are the tail of `defeqBody` (the
+port splits it after the cheap head normalization and after the lazy-delta
+loop); unfolded in place. -/
+
+attribute [lockstep_inline] arena.core.defeq_after_whnf arena.core.defeq_after_lazy
+
+set_option maxRecDepth 8000 in
+set_option maxHeartbeats 8000000 in
+/-- `arena::core::defeq_body` against `Arena.defeqBody`. -/
+theorem defeq_body_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth a b lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_body pers vis st mode lane fu fe depth a b) lst
+      (defeqBody (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (absU depth) (absEIdx a) (absEIdx b)) := by
+  rw [arena.core.defeq_body, defeqBody]
+  lockstep_f
 
 end ConRon.Refine2.Lockstep
 
@@ -452,3 +674,14 @@ open ConRon.Generated
 open ConRon.Arena ConRon.Refine2
 open ConRon.Refine2.Lockstep.PF
 end ConRon.Refine2.Lockstep.CoreLSReg
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.Lockstep.lazy_delta_reduction_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine2.Lockstep.lazy_delta_reduction_ls
+
+/-- info: 'ConRon.Refine2.Lockstep.lazy_delta_proj_reduction_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine2.Lockstep.lazy_delta_proj_reduction_ls
+
+/-- info: 'ConRon.Refine2.Lockstep.defeq_body_ls' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms ConRon.Refine2.Lockstep.defeq_body_ls
