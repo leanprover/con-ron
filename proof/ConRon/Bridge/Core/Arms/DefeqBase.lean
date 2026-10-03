@@ -414,14 +414,6 @@ theorem defeqProjPair_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
   have := (ConLeche.defeqProjPair mode (pairFns r₁ r₂ h) env d a b).property
   rwa [defeqProjPair_fst_proj, defeqProjPair_snd_proj] at this
 
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the stuck
-comparison. -/
-theorem defeqStuck_monoR (h : FnsRefines r₁ r₂) (d : Nat) (a b : Expr) :
-    MRefines (ConLeche.defeqStuck mode r₁ env d a b)
-      (ConLeche.defeqStuck mode r₂ env d a b) := by
-  have := (ConLeche.defeqStuck mode (pairFns r₁ r₂ h) env d a b).property
-  rwa [defeqStuck_fst_proj, defeqStuck_snd_proj] at this
-
 end MonoDefeq
 
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
@@ -439,13 +431,5 @@ theorem defeqProjPairF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
     (hr : ConLeche.defeqProjPair mode (pureFns mode env f) env d a b = .ok r) :
     ConLeche.defeqProjPair mode (pureFns mode env f') env d a b = .ok r :=
   defeqProjPair_monoR (pureFns_mono env hle) d a b r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-`defeqStuck`. -/
-theorem defeqStuckF_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {a b : Expr}
-    {r : Bool}
-    (hr : ConLeche.defeqStuck mode (pureFns mode env f) env d a b = .ok r) :
-    ConLeche.defeqStuck mode (pureFns mode env f') env d a b = .ok r :=
-  defeqStuck_monoR (pureFns_mono env hle) d a b r hr
 
 end ConRon.Bridge.Core

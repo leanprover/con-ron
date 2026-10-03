@@ -49,7 +49,7 @@ At a `List` recursion the bridge holds the head's `∃ F₁` (from
 hypothesis).  It takes `F := max F₁ F₂`, lifts the head with con-leche's own
 `isDefEqCore_mono` and the tail with `defEqListFueled_mono` below, and then
 the step equation applies at ONE fuel.  The same at a fuel loop, with
-`whnfLoopFueled_mono` / `lazyDeltaReductionFueled_mono` — and those two are the debt
+`whnfLoopFueled_mono` / `lazyDeltaProjReductionFueled_mono` — and those two are the debt
 DESIGN §6.1 says sits unpaid under `whnfBody_spec` and `defeqBody_spec`.
 
 **This module mentions no arena state at all**: it is pure con-leche, and it
@@ -239,16 +239,6 @@ theorem whnfLoop_mono (h : FnsRefines r₁ r₂) (d n : Nat) (e : Expr) :
   rwa [whnfLoop_fst_proj, whnfLoop_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
-lazy-delta loop at an arbitrary step budget**, the same debt at
-`defeqBody_spec`. -/
-theorem lazyDeltaReduction_mono (h : FnsRefines r₁ r₂) (d n : Nat)
-    (a b : Expr) :
-    MRefines (lazyDeltaReduction mode r₁ env d n a b)
-      (lazyDeltaReduction mode r₂ env d n a b) := by
-  have := (lazyDeltaReduction mode (pairFns r₁ r₂ h) env d n a b).property
-  rwa [lazyDeltaReduction_fst_proj, lazyDeltaReduction_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — **the
 lazy-delta PROJECTION loop at an arbitrary step budget**. -/
 theorem lazyDeltaProjReduction_mono (h : FnsRefines r₁ r₂) (d : Nat)
     (sn : Name) (i n : Nat) (a b : Expr) :
@@ -429,14 +419,6 @@ theorem whnfLoopFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
     whnfLoop (pureFns mode env f') env d n e = .ok r :=
   whnfLoop_mono (pureFns_mono env hle) d n e r hr
 
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — **the merge
-`defeqBody_spec` needs**, at an arbitrary lazy-delta budget. -/
-theorem lazyDeltaReductionFueled_mono {f f' : Nat} (hle : f ≤ f') {d n : Nat}
-    {a b : Expr} {r : LazyRes}
-    (hr : lazyDeltaReduction mode (pureFns mode env f) env d n a b = .ok r) :
-    lazyDeltaReduction mode (pureFns mode env f') env d n a b = .ok r :=
-  lazyDeltaReduction_mono (pureFns_mono env hle) d n a b r hr
-
 /-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the same merge
 at the lazy-delta PROJECTION loop. -/
 theorem lazyDeltaProjReductionFueled_mono {f f' : Nat} (hle : f ≤ f')
@@ -453,7 +435,6 @@ section Census
 #print axioms defEqList_mono
 #print axioms defEqListFueled_mono
 #print axioms whnfLoopFueled_mono
-#print axioms lazyDeltaReductionFueled_mono
 #print axioms lazyDeltaProjReductionFueled_mono
 
 end Census

@@ -47,14 +47,6 @@ theorem LSR.ofAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
 
 attribute [local lockstep_simp] etag_const_abs etag_lit_abs etag_fvar_abs
 
-@[local lockstep_simp] theorem absU32_beq_lit (t : Std.U32) :
-    (absU32 t == ETag.lit) = decide (t = arena.handle.ETAG_LIT) := by
-  rw [← etag_lit_abs]
-  by_cases h : t = arena.handle.ETAG_LIT
-  · subst h; simp
-  · have : absU32 t ≠ absU32 arena.handle.ETAG_LIT := fun hc => h (absU32_inj hc)
-    simp [h, this]
-
 /-! ## Well-formedness facts in context
 
 A read that carries the Rust datum's well-formedness states it as
@@ -488,6 +480,6 @@ open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2
 attribute [scoped lockstep_simp] core_walk_fuel_val etag_const_abs etag_lit_abs
-  etag_fvar_abs absU32_beq_lit Option.some.injEq forall_eq' ConRon.Refine.LiteralWF
+  etag_fvar_abs Option.some.injEq forall_eq' ConRon.Refine.LiteralWF
   IConstantInfoWF absIProjEntry absIConstantInfo
 end ConRon.Refine2.Lockstep.CoreLSReg

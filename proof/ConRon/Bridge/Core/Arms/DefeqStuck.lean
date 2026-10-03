@@ -673,27 +673,4 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — the same, in
-the eventual form the callers merge: con-leche's answer itself. -/
-theorem defeqStuck_spec' {fe : IFEnv} {fuel : Nat}
-    (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) (d : Nat)
-    (s₀ : AState) (a' b' : EIdx) (x' y' : Expr)
-    (hok : CheckOK mode env fe s₀)
-    (hx : denoteE s₀.store a' = some x') (hy : denoteE s₀.store b' = some y')
-    (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d y') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.defeqStuck mode (coreKnot mode fe id fuel) fe d a' b'
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        Ev (fun F => ConLeche.defeqStuck mode (ConLeche.pureFns mode env F)
-          env d x' y' = .ok r)⌝⦄ := by
-  refine triple_mono (defeqStuck_spec henv hμ hsim d s₀ s₀ a' b' x' y' hok
-    (Ext.refl _) rfl hx hy hwx hwy
-    (fun F r => ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d x' y'
-      = .ok r) ⟨0, fun _ _ _ h => h⟩) ?_
-  rintro r s' ⟨hok', hx', hp', hF⟩
-  exact ⟨hok', hx', hp', Ev.of_mono (fun hle h => defeqStuckF_mono hle h) hF⟩
-
-#print axioms defeqStuck_spec'
-
 end ConRon.Bridge.Core

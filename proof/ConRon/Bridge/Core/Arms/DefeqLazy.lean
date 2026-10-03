@@ -611,12 +611,6 @@ def DSRel (st : EStore) (d : Nat) : DeltaStepA → DeltaStep → Prop
   | .unknown, .unknown => True
   | _, _ => False
 
-/-- con-leche: none — `DSRel` survives store growth. -/
-theorem DSRel.ext {st st' : EStore} {d : Nat} {o : DeltaStepA} {v : DeltaStep}
-    (h : DSRel st d o v) (hx : Ext st st') : DSRel st' d o v := by
-  cases o <;> cases v <;> simp only [DSRel] at h ⊢
-  exact ⟨denote_ext h.1 hx, denote_ext h.2.1 hx, h.2.2⟩
-
 section Step
 
 variable {fe : IFEnv}

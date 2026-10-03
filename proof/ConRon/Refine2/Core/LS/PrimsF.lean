@@ -180,16 +180,6 @@ attribute [local lockstep_simp] beq_of_decEq
         ConRon.Refine.Nat.toNat c = ConRon.Refine.Nat.toNat n - 1) :=
   fun _ h => let r := ConRon.Refine.Nat.pred_refines hn h; ⟨r.2, r.1⟩
 
-theorem natWF_of_limbs {m n : ron.nat.Nat} (h : m.limbs.val = n.limbs.val)
-    (hn : ConRon.Refine.Nat.NatWF n) : ConRon.Refine.Nat.NatWF m := by
-  unfold ConRon.Refine.Nat.NatWF; rw [h]; exact hn
-
-@[lockstep] theorem nat_clone_ls (n : ron.nat.Nat) (hn : ConRon.Refine.Nat.NatWF n) :
-    LSP (ron.nat.clone n)
-      (fun m => ConRon.Refine.Nat.NatWF m ∧
-        ConRon.Refine.Nat.toNat m = ConRon.Refine.Nat.toNat n) :=
-  fun _ h => let r := ConRon.Refine.Nat.clone_refines h; ⟨natWF_of_limbs r.1 hn, r.2⟩
-
 -- local: globally it rewrites other tiers' twins off their definitions
 -- (`Inductives/SumInstall`'s `checkSumIndAtSpec`); `Core/LS/Defeq` re-declares it
 
