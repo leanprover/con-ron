@@ -1001,4 +1001,174 @@ theorem lazyDeltaStep_spec {fe : IFEnv} {fuel : Nat} (henv : ConLeche.EnvWF env)
         rw [hs]
         simp only [bind, Except.bind, ↓reduceIte, pure, Except.pure])
 
+/-! ## 5. The lazy-delta loop -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1644-1649 LazyRes — **the answer
+relation of the loop**: the same verdict, or the pair it got stuck on,
+denoted and well scoped. -/
+def LRRel (st : EStore) (d : Nat) : LazyResA → LazyRes → Prop
+  | .verdict v, .verdict w => v = w
+  | .unknown a b, .unknown x y => denoteE st a = some x ∧ denoteE st b = some y ∧
+      Expr.WScoped d x ∧ Expr.WScoped d y
+  | _, _ => False
+
+unseal ConLeche.defeqLoopFuel in
+/-- con-leche: ConLeche/Kernel/Core.lean:1651-1654 defeqLoopFuel — the two
+budgets are the same number (task #97c); con-leche's is `@[irreducible]`. -/
+theorem defeqLoopFuel_eq :
+    ConRon.Arena.defeqLoopFuel = ConLeche.defeqLoopFuel := rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction —
+**THEOREM 1 for the lazy-delta loop**, at every budget, by induction on it:
+the offset check, the fvar-guarded literal acceleration on either side
+(whose reduct goes to the knot), then one `lazyDeltaStep`, whose `cont` is
+the next iteration. -/
+theorem lazyDeltaReduction_spec {fe : IFEnv} {fuel : Nat}
+    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (d : Nat) :
+    ∀ (n : Nat) (s₀ : AState) (a b : EIdx) (x y : Expr),
+      CheckOK mode env fe s₀ →
+      denoteE s₀.store a = some x → denoteE s₀.store b = some y →
+      Expr.WScoped d x → Expr.WScoped d y →
+      ⦃fun s => ⌜s = s₀⌝⦄
+        ConRon.Arena.lazyDeltaReduction mode (coreKnot mode fe id fuel) fe d n a b
+      ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          ∃ v, LRRel s'.store d o v ∧
+            Ev (fun F => ConLeche.lazyDeltaReduction mode
+              (ConLeche.pureFns mode env F) env d n x y = .ok v)⌝⦄
+  | 0, s₀, a, b, x, y, _, _, _, _, _ => by
+    rw [ConRon.Arena.lazyDeltaReduction]
+    exact triple_fail
+  | n + 1, s₀, a, b, x, y, hok, hx, hy, hwx, hwy => by
+    rw [ConRon.Arena.lazyDeltaReduction]
+    refine triple_seq (defeqOffset_spec hsim d s₀ a b x y hok hx hy hwx hwy) ?_
+    rintro o s1 ⟨hok1, hx1, hp1, hO⟩
+    cases o with
+    | some v =>
+      exact triple_pure_post ⟨hok1, hx1, hp1, .verdict v, rfl, hO.imp fun F h => by
+        rw [ConLeche.lazyDeltaReduction]
+        simp only [h, bind, Except.bind, pure, Except.pure]⟩
+    | none =>
+    dsimp only
+    refine triple_seq (defeqNoFvars_spec s1 a b x y hok1 (denote_ext hx hx1)
+      (denote_ext hy hx1)) ?_
+    rintro nf s2 ⟨hok2, hst2, hp2, rfl⟩
+    have hx12 : Ext s1.store s2.store := by rw [hst2]; exact Ext.refl _
+    have hx02 := hx1.trans hx12
+    have hp02 : s2.pins = s₀.pins := hp2.trans hp1
+    have hdx2 := denote_ext hx hx02
+    have hdy2 := denote_ext hy hx02
+    -- literal acceleration on the left
+    refine triple_seq (reduceNatIf_spec hsim s2 d a x _ hok2 hdx2 hwx) ?_
+    rintro o1 s3 ⟨hok3, hx3, hp3, v1, hv1, hwv1, hN1⟩
+    have hx03 := hx02.trans hx3
+    have hp03 : s3.pins = s₀.pins := hp3.trans hp02
+    cases o1 with
+    | some a₂ =>
+      obtain ⟨z, rfl, hz⟩ := denoteEO_some_inv hv1
+      dsimp only
+      refine triple_seq (hsim.defeq s3 d a₂ b z y hok3 hz (denote_ext hdy2 hx3)
+        (hwv1 z rfl) hwy) ?_
+      rintro v s4 ⟨hok4, hx4, hp4, F4, hF4⟩
+      have hD : Ev (fun F => ConLeche.isDefEqCore mode env F d z y = .ok v) :=
+        Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) ⟨F4, hF4⟩
+      exact triple_pure_post ⟨hok4, hx03.trans hx4, hp4.trans hp03, .verdict v, rfl,
+        ((hO.and hN1).and hD).imp fun F ⟨⟨h1, h2⟩, h3⟩ => by
+          rw [ConLeche.lazyDeltaReduction]
+          simp only [h1, bind, Except.bind]
+          rw [h2]
+          simp only [ConLeche.defeq_def, h3, pure, Except.pure]⟩
+    | none =>
+    obtain rfl := denoteEO_none_inv hv1
+    dsimp only
+    -- literal acceleration on the right
+    refine triple_seq (reduceNatIf_spec hsim s3 d b y _ hok3 (denote_ext hdy2 hx3)
+      hwy) ?_
+    rintro o2 s4 ⟨hok4, hx4, hp4, v2, hv2, hwv2, hN2⟩
+    have hx04 := hx03.trans hx4
+    have hp04 : s4.pins = s₀.pins := hp4.trans hp03
+    have hdx4 := denote_ext hx hx04
+    have hdy4 := denote_ext hy hx04
+    cases o2 with
+    | some b₂ =>
+      obtain ⟨z, rfl, hz⟩ := denoteEO_some_inv hv2
+      dsimp only
+      refine triple_seq (hsim.defeq s4 d a b₂ x z hok4 hdx4 hz hwx
+        (hwv2 z rfl)) ?_
+      rintro v s5 ⟨hok5, hx5, hp5, F5, hF5⟩
+      have hD : Ev (fun F => ConLeche.isDefEqCore mode env F d x z = .ok v) :=
+        Ev.of_mono (fun hle h => ConLeche.isDefEqCore_mono hle h) ⟨F5, hF5⟩
+      exact triple_pure_post ⟨hok5, hx04.trans hx5, hp5.trans hp04, .verdict v, rfl,
+        (((hO.and hN1).and hN2).and hD).imp fun F ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩ => by
+          rw [ConLeche.lazyDeltaReduction]
+          simp only [h1, bind, Except.bind]
+          rw [h2]
+          simp only
+          rw [h3]
+          simp only [ConLeche.defeq_def, h4, pure, Except.pure]⟩
+    | none =>
+    obtain rfl := denoteEO_none_inv hv2
+    dsimp only
+    -- one lazy-delta step
+    refine triple_seq (lazyDeltaStep_spec henv hsim d s4 a b x y hok4 hdx4 hdy4
+      hwx hwy) ?_
+    rintro st s5 ⟨hok5, hx5, hp5, w, hr, hS⟩
+    have hx05 := hx04.trans hx5
+    have hp05 : s5.pins = s₀.pins := hp5.trans hp04
+    have hpre : ∀ F, ConLeche.defeqOffset (ConLeche.pureFns mode env F) d x y
+          = .ok none →
+        (if (!x.hasFvar && !y.hasFvar) = true then
+          ConLeche.reduceNat (ConLeche.pureFns mode env F) env d x
+          else pure none) = (.ok none : CheckM (Option Expr)) →
+        (if (!x.hasFvar && !y.hasFvar) = true then
+          ConLeche.reduceNat (ConLeche.pureFns mode env F) env d y
+          else pure none) = (.ok none : CheckM (Option Expr)) →
+        ConLeche.lazyDeltaReduction mode (ConLeche.pureFns mode env F) env d (n + 1)
+          x y =
+        (ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d x y >>=
+          fun r => match r with
+            | .cont a' b' => ConLeche.lazyDeltaReduction mode
+                (ConLeche.pureFns mode env F) env d n a' b'
+            | .eq => pure (.verdict true)
+            | .diff => pure (.verdict false)
+            | .unknown => pure (.unknown x y)) := by
+      intro F h1 h2 h3
+      rw [ConLeche.lazyDeltaReduction]
+      simp only [h1, bind, Except.bind]
+      rw [h2]
+      simp only
+      rw [h3]
+      rfl
+    have hP := ((hO.and hN1).and hN2).imp fun F ⟨⟨h1, h2⟩, h3⟩ => hpre F h1 h2 h3
+    rcases st with ⟨a', b'⟩ | _ | _ | _ <;> rcases w with ⟨x', y'⟩ | _ | _ | _ <;>
+      simp only [DSRel] at hr
+    · -- `cont`: the next iteration
+      obtain ⟨ha', hb', hwx', hwy'⟩ := hr
+      refine triple_mono (lazyDeltaReduction_spec henv hsim d n s5 a' b' x' y' hok5
+        ha' hb' hwx' hwy') ?_
+      rintro o s6 ⟨hok6, hx6, hp6, v, hrv, hL⟩
+      exact ⟨hok6, hx05.trans hx6, hp6.trans hp05, v, hrv,
+        ((hP.and hS).and hL).imp fun F ⟨⟨h1, h2⟩, h3⟩ => by
+          rw [h1, show ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d x y
+            = _ from h2]; exact h3⟩
+    · -- `eq`
+      exact triple_pure_post ⟨hok5, hx05, hp05, .verdict true, rfl,
+        (hP.and hS).imp fun F ⟨h1, h2⟩ => by
+          rw [h1, show ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d
+            x y = _ from h2]
+          rfl⟩
+    · -- `diff`
+      exact triple_pure_post ⟨hok5, hx05, hp05, .verdict false, rfl,
+        (hP.and hS).imp fun F ⟨h1, h2⟩ => by
+          rw [h1, show ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d
+            x y = _ from h2]
+          rfl⟩
+    · -- `unknown`: the pair the loop got stuck on
+      exact triple_pure_post ⟨hok5, hx05, hp05, .unknown x y,
+        ⟨denote_ext hx hx05, denote_ext hy hx05, hwx, hwy⟩,
+        (hP.and hS).imp fun F ⟨h1, h2⟩ => by
+          rw [h1, show ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d
+            x y = _ from h2]
+          rfl⟩
+
 end ConRon.Bridge.Core
