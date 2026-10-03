@@ -66387,20 +66387,21 @@ citation it repoints across namespaces (`Baz.thirteen` at `Qux.thirteen`;
 `check` accepts it by suffix).  The merge queue's path→step table (#97-MQ)
 does not list `pin-last`, which is git-only and costs nothing to run.
 
-### Task #109 — con-leche sync a31e8297 → 8afe1815: cheap projections, `is_def_eq_core` clause for clause (2026-10-03, Opus)
+### Task #109 — con-leche sync a31e8297 → d0bbad69: cheap projections, `is_def_eq_core` clause for clause (2026-10-03, Opus)
 
-con-leche goes from `a31e8297` to **`8afe1815`**, three commits on the
-branch `joachim/proj-cheap-struct`.  **The pin is a LOCAL path**: the
-commits are not on GitHub yet, so `proof/lakefile.toml`'s `git` is
-`/home/joachim/lean-kernel-arena/_tmp/conleche` in the pin commit.  It must
-be switched back to `https://github.com/leanprover/con-leche` (and the pin
-redone with `lake update con-leche`) once the branch is pushed.
+con-leche goes from `a31e8297` to **`d0bbad69`** (con-leche master), four
+commits.  The port was made against `8afe1815` while it existed only
+locally (`proof/lakefile.toml` pointed at the local clone in the working
+tree, never committed); `d0bbad69` adds one scripts-only commit on top and
+the pin is at it, from GitHub.  `provenance.py check` and the links re-pinned
+cleanly; the checker and the proofs saw no difference.
 
 | upstream | what it did | executed checker? |
 |---|---|---|
 | `08d24b550` | fixture `e2e/proj_cheap_struct` (`(S u).re =?= (S ()).re`, from the Palomar submission roos-j/lean-spherical) | tests |
 | `fc1faa011` | fixture `e2e/proj_lazy_struct` (same-slot projections compare the projected fields) | tests |
 | **`8afe1815c`** CHEAPPROJ | `whnfCore` takes the official `cheap_proj` flag (the `.proj` clause reduces the scrutinee by the cheap `whnfCore` in that mode, by `whnf` otherwise; the projection rule is the new `reduceProjCore`); the cached knot memoizes the cheap mode in its own map; `defeqBody` follows `is_def_eq_core`: `quickDefEq`, `defeqOffset`, `tryUnfoldProjApp`, `lazyDeltaStep` (`DeltaStep`), `lazyDeltaReduction` (`LazyRes`), `lazyDeltaProjReduction`, `defeqProjPair`, `defeqStuck`; `defeqStep`/`defeqLoop`/`Expr.quickPair` and the `pi` flag are gone | **yes** |
+| `d0bbad690` | `tests/shake.sh`, `scripts/perf-tables.sh`: a shell variable renamed | no |
 
 (A first version, `48fce542`, was started and aborted when review found
 its same-slot comparison wrong; nothing of it remains.)
