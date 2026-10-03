@@ -566,7 +566,7 @@
     38        ∃ src', inst.next_chunk src = ok (c, src') ∧ ReadsAs inst src' cs
 
 == crates/con-ron-core/src/arena/monad.rs#L308-L329
-   308  /// con-leche: ConLeche/Cached/StateC.lean:111-140 CState
+   308  /// con-leche: ConLeche/Cached/StateC.lean:111-144 CState
    309  /// Lean twin: `proof/ConRon/Arena/Monad.lean:117-134 AState` — the checker
    310  /// state of (C): the arena, the per-call memo tables and — since task
    311  /// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the three infer
@@ -575,19 +575,19 @@
    314      pub store: EStore,
    315      pub memos: Memos,
    316      /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
-   317      /// five entry-point memos, the `defeq` verdict table, the two
-   318      /// level-verdict tables and the three lazy instantiated-constant tables.
-   319      /// A record of its own beside `memos`, because the per-call clear and the
-   320      /// per-declaration drop are different operations on different lifetimes.
-   321      pub caches: Caches,
-   322      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
-   323      /// fifty constant names, the empty level list, the level `0` and
-   324      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
-   325      /// `intern_all_pins` and read by handle ever after.  Empty until then,
-   326      /// which is what makes a premature read a stop rather than a wrong
-   327      /// answer (task #97c's hazard).
-   328      pub pins: Pins,
-   329  }
+   317      /// five entry-point memos (and `whnfCore`'s cheap mode's own), the
+   318      /// `defeq` verdict table, the two level-verdict tables and the three lazy
+   319      /// instantiated-constant tables.
+   320      /// A record of its own beside `memos`, because the per-call clear and the
+   321      /// per-declaration drop are different operations on different lifetimes.
+   322      pub caches: Caches,
+   323      /// The reserved-name pins (task #97-P6-4a, `arena::pins`): the
+   324      /// fifty constant names, the empty level list, the level `0` and
+   325      /// `Sort 1`, interned ONCE into the persistent tier by the driver's
+   326      /// `intern_all_pins` and read by handle ever after.  Empty until then,
+   327      /// which is what makes a premature read a stop rather than a wrong
+   328      /// answer (task #97c's hazard).
+   329      pub pins: Pins,
 
 == crates/con-ron-core/src/arena/handle.rs#L4-L15
      4  //! One 32-bit word per handle:
@@ -824,29 +824,29 @@
   1122      (hi : denoteE st i = some x) (hj : denoteE st j = some x) : i = j := by
 
 == crates/con-ron-core/src/arena/core.rs#L11399-L11421
- 11399  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 11400  /// Lean twin: `proof/ConRon/Arena/Core.lean:3785-3793 dropScratch` — drop the
- 11401  /// scratch tier of the store and the cache entries that name it, in one
- 11402  /// operation, so the two halves cannot drift apart; and **thaw** the store:
- 11403  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
- 11404  /// store is owned and scratch-off again.
- 11405  pub fn drop_scratch(st: &mut AState, tier: PersTier) {
- 11406      flush_caches(st);
- 11407      st.store.thaw(tier);
- 11408  }
- 11409  
- 11410  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 11411  /// Lean twin: `proof/ConRon/Arena/Core.lean:3795-3802 enterScratch` — turn the
- 11412  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
- 11413  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
- 11414  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
- 11415  /// are handed back as the `PersTier` every read inside the bracket goes
- 11416  /// through and promotion writes, and every append inside it is a scratch
- 11417  /// append.
- 11418  pub fn enter_scratch(st: &mut AState) -> PersTier {
- 11419      st.memos.reset();
- 11420      st.store.freeze()
- 11421  }
+ 11399  /// (`coreKnotIO`'s slot *is* the full knot's, at the same fuel).
+ 11400  pub fn knot_whnf_core(
+ 11401      pers: &PersTier,
+ 11402      vis: u64,
+ 11403      st: &mut AState,
+ 11404      mode: &CheckMode,
+ 11405      _lane: u32,
+ 11406      fuel: u64,
+ 11407      fe: &IFEnv,
+ 11408      cheap: bool,
+ 11409      depth: u64,
+ 11410      e: &EIdx,
+ 11411  ) -> Result<EIdx, CheckError> {
+ 11412      if fuel == 0 {
+ 11413          fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE)))
+ 11414      } else if whnf_core_stuck_tag(e) {
+ 11415          Ok(e.dup2())
+ 11416      } else if cheap {
+ 11417          match whnf_core_cheap_probe(st, e) {
+ 11418              Some(r) => Ok(r),
+ 11419              None => match whnf_core_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, true, depth, e) {
+ 11420                  Err(er) => Err(er),
+ 11421                  Ok(r) => {
 
 == crates/con-ron-core/src/arena/promote.rs#L1-L40
      1  //! `arena::promote` — the scratch → persistent copy (DESIGN.md §8.3, task #97-P6-2).
@@ -1062,11 +1062,11 @@
    502  }
 
 == crates/con-ron-core/src/arena/core_state.rs#L308-L355
-   308  pub struct Caches {
-   309      /// `whnfCore` at the node (con-leche `CState.whnfCoreC`).  The depth is
-   310      /// NOT in the key: a handle carries its own typing context, because an
-   311      /// `fvar` node carries its type (DESIGN.md §8.3, "Free variables").
-   312      pub whnf_core_c: HashMap<EIdx, EIdx>,
+   308      pub whnf_core_c: HashMap<EIdx, EIdx>,
+   309      /// `whnfCore` at the node in the CHEAP-projection mode (con-leche
+   310      /// `CState.whnfCoreCheapC`, official `cheap_proj`): a separate table,
+   311      /// since the two modes' answers differ on a stuck projection.
+   312      pub whnf_core_cheap_c: HashMap<EIdx, EIdx>,
    313      /// The full reduction loop at the node (`CState.whnfC`).
    314      pub whnf_c: HashMap<EIdx, EIdx>,
    315      /// Full-grade inference (`CState.inferC`).
@@ -1120,16 +1120,16 @@
    397  pub const CACHE_CAP: usize = 4194304;
 
 == crates/con-ron-core/src/arena/core.rs#L434-L443
-   434  /// con-leche: ConLeche/Kernel/Core.lean:1927-1966 coreKnot
-   435  /// Lean twin: `proof/ConRon/Arena/Core.lean:3628-3718 coreKnot` — **the
-   436  /// executed knot**: the memoized one, `pureFnsA`'s.
-   437  pub const LANE_FULL: u32 = 0;
-   438  
-   439  /// con-leche: ConLeche/Kernel/CoreIO.lean:90-118 coreKnotIO
-   440  /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
-   441  /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
-   442  /// unmemoized; every other slot is the full knot's.
-   443  pub const LANE_IO: u32 = 2;
+   434      102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 97, 110,
+   435      110, 111, 116, 97, 116, 101
+   436  ];
+   437  
+   438  // ---------------------------------------------------------------------------
+   439  // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
+   440  // ---------------------------------------------------------------------------
+   441  
+   442  /// con-leche: ConLeche/Kernel/Core.lean:2019-2058 coreKnot
+   443  /// Lean twin: `proof/ConRon/Arena/Core.lean:3805-3904 coreKnot` — **the
 
 == crates/con-ron-core/src/ron/hashmap2.rs#L1-L40
      1  //! con-leche: none — arena infrastructure; a second `Std.HashMap` replacement, proved
@@ -2154,22 +2154,22 @@
 == proof/ConRon/Bridge/Core/Knot.lean#L121-L138
    121  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
    122      Prop where
-   123    /-- Head normalization without delta. -/
-   124    whnfCore : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   125      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   126      Expr.WScoped d e →
-   127      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore d i
-   128      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   129          s'.pins = s₀.pins ∧
-   130          SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄
-   131    /-- The full reduction loop. -/
-   132    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   133      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   134      Expr.WScoped d e →
-   135      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
-   136      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   137          s'.pins = s₀.pins ∧
-   138          SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄
+   123    /-- Head normalization without delta, in either mode (`c` is the official
+   124    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
+   125    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   126      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   127      Expr.WScoped d e →
+   128      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore c d i
+   129      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   130          s'.pins = s₀.pins ∧
+   131          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄
+   132    /-- The full reduction loop. -/
+   133    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   134      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   135      Expr.WScoped d e →
+   136      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
+   137      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   138          s'.pins = s₀.pins ∧
 
 == proof/ConRon/Bridge/Core/Induction.lean#L73-L80
     73  theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
@@ -2177,34 +2177,34 @@
     75      ∀ f, KnotSpec mode env fe f
     76    | 0 => knotSpec_zero mode env fe
     77    | f + 1 =>
-    78      { whnfCore := fun s₀ d i e hok hden hw =>
+    78      { whnfCore := fun {c} s₀ d i e hok hden hw =>
     79          memoWhnfCore_step henv
-    80            (whnfCoreBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
+    80            (fun c => whnfCoreBody_spec henv hμ (knot_spec henv hμ f) c) (c := c)
 
 == proof/ConRon/Refine2/AbsState.lean#L326-L340
-   326  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
-   327  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
-   328  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
-   329  made a knot statement false at a state both programs handle alike: the port
-   330  and the twin both intern `app d a` over a dangling `d` without looking at it,
-   331  their stores stay equal field for field, and only `StoreWF` fails.  The Core
-   332  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
-   333  it later (tier-wide migration, scheduled separately), and until then
-   334  `AStateRel` keeps its five fields and these two lemmas convert. -/
-   335  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
-   336      (ls : AState) : Prop where
-   337    store : StoreRel pers rs.store ls.store
-   338    memos : MemosRel rs.memos ls.memos
-   339    caches : CachesRel rs.caches ls.caches
-   340    pins : PinsRel rs.pins ls.pins
+   326    /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,
+   327    carried by Theorem 2's relation. -/
+   328    storeWF : StoreWF ls.store
+   329  
+   330  /-- **The lockstep relation**: `AStateRel` without `storeWF` (task
+   331  #97-P5-Core round 4, the coordinator's ruling (i) on its finding).  `storeWF`
+   332  is a statement about the TWIN's term DAG — Theorem 1 content — and it is what
+   333  made a knot statement false at a state both programs handle alike: the port
+   334  and the twin both intern `app d a` over a dangling `d` without looking at it,
+   335  their stores stay equal field for field, and only `StoreWF` fails.  The Core
+   336  tier's `KnotRel`/`BodyRel` are stated over this; the rest of the tier moves to
+   337  it later (tier-wide migration, scheduled separately), and until then
+   338  `AStateRel` keeps its five fields and these two lemmas convert. -/
+   339  structure AStateRel₀ (pers : arena.store.PersTier) (rs : arena.monad.AState)
+   340      (ls : AState) : Prop where
 
 == proof/ConRon/Refine2/AbsState.lean#L349-L354
-   349  /-- The Rust-side invariant of the whole state. -/
-   350  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
-   351      Prop where
-   352    store : StoreInv pers rs.store
-   353    memos : MemosInv rs.memos
-   354    caches : CachesInv rs.caches
+   349      AStateRel pers rs ls :=
+   350    ⟨h.store, h.memos, h.caches, h.pins, hwf⟩
+   351  
+   352  
+   353  /-- The Rust-side invariant of the whole state. -/
+   354  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
 
 == proof/ConRon/Refine2/Shape.lean#L230-L234
    230  /-- The lockstep simulation statement for a state-threading Rust function. -/
@@ -2387,9 +2387,9 @@
    672    inst_spine_from_aux _ fuel args i t e rfl hrel hinv
 
 == proof/ConRon/Refine2/Core/Induction.lean#L1005-L1007
-  1005  theorem knot_rel (hbody : ∀ f, KnotRel f → BodyRel f) : ∀ f, KnotRel f
-  1006    | 0 => knotRel_zero
-  1007    | f + 1 => knotRel_succ (hbody f (knot_rel hbody f))
+  1005      have hsv : whnfStuckTag (absEIdx e) = true := by rw [← hst]; exact hbv
+  1006      have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
+  1007          (absU depth) (absEIdx e)
 
 == proof/ConRon/Capstone.lean#L13-L132
     13  /-!
