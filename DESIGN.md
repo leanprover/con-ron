@@ -66386,3 +66386,90 @@ at the next real sync.  `update --auto` keeps the old declaration name in a
 citation it repoints across namespaces (`Baz.thirteen` at `Qux.thirteen`;
 `check` accepts it by suffix).  The merge queue's path→step table (#97-MQ)
 does not list `pin-last`, which is git-only and costs nothing to run.
+
+### Task #109 — con-leche sync a31e8297 → 8afe1815: cheap projections, `is_def_eq_core` clause for clause (2026-10-03, Opus)
+
+con-leche goes from `a31e8297` to **`8afe1815`**, three commits on the
+branch `joachim/proj-cheap-struct`.  **The pin is a LOCAL path**: the
+commits are not on GitHub yet, so `proof/lakefile.toml`'s `git` is
+`/home/joachim/lean-kernel-arena/_tmp/conleche` in the pin commit.  It must
+be switched back to `https://github.com/leanprover/con-leche` (and the pin
+redone with `lake update con-leche`) once the branch is pushed.
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| `08d24b550` | fixture `e2e/proj_cheap_struct` (`(S u).re =?= (S ()).re`, from the Palomar submission roos-j/lean-spherical) | tests |
+| `fc1faa011` | fixture `e2e/proj_lazy_struct` (same-slot projections compare the projected fields) | tests |
+| **`8afe1815c`** CHEAPPROJ | `whnfCore` takes the official `cheap_proj` flag (the `.proj` clause reduces the scrutinee by the cheap `whnfCore` in that mode, by `whnf` otherwise; the projection rule is the new `reduceProjCore`); the cached knot memoizes the cheap mode in its own map; `defeqBody` follows `is_def_eq_core`: `quickDefEq`, `defeqOffset`, `tryUnfoldProjApp`, `lazyDeltaStep` (`DeltaStep`), `lazyDeltaReduction` (`LazyRes`), `lazyDeltaProjReduction`, `defeqProjPair`, `defeqStuck`; `defeqStep`/`defeqLoop`/`Expr.quickPair` and the `pi` flag are gone | **yes** |
+
+(A first version, `48fce542`, was started and aborted when review found
+its same-slot comparison wrong; nothing of it remains.)
+
+**Findings.**  `update --auto`: 73 (49 `CHANGED`, 24 `GONE`), 297
+citations merely moved; buckets: 4 doc-only, 45 changed, 24 deleted.  All
+were the port.  Coverage 816/940 → **838/961**, nothing newly uncovered:
+the ten new `Cached/CoreC.lean` twins are second citations on their spec's
+port and twin.  `gen-prelude{,-lean}` unchanged.
+
+**Rust** (`arena/core.rs`, `core_state.rs`, `checker_base.rs`, `monad.rs`):
+`knot_whnf_core` takes `cheap: bool` and probes a second table
+(`Caches::whnf_core_cheap_c`, `whnf_core_cheap_{probe,set}`), threaded
+through `whnf_core_body`/`whnf_app`/`beta_peel`; `reduce_proj_core{,_at,_fire}`
+replaces `whnf_core_proj_{at,fire}`; the defeq block is new, one function
+per con-leche declaration with the twin's `let`/`match` boundaries as split
+points (`quick_defeq`, `is_nat_zero`, `nat_pred`, `defeq_offset`,
+`head_is_proj`, `try_unfold_proj_app`, `DeltaStepA`, `delta_quick`,
+`lazy_delta_{step,side,one,both,unfold_both}`, `LazyResA`,
+`lazy_delta_{nat,reduction}`, `lazy_delta_proj_{fields,reduction}`,
+`defeq_proj_pair`, `defeq_str_app`, `defeq_apps`, `defeq_stuck`,
+`defeq_after_{lazy,whnf}`, `defeq_body`); mirrored arm pairs are one
+function with a `flipped` flag.  The batched binder peel (task #97-P6-14)
+is kept and now sits under `quickDefEq`'s binder arms.  `extract.sh`:
+`Generated/Funs.lean` ~+1 500/−1 200; `Refine2/Core/Eqns.lean` lists the
+regenerated block (106 functions; 919 s to derive, seeded in the cache).
+
+**Twin** (`Arena/Core.lean`, `CoreState.lean`, `CoreIO.lean`, `Monad.lean`,
+`CoreTest.lean`): clause for clause as con-leche's spec, over handles;
+`CoreFnsA.whnfCore : Bool → Nat → EIdx → AM EIdx`, `Caches.whnfCoreCheapC`,
+`whnfCoreCheapSet`, two branches in the knot's `whnfCore` slot.
+
+**Theorem 1** (`Bridge/`, ~+4 300/−3 500 lines with Theorem 2): `CacheOK`
+gains the cheap table; `KnotSpec.whnfCore` is `∀ {c}`;
+`memoWhnfCore{Full,Cheap,}_step`; `whnfCoreBody_spec … c`; the new
+`Walks/ProjCore.lean` (`reduceProjCore_spec`).  The defeq arm is split into
+`Arms/DefeqBase.lean` (the `Ev` merge toolkit), `DefeqPeel.lean` (the peel
+against `quickDefEq`'s binder arms), `DefeqLazy.lean` (`quickDefEq` …
+`lazyDeltaReduction`, by induction on the budget), `DefeqStuck.lean` and
+`Defeq.lean` (`lazyDeltaProjReduction_spec`, `defeqProjPair_spec`,
+`defeqBody_spec`).  **Theorem 2** (`Refine2/`): the cheap table in
+`CachesRel`/`CachesInv`, `KnotRel`/`BodyRel`'s `whnfCore` per mode, a
+lockstep lemma per new defeq function, the two lazy loops by induction on
+their own budget (the port's `n` is the twin's, no off-by-one).  No
+`sorry`, axioms unchanged.
+
+**Fixtures.**  `diff-e2e.sh` **609/609** agree at `--jobs=1` and `--jobs=4`
+(master's binary at the new pin: 608, `proj_cheap_struct` differs).
+`proj_cheap_struct` and `_build/tests/perf/proj-cheap-struct`: master exit 3
+(`fuel exhausted: whnf loop`, 0.6–0.9 s, ~0.5 GB), branch accepts in
+0.03 s.  `proj_lazy_struct` (both copies): both accept in 0.02 s.  The
+Palomar theorem's export (`_tmp/spherical/thm.ndjson`, 345 MB): master
+exit 3 after 5.2 s, branch **accepts 48 690 declarations** in 4.7 s
+(810 MB peak).
+
+**Measure** (`bump-con-leche.sh measure`, `_tmp/corpus/init.ndjson` = the
+arena's `_build/tests/init.ndjson`, Lean 4.34.1):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `2cfc5fb8` | 204 030 009 320 | 95 358 346 328 |
+| this branch `fa6aad73` | **216 479 334 267** (+6.10 %) | 98 434 081 177 |
+
+Both accept 58 170.  Upstream measured +4.8 % on its Init export, mostly
+the separate cheap-mode memo; the port pays slightly more, plausibly for
+the same reason (the cheap table misses on freshly unfolded terms) plus the
+two-way slot.  No lever was tried (§7.x: a sync only catches a regression);
+reading the full table from the cheap slot is unsound for the simulation
+upstream and here alike.
+
+**Docs.**  OVERVIEW §5 names the two `whnfCore` tables; six anchors whose
+text changed were re-read and updated.
