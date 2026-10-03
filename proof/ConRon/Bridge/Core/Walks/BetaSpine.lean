@@ -35,7 +35,7 @@ set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
-variable {mode : CheckMode} {env : Env} {fe : IFEnv}
+variable {mode : CheckMode} {env : Env} {fe : IFEnv} {c : Bool}
 
 /-! ## 1. The read-only spine walks -/
 
@@ -291,40 +291,40 @@ instance `whnfApp_sound` consumes.  One equation per clause, and the fuel
 monotonicity through con-leche's `whnfApp_mono`/`betaPeel_mono`. -/
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:84 whnfApp — at the pure knot. -/
-abbrev mWA (mode : CheckMode) (env : Env) (F d : Nat) (V : Expr)
+abbrev mWA (mode : CheckMode) (env : Env) (c : Bool) (F d : Nat) (V : Expr)
     (xs : List Expr) : CheckM Expr :=
   ConLeche.whnfApp mode (ConLeche.pureFns mode env F) env d
-    (ConLeche.whnfCore mode env F d) V xs
+    (fun x => ConLeche.whnfCore mode env F d x c) V xs
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:113 betaPeel — at the pure
 knot. -/
-abbrev mBP (mode : CheckMode) (env : Env) (F d : Nat) (t : Expr)
+abbrev mBP (mode : CheckMode) (env : Env) (c : Bool) (F d : Nat) (t : Expr)
     (acc xs : List Expr) : CheckM Expr :=
   ConLeche.betaPeel mode (ConLeche.pureFns mode env F) env d
-    (ConLeche.whnfCore mode env F d) t acc xs
+    (fun x => ConLeche.whnfCore mode env F d x c) t acc xs
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:422 whnfApp_mono. -/
 theorem mWA_mono {F F' d : Nat} {V r : Expr} {xs : List Expr} (hle : F ≤ F')
-    (h : mWA mode env F d V xs = .ok r) : mWA mode env F' d V xs = .ok r :=
-  ConLeche.whnfApp_mono ((ConLeche.fueledFns mode env).whnfCore d) _ _
+    (h : mWA mode env c F d V xs = .ok r) : mWA mode env c F' d V xs = .ok r :=
+  ConLeche.whnfApp_mono ((ConLeche.fueledFns mode env).whnfCore c d) _ _
     (fun _ => rfl) (fun _ => rfl) hle h
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:432 betaPeel_mono. -/
 theorem mBP_mono {F F' d : Nat} {t r : Expr} {acc xs : List Expr}
-    (hle : F ≤ F') (h : mBP mode env F d t acc xs = .ok r) :
-    mBP mode env F' d t acc xs = .ok r :=
-  ConLeche.betaPeel_mono ((ConLeche.fueledFns mode env).whnfCore d) _ _
+    (hle : F ≤ F') (h : mBP mode env c F d t acc xs = .ok r) :
+    mBP mode env c F' d t acc xs = .ok r :=
+  ConLeche.betaPeel_mono ((ConLeche.fueledFns mode env).whnfCore c d) _ _
     (fun _ => rfl) (fun _ => rfl) hle h
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:160 whnfApp_nil. -/
-theorem mWA_nil {F d : Nat} {V : Expr} : mWA mode env F d V [] = .ok V := by
+theorem mWA_nil {F d : Nat} {V : Expr} : mWA mode env c F d V [] = .ok V := by
   simp only [mWA, ConLeche.whnfApp_nil]; rfl
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:165 whnfApp_lam — the gated
 skip. -/
 theorem mWA_lam_skip {F d : Nat} {ty b a : Expr} {mb : BinderMeta}
     {rest : List Expr} (hg : ConLeche.betaGateFires mode mb.pw = true) :
-    mWA mode env F d (.lam ty b mb) (a :: rest) = mBP mode env F d b [a] rest := by
+    mWA mode env c F d (.lam ty b mb) (a :: rest) = mBP mode env c F d b [a] rest := by
   simp only [mWA, mBP, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg, if_true]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:165 whnfApp_lam — the
@@ -333,7 +333,7 @@ theorem mWA_lam_cert {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     {rest : List Expr} (hg : ConLeche.betaGateFires mode mb.pw = false)
     (hio : ConLeche.inferTypeIO mode env F d a = .ok ta)
     (hdq : ConLeche.isDefEqCore mode env F d ta ty = .ok true) :
-    mWA mode env F d (.lam ty b mb) (a :: rest) = mBP mode env F d b [a] rest := by
+    mWA mode env c F d (.lam ty b mb) (a :: rest) = mBP mode env c F d b [a] rest := by
   simp only [mWA, mBP, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg,
     Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
     ConLeche.defeq_def, hdq, bind, Except.bind, if_true]
@@ -344,7 +344,7 @@ theorem mWA_lam_fail {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     {rest : List Expr} (hg : ConLeche.betaGateFires mode mb.pw = false)
     (hio : ConLeche.inferTypeIO mode env F d a = .ok ta)
     (hdq : ConLeche.isDefEqCore mode env F d ta ty = .ok false) :
-    mWA mode env F d (.lam ty b mb) (a :: rest) =
+    mWA mode env c F d (.lam ty b mb) (a :: rest) =
       .ok (Expr.mkAppN (.app (.lam ty b mb) a) rest) := by
   simp only [mWA, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg,
     Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
@@ -355,8 +355,8 @@ theorem mWA_lam_fail {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
 theorem mWA_iota_some {F d : Nat} {V a e2 v2 : Expr} {rest : List Expr}
     (hV : ∀ ty b mb, V ≠ .lam ty b mb)
     (hi : ConLeche.iotaRecFueled mode env F d (.app V a) = .ok (some e2))
-    (hk : ConLeche.whnfCore mode env F d e2 = .ok v2) :
-    mWA mode env F d V (a :: rest) = mWA mode env F d v2 rest := by
+    (hk : ConLeche.whnfCore mode env F d e2 c = .ok v2) :
+    mWA mode env c F d V (a :: rest) = mWA mode env c F d v2 rest := by
   simp only [mWA, ConLeche.whnfApp_ne_lam _ _ _ _ hV, ConLeche.whnfAppIota]
   simp only [ConLeche.iotaRecFueled] at hi
   simp only [hi, hk, bind, Except.bind]
@@ -366,23 +366,23 @@ not fire: one more stuck application. -/
 theorem mWA_iota_none {F d : Nat} {V a : Expr} {rest : List Expr}
     (hV : ∀ ty b mb, V ≠ .lam ty b mb)
     (hi : ConLeche.iotaRecFueled mode env F d (.app V a) = .ok none) :
-    mWA mode env F d V (a :: rest) = mWA mode env F d (.app V a) rest := by
+    mWA mode env c F d V (a :: rest) = mWA mode env c F d (.app V a) rest := by
   simp only [mWA, ConLeche.whnfApp_ne_lam _ _ _ _ hV, ConLeche.whnfAppIota]
   simp only [ConLeche.iotaRecFueled] at hi
   simp only [hi, bind, Except.bind]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:196 betaPeel_nil. -/
 theorem mBP_nil {F d : Nat} {t : Expr} {acc : List Expr} :
-    mBP mode env F d t acc [] =
-      ConLeche.whnfCore mode env F d (t.instantiateList acc) := by
+    mBP mode env c F d t acc [] =
+      ConLeche.whnfCore mode env F d (t.instantiateList acc) c := by
   simp only [mBP, ConLeche.betaPeel_nil]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:215 betaPeel_lam — the gated
 skip. -/
 theorem mBP_lam_skip {F d : Nat} {ty b a : Expr} {mb : BinderMeta}
     {acc rest : List Expr} (hg : ConLeche.betaGateFires mode mb.pw = true) :
-    mBP mode env F d (.lam ty b mb) acc (a :: rest) =
-      mBP mode env F d b (a :: acc) rest := by
+    mBP mode env c F d (.lam ty b mb) acc (a :: rest) =
+      mBP mode env c F d b (a :: acc) rest := by
   simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg, if_true]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:215 betaPeel_lam — the
@@ -392,8 +392,8 @@ theorem mBP_lam_cert {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     (hio : ConLeche.inferTypeIO mode env F d a = .ok ta)
     (hdq : ConLeche.isDefEqCore mode env F d ta (ty.instantiateList acc) =
       .ok true) :
-    mBP mode env F d (.lam ty b mb) acc (a :: rest) =
-      mBP mode env F d b (a :: acc) rest := by
+    mBP mode env c F d (.lam ty b mb) acc (a :: rest) =
+      mBP mode env c F d b (a :: acc) rest := by
   simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg,
     Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
     ConLeche.defeq_def, hdq, bind, Except.bind, if_true]
@@ -405,7 +405,7 @@ theorem mBP_lam_fail {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     (hio : ConLeche.inferTypeIO mode env F d a = .ok ta)
     (hdq : ConLeche.isDefEqCore mode env F d ta (ty.instantiateList acc) =
       .ok false) :
-    mBP mode env F d (.lam ty b mb) acc (a :: rest) =
+    mBP mode env c F d (.lam ty b mb) acc (a :: rest) =
       .ok (Expr.mkAppN (.app ((Expr.lam ty b mb).instantiateList acc) a)
         rest) := by
   simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg,
@@ -416,8 +416,8 @@ theorem mBP_lam_fail {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:185 betaPeel_ne_lam. -/
 theorem mBP_nonlam {F d : Nat} {t a v : Expr} {acc rest : List Expr}
     (ht : ∀ ty b mb, t ≠ .lam ty b mb)
-    (hk : ConLeche.whnfCore mode env F d (t.instantiateList acc) = .ok v) :
-    mBP mode env F d t acc (a :: rest) = mWA mode env F d v (a :: rest) := by
+    (hk : ConLeche.whnfCore mode env F d (t.instantiateList acc) c = .ok v) :
+    mBP mode env c F d t acc (a :: rest) = mWA mode env c F d v (a :: rest) := by
   simp only [mBP, mWA, ConLeche.betaPeel_ne_lam _ _ _ _ ht, hk, bind,
     Except.bind]
 
@@ -460,23 +460,23 @@ theorem SpineCtx.ext {d : Nat} {args nodes : Array EIdx} {H0 : Expr}
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:84 whnfApp — the carry's
 postcondition at `whnfApp`. -/
-def WAPost (mode : CheckMode) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
+def WAPost (mode : CheckMode) (env : Env) (fe : IFEnv) (c : Bool) (d : Nat) (s₀ : AState)
     (V : Expr) (rest : List Expr) (r : EIdx) (s' : AState) : Prop :=
   CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
   ∃ v', denoteE s'.store r = some v' ∧ Expr.WScoped d v' ∧
-    ∃ F, mWA mode env F d V rest = .ok v'
+    ∃ F, mWA mode env c F d V rest = .ok v'
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:113 betaPeel — the carry's
 postcondition at `betaPeel`. -/
-def BPPost (mode : CheckMode) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
+def BPPost (mode : CheckMode) (env : Env) (fe : IFEnv) (c : Bool) (d : Nat) (s₀ : AState)
     (T : Expr) (ws rest : List Expr) (r : EIdx) (s' : AState) : Prop :=
   CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
   ∃ v', denoteE s'.store r = some v' ∧ Expr.WScoped d v' ∧
-    ∃ F, mBP mode env F d T ws rest = .ok v'
+    ∃ F, mBP mode env c F d T ws rest = .ok v'
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:84 whnfApp — the `whnfApp` half
 of the carry at measure `k`. -/
-def WACarry (mode : CheckMode) (env : Env) (fe : IFEnv) (fuel d : Nat)
+def WACarry (mode : CheckMode) (env : Env) (fe : IFEnv) (c : Bool) (fuel d : Nat)
     (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr) (k : Nat) : Prop :=
   ∀ (v hd : EIdx) (vargs : Array EIdx) (same : Bool) (i : Nat) (s₀ : AState)
     (V : Expr), args.size - i = k → CheckOK mode env fe s₀ →
@@ -486,13 +486,13 @@ def WACarry (mode : CheckMode) (env : Env) (fe : IFEnv) (fuel d : Nat)
     Frontend.denoteEList s₀.store vargs.toList = some V.getAppArgs →
     (same = true → V = Expr.mkAppN H0 (xs.take i)) →
     ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.whnfApp mode (coreKnot mode fe id fuel) fe d v hd vargs same
+      ConRon.Arena.whnfApp mode (coreKnot mode fe id fuel) fe c d v hd vargs same
         args nodes i
-    ⦃⇓? r s' => ⌜WAPost mode env fe d s₀ V (xs.drop i) r s'⌝⦄
+    ⦃⇓? r s' => ⌜WAPost mode env fe c d s₀ V (xs.drop i) r s'⌝⦄
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:113 betaPeel — the `betaPeel`
 half of the carry at measure `k`. -/
-def BPCarry (mode : CheckMode) (env : Env) (fe : IFEnv) (fuel d : Nat)
+def BPCarry (mode : CheckMode) (env : Env) (fe : IFEnv) (c : Bool) (fuel d : Nat)
     (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr) (k : Nat) : Prop :=
   ∀ (t : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState) (T : Expr)
     (ws : List Expr), args.size - i = k → CheckOK mode env fe s₀ →
@@ -500,9 +500,9 @@ def BPCarry (mode : CheckMode) (env : Env) (fe : IFEnv) (fuel d : Nat)
     denoteE s₀.store t = some T → ExprOps.InstLVec s₀.store acc ws →
     Expr.WScoped d (T.instantiateList ws) →
     ⦃fun s => ⌜s = s₀⌝⦄
-      ConRon.Arena.betaPeel mode (coreKnot mode fe id fuel) fe d t acc args
+      ConRon.Arena.betaPeel mode (coreKnot mode fe id fuel) fe c d t acc args
         nodes i
-    ⦃⇓? r s' => ⌜BPPost mode env fe d s₀ T ws (xs.drop i) r s'⌝⦄
+    ⦃⇓? r s' => ⌜BPPost mode env fe c d s₀ T ws (xs.drop i) r s'⌝⦄
 
 /-- con-leche: none — the spine's node at the cursor denotes the prefix
 applied to the cursor's argument, which is the application the reduction
@@ -550,9 +550,9 @@ of the carry: from both halves below `k`. -/
 theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hμ : mode.verifiedChecks = true) (hsim : KnotSpec mode env fe fuel)
     (d : Nat) (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr) (k : Nat)
-    (ihW : ∀ k' < k, WACarry mode env fe fuel d args nodes H0 xs k')
-    (ihB : ∀ k' < k, BPCarry mode env fe fuel d args nodes H0 xs k') :
-    WACarry mode env fe fuel d args nodes H0 xs k := by
+    (ihW : ∀ k' < k, WACarry mode env fe c fuel d args nodes H0 xs k')
+    (ihB : ∀ k' < k, BPCarry mode env fe c fuel d args nodes H0 xs k') :
+    WACarry mode env fe c fuel d args nodes H0 xs k := by
   intro v hd vargs same i s₀ V hk hok hctx hdv hwV hdh hdva hsame
   have hwf := hok.state.wf
   rw [ConRon.Arena.whnfApp]
@@ -732,9 +732,9 @@ step of the carry: from the `whnfApp` half at the SAME measure and the
 theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (d : Nat) (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr) (k : Nat)
-    (hW : WACarry mode env fe fuel d args nodes H0 xs k)
-    (ihB : ∀ k' < k, BPCarry mode env fe fuel d args nodes H0 xs k') :
-    BPCarry mode env fe fuel d args nodes H0 xs k := by
+    (hW : WACarry mode env fe c fuel d args nodes H0 xs k)
+    (ihB : ∀ k' < k, BPCarry mode env fe c fuel d args nodes H0 xs k') :
+    BPCarry mode env fe c fuel d args nodes H0 xs k := by
   intro t acc i s₀ T ws hk hok hctx hdt hacc hwT
   have hwf := hok.state.wf
   rw [ConRon.Arena.betaPeel]
@@ -870,8 +870,8 @@ carry, both halves at every measure**. -/
 theorem spine_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hμ : mode.verifiedChecks = true) (hsim : KnotSpec mode env fe fuel)
     (d : Nat) (args nodes : Array EIdx) (H0 : Expr) (xs : List Expr) :
-    ∀ k, WACarry mode env fe fuel d args nodes H0 xs k ∧
-      BPCarry mode env fe fuel d args nodes H0 xs k := by
+    ∀ k, WACarry mode env fe c fuel d args nodes H0 xs k ∧
+      BPCarry mode env fe c fuel d args nodes H0 xs k := by
   intro k
   induction k using Nat.strongRecOn with
   | _ k ih =>

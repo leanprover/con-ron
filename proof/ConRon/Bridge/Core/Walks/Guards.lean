@@ -1,9 +1,11 @@
 /-
 # `ConRon.Bridge.Core.Walks.Guards` — the `defeq` body's cheap tests
 
-Task #97-P3-CoreWalks.  `Arena/Core.lean`'s `defeqStep` opens with a run of
-scalar tests — `isBoolTrue`, `quickPair`, `sameConstHeads`, `unfoldableHead`
-— that read the handle word or one `view` and nothing else.  They are the
+Task #97-P3-CoreWalks.  `Arena/Core.lean`'s definitional-equality block
+(`defeqBody` and its lazy-delta steps since task #109, `defeqStep` before)
+runs scalar tests — `isBoolTrue`, `sameConstHeads`, `unfoldableHead` (and,
+before task #109, `quickPair`) — that read the handle word or one `view` and
+nothing else.  They are the
 cheapest walks of the whole non-slot tier, because con-leche's comparand is a
 plain function (no `CheckM`, no fuel), so the conclusion is an EQUATION
 between the arena's answer and con-leche's and there is no `∃ F` to carry.
