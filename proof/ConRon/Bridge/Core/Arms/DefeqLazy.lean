@@ -661,4 +661,344 @@ theorem deltaQuick_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 
 end Step
 
+/-- con-leche: none — **the postcondition of a lazy-delta step's stages**: the
+frame, and an outcome related to the pure goal's answer `P F`, which holds
+eventually. -/
+def DSPost (mode : CheckMode) (env : Env) (fe : IFEnv) (s₀ : AState) (d : Nat)
+    (P : Nat → CheckM DeltaStep) (o : DeltaStepA) (s' : AState) : Prop :=
+  CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+    ∃ v, DSRel s'.store d o v ∧ Ev (fun F => P F = .ok v)
+
+section StepExits
+
+variable {fe : IFEnv} {fuel d : Nat} {s₀ s : AState} {P : Nat → CheckM DeltaStep}
+
+/-- con-leche: none — a `pure` outcome. -/
+theorem ds_pure_exit {o : DeltaStepA} {v : DeltaStep}
+    (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hr : DSRel s.store d o v)
+    (hP : Ev (fun F => P F = .ok v)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ (pure o : AM DeltaStepA)
+    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ :=
+  triple_pure_post ⟨hok, hxs, hps, v, hr, hP⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1574-1579 deltaQuick — **the step's
+end**: `deltaQuick` on a pair the pure goal reduces to. -/
+theorem ds_quick_exit (hsim : KnotSpec mode env fe fuel) (p q : EIdx) (u w : Expr)
+    (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
+    (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
+    (hww : Expr.WScoped d w)
+    (hred : Ev (fun F => P F =
+      ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d u w)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p q
+    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ := by
+  refine triple_mono (deltaQuick_spec hsim d s p q u w hok hp hq hwu hww) ?_
+  rintro o s' ⟨hok', hx', hp', v, hr, hv⟩
+  exact ⟨hok', hxs.trans hx', hp'.trans hps, v, hr,
+    (hred.and hv).imp fun _ ⟨h1, h2⟩ => h1.trans h2⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1581-1642 lazyDeltaStep — **an
+unfolded side through the cheap `whnfCore`, then the step's end**, the
+unfolded side on the left. -/
+theorem ds_whnf_quick_exit_l (hsim : KnotSpec mode env fe fuel) (p q : EIdx)
+    (u w : Expr) (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
+    (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
+    (hww : Expr.WScoped d w)
+    (hred : Ev (fun F => ∀ u₃, ConLeche.whnfCore mode env F d u true = .ok u₃ →
+      P F = ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d u₃ w)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ (do
+        let p₃ ← (coreKnot mode fe id fuel).whnfCore true d p
+        ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p₃ q)
+    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ := by
+  refine triple_seq (hsim.whnfCore (c := true) s d p u hok hp hwu) ?_
+  rintro p₃ s1 ⟨hok1, hx1, hp1, u₃, hd3, hw3, F1, hF1⟩
+  have hW : Ev (fun F => ConLeche.whnfCore mode env F d u true = .ok u₃) :=
+    Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨F1, hF1⟩
+  exact ds_quick_exit hsim p₃ q u₃ w hok1 (hxs.trans hx1) (hp1.trans hps) hd3
+    (denote_ext hq hx1) hw3 hww ((hred.and hW).imp fun _ ⟨h1, h2⟩ => h1 u₃ h2)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1581-1642 lazyDeltaStep — the same,
+the unfolded side on the right. -/
+theorem ds_whnf_quick_exit_r (hsim : KnotSpec mode env fe fuel) (p q : EIdx)
+    (u w : Expr) (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
+    (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
+    (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
+    (hww : Expr.WScoped d w)
+    (hred : Ev (fun F => ∀ w₃, ConLeche.whnfCore mode env F d w true = .ok w₃ →
+      P F = ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d u w₃)) :
+    ⦃fun s' => ⌜s' = s⌝⦄ (do
+        let q₃ ← (coreKnot mode fe id fuel).whnfCore true d q
+        ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p q₃)
+    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ := by
+  refine triple_seq (hsim.whnfCore (c := true) s d q w hok hq hww) ?_
+  rintro q₃ s1 ⟨hok1, hx1, hp1, w₃, hd3, hw3, F1, hF1⟩
+  have hW : Ev (fun F => ConLeche.whnfCore mode env F d w true = .ok w₃) :=
+    Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨F1, hF1⟩
+  exact ds_quick_exit hsim p q₃ u w₃ hok1 (hxs.trans hx1) (hp1.trans hps)
+    (denote_ext hp hx1) hd3 hwu hw3 ((hred.and hW).imp fun _ ⟨h1, h2⟩ => h1 w₃ h2)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean unfoldDefinition — **an unfolding
+and what follows it**, in the step's postcondition. -/
+theorem ds_unfold_seq (henv : ConLeche.EnvWF env) (e : EIdx) (u : Expr)
+    (f : Option EIdx → AM DeltaStepA)
+    (hok : CheckOK mode env fe s) (he : denoteE s.store e = some u)
+    (hwu : Expr.WScoped d u)
+    (hsome : ∀ (s' : AState) (e₂ : EIdx) (u₂ : Expr),
+      CheckOK mode env fe s' → Ext s.store s'.store → s'.pins = s.pins →
+      denoteE s'.store e₂ = some u₂ → Expr.WScoped d u₂ →
+      unfoldDefinition env u = some u₂ →
+      ⦃fun t => ⌜t = s'⌝⦄ f (some e₂) ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄)
+    (hnone : ∀ (s' : AState), CheckOK mode env fe s' →
+      Ext s.store s'.store → s'.pins = s.pins →
+      unfoldDefinition env u = none →
+      ⦃fun t => ⌜t = s'⌝⦄ f none ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄) :
+    ⦃fun t => ⌜t = s⌝⦄ (ConRon.Arena.unfoldDefinition fe e >>= f)
+    ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄ := by
+  refine triple_seq (unfoldDefinition_spec henv s d e hok ⟨u, he, hwu⟩) ?_
+  rintro o s1 ⟨hok1, hx1, hp1, ho⟩
+  obtain ⟨hdo, hwo⟩ := ho u he
+  cases o with
+  | some e₂ =>
+    obtain ⟨u₂, hu₂, hd₂⟩ := denoteEO_some_inv hdo
+    exact hsome s1 e₂ u₂ hok1 hx1 hp1 hd₂ (hwo u₂ hu₂) hu₂
+  | none =>
+    exact hnone s1 hok1 hx1 hp1 (denoteEO_none_inv hdo)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1555-1563 tryUnfoldProjApp — **the
+projection-application probe and what follows it**. -/
+theorem ds_try_seq (hsim : KnotSpec mode env fe fuel) (e : EIdx) (u : Expr)
+    (f : Option EIdx → AM DeltaStepA)
+    (hok : CheckOK mode env fe s) (he : denoteE s.store e = some u)
+    (hwu : Expr.WScoped d u)
+    (hsome : ∀ (s' : AState) (e₂ : EIdx) (u₂ : Expr),
+      CheckOK mode env fe s' → Ext s.store s'.store → s'.pins = s.pins →
+      denoteE s'.store e₂ = some u₂ → Expr.WScoped d u₂ →
+      Ev (fun F => ConLeche.tryUnfoldProjApp (ConLeche.pureFns mode env F) d u
+        = .ok (some u₂)) →
+      ⦃fun t => ⌜t = s'⌝⦄ f (some e₂) ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄)
+    (hnone : ∀ (s' : AState), CheckOK mode env fe s' →
+      Ext s.store s'.store → s'.pins = s.pins →
+      Ev (fun F => ConLeche.tryUnfoldProjApp (ConLeche.pureFns mode env F) d u
+        = .ok none) →
+      ⦃fun t => ⌜t = s'⌝⦄ f none ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄) :
+    ⦃fun t => ⌜t = s⌝⦄
+      (ConRon.Arena.tryUnfoldProjApp (coreKnot mode fe id fuel) d e >>= f)
+    ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄ := by
+  refine triple_seq (tryUnfoldProjApp_spec hsim d s e u hok he hwu) ?_
+  rintro o s1 ⟨hok1, hx1, hp1, v, hv, hwv, hE⟩
+  cases o with
+  | some e₂ =>
+    obtain ⟨u₂, rfl, hd₂⟩ := denoteEO_some_inv hv
+    exact hsome s1 e₂ u₂ hok1 hx1 hp1 hd₂ (hwv u₂ rfl) hE
+  | none =>
+    obtain rfl := denoteEO_none_inv hv
+    exact hnone s1 hok1 hx1 hp1 hE
+
+end StepExits
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1581-1642 lazyDeltaStep — **THEOREM 1
+for one lazy-delta step**: the two unfoldability reads, the one-sided arms
+(the projection-application probe on the other side first), and the
+two-sided arm (hints, the same-head spine shortcut, both unfoldings); every
+unfolded side goes through the CHEAP `whnfCore` and the step ends in
+`deltaQuick`. -/
+theorem lazyDeltaStep_spec {fe : IFEnv} {fuel : Nat} (henv : ConLeche.EnvWF env)
+    (hsim : KnotSpec mode env fe fuel) (d : Nat) (s₀ : AState) (a b : EIdx)
+    (x y : Expr) (hok : CheckOK mode env fe s₀)
+    (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
+    (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
+    ⦃fun s => ⌜s = s₀⌝⦄
+      ConRon.Arena.lazyDeltaStep mode (coreKnot mode fe id fuel) fe d a b
+    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d
+      (fun F => ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d x y)
+      o s'⌝⦄ := by
+  unfold ConRon.Arena.lazyDeltaStep
+  refine triple_seq (unfoldableHead_spec s₀ a x hok hx) ?_
+  rintro ua s2 ⟨hok2, hst2, hp2, rfl⟩
+  refine triple_seq (unfoldableHead_spec s2 b y hok2 (by rw [hst2]; exact hy)) ?_
+  rintro ub s3 ⟨hok3, hst3, hp3, rfl⟩
+  have hst13 : s3.store = s₀.store := hst3.trans hst2
+  have hx3 : denoteE s3.store a = some x := by rw [hst13]; exact hx
+  have hy3 : denoteE s3.store b = some y := by rw [hst13]; exact hy
+  have hx03 : Ext s₀.store s3.store := by rw [hst13]; exact Ext.refl _
+  have hp03 : s3.pins = s₀.pins := hp3.trans hp2
+  cases hua : ConLeche.unfoldableHead env x <;>
+    cases hub : ConLeche.unfoldableHead env y
+  · -- neither unfolds
+    exact ds_pure_exit (v := .unknown) hok3 hx03 hp03 trivial ⟨0, fun _ _ => by
+      dsimp only; unfold ConLeche.lazyDeltaStep; rw [hua, hub]; rfl⟩
+  · -- only the right unfolds: the left's projection application first
+    refine ds_try_seq hsim a x _ hok3 hx3 hwx ?_ ?_
+    · intro s' a₂ u₂ hok' hx' hp' hd₂ hw₂ hT
+      exact ds_quick_exit hsim a₂ b u₂ y hok' (hx03.trans hx') (hp'.trans hp03) hd₂
+        (denote_ext hy3 hx') hw₂ hwy (hT.imp fun F hT => by
+          unfold ConLeche.lazyDeltaStep
+          simp only [hua, hub, hT, bind, Except.bind])
+    · intro s' hok' hx' hp' hT
+      refine ds_unfold_seq henv b y _ hok' (denote_ext hy3 hx') hwy ?_ ?_
+      · intro s'' b₂ w₂ hok'' hx'' hp'' hd₂ hw₂ hu
+        exact ds_whnf_quick_exit_r hsim a b₂ x w₂ hok'' ((hx03.trans hx').trans hx'')
+          (hp''.trans (hp'.trans hp03)) (denote_ext (denote_ext hx3 hx') hx'') hd₂
+          hwx hw₂ (hT.imp fun F hT w₃ hw => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hT, hu, ConLeche.whnfCore_def, hw, bind,
+              Except.bind])
+      · intro s'' hok'' hx'' hp'' hu
+        exact ds_pure_exit (v := .unknown) hok'' ((hx03.trans hx').trans hx'')
+          (hp''.trans (hp'.trans hp03)) trivial (hT.imp fun F hT => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hT, hu, bind, Except.bind, pure, Except.pure])
+  · -- only the left unfolds: the right's projection application first
+    refine ds_try_seq hsim b y _ hok3 hy3 hwy ?_ ?_
+    · intro s' b₂ w₂ hok' hx' hp' hd₂ hw₂ hT
+      exact ds_quick_exit hsim a b₂ x w₂ hok' (hx03.trans hx') (hp'.trans hp03)
+        (denote_ext hx3 hx') hd₂ hwx hw₂ (hT.imp fun F hT => by
+          unfold ConLeche.lazyDeltaStep
+          simp only [hua, hub, hT, bind, Except.bind])
+    · intro s' hok' hx' hp' hT
+      refine ds_unfold_seq henv a x _ hok' (denote_ext hx3 hx') hwx ?_ ?_
+      · intro s'' a₂ u₂ hok'' hx'' hp'' hd₂ hw₂ hu
+        exact ds_whnf_quick_exit_l hsim a₂ b u₂ y hok'' ((hx03.trans hx').trans hx'')
+          (hp''.trans (hp'.trans hp03)) hd₂ (denote_ext (denote_ext hy3 hx') hx'')
+          hw₂ hwy (hT.imp fun F hT u₃ hw => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hT, hu, ConLeche.whnfCore_def, hw, bind,
+              Except.bind])
+      · intro s'' hok'' hx'' hp'' hu
+        exact ds_pure_exit (v := .unknown) hok'' ((hx03.trans hx').trans hx'')
+          (hp''.trans (hp'.trans hp03)) trivial (hT.imp fun F hT => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hT, hu, bind, Except.bind, pure, Except.pure])
+  · -- both unfold: the hints decide
+    refine triple_seq (headHint_spec s3 a x hok3 hx3) ?_
+    rintro ha s4 ⟨hok4, hst4, hp4, rfl⟩
+    refine triple_seq (headHint_spec s4 b y hok4 (by rw [hst4]; exact hy3)) ?_
+    rintro hb s5 ⟨hok5, hst5, hp5, rfl⟩
+    have hst35 : s5.store = s3.store := hst5.trans hst4
+    have hx5 : denoteE s5.store a = some x := by rw [hst35]; exact hx3
+    have hy5 : denoteE s5.store b = some y := by rw [hst35]; exact hy3
+    have hx05 : Ext s₀.store s5.store := by rw [hst35]; exact hx03
+    have hp05 : s5.pins = s₀.pins := hp5.trans (hp4.trans hp03)
+    split
+    · rename_i hlt
+      refine ds_unfold_seq henv a x _ hok5 hx5 hwx ?_ ?_
+      · intro s' a₂ u₂ hok' hx' hp' hd₂ hw₂ hu
+        exact ds_whnf_quick_exit_l hsim a₂ b u₂ y hok' (hx05.trans hx')
+          (hp'.trans hp05) hd₂ (denote_ext hy5 hx') hw₂ hwy
+          ⟨0, fun F _ u₃ hw => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hlt, if_true, hu, ConLeche.whnfCore_def, hw,
+              bind, Except.bind]⟩
+      · intro s' hok' hx' hp' hu
+        exact ds_pure_exit (v := .unknown) hok' (hx05.trans hx') (hp'.trans hp05) trivial
+          ⟨0, fun F _ => by
+            dsimp only
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hlt, if_true, hu, pure, Except.pure]⟩
+    rename_i hlt1
+    simp only [Bool.not_eq_true] at hlt1
+    split
+    · rename_i hlt2
+      refine ds_unfold_seq henv b y _ hok5 hy5 hwy ?_ ?_
+      · intro s' b₂ w₂ hok' hx' hp' hd₂ hw₂ hu
+        exact ds_whnf_quick_exit_r hsim a b₂ x w₂ hok' (hx05.trans hx')
+          (hp'.trans hp05) (denote_ext hx5 hx') hd₂ hwx hw₂
+          ⟨0, fun F _ w₃ hw => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [Bool.false_eq_true, ↓reduceIte, hua, hub, hlt1, hlt2, hu,
+              ConLeche.whnfCore_def, hw, bind, Except.bind]⟩
+      · intro s' hok' hx' hp' hu
+        exact ds_pure_exit (v := .unknown) hok' (hx05.trans hx') (hp'.trans hp05) trivial
+          ⟨0, fun F _ => by
+            dsimp only
+            unfold ConLeche.lazyDeltaStep
+            simp only [Bool.false_eq_true, ↓reduceIte, hua, hub, hlt1, hlt2, hu, pure,
+              Except.pure]⟩
+    rename_i hlt2
+    simp only [Bool.not_eq_true] at hlt2
+    refine triple_seq (sameConstHeads_spec s5 a b x y hok5 hx5 hy5) ?_
+    rintro sch s6 ⟨hok6, hst6, hp6, rfl⟩
+    have hx6 : denoteE s6.store a = some x := by rw [hst6]; exact hx5
+    have hy6 : denoteE s6.store b = some y := by rw [hst6]; exact hy5
+    have hx06 : Ext s₀.store s6.store := by rw [hst6]; exact hx05
+    have hp06 : s6.pins = s₀.pins := hp6.trans hp05
+    -- the same-head spine shortcut, at both guard outcomes
+    have hsp : ∀ (c : Bool), ⦃fun s => ⌜s = s6⌝⦄
+        (if c = true then ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
+          else pure false)
+        ⦃⇓? sp s' => ⌜CheckOK mode env fe s' ∧ Ext s6.store s'.store ∧
+          s'.pins = s6.pins ∧
+          Ev (fun F => (if c = true then ConLeche.defeqSpine
+            (ConLeche.pureFns mode env F) env d x y else pure false)
+            = (.ok sp : CheckM Bool))⌝⦄ := by
+      intro c
+      cases c
+      · exact triple_pure_post ⟨hok6, Ext.refl _, rfl, Ev.const rfl⟩
+      · refine triple_mono (defeqSpine_spec hsim s6 d a b x y hok6 hx6 hy6 hwx hwy) ?_
+        rintro sp s7 ⟨hok7, hx7, hp7, hspF⟩
+        exact ⟨hok7, hx7, hp7, Ev.of_mono (p := fun F => ConLeche.defeqSpine
+          (ConLeche.pureFns mode env F) env d x y = .ok sp)
+          (fun hle h => defeqSpineFueled_mono hle h) hspF⟩
+    dsimp only
+    refine triple_ite_bind ?_
+    refine triple_seq (hsp _) ?_
+    rintro sp s7 ⟨hok7, hx7, hp7, hspE⟩
+    have hx07 := hx06.trans hx7
+    have hp07 : s7.pins = s₀.pins := hp7.trans hp06
+    cases sp
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      refine ds_unfold_seq henv a x _ hok7 (denote_ext hx6 hx7) hwx ?_ ?_
+      · intro s' a₂ u₂ hok' hx' hp' hd₂ hw₂ hu
+        refine ds_unfold_seq henv b y _ hok' (denote_ext (denote_ext hy6 hx7) hx')
+          hwy ?_ ?_
+        · intro s'' b₂ w₂ hok'' hx'' hp'' hd₂' hw₂' hu'
+          dsimp only
+          refine triple_seq (hsim.whnfCore (c := true) s'' d a₂ u₂ hok''
+            (denote_ext hd₂ hx'') hw₂) ?_
+          rintro a₃ t1 ⟨hokt1, hxt1, hpt1, u₃, hdu₃, hwu₃, Fa, hFa⟩
+          refine triple_seq (hsim.whnfCore (c := true) t1 d b₂ w₂ hokt1
+            (denote_ext hd₂' hxt1) hw₂') ?_
+          rintro b₃ t2 ⟨hokt2, hxt2, hpt2, w₃, hdw₃, hww₃, Fb, hFb⟩
+          have hWa : Ev (fun F => ConLeche.whnfCore mode env F d u₂ true = .ok u₃) :=
+            Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨Fa, hFa⟩
+          have hWb : Ev (fun F => ConLeche.whnfCore mode env F d w₂ true = .ok w₃) :=
+            Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨Fb, hFb⟩
+          exact ds_quick_exit hsim a₃ b₃ u₃ w₃ hokt2
+            ((((hx07.trans hx').trans hx'').trans hxt1).trans hxt2)
+            (hpt2.trans (hpt1.trans (hp''.trans (hp'.trans hp07))))
+            (denote_ext hdu₃ hxt2) hdw₃ hwu₃ hww₃
+            ((hspE.and (hWa.and hWb)).imp fun F ⟨hs, hwa, hwb⟩ => by
+              unfold ConLeche.lazyDeltaStep
+              simp only [hua, hub, hlt1, hlt2, Bool.false_eq_true, ↓reduceIte]
+              rw [hs]
+              simp only [bind, Except.bind, Bool.false_eq_true, ↓reduceIte, hu, hu',
+                ConLeche.whnfCore_def, hwa, hwb])
+        · intro s'' hok'' hx'' hp'' hu'
+          exact ds_pure_exit (v := .unknown) hok'' ((hx07.trans hx').trans hx'')
+            (hp''.trans (hp'.trans hp07)) trivial (hspE.imp fun F hs => by
+              unfold ConLeche.lazyDeltaStep
+              simp only [hua, hub, hlt1, hlt2, Bool.false_eq_true, ↓reduceIte]
+              rw [hs]
+              simp only [bind, Except.bind, Bool.false_eq_true, ↓reduceIte, hu, hu',
+                pure, Except.pure])
+      · intro s' hok' hx' hp' hu
+        refine triple_seq (unfoldDefinition_spec henv s' d b hok'
+          ⟨y, denote_ext (denote_ext hy6 hx7) hx', hwy⟩) ?_
+        rintro o s'' ⟨hok'', hx'', hp'', _⟩
+        exact ds_pure_exit (v := .unknown) hok'' ((hx07.trans hx').trans hx'')
+          (hp''.trans (hp'.trans hp07)) trivial (hspE.imp fun F hs => by
+            unfold ConLeche.lazyDeltaStep
+            simp only [hua, hub, hlt1, hlt2, Bool.false_eq_true, ↓reduceIte]
+            rw [hs]
+            simp only [bind, Except.bind, Bool.false_eq_true, ↓reduceIte, hu,
+              pure, Except.pure])
+    · simp only [↓reduceIte]
+      exact ds_pure_exit (v := .eq) hok7 hx07 hp07 trivial (hspE.imp fun F hs => by
+        unfold ConLeche.lazyDeltaStep
+        simp only [hua, hub, hlt1, hlt2, Bool.false_eq_true, ↓reduceIte]
+        rw [hs]
+        simp only [bind, Except.bind, ↓reduceIte, pure, Except.pure])
+
 end ConRon.Bridge.Core
