@@ -412,12 +412,15 @@ def ReadLsCacheOK (tbl : Std.HashMap LsIdx (List Level)) (st : EStore) :
   ∀ (k : LsIdx) (us : List Level), tbl[k]? = some us →
     denoteLs st.lss k = some us
 
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the fourteen
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the fifteen
 per-declaration tables of `Caches`, in one record, at the pure knot the
 bridge's Theorem 1 is stated against (`pureFns mode env F`, con-leche's
 `ConLeche/Kernel/TypeChecker.lean`). -/
 structure CacheOK (mode : CheckMode) (env : Env) (s : AState) : Prop where
   whnfCore : EntryCacheOK (ConLeche.whnfCore mode env) s.caches.whnfCoreC s.store
+  /-- The cheap-projection mode's own table (con-leche `whnfCoreCheapC`). -/
+  whnfCoreCheap : EntryCacheOK (fun F d e => ConLeche.whnfCore mode env F d e true)
+    s.caches.whnfCoreCheapC s.store
   whnf : EntryCacheOK (ConLeche.whnf mode env) s.caches.whnfC s.store
   infer : EntryCacheOK (ConLeche.inferTypeCore mode env) s.caches.inferC s.store
   inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) s.caches.inferIOC s.store
@@ -681,6 +684,7 @@ theorem CacheOK.mono {mode : CheckMode} {env : Env} {s s' : AState}
     (h : CacheOK mode env s) (hx : Ext s.store s'.store)
     (hc : s'.caches = s.caches) : CacheOK mode env s' where
   whnfCore := by rw [hc]; exact h.whnfCore.mono hx
+  whnfCoreCheap := by rw [hc]; exact h.whnfCoreCheap.mono hx
   whnf := by rw [hc]; exact h.whnf.mono hx
   infer := by rw [hc]; exact h.infer.mono hx
   inferIO := by rw [hc]; exact h.inferIO.mono hx
@@ -839,6 +843,7 @@ theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
     (h : CacheOK mode env s) (hx : Ext s.store s'.store)
     (hf : CacheFrame s s') : CacheOK mode env s' where
   whnfCore := by rw [hf.caches]; exact h.whnfCore.mono hx
+  whnfCoreCheap := by rw [hf.caches]; exact h.whnfCoreCheap.mono hx
   whnf := by rw [hf.caches]; exact h.whnf.mono hx
   infer := by rw [hf.caches]; exact h.infer.mono hx
   inferIO := by rw [hf.caches]; exact h.inferIO.mono hx

@@ -47,9 +47,9 @@ elab "force_eqns" ids:ident+ : command => do
       let _ ← Lean.Meta.getEqnsFor? n
       let _ ← Lean.Meta.getUnfoldEqnFor? n
 
-/-! ## Block 1 — `arena::core`'s `whnf` / `infer` / `defeq` block, 96 functions
+/-! ## Block 1 — `arena::core`'s `whnf` / `infer` / `defeq` block, 106 functions
 
-`ConRon/Generated/Funs.lean:26546-32390`: `arena.core.reduce_nat` …
+`ConRon/Generated/Funs.lean:26991-33739`: `arena.core.reduce_nat` …
 `arena.core.knot_defeq`. -/
 
 open ConRon.Generated in
@@ -99,9 +99,10 @@ force_eqns
   arena.core.iota_rec_at
   arena.core.proj_cert
   arena.core.proj_cert_at
+  arena.core.reduce_proj_core
+  arena.core.reduce_proj_core_at
+  arena.core.reduce_proj_core_fire
   arena.core.whnf_core_proj
-  arena.core.whnf_core_proj_at
-  arena.core.whnf_core_proj_fire
   arena.core.whnf_app
   arena.core.beta_peel
   arena.core.whnf_core_body
@@ -133,16 +134,25 @@ force_eqns
   arena.core.defeq_binders
   arena.core.defeq_peel
   arena.core.defeq_peel_leaf
-  arena.core.defeq_lit_app
-  arena.core.defeq_lit_const
-  arena.core.defeq_struct
+  arena.core.quick_defeq
+  arena.core.defeq_offset
+  arena.core.try_unfold_proj_app
+  arena.core.delta_quick
+  arena.core.lazy_delta_one
+  arena.core.lazy_delta_side
+  arena.core.lazy_delta_unfold_both
+  arena.core.lazy_delta_both
+  arena.core.lazy_delta_step
+  arena.core.lazy_delta_nat
+  arena.core.lazy_delta_reduction
+  arena.core.lazy_delta_proj_fields
+  arena.core.lazy_delta_proj_reduction
+  arena.core.defeq_proj_pair
+  arena.core.defeq_str_app
   arena.core.defeq_apps
-  arena.core.defeq_unfold_both
-  arena.core.defeq_delta_both
-  arena.core.defeq_delta
+  arena.core.defeq_stuck
+  arena.core.defeq_after_lazy
   arena.core.defeq_after_whnf
-  arena.core.defeq_step
-  arena.core.defeq_loop
   arena.core.defeq_body
   arena.core.knot_whnf_core
   arena.core.knot_whnf
@@ -153,7 +163,7 @@ force_eqns
 
 /-! ## Block 2 — the `annotate` block, 9 functions
 
-`ConRon/Generated/Funs.lean:32489-33032`. -/
+`ConRon/Generated/Funs.lean:33838-34381`. -/
 
 open ConRon.Generated in
 force_eqns

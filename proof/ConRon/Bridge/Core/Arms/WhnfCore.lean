@@ -558,9 +558,9 @@ split (the coordinator's ruling after task #97-P3-0): each becomes one
 `exact` in a `next =>` block, in `ExprOps/Inst1.lean`'s shape. -/
 theorem whnfCoreBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel) :
-    BodySpec mode env fe (whnfCoreBody mode (coreKnot mode fe id fuel) fe)
-      (ConLeche.whnfCore mode env) := by
+    (hsim : KnotSpec mode env fe fuel) (c : Bool) :
+    BodySpec mode env fe (whnfCoreBody mode (coreKnot mode fe id fuel) fe c)
+      (fun F d e => ConLeche.whnfCore mode env F d e c) := by
   intro s₀ d i e hok hden hw
   by_cases ha : i.tag = ETag.app
   · exact whnfCoreBody_app_batched henv hμ hsim s₀ d i e hok hden hw

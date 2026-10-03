@@ -1426,6 +1426,7 @@ nothing else. -/
 theorem CacheOK.of_empty {mode : CheckMode} {env : Env} {s : AState}
     (h : s.caches = Caches.empty) : CacheOK mode env s where
   whnfCore := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
+  whnfCoreCheap := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   whnf := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   infer := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk
   inferIO := by intro i j hk; rw [h] at hk; simp [Caches.empty] at hk

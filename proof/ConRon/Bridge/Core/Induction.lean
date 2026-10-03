@@ -75,9 +75,10 @@ theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
     ∀ f, KnotSpec mode env fe f
   | 0 => knotSpec_zero mode env fe
   | f + 1 =>
-    { whnfCore := fun s₀ d i e hok hden hw =>
+    { whnfCore := fun {c} s₀ d i e hok hden hw =>
         memoWhnfCore_step henv
-          (whnfCoreBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
+          (fun c => whnfCoreBody_spec henv hμ (knot_spec henv hμ f) c) (c := c)
+          s₀ d i e hok hden hw
       whnf := fun s₀ d i e hok hden hw =>
         memoWhnf_step henv
           (whnfBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw

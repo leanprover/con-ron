@@ -404,6 +404,7 @@ theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode env fe s₀)
   state := hst
   caches :=
     { whnfCore := by rw [hc]; exact hok.caches.whnfCore.mono hx
+      whnfCoreCheap := by rw [hc]; exact hok.caches.whnfCoreCheap.mono hx
       whnf := by rw [hc]; exact hok.caches.whnf.mono hx
       infer := by rw [hc]; exact hok.caches.infer.mono hx
       inferIO := by rw [hc]; exact hok.caches.inferIO.mono hx

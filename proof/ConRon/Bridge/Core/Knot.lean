@@ -120,14 +120,15 @@ list like any other `@[spec]` theorem (task #97s round 2's rule 8 — "the
 record of knot hypotheses costs nothing"). -/
 structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop where
-  /-- Head normalization without delta. -/
-  whnfCore : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+  /-- Head normalization without delta, in either mode (`c` is the official
+  kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
+  whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
     CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore d i
+    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore c d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄
   /-- The full reduction loop. -/
   whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
     CheckOK mode env fe s₀ → denoteE s₀.store i = some e →

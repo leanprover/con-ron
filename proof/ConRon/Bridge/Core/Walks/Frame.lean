@@ -106,6 +106,7 @@ theorem CacheOK.ofReadbackFrame {mode : CheckMode} {env : Env} {s s' : AState}
     (h : CacheOK mode env s) (hf : ReadbackFrame s s') : CacheOK mode env s'
     where
   whnfCore := by rw [hf.caches, hf.store]; exact h.whnfCore
+  whnfCoreCheap := by rw [hf.caches, hf.store]; exact h.whnfCoreCheap
   whnf := by rw [hf.caches, hf.store]; exact h.whnf
   infer := by rw [hf.caches, hf.store]; exact h.infer
   inferIO := by rw [hf.caches, hf.store]; exact h.inferIO
