@@ -62,8 +62,7 @@ theorem isDefEqCore_refl {F d : Nat} {e : Expr} {v : Bool}
   cases F with
   | zero => rw [ConLeche.isDefEqCore_zero] at h; cases h
   | succ F =>
-    rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody, defeqLoopFuel_succ',
-      ConLeche.defeqLoop, ConLeche.defeqStep] at h
+    rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody] at h
     simp only [beq_self_eq_true, if_true, pure, Except.pure] at h
     cases h; rfl
 
@@ -71,8 +70,7 @@ theorem isDefEqCore_refl {F d : Nat} {e : Expr} {v : Bool}
 answer, from fuel one on. -/
 theorem isDefEqCore_refl_one {F d : Nat} {e : Expr} :
     ConLeche.isDefEqCore mode env (F + 1) d e e = .ok true := by
-  rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody, defeqLoopFuel_succ',
-    ConLeche.defeqLoop, ConLeche.defeqStep]
+  rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
   simp only [beq_self_eq_true, if_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1636-1662 defeqStep — **the chain's
@@ -98,51 +96,35 @@ theorem isDefEqCore_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
             (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false ∧ x = true)) :
     ConLeche.isDefEqCore mode env (F + 2) d (bndE isLam t₁ c₁ m₁)
       (bndE isLam t₂ c₂ m₂) = .ok x := by
-  rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody, defeqLoopFuel_succ',
-    ConLeche.defeqLoop, ConLeche.defeqStep]
+  rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
+  simp only [ConLeche.isDefEqCore_succ] at h
   cases isLam
   · simp only [bndE, Bool.false_eq_true, if_false] at hne ⊢
-    have ha : (ConLeche.pureFns mode env (F + 1)).whnfCore d (.forallE t₁ c₁ m₁) =
-        .ok (.forallE t₁ c₁ m₁) := rfl
-    have hb : (ConLeche.pureFns mode env (F + 1)).whnfCore d (.forallE t₂ c₂ m₂) =
-        .ok (.forallE t₂ c₂ m₂) := rfl
+    have ha : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
+        (.forallE t₁ c₁ m₁) = .ok (.forallE t₁ c₁ m₁) := rfl
+    have hb : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
+        (.forallE t₂ c₂ m₂) = .ok (.forallE t₂ c₂ m₂) := rfl
     simp only [ha, hb]
-    simp only [ConLeche.isDefEqCore_succ] at h
     rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
-    · simp [hne,
-        ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-        ConLeche.Expr.getAppFn,
-        ConLeche.Expr.isBoolTrue, h1, bind, Except.bind, pure, Except.pure]
-    · simp [hne,
-        ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-        ConLeche.Expr.getAppFn,
-        ConLeche.Expr.isBoolTrue, h1, h2, bind, Except.bind, pure, Except.pure]
-    · simp [hne,
-        ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-        ConLeche.Expr.getAppFn,
-        ConLeche.Expr.isBoolTrue, h1, h2, hm, bind, Except.bind, pure,
-        Except.pure]
+    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
+        bind, Except.bind, pure, Except.pure]
+    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
+        h2, bind, Except.bind, pure, Except.pure]
+    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
+        h2, hm, bind, Except.bind, pure, Except.pure]
   · simp only [bndE, if_true] at hne ⊢
-    have ha : (ConLeche.pureFns mode env (F + 1)).whnfCore d (.lam t₁ c₁ m₁) =
-        .ok (.lam t₁ c₁ m₁) := rfl
-    have hb : (ConLeche.pureFns mode env (F + 1)).whnfCore d (.lam t₂ c₂ m₂) =
-        .ok (.lam t₂ c₂ m₂) := rfl
+    have ha : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
+        (.lam t₁ c₁ m₁) = .ok (.lam t₁ c₁ m₁) := rfl
+    have hb : (ConLeche.pureFns mode env (F + 1)).whnfCore true d
+        (.lam t₂ c₂ m₂) = .ok (.lam t₂ c₂ m₂) := rfl
     simp only [ha, hb]
-    simp only [ConLeche.isDefEqCore_succ] at h
     rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
-    · simp [hne,
-        ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-        ConLeche.Expr.getAppFn,
-        ConLeche.Expr.isBoolTrue, h1, bind, Except.bind, pure, Except.pure]
-    · simp [hne,
-        ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-        ConLeche.Expr.getAppFn,
-        ConLeche.Expr.isBoolTrue, h1, h2, bind, Except.bind, pure, Except.pure]
-    · simp [hne,
-        ConLeche.Expr.quickPair, ConLeche.reduceNat, ConLeche.unfoldableHead,
-        ConLeche.Expr.getAppFn,
-        ConLeche.Expr.isBoolTrue, h1, h2, hm, bind, Except.bind, pure,
-        Except.pure]
+    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
+        bind, Except.bind, pure, Except.pure]
+    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
+        h2, bind, Except.bind, pure, Except.pure]
+    · simp [hne, ConLeche.quickDefEq, ConLeche.Expr.isBoolTrue, h1,
+        h2, hm, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: none — **the peel's invariant**: the peel's answer `x` is the
 chain's continuation at the opened pair `oa`, `ob` — the entry point's
