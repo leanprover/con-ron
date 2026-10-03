@@ -3,7 +3,7 @@
 
 DESIGN §8.2, task #97s's **rule 8**: *one step lemma per clause of the PURE
 function, not per constructor of the subject*.  This module is that inventory
-for `ConLeche/Kernel/Core.lean:968-1052 whnfCoreBody` — twelve exits over four
+for `ConLeche/Kernel/Core.lean:1012-1089 whnfCoreBody` — nine exits over four
 clauses — followed by the body theorem (`whnfCoreBody_spec`) the knot's
 `whnfCore` wrapper consumes.
 
@@ -17,11 +17,8 @@ clauses — followed by the body theorem (`whnfCoreBody_spec`) the knot's
 | `.app` | the certificate fails — stuck redex | `whnfCore_app_stuck` |
 | `.app` | ι fires | `whnfCore_app_iota` |
 | `.app` | ι declines — stuck application | `whnfCore_app_iota_none` |
-| `.proj` | the table fires and the certificate succeeds | `whnfCore_proj_fire` |
-| `.proj` | the table fires, certificate fails | `whnfCore_proj_cert_false` |
-| `.proj` | the guards fail | `whnfCore_proj_guard` |
-| `.proj` | the scrutinee's head is not a constant | `whnfCore_proj_head` |
-| `.proj` | no table entry | `whnfCore_proj_none` |
+| `.proj` | `reduceProjCore` fires: the field, head-normalised | `whnfCore_proj_fire` |
+| `.proj` | `reduceProjCore` declines: the node itself | `whnfCore_proj_stuck` |
 | `.letE` / `.bvar` | `throw` | nothing to prove (`⇓?`) |
 
 ## The two deviations the twin carries at this body
@@ -49,7 +46,7 @@ side enters only at `whnfCoreBody_spec`.
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Iota
-import ConRon.Bridge.Core.Walks.ProjLit
+import ConRon.Bridge.Core.Walks.ProjCore
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Core.Walks.BetaSpine
 
@@ -63,121 +60,62 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 variable {mode : CheckMode} {env : Env}
 
-/-! ## 2. The `.proj` clause's five exits
+/-! ## 2. The `.proj` clause's two exits
 
-All five run the same prefix — `r.whnf depth pe` then `projLitToCtor` — so
-each lemma takes that prefix's two answers as hypotheses and differs only in
-what the table and the certificate say. -/
+con-leche 8afe1815 split the clause: the scrutinee is reduced (by `whnf`, or
+by the cheap `whnfCore` in the cheap mode), then the projection rule is
+`reduceProjCore`, whose own five exits are `Walks/ProjCore.lean`'s.  So the
+clause has two exits here: the rule does not fire (the input itself), or it
+fires and the field is head-normalised in the same mode. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1005-1037 whnfCoreBody — **no table
-entry**: the projection is stuck, and answers itself (con-leche's task
+/-- con-leche: ConLeche/Kernel/Core.lean:1072 whnfCoreBody — the
+scrutinee's reduction, in the clause's mode, at the pure knot. -/
+abbrev projScrut (mode : CheckMode) (env : Env) (c : Bool) (F d : Nat)
+    (pe : Expr) : CheckM Expr :=
+  if c then ConLeche.whnfCore mode env F d pe true
+  else ConLeche.whnf mode env F d pe
+
+/-- con-leche: ConLeche/Verify/Mono.lean:143 whnfCore_mono — the scrutinee's
+reduction is fuel-monotone in either mode. -/
+theorem projScrut_mono {c : Bool} {F F' d : Nat} {pe r : Expr} (hle : F ≤ F')
+    (h : projScrut mode env c F d pe = .ok r) :
+    projScrut mode env c F' d pe = .ok r := by
+  cases c
+  · exact ConLeche.whnf_mono hle h
+  · exact ConLeche.whnfCore_mono hle h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1072-1075 whnfCoreBody — **the rule
+does not fire**: the projection is stuck and answers itself (con-leche's task
 #323: its scrutinee as it was, not the reduced one). -/
-theorem whnfCore_proj_none {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
-    (hw : ConLeche.whnf mode env F d pe = .ok e0)
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d e0
-      = .ok e')
-    (ht : env.findProj? sn i = none) :
-    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
+theorem whnfCore_proj_stuck {c : Bool} {F d i : Nat} {sn : Name}
+    {pe c' : Expr}
+    (hs : projScrut mode env c F d pe = .ok c')
+    (hr : ConLeche.reduceProjCoreFueled mode env F d sn i c' = .ok none) :
+    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) c =
       .ok (.proj sn i pe) := by
+  simp only [ConLeche.reduceProjCoreFueled] at hr
   rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, bind,
-    Except.bind, pure, Except.pure]
+  cases c <;>
+    simp only [projScrut, if_true, Bool.false_eq_true, if_false] at hs <;>
+    simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, ConLeche.whnfCore_def,
+      if_true, Bool.false_eq_true, if_false, hs, hr, bind, Except.bind, pure,
+      Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1017-1035 whnfCoreBody — the table
-fires, the guards hold and **the certificate succeeds**: the projection
-selects its field and head-normalizes it. -/
-theorem whnfCore_proj_fire {F d i : Nat} {sn : Name} {pe e0 e' res : Expr}
-    {entry : ProjEntry} {c : Name} {us : List Level}
-    (hw : ConLeche.whnf mode env F d pe = .ok e0)
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d e0
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : e'.getAppFn = .const c us)
-    (hg : c = entry.ctor ∧ i < entry.numFields ∧
-      e'.getAppArgs.length = entry.numParams + entry.numFields ∧
-      us.length = entry.levelParams.length ∧ entry.fireOk us = true)
-    (hcert : ConLeche.projCertAt (ConLeche.pureFns mode env F) env d
-      mode.verifiedChecks mode.betaGate c us e'.getAppArgs = .ok true)
-    (hr : ConLeche.whnfCore mode env F d
-      (e'.getAppArgs.getD (entry.numParams + i) (.bvar 0)) = .ok res) :
-    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) = .ok res := by
+/-- con-leche: ConLeche/Kernel/Core.lean:1072-1074 whnfCoreBody — **the rule
+fires**: the selected field is head-normalised in the clause's mode. -/
+theorem whnfCore_proj_fire {c : Bool} {F d i : Nat} {sn : Name}
+    {pe c' m res : Expr}
+    (hs : projScrut mode env c F d pe = .ok c')
+    (hr : ConLeche.reduceProjCoreFueled mode env F d sn i c' = .ok (some m))
+    (hk : ConLeche.whnfCore mode env F d m c = .ok res) :
+    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) c = .ok res := by
+  simp only [ConLeche.reduceProjCoreFueled] at hr
   rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, ConLeche.whnfCore_def,
-    hw, hl, ht, hh, bind, Except.bind]
-  rw [if_pos hg, hcert]
-  simp only [if_true]
-  exact hr
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1032-1035 whnfCoreBody — the table
-fires and **the certificate fails**: stuck, the input itself. -/
-theorem whnfCore_proj_cert_false {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
-    {entry : ProjEntry} {c : Name} {us : List Level}
-    (hw : ConLeche.whnf mode env F d pe = .ok e0)
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d e0
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : e'.getAppFn = .const c us)
-    (hg : c = entry.ctor ∧ i < entry.numFields ∧
-      e'.getAppArgs.length = entry.numParams + entry.numFields ∧
-      us.length = entry.levelParams.length ∧ entry.fireOk us = true)
-    (hcert : ConLeche.projCertAt (ConLeche.pureFns mode env F) env d
-      mode.verifiedChecks mode.betaGate c us e'.getAppArgs = .ok false) :
-    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i pe) := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, hh, bind,
-    Except.bind]
-  rw [if_pos hg, hcert]
-  simp only [Bool.false_eq_true, if_false, pure,
-    Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1034 whnfCoreBody — the table fires
-but **a guard fails** (wrong constructor, index out of range, arity mismatch,
-level-arity mismatch, or the possibly-`Prop` fence): stuck. -/
-theorem whnfCore_proj_guard {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
-    {entry : ProjEntry} {c : Name} {us : List Level}
-    (hw : ConLeche.whnf mode env F d pe = .ok e0)
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d e0
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : e'.getAppFn = .const c us)
-    (hg : ¬ (c = entry.ctor ∧ i < entry.numFields ∧
-      e'.getAppArgs.length = entry.numParams + entry.numFields ∧
-      us.length = entry.levelParams.length ∧ entry.fireOk us = true)) :
-    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i pe) := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, hh, bind,
-    Except.bind]
-  rw [if_neg hg]
-  simp only [pure, Except.pure]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1005-1037 whnfCoreBody — the table
-fires but **the scrutinee's head is not a constant**: stuck. -/
-theorem whnfCore_proj_head {F d i : Nat} {sn : Name} {pe e0 e' : Expr}
-    {entry : ProjEntry}
-    (hw : ConLeche.whnf mode env F d pe = .ok e0)
-    (hl : ConLeche.projLitToCtor (ConLeche.pureFns mode env F) env d e0
-      = .ok e')
-    (ht : env.findProj? sn i = some entry)
-    (hh : ∀ c us, e'.getAppFn ≠ .const c us) :
-    ConLeche.whnfCore mode env (F + 1) d (.proj sn i pe) =
-      .ok (.proj sn i pe) := by
-  rw [ConLeche.whnfCore_succ]
-  simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, hw, hl, ht, bind,
-    Except.bind]
-  first
-    | rfl
-    | (split
-       · rename_i c us heq; exact absurd heq (hh c us)
-       · rfl)
-
-/-- con-leche: none — an in-range `getD` is the element, whatever the
-default (the twin's default is an interned `.bvar 0` handle, con-leche's the
-term `.bvar 0`). -/
-theorem getD_of_lt {α : Type} {l : List α} {i : Nat} {a : α}
-    (h : i < l.length) : l.getD i a = l[i] := by
-  simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h]
+  cases c <;>
+    simp only [projScrut, if_true, Bool.false_eq_true, if_false] at hs <;>
+    simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, ConLeche.whnfCore_def,
+      if_true, Bool.false_eq_true, if_false, hs, hr, bind, Except.bind] <;>
+    exact hk
 
 /-! ## 3. The batched `.app` clause's identification
 
@@ -217,15 +155,16 @@ redex whose certificate fails is stuck in the spec and reduced by the twin.
 `certs_of_verifiedChecks` (`Verify/BetaGate.lean:126`). -/
 theorem whnfCoreBody_app_batched {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode env fe fuel) (c : Bool)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : (i.tag == ETag.app) = true) :
     ⦃fun s => ⌜s = s₀⌝⦄
-      whnfCoreBody mode (coreKnot mode fe id fuel) fe d i
+      whnfCoreBody mode (coreKnot mode fe id fuel) fe c d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e
+          s'.store r⌝⦄ := by
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
   refine view_bind_triple hv ?_
@@ -276,19 +215,20 @@ hypothesis: the batched `.app` clause (`whnfCoreBody_app_batched` above), the
 throw).  The parent is a case split on the tag and nothing else, so the
 body closed when its three children did (all three are proved). -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:968-975 whnfCoreBody — **the leaf
+/-- con-leche: ConLeche/Kernel/Core.lean:1028-1033 whnfCoreBody — **the leaf
 clauses**: at a tag that is neither `.app` nor `.proj`, the six values answer
 themselves and `.letE`/`.bvar` throw. -/
-theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat}
+theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat} (c : Bool)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj) :
     ⦃fun s => ⌜s = s₀⌝⦄
-      whnfCoreBody mode (coreKnot mode fe id fuel) fe d i
+      whnfCoreBody mode (coreKnot mode fe id fuel) fe c d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e
+          s'.store r⌝⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -296,7 +236,7 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat}
   have hval : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
       (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
       (∃ t b m, e = .lam t b m) ∨ (∃ t b m, e = .forallE t b m) →
-      SimE (ConLeche.whnfCore mode env) d e s₀.store i :=
+      SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s₀.store i :=
     fun hs => ⟨e, hden, hw, 1, whnfCore_of_stuck hs 0 d⟩
   refine view_bind_triple hv ?_
   cases v with
@@ -329,30 +269,23 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat}
     mvcgen; bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩)))))⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1005-1037 whnfCoreBody — **the
-`.proj` clause**: normalise the scrutinee, expand a string literal, consult
-the projection table, and fire behind the guards and the certificate.
-
-**PROVED** (round 5), in eleven stages chained by `triple_seq`
-(`Memo.lean`), each stage's facts introduced by name: `KnotSpec.whnf`,
-`projLitToCtor_spec`, `IFEnv.findProj?_spec`, `getAppFn_spec`, the head's
-`view`, `getAppArgs_spec`, `viewLsLen`, `IProjEntry.fireOk_spec`, the guard,
-`internE (.bvar 0)`, `projCertAt_spec`, `KnotSpec.whnfCore`; the five exits
-are `whnfCore_proj_{none,head,guard,cert_false,fire}` above.  **Sorry-free**
-since `projLitToCtor_spec` closed (`Walks/ProjLit.lean`, same round).  Every callee is applied at a subject whose
-denotation the previous stage NAMED, so the published (explicit-argument)
-forms serve and the primed forms above are for `mvcgen`-driven callers. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1062-1075 whnfCoreBody — **the
+`.proj` clause**: reduce the scrutinee (by `whnf`, or by the cheap `whnfCore`
+in the cheap mode), run the projection rule (`reduceProjCore_spec`,
+`Walks/ProjCore.lean`), and head-normalise a fired field in the same mode;
+when the rule does not fire, the node itself. -/
 theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env)
-    (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode env fe fuel) (c : Bool)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : i.tag = ETag.proj) :
     ⦃fun s => ⌜s = s₀⌝⦄
-      whnfCoreBody mode (coreKnot mode fe id fuel) fe d i
+      whnfCoreBody mode (coreKnot mode fe id fuel) fe c d i
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnfCore mode env) d e s'.store r⌝⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e
+          s'.store r⌝⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -362,171 +295,51 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
     have hwes : Expr.WScoped d es := by simpa [Expr.WScoped] using hw
     refine view_bind_triple hv ?_
     dsimp only
-    -- stage 1: the scrutinee's head normal form
-    refine triple_seq (hsim.whnf s₀ d pe es hok hpe hwes) ?_
-    rintro e0 s1 ⟨hok1, hx1, hp1, v0, hv0, hwv0, F1, hF1⟩
-    -- stage 2: the string-literal expansion
-    refine triple_seq (projLitToCtor_spec hsim s1 d e0 v0 hok1 hv0 hwv0) ?_
-    rintro e' s2 ⟨hok2, hx2, hp2, v', hv', hwv', F2, hF2⟩
-    have hsn2 : denoteN s2.store.ns sn = some nm := denoteN_ext hsn (hx1.trans hx2)
-    -- the stuck exit, shared by four of the five exits: the node itself
-    -- (con-leche's task #323: a stuck projection keeps its scrutinee)
-    have hstuck : ∀ (s : AState), CheckOK mode env fe s →
-        Ext s₀.store s.store → s.pins = s₀.pins →
-        (∃ F, ConLeche.whnfCore mode env F d (.proj nm k es) =
-          .ok (.proj nm k es)) →
-        ⦃fun s' => ⌜s' = s⌝⦄ (pure i : AM EIdx)
+    -- stage 1: the scrutinee, in the clause's mode
+    have h1 : ⦃fun s => ⌜s = s₀⌝⦄
+        (if c then (coreKnot mode fe id fuel).whnfCore true d pe
+          else (coreKnot mode fe id fuel).whnf d pe)
         ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
-            SimE (ConLeche.whnfCore mode env) d (.proj nm k es) s'.store r⌝⦄ := by
-      intro s hs hxs hps hF
-      mvcgen; bridge_peel; subst_vars
-      exact ⟨hs, hxs, hps, .proj nm k es, denote_ext hden hxs, hw, hF⟩
-    -- stage 3: the table
-    refine triple_seq (IFEnv.findProj?_spec s2 sn k nm hok2 hsn2) ?_
-    rintro oe s3 ⟨hok3, hx3, _hm3, _hc3, hp3, hsome, hnone⟩
-    have hv'3 := denote_ext hv' hx3
-    have hsn3 := denoteN_ext hsn2 hx3
-    have hx03 : Ext s₀.store s3.store := hx1.trans (hx2.trans hx3)
-    have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
-    have hwhnf : ConLeche.whnf mode env (max F1 F2) d es = .ok v0 :=
-      ConLeche.whnf_mono (Nat.le_max_left _ _) hF1
-    have hplc : ConLeche.projLitToCtor (ConLeche.pureFns mode env (max F1 F2))
-        env d v0 = .ok v' :=
-      projLitToCtorFueled_mono (Nat.le_max_right _ _) hF2
-    cases oe with
+            SimEOp (fun F => projScrut mode env c F d es) d s'.store r⌝⦄ := by
+      cases c
+      · simp only [Bool.false_eq_true, if_false]
+        exact hsim.whnf s₀ d pe es hok hpe hwes
+      · simp only [if_true]
+        exact hsim.whnfCore s₀ d pe es hok hpe hwes
+    rw [ite_bind_fold]
+    refine triple_seq h1 ?_
+    rintro e0 s1 ⟨hok1, hx1, hp1, v0, hv0, hwv0, F1, hF1⟩
+    -- stage 2: the projection rule
+    refine triple_seq (reduceProjCore_spec henv hsim s1 d sn k e0 nm v0 hok1
+      (denoteN_ext hsn hx1) hv0 hwv0) ?_
+    rintro o s2 ⟨hok2, hx2, hp2, ov, hov, hwov, F2, hF2⟩
+    have hx02 : Ext s₀.store s2.store := hx1.trans hx2
+    have hp02 : s2.pins = s₀.pins := hp2.trans hp1
+    have hs' := projScrut_mono (Nat.le_max_left F1 F2) hF1
+    have hr' := reduceProjCoreFueled_mono (Nat.le_max_right F1 F2) hF2
+    cases o with
     | none =>
-      exact hstuck s3 hok3 hx03 hp03
-        ⟨max F1 F2 + 1, whnfCore_proj_none hwhnf hplc (hnone rfl)⟩
-    | some entry =>
-      obtain ⟨pe', hpd, hfp⟩ := hsome entry rfl
-      have hwf3 := hok3.state.wf
-      obtain ⟨rk3, hrk3⟩ := hok3.state.wf
-      -- stage 4: the head of the expanded scrutinee
-      refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s3 e' hok3.state
-        (by rw [hv'3]; rfl)) ?_
-      rintro hd s4 ⟨hs4, hrelF⟩
-      subst s4
-      have hdd : denoteE s3.store hd = some v'.getAppFn := hrelF v' hv'3
-      obtain ⟨vh, hvh⟩ := denoteE_view hdd
-      refine tag_view_bind_triple hvh ?_
-        (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-      cases vh
-      case const c us =>
-        obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf3 hvh hdd
-        dsimp only
-        -- stage 5: the spine's arguments
-        refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s3 e'
-          hok3.state (by rw [hv'3]; rfl)) ?_
-        rintro args s5 ⟨hs5, hrelA⟩
-        subst s5
-        have hargs : Frontend.denoteEList s3.store args = some v'.getAppArgs :=
-          hrelA v' hv'3
-        -- stage 6: the level list's length
-        refine triple_seq (viewLsLen_spec s3 us) ?_
-        rintro ol s6 ⟨hs6, hol⟩
-        subst s6
-        rw [viewLen_of_denoteLs hus] at hol
-        subst hol
-        dsimp only
-        -- stage 7: the possibly-`Prop` fence
-        obtain ⟨hsnp, hlps, hctor, _hbody, _hfs, _hss, _hidx, hnp, hnf, _hoff⟩ :=
-          denoteProjEntry_inv hpd
-        refine triple_seq (IProjEntry.fireOk_spec s3 entry us pe' ls hok3 hpd
-          hus) ?_
-        rintro fok s7 ⟨hok7, hst7, hp7, hfok⟩
-        subst hfok
-        have hc_iff : c = entry.ctor ↔ cn = pe'.ctor := by
-          constructor
-          · rintro rfl; exact Option.some.inj (hcn.symm.trans hctor)
-          · rintro rfl; exact denoteN_inj hrk3.nsWF hcn hctor
-        have hlen_a : args.length = v'.getAppArgs.length :=
-          (denoteEList_len hargs).symm
-        have hlen_l : ls.length = pe'.levelParams.length ↔
-            ls.length = entry.levelParams.length := by
-          rw [← denoteNList_len hlps]
-        have hguard : (c = entry.ctor ∧ k < entry.numFields ∧
-            args.length = entry.numParams + entry.numFields ∧
-            ls.length = entry.levelParams.length ∧ pe'.fireOk ls = true) ↔
-            (cn = pe'.ctor ∧ k < pe'.numFields ∧
-            v'.getAppArgs.length = pe'.numParams + pe'.numFields ∧
-            ls.length = pe'.levelParams.length ∧ pe'.fireOk ls = true) := by
-          rw [hc_iff, hlen_a, hnp, hnf, hlen_l]
-        split
-        next hg =>
-          obtain ⟨hcE, hkF, hlenA, _hlenL, _hfire⟩ := hg
-          have hgP := hguard.mp ⟨hcE, hkF, hlenA, _hlenL, _hfire⟩
-          subst hcE
-          have hst : s7.store = s3.store := hst7
-          have hx07 : Ext s₀.store s7.store := by rw [hst]; exact hx03
-          have hp07 : s7.pins = s₀.pins := hp7.trans hp03
-          -- stage 8: the `getD` default
-          refine triple_seq (internE_spec s7 (.bvar 0) hok7.state.wf viewOK_bvar) ?_
-          rintro b0 s8 ⟨hwf8, hx8, _hbm8, _hl8, _hsc8, _hm8, hc8, hp8, _hv8, _hd8⟩
-          have hok8 : CheckOK mode env fe s8 := hok7.mono ⟨hwf8⟩ hx8 hc8 hp8
-          have hx38 : Ext s3.store s8.store := by rw [← hst]; exact hx8
-          -- the argument the rule selects, in range on both sides
-          have hj : entry.numParams + k < args.length := by omega
-          have hj' : pe'.numParams + k < v'.getAppArgs.length := by
-            rw [← hlen_a, hnp]; exact hj
-          have hwargs : ∀ x ∈ v'.getAppArgs, Expr.WScoped d x :=
-            Expr.WScoped.getAppArgs hwv'
-          have harg3 : denoteE s3.store (args.getD (entry.numParams + k) b0) =
-              some (v'.getAppArgs.getD (pe'.numParams + k) (.bvar 0)) := by
-            have hj'' : entry.numParams + k < v'.getAppArgs.length := by
-              rw [← hlen_a]; exact hj
-            have e1 : args.getD (entry.numParams + k) b0 =
-                args.getD (entry.numParams + k) default := by
-              rw [getD_of_lt hj, getD_of_lt hj]
-            have e2 : v'.getAppArgs.getD (entry.numParams + k) (.bvar 0) =
-                v'.getAppArgs.getD (entry.numParams + k) default := by
-              rw [getD_of_lt hj'', getD_of_lt hj'']
-            rw [hnp, e1, e2]
-            exact denoteEList_getD hargs hj
-          have hwarg : Expr.WScoped d
-              (v'.getAppArgs.getD (pe'.numParams + k) (.bvar 0)) := by
-            rw [getD_of_lt hj']
-            exact hwargs _ (List.getElem_mem _)
-          -- stage 9: the certificate
-          refine triple_seq (projCertAt_spec hsim henv s8 d mode.verifiedChecks
-            mode.betaGate entry.ctor us args cn ls v'.getAppArgs hok8
-            (denoteN_ext hcn hx38) (denoteLs_ext hus hx38)
-            (denoteEList_ext hx38 _ _ hargs) hwargs) ?_
-          rintro cert s9 ⟨hok9, hx9, hp9, F3, hF3⟩
-          have hx09 : Ext s₀.store s9.store := hx07.trans (hx8.trans hx9)
-          have hp09 : s9.pins = s₀.pins := hp9.trans (hp8.trans hp07)
-          cases cert
-          · -- the certificate fails: stuck
-            exact hstuck s9 hok9 hx09 hp09
-              ⟨max (max F1 F2) F3 + 1, whnfCore_proj_cert_false
-                (ConLeche.whnf_mono (Nat.le_max_left _ _) hwhnf)
-                (projLitToCtorFueled_mono (Nat.le_max_left _ _) hplc) hfp hgf
-                hgP (projCertAtFueled_mono (Nat.le_max_right _ _) hF3)⟩
-          · -- the rule FIRES: head-normalise the selected field
-            refine triple_mono (hsim.whnfCore s9 d _ _ hok9
-              (denote_ext harg3 (hx38.trans hx9)) hwarg) ?_
-            rintro r s10 ⟨hok10, hx10, hp10, w, hw10, hww, F4, hF4⟩
-            refine ⟨hok10, hx09.trans hx10, hp10.trans hp09, w, hw10, hww,
-              max (max F1 F2) (max F3 F4) + 1, ?_⟩
-            exact whnfCore_proj_fire
-              (ConLeche.whnf_mono (Nat.le_max_left _ _) hwhnf)
-              (projLitToCtorFueled_mono (Nat.le_max_left _ _) hplc) hfp hgf hgP
-              (projCertAtFueled_mono (Nat.le_trans (Nat.le_max_left F3 F4)
-                (Nat.le_max_right _ _)) hF3)
-              (ConLeche.whnfCore_mono (Nat.le_trans (Nat.le_max_right F3 F4)
-                (Nat.le_max_right _ _)) hF4)
-        next hg =>
-          -- a guard fails: stuck
-          have hst : s7.store = s3.store := hst7
-          exact hstuck s7 hok7 (by rw [hst]; exact hx03) (hp7.trans hp03)
-            ⟨max F1 F2 + 1, whnfCore_proj_guard hwhnf hplc hfp hgf
-              (fun h => hg (hguard.mpr h))⟩
-      -- the head is not a constant: stuck
-      all_goals
-        dsimp only
-        exact hstuck s3 hok3 hx03 hp03
-          ⟨max F1 F2 + 1, whnfCore_proj_head hwhnf hplc hfp
-            (denote_not_const hwf3 hvh hdd (by intro c us h; cases h))⟩
+      -- the rule does not fire: the node itself
+      simp only [denoteEO, Option.some.injEq] at hov
+      subst hov
+      dsimp only
+      mvcgen; bridge_peel; subst_vars
+      exact ⟨hok2, hx02, hp02, .proj nm k es, denote_ext hden hx02, hw,
+        max F1 F2 + 1, whnfCore_proj_stuck hs' hr'⟩
+    | some m =>
+      -- the rule FIRES: head-normalise the selected field
+      simp only [denoteEO, Option.map_eq_some_iff] at hov
+      obtain ⟨M, hdM, rfl⟩ := hov
+      dsimp only
+      refine triple_mono (hsim.whnfCore s2 d m M hok2 hdM (hwov M rfl)) ?_
+      rintro r s3 ⟨hok3, hx3, hp3, w, hw3, hww, F3, hF3⟩
+      refine ⟨hok3, hx02.trans hx3, hp3.trans hp02, w, hw3, hww,
+        max (max F1 F2) F3 + 1, ?_⟩
+      exact whnfCore_proj_fire
+        (projScrut_mono (Nat.le_max_left _ _) hs')
+        (reduceProjCoreFueled_mono (Nat.le_max_left _ _) hr')
+        (ConLeche.whnfCore_mono (Nat.le_max_right _ _) hF3)
   all_goals
     exfalso
     rw [htag] at htg
@@ -563,16 +376,16 @@ theorem whnfCoreBody_spec {fe : IFEnv} {fuel : Nat}
       (fun F d e => ConLeche.whnfCore mode env F d e c) := by
   intro s₀ d i e hok hden hw
   by_cases ha : i.tag = ETag.app
-  · exact whnfCoreBody_app_batched henv hμ hsim s₀ d i e hok hden hw
+  · exact whnfCoreBody_app_batched henv hμ hsim c s₀ d i e hok hden hw
       (by simp [ha])
   by_cases hp : i.tag = ETag.proj
-  · exact whnfCoreBody_proj henv hsim s₀ d i e hok hden hw hp
-  exact whnfCoreBody_leaf s₀ d i e hok hden hw ha hp
+  · exact whnfCoreBody_proj henv hsim c s₀ d i e hok hden hw hp
+  exact whnfCoreBody_leaf c s₀ d i e hok hden hw ha hp
 
 section Census
 
-#print axioms whnfCore_proj_head
-#print axioms getD_of_lt
+#print axioms whnfCore_proj_stuck
+#print axioms whnfCore_proj_fire
 #print axioms whnfCoreBody_leaf
 /-! No `sorryAx` expected: `whnfCoreBody_app_batched` read it only through
 `Walks/BetaSpine.lean`'s `iotaRecAt_spec` (round 6), which is closed since. -/

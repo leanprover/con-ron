@@ -71,6 +71,10 @@ six more.
   `strLitToConstructor_WScoped`. CLOSED.
 * `Walks/ProjLit.lean` — `projLitToCtor_spec` (round 5, moved from
   `Walks/Owed.lean`). CLOSED.
+* `Walks/ProjCore.lean` — **the projection rule on a reduced scrutinee**
+  (task #109, con-leche's `reduceProjCore`): `reduceProjCore_spec` in
+  `SimOOp` form, its five pure exits and `reduceProjCoreFueled_mono`; shared
+  by `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`. CLOSED.
 * `Walks/Stuck.lean` — **the stuck fallback** (round 5): `stuckIrrel_spec`
   PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and
   `structEtaCertWith_spec`, CLOSED round 6), `structUnitCert_spec` and

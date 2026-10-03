@@ -34,7 +34,15 @@ import ConRon.Bridge.Core.Arms.WhnfCore
 import ConRon.Bridge.Core.Arms.Whnf
 import ConRon.Bridge.Core.Arms.Infer
 import ConRon.Bridge.Core.Arms.InferIO
-import ConRon.Bridge.Core.Arms.Defeq
+-- TASK109-STANDIN: replaced by Arms/Defeq.lean's defeqBody_spec at merge
+-- (these six are `Arms/Defeq.lean`'s and `Arms/DefeqPeel.lean`'s own imports,
+-- kept so the import closure downstream does not change)
+import ConRon.Bridge.Core.Walks.PropRead
+import ConRon.Bridge.Core.Walks.Stuck
+import ConRon.Bridge.Core.Walks.ProjLit
+import ConRon.Bridge.Core.Walks.Guards
+import ConRon.Bridge.Core.Walks.StrCtor
+import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.Core.Arms.Annotate
 import ConLeche.Verify.BetaGate
 
@@ -59,6 +67,17 @@ is stated at, and this is where that is cashed. -/
 the io body at every mode. -/
 theorem ioGate_true (mode : CheckMode) : mode.ioGate = true := by
   cases mode <;> rfl
+
+-- TASK109-STANDIN: replaced by Arms/Defeq.lean's defeqBody_spec at merge
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **TEMPORARY
+STAND-IN** (task #109) for `Arms/Defeq.lean`'s `defeqBody_spec`, which a
+second agent re-proves against con-leche's restructured `defeqBody` in its own
+worktree.  Same hypotheses and statement as the old theorem. -/
+theorem defeqBody_spec_TEMP {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {fuel : Nat} (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
+    (hsim : KnotSpec mode env fe fuel) :
+    BodySpecV mode env fe (defeqBody mode (coreKnot mode fe id fuel) fe)
+      (ConLeche.isDefEqCore mode env) := sorry
 
 /-! ## The induction -/
 
@@ -87,7 +106,8 @@ theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
           (inferBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
       defeq := fun s₀ d i j a b hok hda hdb hwa hwb =>
         memoDefeq_step henv
-          (defeqBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i j a b hok hda
+          -- TASK109-STANDIN: replaced by Arms/Defeq.lean's defeqBody_spec at merge
+          (defeqBody_spec_TEMP henv hμ (knot_spec henv hμ f)) s₀ d i j a b hok hda
           hdb hwa hwb
       annotate := fun s₀ d i e hok hden hw =>
         memoAnnotate_step henv
@@ -172,10 +192,13 @@ standard axioms. -/
 
 /-! ### The per-arm step lemmas — closed, fifty-two of them -/
 
-#print axioms whnfCore_proj_none
+#print axioms whnfCore_proj_stuck
 #print axioms whnfCore_proj_fire
-#print axioms whnfCore_proj_cert_false
-#print axioms whnfCore_proj_guard
+#print axioms reduceProjCore_none
+#print axioms reduceProjCore_head
+#print axioms reduceProjCore_guard
+#print axioms reduceProjCore_cert_false
+#print axioms reduceProjCore_fire
 
 #print axioms whnfLoop_reduceNat
 #print axioms whnfLoop_delta
@@ -193,13 +216,7 @@ standard axioms. -/
 #print axioms inferIO_lam_chain
 #print axioms inferIO_lam_leaf
 
-#print axioms defeq_of_loop
-#print axioms defeqLoop_syntactic
-#print axioms defeqLoop_boolTrue
-#print axioms defeqLoop_whnf_eq
-#print axioms defeqLoop_propIrrel
-#print axioms defeqLoop_reduceNat_left
-#print axioms defeqLoop_reduceNat_right
+-- TASK109-STANDIN: `Arms/Defeq.lean`'s step lemmas are census-listed there at merge
 
 #print axioms annot_bvar
 #print axioms annot_fvar
@@ -233,8 +250,9 @@ written, and the `sorryAx` it then printed came from two walk theorems of
 #print axioms inferBody_binders_batched
 #print axioms inferBody_spec
 #print axioms inferBodyIO_spec
-#print axioms defeqPeel_chain
-#print axioms defeqBody_spec
+-- TASK109-STANDIN: replaced by Arms/Defeq.lean's defeqBody_spec at merge
+-- (`sorryAx` until then; `defeqPeel_chain` returns with `Arms/DefeqPeel.lean`)
+#print axioms defeqBody_spec_TEMP
 #print axioms annotateBody_binders_batched
 #print axioms annotateBody_spec
 #print axioms knot_spec
