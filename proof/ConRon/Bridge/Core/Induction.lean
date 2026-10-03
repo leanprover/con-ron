@@ -172,10 +172,13 @@ standard axioms. -/
 
 /-! ### The per-arm step lemmas — closed, fifty-two of them -/
 
-#print axioms whnfCore_proj_none
+#print axioms whnfCore_proj_stuck
 #print axioms whnfCore_proj_fire
-#print axioms whnfCore_proj_cert_false
-#print axioms whnfCore_proj_guard
+#print axioms reduceProjCore_none
+#print axioms reduceProjCore_head
+#print axioms reduceProjCore_guard
+#print axioms reduceProjCore_cert_false
+#print axioms reduceProjCore_fire
 
 #print axioms whnfLoop_reduceNat
 #print axioms whnfLoop_delta
@@ -193,13 +196,12 @@ standard axioms. -/
 #print axioms inferIO_lam_chain
 #print axioms inferIO_lam_leaf
 
-#print axioms defeq_of_loop
-#print axioms defeqLoop_syntactic
-#print axioms defeqLoop_boolTrue
-#print axioms defeqLoop_whnf_eq
-#print axioms defeqLoop_propIrrel
-#print axioms defeqLoop_reduceNat_left
-#print axioms defeqLoop_reduceNat_right
+#print axioms defeqBody_syntactic
+#print axioms defeqBody_boolTrue
+#print axioms defeqBody_quick
+#print axioms defeqBody_propIrrel
+#print axioms defeqBody_verdict
+#print axioms defeqBody_unknown
 
 #print axioms annot_bvar
 #print axioms annot_fvar
@@ -233,7 +235,7 @@ written, and the `sorryAx` it then printed came from two walk theorems of
 #print axioms inferBody_binders_batched
 #print axioms inferBody_spec
 #print axioms inferBodyIO_spec
-#print axioms defeqPeel_chain
+#print axioms defeqBinders_spec
 #print axioms defeqBody_spec
 #print axioms annotateBody_binders_batched
 #print axioms annotateBody_spec

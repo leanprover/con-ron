@@ -38,7 +38,7 @@ variable {mode : CheckMode} {env : Env}
 
 /-! ## 1. One iteration of the reduction loop -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1080-1082 whnfStep — **literal
+/-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — **literal
 acceleration**: the head normal form is a `Nat` constructor application the
 `reduceNat` pass packs back into a literal, and the loop continues on the
 packed form. -/
@@ -54,7 +54,7 @@ theorem whnfLoop_reduceNat {F d n : Nat} {e e₁ e₂ res : Expr}
   simp only [ConLeche.whnfCore_def, h1, h2, bind, Except.bind]
   exact hk
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1083-1085 whnfStep — **the delta
+/-- con-leche: ConLeche/Kernel/Core.lean:1123-1124 whnfStep — **the delta
 step**: the head is an unfoldable constant, and the loop continues on the
 unfolding. -/
 theorem whnfLoop_delta {F d n : Nat} {e e₁ e₂ res : Expr}
@@ -70,7 +70,7 @@ theorem whnfLoop_delta {F d n : Nat} {e e₁ e₂ res : Expr}
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind]
   exact hk
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1086 whnfStep — **the loop's exit**:
+/-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — **the loop's exit**:
 nothing further reduces, so the `whnfCore` reduct is the answer. -/
 theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
     (h1 : ConLeche.whnfCore mode env F d e = .ok e₁)
@@ -85,7 +85,7 @@ theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
 
 /-! ## 2. The entry bracket -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1097-1099 whnfBody — the body IS the
+/-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the body IS the
 loop at its own budget, so the entry is one rewrite.  This is the lemma the
 twin's `whnfBody` theorem ends on. -/
 theorem whnf_of_loop {F d : Nat} {e res : Expr}
@@ -120,13 +120,13 @@ exist before this round:
 is), so the loop takes it too; `whnfBody_spec` always did. -/
 
 unseal ConLeche.whnfLoopFuel in
-/-- con-leche: ConLeche/Kernel/Core.lean:1064-1071 whnfLoopFuel — the two
+/-- con-leche: ConLeche/Kernel/Core.lean:1101-1108 whnfLoopFuel — the two
 budgets are the same number (task #97c).  con-leche's is `@[irreducible]`,
 so the equation needs an `unseal`; the arena's is a plain `def`. -/
 theorem whnfLoopFuel_eq :
     ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel := rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1090-1095 whnfLoop — **THEOREM 1 for
+/-- con-leche: ConLeche/Kernel/Core.lean:1127-1132 whnfLoop — **THEOREM 1 for
 the reduction LOOP**, at an arbitrary step budget: one `Nat` induction over
 §1's three step lemmas, with the fuel merge at every iteration. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
@@ -151,7 +151,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
   | succ n ih =>
     intro s₀ d i hok hdw
     obtain ⟨e, hden, hw⟩ := hdw
-    have hwc := hsim.whnfCore
+    have hwc := hsim.whnfCore (c := false)
     have hud := unfoldDefinition_spec (mode := mode) (fe := fe) henv
     mvcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
       hwc, reduceNat_spec, hud, ih]
