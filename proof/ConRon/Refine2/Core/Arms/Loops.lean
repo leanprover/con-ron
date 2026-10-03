@@ -1,5 +1,5 @@
 /-
-# `ConRon.Refine2.Core.Arms.Loops` — the two loops, and the SECOND fuel dimension
+# `ConRon.Refine2.Core.Arms.Loops` — the `whnf` loop, and the SECOND fuel dimension
 
 **Task #97-P5-Arms.**  Task #97-P5-Core §7 names these as the shape that is not
 the `ExprOps` tier's: *"a local loop's continuation is a closure in the twin and
@@ -7,20 +7,22 @@ a counter in the port"*.
 
     whnfStep  r fe depth (k : EIdx → AM EIdx) e         whnf_step  … n e
     whnfLoop  r fe depth (m + 1) e                      whnf_loop  … n e
-    defeqStep mode r fe depth (k : Bool → EIdx → EIdx → AM Bool) pi a b
-                                                        defeq_step … n pi a b
 
 so the induction is on `n`, a second fuel dimension INSIDE the knot's induction
 on `f`, and the refinement has to name the function the port's scalar stands
 for.  This is task #97-P5-0's finding 6 (`RenameRel`) one level up, and it is
-the same move `Core/KnotRel.lean` makes for the lane.
+the same move `Core/KnotRel.lean` makes for the lane.  (The `defeq` side had the
+same pair, `defeqStep`/`defeqLoop`, until con-leche 8afe1815 — task #109 —
+restructured definitional equality after the official `is_def_eq_core`; its
+two remaining loops recurse on their own budget without a continuation, see
+the last section.)
 
 ## Finding 13 — the off-by-one in task #97-P5-Core's two statements
 
 That round stated `whnf_step_refines` against
 `whnfStep … (whnfLoop … (absU n - 1))` with a side condition `1 ≤ absU n`, and
-`defeq_step_refines` likewise.  **The port's `whnf_step` passes its own `n` on
-unchanged**:
+the old `defeq_step_refines` likewise.  **The port's `whnf_step` passes its own
+`n` on unchanged**:
 
     whnf_loop(…, n, e) = if n = 0 then Internal else whnf_step(…, n - 1, e)
     whnf_step(…, n, e) = … whnf_loop(…, n, e₂) …
@@ -52,10 +54,9 @@ too: `AOut₀` does not mention the state a call started in.
 `unfold_definition_refines` **closed** at task #97-P5-Core-2 and moved to
 `Core/Arms/Delta.lean`.  What is left of the `whnf` loop is `reduce_nat` —
 the fifteen `natOp*` guards and `natOpResult`'s dispatch, a body of its own
-and not a step of the loop — and the whole `defeq` pair, whose leaf
-`defeq_after_whnf` has ≈ 40 helpers under it.  Nothing about the LOOP depends
-on either: taken as hypotheses, the two `whnf` loop inductions close, which is
-what this file is for.
+and not a step of the loop — and the whole `defeq` body, with its ≈ 40
+helpers.  Nothing about the LOOP depends on either: taken as hypotheses, the
+two `whnf` loop inductions close, which is what this file is for.
 -/
 import ConRon.Refine2.Core.Arms.Delta
 import ConRon.Refine2.Core.LS.Lits
@@ -103,7 +104,7 @@ whichever reduct fired. -/
 theorem whnfStep_run (r : CoreFnsA) (fe : IFEnv) (d : Nat)
     (k : EIdx → AM EIdx) (e : EIdx) (lst : AState) :
     (whnfStep r fe d k e).run lst
-      = ((r.whnfCore d e).run lst) >>= fun p =>
+      = ((r.whnfCore false d e).run lst) >>= fun p =>
           ((reduceNat r fe d p.1).run p.2) >>= fun q =>
             match q.1 with
             | some e2 => (k e2).run q.2
@@ -113,7 +114,7 @@ theorem whnfStep_run (r : CoreFnsA) (fe : IFEnv) (d : Nat)
                 | some e2 => (k e2).run s.2
                 | none => .ok (p.1, s.2) := by
   show ((do
-      let e₁ ← r.whnfCore d e
+      let e₁ ← r.whnfCore false d e
       let n ← reduceNat r fe d e₁
       match n with
       | some e₂ => k e₂
@@ -123,7 +124,7 @@ theorem whnfStep_run (r : CoreFnsA) (fe : IFEnv) (d : Nat)
         | some e₂ => k e₂
         | none => pure e₁) : AM EIdx).run lst = _
   rw [am_run_bind]
-  cases (r.whnfCore d e).run lst with
+  cases (r.whnfCore false d e).run lst with
   | error er => rfl
   | ok p =>
     obtain ⟨e1, lst1⟩ := p
@@ -362,34 +363,17 @@ theorem whnf_body_refines {f : Nat} (hk : KnotRel f)
     rw [arena.core.WHNF_LOOP_FUEL, Arena.whnfLoopFuel]; rfl] at h
   exact h
 
-/-! ## The `defeq` loop — stated at the corrected shape, open
+/-! ## The `defeq` body
 
-The same pair at the lazy-delta loop.  Its leaf, `arena::core::defeq_after_whnf`,
-has **no named twin** — it is the tail of `Arena.defeqStep`, one of task
-#97-P5-0's finding-6 splits — so its statement needs a local transcription plus
-an `_unfold` equation back to `defeqStep`, in the shape `ExprOps/Read.lean`
-already has for `wscopedBGo`.  That transcription, not the loop, is what the
-next round owes here: with it, `defeq_loop_refines` and `defeq_step_refines`
-are `whnf_loop_aux` and `whnf_step_of_cont` verbatim. -/
+con-leche 8afe1815 (task #109) replaced the `defeq` step/loop pair by the
+official kernel's `is_def_eq_core` shape: `defeqBody` runs straight through,
+and the two loops left — `lazyDeltaReduction` and `lazyDeltaProjReduction` —
+recurse on their OWN budget, `n + 1 ↦ n` in the twin and `n - 1` at `n ≠ 0` in
+the port, so their port counter IS the twin's argument and neither has a
+continuation (`Core/LS/Defeq.lean` proves them by induction on that counter).
+The second-fuel-dimension shape of this file is now the `whnf` loop's alone. -/
 
-/-- `arena::core::defeq_loop` against `Arena.defeqLoop`. -/
-theorem defeq_loop_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth n pi a b lst o}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.defeq_loop pers vis st mode lane fu fe depth n pi a b
-      = ok o) :
-    Sim₀ id pers lst o
-      (defeqLoop (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absU n) pi (absEIdx a) (absEIdx b)) :=
-  Lockstep.LS.toSim₀ (Lockstep.defeq_loop_ls hk hx hrel hinv hctx hf) hrun
-
-
-/-- `arena::core::defeq_body` against `Arena.defeqBody`: the loop at its own
-step budget, `DEFEQ_LOOP_FUEL = defeqLoopFuel = 100000` on both sides, at
-`pi = true`. -/
+/-- `arena::core::defeq_body` against `Arena.defeqBody`. -/
 theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth a b lst o}
     (hx : ExprOpsHyp pers)
@@ -400,12 +384,8 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
     Sim₀ id pers lst o
       (defeqBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        (absEIdx a) (absEIdx b)) := by
-  rw [arena.core.defeq_body] at hrun
-  have h := defeq_loop_refines hk hx hrel hinv hctx hf hrun
-  rw [show absU arena.core.DEFEQ_LOOP_FUEL = Arena.defeqLoopFuel from by
-    rw [arena.core.DEFEQ_LOOP_FUEL, Arena.defeqLoopFuel]; rfl] at h
-  exact h
+        (absEIdx a) (absEIdx b)) :=
+  Lockstep.LS.toSim₀ (Lockstep.defeq_body_ls hk hx hrel hinv hctx hf) hrun
 
 section Axioms
 

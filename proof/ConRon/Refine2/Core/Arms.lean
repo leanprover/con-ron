@@ -16,7 +16,7 @@ statement; the arms themselves live in `Core/Arms/`:
 | `Core/Eqns.lean` | the 105 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE (≈ 9.4 s each; ≈ 17 min, once) and cached into one `.olean` that every arm file imports | — |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and **`ensure_sort_refines`** | **all** |
 | `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** — lockstep since task #97-P5-Core round 4, closed modulo `ExprOpsHyp` (the `ExprOps` migration's two walks) | **all** (modulo `ExprOpsHyp`) |
-| `Core/Arms/Loops.lean` | the two loops' SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed** modulo `reduce_nat` and `ExprOpsHyp`; the `defeq` triple stated at the corrected shape (all lockstep since round 4) | 11 of 14 |
+| `Core/Arms/Loops.lean` | the `whnf` loop's SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed**; `defeq_body_refines` (the `defeq_step`/`defeq_loop` pair went with con-leche 8afe1815, task #109) | all |
 | `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14, each against the twin's own batched form | 0 of 5 |
 
 ## What each body needs, counted
@@ -31,11 +31,11 @@ bodies' own arms are:
 
 | body | arms (twin clauses) | port helpers under it |
 |---|---:|---:|
-| `whnf_core_body` | 10 views, of which `app` and `proj` recurse | `whnf_app`, `beta_peel`, `whnf_core_proj{,_at,_fire}`, `proj_cert{,_at}`, `iota_rec_*` (10) |
+| `whnf_core_body` | 10 views, of which `app` and `proj` recurse (the `cheap_proj` flag threaded, task #109) | `whnf_app`, `beta_peel`, `whnf_core_proj`, `reduce_proj_core{,_at,_fire}`, `proj_cert{,_at}`, `iota_rec_*` (10) |
 | `whnf_body` | the loop (`whnf_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}` (closed since); `unfold_definition` **closed**, `Core/Arms/Delta.lean` |
 | `infer_body` | 10 views | `infer_forall`, `infer_proj`, `infer_lam{,_open,_cod}`, `infer_spine`, `infer_app`, `infer_lams{,_leaf,_leaf_check}`, `infer_pis{,_leaf}` |
 | `infer_body_io` | 10 views | `infer_forall_io{,_at}`, `infer_app_io_at`, `infer_spine_io`, `infer_proj_io` |
-| `defeq_body` | the loop (`defeq_loop`/`defeq_step` at `DEFEQ_LOOP_FUEL`) | `defeq_{spine,binders,peel,peel_leaf,lit_app,lit_const,struct,apps,unfold_both,delta_both,delta,after_whnf}`, `bool_true_shortcut`, `proof_irrel`, `prop_irrel`, `eta_cert*`, `struct_*_cert*`, `major_to_ctor*` (≈ 40) |
+| `defeq_body` | the official `is_def_eq_core` shape (task #109): `quick_defeq`, the lazy-delta loop `lazy_delta_reduction` and the projection loop `lazy_delta_proj_reduction` (each on its own budget, `DEFEQ_LOOP_FUEL`), `defeq_proj_pair`, `defeq_stuck` | `defeq_{spine,binders,peel,peel_leaf,offset,str_app,apps,after_lazy,after_whnf}`, `lazy_delta_{step,side,one,both,unfold_both,nat,proj_fields}`, `delta_quick`, `try_unfold_proj_app`, `is_nat_zero`, `nat_pred`, `head_is_proj`, `bool_true_shortcut`, `proof_irrel`, `prop_irrel`, `eta_cert*`, `struct_*_cert*`, `major_to_ctor*` (≈ 40) |
 | `annotate_body` | 10 views | `annotate_{binder,let,proj,proj_at,binders_out,pis,pis_leaf,lams,lams_leaf}` |
 
 ## Two shapes that are NOT the `ExprOps` tier's
@@ -91,14 +91,14 @@ dispatches below.  All seven are closed since task #97-P5-Core round 5, and
 /-- `arena::core::whnf_core_body` against `Arena.whnfCoreBody` — the
 head-normalization body.  Lockstep (task #97-P5-Core round 5). -/
 theorem whnf_core_body_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
+    {pers vis st mode lane fu fe lfe cheap depth e lst o}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.whnf_core_body pers vis st mode lane fu fe depth e = ok o) :
+    (hrun : arena.core.whnf_core_body pers vis st mode lane fu fe cheap depth e = ok o) :
     Sim₀ absEIdx pers lst o
       (whnfCoreBody (ConRon.Refine.absMode mode)
-        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe cheap
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.whnf_core_body_ls hk hx hrel hinv hctx hf) hrun
 

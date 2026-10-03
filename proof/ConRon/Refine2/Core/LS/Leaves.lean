@@ -9,7 +9,7 @@ error at an unknown constant, and the small head / name predicates.
 
 Statement convention: the brief's (`LS pers (fun a b => b = <abs> a) (rust) lst
 (twin)`); a Rust reader that returns no state (`empty_levels`, `zero_level`,
-…) is stated in `LSR`, a pure Rust function (`quick_pair`, `rec_rule_k`,
+…) is stated in `LSR`, a pure Rust function (`rec_rule_k`,
 `find_rule`) as an equation.
 -/
 import ConRon.Refine2.Core.LS.PrimsA1
@@ -226,27 +226,6 @@ the twin's `what` is free (messages are never compared). -/
       (isCtorApp lfe (absEIdx e)) := by
   rw [arena.core.is_ctor_app, isCtorApp]
   lockstep_core
-
-/-- `quick_pair` is pure on both sides: four tag comparisons. -/
-@[lockstep] theorem quick_pair_ls (a b : arena.handle.EIdx) :
-    LSP (arena.core.quick_pair a b) (fun r => r = quickPair (absEIdx a) (absEIdx b)) := by
-  intro r h
-  rw [arena.core.quick_pair] at h
-  obtain ⟨ta, hta, h'⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  clear h
-  obtain ⟨tb, htb⟩ : ∃ tb, arena.handle.EIdx.tag b = ok tb := by
-    rw [arena.handle.EIdx.tag, arena.handle.word_tag]
-    obtain ⟨z, hz, -⟩ := Aeneas.Std.UScalar.div_spec b.word
-      (y := arena.handle.TAG_SPAN) (by rw [arena.handle.TAG_SPAN]; decide)
-    exact ⟨z, hz⟩
-  have ha := eidx_tag_abs hta
-  have hb := eidx_tag_abs htb
-  simp only [htb, bind_tc_ok] at h'
-  simp only [quickPair, ha, hb, absU32_beq_sort, absU32_beq_lit, absU32_beq_forallE,
-    absU32_beq_lam]
-  split_ifs at h' <;> (cases Result.ok_injective h') <;>
-    simp_all (config := {decide := true}) [arena.handle.ETAG_SORT, arena.handle.ETAG_LIT,
-      arena.handle.ETAG_FORALL_E, arena.handle.ETAG_LAM]
 
 @[lockstep] theorem bool_true_name_ls {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :

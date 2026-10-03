@@ -20,12 +20,13 @@ namespace ConRon.Refine2.Lockstep
 open ConRon.Arena ConRon.Refine2
 
 @[lockstep] theorem knot_whnf_core_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
+    {pers vis st mode lane fu fe lfe cheap depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.knot_whnf_core pers vis st mode lane fu fe depth e) lst
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore (absU depth) (absEIdx e)) :=
+      (arena.core.knot_whnf_core pers vis st mode lane fu fe cheap depth e) lst
+      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).whnfCore cheap (absU depth)
+        (absEIdx e)) :=
   LS.ofSim₀ fun _ h => hk.whnfCore hrel hinv hctx hf h
 
 @[lockstep] theorem knot_whnf_ls {f : Nat} (hk : KnotRel f)

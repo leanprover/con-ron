@@ -3,9 +3,10 @@
 
 **Task #97-P5-Core, floor 0.**  `Refine2/Specs.lean` closed the thirteen
 per-call `Memos` tables; the knot reads and writes the *per-declaration*
-`Caches` instead, and those six pairs are not in `Specs.lean` because nothing
-below the Core tier calls them.  This file is that floor: `whnf_core`, `whnf`,
-`infer`, `infer_io`, `annot` and `defeq`, probe and write, plus the one
+`Caches` instead, and those seven pairs are not in `Specs.lean` because nothing
+below the Core tier calls them.  This file is that floor: `whnf_core`,
+`whnf_core_cheap` (the official `cheap_proj` mode's own table, task #109),
+`whnf`, `infer`, `infer_io`, `annot` and `defeq`, probe and write, plus the one
 generic fact the writes need and the memo tier never did.
 
 ## What task #97-P5-1 predicted, and what the code actually does
@@ -273,6 +274,30 @@ theorem whnf_core_probe_abs (hrel : AStateRel₀ pers st lst)
     subst h2
     rw [dupId_eidx _ _ hx]
 
+/-- `arena::core::whnf_core_cheap_probe` (the official `cheap_proj` mode's table) against `lst.caches.whnfCoreCheapC[·]?`. -/
+theorem whnf_core_cheap_probe_abs (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {e : arena.handle.EIdx}
+    {o : Option arena.handle.EIdx}
+    (hrun : arena.core.whnf_core_cheap_probe st e = ok o) :
+    o.map absEIdx = lst.caches.whnfCoreCheapC[absEIdx e]? := by
+  rw [arena.core.whnf_core_cheap_probe] at hrun
+  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hinv.caches.whnfCoreCheapC
+    ConRon.Refine.HashMap2.KeysOk_true trivial hr
+  have hrelk := hrel.caches.whnfCoreCheapC e trivial
+  rw [← hrelk, ← hto]
+  cases hrc : r with
+  | none =>
+    rw [hrc] at hrun
+    have h2 : (none : Option arena.handle.EIdx) = o := Result.ok_injective hrun
+    subst h2; rfl
+  | some r =>
+    rw [hrc] at hrun
+    obtain ⟨x, hx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+    have h2 : some x = o := Result.ok_injective hrun
+    subst h2
+    rw [dupId_eidx _ _ hx]
+
 /-- `arena::core::whnf_probe` against `lst.caches.whnfC[·]?`. -/
 theorem whnf_probe_abs (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e : arena.handle.EIdx}
@@ -482,6 +507,30 @@ theorem whnf_core_set_run (hrel : AStateRel₀ pers st lst)
     rfl { hrel with caches := { hrel.caches with whnfCoreC := h1 } }
     { hinv with caches := { hinv.caches with whnfCoreC := h2 } }
 
+/-- `arena::core::whnf_core_cheap_set` against `Arena.whnfCoreCheapSet`. -/
+theorem whnf_core_cheap_set_run (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
+    (hrun : arena.core.whnf_core_cheap_set st e r = ok st') :
+    SimS₀ pers lst st' (Arena.whnfCoreCheapSet (absEIdx e) (absEIdx r)) := by
+  rw [arena.core.whnf_core_cheap_set] at hrun
+  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨e2, he2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+  obtain ⟨old, hm2⟩ := p
+  rw [dupId_eidx _ _ he1, dupId_eidx _ _ he2] at hp
+  have hst : st' = { st with caches := { st.caches with whnf_core_cheap_c := hm2 } } :=
+    (Result.ok_injective hrun).symm
+  subst hst
+  obtain ⟨h1, h2⟩ := cache_insert_step eidx_eq2 absEIdx_surj absEIdx_inj
+    hinv.caches.whnfCoreCheapC hrel.caches.whnfCoreCheapC hn hfit hp
+  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
+      whnfCoreCheapC := (if lst.caches.whnfCoreCheapC.size < cacheCap then
+        lst.caches.whnfCoreCheapC else ∅).insert (absEIdx e) (absEIdx r) } })
+    rfl { hrel with caches := { hrel.caches with whnfCoreCheapC := h1 } }
+    { hinv with caches := { hinv.caches with whnfCoreCheapC := h2 } }
+
 /-- `arena::core::whnf_set` against `Arena.whnfSet`. -/
 theorem whnf_set_run (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
@@ -662,6 +711,12 @@ section Axioms
 
 /-- info: 'ConRon.Refine2.whnf_core_set_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms whnf_core_set_run
+
+/-- info: 'ConRon.Refine2.whnf_core_cheap_probe_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms whnf_core_cheap_probe_abs
+
+/-- info: 'ConRon.Refine2.whnf_core_cheap_set_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms whnf_core_cheap_set_run
 
 /-- info: 'ConRon.Refine2.defeq_set_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms defeq_set_run
