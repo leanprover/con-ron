@@ -19,7 +19,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -53,12 +54,12 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
     (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.projLitToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimEOp (fun F => ConLeche.projLitToCtorFueled mode env F d x) d
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   unfold ConRon.Arena.projLitToCtor
@@ -66,13 +67,13 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   -- every scrutinee but a string literal passes through
   have hpass : (∀ str, x ≠ .lit (.strVal str)) →
-      ⦃fun s => ⌜s = s₀⌝⦄ (pure h : AM EIdx)
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ (pure h : AM EIdx)
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           SimEOp (fun F => ConLeche.projLitToCtorFueled mode env F d x) d
-            s'.store r⌝⦄ := by
+            s'.store r; ⊤⦄ := by
     intro hnl
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, x, hden, hw, 0, ?_⟩
     simp only [ConLeche.projLitToCtor]
@@ -106,7 +107,7 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       next hsupf =>
         have hS : ConLeche.strLitSupported env = false := by
           rw [← hsup]; simpa using hsupf
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         refine ⟨hok1, hx1, hp1, .lit (.strVal str), denote_ext hden hx1, hw, 0,
           ?_⟩

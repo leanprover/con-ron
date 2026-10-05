@@ -70,7 +70,7 @@ spec of its own (`readNamesMB`, `= rfl` to `readNamesM`), a frame theorem
 about the copy, and a `simp only` rewrite in front of the walk's `mvcgen`.
 **Task #111 deleted the copy**: `vcgen` erases a registered spec per call, so
 `readNamesM_frame` is stated about `readNamesM` itself, proved with
-`vcgen [-readNamesM_spec.wp, …]`, and `IProjEntry.fireOk_spec` erases the
+`vcgen [-readNamesM_spec, …]`, and `IProjEntry.fireOk_spec` erases the
 spec the same way and passes the frame instead — the "erasing the
 attribute" route `mvcgen` did not have.
 
@@ -93,7 +93,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -105,11 +106,11 @@ reserved name `(T.str "projTable").num 0`.  Two `internNNode`s, in
 `Bridge/Specs.lean`'s `internName_spec` shape. -/
 theorem projTableName_spec (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
     (hwf : StoreWF s₀.store) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.projTableName T
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.projTableName T
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteN s'.store.ns h = some (ConLeche.projTableName Tn)⌝⦄ := by
-  to_wp; vcgen [ConRon.Arena.projTableName, wp% internNNode_spec]
+        denoteN s'.store.ns h = some (ConLeche.projTableName Tn); ⊤⦄ := by
+  vcgen [ConRon.Arena.projTableName, internNNode_spec]
   all_goals (bridge_peel; subst_vars
              grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                nview_isSome_of_denote, Ext.trans, ConLeche.projTableName])
@@ -129,13 +130,13 @@ half is `IFEnvOK.miss` (through `denoteN_inj`) and the fact that the two
 theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
     (Tn : ConLeche.Name) (hok : CheckOK mode env fe s₀)
     (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => ⌜s = s₀⌝⦄ fe.findProj? T i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ fe.findProj? T i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ e, r = some e → ∃ p, denoteProjEntry s'.store e = some p ∧
           env.findProj? Tn i = some p) ∧
-        (r = none → env.findProj? Tn i = none)⌝⦄ := by
-  to_wp; vcgen [ConRon.Arena.IFEnv.findProj?, wp% projTableName_spec (Tn := Tn)]
+        (r = none → env.findProj? Tn i = none); ⊤⦄ := by
+  vcgen [ConRon.Arena.IFEnv.findProj?, projTableName_spec (Tn := Tn)]
   all_goals (bridge_peel; subst_vars)
   case vc3 => exact hok.state.wf
   case vc4 => exact hT
@@ -198,17 +199,17 @@ registered `readNamesM_spec` is erased for the two calls (`vcgen [-…]`, see
 the module note §2). -/
 theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.readNamesM hs
-    ⦃⇓? xs s' => ⌜ReadbackFrame s₀ s' ∧
-        Frontend.denoteNList s₀.store.ns hs = some xs⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.readNamesM hs
+    ⦃fun xs s' => ReadbackFrame s₀ s' ∧
+        Frontend.denoteNList s₀.store.ns hs = some xs; ⊤⦄ := by
   induction hs generalizing s₀ with
   | nil =>
-    to_wp; vcgen [-readNamesM_spec.wp, ConRon.Arena.readNamesM]
+    vcgen [-readNamesM_spec, ConRon.Arena.readNamesM]
     bridge_peel; subst_vars
     exact ⟨ReadbackFrame.refl _, rfl⟩
   | cons a as ih =>
-    to_wp; vcgen [-readNamesM_spec.wp, ConRon.Arena.readNamesM,
-      wp% readNameM_spec, wp% ih]
+    vcgen [-readNamesM_spec, ConRon.Arena.readNamesM,
+      readNameM_spec, ih]
     all_goals bridge_peel
     all_goals subst_vars
     all_goals first
@@ -233,14 +234,14 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     (p : ProjEntry) (ls : List Level) (hok : CheckOK mode env fe s₀)
     (hden : denoteProjEntry s₀.store entry = some p)
     (hus : denoteLs s₀.store.lss us = some ls) :
-    ⦃fun s => ⌜s = s₀⌝⦄ entry.fireOk us
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = p.fireOk ls⌝⦄ := by
+    ⦃fun s => s = s₀⦄ entry.fireOk us
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ b = p.fireOk ls; ⊤⦄ := by
   obtain ⟨_hs, hlps, _hc, _hb, hfs, hss, _hi, _hnp, _hnf, _ho⟩ :=
     denoteProjEntry_inv hden
   simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel]
-  to_wp; vcgen [wp% lvlEq?_spec (mode := mode) (env := env) (fe := fe),
-    -readNamesM_spec.wp, wp% readNamesM_frame]
+  vcgen [lvlEq?_spec (mode := mode) (env := env) (fe := fe),
+    -readNamesM_spec, readNamesM_frame]
   all_goals (bridge_peel; subst_vars)
   -- the two pin/invariant side goals
   case vc7 => exact hok.pins
@@ -315,10 +316,10 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hargs : Frontend.denoteEList s₀.store targs = some xs)
     (hpe : denoteE s₀.store pe = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ entry.typeAt us targs pe
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ entry.typeAt us targs pe
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (p.typeAt ls xs x)⌝⦄ := by
+        denoteE s'.store r = some (p.typeAt ls xs x); ⊤⦄ := by
   obtain ⟨_hs, hlps, _hc, hb, _hfs, _hss, _hi, _hnp, _hnf, _ho⟩ :=
     denoteProjEntry_inv hden
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ entry.levelParams us
@@ -334,7 +335,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     simp only [Array.toList_push, List.reverse_cons,
       List.reverse_reverse]
     exact ExprOps.denoteEList_snoc hpe _ _ hargs
-  to_wp; vcgen [ConRon.Arena.IProjEntry.typeAt, wp% hi, wp% hl]
+  vcgen [ConRon.Arena.IProjEntry.typeAt, hi, hl]
   all_goals (bridge_peel; subst_vars)
   -- `instantiateListFast_spec`'s three preconditions
   case vc2 => assumption
@@ -490,16 +491,16 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         Expr.WScoped d (tyx.instantiateList ws) ∧
         Frontend.denoteEList s₀.store (args.toList.drop i) = some xs ∧
         ∀ x ∈ xs, Expr.WScoped d x) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.iotaCertsAux (coreKnot mode fe id fuel) fe d lic h acc
           args i
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∀ tyx ws xs, denoteE s₀.store h = some tyx →
             ExprOps.InstLVec s₀.store acc ws →
             Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
             SimBOp (fun F => ConLeche.iotaCertsFueled mode env F d lic
-              (tyx.instantiateList ws) xs) r⌝⦄ := by
+              (tyx.instantiateList ws) xs) r; ⊤⦄ := by
   intro k
   induction k using Nat.strongRecOn with
   | _ k ihk =>
@@ -532,7 +533,7 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         InstLVec.unique h2 (hacc.ext hxt), ?_⟩
       rw [denoteEList_ext hxt _ _ hxs] at h3
       exact (Option.some.inj h3).symm
-    to_wp; vcgen [wp% ihF, wp% ihB, wp% hio, wp% hdq, wp% hl]
+    vcgen [ihF, ihB, hio, hdq, hl]
     all_goals (bridge_peel; subst_vars)
     -- the licensed SKIP
     case vc1 =>
@@ -667,7 +668,7 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       obtain ⟨hf, hb⟩ := denote_not_forallE_bvar hok.state.wf hview hh hnf hnb
       exact ⟨0, iotaCertsFueled_notpi (instantiateList_not_forallE hf hb)⟩
   · simp only [hi, dite_false]
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, fun tyx ws xs _ _ hxs => ?_⟩
     have hnil : args.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)
@@ -684,21 +685,21 @@ theorem iotaCerts_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hpre : ∃ tyx xs, denoteE s₀.store h = some tyx ∧ Expr.WScoped d tyx ∧
       Frontend.denoteEList s₀.store args = some xs ∧
       ∀ x ∈ xs, Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d lic h args
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ tyx xs, denoteE s₀.store h = some tyx →
           Frontend.denoteEList s₀.store args = some xs →
           SimBOp (fun F => ConLeche.iotaCertsFueled mode env F d lic tyx xs)
-            r⌝⦄ := by
+            r; ⊤⦄ := by
   obtain ⟨tyx, xs, hh, hw, hxs, hwxs⟩ := hpre
   have hg := iotaCertsAux_go hsim d lic args.toArray _ _ h #[] 0 s₀
     rfl rfl hok ⟨tyx, [], xs, hh, InstLVec.empty _,
       by rw [ConLeche.Expr.instantiateList_nil]; exact hw,
       by simpa using hxs, hwxs⟩
   unfold ConRon.Arena.iotaCerts
-  to_wp; vcgen [wp% hg]
+  vcgen [hg]
   rename_i hpost
   obtain ⟨hck, hx, hp, hr⟩ := hpost
   refine ⟨hck, hx, hp, fun tyx' xs' h1 h2 => ?_⟩
@@ -839,17 +840,17 @@ theorem projCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hargs : Frontend.denoteEList s₀.store args = some xs)
     (hwargs : ∀ x ∈ xs, Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.projCert (coreKnot mode fe id fuel) fe d lic c us args
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.projCertFueled mode env F d lic cn ls xs)
-          b⌝⦄ := by
+          b; ⊤⦄ := by
   have hct := fun (s : AState) (cv : IConstantVal) (u : LsIdx) =>
     constTyAt_spec' (mode := mode) (env := env) (fe := fe) s cv u
   have hic := fun (s : AState) (h : EIdx) (a : List EIdx) =>
     iotaCerts_spec hsim d lic h a s
-  to_wp; vcgen [ConRon.Arena.projCert, wp% hct, wp% hic]
+  vcgen [ConRon.Arena.projCert, hct, hic]
   all_goals (bridge_peel; subst_vars)
   -- the two callees' preconditions
   case vc4 | vc2 => assumption
@@ -897,24 +898,24 @@ theorem projCertAt_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hargs : Frontend.denoteEList s₀.store args = some xs)
     (hwargs : ∀ x ∈ xs, Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.projCertAt (coreKnot mode fe id fuel) fe d verified lic c
         us args
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp
           (fun F => ConLeche.projCertAtFueled mode env F d verified lic cn ls
-            xs) b⌝⦄ := by
+            xs) b; ⊤⦄ := by
   cases verified with
   | true =>
     have hp := projCert_spec hsim henv s₀ d lic c us args cn ls xs hok hc hus
       hargs hwargs
     simp only [ConRon.Arena.projCertAt, ite_true]
-    to_wp; vcgen [wp% hp]
+    vcgen [hp]
     assumption
   | false =>
     simp only [ConRon.Arena.projCertAt, Bool.false_eq_true, ite_false]
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, rfl⟩
 

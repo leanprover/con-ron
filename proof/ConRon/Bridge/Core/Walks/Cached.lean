@@ -39,14 +39,14 @@ and the three are proved below.
 
 Read off `lvlEq?_spec` below; every cached walk follows it.
 
-1. **`to_wp; vcgen [<the walk>]` and nothing else.**  `Bridge/Specs.lean`'s
-   three readback specs are `@[spec]` (their `Std.WP` twins, `@[wp_spec]`), so
+1. **`vcgen [<the walk>]` and nothing else.**  `Bridge/Specs.lean`'s
+   three readback specs are `@[spec]`, so
    `vcgen` applies them by itself and each readback contributes its five
    conjuncts to the verification condition; `ReadbackFrame.ofReadL` (and its
    two siblings) folds them into one frame, and `.trans` composes the two.
    *(Under `mvcgen`, which could not be made to prefer a theorem passed in its
    list over a registered `@[spec]` — measured — this was forced; `vcgen` can
-   erase a registered spec per call, `vcgen [-readLevelM_spec.wp, …]`, task
+   erase a registered spec per call, `vcgen [-readLevelM_spec, …]`, task
    #111, but the frame is still assembled in the walk.)*
 2. **The postcondition does not take the subjects' denotations as
    hypotheses.**  It says "*if* the walk answered `some b`, then the subjects
@@ -74,7 +74,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -296,13 +297,13 @@ provably zero, so a one-directional spec leaves the `none` case unrelatable.
 `Bridge/Inductives/SumParts.lean`'s own note asks for the same thing, in its
 words "`lvlEq?_spec` read at both signs".)* -/
 theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ lvlEq? u v
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ lvlEq? u v
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
           denoteL s₀.store.ls v = some lv ∧
-          r = Level.isEquiv lu lv⌝⦄ := by
-  to_wp; vcgen [lvlEq?]
+          r = Level.isEquiv lu lv; ⊤⦄ := by
+  vcgen [lvlEq?]
   all_goals (bridge_peel; subst_vars)
   -- the cache hit
   case vc1 =>
@@ -340,13 +341,13 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
 with `ReadbackFrame.ofReadLs` in place of `.ofReadL`. -/
 theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ lvlsEq? us vs
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ lvlsEq? us vs
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
           denoteLs s₀.store.lss vs = some lvs ∧
-          r = Level.isEquivList lus lvs⌝⦄ := by
-  to_wp; vcgen [lvlsEq?]
+          r = Level.isEquivList lus lvs; ⊤⦄ := by
+  vcgen [lvlsEq?]
   all_goals (bridge_peel; subst_vars)
   -- the cache hit
   case vc1 =>
@@ -455,17 +456,17 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (hus : denoteLs s₀.store.lss us = some ls)
     (hf : env.find? nm = some ci)
     (hcv : Frontend.denoteCV s₀.store cv = some ci.toConstantVal) :
-    ⦃fun s => ⌜s = s₀⌝⦄ constTyAt cv us
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ constTyAt cv us
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
           some (ci.toConstantVal.type.instantiateLevelParams
-            ci.toConstantVal.levelParams ls)⌝⦄ := by
+            ci.toConstantVal.levelParams ls); ⊤⦄ := by
   obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ cv.levelParams us cv.type
     _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
     (by rw [hty]; rfl)
-  to_wp; vcgen [constTyAt, wp% hi]
+  vcgen [constTyAt, hi]
   all_goals (bridge_peel; subst_vars)
   · -- the HIT: the row's own clause, at the three functional denotations
     rename_i r hhit
@@ -490,17 +491,17 @@ theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (hpre : ∃ nm ls ci, denoteN s₀.store.ns cv.name = some nm ∧
       denoteLs s₀.store.lss us = some ls ∧ env.find? nm = some ci ∧
       Frontend.denoteCV s₀.store cv = some ci.toConstantVal) :
-    ⦃fun s => ⌜s = s₀⌝⦄ constTyAt cv us
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ constTyAt cv us
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ nm ls ci, denoteN s₀.store.ns cv.name = some nm →
           denoteLs s₀.store.lss us = some ls → env.find? nm = some ci →
           denoteE s'.store r =
             some (ci.toConstantVal.type.instantiateLevelParams
-              ci.toConstantVal.levelParams ls)⌝⦄ := by
+              ci.toConstantVal.levelParams ls); ⊤⦄ := by
   obtain ⟨nm, ls, ci, hn, hus, hf, hcv⟩ := hpre
   have h := constTyAt_spec s₀ cv us nm ls ci hok hn hus hf hcv
-  to_wp; vcgen [wp% h]
+  vcgen [h]
   rename_i hpost
   obtain ⟨hck, hx, hp, hd⟩ := hpost
   refine ⟨hck, hx, hp, fun nm' ls' ci' hn' hus' hf' => ?_⟩
@@ -521,15 +522,15 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (hlps : Frontend.denoteNList s₀.store.ns lps = some cv.levelParams)
     (hval : denoteE s₀.store value = some val)
     (hfd : env.find? nm = some (.defnInfo cv val hint)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ constValAt n lps value us
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ constValAt n lps value us
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
-          some (val.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
+          some (val.instantiateLevelParams cv.levelParams ls); ⊤⦄ := by
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ lps us value
     _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
     (by rw [hval]; rfl)
-  to_wp; vcgen [constValAt, wp% hi]
+  vcgen [constValAt, hi]
   all_goals (bridge_peel; subst_vars)
   · -- the HIT
     rename_i r hhit
@@ -562,18 +563,18 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
       Frontend.denoteNList s₀.store.ns lps = some cv.levelParams ∧
       denoteE s₀.store value = some val ∧
       env.find? nm = some (.defnInfo cv val hint)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ constValAt n lps value us
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ constValAt n lps value us
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ nm ls cv val hint, denoteN s₀.store.ns n = some nm →
           denoteLs s₀.store.lss us = some ls →
           env.find? nm = some (.defnInfo cv val hint) →
           denoteE s'.store r =
-            some (val.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
+            some (val.instantiateLevelParams cv.levelParams ls); ⊤⦄ := by
   obtain ⟨nm, ls, cv, val, hint, hn, hus, hlps, hval, hfd⟩ := hpre
   have h := constValAt_spec s₀ n lps value us nm ls cv val hint hok hn hus
     hlps hval hfd
-  to_wp; vcgen [wp% h]
+  vcgen [h]
   rename_i hpost
   obtain ⟨hck, hx, hp, hd⟩ := hpost
   refine ⟨hck, hx, hp, fun nm' ls' cv' val' hint' hn' hus' hfd' => ?_⟩
@@ -596,15 +597,15 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (hrhs : denoteE s₀.store rhs = some rl.rhs)
     (hfr : env.find? rnv = some (.recInfo cv mi rp rules))
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ruleRhsAt recName ctor lps rhs us
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ruleRhsAt recName ctor lps rhs us
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteE s'.store r =
-          some (rl.rhs.instantiateLevelParams cv.levelParams ls)⌝⦄ := by
+          some (rl.rhs.instantiateLevelParams cv.levelParams ls); ⊤⦄ := by
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ lps us rhs
     _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
     (by rw [hrhs]; rfl)
-  to_wp; vcgen [ruleRhsAt, wp% hi]
+  vcgen [ruleRhsAt, hi]
   all_goals (bridge_peel; subst_vars)
   · -- the HIT
     rename_i r hhit
@@ -653,7 +654,7 @@ condition a `StateOK`-graded proof cannot discharge.  A registered `[spec]`
 cannot be erased globally (`attribute [-spec]` is rejected) and `mvcgen` could
 not be made to prefer a locally supplied theorem — `Frame.lean`'s note
 measured both.  (`vcgen` erases a spec PER CALL — `vcgen [lvlEq?,
--readLevelM_spec.wp, readLevelM]` leaves no `ReadLCacheOK` condition, checked
+-readLevelM_spec, readLevelM]` leaves no `ReadLCacheOK` condition, checked
 by task #111 — so a triple form is now possible; the run form stays because
 it is what `Bridge/Inductives/Rel.lean` consumes.)  Taking the two do-blocks
 apart by hand costs twenty lines and commits to nothing.

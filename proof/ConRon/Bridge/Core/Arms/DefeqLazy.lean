@@ -30,7 +30,8 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -64,11 +65,11 @@ exit**, at a pair `quickDefEq_none` covers. -/
 theorem qd_none_exit (hok : CheckOK mode env fe s₀) (hne : (x == y) = false)
     (h : ¬ (exprTag x = exprTag y ∧ (exprTag x = ETag.sort ∨
       exprTag x = ETag.lit ∨ exprTag x = ETag.forallE ∨ exprTag x = ETag.lam))) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (pure none : AM (Option Bool))
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (pure none : AM (Option Bool))
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y
-          = .ok o)⌝⦄ :=
+          = .ok o); ⊤⦄ :=
   triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => quickDefEq_none hne h⟩⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **two sorts**:
@@ -77,15 +78,15 @@ theorem qdArm_sort (u v : LIdx) (lu lv : ConLeche.Level)
     (hok : CheckOK mode env fe s₀)
     (hu : denoteL s₀.store.ls u = some lu) (hv : denoteL s₀.store.ls v = some lv)
     (hne : (Expr.sort lu == Expr.sort lv) = false) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       (do
         let o ← lvlEq? u v
         let ok ← ConRon.Arena.liftFueled "level comparison" o
         pure (some ok))
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
-          (.sort lu) (.sort lv) = .ok o)⌝⦄ := by
+          (.sort lu) (.sort lv) = .ok o); ⊤⦄ := by
   refine triple_seq (lvlEq?_spec s₀ u v hok) ?_
   rintro o s2 ⟨hok2, hst2, hp2, lu', lv', hu', hv', rfl⟩
   rw [hu] at hu'; rw [hv] at hv'
@@ -107,11 +108,11 @@ theorem qdArm_sort (u v : LIdx) (lu lv : ConLeche.Level)
 literals**: the literal comparison. -/
 theorem qdArm_lit {l₁ l₂ : ConLeche.Literal} (hok : CheckOK mode env fe s₀)
     (hne : (Expr.lit l₁ == Expr.lit l₂) = false) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (pure (some (l₁ == l₂)) : AM (Option Bool))
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (pure (some (l₁ == l₂)) : AM (Option Bool))
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
-          (.lit l₁) (.lit l₂) = .ok o)⌝⦄ :=
+          (.lit l₁) (.lit l₂) = .ok o); ⊤⦄ :=
   triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
     dsimp only; unfold ConLeche.quickDefEq; rw [ite_eq_right (by simp [hne])]; rfl⟩⟩
 
@@ -125,15 +126,15 @@ theorem qdArm_binder (hsim : KnotSpec mode env fe fuel) (isLam : Bool)
     (hwa : Expr.WScoped d (bndE isLam t₁ c₁ m₁))
     (hwb : Expr.WScoped d (bndE isLam t₂ c₂ m₂))
     (hne : (bndE isLam t₁ c₁ m₁ == bndE isLam t₂ c₂ m₂) = false) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       (do
         let ok ← defeqBinders mode (coreKnot mode fe id fuel) d ty₁ bd₁ m₁ ty₂
           bd₂ m₂ isLam
         pure (some ok))
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
-          (bndE isLam t₁ c₁ m₁) (bndE isLam t₂ c₂ m₂) = .ok o)⌝⦄ := by
+          (bndE isLam t₁ c₁ m₁) (bndE isLam t₂ c₂ m₂) = .ok o); ⊤⦄ := by
   refine triple_seq (defeqBinders_spec hsim s₀ d ty₁ bd₁ ty₂ bd₂ m₁ m₂
     isLam t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwa hwb hne) ?_
   rintro ok s1 ⟨hok1, hx1, hp1, hF⟩
@@ -150,11 +151,11 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
     (x y : Expr) (hok : CheckOK mode env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.quickDefEq mode (coreKnot mode fe id fuel) d a b
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.quickDefEq mode (coreKnot mode fe id fuel) d a b
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y
-          = .ok o)⌝⦄ := by
+          = .ok o); ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.quickDefEq
   rw [beq_of_denoteE hwf hx hy]
@@ -315,8 +316,8 @@ variable {fe : IFEnv}
 1 for the zero test**: read-only, and con-leche's answer. -/
 theorem isNatZero_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isNatZero e
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = x.isNatZero⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isNatZero e
+    ⦃fun r s' => s' = s₀ ∧ r = x.isNatZero; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hx
   unfold ConRon.Arena.isNatZero
@@ -371,9 +372,9 @@ for the predecessor**: a nonzero literal's predecessor is interned, a
 `Nat.succ x` answers `x`. -/
 theorem natPred?_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natPred? e
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteEO s'.store o = some x.natPred?⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natPred? e
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteEO s'.store o = some x.natPred?; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hx
   unfold ConRon.Arena.natPred?
@@ -455,11 +456,11 @@ theorem defeqOffset_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hok : CheckOK mode env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.defeqOffset (coreKnot mode fe id fuel) d a b
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.defeqOffset (coreKnot mode fe id fuel) d a b
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.defeqOffset (ConLeche.pureFns mode env F) d x y
-          = .ok o)⌝⦄ := by
+          = .ok o); ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.defeqOffset
   refine triple_seq (isNatZero_spec s₀ a x hok hx) ?_
@@ -539,8 +540,8 @@ theorem exprTag_proj (z : Expr) :
 1 for the projection-head test**: read-only. -/
 theorem headIsProj_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headIsProj e
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = x.headIsProj⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.headIsProj e
+    ⦃fun r s' => s' = s₀ ∧ r = x.headIsProj; ⊤⦄ := by
   unfold ConRon.Arena.headIsProj
   refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ e hok.state
     (by rw [hx]; rfl)) ?_
@@ -557,12 +558,12 @@ theorem tryUnfoldProjApp_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (d : Nat) (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hx : denoteE s₀.store e = some x)
     (hwx : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.tryUnfoldProjApp (coreKnot mode fe id fuel) d e
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.tryUnfoldProjApp (coreKnot mode fe id fuel) d e
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ v, denoteEO s'.store o = some v ∧ (∀ z, v = some z → Expr.WScoped d z) ∧
           Ev (fun F => ConLeche.tryUnfoldProjApp (ConLeche.pureFns mode env F) d x
-            = .ok v)⌝⦄ := by
+            = .ok v); ⊤⦄ := by
   unfold ConRon.Arena.tryUnfoldProjApp
   refine triple_seq (headIsProj_spec s₀ e x hok hx) ?_
   rintro hp s1 ⟨hs1, rfl⟩
@@ -621,24 +622,24 @@ theorem deltaQuick_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hok : CheckOK mode env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d a b
-    ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d a b
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ v, DSRel s'.store d o v ∧
           Ev (fun F => ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d x y
-            = .ok v)⌝⦄ := by
+            = .ok v); ⊤⦄ := by
   unfold ConRon.Arena.deltaQuick
   refine triple_seq (quickDefEq_spec hsim d s₀ a b x y hok hx hy hwx hwy) ?_
   rintro q s1 ⟨hok1, hx1, hp1, hq⟩
   have fin : ∀ (o : DeltaStepA) (v : DeltaStep), DSRel s1.store d o v →
       (∀ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y = .ok q →
         ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d x y = .ok v) →
-      ⦃fun s => ⌜s = s1⌝⦄ (pure o : AM DeltaStepA)
-      ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s1⦄ (pure o : AM DeltaStepA)
+      ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ v, DSRel s'.store d o v ∧
           Ev (fun F => ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d x y
-            = .ok v)⌝⦄ := fun o v hr hv =>
+            = .ok v); ⊤⦄ := fun o v hr hv =>
     triple_pure_post ⟨hok1, hx1, hp1, v, hr, hq.imp fun F h => hv F h⟩
   rcases q with _ | _ | _
   · exact fin (.cont a b) (.cont x y)
@@ -671,8 +672,8 @@ theorem ds_pure_exit {o : DeltaStepA} {v : DeltaStep}
     (hok : CheckOK mode env fe s) (hxs : Ext s₀.store s.store)
     (hps : s.pins = s₀.pins) (hr : DSRel s.store d o v)
     (hP : Ev (fun F => P F = .ok v)) :
-    ⦃fun s' => ⌜s' = s⌝⦄ (pure o : AM DeltaStepA)
-    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ :=
+    ⦃fun s' => s' = s⦄ (pure o : AM DeltaStepA)
+    ⦃fun o s' => DSPost mode env fe s₀ d P o s'; ⊤⦄ :=
   triple_pure_post ⟨hok, hxs, hps, v, hr, hP⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1574-1579 deltaQuick — **the step's
@@ -684,8 +685,8 @@ theorem ds_quick_exit (hsim : KnotSpec mode env fe fuel) (p q : EIdx) (u w : Exp
     (hww : Expr.WScoped d w)
     (hred : Ev (fun F => P F =
       ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d u w)) :
-    ⦃fun s' => ⌜s' = s⌝⦄ ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p q
-    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ := by
+    ⦃fun s' => s' = s⦄ ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p q
+    ⦃fun o s' => DSPost mode env fe s₀ d P o s'; ⊤⦄ := by
   refine triple_mono (deltaQuick_spec hsim d s p q u w hok hp hq hwu hww) ?_
   rintro o s' ⟨hok', hx', hp', v, hr, hv⟩
   exact ⟨hok', hxs.trans hx', hp'.trans hps, v, hr,
@@ -701,10 +702,10 @@ theorem ds_whnf_quick_exit_l (hsim : KnotSpec mode env fe fuel) (p q : EIdx)
     (hww : Expr.WScoped d w)
     (hred : Ev (fun F => ∀ u₃, ConLeche.whnfCore mode env F d u true = .ok u₃ →
       P F = ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d u₃ w)) :
-    ⦃fun s' => ⌜s' = s⌝⦄ (do
+    ⦃fun s' => s' = s⦄ (do
         let p₃ ← (coreKnot mode fe id fuel).whnfCore true d p
         ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p₃ q)
-    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ := by
+    ⦃fun o s' => DSPost mode env fe s₀ d P o s'; ⊤⦄ := by
   refine triple_seq (hsim.whnfCore (c := true) s d p u hok hp hwu) ?_
   rintro p₃ s1 ⟨hok1, hx1, hp1, u₃, hd3, hw3, F1, hF1⟩
   have hW : Ev (fun F => ConLeche.whnfCore mode env F d u true = .ok u₃) :=
@@ -721,10 +722,10 @@ theorem ds_whnf_quick_exit_r (hsim : KnotSpec mode env fe fuel) (p q : EIdx)
     (hww : Expr.WScoped d w)
     (hred : Ev (fun F => ∀ w₃, ConLeche.whnfCore mode env F d w true = .ok w₃ →
       P F = ConLeche.deltaQuick mode (ConLeche.pureFns mode env F) d u w₃)) :
-    ⦃fun s' => ⌜s' = s⌝⦄ (do
+    ⦃fun s' => s' = s⦄ (do
         let q₃ ← (coreKnot mode fe id fuel).whnfCore true d q
         ConRon.Arena.deltaQuick mode (coreKnot mode fe id fuel) d p q₃)
-    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d P o s'⌝⦄ := by
+    ⦃fun o s' => DSPost mode env fe s₀ d P o s'; ⊤⦄ := by
   refine triple_seq (hsim.whnfCore (c := true) s d q w hok hq hww) ?_
   rintro q₃ s1 ⟨hok1, hx1, hp1, w₃, hd3, hw3, F1, hF1⟩
   have hW : Ev (fun F => ConLeche.whnfCore mode env F d w true = .ok w₃) :=
@@ -742,13 +743,13 @@ theorem ds_unfold_seq (henv : ConLeche.EnvWF env) (e : EIdx) (u : Expr)
       CheckOK mode env fe s' → Ext s.store s'.store → s'.pins = s.pins →
       denoteE s'.store e₂ = some u₂ → Expr.WScoped d u₂ →
       unfoldDefinition env u = some u₂ →
-      ⦃fun t => ⌜t = s'⌝⦄ f (some e₂) ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄)
+      ⦃fun t => t = s'⦄ f (some e₂) ⦃fun r t => DSPost mode env fe s₀ d P r t; ⊤⦄)
     (hnone : ∀ (s' : AState), CheckOK mode env fe s' →
       Ext s.store s'.store → s'.pins = s.pins →
       unfoldDefinition env u = none →
-      ⦃fun t => ⌜t = s'⌝⦄ f none ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄) :
-    ⦃fun t => ⌜t = s⌝⦄ (ConRon.Arena.unfoldDefinition fe e >>= f)
-    ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄ := by
+      ⦃fun t => t = s'⦄ f none ⦃fun r t => DSPost mode env fe s₀ d P r t; ⊤⦄) :
+    ⦃fun t => t = s⦄ (ConRon.Arena.unfoldDefinition fe e >>= f)
+    ⦃fun r t => DSPost mode env fe s₀ d P r t; ⊤⦄ := by
   refine triple_seq (unfoldDefinition_spec henv s d e hok ⟨u, he, hwu⟩) ?_
   rintro o s1 ⟨hok1, hx1, hp1, ho⟩
   obtain ⟨hdo, hwo⟩ := ho u he
@@ -770,15 +771,15 @@ theorem ds_try_seq (hsim : KnotSpec mode env fe fuel) (e : EIdx) (u : Expr)
       denoteE s'.store e₂ = some u₂ → Expr.WScoped d u₂ →
       Ev (fun F => ConLeche.tryUnfoldProjApp (ConLeche.pureFns mode env F) d u
         = .ok (some u₂)) →
-      ⦃fun t => ⌜t = s'⌝⦄ f (some e₂) ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄)
+      ⦃fun t => t = s'⦄ f (some e₂) ⦃fun r t => DSPost mode env fe s₀ d P r t; ⊤⦄)
     (hnone : ∀ (s' : AState), CheckOK mode env fe s' →
       Ext s.store s'.store → s'.pins = s.pins →
       Ev (fun F => ConLeche.tryUnfoldProjApp (ConLeche.pureFns mode env F) d u
         = .ok none) →
-      ⦃fun t => ⌜t = s'⌝⦄ f none ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄) :
-    ⦃fun t => ⌜t = s⌝⦄
+      ⦃fun t => t = s'⦄ f none ⦃fun r t => DSPost mode env fe s₀ d P r t; ⊤⦄) :
+    ⦃fun t => t = s⦄
       (ConRon.Arena.tryUnfoldProjApp (coreKnot mode fe id fuel) d e >>= f)
-    ⦃⇓? r t => ⌜DSPost mode env fe s₀ d P r t⌝⦄ := by
+    ⦃fun r t => DSPost mode env fe s₀ d P r t; ⊤⦄ := by
   refine triple_seq (tryUnfoldProjApp_spec hsim d s e u hok he hwu) ?_
   rintro o s1 ⟨hok1, hx1, hp1, v, hv, hwv, hE⟩
   cases o with
@@ -802,11 +803,11 @@ theorem lazyDeltaStep_spec {fe : IFEnv} {fuel : Nat} (henv : ConLeche.EnvWF env)
     (x y : Expr) (hok : CheckOK mode env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.lazyDeltaStep mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? o s' => ⌜DSPost mode env fe s₀ d
+    ⦃fun o s' => DSPost mode env fe s₀ d
       (fun F => ConLeche.lazyDeltaStep mode (ConLeche.pureFns mode env F) env d x y)
-      o s'⌝⦄ := by
+      o s'; ⊤⦄ := by
   unfold ConRon.Arena.lazyDeltaStep
   refine triple_seq (unfoldableHead_spec s₀ a x hok hx) ?_
   rintro ua s2 ⟨hok2, hst2, hp2, rfl⟩
@@ -918,14 +919,14 @@ theorem lazyDeltaStep_spec {fe : IFEnv} {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hx06 : Ext s₀.store s6.store := by rw [hst6]; exact hx05
     have hp06 : s6.pins = s₀.pins := hp6.trans hp05
     -- the same-head spine shortcut, at both guard outcomes
-    have hsp : ∀ (c : Bool), ⦃fun s => ⌜s = s6⌝⦄
+    have hsp : ∀ (c : Bool), ⦃fun s => s = s6⦄
         (if c = true then ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
           else pure false)
-        ⦃⇓? sp s' => ⌜CheckOK mode env fe s' ∧ Ext s6.store s'.store ∧
+        ⦃fun sp s' => CheckOK mode env fe s' ∧ Ext s6.store s'.store ∧
           s'.pins = s6.pins ∧
           Ev (fun F => (if c = true then ConLeche.defeqSpine
             (ConLeche.pureFns mode env F) env d x y else pure false)
-            = (.ok sp : CheckM Bool))⌝⦄ := by
+            = (.ok sp : CheckM Bool)); ⊤⦄ := by
       intro c
       cases c
       · exact triple_pure_post ⟨hok6, Ext.refl _, rfl, Ev.const rfl⟩
@@ -1022,13 +1023,13 @@ theorem lazyDeltaReduction_spec {fe : IFEnv} {fuel : Nat}
       CheckOK mode env fe s₀ →
       denoteE s₀.store a = some x → denoteE s₀.store b = some y →
       Expr.WScoped d x → Expr.WScoped d y →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.lazyDeltaReduction mode (coreKnot mode fe id fuel) fe d n a b
-      ⦃⇓? o s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, LRRel s'.store d o v ∧
             Ev (fun F => ConLeche.lazyDeltaReduction mode
-              (ConLeche.pureFns mode env F) env d n x y = .ok v)⌝⦄
+              (ConLeche.pureFns mode env F) env d n x y = .ok v); ⊤⦄
   | 0, s₀, a, b, x, y, _, _, _, _, _ => by
     rw [ConRon.Arena.lazyDeltaReduction]
     exact triple_fail

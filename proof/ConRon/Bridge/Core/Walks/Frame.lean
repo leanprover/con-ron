@@ -49,7 +49,7 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## 1. The frame -/
 

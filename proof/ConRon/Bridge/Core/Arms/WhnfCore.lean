@@ -19,7 +19,7 @@ clauses — followed by the body theorem (`whnfCoreBody_spec`) the knot's
 | `.app` | ι declines — stuck application | `whnfCore_app_iota_none` |
 | `.proj` | `reduceProjCore` fires: the field, head-normalised | `whnfCore_proj_fire` |
 | `.proj` | `reduceProjCore` declines: the node itself | `whnfCore_proj_stuck` |
-| `.letE` / `.bvar` | `throw` | nothing to prove (`⇓?`) |
+| `.letE` / `.bvar` | `throw` | nothing to prove (`; ⊤`) |
 
 ## The two deviations the twin carries at this body
 
@@ -56,7 +56,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -159,12 +160,12 @@ theorem whnfCoreBody_app_batched {fe : IFEnv} {fuel : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : (i.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       whnfCoreBody mode (coreKnot mode fe id fuel) fe c d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
   refine view_bind_triple hv ?_
@@ -223,12 +224,12 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat} (c : Bool)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       whnfCoreBody mode (coreKnot mode fe id fuel) fe c d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -242,31 +243,31 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat} (c : Bool)
   cases v with
   | app f a => exact absurd htg hna
   | proj n k sub => exact absurd htg hnp
-  | letE ty w b => to_wp; vcgen
-  | bvar k => to_wp; vcgen
+  | letE ty w b => vcgen
+  | bvar k => vcgen
   | fvar k t =>
     obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inl ⟨k, t', rfl⟩)⟩
   | sort u =>
     obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inl ⟨l, rfl⟩))⟩
   | const n us =>
     obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inl ⟨nm, ls, rfl⟩)))⟩
   | lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inl ⟨l, rfl⟩))))⟩
   | lam ty b m =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩)))))⟩
   | forallE ty b m =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩)))))⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1062-1075 whnfCoreBody — **the
@@ -280,12 +281,12 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : i.tag = ETag.proj) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       whnfCoreBody mode (coreKnot mode fe id fuel) fe c d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -296,12 +297,12 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
     refine view_bind_triple hv ?_
     dsimp only
     -- stage 1: the scrutinee, in the clause's mode
-    have h1 : ⦃fun s => ⌜s = s₀⌝⦄
+    have h1 : ⦃fun s => s = s₀⦄
         (if c then (coreKnot mode fe id fuel).whnfCore true d pe
           else (coreKnot mode fe id fuel).whnf d pe)
-        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
-            SimEOp (fun F => projScrut mode env c F d es) d s'.store r⌝⦄ := by
+            SimEOp (fun F => projScrut mode env c F d es) d s'.store r; ⊤⦄ := by
       cases c
       · simp only [Bool.false_eq_true, ite_false]
         exact hsim.whnf s₀ d pe es hok hpe hwes
@@ -324,7 +325,7 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
       simp only [denoteEO, Option.some.injEq] at hov
       subst hov
       dsimp only
-      to_wp; vcgen; subst_vars
+      vcgen; subst_vars
       exact ⟨hok2, hx02, hp02, .proj nm k es, denote_ext hden hx02, hw,
         max F1 F2 + 1, whnfCore_proj_stuck hs' hr'⟩
     | some m =>
@@ -363,7 +364,7 @@ below is round 3's inventory, kept for its reasons:
   rules — three walks of `Arena/Core.lean` that are NOT knot slots and
   therefore need their own `BodySpec`-shaped theorems, which this round did
   not write;
-* the `.letE` and `.bvar` arms are free (`⇓?` claims nothing of a `fail`);
+* the `.letE` and `.bvar` arms are free (`; ⊤` claims nothing of a `fail`);
 * the six value arms are `whnfCore_of_stuck`, closed.
 
 The step lemmas above are what the arms consume once the twin's arms are

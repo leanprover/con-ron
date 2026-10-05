@@ -56,7 +56,8 @@ import ConRon.Bridge.Core.Induction
 import ConRon.Bridge.Core.EnsureSort
 import ConRon.Arena.CheckDecl
 
-open ConLeche ConRon.Arena Std.Do
+open ConLeche ConRon.Arena Std.WP
+open scoped Lean.Order
 
 namespace ConRon.Bridge
 
@@ -163,17 +164,17 @@ seventh entry point, which is not a slot**.  `Bridge/Core/Knot.lean`'s
 six-field `KnotSpec` does not cover it because `coreKnot` does not have it;
 the declaration front door calls it at every constant, so this tier needs it.
 
-Stated in `BodySpec`'s shape — a `Std.Do` triple — so that the Core tier can
-discharge it with `mvcgen` like everything else it owns. -/
+Stated in `BodySpec`'s shape — a `Std.WP` triple — so that the Core tier can
+discharge it with `vcgen` like everything else it owns. -/
 def EnsureSortSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop :=
   ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
     CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
     Expr.WScoped d e →
-    ⦃fun s => ⌜s = s₀⌝⦄ Arena.ensureSortCore mode fe f d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ Arena.ensureSortCore mode fe f d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄
+        SimL (ConLeche.ensureSortCore mode env) d e s'.store r; ⊤⦄
 
 /-! ## The Core tier's theorem, as this tier uses it -/
 

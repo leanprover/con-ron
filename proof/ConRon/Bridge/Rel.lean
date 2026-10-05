@@ -41,39 +41,40 @@ The groups, in order:
 -/
 import ConRon.Bridge.Peel
 import ConLeche.Kernel.ExprOps
+import Std.WP
 
 namespace ConRon.Bridge
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena Std.Do
+open ConLeche ConRon.Arena Std.WP
+open scoped Lean.Order
 
 
 /-! ## 1. Soundness: from the triple back to a run -/
 
-/-- con-leche: none — the `WP` soundness step for `AM`.  Everything `mvcgen`
-proves is a triple; Theorem 1 is stated on a *run*, and this is the four-line
-bridge (`Std.Do` ships `StateM.of_wp_run_eq` and `Except.of_wp_eq`, but
+/-- con-leche: none — the `WP` soundness step for `AM`.  Everything `vcgen`
+proves is a triple; Theorem 1 is stated on a *run*, and this is the
+bridge (`Std.WP` ships `StateM.of_run_eq_wp` and `Except.of_eq_wp`, but
 nothing for `StateT σ (Except ε)`). -/
 theorem AM.of_run {α : Type} {prog : AM α} {s s' : AState} {a : α}
     {P : AState → Prop} {Q : α → AState → Prop}
     (hp : P s) (h : prog.run s = .ok (a, s'))
-    (hwp : ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄) : Q a s' := by
-  have hs := hwp s
-  simp only [WP.wp, PredTrans.apply_pushArg] at hs
-  rw [h] at hs
-  exact hs hp
+    (hwp : ⦃fun s => P s⦄ prog ⦃fun r s'' => Q r s''; ⊤⦄) : Q a s' := by
+  have hs := hwp.le_wp s hp
+  rw [Std.WP.StateT.wp_apply_eq, h] at hs
+  exact hs
 
 /-- con-leche: none — `AM.of_run`'s converse: a partial-correctness triple
 from a statement about every accepting run. -/
 theorem AM.triple_of_run {α : Type} {prog : AM α} {P : AState → Prop}
     {Q : α → AState → Prop}
     (h : ∀ (s : AState) (a : α) (s' : AState), P s → prog.run s = .ok (a, s') → Q a s') :
-    ⦃fun s => ⌜P s⌝⦄ prog ⦃⇓? r s'' => ⌜Q r s''⌝⦄ := by
-  intro s hp
-  simp only [WP.wp, PredTrans.apply_pushArg]
+    ⦃fun s => P s⦄ prog ⦃fun r s'' => Q r s''; ⊤⦄ := by
+  refine ⟨fun s hp => ?_⟩
+  rw [Std.WP.StateT.wp_apply_eq]
   cases hr : prog.run s with
-  | error e => trivial
+  | error e => change (⊤ : Arena.CheckError → Prop) e; simp
   | ok p => exact h s p.1 p.2 hp hr
 
 /-! ## 2. Transport

@@ -36,7 +36,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -143,18 +144,18 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array (EIdx × BinderMeta)) :
       (stkx : List (Expr × BinderMeta)),
       CheckOK mode env fe s₀ → denoteE s₀.store cur = some curx →
       n ≤ stk.size → StkRel (LamR s₀.store) (stk.toList.take n).reverse stkx →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.inferLamsOut mode d stk n cur prevPw
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.inferLamsOut mode d stk n cur prevPw
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ConLeche.inferLamsOut (m := CheckM) mode d stkx (n - 1) curx prevPw
-            = .ok v⌝⦄
+            = .ok v; ⊤⦄
   | 0, s₀, cur, curx, prevPw, stkx, hok, hcur, _, hstk => by
     cases stkx with
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.inferLamsOut]
       simp only [ite_true]
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
   | j + 1, s₀, cur, curx, prevPw, stkx, hok, hcur, hle, hstk => by
@@ -272,11 +273,11 @@ theorem ensureSortK_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.ensureSort (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? u s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun u s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ l, denoteL s'.store.ls u = some l ∧
-        ∃ F, ConLeche.whnf mode env F d e = .ok (.sort l)⌝⦄ := by
+        ∃ F, ConLeche.whnf mode env F d e = .ok (.sort l); ⊤⦄ := by
   unfold ConRon.Arena.ensureSort
   refine triple_seq (hsim.whnf s₀ d i e hok hden hw) ?_
   rintro w s1 ⟨hok1, hx1, hp1, wx, hwx, -, F, hF⟩
@@ -287,7 +288,7 @@ theorem ensureSortK_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   case sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hok1.state.wf hv hwx
     dsimp only
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok1, hx1, hp1, l, hl, F, hF⟩
   all_goals (dsimp only; exact triple_fail)
@@ -339,15 +340,15 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hok : CheckOK mode env fe s₀) (hbt : denoteE s₀.store bt = some btx)
     (hwbt : Expr.WScoped (d + k) btx)
     (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.inferLamsLeafCheck mode (coreKnot mode fe id fuel) fe d k
         stk bt
-    ⦃⇓? _u s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ ∃ F, LamLeafOK mode env d k btx stkx F⌝⦄ := by
+    ⦃fun _u s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ ∃ F, LamLeafOK mode env d k btx stkx F; ⊤⦄ := by
   unfold ConRon.Arena.inferLamsLeafCheck
   split
   next hnv =>
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, 0, fun hv => ?_⟩
     simp [hv] at hnv
@@ -367,7 +368,7 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     dsimp only
     split
     next hn =>
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       have hnil := StkRel.nil_of_size hstk hn
       refine ⟨hok2, hx02, hp02, max F1 F2, fun _ => ⟨bttx, l, hA, hB, ?_⟩⟩
@@ -383,7 +384,7 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       obtain rfl : lvb = l := (Option.some.inj hl3).symm
       split
       next hz =>
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         refine ⟨hok3, by rw [hst3]; exact hx02, hp3.trans hp02, max F1 F2,
           fun _ => ⟨bttx, lvb, hA, hB, ?_⟩⟩
@@ -464,12 +465,12 @@ theorem inferLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx)
     (hk : stk.size = k)
     (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.inferLamsLeaf mode (coreKnot mode fe id fuel) fe d t k fvs stk
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
         ∃ F, ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx k
-          ws stkx = .ok v⌝⦄ := by
+          ws stkx = .ok v; ⊤⦄ := by
   unfold ConRon.Arena.inferLamsLeaf
   -- stage 1: the residual, opened in bulk
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
@@ -493,13 +494,13 @@ theorem inferLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       Ext s2.store s3.store → s3.pins = s2.pins →
       (tx.lamPw = none → LamLeafOK mode env d k btx stkx F2) →
       ∀ (prevPw : PropWhen), prevPw = mPrev tx.lamPw stkx →
-      ⦃fun s => ⌜s = s3⌝⦄ (do
+      ⦃fun s => s = s3⦄ (do
         let cur ← abstractRangeFast coreWalkFuel bt d k 0
         ConRon.Arena.inferLamsOut mode d stk stk.size cur prevPw)
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ∃ F, ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx
-            k ws stkx = .ok v⌝⦄ := by
+            k ws stkx = .ok v; ⊤⦄ := by
     intro s3 F2 hok3 hx3 hp3 hchk prevPw hprev
     have hbt3 := denote_ext hbtx hx3
     refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec coreWalkFuel s3 bt
@@ -569,13 +570,13 @@ theorem inferLams_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ExprOps.InstLVec s₀.store fvs ws →
       StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
       Expr.WScoped (d + k) (tx.instantiateList ws) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.inferLams mode (coreKnot mode fe id fuel) fe d peel t k
           fvs stk
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ∃ F, ConLeche.inferLams mode (ConLeche.pureFns mode env F) d peel tx
-            k ws stkx = .ok v⌝⦄
+            k ws stkx = .ok v; ⊤⦄
   | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
     rw [ConRon.Arena.inferLams]
     refine triple_mono (inferLamsLeaf_carry hsim s₀ d t k fvs stk tx ws stkx hok
@@ -769,12 +770,12 @@ theorem inferLam_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hty : denoteE s₀.store ty = some tyx)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.inferLam mode (coreKnot mode fe id fuel) fe d ty body mb
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d (.lam tyx bodyx mb)
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
   have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
   unfold ConRon.Arena.inferLam
@@ -838,17 +839,17 @@ theorem inferPisOut_carry (stk : Array (LIdx × PropWhen)) (pv : PropWhen) :
       CheckOK mode env fe s₀ → denoteL s₀.store.ls v = some vx →
       Level.zeronessOf vx = pv →
       n ≤ stk.size → StkRel (PiR s₀.store) (stk.toList.take n).reverse stkx →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.inferPisOut mode stk n v pv
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.inferPisOut mode stk n v pv
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ lx, denoteL s'.store.ls r = some lx ∧
-          ConLeche.inferPisOut (m := CheckM) mode stkx vx = .ok lx⌝⦄
+          ConLeche.inferPisOut (m := CheckM) mode stkx vx = .ok lx; ⊤⦄
   | 0, s₀, v, vx, stkx, hok, hv, _, _, hstk => by
     cases stkx with
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.inferPisOut]
       simp only [ite_true]
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, vx, hv, rfl⟩
   | j + 1, s₀, v, vx, stkx, hok, hv, hz, hle, hstk => by
@@ -913,12 +914,12 @@ theorem inferPisLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hvec : ExprOps.InstLVec s₀.store fvs ws)
     (hstk : StkRel (PiR s₀.store) stk.toList.reverse stkx)
     (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.inferPisLeaf mode (coreKnot mode fe id fuel) fe d t k fvs stk
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
         ∃ F, ConLeche.inferPisLeaf mode (ConLeche.pureFns mode env F) d tx k
-          ws stkx = .ok v⌝⦄ := by
+          ws stkx = .ok v; ⊤⦄ := by
   unfold ConRon.Arena.inferPisLeaf
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
     hok.state hvec (by rw [ht]; rfl)) ?_
@@ -976,13 +977,13 @@ theorem inferPis_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ExprOps.InstLVec s₀.store fvs ws →
       StkRel (PiR s₀.store) stk.toList.reverse stkx →
       Expr.WScoped (d + k) (tx.instantiateList ws) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.inferPis mode (coreKnot mode fe id fuel) fe d peel t k
           fvs stk
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ∃ F, ConLeche.inferPis mode (ConLeche.pureFns mode env F) d peel tx
-            k ws stkx = .ok v⌝⦄
+            k ws stkx = .ok v; ⊤⦄
   | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hw => by
     rw [ConRon.Arena.inferPis]
     refine triple_mono (inferPisLeaf_carry hsim s₀ d t k fvs stk tx ws stkx hok
@@ -1130,12 +1131,12 @@ theorem inferForall_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hty : denoteE s₀.store ty = some tyx)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.forallE tyx bodyx mb)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.inferForall mode (coreKnot mode fe id fuel) fe d ty body mb
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d (.forallE tyx bodyx mb)
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
   have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
   unfold ConRon.Arena.inferForall
@@ -1199,11 +1200,11 @@ theorem annotBinderMeta_eq (pw? : Option PropWhen) (mb : BinderMeta) :
 theorem internBinderE_spec (isLam : Bool) (s₀ : AState) (ty b : EIdx)
     (m : BinderMeta) (tx bx : Expr) (hwf : StoreWF s₀.store)
     (hty : denoteE s₀.store ty = some tx) (hb : denoteE s₀.store b = some bx) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       (if isLam then internLamE ty b m else internForallEE ty b m)
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteE s'.store h = some (mkB isLam tx bx m)⌝⦄ := by
+        denoteE s'.store h = some (mkB isLam tx bx m); ⊤⦄ := by
   cases isLam
   · simp only [Bool.false_eq_true, ite_false]
     refine triple_mono (internForallEE_spec s₀ ty b m hwf (by rw [hty]; rfl)
@@ -1227,18 +1228,18 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
       (curx : Expr) (stkx : List (Expr × BinderMeta)),
       CheckOK mode env fe s₀ → denoteE s₀.store cur = some curx →
       n ≤ stk.size → StkRel (LamR s₀.store) (stk.toList.take n).reverse stkx →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.annotateBindersOut isLam d pw? stk n cur
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.annotateBindersOut isLam d pw? stk n cur
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ConLeche.annotateBindersOut (m := CheckM) (mkB isLam) d pw? stkx
-            (n - 1) curx = .ok v⌝⦄
+            (n - 1) curx = .ok v; ⊤⦄
   | 0, s₀, pw?, cur, curx, stkx, hok, hcur, _, hstk => by
     cases stkx with
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.annotateBindersOut]
       simp only [ite_true]
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
   | j + 1, s₀, pw?, cur, curx, stkx, hok, hcur, hle, hstk => by
@@ -1257,15 +1258,15 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
         Ext s1.store s2.store ∧ s2.caches = s1.caches ∧ s2.pins = s1.pins ∧
         denoteE s2.store nd = some (mkB isLam (tyx.abstractRange d j) curx
           (ConRon.Arena.annotBinderMeta pw? stk[j]!.2))) →
-        ⦃fun s => ⌜s = s2⌝⦄
+        ⦃fun s => s = s2⦄
           ConRon.Arena.annotateBindersOut isLam d
             (if pw?.isSome = true then
               some (ConRon.Arena.annotBinderMeta pw? stk[j]!.2).pw else none)
             stk j nd
-        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
             ConLeche.annotateBindersOut (m := CheckM) (mkB isLam) d pw?
-              ((tyx, mbx) :: rest) j curx = .ok v⌝⦄ := by
+              ((tyx, mbx) :: rest) j curx = .ok v; ⊤⦄ := by
       rintro nd s2 ⟨hwf2, hx2, hc2, hp2, hnd⟩
       have hok2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
       have hx02 : Ext s₀.store s2.store := hx1.trans hx2
@@ -1331,12 +1332,12 @@ theorem annotatePisLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx)
     (hk : stk.size = k)
     (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.annotatePisLeaf (coreKnot mode fe id fuel) fe d t k fvs stk
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
         ∃ F, ConLeche.annotatePisLeaf (ConLeche.pureFns mode env F) env d tx k
-          ws stkx = .ok v⌝⦄ := by
+          ws stkx = .ok v; ⊤⦄ := by
   unfold ConRon.Arena.annotatePisLeaf
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
     hok.state hvec (by rw [ht]; rfl)) ?_
@@ -1375,12 +1376,12 @@ theorem annotatePis_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ExprOps.InstLVec s₀.store fvs ws →
       StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
       Expr.WScoped (d + k) (tx.instantiateList ws) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.annotatePis (coreKnot mode fe id fuel) fe d peel t k fvs stk
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ∃ F, ConLeche.annotatePis (ConLeche.pureFns mode env F) env d peel tx
-            k ws stkx = .ok v⌝⦄
+            k ws stkx = .ok v; ⊤⦄
   | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
     rw [ConRon.Arena.annotatePis]
     refine triple_mono (annotatePisLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
@@ -1493,15 +1494,15 @@ theorem annotateForall_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hty : denoteE s₀.store ty = some tyx)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.forallE tyx bodyx mb)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (do
+    ⦃fun s => s = s₀⦄ (do
       let typ ← (coreKnot mode fe id fuel).annotate d ty
       let fv ← internFVarE d typ
       ConRon.Arena.annotatePis (coreKnot mode fe id fuel) fe d peelFuel body 1
         #[fv] #[(typ, mb)])
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d (.forallE tyx bodyx mb)
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
   have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
   refine triple_seq (hsim.annotate s₀ d ty tyx hok hty hwty) ?_
@@ -1572,12 +1573,12 @@ theorem annotateLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx)
     (hk : stk.size = k)
     (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.annotateLamsLeaf (coreKnot mode fe id fuel) fe d t k fvs stk
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
         ∃ F, ConLeche.annotateLamsLeaf (ConLeche.pureFns mode env F) env d tx k
-          ws stkx = .ok v⌝⦄ := by
+          ws stkx = .ok v; ⊤⦄ := by
   unfold ConRon.Arena.annotateLamsLeaf
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
     hok.state hvec (by rw [ht]; rfl)) ?_
@@ -1616,12 +1617,12 @@ theorem annotateLams_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ExprOps.InstLVec s₀.store fvs ws →
       StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
       Expr.WScoped (d + k) (tx.instantiateList ws) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.annotateLams (coreKnot mode fe id fuel) fe d peel t k fvs stk
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ∃ F, ConLeche.annotateLams (ConLeche.pureFns mode env F) env d peel tx
-            k ws stkx = .ok v⌝⦄
+            k ws stkx = .ok v; ⊤⦄
   | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
     rw [ConRon.Arena.annotateLams]
     refine triple_mono (annotateLamsLeaf_carry hsim s₀ d t k fvs stk tx ws stkx
@@ -1734,15 +1735,15 @@ theorem annotateLamLoop_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hty : denoteE s₀.store ty = some tyx)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (do
+    ⦃fun s => s = s₀⦄ (do
       let typ ← (coreKnot mode fe id fuel).annotate d ty
       let fv ← internFVarE d typ
       ConRon.Arena.annotateLams (coreKnot mode fe id fuel) fe d peelFuel body 1
         #[fv] #[(typ, mb)])
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d (.lam tyx bodyx mb)
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
   have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
   refine triple_seq (hsim.annotate s₀ d ty tyx hok hty hwty) ?_
@@ -1784,12 +1785,12 @@ theorem annotateBinderLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hty : denoteE s₀.store ty = some tyx)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.annotateBinder (coreKnot mode fe id fuel) fe d ty body mb true
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d (.lam tyx bodyx mb)
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwty : Expr.WScoped d tyx := by unfold Expr.WScoped at hw; exact hw.1
   have hwbody : Expr.WScoped d bodyx := by unfold Expr.WScoped at hw; exact hw.2
   unfold ConRon.Arena.annotateBinder
@@ -1824,14 +1825,14 @@ theorem annotateBinderLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       CheckOK mode env fe s5 → Ext s4.store s5.store → s5.pins = s4.pins →
       (ConLeche.annotateCore mode env (max (max F1 F2) F3 + 1) d
         (.lam tyx bodyx mb) = .ok (.lam typx (bpx.abstract1 d) ⟨pw⟩)) →
-      ⦃fun s => ⌜s = s5⌝⦄ (do
+      ⦃fun s => s = s5⦄ (do
         let ab ← abstract1Fast coreWalkFuel bp d 0
         if true = true then internLamE typ ab ⟨pw⟩
         else internForallEE typ ab ⟨pw⟩)
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           SimE (ConLeche.annotateCore mode env) d (.lam tyx bodyx mb)
-            s'.store r⌝⦄ := by
+            s'.store r; ⊤⦄ := by
     intro pw s5 F3 hok5 hx5 hp5 hpure
     have hbp5 := denote_ext hbpx hx5
     refine triple_seq (ExprOps.abstract1Fast_spec fvarBSpec coreWalkFuel s5 bp d

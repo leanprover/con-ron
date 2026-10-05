@@ -89,7 +89,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 4000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ### Attribute hygiene
 
@@ -100,7 +101,7 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 import.  The executed `abstractRange` walk below needs it for exactly the
 reason the executed `abstract1` walk does, so this file repeats the line (as
 every file of this tier repeats `attribute [-grind] RelE.ext …`). -/
-attribute [local spec high, local wp_spec high] internRebuiltBindI_specV
+attribute [local spec high] internRebuiltBindI_specV
 
 
 /-! ## `abstract1`'s entry -/
@@ -114,13 +115,13 @@ memo satisfies `Abs1MemoA` for free (`MemoOK.of_empty`).  `hfv` is the
 theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (e : EIdx) (d k : Nat)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ abstract1Fast fuel e d k
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ abstract1Fast fuel e d k
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.abs1C = ∅ ∧
-        RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r⌝⦄ := by
+        RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r; ⊤⦄ := by
   have hr := (abstract1Go_spec hfv d fuel).run
-  to_wp; vcgen [abstract1Fast, wp% hr]
+  vcgen [abstract1Fast, hr]
   all_goals bridge_vcs [Expr.abstract1, BMExt]
 
 /-! ### `AbsRangeAt`'s step lemmas at the EXECUTED walk's own hypotheses
@@ -250,12 +251,12 @@ The memo invariant is `AbsRangeMemoA d k` and NOT `Abs1MemoA d`: the table
 structure AbsRangeGoSpec (d k : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (h : EIdx) (c : Nat), StateOK s₁ →
     AbsRangeMemoA d k s₁ → (denoteE s₁.store h).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec h c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ AbsRangeMemoA d k s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec h c
+    ⦃fun r s' => StateOK s' ∧ AbsRangeMemoA d k s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        AbsRangeAt d k c s₁.store h s'.store r⌝⦄
+        AbsRangeAt d k c s₁.store h s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange —
 **THEOREM 1 for the EXECUTED `abstractRange`**, at one level of the
@@ -268,15 +269,15 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    to_wp; vcgen [abstractRangeGo_zero]
+    vcgen [abstractRangeGo_zero]
     all_goals bridge_vcs [Expr.abstractRange]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
     have hfvb := hfv.run
-    to_wp; vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
-      absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, wp% hrec, wp% hfvb]
+    vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
+      absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, hrec, hfvb]
     all_goals try bridge_vcs [Expr.abstractRange]
     all_goals try bridge_vcs [Expr.abstractRange, view_of_viewBindI,
       view_of_viewBindI_wf, isSome_eBindView, view_isSome]
@@ -382,13 +383,13 @@ theorem abstractRangeGo_spec (hfv : FvarBSpec) (d k : Nat) (fuel : Nat)
     (s₀ : AState) (c : EIdx)
     (cur : Nat) (hok : StateOK s₀) (hm : AbsRangeMemoA d k s₀)
     (hden : (denoteE s₀.store c).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ abstractRangeGo d k fuel c cur
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ abstractRangeGo d k fuel c cur
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r⌝⦄ := by
+        RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r; ⊤⦄ := by
   have hr := (abstractRangeGo_specS hfv d k fuel).run
-  to_wp; vcgen [wp% hr]
+  vcgen [hr]
   all_goals bridge_vcs [Expr.abstractRange, BMExt]
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC — the
@@ -405,15 +406,15 @@ all", and the second disjunct is the stronger of the two for a caller. -/
 theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (e : EIdx) (d k c : Nat) (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ abstractRangeFast fuel e d k c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ abstractRangeFast fuel e d k c
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (s'.memos.abs1C = ∅ ∨ s' = s₀) ∧
-        RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r⌝⦄ := by
+        RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r; ⊤⦄ := by
   have hr := fun (s₁ : AState) (cc : EIdx) (cur : Nat) =>
     abstractRangeGo_spec hfv d k fuel s₁ cc cur
-  to_wp; vcgen [abstractRangeFast, wp% hr]
+  vcgen [abstractRangeFast, hr]
   all_goals try bridge_vcs [Expr.abstractRange, BMExt]
   -- The `k = 0` clause, which returns the subject: `abstractRange_zero_eq` is
   -- its licence and nothing in the state moves.
@@ -600,8 +601,8 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
     ReadLCacheOK s₁.caches.readLC s₁.store →
     ReadLsCacheOK s₁.caches.readLsC s₁.store →
     (denoteE s₁.store h).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec h
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLPMemoA ks us s' ∧ InstLPLMemoA ks us s' ∧
+    ⦃fun s => s = s₁⦄ rec h
+    ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
@@ -611,7 +612,7 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
             readLC := s'.caches.readLC, readLsC := s'.caches.readLsC } ∧
         s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
-        InstLPAt ks us s₁.store h s'.store r⌝⦄
+        InstLPAt ks us s₁.store h s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 **THEOREM 1 for `instantiateLevelParams`**, at one level of the recursion, by
@@ -624,15 +625,16 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
   | zero =>
     constructor
     intro s₀ h _ _ _ _ _ _ _
-    to_wp; vcgen [instLPGo_zero]
+    vcgen [instLPGo_zero]
     all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hml hmls hcl hcls hden
     have hrec := ih.run
-    to_wp; vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
-      instLPArmForallE, instLPArmLet, instLPArmProj, wp% hrec,
-      wp% substLMemoAt_spec, wp% substLsMemoAt_spec]
+    dsimp only
+    vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
+      instLPArmForallE, instLPArmLet, instLPArmProj, hrec,
+      substLMemoAt_spec, substLsMemoAt_spec]
     all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadLCacheOK.mono,
       ReadLsCacheOK.mono, view_eq_of_tables]
     all_goals (bridge_peel; subst_vars)
@@ -800,8 +802,8 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (hcl : ReadLCacheOK s₀.caches.readLC s₀.store)
     (hcls : ReadLsCacheOK s₀.caches.readLsC s₀.store)
     (hden : (denoteE s₀.store c).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLPGo ks us fuel c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ instLPGo ks us fuel c
+    ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
@@ -810,9 +812,10 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
             readLC := s'.caches.readLC, readLsC := s'.caches.readLsC } ∧
         s'.pins = s₀.pins ∧
         RelE (fun x => x.instantiateLevelParams ks us) s₀.store c
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hr := (instLPGo_specS ks us fuel).run
-  to_wp; vcgen [wp% hr]
+  dsimp only
+  vcgen [hr]
   all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
 
 /-! ### The NAME readback with the sibling readback tables framed
@@ -833,37 +836,39 @@ frame at all. -/
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readNameM` with the
 sibling readback tables framed. -/
-@[spec high, wp_spec high] theorem readNameM_specF (s₀ : AState) (h : NIdx)
+@[spec high] theorem readNameM_specF (s₀ : AState) (h : NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readNameM h
-    ⦃⇓? x s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
+    ⦃fun s => s = s₀⦄ readNameM h
+    ⦃fun x s' => s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
         s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         denoteN s₀.store.ns h = some x ∧
-        ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
-  to_wp; vcgen [readNameM]
+        ReadNCacheOK s'.caches.readNC s'.store; ⊤⦄ := by
+  dsimp only
+  vcgen [readNameM]
   all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — and `readNamesM`, whose
 recursion is on the list as `readNames`' is. -/
-@[spec high, wp_spec high] theorem readNamesM_specF (s₀ : AState) (hs : List NIdx)
+@[spec high] theorem readNamesM_specF (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
-    ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
+    ⦃fun s => s = s₀⦄ readNamesM hs
+    ⦃fun xs s' => s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
         s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         Frontend.denoteNList s₀.store.ns hs = some xs ∧
-        ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
+        ReadNCacheOK s'.caches.readNC s'.store; ⊤⦄ := by
+  dsimp only
   induction hs generalizing s₀ with
   | nil =>
-    to_wp; vcgen [readNamesM]
+    vcgen [readNamesM]
     all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
   | cons a as ih =>
     -- `mvcgen` preferred `Bridge/SpecsL.lean`'s database `readNamesM_spec` to
     -- the induction hypothesis, so the tail used to be generalised to a
     -- program VARIABLE first; with `vcgen` the hypothesis passed in the list
     -- serves directly.
-    to_wp; vcgen [readNamesM, wp% readNameM_specF, wp% ih]
+    vcgen [readNamesM, readNameM_specF, ih]
     all_goals (bridge_peel; subst_vars
                grind [Frontend.denoteNList, ReadNCacheOK])
 
@@ -894,8 +899,8 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
     (hks : Frontend.denoteNList s₀.store.ns ks = some ksv)
     (hus : denoteLs s₀.store.lss us = some usv)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLPFast fuel ks us e
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ instLPFast fuel ks us e
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
@@ -907,10 +912,11 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
         s'.pins = s₀.pins ∧
         (s'.memos.instLPC = ∅ ∨ s' = s₀) ∧
         RelE (fun x => x.instantiateLevelParams ksv usv) s₀.store e
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hr := fun (kk : List ConLeche.Name) (uu : List Level) (s₁ : AState)
       (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
-  to_wp; vcgen [instLPFast, wp% hr]
+  dsimp only
+  vcgen [instLPFast, hr]
   all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono, BMExt]
   -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
   -- without reading `ks`/`us` back and without clearing the memo.

@@ -32,7 +32,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -134,26 +135,26 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     ∀ (n : Nat) (s₀ : AState) (d : Nat) (i : EIdx),
       CheckOK mode env fe s₀ →
       (∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.whnfLoop (coreKnot mode fe id fuel) fe d n i
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∀ e, denoteE s₀.store i = some e →
             ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
               ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d n e
-                = .ok v⌝⦄ := by
+                = .ok v; ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro s₀ d i _ _
-    to_wp; vcgen [ConRon.Arena.whnfLoop]
+    vcgen [ConRon.Arena.whnfLoop]
   | succ n ih =>
     intro s₀ d i hok hdw
     obtain ⟨e, hden, hw⟩ := hdw
     have hwc := hsim.whnfCore (c := false) (e := e)
     have hud := unfoldDefinition_spec (mode := mode) (fe := fe) henv (d := d)
-    to_wp; vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
-      wp% hwc, wp% reduceNat_spec hsim, wp% hud, wp% ih]
+    vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
+      hwc, reduceNat_spec hsim, hud, ih]
     all_goals (bridge_peel; subst_vars)
     -- the calls' `CheckOK` preconditions, and `whnfCore`'s two off the
     -- subject: hypotheses already
@@ -251,7 +252,7 @@ theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
       (ConLeche.whnf mode env) := by
   intro s₀ d i e hok hden hw
   have hloop := whnfLoop_spec henv hsim
-  to_wp; vcgen [ConRon.Arena.whnfBody, wp% hloop]
+  vcgen [ConRon.Arena.whnfBody, hloop]
   all_goals (bridge_peel; subst_vars)
   case vc2 => exact hok
   case vc3 => exact ⟨e, hden, hw⟩

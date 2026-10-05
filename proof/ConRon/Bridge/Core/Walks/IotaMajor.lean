@@ -14,7 +14,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -40,12 +41,12 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x)
     (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   unfold ConRon.Arena.litMajorToCtor
@@ -53,11 +54,11 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   -- every major but a string literal: the `Nat` conversion
   have hnat : (∀ str, x ≠ .lit (.strVal str)) →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.litToCtorIfNat fe h
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.litToCtorIfNat fe h
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           SimEOp (fun F => ConLeche.litMajorToCtorFueled mode env F d x) d
-            s'.store r⌝⦄ := by
+            s'.store r; ⊤⦄ := by
     intro hnl
     refine triple_mono (litToCtorIfNat_spec s₀ h x hok hden) ?_
     rintro r s' ⟨hok', hx', hp', hr⟩
@@ -88,7 +89,7 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       next hsupf =>
         have hS : ConLeche.strLitSupported env = false := by
           rw [← hsup]; simpa using hsupf
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         refine ⟨hok1, hx1, hp1, .lit (.strVal str), denote_ext hden hx1, hw, 0,
           ?_⟩
@@ -349,7 +350,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
     (hT : denoteN s₁.store.ns T = some Tn)
     (hfj : env.find? rl'.ctor = some (.ctorInfo dcvj cnP cnF)) :
-    ⦃fun s => ⌜s = s₁⌝⦄ (do
+    ⦃fun s => s = s₁⦄ (do
       let tmaj ← (coreKnot mode fe id fuel).whnf d
         (← (coreKnot mode fe id fuel).inferIO d major)
       let hh ← getAppFn coreWalkFuel tmaj
@@ -383,9 +384,9 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           else pure major
         | _ => pure major
       else pure major : AM EIdx)
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
-        SimEOp (fun F => mtcK mode env F d rl' dcvj cnP Tn x) d s'.store r⌝⦄ := by
+        SimEOp (fun F => mtcK mode env F d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
   have hcert : mode.certs = true := ConLeche.certs_of_verifiedChecks hμ
   obtain ⟨_, _, _, _, hrlc, _, _⟩ := rule_denote hrl'
   obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
@@ -526,10 +527,10 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               have hfab14 := denote_ext hfab11 (hx12.trans (hx13'.trans hx14))
               have hmaj14 := denote_ext hmaj (hx113.trans hx14)
               cases ir <;> simp only [Bool.false_eq_true, ↓reduceIte]
-              · to_wp; vcgen
+              · vcgen
                 bridge_peel; subst_vars
                 exact ⟨hok14, hx113.trans hx14, hp14.trans hp113, x, hmaj14, hw, _, hv⟩
-              · to_wp; vcgen
+              · vcgen
                 bridge_peel; subst_vars
                 exact ⟨hok14, hx113.trans hx14, hp14.trans hp113, _, hfab14, hwfab, _, hv⟩
             · rw [ite_eq_right hrd]
@@ -541,7 +542,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                 (fun _ => ConLeche.inferTypeIO_mono (by omega) hF4)
                 (fun _ => ConLeche.isDefEqCore_mono (by omega) hF5)
                 (fun _ h => by cases h)
-              to_wp; vcgen
+              vcgen
               bridge_peel; subst_vars
               exact ⟨hok13, hx113, hp113, x, denote_ext hmaj hx113, hw, _, hv⟩
           · rw [ite_eq_right hc1t]
@@ -551,7 +552,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               (G := max (max F1 F2) F3) (by omega)
               (iotaCertsFueled_mono (by omega) hF3)
               (fun h => by cases h) (fun h => by cases h) (fun h => by cases h)
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact ⟨hok11, hx111, hp111, x, denote_ext hmaj hx111, hw, _, hv⟩
         · rw [ite_eq_right hgt]
@@ -564,7 +565,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             rw [ite_eq_left hg1P, ite_eq_left hg2P]
             simp only [← hgd, hgf']
             rfl
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact ⟨hok9, hx19, hp19, x, denote_ext hmaj hx19, hw, _,
             hres _ (Nat.le_refl _)⟩
@@ -576,7 +577,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           simp only [mtcK, e1, e2, bind, Except.bind, hgf]
           rw [ite_eq_left hg1P, ite_eq_right (by rw [htl]; exact hg2)]
           rfl
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _,
           hres _ (Nat.le_refl _)⟩
@@ -588,7 +589,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         simp only [mtcK, e1, e2, bind, Except.bind, hgf]
         rw [ite_eq_right (fun h => hg1 (hcond.mpr h))]
         rfl
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _,
         hres _ (Nat.le_refl _)⟩
@@ -605,7 +606,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         | (split
            · rename_i c us heq; exact absurd heq (hnc c us)
            · rfl)
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
 
@@ -741,7 +742,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hT : denoteN s₁.store.ns T = some Tn)
     (hcj : denoteN s₁.store.ns icvj.name = some rl'.ctor)
     (hfj : env.find? rl'.ctor = some (.ctorInfo dcvj cnP cnF)) :
-    ⦃fun s => ⌜s = s₁⌝⦄ (do
+    ⦃fun s => s = s₁⦄ (do
       let tmaj ← (coreKnot mode fe id fuel).whnf d
         (← (coreKnot mode fe id fuel).inferIO d major)
       let hh ← getAppFn coreWalkFuel tmaj
@@ -772,9 +773,9 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           else pure major
         | _ => pure major
       else pure major : AM EIdx)
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
-        SimEOp (fun F => mtcEta mode env F d dcvj dcvT dcaps Tn x) d s'.store r⌝⦄ := by
+        SimEOp (fun F => mtcEta mode env F d dcvj dcvT dcaps Tn x) d s'.store r; ⊤⦄ := by
   have hcert : mode.certs = true := ConLeche.certs_of_verifiedChecks hμ
   obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
   obtain ⟨_, hctor, hep, hef, _⟩ := denoteCaps_fields hcaps
@@ -927,7 +928,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               (G := max (max F1 F2) (max F3 F4)) (by omega) hgt
               (iotaCertsFueled_mono (by omega) hF3)
               (fun _ => structEtaCertWithFueled_mono (by omega) hF4)
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact ⟨hok14, hx114, hp114, _, hfab14, hwfab, _, hv⟩
           · rw [ite_eq_right hb4]
@@ -938,7 +939,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               (iotaCertsFueled_mono (by omega) hF3)
               (fun _ => structEtaCertWithFueled_mono (by omega) hF4)
             simp at hv
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact ⟨hok14, hx114, hp114, x, denote_ext hmaj hx114, hw, _, hv⟩
         · rw [ite_eq_right hc1t]
@@ -948,7 +949,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (G := max (max F1 F2) F3) (by omega) hgt
             (iotaCertsFueled_mono (by omega) hF3)
             (fun h => by cases h)
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact ⟨hok13, hx113, hp113, x, denote_ext hmaj hx113, hw, _, hv⟩
       · rw [ite_eq_right hgt]
@@ -965,7 +966,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           rw [ite_eq_left (by first | exact ⟨rfl, hr⟩ | exact ⟨trivial, hr⟩)]
           simp only [← hgd, hgf']
           rfl
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok11, hx111, hp111, x, denote_ext hmaj hx111, hw, _,
           hres _ (Nat.le_refl _)⟩
@@ -979,7 +980,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         simp only [mtcEta, e1', e2', bind, Except.bind, hgf]
         rw [ite_eq_right (fun h => hg (hcond.mpr h))]
         rfl
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok7, by rw [hst7]; exact hx13, hp7.trans hp13, x,
         denote_ext hmaj (by rw [hst7]; exact hx13), hw, _, hres _ (Nat.le_refl _)⟩
@@ -998,7 +999,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         | (split
            · rename_i c us heq; exact absurd heq (hnc c us)
            · rfl)
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
 
@@ -1016,7 +1017,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hdcvj : Frontend.denoteCV s₁.store icvj = some dcvj)
     (hT : denoteN s₁.store.ns T = some Tn)
     (hfj : env.find? rl'.ctor = some (.ctorInfo dcvj cnP cnF)) :
-    ⦃fun s => ⌜s = s₁⌝⦄ (do
+    ⦃fun s => s = s₁⦄ (do
       let tmaj ← (coreKnot mode fe id fuel).whnf d
         (← (coreKnot mode fe id fuel).inferIO d major)
       let hh ← getAppFn coreWalkFuel tmaj
@@ -1055,9 +1056,9 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           else pure major
         | _ => pure major
       else pure major : AM EIdx)
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
-        SimEOp (fun F => mtcAnd mode env F d rl' dcvj cnP Tn x) d s'.store r⌝⦄ := by
+        SimEOp (fun F => mtcAnd mode env F d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
   have hcert : mode.certs = true := ConLeche.certs_of_verifiedChecks hμ
   obtain ⟨_, _, _, _, hrlc, _, _⟩ := rule_denote hrl'
   obtain ⟨_, hlpsj, _⟩ := denoteCV_inv hdcvj
@@ -1237,10 +1238,10 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             have hfab17 := denote_ext hfab14 (hx15.trans (hx16.trans hx17'))
             have hmaj17 := denote_ext hmaj (hx116.trans hx17')
             cases ir <;> simp only [Bool.false_eq_true, ↓reduceIte]
-            · to_wp; vcgen
+            · vcgen
               bridge_peel; subst_vars
               exact ⟨hok17, hx116.trans hx17', hp17'.trans hp116, x, hmaj17, hw, _, hv⟩
-            · to_wp; vcgen
+            · vcgen
               bridge_peel; subst_vars
               exact ⟨hok17, hx116.trans hx17', hp17'.trans hp116, _, hfab17, hwfab, _,
                 hv⟩
@@ -1253,7 +1254,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               (fun _ => ConLeche.inferTypeIO_mono (by omega) hF4)
               (fun _ => ConLeche.isDefEqCore_mono (by omega) hF5)
               (fun _ h => by cases h)
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact ⟨hok16, hx116, hp116, x, denote_ext hmaj hx116, hw, _, hv⟩
         · rw [ite_eq_right hc1t]
@@ -1263,7 +1264,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (G := max (max F1 F2) F3) (by omega) hgt
             (iotaCertsFueled_mono (by omega) hF3)
             (fun h => by cases h) (fun h => by cases h) (fun h => by cases h)
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact ⟨hok14, hx114, hp114, x, denote_ext hmaj hx114, hw, _, hv⟩
       · rw [ite_eq_right hgt]
@@ -1280,7 +1281,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           rw [ite_eq_left (by first | exact ⟨rfl, hr⟩ | exact ⟨trivial, hr⟩)]
           simp only [← hgd, hgf']
           rfl
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok12, hx112, hp112, x, denote_ext hmaj hx112, hw, _,
           hres _ (Nat.le_refl _)⟩
@@ -1294,7 +1295,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         simp only [mtcAnd, e1', e2', bind, Except.bind, hgf]
         rw [ite_eq_right (fun h => hg (hcond.mpr h))]
         rfl
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok7, hx17, hp17, x, denote_ext hmaj hx17, hw, _, hres _ (Nat.le_refl _)⟩
   all_goals
@@ -1312,7 +1313,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         | (split
            · rename_i c us heq; exact absurd heq (hnc c us)
            · rfl)
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok3, hx13, hp13, x, denote_ext hmaj hx13, hw, _, hres _ (Nat.le_refl _)⟩
 
@@ -1326,13 +1327,13 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hok : CheckOK mode env fe s₀)
     (hr : Frontend.denoteRules s₀.store rules = some rules')
     (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.majorToCtor mode (coreKnot mode fe id fuel) fe d c rules
         major
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimEOp (fun F => ConLeche.majorToCtorFueled mode env F d cn rules' x) d
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   have hcert : mode.certs = true := ConLeche.certs_of_verifiedChecks hμ
   have hxit : ∀ (s' : AState), CheckOK mode env fe s' → Ext s₀.store s'.store →
@@ -1350,7 +1351,7 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   · rw [ite_eq_left hict]
     have hc : ConLeche.isCtorApp env x = true := hic ▸ hict
     have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x := (fun F => majorToCtorFueled_ctor hc)
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact hxit _ hok (Ext.refl _) rfl hF
   · rw [ite_eq_right hict]
@@ -1437,14 +1438,14 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                   have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F => by
                     rw [hpre, ite_eq_right (by rw [hk']; exact hk),
                       ite_eq_right (by rw [he']; exact he), ite_eq_right hta']; rfl)
-                  to_wp; vcgen
+                  vcgen
                   bridge_peel; subst_vars
                   exact hxit _ hok (Ext.refl _) rfl hF
           next hnd =>
             have hni := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
             have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
               majorToCtorFueled_nind hnc hfindj hgf hni)
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact hxit _ hok (Ext.refl _) rfl hF
         all_goals
@@ -1452,14 +1453,14 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           have hncT := denote_not_const hwf hvh hph (by intro c us h; cases h)
           have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
             majorToCtorFueled_nhead hnc hfindj hncT)
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact hxit _ hok (Ext.refl _) rfl hF
       next hnd =>
         have hnc' := env_not_ctor_of_index hok hrlc (fun v p q h => hnd v p q h)
         have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn [rl'] x = .ok x := (fun F =>
           majorToCtorFueled_nctor hnc hnc')
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact hxit _ hok (Ext.refl _) rfl hF
     next hnr =>
@@ -1471,7 +1472,7 @@ theorem majorToCtor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         | [r], _, hnr => exact hnr r rfl
       have hF : ∀ F, ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok x := (fun F =>
         majorToCtorFueled_nrules hnc hns)
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact hxit _ hok (Ext.refl _) rfl hF
 
@@ -1544,13 +1545,13 @@ theorem prepareMajor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hok : CheckOK mode env fe s₀)
     (hr : Frontend.denoteRules s₀.store rules = some rules')
     (hden : denoteE s₀.store major = some x) (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.prepareMajor mode (coreKnot mode fe id fuel) fe d c rules
         major
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   unfold ConRon.Arena.prepareMajor
   rw [recRuleK_denote hr]
   split

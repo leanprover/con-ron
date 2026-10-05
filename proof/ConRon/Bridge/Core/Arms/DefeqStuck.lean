@@ -30,7 +30,8 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -50,9 +51,9 @@ theorem dqArm_stuck (hμ : mode.verifiedChecks = true)
       ConLeche.stuckIrrel mode (ConLeche.pureFns mode env F) env d x' y')
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       x' y' = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ :=
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ :=
   dq_stuck_exit hμ henv hsim a' b' x' y' hok hx₁ hp₁ hx hy hwx hwy
     (hG.imp fun F h r hr => h r (by rw [hred F]; exact hr))
 
@@ -76,13 +77,13 @@ theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
             (.lam t₁ c₁ m₁) y'))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.lam t₁ c₁ m₁) y' = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (do
         let e ← ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁
           bd₁ m₁ b'
         if e = true then pure true
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₁ bd₁ b' m₁ t₁ c₁ y' hok hty hbd
     hy hwx hwy) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
@@ -121,13 +122,13 @@ theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
             x' (.lam t₂ c₂ m₂)))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       x' (.lam t₂ c₂ m₂) = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (do
         let e ← ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₂
           bd₂ m₂ a'
         if e = true then pure true
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (etaCert_spec hsim s₁ d ty₂ bd₂ a' m₂ t₂ c₂ x' hok hty hbd
     hx hwy hwx) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
@@ -159,10 +160,10 @@ theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
     (hwx : Expr.WScoped d (.fvar i t₁)) (hwy : Expr.WScoped d (.fvar j t₂))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.fvar i t₁) (.fvar j t₂) = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (if (i == j) = true then pure true
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   split
   · rename_i h
     exact dq_pure_exit hok hx₁ hp₁ (hG.imp fun F hh => hh _ (by
@@ -189,14 +190,14 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
     (hus' : denoteLs s₁.store.lss us' = some ls')
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.const nm ls) (.const nm' ls') = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (if n = n' then do
           let o ← lvlsEq? us us'
           let b ← ConRon.Arena.liftFueled "level comparison" o
           if b = true then pure true
           else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hiff := n_eq_iff_pin hwf hn hn'
   have hwx : Expr.WScoped d (.const nm ls) := by simp [Expr.WScoped]
@@ -250,7 +251,7 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
     (hwy : Expr.WScoped d (.app ef ex))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.lit (.strVal st)) (.app ef ex) = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (do
         if fo.tag == ETag.const then
           match ← view fo with
@@ -264,7 +265,7 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
             else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
           | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwx : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
@@ -318,7 +319,7 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
     (hwx : Expr.WScoped d (.app ef ex))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.app ef ex) (.lit (.strVal st)) = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (do
         if fo.tag == ETag.const then
           match ← view fo with
@@ -332,7 +333,7 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
             else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
           | _ => ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   have hwy : Expr.WScoped d (.lit (.strVal st)) := by simp [Expr.WScoped]
   obtain ⟨vf, hvf⟩ := denoteE_view hf
@@ -386,7 +387,7 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
     (hwx : Expr.WScoped d (.app ef₁ ea₁)) (hwy : Expr.WScoped d (.app ef₂ ea₂))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (do
         let aa ← getAppArgs coreWalkFuel a'
         let bb ← getAppArgs coreWalkFuel b'
@@ -400,7 +401,7 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
             else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
           else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b'
         else ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a' b')
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   have hpure : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
       (.app ef₁ ea₁) (.app ef₂ ea₂) =
       (if (Expr.app ef₁ ea₁).getAppArgs.length =
@@ -504,8 +505,8 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
     (G : Nat → Bool → Prop)
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F)
       env d x' y' = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄ ConRon.Arena.defeqStuck mode (coreKnot mode fe id fuel) fe d a' b'
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun s => s = s₁⦄ ConRon.Arena.defeqStuck mode (coreKnot mode fe id fuel) fe d a' b'
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.defeqStuck
   obtain ⟨va, hva⟩ := denoteE_view hx

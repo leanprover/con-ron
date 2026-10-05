@@ -42,7 +42,7 @@ No `_step` lemma, no `next =>` block, no `arm_hyp` appears below.
 
 Fuel, as everywhere in this tier, because a handle DAG has no structural
 order the elaborator can see; exhaustion is a failure and Theorem 1 claims
-nothing on failure, which is what `⇓?` says.  Unlike the rebuilding walks,
+nothing on failure, which is what the `⊤` exception postcondition says.  Unlike the rebuilding walks,
 these five dispatch on `view` DIRECTLY (a `match ← view h` over the ten
 `ENodeView` constructors, not the tag test of task #97-P6-13), so the arms
 arrive already carrying their `view` equation and `Bridge/Rel.lean`'s group 5
@@ -57,7 +57,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ### Attribute hygiene (task #97s round 2, item 1)
 
@@ -96,9 +97,9 @@ twin reads off the node IS the one the denotation carries
 `lamPw`**, on the `Option PropWhen` and not inside it. -/
 theorem lamPw_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store h).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ lamPw h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV Expr.lamPw s₀.store h r⌝⦄ := by
-  to_wp; vcgen [lamPw]
+    ⦃fun s => s = s₀⦄ lamPw h
+    ⦃fun r s' => s' = s₀ ∧ RelV Expr.lamPw s₀.store h r; ⊤⦄ := by
+  vcgen [lamPw]
   case vc1 => bridge_vcs [Expr.lamPw, RelV]
   -- the tag-first `else` arm (task #97-P5-Core round 4): the view comes
   -- back from the denotation, and its tag is not `lam`

@@ -48,7 +48,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -175,10 +176,10 @@ theorem annotateBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : ETag.isBind i.tag = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ annotateBody (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ annotateBody (coreKnot mode fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -255,11 +256,11 @@ theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.app) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       annotateBody (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -272,7 +273,7 @@ theorem annotateBody_app {fe : IFEnv} {fuel : Nat}
     have h1 := hsim.annotate s₀ d f ef hok hdf hwf'
     have h2 := fun (s : AState) (hck : CheckOK mode env fe s)
         (hd : denoteE s.store a = some ea) => hsim.annotate s d a ea hck hd hwa
-    to_wp; vcgen [wp% h1, wp% h2]
+    vcgen [h1, h2]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     -- the second call's two preconditions
@@ -319,11 +320,11 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lit) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       annotateBody (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -335,7 +336,7 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
     | natVal n =>
       have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      to_wp; vcgen [wp% hn]
+      vcgen [hn]
       bridge_peel; subst_vars
       rename_i ck_s0 x_s1_s0 p_s0_s1 hsup
       exact ⟨ck_s0, x_s1_s0, p_s0_s1, _, denote_ext hden x_s1_s0, hw, 1,
@@ -343,7 +344,7 @@ theorem annotateBody_lit {fe : IFEnv} {fuel : Nat}
     | strVal str =>
       have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      to_wp; vcgen [wp% hn]
+      vcgen [hn]
       bridge_peel; subst_vars
       rename_i ck_s0 x_s1_s0 p_s0_s1 hsup
       exact ⟨ck_s0, x_s1_s0, p_s0_s1, _, denote_ext hden x_s1_s0, hw, 1,
@@ -371,11 +372,11 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.letE) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       annotateBody (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -397,8 +398,8 @@ theorem annotateBody_letE {fe : IFEnv} {fuel : Nat}
         (hbs : (denoteE s.store b).isSome = true) =>
       instantiate1Fast_specE coreWalkFuel s b w 0 hs hvs hbs
     have h7 := hsim.annotate'
-    to_wp; vcgen [ConRon.Arena.ensureSort, wp% h1, wp% hi, wp% hn, wp% h4, wp% hdq,
-      wp% hin, wp% h7]
+    vcgen [ConRon.Arena.ensureSort, h1, hi, hn, h4, hdq,
+      hin, h7]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     all_goals try first
@@ -515,11 +516,11 @@ theorem annotateBody_proj {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.proj) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       annotateBody (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -635,11 +636,11 @@ theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
     (hna : i.tag ≠ ETag.app) (hnl : i.tag ≠ ETag.lit)
     (hnb : ETag.isBind i.tag = false) (hne : i.tag ≠ ETag.letE)
     (hnp : i.tag ≠ ETag.proj) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       annotateBody (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -655,20 +656,20 @@ theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
   | bvar k =>
     obtain rfl := denote_bvar_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_bvar⟩
   | fvar k t =>
     obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hden
     have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_fvar hk⟩
   | sort u =>
     obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_sort⟩
   | const n us =>
     obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hden
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, hden, hw, 1, annot_const⟩
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC6.lean annotateBodyC_sim —

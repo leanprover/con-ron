@@ -44,7 +44,7 @@ namespace ConRon.Bridge.Inductives
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge
 
 /-! ## The core grade -/
 

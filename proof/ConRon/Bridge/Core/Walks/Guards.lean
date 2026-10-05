@@ -36,7 +36,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -90,12 +91,12 @@ is why it was the round's third closed walk and the cheapest of the
 seventeen. -/
 theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isBoolTrue h
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isBoolTrue h
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
   have hp := hok.pins
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
+  vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
     ConRon.Arena.boolTrueName, ConRon.Arena.pinBoolTrue]
   all_goals (bridge_peel; subst_vars)
   case vc3 | vc4 => exact hp

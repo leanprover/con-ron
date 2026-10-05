@@ -24,7 +24,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -71,11 +72,11 @@ theorem rawNatLit?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
 for `rawNatLit?`**: the literal reading of a head normal form. -/
 theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.rawNatLit? h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = ConLeche.rawNatLit? x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
+    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.rawNatLit? x; ⊤⦄ := by
   have hp := hok.pins
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.rawNatLit?, ConRon.Arena.emptyLevels,
+  vcgen [ConRon.Arena.rawNatLit?, ConRon.Arena.emptyLevels,
     ConRon.Arena.pinNatZero]
   all_goals (bridge_peel; subst_vars)
   case vc1 =>
@@ -104,8 +105,8 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
 con-leche's disjunction. -/
 theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natBinOpName c
-    ⦃⇓? b s' => ⌜s' = s₀ ∧ (b = true ↔
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
+    ⦃fun b s' => s' = s₀ ∧ (b = true ↔
         (nm = ConLeche.natAddName ∨
         nm = ConLeche.natSubName ∨
         nm = ConLeche.natMulName ∨
@@ -119,10 +120,10 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
         nm = ConLeche.natLorName ∨
         nm = ConLeche.natXorName ∨
         nm = ConLeche.natShiftLeftName ∨
-        nm = ConLeche.natShiftRightName))⌝⦄ := by
+        nm = ConLeche.natShiftRightName)); ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.natBinOpName, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
+  vcgen [ConRon.Arena.natBinOpName, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
   all_goals (bridge_peel; subst_vars)
   all_goals first | exact hp | skip
   refine ⟨rfl, ?_⟩
@@ -148,9 +149,9 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
 for `natOpStored`**: is the operation stored as a definition. -/
 theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpStored fe c
-    ⦃⇓? b s' => ⌜s' = s₀ ∧ b = ConLeche.natOpStored env nm⌝⦄ := by
-  to_wp; vcgen [ConRon.Arena.natOpStored]
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natOpStored env nm; ⊤⦄ := by
+  vcgen [ConRon.Arena.natOpStored]
   all_goals (bridge_peel; subst_vars)
   · rename_i icv v hint hfd
     obtain ⟨_, _, _, _, hfind⟩ := env_defn_of_index hok hn hfd
@@ -165,12 +166,12 @@ theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
 1 for `natOpWfNames`**: the eight pinned handles answer con-leche's
 membership test at every denoted name. -/
 theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpWfNames
-    ⦃⇓? ws s' => ⌜s' = s₀ ∧ ∀ c nm, denoteN s₀.store.ns c = some nm →
-        ws.contains c = ConLeche.natOpWfNames.contains nm⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpWfNames
+    ⦃fun ws s' => s' = s₀ ∧ ∀ c nm, denoteN s₀.store.ns c = some nm →
+        ws.contains c = ConLeche.natOpWfNames.contains nm; ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.natOpWfNames, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
+  vcgen [ConRon.Arena.natOpWfNames, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
   all_goals (bridge_peel; subst_vars)
   all_goals first | exact hp | skip
   refine ⟨rfl, fun c nm hn => ?_⟩
@@ -280,13 +281,13 @@ for `natOpResult`**: the reduct of a binary operation on two literals. -/
 theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     (a b : Nat) (hok : CheckOK mode env fe s₀)
     (hn : denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpResult c a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpResult c a b
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteEO s'.store r = some (ConLeche.natOpResult nm a b)⌝⦄ := by
+        denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.natOpResult, ConRon.Arena.natPredName, ConRon.Arena.pinNatPred, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, ConRon.Arena.constE,
+  vcgen [ConRon.Arena.natOpResult, ConRon.Arena.natPredName, ConRon.Arena.pinNatPred, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, ConRon.Arena.constE,
     ConRon.Arena.emptyLevels, ConRon.Arena.boolTrueName,
     ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
     ConRon.Arena.pinBoolFalse]
@@ -364,14 +365,14 @@ for `natIndOk`**. -/
 theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natIndOk oc
-    ⦃⇓? b s' => ⌜s' = s₀ ∧ b = ConLeche.natIndOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natIndOk oc
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natIndOk oc'; ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.natIndOk]
+    vcgen [ConRon.Arena.natIndOk]
     all_goals (bridge_peel; subst_vars; exact ⟨rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -382,7 +383,7 @@ theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       · rename_i cv caps' hcv _hcaps
         cases hci
         obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
-        to_wp; vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
+        vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
         all_goals (bridge_peel; subst_vars)
         · rename_i hs1
           refine ⟨rfl, ?_⟩
@@ -393,7 +394,7 @@ theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals
       (have hn : ¬ ∃ cv caps, c = .indInfo cv caps := fun h' => by
          obtain ⟨v, caps, hv⟩ := (denoteCI_ind_iff hci).mpr h'; cases hv
-       to_wp; vcgen [ConRon.Arena.natIndOk]
+       vcgen [ConRon.Arena.natIndOk]
        bridge_peel; subst_vars
        refine ⟨rfl, ?_⟩
        cases c <;> simp_all [ConLeche.natIndOk])
@@ -402,12 +403,12 @@ theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
 constant at a denoted name. -/
 theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
     (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.constE n
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm [])⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm []); ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
+  vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
   all_goals (bridge_peel; subst_vars)
   case vc1 =>
     rename_i hwf' hx _ _ hc hp' _ _ _ hd hel
@@ -426,15 +427,15 @@ for `natZeroOk`**. -/
 theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natZeroOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natZeroOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natZeroOk oc'; ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.natZeroOk]
+    vcgen [ConRon.Arena.natZeroOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -444,7 +445,7 @@ theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
       have hce := fun (s : AState) (n : NIdx) =>
         constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
-      to_wp; vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, wp% hce]
+      vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       · rename_i hck hx hp' hd _
         refine ⟨hck, hx, hp', ?_⟩
@@ -456,7 +457,7 @@ theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals
       (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
          obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
-       to_wp; vcgen [ConRon.Arena.natZeroOk]
+       vcgen [ConRon.Arena.natZeroOk]
        all_goals (bridge_peel; subst_vars)
        refine ⟨hok, Ext.refl _, rfl, ?_⟩
        cases c <;> simp_all [ConLeche.natZeroOk])
@@ -466,15 +467,15 @@ for `natSuccOk`**. -/
 theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natSuccOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natSuccOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natSuccOk oc'; ⊤⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.natSuccOk]
+    vcgen [ConRon.Arena.natSuccOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -484,7 +485,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
       have hce := fun (s : AState) (n : NIdx) =>
         constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
-      to_wp; vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, wp% hce]
+      vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
       case vc1 =>
@@ -541,7 +542,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals
       (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
          obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
-       to_wp; vcgen [ConRon.Arena.natSuccOk]
+       vcgen [ConRon.Arena.natSuccOk]
        all_goals (bridge_peel; subst_vars)
        refine ⟨hok, Ext.refl _, rfl, ?_⟩
        cases c <;> simp_all [ConLeche.natSuccOk])
@@ -549,9 +550,9 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:225-233 natLitSupported —
 **THEOREM 1 for `natLitSupported`**: the three stored-declaration shapes. -/
 theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natLitSupported fe
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitSupported fe
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.natLitSupported env; ⊤⦄ := by
   have hp := hok.pins
   have hi := fun (s : AState) (oc : Option IConstantInfo) =>
     natIndOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natName)
@@ -559,8 +560,8 @@ theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     natZeroOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natZeroName)
   have hs := fun (s : AState) (oc : Option IConstantInfo) =>
     natSuccOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natSuccName)
-  to_wp; vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
-    ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, wp% hi, wp% hz, wp% hs]
+  vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
+    ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, hi, hz, hs]
   all_goals (bridge_peel; subst_vars)
   all_goals first
     | assumption
@@ -595,12 +596,12 @@ shape. -/
 theorem rawNatLit?_spec' (s₀ : AState) (h : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.rawNatLit? h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
-        r = ConLeche.rawNatLit? x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
+    ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
+        r = ConLeche.rawNatLit? x; ⊤⦄ := by
   obtain ⟨x, hx⟩ := hpre
   have hb := rawNatLit?_spec s₀ h x hok hx
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2⟩ := hpost
   exact ⟨h1, fun y hy => by rw [hx] at hy; cases hy; exact h2⟩
@@ -610,8 +611,8 @@ in answer shape. -/
 theorem natBinOpName_spec' (s₀ : AState) (c : NIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natBinOpName c
-    ⦃⇓? b s' => ⌜s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
+    ⦃fun b s' => s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
         (b = true ↔ (nm = ConLeche.natAddName ∨
           nm = ConLeche.natSubName ∨
           nm = ConLeche.natMulName ∨
@@ -625,10 +626,10 @@ theorem natBinOpName_spec' (s₀ : AState) (c : NIdx)
           nm = ConLeche.natLorName ∨
           nm = ConLeche.natXorName ∨
           nm = ConLeche.natShiftLeftName ∨
-          nm = ConLeche.natShiftRightName))⌝⦄ := by
+          nm = ConLeche.natShiftRightName)); ⊤⦄ := by
   obtain ⟨nm, hn⟩ := hpre
   have hb := natBinOpName_spec s₀ c nm hok hn
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2⟩ := hpost
   exact ⟨h1, fun y hy => by rw [hn] at hy; cases hy; exact h2⟩
@@ -638,12 +639,12 @@ shape. -/
 theorem natOpStored_spec' (s₀ : AState) (c : NIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpStored fe c
-    ⦃⇓? b s' => ⌜s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
-        b = ConLeche.natOpStored env nm⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpStored fe c
+    ⦃fun b s' => s' = s₀ ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
+        b = ConLeche.natOpStored env nm; ⊤⦄ := by
   obtain ⟨nm, hn⟩ := hpre
   have hb := natOpStored_spec s₀ c nm hok hn
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2⟩ := hpost
   exact ⟨h1, fun y hy => by rw [hn] at hy; cases hy; exact h2⟩
@@ -653,13 +654,13 @@ shape. -/
 theorem natOpResult_spec' (s₀ : AState) (c : NIdx) (a b : Nat)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ nm, denoteN s₀.store.ns c = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpResult c a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natOpResult c a b
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∀ nm, denoteN s₀.store.ns c = some nm →
-        denoteEO s'.store r = some (ConLeche.natOpResult nm a b)⌝⦄ := by
+        denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
   obtain ⟨nm, hn⟩ := hpre
   have hb := natOpResult_spec s₀ c nm a b hok hn
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2, h3, h4⟩ := hpost
   exact ⟨h1, h2, h3, fun y hy => by rw [hn] at hy; cases hy; exact h4⟩
@@ -879,13 +880,13 @@ and per callee precondition. -/
 theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ x, denoteE s₀.store e = some x →
           SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
-            s'.store r⌝⦄ := by
+            s'.store r; ⊤⦄ := by
   obtain ⟨x, hden, hwx⟩ := hdw
   have hp := hok.pins
   have hwf := hok.state.wf
@@ -896,8 +897,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hsto := natOpStored_spec' (mode := mode) (env := env) (fe := fe)
   have hwfn := natOpWfNames_spec (mode := mode) (env := env) (fe := fe)
   have hres := natOpResult_spec' (mode := mode) (env := env) (fe := fe)
-  to_wp; vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
-    ConRon.Arena.pinNatSucc, wp% hwh, wp% hraw, wp% hlit, wp% hbin, wp% hsto, wp% hwfn, wp% hres]
+  vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
+    ConRon.Arena.pinNatSucc, hwh, hraw, hlit, hbin, hsto, hwfn, hres]
   all_goals (bridge_peel; subst_vars)
   -- the twin's two tag tests (task #97-P5-Core round 4) add a hypothesis to
   -- every `then` arm that no arm's proof needs; clear them so the contexts are

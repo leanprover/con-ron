@@ -20,7 +20,7 @@ namespace ConRon.Bridge.Inductives
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge
 /-! ## The pure frame -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the frame of the tier's
@@ -64,11 +64,11 @@ Partial correctness, as everywhere in this library: a (B) function may fail
 and Theorem 1 claims nothing then — which is why the hypothesis is
 `c s0 = .ok (r, s')` and not an unconditional equation.
 
-**RUN form rather than a `Std.Do` triple**, and the reason is task
+**RUN form rather than a Hoare triple**, and the reason is task
 #97-P3-Checker §1's: this tier's work is composition, inversion and list
 induction rather than verification conditions, and `Bridge/Checker/Fold.lean`
 — the module that consumes `IndSpec` — is already written in run form
-(`AM.bind_ok` is its only inversion).  A leaf walk proved with `mvcgen` in
+(`AM.bind_ok` is its only inversion).  A leaf walk proved with `vcgen` in
 task #97-P3-0's idiom reaches this shape by reading its triple at the `.ok`
 branch; `Bridge/Inductives/Decl.lean`'s note says what that costs. -/
 def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :

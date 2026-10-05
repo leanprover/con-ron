@@ -78,7 +78,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ### Attribute hygiene (task #97s round 2, item 1)
 
@@ -541,17 +542,17 @@ it was already holding, so the store is unchanged and the answer relation's
 two stores coincide. -/
 theorem getAppFn_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ getAppFn fuel h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelE Expr.getAppFn s₀.store h s₀.store r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ getAppFn fuel h
+    ⦃fun r s' => s' = s₀ ∧ RelE Expr.getAppFn s₀.store h s₀.store r; ⊤⦄ := by
   intro fuel
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    to_wp; vcgen [getAppFn]
+    vcgen [getAppFn]
     all_goals bridge_vcs [Expr.getAppFn]
   | succ fuel ih =>
     intro s₀ h hok hden
-    to_wp; vcgen [getAppFn, wp% ih]
+    vcgen [getAppFn, ih]
     all_goals try bridge_vcs [Expr.getAppFn]
     -- Two verification conditions remain, in goal order: the `app` arm's
     -- postcondition and the fallthrough.  The closer does not take either,
@@ -575,17 +576,17 @@ for `getAppArgs`.  Read-only, and the one twin of this group whose answer is
 a LIST of handles, so `RelEL` is the relation. -/
 theorem getAppArgs_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ getAppArgs fuel h
-    ⦃⇓? rs s' => ⌜s' = s₀ ∧ RelEL Expr.getAppArgs s₀.store h s₀.store rs⌝⦄ := by
+    ⦃fun s => s = s₀⦄ getAppArgs fuel h
+    ⦃fun rs s' => s' = s₀ ∧ RelEL Expr.getAppArgs s₀.store h s₀.store rs; ⊤⦄ := by
   intro fuel
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    to_wp; vcgen [getAppArgs]
+    vcgen [getAppArgs]
     all_goals bridge_vcs [Expr.getAppArgs]
   | succ fuel ih =>
     intro s₀ h hok hden
-    to_wp; vcgen [getAppArgs, wp% ih]
+    vcgen [getAppArgs, ih]
     all_goals try bridge_vcs [Expr.getAppArgs]
     next =>
       bridge_peel
@@ -619,17 +620,17 @@ macro "arm_pre" : tactic =>
 for `piResult`: the body of a syntactic `∀`-telescope.  Read-only. -/
 theorem piResult_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ piResult fuel h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelE Expr.piResult s₀.store h s₀.store r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ piResult fuel h
+    ⦃fun r s' => s' = s₀ ∧ RelE Expr.piResult s₀.store h s₀.store r; ⊤⦄ := by
   intro fuel
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    to_wp; vcgen [piResult]
+    vcgen [piResult]
     all_goals bridge_vcs [Expr.piResult]
   | succ fuel ih =>
     intro s₀ h hok hden
-    to_wp; vcgen [piResult, wp% ih]
+    vcgen [piResult, ih]
     all_goals try bridge_vcs [Expr.piResult]
     -- Ten verification conditions remain: the `forallE` arm's postcondition
     -- and the nine fallthrough constructors.  `RelE` is a `def`, so the
@@ -655,9 +656,9 @@ for `fvarTypeD`: the type annotation of a free-variable leaf, the expression
 itself otherwise.  No fuel and no recursion at all. -/
 theorem fvarTypeD_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store h).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ fvarTypeD h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelE Expr.fvarTypeD s₀.store h s₀.store r⌝⦄ := by
-  to_wp; vcgen [fvarTypeD]
+    ⦃fun s => s = s₀⦄ fvarTypeD h
+    ⦃fun r s' => s' = s₀ ∧ RelE Expr.fvarTypeD s₀.store h s₀.store r; ⊤⦄ := by
+  vcgen [fvarTypeD]
   all_goals try bridge_vcs [Expr.fvarTypeD]
   all_goals
     (arm_pre
@@ -673,13 +674,13 @@ is on `k` and there is no fuel; read-only, so the answer relation's two
 stores coincide. -/
 theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ stripPis k h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelBP (Expr.stripPis k) s₀.store h s₀.store r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ stripPis k h
+    ⦃fun r s' => s' = s₀ ∧ RelBP (Expr.stripPis k) s₀.store h s₀.store r; ⊤⦄ := by
   intro k
   induction k with
   | zero =>
     intro s₀ h hok hden
-    to_wp; vcgen [stripPis]
+    vcgen [stripPis]
     all_goals try bridge_vcs [Expr.stripPis]
     next =>
       arm_pre
@@ -687,7 +688,7 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
       simp [denoteBP, denoteBL, he, Expr.stripPis]
   | succ k ih =>
     intro s₀ h hok hden
-    to_wp; vcgen [stripPis, wp% ih]
+    vcgen [stripPis, ih]
     all_goals try bridge_vcs [Expr.stripPis]
     all_goals
       (arm_pre
@@ -709,14 +710,14 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
 **THEOREM 1** for `stripLams`, `stripPis`' λ twin. -/
 theorem stripLams_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
     StateOK s₀ → (denoteE s₀.store h).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ stripLams k h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧
-        RelBP (Expr.stripLams k) s₀.store h s₀.store r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ stripLams k h
+    ⦃fun r s' => s' = s₀ ∧
+        RelBP (Expr.stripLams k) s₀.store h s₀.store r; ⊤⦄ := by
   intro k
   induction k with
   | zero =>
     intro s₀ h hok hden
-    to_wp; vcgen [stripLams]
+    vcgen [stripLams]
     all_goals try bridge_vcs [Expr.stripLams]
     next =>
       arm_pre
@@ -724,7 +725,7 @@ theorem stripLams_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
       simp [denoteBP, denoteBL, he, Expr.stripLams]
   | succ k ih =>
     intro s₀ h hok hden
-    to_wp; vcgen [stripLams, wp% ih]
+    vcgen [stripLams, ih]
     all_goals try bridge_vcs [Expr.stripLams]
     all_goals
       (arm_pre
@@ -755,16 +756,16 @@ recursive call's side goal would carry a metavariable). -/
 theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
     StateOK s₀ → (denoteE s₀.store f).isSome = true →
     (Frontend.denoteEList s₀.store args).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ mkAppN f args
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ mkAppN f args
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelEA Expr.mkAppN s₀.store f args s'.store r⌝⦄ := by
+        RelEA Expr.mkAppN s₀.store f args s'.store r; ⊤⦄ := by
   intro args
   induction args with
   | nil =>
     intro s₀ f hok hf hargs
-    to_wp; vcgen [mkAppN]
+    vcgen [mkAppN]
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
@@ -773,7 +774,7 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
   | cons a as ih =>
     intro s₀ f hok hf hargs
     obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
-    to_wp; vcgen [mkAppN, wp% ih]
+    vcgen [mkAppN, ih]
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
@@ -831,11 +832,11 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
     (args : Array EIdx) (i : Nat), args.size - i = n → StateOK s₀ →
     (denoteE s₀.store f).isSome = true →
     (Frontend.denoteEList s₀.store (args.toList.drop i)).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ mkAppNFrom f args i
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ mkAppNFrom f args i
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelEA Expr.mkAppN s₀.store f (args.toList.drop i) s'.store r⌝⦄ := by
+        RelEA Expr.mkAppN s₀.store f (args.toList.drop i) s'.store r; ⊤⦄ := by
   intro n
   induction n with
   | zero =>
@@ -844,7 +845,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
       List.drop_eq_nil_of_le (by simp; omega)
     rw [hd] at hargs ⊢
     rw [mkAppNFrom_ge (by omega)]
-    to_wp; vcgen
+    vcgen
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
@@ -859,7 +860,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
       rw [hd] at hargs ⊢
       obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
       rw [mkAppNFrom_lt hi]
-      to_wp; vcgen [wp% ih]
+      vcgen [ih]
       all_goals try bridge_vcs [Expr.mkAppN]
       all_goals
         (arm_pre
@@ -874,7 +875,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
         List.drop_eq_nil_of_le (by simp; omega)
       rw [hd] at hargs ⊢
       rw [mkAppNFrom_ge hi]
-      to_wp; vcgen
+      vcgen
       all_goals try bridge_vcs [Expr.mkAppN]
       all_goals
         (arm_pre
@@ -912,23 +913,23 @@ at all (the answer is built from `Nat`s), so no `RelEL`: what the caller
 consumes is that the answered handle list DENOTES `bvarRangeSpec`, and
 `bvarRangeSpec_eq_range` turns that into con-leche's `List.range` literal. -/
 theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s₀ →
-    ⦃fun s => ⌜s = s₀⌝⦄ bvarRange mI n k
-    ⦃⇓? rs s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ bvarRange mI n k
+    ⦃fun rs s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        Frontend.denoteEList s'.store rs = some (bvarRangeSpec mI n k)⌝⦄ := by
+        Frontend.denoteEList s'.store rs = some (bvarRangeSpec mI n k); ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro s₀ mI k hok
-    to_wp; vcgen [bvarRange]
+    vcgen [bvarRange]
     all_goals try bridge_vcs [bvarRangeSpec]
     all_goals
       (arm_pre
        exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl⟩)
   | succ n ih =>
     intro s₀ mI k hok
-    to_wp; vcgen [bvarRange, wp% ih]
+    vcgen [bvarRange, ih]
     all_goals try bridge_vcs [bvarRangeSpec]
     all_goals
       (arm_pre
@@ -983,16 +984,16 @@ list; the fuel is the one `instantiate1Fast` needs. -/
 theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     (t : Nat) (e : EIdx), StateOK s₀ → (denoteE s₀.store e).isSome = true →
     (Frontend.denoteEList s₀.store as).isSome = true →
-    ⦃fun s => ⌜s = s₀⌝⦄ instSpine fuel as t e
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ instSpine fuel as t e
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelEA (fun x xs => Expr.instSpine xs t x) s₀.store e as s'.store r⌝⦄ := by
+        RelEA (fun x xs => Expr.instSpine xs t x) s₀.store e as s'.store r; ⊤⦄ := by
   intro as
   induction as with
   | nil =>
     intro s₀ t e hok hden hargs
-    to_wp; vcgen [instSpine]
+    vcgen [instSpine]
     all_goals try bridge_vcs [Expr.instSpine]
     all_goals
       (arm_pre
@@ -1003,14 +1004,14 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
     obtain ⟨ea, hea⟩ := Option.isSome_iff_exists.mp ha1
     have hinst : ∀ (s : AState) (x : EIdx) (d : Nat), StateOK s →
         denoteE s.store a = some ea → (denoteE s.store x).isSome = true →
-        ⦃fun u => ⌜u = s⌝⦄ instantiate1Fast fuel x a d
-        ⦃⇓? rr s' => ⌜StateOK s' ∧ Ext s.store s'.store ∧
+        ⦃fun u => u = s⦄ instantiate1Fast fuel x a d
+        ⦃fun rr s' => StateOK s' ∧ Ext s.store s'.store ∧
             BMExt s.store s'.store ∧
             s'.caches = s.caches ∧ s'.pins = s.pins ∧
             s'.memos.inst1C = ∅ ∧
-            Inst1At ea d s.store x s'.store rr⌝⦄ :=
+            Inst1At ea d s.store x s'.store rr; ⊤⦄ :=
       fun s x d hs hv hx => instantiate1Fast_spec fuel s x a d ea hs hv hx
-    to_wp; vcgen [instSpine, wp% ih, wp% hinst]
+    vcgen [instSpine, ih, hinst]
     all_goals try bridge_vcs [Expr.instSpine]
     all_goals
       (arm_pre

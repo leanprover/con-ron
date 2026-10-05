@@ -50,7 +50,7 @@ namespace ConRon.Bridge
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena Std.Do
+open ConLeche ConRon.Arena
 
 /-! ## The store clause -/
 

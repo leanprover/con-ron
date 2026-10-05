@@ -38,7 +38,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -138,26 +139,26 @@ theorem proofIrrel_sorts {F d : Nat} {x y ta tta tb ttb : Expr}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:152-154 liftFueled — the fuel
 guard of a level comparison: a `some` passes its value through, a `none`
-fails (and `⇓?` claims nothing of a failure). -/
+fails (and `; ⊤` claims nothing of a failure). -/
 theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
     (o : Option α) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.liftFueled what o
-    ⦃⇓? a s' => ⌜s' = s₀ ∧ o = some a⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.liftFueled what o
+    ⦃fun a s' => s' = s₀ ∧ o = some a; ⊤⦄ := by
   cases o with
   | none => exact triple_fail
   | some a =>
-    to_wp; vcgen [ConRon.Arena.liftFueled] with finish
+    vcgen [ConRon.Arena.liftFueled] with finish
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the reserved list in triple form: `Walks/Reserved.lean`'s
 `reservedBasisNames_runC` (a copy of `Bridge/Checker/Names.lean`'s) (the pin-table read `pinReserved`) read through
 `AM.triple_of_run_at`. -/
 theorem reservedBasisNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.reservedBasisNames
-    ⦃⇓? hs s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.reservedBasisNames
+    ⦃fun hs s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteNList s'.store.ns hs =
-          some ConLeche.reservedBasisNames⌝⦄ :=
+          some ConLeche.reservedBasisNames; ⊤⦄ :=
   AM.triple_of_run_at fun hs s' hr => by
     obtain ⟨hps, hd⟩ := reservedBasisNames_runC hok.state.wf hok.pins hr
     refine ⟨hok.mono ⟨hps.wf⟩ hps.ext hps.caches hps.pins, hps.ext, hps.pins, ?_⟩
@@ -282,8 +283,8 @@ theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
 FIRST (the divergence audit's D13): an equation with con-leche's reader. -/
 theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.etaCtorShape fe a
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = ConLeche.etaCtorShape env x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.etaCtorShape fe a
+    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.etaCtorShape env x; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.etaCtorShape
   refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
@@ -306,13 +307,13 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
       rintro args s2 ⟨hs2, hrelA⟩
       subst s2
       have hargs := hrelA x hda
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.etaCtorShape, hgf, hfind, denoteEList_len hargs]
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.etaCtorShape, hgf]
@@ -321,7 +322,7 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
            · rfl)
   all_goals
     dsimp only
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨rfl, ?_⟩
     have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
@@ -336,7 +337,7 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
 and the unchanged state satisfy. -/
 theorem triple_pureC {α : Type} {s₀ : AState} {a : α}
     {Q : α → AState → Prop} (h : Q a s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (pure a : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+    ⦃fun s => s = s₀⦄ (pure a : AM α) ⦃fun r s => Q r s; ⊤⦄ :=
   AM.triple_of_run_at fun r s' hr => by
     simp only [pure, StateT.pure, Except.pure] at hr
     cases hr
@@ -551,9 +552,9 @@ staged goal whose program is a hundred lines long runs `simp` over all of
 it; this is the same step with nothing to simplify.) -/
 theorem triple_ite {α : Type} {c : Prop} [Decidable c] {x y : AM α}
     {s₀ : AState} {Q : α → AState → Prop}
-    (h1 : c → ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? a s => ⌜Q a s⌝⦄)
-    (h2 : ¬ c → ⦃fun s => ⌜s = s₀⌝⦄ y ⦃⇓? a s => ⌜Q a s⌝⦄) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (if c then x else y) ⦃⇓? a s => ⌜Q a s⌝⦄ := by
+    (h1 : c → ⦃fun s => s = s₀⦄ x ⦃fun a s => Q a s; ⊤⦄)
+    (h2 : ¬ c → ⦃fun s => s = s₀⦄ y ⦃fun a s => Q a s; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ (if c then x else y) ⦃fun a s => Q a s; ⊤⦄ := by
   by_cases hc : c
   · rw [ite_eq_left hc]; exact h1 hc
   · rw [ite_eq_right hc]; exact h2 hc
@@ -564,10 +565,10 @@ theorem triple_ite {α : Type} {c : Prop} [Decidable c] {x y : AM α}
 theorem triple_ite_seq {α β : Type} {c : Prop} [Decidable c] {x y : AM α}
     {k : α → AM β} {s₀ : AState} {Q : α → AState → Prop}
     {R : β → AState → Prop}
-    (hxy : ⦃fun s => ⌜s = s₀⌝⦄ (if c then x else y) ⦃⇓? a s => ⌜Q a s⌝⦄)
-    (hk : ∀ a s₁, Q a s₁ → ⦃fun s => ⌜s = s₁⌝⦄ k a ⦃⇓? b s => ⌜R b s⌝⦄) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (if c then x >>= k else y >>= k)
-      ⦃⇓? b s => ⌜R b s⌝⦄ := by
+    (hxy : ⦃fun s => s = s₀⦄ (if c then x else y) ⦃fun a s => Q a s; ⊤⦄)
+    (hk : ∀ a s₁, Q a s₁ → ⦃fun s => s = s₁⦄ k a ⦃fun b s => R b s; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ (if c then x >>= k else y >>= k)
+      ⦃fun b s => R b s; ⊤⦄ := by
   have e : (if c then x >>= k else y >>= k) = ((if c then x else y) >>= k) := by
     split <;> rfl
   rw [e]
@@ -613,12 +614,12 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hdb : denoteE s₀.store b = some y) (hdw : denoteE s₀.store wtb = some w)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y)
     (hww : Expr.WScoped d w) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d a b wtb
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertWithFueled mode env F d x y w)
-          r⌝⦄ := by
+          r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨rk, hrk⟩ := hok.state.wf
   unfold ConRon.Arena.structEtaCertWith
@@ -843,16 +844,16 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                 (w.getAppArgs ++ ConLeche.etaProjs env Tn ls'
                                   w.getAppArgs y icaps.etaFields)
                             else pure true : CheckM Bool) = .ok true) →
-                          ⦃fun s => ⌜s = s15⌝⦄
+                          ⦃fun s => s = s15⦄
                             (do
                               let projs ← ConRon.Arena.etaProjs fe T us' targs b
                                 icaps.etaFields
                               ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d
                                 (aargs.drop icaps.etaParams) projs)
-                          ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧
+                          ⦃fun r s' => CheckOK mode env fe s' ∧
                             Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
                             SimBOp (fun F => ConLeche.structEtaCertWithFueled mode
-                              env F d x y w) r⌝⦄ := by
+                              env F d x y w) r; ⊤⦄ := by
                         intro s15 G0 hok15 hx015 hp015 hG0
                         refine triple_seq (etaProjs_spec s15 T us' targs b
                           icaps.etaFields Tn ls' w.getAppArgs y hok15
@@ -968,7 +969,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
             have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
                 .ok false := structEtaCertWith_noind hgf hfindc hlenP hgw hnf
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
         all_goals
@@ -976,20 +977,20 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               .ok false := structEtaCertWith_nohead_w hgf hfindc hlenP
                 (denote_not_const hwf hvw hdw' (by intro c us h; cases h))
           dsimp only
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
       · rw [ite_eq_right hlenT]
         have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
             .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
       have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
           .ok false := structEtaCertWith_noctor hgf hnc
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
   all_goals
@@ -997,7 +998,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         .ok false := structEtaCertWith_nohead
           (denote_not_const hwf hvh hdd (by intro c us h; cases h))
     dsimp only
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
 
@@ -1015,11 +1016,11 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.structEtaCert mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.structEtaCertFueled mode env F d x y) r⌝⦄ := by
+        SimBOp (fun F => ConLeche.structEtaCertFueled mode env F d x y) r; ⊤⦄ := by
   unfold ConRon.Arena.structEtaCert
   refine triple_seq (etaCtorShape_spec s₀ a x hok hda) ?_
   rintro sh s1 ⟨hs1, hsh⟩
@@ -1052,7 +1053,7 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   next hshf =>
     have hshape : ConLeche.etaCtorShape env x = false := by
       rw [← hsh]; simpa using hshf
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, 0, ?_⟩
     simp only [ConLeche.structEtaCert, hshape, Bool.false_eq_true, ite_false]
@@ -1076,11 +1077,11 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.structUnitCert mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.structUnitCertFueled mode env F d x y) r⌝⦄ := by
+        SimBOp (fun F => ConLeche.structUnitCertFueled mode env F d x y) r; ⊤⦄ := by
   unfold ConRon.Arena.structUnitCert
   -- stage 1: `a`'s io-grade type, head-normalised
   refine triple_seq (hsim.inferIO s₀ d a x hok hda hwa) ?_
@@ -1180,7 +1181,7 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           -- `vcgen` does not prune the dead `if false = true` arm (`mvcgen`
           -- did); simplify it away first
           simp only [Bool.false_eq_true, ite_false]
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact ⟨hok9, hx09, hp09, hres⟩
         · -- the types agree: the family certificate, at the verified mode
@@ -1213,21 +1214,21 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           simp only [m3, bind, Except.bind, ite_true]
           exact iotaCertsFueled_mono (Nat.le_max_right _ _) hF6
       next hg =>
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok5, hx02.trans hx5, hp5.trans hp02, max F1 F2,
           structUnitCert_guard (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
             hgf hfind (fun h => hg (hguard.mpr h))⟩
     next hnd =>
       have hnf := env_not_ind_of_index hok2 hTn (fun v c h => hnd v c h)
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok2, hx02, hp02, max F1 F2,
         structUnitCert_noind (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _)) hgf
           hnf⟩
   all_goals
     dsimp only
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok2, hx02, hp02, max F1 F2,
       structUnitCert_nohead (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
@@ -1245,11 +1246,11 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.proofIrrel (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.proofIrrelFueled mode env F d x y) r⌝⦄ := by
+        SimBOp (fun F => ConLeche.proofIrrelFueled mode env F d x y) r; ⊤⦄ := by
   unfold ConRon.Arena.proofIrrel
   -- stage 1: `a`'s io-grade type, its type, head-normalised
   refine triple_seq (hsim.inferIO s₀ d a x hok hda hwa) ?_
@@ -1332,13 +1333,13 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       refine triple_seq (liftFueled_spec s13 _ rq2) ?_
       rintro okB s14 ⟨hs14, hokB⟩
       subst s14
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok13, by rw [hst13]; exact hx011, hp13.trans hp011, _,
         proofIrrel_sorts g1 g3 g4 hrq.symm k1 k2 k3 hokB⟩
     all_goals
       dsimp only
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok11, hx011, hp011, _,
         proofIrrel_nosort_b g1 g3 g4 hrq.symm k1 k2 k3
@@ -1346,7 +1347,7 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   all_goals
     dsimp only
     obtain ⟨g1, g3, g4⟩ := hG _ (Nat.le_refl _)
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok5, hx05, hp05, _,
       proofIrrel_nosort_a g1 g3 g4
@@ -1428,11 +1429,11 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r⌝⦄ := by
+        SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r; ⊤⦄ := by
   unfold ConRon.Arena.stuckIrrel
   refine triple_seq (structEtaCert_spec hμ henv hsim s₀ d a b x y hok hda hdb hwa
     hwb) ?_
@@ -1471,7 +1472,7 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
       -- (here and below: `vcgen` does not prune the dead arm of the decided
       -- `if true = true`, so `↓reduceIte` drops it first)
       · simp only [↓reduceIte]
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1),
           max (max F1 F2) F3, ?_⟩
@@ -1482,14 +1483,14 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (Nat.le_max_left _ _)) hF2)
           (structUnitCertFueled_mono (Nat.le_max_right _ _) hF3)
     · simp only [↓reduceIte]
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, max F1 F2, ?_⟩
       exact stuckIrrelFueled_eta2
         (structEtaCertFueled_mono (Nat.le_max_left _ _) hF1)
         (structEtaCertFueled_mono (Nat.le_max_right _ _) hF2)
   · simp only [↓reduceIte]
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok1, hx1, hp1, F1, stuckIrrelFueled_eta1 hF1⟩
 

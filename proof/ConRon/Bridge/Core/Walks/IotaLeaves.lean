@@ -16,7 +16,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -26,8 +27,8 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 for `isCtorApp`**: an equation with con-leche's reader. -/
 theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isCtorApp fe a
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ r = ConLeche.isCtorApp env x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isCtorApp fe a
+    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.isCtorApp env x; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.isCtorApp
   refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
@@ -45,13 +46,13 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
     split
     next icv cnP cnF hfd =>
       obtain ⟨dcv, _hdcv, hfind⟩ := env_ctor_of_index hok hcn hfd
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.isCtorApp, hgf, hfind]
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.isCtorApp, hgf]
@@ -60,7 +61,7 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
            · rfl)
   all_goals
     dsimp only
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨rfl, ?_⟩
     have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
@@ -84,10 +85,10 @@ theorem litToCtorIfNat_of_not_nat (x : Expr)
 the predecessor literal. -/
 theorem natLitToConstructor_spec (s₀ : AState) (n : Nat)
     (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natLitToConstructor n
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.natLitToConstructor n
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (ConLeche.natLitToConstructor n)⌝⦄ := by
+        denoteE s'.store r = some (ConLeche.natLitToConstructor n); ⊤⦄ := by
   unfold ConRon.Arena.natLitToConstructor
   cases n with
   | zero =>
@@ -122,22 +123,22 @@ theorem natLitToConstructor_spec (s₀ : AState) (n : Nat)
 **THEOREM 1 for `litToCtorIfNat`**: a supported `Nat` literal one layer. -/
 theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.litToCtorIfNat fe h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.litToCtorIfNat fe h
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (ConLeche.litToCtorIfNat env x)⌝⦄ := by
+        denoteE s'.store r = some (ConLeche.litToCtorIfNat env x); ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hda
   unfold ConRon.Arena.litToCtorIfNat
   refine tag_view_bind_triple hv ?_
     (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
   have hpass : ConLeche.litToCtorIfNat env x = x →
-      ⦃fun s => ⌜s = s₀⌝⦄ (pure h : AM EIdx)
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ (pure h : AM EIdx)
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
-          denoteE s'.store r = some (ConLeche.litToCtorIfNat env x)⌝⦄ := by
+          denoteE s'.store r = some (ConLeche.litToCtorIfNat env x); ⊤⦄ := by
     intro hx
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, by rw [hx]; exact hda⟩
   cases v
@@ -160,7 +161,7 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
       next hsupf =>
         have hS : ConLeche.natLitSupported env = false := by
           rw [← hsup]; simpa using hsupf
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         refine ⟨hok1, hx1, hp1, ?_⟩
         simp only [ConLeche.litToCtorIfNat, hS, Bool.false_eq_true, ite_false]
@@ -181,9 +182,9 @@ theorem capsNeverZero_spec (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     (hks : Frontend.denoteNList s₀.store.ns lps = some ks)
     (hvs : denoteLs s₀.store.lss us = some vs)
     (hcaps : Frontend.denoteCaps s₀.store icaps = some caps) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.capsNeverZero lps us icaps
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.capsNeverZero ks vs caps⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.capsNeverZero lps us icaps
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ r = ConLeche.capsNeverZero ks vs caps; ⊤⦄ := by
   unfold ConRon.Arena.capsNeverZero
   refine triple_seq (ExprOps.readNamesM_specF s₀ lps hok.caches.readN) ?_
   rintro ks' s1 ⟨hst1, hm1, hp1, hc1, hks1, hN1⟩
@@ -202,7 +203,7 @@ theorem capsNeverZero_spec (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     split at hcaps
     · cases hcaps; rfl
     · simp at hcaps
-  to_wp; vcgen
+  vcgen
   bridge_peel; subst_vars
   refine ⟨hok2, hst2.trans hst1, hp2.trans hp1, ?_⟩
   simp only [ConLeche.capsNeverZero, hsz]
@@ -213,11 +214,11 @@ walks decide con-leche's syntactic guard. -/
 theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
     (ef em : Expr) (hok : CheckOK mode env fe s₀)
     (hf : denoteE s₀.store fab = some ef) (hm : denoteE s₀.store major = some em) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.fabScopeOk d fab major
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.fabScopeOk d fab major
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         r = (ef.wscopedB d && ef.looseBVarsBounded 0 &&
-          ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l))⌝⦄ := by
+          ef.fvarLeaves.all (fun l => em.fvarLeaves.contains l)); ⊤⦄ := by
   unfold ConRon.Arena.fabScopeOk
   refine triple_seq (ExprOps.wscopedBFast_spec coreWalkFuel d s₀ fab hok.state
     (by rw [hf]; rfl)) ?_
@@ -227,7 +228,7 @@ theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
   split
   next hwn =>
     have hwf0 : ef.wscopedB d = false := by simpa [hw'] using hwn
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok, rfl, rfl, ?_⟩
     simp [hwf0]
@@ -243,7 +244,7 @@ theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
     split
     next hln =>
       have hlf : ef.looseBVarsBounded 0 = false := by simpa [hlb'] using hln
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok2, hst2, hp2, ?_⟩
       simp [hlf]
@@ -277,11 +278,11 @@ theorem denoteEList_appendI {st : EStore} :
 carry the same statement). -/
 theorem projFnName_specI (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Name)
     (hwf : StoreWF s₀.store) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.projFnName T i
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.projFnName T i
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteN s'.store.ns h = some (ConLeche.projFnName Tn i)⌝⦄ := by
-  to_wp; vcgen [ConRon.Arena.projFnName, wp% internNNode_spec]
+        denoteN s'.store.ns h = some (ConLeche.projFnName Tn i); ⊤⦄ := by
+  vcgen [ConRon.Arena.projFnName, internNNode_spec]
   all_goals (bridge_peel; subst_vars
              grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                nview_isSome_of_denote, Ext.trans, ConLeche.projFnName])
@@ -289,10 +290,10 @@ theorem projFnName_specI (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Nam
 /-- con-leche: none — `CheckOK` past `projFnName` (an arena-growing call). -/
 theorem projFnName_ok (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Name)
     (hok : CheckOK mode env fe s₀) (hT : denoteN s₀.store.ns T = some Tn) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.projFnName T i
-    ⦃⇓? h s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.projFnName T i
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteN s'.store.ns h = some (ConLeche.projFnName Tn i)⌝⦄ :=
+        denoteN s'.store.ns h = some (ConLeche.projFnName Tn i); ⊤⦄ :=
   triple_mono (projFnName_specI s₀ T i Tn hok.state.wf hT)
     (fun _ _ ⟨hwf', hx', _, hc', hp', hd⟩ =>
       ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hd⟩)
@@ -302,15 +303,15 @@ counted slot walk, from slot `j` for `n` slots. -/
 theorem towerSlotsAllGo_specI (T : NIdx) (Tn : ConLeche.Name) :
     ∀ (n j : Nat) (s₀ : AState), CheckOK mode env fe s₀ →
       denoteN s₀.store.ns T = some Tn →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.towerSlotsAllGo fe T n j
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.towerSlotsAllGo fe T n j
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
-          r = (List.range' j n).all (fun k => (env.findProj? Tn k).isSome)⌝⦄ := by
+          r = (List.range' j n).all (fun k => (env.findProj? Tn k).isSome); ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro j s₀ hok _
-    to_wp; vcgen [ConRon.Arena.towerSlotsAllGo]
+    vcgen [ConRon.Arena.towerSlotsAllGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -331,7 +332,7 @@ theorem towerSlotsAllGo_specI (T : NIdx) (Tn : ConLeche.Name) :
     next hn =>
       have hf : (env.findProj? Tn j).isSome = false := by
         rw [← hiff]; simpa using hn
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok1, hx1, hp1, ?_⟩
       rw [List.range'_succ, List.all_cons, hf, Bool.false_and]
@@ -341,16 +342,16 @@ nodes, from slot `j` for `n` slots. -/
 theorem projNodesGo_specI (T : NIdx) (b : EIdx) (Tn : ConLeche.Name) (x : Expr) :
     ∀ (n j : Nat) (s₀ : AState), CheckOK mode env fe s₀ →
       denoteN s₀.store.ns T = some Tn → denoteE s₀.store b = some x →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.projNodesGo T b n j
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.projNodesGo T b n j
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Frontend.denoteEList s'.store r =
-            some ((List.range' j n).map (fun k => Expr.proj Tn k x))⌝⦄ := by
+            some ((List.range' j n).map (fun k => Expr.proj Tn k x)); ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro j s₀ hok _ _
-    to_wp; vcgen [ConRon.Arena.projNodesGo]
+    vcgen [ConRon.Arena.projNodesGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -365,7 +366,7 @@ theorem projNodesGo_specI (T : NIdx) (b : EIdx) (Tn : ConLeche.Name) (x : Expr) 
     refine triple_seq (ih (j + 1) s1 hok1 (denoteN_ext hT hx1)
       (denote_ext hb hx1)) ?_
     rintro rest s2 ⟨hok2, hx2, hp2, hrest⟩
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     rw [List.range'_succ, List.map_cons]
@@ -379,18 +380,18 @@ theorem projAppsGo_specI (T : NIdx) (us : LsIdx) (targs : List EIdx) (b : EIdx)
       denoteN s₀.store.ns T = some Tn → denoteLs s₀.store.lss us = some ls →
       Frontend.denoteEList s₀.store targs = some ts →
       denoteE s₀.store b = some x →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.projAppsGo T us targs b n j
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.projAppsGo T us targs b n j
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Frontend.denoteEList s'.store r =
             some ((List.range' j n).map (fun k =>
               Expr.mkAppN (.const (ConLeche.projFnName Tn k) ls)
-                (ts ++ [x])))⌝⦄ := by
+                (ts ++ [x]))); ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro j s₀ hok _ _ _ _
-    to_wp; vcgen [ConRon.Arena.projAppsGo]
+    vcgen [ConRon.Arena.projAppsGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -418,7 +419,7 @@ theorem projAppsGo_specI (T : NIdx) (us : LsIdx) (targs : List EIdx) (b : EIdx)
     refine triple_seq (ih (j + 1) s3 hok3 (denoteN_ext hT hx03)
       (denoteLs_ext hus hx03) (denoteEList_ext hx03 _ _ hts) (denote_ext hb hx03)) ?_
     rintro rest s4 ⟨hok4, hx4, hp4, hrest⟩
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok4, hx03.trans hx4, hp4.trans (hp3.trans (hp2.trans hp1)), ?_⟩
     rw [List.range'_succ, List.map_cons]
@@ -433,11 +434,11 @@ theorem etaProjs_specI (s₀ : AState) (T : NIdx) (ust : LsIdx)
     (hus : denoteLs s₀.store.lss ust = some ls)
     (hts : Frontend.denoteEList s₀.store targs = some ts)
     (hx : denoteE s₀.store major = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.etaProjs fe T ust targs major nF
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.etaProjs fe T ust targs major nF
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store r =
-          some (ConLeche.etaProjs env Tn ls ts x nF)⌝⦄ := by
+          some (ConLeche.etaProjs env Tn ls ts x nF); ⊤⦄ := by
   unfold ConRon.Arena.etaProjs ConRon.Arena.towerSlotsAll
   refine triple_seq (towerSlotsAllGo_specI T Tn nF 0 s₀ hok hT) ?_
   rintro tw s1 ⟨hok1, hx1, hp1, htw⟩
@@ -470,16 +471,16 @@ theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx) (ust : LsIdx)
     (hus : denoteLs s₀.store.lss ust = some ls)
     (hts : Frontend.denoteEList s₀.store targs = some ts)
     (hx : denoteE s₀.store major = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.etaFabArgsE fe T ust targs major nF
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.etaFabArgsE fe T ust targs major nF
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteEList s'.store r =
-          some (ConLeche.etaFabArgsE env Tn ls ts x nF)⌝⦄ := by
+          some (ConLeche.etaFabArgsE env Tn ls ts x nF); ⊤⦄ := by
   unfold ConRon.Arena.etaFabArgsE
   refine triple_seq (etaProjs_specI s₀ T ust targs major nF Tn ls ts x hok hT hus
     hts hx) ?_
   rintro ps s1 ⟨hok1, hx1, hp1, hps⟩
-  to_wp; vcgen
+  vcgen
   bridge_peel; subst_vars
   refine ⟨hok1, hx1, hp1, ?_⟩
   rw [denoteEList_appendI (denoteEList_ext hx1 _ _ hts) hps]
@@ -492,19 +493,19 @@ theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     ∀ (n j : Nat) (s₀ : AState), CheckOK mode env fe s₀ →
       denoteN s₀.store.ns an = some ConLeche.andName →
       denoteN s₀.store.ns ctor = some cn → denoteLs s₀.store.lss ust = some ls →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.andRescueSlotsGo fe an ctor nP ust n j
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlotsGo fe an ctor nP ust n j
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           r = (List.range' j n).all (fun k =>
             match env.findProj? ConLeche.andName k with
             | some e => e.ctor == cn && e.numParams == nP && e.numFields == 2 &&
                 e.fireOk ls
-            | none => false)⌝⦄ := by
+            | none => false); ⊤⦄ := by
   intro n
   induction n with
   | zero =>
     intro j s₀ hok _ _ _
-    to_wp; vcgen [ConRon.Arena.andRescueSlotsGo]
+    vcgen [ConRon.Arena.andRescueSlotsGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -515,7 +516,7 @@ theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     cases o with
     | none =>
       have hf := hnone rfl
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok1, hx1, hp1, ?_⟩
       rw [List.range'_succ, List.all_cons, hf]; rfl
@@ -544,7 +545,7 @@ theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
       next hn =>
         have hn' : (p.ctor == cn && p.numParams == nP && p.numFields == 2 &&
             p.fireOk ls) = false := by rw [← hcond]; simpa using hn
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         refine ⟨hok2, hx1.trans hx12, hp2.trans hp1, ?_⟩
         rw [List.range'_succ, List.all_cons, hfp]
@@ -556,9 +557,9 @@ theorem andRescueSlots_spec (s₀ : AState) (ctor : NIdx) (nP : Nat)
     (ust : LsIdx) (cn : ConLeche.Name) (ls : List Level)
     (hok : CheckOK mode env fe s₀) (hc : denoteN s₀.store.ns ctor = some cn)
     (hus : denoteLs s₀.store.lss ust = some ls) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.andRescueSlots fe ctor nP ust
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.andRescueSlots env cn nP ls⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.andRescueSlots fe ctor nP ust
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ r = ConLeche.andRescueSlots env cn nP ls; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.andRescueSlots ConRon.Arena.pinAnd
   refine triple_seq (pinAt_spec s₀ PIN_AND hok.pins) ?_

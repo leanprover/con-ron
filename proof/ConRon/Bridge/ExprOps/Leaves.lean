@@ -96,7 +96,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
@@ -746,9 +747,9 @@ structure FvarLeavesGoSpec (rec : List (Nat × EIdx) → Std.HashMap EIdx Unit �
       (seen : Std.HashMap EIdx Unit) (c : EIdx), StateOK s₁ →
       (denoteLeaves s₁.store acc).isSome = true → SeenOK s₁.store acc seen c →
       (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec acc seen c
-    ⦃⇓? p s' => ⌜s' = s₁ ∧ (denoteLeaves s₁.store p.1).isSome = true ∧
-        SeenGrow s₁.store p.1 seen p.2 ∧ LeavesEq s₁.store acc c p.1⌝⦄
+    ⦃fun s => s = s₁⦄ rec acc seen c
+    ⦃fun p s' => s' = s₁ ∧ (denoteLeaves s₁.store p.1).isSome = true ∧
+        SeenGrow s₁.store p.1 seen p.2 ∧ LeavesEq s₁.store acc c p.1; ⊤⦄
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC —
 **THEOREM 1 for the memoized `fvarLeaves`**, at one level of the recursion,
@@ -762,14 +763,14 @@ theorem fvarLeavesGo_spec :
   | zero =>
     constructor
     intro s₀ acc seen c _ _ _ _
-    to_wp; vcgen [fvarLeavesGo_zero]
+    vcgen [fvarLeavesGo_zero]
     all_goals bridge_vcs [denoteLeaves_nil]
   | succ fuel ih =>
     constructor
     intro s₀ acc seen c hok hacc hseen hden
     have hrec := ih.run
-    to_wp; vcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
-      fvarLeavesGoArmLet, wp% hrec]
+    vcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
+      fvarLeavesGoArmLet, hrec]
     all_goals (bridge_peel; subst_vars)
     all_goals try bridge_vcs [denoteLeaves_nil]
     -- Twenty-four verification conditions survive the closer, in five shapes:
@@ -896,11 +897,11 @@ theorem fvarLeavesGo_spec :
 membership (`LeavesEq` at the empty accumulator). -/
 theorem fvarLeavesFast_spec (fuel : Nat) (s₀ : AState) (h : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store h).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ fvarLeavesFast fuel h
-    ⦃⇓? rs s' => ⌜s' = s₀ ∧ (denoteLeaves s₀.store rs).isSome = true ∧
-        LeavesEq s₀.store [] h rs⌝⦄ := by
+    ⦃fun s => s = s₀⦄ fvarLeavesFast fuel h
+    ⦃fun rs s' => s' = s₀ ∧ (denoteLeaves s₀.store rs).isSome = true ∧
+        LeavesEq s₀.store [] h rs; ⊤⦄ := by
   have hr := (fvarLeavesGo_spec fuel).run
-  to_wp; vcgen [fvarLeavesFast, wp% hr]
+  vcgen [fvarLeavesFast, hr]
   all_goals bridge_vcs [SeenOK.of_empty, denoteLeaves_nil]
 
 /-! ## The axiom check -/
