@@ -67238,4 +67238,12 @@ every `do` result no longer runs), −0.3 % on `Eqns`; the patch is 41 lines
 shorter and the model is what upstream produces.  `vcgen` for Theorem 2 was
 out of scope and nothing here suggested it.
 
-**Shared-state switch-over** as #112's (below, under Landing).
+**Shared-state switch-over** (done at landing, #112's instant route, with no
+other worktree alive): the private library moved into
+`_tmp/aeneas-lean-v4.35.0-rc3` (the old one deleted), `setup-aeneas-lean.sh`
+"up to date", main-tree `lake build` 23 min 40 s, the cache reseeded, and a
+fresh detached worktree restored `Core/Eqns` and the capstone from it with 0
+modules built.  Pitfall met on the way: `flake.nix` sets `LAKE_CACHE_DIR` from
+`$PWD`, so `cd proof && nix develop <root> -c lake …` points it at
+`proof/_tmp/lake-cache` — a private, wrong cache (found and deleted); run `nix
+develop` from the checkout root and `cd proof` inside it.
