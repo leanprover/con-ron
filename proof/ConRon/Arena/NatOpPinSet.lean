@@ -48,6 +48,7 @@ structure INatOpPinSet where
   shiftRightProofs : List EIdx
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — intern one pin
+-- con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove NatOpPinSet.internPinSet_bridge, then delete this line
 variant: the one-time tree walk of DESIGN §8.6 P2d, sixteen terms deep. -/
 def internPinSet (ps : NatOpPinSet) : AM INatOpPinSet := do
   let dp ← internExpr ps.divPin
@@ -70,6 +71,7 @@ def internPinSet (ps : NatOpPinSet) : AM INatOpPinSet := do
     dc, mc, gc, lac, loc, xc, slc, src⟩
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — intern the variant
+-- con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove NatOpPinSet.internPinSets_bridge, then delete this line
 LIST, in the order the install gate tries them. -/
 def internPinSets : List NatOpPinSet → AM (List INatOpPinSet)
   | [] => pure []

@@ -441,7 +441,7 @@ They are the six stages of the theorems (§3), `h1`…`h5` and the fold's three 
    fixed by con-leche, that the checker compares stream records against:
    the five basis blocks, the standard and trusted axiom statements, and the
    `Nat.div`/`Nat.mod` pin list.  That list is embedded as text
-   ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L40-L44),
+   ([`PINS_TEXT`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_text.rs#L42-L46),
    generated from con-leche by `scripts/gen-pins.sh`) and read by a verified
    decoder
    ([`decode`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/kernel/pins_decode.rs#L1325-L1345)).

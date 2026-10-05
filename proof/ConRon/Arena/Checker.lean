@@ -302,6 +302,7 @@ def atDecl : CheckError → Nat → CheckError
 /-! ## The startup walk -/
 
 /-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+-- con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove Checker.internAllPins_bridge, then delete this line
 con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
 **The one-time tree walk of DESIGN §8.6 P2d**: every datum the checker
 compares a stream record against, interned into the tier that is live at the

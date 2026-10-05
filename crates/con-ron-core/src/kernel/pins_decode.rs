@@ -1335,6 +1335,7 @@ pub fn decode(t: &[u8]) -> CheckM<Vec<NatOpPinSet>> {
 }
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+/// con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove pins_decode::decode_embedded_refines, then delete this line
 /// (The cited range is the `#load_natop_pins` command that *produces*
 /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
 /// written there, hence the `_`.)

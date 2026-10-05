@@ -2,6 +2,7 @@
 //! (DESIGN.md §3, task #43).
 //!
 //! con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+//! con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove crates/con-ron-core/src/kernel/pins_text.rs_refines, then delete this line
 //!
 //! **Generated file — do not edit.**  Written by `scripts/gen-pins.sh` from
 //! con-leche's own value: `lake exe con-ron-dump-pins` writes
@@ -30,6 +31,7 @@
 //! therefore takes `PINS_TEXT.as_bytes()`.
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+/// con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove pins_text::PINS_TEXT_refines, then delete this line
 /// (The range is `#load_natop_pins`, the command that produces
 /// `natOpPinSets` out of the committed `pins/*.json` while `NatOpPins.lean`
 /// elaborates: the declaration has no source line of its own, hence `_`.)
