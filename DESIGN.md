@@ -66487,3 +66487,138 @@ upstream and here alike.
 
 **Docs.**  OVERVIEW §5 names the two `whnfCore` tables; six anchors whose
 text changed were re-read and updated.
+
+### Task #110 — con-leche sync d0bbad69 → 67f04630, and the toolchain v4.33.0 → v4.35.0-rc3 (2026-10-05, Opus)
+
+con-leche goes from `d0bbad69` to **`67f04630`** (con-leche master, 314
+commits, most of them the whitepaper), and with it the toolchain:
+**`leanprover/lean4:v4.35.0-rc3`**, Mathlib **`v4.35.0-rc3`** (`c55e6e78`),
+con-leche task #328.  The first sync that moves the toolchain; the
+mechanical part only — `mvcgen` is kept (below), its migration to `vcgen`
+is a task of its own.  Worktree `_tmp/wt-bump-67f04630`, started from a
+fresh, empty `_tmp/` (no Aeneas build, no Lake cache, no shared con-leche
+checkout).
+
+| upstream | what it did | executed checker? |
+|---|---|---|
+| #325 | `_probe/`, `docs/` removed | no |
+| #326, #327 | the lfp clause records accessibility (`AccW`), level-0 spike | no (the model) |
+| whitepaper | ~290 commits | no |
+| **#328** stage 1 | v4.35.0-rc3: ~3 000 deprecated names renamed (`if_pos` → `ite_eq_left` …), `have`-is-`let` and `Decidable`-is-a-structure fixes in the proofs | no (proof text only) |
+| **#328** stage 2 + `4602c71c` | the built-in prelude is `pins/leanprover-lean4-v4.35.0-rc3.prelude.ndjson` (the v4.33.0 one below its meta line); `#load_natop_pins` lists the nightly-2026-09-10 dump FIRST (it matches v4.35's `Init`), then v4.33.0, v4.34.0-rc2; no new dump | **yes**: the prelude bytes and the pin order |
+
+**Findings.**  `update --auto`: 143 (128 `CHANGED`, 15 `GONE`), all
+mechanical in substance: the 62 prelude byte chunks of the Rust and of the
+twin (the file changed), and the anonymous `#load_natop_pins` citation
+(`_`, which no hunt can relocate) at fifteen sites, moved by hand to
+`NatOpPins.lean:75-78`.  Coverage 838/961 unchanged; nothing newly
+uncovered.  diff-e2e with master's binary at the new pin: 609/609.
+
+**Rust and twin.**  `gen-prelude{,-lean}.sh` (15 704 bytes, +4: the meta
+line names the new Lean) and `gen-pins.sh` (the three variants in the new
+order) regenerated; two unit tests follow (the prelude's length, the
+variants' order).  `extract.sh`: `Generated/Funs.lean` changes in the
+prelude bytes only; `Refine2/Core/Eqns.lean` re-derived (904 s).
+diff-e2e **609/609** at `--jobs=1` and `--jobs=4`.
+
+**The Aeneas library.**  Upstream Aeneas is still on v4.31.0 (`main`
+`557eff83`, 2026-10-02; no branch on a newer Lean; PR #1283 for 4.33.1
+still open), so the submodule stays at `505b6ca3` and the patch moves.
+`patches/aeneas-433.patch` is now **`patches/aeneas.patch`** (595 lines,
+19 files), without its `lean-toolchain` and Mathlib-tag hunks: the setup
+script writes those from `proof/lean-toolchain`.  New hunks for 4.35:
+
+* `AddLeftCancelMonoid.add_eq_zero` is gone → `Nat.add_eq_zero_iff`;
+* core gained a builtin `Nat.reduceLog2` dsimproc → Aeneas's simproc is
+  `Nat.reduceLog2'`;
+* `bv_tac` calls `bvDecide` through the new `Normalize.Target`/`GrindM`
+  API;
+* **`step*` did not split an `if`**: its bifurcation analysis unfolds
+  `ite`/`dite` and expected `Decidable.casesOn`, but `Decidable` is a
+  structure now and `dite` a `Bool.casesOn` over `decide c`;
+  `Info.ofExpr` reads the branches off the `ite`/`dite` application
+  instead (only `kind`, `discrs`, `branches`, `scrut` are used);
+* **2 889 PANICs per build**: `instDecidableAnd` now evaluates both
+  conjuncts, so `f.isConst ∧ f.constName! == ``And` panicked on every
+  non-constant head in `Aeneas.Saturate` (every `scalar_tac`), also in
+  `Step/Init` and `Std/Delab`; `isConstOf`/`isFVarOf` instead (the
+  results were right, the panic returns a default);
+* `bv_decide` reads widths syntactically (`Sym.getNatValue?`), so a
+  `UScalarTy.U32.numBits` width is no longer evaluated and `bvify`/`bv_tac`
+  fail on scalar goals: the five `U*.bv_mod_size` lemmas are proved by
+  `simp`, the bvify/bv_tac tests are disabled.  **Neither tactic is used by
+  con-ron**; repairing them (rewriting the widths to literals is not enough:
+  the atoms' inferred types still carry `numBits`) is left to upstream.
+
+The two `backward.*` options are still needed and still set.
+
+**Scripts — a sync that moves the toolchain** (§7 step 1 says how).
+
+* `setup-aeneas-lean.sh`: the library lives in **`_tmp/aeneas-lean-<tag>`**
+  (`<tag>` from `proof/lean-toolchain`), so the new toolchain's library is
+  built beside the old one, which the other worktrees keep reading;
+  `proof/lakefile.toml`'s `aeneas` path names it (checked); the script
+  writes the toolchain and the Mathlib tag itself; `--print-dest`; a
+  `proof/.lake/packages` link to another `_tmp/aeneas-lean*` is
+  repointed (how `land` moves the main tree).
+* `bump-con-leche.sh start` detects the move (con-leche's `lean-toolchain`
+  at `<rev>` ≠ `proof/`'s), sets the toolchain and the Aeneas path in the
+  worktree, runs `setup-aeneas-lean.sh` and `lake exe cache get`, uses the
+  new directory's package set instead of a reflink copy, and runs a full
+  `lake update`; with no shared checkout at all it clones con-leche.
+  `land` runs `setup-aeneas-lean.sh --no-update` in the main tree after a
+  move.  Fixed on the way: `git log | head -40` under `pipefail` killed
+  `start` with SIGPIPE once upstream had more than 40 commits (the work
+  order was lost; the new `order` subcommand reprints it).
+* `fix-lean-warnings.py --only deprecated` renames a deprecated name at the
+  position the build reports (a full name, or a suffix the new name shares).
+  Run one kind per build log: a rename shifts the columns of the others.
+* `ci.yml` derives the Aeneas directory from `--print-dest` and keys on
+  `aeneas.patch`; `corpus.sh` reads its Mathlib tree from there.
+
+**Proofs.**  Theorem 1, Theorem 2 and the capstone needed:
+
+* **2 791 deprecated names** (`if_pos`/`if_neg`/`if_true`/`if_false`/
+  `dif_pos`/`dif_neg` → `ite_eq_left`/`ite_eq_right`/`ite_true`/
+  `ite_false`/`dite_eq_left`/`dite_eq_right`, same statements) in 161
+  files: 2 755 by the fixer, the rest (in macros, whose warnings point at
+  the call site) by a word-boundary rename.  One rename broke a layout:
+  a continuation line aligned under a `by` that moved right
+  (`RecCheck.lean`'s `target_rec_pins_aux_ls`).
+* **`mvcgen` is deprecated syntax** (`deprecated_syntax`, "use `vcgen` instead",
+  since 2026-08-21) and warns at **478 sites in 43 files**, all in
+  `ConRon/Bridge/`.  **Silenced, with this reason:** the migration to `vcgen`
+  is its own task, and the gate fails on warnings; each of the 43 files sets
+  `linter.deprecated.syntax false` beside its existing `mvcgen.warning`
+  option (file scope, not project-wide, so that no other deprecated syntax is
+  hidden elsewhere).  **No `mvcgen` proof broke or changed** on 4.35.  The
+  sites, per file (under `ConRon/Bridge/`): Specs.lean (62), ExprOps/Subst.lean (30), Core/Walks/Iota.lean (30), Core/Walks/IotaMajor.lean (28), Core/Walks/Nat.lean (21), ExprOps/Spine.lean (20), Core/Walks/Stuck.lean (20), Core/Walks/PropRead.lean (20), Core/Walks/IotaLeaves.lean (19), Core/Walks/StrLit.lean (18), Core/Memo.lean (16), Core/Walks/Eta.lean (13), ExprOps/Owed.lean (12), Core/Walks/Proj.lean (12), Core/Arms/InferIO.lean (11), SpecsL.lean (10), ExprOps/Ranges.lean (10), ExprOps/InstLP.lean (10), ExprOps/Abs.lean (10), Core/Arms/WhnfCore.lean (9), Core/Arms/Infer.lean (9), ExprOps/Inst1.lean (8), Core/Arms/Annotate.lean (8), ExprOps/MemoSpecs.lean (7), Core/Walks/Spine.lean (7), Core/Walks/Cached.lean (7), Core/Walks/BinderLoop.lean (7), Core/Walks/BetaSpine.lean (7), ExprOps/Guards.lean (6), Core/Walks/Owed.lean (5), Core/Knot.lean (5), Core/Arms/DefeqPeel.lean (4), ExprOps/Leaves.lean (3), Core/Arms/Whnf.lean (3), Core/Walks/ProjLit.lean (2), Core/Walks/ProjCore.lean (2), ExprOps/Walks.lean (1), ExprOps/TelescopeF.lean (1), Core/Walks/StrCtor.lean (1), Core/Walks/InferSpine.lean (1), Core/Walks/Guards.lean (1), Core/EnsureSort.lean (1), Core/Arms/DefeqBase.lean (1).
+* Three proofs got shorter: `lockstep` now closes PositivityNest's
+  `nest_cont_key` and BlockParts' `block_group` step outright, and
+  `congr 1` closes RecCheck's `recs_by_target_{own,aux}_twin` (as upstream
+  found in `Verify/Shift.lean`); the `@[lockstep_simp]` prim
+  `u64_bne_val` became dead (dead-census) and is deleted.
+* BlockInstall's `ctors_mention_any_ls`: the `cursor_induction` motive
+  times out at 200 000 heartbeats; `maxHeartbeats 400000` on that one
+  theorem.
+* Two axiom-footprint pins gained `Classical.choice` (`satPred_toNat`,
+  `LsStore_viewLen_eq`); updated.  No `sorry`; the headline theorems'
+  footprints unchanged.
+
+**Measure** (`bump-con-leche.sh measure`; `Init` exported by
+lean4export `66f1fb4`, its v4.35.0-rc3 commit, 345 MB):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `2e348661` | 213 890 863 626 | 94 309 554 001 |
+| this branch (crates as landed) | **211 500 245 027** (−1.12 %) | 124 494 041 585 |
+
+Both accept 57 919.  The −1.1 % is the pin order: on a v4.35 export the
+first variant tried now matches.  (`cycles:u` of the branch's run is not
+comparable: `extract.sh` ran beside it.)
+
+**For the maintainer.**  (1) `CLAUDE.md` still names
+`_tmp/aeneas-lean`; it is `_tmp/aeneas-lean-<tag>` now (an agent may not
+edit `CLAUDE.md`).  (2) `bvify`/`bv_tac` are broken on 4.35 (unused
+here).  (3) The `vcgen` migration: the 43 files above, each with one
+`set_option` line to delete at the end.
