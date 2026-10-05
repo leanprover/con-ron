@@ -2151,25 +2151,25 @@
    164    refine ⟨hstep, ?_⟩
    165    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
 
-== proof/ConRon/Bridge/Core/Knot.lean#L121-L138
-   121  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
-   122      Prop where
-   123    /-- Head normalization without delta, in either mode (`c` is the official
-   124    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
-   125    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   126      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   127      Expr.WScoped d e →
-   128      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore c d i
-   129      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   130          s'.pins = s₀.pins ∧
-   131          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄
-   132    /-- The full reduction loop. -/
-   133    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   134      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   135      Expr.WScoped d e →
-   136      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
-   137      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   138          s'.pins = s₀.pins ∧
+== proof/ConRon/Bridge/Core/Knot.lean#L124-L141
+   124  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
+   125      Prop where
+   126    /-- Head normalization without delta, in either mode (`c` is the official
+   127    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
+   128    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   129      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   130      Expr.WScoped d e →
+   131      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore c d i
+   132      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   133          s'.pins = s₀.pins ∧
+   134          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄
+   135    /-- The full reduction loop. -/
+   136    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   137      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   138      Expr.WScoped d e →
+   139      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
+   140      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   141          s'.pins = s₀.pins ∧
 
 == proof/ConRon/Bridge/Core/Induction.lean#L73-L80
     73  theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}

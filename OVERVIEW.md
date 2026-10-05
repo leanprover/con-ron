@@ -665,7 +665,7 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq`, `annotate`) is one statement indexed by fuel,
-[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L121-L138),
+[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L124-L141),
 proved by induction on the fuel in
 [`knot_spec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L73-L80).
 
