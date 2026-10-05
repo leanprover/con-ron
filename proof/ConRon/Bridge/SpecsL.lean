@@ -29,7 +29,8 @@ namespace ConRon.Bridge
 set_option autoImplicit false
 set_option experimental.vcgen true
 
-open ConLeche ConRon.Arena Std.Do
+open ConLeche ConRon.Arena Std.WP
+open scoped Lean.Order
 
 /-! ## Three forward rules the closer needs
 
@@ -109,86 +110,87 @@ every element of a denoting level-handle list has a view. -/
 /-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
 level tree, by induction on `Level` (the recursion `internLevel` itself
 takes). -/
-@[spec, wp_spec] theorem internLevel_spec (s₀ : AState) (u : Level)
+@[spec] theorem internLevel_spec (s₀ : AState) (u : Level)
     (hwf : StoreWF s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLevel u
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internLevel u
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.store.pers = s₀.store.pers ∧ s'.store.scr = s₀.store.scr ∧
         s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteL s'.store.ls h = some u⌝⦄ := by
+        denoteL s'.store.ls h = some u; ⊤⦄ := by
   induction u generalizing s₀ with
   | zero =>
-    to_wp; vcgen [internLevel, wp% internLNode_spec]
+    vcgen [internLevel, internLNode_spec]
     all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Option.map_eq_some_iff]
   | succ u ih =>
-    to_wp; vcgen [internLevel, wp% ih, wp% internLNode_spec]
+    vcgen [internLevel, ih, internLNode_spec]
     all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
       denoteL_ext]
   | max u v ihu ihv =>
-    to_wp; vcgen [internLevel, wp% ihu, wp% ihv, wp% internLNode_spec]
+    vcgen [internLevel, ihu, ihv, internLNode_spec]
     all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, opt2_eq_some_iff]
   | imax u v ihu ihv =>
-    to_wp; vcgen [internLevel, wp% ihu, wp% ihv, wp% internLNode_spec]
+    vcgen [internLevel, ihu, ihv, internLNode_spec]
     all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, opt2_eq_some_iff]
   | param n =>
-    to_wp; vcgen [internLevel, wp% internName_spec, wp% internLNode_spec]
+    vcgen [internLevel, internName_spec, internLNode_spec]
     all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
       denoteL_ext]
 
 /-- con-leche: none — intern a list of transient levels, one handle each. -/
-@[spec, wp_spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
+@[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLevelList us
-    ⦃⇓? hs s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internLevelList us
+    ⦃fun hs s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.store.pers = s₀.store.pers ∧ s'.store.scr = s₀.store.scr ∧
         s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteLList s'.store.ls hs = some us⌝⦄ := by
+        denoteLList s'.store.ls hs = some us; ⊤⦄ := by
   induction us generalizing s₀ with
   | nil =>
-    to_wp; vcgen [internLevelList]
+    vcgen [internLevelList]
     all_goals grind [denoteLList, Ext.refl]
   | cons u us ih =>
-    to_wp; vcgen [internLevelList, wp% internLevel_spec, wp% ih]
+    vcgen [internLevelList, internLevel_spec, ih]
     all_goals grind [denoteLList, Ext.trans, denoteL_ext, denoteLListE_ext]
 
 /-- con-leche: none — intern a list of transient levels and hash-cons the
 list node: what a `.const`'s universe arguments are. -/
-@[spec, wp_spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
+@[spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLevels us
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internLevels us
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.store.pers = s₀.store.pers ∧ s'.store.scr = s₀.store.scr ∧
         s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteLs s'.store.lss h = some us⌝⦄ := by
-  to_wp; vcgen [internLevels, wp% internLevelList_spec, wp% internLsNode_spec]
+        denoteLs s'.store.lss h = some us; ⊤⦄ := by
+  vcgen [internLevels, internLevelList_spec, internLsNode_spec]
   all_goals grind [denoteLsView, denoteLs, Arena.LsStore.ViewOK, Ext.trans,
     lview_isSome_of_denote, denoteLListE_ext, denoteLList]
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
 `readNames`, whose recursion is on the list as `readNames`' is. -/
-@[spec, wp_spec] theorem readNamesM_spec (s₀ : AState) (hs : List NIdx)
+@[spec] theorem readNamesM_spec (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
-    ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
+    ⦃fun s => s = s₀⦄ readNamesM hs
+    ⦃fun xs s' => s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
         s'.pins = s₀.pins ∧
         s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         Frontend.denoteNList s₀.store.ns hs = some xs ∧
-        ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
+        ReadNCacheOK s'.caches.readNC s'.store; ⊤⦄ := by
+  dsimp only
   induction hs generalizing s₀ with
   | nil =>
-    to_wp; vcgen [readNamesM]
+    vcgen [readNamesM]
     -- `grind` alone does not see the `caches` record update through `s = s₀`
     all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
   | cons a as ih =>
-    to_wp; vcgen [readNamesM, wp% readNameM_spec, wp% ih]
+    vcgen [readNamesM, readNameM_spec, ih]
     all_goals grind [Frontend.denoteNList, ReadNCacheOK]
 
 #print axioms internLevel_spec

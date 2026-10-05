@@ -55,7 +55,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
@@ -289,16 +290,16 @@ which names no target store even though `bvarRange` interns. -/
 theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
     (mI rP cnP : Nat) (hok : StateOK s₀)
     (hden : (denoteE s₀.store recTy).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ recRulePlain fuel recTy mI rP cnP
-    ⦃⇓? b s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ recRulePlain fuel recTy mI rP cnP
+    ⦃fun b s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelV (fun x => Expr.recRulePlain x mI rP cnP) s₀.store recTy b⌝⦄ := by
+        RelV (fun x => Expr.recRulePlain x mI rP cnP) s₀.store recTy b; ⊤⦄ := by
   have hstrip := stripPis_spec mI
   have hargs := getAppArgs_spec fuel
   have hrange := bvarRange_spec cnP
   obtain ⟨erecTy, hrecTy⟩ := Option.isSome_iff_exists.mp hden
-  to_wp; vcgen [recRulePlain, wp% hstrip, wp% hargs, wp% hrange]
+  vcgen [recRulePlain, hstrip, hargs, hrange]
   all_goals try bridge_vcs
   all_goals
     (arm_pre

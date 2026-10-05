@@ -130,7 +130,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 4000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ### Attribute hygiene (task #97s round 2, item 1)
 
@@ -1316,12 +1317,12 @@ untouched (`bvarBoundMemo` clears only `bvarBC`). -/
 structure BvarBSpec (prog : EIdx → AM Nat) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx), StateOK s₁ →
     (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ prog c
-    ⦃⇓? r s' => ⌜StateOK s' ∧ StoreWF s'.store ∧ s'.store = s₁.store ∧
+    ⦃fun s => s = s₁⦄ prog c
+    ⦃fun r s' => StateOK s' ∧ StoreWF s'.store ∧ s'.store = s₁.store ∧
         s'.caches = s₁.caches ∧
         s'.pins = s₁.pins ∧ s'.memos.lowerC = s₁.memos.lowerC ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
-        RelV Expr.bvarBound s₁.store c r⌝⦄
+        RelV Expr.bvarBound s₁.store c r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — **`BvarBSpec`,
 discharged**, from `ExprOps/Ranges.lean`'s `bvarB_spec`.
@@ -1339,7 +1340,7 @@ theorem bvarB_bvarBSpec (fuel : Nat) : BvarBSpec (bvarB fuel) := by
   constructor
   intro s₁ c hok hden
   have hr := bvarB_spec fuel
-  to_wp; vcgen [wp% hr]
+  vcgen [hr]
   all_goals bridge_vcs [RelV]
 
 /-! ## J. Theorem 1 for `liftLooseBVars` -/
@@ -1371,19 +1372,20 @@ win.
 
 **Under `vcgen`** (task #111) there is no context search: a spec parameter the
 program does not determine is simply left open.  So each walk passes this spec
-INSTANTIATED in its `vcgen` list — `wp% liftSet_specG (f := fun c e =>
+INSTANTIATED in its `vcgen` list — `liftSet_specG (f := fun c e =>
 Expr.liftLooseBVars amount c e)` — and the `exact` step is gone. -/
-@[spec high, wp_spec high] theorem liftSet_specG (s0 : AState) (f : Nat -> Expr -> Expr)
+@[spec high] theorem liftSet_specG (s0 : AState) (f : Nat -> Expr -> Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s0.memos.liftC s0.store)
     (hk : (denoteE s0.store k.1).isSome = true)
     (hr : RelE (f k.2) s0.store k.1 s0.store r) :
-    ⦃fun s => ⌜s = s0⌝⦄ liftSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s0.store ∧ s'.caches = s0.caches ∧
+    ⦃fun s => s = s0⦄ liftSet k r
+    ⦃fun _u s' => s'.store = s0.store ∧ s'.caches = s0.caches ∧
         s'.pins = s0.pins ∧
         s'.memos = { s0.memos with liftC := s0.memos.liftC.insert k r } ∧
-        MemoOK f s'.memos.liftC s'.store⌝⦄ := by
+        MemoOK f s'.memos.liftC s'.store; ⊤⦄ := by
   unfold liftSet
-  to_wp; vcgen
+  dsimp only
+  vcgen
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
@@ -1398,12 +1400,12 @@ other per-call memo tables are NOT framed here" has to be paid. -/
 structure LiftSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (cc : Nat), StateOK s₁ → LiftMemoA amount s₁ →
     (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c cc
-    ⦃⇓? r s' => ⌜StateOK s' ∧ LiftMemoA amount s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c cc
+    ⦃fun r s' => StateOK s' ∧ LiftMemoA amount s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
-        LiftAt amount cc s₁.store c s'.store r⌝⦄
+        LiftAt amount cc s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:380-400 liftLooseBVars
 con-leche: ConLeche/Kernel/ExprOps.lean:430-466 liftLooseBVarsGo
@@ -1427,15 +1429,15 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    to_wp; vcgen [liftLooseBVarsGo_zero]
+    vcgen [liftLooseBVarsGo_zero]
     all_goals bridge_vcs [Expr.liftLooseBVars]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
-    to_wp; vcgen [liftLooseBVarsGo_succ, liftArmApp, liftArmLam, liftArmForallE,
-      liftArmLet, liftArmProj, wp% hrec,
-      wp% liftSet_specG (f := fun c e => Expr.liftLooseBVars amount c e)]
+    vcgen [liftLooseBVarsGo_succ, liftArmApp, liftArmLam, liftArmForallE,
+      liftArmLet, liftArmProj, hrec,
+      liftSet_specG (f := fun c e => Expr.liftLooseBVars amount c e)]
     all_goals try bridge_vcs [Expr.liftLooseBVars]
     all_goals (bridge_peel; subst_vars)
     -- the derived-word cutoff
@@ -1515,14 +1517,14 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
 **THEOREM 1 for `liftLooseBVars`, at the entry point**: clear, walk, clear. -/
 theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ liftLooseBVarsFast fuel amount c e
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ liftLooseBVarsFast fuel amount c e
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.liftC = ∅ ∧ s'.memos.inst1LC = s₀.memos.inst1LC ∧
-        LiftAt amount c s₀.store e s'.store r⌝⦄ := by
+        LiftAt amount c s₀.store e s'.store r; ⊤⦄ := by
   have hr := (liftLooseBVarsGo_spec amount fuel).run
-  to_wp; vcgen [liftLooseBVarsFast, wp% hr]
+  vcgen [liftLooseBVarsFast, hr]
   all_goals bridge_vcs [Expr.liftLooseBVars]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
@@ -1544,34 +1546,36 @@ theorem liftLooseBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState}
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1995-1997 LowerMemoInv — the memo
 insert's spec for `lowerC`, generic in the pure function (see
 `liftSet_specG`). -/
-@[spec high, wp_spec high] theorem lowerSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
+@[spec high] theorem lowerSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.lowerC s₀.store)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ lowerSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ lowerSet k r
+    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with lowerC := s₀.memos.lowerC.insert k r } ∧
-        MemoOK f s'.memos.lowerC s'.store⌝⦄ := by
+        MemoOK f s'.memos.lowerC s'.store; ⊤⦄ := by
   unfold lowerSet
-  to_wp; vcgen
+  dsimp only
+  vcgen
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv — the memo
 insert's spec for `inst1LC`, generic in the pure function (see
 `liftSet_specG`). -/
-@[spec high, wp_spec high] theorem inst1LSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
+@[spec high] theorem inst1LSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.inst1LC s₀.store)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ inst1LSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ inst1LSet k r
+    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with inst1LC := s₀.memos.inst1LC.insert k r } ∧
-        MemoOK f s'.memos.inst1LC s'.store⌝⦄ := by
+        MemoOK f s'.memos.inst1LC s'.store; ⊤⦄ := by
   unfold inst1LSet
-  to_wp; vcgen
+  dsimp only
+  vcgen
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
@@ -1580,11 +1584,11 @@ one level of `lowerBVarsGo`'s recursion. -/
 structure LowerSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (cc : Nat), StateOK s₁ →
     LowerMemoA amount s₁ → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c cc
-    ⦃⇓? r s' => ⌜StateOK s' ∧ LowerMemoA amount s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c cc
+    ⦃fun r s' => StateOK s' ∧ LowerMemoA amount s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        LowerAt amount cc s₁.store c s'.store r⌝⦄
+        LowerAt amount cc s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:694-716 lowerBVars
 con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
@@ -1607,16 +1611,16 @@ theorem lowerBVarsGo_spec (amount : Nat) :
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    to_wp; vcgen [lowerBVarsGo_zero]
+    vcgen [lowerBVarsGo_zero]
     all_goals bridge_vcs [Expr.lowerBVars]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
     have hbbr := (bvarB_bvarBSpec fuel).run
-    to_wp; vcgen [lowerBVarsGo_succ, lowerArmApp, lowerArmLam, lowerArmForallE,
-      lowerArmLet, lowerArmProj, wp% hrec, wp% hbbr,
-      wp% lowerSet_specG (f := fun c e => Expr.lowerBVars amount c e)]
+    vcgen [lowerBVarsGo_succ, lowerArmApp, lowerArmLam, lowerArmForallE,
+      lowerArmLet, lowerArmProj, hrec, hbbr,
+      lowerSet_specG (f := fun c e => Expr.lowerBVars amount c e)]
     all_goals try bridge_vcs [Expr.lowerBVars]
     all_goals clear hbbr
     all_goals (bridge_peel; subst_vars)
@@ -1710,11 +1714,11 @@ structure Inst1LSpec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ →
     Inst1LMemoA ve s₁ → denoteE s₁.store v = some ve →
     (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1LMemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1LMemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1LAt ve dd s₁.store c s'.store r⌝⦄
+        Inst1LAt ve dd s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:718-739 instantiate1Lift
 con-leche: ConLeche/Kernel/ExprOps.lean:2224-2263 instantiate1LiftGo
@@ -1736,7 +1740,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    to_wp; vcgen [instantiate1LiftGo_zero]
+    vcgen [instantiate1LiftGo_zero]
     all_goals bridge_vcs [Expr.instantiate1Lift]
   | succ fuel ih =>
     constructor
@@ -1744,9 +1748,9 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     have hrec := ih.run
     have hbbr := (bvarB_bvarBSpec fuel).run
     have hlift := fun (s : AState) (e : EIdx) => liftLooseBVarsFast_spec fuel d 0 s e
-    to_wp; vcgen [instantiate1LiftGo_succ, inst1LiftArmApp, inst1LiftArmLam,
-      inst1LiftArmForallE, inst1LiftArmLet, inst1LiftArmProj, wp% hrec, wp% hbbr,
-      wp% hlift, wp% inst1LSet_specG (f := fun dd e => Expr.instantiate1Lift e ve dd)]
+    vcgen [instantiate1LiftGo_succ, inst1LiftArmApp, inst1LiftArmLam,
+      inst1LiftArmForallE, inst1LiftArmLet, inst1LiftArmProj, hrec, hbbr,
+      hlift, inst1LSet_specG (f := fun dd e => Expr.instantiate1Lift e ve dd)]
     all_goals try bridge_vcs [Expr.instantiate1Lift]
     all_goals clear hbbr hlift
     all_goals (bridge_peel; subst_vars)
@@ -1848,13 +1852,13 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
 theorem lowerBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ lowerBVarsFast fuel amount c e
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ lowerBVarsFast fuel amount c e
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.memos.lowerC = ∅ ∧ LowerAt amount c s₀.store e s'.store r⌝⦄ := by
+        s'.memos.lowerC = ∅ ∧ LowerAt amount c s₀.store e s'.store r; ⊤⦄ := by
   have hr := (lowerBVarsGo_spec amount fuel).run
-  to_wp; vcgen [lowerBVarsFast, wp% hr]
+  vcgen [lowerBVarsFast, hr]
   all_goals bridge_vcs [Expr.lowerBVars]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
@@ -1876,13 +1880,13 @@ theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
     (d : Nat) (ve : Expr) (hok : StateOK s₀)
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instantiate1LiftFast fuel e v d
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ instantiate1LiftFast fuel e v d
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r⌝⦄ := by
+        s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r; ⊤⦄ := by
   have hr := (instantiate1LiftGo_spec v ve fuel).run
-  to_wp; vcgen [instantiate1LiftFast, wp% hr]
+  vcgen [instantiate1LiftFast, hr]
   all_goals bridge_vcs [Expr.instantiate1Lift]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
@@ -1946,17 +1950,17 @@ theorem instPisAtLift_spec (fuel : Nat) :
     ∀ (args : List EIdx) (s₀ : AState) (c : EIdx), StateOK s₀ →
       (Frontend.denoteEList s₀.store args).isSome = true →
       (denoteE s₀.store c).isSome = true →
-      ⦃fun s => ⌜s = s₀⌝⦄ instPisAtLift fuel args c
-      ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ instPisAtLift fuel args c
+      ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
           BMExt s₀.store s'.store ∧
           s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
           ∀ xs, Frontend.denoteEList s₀.store args = some xs →
-            RelEO (fun e => Expr.instPisAtLift xs e) s₀.store c s'.store r⌝⦄ := by
+            RelEO (fun e => Expr.instPisAtLift xs e) s₀.store c s'.store r; ⊤⦄ := by
   intro args
   induction args with
   | nil =>
     intro s₀ c hok _ hden
-    to_wp; vcgen [instPisAtLift]
+    vcgen [instPisAtLift]
     all_goals bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO,
       Frontend.denoteEList]
   | cons a as ih =>
@@ -1968,7 +1972,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
     · rename_i ea eas hea heas
       have hil := fun (s : AState) (e : EIdx) =>
         instantiate1LiftFast_spec fuel s e a 0 ea
-      to_wp; vcgen [instPisAtLift, wp% hrec, wp% hil]
+      vcgen [instPisAtLift, hrec, hil]
       all_goals try bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO,
         Frontend.denoteEList]
       -- THREE verification conditions survive the closer: the `cons` step's
@@ -2008,17 +2012,18 @@ theorem instPisAtLift_spec (fuel : Nat) :
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:248-250 InstLMemoInv — the memo
 insert's spec for `instLC`, generic in the pure function (see
 `liftSet_specG`). -/
-@[spec high, wp_spec high] theorem instLSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
+@[spec high] theorem instLSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.instLC s₀.store)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instLSet k r
-    ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ instLSet k r
+    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with instLC := s₀.memos.instLC.insert k r } ∧
-        MemoOK f s'.memos.instLC s'.store⌝⦄ := by
+        MemoOK f s'.memos.instLC s'.store; ⊤⦄ := by
   unfold instLSet
-  to_wp; vcgen
+  dsimp only
+  vcgen
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
@@ -2047,11 +2052,11 @@ structure InstLPureSpec (vs : Array EIdx) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ →
     InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c dd
+    ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `app` ARM: project, recurse into both children, rebuild. -/
@@ -2060,13 +2065,13 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListArmApp vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListArmApp vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListArmApp, wp% hrec]
+  vcgen [instListArmApp, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   -- ONE verification condition survives: `internAppE`'s postcondition, the
   -- arm's ANSWER (there is no memo insert behind it — this is the unmemoized
@@ -2087,13 +2092,13 @@ theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : ETag.isBind c.tag = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListArmBind vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListArmBind vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListArmBind, wp% hrec]
+  vcgen [instListArmBind, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
   all_goals obtain ⟨mm, hbm, _htag0, hvw⟩ :=
@@ -2126,13 +2131,13 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.letE) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListArmLet vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListArmLet vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListArmLet, wp% hrec]
+  vcgen [instListArmLet, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   next =>
     bridge_peel
@@ -2151,13 +2156,13 @@ theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.proj) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListArmProj vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListArmProj vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListArmProj, wp% hrec]
+  vcgen [instListArmProj, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   next =>
     bridge_peel
@@ -2183,13 +2188,13 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.bvar) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListArmBVar vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListArmBVar vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := fun (m : Nat) => (ih m).run
-  to_wp; vcgen [instListArmBVar, wp% hrec]
+  vcgen [instListArmBVar, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
     InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
@@ -2244,7 +2249,7 @@ theorem instantiateList_spec :
     intro vs ws
     constructor
     intro s₀ h d _ _ _
-    to_wp; vcgen [instantiateList_zero]
+    vcgen [instantiateList_zero]
     all_goals bridge_vcs [Expr.instantiateList]
   | succ fuel ih =>
     intro vs ws
@@ -2256,7 +2261,7 @@ theorem instantiateList_spec :
     have hproj := instListArmProj_spec vs ws fuel (ih vs ws)
     have hbvar := instListArmBVar_spec vs ws fuel
       (fun m => ih (lastEidx vs m) (ws.take m))
-    to_wp; vcgen [instantiateList_succ, wp% happ, wp% hbind, wp% hbvar, wp% hlet, wp% hproj]
+    vcgen [instantiateList_succ, happ, hbind, hbvar, hlet, hproj]
     all_goals try bridge_vcs [Expr.instantiateList]
     -- TWO verification conditions survive the closer: the derived-word cutoff
     -- and the catch-all leaf.
@@ -2286,11 +2291,11 @@ structure InstLSpec (vs : Array EIdx) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ → InstLMemoA ws s₁ →
     InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c dd
+    ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `app` ARM: probe, project, recurse into both children, rebuild, insert. -/
@@ -2300,14 +2305,14 @@ theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmApp vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListGoArmApp vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListGoArmApp, wp% hrec,
-    wp% instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
+  vcgen [instListGoArmApp, hrec,
+    instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
   -- the arm's postcondition, then the memo insert's answer
@@ -2333,14 +2338,14 @@ theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : ETag.isBind c.tag = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmBind vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListGoArmBind vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListGoArmBind, wp% hrec,
-    wp% instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
+  vcgen [instListGoArmBind, hrec,
+    instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
   all_goals obtain ⟨mm, hbm, _htag0, hvw⟩ :=
@@ -2382,14 +2387,14 @@ theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.letE) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmLet vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListGoArmLet vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListGoArmLet, wp% hrec,
-    wp% instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
+  vcgen [instListGoArmLet, hrec,
+    instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
   -- the arm's postcondition, then the memo insert's answer
@@ -2416,14 +2421,14 @@ theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (hvec : InstLVec s₁.store vs ws)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.proj) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instListGoArmProj vs fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instListGoArmProj vs fuel c dd
+    ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        InstLAt ws dd s₁.store c s'.store r⌝⦄ := by
+        InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instListGoArmProj, wp% hrec,
-    wp% instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
+  vcgen [instListGoArmProj, hrec,
+    instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
   all_goals
@@ -2455,7 +2460,7 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    to_wp; vcgen [instantiateListGo_zero]
+    vcgen [instantiateListGo_zero]
     all_goals bridge_vcs [Expr.instantiateList]
   | succ fuel ih =>
     constructor
@@ -2465,7 +2470,7 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
     have hlet := instListGoArmLet_spec vs ws fuel ih
     have hproj := instListGoArmProj_spec vs ws fuel ih
     have hpure := (instantiateList_spec fuel vs ws).run
-    to_wp; vcgen [instantiateListGo_succ, wp% happ, wp% hbind, wp% hlet, wp% hproj, wp% hpure]
+    vcgen [instantiateListGo_succ, happ, hbind, hlet, hproj, hpure]
     all_goals try bridge_vcs [Expr.instantiateList]
     -- TWO verification conditions survive the closer: the derived-word cutoff
     -- and the catch-all leaf.  The `.bvar` branch is the UNMEMOIZED walk, by
@@ -2490,13 +2495,13 @@ theorem instantiateListFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (vs : Array EIdx) (d : Nat) (ws : List Expr) (hok : StateOK s₀)
     (hvec : InstLVec s₀.store vs ws)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instantiateListFast fuel e vs d
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ instantiateListFast fuel e vs d
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.memos.instLC = ∅ ∧ InstLAt ws d s₀.store e s'.store r⌝⦄ := by
+        s'.memos.instLC = ∅ ∧ InstLAt ws d s₀.store e s'.store r; ⊤⦄ := by
   have hr := (instantiateListGo_spec vs ws fuel).run
-  to_wp; vcgen [instantiateListFast, wp% hr]
+  vcgen [instantiateListFast, hr]
   all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about

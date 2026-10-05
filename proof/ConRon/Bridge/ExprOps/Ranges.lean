@@ -66,7 +66,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
@@ -132,12 +133,12 @@ one level of `bvarBoundGo`'s recursion. -/
 structure BvarBoundSpec (rec : EIdx → AM Nat) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx), StateOK s₁ → MemoBA s₁ →
       (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c
-    ⦃⇓? r s' => ⌜s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
+    ⦃fun s => s = s₁⦄ rec c
+    ⦃fun r s' => s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
         s'.pins = s₁.pins ∧ MemoBA s' ∧
         s'.memos.lowerC = s₁.memos.lowerC ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
-        RelV Expr.bvarBound s₁.store c r⌝⦄
+        RelV Expr.bvarBound s₁.store c r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1370-1394 bvarBoundGo — **THEOREM
 1 for `bvarBound`**, at one level of the recursion, by induction on the
@@ -148,13 +149,13 @@ theorem bvarBoundGo_spec : ∀ fuel, BvarBoundSpec (bvarBoundGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    to_wp; vcgen [bvarBoundGo_zero]
+    vcgen [bvarBoundGo_zero]
     all_goals bridge_vcs [Expr.bvarBound, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    to_wp; vcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet, wp% hrec]
+    vcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet, hrec]
     all_goals bridge_vcs [Expr.bvarBound, RelV]
 
 /-! ## `bvarBoundMemo` — `ExprOps.lean:1437`
@@ -167,14 +168,14 @@ makes a dropped table satisfy the invariant). -/
 **THEOREM 1 for `bvarBound`, at the entry point**. -/
 theorem bvarBoundMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ bvarBoundMemo fuel e
-    ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ bvarBoundMemo fuel e
+    ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos.bvarBC = ∅ ∧
         s'.memos.lowerC = s₀.memos.lowerC ∧
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
-        RelV Expr.bvarBound s₀.store e r⌝⦄ := by
+        RelV Expr.bvarBound s₀.store e r; ⊤⦄ := by
   have hr := (bvarBoundGo_spec fuel).run
-  to_wp; vcgen [bvarBoundMemo, wp% hr]
+  vcgen [bvarBoundMemo, hr]
   all_goals bridge_vcs [Expr.bvarBound, RelV]
 
 /-! ## `fvarRangeGo` — `ExprOps.lean:1447`
@@ -188,10 +189,10 @@ one level of `fvarRangeGo`'s recursion. -/
 structure FvarRangeSpec (rec : EIdx → AM Nat) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx), StateOK s₁ → MemoFA s₁ →
       (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c
-    ⦃⇓? r s' => ⌜s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
+    ⦃fun s => s = s₁⦄ rec c
+    ⦃fun r s' => s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
         s'.pins = s₁.pins ∧ MemoFA s' ∧
-        RelV Expr.fvarRange s₁.store c r⌝⦄
+        RelV Expr.fvarRange s₁.store c r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1424 fvarRangeGo — **THEOREM
 1 for `fvarRange`**, at one level of the recursion. -/
@@ -201,25 +202,25 @@ theorem fvarRangeGo_spec : ∀ fuel, FvarRangeSpec (fvarRangeGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    to_wp; vcgen [fvarRangeGo_zero]
+    vcgen [fvarRangeGo_zero]
     all_goals bridge_vcs [Expr.fvarRange, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    to_wp; vcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet, wp% hrec]
+    vcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet, hrec]
     all_goals bridge_vcs [Expr.fvarRange, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo —
 **THEOREM 1 for `fvarRange`, at the entry point**. -/
 theorem fvarRangeMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ fvarRangeMemo fuel e
-    ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ fvarRangeMemo fuel e
+    ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos.fvarBC = ∅ ∧
-        RelV Expr.fvarRange s₀.store e r⌝⦄ := by
+        RelV Expr.fvarRange s₀.store e r; ⊤⦄ := by
   have hr := (fvarRangeGo_spec fuel).run
-  to_wp; vcgen [fvarRangeMemo, wp% hr]
+  vcgen [fvarRangeMemo, hr]
   all_goals bridge_vcs [Expr.fvarRange, RelV]
 
 /-! ## `bvarB` and `fvarB` — `ExprOps.lean:1486`, `:1494`
@@ -238,14 +239,14 @@ The two memo-frame conjuncts are `ExprOps/Subst.lean`'s `BvarBSpec`, whose
 two cutoff walks memoise while they call this one (round 4). -/
 theorem bvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ bvarB fuel e
-    ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ bvarB fuel e
+    ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         s'.memos.lowerC = s₀.memos.lowerC ∧
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
-        RelV Expr.bvarBound s₀.store e r⌝⦄ := by
+        RelV Expr.bvarBound s₀.store e r; ⊤⦄ := by
   have hr := bvarBoundMemo_spec fuel
-  to_wp; vcgen [bvarB, wp% hr]
+  vcgen [bvarB, hr]
   all_goals bridge_vcs [RelV, bvarBound_of_derived]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — the same about a
@@ -264,11 +265,11 @@ theorem bvarB_run {fuel : Nat} {s₀ s' : AState} {e : EIdx} {r : Nat}
 `fvarB`**. -/
 theorem fvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ fvarB fuel e
-    ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧ RelV Expr.fvarRange s₀.store e r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ fvarB fuel e
+    ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+        s'.pins = s₀.pins ∧ RelV Expr.fvarRange s₀.store e r; ⊤⦄ := by
   have hr := fvarRangeMemo_spec fuel
-  to_wp; vcgen [fvarB, wp% hr]
+  vcgen [fvarB, hr]
   all_goals bridge_vcs [RelV, fvarRange_of_derived]
 
 /-! ## `hasFvarFast` and `looseBVarsBoundedFast` — `ExprOps.lean:1501`, `:1507`
@@ -283,23 +284,23 @@ plus one `Bool` equation — `Expr.fvarRange_bne_zero` and
 computes). -/
 theorem hasFvarFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ hasFvarFast fuel e
-    ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧ RelV Expr.hasFvar s₀.store e r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ hasFvarFast fuel e
+    ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+        s'.pins = s₀.pins ∧ RelV Expr.hasFvar s₀.store e r; ⊤⦄ := by
   have hr := fvarB_spec fuel
-  to_wp; vcgen [hasFvarFast, wp% hr]
+  vcgen [hasFvarFast, hr]
   all_goals bridge_vcs [RelV, Expr.fvarRange_bne_zero]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1718-1719 looseBVarsBoundedFast —
 **THEOREM 1 for `looseBVarsBoundedFast`**, at `looseBVarsBounded`. -/
 theorem looseBVarsBoundedFast_spec (fuel k : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ looseBVarsBoundedFast fuel k e
-    ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+    ⦃fun s => s = s₀⦄ looseBVarsBoundedFast fuel k e
+    ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
-        RelV (Expr.looseBVarsBounded k) s₀.store e r⌝⦄ := by
+        RelV (Expr.looseBVarsBounded k) s₀.store e r; ⊤⦄ := by
   have hr := bvarB_spec fuel
-  to_wp; vcgen [looseBVarsBoundedFast, wp% hr]
+  vcgen [looseBVarsBoundedFast, hr]
   all_goals bridge_vcs [RelV, looseBVarsBounded_decide]
 
 /-! ## The axiom check -/

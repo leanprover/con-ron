@@ -11,10 +11,10 @@ the shape of its arm's step lemma, and what the tag dispatch costs the proof.
 structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ s₁ c dd, StateOK s₁ → Inst1MemoA ve s₁ →
     denoteE s₁.store v = some ve → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄
 ```
 
 * `Inst1At ve dd` is `Bridge/Rel.lean`'s **generic** `RelE` with the pure
@@ -36,7 +36,7 @@ structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) : Pr
    `ExprOps.lean:1456`) plus an induction on `Expr`.
 2. **Fuel**, because a handle DAG has no structural order the elaborator can
    see.  Exhaustion is a failure and Theorem 1 claims nothing on failure
-   (con-leche's `SimAt`), which is what `⇓?` says.
+   (con-leche's `SimAt`), which is what the `⊤` exception postcondition says.
 
 Everything else is clause for clause: the five leaf kinds answer without
 touching the memo, and the four branching kinds probe the memo, run the body
@@ -59,7 +59,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ### Attribute hygiene (task #97s round 2, item 1)
 
@@ -341,11 +342,11 @@ structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
     Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ → Inst1MemoA ve s₁ →
     denoteE s₁.store v = some ve → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `bvar`
 ARM, which is not recursive and needs no induction hypothesis.  The three
@@ -358,12 +359,12 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
     (hv : denoteE s₁.store v = some ve)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.bvar) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instantiate1ArmBVar v c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instantiate1ArmBVar v c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄ := by
-  to_wp; vcgen [instantiate1ArmBVar]
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
+  vcgen [instantiate1ArmBVar]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   -- `i = dd`: the answer is the substituted handle itself.
@@ -401,13 +402,13 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (hv : denoteE s₁.store v = some ve)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instantiate1ArmApp v fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instantiate1ArmApp v fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄ := by
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instantiate1ArmApp, wp% hrec, wp% inst1Set_spec (ve := ve)]
+  vcgen [instantiate1ArmApp, hrec, inst1Set_spec (ve := ve)]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   -- the arm's postcondition, then the memo insert's answer
@@ -432,13 +433,13 @@ theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (hv : denoteE s₁.store v = some ve)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : ETag.isBind c.tag = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instantiate1ArmBind v fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instantiate1ArmBind v fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄ := by
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instantiate1ArmBind, wp% hrec, wp% inst1Set_spec (ve := ve)]
+  vcgen [instantiate1ArmBind, hrec, inst1Set_spec (ve := ve)]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   all_goals obtain ⟨m, hbm, _htag0, hvw⟩ :=
@@ -481,13 +482,13 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (hv : denoteE s₁.store v = some ve)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.letE) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instantiate1ArmLet v fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instantiate1ArmLet v fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄ := by
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instantiate1ArmLet, wp% hrec, wp% inst1Set_spec (ve := ve)]
+  vcgen [instantiate1ArmLet, hrec, inst1Set_spec (ve := ve)]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   -- the postcondition, then the memo insert's answer
@@ -514,13 +515,13 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (hv : denoteE s₁.store v = some ve)
     (hden : (denoteE s₁.store c).isSome = true)
     (htg : (c.tag == ETag.proj) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ instantiate1ArmProj v fuel c dd
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ instantiate1ArmProj v fuel c dd
+    ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
         BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        Inst1At ve dd s₁.store c s'.store r⌝⦄ := by
+        Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [instantiate1ArmProj, wp% hrec, wp% inst1Set_spec (ve := ve)]
+  vcgen [instantiate1ArmProj, hrec, inst1Set_spec (ve := ve)]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   all_goals obtain ⟨nm, es, _, hn0, _⟩ :=
@@ -550,7 +551,7 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
   | zero =>
     constructor
     intro s₀ h d _ _ _ _
-    to_wp; vcgen [instantiate1Go_zero]
+    vcgen [instantiate1Go_zero]
     all_goals bridge_vcs [Expr.instantiate1]
   | succ fuel ih =>
     constructor
@@ -560,7 +561,7 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
     have hbvar := instantiate1ArmBVar_spec v ve
     have hlet := instantiate1ArmLet_spec v ve fuel ih
     have hproj := instantiate1ArmProj_spec v ve fuel ih
-    to_wp; vcgen [instantiate1Go_succ, wp% happ, wp% hbind, wp% hbvar, wp% hlet, wp% hproj]
+    vcgen [instantiate1Go_succ, happ, hbind, hbvar, hlet, hproj]
     all_goals try bridge_vcs [Expr.instantiate1]
     -- TWO verification conditions survive the closer, against the inline
     -- body's eighteen: the derived-word cutoff and the catch-all.
@@ -590,14 +591,14 @@ caller's invariant. -/
 theorem instantiate1Fast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat)
     (ve : Expr) (hok : StateOK s₀) (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instantiate1Fast fuel e v d
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ instantiate1Fast fuel e v d
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1C = ∅ ∧
-        Inst1At ve d s₀.store e s'.store r⌝⦄ := by
+        Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
   have hr := (instantiate1Go_spec v ve fuel).run
-  to_wp; vcgen [instantiate1Fast, wp% hr]
+  vcgen [instantiate1Fast, hr]
   all_goals bridge_vcs [Expr.instantiate1]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about

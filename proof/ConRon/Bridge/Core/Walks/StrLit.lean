@@ -28,7 +28,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -80,18 +81,18 @@ the level parameters and the type.  (The `.projInfo` arm's NAME is
 theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
     (c : ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hci : Frontend.denoteCI s₀.store ci = some c) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ci.toConstantVal
-    ⦃⇓? cv s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ci.toConstantVal
+    ⦃fun cv s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Frontend.denoteNList s₀.store.ns cv.levelParams =
           some c.toConstantVal.levelParams ∧
-        denoteE s'.store cv.type = some c.toConstantVal.type⌝⦄ := by
+        denoteE s'.store cv.type = some c.toConstantVal.type; ⊤⦄ := by
   have hwf := hok.state.wf
   cases hti : ci.isTowerEntry
   · obtain ⟨_, v, hv, hcv⟩ := denoteCI_nonTower hci hti
     obtain ⟨_, hlp, hty⟩ := denoteCV_inv hcv
     rw [hv]
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hlp, hty⟩
   · cases ci with
@@ -107,7 +108,7 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
           · cases ht'; exact hlps
           · simp at ht'
         · simp at ht'
-      to_wp; vcgen [IConstantInfo.toConstantVal]
+      vcgen [IConstantInfo.toConstantVal]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
       case vc1 =>
@@ -145,19 +146,19 @@ for `stringTyOk`**. -/
 theorem stringTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.stringTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.stringTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.stringTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.stringTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.stringTyOk]
+    vcgen [ConRon.Arena.stringTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    to_wp; vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, wp% htc]
+    vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc1 =>
@@ -172,19 +173,19 @@ for `charTyOk`**. -/
 theorem charTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.charTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.charTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.charTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.charTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.charTyOk]
+    vcgen [ConRon.Arena.charTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    to_wp; vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, wp% htc]
+    vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc1 =>
@@ -334,19 +335,19 @@ for `listTyOk`**. -/
 theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.listTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.listTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.listTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.listTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.listTyOk]
+    vcgen [ConRon.Arena.listTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    to_wp; vcgen [ConRon.Arena.listTyOk, wp% htc]
+    vcgen [ConRon.Arena.listTyOk, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc9 =>
@@ -444,19 +445,19 @@ theorem StoreWF.lssWF' {st : EStore} (h : StoreWF st) : LsStoreWF st.lss := by
 theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.listNilTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.listNilTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.listNilTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.listNilTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.listNilTyOk]
+    vcgen [ConRon.Arena.listNilTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    to_wp; vcgen [ConRon.Arena.listNilTyOk, ConRon.Arena.pinList, wp% htc]
+    vcgen [ConRon.Arena.listNilTyOk, ConRon.Arena.pinList, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc19 =>
@@ -864,19 +865,19 @@ theorem denoteLs_view_single {st : EStore} {h : LsIdx} {u : LIdx}
 theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.listConsTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.listConsTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.listConsTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.listConsTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.listConsTyOk]
+    vcgen [ConRon.Arena.listConsTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    to_wp; vcgen [ConRon.Arena.listConsTyOk, ConRon.Arena.pinList, wp% htc]
+    vcgen [ConRon.Arena.listConsTyOk, ConRon.Arena.pinList, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc30 =>
@@ -1320,13 +1321,13 @@ universal (round 3's rule; two `constE`s at different names share one
 `vcgen` call here). -/
 theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
     (hn : ∃ nm, denoteN s₀.store.ns n = some nm) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.constE n
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.constE n
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∀ nm, denoteN s₀.store.ns n = some nm →
-          denoteE s'.store r = some (.const nm [])⌝⦄ := by
+          denoteE s'.store r = some (.const nm []); ⊤⦄ := by
   obtain ⟨nm, hnm⟩ := hn
   have h := constE_spec (mode := mode) (env := env) (fe := fe) s₀ n nm hok hnm
-  to_wp; vcgen [wp% h]
+  vcgen [h]
   rename_i hpost
   obtain ⟨hck, hx, hp, hd⟩ := hpost
   refine ⟨hck, hx, hp, fun nm' hn' => ?_⟩
@@ -1376,13 +1377,13 @@ theorem fnTyOks_not_empty {c : ConstantInfo}
 theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.charOfNatTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.charOfNatTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.charOfNatTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.charOfNatTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.charOfNatTyOk]
+    vcgen [ConRon.Arena.charOfNatTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -1390,8 +1391,8 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       s₀ ci c hok hci
     have hce := fun (s : AState) (n : NIdx) =>
       constE_spec' (mode := mode) (env := env) (fe := fe) s n
-    to_wp; vcgen [ConRon.Arena.charOfNatTyOk, ConRon.Arena.pinNat,
-      ConRon.Arena.pinChar, wp% htc, wp% hce]
+    vcgen [ConRon.Arena.charOfNatTyOk, ConRon.Arena.pinNat,
+      ConRon.Arena.pinChar, htc, hce]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc1 =>
@@ -1477,13 +1478,13 @@ theorem stringOfListTyOk_forallE {c : ConstantInfo} {D B : Expr}
 theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     (oc' : Option ConstantInfo) (hok : CheckOK mode env fe s₀)
     (hrel : OptCI s₀.store oc oc') :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.stringOfListTyOk oc
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.stringOfListTyOk oc'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.stringOfListTyOk oc
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.stringOfListTyOk oc'; ⊤⦄ := by
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    to_wp; vcgen [ConRon.Arena.stringOfListTyOk]
+    vcgen [ConRon.Arena.stringOfListTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -1491,9 +1492,9 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       s₀ ci c hok hci
     have hce := fun (s : AState) (n : NIdx) =>
       constE_spec' (mode := mode) (env := env) (fe := fe) s n
-    to_wp; vcgen [ConRon.Arena.stringOfListTyOk, ConRon.Arena.zeroLevel,
+    vcgen [ConRon.Arena.stringOfListTyOk, ConRon.Arena.zeroLevel,
       ConRon.Arena.pinList, ConRon.Arena.pinChar, ConRon.Arena.pinString,
-      wp% htc, wp% hce]
+      htc, hce]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     case vc1 =>
@@ -1622,9 +1623,9 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
 **THEOREM 1 for `strLitSupported`**: the `Nat` literal guard, then the seven
 string-support declarations at exactly the expected types. -/
 theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.strLitSupported fe
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.strLitSupported env⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.strLitSupported fe
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.strLitSupported env; ⊤⦄ := by
   have hn := fun (s : AState) =>
     natLitSupported_spec (mode := mode) (env := env) (fe := fe) s
   have h1 := fun (s : AState) (oc : Option IConstantInfo) =>
@@ -1648,10 +1649,10 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
   have h7 := fun (s : AState) (oc : Option IConstantInfo) =>
     charOfNatTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
       (env.find? ConLeche.charOfNatName)
-  to_wp; vcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
+  vcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
     ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
     ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
-    ConRon.Arena.pinCharOfNat, wp% hn, wp% h1, wp% h2, wp% h3, wp% h4, wp% h5, wp% h6, wp% h7]
+    ConRon.Arena.pinCharOfNat, hn, h1, h2, h3, h4, h5, h6, h7]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   case vc1 =>

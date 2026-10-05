@@ -47,7 +47,8 @@ namespace ConRon.Bridge.Core
 set_option autoImplicit false
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -204,7 +205,7 @@ theorem ldprTail_spec (henv : ConLeche.EnvWF env)
     (G : Nat → Bool → Prop)
     (hG : Ev (fun F => ∀ r, ldprTail mode (ConLeche.pureFns mode env F) env d nm i
       x y = .ok r → G F r)) :
-    ⦃fun s => ⌜s = s₁⌝⦄
+    ⦃fun s => s = s₁⦄
       (do
         match ← ConRon.Arena.reduceProjCore mode (coreKnot mode fe id fuel) fe d sn i a with
         | some p =>
@@ -212,7 +213,7 @@ theorem ldprTail_spec (henv : ConLeche.EnvWF env)
           | some q => (coreKnot mode fe id fuel).defeq d p q
           | none => (coreKnot mode fe id fuel).defeq d a b
         | none => (coreKnot mode fe id fuel).defeq d a b)
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ G r s'⌝⦄ := by
+    ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   refine triple_seq (reduceProjCore_spec henv hsim s₁ d sn i a nm x hok hsn hx hwx) ?_
   rintro o1 s2 ⟨hok2, hx2, hp2, v1, hv1, hwv1, F1, hF1⟩
   have hR1 : Ev (fun F => ConLeche.reduceProjCore mode (ConLeche.pureFns mode env F)
@@ -262,12 +263,12 @@ theorem lazyDeltaProjReduction_spec (henv : ConLeche.EnvWF env)
       CheckOK mode env fe s₀ → denoteN s₀.store.ns sn = some nm →
       denoteE s₀.store a = some x → denoteE s₀.store b = some y →
       Expr.WScoped d x → Expr.WScoped d y →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.lazyDeltaProjReduction mode (coreKnot mode fe id fuel) fe d sn i
           n a b
-      ⦃⇓? r s' => ⌜DqPost mode env fe s₀ (fun F r =>
+      ⦃fun r s' => DqPost mode env fe s₀ (fun F r =>
           ConLeche.lazyDeltaProjReduction mode (ConLeche.pureFns mode env F) env d
-            nm i n x y = .ok r) r s'⌝⦄
+            nm i n x y = .ok r) r s'; ⊤⦄
   | 0, s₀, a, b, x, y, _, _, _, _, _, _ => by
     rw [ConRon.Arena.lazyDeltaProjReduction]
     exact triple_fail
@@ -333,11 +334,11 @@ theorem defeqProjPair_spec (henv : ConLeche.EnvWF env)
     (x y : Expr) (hok : CheckOK mode env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.defeqProjPair mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ (fun F r =>
+    ⦃fun r s' => DqPost mode env fe s₀ (fun F r =>
         ConLeche.defeqProjPair mode (ConLeche.pureFns mode env F) env d x y = .ok r)
-        r s'⌝⦄ := by
+        r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.defeqProjPair
   rw [tag_of_denote hwf hx, tag_of_denote hwf hy]
@@ -408,10 +409,10 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
     (x y : Expr) (hok : CheckOK mode env fe s₀)
     (hx : denoteE s₀.store a = some x) (hy : denoteE s₀.store b = some y)
     (hwx : Expr.WScoped d x) (hwy : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄ defeqBody mode (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜DqPost mode env fe s₀ (fun F r =>
+    ⦃fun s => s = s₀⦄ defeqBody mode (coreKnot mode fe id fuel) fe d a b
+    ⦃fun r s' => DqPost mode env fe s₀ (fun F r =>
         ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok r)
-        r s'⌝⦄ := by
+        r s'; ⊤⦄ := by
   have hwf := hok.state.wf
   unfold ConRon.Arena.defeqBody
   split

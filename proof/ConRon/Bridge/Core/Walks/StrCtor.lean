@@ -18,7 +18,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -26,9 +27,9 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 extends the store and leaves caches and pins alone, so `CheckOK` survives. -/
 theorem internE_ok_spec (s₀ : AState) (w : ENodeView)
     (hok : CheckOK mode env fe s₀) (hv : s₀.store.ViewOK w) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internE w
-    ⦃⇓? h s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteE s'.store h = denoteEView s'.store w⌝⦄ :=
+    ⦃fun s => s = s₀⦄ internE w
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store h = denoteEView s'.store w; ⊤⦄ :=
   triple_mono (internE_spec s₀ w hok.state.wf hv)
     (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', _, hd⟩ =>
       ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hd⟩)
@@ -46,15 +47,15 @@ theorem strLitConsSpine_spec (cons ofNat nilE : EIdx) (cx ox nx : Expr) :
     ∀ (cs : List Char) (s₀ : AState), CheckOK mode env fe s₀ →
       denoteE s₀.store cons = some cx → denoteE s₀.store ofNat = some ox →
       denoteE s₀.store nilE = some nx →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.strLitConsSpine cons ofNat nilE cs
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.strLitConsSpine cons ofNat nilE cs
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
-          denoteE s'.store r = some (strSpineE cx ox nx cs)⌝⦄ := by
+          denoteE s'.store r = some (strSpineE cx ox nx cs); ⊤⦄ := by
   intro cs
   induction cs with
   | nil =>
     intro s₀ hok _ _ hn
-    to_wp; vcgen [ConRon.Arena.strLitConsSpine]
+    vcgen [ConRon.Arena.strLitConsSpine]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hn⟩
   | cons c cs ih =>
@@ -102,10 +103,10 @@ con-leche's constructor form, staged over the five pins, three `constE`s,
 five interns and the spine. -/
 theorem strLitToConstructor_spec (s₀ : AState) (str : String)
     (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.strLitToConstructor str
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.strLitToConstructor str
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (ConLeche.strLitToConstructor str)⌝⦄ := by
+        denoteE s'.store r = some (ConLeche.strLitToConstructor str); ⊤⦄ := by
   unfold ConRon.Arena.strLitToConstructor
   -- the universe list `[0]`
   refine triple_seq (pinZeroLevel_spec s₀ hok.pins) ?_

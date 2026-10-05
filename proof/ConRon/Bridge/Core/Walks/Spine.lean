@@ -67,7 +67,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -343,12 +344,12 @@ failure arm (free), the definition arm, the not-a-definition arm and the
 not-a-constant arm. -/
 theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldableHead fe e
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldableHead fe e
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x; ⊤⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.unfoldableHead, wp% hfn]
+  vcgen [ConRon.Arena.unfoldableHead, hfn]
   all_goals (bridge_peel; subst_vars)
   -- `getAppFn_spec`'s two preconditions
   case vc5 => exact hok.state
@@ -408,13 +409,13 @@ already took `EnvWF`. -/
 theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.unfoldDefinition fe e
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldDefinition fe e
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ x, denoteE s₀.store e = some x →
           denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
           ∀ y, ConLeche.unfoldDefinition env x = some y →
-            Expr.WScoped d y⌝⦄ := by
+            Expr.WScoped d y; ⊤⦄ := by
   obtain ⟨x, hden, hwx⟩ := hdw
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   have hargs := ExprOps.getAppArgs_spec coreWalkFuel
@@ -423,7 +424,7 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
       (us : LsIdx) => constValAt_spec' (mode := mode) (env := env) (fe := fe)
         s n lps value us
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.unfoldDefinition, wp% hfn, wp% hargs, wp% hmk, wp% hcv]
+  vcgen [ConRon.Arena.unfoldDefinition, hfn, hargs, hmk, hcv]
   all_goals (bridge_peel; subst_vars)
   all_goals (bridge_peel; subst_vars)
   -- the callees' preconditions
@@ -545,12 +546,12 @@ relation is `SimVOp`'s — here spelled as the equation it is, because
 con-leche's `headHint` takes no fuel.  Five verification conditions. -/
 theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headHint fe e
-    ⦃⇓? h s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ h = ConLeche.headHint env x⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.headHint fe e
+    ⦃fun h s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ h = ConLeche.headHint env x; ⊤⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.headHint, wp% hfn]
+  vcgen [ConRon.Arena.headHint, hfn]
   all_goals (bridge_peel; subst_vars)
   -- `getAppFn_spec`'s two preconditions
   case vc5 => exact hok.state
@@ -655,12 +656,12 @@ because the walk peels two subjects; `beq_of_denoteN` is the guard. -/
 theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.sameConstHeads a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
-        s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.sameConstHeads a b
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y; ⊤⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.sameConstHeads, wp% hfn]
+  vcgen [ConRon.Arena.sameConstHeads, hfn]
   -- Thirteen verification conditions since the twin tests the tags first
   -- (task #97-P5-Core round 4): the four callee preconditions, the verdict,
   -- and for each of the four tests its view-side catch-all AND its tag-side
@@ -853,16 +854,16 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.defeqSpine (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r⌝⦄ := by
+        SimBOp (fun F => ConLeche.defeqSpineFueled mode env F d x y) r; ⊤⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   have hag := ExprOps.getAppArgs_spec coreWalkFuel
   have hdl := defEqList_go hsim d
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  to_wp; vcgen [ConRon.Arena.defeqSpine, wp% hfn, wp% hag, wp% lvlsEq?_spec (mode := mode) (env := env) (fe := fe), wp% hdl]
+  vcgen [ConRon.Arena.defeqSpine, hfn, hag, lvlsEq?_spec (mode := mode) (env := env) (fe := fe), hdl]
   all_goals (bridge_peel; subst_vars)
   -- the four spine reads' `StateOK`/`isSome` preconditions, and the two
   -- `CheckOK`s of `lvlsEq?` and the list comparison
@@ -982,15 +983,15 @@ apply the rule at all. -/
 theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
     (d : Nat) (hok : StateOK s₀) (hv : (denoteE s₀.store v).isSome = true)
     (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.instantiate1Fast fuel e v d
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.instantiate1Fast fuel e v d
+    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1C = ∅ ∧
         ∀ ve, denoteE s₀.store v = some ve →
-          ExprOps.Inst1At ve d s₀.store e s'.store r⌝⦄ := by
+          ExprOps.Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
   obtain ⟨ve, hve⟩ := Option.isSome_iff_exists.mp hv
   have hb := ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2, _hbm, h3, h4, h5, h6⟩ := hpost
   refine ⟨h1, h2, h3, h4, h5, fun w hw => ?_⟩
@@ -1021,19 +1022,19 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hdx : denoteE s₀.store body₁ = some x)
     (hdy : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d (.lam t x m₁)) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁ body₁ m₁ b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.etaCertFueled mode env F d t x m₁ y)
-          r⌝⦄ := by
+          r; ⊤⦄ := by
   obtain ⟨hwt, hwx⟩ : Expr.WScoped d t ∧ Expr.WScoped d x := by
     simpa only [Expr.WScoped] using hwa
   have hio := hsim.inferIO'
   have hwh := hsim.whnf'
   have hdq := hsim.defeq'
   have hi1 := instantiate1Fast_specE coreWalkFuel
-  to_wp; vcgen [ConRon.Arena.etaCert, wp% hio, wp% hwh, wp% hdq, wp% hi1]
+  vcgen [ConRon.Arena.etaCert, hio, hwh, hdq, hi1]
   all_goals (bridge_peel; subst_vars)
   -- the sixteen callee preconditions
   case vc21 => exact hok

@@ -46,7 +46,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -69,30 +70,30 @@ con-leche's `toConstantVal` of whatever the constant denotes.  Answer shape:
 the constant comes out of the index. -/
 theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
     (ht : ci.isTowerEntry = false) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ci.toConstantVal
-    ⦃⇓? v s' => ⌜s' = s₀ ∧ ∀ c, Frontend.denoteCI s₀.store ci = some c →
-        Frontend.denoteCV s₀.store v = some c.toConstantVal⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ci.toConstantVal
+    ⦃fun v s' => s' = s₀ ∧ ∀ c, Frontend.denoteCI s₀.store ci = some c →
+        Frontend.denoteCV s₀.store v = some c.toConstantVal; ⊤⦄ := by
   cases ci with
   | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
   | axiomInfo v =>
-    to_wp; vcgen [IConstantInfo.toConstantVal]
+    vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
     obtain ⟨cv, hcv, rfl⟩ := hc; exact hcv
   | ctorInfo v nP nF =>
-    to_wp; vcgen [IConstantInfo.toConstantVal]
+    vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
     obtain ⟨cv, hcv, rfl⟩ := hc; exact hcv
   | defnInfo v e hint =>
-    to_wp; vcgen [IConstantInfo.toConstantVal]
+    vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     obtain ⟨cv, x, hcv, _, rfl⟩ := denoteCI_defnInfo_inv hc; exact hcv
   | thmInfo v e =>
-    to_wp; vcgen [IConstantInfo.toConstantVal]
+    vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI] at hc
@@ -100,7 +101,7 @@ theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
     · rename_i cv x hcv _; cases hc; exact hcv
     · simp at hc
   | indInfo v caps =>
-    to_wp; vcgen [IConstantInfo.toConstantVal]
+    vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI] at hc
@@ -108,7 +109,7 @@ theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
     · rename_i cv x hcv _; cases hc; exact hcv
     · simp at hc
   | recInfo v mI rP rs =>
-    to_wp; vcgen [IConstantInfo.toConstantVal]
+    vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI] at hc
@@ -339,20 +340,20 @@ type or a declared fvar type, both reached through another read).
 Structural on `k` on both sides. -/
 theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
     CheckOK mode env fe s₀ → (∃ x, denoteE s₀.store h = some x) →
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.peelNeverPis k h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
-        denoteEO s₀.store r = some (x.peelNeverPis k)⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.peelNeverPis k h
+    ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
+        denoteEO s₀.store r = some (x.peelNeverPis k); ⊤⦄ := by
   induction k with
   | zero =>
     intro s₀ h _ _
-    to_wp; vcgen [ConRon.Arena.peelNeverPis]
+    vcgen [ConRon.Arena.peelNeverPis]
     bridge_peel; subst_vars
     refine ⟨rfl, fun x hx => ?_⟩
     simp only [denoteEO, hx, Option.map_some, Expr.peelNeverPis]
   | succ k ih =>
     intro s₀ h hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
-    to_wp; vcgen [ConRon.Arena.peelNeverPis, wp% ih]
+    vcgen [ConRon.Arena.peelNeverPis, ih]
     all_goals (bridge_peel; subst_vars)
     -- tag first, then the binder projection (task #97-P5-Core round 6)
     case vc1 =>
@@ -385,21 +386,21 @@ theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — **THEOREM 1
 for `numArgs`**, in answer shape.  The arena's walk is fueled and FAILS at
-fuel `0`; `⇓?` claims nothing of a failure, so the equation is unconditional
+fuel `0`; `; ⊤` claims nothing of a failure, so the equation is unconditional
 on success. -/
 theorem numArgs_spec' (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
     CheckOK mode env fe s₀ → (∃ x, denoteE s₀.store h = some x) →
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.numArgs fuel h
-    ⦃⇓? n s' => ⌜s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
-        n = x.numArgs⌝⦄ := by
+    ⦃fun s => s = s₀⦄ ConRon.Arena.numArgs fuel h
+    ⦃fun n s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
+        n = x.numArgs; ⊤⦄ := by
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    to_wp; vcgen [ConRon.Arena.numArgs]
+    vcgen [ConRon.Arena.numArgs]
   | succ fuel ih =>
     intro s₀ h hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
-    to_wp; vcgen [ConRon.Arena.numArgs, wp% ih]
+    vcgen [ConRon.Arena.numArgs, ih]
     all_goals (bridge_peel; subst_vars)
     -- tag first, then the `app` projection (task #97-P5-Core round 6)
     case vc2 => exact hok
@@ -428,10 +429,10 @@ answer).  The level is read back with `readLevel`, which leaves the state
 alone. -/
 theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
     (hok : CheckOK mode env fe s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.residualPW r
-    ⦃⇓? pw s' => ⌜s' = s₀ ∧ ∀ ox, denoteEO s₀.store r = some ox →
-        pw = ConLeche.residualPW ox⌝⦄ := by
-  to_wp; vcgen [ConRon.Arena.residualPW]
+    ⦃fun s => s = s₀⦄ ConRon.Arena.residualPW r
+    ⦃fun pw s' => s' = s₀ ∧ ∀ ox, denoteEO s₀.store r = some ox →
+        pw = ConLeche.residualPW ox; ⊤⦄ := by
+  vcgen [ConRon.Arena.residualPW]
   all_goals (bridge_peel; subst_vars)
   -- tag first, then the `sort` projection (task #97-P5-Core round 6)
   case vc1 =>
@@ -460,17 +461,17 @@ for `headTypePW`**, in answer shape (the head is `getAppFn`'s answer). -/
 theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headTypePW fe h n
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.headTypePW fe h n
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store h = some x →
-        r = ConLeche.headTypePW env.find? x n⌝⦄ := by
+        r = ConLeche.headTypePW env.find? x n; ⊤⦄ := by
   obtain ⟨x₀, hx₀⟩ := hpre
   have hpeel := fun (s : AState) (k : Nat) (e : EIdx) =>
     peelNeverPis_spec' (mode := mode) (env := env) (fe := fe) k s e
   have hres := fun (s : AState) (r : Option EIdx) =>
     residualPW_spec' (mode := mode) (env := env) (fe := fe) s r
   have htcv := toConstantVal_nt_spec
-  to_wp; vcgen [ConRon.Arena.headTypePW, wp% hpeel, wp% hres, wp% htcv]
+  vcgen [ConRon.Arena.headTypePW, hpeel, hres, htcv]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' preconditions
@@ -585,17 +586,17 @@ for `typeSortPW`**, in answer shape: `annotPwPi` calls it on the knot's
 theorem typeSortPW_spec' (fuel : Nat) (s₀ : AState) (T : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store T = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.typeSortPW fe fuel T
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.typeSortPW fe fuel T
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store T = some x →
-        r = ConLeche.typeSortPW env.find? x⌝⦄ := by
+        r = ConLeche.typeSortPW env.find? x; ⊤⦄ := by
   obtain ⟨x₀, hx₀⟩ := hpre
   have hfn := ExprOps.getAppFn_spec fuel
   have hna := fun (s : AState) (e : EIdx) =>
     numArgs_spec' (mode := mode) (env := env) (fe := fe) fuel s e
   have hht := fun (s : AState) (e : EIdx) (n : Nat) =>
     headTypePW_spec' (mode := mode) (env := env) (fe := fe) s e n
-  to_wp; vcgen [ConRon.Arena.typeSortPW, wp% hfn, wp% hna, wp% hht]
+  vcgen [ConRon.Arena.typeSortPW, hfn, hna, hht]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' preconditions
@@ -627,15 +628,15 @@ for `headProofPW`**, in answer shape (the head is `getAppFn`'s answer). -/
 theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store h = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.headProofPW fe fuel h
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.headProofPW fe fuel h
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store h = some x →
-        r = ConLeche.headProofPW env.find? x⌝⦄ := by
+        r = ConLeche.headProofPW env.find? x; ⊤⦄ := by
   obtain ⟨x₀, hx₀⟩ := hpre
   have hts := fun (s : AState) (e : EIdx) =>
     typeSortPW_spec' (mode := mode) (env := env) (fe := fe) fuel s e
   have htcv := toConstantVal_nt_spec
-  to_wp; vcgen [ConRon.Arena.headProofPW, wp% hts, wp% htcv]
+  vcgen [ConRon.Arena.headProofPW, hts, htcv]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' preconditions
@@ -775,15 +776,15 @@ subjects. -/
 theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.proofPW fe fuel a
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.proofPW fe fuel a
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store a = some x →
-        r = ConLeche.proofPW env.find? x⌝⦄ := by
+        r = ConLeche.proofPW env.find? x; ⊤⦄ := by
   obtain ⟨x₀, hx₀⟩ := hpre
   have hfn := ExprOps.getAppFn_spec fuel
   have hhp := fun (s : AState) (e : EIdx) =>
     headProofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s e
-  to_wp; vcgen [ConRon.Arena.proofPW, wp% hfn, wp% hhp]
+  vcgen [ConRon.Arena.proofPW, hfn, hhp]
   all_goals (bridge_peel; subst_vars)
   -- tag first, then the binder projection (task #97-P5-Core round 6)
   case vc1 =>
@@ -818,13 +819,13 @@ subjects, which callers reach through `whnfCore` answers). -/
 theorem notProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.notProofFast fe fuel a
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.notProofFast fe fuel a
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store a = some x →
-        b = ConLeche.notProofFast env.find? x⌝⦄ := by
+        b = ConLeche.notProofFast env.find? x; ⊤⦄ := by
   have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
     hok hpre
-  to_wp; vcgen [ConRon.Arena.notProofFast, wp% hb]
+  vcgen [ConRon.Arena.notProofFast, hb]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   all_goals
@@ -837,13 +838,13 @@ theorem notProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
 theorem isProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store a = some x) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.isProofFast fe fuel a
-    ⦃⇓? b s' => ⌜CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.isProofFast fe fuel a
+    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store a = some x →
-        b = ConLeche.isProofFast env.find? x⌝⦄ := by
+        b = ConLeche.isProofFast env.find? x; ⊤⦄ := by
   have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
     hok hpre
-  to_wp; vcgen [ConRon.Arena.isProofFast, wp% hb]
+  vcgen [ConRon.Arena.isProofFast, hb]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   all_goals
@@ -906,18 +907,18 @@ theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
     (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.annotPwPi (coreKnot mode fe id fuel) fe d body'
-    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun pw s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimVOp
           (fun F => ConLeche.annotPwPi (ConLeche.pureFns mode env F) env d x)
-          pw⌝⦄ := by
+          pw; ⊤⦄ := by
   have hts := typeSortPW_spec' (mode := mode) (env := env) (fe := fe)
     coreWalkFuel s₀ body' hok ⟨x, hden⟩
   have hi := hsim.inferIO'
   have hn := hsim.whnf'
-  to_wp; vcgen [ConRon.Arena.annotPwPi, ConRon.Arena.ensureSort, wp% hts, wp% hi, wp% hn]
+  vcgen [ConRon.Arena.annotPwPi, ConRon.Arena.ensureSort, hts, hi, hn]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the reader answers
@@ -962,18 +963,18 @@ theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (body' : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store body' = some x)
     (hw : Expr.WScoped d x) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.annotPwLam (coreKnot mode fe id fuel) fe d body'
-    ⦃⇓? pw s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun pw s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimVOp
           (fun F => ConLeche.annotPwLam (ConLeche.pureFns mode env F) env d x)
-          pw⌝⦄ := by
+          pw; ⊤⦄ := by
   have hpp := proofPW_spec' (mode := mode) (env := env) (fe := fe)
     coreWalkFuel s₀ body' hok ⟨x, hden⟩
   have hi := hsim.inferIO'
   have hn := hsim.whnf'
-  to_wp; vcgen [ConRon.Arena.annotPwLam, ConRon.Arena.ensureSort, wp% hpp, wp% hi, wp% hn]
+  vcgen [ConRon.Arena.annotPwLam, ConRon.Arena.ensureSort, hpp, hi, hn]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the reader answers
@@ -1138,20 +1139,20 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.propIrrel (coreKnot mode fe id fuel) fe d a b
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r⌝⦄ := by
+        SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r; ⊤⦄ := by
   have hnp := fun (s : AState) (e : EIdx) =>
     notProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
   have hip := fun (s : AState) (e : EIdx) =>
     isProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
   have hi := hsim.inferIO'
   have hn := hsim.whnf'
-  to_wp; vcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
-    ConRon.Arena.liftFueled, wp% hnp, wp% hip, wp% hi, wp% hn,
-    wp% lvlEq?_spec (mode := mode) (env := env) (fe := fe)]
+  vcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
+    ConRon.Arena.liftFueled, hnp, hip, hi, hn,
+    lvlEq?_spec (mode := mode) (env := env) (fe := fe)]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' `CheckOK` and pin preconditions

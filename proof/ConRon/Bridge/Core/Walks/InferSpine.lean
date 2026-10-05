@@ -27,7 +27,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -62,9 +63,9 @@ and its argument vector. -/
 theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : StateOK s₀) (hden : denoteE s₀.store e = some x)
     (htag : (e.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ headAndArgs e
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ denoteE s₀.store r.1 = some x.getAppFn ∧
-        Frontend.denoteEList s₀.store r.2.toList = some x.getAppArgs⌝⦄ := by
+    ⦃fun s => s = s₀⦄ headAndArgs e
+    ⦃fun r s' => s' = s₀ ∧ denoteE s₀.store r.1 = some x.getAppFn ∧
+        Frontend.denoteEList s₀.store r.2.toList = some x.getAppArgs; ⊤⦄ := by
   unfold headAndArgs
   rw [ite_eq_left htag]
   refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ e hok
@@ -75,7 +76,7 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (by rw [hden]; rfl)) ?_
   rintro va s2 ⟨hs2, hrelA⟩
   subst s2
-  to_wp; vcgen
+  vcgen
   subst_vars
   exact ⟨rfl, hrelF x hden, by simpa using hrelA x hden⟩
 
@@ -203,14 +204,14 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       Expr.WScoped d (tyx.instantiateList ws) →
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.inferSpine mode (coreKnot mode fe id fuel) fe d ty acc
           args i
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
             ∃ F, ConLeche.inferSpine (pureFns mode env F) d tyx ws xs
-              = .ok v⌝⦄ := by
+              = .ok v; ⊤⦄ := by
   intro k
   induction k with
   | zero =>
@@ -352,14 +353,14 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
       Expr.WScoped d (tyx.instantiateList ws) →
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.inferSpineIO mode
           (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d ty acc args i
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
             ∃ F, ConLeche.inferSpineIO (pureFns mode env F) d tyx ws xs
-              = .ok v⌝⦄ := by
+              = .ok v; ⊤⦄ := by
   intro k
   induction k with
   | zero =>

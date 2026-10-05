@@ -27,7 +27,7 @@ the four places the proof spends something:
    itself (`quickDefEq_bnd`);
 3. *a failure lands at the same binder* — `PeelOK` drops the message: a
    pending mismatch only ever turns an `ok true` into a throw, and
-   `⇓?` claims nothing of a throw;
+   the `⊤` exception postcondition claims nothing of a throw;
 4. *fuel is existential* — `isDefEqCore_mono`.
 
 The two equality short-circuits (`a == b` at the residuals, `da == db` at the
@@ -43,7 +43,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -143,7 +144,7 @@ theorem isDefEqCore_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
 chain's continuation at the opened pair `oa`, `ob` — the entry point's
 `false` (and then `x` is `false`), or its `true` with no mismatch pending
 (and then `x` is `true`).  A pending mismatch turns the chain's `true` into
-a throw, which `⇓?` does not see: the message is not part of the claim. -/
+a throw, which the `⊤` exception postcondition does not see: the message is not part of the claim. -/
 def PeelOK (mode : CheckMode) (env : Env) (F j : Nat) (oa ob : Expr)
     (mism x : Bool) : Prop :=
   (ConLeche.isDefEqCore mode env F j oa ob = .ok false ∧ x = false) ∨
@@ -251,8 +252,8 @@ variable {fe : IFEnv} {fuel : Nat}
 /-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — the peel's
 outward step answers only `true`, and only with no mismatch pending. -/
 theorem defeqPeelDone_spec (s₀ : AState) (mism ml : Bool) :
-    ⦃fun s => ⌜s = s₀⌝⦄ defeqPeelDone mism ml
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ mism = false ∧ r = true⌝⦄ := by
+    ⦃fun s => s = s₀⦄ defeqPeelDone mism ml
+    ⦃fun r s' => s' = s₀ ∧ mism = false ∧ r = true; ⊤⦄ := by
   unfold defeqPeelDone
   cases mism with
   | true =>
@@ -262,7 +263,7 @@ theorem defeqPeelDone_spec (s₀ : AState) (mism ml : Bool) :
     · exact triple_fail
   | false =>
     simp only [Bool.false_eq_true, ite_false]
-    to_wp; vcgen with finish
+    vcgen with finish
 
 /-- con-leche: none — the equality short-circuit: two equal handles are one
 opened pair, and the chain's syntactic fast path answers `true`. -/
@@ -270,11 +271,11 @@ theorem peel_eq_case (s₀ : AState) (a b : EIdx) (j : Nat) (ws : List Expr)
     (mism ml : Bool) (ca cb : Expr) (hok : CheckOK mode env fe s₀)
     (ha : denoteE s₀.store a = some ca) (hb : denoteE s₀.store b = some cb)
     (hab : (a == b) = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ defeqPeelDone mism ml
-    ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ defeqPeelDone mism ml
+    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ F, PeelOK mode env F j (ca.instantiateList ws 0)
-          (cb.instantiateList ws 0) mism x⌝⦄ := by
+          (cb.instantiateList ws 0) mism x; ⊤⦄ := by
   have hab' : a = b := eq_of_beq hab
   subst hab'
   obtain rfl : ca = cb := Option.some.inj (ha.symm.trans hb)
@@ -292,12 +293,12 @@ theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
     (hvec : ExprOps.InstLVec s₀.store fvs ws)
     (hwa : Expr.WScoped (d + k) (ca.instantiateList ws 0))
     (hwb : Expr.WScoped (d + k) (cb.instantiateList ws 0)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       defeqPeelLeaf (coreKnot mode fe id fuel) d a b k fvs mism ml
-    ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ F, PeelOK mode env F (d + k) (ca.instantiateList ws 0)
-          (cb.instantiateList ws 0) mism x⌝⦄ := by
+          (cb.instantiateList ws 0) mism x; ⊤⦄ := by
   unfold defeqPeelLeaf
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ a fvs 0 ws
     hok.state hvec (by rw [ha]; rfl)) ?_
@@ -318,7 +319,7 @@ theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
   cases v with
   | false =>
     simp only [Bool.not_false, ite_true]
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok3, hx03, hp03, F, .inl ⟨hF, rfl⟩⟩
   | true =>
     simp only [Bool.not_true, Bool.false_eq_true, ite_false]
@@ -415,12 +416,12 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       denoteE s₀.store b = some cb → ExprOps.InstLVec s₀.store fvs ws →
       Expr.WScoped (d + k) (ca.instantiateList ws 0) →
       Expr.WScoped (d + k) (cb.instantiateList ws 0) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         defeqPeel mode (coreKnot mode fe id fuel) d peel a b k fvs mism ml
-      ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ F, PeelOK mode env F (d + k) (ca.instantiateList ws 0)
-            (cb.instantiateList ws 0) mism x⌝⦄ := by
+            (cb.instantiateList ws 0) mism x; ⊤⦄ := by
   intro peel
   induction peel with
   | zero =>
@@ -498,7 +499,7 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
         denoteE s4.store t2 = some (tdb.instantiateList ws 0) →
         (∃ F1, ∀ F, F1 ≤ F → ConLeche.isDefEqCore mode env F (d + k)
           (tda.instantiateList ws 0) (tdb.instantiateList ws 0) = .ok dq) →
-        ⦃fun s => ⌜s = s4⌝⦄
+        ⦃fun s => s = s4⦄
           (if (!dq) = true then pure false
            else do
              let fv ← internFVarE (d + k) t2
@@ -506,18 +507,18 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
                (fvs.push fv) (mism || (mode.verifiedChecks && !(ma == mb)))
                (if (mode.verifiedChecks && !(ma == mb)) = true then
                   a.tag == ETag.lam else ml))
-        ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
             s'.pins = s₀.pins ∧
             ∃ F, PeelOK mode env F (d + k)
               (bndE (a.tag == ETag.lam) (tda.instantiateList ws 0)
                 (cba.instantiateList ws 1) mA)
               (bndE (a.tag == ETag.lam) (tdb.instantiateList ws 0)
-                (cbb.instantiateList ws 1) mB) mism x⌝⦄ := by
+                (cbb.instantiateList ws 1) mB) mism x; ⊤⦄ := by
       intro t2 dq s4 hok4 hx04 hp04 ht2 ⟨F1, hF1⟩
       cases dq with
       | false =>
         simp only [Bool.not_false, ite_true]
-        to_wp; vcgen; subst_vars
+        vcgen; subst_vars
         exact ⟨hok4, hx04, hp04, peel_step_pure (F2 := 0)
           (mm := mode.verifiedChecks && !(ma == mb)) (a.tag == ETag.lam) hF1
           (fun _ => rfl) (fun h => absurd h (by simp)) hmm⟩
@@ -600,13 +601,13 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     (hwb : Expr.WScoped d
       (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2))
     (hne : (bndE isLam t1 b1 m1 == bndE isLam t2 b2 m2) = false) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       defeqBinders mode (coreKnot mode fe id fuel) d ty1 body1 m1 ty2 body2 m2
         isLam
-    ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ F, ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
-          (bndE isLam t1 b1 m1) (bndE isLam t2 b2 m2) = .ok (some x)⌝⦄ := by
+          (bndE isLam t1 b1 m1) (bndE isLam t2 b2 m2) = .ok (some x); ⊤⦄ := by
   obtain ⟨hwt1, hwb1⟩ := wscoped_bndE.mp
     (show Expr.WScoped d (bndE isLam t1 b1 m1) from hwa)
   obtain ⟨hwt2, hwb2⟩ := wscoped_bndE.mp
@@ -620,7 +621,7 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
   cases v with
   | false =>
     simp only [Bool.not_false, ite_true]
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok1, hx1, hp1, quick_step_pure (F2 := 0)
       (mm := mode.verifiedChecks && !(m1.pw == m2.pw)) isLam hne hdq
       (fun _ => rfl) (fun h => absurd h (by simp)) id⟩

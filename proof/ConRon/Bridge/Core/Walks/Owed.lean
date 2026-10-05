@@ -141,7 +141,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -372,27 +373,27 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
         ∀ x ∈ xs, Expr.WScoped d x) →
       (∃ ys, Frontend.denoteEList s₀.store bs = some ys ∧
         ∀ y ∈ ys, Expr.WScoped d y) →
-      ⦃fun s => ⌜s = s₀⌝⦄
+      ⦃fun s => s = s₀⦄
         ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∀ xs ys, Frontend.denoteEList s₀.store as = some xs →
             Frontend.denoteEList s₀.store bs = some ys →
-            SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys) r⌝⦄ := by
+            SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys) r; ⊤⦄ := by
   intro as
   induction as with
   | nil =>
     intro bs s₀ hok hda hdb
     cases bs with
     | nil =>
-      to_wp; vcgen [ConRon.Arena.defEqList]
+      vcgen [ConRon.Arena.defEqList]
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
       obtain rfl := denoteEList_nil_inv hx
       obtain rfl := denoteEList_nil_inv hy
       exact ⟨0, defEqListFueled_nil⟩
     | cons b bs' =>
-      to_wp; vcgen [ConRon.Arena.defEqList.eq_def]
+      vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
       obtain rfl := denoteEList_nil_inv hx
@@ -402,7 +403,7 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     intro bs s₀ hok hda hdb
     cases bs with
     | nil =>
-      to_wp; vcgen [ConRon.Arena.defEqList.eq_def]
+      vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
       obtain ⟨x, xs', _, _, rfl⟩ := denoteEList_cons_inv hx
@@ -410,7 +411,7 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       exact ⟨0, defEqListFueled_rn⟩
     | cons b bs' =>
       have hdq := hsim.defeq'
-      to_wp; vcgen [ConRon.Arena.defEqList, wp% hdq, wp% ih]
+      vcgen [ConRon.Arena.defEqList, hdq, ih]
       all_goals (bridge_peel; subst_vars)
       -- the two calls' `CheckOK` preconditions
       case vc2 | vc6 => assumption
@@ -480,14 +481,14 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hda : Frontend.denoteEList s₀.store as = some xs)
     (hdb : Frontend.denoteEList s₀.store bs = some ys)
     (hwa : ∀ x ∈ xs, Expr.WScoped d x) (hwb : ∀ y ∈ ys, Expr.WScoped d y) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d as bs
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys)
-          r⌝⦄ := by
+          r; ⊤⦄ := by
   have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2, h3, h4⟩ := hpost
   exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩

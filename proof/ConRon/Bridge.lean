@@ -50,8 +50,8 @@ order.
   after it) import `Bridge/Frontend/Shared.lean` for the intern exactness the
   pin walks read.
 It imports `ConRon.Arena` and con-leche and **nothing else**: no
-`ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `mvcgen`
-comes from `Std.Tactic.Do`, which is in core.
+`ConRon.Refine`, no `ConRon.Generated`, no Aeneas, no Mathlib.  `vcgen`
+and `Std.WP` are in core.
 
 Up to and including the `ExprOps` tier the con-leche half is `Kernel/*`
 alone.  **The Core and Checker tiers also import con-leche's `Verify/*`**

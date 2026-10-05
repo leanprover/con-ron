@@ -42,7 +42,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -70,17 +71,17 @@ nested rule's level comparands, `lvls.map (Level.subst lps us)`. -/
 theorem substLevelsAt_spec (ks : List ConLeche.Name) (vs : List Level) :
     ∀ (lvls : List LIdx) (s₀ : AState) (L : List Level),
       CheckOK mode env fe s₀ → denoteLList s₀.store.ls lvls = some L →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.substLevelsAt ks vs lvls
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.substLevelsAt ks vs lvls
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
-          denoteLList s'.store.ls r = some (L.map (Level.subst ks vs))⌝⦄ := by
+          denoteLList s'.store.ls r = some (L.map (Level.subst ks vs)); ⊤⦄ := by
   intro lvls
   induction lvls with
   | nil =>
     intro s₀ L hok hL
     simp only [denoteLList, Option.some.injEq] at hL
     subst hL
-    to_wp; vcgen [ConRon.Arena.substLevelsAt]
+    vcgen [ConRon.Arena.substLevelsAt]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | cons u us ih =>
@@ -111,7 +112,7 @@ theorem substLevelsAt_spec (ks : List ConLeche.Name) (vs : List Level) :
     have hx02 : Ext s₀.store s2.store := by rw [← hst1]; exact hx2
     refine triple_seq (ih s2 L' hok2 (denoteLListE_ext hx02 _ _ hus)) ?_
     rintro rest s3 ⟨hok3, hx3, hp3, hrest⟩
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
     simp only [List.map_cons]
@@ -123,18 +124,18 @@ canonical rule's level comparands, `cvjLps.map fun p => Level.subst lps us
 theorem substParamLevels_spec (ks : List ConLeche.Name) (vs : List Level) :
     ∀ (ps : List NIdx) (s₀ : AState) (cs : List ConLeche.Name),
       CheckOK mode env fe s₀ → Frontend.denoteNList s₀.store.ns ps = some cs →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.substParamLevels ks vs ps
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.substParamLevels ks vs ps
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           denoteLList s'.store.ls r =
-            some (cs.map fun p => Level.subst ks vs (.param p))⌝⦄ := by
+            some (cs.map fun p => Level.subst ks vs (.param p)); ⊤⦄ := by
   intro ps
   induction ps with
   | nil =>
     intro s₀ cs hok hcs
     simp only [Frontend.denoteNList, Option.some.injEq] at hcs
     subst hcs
-    to_wp; vcgen [ConRon.Arena.substParamLevels]
+    vcgen [ConRon.Arena.substParamLevels]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | cons p ps ih =>
@@ -165,7 +166,7 @@ theorem substParamLevels_spec (ks : List ConLeche.Name) (vs : List Level) :
     have hx02 : Ext s₀.store s2.store := by rw [← hst1]; exact hx2
     refine triple_seq (ih s2 cs' hok2 (denoteNListE_ext hx02 _ _ hps)) ?_
     rintro rest s3 ⟨hok3, hx3, hp3, hrest⟩
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
     simp only [List.map_cons]
@@ -182,18 +183,18 @@ theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
       denoteLs s₀.store.lss us = some usv →
       Frontend.denoteEList s₀.store args = some xs →
       Frontend.denoteEList s₀.store pins = some Ps →
-      ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.instSpinePins lps us args rP pins
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s => s = s₀⦄ ConRon.Arena.instSpinePins lps us args rP pins
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           Frontend.denoteEList s'.store r = some (Ps.map fun p =>
             Expr.instSpine (xs.take rP) (rP - 1)
-              (p.instantiateLevelParams ksv usv))⌝⦄ := by
+              (p.instantiateLevelParams ksv usv)); ⊤⦄ := by
   intro pins
   induction pins with
   | nil =>
     intro s₀ Ps hok _ _ _ hPs
     obtain rfl := denoteEList_nil_inv hPs
-    to_wp; vcgen [ConRon.Arena.instSpinePins]
+    vcgen [ConRon.Arena.instSpinePins]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | cons p ps ih =>
@@ -217,7 +218,7 @@ theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
       (denoteLs_ext hus hx02) (denoteEList_ext hx02 _ _ hxs)
       (denoteEList_ext hx02 _ _ hPs')) ?_
     rintro rest s3 ⟨hok3, hx3, hp3, hrest⟩
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok3, hx02.trans hx3, hp3.trans (hp2.trans hp1), ?_⟩
     simp only [List.map_cons, Frontend.denoteEList, denote_ext hsp hx3, hrest]
@@ -235,14 +236,14 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     (hvs : denoteLs s₀.store.lss us = some vs)
     (hcs : Frontend.denoteNList s₀.store.ns cvjLps = some cs)
     (hxs : Frontend.denoteEList s₀.store args = some xs) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.recFireComparands rl lps us cvjLps args rP
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteLs s'.store.lss r.1 =
           some (ConLeche.recFireComparands rl' ks vs cs xs rP).1 ∧
         Frontend.denoteEList s'.store r.2 =
-          some (ConLeche.recFireComparands rl' ks vs cs xs rP).2⌝⦄ := by
+          some (ConLeche.recFireComparands rl' ks vs cs xs rP).2; ⊤⦄ := by
   obtain ⟨c, f, rr, _hc, hf, _hr, rfl⟩ : ∃ c f rr,
       denoteN s₀.store.ns rl.ctor = some c ∧
       Frontend.denoteFire s₀.store rl.fire = some f ∧
@@ -258,11 +259,11 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
   have hread : ∀ {β : Type} (k : List ConLeche.Name → List Level → AM β)
       (Q : β → AState → Prop),
       (∀ s2, CheckOK mode env fe s2 → s2.store = s₀.store → s2.pins = s₀.pins →
-        ⦃fun s => ⌜s = s2⌝⦄ k ks vs ⦃⇓? r s' => ⌜Q r s'⌝⦄) →
-      ⦃fun s => ⌜s = s₀⌝⦄ (do
+        ⦃fun s => s = s2⦄ k ks vs ⦃fun r s' => Q r s'; ⊤⦄) →
+      ⦃fun s => s = s₀⦄ (do
         let a ← readNamesM lps
         let b ← readLevelsM us
-        k a b) ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+        k a b) ⦃fun r s' => Q r s'; ⊤⦄ := by
     intro β k Q hk
     refine triple_seq (ExprOps.readNamesM_specF s₀ lps hok.caches.readN) ?_
     rintro ks' s1 ⟨hst1, hm1, hp1, hc1, hks1, hN1⟩
@@ -303,7 +304,7 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     rintro ps s5 ⟨hok5, hx5, hp5, hps⟩
     have hlsh4 : denoteLs s4.store.lss lsh = some (Lv.map (Level.subst ks vs)) :=
       denoteLs_of_list_ext hx4 hls hlsh
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok5, hx04.trans hx5, hp5.trans (hp4.trans (hp3.trans hp2)), ?_, ?_⟩
     · rw [denoteLs_ext hlsh4 hx5]; simp [ConLeche.recFireComparands]
@@ -324,7 +325,7 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
     have hok4 : CheckOK mode env fe s4 := hok3.mono ⟨hwf4⟩ hx4 hc4 hp4
     have hx04 : Ext s₀.store s4.store := hx02.trans (hx3.trans hx4)
     have hlsh4 := denoteLs_of_list_ext hx4 hls hlsh
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     refine ⟨hok4, hx04, hp4.trans (hp3.trans hp2), ?_, ?_⟩
     · rw [hlsh4]; simp [ConLeche.recFireComparands]
@@ -344,16 +345,16 @@ for `piResidual`**: the telescope residual along an argument spine. -/
 theorem piResidual_spec : ∀ (as : List EIdx) (s₀ : AState) (h : EIdx) (e : Expr)
     (xs : List Expr), CheckOK mode env fe s₀ → denoteE s₀.store h = some e →
     Frontend.denoteEList s₀.store as = some xs →
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.piResidual h as
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.piResidual h as
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteEO s'.store r = some (ConLeche.piResidual e xs)⌝⦄ := by
+        denoteEO s'.store r = some (ConLeche.piResidual e xs); ⊤⦄ := by
   intro as
   induction as with
   | nil =>
     intro s₀ h e xs hok he hxs
     obtain rfl := denoteEList_nil_inv hxs
-    to_wp; vcgen [ConRon.Arena.piResidual]
+    vcgen [ConRon.Arena.piResidual]
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, ?_⟩
     simp [denoteEO, he, ConLeche.piResidual]
@@ -380,7 +381,7 @@ theorem piResidual_spec : ∀ (as : List EIdx) (s₀ : AState) (h : EIdx) (e : E
     all_goals
       dsimp only
       have hnf := denote_not_forallE hwf hv he (by intro ty b m h; cases h)
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, ?_⟩
       rw [piResidual_cons_none hnf]
@@ -396,20 +397,20 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (his : Frontend.denoteEList s₀.store idx = some is)
     (hwty : Expr.WScoped d ty) (hwms : ∀ z ∈ ms, Expr.WScoped d z)
     (hwis : ∀ z ∈ is, Expr.WScoped d z) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.iotaIndexOk (coreKnot mode fe id fuel) fe d mI rP cnP tyC
         margs idx
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.iotaIndexOkFueled mode env F d mI rP cnP ty
-          ms is) r⌝⦄ := by
+          ms is) r; ⊤⦄ := by
   unfold ConRon.Arena.iotaIndexOk
   split
   next hm =>
     have hres : ConLeche.iotaIndexOkFueled mode env 0 d mI rP cnP ty ms is =
         .ok true := by
       simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, ite_eq_left hm]; rfl
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
   next hm =>
@@ -423,7 +424,7 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           .ok false := by
         simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, ite_eq_right hm, hn]
         rfl
-      to_wp; vcgen
+      vcgen
       bridge_peel; subst_vars
       exact ⟨hok1, hx1, hp1, 0, hres⟩
     | some res =>
@@ -827,7 +828,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs
             rP).2
       else pure true : CheckM Bool) = .ok true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ (do
+    ⦃fun s => s = s₁⦄ (do
       let fam ←
         if mode.certs then do
           let tyR ← constTyAt icv us
@@ -846,10 +847,10 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         let x ← mkAppN rhs (args.take rP ++ margs.drop rl.ctorParams)
         pure (some x)
       else pure none : AM (Option EIdx))
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
         s'.pins = s₁.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
-          (Expr.mkAppN (.const cn ls) xs)) d s'.store r⌝⦄ := by
+          (Expr.mkAppN (.const cn ls) xs)) d s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨_hcp, _hinert, hctp, _hnf, hrlc, hrlrhs, _⟩ := rule_denote hrl'
   obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
@@ -952,7 +953,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (Expr.mkAppN (.const cn ls) xs)) d s8.store (some x) :=
           ⟨_, by simp [denoteEO, hxd], fun y hy => by
             cases hy; exact hvw, _, hv⟩
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok8, hx16.trans (hx7.trans hx8), hp8.trans (hp7.trans hp16), hfin⟩
       · rw [ite_eq_right hc3t]
@@ -961,7 +962,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
             (Expr.mkAppN (.const cn ls) xs)) d s6.store none :=
           simOOp_none (hval false hF3)
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok6, hx16, hp16, hfin⟩
     · rw [ite_eq_right hc2t]
@@ -977,7 +978,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           (fun _ _ _ => iotaCertsFueled_mono (by omega) hF2)
           (fun _ _ _ h => by cases h)]
         rfl
-      simp only [pure_bind, Bool.false_eq_true, ite_false]; to_wp; vcgen
+      simp only [pure_bind, Bool.false_eq_true, ite_false]; vcgen
       bridge_peel; subst_vars
       exact ⟨hok5, hx15, hp15, hfin⟩
   · rw [ite_eq_right hc1t]
@@ -992,7 +993,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         (fun _ _ => iotaCertsFueled_mono (by omega) hF1)
         (fun _ _ h => by cases h) (fun _ _ h => by cases h)]
       rfl
-    simp only [pure_bind, Bool.false_eq_true, ite_false]; to_wp; vcgen
+    simp only [pure_bind, Bool.false_eq_true, ite_false]; vcgen
     bridge_peel; subst_vars
     exact ⟨hok3, hx13, hp13, hfin⟩
 
@@ -1012,12 +1013,12 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hn : n = sargs.size)
     (hxs : Frontend.denoteEList s₀.store sargs.toList = some xs)
     (hw : Expr.WScoped d (Expr.mkAppN h xs)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.iotaRecAt mode (coreKnot mode fe id fuel) fe d hd sargs n
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled mode env F d (Expr.mkAppN h xs))
-          d s'.store r⌝⦄ := by
+          d s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   subst hn
   have hxl : xs.length = sargs.size := by rw [denoteEList_len hxs]; simp
@@ -1051,7 +1052,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
             simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
               rw [hE2]; intro hg; exact hne (by rw [← hxl, hg.1])))
-          to_wp; vcgen
+          vcgen
           bridge_peel; subst_vars
           exact ⟨hok, Ext.refl _, rfl, hfin⟩
         · rw [ite_eq_right hne]
@@ -1182,7 +1183,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                           split
                           · refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
                               s'.store = s8.store ∧ s'.pins = s8.pins) ?_ ?_
-                            · to_wp; vcgen
+                            · vcgen
                               bridge_peel; subst_vars
                               exact ⟨hok8, rfl, rfl⟩
                             rintro kp sk ⟨hokk, hstk, hpk⟩
@@ -1225,7 +1226,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                   (fun _ h => by cases h) (fun _ h => by cases h)
                                   (fun _ h => by cases h)]
                                 rfl
-                              to_wp; vcgen
+                              vcgen
                               bridge_peel; subst_vars
                               exact ⟨hok10, hx04.trans hx410, hp410.trans hp04, hfin⟩
                           · refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
@@ -1237,7 +1238,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                             rintro nm sk0 ⟨hokk0, hstk0, hpk0⟩
                             refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
                               s'.store = s8.store ∧ s'.pins = s8.pins) ?_ ?_
-                            · to_wp; vcgen
+                            · vcgen
                               bridge_peel; subst_vars
                               exact ⟨hokk0, hstk0, hpk0⟩
                             rintro kp sk ⟨hokk, hstk, hpk⟩
@@ -1280,7 +1281,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                   (fun _ h => by cases h) (fun _ h => by cases h)
                                   (fun _ h => by cases h)]
                                 rfl
-                              to_wp; vcgen
+                              vcgen
                               bridge_peel; subst_vars
                               exact ⟨hok10, hx04.trans hx410, hp410.trans hp04, hfin⟩
                         · rw [ite_eq_right hcpt]
@@ -1291,7 +1292,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                 (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs rP).2
                               else pure true : CheckM Bool) = .ok true := by rw [hcpf]; rfl
                           refine triple_seq (Q := fun y s' => s' = s8 ∧ y = true) ?_ ?_
-                          · to_wp; vcgen with finish
+                          · vcgen with finish
                           rintro y s10 ⟨hs10, rfl⟩
                           subst s10
                           rw [ite_eq_left rfl]
@@ -1318,7 +1319,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                             (fun h => by rw [hb1f] at h; cases h)
                             (fun h => by rw [hb1f] at h; cases h)]
                           simp [hb1f]
-                        to_wp; vcgen
+                        vcgen
                         bridge_peel; subst_vars
                         exact ⟨hok8, hx04.trans hx48, hp48.trans hp04, hfin⟩
                   · rw [ite_eq_right hl]
@@ -1327,7 +1328,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                       simOOp_none (F := Fp) (by
                         rw [hT _ (Nat.le_refl _)]
                         exact iotaTail_len hgfm hfindj hfind' (by rw [hmlen, hctp, hnf]; exact hl))
-                    to_wp; vcgen
+                    vcgen
                     bridge_peel; subst_vars
                     exact ⟨hok4, hx04, hp04, hfin⟩
                 next hrl =>
@@ -1336,7 +1337,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                     simOOp_none (F := Fp) (by
                       rw [hT _ (Nat.le_refl _)]
                       exact iotaTail_norule hgfm hfindj (hfr2 hrl))
-                  to_wp; vcgen
+                  vcgen
                   bridge_peel; subst_vars
                   exact ⟨hok4, hx04, hp04, hfin⟩
               next hnd =>
@@ -1345,7 +1346,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                     (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                   simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
                                             exact iotaTail_noctor hgfm hnc)
-                to_wp; vcgen
+                vcgen
                 bridge_peel; subst_vars
                 exact ⟨hok4, hx04, hp04, hfin⟩
             all_goals
@@ -1355,7 +1356,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                   (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                 simOOp_none (F := Fp) (by rw [hT _ (Nat.le_refl _)]
                                           exact iotaTail_nohead hnc)
-              to_wp; vcgen
+              vcgen
               bridge_peel; subst_vars
               exact ⟨hok4, hx04, hp04, hfin⟩
           · rw [ite_eq_right hg]
@@ -1363,7 +1364,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                 (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
               simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
                 rw [hE2]; intro hg'; exact hg ⟨hal, by rw [hg'.2, hlenlps]⟩))
-            to_wp; vcgen
+            vcgen
             bridge_peel; subst_vars
             exact ⟨hok, Ext.refl _, rfl, hfin⟩
       next hnd =>
@@ -1371,7 +1372,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
             (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
           simOOp_none (F := 0) (iotaRecFueled_norec hE1 hnr)
-        to_wp; vcgen
+        vcgen
         bridge_peel; subst_vars
         exact ⟨hok, Ext.refl _, rfl, hfin⟩
   · rw [ite_eq_right htag]
@@ -1386,7 +1387,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         cases h with
         | app f a => exact absurd rfl (hnapp f a)
         | _ => exact hnc))
-    to_wp; vcgen
+    vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hfin⟩
 

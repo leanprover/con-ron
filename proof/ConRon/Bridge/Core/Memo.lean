@@ -54,7 +54,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ## 1. The knot's six slots, unfolded once
 
@@ -185,63 +186,70 @@ every frame condition a caller needs falls out of it by `simp`. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `whnfCoreSet`
 replaces exactly one field of one record. -/
-@[spec, wp_spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreSet e r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
+    ⦃fun s => s = s₀⦄ whnfCoreSet e r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         whnfCoreC := (if s₀.caches.whnfCoreC.size < cacheCap then
-          s₀.caches.whnfCoreC else ∅).insert e r } }⌝⦄ := by
-  to_wp; vcgen [whnfCoreSet] with finish
+          s₀.caches.whnfCoreC else ∅).insert e r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [whnfCoreSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1910-1928 memoEI — `whnfCoreCheapSet`
 replaces exactly one field of one record. -/
-@[spec, wp_spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreCheapSet e r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
+    ⦃fun s => s = s₀⦄ whnfCoreCheapSet e r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         whnfCoreCheapC := (if s₀.caches.whnfCoreCheapC.size < cacheCap then
-          s₀.caches.whnfCoreCheapC else ∅).insert e r } }⌝⦄ := by
-  to_wp; vcgen [whnfCoreCheapSet] with finish
+          s₀.caches.whnfCoreCheapC else ∅).insert e r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [whnfCoreCheapSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `whnfSet`. -/
-@[spec, wp_spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ whnfSet e r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
+    ⦃fun s => s = s₀⦄ whnfSet e r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         whnfC := (if s₀.caches.whnfC.size < cacheCap then
-          s₀.caches.whnfC else ∅).insert e r } }⌝⦄ := by
-  to_wp; vcgen [whnfSet] with finish
+          s₀.caches.whnfC else ∅).insert e r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [whnfSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `inferSet`. -/
-@[spec, wp_spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ inferSet e r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
+    ⦃fun s => s = s₀⦄ inferSet e r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         inferC := (if s₀.caches.inferC.size < cacheCap then
-          s₀.caches.inferC else ∅).insert e r } }⌝⦄ := by
-  to_wp; vcgen [inferSet] with finish
+          s₀.caches.inferC else ∅).insert e r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [inferSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `inferIOSet`, in
 the io grade's own table. -/
-@[spec, wp_spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ inferIOSet e r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
+    ⦃fun s => s = s₀⦄ inferIOSet e r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         inferIOC := (if s₀.caches.inferIOC.size < cacheCap then
-          s₀.caches.inferIOC else ∅).insert e r } }⌝⦄ := by
-  to_wp; vcgen [inferIOSet] with finish
+          s₀.caches.inferIOC else ∅).insert e r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [inferIOSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `annotSet`. -/
-@[spec, wp_spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => ⌜s = s₀⌝⦄ annotSet e r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
+    ⦃fun s => s = s₀⦄ annotSet e r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         annotC := (if s₀.caches.annotC.size < cacheCap then
-          s₀.caches.annotC else ∅).insert e r } }⌝⦄ := by
-  to_wp; vcgen [annotSet] with finish
+          s₀.caches.annotC else ∅).insert e r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [annotSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1893-1906 memoBI — `defeqSet`, at
 the ORDERED pair and with the verdict. -/
-@[spec, wp_spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
-    ⦃fun s => ⌜s = s₀⌝⦄ defeqSet a b r
-    ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
+@[spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
+    ⦃fun s => s = s₀⦄ defeqSet a b r
+    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
         defeqC := (if s₀.caches.defeqC.size < cacheCap then
-          s₀.caches.defeqC else ∅).insert (a, b) r } }⌝⦄ := by
-  to_wp; vcgen [defeqSet] with finish
+          s₀.caches.defeqC else ∅).insert (a, b) r } }; ⊤⦄ := by
+  dsimp only
+  vcgen [defeqSet] with finish
 
 /-! ## 3. The cache invariant under an insert
 
@@ -572,15 +580,15 @@ theorem memoWhnfCoreFull_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).whnfCore false d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnfCore false d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s'.store r⌝⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnfCore_succ]
   -- the body spec at THIS subject: `e` does not occur in the program, so
   -- `vcgen` would not solve it by unification (as `memoDefeq_step` notes)
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   -- **the stuck tag**: neither the store nor the memo is touched, and the
   -- pure body answers with its own argument
@@ -624,13 +632,13 @@ theorem memoWhnfCoreCheap_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).whnfCore true d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnfCore true d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s'.store r⌝⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnfCoreCheap_succ]
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   case vc1 =>
     rename_i hs
@@ -667,10 +675,10 @@ theorem memoWhnfCore_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).whnfCore c d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnfCore c d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄ := by
+        SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r; ⊤⦄ := by
   cases c
   · exact memoWhnfCoreFull_step henv (hbody false) s₀ d i e hok hden hw
   · exact memoWhnfCoreCheap_step henv (hbody true) s₀ d i e hok hden hw
@@ -687,13 +695,13 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).whnf d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).whnf d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.whnf mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnf_succ]
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   case vc1 =>
     rename_i hs
@@ -730,13 +738,13 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).infer d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).infer d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_infer_succ]
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   case vc1 =>
     rename_i x hx
@@ -768,13 +776,13 @@ theorem memoAnnotate_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).annotate d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).annotate d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_annotate_succ]
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   case vc1 =>
     rename_i x hx
@@ -809,13 +817,13 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).inferIO d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).inferIO d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_inferIO_succ, ite_eq_left hg]
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   case vc1 =>
     rename_i x hx
@@ -850,10 +858,10 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store i = some a)
     (hdb : denoteE s₀.store j = some b)
     (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id (fuel + 1)).defeq d i j
-    ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).defeq d i j
+    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ := by
+        SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄ := by
   rw [coreKnot_defeq_succ]
   -- the spec is instantiated at THIS pair before `vcgen` sees it: `a` and `b`
   -- do not occur in the program, so `vcgen` would leave them as goals (and
@@ -863,12 +871,12 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   -- subject.
   have hb : ∀ (s₁ : AState), CheckOK mode env fe s₁ →
       denoteE s₁.store i = some a → denoteE s₁.store j = some b →
-      ⦃fun s => ⌜s = s₁⌝⦄ defeqBody mode (coreKnot mode fe id fuel) fe d i j
-      ⦃⇓? x s' => ⌜CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
+      ⦃fun s => s = s₁⦄ defeqBody mode (coreKnot mode fe id fuel) fe d i j
+      ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
           s'.pins = s₁.pins ∧
-          SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ :=
+          SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄ :=
     fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb
-  to_wp; vcgen [wp% hb]
+  vcgen [hb]
   all_goals subst_vars
   case vc1 =>
     rename_i x hx
@@ -906,17 +914,17 @@ the whole dispatch. -/
 theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
     (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
     {Q : α → AState → Prop}
-    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (view i >>= f) ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+    (h : ⦃fun s => s = s₀⦄ f v ⦃fun r s' => Q r s'; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ (view i >>= f) ⦃fun r s' => Q r s'; ⊤⦄ := by
   -- `f` is a variable, so the continuation has no spec: it is left as the
   -- verification condition `wp (f v') …`, which `h` discharges once the
   -- view is known to be `v`
-  to_wp; vcgen (errorOnMissingSpec := false)
+  vcgen (errorOnMissingSpec := false)
   bridge_peel; subst_vars
   rename_i v' hv'
   rw [hv] at hv'
   obtain rfl := Option.some.inj hv'
-  exact (wp% h).1 _ rfl
+  exact h.1 _ rfl
 
 
 /-- con-leche: none — **`view_bind_triple` behind the tag-first twin's test**
@@ -928,10 +936,10 @@ catch-all arm IS `e`, so a proof of the view-first form carries over. -/
 theorem tag_view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
     {t : UInt32} (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
     {e : AM α} {Q : α → AState → Prop}
-    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄)
+    (h : ⦃fun s => s = s₀⦄ f v ⦃fun r s' => Q r s'; ⊤⦄)
     (he : v.tagOf ≠ t → f v = e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (if i.tag == t then (view i >>= f) else e)
-      ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+    ⦃fun s => s = s₀⦄ (if i.tag == t then (view i >>= f) else e)
+      ⦃fun r s' => Q r s'; ⊤⦄ := by
   by_cases ht : (i.tag == t) = true
   · rw [ite_eq_left ht]; exact view_bind_triple hv h
   · rw [ite_eq_right ht, ← he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)]
@@ -944,10 +952,10 @@ different errors): each branch is given its own triple. -/
 theorem tag_view_bind_triple_else {α : Type} {s₀ : AState} {i : EIdx}
     {v : ENodeView} {t : UInt32} (hv : s₀.store.view i = some v)
     {f : ENodeView → AM α} {e : AM α} {Q : α → AState → Prop}
-    (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄)
-    (he : v.tagOf ≠ t → ⦃fun s => ⌜s = s₀⌝⦄ e ⦃⇓? r s' => ⌜Q r s'⌝⦄) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (if i.tag == t then (view i >>= f) else e)
-      ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
+    (h : ⦃fun s => s = s₀⦄ f v ⦃fun r s' => Q r s'; ⊤⦄)
+    (he : v.tagOf ≠ t → ⦃fun s => s = s₀⦄ e ⦃fun r s' => Q r s'; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ (if i.tag == t then (view i >>= f) else e)
+      ⦃fun r s' => Q r s'; ⊤⦄ := by
   by_cases ht : (i.tag == t) = true
   · rw [ite_eq_left ht]; exact view_bind_triple hv h
   · rw [ite_eq_right ht]
@@ -961,12 +969,11 @@ instead of as one `vcgen` whose verification conditions carry forty
 inaccessible hypotheses. -/
 theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
     {Q : α → AState → Prop} {R : β → AState → Prop}
-    (hx : ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? a s => ⌜Q a s⌝⦄)
-    (hf : ∀ a s₁, Q a s₁ → ⦃fun s => ⌜s = s₁⌝⦄ f a ⦃⇓? b s => ⌜R b s⌝⦄) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (x >>= f) ⦃⇓? b s => ⌜R b s⌝⦄ := by
-  apply Std.Do.Triple.bind x f hx
-  intro a s hs
-  exact hf a s hs s rfl
+    (hx : ⦃fun s => s = s₀⦄ x ⦃fun a s => Q a s; ⊤⦄)
+    (hf : ∀ a s₁, Q a s₁ → ⦃fun s => s = s₁⦄ f a ⦃fun b s => R b s; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ (x >>= f) ⦃fun b s => R b s; ⊤⦄ := by
+  exact Triple.bind x f (fun a s => Q a s) hx fun a =>
+    ⟨fun s hs => (hf a s hs).le_wp s rfl⟩
 
 
 /-- con-leche: none — **the consequence rule at a pinned state**, for the
@@ -974,28 +981,25 @@ same reason as `triple_seq`: a callee's published postcondition, read by
 name. -/
 theorem triple_mono {α : Type} {x : AM α} {s₀ : AState}
     {Q Q' : α → AState → Prop}
-    (h : ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s => ⌜Q r s⌝⦄)
+    (h : ⦃fun s => s = s₀⦄ x ⦃fun r s => Q r s; ⊤⦄)
     (hq : ∀ r s, Q r s → Q' r s) :
-    ⦃fun s => ⌜s = s₀⌝⦄ x ⦃⇓? r s => ⌜Q' r s⌝⦄ := by
-  refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post h ?_)
-  refine ⟨fun r => ?_, Std.Do.ExceptConds.entails.refl _⟩
-  intro s hp
-  exact hq r s hp
+    ⦃fun s => s = s₀⦄ x ⦃fun r s => Q' r s; ⊤⦄ := by
+  exact ⟨Triple.entails_wp_of_post h hq⟩
 
 
-/-- con-leche: none — **a failure claims nothing** (`⇓?`), at any pinned
+/-- con-leche: none — **a failure claims nothing** (exception postcondition `⊤`), at any pinned
 state and any postcondition: every throwing exit of a staged arm is this. -/
 theorem triple_fail {α : Type} {s₀ : AState} {e : ConRon.Arena.CheckError}
     {Q : α → AState → Prop} :
-    ⦃fun s => ⌜s = s₀⌝⦄ (fail e : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
+    ⦃fun s => s = s₀⦄ (fail e : AM α) ⦃fun r s => Q r s; ⊤⦄ := by
   -- `fail`'s native spec has a schematic postcondition: no verification
   -- condition at all
-  to_wp; vcgen
+  vcgen
 
 /-- con-leche: none — the same at the expression store. -/
 theorem triple_failDanglingE {α : Type} {s₀ : AState}
     {Q : α → AState → Prop} :
-    ⦃fun s => ⌜s = s₀⌝⦄ (failDanglingE : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ :=
+    ⦃fun s => s = s₀⦄ (failDanglingE : AM α) ⦃fun r s => Q r s; ⊤⦄ :=
   triple_fail (Q := Q)
 
 

@@ -58,7 +58,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
@@ -101,9 +102,9 @@ structure WScopedBGoSpec (rec : Std.HashMap (EIdx × Nat) Bool → Nat → EIdx 
   run : ∀ (s₁ : AState) (tbl : Std.HashMap (EIdx × Nat) Bool) (d : Nat)
       (c : EIdx), StateOK s₁ → WScopedMemoA tbl s₁.store →
       (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec tbl d c
-    ⦃⇓? p s' => ⌜s' = s₁ ∧ WScopedMemoA p.2 s₁.store ∧
-        RelV (Expr.wscopedB d) s₁.store c p.1⌝⦄
+    ⦃fun s => s = s₁⦄ rec tbl d c
+    ⦃fun p s' => s' = s₁ ∧ WScopedMemoA p.2 s₁.store ∧
+        RelV (Expr.wscopedB d) s₁.store c p.1; ⊤⦄
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — **THEOREM
 1 for the memoized `wscopedB`**, at one level of the recursion. -/
@@ -114,14 +115,14 @@ theorem wscopedBGo_spec :
   | zero =>
     constructor
     intro s₀ tbl d h _ _ _
-    to_wp; vcgen [wscopedBGo_zero]
+    vcgen [wscopedBGo_zero]
     all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
       MemoVDOK.of_empty, wscopedB_cut_of_derived]
   | succ fuel ih =>
     constructor
     intro s₀ tbl d h hok hm hden
     have hrec := ih.run
-    to_wp; vcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet, wp% hrec]
+    vcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet, hrec]
     all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
       MemoVDOK.of_empty, wscopedB_cut_of_derived]
 
@@ -129,10 +130,10 @@ theorem wscopedBGo_spec :
 for `wscopedBFast`**: one memoized DAG walk from the empty memo. -/
 theorem wscopedBFast_spec (fuel d : Nat) (s₀ : AState) (h : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store h).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ wscopedBFast fuel d h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV (Expr.wscopedB d) s₀.store h r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ wscopedBFast fuel d h
+    ⦃fun r s' => s' = s₀ ∧ RelV (Expr.wscopedB d) s₀.store h r; ⊤⦄ := by
   have hr := (wscopedBGo_spec fuel).run
-  to_wp; vcgen [wscopedBFast, wp% hr]
+  vcgen [wscopedBFast, hr]
   all_goals bridge_vcs [RelV, MemoVDOK.of_empty]
 
 /-! ## 2. The leaf-subset test's pure specification
@@ -288,9 +289,9 @@ structure LeavesSubGoSpec (bl : List (Nat × EIdx))
   run : ∀ (s₁ : AState) (tbl : Std.HashMap EIdx Bool) (c : EIdx),
       StateOK s₁ → (denoteLeaves s₁.store bl).isSome = true →
       LSubMemoA bl tbl s₁.store → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec tbl c
-    ⦃⇓? p s' => ⌜s' = s₁ ∧ LSubMemoA bl p.2 s₁.store ∧
-        LSubAt bl s₁.store c p.1⌝⦄
+    ⦃fun s => s = s₁⦄ rec tbl c
+    ⦃fun p s' => s' = s₁ ∧ LSubMemoA bl p.2 s₁.store ∧
+        LSubAt bl s₁.store c p.1; ⊤⦄
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP —
 **THEOREM 1 for `leavesSubGo`**, at one level of the recursion. -/
@@ -301,13 +302,13 @@ theorem leavesSubGo_spec (bl : List (Nat × EIdx)) :
   | zero =>
     constructor
     intro s₀ tbl h _ _ _ _
-    to_wp; vcgen [leavesSubGo_zero]
+    vcgen [leavesSubGo_zero]
     all_goals bridge_vcs [RelV, LSubAt, LSubMemoA]
   | succ fuel ih =>
     constructor
     intro s₀ tbl h hok hbl hm hden
     have hrec := ih.run
-    to_wp; vcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet, wp% hrec]
+    vcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet, hrec]
     all_goals bridge_vcs [RelV, leavesSub_cut_of_derived]
 
 /-! ## 4. `leafGuard` — `ExprOps.lean:962`
@@ -333,11 +334,11 @@ inherits through `Leaves.lean`'s `fvarLeavesFast_spec`. -/
 theorem leafGuard_spec (fuel : Nat) (s₀ : AState) (fab base : EIdx)
     (hok : StateOK s₀) (hfab : (denoteE s₀.store fab).isSome = true)
     (hbase : (denoteE s₀.store base).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ leafGuard fuel fab base
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ LeafGuardAt s₀.store fab base r⌝⦄ := by
+    ⦃fun s => s = s₀⦄ leafGuard fuel fab base
+    ⦃fun r s' => s' = s₀ ∧ LeafGuardAt s₀.store fab base r; ⊤⦄ := by
   have hfl := fvarLeavesFast_spec fuel
   have hls := fun bl => (leavesSubGo_spec bl fuel).run
-  to_wp; vcgen [leafGuard, wp% hfl, wp% hls]
+  vcgen [leafGuard, hfl, hls]
   all_goals bridge_vcs [LeafGuardAt, LSubAt, LSubMemoA, LeavesEq, RelV,
     MemoVOK.of_empty, LSubMemoA.of_empty, leavesSubSpec_congr,
     leavesSub_cut_of_derived, denoteLeaves_nil]

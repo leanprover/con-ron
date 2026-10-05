@@ -79,7 +79,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ### Attribute hygiene (task #97s round 2, item 1)
 
@@ -623,10 +624,10 @@ in — stands still across it. -/
 structure FvarBSpec : Prop where
   run : ∀ (fuel : Nat) (s₁ : AState) (h : EIdx), StateOK s₁ →
     (denoteE s₁.store h).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ fvarB fuel h
-    ⦃⇓? r s' => ⌜s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
+    ⦃fun s => s = s₁⦄ fvarB fuel h
+    ⦃fun r s' => s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
         s'.pins = s₁.pins ∧ s'.memos.abs1C = s₁.memos.abs1C ∧
-        RelV Expr.fvarRange s₁.store h r⌝⦄
+        RelV Expr.fvarRange s₁.store h r; ⊤⦄
 
 /-! ## Theorem 1 for `abstract1` — `ExprOps.lean:1520`, `:1585` -/
 
@@ -635,12 +636,12 @@ one level of `abstract1Go`'s recursion. -/
 structure Abs1Spec (d : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (h : EIdx) (kk : Nat), StateOK s₁ → Abs1MemoA d s₁ →
     (denoteE s₁.store h).isSome = true →
-    ⦃fun s => ⌜s = s₁⌝⦄ rec h kk
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ rec h kk
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        Abs1At d kk s₁.store h s'.store r⌝⦄
+        Abs1At d kk s₁.store h s'.store r; ⊤⦄
 
 /-! ### The binder intern, with the VIEW-monotonicity conjunct
 
@@ -680,15 +681,15 @@ theorem internLamIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (hbm : s₀.store.viewBM mi = some m)
     (hty : (s₀.store.view ty).isSome = true)
     (hb : (s₀.store.view b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internLamIE ty b mi
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internLamIE ty b mi
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
         s'.store.view h = some (.lam ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ := by
-  to_wp; vcgen [internLamIE]
+        denoteE s'.store h = denoteEView s'.store (.lam ty b m); ⊤⦄ := by
+  vcgen [internLamIE]
   -- **The cons HIT** (task #97-P5-Twin): the probe comes first, the store does
   -- not move, and view monotonicity is `id`.
   case vc1 =>
@@ -719,15 +720,15 @@ theorem internForallEIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (hbm : s₀.store.viewBM mi = some m)
     (hty : (s₀.store.view ty).isSome = true)
     (hb : (s₀.store.view b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internForallEIE ty b mi
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internForallEIE ty b mi
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
         s'.store.view h = some (.forallE ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ := by
-  to_wp; vcgen [internForallEIE]
+        denoteE s'.store h = denoteEView s'.store (.forallE ty b m); ⊤⦄ := by
+  vcgen [internForallEIE]
   -- **The cons HIT** (task #97-P5-Twin): the probe comes first, the store does
   -- not move, and view monotonicity is `id`.
   case vc1 =>
@@ -761,8 +762,8 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
     (hbm : (s₀.store.viewBM mi).isSome = true)
     (hty : (s₀.store.view ty).isSome = true)
     (hb : (s₀.store.view b).isSome = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internBindIE tag ty b mi
-    ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internBindIE tag ty b mi
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
@@ -770,10 +771,10 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
         ∀ m, s₀.store.viewBM mi = some m →
           (s'.store.view h = some (eBindView tag ty b m) ∧
             denoteE s'.store h =
-              denoteEView s'.store (eBindView tag ty b m))⌝⦄ := by
+              denoteEView s'.store (eBindView tag ty b m)); ⊤⦄ := by
   obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hbm
-  have h0 : ⦃fun s => ⌜s = s₀⌝⦄ internBindIE tag ty b mi
-      ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+  have h0 : ⦃fun s => s = s₀⦄ internBindIE tag ty b mi
+      ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
           BMExt s₀.store s'.store ∧
           s'.store.lss = s₀.store.lss ∧
           s'.store.scratchOn = s₀.store.scratchOn ∧
@@ -781,7 +782,7 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
           (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
           s'.store.view h = some (eBindView tag ty b m) ∧
           denoteE s'.store h =
-            denoteEView s'.store (eBindView tag ty b m)⌝⦄ := by
+            denoteEView s'.store (eBindView tag ty b m); ⊤⦄ := by
     rcases (show tag = ETag.lam ∨ tag = ETag.forallE by
         simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htag
         exact htag)
@@ -790,9 +791,7 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
         internLamIE_specV s₀ ty b mi m hwf hmi0 hm hty hb
     · simpa [internBindIE, eBindView, ETag.lam, ETag.forallE] using
         internForallEIE_specV s₀ ty b mi m hwf hmi0 hm hty hb
-  refine Std.Do.Triple.of_entails_wp (Std.Do.Triple.entails_wp_of_post h0 ?_)
-  refine ⟨fun _a => ?_, Std.Do.ExceptConds.entails.refl _⟩
-  intro s' hp
+  refine ⟨Triple.entails_wp_of_post h0 fun _a s' hp => ?_⟩
   obtain ⟨p1, p2, pbe, p3, p4, p5, p6, p7, pvm, p8, p9⟩ := hp
   refine ⟨p1, p2, pbe, p3, p4, p5, p6, p7, pvm, fun m' hm' => ?_⟩
   rw [hm] at hm'
@@ -802,7 +801,7 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta —
 `internRebuiltBindI` at the V shape.  The `same = true` branch answers the
 handle it was given, so the view monotonicity is reflexive there. -/
-@[local spec high, local wp_spec high] theorem internRebuiltBindI_specV (s₀ : AState) (h : EIdx) (same : Bool)
+@[local spec high] theorem internRebuiltBindI_specV (s₀ : AState) (h : EIdx) (same : Bool)
     (tag : UInt32) (ty b : EIdx) (mi : BMIdx) (hwf : StoreWF s₀.store)
     (hmi0 : mi.tag = 0) (htag : ETag.isBind tag = true)
     (hbm : (s₀.store.viewBM mi).isSome = true)
@@ -810,8 +809,8 @@ handle it was given, so the view monotonicity is reflexive there. -/
     (hb : (s₀.store.view b).isSome = true)
     (hsame : ∀ m, s₀.store.viewBM mi = some m → same = true →
       s₀.store.view h = some (eBindView tag ty b m)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internRebuiltBindI h same tag ty b mi
-    ⦃⇓? r s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ internRebuiltBindI h same tag ty b mi
+    ⦃fun r s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
@@ -819,12 +818,12 @@ handle it was given, so the view monotonicity is reflexive there. -/
         ∀ m, s₀.store.viewBM mi = some m →
           (s'.store.view r = some (eBindView tag ty b m) ∧
             denoteE s'.store r =
-              denoteEView s'.store (eBindView tag ty b m))⌝⦄ := by
+              denoteEView s'.store (eBindView tag ty b m)); ⊤⦄ := by
   by_cases hc : same = true
   · have hprog : internRebuiltBindI h same tag ty b mi = pure h := by
       simp [internRebuiltBindI, hc]
     rw [hprog]
-    to_wp; vcgen
+    vcgen
     rename_i s hs
     subst hs
     exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
@@ -852,14 +851,14 @@ theorem abstract1ArmApp_spec (d fuel : Nat)
     (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ abstract1ArmApp d fuel h kk
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ abstract1ArmApp d fuel h kk
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        Abs1At d kk s₁.store h s'.store r⌝⦄ := by
+        Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [abstract1ArmApp, wp% hrec]
+  vcgen [abstract1ArmApp, hrec]
   all_goals try bridge_vcs [Expr.abstract1]
   next =>
     bridge_peel
@@ -882,14 +881,14 @@ theorem abstract1ArmBind_spec (d fuel : Nat)
     (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : ETag.isBind h.tag = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ abstract1ArmBind d fuel h kk
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ abstract1ArmBind d fuel h kk
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        Abs1At d kk s₁.store h s'.store r⌝⦄ := by
+        Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [abstract1ArmBind, wp% hrec]
+  vcgen [abstract1ArmBind, hrec]
   all_goals try bridge_vcs [Expr.abstract1]
   all_goals try bridge_vcs [Expr.abstract1, view_of_viewBindI,
     view_of_viewBindI_wf, isSome_eBindView, view_isSome]
@@ -928,13 +927,13 @@ theorem abstract1ArmFVar_spec (d : Nat) (s₁ : AState) (h : EIdx) (kk : Nat)
     (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.fvar) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ abstract1ArmFVar d h kk
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ abstract1ArmFVar d h kk
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        Abs1At d kk s₁.store h s'.store r⌝⦄ := by
-  to_wp; vcgen [abstract1ArmFVar]
+        Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
+  vcgen [abstract1ArmFVar]
   all_goals try bridge_vcs [Expr.abstract1]
   all_goals (bridge_peel; subst_vars)
   -- the abstracted level: a fresh `bvar kk` is interned.
@@ -959,14 +958,14 @@ theorem abstract1ArmLet_spec (d fuel : Nat)
     (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.letE) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ abstract1ArmLet d fuel h kk
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ abstract1ArmLet d fuel h kk
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        Abs1At d kk s₁.store h s'.store r⌝⦄ := by
+        Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [abstract1ArmLet, wp% hrec]
+  vcgen [abstract1ArmLet, hrec]
   all_goals try bridge_vcs [Expr.abstract1]
   next =>
     bridge_peel
@@ -988,14 +987,14 @@ theorem abstract1ArmProj_spec (d fuel : Nat)
     (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.proj) = true) :
-    ⦃fun s => ⌜s = s₁⌝⦄ abstract1ArmProj d fuel h kk
-    ⦃⇓? r s' => ⌜StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun s => s = s₁⦄ abstract1ArmProj d fuel h kk
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
-        Abs1At d kk s₁.store h s'.store r⌝⦄ := by
+        Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
   have hrec := ih.run
-  to_wp; vcgen [abstract1ArmProj, wp% hrec]
+  vcgen [abstract1ArmProj, hrec]
   all_goals try bridge_vcs [Expr.abstract1]
   next =>
     bridge_peel
@@ -1022,7 +1021,7 @@ theorem abstract1Go_spec (hfv : FvarBSpec) (d : Nat) :
   | zero =>
     constructor
     intro s₀ h kk _ _ _
-    to_wp; vcgen [abstract1Go_zero]
+    vcgen [abstract1Go_zero]
     all_goals bridge_vcs [Expr.abstract1]
   | succ fuel ih =>
     constructor
@@ -1033,8 +1032,8 @@ theorem abstract1Go_spec (hfv : FvarBSpec) (d : Nat) :
     have hlet := abstract1ArmLet_spec d fuel ih
     have hproj := abstract1ArmProj_spec d fuel ih
     have hfvb := hfv.run
-    to_wp; vcgen [abstract1Go_succ, wp% happ, wp% hbind, wp% hfvar, wp% hlet,
-      wp% hproj, wp% hfvb]
+    vcgen [abstract1Go_succ, happ, hbind, hfvar, hlet,
+      hproj, hfvb]
     all_goals try bridge_vcs [Expr.abstract1]
     -- TWO verification conditions survive, against the inlined body's eleven:
     -- the fvar-range cutoff and the catch-all.  Both answer the handle they

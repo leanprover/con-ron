@@ -46,7 +46,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -227,11 +228,11 @@ theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.app) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
   refine view_bind_triple hv ?_
@@ -278,11 +279,11 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.forallE) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -294,24 +295,24 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
     have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2
     have hi : ∀ (s : AState) (d' : Nat) (j : EIdx), CheckOK mode env fe s →
         (∃ e, denoteE s.store j = some e ∧ Expr.WScoped d' e) →
-        ⦃fun s' => ⌜s' = s⌝⦄ (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer d' j
-        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s.store s'.store ∧
+        ⦃fun s' => s' = s⦄ (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer d' j
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s.store s'.store ∧
             s'.pins = s.pins ∧ ∀ e, denoteE s.store j = some e →
-              SimE (ConLeche.inferTypeIO mode env) d' e s'.store r⌝⦄ :=
+              SimE (ConLeche.inferTypeIO mode env) d' e s'.store r; ⊤⦄ :=
       fun s d' j hck hdw => hsim.inferIO' s d' j hck hdw
     have hn : ∀ (s : AState) (d' : Nat) (j : EIdx), CheckOK mode env fe s →
         (∃ e, denoteE s.store j = some e ∧ Expr.WScoped d' e) →
-        ⦃fun s' => ⌜s' = s⌝⦄ (CoreFnsA.ioView (coreKnot mode fe id fuel)).whnf d' j
-        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s.store s'.store ∧
+        ⦃fun s' => s' = s⦄ (CoreFnsA.ioView (coreKnot mode fe id fuel)).whnf d' j
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s.store s'.store ∧
             s'.pins = s.pins ∧ ∀ e, denoteE s.store j = some e →
-              SimE (ConLeche.whnf mode env) d' e s'.store r⌝⦄ :=
+              SimE (ConLeche.whnf mode env) d' e s'.store r; ⊤⦄ :=
       fun s d' j hck hdw => hsim.whnf' s d' j hck hdw
     have hin := fun (s : AState) (fv : EIdx) (hs : StateOK s)
         (hvs : (denoteE s.store fv).isSome = true)
         (hbs : (denoteE s.store b).isSome = true) =>
       instantiate1Fast_specE coreWalkFuel s b fv 0 hs hvs hbs
     simp only [hμ, ite_true]
-    to_wp; vcgen [ConRon.Arena.ensureSort, wp% hi, wp% hn, wp% hin]
+    vcgen [ConRon.Arena.ensureSort, hi, hn, hin]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     all_goals try first
@@ -438,8 +439,8 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
 `triple_pure_post`, which this module does not import). -/
 theorem triple_pure_lam {α : Type} {s₀ : AState} {v : α}
     {Q : α → AState → Prop} (h : Q v s₀) :
-    ⦃fun s => ⌜s = s₀⌝⦄ (pure v : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
-  to_wp; vcgen
+    ⦃fun s => s = s₀⦄ (pure v : AM α) ⦃fun r s => Q r s; ⊤⦄ := by
+  vcgen
   subst_vars; exact h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody — the λ
@@ -449,10 +450,10 @@ clause's result `.forallE ty (bt.abstract1 depth) mb`, the twin's
 theorem inferLamResult_spec {fe : IFEnv} (s₀ : AState) (ty bt : EIdx) (d : Nat)
     (m : BinderMeta) (et vbt : Expr) (hok : CheckOK mode env fe s₀)
     (hdt : denoteE s₀.store ty = some et) (hdb : denoteE s₀.store bt = some vbt) :
-    ⦃fun s => ⌜s = s₀⌝⦄ inferLamResult ty bt d m
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ inferLamResult ty bt d m
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (.forallE et (vbt.abstract1 d) m)⌝⦄ := by
+        denoteE s'.store r = some (.forallE et (vbt.abstract1 d) m); ⊤⦄ := by
   unfold inferLamResult
   refine triple_seq (ExprOps.abstract1Fast_spec fvarBSpec coreWalkFuel s₀ bt d 0
     hok.state (by rw [hdb]; rfl)) ?_
@@ -474,18 +475,18 @@ theorem ensureSort_ioView_spec {fe : IFEnv} {fuel : Nat}
     (hsim : KnotSpec mode env fe fuel) (s₀ : AState) (d : Nat) (j : EIdx)
     (t : Expr) (hok : CheckOK mode env fe s₀)
     (hd : denoteE s₀.store j = some t) (hw : Expr.WScoped d t) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.ensureSort (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d j
-    ⦃⇓? u s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun u s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∃ U, denoteL s'.store.ls u = some U ∧
-          ∃ F, ConLeche.whnf mode env F d t = .ok (.sort U)⌝⦄ := by
+          ∃ F, ConLeche.whnf mode env F d t = .ok (.sort U); ⊤⦄ := by
   unfold ConRon.Arena.ensureSort
-  have hn : ⦃fun s => ⌜s = s₀⌝⦄
+  have hn : ⦃fun s => s = s₀⦄
       (CoreFnsA.ioView (coreKnot mode fe id fuel)).whnf d j
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.whnf mode env) d t s'.store r⌝⦄ :=
+        SimE (ConLeche.whnf mode env) d t s'.store r; ⊤⦄ :=
     hsim.whnf s₀ d j t hok hd hw
   refine triple_seq hn ?_
   rintro wr s1 ⟨hok1, hx1, hp1, W, hW, _, F, hF⟩
@@ -514,11 +515,11 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lam) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -548,12 +549,12 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
       Expr.WScoped.instantiate1 hwt 0 hwb
     have hx02 : Ext s₀.store s2.store := hx1.trans hx2
     -- stage 3: the body's io type
-    have hi3 : ⦃fun s => ⌜s = s2⌝⦄
+    have hi3 : ⦃fun s => s = s2⦄
         (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer (d + 1) ob
-        ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s2.store s'.store ∧
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s2.store s'.store ∧
           s'.pins = s2.pins ∧
           SimE (ConLeche.inferTypeIO mode env) (d + 1)
-            (eb.instantiate1 (.fvar d et) 0) s'.store r⌝⦄ :=
+            (eb.instantiate1 (.fvar d et) 0) s'.store r; ⊤⦄ :=
       hsim.inferIO s2 (d + 1) ob _ hok2 hob hwob
     refine triple_seq hi3 ?_
     rintro bt s3 ⟨hok3, hx3, hp3, vbt, hvbt, hwvbt, F1, hF1⟩
@@ -583,11 +584,11 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     | none =>
       dsimp only
       -- stage 5: the leaf's codomain sort
-      have hi5 : ⦃fun s => ⌜s = s3⌝⦄
+      have hi5 : ⦃fun s => s = s3⦄
           (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer (d + 1) bt
-          ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s3.store s'.store ∧
+          ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s3.store s'.store ∧
             s'.pins = s3.pins ∧
-            SimE (ConLeche.inferTypeIO mode env) (d + 1) vbt s'.store r⌝⦄ :=
+            SimE (ConLeche.inferTypeIO mode env) (d + 1) vbt s'.store r; ⊤⦄ :=
         hsim.inferIO s3 (d + 1) bt vbt hok3 hvbt hwvbt
       refine triple_seq hi5 ?_
       rintro btt s5 ⟨hok5, hx5, hp5, vbtt, hvbtt, hwvbtt, F2, hF2⟩
@@ -631,11 +632,11 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.const) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -646,7 +647,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     dsimp only
     cases hf : fe.find? n with
     | none =>
-      to_wp; vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
+      vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
       subst_vars; exact hok.pins
     | some ci =>
       obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
@@ -660,7 +661,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
         have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
           s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
         simp only [hcv_eq]
-        to_wp; vcgen [wp% hcta]
+        vcgen [hcta]
         all_goals (bridge_peel; subst_vars)
         all_goals clear_tag_hyps
         -- `constTyAt`'s precondition, at the state the arity guard kept
@@ -675,7 +676,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
       · -- `vcgen` does not read the case hypothesis: the guard is rewritten
         -- first, and the failing branch then leaves no condition at all
         simp only [ht, ite_true]
-        to_wp; vcgen
+        vcgen
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1317 inferBodyIO — **the two
@@ -688,11 +689,11 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lit) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -706,7 +707,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     | natVal n =>
       have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      to_wp; vcgen [wp% hn, ConRon.Arena.pinNat, wp% hce]
+      vcgen [hn, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
       -- the pin's precondition, then `constE`'s two
@@ -720,7 +721,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     | strVal str =>
       have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      to_wp; vcgen [wp% hn, ConRon.Arena.pinString, wp% hce]
+      vcgen [hn, ConRon.Arena.pinString, hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
       -- the pin's precondition, then `constE`'s two
@@ -746,11 +747,11 @@ theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.proj) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -838,11 +839,11 @@ theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
               s.store = s4.store → s.pins = s₀.pins →
               (∃ F, ConLeche.inferTypeIO mode env F d (.proj nm k es) =
                 .ok (p.typeAt ls vte.getAppArgs es)) →
-              ⦃fun s' => ⌜s' = s⌝⦄ entry.typeAt us targs pe
-              ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+              ⦃fun s' => s' = s⦄ entry.typeAt us targs pe
+              ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
                   s'.pins = s₀.pins ∧
                   SimE (ConLeche.inferTypeIO mode env) d (.proj nm k es)
-                    s'.store r⌝⦄ := by
+                    s'.store r; ⊤⦄ := by
             intro s hs hst hps hF
             refine triple_mono (IProjEntry.typeAt_spec s entry us targs pe p ls
               vte.getAppArgs es hs (by rw [hst]; exact hpd)
@@ -922,11 +923,11 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj)
     (hnf : i.tag ≠ ETag.forallE) (hnm : i.tag ≠ ETag.lam)
     (hnc : i.tag ≠ ETag.const) (hnl : i.tag ≠ ETag.lit) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -938,18 +939,18 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
   | proj n k sub => exact absurd htg hnp
   | lam ty b m => exact absurd htg hnm
   | forallE ty b m => exact absurd htg hnf
-  | letE ty w b => to_wp; vcgen
-  | bvar k => to_wp; vcgen
+  | letE ty w b => vcgen
+  | bvar k => vcgen
   | fvar k t =>
     obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
     have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
     have hwt : Expr.WScoped d t' := by
       unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, inferIO_fvar hk⟩
   | sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
-    to_wp; vcgen
+    vcgen
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
     -- `internLNode`'s two preconditions, then `internE`'s two

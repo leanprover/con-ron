@@ -28,7 +28,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
@@ -148,12 +149,12 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (nm : Name) (ce : Expr)
     (hok : CheckOK mode env fe s₀) (hsn : denoteN s₀.store.ns sn = some nm)
     (hden : denoteE s₀.store c = some ce) (hw : Expr.WScoped d ce) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.reduceProjCore mode (coreKnot mode fe id fuel) fe d sn k c
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.reduceProjCoreFueled mode env F d nm k ce) d
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   unfold ConRon.Arena.reduceProjCore
   -- stage 1: the string-literal expansion
   refine triple_seq (projLitToCtor_spec hsim s₀ d c ce hok hden hw) ?_
@@ -165,14 +166,14 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
   have hnone : ∀ (s : AState), CheckOK mode env fe s →
       Ext s₀.store s.store → s.pins = s₀.pins →
       (∃ F, ConLeche.reduceProjCoreFueled mode env F d nm k ce = .ok none) →
-      ⦃fun s' => ⌜s' = s⌝⦄ (pure none : AM (Option EIdx))
-      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+      ⦃fun s' => s' = s⦄ (pure none : AM (Option EIdx))
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           SimOOp (fun F => ConLeche.reduceProjCoreFueled mode env F d nm k ce)
-            d s'.store r⌝⦄ := by
+            d s'.store r; ⊤⦄ := by
     intro s hs hxs hps hF
     obtain ⟨F, hF⟩ := hF
-    to_wp; vcgen; bridge_peel; subst_vars
+    vcgen; bridge_peel; subst_vars
     exact ⟨hs, hxs, hps, ⟨none, rfl, (fun _ hx => by simp at hx), F, hF⟩⟩
   -- stage 2: the table
   refine triple_seq (IFEnv.findProj?_spec s2 sn k nm hok2 hsn2) ?_
@@ -291,7 +292,7 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
           have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'
           have hdarg := denote_ext harg3 (hx38.trans hx9)
           simp only [ite_true]
-          to_wp; vcgen; bridge_peel; subst_vars
+          vcgen; bridge_peel; subst_vars
           refine ⟨hok9, hx09, hp09, ⟨_, ?_, ?_, max F2 F3, hfire⟩⟩
           · simp only [denoteEO, hdarg, Option.map_some]
           · intro x hx

@@ -29,7 +29,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -77,13 +78,13 @@ theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) :
-    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.ensureSortCore mode fe f d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ ConRon.Arena.ensureSortCore mode fe f d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄ := by
+        SimL (ConLeche.ensureSortCore mode env) d e s'.store r; ⊤⦄ := by
   have hb := hsim.whnf s₀ d i e hok hden hw
   unfold ConRon.Arena.ensureSortCore ConRon.Arena.pureFnsA
-  to_wp; vcgen [ConRon.Arena.ensureSort, wp% hb]
+  vcgen [ConRon.Arena.ensureSort, hb]
   -- the one verification condition: the reduct is a sort (both failing
   -- branches have native specs and leave none)
   bridge_peel; subst_vars

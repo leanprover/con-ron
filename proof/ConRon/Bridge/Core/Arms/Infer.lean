@@ -3,7 +3,7 @@
 
 DESIGN §8.2, rule 8's inventory for `ConLeche/Kernel/Core.lean:1112-1274
 inferBody`.  Eleven SUCCESS exits over ten clauses; the failing exits need no
-lemma, because a twin failure makes Theorem 1's `⇓?` postcondition vacuous and
+lemma, because a twin failure makes Theorem 1's partial-correctness postcondition vacuous and
 a twin SUCCESS is what each success lemma is the licence for.
 
 | clause | exit | lemma |
@@ -49,7 +49,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
@@ -163,10 +164,10 @@ theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : (i.tag == ETag.app) = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄ inferApp mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun s => s = s₀⦄ inferApp mode (coreKnot mode fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   unfold ConRon.Arena.inferApp
   -- stage 1: the spine's head and argument vector
   refine triple_seq (headAndArgs_app_spec s₀ i e hok.state hden htag) ?_
@@ -209,11 +210,11 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : ETag.isBind i.tag = true) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -250,11 +251,11 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.app) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
   refine view_bind_triple hv ?_
@@ -275,11 +276,11 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.const) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -290,7 +291,7 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     dsimp only
     cases hf : fe.find? n with
     | none =>
-      to_wp; vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
+      vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
       subst_vars; exact hok.pins
     | some ci =>
       obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
@@ -303,7 +304,7 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
         have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
           s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
         simp only [hcv_eq]
-        to_wp; vcgen [wp% hcta]
+        vcgen [hcta]
         all_goals (bridge_peel; subst_vars)
         -- `constTyAt`'s precondition, at the state the arity guard kept
         case vc1 => rfl
@@ -317,7 +318,7 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
       · -- `vcgen` does not read the case hypothesis: the guard is rewritten
         -- first, and the failing branch then leaves no condition at all
         simp only [ht, ite_true]
-        to_wp; vcgen
+        vcgen
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
@@ -332,11 +333,11 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lit) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -350,7 +351,7 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     | natVal n =>
       have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      to_wp; vcgen [wp% hn, ConRon.Arena.pinNat, wp% hce]
+      vcgen [hn, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       -- the pin's precondition, then `constE`'s two
       case vc4 => apply CheckOK.pins; assumption
@@ -363,7 +364,7 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     | strVal str =>
       have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      to_wp; vcgen [wp% hn, ConRon.Arena.pinString, wp% hce]
+      vcgen [hn, ConRon.Arena.pinString, hce]
       all_goals (bridge_peel; subst_vars)
       -- the pin's precondition, then `constE`'s two
       case vc4 => apply CheckOK.pins; assumption
@@ -391,11 +392,11 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.proj) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -483,11 +484,11 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
               s.store = s4.store → s.pins = s₀.pins →
               (∃ F, ConLeche.inferTypeCore mode env F d (.proj nm k es) =
                 .ok (p.typeAt ls vte.getAppArgs es)) →
-              ⦃fun s' => ⌜s' = s⌝⦄ entry.typeAt us targs pe
-              ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+              ⦃fun s' => s' = s⦄ entry.typeAt us targs pe
+              ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
                   s'.pins = s₀.pins ∧
                   SimE (ConLeche.inferTypeCore mode env) d (.proj nm k es)
-                    s'.store r⌝⦄ := by
+                    s'.store r; ⊤⦄ := by
             intro s hs hst hps hF
             refine triple_mono (IProjEntry.typeAt_spec s entry us targs pe p ls
               vte.getAppArgs es hs (by rw [hst]; exact hpd)
@@ -567,11 +568,11 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj)
     (hnb : ETag.isBind i.tag = false) (hnc : i.tag ≠ ETag.const)
     (hnl : i.tag ≠ ETag.lit) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       inferBody mode (coreKnot mode fe id fuel) fe d i
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   have hwf := hok.state.wf
   obtain ⟨v, hv⟩ := denoteE_view hden
   have htg := EStore.tagOf_of_view hv
@@ -585,18 +586,18 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
   | forallE ty b m =>
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
-  | letE ty w b => to_wp; vcgen
-  | bvar k => to_wp; vcgen
+  | letE ty w b => vcgen
+  | bvar k => vcgen
   | fvar k t =>
     obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
     have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
     have hwt : Expr.WScoped d t' := by
       unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
-    to_wp; vcgen; subst_vars
+    vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, infer_fvar hk⟩
   | sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
-    to_wp; vcgen
+    vcgen
     all_goals (bridge_peel; subst_vars)
     -- `internLNode`'s two preconditions, then `internE`'s two
     case vc4 => exact hwf

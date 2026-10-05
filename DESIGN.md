@@ -66846,6 +66846,157 @@ the bridge, the 111 `wp_spec`s and the 286 `wp%`s.
 
 Gates: `scripts/gates.sh` all OK on the branch (below).
 
+#### Slice 2 — native Std.WP (task #111b, 2026-10-05, Opus)
+
+The compatibility layer is gone: every triple and spec of the tier is now a
+`Std.WP` triple, `vcgen` reads the `@[spec]` lemmas directly, and
+`Bridge/WP.lean` (`AM.do_of_wp`, `AM.wp_of_do`, `to_wp`, `@[wp_spec]`,
+`wp%`) is deleted.  **No `Std.Do` is used in `proof/` any more**: no
+`open Std.Do`, no `⌜⌝`/`⇓?`/`SPred`/`PostCond`, no `Std.Do.Triple.*`
+lemma.  What is left is `import Std.Tactic.Do` in `Bridge/Specs.lean`,
+which on v4.35.0-rc3 is where the `vcgen` *syntax* lives ("to use `vcgen`,
+please include `import Std.Tactic.Do`"; lean4#15290 moves it to
+`Std.WP.Tactic`), and comments that describe the `mvcgen` era.  The
+Arena monad has no `Std.Do` instances of its own (it is `StateT AState
+(Except CheckError)`; the `Std.WP` instances are core's), so nothing in
+`Arena/**` changed.  Toolchain unchanged.
+
+**The native form** (reference manual PR #927, `Std/WP/Triple/Basic.lean`):
+
+```lean
+-- before (Std.Do, through the bridge)       -- after (Std.WP)
+⦃fun s => ⌜s = s₀⌝⦄ f args                   ⦃fun s => s = s₀⦄ f args
+⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄                  ⦃fun r s' => Post s₀ r s'; ⊤⦄
+@[spec, wp_spec] theorem f_spec …             @[spec] theorem f_spec …
+to_wp; vcgen [g, wp% ih, wp% h (ve := ve)]    vcgen [g, ih, h (ve := ve)]
+```
+
+* `⦃P⦄ x ⦃Q⦄` in `Std.WP` is TOTAL correctness (the exception postcondition
+  defaults to `⊥`); partial correctness — our `⇓?` — is the exception
+  postcondition `⊤` (`⦃P⦄ x ⦃Q; ⊤⦄`, the manual's spelling).  Template rule
+  2 in `Specs.lean` now says so.
+* Assertions on `AM` are `AState → Prop`, so pre- and postconditions are
+  plain propositions; no corner brackets.
+* Files that state triples `open Std.WP` (the scoped `⦃⦄` notation and the
+  `Prop` lattice instances) and `open scoped Lean.Order` (`⊤`); the manual
+  opens `Lean.Order` whole, the scoped open avoids importing its names.
+* Hypotheses that are triples are specs to `vcgen` as they are
+  (`vcgen [ih]`), which is what `wp%` existed for.
+* The `fail` specs are `⦃fun _ => True⦄ (fail e : AM α) ⦃Q; ⊤⦄`, proved by
+  `AM.triple_of_run fun _ _ _ _ h => nomatch h`.
+* The soundness step `AM.of_run` (`Bridge/Rel.lean`) reads the native
+  triple: `hwp.le_wp s hp`, `rw [Std.WP.StateT.wp_apply_eq, h]`, done;
+  `AM.triple_of_run` is its converse (the error branch is `⊤ e`, closed by
+  `simp` — `top_apply`/`top_prop_eq` — since `⊤` is not `True` by `rfl`).
+* The five hand-written `Std.Do` combinator proofs (`triple_seq`,
+  `triple_mono`, `internBindIE_spec'`, its `Abs.lean` twin,
+  `AM.triple_of_run_at`) use `Triple.bind` / `Triple.entails_wp_of_post`.
+  `knotSpec_zero`'s six `intro _ _; trivial` became `AM.triple_of_run …
+  nomatch h`.
+
+**The one thing `vcgen` still needs: `dsimp only` before it, at 40 proofs.**
+A structure update with a non-atomic source, `{ s₀.caches with readLC := … }`,
+elaborates to `let __src := s₀.caches; { … }` (`Lean/Elab/StructInst.lean`,
+`expandNonAtomicExplicitSources`).  `vcgen` zeta-reduces a SPEC lemma
+(`Sym.preprocessType`) but not the GOAL (`preprocessMVar` only
+instantiates and shares), and its structural defeq then throws
+"unexpected let-declaration term during structural definitional equality
+… pre-process and zeta-reduce them".  The bridge hid this (`to_wp` and
+`@[wp_spec]` zeta-reduced); natively, the 40 theorems whose own statement
+contains such an update (Specs 14, Memo 7, MemoSpecs 6, Owed 5, Subst 4,
+InstLP 2, SpecsL 1 — and one `InstLPSpec` field) zeta-reduce their goal
+with `dsimp only` before `vcgen` (before `induction` where the statement is
+proved by induction).  Specs USING those lemmas need nothing.  MWE:
+`_tmp/t111b-scratch/mwe/GoalLet.lean` (scratch, not committed; plain
+`StateM`, 20 lines).
+
+**Statements.**  No meaning changed: for `AM`, `⦃fun s => ⌜P s⌝⦄ x ⦃⇓? r s'
+=> ⌜Q r s'⌝⦄` and `Triple x P Q ⊤` are the same statement (the deleted
+`AM.do_of_wp`/`AM.wp_of_do` were exactly that equivalence).  The headline
+theorems (`checkDecl_bridge`, `installThenCheck_bridge`,
+`pooledAccepts_bridge`, `no_False_declaration`, the capstone) are stated on
+runs and did not change by a character; `Capstone.lean`'s
+`#guard_msgs in #print axioms` passed unchanged, so the axiom footprint did
+not grow.  The triples that sit in the checker tier's HYPOTHESES changed
+form only — `KnotSpec`'s six fields, `BodySpec`, `EnsureSortSpec`
+(`Bridge/Checker/Hyp.lean`):
+
+```lean
+-- before
+    ⦃fun s => ⌜s = s₀⌝⦄ Arena.ensureSortCore mode fe f d i
+    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄
+-- after
+    ⦃fun s => s = s₀⦄ Arena.ensureSortCore mode fe f d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimL (ConLeche.ensureSortCore mode env) d e s'.store r; ⊤⦄
+```
+
+**Migration.**  One script (`_tmp/t111b-scratch/conv.py`, balanced-bracket
+rewrite of all 953 triples plus the bridge syntax) did everything but ten
+proofs; the first full `lake build ConRonBridge` after it had 7 errors (the
+six `knotSpec_zero` slots and one `dsimp only` placement), the second 2
+(two more `dsimp only` placements).  No `vcgen` call needed a new argument,
+no VC changed shape: what `vcgen` sees is what the bridge used to hand it.
+No lane agents.  `fail_wp` stays in `Axioms.lean` (`[propext,
+Classical.choice, Quot.sound]`).
+
+**Proof size** (`proof/ConRon/Bridge`, master `35dc6689` → branch):
+
+| | before | after |
+|---|---:|---:|
+| non-blank lines | 89 180 | 89 133 |
+| `to_wp` | 482 | 0 |
+| `wp%` | 182 | 0 |
+| `wp_spec` | 119 | 0 |
+| `⌜` / `⇓?` | 928 / 498 | 0 / 0 |
+| `dsimp only` | 386 | 426 (+40, the let workaround) |
+| `Std.Do` (text) | 83 | 0 |
+| `Bridge/WP.lean` | 136 lines | deleted |
+
+57 files, +2 131 / −2 194 in `proof/` (excluding docs).
+
+**Elaboration** (same method as slice 1: `perf stat -e instructions:u`,
+`lake env lean -Dbackward.isDefEq.respectTransparency=false
+-Dbackward.do.legacy=true -Dprofiler=true <file>`, one run each, master
+`35dc6689` in a detached worktree vs the branch, imports from built
+`.olean`s, 56 changed files):
+
+| file | master G | branch G | Δ |
+|---|---:|---:|---:|
+| ExprOps/Subst.lean | 2 029.4 | 1 888.0 | −7.0 % |
+| ExprOps/Owed.lean | 1 004.9 | 964.6 | −4.0 % |
+| ExprOps/Inst1.lean | 422.2 | 419.0 | −0.8 % |
+| ExprOps/Abs.lean | 392.0 | 387.5 | −1.1 % |
+| ExprOps/Spine.lean | 238.0 | 235.8 | −0.9 % |
+| ExprOps/Ranges.lean | 188.0 | 184.4 | −1.9 % |
+| ExprOps/Guards.lean | 154.6 | 153.4 | −0.8 % |
+| Core/Walks/Nat.lean | 107.4 | 106.5 | −0.8 % |
+| Specs.lean | 25.2 | 23.4 | −7.1 % |
+| Core/Arms/Infer.lean | 10.8 | 9.7 | −10.0 % |
+| the other 45 files | 796.3 | 770.7 | −3.2 % |
+| WP.lean (deleted) | 4.7 | — | |
+| **total, 56 files** | **5 373.4** | **5 142.9** | **−4.3 %** |
+
+Every file is cheaper or equal (worst −0.1 %, `Rel.lean`); the gain is the
+`wp%`/`@[wp_spec]` elaboration (a `MetaM` twin per spec and per call) and
+`to_wp`'s `apply` + zeta pass.
+
+**Upstream-worthy, beyond slice 1's list.**  (g) the goal is not
+zeta-reduced (`mwe/GoalLet.lean`) — slice 1's (b) narrowed: spec lemmas
+are, so it bites only the statement being proved; (h) on rc3 `vcgen`'s
+syntax is in `Std.Tactic.Do`, so the deprecated module must still be
+imported (fixed by lean4#15290); (i) `⊤ : ε → Prop` does not reduce to
+`True` by `rfl`/`trivial`, so the error branch of a hand-written
+partial-correctness proof needs `simp` (`top_apply`, `top_prop_eq`).
+Slice 1's (c) (spec parameters not occurring in the program) is unchanged:
+the 21 `(ve := ve)`-style instantiations stay.
+
+Gates: `scripts/gates.sh` all OK on the branch (after merging master
+`35dc6689`, task #112).
+
 ### Task #112 — Aeneas 505b6ca3 → 557eff83, on v4.35.0-rc3 (2026-10-05, Opus)
 
 `vendor/aeneas` and `flake.nix` move to upstream `main` **`557eff83`**

@@ -33,7 +33,8 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv} {c : Bool}
 
@@ -88,8 +89,8 @@ def SpineOK (st : EStore) (E : Expr) (r : EIdx × Array EIdx × Array EIdx) :
 **THEOREM 1 for `getAppSpineGo`**: read-only, and the answer is `SpineOK`. -/
 theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
     (E : Expr), StateOK s₀ → denoteE s₀.store h = some E →
-    ⦃fun s => ⌜s = s₀⌝⦄ getAppSpineGo fuel h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ SpineOK s₀.store E r⌝⦄
+    ⦃fun s => s = s₀⦄ getAppSpineGo fuel h
+    ⦃fun r s' => s' = s₀ ∧ SpineOK s₀.store E r; ⊤⦄
   | 0, s₀, h, E, _, _ => by
     rw [getAppSpineGo]; exact triple_fail
   | fuel + 1, s₀, h, E, hok, hd => by
@@ -109,7 +110,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
         refine triple_seq (getAppSpineGo_spec fuel s₀ f Ef hok hf) ?_
         rintro t s2 ⟨hs2, ht1, ht2, ht3, ht4⟩
         subst s2
-        to_wp; vcgen
+        vcgen
         subst_vars
         refine ⟨rfl, ?_, ?_, ?_, ?_⟩
         · simpa [Expr.getAppFn] using ht1
@@ -130,7 +131,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
               Expr.mkAppN_append_one, Expr.mkAppN_getApp]
             exact hd
     · rw [ite_eq_right htg]
-      to_wp; vcgen
+      vcgen
       subst_vars
       have hna : ∀ x y, E ≠ Expr.app x y := by
         obtain ⟨w, hw⟩ := denoteE_view hd
@@ -145,8 +146,8 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:915-923 getAppFn — the entry. -/
 theorem getAppSpine_spec (fuel : Nat) (s₀ : AState) (h : EIdx) (E : Expr)
     (hok : StateOK s₀) (hd : denoteE s₀.store h = some E) :
-    ⦃fun s => ⌜s = s₀⌝⦄ getAppSpine fuel h
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ SpineOK s₀.store E r⌝⦄ :=
+    ⦃fun s => s = s₀⦄ getAppSpine fuel h
+    ⦃fun r s' => s' = s₀ ∧ SpineOK s₀.store E r; ⊤⦄ :=
   getAppSpineGo_spec fuel s₀ h E hok hd
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:915-923 getAppFn/getAppArgs —
@@ -154,9 +155,9 @@ theorem getAppSpine_spec (fuel : Nat) (s₀ : AState) (h : EIdx) (E : Expr)
 of a reduct. -/
 theorem headAndArgs_spec (s₀ : AState) (v : EIdx) (V : Expr)
     (hok : StateOK s₀) (hd : denoteE s₀.store v = some V) :
-    ⦃fun s => ⌜s = s₀⌝⦄ headAndArgs v
-    ⦃⇓? r s' => ⌜s' = s₀ ∧ denoteE s₀.store r.1 = some V.getAppFn ∧
-        Frontend.denoteEList s₀.store r.2.toList = some V.getAppArgs⌝⦄ := by
+    ⦃fun s => s = s₀⦄ headAndArgs v
+    ⦃fun r s' => s' = s₀ ∧ denoteE s₀.store r.1 = some V.getAppFn ∧
+        Frontend.denoteEList s₀.store r.2.toList = some V.getAppArgs; ⊤⦄ := by
   unfold headAndArgs
   by_cases htg : (v.tag == ETag.app) = true
   · rw [ite_eq_left htg]
@@ -168,11 +169,11 @@ theorem headAndArgs_spec (s₀ : AState) (v : EIdx) (V : Expr)
       (by rw [hd]; rfl)) ?_
     rintro va s2 ⟨hs2, hr2⟩
     subst s2
-    to_wp; vcgen
+    vcgen
     subst_vars
     exact ⟨rfl, hr1 V hd, by simpa using hr2 V hd⟩
   · rw [ite_eq_right htg]
-    to_wp; vcgen
+    vcgen
     subst_vars
     have hna : ∀ x y, V ≠ Expr.app x y := by
       obtain ⟨w, hw⟩ := denoteE_view hd
@@ -190,14 +191,14 @@ theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
     (f a : EIdx) (F A : Expr) (hok : CheckOK mode env fe s₀)
     (hf : denoteE s₀.store f = some F) (ha : denoteE s₀.store a = some A)
     (hsame : same = true → denoteE s₀.store node = some (.app F A)) :
-    ⦃fun s => ⌜s = s₀⌝⦄ internAppRebuilt node same f a
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.app F A)⌝⦄ := by
+    ⦃fun s => s = s₀⦄ internAppRebuilt node same f a
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = some (.app F A); ⊤⦄ := by
   unfold internAppRebuilt
   cases same with
   | true =>
     simp only [ite_true]
-    to_wp; vcgen
+    vcgen
     subst_vars
     exact ⟨hok, Ext.refl _, rfl, by simpa using hsame⟩
   | false =>
@@ -217,7 +218,7 @@ already holds (task #97-P6-9's hoist).  `iotaRec` is `getAppFn`/`getAppArgs`
 over the same entry, so `iotaRecAt_spec` below is the `iotaRec` tower's own
 entry rule; `iotaRec_spec` (`Walks/Owed.lean`) cannot stand in for it,
 because its two spine reads are fuelled walks whose success at the spine
-`whnfApp` holds is not provable (a `⇓?` triple claims nothing when they
+`whnfApp` holds is not provable (a partial-correctness triple claims nothing when they
 throw). -/
 
 /-! `iotaRecAt_spec` is `Walks/Iota.lean`'s (the `iota` lane of round 6,
@@ -246,15 +247,15 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hdv : Frontend.denoteEList s₀.store vargs.toList = some V.getAppArgs)
     (hda : denoteE s₀.store a = some A)
     (hw : Expr.WScoped d (.app V A)) :
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       (if hd.tag == ETag.const then
         ConRon.Arena.iotaRecAt mode (coreKnot mode fe id fuel) fe d hd
           (vargs.push a) (vargs.push a).size
       else pure none : AM (Option EIdx))
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimOOp (fun F => ConLeche.iotaRecFueled mode env F d (.app V A)) d
-          s'.store r⌝⦄ := by
+          s'.store r; ⊤⦄ := by
   have happ : Expr.mkAppN V.getAppFn (V.getAppArgs ++ [A]) = .app V A := by
     rw [Expr.mkAppN_append_one, Expr.mkAppN_getApp]
   by_cases htc : (hd.tag == ETag.const) = true
@@ -269,7 +270,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     rw [happ] at h
     exact h
   · rw [ite_eq_right htc]
-    to_wp; vcgen
+    vcgen
     subst_vars
     have hnc : ∀ c us, (Expr.app V A).getAppFn ≠ .const c us := by
       obtain ⟨w, hw'⟩ := denoteE_view hdh
@@ -485,10 +486,10 @@ def WACarry (mode : CheckMode) (env : Env) (fe : IFEnv) (c : Bool) (fuel d : Nat
     denoteE s₀.store hd = some V.getAppFn →
     Frontend.denoteEList s₀.store vargs.toList = some V.getAppArgs →
     (same = true → V = Expr.mkAppN H0 (xs.take i)) →
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.whnfApp mode (coreKnot mode fe id fuel) fe c d v hd vargs same
         args nodes i
-    ⦃⇓? r s' => ⌜WAPost mode env fe c d s₀ V (xs.drop i) r s'⌝⦄
+    ⦃fun r s' => WAPost mode env fe c d s₀ V (xs.drop i) r s'; ⊤⦄
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:113 betaPeel — the `betaPeel`
 half of the carry at measure `k`. -/
@@ -499,10 +500,10 @@ def BPCarry (mode : CheckMode) (env : Env) (fe : IFEnv) (c : Bool) (fuel d : Nat
     SpineCtx d args nodes H0 xs s₀.store →
     denoteE s₀.store t = some T → ExprOps.InstLVec s₀.store acc ws →
     Expr.WScoped d (T.instantiateList ws) →
-    ⦃fun s => ⌜s = s₀⌝⦄
+    ⦃fun s => s = s₀⦄
       ConRon.Arena.betaPeel mode (coreKnot mode fe id fuel) fe c d t acc args
         nodes i
-    ⦃⇓? r s' => ⌜BPPost mode env fe c d s₀ T ws (xs.drop i) r s'⌝⦄
+    ⦃fun r s' => BPPost mode env fe c d s₀ T ws (xs.drop i) r s'; ⊤⦄
 
 /-- con-leche: none — the spine's node at the cursor denotes the prefix
 applied to the cursor's argument, which is the application the reduction
@@ -705,7 +706,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
           (ConLeche.whnfCore_mono (by omega) hF2), ← hdrop1]
         exact mWA_mono (by omega) hF3
   · rw [dite_eq_right hi]
-    to_wp; vcgen
+    vcgen
     subst_vars
     have hlen := ExprOps.denoteEList_length _ _ hctx.1
     simp only [Array.length_toList] at hlen
@@ -718,9 +719,9 @@ answer denotes the pure substitution. -/
 theorem instantiateListFast_ok_spec (s₀ : AState) (e : EIdx) (acc : Array EIdx)
     (E : Expr) (ws : List Expr) (hok : CheckOK mode env fe s₀)
     (hde : denoteE s₀.store e = some E) (hvec : ExprOps.InstLVec s₀.store acc ws) :
-    ⦃fun s => ⌜s = s₀⌝⦄ instantiateListFast coreWalkFuel e acc 0
-    ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteE s'.store r = some (E.instantiateList ws)⌝⦄ :=
+    ⦃fun s => s = s₀⦄ instantiateListFast coreWalkFuel e acc 0
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = some (E.instantiateList ws); ⊤⦄ :=
   triple_mono (ExprOps.instantiateListFast_spec coreWalkFuel s₀ e acc 0 ws
       hok.state hvec (by rw [hde]; rfl))
     (fun _ _ ⟨hst, hx, _, hc, hp, _, hrel⟩ =>

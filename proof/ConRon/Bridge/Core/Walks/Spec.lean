@@ -10,8 +10,8 @@ subjects and answer an `EIdx` or a `Bool`.  The ~110 walks of
 two, at a pair of LISTS, at no subject at all.
 
 So this module does not fix a body shape; it fixes the **answer relation**,
-and every walk's theorem is then `⦃s = s₀⦄ walk … ⦃⇓? r s' => ⌜CheckOK … ∧
-Ext … ∧ <answer relation>⌝⦄` with the pure side's fuel abstracted into one
+and every walk's theorem is then `⦃s = s₀⦄ walk … ⦃fun r s' => CheckOK … ∧
+Ext … ∧ <answer relation>; ⊤⦄` with the pure side's fuel abstracted into one
 argument.
 
 ## The abstraction: the pure call, minus its fuel
@@ -41,7 +41,8 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 
-open ConLeche ConRon.Arena ConRon.Bridge Std.Do
+open ConLeche ConRon.Arena ConRon.Bridge Std.WP
+open scoped Lean.Order
 
 /-! ## 1. The five answer relations -/
 

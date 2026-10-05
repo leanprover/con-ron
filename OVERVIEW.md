@@ -616,19 +616,18 @@ stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
 `StoreWF` included.
 
 The store primitives and the type checker are specified by Hoare triples
-of Lean's `Std.Do`, in one fixed form, proved with `vcgen` through a small
-bridge to `Std.WP`
-([`Bridge/WP.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/WP.lean#L1-L38),
-task #111); the `@[spec]` lemmas of
+of Lean's `Std.WP`, in one fixed form, proved with `vcgen` (task #111); the
+`@[spec]` lemmas of
 [`Bridge/Specs.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Specs.lean#L1-L62)
 cover one primitive each:
 
 ```lean
-⦃fun s => ⌜s = s₀⌝⦄ f args ⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄
+⦃fun s => s = s₀⦄ f args ⦃fun r s' => Post s₀ r s'; ⊤⦄
 ```
 
-The precondition only fixes the start state, and `⇓?` means partial
-correctness: nothing is claimed when the twin fails.  Many higher-level
+The precondition only fixes the start state, and the exception
+postcondition `⊤` means partial correctness: nothing is claimed when the
+twin fails.  Many higher-level
 statements are instead plain implications over a successful run, like the
 graded ones below.
 
