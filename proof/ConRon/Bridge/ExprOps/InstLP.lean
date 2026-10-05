@@ -110,7 +110,7 @@ reach. -/
 /-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
 level tree, by induction on the `Level` (the recursion `internLevel` takes: a
 `Level` is a value, not a DAG, so no fuel). -/
-@[spec] theorem internLevel_spec (s₀ : AState) (u : Level)
+@[spec, wp_spec] theorem internLevel_spec (s₀ : AState) (u : Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevel u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -146,7 +146,7 @@ level tree, by induction on the `Level` (the recursion `internLevel` takes: a
       denoteN_ext, EStore.ns, EStore.ls]
 
 /-- con-leche: none — intern a list of transient levels, one handle each. -/
-@[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevelList us
     ⦃⇓? hs s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -182,7 +182,7 @@ theorem lview_isSome_of_denoteLList {st : LStore} :
 
 /-- con-leche: none — intern a list of transient levels and hash-cons the
 list node. -/
-@[spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevels us
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧

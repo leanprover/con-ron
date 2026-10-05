@@ -1368,7 +1368,7 @@ Two things fix it and one does not:
 `@[spec high]` is the other half: a spec registered later does NOT override an
 earlier one for the same program, and the priority is what makes this one
 win. -/
-@[spec high] theorem liftSet_specG (s0 : AState) (f : Nat -> Expr -> Expr)
+@[spec high, wp_spec high] theorem liftSet_specG (s0 : AState) (f : Nat -> Expr -> Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s0.memos.liftC s0.store)
     (hk : (denoteE s0.store k.1).isSome = true)
     (hr : RelE (f k.2) s0.store k.1 s0.store r) :
@@ -1583,7 +1583,7 @@ theorem liftLooseBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState}
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1995-1997 LowerMemoInv — the memo
 insert's spec for `lowerC`, generic in the pure function (see
 `liftSet_specG`). -/
-@[spec high] theorem lowerSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
+@[spec high, wp_spec high] theorem lowerSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.lowerC s₀.store)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :
@@ -1600,7 +1600,7 @@ insert's spec for `lowerC`, generic in the pure function (see
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv — the memo
 insert's spec for `inst1LC`, generic in the pure function (see
 `liftSet_specG`). -/
-@[spec high] theorem inst1LSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
+@[spec high, wp_spec high] theorem inst1LSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.inst1LC s₀.store)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :
@@ -2151,7 +2151,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:248-250 InstLMemoInv — the memo
 insert's spec for `instLC`, generic in the pure function (see
 `liftSet_specG`). -/
-@[spec high] theorem instLSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
+@[spec high, wp_spec high] theorem instLSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.instLC s₀.store)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :

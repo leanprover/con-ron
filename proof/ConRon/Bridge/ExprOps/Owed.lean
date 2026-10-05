@@ -103,7 +103,7 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 import.  The executed `abstractRange` walk below needs it for exactly the
 reason the executed `abstract1` walk does, so this file repeats the line (as
 every file of this tier repeats `attribute [-grind] RelE.ext …`). -/
-attribute [local spec high] internRebuiltBindI_specV
+attribute [local spec high, local wp_spec high] internRebuiltBindI_specV
 
 
 /-! ## `abstract1`'s entry -/
@@ -881,7 +881,7 @@ frame at all. -/
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `readNameM` with the
 sibling readback tables framed. -/
-@[spec high] theorem readNameM_specF (s₀ : AState) (h : NIdx)
+@[spec high, wp_spec high] theorem readNameM_specF (s₀ : AState) (h : NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNameM h
     ⦃⇓? x s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -899,7 +899,7 @@ sibling readback tables framed. -/
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — and `readNamesM`, whose
 recursion is on the list as `readNames`' is. -/
-@[spec high] theorem readNamesM_specF (s₀ : AState) (hs : List NIdx)
+@[spec high, wp_spec high] theorem readNamesM_specF (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
     ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧

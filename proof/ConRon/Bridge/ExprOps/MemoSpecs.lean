@@ -8,7 +8,7 @@
 parameters as THEOREM PARAMETERS:
 
 ```lean
-@[spec] theorem instLPLsSet_spec (s₀) (ks : List Name) (us : List Level)
+@[spec, wp_spec] theorem instLPLsSet_spec (s₀) (ks : List Name) (us : List Level)
     (h r : LsIdx) (hm : InstLPLsMemoA ks us s₀) … : ⦃…⦄ instLPLsSet h r ⦃…⦄
 ```
 
@@ -60,7 +60,7 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 with the memo's pure function moved inside the postcondition.  Generic in
 `f`, which is what lets `abstract1Go` and `abstractRangeGo` share the one
 table. -/
-@[spec high] theorem abs1Set_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
+@[spec high, wp_spec high] theorem abs1Set_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
     (hk : (denoteE s₀.store k.1).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ abs1Set k r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -79,7 +79,7 @@ table. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — the same
 for `instLPSet`. -/
-@[spec high] theorem instLPSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
+@[spec high, wp_spec high] theorem instLPSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
     (hk : (denoteE s₀.store k.1).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPSet k r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -98,7 +98,7 @@ for `instLPSet`. -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
 `instLPLSet`, the LEVEL-handle memo. -/
-@[spec high] theorem instLPLSet_specI (s₀ : AState) (h r : LIdx)
+@[spec high, wp_spec high] theorem instLPLSet_specI (s₀ : AState) (h r : LIdx)
     (hk : (denoteL s₀.store.ls h).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLSet h r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -118,7 +118,7 @@ for `instLPSet`. -/
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
 `instLPLsSet`, the universe-argument-LIST memo.  This is the one the trap was
 measured on. -/
-@[spec high] theorem instLPLsSet_specI (s₀ : AState) (h r : LsIdx)
+@[spec high, wp_spec high] theorem instLPLsSet_specI (s₀ : AState) (h r : LsIdx)
     (hk : (denoteLs s₀.store.lss h).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLsSet h r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -151,7 +151,7 @@ belong there. -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelM` with the
 sibling readback tables framed. -/
-@[spec high] theorem readLevelM_specF (s₀ : AState) (h : LIdx)
+@[spec high, wp_spec high] theorem readLevelM_specF (s₀ : AState) (h : LIdx)
     (hc : ReadLCacheOK s₀.caches.readLC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelM h
     ⦃⇓? u s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -169,7 +169,7 @@ sibling readback tables framed. -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelsM` with the
 sibling readback tables framed. -/
-@[spec high] theorem readLevelsM_specF (s₀ : AState) (h : LsIdx)
+@[spec high, wp_spec high] theorem readLevelsM_specF (s₀ : AState) (h : LsIdx)
     (hc : ReadLsCacheOK s₀.caches.readLsC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelsM h
     ⦃⇓? us s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -237,7 +237,7 @@ theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
 /-- con-leche: none — `internE` with view and binder-datum monotonicity:
 `internE_spec` (whose `BMExt` conjunct is the datum half) and
 `internE_view_mono`. -/
-@[spec high] theorem internE_specV (s₀ : AState) (w : ENodeView)
+@[spec high, wp_spec high] theorem internE_specV (s₀ : AState) (w : ENodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
     ⦃fun s => ⌜s = s₀⌝⦄ internE w
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -255,7 +255,7 @@ theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
 /-- con-leche: none — `internRebuilt` with the same two conjuncts.  The
 `same = true` branch answers the handle it was given, so both are
 reflexive there. -/
-@[spec high] theorem internRebuilt_specV (s₀ : AState) (h : EIdx) (same : Bool)
+@[spec high, wp_spec high] theorem internRebuilt_specV (s₀ : AState) (h : EIdx) (same : Bool)
     (v : ENodeView) (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK v)
     (hsame : same = true → s₀.store.view h = some v) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuilt h same v
@@ -284,7 +284,7 @@ reflexive there. -/
 One line each, exactly as `Bridge/Specs.lean`'s are: `internRebuiltX h same
 args` IS `internRebuilt h same (.X args)`. -/
 
-@[spec high] theorem internRebuiltFVar_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltFVar_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (idx : Nat) (ty : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hsame : same = true → s₀.store.view h = some (.fvar idx ty)) :
@@ -297,7 +297,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
   internRebuilt_specV s₀ h same (.fvar idx ty) hwf (viewOK_fvar hty) hsame
 
-@[spec high] theorem internRebuiltSort_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltSort_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (u : LIdx) (hwf : StoreWF s₀.store)
     (hu : (s₀.store.ls.view u).isSome = true)
     (hsame : same = true → s₀.store.view h = some (.sort u)) :
@@ -310,7 +310,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.sort u)⌝⦄ :=
   internRebuilt_specV s₀ h same (.sort u) hwf (viewOK_sort hu) hsame
 
-@[spec high] theorem internRebuiltConst_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltConst_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (n : NIdx) (us : LsIdx) (hwf : StoreWF s₀.store)
     (hn : (s₀.store.ns.view n).isSome = true)
     (hus : (s₀.store.lss.view us).isSome = true)
@@ -324,7 +324,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
   internRebuilt_specV s₀ h same (.const n us) hwf (viewOK_const hn hus) hsame
 
-@[spec high] theorem internRebuiltApp_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltApp_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (f a : EIdx) (hwf : StoreWF s₀.store)
     (hf : (denoteE s₀.store f).isSome = true)
     (ha : (denoteE s₀.store a).isSome = true)
@@ -338,7 +338,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
   internRebuilt_specV s₀ h same (.app f a) hwf (viewOK_app hf ha) hsame
 
-@[spec high] theorem internRebuiltLam_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltLam_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true)
@@ -352,7 +352,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
   internRebuilt_specV s₀ h same (.lam ty b m) hwf (viewOK_lam hty hb) hsame
 
-@[spec high] theorem internRebuiltForallE_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltForallE_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true)
@@ -367,7 +367,7 @@ args` IS `internRebuilt h same (.X args)`. -/
   internRebuilt_specV s₀ h same (.forallE ty b m) hwf (viewOK_forallE hty hb)
     hsame
 
-@[spec high] theorem internRebuiltLetE_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltLetE_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (ty val b : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hval : (denoteE s₀.store val).isSome = true)
@@ -383,7 +383,7 @@ args` IS `internRebuilt h same (.X args)`. -/
   internRebuilt_specV s₀ h same (.letE ty val b) hwf
     (viewOK_letE hty hval hb) hsame
 
-@[spec high] theorem internRebuiltProj_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltProj_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (n : NIdx) (i : Nat) (e : EIdx) (hwf : StoreWF s₀.store)
     (hn : (s₀.store.ns.view n).isSome = true)
     (he : (denoteE s₀.store e).isSome = true)
@@ -400,7 +400,7 @@ args` IS `internRebuilt h same (.X args)`. -/
 /-- con-leche: none — `internBVarE` at the V shape: the `fvar` arms of the two
 abstraction walks intern a fresh `bvar` rather than rebuilding, so they need
 `internE`'s face and not `internRebuilt`'s. -/
-@[spec high] theorem internBVarE_specV (s₀ : AState) (i : Nat)
+@[spec high, wp_spec high] theorem internBVarE_specV (s₀ : AState) (i : Nat)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internBVarE i
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧

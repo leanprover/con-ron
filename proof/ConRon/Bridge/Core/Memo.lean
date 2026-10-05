@@ -187,7 +187,7 @@ every frame condition a caller needs falls out of it by `simp`. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `whnfCoreSet`
 replaces exactly one field of one record. -/
-@[spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         whnfCoreC := (if s₀.caches.whnfCoreC.size < cacheCap then
@@ -197,7 +197,7 @@ replaces exactly one field of one record. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1910-1928 memoEI — `whnfCoreCheapSet`
 replaces exactly one field of one record. -/
-@[spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreCheapSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         whnfCoreCheapC := (if s₀.caches.whnfCoreCheapC.size < cacheCap then
@@ -206,7 +206,7 @@ replaces exactly one field of one record. -/
   spec_ro
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `whnfSet`. -/
-@[spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         whnfC := (if s₀.caches.whnfC.size < cacheCap then
@@ -215,7 +215,7 @@ replaces exactly one field of one record. -/
   spec_ro
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `inferSet`. -/
-@[spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ inferSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         inferC := (if s₀.caches.inferC.size < cacheCap then
@@ -225,7 +225,7 @@ replaces exactly one field of one record. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `inferIOSet`, in
 the io grade's own table. -/
-@[spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ inferIOSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         inferIOC := (if s₀.caches.inferIOC.size < cacheCap then
@@ -234,7 +234,7 @@ the io grade's own table. -/
   spec_ro
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `annotSet`. -/
-@[spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ annotSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         annotC := (if s₀.caches.annotC.size < cacheCap then
@@ -244,7 +244,7 @@ the io grade's own table. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1893-1906 memoBI — `defeqSet`, at
 the ORDERED pair and with the verdict. -/
-@[spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
+@[spec, wp_spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
     ⦃fun s => ⌜s = s₀⌝⦄ defeqSet a b r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         defeqC := (if s₀.caches.defeqC.size < cacheCap then

@@ -112,7 +112,7 @@ every element of a denoting level-handle list has a view. -/
 /-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
 level tree, by induction on `Level` (the recursion `internLevel` itself
 takes). -/
-@[spec] theorem internLevel_spec (s₀ : AState) (u : Level)
+@[spec, wp_spec] theorem internLevel_spec (s₀ : AState) (u : Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevel u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -150,7 +150,7 @@ takes). -/
                  denoteL_ext])
 
 /-- con-leche: none — intern a list of transient levels, one handle each. -/
-@[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevelList us
     ⦃⇓? hs s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -169,7 +169,7 @@ takes). -/
 
 /-- con-leche: none — intern a list of transient levels and hash-cons the
 list node: what a `.const`'s universe arguments are. -/
-@[spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevels us
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -184,7 +184,7 @@ list node: what a `.const`'s universe arguments are. -/
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
 `readNames`, whose recursion is on the list as `readNames`' is. -/
-@[spec] theorem readNamesM_spec (s₀ : AState) (hs : List NIdx)
+@[spec, wp_spec] theorem readNamesM_spec (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
     ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧

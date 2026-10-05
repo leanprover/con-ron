@@ -812,7 +812,7 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
 /-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta —
 `internRebuiltBindI` at the V shape.  The `same = true` branch answers the
 handle it was given, so the view monotonicity is reflexive there. -/
-@[local spec high] theorem internRebuiltBindI_specV (s₀ : AState) (h : EIdx) (same : Bool)
+@[local spec high, local wp_spec high] theorem internRebuiltBindI_specV (s₀ : AState) (h : EIdx) (same : Bool)
     (tag : UInt32) (ty b : EIdx) (mi : BMIdx) (hwf : StoreWF s₀.store)
     (hmi0 : mi.tag = 0) (htag : ETag.isBind tag = true)
     (hbm : (s₀.store.viewBM mi).isSome = true)

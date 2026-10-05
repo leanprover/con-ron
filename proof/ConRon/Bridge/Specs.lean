@@ -7,7 +7,7 @@ store reasoning appearing in the proof text.  The shape is the spike's
 seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
 
 ```lean
-@[spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
+@[spec, wp_spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
     ⦃fun s => ⌜s = s₀⌝⦄ f args ⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄
 ```
 
@@ -68,14 +68,12 @@ import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 import ConRon.Arena.PersistentRun
 import Std.Tactic.Do
+import ConRon.Bridge.WP
 
 namespace ConRon.Bridge
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena Std.Do
 
@@ -224,15 +222,41 @@ and every continuation goal it produces closes by `.elim`. -/
     ⦃fun _ => ⌜True⌝⦄ (failDanglingLs : AM α) ⦃⇓? _r _s' => ⌜False⌝⦄ := by
   intro _ _; trivial
 
+/-! ### The failure specs `vcgen` reads (task #111)
+
+`vcgen` reads `Std.WP` triples, and for a failure the native statement is
+better than the `@[wp_spec]` twin of the three above: with a SCHEMATIC
+postcondition `Q`, `fail` establishes any `Q` (it never returns, and `⇓?`'s
+exception postcondition is `True`), so the failing branch of a twin leaves
+no verification condition at all, where the twin's `False` barrel left one
+per failure site for `spec_fails` to close. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — `fail` meets
+every postcondition under partial correctness. -/
+@[spec] theorem fail_wp {α : Type} (e : Arena.CheckError) (Q : α → AState → Prop) :
+    Std.WP.Triple (fail e : AM α) (fun _ => True) Q (fun _ => True) :=
+  AM.wp_of_do (P := fun _ => True) (fun _ _ => trivial)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — `failDanglingE`,
+ditto. -/
+@[spec] theorem failDanglingE_wp {α : Type} (Q : α → AState → Prop) :
+    Std.WP.Triple (failDanglingE : AM α) (fun _ => True) Q (fun _ => True) :=
+  AM.wp_of_do (P := fun _ => True) (fun _ _ => trivial)
+
+/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — `failDanglingLs`,
+ditto. -/
+@[spec] theorem failDanglingLs_wp {α : Type} (Q : α → AState → Prop) :
+    Std.WP.Triple (failDanglingLs : AM α) (fun _ => True) Q (fun _ => True) :=
+  AM.wp_of_do (P := fun _ => True) (fun _ _ => trivial)
+
 /-! ## The expression store: `view`, `derivedE`, `internE` -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — `view` does not touch
 the state and returns the store's own decoding. -/
-@[spec] theorem view_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem view_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ view h
     ⦃⇓? v s' => ⌜s' = s₀ ∧ s₀.store.view h = some v⌝⦄ := by
-  mvcgen [view]
-  spec_ro
+  to_wp; vcgen [view] with finish
 
 /-- con-leche: none — **`view`, as a run**: it moves nothing and answers the
 store's own decoding.  The first line of every walk of this tier. -/
@@ -465,11 +489,10 @@ theorem bmExt_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — `derivedE` does not
 touch the state and returns the packed word; with `EStore.derived_exact` that
 word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
-@[spec] theorem derivedE_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem derivedE_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ derivedE h
     ⦃⇓? w s' => ⌜s' = s₀ ∧ w = s₀.store.derived h⌝⦄ := by
-  mvcgen [derivedE]
-  spec_ro
+  to_wp; vcgen [derivedE] with finish
 
 /-- con-leche: none — `EStore.intern` does not change the TIER the store is
 appending to: it is `internAt` at the datum `internBMOfView` chose, and
@@ -499,7 +522,7 @@ Both wrappers PROBE FIRST since task #97-P5-Twin, as `internE` has since
 move and `EStore.view_of_findBindI` names the handle's view, and the MISS,
 which is `internBindI_spec` at the tier the append goes to. -/
 
-@[spec] theorem internLamIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
+@[spec, wp_spec] theorem internLamIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
     (hbm : s₀.store.viewBM mi = some m)
     (hty : (s₀.store.view ty).isSome = true)
@@ -511,12 +534,11 @@ which is `internBindI_spec` at the tier the append goes to. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.lam ty b m) ∧
         denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ := by
-  mvcgen [internLamIE]
-  spec_fails
+  to_wp; vcgen [internLamIE]
   -- **The cons HIT**: the probe comes first, so this arm answers the handle
   -- the `lams` table already holds and moves nothing.
-  case vc1.h_1 =>
-    rename_i s hs i hfind
+  case vc1 =>
+    rename_i hs i hfind
     subst hs
     have hview :=
       EStore.view_of_findBindI (tag := ETag.lam) hwf (by decide) hbm hmi0 hfind
@@ -526,7 +548,7 @@ which is `internBindI_spec` at the tier the append goes to. -/
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n hcap _st _s'
+  rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap
@@ -535,7 +557,7 @@ which is `internBindI_spec` at the tier the append goes to. -/
   rw [heb] at h5 h6
   exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl, h5, h6⟩
 
-@[spec] theorem internForallEIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
+@[spec, wp_spec] theorem internForallEIE_spec (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (m : BinderMeta) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
     (hbm : s₀.store.viewBM mi = some m)
     (hty : (s₀.store.view ty).isSome = true)
@@ -547,10 +569,9 @@ which is `internBindI_spec` at the tier the append goes to. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some (.forallE ty b m) ∧
         denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ := by
-  mvcgen [internForallEIE]
-  spec_fails
-  case vc1.h_1 =>
-    rename_i s hs i hfind
+  to_wp; vcgen [internForallEIE]
+  case vc1 =>
+    rename_i hs i hfind
     subst hs
     have hview :=
       EStore.view_of_findBindI (tag := ETag.forallE) hwf (by decide) hbm hmi0 hfind
@@ -560,7 +581,7 @@ which is `internBindI_spec` at the tier the append goes to. -/
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n hcap _st _s'
+  rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty hb hcap
@@ -613,21 +634,20 @@ theorem internNodeE_spec (s₀ : AState) (w : ENodeView)
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w⌝⦄ := by
-  mvcgen [internNodeE]
-  spec_fails
+  to_wp; vcgen [internNodeE]
   -- **The cons HIT** (task #97-P5-1's finding 9, fixed in the twin at
   -- #97-P3-1): `internNodeE` probes before it tests the capacity, exactly as
   -- the Rust does, so this branch answers the handle the cons table already
   -- holds and moves nothing.  `EStore.view_of_find` is `StoreWF`'s own
   -- `consP`/`consS` clause read left to right — no capacity in it.
-  case vc1.h_1 =>
-    rename_i s hs i hfind
+  case vc1 =>
+    rename_i hs i hfind
     subst hs
     have hview := EStore.view_of_find hwf hfind
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i s hs _hfind _n hcap _st _s'
+  rename_i hs _hfind hcap
   subst hs
   have hcap' : EStore.capOK s.store w := by
     refine ⟨hcap, fun hbm => ?_⟩
@@ -719,7 +739,7 @@ Since task #97-T2-LOCKSTEP D6 `internE` is the Rust's dispatch — the two
 binder arms are the datum step then the node step at its handle
 (`internE_bind_spec`), the eight others `internNodeE` (`internNodeE_spec`) —
 so this is a case split over the two. -/
-@[spec] theorem internE_spec (s₀ : AState) (w : ENodeView)
+@[spec, wp_spec] theorem internE_spec (s₀ : AState) (w : ENodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
     ⦃fun s => ⌜s = s₀⌝⦄ internE w
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -744,7 +764,7 @@ so this is a case split over the two. -/
 `internCE (fields) = internE (.C fields)`, `rfl`".  So each spec is
 `internE_spec` at that constructor, and the `unfold` is the whole proof. -/
 
-@[spec] theorem internBVarE_spec (s₀ : AState) (i : Nat)
+@[spec, wp_spec] theorem internBVarE_spec (s₀ : AState) (i : Nat)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internBVarE i
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -755,7 +775,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.bvar i)⌝⦄ :=
   internE_spec s₀ (.bvar i) hwf viewOK_bvar
 
-@[spec] theorem internFVarE_spec (s₀ : AState) (idx : Nat) (ty : EIdx)
+@[spec, wp_spec] theorem internFVarE_spec (s₀ : AState) (idx : Nat) (ty : EIdx)
     (hwf : StoreWF s₀.store) (hty : (denoteE s₀.store ty).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internFVarE idx ty
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -766,7 +786,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
   internE_spec s₀ (.fvar idx ty) hwf (viewOK_fvar hty)
 
-@[spec] theorem internSortE_spec (s₀ : AState) (u : LIdx)
+@[spec, wp_spec] theorem internSortE_spec (s₀ : AState) (u : LIdx)
     (hwf : StoreWF s₀.store) (hu : (s₀.store.ls.view u).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internSortE u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -777,7 +797,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.sort u)⌝⦄ :=
   internE_spec s₀ (.sort u) hwf (viewOK_sort hu)
 
-@[spec] theorem internAppE_spec (s₀ : AState) (f a : EIdx)
+@[spec, wp_spec] theorem internAppE_spec (s₀ : AState) (f a : EIdx)
     (hwf : StoreWF s₀.store) (hf : (denoteE s₀.store f).isSome = true)
     (ha : (denoteE s₀.store a).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internAppE f a
@@ -789,7 +809,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.app f a)⌝⦄ :=
   internE_spec s₀ (.app f a) hwf (viewOK_app hf ha)
 
-@[spec] theorem internLamE_spec (s₀ : AState) (ty b : EIdx) (m : BinderMeta)
+@[spec, wp_spec] theorem internLamE_spec (s₀ : AState) (ty b : EIdx) (m : BinderMeta)
     (hwf : StoreWF s₀.store) (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLamE ty b m
@@ -801,7 +821,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.lam ty b m)⌝⦄ :=
   internE_spec s₀ (.lam ty b m) hwf (viewOK_lam hty hb)
 
-@[spec] theorem internForallEE_spec (s₀ : AState) (ty b : EIdx)
+@[spec, wp_spec] theorem internForallEE_spec (s₀ : AState) (ty b : EIdx)
     (m : BinderMeta) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true) :
@@ -814,7 +834,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.forallE ty b m)⌝⦄ :=
   internE_spec s₀ (.forallE ty b m) hwf (viewOK_forallE hty hb)
 
-@[spec] theorem internLetEE_spec (s₀ : AState) (ty val b : EIdx)
+@[spec, wp_spec] theorem internLetEE_spec (s₀ : AState) (ty val b : EIdx)
     (hwf : StoreWF s₀.store) (hty : (denoteE s₀.store ty).isSome = true)
     (hval : (denoteE s₀.store val).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true) :
@@ -827,7 +847,7 @@ so this is a case split over the two. -/
         denoteE s'.store h = denoteEView s'.store (.letE ty val b)⌝⦄ :=
   internE_spec s₀ (.letE ty val b) hwf (viewOK_letE hty hval hb)
 
-@[spec] theorem internProjE_spec (s₀ : AState) (n : NIdx) (i : Nat) (e : EIdx)
+@[spec, wp_spec] theorem internProjE_spec (s₀ : AState) (n : NIdx) (i : Nat) (e : EIdx)
     (hwf : StoreWF s₀.store) (hn : (s₀.store.ns.view n).isSome = true)
     (he : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ internProjE n i e
@@ -845,98 +865,86 @@ Thirteen specs, all of the same shape: the state does not move and the answer
 is the store's own projection.  `Bridge/Rel.lean`'s group 6 turns each into a
 `view` fact at the tag the caller has already tested. -/
 
-@[spec] theorem viewApp_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewApp_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewApp h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewApp h⌝⦄ := by
-  mvcgen [viewApp]
-  spec_ro
+  to_wp; vcgen [viewApp] with finish
 
-@[spec] theorem viewBVar_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewBVar_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewBVar h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewBVar h⌝⦄ := by
-  mvcgen [viewBVar]
-  spec_ro
+  to_wp; vcgen [viewBVar] with finish
 
-@[spec] theorem viewSort_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewSort_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewSort h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewSort h⌝⦄ := by
-  mvcgen [viewSort]
-  spec_ro
+  to_wp; vcgen [viewSort] with finish
 
-@[spec] theorem viewConst_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewConst_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewConst h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewConst h⌝⦄ := by
-  mvcgen [viewConst]
-  spec_ro
+  to_wp; vcgen [viewConst] with finish
 
-@[spec] theorem viewFVarIdx_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewFVarIdx_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewFVarIdx h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewFVarIdx h⌝⦄ := by
-  mvcgen [viewFVarIdx]
-  spec_ro
+  to_wp; vcgen [viewFVarIdx] with finish
 
-@[spec] theorem viewFVarTy_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewFVarTy_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewFVarTy h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewFVarTy h⌝⦄ := by
-  mvcgen [viewFVarTy]
-  spec_ro
+  to_wp; vcgen [viewFVarTy] with finish
 
-@[spec] theorem viewLet_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewLet_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewLet h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewLet h⌝⦄ := by
-  mvcgen [viewLet]
-  spec_ro
+  to_wp; vcgen [viewLet] with finish
 
-@[spec] theorem viewProj_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewProj_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewProj h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewProj h⌝⦄ := by
-  mvcgen [viewProj]
-  spec_ro
+  to_wp; vcgen [viewProj] with finish
 
-@[spec] theorem viewBind_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewBind_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewBind h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewBind h⌝⦄ := by
-  mvcgen [viewBind]
-  spec_ro
+  to_wp; vcgen [viewBind] with finish
 
-@[spec] theorem viewBindI_spec (s₀ : AState) (h : EIdx) :
+@[spec, wp_spec] theorem viewBindI_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewBindI h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.viewBindI h⌝⦄ := by
-  mvcgen [viewBindI]
-  spec_ro
+  to_wp; vcgen [viewBindI] with finish
 
 /-! ## The name store -/
 
-@[spec] theorem viewN_spec (s₀ : AState) (h : NIdx) :
+@[spec, wp_spec] theorem viewN_spec (s₀ : AState) (h : NIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewN h
     ⦃⇓? v s' => ⌜s' = s₀ ∧ s₀.store.ns.view h = some v⌝⦄ := by
-  mvcgen [viewN]
-  spec_ro
+  to_wp; vcgen [viewN] with finish
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — **the readback IS the
 denotation** (DESIGN §8.3 lesson 4), so this spec is an equation and not a
 simulation. -/
-@[spec] theorem readName_spec (s₀ : AState) (h : NIdx) :
+@[spec, wp_spec] theorem readName_spec (s₀ : AState) (h : NIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ readName h
     ⦃⇓? x s' => ⌜s' = s₀ ∧ denoteN s₀.store.ns h = some x⌝⦄ := by
-  mvcgen [readName]
-  spec_ro
+  to_wp; vcgen [readName] with finish
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the readback of a name
 LIST, by induction on the list (the recursion `readNames` itself takes). -/
-@[spec] theorem readNames_spec (s₀ : AState) (hs : List NIdx) :
+@[spec, wp_spec] theorem readNames_spec (s₀ : AState) (hs : List NIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNames hs
     ⦃⇓? xs s' => ⌜s' = s₀ ∧ Frontend.denoteNList s₀.store.ns hs = some xs⌝⦄ := by
   induction hs generalizing s₀ with
-  | nil => mvcgen [readNames]; try grind [Frontend.denoteNList]
+  | nil => to_wp; vcgen [readNames]; try grind [Frontend.denoteNList]
   | cons a as ih =>
-    mvcgen [readNames, ih]
+    to_wp; vcgen [readNames, wp% ih]
     all_goals (bridge_peel; subst_vars; grind [Frontend.denoteNList])
 
 /-- con-leche: none — hash-cons a name node, through the nesting.  The store
 half is `Bridge/StoreNested.lean`'s `EStore.internName_spec`; this is that
 fact under the wrapper's own capacity branch. -/
-@[spec] theorem internNNode_spec (s₀ : AState) (v : NNodeView)
+@[spec, wp_spec] theorem internNNode_spec (s₀ : AState) (v : NNodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ns.ViewOK v) :
     ⦃fun s => ⌜s = s₀⌝⦄ internNNode v
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -945,19 +953,18 @@ fact under the wrapper's own capacity branch. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.ns.view h = some v ∧
         denoteN s'.store.ns h = denoteNView s'.store.ns v⌝⦄ := by
-  mvcgen [internNNode]
-  spec_fails
+  to_wp; vcgen [internNNode]
   -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
   -- it tests the capacity, exactly as the Rust does.
-  case vc1.h_1 =>
-    rename_i s hs _ns i hfind
+  case vc1 =>
+    rename_i hs i hfind
     subst hs
     obtain ⟨rk, hwf'⟩ := hwf
     obtain ⟨rkn, hnw⟩ := hwf'.nsWF
     have hview := NStore.view_of_find ⟨rkn, hnw⟩ hfind
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
       denoteN_unfold hnw hview⟩
-  rename_i s hs _ns _hfind _n hcap _st _s'
+  rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
     EStore.internName_spec hwf hv (by exact hcap)
@@ -966,7 +973,7 @@ fact under the wrapper's own capacity branch. -/
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — intern a transient
 name, by induction on the `Name` tree (the recursion `internName` takes: a
 `Name` is a value, not a DAG, so no fuel). -/
-@[spec] theorem internName_spec (s₀ : AState) (nm : ConLeche.Name)
+@[spec, wp_spec] theorem internName_spec (s₀ : AState) (nm : ConLeche.Name)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internName nm
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -976,39 +983,37 @@ name, by induction on the `Name` tree (the recursion `internName` takes: a
         denoteN s'.store.ns h = some nm⌝⦄ := by
   induction nm generalizing s₀ with
   | anonymous =>
-    mvcgen [internName, internNNode_spec]
+    to_wp; vcgen [internName, wp% internNNode_spec]
     all_goals (bridge_peel; subst_vars
                grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children])
   | str p str ih =>
-    mvcgen [internName, ih, internNNode_spec]
+    to_wp; vcgen [internName, wp% ih, wp% internNNode_spec]
     all_goals (bridge_peel; subst_vars
                grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                  nview_isSome_of_denote, Ext.trans])
   | num p k ih =>
-    mvcgen [internName, ih, internNNode_spec]
+    to_wp; vcgen [internName, wp% ih, wp% internNNode_spec]
     all_goals (bridge_peel; subst_vars
                grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                  nview_isSome_of_denote, Ext.trans])
 
 /-! ## The level store -/
 
-@[spec] theorem viewL_spec (s₀ : AState) (h : LIdx) :
+@[spec, wp_spec] theorem viewL_spec (s₀ : AState) (h : LIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewL h
     ⦃⇓? v s' => ⌜s' = s₀ ∧ s₀.store.ls.view h = some v⌝⦄ := by
-  mvcgen [viewL]
-  spec_ro
+  to_wp; vcgen [viewL] with finish
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — **the level readback
 IS `denoteL`** (DESIGN §8.3 lesson 4: "intern the representation, not the
 algorithm"), which is what makes every level-algorithm obligation a pure
 `Level` fact. -/
-@[spec] theorem readLevel_spec (s₀ : AState) (h : LIdx) :
+@[spec, wp_spec] theorem readLevel_spec (s₀ : AState) (h : LIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevel h
     ⦃⇓? u s' => ⌜s' = s₀ ∧ denoteL s₀.store.ls h = some u⌝⦄ := by
-  mvcgen [readLevel]
-  spec_ro
+  to_wp; vcgen [readLevel] with finish
 
-@[spec] theorem internLNode_spec (s₀ : AState) (v : LNodeView)
+@[spec, wp_spec] theorem internLNode_spec (s₀ : AState) (v : LNodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ls.ViewOK v) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLNode v
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -1017,19 +1022,18 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.ls.view h = some v ∧
         denoteL s'.store.ls h = denoteLView s'.store.ls v⌝⦄ := by
-  mvcgen [internLNode]
-  spec_fails
+  to_wp; vcgen [internLNode]
   -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
   -- it tests the capacity, exactly as the Rust does.
-  case vc1.h_1 =>
-    rename_i s hs _ls i hfind
+  case vc1 =>
+    rename_i hs i hfind
     subst hs
     obtain ⟨rk, hwf'⟩ := hwf
     obtain ⟨rkl, hlw⟩ := hwf'.lsWF
     have hview := LStore.view_of_find ⟨rkl, hlw⟩ hfind
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
       denoteL_unfold hlw hview⟩
-  rename_i s hs _ls _hfind _n hcap _st _s'
+  rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
     EStore.internLevel_spec hwf hv (by exact hcap)
@@ -1037,25 +1041,22 @@ algorithm"), which is what makes every level-algorithm obligation a pure
 
 /-! ## The level-list store -/
 
-@[spec] theorem viewLs_spec (s₀ : AState) (h : LsIdx) :
+@[spec, wp_spec] theorem viewLs_spec (s₀ : AState) (h : LsIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewLs h
     ⦃⇓? v s' => ⌜s' = s₀ ∧ s₀.store.lss.view h = some v⌝⦄ := by
-  mvcgen [viewLs]
-  spec_ro
+  to_wp; vcgen [viewLs] with finish
 
-@[spec] theorem viewLsLen_spec (s₀ : AState) (h : LsIdx) :
+@[spec, wp_spec] theorem viewLsLen_spec (s₀ : AState) (h : LsIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ viewLsLen h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.store.lss.viewLen h⌝⦄ := by
-  mvcgen [viewLsLen]
-  spec_ro
+  to_wp; vcgen [viewLsLen] with finish
 
-@[spec] theorem readLevels_spec (s₀ : AState) (h : LsIdx) :
+@[spec, wp_spec] theorem readLevels_spec (s₀ : AState) (h : LsIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevels h
     ⦃⇓? us s' => ⌜s' = s₀ ∧ denoteLs s₀.store.lss h = some us⌝⦄ := by
-  mvcgen [readLevels]
-  spec_ro
+  to_wp; vcgen [readLevels] with finish
 
-@[spec] theorem internLsNode_spec (s₀ : AState) (v : LsNodeView)
+@[spec, wp_spec] theorem internLsNode_spec (s₀ : AState) (v : LsNodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.lss.ViewOK v) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLsNode v
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -1064,18 +1065,17 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.store.lss.view h = some v ∧
         denoteLs s'.store.lss h = denoteLsView s'.store.lss v⌝⦄ := by
-  mvcgen [internLsNode]
-  spec_fails
+  to_wp; vcgen [internLsNode]
   -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
   -- it tests the capacity, exactly as the Rust does.
-  case vc1.h_1 =>
-    rename_i s hs _lss i hfind
+  case vc1 =>
+    rename_i hs i hfind
     subst hs
     obtain ⟨rk, hwf'⟩ := hwf
     have hview := LsStore.view_of_find hwf'.lssWF hfind
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
       denoteLs_unfold hview⟩
-  rename_i s hs _lss _hfind _n hcap _st _s'
+  rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
     EStore.internLevels_spec hwf hv (by exact hcap)
@@ -1098,7 +1098,7 @@ could keep the state invariant, and — since `[spec]` cannot be erased — a
 caller could not prove the missing conjunct for itself either.  It costs
 these three proofs one `rfl` each. -/
 
-@[spec] theorem readLevelM_spec (s₀ : AState) (h : LIdx)
+@[spec, wp_spec] theorem readLevelM_spec (s₀ : AState) (h : LIdx)
     (hc : ReadLCacheOK s₀.caches.readLC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelM h
     ⦃⇓? u s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -1106,14 +1106,14 @@ these three proofs one `rfl` each. -/
         s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store⌝⦄ := by
-  mvcgen [readLevelM]
+  to_wp; vcgen [readLevelM]
   all_goals (bridge_peel; subst_vars) <;>
     first
     | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadLCacheOK]
 
-@[spec] theorem readNameM_spec (s₀ : AState) (h : NIdx)
+@[spec, wp_spec] theorem readNameM_spec (s₀ : AState) (h : NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNameM h
     ⦃⇓? x s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -1121,14 +1121,14 @@ these three proofs one `rfl` each. -/
         s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         denoteN s₀.store.ns h = some x ∧
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
-  mvcgen [readNameM]
+  to_wp; vcgen [readNameM]
   all_goals (bridge_peel; subst_vars) <;>
     first
     | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
     | (intro hf; exact False.elim hf)
     | grind [ReadNCacheOK]
 
-@[spec] theorem readLevelsM_spec (s₀ : AState) (h : LsIdx)
+@[spec, wp_spec] theorem readLevelsM_spec (s₀ : AState) (h : LsIdx)
     (hc : ReadLsCacheOK s₀.caches.readLsC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelsM h
     ⦃⇓? us s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -1136,7 +1136,7 @@ these three proofs one `rfl` each. -/
         s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store⌝⦄ := by
-  mvcgen [readLevelsM]
+  to_wp; vcgen [readLevelsM]
   all_goals (bridge_peel; subst_vars) <;>
     first
     | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
@@ -1154,13 +1154,12 @@ The frame is one equation for the other twelve tables
 (`s'.memos = { s₀.memos with xC := … }`), which is what putting them in a
 record bought. -/
 
-@[spec] theorem inst1Get_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem inst1Get_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ inst1Get k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.inst1C[k]?⌝⦄ := by
-  mvcgen [inst1Get]
-  spec_ro
+  to_wp; vcgen [inst1Get] with finish
 
-@[spec] theorem inst1Set_spec (s₀ : AState) (ve : Expr) (k : EIdx × Nat)
+@[spec, wp_spec] theorem inst1Set_spec (s₀ : AState) (ve : Expr) (k : EIdx × Nat)
     (r : EIdx) (hm : Inst1MemoA ve s₀)
     (hk : (denoteE s₀.store k.1).isSome = true)
     (hr : RelE (fun e => Expr.instantiate1 e ve k.2) s₀.store k.1 s₀.store r) :
@@ -1169,143 +1168,134 @@ record bought. -/
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with inst1C := s₀.memos.inst1C.insert k r } ∧
         Inst1MemoA ve s'⌝⦄ := by
-  mvcgen [inst1Set]
-  rename_i s hs _mp _s1
+  to_wp; vcgen [inst1Set]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
-@[spec] theorem inst1Clear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem inst1Clear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ inst1Clear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with inst1C := ∅ } ∧
         ∀ ve, Inst1MemoA ve s'⌝⦄ := by
-  mvcgen [inst1Clear]
-  rename_i s hs
+  to_wp; vcgen [inst1Clear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem instLGet_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem instLGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.instLC[k]?⌝⦄ := by
-  mvcgen [instLGet]
-  spec_ro
+  to_wp; vcgen [instLGet] with finish
 
-@[spec] theorem instLClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem instLClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with instLC := ∅ } ∧
         ∀ ws, InstLMemoA ws s'⌝⦄ := by
-  mvcgen [instLClear]
-  rename_i s hs
+  to_wp; vcgen [instLClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem liftGet_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem liftGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ liftGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.liftC[k]?⌝⦄ := by
-  mvcgen [liftGet]
-  spec_ro
+  to_wp; vcgen [liftGet] with finish
 
-@[spec] theorem liftClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem liftClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ liftClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with liftC := ∅ } ∧
         ∀ amount, LiftMemoA amount s'⌝⦄ := by
-  mvcgen [liftClear]
-  rename_i s hs
+  to_wp; vcgen [liftClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem abs1Get_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem abs1Get_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ abs1Get k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.abs1C[k]?⌝⦄ := by
-  mvcgen [abs1Get]
-  spec_ro
+  to_wp; vcgen [abs1Get] with finish
 
-@[spec] theorem abs1Clear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem abs1Clear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ abs1Clear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with abs1C := ∅ } ∧
         ∀ d, Abs1MemoA d s'⌝⦄ := by
-  mvcgen [abs1Clear]
-  rename_i s hs
+  to_wp; vcgen [abs1Clear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem lowerGet_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem lowerGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ lowerGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.lowerC[k]?⌝⦄ := by
-  mvcgen [lowerGet]
-  spec_ro
+  to_wp; vcgen [lowerGet] with finish
 
-@[spec] theorem lowerClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem lowerClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ lowerClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with lowerC := ∅ } ∧
         ∀ amount, LowerMemoA amount s'⌝⦄ := by
-  mvcgen [lowerClear]
-  rename_i s hs
+  to_wp; vcgen [lowerClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem inst1LGet_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem inst1LGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ inst1LGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.inst1LC[k]?⌝⦄ := by
-  mvcgen [inst1LGet]
-  spec_ro
+  to_wp; vcgen [inst1LGet] with finish
 
-@[spec] theorem inst1LClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem inst1LClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ inst1LClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with inst1LC := ∅ } ∧
         ∀ ve, Inst1LMemoA ve s'⌝⦄ := by
-  mvcgen [inst1LClear]
-  rename_i s hs
+  to_wp; vcgen [inst1LClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
-@[spec] theorem instLPGet_spec (s₀ : AState) (k : EIdx × Nat) :
+@[spec, wp_spec] theorem instLPGet_spec (s₀ : AState) (k : EIdx × Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.instLPC[k]?⌝⦄ := by
-  mvcgen [instLPGet]
-  spec_ro
+  to_wp; vcgen [instLPGet] with finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast — the
 one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
 `us`, and so do the two level-handle tables task #97-P6-13 added beside it. -/
-@[spec] theorem instLPClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem instLPClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with instLPC := ∅, instLPLC := ∅, instLPLsC := ∅ } ∧
         (∀ ks us, InstLPMemoA ks us s') ∧ (∀ ks us, InstLPLMemoA ks us s') ∧
         ∀ ks us, InstLPLsMemoA ks us s'⌝⦄ := by
-  mvcgen [instLPClear]
-  rename_i s hs
+  to_wp; vcgen [instLPClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, fun _ _ => MemoOK.of_empty rfl,
     fun _ _ => MemoLOK.of_empty rfl, fun _ _ => MemoLsOK.of_empty rfl⟩
 
-@[spec] theorem instLPLGet_spec (s₀ : AState) (h : LIdx) :
+@[spec, wp_spec] theorem instLPLGet_spec (s₀ : AState) (h : LIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLGet h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.instLPLC[h]?⌝⦄ := by
-  mvcgen [instLPLGet]
-  spec_ro
+  to_wp; vcgen [instLPLGet] with finish
 
-@[spec] theorem instLPLsGet_spec (s₀ : AState) (h : LsIdx) :
+@[spec, wp_spec] theorem instLPLsGet_spec (s₀ : AState) (h : LsIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLsGet h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.instLPLsC[h]?⌝⦄ := by
-  mvcgen [instLPLsGet]
-  spec_ro
+  to_wp; vcgen [instLPLsGet] with finish
 
-@[spec] theorem bvarBGet_spec (s₀ : AState) (k : EIdx) :
+@[spec, wp_spec] theorem bvarBGet_spec (s₀ : AState) (k : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ bvarBGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.bvarBC[k]?⌝⦄ := by
-  mvcgen [bvarBGet]
-  spec_ro
+  to_wp; vcgen [bvarBGet] with finish
 
-@[spec] theorem bvarBSet_spec (s₀ : AState) (k : EIdx) (r : Nat)
+@[spec, wp_spec] theorem bvarBSet_spec (s₀ : AState) (k : EIdx) (r : Nat)
     (hm : MemoBA s₀) (hk : (denoteE s₀.store k).isSome = true)
     (hr : RelV Expr.bvarBound s₀.store k r) :
     ⦃fun s => ⌜s = s₀⌝⦄ bvarBSet k r
@@ -1313,28 +1303,27 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with bvarBC := s₀.memos.bvarBC.insert k r } ∧
         MemoBA s'⌝⦄ := by
-  mvcgen [bvarBSet]
-  rename_i s hs _mp _s1
+  to_wp; vcgen [bvarBSet]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.insert hm rfl hk hr⟩
 
-@[spec] theorem bvarBClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem bvarBClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ bvarBClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with bvarBC := ∅ } ∧
         MemoBA s'⌝⦄ := by
-  mvcgen [bvarBClear]
-  rename_i s hs
+  to_wp; vcgen [bvarBClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
 
-@[spec] theorem fvarBGet_spec (s₀ : AState) (k : EIdx) :
+@[spec, wp_spec] theorem fvarBGet_spec (s₀ : AState) (k : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ fvarBGet k
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = s₀.memos.fvarBC[k]?⌝⦄ := by
-  mvcgen [fvarBGet]
-  spec_ro
+  to_wp; vcgen [fvarBGet] with finish
 
-@[spec] theorem fvarBSet_spec (s₀ : AState) (k : EIdx) (r : Nat)
+@[spec, wp_spec] theorem fvarBSet_spec (s₀ : AState) (k : EIdx) (r : Nat)
     (hm : MemoFA s₀) (hk : (denoteE s₀.store k).isSome = true)
     (hr : RelV Expr.fvarRange s₀.store k r) :
     ⦃fun s => ⌜s = s₀⌝⦄ fvarBSet k r
@@ -1342,18 +1331,18 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with fvarBC := s₀.memos.fvarBC.insert k r } ∧
         MemoFA s'⌝⦄ := by
-  mvcgen [fvarBSet]
-  rename_i s hs _mp _s1
+  to_wp; vcgen [fvarBSet]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.insert hm rfl hk hr⟩
 
-@[spec] theorem fvarBClear_spec (s₀ : AState) :
+@[spec, wp_spec] theorem fvarBClear_spec (s₀ : AState) :
     ⦃fun s => ⌜s = s₀⌝⦄ fvarBClear
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos = { s₀.memos with fvarBC := ∅ } ∧
         MemoFA s'⌝⦄ := by
-  mvcgen [fvarBClear]
-  rename_i s hs
+  to_wp; vcgen [fvarBClear]
+  rename_i hs
   subst hs
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
 
@@ -1368,7 +1357,7 @@ INSIDE the postcondition.  These — not the two above — are the `@[spec]`
 theorems the walks use; `Bridge/Rel.lean`'s `bmOK_of_viewBindI` is what
 discharges their two side conditions from the `viewBindI` read. -/
 
-@[spec] theorem internBindIE_spec' (s₀ : AState) (tag : UInt32) (ty b : EIdx)
+@[spec, wp_spec] theorem internBindIE_spec' (s₀ : AState) (tag : UInt32) (ty b : EIdx)
     (mi : BMIdx) (hwf : StoreWF s₀.store) (hmi0 : mi.tag = 0)
     (htag : ETag.isBind tag = true)
     (hbm : (s₀.store.viewBM mi).isSome = true)
@@ -1401,12 +1390,12 @@ compares it with the cursor.  What its caller needs is the *positive*
 direction — a `true` answer licenses the early return — so that is what the
 spec says; a `false` answer licenses nothing and the walk recurses. -/
 
-@[spec] theorem instListCutoff_spec (s₀ : AState) (h : EIdx) (d : Nat) :
+@[spec, wp_spec] theorem instListCutoff_spec (s₀ : AState) (h : EIdx) (d : Nat) :
     ⦃fun s => ⌜s = s₀⌝⦄ instListCutoff h d
     ⦃⇓? r s' => ⌜s' = s₀ ∧ (r = true →
         (bvarOfData (s₀.store.derived h)).toNat < satRange ∧
         (bvarOfData (s₀.store.derived h)).toNat ≤ d)⌝⦄ := by
-  mvcgen [instListCutoff]
+  to_wp; vcgen [instListCutoff]
   spec_fails
   all_goals grind
 
@@ -1472,13 +1461,12 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
         simp only [List.getElem?_cons_succ] at h1 h2
         exact ih ys k n x hd.2 h1 h2
 
-@[spec] theorem pinAt_spec (s₀ : AState) (i : Nat) (hp : PinsOK s₀) :
+@[spec, wp_spec] theorem pinAt_spec (s₀ : AState) (i : Nat) (hp : PinsOK s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ pinAt i
     ⦃⇓? n s' => ⌜s' = s₀ ∧ ∀ x, pinNames[i]? = some x →
         denoteN s₀.store.ns n = some x⌝⦄ := by
-  mvcgen [pinAt]
-  spec_fails
-  rename_i s hs hlt
+  to_wp; vcgen [pinAt]
+  rename_i hs hlt
   subst hs
   refine ⟨rfl, fun x hx => ?_⟩
   refine denoteNL_get s.pins.names.toList pinNames i _ x hp.names ?_ hx
@@ -1486,40 +1474,36 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
   rw [List.getElem?_eq_getElem hlt']
   simp
 
-@[spec] theorem pinReserved_spec (s₀ : AState) (hp : PinsOK s₀) :
+@[spec, wp_spec] theorem pinReserved_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ pinReserved
     ⦃⇓? ns s' => ⌜s' = s₀ ∧ denoteNL s₀.store ns reservedBasisNameValues⌝⦄ := by
-  mvcgen [pinReserved]
-  spec_fails
-  rename_i s hs _hr
+  to_wp; vcgen [pinReserved]
+  rename_i hs _hr
   subst hs
   exact ⟨rfl, hp.reserved⟩
 
-@[spec] theorem pinEmptyLevels_spec (s₀ : AState) (hp : PinsOK s₀) :
+@[spec, wp_spec] theorem pinEmptyLevels_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ pinEmptyLevels
     ⦃⇓? us s' => ⌜s' = s₀ ∧ denoteLs s₀.store.lss us = some []⌝⦄ := by
-  mvcgen [pinEmptyLevels]
-  spec_fails
-  rename_i s hs _hr
+  to_wp; vcgen [pinEmptyLevels]
+  rename_i hs _hr
   subst hs
   exact ⟨rfl, hp.emptyLevels⟩
 
-@[spec] theorem pinZeroLevel_spec (s₀ : AState) (hp : PinsOK s₀) :
+@[spec, wp_spec] theorem pinZeroLevel_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ pinZeroLevel
     ⦃⇓? u s' => ⌜s' = s₀ ∧ denoteL s₀.store.ls u = some .zero⌝⦄ := by
-  mvcgen [pinZeroLevel]
-  spec_fails
-  rename_i s hs _hr
+  to_wp; vcgen [pinZeroLevel]
+  rename_i hs _hr
   subst hs
   exact ⟨rfl, hp.zeroLevel⟩
 
-@[spec] theorem pinSortOne_spec (s₀ : AState) (hp : PinsOK s₀) :
+@[spec, wp_spec] theorem pinSortOne_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ pinSortOne
     ⦃⇓? e s' => ⌜s' = s₀ ∧
         denoteE s₀.store e = some (.sort (.succ .zero))⌝⦄ := by
-  mvcgen [pinSortOne]
-  spec_fails
-  rename_i s hs _hr
+  to_wp; vcgen [pinSortOne]
+  rename_i hs _hr
   subst hs
   exact ⟨rfl, hp.sortOne⟩
 
