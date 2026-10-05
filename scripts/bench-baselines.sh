@@ -7,7 +7,9 @@
 #
 #     scripts/bench-baselines.sh --build --render --task '#NNN'
 #
-# which builds the binaries, runs the matrix into --out, and then runs
+# which builds the binaries and ensures the inputs (the exports through
+# `scripts/corpus.sh`, at the project toolchain; nanoda through
+# `scripts/build-nanoda.sh`), runs the matrix into --out, and then runs
 # `scripts/perf-table.py` on the raw files, rewriting the marked region of
 # OVERVIEW.md and printing the raw-numbers block for DESIGN.md's task
 # section.  Nothing in that section is typed by hand.
@@ -46,8 +48,12 @@
 #              (init 3, core 1, mathlib 1)
 #   --out DIR  where the raw files land (default: _tmp/perf)
 #   --build    first build con-ron (`cargo build --release -p con-ron`) and
-#              con-leche (the private clone at the pin); without it the
-#              binaries must already be there
+#              con-leche (the private clone at the pin), make the matrix's
+#              exports (`scripts/corpus.sh --steps=1 --exports=...`, which
+#              re-exports one whose `<name>.toolchain` stamp is not the
+#              project toolchain) and nanoda (`scripts/build-nanoda.sh`);
+#              each skips what is already there.  Without it the binaries
+#              and exports must already be there
 #   --render   afterwards run `scripts/perf-table.py --overview OVERVIEW.md
 #              --task ID --raw DIR` (needs --task)
 #   --task ID  the DESIGN.md task that records this refresh, e.g. '#107'
@@ -106,7 +112,7 @@ while [[ $# -gt 0 ]]; do
     --task=*)  TASK="${1#*=}"; shift ;;
     --list)    LIST=1; shift ;;
     --dry-run) DRY=1; shift ;;
-    -h|--help) sed -n '2,66p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,73p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "bench-baselines.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -174,6 +180,13 @@ if [[ $BUILD -eq 1 && $DRY -eq 0 ]]; then
     git -C "$CONLECHE_SRC" checkout --quiet --detach "$rev"
     echo "== lake build con-leche (in $CONLECHE_SRC)" >&2
     (cd "$CONLECHE_SRC" && lake build con-leche)
+  fi
+  # The inputs (task #114): after a wiped `_tmp/` or a toolchain move this
+  # is what keeps the refresh one command.
+  echo "== scripts/corpus.sh --steps=1 --exports=$(IFS=,; echo "${EXPORTS[*]}") $CORPUS" >&2
+  "$ROOT/scripts/corpus.sh" --steps=1 --exports="$(IFS=,; echo "${EXPORTS[*]}")" "$CORPUS"
+  if has_bin nanoda; then
+    NANODA="$NANODA" "$ROOT/scripts/build-nanoda.sh"
   fi
 fi
 

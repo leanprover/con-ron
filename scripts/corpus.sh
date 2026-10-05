@@ -4,12 +4,15 @@
 # Builds, from a clean `_tmp/`, everything the performance comparison of
 # P1.8 needs *except* the Rust checker itself:
 #
-#   1. `lean4export` at the project toolchain (con-leche's `lean-toolchain`,
-#      v4.33.0 — the export format tracks the Lean version, so the exporter
-#      MUST be built at the toolchain whose oleans it reads), and three
-#      exports: `Init` (the core prelude), `Init Std Lean` (all of core) and
-#      `Mathlib` (the scale workload, read from the mathlib package tree
-#      that `_tmp/aeneas-lean-<tag>` already has built).
+#   1. `lean4export` at the project toolchain (con-leche's `lean-toolchain`
+#      — the export format tracks the Lean version, so the exporter MUST be
+#      built at the toolchain whose oleans it reads; an exporter built at
+#      another toolchain is rebuilt), and three exports: `Init` (the core
+#      prelude), `Init Std Lean` (all of core) and `Mathlib` (the scale
+#      workload, read from the mathlib package tree that
+#      `_tmp/aeneas-lean-<tag>` already has built).  Each export gets a
+#      `<name>.toolchain` stamp; an export whose stamp is missing or names
+#      another toolchain counts as missing and is re-exported (task #114).
 #   2. con-leche's own verdict on each export, at `--jobs=1` and at a
 #      parallel setting, with `perf stat -e instructions:u` (the measurement
 #      of record), wall time and peak RSS.
@@ -37,7 +40,11 @@
 # other, or as any other worktree's.
 #
 # USAGE
-#     scripts/corpus.sh [--steps=1,2,4] [--no-mathlib] [OUTDIR]
+#     scripts/corpus.sh [--steps=1,2,4] [--exports=init,core,mathlib]
+#                       [--no-mathlib] [OUTDIR]
+#
+# `--exports` limits step 1 to the named exports (`scripts/bench-baselines.sh
+# --build` asks for exactly its matrix's); `--no-mathlib` drops `mathlib`.
 #
 # Every exporter and checker run is wrapped in `timeout` and `ulimit -v`
 # (22 GB), so that a runaway run dies rather than the machine.
@@ -59,16 +66,19 @@ TO_CHECK="${TO_CHECK:-14400}"
 # reason, and that is what the "default jobs" column measures here.
 JOBS_PAR="${JOBS_PAR:-8}"
 STEPS=1,2,4
+EXPORTS=init,core,mathlib
 WANT_MATHLIB=1
 for a in "$@"; do
   case "$a" in
     --steps=*)    STEPS="${a#--steps=}" ;;
+    --exports=*)  EXPORTS="${a#--exports=}" ;;
     --no-mathlib) WANT_MATHLIB=0 ;;
-    -*) echo "usage: $0 [--steps=1,2,4] [--no-mathlib] [OUTDIR]" >&2; exit 2 ;;
+    -*) echo "usage: $0 [--steps=1,2,4] [--exports=init,core,mathlib] [--no-mathlib] [OUTDIR]" >&2; exit 2 ;;
     *)  OUT="$a" ;;
   esac
 done
 step_wanted() { case ",$STEPS," in *",$1,"*) return 0;; *) return 1;; esac; }
+export_wanted() { case ",$EXPORTS," in *",$1,"*) return 0;; *) return 1;; esac; }
 
 mkdir -p "$OUT" || exit 2
 OUT=$(cd "$OUT" && pwd)
@@ -116,8 +126,14 @@ counts_one() { # <name>
 # The exporter and the three exports.
 export_one() { # <name> <cwd> <root-module>...
   local name=$1 cwd=$2; shift 2
-  local dest="$OUT/$name.ndjson"
-  if [ -s "$dest" ]; then say "export $name: already there ($(hsize "$dest") bytes)"; return 0; fi
+  local dest="$OUT/$name.ndjson" stamp="$OUT/$name.toolchain"
+  if [ -s "$dest" ] && [ "$(cat "$stamp" 2>/dev/null)" = "$TOOLCHAIN" ]; then
+    say "export $name: already there ($(hsize "$dest") bytes, $TOOLCHAIN)"; return 0
+  fi
+  if [ -e "$dest" ]; then
+    say "export $name: stamp '$(cat "$stamp" 2>/dev/null)' is not $TOOLCHAIN; re-exporting"
+    rm -f "$dest" "$OUT/$name.counts" "$stamp"
+  fi
   say "exporting $name ($*) from $cwd"
   ( cd "$cwd" && measure "export-$name" -- \
       timeout "$TO_EXPORT" lake env "$L4E/.lake/build/bin/lean4export" "$@" )
@@ -128,12 +144,14 @@ export_one() { # <name> <cwd> <root-module>...
     return 1
   fi
   mv "$OUT/export-$name.out" "$dest"
+  echo "$TOOLCHAIN" > "$stamp"
   say "export $name: $(hsize "$dest") bytes, $(m_wall "export-$name")s"
   counts_one "$name"
 }
 
 if step_wanted 1; then
-  if [ ! -x "$L4E/.lake/build/bin/lean4export" ]; then
+  if [ ! -x "$L4E/.lake/build/bin/lean4export" ] ||
+     [ "$(cat "$L4E/lean-toolchain" 2>/dev/null)" != "$TOOLCHAIN" ]; then
     say "building lean4export for $TOOLCHAIN"
     if [ ! -d "$L4E/.git" ]; then
       rm -rf "$L4E"
@@ -141,10 +159,11 @@ if step_wanted 1; then
     fi
     ( cd "$L4E"
       # The newest commit whose `lean-toolchain` is ours (upstream carries one
-      # `chore: bump toolchain` commit per release; the v4.33.0 *tag* of the
-      # exporter is not what matters — the toolchain file is).
+      # `chore: bump toolchain` commit per release; the exporter's version
+      # *tag* is not what matters — the toolchain file is).
       if [ "$(cat lean-toolchain)" != "$TOOLCHAIN" ]; then
-        for c in $(git log --format=%H -- lean-toolchain); do
+        git fetch -q origin || exit 2
+        for c in $(git log --format=%H origin/HEAD -- lean-toolchain); do
           if [ "$(git show "$c:lean-toolchain")" = "$TOOLCHAIN" ]; then
             git checkout -q "$c"; break
           fi
@@ -156,10 +175,10 @@ if step_wanted 1; then
   fi
   say "lean4export at $(cd "$L4E" && git log --format='%h %s' -1 | head -c 60)"
 
-  export_one init    "$L4E" Init
-  export_one core    "$L4E" Init Std Lean
-  if [ "$WANT_MATHLIB" = 1 ]; then
-    export_one mathlib "$MATHLIB_ROOT" Mathlib
+  export_wanted init && { export_one init "$L4E" Init || exit 1; }
+  export_wanted core && { export_one core "$L4E" Init Std Lean || exit 1; }
+  if [ "$WANT_MATHLIB" = 1 ] && export_wanted mathlib; then
+    export_one mathlib "$MATHLIB_ROOT" Mathlib || exit 1
   fi
   for n in init core mathlib; do counts_one "$n"; done
 fi
