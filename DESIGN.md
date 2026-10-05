@@ -1710,6 +1710,19 @@ It makes everything a sync needs and changes nothing anyone else reads:
   (the con-leche checkout is shared by every worktree, task #91; the Aeneas
   library is a path dependency a sync does not change, so `AENEAS_LEAN_DEST`
   is not needed);
+  **unless the sync moves the toolchain** (task #110: con-leche's
+  `lean-toolchain` at `<rev>` is not `proof/`'s).  Then the old package set
+  is useless, and the bump gets the new toolchain's own Aeneas directory
+  instead: `proof/lean-toolchain` is set in the worktree (committed with the
+  start commit), `proof/lakefile.toml`'s `aeneas` path is pointed at
+  `_tmp/aeneas-lean-<tag>` (it moves with the pin commit),
+  `setup-aeneas-lean.sh` builds that directory beside the old one with
+  Mathlib's cache fetched, and its `.lake/packages` — which no other tree
+  reads yet — is the bump's package set; `lake update` re-resolves all of
+  it.  Porting `patches/aeneas.patch` (`setup-aeneas-lean.sh --force`, then
+  `lake build` in that directory, until green) is the first hand work;
+  `land` repoints the main tree's `proof/.lake/packages`, and the old
+  toolchain's directory stays for the worktrees still on it;
 * the worktree `_tmp/wt-bump-<short>` on branch `bump-<short>`, `_tmp`
   linked to the shared one, `proof/.lake/packages` to the private copy, and
   no `proof/.lake/build` (the shared Lake cache restores it);

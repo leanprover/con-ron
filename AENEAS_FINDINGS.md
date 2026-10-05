@@ -27,8 +27,8 @@ Rust.
 | Aeneas | `AeneasVerif/aeneas` **505b6ca35217e7be5c96c3e2f8045edfbdf47291** (2026-09-08); translator and `backends/lean` from the same rev |
 | Charon | `aeneasverif/charon` **b104e24fea7d721b71e6c39fd70f26ff20bc0980**, via Aeneas's own flake input |
 | Rust toolchain | the nightly Charon pins, **nightly-2026-08-18** |
-| Lean (our proof project *and* con-leche) | **leanprover/lean4:v4.33.0** + Mathlib `v4.33.0` |
-| Lean the Aeneas library wants | v4.31.0 — reconciled by our 375-line `patches/aeneas-433.patch` (§3.1) |
+| Lean (our proof project *and* con-leche) | **leanprover/lean4:v4.35.0-rc3** + Mathlib `v4.35.0-rc3` (v4.33.0 until task #110) |
+| Lean the Aeneas library wants | v4.31.0 — reconciled by our 595-line `patches/aeneas.patch` (§3.1; `aeneas-433.patch` until task #110) |
 | CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
 
 The Rust subset we hold ourselves to (`DESIGN.md` §3.4, enforced by a lint script): no
@@ -335,6 +335,19 @@ files, proper proof fixes rather than the `backward.*` flags) was open but stale
 conflicting with master.  We carry the patch and will switch when #1283 or a successor lands.
 If useful, the patch is a mechanical 10-file stopgap that gets 4.33 working today, and its six
 API moves are probably a subset of what #1283 already does.
+
+**On v4.35.0-rc3** (con-ron task #110, 2026-10-05; upstream Aeneas still on v4.31.0), the
+same patch, renamed `patches/aeneas.patch` and without its toolchain/Mathlib-tag hunks (the
+setup script writes those), needed five more source changes: **[bug]** `step*` no longer
+splits an `if`: its bifurcation analysis unfolds `ite`/`dite` and expects
+`Decidable.casesOn`, but 4.35 made `Decidable` a structure and `dite` a `Bool.casesOn`
+over `decide c`, so `Info.ofExpr` now reads the branches off the `ite`/`dite` application;
+`bv_tac` calls `bvDecide` through the new `Target`/`GrindM` API; core gained a builtin
+`Nat.reduceLog2` (Aeneas's simproc is renamed); `AddLeftCancelMonoid.add_eq_zero` is gone.
+**[bug]** `bv_decide` now reads bit widths syntactically (`Sym.getNatValue?`), so a
+`UScalarTy.U32.numBits` width is no longer evaluated and `bvify`/`bv_tac` fail on every
+scalar goal; the five `U*.bv_mod_size` lemmas are proved by `simp` instead and the
+bvify/bv_tac tests are disabled (neither tactic is used by con-ron).
 
 **The trap the two options set, and it cost us real work.** **[bug]** The `leanOptions` are
 the **`aeneas` package's**, so they do **not** reach a downstream project.  Without them,

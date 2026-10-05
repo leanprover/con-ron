@@ -970,9 +970,9 @@ warning from `proof/`'s own sources.
 
 **Upstream patches.**  One: the pinned Aeneas builds its Lean library
 against an older Lean, and
-[`patches/aeneas-433.patch`](https://github.com/leanprover/con-ron/tree/master/patches/aeneas-433.patch)
-(375 lines, ten files) makes it build on con-leche's Lean v4.33 and its
-Mathlib.  `scripts/setup-aeneas-lean.sh` applies it.  Charon and con-leche
+[`patches/aeneas.patch`](https://github.com/leanprover/con-ron/tree/master/patches/aeneas.patch)
+(595 lines, nineteen files) makes it build on con-leche's Lean (v4.35.0-rc3)
+and its Mathlib.  `scripts/setup-aeneas-lean.sh` applies it.  Charon and con-leche
 are used unpatched.
 
 ## 11. Module map
