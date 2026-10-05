@@ -48,7 +48,6 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena Std.Do
 
-set_option mvcgen.warning false
 
 /-! ## 1. Soundness: from the triple back to a run -/
 

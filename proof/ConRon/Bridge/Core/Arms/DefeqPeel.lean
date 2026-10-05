@@ -40,10 +40,7 @@ import ConRon.Bridge.Core.Walks.StrCtor
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -265,7 +262,7 @@ theorem defeqPeelDone_spec (s₀ : AState) (mism ml : Bool) :
     · exact triple_fail
   | false =>
     simp only [Bool.false_eq_true, ite_false]
-    mvcgen
+    to_wp; vcgen with finish
 
 /-- con-leche: none — the equality short-circuit: two equal handles are one
 opened pair, and the chain's syntactic fast path answers `true`. -/
@@ -321,8 +318,7 @@ theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
   cases v with
   | false =>
     simp only [Bool.not_false, ite_true]
-    mvcgen
-    bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok3, hx03, hp03, F, .inl ⟨hF, rfl⟩⟩
   | true =>
     simp only [Bool.not_true, Bool.false_eq_true, ite_false]
@@ -521,8 +517,7 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       cases dq with
       | false =>
         simp only [Bool.not_false, ite_true]
-        mvcgen
-        bridge_peel; subst_vars
+        to_wp; vcgen; subst_vars
         exact ⟨hok4, hx04, hp04, peel_step_pure (F2 := 0)
           (mm := mode.verifiedChecks && !(ma == mb)) (a.tag == ETag.lam) hF1
           (fun _ => rfl) (fun h => absurd h (by simp)) hmm⟩
@@ -625,8 +620,7 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
   cases v with
   | false =>
     simp only [Bool.not_false, ite_true]
-    mvcgen
-    bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok1, hx1, hp1, quick_step_pure (F2 := 0)
       (mm := mode.verifiedChecks && !(m1.pw == m2.pw)) isLam hne hdq
       (fun _ => rfl) (fun h => absurd h (by simp)) id⟩

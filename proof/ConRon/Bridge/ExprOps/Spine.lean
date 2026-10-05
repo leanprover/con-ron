@@ -75,10 +75,7 @@ import ConRon.Bridge.ExprOps.TagFirst
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -181,7 +178,7 @@ theorem RelE.body_step {F Fb : Expr → Expr} {st st' : EStore}
 
 /-- con-leche: none — a leaf/fallthrough arm that answers its own subject,
 with the licence read off the VIEW rather than off the denoted term.  This is
-`RelE.self` in the form `mvcgen` produces: the arm has the view as a branch
+`RelE.self` in the form `vcgen` produces: the arm has the view as a branch
 condition, and `denoteEView` is what the remaining obligation speaks of. -/
 theorem RelE.self_of_view {f : Expr → Expr} {st : EStore} {h : EIdx}
     {v : ENodeView} (hwf : StoreWF st) (hview : st.view h = some v)
@@ -367,7 +364,7 @@ Two facts; after them no proof below unfolds `denoteEList`.  Both belong in
 
 The fallthrough arm of a telescope walk is handed the view as an ABSTRACT
 `ENodeView` with a negative constraint (`∀ ty b m, x ≠ .forallE ty b m`) — it
-is one arm and not nine, because `mvcgen` does not split a `match` whose
+is one arm and not nine, because `vcgen` does not split a `match` whose
 default case is a wildcard.  So what the arm needs is that the CONSTRAINT
 travels to the denoted term, and that is one ten-case analysis, done once
 here.  It belongs in `Bridge/Rel.lean` beside `denoteEView_ext`. -/
@@ -550,11 +547,11 @@ theorem getAppFn_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    mvcgen [getAppFn]
+    to_wp; vcgen [getAppFn]
     all_goals bridge_vcs [Expr.getAppFn]
   | succ fuel ih =>
     intro s₀ h hok hden
-    mvcgen [getAppFn, ih]
+    to_wp; vcgen [getAppFn, wp% ih]
     all_goals try bridge_vcs [Expr.getAppFn]
     -- Two verification conditions remain, in goal order: the `app` arm's
     -- postcondition and the fallthrough.  The closer does not take either,
@@ -562,7 +559,6 @@ theorem getAppFn_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
     -- (the finding `ExprOps/Inst1` records at its `bvar` arm), so both are
     -- one application of the matching step lemma.
     next =>
-      intro hs hr
       bridge_peel
       subst_vars
       exact ⟨rfl, RelE.head_step hok.wf
@@ -585,11 +581,11 @@ theorem getAppArgs_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    mvcgen [getAppArgs]
+    to_wp; vcgen [getAppArgs]
     all_goals bridge_vcs [Expr.getAppArgs]
   | succ fuel ih =>
     intro s₀ h hok hden
-    mvcgen [getAppArgs, ih]
+    to_wp; vcgen [getAppArgs, wp% ih]
     all_goals try bridge_vcs [Expr.getAppArgs]
     next =>
       bridge_peel
@@ -606,16 +602,16 @@ theorem getAppArgs_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
 
 /-! ## 4. The read-only telescope walks
 
-`mvcgen` hands SOME arms their hypotheses as arrows and some already peeled,
-depending on whether the arm's last step is a `pure` or a bind.  `arm_pre`
-absorbs the difference in one line so that the arm proofs below are the
-`exact` and nothing else. -/
+`vcgen` hands every arm its hypotheses already introduced, each spec's
+postcondition as one conjunction.  `arm_pre` peels and substitutes them and
+recovers the tag-first views in one line, so that the arm proofs below are
+the `exact` and nothing else.  (Under `mvcgen` it also had to introduce the
+hypotheses some arms got as arrows; `vcgen` leaves none.) -/
 
-/-- con-leche: none — the arm preamble: introduce however many hypotheses
-`mvcgen` left as arrows, then `ExprOps/Inst1`'s peel and substitution. -/
+/-- con-leche: none — the arm preamble: `ExprOps/Inst1`'s peel and
+substitution, then the tag-first arms' `view` facts. -/
 macro "arm_pre" : tactic =>
-  `(tactic| (repeat intro _
-             bridge_peel
+  `(tactic| (bridge_peel
              subst_vars
              tf_views))
 
@@ -629,11 +625,11 @@ theorem piResult_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    mvcgen [piResult]
+    to_wp; vcgen [piResult]
     all_goals bridge_vcs [Expr.piResult]
   | succ fuel ih =>
     intro s₀ h hok hden
-    mvcgen [piResult, ih]
+    to_wp; vcgen [piResult, wp% ih]
     all_goals try bridge_vcs [Expr.piResult]
     -- Ten verification conditions remain: the `forallE` arm's postcondition
     -- and the nine fallthrough constructors.  `RelE` is a `def`, so the
@@ -661,7 +657,7 @@ theorem fvarTypeD_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store h).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ fvarTypeD h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ RelE Expr.fvarTypeD s₀.store h s₀.store r⌝⦄ := by
-  mvcgen [fvarTypeD]
+  to_wp; vcgen [fvarTypeD]
   all_goals try bridge_vcs [Expr.fvarTypeD]
   all_goals
     (arm_pre
@@ -683,7 +679,7 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
   induction k with
   | zero =>
     intro s₀ h hok hden
-    mvcgen [stripPis]
+    to_wp; vcgen [stripPis]
     all_goals try bridge_vcs [Expr.stripPis]
     next =>
       arm_pre
@@ -691,7 +687,7 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
       simp [denoteBP, denoteBL, he, Expr.stripPis]
   | succ k ih =>
     intro s₀ h hok hden
-    mvcgen [stripPis, ih]
+    to_wp; vcgen [stripPis, wp% ih]
     all_goals try bridge_vcs [Expr.stripPis]
     all_goals
       (arm_pre
@@ -702,9 +698,6 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
        | exact ⟨rfl, RelBP.none_step (Fb := Expr.stripPis k) hok.wf
            (by arm_hyp) (by intro x y hh; simp [Expr.stripPis, hh])
            (by arm_hyp)⟩
-       | exact ⟨rfl, RelBP.none_of_view hok.wf (by arm_hyp) (fun e he =>
-           stripPis_of_not_forallE
-             (denoteEView_not_forallE he (by grind)))⟩
        -- the tag-first `else` arm (task #97-P5-Core round 4)
        | (obtain ⟨v, hv⟩ := view_of_denote_isSome (by arm_hyp)
           exact ⟨rfl, RelBP.none_of_view hok.wf hv (fun e he =>
@@ -723,7 +716,7 @@ theorem stripLams_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
   induction k with
   | zero =>
     intro s₀ h hok hden
-    mvcgen [stripLams]
+    to_wp; vcgen [stripLams]
     all_goals try bridge_vcs [Expr.stripLams]
     next =>
       arm_pre
@@ -731,7 +724,7 @@ theorem stripLams_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
       simp [denoteBP, denoteBL, he, Expr.stripLams]
   | succ k ih =>
     intro s₀ h hok hden
-    mvcgen [stripLams, ih]
+    to_wp; vcgen [stripLams, wp% ih]
     all_goals try bridge_vcs [Expr.stripLams]
     all_goals
       (arm_pre
@@ -771,7 +764,7 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
   induction args with
   | nil =>
     intro s₀ f hok hf hargs
-    mvcgen [mkAppN]
+    to_wp; vcgen [mkAppN]
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
@@ -780,7 +773,7 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
   | cons a as ih =>
     intro s₀ f hok hf hargs
     obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
-    mvcgen [mkAppN, ih]
+    to_wp; vcgen [mkAppN, wp% ih]
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
@@ -808,8 +801,10 @@ theorem denote_bvar_of_intern {st : EStore} {b : EIdx} {i : Nat}
 
 /-- con-leche: none — `mkAppNFrom`'s two clauses, spelled out.  **Unfolding
 the walk by name LOOPS**: its recursion is on a cursor and not on a
-structural argument, so `mvcgen [mkAppNFrom]` rewrites the recursive call
-again and again until `maxRecDepth` (measured).  These two equations unfold
+structural argument, so `mvcgen [mkAppNFrom]` rewrote the recursive call
+again and again until `maxRecDepth` (measured; `vcgen [mkAppNFrom]` does not
+loop, measured in task #111, but leaves goals the arm proofs below do not
+fit).  These two equations unfold
 it exactly once, which is the shape rule this group adds to task #97s's
 seven: *a walk whose measure is `termination_by` and not a constructor
 pattern needs its clauses as lemmas.* -/
@@ -849,7 +844,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
       List.drop_eq_nil_of_le (by simp; omega)
     rw [hd] at hargs ⊢
     rw [mkAppNFrom_ge (by omega)]
-    mvcgen
+    to_wp; vcgen
     all_goals try bridge_vcs [Expr.mkAppN]
     all_goals
       (arm_pre
@@ -864,12 +859,11 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
       rw [hd] at hargs ⊢
       obtain ⟨ha1, ha2⟩ := denoteEList_cons_isSome hargs
       rw [mkAppNFrom_lt hi]
-      mvcgen [ih]
+      to_wp; vcgen [wp% ih]
       all_goals try bridge_vcs [Expr.mkAppN]
       all_goals
         (arm_pre
          first
-         | omega
          | exact denote_isSome_of_intern_app (by arm_hyp) (by grind) (by grind)
          | (refine ⟨by arm_hyp, by grind only [Ext.trans],
          by grind only [BMExt.trans, BMExt.refl], by grind, by grind,
@@ -880,7 +874,7 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
         List.drop_eq_nil_of_le (by simp; omega)
       rw [hd] at hargs ⊢
       rw [mkAppNFrom_ge hi]
-      mvcgen
+      to_wp; vcgen
       all_goals try bridge_vcs [Expr.mkAppN]
       all_goals
         (arm_pre
@@ -927,14 +921,14 @@ theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s�
   induction n with
   | zero =>
     intro s₀ mI k hok
-    mvcgen [bvarRange]
+    to_wp; vcgen [bvarRange]
     all_goals try bridge_vcs [bvarRangeSpec]
     all_goals
       (arm_pre
        exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl⟩)
   | succ n ih =>
     intro s₀ mI k hok
-    mvcgen [bvarRange, ih]
+    to_wp; vcgen [bvarRange, wp% ih]
     all_goals try bridge_vcs [bvarRangeSpec]
     all_goals
       (arm_pre
@@ -953,7 +947,7 @@ theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s�
 `instantiate1Fast_spec`.  Two things about consuming it:
 
 * it takes the substituted term `ve` EXPLICITLY, so the argument's
-  denotation has to be named before `mvcgen` runs — `obtain` it from the
+  denotation has to be named before `vcgen` runs — `obtain` it from the
   argument list's `isSome` and specialise the spec with a `have` (task #97s
   round 2's second trap, "specialise it at the arm's own `ea` with a
   `have`");
@@ -998,7 +992,7 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
   induction as with
   | nil =>
     intro s₀ t e hok hden hargs
-    mvcgen [instSpine]
+    to_wp; vcgen [instSpine]
     all_goals try bridge_vcs [Expr.instSpine]
     all_goals
       (arm_pre
@@ -1016,13 +1010,12 @@ theorem instSpine_spec (fuel : Nat) : ∀ (as : List EIdx) (s₀ : AState)
             s'.memos.inst1C = ∅ ∧
             Inst1At ea d s.store x s'.store rr⌝⦄ :=
       fun s x d hs hv hx => instantiate1Fast_spec fuel s x a d ea hs hv hx
-    mvcgen [instSpine, ih, hinst]
+    to_wp; vcgen [instSpine, wp% ih, wp% hinst]
     all_goals try bridge_vcs [Expr.instSpine]
     all_goals
       (arm_pre
        first
-       | exact hea
-       | (refine ⟨by first | arm_hyp | exact ⟨by arm_hyp⟩,
+       | (refine ⟨by arm_hyp,
             by grind only [Ext.trans],
             by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
           exact RelEA.inst_step hea (by arm_hyp) (by arm_hyp) (by arm_hyp)

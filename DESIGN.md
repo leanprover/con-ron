@@ -66623,6 +66623,229 @@ edit `CLAUDE.md`).  (2) `bvify`/`bv_tac` are broken on 4.35 (unused
 here).  (3) The `vcgen` migration: the 43 files above, each with one
 `set_option` line to delete at the end.
 
+### Task #111 — `mvcgen` → `vcgen` (2026-10-05, Opus)
+
+The 478 `mvcgen` sites of task #110's list (43 files, all under
+`ConRon/Bridge/`) are now `vcgen`; **no `mvcgen` is left**, so every file's
+`set_option mvcgen.warning false` / `linter.deprecated.syntax false` pair
+is gone (and the dead `mvcgen.warning` line of 14 files that had no
+`mvcgen` call).  No theorem statement changed.  Toolchain unchanged
+(v4.35.0-rc3).
+
+**What `vcgen` is (read before migrating).**  Sources: the v4.35.0-rc3
+docstrings (`Init/Tactics.lean` `mvcgen`/`vcgen`,
+`Std/Tactic/Do/Syntax.lean`'s `VCGen.Config`, `Std/WP/**`,
+`Lean/Elab/Tactic/VCGen/**`), reference-manual PR #927 (the `vcgen`/`Std.WP`
+chapter and tutorial; `Manual/VCGen.lean` is not on the published `latest`
+manual yet) and lean4 PR #15290 (after rc3: moves the syntax to
+`Std.WP.Tactic` and deprecates the whole `Std.Do` proof mode).
+
+* **It is not `mvcgen` renamed: it is the generator of a different program
+  logic.**  `mvcgen` works on `Std.Do` (`SPred` assertions, `PostCond`
+  postconditions, `⇓`/`⇓?`, the `⊢ₛ` proof mode); `vcgen` works on `Std.WP`:
+  `WP Prog Value Pred EPred` interprets any program type (a monad, or a deep
+  embedding) as a predicate transformer over an arbitrary complete lattice;
+  `Std.WP.Triple x pre post epost` is `pre ⊑ wp x post epost`, with the
+  exception postcondition a separate argument (`⦃P⦄ x ⦃Q; E⦄`, scoped
+  notation, plain functions, no `⇓`).  For `StateT σ (Except ε)` the lattice
+  is `σ → Prop` and `epost : ε → Prop`; partial correctness is
+  `epost = fun _ => True`.
+* **`vcgen` rejects a `Std.Do` goal** ("could not determine the program type
+  of the goal"), and `@[spec]` on a `Std.Do` triple files it in the legacy
+  database only, which `vcgen` does not read.  The tactic's own warning calls
+  it "an experimental drop-in replacement for `mvcgen`"; for `Std.Do`
+  statements it is not.
+* **Verification conditions are ordinary goals**: the state is introduced,
+  preconditions and each callee's postcondition arrive as hypotheses (a
+  conjunction stays one hypothesis), tags are `vc1, vc2, …`; no `⊢ₛ`, no
+  `mleave`.  No invariant suggestions (`invariants?` only warns).
+* **New clauses**: `with <grind step>` runs one grind-mode step (`finish`,
+  `instantiate […]`, …) on every VC inside the E-graph `vcgen` built; `until
+  <pattern>` stops at a program; `frames | f a _ => F` carries a frame across
+  a call; `simplifying_assumptions [thms]`.  `vcgen [f, foo_spec, -bar,
+  bar_eq]` unfolds, adds, **erases** (per call — `attribute [-spec]` was
+  never possible) and rewrites with equations.
+* **Config**: `errorOnMissingSpec` (default `true`: a program head with no
+  spec is an error, where `mvcgen` left it as a VC), `jp`, `stepLimit`,
+  `debug`, `internalize`; `leave`/`trivial` are ignored with a warning, and
+  `elimLets` defaults to `false`.  `set_option experimental.vcgen true`
+  silences the per-call "experimental" warning.
+
+**The bridge (`Bridge/WP.lean`, new).**  Statements stay `Std.Do` (the
+headline theorems, Refine2 and the capstone consume them), so the tier
+talks to `vcgen` through three pieces, all justified by one fact: for
+`AM = StateT AState (Except CheckError)`, `⦃fun s => ⌜P s⌝⦄ x ⦃⇓? r s' =>
+⌜Q r s'⌝⦄` and `Std.WP.Triple x P Q (fun _ => True)` are the same statement
+(`AM.do_of_wp`, `AM.wp_of_do`, each ~10 lines).
+* `to_wp` — the goal side: `apply AM.do_of_wp`, then zeta-reduce the target
+  (a structure update `{ s.memos with … }` in a postcondition is a `let`,
+  which `vcgen`'s unifier rejects: "unexpected let-declaration term during
+  structural definitional equality").  Every former `mvcgen …` is `to_wp;
+  vcgen …`.
+* `@[wp_spec]` beside every `@[spec]` (111 attributes) derives `<name>.wp`,
+  the `Std.WP` twin, zeta-reduced, and files it with `@[spec]` at the same
+  priority (`@[wp_spec high]`, `local`).
+* `wp% h` — the twin of a local or explicitly passed spec, for `vcgen [wp%
+  ih, wp% foo_spec (ve := ve)]` (286 uses).
+* `fail`, `failDanglingE`, `failDanglingLs` got NATIVE `Std.WP` specs with a
+  schematic postcondition (`fail_wp …`): a failing branch now produces no
+  VC at all, which killed the `False` barrels, and with them `spec_fails` /
+  `spec_ro` (deleted).  The `Std.Do` `fail_spec`, `failDanglingE_spec`,
+  `failDanglingLs_spec` became dead (dead-census) and are deleted;
+  `Axioms.lean` prints `fail_wp` instead (`[propext, Classical.choice,
+  Quot.sound]`, from the bridge's `simp`).
+
+**Migration.**  Specs.lean and ExprOps/Inst1.lean by the coordinator, the
+other 41 files by six lane agents in the one worktree (disjoint file sets,
+`lake env lean` only, coordinator commits), from a guide written after the
+first two files.  A script did the mechanical pass (`mvcgen [a, h]` →
+`to_wp; vcgen [a, wp% h]`); 73 of the 77 Iota* sites needed nothing more, the
+heavy files (Subst, Nat, StrLit, PropRead, Spine) needed every `case`/
+`rename_i` block rewritten.  Two workarounds became dead and were deleted:
+Proj.lean's `readNamesMB` copy of `readNamesM` (it existed so `mvcgen` would
+not pick `readNamesM_spec`; now `vcgen [-readNamesM_spec.wp, …]`, one theorem
+`readNamesM_frame` instead of three declarations) and Abs.lean's
+`memoA_hop`/`abstract1Arm*_hop` wrappers (~120 lines; `mvcgen` pinned an arm
+spec's start state before `fvarB`).  Owed.lean's `key` generalisation (to
+stop `mvcgen` preferring the database spec over the IH) is gone too.
+
+**Where `vcgen` does more than `mvcgen`.**
+* No failure barrels (native schematic `fail` specs): the
+  `(intro hf; exact False.elim hf)` / `exact fun h => h.elim` alternatives
+  disappear (barrel markers 101 → 83 in the proof scripts, the remainder
+  being unrelated `absurd`s).
+* Hypotheses arrive introduced: the `intro hwf' hx hbx … hden'` chains go
+  (`intro` 381 → 232 in the 303 affected theorems); `bridge_peel` became dead
+  at several sites.
+* `vcgen [f]` unfolds `f` even when the database has a spec for it, so the
+  `unfold f; mvcgen` dance of MemoSpecs is gone; per-call erasure `[-spec]`.
+* Program binders keep their names (`cv`, `pl`, `sort`, …: StrLit's positional
+  `r0…r11` became program names).
+* `with finish` replaces `all_goals grind` closers (40 sites).
+
+Example (MemoSpecs `readLevelM_specF`):
+
+```lean
+-- before                                   -- after
+unfold readLevelM                           to_wp; vcgen [readLevelM]
+mvcgen                                      all_goals (subst_vars;
+all_goals (bridge_peel; subst_vars) <;>       refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;>
+  first                                       grind [ReadLCacheOK])
+  | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
+  | (intro hf; exact False.elim hf)
+  | grind [ReadLCacheOK]
+```
+
+**Where it does less (regressions, all worked around).**
+1. **The `Std.Do` front end is missing** (above): the bridge module.
+2. **A spec parameter that does not occur in the program is not solved**
+   (`ve` in `inst1Set_spec`, `mode/env/fe` in `lvlEq?_spec`, `f` in
+   `liftSet_specG`, `e` in Memo's `BodySpec`): `vcgen` leaves a `⊢ Expr`
+   goal and metavariables in the other VCs where `mvcgen` filled them in.
+   Fix: pass it instantiated, `wp% inst1Set_spec (ve := ve)` — 21 named
+   arguments at 15 calls.  MWE: `_tmp/t111-scratch/mwe/Param.lean`.
+3. **Decided branches are not pruned**: `if false = true`, `let y ← pure
+   false; if y = true …`, or a branch a hypothesis in context decides, is
+   still entered, and with `errorOnMissingSpec` a spec-less program in the
+   dead arm is an ERROR ("No spec found for program constTyAt …").  Fix: a
+   `simp only [Bool.false_eq_true, ite_false]` (or `[h, ite_true]`) before
+   `to_wp` (~10 sites, each commented).  MWE: `mwe/Dead.lean`.
+4. **Reducible abbrevs are unfolded in VCs** (`reduceNatFueled`,
+   `iotaCertsFueled`, `projCertFueled`, `projLitToCtorFueled`, `EIdx`):
+   syntactic `rw` with lemmas stated on the abbrev stops matching (7 × `rw [←
+   ConLeche.reduceNatFueled, …]`, `show …`), and two `simp only` arguments
+   became unused (warnings).
+5. **No unfolding inside arguments**: `vcgen [pureFnsA]` does not unfold
+   `(pureFnsA mode fe f).whnf d i` (only a program head); `unfold` first
+   (EnsureSort).  Conditional equation lemmas of a catch-all `| _, _ =>` arm
+   are not used: pass `defEqList.eq_def` (Owed).
+6. **Trivial VCs left open** in places (`s = s₀` with `a✝ : s = s₀` in
+   context, `PinsOK s`): `with finish` / `assumption`.  Not reproduced in a
+   small example (a plain `get` closes), so context-dependent.
+7. **Ergonomics**: a callee's postcondition is ONE conjunction hypothesis, so
+   `bridge_peel` splits them in an interleaved order and positional
+   `rename_i` lists had to be regenerated (lane 4 wrote a remapping script);
+   VC ORDER is roughly the reverse of `mvcgen`'s (postcondition first, then the
+   calls' side goals last-to-first), so `next =>` sequences became `case vcN`.
+   A match-bound value appears as a hypothesis literally named `_`
+   (`_ : Option Nat`, `a✝ : s = s' ∧ _ = …`; `mwe/Under.lean`).
+   Structure-update projections stay unreduced in VCs
+   (`{ store := …, … }.memos`).
+
+**Upstream-worthy** (MWEs in `_tmp/t111-scratch/mwe/`, scratch, not
+committed): (a) no `Std.Do` front end although the tactic advertises itself
+as a drop-in replacement; (b) `let` in a postcondition (`mwe/Let2.lean`);
+(c) unsolved spec parameters (`Param.lean`); (d) decided branches not
+pruned + hard error on a spec-less program there (`Dead.lean`); (e) the `_`
+hypothesis name (`Under.lean`); (f) abbrevs unfolded in VCs.
+
+**Automation, counted** (`metrics.py`: the 303 theorems whose proof calls the
+generator, master → branch; markers are occurrences in those proofs):
+
+| | before | after |
+|---|---:|---:|
+| non-blank proof lines | 11 598 | 10 910 (−5.9 %) |
+| `intro` | 381 | 232 |
+| barrels (`spec_fails`, `False.elim`, `absurd`) | 101 | 83 |
+| `rename_i` | 453 | 464 |
+| `next`/`case` blocks | 707 | 717 |
+| `wp%` spec wrappers (bridge cost) | 0 | 286 |
+| explicit spec-parameter instantiations | 0 | 21 (15 calls) |
+| `simp only` before the generator | 15 | 24 |
+| `with finish` | 0 | 40 |
+
+Biggest reductions: Subst 847 → 610 lines, Owed 370 → 300, Inst1 185 →
+145, StrLit 1 277 → 1 224, PropRead 830 → 788.  58 files, +2 807 / −3 506.
+
+**Elaboration** (`perf stat -e instructions:u`, `lake env lean
+-Dbackward.isDefEq.respectTransparency=false -Dbackward.do.legacy=true
+-Dprofiler=true <file>`, one run each, master `a0224b13` in a detached
+worktree vs this branch, imports from built `.olean`s; each figure
+includes ~8.5 G of import, which is all the new `WP.lean` costs):
+
+| file | master G | branch G | Δ |
+|---|---:|---:|---:|
+| ExprOps/Subst.lean | 2 187.6 | 2 033.5 | −7.0 % |
+| ExprOps/Owed.lean | 1 067.3 | 1 009.0 | −5.5 % |
+| ExprOps/Abs.lean | 471.1 | 396.3 | −15.9 % |
+| ExprOps/Inst1.lean | 456.8 | 426.5 | −6.6 % |
+| ExprOps/Spine.lean | 250.3 | 242.2 | −3.2 % |
+| ExprOps/Ranges.lean | 220.0 | 192.2 | −12.6 % |
+| ExprOps/Guards.lean | 182.2 | 158.8 | −12.8 % |
+| Core/Walks/Nat.lean | 146.3 | 111.7 | −23.6 % |
+| ExprOps/Leaves.lean | 116.1 | 106.9 | −7.9 % |
+| Core/Walks/StrLit.lean | 85.6 | 65.9 | −23.0 % |
+| Core/Walks/IotaMajor.lean | 71.5 | 65.3 | −8.6 % |
+| Core/Walks/PropRead.lean | 43.9 | 28.7 | −34.7 % |
+| Specs.lean | 37.1 | 29.8 | −19.7 % |
+| Core/Arms/InferIO.lean | 37.1 | 22.4 | −39.5 % |
+| Core/Walks/Spine.lean | 34.5 | 23.9 | −30.6 % |
+| Core/Arms/Annotate.lean | 32.4 | 23.2 | −28.3 % |
+| the other 27 files | 493.5 | 417.5 | −15.4 % |
+| WP.lean (new) | — | 8.9 | |
+| **total, 43 files** | **5 988** | **5 433** | **−9.3 %** |
+
+Every file got cheaper; none slower.  Where the time goes (profiler,
+summed over the 43 files, seconds; both runs shared the machine with other
+builds, so indicative only): `tactic execution` (self time, where the
+generator itself runs) 196 → 152, `simp` (mostly `mvcgen`'s internal simp)
+119 → 103, `grind` 267 → 263 — i.e. the generator got ~20 % cheaper and the
+closers cost the same; the big files are dominated by `grind`, which is why
+their gain is single-digit.  Specs.lean alone: tactic execution 2.72 s →
+1.08 s, simp 664 → 280 ms.
+
+**Verdict.**  Worth it, with the bridge: −9 % instructions on the tier, −6 %
+proof text, the failure barrels and intro chains gone, two workarounds
+deleted.  But `vcgen` on rc3 is not a drop-in replacement for a `Std.Do`
+code base: without `Bridge/WP.lean` the migration would have meant restating
+every triple in `Std.WP`, and its weaker unification (spec parameters) and
+lack of branch pruning cost explicit annotations `mvcgen` did not need.
+Lean PR #15290 (after rc3) deprecates the `Std.Do` proof mode itself; a
+future task restating the tier's triples natively in `Std.WP` would delete
+the bridge, the 111 `wp_spec`s and the 286 `wp%`s.
+
+Gates: `scripts/gates.sh` all OK on the branch (below).
+
 ### Task #112 — Aeneas 505b6ca3 → 557eff83, on v4.35.0-rc3 (2026-10-05, Opus)
 
 `vendor/aeneas` and `flake.nix` move to upstream `main` **`557eff83`**

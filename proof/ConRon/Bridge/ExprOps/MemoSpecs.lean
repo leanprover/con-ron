@@ -8,15 +8,17 @@
 parameters as THEOREM PARAMETERS:
 
 ```lean
-@[spec] theorem instLPLsSet_spec (s₀) (ks : List Name) (us : List Level)
+@[spec, wp_spec] theorem instLPLsSet_spec (s₀) (ks : List Name) (us : List Level)
     (h r : LsIdx) (hm : InstLPLsMemoA ks us s₀) … : ⦃…⦄ instLPLsSet h r ⦃…⦄
 ```
 
-Those parameters do not occur in the PROGRAM, so when `mvcgen` selects the
-spec it has nothing to pin them against, and it does not leave them as
-metavariables for the closer to solve either: it assigns them from whatever
-is in scope at the right type.  Measured in `ExprOps/InstLP.lean`'s
-`substLsMemoAt`: the readback list `ls : List Level` is in scope, so the
+Those parameters do not occur in the PROGRAM, so when the verification
+condition generator selects the spec it has nothing to pin them against.
+`mvcgen` (before task #111) did not leave them as metavariables for the
+closer to solve either: it assigned them from whatever was in scope at the
+right type; `vcgen` leaves them as goals of their own type, to be
+supplied by hand (`wp% f_spec (x := x)`).  Measured under `mvcgen` in
+`ExprOps/InstLP.lean`'s `substLsMemoAt`: the readback list `ls : List Level` is in scope, so the
 arm's memo verification condition comes out as `InstLPLsMemoA ks ls s` — not
 merely hard, **false**.  (`substLMemoAt` is spared only because its readback
 is a `Level` and not a `List Level`, so `us` is the sole candidate of its
@@ -39,9 +41,10 @@ serves both.
 The specs below are `@[spec high]` because `Lean.Elab.Tactic.Do.findSpec`
 sorts the candidates by priority and `Specs.lean`'s versions match the same
 program; `attribute [-spec]` is refused by the attribute (measured), so the
-priority is the only lever.  Each is proved by `unfold` + `mvcgen` and NOT by
-`mvcgen [f]`, for the same reason: with `Specs.lean`'s spec in the database,
-`mvcgen [f]` applies it instead of unfolding `f`.
+priority is the only lever.  Each is proved by `vcgen [f]`: unlike
+`mvcgen [f]`, which applied `Specs.lean`'s spec from the database instead of
+unfolding `f` (so these proofs used to `unfold f` first), `vcgen` unfolds a
+definition named in its list.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.StoreBM
@@ -49,10 +52,7 @@ import ConRon.Bridge.StoreBM
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -60,7 +60,7 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 with the memo's pure function moved inside the postcondition.  Generic in
 `f`, which is what lets `abstract1Go` and `abstractRangeGo` share the one
 table. -/
-@[spec high] theorem abs1Set_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
+@[spec high, wp_spec high] theorem abs1Set_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
     (hk : (denoteE s₀.store k.1).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ abs1Set k r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -69,17 +69,15 @@ table. -/
         ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.abs1C s₀.store →
           RelE (f k.2) s₀.store k.1 s₀.store r →
             MemoOK f s'.memos.abs1C s'.store⌝⦄ := by
-  unfold abs1Set
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [abs1Set]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoOK f (s.memos.abs1C.insert k r) s.store
   exact MemoOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — the same
 for `instLPSet`. -/
-@[spec high] theorem instLPSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
+@[spec high, wp_spec high] theorem instLPSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
     (hk : (denoteE s₀.store k.1).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPSet k r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -88,17 +86,15 @@ for `instLPSet`. -/
         ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.instLPC s₀.store →
           RelE (f k.2) s₀.store k.1 s₀.store r →
             MemoOK f s'.memos.instLPC s'.store⌝⦄ := by
-  unfold instLPSet
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [instLPSet]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoOK f (s.memos.instLPC.insert k r) s.store
   exact MemoOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
 `instLPLSet`, the LEVEL-handle memo. -/
-@[spec high] theorem instLPLSet_specI (s₀ : AState) (h r : LIdx)
+@[spec high, wp_spec high] theorem instLPLSet_specI (s₀ : AState) (h r : LIdx)
     (hk : (denoteL s₀.store.ls h).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLSet h r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -107,18 +103,16 @@ for `instLPSet`. -/
         ∀ f : Level → Level, MemoLOK f s₀.memos.instLPLC s₀.store →
           RelL f s₀.store h s₀.store r →
             MemoLOK f s'.memos.instLPLC s'.store⌝⦄ := by
-  unfold instLPLSet
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [instLPLSet]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoLOK f (s.memos.instLPLC.insert h r) s.store
   exact MemoLOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
 `instLPLsSet`, the universe-argument-LIST memo.  This is the one the trap was
 measured on. -/
-@[spec high] theorem instLPLsSet_specI (s₀ : AState) (h r : LsIdx)
+@[spec high, wp_spec high] theorem instLPLsSet_specI (s₀ : AState) (h r : LsIdx)
     (hk : (denoteLs s₀.store.lss h).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ instLPLsSet h r
     ⦃⇓? _u s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -128,12 +122,10 @@ measured on. -/
         ∀ f : List Level → List Level, MemoLsOK f s₀.memos.instLPLsC s₀.store →
           RelLs f s₀.store h s₀.store r →
             MemoLsOK f s'.memos.instLPLsC s'.store⌝⦄ := by
-  unfold instLPLsSet
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [instLPLsSet]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoLsOK f (s.memos.instLPLsC.insert h r) s.store
   exact MemoLsOK.insert hm rfl hk hr
 
 /-! ## The readback memos, with the frame the walks need
@@ -151,7 +143,7 @@ belong there. -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelM` with the
 sibling readback tables framed. -/
-@[spec high] theorem readLevelM_specF (s₀ : AState) (h : LIdx)
+@[spec high, wp_spec high] theorem readLevelM_specF (s₀ : AState) (h : LIdx)
     (hc : ReadLCacheOK s₀.caches.readLC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelM h
     ⦃⇓? u s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -159,17 +151,12 @@ sibling readback tables framed. -/
         s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store⌝⦄ := by
-  unfold readLevelM
-  mvcgen
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadLCacheOK]
+  to_wp; vcgen [readLevelM]
+  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelsM` with the
 sibling readback tables framed. -/
-@[spec high] theorem readLevelsM_specF (s₀ : AState) (h : LsIdx)
+@[spec high, wp_spec high] theorem readLevelsM_specF (s₀ : AState) (h : LsIdx)
     (hc : ReadLsCacheOK s₀.caches.readLsC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readLevelsM h
     ⦃⇓? us s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -177,13 +164,8 @@ sibling readback tables framed. -/
         s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store⌝⦄ := by
-  unfold readLevelsM
-  mvcgen
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadLsCacheOK]
+  to_wp; vcgen [readLevelsM]
+  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
 
 
 /-! ## The intern specs with the two MONOTONICITY conjuncts
@@ -237,7 +219,7 @@ theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
 /-- con-leche: none — `internE` with view and binder-datum monotonicity:
 `internE_spec` (whose `BMExt` conjunct is the datum half) and
 `internE_view_mono`. -/
-@[spec high] theorem internE_specV (s₀ : AState) (w : ENodeView)
+@[spec high, wp_spec high] theorem internE_specV (s₀ : AState) (w : ENodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
     ⦃fun s => ⌜s = s₀⌝⦄ internE w
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -255,7 +237,7 @@ theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
 /-- con-leche: none — `internRebuilt` with the same two conjuncts.  The
 `same = true` branch answers the handle it was given, so both are
 reflexive there. -/
-@[spec high] theorem internRebuilt_specV (s₀ : AState) (h : EIdx) (same : Bool)
+@[spec high, wp_spec high] theorem internRebuilt_specV (s₀ : AState) (h : EIdx) (same : Bool)
     (v : ENodeView) (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK v)
     (hsame : same = true → s₀.store.view h = some v) :
     ⦃fun s => ⌜s = s₀⌝⦄ internRebuilt h same v
@@ -265,26 +247,24 @@ reflexive there. -/
         (∀ i w, s₀.store.view i = some w → s'.store.view i = some w) ∧
         (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store v⌝⦄ := by
-  unfold internRebuilt
-  mvcgen [internE_specV]
-  case vc1.isTrue =>
-    rename_i hc s hs
-    subst hs
+  to_wp; vcgen [internRebuilt, internE_specV]
+  all_goals subst_vars
+  case vc1 =>
     exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, fun _ _ hi => hi,
-      fun _ _ hmi => hmi, denoteE_view_eq hwf (hsame hc)⟩
-  case vc2.isFalse.post.success =>
-    rename_i _hc s hs _r _s2
-    subst hs
-    intro a bb c dd e f g hh hi hj
+      fun _ _ hmi => hmi, denoteE_view_eq hwf (hsame rfl)⟩
+  case vc2 =>
+    rename_i _hc _r _s2 hpost
+    obtain ⟨a, bb, c, dd, e, f, g, hh, -, hj⟩ := hpost
     exact ⟨a, bb, c, dd, e, f, g, hh, hj⟩
-  all_goals (intro s hs; subst hs; first | exact hwf | exact hv)
+  case vc3 => exact hwf
+  case vc4 => exact hv
 
 /-! ### The per-constructor faces, at the V shape
 
 One line each, exactly as `Bridge/Specs.lean`'s are: `internRebuiltX h same
 args` IS `internRebuilt h same (.X args)`. -/
 
-@[spec high] theorem internRebuiltFVar_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltFVar_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (idx : Nat) (ty : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hsame : same = true → s₀.store.view h = some (.fvar idx ty)) :
@@ -297,7 +277,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.fvar idx ty)⌝⦄ :=
   internRebuilt_specV s₀ h same (.fvar idx ty) hwf (viewOK_fvar hty) hsame
 
-@[spec high] theorem internRebuiltSort_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltSort_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (u : LIdx) (hwf : StoreWF s₀.store)
     (hu : (s₀.store.ls.view u).isSome = true)
     (hsame : same = true → s₀.store.view h = some (.sort u)) :
@@ -310,7 +290,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.sort u)⌝⦄ :=
   internRebuilt_specV s₀ h same (.sort u) hwf (viewOK_sort hu) hsame
 
-@[spec high] theorem internRebuiltConst_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltConst_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (n : NIdx) (us : LsIdx) (hwf : StoreWF s₀.store)
     (hn : (s₀.store.ns.view n).isSome = true)
     (hus : (s₀.store.lss.view us).isSome = true)
@@ -324,7 +304,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.const n us)⌝⦄ :=
   internRebuilt_specV s₀ h same (.const n us) hwf (viewOK_const hn hus) hsame
 
-@[spec high] theorem internRebuiltApp_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltApp_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (f a : EIdx) (hwf : StoreWF s₀.store)
     (hf : (denoteE s₀.store f).isSome = true)
     (ha : (denoteE s₀.store a).isSome = true)
@@ -338,7 +318,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.app f a)⌝⦄ :=
   internRebuilt_specV s₀ h same (.app f a) hwf (viewOK_app hf ha) hsame
 
-@[spec high] theorem internRebuiltLam_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltLam_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true)
@@ -352,7 +332,7 @@ args` IS `internRebuilt h same (.X args)`. -/
         denoteE s'.store r = denoteEView s'.store (.lam ty b m)⌝⦄ :=
   internRebuilt_specV s₀ h same (.lam ty b m) hwf (viewOK_lam hty hb) hsame
 
-@[spec high] theorem internRebuiltForallE_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltForallE_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true)
@@ -367,7 +347,7 @@ args` IS `internRebuilt h same (.X args)`. -/
   internRebuilt_specV s₀ h same (.forallE ty b m) hwf (viewOK_forallE hty hb)
     hsame
 
-@[spec high] theorem internRebuiltLetE_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltLetE_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (ty val b : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hval : (denoteE s₀.store val).isSome = true)
@@ -383,7 +363,7 @@ args` IS `internRebuilt h same (.X args)`. -/
   internRebuilt_specV s₀ h same (.letE ty val b) hwf
     (viewOK_letE hty hval hb) hsame
 
-@[spec high] theorem internRebuiltProj_specV (s₀ : AState) (h : EIdx)
+@[spec high, wp_spec high] theorem internRebuiltProj_specV (s₀ : AState) (h : EIdx)
     (same : Bool) (n : NIdx) (i : Nat) (e : EIdx) (hwf : StoreWF s₀.store)
     (hn : (s₀.store.ns.view n).isSome = true)
     (he : (denoteE s₀.store e).isSome = true)
@@ -400,7 +380,7 @@ args` IS `internRebuilt h same (.X args)`. -/
 /-- con-leche: none — `internBVarE` at the V shape: the `fvar` arms of the two
 abstraction walks intern a fresh `bvar` rather than rebuilding, so they need
 `internE`'s face and not `internRebuilt`'s. -/
-@[spec high] theorem internBVarE_specV (s₀ : AState) (i : Nat)
+@[spec high, wp_spec high] theorem internBVarE_specV (s₀ : AState) (i : Nat)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internBVarE i
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧

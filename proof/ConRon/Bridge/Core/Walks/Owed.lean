@@ -43,8 +43,8 @@ Three things made the six possible, and none of them is about any one walk:
    reached zero `sorry` while round 2 ran, and task #97-P3-CoreWalks left
    three walks here with the note *"until this tier imports the `ExprOps`
    tier"*.  The import is `ConRon.Bridge.ExprOps.Spine` and it costs nothing:
-   no theorem of that tier is registered `@[spec]`, so `mvcgen` sees them
-   only where they are passed.
+   no theorem of that tier is registered `@[spec]`, so `vcgen` (`mvcgen`
+   then) sees them only where they are passed.
 2. **The knot's six slots in ANSWER shape** (`Bridge/Core/Knot.lean`, round
    3): §0's rule, paid once at the knot instead of per site.
 3. **The fuel merge** (`Bridge/Core/Walks/Mono.lean`, round 2), which
@@ -59,9 +59,11 @@ denotation as an explicit `(x : Expr)` argument with a
 caller that reaches the walk through another call**, and `whnfStep` is
 exactly such a caller: it runs `r.whnfCore` first and hands `reduceNat` the
 REDUCT, whose denotation is not known until the first call's postcondition is
-in hand.  `mvcgen` must guess `x` when it applies the spec, it guesses the
-only `Expr` in scope (the *original* subject), and the side goal it leaves —
-`denoteE s.store <reduct> = some <original>` — is false.
+in hand.  `mvcgen` had to guess `x` when it applied the spec, it guessed the
+only `Expr` in scope (the *original* subject), and the side goal it left —
+`denoteE s.store <reduct> = some <original>` — was false.  (`vcgen` guesses
+nothing: it leaves `x` a metavariable and an `Expr` goal of its own, which is
+no better.)
 
 The fix is task #97-P3-0's own **rule 4** (*"a precondition with no `Expr` in
 it, so that a recursive call's side goal carries no metavariable"*) taken one
@@ -136,10 +138,7 @@ import ConRon.Bridge.Core.Walks.Mono
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -386,14 +385,14 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     intro bs s₀ hok hda hdb
     cases bs with
     | nil =>
-      mvcgen [ConRon.Arena.defEqList]
+      to_wp; vcgen [ConRon.Arena.defEqList]
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
       obtain rfl := denoteEList_nil_inv hx
       obtain rfl := denoteEList_nil_inv hy
       exact ⟨0, defEqListFueled_nil⟩
     | cons b bs' =>
-      mvcgen [ConRon.Arena.defEqList]
+      to_wp; vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
       obtain rfl := denoteEList_nil_inv hx
@@ -403,7 +402,7 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     intro bs s₀ hok hda hdb
     cases bs with
     | nil =>
-      mvcgen [ConRon.Arena.defEqList]
+      to_wp; vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
       refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
       obtain ⟨x, xs', _, _, rfl⟩ := denoteEList_cons_inv hx
@@ -411,52 +410,41 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       exact ⟨0, defEqListFueled_rn⟩
     | cons b bs' =>
       have hdq := hsim.defeq'
-      mvcgen [ConRon.Arena.defEqList, hdq, ih]
-      case vc1 => bridge_peel; subst_vars; exact hok
-      case vc2 =>
-        bridge_peel; subst_vars
-        obtain ⟨xs, hxs, hw⟩ := hda
-        obtain ⟨x, xs', hx, _, rfl⟩ := denoteEList_cons_inv hxs
-        exact ⟨x, hx, hw x (by simp)⟩
-      case vc3 =>
-        bridge_peel; subst_vars
-        obtain ⟨ys, hys, hw⟩ := hdb
-        obtain ⟨y, ys', hy, _, rfl⟩ := denoteEList_cons_inv hys
-        exact ⟨y, hy, hw y (by simp)⟩
-      case vc4 =>
-        bridge_peel; subst_vars
-        rename_i s2 s1 rb s0 hck1 hxt21 hpn12 hdefeq
-        intro hck hxt hpn hrec
-        refine ⟨hck, hxt21.trans hxt, by rw [hpn, hpn12],
+      to_wp; vcgen [ConRon.Arena.defEqList, wp% hdq, wp% ih]
+      all_goals (bridge_peel; subst_vars)
+      -- the two calls' `CheckOK` preconditions
+      case vc2 | vc6 => assumption
+      -- the cons/cons postcondition, heads agreeing
+      case vc1 =>
+        rename_i _s0 _s1 _rb _s2 _hck1 hck hxt01 hxt12 hpn10 hpn21 hrec hdefeq
+        refine ⟨hck, hxt01.trans hxt12, by rw [hpn21, hpn10],
           fun xs ys hx hy => ?_⟩
         obtain ⟨x, xs', hdx, hdxs, rfl⟩ := denoteEList_cons_inv hx
         obtain ⟨y, ys', hdy, hdys, rfl⟩ := denoteEList_cons_inv hy
         obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
         obtain ⟨F2, hF2⟩ :=
-          hrec xs' ys' (denoteEList_ext hxt21 as' xs' hdxs)
-            (denoteEList_ext hxt21 bs' ys' hdys)
+          hrec xs' ys' (denoteEList_ext hxt01 as' xs' hdxs)
+            (denoteEList_ext hxt01 bs' ys' hdys)
         exact ⟨max F1 F2,
           defEqListFueled_cons_true
             (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) hF1)
             (defEqListFueled_mono (Nat.le_max_right _ _) hF2)⟩
-      case vc5 => bridge_peel; subst_vars; intro s hck _ _ _; exact hck
-      case vc6 =>
-        bridge_peel; subst_vars
-        intro s _ hxt _ _
+      -- the recursive call's subjects denote in the moved state
+      case vc3 =>
+        rename_i _ _ _ hxt _ _
         obtain ⟨xs, hxs, hw⟩ := hda
         obtain ⟨x, xs', _, hdxs, rfl⟩ := denoteEList_cons_inv hxs
         exact ⟨xs', denoteEList_ext hxt as' xs' hdxs,
           fun z hz => hw z (by simp [hz])⟩
-      case vc7 =>
-        bridge_peel; subst_vars
-        intro s _ hxt _ _
+      case vc4 =>
+        rename_i _ _ _ hxt _ _
         obtain ⟨ys, hys, hw⟩ := hdb
         obtain ⟨y, ys', _, hdys, rfl⟩ := denoteEList_cons_inv hys
         exact ⟨ys', denoteEList_ext hxt bs' ys' hdys,
           fun z hz => hw z (by simp [hz])⟩
-      case vc8 =>
-        bridge_peel; subst_vars
-        rename_i s1 rb hnb s0 hck0 hxt10 hpn01 hdefeq
+      -- the heads disagree
+      case vc5 =>
+        rename_i _s0 rb _s1 hnb hck0 hxt10 hpn01 hdefeq
         obtain rfl : rb = false := by
           cases rb with
           | false => rfl
@@ -466,6 +454,16 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
         obtain ⟨y, ys', hdy, _, rfl⟩ := denoteEList_cons_inv hy
         obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
         exact ⟨F1, defEqListFueled_cons_false hF1⟩
+      -- the head call's subjects denote
+      case vc7 =>
+        obtain ⟨xs, hxs, hw⟩ := hda
+        obtain ⟨x, xs', hx, _, rfl⟩ := denoteEList_cons_inv hxs
+        exact ⟨x, hx, hw x (by simp)⟩
+      case vc8 =>
+        obtain ⟨ys, hys, hw⟩ := hdb
+        obtain ⟨y, ys', hy, _, rfl⟩ := denoteEList_cons_inv hys
+        exact ⟨y, hy, hw y (by simp)⟩
+
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
@@ -489,8 +487,9 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         SimBOp (fun F => ConLeche.defEqListFueled mode env F d xs ys)
           r⌝⦄ := by
   have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩
 
 /-! ## 5. The annotation pass's three

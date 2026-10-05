@@ -57,20 +57,25 @@ one later"* — bites a second time.  `Bridge/Specs.lean`'s three readback
 specs were strengthened with the `caches` frame conjunct last round;
 **`Bridge/SpecsL.lean`'s `readNamesM_spec` was not**, and `IProjEntry.fireOk`
 reads a level-parameter list back.  Without the conjunct no caller can rebuild
-`CacheOK`, and — measured last round — the conjunct cannot be supplied from
-the caller, by erasing the attribute or by passing a stronger theorem.
+`CacheOK`, and — measured last round, under `mvcgen` — the conjunct cannot
+be supplied from the caller, by erasing the attribute or by passing a
+stronger theorem.
 
 The fix belongs at `SpecsL.lean`'s spec, and `SpecsL.lean` is **not this
 round's lane** (`Bridge/ExprOps/**` is being closed concurrently against
 `readNamesM` through `instLPFast_spec`, and strengthening a spec under a live
-proof is how a merge breaks).  So this module takes the *first* shape task
-#97-P3-CoreWalks §3 describes and then discarded: **a body copy with no spec
-of its own** (`readNamesMB`, `= rfl` to `readNamesM`), a frame theorem about
-the copy, and a `simp only [readNamesM_eq]` in front of the walk's `mvcgen`.
-It is twenty-five lines and it is entirely inside `Bridge/Core/**`.
+proof is how a merge breaks).  So this module first took the *first* shape
+task #97-P3-CoreWalks §3 describes and then discarded: a body copy with no
+spec of its own (`readNamesMB`, `= rfl` to `readNamesM`), a frame theorem
+about the copy, and a `simp only` rewrite in front of the walk's `mvcgen`.
+**Task #111 deleted the copy**: `vcgen` erases a registered spec per call, so
+`readNamesM_frame` is stated about `readNamesM` itself, proved with
+`vcgen [-readNamesM_spec.wp, …]`, and `IProjEntry.fireOk_spec` erases the
+spec the same way and passes the frame instead — the "erasing the
+attribute" route `mvcgen` did not have.
 
-**Ask for the coordinator**: one conjunct in `Bridge/SpecsL.lean`'s
-`readNamesM_spec`,
+**Ask for the coordinator** (still open): one conjunct in
+`Bridge/SpecsL.lean`'s `readNamesM_spec`,
 `s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧`, deletes §2
 whole — the same one-line fix, at the same cost (`rfl`), as last round's.
 -/
@@ -85,10 +90,7 @@ import ConRon.Bridge.Core.Walks.Spine
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -107,7 +109,7 @@ theorem projTableName_spec (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteN s'.store.ns h = some (ConLeche.projTableName Tn)⌝⦄ := by
-  mvcgen [ConRon.Arena.projTableName, internNNode_spec]
+  to_wp; vcgen [ConRon.Arena.projTableName, wp% internNNode_spec]
   all_goals (bridge_peel; subst_vars
              grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                nview_isSome_of_denote, Ext.trans, ConLeche.projTableName])
@@ -133,13 +135,13 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
         (∀ e, r = some e → ∃ p, denoteProjEntry s'.store e = some p ∧
           env.findProj? Tn i = some p) ∧
         (r = none → env.findProj? Tn i = none)⌝⦄ := by
-  mvcgen [ConRon.Arena.IFEnv.findProj?, projTableName_spec]
+  to_wp; vcgen [ConRon.Arena.IFEnv.findProj?, wp% projTableName_spec (Tn := Tn)]
   all_goals (bridge_peel; subst_vars)
-  case vc2.hwf => exact hok.state.wf
-  case vc3.hT => exact hT
+  case vc3 => exact hok.state.wf
+  case vc4 => exact hT
   -- the index stores a TABLE at the reserved name
-  case vc4 =>
-    rename_i _s1 rn tbl hfind _s2 hwf2 hext hm hc hp hdn
+  case vc1 =>
+    rename_i _s1 rn _s2 tbl hfind hwf2 hext hm hc hp hdn
     have hck : CheckOK mode env fe _s2 := hok.mono ⟨hwf2⟩ hext hc hp
     obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
     obtain rfl : nm = ConLeche.projTableName Tn := by
@@ -165,10 +167,11 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
         simp only [ConLeche.Env.findProj?, hfindE]
         exact ite_eq_right (by rw [hnf]; exact hlt)
   -- the index stores no table there, so neither does the environment
-  case vc5 =>
+  case vc2 =>
     rename_i _s1 rn _s2 hwf2 hext hm hc hp hdn hno
     have hck : CheckOK mode env fe _s2 := hok.mono ⟨hwf2⟩ hext hc hp
-    refine ⟨hck, hext, hm, hc, hp, fun e he => absurd he (by simp), ?_⟩
+    refine ⟨hck, hext, hm, hc, hp, fun e he => absurd he (by simp),
+      fun _ => ?_⟩
     cases hf : fe.find? rn with
     | none =>
       exact ConLeche.Env.findProj?_none_of_fresh
@@ -188,40 +191,24 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
 
 The module note's §2 detour, then the walk. -/
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — `Arena/Monad.lean`'s
-`readNamesM`, copied verbatim so that it carries no registered `@[spec]` and
-a caller can state the frame for itself.  See the module note §2; the copy
-goes the day `Bridge/SpecsL.lean`'s spec gains its `caches` conjunct. -/
-def readNamesMB : List NIdx → AM (List ConLeche.Name)
-  | [] => pure []
-  | h :: hs => do
-    let x ← readNameM h
-    let xs ← readNamesMB hs
-    pure (x :: xs)
-
-/-- con-leche: none — the copy IS the function. -/
-theorem readNamesM_eq : ConRon.Arena.readNamesM = readNamesMB := by
-  funext hs
-  induction hs with
-  | nil => rfl
-  | cons a as ih =>
-    simp only [ConRon.Arena.readNamesM, readNamesMB, ih]
-
 /-- con-leche: none — **the frame of a `readNamesM` call**, which
 `Bridge/SpecsL.lean`'s registered spec does not carry.  One list induction
-over `readNameM_spec`, whose own frame conjunct `Bridge/Specs.lean` has. -/
-theorem readNamesMB_frame (s₀ : AState) (hs : List NIdx)
+over `readNameM_spec`, whose own frame conjunct `Bridge/Specs.lean` has; the
+registered `readNamesM_spec` is erased for the two calls (`vcgen [-…]`, see
+the module note §2). -/
+theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
-    ⦃fun s => ⌜s = s₀⌝⦄ readNamesMB hs
+    ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.readNamesM hs
     ⦃⇓? xs s' => ⌜ReadbackFrame s₀ s' ∧
         Frontend.denoteNList s₀.store.ns hs = some xs⌝⦄ := by
   induction hs generalizing s₀ with
   | nil =>
-    mvcgen [readNamesMB]
+    to_wp; vcgen [-readNamesM_spec.wp, ConRon.Arena.readNamesM]
     bridge_peel; subst_vars
     exact ⟨ReadbackFrame.refl _, rfl⟩
   | cons a as ih =>
-    mvcgen [readNamesMB, readNameM_spec, ih]
+    to_wp; vcgen [-readNamesM_spec.wp, ConRon.Arena.readNamesM,
+      wp% readNameM_spec, wp% ih]
     all_goals bridge_peel
     all_goals subst_vars
     all_goals first
@@ -251,30 +238,29 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
         s'.pins = s₀.pins ∧ b = p.fireOk ls⌝⦄ := by
   obtain ⟨_hs, hlps, _hc, _hb, hfs, hss, _hi, _hnp, _hnf, _ho⟩ :=
     denoteProjEntry_inv hden
-  simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel,
-    readNamesM_eq]
-  mvcgen [lvlEq?_spec, readNamesMB_frame]
+  simp only [ConRon.Arena.IProjEntry.fireOk, ConRon.Arena.zeroLevel]
+  to_wp; vcgen [wp% lvlEq?_spec (mode := mode) (env := env) (fe := fe),
+    -readNamesM_spec.wp, wp% readNamesM_frame]
   all_goals (bridge_peel; subst_vars)
   -- the two pin/invariant side goals
-  case vc1.hp => exact hok.pins
-  case vc5.hok => exact hok
+  case vc7 => exact hok.pins
+  case vc6 => exact hok
   -- the three readback preconditions, each `CheckOK` carried to the state
   -- the previous call left
-  case vc7.hc =>
-    rename_i _a1 _a2 _a3 _a4 _a5 hck _b1 _b2 _b3 _b4
+  case vc5 =>
+    rename_i hck _ _ _ _
     exact hck.caches.readN
-  case vc8.hc =>
-    rename_i _a1 _a2 _a3 _a4 _a5 _a6 _a7 hck hf _b1 _b2 _b3 _b4 _b5
+  case vc4 =>
+    rename_i hck hf _ _ _ _ _
     exact (CheckOK.ofReadbackFrame hck hf).caches.readLs
-  case vc9.hc =>
-    rename_i _a1 _a2 _a3 _a4 _a5 _a6 _a7 _a8 _a9 hck hf2 _b1 hst _b2 hm _b3
-      _b4 hp hc _b5 hLs _b6
+  case vc3 =>
+    rename_i hck hf2 _ hst _ hm _ _ hp hc _ hLs _
     exact (CheckOK.ofReadbackFrame hck
       (hf2.trans (ReadbackFrame.ofReadLs hst hm hp hc hLs))).caches.readL
   -- the guard DECLINES: the structure sort is not provably zero, so the rule
   -- fires unconditionally and con-leche's first disjunct is `true`
-  case vc6 =>
-    rename_i _z _s1 r hcond _s2 hck hst hp heq hzero
+  case vc1 =>
+    rename_i _s1 r _s2 hcond hck hst hp heq hzero
     obtain ⟨lu, lv, hlu, hlv, hr⟩ := heq
     rw [hss] at hlu
     rw [hzero] at hlv
@@ -284,9 +270,8 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     simp only [ConLeche.ProjEntry.fireOk, ← hr, hcond, Bool.true_or]
   -- the guard FIRES: the structure sort IS provably zero, so con-leche's
   -- first disjunct is `false` and the verdict is the field sort's
-  case vc10 =>
-    rename_i _z _s4 rb hcond _s3 ks _s2 vs _s1 fs _s0
-      hck3 hf2 hlps3 hst21 hst10 hst34 hm21 hm10 hp34 heq3 hp21 hp10 hc21
+  case vc2 =>
+    rename_i _s4 rb _s3 hcond _s2 _s1 _s0 hck3 hf2 hlps3 hst21 hst10 hst34 hm21 hm10 hp34 heq3 hp21 hp10 hc21
       hc10 hus2 hLs1 hfs1 hL1 hzero
     have hf3 := ReadbackFrame.ofReadLs hst21 hm21 hp21 hc21 hLs1
     have hf4 := ReadbackFrame.ofReadL hst10 hm10 hp10 hc10 hL1
@@ -349,16 +334,17 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     simp only [Array.toList_push, List.reverse_cons,
       List.reverse_reverse]
     exact ExprOps.denoteEList_snoc hpe _ _ hargs
-  mvcgen [ConRon.Arena.IProjEntry.typeAt, hi, hl]
+  to_wp; vcgen [ConRon.Arena.IProjEntry.typeAt, wp% hi, wp% hl]
   all_goals (bridge_peel; subst_vars)
-  case vc3 => intro s hst; intros; exact hst
-  case vc4 => intro s _ hx; intros; exact hvec.ext hx
-  case vc5 =>
-    intro s _ _ _ _ _ _ _ _ _ hrel
+  -- `instantiateListFast_spec`'s three preconditions
+  case vc2 => assumption
+  case vc3 => exact hvec.ext ‹Ext _ _›
+  case vc4 =>
+    rename_i hrel
     rw [hrel _ hb]; rfl
-  case vc2 =>
-    rename_i hst1 hL hLs hN hx1 _ hc1 hp1 _ hrel1
-    intro hst2 hx2 _ hc2 hp2 _ hrel2
+  -- the postcondition
+  case vc1 =>
+    rename_i hst1 hst2 hx2 _ hL hc2 hLs hp2 hN _ hrel2 hx1 _ hc1 hp1 _ hrel1
     have hck1 := CheckOK.ofInstLP hok hst1 hx1 hL hLs hN hc1 hp1
     refine ⟨hck1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     rw [hrel2 _ (hrel1 _ hb)]
@@ -546,56 +532,54 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         InstLVec.unique h2 (hacc.ext hxt), ?_⟩
       rw [denoteEList_ext hxt _ _ hxs] at h3
       exact (Option.some.inj h3).symm
-    mvcgen [ihF, ihB, hio, hdq, hl]
+    to_wp; vcgen [wp% ihF, wp% ihB, wp% hio, wp% hdq, wp% hl]
     all_goals (bridge_peel; subst_vars)
     -- the licensed SKIP
     case vc1 =>
-      rename_i t' b' mb hg _ _ _ hview
-      intro hck hxt hp hrec
+      rename_i _s0 t' b' mb hg _rb _s1 hck hxt hp hrec hview
       refine ⟨hck, hxt, hp, fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
       obtain ⟨p, q, rfl, _, hq⟩ := denote_forallE_inv hok.state.wf hview hh
       obtain ⟨F, hF⟩ := hrec q (x :: ws') xs' hq (InstLVec.push hacc hx) hxs'
       refine ⟨F, ?_⟩
-      dsimp only
+      show ConLeche.iotaCertsFueled mode env _ d lic _ _ = _
       rw [instantiateList_forallE, iotaCertsFueled_skip hg,
         ← Expr.instantiateList_cons]
       exact hF
-    case vc2 => intro s hs _; subst hs; exact hok
+    case vc2 => exact hok
     case vc3 =>
-      intro s hs hview; subst hs
+      rename_i hview
       obtain ⟨p, q, rfl, _, hq⟩ := denote_forallE_inv hok.state.wf hview hh
       simp only [instantiateList_forallE, Expr.WScoped] at hwty
       refine ⟨q, x :: ws, xs', hq, InstLVec.push hacc hx, ?_, hxs', hwxs'⟩
       rw [Expr.instantiateList_cons]
       exact Expr.WScoped.instantiate1_gen hwx 0 hwty.2
     -- the certified slot: the preconditions
-    case vc4.hok => exact hok.state
-    case vc5.hvec => exact hacc
-    case vc6.hden =>
+    case vc13 => exact hok.state
+    case vc14 => exact hacc
+    case vc15 =>
       rename_i hview
       obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hok.state.wf hview hh
       rw [hp]; rfl
-    case vc7.hok =>
+    case vc11 =>
       rename_i hst hxt _ hc hp _ _ _
       exact hok.mono hst hxt hc hp
-    case vc8.hdw =>
+    case vc12 =>
       rename_i _ hxt _ _ _ _ _ _
       exact ⟨x, denote_ext hx hxt, hwx⟩
-    case vc9.hok => rename_i hck _ _ _ _ _ _ _ _ _ _; exact hck
-    case vc10.hda =>
+    case vc8 | vc5 => assumption
+    case vc9 =>
       rename_i _ _ hx01 _ _ _ hsio _ _ _ _ _
       obtain ⟨v, hv, hw, _⟩ := hsio x (denote_ext hx hx01)
       exact ⟨v, hv, hw⟩
-    case vc11.hdb =>
+    case vc10 =>
       rename_i _ _ _ hx12 _ _ _ _ _ _ hinst hview
       obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hok.state.wf hview hh
       simp only [instantiateList_forallE, Expr.WScoped] at hwty
       exact ⟨_, denote_ext (hinst p hp) hx12, hwty.1⟩
-    case vc12 =>
-      rename_i t' b' mb hg _ _ _ _ _ _ _ _ _ _ _ hx01 hx12 hx23 _ hp21 hsio hp32
-        _ hp10 _ hinst hview hsdq
-      intro hck hx34 hp43 hrec
+    case vc4 =>
+      rename_i _s0 t' b' mb hg _s1 _s2 _s3 _rb _s4 _ _ _ hck hx01 hx12 hx23
+        hx34 _ hp21 hsio hp32 hp43 hrec _ hp10 _ hinst hview hsdq
       refine ⟨hck, ((hx01.trans hx12).trans hx23).trans hx34,
         by rw [hp43, hp32, hp21, hp10], fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
@@ -607,17 +591,15 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         (InstLVec.push (hacc.ext hx03) (denote_ext hx hx03))
         (denoteEList_ext hx03 _ _ hxs')
       refine ⟨F1 + F2 + F3, ?_⟩
-      dsimp only
+      show ConLeche.iotaCertsFueled mode env _ d lic _ _ = _
       rw [instantiateList_forallE,
         iotaCertsFueled_cert (Bool.eq_false_iff.mpr hg)
           (ConLeche.inferTypeIO_mono (by omega) hF1)
           (ConLeche.isDefEqCore_mono (by omega) hF2),
         ← Expr.instantiateList_cons]
       exact iotaCertsFueled_mono (by omega) hF3
-    case vc13 => intro s hck _ _ _; exact hck
-    case vc14 =>
-      rename_i _ _ _ _ _ _ _ _ _ _ _ hx01 hx12 _ _ _ _ _ _ _ hview
-      intro s _ hx23 _ _
+    case vc6 =>
+      rename_i hx01 hx12 hx23 _ _ _ _ _ _ _ _ hview _
       obtain ⟨p, q, rfl, _, hq⟩ := denote_forallE_inv hok.state.wf hview hh
       simp only [instantiateList_forallE, Expr.WScoped] at hwty
       have hx03 := (hx01.trans hx12).trans hx23
@@ -627,9 +609,9 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       rw [Expr.instantiateList_cons]
       exact Expr.WScoped.instantiate1_gen hwx 0 hwty.2
     -- the slot's type does not agree
-    case vc15 =>
-      rename_i t' b' mb hg _ _ _ _ _ rb hnb _ _ _ hck hx01 hx12 hx23 _ hp21 hsio
-        hp32 hsdq _ hp10 _ hinst hview
+    case vc7 =>
+      rename_i _s0 t' b' mb hg _s1 _s2 rb _s3 hnb _ _ hck hx01 hx12 hx23 _ hp21
+        hsio hp32 hsdq _ hp10 _ hinst hview
       refine ⟨hck, (hx01.trans hx12).trans hx23, by rw [hp32, hp21, hp10],
         fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
@@ -638,14 +620,14 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       obtain ⟨F2, hF2⟩ := hsdq ta _ hta (denote_ext (hinst p hp) hx12)
       obtain rfl : rb = false := by simpa using hnb
       refine ⟨F1 + F2, ?_⟩
-      dsimp only
+      show ConLeche.iotaCertsFueled mode env _ d lic _ _ = _
       rw [instantiateList_forallE]
       exact iotaCertsFueled_fail (Bool.eq_false_iff.mpr hg)
         (ConLeche.inferTypeIO_mono (by omega) hF1)
         (ConLeche.isDefEqCore_mono (by omega) hF2)
     -- a loose variable with nothing pending: declined
     case vc16 =>
-      rename_i k hsz _ hview
+      rename_i _ k hsz hview
       refine ⟨hok, Ext.refl _, rfl, fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
       have hws : ws' = [] := by
@@ -656,39 +638,36 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       rw [denote_bvar_inv hok.state.wf hview hh, ConLeche.Expr.instantiateList_nil]
       exact ⟨0, iotaCertsFueled_notpi (by simp)⟩
     -- the FLUSH: the pending substitution is applied and the walk looks again
-    case vc17.hok => exact hok.state
-    case vc18.hvec => exact hacc
-    case vc19.hden => rw [hh]; rfl
-    case vc20 =>
-      rename_i _ _ _ _ _ _ _ hst hx01 _ hc10 hp10 _ hinst _
-      intro hck hx12 hp21 hrec
+    case vc21 => exact hok.state
+    case vc22 => exact hacc
+    case vc23 => rw [hh]; rfl
+    case vc17 =>
+      rename_i _s0 _k _hsz _s1 _rb _s2 _hst hck hx01 hx12 _ hp21 hrec _ hp10 _
+        hinst _
       refine ⟨hck, hx01.trans hx12, by rw [hp21, hp10],
         fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
       have := hrec _ [] (x :: xs') (hinst _ hh) (InstLVec.empty _)
         (denoteEList_ext hx01 _ _ hxs)
       rwa [ConLeche.Expr.instantiateList_nil] at this
-    case vc21 =>
-      rename_i hsz _ _ _
-      intro s _ _ _ _ _ _ _
-      exact Nat.pos_of_ne_zero hsz
-    case vc22 =>
-      intro s hst hx01 _ hc10 hp10 _ _
+    case vc18 => omega
+    case vc19 =>
+      rename_i hst hx01 _ hc10 hp10 _ _ _
       exact hok.mono hst hx01 hc10 hp10
-    case vc23 =>
-      intro s _ hx01 _ _ _ _ hinst
+    case vc20 =>
+      rename_i _ hx01 _ _ _ _ hinst _
       refine ⟨_, [], x :: xs', hinst _ hh, InstLVec.empty _, ?_,
         denoteEList_ext hx01 _ _ hxs, hwxs⟩
       rw [ConLeche.Expr.instantiateList_nil]; exact hwty
     -- any other head: declined on both sides
     case vc24 =>
-      rename_i _ hnf hnb _ hview
+      rename_i _ _ hnf hnb hview
       refine ⟨hok, Ext.refl _, rfl, fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
       obtain ⟨hf, hb⟩ := denote_not_forallE_bvar hok.state.wf hview hh hnf hnb
       exact ⟨0, iotaCertsFueled_notpi (instantiateList_not_forallE hf hb)⟩
   · simp only [hi, dite_false]
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, fun tyx ws xs _ _ hxs => ?_⟩
     have hnil : args.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)
@@ -719,8 +698,9 @@ theorem iotaCerts_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       by rw [ConLeche.Expr.instantiateList_nil]; exact hw,
       by simpa using hxs, hwxs⟩
   unfold ConRon.Arena.iotaCerts
-  mvcgen [hg]
-  intro hck hx hp hr
+  to_wp; vcgen [wp% hg]
+  rename_i hpost
+  obtain ⟨hck, hx, hp, hr⟩ := hpost
   refine ⟨hck, hx, hp, fun tyx' xs' h1 h2 => ?_⟩
   have := hr tyx' [] xs' h1 (InstLVec.empty _) (by simpa using h2)
   rwa [ConLeche.Expr.instantiateList_nil] at this
@@ -869,34 +849,34 @@ theorem projCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     constTyAt_spec' (mode := mode) (env := env) (fe := fe) s cv u
   have hic := fun (s : AState) (h : EIdx) (a : List EIdx) =>
     iotaCerts_spec hsim d lic h a s
-  mvcgen [ConRon.Arena.projCert, hct, hic]
+  to_wp; vcgen [ConRon.Arena.projCert, wp% hct, wp% hic]
   all_goals (bridge_peel; subst_vars)
-  case vc1.hok => exact hok
-  case vc2.hpre =>
-    rename_i _ _ _ hfd _
+  -- the two callees' preconditions
+  case vc4 | vc2 => assumption
+  case vc5 =>
+    rename_i hfd
     obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
     have hname : dcv.name = cn := env_find_name hfind
     exact ⟨cn, ls, _, by rw [denoteCV_name hdcv, hname], hus, hfind, hdcv⟩
   case vc3 =>
-    rename_i _ _ _ hfd _ _ _ _ _ _ _ _ hct'
-    intro hck hx hp hcert
-    obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
-    have hname : dcv.name = cn := env_find_name hfind
-    have hty := hct' cn ls _ (by rw [denoteCV_name hdcv, hname]) hus hfind
-    obtain ⟨F, hF⟩ := hcert _ xs hty (denoteEList_ext ‹_› _ _ hargs)
-    refine ⟨hck, ‹Ext _ _›.trans hx, hp.trans ‹_›, F, ?_⟩
-    dsimp only
-    rw [projCertFueled_ctor hfind]
-    exact hF
-  case vc4 => intro s hck _ _ _; exact hck
-  case vc5 =>
-    rename_i _ _ _ hfd _ _
-    intro s _ hx _ hct'
+    rename_i hfd _ _ hx _ hct'
     obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
     have hname : dcv.name = cn := env_find_name hfind
     refine ⟨_, _, hct' cn ls _ (by rw [denoteCV_name hdcv, hname]) hus hfind,
       Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls),
       denoteEList_ext hx _ _ hargs, hwargs⟩
+  -- the head is a stored constructor
+  case vc1 =>
+    rename_i hfd _ _ _ _ hck hx01 hx hp10 hct' hp hcert
+    obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
+    have hname : dcv.name = cn := env_find_name hfind
+    have hty := hct' cn ls _ (by rw [denoteCV_name hdcv, hname]) hus hfind
+    obtain ⟨F, hF⟩ := hcert _ xs hty (denoteEList_ext hx01 _ _ hargs)
+    refine ⟨hck, hx01.trans hx, hp.trans hp10, F, ?_⟩
+    show ConLeche.projCertFueled mode env _ d lic cn ls xs = _
+    rw [projCertFueled_ctor hfind]
+    exact hF
+  -- it is not
   case vc6 =>
     rename_i hnd
     exact ⟨hok, Ext.refl _, rfl, 0,
@@ -930,10 +910,11 @@ theorem projCertAt_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     have hp := projCert_spec hsim henv s₀ d lic c us args cn ls xs hok hc hus
       hargs hwargs
     simp only [ConRon.Arena.projCertAt, ite_true]
-    mvcgen [hp]
+    to_wp; vcgen [wp% hp]
+    assumption
   | false =>
     simp only [ConRon.Arena.projCertAt, Bool.false_eq_true, ite_false]
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, rfl⟩
 
@@ -942,7 +923,7 @@ theorem projCertAt_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 section Census
 
 #print axioms projTableName_spec
-#print axioms readNamesM_eq
+#print axioms readNamesM_frame
 #print axioms IProjEntry.typeAt_spec
 #print axioms iotaCertsAux_go
 #print axioms iotaCerts_spec

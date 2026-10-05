@@ -61,7 +61,6 @@ open ConLeche ConRon.Arena Std.Do
 namespace ConRon.Bridge
 
 set_option autoImplicit false
-set_option mvcgen.warning false
 
 /-! ## What a core call leaves behind
 

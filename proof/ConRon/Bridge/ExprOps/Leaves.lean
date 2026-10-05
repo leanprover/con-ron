@@ -52,10 +52,11 @@ Every relation below quantifies the DENOTATIONS inside itself and takes
 `isSome` as the precondition — `RelFL`'s own shape, and `LeavesEq` /
 `SeenOK` / `Guards.lean`'s `LSubAt` are written the same way.  This is not
 style: `fvarLeavesFast`'s answer list is the base of `leafGuard`'s membership
-test, so a spec that named the base list as a PARAMETER would hand
-`mvcgen` a side goal `denoteLeaves s.store bl = some ?bl'` with a
-metavariable in it, which the closer cannot take (task #97s template rule 4,
-measured again here).
+test, so a spec that named the base list as a PARAMETER would leave the
+verification-condition generator a spec parameter the program does not
+determine (`mvcgen` handed it on as a side goal `denoteLeaves s.store bl =
+some ?bl'` with a metavariable in it, which the closer cannot take — task
+#97s template rule 4, measured again here).
 
 ## `fvarLeavesGo`'s `seen` set, and the rank (task #97-P3-2)
 
@@ -92,10 +93,7 @@ import ConRon.Bridge.Specs
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -268,7 +266,7 @@ theorem hasFvar_false_of_derived {st : EStore} (hwf : StoreWF st) {h : EIdx}
 
 `ExprOps/Inst1.lean`'s group-7 shape, monomorphic so that `@[grind →]` has a
 head symbol and the ten arms of `fvarLeaves` need no `next =>` block.  The
-`view` read is each rule's ematch pattern, which is what `mvcgen` hands the
+`view` read is each rule's ematch pattern, which is what `vcgen` hands the
 arm. -/
 
 @[grind →] theorem RelFL.bvar_step {st : EStore} (hwf : StoreWF st) {h : EIdx}
@@ -344,7 +342,7 @@ which is a finding of its own: with the equation as the conclusion the leaf
 INDEX occurs nowhere in the antecedents, so `grind` reports *failed to find
 patterns in the antecedents of the theorem* and the rule cannot be
 registered.  Both twins that use `leafMem` TEST it (`if leafMem bl idx ty
-then …`), so `mvcgen` hands the arm the verdict as a hypothesis and the
+then …`), so `vcgen` hands the arm the verdict as a hypothesis and the
 index is bound there. -/
 @[grind →] theorem leafMem_of_true {st : EStore} (hwf : StoreWF st)
     {bl : List (Nat × EIdx)} {bl' : List (Nat × Expr)} {idx : Nat} {ty : EIdx}
@@ -367,7 +365,7 @@ verdict, which is the `else` arm of both callers. -/
 The `seen`-set walk and its entry point.  Both statements are
 metavariable-free (`SeenOK` and `LeavesEq` quantify what they speak about
 inside themselves), which is what lets `ExprOps/Guards.lean`'s `leafGuard`
-consume them through `mvcgen`.
+consume them through `vcgen`.
 
 ### The gray invariant, and where the rank comes in
 
@@ -764,52 +762,55 @@ theorem fvarLeavesGo_spec :
   | zero =>
     constructor
     intro s₀ acc seen c _ _ _ _
-    mvcgen [fvarLeavesGo_zero]
+    to_wp; vcgen [fvarLeavesGo_zero]
     all_goals bridge_vcs [denoteLeaves_nil]
   | succ fuel ih =>
     constructor
     intro s₀ acc seen c hok hacc hseen hden
     have hrec := ih.run
-    mvcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
-      fvarLeavesGoArmLet, hrec]
+    to_wp; vcgen [fvarLeavesGo_succ, fvarLeavesGoArmApp, fvarLeavesGoArmBind,
+      fvarLeavesGoArmLet, wp% hrec]
     all_goals (bridge_peel; subst_vars)
     all_goals try bridge_vcs [denoteLeaves_nil]
     -- Twenty-four verification conditions survive the closer, in five shapes:
     -- the two early exits, the four leaf views, one `SeenOK` side goal per
     -- recursive call (nine of them) and one postcondition per arm (seven).
+    -- `vcgen` hands each its hypotheses already introduced, the node's view
+    -- last; within an arm the postcondition comes first, then the recursive
+    -- calls' side goals from the last call back to the first.
     -- **The cutoff**: a zero fvar-range field means no leaves at all.
-    next hcut =>
+    case vc1 hcut =>
       exact ⟨rfl, hacc, SeenGrow.refl, LeavesEq.of_nil fun e he =>
         fvarLeaves_nil_of_hasFvar e
           (hasFvar_false_of_derived hok.wf he (by simpa using hcut))⟩
     -- **The `seen` HIT**: the invariant's gray disjunct is `rk c < rk c`,
     -- which is what the rank is in the invariant for.
-    next _ hhit _ _ =>
+    case vc2 hhit _ =>
       obtain ⟨rk, hrk⟩ := hok.wf
       refine ⟨rfl, hacc, SeenGrow.refl, LeavesEq.of_black ?_⟩
       rcases hseen rk hrk c (by rw [hhit]; rfl) with hlt | hb
       · exact absurd hlt (Nat.lt_irrefl _)
       · exact hb
     -- **The four leaf views**: no leaves, so the node goes in BLACK.
-    next hview _ =>
+    case vc3 hview =>
       exact ⟨rfl, hacc,
         SeenGrow.of_insert (BlackA.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.bvar_step hok.wf hview) he),
         LeavesEq.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.bvar_step hok.wf hview) he⟩
-    next hview _ =>
+    case vc4 hview =>
       exact ⟨rfl, hacc,
         SeenGrow.of_insert (BlackA.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.sort_step hok.wf hview) he),
         LeavesEq.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.sort_step hok.wf hview) he⟩
-    next hview _ =>
+    case vc5 hview =>
       exact ⟨rfl, hacc,
         SeenGrow.of_insert (BlackA.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.const_step hok.wf hview) he),
         LeavesEq.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.const_step hok.wf hview) he⟩
-    next hview _ =>
+    case vc6 hview =>
       exact ⟨rfl, hacc,
         SeenGrow.of_insert (BlackA.of_nil fun e he =>
           fvarLeaves_eq_nil_of_relFL (RelFL.lit_step hok.wf hview) he),
@@ -817,98 +818,76 @@ theorem fvarLeavesGo_spec :
           fvarLeaves_eq_nil_of_relFL (RelFL.lit_step hok.wf hview) he⟩
     -- **The `fvar` arm**: its own leaf is pushed first, so its `AccGrow` is
     -- `AccGrow.cons` and its step lemma carries the pushed pair back out.
-    next hview _ =>
-      intro hs h1 h2 h3
+    case vc7 h1 h2 h3 _ hview =>
       have hle := LeavesEq.fvar_step hok.wf hview h3
-      exact ⟨hs, h1, h2.drop_insert (hle.black hacc), hle⟩
-    next =>
-      intro s hs hview
-      subst hs
+      exact ⟨rfl, h1, h2.drop_insert (hle.black hacc), hle⟩
+    case vc9 hview =>
       exact Option.isSome_iff_exists.mpr
         ⟨_, denoteLeaves_cons
           (Option.isSome_iff_exists.mp (isSome_fvar hok.wf hview hden)).choose_spec
           (Option.isSome_iff_exists.mp hacc).choose_spec⟩
-    next =>
-      intro s hs hview
-      subst hs
+    case vc10 hview =>
       exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen
         SeenGrow.refl (AccGrow.cons hacc (isSome_fvar hok.wf hview hden))
     -- **The `app` arm**: two calls, and `SeenOK.of_grow` at each.
-    next hview _ =>
-      exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
-    next hm1 hsg1 hle1 hview _ =>
-      intro hs h1 h2 h3
+    case vc12 h1 h2 h3 hm1 hsg1 hle1 _ hview =>
       have hle := LeavesEq.app_step hok.wf hview hle1 h3 hm1
-      refine ⟨hs, h1, ?_, hle⟩
+      refine ⟨rfl, h1, ?_, hle⟩
       exact (SeenGrow.trans hsg1 h2
         (h3.accGrow (isSome_app hok.wf hview hden).2 hm1)).drop_insert
         (hle.black hacc)
-    next hview _ =>
-      intro s hs h1 h2 h3
-      subst hs
+    case vc15 _ h2 h3 _ hview =>
       exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen h2
         (h3.accGrow (isSome_app hok.wf hview hden).1 hacc)
-    -- **The binder arms**, `lam` then `forallE`; the twin shares one `def`
-    -- and `mvcgen` still hands the two views separately.
-    next hview _ =>
+    case vc19 hview =>
       exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
-    next hm1 hsg1 hle1 hview _ =>
-      intro hs h1 h2 h3
+    -- **The binder arms**, `lam` then `forallE`; the twin shares one `def`
+    -- and `vcgen` still hands the two views separately.
+    case vc21 h1 h2 h3 hm1 hsg1 hle1 _ hview =>
       have hle := LeavesEq.lam_step hok.wf hview hle1 h3 hm1
-      refine ⟨hs, h1, ?_, hle⟩
+      refine ⟨rfl, h1, ?_, hle⟩
       exact (SeenGrow.trans hsg1 h2
         (h3.accGrow (isSome_lam hok.wf hview hden).2 hm1)).drop_insert
         (hle.black hacc)
-    next hview _ =>
-      intro s hs h1 h2 h3
-      subst hs
+    case vc24 _ h2 h3 _ hview =>
       exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen h2
         (h3.accGrow (isSome_lam hok.wf hview hden).1 hacc)
-    next hview _ =>
+    case vc28 hview =>
       exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
-    next hm1 hsg1 hle1 hview _ =>
-      intro hs h1 h2 h3
+    case vc30 h1 h2 h3 hm1 hsg1 hle1 _ hview =>
       have hle := LeavesEq.forallE_step hok.wf hview hle1 h3 hm1
-      refine ⟨hs, h1, ?_, hle⟩
+      refine ⟨rfl, h1, ?_, hle⟩
       exact (SeenGrow.trans hsg1 h2
         (h3.accGrow (isSome_forallE hok.wf hview hden).2 hm1)).drop_insert
         (hle.black hacc)
-    next hview _ =>
-      intro s hs h1 h2 h3
-      subst hs
+    case vc33 _ h2 h3 _ hview =>
       exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen h2
         (h3.accGrow (isSome_forallE hok.wf hview hden).1 hacc)
-    -- **The `letE` arm**: three calls, so `SeenGrow.trans` twice.  Its second
-    -- side goal arrives with the first call's facts already in the context
-    -- (no `∀ s` to introduce), which the third's does have.
-    next hview _ =>
+    case vc37 hview =>
       exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
-    next hm1 hsg1 hle1 hview _ =>
-      exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen hsg1
-        (hle1.accGrow (isSome_letE hok.wf hview hden).1 hacc)
-    next hm2 hsg2 hle2 hm1 hsg1 hle1 hview _ =>
-      intro hs h1 h2 h3
+    -- **The `letE` arm**: three calls, so `SeenGrow.trans` twice.
+    case vc39 h1 h2 h3 hm2 hsg2 hle2 hm1 hsg1 hle1 _ hview =>
       have hg2 := hle2.accGrow (isSome_letE hok.wf hview hden).2.1 hm1
       have hle := LeavesEq.letE_step hok.wf hview hle1 hle2 h3 hm1 hm2
-      refine ⟨hs, h1, ?_, hle⟩
+      refine ⟨rfl, h1, ?_, hle⟩
       exact (SeenGrow.trans (SeenGrow.trans hsg1 hsg2 hg2) h2
         (h3.accGrow (isSome_letE hok.wf hview hden).2.2 hm2)).drop_insert
         (hle.black hacc)
-    next hm1 hsg1 hle1 hview _ =>
-      intro s hs h1 h2 h3
-      subst hs
+    case vc42 _ h2 h3 hm1 hsg1 hle1 _ hview =>
       have hg2 := h3.accGrow (isSome_letE hok.wf hview hden).2.1 hm1
       exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen
         (SeenGrow.trans hsg1 h2 hg2)
         ((hle1.accGrow (isSome_letE hok.wf hview hden).1 hacc).trans hg2)
+    case vc46 _ hsg1 hle1 _ hview =>
+      exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen hsg1
+        (hle1.accGrow (isSome_letE hok.wf hview hden).1 hacc)
+    case vc50 hview =>
+      exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
     -- **The `proj` arm**: the struct name is not a leaf.
-    next hview _ =>
-      intro hs h1 h2 h3
+    case vc52 h1 h2 h3 _ hview =>
       have hle := LeavesEq.proj_step hok.wf hview h3
-      exact ⟨hs, h1, h2.drop_insert (hle.black hacc), hle⟩
-    next =>
-      intro s hs hview
-      subst hs
+      exact ⟨rfl, h1, h2.drop_insert (hle.black hacc), hle⟩
+    case vc55 hview =>
       exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
 
 
@@ -921,7 +900,7 @@ theorem fvarLeavesFast_spec (fuel : Nat) (s₀ : AState) (h : EIdx)
     ⦃⇓? rs s' => ⌜s' = s₀ ∧ (denoteLeaves s₀.store rs).isSome = true ∧
         LeavesEq s₀.store [] h rs⌝⦄ := by
   have hr := (fvarLeavesGo_spec fuel).run
-  mvcgen [fvarLeavesFast, hr]
+  to_wp; vcgen [fvarLeavesFast, wp% hr]
   all_goals bridge_vcs [SeenOK.of_empty, denoteLeaves_nil]
 
 /-! ## The axiom check -/

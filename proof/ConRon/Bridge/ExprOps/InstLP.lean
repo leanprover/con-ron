@@ -9,7 +9,7 @@ subject is a level, a derived bit or a handle comparison:
 
 Written against `ExprOps/Inst1.lean`, the tier's exemplar: the same `…Spec`
 record for one level of the recursion, the same fuel induction, the same
-per-arm `_step` lemmas "in the shape `mvcgen` actually produces", the same
+per-arm `_step` lemmas "in the shape `vcgen` actually produces", the same
 `lp_hyp` and the same `attribute [-grind]` line.
 
 ## Why the level work is an EQUATION and not a simulation
@@ -62,10 +62,7 @@ import ConRon.Bridge.ExprOps.MemoSpecs
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -73,7 +70,7 @@ open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 /-! ### Attribute hygiene (task #97s round 2, item 1) -/
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
-/-- con-leche: none — `mvcgen` hands an arm its projection read as
+/-- con-leche: none — `vcgen` hands an arm its projection read as
 `some fields = st.viewC h`, i.e. REVERSED, so the one-line `assumption` that
 supplies a step lemma's hypothesis has to try both orientations. -/
 macro "lp_hyp" : tactic => `(tactic| first
@@ -110,7 +107,7 @@ reach. -/
 /-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
 level tree, by induction on the `Level` (the recursion `internLevel` takes: a
 `Level` is a value, not a DAG, so no fuel). -/
-@[spec] theorem internLevel_spec (s₀ : AState) (u : Level)
+@[spec, wp_spec] theorem internLevel_spec (s₀ : AState) (u : Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevel u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -120,33 +117,32 @@ level tree, by induction on the `Level` (the recursion `internLevel` takes: a
         denoteL s'.store.ls h = some u⌝⦄ := by
   induction u generalizing s₀ with
   | zero =>
-    mvcgen [internLevel, internLNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-                 LNodeView.nchildren, Ext.refl])
+    to_wp; vcgen [internLevel, wp% internLNode_spec]
+    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      LNodeView.nchildren, Ext.refl]
   | succ a ih =>
-    mvcgen [internLevel, ih, internLNode_spec]
+    to_wp; vcgen [internLevel, wp% ih, wp% internLNode_spec]
     all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
       LNodeView.lchildren, LNodeView.nchildren, lview_isSome_of_denote,
       denoteL_ext]
   | max a b ih1 ih2 =>
-    mvcgen [internLevel, ih1, ih2, internLNode_spec]
+    to_wp; vcgen [internLevel, wp% ih1, wp% ih2, wp% internLNode_spec]
     all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
       LNodeView.lchildren, LNodeView.nchildren, lview_isSome_of_denote,
       denoteL_ext]
   | imax a b ih1 ih2 =>
-    mvcgen [internLevel, ih1, ih2, internLNode_spec]
+    to_wp; vcgen [internLevel, wp% ih1, wp% ih2, wp% internLNode_spec]
     all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
       LNodeView.lchildren, LNodeView.nchildren, lview_isSome_of_denote,
       denoteL_ext]
   | param nm =>
-    mvcgen [internLevel, internName_spec, internLNode_spec]
+    to_wp; vcgen [internLevel, wp% internName_spec, wp% internLNode_spec]
     all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
       LNodeView.lchildren, LNodeView.nchildren, nview_isSome_of_denote,
       denoteN_ext, EStore.ns, EStore.ls]
 
 /-- con-leche: none — intern a list of transient levels, one handle each. -/
-@[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevelList us
     ⦃⇓? hs s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -156,10 +152,10 @@ level tree, by induction on the `Level` (the recursion `internLevel` takes: a
         denoteLList s'.store.ls hs = some us⌝⦄ := by
   induction us generalizing s₀ with
   | nil =>
-    mvcgen [internLevelList]
-    all_goals (bridge_peel; subst_vars; grind [denoteLList, Ext.refl])
+    to_wp; vcgen [internLevelList]
+    all_goals grind [denoteLList, Ext.refl]
   | cons u rest ih =>
-    mvcgen [internLevelList, internLevel_spec, ih]
+    to_wp; vcgen [internLevelList, wp% internLevel_spec, wp% ih]
     all_goals bridge_vcs [denoteLList, denoteL_ext, denoteLList_ext]
 
 /-- con-leche: none — a level-handle list that denotes has views at every
@@ -182,7 +178,7 @@ theorem lview_isSome_of_denoteLList {st : LStore} :
 
 /-- con-leche: none — intern a list of transient levels and hash-cons the
 list node. -/
-@[spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevels us
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -190,7 +186,7 @@ list node. -/
         s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteLs s'.store.lss h = some us⌝⦄ := by
-  mvcgen [internLevels, internLevelList_spec, internLsNode_spec]
+  to_wp; vcgen [internLevels, wp% internLevelList_spec, wp% internLsNode_spec]
   all_goals bridge_vcs [denoteLs, denoteLsView, Arena.LsStore.ViewOK,
     lview_isSome_of_denote, denoteLList, denoteLListE_ext, EStore.ls,
     lview_isSome_of_denoteLList]
@@ -253,7 +249,7 @@ theorem substLMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         ReadLCacheOK s'.caches.readLC s'.store ∧
         s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         RelL (Level.subst ks us) s₀.store u s'.store r⌝⦄ := by
-  mvcgen [substLMemoAt]
+  to_wp; vcgen [substLMemoAt]
   all_goals bridge_vcs [MemoLOK.insert, MemoLOK.get, RelL.of_ext, RelL.ext,
     RelL.of_denote, denoteL_ext, ReadLCacheOK.mono, Option.isSome_iff_exists]
 
@@ -277,7 +273,7 @@ theorem substLsMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         RelLs (fun ws => ws.map (Level.subst ks us)) s₀.store vs s'.store r⌝⦄ := by
-  mvcgen [substLsMemoAt]
+  to_wp; vcgen [substLsMemoAt]
   all_goals bridge_vcs [MemoLsOK.insert, MemoLsOK.get, MemoLsOK.mono,
     RelLs.of_ext, RelLs.ext, RelLs.of_denote, denoteLs_ext, substLevelList_eq,
     ReadLsCacheOK.mono, Option.isSome_iff_exists]

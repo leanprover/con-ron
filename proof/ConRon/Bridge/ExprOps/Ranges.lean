@@ -63,10 +63,7 @@ import ConRon.Bridge.Specs
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -151,13 +148,13 @@ theorem bvarBoundGo_spec : ∀ fuel, BvarBoundSpec (bvarBoundGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    mvcgen [bvarBoundGo_zero]
+    to_wp; vcgen [bvarBoundGo_zero]
     all_goals bridge_vcs [Expr.bvarBound, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    mvcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet, hrec]
+    to_wp; vcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet, wp% hrec]
     all_goals bridge_vcs [Expr.bvarBound, RelV]
 
 /-! ## `bvarBoundMemo` — `ExprOps.lean:1437`
@@ -177,7 +174,7 @@ theorem bvarBoundMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
         RelV Expr.bvarBound s₀.store e r⌝⦄ := by
   have hr := (bvarBoundGo_spec fuel).run
-  mvcgen [bvarBoundMemo, hr]
+  to_wp; vcgen [bvarBoundMemo, wp% hr]
   all_goals bridge_vcs [Expr.bvarBound, RelV]
 
 /-! ## `fvarRangeGo` — `ExprOps.lean:1447`
@@ -204,13 +201,13 @@ theorem fvarRangeGo_spec : ∀ fuel, FvarRangeSpec (fvarRangeGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    mvcgen [fvarRangeGo_zero]
+    to_wp; vcgen [fvarRangeGo_zero]
     all_goals bridge_vcs [Expr.fvarRange, RelV]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
     have hrec := ih.run
-    mvcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet, hrec]
+    to_wp; vcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet, wp% hrec]
     all_goals bridge_vcs [Expr.fvarRange, RelV]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo —
@@ -222,7 +219,7 @@ theorem fvarRangeMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
         s'.pins = s₀.pins ∧ s'.memos.fvarBC = ∅ ∧
         RelV Expr.fvarRange s₀.store e r⌝⦄ := by
   have hr := (fvarRangeGo_spec fuel).run
-  mvcgen [fvarRangeMemo, hr]
+  to_wp; vcgen [fvarRangeMemo, wp% hr]
   all_goals bridge_vcs [Expr.fvarRange, RelV]
 
 /-! ## `bvarB` and `fvarB` — `ExprOps.lean:1486`, `:1494`
@@ -248,7 +245,7 @@ theorem bvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
         RelV Expr.bvarBound s₀.store e r⌝⦄ := by
   have hr := bvarBoundMemo_spec fuel
-  mvcgen [bvarB, hr]
+  to_wp; vcgen [bvarB, wp% hr]
   all_goals bridge_vcs [RelV, bvarBound_of_derived]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — the same about a
@@ -271,7 +268,7 @@ theorem fvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
     ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ RelV Expr.fvarRange s₀.store e r⌝⦄ := by
   have hr := fvarRangeMemo_spec fuel
-  mvcgen [fvarB, hr]
+  to_wp; vcgen [fvarB, wp% hr]
   all_goals bridge_vcs [RelV, fvarRange_of_derived]
 
 /-! ## `hasFvarFast` and `looseBVarsBoundedFast` — `ExprOps.lean:1501`, `:1507`
@@ -290,7 +287,7 @@ theorem hasFvarFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     ⦃⇓? r s' => ⌜s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ RelV Expr.hasFvar s₀.store e r⌝⦄ := by
   have hr := fvarB_spec fuel
-  mvcgen [hasFvarFast, hr]
+  to_wp; vcgen [hasFvarFast, wp% hr]
   all_goals bridge_vcs [RelV, Expr.fvarRange_bne_zero]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1718-1719 looseBVarsBoundedFast —
@@ -302,7 +299,7 @@ theorem looseBVarsBoundedFast_spec (fuel k : Nat) (s₀ : AState) (e : EIdx)
         s'.pins = s₀.pins ∧
         RelV (Expr.looseBVarsBounded k) s₀.store e r⌝⦄ := by
   have hr := bvarB_spec fuel
-  mvcgen [looseBVarsBoundedFast, hr]
+  to_wp; vcgen [looseBVarsBoundedFast, wp% hr]
   all_goals bridge_vcs [RelV, looseBVarsBounded_decide]
 
 /-! ## The axiom check -/

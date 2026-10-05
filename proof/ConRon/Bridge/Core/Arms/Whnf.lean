@@ -29,10 +29,7 @@ import ConRon.Bridge.Core.Walks.Nat
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -149,38 +146,32 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
   induction n with
   | zero =>
     intro s₀ d i _ _
-    mvcgen [ConRon.Arena.whnfLoop]
-    exact fun h => h.elim
+    to_wp; vcgen [ConRon.Arena.whnfLoop]
   | succ n ih =>
     intro s₀ d i hok hdw
     obtain ⟨e, hden, hw⟩ := hdw
-    have hwc := hsim.whnfCore (c := false)
-    have hud := unfoldDefinition_spec (mode := mode) (fe := fe) henv
-    mvcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
-      hwc, reduceNat_spec, hud, ih]
+    have hwc := hsim.whnfCore (c := false) (e := e)
+    have hud := unfoldDefinition_spec (mode := mode) (fe := fe) henv (d := d)
+    to_wp; vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
+      wp% hwc, wp% reduceNat_spec hsim, wp% hud, wp% ih]
     all_goals (bridge_peel; subst_vars)
-    -- the first call's two preconditions
-    case vc2.a => exact hok
-    case vc3.a => exact hden
-    -- `reduceNat`'s two, off the `whnfCore` answer
-    case vc7.hok => rename_i hck _c1 _c2 _c3; exact hck
-    case vc8.hdw =>
-      rename_i _c1 _c2 _c3 hsE
+    -- the calls' `CheckOK` preconditions, and `whnfCore`'s two off the
+    -- subject: hypotheses already
+    all_goals try assumption
+    -- `reduceNat`'s second precondition, off the `whnfCore` answer
+    case vc11 =>
+      rename_i hsE
       obtain ⟨x, hx, hwx, _⟩ := hsE
       exact ⟨x, hx, hwx⟩
     -- ARM 1: the literal acceleration fires
-    case vc10 => intro s h1 _ _ _; exact h1
-    case vc11 =>
-      rename_i _c1 _c2 _c3 hsE
-      intro s _h1 _h2 _h3 h4
+    case vc3 =>
+      rename_i hsE _hp hrn
       obtain ⟨x, hx, _, _⟩ := hsE
-      obtain ⟨v, hv, hwv, _⟩ := SimOOp.some_inv (h4 x hx)
+      obtain ⟨v, hv, hwv, _⟩ := SimOOp.some_inv (hrn x hx)
       exact ⟨v, hv, hwv⟩
-    case vc9 =>
-      rename_i _ck2 _ck1 hx32 hx21 hp23 hsE hp12 hrn
-      intro hck hxL hpL hloop
-      refine ⟨hck, (hx32.trans hx21).trans hxL,
-        hpL.trans (hp12.trans hp23), ?_⟩
+    case vc1 =>
+      rename_i _ck1 _ck2 hck hx01 hx12 hx23 hp10 hsE hp21 hp32 hloop hrn
+      refine ⟨hck, hx01.trans (hx12.trans hx23), hp32.trans (hp21.trans hp10), ?_⟩
       intro e' he'
       obtain rfl : e' = e := by rw [hden] at he'; exact (Option.some.inj he').symm
       obtain ⟨e₁, he₁, _hw₁, F₁, hF₁⟩ := hsE
@@ -193,32 +184,29 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
           (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) hF₂)
         (whnfLoopFueled_mono
           (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hF₃)
-    -- ARM 2: `unfoldDefinition`'s two preconditions
-    case vc13.hok => rename_i _c1 hck _c3 _c4 _c5 _c6 _c7 _c8; exact hck
-    case vc14.hdw =>
-      rename_i _c1 _c2 _c3 hx21 _c5 hsE _c7 _c8
+    -- ARM 2: `unfoldDefinition`'s precondition
+    case vc9 =>
+      rename_i hx12 _ hsE _ _
       obtain ⟨x, hx, hwx, _⟩ := hsE
-      exact ⟨x, denote_ext hx hx21, hwx⟩
+      exact ⟨x, denote_ext hx hx12, hwx⟩
     -- ARM 2: the delta step fires
-    case vc16 => intro s h1 _ _ _; exact h1
-    case vc17 =>
-      rename_i _c1 _c2 _c3 hx21 _c5 hsE _c7 _c8
-      intro s _h1 _h2 _h3 h4
+    case vc6 =>
+      rename_i hx12 _ _ hsE _ _ _ hud
       obtain ⟨e₁, he₁, _hw₁, _⟩ := hsE
-      obtain ⟨hdo, hws⟩ := h4 e₁ (denote_ext he₁ hx21)
+      obtain ⟨hdo, hws⟩ := hud e₁ (denote_ext he₁ hx12)
       simp only [denoteEO, Option.map_eq_some_iff] at hdo
       obtain ⟨v, hv, hveq⟩ := hdo
       exact ⟨v, hv, hws v hveq.symm⟩
-    case vc15 =>
-      rename_i _ck3 _ck2 _ck1 hx43 hx32 hx21 hp34 hsE hp23 hrn hp12 hud
-      intro hck hxL hpL hloop
-      refine ⟨hck, (hx43.trans (hx32.trans hx21)).trans hxL,
-        hpL.trans (hp12.trans (hp23.trans hp34)), ?_⟩
+    case vc4 =>
+      rename_i _ck1 _ck2 _ck3 hck hx01 hx12 hx23 hx34 hp10 hsE hp21 hp32 hp43
+        hloop hrn hud
+      refine ⟨hck, hx01.trans (hx12.trans (hx23.trans hx34)),
+        hp43.trans (hp32.trans (hp21.trans hp10)), ?_⟩
       intro e' he'
       obtain rfl : e' = e := by rw [hden] at he'; exact (Option.some.inj he').symm
       obtain ⟨e₁, he₁, _hw₁, F₁, hF₁⟩ := hsE
       obtain ⟨F₂, hF₂⟩ := SimOOp.none_inv (hrn e₁ he₁)
-      obtain ⟨hdo, _hws⟩ := hud e₁ (denote_ext he₁ hx32)
+      obtain ⟨hdo, _hws⟩ := hud e₁ (denote_ext he₁ hx12)
       simp only [denoteEO, Option.map_eq_some_iff] at hdo
       obtain ⟨e₂, he₂, hveq⟩ := hdo
       obtain ⟨v, hv, hwv, F₃, hF₃⟩ := hloop e₂ he₂
@@ -231,17 +219,16 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
         (whnfLoopFueled_mono
           (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hF₃)
     -- ARM 3: nothing reduces — the `whnfCore` reduct IS the head normal form
-    case vc18 =>
-      rename_i _ck2 _ck1 _ck0 hx32 hx21 hx10 hp23 hsE hp12 hrn hp01 hud
-      refine ⟨by assumption, hx32.trans (hx21.trans hx10),
-        hp01.trans (hp12.trans hp23), ?_⟩
+    case vc7 =>
+      rename_i _ck1 _ck2 hck hx01 hx12 hx23 hp10 hsE hp21 hp32 hrn hud
+      refine ⟨hck, hx01.trans (hx12.trans hx23), hp32.trans (hp21.trans hp10), ?_⟩
       intro e' he'
       obtain rfl : e' = e := by rw [hden] at he'; exact (Option.some.inj he').symm
       obtain ⟨e₁, he₁, hw₁, F₁, hF₁⟩ := hsE
       obtain ⟨F₂, hF₂⟩ := SimOOp.none_inv (hrn e₁ he₁)
-      obtain ⟨hdo, _hws⟩ := hud e₁ (denote_ext he₁ hx21)
+      obtain ⟨hdo, _hws⟩ := hud e₁ (denote_ext he₁ hx12)
       simp only [denoteEO] at hdo
-      refine ⟨e₁, denote_ext he₁ (hx21.trans hx10), hw₁, max F₁ F₂, ?_⟩
+      refine ⟨e₁, denote_ext he₁ (hx12.trans hx23), hw₁, max F₁ F₂, ?_⟩
       exact whnfLoop_done
         (ConLeche.whnfCore_mono (Nat.le_max_left _ _) hF₁)
         (reduceNatFueled_mono (Nat.le_max_right _ _) hF₂)
@@ -264,12 +251,12 @@ theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
       (ConLeche.whnf mode env) := by
   intro s₀ d i e hok hden hw
   have hloop := whnfLoop_spec henv hsim
-  mvcgen [ConRon.Arena.whnfBody, hloop]
+  to_wp; vcgen [ConRon.Arena.whnfBody, wp% hloop]
   all_goals (bridge_peel; subst_vars)
-  case vc2 => intro s hs; subst hs; exact hok
-  case vc3 => intro s hs; subst hs; exact ⟨e, hden, hw⟩
+  case vc2 => exact hok
+  case vc3 => exact ⟨e, hden, hw⟩
   case vc1 =>
-    intro hck hx hp hres
+    rename_i hck hx hp hres
     obtain ⟨v, hv, hwv, F, hF⟩ := hres e hden
     rw [whnfLoopFuel_eq] at hF
     exact ⟨hck, hx, hp, v, hv, hwv, F + 1, whnf_of_loop hF⟩

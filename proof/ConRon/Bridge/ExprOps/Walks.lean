@@ -54,10 +54,7 @@ import ConRon.Bridge.ExprOps.TagFirst
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -101,21 +98,20 @@ theorem lamPw_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store h).isSome = true) :
     ⦃fun s => ⌜s = s₀⌝⦄ lamPw h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV Expr.lamPw s₀.store h r⌝⦄ := by
-  mvcgen [lamPw]
-  all_goals first
-    | bridge_vcs [Expr.lamPw, RelV]
-    -- the tag-first `else` arm (task #97-P5-Core round 4): the view comes
-    -- back from the denotation, and its tag is not `lam`
-    | (bridge_peel
-       subst_vars
-       obtain ⟨v, hv⟩ := view_of_denote_isSome (by assumption)
-       have hne := view_tagOf_ne hv (t := ETag.lam) (by assumption)
-       refine ⟨rfl, fun e he => ?_⟩
-       rw [denoteE_view_eq hok.wf hv] at he
-       cases v <;> first
-         | exact absurd rfl hne
-         | grind [denoteEView, Expr.lamPw, opt2_eq_some_iff, opt3_eq_some_iff,
-             Option.map_eq_some_iff])
+  to_wp; vcgen [lamPw]
+  case vc1 => bridge_vcs [Expr.lamPw, RelV]
+  -- the tag-first `else` arm (task #97-P5-Core round 4): the view comes
+  -- back from the denotation, and its tag is not `lam`
+  case vc2 =>
+    subst_vars
+    obtain ⟨v, hv⟩ := view_of_denote_isSome hden
+    have hne := view_tagOf_ne hv (t := ETag.lam) (by assumption)
+    refine ⟨rfl, fun e he => ?_⟩
+    rw [denoteE_view_eq hok.wf hv] at he
+    cases v <;> first
+      | exact absurd rfl hne
+      | grind [denoteEView, Expr.lamPw, opt2_eq_some_iff, opt3_eq_some_iff,
+          Option.map_eq_some_iff]
 
 /-! ## The axiom check -/
 

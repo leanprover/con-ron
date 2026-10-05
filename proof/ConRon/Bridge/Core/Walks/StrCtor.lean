@@ -15,10 +15,7 @@ import ConRon.Bridge.Core.Walks.Nat
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -57,7 +54,7 @@ theorem strLitConsSpine_spec (cons ofNat nilE : EIdx) (cx ox nx : Expr) :
   induction cs with
   | nil =>
     intro s₀ hok _ _ hn
-    mvcgen [ConRon.Arena.strLitConsSpine]
+    to_wp; vcgen [ConRon.Arena.strLitConsSpine]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hn⟩
   | cons c cs ih =>

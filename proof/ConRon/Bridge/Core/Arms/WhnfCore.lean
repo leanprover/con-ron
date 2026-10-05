@@ -53,10 +53,7 @@ import ConRon.Bridge.Core.Walks.BetaSpine
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -245,31 +242,31 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat} (c : Bool)
   cases v with
   | app f a => exact absurd htg hna
   | proj n k sub => exact absurd htg hnp
-  | letE ty w b => mvcgen; exact fun h => h.elim
-  | bvar k => mvcgen; exact fun h => h.elim
+  | letE ty w b => to_wp; vcgen
+  | bvar k => to_wp; vcgen
   | fvar k t =>
     obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hden
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inl ⟨k, t', rfl⟩)⟩
   | sort u =>
     obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hden
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inl ⟨l, rfl⟩))⟩
   | const n us =>
     obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hden
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inl ⟨nm, ls, rfl⟩)))⟩
   | lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inl ⟨l, rfl⟩))))⟩
   | lam ty b m =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv hden
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩)))))⟩
   | forallE ty b m =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv hden
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩)))))⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1062-1075 whnfCoreBody — **the
@@ -327,7 +324,7 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
       simp only [denoteEO, Option.some.injEq] at hov
       subst hov
       dsimp only
-      mvcgen; bridge_peel; subst_vars
+      to_wp; vcgen; subst_vars
       exact ⟨hok2, hx02, hp02, .proj nm k es, denote_ext hden hx02, hw,
         max F1 F2 + 1, whnfCore_proj_stuck hs' hr'⟩
     | some m =>

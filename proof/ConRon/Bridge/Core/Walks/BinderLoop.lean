@@ -33,10 +33,7 @@ import ConLeche.Verify.BinderLoop
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -157,7 +154,7 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array (EIdx × BinderMeta)) :
     | nil =>
       rw [ConRon.Arena.inferLamsOut]
       simp only [ite_true]
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
   | j + 1, s₀, cur, curx, prevPw, stkx, hok, hcur, hle, hstk => by
@@ -290,7 +287,7 @@ theorem ensureSortK_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   case sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hok1.state.wf hv hwx
     dsimp only
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok1, hx1, hp1, l, hl, F, hF⟩
   all_goals (dsimp only; exact triple_fail)
@@ -350,7 +347,7 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   unfold ConRon.Arena.inferLamsLeafCheck
   split
   next hnv =>
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, 0, fun hv => ?_⟩
     simp [hv] at hnv
@@ -370,7 +367,7 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     dsimp only
     split
     next hn =>
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       have hnil := StkRel.nil_of_size hstk hn
       refine ⟨hok2, hx02, hp02, max F1 F2, fun _ => ⟨bttx, l, hA, hB, ?_⟩⟩
@@ -386,7 +383,7 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       obtain rfl : lvb = l := (Option.some.inj hl3).symm
       split
       next hz =>
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         refine ⟨hok3, by rw [hst3]; exact hx02, hp3.trans hp02, max F1 F2,
           fun _ => ⟨bttx, lvb, hA, hB, ?_⟩⟩
@@ -851,7 +848,7 @@ theorem inferPisOut_carry (stk : Array (LIdx × PropWhen)) (pv : PropWhen) :
     | nil =>
       rw [ConRon.Arena.inferPisOut]
       simp only [ite_true]
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, vx, hv, rfl⟩
   | j + 1, s₀, v, vx, stkx, hok, hv, hz, hle, hstk => by
@@ -1241,7 +1238,7 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
     | nil =>
       rw [ConRon.Arena.annotateBindersOut]
       simp only [ite_true]
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
   | j + 1, s₀, pw?, cur, curx, stkx, hok, hcur, hle, hstk => by

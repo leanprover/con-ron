@@ -51,21 +51,19 @@ import ConRon.Bridge.Core.Knot
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
 /-! ## 1. The knot's six slots, unfolded once
 
-Task #97-P3-0's rule 9: a definition `mvcgen` would rewrite forever needs its
-clauses as lemmas.  `coreKnot` recurses on the fuel, so one `rfl` per slot at
-`fuel + 1` unfolds it exactly once — and, because the arena's knot carries its
-memo probes INLINE (task #97c's deviation 6), these six equations are also the
-only place in the bridge where the probe's shape is written down. -/
+Task #97-P3-0's rule 9: a definition the verification condition generator
+would rewrite forever needs its clauses as lemmas.  `coreKnot` recurses on
+the fuel, so one `rfl` per slot at `fuel + 1` unfolds it exactly once — and,
+because the arena's knot carries its memo probes INLINE (task #97c's
+deviation 6), these six equations are also the only place in the bridge where
+the probe's shape is written down. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the
 `whnfCore` slot at `fuel + 1`. -/
@@ -187,70 +185,63 @@ every frame condition a caller needs falls out of it by `simp`. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `whnfCoreSet`
 replaces exactly one field of one record. -/
-@[spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         whnfCoreC := (if s₀.caches.whnfCoreC.size < cacheCap then
           s₀.caches.whnfCoreC else ∅).insert e r } }⌝⦄ := by
-  mvcgen [whnfCoreSet]
-  spec_ro
+  to_wp; vcgen [whnfCoreSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1910-1928 memoEI — `whnfCoreCheapSet`
 replaces exactly one field of one record. -/
-@[spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfCoreCheapSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         whnfCoreCheapC := (if s₀.caches.whnfCoreCheapC.size < cacheCap then
           s₀.caches.whnfCoreCheapC else ∅).insert e r } }⌝⦄ := by
-  mvcgen [whnfCoreCheapSet]
-  spec_ro
+  to_wp; vcgen [whnfCoreCheapSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `whnfSet`. -/
-@[spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ whnfSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         whnfC := (if s₀.caches.whnfC.size < cacheCap then
           s₀.caches.whnfC else ∅).insert e r } }⌝⦄ := by
-  mvcgen [whnfSet]
-  spec_ro
+  to_wp; vcgen [whnfSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `inferSet`. -/
-@[spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ inferSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         inferC := (if s₀.caches.inferC.size < cacheCap then
           s₀.caches.inferC else ∅).insert e r } }⌝⦄ := by
-  mvcgen [inferSet]
-  spec_ro
+  to_wp; vcgen [inferSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `inferIOSet`, in
 the io grade's own table. -/
-@[spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ inferIOSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         inferIOC := (if s₀.caches.inferIOC.size < cacheCap then
           s₀.caches.inferIOC else ∅).insert e r } }⌝⦄ := by
-  mvcgen [inferIOSet]
-  spec_ro
+  to_wp; vcgen [inferIOSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `annotSet`. -/
-@[spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
+@[spec, wp_spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => ⌜s = s₀⌝⦄ annotSet e r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         annotC := (if s₀.caches.annotC.size < cacheCap then
           s₀.caches.annotC else ∅).insert e r } }⌝⦄ := by
-  mvcgen [annotSet]
-  spec_ro
+  to_wp; vcgen [annotSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1893-1906 memoBI — `defeqSet`, at
 the ORDERED pair and with the verdict. -/
-@[spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
+@[spec, wp_spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
     ⦃fun s => ⌜s = s₀⌝⦄ defeqSet a b r
     ⦃⇓? _u s' => ⌜s' = { s₀ with caches := { s₀.caches with
         defeqC := (if s₀.caches.defeqC.size < cacheCap then
           s₀.caches.defeqC else ∅).insert (a, b) r } }⌝⦄ := by
-  mvcgen [defeqSet]
-  spec_ro
+  to_wp; vcgen [defeqSet] with finish
 
 /-! ## 3. The cache invariant under an insert
 
@@ -586,20 +577,22 @@ theorem memoWhnfCoreFull_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s'.store r⌝⦄ := by
   rw [coreKnot_whnfCore_succ]
-  have hb := hbody
-  simp only [BodySpec] at hb
-  mvcgen [hb]
+  -- the body spec at THIS subject: `e` does not occur in the program, so
+  -- `vcgen` would not solve it by unification (as `memoDefeq_step` notes)
+  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
   -- **the stuck tag**: neither the store nor the memo is touched, and the
   -- pure body answers with its own argument
-  · rename_i hs _ hst
-    subst hst
+  case vc1 =>
+    rename_i hs
     exact ⟨hok, Ext.refl _, rfl, e, hden, hw, 1,
       whnfCore_of_stuck
         (denote_stuck_of_whnfCoreStuckTag hok.state.wf hden hs) 0 d⟩
   -- **the hit**: `CacheOK`'s depth-universal row, consumed at the query's
   -- own depth (the history report's lesson 8)
-  · rename_i _ _ hst x hx
-    subst hst
+  case vc2 =>
+    rename_i _ x hx
     obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.whnfCore i x hx
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
@@ -607,12 +600,11 @@ theorem memoWhnfCoreFull_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.whnfCore_WScoped henv F hrun hw, F, hrun⟩
   -- the body call's two preconditions
-  · rename_i _ _ hst _; subst hst; exact hok
-  · rename_i _ _ hst _; subst hst; exact hden
+  case vc4 => exact hok
+  case vc5 => exact hden
   -- **the miss**: the body's answer, re-inserted in the depth-universal form
-  · rename_i _ _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc3 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertWhnfCore hck.caches (denote_ext hden hx) hv
@@ -637,27 +629,26 @@ theorem memoWhnfCoreCheap_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s'.store r⌝⦄ := by
   rw [coreKnot_whnfCoreCheap_succ]
-  have hb := hbody
-  simp only [BodySpec] at hb
-  mvcgen [hb]
-  · rename_i hs _ hst
-    subst hst
+  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i hs
     exact ⟨hok, Ext.refl _, rfl, e, hden, hw, 1,
       whnfCore_of_stuck
         (denote_stuck_of_whnfCoreStuckTag hok.state.wf hden hs) 0 d⟩
-  · rename_i _ _ hst x hx
-    subst hst
+  case vc2 =>
+    rename_i _ x hx
     obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.whnfCoreCheap i x hx
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
     exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.whnfCore_WScoped henv F hrun hw, F, hrun⟩
-  · rename_i _ _ hst _; subst hst; exact hok
-  · rename_i _ _ hst _; subst hst; exact hden
-  · rename_i _ _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc4 => exact hok
+  case vc5 => exact hden
+  case vc3 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertWhnfCoreCheap hck.caches (denote_ext hden hx) hv
@@ -701,26 +692,25 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_whnf_succ]
-  have hb := hbody
-  simp only [BodySpec] at hb
-  mvcgen [hb]
-  · rename_i hs _ hst
-    subst hst
+  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i hs
     exact ⟨hok, Ext.refl _, rfl, e, hden, hw, 2,
       whnf_of_stuck (denote_stuck_of_whnfStuckTag hok.state.wf hden hs) 0 d⟩
-  · rename_i _ _ hst x hx
-    subst hst
+  case vc2 =>
+    rename_i _ x hx
     obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.whnf i x hx
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
     exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.whnf_WScoped henv F hrun hw, F, hrun⟩
-  · rename_i _ _ hst _; subst hst; exact hok
-  · rename_i _ _ hst _; subst hst; exact hden
-  · rename_i _ _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc4 => exact hok
+  case vc5 => exact hden
+  case vc3 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertWhnf hck.caches (denote_ext hden hx) hv
@@ -745,22 +735,21 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_infer_succ]
-  have hb := hbody
-  simp only [BodySpec] at hb
-  mvcgen [hb]
-  · rename_i _ hst x hx
-    subst hst
+  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i x hx
     obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.infer i x hx
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
     exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.inferTypeCore_WScoped henv F hrun hw, F, hrun⟩
-  · rename_i _ hst _; subst hst; exact hok
-  · rename_i _ hst _; subst hst; exact hden
-  · rename_i _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc3 => exact hok
+  case vc4 => exact hden
+  case vc2 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertInfer hck.caches (denote_ext hden hx) hv
@@ -784,22 +773,21 @@ theorem memoAnnotate_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_annotate_succ]
-  have hb := hbody
-  simp only [BodySpec] at hb
-  mvcgen [hb]
-  · rename_i _ hst x hx
-    subst hst
+  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i x hx
     obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.annot i x hx
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
     exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.annotateCore_WScoped F _ hrun hw, F, hrun⟩
-  · rename_i _ hst _; subst hst; exact hok
-  · rename_i _ hst _; subst hst; exact hden
-  · rename_i _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc3 => exact hok
+  case vc4 => exact hden
+  case vc2 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertAnnot hck.caches (denote_ext hden hx) hv
@@ -826,22 +814,21 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
   rw [coreKnot_inferIO_succ, ite_eq_left hg]
-  have hb := hbody
-  simp only [BodySpec] at hb
-  mvcgen [hb]
-  · rename_i _ hst x hx
-    subst hst
+  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i x hx
     obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.inferIO i x hx
     rw [hden] at ha
     obtain rfl := Option.some.inj ha
     have hrun := hall d hw.to_wscopedB
     exact ⟨hok, Ext.refl _, rfl, b, hb',
       ConLeche.inferTypeIO_WScoped henv F hrun hw, F, hrun⟩
-  · rename_i _ hst _; subst hst; exact hok
-  · rename_i _ hst _; subst hst; exact hden
-  · rename_i _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc3 => exact hok
+  case vc4 => exact hden
+  case vc2 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertInferIO hck.caches (denote_ext hden hx) hv
@@ -868,10 +855,12 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ := by
   rw [coreKnot_defeq_succ]
-  -- the spec is instantiated at THIS pair before `mvcgen` sees it: with the
-  -- two `WScoped` hypotheses still open, `assumption` closes `WScoped d ?a`
-  -- with the WRONG subject and the two comparands collapse (measured).
-  -- Task #97-P3-0's rule 4 at a second subject.
+  -- the spec is instantiated at THIS pair before `vcgen` sees it: `a` and `b`
+  -- do not occur in the program, so `vcgen` would leave them as goals (and
+  -- `mvcgen`, with the two `WScoped` hypotheses still open, closed
+  -- `WScoped d ?a` by `assumption` with the WRONG subject, so that the two
+  -- comparands collapsed — measured).  Task #97-P3-0's rule 4 at a second
+  -- subject.
   have hb : ∀ (s₁ : AState), CheckOK mode env fe s₁ →
       denoteE s₁.store i = some a → denoteE s₁.store j = some b →
       ⦃fun s => ⌜s = s₁⌝⦄ defeqBody mode (coreKnot mode fe id fuel) fe d i j
@@ -879,21 +868,21 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
           s'.pins = s₁.pins ∧
           SimV (ConLeche.isDefEqCore mode env) d a b x⌝⦄ :=
     fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb
-  mvcgen [hb]
-  · rename_i _ hst x hx
-    subst hst
+  to_wp; vcgen [wp% hb]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i x hx
     obtain ⟨a', b', ha', hb', F, hall⟩ := hok.caches.defeq (i, j) x hx
     rw [hda] at ha'
     rw [hdb] at hb'
     obtain rfl := Option.some.inj ha'
     obtain rfl := Option.some.inj hb'
     exact ⟨hok, Ext.refl _, rfl, F, hall d hwa.to_wscopedB hwb.to_wscopedB⟩
-  · rename_i _ hst _; subst hst; exact hok
-  · rename_i _ hst _; subst hst; exact hda
-  · rename_i _ hst _; subst hst; exact hdb
-  · rename_i _ hst2 _ r s1 hpost _ _ hst3
-    subst hst3
-    subst hst2
+  case vc3 => exact hok
+  case vc4 => exact hda
+  case vc5 => exact hdb
+  case vc2 =>
+    rename_i hpost _
     obtain ⟨hck, hx, hpn, F, hF⟩ := hpost
     refine ⟨CheckOK.ofCache hck
         (CacheOK.insertDefeq hck.caches (denote_ext hda hx) (denote_ext hdb hx)
@@ -919,13 +908,15 @@ theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
     {Q : α → AState → Prop}
     (h : ⦃fun s => ⌜s = s₀⌝⦄ f v ⦃⇓? r s' => ⌜Q r s'⌝⦄) :
     ⦃fun s => ⌜s = s₀⌝⦄ (view i >>= f) ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
-  mvcgen [h]
-  rename_i v'
-  intro s hs hv'
-  subst_vars
+  -- `f` is a variable, so the continuation has no spec: it is left as the
+  -- verification condition `wp (f v') …`, which `h` discharges once the
+  -- view is known to be `v`
+  to_wp; vcgen (errorOnMissingSpec := false)
+  bridge_peel; subst_vars
+  rename_i v' hv'
   rw [hv] at hv'
   obtain rfl := Option.some.inj hv'
-  exact h _ rfl
+  exact (wp% h).1 _ rfl
 
 
 /-- con-leche: none — **`view_bind_triple` behind the tag-first twin's test**
@@ -966,7 +957,7 @@ theorem tag_view_bind_triple_else {α : Type} {s₀ : AState} {i : EIdx}
 whose postcondition names its facts, and one for the continuation at every
 state those facts hold of, make a triple for `x >>= f`.  This is what lets
 a long arm be proved stage by stage, each stage's facts introduced by NAME,
-instead of as one `mvcgen` whose verification conditions carry forty
+instead of as one `vcgen` whose verification conditions carry forty
 inaccessible hypotheses. -/
 theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
     {Q : α → AState → Prop} {R : β → AState → Prop}
@@ -997,8 +988,9 @@ state and any postcondition: every throwing exit of a staged arm is this. -/
 theorem triple_fail {α : Type} {s₀ : AState} {e : ConRon.Arena.CheckError}
     {Q : α → AState → Prop} :
     ⦃fun s => ⌜s = s₀⌝⦄ (fail e : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
-  mvcgen [fail]
-  exact fun h => h.elim
+  -- `fail`'s native spec has a schematic postcondition: no verification
+  -- condition at all
+  to_wp; vcgen
 
 /-- con-leche: none — the same at the expression store. -/
 theorem triple_failDanglingE {α : Type} {s₀ : AState}

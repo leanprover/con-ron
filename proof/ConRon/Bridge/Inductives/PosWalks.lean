@@ -24,7 +24,6 @@ import ConRon.Bridge.Inductives.Run
 namespace ConRon.Bridge.Inductives
 
 set_option autoImplicit false
-set_option mvcgen.warning false
 
 open ConLeche ConRon.Arena ConRon.Bridge
 

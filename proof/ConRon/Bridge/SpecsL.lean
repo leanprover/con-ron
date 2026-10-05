@@ -27,10 +27,7 @@ import ConRon.Bridge.Specs
 namespace ConRon.Bridge
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena Std.Do
 
@@ -112,7 +109,7 @@ every element of a denoting level-handle list has a view. -/
 /-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
 level tree, by induction on `Level` (the recursion `internLevel` itself
 takes). -/
-@[spec] theorem internLevel_spec (s₀ : AState) (u : Level)
+@[spec, wp_spec] theorem internLevel_spec (s₀ : AState) (u : Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevel u
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -122,35 +119,30 @@ takes). -/
         denoteL s'.store.ls h = some u⌝⦄ := by
   induction u generalizing s₀ with
   | zero =>
-    mvcgen [internLevel, internLNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-                 LNodeView.nchildren, Option.map_eq_some_iff])
+    to_wp; vcgen [internLevel, wp% internLNode_spec]
+    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      LNodeView.nchildren, Option.map_eq_some_iff]
   | succ u ih =>
-    mvcgen [internLevel, ih, internLNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-                 LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
-                 denoteL_ext])
+    to_wp; vcgen [internLevel, wp% ih, wp% internLNode_spec]
+    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
+      denoteL_ext]
   | max u v ihu ihv =>
-    mvcgen [internLevel, ihu, ihv, internLNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-                 LNodeView.nchildren, Ext.trans, opt2_eq_some_iff])
+    to_wp; vcgen [internLevel, wp% ihu, wp% ihv, wp% internLNode_spec]
+    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      LNodeView.nchildren, Ext.trans, opt2_eq_some_iff]
   | imax u v ihu ihv =>
-    mvcgen [internLevel, ihu, ihv, internLNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-                 LNodeView.nchildren, Ext.trans, opt2_eq_some_iff])
+    to_wp; vcgen [internLevel, wp% ihu, wp% ihv, wp% internLNode_spec]
+    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      LNodeView.nchildren, Ext.trans, opt2_eq_some_iff]
   | param n =>
-    mvcgen [internLevel, internName_spec, internLNode_spec]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-                 LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
-                 denoteL_ext])
+    to_wp; vcgen [internLevel, wp% internName_spec, wp% internLNode_spec]
+    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
+      denoteL_ext]
 
 /-- con-leche: none — intern a list of transient levels, one handle each. -/
-@[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevelList us
     ⦃⇓? hs s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -160,16 +152,15 @@ takes). -/
         denoteLList s'.store.ls hs = some us⌝⦄ := by
   induction us generalizing s₀ with
   | nil =>
-    mvcgen [internLevelList]
-    all_goals (bridge_peel; subst_vars; grind [denoteLList, Ext.refl])
+    to_wp; vcgen [internLevelList]
+    all_goals grind [denoteLList, Ext.refl]
   | cons u us ih =>
-    mvcgen [internLevelList, internLevel_spec, ih]
-    all_goals (bridge_peel; subst_vars
-               grind [denoteLList, Ext.trans, denoteL_ext, denoteLListE_ext])
+    to_wp; vcgen [internLevelList, wp% internLevel_spec, wp% ih]
+    all_goals grind [denoteLList, Ext.trans, denoteL_ext, denoteLListE_ext]
 
 /-- con-leche: none — intern a list of transient levels and hash-cons the
 list node: what a `.const`'s universe arguments are. -/
-@[spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
+@[spec, wp_spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
     (hwf : StoreWF s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ internLevels us
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
@@ -177,14 +168,13 @@ list node: what a `.const`'s universe arguments are. -/
         s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteLs s'.store.lss h = some us⌝⦄ := by
-  mvcgen [internLevels, internLevelList_spec, internLsNode_spec]
-  all_goals (bridge_peel; subst_vars
-             grind [denoteLsView, denoteLs, Arena.LsStore.ViewOK, Ext.trans,
-               lview_isSome_of_denote, denoteLListE_ext, denoteLList])
+  to_wp; vcgen [internLevels, wp% internLevelList_spec, wp% internLsNode_spec]
+  all_goals grind [denoteLsView, denoteLs, Arena.LsStore.ViewOK, Ext.trans,
+    lview_isSome_of_denote, denoteLListE_ext, denoteLList]
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
 `readNames`, whose recursion is on the list as `readNames`' is. -/
-@[spec] theorem readNamesM_spec (s₀ : AState) (hs : List NIdx)
+@[spec, wp_spec] theorem readNamesM_spec (s₀ : AState) (hs : List NIdx)
     (hc : ReadNCacheOK s₀.caches.readNC s₀.store) :
     ⦃fun s => ⌜s = s₀⌝⦄ readNamesM hs
     ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
@@ -194,13 +184,12 @@ list node: what a `.const`'s universe arguments are. -/
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
   induction hs generalizing s₀ with
   | nil =>
-    mvcgen [readNamesM]
-    all_goals (bridge_peel; subst_vars
-               grind [Frontend.denoteNList, ReadNCacheOK])
+    to_wp; vcgen [readNamesM]
+    -- `grind` alone does not see the `caches` record update through `s = s₀`
+    all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
   | cons a as ih =>
-    mvcgen [readNamesM, readNameM_spec, ih]
-    all_goals (bridge_peel; subst_vars
-               grind [Frontend.denoteNList, ReadNCacheOK])
+    to_wp; vcgen [readNamesM, wp% readNameM_spec, wp% ih]
+    all_goals grind [Frontend.denoteNList, ReadNCacheOK]
 
 #print axioms internLevel_spec
 #print axioms internLevelList_spec

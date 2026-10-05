@@ -35,10 +35,7 @@ import ConRon.Bridge.Core.Walks.Eta
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -149,7 +146,7 @@ theorem liftFueled_spec {α : Type} (s₀ : AState) (what : String)
   cases o with
   | none => exact triple_fail
   | some a =>
-    mvcgen [ConRon.Arena.liftFueled]
+    to_wp; vcgen [ConRon.Arena.liftFueled] with finish
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 the reserved list in triple form: `Walks/Reserved.lean`'s
@@ -309,13 +306,13 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
       rintro args s2 ⟨hs2, hrelA⟩
       subst s2
       have hargs := hrelA x hda
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.etaCtorShape, hgf, hfind, denoteEList_len hargs]
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.etaCtorShape, hgf]
@@ -324,7 +321,7 @@ theorem etaCtorShape_spec (s₀ : AState) (a : EIdx) (x : Expr)
            · rfl)
   all_goals
     dsimp only
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨rfl, ?_⟩
     have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
@@ -971,7 +968,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
             have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
                 .ok false := structEtaCertWith_noind hgf hfindc hlenP hgw hnf
-            mvcgen
+            to_wp; vcgen
             bridge_peel; subst_vars
             exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
         all_goals
@@ -979,20 +976,20 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               .ok false := structEtaCertWith_nohead_w hgf hfindc hlenP
                 (denote_not_const hwf hvw hdw' (by intro c us h; cases h))
           dsimp only
-          mvcgen
+          to_wp; vcgen
           bridge_peel; subst_vars
           exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
       · rw [ite_eq_right hlenT]
         have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
             .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
       have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
           .ok false := structEtaCertWith_noctor hgf hnc
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
   all_goals
@@ -1000,7 +997,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         .ok false := structEtaCertWith_nohead
           (denote_not_const hwf hvh hdd (by intro c us h; cases h))
     dsimp only
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
 
@@ -1055,11 +1052,10 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   next hshf =>
     have hshape : ConLeche.etaCtorShape env x = false := by
       rw [← hsh]; simpa using hshf
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, 0, ?_⟩
-    simp only [ConLeche.structEtaCertFueled, ConLeche.structEtaCert, hshape,
-      Bool.false_eq_true, ite_false]
+    simp only [ConLeche.structEtaCert, hshape, Bool.false_eq_true, ite_false]
     rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — **THEOREM 1
@@ -1181,7 +1177,10 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             hgP m1 m2 (by
               simp only [m3, bind, Except.bind, Bool.false_eq_true, ite_false]
               rfl)⟩
-          mvcgen
+          -- `vcgen` does not prune the dead `if false = true` arm (`mvcgen`
+          -- did); simplify it away first
+          simp only [Bool.false_eq_true, ite_false]
+          to_wp; vcgen
           bridge_peel; subst_vars
           exact ⟨hok9, hx09, hp09, hres⟩
         · -- the types agree: the family certificate, at the verified mode
@@ -1214,21 +1213,21 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           simp only [m3, bind, Except.bind, ite_true]
           exact iotaCertsFueled_mono (Nat.le_max_right _ _) hF6
       next hg =>
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         exact ⟨hok5, hx02.trans hx5, hp5.trans hp02, max F1 F2,
           structUnitCert_guard (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
             hgf hfind (fun h => hg (hguard.mpr h))⟩
     next hnd =>
       have hnf := env_not_ind_of_index hok2 hTn (fun v c h => hnd v c h)
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       exact ⟨hok2, hx02, hp02, max F1 F2,
         structUnitCert_noind (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _)) hgf
           hnf⟩
   all_goals
     dsimp only
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok2, hx02, hp02, max F1 F2,
       structUnitCert_nohead (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
@@ -1333,13 +1332,13 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       refine triple_seq (liftFueled_spec s13 _ rq2) ?_
       rintro okB s14 ⟨hs14, hokB⟩
       subst s14
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok13, by rw [hst13]; exact hx011, hp13.trans hp011, _,
         proofIrrel_sorts g1 g3 g4 hrq.symm k1 k2 k3 hokB⟩
     all_goals
       dsimp only
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok11, hx011, hp011, _,
         proofIrrel_nosort_b g1 g3 g4 hrq.symm k1 k2 k3
@@ -1347,7 +1346,7 @@ theorem proofIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   all_goals
     dsimp only
     obtain ⟨g1, g3, g4⟩ := hG _ (Nat.le_refl _)
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok5, hx05, hp05, _,
       proofIrrel_nosort_a g1 g3 g4
@@ -1469,8 +1468,10 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (Nat.le_max_right _ _)) hF3)
           (proofIrrelFueled_mono (Nat.le_trans (Nat.le_max_right F3 F4)
             (Nat.le_max_right _ _)) hF4)
-      · try dsimp only
-        mvcgen
+      -- (here and below: `vcgen` does not prune the dead arm of the decided
+      -- `if true = true`, so `↓reduceIte` drops it first)
+      · simp only [↓reduceIte]
+        to_wp; vcgen
         bridge_peel; subst_vars
         refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1),
           max (max F1 F2) F3, ?_⟩
@@ -1480,15 +1481,15 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           (structEtaCertFueled_mono (Nat.le_trans (Nat.le_max_right F1 F2)
             (Nat.le_max_left _ _)) hF2)
           (structUnitCertFueled_mono (Nat.le_max_right _ _) hF3)
-    · try dsimp only
-      mvcgen
+    · simp only [↓reduceIte]
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, max F1 F2, ?_⟩
       exact stuckIrrelFueled_eta2
         (structEtaCertFueled_mono (Nat.le_max_left _ _) hF1)
         (structEtaCertFueled_mono (Nat.le_max_right _ _) hF2)
-  · try dsimp only
-    mvcgen
+  · simp only [↓reduceIte]
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok1, hx1, hp1, F1, stuckIrrelFueled_eta1 hF1⟩
 

@@ -30,10 +30,7 @@ import ConRon.Bridge.Core.Walks.Iota
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -112,7 +109,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
         refine triple_seq (getAppSpineGo_spec fuel s₀ f Ef hok hf) ?_
         rintro t s2 ⟨hs2, ht1, ht2, ht3, ht4⟩
         subst s2
-        mvcgen
+        to_wp; vcgen
         subst_vars
         refine ⟨rfl, ?_, ?_, ?_, ?_⟩
         · simpa [Expr.getAppFn] using ht1
@@ -133,7 +130,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
               Expr.mkAppN_append_one, Expr.mkAppN_getApp]
             exact hd
     · rw [ite_eq_right htg]
-      mvcgen
+      to_wp; vcgen
       subst_vars
       have hna : ∀ x y, E ≠ Expr.app x y := by
         obtain ⟨w, hw⟩ := denoteE_view hd
@@ -171,11 +168,11 @@ theorem headAndArgs_spec (s₀ : AState) (v : EIdx) (V : Expr)
       (by rw [hd]; rfl)) ?_
     rintro va s2 ⟨hs2, hr2⟩
     subst s2
-    mvcgen
+    to_wp; vcgen
     subst_vars
     exact ⟨rfl, hr1 V hd, by simpa using hr2 V hd⟩
   · rw [ite_eq_right htg]
-    mvcgen
+    to_wp; vcgen
     subst_vars
     have hna : ∀ x y, V ≠ Expr.app x y := by
       obtain ⟨w, hw⟩ := denoteE_view hd
@@ -200,7 +197,7 @@ theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
   cases same with
   | true =>
     simp only [ite_true]
-    mvcgen
+    to_wp; vcgen
     subst_vars
     exact ⟨hok, Ext.refl _, rfl, by simpa using hsame⟩
   | false =>
@@ -272,7 +269,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     rw [happ] at h
     exact h
   · rw [ite_eq_right htc]
-    mvcgen
+    to_wp; vcgen
     subst_vars
     have hnc : ∀ c us, (Expr.app V A).getAppFn ≠ .const c us := by
       obtain ⟨w, hw'⟩ := denoteE_view hdh
@@ -708,7 +705,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
           (ConLeche.whnfCore_mono (by omega) hF2), ← hdrop1]
         exact mWA_mono (by omega) hF3
   · rw [dite_eq_right hi]
-    mvcgen
+    to_wp; vcgen
     subst_vars
     have hlen := ExprOps.denoteEList_length _ _ hctx.1
     simp only [Array.length_toList] at hlen

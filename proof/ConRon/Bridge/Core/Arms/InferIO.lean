@@ -43,10 +43,7 @@ import ConRon.Bridge.ExprOps.Walks
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -313,88 +310,97 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
         (hvs : (denoteE s.store fv).isSome = true)
         (hbs : (denoteE s.store b).isSome = true) =>
       instantiate1Fast_specE coreWalkFuel s b fv 0 hs hvs hbs
-    mvcgen [ConRon.Arena.ensureSort, hi, hn, hin]
+    simp only [hμ, ite_true]
+    to_wp; vcgen [ConRon.Arena.ensureSort, wp% hi, wp% hn, wp% hin]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc2.a => exact ⟨et, hdt, hwt⟩
-    case vc4.a =>
-      rename_i s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 hse
-      exact SimE.exists_denote (hse et hdt)
-    case vc6.hv =>
-      rename_i s2 r1 s1 r0 u0 s0 ck_s1 x_s2_s1 p_s1_s2 hse ck_s0 v_r0_s0 x_s1_s0
-        p_s0_s1 hse_2
+    all_goals try first
+      | assumption
+      | (apply CheckOK.wf'; assumption)
+      | (constructor <;> assumption)
+      | (apply CacheOK.readL; apply CheckOK.caches; assumption)
+    -- the two calls on the domain
+    case vc19 => exact ⟨et, hdt, hwt⟩
+    case vc17 => rename_i hse; exact SimE.exists_denote (hse et hdt)
+    -- the free variable, and `instantiate1Fast`'s preconditions
+    case vc15 =>
+      rename_i x_s2_s1 _ _ _ x_s1_s0 _ _ _
       exact viewOK_fvar (by rw [denote_ext hdt (x_s2_s1.trans x_s1_s0)]; rfl)
-    case vc8.hvs =>
-      rename_i s3 r2 s2 r1 u0 s1 r0 s0 ck_s2 wf_s0 x_s3_s2 x_s1_s0 p_s2_s3 hse _ _
-        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 ck_s1 v_r1_s1 x_s2_s1 p_s1_s2 hse_2
-      rw [d_r0_s0]
+    case vc12 =>
+      rename_i s3 r0 s2 s1 u0 s0 ck_s2 wf_s0 x_s3_s2 x_s1_s0 p_s2_s3 hse _ m_s0_s1
+        c_s0_s1 p_s0_s1 _ _ v_fv_s0 d_fv_s0 ck_s1 x_s2_s1 p_s1_s2 hse_1 v_hh_s1
+      rw [d_fv_s0]
       simp [denoteEView, denote_ext hdt (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))]
-    case vc9.hbs =>
-      rename_i s3 r2 s2 r1 u0 s1 r0 s0 ck_s2 wf_s0 x_s3_s2 x_s1_s0 p_s2_s3 hse _ _
-        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 ck_s1 v_r1_s1 x_s2_s1 p_s1_s2 hse_2
+    case vc13 =>
+      rename_i s3 r0 s2 s1 u0 s0 ck_s2 wf_s0 x_s3_s2 x_s1_s0 p_s2_s3 hse _ m_s0_s1
+        c_s0_s1 p_s0_s1 _ _ v_fv_s0 d_fv_s0 ck_s1 x_s2_s1 p_s1_s2 hse_1 v_hh_s1
       rw [denote_ext hdb (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))]; rfl
-    case vc10.a =>
-      rename_i s4 r3 s3 r2 u0 s2 r1 s1 r0 s0 ck_s3 wf_s1 sok x_s4_s3 x_s2_s1
-        x_s1_s0 p_s3_s4 hse _ c_s0_s1 _ p_s0_s1 c_s1_s2 _ hia p_s1_s2 _ _ v_r1_s1
-        d_r1_s1 ck_s2 v_r2_s2 x_s3_s2 p_s2_s3 hse_2
-      exact ck_s2.mono sok (x_s2_s1.trans x_s1_s0) (c_s0_s1.trans c_s1_s2)
+    -- the two calls on the opened body
+    case vc9 =>
+      rename_i s4 r0 s3 s2 u0 s1 s0 ck_s3 wf_s1 sok_s0 x_s4_s3 x_s2_s1 x_s1_s0
+        p_s3_s4 hse _ c_s0_s1 m_s1_s2 p_s0_s1 c_s1_s2 _ hia p_s1_s2 _ _ v_fv_s1
+        d_fv_s1 ck_s2 x_s3_s2 p_s2_s3 hse_1 v_hh_s2
+      exact ck_s2.mono sok_s0 (x_s2_s1.trans x_s1_s0) (c_s0_s1.trans c_s1_s2)
         (p_s0_s1.trans p_s1_s2)
-    case vc11.a =>
-      rename_i s4 r3 s3 r2 u0 s2 r1 s1 r0 s0 ck_s3 wf_s1 sok x_s4_s3 x_s2_s1
-        x_s1_s0 p_s3_s4 hse _ c_s0_s1 _ p_s0_s1 c_s1_s2 _ hia p_s1_s2 _ _ v_r1_s1
-        d_r1_s1 ck_s2 v_r2_s2 x_s3_s2 p_s2_s3 hse_2
+    case vc10 =>
+      rename_i s4 r0 s3 s2 u0 s1 s0 ck_s3 wf_s1 sok_s0 x_s4_s3 x_s2_s1 x_s1_s0
+        p_s3_s4 hse _ c_s0_s1 m_s1_s2 p_s0_s1 c_s1_s2 _ hia p_s1_s2 _ _ v_fv_s1
+        d_fv_s1 ck_s2 x_s3_s2 p_s2_s3 hse_1 v_hh_s2
       have x41 := x_s4_s3.trans (x_s3_s2.trans x_s2_s1)
-      have hfv : denoteE s1.store r1 = some (.fvar d et) := by
-        rw [d_r1_s1]; simp [denoteEView, denote_ext hdt x41]
+      have hfv : denoteE s1.store fv = some (.fvar d et) := by
+        rw [d_fv_s1]; simp [denoteEView, denote_ext hdt x41]
       exact ⟨_, hia _ hfv eb (denote_ext hdb x41),
         Expr.WScoped.instantiate1 hwt 0 hwb⟩
-    case vc13.a =>
-      rename_i s5 r4 s4 r3 u0 s3 r2 s2 r1 s1 r0 s0 ck_s4 wf_s2 sok ck_s0 x_s5_s4
-        x_s3_s2 x_s2_s1 x_s1_s0 p_s4_s5 hse _ c_s1_s2 p_s0_s1 hse_2 _ p_s1_s2
-        c_s2_s3 _ hia p_s2_s3 _ _ v_r2_s2 d_r2_s2 ck_s3 v_r3_s3 x_s4_s3 p_s3_s4
-        hse_3
+    case vc8 =>
+      rename_i s5 r1 s4 s3 u0 s2 s1 r0 s0 ck_s4 wf_s2 sok_s1 ck_s0 x_s5_s4 x_s3_s2
+        x_s2_s1 x_s1_s0 p_s4_s5 hse _ c_s1_s2 p_s0_s1 hse_1 m_s2_s3 p_s1_s2 c_s2_s3 _
+        hia p_s2_s3 _ _ v_fv_s2 d_fv_s2 ck_s3 x_s4_s3 p_s3_s4 hse_2 v_hh_s3
       have x52 := x_s5_s4.trans (x_s4_s3.trans x_s3_s2)
-      have hfv : denoteE s2.store r2 = some (.fvar d et) := by
-        rw [d_r2_s2]; simp [denoteEView, denote_ext hdt x52]
-      exact SimE.exists_denote (hse_2 _ (hia _ hfv eb (denote_ext hdb x52)))
-    case vc16.hwf =>
-      rename_i s7 r6 s6 r5 u1 s5 r4 s4 r3 s3 r2 s2 r1 u0 s1 _ _ r0 s0 hbeq0 ck_s6
-        wf_s4 sok ck_s2 hst01 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 _ p_s6_s7 hse _
-        c_s3_s4 p_s2_s3 hse_2 p_s0_s1 _ p_s3_s4 _ c_s4_s5 _ hia dl_u0_s1 _ p_s4_s5
-        _ _ v_r4_s4 d_r4_s4 ck_s5 v_r5_s5 x_s6_s5 p_s5_s6 hse_3 ck_s1 v_r1_s1
-        x_s2_s1 p_s1_s2 hse_4
-      rw [hst01]; exact ck_s1.state.wf
-    case vc17.hv =>
-      rename_i s7 r6 s6 r5 u1 s5 r4 s4 r3 s3 r2 s2 r1 u0 s1 _ _ r0 s0 hbeq0 ck_s6
-        wf_s4 sok ck_s2 hst01 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 _ p_s6_s7 hse _
-        c_s3_s4 p_s2_s3 hse_2 p_s0_s1 _ p_s3_s4 _ c_s4_s5 _ hia dl_u0_s1 _ p_s4_s5
-        _ _ v_r4_s4 d_r4_s4 ck_s5 v_r5_s5 x_s6_s5 p_s5_s6 hse_3 ck_s1 v_r1_s1
-        x_s2_s1 p_s1_s2 hse_4
+      have hfv : denoteE s2.store fv = some (.fvar d et) := by
+        rw [d_fv_s2]; simp [denoteEView, denote_ext hdt x52]
+      exact SimE.exists_denote (hse_1 _ (hia _ hfv eb (denote_ext hdb x52)))
+    -- `internLNode`'s two preconditions, past the codomain's sort read
+    case vc4 =>
+      rename_i s7 r1 s6 hh0 s5 u0 s4 s3 r0 s2 s1 s0 hneg ck_s6 wf_s4 sok_s3 ck_s2
+        st_s0_s1 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 m_s0_s1 p_s6_s7 hse _ c_s3_s4
+        p_s2_s3 hse_1 p_s0_s1 m_s4_s5 p_s3_s4 hc_s0 c_s4_s5 _ hia dl_v_s1 hL_s0
+        p_s4_s5 _ _ v_fv_s4 d_fv_s4 ck_s5 x_s6_s5 p_s5_s6 hse_2 v_hh0_s5 ck_s1
+        x_s2_s1 p_s1_s2 hse_3 v_hh_s1
+      rw [st_s0_s1]; exact ck_s1.state.wf
+    case vc5 =>
+      rename_i s7 r1 s6 hh0 s5 u0 s4 s3 r0 s2 s1 s0 hneg ck_s6 wf_s4 sok_s3 ck_s2
+        st_s0_s1 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 m_s0_s1 p_s6_s7 hse _ c_s3_s4
+        p_s2_s3 hse_1 p_s0_s1 m_s4_s5 p_s3_s4 hc_s0 c_s4_s5 _ hia dl_v_s1 hL_s0
+        p_s4_s5 _ _ v_fv_s4 d_fv_s4 ck_s5 x_s6_s5 p_s5_s6 hse_2 v_hh0_s5 ck_s1
+        x_s2_s1 p_s1_s2 hse_3 v_hh_s1
       obtain ⟨T, hT, _⟩ := hse et hdt
-      obtain ⟨W, hW, _⟩ := hse_3 T hT
-      obtain ⟨U1, rfl, hU1⟩ := denote_sort_inv ck_s5.state.wf v_r5_s5 hW
+      obtain ⟨W, hW, _⟩ := hse_2 T hT
+      obtain ⟨U1, rfl, hU1⟩ := denote_sort_inv ck_s5.state.wf v_hh0_s5 hW
       have hU1' := denoteL_ext hU1
         (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))
-      rw [hst01]
+      rw [st_s0_s1]
       constructor
       · intro c hc
         simp only [LNodeView.lchildren, List.mem_cons,
           List.not_mem_nil, or_false] at hc
         rcases hc with rfl | rfl
         · exact lview_isSome_of_denote hU1'
-        · exact lview_isSome_of_denote dl_u0_s1
+        · exact lview_isSome_of_denote dl_v_s1
       · intro c hc; simp [LNodeView.nchildren] at hc
-    case vc18 =>
-      rename_i s9 r8 s8 r7 u1 s7 r6 s6 r5 s5 r4 s4 r3 u0 s3 _ hμ2 r2 s2 hbeq0 r1 s1
-        r0 s0 ck_s8 wf_s6 sok ck_s4 hst23 wf_s1 x_s9_s8 x_s7_s6 x_s6_s5 x_s5_s4
-        hm23 x_s2_s1 p_s8_s9 hse _ c_s5_s6 p_s4_s5 hse_2 p_s2_s3 _ _ p_s5_s6 hc23
-        _ c_s6_s7 _ hia dl_u0_s3 hL2 _ p_s6_s7 _ _ c_s1_s2 _ p_s1_s2 v_r6_s6
-        d_r6_s6 vl_r1_s1 dl_r1_s1 ck_s7 v_r7_s7 x_s8_s7 p_s7_s8 hse_3 ck_s3
-        v_r3_s3 x_s4_s3 p_s3_s4 hse_4
-      intro wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ _ d_r0_s0
+    -- `internE`'s view precondition, and the clause's postcondition
+    case vc3 =>
+      rename_i vl_iu_s0 _ _ _ _ _ _ _ _ _ _ _
+      exact viewOK_sort (by rw [vl_iu_s0]; rfl)
+    case vc1 =>
+      rename_i s9 r2 s8 hh0 s7 u0 s6 s5 r1 s4 s3 s2 hneg s1 r0 s0 ck_s8 wf_s6 sok_s5
+        ck_s4 st_s2_s3 wf_s1 wf_s0 x_s9_s8 x_s7_s6 x_s6_s5 x_s5_s4 m_s2_s3 x_s2_s1
+        x_s1_s0 p_s8_s9 hse _ c_s5_s6 p_s4_s5 hse_1 p_s2_s3 _ _ m_s6_s7 p_s5_s6 hc_s2
+        _ m_s0_s1 c_s6_s7 _ hia dl_v_s3 hL_s2 _ c_s0_s1 p_s6_s7 m_s1_s2 p_s0_s1 _
+        c_s1_s2 _ _ p_s1_s2 _ v_fv_s6 d_fv_s6 vl_iu_s1 dl_iu_s1 v_r0_s0 d_r0_s0
+        ck_s7 x_s8_s7 p_s7_s8 hse_2 v_hh0_s7 ck_s3 x_s4_s3 p_s3_s4 hse_3 v_hh_s3
       have ck2 := CheckOK.ofReadbackFrame ck_s3
-        (ReadbackFrame.ofReadL hst23 hm23 p_s2_s3 hc23 hL2)
-      have x32 : Ext s3.store s2.store := by rw [hst23]; exact Ext.refl _
+        (ReadbackFrame.ofReadL st_s2_s3 m_s2_s3 p_s2_s3 hc_s2 hL_s2)
+      have x32 : Ext s3.store s2.store := by rw [st_s2_s3]; exact Ext.refl _
       have x96 := x_s9_s8.trans (x_s8_s7.trans x_s7_s6)
       have x71 := x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
         (x32.trans x_s2_s1))))
@@ -404,21 +410,21 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
         p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans
           (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans p_s8_s9))))))), ?_⟩
       obtain ⟨T, hT, _, F1, hF1⟩ := hse et hdt
-      obtain ⟨W, hW, _, F2, hF2⟩ := hse_3 T hT
-      obtain ⟨U1, rfl, hU1⟩ := denote_sort_inv ck_s7.state.wf v_r7_s7 hW
-      have hfv : denoteE s6.store r6 = some (.fvar d et) := by
-        rw [d_r6_s6]; simp [denoteEView, denote_ext hdt x96]
-      obtain ⟨TB, hTB, _, F3, hF3⟩ := hse_2 _ (hia _ hfv eb (denote_ext hdb x96))
-      obtain ⟨W2, hW2, _, F4, hF4⟩ := hse_4 TB hTB
-      obtain ⟨U0, rfl, hU0⟩ := denote_sort_inv ck_s3.state.wf v_r3_s3 hW2
-      obtain rfl : r2 = U0 := Option.some.inj (dl_u0_s3.symm.trans hU0)
-      have hz : mode.verifiedChecks = true → (r2.zeronessOf == m.pw) = true :=
-        fun _ => by simpa using hbeq0
-      have hl1 : denoteL s1.store.ls r1 = some (.imax U1 r2) := by
-        rw [dl_r1_s1]
+      obtain ⟨W, hW, _, F2, hF2⟩ := hse_2 T hT
+      obtain ⟨U1, rfl, hU1⟩ := denote_sort_inv ck_s7.state.wf v_hh0_s7 hW
+      have hfv : denoteE s6.store fv = some (.fvar d et) := by
+        rw [d_fv_s6]; simp [denoteEView, denote_ext hdt x96]
+      obtain ⟨TB, hTB, _, F3, hF3⟩ := hse_1 _ (hia _ hfv eb (denote_ext hdb x96))
+      obtain ⟨W2, hW2, _, F4, hF4⟩ := hse_3 TB hTB
+      obtain ⟨U0, rfl, hU0⟩ := denote_sort_inv ck_s3.state.wf v_hh_s3 hW2
+      obtain rfl : lv = U0 := Option.some.inj (dl_v_s3.symm.trans hU0)
+      have hz : mode.verifiedChecks = true → (lv.zeronessOf == m.pw) = true :=
+        fun _ => by simpa using hneg
+      have hl1 : denoteL s1.store.ls iu = some (.imax U1 lv) := by
+        rw [dl_iu_s1]
         simp [denoteLView, opt2, denoteL_ext hU1 x71,
           denoteL_ext hU0 (x32.trans x_s2_s1)]
-      refine ⟨.sort (.imax U1 r2), ?_, by unfold Expr.WScoped; trivial,
+      refine ⟨.sort (.imax U1 lv), ?_, by unfold Expr.WScoped; trivial,
         max F1 (max F2 (max F3 F4)) + 1, ?_⟩
       · rw [d_r0_s0]; simp [denoteEView, denoteL_ext hl1 x_s1_s0]
       · exact inferIO_forallE hg
@@ -426,16 +432,6 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
           (ConLeche.whnf_mono (by omega) hF2)
           (ConLeche.inferTypeIO_mono (by omega) hF3)
           (ConLeche.whnf_mono (by omega) hF4) hz
-    case vc19 => intro s hwf _ _ _ _ _ _ _ _ _; exact hwf
-    case vc20 =>
-      intro s _ _ _ _ _ _ _ _ hview _
-      exact viewOK_sort (by rw [hview]; rfl)
-    all_goals first
-      | assumption
-      | exact fun h => h.elim
-      | (apply CheckOK.wf'; assumption)
-      | (constructor; assumption)
-      | (apply CacheOK.readL; apply CheckOK.caches; assumption)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: none — **a `pure` exit** at a pinned state (`Defeq.lean`'s
@@ -443,7 +439,7 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
 theorem triple_pure_lam {α : Type} {s₀ : AState} {v : α}
     {Q : α → AState → Prop} (h : Q v s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ (pure v : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
-  mvcgen
+  to_wp; vcgen
   subst_vars; exact h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody — the λ
@@ -650,13 +646,8 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     dsimp only
     cases hf : fe.find? n with
     | none =>
-      mvcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
-      all_goals (bridge_peel; subst_vars)
-      all_goals clear_tag_hyps
-      all_goals first
-        | exact hok.pins
-        | exact hok.caches.readN
-        | exact fun h => h.elim
+      to_wp; vcgen [ConRon.Arena.unknownConstError, ConRon.Arena.pinSorryAx]
+      subst_vars; exact hok.pins
     | some ci =>
       obtain ⟨nm', c, hn', hci, hfind⟩ := hok.ienv.hit n ci hf
       obtain rfl := Option.some.inj (hn.symm.trans hn')
@@ -669,29 +660,22 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
         have hcta := constTyAt_spec' (mode := mode) (env := env) (fe := fe)
           s₀ cv us hok ⟨nm, ls, c, hname, hus, hfind, hcv⟩
         simp only [hcv_eq]
-        mvcgen [hcta]
+        to_wp; vcgen [wp% hcta]
         all_goals (bridge_peel; subst_vars)
         all_goals clear_tag_hyps
-        all_goals first
-          | exact hok.pins
-          | exact hok.caches.readN
-          | exact fun h => h.elim
-          | rfl
-          | skip
-        rename_i _ usl hlen s₁ r s₂ hvl'
-        intro hck hx hp hd
+        -- `constTyAt`'s precondition, at the state the arity guard kept
+        case vc1 => rfl
+        rename_i usl hlen _r _s hck hx hp hd hvl'
         have hlen' : usl = cv.levelParams.length := by simpa using hlen
         have hl : ls.length = c.toConstantVal.levelParams.length := by
           rw [hvl] at hvl'; rw [← Option.some.inj hvl', hlen', hlp]
         exact ⟨hck, hx, hp, _, hd nm ls c hname hus hfind,
           Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls),
           1, inferIO_const hfind hct hl⟩
-      · mvcgen
-        all_goals (bridge_peel; subst_vars)
-        all_goals clear_tag_hyps
-        all_goals first
-          | exact hok.caches.readN
-          | exact fun h => h.elim
+      · -- `vcgen` does not read the case hypothesis: the guard is rewritten
+        -- first, and the failing branch then leaves no condition at all
+        simp only [ht, ite_true]
+        to_wp; vcgen
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1317 inferBodyIO — **the two
@@ -722,33 +706,31 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     | natVal n =>
       have hn := natLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      mvcgen [hn, ConRon.Arena.pinNat, hce]
+      to_wp; vcgen [wp% hn, ConRon.Arena.pinNat, wp% hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      all_goals first
-        | exact fun h => h.elim
-        | (apply CheckOK.pins; assumption)
-        | (intro s hs _; subst hs; assumption)
-        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
-        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
-           intro hck hx hp hd
-           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
-             by unfold Expr.WScoped; trivial, 1, inferIO_natLit hsup.symm⟩)
+      -- the pin's precondition, then `constE`'s two
+      case vc4 => apply CheckOK.pins; assumption
+      case vc2 => assumption
+      case vc3 => rename_i hpin _ _; exact ⟨_, hpin _ rfl⟩
+      case vc1 =>
+        rename_i hck hx hp hd hsup _ hpin hx1 hp1
+        exact ⟨hck, hx1.trans hx, hp.trans hp1, _, hd _ (hpin _ rfl),
+          by unfold Expr.WScoped; trivial, 1, inferIO_natLit hsup.symm⟩
     | strVal str =>
       have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
-      mvcgen [hn, ConRon.Arena.pinString, hce]
+      to_wp; vcgen [wp% hn, ConRon.Arena.pinString, wp% hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      all_goals first
-        | exact fun h => h.elim
-        | (apply CheckOK.pins; assumption)
-        | (intro s hs _; subst hs; assumption)
-        | (intro s hs hp; subst hs; exact ⟨_, hp _ rfl⟩)
-        | (rename_i s2 r1 s1 r0 s0 hsup ck_s1 hpin x_s2_s1 p_s1_s2
-           intro hck hx hp hd
-           exact ⟨hck, x_s2_s1.trans hx, hp.trans p_s1_s2, _, hd _ (hpin _ rfl),
-             by unfold Expr.WScoped; trivial, 1, inferIO_strLit hsup.symm⟩)
+      -- the pin's precondition, then `constE`'s two
+      case vc4 => apply CheckOK.pins; assumption
+      case vc2 => assumption
+      case vc3 => rename_i hpin _ _; exact ⟨_, hpin _ rfl⟩
+      case vc1 =>
+        rename_i hck hx hp hd hsup _ hpin hx1 hp1
+        exact ⟨hck, hx1.trans hx, hp.trans hp1, _, hd _ (hpin _ rfl),
+          by unfold Expr.WScoped; trivial, 1, inferIO_strLit hsup.symm⟩
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — **the `.proj`
@@ -956,40 +938,39 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
   | proj n k sub => exact absurd htg hnp
   | lam ty b m => exact absurd htg hnm
   | forallE ty b m => exact absurd htg hnf
-  | letE ty w b => mvcgen; exact fun h => h.elim
-  | bvar k => mvcgen; exact fun h => h.elim
+  | letE ty w b => to_wp; vcgen
+  | bvar k => to_wp; vcgen
   | fvar k t =>
     obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
     have hk : k < d := by unfold Expr.WScoped at hw; exact hw.1
     have hwt : Expr.WScoped d t' := by
       unfold Expr.WScoped at hw; exact Expr.WScoped.mono (Nat.le_of_lt hk) hw.2
-    mvcgen
-    bridge_peel; subst_vars
+    to_wp; vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, _, ht, hwt, 1, inferIO_fvar hk⟩
   | sort u =>
     obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hden
-    mvcgen [internLNode_spec, internE_spec]
+    to_wp; vcgen
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc1.hwf => exact hwf
-    case vc2.hv =>
+    -- `internLNode`'s two preconditions, then `internE`'s two
+    case vc4 => exact hwf
+    case vc5 =>
       exact ⟨fun c hc => by
         simp [LNodeView.lchildren] at hc; subst hc
         exact lview_isSome_of_denote hl,
         fun c hc => by simp [LNodeView.nchildren] at hc⟩
-    case vc3.sort.post.success.post.success =>
-      rename_i s₁ r₁ s₂ r₂ s₃ _ hx1 _ _ _ _ hc1 hp1 _ hd1
-      intro hwf2 hx2 _ _ hc2 hp2 _ _ _ hd2
+    case vc2 => assumption
+    case vc3 =>
+      rename_i hview _
+      exact viewOK_sort (by rw [hview]; rfl)
+    case vc1 =>
+      rename_i s₁ _ _ _ hwf2 hx1 hx2 _ _ _ _ _ hc2 _ hp2 hc1 _ hp1 _ _ hd1 _ hd2
       refine ⟨hok.mono ⟨hwf2⟩ (hx1.trans hx2) (hc2.trans hc1) (hp2.trans hp1),
         hx1.trans hx2, hp2.trans hp1, .sort (.succ l), ?_,
         by unfold Expr.WScoped; trivial, 1, inferIO_sort⟩
-      have hs1 : denoteL s₂.store.ls r₁ = some (Level.succ l) := by
+      have hs1 : denoteL s₁.store.ls su = some (Level.succ l) := by
         rw [hd1]; simp [denoteLView, denoteL_ext hl hx1]
       rw [hd2]; simp [denoteEView, denoteL_ext hs1 hx2]
-    case vc4 => intro s h _ _ _ _ _ _ _ _ _; exact h
-    case vc5 =>
-      intro s _ _ _ _ _ _ _ _ hview _
-      exact viewOK_sort (by rw [hview]; rfl)
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyIOC_sim —
 **THEOREM 1 for `inferBodyIO`**.

@@ -25,10 +25,7 @@ import ConLeche.Verify.BetaSpine
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -175,7 +172,7 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
             d s'.store r⌝⦄ := by
     intro s hs hxs hps hF
     obtain ⟨F, hF⟩ := hF
-    mvcgen; bridge_peel; subst_vars
+    to_wp; vcgen; bridge_peel; subst_vars
     exact ⟨hs, hxs, hps, ⟨none, rfl, (fun _ hx => by simp at hx), F, hF⟩⟩
   -- stage 2: the table
   refine triple_seq (IFEnv.findProj?_spec s2 sn k nm hok2 hsn2) ?_
@@ -294,7 +291,7 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
           have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'
           have hdarg := denote_ext harg3 (hx38.trans hx9)
           simp only [ite_true]
-          mvcgen; bridge_peel; subst_vars
+          to_wp; vcgen; bridge_peel; subst_vars
           refine ⟨hok9, hx09, hp09, ⟨_, ?_, ?_, max F2 F3, hfire⟩⟩
           · simp only [denoteEO, hdarg, Option.map_some]
           · intro x hx

@@ -39,14 +39,15 @@ and the three are proved below.
 
 Read off `lvlEq?_spec` below; every cached walk follows it.
 
-1. **`mvcgen [<the walk>]` and nothing else.**  `Bridge/Specs.lean`'s three
-   readback specs are `@[spec]`, so `mvcgen` applies them by itself and each
-   readback contributes its five conjuncts to the verification condition;
-   `ReadbackFrame.ofReadL` (and its two siblings) folds them into one frame,
-   and `.trans` composes the two.  *`mvcgen` cannot be made to prefer a
-   theorem passed in its list over a registered `@[spec]` for the same
-   function — measured — so the frame is assembled in the walk rather than
-   delivered by a spec of its own.*
+1. **`to_wp; vcgen [<the walk>]` and nothing else.**  `Bridge/Specs.lean`'s
+   three readback specs are `@[spec]` (their `Std.WP` twins, `@[wp_spec]`), so
+   `vcgen` applies them by itself and each readback contributes its five
+   conjuncts to the verification condition; `ReadbackFrame.ofReadL` (and its
+   two siblings) folds them into one frame, and `.trans` composes the two.
+   *(Under `mvcgen`, which could not be made to prefer a theorem passed in its
+   list over a registered `@[spec]` — measured — this was forced; `vcgen` can
+   erase a registered spec per call, `vcgen [-readLevelM_spec.wp, …]`, task
+   #111, but the frame is still assembled in the walk.)*
 2. **The postcondition does not take the subjects' denotations as
    hypotheses.**  It says "*if* the walk answered `some b`, then the subjects
    denote and `Level.isEquiv` answers `b`" — task #97-P3-0's rule 4 at two
@@ -70,10 +71,7 @@ import ConRon.Bridge.ExprOps.Owed
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -304,19 +302,20 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
         ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
           denoteL s₀.store.ls v = some lv ∧
           r = Level.isEquiv lu lv⌝⦄ := by
-  mvcgen [lvlEq?]
+  to_wp; vcgen [lvlEq?]
+  all_goals (bridge_peel; subst_vars)
+  -- the cache hit
   case vc1 =>
-    bridge_peel; subst_vars
     rename_i hhit
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlEq (u, v) _ hhit
     exact ⟨lu, lv, hu, hv, he.symm⟩
-  case vc2 => bridge_peel; subst_vars; exact hok.caches.readL
-  case vc3 => bridge_peel; subst_vars; assumption
-  case vc4 =>
-    bridge_peel; subst_vars
-    rename_i heq _s1 _mp1 _mp _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1
-      hdv hL2
+  -- the two readbacks' preconditions
+  case vc5 => exact hok.caches.readL
+  case vc4 => assumption
+  -- a miss with a verdict: inserted
+  case vc2 =>
+    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
     have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
     have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
@@ -327,16 +326,14 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
     · rw [hf.store]; exact hdu
     · rw [hf2.store]; exact hdv
     · exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩
-  case vc5 =>
-    bridge_peel; subst_vars
-    rename_i heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
+  -- a miss without one
+  case vc3 =>
+    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
     have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
     have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
     exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
       ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩⟩
-
-/-! ## 3. `lvlsEq?` — the same at two universe-argument lists, CLOSED -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
 **THEOREM 1 for `lvlsEq?`**.  Five verification conditions, the same five,
@@ -349,19 +346,20 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
         ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
           denoteLs s₀.store.lss vs = some lvs ∧
           r = Level.isEquivList lus lvs⌝⦄ := by
-  mvcgen [lvlsEq?]
+  to_wp; vcgen [lvlsEq?]
+  all_goals (bridge_peel; subst_vars)
+  -- the cache hit
   case vc1 =>
-    bridge_peel; subst_vars
     rename_i hhit
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlsEq (us, vs) _ hhit
     exact ⟨lu, lv, hu, hv, he.symm⟩
-  case vc2 => bridge_peel; subst_vars; exact hok.caches.readLs
-  case vc3 => bridge_peel; subst_vars; assumption
-  case vc4 =>
-    bridge_peel; subst_vars
-    rename_i heq _s1 _mp1 _mp _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1
-      hdv hL2
+  -- the two readbacks' preconditions
+  case vc5 => exact hok.caches.readLs
+  case vc4 => assumption
+  -- a miss with a verdict: inserted
+  case vc2 =>
+    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
     have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
     have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
@@ -372,9 +370,9 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     · rw [hf.store]; exact hdu
     · rw [hf2.store]; exact hdv
     · exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩
-  case vc5 =>
-    bridge_peel; subst_vars
-    rename_i heq _sf hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
+  -- a miss without one
+  case vc3 =>
+    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
     have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
     have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
     have hf := hf1.trans hf2
@@ -467,7 +465,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ cv.levelParams us cv.type
     _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
     (by rw [hty]; rfl)
-  mvcgen [constTyAt, hi]
+  to_wp; vcgen [constTyAt, wp% hi]
   all_goals (bridge_peel; subst_vars)
   · -- the HIT: the row's own clause, at the three functional denotations
     rename_i r hhit
@@ -478,7 +476,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     obtain rfl := Option.some.inj (hf'.symm.trans hf)
     exact hd
   · -- the MISS: `instLPFast`, then the capped insert
-    rename_i _ _ r s1 _ _ _ hst hL hLs hN hx _ hc hp _ hrel
+    rename_i hst hL hLs hN hx _ hc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
     have hd := hrel _ hty
     exact ⟨CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches
@@ -486,7 +484,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
 
 /-- con-leche: none — `constTyAt_spec` in ANSWER shape: the constant comes
 out of the environment index (`projCert` reads it off `fe.find?`), so its
-denotation is not known when `mvcgen` applies the spec. -/
+denotation is not known when `vcgen` applies the spec. -/
 theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ nm ls ci, denoteN s₀.store.ns cv.name = some nm ∧
@@ -502,8 +500,9 @@ theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
               ci.toConstantVal.levelParams ls)⌝⦄ := by
   obtain ⟨nm, ls, ci, hn, hus, hf, hcv⟩ := hpre
   have h := constTyAt_spec s₀ cv us nm ls ci hok hn hus hf hcv
-  mvcgen [h]
-  intro hck hx hp hd
+  to_wp; vcgen [wp% h]
+  rename_i hpost
+  obtain ⟨hck, hx, hp, hd⟩ := hpost
   refine ⟨hck, hx, hp, fun nm' ls' ci' hn' hus' hf' => ?_⟩
   obtain rfl := Option.some.inj (hn.symm.trans hn')
   obtain rfl := Option.some.inj (hus.symm.trans hus')
@@ -530,7 +529,7 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ lps us value
     _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
     (by rw [hval]; rfl)
-  mvcgen [constValAt, hi]
+  to_wp; vcgen [constValAt, wp% hi]
   all_goals (bridge_peel; subst_vars)
   · -- the HIT
     rename_i r hhit
@@ -543,7 +542,7 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     cases hf'
     exact hd
   · -- the MISS
-    rename_i _ _ r s1 _ _ _ hst hL hLs hN hx _ hc hp _ hrel
+    rename_i hst hL hLs hN hx _ hc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
     have hd := hrel _ hval
     exact ⟨CheckOK.ofCache hck (CacheOK.insertConstVal hck.caches
@@ -574,8 +573,9 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
   obtain ⟨nm, ls, cv, val, hint, hn, hus, hlps, hval, hfd⟩ := hpre
   have h := constValAt_spec s₀ n lps value us nm ls cv val hint hok hn hus
     hlps hval hfd
-  mvcgen [h]
-  intro hck hx hp hd
+  to_wp; vcgen [wp% h]
+  rename_i hpost
+  obtain ⟨hck, hx, hp, hd⟩ := hpost
   refine ⟨hck, hx, hp, fun nm' ls' cv' val' hint' hn' hus' hfd' => ?_⟩
   obtain rfl := Option.some.inj (hn.symm.trans hn')
   obtain rfl := Option.some.inj (hus.symm.trans hus')
@@ -604,7 +604,7 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
   have hi := ExprOps.instLPFast_spec coreWalkFuel s₀ lps us rhs
     _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
     (by rw [hrhs]; rfl)
-  mvcgen [ruleRhsAt, hi]
+  to_wp; vcgen [ruleRhsAt, wp% hi]
   all_goals (bridge_peel; subst_vars)
   · -- the HIT
     rename_i r hhit
@@ -620,7 +620,7 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     cases hrl'
     exact hd
   · -- the MISS
-    rename_i _ _ r s1 _ _ _ hst hL hLs hN hx _ hcc hp _ hrel
+    rename_i hst hL hLs hN hx _ hcc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hcc hp
     have hd := hrel _ hrhs
     exact ⟨CheckOK.ofCache hck (CacheOK.insertRuleRhs hck.caches
@@ -647,13 +647,16 @@ this is it.
 
 **Run form and not a triple, and the reason is the `[spec]` commitment.**
 `Bridge/Specs.lean`'s `readLevelM_spec` is registered `@[spec]`, so `mvcgen`
-applies it rather than unfolding `readLevelM`, and its hypothesis
-(`ReadLCacheOK s₀.caches.readLC s₀.store`) then appears as a verification
+applied it rather than unfolding `readLevelM`, and its hypothesis
+(`ReadLCacheOK s₀.caches.readLC s₀.store`) then appeared as a verification
 condition a `StateOK`-graded proof cannot discharge.  A registered `[spec]`
-cannot be erased (`attribute [-spec]` is rejected) and `mvcgen` cannot be made
-to prefer a locally supplied theorem — `Frame.lean`'s note measured both.
-Taking the two do-blocks apart by hand costs twenty lines and commits to
-nothing.
+cannot be erased globally (`attribute [-spec]` is rejected) and `mvcgen` could
+not be made to prefer a locally supplied theorem — `Frame.lean`'s note
+measured both.  (`vcgen` erases a spec PER CALL — `vcgen [lvlEq?,
+-readLevelM_spec.wp, readLevelM]` leaves no `ReadLCacheOK` condition, checked
+by task #111 — so a triple form is now possible; the run form stays because
+it is what `Bridge/Inductives/Rel.lean` consumes.)  Taking the two do-blocks
+apart by hand costs twenty lines and commits to nothing.
 
 **Why the two implications' hypotheses are at the INITIAL state.**  The frame
 is NOT assembled as "the two readbacks, then the insert" by `CacheFrame.trans`,
