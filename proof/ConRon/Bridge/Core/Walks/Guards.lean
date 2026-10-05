@@ -33,10 +33,7 @@ import ConRon.Bridge.Core.Walks.Spec
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -98,25 +95,23 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x⌝⦄ := by
   have hp := hok.pins
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
+  to_wp; vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
     ConRon.Arena.boolTrueName, ConRon.Arena.pinBoolTrue]
-  case vc1 => bridge_peel; subst_vars; exact hp
-  case vc3 => bridge_peel; subst_vars; exact hp
-  case vc2 =>
-    bridge_peel; subst_vars
-    rename_i hne _st hel hview
+  all_goals (bridge_peel; subst_vars)
+  case vc3 | vc4 => exact hp
+  case vc1 =>
+    rename_i _ _ _ _ hne hel hview
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨nm, ls, rfl, _hc, hus⟩ := denote_const_inv hok.state.wf hview hden
     cases ls with
     | nil =>
       exact absurd (denoteLs_inj hrk.lss hus hel) (by simpa using hne)
     | cons a as => rfl
-  case vc4 =>
-    bridge_peel; subst_vars
-    rename_i hc0 hu0 hr0 hne hbt0 _st hbt hel hview
+  case vc2 =>
+    rename_i _ hc0 hu0 hne _st hbt hel hview
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨nm, ls, rfl, hc, hus⟩ := denote_const_inv hok.state.wf hview hden
-    have husr : hu0 = hr0 := by simpa using hne
+    have husr : hu0 = el := by simpa using hne
     subst husr
     rw [hus] at hel
     obtain rfl := Option.some.inj hel
@@ -126,32 +121,28 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     · subst hb
       obtain rfl := denoteN_inj hrk.nsWF hc hbtn
       simp only [beq_self_eq_true]
-    · have hcr : hc0 ≠ hbt0 := by
+    · have hcr : hc0 ≠ bt := by
         intro hcc
         subst hcc
         rw [hc] at hbtn
         exact hb (Option.some.inj hbtn)
-      have h1 : (hc0 == hbt0) = false := by
+      have h1 : (hc0 == bt) = false := by
         simp only [beq_eq_false_iff_ne]; exact hcr
       have h2 : (nm == ConLeche.boolTrueName) = false := by
         simp only [beq_eq_false_iff_ne]; exact hb
       rw [h1, h2]
   case vc5 =>
-    bridge_peel; subst_vars
-    rename_i hne _st hview
+    rename_i _ _ _ hne hview
     exact ⟨hok, rfl, rfl,
-      (isBoolTrue_of_not_const hok.state.wf hview hden
-        (fun c us hc => hne c us hc)).symm⟩
+      (isBoolTrue_of_not_const hok.state.wf hview hden hne).symm⟩
   -- the tag-first `else` arm (task #97-P5-Core round 4): no view read, so it
   -- is recovered from the denotation, and its tag is not `const`
-  all_goals
-    bridge_peel; subst_vars
+  case vc6 =>
     obtain ⟨v, hv⟩ := denoteE_view hden
     exact ⟨hok, rfl, rfl,
       (isBoolTrue_of_not_const hok.state.wf hv hden
         (fun c us hh => view_tagOf_ne hv (t := ETag.const) (by assumption)
           (by rw [hh]; rfl))).symm⟩
-
 
 /-! ## The axiom census -/
 

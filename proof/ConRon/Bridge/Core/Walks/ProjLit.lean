@@ -16,10 +16,7 @@ import ConRon.Bridge.Core.Walks.StrCtor
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -75,10 +72,10 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           SimEOp (fun F => ConLeche.projLitToCtorFueled mode env F d x) d
             s'.store r⌝⦄ := by
     intro hnl
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, x, hden, hw, 0, ?_⟩
-    simp only [ConLeche.projLitToCtorFueled, ConLeche.projLitToCtor]
+    simp only [ConLeche.projLitToCtor]
     first
       | rfl
       | (split
@@ -109,12 +106,11 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       next hsupf =>
         have hS : ConLeche.strLitSupported env = false := by
           rw [← hsup]; simpa using hsupf
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         refine ⟨hok1, hx1, hp1, .lit (.strVal str), denote_ext hden hx1, hw, 0,
           ?_⟩
-        simp only [ConLeche.projLitToCtorFueled, ConLeche.projLitToCtor, hS,
-          Bool.false_eq_true, ite_false]
+        simp only [ConLeche.projLitToCtor, hS, Bool.false_eq_true, ite_false]
         rfl
   all_goals
     dsimp only

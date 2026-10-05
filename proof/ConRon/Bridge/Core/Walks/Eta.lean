@@ -24,10 +24,7 @@ import ConRon.Bridge.Core.Walks.StrLit
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -164,7 +161,7 @@ theorem projFnName_spec (s₀ : AState) (T : NIdx) (i : Nat)
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteN s'.store.ns h = some (ConLeche.projFnName Tn i)⌝⦄ := by
-  mvcgen [ConRon.Arena.projFnName, internNNode_spec]
+  to_wp; vcgen [ConRon.Arena.projFnName, wp% internNNode_spec]
   all_goals (bridge_peel; subst_vars
              grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                nview_isSome_of_denote, Ext.trans, ConLeche.projFnName])
@@ -194,7 +191,7 @@ theorem towerSlotsAllGo_spec (T : NIdx) (Tn : ConLeche.Name) :
           s'.pins = s₀.pins ∧
           r = (List.range' j n).all (fun k => (env.findProj? Tn k).isSome)⌝⦄
   | 0, j, s₀, hok, _ => by
-    mvcgen [ConRon.Arena.towerSlotsAllGo]
+    to_wp; vcgen [ConRon.Arena.towerSlotsAllGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, by simp⟩
   | n + 1, j, s₀, hok, hT => by
@@ -213,7 +210,7 @@ theorem towerSlotsAllGo_spec (T : NIdx) (Tn : ConLeche.Name) :
       refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
       rw [hr, List.range'_succ, List.all_cons, ← hiff, ho, Bool.true_and]
     next ho =>
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok1, hx1, hp1, ?_⟩
       have hf : (env.findProj? Tn j).isSome = false := by
@@ -251,7 +248,7 @@ theorem recSlotsAllGo_spec (T : NIdx) (Tn : ConLeche.Name) :
           s'.pins = s₀.pins ∧
           r = (List.range' j n).all (recSlotB env Tn)⌝⦄
   | 0, j, s₀, hok, _ => by
-    mvcgen [ConRon.Arena.recSlotsAllGo]
+    to_wp; vcgen [ConRon.Arena.recSlotsAllGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, by simp⟩
   | n + 1, j, s₀, hok, hT => by
@@ -271,7 +268,7 @@ theorem recSlotsAllGo_spec (T : NIdx) (Tn : ConLeche.Name) :
       simp [recSlotB, hfind]
     next hnot =>
       have hno := optCI_rec_none hrel (fun v mI rP rs h => hnot v mI rP rs h)
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok1, hx1, hp1, ?_⟩
       have hf : recSlotB env Tn j = false := by
@@ -356,7 +353,7 @@ theorem structEtaProjCerts_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
           SimBOp (fun F => ConLeche.structEtaProjCertsFueled mode env F d Tn ls
             xs y lps is) r⌝⦄
   | [], s₀, hok, _, _, _, _, _ => by
-    mvcgen [ConRon.Arena.structEtaProjCerts]
+    to_wp; vcgen [ConRon.Arena.structEtaProjCerts]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, rfl⟩
   | i :: rest, s₀, hok, hT, hus, hxs, hb, hlps => by
@@ -431,7 +428,7 @@ theorem structEtaProjCerts_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
             simp only [ConLeche.ConstantInfo.toConstantVal] at hF1
             simp only [hF1, bind, Except.bind, Bool.false_eq_true, ite_false]
             rfl
-          mvcgen
+          to_wp; vcgen
           bridge_peel; subst_vars
           exact ⟨hok4, hx04, hp04, F1, hres⟩
       next hg =>
@@ -440,12 +437,12 @@ theorem structEtaProjCerts_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
           rw [structEtaProjCertsFueled_cons_rec hfind,
             ite_eq_right (fun h => hg (hguard.mpr h))]
           rfl
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         exact ⟨hok1, hx1, hp1, 0, hres⟩
     next hnot =>
       have hno := optCI_rec_none hrel (fun v mI rP rs h => hnot v mI rP rs h)
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       exact ⟨hok1, hx1, hp1, 0, structEtaProjCertsFueled_cons_norec hno⟩
 
@@ -463,7 +460,7 @@ theorem projNodesGo_spec (T : NIdx) (b : EIdx) (Tn : ConLeche.Name)
           Frontend.denoteEList s'.store r =
             some ((List.range' j n).map fun k => Expr.proj Tn k y)⌝⦄
   | 0, j, s₀, hok, _, _ => by
-    mvcgen [ConRon.Arena.projNodesGo]
+    to_wp; vcgen [ConRon.Arena.projNodesGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | n + 1, j, s₀, hok, hT, hb => by
@@ -478,7 +475,7 @@ theorem projNodesGo_spec (T : NIdx) (b : EIdx) (Tn : ConLeche.Name)
     refine triple_seq (projNodesGo_spec T b Tn y n (j + 1) s1 hok1
       (denoteN_ext hT hx1) (denote_ext hb hx1)) ?_
     rintro rest s2 ⟨hok2, hx2, hp2, hrest⟩
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     rw [List.range'_succ, List.map_cons]
@@ -500,7 +497,7 @@ theorem projAppsGo_spec (T : NIdx) (us : LsIdx) (targs : List EIdx)
             some ((List.range' j n).map fun k =>
               Expr.mkAppN (.const (ConLeche.projFnName Tn k) ls) (xs ++ [y]))⌝⦄
   | 0, j, s₀, hok, _, _, _, _ => by
-    mvcgen [ConRon.Arena.projAppsGo]
+    to_wp; vcgen [ConRon.Arena.projAppsGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | n + 1, j, s₀, hok, hT, hus, hxs, hb => by
@@ -529,7 +526,7 @@ theorem projAppsGo_spec (T : NIdx) (us : LsIdx) (targs : List EIdx)
       (denoteN_ext hT hx03) (denoteLs_ext hus hx03)
       (denoteEList_ext hx03 _ _ hxs) (denote_ext hb hx03)) ?_
     rintro rest s4 ⟨hok4, hx4, hp4, hrest⟩
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok4, hx03.trans hx4, hp4.trans (hp3.trans (hp2.trans hp1)), ?_⟩
     rw [List.range'_succ, List.map_cons]

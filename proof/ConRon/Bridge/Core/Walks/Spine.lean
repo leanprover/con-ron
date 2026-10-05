@@ -64,10 +64,7 @@ import ConRon.Bridge.ExprOps.Spine
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -351,13 +348,14 @@ theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
         s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x⌝⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.unfoldableHead, hfn]
-  case vc1 => bridge_peel; subst_vars; exact hok.state
-  case vc2 => bridge_peel; subst_vars; rw [hden]; rfl
-  case vc3 => intro hf; exact False.elim hf
-  case vc4 =>
-    bridge_peel; subst_vars
-    rename_i r c us icv value hint hfd usl s hlen hview hrel
+  to_wp; vcgen [ConRon.Arena.unfoldableHead, wp% hfn]
+  all_goals (bridge_peel; subst_vars)
+  -- `getAppFn_spec`'s two preconditions
+  case vc5 => exact hok.state
+  case vc6 => rw [hden]; rfl
+  -- the definition arm
+  case vc1 =>
+    rename_i _ _ _ _ _ _ hfd _ usl hrel hview hlen
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨nm, ls, hgf, hn, hus⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
@@ -367,23 +365,22 @@ theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
     obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
     simp only [ConLeche.unfoldableHead, hgf, hfind, hul,
       denoteNList_len hlps]
-  case vc5 =>
-    bridge_peel; subst_vars
-    rename_i r c us s hview hrel hnd
+  -- the not-a-definition arm
+  case vc2 =>
+    rename_i _ _ _ _ hrel hview hnd
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨nm, ls, hgf, hn, hus⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     exact (unfoldableHead_of_not_defn hgf (env_not_defn_of_index hok hn hnd)).symm
-  case vc6 =>
-    bridge_peel; subst_vars
-    rename_i r v hnc s hview hrel
+  -- the not-a-constant arm
+  case vc3 =>
+    rename_i _ _ _ hnc hrel hview
     refine ⟨hok, rfl, rfl, ?_⟩
     exact (unfoldableHead_of_not_const
       (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
   -- the tag-first `else` arm (task #97-P5-Core round 4): the head's view comes
   -- back from its denotation, and its tag is not `const`
-  all_goals
-    bridge_peel; subst_vars
+  case vc4 =>
     have hr := (‹RelE Expr.getAppFn _ e _ _›) x hden
     obtain ⟨v, hv⟩ := denoteE_view hr
     refine ⟨hok, rfl, rfl, ?_⟩
@@ -426,37 +423,33 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
       (us : LsIdx) => constValAt_spec' (mode := mode) (env := env) (fe := fe)
         s n lps value us
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.unfoldDefinition, hfn, hargs, hmk, hcv]
+  to_wp; vcgen [ConRon.Arena.unfoldDefinition, wp% hfn, wp% hargs, wp% hmk, wp% hcv]
   all_goals (bridge_peel; subst_vars)
-  -- the five preconditions of the four callees
-  case vc1.a => exact hok.state
-  case vc2.a => rw [hden]; rfl
-  case vc3.hok => exact hok
-  case vc4.hpre =>
-    rename_i hfd _ _ _ _ hview hrel
+  all_goals (bridge_peel; subst_vars)
+  -- the callees' preconditions
+  case vc2 | vc5 | vc13 => apply CheckOK.state; assumption
+  case vc7 => exact hok
+  case vc14 => rw [hden]; rfl
+  case vc6 => rw [denote_ext hden ‹Ext _ _›]; rfl
+  case vc4 =>
+    rw [(‹RelEL Expr.getAppArgs _ e _ _›) x (denote_ext hden ‹Ext _ _›)]; rfl
+  case vc8 =>
+    rename_i _ _ _ _ _ _ hfd _ _ _ hrel hview
     obtain ⟨nm, ls, _, hn, hus⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     obtain ⟨dcv, dval, hdcv, hdval, hfind⟩ := env_defn_of_index hok hn hfd
     obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
     exact ⟨nm, ls, dcv, dval, _, hn, hus, hlps, hdval, hfind⟩
-  case vc5.a => rename_i hck _ _ _ _ _ _; exact hck.state
-  case vc6.a =>
-    rename_i _ hx _ _ _ _ _
-    rw [denote_ext hden hx]; rfl
-  case vc7.a => rename_i hck _ _ _ _; exact hck.state
-  case vc8.a =>
-    rename_i hfd _ _ _ _ _ _ _ hview hrel _ _ _ _ hcvr
+  case vc3 =>
+    rename_i _ _ _ _ _ _ hfd _ _ _ _ hrel hview _ _ _ _ hcvr
     obtain ⟨nm, ls, hgf, hn, hus⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     obtain ⟨dcv, dval, _, _, hfind⟩ := env_defn_of_index hok hn hfd
     rw [hcvr nm ls dcv dval _ hn hus hfind]; rfl
-  case vc9.a =>
-    rename_i _ hargsr hx _ _
-    rw [hargsr x (denote_ext hden hx)]; rfl
   -- the definition UNFOLDS
-  case vc10 =>
-    rename_i hfd _ hlen _ _ _ _ _ _ hst3 hx13 _ _ hc13 hp13 hmkr hlsv hview hrel
-      hck1 hargsr hx01 hp01 hcvr
+  case vc1 =>
+    rename_i _ _ _ _ _ _ hfd _ hlen _ _ hst3 hx13 _ _ hc13 hp13 hmkr hlsv hrel
+      hview hck1 hargsr hx01 hp01 hcvr
     obtain ⟨nm, ls, hgf, hn, hus⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
@@ -477,8 +470,8 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     intro y hy
     exact ConLeche.unfoldDefinition_WScoped henv hy hwx
   -- the level count does not match: both decline
-  case vc11 =>
-    rename_i hfd _ hlen _ hlsv hview hrel
+  case vc9 =>
+    rename_i _ _ _ _ _ _ hfd _ hlen hlsv hrel hview
     obtain ⟨nm, ls, hgf, hn, hus⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
@@ -492,8 +485,8 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     rw [hud]
     exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
   -- the head is a constant but not a stored definition
-  case vc12 =>
-    rename_i _ _ _ _ hview hrel hnd
+  case vc10 =>
+    rename_i _ _ _ _ hrel hview hnd
     obtain ⟨nm, ls, hgf, hn, _⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     have hud : ConLeche.unfoldDefinition env x = none := by
@@ -504,8 +497,8 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     rw [hud]
     exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
   -- the head is not a constant
-  case vc13 =>
-    rename_i _ _ hnc _ hview hrel
+  case vc11 =>
+    rename_i _ _ _ hnc hrel hview
     have hud : ConLeche.unfoldDefinition env x = none := by
       have h := denote_not_const hok.state.wf hview (hrel x hden) hnc
       simp only [ConLeche.unfoldDefinition]
@@ -514,7 +507,7 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     rw [hud]
     exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
   -- the head's TAG is not `const` (task #97-P5-Core round 4's tag-first arm)
-  all_goals
+  case vc12 =>
     have hr := (‹RelE Expr.getAppFn _ e _ _›) x hden
     obtain ⟨v, hv⟩ := denoteE_view hr
     have hud : ConLeche.unfoldDefinition env x = none := by
@@ -557,33 +550,34 @@ theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
         s'.pins = s₀.pins ∧ h = ConLeche.headHint env x⌝⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.headHint, hfn]
-  case vc1 => bridge_peel; subst_vars; exact hok.state
-  case vc2 => bridge_peel; subst_vars; rw [hden]; rfl
-  case vc3 =>
-    bridge_peel; subst_vars
-    rename_i r c us icv value hint hfd s hview hrel
+  to_wp; vcgen [ConRon.Arena.headHint, wp% hfn]
+  all_goals (bridge_peel; subst_vars)
+  -- `getAppFn_spec`'s two preconditions
+  case vc5 => exact hok.state
+  case vc6 => rw [hden]; rfl
+  -- the definition arm
+  case vc1 =>
+    rename_i _ _ _ _ _ _ _ hfd hrel hview
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨nm, ls, hgf, hn, _⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     obtain ⟨dcv, dval, _, _, hfind⟩ := env_defn_of_index hok hn hfd
     simp only [ConLeche.headHint, hgf, hfind]
-  case vc4 =>
-    bridge_peel; subst_vars
-    rename_i r c us s hview hrel hnd
+  -- the not-a-definition arm
+  case vc2 =>
+    rename_i _ _ _ _ hrel hview hnd
     refine ⟨hok, rfl, rfl, ?_⟩
     obtain ⟨nm, ls, hgf, hn, _⟩ :=
       denote_const_inv hok.state.wf hview (hrel x hden)
     exact (headHint_of_not_defn hgf (env_not_defn_of_index hok hn hnd)).symm
-  case vc5 =>
-    bridge_peel; subst_vars
-    rename_i r v hnc s hview hrel
+  -- the not-a-constant arm
+  case vc3 =>
+    rename_i _ _ _ hnc hrel hview
     refine ⟨hok, rfl, rfl, ?_⟩
     exact (headHint_of_not_const
       (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
   -- the tag-first `else` arm (task #97-P5-Core round 4)
-  all_goals
-    bridge_peel; subst_vars
+  case vc4 =>
     have hr := (‹RelE Expr.getAppFn _ e _ _›) x hden
     obtain ⟨v, hv⟩ := denoteE_view hr
     refine ⟨hok, rfl, rfl, ?_⟩
@@ -666,25 +660,23 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
         s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y⌝⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.sameConstHeads, hfn]
+  to_wp; vcgen [ConRon.Arena.sameConstHeads, wp% hfn]
   -- Thirteen verification conditions since the twin tests the tags first
   -- (task #97-P5-Core round 4): the four callee preconditions, the verdict,
   -- and for each of the four tests its view-side catch-all AND its tag-side
   -- `else` (which recovers the view from the denotation).
   all_goals (bridge_peel; subst_vars)
-  next => exact hok.state
-  next =>
-    rename_i ha fa aa hb fb ab s hvb hva
+  case vc4 | vc8 => exact hok.state
+  case vc9 =>
+    rename_i hva _
     obtain ⟨ex, ea, hx, hdf, _⟩ := denote_app_inv hok.state.wf hva hda
     rw [hdf]; rfl
-  next => exact hok.state
-  next =>
-    rename_i ha fa aa hb fb ab ra hra ca usa s hvra hrela hvb hva
+  case vc5 =>
+    rename_i hvb _
     obtain ⟨ey, eb, hy, hdf, _⟩ := denote_app_inv hok.state.wf hvb hdb
     rw [hdf]; rfl
-  next =>
-    rename_i ha fa aa hb fb ab ra hra ca usa rb hrb cb usb s hvrb hrelb hvra
-      hrela hvb hva
+  case vc1 =>
+    rename_i hrelb hrela hva hvb hvra hvrb
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
     obtain ⟨nma, lsa, hgfa, hna, _⟩ :=
@@ -694,9 +686,8 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     refine ⟨hok, rfl, rfl, ?_⟩
     rw [beq_of_denoteN hrk.nsWF hna hnb]
     simp only [ConLeche.sameConstHeads, hgfa, hgfb]
-  next =>
-    rename_i ha fa aa hb fb ab ra hra ca usa rb hrb vb hncb s hvrb hrelb hvra
-      hrela hvb hva
+  case vc2 =>
+    rename_i hncb hrelb hrela hva hvb hvra hvrb
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
     have hnc := denote_not_const hok.state.wf hvrb (hrelb ey hdfb) hncb
@@ -704,8 +695,8 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     simp only [ConLeche.sameConstHeads]
     cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
       first | rfl | exact absurd hgy (hnc _ _)
-  next =>
-    rename_i ha fa aa hb fb ab ra hra ca usa rb htb s hrelb hvra hrela hvb hva
+  case vc3 =>
+    rename_i htb hrelb hrela hva hvb hvra
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
     obtain ⟨vb, hvrb⟩ := denoteE_view (hrelb ey hdfb)
@@ -715,8 +706,8 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     simp only [ConLeche.sameConstHeads]
     cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
       first | rfl | exact absurd hgy (hnc _ _)
-  next =>
-    rename_i ha fa aa hb fb ab ra hra va hnca s hvra hrela hvb hva
+  case vc6 =>
+    rename_i hnca hrela hva hvb hvra
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
     have hnc := denote_not_const hok.state.wf hvra (hrela ex hdfa) hnca
@@ -724,8 +715,8 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     simp only [ConLeche.sameConstHeads]
     cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
       first | rfl | exact absurd hgx (hnc _ _)
-  next =>
-    rename_i ha fa aa hb fb ab ra hta s hrela hvb hva
+  case vc7 =>
+    rename_i hta hrela hva hvb
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
     obtain ⟨va, hvra⟩ := denoteE_view (hrela ex hdfa)
@@ -735,15 +726,15 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     simp only [ConLeche.sameConstHeads]
     cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
       first | rfl | exact absurd hgx (hnc _ _)
-  next =>
-    rename_i ha fa aa hb vb hnab s hvb hva
+  case vc10 =>
+    rename_i hnab hva hvb
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     have hna := denote_not_app hok.state.wf hvb hdb hnab
     refine ⟨hok, rfl, rfl, ?_⟩
     simp only [ConLeche.sameConstHeads]
     cases hy : y <;> first | rfl | exact absurd hy (hna _ _)
-  next =>
-    rename_i ha fa aa htb s hva
+  case vc11 =>
+    rename_i htb hva
     obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
     obtain ⟨vb, hvb⟩ := denoteE_view hdb
     have hna := denote_not_app hok.state.wf hvb hdb
@@ -751,14 +742,14 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     refine ⟨hok, rfl, rfl, ?_⟩
     simp only [ConLeche.sameConstHeads]
     cases hy : y <;> first | rfl | exact absurd hy (hna _ _)
-  next =>
-    rename_i ha va hnaa s hva
+  case vc12 =>
+    rename_i hnaa hva
     have hna := denote_not_app hok.state.wf hva hda hnaa
     refine ⟨hok, rfl, rfl, ?_⟩
     simp only [ConLeche.sameConstHeads]
     cases hx : x <;> cases hy : y <;> first | rfl | exact absurd hx (hna _ _)
-  next =>
-    rename_i hta s
+  case vc13 =>
+    rename_i hta
     obtain ⟨va, hva⟩ := denoteE_view hda
     have hna := denote_not_app hok.state.wf hva hda
       (fun f a hh => view_tagOf_ne hva (t := ETag.app) hta (by rw [hh]; rfl))
@@ -871,21 +862,19 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hag := ExprOps.getAppArgs_spec coreWalkFuel
   have hdl := defEqList_go hsim d
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.defeqSpine, hfn, hag, lvlsEq?_spec, hdl]
-  case vc1 => bridge_peel; subst_vars; exact hok.state
-  case vc3 => bridge_peel; subst_vars; exact hok.state
-  case vc5 => bridge_peel; subst_vars; exact hok.state
-  case vc7 => bridge_peel; subst_vars; exact hok.state
-  case vc2 => bridge_peel; subst_vars; rw [hda]; rfl
-  case vc6 => bridge_peel; subst_vars; rw [hda]; rfl
-  case vc4 => bridge_peel; subst_vars; rw [hdb]; rfl
-  case vc8 => bridge_peel; subst_vars; rw [hdb]; rfl
-  case vc12 => bridge_peel; subst_vars; exact hok
-  case vc13 =>
-    bridge_peel; subst_vars
-    rename_i rfa usa rfb cn usb aa bb s2 s1 rb s0 hlen hck1 hst1 hpn1 hlvs
-      hrelB hrelA hviewB hrelFb hrelFa hviewA
-    intro hck hxt hpn hrec
+  to_wp; vcgen [ConRon.Arena.defeqSpine, wp% hfn, wp% hag, wp% lvlsEq?_spec (mode := mode) (env := env) (fe := fe), wp% hdl]
+  all_goals (bridge_peel; subst_vars)
+  -- the four spine reads' `StateOK`/`isSome` preconditions, and the two
+  -- `CheckOK`s of `lvlsEq?` and the list comparison
+  case vc8 | vc10 | vc14 | vc18 => exact hok.state
+  case vc11 | vc19 => rw [hda]; rfl
+  case vc9 | vc15 => rw [hdb]; rfl
+  case vc6 => exact hok
+  case vc2 => assumption
+  -- heads, level lists and argument lists all agree
+  case vc1 =>
+    rename_i hlen hck1 hck hst1 hxt hpn1 hpn hrec hrelB hrelA hrelFb hrelFa
+      hviewA hviewB hlvs
     obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
       denote_const_inv hok.state.wf hviewA (hrelFa x hda)
     obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
@@ -904,25 +893,19 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       hrec x.getAppArgs y.getAppArgs (by rw [hst1]; exact hdaa)
         (by rw [hst1]; exact hdbb)
     exact ⟨F, defeqSpineFueled_const hgfa hgfb ⟨hnn, hlenX⟩ hiso.symm hF⟩
-  case vc14 => bridge_peel; subst_vars; intro s hck _ _ _; exact hck
-  case vc15 =>
-    bridge_peel; subst_vars
-    rename_i rfa usa rfb cn usb aa bb s2 hlen hrelB hrelA hviewB hrelFb
-      hrelFa hviewA
-    intro s _ hst _ _
+  -- the argument lists denote, in the state `lvlsEq?` left
+  case vc3 =>
+    rename_i _ hst _ hrelB hrelA _ _ _ _ _
     exact ⟨x.getAppArgs, by rw [hst]; exact hrelA x hda,
       fun z hz => hwa.getAppArgs z hz⟩
-  case vc16 =>
-    bridge_peel; subst_vars
-    rename_i rfa usa rfb cn usb aa bb s2 hlen hrelB hrelA hviewB hrelFb
-      hrelFa hviewA
-    intro s _ hst _ _
+  case vc4 =>
+    rename_i _ hst _ hrelB hrelA _ _ _ _ _
     exact ⟨y.getAppArgs, by rw [hst]; exact hrelB y hdb,
       fun z hz => hwb.getAppArgs z hz⟩
-  case vc17 =>
-    bridge_peel; subst_vars
-    rename_i rfa usa rfb cn usb aa bb s1 rv hnt s0 hlen hck0 hst0 hpn0 hlvs
-      hrelB hrelA hviewB hrelFb hrelFa hviewA
+  -- the level lists differ
+  case vc5 =>
+    rename_i rv hnt hlen hck0 hst0 hpn0 hrelB hrelA hrelFb hrelFa hviewA hviewB
+      hlvs
     obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
       denote_const_inv hok.state.wf hviewA (hrelFa x hda)
     obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
@@ -939,10 +922,9 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     refine ⟨hck0, by rw [hst0]; exact Ext.refl _, hpn0,
       ⟨0, defeqSpineFueled_lvl hgfa hgfb ⟨hnn, hlenX⟩
         (fun hc => hnt (hiso.trans hc))⟩⟩
-  case vc18 =>
-    bridge_peel; subst_vars
-    rename_i rfa cna usa rfb cnb usb aa bb hne s0 hrelB hrelA hviewB hrelFb
-      hviewA hrelFa
+  -- the head names or the arities differ
+  case vc7 =>
+    rename_i hne hrelB hrelA hrelFb hrelFa hviewA hviewB
     obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
       denote_const_inv hok.state.wf hviewA (hrelFa x hda)
     obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
@@ -955,18 +937,17 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     refine hne ⟨(name_eq_iff_of_denoteN hrk.nsWF hna hnb).mpr h1, ?_⟩
     rw [← denoteEList_len hdaa, ← denoteEList_len hdbb]
     exact h2
-  case vc19 =>
-    bridge_peel; subst_vars
-    rename_i rfa hta cna usa rfb htb vb hncb s0 hviewB hrelFb hviewA hrelFa
+  -- `b`'s head is not a constant
+  case vc12 =>
+    rename_i _ hncb hrelFb hrelFa hviewA hviewB
     obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
       denote_const_inv hok.state.wf hviewA (hrelFa x hda)
     exact ⟨hok, Ext.refl _, rfl,
       ⟨0, defeqSpineFueled_nc_right hgfa
         (denote_not_const hok.state.wf hviewB (hrelFb y hdb) hncb)⟩⟩
   -- `b`'s head does not carry the `const` TAG (round 4's tag-first arm)
-  case vc20 =>
-    bridge_peel; subst_vars
-    rename_i rfa hta cna usa rfb htb s0 hrelFb hviewA hrelFa
+  case vc13 =>
+    rename_i htb hrelFb hrelFa hviewA
     obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
       denote_const_inv hok.state.wf hviewA (hrelFa x hda)
     obtain ⟨vb, hviewB⟩ := denoteE_view (hrelFb y hdb)
@@ -975,16 +956,15 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         (denote_not_const hok.state.wf hviewB (hrelFb y hdb)
           (fun c us hh => view_tagOf_ne hviewB (t := ETag.const) htb
             (by rw [hh]; rfl)))⟩⟩
-  case vc21 =>
-    bridge_peel; subst_vars
-    rename_i rfa hta va hnca s0 hviewA hrelFa
+  -- `a`'s head is not a constant
+  case vc16 =>
+    rename_i _ hnca hrelFa hviewA
     exact ⟨hok, Ext.refl _, rfl,
       ⟨0, defeqSpineFueled_nc_left
         (denote_not_const hok.state.wf hviewA (hrelFa x hda) hnca)⟩⟩
   -- `a`'s head does not carry the `const` TAG
-  case vc22 =>
-    bridge_peel; subst_vars
-    rename_i rfa hta s0 hrelFa
+  case vc17 =>
+    rename_i hta hrelFa
     obtain ⟨va, hviewA⟩ := denoteE_view (hrelFa x hda)
     exact ⟨hok, Ext.refl _, rfl,
       ⟨0, defeqSpineFueled_nc_left
@@ -1010,8 +990,9 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
           ExprOps.Inst1At ve d s₀.store e s'.store r⌝⦄ := by
   obtain ⟨ve, hve⟩ := Option.isSome_iff_exists.mp hv
   have hb := ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden
-  mvcgen [hb]
-  intro h1 h2 _hbm h3 h4 h5 h6
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, _hbm, h3, h4, h5, h6⟩ := hpost
   refine ⟨h1, h2, h3, h4, h5, fun w hw => ?_⟩
   rw [hve] at hw
   obtain rfl := (Option.some.inj hw).symm
@@ -1052,58 +1033,79 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hwh := hsim.whnf'
   have hdq := hsim.defeq'
   have hi1 := instantiate1Fast_specE coreWalkFuel
-  mvcgen [ConRon.Arena.etaCert, hio, hwh, hdq, hi1]
+  to_wp; vcgen [ConRon.Arena.etaCert, wp% hio, wp% hwh, wp% hdq, wp% hi1]
   all_goals (bridge_peel; subst_vars)
-  -- the seventeen callee preconditions
-  case vc1.hok => exact hok
-  case vc2.hdw => exact ⟨y, hdy, hwb⟩
-  case vc3.hok => rename_i hck _ _ _; exact hck
-  case vc4.hdw =>
-    rename_i hsio
+  -- the sixteen callee preconditions
+  case vc21 => exact hok
+  case vc22 => exact ⟨y, hdy, hwb⟩
+  case vc19 => assumption
+  case vc20 =>
+    rename_i s0 s1 hck1 hx01 hp10 hsio
     obtain ⟨v, hv, hw, _⟩ := hsio y hdy
     exact ⟨v, hv, hw⟩
-  case vc5.hok => rename_i hck _ _ _ _; exact hck
-  case vc6.hda =>
-    rename_i hsio hck2 hview _ _ hswh
+  case vc14 => assumption
+  case vc15 =>
+    rename_i s0 s1 _ s2 _ _ _ hck1 hx01 hp10 hsio hck2 hx12 hp21 hswh hview
     obtain ⟨vtb, hvtb, _, _⟩ := hsio y hdy
     obtain ⟨vw, hvw, hwvw, _⟩ := hswh vtb hvtb
     obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
     simp only [Expr.WScoped] at hwvw
     exact ⟨p, hp, hwvw.1⟩
-  case vc7.hdb =>
-    rename_i hx01 _ _ _ _ hx12 _ _
+  case vc16 =>
+    rename_i s0 s1 _ s2 _ _ _ hck1 hx01 hp10 hsio hck2 hx12 hp21 hswh hview
     exact ⟨t, denote_ext hdt (hx01.trans hx12), hwt⟩
-  case vc8.hwf => rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hck2 hview hx12 hp21 hswh hsdq1; exact hck3.state.wf
-  case vc9.hv =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hck2 hview hx12 hp21 hswh hsdq1
+  case vc11 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hck2 hx12
+      hp21 hswh hview hsdq1
+    exact hck3.state.wf
+  case vc12 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hck2 hx12
+      hp21 hswh hview hsdq1
     exact viewOK_fvar (by rw [denote_ext hdt ((hx01.trans hx12).trans hx23)]; rfl)
-  case vc10.hok => rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32 _ _ hc43 hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1; exact ⟨hwf4⟩
-  case vc11.hv =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32 _ _ hc43 hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1
+  case vc8 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32
+      _ _ hc43 hp43 _ _ _ hfv hck2 hx12 hp21 hswh hview hsdq1
+    exact ⟨hwf4⟩
+  case vc9 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32
+      _ _ hc43 hp43 _ _ _ hfv hck2 hx12 hp21 hswh hview hsdq1
     rw [hfv, denoteEView, denote_ext hdt (((hx01.trans hx12).trans hx23).trans hx34)]
     rfl
-  case vc12.hden =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32 _ _ hc43 hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1
+  case vc10 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 hck1 hck3 hwf4 hx01 hx23 hx34 hp10 hsio hp32
+      _ _ hc43 hp43 _ _ _ hfv hck2 hx12 hp21 hswh hview hsdq1
     rw [denote_ext hdx (((hx01.trans hx12).trans hx23).trans hx34)]; rfl
-  case vc13.hwf => rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 hck1 hck3 hwf4 hst5 hx01 hx23 hx34 hx45 hp10 hsio hp32 _ hc54 _ hp54 hc43 _ hinst hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1; exact hst5.wf
-  case vc14.hv =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 hck1 hck3 hwf4 hst5 hx01 hx23 hx34 hx45 hp10 hsio hp32 _ hc54 _ hp54 hc43 _ hinst hp43 _ _ _ hfv hck2 hview hx12 hp21 hswh hsdq1
+  case vc6 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 hck1 hck3 hwf4 hst5 hx01 hx23 hx34 hx45
+      hp10 hsio hp32 _ hc54 _ hp54 hc43 _ hinst hp43 _ _ _ hfv hck2 hx12 hp21
+      hswh hview hsdq1
+    exact hst5.wf
+  case vc7 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 hck1 hck3 hwf4 hst5 hx01 hx23 hx34 hx45
+      hp10 hsio hp32 _ hc54 _ hp54 hc43 _ hinst hp43 _ _ _ hfv hck2 hx12 hp21
+      hswh hview hsdq1
     have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
     rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
     exact viewOK_app (by rw [denote_ext hdy (hx04.trans hx45)]; rfl)
       (by rw [denote_ext hfv hx45]; rfl)
-  case vc15.hok =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23 hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+  case vc3 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23
+      hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43
+      hp65 _ _ _ _ _ hfv _ hrhs hck2 hx12 hp21 hswh hview hsdq1
     exact ((hck3.mono ⟨hwf4⟩ hx34 hc43 hp43).mono hst5 hx45 hc54 hp54).mono
       ⟨hwf6⟩ hx56 hc65 hp65
-  case vc16.hda =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23 hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+  case vc4 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23
+      hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43
+      hp65 _ _ _ _ _ hfv _ hrhs hck2 hx12 hp21 hswh hview hsdq1
     have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
     rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
     exact ⟨_, denote_ext (hinst _ hfv x (denote_ext hdx hx04)) hx56,
       Expr.WScoped.instantiate1 hwt 0 hwx⟩
-  case vc17.hdb =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23 hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+  case vc5 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 s6 hck1 hck3 hwf4 hst5 hwf6 hx01 hx23
+      hx34 hx45 hx56 hp10 hsio hp32 _ hc54 _ _ hp54 _ hc43 _ hinst hc65 hp43
+      hp65 _ _ _ _ _ hfv _ hrhs hck2 hx12 hp21 hswh hview hsdq1
     have hx04 := ((hx01.trans hx12).trans hx23).trans hx34
     rw [denoteEView, denote_ext hdt hx04, Option.map_some] at hfv
     simp only [denoteEView, denote_ext hdy ((hx04.trans hx45).trans hx56),
@@ -1112,8 +1114,11 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     simp only [Expr.WScoped]
     exact ⟨hwb.mono (Nat.le_succ d), Nat.lt_succ_self d, hwt⟩
   -- the opened bodies DISAGREE
-  case vc18 =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 rb hnb s7 hck1 hck3 hwf4 hst5 hwf6 hck7 hx01 hx23 hx34 hx45 hx56 hx67 hp10 hsio hp32 _ hc54 _ hp76 hsdq2 _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+  case vc1 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 s6 rb s7 hnb hck1 hck3 hwf4 hst5 hwf6
+      hck7 hx01 hx23 hx34 hx45 hx56 hx67 hp10 hsio hp32 _ hc54 _ hp76 hsdq2 _
+      hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hx12 hp21
+      hswh hview hsdq1
     obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
     obtain ⟨vw, hvw, hwvw, F2, hF2⟩ := hswh vtb hvtb
     obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
@@ -1135,11 +1140,13 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         (ConLeche.whnf_mono (by omega) hF2)
         (ConLeche.isDefEqCore_mono (by omega) hF3)
         (ConLeche.isDefEqCore_mono (by omega) hF4)⟩
-  -- the regime mismatch: a `fail`, so the partial-correctness triple holds
-  case vc19 => intro h; exact h.elim
-  -- the CERTIFICATE
-  case vc20 =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 s3 _ s4 _ s5 _ s6 rb hnb hpw s7 hck1 hck3 hwf4 hst5 hwf6 hck7 hx01 hx23 hx34 hx45 hx56 hx67 hp10 hsio hp32 _ hc54 _ hp76 hsdq2 _ hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hview hx12 hp21 hswh hsdq1
+  -- the CERTIFICATE (the regime-mismatch `fail` leaves no verification
+  -- condition at all)
+  case vc2 =>
+    rename_i s0 s1 _ s2 _ _ _ s3 s4 s5 s6 rb s7 hnb hpw hck1 hck3 hwf4 hst5 hwf6
+      hck7 hx01 hx23 hx34 hx45 hx56 hx67 hp10 hsio hp32 _ hc54 _ hp76 hsdq2 _
+      hp54 _ hc43 _ hinst hc65 hp43 hp65 _ _ _ _ _ hfv _ hrhs hck2 hx12 hp21
+      hswh hview hsdq1
     obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
     obtain ⟨vw, hvw, hwvw, F2, hF2⟩ := hswh vtb hvtb
     obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
@@ -1162,8 +1169,9 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         (ConLeche.isDefEqCore_mono (by omega) hF3)
         (ConLeche.isDefEqCore_mono (by omega) hF4) (by simpa using hpw)⟩
   -- the domains DISAGREE
-  case vc21 =>
-    rename_i s0 _ s1 _ ty2 bd2 m2 s2 rb hnb s3 hck1 hck3 hx01 hx23 hp10 hsio hp32 hsdq1 hck2 hview hx12 hp21 hswh
+  case vc13 =>
+    rename_i s0 s1 _ s2 _ _ _ rb s3 hnb hck1 hck3 hx01 hx23 hp10 hsio hp32 hsdq1
+      hck2 hx12 hp21 hswh hview
     obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
     obtain ⟨vw, hvw, hwvw, F2, hF2⟩ := hswh vtb hvtb
     obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hck2.state.wf hview hvw
@@ -1176,8 +1184,8 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.whnf_mono (by omega) hF2)
       (ConLeche.isDefEqCore_mono (by omega) hF3)⟩
   -- the comparand's type does not reduce to a ∀
-  case vc22 =>
-    rename_i s0 _ s1 _ _ hnf s2 hck1 hx01 hp10 hsio hck2 _ hx12 hp21 hswh
+  case vc17 =>
+    rename_i s0 s1 _ s2 _ hnf hck1 hx01 hp10 hsio hck2 hx12 hp21 hswh hview
     obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
     obtain ⟨vw, hvw, _, F2, hF2⟩ := hswh vtb hvtb
     refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], ?_⟩
@@ -1187,8 +1195,8 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (denote_not_forallE hck2.state.wf ‹_› hvw hnf)⟩
   -- the comparand's type's whnf does not carry the `forallE` TAG (task
   -- #97-P5-Core round 4's tag-first arm)
-  all_goals
-    rename_i s0 r1 s1 r2 htag s2 hck1 hck2 hx01 hx12 hp10 hsio hp21 hswh
+  case vc18 =>
+    rename_i s0 s1 s2 htag hck1 hck2 hx01 hx12 hp10 hsio hp21 hswh
     obtain ⟨vtb, hvtb, _, F1, hF1⟩ := hsio y hdy
     obtain ⟨vw, hvw, _, F2, hF2⟩ := hswh vtb hvtb
     obtain ⟨v, hv⟩ := denoteE_view hvw
