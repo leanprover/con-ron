@@ -190,34 +190,14 @@ theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
 
 /-! ## The failure primitives (template rule 7) -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the failure
-spec**: a `fail` never returns, so under `⇓?` its success barrel is `False`.
-`vcgen` reads `fail_wp` below instead. -/
-@[spec] theorem fail_spec {α : Type} (e : Arena.CheckError) :
-    ⦃fun _ => ⌜True⌝⦄ (fail e : AM α) ⦃⇓? _r _s' => ⌜False⌝⦄ := by
-  intro _ _; trivial
+/-! ### The failure specs (task #111)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:344-354 Expr — the `none` arm of
-`view`, spelled once (task #97-P6-10). -/
-@[spec] theorem failDanglingE_spec {α : Type} :
-    ⦃fun _ => ⌜True⌝⦄ (failDanglingE : AM α) ⦃⇓? _r _s' => ⌜False⌝⦄ := by
-  intro _ _; trivial
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — the `none` arm of
-`viewLs`, spelled once. -/
-@[spec] theorem failDanglingLs_spec {α : Type} :
-    ⦃fun _ => ⌜True⌝⦄ (failDanglingLs : AM α) ⦃⇓? _r _s' => ⌜False⌝⦄ := by
-  intro _ _; trivial
-
-/-! ### The failure specs `vcgen` reads (task #111)
-
-`vcgen` reads `Std.WP` triples, and for a failure the native statement is
-better than the `@[wp_spec]` twin of the three above: with a SCHEMATIC
-postcondition `Q`, `fail` establishes any `Q` (it never returns, and `⇓?`'s
-exception postcondition is `True`), so the failing branch of a twin leaves
-no verification condition at all, where the `False` barrel left one per
-failure site (closed, under `mvcgen`, by a `spec_fails` macro that is gone
-with it). -/
+Stated natively in `Std.WP`, the logic `vcgen` reads, with a SCHEMATIC
+postcondition `Q`: a `fail` never returns and `⇓?`'s exception
+postcondition is `True`, so `fail` establishes any `Q` and the failing
+branch of a twin leaves no verification condition at all.  The `Std.Do`
+specs they replace (`⇓? _ _ => ⌜False⌝`) left one `False` barrel per failure
+site, closed under `mvcgen` by a `spec_fails` macro; both are gone. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — `fail` meets
 every postcondition under partial correctness. -/

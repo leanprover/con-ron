@@ -70,7 +70,7 @@ namespace ConRon.Bridge
 
 /-! ## The `@[spec]` layer -/
 
-#print axioms fail_spec
+#print axioms fail_wp
 #print axioms view_spec
 #print axioms derivedE_spec
 #print axioms internE_spec
