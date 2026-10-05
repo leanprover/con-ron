@@ -14,8 +14,10 @@ section for every task you land.
   `proof/lake-manifest.json`.  `scripts/provenance.py dir` prints its
   checked-out package directory (ordinarily
   `proof/.lake/packages/con-leche`, but never hard-code that: the packages
-  directory lives under the shared `_tmp/aeneas-lean/.lake/packages`, and
-  `dir` is what every script uses to find it).  It needs `lake update
+  directory lives under the shared `_tmp/aeneas-lean-<tag>/.lake/packages`, and
+  `dir` is what every script uses to find it).  `<tag>` is the toolchain
+  tag of `proof/lean-toolchain` (task #110: `_tmp/aeneas-lean-v4.35.0-rc3`),
+  so a sync that moves the toolchain builds the new library beside the old.  It needs `lake update
   con-leche` in `proof/` (once `lakefile.toml` is in place) before anything
   can read it.  `vendor/aeneas` holds the Aeneas docs (`documentation/*.md`,
   `documentation/skills/*`) and its Lean library, and is still a submodule.
@@ -108,7 +110,7 @@ section for every task you land.
     irrelevant here.  `lake cache clean` (or `rm -rf _tmp/lake-cache`) is
     the only GC there is: the cache pins every artifact ever written to it,
     so it grows across bumps and wants an occasional sweep.
-  * **Caveat for the shared `_tmp/aeneas-lean`**: a writable-cache build
+  * **Caveat for the shared `_tmp/aeneas-lean-<tag>`**: a writable-cache build
     also caches the *dependency* packages in the target's import closure,
     which chmods their build files to `r--r--r--` and rewrites their
     `.hash` files.  That is Lake's normal behaviour and is harmless, but it
@@ -117,12 +119,12 @@ section for every task you land.
     project-wide without saying so.
 * **Shared state between agent worktrees.** `_tmp/` is one directory shared
   through a symlink by every worktree: never rebuild, clean or re-copy
-  `_tmp/aeneas-lean` (the patched Aeneas library and Mathlib) from a worktree
+  `_tmp/aeneas-lean-<tag>` (the patched Aeneas library and Mathlib) from a worktree
   — if `proof/.lake/packages` is missing, symlink it to the main tree's
-  `_tmp/aeneas-lean/.lake/packages` and nothing else; `extract.sh` and
+  `_tmp/aeneas-lean-<tag>/.lake/packages` and nothing else; `extract.sh` and
   `gates.sh` key their scratch and log directories by checkout for the same
   reason.  Since task #91 this extends to con-leche: its lake package
-  directory lives under that same shared `_tmp/aeneas-lean/.lake/packages`,
+  directory lives under that same shared `_tmp/aeneas-lean-<tag>/.lake/packages`,
   so `lake update con-leche` in one worktree's `proof/` moves the checkout
   every other worktree reads.  Never edit it directly from an agent.  **A
   con-leche bump (a sync) is `scripts/bump-con-leche.sh`** (task #108,
@@ -145,7 +147,7 @@ section for every task you land.
 * **Never run `lake -d proof …` from the worktree root.**  The root has no
   `lean-toolchain` matching `proof/`'s, so elan picks a different Lean (4.34
   on 2026-09-23) and the build rewrites shared con-leche `.olean`s under
-  `_tmp/aeneas-lean` with an incompatible header, breaking every other
+  `_tmp/aeneas-lean-<tag>` with an incompatible header, breaking every other
   agent's build until restored from `_tmp/lake-cache`.  Always `cd proof`
   (or `env -C proof lake build …`).
 * **An agent's `cd` does not persist between tool calls.**  `cd <main tree>
@@ -209,7 +211,7 @@ section for every task you land.
   refuses a branch that is not merged.  Nothing sweeps
   worktrees automatically (an agent may be working in one).  Task scratch
   under `_tmp/` is deleted once its numbers are in DESIGN.md; the corpus and
-  `_tmp/aeneas-lean` stay.
+  `_tmp/aeneas-lean-<tag>` stay.
 
   **A landing is three steps, not two: merge, drop the worktree, STOP THE
   AGENT.**  A finished agent is still a live subagent holding its context;
