@@ -43,10 +43,7 @@ import ConRon.Bridge.Core.Walks.Nat
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -78,24 +75,24 @@ theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
   cases ci with
   | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
   | axiomInfo v =>
-    mvcgen [IConstantInfo.toConstantVal]
+    to_wp; vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
     obtain ⟨cv, hcv, rfl⟩ := hc; exact hcv
   | ctorInfo v nP nF =>
-    mvcgen [IConstantInfo.toConstantVal]
+    to_wp; vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
     obtain ⟨cv, hcv, rfl⟩ := hc; exact hcv
   | defnInfo v e hint =>
-    mvcgen [IConstantInfo.toConstantVal]
+    to_wp; vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     obtain ⟨cv, x, hcv, _, rfl⟩ := denoteCI_defnInfo_inv hc; exact hcv
   | thmInfo v e =>
-    mvcgen [IConstantInfo.toConstantVal]
+    to_wp; vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI] at hc
@@ -103,7 +100,7 @@ theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
     · rename_i cv x hcv _; cases hc; exact hcv
     · simp at hc
   | indInfo v caps =>
-    mvcgen [IConstantInfo.toConstantVal]
+    to_wp; vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI] at hc
@@ -111,7 +108,7 @@ theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
     · rename_i cv x hcv _; cases hc; exact hcv
     · simp at hc
   | recInfo v mI rP rs =>
-    mvcgen [IConstantInfo.toConstantVal]
+    to_wp; vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     simp only [Frontend.denoteCI] at hc
@@ -348,40 +345,37 @@ theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
   induction k with
   | zero =>
     intro s₀ h _ _
-    mvcgen [ConRon.Arena.peelNeverPis]
+    to_wp; vcgen [ConRon.Arena.peelNeverPis]
     bridge_peel; subst_vars
     refine ⟨rfl, fun x hx => ?_⟩
     simp only [denoteEO, hx, Option.map_some, Expr.peelNeverPis]
   | succ k ih =>
     intro s₀ h hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
-    mvcgen [ConRon.Arena.peelNeverPis, ih]
+    to_wp; vcgen [ConRon.Arena.peelNeverPis, wp% ih]
     all_goals (bridge_peel; subst_vars)
     -- tag first, then the binder projection (task #97-P5-Core round 6)
-    next => intro hf; exact hf.elim
-    next =>
-      rename_i htg ty b m hnev s0 r s1 hv
-      intro hs hr; subst hs
+    case vc1 =>
+      rename_i htg ty b m hnev r s1 hr hv
       refine ⟨rfl, fun x hx => ?_⟩
       have hview := view_of_viewBind_tag_forallE htg hv.symm
       obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx
       rw [hr eb hb]
       simp only [Expr.peelNeverPis, hnev, ite_true]
-    next => intro s hs _; subst hs; exact hok
-    next =>
-      rename_i htg s0 ty b m hnev
-      intro s hs hv; subst hs
+    case vc2 => exact hok
+    case vc3 =>
+      rename_i htg s ty b m hnev hv
       have hview := view_of_viewBind_tag_forallE htg hv.symm
       obtain ⟨_, eb, _, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx₀
       exact ⟨eb, hb⟩
-    next =>
-      rename_i htg ty b m hnev s0 hv
+    case vc4 =>
+      rename_i htg s0 ty b m hnev hv
       refine ⟨rfl, fun x hx => ?_⟩
       have hview := view_of_viewBind_tag_forallE htg hv.symm
       obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx
       simp [denoteEO, Expr.peelNeverPis, hnev]
-    next =>
-      rename_i hnt s0
+    case vc5 =>
+      rename_i s0 hnt
       refine ⟨rfl, fun x hx => ?_⟩
       obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
       have hnf := denote_not_forallE hok.state.wf hview hx
@@ -401,31 +395,27 @@ theorem numArgs_spec' (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
   induction fuel with
   | zero =>
     intro s₀ h _ _
-    mvcgen [ConRon.Arena.numArgs]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    intro hf; exact hf.elim
+    to_wp; vcgen [ConRon.Arena.numArgs]
   | succ fuel ih =>
     intro s₀ h hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
-    mvcgen [ConRon.Arena.numArgs, ih]
+    to_wp; vcgen [ConRon.Arena.numArgs, wp% ih]
     all_goals (bridge_peel; subst_vars)
     -- tag first, then the `app` projection (task #97-P5-Core round 6)
-    next => intro hf; exact hf.elim
-    next => exact hok
-    next =>
-      rename_i htg f a s0 hv
+    case vc2 => exact hok
+    case vc3 =>
+      rename_i htg s0 f a hv
       obtain ⟨ef, _, _, hf, _⟩ := denote_app_inv hok.state.wf
         (view_of_viewApp_tag htg hv.symm) hx₀
       exact ⟨ef, hf⟩
-    next =>
-      rename_i htg f a r s0 hr hv
+    case vc1 =>
+      rename_i htg f a s0 hr hv
       refine ⟨rfl, fun x hx => ?_⟩
       obtain ⟨ef, ea, rfl, hf, _⟩ := denote_app_inv hok.state.wf
         (view_of_viewApp_tag htg hv.symm) hx
       rw [hr ef hf]; rfl
-    next =>
-      rename_i hnt s0
+    case vc4 =>
+      rename_i s0 hnt
       refine ⟨rfl, fun x hx => ?_⟩
       obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
       have hna := denote_not_app' hok.state.wf hview hx
@@ -441,26 +431,25 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.residualPW r
     ⦃⇓? pw s' => ⌜s' = s₀ ∧ ∀ ox, denoteEO s₀.store r = some ox →
         pw = ConLeche.residualPW ox⌝⦄ := by
-  mvcgen [ConRon.Arena.residualPW]
+  to_wp; vcgen [ConRon.Arena.residualPW]
   all_goals (bridge_peel; subst_vars)
   -- tag first, then the `sort` projection (task #97-P5-Core round 6)
-  next => intro hf; exact hf.elim
-  next =>
-    rename_i h htg u l s0 hl hv
+  case vc1 =>
+    rename_i h htg u s0 hl hv
     refine ⟨rfl, fun ox hox => ?_⟩
     obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
     obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hok.state.wf
       (view_of_viewSort_tag htg hv.symm) hx
     rw [hl] at hl'; cases hl'; rfl
-  next =>
-    rename_i h hnt s0
+  case vc2 =>
+    rename_i s0 h hnt
     refine ⟨rfl, fun ox hox => ?_⟩
     obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
     obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
     have hns := denote_not_sort hok.state.wf hview hx
       (fun u hh => hne (by rw [hh]; rfl))
     cases x <;> first | rfl | exact absurd rfl (hns _)
-  next =>
+  case vc3 =>
     refine ⟨rfl, fun ox hox => ?_⟩
     rw [denoteEO_none_inv hox]; rfl
 
@@ -481,39 +470,34 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
   have hres := fun (s : AState) (r : Option EIdx) =>
     residualPW_spec' (mode := mode) (env := env) (fe := fe) s r
   have htcv := toConstantVal_nt_spec
-  mvcgen [ConRon.Arena.headTypePW, hpeel, hres, htcv]
+  to_wp; vcgen [ConRon.Arena.headTypePW, wp% hpeel, wp% hres, wp% htcv]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' preconditions
-  case vc2.ht => rename_i I us ci hfd htow s0 hview; simpa using htow
-  case vc3 => intro hf; exact hf.elim
-  case vc4.a => exact hok
-  case vc5.a =>
-    rename_i I us ci hfd htow v s0 hcv hview hlen
+  case vc11 => rename_i htow _; simpa using htow
+  case vc7 | vc8 | vc14 | vc15 => exact hok
+  case vc9 =>
+    rename_i I us ci hfd htow s0 hcv hview hlen
     obtain ⟨_, _, _, _, _, _, _, _, hty, _⟩ := const_hit hok hview hfd hcv hx₀
     exact ⟨_, hty⟩
-  case vc6.hok => exact hok
-  case vc8.hc => exact hok.caches.readN
-  case vc9.hc =>
-    rename_i I us ci hfd htow v r pw hhp s0 ks s1 hst hm hp hc hks hN hres
-      hpeel hcv hview hlen
+  case vc5 => exact hok.caches.readN
+  case vc4 =>
+    rename_i I us ci hfd htow s0 pw hhp s1 hst hm hp hc hks hN hpeel hcv hview hlen hres
     exact (CheckOK.ofReadbackFrame hok
       (ReadbackFrame.ofReadN hst hm hp hc hN)).caches.readLs
-  case vc14.a => exact hok
-  case vc15.a =>
-    rename_i idx ty s0 hview
+  case vc16 =>
+    rename_i s0 idx ty hview
     obtain ⟨t, _, ht⟩ := denote_fvar_inv hok.state.wf hview hx₀
     exact ⟨t, ht⟩
-  case vc17 => intro s hs _; subst hs; exact hok
   -- a tower entry declines on both sides
   case vc1 =>
-    rename_i I us ci hfd htow s0 hview
+    rename_i s0 I us ci hfd htow hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, c, rfl, hf, ht⟩ := const_tower hok hview hfd hx
     exact (headTypePW_const_none (Or.inr ⟨c, hf, Or.inl (ht ▸ htow)⟩)).symm
   -- the cutoff: a parameter-free datum is answered without the readbacks
-  case vc7 =>
-    rename_i I us ci hfd htow v r pw hhp s0 hres hpeel hcv hview hlen
+  case vc2 =>
+    rename_i I us ci hfd htow s0 pw hhp hpeel hcv hview hlen hres
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, c, rfl, _, hf, ht, _, hty, hll, hvl⟩ :=
       const_hit hok hview hfd hcv hx
@@ -523,9 +507,9 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
     rw [headTypePW_const_hit hf (by rw [← ht]; simpa using htow) hl,
       ← hres _ (hpeel _ hty), Option.map_some, substPW_cutoff hhp]
   -- the datum names parameters: both readbacks, then con-leche's `map`
-  case vc10 =>
-    rename_i I us ci hfd htow v r pw hhp s0 ks s1 vs s2 hst1 hst2 hm1 hm2 hp1
-      hp2 hc1 hc2 hks hN hvs hLs hres hpeel hcv hview hlen
+  case vc3 =>
+    rename_i I us ci hfd htow s0 pw hhp s1 s2 hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hks hN hvs
+      hLs hpeel hcv hview hlen hres
     have hf1 := ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN
     have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hLs
     have hf := hf1.trans hf2
@@ -543,8 +527,8 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
     rw [headTypePW_const_hit hf' (by rw [← ht]; simpa using htow) hl,
       ← hres _ (hpeel _ hty), Option.map_some]
   -- the residual is not a sort
-  case vc11 =>
-    rename_i I us ci hfd htow v r s0 hres hpeel hcv hview hlen
+  case vc6 =>
+    rename_i I us ci hfd htow s0 hpeel hcv hview hlen hres
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, c, rfl, _, hf, ht, _, hty, hll, hvl⟩ :=
       const_hit hok hview hfd hcv hx
@@ -554,8 +538,8 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
     rw [headTypePW_const_hit hf (by rw [← ht]; simpa using htow) hl,
       ← hres _ (hpeel _ hty), Option.map_none]
   -- the level count does not match
-  case vc12 =>
-    rename_i I us ci hfd htow v usl hne s0 hlen hcv hview
+  case vc10 =>
+    rename_i I us ci hfd htow s0 usl hne hcv hview hlen
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, c, rfl, _, hf, _, _, _, hll, hvl⟩ :=
       const_hit hok hview hfd hcv hx
@@ -564,21 +548,20 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
     exact (headTypePW_const_none
       (Or.inr ⟨c, hf, Or.inr (by rw [hll]; exact hne)⟩)).symm
   -- an index miss
-  case vc13 =>
-    rename_i I us hfd s0 hview
+  case vc12 =>
+    rename_i s0 I us hfd hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, rfl, hf⟩ := const_miss hok hview hfd hx
     exact (headTypePW_const_none (Or.inl hf)).symm
   -- an fvar head reads its declared type
-  case vc16 =>
-    rename_i idx ty r0 s1 r s0 hpeel hview
-    intro hs hres; subst hs
+  case vc13 =>
+    rename_i idx ty r0 r s0 hres hpeel hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨t, rfl, ht⟩ := denote_fvar_inv hok.state.wf hview hx
     rw [hres _ (hpeel t ht)]; rfl
   -- any other head declines
-  case vc18 =>
-    rename_i v hnc hnf s0 hview
+  case vc17 =>
+    rename_i s0 v hnc hnf hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     have h1 := denote_not_const hok.state.wf hview hx
       (fun c us he => hnc c us he)
@@ -612,31 +595,29 @@ theorem typeSortPW_spec' (fuel : Nat) (s₀ : AState) (T : EIdx)
     numArgs_spec' (mode := mode) (env := env) (fe := fe) fuel s e
   have hht := fun (s : AState) (e : EIdx) (n : Nat) =>
     headTypePW_spec' (mode := mode) (env := env) (fe := fe) s e n
-  mvcgen [ConRon.Arena.typeSortPW, hfn, hna, hht]
+  to_wp; vcgen [ConRon.Arena.typeSortPW, wp% hfn, wp% hna, wp% hht]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
-  case vc3.a => exact hok.state
-  case vc4.a => rw [hx₀]; rfl
-  case vc5.a => exact hok
-  case vc6.a => exact ⟨x₀, hx₀⟩
-  case vc8 => intro s hs _; subst hs; exact hok
-  case vc9 =>
-    rename_i v hnf hns fn s0 n hfn' hview
-    intro s hs _; subst hs
+  -- the callees' preconditions
+  case vc8 => exact hok.state
+  case vc9 => rw [hx₀]; rfl
+  case vc4 | vc6 => exact hok
+  case vc7 => exact ⟨x₀, hx₀⟩
+  case vc5 =>
+    rename_i hfn' _
     exact ⟨_, hfn' x₀ hx₀⟩
   case vc1 =>
-    rename_i ty b m s0 hview
+    rename_i ty b m hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨_, _, rfl, _, _⟩ := denote_forallE_inv hok.state.wf hview hx
     rfl
   case vc2 =>
-    rename_i u s0 hview
+    rename_i u hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨_, rfl, _⟩ := denote_sort_inv hok.state.wf hview hx
     rfl
-  case vc7 =>
-    rename_i v hnf hns fn n s1 r s0 hn hfn' hview
-    intro hck hst hp hr
+  case vc3 =>
+    rename_i v hnf hns n s1 r s0 hck hst hp hr hn hfn' hview
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
     rw [typeSortPW_other (denote_not_forallE hok.state.wf hview hx hnf)
       (denote_not_sort hok.state.wf hview hx hns), hr _ (hfn' x hx), hn x hx]
@@ -654,39 +635,37 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
   have hts := fun (s : AState) (e : EIdx) =>
     typeSortPW_spec' (mode := mode) (env := env) (fe := fe) fuel s e
   have htcv := toConstantVal_nt_spec
-  mvcgen [ConRon.Arena.headProofPW, hts, htcv]
+  to_wp; vcgen [ConRon.Arena.headProofPW, wp% hts, wp% htcv]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' preconditions
-  case vc2.ht => rename_i c us ci hfd htow s0 hview; simpa using htow
-  case vc3 => intro hf; exact hf.elim
-  case vc4.hok => exact hok
-  case vc5.hpre =>
-    rename_i c us ci hfd htow v s0 hcv hview hlen
+  case vc10 => rename_i htow _; simpa using htow
+  case vc7 | vc13 => exact hok
+  case vc8 =>
+    rename_i c us ci hfd htow s0 hcv hview hlen
     obtain ⟨_, _, _, _, _, _, _, _, hty, _⟩ := const_hit hok hview hfd hcv hx₀
     exact ⟨_, hty⟩
-  case vc7.hc =>
-    rename_i c us ci hfd htow v s1 pw hhp s0 hck hst hp hts hcv hview hlen
+  case vc5 =>
+    rename_i c us ci hfd htow s1 s0 pw hhp hck hst hp hcv hview hlen hts
     exact hck.caches.readN
-  case vc8.hc =>
-    rename_i c us ci hfd htow v s2 pw hhp s1 ks s0 hck1 hst01 hst12 hm01 hp12
-      hts hp01 hc01 hks hN hcv hview hlen
+  case vc4 =>
+    rename_i c us ci hfd htow s2 s1 pw hhp s0 hck1 hst01 hst12 hm01 hp12 hp01 hc01 hks hN
+      hcv hview hlen hts
     exact (CheckOK.ofReadbackFrame hck1
       (ReadbackFrame.ofReadN hst01 hm01 hp01 hc01 hN)).caches.readLs
-  case vc14 => intro s hs _; subst hs; exact hok
-  case vc15 =>
-    intro s hs hview; subst hs
+  case vc14 =>
+    rename_i hview
     obtain ⟨t, _, ht⟩ := denote_fvar_inv hok.state.wf hview hx₀
     exact ⟨t, ht⟩
   -- a tower entry declines on both sides
   case vc1 =>
-    rename_i c us ci hfd htow s0 hview
+    rename_i s0 c us ci hfd htow hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, c', rfl, hf, ht⟩ := const_tower hok hview hfd hx
     exact (headProofPW_const_none (Or.inr ⟨c', hf, Or.inl (ht ▸ htow)⟩)).symm
   -- the cutoff
-  case vc6 =>
-    rename_i c us ci hfd htow v s1 pw hhp s0 hck hst hp hts hcv hview hlen
+  case vc2 =>
+    rename_i c us ci hfd htow s1 s0 pw hhp hck hst hp hcv hview hlen hts
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
     obtain ⟨nm, ls, c', rfl, _, hf, ht, _, hty, hll, hvl⟩ :=
       const_hit hok hview hfd hcv hx
@@ -696,10 +675,9 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     rw [headProofPW_const_hit hf (by rw [← ht]; simpa using htow) hl,
       ← hts _ hty, Option.map_some, substPW_cutoff hhp]
   -- both readbacks
-  case vc9 =>
-    rename_i c us ci hfd htow v s3 pw hhp s2 ks s1 vs s0 hck2 hst12 hst01
-      hst23 hm12 hm01 hp23 hts hp12 hp01 hc12 hc01 hks hN hvs hLs hcv hview
-      hlen
+  case vc3 =>
+    rename_i c us ci hfd htow s3 s2 pw hhp s1 s0 hck2 hst12 hst01 hst23 hm12 hm01 hp23 hp12
+      hp01 hc12 hc01 hks hN hvs hLs hcv hview hlen hts
     have hf1 := ReadbackFrame.ofReadN hst12 hm12 hp12 hc12 hN
     have hf2 := ReadbackFrame.ofReadLs hst01 hm01 hp01 hc01 hLs
     have hf := hf1.trans hf2
@@ -717,8 +695,8 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     rw [headProofPW_const_hit hf' (by rw [← ht]; simpa using htow) hl,
       ← hts _ hty, Option.map_some]
   -- the stored type's datum is unknown
-  case vc10 =>
-    rename_i c us ci hfd htow v s1 s0 hck hst hp hts hcv hview hlen
+  case vc6 =>
+    rename_i c us ci hfd htow s1 s0 hck hst hp hcv hview hlen hts
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
     obtain ⟨nm, ls, c', rfl, _, hf, ht, _, hty, hll, hvl⟩ :=
       const_hit hok hview hfd hcv hx
@@ -728,8 +706,8 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     rw [headProofPW_const_hit hf (by rw [← ht]; simpa using htow) hl,
       ← hts _ hty, Option.map_none]
   -- the level count does not match
-  case vc11 =>
-    rename_i c us ci hfd htow v usl hne s0 hlen hcv hview
+  case vc9 =>
+    rename_i c us ci hfd htow s0 usl hne hcv hview hlen
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, c', rfl, _, hf, _, _, _, hll, hvl⟩ :=
       const_hit hok hview hfd hcv hx
@@ -738,34 +716,33 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     exact (headProofPW_const_none
       (Or.inr ⟨c', hf, Or.inr (by rw [hll]; exact hne)⟩)).symm
   -- an index miss
-  case vc12 =>
-    rename_i c us hfd s0 hview
+  case vc11 =>
+    rename_i s0 c us hfd hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨nm, ls, rfl, hf⟩ := const_miss hok hview hfd hx
     exact (headProofPW_const_none (Or.inl hf)).symm
   -- an fvar head reads its declared type
-  case vc13 =>
-    rename_i idx ty s1 r s0 hview
-    intro hck hst hp hts
+  case vc12 =>
+    rename_i s1 idx ty r s0 hck hst hp hts hview
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
     obtain ⟨t, rfl, ht⟩ := denote_fvar_inv hok.state.wf hview hx
     exact hts t ht
   -- sorts, ∀s and literals are never proofs
-  case vc16 =>
-    rename_i u s0 hview
+  case vc15 =>
+    rename_i s0 u hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨_, rfl, _⟩ := denote_sort_inv hok.state.wf hview hx; rfl
-  case vc17 =>
-    rename_i ty b m s0 hview
+  case vc16 =>
+    rename_i s0 ty b m hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨_, _, rfl, _, _⟩ := denote_forallE_inv hok.state.wf hview hx; rfl
-  case vc18 =>
-    rename_i l s0 hview
+  case vc17 =>
+    rename_i s0 l hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     rw [denote_lit_inv hok.state.wf hview hx]; rfl
   -- any other head declines
-  case vc19 =>
-    rename_i v h1 h2 h3 h4 h5 s0 hview
+  case vc18 =>
+    rename_i v h1 h2 h3 h4 h5 hview
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     have hwf := hok.state.wf
     cases v with
@@ -806,29 +783,27 @@ theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
   have hfn := ExprOps.getAppFn_spec fuel
   have hhp := fun (s : AState) (e : EIdx) =>
     headProofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s e
-  mvcgen [ConRon.Arena.proofPW, hfn, hhp]
+  to_wp; vcgen [ConRon.Arena.proofPW, wp% hfn, wp% hhp]
   all_goals (bridge_peel; subst_vars)
   -- tag first, then the binder projection (task #97-P5-Core round 6)
-  next => intro hf; exact hf.elim
-  next =>
-    rename_i htg ty b m s0 hv
+  case vc1 =>
+    rename_i htg s0 ty b m hv
     refine ⟨hok, rfl, rfl, fun x hx => ?_⟩
     obtain ⟨_, _, rfl, _, _⟩ := denote_lam_inv hok.state.wf
       (view_of_viewBind_tag_lam htg hv.symm) hx
     rfl
-  next => exact hok.state
-  next => rw [hx₀]; rfl
-  next =>
-    rename_i hnt fn s1 r s0 hfn'
-    intro hck hst hp hr
+  case vc5 => exact hok.state
+  case vc6 => rw [hx₀]; rfl
+  case vc2 =>
+    rename_i hnt fn s1 r s0 hck hst hp hr hfn'
     refine ⟨hck, hst, hp, fun x hx => ?_⟩
     obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
     have hnl := denote_not_lam hok.state.wf hview hx
       (fun ty b m hh => hne (by rw [hh]; rfl))
     rw [proofPW_other hnl, hr _ (hfn' x hx)]
-  next => intro s hs _; subst hs; exact hok
-  next =>
-    intro s hs hrel; subst hs
+  case vc3 => exact hok
+  case vc4 =>
+    rename_i hrel
     exact ⟨_, hrel x₀ hx₀⟩
 
 /-! ## 4. The two arms
@@ -849,7 +824,7 @@ theorem notProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
         b = ConLeche.notProofFast env.find? x⌝⦄ := by
   have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
     hok hpre
-  mvcgen [ConRon.Arena.notProofFast, hb]
+  to_wp; vcgen [ConRon.Arena.notProofFast, wp% hb]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   all_goals
@@ -868,7 +843,7 @@ theorem isProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
         b = ConLeche.isProofFast env.find? x⌝⦄ := by
   have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
     hok hpre
-  mvcgen [ConRon.Arena.isProofFast, hb]
+  to_wp; vcgen [ConRon.Arena.isProofFast, wp% hb]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   all_goals
@@ -942,30 +917,29 @@ theorem annotPwPi_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     coreWalkFuel s₀ body' hok ⟨x, hden⟩
   have hi := hsim.inferIO'
   have hn := hsim.whnf'
-  mvcgen [ConRon.Arena.annotPwPi, ConRon.Arena.ensureSort, hts, hi, hn]
+  to_wp; vcgen [ConRon.Arena.annotPwPi, ConRon.Arena.ensureSort, wp% hts, wp% hi, wp% hn]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the reader answers
-  case vc2 =>
-    rename_i s1 pw s0 hck hst hp hts'
+  case vc1 =>
+    rename_i s1 s0 pw hck hst hp hts'
     exact ⟨hck, by rw [hst]; exact Ext.refl _, hp, 0,
       annotPwPi_fast (hts' x hden).symm⟩
   -- the callees' preconditions
-  case vc3.hok => rename_i s1 s0 hck _ _ _; exact hck
-  case vc4.hdw =>
+  case vc4 | vc6 => assumption
+  case vc7 =>
     rename_i s1 s0 _ hst _ _
     exact ⟨x, by rw [hst]; exact hden, hw⟩
-  case vc5.hok => rename_i s2 s1 r s0 _ hck0 _ _ _ _ _ _; exact hck0
-  case vc6.hdw =>
+  case vc5 =>
     rename_i s2 s1 ti s0 _ _ _ _ hsio hst _ _
     exact SimE.exists_denote (hsio x (by rw [hst]; exact hden))
-  case vc7.hc =>
-    rename_i s3 s2 ti s1 w u s0 _ _ _ _ _ _ _ _ hck0 _ _ _ _
+  case vc3 =>
+    rename_i hck0 _ _ _ _
     exact hck0.caches.readL
   -- the reader declines: infer, reduce to a sort, read the level back
-  case vc8 =>
-    rename_i s4 s3 ti s2 w u s1 l s0 hck3 hck2 hst01 hx32 hm01 hp23 hsio hp01
-      hc01 hl hL hst34 hp34 hts' hck1 hview hx21 hp12 hsw
+  case vc2 =>
+    rename_i s4 s3 ti s2 s1 s0 hck3 hck2 hst01 hx32 hm01 hp23 hsio hp01 hc01 hl hL hst34
+      hp34 hts' hck1 hx21 hp12 hsw hview
     have hf := ReadbackFrame.ofReadL hst01 hm01 hp01 hc01 hL
     have hx43 : Ext s4.store s3.store := by rw [hst34]; exact Ext.refl _
     refine ⟨CheckOK.ofReadbackFrame hck1 hf,
@@ -999,38 +973,36 @@ theorem annotPwLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     coreWalkFuel s₀ body' hok ⟨x, hden⟩
   have hi := hsim.inferIO'
   have hn := hsim.whnf'
-  mvcgen [ConRon.Arena.annotPwLam, ConRon.Arena.ensureSort, hpp, hi, hn]
+  to_wp; vcgen [ConRon.Arena.annotPwLam, ConRon.Arena.ensureSort, wp% hpp, wp% hi, wp% hn]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the reader answers
-  case vc2 =>
-    rename_i s1 pw s0 hck hst hp hpp'
+  case vc1 =>
+    rename_i s1 s0 pw hck hst hp hpp'
     exact ⟨hck, by rw [hst]; exact Ext.refl _, hp, 0,
       annotPwLam_fast (hpp' x hden).symm⟩
   -- the callees' preconditions
-  case vc3.hok => rename_i s1 s0 hck _ _ _; exact hck
-  case vc4.hdw =>
+  case vc6 | vc8 => assumption
+  case vc9 =>
     rename_i s1 s0 _ hst _ _
     exact ⟨x, by rw [hst]; exact hden, hw⟩
-  case vc5.hok => rename_i s2 s1 r s0 _ hck0 _ _ _ _ _ _; exact hck0
-  case vc6.hdw =>
-    rename_i s2 s1 bt s0 _ _ _ _ hsio hst _ _
+  case vc7 =>
+    rename_i s2 s1 s0 _ _ _ _ hsio hst _ _
     exact SimE.exists_denote (hsio x (by rw [hst]; exact hden))
-  case vc7.hok =>
-    rename_i s3 s2 bt s1 btt s0 _ _ hck0 _ _ _ _ _ _ _ _ _
+  case vc4 =>
+    rename_i s3 s2 s1 btt s0 _ _ hck0 _ _ _ _ _ _ _ _ _
     exact hck0
-  case vc8.hdw =>
-    rename_i s3 s2 bt s1 btt s0 _ _ _ _ _ _ hsio1 _ hsio2 hst _ _
+  case vc5 =>
+    rename_i s3 s2 s1 btt s0 _ _ _ _ _ _ hsio1 _ hsio2 hst _ _
     obtain ⟨bt', hbt', _, _⟩ := hsio1 x (by rw [hst]; exact hden)
     exact SimE.exists_denote (hsio2 bt' hbt')
-  case vc9.hc =>
-    rename_i s4 s3 bt s2 btt s1 w u s0 _ _ _ _ _ _ _ _ _ _ _ _ hck0 _ _ _ _
+  case vc3 =>
+    rename_i hck0 _ _ _ _
     exact hck0.caches.readL
   -- the reader declines: two io inferences, a sort, the level read back
-  case vc10 =>
-    rename_i s5 s4 bt s3 btt s2 w u s1 l s0 hck4 hck3 hck2 hst01 hx43 hx32 hm01
-      hp34 hsio1 hp23 hsio2 hp01 hc01 hl hL hst45 hp45 hpp' hck1 hview hx21
-      hp12 hsw
+  case vc2 =>
+    rename_i s5 s4 s3 btt s2 s1 s0 hck4 hck3 hck2 hst01 hx43 hx32 hm01 hp34 hsio1 hp23
+      hsio2 hp01 hc01 hl hL hst45 hp45 hpp' hck1 hx21 hp12 hsw hview
     have hf := ReadbackFrame.ofReadL hst01 hm01 hp01 hc01 hL
     have hx54 : Ext s5.store s4.store := by rw [hst45]; exact Ext.refl _
     refine ⟨CheckOK.ofReadbackFrame hck1 hf,
@@ -1177,87 +1149,76 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     isProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
   have hi := hsim.inferIO'
   have hn := hsim.whnf'
-  mvcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
-    ConRon.Arena.liftFueled, hnp, hip, hi, hn, lvlEq?_spec]
+  to_wp; vcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
+    ConRon.Arena.liftFueled, wp% hnp, wp% hip, wp% hi, wp% hn,
+    wp% lvlEq?_spec (mode := mode) (env := env) (fe := fe)]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
   -- the callees' `CheckOK` and pin preconditions
-  case vc1.hok | vc3.hok | vc6.hok | vc8.hok | vc11.hok | vc13.hok | vc15.hok
-    | vc21.hok | vc22.hok | vc24.hok | vc26.hok | vc32.hok => assumption
-  -- the second zero pin's (the port's `prop_sorts_zero_right` re-reads it)
-  case vc28.hp => exact CheckOK.pins (by assumption)
-  case vc17.hp =>
-    rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 u0 s0 hck_s6
-      hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
-      hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a
-      hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2 hio_r2 hck_s0 hvs_r0 hx_s1_s0
-      hp_s0_s1 hwh_r1
-    exact hck_s0.pins
+  case vc4 | vc8 | vc10 | vc12 | vc14 | vc18 | vc20 | vc22 | vc24 | vc26 | vc28
+    | vc30 => assumption
+  -- the two zero pins' (the port's `prop_sorts_zero_right` re-reads it)
+  case vc5 | vc15 => exact CheckOK.pins (by assumption)
   -- the two subjects' denotations, carried to the state each call runs in
-  case vc2.hpre => exact ⟨x, hda⟩
-  case vc4.hpre =>
-    rename_i s1 r0 s0 hck_s0 hst_s0_s1 hp_s0_s1 hnp_a
+  case vc31 => exact ⟨x, hda⟩
+  case vc29 =>
+    rename_i _ hst_s0_s1 _ _
     exact ⟨y, by rw [hst_s0_s1]; exact hdb⟩
-  case vc7.hpre =>
-    rename_i s2 r1 s1 r0 hg0 s0 hck_s1 hck_s0 hst_s1_s2 hst_s0_s1 hp_s1_s2
-      hnp_a hp_s0_s1 hnp_b
-    exact ⟨x, by rw [hst_s0_s1, hst_s1_s2]; exact hda⟩
-  case vc9.hpre =>
-    rename_i s3 r2 s2 r1 hg0 s1 r0 s0 hck_s2 hck_s1 hck_s0 hst_s2_s3 hst_s1_s2
-      hst_s0_s1 hp_s2_s3 hnp_a hp_s1_s2 hnp_b hp_s0_s1 hip_a
+  case vc27 =>
+    rename_i hst_s0_s1 hst_s1_s2 _ _ _ _
+    exact ⟨x, by rw [hst_s1_s2, hst_s0_s1]; exact hda⟩
+  case vc25 =>
+    rename_i s3 r2 s2 r1 s1 hg0 r0 s0 hck_s2 hck_s1 hck_s0 hst_s2_s3 hst_s1_s2 hst_s0_s1
+      hp_s2_s3 hnp_a hp_s1_s2 hnp_b hp_s0_s1 hip_a
     exact ⟨y, by rw [hst_s0_s1, hst_s1_s2, hst_s2_s3]; exact hdb⟩
-  case vc12.hdw =>
-    rename_i s4 r3 s3 r2 hg1 s2 r1 s1 r0 hg0 s0 hck_s3 hck_s2 hck_s1 hck_s0
-      hst_s3_s4 hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b
-      hp_s1_s2 hip_a hp_s0_s1 hip_b
+  case vc23 =>
+    rename_i s4 r3 s3 r2 s2 hg1 r1 s1 r0 s0 hg0 hck_s3 hck_s2 hck_s1 hck_s0 hst_s3_s4
+      hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b hp_s1_s2 hip_a hp_s0_s1
+      hip_b
     exact ⟨x, by rw [hst_s0_s1, hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hda,
       hwa⟩
-  case vc14.hdw =>
-    rename_i s5 r4 s4 r3 hg1 s3 r2 s2 r1 hg0 s1 r0 s0 hck_s4 hck_s3 hck_s2
-      hck_s1 hck_s0 hst_s4_s5 hst_s3_s4 hst_s2_s3 hst_s1_s2 hx_s1_s0 hp_s4_s5
-      hnp_a hp_s3_s4 hnp_b hp_s2_s3 hip_a hp_s1_s2 hip_b hp_s0_s1 hio_a
+  case vc21 =>
+    rename_i s5 r4 s4 r3 s3 hg1 r2 s2 r1 s1 hg0 s0 hck_s4 hck_s3 hck_s2 hck_s1 hck_s0
+      hst_s4_s5 hst_s3_s4 hst_s2_s3 hst_s1_s2 hx_s1_s0 hp_s4_s5 hnp_a hp_s3_s4 hnp_b
+      hp_s2_s3 hip_a hp_s1_s2 hip_b hp_s0_s1 hio_a
     exact SimE.exists_denote (hio_a x
       (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4, hst_s4_s5]; exact hda))
-  case vc16.hdw =>
-    rename_i s6 r5 s5 r4 hg1 s4 r3 s3 r2 hg0 s2 r1 s1 r0 s0 hck_s5 hck_s4
-      hck_s3 hck_s2 hck_s1 hck_s0 hst_s5_s6 hst_s4_s5 hst_s3_s4 hst_s2_s3
-      hx_s2_s1 hx_s1_s0 hp_s5_s6 hnp_a hp_s4_s5 hnp_b hp_s3_s4 hip_a hp_s2_s3
-      hip_b hp_s1_s2 hio_a hp_s0_s1 hio_r1
+  case vc19 =>
+    rename_i s6 r5 s5 r4 s4 hg1 r3 s3 r2 s2 hg0 s1 r0 s0 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1
+      hck_s0 hst_s5_s6 hst_s4_s5 hst_s3_s4 hst_s2_s3 hx_s2_s1 hx_s1_s0 hp_s5_s6 hnp_a
+      hp_s4_s5 hnp_b hp_s3_s4 hip_a hp_s2_s3 hip_b hp_s1_s2 hio_a hp_s0_s1 hio_r1
     obtain ⟨ta, hta, _, _⟩ := hio_a x
       (by rw [hst_s2_s3, hst_s3_s4, hst_s4_s5, hst_s5_s6]; exact hda)
     exact SimE.exists_denote (hio_r1 ta hta)
-  case vc23.hdw =>
-    rename_i s8 r7 s7 r6 hg1 s6 r5 s5 r4 hg0 s4 r3 s3 r2 s2 r1 u0 r0 s1 s0 a0
-      hck_s7 hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s0 hst_s7_s8 hst_s6_s7
-      hst_s5_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2 hst_s0_s1 hp_s7_s8 hnp_a hp_s6_s7
-      hnp_b hp_s5_s6 hip_a hp_s4_s5 hip_b hp_s3_s4 hio_a hp_s2_s3 hio_r3
-      hp_s0_s1 hz_r0 hck_s1 hvs_r1 hx_s2_s1 hp_s1_s2 hwh_r2 heq_u0
+  case vc13 =>
+    rename_i s8 r7 s7 r6 s6 hg1 r5 s5 r4 s4 hg0 s3 r2 s2 u0 s1 s0 hck_s7 hck_s6 hck_s5
+      hck_s4 hck_s3 hck_s2 hck_s0 hst_s7_s8 hst_s6_s7 hst_s5_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2
+      hst_s0_s1 hp_s7_s8 hnp_a hp_s6_s7 hnp_b hp_s5_s6 hip_a hp_s4_s5 hip_b hp_s3_s4 hio_a
+      hp_s2_s3 hio_r3 hp_s0_s1 hz_r0 hck_s1 hx_s2_s1 hp_s1_s2 hwh_r2 hvs_r1 heq_u0
     have hx : Ext s8.store s0.store :=
       ((((((ext_of_store_eq hst_s7_s8).trans (ext_of_store_eq hst_s6_s7)).trans
         (ext_of_store_eq hst_s5_s6)).trans (ext_of_store_eq hst_s4_s5)).trans
         ((hx_s4_s3.trans hx_s3_s2).trans hx_s2_s1)).trans
         (ext_of_store_eq hst_s0_s1))
     exact ⟨y, denote_ext hdb hx, hwb⟩
-  case vc25.hdw =>
-    rename_i s9 r8 s8 r7 hg1 s7 r6 s6 r5 hg0 s5 r4 s4 r3 s3 r2 u0 r1 s2 s1 a0
-      r0 s0 hck_s8 hck_s7 hck_s6 hck_s5 hck_s4 hck_s3 hck_s1 hck_s0 hst_s8_s9
-      hst_s7_s8 hst_s6_s7 hst_s5_s6 hx_s5_s4 hx_s4_s3 hst_s1_s2 hx_s1_s0
-      hp_s8_s9 hnp_a hp_s7_s8 hnp_b hp_s6_s7 hip_a hp_s5_s6 hip_b hp_s4_s5
-      hio_a hp_s3_s4 hio_r4 hp_s1_s2 hp_s0_s1 hio_b hz_r1 hck_s2 hvs_r2
-      hx_s3_s2 hp_s2_s3 hwh_r3 heq_u0
+  case vc11 =>
+    rename_i s9 r8 s8 r7 s7 hg1 r6 s6 r5 s5 hg0 s4 r3 s3 u0 s2 s1 s0 hck_s8 hck_s7 hck_s6
+      hck_s5 hck_s4 hck_s3 hck_s1 hck_s0 hst_s8_s9 hst_s7_s8 hst_s6_s7 hst_s5_s6 hx_s5_s4
+      hx_s4_s3 hst_s1_s2 hx_s1_s0 hp_s8_s9 hnp_a hp_s7_s8 hnp_b hp_s6_s7 hip_a hp_s5_s6
+      hip_b hp_s4_s5 hio_a hp_s3_s4 hio_r4 hp_s1_s2 hp_s0_s1 hio_b hz_r1 hck_s2 hx_s3_s2
+      hp_s2_s3 hwh_r3 hvs_r2 heq_u0
     have hx : Ext s9.store s1.store :=
       ((((((ext_of_store_eq hst_s8_s9).trans (ext_of_store_eq hst_s7_s8)).trans
         (ext_of_store_eq hst_s6_s7)).trans (ext_of_store_eq hst_s5_s6)).trans
         ((hx_s5_s4.trans hx_s4_s3).trans hx_s3_s2)).trans
         (ext_of_store_eq hst_s1_s2))
     exact SimE.exists_denote (hio_b y (denote_ext hdb hx))
-  case vc27.hdw =>
-    rename_i s10 r9 s9 r8 hg1 s8 r7 s7 r6 hg0 s6 r5 s5 r4 s4 r3 u0 r2 s3 s2 a0
-      r1 s1 r0 s0 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5 hck_s4 hck_s2 hck_s1
-      hck_s0 hst_s9_s10 hst_s8_s9 hst_s7_s8 hst_s6_s7 hx_s6_s5 hx_s5_s4
-      hst_s2_s3 hx_s2_s1 hx_s1_s0 hp_s9_s10 hnp_a hp_s8_s9 hnp_b hp_s7_s8
-      hip_a hp_s6_s7 hip_b hp_s5_s6 hio_a hp_s4_s5 hio_r5 hp_s2_s3 hp_s1_s2
-      hio_b hp_s0_s1 hio_r1 hz_r2 hck_s3 hvs_r3 hx_s4_s3 hp_s3_s4 hwh_r4 heq_u0
+  case vc9 =>
+    rename_i s10 r9 s9 r8 s8 hg1 r7 s7 r6 s6 hg0 s5 r4 s4 u0 s3 s2 s1 r0 s0 hck_s9 hck_s8
+      hck_s7 hck_s6 hck_s5 hck_s4 hck_s2 hck_s1 hck_s0 hst_s9_s10 hst_s8_s9 hst_s7_s8
+      hst_s6_s7 hx_s6_s5 hx_s5_s4 hst_s2_s3 hx_s2_s1 hx_s1_s0 hp_s9_s10 hnp_a hp_s8_s9 hnp_b
+      hp_s7_s8 hip_a hp_s6_s7 hip_b hp_s5_s6 hio_a hp_s4_s5 hio_r5 hp_s2_s3 hp_s1_s2 hio_b
+      hp_s0_s1 hio_r1 hz_r2 hck_s3 hx_s4_s3 hp_s3_s4 hwh_r4 hvs_r3 heq_u0
     have hx : Ext s10.store s2.store :=
       ((((((ext_of_store_eq hst_s9_s10).trans (ext_of_store_eq hst_s8_s9)).trans
         (ext_of_store_eq hst_s7_s8)).trans (ext_of_store_eq hst_s6_s7)).trans
@@ -1266,18 +1227,18 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain ⟨tb, htb, _, _⟩ := hio_b y (denote_ext hdb hx)
     exact SimE.exists_denote (hio_r1 tb htb)
   -- the "not a proof" arm refuses
-  case vc5 =>
-    rename_i s2 r1 s1 r0 hg0 s0 hck_s1 hck_s0 hst_s1_s2 hst_s0_s1 hp_s1_s2
-      hnp_a hp_s0_s1 hnp_b
+  case vc1 =>
+    rename_i s2 r1 s1 r0 s0 hg0 hck_s1 hck_s0 hst_s1_s2 hst_s0_s1 hp_s1_s2 hnp_a hp_s0_s1
+      hnp_b
     refine ⟨hck_s0, ext_of_store_eq (hst_s0_s1.trans hst_s1_s2),
       hp_s0_s1.trans hp_s1_s2, 0, propIrrel_no ?_⟩
     rw [hnp_a x hda, hnp_b y (by rw [hst_s1_s2]; exact hdb)] at hg0
     exact hg0
   -- the "yes" arm licenses
-  case vc10 =>
-    rename_i s4 r3 s3 r2 hg1 s2 r1 s1 r0 hg0 s0 hck_s3 hck_s2 hck_s1 hck_s0
-      hst_s3_s4 hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b
-      hp_s1_s2 hip_a hp_s0_s1 hip_b
+  case vc2 =>
+    rename_i s4 r3 s3 r2 s2 hg1 r1 s1 r0 s0 hg0 hck_s3 hck_s2 hck_s1 hck_s0 hst_s3_s4
+      hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b hp_s1_s2 hip_a hp_s0_s1
+      hip_b
     refine ⟨hck_s0, ext_of_store_eq
         (hst_s0_s1.trans (hst_s1_s2.trans (hst_s2_s3.trans hst_s3_s4))),
       hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans hp_s3_s4)), 0,
@@ -1288,15 +1249,14 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         hip_b y (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hdb)] at hg0
       exact hg0
   -- the slow path to its end: both sides are sorts
-  case vc33 =>
-    rename_i s12 r10 s11 r9 hg1 s10 r8 s9 r7 hg0 s8 r6 s7 r5 s6 r4 u1 r3 s5 s4
-      a1 r2 s3 r1 s2 r0 u0 rz s1 s0 a0 hck_s11 hck_s10 hck_s9 hck_s8 hck_s7
-      hck_s6 hck_s4 hck_s3 hck_s2 hck_s0 hst_s11_s12 hst_s10_s11 hst_s9_s10
-      hst_s8_s9 hx_s8_s7 hx_s7_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2 hst_s0_s1
-      hp_s11_s12 hnp_a hp_s10_s11 hnp_b hp_s9_s10 hip_a hp_s8_s9 hip_b hp_s7_s8
-      hio_a hp_s6_s7 hio_r6 hp_s4_s5 hp_s3_s4 hio_b hp_s2_s3 hio_r2 hp_s0_s1
-      hz_r3 hck_s5 hvs_r4 hx_s6_s5 hp_s5_s6 hwh_r5 heq_u1 hz2 hck_s1 hvs_r0
-      hx_s2_s1 hp_s1_s2 hwh_r1 heq_u0
+  case vc3 =>
+    rename_i s12 r10 s11 r9 s10 hg1 r8 s9 r7 s8 hg0 s7 r5 s6 r4 u1 r3 s5 s4 s3 r1 s2 u0 s1
+      s0 hck_s11 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s4 hck_s3 hck_s2 hck_s0 hst_s11_s12
+      hst_s10_s11 hst_s9_s10 hst_s8_s9 hx_s8_s7 hx_s7_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2
+      hst_s0_s1 hp_s11_s12 hnp_a hp_s10_s11 hnp_b hp_s9_s10 hip_a hp_s8_s9 hip_b hp_s7_s8
+      hio_a hp_s6_s7 hio_r6 hp_s4_s5 hp_s3_s4 hio_b hp_s2_s3 hio_r2 hp_s0_s1 hz_r3 hck_s5
+      hx_s6_s5 hp_s5_s6 hwh_r5 hvs_r4 heq_u1 hz2 hck_s1 hx_s2_s1 hp_s1_s2 hwh_r1 hvs_r0
+      heq_u0
     have hx128 : Ext s12.store s8.store :=
       (((ext_of_store_eq hst_s11_s12).trans (ext_of_store_eq hst_s10_s11)).trans
         (ext_of_store_eq hst_s9_s10)).trans (ext_of_store_eq hst_s8_s9)
@@ -1340,14 +1300,13 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.inferTypeIO_mono (by omega) hF5)
       (ConLeche.whnf_mono (by omega) hF6) hB.symm⟩
   -- the second side's type's type is not a sort
-  case vc35 =>
-    rename_i s11 r10 s10 r9 hg1 s9 r8 s8 r7 hg0 s7 r6 s6 r5 s5 r4 u0 r3 s4 s3
-      a0 r2 s2 r1 s1 r0 x1 hnv0 s0 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5
-      hck_s3 hck_s2 hck_s1 hst_s10_s11 hst_s9_s10 hst_s8_s9 hst_s7_s8 hx_s7_s6
-      hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s10_s11 hnp_a hp_s9_s10 hnp_b
-      hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6 hio_r6 hp_s3_s4
-      hp_s2_s3 hio_b hp_s1_s2 hio_r2 hz_r3 hck_s4 hvs_r4 hx_s5_s4 hp_s4_s5
-      hwh_r5 heq_u0 hck_s0 hv_r0 hx_s1_s0 hp_s0_s1 hwh_r1
+  case vc6 =>
+    rename_i s11 r10 s10 r9 s9 hg1 r8 s8 r7 s7 hg0 s6 r5 s5 r4 u0 s4 s3 s2 r1 s1 s0 x1 hnv0
+      hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5 hck_s3 hck_s2 hck_s1 hst_s10_s11 hst_s9_s10
+      hst_s8_s9 hst_s7_s8 hx_s7_s6 hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s10_s11 hnp_a
+      hp_s9_s10 hnp_b hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6 hio_r6 hp_s3_s4
+      hp_s2_s3 hio_b hp_s1_s2 hio_r2 hz_r3 hck_s4 hx_s5_s4 hp_s4_s5 hwh_r5 hvs_r4 heq_u0
+      hck_s0 hx_s1_s0 hp_s0_s1 hwh_r1 hv_r0
     have hx117 : Ext s11.store s7.store :=
       (((ext_of_store_eq hst_s10_s11).trans (ext_of_store_eq hst_s9_s10)).trans
         (ext_of_store_eq hst_s8_s9)).trans (ext_of_store_eq hst_s7_s8)
@@ -1385,14 +1344,13 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   -- the first side's type's type is not a sort
   -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
   -- the `sort` TAG; its view comes back from its denotation)
-  case vc36 =>
-    rename_i s11 r10 s10 r9 hg1 s9 r8 s8 r7 hg0 s7 r6 s6 r5 s5 r4 u0 r3 s4 s3
-      a0 r2 s2 r1 s1 r0 htag s0 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5
-      hck_s3 hck_s2 hck_s1 hck_s0 hst_s10_s11 hst_s9_s10 hst_s8_s9 hst_s7_s8
-      hx_s7_s6 hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0 hp_s10_s11 hnp_a
-      hp_s9_s10 hnp_b hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6
-      hio_r6 hp_s3_s4 hp_s2_s3 hio_b hp_s1_s2 hio_r2 hp_s0_s1 hwh_r1 hz_r3
-      hck_s4 hvs_r4 hx_s5_s4 hp_s4_s5 hwh_r5 heq_u0
+  case vc7 =>
+    rename_i s11 r10 s10 r9 s9 hg1 r8 s8 r7 s7 hg0 s6 r5 s5 r4 u0 s4 s3 s2 r1 s1 s0 htag
+      hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5 hck_s3 hck_s2 hck_s1 hck_s0 hst_s10_s11
+      hst_s9_s10 hst_s8_s9 hst_s7_s8 hx_s7_s6 hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0
+      hp_s10_s11 hnp_a hp_s9_s10 hnp_b hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6
+      hio_r6 hp_s3_s4 hp_s2_s3 hio_b hp_s1_s2 hio_r2 hp_s0_s1 hwh_r1 hz_r3 hck_s4 hx_s5_s4
+      hp_s4_s5 hwh_r5 hvs_r4 heq_u0
     have hx117 : Ext s11.store s7.store :=
       (((ext_of_store_eq hst_s10_s11).trans (ext_of_store_eq hst_s9_s10)).trans
         (ext_of_store_eq hst_s8_s9)).trans (ext_of_store_eq hst_s7_s8)
@@ -1429,12 +1387,11 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.inferTypeIO_mono (by omega) hF5)
       (ConLeche.whnf_mono (by omega) hF6) hns⟩
   -- the first side's type's type is not a sort
-  case vc52 =>
-    rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 x1 hnv0 s0
-      hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5
-      hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a
-      hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2 hio_r2 hck_s0 hv_r0 hx_s1_s0
-      hp_s0_s1 hwh_r1
+  case vc16 =>
+    rename_i s7 r6 s6 r5 s5 hg1 r4 s4 r3 s3 hg0 s2 r1 s1 s0 x1 hnv0 hck_s6 hck_s5 hck_s4
+      hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1
+      hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2
+      hio_r2 hck_s0 hx_s1_s0 hp_s0_s1 hwh_r1 hv_r0
     have hx73 : Ext s7.store s3.store :=
       (((ext_of_store_eq hst_s6_s7).trans (ext_of_store_eq hst_s5_s6)).trans
         (ext_of_store_eq hst_s4_s5)).trans (ext_of_store_eq hst_s3_s4)
@@ -1455,12 +1412,11 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.whnf_mono (by omega) hF3) hns⟩
   -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
   -- the `sort` TAG; its view comes back from its denotation)
-  case vc53 =>
-    rename_i s7 r6 s6 r5 hg1 s5 r4 s4 r3 hg0 s3 r2 s2 r1 s1 r0 htag s0
-      hck_s6 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1 hck_s0 hst_s6_s7 hst_s5_s6
-      hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0 hp_s6_s7 hnp_a hp_s5_s6
-      hnp_b hp_s4_s5 hip_a hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2 hio_r2
-      hp_s0_s1 hwh_r1
+  case vc17 =>
+    rename_i s7 r6 s6 r5 s5 hg1 r4 s4 r3 s3 hg0 s2 r1 s1 s0 htag hck_s6 hck_s5 hck_s4 hck_s3
+      hck_s2 hck_s1 hck_s0 hst_s6_s7 hst_s5_s6 hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1
+      hx_s1_s0 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a hp_s3_s4 hip_b hp_s2_s3 hio_a
+      hp_s1_s2 hio_r2 hp_s0_s1 hwh_r1
     have hx73 : Ext s7.store s3.store :=
       (((ext_of_store_eq hst_s6_s7).trans (ext_of_store_eq hst_s5_s6)).trans
         (ext_of_store_eq hst_s4_s5)).trans (ext_of_store_eq hst_s3_s4)

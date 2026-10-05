@@ -25,10 +25,7 @@ import ConRon.Bridge.Core.Walks.Nat
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -94,7 +91,7 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
   · obtain ⟨_, v, hv, hcv⟩ := denoteCI_nonTower hci hti
     obtain ⟨_, hlp, hty⟩ := denoteCV_inv hcv
     rw [hv]
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hlp, hty⟩
   · cases ci with
@@ -110,32 +107,32 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
           · cases ht'; exact hlps
           · simp at ht'
         · simp at ht'
-      mvcgen [IConstantInfo.toConstantVal]
+      to_wp; vcgen [IConstantInfo.toConstantVal]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      case vc7.true.projInfo.post.success.post.success.post.success =>
-        rename_i _ r0 sA r1 sB _ _ _ _ w3 x1 x2 x3 _ _ _ _ _ _ _ _ c3 _ _ p3 c1 c2
-          _ p1 p2 _ _ d1 _ d2 _ d3
-        have h0 : denoteL sA.store.ls r0 = some Level.zero := by
+      case vc1 =>
+        rename_i sA sB _ _ _ w3 x1 x2 x3 _ _ _ _ _ _ _ _ c3 _ _ p3 c1 c2 _ p1 p2 _ _ d1 _ d2
+          _ d3
+        have h0 : denoteL sA.store.ls z = some Level.zero := by
           rw [d1]; simp [denoteLView]
-        have h1 : denoteL sB.store.ls r1 = some (Level.succ .zero) := by
+        have h1 : denoteL sB.store.ls one = some (Level.succ .zero) := by
           rw [d2]; simp [denoteLView, denoteL_ext h0 x2]
         refine ⟨hok.mono ⟨w3⟩ (x1.trans (x2.trans x3))
             (c3.trans (c2.trans c1)) (p3.trans (p2.trans p1)),
           x1.trans (x2.trans x3), p3.trans (p2.trans p1), hlp, ?_⟩
         rw [d3]; simp [denoteEView, denoteL_ext h1 x3,
           ConstantInfo.toConstantVal]
-      case vc2.hv =>
+      case vc7 =>
         constructor
         · intro c hc; simp [LNodeView.lchildren] at hc
         · intro c hc; simp [LNodeView.nchildren] at hc
-      case vc4.hv =>
+      case vc5 =>
         rename_i hv0 _
         constructor
         · intro c hc; simp [LNodeView.lchildren] at hc; subst hc
           rw [hv0]; rfl
         · intro c hc; simp [LNodeView.nchildren] at hc
-      case vc6.hv =>
+      case vc3 =>
         rename_i hv1 _
         exact viewOK_sort (by rw [hv1]; rfl)
       all_goals assumption
@@ -154,16 +151,16 @@ theorem stringTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.stringTyOk]
+    to_wp; vcgen [ConRon.Arena.stringTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    mvcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, htc]
+    to_wp; vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, wp% htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc3 =>
+    case vc1 =>
       rename_i hlp hck hs1 hty hx hp
       refine ⟨hck, hx, hp, ?_⟩
       simp only [ConLeche.stringTyOk, isEmpty_of_denoteNList hlp,
@@ -181,16 +178,16 @@ theorem charTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.charTyOk]
+    to_wp; vcgen [ConRon.Arena.charTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    mvcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, htc]
+    to_wp; vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, wp% htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc3 =>
+    case vc1 =>
       rename_i hlp hck hs1 hty hx hp
       refine ⟨hck, hx, hp, ?_⟩
       simp only [ConLeche.charTyOk, isEmpty_of_denoteNList hlp,
@@ -343,33 +340,33 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.listTyOk]
+    to_wp; vcgen [ConRon.Arena.listTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    mvcgen [ConRon.Arena.listTyOk, htc]
+    to_wp; vcgen [ConRon.Arena.listTyOk, wp% htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc3.hv =>
-      rename_i s1 r0 p0 hsingle s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc9 =>
+      rename_i s1 s0 p0 hsingle ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       exact lviewOK_param (denoteN_ext hdp x_s1_s0)
-    case vc5.hv =>
-      rename_i s2 r1 p0 hsingle s1 r0 s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _
-        c_s0_s1 p_s0_s1 vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
+    case vc7 =>
+      rename_i s2 s1 p0 hsingle s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _ c_s0_s1 p_s0_s1
+        vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
       exact lviewOK_succ vl_r0_s0
-    case vc7.hv =>
-      rename_i s3 r2 p0 hsingle s2 r1 s1 r0 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _
-        _ d_r2_type_s2 _ _ _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1
-        dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2 p_s2_s3 hlps
+    case vc5 =>
+      rename_i s3 s2 p0 hsingle s1 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _ _ d_r2_type_s2 _ _
+        _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1 dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2
+        p_s2_s3 hlps
       exact viewOK_sort (by rw [vl_r0_s0]; rfl)
-    case vc8 =>
-      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 dom0 body0 mb0 s0 ck_s3 wf_s2
-        wf_s1 x_s3_s2 x_s2_s1 _ _ d_r3_type_s3 _ _ _ _ _ _ c_s2_s3 c_s1_s2
-        p_s2_s3 p_s1_s2 vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 x_s4_s3 p_s3_s4 hlps
-        wf_s0 v_r3_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc1 =>
+      rename_i s4 s3 p0 hsingle s2 s1 s0 dom0 body0 mb0 ck_s3 wf_s2 wf_s1 x_s3_s2 x_s2_s1 _
+        _ d_r3_type_s3 _ _ _ _ _ _ c_s2_s3 c_s1_s2 p_s2_s3 p_s1_s2 vl_r2_s2 dl_r2_s2
+        vl_r1_s1 dl_r1_s1 x_s4_s3 p_s3_s4 hlps wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0
+        d_r0_s0 v_r3_type_s0
       have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
       refine ⟨ck_s3.mono ⟨wf_s0⟩ x30 (c_s0_s1.trans (c_s1_s2.trans c_s2_s3))
           (p_s0_s1.trans (p_s1_s2.trans p_s2_s3)), x_s4_s3.trans x30,
@@ -381,11 +378,11 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         dl_r2_s2 dl_r1_s1 d_r0_s0 x_s2_s1 x_s1_s0
       rw [beq_of_denoteE wf_s0 hD hso, beq_of_denoteE wf_s0 hB hso,
         listTyOk_forallE hP hT]
-    case vc9 =>
-      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 x1 hnot0 s0 ck_s3 wf_s2 wf_s1
-        x_s3_s2 x_s2_s1 _ _ d_r3_type_s3 _ _ _ _ _ _ c_s2_s3 c_s1_s2 p_s2_s3
-        p_s1_s2 vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 x_s4_s3 p_s3_s4 hlps wf_s0
-        v_r3_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc2 =>
+      rename_i s4 s3 p0 hsingle s2 s1 s0 x1 hnot0 ck_s3 wf_s2 wf_s1 x_s3_s2 x_s2_s1 _ _
+        d_r3_type_s3 _ _ _ _ _ _ c_s2_s3 c_s1_s2 p_s2_s3 p_s1_s2 vl_r2_s2 dl_r2_s2 vl_r1_s1
+        dl_r1_s1 x_s4_s3 p_s3_s4 hlps wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+        v_r3_type_s0
       have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
       refine ⟨ck_s3.mono ⟨wf_s0⟩ x30 (c_s0_s1.trans (c_s1_s2.trans c_s2_s3))
           (p_s0_s1.trans (p_s1_s2.trans p_s2_s3)), x_s4_s3.trans x30,
@@ -395,10 +392,10 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denote_ext d_r3_type_s3 x30) hnot0)).symm
     -- the type does not carry the `forallE` TAG (task #97-P5-Core round 4's
     -- tag-first arm): its view comes back from its denotation
-    case vc10 =>
-      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 htag s0 ck_s3 wf_s2 wf_s1 wf_s0
-        x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1
-        c_s2_s3 c_s1_s2 _ p_s2_s3 p_s1_s2 _ _ _ _ _ _ _ x_s4_s3 p_s3_s4 hlps
+    case vc3 =>
+      rename_i s4 s3 p0 hsingle s2 s1 s0 htag ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2 x_s2_s1
+        x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3 c_s1_s2 _ p_s2_s3
+        p_s1_s2 _ _ _ _ _ _ _ x_s4_s3 p_s3_s4 hlps
       have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
       refine ⟨ck_s3.mono ⟨wf_s0⟩ x30 (c_s0_s1.trans (c_s1_s2.trans c_s2_s3))
           (p_s0_s1.trans (p_s1_s2.trans p_s2_s3)), x_s4_s3.trans x30,
@@ -409,8 +406,8 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       exact (listTyOk_not_forallE hP (denote_not_forallE wf_s0 hv hd0
         (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) htag
           (by rw [hh]; rfl)))).symm
-    case vc11 =>
-      rename_i s1 r0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
+    case vc10 =>
+      rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
       exact ⟨ck_s0, x_s1_s0, p_s0_s1,
         (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).1.symm⟩
     all_goals first
@@ -453,55 +450,53 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.listNilTyOk]
+    to_wp; vcgen [ConRon.Arena.listNilTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    mvcgen [ConRon.Arena.listNilTyOk, ConRon.Arena.pinList, htc]
+    to_wp; vcgen [ConRon.Arena.listNilTyOk, ConRon.Arena.pinList, wp% htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc3.hv =>
-      rename_i s1 r0 p0 hsingle s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc19 =>
+      rename_i s1 s0 p0 hsingle ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       exact lviewOK_param (denoteN_ext hdp x_s1_s0)
-    case vc5.hv =>
-      rename_i s2 r1 p0 hsingle s1 r0 s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _
-        c_s0_s1 p_s0_s1 vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
+    case vc17 =>
+      rename_i s2 s1 p0 hsingle s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _ c_s0_s1 p_s0_s1
+        vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
       exact lviewOK_succ vl_r0_s0
-    case vc7.hv =>
-      rename_i s3 r2 p0 hsingle s2 r1 s1 r0 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _
-        _ d_r2_type_s2 _ _ _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1
-        dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2 p_s2_s3 hlps
+    case vc15 =>
+      rename_i s3 s2 p0 hsingle s1 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _ _ d_r2_type_s2 _ _
+        _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1 dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2
+        p_s2_s3 hlps
       exact viewOK_sort (by rw [vl_r0_s0]; rfl)
-    case vc9.hv =>
-      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2
-        x_s2_s1 x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3
-        c_s1_s2 _ p_s2_s3 p_s1_s2 _ vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0
-        d_r0_s0 x_s4_s3 p_s3_s4 hlps
+    case vc13 =>
+      rename_i s4 s3 p0 hsingle s2 s1 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2 x_s2_s1 x_s1_s0 _ _
+        _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3 c_s1_s2 _ p_s2_s3 p_s1_s2 _
+        vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0 d_r0_s0 x_s4_s3 p_s3_s4 hlps
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hpl : denoteL s2.store.ls r2 = some (.param P) := by
+      have hpl : denoteL s2.store.ls pl = some (.param P) := by
         rw [dl_r2_s2]; simp only [denoteLView]
         rw [show denoteN s2.store.ls.ns p0 = some P from
           denoteN_ext hdp (x_s4_s3.trans x_s3_s2)]; rfl
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
       exact lview_isSome_of_denote (denoteL_ext hpl (x_s2_s1.trans x_s1_s0))
-    case vc10.hp =>
-      rename_i s5 r4 p0 hsingle s4 r3 s3 r2 s2 r1 s1 r0 s0 ck_s4 wf_s3 wf_s2 wf_s1
-        wf_s0 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _
-        c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4 c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _
-        p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2 v_r1_s1 d_r1_s1 vls_r0_s0
-        dls_r0_s0 x_s5_s4 p_s4_s5 hlps
+    case vc11 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 ck_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s4_s3 x_s3_s2
+        x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _ c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4
+        c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _ p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2
+        v_r1_s1 d_r1_s1 vls_r0_s0 dls_r0_s0 x_s5_s4 p_s4_s5 hlps
       exact ck_s4.pins.mono (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
         (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)))
-    case vc11 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hbeq0 s0
-        ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _
-        _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3
-        dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps
-        v_r5_type_s0 wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc1 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 dom0 body0 mb0 hbeq0 ck_s4 wf_s3 wf_s2 wf_s1
+        x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4
+        c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1
+        x_s5_s4 p_s4_s5 hlps wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+        v_r5_type_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -520,13 +515,12 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [bne, hDb] at hbeq0
       simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
       simp [hbeq0]
-    case vc12 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
-        a0 c0 us0 s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_a0_s0 v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0
-        _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc2 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 c0 us0 s0 ck_s4 wf_s3
+        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
+        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
+        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
+        dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0 v_a0_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -548,25 +542,24 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
       obtain ⟨L, US, rfl, hL, hUS⟩ := denote_const_inv wf_s0 v_f20_s0 hF
       obtain rfl := denote_bvar_inv wf_s0 v_a0_s0 hA
-      have hpl : denoteL s0.store.ls r4 = some (.param P) := by
+      have hpl : denoteL s0.store.ls pl = some (.param P) := by
         refine denoteL_ext ?_ (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
         rw [dl_r4_s3]; simp only [denoteLView]
         rw [show denoteN s3.store.ls.ns p0 = some P from
           denoteN_ext hdp (x_s5_s4.trans x_s4_s3)]; rfl
-      have hps : denoteLs s0.store.lss r1 = some [.param P] := by
+      have hps : denoteLs s0.store.lss ps = some [.param P] := by
         rw [dls_r1_s0]
         simp [denoteLsView, denoteLList, opt2,
-          show denoteL s0.store.lss.ls r4 = some (Level.param P) from hpl]
+          show denoteL s0.store.lss.ls pl = some (Level.param P) from hpl]
       rw [beq_handle_eq wf_s0 hL (hpin _ rfl),
         beq_of_denoteLs (StoreWF.lssWF' wf_s0) hUS hps]
       simp [listNilCod]
-    case vc13 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
-        a0 c0 us0 x1 hnb s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_a0_s0 v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0
-        _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc3 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 c0 us0 s0 x1 hnb ck_s4
+        wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _
+        p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2
+        v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1
+        vls_r1_s0 dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0 v_a0_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -588,13 +581,12 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       simp
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
-    case vc14 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
-        a0 c0 us0 htag s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0
-        _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc4 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 s0 c0 us0 htag ck_s4
+        wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _
+        p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2
+        v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1
+        vls_r1_s0 dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -616,13 +608,12 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (t := ETag.bvar) htag (by rw [hh]; rfl))
       rw [listNilCod_of_not (fun L US h => by cases h; exact hA0 rfl)]
       simp
-    case vc15 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
-        a0 x1 hnot0 s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_f20_s0 v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0 _ _ _ _
-        c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc5 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 s0 x1 hnot0 ck_s4 wf_s3
+        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
+        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
+        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
+        dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -644,13 +635,12 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       simp
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
-    case vc16 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 f20
-        a0 htag s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_body0_s0 v_r5_type_s0 wf_s0 hpin x_s1_s0 _ _ _ _
-        c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc6 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 s0 f20 a0 htag ck_s4 wf_s3
+        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
+        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
+        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
+        dls_r1_s0 v_r5_type_s0 v_body0_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -672,13 +662,12 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (t := ETag.const) htag (by rw [hh]; rfl))
       rw [listNilCod_of_not (fun L US h => by cases h; exact hF0 L US rfl)]
       simp
-    case vc17 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 x1
-        hnot0 s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_body0_s0 v_r5_type_s0 wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1
-        p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc7 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 s0 x1 hnot0 ck_s4 wf_s3 wf_s2
+        wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
+        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
+        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
+        dls_r1_s0 v_r5_type_s0 v_body0_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -699,12 +688,12 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       simp
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
-    case vc18 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 dom0 body0 mb0 hneg0 htag s0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4
-        p_s4_s5 hlps v_r5_type_s0 wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1
-        p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc8 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 dom0 body0 mb0 hneg0 htag ck_s4 wf_s3 wf_s2
+        wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
+        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
+        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
+        dls_r1_s0 v_r5_type_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -725,12 +714,11 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (t := ETag.app) htag (by rw [hh]; rfl))
       rw [listNilCod_of_not (fun L US h => hB0 _ _ h)]
       simp
-    case vc19 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 x1 hnot0 s0 ck_s4 wf_s3
-        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _
-        _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2
-        dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps v_r5_type_s0 wf_s0 _
-        x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc9 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 x1 hnot0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2
+        x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
+        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps
+        wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0 v_r5_type_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -747,12 +735,11 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denote_not_forallE wf_s0 v_r5_type_s0 hty0 hnot0)).1.symm
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
-    case vc20 =>
-      rename_i s5 r5 p0 hsingle s4 r4 s3 r3 s2 r2 s1 r1 r0 htag s0 ck_s4 wf_s3
-        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _
-        _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2
-        dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 _
-        x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
+    case vc10 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 htag ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2
+        x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
+        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps
+        wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
       have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
       refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
           (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
@@ -770,8 +757,8 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
           obtain ⟨vt, hvt⟩ := denoteE_view hty0
           exact denote_not_forallE wf_s0 hvt hty0 (fun ty b m hh => view_tagOf_ne hvt
             (t := ETag.forallE) htag (by rw [hh]; rfl)))).1.symm
-    case vc21 =>
-      rename_i s1 r0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
+    case vc20 =>
+      rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
       exact ⟨ck_s0, x_s1_s0, p_s0_s1,
         (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).2.1.symm⟩
     all_goals first
@@ -883,55 +870,52 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.listConsTyOk]
+    to_wp; vcgen [ConRon.Arena.listConsTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
     have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
       s₀ ci c hok hci
-    mvcgen [ConRon.Arena.listConsTyOk, ConRon.Arena.pinList, htc]
+    to_wp; vcgen [ConRon.Arena.listConsTyOk, ConRon.Arena.pinList, wp% htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc3.hv =>
-      rename_i s1 r0 p0 hsingle s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc30 =>
+      rename_i s1 s0 p0 hsingle ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       exact lviewOK_param (denoteN_ext hdp x_s1_s0)
-    case vc5.hv =>
-      rename_i s2 r1 p0 hsingle s1 r0 s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _
-        c_s0_s1 p_s0_s1 vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
+    case vc28 =>
+      rename_i s2 s1 p0 hsingle s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _ c_s0_s1 p_s0_s1
+        vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
       exact lviewOK_succ vl_r0_s0
-    case vc7.hv =>
-      rename_i s3 r2 p0 hsingle s2 r1 s1 r0 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _
-        _ d_r2_type_s2 _ _ _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1
-        dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2 p_s2_s3 hlps
+    case vc26 =>
+      rename_i s3 s2 p0 hsingle s1 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _ _ d_r2_type_s2 _ _
+        _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1 dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2
+        p_s2_s3 hlps
       exact viewOK_sort (by rw [vl_r0_s0]; rfl)
-    case vc9.hv =>
-      rename_i s4 r3 p0 hsingle s3 r2 s2 r1 s1 r0 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2
-        x_s2_s1 x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3
-        c_s1_s2 _ p_s2_s3 p_s1_s2 _ vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0
-        d_r0_s0 x_s4_s3 p_s3_s4 hlps
+    case vc24 =>
+      rename_i s4 s3 p0 hsingle s2 s1 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2 x_s2_s1 x_s1_s0 _ _
+        _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3 c_s1_s2 _ p_s2_s3 p_s1_s2 _
+        vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0 d_r0_s0 x_s4_s3 p_s3_s4 hlps
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hpl := denoteL_view_param dl_r2_s2
         (denoteN_ext hdp (x_s4_s3.trans x_s3_s2))
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
       exact lview_isSome_of_denote (denoteL_ext hpl (x_s2_s1.trans x_s1_s0))
-    case vc10.hp =>
-      rename_i s5 r4 p0 hsingle s4 r3 s3 r2 s2 r1 s1 r0 s0 ck_s4 wf_s3 wf_s2 wf_s1
-        wf_s0 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _
-        c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4 c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _
-        p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2 v_r1_s1 d_r1_s1 vls_r0_s0
-        dls_r0_s0 x_s5_s4 p_s4_s5 hlps
+    case vc22 =>
+      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 ck_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s4_s3 x_s3_s2
+        x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _ c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4
+        c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _ p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2
+        v_r1_s1 d_r1_s1 vls_r0_s0 dls_r0_s0 x_s5_s4 p_s4_s5 hlps
       exact ck_s4.pins.mono (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
         (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)))
-    case vc18.hv =>
-      rename_i s8 r8 p0 hsingle s7 r7 s6 r6 s5 r5 s4 r4 r3 s3 r2 s2 r1 s1 r0 s0
-        ck_s7 wf_s6 wf_s5 wf_s4 wf_s2 wf_s1 wf_s0 x_s7_s6 x_s6_s5 x_s5_s4 x_s3_s2
-        x_s2_s1 x_s1_s0 _ _ _ _ _ _ d_r8_type_s7 _ _ _ _ _ _ _ _ c_s4_s5 c_s2_s3
-        c_s1_s2 c_s0_s1 _ _ p_s4_s5 p_s2_s3 p_s1_s2 p_s0_s1 c_s6_s7 c_s5_s6 _ _ _
-        _ p_s6_s7 p_s5_s6 _ _ _ _ vl_r7_s6 dl_r7_s6 vl_r6_s5 dl_r6_s5 v_r5_s4
-        d_r5_s4 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s8_s7 p_s7_s8
-        hlps wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r4_s3 dls_r4_s3
+    case vc15 =>
+      rename_i s8 s7 p0 hsingle s6 s5 s4 s3 s2 s1 s0 ck_s7 wf_s6 wf_s5 wf_s4 wf_s2 wf_s1
+        wf_s0 x_s7_s6 x_s6_s5 x_s5_s4 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ d_r8_type_s7 _ _ _
+        _ _ _ _ _ c_s4_s5 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s4_s5 p_s2_s3 p_s1_s2 p_s0_s1
+        c_s6_s7 c_s5_s6 _ _ _ _ p_s6_s7 p_s5_s6 _ _ _ _ vl_r7_s6 dl_r7_s6 vl_r6_s5 dl_r6_s5
+        v_r5_s4 d_r5_s4 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s8_s7 p_s7_s8 hlps
+        wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r4_s3 dls_r4_s3
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hpl := denoteL_view_param dl_r7_s6
         (denoteN_ext hdp (x_s8_s7.trans x_s7_s6))
@@ -940,15 +924,14 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
       exact viewOK_const (nview_isSome_of_denote (denoteN_ext (hpin _ rfl) x30))
         (lsview_isSome_of_denote (denoteLs_ext hps x30))
-    case vc20.hv =>
-      rename_i s9 r9 p0 hsingle s8 r8 s7 r7 s6 r6 s5 r5 r4 s4 r3 s3 r2 s2 r1 s1 r0 s0
-        ck_s8 wf_s7 wf_s6 wf_s5 wf_s3 wf_s2 wf_s1 wf_s0 x_s8_s7 x_s7_s6 x_s6_s5
-        x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ d_r9_type_s8 _ _ _ _ _ _ _ _
-        _ c_s5_s6 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s5_s6 p_s3_s4 p_s2_s3
-        p_s1_s2 p_s0_s1 c_s7_s8 c_s6_s7 _ _ _ _ _ p_s7_s8 p_s6_s7 _ _ _ _ _
-        vl_r8_s7 dl_r8_s7 vl_r7_s6 dl_r7_s6 v_r6_s5 d_r6_s5 v_r3_s3 d_r3_s3
-        v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s9_s8 p_s8_s9 hlps
-        wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r5_s4 dls_r5_s4
+    case vc13 =>
+      rename_i s9 s8 p0 hsingle s7 s6 s5 s4 s3 s2 s1 s0 ck_s8 wf_s7 wf_s6 wf_s5 wf_s3 wf_s2
+        wf_s1 wf_s0 x_s8_s7 x_s7_s6 x_s6_s5 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _
+        d_r9_type_s8 _ _ _ _ _ _ _ _ _ c_s5_s6 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s5_s6
+        p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s7_s8 c_s6_s7 _ _ _ _ _ p_s7_s8 p_s6_s7 _ _ _ _ _
+        vl_r8_s7 dl_r8_s7 vl_r7_s6 dl_r7_s6 v_r6_s5 d_r6_s5 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2
+        v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s9_s8 p_s8_s9 hlps wf_s4 hpin x_s5_s4 _ _ _ _
+        c_s4_s5 p_s4_s5 vls_r5_s4 dls_r5_s4
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hpl := denoteL_view_param dl_r8_s7
         (denoteN_ext hdp (x_s9_s8.trans x_s8_s7))
@@ -959,16 +942,15 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denoteLs_ext hps x40)
       have hb1 := denote_ext (denote_view_bvar d_r2_s2) (x_s2_s1.trans x_s1_s0)
       exact viewOK_app (by rw [hl1]; rfl) (by rw [hb1]; rfl)
-    case vc22.hv =>
-      rename_i s10 r10 p0 hsingle s9 r9 s8 r8 s7 r7 s6 r6 r5 s5 r4 s4 r3 s3 r2 s2
-        r1 s1 r0 s0 ck_s9 wf_s8 wf_s7 wf_s6 wf_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s9_s8
-        x_s8_s7 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ _
-        d_r10_type_s9 _ _ _ _ _ _ _ _ _ _ c_s6_s7 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2
-        c_s0_s1 _ _ p_s6_s7 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s8_s9
-        c_s7_s8 _ _ _ _ _ _ p_s8_s9 p_s7_s8 _ _ _ _ _ _ vl_r9_s8 dl_r9_s8
-        vl_r8_s7 dl_r8_s7 v_r7_s6 d_r7_s6 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2
-        d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s10_s9 p_s9_s10 hlps wf_s5 hpin
-        x_s6_s5 _ _ _ _ c_s5_s6 p_s5_s6 vls_r6_s5 dls_r6_s5
+    case vc11 =>
+      rename_i s10 s9 p0 hsingle s8 s7 s6 s5 s4 s3 s2 s1 s0 ck_s9 wf_s8 wf_s7 wf_s6 wf_s4
+        wf_s3 wf_s2 wf_s1 wf_s0 x_s9_s8 x_s8_s7 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1
+        x_s1_s0 _ _ _ _ _ _ _ _ d_r10_type_s9 _ _ _ _ _ _ _ _ _ _ c_s6_s7 c_s4_s5 c_s3_s4
+        c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s6_s7 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s8_s9
+        c_s7_s8 _ _ _ _ _ _ p_s8_s9 p_s7_s8 _ _ _ _ _ _ vl_r9_s8 dl_r9_s8 vl_r8_s7 dl_r8_s7
+        v_r7_s6 d_r7_s6 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        v_r0_s0 d_r0_s0 x_s10_s9 p_s9_s10 hlps wf_s5 hpin x_s6_s5 _ _ _ _ c_s5_s6 p_s5_s6
+        vls_r6_s5 dls_r6_s5
       obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
       have hpl := denoteL_view_param dl_r9_s8
         (denoteN_ext hdp (x_s10_s9.trans x_s9_s8))
@@ -979,18 +961,16 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         (denoteLs_ext hps x51)
       exact viewOK_app (by rw [denote_ext hl1 x_s1_s0]; rfl)
         (by rw [denote_ext (denote_view_bvar d_r2_s2) (x_s2_s1.trans x_s1_s0)]; rfl)
-    case vc23 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom0 body0 mb0 hbeq0 s0 ck_s10 wf_s9 wf_s8 wf_s7
-        wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4
-        x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _
-        _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8
-        p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
-        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8
-        v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3
-        v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin
-        x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0
-        v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc1 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 dom0 body0 mb0 hbeq0 ck_s10
+        wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5
+        x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _
+        c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4
+        p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9
+        dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3
+        d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6
+        _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _
+        v_r0_s0 d_r0_s0 v_r11_type_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1012,19 +992,17 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [bne, beq_of_denoteE hwf0 hD hso] at hbeq0
       simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
       rw [listConsTyOk_forallE hP hT]; simp [hbeq0]
-    case vc24 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom1 body1 mb1 hneg0 dom0 body0 mb0 hbeq0 s0
-        ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9
-        x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _
-        _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4
-        c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2
-        c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9
-        dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4
-        d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10
-        p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
-        dls_r7_s6 v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _
-        _ v_r0_s0 d_r0_s0
+    case vc2 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom1 body1 mb1 hneg0 s0 dom0
+        body0 mb0 hbeq0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9
+        x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
+        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
+        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
+        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
+        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
+        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
+        v_body1_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1059,19 +1037,17 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [bne, beq_of_denoteE hwf0 hD2 hb0] at hbeq0
       simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
       rw [listConsTyOk_forallE hP hT]; simp [listConsR, hbeq0]
-    case vc25 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom2 body2 mb2 hneg0 dom1 body1 mb1 hneg1 dom0
-        body0 mb0 s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
-        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5
-        c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3
-        p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
-        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5
-        v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
-        vls_r7_s6 dls_r7_s6 v_body1_s0 v_body2_s0 wf_s0 v_r11_type_s0 x_s1_s0
-        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc3 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom2 body2 mb2 hneg0 dom1 body1
+        mb1 hneg1 s0 dom0 body0 mb0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
+        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
+        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
+        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
+        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
+        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
+        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
+        v_body2_s0 v_body1_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1112,19 +1088,17 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [beq_of_denoteE hwf0 hD3 hd3, beq_of_denoteE hwf0 hC3 hc3,
         listConsTyOk_forallE hP hT]
       simp [listConsR, listConsR2]
-    case vc26 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom1 body1 mb1 hneg0 dom0 body0 mb0 hneg1 x1
-        hnot0 s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
-        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5
-        c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3
-        p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
-        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5
-        v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
-        vls_r7_s6 dls_r7_s6 v_body0_s0 v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0
-        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc4 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom1 body1 mb1 hneg0 dom0 body0
+        mb0 hneg1 s0 x1 hnot0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
+        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
+        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
+        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
+        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
+        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
+        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
+        v_body1_s0 v_body0_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1161,18 +1135,17 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         listConsR2_of_not (denote_not_forallE hwf0 v_body0_s0 hR2 hnot0)]
       simp
     -- round 4: the tag-first twin's `else` arm
-    case vc27 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom1 body1 mb1 hneg0 dom0 body0 mb0 hneg1 htag s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
-        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _
-        _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5
-        c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3
-        p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
-        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5
-        v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
-        vls_r7_s6 dls_r7_s6  v_body1_s0 wf_s0 v_r11_type_s0 x_s1_s0
-        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc5 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom1 body1 mb1 hneg0 s0 dom0
+        body0 mb0 hneg1 htag ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9
+        x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
+        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
+        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
+        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
+        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
+        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
+        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
+        v_body1_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1208,18 +1181,16 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       simp only [listConsR,
         listConsR2_of_not ((by obtain ⟨vv, hvv⟩ := denoteE_view hR2; exact denote_not_forallE hwf0 hvv hR2 (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag (by rw [hh]; rfl))))]
       simp
-    case vc28 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom0 body0 mb0 hneg0 x1 hnot0 s0 ck_s10 wf_s9
-        wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7
-        x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10
-        _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
-        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _
-        _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8
-        dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3
-        d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6
-        hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 v_body0_s0
-        wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc6 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom0 body0 mb0 hneg0 s0 x1
+        hnot0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8
+        x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _
+        _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6
+        p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _
+        _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4
+        d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps
+        wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _
+        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0 v_body0_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1242,18 +1213,16 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         listConsR_of_not (denote_not_forallE hwf0 v_body0_s0 hR hnot0)]
       simp
     -- round 4: the tag-first twin's `else` arm
-    case vc29 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 dom0 body0 mb0 hneg0 htag s0 ck_s10 wf_s9
-        wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7
-        x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10
-        _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
-        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _
-        _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8
-        dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3
-        d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6
-        hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 
-        wf_s0 v_r11_type_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc7 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 dom0 body0 mb0 hneg0 htag
+        ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7
+        x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _
+        _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5
+        p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
+        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4
+        d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps
+        wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _
+        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1275,18 +1244,16 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [listConsTyOk_forallE hP hT,
         listConsR_of_not ((by obtain ⟨vv, hvv⟩ := denoteE_view hR; exact denote_not_forallE hwf0 hvv hR (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag (by rw [hh]; rfl))))]
       simp
-    case vc30 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 x1 hnot0 s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4
-        wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3
-        x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _
-        c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6
-        p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10
-        p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7
-        d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2
-        d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _
-        _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 v_r11_type_s0 x_s1_s0
-        _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
+    case vc8 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 x1 hnot0 ck_s10 wf_s9 wf_s8
+        wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3
+        x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6
+        c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2
+        c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9
+        vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3
+        v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _
+        c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0
+        d_r0_s0 v_r11_type_s0
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
       refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
@@ -1307,17 +1274,15 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       exact (listNilConsTyOk_not_forallE hP
         (denote_not_forallE hwf0 v_r11_type_s0 hty0 hnot0)).2.symm
     -- round 4: the tag-first twin's `else` arm
-    case vc31 =>
-      rename_i s11 r11 p0 hsingle s10 r10 s9 r9 s8 r8 s7 r7 r6 s6 r5 s5 r4 s4
-        r3 s3 r2 s2 r1 s1 r0 htag s0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3
-        wf_s2 wf_s1 wf_s0 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3
-        x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _
-        _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _
-        p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s9_s10 c_s8_s9
-        _ _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ _ vl_r10_s9 dl_r10_s9
-        vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4
-        v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
+    case vc9 =>
+      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 htag ck_s10 wf_s9 wf_s8
+        wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4
+        x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _
+        _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s7_s8 p_s5_s6
+        p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s9_s10 c_s8_s9 _ _ _ _ _ _ _ p_s9_s10
+        p_s8_s9 _ _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5
+        d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0
+        d_r0_s0 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
         vls_r7_s6 dls_r7_s6
       have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
           (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
@@ -1338,8 +1303,8 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       have hwf0 := wf_s0
       exact (listNilConsTyOk_not_forallE hP
         ((by obtain ⟨vv, hvv⟩ := denoteE_view hty0; exact denote_not_forallE hwf0 hvv hty0 (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag (by rw [hh]; rfl))))).2.symm
-    case vc32 =>
-      rename_i s1 r0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
+    case vc31 =>
+      rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
       exact ⟨ck_s0, x_s1_s0, p_s0_s1,
         (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).2.2.symm⟩
     all_goals first
@@ -1352,7 +1317,7 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
 /-- con-leche: none — `constE_spec` in ANSWER shape: the name handle comes
 off a pin, so its denotation goes in as an existential and out as a
 universal (round 3's rule; two `constE`s at different names share one
-`mvcgen` call here). -/
+`vcgen` call here). -/
 theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
     (hn : ∃ nm, denoteN s₀.store.ns n = some nm) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.constE n
@@ -1361,8 +1326,9 @@ theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
           denoteE s'.store r = some (.const nm [])⌝⦄ := by
   obtain ⟨nm, hnm⟩ := hn
   have h := constE_spec (mode := mode) (env := env) (fe := fe) s₀ n nm hok hnm
-  mvcgen [h]
-  intro hck hx hp hd
+  to_wp; vcgen [wp% h]
+  rename_i hpost
+  obtain ⟨hck, hx, hp, hd⟩ := hpost
   refine ⟨hck, hx, hp, fun nm' hn' => ?_⟩
   rw [hnm] at hn'; obtain rfl := Option.some.inj hn'; exact hd
 
@@ -1416,7 +1382,7 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.charOfNatTyOk]
+    to_wp; vcgen [ConRon.Arena.charOfNatTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -1424,41 +1390,40 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       s₀ ci c hok hci
     have hce := fun (s : AState) (n : NIdx) =>
       constE_spec' (mode := mode) (env := env) (fe := fe) s n
-    mvcgen [ConRon.Arena.charOfNatTyOk, ConRon.Arena.pinNat,
-      ConRon.Arena.pinChar, htc, hce]
+    to_wp; vcgen [ConRon.Arena.charOfNatTyOk, ConRon.Arena.pinNat,
+      ConRon.Arena.pinChar, wp% htc, wp% hce]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc2 =>
-      rename_i s1 r0 hne s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc1 =>
+      rename_i s1 s0 hne ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       refine ⟨ck_s0, x_s1_s0, p_s0_s1, ?_⟩
       rw [isEmpty_of_denoteNList hlps] at hne
       simp only [Bool.not_eq_true', Bool.eq_false_iff] at hne
       exact (fnTyOks_not_empty (by simpa using hne)).1.symm
-    case vc3.hp =>
-      rename_i s1 r0 hneg0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc10 =>
+      rename_i s1 s0 hneg0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       exact ck_s0.pins
-    case vc4.hok =>
-      rename_i s1 r1 hneg0 r0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
+    case vc8 =>
+      rename_i s1 hneg0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
       exact ck_s0
-    case vc5.hn =>
-      rename_i s1 r1 hneg0 r0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
-      exact ⟨_, hpin _ rfl⟩
-    case vc6.hp =>
-      rename_i s2 r2 hneg0 r1 s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 _ hlps ck_s1 hpin
-        d_r2_type_s1 x_s2_s1 p_s1_s2
-      exact ck_s0.pins
-    case vc7.hok =>
-      rename_i s2 r3 hneg0 r2 s1 r1 r0 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1
-        p_s1_s2 ck_s0 hpin_2 x_s1_s0 p_s0_s1 _
-      exact ck_s0
-    case vc8.hn =>
-      rename_i s2 r3 hneg0 r2 s1 r1 r0 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1
-        p_s1_s2 ck_s0 hpin_2 x_s1_s0 p_s0_s1 _
-      exact ⟨_, hpin_2 _ rfl⟩
     case vc9 =>
-      rename_i s3 r4 hneg0 r3 s2 r2 r1 s1 r0 dom0 body0 mb0 s0 hlps ck_s2 hpin
-        d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0
-        v_r4_type_s0 x_s1_s0 p_s0_s1 hc2
+      rename_i s1 hneg0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
+      exact ⟨_, hpin _ rfl⟩
+    case vc7 =>
+      rename_i s2 hneg0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 _ hlps ck_s1 hpin d_r2_type_s1 x_s2_s1
+        p_s1_s2
+      exact ck_s0.pins
+    case vc5 =>
+      rename_i s2 hneg0 s1 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1 p_s1_s2 ck_s0 hpin_2
+        x_s1_s0 p_s0_s1 _
+      exact ck_s0
+    case vc6 =>
+      rename_i s2 hneg0 s1 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1 p_s1_s2 ck_s0 hpin_2
+        x_s1_s0 p_s0_s1 _
+      exact ⟨_, hpin_2 _ rfl⟩
+    case vc2 =>
+      rename_i s3 hneg0 s2 s1 s0 dom0 body0 mb0 hlps ck_s2 hpin d_r4_type_s2 x_s3_s2 p_s2_s3
+        ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0 x_s1_s0 p_s0_s1 hc2 v_r4_type_s0
       have x20 := x_s2_s1.trans x_s1_s0
       refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
       rw [isEmpty_of_denoteNList hlps] at hneg0
@@ -1469,20 +1434,18 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [beq_of_denoteE hwf0 hD (denote_ext (hc1 _ (hpin _ rfl)) x_s1_s0),
         beq_of_denoteE hwf0 hB (hc2 _ (hpin_2 _ rfl)),
         charOfNatTyOk_forallE hle hT]
-    case vc10 =>
-      rename_i s3 r4 hneg0 r3 s2 r2 r1 s1 r0 x1 hnot0 s0 hlps ck_s2 hpin
-        d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0
-        v_r4_type_s0 x_s1_s0 p_s0_s1 hc2
+    case vc3 =>
+      rename_i s3 hneg0 s2 s1 s0 x1 hnot0 hlps ck_s2 hpin d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1
+        hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0 x_s1_s0 p_s0_s1 hc2 v_r4_type_s0
       have x20 := x_s2_s1.trans x_s1_s0
       refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
       exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf v_r4_type_s0
         (denote_ext d_r4_type_s2 x20) hnot0)).1.symm
 
     -- round 4: the type does not carry the `forallE` TAG
-    case vc11 =>
-      rename_i s3 r4 hneg0 r3 s2 r2 r1 s1 r0 htag s0 ck_s0 x_s1_s0 p_s0_s1 hc2
-        hlps ck_s2 hpin d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2
-        hc1
+    case vc4 =>
+      rename_i s3 hneg0 s2 s1 s0 htag ck_s0 x_s1_s0 p_s0_s1 hc2 hlps ck_s2 hpin d_r4_type_s2
+        x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1
       have x20 := x_s2_s1.trans x_s1_s0
       refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
       have hd0 := denote_ext d_r4_type_s2 x20
@@ -1520,7 +1483,7 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.stringOfListTyOk]
+    to_wp; vcgen [ConRon.Arena.stringOfListTyOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -1528,91 +1491,83 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       s₀ ci c hok hci
     have hce := fun (s : AState) (n : NIdx) =>
       constE_spec' (mode := mode) (env := env) (fe := fe) s n
-    mvcgen [ConRon.Arena.stringOfListTyOk, ConRon.Arena.zeroLevel,
+    to_wp; vcgen [ConRon.Arena.stringOfListTyOk, ConRon.Arena.zeroLevel,
       ConRon.Arena.pinList, ConRon.Arena.pinChar, ConRon.Arena.pinString,
-      htc, hce]
+      wp% htc, wp% hce]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc2 =>
-      rename_i s1 r0 hne s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc1 =>
+      rename_i s1 s0 hne ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       refine ⟨ck_s0, x_s1_s0, p_s0_s1, ?_⟩
       rw [isEmpty_of_denoteNList hlps] at hne
       simp only [Bool.not_eq_true', Bool.eq_false_iff] at hne
       exact (fnTyOks_not_empty (by simpa using hne)).2.symm
-    case vc3.hp =>
-      rename_i s1 r0 hneg0 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
+    case vc18 =>
+      rename_i s1 s0 hneg0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
       exact ck_s0.pins
-    case vc5.hv =>
-      rename_i s1 r1 hneg0 r0 s0 hlps ck_s0 dl_r0_s0 d_r1_type_s0 x_s1_s0 p_s0_s1
+    case vc17 =>
+      rename_i dl_r0_s0 _ _ _
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
       exact lview_isSome_of_denote dl_r0_s0
-    case vc6.hp =>
-      rename_i s2 r2 hneg0 r1 s1 r0 s0 wf_s0 x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1
-        vls_r0_s0 dls_r0_s0 hlps ck_s1 dl_r1_s1 d_r2_type_s1 x_s2_s1 p_s1_s2
+    case vc15 =>
+      rename_i s2 hneg0 s1 s0 wf_s0 x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r0_s0 dls_r0_s0 hlps
+        ck_s1 dl_r1_s1 d_r2_type_s1 x_s2_s1 p_s1_s2
       exact ck_s1.pins.mono x_s1_s0 p_s0_s1
-    case vc8.hv =>
-      rename_i s2 r3 hneg0 r2 s1 r1 r0 s0 hlps ck_s1 dl_r2_s1 d_r3_type_s1
-        x_s2_s1 p_s1_s2 wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
-        dls_r1_s0
+    case vc14 =>
+      rename_i s2 hneg0 s1 s0 hlps ck_s1 dl_r2_s1 d_r3_type_s1 x_s2_s1 p_s1_s2 wf_s0 hpin
+        x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
       exact viewOK_const (nview_isSome_of_denote (hpin _ rfl))
         (by rw [vls_r1_s0]; rfl)
-    case vc9.hp =>
-      rename_i s3 r4 hneg0 r3 s2 r2 r1 s1 r0 s0 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1
-        _ _ v_r0_s0 d_r0_s0 hlps ck_s2 dl_r3_s2 d_r4_type_s2 x_s3_s2 p_s2_s3
-        wf_s1 hpin x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2 vls_r2_s1 dls_r2_s1
+    case vc12 =>
+      rename_i s3 hneg0 s2 s1 s0 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 hlps
+        ck_s2 dl_r3_s2 d_r4_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin x_s2_s1 _ _ _ _ c_s1_s2
+        p_s1_s2 vls_r2_s1 dls_r2_s1
       exact ck_s2.pins.mono (x_s2_s1.trans x_s1_s0) (p_s0_s1.trans p_s1_s2)
-    case vc10.hok =>
-      rename_i s3 r5 hneg0 r4 s2 r3 r2 s1 r1 r0 s0 hlps ck_s2 dl_r4_s2
-        d_r5_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2
-        vls_r3_s1 dls_r3_s1 wf_s0 hpin_2 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r1_s0
-        d_r1_s0
+    case vc10 =>
+      rename_i s3 hneg0 s2 s1 s0 hlps ck_s2 dl_r4_s2 d_r5_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin
+        x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2 vls_r3_s1 dls_r3_s1 wf_s0 hpin_2 x_s1_s0 _ _ c_s0_s1
+        p_s0_s1 _ _ v_r1_s0 d_r1_s0
       exact ck_s2.mono ⟨wf_s0⟩ (x_s2_s1.trans x_s1_s0) (c_s0_s1.trans c_s1_s2)
         (p_s0_s1.trans p_s1_s2)
-    case vc11.hn =>
-      rename_i s3 r5 hneg0 r4 s2 r3 r2 s1 r1 r0 s0 hlps ck_s2 dl_r4_s2
-        d_r5_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2
-        vls_r3_s1 dls_r3_s1 wf_s0 hpin_2 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r1_s0
-        d_r1_s0
+    case vc11 =>
+      rename_i s3 hneg0 s2 s1 s0 hlps ck_s2 dl_r4_s2 d_r5_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin
+        x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2 vls_r3_s1 dls_r3_s1 wf_s0 hpin_2 x_s1_s0 _ _ c_s0_s1
+        p_s0_s1 _ _ v_r1_s0 d_r1_s0
       exact ⟨_, hpin_2 _ rfl⟩
-    case vc13.hv =>
-      rename_i s4 r6 hneg0 r5 s3 r4 r3 s2 r2 r1 s1 r0 s0 ck_s0 x_s1_s0 p_s0_s1 hc1
-        hlps ck_s3 dl_r5_s3 d_r6_type_s3 x_s4_s3 p_s3_s4 wf_s2 hpin x_s3_s2 _ _ _
-        _ c_s2_s3 p_s2_s3 vls_r4_s2 dls_r4_s2 wf_s1 hpin_2 x_s2_s1 _ _ c_s1_s2
-        p_s1_s2 _ _ v_r2_s1 d_r2_s1
+    case vc9 =>
+      rename_i s4 hneg0 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hc1 hlps ck_s3 dl_r5_s3
+        d_r6_type_s3 x_s4_s3 p_s3_s4 wf_s2 hpin x_s3_s2 _ _ _ _ c_s2_s3 p_s2_s3 vls_r4_s2
+        dls_r4_s2 wf_s1 hpin_2 x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1
       have hzs := denoteLs_view_single dls_r4_s2 (denoteL_ext dl_r5_s3 x_s3_s2)
       have hlc := denote_view_const d_r2_s1 (denoteN_ext (hpin _ rfl) x_s2_s1)
         (denoteLs_ext hzs x_s2_s1)
       exact viewOK_app (by rw [denote_ext hlc x_s1_s0]; rfl)
         (by rw [hc1 _ (hpin_2 _ rfl)]; rfl)
-    case vc14.hp =>
-      rename_i s5 r7 hneg0 r6 s4 r5 r4 s3 r3 r2 s2 r1 s1 r0 s0 ck_s1 wf_s0 x_s2_s1
-        x_s1_s0 p_s1_s2 _ _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 hlps ck_s4
-        dl_r6_s4 d_r7_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4
-        p_s3_s4 vls_r5_s3 dls_r5_s3 wf_s2 hpin_2 x_s3_s2 _ _ c_s2_s3 p_s2_s3 _ _
-        v_r3_s2 d_r3_s2
+    case vc7 =>
+      rename_i s5 hneg0 s4 s3 s2 s1 s0 ck_s1 wf_s0 x_s2_s1 x_s1_s0 p_s1_s2 _ _ _ c_s0_s1
+        p_s0_s1 _ _ v_r0_s0 d_r0_s0 hlps ck_s4 dl_r6_s4 d_r7_type_s4 x_s5_s4 p_s4_s5 wf_s3
+        hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r5_s3 dls_r5_s3 wf_s2 hpin_2 x_s3_s2 _ _
+        c_s2_s3 p_s2_s3 _ _ v_r3_s2 d_r3_s2
       exact ck_s1.pins.mono x_s1_s0 p_s0_s1
-    case vc15.hok =>
-      rename_i s5 r8 hneg0 r7 s4 r6 r5 s3 r4 r3 s2 r2 s1 r1 r0 s0 ck_s1 x_s2_s1
-        p_s1_s2 _ hlps ck_s4 dl_r7_s4 d_r8_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin
-        x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r6_s3 dls_r6_s3 wf_s2 hpin_2 x_s3_s2
-        _ _ c_s2_s3 p_s2_s3 _ _ v_r4_s2 d_r4_s2 wf_s0 hpin_3 x_s1_s0 _ _ c_s0_s1
-        p_s0_s1 _ _ v_r1_s0 d_r1_s0
+    case vc5 =>
+      rename_i s5 hneg0 s4 s3 s2 s1 s0 ck_s1 x_s2_s1 p_s1_s2 _ hlps ck_s4 dl_r7_s4
+        d_r8_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r6_s3
+        dls_r6_s3 wf_s2 hpin_2 x_s3_s2 _ _ c_s2_s3 p_s2_s3 _ _ v_r4_s2 d_r4_s2 wf_s0 hpin_3
+        x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r1_s0 d_r1_s0
       exact ck_s1.mono ⟨wf_s0⟩ x_s1_s0 c_s0_s1 p_s0_s1
-    case vc16.hn =>
-      rename_i s5 r8 hneg0 r7 s4 r6 r5 s3 r4 r3 s2 r2 s1 r1 r0 s0 ck_s1 x_s2_s1
-        p_s1_s2 _ hlps ck_s4 dl_r7_s4 d_r8_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin
-        x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r6_s3 dls_r6_s3 wf_s2 hpin_2 x_s3_s2
-        _ _ c_s2_s3 p_s2_s3 _ _ v_r4_s2 d_r4_s2 wf_s0 hpin_3 x_s1_s0 _ _ c_s0_s1
-        p_s0_s1 _ _ v_r1_s0 d_r1_s0
+    case vc6 =>
+      rename_i s5 hneg0 s4 s3 s2 s1 s0 ck_s1 x_s2_s1 p_s1_s2 _ hlps ck_s4 dl_r7_s4
+        d_r8_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r6_s3
+        dls_r6_s3 wf_s2 hpin_2 x_s3_s2 _ _ c_s2_s3 p_s2_s3 _ _ v_r4_s2 d_r4_s2 wf_s0 hpin_3
+        x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r1_s0 d_r1_s0
       exact ⟨_, hpin_3 _ rfl⟩
-    case vc17 =>
-      rename_i s6 r9 hneg0 r8 s5 r7 r6 s4 r5 r4 s3 r3 s2 r2 r1 s1 r0 dom0 body0
-        mb0 s0 ck_s2 x_s3_s2 p_s2_s3 hc1 hlps ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5
-        p_s5_s6 wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r7_s4 dls_r7_s4
-        wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3 d_r5_s3 wf_s1 hpin_3
-        x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1 ck_s0 v_r9_type_s0
-        x_s1_s0 p_s0_s1 hc2
+    case vc2 =>
+      rename_i s6 hneg0 s5 s4 s3 s2 s1 s0 dom0 body0 mb0 ck_s2 x_s3_s2 p_s2_s3 hc1 hlps
+        ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5 p_s5_s6 wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5
+        p_s4_s5 vls_r7_s4 dls_r7_s4 wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3
+        d_r5_s3 wf_s1 hpin_3 x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1 ck_s0 x_s1_s0
+        p_s0_s1 hc2 v_r9_type_s0
       have x50 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
         (x_s2_s1.trans x_s1_s0)))
       refine ⟨ck_s0, x_s6_s5.trans x50, p_s0_s1.trans (p_s1_s2.trans
@@ -1630,13 +1585,12 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       rw [beq_of_denoteE hwf0 hD (denote_ext hdom x_s1_s0),
         beq_of_denoteE hwf0 hB (hc2 _ (hpin_3 _ rfl)),
         stringOfListTyOk_forallE hle hT]
-    case vc18 =>
-      rename_i s6 r9 hneg0 r8 s5 r7 r6 s4 r5 r4 s3 r3 s2 r2 r1 s1 r0 x1 hnot0 s0
-        ck_s2 x_s3_s2 p_s2_s3 hc1 hlps ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5 p_s5_s6
-        wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r7_s4 dls_r7_s4 wf_s3
-        hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3 d_r5_s3 wf_s1 hpin_3
-        x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1 ck_s0 v_r9_type_s0
-        x_s1_s0 p_s0_s1 hc2
+    case vc3 =>
+      rename_i s6 hneg0 s5 s4 s3 s2 s1 s0 x1 hnot0 ck_s2 x_s3_s2 p_s2_s3 hc1 hlps ck_s5 dl_r8_s5
+        d_r9_type_s5 x_s6_s5 p_s5_s6 wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r7_s4
+        dls_r7_s4 wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3 d_r5_s3 wf_s1 hpin_3
+        x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1 ck_s0 x_s1_s0 p_s0_s1 hc2
+        v_r9_type_s0
       have x50 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
         (x_s2_s1.trans x_s1_s0)))
       refine ⟨ck_s0, x_s6_s5.trans x50, p_s0_s1.trans (p_s1_s2.trans
@@ -1644,13 +1598,11 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf v_r9_type_s0
         (denote_ext d_r9_type_s5 x50) hnot0)).2.symm
     -- round 4: the type does not carry the `forallE` TAG
-    case vc19 =>
-      rename_i s6 r9 hneg0 r8 s5 r7 r6 s4 r5 r4 s3 r3 s2 r2 r1 s1 r0 htag s0
-        ck_s2 ck_s0 x_s3_s2 x_s1_s0 p_s2_s3 hc1 p_s0_s1 hc2
-        hlps ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5 p_s5_s6
-        wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r7_s4 dls_r7_s4 wf_s3
-        hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3 d_r5_s3 wf_s1 hpin_3
-        x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1
+    case vc4 =>
+      rename_i s6 hneg0 s5 s4 s3 s2 s1 s0 htag ck_s2 ck_s0 x_s3_s2 x_s1_s0 p_s2_s3 hc1
+        p_s0_s1 hc2 hlps ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5 p_s5_s6 wf_s4 hpin x_s5_s4 _ _
+        _ _ c_s4_s5 p_s4_s5 vls_r7_s4 dls_r7_s4 wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _
+        v_r5_s3 d_r5_s3 wf_s1 hpin_3 x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1
       have x50 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
         (x_s2_s1.trans x_s1_s0)))
       refine ⟨ck_s0, x_s6_s5.trans x50, p_s0_s1.trans (p_s1_s2.trans
@@ -1696,77 +1648,69 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
   have h7 := fun (s : AState) (oc : Option IConstantInfo) =>
     charOfNatTyOk_spec (mode := mode) (env := env) (fe := fe) s oc
       (env.find? ConLeche.charOfNatName)
-  mvcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
+  to_wp; vcgen [ConRon.Arena.strLitSupported, ConRon.Arena.pinString,
     ConRon.Arena.pinStringOfList, ConRon.Arena.pinList,
     ConRon.Arena.pinListNil, ConRon.Arena.pinListCons, ConRon.Arena.pinChar,
-    ConRon.Arena.pinCharOfNat, hn, h1, h2, h3, h4, h5, h6, h7]
+    ConRon.Arena.pinCharOfNat, wp% hn, wp% h1, wp% h2, wp% h3, wp% h4, wp% h5, wp% h6, wp% h7]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
-  case vc2.post.success.isTrue =>
+  case vc1 =>
     rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 _
     refine ⟨ck_s0, x_s1_s0,
       p_s0_s1, ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc6.post.success.isFalse.post.success.post.success.isTrue =>
-    rename_i s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s1 hpin x_s2_s1
-      p_s1_s2 _
+  case vc2 =>
+    rename_i s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s1 hpin x_s2_s1 p_s1_s2 _
     refine ⟨ck_s0, x_s2_s1.trans (x_s1_s0),
       p_s0_s1.trans (p_s1_s2), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc10.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
-    rename_i s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s2 hpin x_s3_s2
-      p_s2_s3 hneg1 ck_s1 hpin_2 x_s2_s1 p_s1_s2 _
+  case vc3 =>
+    rename_i s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s2 hpin x_s3_s2 p_s2_s3 hneg1 ck_s1
+      hpin_2 x_s2_s1 p_s1_s2 _
     refine ⟨ck_s0, x_s3_s2.trans (x_s2_s1.trans (x_s1_s0)),
       p_s0_s1.trans (p_s1_s2.trans (p_s2_s3)), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc14.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
-    rename_i s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s3 hpin
-      x_s4_s3 p_s3_s4 hneg1 ck_s2 hpin_2 x_s3_s2 p_s2_s3 hneg2 ck_s1 hpin_3
-      x_s2_s1 p_s1_s2 _
+  case vc4 =>
+    rename_i s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s3 hpin x_s4_s3 p_s3_s4 hneg1
+      ck_s2 hpin_2 x_s3_s2 p_s2_s3 hneg2 ck_s1 hpin_3 x_s2_s1 p_s1_s2 _
     refine ⟨ck_s0, x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0))),
       p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4))), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc18.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
-    rename_i s5 r3 s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s4
-      hpin x_s5_s4 p_s4_s5 hneg1 ck_s3 hpin_2 x_s4_s3 p_s3_s4 hneg2 ck_s2
-      hpin_3 x_s3_s2 p_s2_s3 hneg3 ck_s1 hpin_4 x_s2_s1 p_s1_s2 _
+  case vc5 =>
+    rename_i s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s4 hpin x_s5_s4 p_s4_s5 hneg1
+      ck_s3 hpin_2 x_s4_s3 p_s3_s4 hneg2 ck_s2 hpin_3 x_s3_s2 p_s2_s3 hneg3 ck_s1 hpin_4
+      x_s2_s1 p_s1_s2 _
     refine ⟨ck_s0, x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0)))),
       p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5)))), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc22.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
-    rename_i s6 r4 s5 r3 s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0
-      ck_s5 hpin x_s6_s5 p_s5_s6 hneg1 ck_s4 hpin_2 x_s5_s4 p_s4_s5 hneg2
-      ck_s3 hpin_3 x_s4_s3 p_s3_s4 hneg3 ck_s2 hpin_4 x_s3_s2 p_s2_s3 hneg4
-      ck_s1 hpin_5 x_s2_s1 p_s1_s2 _
+  case vc6 =>
+    rename_i s6 s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s5 hpin x_s6_s5 p_s5_s6
+      hneg1 ck_s4 hpin_2 x_s5_s4 p_s4_s5 hneg2 ck_s3 hpin_3 x_s4_s3 p_s3_s4 hneg3 ck_s2
+      hpin_4 x_s3_s2 p_s2_s3 hneg4 ck_s1 hpin_5 x_s2_s1 p_s1_s2 _
     refine ⟨ck_s0, x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans
         (x_s1_s0))))),
       p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6))))), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc26.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isTrue =>
-    rename_i s7 r5 s6 r4 s5 r3 s4 r2 s3 r1 s2 r0 s1 s0 ck_s0 x_s1_s0 p_s0_s1
-      hneg0 ck_s6 hpin x_s7_s6 p_s6_s7 hneg1 ck_s5 hpin_2 x_s6_s5 p_s5_s6
-      hneg2 ck_s4 hpin_3 x_s5_s4 p_s4_s5 hneg3 ck_s3 hpin_4 x_s4_s3 p_s3_s4
-      hneg4 ck_s2 hpin_5 x_s3_s2 p_s2_s3 hneg5 ck_s1 hpin_6 x_s2_s1 p_s1_s2 _
+  case vc7 =>
+    rename_i s7 s6 s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s6 hpin x_s7_s6 p_s6_s7
+      hneg1 ck_s5 hpin_2 x_s6_s5 p_s5_s6 hneg2 ck_s4 hpin_3 x_s5_s4 p_s4_s5 hneg3 ck_s3
+      hpin_4 x_s4_s3 p_s3_s4 hneg4 ck_s2 hpin_5 x_s3_s2 p_s2_s3 hneg5 ck_s1 hpin_6 x_s2_s1
+      p_s1_s2 _
     refine ⟨ck_s0, x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
         (x_s2_s1.trans (x_s1_s0)))))),
       p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans
         (p_s6_s7)))))), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc28.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success.isFalse.post.success.post.success =>
-    rename_i s8 r7 s7 r6 s6 r5 s5 r4 s4 r3 s3 r2 s2 r1 s1 _ s0 hneg0 ck_s7
-      hpin x_s8_s7 p_s7_s8 hneg1 ck_s6 hpin_2 x_s7_s6 p_s6_s7 hneg2 ck_s5
-      hpin_3 x_s6_s5 p_s5_s6 hneg3 ck_s4 hpin_4 x_s5_s4 p_s4_s5 hneg4 ck_s3
-      hpin_5 x_s4_s3 p_s3_s4 hneg5 ck_s2 hpin_6 x_s3_s2 p_s2_s3 hneg6 ck_s1
-      hpin_7 x_s2_s1 p_s1_s2
-    intro ck_s0 x_s1_s0 p_s0_s1 hlast
-    subst hlast
+  case vc8 =>
+    rename_i s8 s7 s6 s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s7 hpin x_s8_s7
+      p_s7_s8 hneg1 ck_s6 hpin_2 x_s7_s6 p_s6_s7 hneg2 ck_s5 hpin_3 x_s6_s5 p_s5_s6 hneg3
+      ck_s4 hpin_4 x_s5_s4 p_s4_s5 hneg4 ck_s3 hpin_5 x_s4_s3 p_s3_s4 hneg5 ck_s2 hpin_6
+      x_s3_s2 p_s2_s3 hneg6 ck_s1 hpin_7 x_s2_s1 p_s1_s2
     refine ⟨ck_s0, x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
         (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0))))))),
       p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans
         (p_s6_s7.trans (p_s7_s8))))))), ?_⟩
     simp_all [ConLeche.strLitSupported]
-  case vc29 => intro s hs _; subst hs; assumption
-  case vc30 => intro s hs hp; subst hs; exact optCI_find (by assumption) (hp _ rfl)
   all_goals first
     | assumption
     | (apply CheckOK.pins; assumption)

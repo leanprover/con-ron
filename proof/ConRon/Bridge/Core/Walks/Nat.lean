@@ -21,10 +21,7 @@ import ConRon.Bridge.Core.Walks.Proj
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -78,17 +75,15 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃⇓? r s' => ⌜s' = s₀ ∧ r = ConLeche.rawNatLit? x⌝⦄ := by
   have hp := hok.pins
   obtain ⟨rk, hrk⟩ := hok.state.wf
-  mvcgen [ConRon.Arena.rawNatLit?, ConRon.Arena.emptyLevels,
+  to_wp; vcgen [ConRon.Arena.rawNatLit?, ConRon.Arena.emptyLevels,
     ConRon.Arena.pinNatZero]
   all_goals (bridge_peel; subst_vars)
   case vc1 =>
-    rename_i n _ hview
+    rename_i n hview
     refine ⟨rfl, ?_⟩
     rw [denote_lit_inv hok.state.wf hview hden]; rfl
-  case vc2.hp => exact hp
-  case vc3.hp => exact hp
-  case vc4 =>
-    rename_i c us el nz _ hnz hel hview
+  case vc2 =>
+    rename_i c us hnz hel hview
     refine ⟨rfl, ?_⟩
     obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hok.state.wf hview hden
     rw [beq_of_denoteN hrk.nsWF hn (hnz _ rfl), beq_of_denoteLs hrk.lss hls hel]
@@ -97,8 +92,9 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
       simp only [ConLeche.rawNatLit?]
       by_cases hz : nm = ConLeche.natZeroName <;> simp [hz]
     | cons l ls => simp [ConLeche.rawNatLit?]
+  case vc3 | vc4 => exact hp
   case vc5 =>
-    rename_i _ hnl hnc _ hview
+    rename_i _ hnl hnc hview
     exact ⟨rfl, (rawNatLit?_of_view hok.state.wf hview hden hnl hnc).symm⟩
 
 /-! ## 3. The name tests -/
@@ -126,7 +122,7 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
         nm = ConLeche.natShiftRightName))⌝⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  mvcgen [ConRon.Arena.natBinOpName, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
+  to_wp; vcgen [ConRon.Arena.natBinOpName, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
   all_goals (bridge_peel; subst_vars)
   all_goals first | exact hp | skip
   refine ⟨rfl, ?_⟩
@@ -154,9 +150,9 @@ theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
     ⦃fun s => ⌜s = s₀⌝⦄ ConRon.Arena.natOpStored fe c
     ⦃⇓? b s' => ⌜s' = s₀ ∧ b = ConLeche.natOpStored env nm⌝⦄ := by
-  mvcgen [ConRon.Arena.natOpStored]
+  to_wp; vcgen [ConRon.Arena.natOpStored]
   all_goals (bridge_peel; subst_vars)
-  · rename_i icv v hint hfd _
+  · rename_i icv v hint hfd
     obtain ⟨_, _, _, _, hfind⟩ := env_defn_of_index hok hn hfd
     refine ⟨rfl, ?_⟩
     simp only [ConLeche.natOpStored, hfind]
@@ -174,7 +170,7 @@ theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
         ws.contains c = ConLeche.natOpWfNames.contains nm⌝⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  mvcgen [ConRon.Arena.natOpWfNames, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
+  to_wp; vcgen [ConRon.Arena.natOpWfNames, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight]
   all_goals (bridge_peel; subst_vars)
   all_goals first | exact hp | skip
   refine ⟨rfl, fun c nm hn => ?_⟩
@@ -290,7 +286,7 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
         denoteEO s'.store r = some (ConLeche.natOpResult nm a b)⌝⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  mvcgen [ConRon.Arena.natOpResult, ConRon.Arena.natPredName, ConRon.Arena.pinNatPred, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, ConRon.Arena.constE,
+  to_wp; vcgen [ConRon.Arena.natOpResult, ConRon.Arena.natPredName, ConRon.Arena.pinNatPred, ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd, ConRon.Arena.natSubName, ConRon.Arena.pinNatSub, ConRon.Arena.natMulName, ConRon.Arena.pinNatMul, ConRon.Arena.natPowName, ConRon.Arena.pinNatPow, ConRon.Arena.natBeqName, ConRon.Arena.pinNatBeq, ConRon.Arena.natBleName, ConRon.Arena.pinNatBle, ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv, ConRon.Arena.natModName, ConRon.Arena.pinNatMod, ConRon.Arena.natGcdName, ConRon.Arena.pinNatGcd, ConRon.Arena.natLandName, ConRon.Arena.pinNatLand, ConRon.Arena.natLorName, ConRon.Arena.pinNatLor, ConRon.Arena.natXorName, ConRon.Arena.pinNatXor, ConRon.Arena.natShiftLeftName, ConRon.Arena.pinNatShiftLeft, ConRon.Arena.natShiftRightName, ConRon.Arena.pinNatShiftRight, ConRon.Arena.constE,
     ConRon.Arena.emptyLevels, ConRon.Arena.boolTrueName,
     ConRon.Arena.boolFalseName, ConRon.Arena.pinBoolTrue,
     ConRon.Arena.pinBoolFalse]
@@ -299,14 +295,11 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     | exact hp
     | exact hwf
     | exact viewOK_lit
-    | (intro s hs _; subst hs; exact hwf)
-    | (intro s hs hel; subst hs
-       obtain ⟨w, hw, _⟩ := denoteLs_view hel
+    | (obtain ⟨w, hw, _⟩ := denoteLs_view ‹denoteLs _ _ = some []›
        exact viewOK_const (nview_isSome_of_denote
          (‹∀ x, pinNames[PIN_BOOL_TRUE]? = some x → denoteN _ _ = some x› _ rfl))
          (by rw [hw]; rfl))
-    | (intro s hs hel; subst hs
-       obtain ⟨w, hw, _⟩ := denoteLs_view hel
+    | (obtain ⟨w, hw, _⟩ := denoteLs_view ‹denoteLs _ _ = some []›
        exact viewOK_const (nview_isSome_of_denote
          (‹∀ x, pinNames[PIN_BOOL_FALSE]? = some x → denoteN _ _ = some x› _ rfl))
          (by rw [hw]; rfl))
@@ -378,7 +371,7 @@ theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.natIndOk]
+    to_wp; vcgen [ConRon.Arena.natIndOk]
     all_goals (bridge_peel; subst_vars; exact ⟨rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -389,18 +382,18 @@ theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       · rename_i cv caps' hcv _hcaps
         cases hci
         obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
-        mvcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
+        to_wp; vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
         all_goals (bridge_peel; subst_vars)
-        · exact hp
         · rename_i hs1
           refine ⟨rfl, ?_⟩
           simp only [ConLeche.natIndOk, isEmpty_of_denoteNList hlps,
             beq_of_denoteE hwf hty hs1]
+        · exact hp
       · simp at hci
     all_goals
       (have hn : ¬ ∃ cv caps, c = .indInfo cv caps := fun h' => by
          obtain ⟨v, caps, hv⟩ := (denoteCI_ind_iff hci).mpr h'; cases hv
-       mvcgen [ConRon.Arena.natIndOk]
+       to_wp; vcgen [ConRon.Arena.natIndOk]
        bridge_peel; subst_vars
        refine ⟨rfl, ?_⟩
        cases c <;> simp_all [ConLeche.natIndOk])
@@ -414,20 +407,19 @@ theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
         s'.pins = s₀.pins ∧ denoteE s'.store r = some (.const nm [])⌝⦄ := by
   have hp := hok.pins
   have hwf := hok.state.wf
-  mvcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
+  to_wp; vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
   all_goals (bridge_peel; subst_vars)
-  case vc1.hp => exact hp
-  case vc2 =>
-    rename_i hel
-    intro hwf' hx _ _ hc hp' _ _ _ hd
+  case vc1 =>
+    rename_i hwf' hx _ _ hc hp' _ _ _ hd hel
     refine ⟨hok.mono ⟨hwf'⟩ hx hc hp', hx, hp', ?_⟩
     rw [hd]
     simp only [denoteEView, denoteN_ext hn hx, denoteLs_ext hel hx, opt2]
-  case vc3 => intro s hs _; subst hs; exact hwf
-  case vc4 =>
-    intro s hs hel; subst hs
+  case vc2 => exact hwf
+  case vc3 =>
+    rename_i hel
     obtain ⟨w, hw, _⟩ := denoteLs_view hel
     exact viewOK_const (nview_isSome_of_denote hn) (by rw [hw]; rfl)
+  case vc4 => exact hp
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
 for `natZeroOk`**. -/
@@ -442,7 +434,7 @@ theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.natZeroOk]
+    to_wp; vcgen [ConRon.Arena.natZeroOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -452,19 +444,19 @@ theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
       have hce := fun (s : AState) (n : NIdx) =>
         constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
-      mvcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, hce]
+      to_wp; vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, wp% hce]
       all_goals (bridge_peel; subst_vars)
-      · exact hp
-      · exact hok
-      · rename_i hnt; exact hnt _ rfl
       · rename_i hck hx hp' hd _
         refine ⟨hck, hx, hp', ?_⟩
         simp only [ConLeche.natZeroOk, isEmpty_of_denoteNList hlps,
           beq_of_denoteE hck.state.wf (denote_ext hty hx) hd]
+      · exact hok
+      · rename_i hnt; exact hnt _ rfl
+      · exact hp
     all_goals
       (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
          obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
-       mvcgen [ConRon.Arena.natZeroOk]
+       to_wp; vcgen [ConRon.Arena.natZeroOk]
        all_goals (bridge_peel; subst_vars)
        refine ⟨hok, Ext.refl _, rfl, ?_⟩
        cases c <;> simp_all [ConLeche.natZeroOk])
@@ -482,7 +474,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
   cases oc with
   | none =>
     simp only [OptCI] at hrel; subst hrel
-    mvcgen [ConRon.Arena.natSuccOk]
+    to_wp; vcgen [ConRon.Arena.natSuccOk]
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
@@ -492,20 +484,17 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
       have hce := fun (s : AState) (n : NIdx) =>
         constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
-      mvcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, hce]
+      to_wp; vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, wp% hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      case vc1.isTrue =>
-        rename_i hne _
+      case vc1 =>
+        rename_i hne
         refine ⟨hok, Ext.refl _, rfl, ?_⟩
         rw [isEmpty_of_denoteNList hlps] at hne
         simp only [Bool.not_eq_eq_eq_not, Bool.not_true] at hne
         simp only [ConLeche.natSuccOk, hne, Bool.false_and]
-      case vc2.hp => exact hp
-      case vc3.hok => exact hok
-      case vc4.hn => rename_i hnt; exact hnt _ rfl
-      case vc5 =>
-        rename_i hne _ _ _ _ _ _ _ _ hck hview hx hp' hd
+      case vc2 =>
+        rename_i hne _ _ _ _ _ _ hck hx hp' hd hview
         refine ⟨hck, hx, hp', ?_⟩
         rw [isEmpty_of_denoteNList hlps] at hne
         obtain ⟨p, q, hpq, hp1, hq1⟩ :=
@@ -525,8 +514,8 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
             · subst hp hq; exact absurd rfl (hne' _ _ _)
             · simp [hq]
           · simp [hp]
-      case vc6 =>
-        rename_i hne _ _ _ _ hnf _ _ hck hview hx hp' _
+      case vc3 =>
+        rename_i hne _ _ _ hnf _ hck hx hp' _ hview
         refine ⟨hck, hx, hp', ?_⟩
         have hnot := denote_not_forallE hck.state.wf hview (denote_ext hty hx) hnf
         simp only [ConLeche.natSuccOk]
@@ -534,8 +523,8 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         · rename_i heq; exact absurd heq (hnot _ _ _)
         · simp
       -- the type does not carry the `forallE` TAG (round 4's tag-first arm)
-      case vc7 =>
-        rename_i hne _ _ _ htg _ hck hx hp' _ _
+      case vc4 =>
+        rename_i hne _ _ htg hck hx hp' _ _
         refine ⟨hck, hx, hp', ?_⟩
         have hty' := denote_ext hty hx
         obtain ⟨vt, hview⟩ := denoteE_view hty'
@@ -546,10 +535,13 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         split
         · rename_i heq; exact absurd heq (hnot _ _ _)
         · simp
+      case vc5 => exact hok
+      case vc6 => rename_i hnt; exact hnt _ rfl
+      case vc7 => exact hp
     all_goals
       (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
          obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
-       mvcgen [ConRon.Arena.natSuccOk]
+       to_wp; vcgen [ConRon.Arena.natSuccOk]
        all_goals (bridge_peel; subst_vars)
        refine ⟨hok, Ext.refl _, rfl, ?_⟩
        cases c <;> simp_all [ConLeche.natSuccOk])
@@ -567,35 +559,26 @@ theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     natZeroOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natZeroName)
   have hs := fun (s : AState) (oc : Option IConstantInfo) =>
     natSuccOk_spec (mode := mode) (env := env) (fe := fe) s oc (env.find? ConLeche.natSuccName)
-  mvcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
-    ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, hi, hz, hs]
+  to_wp; vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
+    ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, wp% hi, wp% hz, wp% hs]
   all_goals (bridge_peel; subst_vars)
   all_goals first
-    | exact hp
-    | exact hok
+    | assumption
     | (apply CheckOK.pins; assumption)
-    | (exact optCI_find hok
-        (‹∀ x, pinNames[PIN_NAT]? = some x → denoteN _ _ = some x› _ rfl))
-    | (exact optCI_find (by assumption)
-        (‹∀ x, pinNames[PIN_NAT_ZERO]? = some x → denoteN _ _ = some x› _ rfl))
-    | (intro s hs _; subst hs; assumption)
-    | (intro s hs hsucc; subst hs
-       exact optCI_find (by assumption) (hsucc _ rfl))
+    | (apply optCI_find (by assumption); apply_assumption; rfl)
     | skip
   -- the three declines and the conjunction
-  case vc4 =>
+  case vc1 =>
     rename_i hni
     refine ⟨hok, Ext.refl _, rfl, ?_⟩
     simp_all [ConLeche.natLitSupported]
-  case vc8 =>
+  case vc2 =>
     rename_i hck hx hp' _ _ _ hnz
     refine ⟨hck, hx, hp', ?_⟩
     simp_all [ConLeche.natLitSupported]
-  case vc10 =>
-    rename_i _ _ _ _ _ _ _ hni _ _ hnz hck1 _ hx01 hp10
-    intro hck hx12 hp21 hr
+  case vc3 =>
+    rename_i hck hx12 hp21 hni _ _ hnz hck1 _ hx01 hp10
     refine ⟨hck, hx01.trans hx12, hp21.trans hp10, ?_⟩
-    subst hr
     cases h1 : ConLeche.natIndOk (env.find? ConLeche.natName) <;>
       cases h2 : ConLeche.natZeroOk (env.find? ConLeche.natZeroName) <;>
       simp_all [ConLeche.natLitSupported]
@@ -617,8 +600,9 @@ theorem rawNatLit?_spec' (s₀ : AState) (h : EIdx)
         r = ConLeche.rawNatLit? x⌝⦄ := by
   obtain ⟨x, hx⟩ := hpre
   have hb := rawNatLit?_spec s₀ h x hok hx
-  mvcgen [hb]
-  intro h1 h2
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2⟩ := hpost
   exact ⟨h1, fun y hy => by rw [hx] at hy; cases hy; exact h2⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `natBinOpName`
@@ -644,8 +628,9 @@ theorem natBinOpName_spec' (s₀ : AState) (c : NIdx)
           nm = ConLeche.natShiftRightName))⌝⦄ := by
   obtain ⟨nm, hn⟩ := hpre
   have hb := natBinOpName_spec s₀ c nm hok hn
-  mvcgen [hb]
-  intro h1 h2
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2⟩ := hpost
   exact ⟨h1, fun y hy => by rw [hn] at hy; cases hy; exact h2⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — answer
@@ -658,8 +643,9 @@ theorem natOpStored_spec' (s₀ : AState) (c : NIdx)
         b = ConLeche.natOpStored env nm⌝⦄ := by
   obtain ⟨nm, hn⟩ := hpre
   have hb := natOpStored_spec s₀ c nm hok hn
-  mvcgen [hb]
-  intro h1 h2
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2⟩ := hpost
   exact ⟨h1, fun y hy => by rw [hn] at hy; cases hy; exact h2⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — answer
@@ -673,8 +659,9 @@ theorem natOpResult_spec' (s₀ : AState) (c : NIdx) (a b : Nat)
         denoteEO s'.store r = some (ConLeche.natOpResult nm a b)⌝⦄ := by
   obtain ⟨nm, hn⟩ := hpre
   have hb := natOpResult_spec s₀ c nm a b hok hn
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   exact ⟨h1, h2, h3, fun y hy => by rw [hn] at hy; cases hy; exact h4⟩
 
 /-! ### `reduceNat`'s pure side at its exits
@@ -909,27 +896,22 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hsto := natOpStored_spec' (mode := mode) (env := env) (fe := fe)
   have hwfn := natOpWfNames_spec (mode := mode) (env := env) (fe := fe)
   have hres := natOpResult_spec' (mode := mode) (env := env) (fe := fe)
-  mvcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
-    ConRon.Arena.pinNatSucc, hwh, hraw, hlit, hbin, hsto, hwfn, hres]
+  to_wp; vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels,
+    ConRon.Arena.pinNatSucc, wp% hwh, wp% hraw, wp% hlit, wp% hbin, wp% hsto, wp% hwfn, wp% hres]
   all_goals (bridge_peel; subst_vars)
   -- the twin's two tag tests (task #97-P5-Core round 4) add a hypothesis to
   -- every `then` arm that no arm's proof needs; clear them so the contexts are
-  -- the view-first twin's again (the two new `else` arms are vc48 and vc51)
+  -- the view-first twin's again (the two new `else` arms are vc47 and vc50)
   all_goals clear_tag_hyps
   -- the plain preconditions
   all_goals first
-    | exact hp
     | assumption
     | exact viewOK_lit
     | (apply CheckOK.wf'; assumption)
-    | (apply CheckOK.readN'; assumption)
-    | (intro h; exact h.elim)
-    | (intro s hs _; subst hs; assumption)
-    | (apply CheckOK.mono (by assumption) ⟨by assumption⟩ <;> assumption)
     | skip
   -- `Nat.succ`: the level list is not empty
-  case vc2 =>
-    rename_i _ _ _ _ _ hus s0 hel hvc hve
+  case vc1 =>
+    rename_i s0 hus hel hve hvc
     obtain ⟨nm, ls, ax, rfl, _, _, hle⟩ := unary_shape hwf hve hvc hden hel
     refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
@@ -939,19 +921,20 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       obtain ⟨⟨rfl, rfl⟩, rfl⟩ := h'
       rw [hle] at hus; simp at hus
     · intro c' a' b' h'; simp at h'
-  case vc6 =>
-    rename_i _ _ _ _ _ hus _ s0 s1 hck1 hx01 hp10 hsucc hel hvc hve hg
+  case vc9 =>
+    rename_i hus s0 s1 hck1 hx01 hp10 hsucc hel hve hvc hg
     obtain ⟨nm, ls, ax, rfl, _, ha, _⟩ := unary_shape hwf hve hvc hden hel
     simp only [Expr.WScoped, true_and] at hwx
     exact ⟨ax, denote_ext ha hx01, hwx⟩
-  case vc8 =>
-    rename_i _ _ _ _ _ hus _ s0 s1 _ s2 hck1 hck2 hx01 hx12 hp10 hp21 hwa hsucc hel hvc hve hg
+  case vc7 =>
+    rename_i hus s0 s1 _ s2 hck1 hck2 hx01 hx12 hp10 hp21 hwa hsucc hel hve hvc hg
     obtain ⟨nm, ls, ax, rfl, _, ha, _⟩ := unary_shape hwf hve hvc hden hel
     obtain ⟨w, hw, _, _⟩ := hwa ax (denote_ext ha hx01)
     exact ⟨w, hw⟩
   -- `Nat.succ` FIRES
-  case vc11 =>
-    rename_i _ _ _ _ _ hus _ s0 s1 _ n s2 _ s3 hck1 hwf3 hx01 hx23 hp10 _ _ hc32 hp32 _ _ _ hlit hsucc hel hvc hve hg hck2 hr hx12 hp21 hwa
+  case vc2 =>
+    rename_i hus s0 s1 _ s2 n s3 hck1 hwf3 hx01 hx23 hp10 _ _ hc32 hp32 _ _ _ hlit hsucc
+      hel hve hvc hg hck2 hx12 hp21 hwa hr
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     rw [beq_handle_eq hwf hn (hsucc _ rfl)] at hg
@@ -964,10 +947,10 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     refine ⟨some (.lit (.natVal (n + 1))), ?_, ?_, F, ?_⟩
     · simp only [denoteEO, hlit, denoteEView, Option.map_some]
     · intro y hy; cases hy; simp [Expr.WScoped]
-    · dsimp only; rw [reduceNatFueled_succ hg hF, ← hraw]; rfl
+    · dsimp only; rw [← ConLeche.reduceNatFueled, reduceNatFueled_succ hg hF, ← hraw]; rfl
   -- `Nat.succ` on a non-literal
-  case vc12 =>
-    rename_i _ _ _ _ _ hus _ s0 s1 _ s2 hck1 hx01 hp10 hsucc hel hvc hve hg hck2 hr hx12 hp21 hwa
+  case vc5 =>
+    rename_i hus s0 s1 _ s2 hck1 hx01 hp10 hsucc hel hve hvc hg hck2 hx12 hp21 hwa hr
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     rw [beq_handle_eq hwf hn (hsucc _ rfl)] at hg
@@ -976,10 +959,10 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     have hraw := hr w hw
     refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
-    exact ⟨none, rfl, by simp, F, by dsimp only; rw [reduceNatFueled_succ hg hF, ← hraw]; rfl⟩
+    exact ⟨none, rfl, by simp, F, by dsimp only; rw [← ConLeche.reduceNatFueled, reduceNatFueled_succ hg hF, ← hraw]; rfl⟩
   -- the unary guard declines
-  case vc13 =>
-    rename_i _ _ _ _ _ hus _ s0 s1 hck1 hx01 hp10 hsucc hel hvc hve hng
+  case vc10 =>
+    rename_i hus s0 s1 hck1 hx01 hp10 hsucc hel hve hvc hng
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     rw [beq_handle_eq hwf hn (hsucc _ rfl)] at hng
@@ -989,8 +972,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     exact ⟨none, rfl, by simp, 0, reduceNatFueled_succ_no hng'⟩
   -- the binary shape at a level-carrying constant
-  case vc15 =>
-    rename_i _ _ _ _ _ _ _ hus s0 hel hvc hvf2 hve
+  case vc14 =>
+    rename_i s0 hus hel hve hvf2 hvc
     obtain ⟨nm, ls, ax, bx, rfl, _, _, _, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
@@ -1001,38 +984,39 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       simp only [Expr.app.injEq, Expr.const.injEq] at h'
       obtain ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩ := h'
       rw [hle] at hus; simp at hus
-  case vc17 =>
-    rename_i _ _ _ _ _ _ _ hus s0 hel hvc hvf2 hve
+  case vc44 =>
+    rename_i hus hel hve hvf2 hvc
     obtain ⟨nm, _, _, _, _, hn, _⟩ := binary_shape hwf hve hvf2 hvc hden hel
     exact ⟨nm, hn⟩
-  case vc19 =>
-    rename_i _ _ _ _ _ _ _ hus rb s0 hbin hel hvc hvf2 hve
+  case vc42 =>
+    rename_i hus rb s0 hbin hel hve hvf2 hvc
     obtain ⟨nm, _, _, _, _, hn, _⟩ := binary_shape hwf hve hvf2 hvc hden hel
     exact ⟨nm, hn⟩
-  case vc21 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 hsto hbin hel hvc hvf2 hve
+  case vc27 =>
+    rename_i hus rb rb2 s0 hbg hsto hbin hel hve hvf2 hvc
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     exact ⟨ax, ha, hwx.1⟩
-  case vc23 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ s1 hck1 hx01 hp10 hwa hsto hbin hel hvc hvf2 hve
+  case vc25 =>
+    rename_i hus rb rb2 s0 hbg _ s1 hck1 hx01 hp10 hwa hsto hbin hel hve hvf2 hvc
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     obtain ⟨w, hw, _, _⟩ := hwa ax ha
     exact ⟨w, hw⟩
-  case vc25 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+  case vc22 =>
+    rename_i hus rb rb2 s0 hbg _ s1 n hsto hbin hel hve hvf2 hvc hck1 hx01 hp10 hwa hr
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     exact ⟨bx, denote_ext hb hx01, hwx.2⟩
-  case vc27 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ s2 hck2 hx12 hp21 hwb hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+  case vc20 =>
+    rename_i hus rb rb2 s0 hbg _ s1 n _ s2 hck2 hx12 hp21 hwb hsto hbin hel hve hvf2 hvc
+      hck1 hx01 hp10 hwa hr
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1040,9 +1024,9 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain ⟨w, hw, _, _⟩ := hwb bx (denote_ext hb hx01)
     exact ⟨w, hw⟩
   -- the certified binary operation FIRES
-  case vc28 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ n2 s2 _ s3 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa hck2 hr2 hx12 hp21 hwb
-    intro hck3 hx23 hp32 hres
+  case vc15 =>
+    rename_i hus rb rb2 s0 hbg _ s1 n _ s2 n2 _ s3 hck3 hx23 hp32 hres hsto hbin hel hve
+      hvf2 hvc hck1 hx01 hp10 hwa hr hck2 hx12 hp21 hwb hr2
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1061,22 +1045,23 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     refine ⟨_, hres nm (denoteN_ext hn (hx01.trans hx12)),
       fun y hy => natOpResult_wscoped hy, F₁ + F₂, ?_⟩
-    dsimp only
+    dsimp only; rw [← ConLeche.reduceNatFueled]
     rw [reduceNatFueled_bin hcond (ConLeche.whnf_mono (by omega) hF₁), ← hr₁]
     simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hF₂,
       ← hr₂]
     rfl
-  case vc30 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ s2 n2 hck2 hx12 hp21 hwb hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
-    intro s hs _; subst hs
+  case vc17 =>
+    rename_i hus rb rb2 s0 hbg _ s1 n _ s2 n2 hsto hbin hel hve hvf2 hvc hck1 hx01 hp10
+      hwa hr hck2 hx12 hp21 hwb _
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     exact ⟨nm, denoteN_ext hn (hx01.trans hx12)⟩
   -- the second argument is not a literal
-  case vc31 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ n s1 _ s2 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa hck2 hr2 hx12 hp21 hwb
+  case vc18 =>
+    rename_i hus rb rb2 s0 hbg _ s1 n _ s2 hsto hbin hel hve hvf2 hvc hck1 hx01 hp10 hwa
+      hr hck2 hx12 hp21 hwb hr2
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1093,14 +1078,14 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     refine ⟨none, rfl, by simp, F₁ + F₂, ?_⟩
-    dsimp only
+    dsimp only; rw [← ConLeche.reduceNatFueled]
     rw [reduceNatFueled_bin hcond (ConLeche.whnf_mono (by omega) hF₁), ← hr₁]
     simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hF₂,
       ← hr₂]
     rfl
   -- the first argument is not a literal
-  case vc32 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hbg s0 _ s1 hsto hbin hel hvc hvf2 hve hck1 hr hx01 hp10 hwa
+  case vc23 =>
+    rename_i hus rb rb2 s0 hbg _ s1 hsto hbin hel hve hvf2 hvc hck1 hx01 hp10 hwa hr
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1115,34 +1100,37 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     refine ⟨hck1, hx01, hp10, fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     refine ⟨none, rfl, by simp, F₁, ?_⟩
-    dsimp only
+    dsimp only; rw [← ConLeche.reduceNatFueled]
     rw [reduceNatFueled_bin hcond hF₁, ← hr₁]
     rfl
   -- the WF-pinned safety net: its preconditions
-  case vc36 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg
+  case vc37 =>
+    rename_i hus rb rb2 hnbg s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hve hvf2 hvc hwg
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     exact ⟨ax, denote_ext ha hx01, hwx.1⟩
-  case vc38 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ s2 hck1 hck2 hx01 hx12 hp10 hp21 hwa hwfn hsto hbin hel hvc hvf2 hve hwg
+  case vc35 =>
+    rename_i hus rb rb2 hnbg s0 s1 _ s2 hck1 hck2 hx01 hx12 hp10 hp21 hwa hwfn hsto hbin
+      hel hve hvf2 hvc hwg
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     obtain ⟨w, hw, _, _⟩ := hwa ax (denote_ext ha hx01)
     exact ⟨w, hw⟩
-  case vc40 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
+  case vc32 =>
+    rename_i hus rb rb2 hnbg s0 s1 _ s2 n hck1 hx01 hp10 hwfn hsto hbin hel hve hvf2 hvc
+      hwg hck2 hx12 hp21 hwa hr
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
     simp only [Expr.WScoped, true_and] at hwx
     exact ⟨bx, denote_ext hb (hx01.trans hx12), hwx.2⟩
-  case vc42 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 _ s3 hck1 hck3 hx01 hx23 hp10 hp32 hwb hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
+  case vc30 =>
+    rename_i hus rb rb2 hnbg s0 s1 _ s2 n _ s3 hck1 hck3 hx01 hx23 hp10 hp32 hwb hwfn hsto
+      hbin hel hve hvf2 hvc hwg hck2 hx12 hp21 hwa hr
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1150,8 +1138,9 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain ⟨w, hw, _, _⟩ := hwb bx (denote_ext hb (hx01.trans hx12))
     exact ⟨w, hw⟩
   -- the safety net: the second argument is not a literal
-  case vc44 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ n s2 _ s3 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa hck3 hr2 hx23 hp32 hwb
+  case vc28 =>
+    rename_i hus rb rb2 hnbg s0 s1 _ s2 n _ s3 hck1 hx01 hp10 hwfn hsto hbin hel hve hvf2
+      hvc hwg hck2 hx12 hp21 hwa hr hck3 hx23 hp32 hwb hr2
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1172,14 +1161,15 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     refine ⟨none, rfl, by simp, F₁ + F₂, ?_⟩
-    dsimp only
+    dsimp only; rw [← ConLeche.reduceNatFueled]
     rw [reduceNatFueled_wf hncond hwcond (ConLeche.whnf_mono (by omega) hF₁), ← hr₁]
     simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hF₂,
       ← hr₂]
     rfl
   -- the safety net: the first argument is not a literal
-  case vc45 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 _ s2 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hwg hck2 hr hx12 hp21 hwa
+  case vc33 =>
+    rename_i hus rb rb2 hnbg s0 s1 _ s2 hck1 hx01 hp10 hwfn hsto hbin hel hve hvf2 hvc hwg
+      hck2 hx12 hp21 hwa hr
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1197,12 +1187,12 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     refine ⟨hck2, hx01.trans hx12, by rw [hp21, hp10], fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     refine ⟨none, rfl, by simp, F₁, ?_⟩
-    dsimp only
+    dsimp only; rw [← ConLeche.reduceNatFueled]
     rw [reduceNatFueled_wf hncond hwcond hF₁, ← hr₁]
     rfl
   -- neither guard
-  case vc46 =>
-    rename_i _ _ _ _ _ _ _ hus rb rb2 hnbg _ s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hvc hvf2 hve hnwg
+  case vc38 =>
+    rename_i hus rb rb2 hnbg s0 s1 hck1 hx01 hp10 hwfn hsto hbin hel hve hvf2 hvc hnwg
     obtain ⟨nm, ls, ax, bx, rfl, hn, ha, hb, hle⟩ :=
       binary_shape hwf hve hvf2 hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus
@@ -1219,8 +1209,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
     exact ⟨none, rfl, by simp, 0, reduceNatFueled_bin_no hncond hnw⟩
   -- the three shapes that are not an operation at all
-  case vc47 =>
-    rename_i _ _ _ _ _ hnc s0 hvx hvf2 hve
+  case vc46 =>
+    rename_i s0 _ hnc hve hvf2 hvx
     obtain ⟨fx, bx, rfl, hf, _⟩ := denote_app_inv hwf hve hden
     obtain ⟨gx, ax, rfl, hg, _⟩ := denote_app_inv hwf hvf2 hf
     have hnc' := denote_not_const hwf hvx hg (fun c us h => hnc c us h)
@@ -1231,8 +1221,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     · intro c' a' b' h'
       simp only [Expr.app.injEq] at h'
       exact hnc' c' [] h'.1.1
-  case vc49 =>
-    rename_i _ _ _ hnc hna s0 hvx hve
+  case vc48 =>
+    rename_i s0 _ hnc hna hve hvx
     obtain ⟨fx, ax, rfl, hf, _⟩ := denote_app_inv hwf hve hden
     have hnc' := denote_not_const hwf hvx hf (fun c us h => hnc c us h)
     have hna' := denote_not_app hwf hvx hf (fun f a h => hna f a h)
@@ -1245,8 +1235,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     · intro c' a' b' h'
       simp only [Expr.app.injEq] at h'
       exact hna' _ _ h'.1
-  case vc50 =>
-    rename_i _ hna s0 hve
+  case vc49 =>
+    rename_i s0 _ hna hve
     have hna' := denote_not_app hwf hve hden (fun f a h => hna f a h)
     refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
     obtain rfl := Option.some.inj (hx'.symm.trans hden)
@@ -1256,8 +1246,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   -- the tag-first `else` arms (round 4): the `app` arm's head `g` does not
   -- carry the `const` tag, and `e` does not carry the `app` tag; the views
   -- come back from the denotations
-  case vc48 =>
-    rename_i _ _ _ _ htg s0 hvf2 hve
+  case vc47 =>
+    rename_i htg hve hvf2
     obtain ⟨fx, bx, rfl, hf, _⟩ := denote_app_inv hwf hve hden
     obtain ⟨gx, ax, rfl, hg, _⟩ := denote_app_inv hwf hvf2 hf
     obtain ⟨vx, hvx⟩ := denoteE_view hg
@@ -1270,8 +1260,8 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     · intro c' a' b' h'
       simp only [Expr.app.injEq] at h'
       exact hnc' c' [] h'.1.1
-  case vc51 =>
-    rename_i hta s0
+  case vc50 =>
+    rename_i hta
     obtain ⟨vx, hve⟩ := denoteE_view hden
     have hna' := denote_not_app hwf hve hden
       (fun f a hh => view_tagOf_ne hve (t := ETag.app) hta (by rw [hh]; rfl))
