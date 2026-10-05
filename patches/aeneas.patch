@@ -213,6 +213,26 @@
  
  structure Span where
    fileName : String
+--- a/Aeneas/Std/Delab.lean
++++ b/Aeneas/Std/Delab.lean
+@@ -71,7 +71,7 @@
+     let e ← getExpr
+     unless e.isAppOfArity ``_root_.Aeneas.Std.uncurry 5 do return none
+     let val := e.appArg!
+-    unless val.isFVar ∧ val.fvarId! == fv do return none
++    unless val.isFVarOf fv do return none
+     withAppFn <| withAppArg <| enterUncurryChain #[] fun inner => do
+       let (innerPats, restPats, a) ← splitRec inner rest
+       let fvPat : Term := annotatePos tuplePos (← buildTupleTerm innerPats)
+@@ -88,7 +88,7 @@
+     let args := e.getAppArgs
+     unless args.size == numParams + 3 do return none
+     let discr := args[numParams + 1]!
+-    unless discr.isFVar ∧ discr.fvarId! == fv do return none
++    unless discr.isFVarOf fv do return none
+     unless args[numParams + 2]!.isLambda do return none
+     withNaryArg (numParams + 2) <| enterLams #[] fun ctorBinders => do
+       let (ctorPats, restPats, a) ← splitRec ctorBinders rest
 --- a/Aeneas/Tactic/Conv/Bvify/Bvify.lean
 +++ b/Aeneas/Tactic/Conv/Bvify/Bvify.lean
 @@ -381,6 +381,9 @@
@@ -384,6 +404,21 @@
      bMont = b2 := by
    bv_tac 32
 +-/
+--- a/Aeneas/Tactic/Step/Init.lean
++++ b/Aeneas/Tactic/Step/Init.lean
+@@ -453,10 +453,10 @@
+     match ← reduceProj? e with
+     | none =>
+       e.withApp fun fn args =>
+-      if fn.isConst ∧ (fn.constName! = ``Prod.fst ∨ fn.constName! = ``Prod.snd) ∧ args.size = 3 then
++      if (fn.isConstOf ``Prod.fst ∨ fn.isConstOf ``Prod.snd) ∧ args.size = 3 then
+         let pair := args[2]!
+         pair.withApp fun fn' args =>
+-          if fn'.isConst ∧ fn'.constName! = ``Prod.mk ∧ args.size = 4 then
++          if fn'.isConstOf ``Prod.mk ∧ args.size = 4 then
+             if fn.constName! = ``Prod.fst then pure (.continue args[2]!)
+             else pure (.continue args[3]!)
+           else pure (.continue e)
 --- a/Aeneas/Tactic/Step/StepStar.lean
 +++ b/Aeneas/Tactic/Step/StepStar.lean
 @@ -236,11 +236,17 @@
@@ -513,6 +548,26 @@
  
  /-- Marker class enabling `deriving BvEnumToBitVec` on an enum inductive.
  
+--- a/AeneasMeta/Saturate/Tactic.lean
++++ b/AeneasMeta/Saturate/Tactic.lean
+@@ -426,7 +426,7 @@
+     trace[Saturate.explore] ".app"
+     /- Check if this is a conjunction and we know the path to the current sub-expression (because it is a conjunct
+        in an assumption) -/
+-    if path.isSome ∧ f.isConst ∧ f.constName! == ``And ∧ args.size == 2 then do
++    if path.isSome ∧ f.isConstOf ``And ∧ args.size == 2 then do
+       -- This is a conjunction
+       let some path := path
+         | throwError "Unreachable"
+@@ -493,7 +493,7 @@
+     trace[Saturate.explore] ".app"
+     /- Check if this is a conjunction and we know the path to the current sub-expression (because it is a conjunct
+        in an assumption) -/
+-    if path.isSome ∧ f.isConst ∧ f.constName! == ``And ∧ args.size == 2 then do
++    if path.isSome ∧ f.isConstOf ``And ∧ args.size == 2 then do
+       -- This is a conjunction
+       let some path := path
+         | throwError "Unreachable"
 --- a/AeneasMeta/Simp/Simp.lean
 +++ b/AeneasMeta/Simp/Simp.lean
 @@ -116,7 +116,7 @@
@@ -527,7 +582,7 @@
 --- a/lakefile.lean
 +++ b/lakefile.lean
 @@ -6,6 +6,11 @@
-   "https://github.com/leanprover-community/mathlib4.git" @ "v4.35.0-rc3"
+   "https://github.com/leanprover-community/mathlib4.git" @ "v4.31.0"
  
  package «aeneas» where
 +  -- Lean 4.33 made `isDefEq` respect the transparency setting for implicit
