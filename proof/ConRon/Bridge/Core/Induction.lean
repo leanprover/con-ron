@@ -41,7 +41,6 @@ import ConLeche.Verify.BetaGate
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
