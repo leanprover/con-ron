@@ -86,10 +86,7 @@ import ConRon.Bridge.ExprOps.TagFirst
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 4000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -123,7 +120,7 @@ theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.abs1C = ∅ ∧
         RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r⌝⦄ := by
   have hr := (abstract1Go_spec hfv d fuel).run
-  mvcgen [abstract1Fast, hr]
+  to_wp; vcgen [abstract1Fast, wp% hr]
   all_goals bridge_vcs [Expr.abstract1, BMExt]
 
 /-! ### `AbsRangeAt`'s step lemmas at the EXECUTED walk's own hypotheses
@@ -271,37 +268,35 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    mvcgen [abstractRangeGo_zero]
+    to_wp; vcgen [abstractRangeGo_zero]
     all_goals bridge_vcs [Expr.abstractRange]
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
     have hrec := ih.run
     have hfvb := hfv.run
-    mvcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
-      absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, hrec, hfvb]
+    to_wp; vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
+      absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, wp% hrec, wp% hfvb]
     all_goals try bridge_vcs [Expr.abstractRange]
     all_goals try bridge_vcs [Expr.abstractRange, view_of_viewBindI,
       view_of_viewBindI_wf, isSome_eBindView, view_isSome]
-    -- Eleven structural verification conditions remain, in goal order: the
-    -- derived-word cutoff, `app`'s postcondition, the binder arm's four side
-    -- conditions and its postcondition, the `fvar` arm's two branches,
-    -- `letE`'s and `proj`'s postconditions and the catch-all.  This is
-    -- `abstract1Go_spec`'s list exactly — the two executed walks differ only
-    -- at the `fvar` arm and at the binder body's cursor.
+    all_goals (bridge_peel; subst_vars)
+    -- Twelve structural verification conditions remain: the derived-word
+    -- cutoff, `app`'s postcondition, the binder arm's postcondition and its
+    -- four side conditions, the `fvar` arm's two branches, `letE`'s and
+    -- `proj`'s postconditions and the catch-all.  They are the conditions
+    -- of `ExprOps/Abs.lean`'s five `abstract1Go` arm theorems and its
+    -- dispatcher together — the two executed walks differ only at the `fvar`
+    -- arm and at the binder body's cursor.
     -- the cutoff
-    next =>
-      bridge_peel
-      subst_vars
+    case vc1 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
         by grind, by grind, by grind, ?_⟩
       exact (AbsRangeAt.cutoff (by abs_hyp) (by abs_hyp)).ext
         (by grind only [Ext.refl])
     -- `app`
-    next =>
-      bridge_peel
-      subst_vars
+    case vc3 =>
       have hans := AbsRangeAt.app_step' (by abs_hyp) hok.wf
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) (by abs_hyp)
@@ -310,34 +305,8 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind only [Ext.trans], by grind, by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
-    -- the binder arm's four side conditions
-    next =>
-      bridge_peel
-      subst_vars
-      exact bmOK_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
-    next =>
-      bridge_peel
-      subst_vars
-      obtain ⟨hty, _⟩ :=
-        bindI_children_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) hden
-      exact view_isSome_of_rel hty (by abs_hyp) (by abs_hyp)
-    next =>
-      bridge_peel
-      subst_vars
-      obtain ⟨_, hb⟩ :=
-        bindI_children_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) hden
-      exact view_isSome_of_rel (denote_isSome_ext hb (by abs_hyp)) (by abs_hyp)
-        (by grind only [Ext.refl])
-    next =>
-      bridge_peel
-      subst_vars
-      refine bindI_hsame ?_ rfl (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-      grind [StateOK]
     -- the binder arm's postcondition
-    next =>
-      bridge_peel
-      subst_vars
+    case vc16 =>
       have hans := AbsRangeAt.bind_step' (by abs_hyp) hok.wf (by abs_hyp)
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
@@ -347,28 +316,39 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind only [Ext.trans], by grind, by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
+    -- the binder arm's four side conditions
+    case vc21 =>
+      exact bmOK_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
+    case vc22 =>
+      obtain ⟨hty, _⟩ :=
+        bindI_children_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) hden
+      exact view_isSome_of_rel hty (by abs_hyp) (by abs_hyp)
+    case vc23 =>
+      obtain ⟨_, hb⟩ :=
+        bindI_children_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) hden
+      exact view_isSome_of_rel (denote_isSome_ext hb (by abs_hyp)) (by abs_hyp)
+        (by grind only [Ext.refl])
+    case vc24 =>
+      -- `internRebuiltBindI_specV`'s `hsame`, its binders already introduced
+      refine bindI_hsame ?_ rfl (by abs_hyp) (by abs_hyp)
+        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) _ ‹_› ‹_›
+      grind [StateOK]
     -- the `fvar` arm: in the range, then outside it
-    next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm _hview2 hr
+    case vc31 =>
+      rename_i hr _ _ _ _ _
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, Ext.refl], by grind only [Ext.trans],
         by grind, by grind, by grind, by grind, ?_⟩
       exact AbsRangeAt.fvar_hit' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by rw [hr, denoteEView])
-    next =>
-      bridge_peel
-      subst_vars
+    case vc33 =>
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
         by grind, by grind, by grind,
         AbsRangeAt.fvar_miss' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
           (by abs_hyp) (by grind only [Ext.refl])⟩
     -- `letE`
-    next =>
-      bridge_peel
-      subst_vars
+    case vc35 =>
       have hans := AbsRangeAt.letE_step' (by abs_hyp) hok.wf
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
@@ -378,9 +358,7 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
         by grind only [Ext.trans], by grind, by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- `proj`
-    next =>
-      bridge_peel
-      subst_vars
+    case vc52 =>
       have hans := AbsRangeAt.proj_step' (by abs_hyp) hok.wf hden
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
         (by abs_hyp)
@@ -390,9 +368,7 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
         by grind only [Ext.trans], by grind, by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- the catch-all: the four leaves
-    next =>
-      bridge_peel
-      subst_vars
+    case vc61 =>
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
         by grind, by grind, by grind,
@@ -412,7 +388,7 @@ theorem abstractRangeGo_spec (hfv : FvarBSpec) (d k : Nat) (fuel : Nat)
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r⌝⦄ := by
   have hr := (abstractRangeGo_specS hfv d k fuel).run
-  mvcgen [hr]
+  to_wp; vcgen [wp% hr]
   all_goals bridge_vcs [Expr.abstractRange, BMExt]
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC — the
@@ -437,7 +413,7 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
         RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r⌝⦄ := by
   have hr := fun (s₁ : AState) (cc : EIdx) (cur : Nat) =>
     abstractRangeGo_spec hfv d k fuel s₁ cc cur
-  mvcgen [abstractRangeFast, hr]
+  to_wp; vcgen [abstractRangeFast, wp% hr]
   all_goals try bridge_vcs [Expr.abstractRange, BMExt]
   -- The `k = 0` clause, which returns the subject: `abstractRange_zero_eq` is
   -- its licence and nothing in the state moves.
@@ -648,48 +624,40 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
   | zero =>
     constructor
     intro s₀ h _ _ _ _ _ _ _
-    mvcgen [instLPGo_zero]
+    to_wp; vcgen [instLPGo_zero]
     all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hml hmls hcl hcls hden
     have hrec := ih.run
-    mvcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
-      instLPArmForallE, instLPArmLet, instLPArmProj, hrec,
-      substLMemoAt_spec, substLsMemoAt_spec]
+    to_wp; vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
+      instLPArmForallE, instLPArmLet, instLPArmProj, wp% hrec,
+      wp% substLMemoAt_spec, wp% substLsMemoAt_spec]
     all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadLCacheOK.mono,
       ReadLsCacheOK.mono, view_eq_of_tables]
-    -- Fourteen structural verification conditions remain, in goal order: the
-    -- `hasLP` cutoff, the two LEAF views, the `sort` arm (postcondition and
-    -- `internRebuilt` cutoff), the `const` arm (postcondition, its
-    -- universe-argument `ViewOK` and its `internRebuilt` cutoff), then the
-    -- six rebuilding arms.  `resetMetaGo_spec`'s list with the cutoff and the
+    all_goals (bridge_peel; subst_vars)
+    -- Twelve structural verification conditions remain, in goal order: the
+    -- `hasLP` cutoff, the two LEAF views, the `sort` arm, the `const` arm
+    -- (postcondition and its universe-argument `ViewOK`), then the six
+    -- rebuilding arms.  `resetMetaGo_spec`'s list with the cutoff and the
     -- two LEVEL arms added.
     -- the `hasLP` cutoff
     next =>
-      bridge_peel
-      subst_vars
       exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.cutoff hok.wf (by grind)⟩
     -- `bvar`, `lit`
     next =>
-      bridge_peel
-      subst_vars
       exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     next =>
-      bridge_peel
-      subst_vars
       exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     -- `sort`: the LEVEL arm, `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
     next =>
-      bridge_peel
-      subst_vars
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm hr
+      rename_i hr _ _ _ _ _ _
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
@@ -697,18 +665,16 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
           | grind only [BMExt, BMExt.trans, BMExt.refl]
           | exact BMExt.trans
               (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
+              (by assumption),
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind,
         by grind [view_eq_of_tables], ?_⟩
       exact InstLPAt.sort_step hok.wf (by lp_hyp)
-        (RelL.ext (by lp_hyp) hx) hr
+        (RelL.ext (by lp_hyp) (by assumption)) hr
     -- `const`: the universe-argument LIST arm
     next =>
-      bridge_peel
-      subst_vars
+      rename_i hr _ _ _ _ _ _
       obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf (by lp_hyp) hden
-      intro _hwf2 hx _hlss _hmem _hcach _hpin _hvm _hbm hr
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
@@ -716,24 +682,20 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
           | grind only [BMExt, BMExt.trans, BMExt.refl]
           | exact BMExt.trans
               (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
+              (by assumption),
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind,
         by grind [view_eq_of_tables], ?_⟩
       exact InstLPAt.const_step hok.wf (by lp_hyp) hn0
-        (by grind only [Ext.trans]) (RelLs.ext (by lp_hyp) hx) hr
+        (by grind only [Ext.trans]) (RelLs.ext (by lp_hyp) (by assumption)) hr
     -- `const`'s `ViewOK` at the substituted universe-argument list
     next =>
-      bridge_peel
-      subst_vars
+      rename_i hrls _ _
       obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf (by lp_hyp) hden
-      intro s _hok2 _hx _hp _hsc _ho _ _ _ _ _ _ hrls
       obtain ⟨w, hw, _⟩ := denoteLs_view (hrls ls hl0)
       rw [hw]; rfl
     -- `fvar`: the annotation is descended into
     next =>
-      bridge_peel
-      subst_vars
       have hans := InstLPAt.fvar_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
@@ -750,8 +712,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         hans.ext (by grind only [Ext.refl])⟩
     -- `app`
     next =>
-      bridge_peel
-      subst_vars
       have hans := InstLPAt.app_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
@@ -768,8 +728,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         hans.ext (by grind only [Ext.refl])⟩
     -- `lam` and `forallE`: the binder DATUM is substituted too
     next =>
-      bridge_peel
-      subst_vars
       have hans := InstLPAt.lam_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
@@ -785,8 +743,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     next =>
-      bridge_peel
-      subst_vars
       have hans := InstLPAt.forallE_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
@@ -803,8 +759,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         hans.ext (by grind only [Ext.refl])⟩
     -- `letE`
     next =>
-      bridge_peel
-      subst_vars
       have hans := InstLPAt.letE_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
@@ -821,8 +775,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         hans.ext (by grind only [Ext.refl])⟩
     -- `proj`
     next =>
-      bridge_peel
-      subst_vars
       obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_proj hok.wf (by lp_hyp) hden
       have hans := InstLPAt.proj_step hok.wf (by lp_hyp) (by lp_hyp)
         (by lp_hyp) (by lp_hyp) (by lp_hyp) hn0
@@ -860,7 +812,7 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
         RelE (fun x => x.instantiateLevelParams ks us) s₀.store c
           s'.store r⌝⦄ := by
   have hr := (instLPGo_specS ks us fuel).run
-  mvcgen [hr]
+  to_wp; vcgen [wp% hr]
   all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
 
 /-! ### The NAME readback with the sibling readback tables framed
@@ -889,13 +841,8 @@ sibling readback tables framed. -/
         s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
         denoteN s₀.store.ns h = some x ∧
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
-  unfold readNameM
-  mvcgen
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadNCacheOK]
+  to_wp; vcgen [readNameM]
+  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadNCacheOK])
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — and `readNamesM`, whose
 recursion is on the list as `readNames`' is. -/
@@ -909,38 +856,16 @@ recursion is on the list as `readNames`' is. -/
         ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
   induction hs generalizing s₀ with
   | nil =>
-    unfold readNamesM
-    mvcgen
+    to_wp; vcgen [readNamesM]
+    all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
+  | cons a as ih =>
+    -- `mvcgen` preferred `Bridge/SpecsL.lean`'s database `readNamesM_spec` to
+    -- the induction hypothesis, so the tail used to be generalised to a
+    -- program VARIABLE first; with `vcgen` the hypothesis passed in the list
+    -- serves directly.
+    to_wp; vcgen [readNamesM, wp% readNameM_specF, wp% ih]
     all_goals (bridge_peel; subst_vars
                grind [Frontend.denoteNList, ReadNCacheOK])
-  | cons a as ih =>
-    -- **The tail is generalised to a VARIABLE first.**  `mvcgen` prefers a
-    -- database spec to the structural induction hypothesis, and
-    -- `Bridge/SpecsL.lean`'s `readNamesM_spec` matches `readNamesM as`
-    -- exactly — so with the recursive call left in place the tail's two
-    -- cache equations are simply not in the context (measured).  `[-spec]`
-    -- is refused by the attribute and `spec low` does not displace it; a
-    -- program VARIABLE matches no database spec at all, which is the lever.
-    have key : ∀ p : AM (List ConLeche.Name),
-        (∀ s₁ : AState, ReadNCacheOK s₁.caches.readNC s₁.store →
-          ⦃fun s => ⌜s = s₁⌝⦄ p
-          ⦃⇓? xs s' => ⌜s'.store = s₁.store ∧ s'.memos = s₁.memos ∧
-              s'.pins = s₁.pins ∧
-              s'.caches = { s₁.caches with readNC := s'.caches.readNC } ∧
-              Frontend.denoteNList s₁.store.ns as = some xs ∧
-              ReadNCacheOK s'.caches.readNC s'.store⌝⦄) →
-        ⦃fun s => ⌜s = s₀⌝⦄
-          (do let x ← readNameM a; let xs ← p; pure (x :: xs))
-        ⦃⇓? xs s' => ⌜s'.store = s₀.store ∧ s'.memos = s₀.memos ∧
-            s'.pins = s₀.pins ∧
-            s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧
-            Frontend.denoteNList s₀.store.ns (a :: as) = some xs ∧
-            ReadNCacheOK s'.caches.readNC s'.store⌝⦄ := by
-      intro p hp
-      mvcgen [readNameM_specF, hp]
-      all_goals (bridge_peel; subst_vars
-                 grind [Frontend.denoteNList, ReadNCacheOK])
-    exact key (readNamesM as) ih
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2718-2722 Expr.instLPFast — the
 entry, which reads `ks` and `us` back ONCE (`readNamesM` / `readLevelsM`) and
@@ -985,7 +910,7 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
           s'.store r⌝⦄ := by
   have hr := fun (kk : List ConLeche.Name) (uu : List Level) (s₁ : AState)
       (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
-  mvcgen [instLPFast, hr]
+  to_wp; vcgen [instLPFast, wp% hr]
   all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono, BMExt]
   -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
   -- without reading `ks`/`us` back and without clearing the memo.

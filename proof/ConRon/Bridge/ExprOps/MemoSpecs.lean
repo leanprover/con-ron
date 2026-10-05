@@ -12,11 +12,13 @@ parameters as THEOREM PARAMETERS:
     (h r : LsIdx) (hm : InstLPLsMemoA ks us s₀) … : ⦃…⦄ instLPLsSet h r ⦃…⦄
 ```
 
-Those parameters do not occur in the PROGRAM, so when `mvcgen` selects the
-spec it has nothing to pin them against, and it does not leave them as
-metavariables for the closer to solve either: it assigns them from whatever
-is in scope at the right type.  Measured in `ExprOps/InstLP.lean`'s
-`substLsMemoAt`: the readback list `ls : List Level` is in scope, so the
+Those parameters do not occur in the PROGRAM, so when the verification
+condition generator selects the spec it has nothing to pin them against.
+`mvcgen` (before task #111) did not leave them as metavariables for the
+closer to solve either: it assigned them from whatever was in scope at the
+right type; `vcgen` leaves them as goals of their own type, to be
+supplied by hand (`wp% f_spec (x := x)`).  Measured under `mvcgen` in
+`ExprOps/InstLP.lean`'s `substLsMemoAt`: the readback list `ls : List Level` is in scope, so the
 arm's memo verification condition comes out as `InstLPLsMemoA ks ls s` — not
 merely hard, **false**.  (`substLMemoAt` is spared only because its readback
 is a `Level` and not a `List Level`, so `us` is the sole candidate of its
@@ -39,9 +41,10 @@ serves both.
 The specs below are `@[spec high]` because `Lean.Elab.Tactic.Do.findSpec`
 sorts the candidates by priority and `Specs.lean`'s versions match the same
 program; `attribute [-spec]` is refused by the attribute (measured), so the
-priority is the only lever.  Each is proved by `unfold` + `mvcgen` and NOT by
-`mvcgen [f]`, for the same reason: with `Specs.lean`'s spec in the database,
-`mvcgen [f]` applies it instead of unfolding `f`.
+priority is the only lever.  Each is proved by `vcgen [f]`: unlike
+`mvcgen [f]`, which applied `Specs.lean`'s spec from the database instead of
+unfolding `f` (so these proofs used to `unfold f` first), `vcgen` unfolds a
+definition named in its list.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.StoreBM
@@ -49,10 +52,7 @@ import ConRon.Bridge.StoreBM
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -69,12 +69,10 @@ table. -/
         ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.abs1C s₀.store →
           RelE (f k.2) s₀.store k.1 s₀.store r →
             MemoOK f s'.memos.abs1C s'.store⌝⦄ := by
-  unfold abs1Set
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [abs1Set]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoOK f (s.memos.abs1C.insert k r) s.store
   exact MemoOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — the same
@@ -88,12 +86,10 @@ for `instLPSet`. -/
         ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.instLPC s₀.store →
           RelE (f k.2) s₀.store k.1 s₀.store r →
             MemoOK f s'.memos.instLPC s'.store⌝⦄ := by
-  unfold instLPSet
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [instLPSet]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoOK f (s.memos.instLPC.insert k r) s.store
   exact MemoOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
@@ -107,12 +103,10 @@ for `instLPSet`. -/
         ∀ f : Level → Level, MemoLOK f s₀.memos.instLPLC s₀.store →
           RelL f s₀.store h s₀.store r →
             MemoLOK f s'.memos.instLPLC s'.store⌝⦄ := by
-  unfold instLPLSet
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [instLPLSet]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoLOK f (s.memos.instLPLC.insert h r) s.store
   exact MemoLOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
@@ -128,12 +122,10 @@ measured on. -/
         ∀ f : List Level → List Level, MemoLsOK f s₀.memos.instLPLsC s₀.store →
           RelLs f s₀.store h s₀.store r →
             MemoLsOK f s'.memos.instLPLsC s'.store⌝⦄ := by
-  unfold instLPLsSet
-  mvcgen
-  rename_i s hs _s1
+  to_wp; vcgen [instLPLsSet]
+  rename_i hs
   subst hs
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  show MemoLsOK f (s.memos.instLPLsC.insert h r) s.store
   exact MemoLsOK.insert hm rfl hk hr
 
 /-! ## The readback memos, with the frame the walks need
@@ -159,13 +151,8 @@ sibling readback tables framed. -/
         s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         denoteL s₀.store.ls h = some u ∧
         ReadLCacheOK s'.caches.readLC s'.store⌝⦄ := by
-  unfold readLevelM
-  mvcgen
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadLCacheOK]
+  to_wp; vcgen [readLevelM]
+  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLCacheOK])
 
 /-- con-leche: ConLeche/Kernel/Level.lean:26-37 subst — `readLevelsM` with the
 sibling readback tables framed. -/
@@ -177,13 +164,8 @@ sibling readback tables framed. -/
         s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         denoteLs s₀.store.lss h = some us ∧
         ReadLsCacheOK s'.caches.readLsC s'.store⌝⦄ := by
-  unfold readLevelsM
-  mvcgen
-  all_goals (bridge_peel; subst_vars) <;>
-    first
-    | (refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
-    | (intro hf; exact False.elim hf)
-    | grind [ReadLsCacheOK]
+  to_wp; vcgen [readLevelsM]
+  all_goals (subst_vars; refine ⟨rfl, rfl, rfl, rfl, ?_, ?_⟩ <;> grind [ReadLsCacheOK])
 
 
 /-! ## The intern specs with the two MONOTONICITY conjuncts
@@ -265,19 +247,17 @@ reflexive there. -/
         (∀ i w, s₀.store.view i = some w → s'.store.view i = some w) ∧
         (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store v⌝⦄ := by
-  unfold internRebuilt
-  mvcgen [internE_specV]
-  case vc1.isTrue =>
-    rename_i hc s hs
-    subst hs
+  to_wp; vcgen [internRebuilt, internE_specV]
+  all_goals subst_vars
+  case vc1 =>
     exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, fun _ _ hi => hi,
-      fun _ _ hmi => hmi, denoteE_view_eq hwf (hsame hc)⟩
-  case vc2.isFalse.post.success =>
-    rename_i _hc s hs _r _s2
-    subst hs
-    intro a bb c dd e f g hh hi hj
+      fun _ _ hmi => hmi, denoteE_view_eq hwf (hsame rfl)⟩
+  case vc2 =>
+    rename_i _hc _r _s2 hpost
+    obtain ⟨a, bb, c, dd, e, f, g, hh, -, hj⟩ := hpost
     exact ⟨a, bb, c, dd, e, f, g, hh, hj⟩
-  all_goals (intro s hs; subst hs; first | exact hwf | exact hv)
+  case vc3 => exact hwf
+  case vc4 => exact hv
 
 /-! ### The per-constructor faces, at the V shape
 
