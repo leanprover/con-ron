@@ -12,17 +12,17 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1788903584,
-        "narHash": "sha256-V6H12+Qg3qlZBGdjoTHCbYWSOwcdZ86XCxOkWURo6Qs=",
+        "lastModified": 1790897232,
+        "narHash": "sha256-fmK+zhmtSJsk5pw01vt9M4O6W2i7Ic4I85gTkQNoL+0=",
         "owner": "AeneasVerif",
         "repo": "aeneas",
-        "rev": "505b6ca35217e7be5c96c3e2f8045edfbdf47291",
+        "rev": "557eff83ecef5083b98a52a94ca7fae63d6c1dab",
         "type": "github"
       },
       "original": {
         "owner": "AeneasVerif",
         "repo": "aeneas",
-        "rev": "505b6ca35217e7be5c96c3e2f8045edfbdf47291",
+        "rev": "557eff83ecef5083b98a52a94ca7fae63d6c1dab",
         "type": "github"
       }
     },
@@ -36,11 +36,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1788900158,
-        "narHash": "sha256-T5YOon6o64//bS5NihALMrDGivJNwvmoJRoKIGITEmc=",
+        "lastModified": 1790894892,
+        "narHash": "sha256-oy45Qfbeya3cJjlrUclpUiY5tdj2861MDvTyZHLMoEY=",
         "owner": "aeneasverif",
         "repo": "charon",
-        "rev": "b104e24fea7d721b71e6c39fd70f26ff20bc0980",
+        "rev": "c8f15d7d658c86a95658f71ad99cddd4be002e04",
         "type": "github"
       },
       "original": {
@@ -216,17 +216,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1787022047,
-        "narHash": "sha256-wNlYM/obKOkkRELrOfto1JT5CRANR6hB/RjOELp223U=",
+        "lastModified": 1789630063,
+        "narHash": "sha256-hulcXtNnQVDTPXiC8dQpTX3FPHxklIfX7Cx2kd2GDrM=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "b32685dd7c5a965aa8273adb7ddaf7f5b40d0faa",
+        "rev": "a1d497a9415999853809ba22a7959b1c36dc6554",
         "type": "github"
       },
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "b32685dd7c5a965aa8273adb7ddaf7f5b40d0faa",
+        "rev": "a1d497a9415999853809ba22a7959b1c36dc6554",
         "type": "github"
       }
     },

@@ -71,9 +71,14 @@ echo "extract: charon cargo --preset=aeneas ($crate_dir)"
 #    `ConRon.Generated.*` (it sets both the output path and the import
 #    prefix); `-namespace` puts the definitions in `ConRon.Generated`, so a
 #    generated function is `ConRon.Generated.<module>.<fn>`.  No `sed`
-#    post-processing of the import lines is needed.
-echo "extract: aeneas -backend lean -split-files -loops-to-rec"
-aeneas -backend lean -split-files -loops-to-rec \
+#    post-processing of the import lines is needed.  `-use-lean-modules
+#    false`: Aeneas emits module-system files (`module`, `public import`,
+#    `@[expose] public section`) by default since upstream #1230; a module
+#    may import only modules, so that would drag the hand-written
+#    `*External.lean` models and the whole proof into the module system.  A
+#    plain file imports the module-system Aeneas library as before (task #112).
+echo "extract: aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false"
+aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false \
   -dest "$work/lean" -subdir "$subdir" -namespace "$namespace" \
   -no-progress-bar "$work/llbc/$crate.llbc"
 

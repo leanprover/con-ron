@@ -5013,10 +5013,10 @@ def kernel.expr.beq_go
         then ok (true, m)
         else
           let (b3, hm) ← kernel.expr.beq_arm m a b
-          kernel.expr.beq_finish b3 hm true key a b
+          kernel.expr.beq_finish b3 hm rec key a b
       else
         let (b2, hm) ← kernel.expr.beq_arm m a b
-        kernel.expr.beq_finish b2 hm false key a b
+        kernel.expr.beq_finish b2 hm rec key a b
 partial_fixpoint
 
 /-- [con_ron_core::kernel::expr::beq_arm]:
@@ -6670,25 +6670,22 @@ def arena.store.EStore.intern_proj
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.NIdx.is_persistent n
-      let b2 ←
-        if b1
-        then do
-             let b3 ← arena.handle.EIdx.is_persistent e
-             ok (¬ b3)
-        else ok true
-      ok (true, b2)
-    else ok (false, false)
+      let b ← arena.handle.NIdx.is_persistent n
+      if b
+      then let b1 ← arena.handle.EIdx.is_persistent e
+           ok (¬ b1)
+      else ok true
+    else ok false
   let (e1, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e2, b1, e3, o) ←
+      let (e2, e3, o) ←
         if pers.frozen
         then
           do
@@ -6701,7 +6698,7 @@ def arena.store.EStore.intern_proj
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.projs
               { n, i, e }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -6713,11 +6710,11 @@ def arena.store.EStore.intern_proj
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.projs
               { n, i, e }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e2, { pers with frozen := b1, e := e3 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e2, { pers with e := e3 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i1, o), t) ←
         arena.store.Tbl.find_slot
@@ -6729,7 +6726,7 @@ def arena.store.EStore.intern_proj
           U64.Insts.Con_ron_coreArenaStoreDerDefault self.scr.projs { n, i, e }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2
@@ -6737,28 +6734,17 @@ def arena.store.EStore.intern_proj
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e1,
-                scr := { self.scr with projs := t },
-                scratch_on := true
-            })
+            { self with pers := e1, scr := { self.scr with projs := t } })
         else
           let d ←
             arena.store.EStore.der_of_proj
-              {
-                self
-                  with
-                  pers := e1,
-                  scr := { self.scr with projs := t },
-                  scratch_on := true
-              } pers1 n i e
+              { self with pers := e1, scr := { self.scr with projs := t } }
+              pers1 n i e
           let i2 ←
             arena.store.Tbl.size
               arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable
@@ -6781,24 +6767,12 @@ def arena.store.EStore.intern_proj
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i1 { n, i, e } d e2
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e1,
-                scr := { self.scr with projs := t1 },
-                scratch_on := true
-            })
+            { self with pers := e1, scr := { self.scr with projs := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e1,
-              scr := { self.scr with projs := t },
-              scratch_on := true
-          })
+          { self with pers := e1, scr := { self.scr with projs := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2
@@ -6806,16 +6780,15 @@ def arena.store.EStore.intern_proj
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e1.projs
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e1, scratch_on := false })
+          { self with pers := e1 })
       else
         let d ←
-          arena.store.EStore.der_of_proj
-            { self with pers := e1, scratch_on := false } pers1 n i e
+          arena.store.EStore.der_of_proj { self with pers := e1 } pers1 n i e
         let i1 ←
           arena.store.Tbl.size
             arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable
@@ -6838,9 +6811,8 @@ def arena.store.EStore.intern_proj
             U64.Insts.Con_ron_coreArenaStoreDerDefault e1.projs { n, i, e } d
             e2
         ok (core.result.Result.Ok h,
-          { self with pers := { e1 with projs := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e1, scratch_on := b })
+          { self with pers := { e1 with projs := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e1 })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_lit]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 3952:4-3955:5
@@ -7042,29 +7014,26 @@ def arena.store.EStore.intern_let_e
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.EIdx.is_persistent ty
-      let b2 ←
+      let b ← arena.handle.EIdx.is_persistent ty
+      if b
+      then
+        let b1 ← arena.handle.EIdx.is_persistent val
         if b1
-        then
-          do
-          let b3 ← arena.handle.EIdx.is_persistent val
-          if b3
-          then let b4 ← arena.handle.EIdx.is_persistent body
-               ok (¬ b4)
-          else ok true
+        then let b2 ← arena.handle.EIdx.is_persistent body
+             ok (¬ b2)
         else ok true
-      ok (true, b2)
-    else ok (false, false)
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -7077,7 +7046,7 @@ def arena.store.EStore.intern_let_e
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.lets
               { ty, val, body }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -7089,11 +7058,11 @@ def arena.store.EStore.intern_let_e
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.lets
               { ty, val, body }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -7106,7 +7075,7 @@ def arena.store.EStore.intern_let_e
           { ty, val, body }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.LetNode.Insts.Con_ron_coreRonHashmapEq2
@@ -7114,28 +7083,17 @@ def arena.store.EStore.intern_let_e
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with lets := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with lets := t } })
         else
           let d ←
             arena.store.EStore.der_of_let_at
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with lets := t },
-                  scratch_on := true
-              } pers1 ty val body
+              { self with pers := e, scr := { self.scr with lets := t } } pers1
+              ty val body
           let i1 ←
             arena.store.Tbl.size
               arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable
@@ -7159,22 +7117,12 @@ def arena.store.EStore.intern_let_e
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { ty, val, body }
               d e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with lets := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with lets := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e, scr := { self.scr with lets := t }, scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with lets := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.LetNode.Insts.Con_ron_coreRonHashmapEq2
@@ -7182,16 +7130,16 @@ def arena.store.EStore.intern_let_e
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.lets
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_let_at
-            { self with pers := e, scratch_on := false } pers1 ty val body
+          arena.store.EStore.der_of_let_at { self with pers := e } pers1 ty val
+            body
         let i ←
           arena.store.Tbl.size
             arena.store.LetNode.Insts.Con_ron_coreRonHashmapHashable
@@ -7214,9 +7162,8 @@ def arena.store.EStore.intern_let_e
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.lets { ty, val, body }
             d e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with lets := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with lets := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{impl con_ron_core::ron::hashmap::Dup for con_ron_core::arena::store::BMNode}::dup2]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 1227:4-1229:5
@@ -7418,29 +7365,26 @@ def arena.store.EStore.intern_forall_e_i
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.EIdx.is_persistent ty
-      let b2 ←
+      let b ← arena.handle.EIdx.is_persistent ty
+      if b
+      then
+        let b1 ← arena.handle.EIdx.is_persistent body
         if b1
-        then
-          do
-          let b3 ← arena.handle.EIdx.is_persistent body
-          if b3
-          then let b4 ← arena.handle.BMIdx.is_persistent m
-               ok (¬ b4)
-          else ok true
+        then let b2 ← arena.handle.BMIdx.is_persistent m
+             ok (¬ b2)
         else ok true
-      ok (true, b2)
-    else ok (false, false)
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -7453,7 +7397,7 @@ def arena.store.EStore.intern_forall_e_i
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.foralls
               { ty, body, m }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -7465,11 +7409,11 @@ def arena.store.EStore.intern_forall_e_i
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.foralls
               { ty, body, m }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -7482,7 +7426,7 @@ def arena.store.EStore.intern_forall_e_i
           { ty, body, m }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2
@@ -7490,28 +7434,17 @@ def arena.store.EStore.intern_forall_e_i
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with foralls := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with foralls := t } })
         else
           let d ←
             arena.store.EStore.der_of_bind_at_i
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with foralls := t },
-                  scratch_on := true
-              } pers1 23#u64 ty body m
+              { self with pers := e, scr := { self.scr with foralls := t } }
+              pers1 23#u64 ty body m
           let i1 ←
             arena.store.Tbl.size
               arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
@@ -7535,24 +7468,12 @@ def arena.store.EStore.intern_forall_e_i
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { ty, body, m } d
               e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with foralls := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with foralls := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e,
-              scr := { self.scr with foralls := t },
-              scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with foralls := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2
@@ -7560,16 +7481,16 @@ def arena.store.EStore.intern_forall_e_i
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.foralls
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_bind_at_i
-            { self with pers := e, scratch_on := false } pers1 23#u64 ty body m
+          arena.store.EStore.der_of_bind_at_i { self with pers := e } pers1
+            23#u64 ty body m
         let i ←
           arena.store.Tbl.size
             arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
@@ -7593,9 +7514,8 @@ def arena.store.EStore.intern_forall_e_i
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.foralls
             { ty, body, m } d e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with foralls := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with foralls := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::pers_find_bm_node]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 3721:4-3727:5 -/
@@ -7763,29 +7683,26 @@ def arena.store.EStore.intern_lam_i
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.EIdx.is_persistent ty
-      let b2 ←
+      let b ← arena.handle.EIdx.is_persistent ty
+      if b
+      then
+        let b1 ← arena.handle.EIdx.is_persistent body
         if b1
-        then
-          do
-          let b3 ← arena.handle.EIdx.is_persistent body
-          if b3
-          then let b4 ← arena.handle.BMIdx.is_persistent m
-               ok (¬ b4)
-          else ok true
+        then let b2 ← arena.handle.BMIdx.is_persistent m
+             ok (¬ b2)
         else ok true
-      ok (true, b2)
-    else ok (false, false)
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -7798,7 +7715,7 @@ def arena.store.EStore.intern_lam_i
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.lams
               { ty, body, m }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -7810,11 +7727,11 @@ def arena.store.EStore.intern_lam_i
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.lams
               { ty, body, m }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -7827,7 +7744,7 @@ def arena.store.EStore.intern_lam_i
           { ty, body, m }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2
@@ -7835,28 +7752,17 @@ def arena.store.EStore.intern_lam_i
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with lams := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with lams := t } })
         else
           let d ←
             arena.store.EStore.der_of_bind_at_i
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with lams := t },
-                  scratch_on := true
-              } pers1 19#u64 ty body m
+              { self with pers := e, scr := { self.scr with lams := t } } pers1
+              19#u64 ty body m
           let i1 ←
             arena.store.Tbl.size
               arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
@@ -7879,22 +7785,12 @@ def arena.store.EStore.intern_lam_i
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { ty, body, m } d
               e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with lams := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with lams := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e, scr := { self.scr with lams := t }, scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with lams := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2
@@ -7902,16 +7798,16 @@ def arena.store.EStore.intern_lam_i
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.lams
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_bind_at_i
-            { self with pers := e, scratch_on := false } pers1 19#u64 ty body m
+          arena.store.EStore.der_of_bind_at_i { self with pers := e } pers1
+            19#u64 ty body m
         let i ←
           arena.store.Tbl.size
             arena.store.BindNode.Insts.Con_ron_coreRonHashmapHashable
@@ -7934,9 +7830,8 @@ def arena.store.EStore.intern_lam_i
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.lams { ty, body, m } d
             e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with lams := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with lams := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::intern_lam]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 4410:4-4415:5
@@ -7990,25 +7885,22 @@ def arena.store.EStore.intern_app
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.EIdx.is_persistent f
-      let b2 ←
-        if b1
-        then do
-             let b3 ← arena.handle.EIdx.is_persistent a
-             ok (¬ b3)
-        else ok true
-      ok (true, b2)
-    else ok (false, false)
+      let b ← arena.handle.EIdx.is_persistent f
+      if b
+      then let b1 ← arena.handle.EIdx.is_persistent a
+           ok (¬ b1)
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -8021,7 +7913,7 @@ def arena.store.EStore.intern_app
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.apps 
               { f, a }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -8033,11 +7925,11 @@ def arena.store.EStore.intern_app
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.apps
               { f, a }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -8049,7 +7941,7 @@ def arena.store.EStore.intern_app
           U64.Insts.Con_ron_coreArenaStoreDerDefault self.scr.apps { f, a }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8057,28 +7949,17 @@ def arena.store.EStore.intern_app
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with apps := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with apps := t } })
         else
           let d ←
             arena.store.EStore.der_of_app
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with apps := t },
-                  scratch_on := true
-              } pers1 f a
+              { self with pers := e, scr := { self.scr with apps := t } } pers1
+              f a
           let i1 ←
             arena.store.Tbl.size
               arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8100,22 +7981,12 @@ def arena.store.EStore.intern_app
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { f, a } d e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with apps := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with apps := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e, scr := { self.scr with apps := t }, scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with apps := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.AppNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8123,16 +7994,15 @@ def arena.store.EStore.intern_app
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.apps
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_app
-            { self with pers := e, scratch_on := false } pers1 f a
+          arena.store.EStore.der_of_app { self with pers := e } pers1 f a
         let i ←
           arena.store.Tbl.size
             arena.store.AppNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8154,9 +8024,8 @@ def arena.store.EStore.intern_app
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.apps { f, a } d e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with apps := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with apps := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::handle::{con_ron_core::arena::handle::LsIdx}::idx_nat]:
     Source: 'crates/con-ron-core/src/arena/handle.rs', lines 371:4-373:5
@@ -8259,25 +8128,22 @@ def arena.store.EStore.intern_const
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.NIdx.is_persistent n
-      let b2 ←
-        if b1
-        then do
-             let b3 ← arena.handle.LsIdx.is_persistent us
-             ok (¬ b3)
-        else ok true
-      ok (true, b2)
-    else ok (false, false)
+      let b ← arena.handle.NIdx.is_persistent n
+      if b
+      then let b1 ← arena.handle.LsIdx.is_persistent us
+           ok (¬ b1)
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -8290,7 +8156,7 @@ def arena.store.EStore.intern_const
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.consts
               { n, us }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -8302,11 +8168,11 @@ def arena.store.EStore.intern_const
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.consts
               { n, us }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -8319,7 +8185,7 @@ def arena.store.EStore.intern_const
           { n, us }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.ConstNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8327,28 +8193,17 @@ def arena.store.EStore.intern_const
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with consts := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with consts := t } })
         else
           let d ←
             arena.store.EStore.der_of_const
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with consts := t },
-                  scratch_on := true
-              } pers1 n us
+              { self with pers := e, scr := { self.scr with consts := t } }
+              pers1 n us
           let i1 ←
             arena.store.Tbl.size
               arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8371,24 +8226,12 @@ def arena.store.EStore.intern_const
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { n, us } d e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with consts := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with consts := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e,
-              scr := { self.scr with consts := t },
-              scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with consts := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.ConstNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8396,16 +8239,15 @@ def arena.store.EStore.intern_const
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.consts
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_const
-            { self with pers := e, scratch_on := false } pers1 n us
+          arena.store.EStore.der_of_const { self with pers := e } pers1 n us
         let i ←
           arena.store.Tbl.size
             arena.store.ConstNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8427,9 +8269,8 @@ def arena.store.EStore.intern_const
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.consts { n, us } d e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with consts := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with consts := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::ls]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 3310:4-3312:5
@@ -8471,22 +8312,21 @@ def arena.store.EStore.intern_sort
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.LIdx.is_persistent u
-      let b2 ← if b1
-                 then ok false
-                 else ok true
-      ok (true, b2)
-    else ok (false, false)
+      let b ← arena.handle.LIdx.is_persistent u
+      if b
+      then ok false
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -8499,7 +8339,7 @@ def arena.store.EStore.intern_sort
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.sorts 
               { u }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -8511,11 +8351,11 @@ def arena.store.EStore.intern_sort
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.sorts 
               { u }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -8527,7 +8367,7 @@ def arena.store.EStore.intern_sort
           U64.Insts.Con_ron_coreArenaStoreDerDefault self.scr.sorts { u }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.SortNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8535,28 +8375,17 @@ def arena.store.EStore.intern_sort
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with sorts := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with sorts := t } })
         else
           let d ←
             arena.store.EStore.der_of_sort
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with sorts := t },
-                  scratch_on := true
-              } pers1 u
+              { self with pers := e, scr := { self.scr with sorts := t } }
+              pers1 u
           let i1 ←
             arena.store.Tbl.size
               arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8579,24 +8408,12 @@ def arena.store.EStore.intern_sort
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { u } d e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with sorts := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with sorts := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e,
-              scr := { self.scr with sorts := t },
-              scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with sorts := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.SortNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8604,16 +8421,15 @@ def arena.store.EStore.intern_sort
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.sorts
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_sort
-            { self with pers := e, scratch_on := false } pers1 u
+          arena.store.EStore.der_of_sort { self with pers := e } pers1 u
         let i ←
           arena.store.Tbl.size
             arena.store.SortNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8635,9 +8451,8 @@ def arena.store.EStore.intern_sort
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.sorts { u } d e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with sorts := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with sorts := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_fvar]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 3844:4-3851:5
@@ -8666,22 +8481,21 @@ def arena.store.EStore.intern_fvar
   Result ((core.result.Result arena.handle.EIdx kernel.core_types.CheckError)
     × arena.store.EStore)
   := do
-  let (b, sk) ←
+  let sk ←
     if self.scratch_on
     then
       do
-      let b1 ← arena.handle.EIdx.is_persistent ty
-      let b2 ← if b1
-                 then ok false
-                 else ok true
-      ok (true, b2)
-    else ok (false, false)
+      let b ← arena.handle.EIdx.is_persistent ty
+      if b
+      then ok false
+      else ok true
+    else ok false
   let (e, pers1, hit) ←
     if sk
     then ok (self.pers, pers, none)
     else
       do
-      let (e1, b1, e2, o) ←
+      let (e1, e2, o) ←
         if pers.frozen
         then
           do
@@ -8694,7 +8508,7 @@ def arena.store.EStore.intern_fvar
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault pers.e.fvars
               { idx, ty }
-          ok (self.pers, true, pers.e, hit1)
+          ok (self.pers, pers.e, hit1)
         else
           do
           let hit1 ←
@@ -8706,11 +8520,11 @@ def arena.store.EStore.intern_fvar
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault self.pers.fvars
               { idx, ty }
-          ok (self.pers, false, pers.e, hit1)
-      ok (e1, { pers with frozen := b1, e := e2 }, o)
+          ok (self.pers, pers.e, hit1)
+      ok (e1, { pers with e := e2 }, o)
   match hit with
   | none =>
-    if b
+    if self.scratch_on
     then
       let ((i, o), t) ←
         arena.store.Tbl.find_slot
@@ -8722,7 +8536,7 @@ def arena.store.EStore.intern_fvar
           U64.Insts.Con_ron_coreArenaStoreDerDefault self.scr.fvars { idx, ty }
       match o with
       | none =>
-        let b1 ←
+        let b ←
           arena.store.Tbl.full
             arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable
             arena.store.FVarNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8730,28 +8544,17 @@ def arena.store.EStore.intern_fvar
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault t
-        if b1
+        if b
         then
           let s ← lift (Array.to_slice arena.store.M_E_CAP)
           let v ← kernel.core_types.code_points s
           ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with fvars := t },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with fvars := t } })
         else
           let d ←
             arena.store.EStore.der_of_fvar
-              {
-                self
-                  with
-                  pers := e,
-                  scr := { self.scr with fvars := t },
-                  scratch_on := true
-              } pers1 idx ty
+              { self with pers := e, scr := { self.scr with fvars := t } }
+              pers1 idx ty
           let i1 ←
             arena.store.Tbl.size
               arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8774,24 +8577,12 @@ def arena.store.EStore.intern_fvar
               U64.Insts.Con_ron_coreRonHashmapDup
               U64.Insts.Con_ron_coreArenaStoreDerDefault t i { idx, ty } d e1
           ok (core.result.Result.Ok h,
-            {
-              self
-                with
-                pers := e,
-                scr := { self.scr with fvars := t1 },
-                scratch_on := true
-            })
+            { self with pers := e, scr := { self.scr with fvars := t1 } })
       | some hs =>
         ok (core.result.Result.Ok hs,
-          {
-            self
-              with
-              pers := e,
-              scr := { self.scr with fvars := t },
-              scratch_on := true
-          })
+          { self with pers := e, scr := { self.scr with fvars := t } })
     else
-      let b1 ←
+      let b ←
         arena.store.Tbl.full
           arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable
           arena.store.FVarNode.Insts.Con_ron_coreRonHashmapEq2
@@ -8799,16 +8590,15 @@ def arena.store.EStore.intern_fvar
           arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreRonHashmapDup
           U64.Insts.Con_ron_coreArenaStoreDerDefault e.fvars
-      if b1
+      if b
       then
         let s ← lift (Array.to_slice arena.store.M_E_CAP)
         let v ← kernel.core_types.code_points s
         ok (core.result.Result.Err (kernel.core_types.CheckError.Native v),
-          { self with pers := e, scratch_on := false })
+          { self with pers := e })
       else
         let d ←
-          arena.store.EStore.der_of_fvar
-            { self with pers := e, scratch_on := false } pers1 idx ty
+          arena.store.EStore.der_of_fvar { self with pers := e } pers1 idx ty
         let i ←
           arena.store.Tbl.size
             arena.store.FVarNode.Insts.Con_ron_coreRonHashmapHashable
@@ -8830,9 +8620,8 @@ def arena.store.EStore.intern_fvar
             U64.Insts.Con_ron_coreRonHashmapDup
             U64.Insts.Con_ron_coreArenaStoreDerDefault e.fvars { idx, ty } d e1
         ok (core.result.Result.Ok h,
-          { self with pers := { e with fvars := t }, scratch_on := false })
-  | some hp =>
-    ok (core.result.Result.Ok hp, { self with pers := e, scratch_on := b })
+          { self with pers := { e with fvars := t } })
+  | some hp => ok (core.result.Result.Ok hp, { self with pers := e })
 
 /-- [con_ron_core::arena::store::{con_ron_core::arena::store::EStore}::der_of_bvar]:
     Source: 'crates/con-ron-core/src/arena/store.rs', lines 3834:4-3837:5
@@ -27285,7 +27074,7 @@ def arena.core.iota_certs_aux
           then
             let acc1 ← alloc.vec.Vec.push acc arg
             let i2 ← i + 1#usize
-            arena.core.iota_certs_aux pers vis st mode lane fuel fe depth true
+            arena.core.iota_certs_aux pers vis st mode lane fuel fe depth lic
               body acc1 args i2
           else
             let (r1, st1) ←
@@ -27308,7 +27097,7 @@ def arena.core.iota_certs_aux
                     let acc1 ← alloc.vec.Vec.push acc arg
                     let i2 ← i + 1#usize
                     arena.core.iota_certs_aux pers vis st3 mode lane fuel fe
-                      depth true body acc1 args i2
+                      depth lic body acc1 args i2
                   else ok (r3, st3)
                 | core.result.Result.Err _ => ok (r3, st3)
               | core.result.Result.Err e1 =>
@@ -27334,7 +27123,7 @@ def arena.core.iota_certs_aux
                   let acc1 ← alloc.vec.Vec.push acc arg
                   let i2 ← i + 1#usize
                   arena.core.iota_certs_aux pers vis st3 mode lane fuel fe
-                    depth false body acc1 args i2
+                    depth lic body acc1 args i2
                 else ok (r3, st3)
               | core.result.Result.Err _ => ok (r3, st3)
             | core.result.Result.Err e1 => ok (core.result.Result.Err e1, st2)
@@ -32556,17 +32345,72 @@ def arena.core.lazy_delta_step
     | core.result.Result.Ok ub =>
       if ua
       then
-        if ub
+        if ua
         then
-          arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth a b
+          if ub
+          then
+            if ua
+            then
+              arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth a
+                b
+            else
+              if ub
+              then
+                arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth
+                  b a true
+              else
+                arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth
+                  a b
+          else
+            arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth a b
+              false
         else
-          arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth a b
-            false
+          if ua
+          then
+            arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth a b
+          else
+            if ub
+            then
+              arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth b
+                a true
+            else
+              arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth a
+                b
       else
         if ub
         then
-          arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth b a
-            true
+          if ua
+          then
+            if ub
+            then
+              if ua
+              then
+                arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth
+                  a b
+              else
+                if ub
+                then
+                  arena.core.lazy_delta_side pers vis st2 mode lane fuel fe
+                    depth b a true
+                else
+                  arena.core.lazy_delta_both pers vis st2 mode lane fuel fe
+                    depth a b
+            else
+              arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth a
+                b false
+          else
+            if ua
+            then
+              arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth a
+                b
+            else
+              if ub
+              then
+                arena.core.lazy_delta_side pers vis st2 mode lane fuel fe depth
+                  b a true
+              else
+                arena.core.lazy_delta_both pers vis st2 mode lane fuel fe depth
+                  a b
         else ok (core.result.Result.Ok arena.core.DeltaStepA.Unknown, st2)
     | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
@@ -34052,29 +33896,25 @@ def arena.core.annotate_binder
         match r3 with
         | core.result.Result.Ok bodyp =>
           let b ← arena.core.pw_written mb.pw
-          let (st5, is_lam1, pw) ←
+          let (st5, pw) ←
             if b
             then
               do
               let pw1 ← kernel.prop_when.dup mb.pw
-              ok (st4, is_lam, core.result.Result.Ok pw1)
+              ok (st4, core.result.Result.Ok pw1)
             else
-              do
-              let (a, r4) ←
-                if is_lam
-                then
-                  do
-                  let (pw1, st6) ←
-                    arena.core.annot_pw_lam pers vis st4 mode lane fuel fe i
-                      bodyp
-                  ok (st6, pw1)
-                else
-                  do
-                  let (pw1, st6) ←
-                    arena.core.annot_pw_pi pers vis st4 mode lane fuel fe i
-                      bodyp
-                  ok (st6, pw1)
-              ok (a, is_lam, r4)
+              if is_lam
+              then
+                do
+                let (pw1, st6) ←
+                  arena.core.annot_pw_lam pers vis st4 mode lane fuel fe i
+                    bodyp
+                ok (st6, pw1)
+              else
+                do
+                let (pw1, st6) ←
+                  arena.core.annot_pw_pi pers vis st4 mode lane fuel fe i bodyp
+                ok (st6, pw1)
           match pw with
           | core.result.Result.Ok pw1 =>
             let (r4, st6) ←
@@ -34083,7 +33923,7 @@ def arena.core.annotate_binder
             match r4 with
             | core.result.Result.Ok ab =>
               let m ← kernel.expr.binder_meta pw1
-              if is_lam1
+              if is_lam
               then arena.monad.intern_e_lam pers st6 typ ab m
               else arena.monad.intern_e_forall_e pers st6 typ ab m
             | core.result.Result.Err _ => ok (r4, st6)
@@ -46133,27 +45973,36 @@ def arena.inductives.gen_rec.class_fields_of
             (Std.U64 × Std.U64))
         if occ
         then
-          let i4 := alloc.vec.Vec.len hits
-          if i4 = 1#usize
+          if occ
           then
-            let r2 ←
-              arena.inductives.field_tele.pi_binders pers st
-                arena.core.CORE_WALK_FUEL w (alloc.vec.Vec.new
-                (arena.handle.EIdx × kernel.expr.BinderMeta))
-            match r2 with
-            | core.result.Result.Ok p1 =>
-              let (bs, _) := p1
-              let (_, i5) ←
-                alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-                  (Std.U64 × Std.U64)) hits 0#usize
-              let i6 := alloc.vec.Vec.len bs
-              let i7 ← lift (UScalar.cast .U64 i6)
-              let out1 ←
-                alloc.vec.Vec.push out
-                  (arena.inductives.gen_rec.ClassField.Recursive i5 i7)
-              let i8 ← i + 1#u64
-              arena.inductives.gen_rec.class_fields_of pers st p ihs i8 fs out1
-            | core.result.Result.Err e1 => ok (core.result.Result.Err e1)
+            let i4 := alloc.vec.Vec.len hits
+            if i4 = 1#usize
+            then
+              let r2 ←
+                arena.inductives.field_tele.pi_binders pers st
+                  arena.core.CORE_WALK_FUEL w (alloc.vec.Vec.new
+                  (arena.handle.EIdx × kernel.expr.BinderMeta))
+              match r2 with
+              | core.result.Result.Ok p1 =>
+                let (bs, _) := p1
+                let (_, i5) ←
+                  alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                    (Std.U64 × Std.U64)) hits 0#usize
+                let i6 := alloc.vec.Vec.len bs
+                let i7 ← lift (UScalar.cast .U64 i6)
+                let out1 ←
+                  alloc.vec.Vec.push out
+                    (arena.inductives.gen_rec.ClassField.Recursive i5 i7)
+                let i8 ← i + 1#u64
+                arena.inductives.gen_rec.class_fields_of pers st p ihs i8 fs
+                  out1
+              | core.result.Result.Err e1 => ok (core.result.Result.Err e1)
+            else
+              let s ← lift (Array.to_slice arena.inductives.gen_rec.M_IHS)
+              let v1 ← kernel.core_types.code_points s
+              let ce ← kernel.core_types.invalid v1
+              arena.monad.fail (alloc.vec.Vec
+                arena.inductives.gen_rec.ClassField) ce
           else
             let s ← lift (Array.to_slice arena.inductives.gen_rec.M_IHS)
             let v1 ← kernel.core_types.code_points s
@@ -46170,11 +46019,42 @@ def arena.inductives.gen_rec.class_fields_of
             let i5 ← i + 1#u64
             arena.inductives.gen_rec.class_fields_of pers st p ihs i5 fs out1
           else
-            let s ← lift (Array.to_slice arena.inductives.gen_rec.M_IHS)
-            let v1 ← kernel.core_types.code_points s
-            let ce ← kernel.core_types.invalid v1
-            arena.monad.fail (alloc.vec.Vec
-              arena.inductives.gen_rec.ClassField) ce
+            if occ
+            then
+              let i5 := alloc.vec.Vec.len hits
+              if i5 = 1#usize
+              then
+                let r2 ←
+                  arena.inductives.field_tele.pi_binders pers st
+                    arena.core.CORE_WALK_FUEL w (alloc.vec.Vec.new
+                    (arena.handle.EIdx × kernel.expr.BinderMeta))
+                match r2 with
+                | core.result.Result.Ok p1 =>
+                  let (bs, _) := p1
+                  let (_, i6) ←
+                    alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
+                      (Std.U64 × Std.U64)) hits 0#usize
+                  let i7 := alloc.vec.Vec.len bs
+                  let i8 ← lift (UScalar.cast .U64 i7)
+                  let out1 ←
+                    alloc.vec.Vec.push out
+                      (arena.inductives.gen_rec.ClassField.Recursive i6 i8)
+                  let i9 ← i + 1#u64
+                  arena.inductives.gen_rec.class_fields_of pers st p ihs i9 fs
+                    out1
+                | core.result.Result.Err e1 => ok (core.result.Result.Err e1)
+              else
+                let s ← lift (Array.to_slice arena.inductives.gen_rec.M_IHS)
+                let v1 ← kernel.core_types.code_points s
+                let ce ← kernel.core_types.invalid v1
+                arena.monad.fail (alloc.vec.Vec
+                  arena.inductives.gen_rec.ClassField) ce
+            else
+              let s ← lift (Array.to_slice arena.inductives.gen_rec.M_IHS)
+              let v1 ← kernel.core_types.code_points s
+              let ce ← kernel.core_types.invalid v1
+              arena.monad.fail (alloc.vec.Vec
+                arena.inductives.gen_rec.ClassField) ce
       | core.result.Result.Err e1 => ok (core.result.Result.Err e1)
     | core.result.Result.Err e1 => ok (core.result.Result.Err e1)
 partial_fixpoint
@@ -49968,11 +49848,11 @@ def arena.inductives.positivity.nest_ctors_typed
         let r2 ← arena.inductives.positivity.whnf_walk_fuel pers st2 crest
         match r2 with
         | core.result.Result.Ok fuel_c =>
-          arena.inductives.positivity.nest_ctors_walk pers st2 mode fe ctx true
+          arena.inductives.positivity.nest_ctors_walk pers st2 mode fe ctx root
             fuel prog hi us ds names holes cs i ns outs cv n_f crest fuel_c
         | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
       else
-        arena.inductives.positivity.nest_ctors_walk pers st2 mode fe ctx false
+        arena.inductives.positivity.nest_ctors_walk pers st2 mode fe ctx root
           fuel prog hi us ds names holes cs i ns outs cv n_f crest fuel
     | core.result.Result.Err e => ok (core.result.Result.Err e, st2)
   | core.result.Result.Err e => ok (core.result.Result.Err e, st1)
@@ -54143,33 +54023,29 @@ def arena.inductives.block_install.block_caps_at
       let (_, c_fields) ←
         alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
           (arena.env.IConstantVal × Std.U64)) ms3.ctors 0#usize
-      let (rule_k, is_rec1, eta) ←
+      let eta ←
         if ms1.n_idx != 0#u64
-        then ok (p.is_prop, is_rec, false)
+        then ok false
         else
           if p.is_prop
-          then ok (true, is_rec, false)
-          else
-            do
-            let b ← if is_rec
-                      then ok false
-                      else ok true
-            ok (false, is_rec, b)
+          then ok false
+          else if is_rec
+               then ok false
+               else ok true
       let unitlike ←
         if ms1.n_idx != 0#u64
         then ok false
         else
           if c_fields != 0#u64
           then ok false
-          else if is_rec1
+          else if is_rec
                then ok false
                else ok true
-      let i7 ←
-        arena.inductives.block_parts.shape_k { p with is_prop := rule_k }
-      let rule_k1 ←
+      let i7 ← arena.inductives.block_parts.shape_k p
+      let rule_k ←
         if i7 = 1#u64
         then if c_fields = 0#u64
-             then ok rule_k
+             then ok p.is_prop
              else ok false
         else ok false
       let (r, st1) ← arena.monad.read_level_m pers st p.res_sort
@@ -54187,7 +54063,7 @@ def arena.inductives.block_install.block_caps_at
             eta_fields := c_fields,
             unitlike,
             unit_params := p.n_p,
-            rule_k := rule_k1,
+            rule_k,
             sort_z := pw,
             all := names,
             nparams := p.n_p,
@@ -74548,7 +74424,7 @@ def frontend.scan_fast.next_member_loop
                   let i3 ← ke - i2
                   let k ← frontend.scan_fast.key_at b i i3
                   ok (core.result.Result.Ok (frontend.scan_fast.Member.Key k i
-                    v, i, true))
+                    v, i, want_member))
             else
               ok (core.result.Result.Err
                 { offset := i, what := frontend.scan_types.ErrTag.ExpectedComma
