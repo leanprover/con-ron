@@ -26,10 +26,7 @@ import ConRon.Bridge.Core.Knot
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -85,20 +82,16 @@ theorem ensureSortCore_spec {fe : IFEnv} {f : Nat}
         s'.pins = s₀.pins ∧
         SimL (ConLeche.ensureSortCore mode env) d e s'.store r⌝⦄ := by
   have hb := hsim.whnf s₀ d i e hok hden hw
-  mvcgen [ConRon.Arena.ensureSortCore, ConRon.Arena.ensureSort,
-    ConRon.Arena.pureFnsA, hb]
-  all_goals (bridge_peel; subst_vars)
-  all_goals
-    first
-      | (intro hf; exact False.elim hf)
-      | (rename_i hck hvw hsm hxt hpn
-         refine ⟨hck, hxt, hpn, ?_⟩
-         obtain ⟨v, hv, _hwv, F, hF⟩ := hsm
-         obtain ⟨l, rfl, hl⟩ := denote_sort_inv hck.state.wf hvw hv
-         exact ⟨l, hl, F, ensureSortCore_of_whnf hF⟩)
-      | (exact hok)
-      | (exact hden)
-
+  unfold ConRon.Arena.ensureSortCore ConRon.Arena.pureFnsA
+  to_wp; vcgen [ConRon.Arena.ensureSort, wp% hb]
+  -- the one verification condition: the reduct is a sort (both failing
+  -- branches have native specs and leave none)
+  bridge_peel; subst_vars
+  rename_i hck hsm hxt hpn hvw
+  refine ⟨hck, hxt, hpn, ?_⟩
+  obtain ⟨v, hv, _hwv, F, hF⟩ := hsm
+  obtain ⟨l, rfl, hl⟩ := denote_sort_inv hck.state.wf hvw hv
+  exact ⟨l, hl, F, ensureSortCore_of_whnf hF⟩
 
 /-! ## 4. The axiom census -/
 

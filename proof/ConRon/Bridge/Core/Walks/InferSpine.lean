@@ -24,10 +24,7 @@ import ConLeche.Verify.BetaSpine
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -78,8 +75,8 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (by rw [hden]; rfl)) ?_
   rintro va s2 ⟨hs2, hrelA⟩
   subst s2
-  mvcgen
-  bridge_peel; subst_vars
+  to_wp; vcgen
+  subst_vars
   exact ⟨rfl, hrelF x hden, by simpa using hrelA x hden⟩
 
 /-! ## 2. The pure mirror's steps -/

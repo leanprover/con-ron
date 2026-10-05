@@ -27,10 +27,7 @@ import ConRon.Bridge.ExprOps.Ranges
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -98,7 +95,7 @@ def DqPost (mode : CheckMode) (env : Env) (fe : IFEnv) (s₀ : AState)
 theorem triple_pure_post {α : Type} {s₀ : AState} {v : α}
     {Q : α → AState → Prop} (h : Q v s₀) :
     ⦃fun s => ⌜s = s₀⌝⦄ (pure v : AM α) ⦃⇓? r s => ⌜Q r s⌝⦄ := by
-  mvcgen
+  to_wp; vcgen
   subst_vars; exact h
 
 /-- con-leche: none — **a join point**: the do-compiler's

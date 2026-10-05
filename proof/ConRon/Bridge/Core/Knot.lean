@@ -28,7 +28,7 @@ one knot induction**.  `KnotSpec` is `SSimC` with
 The `FueledM` wrapper con-leche uses to carry fuel monotonicity through a
 `bind` is not needed here, because the arena's side of every statement is a
 `Std.Do` triple rather than a monadic value that has to be composed: the fuel
-existential sits inside the answer relation and `mvcgen` never touches it.
+existential sits inside the answer relation and `vcgen` never touches it.
 
 ## Why `⇓?`
 
@@ -57,10 +57,7 @@ import ConLeche.Verify.Abstract
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
 
@@ -118,9 +115,9 @@ knot refines con-leche's corresponding fueled entry point on inputs that
 denote and are well scoped at the query's depth.
 
 The record is what makes the arms writable: a body's theorem takes
-`KnotSpec f` as a hypothesis and `hsim.whnfCore` goes into `mvcgen`'s spec
-list like any other `@[spec]` theorem (task #97s round 2's rule 8 — "the
-record of knot hypotheses costs nothing"). -/
+`KnotSpec f` as a hypothesis and `hsim.whnfCore` goes into `vcgen`'s spec
+list (as `wp% hsim.whnfCore`) like any other `@[spec]` theorem (task #97s
+round 2's rule 8 — "the record of knot hypotheses costs nothing"). -/
 structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop where
   /-- Head normalization without delta, in either mode (`c` is the official
@@ -204,6 +201,10 @@ task #97-P3-Core-2's finding 5.2, which re-shaped `reduceNat_spec` and
 > `Expr` in scope — the *original* subject — and the side goal it leaves is
 > false.
 
+(`vcgen`, task #111, does not guess at all: an `Expr` parameter that the
+program does not name is left as a goal of its own, so the answer shape
+serves it the same way.)
+
 Every walk of `Bridge/Core/Walks/Owed.lean` that chains two knot calls
 (`r.inferIO d ty'` on `r.annotate`'s ANSWER, say) meets it.  So
 rather than re-derive the existential/universal form at each site, the six
@@ -229,8 +230,9 @@ theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
           SimE (ConLeche.whnf mode env) d e s'.store r⌝⦄ := by
   obtain ⟨e₀, hd, hwf⟩ := hdw
   have hb := hsim.whnf s₀ d i e₀ hok hd hwf
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
@@ -247,8 +249,9 @@ theorem KnotSpec.infer' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
           SimE (ConLeche.inferTypeCore mode env) d e s'.store r⌝⦄ := by
   obtain ⟨e₀, hd, hwf⟩ := hdw
   have hb := hsim.infer s₀ d i e₀ hok hd hwf
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
@@ -265,8 +268,9 @@ theorem KnotSpec.annotate' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
           SimE (ConLeche.annotateCore mode env) d e s'.store r⌝⦄ := by
   obtain ⟨e₀, hd, hwf⟩ := hdw
   have hb := hsim.annotate s₀ d i e₀ hok hd hwf
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
@@ -283,8 +287,9 @@ theorem KnotSpec.inferIO' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
           SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
   obtain ⟨e₀, hd, hwf⟩ := hdw
   have hb := hsim.inferIO s₀ d i e₀ hok hd hwf
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   refine ⟨h1, h2, h3, fun e he => ?_⟩
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
@@ -303,8 +308,9 @@ theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   obtain ⟨a₀, hda1, hda2⟩ := hda
   obtain ⟨b₀, hdb1, hdb2⟩ := hdb
   have hb := hsim.defeq s₀ d i j a₀ b₀ hok hda1 hdb1 hda2 hdb2
-  mvcgen [hb]
-  intro h1 h2 h3 h4
+  to_wp; vcgen [wp% hb]
+  rename_i hpost
+  obtain ⟨h1, h2, h3, h4⟩ := hpost
   refine ⟨h1, h2, h3, fun a b ha hbb => ?_⟩
   rw [hda1] at ha; rw [hdb1] at hbb
   obtain rfl := (Option.some.inj ha).symm
