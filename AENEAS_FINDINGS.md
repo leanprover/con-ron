@@ -24,12 +24,12 @@ Rust.
 
 | | |
 |---|---|
-| Aeneas | `AeneasVerif/aeneas` **505b6ca35217e7be5c96c3e2f8045edfbdf47291** (2026-09-08); translator and `backends/lean` from the same rev |
-| Charon | `aeneasverif/charon` **b104e24fea7d721b71e6c39fd70f26ff20bc0980**, via Aeneas's own flake input |
-| Rust toolchain | the nightly Charon pins, **nightly-2026-08-18** |
+| Aeneas | `AeneasVerif/aeneas` **557eff83ecef5083b98a52a94ca7fae63d6c1dab** (2026-10-02; 505b6ca3 until task #112); translator and `backends/lean` from the same rev |
+| Charon | `aeneasverif/charon` **c8f15d7d658c86a95658f71ad99cddd4be002e04** (b104e24f until task #112), via Aeneas's own flake input |
+| Rust toolchain | the nightly Charon pins, **nightly-2026-09-17** (nightly-2026-08-18 until task #112) |
 | Lean (our proof project *and* con-leche) | **leanprover/lean4:v4.35.0-rc3** + Mathlib `v4.35.0-rc3` (v4.33.0 until task #110) |
-| Lean the Aeneas library wants | v4.31.0 — reconciled by our 595-line `patches/aeneas.patch` (§3.1; `aeneas-433.patch` until task #110) |
-| CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
+| Lean the Aeneas library wants | v4.31.0 — reconciled by our `patches/aeneas.patch` (§3.1; `aeneas-433.patch` until task #110) |
+| CLI | `charon cargo --preset=aeneas --dest-file <abs>.llbc`; `aeneas -backend lean -split-files -loops-to-rec -use-lean-modules false -dest … -subdir ConRon/Generated -namespace ConRon.Generated -no-progress-bar` |
 
 The Rust subset we hold ourselves to (`DESIGN.md` §3.4, enforced by a lint script): no
 closures, no `?`, no `std::collections`, no `unsafe`, no `#[derive]` at all on the core
@@ -265,6 +265,22 @@ prominently.  #12
 * Aeneas's tutorial hash map (`tests/src/hashmap.rs` + `tests/lean/Hashmap/Properties.lean`)
   was the most useful document we had — as a **specification** (the `al_v` / `slot_t_inv`
   strategy transferred completely), not as a proof library (§3.3).  #7, #16
+* **[surprise] Since 557eff83 a branch condition is no longer propagated into the branch**
+  (not bisected; #1379 "Use a fresh id when copying a symbolic value with no borrows" is the
+  likely one of the 30 commits).  `if ua && !ub { … } else if !ua && ub { … }` used to come out as two nested
+  tests; it now re-tests `ua` and `ub` inside the arms that already decided them (`if ua then
+  if ua then if ub then if ua then …`) in `lazy_delta_step`, and the same
+  re-test chain in `class_fields_of`.  Conversely, a variable known in a branch is no longer
+  replaced by its literal (`beq_finish … rec …` where it was `… true …`, and the `(b, sk)`
+  pair of our eight `intern_*` prologues is now just `sk`, `scratch_on := true` is no longer
+  written back into the record), which is *closer* to the Rust and made those eight proofs
+  shorter.  Semantics are unchanged in every case; the cost is proof steps over dead
+  re-tests (one contextual `simp` folds them away, con-ron task #112).  #112
+* **[surprise] Generated files are Lean *modules* by default since #1230** (`module`,
+  `public import`, `@[expose] public section`).  A module may import only modules, so a
+  project whose hand-written models (`TypesExternal.lean`/`FunsExternal.lean`) and proofs
+  are plain files must pass `-use-lean-modules false`; the module-system library is imported
+  by plain files without complaint.  #112
 
 ### 2.6 Loops under `-loops-to-rec` (task #84)
 
@@ -348,6 +364,28 @@ over `decide c`, so `Info.ofExpr` now reads the branches off the `ite`/`dite` ap
 `UScalarTy.U32.numBits` width is no longer evaluated and `bvify`/`bv_tac` fail on every
 scalar goal; the five `U*.bv_mod_size` lemmas are proved by `simp` instead and the
 bvify/bv_tac tests are disabled (neither tactic is used by con-ron).
+
+**On 557eff83** (con-ron task #112, 2026-10-05; upstream still on v4.31.0, now migrated
+to the Lean module system by #1230): every hunk of the patch still applies, one of them
+re-spelled — the three `bv_decide` enum getters are reached by `meta import all
+Lean.Meta.Tactic.BVDecide.Normalize.Enums` instead of `open private … from` (a module
+sees no private name of an import otherwise).  Two hunks are new.  **[surprise]** On 4.35
+`Std/Core/Ptr.lean` fails with *"locally inferred compilation type differs from type that
+would be inferred in other modules"* until the `@[reducible]` alias
+`core.ptr.alignment.Alignment` is `@[expose]`d (a structure field has it as its type).
+**[surprise, and the expensive one]** #1340 made the custom `do` elaborator emit the
+universe-polymorphic `Aeneas.Std.bind` for *every* bind of a `Result` block, where it
+emitted the typeclass `Bind.bind` before; the library's own definitions (`Vec.index_mut_usize`,
+…) and its `bind_tc_*` lemmas stay `Bind.bind`.  A client whose lemmas are stated with `do`
+and whose tactics match `Bind.bind` (ours: the whole Theorem-2 tier) finds every generated
+body and every one of its own statements in the new spelling and every library lemma in the
+old one — `rw [bind_tc_ok]` "did not find an occurrence" of a term printed identically.  The
+patch turns a bind whose two value types are in one universe back into `Bind.bind` after
+elaboration (the levels are unified, since a `do` in a statement is elaborated before its
+types are known); a cross-universe bind keeps `Std.bind`.  #1340's own message says the
+`Bind.bind` form "now only comes from code elaborated with Lean's `do`" — so a downstream
+user upgrading across it should expect every bind-shaped proof step to need the `Std.bind`
+lemma (`bind_ok`, `Std.bind_assoc`) or `bind_tc_eq` first.
 
 **The trap the two options set, and it cost us real work.** **[bug]** The `leanOptions` are
 the **`aeneas` package's**, so they do **not** reach a downstream project.  Without them,
@@ -637,6 +675,11 @@ another way, so `crates/con-ron-core` now contains **no `Vec::insert` at all**:
   and the port is now `O(1)` amortised where it was `O(n)`, worth 0.6 G
   instructions on `init`.
 
+**Upstream (#1302, 2026-09-25, picked up by task #112):** the model now uses
+`List.insertIdx` — the value is right.  The guard is still `i.val < v.length`, so
+`Vec::insert(len, x)` (a push, and `insert(0, x)` into an empty vector) still *fails* where
+Rust succeeds; half of the finding stands.
+
 So the bug cost us a task, not a proof, and the ask below stands for the next
 client — who will not have the option if the prepend is load-bearing (a
 mid-vector `insert` has no such workaround).  We also checked the rest of the
@@ -688,7 +731,8 @@ cost too.
 
 In rough order of value to us:
 
-1. **Fix `Vec::insert`'s model** (§3.9) — it is `List.set` where Rust inserts, so any
+1. **Fix `Vec::insert`'s guard** (§3.9) — the value was fixed upstream (#1302, `insertIdx`);
+   the guard still rejects `index == len`, which Rust permits.  Originally: it was `List.set` where Rust inserts, so any
    proof about a function that prepends to a `Vec` is unprovable, and nothing warns the
    client.  One line, and the highest-value item here because it is a *soundness*-shaped
    defect in the library rather than a gap.  (Task #50 routed *our* four call sites

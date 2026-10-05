@@ -19,7 +19,7 @@ set_option maxRecDepth 2048
 namespace ConRon.Generated
 
 /-- Trait declaration: [core::alloc::AllocatorClone]
-    Source: '/rustc/library/core/src/alloc/mod.rs', lines 531:0-531:50
+    Source: '/rustc/library/core/src/alloc/mod.rs', lines 541:0-541:50
     Name pattern: [core::alloc::AllocatorClone]
     Visibility: public -/
 @[rust_trait "core::alloc::AllocatorClone"

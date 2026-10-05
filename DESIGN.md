@@ -755,7 +755,7 @@ proof/                   Lake project: requires con-leche + aeneas (task #4)
                          from proof/lake-manifest.json — `provenance.py dir`
                          prints its package directory.  A vendored git
                          subtree for tasks #74-#90, a submodule before that.
-vendor/aeneas            submodule, pinned (505b6ca3) — same rev as flake.nix
+vendor/aeneas            submodule, pinned (557eff83 since task #112) — same rev as flake.nix
 _tmp/aeneas-lean/        gitignored: vendor/aeneas/backends/lean + the v4.33
                          patch, built; produced by setup-aeneas-lean.sh, and
                          `require`d by path from proof/
@@ -66845,3 +66845,130 @@ future task restating the tier's triples natively in `Std.WP` would delete
 the bridge, the 111 `wp_spec`s and the 286 `wp%`s.
 
 Gates: `scripts/gates.sh` all OK on the branch (below).
+
+### Task #112 — Aeneas 505b6ca3 → 557eff83, on v4.35.0-rc3 (2026-10-05, Opus)
+
+`vendor/aeneas` and `flake.nix` move to upstream `main` **`557eff83`**
+(2026-10-02, 30 commits; nightly-2026.10.05).  The toolchain stays
+`leanprover/lean4:v4.35.0-rc3` / Mathlib `v4.35.0-rc3`: upstream is still on
+v4.31.0 (no branch newer), so `patches/aeneas.patch` stays.  Worktree
+`_tmp/wt-t112`; the patched library was built in a private
+`_tmp/aeneas-lean-t112-<key>` (`AENEAS_LEAN_DEST`, the packages a reflink
+copy of the shared set), reached through a worktree-private `_tmp/`
+directory whose `aeneas-lean-v4.35.0-rc3` entry points at it — the shared
+library, cache and the #111 lane were not touched.
+
+**Upstream, as it reaches us.**  #1230 migrates the library to the module
+system (`module`, `public import`, `meta`, `@[expose]`) and makes the
+extractor emit module files by default; #1340 makes the custom `do`
+elaborator emit `Aeneas.Std.bind` for every bind; #1302 fixes the value of
+`Vec.insert` (AENEAS_FINDINGS §3.9); #1379/#1388/#1348 change the symbolic
+execution; seven Charon updates (#1354, #1357, #1364, #1377, #1381, #1382,
+#1391).
+
+**Flake.**  `aeneas` 505b6ca3 → 557eff83, hence Charon b104e24f → c8f15d7d
+and Rust nightly-2026-08-18 → **nightly-2026-09-17** (`rust-overlay`
+b32685dd → a1d497a9); nixpkgs unchanged.  The extraction needs the new pair
+(translator and library from one rev).
+
+**The patch** (595 → 645 lines, 19 → 21 files).  Every hunk still applies;
+none was made obsolete upstream (the toolchain gap is the same).  `git
+rebase` of the patch-as-a-commit onto 557eff83 conflicted in one file:
+
+* `AeneasMeta/BvEnumToBitVec.lean` (the #2/#110 BVDecide move): a module sees
+  no private name of an import, so `open private … from` + `import
+  Batteries.Tactic.OpenPrivate` became `meta import all
+  Lean.Meta.Tactic.BVDecide.Normalize.Enums` beside the `public meta import`.
+
+New:
+
+* `Aeneas/Std/Core/Ptr.lean`: `@[expose]` on the `@[reducible]` alias
+  `core.ptr.alignment.Alignment` (v4.35: "locally inferred compilation type
+  differs … may need to be `@[expose]`d", the one build error of the
+  module-system library on v4.35).
+* `Aeneas/Do/Elab.lean`: **`normalizeSameUniverseBinds`**, run on the
+  custom `do` elaborator's result: a `Std.bind` whose two value types are in
+  one universe (levels unified, not compared — a `do` in a statement is
+  elaborated before its types are known) becomes `@Bind.bind Result
+  (Monad.toBind instMonadResult)` again, a cross-universe one stays.  Without
+  it every generated body and every lemma we state with `do` is `Std.bind`
+  while the library's own definitions and `bind_tc_*` lemmas, the `lockstep`
+  tactic (`isAppOfArity ``Bind.bind 6`, 18 sites in `Lockstep.lean`) and its rules are
+  `Bind.bind`: the first build failed at `Refine/HashMap.lean` and
+  `Refine/Abs.lean` on `rw [bind_tc_ok]` against an identically printed term.
+  Porting Theorem 2 to `Std.bind` instead is a change to the shared core and
+  to ~2 200 `bind_ok`/`bind_tc_ok`/`bind_assoc` uses; the hunk restores
+  exactly the terms 505b6ca3 produced.
+
+The #104 hunk (relative source paths in extracted oleans) and the #110
+hunks are unchanged in content.
+
+**What the module system demanded from us: one flag.**  `extract.sh` passes
+`-use-lean-modules false`; a module may import only modules, so module
+output would have dragged `TypesExternal`/`FunsExternal` and the proof into
+the module system.  Plain files import the module-system library without
+complaint; no `proof/` file changed for it.
+
+**The regenerated model.**  `Types.lean` and the templates: rustc source
+line numbers only.  `Funs.lean` (+367 −491): sixteen functions.  Aeneas no
+longer propagates a branch condition into the branch: `beq_go`,
+`iota_certs_aux`, `nest_ctors_typed`, `next_member_loop` pass the variable
+where they passed its literal; `block_caps_at`, `annotate_binder` and the
+eight `EStore.intern_*` lose the values they had carried along only because
+a branch fixed them (`(b, sk)` is `sk`, `scratch_on := true` is no longer
+written back) — closer to the Rust; `lazy_delta_step` and `class_fields_of`
+re-test conditions their branch already decided (`if ua then if ua then if
+ub then if ua …`).  Semantics unchanged throughout.
+
+**Proofs** (Theorem 1 untouched — `ConRon/Bridge/**` imports no Aeneas — and
+no Bridge file changed):
+
+* `Refine2/Specs.lean`, the eight `estore_intern_*_abs₀`: the `sk` prologue
+  loses its `bsc` half, the cons probe its `frozen` component, the scratch
+  tier's store relation its `scratchOn.trans`, and in the persistent tier
+  the rebuilt `hrelS`/`hinvS` are `hrel`/`hinv` themselves (−146 lines net);
+* `Refine2/Core/LS/Defeq.lean`, `lazy_delta_step_ls`: `lockstep_f` hit the
+  recursion limit on the re-tests; a contextual `simp only [↓reduceIte,
+  Bool.false_eq_true]` on the unfolded port (before the twin is unfolded)
+  folds them back to the two-level test, and `lockstep_f` closes it as
+  before.  `class_fields_of`'s re-tests needed nothing.
+
+No new invariant, no `sorry`, no axiom-footprint change; Lockstep.lean
+untouched.
+
+**Numbers.**  `instructions:u` (`perf stat`, one run each):
+
+| | 505b6ca3 (master) | 557eff83 (this branch) |
+|---|---:|---:|
+| `Refine2/Core/Eqns.lean`, `lake env lean` | 18 951 401 277 335 | 19 404 022 237 390 (+2.4 %) |
+| `charon cargo --preset=aeneas` (with rustc) | 54 502 473 421 | 46 461 385 806 / 46 483 718 119 |
+| `aeneas -backend lean …` | 19 409 644 005 580 | 17 204 407 812 556 / 19 207 280 463 783 |
+| `Init`, `con-ron --verified --jobs=1` (bench-baselines, release) | 211 500 418 916 | 211 499 771 685 (−0.0003 %) |
+
+`Eqns` re-derives the equations of a `Funs.lean` whose sixteen changed
+functions include the doubled `lazy_delta_step`/`class_fields_of` arms; one
+run each, and Lean elaborates in parallel, so the run-to-run spread of the
++2.4 % is not known.  Aeneas's count moves ±12 % between two identical runs (it is parallel), so
+the extraction is unchanged within noise; `extract-check` took 81 s in the
+gates.  The checker run is the new rustc on unchanged Rust: both accept
+57 919.  Whole-target build after the Aeneas library: `Generated/Funs` 176 s,
+`Core/Eqns` 969 s, `lake build ConRonRefine2 ConRonCapstone` 23 min 39 s.
+
+**Shared-state switch-over (for the landing).**  Every Aeneas-dependent
+`.olean` in every worktree goes stale; the Bridge tier does not.
+1. Land by fast-forward after #111 (a Bridge-only change; if it lands
+   first, merge master here and re-run the `lake-build` gate).
+2. Main tree: `git submodule update vendor/aeneas`, `direnv reload` (the new
+   Charon/Aeneas/rustc are already in the Nix store).
+3. The shared library, with no agent building against it: either
+   `scripts/setup-aeneas-lean.sh` (re-copies the patched sources into
+   `_tmp/aeneas-lean-v4.35.0-rc3`, keeps its `.lake`; the next `lake build`
+   rebuilds the 1 757-job Aeneas library, a few minutes) or, instantly, move this lane's
+   built `_tmp/aeneas-lean-t112-<key>` into its place **before** dropping the
+   worktree (drop-worktree deletes `_tmp/*-<key>`) and run the setup script
+   once to write its stamp.
+4. `cd proof && lake build` in the main tree (~25 min: `Funs`, `Eqns`, the
+   Theorem-2 tier), then reseed: `LAKE_ARTIFACT_CACHE=true
+   LAKE_RESTORE_ARTIFACTS=true lake build`.
+5. Other worktrees: `git submodule update`, `direnv reload`, and restore
+   from the reseeded cache.

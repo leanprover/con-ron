@@ -1,6 +1,6 @@
 --- a/Aeneas/Data/Array.lean
 +++ b/Aeneas/Data/Array.lean
-@@ -109,7 +109,7 @@
+@@ -111,7 +111,7 @@
    simp_lists
  
  @[simp, simp_lists_safe]
@@ -11,7 +11,7 @@
    (xs.set! i x)[j]! = xs[j]! := by
 --- a/Aeneas/Data/Vector.lean
 +++ b/Aeneas/Data/Vector.lean
-@@ -20,7 +20,7 @@
+@@ -22,7 +22,7 @@
    by_cases h : i < n <;> try grind
    simp_ifs
    simp_lists
@@ -20,7 +20,7 @@
  
  @[simp, simp_lists_safe]
  theorem getElem!_default [Inhabited α] (ls : Vector α n) (i : ℕ)
-@@ -42,20 +42,20 @@
+@@ -44,20 +44,20 @@
    (s : Vector α n) (s' : List α) (i j : ℕ) (h : j < i) :
    (s.setSlice! i s')[j]! = s[j]! := by
    simp only [getElem!_eq_toArray_getElem!, setSlice!]
@@ -44,7 +44,7 @@
  
  @[simp_lists_safe]
  theorem getElem!_setSlice!_same {α} {n} [Inhabited α] (s : Vector α n) (s' : List α) (i j : ℕ)
-@@ -67,20 +67,20 @@
+@@ -69,20 +69,20 @@
    (s : Vector α n) (s' : List α) (i j : ℕ) (h : j < i ∧ j < s.size) :
    (s.setSlice! i s')[j] = s[j] := by
    simp only [setSlice!, getElem_eq_toArray_getElem]
@@ -68,7 +68,7 @@
  
  @[simp_lists_safe]
  theorem getElem_setSlice!_same {α} {n} [Inhabited α] (s : Vector α n) (s' : List α) (i j : ℕ)
-@@ -109,7 +109,7 @@
+@@ -111,7 +111,7 @@
    simp_lists
  
  @[simp, simp_lists_safe]
@@ -77,7 +77,7 @@
    [Inhabited α] {n i j : ℕ} {x : α} {xs : Vector α n}
    (hi : i < n ∧ j = i) :
    (xs.set! i x)[j] = x := by
-@@ -125,15 +125,15 @@
+@@ -127,15 +127,15 @@
    (h : i ≠ j) :
    (xs.set! i x)[j]! = xs[j]! := by
    simp only [getElem!_eq_toArray_getElem!, toArray_set!]
@@ -96,9 +96,50 @@
  
  @[simp, simp_lists_safe]
  theorem getElem!_replicate {α : Type u} [Inhabited α] {i n : ℕ} {a : α} (h : i < n) :
+--- a/Aeneas/Do/Elab.lean
++++ b/Aeneas/Do/Elab.lean
+@@ -540,6 +540,29 @@
+ meta def elabDoSeq (doSeq : TSyntax ``doSeq) : ElabM Expr :=
+   getDoElems doSeq >>= fun elems => elabDoSeqCore elems
+ 
++/-- con-ron patch (task #112): upstream #1340 made the elaborator emit the
++    universe-polymorphic `Std.bind` for every bind.  con-ron's refinement proofs
++    (the `lockstep` tactic, every lemma stated over a generated body) are written
++    against the typeclass `Bind.bind` the elaborator emitted before, so a bind
++    whose two value types live in the SAME universe is turned back into
++    `Bind.bind` (definitionally equal, `bind_tc_eq`); a cross-universe bind keeps
++    `Std.bind`.  The levels are unified, not compared: a `do` in a statement is
++    elaborated before its value types are known (`(do …) = ok o` with `o`'s type
++    still a metavariable), and a level left undetermined is one universe. -/
++meta def normalizeSameUniverseBinds (e : Expr) : MetaM Expr :=
++  Meta.transform e (post := fun e => do
++    if e.isAppOfArity ``Aeneas.Std.bind 4 then
++      if let .const _ [u, v] := e.getAppFn then
++        if ← isLevelDefEq u v then
++          let u ← instantiateLevelMVars u
++          let res := Lean.mkConst ``Aeneas.Std.Result [u]
++          let inst := mkApp2 (Lean.mkConst ``Monad.toBind [u, u]) res
++            (Lean.mkConst ``Aeneas.Std.instMonadResult [u])
++          let args := e.getAppArgs
++          return .done (mkAppN (Lean.mkConst ``Bind.bind [u, u])
++            #[res, inst, args[0]!, args[1]!, args[2]!, args[3]!])
++    return .continue)
++
+ /-- Option to toggle the new Aeneas `do` elaborator -/
+ meta register_option Aeneas.customDoElab : Bool := {
+     defValue := true
+@@ -562,7 +585,7 @@
+     let result ← Do.ElabM.execute (Do.elabDoSeq doSeq) expectedType?.get!
+     let result ← Term.ensureHasType expectedType? result
+     synthesizeSyntheticMVarsNoPostponing
+-    instantiateMVars result
++    Do.normalizeSameUniverseBinds (← instantiateMVars result)
+   else
+     Term.elabDo stx expectedType?
+ 
 --- a/Aeneas/Do/Tests.lean
 +++ b/Aeneas/Do/Tests.lean
-@@ -625,13 +625,15 @@
+@@ -626,13 +626,15 @@
  
  /-- warning: Variable name `n` is not explicitly referenced.
  
@@ -116,7 +157,7 @@
  
  Note: This linter can be disabled with `set_option linter.unusedVariables false` -/
  #guard_msgs in
-@@ -647,7 +649,8 @@
+@@ -648,7 +650,8 @@
  
  /-- warning: Variable name `x` is not explicitly referenced.
  
@@ -126,7 +167,7 @@
  
  Note: This linter can be disabled with `set_option linter.unusedVariables false` -/
  #guard_msgs in
-@@ -668,25 +671,29 @@
+@@ -669,25 +672,29 @@
  /--
  warning: Variable name `a` is not explicitly referenced.
  
@@ -160,7 +201,7 @@
  
  Note: This linter can be disabled with `set_option linter.unusedVariables false`
  -/
-@@ -699,25 +706,29 @@
+@@ -700,25 +707,29 @@
  /--
  warning: Variable name `a` is not explicitly referenced.
  
@@ -196,7 +237,7 @@
  -/
 --- a/Aeneas/Extract/Extract.lean
 +++ b/Aeneas/Extract/Extract.lean
-@@ -213,7 +213,15 @@
+@@ -215,7 +215,15 @@
       Lean definitions, so we can simply reuse the original name. -/
    if found
    then pure (List.foldl (fun s0 s1 => s0 ++ "/" ++ s1) "Aeneas" out)
@@ -213,9 +254,20 @@
  
  structure Span where
    fileName : String
+--- a/Aeneas/Std/Core/Ptr.lean
++++ b/Aeneas/Std/Core/Ptr.lean
+@@ -73,7 +73,7 @@
+ | _Align1Shl62 : core.ptr.alignment.AlignmentEnum
+ | _Align1Shl63 : core.ptr.alignment.AlignmentEnum
+ 
+-@[reducible, rust_type "core::ptr::alignment::Alignment"]
++@[expose, reducible, rust_type "core::ptr::alignment::Alignment"]
+ def core.ptr.alignment.Alignment :=
+ core.ptr.alignment.AlignmentEnum
+ 
 --- a/Aeneas/Std/Delab.lean
 +++ b/Aeneas/Std/Delab.lean
-@@ -71,7 +71,7 @@
+@@ -73,7 +73,7 @@
      let e ← getExpr
      unless e.isAppOfArity ``_root_.Aeneas.Std.uncurry 5 do return none
      let val := e.appArg!
@@ -224,7 +276,7 @@
      withAppFn <| withAppArg <| enterUncurryChain #[] fun inner => do
        let (innerPats, restPats, a) ← splitRec inner rest
        let fvPat : Term := annotatePos tuplePos (← buildTupleTerm innerPats)
-@@ -88,7 +88,7 @@
+@@ -90,7 +90,7 @@
      let args := e.getAppArgs
      unless args.size == numParams + 3 do return none
      let discr := args[numParams + 1]!
@@ -235,7 +287,7 @@
        let (ctorPats, restPats, a) ← splitRec ctorBinders rest
 --- a/Aeneas/Tactic/Conv/Bvify/Bvify.lean
 +++ b/Aeneas/Tactic/Conv/Bvify/Bvify.lean
-@@ -381,6 +381,9 @@
+@@ -415,6 +415,9 @@
    bvify 32 at *
    apply h
  
@@ -245,7 +297,7 @@
  /--
  info: example
    (a : U32)
-@@ -465,6 +468,8 @@
+@@ -499,6 +502,8 @@
    simp_all only
    bv_decide
  
@@ -254,7 +306,7 @@
  example
    (x : U16) (_ : x.val < 3329)
    (y : U32) (_ : y = core.convert.num.FromU32U16.from x) :
-@@ -501,7 +506,11 @@
+@@ -535,7 +540,11 @@
    extract_goal1
    simp [h]
  
@@ -268,8 +320,8 @@
  end Aeneas.Bvify
 --- a/Aeneas/Tactic/Simp/SimpScalar/Lemmas.lean
 +++ b/Aeneas/Tactic/Simp/SimpScalar/Lemmas.lean
-@@ -8,7 +8,7 @@
-   initialize registerTraceClass `ReduceLog2
+@@ -11,7 +11,7 @@
+   meta initialize registerTraceClass `ReduceLog2
  
    -- TODO: the pattern `Nat.log2 (@OfNat.ofNat _ _ _)` doesn't work
 -  simproc Nat.reduceLog2 (Nat.log2 _) := fun e => do
@@ -277,7 +329,7 @@
      match e.consumeMData.getAppFnArgs with
      | (``Nat.log2, #[value]) =>
        trace[ReduceLog2] "- value: {value}"
-@@ -23,7 +23,7 @@
+@@ -26,7 +26,7 @@
  
    example : (2^128).log2 = 128 := by simp
  
@@ -288,7 +340,7 @@
  
 --- a/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
 +++ b/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
-@@ -80,9 +80,9 @@
+@@ -83,9 +83,9 @@
  simproc reduceZModPow
    (@HPow.hPow _ Nat _
        (@instHPow _ Nat
@@ -303,7 +355,7 @@
    trace[ReduceZMod] "Visiting: {e}"
 --- a/Aeneas/Tactic/Solver/Arith/Lemmas.lean
 +++ b/Aeneas/Tactic/Solver/Arith/Lemmas.lean
-@@ -282,7 +282,7 @@
+@@ -284,7 +284,7 @@
      simp only [Nat.cast_inj]
      rfl
    else
@@ -314,16 +366,16 @@
      rw [ZMod.mul_inv_eq_gcd]
 --- a/Aeneas/Tactic/Solver/BvTac/BvTac.lean
 +++ b/Aeneas/Tactic/Solver/BvTac/BvTac.lean
-@@ -7,7 +7,7 @@
+@@ -10,7 +10,7 @@
  open Lean Lean.Meta Lean.Parser.Tactic Lean.Elab.Tactic
  open Bvify Utils
  
 -structure Config extends Lean.Elab.Tactic.BVDecide.Frontend.BVDecideConfig, Bvify.Config where
 +structure Config extends Lean.Elab.Tactic.BVDecide.BVDecideConfig, Bvify.Config where
  
+ meta section
  declare_config_elab elabConfig Config
- 
-@@ -79,7 +79,7 @@
+@@ -84,7 +84,7 @@
  elab "bv_tac_preprocess" config:Parser.Tactic.optConfig n:(colGt term)? : tactic => do
    bvTacPreprocess (← elabConfig config) (← optElabTerm n)
  
@@ -332,7 +384,7 @@
  /-- `bv_tac n` solves goals about bit-vectors.
  
  **Usage**: `bv_tac n` where `n` is the bitwidth to use for the bit-vectors.
-@@ -118,9 +118,11 @@
+@@ -123,9 +123,11 @@
    -- Call bv_decide
    IO.FS.withTempFile fun _ lratFile => do
      let config := config.toBVDecideConfig
@@ -346,7 +398,7 @@
  
  /-!
  # Tests
-@@ -130,6 +132,11 @@
+@@ -135,6 +137,11 @@
  example (x y : U8) (h : x.val ≤ y.val) : x.bv ≤ y.bv := by
    bv_tac
  
@@ -358,7 +410,7 @@
  example (x : U32) (h : x.val < 3329) : x.bv % 3329#32 = x.bv := by
    bv_tac
  
-@@ -257,5 +264,6 @@
+@@ -262,5 +269,6 @@
    (c4.val : ZMod 3329) = (a.val : ZMod 3329) - (b.val : ZMod 3329) ∧ c4.val < 3329
    := by
    bv_tac 32
@@ -367,7 +419,7 @@
  end Aeneas.BvTac
 --- a/Aeneas/Tactic/Solver/BvTac/Lemmas.lean
 +++ b/Aeneas/Tactic/Solver/BvTac/Lemmas.lean
-@@ -116,15 +116,15 @@
+@@ -119,15 +119,15 @@
  -- ============================================================================
  
  @[simp, simp_scalar_safe, bvify, grind =, agrind =]
@@ -390,7 +442,7 @@
  -- x.val % (2^n) = x.val  (Nat level)
 --- a/Aeneas/Tactic/Solver/BvTac/Tests.lean
 +++ b/Aeneas/Tactic/Solver/BvTac/Tests.lean
-@@ -9,6 +9,8 @@
+@@ -10,6 +10,8 @@
  
  open Aeneas Std
  
@@ -399,14 +451,14 @@
  example (x y : U8) : (x ||| y).val = 0 ↔ x.val = 0 ∧ y.val = 0 := by
    bv_tac 8
  
-@@ -50,3 +52,4 @@
+@@ -51,3 +53,4 @@
      (b2 : U32) (hb2 : b2.val = b1.val &&& 65535#u32) :
      bMont = b2 := by
    bv_tac 32
 +-/
 --- a/Aeneas/Tactic/Step/Init.lean
 +++ b/Aeneas/Tactic/Step/Init.lean
-@@ -453,10 +453,10 @@
+@@ -445,10 +445,10 @@
      match ← reduceProj? e with
      | none =>
        e.withApp fun fn args =>
@@ -421,7 +473,7 @@
            else pure (.continue e)
 --- a/Aeneas/Tactic/Step/StepStar.lean
 +++ b/Aeneas/Tactic/Step/StepStar.lean
-@@ -236,11 +236,17 @@
+@@ -237,11 +237,17 @@
    let e := e.consumeMData
    if e.isIte || e.isDIte then
      let kind := if e.isIte then .ite else .dite
@@ -443,7 +495,7 @@
      let name? ← if e.isDIte
        then some <$> Utils.lambdaOne brFalse fun x _ => x.fvarId!.getUserName
        else pure none
-@@ -251,10 +257,10 @@
+@@ -252,10 +258,10 @@
          { toExpr := brTrue,  numArgs := 1, },
          { toExpr := brFalse, numArgs := 1, }
        ]
@@ -459,7 +511,7 @@
    else if let some ma ← Meta.matchMatcherApp? e (alsoCasesOn := true) then
 --- a/Aeneas/Tactic/Step/Tests/TupleDestruct.lean
 +++ b/Aeneas/Tactic/Step/Tests/TupleDestruct.lean
-@@ -35,49 +35,57 @@
+@@ -36,49 +36,57 @@
  /--
  warning: Variable name `a` is not explicitly referenced.
  
@@ -527,30 +579,28 @@
  -/
 --- a/AeneasMeta/BvEnumToBitVec.lean
 +++ b/AeneasMeta/BvEnumToBitVec.lean
-@@ -3,7 +3,8 @@
- Released under Apache 2.0 license as described in the file LICENSE.
+@@ -4,7 +4,8 @@
  -/
- import Lean
--import Lean.Elab.Tactic.BVDecide.Frontend.Normalize.Enums
-+import Lean.Meta.Tactic.BVDecide.Normalize.Enums
-+import Batteries.Tactic.OpenPrivate
+ module
+ public meta import Lean.Elab.Deriving.Basic
+-public meta import Lean.Elab.Tactic.BVDecide.Frontend.Normalize.Enums
++public meta import Lean.Meta.Tactic.BVDecide.Normalize.Enums
++meta import all Lean.Meta.Tactic.BVDecide.Normalize.Enums
+ public section
  
  /-!
- # Eagerly realizing `bv_decide`'s enum conversion constants
-@@ -44,7 +45,9 @@
+@@ -46,7 +47,7 @@
  namespace Aeneas
  
  open Lean Meta Elab
 -open Lean.Elab.Tactic.BVDecide.Frontend.Normalize
 +open Lean.Meta.Tactic.BVDecide.Normalize
-+open private getEnumToBitVecFor getEnumToBitVecLeFor getEqIffEnumToBitVecEqFor from
-+  Lean.Meta.Tactic.BVDecide.Normalize.Enums
  
  /-- Marker class enabling `deriving BvEnumToBitVec` on an enum inductive.
  
 --- a/AeneasMeta/Saturate/Tactic.lean
 +++ b/AeneasMeta/Saturate/Tactic.lean
-@@ -426,7 +426,7 @@
+@@ -428,7 +428,7 @@
      trace[Saturate.explore] ".app"
      /- Check if this is a conjunction and we know the path to the current sub-expression (because it is a conjunct
         in an assumption) -/
@@ -559,7 +609,7 @@
        -- This is a conjunction
        let some path := path
          | throwError "Unreachable"
-@@ -493,7 +493,7 @@
+@@ -495,7 +495,7 @@
      trace[Saturate.explore] ".app"
      /- Check if this is a conjunction and we know the path to the current sub-expression (because it is a conjunct
         in an assumption) -/
@@ -570,7 +620,7 @@
          | throwError "Unreachable"
 --- a/AeneasMeta/Simp/Simp.lean
 +++ b/AeneasMeta/Simp/Simp.lean
-@@ -116,7 +116,7 @@
+@@ -118,7 +118,7 @@
      let freshFVarIds ←
        match result? with
        | none => replaceMainGoal []; pure none
