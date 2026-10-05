@@ -13,10 +13,7 @@ import ConRon.Bridge.ExprOps.Ranges
 namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -48,13 +45,13 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
     split
     next icv cnP cnF hfd =>
       obtain ⟨dcv, _hdcv, hfind⟩ := env_ctor_of_index hok hcn hfd
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.isCtorApp, hgf, hfind]
     next hnd =>
       have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨rfl, ?_⟩
       simp only [ConLeche.isCtorApp, hgf]
@@ -63,7 +60,7 @@ theorem isCtorApp_spec (s₀ : AState) (a : EIdx) (x : Expr)
            · rfl)
   all_goals
     dsimp only
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨rfl, ?_⟩
     have hnc := denote_not_const hwf hvh hdd (by intro c us h; cases h)
@@ -140,7 +137,7 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
           s'.pins = s₀.pins ∧
           denoteE s'.store r = some (ConLeche.litToCtorIfNat env x)⌝⦄ := by
     intro hx
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, by rw [hx]; exact hda⟩
   cases v
@@ -163,7 +160,7 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
       next hsupf =>
         have hS : ConLeche.natLitSupported env = false := by
           rw [← hsup]; simpa using hsupf
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         refine ⟨hok1, hx1, hp1, ?_⟩
         simp only [ConLeche.litToCtorIfNat, hS, Bool.false_eq_true, ite_false]
@@ -205,7 +202,7 @@ theorem capsNeverZero_spec (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     split at hcaps
     · cases hcaps; rfl
     · simp at hcaps
-  mvcgen
+  to_wp; vcgen
   bridge_peel; subst_vars
   refine ⟨hok2, hst2.trans hst1, hp2.trans hp1, ?_⟩
   simp only [ConLeche.capsNeverZero, hsz]
@@ -230,7 +227,7 @@ theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
   split
   next hwn =>
     have hwf0 : ef.wscopedB d = false := by simpa [hw'] using hwn
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok, rfl, rfl, ?_⟩
     simp [hwf0]
@@ -246,7 +243,7 @@ theorem fabScopeOk_spec (s₀ : AState) (d : Nat) (fab major : EIdx)
     split
     next hln =>
       have hlf : ef.looseBVarsBounded 0 = false := by simpa [hlb'] using hln
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok2, hst2, hp2, ?_⟩
       simp [hlf]
@@ -284,7 +281,7 @@ theorem projFnName_specI (s₀ : AState) (T : NIdx) (i : Nat) (Tn : ConLeche.Nam
     ⦃⇓? h s' => ⌜StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteN s'.store.ns h = some (ConLeche.projFnName Tn i)⌝⦄ := by
-  mvcgen [ConRon.Arena.projFnName, internNNode_spec]
+  to_wp; vcgen [ConRon.Arena.projFnName, wp% internNNode_spec]
   all_goals (bridge_peel; subst_vars
              grind [denoteNView, Arena.NStore.ViewOK, NNodeView.children,
                nview_isSome_of_denote, Ext.trans, ConLeche.projFnName])
@@ -313,7 +310,7 @@ theorem towerSlotsAllGo_specI (T : NIdx) (Tn : ConLeche.Name) :
   induction n with
   | zero =>
     intro j s₀ hok _
-    mvcgen [ConRon.Arena.towerSlotsAllGo]
+    to_wp; vcgen [ConRon.Arena.towerSlotsAllGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -334,7 +331,7 @@ theorem towerSlotsAllGo_specI (T : NIdx) (Tn : ConLeche.Name) :
     next hn =>
       have hf : (env.findProj? Tn j).isSome = false := by
         rw [← hiff]; simpa using hn
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok1, hx1, hp1, ?_⟩
       rw [List.range'_succ, List.all_cons, hf, Bool.false_and]
@@ -353,7 +350,7 @@ theorem projNodesGo_specI (T : NIdx) (b : EIdx) (Tn : ConLeche.Name) (x : Expr) 
   induction n with
   | zero =>
     intro j s₀ hok _ _
-    mvcgen [ConRon.Arena.projNodesGo]
+    to_wp; vcgen [ConRon.Arena.projNodesGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -368,7 +365,7 @@ theorem projNodesGo_specI (T : NIdx) (b : EIdx) (Tn : ConLeche.Name) (x : Expr) 
     refine triple_seq (ih (j + 1) s1 hok1 (denoteN_ext hT hx1)
       (denote_ext hb hx1)) ?_
     rintro rest s2 ⟨hok2, hx2, hp2, hrest⟩
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     rw [List.range'_succ, List.map_cons]
@@ -393,7 +390,7 @@ theorem projAppsGo_specI (T : NIdx) (us : LsIdx) (targs : List EIdx) (b : EIdx)
   induction n with
   | zero =>
     intro j s₀ hok _ _ _ _
-    mvcgen [ConRon.Arena.projAppsGo]
+    to_wp; vcgen [ConRon.Arena.projAppsGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -421,7 +418,7 @@ theorem projAppsGo_specI (T : NIdx) (us : LsIdx) (targs : List EIdx) (b : EIdx)
     refine triple_seq (ih (j + 1) s3 hok3 (denoteN_ext hT hx03)
       (denoteLs_ext hus hx03) (denoteEList_ext hx03 _ _ hts) (denote_ext hb hx03)) ?_
     rintro rest s4 ⟨hok4, hx4, hp4, hrest⟩
-    mvcgen
+    to_wp; vcgen
     bridge_peel; subst_vars
     refine ⟨hok4, hx03.trans hx4, hp4.trans (hp3.trans (hp2.trans hp1)), ?_⟩
     rw [List.range'_succ, List.map_cons]
@@ -482,7 +479,7 @@ theorem etaFabArgsE_spec (s₀ : AState) (T : NIdx) (ust : LsIdx)
   refine triple_seq (etaProjs_specI s₀ T ust targs major nF Tn ls ts x hok hT hus
     hts hx) ?_
   rintro ps s1 ⟨hok1, hx1, hp1, hps⟩
-  mvcgen
+  to_wp; vcgen
   bridge_peel; subst_vars
   refine ⟨hok1, hx1, hp1, ?_⟩
   rw [denoteEList_appendI (denoteEList_ext hx1 _ _ hts) hps]
@@ -507,7 +504,7 @@ theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
   induction n with
   | zero =>
     intro j s₀ hok _ _ _
-    mvcgen [ConRon.Arena.andRescueSlotsGo]
+    to_wp; vcgen [ConRon.Arena.andRescueSlotsGo]
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, rfl⟩
   | succ n ih =>
@@ -518,7 +515,7 @@ theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
     cases o with
     | none =>
       have hf := hnone rfl
-      mvcgen
+      to_wp; vcgen
       bridge_peel; subst_vars
       refine ⟨hok1, hx1, hp1, ?_⟩
       rw [List.range'_succ, List.all_cons, hf]; rfl
@@ -547,7 +544,7 @@ theorem andRescueSlotsGo_specI (ctor : NIdx) (nP : Nat) (ust : LsIdx)
       next hn =>
         have hn' : (p.ctor == cn && p.numParams == nP && p.numFields == 2 &&
             p.fireOk ls) = false := by rw [← hcond]; simpa using hn
-        mvcgen
+        to_wp; vcgen
         bridge_peel; subst_vars
         refine ⟨hok2, hx1.trans hx12, hp2.trans hp1, ?_⟩
         rw [List.range'_succ, List.all_cons, hfp]
