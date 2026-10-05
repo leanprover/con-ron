@@ -1238,11 +1238,6 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
   have := ExprOps.eidx_take_beq_refines h
   cases r <;> simp_all
 
-/-- `bne` of two machine words is `bne` of their values. -/
-@[lockstep_simp] theorem u64_bne_val (a b : Std.U64) : (a != b) = (a.val != b.val) := by
-  rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne]
-  exact ⟨fun h hv => h (Std.UScalar.eq_of_val_eq hv), fun h hab => h (by rw [hab])⟩
-
 attribute [lockstep_simp] id_eq
 
 @[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
