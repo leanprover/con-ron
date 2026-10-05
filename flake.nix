@@ -35,7 +35,10 @@
           # Lean itself comes from the system `elan` (toolchains are per
           # project via `lean-toolchain`), so it is deliberately not here.
           shellHook = ''
-            export CON_RON_ROOT="$PWD"
+            # The checkout's root, not `$PWD`: `nix develop <root>` run from
+            # `proof/` would otherwise put the cache at `proof/_tmp/lake-cache`
+            # (task #113).
+            export CON_RON_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$PWD")"
             # The shared Lake artifact cache (DESIGN.md, task #97-CACHE).  It
             # MUST live on the project's own mount: Lake's default location,
             # `$ELAN_HOME/toolchains/<toolchain>/lake/cache`, is a separate
@@ -44,7 +47,7 @@
             # `_tmp/` is the one directory every worktree shares, so one
             # cache serves them all.  Reading is on by default; WRITING needs
             # `LAKE_ARTIFACT_CACHE=true` on the build that seeds it.
-            export LAKE_CACHE_DIR="$PWD/_tmp/lake-cache"
+            export LAKE_CACHE_DIR="$CON_RON_ROOT/_tmp/lake-cache"
           '';
         };
       });
