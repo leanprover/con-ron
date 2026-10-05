@@ -71,7 +71,7 @@ the one message its call site uses (`"level comparison"`) because a free
 /-- The lemma above picked at a message it was not stated at. -/
 example {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (o : Option Bool) :
-    LS pers (fun a b => b = a) (arena.core.lift_fueled o >>= fun r => ok (r, st)) lst
+    LS pers (fun a b => b = a) (Std.bind (arena.core.lift_fueled o) fun r => ok (r, st)) lst
       (liftFueled "level comparison" o) := by
   lockstep
 
@@ -132,7 +132,7 @@ pure`); the Rust has already decided `c` and steps a bind. -/
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : b = true)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
       ((if b then unresolvedConstsError "value" (absEIdx e)
         else unresolvedConstsError "type" (absEIdx e)) >>= fun r => pure r) := by
   lockstep
@@ -144,7 +144,7 @@ context, not taken whole as the partner (`twin_bind_pure` skips an `if`). -/
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool} (hb : ¬ b = true)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError)
         else unresolvedConstsError "type" (absEIdx e)) := by
   lockstep
@@ -156,7 +156,7 @@ branch zips (by default the zip stops there, §7). -/
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
       (if b then unresolvedConstsError "value" (absEIdx e)
         else unresolvedConstsError "type" (absEIdx e)) := by
   lockstep
@@ -171,10 +171,10 @@ set_option maxHeartbeats 20000 in
 example {pers st lst} {e : arena.handle.EIdx} {b : Bool}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hG : LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError) else pure (.invalid "b"))) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
       (if b then (pure (.invalid "a") : AM Arena.CheckError) else pure (.invalid "b")) := by
   in_scratch (clear hG; lockstep; fail_if_success done)
   exact hG
@@ -232,12 +232,12 @@ elab "lockstep_step_fails_with " s:str : tactic => do
 example {pers st lst} {h h' : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hG : LS pers (fun a b => b = absENodeView a)
-      (arena.monad.view pers st h >>= fun r => match r with
+      (Std.bind (arena.monad.view pers st h) fun r => match r with
         | .Ok v => ok (.Ok v, st)
         | .Err e => ok (.Err e, st)) lst
       (Arena.view (absEIdx h') >>= fun v => pure v)) :
     LS pers (fun a b => b = absENodeView a)
-      (arena.monad.view pers st h >>= fun r => match r with
+      (Std.bind (arena.monad.view pers st h) fun r => match r with
         | .Ok v => ok (.Ok v, st)
         | .Err e => ok (.Err e, st)) lst
       (Arena.view (absEIdx h') >>= fun v => pure v) := by
@@ -446,7 +446,7 @@ example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
     (hf : LSR pers R (arena.monad.view pers st h) st lst (viewsSpec l))
     (_hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st) :
     LS pers R
-      (arena.monad.view pers st h >>= fun r => match r with
+      (Std.bind (arena.monad.view pers st h) fun r => match r with
         | .Ok v => ok (.Ok v, st)
         | .Err e => ok (.Err e, st)) lst
       (l.mapM Arena.view >>= fun vs => pure vs) := by
@@ -459,7 +459,7 @@ example {pers st lst} {h : arena.handle.EIdx} {l : List EIdx}
     (hf : LSR pers R (arena.monad.view pers st h) st lst (l.mapM Arena.view))
     (_hrel : AStateRel₀ pers st lst) (_hinv : AStateInv pers st) :
     LS pers R
-      (arena.monad.view pers st h >>= fun r => match r with
+      (Std.bind (arena.monad.view pers st h) fun r => match r with
         | .Ok v => ok (.Ok v, st)
         | .Err e => ok (.Err e, st)) lst
       (l.mapM Arena.view >>= fun vs => pure vs) := by
@@ -550,7 +550,7 @@ group the twin to be one Rust callee's partner: `Checker/Base.lean`'s
 example {pers st lst} {e : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun r v => absAErrKind r = lAErrKind v)
-      (arena.checker_base.unresolved_consts_error pers st e >>= fun p => ok p) lst
+      (Std.bind (arena.checker_base.unresolved_consts_error pers st e) fun p => ok p) lst
       ((do let r ← unresolvedConstsError "value" (absEIdx e); pure r) >>= fun q => pure q) := by
   lockstep
 

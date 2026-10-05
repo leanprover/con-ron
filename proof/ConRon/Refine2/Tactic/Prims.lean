@@ -705,7 +705,7 @@ theorem etables_get_lit_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   repeat' (first
     | (simp at h; done)
     | (split at h)
-    | (obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+    | (rust_bind_guard h; obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
   simp only [Result.ok.injEq, Option.some.injEq, arena.store.ENodeView.Lit.injEq] at h
   subst h
   obtain rfl := ConRon.Refine.Expr.literal_dup_eq ‹kernel.expr.literal_dup _ = ok _›
@@ -1200,8 +1200,10 @@ attribute [lockstep_simp] ExprOps.absEIdxL ExprOps.absFvlL ExprOps.absBinderL
     (alloc.vec.Vec.with_capacity α n).val = [] := rfl
 @[lockstep_simp] theorem usize_zero_val' : ((0#usize : Std.Usize)).val = 0 := rfl
 
--- The twin's nested `do` blocks, flattened so that its next action is at the head.
-attribute [lockstep_simp] bind_assoc
+-- The twin's nested `do` blocks, flattened so that its next action is at the head;
+-- and the Rust's (Aeneas's `Std.bind`, task #113), as the one `bind_assoc` did for
+-- both while the model's binds were `Bind.bind`.
+attribute [lockstep_simp] bind_assoc Std.bind_assoc
 
 /-- The twin's `if` in callee position (`let y ← if c then x else y`), pushed to
 the head so that it is decided like any other twin test. -/
@@ -1344,9 +1346,9 @@ theorem LSR.toAOut₀ {α β : Type} {A : α → β} {pers : arena.store.PersTie
 /-- A total Rust READ in the `LS` judgement (the `LSV` twin of `LSR.of_LS`). -/
 theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {m : Result α} {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : LS pers R (m >>= fun a => ok (.Ok a, st)) lst x) : LSV pers R m st lst x := by
+    (h : LS pers R (Std.bind m fun a => ok (.Ok a, st)) lst x) : LSV pers R m st lst x := by
   intro a hm
-  exact h (.Ok a) st (by rw [hm, Aeneas.Std.bind_tc_ok])
+  exact h (.Ok a) st (by rw [hm, Aeneas.Std.bind_ok])
 
 /-! ### The three walk-local memos (`ExprOps/Pure.lean`'s relations) -/
 
@@ -1753,11 +1755,11 @@ reduced whole. -/
 macro_rules
   | `(tactic| lockstep_errarm) => `(tactic| first
       | exact errArm_ok
-      | (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)
-      | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair]; try rfl; done)
-      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm)
-      | (simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair]; exact errArm_ok)
-      | (intro o st2 h; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair, Result.ok.injEq,
+      | (show ErrArm (Std.bind (ok _) _) _; rw [bind_ok]; exact errArm_ok)
+      | (apply errArm_of_eq; simp only [bind_ok, Aeneas.Std.uncurry_apply_pair]; try rfl; done)
+      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm)
+      | (simp only [bind_ok, Aeneas.Std.uncurry_apply_pair]; exact errArm_ok)
+      | (intro o st2 h; simp only [bind_ok, Aeneas.Std.uncurry_apply_pair, Result.ok.injEq,
           Prod.mk.injEq] at h; obtain ⟨h1, -⟩ := h; exact h1.symm))
 
 open Lean Elab Tactic in

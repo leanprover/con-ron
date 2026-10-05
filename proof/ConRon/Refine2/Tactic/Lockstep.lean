@@ -45,7 +45,9 @@ divergence detector the task asked for.
 cannot move.  One step looks at the RUST side first:
 
 * an `if`/`match`/`uncurry` on a variable: split (`cases`), normalise heads;
-* a bind `f >>= k`: the bind rule by `f`'s type (the table above); its spec
+* a bind `f >>= k` (on the Rust side always `Std.bind f k`, Aeneas's
+  universe-polymorphic bind, which its `do` emits since upstream #1340; the
+  twin's binds are Lean's `Bind.bind`): the bind rule by `f`'s type (the table above); its spec
   premise is closed by a `@[lockstep]` lemma or a LOCAL HYPOTHESIS (the
   induction hypothesis, a knot slot) filed under `f`'s head constant, of the
   same judgement.  The spec's twin action is not unified with the goal's:
@@ -110,7 +112,7 @@ closes the same way.  It covers the port's habit of writing one twin function
 as several Rust functions and of re-packing values between binds:
 
 * **a Rust callee that is not a call**: `ok v >>= k` is fed to `k v` by
-  REWRITING (`LS.rust_ok_bind`, `bind_tc_ok`; Aeneas's `Result` bind is not
+  REWRITING (`LS.rust_ok_bind`, `bind_ok`; Aeneas's `Result` bind is not
   definitionally `k v` for the kernel, so a `replaceTargetDefEq` there is
   accepted by the elaborator and rejected by the kernel); a `do` block is
   re-associated (`LS.rust_assoc`); an `if` is split (`LS.rust_ite_bind`); a
@@ -249,7 +251,7 @@ theorem LS.bind {α γ β δ : Type} {pers : arena.store.PersTier}
     (he : ∀ e st1, ErrArm (k (.Err e, st1)) e)
     (hk : ∀ a b st1 lst1, R₁ a b → AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
       LS pers R (k (.Ok a, st1)) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨⟨r, st1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -275,7 +277,7 @@ theorem LSR.bind {α γ β δ : Type} {pers : arena.store.PersTier}
     (he : ∀ e, ErrArm (k (.Err e)) e)
     (hk : ∀ a b lst1, R₁ a b → AStateRel₀ pers st lst1 → AStateInv pers st →
       LS pers R (k (.Ok a)) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨r, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -298,7 +300,7 @@ theorem LSV.bind {α γ β δ : Type} {pers : arena.store.PersTier}
     (hf : LSV pers R₁ f st lst x') (hx : x' = x)
     (hk : ∀ a b lst1, R₁ a b → AStateRel₀ pers st lst1 → AStateInv pers st →
       LS pers R (k a) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨a, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -314,7 +316,7 @@ theorem LSW.bind {γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ →
     (hf : LSW pers f lst x') (hx : x' = x)
     (hk : ∀ st1 lst1, AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
       LS pers R (k st1) lst1 (g ())) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨st1, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -328,7 +330,7 @@ theorem LSP.bind {α γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ 
     {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : AM δ}
     (hf : LSP f P) (hk : ∀ a, P a → LS pers R (k a) lst x) :
-    LS pers R (f >>= k) lst x := by
+    LS pers R (Std.bind f k) lst x := by
   intro o st' hm
   obtain ⟨a, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact hk a (hf a hf1) o st' hk1
@@ -339,7 +341,7 @@ theorem LS.bind_eq {α γ δ : Type} {pers : arena.store.PersTier} {R : γ → �
     {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : AM δ}
     (hk : ∀ a, f = ok a → LS pers R (k a) lst x) :
-    LS pers R (f >>= k) lst x := by
+    LS pers R (Std.bind f k) lst x := by
   intro o st' hm
   obtain ⟨a, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact hk a hf1 o st' hk1
@@ -419,7 +421,7 @@ Rust's `let st3 ← drop_scratch st2; ok (r, st3)` after a failed body: the twin
 throws, and the error claims nothing about the state). -/
 theorem errArm_bind {α γ : Type} {e : kernel.core_types.CheckError} {m : Result α}
     {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
-    (h : ∀ a, ErrArm (k a) e) : ErrArm (m >>= k) e := by
+    (h : ∀ a, ErrArm (k a) e) : ErrArm (Std.bind m k) e := by
   intro o st' hm
   obtain ⟨a, _, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact h a o st' h2
@@ -431,13 +433,13 @@ theorem uncurry_apply_proj {α β γ : Type} (f : α → β → γ) (p : α × �
 /-! ## The Rust-only judgement as a goal (state-free functions) -/
 
 theorem LSP.bind' {α β : Type} {f : Result α} {P : α → Prop} {k : α → Result β}
-    {Q : β → Prop} (hf : LSP f P) (hk : ∀ a, P a → LSP (k a) Q) : LSP (f >>= k) Q := by
+    {Q : β → Prop} (hf : LSP f P) (hk : ∀ a, P a → LSP (k a) Q) : LSP (Std.bind f k) Q := by
   intro b hb
   obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb
   exact hk a (hf a h1) b h2
 
 theorem LSP.bind_eq {α β : Type} {f : Result α} {k : α → Result β}
-    {Q : β → Prop} (hk : ∀ a, f = ok a → LSP (k a) Q) : LSP (f >>= k) Q := by
+    {Q : β → Prop} (hk : ∀ a, f = ok a → LSP (k a) Q) : LSP (Std.bind f k) Q := by
   intro b hb
   obtain ⟨a, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hb
   exact hk a h1 b h2
@@ -496,7 +498,7 @@ theorem LS.twin_assoc {α β γ δ : Type} {pers : arena.store.PersTier} {R : α
 /-! ## Task #97-P5-Core round 5: the moves for a port split into fragments
 
 `lockstep` below tries these before the zip step (`coreMove`): a Rust callee
-`ok v` (fed to its continuation by REWRITING, `bind_tc_ok`: Aeneas's `Result`
+`ok v` (fed to its continuation by REWRITING, `bind_ok`: Aeneas's `Result`
 bind is not definitionally `k v` for the kernel), a Rust callee that is itself
 a `do` block, an `if` or a `match` (a fragment unfolded in place), a fragment
 registered `@[lockstep_inline]`, a store-level step (`LSS`), a read in tail
@@ -508,17 +510,17 @@ theorem LS.rust_ok_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α 
     {v : γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : AM β} (h : LS pers R (k v) lst x) :
-    LS pers R (ok v >>= k) lst x := by
-  rw [bind_tc_ok]; exact h
+    LS pers R (Std.bind (ok v) k) lst x := by
+  rw [bind_ok]; exact h
 
 theorem LSP.rust_ok_bind {γ α : Type} {v : γ} {k : γ → Result α} {Q : α → Prop}
-    (h : LSP (k v) Q) : LSP (ok v >>= k) Q := by
-  rw [bind_tc_ok]; exact h
+    (h : LSP (k v) Q) : LSP (Std.bind (ok v) k) Q := by
+  rw [bind_ok]; exact h
 
 theorem ErrArm.of_ok_bind {γ δ : Type} {v : δ}
     {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
-    {e : kernel.core_types.CheckError} (h : ErrArm (k v) e) : ErrArm (ok v >>= k) e := by
-  rw [bind_tc_ok]; exact h
+    {e : kernel.core_types.CheckError} (h : ErrArm (k v) e) : ErrArm (Std.bind (ok v) k) e := by
+  rw [bind_ok]; exact h
 
 theorem errArm_of_eq {γ : Type} {e : kernel.core_types.CheckError} {st : arena.monad.AState}
     {m : Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
@@ -530,7 +532,7 @@ theorem LSR.tail_ls {α β : Type} {pers : arena.store.PersTier} {R₁ R : α �
     {f : Result (core.result.Result α kernel.core_types.CheckError)}
     {st : arena.monad.AState} {lst : AState} {x' x : AM β}
     (hf : LSR pers R₁ f st lst x') (hx : x' = x) (hR : ∀ a b, R₁ a b → R a b) :
-    LS pers R (f >>= fun o => ok (o, st)) lst x := by
+    LS pers R (Std.bind f fun o => ok (o, st)) lst x := by
   subst hx
   intro o st' hm
   obtain ⟨r, h1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -546,9 +548,9 @@ theorem LSR.tail_ls {α β : Type} {pers : arena.store.PersTier} {R₁ R : α �
 theorem LSR.of_LS {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError)}
     {st : arena.monad.AState} {lst : AState} {x : AM β}
-    (h : LS pers R (m >>= fun o => ok (o, st)) lst x) : LSR pers R m st lst x := by
+    (h : LS pers R (Std.bind m fun o => ok (o, st)) lst x) : LSR pers R m st lst x := by
   intro o hm
-  exact h o st (by rw [hm, bind_tc_ok])
+  exact h o st (by rw [hm, bind_ok])
 
 /-! ## The store-level judgement -/
 
@@ -571,7 +573,7 @@ theorem LSS.bind {α γ β δ : Type} {pers : arena.store.PersTier}
     (hk : ∀ a b s' lst1, R₁ a b → AStateRel₀ pers { st with store := s' } lst1 →
       AStateInv pers { st with store := s' } →
       LS pers R (k (.Ok a, s')) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -613,7 +615,7 @@ def packMemo {α M : Type} :
 def packM {α M : Type}
     (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)) :
     Result (core.result.Result (α × M) kernel.core_types.CheckError × arena.monad.AState) :=
-  m >>= fun p => ok (packMemo p)
+  Std.bind m fun p => ok (packMemo p)
 
 /-- A reader walk's outcome with its memo moved into the answer, at the state
 `st` it read. -/
@@ -627,7 +629,7 @@ def packRMemo {α M : Type} (st : arena.monad.AState) :
 def packRM {α M : Type} (st : arena.monad.AState)
     (m : Result (core.result.Result α kernel.core_types.CheckError × M)) :
     Result (core.result.Result (α × M) kernel.core_types.CheckError × arena.monad.AState) :=
-  m >>= fun p => ok (packRMemo st p)
+  Std.bind m fun p => ok (packRMemo st p)
 
 /-- **The lockstep judgement of a memoised state walk**: `LS` of the walk with
 its memo moved into the answer; `R` relates `(answer, memo)` to the twin's
@@ -653,7 +655,7 @@ theorem LSM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M �
         AStateInv pers st'
     | .Err e => AErrSim e (x.run lst) := by
   have := h (packMemo (o, st', mm)).1 (packMemo (o, st', mm)).2
-    (by simp only [packM, hm, bind_tc_ok])
+    (by simp only [packM, hm, bind_ok])
   cases o <;> exact this
 
 /-- What an `LSRM` says about one outcome, unpacked. -/
@@ -666,7 +668,7 @@ theorem LSRM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M �
         AStateInv pers st
     | .Err e => AErrSim e (x.run lst) := by
   have := h (packRMemo st (o, mm)).1 (packRMemo st (o, mm)).2
-    (by simp only [packRM, hm, bind_tc_ok])
+    (by simp only [packRM, hm, bind_ok])
   cases o <;> exact this
 
 /-! ### The Rust side of a packed walk -/
@@ -674,21 +676,21 @@ theorem LSRM.apply {α β M : Type} {pers : arena.store.PersTier} {R : α × M �
 theorem LS.packM_bind {γ α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
-    {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packM (k p)) lst x) :
-    LS pers R (packM (f >>= k)) lst x := by
-  unfold packM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+    {lst : AState} {x : AM β} (h : LS pers R (Std.bind f fun p => packM (k p)) lst x) :
+    LS pers R (packM (Std.bind f k)) lst x := by
+  unfold packM at h ⊢; rw [Std.bind_assoc]; exact h
 
 theorem LS.packM_ok_ok {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {a : α} {st : arena.monad.AState} {mm : M} {lst : AState} {x : AM β}
     (h : LS pers R (ok (.Ok (a, mm), st)) lst x) :
     LS pers R (packM (ok (.Ok a, st, mm))) lst x := by
-  unfold packM; rw [bind_tc_ok]; exact h
+  unfold packM; rw [bind_ok]; exact h
 
 theorem LS.packM_ok_err {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {e : kernel.core_types.CheckError} {st : arena.monad.AState} {mm : M} {lst : AState}
     {x : AM β} (h : LS pers R (ok (.Err e, st)) lst x) :
     LS pers R (packM (ok ((.Err e : core.result.Result α _), st, mm))) lst x := by
-  unfold packM; rw [bind_tc_ok]; exact h
+  unfold packM; rw [bind_ok]; exact h
 
 theorem LS.packM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {c : Prop} [Decidable c]
@@ -703,21 +705,21 @@ theorem LS.packM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × M
 theorem LS.packRM_bind {γ α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {st : arena.monad.AState} {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × M)}
-    {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packRM st (k p)) lst x) :
-    LS pers R (packRM st (f >>= k)) lst x := by
-  unfold packRM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+    {lst : AState} {x : AM β} (h : LS pers R (Std.bind f fun p => packRM st (k p)) lst x) :
+    LS pers R (packRM st (Std.bind f k)) lst x := by
+  unfold packRM at h ⊢; rw [Std.bind_assoc]; exact h
 
 theorem LS.packRM_ok_ok {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {a : α} {st : arena.monad.AState} {mm : M} {lst : AState} {x : AM β}
     (h : LS pers R (ok (.Ok (a, mm), st)) lst x) :
     LS pers R (packRM st (ok (.Ok a, mm))) lst x := by
-  unfold packRM; rw [bind_tc_ok]; exact h
+  unfold packRM; rw [bind_ok]; exact h
 
 theorem LS.packRM_ok_err {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {e : kernel.core_types.CheckError} {st : arena.monad.AState} {mm : M} {lst : AState}
     {x : AM β} (h : LS pers R (ok (.Err e, st)) lst x) :
     LS pers R (packRM st (ok ((.Err e : core.result.Result α _), mm))) lst x := by
-  unfold packRM; rw [bind_tc_ok]; exact h
+  unfold packRM; rw [bind_ok]; exact h
 
 theorem LS.packRM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {st : arena.monad.AState} {c : Prop} [Decidable c]
@@ -732,23 +734,23 @@ theorem LS.packRM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × 
 theorem ErrArm.packM_ok_err {α M : Type} {e : kernel.core_types.CheckError}
     {st : arena.monad.AState} {mm : M} :
     ErrArm (packM (ok ((.Err e : core.result.Result α _), st, mm))) e := by
-  unfold packM; rw [bind_tc_ok]; exact errArm_ok
+  unfold packM; rw [bind_ok]; exact errArm_ok
 
 theorem ErrArm.packM_bind {γ α M : Type} {e : kernel.core_types.CheckError} {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M)}
-    (h : ErrArm (f >>= fun p => packM (k p)) e) : ErrArm (packM (f >>= k)) e := by
-  unfold packM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+    (h : ErrArm (Std.bind f fun p => packM (k p)) e) : ErrArm (packM (Std.bind f k)) e := by
+  unfold packM at h ⊢; rw [Std.bind_assoc]; exact h
 
 theorem ErrArm.packRM_ok_err {α M : Type} {e : kernel.core_types.CheckError}
     {st : arena.monad.AState} {mm : M} :
     ErrArm (packRM st (ok ((.Err e : core.result.Result α _), mm))) e := by
-  unfold packRM; rw [bind_tc_ok]; exact errArm_ok
+  unfold packRM; rw [bind_ok]; exact errArm_ok
 
 theorem ErrArm.packRM_bind {γ α M : Type} {e : kernel.core_types.CheckError}
     {st : arena.monad.AState} {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × M)}
-    (h : ErrArm (f >>= fun p => packRM st (k p)) e) : ErrArm (packRM st (f >>= k)) e := by
-  unfold packRM at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+    (h : ErrArm (Std.bind f fun p => packRM st (k p)) e) : ErrArm (packRM st (Std.bind f k)) e := by
+  unfold packRM at h ⊢; rw [Std.bind_assoc]; exact h
 
 /-! ### A memoised walk as a callee -/
 
@@ -763,7 +765,7 @@ theorem LS.bindM {α γ β δ M : Type} {pers : arena.store.PersTier}
     (he : ∀ e st1 mm, ErrArm (k (.Err e, st1, mm)) e)
     (hk : ∀ a mm b st1 lst1, R₁ (a, mm) b → AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
       LS pers R (k (.Ok a, st1, mm)) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨⟨r, st1, mm⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -790,7 +792,7 @@ theorem LS.bindRM {α γ β δ M : Type} {pers : arena.store.PersTier}
     (he : ∀ e mm, ErrArm (k (.Err e, mm)) e)
     (hk : ∀ a mm b lst1, R₁ (a, mm) b → AStateRel₀ pers st lst1 → AStateInv pers st →
       LS pers R (k (.Ok a, mm)) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨⟨r, mm⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -850,7 +852,7 @@ def packT {α : Type} (G : arena.store.PersTier → arena.monad.AState)
     (m : Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)) :
     Result (core.result.Result (α × arena.store.PersTier) kernel.core_types.CheckError ×
       arena.monad.AState) :=
-  m >>= fun p => ok (packTOut G p)
+  Std.bind m fun p => ok (packTOut G p)
 
 /-- **The lockstep judgement of a tier walk**: `LS` of the packed walk; `R`
 relates `(answer, tier)` to the twin's answer. -/
@@ -873,16 +875,16 @@ theorem LST.apply {α β : Type} {pers : arena.store.PersTier}
         AStateRel₀ pers (G t) lst' ∧ AStateInv pers (G t)
     | .Err e => AErrSim e (x.run lst) := by
   have := h (packTOut G (o, t)).1 (packTOut G (o, t)).2
-    (by simp only [packT, hm, bind_tc_ok])
+    (by simp only [packT, hm, bind_ok])
   cases o <;> exact this
 
 theorem LS.packT_bind {γ α β : Type} {pers : arena.store.PersTier}
     {R : α × arena.store.PersTier → β → Prop}
     {G : arena.store.PersTier → arena.monad.AState} {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
-    {lst : AState} {x : AM β} (h : LS pers R (f >>= fun p => packT G (k p)) lst x) :
-    LS pers R (packT G (f >>= k)) lst x := by
-  unfold packT at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+    {lst : AState} {x : AM β} (h : LS pers R (Std.bind f fun p => packT G (k p)) lst x) :
+    LS pers R (packT G (Std.bind f k)) lst x := by
+  unfold packT at h ⊢; rw [Std.bind_assoc]; exact h
 
 theorem LS.packT_ok_ok {α β : Type} {pers : arena.store.PersTier}
     {R : α × arena.store.PersTier → β → Prop}
@@ -890,7 +892,7 @@ theorem LS.packT_ok_ok {α β : Type} {pers : arena.store.PersTier}
     {a : α} {t : arena.store.PersTier} {lst : AState} {x : AM β}
     (h : LS pers R (ok (.Ok (a, t), G t)) lst x) :
     LS pers R (packT G (ok (.Ok a, t))) lst x := by
-  unfold packT; rw [bind_tc_ok]; exact h
+  unfold packT; rw [bind_ok]; exact h
 
 theorem LS.packT_ok_err {α β : Type} {pers : arena.store.PersTier}
     {R : α × arena.store.PersTier → β → Prop}
@@ -898,7 +900,7 @@ theorem LS.packT_ok_err {α β : Type} {pers : arena.store.PersTier}
     {e : kernel.core_types.CheckError} {t : arena.store.PersTier} {lst : AState}
     {x : AM β} (h : LS pers R (ok (.Err e, G t)) lst x) :
     LS pers R (packT G (ok ((.Err e : core.result.Result α _), t))) lst x := by
-  unfold packT; rw [bind_tc_ok]; exact h
+  unfold packT; rw [bind_ok]; exact h
 
 theorem LS.packT_ite {α β : Type} {pers : arena.store.PersTier}
     {R : α × arena.store.PersTier → β → Prop}
@@ -914,13 +916,13 @@ theorem LS.packT_ite {α β : Type} {pers : arena.store.PersTier}
 theorem ErrArm.packT_ok_err {α : Type} {e : kernel.core_types.CheckError}
     {G : arena.store.PersTier → arena.monad.AState} {t : arena.store.PersTier} :
     ErrArm (packT G (ok ((.Err e : core.result.Result α _), t))) e := by
-  unfold packT; rw [bind_tc_ok]; exact errArm_ok
+  unfold packT; rw [bind_ok]; exact errArm_ok
 
 theorem ErrArm.packT_bind {γ α : Type} {e : kernel.core_types.CheckError}
     {G : arena.store.PersTier → arena.monad.AState} {f : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.store.PersTier)}
-    (h : ErrArm (f >>= fun p => packT G (k p)) e) : ErrArm (packT G (f >>= k)) e := by
-  unfold packT at h ⊢; rw [Aeneas.Std.bind_assoc_eq]; exact h
+    (h : ErrArm (Std.bind f fun p => packT G (k p)) e) : ErrArm (packT G (Std.bind f k)) e := by
+  unfold packT at h ⊢; rw [Std.bind_assoc]; exact h
 
 /-- A tier walk as a callee: the relation after it holds at `G` of the tier it
 hands back, and the answer relation sees that tier. -/
@@ -935,7 +937,7 @@ theorem LS.bindT {α γ β δ : Type} {pers : arena.store.PersTier}
     (he : ∀ e t1, ErrArm (k (.Err e, t1)) e)
     (hk : ∀ a t1 b lst1, R₁ (a, t1) b → AStateRel₀ pers (G t1) lst1 →
       AStateInv pers (G t1) → LS pers R (k (.Ok a, t1)) lst1 (g b)) :
-    LS pers R (f >>= k) lst (x >>= g) := by
+    LS pers R (Std.bind f k) lst (x >>= g) := by
   subst hx
   intro o st' hm
   obtain ⟨⟨r, t1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
@@ -966,29 +968,29 @@ theorem LS.rust_assoc {γ δ α β : Type} {pers : arena.store.PersTier} {R : α
     {b : Result γ} {g : γ → Result δ}
     {k : δ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : AM β}
-    (h : LS pers R (b >>= fun y => g y >>= k) lst x) :
-    LS pers R ((b >>= g) >>= k) lst x := by
-  rw [Aeneas.Std.bind_assoc_eq]; exact h
+    (h : LS pers R (Std.bind b fun y => Std.bind (g y) k) lst x) :
+    LS pers R (Std.bind (Std.bind b g) k) lst x := by
+  rw [Std.bind_assoc]; exact h
 
 theorem LS.rust_ite_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c] {a b : Result γ}
     {k : γ → Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : AM β}
-    (h₁ : c → LS pers R (a >>= k) lst x) (h₂ : ¬ c → LS pers R (b >>= k) lst x) :
-    LS pers R ((if c then a else b) >>= k) lst x := by
+    (h₁ : c → LS pers R (Std.bind a k) lst x) (h₂ : ¬ c → LS pers R (Std.bind b k) lst x) :
+    LS pers R (Std.bind (if c then a else b) k) lst x := by
   by_cases hc : c
   · rw [ite_eq_left hc]; exact h₁ hc
   · rw [ite_eq_right hc]; exact h₂ hc
 
 theorem LSP.rust_assoc {γ δ α : Type} {b : Result γ} {g : γ → Result δ}
     {k : δ → Result α} {Q : α → Prop}
-    (h : LSP (b >>= fun y => g y >>= k) Q) : LSP ((b >>= g) >>= k) Q := by
-  rw [Aeneas.Std.bind_assoc_eq]; exact h
+    (h : LSP (Std.bind b fun y => Std.bind (g y) k) Q) : LSP (Std.bind (Std.bind b g) k) Q := by
+  rw [Std.bind_assoc]; exact h
 
 theorem LSP.rust_ite_bind {γ α : Type} {c : Prop} [Decidable c] {a b : Result γ}
     {k : γ → Result α} {Q : α → Prop}
-    (h₁ : c → LSP (a >>= k) Q) (h₂ : ¬ c → LSP (b >>= k) Q) :
-    LSP ((if c then a else b) >>= k) Q := by
+    (h₁ : c → LSP (Std.bind a k) Q) (h₂ : ¬ c → LSP (Std.bind b k) Q) :
+    LSP (Std.bind (if c then a else b) k) Q := by
   by_cases hc : c
   · rw [ite_eq_left hc]; exact h₁ hc
   · rw [ite_eq_right hc]; exact h₂ hc
@@ -1287,6 +1289,12 @@ attribute [lockstep_simp] Aeneas.Std.uncurry_apply_pair not_false_eq_true not_tr
 
 
 open Lean Meta Elab Tactic
+
+/-- A RUST bind: Aeneas's `do` elaborator emits the universe-polymorphic
+`Aeneas.Std.bind x k` for every `Result` bind (upstream #1340; task #113), so
+the callee is argument 2 and the continuation argument 3.  A TWIN bind is
+Lean's `Bind.bind` (six arguments, callee 4, continuation 5). -/
+def isRBind (e : Expr) : Bool := e.isAppOfArity ``Aeneas.Std.bind 4
 
 /-- **Twin-side splits** (task #97-T2-TACTIC round 2, the Frontend lane): when
 nothing decides a twin test (an `if`, a `match` on a term) and no step moves,
@@ -1593,14 +1601,14 @@ macro_rules
       | (simp only [lockstep_simp] at *; first | exact errSim_fail rfl | exact errSim_throw rfl))
 
 /-- The error arm of a Rust bind: the continuation fed an `Err` gives it back,
-possibly through an `ok (…) >>= k'` repack (`bind_tc_ok`). -/
+possibly through an `ok (…) >>= k'` repack (`bind_ok`). -/
 syntax "lockstep_errarm" : tactic
 macro_rules
   | `(tactic| lockstep_errarm) => `(tactic| first
       | exact errArm_ok
-      | (show ErrArm (ok _ >>= _) _; rw [bind_tc_ok]; exact errArm_ok)
-      | (apply errArm_of_eq; simp only [bind_tc_ok, Aeneas.Std.uncurry_apply_pair])
-      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_tc_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm)
+      | (show ErrArm (Std.bind (ok _) _) _; rw [bind_ok]; exact errArm_ok)
+      | (apply errArm_of_eq; simp only [bind_ok, Aeneas.Std.uncurry_apply_pair])
+      | (intro o st2 h; simp only [Aeneas.Std.uncurry_apply_pair, bind_ok, Result.ok.injEq, Prod.mk.injEq] at h; all_goals first | exact h.1.symm | exact h.symm)
       | (refine errArm_bind fun _ => ?_; exact errArm_ok))
 
 /-- Apply `rule` to `g` and return its new goals by binder name. -/
@@ -1978,14 +1986,14 @@ def cont (g : MVarId) (names : List Name) (hR : Option Name) : TacticM (List MVa
 
 /-- An error arm through a chain of `ok v >>= k` re-packs (an inlined
 fragment's result re-matched by its caller, a swapped pair `ok (st, Err e)`),
-each link fed by `bind_tc_ok`. -/
+each link fed by `bind_ok`. -/
 partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let m ← headNorm (ty.getArg! 1) (eta := true)
   -- the callee of a bind is head-normalised too (a fragment's `let (r, s) :=
   -- (Err e, s)` and its `match` reduce definitionally)
-  let m ← if m.isAppOfArity ``Bind.bind 6 then
-      pure (mkAppN m.getAppFn (m.getAppArgs.set! 4 (← headNorm (m.getArg! 4) (eta := true))))
+  let m ← if isRBind m then
+      pure (mkAppN m.getAppFn (m.getAppArgs.set! 2 (← headNorm (m.getArg! 2) (eta := true))))
     else pure m
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
   -- a packed tier walk's error arm
@@ -1993,7 +2001,7 @@ partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.with
     let t := m.appArg!
     if t.isAppOfArity ``Result.ok 2 then
       return ← runClosed g (evalT `(tactic| exact ErrArm.packT_ok_err))
-    if depth < 16 && t.isAppOfArity ``Bind.bind 6 then
+    if depth < 16 && isRBind t then
       let gs ← applyRule g ``ErrArm.packT_bind
       return ← errArmChain (← pick gs `h) (depth + 1)
   -- a packed memo walk's error arm
@@ -2003,11 +2011,11 @@ partial def errArmChain (g : MVarId) (depth : Nat := 0) : TacticM Unit := g.with
     if t.isAppOfArity ``Result.ok 2 then
       return ← runClosed g (if isM then evalT `(tactic| exact ErrArm.packM_ok_err)
         else evalT `(tactic| exact ErrArm.packRM_ok_err))
-    if depth < 16 && t.isAppOfArity ``Bind.bind 6 then
+    if depth < 16 && isRBind t then
       let gs ← applyRule g (if isM then ``ErrArm.packM_bind else ``ErrArm.packRM_bind)
       return ← errArmChain (← pick gs `h) (depth + 1)
-  if depth < 16 && m.isAppOfArity ``Bind.bind 6 then
-    let f := m.getArg! 4
+  if depth < 16 && isRBind m then
+    let f := m.getArg! 2
     if f.isAppOfArity ``Result.ok 2 then
       let gs ← applyRule g ``ErrArm.of_ok_bind
       return ← errArmChain (← pick gs `h) (depth + 1)
@@ -2059,7 +2067,7 @@ def stepPure (g : MVarId) : TacticM (List MVarId) := g.withContext do
         out := out ++ (← tidy sg.mvarId none)
       return out
     | _ => return ← runOn g (evalT `(tactic| split))
-  if m.isAppOfArity ``Bind.bind 6 then
+  if isRBind m then
     let s ← saveState
     try
       let gs ← applyRule g ``LSP.bind'
@@ -2105,8 +2113,8 @@ partial def caseTarget? (t : Expr) (fvars := false) : MetaM (Option Expr) := do
 
 /-- The Rust side moves: a bind, a leaf, or a tail call. -/
 partial def rustStep (g : MVarId) (m x : Expr) : TacticM (List MVarId) := g.withContext do
-  if m.isAppOfArity ``Bind.bind 6 then
-    let f := m.getArg! 4
+  if isRBind m then
+    let f := m.getArg! 2
     let kind ← classify (← inferType f).appArg!
     let s ← saveState
     -- the judgement-specific attempt's failure: for a read it is the one to
@@ -2287,7 +2295,7 @@ def stepCore (g : MVarId) : TacticM (List MVarId) := g.withContext do
       return none
     -- the fact that decides the twin's test is usually a Rust step away, so a
     -- Rust bind moves first (a Rust-only step does not need the twin)
-    if m.isAppOfArity ``Bind.bind 6 then
+    if isRBind m then
       let s ← saveState
       try return ← rustStep g m x
       catch _ => s.restore
@@ -2556,7 +2564,7 @@ def applyWith (g : MVarId) (rule : Name) (side : List Name) (next : Name)
 /-- One Rust-side move of a packed tier walk `packT G t` (task #98-FREEZE). -/
 def packTMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext do
   let t ← headNorm m.appArg! (eta := true)
-  if t.isAppOfArity ``Bind.bind 6 then
+  if isRBind t then
     let gs ← applyRule g ``LS.packT_bind
     return ← normAll [← pick gs `h]
   if t.isAppOfArity ``ite 5 then
@@ -2597,7 +2605,7 @@ def packTMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext d
 def packMove (g : MVarId) (m : Expr) : TacticM (List MVarId) := g.withContext do
   let isM := m.isAppOfArity ``packM 3
   let t ← headNorm m.appArg! (eta := true)
-  if t.isAppOfArity ``Bind.bind 6 then
+  if isRBind t then
     let gs ← applyRule g (if isM then ``LS.packM_bind else ``LS.packRM_bind)
     return ← normAll [← pick gs `h]
   if t.isAppOfArity ``ite 5 then
@@ -2649,19 +2657,19 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
   if let some n := m.getAppFn.constName? then
     if ← isInline n then
       return some (← normAll [← unfoldRust g n])
-  if m.isAppOfArity ``Bind.bind 6 then
-    let f ← headNorm (m.getArg! 4) (eta := true)
-    let k := m.getArg! 5
-    if f != m.getArg! 4 then
-      let m' := mkAppN m.getAppFn (m.getAppArgs.set! 4 f)
+  if isRBind m then
+    let f ← headNorm (m.getArg! 2) (eta := true)
+    let k := m.getArg! 3
+    if f != m.getArg! 2 then
+      let m' := mkAppN m.getAppFn (m.getAppArgs.set! 2 f)
       let g' ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! rp m'))
       return some [g']
     if f.isAppOfArity ``Result.ok 2 then
-      -- `ok v >>= k` is `k v` only propositionally (`bind_tc_ok`)
+      -- `ok v >>= k` is `k v` only propositionally (`bind_ok`)
       let _ := k
       let gs ← applyRule g (if isLS then ``LS.rust_ok_bind else ``LSP.rust_ok_bind)
       return some (← normAll [← pick gs `h])
-    if f.isAppOfArity ``Bind.bind 6 then
+    if isRBind f then
       let g' ← applyWith g (if isLS then ``LS.rust_assoc else ``LSP.rust_assoc) [] `h
       return some [g']
     if f.isAppOfArity ``ite 5 then
@@ -2704,7 +2712,7 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
                   g := g'
                   let ty' ← instantiateMVars (← g.getType)
                   let m' := (ty'.getArg! 4).headBeta
-                  if let some mapp' ← matchMatcherApp? (m'.getArg! 4).headBeta then
+                  if let some mapp' ← matchMatcherApp? (m'.getArg! 2).headBeta then
                     if let some t' := mapp'.discrs[0]? then t := t'
           let stx ← Lean.Elab.Term.exprToSyntax t
           let rest ← runOn g (evalT `(tactic| cases _hdisc : $stx))
@@ -2747,7 +2755,7 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
               else if let .proj _ 0 x := sa then
                 discard <| isDefEq stM x
               else
-                let k := m.getArg! 5
+                let k := m.getArg! 3
                 let found := k.find? fun t =>
                   t.isAppOfArity ``arena.monad.AState.mk 4 && t.getArg! 0 == sa
                 if let some t := found then discard <| isDefEq stM t
@@ -2762,9 +2770,9 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
           errArm (← pick gs `he) [`e, `s']
           return some (← normAll (← cont (← pick gs `hk) [`a, `b, `s', `lst1, `hR, `hrel, `hinv] (some `hR)))
   -- a tag-guarded projection on the Rust side against the twin's `view`
-  if isLS && m.isAppOfArity ``Bind.bind 6 then
+  if isLS && isRBind m then
     let x := (ty.getArg! 6).headBeta
-    let isProj := match (m.getArg! 4).getAppFn.constName? with
+    let isProj := match (m.getArg! 2).getAppFn.constName? with
       | some n => n != ``arena.monad.view && n.getPrefix == (``arena.monad.view).getPrefix &&
           (match n with | .str _ s => s.startsWith "view_" | _ => false)
       | none => false
@@ -2796,7 +2804,7 @@ def coreMove (g : MVarId) : TacticM (Option (List MVarId)) := g.withContext do
       let cheap ← `(tactic| lockstep_side_cheap)
       let dear ← `(tactic| lockstep_side_ite)
       let test ← `(tactic| lockstep_side_test)
-      let sides := if m.isAppOfArity ``Bind.bind 6 then [cheap, test] else [cheap, test, dear]
+      let sides := if isRBind m then [cheap, test] else [cheap, test, dear]
       for side in sides do
         for rule in [``LS.twin_dite_pos, ``LS.twin_dite_neg] do
           let s ← saveState
