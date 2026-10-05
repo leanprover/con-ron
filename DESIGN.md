@@ -67123,3 +67123,119 @@ gates.  The checker run is the new rustc on unchanged Rust: both accept
    LAKE_RESTORE_ARTIFACTS=true lake build`.
 5. Other worktrees: `git submodule update`, `direnv reload`, and restore
    from the reseeded cache.
+
+### Task #113 — adopt Aeneas's `Std.bind` (2026-10-05, Opus)
+
+Task #112's `normalizeSameUniverseBinds` hunk (`Aeneas/Do/Elab.lean`, 41
+lines) is **dropped** from `patches/aeneas.patch` (645 → 604 lines, 21 → 20
+files): the generated model, every lemma we state with `do`, and Aeneas's own
+`do` blocks now carry `Aeneas.Std.bind` as upstream intends, and Theorem 2
+follows it.  No library change was needed.  Worktree `_tmp/wt-t113`, the
+patched library built in a private `_tmp/aeneas-lean-t113-<key>` reached
+through a worktree-private `_tmp/` (as #112 did).
+
+**What `Std.bind` is** (step 0).  Not Lean core's `Std`/`Std.Do`: it is
+Aeneas's, `Aeneas/Std/Primitives.lean`,
+
+```lean
+def bind {α : Type u} {β : Type v} (x: Result α) (f: α → Result β) : Result β :=
+  ITree.bind x f
+instance : Monad Result where pure := .ok; bind := bind
+```
+
+with `Result α := ITree RustEffect α` (`@[irreducible]`, unsealed in the
+library).  So `Bind.bind (m := Result)` *unfolds* to it (`bind_tc_eq : Bind.bind x
+f = bind x f := rfl`), but the typeclass bind forces `α β : Type u` into one
+universe (`Monad m` has `m : Type u → Type v`), where `Std.bind` lets the value
+types live in two.  Upstream #1340 (`661644c4`, "Fix problems around
+`Aeneas.Std.bind`") first taught `step`/`#decompose` heterogeneous binds, then
+made the custom `do` elaborator emit `Std.bind` for EVERY `Result` bind
+(dropping its own earlier "back to `Bind.bind` once universes are resolved"
+pass), because `step` could not traverse code that mixed the two forms; it
+restated the monad laws on `Std.bind` (`Std.pure_bind`, `Std.bind_pure`,
+`Std.bind_assoc`, the `LawfulMonad` instance derived from them), kept the
+`Bind.bind` lemmas (`bind_tc_ok/vis/fail/div`, `bind_assoc_eq`) for code
+elaborated by Lean's own `do` — which is what the library's own definitions
+use (`Vec.index_mut_usize` …: `Aeneas/Std` does not import the custom
+elaborator) — and added `bind_tc_eq`/`pure_tc_eq` to move between them.
+
+**Lockstep core** (its own commit, `eb781752`; `Tactic/Lockstep.lean`,
+`Tactic/Prims.lean`, `Tactic/Tests.lean`, +124 −114).  The Rust side of every
+rule is `Std.bind f k`, the twin's (`AM`) stays `Bind.bind`: 37 statement lines
+of the judgement rules (`LS/LSR/LSV/LSW/LSP/LSS/LSM/LSRM/LST.bind*`,
+`rust_ok_bind`, `rust_assoc`, `rust_ite_bind`, `packM/packRM/packT` …) spell the
+Rust bind `Std.bind`; the meta code tests `isRBind e` (`Std.bind` with 4
+arguments: callee 2, continuation 3) at the 13 Rust-side sites where it tested
+`isAppOfArity ``Bind.bind 6` (callee 4, continuation 5), and keeps the 5 twin-side
+tests (of 18); `bind_tc_ok` → `bind_ok`, `bind_assoc_eq` → `Std.bind_assoc`;
+`Std.bind_assoc` joins `bind_assoc` in `lockstep_simp` (the one root lemma used
+to flatten both sides); the `lockstep_errarm` alternatives follow.  No
+alternative added or removed.
+
+**The rest of Theorem 2** (56 files, +444 −410): `bind_tc_ok` → `bind_ok` at
+all 322 uses, `bind_assoc_eq` → `Std.bind_assoc` (9); Rust-side `>>=` in
+statements → `Std.bind` (Refine/Pins*, Checker/Axioms, Canon, PinsWF,
+Promote/Intern's `LSMI` rules, PrimsC1, Iota's `ErrArm.of_assoc`, and the
+Tests); the region tactics in `Core/LS/Iota.lean`/`Defeq.lean` test
+`isRBind`; one library body (`Vec.index_mut`, Lean `do`) is normalised with
+upstream's `bind_tc_eq` first (`Refine/HashMap.lean`).  `bind_eq_ok_iff`
+needed no edit: it is stated with `do`, so it is a `Std.bind` lemma now by
+itself, and so are its ~5 900 uses.
+
+**The one trap**: `Std.bind` is an ordinary `def` where `Bind.bind` was an
+instance projection, so elaborating `bind_eq_ok_iff.mp h` against an `h` that
+is NOT a bind no longer fails fast — the unifier unfolds `Std.bind` and runs
+out of heartbeats (Specs' `nstore_intern_*_flags`, `Scan/WF`, `BasisPins`'
+`wf_peel` at the last `push`), or postpones the problem and LOGS the mismatch,
+which `first`/`try`/`repeat` do not catch (Checker/Base's `dup_step`, the
+`sorryAx` it left showed in the `#print axioms` pins).  Every
+`first | … | obtain … := bind_eq_ok_iff.mp h | …`, `repeat (obtain …)` and
+`try (obtain …)` that may meet a non-bind now starts with **`rust_bind_guard
+h`** (`Refine/Abs.lean`, 93 sites): it fails unless `h`'s left side is a
+`Std.bind` after `headNF` (`whnfCore`, plus unfolding matchers and Aeneas's
+`uncurry` — the `let (r, t) := (Ok a, st); match r …` a split leaves — but no
+other definition).  `#allow_unused_tactic!` registers it with Mathlib's
+unused-tactic linter (a guard changes no goal).  One alternative in
+Checker/Base's `intern_ci_go` lemma became never-executed (linter) and is gone.
+`rw [bind_eq_ok_iff] at h` was tried instead and rejected: it misses the binds
+`.mp` reaches through a `match`/`uncurry` head, and PrimsF's `rename_i` then
+named the wrong hypotheses.
+
+No statement changed, no new invariant, Theorem 1 untouched (no Bridge file
+changed), dead-census clean (no project lemma was `Bind.bind`-only), no
+`sorry`.  Proof size (Refine/, Refine2/, Capstone): 131 271 → 131 315 lines,
+6 225 648 → 6 228 882 bytes (+0.05 %: the guard and the longer spelling).
+Extraction output unchanged (`extract-check` OK; the hunk acted only at
+elaboration).
+
+**Numbers** (`perf stat -e instructions:u`, `lake env lean
+-Dbackward.isDefEq.respectTransparency=false -Dbackward.do.legacy=true
+-Dprofiler=true <file>` per file, #111's invocation; master `35dc6689` in the
+main tree vs this branch, imports from built `.olean`s; every difference was
+under ~3 %, so **two runs each**, G = 10⁹, Δ of the means):
+
+| | master runs | branch runs | Δ |
+|---|---:|---:|---:|
+| `Refine2/Core/Eqns.lean` | 19 404.0 / 19 404.0 | 19 343.7 / 19 343.7 | −0.31 % |
+| `Generated/Funs.lean` | 1 901.7 / 1 901.8 | 1 868.4 / 1 868.9 | −1.74 % |
+| `Refine2/Core/Induction.lean` | 935.9 / 935.9 | 933.0 / 933.0 | −0.31 % |
+| `Refine2/Frontend/PreludeText.lean` | 544.5 / 544.5 | 544.5 / 544.5 | ±0.00 % |
+| `Refine2/Frontend/Scan/Str.lean` | 476.1 / 476.1 | 467.5 / 467.5 | −1.80 % |
+| `Refine2/Inductives/PositivityNest.lean` | 469.0 / 469.0 | 468.7 / 468.8 | −0.05 % |
+| `Refine2/Inductives/BlockParts.lean` | 452.8 / 452.7 | 449.4 / 448.8 | −0.80 % |
+| **Refine2 + Capstone** (108 files) | 29 722.2 / 29 722.5 | 29 591.7 / 29 591.7 | **−0.44 %** |
+| … without `Eqns` | 10 318.2 / 10 318.4 | 10 248.0 / 10 248.0 | −0.68 % |
+| `Refine/` (34 files) | 2 564.0 / 2 564.3 | 2 488.6 / 2 489.1 | −2.94 % |
+
+Run-to-run spread ≤ 0.13 % per file (BlockParts), ≤ 0.02 % on the totals, so
+every Δ above is real.  The largest per-file moves are all down:
+`Refine/BasisPins` −7.2 %, `Promote/Promote` −5.5 %, `Refine/BasisTables`
+−4.7 % (the bind splits of the long generated chains); nothing got slower by
+more than +0.09 % (`Shape.lean`) except `Refine/Abs.lean` +2.0 % (it now
+defines the guard).  **Verdict: adopting `Std.bind` costs nothing and saves a
+little** — −0.44 % on the tier, −1.7 % on `Funs.lean` (#112's post-pass over
+every `do` result no longer runs), −0.3 % on `Eqns`; the patch is 41 lines
+shorter and the model is what upstream produces.  `vcgen` for Theorem 2 was
+out of scope and nothing here suggested it.
+
+**Shared-state switch-over** as #112's (below, under Landing).
