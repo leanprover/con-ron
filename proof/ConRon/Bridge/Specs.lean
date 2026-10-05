@@ -195,7 +195,7 @@ theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
 
 With a SCHEMATIC postcondition `Q`: a `fail` never returns and the
 exception postcondition is `⊤`, so `fail` establishes any `Q` and the failing
-branch of a twin leaves no verification condition at all.  The `Std.Do`
+branch of a twin leaves no verification condition at all.  The `mvcgen`-era
 specs they replaced (task #111) had a `False` postcondition and left one
 `False` barrel per failure site, closed under `mvcgen` by a `spec_fails`
 macro; both are gone. -/

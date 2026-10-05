@@ -117,7 +117,7 @@ denote and are well scoped at the query's depth.
 
 The record is what makes the arms writable: a body's theorem takes
 `KnotSpec f` as a hypothesis and `hsim.whnfCore` goes into `vcgen`'s spec
-list (as `hsim.whnfCore`) like any other `@[spec]` theorem (task #97s
+list like any other `@[spec]` theorem (task #97s
 round 2's rule 8 — "the record of knot hypotheses costs nothing"). -/
 structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     Prop where
