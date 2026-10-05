@@ -36,9 +36,10 @@ All three memos are ARGUMENTS and not `AState` fields, so none is one of
   leaf list, which is a list of HANDLES.  That is the wrinkle of this file:
   the invariant, and the answer relation, are quantified over the base list's
   DENOTATION rather than taking it as a parameter (`LSubAt`, `LSubMemoA`
-  below), because a parameter would hand `mvcgen` the side goal
-  `denoteLeaves s.store bl = some ?bl'` with a metavariable in it — task
-  #97s template rule 4, and `leafGuard` is where it bites (its base list is
+  below), because a parameter would be one the program does not determine,
+  which the verification-condition generator cannot instantiate (`mvcgen`
+  left the side goal `denoteLeaves s.store bl = some ?bl'` with a
+  metavariable in it) — task #97s template rule 4, and `leafGuard` is where it bites (its base list is
   *computed* by `fvarLeavesFast`).  The two `to_`/`of_` bridging lemmas below
   turn `LSubAt` into `Bridge/Rel.lean`'s plain `RelV` and back, so all the
   per-arm reasoning still happens at `RelV` where `Walks.lean`'s recipe
@@ -54,10 +55,7 @@ import ConRon.Bridge.ExprOps.Leaves
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -116,14 +114,14 @@ theorem wscopedBGo_spec :
   | zero =>
     constructor
     intro s₀ tbl d h _ _ _
-    mvcgen [wscopedBGo_zero]
+    to_wp; vcgen [wscopedBGo_zero]
     all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
       MemoVDOK.of_empty, wscopedB_cut_of_derived]
   | succ fuel ih =>
     constructor
     intro s₀ tbl d h hok hm hden
     have hrec := ih.run
-    mvcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet, hrec]
+    to_wp; vcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet, wp% hrec]
     all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
       MemoVDOK.of_empty, wscopedB_cut_of_derived]
 
@@ -134,7 +132,7 @@ theorem wscopedBFast_spec (fuel d : Nat) (s₀ : AState) (h : EIdx)
     ⦃fun s => ⌜s = s₀⌝⦄ wscopedBFast fuel d h
     ⦃⇓? r s' => ⌜s' = s₀ ∧ RelV (Expr.wscopedB d) s₀.store h r⌝⦄ := by
   have hr := (wscopedBGo_spec fuel).run
-  mvcgen [wscopedBFast, hr]
+  to_wp; vcgen [wscopedBFast, wp% hr]
   all_goals bridge_vcs [RelV, MemoVDOK.of_empty]
 
 /-! ## 2. The leaf-subset test's pure specification
@@ -303,13 +301,13 @@ theorem leavesSubGo_spec (bl : List (Nat × EIdx)) :
   | zero =>
     constructor
     intro s₀ tbl h _ _ _ _
-    mvcgen [leavesSubGo_zero]
+    to_wp; vcgen [leavesSubGo_zero]
     all_goals bridge_vcs [RelV, LSubAt, LSubMemoA]
   | succ fuel ih =>
     constructor
     intro s₀ tbl h hok hbl hm hden
     have hrec := ih.run
-    mvcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet, hrec]
+    to_wp; vcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet, wp% hrec]
     all_goals bridge_vcs [RelV, leavesSub_cut_of_derived]
 
 /-! ## 4. `leafGuard` — `ExprOps.lean:962`
@@ -339,7 +337,7 @@ theorem leafGuard_spec (fuel : Nat) (s₀ : AState) (fab base : EIdx)
     ⦃⇓? r s' => ⌜s' = s₀ ∧ LeafGuardAt s₀.store fab base r⌝⦄ := by
   have hfl := fvarLeavesFast_spec fuel
   have hls := fun bl => (leavesSubGo_spec bl fuel).run
-  mvcgen [leafGuard, hfl, hls]
+  to_wp; vcgen [leafGuard, wp% hfl, wp% hls]
   all_goals bridge_vcs [LeafGuardAt, LSubAt, LSubMemoA, LeavesEq, RelV,
     MemoVOK.of_empty, LSubMemoA.of_empty, leavesSubSpec_congr,
     leavesSub_cut_of_derived, denoteLeaves_nil]

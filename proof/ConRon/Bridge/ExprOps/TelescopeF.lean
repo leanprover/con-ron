@@ -52,10 +52,7 @@ import ConRon.Bridge.ExprOps.Spine
 namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
-set_option mvcgen.warning false
--- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
--- own (DESIGN.md task #110), so the deprecation is silenced here until then.
-set_option linter.deprecated.syntax false
+set_option experimental.vcgen true
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -173,11 +170,12 @@ theorem recRulePlain_eq_beq {e edom ebody : Expr}
 
 /-! ### `recRulePlain`'s four arms, as four lemmas
 
-`mvcgen` leaves five verification conditions — the arity gate, the
+`vcgen` leaves nine verification conditions; `bridge_vcs` closes the four
+about the state and the precondition, and five remain — the arity gate, the
 `stripPis` failure, the residual-is-not-a-`∀` fallthrough, the canonical
 comparison, and the `getAppArgs` call's `isSome` side goal.  Each is one
 lemma, so the arm proofs are one `exact` and never name a hypothesis
-`mvcgen` made inaccessible. -/
+`vcgen` made inaccessible. -/
 
 /-- con-leche: none — what `RelBP`'s `some` answer says about the residual
 handle: it denotes.  Belongs in `Bridge/Rel.lean` group 7. -/
@@ -300,20 +298,16 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
   have hargs := getAppArgs_spec fuel
   have hrange := bvarRange_spec cnP
   obtain ⟨erecTy, hrecTy⟩ := Option.isSome_iff_exists.mp hden
-  mvcgen [recRulePlain, hstrip, hargs, hrange]
+  to_wp; vcgen [recRulePlain, wp% hstrip, wp% hargs, wp% hrange]
   all_goals try bridge_vcs
   all_goals
     (arm_pre
      first
-     | assumption
      | exact (isSome_forallE hok.wf (by arm_hyp)
          (RelBP.snd_isSome (by arm_hyp) hrecTy)).1
      | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, recRulePlain_notLe (by grind)⟩
      | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
          recRulePlain_stripNone hrecTy (by arm_hyp)⟩
-     | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
-         recRulePlain_notPi hok.wf hrecTy (by arm_hyp) (by arm_hyp)
-           (by assumption)⟩
      | (refine ⟨by arm_hyp, by arm_hyp,
           by grind only [BMExt.trans, BMExt.refl],
           by arm_hyp, by arm_hyp, by arm_hyp,
@@ -326,8 +320,7 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
         exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
           recRulePlain_notPi hok.wf hrecTy (by arm_hyp) hv
             (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
-              (by rw [hh]; rfl))⟩)
-     | grind)
+              (by rw [hh]; rfl))⟩))
 
 /-! ## The axiom check -/
 
