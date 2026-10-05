@@ -1478,7 +1478,7 @@
     50  //! on every `cargo test`.
 
 == crates/con-ron-core/src/arena/checker.rs#L724-L751
-   724  /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+   724  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
    725  /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
    726  /// Lean twin: `proof/ConRon/Arena/Checker.lean:304-339 internAllPins` — **the
    727  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
@@ -1507,12 +1507,12 @@
    750      }
    751  }
 
-== crates/con-ron-core/src/kernel/pins_text.rs#L42-L46
-    42  pub const PINS_TEXT: &str = "\
-    43  con-ron-pins/1
-    44  E 0 n 0
-    45  N 0 a
-    46  N 1 s 0 12 instOfNatNat
+== crates/con-ron-core/src/kernel/pins_text.rs#L40-L44
+    40  pub const PINS_TEXT: &str = "\
+    41  con-ron-pins/1
+    42  E 0 n 0
+    43  N 0 a
+    44  N 1 s 0 12 instOfNatNat
 
 == crates/con-ron-core/src/kernel/pins_decode.rs#L1325-L1345
   1325  /// **The decoder.**  `con-ron-pins/1` text in, con-leche's pin variants out,
@@ -1527,7 +1527,7 @@
   1334      }
   1335  }
   1336  
-  1337  /// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+  1337  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
   1338  /// (The cited range is the `#load_natop_pins` command that *produces*
   1339  /// `natOpPinSets` while `NatOpPins.lean` elaborates; the declaration is not
   1340  /// written there, hence the `_`.)
