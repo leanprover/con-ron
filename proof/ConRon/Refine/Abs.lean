@@ -52,6 +52,42 @@ are `rfl` because `ConRon/Generated/FunsExternal.lean` models
     | div => intro h; simp at h
   · rintro ⟨y, rfl, h⟩; simpa using h
 
+open Lean Meta in
+/-- The head of a Rust program as the guards below see it: beta, `let`, a
+`match` or a tuple pattern (Aeneas's `uncurry`) on constructors or on a
+structure (by eta) — `whnfCore`, and only matchers and `uncurry` unfolded, so
+`Std.bind` stays. -/
+partial def headNF (e : Expr) : MetaM Expr := withTransparency .default do
+  let e ← whnfCore e
+  if let some n := e.getAppFn.constName? then
+    if n == ``Aeneas.Std.uncurry || (← isMatcher n) then
+      if let some e' ← unfoldDefinition? e then
+        let e'' ← whnfCore e'
+        if e'' != e' || !e''.getAppFn.isConst || e''.getAppFn.constName? != some n then
+          return ← headNF e''
+  return e
+
+/-- Fails unless `h : m = v` has a Rust bind (`Std.bind`, after `headNF`) as
+its left side.  Task #113: elaborating `bind_eq_ok_iff.mp h` against an `h`
+that is NOT a bind no longer fails fast now that the model's binds are
+`Std.bind` (an ordinary definition, where `Bind.bind` was an instance
+projection): the unifier unfolds it and runs out of heartbeats, or postpones
+the problem and LOGS the mismatch, which `first`/`repeat`/`try` do not catch.
+So an alternative `obtain … := bind_eq_ok_iff.mp h` that may meet a non-bind
+guards itself with this. -/
+syntax (name := rustBindGuard) "rust_bind_guard " ident : tactic
+
+open Lean Meta Elab Tactic in
+@[tactic rustBindGuard] def evalRustBindGuard : Tactic := fun stx => withMainContext do
+  let h : Ident := ⟨stx[1]⟩
+  let d ← getLocalDeclFromUserName h.getId
+  let some (_, l, _) := (← instantiateMVars d.type).eq? | throwError "rust_bind_guard: not an equation"
+  unless (← headNF l).isAppOfArity ``Aeneas.Std.bind 4 do
+    throwError "rust_bind_guard: not a bind{indentExpr l}"
+
+-- a guard changes no goal by design (it only fails)
+#allow_unused_tactic! ConRon.Refine.rustBindGuard
+
 @[simp] theorem lift_eq {α : Type} (x : α) : Aeneas.Std.lift x = ok x := rfl
 
 @[simp] theorem arc_deref_eq {T : Type} (A : Type) (x : T) :
@@ -132,7 +168,7 @@ The two sets `Refine/SimpSets.lean` registers are populated here with the
 plumbing above; later files add their own (`ExprOps.binder_meta_eq`,
 `BasisTables`'s `expr_dup_eq`). -/
 
-attribute [rust_reduce, rust_invert] arc_deref_eq bind_tc_ok lift_eq ptr_new_eq
+attribute [rust_reduce, rust_invert] arc_deref_eq bind_ok lift_eq ptr_new_eq
   ptr_clone_eq name_dup_eq level_dup_eq name.NameNode.hash._simpLemma_
   name.NameNode.kind._simpLemma_ name.Name._0._simpLemma_ level.LevelNode.hash._simpLemma_
   level.LevelNode.kind._simpLemma_ level.Level._0._simpLemma_
@@ -162,7 +198,7 @@ rewrite, so `simp` would visit all the dead arms of the `match` first — task
 #70 measured that as the single largest cost of the untuned normaliser.) -/
 theorem bind_arc_deref {T β : Type} (A : Type) (x : T) (f : T → Result β) :
     (do let y ← alloc.sync.Arc.Insts.CoreOpsDerefDeref.deref A x; f y) = f x := by
-  rw [arc_deref_eq, bind_tc_ok]
+  rw [arc_deref_eq, bind_ok]
 
 open Lean Elab Tactic Meta in
 /-- Destructure every local hypothesis whose type is syntactically a pair: the

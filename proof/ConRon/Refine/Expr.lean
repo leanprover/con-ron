@@ -106,7 +106,7 @@ theorem pack_val {h b f w : Std.U64} {lp : Bool}
   have hh : h.val < 2 ^ 64 := by scalar_tac
   rw [expr.pack_data.eq_def] at hw
   cases lp <;>
-    simp only [Bool.false_eq_true, ite_false, ite_true, lift_eq, bind_tc_ok,
+    simp only [Bool.false_eq_true, ite_false, ite_true, lift_eq, bind_ok,
       Result.ok.injEq] at hw ⊢ <;>
     rw [← hw] <;>
     simp only [wrapping_add_val, wrapping_mul_val, val_2_32, val_2_16, val_two,
@@ -595,7 +595,7 @@ theorem mk_bvar_wf {i : Std.U64} {e : expr.Expr} (h : expr.mk_bvar i = ok e) :
 /-- `expr::dup` is the identity in the model (`Arc::clone` is; DESIGN.md §3.2). -/
 theorem dup_eq {e c : expr.Expr} (h : expr.dup e = ok c) : c = e := by
   obtain ⟨r⟩ := e
-  simp only [expr.dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.dup, ptr_clone_eq, bind_ok, Result.ok.injEq] at h
   exact h.symm
 
 /-- `expr::ptr_eq` is `false` in the model, so the model always takes the slow
@@ -652,10 +652,10 @@ whose model is the identity, where it used to be a `Nat` limb copy and a
 theorem literal_dup_eq {l c : expr.Literal} (h : expr.literal_dup l = ok c) : c = l := by
   cases l with
   | NatVal n =>
-    simp only [expr.literal_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr.literal_dup, ptr_clone_eq, bind_ok, Result.ok.injEq] at h
     exact h.symm
   | StrVal s =>
-    simp only [expr.literal_dup, ptr_clone_eq, bind_tc_ok, Result.ok.injEq] at h
+    simp only [expr.literal_dup, ptr_clone_eq, bind_ok, Result.ok.injEq] at h
     exact h.symm
 
 /-- `expr::binder_meta_dup` is the identity in the model.  Since task #90 the
@@ -678,7 +678,7 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
   | NatVal m =>
     cases b with
     | NatVal n =>
-      simp only [expr.literal_beq, arc_deref_eq, bind_tc_ok] at h
+      simp only [expr.literal_beq, arc_deref_eq, bind_ok] at h
       rw [Nat.beq_refines ha hb h]
       simp
     | StrVal t =>
@@ -690,7 +690,7 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
       simp only [expr.literal_beq, Result.ok.injEq] at h
       rw [← h]; simp
     | StrVal t =>
-      simp only [expr.literal_beq, arc_deref_eq, bind_tc_ok] at h
+      simp only [expr.literal_beq, arc_deref_eq, bind_ok] at h
       rw [Name.str_eq_refines ha hb h]
       simp
 
@@ -1303,7 +1303,7 @@ theorem pair_is_false {p : expr.Expr × expr.Expr} {a b : expr.Expr} {r : Bool}
     (h : expr.pair_is p a b = ok r) : r = false := by
   rw [expr.pair_is] at h
   obtain ⟨p1, p2⟩ := p
-  simp only [ptr_eq_eq, bind_tc_ok, Bool.false_eq_true, ite_false] at h
+  simp only [ptr_eq_eq, bind_ok, Bool.false_eq_true, ite_false] at h
   simpa using h.symm
 
 /-- The bucket scan of task #38's memo, by the measure induction every index
@@ -1378,7 +1378,7 @@ theorem beq_go_arm {a b : expr.Expr} {m : BeqMap} {rm : Bool × BeqMap}
     (h : expr.beq_go m a b = ok rm) (hd : dataOf a = dataOf b) :
     ∃ rm' : Bool × BeqMap, expr.beq_arm m a b = ok rm' ∧ rm'.1 = rm.1 := by
   rw [expr.beq_go.eq_def] at h
-  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_tc_ok, hd,
+  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_ok, hd,
     bne_self_eq_false] at h
   obtain ⟨rc, -, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
@@ -1539,7 +1539,7 @@ theorem beq_go_data_ne {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b)
     (h : expr.beq_go m a b = ok rm) (hne : dataOf a ≠ dataOf b) :
     rm.1 = decide (absExpr a = absExpr b) := by
   rw [expr.beq_go.eq_def] at h
-  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_tc_ok] at h
+  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_ok] at h
   rw [ite_eq_left (show (dataOf a != dataOf b) = true by simpa using hne),
     Result.ok.injEq] at h
   subst h
@@ -1569,70 +1569,70 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [pure_step (fun y hy => u64_eq_test hy) h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1647,7 +1647,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1656,7 +1656,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [when_step (P := idx1.val = idx2.val) (Q := absExpr ty1 = absExpr ty2)
         (fun y hy => u64_eq_test hy) (fun m rm hr => ih1 ty2 hty2 m rm hr) h]
@@ -1664,56 +1664,56 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1728,14 +1728,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1744,56 +1744,56 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [pure_step (fun y hy => Level.beq_refines hu1 hu2 hy) h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1808,21 +1808,21 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1831,49 +1831,49 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [pure_step (fun y hy => const_beq_refines hn1 hn2 hus1 hus2 hy) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.const.injEq]
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1888,28 +1888,28 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1918,7 +1918,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [both_step (P := absExpr f1 = absExpr f2) (Q := absExpr a1 = absExpr a2)
         (fun m rm hr => ihf1 f2 hf2 m rm hr) (fun m rm hr => iha1 a2 ha2 m rm hr) h]
@@ -1926,35 +1926,35 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -1969,35 +1969,35 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2006,7 +2006,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [both_when_step (P := absBinderMeta m1 = absBinderMeta m2)
         (Q := absExpr ty1 = absExpr ty2) (R := absExpr bo1 = absExpr bo2)
@@ -2018,28 +2018,28 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2054,42 +2054,42 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2098,7 +2098,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [both_when_step (P := absBinderMeta m1 = absBinderMeta m2)
         (Q := absExpr ty1 = absExpr ty2) (R := absExpr bo1 = absExpr bo2)
@@ -2110,21 +2110,21 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2139,49 +2139,49 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2190,7 +2190,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [three_step (P := absExpr ty1 = absExpr ty2)
         (Q := absExpr v1 = absExpr v2) (R := absExpr bo1 = absExpr bo2)
@@ -2201,14 +2201,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2223,56 +2223,56 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2281,14 +2281,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [pure_step (fun y hy => literal_beq_refines hl1 hl2 hy) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.lit.injEq]
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2303,63 +2303,63 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
     | @bvar i2 e2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := bvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @fvar idx2 ty2 e2 hty2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := fvar_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @sort u2 e2 hu2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := sort_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @mk_const n2 us2 e2 hn2 hus2 h2 =>
       obtain ⟨d2, _, -, rfl, -, -, -⟩ := mk_const_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
     | @lit l2 e2 hl2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lit_inv h2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
@@ -2368,7 +2368,7 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
-      simp only [expr_view_eq, arc_deref_eq, bind_tc_ok, expr.Expr._0._simpLemma_,
+      simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
       rw [when_step (P := absName s1 = absName s2 ∧ i1.val = i2.val)
         (Q := absExpr x1 = absExpr x2)
@@ -2388,7 +2388,7 @@ memo never enters it). -/
 theorem beq_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
     (h : expr.beq a b = ok c) : c = decide (absExpr a = absExpr b) := by
   rw [expr.beq] at h
-  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_tc_ok] at h
+  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_ok] at h
   by_cases hd : dataOf a = dataOf b
   · rw [ite_eq_right (show ¬ (dataOf a != dataOf b) = true by simp [hd])] at h
     obtain ⟨m, -, h⟩ := bind_eq_ok_iff.mp h

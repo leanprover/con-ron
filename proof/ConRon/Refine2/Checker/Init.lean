@@ -268,7 +268,7 @@ theorem init_rel {pers : arena.store.PersTier} {est : arena.store.EStore}
   subst h'
   rw [arena.pins.Pins.empty] at hp
   simp only [arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
-    arena.handle.EIdx.of_word, bind_tc_ok] at hp
+    arena.handle.EIdx.of_word, bind_ok] at hp
   have hp' := Result.ok_injective hp
   subst hp'
   obtain ⟨hMR, hMI⟩ := memos_empty hm

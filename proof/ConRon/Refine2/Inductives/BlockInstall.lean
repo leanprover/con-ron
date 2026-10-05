@@ -166,7 +166,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       simp only [alloc.vec.Vec.len] at this
       scalar_tac
     have hidx := bi_vec_index_eq p.members (UScalar.cast .Usize mi) mi.val hI hm
-    simp only [lift, bind_tc_ok, ite_eq_left h1, hidx]
+    simp only [lift, bind_ok, ite_eq_left h1, hidx]
     generalize p.members.val[mi.val] = m
     rcases hc : m.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
@@ -184,7 +184,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
         rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
         simp [hc]
       rw [absMemberShape_ctors, absCtorsL, hc, List.map_cons, List.map_nil]
-      simp only [hlen, ↓reduceIte, hidx0, bind_tc_ok]
+      simp only [hlen, ↓reduceIte, hidx0, bind_ok]
       lockstep
       all_goals bi_caps_leaf1
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
@@ -535,7 +535,7 @@ theorem tele_vals_cons_abs {cvs : alloc.vec.Vec (arena.env.IConstantVal × arena
     -- the Rust's cursor `1` is the twin's `rest` (the side tier reads this)
     have hrest : absMemberShapeLFrom p.shape.members 1#usize = rest.map absMemberShape := by
       simp [absMemberShapeLFrom, hms]
-    simp only [h0, ↓reduceIte, hidx, bind_tc_ok, List.map_cons]
+    simp only [h0, ↓reduceIte, hidx, bind_ok, List.map_cons]
     lockstep
     have e := tele_vals_cons_abs (by simpa [alloc.vec.Vec.new] using hP) hf
     rw [← e]
@@ -773,7 +773,7 @@ holes.  The context's `vis` is the environment's counter. -/
       intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hcv] at this
     have hidx := bi_vec_index_eq cv_tas 0#usize 0 rfl (by simp [hcv])
     simp only [hcv, List.getElem_cons_zero] at hidx
-    simp only [h0, ↓reduceIte, hidx, bind_tc_ok, absICVL, hcv, List.map_cons]
+    simp only [h0, ↓reduceIte, hidx, bind_ok, absICVL, hcv, List.map_cons]
     lockstep
 
 /-! ## The root frame's outputs, split (the twin's `outs.map (·.map (·.1))`,

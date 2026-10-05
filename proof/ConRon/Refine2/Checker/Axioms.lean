@@ -68,7 +68,7 @@ theorem sim_intern_ci_of {pers st lst} {m : Result kernel.env.ConstantInfo}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : ∀ c, m = ok c →
       ConRon.Refine.absConstantInfo c = C ∧ ConRon.Refine.ConstantInfoWF c)
-    (hrun : (m >>= fun c => arena.intern.intern_ci pers st c) = ok o) :
+    (hrun : (Std.bind m fun c => arena.intern.intern_ci pers st c) = ok o) :
     Sim₀ absIConstantInfo pers lst o (internCI C) := by
   obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨ha, hw⟩ := hm c hc
@@ -79,7 +79,7 @@ theorem sim_intern_cv_of {pers st lst} {m : Result kernel.env.ConstantVal}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : ∀ c, m = ok c →
       ConRon.Refine.absConstantVal c = C ∧ ConRon.Refine.ConstantValWF c)
-    (hrun : (m >>= fun c => arena.intern.intern_cv pers st c) = ok o) :
+    (hrun : (Std.bind m fun c => arena.intern.intern_cv pers st c) = ok o) :
     Sim₀ absIConstantVal pers lst o (internCV C) := by
   obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨ha, hw⟩ := hm c hc
@@ -89,7 +89,7 @@ theorem sim_intern_expr_of {pers st lst} {m : Result kernel.expr.Expr}
     {C : ConLeche.Expr} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : ∀ c, m = ok c → ConRon.Refine.absExpr c = C ∧ ConRon.Refine.ExprWF c)
-    (hrun : (m >>= fun c => arena.intern.intern_expr pers st c) = ok o) :
+    (hrun : (Std.bind m fun c => arena.intern.intern_expr pers st c) = ok o) :
     Sim₀ absEIdx pers lst o (internExpr C) := by
   obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨ha, hw⟩ := hm c hc
@@ -101,7 +101,7 @@ theorem sim_intern_ci_list_of {pers st lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : ∀ c, m = ok c →
       ConRon.Refine.absConstantInfos c = C ∧ ConRon.Refine.ConstantInfosWF c)
-    (hrun : (m >>= fun c => arena.intern.intern_ci_list pers st c) = ok o) :
+    (hrun : (Std.bind m fun c => arena.intern.intern_ci_list pers st c) = ok o) :
     Sim₀ absICIL pers lst o (internCIList C) := by
   obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨ha, hw⟩ := hm c hc

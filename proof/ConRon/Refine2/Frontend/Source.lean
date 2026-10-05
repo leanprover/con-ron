@@ -80,7 +80,7 @@ theorem parse_source_loop_eq {S : Type}
     rw [ite_eq_left hlen] at hrun
     obtain ⟨s, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [hs]
-    simp only [bind_tc_ok]
+    simp only [bind_ok]
     obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [hq]
     obtain ⟨r, ar1⟩ := q
@@ -117,13 +117,13 @@ theorem parse_source_loop_eq {S : Type}
     change (if alloc.vec.Vec.len c = 0#usize then _ else _) = ok o at hrun
     rw [ite_eq_right hlen] at hrun
     rw [vec_index_ok' (by simpa using hlt)]
-    simp only [bind_tc_ok, hci]
+    simp only [bind_ok, hci]
     obtain ⟨s, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [hs]
-    simp only [bind_tc_ok]
+    simp only [bind_ok]
     obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [hq]
-    simp only [bind_tc_ok]
+    simp only [bind_ok]
     obtain ⟨r, ar1, st1⟩ := q
     try dsimp only at hrun ⊢
     cases r with
@@ -144,7 +144,7 @@ theorem parse_source_loop_eq {S : Type}
         exact ⟨z, hz, by scalar_tac⟩
       obtain ⟨i1, hi1, hi1v⟩ := hi1
       rw [hi1]
-      simp only [bind_tc_ok]
+      simp only [bind_ok]
       exact ih (i := i1) (by rw [hi1v]; exact hdrop') hrest hrun
 
 /-- **`parse_source` IS `parse_chunks` over the chunks read**: the reader
@@ -163,7 +163,7 @@ theorem parse_source_eq {S : Type}
   rw [frontend.export_c.parse_chunks]
   obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   rw [hq]
-  simp only [bind_tc_ok]
+  simp only [bind_ok]
   obtain ⟨r, e⟩ := q
   try dsimp only at hrun ⊢
   cases r with

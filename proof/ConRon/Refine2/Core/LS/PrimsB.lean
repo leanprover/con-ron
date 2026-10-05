@@ -289,7 +289,7 @@ open ConRon.Refine.Nat in
     LSP (kernel.expr.literal_nat n) (fun l => l = .NatVal n) := by
   intro l h
   rw [kernel.expr.literal_nat] at h
-  simp only [ConRon.Refine.ptr_new_eq, bind_tc_ok] at h
+  simp only [ConRon.Refine.ptr_new_eq, bind_ok] at h
   exact (Result.ok_injective h).symm
 
 @[lockstep] theorem arc_deref_spec {T : Type} (A : Type) (x : alloc.sync.Arc T) :
@@ -566,7 +566,7 @@ intern). -/
     have hS1 : Sim₀ absLIdx pers lst (r1, { st with store := ar1 })
         (Arena.internLNode (absLNodeView arena.store.LNodeView.Zero)) :=
       intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
-        (by rw [arena.monad.intern_l_node, h1]; simp only [Aeneas.Std.bind_tc_ok]; rfl)
+        (by rw [arena.monad.intern_l_node, h1]; simp only [Aeneas.Std.bind_ok]; rfl)
     rw [show Arena.internLNode LNodeView.zero
         = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
     cases r1 with
@@ -581,7 +581,7 @@ intern). -/
     have hS2 : Sim₀ absLIdx pers lst1 (r2, { st with store := ar2 })
         (Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z))) :=
       intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
-        (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [Aeneas.Std.bind_tc_ok]; rfl)
+        (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [Aeneas.Std.bind_ok]; rfl)
     rw [show Arena.internLNode (.succ (absLIdx z))
         = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
     cases r2 with
@@ -598,7 +598,7 @@ intern). -/
     have hS3 : Sim₀ absEIdx pers lst2 (r3, { st with store := ar3 })
         (Arena.internSortE (absLIdx one)) :=
       intern_e_sort_run₀ hrel2 hinv2 one
-        (by rw [arena.monad.intern_e_sort]; rw [h3']; simp only [Aeneas.Std.bind_tc_ok]; rfl)
+        (by rw [arena.monad.intern_e_sort]; rw [h3']; simp only [Aeneas.Std.bind_ok]; rfl)
     rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
     cases r3 with
     | Err e =>

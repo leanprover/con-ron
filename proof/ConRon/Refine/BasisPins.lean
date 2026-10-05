@@ -232,7 +232,7 @@ local macro_rules
 local syntax "wf_peel" ident : tactic
 local macro_rules
   | `(tactic| wf_peel $h:ident) => `(tactic|
-      (obtain ⟨_, hx, $h⟩ := bind_eq_ok_iff.mp $h
+      (rust_bind_guard $h:ident; obtain ⟨_, hx, $h⟩ := bind_eq_ok_iff.mp $h
        first
        | (with_reducible have := expr_dup_wf (by assumption) hx)
        | (with_reducible have := names_push_wf (by wf_elem) (by wf_elem) hx)

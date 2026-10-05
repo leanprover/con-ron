@@ -642,7 +642,7 @@ private theorem scan_num_name_loop_wf {b : Slice Std.U8} (f : Nat) :
       · repeat' (first
           | exact (err_ne_ok h).elim
           | split at h
-          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+          | (rust_bind_guard h; obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
         all_goals
           (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
              Prod.mk.injEq] at h
@@ -653,7 +653,7 @@ private theorem scan_num_name_loop_wf {b : Slice Std.U8} (f : Nat) :
         all_goals
           first
             | exact (err_ne_ok h).elim
-            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+            | (rust_bind_guard h; obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
                split at h
                · exact (err_ne_ok h).elim
                · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
@@ -702,7 +702,7 @@ private theorem scan_app_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
       · repeat' (first
           | exact (err_ne_ok h).elim
           | split at h
-          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+          | (rust_bind_guard h; obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
         all_goals
           (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
              Prod.mk.injEq] at h
@@ -713,7 +713,7 @@ private theorem scan_app_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
         all_goals
           first
             | exact (err_ne_ok h).elim
-            | (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
+            | (rust_bind_guard h; obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
                split at h
                · exact (err_ne_ok h).elim
                · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
@@ -892,7 +892,7 @@ private theorem scan_let_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
       · repeat' (first
           | exact (err_ne_ok h).elim
           | split at h
-          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+          | (rust_bind_guard h; obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
         all_goals
           (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
              Prod.mk.injEq] at h
@@ -971,7 +971,7 @@ private theorem scan_const_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
       · repeat' (first
           | exact (err_ne_ok h).elim
           | split at h
-          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+          | (rust_bind_guard h; obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
         all_goals
           (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
              Prod.mk.injEq] at h
@@ -1048,7 +1048,7 @@ private theorem scan_proj_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
       · repeat' (first
           | exact (err_ne_ok h).elim
           | split at h
-          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+          | (rust_bind_guard h; obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
         all_goals
           (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
              Prod.mk.injEq] at h
@@ -1130,7 +1130,7 @@ private theorem scan_line_loop_wf {b : Slice Std.U8} (f : Nat) :
         repeat' (first
           | exact (err_ne_ok h).elim
           | split at h
-          | (obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
+          | (rust_bind_guard h; obtain ⟨_, -, h⟩ := bind_eq_ok_iff.mp h))
         all_goals
           (simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
              Prod.mk.injEq] at h

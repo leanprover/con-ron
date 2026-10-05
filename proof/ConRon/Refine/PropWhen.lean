@@ -189,7 +189,7 @@ theorem str_compare_from_refines {a b : alloc.vec.Vec Std.U32}
             have heq : a.val[i.val] = b.val[i.val] := by scalar_tac
             have hmax : i.val + 1 ≤ Std.Usize.max := by have := a.slice.property; scalar_tac
             obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-            simp only [hw, bind_tc_ok] at h
+            simp only [hw, bind_ok] at h
             simp only [List.map_cons]
             rw [chr_eq heq, cmp_cons_cons, ← hwv]
             exact ih w (by scalar_tac) o h
@@ -243,15 +243,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
   | @str pre s n hpre hs hmk ih =>
@@ -261,15 +261,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, bind_eq_ok_iff] at hc
       obtain ⟨o1, ho1, o2, ho2, hthen⟩ := hc
       obtain ⟨hq, ht, hqt⟩ : NameWF q ∧ StrWF t ∧ True := by
@@ -296,15 +296,15 @@ theorem name_cmp_refines_aux {a : name.Name} (ha : NameWF a) :
     obtain ⟨⟨h2, kb⟩⟩ := b
     cases kb with
     | Anonymous =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Str q t =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, Result.ok.injEq] at hc
       subst hc; simp [ConLeche.Name.cmp, absOrdering]
     | Num q k =>
-      simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+      simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
         name.NameNode.kind._simpLemma_, bind_eq_ok_iff] at hc
       obtain ⟨o1, ho1, o2, ho2, hthen⟩ := hc
       have hq : NameWF q := by
@@ -455,7 +455,7 @@ theorem merge_from_abs {as_ bs : alloc.vec.Vec name.Name}
           List.map_cons, List.map_cons]
         cases o with
         | Lt =>
-          simp only [bind_eq_ok_iff, bind_tc_ok] at h
+          simp only [bind_eq_ok_iff, bind_ok] at h
           obtain ⟨out1, hout1, h⟩ := h
           have hout1WF : NamesWF out1 := by
             intro n hn
@@ -467,7 +467,7 @@ theorem merge_from_abs {as_ bs : alloc.vec.Vec name.Name}
             vec_push_val hout1, hwiv, List.drop_eq_getElem_cons hbj, List.map_cons]
           simp
         | Eq =>
-          simp only [bind_eq_ok_iff, bind_tc_ok] at h
+          simp only [bind_eq_ok_iff, bind_ok] at h
           obtain ⟨out1, hout1, h⟩ := h
           have hout1WF : NamesWF out1 := by
             intro n hn
@@ -479,7 +479,7 @@ theorem merge_from_abs {as_ bs : alloc.vec.Vec name.Name}
             vec_push_val hout1, hwiv, hwjv]
           simp
         | Gt =>
-          simp only [bind_eq_ok_iff, bind_tc_ok] at h
+          simp only [bind_eq_ok_iff, bind_ok] at h
           obtain ⟨out1, hout1, h⟩ := h
           have hout1WF : NamesWF out1 := by
             intro n hn
@@ -529,7 +529,7 @@ theorem canon_from_abs {ps : alloc.vec.Vec name.Name} (hps : NamesWF ps) :
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
       obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hi)
       subst hyv
-      simp only [hw, bind_tc_ok, alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy] at h
+      simp only [hw, bind_ok, alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy] at h
       obtain ⟨rest, hrest, sg, hsg, hmg⟩ := h
       obtain ⟨hrestE, hrestWF⟩ := ih w rest (by scalar_tac) hrest
       have hsgV : sg.val = [ps.val[i.val]] := by
@@ -710,7 +710,7 @@ theorem of_sorted_reprList {qs : alloc.vec.Vec name.Name} {pw : prop_when.PropWh
         rw [reprList, hyv, hzv]
         simp [hx]
       · rw [ite_eq_right (show ¬ alloc.vec.Vec.len qs = 2#usize by scalar_tac)] at h
-        simp only [ptr_new_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
+        simp only [ptr_new_eq, bind_ok, of_repr_eq, Result.ok.injEq] at h
         subst h
         refine ⟨rfl, by simp, ?_⟩
         intro ps hps
@@ -752,7 +752,7 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
   have hcmp := name_cmp_refines hp hq ho
   cases o with
   | Lt =>
-    simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
+    simp only [name_dup_eq, ptr_new_eq, bind_ok, of_repr_eq, Result.ok.injEq] at h
     subst h
     have hlt : ConLeche.Name.cmp (absName p) (absName q) = .lt := by
       simpa [absOrdering] using hcmp
@@ -764,7 +764,7 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
     · simp only [reprList, List.map_cons, List.map_nil]
       rw [merge_lt hlt, ConLeche.PropWhen.nil_merge]
   | Eq =>
-    simp only [name_dup_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
+    simp only [name_dup_eq, bind_ok, of_repr_eq, Result.ok.injEq] at h
     subst h
     have heq : absName p = absName q :=
       ConLeche.Name.eq_of_cmp (by simpa [absOrdering] using hcmp)
@@ -778,7 +778,7 @@ theorem two_prime_shape {p q : name.Name} {pw : prop_when.PropWhen}
     · rw [reprList, List.map_cons, List.map_nil, ← heq,
         merge_eq (ConLeche.Name.cmp_self (absName p)), ConLeche.PropWhen.nil_merge]
   | Gt =>
-    simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, of_repr_eq, Result.ok.injEq] at h
+    simp only [name_dup_eq, ptr_new_eq, bind_ok, of_repr_eq, Result.ok.injEq] at h
     subst h
     have hgt : ConLeche.Name.cmp (absName p) (absName q) = .gt := by
       simpa [absOrdering] using hcmp
@@ -1188,7 +1188,7 @@ theorem all_contained_from_refines {params ps : alloc.vec.Vec name.Name}
       split at h
       · rename_i hz
         subst hz
-        simp only [bind_tc_ok] at h
+        simp only [bind_ok] at h
         rw [Bool.true_and, ← hwv]
         exact ih w b (by scalar_tac) h
       · rename_i hz
@@ -1365,7 +1365,7 @@ theorem names_beq_from_refines {ps qs : alloc.vec.Vec name.Name}
         · rename_i hbt
           have heq : ps.val[i.val] = qs.val[i.val] :=
             Name.absName_injective hwfp hwfq (of_decide_eq_true (e1.symm.trans hbt))
-          simp only [bind_tc_ok] at h
+          simp only [bind_ok] at h
           rw [← hwv, ih w b (by scalar_tac) h]
           simp [heq]
         · rename_i hbf

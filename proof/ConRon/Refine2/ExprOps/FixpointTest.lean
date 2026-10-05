@@ -86,7 +86,7 @@ theorem get_app_fn_nf_fuel {pers : arena.store.PersTier} {st : arena.monad.AStat
       refine ⟨1, fun fuel hf => ?_⟩
       rw [arena.expr_ops.get_app_fn]
       have : fuel ≠ 0#u64 := by intro h0; subst h0; simp at hf
-      simp only [this, ite_false, hi, hti, ite_true, hv, bind_tc_ok]
+      simp only [this, ite_false, hi, hti, ite_true, hv, bind_ok]
       exact hrun
     | some p =>
       obtain ⟨e, x⟩ := p
@@ -94,18 +94,18 @@ theorem get_app_fn_nf_fuel {pers : arena.store.PersTier} {st : arena.monad.AStat
       refine ⟨F + 1, fun fuel hf => ?_⟩
       rw [arena.expr_ops.get_app_fn]
       have : fuel ≠ 0#u64 := by intro h0; subst h0; simp at hf
-      simp only [this, ite_false, hi, hti, ite_true, hv, bind_tc_ok]
+      simp only [this, ite_false, hi, hti, ite_true, hv, bind_ok]
       obtain ⟨i1, hi1⟩ : ∃ i1, fuel - 1#u64 = ok i1 ∧ i1.val = fuel.val - 1 := by
         obtain ⟨w, h1, h2⟩ :=
           WP.spec_imp_exists (Std.U64.sub_spec (x := fuel) (y := 1#u64) (by scalar_tac))
         exact ⟨w, h1, by scalar_tac⟩
-      rw [hi1.1, bind_tc_ok]
+      rw [hi1.1, bind_ok]
       exact hF i1 (by omega)
   · rw [ite_eq_right hti] at hrun
     refine ⟨1, fun fuel hf => ?_⟩
     rw [arena.expr_ops.get_app_fn]
     have : fuel ≠ 0#u64 := by intro h0; subst h0; simp at hf
-    simp only [this, ite_false, hi, hti, bind_tc_ok]
+    simp only [this, ite_false, hi, hti, bind_ok]
     exact hrun
 
 /-- **The Job-3 statement shape**, composed from the rust-to-rust lemma and

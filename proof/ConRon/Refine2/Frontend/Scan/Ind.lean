@@ -395,7 +395,7 @@ private theorem scan_rule_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
              simp only [Result.ok.injEq] at h
              rw [← h]
              exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -824,7 +824,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
              simp only [Result.ok.injEq] at h
              rw [← h]
              exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -849,7 +849,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  have hlt := slot_nat_prog hr1
                  exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ o
                    (le_refl _) h)
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -886,7 +886,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                    simp only [Result.ok.injEq] at h
                    rw [← h]
                    exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -923,7 +923,7 @@ private theorem scan_ind_rec_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                    simp only [Result.ok.injEq] at h
                    rw [← h]
                    exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -1369,7 +1369,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
              simp only [Result.ok.injEq] at h
              rw [← h]
              exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -1394,7 +1394,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  have hlt := slot_nat_prog hr1
                  exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ _ _ o
                    (le_refl _) h)
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -1431,7 +1431,7 @@ private theorem scan_ind_type_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                    simp only [Result.ok.injEq] at h
                    rw [← h]
                    exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -1845,7 +1845,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
              simp only [Result.ok.injEq] at h
              rw [← h]
              exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -1870,7 +1870,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                  have hlt := slot_nat_prog hr1
                  exact ih (b.val.length - e.val) (by omega) false e seen1 _ _ _ _ _ _ _ _ o
                    (le_refl _) h)
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h
@@ -1907,7 +1907,7 @@ private theorem scan_ind_ctor_loop_loop_refines {b : Slice Std.U8} (f : Nat) :
                    simp only [Result.ok.injEq] at h
                    rw [← h]
                    exact scanSim_err rfl (by rw [absPos_toNat]))
-          | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+          | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
              rw [dup_bit (by rfl) hb1]
              by_cases hd : b1 = true
              · rw [ite_eq_left hd, err_eq] at h

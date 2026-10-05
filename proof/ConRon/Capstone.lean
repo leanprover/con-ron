@@ -505,7 +505,7 @@ theorem startState_eq : arena.monad.AState.empty = ok startState := by
     arena.store.EStore.empty, ron.hashmap2.HashMap2.new,
     arena.monad.AState.init, arena.monad.Memos.empty, arena.core_state.Caches.empty,
     arena.pins.Pins.empty, arena.handle.LsIdx.of_word, arena.handle.LIdx.of_word,
-    arena.handle.EIdx.of_word, bind_tc_ok]
+    arena.handle.EIdx.of_word, bind_ok]
   rfl
 
 /-- `startState` is `AState::init(EStore::empty())`, the form `rust_stages`
@@ -538,7 +538,7 @@ theorem prepare_prelude_of_prepare_d {pers : arena.store.PersTier}
     (h : frontend.prepare.prepare_d pers st pre ds = ok (.Ok p, st')) :
     frontend.prepare.prepare_prelude pers st pre ds = ok (.Ok p.decls, st') := by
   rw [frontend.prepare.prepare_prelude, h]
-  simp only [bind_tc_ok]
+  simp only [bind_ok]
   rfl
 
 /-- `pins_decode::decode_embedded()`, the call the binary's

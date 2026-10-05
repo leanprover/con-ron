@@ -28,10 +28,10 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   by
     intro b h
     cases mode
-    · simp only [kernel.env.beta_skip, kernel.env.certs, kernel.env.beta_gate, bind_tc_ok,
+    · simp only [kernel.env.beta_skip, kernel.env.certs, kernel.env.beta_gate, bind_ok,
         reduceIte] at h
       rw [ConRon.Refine.PropWhen.is_never_refines h]; rfl
-    · simp only [kernel.env.beta_skip, kernel.env.certs, bind_tc_ok, Bool.false_eq_true,
+    · simp only [kernel.env.beta_skip, kernel.env.certs, bind_ok, Bool.false_eq_true,
         ite_false, Result.ok.injEq] at h
       rw [← h]; rfl
 

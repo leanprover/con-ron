@@ -289,7 +289,7 @@ private theorem scan_app_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            simp only [absKey]
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
-             | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+             | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
                 have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2]
                 by_cases hd : b1 = true
@@ -434,7 +434,7 @@ private theorem scan_proj_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            simp only [absKey]
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
-             | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+             | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
                 have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2, dup_abs4]
                 by_cases hd : b1 = true
@@ -577,7 +577,7 @@ private theorem scan_const_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            simp only [absKey]
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
-             | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+             | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
                 have hb1' := dup_port hb1
                 simp only [dup_abs1]
                 by_cases hd : b1 = true
@@ -601,7 +601,7 @@ private theorem scan_const_expr_loop_aux (kf : KitFacts b) (f : Nat) :
                     rw [← lift_val hseen1]
                     exact ih (b.length - e.val) (by omega) false e seen1 _ _ o
                       (le_refl _) h)
-             | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+             | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
                 have hb1' := dup_port hb1
                 simp only [dup_abs2]
                 by_cases hd : b1 = true
@@ -778,7 +778,7 @@ private theorem scan_let_expr_loop_aux (kf : KitFacts b) (f : Nat) :
            simp only [absKey]
            first
              | (rw [err_val h]; exact ScanErrSim.mk (t := .unknownKey) rfl (by simp))
-             | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+             | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
                 have hb1' := dup_port hb1
                 simp only [dup_abs1, dup_abs2, dup_abs8, dup_abs16]
                 by_cases hd : b1 = true
@@ -802,7 +802,7 @@ private theorem scan_let_expr_loop_aux (kf : KitFacts b) (f : Nat) :
                     rw [← lift_val hseen1]
                     exact ih (b.length - e.val) (by omega) false e seen1 _ _ _ o
                       (le_refl _) h)
-             | (obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
+             | (rust_bind_guard h; obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
                 have hb1' := dup_port hb1
                 simp only [dup_abs4]
                 by_cases hd : b1 = true

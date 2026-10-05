@@ -893,7 +893,7 @@ theorem LST.glue_out {α β : Type} {P t' : arena.store.PersTier}
     Lockstep.LOut t' (fun a b => R a b ∧ t'.frozen = true) o st (x.run lst) := by
   have hp : Lockstep.packT (fun t' => glue t' st) m
       = ok (Lockstep.packTOut (fun t' => glue t' st) (o, t')) := by
-    simp only [Lockstep.packT, hm, bind_tc_ok]
+    simp only [Lockstep.packT, hm, bind_ok]
   cases o with
   | Err e => exact h _ _ hp
   | Ok a =>

@@ -116,7 +116,7 @@ open ConRon.Refine ConRon.Refine.PinsBytes
 /-- Every error arm of the decoder is `bad_text`, which never yields an `Ok`.
 `Refine/PinsBytes.lean` keeps a private copy; it is four lines. -/
 private theorem err_ne_ok {T : Type} {y : T}
-    (h : (pins_decode.bad_text >>= fun ce =>
+    (h : (Std.bind pins_decode.bad_text fun ce =>
             ok (core.result.Result.Err ce : core.result.Result T core_types.CheckError))
         = ok (core.result.Result.Ok y)) : False := by
   simp only [bind_eq_ok_iff] at h
@@ -403,7 +403,7 @@ theorem name_ref_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Table
     · rename_i hlt
       have hkl : k.val < tb.names.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, name_dup_eq, Result.ok.injEq,
+      simp only [bind_ok, name_dup_eq, Result.ok.injEq,
         core.result.Result.Ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact htb.names _ (List.getElem_mem (by scalar_tac))
@@ -425,7 +425,7 @@ theorem level_ref_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tabl
     · rename_i hlt
       have hkl : k.val < tb.levels.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, level_dup_eq, Result.ok.injEq,
+      simp only [bind_ok, level_dup_eq, Result.ok.injEq,
         core.result.Result.Ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact htb.levels _ (List.getElem_mem (by scalar_tac))
@@ -468,7 +468,7 @@ theorem expr_ref_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Table
     · rename_i hlt
       have hkl : k.val < tb.exprs.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, expr_dup_ok, Result.ok.injEq,
+      simp only [bind_ok, expr_dup_ok, Result.ok.injEq,
         core.result.Result.Ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact htb.exprs _ (List.getElem_mem (by scalar_tac))
@@ -696,13 +696,13 @@ private theorem binder_meta_wf {pw : prop_when.PropWhen} {m : expr.BinderMeta}
 /-- `expr::literal_nat` is `Arc::new` on a normalised bignum. -/
 private theorem literal_nat_wf {n : ron.nat.Nat} {l : expr.Literal}
     (hn : Nat.NatWF n) (h : expr.literal_nat n = ok l) : LiteralWF l := by
-  simp only [expr.literal_nat, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.literal_nat, ptr_new_eq, bind_ok, Result.ok.injEq] at h
   rw [← h]; exact hn
 
 /-- `expr::literal_str` is `Arc::new` on a code-point list. -/
 private theorem literal_str_wf {s : alloc.vec.Vec Std.U32} {l : expr.Literal}
     (hs : StrWF s) (h : expr.literal_str s = ok l) : LiteralWF l := by
-  simp only [expr.literal_str, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at h
+  simp only [expr.literal_str, ptr_new_eq, bind_ok, Result.ok.injEq] at h
   rw [← h]; exact hs
 
 /-! ### `N` — the name records -/

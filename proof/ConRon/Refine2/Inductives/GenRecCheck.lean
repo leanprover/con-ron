@@ -327,7 +327,7 @@ theorem gr_kind_read_in {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec
       M cf1) = M ks.val[i.val] := by
   have hc : (UScalar.cast .Usize i).val = i.val :=
     ConRon.Refine.ExprOps.u64_cast_usize_val (by have := ks.property; scalar_tac)
-  rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem h), bind_tc_ok]
+  rw [gr_vec_index_eq (by rw [hc]; exact List.getElem?_eq_getElem h), bind_ok]
   cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
 
 theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
@@ -360,7 +360,7 @@ theorem class_fields_agree_acc {pers} {mode : kernel.env.CheckMode}
   · intro i _ hi ih st lst hrel hinv
     rw [List.drop_eq_getElem_cons hi, List.map_cons,
       arena.inductives.gen_rec.class_fields_agree.eq_def]
-    simp only [lift, bind_tc_ok]
+    simp only [lift, bind_ok]
     rw [ite_eq_right (by
       have := ConRon.Refine.ExprOps.usize_cast_u64_val ks.len
       simp only [alloc.vec.Vec.len] at this; scalar_tac)]
@@ -1294,7 +1294,7 @@ theorem class_seeds_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
     rw [List.drop_eq_getElem_cons hi, List.map_cons, classSeeds,
       arena.inductives.gen_rec.class_seeds.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac)]
-    rw [gr_vec_index_eq (List.getElem?_eq_getElem hi), bind_tc_ok]
+    rw [gr_vec_index_eq (List.getElem?_eq_getElem hi), bind_ok]
     cases hm : (ms.val[i.val]'hi).member <;>
       simp only [absTargetMajor_member, hm, Option.map_none, Option.map_some]
     · lockstep
@@ -1423,7 +1423,7 @@ theorem class_recs_rules_ok_acc {pers} {mode : kernel.env.CheckMode}
     by_cases hr : i.val < rec_cls.val.length
     · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rec_cls by scalar_tac),
         List.drop_eq_getElem_cons hr, List.map_cons, classRecsRulesOk]
-      rw [gr_vec_index_eq (List.getElem?_eq_getElem hr), bind_tc_ok]
+      rw [gr_vec_index_eq (List.getElem?_eq_getElem hr), bind_ok]
       rcases hcl : (g.ctors.val)[(rec_cls.val[i.val]).val]? with _ | v <;>
         simp only [absClassGen_ctors, List.getD_eq_getElem?_getD, List.getElem?_map, absU, hcl,
           Option.map_none, Option.map_some, Option.getD_none, Option.getD_some]
@@ -1565,7 +1565,7 @@ theorem gr_ifenv_push_temp_spec {rf rf' : arena.env.IFEnv} {ci : arena.env.ICons
   obtain ⟨rfl, rfl⟩ := h'
   refine ⟨?_, n, hn, hold, ConRon.Refine.vec_push_val hv, ⟨s, ?_, hupd⟩, ?_, hinv'⟩
   · rw [arena.env.ifenv_push, hs]
-    simp only [bind_tc_ok, hn, hq, hv, hc1]
+    simp only [bind_ok, hn, hq, hv, hc1]
     rfl
   · simp only [lift, Result.ok.injEq] at hs; subst hs
     simp
@@ -1783,12 +1783,12 @@ theorem gr_fe_r_push_aux (p : arena.inductives.block_parts.BlockShape)
       have hget : prevsK.val[i1.val]? = some (n', prev) := by
         rw [hQ, hprevs1v, show i1.val = prevs.val.length by simp at hi1v; omega]
         simp
-      rw [gr_vec_index_eq hget, bind_tc_ok] at hp2
+      rw [gr_vec_index_eq hget, bind_ok] at hp2
       obtain ⟨pv, hpv, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
       have hpvv : pv = prev := by
         cases prev <;> simp only [Result.ok.injEq] at hpv <;> exact hpv.symm
       subst hpvv
-      simp only [bind_tc_ok] at hp2
+      simp only [bind_ok] at hp2
       obtain ⟨fe1, hfe1, hp2⟩ := ConRon.Refine.bind_eq_ok_iff.mp hp2
       obtain ⟨hR1, hI1⟩ := gr_pop_push hfe.inv hpq (by
         simp only [arena.env.i_constant_info_name]; exact hn') hY' hYi' hfe1

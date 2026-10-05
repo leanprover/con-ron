@@ -76,7 +76,7 @@ elab "lockstep_twin_tail" : tactic => do
   unless ty.isAppOfArity ``LS 7 do throwError "not LS"
   let m := (ty.getArg! 4).headBeta
   let x := (ty.getArg! 6).headBeta
-  unless m.isAppOfArity ``Bind.bind 6 do throwError "rust not a bind"
+  unless isRBind m do throwError "rust not a bind"
   if x.isAppOfArity ``Bind.bind 6 then throwError "twin already a bind"
   let gs ← g.apply (← mkConstWithFreshMVarLevels ``LS.twin_bind_pure)
   replaceMainGoal gs

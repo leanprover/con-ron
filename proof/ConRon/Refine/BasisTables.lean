@@ -216,27 +216,27 @@ theorem level_has_param_aux : ∀ u : level.Level, level.level_has_param u ⦃ _
   induction u using Level.ind' with
   | zero h =>
     rw [level.level_has_param.eq_def]
-    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     exact .ret trivial
   | succ h v ihv =>
     rw [level.level_has_param.eq_def]
-    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     exact ihv
   | max h a b iha ihb =>
     rw [level.level_has_param.eq_def]
-    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     apply WP.spec_bind iha; intro x _; split <;> [exact .ret trivial; exact ihb]
   | imax h a b iha ihb =>
     rw [level.level_has_param.eq_def]
-    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     apply WP.spec_bind iha; intro x _; split <;> [exact .ret trivial; exact ihb]
   | param h n =>
     rw [level.level_has_param.eq_def]
-    simp only [arc_deref_eq, bind_tc_ok, level.Level._0._simpLemma_,
+    simp only [arc_deref_eq, bind_ok, level.Level._0._simpLemma_,
       level.LevelNode.kind._simpLemma_]
     exact .ret trivial
 

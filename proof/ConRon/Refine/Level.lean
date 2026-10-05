@@ -705,7 +705,7 @@ theorem by_cases_left_refines {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
   intro h
   obtain ⟨hh, a, hh2, p, rfl⟩ := is_imax_param_true hb1
   rw [level.by_cases_left.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok, level.LevelNode.kind._simpLemma_,
+  simp only [arc_deref_eq, bind_ok, level.LevelNode.kind._simpLemma_,
     level.Level._0._simpLemma_] at h
   simp only [absLevel_mk, absLevelKind]
   rw [ConLeche.Level.imaxRules]
@@ -719,7 +719,7 @@ theorem by_cases_right_refines {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
   intro h
   obtain ⟨hh, a, hh2, p, rfl⟩ := is_imax_param_true hb2
   rw [level.by_cases_right.eq_def] at h
-  simp only [arc_deref_eq, bind_tc_ok, level.LevelNode.kind._simpLemma_,
+  simp only [arc_deref_eq, bind_ok, level.LevelNode.kind._simpLemma_,
     level.Level._0._simpLemma_] at h
   simp only [absLevel_mk, absLevelKind]
   rw [ConLeche.Level.imaxRules]
@@ -1265,7 +1265,7 @@ theorem leq_core_refines_aux (N : Nat) : ∀ (fuel : Std.U64), fuel.val = N → 
         cases bz2
         · replace ez2 : ¬ (absLevel r = ConLeche.Level.zero) := by simpa using ez2.symm
           rw [ite_eq_right (by simp [ez2])]
-          simp only [Bool.false_eq_true, ite_false, bind_tc_ok] at h
+          simp only [Bool.false_eq_true, ite_false, bind_ok] at h
           have hres := rest_refines_aux hQ' hl hr h
           rw [hf'v] at hres; exact hres
         · replace ez2 : absLevel r = ConLeche.Level.zero := by simpa using ez2.symm
@@ -1276,7 +1276,7 @@ theorem leq_core_refines_aux (N : Nat) : ∀ (fuel : Std.U64), fuel.val = N → 
             simpa using h
           · rename_i hd
             rw [ite_eq_right (by simp [ez2]; scalar_tac)]
-            simp only [bind_tc_ok] at h
+            simp only [bind_ok] at h
             have hres := rest_refines_aux hQ' hl hr h
             rw [hf'v] at hres; exact hres
       · replace ez : absLevel l = ConLeche.Level.zero := by simpa using ez.symm
@@ -1293,7 +1293,7 @@ theorem leq_core_refines_aux (N : Nat) : ∀ (fuel : Std.U64), fuel.val = N → 
           cases bz2
           · replace ez2 : ¬ (absLevel r = ConLeche.Level.zero) := by simpa using ez2.symm
             rw [ite_eq_right (by simp [ez2])]
-            simp only [Bool.false_eq_true, ite_false, bind_tc_ok] at h
+            simp only [Bool.false_eq_true, ite_false, bind_ok] at h
             have hres := rest_refines_aux hQ' hl hr h
             rw [hf'v] at hres; exact hres
           · replace ez2 : absLevel r = ConLeche.Level.zero := by simpa using ez2.symm
@@ -1304,7 +1304,7 @@ theorem leq_core_refines_aux (N : Nat) : ∀ (fuel : Std.U64), fuel.val = N → 
               simpa using h
             · rename_i hd2
               rw [ite_eq_right (by simp [ez2]; scalar_tac)]
-              simp only [bind_tc_ok] at h
+              simp only [bind_ok] at h
               have hres := rest_refines_aux hQ' hl hr h
               rw [hf'v] at hres; exact hres
 

@@ -435,7 +435,7 @@ theorem LS.view_ls_len_bind {γ δ : Type} {pers st lst} {h : arena.handle.LsIdx
     (hg : g none = failDanglingLs)
     (he : ∀ e, ErrArm (k (.Err e)) e)
     (hk : ∀ v : alloc.vec.Vec arena.handle.LIdx, LS pers R (k (.Ok v)) lst (g (some v.val.length))) :
-    LS pers R (arena.monad.view_ls pers st h >>= k) lst (Arena.viewLsLen (absLsIdx h) >>= g) := by
+    LS pers R (Std.bind (arena.monad.view_ls pers st h) k) lst (Arena.viewLsLen (absLsIdx h) >>= g) := by
   intro o st' hm
   obtain ⟨r, hr, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have htw : (Arena.viewLsLen (absLsIdx h) >>= g).run lst

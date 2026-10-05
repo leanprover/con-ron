@@ -103,9 +103,9 @@ leave on the twin side. -/
   by
   intro b h
   cases m
-  · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, reduceIte] at h
+  · simp only [kernel.env.io_skip, kernel.env.certs, bind_ok, reduceIte] at h
     rw [ConRon.Refine.PropWhen.is_never_refines h]; rfl
-  · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, Bool.false_eq_true, ite_false,
+  · simp only [kernel.env.io_skip, kernel.env.certs, bind_ok, Bool.false_eq_true, ite_false,
       Result.ok.injEq] at h
     rw [← h]; rfl
 
@@ -496,7 +496,7 @@ the sort), in the same order on both sides. -/
     obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
       (o := (r1, { st with store := ar1 }))
-      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
+      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_ok]; rfl)
     rw [show Arena.internLNode LNodeView.zero
         = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
     cases r1 with
@@ -511,7 +511,7 @@ the sort), in the same order on both sides. -/
     have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
       (o := (r2, { st with store := ar2 }))
       (by rw [arena.monad.intern_l_node]; rw [show ({ st with store := ar1 } :
-            arena.monad.AState).store = ar1 from rfl, h2]; simp only [bind_tc_ok]; rfl)
+            arena.monad.AState).store = ar1 from rfl, h2]; simp only [bind_ok]; rfl)
     rw [show Arena.internLNode (.succ (absLIdx z))
         = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
     cases r2 with
@@ -527,7 +527,7 @@ the sort), in the same order on both sides. -/
       (o := (r3, { st with store := ar3 }))
       (by simp only [arena.store.EStore.intern] at h3
           rw [arena.monad.intern_e_sort]
-          simp only [h3, bind_tc_ok]
+          simp only [h3, bind_ok]
           rfl)
     rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
     cases r3 with

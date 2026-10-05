@@ -123,96 +123,96 @@ theorem nat_op_deps_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     obtain ⟨b0, hb0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [nidx_eq2_ok] at hb0
     cases Result.ok_injective hb0
-    simp only [nidx_eq2_ok, Aeneas.Std.bind_tc_ok] at h
+    simp only [nidx_eq2_ok, Aeneas.Std.bind_ok] at h
     simp only [natOpDepsPick, absNatOpPins]
     show LOut pers _ o st' (.ok (_, lst1))
     by_cases h0 : (absNIdx c == absNIdx a.pr) = true
     · rw [ite_eq_left h0] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h0] at h ⊢
     by_cases h1 : (absNIdx c == absNIdx a.ad) = true
     · rw [ite_eq_left h1] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h1] at h ⊢
     by_cases h2 : (absNIdx c == absNIdx a.su) = true
     · rw [ite_eq_left h2] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h2] at h ⊢
     by_cases h3 : (absNIdx c == absNIdx a.mu) = true
     · rw [ite_eq_left h3] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h3] at h ⊢
     by_cases h4 : (absNIdx c == absNIdx a.po) = true
     · rw [ite_eq_left h4] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h4] at h ⊢
     by_cases h5 : (absNIdx c == absNIdx a.be) = true
     · rw [ite_eq_left h5] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h5] at h ⊢
     by_cases h6 : (absNIdx c == absNIdx a.bl) = true
     · rw [ite_eq_left h6] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h6] at h ⊢
     by_cases h7 : (absNIdx c == absNIdx a.di) = true
     · rw [ite_eq_left h7] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h7] at h ⊢
     by_cases h8 : (absNIdx c == absNIdx a.mo) = true
     · rw [ite_eq_left h8] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h8] at h ⊢
     by_cases h9 : (absNIdx c == absNIdx a.gc) = true
     · rw [ite_eq_left h9] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h9] at h ⊢
     by_cases h10 : (absNIdx c == absNIdx a.la) = true
     · rw [ite_eq_left h10] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h10] at h ⊢
     by_cases h11 : (absNIdx c == absNIdx a.lo) = true
     · rw [ite_eq_left h11] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h11] at h ⊢
     by_cases h12 : (absNIdx c == absNIdx a.xo) = true
     · rw [ite_eq_left h12] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h12] at h ⊢
     by_cases h13 : (absNIdx c == absNIdx a.sl) = true
     · rw [ite_eq_left h13] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h13] at h ⊢
     by_cases h14 : (absNIdx c == absNIdx a.sr) = true
     · rw [ite_eq_left h14] at h ⊢
-      repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
+      repeat (rust_bind_guard h; obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
     rw [ite_eq_right h14] at h ⊢

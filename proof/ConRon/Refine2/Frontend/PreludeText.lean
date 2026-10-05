@@ -69,7 +69,7 @@ theorem push_chunk_step {n : Std.Usize} {P : Std.Array Std.U8 n}
         let out' ← frontend.prelude_text.push_chunk out s
         k out') = ok v) :
     ∃ out', out'.val = out.val ++ P.val ∧ k out' = ok v := by
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [frontend.prelude_text.push_chunk] at ho
   exact ⟨o, by rw [extend_u8_val ho]; simp [Std.Array.to_slice], h⟩
@@ -81,7 +81,7 @@ theorem push_chunk_last {n : Std.Usize} {P : Std.Array Std.U8 n}
         let s ← lift (Std.Array.to_slice P)
         frontend.prelude_text.push_chunk out s) = ok v) :
     v.val = out.val ++ P.val := by
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   rw [frontend.prelude_text.push_chunk] at h
   rw [extend_u8_val h]; simp [Std.Array.to_slice]
 

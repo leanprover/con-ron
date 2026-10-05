@@ -300,7 +300,7 @@ theorem vec_index_mut_eq {α : Type} [Inhabited α] {v : alloc.vec.Vec α} {i : 
     (h : alloc.vec.Vec.index_mut (core.slice.index.SliceIndexUsizeSlice α) v i = ok (x, f)) :
     i.val < v.val.length ∧ x = v.val[i.val]! ∧ f = alloc.vec.Vec.set v i := by
   rw [alloc.vec.Vec.index_mut_slice_index, alloc.vec.Vec.index_mut_usize] at h
-  simp only [bind_eq_ok_iff] at h
+  simp only [bind_tc_eq, bind_eq_ok_iff] at h
   obtain ⟨y, hy, hok⟩ := h
   simp only [Result.ok] at hok
   have hxy : y = x ∧ alloc.vec.Vec.set v i = f := by

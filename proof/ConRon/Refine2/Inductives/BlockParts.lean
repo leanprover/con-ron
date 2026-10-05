@@ -318,7 +318,7 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     have hx := vec_index_some hii
     by_cases hc : ∃ cv np nf, ii = .CtorInfo cv np nf
     · obtain ⟨cv, np, nf, rfl⟩ := hc
-      simp only [arena.inductives.block_parts.is_ctor_info, bind_tc_ok, ite_true,
+      simp only [arena.inductives.block_parts.is_ctor_info, bind_ok, ite_true,
         arena.inductives.block_parts.ctor_info_parts] at h
       obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨iv, hiv, ht⟩ := ConRon.Refine.bind_eq_ok_iff.mp ht
@@ -333,7 +333,7 @@ theorem block_split_ctors_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
         simp [absCtors3L, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
     · have hb : arena.inductives.block_parts.is_ctor_info ii = ok false := by
         cases ii <;> simp_all [arena.inductives.block_parts.is_ctor_info]
-      rw [hb, bind_tc_ok] at h
+      rw [hb, bind_ok] at h
       simp only [Bool.false_eq_true, ite_false] at h
       obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have e := block_split_recs_new_abs ho1
@@ -374,7 +374,7 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
     have hx := vec_index_some hii
     by_cases hc : ∃ cv caps, ii = .IndInfo cv caps
     · obtain ⟨cv, caps, rfl⟩ := hc
-      simp only [arena.inductives.block_parts.is_ind_info, bind_tc_ok, ite_true,
+      simp only [arena.inductives.block_parts.is_ind_info, bind_ok, ite_true,
         arena.inductives.block_parts.ind_info_val] at h
       obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -386,7 +386,7 @@ theorem block_split_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
         simp [absICVL, ConRon.Refine.vec_push_val hout1, i_constant_val_dup_abs hiv]
     · have hb : arena.inductives.block_parts.is_ind_info ii = ok false := by
         cases ii <;> simp_all [arena.inductives.block_parts.is_ind_info]
-      rw [hb, bind_tc_ok] at h
+      rw [hb, bind_ok] at h
       simp only [Bool.false_eq_true, ite_false] at h
       obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have e := block_split_ctors_new_abs ho1
@@ -1682,7 +1682,7 @@ theorem idx_at_abs {α : Type} (v : alloc.vec.Vec α) (r : Std.U64) (f : α → 
         ok (f rs)
       else ok 0#u64) = ok o) :
     absU o = (match v.val[absU r]? with | some x => absU (f x) | none => 0) := by
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   have hl : (UScalar.cast .U64 (alloc.vec.Vec.len v)).val = v.val.length := by
     rw [ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
   by_cases hr : r < UScalar.cast .U64 (alloc.vec.Vec.len v)

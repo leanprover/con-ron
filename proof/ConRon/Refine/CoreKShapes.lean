@@ -121,7 +121,7 @@ theorem is_proj_str_refines {s : alloc.vec.Vec Std.U32} {b : Bool}
       show ((1#usize : Std.Usize)).val = 1 from rfl,
       show ((2#usize : Std.Usize)).val = 2 from rfl,
       show ((3#usize : Std.Usize)).val = 3 from rfl,
-      List.getElem?_cons_zero, List.getElem?_cons_succ, bind_tc_ok] at h
+      List.getElem?_cons_zero, List.getElem?_cons_succ, bind_ok] at h
     rw [hs]
     split at h <;> simp_all
     split at h <;> simp_all
@@ -157,7 +157,7 @@ theorem is_proj_table_str_refines {s : alloc.vec.Vec Std.U32} {b : Bool}
       show ((6#usize : Std.Usize)).val = 6 from rfl,
       show ((7#usize : Std.Usize)).val = 7 from rfl,
       show ((8#usize : Std.Usize)).val = 8 from rfl,
-      List.getElem?_cons_zero, List.getElem?_cons_succ, bind_tc_ok] at h
+      List.getElem?_cons_zero, List.getElem?_cons_succ, bind_ok] at h
     rw [hs]
     split at h <;> simp_all
     split at h <;> simp_all
@@ -212,19 +212,19 @@ theorem name_is_proj_fn_shape_refines {n : name.Name} {b : Bool} (hn : NameWF n)
   | @anonymous n ha =>
     rw [name_anonymous_inv ha] at h ⊢
     rw [level.name_is_proj_fn_shape] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [arc_deref_eq, name_node_kind, bind_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @str pre s n hpre hs hmk =>
     obtain ⟨hh, rfl⟩ := mk_str_inv hmk
     rw [level.name_is_proj_fn_shape] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok, Result.ok.injEq] at h
+    simp only [arc_deref_eq, name_node_kind, bind_ok, Result.ok.injEq] at h
     rw [← h, absName_mk, absNameKind]
     rfl
   | @num pre m n hpre hmk =>
     obtain ⟨hh, rfl⟩ := mk_num_inv hmk
     rw [level.name_is_proj_fn_shape] at h
-    simp only [arc_deref_eq, name_node_kind, bind_tc_ok] at h
+    simp only [arc_deref_eq, name_node_kind, bind_ok] at h
     cases hpre with
     | @anonymous p ha =>
       rw [name_anonymous_inv ha] at h ⊢

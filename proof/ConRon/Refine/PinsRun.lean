@@ -392,7 +392,7 @@ theorem record_pin_set_refines {t : Slice Std.U8} {i : Std.Usize}
                 vec_index_eq (v := proofs) (i := 5#usize) (x := q5) (by simp [hqv]),
                 vec_index_eq (v := proofs) (i := 6#usize) (x := q6) (by simp [hqv]),
                 vec_index_eq (v := proofs) (i := 7#usize) (x := q7) (by simp [hqv]),
-                expr_dup_ok, bind_tc_ok] at h
+                expr_dup_ok, bind_ok] at h
               obtain ⟨w0, hw0, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨w1, hw1, h⟩ := bind_eq_ok_iff.mp h
               obtain ⟨w2, hw2, h⟩ := bind_eq_ok_iff.mp h

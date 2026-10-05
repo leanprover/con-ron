@@ -1331,7 +1331,7 @@ theorem defn_value_refines {vis : Std.U64} {rf lf} {c : arena.handle.NIdx} {o}
   · cases ci <;> simp only [absIConstantInfo, Option.map_some] at hrun ⊢ <;>
       first
       | (obtain rfl := (Result.ok_injective hrun).symm; rfl)
-      | (obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
+      | (rust_bind_guard hrun; obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
          obtain rfl := (Result.ok_injective hrun).symm
          simp [dupId_eidx _ _ he])
 
@@ -2888,7 +2888,7 @@ theorem check_div_mod_pin_attempt_refines₀ {pers st lst} {vis : Std.U64} {rf l
     | NotImplemented m | Invalid m | Internal m =>
       simp [arena.checker_base.or_else_attempt] at hoes
       subst hoes
-      simp only [arena.checker_base.attempt_restore, bind_tc_ok] at hrun
+      simp only [arena.checker_base.attempt_restore, bind_ok] at hrun
       obtain rfl := (Result.ok_injective hrun).symm
       obtain ⟨le, hle, hk⟩ := herr _ rfl
       simp only [StateT.run] at hle

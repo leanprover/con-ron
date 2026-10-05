@@ -192,7 +192,7 @@ theorem safe_spelling_refines {s : alloc.vec.Vec Std.U32} {b : Bool}
         let sl ← lift (Std.Array.to_slice frontend.export_c.process_line_core_d.S_SAFE)
         frontend.text.cps_beq s sl) = ok b) :
     (b = true ↔ ConRon.Refine.absString s = "safe") := by
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   have hv : (Std.Array.to_slice frontend.export_c.process_line_core_d.S_SAFE).val
       = [115#u32, 97#u32, 102#u32, 101#u32] := by
     unfold frontend.export_c.process_line_core_d.S_SAFE; rfl
@@ -378,7 +378,7 @@ theorem state_d_init_refines {pers rst lst o}
   obtain ⟨⟨r, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hS1 := ConRon.Refine2.intern_n_node_run₀ hrel hinv .Anonymous trivial
     (o := (r, withStore rst ar1))
-    (by rw [arena.monad.intern_n_node, h1]; simp only [bind_tc_ok]; rfl)
+    (by rw [arena.monad.intern_n_node, h1]; simp only [bind_ok]; rfl)
   simp only [Sim₀, absNNodeView] at hS1
   simp only [SimRel₀, StateD.init, am_run_bind']
   cases r with
@@ -393,7 +393,7 @@ theorem state_d_init_refines {pers rst lst o}
     have hS2 := ConRon.Refine2.intern_l_node_run₀ hrel1 hinv1 .Zero
       (o := (r2, withStore rst ar2))
       (by rw [arena.monad.intern_l_node]; rw [h2]
-          simp only [bind_tc_ok]; rfl)
+          simp only [bind_ok]; rfl)
     simp only [Sim₀, absLNodeView] at hS2
     cases r2 with
     | Err e =>
@@ -523,7 +523,7 @@ theorem id_table_get_refines {T α : Type} {A : T → α}
     (h : frontend.scan_types.id_table_get t i = ok o) :
     o.map A = lt.get? i.val := by
   rw [frontend.scan_types.id_table_get] at h
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   have hsize : lt.dense.size = t.dense.val.length := by
     have h := congrArg List.length hrel.dense; simpa using h.symm
   have hdense : ∀ j : Nat, lt.dense[j]? = (t.dense.val[j]?).map A := by
@@ -594,7 +594,7 @@ theorem st_miss {T : Type} {k : Std.Usize} {M : Std.Array Std.U32 k} {i : Std.U6
         let v2 ← frontend.text.cat v v1
         frontend.export_c.merr T v2) = ok r) :
     ∃ m, r = .Err (.Err (.Internal m)) := by
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -899,7 +899,7 @@ theorem id_table_insert_rel {T α : Type} {A : T → α}
     (h : frontend.scan_types.id_table_insert t i x = ok t') :
     IdTableRel A t' (lt.insert i.val (A x)) := by
   rw [frontend.scan_types.id_table_insert] at h
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   have hsize : lt.dense.size = t.dense.val.length := by
     have h := congrArg List.length hrel.dense; simpa using h.symm
   have hnv : (Std.UScalar.cast .U64 (alloc.vec.Vec.len t.dense) : Std.U64).val
@@ -1067,7 +1067,7 @@ theorem name_entry_tail {pers rst lst rsd lsd i v o}
         pure { lsd with names := lsd.names.insert (absU i) h }) := by
   obtain ⟨⟨r3, ar1⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hS := intern_n_node_run₀ hrel hinv v hvwf (o := (r3, withStore rst ar1))
-    (by rw [arena.monad.intern_n_node, h3]; simp only [bind_tc_ok]; rfl)
+    (by rw [arena.monad.intern_n_node, h3]; simp only [bind_ok]; rfl)
   cases r3 with
   | Err e =>
     obtain ⟨r4, hr4, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1244,7 +1244,7 @@ theorem parse_level_entry_d_refines {pers rst lst rsd lsd i r o}
     | Ok v =>
       obtain ⟨⟨r3, ar1⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hS := intern_l_node_run₀ hrel hinv v (o := (r3, withStore rst ar1))
-        (by rw [arena.monad.intern_l_node, h3]; simp only [bind_tc_ok]; rfl)
+        (by rw [arena.monad.intern_l_node, h3]; simp only [bind_ok]; rfl)
       have hpre : ∀ {β} (k : LIdx → AM β), (do
           lsd.freshLevel (absU i)
           let l ← internLNode (← parseLevelRecD lsd (absLevelRec r))
@@ -1286,7 +1286,7 @@ theorem expr_intern_tail {pers rst lst} {v : arena.store.ENodeView} {o}
     SimL absEIdx pers lst (o.1, withStore rst o.2) (internE (absENodeView v)) := by
   obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hS := intern_e_run₀ hrel hinv v hlit hpw (o := (r1, withStore rst ar1))
-    (by rw [arena.monad.intern_e, h1]; simp only [bind_tc_ok]; rfl)
+    (by rw [arena.monad.intern_e, h1]; simp only [bind_ok]; rfl)
   cases r1 with
   | Ok hh =>
     cases Result.ok_injective h
@@ -1386,7 +1386,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
         rw [show absU64s us = us.val.map absU from rfl, SimLR.apply h2, except_ok_bind]
         obtain ⟨⟨r3, ar1⟩, h3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hL := intern_ls_node_run₀ hrel hinv ls (o := (r3, withStore rst ar1))
-          (by rw [arena.monad.intern_ls_node, h3]; simp only [bind_tc_ok]; rfl)
+          (by rw [arena.monad.intern_ls_node, h3]; simp only [bind_ok]; rfl)
         rw [am_run_bind']
         cases r3 with
         | Err e =>
@@ -1534,7 +1534,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
     obtain ⟨on, hon, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨n, rfl, hnv⟩ := hnat ds rfl on hon
     obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [kernel.expr.literal_nat, ron.ptr.new, alloc.sync.Arc.new, bind_tc_ok] at hl
+    rw [kernel.expr.literal_nat, ron.ptr.new, alloc.sync.Arc.new, bind_ok] at hl
     cases Result.ok_injective hl
     simp only [absExprRec, parseExprRecD]
     have hT := expr_intern_tail hrel hinv
@@ -1547,7 +1547,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
     simp only at h
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [kernel.expr.literal_str, ron.ptr.new, alloc.sync.Arc.new, bind_tc_ok] at hl
+    rw [kernel.expr.literal_str, ron.ptr.new, alloc.sync.Arc.new, bind_ok] at hl
     cases Result.ok_injective hl
     have hvv : v.val = s.val := by
       rw [ConRon.Refine.Env.code_points_val hv,

@@ -699,7 +699,7 @@ theorem copy_loop_id {α : Type} (dup : α → Result α) (hd : ∀ x y, dup x =
       (fun o => o = xs) :=
   copy_loop_id (fun x => ok x) (fun x y h => (Result.ok_injective h).symm) xs
     (arena.inductives.positivity.u64_vec_dup xs)
-    (fun i out => by rw [arena.inductives.positivity.u64_vec_dup.eq_def]; simp only [bind_tc_ok])
+    (fun i out => by rw [arena.inductives.positivity.u64_vec_dup.eq_def]; simp only [bind_ok])
 
 @[lockstep] theorem nest_ctx_dup_spec (c : arena.inductives.positivity.NestCtx) :
     LSP (arena.inductives.positivity.nest_ctx_dup c) (fun o => o = c) := by

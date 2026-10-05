@@ -33,7 +33,7 @@ open ConRon.Arena.Frontend
 theorem env_dangling_name_kind {ce : kernel.core_types.CheckError}
     (h : arena.env.dangling_name = ok ce) : absAErrKind ce = some .internal := by
   rw [arena.env.dangling_name] at h
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [kernel.core_types.internal] at h
   cases Result.ok_injective h

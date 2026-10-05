@@ -39,7 +39,7 @@ local macro "vwf_triv" : tactic => `(tactic| (
     | none => simp at h
     | some r =>
       try dsimp only at h
-      repeat (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+      repeat (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
       have h' := Result.ok_injective h
       simp only [Option.some.injEq] at h'
       subst h'; trivial))
@@ -323,7 +323,7 @@ theorem intern_persistent_n_frozen {t st v r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
     | split at h)
 
 theorem intern_persistent_l_frozen {t st v r t'}
@@ -332,7 +332,7 @@ theorem intern_persistent_l_frozen {t st v r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
     | split at h)
 
 theorem intern_persistent_ls_frozen {t st v r t'}
@@ -341,7 +341,7 @@ theorem intern_persistent_ls_frozen {t st v r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
     | split at h)
 
 theorem pertier_intern_bm_frozen {t m r t'}
@@ -350,14 +350,14 @@ theorem pertier_intern_bm_frozen {t m r t'}
   repeat' (first
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _); rfl)
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
     | split at h)
 
 theorem pertier_intern_bm_of_view_frozen {t v r t'}
     (h : arena.store.PersTier.intern_bm_of_view t v = ok (r, t')) : t'.frozen = t.frozen := by
   cases v <;> simp only [arena.store.PersTier.intern_bm_of_view] at h <;>
     first
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
        first
        | exact pertier_intern_bm_frozen h
        | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :

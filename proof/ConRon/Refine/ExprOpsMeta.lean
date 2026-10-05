@@ -57,7 +57,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at h
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at h
     refine ⟨?_, PropWhen.if_all_zero_wf (fun n hn => by simp at hn) h⟩
     rw [PropWhen.if_all_zero_refines (fun n hn => by simp at hn) h]
     simp [ConLeche.Level.zeronessOf, absNames, alloc.vec.Vec.new]
@@ -66,7 +66,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at h
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at h
     exact ⟨by rw [PropWhen.never_refines h]; simp [ConLeche.Level.zeronessOf],
       PropWhen.never_wf h⟩
   | @max a b u ha hb h1 iha ihb =>
@@ -74,7 +74,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind, bind_eq_ok_iff] at h
+    simp only [arc_deref_eq, bind_ok, level_node_kind, bind_eq_ok_iff] at h
     obtain ⟨pa, hpa, pb, hpb, hinter⟩ := h
     obtain ⟨habsa, hwfa⟩ := iha pa hpa
     obtain ⟨habsb, hwfb⟩ := ihb pb hpb
@@ -85,7 +85,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at h
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at h
     obtain ⟨habsb, hwfb⟩ := ihb pw h
     exact ⟨by rw [habsb]; simp [ConLeche.Level.zeronessOf], hwfb⟩
   | @param n u hn h1 =>
@@ -93,7 +93,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     subst hu
     intro pw h
     rw [level.zeroness_of.eq_def] at h
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind, bind_eq_ok_iff, name_dup_eq] at h
+    simp only [arc_deref_eq, bind_ok, level_node_kind, bind_eq_ok_iff, name_dup_eq] at h
     obtain ⟨ps, hps, h⟩ := h
     have hpsv : ps.val = [n] := by
       rw [vec_push_val hps]; simp [alloc.vec.Vec.new]
@@ -163,24 +163,24 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
   | zero h =>
     intro hu b hb
     rw [level.all_params_defined.eq_def] at hb
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind, Result.ok.injEq] at hb
+    simp only [arc_deref_eq, bind_ok, level_node_kind, Result.ok.injEq] at hb
     rw [← hb]; simp [ConLeche.Level.allParamsDefined]
   | param h n =>
     intro hu b hb
     rw [level.all_params_defined.eq_def] at hb
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at hb
     rw [Name.contains_refines hpar (Level.LevelWF.param_inv hu) hb]
     simp [ConLeche.Level.allParamsDefined]
   | succ h x ih =>
     intro hu b hb
     rw [level.all_params_defined.eq_def] at hb
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at hb
     rw [ih (Level.LevelWF.succ_inv hu) b hb]
     simp [ConLeche.Level.allParamsDefined]
   | max h x y ih1 ih2 =>
     intro hu b hb
     rw [level.all_params_defined.eq_def] at hb
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at hb
     obtain ⟨hx, hy⟩ := Level.LevelWF.max_inv hu
     obtain ⟨b1, hb1, hb⟩ := bind_eq_ok_iff.mp hb
     cases b1 with
@@ -196,7 +196,7 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
   | imax h x y ih1 ih2 =>
     intro hu b hb
     rw [level.all_params_defined.eq_def] at hb
-    simp only [arc_deref_eq, bind_tc_ok, level_node_kind] at hb
+    simp only [arc_deref_eq, bind_ok, level_node_kind] at hb
     obtain ⟨hx, hy⟩ := Level.LevelWF.imax_inv hu
     obtain ⟨b1, hb1, hb⟩ := bind_eq_ok_iff.mp hb
     cases b1 with

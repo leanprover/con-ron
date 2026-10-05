@@ -106,7 +106,7 @@ theorem plc_declined {n : Std.Usize} {M : Std.Array Std.U32 n} {pers lst rst rsd
         let r1 ← frontend.export_c.declined Unit v1
         ok (r1, rsd)) = ok o) :
     SimDV pers lst (o.1, rst, o.2) (pure (Sum.inr (RecordVerdict.declined msg))) := by
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   cases Result.ok_injective h
@@ -230,9 +230,9 @@ theorem plc_defn {pers rst lst rsd lsd cvr value hints safety o}
   | Ok v =>
     simp only [absDeclRec, processLineCoreD]
     refine SimDV.bind_ok hP ?_
-    simp only [lift, bind_tc_ok] at h
+    simp only [lift, bind_ok] at h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hsafe := safe_spelling_refines hs (by simp only [lift, bind_tc_ok]; exact hb)
+    have hsafe := safe_spelling_refines hs (by simp only [lift, bind_ok]; exact hb)
     split
     · rename_i hsv
       have hbt : b = true := hsafe.mpr hsv

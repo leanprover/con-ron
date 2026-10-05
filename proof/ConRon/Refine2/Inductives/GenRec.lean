@@ -923,7 +923,7 @@ theorem gr_kind_read {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec.Cl
     M (if h : i.val < ks.val.length then ks.val[i.val] else .Ordinary) := by
   have hl : (UScalar.cast .U64 (alloc.vec.Vec.len ks)).val = ks.val.length := by
     rw [ConRon.Refine.ExprOps.usize_cast_u64_val]; rfl
-  simp only [lift, bind_tc_ok]
+  simp only [lift, bind_ok]
   by_cases h : i.val < ks.val.length
   · rw [ite_eq_left (by scalar_tac), dite_eq_left h]
     have hc : (UScalar.cast .Usize i).val = i.val :=
@@ -933,9 +933,9 @@ theorem gr_kind_read {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec.Cl
       rw [alloc.vec.Vec.index_slice_index, alloc.vec.Vec.index_usize]
       rw [show ks[(UScalar.cast .Usize i).val]? = ks.val[(UScalar.cast .Usize i).val]? from rfl,
         hc, List.getElem?_eq_getElem h]
-    rw [hidx, bind_tc_ok]
+    rw [hidx, bind_ok]
     cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
-  · rw [ite_eq_right (by scalar_tac), dite_eq_right h, bind_tc_ok]
+  · rw [ite_eq_right (by scalar_tac), dite_eq_right h, bind_ok]
 
 theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
@@ -1457,7 +1457,7 @@ theorem slot_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
       (arena.inductives.gen_rec.slot_binder pers st g s) lst
       (grSlotTy (absClassGen g) s.val (absClassSlot sl)) := by
   rw [arena.inductives.gen_rec.slot_binder, gr_vec_index_eq hsl]
-  simp only [bind_tc_ok]
+  simp only [bind_ok]
   cases sl <;> simp only [grSlotTy, absClassSlot] <;> lockstep
 
 theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen)

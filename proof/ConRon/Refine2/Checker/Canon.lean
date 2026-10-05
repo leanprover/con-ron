@@ -689,7 +689,7 @@ con-leche's constant, built by the smart constructors (`ConstantInfoWF`). -/
 theorem intern_pinned_wf {pers st} {m : Result kernel.env.ConstantInfo}
     {ci : arena.env.IConstantInfo} {s'}
     (hm : ∀ c, m = ok c → ConRon.Refine.ConstantInfoWF c)
-    (h : (m >>= fun c => arena.intern.intern_ci pers st c) = ok (.Ok ci, s')) :
+    (h : (Std.bind m fun c => arena.intern.intern_ci pers st c) = ok (.Ok ci, s')) :
     IConstantInfoWF ci := by
   obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hwf := hm c hc

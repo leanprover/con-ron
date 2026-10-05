@@ -152,7 +152,7 @@ theorem LSMI.bindM {α γ β δ : Type} {pers : arena.store.PersTier}
     (he : ∀ e st1 m1 o st' mm, k (.Err e, st1, m1) = ok (o, st', mm) → o = .Err e)
     (hk : ∀ a b s st1 m1 lst1, EMemoRel m1 s → R₁ a b → AStateRel₀ pers st1 lst1 →
       AStateInv pers st1 → LSMI pers R (k (.Ok a, st1, m1)) lst1 (g (s, b))) :
-    LSMI pers R (f >>= k) lst (x >>= g) := by
+    LSMI pers R (Std.bind f k) lst (x >>= g) := by
   intro o st' mm hm
   obtain ⟨⟨r, st1, m1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have h1 := hf r st1 m1 hf1
@@ -177,7 +177,7 @@ theorem LSMI.bindS {α γ β δ : Type} {pers : arena.store.PersTier}
     (he : ∀ e st1 o st' mm, k (.Err e, st1) = ok (o, st', mm) → o = .Err e)
     (hk : ∀ a b st1 lst1, R₁ a b → AStateRel₀ pers st1 lst1 → AStateInv pers st1 →
       LSMI pers R (k (.Ok a, st1)) lst1 (g b)) :
-    LSMI pers R (f >>= k) lst (x >>= g) := by
+    LSMI pers R (Std.bind f k) lst (x >>= g) := by
   intro o st' mm hm
   obtain ⟨⟨r, st1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have h1 := hf r st1 hf1
@@ -201,7 +201,7 @@ theorem LSMI.tailS {α β : Type} {pers : arena.store.PersTier} {R₁ R : α →
     {lst : AState} {x : AM β}
     (hf : LS pers R₁ f lst x) (hk : ∀ r st, k (r, st) = ok (r, st, mm))
     (hms : EMemoRel mm s) (hR : ∀ a b, R₁ a b → R a b) :
-    LSMI pers R (f >>= k) lst (x >>= fun b => pure (s, b)) := by
+    LSMI pers R (Std.bind f k) lst (x >>= fun b => pure (s, b)) := by
   intro o st' mm' hm
   obtain ⟨⟨r, st1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   rw [hk] at hk1
@@ -220,7 +220,7 @@ theorem LSMI.bindP {α γ δ : Type} {pers : arena.store.PersTier} {R : γ → �
     {k : α → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState ×
       ron.hashmap2.HashMap2 kernel.expr.Expr arena.handle.EIdx)}
     {lst : AState} {x : AM (Frontend.EMemo × δ)}
-    (hk : ∀ a, f = ok a → LSMI pers R (k a) lst x) : LSMI pers R (f >>= k) lst x := by
+    (hk : ∀ a, f = ok a → LSMI pers R (k a) lst x) : LSMI pers R (Std.bind f k) lst x := by
   intro o st' mm hm
   obtain ⟨a, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   exact hk a hf1 o st' mm hk1
@@ -386,7 +386,7 @@ private theorem intern_levels_ls' {pers st lst} (hrel : AStateRel₀ pers st lst
 /-- The Rust side of a node: `kernel.expr.view` of a constructor is its
 kind. -/
 macro "rust_view" : tactic => `(tactic| (
-  simp only [ConRon.Refine.expr_view_eq, ConRon.Refine.arc_deref_eq, Aeneas.Std.bind_tc_ok,
+  simp only [ConRon.Refine.expr_view_eq, ConRon.Refine.arc_deref_eq, Aeneas.Std.bind_ok,
     kernel.expr.Expr._0._simpLemma_, kernel.expr.ExprNode.kind._simpLemma_,
     kernel.expr.ExprView.ofKind]))
 
@@ -497,7 +497,7 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       refine LSMI.bindS (intern_name_ls' hrel hinv n hn) (by lsm_err) ?_
       intro a b st1 lst1 hR hrel1 hinv1
       subst hR
-      try simp only [ConRon.Refine.arc_deref_eq, Aeneas.Std.bind_tc_ok]
+      try simp only [ConRon.Refine.arc_deref_eq, Aeneas.Std.bind_ok]
       refine LSMI.bindS (intern_levels_ls' hrel1 hinv1 us hus) (by lsm_err) ?_
       intro a' b' st2 lst2 hR' hrel2 hinv2
       subst hR'
@@ -1231,7 +1231,7 @@ theorem LSMI.bindSS {α γ β δ : Type} {pers : arena.store.PersTier}
     (he : ∀ e s' o st' mm, k (.Err e, s') = ok (o, st', mm) → o = .Err e)
     (hk : ∀ a b s' lst1, R₁ a b → AStateRel₀ pers { st with store := s' } lst1 →
       AStateInv pers { st with store := s' } → LSMI pers R (k (.Ok a, s')) lst1 (g b)) :
-    LSMI pers R (f >>= k) lst (x >>= g) := by
+    LSMI pers R (Std.bind f k) lst (x >>= g) := by
   intro o st' mm hm
   obtain ⟨⟨r, s1⟩, hf1, hk1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
   have h1 := hf r s1 hf1

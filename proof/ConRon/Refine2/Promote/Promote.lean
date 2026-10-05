@@ -1177,9 +1177,9 @@ theorem promote_ci_wf {t st m fuel} {ci : arena.env.IConstantInfo} {m2 ci' t'}
   | _ =>
     rw [arena.promote.promote_ci] at h
     repeat (first
-      | (obtain ⟨⟨_r, _st⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; cases _r <;>
+      | (rust_bind_guard h; obtain ⟨⟨_r, _st⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; cases _r <;>
           try (cases Result.ok_injective h; done))
-      | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+      | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
     all_goals (cases Result.ok_injective h; trivial)
 
 /-- A Rust-output fact joined to a tier walk's lockstep post (the fact is read

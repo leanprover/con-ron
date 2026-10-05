@@ -54,9 +54,9 @@ local to this region:
 
 theorem ErrArm.of_assoc {γ δ ε : Type} {b : Result ε} {g : ε → Result δ}
     {k : δ → Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState)}
-    {e : kernel.core_types.CheckError} (h : ErrArm (b >>= fun y => g y >>= k) e) :
-    ErrArm ((b >>= g) >>= k) e := by
-  rw [Aeneas.Std.bind_assoc_eq]; exact h
+    {e : kernel.core_types.CheckError} (h : ErrArm (Std.bind b fun y => Std.bind (g y) k) e) :
+    ErrArm (Std.bind (Std.bind b g) k) e := by
+  rw [Std.bind_assoc]; exact h
 
 open Lean Meta Elab Tactic in
 /-- `ErrArm` through a chain of `ok v >>= k` links and `(b >>= g) >>= k`
@@ -65,12 +65,12 @@ partial def c2ErrArmChain (g : MVarId) : TacticM Unit := g.withContext do
   let ty ← instantiateMVars (← g.getType)
   let m ← headNorm (ty.getArg! 1)
   let g ← g.replaceTargetDefEq (mkAppN ty.getAppFn (ty.getAppArgs.set! 1 m))
-  if m.isAppOfArity ``Bind.bind 6 then
-    let f ← headNorm (m.getArg! 4)
+  if isRBind m then
+    let f ← headNorm (m.getArg! 2)
     if f.isAppOfArity ``Result.ok 2 then
       let gs ← applyRule g ``ErrArm.of_ok_bind
       return ← c2ErrArmChain (← pick gs `h)
-    if f.isAppOfArity ``Bind.bind 6 then
+    if isRBind f then
       let gs ← applyRule g ``ErrArm.of_assoc
       return ← c2ErrArmChain (← pick gs `h)
   runClosed g (evalT `(tactic| lockstep_errarm))
@@ -84,7 +84,7 @@ elab "c2_bind_state" : tactic => do
     let ty ← instantiateMVars (← g.getType)
     unless ty.isAppOfArity ``LS 7 do throwError "c2_bind_state: not LS"
     let m := (ty.getArg! 4).headBeta
-    unless m.isAppOfArity ``Bind.bind 6 do throwError "c2_bind_state: not a bind"
+    unless isRBind m do throwError "c2_bind_state: not a bind"
     let gs ← applyRule g ``LS.bind
     specCore (← pick gs `hf)
     runClosed (← pick gs `hx) (evalT `(tactic| lockstep_congr))

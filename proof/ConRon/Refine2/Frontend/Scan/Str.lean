@@ -163,7 +163,7 @@ theorem hex_val_refines {c : Std.U8} {o : Option Std.U32}
     decide_eq_true_eq]
   split_ifs at h ⊢ <;>
     (try (exfalso; omega)) <;>
-    (try (obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
+    (try (rust_bind_guard h; obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
           obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
           simp only [Result.ok.injEq] at h
           subst h
@@ -1041,7 +1041,7 @@ private theorem all_digits_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
       rw [frontend.nat_decimal.all_digits_loop.eq_def,
         ite_eq_left (show i < n by scalar_tac)]
-      simp only [slice_index_ok hi, bind_tc_ok,
+      simp only [slice_index_ok hi, bind_ok,
         ite_eq_right (show ¬ (digits.val[i.val] < 48#u8) by scalar_tac),
         ite_eq_right (show ¬ (digits.val[i.val] > 57#u8) by scalar_tac), hw]
       exact ih w (by omega)
@@ -1114,7 +1114,7 @@ private theorem chunk_loop_ok (digits : Slice Std.U8) (i k : Std.Usize) (hk : k.
       rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
         ite_eq_left (show j < k by scalar_tac)]
       simp only [ha1, ha2, slice_index_ok hidx2, ha4, hchunk1, hpow1, hj1,
-        bind_tc_ok, lift]
+        bind_ok, lift]
       exact hrec
     · exact ⟨chunk, pow, by
         rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
@@ -1169,7 +1169,7 @@ private theorem mul_add_small_loop_ok (limbs : alloc.vec.Vec Std.U64) (m : Std.U
       refine ⟨o, c', ?_, holen⟩
       rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
         ite_eq_left (show i < n by scalar_tac)]
-      simp only [vec_index_ok limbs i hin, hp, ht, hout1, hsh, hi7, bind_tc_ok, lift]
+      simp only [vec_index_ok limbs i hin, hp, ht, hout1, hsh, hi7, bind_ok, lift]
       exact hrec
     · refine ⟨out, carry, ?_, by omega⟩
       rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
@@ -1188,7 +1188,7 @@ private theorem mul_add_small_ok (limbs : alloc.vec.Vec Std.U64) (m a : Std.U64)
         List.length_nil]
       scalar_tac) (by scalar_tac)
   rw [frontend.nat_decimal.mul_add_small]
-  simp only [hi, hloop, bind_tc_ok]
+  simp only [hi, hloop, bind_ok]
   by_cases hz : (c' != 0#u64) = true
   · obtain ⟨w, hw, hwv⟩ := push_ok o c' (by omega)
     refine ⟨w, ?_, ?_⟩
@@ -1247,11 +1247,11 @@ private theorem from_decimal_go_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
       refine ⟨out, ?_⟩
       rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
         ite_eq_left (show i < n by scalar_tac)]
-      simp only [hk, hk1e, hcl, bind_tc_ok]
+      simp only [hk, hk1e, hcl, bind_ok]
       show (do let limbs1 ← frontend.nat_decimal.mul_add_small limbs pow chunk
                let i1 ← i + k1
                frontend.nat_decimal.from_decimal_go_loop0 digits n limbs1 i1) = ok out
-      simp only [hml, hi1, bind_tc_ok]
+      simp only [hml, hi1, bind_ok]
       exact hout
     · exact ⟨limbs, by
         rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
@@ -1276,7 +1276,7 @@ private theorem sig_len_ok (v : alloc.vec.Vec Std.U64) :
       obtain ⟨i, hi, hiv⟩ := usub_ok (x := k) (y := 1#usize) (by scalar_tac)
       have hilt : i.val < v.val.length := by scalar_tac
       rw [ron.nat.sig_len, ite_eq_right hz]
-      simp only [hi, vec_index_ok v i hilt, bind_tc_ok]
+      simp only [hi, vec_index_ok v i hilt, bind_ok]
       by_cases hnz : (v.val[i.val]'hilt != 0#u64) = true
       · exact ⟨k, by rw [ite_eq_left hnz], le_rfl⟩
       · obtain ⟨s, hs, hsv⟩ := ih i (by scalar_tac) (by omega)
@@ -1307,7 +1307,7 @@ private theorem copy_from_ok (v : alloc.vec.Vec Std.U64) (e : Std.Usize) :
           omega)
         refine ⟨w, ?_⟩
         rw [ron.nat.copy_from, ite_eq_right hie, ite_eq_right hiv]
-        simp only [vec_index_ok v i hilt, hout1, hi3, bind_tc_ok]
+        simp only [vec_index_ok v i hilt, hout1, hi3, bind_ok]
         exact hw
 
 private theorem norm_ok (limbs : alloc.vec.Vec Std.U64) :
@@ -1315,14 +1315,14 @@ private theorem norm_ok (limbs : alloc.vec.Vec Std.U64) :
   obtain ⟨s, hs, hsv⟩ := sig_len_ok limbs limbs.val.length (alloc.vec.Vec.len limbs)
     (by scalar_tac) (by scalar_tac)
   rw [ron.nat.norm]
-  simp only [hs, bind_tc_ok]
+  simp only [hs, bind_ok]
   by_cases heq : s = alloc.vec.Vec.len limbs
   · exact ⟨{ limbs := limbs }, by rw [ite_eq_left heq]⟩
   · obtain ⟨w, hw⟩ := copy_from_ok limbs s s.val 0#usize (alloc.vec.Vec.new Std.U64)
       (by scalar_tac) (by
         simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.length_nil]
         scalar_tac)
-    exact ⟨{ limbs := w }, by rw [ite_eq_right heq]; simp only [hw, bind_tc_ok]⟩
+    exact ⟨{ limbs := w }, by rw [ite_eq_right heq]; simp only [hw, bind_ok]⟩
 
 /-- **`nat_decimal::from_decimal` accepts every non-empty run of decimal
 digits.**  With `scan_quoted_nat_digits` this rules out the `none` arm at the
@@ -1341,13 +1341,13 @@ theorem from_decimal_ok {ds : Slice Std.U8} (hne : ds.val ≠ [])
     · simp
   rw [frontend.nat_decimal.from_decimal,
     ite_eq_right (show ¬ (Slice.len ds = 0#usize) by scalar_tac)]
-  simp only [all_digits_ok ds hd', bind_tc_ok]
+  simp only [all_digits_ok ds hd', bind_ok]
   obtain ⟨v, hv⟩ := from_decimal_go_loop_ok ds (Slice.len ds) (by scalar_tac) hd'
     ds.val.length 0#usize (alloc.vec.Vec.new Std.U64) (by scalar_tac) (by scalar_tac)
     (by simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.length_nil]; omega)
   rw [frontend.nat_decimal.from_decimal_go]
   obtain ⟨n, hn⟩ := norm_ok v
-  exact ⟨n, by simp only [hv, hn, bind_tc_ok, ite_true]⟩
+  exact ⟨n, by simp only [hv, hn, bind_ok, ite_true]⟩
 
 end NatDecimal
 
@@ -2596,7 +2596,7 @@ private theorem hex_val_lt {c : Std.U8} {v : Std.U32}
   split_ifs at h <;>
     first
       | (simp at h; done)
-      | (obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h;
+      | (rust_bind_guard h; obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h;
          obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h;
          simp only [Result.ok.injEq, Option.some.injEq] at h;
          rw [← h, cast32_lift_val hi1];

@@ -188,7 +188,7 @@ attribute [local lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
 @[lockstep] theorem literal_nat_ls (k : ron.nat.Nat) :
     LSP (kernel.expr.literal_nat k) (fun l => l = .NatVal k) := by
   intro l h
-  rw [kernel.expr.literal_nat, ConRon.Refine.ptr_new_eq, bind_tc_ok] at h
+  rw [kernel.expr.literal_nat, ConRon.Refine.ptr_new_eq, bind_ok] at h
   exact (Result.ok_injective h).symm
 
 @[lockstep] theorem str_copy_ls (v : alloc.vec.Vec Std.U32) :
@@ -259,7 +259,7 @@ theorem etables_get_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   intro v hv
   repeat' (first
     | (split at h)
-    | (obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+    | (rust_bind_guard h; obtain ⟨_, _, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
   all_goals (first
     | (rw [← Result.ok_injective h] at hv; simp at hv; done)
     | (rw [← Result.ok_injective h] at hv; cases Option.some.inj hv; trivial)

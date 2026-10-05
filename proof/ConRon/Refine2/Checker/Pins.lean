@@ -2069,7 +2069,7 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
     obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hS1 := intern_l_node_run₀ hrel hinv arena.store.LNodeView.Zero
       (o := (r1, withStore rst ar1))
-      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_tc_ok]; rfl)
+      (by rw [arena.monad.intern_l_node, h1]; simp only [bind_ok]; rfl)
     rw [show Arena.internLNode LNodeView.zero
         = Arena.internLNode (absLNodeView arena.store.LNodeView.Zero) from rfl]
     cases r1 with
@@ -2084,7 +2084,7 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
     obtain ⟨⟨r2, ar2⟩, h2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hS2 := intern_l_node_run₀ hrel1 hinv1 (arena.store.LNodeView.Succ z)
       (o := (r2, withStore rst ar2))
-      (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_tc_ok]; rfl)
+      (by rw [arena.monad.intern_l_node]; rw [h2]; simp only [bind_ok]; rfl)
     rw [show Arena.internLNode (.succ (absLIdx z))
         = Arena.internLNode (absLNodeView (arena.store.LNodeView.Succ z)) from rfl]
     cases r2 with
@@ -2103,7 +2103,7 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
           rw [show arena.store.EStore.intern_sort (withStore rst ar2).store pers one
               = arena.store.EStore.intern ar2 pers (arena.store.ENodeView.Sort one) from rfl,
             h3]
-          simp only [bind_tc_ok]; rfl)
+          simp only [bind_ok]; rfl)
     rw [show Arena.internE (.sort (absLIdx one)) = Arena.internSortE (absLIdx one) from rfl]
     cases r3 with
     | Err e =>

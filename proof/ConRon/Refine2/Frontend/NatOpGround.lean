@@ -340,7 +340,7 @@ theorem used_consts_rules_refines {pers rst lst seen ls acc rules o}
       intro i seen ls out o hk hs h
       have hi : i.val < rules.val.length := by omega
       rw [frontend.nat_op_ground.used_consts_rules_loop, ite_eq_left (by scalar_tac),
-        vec_index_ok_eq rules i hi, bind_tc_ok] at h
+        vec_index_ok_eq rules i hi, bind_ok] at h
       obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have h1 := used_consts_go_refines hrel hinv hs hr
       rw [core_walk_fuel_abs] at h1
@@ -395,7 +395,7 @@ theorem used_consts_block_refines {pers rst lst seen ls acc block o}
       intro i st lst seen ls out o hk hrel hinv hs h
       have hi : i.val < block.val.length := by omega
       rw [frontend.nat_op_ground.used_consts_block_loop, ite_eq_left (by scalar_tac),
-        vec_index_ok_eq block i hi, bind_tc_ok] at h
+        vec_index_ok_eq block i hi, bind_ok] at h
       obtain ⟨ci, hci, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hcia := i_constant_info_dup_abs hci
       obtain ⟨⟨r, e⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1115,7 +1115,7 @@ theorem hoist_close_loop_aux {pers : arena.store.PersTier}
         have : k.val < ds.val.length := hkN
         omega
       have hkN' : i1.val < ds.val.length := by rw [hi1v]; exact hkN
-      rw [vec_index_ok_eq ds i1 hkN', bind_tc_ok] at h
+      rw [vec_index_ok_eq ds i1 hkN', bind_ok] at h
       obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hda := i_declaration_dup_abs hd
       obtain ⟨⟨r, st1⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

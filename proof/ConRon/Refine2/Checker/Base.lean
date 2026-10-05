@@ -128,34 +128,34 @@ theorem dupId_bool : DupId Bool.Insts.Con_ron_coreRonHashmapDup := by
 theorem dupId_eidxNat : DupId arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
   simp only [arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapDup.dup2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_ok, ok.injEq] at h
   exact h.symm
 theorem dupId_eidxPair : DupId arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
   simp only [arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
-    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+    arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_ok, ok.injEq] at h
   exact h.symm
 theorem dupId_lidxPair : DupId arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
   simp only [arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
-    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+    arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_ok, ok.injEq] at h
   exact h.symm
 theorem dupId_lsidxPair : DupId arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
   simp only [arena.core_state.LsIdxPair.Insts.Con_ron_coreRonHashmapDup.dup2,
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_ok, ok.injEq] at h
   exact h.symm
 theorem dupId_nlsKey : DupId arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
   simp only [arena.core_state.NLsKey.Insts.Con_ron_coreRonHashmapDup.dup2,
     arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_ok, ok.injEq] at h
   exact h.symm
 theorem dupId_nnlsKey : DupId arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
   simp only [arena.core_state.NNLsKey.Insts.Con_ron_coreRonHashmapDup.dup2,
     arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
-    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_tc_ok, ok.injEq] at h
+    arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2, bind_ok, ok.injEq] at h
   exact h.symm
 theorem dupId_level : DupId kernel.level.Level.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h
@@ -264,7 +264,7 @@ local macro "dup_id" : tactic => `(tactic| first
 -- One copy step of a `dup` chain: the copied field is the field.
 set_option hygiene false in
 local macro "dup_step" : tactic => `(tactic|
-  (obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  (rust_bind_guard h; obtain ⟨_, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
    first
    | obtain rfl := ConRon.Refine.HashMap2.dup_spec (by dup_id) (by dup_id) hx
    | obtain rfl := tbl_dup_eq (by dup_id) (by dup_id) (by dup_id) hx))
@@ -1443,9 +1443,7 @@ theorem intern_ci_go_wf {pers st m c ci st' m'} (hwf : ConRon.Refine.ConstantInf
   | _ =>
     rcases ci with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
     rw [arena.intern.intern_ci_go] at h
-    repeat (first
-      | (obtain ⟨⟨r, _, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; rcases r with r | r)
-      | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h))
+    repeat (rust_bind_guard h; obtain ⟨⟨r, _, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; rcases r with r | r)
     all_goals simp at h
 
 theorem intern_ci_list_go_wf (n : Nat) : ∀ {pers st m} (es : alloc.vec.Vec kernel.env.ConstantInfo)
@@ -1525,7 +1523,7 @@ theorem i_constant_info_dup_wf {c o : arena.env.IConstantInfo}
     rw [ConRon.Refine.PropWhen.dup_eq hpw]; exact hc
   | _ =>
     rcases o with _ | _ | _ | ⟨cv, caps⟩ | _ | _ | _ <;> try trivial
-    repeat (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+    repeat (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     all_goals simp at h
 
 namespace Lockstep

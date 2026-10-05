@@ -1060,7 +1060,7 @@ theorem order_block_ctors_refines
 theorem env_dangling_level_kind {ce : kernel.core_types.CheckError}
     (h : arena.env.dangling_level = ok ce) : absAErrKind ce = some .internal := by
   rw [arena.env.dangling_level] at h
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [kernel.core_types.internal] at h
   cases Result.ok_injective h
@@ -2285,7 +2285,7 @@ theorem quot_kind_of_refines {k o} (hs : ConRon.Refine.StrWF k)
        | "ind" => some ConLeche.QuotKind.ind
        | _ => none) := by
   rw [frontend.export_c.quot_kind_of] at h
-  simp only [lift, bind_tc_ok] at h
+  simp only [lift, bind_ok] at h
   have tst : ∀ {n : Std.Usize} (K : Std.Array Std.U32 n) (L : List Std.U32) (w : String),
       K.to_slice.val = L → (∀ c ∈ L, Nat.isValidChar c.val) →
       String.ofList (L.map fun c => Char.ofNat c.val) = w →

@@ -144,7 +144,7 @@ theorem str_eq_from_eq {a b : alloc.vec.Vec Std.U32} (hlen : a.length = b.length
       split at he
       · simp at he
       · rename_i hne
-        simp only [bind_tc_ok] at he
+        simp only [bind_ok] at he
         rw [List.drop_eq_getElem_cons hb, List.drop_eq_getElem_cons hb']
         have : a.val[i.val] = b.val[i.val] := by
           rw [← hyv, ← hzv]
@@ -293,7 +293,7 @@ theorem contains_from_refines {ns : alloc.vec.Vec name.Name} {n : name.Name}
         simp [heq.symm]
       | false =>
         have hne : ¬ absName ns.val[i.val] = absName n := of_decide_eq_false hbeq.symm
-        simp only [Bool.false_eq_true, reduceIte, bind_tc_ok] at hc
+        simp only [Bool.false_eq_true, reduceIte, bind_ok] at hc
         have hih := ih w (by scalar_tac) c hc
         rw [hwv] at hih
         rw [hih]

@@ -134,7 +134,7 @@ theorem bad_text_native {ce : core_types.CheckError}
 /-- Every error arm of the decoder is that one constructor, in the shape the
 generated model gives it: `bad_text >>= fun ce => ok (.Err ce)`. -/
 theorem err_native {T : Type} {o : core.result.Result T core_types.CheckError}
-    (h : (pins_decode.bad_text >>= fun ce =>
+    (h : (Std.bind pins_decode.bad_text fun ce =>
             ok (core.result.Result.Err ce : core.result.Result T core_types.CheckError))
         = ok o) : ∃ ce, o = .Err ce ∧ absErrKind ce = none := by
   simp only [bind_eq_ok_iff] at h
@@ -151,7 +151,7 @@ theorem byte_at_refines {t : Slice Std.U8} {i : Std.Usize} {b : Std.U64}
   · rename_i hlt
     have hi : i.val < t.length := by scalar_tac
     rw [slice_index_ok hi] at h
-    simp only [bind_tc_ok, Result.ok.injEq] at h
+    simp only [bind_ok, Result.ok.injEq] at h
     subst h
     rw [bytesFrom_cons hi]
     simp [PinsDec.byteAt]
@@ -198,7 +198,7 @@ theorem after_space_refines {t : Slice Std.U8} {i : Std.Usize}
     have hi : i.val < t.length := byte_at_lt hb (by scalar_tac)
     obtain ⟨w, hw, hwv⟩ := step_ok hi
     rw [hw] at h
-    simp only [bind_tc_ok, Result.ok.injEq] at h
+    simp only [bind_ok, Result.ok.injEq] at h
     subst h
     have hx : t.val[i.val].val = 32 := by rw [byte_at_head hb hi]; scalar_tac
     refine ⟨?_, by omega, by omega⟩
@@ -223,7 +223,7 @@ theorem after_newline_refines {t : Slice Std.U8} {i : Std.Usize}
     have hi : i.val < t.length := byte_at_lt hb (by scalar_tac)
     obtain ⟨w, hw, hwv⟩ := step_ok hi
     rw [hw] at h
-    simp only [bind_tc_ok, Result.ok.injEq] at h
+    simp only [bind_ok, Result.ok.injEq] at h
     subst h
     have hx : t.val[i.val].val = 10 := by rw [byte_at_head hb hi]; scalar_tac
     refine ⟨?_, by omega, by omega⟩
@@ -336,7 +336,7 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
             obtain ⟨w4, hw4, hw4v⟩ := u64_add_ok (x := w2) (y := w3) (by scalar_tac)
             rw [show (10#u64 : Std.U64).val = 10 from by scalar_tac] at hw2v
             rw [show (48#u64 : Std.U64).val = 48 from by scalar_tac] at hw3v
-            simp only [hw1, hw2, hw3, hw4, bind_tc_ok] at h
+            simp only [hw1, hw2, hw3, hw4, bind_ok] at h
             cases o with
             | Err ce => exact ih w1 w4 (by omega) _ h
             | Ok pr =>
@@ -432,7 +432,7 @@ theorem read_index_refines {t : Slice Std.U8} {i : Std.Usize}
     · obtain ⟨ce, rfl, hce⟩ := err_native h
       exact hce
     · rename_i hbig
-      simp only [Std.lift, bind_tc_ok, Result.ok.injEq] at h
+      simp only [Std.lift, bind_ok, Result.ok.injEq] at h
       subst h
       obtain ⟨hrec, hij, hjt⟩ := read_nat_refines hr
       refine ⟨?_, hij, hjt⟩
@@ -953,7 +953,7 @@ theorem read_string_refines {t : Slice Std.U8} {i : Std.Usize}
     exact read_index_refines hr
   | Ok pr =>
     obtain ⟨n, j1⟩ := pr
-    replace h : (pins_decode.after_space t j1 >>= _) = ok o := h
+    replace h : (Std.bind (pins_decode.after_space t j1) _) = ok o := h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨r1, hr1, h⟩ := h
     cases r1 with
@@ -1025,7 +1025,7 @@ theorem name_ref_refines {t : Slice Std.U8} {i : Std.Usize}
     · rename_i hkb
       have hkl : kk.val < tb.names.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, name_dup_eq, Result.ok.injEq] at h
+      simp only [bind_ok, name_dup_eq, Result.ok.injEq] at h
       subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
@@ -1062,7 +1062,7 @@ theorem level_ref_refines {t : Slice Std.U8} {i : Std.Usize}
     · rename_i hkb
       have hkl : kk.val < tb.levels.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, level_dup_eq, Result.ok.injEq] at h
+      simp only [bind_ok, level_dup_eq, Result.ok.injEq] at h
       subst h
       obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
       refine ⟨?_, hij, hjt⟩
@@ -1099,7 +1099,7 @@ theorem pw_ref_refines {t : Slice Std.U8} {i : Std.Usize}
     · rename_i hkb
       have hkl : kk.val < tb.pws.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [bind_ok, bind_eq_ok_iff] at h
       obtain ⟨c, hc, h⟩ := h
       have hcv := PropWhen.dup_eq hc
       subst hcv
@@ -1140,7 +1140,7 @@ theorem expr_ref_refines {t : Slice Std.U8} {i : Std.Usize}
     · rename_i hkb
       have hkl : kk.val < tb.exprs.length := by scalar_tac
       rw [vec_index_ok hkl] at h
-      simp only [bind_tc_ok, bind_eq_ok_iff] at h
+      simp only [bind_ok, bind_eq_ok_iff] at h
       obtain ⟨c, hc, h⟩ := h
       have hcv := Expr.dup_eq hc
       subst hcv
@@ -1209,7 +1209,7 @@ private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
           exact name_ref_refines hr1
         | Ok pr =>
           obtain ⟨x0, m⟩ := pr
-          replace h : (alloc.vec.Vec.push out x0 >>= _) = ok o := h
+          replace h : (Std.bind (alloc.vec.Vec.push out x0) _) = ok o := h
           simp only [bind_eq_ok_iff] at h
           obtain ⟨out1, hpush, k1, hk1, h⟩ := h
           obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr
@@ -1327,7 +1327,7 @@ private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
           exact level_ref_refines hr1
         | Ok pr =>
           obtain ⟨x0, m⟩ := pr
-          replace h : (alloc.vec.Vec.push out x0 >>= _) = ok o := h
+          replace h : (Std.bind (alloc.vec.Vec.push out x0) _) = ok o := h
           simp only [bind_eq_ok_iff] at h
           obtain ⟨out1, hpush, k1, hk1, h⟩ := h
           obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr
@@ -1445,7 +1445,7 @@ private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
           exact expr_ref_refines hr1
         | Ok pr =>
           obtain ⟨x0, m⟩ := pr
-          replace h : (alloc.vec.Vec.push out x0 >>= _) = ok o := h
+          replace h : (Std.bind (alloc.vec.Vec.push out x0) _) = ok o := h
           simp only [bind_eq_ok_iff] at h
           obtain ⟨out1, hpush, k1, hk1, h⟩ := h
           obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr

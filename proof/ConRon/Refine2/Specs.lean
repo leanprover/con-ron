@@ -11039,7 +11039,7 @@ theorem nstore_intern_other_flags {pers rs v r rs'}
   rw [arena.store.NStore.intern_other] at h
   repeat' (first
     | exact rfl
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _)))
@@ -11050,7 +11050,7 @@ theorem nstore_intern_str_flags {pers rs k d r rs'}
   rw [arena.store.NStore.intern_str] at h
   repeat' (first
     | exact rfl
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _)))
@@ -11077,7 +11077,7 @@ theorem lstore_intern_flags {pers rs v r rs'}
   rw [arena.store.LStore.intern] at h
   repeat' (first
     | exact ⟨rfl, rfl⟩
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _)))
@@ -11088,7 +11088,7 @@ theorem lsstore_intern_flags {pers rs v r rs'}
   rw [arena.store.LsStore.intern] at h
   repeat' (first
     | exact ⟨rfl, rfl⟩
-    | (obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
+    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h)
     | split at h
     | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
         _ ∧ _)))

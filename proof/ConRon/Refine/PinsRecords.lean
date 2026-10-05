@@ -39,7 +39,7 @@ private theorem peel {α β : Type}
     {x : Result (core.result.Result α core_types.CheckError)}
     {g : core.result.Result α core_types.CheckError →
       Result (core.result.Result β core_types.CheckError)}
-    {o : core.result.Result β core_types.CheckError} (h : x >>= g = ok o)
+    {o : core.result.Result β core_types.CheckError} (h : Std.bind x g = ok o)
     (herr : ∀ e, g (.Err e) = ok (.Err e) := by intro e; rfl) :
     (∃ a, x = ok (.Ok a) ∧ g (.Ok a) = ok o)
       ∨ (∃ e, x = ok (.Err e) ∧ o = .Err e) := by
@@ -550,7 +550,7 @@ private theorem str_compare_from_eq {a b : alloc.vec.Vec Std.U32} :
             have hmax : i.val + 1 ≤ Std.Usize.max := by
               have := a.slice.property; scalar_tac
             obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-            simp only [hw, bind_tc_ok] at h
+            simp only [hw, bind_ok] at h
             rw [List.drop_eq_getElem_cons hai, List.drop_eq_getElem_cons hbi, heq,
               ← hwv, ih w (by scalar_tac) h]
 
@@ -574,7 +574,7 @@ private theorem name_cmp_eq_abs : ∀ (n : Nat) (a b : name.Name), sizeOf a ≤ 
     obtain ⟨⟨ha, ka⟩⟩ := a
     obtain ⟨⟨hb, kb⟩⟩ := b
     rw [prop_when.name_cmp.eq_def] at hc
-    simp only [arc_deref_eq, bind_tc_ok, name.Name._0._simpLemma_,
+    simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
       name.NameNode.kind._simpLemma_] at hc
     cases ka with
     | Anonymous =>
@@ -664,7 +664,7 @@ private theorem merge_from_mem {as_ bs : alloc.vec.Vec name.Name} :
         obtain ⟨o, ho, h⟩ := h
         cases o with
         | Lt =>
-          simp only [bind_eq_ok_iff, bind_tc_ok] at h
+          simp only [bind_eq_ok_iff, bind_ok] at h
           obtain ⟨out1, hout1, h⟩ := h
           have hrec := ih wi j out1 v (by scalar_tac) h x
           rw [hwiv] at hrec
@@ -674,7 +674,7 @@ private theorem merge_from_mem {as_ bs : alloc.vec.Vec name.Name} :
             List.mem_cons, List.not_mem_nil, or_false]
           tauto
         | Eq =>
-          simp only [bind_eq_ok_iff, bind_tc_ok] at h
+          simp only [bind_eq_ok_iff, bind_ok] at h
           obtain ⟨out1, hout1, h⟩ := h
           have habs :=
             name_cmp_eq_abs (sizeOf as_.val[i.val]) as_.val[i.val] bs.val[j.val]
@@ -687,7 +687,7 @@ private theorem merge_from_mem {as_ bs : alloc.vec.Vec name.Name} :
             List.mem_cons, List.not_mem_nil, or_false, habs]
           tauto
         | Gt =>
-          simp only [bind_eq_ok_iff, bind_tc_ok] at h
+          simp only [bind_eq_ok_iff, bind_ok] at h
           obtain ⟨out1, hout1, h⟩ := h
           have hrec := ih i wj out1 v (by scalar_tac) h x
           rw [hwjv] at hrec
@@ -735,7 +735,7 @@ private theorem canon_from_mem {ps : alloc.vec.Vec name.Name} :
       obtain ⟨y, hy, hyv⟩ :=
         WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hi)
       subst hyv
-      simp only [hw, bind_tc_ok, bind_eq_ok_iff, alloc.vec.Vec.index_slice_index,
+      simp only [hw, bind_ok, bind_eq_ok_iff, alloc.vec.Vec.index_slice_index,
         hy] at h
       obtain ⟨rest, hrest, sg, hsg, h⟩ := h
       have hrec := ih w rest (by scalar_tac) hrest x
@@ -800,12 +800,12 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
         rw [absNames, hx]
         cases o with
         | Lt =>
-          simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, PropWhen.of_repr_eq,
+          simp only [name_dup_eq, ptr_new_eq, bind_ok, PropWhen.of_repr_eq,
             Result.ok.injEq] at h
           subst h
           simp [absPropWhen, absPropWhenRepr]
         | Eq =>
-          simp only [name_dup_eq, bind_tc_ok, PropWhen.of_repr_eq,
+          simp only [name_dup_eq, bind_ok, PropWhen.of_repr_eq,
             Result.ok.injEq] at h
           subst h
           have habs := name_cmp_eq_abs (sizeOf y) y z le_rfl ho
@@ -813,7 +813,7 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
           refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
           intro n; simp [habs]
         | Gt =>
-          simp only [name_dup_eq, ptr_new_eq, bind_tc_ok, PropWhen.of_repr_eq,
+          simp only [name_dup_eq, ptr_new_eq, bind_ok, PropWhen.of_repr_eq,
             Result.ok.injEq] at h
           subst h
           simp only [absPropWhen, absPropWhenRepr, List.map_cons, List.map_nil]
@@ -1224,7 +1224,7 @@ theorem record_expr_nat_lit_refines {t : Slice Std.U8} {i : Std.Usize}
   case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨lit, hlit, h⟩ := bind_eq_ok_iff.mp h
-  simp only [expr.literal_nat, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hlit
+  simp only [expr.literal_nat, ptr_new_eq, bind_ok, Result.ok.injEq] at hlit
   subst hlit
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
@@ -1259,7 +1259,7 @@ theorem record_expr_str_lit_refines {t : Slice Std.U8} {i : Std.Usize}
   case inr => exact after_newline_refines hce
   obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
   obtain ⟨lit, hlit, h⟩ := bind_eq_ok_iff.mp h
-  simp only [expr.literal_str, ptr_new_eq, bind_tc_ok, Result.ok.injEq] at hlit
+  simp only [expr.literal_str, ptr_new_eq, bind_ok, Result.ok.injEq] at hlit
   subst hlit
   obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h

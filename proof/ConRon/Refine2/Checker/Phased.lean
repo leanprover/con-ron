@@ -70,10 +70,10 @@ private theorem annot_fold_hooked_aux {H : Type} (inst : arena.checker.InstallHo
       obtain ⟨d, hd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨u, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       rw [hd]
-      simp only [bind_tc_ok]
+      simp only [bind_ok]
       obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       rw [hq]
-      simp only [bind_tc_ok]
+      simp only [bind_ok]
       obtain ⟨r, st1⟩ := q
       try dsimp only at hrun ⊢
       cases r with
@@ -82,7 +82,7 @@ private theorem annot_fold_hooked_aux {H : Type} (inst : arena.checker.InstallHo
         try dsimp only at hrun ⊢
         obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         rw [hi2]
-        simp only [bind_tc_ok]
+        simp only [bind_ok]
         have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
         have hlt : i.val < ds.val.length := by
           have := alloc.vec.Vec.len_val ds; scalar_tac

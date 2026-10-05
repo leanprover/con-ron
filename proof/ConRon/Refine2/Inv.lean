@@ -298,7 +298,7 @@ theorem lidx_vec_eq_from_iff {a b : alloc.vec.Vec arena.handle.LIdx}
             | mk wb =>
               rw [hea, heb] at hwe
               simpa using hwe
-        simp only [bind_tc_ok] at h
+        simp only [bind_ok] at h
         have hih := ih w c (by omega) h
         rw [hwv] at hih
         rw [hih]
