@@ -49,6 +49,7 @@
 # (`--overlay-scripts` is for testing the script itself on an old --from:
 # it copies this tree's scripts/ into the worktree first, as its own commit.)
 #
+# order         prints the work order `start` saved, recomputed.
 # status        the work order's live numbers: markers left, `check`,
 #               `coverage`'s new uncovered declarations.
 # measure       §7.x's one regression check, made once, on the binary that
@@ -329,7 +330,7 @@ work_order() {
   echo "# con-leche sync ${old:0:8} -> ${new:0:8} (task $task), worktree $wt"
   echo
   echo "## Upstream: $(git -C "$cl" rev-list --count "$old..$new") commit(s)"
-  git -C "$cl" log --oneline --first-parent "$old..$new" | head -40
+  git -C "$cl" log --oneline --first-parent -40 "$old..$new"
   echo
   git -C "$cl" diff --shortstat "$old" "$new" -- ConLeche Main.lean | sed 's/^ */executed tiers and the rest of ConLeche\/, Main.lean: /'
   echo "(read upstream DESIGN.md's task sections between the two commits first: §7 step 1)"
@@ -350,7 +351,7 @@ work_order() {
   echo
   echo "## diff-e2e.sh, master's binary ($(cut -c1-8 "$state/con-ron-master.commit")) at the new pin"
   sed -n '/^diff-e2e (/,$p' "$state/e2e-master.out" | sed 's/^/  /'
-  grep -oE '(DIFFER|TIMEOUT) +[^ ]+' "$state/e2e-master.out" | head -40 | sed 's/^/    /' || true
+  grep -oE '(DIFFER|TIMEOUT) +[^ ]+' "$state/e2e-master.out" | sed -n '1,40s/^/    /p' || true
   echo
   echo "## Generated files and links"
   echo "  $(cat "$state/generators.txt") (CHANGED: run the generator, extract, re-gate; gen-pins needs a build: run it with the gates)"
@@ -533,6 +534,7 @@ cmd=${1-}; shift || true
 case "$cmd" in
   start) cmd_start "$@" ;;
   status) cmd_status "$@" ;;
+  order) resolve_short "${1-}"; work_order | tee "$state/work-order.txt" ;;
   measure) cmd_measure "$@" ;;
   pin) cmd_pin "$@" ;;
   land) cmd_land "$@" ;;

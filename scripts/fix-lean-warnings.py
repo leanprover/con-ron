@@ -6,7 +6,7 @@ Usage (from `proof/`, the directory the log's paths are relative to):
     lake build 2>&1 | tee build.log
     python3 ../scripts/fix-lean-warnings.py build.log [--only simp|vars]
 
-Two warning kinds are fixed (task #101, DESIGN.md):
+Three warning kinds are fixed (tasks #101 and #110, DESIGN.md):
 
 * `linter.unusedSimpArgs` ("This simp argument is unused: X"): X is dropped
   from its simp call by Mathlib's `scripts/fix_unused_simp_args.py` (read
@@ -19,6 +19,13 @@ Two warning kinds are fixed (task #101, DESIGN.md):
   referenced"): `x` becomes `_x`, which is the linter's own `[apply]` hint.
   The identifier must be exactly at the reported line and column (0-based,
   in code points), otherwise the site is reported and skipped.
+
+* `linter.deprecated` ("`X` has been deprecated: Use `Y` instead", task
+  #110's toolchain move: `if_pos` → `ite_eq_left` and friends): the
+  identifier at the reported position is renamed.  It must be spelled there
+  as the full old name or as a suffix of it whose prefix the new name shares
+  (`div_eq` inside `namespace Nat` → `div_eq_ite`); otherwise the site is
+  reported and skipped (a warning raised inside a macro points elsewhere).
 
 Only paths under `ConRon/` are touched: dependencies and generated files
 are out of scope, and warnings from them are ignored.  Run it once per
@@ -35,6 +42,7 @@ from pathlib import Path
 
 SIMP_RE = re.compile(r"^warning: (ConRon/[^:]+\.lean):(\d+):(\d+): This simp argument is unused:\s*$")
 VAR_RE = re.compile(r"^warning: (ConRon/[^:]+\.lean):(\d+):(\d+): Variable name `([^`]+)` is not explicitly referenced\.")
+DEP_RE = re.compile(r"^warning: (ConRon/[^:]+\.lean):(\d+):(\d+): `([^`]+)` has been deprecated: [Uu]se `([^`]+)` instead")
 MATHLIB_FIXER = Path(".lake/packages/mathlib/scripts/fix_unused_simp_args.py")
 
 
@@ -100,14 +108,49 @@ def fix_vars(lines):
     print(f"vars: {done} renamed to `_x`, {skipped} skipped")
 
 
+def fix_deprecated(lines):
+    edits = defaultdict(set)
+    for ln in lines:
+        m = DEP_RE.match(ln)
+        if m:
+            edits[m[1]].add((int(m[2]), int(m[3]), m[4], m[5]))
+    done = skipped = 0
+    ident = "_'!?₀₁₂₃₄₅₆₇₈₉."
+    for p, es in edits.items():
+        src = Path(p).read_text().splitlines(keepends=True)
+        for line, col, old, new in sorted(es, reverse=True):
+            s = src[line - 1]
+            old_parts, new_parts = old.split("."), new.split(".")
+            hit = None
+            for k in range(len(old_parts)):  # the full name first, then suffixes
+                written = ".".join(old_parts[k:])
+                end = col + len(written)
+                if s[col:end] != written or (end < len(s) and (s[end].isalnum() or s[end] in ident)):
+                    continue
+                if old_parts[:k] != new_parts[:k]:
+                    continue
+                hit = (end, ".".join(new_parts[k:]))
+                break
+            if hit:
+                src[line - 1] = s[:col] + hit[1] + s[hit[0]:]
+                done += 1
+            else:
+                print(f"  skip {p}:{line}:{col}: `{old}` not at that position")
+                skipped += 1
+        Path(p).write_text("".join(src))
+    print(f"deprecated: {done} renamed, {skipped} skipped")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("log")
-    ap.add_argument("--only", choices=["simp", "vars"])
+    ap.add_argument("--only", choices=["simp", "vars", "deprecated"])
     a = ap.parse_args()
     lines = Path(a.log).read_text().splitlines()
     # Renaming keeps line numbers; dropping simp arguments can join lines,
     # so the renames go first, while the log's positions are still exact.
+    if a.only in (None, "deprecated"):
+        fix_deprecated(lines)
     if a.only in (None, "vars"):
         fix_vars(lines)
     if a.only in (None, "simp"):
