@@ -651,13 +651,13 @@ theorem usedConstsGo_run {s : AState} (hok : StateOK s) :
     rw [ConLeche.Frontend.usedConstsGo]
     rw [← hseen.contains hwf he]
     by_cases hc : seen.contains h = true
-    · rw [if_pos hc] at hrun ⊢
+    · rw [ite_eq_left hc] at hrun ⊢
       obtain ⟨hv, hs⟩ := AM.pure_ok hrun
       subst hs
       injection hv with e1 e2
       subst e1; subst e2
       exact ⟨rfl, hseen, hacc⟩
-    · rw [if_neg hc] at hrun ⊢
+    · rw [ite_eq_right hc] at hrun ⊢
       simp only [] at hrun
       obtain ⟨v, s₁, hv, hrest⟩ := AM.bind_ok hrun
       obtain ⟨rfl, hview⟩ := view_run hv
@@ -1278,9 +1278,9 @@ theorem pushOne_sim {st : EStore} {idx : Std.HashMap NIdx Nat}
           simp only []
           refine ih nsP' hns _ _ ?_
           by_cases hc : (decide (m > i) && m != k) = true
-          · rw [if_pos hc, if_pos (by simpa using hc)]
+          · rw [ite_eq_left hc, ite_eq_left (by simpa using hc)]
             simp [hL]
-          · rw [if_neg hc, if_neg (by simpa using hc)]
+          · rw [ite_eq_right hc, ite_eq_right (by simpa using hc)]
             exact hL
 
 /-- con-leche: none — an array read as a stack (top last) against a list (top
@@ -1331,11 +1331,11 @@ theorem loop_drop {dsP : Array Declaration} {idxP : Std.HashMap ConLeche.Name Na
     obtain ⟨hsz, htop, hpop⟩ := arr_rev_cons h
     by_cases hd : hoistDone target k i = true
     · obtain ⟨arr', h1, h2⟩ := ih arr.pop hpop
-      refine ⟨arr', by rw [hoistDropDone, if_pos hd]; exact h1, ?_⟩
+      refine ⟨arr', by rw [hoistDropDone, ite_eq_left hd]; exact h1, ?_⟩
       rw [loop_id_unfold, hB]
-      simp only [clCloseStep, dif_pos hsz, htop, if_pos hd]
+      simp only [clCloseStep, dite_eq_left hsz, htop, ite_eq_left hd]
       exact h2
-    · refine ⟨arr, by rw [hoistDropDone, if_neg hd]; exact h, rfl⟩
+    · refine ⟨arr, by rw [hoistDropDone, ite_eq_right hd]; exact h, rfl⟩
 
 /-- con-leche: none — a denoting stream denotes at an in-bounds index, with
 con-leche's `ds[k]!`. -/
@@ -1419,7 +1419,7 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
       try simp only [] at hrun
       obtain ⟨stack', s₁, hpush, hrun⟩ := AM.bind_ok hrun
       unfold hoistClosure.pushDeps at hpush
-      rw [dif_pos hk] at hpush
+      rw [dite_eq_left hk] at hpush
       obtain ⟨ns, s₂, hus, hpure⟩ := AM.bind_ok hpush
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hpure
       obtain ⟨hstep, hns⟩ := usedConsts_run hok hoff (declAt_denote hds hk) hus
@@ -1431,7 +1431,7 @@ theorem hoistClosure_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         (hoistClosure_pushOne_lt hidx k _ rest hrest) hpushP hrun
       refine ⟨hstep.trans hstep2, ?_⟩
       rw [hres, loop_id_unfold (b := (target, arr')), hB]
-      simp only [clCloseStep, dif_pos hsz, htop, hnd]
+      simp only [clCloseStep, dite_eq_left hsz, htop, hnd]
       rfl
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:97-104 isNatOpRecord — the
@@ -1465,15 +1465,15 @@ theorem isNatOpRecord_run {s s' : AState} (hok : StateOK s) (hpins : PinsOK s)
         have hc2 := Bridge.denoteNList_contains hok.wf _ _ (denoteNL_toList _ _ hl2) _ _ hn
         simp only [ConLeche.Frontend.isNatOpRecord]
         by_cases hq : (l1.contains cv.name || l2.contains cv.name) = true
-        · rw [if_pos hq] at hr2
+        · rw [ite_eq_left hq] at hr2
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
           rw [hc1, hc2] at hq
-          rw [if_pos hq]
+          rw [ite_eq_left hq]
           exact ⟨rfl, hn⟩
-        · rw [if_neg hq] at hr2
+        · rw [ite_eq_right hq] at hr2
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hr2
           rw [hc1, hc2] at hq
-          rw [if_neg hq]
+          rw [ite_eq_right hq]
           exact ⟨rfl, trivial⟩
   | axiomDecl cv =>
     simp only [ConRon.Arena.Frontend.denoteDecl, Option.map_eq_some_iff] at hd
@@ -1570,8 +1570,8 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
         rw [hj] at hrun
         simp only [] at hrun ⊢
         by_cases hji : j > i
-        · rw [if_pos hji] at hrun
-          rw [if_pos hji]
+        · rw [ite_eq_left hji] at hrun
+          rw [ite_eq_left hji]
           obtain ⟨t1, s₁, h1, hrun⟩ := AM.bind_ok hrun
           obtain ⟨hstep1, rfl⟩ := hoistClosure_sim hidx (B i) hB ds.size s target [j] #[j]
             t1 s₁ hok hoff hds hr (by simpa using hidx g j hj) (by simp) h1
@@ -1581,8 +1581,8 @@ theorem hoistDeps_sim {ds : Array IDeclaration} {dsP : Array Declaration}
             (hr.mono hstep1.ext (nsWF_of_StateOK hstep1.ok))
             (denoteNL_ext hstep1.ext _ _ hgs) hrun
           exact ⟨hstep1.trans hstep2, hres⟩
-        · rw [if_neg hji] at hrun
-          rw [if_neg hji]
+        · rw [ite_eq_right hji] at hrun
+          rw [ite_eq_right hji]
           exact ih gsP s target t' s' hok hoff hds hr hgs hrun
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:117-134 hoistTargets — one
@@ -1614,13 +1614,13 @@ theorem hoistTargetsGo_sim {ds : Array IDeclaration} {dsP : Array Declaration}
   induction n with
   | zero =>
     intro i s target t' s' hn hok _ _ _ _ hrun
-    rw [hoistTargetsGo, dif_neg (by omega)] at hrun
+    rw [hoistTargetsGo, dite_eq_right (by omega)] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨ParseStep.refl hok, rfl⟩
   | succ n ih =>
     intro i s target t' s' hn hok hoff hpins hds hr hrun
     have hi : i < ds.size := by omega
-    rw [hoistTargetsGo, dif_pos hi] at hrun
+    rw [hoistTargetsGo, dite_eq_left hi] at hrun
     obtain ⟨r, s₁, h1, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hs1, hopt⟩ := isNatOpRecord_run hok hpins (declAt_denote hds hi) h1
     rw [hs1] at hrun
@@ -1724,19 +1724,19 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
         have hj' : (clIdx dsP)[g]? = some j := heq
         rw [hj']
         by_cases hj : j > a
-        · simp only [hj, if_true]
+        · simp only [hj, ite_true]
           refine congrArg (fun p : Std.HashMap Nat Nat × Array Nat => ForInStep.yield p.1)
             (loop_congr _ _ _ ?_)
           intro u x
           obtain ⟨tg, st⟩ := x
           simp only [clB, clCloseStep, hoistDone]
           by_cases hsz : st.size > 0
-          · rw [dif_pos hsz, dif_pos hsz]
+          · rw [dite_eq_left hsz, dite_eq_left hsz]
             cases hk : tg[st[st.size - 1]]? with
             | some t =>
               by_cases ht : t ≤ a
-              · simp only [ht, if_true, decide_true]; rfl
-              · simp only [ht, if_false, decide_false]
+              · simp only [ht, ite_true, decide_true]; rfl
+              · simp only [ht, ite_false, decide_false]
                 refine congrArg (fun s => ForInStep.yield (tg.insert st[st.size - 1] a, s)) ?_
                 rw [← Array.forIn_toList]
                 refine forIn_id_yield _ _ _ _ ?_
@@ -1745,7 +1745,7 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
                 · rename_i m heq
                   have hm' : (clIdx dsP)[n]? = some m := heq
                   by_cases hc : (decide (m > a) && m != st[st.size - 1]) = true
-                  · simp only [hc, if_true, hm']; rfl
+                  · simp only [hc, ite_true, hm']; rfl
                   · simp only [hc, hm']; rfl
                 · rename_i heq
                   have hm' : (clIdx dsP)[n]? = none := by
@@ -1754,7 +1754,7 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
                     | some j => exact absurd h (heq j)
                   simp only [hm']; rfl
             | none =>
-              simp only [Bool.false_eq_true, if_false]
+              simp only [Bool.false_eq_true, ite_false]
               refine congrArg (fun s => ForInStep.yield (tg.insert st[st.size - 1] a, s)) ?_
               rw [← Array.forIn_toList]
               refine forIn_id_yield _ _ _ _ ?_
@@ -1763,7 +1763,7 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
               · rename_i m heq
                 have hm' : (clIdx dsP)[n]? = some m := heq
                 by_cases hc : (decide (m > a) && m != st[st.size - 1]) = true
-                · simp only [hc, if_true, hm']; rfl
+                · simp only [hc, ite_true, hm']; rfl
                 · simp only [hc, hm']; rfl
               · rename_i heq
                 have hm' : (clIdx dsP)[n]? = none := by
@@ -1771,9 +1771,9 @@ theorem clHoistTargets_eq (dsP : Array Declaration) :
                   | none => rfl
                   | some j => exact absurd h (heq j)
                 simp only [hm']; rfl
-          · rw [dif_neg hsz, dif_neg hsz]
+          · rw [dite_eq_right hsz, dite_eq_right hsz]
             rfl
-        · simp only [hj, if_false]
+        · simp only [hj, ite_false]
           rfl
       · rename_i heq
         have hj' : (clIdx dsP)[g]? = none := by
@@ -1796,9 +1796,9 @@ theorem IdxRel.insertOne {st : EStore} {idx : Std.HashMap NIdx Nat}
     rw [Std.HashMap.contains_eq_isSome_getElem?, Std.HashMap.contains_eq_isSome_getElem?,
       h.get n nP hn]
   by_cases hk : idx.contains n = true
-  · rw [if_pos hk, if_neg (by rw [← hc, hk]; decide)]
+  · rw [ite_eq_left hk, ite_eq_right (by rw [← hc, hk]; decide)]
     exact h
-  · rw [if_neg hk, if_pos (by rw [← hc]; simpa using hk)]
+  · rw [ite_eq_right hk, ite_eq_left (by rw [← hc]; simpa using hk)]
     refine ⟨?_, ?_, ?_⟩
     · intro m mP hm
       rw [Std.HashMap.getElem?_insert, Std.HashMap.getElem?_insert]
@@ -1865,12 +1865,12 @@ theorem nameIndex_sim {st : EStore} (hw : NStoreWF st.ns) {ds : Array IDeclarati
   induction n with
   | zero =>
     intro k idx idxP hn hr
-    rw [nameIndex, dif_neg (by omega)]
+    rw [nameIndex, dite_eq_right (by omega)]
     exact hr
   | succ n ih =>
     intro k idx idxP hn hr
     have hk : k < ds.size := by omega
-    rw [nameIndex, dif_pos hk, List.range'_succ, List.foldl_cons]
+    rw [nameIndex, dite_eq_left hk, List.range'_succ, List.foldl_cons]
     refine ih (k + 1) _ _ (by omega) ?_
     exact insertNames_sim hw k _ _ _ _
       (declNames_denote (hnds _ (Array.getElem_mem hk)) (declAt_denote hds hk)) hr
@@ -1901,12 +1901,12 @@ theorem nameIndex_lt (ds : Array IDeclaration) :
   induction n with
   | zero =>
     intro k idx hn h
-    rw [nameIndex, dif_neg (by omega)]
+    rw [nameIndex, dite_eq_right (by omega)]
     exact h
   | succ n ih =>
     intro k idx hn h
     have hk : k < ds.size := by omega
-    rw [nameIndex, dif_pos hk]
+    rw [nameIndex, dite_eq_left hk]
     exact ih (k + 1) _ (by omega) (hins k hk _ _ h)
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:110 hoistTargets — **the
@@ -1998,18 +1998,18 @@ theorem movedNames_toList (ds : Array IDeclaration) (target : Std.HashMap Nat Na
   induction n with
   | zero =>
     intro k acc hn
-    rw [movedNames, dif_neg (by omega)]
+    rw [movedNames, dite_eq_right (by omega)]
     simp [hn]
   | succ n ih =>
     intro k acc hn
     have hk : k < ds.size := by omega
-    rw [movedNames, dif_pos hk, ih (k + 1) _ (by omega)]
+    rw [movedNames, dite_eq_left hk, ih (k + 1) _ (by omega)]
     have hr : ds.size - k = (ds.size - (k + 1)) + 1 := by omega
     rw [hr, List.range'_succ]
     by_cases hc : target.contains k = true
-    · rw [if_pos hc]
+    · rw [ite_eq_left hc]
       simp [hc, Array.getElem?_eq_getElem hk, List.flatMap_cons]
-    · rw [if_neg hc]
+    · rw [ite_eq_right hc]
       simp [hc]
 
 /-- con-leche: none — `denoteNList` through `++`. -/
@@ -2150,14 +2150,14 @@ theorem hoistNatOpGround_run {s s' : AState} (hok : StateOK s)
   have hds1 := denoteDeclArray_ext hstep.ext hds
   have hnds1 := hnds.mono hstep.ext
   by_cases he : (ConLeche.Frontend.hoistTargets dsP).isEmpty = true
-  · rw [if_pos he] at hrun
-    rw [if_pos he]
+  · rw [ite_eq_left he] at hrun
+    rw [ite_eq_left he]
     obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
     injection hv with h1 h2
     subst h1; subst h2
     exact ⟨hstep, hpds, hnds1, hds1, rfl⟩
-  · rw [if_neg he] at hrun
-    rw [if_neg he]
+  · rw [ite_eq_right he] at hrun
+    rw [ite_eq_right he]
     obtain ⟨hv, rfl⟩ := AM.pure_ok hrun
     obtain ⟨h1, h2, h3, h4⟩ := applyHoist_run hds1 hpds hnds1 (ConLeche.Frontend.hoistTargets dsP)
     rw [← hv] at h1 h2 h3 h4

@@ -39,7 +39,6 @@ use crate::kernel::core_types::CheckError;
 use crate::arena::store::PersTier;
 
 /// con-leche: ConLeche/Frontend/Prelude.lean:55-61 builtinPreludeText
-/// con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove prelude::builtin_prelude_text_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/PreludeText.lean:1284-1356 preludeText`
 /// — the committed prelude for the pinned toolchain, as bytes.  A toolchain
 /// bump regenerates `crates/con-ron-core/src/frontend/prelude_text.rs` (and
@@ -153,7 +152,7 @@ mod tests {
     #[test]
     fn the_prelude_text_is_the_committed_ndjson() {
         let b = builtin_prelude_text();
-        assert_eq!(b.len(), 15700);
+        assert_eq!(b.len(), 15704);
         assert_eq!(b[b.len() - 1], b'\n');
     }
 }

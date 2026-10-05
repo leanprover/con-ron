@@ -92,7 +92,7 @@ structure PinSetDenote (st : EStore) (p : INatOpPinSet) (q : NatOpPinSet) :
   shiftRightProofs : Frontend.denoteEList st p.shiftRightProofs
     = some q.shiftRightProofs
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — the interned pin LIST
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the interned pin LIST
 denotes con-leche's, variant by variant and in order (the order is the order
 the install gate tries them, so it is part of the statement). -/
 def PinsDenote (st : EStore) : List INatOpPinSet → List NatOpPinSet → Prop

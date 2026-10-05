@@ -101,7 +101,7 @@ representation it replaces.
 
 `ConLeche/Kernel/NatOpPins.lean` has NO top-level definitional
 declaration: its pin variants and `natOpPinSets` are spliced by the
-`#load_natop_pins` elaborator (`NatOpPins.lean:62-65`) out of the
+`#load_natop_pins` elaborator (`NatOpPins.lean:75-78`) out of the
 committed `pins/<toolchain>.json` dumps.  The twin decodes the same dumps
 into the persistent tier, so the work is real and the row is empty; the
 shape to decode into is `NatOpPinSet`, listed under P2d.

@@ -54,8 +54,7 @@ pub struct INatOpPinSet {
     pub shift_right_proofs: Vec<EIdx>,
 }
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_set_refines, then delete this line
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:50-70 internPinSet` —
 /// intern one pin variant: the one-time tree walk of DESIGN.md §8.6 P2d,
 /// sixteen terms deep.  The twin's sixteen `let`s are sixteen nested matches
@@ -95,8 +94,7 @@ pub fn intern_pin_set(
     }
 }
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_set_proofs_refines, then delete this line
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:50-70 internPinSet` — the
 /// eight certificate-proof lists, and the record.  Split at the twin's own
 /// `let dc ←` boundary (task #97-P4c's rule for a long `do` block).
@@ -160,8 +158,7 @@ pub fn intern_pin_set_proofs(
     }
 }
 
-/// con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
-/// con-leche: CHANGED since d0bbad69 — re-port, re-test, re-prove nat_op_pin_set::intern_pin_sets_refines, then delete this line
+/// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 /// Lean twin: `proof/ConRon/Arena/NatOpPinSet.lean:72-79 internPinSets` —
 /// intern the variant LIST, in the order the install gate tries them.
 pub fn intern_pin_sets(

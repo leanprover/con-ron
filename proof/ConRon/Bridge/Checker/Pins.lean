@@ -109,8 +109,8 @@ theorem PersLs_of_denote {st : EStore} (hwf : StoreWF st)
   by_cases hp : h.isPersistent = true
   · exact hp
   · exfalso
-    rw [Arena.LsStore.view, if_neg hp,
-      if_neg (by rw [(Frontend.scratchOn_nested hwf).1, hoff]; simp)] at hv
+    rw [Arena.LsStore.view, ite_eq_right hp,
+      ite_eq_right (by rw [(Frontend.scratchOn_nested hwf).1, hoff]; simp)] at hv
     exact absurd hv (by simp)
 
 /-- con-leche: none — **the zero name handle is `.anonymous`** once the pin
@@ -157,15 +157,15 @@ theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
   -- 2. it is persistent, so the persistent `anons` table is non-empty
   have hpa : a.isPersistent = true := Frontend.PersN_of_view hwf hoff ha
   have hnode : ∃ x, st.ns.pers.anons.node? 0 = some x := by
-    simp only [Arena.NStore.view, hpa, if_true, Arena.NTables.get] at ha
+    simp only [Arena.NStore.view, hpa, ite_true, Arena.NTables.get] at ha
     by_cases ht : (a.tag == NTag.anonymous) = true
-    · rw [if_pos ht, Option.map_eq_some_iff] at ha
+    · rw [ite_eq_left ht, Option.map_eq_some_iff] at ha
       obtain ⟨x, hx, -⟩ := ha
       simp only [Arena.Tbl.node?] at hx ⊢
       have hlt : a.idxNat < st.ns.pers.anons.nodes.size :=
         (Array.getElem?_eq_some_iff.mp hx).1
       exact ⟨_, Array.getElem?_eq_getElem (by omega)⟩
-    · rw [if_neg ht] at ha
+    · rw [ite_eq_right ht] at ha
       split at ha
       · simp at ha
       · split at ha <;> simp at ha
@@ -175,7 +175,7 @@ theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
     have hp0 : (default : NIdx).isPersistent = true := by decide
     have ht0 : ((default : NIdx).tag == NTag.anonymous) = true := by decide
     have hi0 : (default : NIdx).idxNat = 0 := by decide
-    simp only [Arena.NStore.view, hp0, if_true, Arena.NTables.get, ht0, hi0, hx,
+    simp only [Arena.NStore.view, hp0, ite_true, Arena.NTables.get, ht0, hi0, hx,
       Option.map_some]
   simp only [Arena.denoteN, Arena.denoteNAux, hv0, Option.bind_some]
 
@@ -264,7 +264,7 @@ theorem internReservedPins_run {s s' : AState} (hok : StateOK s)
         zeroLevel := Frontend.PersL_of_denote hwf6 hoff6 hz6
         sortOne := Frontend.PersE_of_denote hwf6 hoff6 he6 }
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — ONE pin variant,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — ONE pin variant,
 interned: sixteen `internExpr`/`internExprList` calls, each an `IStepS` link
 (`Frontend.internExpr_sstep`, `Frontend.internExprList_sstep` at a fresh
 memo), every denotation transported to the final store. -/
@@ -357,7 +357,7 @@ theorem internPinSet_sstep {ps : NatOpPinSet} {p : INatOpPinSet} {s s' : AState}
       shiftLeftProofs := denoteEList_ext e15 _ _ d15
       shiftRightProofs := denoteEList_ext e16 _ _ d16 }
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — the variant list,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — the variant list,
 interned: the list recursion over `internPinSet_sstep`. -/
 theorem internPinSets_sstep : ∀ (ps : List NatOpPinSet) {r : List INatOpPinSet}
     {s s' : AState}, StateOK s → ConRon.Arena.internPinSets ps s = .ok (r, s') →
@@ -429,7 +429,7 @@ theorem PersPinSets_of_denote {st : EStore} (hwf : StoreWF st)
     · exact PersPinSets_of_denote hwf hoff h.2 x hx
 
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _ — **the pin variants,
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _ — **the pin variants,
 interned**: `internPinSets` on a closed scratch tier hands back a list that
 denotes its argument, variant by variant, in persistent handles.
 
@@ -498,7 +498,7 @@ theorem reservedBasisNames_sstep {s s' : AState} {hs : List NIdx}
   obtain ⟨rfl, -⟩ := h
   exact Frontend.IStepS.refl hst
 
-/-- con-leche: ConLeche/Kernel/NatOpPins.lean:62-65 _
+/-- con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 con-leche: ConLeche/Kernel/BasisA.lean:50-57 BasisKind.declsA
 **THE STARTUP WALK**: `internAllPins` interns every datum the checker compares
 a stream record against, and hands back the interned pin list.  Its
