@@ -71,6 +71,8 @@ import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 import ConRon.Arena.PersistentRun
 import Std.WP
+-- the `vcgen` syntax on v4.35.0-rc3 (lean4#15290 moves it to `Std.WP.Tactic`)
+import Std.Tactic.Do
 
 namespace ConRon.Bridge
 
