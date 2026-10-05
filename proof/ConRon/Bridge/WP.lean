@@ -111,11 +111,14 @@ initialize registerBuiltinAttribute {
   add := fun declName stx kind => do
     let info ← getConstInfo declName
     let wpName := declName ++ `wp
-    MetaM.run' do
-      let prf ← toWPSpecProof (mkConst declName (info.levelParams.map mkLevelParam))
-      let ty ← instantiateMVars (← inferType prf)
-      addDecl <| .thmDecl {
-        name := wpName, levelParams := info.levelParams, type := ty, value := prf }
+    -- a second `wp_spec` (a `local` re-registration at another priority)
+    -- reuses the twin the first one derived
+    unless (← getEnv).contains wpName do
+      MetaM.run' do
+        let prf ← toWPSpecProof (mkConst declName (info.levelParams.map mkLevelParam))
+        let ty ← instantiateMVars (← inferType prf)
+        addDecl <| .thmDecl {
+          name := wpName, levelParams := info.levelParams, type := ty, value := prf }
     -- `spec` reads its priority off `stx[1]`, where `wp_spec`'s own sits
     let some impl := (getAttributeImpl (← getEnv) `spec).toOption
       | throwError "wp_spec: no `spec` attribute"
