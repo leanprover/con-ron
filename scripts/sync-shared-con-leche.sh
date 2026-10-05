@@ -5,7 +5,7 @@
 #   scripts/sync-shared-con-leche.sh [--force] [--no-build] [--tree DIR]
 #
 # con-leche's lake package directory is shared: every worktree's
-# `proof/.lake/packages` is a symlink to `_tmp/aeneas-lean/.lake/packages`
+# `proof/.lake/packages` is a symlink to `_tmp/aeneas-lean-<tag>/.lake/packages`
 # (CLAUDE.md), so its `con-leche` checkout is ONE checkout for all of them.
 # A sync runs on a private copy (`scripts/bump-con-leche.sh start`) and, once
 # landed, the shared checkout has to follow master's

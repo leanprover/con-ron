@@ -1,6 +1,5 @@
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Array.lean aeneas-lean-433/Aeneas/Data/Array.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Array.lean	2026-09-12 07:32:55.300809685 +0000
-+++ aeneas-lean-433/Aeneas/Data/Array.lean	2026-09-12 07:47:44.161231212 +0000
+--- a/Aeneas/Data/Array.lean
++++ b/Aeneas/Data/Array.lean
 @@ -109,7 +109,7 @@
    simp_lists
  
@@ -10,9 +9,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
    [Inhabited α] {i j : ℕ} {x : α} {xs : Array α}
    (h : i ≠ j) :
    (xs.set! i x)[j]! = xs[j]! := by
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Vector.lean aeneas-lean-433/Aeneas/Data/Vector.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Data/Vector.lean	2026-09-12 07:32:55.301809670 +0000
-+++ aeneas-lean-433/Aeneas/Data/Vector.lean	2026-09-12 07:50:30.058704807 +0000
+--- a/Aeneas/Data/Vector.lean
++++ b/Aeneas/Data/Vector.lean
 @@ -20,7 +20,7 @@
    by_cases h : i < n <;> try grind
    simp_ifs
@@ -98,9 +96,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
  
  @[simp, simp_lists_safe]
  theorem getElem!_replicate {α : Type u} [Inhabited α] {i n : ℕ} {a : α} (h : i < n) :
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Do/Tests.lean aeneas-lean-433/Aeneas/Do/Tests.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Do/Tests.lean	2026-09-12 07:32:55.301809670 +0000
-+++ aeneas-lean-433/Aeneas/Do/Tests.lean	2026-09-12 07:48:28.227560023 +0000
+--- a/Aeneas/Do/Tests.lean
++++ b/Aeneas/Do/Tests.lean
 @@ -625,13 +625,15 @@
  
  /-- warning: Variable name `n` is not explicitly referenced.
@@ -197,9 +194,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
  
  Note: This linter can be disabled with `set_option linter.unusedVariables false`
  -/
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Extract/Extract.lean aeneas-lean-433/Aeneas/Extract/Extract.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Extract/Extract.lean	2026-09-12 07:32:55.301809670 +0000
-+++ aeneas-lean-433/Aeneas/Extract/Extract.lean	2026-09-30 08:59:16.762325245 +0000
+--- a/Aeneas/Extract/Extract.lean
++++ b/Aeneas/Extract/Extract.lean
 @@ -213,7 +213,15 @@
       Lean definitions, so we can simply reuse the original name. -/
    if found
@@ -217,9 +213,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
  
  structure Span where
    fileName : String
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean aeneas-lean-433/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean	2026-09-12 07:32:55.305809609 +0000
-+++ aeneas-lean-433/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean	2026-09-12 07:40:12.016125593 +0000
+--- a/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
++++ b/Aeneas/Tactic/Simproc/ReduceZMod/ReduceZMod.lean
 @@ -80,9 +80,9 @@
  simproc reduceZModPow
    (@HPow.hPow _ Nat _
@@ -233,9 +228,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
                (@CommSemiring.toSemiring _ (@CommRing.toCommSemiring _ (ZMod.commRing _)))))))
        _ _) := fun e => do
    trace[ReduceZMod] "Visiting: {e}"
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Solver/BvTac/BvTac.lean aeneas-lean-433/Aeneas/Tactic/Solver/BvTac/BvTac.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Solver/BvTac/BvTac.lean	2026-09-12 07:32:55.305809609 +0000
-+++ aeneas-lean-433/Aeneas/Tactic/Solver/BvTac/BvTac.lean	2026-09-12 07:48:09.440846162 +0000
+--- a/Aeneas/Tactic/Solver/BvTac/BvTac.lean
++++ b/Aeneas/Tactic/Solver/BvTac/BvTac.lean
 @@ -7,7 +7,7 @@
  open Lean Lean.Meta Lean.Parser.Tactic Lean.Elab.Tactic
  open Bvify Utils
@@ -263,9 +257,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
      liftMetaFinishingTactic fun g => do
        discard <| bvDecide g cfg
  
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Step/Tests/TupleDestruct.lean aeneas-lean-433/Aeneas/Tactic/Step/Tests/TupleDestruct.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/Aeneas/Tactic/Step/Tests/TupleDestruct.lean	2026-09-12 07:32:55.306809593 +0000
-+++ aeneas-lean-433/Aeneas/Tactic/Step/Tests/TupleDestruct.lean	2026-09-12 07:53:05.381340360 +0000
+--- a/Aeneas/Tactic/Step/Tests/TupleDestruct.lean
++++ b/Aeneas/Tactic/Step/Tests/TupleDestruct.lean
 @@ -35,49 +35,57 @@
  /--
  warning: Variable name `a` is not explicitly referenced.
@@ -332,9 +325,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
  
  Note: This linter can be disabled with `set_option linter.unusedVariables false`
  -/
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/BvEnumToBitVec.lean aeneas-lean-433/AeneasMeta/BvEnumToBitVec.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/BvEnumToBitVec.lean	2026-09-12 07:32:55.306809593 +0000
-+++ aeneas-lean-433/AeneasMeta/BvEnumToBitVec.lean	2026-09-12 07:34:57.357937668 +0000
+--- a/AeneasMeta/BvEnumToBitVec.lean
++++ b/AeneasMeta/BvEnumToBitVec.lean
 @@ -3,7 +3,8 @@
  Released under Apache 2.0 license as described in the file LICENSE.
  -/
@@ -356,9 +348,8 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
  
  /-- Marker class enabling `deriving BvEnumToBitVec` on an enum inductive.
  
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/Simp/Simp.lean aeneas-lean-433/AeneasMeta/Simp/Simp.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/AeneasMeta/Simp/Simp.lean	2026-09-12 07:32:55.307809578 +0000
-+++ aeneas-lean-433/AeneasMeta/Simp/Simp.lean	2026-09-12 07:34:38.705223510 +0000
+--- a/AeneasMeta/Simp/Simp.lean
++++ b/AeneasMeta/Simp/Simp.lean
 @@ -116,7 +116,7 @@
      let freshFVarIds ←
        match result? with
@@ -368,15 +359,10 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
      /- We need to filter the `fvarIdsToSimp` to remove those which have been replaced with fresh fvars -/
      let fvars ← do
        match freshFVarIds with
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/lakefile.lean aeneas-lean-433/lakefile.lean
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/lakefile.lean	2026-09-12 07:32:55.307809578 +0000
-+++ aeneas-lean-433/lakefile.lean	2026-09-12 07:50:37.292594668 +0000
-@@ -3,9 +3,14 @@
- 
- -- Important: mathlib imports std4 and quote4: we mustn't add a `require std4` line
- require mathlib from git
--  "https://github.com/leanprover-community/mathlib4.git" @ "v4.31.0"
-+  "https://github.com/leanprover-community/mathlib4.git" @ "v4.33.0"
+--- a/lakefile.lean
++++ b/lakefile.lean
+@@ -6,6 +6,11 @@
+   "https://github.com/leanprover-community/mathlib4.git" @ "v4.31.0"
  
  package «aeneas» where
 +  -- Lean 4.33 made `isDefEq` respect the transparency setting for implicit
@@ -387,9 +373,3 @@ diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron
    preferReleaseBuild := true
    buildArchive := s!"lean-build-aeneas-{System.Platform.target}.tar.gz"
  
-diff -ruN '--exclude=.lake' '--exclude=lake-manifest.json' /home/joachim/con-ron/vendor/aeneas/backends/lean/lean-toolchain aeneas-lean-433/lean-toolchain
---- /home/joachim/con-ron/vendor/aeneas/backends/lean/lean-toolchain	2026-09-12 07:32:55.307809578 +0000
-+++ aeneas-lean-433/lean-toolchain	2026-09-12 07:31:35.076042385 +0000
-@@ -1 +1 @@
--leanprover/lean4:v4.31.0
-+leanprover/lean4:v4.33.0

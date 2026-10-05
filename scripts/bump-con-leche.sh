@@ -20,7 +20,15 @@
 #      of the shared packages directory, `_tmp/bump-<short>/packages`, so
 #      that nothing the other worktrees read moves (CLAUDE.md's bump-campaign
 #      rule; the Aeneas library itself is a path dependency that a sync does
-#      not change, so the packages are all that is copied);
+#      not change, so the packages are all that is copied).  When con-leche's
+#      `lean-toolchain` at <rev> differs from `proof/`'s, the sync MOVES THE
+#      TOOLCHAIN (task #110): no copy; the worktree gets the new
+#      `proof/lean-toolchain`, the Aeneas path of the new toolchain's
+#      `_tmp/aeneas-lean-<tag>` (built beside the old one by
+#      `setup-aeneas-lean.sh`, Mathlib fetched) and that directory's package
+#      set, which no other tree reads yet; `lake update` re-resolves all of
+#      it.  Porting `patches/aeneas.patch` to the new toolchain is then hand
+#      work, like the rest of the port;
 #   2. creates the worktree `_tmp/wt-bump-<short>` on branch `bump-<short>`
 #      off master (or --from), with `_tmp` linked to the shared one,
 #      `proof/.lake/packages` linked to the private copy and NO
@@ -59,9 +67,11 @@
 #               (its stamp), and `measure` saw the crates as they are.  Then:
 #               the fast-forward of master, seeding the shared Lake cache from
 #               the worktree, `drop-worktree.sh`, deleting `_tmp/bump-<short>`
-#               (the private packages with it), and
-#               `sync-shared-con-leche.sh` (which may refuse while other
-#               worktrees sit at the old pin; it says what to run later).
+#               (the private packages with it), after a toolchain move
+#               `setup-aeneas-lean.sh` in the main tree (repoints its
+#               packages link), and `sync-shared-con-leche.sh` (which may
+#               refuse while other worktrees sit at the old pin; it says what
+#               to run later).
 # abort --yes   throws a bump away: the worktree, its branch, `_tmp/bump-<short>`.
 set -euo pipefail
 
@@ -143,34 +153,68 @@ for p in json.load(sys.stdin).get("packages", []):
         print(p["rev"])')
   [ -n "$old" ] || die "no con-leche pin at $from"
 
-  # 1. the private packages, and the new commit resolved in them
-  local shared stage
-  shared=$(cd "$main/proof/.lake/packages" && pwd -P)
+  # 1. the new commit, resolved in a private copy of the con-leche checkout
+  #    (a fresh clone when no tree has one yet)
+  local shared="" stage
+  if [ -d "$main/proof/.lake/packages" ]; then
+    shared=$(cd "$main/proof/.lake/packages" && pwd -P)
+  fi
   stage="$TMP/bump-staging-$$"
   rm -rf "$stage"; mkdir -p "$stage"
-  say "private packages: reflink copy of $shared"
-  cp -a --reflink=auto "$shared" "$stage/packages"
-  local cl="$stage/packages/con-leche"
-  [ -z "$(git -C "$cl" status --porcelain --untracked-files=no)" ] \
-    || { rm -rf "$stage"; die "the shared con-leche checkout has local modifications"; }
-  git -C "$cl" fetch --quiet origin
+  if [ -n "$shared" ] && [ -d "$shared/con-leche" ]; then
+    cp -a --reflink=auto "$shared/con-leche" "$stage/con-leche"
+    [ -z "$(git -C "$stage/con-leche" status --porcelain --untracked-files=no)" ] \
+      || { rm -rf "$stage"; die "the shared con-leche checkout has local modifications"; }
+  else
+    local url
+    url=$(git -C "$main" show "$from:proof/lake-manifest.json" | python3 -c '
+import json, sys
+for p in json.load(sys.stdin).get("packages", []):
+    if p.get("name", "").strip("«»") == "con-leche":
+        print(p["url"])')
+    say "no shared con-leche checkout: cloning $url"
+    git clone --quiet "$url" "$stage/con-leche"
+  fi
+  git -C "$stage/con-leche" fetch --quiet origin
   local new
   if [ "$rev" = master ]; then rev=origin/master; fi
-  new=$(git -C "$cl" rev-parse --verify --quiet "$rev^{commit}") \
+  new=$(git -C "$stage/con-leche" rev-parse --verify --quiet "$rev^{commit}") \
     || { rm -rf "$stage"; die "con-leche has no commit $rev"; }
   [ "$new" != "$old" ] || { rm -rf "$stage"; die "con-leche is already pinned at ${new:0:8} on $from"; }
   short=${new:0:8}
   state="$TMP/bump-$short"
   wt="$TMP/wt-bump-$short"
   [ ! -e "$state" ] && [ ! -e "$wt" ] || { rm -rf "$stage"; die "bump $short exists already ($state, $wt)"; }
+
+  # A sync that also MOVES THE TOOLCHAIN (task #110): con-leche's
+  # `lean-toolchain` at the new commit is not `proof/`'s.  Then the old
+  # package set (its Mathlib, its Aeneas build) is of no use, and the bump
+  # gets the new toolchain's own `_tmp/aeneas-lean-<tag>` instead of a copy:
+  # `setup-aeneas-lean.sh` builds it beside the old one, which the other
+  # worktrees keep reading.  Nobody else reads the new directory until the
+  # bump lands, so its con-leche checkout is the bump's to move.
+  local oldtc newtc move=0
+  oldtc=$(git -C "$main" show "$from:proof/lean-toolchain" | tr -d '[:space:]')
+  newtc=$(git -C "$stage/con-leche" show "$new:lean-toolchain" | tr -d '[:space:]')
+  [ "$oldtc" = "$newtc" ] || move=1
+  if [ "$move" -eq 0 ]; then
+    [ -n "$shared" ] || { rm -rf "$stage"; die "no shared packages ($main/proof/.lake/packages): run scripts/setup-aeneas-lean.sh and lake build in the main tree's proof/ first"; }
+    say "private packages: reflink copy of $shared"
+    rm -rf "$stage/con-leche"
+    cp -a --reflink=auto "$shared" "$stage/packages"
+  else
+    say "toolchain move: $oldtc -> $newtc"
+  fi
   mv "$stage" "$state"
-  cl="$state/packages/con-leche"
   cat > "$state/state" <<EOF
 new=$new
 old=$old
 from=$from
 branch=bump-$short
 task='$task'
+move=$move
+oldtc=$oldtc
+newtc=$newtc
 EOF
   local branch="bump-$short"
 
@@ -179,7 +223,6 @@ EOF
   git -C "$main" worktree add --quiet "$wt" -b "$branch" "$from"
   ln -s "$TMP" "$wt/_tmp"
   mkdir -p "$wt/proof/.lake"
-  ln -s "$state/packages" "$wt/proof/.lake/packages"
   if [ "$overlay" -eq 1 ]; then
     # Testing only (task #108's dry runs): a --from commit older than these
     # scripts gets this tree's scripts/, committed on the throwaway branch.
@@ -190,8 +233,32 @@ EOF
     git -C "$wt" add -A scripts
     git -C "$wt" commit --quiet -m "Dry run: scripts/ from $(git -C "$here" rev-parse --short HEAD) (bump-con-leche.sh --overlay-scripts)"
   fi
+  if [ "$move" -eq 0 ]; then
+    ln -s "$state/packages" "$wt/proof/.lake/packages"
+  else
+    # the toolchain and the Aeneas path in the working tree (the toolchain is
+    # committed with step 6; the lakefile and manifest go with the pin), then
+    # the new package set, with the staged con-leche checkout in it
+    local tag=${newtc##*:}
+    echo "$newtc" > "$wt/proof/lean-toolchain"
+    sed -i -E 's#^path = "\.\./_tmp/aeneas-lean[^"]*"#path = "../_tmp/aeneas-lean-'"$tag"'"#' "$wt/proof/lakefile.toml"
+    say "scripts/setup-aeneas-lean.sh for $newtc (fetches Mathlib $tag)"
+    (cd "$wt" && git submodule update --init --quiet vendor/aeneas && scripts/setup-aeneas-lean.sh) \
+      > "$state/setup-aeneas-lean.log" 2>&1 \
+      || { tail -20 "$state/setup-aeneas-lean.log"; die "setup-aeneas-lean.sh failed ($state/setup-aeneas-lean.log)"; }
+    (cd "$TMP/aeneas-lean-$tag" && lake exe cache get) >> "$state/setup-aeneas-lean.log" 2>&1 || true
+    local pk="$TMP/aeneas-lean-$tag/.lake/packages"
+    if [ -d "$pk/con-leche" ]; then
+      rm -rf "$state/con-leche"
+      git -C "$pk/con-leche" fetch --quiet origin
+    else
+      mv "$state/con-leche" "$pk/con-leche"
+    fi
+    ln -s "$pk" "$state/packages"
+  fi
 
   # 3. the old pin: master's binary, coverage
+  local cl="$state/packages/con-leche"
   git -C "$cl" -c advice.detachedHead=false checkout --quiet --detach "$old"
   master_binary "$from"
   (cd "$wt" && python3 scripts/provenance.py coverage > "$state/coverage-old.txt" || true)
@@ -213,7 +280,11 @@ else:
     sys.exit("no con-leche [[require]] in " + p)
 open(p, "w", encoding="utf-8").write(s)
 PY
-  (cd "$wt/proof" && lake update con-leche) > "$state/lake-update.log" 2>&1 \
+  # (a toolchain move re-resolves everything: the manifest's Mathlib and
+  # friends follow the new Aeneas lakefile, not only con-leche)
+  local -a upd=(lake update con-leche)
+  [ "$move" -eq 0 ] || upd=(lake update)
+  (cd "$wt/proof" && "${upd[@]}") > "$state/lake-update.log" 2>&1 \
     || { tail -20 "$state/lake-update.log"; die "lake update con-leche failed ($state/lake-update.log)"; }
   [ "$(manifest_rev "$wt/proof/lake-manifest.json")" = "$new" ] \
     || die "lake update left the manifest at $(manifest_rev "$wt/proof/lake-manifest.json")"
@@ -238,7 +309,7 @@ PY
 
   # 6. commit (never the pin files), then the work order
   git -C "$wt" add -A
-  git -C "$wt" reset --quiet -- proof/lakefile.toml proof/lake-manifest.json
+  git -C "$wt" reset --quiet -- proof/lakefile.toml proof/lake-manifest.json vendor/aeneas
   if ! git -C "$wt" diff --cached --quiet; then
     git -C "$wt" commit --quiet -m "Task $task: provenance update --auto at con-leche ${short} (pin uncommitted); anchors follow their text
 
@@ -426,6 +497,15 @@ cmd_land() {
   (cd "$main" && scripts/drop-worktree.sh "$wt")
   say "deleting $state (the private packages, the logs)"
   rm -rf "$state"
+  if [ "${move:-0}" -eq 1 ]; then
+    # the main tree follows the toolchain move: its packages link goes to the
+    # new toolchain's Aeneas directory (the one the bump built and used)
+    say "the main tree follows the toolchain move ($oldtc -> $newtc)"
+    (cd "$main" && git submodule update --init --quiet vendor/aeneas && scripts/setup-aeneas-lean.sh --no-update) \
+      || echo "WARNING: scripts/setup-aeneas-lean.sh failed in $main; run it by hand"
+    echo "The old toolchain's _tmp/aeneas-lean-${oldtc##*:} stays for the worktrees still on it;"
+    echo "delete it (and sweep _tmp/lake-cache) once none is."
+  fi
   say "moving the shared con-leche checkout"
   if ! (cd "$main" && scripts/sync-shared-con-leche.sh); then
     echo "NOT MOVED: the shared con-leche checkout stays at ${old:0:8} for now."

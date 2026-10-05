@@ -16,12 +16,15 @@ name = "con-leche"
 git = "https://github.com/leanprover/con-leche"
 rev = "d0bbad690c7952e86880671417fdf780586fec76"
 
-# The Aeneas Lean library, patched onto v4.33.0 by
-# `scripts/setup-aeneas-lean.sh` (DESIGN.md, task #2).  The path is outside the
-# git tree on purpose: the copy is a build artifact, so it lives in `_tmp/`.
+# The Aeneas Lean library, patched onto this project's toolchain by
+# `scripts/setup-aeneas-lean.sh` (DESIGN.md, tasks #2 and #110).  The path is
+# outside the git tree on purpose: the copy is a build artifact, so it lives in
+# `_tmp/`, in a directory named by `lean-toolchain`'s version (the script
+# checks that this line names it), so that a toolchain move builds beside the
+# old one.
 [[require]]
 name = "aeneas"
-path = "../_tmp/aeneas-lean"
+path = "../_tmp/aeneas-lean-v4.33.0"
 
 # Task #22's finding: Aeneas's `step` tactic and its `@[step]` lemmas unify
 # with `⦃ ⦄` goals only under the two `backward.*` options task #2's patch

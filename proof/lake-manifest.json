@@ -6,7 +6,7 @@
    "name": "aeneas",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../_tmp/aeneas-lean",
+   "dir": "../_tmp/aeneas-lean-v4.33.0",
    "configFile": "lakefile.lean"},
   {"url": "https://github.com/leanprover/con-leche",
    "type": "git",
