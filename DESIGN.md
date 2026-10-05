@@ -67247,3 +67247,110 @@ modules built.  Pitfall met on the way: `flake.nix` sets `LAKE_CACHE_DIR` from
 `$PWD`, so `cd proof && nix develop <root> -c lake …` points it at
 `proof/_tmp/lake-cache` — a private, wrong cache (found and deleted); run `nix
 develop` from the checkout root and `cd proof` inside it.
+
+### Task #114 — perf table refresh on v4.35.0-rc3 (2026-10-05, Opus)
+
+The first §9 refresh since task #107, after `_tmp/` was wiped and rebuilt
+and the toolchain moved v4.33.0 → v4.35.0-rc3 (task #110).  On master
+directly (scripts and documentation only).  **Result: the table was NOT
+refreshed** — nanoda aborted on the v4.35.0-rc3 Mathlib export, and
+`scripts/perf-table.py` refuses to render a matrix with a failed run, so
+OVERVIEW §9 still shows #107's snapshot (v4.33.0 exports).  Nothing was
+hand-edited.
+
+**The inputs are scripted now** (maintainer: "why isn't that scripted?").
+Commit `37ca84fe`:
+
+* `scripts/build-nanoda.sh` (new) is #97-P6-3's hand build: clone
+  `ammkrn/nanoda_lib`, detach at `4c544ed`, append an empty `[workspace]`
+  table to `Cargo.toml`, `cargo build --release`, at bench-baselines'
+  `$NANODA` (`_tmp/t97/nanoda-build/target/release/nanoda_bin`).  It skips
+  when that binary exists and its tree is at the commit.  It clones straight
+  into the build directory; #97-P6-3's untouched research clone
+  (`_tmp/t97/nanoda_lib`) is not recreated.  The binary it built is
+  bit-identical to #107's (md5 `e1a717d9366f…`).
+* `scripts/corpus.sh`: `--exports=init,core,mathlib` selects step 1's
+  exports; each export gets a `<name>.toolchain` stamp (con-leche's
+  `lean-toolchain`), and an export whose stamp is missing or names another
+  toolchain is deleted and re-exported; `lean4export` is rebuilt when its
+  `lean-toolchain` is not the project's (it fetches upstream and takes the
+  newest commit on `origin/HEAD` with that toolchain file — before, it only
+  searched back from HEAD and only when the binary was missing, so a
+  toolchain move kept the old exporter); a failed export now exits non-zero.
+  The header no longer names v4.33.0.
+* `scripts/bench-baselines.sh --build` runs `corpus.sh --steps=1
+  --exports=<the matrix's>` into `$CORPUS` and, when nanoda is a row,
+  `build-nanoda.sh`.  So after a wiped `_tmp/` or a toolchain move the
+  refresh is still `scripts/bench-baselines.sh --build --render --task
+  '#NNN'`; the header says so.
+
+**The run.**  `scripts/bench-baselines.sh --build --render --task '#114'`,
+once, from the main tree at `37ca84fe` (con-ron's crates are `dd8d8218`'s).
+In order it: built con-ron; cloned con-leche at the pin `67f04630` into
+`_tmp/perf/con-leche` and built it (restored from the shared Lake cache);
+re-exported `Init` (the #110 file had no stamp; 345 690 186 bytes, the same
+size as before, 11 s, 113.2 G instructions, 0.99 GB peak) and exported
+Mathlib (6 191 053 777 bytes, 109 916 640 lines, 4 min 20 s, 2 029.9 G
+instructions, 13.8 GB peak, under corpus.sh's 22 GB cap); built nanoda; ran
+the matrix (2 601 s); and `perf-table.py` refused:
+
+```
+perf-table.py: refusing to render:
+  nanoda-mathlib-r1: exit 134
+```
+
+**nanoda on Mathlib.**  `memory allocation of 16505892880 bytes failed`,
+exit 134 (SIGABRT) after 790 s and 2 306.3 G instructions, peak RSS
+27 670 724 KB — at the 27 GiB (28 311 552 KB) cap.  On #107's v4.33.0 export
+the same binary peaked at 7.1 GB.  nanoda reads the v4.35.0-rc3 `Init`
+export cleanly (59 349 declarations, no errors).  Per the instructions
+nanoda was not patched and the cap was not raised; why the v4.35.0-rc3
+export drives nanoda to a 16.5 GB single allocation is not investigated
+here.  Options for the maintainer: investigate nanoda's blow-up; drop
+nanoda's Mathlib cell; or teach `perf-table.py` to render a failed run
+(e.g. "aborted at the cap") instead of refusing.
+
+**Every run** (from the raw files; exit, instructions:u, wall, peak RSS
+KB, accepted declarations, one-minute load at the start).  Identities
+(`identity.json`): con-ron `37ca84fe35a01e4fa64b233f7b0751de7cec4d67` (md5
+`ee87bd993221…`), con-leche `67f04630d88718e81aa4d07ab64501f68f105398`
+(md5 `c7bf6d1c3e4f…`), nanoda `4c544ed4099c8227f07d5de77ad1e69fb0740a27`
+(dirty) (md5 `e1a717d9366f…`); exports `lean4export` 3.1.0, format 3.1.0,
+Lean 4.35.0-rc3 (`470d5ce1`); 2026-10-05; 96 hardware threads.
+
+| export | checker | run | exit | instructions:u | wall | peak RSS (KB) | accepted | load |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| init | con-ron | r1 | 0 | 211499455945 | 21.84 s | 556388 | 57919 | 9.73 |
+| init | con-ron | r2 | 0 | 211499557119 | 21.99 s | 637844 | 57919 | 9.37 |
+| init | con-ron | r3 | 0 | 211499892519 | 22.02 s | 637456 | 57919 | 9.66 |
+| init | con-ron-j8 | r1 | 0 | 212882553544 | 5.42 s | 822940 | 57919 | 9.60 |
+| init | con-ron-j8 | r2 | 0 | 212986017704 | 5.49 s | 830676 | 57919 | 9.30 |
+| init | con-ron-j8 | r3 | 0 | 212972712294 | 5.56 s | 881968 | 57919 | 9.73 |
+| init | con-leche | r1 | 0 | 488942675175 | 48.19 s | 416700 | 57919 | 9.72 |
+| init | con-leche | r2 | 0 | 488945443239 | 48.28 s | 416524 | 57919 | 9.84 |
+| init | con-leche | r3 | 0 | 488928005502 | 48.26 s | 416464 | 57919 | 10.23 |
+| init | nanoda | r1 | 0 | 225758992045 | 23.36 s | 361644 | 59349 | 9.41 |
+| init | nanoda | r2 | 0 | 225758993311 | 23.94 s | 360876 | 59349 | 9.55 |
+| init | nanoda | r3 | 0 | 225758993041 | 23.64 s | 360952 | 59349 | 9.53 |
+| mathlib | con-ron | r1 | 0 | 3847945641118 | 470.75 s | 7260856 | 703103 | 9.52 |
+| mathlib | con-ron-j8 | r1 | 0 | 3861261916597 | 128.39 s | 7549124 | 703103 | 9.54 |
+| mathlib | con-leche | r1 | 0 | 8852993707913 | 913.84 s | 7314968 | 703103 | 14.35 |
+| mathlib | nanoda | r1 | 134 | 2306258975968 | 790.25 s | 27670724 | - | 15.81 |
+
+Against #107's medians (**not comparable**: the exports are v4.35.0-rc3's
+and con-leche moved pin `a31e8297` → `67f04630`; `Init` has 57 919
+declarations now against 57 977, Mathlib 703 103 against 691 128):
+`Init` con-ron ×1 +3.6 %, ×8 +3.5 %, con-leche +7.5 %, nanoda −2.1 %;
+Mathlib con-ron ×1 +3.6 %, ×8 +3.5 %, con-leche +9.9 %, nanoda failed.
+con-ron executes 43.3 % of con-leche's instructions on `Init` and 43.5 % on
+Mathlib (#107: 44.9 % and 46.1 %).  The machine was busier than at #107: the
+one-minute load was 9.3–15.8 at the starts of the runs (#107: 0.9–5.6), so
+the walls are less reliable than the instruction counts.  No con-ron or
+con-leche run hit a cap or a timeout; the 3× budget holds (largest con-ron
+Mathlib peak 7.55 GB against con-leche's 7.31 GB).
+
+**Not deleted**: `_tmp/perf` (447 MB, mostly the con-leche clone) stays,
+because the raw files are what `perf-table.py` renders from and the table is
+still owed; delete it once the nanoda question is settled.  `_tmp/corpus/*`
+(`mathlib.ndjson` 5.8 GiB, `init.ndjson` 330 MiB) and `_tmp/t97/nanoda-build`
+are kept for reuse.
