@@ -947,11 +947,11 @@ theorem eraseInstalled_getElem?_eq' (n : NIdx) : ∀ (cs : List IConstantInfo)
     intro idx
     simp only [eraseInstalled, ih, Std.HashMap.getElem?_erase]
     by_cases h1 : ∃ c' ∈ cs, c'.name = n
-    · rw [if_pos h1, if_pos ⟨_, List.mem_cons_of_mem _ h1.choose_spec.1, h1.choose_spec.2⟩]
-    · rw [if_neg h1]
+    · rw [ite_eq_left h1, ite_eq_left ⟨_, List.mem_cons_of_mem _ h1.choose_spec.1, h1.choose_spec.2⟩]
+    · rw [ite_eq_right h1]
       by_cases h2 : c.name = n
-      · rw [if_pos (beq_iff_eq.mpr h2), if_pos ⟨c, by simp, h2⟩]
-      · rw [if_neg (by simpa using h2), if_neg]
+      · rw [ite_eq_left (beq_iff_eq.mpr h2), ite_eq_left ⟨c, by simp, h2⟩]
+      · rw [ite_eq_right (by simpa using h2), ite_eq_right]
         rintro ⟨c', hc', hn⟩
         rcases List.mem_cons.mp hc' with rfl | hc'
         · exact h2 hn
@@ -976,13 +976,13 @@ private theorem erase_installed_aux (m : Nat) :
     have hl := alloc.vec.Vec.len_val rf.env.consts
     by_cases hge : i ≥ alloc.vec.Vec.len rf.env.consts
     · have hle : rf.env.consts.val.length ≤ i.val := by scalar_tac
-      rw [if_pos hge] at hrun
+      rw [ite_eq_left hge] at hrun
       obtain rfl := (Result.ok_injective hrun).symm
       refine ⟨rfl, rfl, hfinv, fun k => ?_⟩
       rw [List.drop_eq_nil_of_le hle]
       simp
     · have hlt : i.val < rf.env.consts.val.length := by scalar_tac
-      rw [if_neg hge] at hrun
+      rw [ite_eq_right hge] at hrun
       obtain ⟨ci, hci, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hci' := vec_index_some hci
       rw [List.getElem?_eq_getElem hlt] at hci'
@@ -1013,12 +1013,12 @@ private theorem erase_installed_aux (m : Nat) :
       rw [hupd, Function.update_apply, hi2v, List.drop_eq_getElem_cons hlt]
       by_cases hr : ∃ c ∈ rf.env.consts.val.drop (i.val + 1),
           (absIConstantInfo c).name = absNIdx k
-      · rw [if_pos hr, if_pos (by
+      · rw [ite_eq_left hr, ite_eq_left (by
           obtain ⟨c, hc, h⟩ := hr; exact ⟨c, List.mem_cons_of_mem _ hc, h⟩)]
-      · rw [if_neg hr]
+      · rw [ite_eq_right hr]
         by_cases hk : k = nn
-        · rw [if_pos hk, if_pos ⟨_, List.mem_cons_self, by rw [hk]; exact hname.symm⟩]
-        · rw [if_neg hk, if_neg]
+        · rw [ite_eq_left hk, ite_eq_left ⟨_, List.mem_cons_self, by rw [hk]; exact hname.symm⟩]
+        · rw [ite_eq_right hk, ite_eq_right]
           rintro ⟨c, hc, h⟩
           rcases List.mem_cons.mp hc with rfl | hc
           · exact hk (absNIdx_inj (h.symm.trans hname.symm))
@@ -1061,8 +1061,8 @@ theorem erase_installed_refines {rf lf} {i : Std.Usize} {o}
       · rintro ⟨c, ⟨a, ha, rfl⟩, h⟩; exact ⟨a, ha, h⟩
       · rintro ⟨a, ha, h⟩; exact ⟨_, ⟨a, ha, rfl⟩, h⟩
     by_cases hr : ∃ c ∈ rf.env.consts.val.drop i.val, (absIConstantInfo c).name = absNIdx k
-    · rw [if_pos hr, if_pos (hmem.mpr hr)]; rfl
-    · rw [if_neg hr, if_neg (fun h => hr (hmem.mp h))]
+    · rw [ite_eq_left hr, ite_eq_left (hmem.mpr hr)]; rfl
+    · rw [ite_eq_right hr, ite_eq_right (fun h => hr (hmem.mp h))]
       exact hfe.idx k
   · show lf.visibleBelow = absU o.visible_below
     rw [hv]; exact hfe.visibleBelow
@@ -1261,16 +1261,16 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
     rw [hupd, Function.update_apply]
     by_cases hk : k = nn
     · subst hk
-      rw [if_pos rfl, ← hnn, Std.HashMap.getElem?_insert_self]
-      simp only [Option.bind_some, hget, hi2, if_pos hil, if_true, Option.map_some]
+      rw [ite_eq_left rfl, ← hnn, Std.HashMap.getElem?_insert_self]
+      simp only [Option.bind_some, hget, hi2, ite_eq_left hil, ite_true, Option.map_some]
       congr 2
-    · rw [if_neg hk, Std.HashMap.getElem?_insert, ← hnn,
-        if_neg (by intro h; exact hk (absNIdx_inj (by simpa using h)).symm), ← hfe.idx k]
+    · rw [ite_eq_right hk, Std.HashMap.getElem?_insert, ← hnn,
+        ite_eq_right (by intro h; exact hk (absNIdx_inj (by simpa using h)).symm), ← hfe.idx k]
       cases hp : ConRon.Refine.HashMap2.toFun rf.idx k with
       | none => rfl
       | some p =>
         simp only [Option.bind_some]
-        rw [hget, if_neg]
+        rw [hget, ite_eq_right]
         rcases hfree k p hp with h | h <;> omega
   · exact hfe.visibleBelow
   · -- the stored constants stay canonical: the old ones by `hfe`, the
@@ -1290,10 +1290,10 @@ private theorem index_promoted_step {rf lf : _} {start j i : Std.Usize}
       subst hk
       cases hp
       refine ⟨ci, ?_, hnn.symm⟩
-      rw [hget, hi2, if_pos rfl, if_pos hil]
+      rw [hget, hi2, ite_eq_left rfl, ite_eq_left hil]
     · obtain ⟨c'', hc'', hcn⟩ := hfe.keys k p hp
       refine ⟨c'', ?_, hcn⟩
-      rw [hget, if_neg (by rcases hfree k p hp with h | h <;> omega)]
+      rw [hget, ite_eq_right (by rcases hfree k p hp with h | h <;> omega)]
       exact hc''
   · show rf.visible_below.val ≤ rf'.env.consts.val.length
     rw [hlen]; exact hfinv.visBound
@@ -1333,7 +1333,7 @@ private theorem index_promoted_aux (d : Nat) :
       hfree
     have hje : j.val = start.val := by omega
     show LS _ _ (packT _ _) _ _
-    rw [arena.promote.index_promoted, if_pos (by scalar_tac), hje, indexPromotedTwin_zero]
+    rw [arena.promote.index_promoted, ite_eq_left (by scalar_tac), hje, indexPromotedTwin_zero]
     exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
   | succ d ih =>
     intro P t st lst rm lm rf lf fuel start j c hd hle hj hP ht hsc hrel hinv hm hfe hfinv
@@ -1342,7 +1342,7 @@ private theorem index_promoted_aux (d : Nat) :
     have hlen : lf.env.consts.length = rf.env.consts.val.length := by
       rw [hfe.env]; simp [absIEnv]
     show LS _ _ (packT _ _) _ _
-    rw [arena.promote.index_promoted, if_neg (by scalar_tac),
+    rw [arena.promote.index_promoted, ite_eq_right (by scalar_tac),
       indexPromotedTwin_succ _ _ _ _ _ _ _ _ _ hlen hsj hj]
     refine LS.packT_bind (LS.bind_eq fun i hi => ?_)
     obtain ⟨-, hi1⟩ := ConRon.Refine.Nat.usub_val hi
@@ -1451,11 +1451,11 @@ theorem promote_new_ls_keyed {P t st lst rm lm rf lf} {fuel k : Std.U64}
   show LS _ _ (packT _ _) _ _
   rw [arena.promote.promote_new]
   by_cases hk0 : k = 0#u64
-  · rw [if_pos hk0]
+  · rw [ite_eq_left hk0]
     have h0 : absU k = 0 := by rw [hk0]; rfl
     rw [promoteNew, h0]
     exact LS.packT_ok_ok (LS.pure ⟨⟨hm, hfe, hfinv⟩, ht⟩ hrel hinv)
-  · rw [if_neg hk0]
+  · rw [ite_eq_right hk0]
     have hn := alloc.vec.Vec.len_val rf.env.consts
     refine LS.packT_bind (LS.bind_eq fun kk hkk => ?_)
     have hkkv : kk.val = k.val := by

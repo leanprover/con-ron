@@ -52,6 +52,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -153,7 +156,7 @@ slot at `fuel + 1`.  **The mode selects the grade, once per knot level**
 (task #97c's smaller deviation 4: the selector is `mode.ioGate`,
 `Cached/CoreC.lean:1971`'s spelling, and the two modes agree at `.verified`,
 which is where the bridge is stated).  Both arms are written out, so the
-equation is `rfl` and the gated arm below is one `if_pos`. -/
+equation is `rfl` and the gated arm below is one `ite_eq_left`. -/
 theorem coreKnot_inferIO_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
     (coreKnot mode fe id (fuel + 1)).inferIO d i =
@@ -822,7 +825,7 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r⌝⦄ := by
-  rw [coreKnot_inferIO_succ, if_pos hg]
+  rw [coreKnot_inferIO_succ, ite_eq_left hg]
   have hb := hbody
   simp only [BodySpec] at hb
   mvcgen [hb]
@@ -939,8 +942,8 @@ theorem tag_view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeVi
     ⦃fun s => ⌜s = s₀⌝⦄ (if i.tag == t then (view i >>= f) else e)
       ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
   by_cases ht : (i.tag == t) = true
-  · rw [if_pos ht]; exact view_bind_triple hv h
-  · rw [if_neg ht, ← he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)]
+  · rw [ite_eq_left ht]; exact view_bind_triple hv h
+  · rw [ite_eq_right ht, ← he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)]
     exact h
 
 /-- con-leche: none — `tag_view_bind_triple` when the tag test's `else`
@@ -955,8 +958,8 @@ theorem tag_view_bind_triple_else {α : Type} {s₀ : AState} {i : EIdx}
     ⦃fun s => ⌜s = s₀⌝⦄ (if i.tag == t then (view i >>= f) else e)
       ⦃⇓? r s' => ⌜Q r s'⌝⦄ := by
   by_cases ht : (i.tag == t) = true
-  · rw [if_pos ht]; exact view_bind_triple hv h
-  · rw [if_neg ht]
+  · rw [ite_eq_left ht]; exact view_bind_triple hv h
+  · rw [ite_eq_right ht]
     exact he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)
 
 /-- con-leche: none — **sequencing at a pinned state**: a triple for `x`

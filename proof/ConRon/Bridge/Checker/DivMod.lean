@@ -154,12 +154,12 @@ theorem substConstAll_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
         simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
         refine ⟨Frontend.IStepS.refl hst, ?_⟩
-        simp only [Expr.substConstAll, hc, and_self, if_true]
+        simp only [Expr.substConstAll, hc, and_self, ite_true]
         exact hx
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
         simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
         refine ⟨Frontend.IStepS.refl hst, ?_⟩
-        simp only [Expr.substConstAll, if_neg hc]
+        simp only [Expr.substConstAll, ite_eq_right hc]
         exact he
     case app f a =>
       obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hv he
@@ -255,7 +255,7 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w0 with ⟨y0, a0⟩ | ⟨z0, v0⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a0
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_pos (b0.mp y0)]
+    rw [ConLeche.divModDeclPin, ite_eq_left (b0.mp y0)]
     exact hps.divPin
   have nb0 : ¬ (nm = ConLeche.natDivName) := fun h => z0 (b0.mpr h)
   obtain ⟨h1, u1, g1, w1⟩ := AM.bind_ok v0
@@ -264,7 +264,7 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w1 with ⟨y1, a1⟩ | ⟨z1, v1⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a1
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_neg nb0, if_pos (b1.mp y1)]
+    rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_left (b1.mp y1)]
     exact hps.gcdPin
   have nb1 : ¬ (nm = ConLeche.natGcdName) := fun h => z1 (b1.mpr h)
   obtain ⟨h2, u2, g2, w2⟩ := AM.bind_ok v1
@@ -273,7 +273,7 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w2 with ⟨y2, a2⟩ | ⟨z2, v2⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a2
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_pos (b2.mp y2)]
+    rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_right nb1, ite_eq_left (b2.mp y2)]
     exact hps.landPin
   have nb2 : ¬ (nm = ConLeche.natLandName) := fun h => z2 (b2.mpr h)
   obtain ⟨h3, u3, g3, w3⟩ := AM.bind_ok v2
@@ -282,7 +282,7 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w3 with ⟨y3, a3⟩ | ⟨z3, v3⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a3
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_pos (b3.mp y3)]
+    rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_left (b3.mp y3)]
     exact hps.lorPin
   have nb3 : ¬ (nm = ConLeche.natLorName) := fun h => z3 (b3.mpr h)
   obtain ⟨h4, u4, g4, w4⟩ := AM.bind_ok v3
@@ -291,7 +291,7 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w4 with ⟨y4, a4⟩ | ⟨z4, v4⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a4
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_pos (b4.mp y4)]
+    rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_left (b4.mp y4)]
     exact hps.xorPin
   have nb4 : ¬ (nm = ConLeche.natXorName) := fun h => z4 (b4.mpr h)
   obtain ⟨h5, u5, g5, w5⟩ := AM.bind_ok v4
@@ -300,7 +300,7 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w5 with ⟨y5, a5⟩ | ⟨z5, v5⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a5
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_pos (b5.mp y5)]
+    rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_left (b5.mp y5)]
     exact hps.shiftLeftPin
   have nb5 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z5 (b5.mpr h)
   obtain ⟨h6, u6, g6, w6⟩ := AM.bind_ok v5
@@ -309,12 +309,12 @@ theorem divModDeclPin_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w6 with ⟨y6, a6⟩ | ⟨z6, v6⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a6
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_pos (b6.mp y6)]
+    rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_left (b6.mp y6)]
     exact hps.shiftRightPin
   have nb6 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z6 (b6.mpr h)
   obtain ⟨rfl, rfl⟩ := AM.pure_ok v6
   refine ⟨rfl, ?_⟩
-  rw [ConLeche.divModDeclPin, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6]
+  rw [ConLeche.divModDeclPin, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6]
   exact hps.modPin
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:134-142 divModCertProofs — one
@@ -332,7 +332,7 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w0 with ⟨y0, a0⟩ | ⟨z0, v0⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a0
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_pos (b0.mp y0)]
+    rw [ConLeche.divModCertProofs, ite_eq_left (b0.mp y0)]
     exact hps.divProofs
   have nb0 : ¬ (nm = ConLeche.natDivName) := fun h => z0 (b0.mpr h)
   obtain ⟨h1, u1, g1, w1⟩ := AM.bind_ok v0
@@ -341,7 +341,7 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w1 with ⟨y1, a1⟩ | ⟨z1, v1⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a1
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_neg nb0, if_pos (b1.mp y1)]
+    rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_left (b1.mp y1)]
     exact hps.gcdProofs
   have nb1 : ¬ (nm = ConLeche.natGcdName) := fun h => z1 (b1.mpr h)
   obtain ⟨h2, u2, g2, w2⟩ := AM.bind_ok v1
@@ -350,7 +350,7 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w2 with ⟨y2, a2⟩ | ⟨z2, v2⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a2
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_pos (b2.mp y2)]
+    rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_left (b2.mp y2)]
     exact hps.landProofs
   have nb2 : ¬ (nm = ConLeche.natLandName) := fun h => z2 (b2.mpr h)
   obtain ⟨h3, u3, g3, w3⟩ := AM.bind_ok v2
@@ -359,7 +359,7 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w3 with ⟨y3, a3⟩ | ⟨z3, v3⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a3
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_pos (b3.mp y3)]
+    rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_left (b3.mp y3)]
     exact hps.lorProofs
   have nb3 : ¬ (nm = ConLeche.natLorName) := fun h => z3 (b3.mpr h)
   obtain ⟨h4, u4, g4, w4⟩ := AM.bind_ok v3
@@ -368,7 +368,7 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w4 with ⟨y4, a4⟩ | ⟨z4, v4⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a4
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_pos (b4.mp y4)]
+    rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_left (b4.mp y4)]
     exact hps.xorProofs
   have nb4 : ¬ (nm = ConLeche.natXorName) := fun h => z4 (b4.mpr h)
   obtain ⟨h5, u5, g5, w5⟩ := AM.bind_ok v4
@@ -377,7 +377,7 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w5 with ⟨y5, a5⟩ | ⟨z5, v5⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a5
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_pos (b5.mp y5)]
+    rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_left (b5.mp y5)]
     exact hps.shiftLeftProofs
   have nb5 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z5 (b5.mpr h)
   obtain ⟨h6, u6, g6, w6⟩ := AM.bind_ok v5
@@ -386,12 +386,12 @@ theorem divModCertProofs_run {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx}
   rcases AM.ite_ok w6 with ⟨y6, a6⟩ | ⟨z6, v6⟩
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok a6
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_pos (b6.mp y6)]
+    rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_left (b6.mp y6)]
     exact hps.shiftRightProofs
   have nb6 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z6 (b6.mpr h)
   obtain ⟨rfl, rfl⟩ := AM.pure_ok v6
   refine ⟨rfl, ?_⟩
-  rw [ConLeche.divModCertProofs, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6]
+  rw [ConLeche.divModCertProofs, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6]
   exact hps.modProofs
 
 /-! ## The certificate statements, interned -/
@@ -904,10 +904,10 @@ theorem certRecRhs_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name} {g : EIdx
     obtain ⟨rfl, d3⟩ := pinAt_run (x := ConLeche.natSuccName) hp rfl g3
     obtain ⟨hs4, e4⟩ := natAp1_run hs2.ok hp d3 e2 w3
     refine ⟨hs1.trans (hs2.trans hs4), ?_⟩
-    rw [e4, recRhsE, if_pos (hb.mp y0)]
+    rw [e4, recRhsE, ite_eq_left (hb.mp y0)]
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
     refine ⟨hs1.trans hs2, ?_⟩
-    rw [e2, recRhsE, if_neg (fun h => z0 (hb.mpr h))]
+    rw [e2, recRhsE, ite_eq_right (fun h => z0 (hb.mpr h))]
 
 theorem certDivMod_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
     {out : List (List EIdx × EIdx)} {s s' : AState}
@@ -925,8 +925,8 @@ theorem certDivMod_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
       some (baseRhsE nm) := by
     have hb := beq_handle_iff hs1.ok.wf hn hcx.divN
     by_cases hc : (c == cx.divN) = true
-    · rw [if_pos hc, baseRhsE, if_pos (hb.mp hc)]; exact hcx.z
-    · rw [if_neg hc, baseRhsE, if_neg (fun h => hc (hb.mpr h))]; exact hcx.x
+    · rw [ite_eq_left hc, baseRhsE, ite_eq_left (hb.mp hc)]; exact hcx.z
+    · rw [ite_eq_right hc, baseRhsE, ite_eq_right (fun h => hc (hb.mpr h))]; exact hcx.x
   obtain ⟨v2, s2, g2, w2⟩ := AM.bind_ok w1
   obtain ⟨hs2, e2⟩ := certGuard_run hs1.ok hp hcx hcx.y hcx.x hcx.bT g2
   dmc_move hs2
@@ -1038,45 +1038,45 @@ theorem divModCertStmtsAt_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
   rcases AM.ite_ok h with ⟨y0, k0⟩ | ⟨z0, k0⟩
   · obtain ⟨hs, e⟩ := certGcd_run hst hp hcx hn k0
     refine ⟨hs, ?_⟩
-    simp only [ConLeche.divModCertStmts, if_pos (b0.mp y0)]
+    simp only [ConLeche.divModCertStmts, ite_eq_left (b0.mp y0)]
     exact e
   have n0 : ¬ nm = ConLeche.natGcdName := fun h => z0 (b0.mpr h)
   rcases AM.ite_ok k0 with ⟨y1, k1⟩ | ⟨z1, k1⟩
   · obtain ⟨hs, e⟩ := certShiftLeft_run hst hp hcx hn k1
     refine ⟨hs, ?_⟩
-    simp only [ConLeche.divModCertStmts, if_neg n0, if_pos (b1.mp y1)]
+    simp only [ConLeche.divModCertStmts, ite_eq_right n0, ite_eq_left (b1.mp y1)]
     exact e
   have n1 : ¬ nm = ConLeche.natShiftLeftName := fun h => z1 (b1.mpr h)
   rcases AM.ite_ok k1 with ⟨y2, k2⟩ | ⟨z2, k2⟩
   · obtain ⟨hs, e⟩ := certShiftRight_run hst hp hcx hn k2
     refine ⟨hs, ?_⟩
-    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_pos (b2.mp y2)]
+    simp only [ConLeche.divModCertStmts, ite_eq_right n0, ite_eq_right n1, ite_eq_left (b2.mp y2)]
     exact e
   have n2 : ¬ nm = ConLeche.natShiftRightName := fun h => z2 (b2.mpr h)
   rcases AM.ite_ok k2 with ⟨y3, k3⟩ | ⟨z3, k3⟩
   · obtain ⟨hs, e⟩ := certLand_run hst hp hcx hn k3
     refine ⟨hs, ?_⟩
-    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_pos (b3.mp y3)]
+    simp only [ConLeche.divModCertStmts, ite_eq_right n0, ite_eq_right n1, ite_eq_right n2, ite_eq_left (b3.mp y3)]
     exact e
   have n3 : ¬ nm = ConLeche.natLandName := fun h => z3 (b3.mpr h)
   rcases AM.ite_ok k3 with ⟨y4, k4⟩ | ⟨z4, k4⟩
   · obtain ⟨hs, e⟩ := certLor_run hst hp hcx hn k4
     refine ⟨hs, ?_⟩
-    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_neg n3,
-      if_pos (b4.mp y4)]
+    simp only [ConLeche.divModCertStmts, ite_eq_right n0, ite_eq_right n1, ite_eq_right n2, ite_eq_right n3,
+      ite_eq_left (b4.mp y4)]
     exact e
   have n4 : ¬ nm = ConLeche.natLorName := fun h => z4 (b4.mpr h)
   rcases AM.ite_ok k4 with ⟨y5, k5⟩ | ⟨z5, k5⟩
   · obtain ⟨hs, e⟩ := certXor_run hst hp hcx hn k5
     refine ⟨hs, ?_⟩
-    simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_neg n3,
-      if_neg n4, if_pos (b5.mp y5)]
+    simp only [ConLeche.divModCertStmts, ite_eq_right n0, ite_eq_right n1, ite_eq_right n2, ite_eq_right n3,
+      ite_eq_right n4, ite_eq_left (b5.mp y5)]
     exact e
   have n5 : ¬ nm = ConLeche.natXorName := fun h => z5 (b5.mpr h)
   obtain ⟨hs, e⟩ := certDivMod_run hst hp hcx hn k5
   refine ⟨hs, ?_⟩
-  simp only [ConLeche.divModCertStmts, if_neg n0, if_neg n1, if_neg n2, if_neg n3,
-    if_neg n4, if_neg n5]
+  simp only [ConLeche.divModCertStmts, ite_eq_right n0, ite_eq_right n1, ite_eq_right n2, ite_eq_right n3,
+    ite_eq_right n4, ite_eq_right n5]
   exact e
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:155-222 divModCertStmts — **the
@@ -1143,11 +1143,11 @@ theorem RunsC.guard {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
   cases D with
   | false =>
     subst hc
-    simp only [Bool.not_false, if_true, Bool.false_and]
+    simp only [Bool.not_false, ite_true, Bool.false_and]
     exact RunsC.ret hck
   | true =>
     subst hc
-    simp only [Bool.not_true, Bool.false_eq_true, if_false, Bool.true_and]
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false, Bool.true_and]
     exact hY rfl
 
 theorem RunsC.guardT {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
@@ -1157,10 +1157,10 @@ theorem RunsC.guardT {μ : CheckMode} {env : Env} {fe : IFEnv} {c D B : Bool}
   subst hc
   cases c with
   | false =>
-    simp only [Bool.false_eq_true, if_false, Bool.false_and]
+    simp only [Bool.false_eq_true, ite_false, Bool.false_and]
     exact RunsC.ret hck
   | true =>
-    simp only [if_true, Bool.true_and]
+    simp only [ite_true, Bool.true_and]
     exact hY rfl
 
 /-- con-leche: none — a store-preserving read is a `CoreStep`. -/
@@ -1487,7 +1487,7 @@ theorem checkDivModCerts_cons_pure {μ : CheckMode} {F : Nat} {env : Env}
       = .ok true) :
     ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v ((hyps, eqE) :: srest)
       (proof :: prest) = .ok true := by
-  simp only [ConLeche.checkDivModCerts, hg, if_true, ConLeche.fueledOps, h1, h2, h3,
+  simp only [ConLeche.checkDivModCerts, hg, ite_true, ConLeche.fueledOps, h1, h2, h3,
     bind, Except.bind]
   exact h4
 
@@ -1636,7 +1636,7 @@ theorem checkDivModPinAt_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h3 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v
       (ConLeche.divModCertStmts nm) (ConLeche.divModCertProofs psP nm) = .ok true) :
     ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok true := by
-  simp only [ConLeche.checkDivModPinAt, ConLeche.fueledOps, h1, h2, if_true, bind,
+  simp only [ConLeche.checkDivModPinAt, ConLeche.fueledOps, h1, h2, ite_true, bind,
     Except.bind]
   exact h3
 
@@ -1808,7 +1808,7 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
         ConLeche.checkDivModPinLoop (ConLeche.fueledOps μ F) env nm v (q :: restP) triedP
           = .ok () := by
       intro F hg hor
-      simp only [ConLeche.checkDivModPinLoop, hg, if_true, fueledOps_orElse]
+      simp only [ConLeche.checkDivModPinLoop, hg, ite_true, fueledOps_orElse]
       split
       · rfl
       · rcases hor with h | h
@@ -1834,7 +1834,7 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
             (PinsDenote.mono hxt _ _ hrestP) (denoteN_ext hn hxt) (denote_ext hv hxt) hrt
         refine ⟨hck', hxt.trans hx', by rw [hp', hpt], F, ?_⟩
         rw [Bool.not_eq_true] at hg
-        simp only [ConLeche.checkDivModPinLoop, hg, Bool.false_eq_true, if_false]
+        simp only [ConLeche.checkDivModPinLoop, hg, Bool.false_eq_true, ite_false]
         exact hF
     have hp02 : s2.pins = s.pins := by rw [hp2, hp1]
     split at r2
@@ -1917,7 +1917,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
           pins pinsP [] [] s1 s' hck1 (PinsDenote.mono hx1 _ _ hpins) (denoteN_ext hn hx1)
           (denote_ext hvv hx1) r1
       refine ⟨hck'.state, hx1.trans hx', by rw [hp', hp1], F, ?_⟩
-      simp only [ConLeche.checkDivModPin, hG, hfindP, if_true]
+      simp only [ConLeche.checkDivModPin, hG, hfindP, ite_true]
       exact hF
     | .axiomInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .thmInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)

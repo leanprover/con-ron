@@ -185,11 +185,11 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
     obtain ⟨b1, hb1, hb⟩ := bind_eq_ok_iff.mp hb
     cases b1 with
     | false =>
-      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at hb
+      simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at hb
       have e1 := ih1 hx false hb1
       simp [ConLeche.Level.allParamsDefined, ← e1, ← hb]
     | true =>
-      simp only [if_true] at hb
+      simp only [ite_true] at hb
       have e1 := ih1 hx true hb1
       have e2 := ih2 hy b hb
       simp [ConLeche.Level.allParamsDefined, ← e1, e2]
@@ -201,11 +201,11 @@ theorem all_params_defined_refines {params : alloc.vec.Vec name.Name}
     obtain ⟨b1, hb1, hb⟩ := bind_eq_ok_iff.mp hb
     cases b1 with
     | false =>
-      simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at hb
+      simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at hb
       have e1 := ih1 hx false hb1
       simp [ConLeche.Level.allParamsDefined, ← e1, ← hb]
     | true =>
-      simp only [if_true] at hb
+      simp only [ite_true] at hb
       have e1 := ih1 hx true hb1
       have e2 := ih2 hy b hb
       simp [ConLeche.Level.allParamsDefined, ← e1, e2]

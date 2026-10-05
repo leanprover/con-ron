@@ -470,16 +470,16 @@ theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : absSz i < lst.pins.names.size
-    · rw [dif_pos h]
+    · rw [dite_eq_left h]
       show (Arena.pinAt (absSz i)) lst = _
       rw [Arena.pinAt]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
-    · rw [dif_neg h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, dite_eq_left h]
+    · rw [dite_eq_right h]
       show (Arena.pinAt (absSz i)) lst = _
       rw [Arena.pinAt]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, dif_neg h,
+        Pure.pure, Except.pure, Except.bind, dite_eq_right h,
         Arena.fail, throwThe, MonadExceptOf.throw,
         Function.comp_apply, StateT.lift]
   split at hrun
@@ -496,7 +496,7 @@ theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
       show ¬ (i.val < st.pins.names.val.length)
       omega
     exact AErrSim.internal (s := "arena: reserved-name pins not interned")
-      (by rw [hrun2, dif_neg hnl])
+      (by rw [hrun2, dite_eq_right hnl])
   case isFalse hlt =>
     obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -506,7 +506,7 @@ theorem pin_at_refines {pers st lst} {i : Std.Usize} {o}
     obtain ⟨hlt2, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
     have hlt3 : absSz i < lst.pins.names.size := by rw [hlen]; exact hlt2
     show (Arena.pinAt (absSz i)).run lst = _
-    rw [hrun2, dif_pos hlt3]
+    rw [hrun2, dite_eq_left hlt3]
     have hi : lst.pins.names.toList[absSz i]? =
         (st.pins.names.val.map absNIdx)[absSz i]? := by rw [hnames]
     simp only [List.getElem?_map, Array.getElem?_toList] at hi
@@ -532,17 +532,17 @@ theorem pin_reserved_refines {pers st lst} {o}
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : Arena.pinsReady lst = true
-    · rw [if_pos h]
+    · rw [ite_eq_left h]
       show (Arena.pinReserved) lst = _
       rw [Arena.pinReserved]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, ite_eq_left h]
     · simp only [Bool.not_eq_true] at h
-      rw [if_neg (by simp [h])]
+      rw [ite_eq_right (by simp [h])]
       show (Arena.pinReserved) lst = _
       rw [Arena.pinReserved]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, ite_false,
         Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
   split at hrun
   case isTrue hbt =>
@@ -550,7 +550,7 @@ theorem pin_reserved_refines {pers st lst} {o}
     have h2 := Result.ok_injective hrun
     subst h2
     show (Arena.pinReserved).run lst = _
-    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.reserved]
+    rw [hrun2, ite_eq_left (by rw [← hbr, hbt]), hrel.pins.reserved]
     simp only [absNIdxL, nidx_vec_dup_val hv]
   case isFalse hbf =>
     obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -559,7 +559,7 @@ theorem pin_reserved_refines {pers st lst} {o}
     have h2 := Result.ok_injective hrun
     subst h2
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
-    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+    rw [hrun2, ite_eq_right (by simp only [← hbr]; simpa using hbf)]
 
 /-- `arena::core::reserved_basis_names` ⊑ `reservedBasisNames` — both are the
 pin-table read, `pin_reserved` against `pinReserved` (twin fix D5 of task
@@ -585,17 +585,17 @@ theorem pin_empty_levels_refines {pers st lst} {o}
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : Arena.pinsReady lst = true
-    · rw [if_pos h]
+    · rw [ite_eq_left h]
       show (Arena.pinEmptyLevels) lst = _
       rw [Arena.pinEmptyLevels]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, ite_eq_left h]
     · simp only [Bool.not_eq_true] at h
-      rw [if_neg (by simp [h])]
+      rw [ite_eq_right (by simp [h])]
       show (Arena.pinEmptyLevels) lst = _
       rw [Arena.pinEmptyLevels]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, ite_false,
         Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
   split at hrun
   case isTrue hbt =>
@@ -604,7 +604,7 @@ theorem pin_empty_levels_refines {pers st lst} {o}
     subst h2
     rw [dupId_lsidx _ _ hl]
     show (Arena.pinEmptyLevels).run lst = _
-    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.emptyLevels]
+    rw [hrun2, ite_eq_left (by rw [← hbr, hbt]), hrel.pins.emptyLevels]
   case isFalse hbf =>
     obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -612,7 +612,7 @@ theorem pin_empty_levels_refines {pers st lst} {o}
     have h2 := Result.ok_injective hrun
     subst h2
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
-    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+    rw [hrun2, ite_eq_right (by simp only [← hbr]; simpa using hbf)]
 
 open Lockstep in
 @[lockstep] theorem pin_empty_levels_ls {pers st lst}
@@ -637,17 +637,17 @@ theorem pin_zero_level_refines {pers st lst} {o}
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : Arena.pinsReady lst = true
-    · rw [if_pos h]
+    · rw [ite_eq_left h]
       show (Arena.pinZeroLevel) lst = _
       rw [Arena.pinZeroLevel]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, ite_eq_left h]
     · simp only [Bool.not_eq_true] at h
-      rw [if_neg (by simp [h])]
+      rw [ite_eq_right (by simp [h])]
       show (Arena.pinZeroLevel) lst = _
       rw [Arena.pinZeroLevel]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, ite_false,
         Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
   split at hrun
   case isTrue hbt =>
@@ -656,7 +656,7 @@ theorem pin_zero_level_refines {pers st lst} {o}
     subst h2
     rw [dupId_lidx _ _ hl]
     show (Arena.pinZeroLevel).run lst = _
-    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.zeroLevel]
+    rw [hrun2, ite_eq_left (by rw [← hbr, hbt]), hrel.pins.zeroLevel]
   case isFalse hbf =>
     obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -664,7 +664,7 @@ theorem pin_zero_level_refines {pers st lst} {o}
     have h2 := Result.ok_injective hrun
     subst h2
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
-    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+    rw [hrun2, ite_eq_right (by simp only [← hbr]; simpa using hbf)]
 
 /-- `pin_sort_one` ⊑ `pinSortOne`. -/
 theorem pin_sort_one_refines {pers st lst} {o}
@@ -680,17 +680,17 @@ theorem pin_sort_one_refines {pers st lst} {o}
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : Arena.pinsReady lst = true
-    · rw [if_pos h]
+    · rw [ite_eq_left h]
       show (Arena.pinSortOne) lst = _
       rw [Arena.pinSortOne]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, if_pos h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, ite_eq_left h]
     · simp only [Bool.not_eq_true] at h
-      rw [if_neg (by simp [h])]
+      rw [ite_eq_right (by simp [h])]
       show (Arena.pinSortOne) lst = _
       rw [Arena.pinSortOne]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, if_false,
+        Pure.pure, Except.pure, Except.bind, h, Bool.false_eq_true, ite_false,
         Arena.fail, throwThe, MonadExceptOf.throw, Function.comp_apply, StateT.lift]
   split at hrun
   case isTrue hbt =>
@@ -699,7 +699,7 @@ theorem pin_sort_one_refines {pers st lst} {o}
     subst h2
     rw [dupId_eidx _ _ hl]
     show (Arena.pinSortOne).run lst = _
-    rw [hrun2, if_pos (by rw [← hbr, hbt]), hrel.pins.sortOne]
+    rw [hrun2, ite_eq_left (by rw [← hbr, hbt]), hrel.pins.sortOne]
   case isFalse hbf =>
     obtain ⟨sl, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨cps, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -707,7 +707,7 @@ theorem pin_sort_one_refines {pers st lst} {o}
     have h2 := Result.ok_injective hrun
     subst h2
     refine AErrSim.internal (s := "arena: reserved-name pins not interned") ?_
-    rw [hrun2, if_neg (by simp only [← hbr]; simpa using hbf)]
+    rw [hrun2, ite_eq_right (by simp only [← hbr]; simpa using hbf)]
 
 /-! ## The fifty named readers, one per slot
 
@@ -1734,7 +1734,7 @@ private theorem intern_pin_sets_aux {pers : arena.store.PersTier}
     have hl := alloc.vec.Vec.len_val pss
     by_cases hge : i ≥ pss.len
     · have hle : pss.val.length ≤ i.val := by scalar_tac
-      rw [if_pos hge] at hrun
+      rw [ite_eq_left hge] at hrun
       have ho := Result.ok_injective hrun
       subst ho
       rw [List.drop_eq_nil_of_le hle]
@@ -1742,7 +1742,7 @@ private theorem intern_pin_sets_aux {pers : arena.store.PersTier}
       simp only [List.map_nil, internPinSets, List.append_nil, pure_bind]
       rfl
     · have hlt : i.val < pss.val.length := by scalar_tac
-      rw [if_neg hge] at hrun
+      rw [ite_eq_right hge] at hrun
       obtain ⟨nops, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
       rw [List.drop_eq_getElem_cons hlt, List.map_cons, internPinSets_cons_acc]

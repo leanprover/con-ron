@@ -26,6 +26,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -75,7 +78,7 @@ theorem reduceProjCore_guard {F d i : Nat} {sn : Name} {c e' : Expr}
     ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
   simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
     hh, bind, Except.bind]
-  rw [if_neg hg]
+  rw [ite_eq_right hg]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:996-1008 reduceProjCore — the table
@@ -94,7 +97,7 @@ theorem reduceProjCore_cert_false {F d i : Nat} {sn : Name} {c e' : Expr}
     ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
   simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
     hh, bind, Except.bind]
-  rw [if_pos hg, hcert]
+  rw [ite_eq_left hg, hcert]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:996-1008 reduceProjCore — the table
@@ -115,7 +118,7 @@ theorem reduceProjCore_fire {F d i : Nat} {sn : Name} {c e' : Expr}
       .ok (some (e'.getAppArgs.getD (entry.numParams + i) (.bvar 0))) := by
   simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
     hh, bind, Except.bind]
-  rw [if_pos hg, hcert]
+  rw [ite_eq_left hg, hcert]
   rfl
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:466 reduceProjCore_mono — at
@@ -290,7 +293,7 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         · -- the rule FIRES: the selected field
           have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'
           have hdarg := denote_ext harg3 (hx38.trans hx9)
-          simp only [if_true]
+          simp only [ite_true]
           mvcgen; bridge_peel; subst_vars
           refine ⟨hok9, hx09, hp09, ⟨_, ?_, ?_, max F2 F3, hfire⟩⟩
           · simp only [denoteEO, hdarg, Option.map_some]

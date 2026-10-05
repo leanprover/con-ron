@@ -93,19 +93,19 @@ theorem EStore_view_of_tag_const (st : EStore) (i : EIdx)
       t.get i = (t.getConst i).map (fun p => ENodeView.const p.1 p.2) := by
     intro t
     rw [ETables.get, ETables.getConst,
-      if_neg (by rw [hi]; simp [ETag.bvar, ETag.const]),
-      if_neg (by rw [hi]; simp [ETag.fvar, ETag.const]),
-      if_neg (by rw [hi]; simp [ETag.sort, ETag.const]),
-      if_pos (by rw [hi]; rfl)]
+      ite_eq_right (by rw [hi]; simp [ETag.bvar, ETag.const]),
+      ite_eq_right (by rw [hi]; simp [ETag.fvar, ETag.const]),
+      ite_eq_right (by rw [hi]; simp [ETag.sort, ETag.const]),
+      ite_eq_left (by rw [hi]; rfl)]
     cases t.consts.node? i.idxNat <;> rfl
   rw [EStore.view, EStore.viewConst,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetConst]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetConst]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 
 /-! ## The level-list length, as a projection of the view -/
@@ -118,15 +118,15 @@ theorem LsStore_viewLen_eq (st : LsStore) (i : LsIdx) :
     intro t
     rw [LsTables.getLen, LsTables.get]
     by_cases h : i.tag == LsTag.list
-    · rw [if_pos h, if_pos h]; cases t.lists.node? i.idxNat <;> rfl
-    · rw [if_neg h, if_neg h]; rfl
+    · rw [ite_eq_left h, ite_eq_left h]; cases t.lists.node? i.idxNat <;> rfl
+    · rw [ite_eq_right h, ite_eq_right h]; rfl
   rw [LsStore.viewLen, LsStore.view]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, LsStore.persGetLen]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, LsStore.persGetLen]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 /-- `Arena.viewLs`'s run: the store read, and the twin's own `internal`
 decline where the port raises `fail_dangling_ls`. -/
@@ -199,7 +199,7 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
     have hlen : (alloc.vec.Vec.len fe.env.consts).val
         = fe.env.consts.val.length := alloc.vec.Vec.len_val _
     by_cases hc : c < vis
-    · rw [if_pos hc] at hrun
+    · rw [ite_eq_left hc] at hrun
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v : i2.val = pos.val := by
         rw [← ConRon.Refine.ExprOps.u64_cast_usize_val hposfit]
@@ -208,7 +208,7 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
         rw [← hctx.vis]
         exact (Std.UScalar.lt_equiv c vis).mp hc
       by_cases hb : i2 < alloc.vec.Vec.len fe.env.consts
-      · rw [if_pos hb] at hrun
+      · rw [ite_eq_left hb] at hrun
         obtain ⟨i4, hi4, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have ho : some ii = o := Result.ok_injective hrun
@@ -220,8 +220,8 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
         rw [List.getElem?_eq_getElem hlt] at hidx
         rw [← ho, hne, IFEnv.find?, ← hidx]
         simp only [Option.map_some]
-        rw [if_pos hcv]
-      · rw [if_neg hb] at hrun
+        rw [ite_eq_left hcv]
+      · rw [ite_eq_right hb] at hrun
         have ho : (none : Option arena.env.IConstantInfo) = o :=
           Result.ok_injective hrun
         have hge : fe.env.consts.val.length ≤ pos.val := by
@@ -232,7 +232,7 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
         rw [List.getElem?_eq_none hge] at hidx
         rw [← ho, IFEnv.find?, ← hidx]
         rfl
-    · rw [if_neg hc] at hrun
+    · rw [ite_eq_right hc] at hrun
       have ho : (none : Option arena.env.IConstantInfo) = o :=
         Result.ok_injective hrun
       have hcv : ¬ (absU c < lfe.visibleBelow) := by
@@ -243,7 +243,7 @@ theorem ifenv_find_abs {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
       | none => rfl
       | some ci =>
         simp only [Option.map_some]
-        rw [if_neg hcv]
+        rw [ite_eq_right hcv]
         rfl
 
 -- `nidx_vec_dup_val` moved down to `Refine2/Dup.lean` (task #97-P5-Front
@@ -265,7 +265,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
   | zero =>
     intro pers st lst fuel h o hn hrel hinv hrun
     rw [arena.expr_ops.get_app_fn] at hrun
-    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    rw [ite_eq_left (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hrun]
@@ -278,18 +278,18 @@ private theorem get_app_fn_aux₀ (n : Nat) :
     rw [arena.expr_ops.get_app_fn] at hrun
     have hne : ¬ (fuel = 0#u64) := by
       intro hc; rw [hc] at hn; simp at hn
-    rw [if_neg hne] at hrun
+    rw [ite_eq_right hne] at hrun
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have htag := eidx_tag_abs ht
     rw [show absU fuel = m + 1 from hn, getAppFn]
     by_cases hc : t = arena.handle.ETAG_APP
-    · rw [if_pos hc] at hrun
+    · rw [ite_eq_left hc] at hrun
       subst hc
       rw [show ((absEIdx h).tag == ETag.app) = true by
         rw [htag, etag_app_abs]; simp]
       obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hva := view_app_run₀ hrel hp
-      simp only [if_true]
+      simp only [ite_true]
       rw [StateT.run_bind, hva]
       cases hpc : p with
       | none =>
@@ -313,7 +313,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
         have := ih (fuel := i1) (h := f1) hi1v hrel hinv hrun
         rw [show absU i1 = m from hi1v] at this
         exact this
-    · rw [if_neg hc] at hrun
+    · rw [ite_eq_right hc] at hrun
       obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       rw [dupId_eidx _ _ he1] at hrun
       have ho : (core.result.Result.Ok h : core.result.Result _ _) = o :=
@@ -325,7 +325,7 @@ private theorem get_app_fn_aux₀ (n : Nat) :
           rw [← etag_app_abs]
           intro hcc; exact hc (absU32_inj hcc)
         simp [this]]
-      simp only [Bool.false_eq_true, if_false]
+      simp only [Bool.false_eq_true, ite_false]
       exact AOut₀.ok rfl hrel hinv
 
 /-- `get_app_fn` ⊑ `getAppFn`, lockstep. -/
@@ -346,7 +346,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
   | zero =>
     intro pers st lst fuel h k o hn hrel hinv hrun
     rw [arena.expr_ops.get_app_args_go] at hrun
-    rw [if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
+    rw [ite_eq_left (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) : fuel = 0#u64)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hrun]
@@ -359,18 +359,18 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
     rw [arena.expr_ops.get_app_args_go] at hrun
     have hne : ¬ (fuel = 0#u64) := by
       intro hc; rw [hc] at hn; simp at hn
-    rw [if_neg hne] at hrun
+    rw [ite_eq_right hne] at hrun
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have htag := eidx_tag_abs ht
     rw [show absU fuel = m + 1 from hn, getAppArgs]
     by_cases hc : t = arena.handle.ETAG_APP
-    · rw [if_pos hc] at hrun
+    · rw [ite_eq_left hc] at hrun
       subst hc
       rw [show ((absEIdx h).tag == ETag.app) = true by
         rw [htag, etag_app_abs]; simp]
       obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hva := view_app_run₀ hrel hp
-      simp only [if_true]
+      simp only [ite_true]
       rw [StateT.run_bind, hva]
       cases hpc : p with
       | none =>
@@ -423,7 +423,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
             unfold absEIdxList
             rw [ConRon.Refine.vec_push_val ha1, List.map_append]
             rfl]
-    · rw [if_neg hc] at hrun
+    · rw [ite_eq_right hc] at hrun
       have ho : (core.result.Result.Ok
           (alloc.vec.Vec.with_capacity arena.handle.EIdx k) :
           core.result.Result (alloc.vec.Vec arena.handle.EIdx) _) = o :=
@@ -435,7 +435,7 @@ private theorem get_app_args_go_aux₀ (n : Nat) :
           rw [← etag_app_abs]
           intro hcc; exact hc (absU32_inj hcc)
         simp [this]]
-      simp only [Bool.false_eq_true, if_false]
+      simp only [Bool.false_eq_true, ite_false]
       refine AOut₀.ok ?_ hrel hinv
       show Except.ok ([], lst) = _
       rfl
@@ -820,8 +820,8 @@ theorem unfoldDefConst_run (fe : IFEnv) (e : EIdx) (n : NIdx) (us : LsIdx)
                (unfoldDefGo e n cv.levelParams value us).run lst
              else Except.ok (none, lst))
         by_cases hl : usl.length = cv.levelParams.length
-        · rw [if_pos hl, if_pos hl]
-        · rw [if_neg hl, if_neg hl]; rfl
+        · rw [ite_eq_left hl, ite_eq_left hl]
+        · rw [ite_eq_right hl, ite_eq_right hl]; rfl
     | axiomInfo _ => rfl
     | thmInfo _ _ => rfl
     | indInfo _ _ => rfl
@@ -845,7 +845,7 @@ theorem unfoldDefAt_run (fe : IFEnv) (e h : EIdx) (lst : AState)
         | .const n us => unfoldDefConst fe e n us
         | _ => pure none)
     else pure none) : AM (Option EIdx)).run lst = _
-  rw [if_pos (by rw [htag]; rfl), am_run_bind, view_run_eq]
+  rw [ite_eq_left (by rw [htag]; rfl), am_run_bind, view_run_eq]
   cases hv : lst.store.view h with
   | none => rfl
   | some v => cases v <;> rfl
@@ -862,7 +862,7 @@ theorem unfoldDefAt_run_ne (fe : IFEnv) (e h : EIdx) (lst : AState)
         | .const n us => unfoldDefConst fe e n us
         | _ => pure none)
     else pure none) : AM (Option EIdx)).run lst = _
-  rw [if_neg (by simpa using htag)]
+  rw [ite_eq_right (by simpa using htag)]
   rfl
 
 /-- **`arena::core::unfold_definition` against `Arena.unfoldDefinition`** — one
@@ -900,7 +900,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
     obtain ⟨t, ht, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hta := eidx_tag_abs ht
     by_cases hts : t = arena.handle.ETAG_CONST
-    · rw [if_pos hts] at hrun
+    · rw [ite_eq_left hts] at hrun
       have htag : (absEIdx h).tag = ETag.const := by
         rw [hta, hts]; exact etag_const_abs
       obtain ⟨oc, hoc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1010,7 +1010,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                 rw [alloc.vec.Vec.len_val, List.length_map]
                 exact congrArg List.length hlpsv
               by_cases hb : usl = alloc.vec.Vec.len lps
-              · rw [if_pos hb] at hrun
+              · rw [ite_eq_left hb] at hrun
                 have hlt : l.length = (cv.level_params.val.map absNIdx).length := by
                   rw [hll, ← hlenlps, hb]
                 have htw4 : (unfoldDefinition lfe (absEIdx e)).run lst
@@ -1019,7 +1019,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                         (absLsIdx us)).run lst0 := by
                   rw [htw3, hl]
                   dsimp only
-                  rw [if_pos hlt]
+                  rw [ite_eq_left hlt]
                 rw [unfoldDefGo_run] at htw4
                 obtain ⟨q1, hq1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨rv, st1⟩ := q1
@@ -1077,7 +1077,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                       rw [← ho]
                       refine AOut₀.ok (lst' := lst3) ?_ hrel3 hinv3
                       rw [htw6, hb3]; rfl
-              · rw [if_neg hb] at hrun
+              · rw [ite_eq_right hb] at hrun
                 have ho : (core.result.Result.Ok
                   (T := Option arena.handle.EIdx) none, st) = o :=
                   Result.ok_injective hrun
@@ -1091,7 +1091,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
                 refine AOut₀.ok (lst' := lst0) ?_ hrel0 hinv0
                 rw [htw3, hl]
                 dsimp only
-                rw [if_neg hlt]
+                rw [ite_eq_right hlt]
                 rfl
           | AxiomInfo cv =>
             have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
@@ -1136,7 +1136,7 @@ theorem unfold_definition_refines {pers vis st fe lfe e lst o}
             rw [htw2, unfoldDefConst_run, ← hfind]
             rfl
     · -- the port's `else` arm, off the tag: the twin tests the same tag
-      rw [if_neg hts] at hrun
+      rw [ite_eq_right hts] at hrun
       have ho : (core.result.Result.Ok (T := Option arena.handle.EIdx) none, st)
           = o := Result.ok_injective hrun
       rw [← ho]
@@ -1153,7 +1153,7 @@ section Axioms
 /-- info: 'ConRon.Refine2.ifenv_find_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms ifenv_find_abs
 
-/-- info: 'ConRon.Refine2.LsStore_viewLen_eq' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'ConRon.Refine2.LsStore_viewLen_eq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms LsStore_viewLen_eq
 
 /-- info: 'ConRon.Refine2.nidx_vec_dup_val' depends on axioms: [propext, Classical.choice, Quot.sound] -/

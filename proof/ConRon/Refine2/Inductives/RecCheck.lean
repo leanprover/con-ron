@@ -124,19 +124,19 @@ theorem sum_rules_ctx_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hctx
-    rw [arena.inductives.sum_install.sum_rules, if_pos (by scalar_tac), absCtorsLFrom,
+    rw [arena.inductives.sum_install.sum_rules, ite_eq_left (by scalar_tac), absCtorsLFrom,
       vecFrom_nil _ _ _ (by omega)]
     simp only [sumRules]
     lockstep
   | succ m ih =>
     intro pers st lst vis rf lf rec_name n_p m_i r_p rec_ty ctors rhss i out hn hrel hinv hctx
-    rw [arena.inductives.sum_install.sum_rules, if_neg (by scalar_tac), absCtorsLFrom,
+    rw [arena.inductives.sum_install.sum_rules, ite_eq_right (by scalar_tac), absCtorsLFrom,
       vecFrom_cons _ _ _ (by omega)]
     by_cases hr : i.val < rhss.val.length
-    · rw [if_neg (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
+    · rw [ite_eq_right (by scalar_tac), absEIdxLFrom, vecFrom_cons _ _ _ hr]
       simp only [sumRules]
       lockstep
-    · rw [if_pos (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
+    · rw [ite_eq_left (by scalar_tac), absEIdxLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [sumRules]
       lockstep
 
@@ -244,7 +244,7 @@ theorem target_holes_acc {pers} (former_tys : alloc.vec.Vec arena.handle.EIdx)
           pure (absEIdxL out ++ r))) ?_ ?_ t ()
   · intro t _ hn st lst out hrel hinv
     rw [arena.inductives.rec_check.target_holes.eq_def,
-      if_pos (show t ≥ alloc.vec.Vec.len former_tys by scalar_tac), absEIdxLFrom,
+      ite_eq_left (show t ≥ alloc.vec.Vec.len former_tys by scalar_tac), absEIdxLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, targetHoles]
     simp only [pure_bind, List.append_nil]
     lockstep
@@ -259,7 +259,7 @@ theorem target_holes_acc {pers} (former_tys : alloc.vec.Vec arena.handle.EIdx)
             pure (absEIdxL out ++ r)) := fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.rec_check.target_holes.eq_def,
-      if_neg (show ¬ t ≥ alloc.vec.Vec.len former_tys by scalar_tac), absEIdxLFrom,
+      ite_eq_right (show ¬ t ≥ alloc.vec.Vec.len former_tys by scalar_tac), absEIdxLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, targetHoles]
     simp only [bind_assoc, pure_bind]
     lockstep
@@ -364,14 +364,14 @@ theorem target_params_def_eq_aux :
           ((ys.val.drop i.val).map absEIdx))) ?_ ?_ i ()
   · intro i _ hn st lst hrel hinv
     rw [arena.inductives.rec_check.target_params_def_eq.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), List.drop_eq_nil_of_le hn,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), List.drop_eq_nil_of_le hn,
       List.map_nil]
     by_cases hy : ys.val.length ≤ i.val
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len ys by scalar_tac), List.drop_eq_nil_of_le hy,
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ys by scalar_tac), List.drop_eq_nil_of_le hy,
         List.map_nil, targetParamsDefEq]
       lockstep
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ys by scalar_tac),
-        if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac),
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ys by scalar_tac),
+        ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac),
         List.drop_eq_getElem_cons (show i.val < ys.val.length by omega), List.map_cons,
         targetParamsDefEq]
       lockstep
@@ -388,14 +388,14 @@ theorem target_params_def_eq_aux :
     clear ih
     have hinfer := target_params_def_eq_infer_of hctx d names lvls holes pfvs xs ys i hmain
     rw [arena.inductives.rec_check.target_params_def_eq.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac),
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac),
       List.drop_eq_getElem_cons hlt, List.map_cons]
     by_cases hy : ys.val.length ≤ i.val
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len ys by scalar_tac), List.drop_eq_nil_of_le hy,
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ys by scalar_tac), List.drop_eq_nil_of_le hy,
         List.map_nil, targetParamsDefEq]
       lockstep
       all_goals simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ys by scalar_tac),
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ys by scalar_tac),
         List.drop_eq_getElem_cons (show i.val < ys.val.length by omega), List.map_cons,
         targetParamsDefEq]
       lockstep
@@ -448,12 +448,12 @@ theorem ctors_name_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
   · rw [key, absCtorsLFrom, List.any_map]; rfl
   · intro i o hn h
     rw [arena.inductives.rec_check.ctors_name.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
     exact h.symm
   · intro i x o hx h
     have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
     rw [arena.inductives.rec_check.ctors_name.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
     obtain ⟨⟨iv, k⟩, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hnx : (iv, k) = x := by
       have h1 := vec_index_some hiv; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
@@ -462,11 +462,11 @@ theorem ctors_name_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
     have hbv : b = (absNIdx iv.name == absNIdx c) := nidx_eq2_abs hb
     cases hbb : b
     · rw [hbb] at h hbv
-      rw [if_neg (by simp)] at h
+      rw [ite_eq_right (by simp)] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
     · rw [hbb] at h hbv
-      rw [if_pos (by simp), Result.ok.injEq] at h
+      rw [ite_eq_left (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
 @[lockstep] theorem ctors_name_twin (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
@@ -491,7 +491,7 @@ theorem target_pin_tys_aux {pers} {mode : kernel.env.CheckMode} {vis : Std.U64}
     (fun st i => arena.inductives.rec_check.target_pin_tys pers st mode vis rf d xs i) ?_ ?_
   · intro st lst i hn hrel hinv
     rw [arena.inductives.rec_check.target_pin_tys.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), targetPinTys]
+      ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), targetPinTys]
     lockstep
   · intro st lst i hlt hrel hinv ih
     have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
@@ -502,7 +502,7 @@ theorem target_pin_tys_aux {pers} {mode : kernel.env.CheckMode} {vis : Std.U64}
             ((xs.val.drop j.val).map absEIdx)) := ih
     clear ih
     rw [arena.inductives.rec_check.target_pin_tys.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac), targetPinTys]
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac), targetPinTys]
     lockstep
 
 @[lockstep] theorem target_pin_tys_ls {pers st lst} {mode : kernel.env.CheckMode}
@@ -547,12 +547,12 @@ theorem nfs_reverse_abs (xs : alloc.vec.Vec arena.inductives.positivity.NestCtor
   induction n with
   | zero =>
     intro i out o hn _ h
-    rw [arena.inductives.rec_check.nfs_reverse.eq_def, if_pos (by scalar_tac),
+    rw [arena.inductives.rec_check.nfs_reverse.eq_def, ite_eq_left (by scalar_tac),
       Result.ok.injEq] at h
     subst h; simp [hn]
   | succ n ih =>
     intro i out o hn hle h
-    rw [arena.inductives.rec_check.nfs_reverse.eq_def, if_neg (by scalar_tac)] at h
+    rw [arena.inductives.rec_check.nfs_reverse.eq_def, ite_eq_right (by scalar_tac)] at h
     obtain ⟨i1, hi1, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hi1v : i1.val = n := by
       have := ConRon.Refine.Nat.usub_val hi1; simp at this; omega
@@ -580,11 +580,11 @@ theorem refire_abs (rules : alloc.vec.Vec arena.env.IRecRule) (f : arena.env.IRe
   · simp only [absIRecRuleL, absIRecRuleLFrom, key, List.map_map]; rfl
   · intro i out o hn h
     rw [arena.inductives.rec_check.refire.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len rules by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len rules by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.inductives.rec_check.refire.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len rules by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rules by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -622,22 +622,22 @@ theorem some_aux_rec_abs (rs : alloc.vec.Vec arena.inductives.block_parts.RecSha
   · rw [key, List.any_map]; rfl
   · intro i o hn h
     rw [arena.inductives.rec_check.some_aux_rec.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
     exact h.symm
   · intro i x o hx h
     rw [arena.inductives.rec_check.some_aux_rec.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
       have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
     subst hqx
     by_cases hlt : q.tgt < k
-    · rw [if_pos hlt] at h
+    · rw [ite_eq_left hlt] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       refine Or.inr ⟨?_, i2, absSz_add_one hi2, h⟩
       simp only [absRecShape, absU]; scalar_tac
-    · rw [if_neg hlt, Result.ok.injEq] at h
+    · rw [ite_eq_right hlt, Result.ok.injEq] at h
       refine Or.inl ⟨?_, h.symm⟩
       simp only [absRecShape, absU]; scalar_tac
 
@@ -654,15 +654,15 @@ theorem some_aux_rec_abs (rs : alloc.vec.Vec arena.inductives.block_parts.RecSha
   simp only [TwinEq] at hb' ⊢
   rw [blockNestedBit, hb']
   cases b
-  · rw [if_neg (by simp), Result.ok.injEq] at h
+  · rw [ite_eq_right (by simp), Result.ok.injEq] at h
     simp [h]
-  · rw [if_pos rfl] at h
+  · rw [ite_eq_left rfl] at h
     obtain ⟨k, hk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [arena.inductives.block_parts.shape_k] at hk
     have hk' : k.val = p.members.val.length := by
       have := lift_cast_u64_of_usize _ k hk; simpa using this
     rw [some_aux_rec_abs _ _ _ o h]
-    simp only [if_true, absBlockShape, BlockShape.k, List.length_map,
+    simp only [ite_true, absBlockShape, BlockShape.k, List.length_map,
       show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero]
     rw [show absU k = p.members.val.length from hk']
 
@@ -685,7 +685,7 @@ theorem erase_list_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
     ?_ ?_ i st lst out hrel hinv
   · intro st lst k w hn hrel hinv
     rw [arena.inductives.rec_check.erase_list.eq_def,
-      if_pos (show k ≥ alloc.vec.Vec.len xs by scalar_tac)]
+      ite_eq_left (show k ≥ alloc.vec.Vec.len xs by scalar_tac)]
     simp only [List.mapM_nil, pure_bind, List.append_nil]
     lockstep
   · intro st lst k w hk hrel hinv ih
@@ -698,7 +698,7 @@ theorem erase_list_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
             pure (absEIdxL w' ++ r)) := ih
     clear ih
     rw [arena.inductives.rec_check.erase_list.eq_def,
-      if_neg (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac)]
+      ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac)]
     simp only [List.mapM_cons, bind_assoc, pure_bind]
     lockstep
 
@@ -740,7 +740,7 @@ theorem erase_binders_acc {pers} (bs : alloc.vec.Vec (arena.handle.EIdx × kerne
           pure (absBinderL out ++ r))) ?_ ?_ i ()
   · intro i _ hn st lst out hout hrel hinv
     rw [arena.inductives.rec_check.erase_binders.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil]
     simp only [List.mapM_nil, pure_bind, List.append_nil]
     exact LS.pure ⟨rfl, hout⟩ hrel hinv
@@ -756,7 +756,7 @@ theorem erase_binders_acc {pers} (bs : alloc.vec.Vec (arena.handle.EIdx × kerne
     clear ih
     have hwi := TeleWF.get hbs i.val hlt
     rw [arena.inductives.rec_check.erase_binders.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons]
     simp only [List.mapM_cons, bind_assoc, pure_bind]
     lockstep
@@ -790,24 +790,24 @@ theorem binders_beq_abs (a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
       o = decide (absBinderLFrom a i = absBinderLFrom b i)) ?_ ?_ i ()
   · intro i _ hn o h
     rw [arena.inductives.rec_check.binders_beq.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
     simp only [absBinderLFrom, List.drop_eq_nil_of_le hn, List.map_nil]
     by_cases hy : b.val.length ≤ i.val
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
       rw [List.drop_eq_nil_of_le hy]; simp [← h]
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac),
-        if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac),
+        ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
       rw [List.drop_eq_getElem_cons (show i.val < b.val.length by omega)]; simp [← h]; omega
   · intro i _ hlt ih o h
     rw [arena.inductives.rec_check.binders_beq.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac),
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac),
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
     simp only [absBinderLFrom, List.drop_eq_getElem_cons hlt, List.map_cons]
     by_cases hy : b.val.length ≤ i.val
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len b by scalar_tac), Result.ok.injEq] at h
       rw [List.drop_eq_nil_of_le hy]; simp [← h]
     · have hlb : i.val < b.val.length := by omega
-      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
       rw [List.drop_eq_getElem_cons hlb, List.map_cons]
       obtain ⟨⟨e, bm⟩, he, h1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨⟨e1, bm1⟩, he1, h2⟩ := ConRon.Refine.bind_eq_ok_iff.mp h1
@@ -826,24 +826,24 @@ theorem binders_beq_abs (a b : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.B
       rw [hea, heb]
       cases b1 with
       | false =>
-        rw [if_neg (by simp), Result.ok.injEq] at h3
+        rw [ite_eq_right (by simp), Result.ok.injEq] at h3
         subst h3
         have hne : absEIdx e ≠ absEIdx e1 := by simpa using hb1v.symm
         simp [hne]
       | true =>
-        rw [if_pos rfl] at h3
+        rw [ite_eq_left rfl] at h3
         have hee : absEIdx e = absEIdx e1 := by simpa using hb1v.symm
         obtain ⟨b2, hb2, h4⟩ := ConRon.Refine.bind_eq_ok_iff.mp h3
         have hb2v := ConRon.Refine.Expr.binder_meta_beq_refines hwa hwb hb2
         cases b2 with
         | false =>
-          rw [if_neg (by simp), Result.ok.injEq] at h4
+          rw [ite_eq_right (by simp), Result.ok.injEq] at h4
           subst h4
           have hne : ConRon.Refine.absPropWhen bm.pw ≠ ConRon.Refine.absPropWhen bm1.pw := by
             simpa [ConRon.Refine.absBinderMeta] using hb2v.symm
           simp [hee, hne]
         | true =>
-          rw [if_pos rfl] at h4
+          rw [ite_eq_left rfl] at h4
           have hbm : ConRon.Refine.absPropWhen bm.pw = ConRon.Refine.absPropWhen bm1.pw := by
             simpa [ConRon.Refine.absBinderMeta] using hb2v.symm
           obtain ⟨i5, hi5, h5⟩ := ConRon.Refine.bind_eq_ok_iff.mp h4
@@ -879,7 +879,7 @@ theorem target_pi_doms_with_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
     ?_ ?_ i st lst (e, out) hrel hinv
   · intro st lst k w hn hrel hinv
     rw [arena.inductives.rec_check.target_pi_doms_with.eq_def,
-      if_pos (show k ≥ alloc.vec.Vec.len xs by scalar_tac), targetPiDomsWith]
+      ite_eq_left (show k ≥ alloc.vec.Vec.len xs by scalar_tac), targetPiDomsWith]
     simp only [pure_bind, Option.map_some, List.append_nil]
     lockstep
   · intro st lst k w hk hrel hinv ih
@@ -892,7 +892,7 @@ theorem target_pi_doms_with_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
             pure (r.map (absEIdxL w'.2 ++ ·))) := ih
     clear ih
     rw [arena.inductives.rec_check.target_pi_doms_with.eq_def,
-      if_neg (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac), targetPiDomsWith]
+      ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len xs by scalar_tac), targetPiDomsWith]
     lockstep
     rename_i d _ _ _ _ e2 acc hacc
     have hj : a.val = k.val + 1 := by scalar_tac
@@ -995,13 +995,13 @@ theorem target_major_nfs_rev_aux (n : Nat) :
   induction n with
   | zero =>
     intro i st lst acc hn _ hrel hinv
-    rw [arena.inductives.rec_check.target_major_nfs_rev.eq_def, if_pos (by scalar_tac), hn]
+    rw [arena.inductives.rec_check.target_major_nfs_rev.eq_def, ite_eq_left (by scalar_tac), hn]
     simp only [List.take_zero, List.map_nil, targetMajorNfs, pure_bind, List.reverse_nil,
       List.append_nil]
     lockstep
   | succ n ih =>
     intro i st lst acc hn hle hrel hinv
-    rw [arena.inductives.rec_check.target_major_nfs_rev.eq_def, if_neg (by scalar_tac)]
+    rw [arena.inductives.rec_check.target_major_nfs_rev.eq_def, ite_eq_right (by scalar_tac)]
     obtain ⟨i1, hi1, hi1n⟩ : ∃ z, i - 1#usize = ok z ∧ z.val = n := by
       obtain ⟨z, hz, hzv⟩ := WP.spec_imp_exists (Std.UScalar.sub_spec
         (x := i) (y := 1#usize) (by scalar_tac))
@@ -1084,11 +1084,11 @@ theorem rc_binder_copy_from_val (xs : alloc.vec.Vec (arena.handle.EIdx × kernel
   · simpa using key
   · intro i out o hn h
     rw [arena.expr_ops.binder_copy_from.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.expr_ops.binder_copy_from.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨⟨e, bm⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : (e, bm) = x := by
@@ -1118,13 +1118,13 @@ theorem rc_strip_pis_wf {pers st} (hinv : AStateInv pers st) (n : Nat) :
   induction n with
   | zero =>
     intro k h bs leaf hk hrun
-    rw [arena.expr_ops.strip_pis, if_pos (by scalar_tac)] at hrun
+    rw [arena.expr_ops.strip_pis, ite_eq_left (by scalar_tac)] at hrun
     obtain ⟨e, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases Result.ok_injective hrun
     exact TeleWF.new
   | succ n ih =>
     intro k h bs leaf hk hrun
-    rw [arena.expr_ops.strip_pis, if_neg (by scalar_tac)] at hrun
+    rw [arena.expr_ops.strip_pis, ite_eq_right (by scalar_tac)] at hrun
     obtain ⟨tg, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     split at hrun
     · obtain ⟨o, hvb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1212,11 +1212,11 @@ theorem rc_ctors_dup_id (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64))
   refine vec_copy_id cs (arena.inductives.block_parts.ctors_dup cs) ?_ ?_
   · intro i out o hn h
     rw [arena.inductives.block_parts.ctors_dup.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.inductives.block_parts.ctors_dup.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨⟨iv, k⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : (iv, k) = x := by
@@ -1300,8 +1300,8 @@ attribute [local lockstep high] Lockstep.PC2.i_constant_val_dup_ls
 theorem rc_unwrapOr_getElem? {α : Type} (l : List α) (i : Nat) (e : Arena.CheckError) :
     unwrapOr l[i]? e = if h : i < l.length then pure l[i] else Arena.fail e := by
   by_cases h : i < l.length
-  · rw [dif_pos h, List.getElem?_eq_getElem h]; rfl
-  · rw [dif_neg h, List.getElem?_eq_none (by omega)]; rfl
+  · rw [dite_eq_left h, List.getElem?_eq_getElem h]; rfl
+  · rw [dite_eq_right h, List.getElem?_eq_none (by omega)]; rfl
 
 theorem rc_absBlockShape_members_length (p : arena.inductives.block_parts.BlockShape) :
     (absBlockShape p).members.length = p.members.val.length := by
@@ -1371,11 +1371,11 @@ theorem cps_append_val (s t : alloc.vec.Vec Std.U32) :
   · simpa using key
   · intro i out o hn h
     rw [arena.inductives.rec_check.cps_append.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len t by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len t by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.inductives.rec_check.cps_append.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len t by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len t by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -1442,11 +1442,11 @@ theorem want_aux_names_acc {pers} (n0 : arena.handle.NIdx) (n : Std.U64) :
     (fun st k w => arena.inductives.rec_check.want_aux_names pers st n0 n k w) ?_ ?_
     i st lst out hrel hinv
   · intro st lst k w hn hrel hinv
-    rw [arena.inductives.rec_check.want_aux_names.eq_def, if_pos (by scalar_tac)]
+    rw [arena.inductives.rec_check.want_aux_names.eq_def, ite_eq_left (by scalar_tac)]
     simp only [List.range'_zero, List.mapM_nil, pure_bind, List.append_nil]
     lockstep
   · intro st lst k w m hk hm hrel hinv ih
-    rw [arena.inductives.rec_check.want_aux_names.eq_def, if_neg (by scalar_tac)]
+    rw [arena.inductives.rec_check.want_aux_names.eq_def, ite_eq_right (by scalar_tac)]
     simp only [List.range'_succ, List.mapM_cons, bind_assoc, pure_bind]
     lockstep
 
@@ -1479,11 +1479,11 @@ theorem ctor_names_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64)) 
   · simp only [absNIdxL, key, absCtorsLFrom, List.map_map]; rfl
   · intro i out o hn h
     rw [arena.inductives.rec_check.ctor_names.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.inductives.rec_check.ctor_names.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨⟨iv, k⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : (iv, k) = x := by
@@ -1513,11 +1513,11 @@ theorem ctor3_names_abs (cs : alloc.vec.Vec (arena.env.IConstantVal × Std.U64 �
   · simp only [absNIdxL, key, absCtors3LFrom, List.map_map]; rfl
   · intro i out o hn h
     rw [arena.inductives.rec_check.ctor3_names.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.inductives.rec_check.ctor3_names.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by
         have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨⟨iv, k, k2⟩, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : (iv, k, k2) = x := by
@@ -1559,18 +1559,18 @@ theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecS
     ?_ ?_ i ()
   · intro i _ hn out o h
     rw [arena.inductives.rec_check.recs_by_target.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
     rw [h, List.drop_eq_nil_of_le hn]; simp
   · intro i _ hlt ih out o h
     rw [arena.inductives.rec_check.recs_by_target.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : rs.val[i.val] = q := by
       have h1 := vec_index_some hq; rw [List.getElem?_eq_getElem hlt] at h1
       exact Option.some_inj.mp h1
     rw [List.drop_eq_getElem_cons hlt, List.filter_cons, hqx]
     by_cases hc : (q.tgt < k) = (own = true)
-    · rw [if_pos hc] at h
+    · rw [ite_eq_left hc] at h
       have hb : (decide (q.tgt < k) == own) = true := by cases own <;> simp_all
       obtain ⟨q2, hq2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1578,7 +1578,7 @@ theorem recs_by_target_val (rs : alloc.vec.Vec arena.inductives.block_parts.RecS
       rw [ih i2 () (absSz_add_one hi2) out1 o h, ConRon.Refine.vec_push_val hout1,
         rc_rec_shape_dup_id _ _ hq2, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
       simp
-    · rw [if_neg hc] at h
+    · rw [ite_eq_right hc] at h
       have hb : (decide (q.tgt < k) == own) = false := by cases own <;> simp_all
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [ih i2 () (absSz_add_one hi2) out o h, show i2.val = i.val + 1 from absSz_add_one hi2, hb]
@@ -1615,7 +1615,7 @@ theorem rc_lower_list_acc {pers} (k : Std.U64) (xs : alloc.vec.Vec arena.handle.
     ?_ ?_ i st lst out hrel hinv
   · intro st lst j w hn hrel hinv
     rw [arena.expr_ops.lower_list.eq_def,
-      if_pos (show j ≥ alloc.vec.Vec.len xs by scalar_tac), lowerList]
+      ite_eq_left (show j ≥ alloc.vec.Vec.len xs by scalar_tac), lowerList]
     simp only [pure_bind, List.append_nil]
     lockstep
   · intro st lst j w hk hrel hinv ih
@@ -1628,7 +1628,7 @@ theorem rc_lower_list_acc {pers} (k : Std.U64) (xs : alloc.vec.Vec arena.handle.
             pure (absEIdxL w' ++ r)) := ih
     clear ih
     rw [arena.expr_ops.lower_list.eq_def,
-      if_neg (show ¬ j ≥ alloc.vec.Vec.len xs by scalar_tac), lowerList]
+      ite_eq_right (show ¬ j ≥ alloc.vec.Vec.len xs by scalar_tac), lowerList]
     simp only [bind_assoc, pure_bind]
     lockstep
 
@@ -1662,7 +1662,7 @@ theorem rc_lift_list_acc {pers} (k : Std.U64) (xs : alloc.vec.Vec arena.handle.E
     ?_ ?_ i st lst out hrel hinv
   · intro st lst j w hn hrel hinv
     rw [arena.expr_ops.lift_list.eq_def,
-      if_pos (show j ≥ alloc.vec.Vec.len xs by scalar_tac), liftList]
+      ite_eq_left (show j ≥ alloc.vec.Vec.len xs by scalar_tac), liftList]
     simp only [pure_bind, List.append_nil]
     lockstep
   · intro st lst j w hk hrel hinv ih
@@ -1675,7 +1675,7 @@ theorem rc_lift_list_acc {pers} (k : Std.U64) (xs : alloc.vec.Vec arena.handle.E
             pure (absEIdxL w' ++ r)) := ih
     clear ih
     rw [arena.expr_ops.lift_list.eq_def,
-      if_neg (show ¬ j ≥ alloc.vec.Vec.len xs by scalar_tac), liftList]
+      ite_eq_right (show ¬ j ≥ alloc.vec.Vec.len xs by scalar_tac), liftList]
     simp only [bind_assoc, pure_bind]
     lockstep
 
@@ -1705,7 +1705,7 @@ theorem rc_pins_wf_aux {pers} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv
     (fun st i => arena.expr_ops.pins_wf pers vis st rf lps r_p pins i) ?_ ?_
   · intro st lst i hn hrel hinv
     rw [arena.expr_ops.pins_wf.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len pins by scalar_tac), pinsWf]
+      ite_eq_left (show i ≥ alloc.vec.Vec.len pins by scalar_tac), pinsWf]
     lockstep
   · intro st lst i hlt hrel hinv ih
     have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
@@ -1716,7 +1716,7 @@ theorem rc_pins_wf_aux {pers} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv
             ((pins.val.drop j.val).map absEIdx)) := ih
     clear ih
     rw [arena.expr_ops.pins_wf.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac), pinsWf]
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len pins by scalar_tac), pinsWf]
     lockstep
 
 theorem rc_levels_declared_from_aux {pers st} (ps : alloc.vec.Vec kernel.name.Name)
@@ -1735,7 +1735,7 @@ theorem rc_levels_declared_from_aux {pers st} (ps : alloc.vec.Vec kernel.name.Na
   · intro i _ hn lst hrel hinv
     apply LSR.of_LS
     rw [arena.expr_ops.levels_declared_from.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len lvls by scalar_tac),
+      ite_eq_left (show i ≥ alloc.vec.Vec.len lvls by scalar_tac),
       List.drop_eq_nil_of_le hn, List.map_nil, levelsDeclaredFrom]
     lockstep
   · intro i _ hlt ih lst hrel hinv
@@ -1748,7 +1748,7 @@ theorem rc_levels_declared_from_aux {pers st} (ps : alloc.vec.Vec kernel.name.Na
     clear ih
     apply LSR.of_LS
     rw [arena.expr_ops.levels_declared_from.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len lvls by scalar_tac),
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len lvls by scalar_tac),
       List.drop_eq_getElem_cons hlt, List.map_cons, levelsDeclaredFrom]
     lockstep
 
@@ -1913,7 +1913,6 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
   simp only [alloc.vec.Vec.new, List.drop_zero,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
   congr 1
-  simp [Function.comp_def, absRecShape, absU]
 
 /-- `recs_by_target … false`: the auxiliary recursors. -/
 @[lockstep] theorem recs_by_target_aux_twin (rs : alloc.vec.Vec arena.inductives.block_parts.RecShape)
@@ -1927,7 +1926,6 @@ theorem cons_block_recs_t_aux {pers} (vis2 : Std.U64) (p : arena.inductives.bloc
   simp only [alloc.vec.Vec.new, List.drop_zero,
     show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
   congr 1
-  simp [Function.comp_def, absRecShape, absU]
 
 /-! ## `target_rec_pins`, `_aux`, `_names`: one twin `targetRecPins`, split
 at its two binds (`rcPinsTail` is the twin's continuation after `n₀`) -/
@@ -1992,11 +1990,11 @@ theorem targetRecPins_split (p : BlockShape) (block : List IConstantInfo) :
   simp only [absBlockShape_members]
   rcases hm : p.members.val with _ | ⟨m0, ms⟩
   · simp only [List.map_nil]
-    rw [if_pos (by have : p.members.val.length = 0 := by simp [hm]
-                   scalar_tac)]
+    rw [ite_eq_left (by have : p.members.val.length = 0 := by simp [hm]
+                        scalar_tac)]
     lockstep
   · simp only [List.map_cons, pure_bind]
-    rw [if_neg (by simp [alloc.vec.Vec.len, hm])]
+    rw [ite_eq_right (by simp [alloc.vec.Vec.len, hm])]
     lockstep
 
 @[lockstep] theorem target_rec_pins_ls {pers st lst} (hrel : AStateRel₀ pers st lst)

@@ -106,7 +106,7 @@ theorem pack_val {h b f w : Std.U64} {lp : Bool}
   have hh : h.val < 2 ^ 64 := by scalar_tac
   rw [expr.pack_data.eq_def] at hw
   cases lp <;>
-    simp only [Bool.false_eq_true, if_false, if_true, lift_eq, bind_tc_ok,
+    simp only [Bool.false_eq_true, ite_false, ite_true, lift_eq, bind_tc_ok,
       Result.ok.injEq] at hw ⊢ <;>
     rw [← hw] <;>
     simp only [wrapping_add_val, wrapping_mul_val, val_2_32, val_2_16, val_two,
@@ -123,7 +123,7 @@ theorem pack_bits {h b f w : Std.U64} {lp : Bool}
       w.val % 2 = if lp then 1 else 0 := by
   have hv := pack_val hb hf hw
   cases lp <;>
-    simp only [Bool.false_eq_true, if_false, if_true] at hv ⊢ <;>
+    simp only [Bool.false_eq_true, ite_false, ite_true] at hv ⊢ <;>
     exact ⟨by omega, by omega, by omega⟩
 
 /-- The `lpBit`-shaped reading of `pack_bits`'s third component. -/
@@ -193,7 +193,7 @@ theorem sat_pred_val {x r : Std.U64} (h : expr.sat_pred x = ok r) :
   split at h <;> rename_i h1
   · simp only [Result.ok.injEq] at h
     have h1' : x.val = ConLeche.satRange := by rw [h1]; rfl
-    rw [← h, if_pos h1']
+    rw [← h, ite_eq_left h1']
     rfl
   · have h1' : x.val ≠ ConLeche.satRange := by
       intro hc
@@ -201,10 +201,10 @@ theorem sat_pred_val {x r : Std.U64} (h : expr.sat_pred x = ok r) :
     split at h <;> rename_i h2
     · simp only [Result.ok.injEq] at h
       have h2' : x.val = 0 := by rw [h2]; rfl
-      rw [← h, if_neg h1']
+      rw [← h, ite_eq_right h1']
       scalar_tac
     · obtain ⟨-, hv⟩ := Nat.usub_val h
-      rw [if_neg h1', hv]
+      rw [ite_eq_right h1', hv]
       scalar_tac
 
 /-! ## Smart-constructor shapes
@@ -311,11 +311,11 @@ theorem app_inv {f a e : expr.Expr} (h : expr.app f a = ok e) :
   have ebb : bb = lpBit f := lp_bit_val hbb
   cases hcf : bb
   · rw [hcf] at hb1
-    simp only [Bool.false_eq_true, if_false] at hb1
+    simp only [Bool.false_eq_true, ite_false] at hb1
     rw [c3, lp_bit_val hb1, ← ebb, hcf]
     rfl
   · rw [hcf] at hb1
-    simp only [if_true, Result.ok.injEq] at hb1
+    simp only [ite_true, Result.ok.injEq] at hb1
     rw [c3, ← hb1, ← ebb, hcf]
     rfl
 
@@ -324,8 +324,8 @@ theorem app_inv {f a e : expr.Expr} (h : expr.app f a = ok e) :
 theorem satPred_lt {n : Nat} (h : n < 32768) :
     (if n = ConLeche.satRange then ConLeche.satRange else n - 1) < 32768 := by
   by_cases hc : n = ConLeche.satRange
-  · rw [if_pos hc]; simp only [ConLeche.satRange]; omega
-  · rw [if_neg hc]; omega
+  · rw [ite_eq_left hc]; simp only [ConLeche.satRange]; omega
+  · rw [ite_eq_right hc]; omega
 
 /-- `lam`'s and `forall_e`'s bit recurrences are the same; this is the common
 half, stated over the node the caller built. -/
@@ -373,20 +373,20 @@ theorem binder_bits {ty bo : expr.Expr} {m : expr.BinderMeta} {k : expr.ExprKind
   have ebt : bt = lpBit ty := lp_bit_val hbt
   cases hct : bt
   · rw [hct] at hb1
-    simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at hb1
+    simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at hb1
     obtain ⟨b2, hb2, hb1⟩ := hb1
     have eb2 : b2 = lpBit bo := lp_bit_val hb2
     cases hc2 : b2
     · rw [hc2] at hb1
-      simp only [Bool.false_eq_true, if_false] at hb1
+      simp only [Bool.false_eq_true, ite_false] at hb1
       rw [c3, Result.ok_injective (hb1.symm.trans hhp), ← ebt, hct, ← eb2, hc2]
       rfl
     · rw [hc2] at hb1
-      simp only [if_true, Result.ok.injEq] at hb1
+      simp only [ite_true, Result.ok.injEq] at hb1
       rw [c3, ← hb1, ← ebt, hct, ← eb2, hc2]
       rfl
   · rw [hct] at hb1
-    simp only [if_true, Result.ok.injEq] at hb1
+    simp only [ite_true, Result.ok.injEq] at hb1
     rw [c3, ← hb1, ← ebt, hct]
     rfl
 
@@ -463,20 +463,20 @@ theorem let_e_inv {ty v bo e : expr.Expr} (h : expr.let_e ty v bo = ok e) :
   have ebt : bt = lpBit ty := lp_bit_val hbt
   cases hct : bt
   · rw [hct] at hb1
-    simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at hb1
+    simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at hb1
     obtain ⟨b2, hb2, hb1⟩ := hb1
     have eb2 : b2 = lpBit v := lp_bit_val hb2
     cases hc2 : b2
     · rw [hc2] at hb1
-      simp only [Bool.false_eq_true, if_false] at hb1
+      simp only [Bool.false_eq_true, ite_false] at hb1
       rw [c3, lp_bit_val hb1, ← ebt, hct, ← eb2, hc2]
       rfl
     · rw [hc2] at hb1
-      simp only [if_true, Result.ok.injEq] at hb1
+      simp only [ite_true, Result.ok.injEq] at hb1
       rw [c3, ← hb1, ← ebt, hct, ← eb2, hc2]
       rfl
   · rw [hct] at hb1
-    simp only [if_true, Result.ok.injEq] at hb1
+    simp only [ite_true, Result.ok.injEq] at hb1
     rw [c3, ← hb1, ← ebt, hct]
     rfl
 
@@ -614,15 +614,15 @@ theorem str_copy_from_val {s : alloc.vec.Vec Std.U32} :
   | zero =>
     intro i out r hk h
     rw [expr.str_copy_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i >= alloc.vec.Vec.len s by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i >= alloc.vec.Vec.len s by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by scalar_tac), List.append_nil]
   | succ k ih =>
     intro i out r hk h
     rw [expr.str_copy_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ s.val.length
-    · rw [if_pos (show i >= alloc.vec.Vec.len s by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i >= alloc.vec.Vec.len s by scalar_tac), Result.ok.injEq] at h
       rw [← h, List.drop_eq_nil_of_le (by scalar_tac), List.append_nil]
-    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len s by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i >= alloc.vec.Vec.len s by scalar_tac)] at h
       have hlt : i.val < s.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := s.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
@@ -724,17 +724,17 @@ theorem levels_beq_from_refines {ls rs : alloc.vec.Vec level.Level}
   | zero =>
     intro i b hk h
     rw [expr.levels_beq_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i >= alloc.vec.Vec.len ls by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i >= alloc.vec.Vec.len ls by scalar_tac), Result.ok.injEq] at h
     rw [← h]
     exact iff_of_true rfl (hnil i (by scalar_tac))
   | succ k ih =>
     intro i b hk h
     rw [expr.levels_beq_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ ls.val.length
-    · rw [if_pos (show i >= alloc.vec.Vec.len ls by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i >= alloc.vec.Vec.len ls by scalar_tac), Result.ok.injEq] at h
       rw [← h]
       exact iff_of_true rfl (hnil i (by scalar_tac))
-    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len ls by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i >= alloc.vec.Vec.len ls by scalar_tac)] at h
       have hl : i.val < ls.val.length := by scalar_tac
       have hr : i.val < rs.val.length := by omega
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := ls.slice.property; scalar_tac
@@ -751,13 +751,13 @@ theorem levels_beq_from_refines {ls rs : alloc.vec.Vec level.Level}
         List.map_cons, List.map_cons, List.cons.injEq]
       cases hc : b0
       · rw [hc] at hb0' h
-        simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+        simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
         have hne := of_decide_eq_false hb0'.symm
         rw [← h]
         simp only [Bool.false_eq_true, false_iff, not_and]
         intro hhd; exact absurd hhd hne
       · rw [hc] at hb0' h
-        simp only [if_true, bind_eq_ok_iff, hw, Result.ok.injEq, exists_eq_left'] at h
+        simp only [ite_true, bind_eq_ok_iff, hw, Result.ok.injEq, exists_eq_left'] at h
         have heq := of_decide_eq_true hb0'.symm
         have hrec := ih w b (by scalar_tac) h
         rw [hwv] at hrec
@@ -770,7 +770,7 @@ theorem levels_beq_refines {ls rs : alloc.vec.Vec level.Level} {c : Bool}
     c = decide (absLevels ls = absLevels rs) := by
   rw [expr.levels_beq.eq_def] at h; simp only [] at h
   by_cases hlen : ls.val.length = rs.val.length
-  · rw [if_neg (show ¬ (alloc.vec.Vec.len ls != alloc.vec.Vec.len rs) by
+  · rw [ite_eq_right (show ¬ (alloc.vec.Vec.len ls != alloc.vec.Vec.len rs) by
       simp only [bne_iff_ne, ne_eq, not_not]; scalar_tac)] at h
     have hfrom := levels_beq_from_refines hls hrs hlen ls.val.length 0#usize c
       (by scalar_tac) h
@@ -784,7 +784,7 @@ theorem levels_beq_refines {ls rs : alloc.vec.Vec level.Level} {c : Bool}
     · refine (decide_eq_true ?_).symm
       simp only [absLevels]
       exact hfrom.mp rfl
-  · rw [if_pos (show (alloc.vec.Vec.len ls != alloc.vec.Vec.len rs) by
+  · rw [ite_eq_left (show (alloc.vec.Vec.len ls != alloc.vec.Vec.len rs) by
       simp only [bne_iff_ne, ne_eq]; intro hc; exact hlen (by scalar_tac)),
       Result.ok.injEq] at h
     rw [← h]
@@ -1283,12 +1283,12 @@ theorem guard_step {P Q : Prop} [Decidable P] [Decidable Q] {c : Bool}
   have e := htest y hy
   cases hc : y
   · rw [hc] at e h
-    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
     rw [← h]
     have hnp : ¬ P := of_decide_eq_false e.symm
     simp [hnp]
   · rw [hc] at e h
-    simp only [if_true] at h
+    simp only [ite_true] at h
     have hp : P := of_decide_eq_true e.symm
     rw [hrest c h]
     simp [hp]
@@ -1303,7 +1303,7 @@ theorem pair_is_false {p : expr.Expr × expr.Expr} {a b : expr.Expr} {r : Bool}
     (h : expr.pair_is p a b = ok r) : r = false := by
   rw [expr.pair_is] at h
   obtain ⟨p1, p2⟩ := p
-  simp only [ptr_eq_eq, bind_tc_ok, Bool.false_eq_true, if_false] at h
+  simp only [ptr_eq_eq, bind_tc_ok, Bool.false_eq_true, ite_false] at h
   simpa using h.symm
 
 /-- The bucket scan of task #38's memo, by the measure induction every index
@@ -1321,22 +1321,22 @@ theorem probe_hit_from_false {a b : expr.Expr}
   | zero =>
     intro i r hk h
     rw [expr.probe_hit_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i >= alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i >= alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
     exact h.symm
   | succ k ih =>
     intro i r hk h
     rw [expr.probe_hit_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ ps.val.length
-    · rw [if_pos (show i >= alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i >= alloc.vec.Vec.len ps by scalar_tac), Result.ok.injEq] at h
       exact h.symm
-    · rw [if_neg (show ¬ i >= alloc.vec.Vec.len ps by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i >= alloc.vec.Vec.len ps by scalar_tac)] at h
       have hlt : i.val < ps.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
       simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff] at h
       obtain ⟨p, -, c, hc, h⟩ := h
       rw [pair_is_false hc] at h
-      simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff, hw,
+      simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff, hw,
         Result.ok.injEq, exists_eq_left'] at h
       exact ih w r (by scalar_tac) h
 
@@ -1356,15 +1356,15 @@ theorem beq_finish_fst {r rc : Bool} {m : BeqMap} {key : Std.U64}
   rw [expr.beq_finish] at h
   cases r with
   | false =>
-    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
     rw [← h]
   | true =>
     cases rc with
     | false =>
-      simp only [if_true, Bool.false_eq_true, if_false, Result.ok.injEq] at h
+      simp only [ite_true, Bool.false_eq_true, ite_false, Result.ok.injEq] at h
       rw [← h]
     | true =>
-      simp only [if_true] at h
+      simp only [ite_true] at h
       obtain ⟨m', -, h⟩ := bind_eq_ok_iff.mp h
       simp only [Result.ok.injEq] at h
       rw [← h]
@@ -1378,7 +1378,7 @@ theorem beq_go_arm {a b : expr.Expr} {m : BeqMap} {rm : Bool × BeqMap}
     (h : expr.beq_go m a b = ok rm) (hd : dataOf a = dataOf b) :
     ∃ rm' : Bool × BeqMap, expr.beq_arm m a b = ok rm' ∧ rm'.1 = rm.1 := by
   rw [expr.beq_go.eq_def] at h
-  simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok, hd,
+  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_tc_ok, hd,
     bne_self_eq_false] at h
   obtain ⟨rc, -, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
@@ -1386,15 +1386,15 @@ theorem beq_go_arm {a b : expr.Expr} {m : BeqMap} {rm : Bool × BeqMap}
   obtain ⟨key, -, h⟩ := bind_eq_ok_iff.mp h
   cases rc with
   | true =>
-    simp only [if_true] at h
+    simp only [ite_true] at h
     obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
     rw [probe_hit_false hb2] at h
-    simp only [Bool.false_eq_true, if_false] at h
+    simp only [Bool.false_eq_true, ite_false] at h
     obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, m1⟩ := q
     exact ⟨(r1, m1), hq, (beq_finish_fst h).symm⟩
   | false =>
-    simp only [Bool.false_eq_true, if_false] at h
+    simp only [Bool.false_eq_true, ite_false] at h
     obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r1, m1⟩ := q
     exact ⟨(r1, m1), hq, (beq_finish_fst h).symm⟩
@@ -1422,12 +1422,12 @@ theorem when_step {P Q : Prop} [Decidable P] [Decidable Q] {test : Result Bool}
   rw [expr.beq_when] at h
   cases c with
   | false =>
-    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
     rw [← h]
     have hnp : ¬ P := of_decide_eq_false e.symm
     simp [hnp]
   | true =>
-    simp only [if_true] at h
+    simp only [ite_true] at h
     have hp : P := of_decide_eq_true e.symm
     rw [hrest m rm h]
     simp [hp]
@@ -1475,12 +1475,12 @@ theorem both_when_step {P Q R : Prop} [Decidable P] [Decidable Q] [Decidable R]
   rw [expr.beq_both_when] at h
   cases c with
   | false =>
-    simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h
+    simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
     rw [← h]
     have hnp : ¬ P := of_decide_eq_false e.symm
     simp [hnp]
   | true =>
-    simp only [if_true] at h
+    simp only [ite_true] at h
     have hp : P := of_decide_eq_true e.symm
     rw [both_step h1 h2 h]
     simp [hp]
@@ -1539,8 +1539,8 @@ theorem beq_go_data_ne {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b)
     (h : expr.beq_go m a b = ok rm) (hne : dataOf a ≠ dataOf b) :
     rm.1 = decide (absExpr a = absExpr b) := by
   rw [expr.beq_go.eq_def] at h
-  simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok] at h
-  rw [if_pos (show (dataOf a != dataOf b) = true by simpa using hne),
+  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_tc_ok] at h
+  rw [ite_eq_left (show (dataOf a != dataOf b) = true by simpa using hne),
     Result.ok.injEq] at h
   subst h
   refine (decide_eq_false ?_).symm
@@ -2388,9 +2388,9 @@ memo never enters it). -/
 theorem beq_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
     (h : expr.beq a b = ok c) : c = decide (absExpr a = absExpr b) := by
   rw [expr.beq] at h
-  simp only [ptr_eq_eq, Bool.false_eq_true, if_false, data_eq, bind_tc_ok] at h
+  simp only [ptr_eq_eq, Bool.false_eq_true, ite_false, data_eq, bind_tc_ok] at h
   by_cases hd : dataOf a = dataOf b
-  · rw [if_neg (show ¬ (dataOf a != dataOf b) = true by simp [hd])] at h
+  · rw [ite_eq_right (show ¬ (dataOf a != dataOf b) = true by simp [hd])] at h
     obtain ⟨m, -, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨rm, hrm, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨r, m'⟩ := rm
@@ -2398,7 +2398,7 @@ theorem beq_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
     simp only [Result.ok.injEq] at h'
     rw [← h']
     exact beq_go_abs ha b hb m (r, m') hrm
-  · rw [if_pos (show (dataOf a != dataOf b) = true by simpa using hd),
+  · rw [ite_eq_left (show (dataOf a != dataOf b) = true by simpa using hd),
       Result.ok.injEq] at h
     rw [← h]
     refine (decide_eq_false ?_).symm

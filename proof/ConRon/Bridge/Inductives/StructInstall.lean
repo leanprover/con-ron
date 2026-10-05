@@ -59,7 +59,7 @@ theorem checkStructDomsAt_mono {μ : CheckMode} {env : Env} {F F' : Nat}
       cases c with
       | false => exact nomatch h
       | true =>
-        simp only [if_true] at h ⊢
+        simp only [ite_true] at h ⊢
         exact ih h
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:31-50 checkStructDomsAt
@@ -142,7 +142,7 @@ theorem checkStructDomsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have h1 := ConLeche.isDefEqCore_mono (Nat.le_max_left F1 F2) hF1
     have h2 := checkStructDomsAt_mono (Nat.le_max_right F1 F2) hF2
     simp only [ConLeche.checkStructDomsAt, haP, hbP, ConLeche.unwrapOr,
-      ConLeche.fueledOps, bind, Except.bind, pure, Except.pure, h1, if_true]
+      ConLeche.fueledOps, bind, Except.bind, pure, Except.pure, h1, ite_true]
     exact h2
 
 /-! ## The projection table -/
@@ -318,8 +318,8 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
     ⟨_, denoteFEnv_push (denoteFEnv_mono x06 hfe) hci, ?_⟩, ?_⟩
   · simp only [ConLeche.checkStructProjTable, hbP, ConLeche.unwrapOr, bind, Except.bind, pure,
       Except.pure]
-    rw [if_pos ⟨hsizeP, by rw [← Array.all_toList]; exact hall⟩,
-      if_pos hg2, if_pos hg3']
+    rw [ite_eq_left ⟨hsizeP, by rw [← Array.all_toList]; exact hall⟩,
+      ite_eq_left hg2, ite_eq_left hg3']
   · exact ProjOut.push_table hcoh _ ⟨hsize, hg, TP, denoteN_ext hT x06, htn⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable

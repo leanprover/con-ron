@@ -149,7 +149,7 @@ theorem plc_ax {pers rst lst rsd lsd cvr u o}
     cases u with
     | true => exact plc_declined h
     | false =>
-      simp only [Bool.false_eq_true, if_false, pure_bind]
+      simp only [Bool.false_eq_true, ite_false, pure_bind]
       exact plc_push hrel hinv hd hi h
 
 theorem plc_opaq {pers rst lst rsd lsd cvr value u o}
@@ -171,7 +171,7 @@ theorem plc_opaq {pers rst lst rsd lsd cvr value u o}
     cases u with
     | true => exact plc_declined h
     | false =>
-      simp only [Bool.false_eq_true, if_false, pure_bind]
+      simp only [Bool.false_eq_true, ite_false, pure_bind]
       obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hG := get_decl_d_refines (lst := lst) hd hr1
       cases r1 with
@@ -237,7 +237,7 @@ theorem plc_defn {pers rst lst rsd lsd cvr value hints safety o}
     · rename_i hsv
       have hbt : b = true := hsafe.mpr hsv
       subst hbt
-      simp only [if_true] at h
+      simp only [ite_true] at h
       obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hG := get_decl_d_refines (lst := lst) hd hr1
       cases r1 with
@@ -254,7 +254,7 @@ theorem plc_defn {pers rst lst rsd lsd cvr value hints safety o}
         · rfl
         · exact absurd (hsafe.mp rfl) hsv
       subst hbf
-      simp only [Bool.false_eq_true, if_false] at h
+      simp only [Bool.false_eq_true, ite_false] at h
       obtain ⟨v1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h
@@ -746,7 +746,7 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
   split at h
   · rename_i hlt
     have hlt' : absPos i < (absBytes b).usize := absPos_lt_usize.mpr (by scalar_tac)
-    rw [feedChunk, dif_pos hlt']
+    rw [feedChunk, dite_eq_left hlt']
     obtain ⟨sr, hsr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hS := hsc.scanLineFwd hsr
     cases sr with
@@ -760,11 +760,11 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
       · rename_i hj0
         have ho := Result.ok_injective h; subst ho
         have : j.val = 0 := by rw [hj0]; rfl
-        simp only [this, decide_true, if_true]
+        simp only [this, decide_true, ite_true]
         exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv⟩
       · rename_i hj0
         have hj0' : ¬ j.val = 0 := fun hv => hj0 (by scalar_tac)
-        simp only [hj0', decide_false, Bool.false_eq_true, if_false]
+        simp only [hj0', decide_false, Bool.false_eq_true, ite_false]
         obtain ⟨hwf, hnat⟩ := hsc.scanLineStr hsr
         obtain ⟨⟨r2, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hA := apply_line_refines hrel hinv hd hi hwf hnat hap
@@ -778,7 +778,7 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
           split at h
           · rename_i hge
             have hge' : ¬ absPos i < absPos j := by rw [absPos_lt_iff]; scalar_tac
-            simp only [dif_neg hge']
+            simp only [dite_eq_right hge']
             obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -793,7 +793,7 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
             rw [absU_add_one hi2]; rfl
           · rename_i hlt2
             have hlt2' : absPos i < absPos j := by rw [absPos_lt_iff]; scalar_tac
-            simp only [dif_pos hlt2']
+            simp only [dite_eq_left hlt2']
             obtain ⟨line_no1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             have hR := ih (b.val.length - j.val) (by scalar_tac) j ar1 lst' st1 lsd'
               line_no1 o rfl hrel' hinv' hd' hi' h
@@ -850,7 +850,7 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
             rw [← hnl']; exact hnlt
           refine Or.inl ⟨.internal (ConLeche.Frontend.ScanErr.render
             ⟨e.offset.val - (absPos i).toNat, tg⟩), lst, ?_, rfl⟩
-          simp only [hscan, hnlt', if_true]
+          simp only [hscan, hnlt', ite_true]
           rw [absU_add_one hi3]; rfl
       · rename_i hnlf
         have ho := Result.ok_injective h; subst ho
@@ -861,11 +861,11 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
         refine ⟨lsd, lst, ?_, hd, hi, hrel, hinv⟩
         cases hsc2 : ConLeche.Frontend.scanLineFwd (absBytes b) (absPos i) with
         | err se =>
-          simp only [hnlf', Bool.false_eq_true, if_false]
+          simp only [hnlf', Bool.false_eq_true, ite_false]
           rfl
         | ok r j =>
           by_cases hj : j = 0
-          · simp only [hj, beq_self_eq_true, if_true]
+          · simp only [hj, beq_self_eq_true, ite_true]
             rfl
           · have := scanLineFwd_ok_newline hsc2 hj
             rw [hnlf'] at this; cases this
@@ -873,7 +873,7 @@ theorem feed_chunk_loop_refines {pers} {b : Slice Std.U8}
     have hge' : ¬ absPos i < (absBytes b).usize := by
       rw [absPos_lt_usize]; scalar_tac
     have ho := Result.ok_injective h; subst ho
-    rw [feedChunk, dif_neg hge']
+    rw [feedChunk, dite_eq_right hge']
     exact ⟨lsd, lst, rfl, hd, hi, hrel, hinv⟩
 
 /-- A wrapper that reshapes nothing: `SimStreamD` goes through it. -/
@@ -930,7 +930,7 @@ theorem parse_bytes_final_refines {pers rst lst rsd lsd b tail line_no o}
   split at h
   · rename_i hlt
     have hlt' : absPos tail < (absBytes b).usize := absPos_lt_usize.mpr (by scalar_tac)
-    rw [if_pos hlt']
+    rw [ite_eq_left hlt']
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hap, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hA := apply_final_line_refines hsc hrel hinv hd hi hap
@@ -959,7 +959,7 @@ theorem parse_bytes_final_refines {pers rst lst rsd lsd b tail line_no o}
   · rename_i hge
     have hge' : ¬ absPos tail < (absBytes b).usize := by
       rw [absPos_lt_usize]; scalar_tac
-    rw [if_neg hge']
+    rw [ite_eq_right hge']
     obtain ⟨prd, hprd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have ho := Result.ok_injective h; subst ho
     exact ⟨ParseResultD.ofState lsd, lst, rfl, parse_result_of_state_refines hd hprd,
@@ -990,7 +990,7 @@ theorem parse_bytes_refines {pers rst lst b o}
   obtain ⟨⟨r, e⟩, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hS := state_d_init_refines hrel hinv hs
   simp only [SimRel₀] at hS
-  simp only [SimStreamRel, parseBytes, hsz, if_false, am_run_bind']
+  simp only [SimStreamRel, parseBytes, hsz, ite_false, am_run_bind']
   simp only [except_pure_bind, StateT.run_pure]
   cases r with
   | Err e1 =>
@@ -1098,7 +1098,7 @@ theorem chunk_step_refines
     have ho := Result.ok_injective h; subst ho
     have hge' : absU total + (absBytes buf0).size ≥ USize.size := by
       rw [absBytes_size]; simp only [absU]; scalar_tac
-    rw [if_pos hge']
+    rw [ite_eq_left hge']
     have hk := size_error_refines hp
     intro k hk'
     rw [hk.1] at hk'
@@ -1106,7 +1106,7 @@ theorem chunk_step_refines
   · rename_i hlt
     have hlt' : ¬ absU total + (absBytes buf0).size ≥ USize.size := by
       rw [absBytes_size]; simp only [absU]; scalar_tac
-    rw [if_neg hlt']
+    rw [ite_eq_right hlt']
     obtain ⟨buf, hbuf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hf, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1118,14 +1118,14 @@ theorem chunk_step_refines
         have hc : carry.val.length = 0 := by scalar_tac
         have : (absChunk carry).isEmpty = true := by
           simp only [ByteArray.isEmpty, absChunk_size]; simp [hc]
-        rw [if_pos this]
+        rw [ite_eq_left this]
         simp only [absChunk, absBytes, hv]
       · rename_i h0
         have hv := extend_u8_val hbuf
         have hc : carry.val.length ≠ 0 := by scalar_tac
         have : (absChunk carry).isEmpty = false := by
           simp only [ByteArray.isEmpty, absChunk_size]; simp [hc]
-        rw [if_neg (by simp [this])]
+        rw [ite_eq_right (by simp [this])]
         apply ByteArray.ext
         simp [absChunk, absBytes, hv, ByteArray.data_append]
     rw [← hbufv]
@@ -1261,7 +1261,7 @@ theorem parse_chunks_loop_refines {pers chunks}
   | zero =>
     intro i rst lst rsd lsd carry line_no total o hk hrel hinv hd hi h
     rw [frontend.export_c.parse_chunks_loop] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hF := chunk_finish_refines hsc hrel hinv hd hi h
     rw [vec_index_full hs] at hF
@@ -1272,7 +1272,7 @@ theorem parse_chunks_loop_refines {pers chunks}
   | succ k ih =>
     intro i rst lst rsd lsd carry line_no total o hk hrel hinv hd hi h
     rw [frontend.export_c.parse_chunks_loop] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨s, hs, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1, st1⟩, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

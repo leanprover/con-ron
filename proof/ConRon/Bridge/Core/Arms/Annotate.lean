@@ -46,6 +46,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -65,7 +68,7 @@ theorem annot_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
     ConLeche.annotateCore mode env (F + 1) d (.fvar idx ty) =
       .ok (.fvar idx ty) := by
   rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, if_pos h, pure, Except.pure]
+  simp only [ConLeche.annotateBody, ite_eq_left h, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1815 annotateBody. -/
 theorem annot_sort {F d : Nat} {u : Level} :
@@ -83,7 +86,7 @@ theorem annot_natLit {F d n : Nat}
     ConLeche.annotateCore mode env (F + 1) d (.lit (.natVal n)) =
       .ok (.lit (.natVal n)) := by
   rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, h, if_true, pure, Except.pure]
+  simp only [ConLeche.annotateBody, h, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1822-1827 annotateBody. -/
 theorem annot_strLit {F d : Nat} {s : String}
@@ -91,7 +94,7 @@ theorem annot_strLit {F d : Nat} {s : String}
     ConLeche.annotateCore mode env (F + 1) d (.lit (.strVal s)) =
       .ok (.lit (.strVal s)) := by
   rw [ConLeche.annotateCore_succ]
-  simp only [ConLeche.annotateBody, h, if_true, pure, Except.pure]
+  simp only [ConLeche.annotateBody, h, ite_true, pure, Except.pure]
 
 /-! ## 2. The application clause -/
 

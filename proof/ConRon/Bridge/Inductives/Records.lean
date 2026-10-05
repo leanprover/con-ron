@@ -53,7 +53,7 @@ theorem FOk.seq {β : Type} {x : FueledM Unit} {y : FueledM β} {b : β}
 /-- con-leche: none — `unless`/`if` with the test known to pass. -/
 theorem FOk.ite_pos {α : Type} {c : Prop} [Decidable c] {x y : FueledM α} {v : α}
     (hc : c) (h : FOk x v) : FOk (if c then x else y) v := by
-  rw [if_pos hc]; exact h
+  rw [ite_eq_left hc]; exact h
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:201-204 unwrapOr — at `some`,
 the pure side's `unwrapOr` is `pure`. -/

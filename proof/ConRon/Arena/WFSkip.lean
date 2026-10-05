@@ -215,7 +215,7 @@ and `intern` compute as they did before the skip. -/
 theorem EStore.persFindMaybe_eq {st : EStore} (hwf : StoreWF st) (v : ENodeView)
     (mi : BMIdx) : st.persFindMaybe v mi = st.pers.find? v mi := by
   simp only [EStore.persFindMaybe]
-  cases st.scratchOn <;> simp only [Bool.false_eq_true, if_false, if_true]
+  cases st.scratchOn <;> simp only [Bool.false_eq_true, ite_false, ite_true]
   cases hr : EStore.eRecHasScratchChild v mi
   · simp
   · simp [pers_find_none_of_eRecHasScratchChild hwf hr]

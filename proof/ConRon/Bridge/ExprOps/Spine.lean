@@ -76,6 +76,9 @@ namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -815,7 +818,7 @@ theorem mkAppNFrom_lt {f : EIdx} {args : Array EIdx} {i : Nat}
     mkAppNFrom f args i =
       (do let g ← internAppE f args[i]; mkAppNFrom g args (i + 1)) := by
   rw [mkAppNFrom]
-  simp only [h, dif_pos]
+  simp only [h, dite_eq_left]
 
 /-- con-leche: none — and the exhausted clause. -/
 theorem mkAppNFrom_ge {f : EIdx} {args : Array EIdx} {i : Nat}

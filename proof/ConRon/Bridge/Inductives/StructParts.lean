@@ -177,14 +177,14 @@ theorem structElimLevel_spec (elim : NIdx) (elimP : ConLeche.Name)
   intro s₀ s' r hok hd hrun
   cases large with
   | true =>
-    simp only [Arena.structElimLevel, if_true] at hrun
+    simp only [Arena.structElimLevel, ite_true] at hrun
     obtain ⟨hstep, hr⟩ := internParamL_run hok hd hrun
-    exact ⟨hstep, by simpa only [ConLeche.structElimLevel, if_true] using hr⟩
+    exact ⟨hstep, by simpa only [ConLeche.structElimLevel, ite_true] using hr⟩
   | false =>
-    simp only [Arena.structElimLevel, Bool.false_eq_true, if_false] at hrun
+    simp only [Arena.structElimLevel, Bool.false_eq_true, ite_false] at hrun
     obtain ⟨hstep, hr⟩ := internZeroL_run hok hrun
     exact ⟨hstep, by
-      simpa only [ConLeche.structElimLevel, Bool.false_eq_true, if_false]
+      simpa only [ConLeche.structElimLevel, Bool.false_eq_true, ite_false]
         using hr⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:82-85 structCtorResidOk
@@ -320,41 +320,41 @@ are con-leche's `hasLooseBVarB_eq` proof's first line, once per shape. -/
 has no `bvar i`.  This is what the twin's early return computes. -/
 theorem hasLooseBVarB_cut {i : Nat} {e : Expr} (hc : e.bvarB ≤ i) :
     Expr.hasLooseBVarB i e = false := by
-  cases e <;> (rw [Expr.hasLooseBVarB]; exact if_pos hc)
+  cases e <;> (rw [Expr.hasLooseBVarB]; exact ite_eq_left hc)
 
 theorem hasLooseBVarB_bvar {i j : Nat} (hc : ¬ (Expr.bvar j).bvarB ≤ i) :
     Expr.hasLooseBVarB i (.bvar j) = (i == j) := by
-  rw [Expr.hasLooseBVarB]; exact if_neg hc
+  rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
 theorem hasLooseBVarB_app {i : Nat} {f a : Expr}
     (hc : ¬ (Expr.app f a).bvarB ≤ i) :
     Expr.hasLooseBVarB i (.app f a) =
       (Expr.hasLooseBVarB i f || Expr.hasLooseBVarB i a) := by
-  rw [Expr.hasLooseBVarB]; exact if_neg hc
+  rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
 theorem hasLooseBVarB_lam {i : Nat} {ty b : Expr} {m : BinderMeta}
     (hc : ¬ (Expr.lam ty b m).bvarB ≤ i) :
     Expr.hasLooseBVarB i (.lam ty b m) =
       (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
-  rw [Expr.hasLooseBVarB]; exact if_neg hc
+  rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
 theorem hasLooseBVarB_forallE {i : Nat} {ty b : Expr} {m : BinderMeta}
     (hc : ¬ (Expr.forallE ty b m).bvarB ≤ i) :
     Expr.hasLooseBVarB i (.forallE ty b m) =
       (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
-  rw [Expr.hasLooseBVarB]; exact if_neg hc
+  rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
 theorem hasLooseBVarB_letE {i : Nat} {t v b : Expr}
     (hc : ¬ (Expr.letE t v b).bvarB ≤ i) :
     Expr.hasLooseBVarB i (.letE t v b) =
       (Expr.hasLooseBVarB i t || Expr.hasLooseBVarB i v ||
         Expr.hasLooseBVarB (i + 1) b) := by
-  rw [Expr.hasLooseBVarB]; exact if_neg hc
+  rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
 theorem hasLooseBVarB_proj {i : Nat} {n : ConLeche.Name} {k : Nat} {e : Expr}
     (hc : ¬ (Expr.proj n k e).bvarB ≤ i) :
     Expr.hasLooseBVarB i (.proj n k e) = Expr.hasLooseBVarB i e := by
-  rw [Expr.hasLooseBVarB]; exact if_neg hc
+  rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:198-233 Expr.hasLooseBVarBGo
 The memoised walk: the answer is the real one AND the memo it hands back is
@@ -758,7 +758,7 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
       rw [hused j hjn] at hr
       split at hr
       · rename_i hcond
-        rw [if_pos hcond]
+        rw [ite_eq_left hcond]
         obtain ⟨m, sm, hm, hr'⟩ := AM.bind_ok hr
         obtain ⟨hstepM, hmd⟩ :=
           internMaxL_run hoka hacc (denoteLList_getD hsa hza j) hm
@@ -768,7 +768,7 @@ theorem structProjGuards_spec (cty : EIdx) (ctyP : Expr) (nP nF : Nat)
             hmd (by omega) hr'
         exact ⟨hstepM.trans hstepR, hrd⟩
       · rename_i hcond
-        rw [if_neg hcond]
+        rw [ite_eq_right hcond]
         exact ih (j + 1) acc accP sa sb rr hoka hsa hza hacc (by omega) hr
   -- `row`: the outer map, over `List.range' i k`
   have hrow : ∀ (k i : Nat) (sa sb : AState) (rr : List LIdx), StateOK sa →

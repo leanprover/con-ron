@@ -103,7 +103,7 @@ theorem iota_certs_aux_aux {f : Nat} (hk : KnotRel f) (N : Nat) :
     intro pers vis st mode lane fu fe lfe depth lic h acc args i lst hN hx hrel hinv hctx hf
     rw [arena.core.iota_certs_aux, iotaCertsAux]
     by_cases hi : absSz i < (absEIdxArr args).size
-    · rw [dif_pos hi]
+    · rw [dite_eq_left hi]
       simp only [absEIdxArr_size, absSz] at hi
       lockstep_core
       -- glue: the bvar arm's re-entry with the flushed accumulator
@@ -115,7 +115,7 @@ theorem iota_certs_aux_aux {f : Nat} (hk : KnotRel f) (N : Nat) :
           have hm : min acc.val.length 1 = 1 := by omega
           rw [h0, List.length_nil]; omega) hx hrel hinv hctx hf
       simpa [absEIdxArr, alloc.vec.Vec.new] using this
-    · rw [dif_neg hi]
+    · rw [dite_eq_right hi]
       simp only [absEIdxArr_size, absSz] at hi
       lockstep_core
 

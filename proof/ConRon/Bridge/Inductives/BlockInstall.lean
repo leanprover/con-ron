@@ -291,7 +291,7 @@ theorem piDomsMentionAny_spec (names : List NIdx) (namesP : List ConLeche.Name) 
     obtain ⟨hT, hd⟩ := hp
     simp only [Arena.piDomsMentionAny] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
@@ -307,16 +307,16 @@ theorem piDomsMentionAny_spec (names : List NIdx) (namesP : List ConLeche.Name) 
         simp only [RV] at hc
         subst hc
         by_cases hb : Expr.mentionsAnyConst namesP dP = true
-        · rw [if_pos hb] at h4
+        · rw [ite_eq_left hb] at h4
           obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
           exact ⟨p3, by simp [Expr.piDomsMentionAny, hb]⟩
-        · rw [if_neg hb] at h4
+        · rw [ite_eq_right hb] at h4
           obtain ⟨p4, h5⟩ := ih b bP s₂ s' r p3.ok
             ⟨denoteNListE_ext p3.ext _ _ hT, denote_ext hbd p3.ext⟩ h4
           refine ⟨p3.trans p4, ?_⟩
           simp only [RV] at h5
           simp [Expr.piDomsMentionAny, hb, h5]
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show false = Expr.piDomsMentionAny namesP eP
@@ -458,7 +458,7 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨p4, hsrt⟩ := internSortE_run c2.ok.state h2b k4
   have hbeq := beq_of_denoteE p4.ok.wf (denote_ext hbody p4.ext) hsrt
   by_cases hb : (body == srt) = true
-  · rw [if_pos hb] at z4
+  · rw [ite_eq_left hb] at z4
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
     have c4 := c1.trans (c2.trans (p4.toCore c2.ok))
     refine ⟨c4, (cvTaP, sP), ⟨denoteCV_ext h2a p4.ext, denoteL_ext h2b p4.ext, hw2⟩, ?_⟩
@@ -468,7 +468,7 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [hxs]
     refine FOk.bind FOk.unwrapOr ?_
     exact FOk.ite_pos (by simpa using hbeq.symm) (FOk.pure _)
-  · rw [if_neg hb] at z4
+  · rw [ite_eq_right hb] at z4
     exact absurd z4 (fun h => AM.fail_ok h)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:119-126 checkBlockTeles
@@ -632,7 +632,7 @@ theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hl1 := denoteEList_length hxs1
     dsimp only at z4
     by_cases hlen : (fvs1.length == fvs0.length) = true
-    · rw [if_pos hlen] at z4
+    · rw [ite_eq_left hlen] at z4
       replace z4 := AM.pure_bind_ok z4
       obtain ⟨doms, s₅, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨p5, hdoms⟩ := fvarTypeDs_run fvs0 xs0 p3.ok hxs0' k5
@@ -666,7 +666,7 @@ theorem checkBlockAgree_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
       refine FOk.ite_pos (by rw [← hl0, ← hl1]; simpa using hlen)
         (FOk.bind fk6 (FOk.bind FOk.liftFueled ?_))
       exact FOk.ite_pos rfl fk9
-    · rw [if_neg hlen] at z4
+    · rw [ite_eq_right hlen] at z4
       exact absurd z4 (AM.Never.fail_any _ _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:166-172 consBlockInds
@@ -841,7 +841,7 @@ theorem BlockShape.nestCtx_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape
   have x := p1.ext
   simp only [dCtx, denoteNListE_ext x _ _ hnames, denoteNListE_ext x _ _ hlps,
     denoteEList_ext x _ _ hfvs, denoteL_ext hsP x, hlv, Option.bind_eq_bind, Option.bind_some,
-    Option.pure_def, if_true, ConLeche.BlockShape.nestCtx, hnI]
+    Option.pure_def, ite_true, ConLeche.BlockShape.nestCtx, hnI]
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:199-210 checkBlockCtors
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:97-106 checkBlockCtorsF

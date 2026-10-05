@@ -63,11 +63,11 @@ skipped). -/
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.check_decl.check_shapeless_formers.eq_def, checkShapelessFormers]
-    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_left (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
   · intro st lst i hb hrel hinv ih
     rw [arena.check_decl.check_shapeless_formers.eq_def]
-    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
     cases hx : block.val[i.val] <;>
       simp only [absIConstantInfo, checkShapelessFormers] <;> lockstep
 

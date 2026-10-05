@@ -25,6 +25,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -42,7 +45,7 @@ theorem view_of_viewBind_forallE {st : EStore} {i ty b : EIdx}
   have htg' : i.tag = ETag.forallE := by simpa using htg
   have hb : ETag.isBind i.tag = true := by rw [htg']; decide
   unfold EStore.view
-  rw [if_pos hb, h]
+  rw [ite_eq_left hb, h]
   simp only [eBindView, htg']
   simp [ETag.lam, ETag.forallE]
 
@@ -66,7 +69,7 @@ theorem headAndArgs_app_spec (s₀ : AState) (e : EIdx) (x : Expr)
     ⦃⇓? r s' => ⌜s' = s₀ ∧ denoteE s₀.store r.1 = some x.getAppFn ∧
         Frontend.denoteEList s₀.store r.2.toList = some x.getAppArgs⌝⦄ := by
   unfold headAndArgs
-  rw [if_pos htag]
+  rw [ite_eq_left htag]
   refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ e hok
     (by rw [hden]; rfl)) ?_
   rintro hd s1 ⟨hs1, hrelF⟩
@@ -216,7 +219,7 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   | zero =>
     intro ty acc i s₀ tyx ws xs hk hok hty hacc hwty hxs _hwxs
     have hi : ¬ i < args.size := by omega
-    rw [ConRon.Arena.inferSpine, dif_neg hi]
+    rw [ConRon.Arena.inferSpine, dite_eq_right hi]
     have hnil : xs = [] := by
       have h0 : args.toList.drop i = [] :=
         List.drop_eq_nil_of_le (by simp; omega)
@@ -231,7 +234,7 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   | succ k ih =>
     intro ty acc i s₀ tyx ws xs hk hok hty hacc hwty hxs hwxs
     have hi : i < args.size := by omega
-    rw [ConRon.Arena.inferSpine, dif_pos hi]
+    rw [ConRon.Arena.inferSpine, dite_eq_left hi]
     obtain ⟨x, xs', rfl, hx, hxs'⟩ := denoteEList_drop_cons hi hxs
     have hwx : Expr.WScoped d x := hwxs x (by simp)
     have hwxs' : ∀ z ∈ xs', Expr.WScoped d z :=
@@ -365,7 +368,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
   | zero =>
     intro ty acc i s₀ tyx ws xs hk hok hty hacc hwty hxs _hwxs
     have hi : ¬ i < args.size := by omega
-    rw [ConRon.Arena.inferSpineIO, dif_neg hi]
+    rw [ConRon.Arena.inferSpineIO, dite_eq_right hi]
     have hnil : xs = [] := by
       have h0 : args.toList.drop i = [] :=
         List.drop_eq_nil_of_le (by simp; omega)
@@ -380,7 +383,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
   | succ k ih =>
     intro ty acc i s₀ tyx ws xs hk hok hty hacc hwty hxs hwxs
     have hi : i < args.size := by omega
-    rw [ConRon.Arena.inferSpineIO, dif_pos hi]
+    rw [ConRon.Arena.inferSpineIO, dite_eq_left hi]
     obtain ⟨x, xs', rfl, hx, hxs'⟩ := denoteEList_drop_cons hi hxs
     have hwx : Expr.WScoped d x := hwxs x (by simp)
     have hwxs' : ∀ z ∈ xs', Expr.WScoped d z :=
@@ -404,7 +407,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
         cases hn : mt.pw.isNever
         · -- the certificate runs
           have hsk : mode.ioSkip mt.pw = false := by rw [ioSkip_eq hμ, hn]
-          simp only [hsk, Bool.false_eq_true, if_false]
+          simp only [hsk, Bool.false_eq_true, ite_false]
           refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀
             dom acc 0 ws hok.state hacc (by rw [hdd]; rfl)) ?_
           rintro dom2 s2 ⟨hst2, hx2, _, hc2, hp2, _, hrel2⟩
@@ -436,8 +439,8 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
             exact ConLeche.inferSpineIO_mono (by omega) hF3
         · -- licensed: no certificate
           have hsk : mode.ioSkip mt.pw = true := by rw [ioSkip_eq hμ, hn]
-          simp only [hsk, if_true, pure_bind, Bool.not_true,
-            Bool.false_eq_true, if_false]
+          simp only [hsk, ite_true, pure_bind, Bool.not_true,
+            Bool.false_eq_true, ite_false]
           refine triple_mono (ih body (acc.push args[i]) (i + 1) s₀ ebody
             (x :: ws) xs' (by omega) hok hdb (InstLVec.push hacc hx) hwnext
             hxs' hwxs') ?_
@@ -473,7 +476,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
           have hx03 : Ext s₀.store s3.store := hx2.trans hx3
           cases hn : mt.pw.isNever
           · have hsk : mode.ioSkip mt.pw = false := by rw [ioSkip_eq hμ, hn]
-            simp only [hsk, Bool.false_eq_true, if_false]
+            simp only [hsk, Bool.false_eq_true, ite_false]
             refine triple_seq (hsim.inferIO s3 d args[i] x hok3
               (denote_ext hx hx03) hwx) ?_
             rintro ta s4 ⟨hok4, hx4, hp4, vta, hvta, hwvta, F2, hF2⟩
@@ -499,8 +502,8 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
                 (ConLeche.isDefEqCore_mono (by omega) hF3)]
               exact ConLeche.inferSpineIO_mono (by omega) hF4
           · have hsk : mode.ioSkip mt.pw = true := by rw [ioSkip_eq hμ, hn]
-            simp only [hsk, if_true, pure_bind, Bool.not_true,
-              Bool.false_eq_true, if_false]
+            simp only [hsk, ite_true, pure_bind, Bool.not_true,
+              Bool.false_eq_true, ite_false]
             refine triple_mono (ih body #[args[i]] (i + 1) s3 ebody [x] xs'
               (by omega) hok3 hdb (InstLVec.single (denote_ext hx hx03))
               hwnext (denoteEList_ext hx03 _ _ hxs') hwxs') ?_

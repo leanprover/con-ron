@@ -86,16 +86,16 @@ theorem spine_ls {f : Nat} (hk : KnotRel f) : ∀ n, WhnfAppAt f n ∧ BetaPeelA
         hinv hctx hf
       rw [arena.core.whnf_app, whnfApp]
       by_cases hi : i.val < args.val.length
-      · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      · rw [dite_eq_left (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
         lockstep_core
-      · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      · rw [dite_eq_right (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
         lockstep_core
     · intro pers vis st mode lane fu fe lfe cheap depth t acc args nodes i lst hx hn hrel hinv hctx hf
       rw [arena.core.beta_peel, betaPeel]
       by_cases hi : i.val < args.val.length
-      · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      · rw [dite_eq_left (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
         lockstep_core
-      · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      · rw [dite_eq_right (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
         lockstep_core
   | succ k ih =>
     obtain ⟨ihA, ihB⟩ := ih
@@ -106,18 +106,18 @@ theorem spine_ls {f : Nat} (hk : KnotRel f) : ∀ n, WhnfAppAt f n ∧ BetaPeelA
         hinv hctx hf
       rw [arena.core.whnf_app, whnfApp]
       by_cases hi : i.val < args.val.length
-      · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      · rw [dite_eq_left (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
         lockstep_core
-      · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+      · rw [dite_eq_right (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
         lockstep_core
     refine ⟨hA, ?_⟩
     unfold WhnfAppAt at hA
     intro pers vis st mode lane fu fe lfe cheap depth t acc args nodes i lst hx hn hrel hinv hctx hf
     rw [arena.core.beta_peel, betaPeel]
     by_cases hi : i.val < args.val.length
-    · rw [dif_pos (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+    · rw [dite_eq_left (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
       lockstep_core
-    · rw [dif_neg (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
+    · rw [dite_eq_right (by simpa [absEIdxArr, ExprOps.absEIdxL] using hi)]
       lockstep_core
 
 /-- `arena::core::whnf_app` against `Arena.whnfApp` (`Core/Arms/Batched.lean`'s

@@ -98,26 +98,26 @@ def laneKnotAt (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
 
 @[simp] theorem laneKnot_io (mode fe f) :
     laneKnot mode fe arena.core.LANE_IO f = coreKnotIO mode fe f := by
-  rw [laneKnot, if_pos rfl]
+  rw [laneKnot, ite_eq_left rfl]
 
 @[simp] theorem laneKnot_full (mode fe f) :
     laneKnot mode fe arena.core.LANE_FULL f = coreKnot mode fe id f := by
-  rw [laneKnot, if_neg (by rw [arena.core.LANE_FULL, arena.core.LANE_IO]; decide)]
+  rw [laneKnot, ite_eq_right (by rw [arena.core.LANE_FULL, arena.core.LANE_IO]; decide)]
 
 @[simp] theorem laneKnotAt_true (mode fe lane f) :
     laneKnotAt mode fe lane true f = (laneKnot mode fe lane f).ioView := by
-  rw [laneKnotAt, if_pos rfl]
+  rw [laneKnotAt, ite_eq_left rfl]
 
 @[simp] theorem laneKnotAt_false (mode fe lane f) :
     laneKnotAt mode fe lane false f = laneKnot mode fe lane f := by
-  rw [laneKnotAt, if_neg (by decide)]
+  rw [laneKnotAt, ite_eq_right (by decide)]
 
 /-- The port's lane is NOT `LANE_IO` exactly when the twin's knot is the full
 one — the reading every `else` arm of the six entries takes. -/
 theorem laneKnot_of_ne (mode fe f) {lane : Std.U32}
     (hi : ¬ lane = arena.core.LANE_IO) :
     laneKnot mode fe lane f = coreKnot mode fe id f := by
-  rw [laneKnot, if_neg hi]
+  rw [laneKnot, ite_eq_right hi]
 
 /-! ## The ambient arguments
 
@@ -256,11 +256,11 @@ theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
   rw [arena.core.knot_infer_at] at hrun
   cases io with
   | true =>
-    rw [if_pos rfl] at hrun
+    rw [ite_eq_left rfl] at hrun
     rw [laneKnotAt_true]
     exact h.inferIO hrel hinv hctx hf hrun
   | false =>
-    rw [if_neg (by decide)] at hrun
+    rw [ite_eq_right (by decide)] at hrun
     rw [laneKnotAt_false]
     exact h.infer hrel hinv hctx hf hrun
 

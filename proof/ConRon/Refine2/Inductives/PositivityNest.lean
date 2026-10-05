@@ -123,7 +123,7 @@ behind the accumulator. -/
   · intro i _ hn out lst hrel hinv
     apply LSR.of_LS
     rw [arena.inductives.positivity.nest_container_ctors.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), absNIdxLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ns by scalar_tac), absNIdxLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, List.filterMapM_nil]
     simp only [pure_bind, List.append_nil]
     lockstep
@@ -140,7 +140,7 @@ behind the accumulator. -/
     clear ih
     apply LSR.of_LS
     rw [arena.inductives.positivity.nest_container_ctors.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac), absNIdxLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac), absNIdxLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, filterMapM_cons_acc]
     lockstep
 
@@ -252,7 +252,7 @@ n_pc, cs, i, out`; twin `fe nPc cs out`). -/
   · intro i _ hn out lst hrel hinv
     apply LSR.of_LS
     rw [arena.inductives.positivity.nest_group_ctors.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absNIdxLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absNIdxLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, nestGroupCtors]
     lockstep
   · intro i _ hlt ih out lst hrel hinv
@@ -266,7 +266,7 @@ n_pc, cs, i, out`; twin `fe nPc cs out`). -/
     clear ih
     apply LSR.of_LS
     rw [arena.inductives.positivity.nest_group_ctors.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absNIdxLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absNIdxLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, nestGroupCtors]
     lockstep
 
@@ -320,7 +320,7 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
     ?_ ?_ i st lst grp hrel hinv
   · intro st lst k w hn hrel hinv
     rw [arena.inductives.positivity.nest_grow_group.eq_def,
-      if_pos (show k ≥ alloc.vec.Vec.len cs by scalar_tac), nestGrowGroup]
+      ite_eq_left (show k ≥ alloc.vec.Vec.len cs by scalar_tac), nestGrowGroup]
     lockstep
   · intro st lst k w hk hrel hinv ih
     have ih' : ∀ st' lst' (j : Std.Usize) (w' : alloc.vec.Vec (arena.handle.NIdx × arena.handle.EIdx)),
@@ -331,7 +331,7 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
             (absNIdxLFrom cs j) (absGrpL w')) := ih
     clear ih
     rw [arena.inductives.positivity.nest_grow_group.eq_def,
-      if_neg (show ¬ k ≥ alloc.vec.Vec.len cs by scalar_tac), nestGrowGroup]
+      ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len cs by scalar_tac), nestGrowGroup]
     lockstep
     rename_i _ _ grp1 hgrp
     refine LS.tail (ih' _ _ _ grp1 (by scalar_tac) (by assumption) (by assumption)) ?_
@@ -360,7 +360,7 @@ theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
     ?_ ?_ mm ()
   · intro i _ hn st lst out hrel hinv
     rw [arena.inductives.positivity.nest_holes.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, nestHoles.go]
     lockstep
   · intro i _ hlt ih st lst out hrel hinv
@@ -372,7 +372,7 @@ theorem nest_holes_acc {pers} (ctx : arena.inductives.positivity.NestCtx)
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.positivity.nest_holes.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ctx.names by scalar_tac), absNIdxLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, nestHoles.go]
     unfold arena.inductives.positivity.ind_cv_of
     lockstep
@@ -409,11 +409,11 @@ theorem nest_u4_acc {pers} (ks : alloc.vec.Vec arena.inductives.positivity.NestF
     (fun st k _ => arena.inductives.positivity.nest_u4 pers st ks closed n_f k) ?_ ?_
     i st lst () hrel hinv
   · intro st lst k _ hn hrel hinv
-    rw [arena.inductives.positivity.nest_u4.eq_def, if_pos (by scalar_tac), List.range'_zero,
+    rw [arena.inductives.positivity.nest_u4.eq_def, ite_eq_left (by scalar_tac), List.range'_zero,
       List.anyM_nil]
     lockstep
   · intro st lst k _ m hk hm hrel hinv ih
-    rw [arena.inductives.positivity.nest_u4.eq_def, if_neg (by scalar_tac), List.range'_succ,
+    rw [arena.inductives.positivity.nest_u4.eq_def, ite_eq_right (by scalar_tac), List.range'_succ,
       List.anyM_cons]
     lockstep
 
@@ -493,11 +493,11 @@ theorem nest_fields_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEn
   induction n with
   | zero =>
     intro fuel prog base n_f j cur ns ks nds st lst hf hn hte hrel hinv
-    rw [arena.inductives.positivity.nest_fields, if_pos (by scalar_tac), nestFields]
+    rw [arena.inductives.positivity.nest_fields, ite_eq_left (by scalar_tac), nestFields]
     lockstep
   | succ n ih =>
     intro fuel prog base n_f j cur ns ks nds st lst hf hn hte hrel hinv
-    rw [arena.inductives.positivity.nest_fields, if_neg (by scalar_tac), nestFields]
+    rw [arena.inductives.positivity.nest_fields, ite_eq_right (by scalar_tac), nestFields]
     lockstep
     rename_i hwf _ _ _ b2 ks1 hks nds1 hnds nf1 hnf1
     refine LS.tail (ih _ _ _ _ _ _ _ _ _ _ _ hf (by scalar_tac) ?_ (by assumption)
@@ -572,7 +572,7 @@ theorem nest_ctors_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
     ?_ ?_ i ()
   · intro i _ hn ns outs st lst hrel hinv
     rw [arena.inductives.positivity.nest_ctors,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, nestCtors]
     lockstep
   · intro i _ hlt ih ns outs st lst hrel hinv
@@ -589,7 +589,7 @@ theorem nest_ctors_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.positivity.nest_ctors,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, nestCtors]
     cases root
     · have hW0 := hW fuel (Or.inr rfl)
@@ -704,10 +704,10 @@ theorem nest_keys_dup_acc (ks : alloc.vec.Vec arena.inductives.positivity.NestKe
   refine vec_map_loop ks _ (arena.inductives.positivity.nest_keys_dup ks) ?_ ?_
   · intro i out o hn h
     rw [arena.inductives.positivity.nest_keys_dup.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ks by scalar_tac), Result.ok.injEq] at h
     exact h.symm
   · intro i x out o hx h
-    rw [arena.inductives.positivity.nest_keys_dup.eq_def, if_neg (show ¬ i ≥ alloc.vec.Vec.len ks by
+    rw [arena.inductives.positivity.nest_keys_dup.eq_def, ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ks by
       have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -781,7 +781,7 @@ theorem nest_cont_new_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
       simp only [absNestState, absNestFieldKind, hP, pn_u64_bne_zero]
     · apply LS.pure _ (by assumption) (by assumption)
       show _ = _
-      simp only [absNestState, absNestFieldKind, hc, pn_u64_bne_zero, if_false]
+      simp only [absNestState, absNestFieldKind, hc, pn_u64_bne_zero, ite_false]
 
 /-- `nest_keys_contain` of a rebuilt key over a state's in-progress keys (the
 twin's `List`) and over its accepted keys (the twin's `Array`), in the forms
@@ -828,9 +828,6 @@ theorem nest_cont_key_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IF
   have hN := nest_cont_new_of hctx hP
   rw [arena.inductives.positivity.nest_cont_key, nestContKey.eq_def]
   lockstep
-  apply LS.pure _ (by assumption) (by assumption)
-  show _ = _
-  simp only [absNestFieldKind, pn_u64_bne_zero]
 
 -- `drop_eidx_n` / `take_eidx_n` as the twin's `List.drop` / `List.take` (`Shape`'s rows,
 -- ahead of `Core/LS`'s `absEIdxList` forms).
@@ -871,7 +868,7 @@ theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
   induction F with
   | zero =>
     intro fuel prog dep kb e ns st lst hf hrel hinv
-    rw [arena.inductives.positivity.nest_pos, if_pos (by scalar_tac), nestPos]
+    rw [arena.inductives.positivity.nest_pos, ite_eq_left (by scalar_tac), nestPos]
     lockstep
   | succ F ih =>
     have hP : ∀ (fuel : Std.U64) (prog : alloc.vec.Vec arena.inductives.positivity.NestHole)
@@ -896,7 +893,7 @@ theorem nest_pos_all {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEnv}
       exact nest_cont_of hctx ih prog kb n us args ns st lst hrel hinv
     clear ih
     intro fuel prog dep kb e ns st lst hf hrel hinv
-    rw [arena.inductives.positivity.nest_pos, if_neg (by scalar_tac), nestPos]
+    rw [arena.inductives.positivity.nest_pos, ite_eq_right (by scalar_tac), nestPos]
     lockstep
     all_goals
       apply LS.pure _ (by assumption) (by assumption)
@@ -986,7 +983,7 @@ constructors at the root key, each at its own input-derived fuel. -/
     ?_ ?_ i ()
   · intro i _ hn ns outs st lst hrel hinv
     rw [arena.inductives.positivity.nest_root,
-      if_pos (show i ≥ alloc.vec.Vec.len ctorss by scalar_tac),
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ctorss by scalar_tac),
       List.drop_eq_nil_of_le hn, List.map_nil, nestRoot]
     lockstep
   · intro i _ hlt ih ns outs st lst hrel hinv
@@ -1001,7 +998,7 @@ constructors at the root key, each at its own input-derived fuel. -/
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.positivity.nest_root,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len ctorss by scalar_tac),
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ctorss by scalar_tac),
       List.drop_eq_getElem_cons hlt, List.map_cons, nestRoot]
     lockstep
     rename_i outs1 houts
@@ -1041,7 +1038,7 @@ container instance met at the empty frame stack, at its parameters' fuel. -/
           (absNestState ns))) ?_ ?_ i ()
   · intro i _ hn ns st lst hrel hinv
     rw [arena.inductives.positivity.nest_seeds,
-      if_pos (show i ≥ alloc.vec.Vec.len seeds by scalar_tac), absSeedsLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len seeds by scalar_tac), absSeedsLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, nestSeeds]
     lockstep
   · intro i _ hlt ih ns st lst hrel hinv
@@ -1054,7 +1051,7 @@ container instance met at the empty frame stack, at its parameters' fuel. -/
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.positivity.nest_seeds,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len seeds by scalar_tac), absSeedsLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len seeds by scalar_tac), absSeedsLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, nestSeeds]
     lockstep
     refine LS.tail (ih' _ (by scalar_tac) _ _ _ (by assumption) (by assumption)) ?_

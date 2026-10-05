@@ -28,6 +28,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -107,8 +110,8 @@ theorem triple_ite_bind {α β : Type} {c : Prop} [Decidable c] {x y : AM α}
     ⦃fun s => ⌜s = s₀⌝⦄ (if c then x >>= f else y >>= f)
       ⦃⇓? b s => ⌜R b s⌝⦄ := by
   by_cases hc : c
-  · rw [if_pos hc] at h ⊢; exact h
-  · rw [if_neg hc] at h ⊢; exact h
+  · rw [ite_eq_left hc] at h ⊢; exact h
+  · rw [ite_eq_right hc] at h ⊢; exact h
 
 /-- con-leche: none — `CheckOK` across a stage that moved nothing but the
 memos. -/
@@ -136,9 +139,9 @@ theorem boolTrueShortcutIf_spec {fe : IFEnv} {fuel : Nat}
           ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d x
           else pure false) = (.ok sc : CheckM Bool))⌝⦄ := by
   cases c
-  · simp only [Bool.false_eq_true, if_false]
+  · simp only [Bool.false_eq_true, ite_false]
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, Ev.const rfl⟩
-  · simp only [if_true]
+  · simp only [ite_true]
     unfold ConRon.Arena.boolTrueShortcut
     refine triple_seq (hsim.whnf s₀ d a x hok hx hwx) ?_
     rintro w s1 ⟨hok1, hx1, hp1, v, hv, _hwv, F1, hF1⟩
@@ -205,7 +208,7 @@ theorem defeqNoFvars_spec {fe : IFEnv} (s₀ : AState) (a b : EIdx) (x y : Expr)
   have e1 : hfa = x.hasFvar := hr1 x hx
   subst e1
   cases hxa : x.hasFvar
-  · simp only [Bool.false_eq_true, if_false]
+  · simp only [Bool.false_eq_true, ite_false]
     refine triple_seq (ExprOps.hasFvarFast_spec coreWalkFuel s1 b hok1.state
       (by rw [hst1, hy]; rfl)) ?_
     rintro hfb s2 ⟨hst2, hc2, hp2, hr2⟩
@@ -213,7 +216,7 @@ theorem defeqNoFvars_spec {fe : IFEnv} (s₀ : AState) (a b : EIdx) (x y : Expr)
     subst e2
     exact triple_pure_post ⟨hok1.of_store_eq hst2 hc2 hp2, hst2.trans hst1,
       hp2.trans hp1, by simp⟩
-  · simp only [if_true]
+  · simp only [ite_true]
     exact triple_pure_post ⟨hok1, hst1, hp1, by simp⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — **the
@@ -235,10 +238,10 @@ theorem reduceNatIf_spec {fe : IFEnv} {fuel : Nat}
             ConLeche.reduceNat (ConLeche.pureFns mode env F) env d x
             else pure none) = (.ok v : CheckM (Option Expr)))⌝⦄ := by
   cases c
-  · simp only [Bool.false_eq_true, if_false]
+  · simp only [Bool.false_eq_true, ite_false]
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, none, rfl,
       (fun _ h => nomatch h), Ev.const rfl⟩
-  · simp only [if_true]
+  · simp only [ite_true]
     refine triple_mono (reduceNat_spec hsim s₀ d e hok ⟨x, hx, hwx⟩) ?_
     rintro o s1 ⟨hok1, hx1, hp1, hsim1⟩
     obtain ⟨v, hv, hwv, hF⟩ := hsim1 x hx

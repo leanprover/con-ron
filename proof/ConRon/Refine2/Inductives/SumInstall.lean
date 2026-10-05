@@ -148,12 +148,12 @@ opened at the free variables `i ..< i + bs.length` back into a syntactic
   · intro st lst k i hn hrel hinv
     try simp only []
     rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
-    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_left (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
   · intro st lst k i hb hrel hinv ih
     try simp only []
     rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
-    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
     have hpwk := hpw _ (List.getElem_mem hb)
     lockstep
 
@@ -215,12 +215,12 @@ theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
     (arena.inductives.sum_install.eidx_contains xs x) ?_ ?_ i o hrun
   · intro i o hn h
     rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
     rw [← h]
   · intro i y o hy h
     have hlt : i.val < xs.val.length := (List.getElem?_eq_some_iff.mp hy).1
     rw [arena.inductives.sum_install.eidx_contains.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hey : e = y := by
@@ -234,11 +234,11 @@ theorem eidx_contains_refines {xs : alloc.vec.Vec arena.handle.EIdx}
         simp [hcc, hcc']
     cases hbb : b
     · rw [hbb] at h hbv
-      rw [if_neg (by simp)] at h
+      rw [ite_eq_right (by simp)] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       exact Or.inr ⟨hbv.symm, i2, absSz_add_one hi2, h⟩
     · rw [hbb] at h hbv
-      rw [if_pos (by simp), Result.ok.injEq] at h
+      rw [ite_eq_left (by simp), Result.ok.injEq] at h
       exact Or.inl ⟨hbv.symm, h.symm⟩
 
 open Lockstep in
@@ -319,11 +319,11 @@ counter is the twin's `j + 1` recursion. -/
   induction hk : k.val generalizing k st lst with
   | zero =>
     rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
-      if_pos (by scalar_tac), show absU k = 0 from hk, checkStructFieldSortsI]
+      ite_eq_left (by scalar_tac), show absU k = 0 from hk, checkStructFieldSortsI]
     lockstep
   | succ m ih =>
     rw [arena.inductives.sum_install.check_struct_field_sorts_i.eq_def,
-      if_neg (by scalar_tac), show absU k = m + 1 from hk, checkStructFieldSortsI_succ_port]
+      ite_eq_right (by scalar_tac), show absU k = m + 1 from hk, checkStructFieldSortsI_succ_port]
     have hk1 : 1 ≤ k.val := by omega
     obtain rfl : m = k.val - 1 := by omega
     clear hk
@@ -360,11 +360,11 @@ cursor on. -/
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolve]
-    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_left (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
   · intro st lst i hb hrel hinv ih
     rw [arena.inductives.sum_install.field_doms_resolve.eq_def, fieldDomsResolve]
-    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
 
 open Lockstep in
@@ -390,11 +390,11 @@ cursor on. -/
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolve]
-    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_left (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
   · intro st lst i hb hrel hinv ih
     rw [arena.inductives.sum_install.idx_args_resolve.eq_def, idxArgsResolve]
-    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
 
 open Lockstep in
@@ -461,7 +461,7 @@ open Lockstep in
       · exfalso; have := a3.property; scalar_tac
     have hd : List.drop n_p.val (List.map absEIdx a3.val) = List.map absEIdx a.val := by
       have := hP; simp only [Lockstep.TwinEq, absEIdxL, hkk] at this; exact this
-    rw [if_pos (by simp [← e, hb, hlen]), hd]
+    rw [ite_eq_left (by simp [← e, hb, hlen]), hd]
     exact check_sum_ctor_sorts_ls hrel hinv hfe0 hfe
   · -- the parameter spine differs: both sides decline
     rename_i a3 a2 hT _ _ _
@@ -469,7 +469,7 @@ open Lockstep in
     simp only [absEIdxL] at e
     have hne : ¬ (List.take n_p.val (List.map absEIdx a3.val) = List.map absEIdx p_fvs.val) := by
       rw [← e]; simpa using hc
-    rw [if_neg (by simp [hne])]
+    rw [ite_eq_right (by simp [hne])]
     lockstep
 
 open Lockstep in
@@ -547,13 +547,13 @@ theorem check_sum_ctors_aux (m : Nat) :
   | zero =>
     intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
       out sout hn hrel hinv hfe0 hfe
-    rw [arena.inductives.sum_install.check_sum_ctors, if_pos (by scalar_tac), absCtorsLFrom,
+    rw [arena.inductives.sum_install.check_sum_ctors, ite_eq_left (by scalar_tac), absCtorsLFrom,
       vecFrom_nil _ _ _ (by omega), checkSumCtors]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf0 lf0 rf lf t lps n_p n_idx res_sort is_prop large cv_ta ctors i
       out sout hn hrel hinv hfe0 hfe
-    rw [arena.inductives.sum_install.check_sum_ctors, if_neg (by scalar_tac), absCtorsLFrom,
+    rw [arena.inductives.sum_install.check_sum_ctors, ite_eq_right (by scalar_tac), absCtorsLFrom,
       vecFrom_cons _ _ _ (by omega), checkSumCtors]
     lockstep
 
@@ -605,13 +605,13 @@ theorem cons_sum_ctors_refines {n_p : Std.U64}
     ?_ ?_ i rf lf o hfe hfinv hrun
   · intro i rf hn lf o hfe hfinv h
     rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
     obtain rfl := Result.ok_injective h
     rw [absCtorsLFrom, List.drop_eq_nil_of_le hn]
     exact ⟨hfe, hfinv⟩
   · intro i rf hi ih lf o hfe hfinv h
     rw [arena.inductives.sum_install.cons_sum_ctors.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ctors by scalar_tac)] at h
     obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨iv, nf⟩ := p
     obtain ⟨iv1, hiv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

@@ -1183,13 +1183,13 @@ theorem nat_op_deps_stored_aux (n : Nat) :
     intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
     rw [arena.core.nat_op_deps_stored, absNIdxLFrom_nil' ns i (by omega), natOpDepsStored]
     have hl := alloc.vec.Vec.len_val ns
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LS.pure rfl hrel hinv
   | succ k ih =>
     intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
     rw [arena.core.nat_op_deps_stored, absNIdxLFrom_cons' ns i (by omega), natOpDepsStored]
     have hl := alloc.vec.Vec.len_val ns
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
     subst hp
     simp only [absNIdxLFrom] at ih
@@ -1256,14 +1256,14 @@ theorem nat_op_stored_ok_all_aux (n : Nat) :
     rw [arena.decl_check.nat_op_stored_ok_all, absNIdxLFrom_nil' ns i (by omega),
       natOpStoredOkAll]
     have hl := alloc.vec.Vec.len_val ns
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LS.pure rfl hrel hinv
   | succ k ih =>
     intro pers st lst vis rf lf ns i hn hrel hinv hfe hvis
     rw [arena.decl_check.nat_op_stored_ok_all, absNIdxLFrom_cons' ns i (by omega),
       natOpStoredOkAll]
     have hl := alloc.vec.Vec.len_val ns
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
     subst hp
     simp only [absNIdxLFrom] at ih
@@ -1428,7 +1428,7 @@ theorem subst_const0_list_aux (k : Nat) :
     have : absEIdxLFrom hs i = [] := by
       simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by scalar_tac)]; rfl
     rw [arena.decl_check.subst_const0_list, this, substConst0List]
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     lockstep
   | succ m ih =>
     intro pers st lst n r hs i out hn hrel hinv
@@ -1437,7 +1437,7 @@ theorem subst_const0_list_aux (k : Nat) :
     have : absEIdxLFrom hs i = absEIdx hs.val[i.val] :: (hs.val.drop (i.val + 1)).map absEIdx := by
       simp only [absEIdxLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
     rw [arena.decl_check.subst_const0_list, this, substConst0List]
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     simp only [absEIdxLFrom] at ih
     lockstep
 
@@ -1457,14 +1457,14 @@ theorem subst_const0_pairs_aux (k : Nat) :
     rw [arena.decl_check.subst_const0_pairs, absEqPairsFrom_nil' eqs i (by omega),
       substConst0Pairs]
     have hl := alloc.vec.Vec.len_val eqs
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     lockstep
   | succ m ih =>
     intro pers st lst n r eqs i out hn hrel hinv
     rw [arena.decl_check.subst_const0_pairs, absEqPairsFrom_cons' eqs i (by omega),
       substConst0Pairs]
     have hl := alloc.vec.Vec.len_val eqs
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     lockstep
 
 end SubstConst0
@@ -1543,7 +1543,7 @@ theorem consts_resolve_all_aux (k : Nat) :
     have hl := alloc.vec.Vec.len_val hs
     have : absEIdxLFrom hs i = [] := by
       simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
-    rw [arena.decl_check.consts_resolve_all, this, constsResolveAll, if_pos (by scalar_tac)]
+    rw [arena.decl_check.consts_resolve_all, this, constsResolveAll, ite_eq_left (by scalar_tac)]
     exact LS.pure rfl hrel hinv
   | succ m ih =>
     intro pers st lst vis rf lf hs i hn hrel hinv hfe hvis
@@ -1551,7 +1551,7 @@ theorem consts_resolve_all_aux (k : Nat) :
     have hi : i.val < hs.val.length := by omega
     have : absEIdxLFrom hs i = absEIdx hs.val[i.val] :: (hs.val.drop (i.val + 1)).map absEIdx := by
       simp only [absEIdxLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
-    rw [arena.decl_check.consts_resolve_all, this, constsResolveAll, if_neg (by scalar_tac)]
+    rw [arena.decl_check.consts_resolve_all, this, constsResolveAll, ite_eq_right (by scalar_tac)]
     simp only [absEIdxLFrom] at ih
     lockstep
 
@@ -1594,14 +1594,14 @@ theorem certify_nat_eqs_aux (n : Nat) :
     intro pers st lst vis rf lf mode eqs i hn hrel hinv hfe hvis
     rw [arena.decl_check.certify_nat_eqs, absEqPairsFrom_nil' eqs i (by omega), certifyNatEqs]
     have hl := alloc.vec.Vec.len_val eqs
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LS.pure rfl hrel hinv
   | succ k ih =>
     intro pers st lst vis rf lf mode eqs i hn hrel hinv hfe hvis
     rw [arena.decl_check.certify_nat_eqs, absEqPairsFrom_cons' eqs i (by omega), certifyNatEqs]
     have hctx := IFEnvInv.coreCtx hfe.rel hfe.inv hvis
     have hl := alloc.vec.Vec.len_val eqs
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
     subst hp
     generalize (↑eqs : List _)[↑i] = p
@@ -2149,9 +2149,9 @@ theorem cert_div_mod_refines {pers st lst} {cx : arena.decl_check.CertCtx}
   lockstep_step
   lockstep_step
   lockstep_step
-  · rw [show (absCertCtx cx).divN = absNIdx cx.div_n from rfl, if_pos ‹_›]
+  · rw [show (absCertCtx cx).divN = absNIdx cx.div_n from rfl, ite_eq_left ‹_›]
     lockstep
-  · rw [show (absCertCtx cx).divN = absNIdx cx.div_n from rfl, if_neg ‹_›]
+  · rw [show (absCertCtx cx).divN = absNIdx cx.div_n from rfl, ite_eq_right ‹_›]
     lockstep
 
 open Lockstep in
@@ -2367,14 +2367,14 @@ theorem div_mod_cert_applied_hyps_refines {pers st lst}
   simp only [absEIdxL]
   rcases hh : hyps.val with _ | ⟨h1, _ | ⟨h2, _ | ⟨h3, r⟩⟩⟩
   all_goals simp only [alloc.vec.Vec.length, hh, List.length_cons, List.length_nil] at hl
-  · rw [if_neg (by scalar_tac)]; rw [if_neg (by scalar_tac)]
+  · rw [ite_eq_right (by scalar_tac)]; rw [ite_eq_right (by scalar_tac)]
     exact Lockstep.LS.pure rfl hrel hinv
-  · rw [if_pos (by scalar_tac)]; simp only [List.map_cons, List.map_nil, divModCertAppliedHypsSpec]
+  · rw [ite_eq_left (by scalar_tac)]; simp only [List.map_cons, List.map_nil, divModCertAppliedHypsSpec]
     lockstep
-  · rw [if_neg (by scalar_tac)]; rw [if_pos (by scalar_tac)]
+  · rw [ite_eq_right (by scalar_tac)]; rw [ite_eq_left (by scalar_tac)]
     simp only [List.map_cons, List.map_nil, divModCertAppliedHypsSpec]
     lockstep
-  · rw [if_neg (by scalar_tac)]; rw [if_neg (by scalar_tac)]
+  · rw [ite_eq_right (by scalar_tac)]; rw [ite_eq_right (by scalar_tac)]
     exact Lockstep.LS.pure rfl hrel hinv
 
 open Lockstep in
@@ -2504,7 +2504,7 @@ theorem div_mod_certs_guard_go_aux (k : Nat) :
     have : absStmtsFrom stmts i = [] := by
       simp only [absStmtsFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
     rw [arena.decl_check.div_mod_certs_guard_go, this, divModCertsGuardGo]
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LS.pure rfl hrel hinv
   | succ m ih =>
     intro pers st lst vis rf lf c ann_val stmts proofs i hn hrel hinv hfe hvis
@@ -2513,9 +2513,9 @@ theorem div_mod_certs_guard_go_aux (k : Nat) :
     rw [arena.decl_check.div_mod_certs_guard_go, absStmtsFrom_cons' stmts i (by omega)]
     by_cases hp : i.val < proofs.val.length
     · rw [absEIdxLFrom_cons' proofs i hp, divModCertsGuardGo]
-      rw [if_neg (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac)]
       dsimp only
-      rw [if_neg (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac)]
       refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
       subst hp
       generalize (↑stmts : List _)[↑i] = p
@@ -2526,8 +2526,8 @@ theorem div_mod_certs_guard_go_aux (k : Nat) :
         simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
       rw [this]
       simp only [divModCertsGuardGo]
-      rw [if_neg (by scalar_tac)]
-      rw [if_pos (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac)]
+      rw [ite_eq_left (by scalar_tac)]
       exact LS.pure rfl hrel hinv
 
 /-- `div_mod_certs_guard_go` ⊑ `divModCertsGuardGo` at the cursor. -/
@@ -2647,28 +2647,28 @@ theorem check_div_mod_certs_aux (k : Nat) :
     have : absStmtsFrom stmts i = [] := by
       simp only [absStmtsFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
     rw [arena.decl_check.check_div_mod_certs, this]
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     dsimp only
     by_cases hp : i.val < proofs.val.length
     · rw [absEIdxLFrom_cons' proofs i hp]
       simp only [checkDivModCerts]
-      rw [if_neg (by scalar_tac), if_pos (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac), ite_eq_left (by scalar_tac)]
       exact LS.pure rfl hrel hinv
     · have : absEIdxLFrom proofs i = [] := by
         simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
-      rw [this, checkDivModCerts, if_pos (by scalar_tac)]
+      rw [this, checkDivModCerts, ite_eq_left (by scalar_tac)]
       exact LS.pure rfl hrel hinv
   | succ m ih =>
     intro pers st lst vis rf lf mode c ann_val stmts proofs i hn hrel hinv hfe hvis
     have hl := alloc.vec.Vec.len_val stmts
     have hl2 := alloc.vec.Vec.len_val proofs
     rw [arena.decl_check.check_div_mod_certs, absStmtsFrom_cons' stmts i (by omega)]
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     dsimp only
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     by_cases hp : i.val < proofs.val.length
     · rw [absEIdxLFrom_cons' proofs i hp, checkDivModCerts]
-      rw [if_neg (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac)]
       refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
       subst hp
       simp only [arena.decl_check.check_div_mod_cert_at, arena.decl_check.check_div_mod_cert_tail]
@@ -2679,7 +2679,7 @@ theorem check_div_mod_certs_aux (k : Nat) :
         simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
       rw [this]
       simp only [checkDivModCerts]
-      rw [if_pos (by scalar_tac)]
+      rw [ite_eq_left (by scalar_tac)]
       exact LS.pure rfl hrel hinv
 
 /-- `check_div_mod_certs` ⊑ `checkDivModCerts` at the cursor. -/
@@ -3080,7 +3080,7 @@ theorem check_div_mod_pin_loop_aux (n : Nat) :
     rw [arena.decl_check.check_div_mod_pin_loop, pinSetFrom_nil v i (by omega),
       checkDivModPinLoop]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     lockstep
   | succ k ih =>
     intro pers st lst vis rf lf mode c value2 v i tried ltried hn hrel hinv hfe hvis
@@ -3088,7 +3088,7 @@ theorem check_div_mod_pin_loop_aux (n : Nat) :
     rw [arena.decl_check.check_div_mod_pin_loop, pinSetFrom_cons v i hlt,
       checkDivModPinLoop_cons_try]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSP.bind (vec_index_spec _ _) fun p ⟨_, hp⟩ => ?_
     subst hp
     have hT : ∀ {st lst tried ltried}, AStateRel₀ pers st lst → AStateInv pers st →
@@ -3308,7 +3308,7 @@ theorem install_basis_decl_refines {lst} {rf lf} {ci : arena.env.IConstantInfo} 
   rw [hname] at hf
   rcases fo with _ | c
   · simp only [core.option.Option.is_some, Option.isSome_none, Bool.false_eq_true,
-      if_false] at hrun
+      ite_false] at hrun
     obtain ⟨rf', hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain rfl := (Result.ok_injective hrun).symm
     obtain ⟨h1, h2⟩ := ifenv_push_refines hfe hfinv hwf hp
@@ -3316,7 +3316,7 @@ theorem install_basis_decl_refines {lst} {rf lf} {ci : arena.env.IConstantInfo} 
     simp only [Option.map_none] at hf
     simp [installBasisDecl, ← hf]
     rfl
-  · simp only [core.option.Option.is_some, Option.isSome_some, if_true] at hrun
+  · simp only [core.option.Option.is_some, Option.isSome_some, ite_true] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [fail_run hrun]
@@ -3340,7 +3340,7 @@ theorem install_basis_decls_aux (k : Nat) :
     intro lst rf lf decls i o hn hfe hfinv hwf hrun
     rw [arena.decl_check.install_basis_decls] at hrun
     have hl := alloc.vec.Vec.len_val decls
-    rw [if_pos (by scalar_tac)] at hrun
+    rw [ite_eq_left (by scalar_tac)] at hrun
     obtain rfl := (Result.ok_injective hrun).symm
     have : absICILFrom decls i = [] := by
       simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
@@ -3350,7 +3350,7 @@ theorem install_basis_decls_aux (k : Nat) :
     intro lst rf lf decls i o hn hfe hfinv hwf hrun
     rw [arena.decl_check.install_basis_decls] at hrun
     have hl := alloc.vec.Vec.len_val decls
-    rw [if_neg (by scalar_tac)] at hrun
+    rw [ite_eq_right (by scalar_tac)] at hrun
     obtain ⟨ii, hii, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨ii1, hii1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun

@@ -623,7 +623,7 @@ theorem installBasisDecls_bridge :
         (fun y hy => hnpx y (List.mem_cons_of_mem _ hy)) hrest
     refine ⟨rfl, hcoh', (Pushed.push fe a).trans hpu', env', hden', hie', ?_⟩
     simp only [List.foldlM_cons, ConLeche.installBasisDecl, hfindP,
-      Option.isNone_none, if_true, bind, Except.bind, pure, Except.pure]
+      Option.isNone_none, ite_true, bind, Except.bind, pure, Except.pure]
     exact hfold
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:427-437 checkBasisDecl —
@@ -686,7 +686,7 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
     obtain ⟨h1, h2, h3, h4, h5, env', h6, h7⟩ :=
       tail sB hstepB.ok hstepB.ext hstepB.pins r3
     refine ⟨h1, h2, h3, h4, h5, env', h6, ?_⟩
-    simp only [ConLeche.checkBasisDecl, hfindEq, if_true, bind, Except.bind]
+    simp only [ConLeche.checkBasisDecl, hfindEq, ite_true, bind, Except.bind]
     exact h7
   · -- every other block installs directly
     have hqn : kind ≠ BasisKind.quotK := by simpa using hq
@@ -694,7 +694,7 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
     obtain ⟨h1, h2, h3, h4, h5, env', h6, h7⟩ :=
       tail s hok.check.state (Ext.refl _) rfl hr1
     refine ⟨h1, h2, h3, h4, h5, env', h6, ?_⟩
-    simp only [ConLeche.checkBasisDecl, if_neg hqn, bind, Except.bind]
+    simp only [ConLeche.checkBasisDecl, ite_eq_right hqn, bind, Except.bind]
     exact h7
 
 /-! ## The pin shape comparison
@@ -913,8 +913,8 @@ theorem RunsB.ite {c c' : Prop} [Decidable c] [Decidable c'] {X Y : AM Bool}
     (h1 : c → RunsB X s b1) (h2 : ¬ c → RunsB Y s b2) :
     RunsB (if c then X else Y) s (if c' then b1 else b2) := by
   by_cases h : c
-  · rw [if_pos h, if_pos (hc.mp h)]; exact h1 h
-  · rw [if_neg h, if_neg (fun h' => h (hc.mpr h'))]; exact h2 h
+  · rw [ite_eq_left h, ite_eq_left (hc.mp h)]; exact h1 h
+  · rw [ite_eq_right h, ite_eq_right (fun h' => h (hc.mpr h'))]; exact h2 h
 
 /-- con-leche: none — a known view, read. -/
 theorem view_run_of_some {h : EIdx} {s : AState} {v : ENodeView}
@@ -932,8 +932,8 @@ theorem RunsB.tagView {h : EIdx} {t : UInt32} {v : ENodeView}
     (hk : RunsB (view h >>= f) s b) :
     RunsB (if h.tag == t then (view h >>= f) else e) s b := by
   by_cases ht : (h.tag == t) = true
-  · rw [if_pos ht]; exact hk
-  · rw [if_neg ht]
+  · rw [ite_eq_left ht]; exact hk
+  · rw [ite_eq_right ht]
     have hne : v.tagOf ≠ t := by rw [← EStore.tagOf_of_view hv]; simpa using ht
     intro r s' hrun
     apply hk r s'
@@ -949,11 +949,11 @@ theorem RunsB.guard {c D B : Bool} {Y : AM Bool} {s : AState}
   cases D with
   | false =>
     subst hc
-    simp only [Bool.not_false, if_true, Bool.false_and]
+    simp only [Bool.not_false, ite_true, Bool.false_and]
     exact RunsB.ret hok
   | true =>
     subst hc
-    simp only [Bool.not_true, Bool.false_eq_true, if_false, Bool.true_and]
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false, Bool.true_and]
     exact hY rfl
 
 /-- con-leche: none — the index answers what the environment answers, as one
@@ -1338,10 +1338,10 @@ theorem ofReduceOp_run {n c : NIdx} {nm : ConLeche.Name} {s s' : AState}
   rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
   · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.reduceNatName) hp (by rfl) k
     refine ⟨rfl, ?_⟩
-    rw [d2, ConLeche.ofReduceOp, if_pos (hiff.mp hc)]
+    rw [d2, ConLeche.ofReduceOp, ite_eq_left (hiff.mp hc)]
   · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.reduceBoolName) hp (by rfl) k
     refine ⟨rfl, ?_⟩
-    rw [d2, ConLeche.ofReduceOp, if_neg (fun h => hc (hiff.mpr h))]
+    rw [d2, ConLeche.ofReduceOp, ite_eq_right (fun h => hc (hiff.mpr h))]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:148-150 reduceOpCvA — the
 annotated pinned type of a reduce operation, interned. -/
@@ -1358,10 +1358,10 @@ theorem reduceOpCvA_run {cH : NIdx} {cn : ConLeche.Name} {v : IConstantVal}
   rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ConLeche.reduceOpCvA, if_pos (hiff.mp hc)]
+    rw [hv, ConLeche.reduceOpCvA, ite_eq_left (hiff.mp hc)]
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ConLeche.reduceOpCvA, if_neg (fun h => hc (hiff.mpr h))]
+    rw [hv, ConLeche.reduceOpCvA, ite_eq_right (fun h => hc (hiff.mpr h))]
 
 /-- The RAW pin an `ofReduce*` axiom is matched against — what the twin's
 `ofReducePinA` interns (`Arena/TrustAxioms.lean`: task #97-P5-Top round 2,
@@ -1387,10 +1387,10 @@ theorem ofReducePinA_run {nH : NIdx} {nm : ConLeche.Name} {v : IConstantVal}
   rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ofReducePinRaw, if_pos (hiff.mp hc)]
+    rw [hv, ofReducePinRaw, ite_eq_left (hiff.mp hc)]
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ofReducePinRaw, if_neg (fun h => hc (hiff.mpr h))]
+    rw [hv, ofReducePinRaw, ite_eq_right (fun h => hc (hiff.mpr h))]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk — the
 element inductive's shape test is con-leche's. -/
@@ -1458,10 +1458,10 @@ theorem RunsB.guardT {c D B : Bool} {Y : AM Bool} {s : AState}
   subst hc
   cases c with
   | false =>
-    simp only [Bool.false_eq_true, if_false, Bool.false_and]
+    simp only [Bool.false_eq_true, ite_false, Bool.false_and]
     exact RunsB.ret hok
   | true =>
-    simp only [if_true, Bool.true_and]
+    simp only [ite_true, Bool.true_and]
     exact hY rfl
 
 /-- A stored constant's level parameters, read through

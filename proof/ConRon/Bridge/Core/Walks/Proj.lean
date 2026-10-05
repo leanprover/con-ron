@@ -86,6 +86,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -160,7 +163,7 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
       · exact absurd he (by simp)
       · rename_i hlt
         simp only [ConLeche.Env.findProj?, hfindE]
-        exact if_neg (by rw [hnf]; exact hlt)
+        exact ite_eq_right (by rw [hnf]; exact hlt)
   -- the index stores no table there, so neither does the environment
   case vc5 =>
     rename_i _s1 rn _s2 hwf2 hext hm hc hp hdn hno
@@ -386,7 +389,7 @@ theorem iotaCertsFueled_skip {F d : Nat} {lic : Bool} {t b : Expr}
     (hg : (lic && m.pw.isNever) = true) :
     ConLeche.iotaCertsFueled mode env F d lic (.forallE t b m) (x :: xs) =
       ConLeche.iotaCertsFueled mode env F d lic (b.instantiate1 x) xs := by
-  simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg, if_true]
+  simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg, ite_true]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a certified
 slot: the argument's type agrees with the domain, and the walk continues. -/
@@ -400,7 +403,7 @@ theorem iotaCertsFueled_cert {F d : Nat} {lic : Bool} {t b : Expr}
   have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok true := h2
   simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg,
-    Bool.false_eq_true, if_false, e1, e2, bind, Except.bind, if_true]
+    Bool.false_eq_true, ite_false, e1, e2, bind, Except.bind, ite_true]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a slot whose
 argument's type does not agree: declined. -/
@@ -414,7 +417,7 @@ theorem iotaCertsFueled_fail {F d : Nat} {lic : Bool} {t b : Expr}
   have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok false := h2
   simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg,
-    Bool.false_eq_true, if_false, e1, e2, bind, Except.bind]
+    Bool.false_eq_true, ite_false, e1, e2, bind, Except.bind]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — arguments left
@@ -926,10 +929,10 @@ theorem projCertAt_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   | true =>
     have hp := projCert_spec hsim henv s₀ d lic c us args cn ls xs hok hc hus
       hargs hwargs
-    simp only [ConRon.Arena.projCertAt, if_true]
+    simp only [ConRon.Arena.projCertAt, ite_true]
     mvcgen [hp]
   | false =>
-    simp only [ConRon.Arena.projCertAt, Bool.false_eq_true, if_false]
+    simp only [ConRon.Arena.projCertAt, Bool.false_eq_true, ite_false]
     mvcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, rfl⟩

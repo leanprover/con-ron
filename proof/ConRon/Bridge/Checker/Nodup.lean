@@ -62,7 +62,7 @@ theorem FreshAt.step {e : Env} {c : ConstantInfo} {ns : List Name}
   obtain ⟨hnd, hfr⟩ := h
   rw [List.nodup_cons] at hnd
   refine ⟨hnd.2, fun n hn => ?_⟩
-  rw [Env.find?_cons, if_neg (fun he => hnd.1 (by rw [he]; exact hn))]
+  rw [Env.find?_cons, ite_eq_right (fun he => hnd.1 (by rw [he]; exact hn))]
   exact hfr n (List.mem_cons_of_mem _ hn)
 
 /-! ## The pinned blocks -/

@@ -88,17 +88,17 @@ theorem _root_.ConRon.Bridge.IFEnvOK.pushT {env : Env} {fe : IFEnv} {s : AState}
       rw [keyF n hb] at hf
       obtain ⟨nm, c', hd, hc', he⟩ := h.hit n ci' hf
       refine ⟨nm, c', hd, hc', ?_⟩
-      rw [Env.find?_cons, if_neg, he]
+      rw [Env.find?_cons, ite_eq_right, he]
       intro hq
       obtain rfl := denoteN_inj hrk.nsWF (hq ▸ hnm) hd
       simp at hb
   · intro nm c₀ he
     rw [Env.find?_cons] at he
     by_cases hq : c.name = nm
-    · rw [if_pos hq] at he
+    · rw [ite_eq_left hq] at he
       obtain rfl : c₀ = c := (Option.some.inj he).symm
       exact ⟨ci.name, ci, hq ▸ hnm, keyT, hci⟩
-    · rw [if_neg hq] at he
+    · rw [ite_eq_right hq] at he
       obtain ⟨n, ci', hd, hf, hc'⟩ := h.cover nm c₀ he
       refine ⟨n, ci', hd, ?_, hc'⟩
       cases hb : (ci.name == n) with
@@ -406,7 +406,7 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
       obtain ⟨cAP, hcAP, rfl⟩ := hcA
       simp only [Arena.checkBlockTables] at hrun
       by_cases hi : (m.nIdx == 0) = true
-      · rw [if_pos hi] at hrun
+      · rw [ite_eq_left hi] at hrun
         obtain ⟨guards, s₁, h1, h2⟩ := AM.bind_ok hrun
         obtain ⟨p1, hg⟩ := structProjGuards_spec cA.type cAP.type p.nP nF sorts sortsP s₀ s₁
           guards hok hpins ⟨denoteCV_type hcAP, hsorts⟩ h1
@@ -444,14 +444,14 @@ theorem checkBlockTables_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) 
         refine ⟨p1.trans (p3.trans p4), (InstRel.trans p4.ext hrel3 hrel4).imp fun e he => ?_⟩
         rw [ConLeche.checkBlockTables]
         dsimp only
-        rw [if_pos (hnI ▸ hi)]
+        rw [ite_eq_left (hnI ▸ hi)]
         rw [hnP] at hF₁
         exact FOk.bind hF₁ he
-      · rw [if_neg hi] at hrun
+      · rw [ite_eq_right hi] at hrun
         refine skip hrun ?_
         simp only [hnI] at hi
         dsimp only
-        rw [if_neg hi]
+        rw [ite_eq_right hi]
         exact FOk.pure env
     | [], _, csP, ssP, hcs, hss =>
       obtain rfl := mapM_option_nil_inv hcs
@@ -837,8 +837,8 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
   have hnM := nameNodup_spec hok.state.wf _ _ (BlockShape.memberNames_spec hsh)
   by_cases hc : (!nameNodup (p₀.shape.allCtors.map (·.1.name)) ||
       !nameNodup p₀.shape.memberNames) = true
-  · rw [if_pos hc] at hrun; exact absurd hrun (fun h => AM.fail_ok h)
-  rw [if_neg hc] at hrun
+  · rw [ite_eq_left hc] at hrun; exact absurd hrun (fun h => AM.fail_ok h)
+  rw [ite_eq_right hc] at hrun
   have hnd : (shP.allCtors.map (·.1.name)).Nodup ∧ shP.memberNames.Nodup := by
     rw [hnC, hnM] at hc
     refine ⟨(name_nodup_iff _).1 ?_, (name_nodup_iff _).1 ?_⟩ <;> revert hc <;>
@@ -872,7 +872,7 @@ theorem checkBlock_bridge_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     intro e he
     unfold ConLeche.checkBlock
     dsimp only
-    rw [if_pos hnd]
+    rw [ite_eq_left hnd]
     exact FOk.bind hFP he
   have hi := (i1.trans (p2.toInst.trans (i3.trans i4)))
   obtain ⟨env', hden', hF'⟩ := hrel.denote

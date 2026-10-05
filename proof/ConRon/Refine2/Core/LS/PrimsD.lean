@@ -32,7 +32,7 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
         reduceIte] at h
       rw [ConRon.Refine.PropWhen.is_never_refines h]; rfl
     · simp only [kernel.env.beta_skip, kernel.env.certs, bind_tc_ok, Bool.false_eq_true,
-        if_false, Result.ok.injEq] at h
+        ite_false, Result.ok.injEq] at h
       rw [← h]; rfl
 
 @[lockstep] theorem verified_checks_ls (mode : kernel.env.CheckMode) :

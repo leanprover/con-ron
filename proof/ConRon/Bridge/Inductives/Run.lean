@@ -323,8 +323,8 @@ theorem tagIf_view_run {α : Type} {h : EIdx} {t : UInt32} {v : ENodeView}
     (hrun : (if h.tag == t then (Arena.view h >>= f) else e) s = .ok (r, s')) :
     (Arena.view h >>= f) s = .ok (r, s') := by
   by_cases ht : (h.tag == t) = true
-  · rw [if_pos ht] at hrun; exact hrun
-  · rw [if_neg ht] at hrun
+  · rw [ite_eq_left ht] at hrun; exact hrun
+  · rw [ite_eq_right ht] at hrun
     have hne : v.tagOf ≠ t := by rw [← EStore.tagOf_of_view hv]; simpa using ht
     have hb : (Arena.view h >>= f) s = f v s := by
       show StateT.bind (Arena.view h) f s = _

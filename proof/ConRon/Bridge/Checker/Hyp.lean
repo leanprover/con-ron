@@ -109,9 +109,9 @@ theorem IFEnv.find?_push_restrict (fe : IFEnv) (ci : IConstantInfo)
   · have hn : ci.name = n := by simpa using h
     subst hn
     simp only [IFEnv.find?] at hfresh
-    simp only [h, if_true, Nat.lt_irrefl, if_false]
+    simp only [h, ite_true, Nat.lt_irrefl, ite_false]
     rw [hfresh]
-  · simp only [h, Bool.false_eq_true, if_false]
+  · simp only [h, Bool.false_eq_true, ite_false]
 
 /-- con-leche: none — `IFEnvOK` reads its index through `find?` only. -/
 theorem IFEnvOK.congr_find {env : Env} {fe fe' : IFEnv} {s : AState}

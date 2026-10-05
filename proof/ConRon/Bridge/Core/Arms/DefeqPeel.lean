@@ -41,6 +41,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -62,7 +65,7 @@ theorem isDefEqCore_refl {F d : Nat} {e : Expr} {v : Bool}
   | zero => rw [ConLeche.isDefEqCore_zero] at h; cases h
   | succ F =>
     rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody] at h
-    simp only [beq_self_eq_true, if_true, pure, Except.pure] at h
+    simp only [beq_self_eq_true, ite_true, pure, Except.pure] at h
     cases h; rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — and it does
@@ -70,7 +73,7 @@ answer, from fuel one on. -/
 theorem isDefEqCore_refl_one {F d : Nat} {e : Expr} :
     ConLeche.isDefEqCore mode env (F + 1) d e e = .ok true := by
   rw [ConLeche.isDefEqCore_succ, ConLeche.defeqBody]
-  simp only [beq_self_eq_true, if_true, pure, Except.pure]
+  simp only [beq_self_eq_true, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **the binder
 arm of the easy cases**: at two distinct binders of one kind `quickDefEq` is
@@ -96,12 +99,12 @@ theorem quickDefEq_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
   unfold ConLeche.quickDefEq
   simp only [← ConLeche.defeq_def] at h
   cases isLam
-  · simp only [bndE, Bool.false_eq_true, if_false] at hne ⊢
+  · simp only [bndE, Bool.false_eq_true, ite_false] at hne ⊢
     rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
     · simp [hne, h1, bind, Except.bind, pure, Except.pure]
     · simp [hne, h1, h2, bind, Except.bind, pure, Except.pure]
     · simp [hne, h1, h2, hm, bind, Except.bind, pure, Except.pure]
-  · simp only [bndE, if_true] at hne ⊢
+  · simp only [bndE, ite_true] at hne ⊢
     rcases h with ⟨h1, rfl⟩ | ⟨h1, h2, rfl⟩ | ⟨h1, h2, hm, rfl⟩
     · simp [hne, h1, bind, Except.bind, pure, Except.pure]
     · simp [hne, h1, h2, bind, Except.bind, pure, Except.pure]
@@ -136,7 +139,7 @@ theorem isDefEqCore_bnd {F d : Nat} (isLam : Bool) {t₁ c₁ t₂ c₂ : Expr}
   have hbt : (bndE isLam t₂ c₂ m₂).isBoolTrue = false := by
     cases isLam <;> rfl
   rw [hw _ (.inl rfl), hw _ (.inr rfl)]
-  simp only [hne, hbt, Bool.false_and, Bool.false_eq_true, if_false, bind,
+  simp only [hne, hbt, Bool.false_and, Bool.false_eq_true, ite_false, bind,
     Except.bind, pure, Except.pure, hq]
 
 /-- con-leche: none — **the peel's invariant**: the peel's answer `x` is the
@@ -186,7 +189,7 @@ theorem peel_step_pure {j F1 F2 : Nat} (L : Bool) {A1 c1 A2 c2 : Expr}
   · -- the syntactic fast path: every component agrees
     have he : bndE L A1 c1 m1 = bndE L A2 c2 m2 := eq_of_beq heq
     have hA : A1 = A2 ∧ c1 = c2 := by
-      cases L <;> simp only [bndE, Bool.false_eq_true, if_false, if_true,
+      cases L <;> simp only [bndE, Bool.false_eq_true, ite_false, ite_true,
         Expr.lam.injEq, Expr.forallE.injEq] at he <;> exact ⟨he.1, he.2.1⟩
     obtain ⟨rfl, rfl⟩ := hA
     cases dq with
@@ -256,12 +259,12 @@ theorem defeqPeelDone_spec (s₀ : AState) (mism ml : Bool) :
   unfold defeqPeelDone
   cases mism with
   | true =>
-    simp only [if_true]
+    simp only [ite_true]
     split
     · exact triple_fail
     · exact triple_fail
   | false =>
-    simp only [Bool.false_eq_true, if_false]
+    simp only [Bool.false_eq_true, ite_false]
     mvcgen
 
 /-- con-leche: none — the equality short-circuit: two equal handles are one
@@ -317,12 +320,12 @@ theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
   have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
   cases v with
   | false =>
-    simp only [Bool.not_false, if_true]
+    simp only [Bool.not_false, ite_true]
     mvcgen
     bridge_peel; subst_vars
     exact ⟨hok3, hx03, hp03, F, .inl ⟨hF, rfl⟩⟩
   | true =>
-    simp only [Bool.not_true, Bool.false_eq_true, if_false]
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
     refine triple_mono (defeqPeelDone_spec s3 mism ml) ?_
     rintro x s' ⟨rfl, hm, rfl⟩
     exact ⟨hok3, hx03, hp03, F, .inr ⟨hF, hm, rfl⟩⟩
@@ -431,7 +434,7 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     split
     · rename_i hab
       exact peel_eq_case s₀ a b (d + k) ws mism ml ca cb hok ha hb hab
-    · simp only [decide_true, Bool.true_or, if_true]
+    · simp only [decide_true, Bool.true_or, ite_true]
       exact defeqPeelLeaf_spec hsim d s₀ a b k fvs ws mism ml ca cb hok ha hb
         hvec hwa hwb
   | succ p ih =>
@@ -517,14 +520,14 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       intro t2 dq s4 hok4 hx04 hp04 ht2 ⟨F1, hF1⟩
       cases dq with
       | false =>
-        simp only [Bool.not_false, if_true]
+        simp only [Bool.not_false, ite_true]
         mvcgen
         bridge_peel; subst_vars
         exact ⟨hok4, hx04, hp04, peel_step_pure (F2 := 0)
           (mm := mode.verifiedChecks && !(ma == mb)) (a.tag == ETag.lam) hF1
           (fun _ => rfl) (fun h => absurd h (by simp)) hmm⟩
       | true =>
-        simp only [Bool.not_true, Bool.false_eq_true, if_false]
+        simp only [Bool.not_true, Bool.false_eq_true, ite_false]
         -- stage 4: the fresh free variable at the second opened domain
         refine triple_seq (internE_ok_spec s4 (.fvar (d + k) t2) hok4
           (viewOK_fvar (by rw [ht2]; rfl))) ?_
@@ -560,12 +563,12 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       have hsd : da = db := eq_of_beq hsame
       subst hsd
       obtain rfl : tda = tdb := Option.some.inj (hda.symm.trans hdb)
-      simp only [hsame, if_true, pure_bind]
+      simp only [hsame, ite_true, pure_bind]
       exact tail t1 true s2 hok2 hx2 hp2 ht1 ⟨1, fun F hF => by
         obtain ⟨F', rfl⟩ : ∃ F', F = F' + 1 := ⟨F - 1, by omega⟩
         exact isDefEqCore_refl_one⟩
     · have hsame' : (da == db) = false := by simpa using hsame
-      simp only [hsame', Bool.false_eq_true, if_false]
+      simp only [hsame', Bool.false_eq_true, ite_false]
       -- stage 2: the second domain
       have hdb2 := denote_ext hdb hx2
       refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s2 db
@@ -621,14 +624,14 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     fun F hF => ConLeche.isDefEqCore_mono hF hF1
   cases v with
   | false =>
-    simp only [Bool.not_false, if_true]
+    simp only [Bool.not_false, ite_true]
     mvcgen
     bridge_peel; subst_vars
     exact ⟨hok1, hx1, hp1, quick_step_pure (F2 := 0)
       (mm := mode.verifiedChecks && !(m1.pw == m2.pw)) isLam hne hdq
       (fun _ => rfl) (fun h => absurd h (by simp)) id⟩
   | true =>
-    simp only [Bool.not_true, Bool.false_eq_true, if_false]
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
     -- stage 2: the first free variable, at the second domain
     have ht2' := denote_ext ht2 hx1
     refine triple_seq (internE_ok_spec s1 (.fvar d ty2) hok1

@@ -88,13 +88,13 @@ open Lockstep in
     intro fuel h out lst hf hrel hinv
     have h0 : fuel = 0#u64 := by scalar_tac
     subst h0
-    rw [arena.inductives.field_tele.pi_binders.eq_def, if_pos rfl]
+    rw [arena.inductives.field_tele.pi_binders.eq_def, ite_eq_left rfl]
     rw [show absU (0#u64 : Std.U64) = 0 from rfl, piBinders]
     apply LSR.of_LS
     lockstep
   | succ n ih =>
     intro fuel h out lst hf hrel hinv
-    rw [arena.inductives.field_tele.pi_binders.eq_def, if_neg (by scalar_tac)]
+    rw [arena.inductives.field_tele.pi_binders.eq_def, ite_eq_right (by scalar_tac)]
     rw [show absU fuel = n + 1 by simp [absU, hf], piBinders]
     apply LSR.of_LS
     lockstep

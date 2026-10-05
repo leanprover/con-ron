@@ -125,7 +125,7 @@ theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
   · subst hts
     have he1 : e = true := by simpa using he'
     subst he1
-    simp only [if_true, bne_self_eq_false, Bool.false_eq_true, if_false] at h ⊢
+    simp only [ite_true, bne_self_eq_false, Bool.false_eq_true, ite_false] at h ⊢
     obtain ⟨o, ho, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← ifenv_find_abs hctx ho]
     rcases o with _ | ci
@@ -138,15 +138,15 @@ theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
         · have : ¬ (alloc.vec.Vec.len caps.ctors = 1#usize) := by
             intro h1; have h2 := congrArg Std.UScalar.val h1
             rw [alloc.vec.Vec.len_val] at h2; simp [alloc.vec.Vec.length, hc] at h2
-          rw [if_neg this] at h; cases Result.ok_injective h; rfl
+          rw [ite_eq_right this] at h; cases Result.ok_injective h; rfl
         · have h1 : alloc.vec.Vec.len caps.ctors = 1#usize := by
             apply Std.UScalar.eq_of_val_eq; rw [alloc.vec.Vec.len_val]
             simp [alloc.vec.Vec.length, hc]
-          rw [if_pos h1] at h
+          rw [ite_eq_left h1] at h
           simp only [List.map_cons, List.map_nil]
           by_cases hp : caps.nparams < n
-          · rw [if_pos hp] at h
-            rw [if_pos (by simpa [absU] using hp)]
+          · rw [ite_eq_left hp] at h
+            rw [ite_eq_left (by simpa [absU] using hp)]
             obtain ⟨c0, hc0, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             have hx := ExprOps.vecIndexSome hc0
             rw [hc] at hx
@@ -159,18 +159,18 @@ theorem proj_indexed_struct_like_abs {vis fe lfe} (hctx : CoreCtx vis fe lfe)
             · cases Result.ok_injective h; rfl
             · cases ci1 <;> (cases Result.ok_injective h) <;>
                 simp [absIConstantInfo, absU]
-          · rw [if_neg hp] at h
-            rw [if_neg (by simpa [absU] using hp)]
+          · rw [ite_eq_right hp] at h
+            rw [ite_eq_right (by simpa [absU] using hp)]
             cases Result.ok_injective h; rfl
         · have : ¬ (alloc.vec.Vec.len caps.ctors = 1#usize) := by
             intro h1; have h2 := congrArg Std.UScalar.val h1
             rw [alloc.vec.Vec.len_val] at h2; simp [alloc.vec.Vec.length, hc] at h2
-          rw [if_neg this] at h; cases Result.ok_injective h; rfl
+          rw [ite_eq_right this] at h; cases Result.ok_injective h; rfl
       | _ => cases Result.ok_injective h; rfl
   · have he0 : e = false := by simpa [hts] using he'
     subst he0
     have hne : absNIdx t ≠ absNIdx sn := fun hc => hts (absNIdx_inj hc)
-    simp only [Bool.false_eq_true, if_false] at h
+    simp only [Bool.false_eq_true, ite_false] at h
     cases Result.ok_injective h
     simp [hne]
 
@@ -186,15 +186,15 @@ never compared, DESIGN §3.1). -/
   unfold projMissError
   cases ht with
   | true =>
-    simp only [if_true] at h ⊢
+    simp only [ite_true] at h ⊢
     obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases Result.ok_injective h; rfl
   | false =>
-    simp only [Bool.false_eq_true, if_false] at h ⊢
+    simp only [Bool.false_eq_true, ite_false] at h ⊢
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← proj_indexed_struct_like_abs hctx hb]
-    cases b <;> simp only [Bool.false_eq_true, if_false, if_true] at h ⊢ <;>
+    cases b <;> simp only [Bool.false_eq_true, ite_false, ite_true] at h ⊢ <;>
     · obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h; rfl

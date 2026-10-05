@@ -47,6 +47,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -67,7 +70,7 @@ this is what makes every handle-keyed cache sound). -/
 theorem infer_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
     ConLeche.inferTypeCore mode env (F + 1) d (.fvar idx ty) = .ok ty := by
   rw [ConLeche.inferTypeCore_succ]
-  simp only [ConLeche.inferBody, if_pos h, pure, Except.pure]
+  simp only [ConLeche.inferBody, ite_eq_left h, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — a stored
 constant's type at its universe instantiation. -/
@@ -89,7 +92,7 @@ theorem infer_natLit {F d n : Nat} (h : ConLeche.natLitSupported env = true) :
     ConLeche.inferTypeCore mode env (F + 1) d (.lit (.natVal n)) =
       .ok (.const ConLeche.natName []) := by
   rw [ConLeche.inferTypeCore_succ]
-  simp only [ConLeche.inferBody, h, if_true, pure, Except.pure]
+  simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1141-1147 inferBody — a string
 literal types as `String`. -/
@@ -98,7 +101,7 @@ theorem infer_strLit {F d : Nat} {s : String}
     ConLeche.inferTypeCore mode env (F + 1) d (.lit (.strVal s)) =
       .ok (.const ConLeche.stringName []) := by
   rw [ConLeche.inferTypeCore_succ]
-  simp only [ConLeche.inferBody, h, if_true, pure, Except.pure]
+  simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
 /-! ## 4. The projection clause
 
@@ -122,8 +125,8 @@ theorem infer_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, ConLeche.infer_def, ConLeche.whnf_def,
     hpe, hw, hh, ht, bind, Except.bind]
-  rw [if_pos hg]
-  simp only [if_neg hp, pure, Except.pure]
+  rw [ite_eq_left hg]
+  simp only [ite_eq_right hp, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1248-1259 inferBody — the projection
 at a **`Prop`** structure, where the field's own sort must be `Prop` too. -/
@@ -144,8 +147,8 @@ theorem infer_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, ConLeche.infer_def, ConLeche.whnf_def,
     hpe, hw, hh, ht, bind, Except.bind]
-  rw [if_pos hg]
-  simp only [if_pos hp, hf, pure, Except.pure]
+  rw [ite_eq_left hg]
+  simp only [ite_eq_left hp, hf, pure, Except.pure]
   simp
 
 /-! ## 5. The two batched clauses' identification, and the body theorem -/

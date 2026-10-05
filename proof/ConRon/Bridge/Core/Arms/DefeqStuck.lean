@@ -168,12 +168,12 @@ theorem dqArm_fvar (hμ : mode.verifiedChecks = true)
   · rename_i h
     exact dq_pure_exit hok hx₁ hp₁ (hG.imp fun F hh => hh _ (by
       show (if (i == j) = true then _ else _) = _
-      rw [if_pos h]; rfl))
+      rw [ite_eq_left h]; rfl))
   · rename_i h
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun F hh r hr => hh r (by
         show (if (i == j) = true then _ else _) = _
-        rw [if_neg h]; exact hr))
+        rw [ite_eq_right h]; exact hr))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **two
 constants**: the same name at equivalent universe arguments, else stuck. -/
@@ -222,19 +222,19 @@ theorem dqArm_const (hμ : mode.verifiedChecks = true)
           (if b = true then pure true else ConLeche.stuckIrrel mode
             (ConLeche.pureFns mode env F) env d (.const nm ls) (.const nm' ls')) := by
         intro F
-        exact (if_pos h').trans (by rw [ho]; rfl)
+        exact (ite_eq_left h').trans (by rw [ho]; rfl)
       split
       · rename_i hb
         exact dq_pure_exit hok2 hx2 (hp2.trans hp₁) (hG.imp fun F hh => hh _ (by
-          rw [hpure F, if_pos hb]; rfl))
+          rw [hpure F, ite_eq_left hb]; rfl))
       · rename_i hb
         exact dq_stuck_exit hμ henv hsim a' b' _ _ hok2 hx2 (hp2.trans hp₁)
           (by rw [hst2]; exact hx) (by rw [hst2]; exact hy) hwx hwy
-          (hG.imp fun F hh r hr => hh r (by rw [hpure F, if_neg hb]; exact hr))
+          (hG.imp fun F hh r hr => hh r (by rw [hpure F, ite_eq_right hb]; exact hr))
   · rename_i h
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun F hh r hr => hh r
-        ((if_neg (fun h' => h (hiff.mpr h'))).trans hr))
+        ((ite_eq_right (fun h' => h (hiff.mpr h'))).trans hr))
 
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1722-1789 defeqStuck — **a `String`
@@ -294,13 +294,13 @@ theorem dqArm_strL (hμ : mode.verifiedChecks = true)
       rintro cc s5 ⟨hok5, hx5, hp5, hd5⟩
       exact dq_defeq_exit hsim cc b' _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
         hd5 (denote_ext hy (hx4.trans hx5)) (strLitToConstructor_WScoped st d)
-        hwy (hG.imp fun _ hh r hr => hh r ((if_pos (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
+        hwy (hG.imp fun _ hh r hr => hh r ((ite_eq_left (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
           ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
     · rename_i h
       exact dq_stuck_exit hμ henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
         (denote_ext hy hx4) hwx hwy (hG.imp fun _ hh r hr => hh r
-          ((if_neg (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
+          ((ite_eq_right (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
             (hiff.mpr ⟨h'.1, h'.2.1⟩).2, h'.2.2⟩)).trans hr))
   all_goals
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
@@ -362,13 +362,13 @@ theorem dqArm_strR (hμ : mode.verifiedChecks = true)
       rintro cc s5 ⟨hok5, hx5, hp5, hd5⟩
       exact dq_defeq_exit hsim a' cc _ _ hok5 (hx04.trans hx5) (hp5.trans hp04)
         (denote_ext hx (hx4.trans hx5)) hd5 hwx (strLitToConstructor_WScoped st d)
-        (hG.imp fun _ hh r hr => hh r ((if_pos (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
+        (hG.imp fun _ hh r hr => hh r ((ite_eq_left (show ConLeche.stringOfListName = ConLeche.stringOfListName ∧
           ([] : List ConLeche.Level) = [] ∧ ConLeche.strLitSupported env = true
           from ⟨rfl, rfl, hsup⟩)).trans hr))
     · rename_i h
       exact dq_stuck_exit hμ henv hsim a' b' _ _ hok4 hx04 hp04 (denote_ext hx hx4)
         (denote_ext hy hx4) hwx hwy (hG.imp fun _ hh r hr => hh r
-          ((if_neg (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
+          ((ite_eq_right (fun h' => h ⟨(hiff.mpr ⟨h'.1, h'.2.1⟩).1,
             (hiff.mpr ⟨h'.1, h'.2.1⟩).2, h'.2.2⟩)).trans hr))
   all_goals
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
@@ -456,7 +456,7 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
       exact dq_stuck_exit hμ henv hsim a' b' _ _ hok6 hx06 hp06 (denote_ext hx hx6)
         (denote_ext hy hx6) hwx hwy ((hG.and hD).imp fun F ⟨hh, hd⟩ r hr =>
           hh r (by
-            rw [hpure F, if_pos hl']
+            rw [hpure F, ite_eq_left hl']
             simp only [bind, Except.bind, hd, Bool.false_eq_true, ↓reduceIte]
             exact hr))
     · simp only [↓reduceIte]
@@ -474,20 +474,20 @@ theorem dqArm_app (hμ : mode.verifiedChecks = true)
         exact dq_stuck_exit hμ henv hsim a' b' _ _ hok7 hx07 hp07 (denote_ext hx (hx6.trans hx7))
           (denote_ext hy (hx6.trans hx7)) hwx hwy
           ((hG.and hD |>.and hL).imp fun F ⟨⟨hh, hd⟩, hl2⟩ r hr => hh r (by
-            rw [hpure F, if_pos hl']
+            rw [hpure F, ite_eq_left hl']
             simp only [bind, Except.bind, hd, hl2, Bool.false_eq_true,
               ↓reduceIte]
             exact hr))
       · simp only [↓reduceIte]
         exact dq_pure_exit hok7 hx07 hp07
           ((hG.and hD |>.and hL).imp fun F ⟨⟨hh, hd⟩, hl2⟩ => hh true (by
-            rw [hpure F, if_pos hl']
+            rw [hpure F, ite_eq_left hl']
             simp only [bind, Except.bind, hd, hl2, ↓reduceIte]
             rfl))
   · rename_i hl
     exact dq_stuck_exit hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy
       (hG.imp fun F hh r hr => hh r (by
-        rw [hpure F, if_neg (fun h' => hl (hlen.mpr h'))]; exact hr))
+        rw [hpure F, ite_eq_right (fun h' => hl (hlen.mpr h'))]; exact hr))
 
 end Arms
 

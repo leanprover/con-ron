@@ -44,6 +44,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -274,8 +277,8 @@ theorem headTypePW_const_hit {find? : ConLeche.Name → Option ConstantInfo}
     ConLeche.headTypePW find? (.const nm ls) n =
       (ConLeche.residualPW (c.toConstantVal.type.peelNeverPis n)).map
         (Level.substPW c.toConstantVal.levelParams ls) := by
-  simp only [ConLeche.headTypePW, hf, ht, hl, Bool.false_eq_true, if_false,
-    if_true]
+  simp only [ConLeche.headTypePW, hf, ht, hl, Bool.false_eq_true, ite_false,
+    ite_true]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:73-90 headTypePW — every other
 constant head declines. -/
@@ -286,8 +289,8 @@ theorem headTypePW_const_none {find? : ConLeche.Name → Option ConstantInfo}
     ConLeche.headTypePW find? (.const nm ls) n = none := by
   rcases h with hf | ⟨c, hf, ht | hl⟩
   · simp only [ConLeche.headTypePW, hf]
-  · simp only [ConLeche.headTypePW, hf, ht, if_true]
-  · simp only [ConLeche.headTypePW, hf, hl, if_false]; split <;> rfl
+  · simp only [ConLeche.headTypePW, hf, ht, ite_true]
+  · simp only [ConLeche.headTypePW, hf, hl, ite_false]; split <;> rfl
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:105-122 headProofPW — a constant
 head the environment answers off the tower at the right level count. -/
@@ -298,8 +301,8 @@ theorem headProofPW_const_hit {find? : ConLeche.Name → Option ConstantInfo}
     ConLeche.headProofPW find? (.const nm ls) =
       (ConLeche.typeSortPW find? c.toConstantVal.type).map
         (Level.substPW c.toConstantVal.levelParams ls) := by
-  simp only [ConLeche.headProofPW, hf, ht, hl, Bool.false_eq_true, if_false,
-    if_true]
+  simp only [ConLeche.headProofPW, hf, ht, hl, Bool.false_eq_true, ite_false,
+    ite_true]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:105-122 headProofPW — every
 other constant head declines. -/
@@ -310,8 +313,8 @@ theorem headProofPW_const_none {find? : ConLeche.Name → Option ConstantInfo}
     ConLeche.headProofPW find? (.const nm ls) = none := by
   rcases h with hf | ⟨c, hf, ht | hl⟩
   · simp only [ConLeche.headProofPW, hf]
-  · simp only [ConLeche.headProofPW, hf, ht, if_true]
-  · simp only [ConLeche.headProofPW, hf, hl, if_false]; split <;> rfl
+  · simp only [ConLeche.headProofPW, hf, ht, ite_true]
+  · simp only [ConLeche.headProofPW, hf, hl, ite_false]; split <;> rfl
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2439-2449 Level.substPW_eq_self —
 **the has-parameters cutoff** of the arena's two head readers (task
@@ -363,7 +366,7 @@ theorem peelNeverPis_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
       have hview := view_of_viewBind_tag_forallE htg hv.symm
       obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf hview hx
       rw [hr eb hb]
-      simp only [Expr.peelNeverPis, hnev, if_true]
+      simp only [Expr.peelNeverPis, hnev, ite_true]
     next => intro s hs _; subst hs; exact hok
     next =>
       rename_i htg s0 ty b m hnev
@@ -1053,7 +1056,7 @@ theorem propIrrel_no {F d : Nat} {x y : Expr}
     (h : (ConLeche.notProofFast env.find? x ||
       ConLeche.notProofFast env.find? y) = true) :
     ConLeche.propIrrelFueled mode env F d x y = .ok false := by
-  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, h, if_true, pure,
+  simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, h, ite_true, pure,
     Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the "yes" arm
@@ -1065,7 +1068,7 @@ theorem propIrrel_yes {F d : Nat} {x y : Expr}
       ConLeche.isProofFast env.find? y) = true) :
     ConLeche.propIrrelFueled mode env F d x y = .ok true := by
   simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, h,
-    Bool.false_eq_true, if_false, if_true, pure, Except.pure]
+    Bool.false_eq_true, ite_false, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path:
 the first subject's type's type does not reduce to a sort. -/
@@ -1083,7 +1086,7 @@ theorem propIrrel_slow_a {F d : Nat} {x y ta tta w : Expr}
   have e2 : (ConLeche.pureFns mode env F).inferIO d ta = .ok tta := h2
   have e3 : (ConLeche.pureFns mode env F).whnf d tta = .ok w := h3
   simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, hi,
-    Bool.false_eq_true, if_false, e1, e2, e3, bind, Except.bind]
+    Bool.false_eq_true, ite_false, e1, e2, e3, bind, Except.bind]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path:
@@ -1111,7 +1114,7 @@ theorem propIrrel_slow_b {F d : Nat} {x y ta tta tb ttb w : Expr} {uT : Level}
   have e6 : (ConLeche.pureFns mode env F).inferIO d tb = .ok ttb := h6
   have e7 : (ConLeche.pureFns mode env F).whnf d ttb = .ok w := h7
   simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, hi,
-    Bool.false_eq_true, if_false, e1, e2, e3, e5, e6, e7, ConLeche.liftFueled,
+    Bool.false_eq_true, ite_false, e1, e2, e3, e5, e6, e7, ConLeche.liftFueled,
     h4, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — the slow path
@@ -1139,7 +1142,7 @@ theorem propIrrel_slow {F d : Nat} {x y ta tta tb ttb : Expr} {uT vT : Level}
   have e6 : (ConLeche.pureFns mode env F).inferIO d tb = .ok ttb := h6
   have e7 : (ConLeche.pureFns mode env F).whnf d ttb = .ok (.sort vT) := h7
   simp only [ConLeche.propIrrelFueled, ConLeche.propIrrel, hn, hi,
-    Bool.false_eq_true, if_false, e1, e2, e3, e5, e6, e7, ConLeche.liftFueled,
+    Bool.false_eq_true, ite_false, e1, e2, e3, e5, e6, e7, ConLeche.liftFueled,
     h4, h8, bind, Except.bind, pure, Except.pure]
 
 /-! ### `propIrrel` -/

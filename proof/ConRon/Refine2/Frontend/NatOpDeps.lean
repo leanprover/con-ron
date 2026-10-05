@@ -127,95 +127,95 @@ theorem nat_op_deps_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     simp only [natOpDepsPick, absNatOpPins]
     show LOut pers _ o st' (.ok (_, lst1))
     by_cases h0 : (absNIdx c == absNIdx a.pr) = true
-    · rw [if_pos h0] at h ⊢
+    · rw [ite_eq_left h0] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h0] at h ⊢
+    rw [ite_eq_right h0] at h ⊢
     by_cases h1 : (absNIdx c == absNIdx a.ad) = true
-    · rw [if_pos h1] at h ⊢
+    · rw [ite_eq_left h1] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h1] at h ⊢
+    rw [ite_eq_right h1] at h ⊢
     by_cases h2 : (absNIdx c == absNIdx a.su) = true
-    · rw [if_pos h2] at h ⊢
+    · rw [ite_eq_left h2] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h2] at h ⊢
+    rw [ite_eq_right h2] at h ⊢
     by_cases h3 : (absNIdx c == absNIdx a.mu) = true
-    · rw [if_pos h3] at h ⊢
+    · rw [ite_eq_left h3] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h3] at h ⊢
+    rw [ite_eq_right h3] at h ⊢
     by_cases h4 : (absNIdx c == absNIdx a.po) = true
-    · rw [if_pos h4] at h ⊢
+    · rw [ite_eq_left h4] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h4] at h ⊢
+    rw [ite_eq_right h4] at h ⊢
     by_cases h5 : (absNIdx c == absNIdx a.be) = true
-    · rw [if_pos h5] at h ⊢
+    · rw [ite_eq_left h5] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h5] at h ⊢
+    rw [ite_eq_right h5] at h ⊢
     by_cases h6 : (absNIdx c == absNIdx a.bl) = true
-    · rw [if_pos h6] at h ⊢
+    · rw [ite_eq_left h6] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h6] at h ⊢
+    rw [ite_eq_right h6] at h ⊢
     by_cases h7 : (absNIdx c == absNIdx a.di) = true
-    · rw [if_pos h7] at h ⊢
+    · rw [ite_eq_left h7] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h7] at h ⊢
+    rw [ite_eq_right h7] at h ⊢
     by_cases h8 : (absNIdx c == absNIdx a.mo) = true
-    · rw [if_pos h8] at h ⊢
+    · rw [ite_eq_left h8] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h8] at h ⊢
+    rw [ite_eq_right h8] at h ⊢
     by_cases h9 : (absNIdx c == absNIdx a.gc) = true
-    · rw [if_pos h9] at h ⊢
+    · rw [ite_eq_left h9] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h9] at h ⊢
+    rw [ite_eq_right h9] at h ⊢
     by_cases h10 : (absNIdx c == absNIdx a.la) = true
-    · rw [if_pos h10] at h ⊢
+    · rw [ite_eq_left h10] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h10] at h ⊢
+    rw [ite_eq_right h10] at h ⊢
     by_cases h11 : (absNIdx c == absNIdx a.lo) = true
-    · rw [if_pos h11] at h ⊢
+    · rw [ite_eq_left h11] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h11] at h ⊢
+    rw [ite_eq_right h11] at h ⊢
     by_cases h12 : (absNIdx c == absNIdx a.xo) = true
-    · rw [if_pos h12] at h ⊢
+    · rw [ite_eq_left h12] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h12] at h ⊢
+    rw [ite_eq_right h12] at h ⊢
     by_cases h13 : (absNIdx c == absNIdx a.sl) = true
-    · rw [if_pos h13] at h ⊢
+    · rw [ite_eq_left h13] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h13] at h ⊢
+    rw [ite_eq_right h13] at h ⊢
     by_cases h14 : (absNIdx c == absNIdx a.sr) = true
-    · rw [if_pos h14] at h ⊢
+    · rw [ite_eq_left h14] at h ⊢
       repeat (obtain ⟨_, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; have := push_nidx_val hp; clear hp)
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
       exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
-    rw [if_neg h14] at h ⊢
+    rw [ite_eq_right h14] at h ⊢
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective h)
     exact ⟨_, _, rfl, by simp [absNIdxL, *], hrel1, hinv1⟩
 

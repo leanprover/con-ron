@@ -63,11 +63,11 @@ theorem indParamsOk_tail {nP : Nat} {rest : List IConstantInfo}
     PStep s s' ∧ r = (ok && ConLeche.indParamsOk nP xs) := by
   cases ok with
   | true =>
-    simp only [if_true] at hrun
+    simp only [ite_true] at hrun
     obtain ⟨hstep, hr⟩ := ih s s' r hok hcs hrun
     exact ⟨hstep, by rw [hr]; simp⟩
   | false =>
-    simp only [Bool.false_eq_true, if_false] at hrun
+    simp only [Bool.false_eq_true, ite_false] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, by simp⟩
 
@@ -201,7 +201,7 @@ theorem checkDecl_ind_route {μ : CheckMode} {pins : List NatOpPinSet} {env : En
       = (match ConLeche.blockParts? nP b with
          | some p => ConLeche.checkBlock (fueledOpsM μ) env b p
          | none => ConLeche.checkShapeless (fueledOpsM μ) env b) := by
-  simp only [ConLeche.checkDecl, hpin, hparams, if_true]
+  simp only [ConLeche.checkDecl, hpin, hparams, ite_true]
   rfl
 
 
@@ -237,7 +237,7 @@ theorem checkIndRoute_bridge {μ : CheckMode} {env : Env} {fe fe' : IFEnv}
   | false => rw [hparams] at h2; exact absurd h2 (fun h => AM.fail_ok h)
   | true =>
   rw [hparams] at h2
-  simp only [Bool.not_true, Bool.false_eq_true, if_false] at h2
+  simp only [Bool.not_true, Bool.false_eq_true, ite_false] at h2
   -- the recogniser
   obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
   have hck₁ : CheckOK μ env fe s₁ := (hstep1.toCore hok.check).ok

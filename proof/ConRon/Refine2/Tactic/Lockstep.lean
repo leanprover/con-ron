@@ -384,22 +384,22 @@ theorem LS.ite {α β : Type} {pers : arena.store.PersTier} {R : α → β → P
     (h₁ : c → LS pers R m₁ lst x) (h₂ : ¬ c → LS pers R m₂ lst x) :
     LS pers R (if c then m₁ else m₂) lst x := by
   by_cases hc : c
-  · rw [if_pos hc]; exact h₁ hc
-  · rw [if_neg hc]; exact h₂ hc
+  · rw [ite_eq_left hc]; exact h₁ hc
+  · rw [ite_eq_right hc]; exact h₂ hc
 
 theorem LS.twin_ite_pos {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x y : AM β} (hc : c) (h : LS pers R m lst x) :
     LS pers R m lst (if c then x else y) := by
-  rw [if_pos hc]; exact h
+  rw [ite_eq_left hc]; exact h
 
 theorem LS.twin_ite_neg {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x y : AM β} (hc : ¬ c) (h : LS pers R m lst y) :
     LS pers R m lst (if c then x else y) := by
-  rw [if_neg hc]; exact h
+  rw [ite_eq_right hc]; exact h
 
 /-- The twin's own error leaf. -/
 theorem errSim_fail {γ : Type} {e : kernel.core_types.CheckError} {le : Arena.CheckError}
@@ -445,8 +445,8 @@ theorem LSP.bind_eq {α β : Type} {f : Result α} {k : α → Result β}
 theorem LSP.ite {α : Type} {c : Prop} [Decidable c] {m₁ m₂ : Result α} {Q : α → Prop}
     (h₁ : c → LSP m₁ Q) (h₂ : ¬ c → LSP m₂ Q) : LSP (if c then m₁ else m₂) Q := by
   by_cases hc : c
-  · rw [if_pos hc]; exact h₁ hc
-  · rw [if_neg hc]; exact h₂ hc
+  · rw [ite_eq_left hc]; exact h₁ hc
+  · rw [ite_eq_right hc]; exact h₂ hc
 
 theorem LSP.ret {α : Type} {v : α} {Q : α → Prop} (h : Q v) : LSP (ok v) Q := by
   intro a ha; cases Result.ok_injective ha; exact h
@@ -697,8 +697,8 @@ theorem LS.packM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × M
     (h : LS pers R (if c then packM a else packM b) lst x) :
     LS pers R (packM (if c then a else b)) lst x := by
   by_cases hc : c
-  · rw [if_pos hc] at h ⊢; exact h
-  · rw [if_neg hc] at h ⊢; exact h
+  · rw [ite_eq_left hc] at h ⊢; exact h
+  · rw [ite_eq_right hc] at h ⊢; exact h
 
 theorem LS.packRM_bind {γ α β M : Type} {pers : arena.store.PersTier} {R : α × M → β → Prop}
     {st : arena.monad.AState} {f : Result γ}
@@ -726,8 +726,8 @@ theorem LS.packRM_ite {α β M : Type} {pers : arena.store.PersTier} {R : α × 
     (h : LS pers R (if c then packRM st a else packRM st b) lst x) :
     LS pers R (packRM st (if c then a else b)) lst x := by
   by_cases hc : c
-  · rw [if_pos hc] at h ⊢; exact h
-  · rw [if_neg hc] at h ⊢; exact h
+  · rw [ite_eq_left hc] at h ⊢; exact h
+  · rw [ite_eq_right hc] at h ⊢; exact h
 
 theorem ErrArm.packM_ok_err {α M : Type} {e : kernel.core_types.CheckError}
     {st : arena.monad.AState} {mm : M} :
@@ -908,8 +908,8 @@ theorem LS.packT_ite {α β : Type} {pers : arena.store.PersTier}
     (h : LS pers R (if c then packT G a else packT G b) lst x) :
     LS pers R (packT G (if c then a else b)) lst x := by
   by_cases hc : c
-  · rw [if_pos hc] at h ⊢; exact h
-  · rw [if_neg hc] at h ⊢; exact h
+  · rw [ite_eq_left hc] at h ⊢; exact h
+  · rw [ite_eq_right hc] at h ⊢; exact h
 
 theorem ErrArm.packT_ok_err {α : Type} {e : kernel.core_types.CheckError}
     {G : arena.store.PersTier → arena.monad.AState} {t : arena.store.PersTier} :
@@ -977,8 +977,8 @@ theorem LS.rust_ite_bind {γ α β : Type} {pers : arena.store.PersTier} {R : α
     (h₁ : c → LS pers R (a >>= k) lst x) (h₂ : ¬ c → LS pers R (b >>= k) lst x) :
     LS pers R ((if c then a else b) >>= k) lst x := by
   by_cases hc : c
-  · rw [if_pos hc]; exact h₁ hc
-  · rw [if_neg hc]; exact h₂ hc
+  · rw [ite_eq_left hc]; exact h₁ hc
+  · rw [ite_eq_right hc]; exact h₂ hc
 
 theorem LSP.rust_assoc {γ δ α : Type} {b : Result γ} {g : γ → Result δ}
     {k : δ → Result α} {Q : α → Prop}
@@ -990,8 +990,8 @@ theorem LSP.rust_ite_bind {γ α : Type} {c : Prop} [Decidable c] {a b : Result 
     (h₁ : c → LSP (a >>= k) Q) (h₂ : ¬ c → LSP (b >>= k) Q) :
     LSP ((if c then a else b) >>= k) Q := by
   by_cases hc : c
-  · rw [if_pos hc]; exact h₁ hc
-  · rw [if_neg hc]; exact h₂ hc
+  · rw [ite_eq_left hc]; exact h₁ hc
+  · rw [ite_eq_right hc]; exact h₂ hc
 
 /-! ## Twin-side moves -/
 
@@ -1004,14 +1004,14 @@ theorem LS.twin_dite_pos {α β : Type} {pers : arena.store.PersTier} {R : α �
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : c → AM β} {y : ¬ c → AM β} (hc : c) (h : LS pers R m lst (x hc)) :
     LS pers R m lst (if h : c then x h else y h) := by
-  rw [dif_pos hc]; exact h
+  rw [dite_eq_left hc]; exact h
 
 theorem LS.twin_dite_neg {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x : c → AM β} {y : ¬ c → AM β} (hc : ¬ c) (h : LS pers R m lst (y hc)) :
     LS pers R m lst (if h : c then x h else y h) := by
-  rw [dif_neg hc]; exact h
+  rw [dite_eq_right hc]; exact h
 
 /-! ### A twin `if` against a Rust bind (task #97-T2-TACTIC round 2)
 
@@ -1031,8 +1031,8 @@ theorem LS.twin_ite_bind {α β γ : Type} {pers : arena.store.PersTier} {R : α
     (h : LS pers R m lst (if c then a >>= k else b >>= k)) :
     LS pers R m lst ((if c then a else b) >>= k) := by
   by_cases hc : c
-  · rw [if_pos hc] at h ⊢; exact h
-  · rw [if_neg hc] at h ⊢; exact h
+  · rw [ite_eq_left hc] at h ⊢; exact h
+  · rw [ite_eq_right hc] at h ⊢; exact h
 
 theorem LS.twin_dite_bind {α β γ : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
@@ -1041,8 +1041,8 @@ theorem LS.twin_dite_bind {α β γ : Type} {pers : arena.store.PersTier} {R : �
     (h : LS pers R m lst (if hc : c then a hc >>= k else b hc >>= k)) :
     LS pers R m lst ((if hc : c then a hc else b hc) >>= k) := by
   by_cases hc : c
-  · rw [dif_pos hc] at h ⊢; exact h
-  · rw [dif_neg hc] at h ⊢; exact h
+  · rw [dite_eq_left hc] at h ⊢; exact h
+  · rw [dite_eq_right hc] at h ⊢; exact h
 
 theorem LS.twin_ite_split {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
@@ -1051,8 +1051,8 @@ theorem LS.twin_ite_split {α β : Type} {pers : arena.store.PersTier} {R : α �
     (h₁ : c → LS pers R m lst x) (h₂ : ¬ c → LS pers R m lst y) :
     LS pers R m lst (if c then x else y) := by
   by_cases hc : c
-  · rw [if_pos hc]; exact h₁ hc
-  · rw [if_neg hc]; exact h₂ hc
+  · rw [ite_eq_left hc]; exact h₁ hc
+  · rw [ite_eq_right hc]; exact h₂ hc
 
 theorem LS.twin_dite_split {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
     {c : Prop} [Decidable c]
@@ -1061,8 +1061,8 @@ theorem LS.twin_dite_split {α β : Type} {pers : arena.store.PersTier} {R : α 
     (h₁ : ∀ hc : c, LS pers R m lst (x hc)) (h₂ : ∀ hc : ¬ c, LS pers R m lst (y hc)) :
     LS pers R m lst (if hc : c then x hc else y hc) := by
   by_cases hc : c
-  · rw [dif_pos hc]; exact h₁ hc
-  · rw [dif_neg hc]; exact h₂ hc
+  · rw [dite_eq_left hc]; exact h₁ hc
+  · rw [dite_eq_right hc]; exact h₂ hc
 
 /-! ### The tag-guarded projections -/
 
@@ -1072,32 +1072,32 @@ theorem tagView_const (st : EStore) (i : EIdx) (hi : i.tag = ETag.const) :
       t.get i = (t.getConst i).map (fun p => ENodeView.const p.1 p.2) := by
     intro t
     simp only [ETables.get, ETables.getConst, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
+    simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
   rw [EStore.view, EStore.viewConst,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetConst]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetConst]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 theorem tagView_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort) :
     st.view i = (st.viewSort i).map ENodeView.sort := by
   have key : ∀ t : ETables, t.get i = (t.getSort i).map ENodeView.sort := by
     intro t
     simp only [ETables.get, ETables.getSort, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
+    simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
   rw [EStore.view, EStore.viewSort,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetSort]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetSort]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 
 
@@ -1154,12 +1154,12 @@ theorem EStore_viewConstName_eq (st : EStore) (i : EIdx) :
     st.viewConstName i = (st.viewConst i).map Prod.fst := by
   rw [EStore.viewConstName, EStore.viewConst]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetConstName, EStore.persGetConst,
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetConstName, EStore.persGetConst,
       ETables.getConstName, ETables.getConst, Option.map_map]; rfl
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs, ETables.getConstName, ETables.getConst, Option.map_map]; rfl
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs, ETables.getConstName, ETables.getConst, Option.map_map]; rfl
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 /-- The port reads the NAME of a `const`-tagged handle, the twin its whole
 view, and uses only the name. -/
@@ -1188,52 +1188,52 @@ theorem tagView_app (st : EStore) (i : EIdx) (hi : i.tag = ETag.app) :
   have key : ∀ t : ETables, t.get i = (t.getApp i).map (fun p => ENodeView.app p.1 p.2) := by
     intro t
     simp only [ETables.get, ETables.getApp, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
+    simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
   rw [EStore.view, EStore.viewApp,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.app])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.app])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetApp]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetApp]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 theorem tagView_lit (st : EStore) (i : EIdx) (hi : i.tag = ETag.lit) :
     st.view i = (st.viewLit i).map ENodeView.lit := by
   have key : ∀ t : ETables, t.get i = (t.getLit i).map ENodeView.lit := by
     intro t
     simp only [ETables.get, ETables.getLit, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
+    simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
   rw [EStore.view, EStore.viewLit,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.lit])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.lit])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetLit]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetLit]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
     st.view i = (st.viewBVar i).map ENodeView.bvar := by
   have key : ∀ t : ETables, t.get i = (t.getBVar i).map ENodeView.bvar := by
     intro t
     simp only [ETables.get, ETables.getBVar, hi, Option.map_map]
-    simp (config := {decide := true}) only [if_false, if_true]
+    simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
   rw [EStore.view, EStore.viewBVar,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.bvar])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.bvar])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetBVar]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetBVar]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
     st.view i = (st.viewBind i).map (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) := by
-  rw [EStore.view, if_pos (by rw [hi]; rfl)]
+  rw [EStore.view, ite_eq_left (by rw [hi]; rfl)]
   cases st.viewBind i with
   | none => rfl
   | some p =>

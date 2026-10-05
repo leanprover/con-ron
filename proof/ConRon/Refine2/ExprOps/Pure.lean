@@ -37,7 +37,7 @@ therefore DESIGN §3.5's original exact-result one —
    (`eidx_copy_upto`, `eidx_prefix_beq`, `binder_copy_from`, `fvl_copy_from`,
    `leaf_mem_from`, `subst_level_list_from`).  Each is closed by the same
    ~14-line step: a `Nat` induction on a bound for `len - i`, `eq_def` on the
-   recursion, `if_pos`/`if_neg` at `alloc.vec.Vec.len`, and
+   recursion, `ite_eq_left`/`ite_eq_right` at `alloc.vec.Vec.len`, and
    `List.drop_eq_getElem_cons` to line the twin's list clause up with the
    Rust's indexed read.  That is round 3's "fuel shape step, twelve lines",
    at a `Vec` cursor instead of a fuel counter, and it is **per function**
@@ -173,20 +173,20 @@ theorem eidxCopyUpto_toList (xs : Array EIdx) :
   induction n with
   | zero =>
     intro k i out hn
-    rw [eidxCopyUpto, dif_neg (by omega)]
+    rw [eidxCopyUpto, dite_eq_right (by omega)]
     rw [show k - i = 0 by omega]
     simp
   | succ n ih =>
     intro k i out hn
     by_cases hc : i < k ∧ i < xs.size
-    · rw [eidxCopyUpto, dif_pos hc]
+    · rw [eidxCopyUpto, dite_eq_left hc]
       rw [ih k (i + 1) (out.push xs[i]) (by omega)]
       have hd : xs.toList.drop i = xs[i] :: xs.toList.drop (i + 1) := by
         rw [List.drop_eq_getElem_cons (by simpa using hc.2)]
         simp
       rw [hd, show k - i = (k - (i + 1)) + 1 by omega, List.take_succ_cons]
       simp
-    · rw [eidxCopyUpto, dif_neg hc]
+    · rw [eidxCopyUpto, dite_eq_right hc]
       have : (xs.toList.drop i).take (k - i) = [] := by
         rcases Nat.lt_or_ge i k with h1 | h1
         · have h2 : xs.size ≤ i := by
@@ -228,25 +228,25 @@ theorem eidx_copy_upto_aux (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize
   | zero =>
     intro i out r hn h
     rw [arena.expr_ops.eidx_copy_upto.eq_def] at h
-    rw [if_pos (show i ≥ k by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ k by scalar_tac), Result.ok.injEq] at h
     subst h
-    rw [eidxCopyUpto, dif_neg (by omega)]
+    rw [eidxCopyUpto, dite_eq_right (by omega)]
     simp
   | succ n ih =>
     intro i out r hn h
     rw [arena.expr_ops.eidx_copy_upto.eq_def] at h
     by_cases hk : i.val ≥ k.val
-    · rw [if_pos (show i ≥ k by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ k by scalar_tac), Result.ok.injEq] at h
       subst h
-      rw [eidxCopyUpto, dif_neg (by omega)]
+      rw [eidxCopyUpto, dite_eq_right (by omega)]
       simp
-    · rw [if_neg (show ¬ i ≥ k by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ k by scalar_tac)] at h
       by_cases hx : i.val ≥ xs.val.length
-      · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
         subst h
-        rw [eidxCopyUpto, dif_neg (by simp; omega)]
+        rw [eidxCopyUpto, dite_eq_right (by simp; omega)]
         simp
-      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
         have hxi : i.val < xs.val.length := by omega
         obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -258,7 +258,7 @@ theorem eidx_copy_upto_aux (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize
         have hi2v : i2.val = i.val + 1 :=
           (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
         rw [eidxCopyUpto,
-          dif_pos (show i.val < k.val ∧ i.val < (absEIdxArr xs).size from
+          dite_eq_left (show i.val < k.val ∧ i.val < (absEIdxArr xs).size from
             ⟨by omega, by simpa using hxi⟩)]
         have hih := ih i2 out1 r (by omega) h
         rw [hi2v] at hih
@@ -292,12 +292,12 @@ theorem last_eidx_refines {xs : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize}
   obtain ⟨m, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hnv : n.val = if k.val < xs.val.length then xs.val.length - k.val else 0 := by
     by_cases hc : k.val < xs.val.length
-    · rw [if_pos (show k < alloc.vec.Vec.len xs by scalar_tac)] at hn
+    · rw [ite_eq_left (show k < alloc.vec.Vec.len xs by scalar_tac)] at hn
       obtain ⟨-, hv⟩ := ConRon.Refine.Nat.usub_val hn
-      rw [if_pos hc]; simpa using hv
-    · rw [if_neg (show ¬ k < alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at hn
+      rw [ite_eq_left hc]; simpa using hv
+    · rw [ite_eq_right (show ¬ k < alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at hn
       subst hn
-      rw [if_neg hc]; simp
+      rw [ite_eq_right hc]; simp
   have he := eidx_copy_upto_refines h
   rw [absEIdxArr_with_capacity] at he
   simp only [alloc.vec.Vec.len_val] at he
@@ -355,7 +355,7 @@ theorem eidx_prefix_beq_aux (args want : alloc.vec.Vec arena.handle.EIdx) :
   | zero =>
     intro i r hn h
     rw [arena.expr_ops.eidx_prefix_beq.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len want by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len want by scalar_tac), Result.ok.injEq] at h
     subst h
     simp only [true_iff]
     intro j hj1 hj2
@@ -364,12 +364,12 @@ theorem eidx_prefix_beq_aux (args want : alloc.vec.Vec arena.handle.EIdx) :
     intro i r hn h
     rw [arena.expr_ops.eidx_prefix_beq.eq_def] at h
     by_cases hw : i.val ≥ want.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len want by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len want by scalar_tac), Result.ok.injEq] at h
       subst h
       simp only [true_iff]
       intro j hj1 hj2
       omega
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len want by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len want by scalar_tac)] at h
       have hwi : i.val < want.val.length := by omega
       obtain ⟨a, ha, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨w, hw2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -383,7 +383,7 @@ theorem eidx_prefix_beq_aux (args want : alloc.vec.Vec arena.handle.EIdx) :
         simp only [Option.map_some, Option.some.injEq]
         exact ⟨fun hc => absEIdx_inj hc, fun hc => by rw [hc]⟩
       by_cases hc : a = w
-      · rw [hbv, decide_eq_true hc, if_pos rfl] at h
+      · rw [hbv, decide_eq_true hc, ite_eq_left rfl] at h
         obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hi2v : i2.val = i.val + 1 :=
           (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
@@ -398,7 +398,7 @@ theorem eidx_prefix_beq_aux (args want : alloc.vec.Vec arena.handle.EIdx) :
             · exact hall j (by omega) hj2
         · intro hall j hj1 hj2
           exact hall j (by omega) hj2
-      · rw [hbv, decide_eq_false hc, if_neg (by simp), Result.ok.injEq] at h
+      · rw [hbv, decide_eq_false hc, ite_eq_right (by simp), Result.ok.injEq] at h
         subst h
         simp only [Bool.false_eq_true, false_iff]
         intro hall
@@ -418,7 +418,7 @@ theorem eidx_take_beq_refines {args want : alloc.vec.Vec arena.handle.EIdx}
     r = true ↔ (absEIdxL args).take (absEIdxL want).length = absEIdxL want := by
   rw [arena.expr_ops.eidx_take_beq] at h
   by_cases hc : args.val.length < want.val.length
-  · rw [if_pos (show alloc.vec.Vec.len args < alloc.vec.Vec.len want by scalar_tac),
+  · rw [ite_eq_left (show alloc.vec.Vec.len args < alloc.vec.Vec.len want by scalar_tac),
       Result.ok.injEq] at h
     subst h
     simp only [Bool.false_eq_true, false_iff]
@@ -426,7 +426,7 @@ theorem eidx_take_beq_refines {args want : alloc.vec.Vec arena.handle.EIdx}
     have h1 := congrArg List.length heq
     simp only [List.length_take, absEIdxL_length] at h1
     omega
-  · rw [if_neg (show ¬ alloc.vec.Vec.len args < alloc.vec.Vec.len want by scalar_tac)] at h
+  · rw [ite_eq_right (show ¬ alloc.vec.Vec.len args < alloc.vec.Vec.len want by scalar_tac)] at h
     rw [eidx_prefix_beq_refines h]
     simp only [absEIdxL_length]
     constructor
@@ -459,7 +459,7 @@ theorem take_eidx_n_from_aux (xs : alloc.vec.Vec arena.handle.EIdx) :
     rw [hd]
     split at h
     · rw [Result.ok.injEq] at h; subst h; simp
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
       subst h; simp
   | succ k ih =>
     intro c i out r hk h
@@ -469,11 +469,11 @@ theorem take_eidx_n_from_aux (xs : alloc.vec.Vec arena.handle.EIdx) :
       rw [Result.ok.injEq] at h; subst h; subst hc; simp
     · rename_i hc
       by_cases hx : i.val ≥ xs.val.length
-      · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+      · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
         subst h
         rw [List.drop_eq_nil_of_le (by simp [absEIdxL]; omega)]
         simp
-      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
         have hxi : i.val < xs.val.length := by omega
         obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -522,7 +522,7 @@ theorem binder_copy_from_aux
   | zero =>
     intro i out r hn h
     rw [arena.expr_ops.binder_copy_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
     subst h
     rw [List.drop_eq_nil_of_le (by simp; omega)]
     simp
@@ -530,11 +530,11 @@ theorem binder_copy_from_aux
     intro i out r hn h
     rw [arena.expr_ops.binder_copy_from.eq_def] at h
     by_cases hx : i.val ≥ xs.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
       subst h
       rw [List.drop_eq_nil_of_le (by simp; omega)]
       simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
       have hxi : i.val < xs.val.length := by omega
       obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨e, bm⟩ := p
@@ -760,17 +760,17 @@ theorem leaf_mem_from_aux (bl : alloc.vec.Vec (Std.U64 × arena.handle.EIdx))
   | zero =>
     intro i r hn h
     rw [arena.expr_ops.leaf_mem_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len bl by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len bl by scalar_tac), Result.ok.injEq] at h
     subst h
     rw [List.drop_eq_nil_of_le (by simp; omega), leafMem]
   | succ n ih =>
     intro i r hn h
     rw [arena.expr_ops.leaf_mem_from.eq_def] at h
     by_cases hx : i.val ≥ bl.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len bl by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len bl by scalar_tac), Result.ok.injEq] at h
       subst h
       rw [List.drop_eq_nil_of_le (by simp; omega), leafMem]
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len bl by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len bl by scalar_tac)] at h
       have hxi : i.val < bl.val.length := by omega
       obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, e⟩ := p
@@ -848,7 +848,7 @@ theorem subst_level_list_from_aux
   | zero =>
     intro i out r hn h
     rw [arena.expr_ops.subst_level_list_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
     subst h
     rw [List.drop_eq_nil_of_le (by simp [absLevels]; omega), substLevelList]
     simp
@@ -856,11 +856,11 @@ theorem subst_level_list_from_aux
     intro i out r hn h
     rw [arena.expr_ops.subst_level_list_from.eq_def] at h
     by_cases hx : i.val ≥ vs.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
       subst h
       rw [List.drop_eq_nil_of_le (by simp [absLevels]; omega), substLevelList]
       simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len vs by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len vs by scalar_tac)] at h
       have hxi : i.val < vs.val.length := by omega
       obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨l1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1013,15 +1013,15 @@ theorem subst_level_list_from_wf
   | zero =>
     intro i out r hn hout h
     rw [arena.expr_ops.subst_level_list_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
     rw [← h]; exact hout
   | succ n ih =>
     intro i out r hn hout h
     rw [arena.expr_ops.subst_level_list_from.eq_def] at h
     by_cases hx : i.val ≥ vs.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len vs by scalar_tac), Result.ok.injEq] at h
       rw [← h]; exact hout
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len vs by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len vs by scalar_tac)] at h
       obtain ⟨l, hl, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨l1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

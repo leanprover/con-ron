@@ -55,17 +55,17 @@ theorem code_points_from_val (codes : Slice Std.U32) :
   | zero =>
     intro i out v hk h
     rw [core_types.code_points_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ Slice.len codes by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ Slice.len codes by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
     simp
   | succ k ih =>
     intro i out v hk h
     rw [core_types.code_points_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ codes.length
-    · rw [if_pos (show i ≥ Slice.len codes by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ Slice.len codes by scalar_tac), Result.ok.injEq] at h
       rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]
       simp
-    · rw [if_neg (show ¬ i ≥ Slice.len codes by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ Slice.len codes by scalar_tac)] at h
       have hlt : i.val < codes.length := by omega
       have hmax : i.val + 1 ≤ Std.Usize.max := by
         have := codes.property; scalar_tac
@@ -115,15 +115,15 @@ theorem levels_copy_from_val (us : alloc.vec.Vec level.Level) :
   | zero =>
     intro i out v hk h
     rw [env.levels_copy_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
   | succ k ih =>
     intro i out v hk h
     rw [env.levels_copy_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ us.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len us by scalar_tac), Result.ok.injEq] at h
       rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len us by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len us by scalar_tac)] at h
       have hlt : i.val < us.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := us.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
@@ -154,15 +154,15 @@ theorem exprs_copy_from_val (es : alloc.vec.Vec expr.Expr) :
   | zero =>
     intro i out v hk h
     rw [env.exprs_copy_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
   | succ k ih =>
     intro i out v hk h
     rw [env.exprs_copy_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ es.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
       rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len es by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len es by scalar_tac)] at h
       have hlt : i.val < es.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := es.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
@@ -323,15 +323,15 @@ theorem rec_rules_copy_from_val (rs : alloc.vec.Vec env.RecRule) :
   | zero =>
     intro i out v hk h
     rw [env.rec_rules_copy_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
   | succ k ih =>
     intro i out v hk h
     rw [env.rec_rules_copy_from.eq_def] at h; simp only [] at h
     by_cases hi : i.val ≥ rs.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
       rw [← h, List.drop_eq_nil_of_le (by scalar_tac)]; simp
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
       have hlt : i.val < rs.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := rs.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax

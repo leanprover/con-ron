@@ -709,14 +709,14 @@ private theorem intern_expr_list_go_aux (n : Nat) :
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     rw [arena.intern.intern_expr_list_go, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_expr_list_go, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv
@@ -1082,14 +1082,14 @@ private theorem intern_rules_aux (n : Nat) :
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     rw [arena.intern.intern_rules, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_rules, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv
@@ -1405,14 +1405,14 @@ private theorem intern_ci_list_go_aux (n : Nat) :
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     rw [arena.intern.intern_ci_list_go, vecFrom_nil v _ i (by omega), pmapFrom]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     exact LSMI.pure hm rfl hrel hinv
   | succ k ih =>
     intro pers st lst rm lm v i out hn hrel hinv hm hP
     have hlt : i.val < v.val.length := by omega
     rw [arena.intern.intern_ci_list_go, vecFrom_cons v _ i hlt, pmapFrom]
     have hl := alloc.vec.Vec.len_val v
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     refine LSMI.bindP fun x hx => ?_
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
     subst hxv

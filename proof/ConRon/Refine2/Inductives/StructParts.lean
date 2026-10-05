@@ -86,7 +86,7 @@ theorem param_levels_go_refines {pers st lst}
     rfl (fun _ _ => rfl) ?_ ?_ i out st lst o hrel hinv hrun
   · intro st i out o hn h
     rw [arena.inductives.struct_parts.param_levels_go.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len lps by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len lps by scalar_tac)] at h
     exact (Result.ok_injective h).symm
   · intro st lst i x out o hx hrel hinv h
     rw [arena.inductives.struct_parts.param_levels_go.eq_def] at h
@@ -94,7 +94,7 @@ theorem param_levels_go_refines {pers st lst}
       rcases Nat.lt_or_ge i.val lps.val.length with h' | h'
       · exact h'
       · rw [List.getElem?_eq_none h'] at hx; cases hx
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len lps by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len lps by scalar_tac)] at h
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -175,11 +175,11 @@ theorem struct_ps_at_from_refines {pers st lst} {ofs n_p k : Std.U64}
     rfl
   · intro st i out o hn h
     rw [arena.inductives.struct_parts.struct_ps_at_from.eq_def] at h
-    rw [if_pos (show i ≥ n_p by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ n_p by scalar_tac)] at h
     exact (Result.ok_injective h).symm
   · intro st lst i out o hi hrel hinv h
     rw [arena.inductives.struct_parts.struct_ps_at_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ n_p by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ n_p by scalar_tac)] at h
     obtain ⟨a1, ha1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨a2, ha2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨a3, ha3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -416,7 +416,7 @@ theorem has_loose_bvar_b_go_aux (n : Nat) :
     intro pers st lst rm lm i fuel h hn hrel hinv hm
     have hnode := has_loose_bvar_b_node_of_go (pers := pers) (m := m) (fun {st lst} => @ih pers st lst)
     rw [arena.inductives.struct_parts.has_loose_bvar_b_go, hasLooseBVarBGo_unfold]
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     lockstep
 
 open Lockstep in
@@ -491,12 +491,12 @@ theorem struct_used_later_list_aux {pers} {cty : arena.handle.EIdx} {n_p : Std.U
     intro n base rm lm out st lst hn hrel hinv hm
     have h0 : n = 0#u64 := by scalar_tac
     subst h0
-    rw [arena.inductives.struct_parts.struct_used_later_list.eq_def, if_pos rfl,
+    rw [arena.inductives.struct_parts.struct_used_later_list.eq_def, ite_eq_left rfl,
       show absU (0#u64 : Std.U64) = 0 from rfl, structUsedLaterList]
     lockstep
   | succ N ih =>
     intro n base rm lm out st lst hn hrel hinv hm
-    rw [arena.inductives.struct_parts.struct_used_later_list.eq_def, if_neg (by scalar_tac),
+    rw [arena.inductives.struct_parts.struct_used_later_list.eq_def, ite_eq_right (by scalar_tac),
       show absU n = N + 1 by simp [absU, hn], structUsedLaterList]
     lockstep
 
@@ -529,7 +529,7 @@ theorem used_get_d_refines {used : alloc.vec.Vec Bool} {j : Std.U64} {o}
   have hi1v : i1.val = used.val.length := by
     rw [← hi1, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
   by_cases hlt : j < i1
-  · rw [if_pos hlt] at hrun
+  · rw [ite_eq_left hlt] at hrun
     have hlt' : j.val < used.val.length := by scalar_tac
     obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     simp only [lift, Result.ok.injEq] at hi2
@@ -540,7 +540,7 @@ theorem used_get_d_refines {used : alloc.vec.Vec Bool} {j : Std.U64} {o}
     have hx := vec_index_some hrun
     rw [hi2v] at hx
     simp [absBoolL, absU, List.getD_eq_getElem?_getD, hx]
-  · rw [if_neg hlt] at hrun
+  · rw [ite_eq_right hlt] at hrun
     obtain rfl := Result.ok_injective hrun
     have hge : used.val.length ≤ j.val := by scalar_tac
     simp [absBoolL, absU, List.getD_eq_getElem?_getD,
@@ -565,7 +565,7 @@ theorem sort_get_d_refines {sorts : alloc.vec.Vec arena.handle.LIdx} {j : Std.U6
   have hi1v : i1.val = sorts.val.length := by
     rw [← hi1, ConRon.Refine.ExprOps.usize_cast_u64_val, alloc.vec.Vec.len_val]
   by_cases hlt : j < i1
-  · rw [if_pos hlt] at hrun
+  · rw [ite_eq_left hlt] at hrun
     have hlt' : j.val < sorts.val.length := by scalar_tac
     obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     simp only [lift, Result.ok.injEq] at hi2
@@ -578,7 +578,7 @@ theorem sort_get_d_refines {sorts : alloc.vec.Vec arena.handle.LIdx} {j : Std.U6
     rw [hi2v] at hx
     rw [dupId_lidx _ _ hrun]
     simp [absLIdxL, absU, List.getD_eq_getElem?_getD, hx]
-  · rw [if_neg hlt] at hrun
+  · rw [ite_eq_right hlt] at hrun
     rw [dupId_lidx _ _ hrun]
     have hge : sorts.val.length ≤ j.val := by scalar_tac
     simp [absLIdxL, absU, List.getD_eq_getElem?_getD,
@@ -609,11 +609,11 @@ open Lockstep in
   induction hk : k.val generalizing k j acc st lst with
   | zero =>
     rw [arena.inductives.struct_parts.struct_proj_guards_col.eq_def,
-      if_pos (by scalar_tac), show absU k = 0 from hk, structProjGuardsColSpec]
+      ite_eq_left (by scalar_tac), show absU k = 0 from hk, structProjGuardsColSpec]
     lockstep
   | succ m ih =>
     rw [arena.inductives.struct_parts.struct_proj_guards_col.eq_def,
-      if_neg (by scalar_tac), show absU k = m + 1 from hk, structProjGuardsColSpec]
+      ite_eq_right (by scalar_tac), show absU k = m + 1 from hk, structProjGuardsColSpec]
     lockstep
 
 open Lockstep in
@@ -631,12 +631,12 @@ theorem struct_proj_guards_row_aux {pers} {used : alloc.vec.Vec Bool}
     intro i k out st lst hk hrel hinv
     have h0 : k = 0#u64 := by scalar_tac
     subst h0
-    rw [arena.inductives.struct_parts.struct_proj_guards_row.eq_def, if_pos rfl,
+    rw [arena.inductives.struct_parts.struct_proj_guards_row.eq_def, ite_eq_left rfl,
       show absU (0#u64 : Std.U64) = 0 from rfl, structProjGuardsRowSpec]
     lockstep
   | succ N ih =>
     intro i k out st lst hk hrel hinv
-    rw [arena.inductives.struct_parts.struct_proj_guards_row.eq_def, if_neg (by scalar_tac),
+    rw [arena.inductives.struct_parts.struct_proj_guards_row.eq_def, ite_eq_right (by scalar_tac),
       show absU k = N + 1 by simp [absU, hk], structProjGuardsRowSpec]
     lockstep
 
@@ -685,12 +685,12 @@ theorem struct_proj_bodies_go_aux {pers} {t : arena.handle.NIdx} (N : Nat) :
     intro k i h out st lst hk hrel hinv
     have h0 : k = 0#u64 := by scalar_tac
     subst h0
-    rw [arena.inductives.struct_parts.struct_proj_bodies_go.eq_def, if_pos rfl,
+    rw [arena.inductives.struct_parts.struct_proj_bodies_go.eq_def, ite_eq_left rfl,
       show absU (0#u64 : Std.U64) = 0 from rfl, structProjBodiesGo]
     lockstep
   | succ N ih =>
     intro k i h out st lst hk hrel hinv
-    rw [arena.inductives.struct_parts.struct_proj_bodies_go.eq_def, if_neg (by scalar_tac),
+    rw [arena.inductives.struct_parts.struct_proj_bodies_go.eq_def, ite_eq_right (by scalar_tac),
       show absU k = N + 1 by simp [absU, hk], structProjBodiesGo]
     lockstep
     -- the tail call: the twin's `some (fdom :: r)` against the port's `out`

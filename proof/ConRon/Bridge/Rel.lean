@@ -284,9 +284,9 @@ rebuilding walk since task #97-P6-16) needs no case split. -/
     (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
   unfold eBindView at hview
   by_cases hc : (tg == ETag.lam) = true
-  · rw [if_pos hc] at hview; exact isSome_lam hwf hview hs
+  · rw [ite_eq_left hc] at hview; exact isSome_lam hwf hview hs
   · simp only [Bool.not_eq_true] at hc
-    rw [hc] at hview; simp only [Bool.false_eq_true, if_false] at hview
+    rw [hc] at hview; simp only [Bool.false_eq_true, ite_false] at hview
     exact isSome_forallE hwf hview hs
 
 /-! ## 5. The `isSome`-flavoured inversions — the form `grind` can use
@@ -402,7 +402,7 @@ theorem EStore.view_eq_tier {st : EStore} {i : EIdx}
     (hb : ETag.isBind i.tag = false) :
     st.view i = (if i.isPersistent then st.pers.get i
       else if st.scratchOn then st.scr.get i else none) := by
-  simp only [EStore.view, hb, Bool.false_eq_true, if_false]
+  simp only [EStore.view, hb, Bool.false_eq_true, ite_false]
 
 /-- con-leche: none — the tier select is the same for `view` and for every
 projection, so the transfer is proved ONCE over an abstract pair of tier
@@ -414,14 +414,14 @@ theorem EStore.view_of_proj {st : EStore} {i : EIdx} {v : ENodeView}
     (h : (if i.isPersistent then p st.pers i
           else if st.scratchOn then p st.scr i else none) = some x) :
     st.view i = some v := by
-  simp only [EStore.view, hb, Bool.false_eq_true, if_false]
+  simp only [EStore.view, hb, Bool.false_eq_true, ite_false]
   by_cases hp : i.isPersistent = true
-  · rw [if_pos hp] at h ⊢; exact hstep _ h
+  · rw [ite_eq_left hp] at h ⊢; exact hstep _ h
   · simp only [Bool.not_eq_true] at hp
     rw [hp] at h ⊢
-    simp only [Bool.false_eq_true, if_false] at h ⊢
+    simp only [Bool.false_eq_true, ite_false] at h ⊢
     by_cases hon : st.scratchOn = true
-    · rw [if_pos hon] at h ⊢; exact hstep _ h
+    · rw [ite_eq_left hon] at h ⊢; exact hstep _ h
     · simp only [Bool.not_eq_true] at hon
       rw [hon] at h; simp at h
 
@@ -498,12 +498,12 @@ theorem view_of_viewFVar {st : EStore} {i : EIdx} {k : Nat} {ty : EIdx}
   simp only [EStore.viewFVarIdx, EStore.persGetFVarIdx] at hk
   simp only [EStore.viewFVarTy, EStore.persGetFVarTy] at hty
   by_cases hp : i.isPersistent = true
-  · rw [if_pos hp] at hk hty ⊢; exact ETables.get_of_getFVar htg hk hty
+  · rw [ite_eq_left hp] at hk hty ⊢; exact ETables.get_of_getFVar htg hk hty
   · simp only [Bool.not_eq_true] at hp
     rw [hp] at hk hty ⊢
-    simp only [Bool.false_eq_true, if_false] at hk hty ⊢
+    simp only [Bool.false_eq_true, ite_false] at hk hty ⊢
     by_cases hon : st.scratchOn = true
-    · rw [if_pos hon] at hk hty ⊢; exact ETables.get_of_getFVar htg hk hty
+    · rw [ite_eq_left hon] at hk hty ⊢; exact ETables.get_of_getFVar htg hk hty
     · simp only [Bool.not_eq_true] at hon
       rw [hon] at hk; simp at hk
 
@@ -546,7 +546,7 @@ theorem view_of_viewBindI {st : EStore} {i ty b : EIdx} {mi : BMIdx}
     {m : ConLeche.BinderMeta} (htg : ETag.isBind i.tag = true)
     (h1 : st.viewBindI i = some (ty, b, mi)) (h2 : st.viewBM mi = some m) :
     st.view i = some (eBindView i.tag ty b m) := by
-  simp only [EStore.view, htg, if_true, EStore.viewBind, h1, h2]
+  simp only [EStore.view, htg, ite_true, EStore.viewBind, h1, h2]
 
 /-- con-leche: none — and the same at the `lam` tag, where `eBindView`
 resolves. -/
@@ -696,7 +696,7 @@ definition. -/
 theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
     (h : st.view i = some v) : i.tag = v.tagOf := by
   by_cases hb : ETag.isBind i.tag = true
-  · simp only [EStore.view, hb, if_true] at h
+  · simp only [EStore.view, hb, ite_true] at h
     split at h
     · exact absurd h (by simp)
     · rename_i ty b m _
@@ -709,11 +709,11 @@ theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
   · simp only [Bool.not_eq_true] at hb
     rw [EStore.view_eq_tier hb] at h
     by_cases hp : i.isPersistent = true
-    · rw [if_pos hp] at h; exact ETables.tagOf_of_get h
+    · rw [ite_eq_left hp] at h; exact ETables.tagOf_of_get h
     · simp only [Bool.not_eq_true] at hp
-      rw [hp] at h; simp only [Bool.false_eq_true, if_false] at h
+      rw [hp] at h; simp only [Bool.false_eq_true, ite_false] at h
       by_cases hon : st.scratchOn = true
-      · rw [if_pos hon] at h; exact ETables.tagOf_of_get h
+      · rw [ite_eq_left hon] at h; exact ETables.tagOf_of_get h
       · simp only [Bool.not_eq_true] at hon
         rw [hon] at h; simp at h
 

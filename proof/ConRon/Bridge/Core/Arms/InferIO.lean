@@ -44,6 +44,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -64,9 +67,9 @@ theorem inferIO_lam_chain {F d : Nat} {ty body bt : Expr} {mb : BinderMeta}
     (hz : (mb.pw == pwI) = true) :
     ConLeche.inferTypeIO mode env (F + 1) d (.lam ty body mb) =
       .ok (.forallE ty (bt.abstract1 d) mb) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hg]
+  rw [ConLeche.inferTypeIO_succ, ite_eq_left hg]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    hb, hv, hpw, hz, bind, Except.bind, if_true, pure, Except.pure]
+    hb, hv, hpw, hz, bind, Except.bind, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1340-1348 inferBodyIO — the io λ
 clause's **innermost binder**: the codomain-sort validation stays (it is what
@@ -82,10 +85,10 @@ theorem inferIO_lam_leaf {F d : Nat} {ty body bt btt : Expr}
     (hz : (Level.zeronessOf vb == mb.pw) = true) :
     ConLeche.inferTypeIO mode env (F + 1) d (.lam ty body mb) =
       .ok (.forallE ty (bt.abstract1 d) mb) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hg]
+  rw [ConLeche.inferTypeIO_succ, ite_eq_left hg]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.ensureSort, ConLeche.whnf_def, hb, hv, hpw, hbtt, hvb, hz, bind,
-    Except.bind, if_true, pure, Except.pure]
+    Except.bind, ite_true, pure, Except.pure]
 
 /-! ## 3. The body theorem -/
 
@@ -104,11 +107,11 @@ theorem inferIO_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     (hp : ¬ (Level.isEquiv entry.structSort .zero == some true)) :
     ConLeche.inferTypeIO mode env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hgate]
+  rw [ConLeche.inferTypeIO_succ, ite_eq_left hgate]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.whnf_def, hpe, hw, hh, ht, bind, Except.bind]
-  rw [if_pos hg]
-  simp only [if_neg hp, pure, Except.pure]
+  rw [ite_eq_left hg]
+  simp only [ite_eq_right hp, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — the
 projection at a **`Prop`** structure, at the io grade. -/
@@ -126,11 +129,11 @@ theorem inferIO_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
         == some true)) :
     ConLeche.inferTypeIO mode env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hgate]
+  rw [ConLeche.inferTypeIO_succ, ite_eq_left hgate]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.whnf_def, hpe, hw, hh, ht, bind, Except.bind]
-  rw [if_pos hg]
-  simp only [if_pos hp, hf, pure, Except.pure]
+  rw [ite_eq_left hg]
+  simp only [ite_eq_left hp, hf, pure, Except.pure]
   simp
 /-! ### The leaf clauses at the io grade (task #97-P3-Core round 5)
 
@@ -150,7 +153,7 @@ check, at the io grade. -/
 theorem inferIO_fvar {F d idx : Nat} {ty : Expr} (h : idx < d) :
     ConLeche.inferTypeIO mode env (F + 1) d (.fvar idx ty) = .ok ty := by
   rw [ConLeche.inferTypeIO_succ]
-  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, if_pos h,
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, ite_eq_left h,
     pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1299-1310 inferBodyIO — a stored
@@ -173,7 +176,7 @@ theorem inferIO_natLit {F d n : Nat}
     ConLeche.inferTypeIO mode env (F + 1) d (.lit (.natVal n)) =
       .ok (.const ConLeche.natName []) := by
   rw [ConLeche.inferTypeIO_succ]
-  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, if_true,
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, ite_true,
     pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1314-1317 inferBodyIO — a string
@@ -183,7 +186,7 @@ theorem inferIO_strLit {F d : Nat} {s : String}
     ConLeche.inferTypeIO mode env (F + 1) d (.lit (.strVal s)) =
       .ok (.const ConLeche.stringName []) := by
   rw [ConLeche.inferTypeIO_succ]
-  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, if_true,
+  split <;> simp only [ConLeche.inferBodyIO, ConLeche.inferBody, h, ite_true,
     pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the io
@@ -199,7 +202,7 @@ theorem inferIO_forallE {F d : Nat} {ty body tty bt : Expr} {mb : BinderMeta}
     (hz : mode.verifiedChecks = true → (Level.zeronessOf v == mb.pw) = true) :
     ConLeche.inferTypeIO mode env (F + 1) d (.forallE ty body mb) =
       .ok (.sort (.imax u v)) := by
-  rw [ConLeche.inferTypeIO_succ, if_pos hg]
+  rw [ConLeche.inferTypeIO_succ, ite_eq_left hg]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.ensureSort, ConLeche.whnf_def, hty, hw, hb, hv, bind, Except.bind]
   cases hm : mode.verifiedChecks with
@@ -562,7 +565,7 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
     have hwres : Expr.WScoped d (.forallE et (vbt.abstract1 d) m) := by
       unfold Expr.WScoped; exact ⟨hwt, ConLeche.WScoped.abstract1 0 hwvbt⟩
-    rw [if_pos hμ]
+    rw [ite_eq_left hμ]
     -- stage 4: the body's own binder datum
     refine triple_seq (ExprOps.lamPw_spec s3 b hok3.state
       (by rw [denote_ext hdb hx03]; rfl)) ?_

@@ -36,6 +36,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -244,7 +247,7 @@ theorem structUnitCert_guard {F d : Nat} {x y ta wta : Expr} {T : Name}
   have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
   simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
     hh, hf, bind, Except.bind]
-  rw [if_neg hg]
+  rw [ite_eq_right hg]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the two
@@ -273,7 +276,7 @@ theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
   have e4 : (ConLeche.pureFns mode env F).whnf d tb = .ok wtb := h4
   simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
     hh, hf, bind, Except.bind]
-  rw [if_pos hg]
+  rw [ite_eq_left hg]
   simp only [e3, e4]
   exact h5
 
@@ -376,7 +379,7 @@ theorem structEtaCertWith_len {F d : Nat} {x y w : Expr} {c : Name}
     (hlen : ¬ x.getAppArgs.length = cnP + cnF) :
     ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf]
-  rw [if_neg hlen]
+  rw [ite_eq_right hlen]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
@@ -389,7 +392,7 @@ theorem structEtaCertWith_nohead_w {F d : Nat} {x y w : Expr} {c : Name}
     (hw : ∀ T us', w.getAppFn ≠ .const T us') :
     ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf]
-  rw [if_pos hlen]
+  rw [ite_eq_left hlen]
   first
     | rfl
     | (split
@@ -408,7 +411,7 @@ theorem structEtaCertWith_noind {F d : Nat} {x y w : Expr} {c T : Name}
     ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false := by
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
     hw]
-  rw [if_pos hlen]
+  rw [ite_eq_left hlen]
   first
     | rfl
     | (split
@@ -443,7 +446,7 @@ theorem structEtaCertWith_guard {F d : Nat} {x y w : Expr} {c T : Name}
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
     hw, hfT]
   unfold EtaGuard at hg
-  rw [if_pos hlen, if_neg hg]
+  rw [ite_eq_left hlen, ite_eq_right hg]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — past
@@ -487,7 +490,7 @@ theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
     hw, hfT]
   unfold EtaGuard at hg
-  rw [if_pos hlen, if_pos hg]
+  rw [ite_eq_left hlen, ite_eq_left hg]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
 tail's exits, each stated at the facts the twin's stages name. -/
@@ -543,7 +546,7 @@ theorem structEtaCertWith_exits {F d : Nat} {x y w : Expr} {c T : Name}
   all_goals subst_vars
   all_goals clear hg hh hf hlen hw hfT
   all_goals simp_all only [ConLeche.liftFueled, pure, Except.pure, bind,
-    Except.bind, if_true, Bool.false_eq_true, if_false]
+    Except.bind, ite_true, Bool.false_eq_true, ite_false]
 
 /-- con-leche: none — **a conditional, staged**: a triple for each branch,
 under the branch's hypothesis, is a triple for the `if`.  (`split` on a
@@ -555,8 +558,8 @@ theorem triple_ite {α : Type} {c : Prop} [Decidable c] {x y : AM α}
     (h2 : ¬ c → ⦃fun s => ⌜s = s₀⌝⦄ y ⦃⇓? a s => ⌜Q a s⌝⦄) :
     ⦃fun s => ⌜s = s₀⌝⦄ (if c then x else y) ⦃⇓? a s => ⌜Q a s⌝⦄ := by
   by_cases hc : c
-  · rw [if_pos hc]; exact h1 hc
-  · rw [if_neg hc]; exact h2 hc
+  · rw [ite_eq_left hc]; exact h1 hc
+  · rw [ite_eq_right hc]; exact h2 hc
 
 /-- con-leche: none — **a conditional with a shared continuation**: the
 `do` elaborator copies the join point into both branches of
@@ -585,9 +588,9 @@ theorem pcIte_mono {F F' : Nat} (hle : F ≤ F') {d : Nat} {Tn : Name}
       ConLeche.structEtaProjCertsFueled mode env F' d Tn ls xs y lps
         (List.range nF) : CheckM Bool) = .ok r := by
   cases c
-  · simp only [Bool.false_eq_true, if_false] at h ⊢
+  · simp only [Bool.false_eq_true, ite_false] at h ⊢
     exact structEtaProjCertsFueled_mono hle h
-  · simp only [if_true] at h ⊢; exact h
+  · simp only [ite_true] at h ⊢; exact h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — **THEOREM
 1 for `structEtaCertWith`**, the structure-η certificate against a GIVEN
@@ -647,7 +650,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         hrelA x hda
       have hlenEq : x.getAppArgs.length = aargs.length := denoteEList_len haargs
       by_cases hlenT : aargs.length = cnP + cnF
-      · rw [if_pos hlenT]
+      · rw [ite_eq_left hlenT]
         have hlenP : x.getAppArgs.length = cnP + cnF := hlenEq ▸ hlenT
         -- stage 3: the stuck side's type's head
         refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ wtb hok.state
@@ -800,7 +803,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                     · have ht : ConLeche.towerSlotsAll env Tn icaps.etaFields =
                           true := htw2 ▸ htt
                       exact triple_pureC ⟨hok12, Ext.refl _, rfl, 0,
-                        by dsimp only; rw [if_pos ht]; rfl⟩
+                        by dsimp only; rw [ite_eq_left ht]; rfl⟩
                     · have ht : ConLeche.towerSlotsAll env Tn icaps.etaFields =
                           false := by rw [← htw2]; simpa using htf
                       refine triple_mono (structEtaProjCerts_spec henv hsim d T us'
@@ -811,7 +814,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                         (denoteNList_ext hx012.lss.ls.ns _ _ hlpsT)) ?_
                       rintro r s' ⟨h1, h2, h3, F, hF⟩
                       exact ⟨h1, h2, h3, F, by
-                        dsimp only; rw [if_neg (by simp [ht])]; exact hF⟩
+                        dsimp only; rw [ite_eq_right (by simp [ht])]; exact hF⟩
                   rintro pc s13 ⟨hok13, hx13, hp13, F2, hF2⟩
                   have hx013 := hx012.trans hx13
                   have hp013 : s13.pins = s₀.pins :=
@@ -919,7 +922,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                               (w.getAppArgs ++ ConLeche.etaProjs env Tn ls'
                                 w.getAppArgs y icaps.etaFields)
                           else pure true : CheckM Bool) = .ok ttb := fun G hle => by
-                          rw [if_pos httT]; exact iotaCertsFueled_mono hle hF4
+                          rw [ite_eq_left httT]; exact iotaCertsFueled_mono hle hF4
                         refine triple_ite (fun htbT => ?_) (fun htbF => ?_)
                         · have htb : ttb = true := htbT
                           subst htb
@@ -940,7 +943,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                         subst s'
                         refine triple_ite (fun _ => ?_) (fun h => absurd rfl h)
                         exact hfin s14 0 hok14 hx014 hp014
-                          (fun G _ => by rw [if_neg httF]; rfl)
+                          (fun G _ => by rw [ite_eq_right httF]; rfl)
                     · have hdq : dq = false := by simpa using hdF
                       subst hdq
                       exact triple_pureC ⟨hok14, hx014, hp014, F1 + F2 + F3,
@@ -979,7 +982,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           mvcgen
           bridge_peel; subst_vars
           exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
-      · rw [if_neg hlenT]
+      · rw [ite_eq_right hlenT]
         have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
             .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
         mvcgen
@@ -1047,7 +1050,7 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         (Nat.le_max_left _ _)) hF2
     have e3 := structEtaCertWithFueled_mono (Nat.le_max_right (max F1 F2) F3) hF3
     simp only [ConLeche.structEtaCertFueled, ConLeche.structEtaCert, hshape,
-      if_true, e1, e2, bind, Except.bind]
+      ite_true, e1, e2, bind, Except.bind]
     exact e3
   next hshf =>
     have hshape : ConLeche.etaCtorShape env x = false := by
@@ -1056,7 +1059,7 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, 0, ?_⟩
     simp only [ConLeche.structEtaCertFueled, ConLeche.structEtaCert, hshape,
-      Bool.false_eq_true, if_false]
+      Bool.false_eq_true, ite_false]
     rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — **THEOREM 1
@@ -1176,13 +1179,13 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               .ok false := ⟨_, structUnitCert_cmp
             (hA _ (Nat.le_max_left _ _)) (hB _ (Nat.le_max_left _ _)) hgf hfind
             hgP m1 m2 (by
-              simp only [m3, bind, Except.bind, Bool.false_eq_true, if_false]
+              simp only [m3, bind, Except.bind, Bool.false_eq_true, ite_false]
               rfl)⟩
           mvcgen
           bridge_peel; subst_vars
           exact ⟨hok9, hx09, hp09, hres⟩
         · -- the types agree: the family certificate, at the verified mode
-          simp only [ConLeche.certs_of_verifiedChecks hμ, if_true]
+          simp only [ConLeche.certs_of_verifiedChecks hμ, ite_true]
           have hx59 : Ext s5.store s9.store := hx58.trans hx9
           have hx29 : Ext s2.store s9.store := hx5.trans hx59
           have hname : dcv.name = Tn := env_find_name hfind
@@ -1208,7 +1211,7 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (hA _ (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)))
             (hB _ (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)))
             hgf hfind hgP m1 m2 ?_⟩
-          simp only [m3, bind, Except.bind, if_true]
+          simp only [m3, bind, Except.bind, ite_true]
           exact iotaCertsFueled_mono (Nat.le_max_right _ _) hF6
       next hg =>
         mvcgen
@@ -1360,7 +1363,7 @@ theorem stuckIrrelFueled_eta1 {F d : Nat} {x y : Expr}
   have h' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d x y
       = .ok true := h
   simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h', bind,
-    Except.bind, if_true, pure, Except.pure]
+    Except.bind, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the second η
 direction certifies. -/
@@ -1373,7 +1376,7 @@ theorem stuckIrrelFueled_eta2 {F d : Nat} {x y : Expr}
   have h2' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d y x
       = .ok true := h2
   simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', bind,
-    Except.bind, Bool.false_eq_true, if_false, if_true, pure, Except.pure]
+    Except.bind, Bool.false_eq_true, ite_false, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — unit-likeness
 certifies. -/
@@ -1389,7 +1392,7 @@ theorem stuckIrrelFueled_unit {F d : Nat} {x y : Expr}
   have h3' : ConLeche.structUnitCert (ConLeche.pureFns mode env F) env d x y
       = .ok true := h3
   simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', h3',
-    bind, Except.bind, Bool.false_eq_true, if_false, if_true, pure,
+    bind, Except.bind, Bool.false_eq_true, ite_false, ite_true, pure,
     Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — none of the
@@ -1409,7 +1412,7 @@ theorem stuckIrrelFueled_proof {F d : Nat} {x y : Expr} {r : Bool}
   have h4' : ConLeche.proofIrrel (ConLeche.pureFns mode env F) d x y
       = .ok r := h4
   simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', h3',
-    h4', bind, Except.bind, Bool.false_eq_true, if_false]
+    h4', bind, Except.bind, Bool.false_eq_true, ite_false]
 
 /-! ## 3. The walk -/
 

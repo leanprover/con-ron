@@ -243,8 +243,8 @@ theorem estore_view_bm_wf {pers rs} (hinv : StoreInv pers rs)
     have h3 : arena.store.ETables.get_bm (rPersE pers rs) m = ok o := by
       unfold rPersE
       split at h <;> rename_i hs
-      · rw [if_pos hs]; exact h
-      · rw [if_neg hs]; exact h
+      · rw [ite_eq_left hs]; exact h
+      · rw [ite_eq_right hs]; exact h
     exact etables_get_bm_wf hinv.perst h3
   · split at h
     · exact etables_get_bm_wf hinv.scrt h
@@ -256,7 +256,7 @@ theorem estore_view_bm_wf {pers rs} (hinv : StoreInv pers rs)
 view. -/
 theorem view_nonbind_bmOf {st : EStore} {i : EIdx} (hnb : ETag.isBind i.tag = false)
     {v : ENodeView} (hv : st.view i = some v) : v.bmOf = none := by
-  rw [EStore.view, if_neg (by rw [hnb]; simp)] at hv
+  rw [EStore.view, ite_eq_right (by rw [hnb]; simp)] at hv
   split at hv
   · exact ETables.bmOf_get hv
   · split at hv
@@ -497,7 +497,7 @@ theorem read_names_m_from_wf {pers} {ks : alloc.vec.Vec arena.handle.NIdx} :
   | zero =>
     intro st lst hrel hinv i out hk hout o hrun
     rw [arena.monad.read_names_m_from.eq_def] at hrun; simp only [] at hrun
-    rw [if_pos (by scalar_tac)] at hrun
+    rw [ite_eq_left (by scalar_tac)] at hrun
     have ho : ((core.result.Result.Ok out : core.result.Result _ _), st) = o :=
       Result.ok_injective hrun
     rw [← ho]
@@ -737,8 +737,8 @@ theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle
       have hp := hinv.perst
       rw [rPersE] at hp
       split at h <;> rename_i hs
-      · rw [if_pos hs] at hp; exact etables_get_lit_wf hp h _ rfl
-      · rw [if_neg hs] at hp; exact etables_get_lit_wf hp h _ rfl
+      · rw [ite_eq_left hs] at hp; exact etables_get_lit_wf hp h _ rfl
+      · rw [ite_eq_right hs] at hp; exact etables_get_lit_wf hp h _ rfl
     · split at h
       · exact etables_get_lit_wf hinv.scrt h _ rfl
       · simp at h
@@ -1080,7 +1080,7 @@ theorem read_names_from_wf {pers st} (hinv : AStateInv pers st)
   | zero =>
     intro i out hk hout v hrun
     rw [arena.monad.read_names_from.eq_def] at hrun; simp only [] at hrun
-    rw [if_pos (by scalar_tac)] at hrun
+    rw [ite_eq_left (by scalar_tac)] at hrun
     simp only [Result.ok.injEq, core.result.Result.Ok.injEq] at hrun
     subst hrun; exact hout
   | succ k ih =>

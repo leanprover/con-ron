@@ -137,6 +137,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -256,7 +259,7 @@ theorem etaCertFueled_body {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
   have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false := h4
   simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, bind,
-    Except.bind, if_true]
+    Except.bind, ite_true]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **the
@@ -279,7 +282,7 @@ theorem etaCertFueled_yes {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
   have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
   simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, h5,
-    bind, Except.bind, if_true]
+    bind, Except.bind, ite_true]
   rfl
 
 /-! `etaCert_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in round 4
@@ -345,7 +348,7 @@ theorem defEqListFueled_cons_true {F d : Nat} {x y : Expr}
     ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys) = .ok r := by
   have hd : (ConLeche.pureFns mode env F).defeq d x y = .ok true := h
   simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
-    Except.bind, if_true]
+    Except.bind, ite_true]
   exact ht
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads

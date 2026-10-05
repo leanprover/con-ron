@@ -105,7 +105,7 @@ leave on the twin side. -/
   cases m
   · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, reduceIte] at h
     rw [ConRon.Refine.PropWhen.is_never_refines h]; rfl
-  · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, Bool.false_eq_true, if_false,
+  · simp only [kernel.env.io_skip, kernel.env.certs, bind_tc_ok, Bool.false_eq_true, ite_false,
       Result.ok.injEq] at h
     rw [← h]; rfl
 
@@ -280,7 +280,7 @@ theorem read_names_m_from_wf₀ {pers} {ks : alloc.vec.Vec arena.handle.NIdx} :
   | zero =>
     intro st lst hrel hinv i out hk hout o hrun
     rw [arena.monad.read_names_m_from.eq_def] at hrun; simp only [] at hrun
-    rw [if_pos (by scalar_tac)] at hrun
+    rw [ite_eq_left (by scalar_tac)] at hrun
     have ho : ((core.result.Result.Ok out : core.result.Result _ _), st) = o :=
       Result.ok_injective hrun
     rw [← ho]

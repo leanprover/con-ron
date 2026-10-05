@@ -25,6 +25,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -416,17 +419,17 @@ theorem structEtaProjCerts_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
           have e1 := iotaCertsFueled_mono (Nat.le_max_left F1 F2) hF1
           have e2 := structEtaProjCertsFueled_mono (Nat.le_max_right F1 F2) hF2
           dsimp only
-          rw [structEtaProjCertsFueled_cons_rec hfind, if_pos hgP]
+          rw [structEtaProjCertsFueled_cons_rec hfind, ite_eq_left hgP]
           simp only [ConLeche.ConstantInfo.toConstantVal] at e1
-          simp only [e1, e2, bind, Except.bind, if_true]
+          simp only [e1, e2, bind, Except.bind, ite_true]
         next hcf =>
           have hcf' : c = false := by simpa using hcf
           subst hcf'
           have hres : ConLeche.structEtaProjCertsFueled mode env F1 d Tn ls xs y
               lps (i :: rest) = .ok false := by
-            rw [structEtaProjCertsFueled_cons_rec hfind, if_pos hgP]
+            rw [structEtaProjCertsFueled_cons_rec hfind, ite_eq_left hgP]
             simp only [ConLeche.ConstantInfo.toConstantVal] at hF1
-            simp only [hF1, bind, Except.bind, Bool.false_eq_true, if_false]
+            simp only [hF1, bind, Except.bind, Bool.false_eq_true, ite_false]
             rfl
           mvcgen
           bridge_peel; subst_vars
@@ -435,7 +438,7 @@ theorem structEtaProjCerts_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         have hres : ConLeche.structEtaProjCertsFueled mode env 0 d Tn ls xs y
             lps (i :: rest) = .ok false := by
           rw [structEtaProjCertsFueled_cons_rec hfind,
-            if_neg (fun h => hg (hguard.mpr h))]
+            ite_eq_right (fun h => hg (hguard.mpr h))]
           rfl
         mvcgen
         bridge_peel; subst_vars
@@ -556,7 +559,7 @@ theorem etaProjs_spec (s₀ : AState) (T : NIdx) (us : LsIdx)
     rintro r s2 ⟨hok2, hx2, hp2, hr⟩
     refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     have ht : ConLeche.towerSlotsAll env Tn nF = true := htw ▸ htt
-    rw [hr, ConLeche.etaProjs, if_pos ht, List.range_eq_range']
+    rw [hr, ConLeche.etaProjs, ite_eq_left ht, List.range_eq_range']
   next htf =>
     refine triple_mono (projAppsGo_spec T us targs b Tn ls xs y nF 0 s1 hok1
       (denoteN_ext hT hx1) (denoteLs_ext hus hx1)
@@ -565,7 +568,7 @@ theorem etaProjs_spec (s₀ : AState) (T : NIdx) (us : LsIdx)
     refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     have ht : ConLeche.towerSlotsAll env Tn nF = false := by
       rw [← htw]; simpa using htf
-    rw [hr, ConLeche.etaProjs, if_neg (by simp [ht]), List.range_eq_range']
+    rw [hr, ConLeche.etaProjs, ite_eq_right (by simp [ht]), List.range_eq_range']
 
 /-- con-leche: none — the fabricated projections are well-scoped wherever
 the stuck side and the type's arguments are. -/

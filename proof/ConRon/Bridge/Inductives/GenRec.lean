@@ -147,7 +147,7 @@ theorem dClassGen_pre {st : EStore} {g : Arena.ClassGen} {gP : ConLeche.ClassGen
   obtain ⟨hnP, h1, h2, h3, h4, h5, h6, -, hbm⟩ := dClassGen_inv h
   simp only [dClassGen, h1, h2, h3, h4, h5, h6, hp, Option.bind_eq_bind, Option.bind_some,
     Option.pure_def]
-  rw [if_pos (show g.bm = ⟨gP.elim.zeronessOf⟩ from hbm), hnP]
+  rw [ite_eq_left (show g.bm = ⟨gP.elim.zeronessOf⟩ from hbm), hnP]
 
 /-- con-leche: none — `denoteEList` is `mapM denoteE`. -/
 theorem mapM_denoteE_eq_list {st : EStore} :
@@ -1444,9 +1444,9 @@ theorem classGenRule_spec (g : Arena.ClassGen) (gP : ConLeche.ClassGen)
             have hpar' := (dClassGen_inv hg).2.1
             rw [hnP] at hrun
             by_cases hi : i < gP.nP
-            · rw [if_pos hi] at hrun ⊢
+            · rw [ite_eq_left hi] at hrun ⊢
               exact exprGetD_spec g.params gP.params i s₀ s' b hok hpar' hrun
-            · rw [if_neg hi] at hrun ⊢
+            · rw [ite_eq_right hi] at hrun ⊢
               exact ClassGen.slotVar_spec g gP _ s₀ s' b hok hp hg hrun)
           (List.range g.pre.length) s2 s3 pvars p2.ok (PinsOK.ofPStep hp p12)
           (fun _ _ => dClassGen_ext p12.ext _ _ hg) k3
@@ -1524,7 +1524,7 @@ theorem isMinor_count {st : EStore} :
       simp only [dSlot, Option.map_eq_some_iff] at hd
       obtain ⟨_, _, rfl⟩ := hd
       simp only [List.filter_cons, Arena.ClassSlot.isMinor, ConLeche.ClassSlot.isMinor,
-        if_true, List.length_cons]
+        ite_true, List.length_cons]
       rw [ih]
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:223-232 classMinorSlot —
@@ -1671,7 +1671,7 @@ theorem classLeafAt_spec (m : Arena.TargetMajor) (mP : ConLeche.TargetMajor) (le
   obtain ⟨rfl, hhd⟩ := getAppFn_run hok hleaf k1
   simp only [ConLeche.classLeafAt]
   by_cases ct : (hd.tag == ETag.const) = true
-  · rw [if_pos ct] at z1
+  · rw [ite_eq_left ct] at z1
     obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨rfl, ho⟩ := viewConst_run k2
     cases o with
@@ -1685,7 +1685,7 @@ theorem classLeafAt_spec (m : Arena.TargetMajor) (mP : ConLeche.TargetMajor) (le
       refine ⟨PStep.refl hok, ?_⟩
       rw [hg]
       exact beq_handle_eq hok.wf hI hind
-  · rw [if_neg ct] at z1
+  · rw [ite_eq_right ct] at z1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨PStep.refl hok, ?_⟩
     cases hga : leafP.getAppFn with
@@ -1836,7 +1836,7 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           ⟨hmt, denote_ext hleaf p4.ext⟩ k5
         have c15 := (p1.trans (p4.trans p5)).toCore hok
         by_cases hb : ConLeche.classLeafAt (MsP.getD t default) leafP = true
-        · rw [if_pos hb] at z5
+        · rw [ite_eq_left hb] at z5
           obtain ⟨u1, s6, k6, z6⟩ := AM.bind_ok z5
           have p45 := p4.trans p5
           obtain ⟨c6, ⟨⟩, -, hN⟩ := classNodesAgree_spec fe hk henv p pP formerTys formerTysP mt
@@ -1854,7 +1854,7 @@ theorem classFieldsAgree_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           refine ⟨c16.trans c7, (), trivial, FOk.bind FOk.unwrapOr ?_⟩
           simp only [hb, ↓reduceIte]
           exact FOk.seq hN hR
-        · rw [if_neg hb] at z5
+        · rw [ite_eq_right hb] at z5
           exact absurd z5 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: none — a denoting table's entries at a constructor name. -/
@@ -2479,7 +2479,7 @@ theorem classRecTyOk_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have h2P : (rcP.rP == gP.nP + gP.slots.length &&
       rcP.mI == rcP.rP + (gP.cls.getD c default).nIdx) = true := by
     rw [← hrP, ← hmI, ← hnP, ← hsll, ← hnIdx]; exact h2
-  rw [if_pos h1P, if_pos h2P]
+  rw [ite_eq_left h1P, ite_eq_left h2P]
   obtain ⟨o, s4, k4, z4⟩ := AM.bind_ok z3
   obtain ⟨p4, ho⟩ := classGenRecTy_spec g gP c s1 s4 o p1.ok (PinsOK.ofPStep hok.pins p1)
     (dClassGen_ext p1.ext _ _ hg) k4
@@ -2718,7 +2718,7 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
     have hpwP := binders_pw_all pw hrbs
     have c18 := c16.trans (p8.toCore hok6)
     by_cases hpw : (rbs.all fun b => b.2.pw == pw) = true
-    · rw [if_pos hpw] at z13
+    · rw [ite_eq_left hpw] at z13
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z13
       refine ⟨c18, genP, denote_ext hgen c18.ext, ?_⟩
       have h1P : (genP.looseBVarsBounded 0 && !genP.hasFvar) = true := by
@@ -2727,9 +2727,9 @@ theorem classRuleOk_spec {μ : CheckMode} {envR env₂ : Env} (feR : IFEnv) (vis
         mkFEnv_env, hsl, ↓reduceIte]
       refine FOk.bind hF5 (FOk.bind FOk.unwrapOr ?_)
       dsimp only
-      rw [if_pos hdom, hpwP, if_pos hpw]
+      rw [ite_eq_left hdom, hpwP, ite_eq_left hpw]
       exact FOk.pure _
-    · rw [if_neg hpw] at z13
+    · rw [ite_eq_right hpw] at z13
       exact absurd z13 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:448-459 classRulesOk — a
@@ -3144,7 +3144,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
   have hany := GR.any_member_isNone (dMajor_ext.list c12.ext _ _ hms)
   by_cases hL : p.large = true
   case' pos =>
-    rw [if_pos hL] at z3
+    rw [ite_eq_left hL] at z3
     obtain ⟨la, s3, k3, z4⟩ := AM.bind_ok z3
     obtain ⟨c3, rfl⟩ := blockLargeElimAllowed_cspec fe₂ p pP _ s2 s3 la c12.ok
       (dShape_ext c12.ext _ _ hsh) k3
@@ -3156,7 +3156,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
     have c13 := c12.trans c3
     have hcvRis3 := dExt_denoteCV.list c3.ext _ _ hcvRis
   case' neg =>
-    rw [if_neg hL] at z3
+    rw [ite_eq_right hL] at z3
     have hcond : (pP.large && !ConLeche.blockLargeElimAllowed pP
         (nestedBit || MsP.any (·.member.isNone))) = false := by
       rw [← hlarge]; simp only [Bool.not_eq_true] at hL; simp [hL]
@@ -3229,7 +3229,7 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
       have e5 := dClassCtors_ext (c6.ext.trans (p7.ext.trans p8.ext)) _ _ hctors
       have e6 := denoteL_ext helim p8.ext
       simp only [dClassGen, e1, e2, e3, e4, e5, e6, denoteBinders, hnP, hlarge,
-        Option.bind_eq_bind, Option.bind_some, Option.pure_def, if_true]
+        Option.bind_eq_bind, Option.bind_some, Option.pure_def, ite_true]
     -- the prefix
     obtain ⟨o, s9, k9, z11⟩ := AM.bind_ok z10
     obtain ⟨p9, ho⟩ := ClassGen.prefixBinders_spec _ _ s8 s9 o c18.ok.state c18.ok.pins hg0 k9
@@ -3307,10 +3307,10 @@ theorem genRecCheck_spec {μ : CheckMode} {env₂ : Env} (fe₂ : IFEnv)
         nestedBit paramsP tblP rdP MsP cvTasP blockP) outP := by
       simp only [ConLeche.genRecCheck, ShadowOps.ofOps, mkFEnv_env]
       refine FOk.bind hF1 (FOk.bind hF2 ?_)
-      rw [if_pos hkP, hcond]
+      rw [ite_eq_left hkP, hcond]
       simp only [Bool.false_eq_true, ↓reduceIte]
       refine FOk.bind hF4 (FOk.bind hF5 ?_)
-      rw [if_pos hminorP]
+      rw [ite_eq_left hminorP]
       refine FOk.bind hF6 ?_
       rw [hpreP]
       rw [hrc] at hF10
@@ -3425,11 +3425,11 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨bb, t1, j1, y1⟩ := AM.bind_ok hrun
       obtain ⟨q1, -, rfl⟩ := bvarB_pstep hok he j1
       by_cases hb : (eP.bvarB != 0) = true
-      · rw [if_pos hb] at y1
+      · rw [ite_eq_left hb] at y1
         obtain ⟨rfl, rfl⟩ := AM.pure_ok y1
         simp only [bne_iff_ne, ne_eq] at hb
         exact ⟨q1, by simp [hb]⟩
-      · rw [if_neg hb] at y1
+      · rw [ite_eq_right hb] at y1
         simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hb
         obtain ⟨ff, t2, j2, y2⟩ := AM.bind_ok y1
         obtain ⟨q2, -, rfl⟩ := fvarB_pstep q1.ok (denote_ext he q1.ext) j2
@@ -3461,7 +3461,7 @@ theorem classKeyOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     simp only [dClassKey, e1, e2, hdsA, Option.bind_eq_bind, Option.bind_some, Option.pure_def]
     rw [← hkc]
   · simp only [ConLeche.classKeyOf]
-    rw [if_pos hcl]
+    rw [ite_eq_left hcl]
     exact FOk.bind hF (FOk.pure _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:531 checkBlockClasses (the
@@ -3593,16 +3593,16 @@ theorem checkBlockClasses_spec {μ : CheckMode} {env₁ : Env} (fe₁ : IFEnv)
     by_cases h1 : ((List.range pP.k).all fun t => (MsP.filter (·.member == some t)).length == 1)
       = true
     · rw [← hall] at h1
-      rw [if_pos h1] at z3
+      rw [ite_eq_left h1] at z3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       rw [hall] at h1
       refine ⟨c12.trans c3, (rdP, MsP), ⟨dClassRead_ext (c2.ext.trans c3.ext) _ _ hrd, hms, hMs⟩,
         ?_⟩
       refine FOk.bind FOk.unwrapOr (FOk.bind hF2 (FOk.bind hF3 ?_))
-      rw [if_pos h1]
+      rw [ite_eq_left h1]
       exact FOk.seq (FOk.pure ()) (FOk.pure _)
     · rw [← hall] at h1
-      rw [if_neg h1] at z3
+      rw [ite_eq_right h1] at z3
       exact absurd z3 (fun hc => AM.fail_ok hc)
 
 /-- con-leche: none — a seed (a positivity key with its parameter count),

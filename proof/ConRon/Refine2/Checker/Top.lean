@@ -117,7 +117,7 @@ theorem checkBasisDecl_quotK (fe : IFEnv) :
     checkBasisDecl fe ConLeche.BasisKind.quotK = (do
       if ← eqBasisPinnedSpec fe then installBasisDecls fe (← BasisKind.declsA ConLeche.BasisKind.quotK)
       else fail (.notImplemented "quotient basis requires the pinned Eq basis")) := by
-  simp only [checkBasisDecl, eqBasisPinnedSpec, bind_assoc, pure_bind, if_pos, beq_self_eq_true]
+  simp only [checkBasisDecl, eqBasisPinnedSpec, bind_assoc, pure_bind, ite_eq_left, beq_self_eq_true]
   refine ConRon.Refine2.am_bind_congr _ ?_
   intro en
   refine ConRon.Refine2.am_bind_congr _ ?_
@@ -322,7 +322,7 @@ theorem block_and_named_aux (k : Nat) :
     intro block hs i o hn h
     rw [arena.basis.block_and_named] at h
     have hl := alloc.vec.Vec.len_val block
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     obtain rfl := (Result.ok_injective h).symm
     have : absICILFrom block i = [] := by
       simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
@@ -331,7 +331,7 @@ theorem block_and_named_aux (k : Nat) :
     intro block hs i o hn h
     rw [arena.basis.block_and_named] at h
     have hl := alloc.vec.Vec.len_val block
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨n, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -348,10 +348,10 @@ theorem block_and_named_aux (k : Nat) :
     rw [hcons, blockAndNamed, ← i_constant_info_name_abs hn2, ← hbv]
     cases b with
     | true =>
-      rw [if_pos rfl] at h
+      rw [ite_eq_left rfl] at h
       exact (Result.ok_injective h).symm
     | false =>
-      rw [if_neg (by simp)] at h
+      rw [ite_eq_right (by simp)] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi2v := ConRon.Refine.Nat.uadd_val hi2
       rw [ih block hs i2 (by simp at hi2v; omega) h, Bool.false_or]
@@ -531,8 +531,8 @@ theorem checkQuotSoundRecordSpec_split (fe : IFEnv) (cv : IConstantVal) :
   refine ConRon.Refine2.am_bind_congr _ ?_
   intro blk
   by_cases h : blk.length ≤ 4
-  · rw [if_pos h, List.getElem?_eq_none h]
-  · rw [if_neg h, List.getElem?_eq_getElem (by omega), List.getD_eq_getElem _ _ (by omega)]
+  · rw [ite_eq_left h, List.getElem?_eq_none h]
+  · rw [ite_eq_right h, List.getElem?_eq_getElem (by omega), List.getD_eq_getElem _ _ (by omega)]
 
 /-- `check_quot_sound_record` — **`Quot.sound` is the pinned quotient BLOCK's
 own record**: the export writes it as an ordinary axiom record beside the four
@@ -1880,13 +1880,13 @@ private theorem intern_all_basis_aux {pers : arena.store.PersTier} (m : Nat) :
     unfold Sim₀
     by_cases hge : i ≥ ks.len
     · have hle : 5 ≤ i.val := by scalar_tac
-      rw [if_pos hge] at hrun
+      rw [ite_eq_left hge] at hrun
       have ho := Result.ok_injective hrun
       subst ho
       rw [List.drop_eq_nil_of_le (by simpa using hle)]
       exact AOut₀.ok rfl hrel hinv
     · have hlt : i.val < ks.val.length := by scalar_tac
-      rw [if_neg hge] at hrun
+      rw [ite_eq_right hge] at hrun
       obtain ⟨bk, hbk, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hbk
       rw [← hk, ← List.map_drop, List.drop_eq_getElem_cons hlt, List.map_cons,

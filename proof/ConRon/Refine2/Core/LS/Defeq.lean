@@ -86,14 +86,14 @@ theorem LS.twin_bind_ite_pos {α β δ : Type} {pers : arena.store.PersTier} {R 
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x y : AM β} {g : β → AM δ} (hc : c) (h : LS pers R m lst (x >>= g)) :
     LS pers R m lst ((if c then x else y) >>= g) := by
-  rw [if_pos hc]; exact h
+  rw [ite_eq_left hc]; exact h
 
 theorem LS.twin_bind_ite_neg {α β δ : Type} {pers : arena.store.PersTier} {R : α → δ → Prop}
     {c : Prop} [Decidable c]
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {x y : AM β} {g : β → AM δ} (hc : ¬ c) (h : LS pers R m lst (y >>= g)) :
     LS pers R m lst ((if c then x else y) >>= g) := by
-  rw [if_neg hc]; exact h
+  rw [ite_eq_right hc]; exact h
 
 open Lean Meta Elab Tactic in
 /-- Is `T` an inductive type with more than one constructor? -/

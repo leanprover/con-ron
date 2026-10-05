@@ -659,10 +659,10 @@ theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
     rw [hcoh.1, mkIFEnvGo_fst']
   simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
   by_cases hEq : (ci.name == n) = true
-  · rw [if_pos hEq] at hf
-    simp only [Nat.lt_succ_self, if_true] at hf
+  · rw [ite_eq_left hEq] at hf
+    simp only [Nat.lt_succ_self, ite_true] at hf
     exact absurd (Option.some.inj hf) (hci t)
-  · rw [if_neg hEq] at hf
+  · rw [ite_eq_right hEq] at hf
     cases hg : fe.idx[n]? with
     | none => rw [hg] at hf; exact nomatch hf
     | some p =>
@@ -671,8 +671,8 @@ theorem ProjOut.push {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
       have hlt : cnt < fe.visibleBelow := by
         rw [hvb]
         exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hcoh.2 n ▸ hg)
-      simp only [if_pos (Nat.lt_succ_of_lt hlt)] at hf
-      simp only [IFEnv.find?, hg, if_pos hlt]
+      simp only [ite_eq_left (Nat.lt_succ_of_lt hlt)] at hf
+      simp only [IFEnv.find?, hg, ite_eq_left hlt]
       exact hf
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:82-89 FEnv.push — **a pushed
@@ -691,13 +691,13 @@ theorem ProjOut.push_table {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
     rw [hcoh.1, mkIFEnvGo_fst']
   simp only [IFEnv.find?, IFEnv.push, Std.HashMap.getElem?_insert] at hf
   by_cases hEq : ((IConstantInfo.projInfo t).name == n) = true
-  · rw [if_pos hEq] at hf
-    simp only [Nat.lt_succ_self, if_true] at hf
+  · rw [ite_eq_left hEq] at hf
+    simp only [Nat.lt_succ_self, ite_true] at hf
     obtain rfl : t = t' := by
       have := Option.some.inj hf
       injection this
     exact Or.inr ht
-  · rw [if_neg hEq] at hf
+  · rw [ite_eq_right hEq] at hf
     left
     cases hg : fe.idx[n]? with
     | none => rw [hg] at hf; exact nomatch hf
@@ -707,8 +707,8 @@ theorem ProjOut.push_table {fe : IFEnv} (hcoh : IFEnvCoh fe) (st : EStore)
       have hlt : cnt < fe.visibleBelow := by
         rw [hvb]
         exact mkIFEnvGo_counter_lt fe.env.consts n cnt cinfo (hcoh.2 n ▸ hg)
-      simp only [if_pos (Nat.lt_succ_of_lt hlt)] at hf
-      simp only [IFEnv.find?, hg, if_pos hlt]
+      simp only [ite_eq_left (Nat.lt_succ_of_lt hlt)] at hf
+      simp only [IFEnv.find?, hg, ite_eq_left hlt]
       exact hf
 
 /-! ## The environment's own relation

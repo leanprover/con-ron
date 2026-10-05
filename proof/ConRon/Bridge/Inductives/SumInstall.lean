@@ -302,7 +302,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨xs, x, hxs, -, hbody⟩ := denoteBP_some hsq
   dsimp only at z1
   by_cases htg : (body.tag == ETag.sort) = true
-  · rw [if_pos htg] at z1
+  · rw [ite_eq_left htg] at z1
     obtain ⟨o, s₂, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨hs2, ho⟩ := AM.of_run (P := fun t => t = s₀) rfl k2 (viewSort_spec s₀ body)
     subst hs2
@@ -314,7 +314,7 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨CoreStep.refl hck, 0, cvTa₀P, uP, ?_, hcv0, hu⟩
       simp only [ConLeche.checkSumTele, hxs, pure, Except.pure]
-  · rw [if_neg htg] at z1
+  · rw [ite_eq_right htg] at z1
     refine finish z1 (fun bsP sP h => ?_)
     rw [hxs] at h
     obtain ⟨-, rfl⟩ := Prod.mk.inj (Option.some.inj h)
@@ -515,7 +515,7 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       fun F hle => ConLeche.ensureSortCore_mono hle hF2
     cases isProp with
     | false =>
-      simp only [Bool.not_false, if_true] at z4
+      simp only [Bool.not_false, ite_true] at z4
       obtain ⟨lu, s5, k5, z5⟩ := AM.bind_ok z4
       have hlu := (Core.readLevelM_denote hok4.caches.readL k5).1
       have c5 : CoreStep μ env fe s4 s5 := (readLevelM_pstep hok4.state k5).toCore hok4
@@ -536,12 +536,12 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       cases bb with
       | false =>
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k7
-        simp only [Bool.false_eq_true, if_false] at z7
+        simp only [Bool.false_eq_true, ite_false] at z7
         obtain ⟨_, _, k, _⟩ := AM.bind_ok z7
         exact absurd k (fun h => AM.fail_ok h)
       | true =>
       obtain ⟨rfl, rfl⟩ := AM.pure_ok k7
-      simp only [if_true] at z7
+      simp only [ite_true] at z7
       obtain ⟨_, s8, k8, z8⟩ := AM.bind_ok z7
       obtain ⟨-, rfl⟩ := AM.pure_ok k8
       obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (c5.trans c6) z8
@@ -559,7 +559,7 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | true =>
     cases large with
     | false =>
-      simp only [Bool.not_true, Bool.false_eq_true, if_false] at z4
+      simp only [Bool.not_true, Bool.false_eq_true, ite_false] at z4
       obtain ⟨_, s5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨-, rfl⟩ := AM.pure_ok k5
       obtain ⟨c, F3, restP, hF3, hr⟩ := tail _ (CoreStep.refl hok4) z5
@@ -575,7 +575,7 @@ theorem checkStructFieldSortsI_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         bind, Except.bind, pure, Except.pure, e1, e2]
       simp [e3]
     | true =>
-      simp only [Bool.not_true, Bool.false_eq_true, if_false, if_true] at z4
+      simp only [Bool.not_true, Bool.false_eq_true, ite_false, ite_true] at z4
       obtain ⟨z, s5, k5, z5⟩ := AM.bind_ok z4
       obtain ⟨hs5, hz⟩ := zeroLevel_run hok4.pins k5
       rw [hs5] at z5
@@ -677,11 +677,11 @@ theorem fieldDomsResolve_spec {env₀ : Env} {fe₀ : IFEnv} :
     have hok₂ := hok.mono p2.ok p2.ext p2.pins
     cases c with
     | false =>
-      simp only [Bool.false_eq_true, if_false] at z2
+      simp only [Bool.false_eq_true, ite_false] at z2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       exact ⟨p2, by simp [List.all_cons, ← hc]⟩
     | true =>
-      simp only [if_true] at z2
+      simp only [ite_true] at z2
       obtain ⟨p3, hr⟩ := fieldDomsResolve_spec xs rest hok₂
         (denoteEList_ext p2.ext _ _ hxs) z2
       exact ⟨p2.trans p3, by simp [List.all_cons, ← hc, hr]⟩
@@ -716,11 +716,11 @@ theorem idxArgsResolve_spec {env₀ : Env} {fe₀ : IFEnv} :
     have hok₂ := hok.mono p2.ok p2.ext p2.pins
     cases c with
     | false =>
-      simp only [Bool.false_eq_true, if_false] at z2
+      simp only [Bool.false_eq_true, ite_false] at z2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       exact ⟨p2, by simp [List.all_cons, ← hc]⟩
     | true =>
-      simp only [if_true] at z2
+      simp only [ite_true] at z2
       obtain ⟨p3, hr⟩ := idxArgsResolve_spec xs rest hok₂
         (denoteEList_ext p2.ext _ _ hxs) z2
       exact ⟨p2.trans p3, by simp [List.all_cons, ← hc, hr]⟩
@@ -932,10 +932,10 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
   have g₃ := checkStructDomsAt_mono (show F₃ ≤ max F₁ (max F₃ F₄) by omega) hF₃
   have g₄ := checkStructFieldSortsI_mono (show F₄ ≤ max F₁ (max F₃ F₄) by omega) hF₄
   simp only [ConLeche.checkSumCtor, bind, Except.bind, g₁, hsp, ConLeche.unwrapOr, pure,
-    Except.pure, hr5, if_true, hcq, htq]
+    Except.pure, hr5, ite_true, hcq, htq]
   rw [g₃]
   simp only [hxq]
-  rw [if_pos hg1, if_pos hg2, if_pos hg3, g₄]
+  rw [ite_eq_left hg1, ite_eq_left hg2, ite_eq_left hg3, g₄]
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:149-161 checkSumCtors
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF

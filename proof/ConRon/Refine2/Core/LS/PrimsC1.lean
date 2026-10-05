@@ -32,13 +32,13 @@ theorem drop_eidx_from_aux (n : Nat) :
   | zero =>
     intro xs k out r hn h
     rw [arena.core.drop_eidx_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_eq_nil_of_le (by omega)]; simp
   | succ m ih =>
     intro xs k out r hn h
     rw [arena.core.drop_eidx_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -59,12 +59,12 @@ theorem drop_eidx_n_from_aux (m : Nat) :
   | zero =>
     intro xs n i r hn h
     rw [arena.core.drop_eidx_n_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     rw [drop_eidx_from_aux _ xs i _ r rfl h, hn]; simp
   | succ m ih =>
     intro xs n i r hn h
     rw [arena.core.drop_eidx_n_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     dsimp only at h
     split at h
     · cases Result.ok_injective h
@@ -96,13 +96,13 @@ theorem take_eidx_n_from_aux (m : Nat) :
   | zero =>
     intro xs n i out r hn h
     rw [arena.expr_ops.take_eidx_n_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [hn]; simp
   | succ m ih =>
     intro xs n i out r hn h
     rw [arena.expr_ops.take_eidx_n_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     dsimp only at h
     split at h
     · cases Result.ok_injective h
@@ -140,13 +140,13 @@ theorem append_eidx_from_aux (k : Nat) :
   | zero =>
     intro xs ys i r hk h
     rw [arena.core.append_eidx_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_eq_nil_of_le (by omega)]; simp
   | succ k ih =>
     intro xs ys i r hk h
     rw [arena.core.append_eidx_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -280,13 +280,13 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
   | zero =>
     intro i o hk h
     rw [arena.env.nidx_vec_contains_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_eq_nil_of_le (by omega)]; rfl
   | succ k ih =>
     intro i o hk h
     rw [arena.env.nidx_vec_contains_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hbv : b = (absNIdx n1 == absNIdx n) := nidx_eq2_abs hb
@@ -294,7 +294,7 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
     rw [List.drop_eq_getElem_cons hlt, hx, List.map_cons, List.contains_cons]
     cases hbb : b
     · rw [hbb] at h hbv
-      rw [if_neg (by simp)] at h
+      rw [ite_eq_right (by simp)] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi := ConRon.Refine.Nat.uadd_val hi2
       rw [ih i2 o (by simp at hi; omega) h]
@@ -302,7 +302,7 @@ theorem nidx_vec_contains_from_aux (ns : alloc.vec.Vec arena.handle.NIdx)
         rw [BEq.comm]; exact hbv.symm
       simp [this, hi]
     · rw [hbb] at h hbv
-      rw [if_pos (by simp), Result.ok.injEq] at h
+      rw [ite_eq_left (by simp), Result.ok.injEq] at h
       subst h
       have : (absNIdx n == absNIdx n1) = true := by
         rw [BEq.comm]; exact hbv.symm
@@ -373,13 +373,13 @@ theorem nidx_vec_beq_from_aux (a b : alloc.vec.Vec arena.handle.NIdx) (k : Nat) 
   | zero =>
     intro i o hk hl h
     rw [arena.core.nidx_vec_beq_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega)]; rfl
   | succ k ih =>
     intro i o hk hl h
     rw [arena.core.nidx_vec_beq_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -390,13 +390,13 @@ theorem nidx_vec_beq_from_aux (a b : alloc.vec.Vec arena.handle.NIdx) (k : Nat) 
       List.map_cons, List.map_cons]
     cases hbb : b1
     · rw [hbb] at h hbv
-      rw [if_neg (by simp), Result.ok.injEq] at h
+      rw [ite_eq_right (by simp), Result.ok.injEq] at h
       subst h
       have : absNIdx n ≠ absNIdx n1 := by
         intro hc; rw [hc] at hbv; simp at hbv
       simp [this]
     · rw [hbb] at h hbv
-      rw [if_pos rfl] at h
+      rw [ite_eq_left rfl] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi := ConRon.Refine.Nat.uadd_val hi2
       rw [ih i2 o (by simp at hi; omega) hl h]

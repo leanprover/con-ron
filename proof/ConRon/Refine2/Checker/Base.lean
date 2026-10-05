@@ -464,11 +464,11 @@ private theorem nidx_contains_from_aux (m : Nat) :
     have hl := alloc.vec.Vec.len_val ns
     by_cases hge : i ≥ ns.len
     · have hle : ns.val.length ≤ i.val := by scalar_tac
-      rw [if_pos hge] at hrun
+      rw [ite_eq_left hge] at hrun
       rw [← Result.ok_injective hrun]
       simp [absNIdxLFrom, List.drop_eq_nil_of_le hle]
     · have hlt : i.val < ns.val.length := by scalar_tac
-      rw [if_neg hge] at hrun
+      rw [ite_eq_right hge] at hrun
       obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨hlt', rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn1
       obtain ⟨b, hb, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -477,13 +477,13 @@ private theorem nidx_contains_from_aux (m : Nat) :
         simp only [absNIdxLFrom, List.drop_eq_getElem_cons hlt, List.map_cons]
       rw [hcons, List.contains_cons]
       by_cases hc : b = true
-      · rw [if_pos hc] at hrun
+      · rw [ite_eq_left hc] at hrun
         rw [← Result.ok_injective hrun]
         subst hc
         have heq : (absNIdx ns.val[i.val] == absNIdx n) = true := hbv.symm
         rw [BEq.comm] at heq
         simp [heq]
-      · rw [if_neg hc] at hrun
+      · rw [ite_eq_right hc] at hrun
         obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
         have hrec := ih (ns.val.length - i2.val) (by omega) rfl hrun
@@ -744,11 +744,11 @@ private theorem name_nodup_from_aux {ns : alloc.vec.Vec arena.handle.NIdx} (m : 
     have hl := alloc.vec.Vec.len_val ns
     by_cases hge : i ≥ ns.len
     · have hle : ns.val.length ≤ i.val := by scalar_tac
-      rw [if_pos hge] at hrun
+      rw [ite_eq_left hge] at hrun
       rw [← Result.ok_injective hrun]
       simp [absNIdxLFrom, List.drop_eq_nil_of_le hle, nameNodup]
     · have hlt : i.val < ns.val.length := by scalar_tac
-      rw [if_neg hge] at hrun
+      rw [ite_eq_right hge] at hrun
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
       obtain ⟨c, hc, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -759,10 +759,10 @@ private theorem name_nodup_from_aux {ns : alloc.vec.Vec arena.handle.NIdx} (m : 
         simp only [absNIdxLFrom, List.drop_eq_getElem_cons hlt, List.map_cons, hi2v]
       rw [hcons, nameNodup, ← hbv]
       by_cases hbt : b = true
-      · rw [if_pos hbt] at hrun
+      · rw [ite_eq_left hbt] at hrun
         rw [← Result.ok_injective hrun, hbt]
         rfl
-      · rw [if_neg hbt] at hrun
+      · rw [ite_eq_right hbt] at hrun
         have hrec := ih (ns.val.length - i2.val) (by omega) rfl hrun
         have hbf : b = false := by simpa using hbt
         rw [hrec, hbf]
@@ -839,8 +839,8 @@ theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
   unfold SimRE
   rw [NIdx.isProjFnShape, htag]
   by_cases hnum : t = arena.handle.NTAG_NUM
-  · rw [if_pos hnum] at hrun
-    rw [if_pos (by rw [hnum, ntag_num_abs]; exact beq_self_eq_true _)]
+  · rw [ite_eq_left hnum] at hrun
+    rw [ite_eq_left (by rw [hnum, ntag_num_abs]; exact beq_self_eq_true _)]
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨hV, -⟩ := view_n_simre hrel hinv hr
     cases r with
@@ -860,8 +860,8 @@ theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
         have htag1 := nidx_tag_abs ht1
         rw [htag1]
         by_cases hstr : t1 = arena.handle.NTAG_STR
-        · rw [if_pos hstr] at hrun
-          rw [if_pos (by rw [hstr, ntag_str_abs]; exact beq_self_eq_true _)]
+        · rw [ite_eq_left hstr] at hrun
+          rw [ite_eq_left (by rw [hstr, ntag_str_abs]; exact beq_self_eq_true _)]
           obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           obtain ⟨hV1, hwf1⟩ := view_n_simre hrel hinv hr1
           cases r1 with
@@ -890,12 +890,12 @@ theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
               have hbv := ConRon.Refine.Name.str_eq_refines hswf hvwf hb
               rw [hvabs] at hbv
               by_cases hbt : b = true
-              · rw [if_pos hbt] at hrun
+              · rw [ite_eq_left hbt] at hrun
                 obtain rfl := (Result.ok_injective hrun).symm
                 have : ConRon.Refine.absString sv = "proj" := by simpa [hbt] using hbv
                 show Except.ok _ = Except.ok _
                 simp [this]
-              · rw [if_neg hbt] at hrun
+              · rw [ite_eq_right hbt] at hrun
                 obtain ⟨sl2, hsl2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 obtain ⟨v2, hv2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
                 have hvv2 := lit_abs hsl2 hv2
@@ -914,15 +914,15 @@ theorem nidx_is_proj_fn_shape_refines {pers st lst} {n : arena.handle.NIdx} {o}
                 have h1 : (ConRon.Refine.absString sv == "proj") = false := by simp [hne]
                 simp only [h1, Bool.false_or, hbv1, id]
                 cases h : (ConRon.Refine.absString sv == "projTable") <;> simp_all
-        · rw [if_neg hstr] at hrun
-          rw [if_neg (by
+        · rw [ite_eq_right hstr] at hrun
+          rw [ite_eq_right (by
             rw [ntag_str_abs.symm.trans rfl] at *
             intro hx
             exact hstr (absU32_inj (by simpa using hx)))]
           obtain rfl := (Result.ok_injective hrun).symm
           rfl
-  · rw [if_neg hnum] at hrun
-    rw [if_neg (by
+  · rw [ite_eq_right hnum] at hrun
+    rw [ite_eq_right (by
       rw [← ntag_num_abs]
       intro hx
       exact hnum (absU32_inj (by simpa using hx)))]
@@ -1237,14 +1237,14 @@ theorem all_params_defined_list_aux {params : alloc.vec.Vec kernel.name.Name}
     intro i o hk h
     rw [arena.checker_base.all_params_defined_list] at h
     have := alloc.vec.Vec.len_val ls
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     rw [← Result.ok_injective h, absLevelLFrom, List.drop_eq_nil_of_le (by omega)]
     rfl
   | succ k ih =>
     intro i o hk h
     rw [arena.checker_base.all_params_defined_list] at h
     have := alloc.vec.Vec.len_val ls
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     have hlt : i.val < ls.val.length := by omega
     obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hb, hxv⟩ := ExprOps.vecIndexAt hx
@@ -1255,9 +1255,9 @@ theorem all_params_defined_list_aux {params : alloc.vec.Vec kernel.name.Name}
       rw [absLevelLFrom, List.drop_eq_getElem_cons hb, hxv]; rfl
     rw [hdrop, List.all_cons, ← e1]
     cases b with
-    | false => simp only [Bool.false_eq_true, if_false, Result.ok.injEq] at h; rw [← h]; rfl
+    | false => simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h; rw [← h]; rfl
     | true =>
-      simp only [if_true] at h
+      simp only [ite_true] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
       rw [ih i2 o (by omega) h, absLevelLFrom, hi2v]; rfl
@@ -1459,14 +1459,14 @@ theorem intern_ci_list_go_wf (n : Nat) : ∀ {pers st m} (es : alloc.vec.Vec ker
     intro pers st m es i out r st' m' hn hP hout h
     rw [arena.intern.intern_ci_list_go] at h
     have hl := alloc.vec.Vec.len_val es
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     obtain ⟨⟨rfl⟩, -⟩ := Prod.mk.inj (Result.ok_injective h)
     exact hout
   | succ k ih =>
     intro pers st m es i out r st' m' hn hP hout h
     rw [arena.intern.intern_ci_list_go] at h
     have hl := alloc.vec.Vec.len_val es
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r1, st1, m1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rcases r1 with ci | e
@@ -1871,7 +1871,7 @@ theorem fvar_type_ds_aux {pers st} (hs : alloc.vec.Vec arena.handle.EIdx) (k : N
     apply LSR.of_LS
     rw [arena.checker_base.fvar_type_ds]
     have hl := alloc.vec.Vec.len_val hs
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
     have : absEIdxLFrom hs i = [] := by
       simp only [absEIdxLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
     rw [this, fvarTypeDs]
@@ -1881,7 +1881,7 @@ theorem fvar_type_ds_aux {pers st} (hs : alloc.vec.Vec arena.handle.EIdx) (k : N
     apply LSR.of_LS
     rw [arena.checker_base.fvar_type_ds]
     have hl := alloc.vec.Vec.len_val hs
-    rw [if_neg (by scalar_tac)]
+    rw [ite_eq_right (by scalar_tac)]
     have hlt : i.val < hs.val.length := by omega
     have : absEIdxLFrom hs i = absEIdx hs.val[i.val] :: (hs.val.drop (i.val + 1)).map absEIdx := by
       simp only [absEIdxLFrom]; rw [List.drop_eq_getElem_cons hlt]; rfl

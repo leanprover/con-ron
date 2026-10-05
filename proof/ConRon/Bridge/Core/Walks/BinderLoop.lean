@@ -34,6 +34,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -133,7 +136,7 @@ theorem mInferLamsOut_cons {d j : Nat} {tyo cur : Expr} {mb : BinderMeta}
       = ConLeche.inferLamsOut (m := CheckM) mode d rest (j - 1)
           (.forallE (tyo.abstractRange d j) cur mb) mb.pw := by
   conv => lhs; unfold ConLeche.inferLamsOut
-  simp only [hc, Bool.false_eq_true, if_false]
+  simp only [hc, Bool.false_eq_true, ite_false]
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:117 inferLamsOutC_sim
 — **the λ loop's rebuild carries**: the twin's count-down over the pushed
@@ -153,7 +156,7 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array (EIdx × BinderMeta)) :
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.inferLamsOut]
-      simp only [if_true]
+      simp only [ite_true]
       mvcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
@@ -161,7 +164,7 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array (EIdx × BinderMeta)) :
     obtain ⟨⟨tyox, mbx⟩, rest, rfl, ⟨hty, hmb⟩, hrest⟩ :=
       StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
     rw [ConRon.Arena.inferLamsOut]
-    simp only [Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
+    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
     dsimp only at hmb
     split
     next => exact triple_fail
@@ -425,7 +428,7 @@ theorem mInferLamsLeaf {F d k : Nat} {tx bt v : Expr} {ws : List Expr}
     by_cases hv : mode.verifiedChecks = true
     · obtain ⟨btt, vb, h1, h2, h3⟩ := hchk rfl hv
       dsimp only
-      rw [if_pos hv, inferTypeIO_def, h1, ConLeche.okB_bind, whnf_def, h2,
+      rw [ite_eq_left hv, inferTypeIO_def, h1, ConLeche.okB_bind, whnf_def, h2,
         ConLeche.okB_bind]
       dsimp only
       cases stkx with
@@ -433,10 +436,10 @@ theorem mInferLamsLeaf {F d k : Nat} {tx bt v : Expr} {ws : List Expr}
       | cons e rest =>
         obtain ⟨x, mb0⟩ := e
         dsimp only
-        rw [if_pos (h3 _ _ _ rfl)]
+        rw [ite_eq_left (h3 _ _ _ rfl)]
         exact hout
     · dsimp only
-      rw [if_neg hv]
+      rw [ite_eq_right hv]
       exact hout
 
 /-- con-leche: none — the twin's rebuild datum is the mirror's. -/
@@ -715,18 +718,18 @@ theorem inferTypeCore_lam_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
     unfold ConLeche.inferLamsWrap at htail
     dsimp only
     by_cases hg : (mode.verifiedChecks && !(mb.pw == pwI)) = true
-    · rw [if_pos hg] at htail
+    · rw [ite_eq_left hg] at htail
       exact nomatch htail
-    rw [if_neg hg] at htail
+    rw [ite_eq_right hg] at htail
     by_cases hv : mode.verifiedChecks = true
-    · rw [if_pos hv]
+    · rw [ite_eq_left hv]
       have hpw : (mb.pw == pwI) = true := by
         by_cases hc : (mb.pw == pwI) = true
         · exact hc
         · exact absurd (by simp [hv, hc]) hg
-      rw [if_pos hpw]
+      rw [ite_eq_left hpw]
       exact htail
-    · rw [if_neg hv]
+    · rw [ite_eq_right hv]
       exact htail
   | none =>
     intro htail
@@ -736,11 +739,11 @@ theorem inferTypeCore_lam_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
     dsimp only
     by_cases hv : mode.verifiedChecks = true
     case neg =>
-      rw [if_neg hv] at htail ⊢
+      rw [ite_eq_right hv] at htail ⊢
       unfold ConLeche.inferLamsWrap at htail
-      rw [if_neg (by simp [hv])] at htail
+      rw [ite_eq_right (by simp [hv])] at htail
       exact htail
-    rw [if_pos hv] at htail ⊢
+    rw [ite_eq_left hv] at htail ⊢
     rw [ConLeche.inferTypeIO_def] at htail
     obtain ⟨btt, hbtt, htail⟩ := ConLeche.bind_okB htail
     rw [ConLeche.inferTypeIO_mono hle3 hbtt, ConLeche.okB_bind]
@@ -750,12 +753,12 @@ theorem inferTypeCore_lam_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
     try dsimp only at htail ⊢
     by_cases hz : (Level.zeronessOf w == mb.pw) = true
     case neg =>
-      rw [if_neg hz] at htail
+      rw [ite_eq_right hz] at htail
       exact nomatch htail
-    rw [if_pos hz] at htail
-    rw [if_pos hz]
+    rw [ite_eq_left hz] at htail
+    rw [ite_eq_left hz]
     unfold ConLeche.inferLamsWrap at htail
-    rw [if_neg (by simp)] at htail
+    rw [ite_eq_right (by simp)] at htail
     exact htail
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:595 inferLamsC_tail_sim
@@ -824,7 +827,7 @@ theorem mInferPisOut_cons {u vx : Level} {pw : PropWhen}
     ConLeche.inferPisOut (m := CheckM) mode ((u, pw) :: rest) vx
       = ConLeche.inferPisOut (m := CheckM) mode rest (.imax u vx) := by
   conv => lhs; unfold ConLeche.inferPisOut
-  simp only [hc, Bool.false_eq_true, if_false]
+  simp only [hc, Bool.false_eq_true, ite_false]
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:359 inferPisOutC_sim
 — **the ∀ loop's fold carries**, and the THREADED datum is sound: the twin
@@ -847,7 +850,7 @@ theorem inferPisOut_carry (stk : Array (LIdx × PropWhen)) (pv : PropWhen) :
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.inferPisOut]
-      simp only [if_true]
+      simp only [ite_true]
       mvcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, vx, hv, rfl⟩
@@ -855,7 +858,7 @@ theorem inferPisOut_carry (stk : Array (LIdx × PropWhen)) (pv : PropWhen) :
     obtain ⟨⟨ux, pwx⟩, rest, rfl, ⟨hu, hpw⟩, hrest⟩ :=
       StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
     rw [ConRon.Arena.inferPisOut]
-    simp only [Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
+    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
     dsimp only at hpw
     split
     next => exact triple_fail
@@ -1109,15 +1112,15 @@ theorem inferTypeCore_forallE_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
   dsimp only at hwrap ⊢
   by_cases hver : mode.verifiedChecks = true
   case neg =>
-    rw [if_neg hver] at hwrap ⊢
+    rw [ite_eq_right hver] at hwrap ⊢
     unfold ConLeche.inferPisWrap at hwrap
     exact hwrap
-  rw [if_pos hver] at hwrap ⊢
+  rw [ite_eq_left hver] at hwrap ⊢
   by_cases hz : (Level.zeronessOf w == mb.pw) = true
   case neg =>
-    rw [if_neg hz] at hwrap
+    rw [ite_eq_right hz] at hwrap
     exact nomatch hwrap
-  rw [if_pos hz] at hwrap ⊢
+  rw [ite_eq_left hz] at hwrap ⊢
   unfold ConLeche.inferPisWrap at hwrap
   exact hwrap
 
@@ -1205,13 +1208,13 @@ theorem internBinderE_spec (isLam : Bool) (s₀ : AState) (ty b : EIdx)
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteE s'.store h = some (mkB isLam tx bx m)⌝⦄ := by
   cases isLam
-  · simp only [Bool.false_eq_true, if_false]
+  · simp only [Bool.false_eq_true, ite_false]
     refine triple_mono (internForallEE_spec s₀ ty b m hwf (by rw [hty]; rfl)
       (by rw [hb]; rfl)) ?_
     rintro h s' ⟨h1, h2, -, -, -, -, h3, h4, -, h5⟩
     refine ⟨h1, h2, h3, h4, ?_⟩
     rw [h5]; simp [denoteEView, denote_ext hty h2, denote_ext hb h2, mkB]
-  · simp only [if_true]
+  · simp only [ite_true]
     refine triple_mono (internLamE_spec s₀ ty b m hwf (by rw [hty]; rfl)
       (by rw [hb]; rfl)) ?_
     rintro h s' ⟨h1, h2, -, -, -, -, h3, h4, -, h5⟩
@@ -1237,7 +1240,7 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.annotateBindersOut]
-      simp only [if_true]
+      simp only [ite_true]
       mvcgen
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
@@ -1245,7 +1248,7 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
     obtain ⟨⟨tyx, mbx⟩, rest, rfl, ⟨hty, hmb⟩, hrest⟩ :=
       StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
     rw [ConRon.Arena.annotateBindersOut]
-    simp only [Nat.add_one_ne_zero, if_false, Nat.add_sub_cancel]
+    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
     dsimp only at hmb
     refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec
       coreWalkFuel s₀ stk[j]!.1 d j 0 hok.state (by rw [hty]; rfl)) ?_
@@ -1284,9 +1287,9 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
       (ConRon.Arena.annotBinderMeta pw? stk[j]!.2) _ _ hs1.wf hta
       (denote_ext hcur hx1)
     cases isLam
-    · simp only [Bool.false_eq_true, if_false] at hint ⊢
+    · simp only [Bool.false_eq_true, ite_false] at hint ⊢
       exact triple_seq hint hk
-    · simp only [if_true] at hint ⊢
+    · simp only [ite_true] at hint ⊢
       exact triple_seq hint hk
 
 /-! ### 4.2 The ∀-annotation loop -/
@@ -1839,7 +1842,7 @@ theorem annotateBinderLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     rintro ab s6 ⟨hs6, hx6, -, hc6, hp6, -, hrel6⟩
     have hok6 := hok5.mono hs6 hx6 hc6 hp6
     have hab : denoteE s6.store ab = some (bpx.abstract1 d) := hrel6 _ hbp5
-    simp only [if_true]
+    simp only [ite_true]
     refine triple_mono (internLamE_spec s6 typ ab ⟨pw⟩ hok6.state.wf
       (by rw [denote_ext htypx4 (hx5.trans hx6)]; rfl) (by rw [hab]; rfl)) ?_
     rintro r s7 ⟨hwf7, hx7, -, -, -, -, hc7, hp7, -, hd7⟩
@@ -1857,23 +1860,23 @@ theorem annotateBinderLam_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     ⟨ConLeche.annotateCore_mono (Nat.le_trans (Nat.le_max_left _ _) hle) hF1,
      ConLeche.annotateCore_mono (Nat.le_trans (Nat.le_max_right _ _) hle) hF2⟩
   by_cases hwr : (!ConRon.Arena.pwWritten mb.pw) = true
-  · rw [if_pos hwr]
-    simp only [if_true]
+  · rw [ite_eq_left hwr]
+    simp only [ite_true]
     refine triple_seq (annotPwLam_spec hsim s4 (d + 1) bp bpx hok4 hbpx hwbpx) ?_
     rintro pw s5 ⟨hok5, hx5, hp5, F3, hF3⟩
     refine hk pw s5 F3 hok5 hx5 hp5 ?_
     obtain ⟨h1, h2⟩ := hA (max (max F1 F2) F3) (Nat.le_max_left _ _)
     have hwr' : (!ConLeche.pwWritten mb.pw) = true := hwr
     rw [ConLeche.annotateCore_lam_eq, h1, ConLeche.okB_bind, h2,
-      ConLeche.okB_bind, if_pos hwr',
+      ConLeche.okB_bind, ite_eq_left hwr',
       ConLeche.annotPwLam_mono (Nat.le_max_right _ _) hF3, ConLeche.okB_bind]
     rfl
-  · rw [if_neg hwr, pure_bind]
+  · rw [ite_eq_right hwr, pure_bind]
     refine hk mb.pw s4 0 hok4 (Ext.refl _) rfl ?_
     obtain ⟨h1, h2⟩ := hA (max (max F1 F2) 0) (Nat.le_max_left _ _)
     have hwr' : ¬ (!ConLeche.pwWritten mb.pw) = true := hwr
     rw [ConLeche.annotateCore_lam_eq, h1, ConLeche.okB_bind, h2,
-      ConLeche.okB_bind, if_neg hwr']
+      ConLeche.okB_bind, ite_eq_right hwr']
     rfl
 
 /-! ## 5. The axiom census -/

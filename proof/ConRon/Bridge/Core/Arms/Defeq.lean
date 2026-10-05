@@ -63,7 +63,7 @@ syntactic fast path**. -/
 theorem defeqBody_syntactic (h : (x == y) = true) :
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok true := by
   rw [ConLeche.defeqBody]
-  simp only [h, if_true, pure, Except.pure]
+  simp only [h, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the eq-true
 shortcut** (the divergence audit's E2). -/
@@ -73,9 +73,9 @@ theorem defeqBody_boolTrue (hab : (x == y) = false)
       else pure false) = (.ok true : CheckM Bool)) :
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok true := by
   rw [ConLeche.defeqBody]
-  simp only [hab, Bool.false_eq_true, if_false]
+  simp only [hab, Bool.false_eq_true, ite_false]
   rw [hsc]
-  simp only [bind, Except.bind, if_true, pure, Except.pure]
+  simp only [bind, Except.bind, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the prefix
 every later exit has run**, at one fuel: no syntactic hit, no eq-true
@@ -113,9 +113,9 @@ theorem defeqBody_pre (h : DbPre mode env F d x y x' y') :
             ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d a₁ b₁
           else (ConLeche.pureFns mode env F).defeq d a₂ b₂) := by
   rw [ConLeche.defeqBody]
-  simp only [h.hab, Bool.false_eq_true, if_false]
+  simp only [h.hab, Bool.false_eq_true, ite_false]
   rw [h.hsc]
-  simp only [bind, Except.bind, Bool.false_eq_true, if_false,
+  simp only [bind, Except.bind, Bool.false_eq_true, ite_false,
     ConLeche.whnfCore_def, h.ha, h.hb]
   rfl
 
@@ -152,7 +152,7 @@ theorem defeqBody_verdict {v : Bool} (h : DbPre mode env F d x y x' y')
     (hm : DbMid mode env F d x' y' (.verdict v)) :
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok v := by
   rw [defeqBody_pre h, hm.hq]
-  simp only [bind, Except.bind, hm.hpi, Bool.false_eq_true, if_false, hm.hl]
+  simp only [bind, Except.bind, hm.hpi, Bool.false_eq_true, ite_false, hm.hl]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
@@ -170,7 +170,7 @@ theorem defeqBody_unknown {a₁ b₁ : Expr} (h : DbPre mode env F d x y x' y')
               ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d a₁ b₁
             else ConLeche.isDefEqCore mode env F d a₂ b₂)) := by
   rw [defeqBody_pre h, hm.hq]
-  simp only [bind, Except.bind, hm.hpi, Bool.false_eq_true, if_false, hm.hl]
+  simp only [bind, Except.bind, hm.hpi, Bool.false_eq_true, ite_false, hm.hl]
   rfl
 
 end PureBody
@@ -371,14 +371,14 @@ theorem defeqProjPair_spec (henv : ConLeche.EnvWF env)
           refine ⟨hok', hx', hp', F, ?_⟩
           unfold ConLeche.defeqProjPair
           dsimp only
-          rw [if_pos hc, ← defeqLoopFuel_eq]
+          rw [ite_eq_left hc, ← defeqLoopFuel_eq]
           simp only [beq_iff_eq, Bool.and_eq_true] at hc
           obtain ⟨rfl, rfl⟩ := hc
           exact hF
         · rename_i hc
           rw [hbeq] at hc
           exact triple_pure_post ⟨hok, Ext.refl _, rfl, 0, by
-            unfold ConLeche.defeqProjPair; dsimp only; rw [if_neg hc]; rfl⟩
+            unfold ConLeche.defeqProjPair; dsimp only; rw [ite_eq_right hc]; rfl⟩
       all_goals
         simp only [Bool.and_eq_true] at hpp
         exact absurd hpp.2 (by simp only [exprTag]; decide)
@@ -443,7 +443,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
   have hp03 : s3.pins = s₀.pins := hp3.trans hp02
   cases sc
   case true =>
-    simp only [if_true]
+    simp only [ite_true]
     obtain ⟨F, hF⟩ := hsc.exists
     exact triple_pure_post ⟨hok3, hx03, hp03, F, defeqBody_boolTrue hab hF⟩
   simp only [Bool.false_eq_true, ↓reduceIte]
@@ -489,7 +489,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
   have hp07 : s7.pins = s₀.pins := hp7.trans hp06
   cases pir
   case true =>
-    simp only [if_true]
+    simp only [ite_true]
     exact triple_pure_post ⟨hok7, hx07, hp07,
       Ev.exists (((hpre.and hq).and hpi).imp fun _ ⟨⟨h1, h2⟩, h3⟩ =>
         defeqBody_propIrrel h1 h2 h3)⟩
@@ -536,7 +536,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
       rw [defeqBody_unknown h1 h2, h3]; rfl
   cases pp
   case true =>
-    simp only [if_true]
+    simp only [ite_true]
     exact triple_pure_post ⟨hok9, hx09, hp09, Ev.exists (hU'.imp fun _ h => by
       dsimp only; rw [h]; rfl)⟩
   simp only [Bool.false_eq_true, ↓reduceIte] at hU' ⊢
@@ -553,7 +553,7 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
   · -- neither side is projection-headed: the stuck comparison
     rename_i hnp
     exact defeqStuck_spec henv hμ hsim d s₀ s9 a₁ b₁ x₁ y₁ hok9 hx09 hp09 hdx₁ hdy₁
-      hwx₁ hwy₁ _ (hU'.imp fun _ h r hr => by rw [h, if_pos hnp]; exact hr)
+      hwx₁ hwy₁ _ (hU'.imp fun _ h r hr => by rw [h, ite_eq_left hnp]; exact hr)
   rename_i hnp
   -- the full `whnfCore` of both sides
   refine triple_seq (hsim.whnfCore (c := false) s9 d a₁ x₁ hok9 hdx₁ hwx₁) ?_
@@ -579,15 +579,15 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
     rename_i hun
     exact defeqStuck_spec henv hμ hsim d s₀ s11 a₁ b₁ x₁ y₁ hok11 hx011 hp011 hdx₁'
       hdy₁' hwx₁ hwy₁ _ (((hU'.and hW1).and hW2).imp fun _ ⟨⟨h, h1⟩, h2⟩ r hr => by
-        rw [h, if_neg hnp]
-        simp only [h1, h2, bind, Except.bind, hun, if_true]
+        rw [h, ite_eq_right hnp]
+        simp only [h1, h2, bind, Except.bind, hun, ite_true]
         exact hr)
   · -- a restart through the knot
     rename_i hun
     exact dq_defeq_exit hsim a₂ b₂ x₂ y₂ hok11 hx011 hp011 hdx₂' hdy₂ hwx₂ hwy₂
       (((hU'.and hW1).and hW2).imp fun _ ⟨⟨h, h1⟩, h2⟩ r hr => by
-        rw [h, if_neg hnp]
-        simp only [h1, h2, bind, Except.bind, hun, Bool.false_eq_true, if_false]
+        rw [h, ite_eq_right hnp]
+        simp only [h1, h2, bind, Except.bind, hun, Bool.false_eq_true, ite_false]
         exact hr)
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean defeqBodyC_sim — **THEOREM 1

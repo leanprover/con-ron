@@ -180,19 +180,19 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
   | anonymous =>
     simp only [denoteNView, Option.some.injEq] at hd
     subst hd
-    rw [if_neg (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
+    rw [ite_eq_right (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, rfl⟩
   | str p t =>
     simp only [denoteNView, Option.map_eq_some_iff] at hd
     obtain ⟨q, _, rfl⟩ := hd
-    rw [if_neg (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
+    rw [ite_eq_right (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, rfl⟩
   | num p k =>
     simp only [denoteNView, Option.map_eq_some_iff] at hd
     obtain ⟨q, hq, rfl⟩ := hd
-    rw [if_pos (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
+    rw [ite_eq_left (by rw [htv]; simp only [NNodeView.tagOf]; decide)] at hrun
     obtain ⟨v', s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨rfl, hv'⟩ := viewN_run h1
     rw [hv] at hv'
@@ -205,13 +205,13 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
     | anonymous =>
       simp only [denoteNView, Option.some.injEq] at hq
       subst hq
-      rw [if_neg (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
+      rw [ite_eq_right (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨rfl, rfl⟩
     | str p' t' =>
       simp only [denoteNView, Option.map_eq_some_iff] at hq
       obtain ⟨q', _, rfl⟩ := hq
-      rw [if_pos (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
+      rw [ite_eq_left (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
       obtain ⟨w', s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨rfl, hw'⟩ := viewN_run h3
       rw [hw] at hw'
@@ -227,7 +227,7 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
     | num p' k' =>
       simp only [denoteNView, Option.map_eq_some_iff] at hq
       obtain ⟨q', _, rfl⟩ := hq
-      rw [if_neg (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
+      rw [ite_eq_right (by rw [htw]; simp only [NNodeView.tagOf]; decide)] at h2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       exact ⟨rfl, rfl⟩
 
@@ -274,8 +274,8 @@ theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c
       = .ok { c with type := ty } := by
   simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h2, h3, h4, h5,
-    h6, h7, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, if_false,
-    if_true, bind, Except.bind, pure, Except.pure]
+    h6, h7, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
+    ite_true, bind, Except.bind, pure, Except.pure]
 
 theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}

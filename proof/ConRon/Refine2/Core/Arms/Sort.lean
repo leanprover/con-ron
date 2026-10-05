@@ -58,18 +58,18 @@ theorem EStore_view_of_tag_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort
   have key : ∀ t : ETables, t.get i = (t.getSort i).map ENodeView.sort := by
     intro t
     rw [ETables.get, ETables.getSort,
-      if_neg (by rw [hi]; simp [ETag.bvar, ETag.sort]),
-      if_neg (by rw [hi]; simp [ETag.fvar, ETag.sort]),
-      if_pos (by rw [hi]; rfl)]
+      ite_eq_right (by rw [hi]; simp [ETag.bvar, ETag.sort]),
+      ite_eq_right (by rw [hi]; simp [ETag.fvar, ETag.sort]),
+      ite_eq_left (by rw [hi]; rfl)]
     cases t.sorts.node? i.idxNat <;> rfl
   rw [EStore.view, EStore.viewSort,
-    if_neg (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
+    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
   by_cases hp : i.isPersistent
-  · rw [if_pos hp, if_pos hp, EStore.persGetSort]; exact key _
-  · rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetSort]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
     by_cases hs : st.scratchOn
-    · rw [if_pos hs, if_pos hs]; exact key _
-    · rw [if_neg hs, if_neg hs]; rfl
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 /-! ## The tag/view agreement
 
@@ -138,11 +138,11 @@ theorem ensureSort_run (r : CoreFnsA) (fe : IFEnv) (d : Nat) (e : EIdx)
                "arena: dangling expression handle"))
         else .error (Arena.CheckError.invalid "expected a sort"))
     by_cases ht : (w.tag == ETag.sort) = true
-    · rw [if_pos ht, if_pos ht, am_run_bind, view_run_eq]
+    · rw [ite_eq_left ht, ite_eq_left ht, am_run_bind, view_run_eq]
       cases hv : lst1.store.view w with
       | none => rfl
       | some v => cases v <;> rfl
-    · rw [if_neg ht, if_neg ht]; rfl
+    · rw [ite_eq_right ht, ite_eq_right ht]; rfl
 
 /-! ## `arena::core::ensure_sort` -/
 
@@ -178,7 +178,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
     have hta := eidx_tag_abs ht
     by_cases hts : t = arena.handle.ETAG_SORT
     · -- the `sort` arm: the tag decides the view, both ways
-      rw [if_pos hts] at hrun
+      rw [ite_eq_left hts] at hrun
       have htag : (absEIdx w).tag = ETag.sort := by
         rw [hta, hts]; exact etag_sort_abs
       have htw2 : (ensureSort (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
@@ -190,7 +190,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
                  "arena: dangling expression handle")) := by
         rw [htw, hb1]
         show (if (absEIdx w).tag == ETag.sort then _ else _) = _
-        rw [if_pos (by rw [htag]; rfl)]
+        rw [ite_eq_left (by rw [htag]; rfl)]
       obtain ⟨q, hq, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hvs : lst1.store.viewSort (absEIdx w) = q.map absLIdx := by
         rw [arena.monad.view_sort] at hq
@@ -223,7 +223,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
         rw [htw2, hvw]
         rfl
     · -- the non-`sort` arm: both decline as `Invalid`, off the tag alone
-      rw [if_neg hts] at hrun
+      rw [ite_eq_right hts] at hrun
       obtain ⟨s, _, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨v, _, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -235,7 +235,7 @@ theorem ensure_sort_refines {f : Nat} (hk : KnotRel f)
       refine AOut₀.err (AErrSim.invalid (s := "expected a sort") ?_)
       rw [htw, hb1]
       show (if (absEIdx w).tag == ETag.sort then _ else _) = _
-      rw [if_neg (fun hx => hts (absU32_inj (by
+      rw [ite_eq_right (fun hx => hts (absU32_inj (by
         rw [← eidx_tag_abs ht, etag_sort_abs]; exact beq_iff_eq.mp hx)))]
 
 /-- **`arena::core::ensure_sort_core`, the Checker tier's seventh front door.**

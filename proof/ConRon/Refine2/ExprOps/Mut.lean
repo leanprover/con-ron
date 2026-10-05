@@ -249,12 +249,12 @@ theorem mkAppNFrom_eq (arr : Array EIdx) :
   induction n with
   | zero =>
     intro i f hn
-    rw [mkAppNFrom, dif_neg (show ¬ (i < arr.size) from by omega),
+    rw [mkAppNFrom, dite_eq_right (show ¬ (i < arr.size) from by omega),
       List.drop_eq_nil_of_le (by simpa using Nat.le_of_sub_eq_zero hn), mkAppN]
   | succ m ih =>
     intro i f hn
     have hlt : i < arr.size := by omega
-    rw [mkAppNFrom, dif_pos hlt]
+    rw [mkAppNFrom, dite_eq_left hlt]
     rw [show arr.toList.drop i = arr[i] :: arr.toList.drop (i + 1) from by
       rw [List.drop_eq_getElem_cons (by simpa using hlt)]
       simp]

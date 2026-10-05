@@ -226,11 +226,11 @@ theorem of_reduce_op_refines {n r : name.Name} (hn : NameWF n)
   rw [Name.beq_refines hn fa hb, ea] at h
   rw [ConLeche.ofReduceOp]
   by_cases hc : absName n = ConLeche.ofReduceNatName
-  · rw [if_pos hc]
-    simp only [hc, decide_true, if_pos] at h
+  · rw [ite_eq_left hc]
+    simp only [hc, decide_true, ite_eq_left] at h
     exact reduce_nat_name_refines h
-  · rw [if_neg hc]
-    simp only [hc, decide_false, Bool.false_eq_true, if_false] at h
+  · rw [ite_eq_right hc]
+    simp only [hc, decide_false, Bool.false_eq_true, ite_false] at h
     exact reduce_bool_name_refines h
 
 /-! ## TEMPORARY — the raw-pin builder's steps
@@ -418,14 +418,14 @@ theorem reduce_elem_ty_refines {c : name.Name} {e : expr.Expr} (hc : NameWF c)
   rw [Name.beq_refines hc fa hb, ea] at h
   rw [ConLeche.reduceElemTy]
   by_cases hq : absName c = ConLeche.reduceNatName
-  · rw [if_pos hq]
-    simp only [hq, decide_true, if_pos] at h
+  · rw [ite_eq_left hq]
+    simp only [hq, decide_true, ite_eq_left] at h
     obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hnabs, hnwf⟩ := BasisNames.nat_name_refines hn
     exact ⟨by rw [Expr.mk_const_refines h, hnabs, absLevels_new],
       ExprWF.mk_const hnwf levelsWF_new h⟩
-  · rw [if_neg hq]
-    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+  · rw [ite_eq_right hq]
+    simp only [hq, decide_false, Bool.false_eq_true, ite_false] at h
     obtain ⟨n, hn, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨hnabs, hnwf⟩ := CoreK.bool_name_refines hn
     exact ⟨by rw [Expr.mk_const_refines h, hnabs, absLevels_new],
@@ -539,12 +539,12 @@ theorem reduce_op_cv_a_refines {c : name.Name} {cv : env.ConstantVal} (hc : Name
   obtain ⟨ea, fa⟩ := reduce_nat_name_refines ha
   rw [Name.beq_refines hc fa hb, ea] at h
   by_cases hq : absName c = ConLeche.reduceNatName
-  · rw [if_pos hq]
-    simp only [hq, decide_true, if_pos] at h
+  · rw [ite_eq_left hq]
+    simp only [hq, decide_true, ite_eq_left] at h
     obtain ⟨habs, hwf⟩ := reduce_op_raw_refines fa h
     exact ⟨by rw [habs, ea], hwf⟩
-  · rw [if_neg hq]
-    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+  · rw [ite_eq_right hq]
+    simp only [hq, decide_false, Bool.false_eq_true, ite_false] at h
     obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨e1, f1⟩ := reduce_bool_name_refines hn1
     obtain ⟨habs, hwf⟩ := reduce_op_raw_refines f1 h
@@ -566,12 +566,12 @@ theorem of_reduce_pin_a_refines {n : name.Name} {cv : env.ConstantVal} (hn : Nam
   obtain ⟨ea, fa⟩ := of_reduce_nat_name_refines ha
   rw [Name.beq_refines hn fa hb, ea] at h
   by_cases hq : absName n = ConLeche.ofReduceNatName
-  · rw [if_pos hq]
-    simp only [hq, decide_true, if_pos] at h
+  · rw [ite_eq_left hq]
+    simp only [hq, decide_true, ite_eq_left] at h
     obtain ⟨habs, hwf⟩ := of_reduce_raw_refines fa h
     exact ⟨by rw [habs, ea], hwf⟩
-  · rw [if_neg hq]
-    simp only [hq, decide_false, Bool.false_eq_true, if_false] at h
+  · rw [ite_eq_right hq]
+    simp only [hq, decide_false, Bool.false_eq_true, ite_false] at h
     obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨e1, f1⟩ := of_reduce_bool_name_refines hn1
     obtain ⟨habs, hwf⟩ := of_reduce_raw_refines f1 h

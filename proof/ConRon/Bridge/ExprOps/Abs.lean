@@ -75,6 +75,9 @@ namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 2000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -207,7 +210,7 @@ theorem AbsRangeAt.bind_step {d k c : Nat} {st s1 s2 s3 : EStore}
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
     with rfl | rfl
-  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, if_true] at hview hr
+  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, ite_true] at hview hr
     exact RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
       ((hb.of_ext hx1).ext hx3) hr
   · rw [eBindView] at hview hr
@@ -439,7 +442,7 @@ theorem Abs1At.bind_step {d kk : Nat} {st s1 s2 s3 : EStore}
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
     with rfl | rfl
-  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, if_true] at hview hr
+  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, ite_true] at hview hr
     exact RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
       ((hb.of_ext hx1).ext hx3) hr
   · rw [eBindView] at hview hr

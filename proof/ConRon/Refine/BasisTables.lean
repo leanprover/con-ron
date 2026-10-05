@@ -52,7 +52,7 @@ term and the claim is about *its* value.
 Two settings make the `step` tactic work at all in this project, and they are
 the reason it had not been used before: the patched Aeneas package sets
 `backward.isDefEq.respectTransparency := false` and `backward.do.legacy :=
-true` for its *own* modules (`_tmp/aeneas-lean/lakefile.lean`, task #2's
+true` for its *own* modules (`_tmp/aeneas-lean-<tag>/lakefile.lean`, task #2's
 patch), and without them `⦃ ⦄` goals do not unify with the `@[step]` lemmas —
 `step` reports "could not find a local assumption or a theorem to apply" even
 on Aeneas's own test suite.  Setting them per file here keeps the change local;
@@ -167,7 +167,7 @@ theorem str_hash_from_aux (s : alloc.vec.Vec Std.U32) :
   | zero =>
     intro i acc hle
     rw [name.str_hash_from.eq_def]; simp only []
-    rw [if_pos (show alloc.vec.Vec.len s ≤ i by scalar_tac)]
+    rw [ite_eq_left (show alloc.vec.Vec.len s ≤ i by scalar_tac)]
     step*
   | succ n ih =>
     intro i acc hle
@@ -191,7 +191,7 @@ theorem levels_hash_from_aux (us : alloc.vec.Vec level.Level) :
   | zero =>
     intro i hle
     rw [level.levels_hash_from.eq_def]; simp only []
-    rw [if_pos (show alloc.vec.Vec.len us ≤ i by scalar_tac)]
+    rw [ite_eq_left (show alloc.vec.Vec.len us ≤ i by scalar_tac)]
     step*
   | succ n ih =>
     intro i hle
@@ -251,7 +251,7 @@ theorem levels_have_param_from_aux (us : alloc.vec.Vec level.Level) :
   | zero =>
     intro i hle
     rw [level.levels_have_param_from.eq_def]; simp only []
-    rw [if_pos (show alloc.vec.Vec.len us ≤ i by scalar_tac)]
+    rw [ite_eq_left (show alloc.vec.Vec.len us ≤ i by scalar_tac)]
     step*
   | succ n ih =>
     intro i hle
@@ -276,7 +276,7 @@ theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
   | zero =>
     intro i acc hle
     rw [prop_when.names_hash_from.eq_def]; simp only []
-    rw [if_pos (show alloc.vec.Vec.len ps ≤ i by scalar_tac)]
+    rw [ite_eq_left (show alloc.vec.Vec.len ps ≤ i by scalar_tac)]
     step*
   | succ n ih =>
     intro i acc hle
@@ -378,15 +378,15 @@ need `canon`/`merge`/`name_cmp` totality, which nothing here asks for.) -/
 theorem if_all_zero_nil_spec (ps : alloc.vec.Vec name.Name)
     (h : ps.val = []) : prop_when.if_all_zero ps ⦃ w => w = ⟨.Always⟩ ⦄ := by
   unfold prop_when.if_all_zero
-  rw [if_pos (show alloc.vec.Vec.len ps = 0#usize by scalar_tac)]
+  rw [ite_eq_left (show alloc.vec.Vec.len ps = 0#usize by scalar_tac)]
   step*
 
 theorem if_all_zero_one_spec (ps : alloc.vec.Vec name.Name)
     (n : name.Name) (h : ps.val = [n]) :
     prop_when.if_all_zero ps ⦃ w => w = ⟨.One n⟩ ⦄ := by
   unfold prop_when.if_all_zero
-  rw [if_neg (show ¬ alloc.vec.Vec.len ps = 0#usize by scalar_tac),
-      if_pos (show alloc.vec.Vec.len ps = 1#usize by scalar_tac)]
+  rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 0#usize by scalar_tac),
+      ite_eq_left (show alloc.vec.Vec.len ps = 1#usize by scalar_tac)]
   step*
 
 /-- The two shapes as `step` sees them in a generated table: the empty vector

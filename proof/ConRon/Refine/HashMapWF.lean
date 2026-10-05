@@ -306,10 +306,10 @@ theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
   have NDa1 : ((alv a1).map Prod.fst).Nodup ∧
       ∀ x ∈ (alv a1).map Prod.fst, ∀ y ∈ R.map Prod.fst, x ≠ y := by
     by_cases hos : old.isSome = true
-    · rw [L2, if_pos hos]; exact ⟨NDa, NDd⟩
+    · rw [L2, ite_eq_left hos]; exact ⟨NDa, NDd⟩
     · have hnone : old = none := by cases old <;> simp_all
       have hkA : k ∉ A.map Prod.fst := lookupK_eq_none_iff.1 (by rw [← L1, hnone])
-      rw [L2, if_neg hos]
+      rw [L2, ite_eq_right hos]
       refine ⟨?_, ?_⟩
       · rw [List.nodup_append]
         refine ⟨NDa, by simp, ?_⟩
@@ -346,10 +346,10 @@ theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     · have hfst : p.1 ∈ (alv a1).map Prod.fst := List.mem_map.2 ⟨p, hp, rfl⟩
       rw [L2] at hfst
       by_cases hos : old.isSome = true
-      · rw [if_pos hos] at hfst
+      · rw [ite_eq_left hos] at hfst
         obtain ⟨q, hq, hqf⟩ := List.mem_map.1 hfst
         exact hqf ▸ hbA q hq
-      · rw [if_neg hos] at hfst
+      · rw [ite_eq_right hos] at hfst
         rcases List.mem_append.1 hfst with hf | hf
         · obtain ⟨q, hq, hqf⟩ := List.mem_map.1 hf
           exact hqf ▸ hbA q hq
@@ -365,9 +365,9 @@ theorem insert_no_resize_spec_wf {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
     · subst hj
       rw [hs, getElem!_set_self _ hlt, L2] at hk0
       by_cases hos : old.isSome = true
-      · rw [if_pos hos] at hk0
+      · rw [ite_eq_left hos] at hk0
         exact hinv.slot_inv i2.val i k0 hk0 hbk0
-      · rw [if_neg hos] at hk0
+      · rw [ite_eq_right hos] at hk0
         rcases List.mem_append.1 hk0 with hk0 | hk0
         · exact hinv.slot_inv i2.val i k0 hk0 hbk0
         · simp only [List.mem_singleton] at hk0
@@ -731,7 +731,7 @@ theorem Rel_insert_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
   by_cases hkk : k' = k
   · subst hkk; simp
   · have hne : ¬(absK k = absK k') := fun hc => hkk (hinj k k' hk hk' hc).symm
-    rw [if_neg hkk, if_neg (by simpa using hne)]
+    rw [ite_eq_right hkk, ite_eq_right (by simpa using hne)]
     exact hrel k' hk'
 
 end Bridge

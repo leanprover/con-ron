@@ -298,7 +298,7 @@ theorem record_level_binop_refines {t : Slice Std.U8} {i : Std.Usize}
     subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordLevelBinop, e1, e2, e3, e4, e5, Bool.false_eq_true,
-      if_false]
+      ite_false]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
       List.map_nil, Level.imax_refines hnd]
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
@@ -306,7 +306,7 @@ theorem record_level_binop_refines {t : Slice Std.U8} {i : Std.Usize}
     simp only [Result.ok.injEq] at h
     subst h
     refine ⟨?_, by omega, by omega⟩
-    simp only [PinsDec.recordLevelBinop, e1, e2, e3, e4, e5, if_true]
+    simp only [PinsDec.recordLevelBinop, e1, e2, e3, e4, e5, ite_true]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
       List.map_nil, Level.max_refines hnd]
 
@@ -507,34 +507,34 @@ private theorem str_compare_from_eq {a b : alloc.vec.Vec Std.U32} :
   | zero =>
     intro i hk h
     rw [prop_when.str_compare_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
     rw [List.drop_eq_nil_of_le (show a.val.length ≤ i.val by scalar_tac)]
     by_cases hbl : i.val ≥ b.val.length
     · rw [List.drop_eq_nil_of_le (show b.val.length ≤ i.val by scalar_tac)]
     · exfalso
-      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
-      rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
+      rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
       simp at h
   | succ k ih =>
     intro i hk h
     rw [prop_when.str_compare_from.eq_def] at h; simp only [] at h
     by_cases hal : i.val ≥ a.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
       rw [List.drop_eq_nil_of_le (show a.val.length ≤ i.val by scalar_tac)]
       by_cases hbl : i.val ≥ b.val.length
       · rw [List.drop_eq_nil_of_le (show b.val.length ≤ i.val by scalar_tac)]
       · exfalso
-        rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
-        rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+        rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
+        rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
         simp at h
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-      rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
       have hai : i.val < a.val.length := by scalar_tac
       by_cases hbl : i.val ≥ b.val.length
       · exfalso
-        rw [if_pos (show i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
+        rw [ite_eq_left (show i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
         simp at h
-      · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
+      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
         have hbi : i.val < b.val.length := by scalar_tac
         obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec a i hai)
         obtain ⟨z, hz, hzv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec b i hbi)
@@ -627,7 +627,7 @@ private theorem merge_from_mem {as_ bs : alloc.vec.Vec name.Name} :
   | zero =>
     intro i j out v hk h x
     rw [prop_when.merge_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
     have hv := PropWhen.append_from_val bs bs.length j out v (by scalar_tac) h
     rw [List.drop_eq_nil_of_le (show as_.val.length ≤ i.val by scalar_tac)]
     simp [absNames, hv]
@@ -635,18 +635,18 @@ private theorem merge_from_mem {as_ bs : alloc.vec.Vec name.Name} :
     intro i j out v hk h x
     rw [prop_when.merge_from.eq_def] at h; simp only [] at h
     by_cases hal : i.val ≥ as_.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
       have hv := PropWhen.append_from_val bs bs.length j out v (by scalar_tac) h
       rw [List.drop_eq_nil_of_le (show as_.val.length ≤ i.val by scalar_tac)]
       simp [absNames, hv]
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
       have hai : i.val < as_.val.length := by scalar_tac
       by_cases hbl : j.val ≥ bs.val.length
-      · rw [if_pos (show j ≥ alloc.vec.Vec.len bs by scalar_tac)] at h
+      · rw [ite_eq_left (show j ≥ alloc.vec.Vec.len bs by scalar_tac)] at h
         have hv := PropWhen.append_from_val as_ as_.length i out v (by scalar_tac) h
         rw [List.drop_eq_nil_of_le (show bs.val.length ≤ j.val by scalar_tac)]
         simp [absNames, hv]
-      · rw [if_neg (show ¬ j ≥ alloc.vec.Vec.len bs by scalar_tac)] at h
+      · rw [ite_eq_right (show ¬ j ≥ alloc.vec.Vec.len bs by scalar_tac)] at h
         have hbj : j.val < bs.val.length := by scalar_tac
         have hmaxi : i.val + 1 ≤ Std.Usize.max := by
           have := as_.slice.property; scalar_tac
@@ -716,7 +716,7 @@ private theorem canon_from_mem {ps : alloc.vec.Vec name.Name} :
   | zero =>
     intro i v hk h x
     rw [prop_when.canon_from.eq_def] at h; simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
     simp only [Result.ok.injEq] at h; subst h
     rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac)]
     simp [absNames, alloc.vec.Vec.new]
@@ -724,11 +724,11 @@ private theorem canon_from_mem {ps : alloc.vec.Vec name.Name} :
     intro i v hk h x
     rw [prop_when.canon_from.eq_def] at h; simp only [] at h
     by_cases hle : i.val ≥ ps.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
       simp only [Result.ok.injEq] at h; subst h
       rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac)]
       simp [absNames, alloc.vec.Vec.new]
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
       have hi : i.val < ps.val.length := by scalar_tac
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
@@ -764,14 +764,14 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
     absPropWhen pw = .ifAllZero (absNames ps) := by
   rw [prop_when.if_all_zero.eq_def] at h; simp only [] at h
   by_cases h0 : ps.val.length = 0
-  · rw [if_pos (show alloc.vec.Vec.len ps = 0#usize by scalar_tac),
+  · rw [ite_eq_left (show alloc.vec.Vec.len ps = 0#usize by scalar_tac),
       PropWhen.of_repr_eq, Result.ok.injEq] at h
     subst h
     have hnil : ps.val = [] := List.eq_nil_iff_length_eq_zero.mpr h0
     simp [absPropWhen, absPropWhenRepr, absNames, hnil]
-  · rw [if_neg (show ¬ alloc.vec.Vec.len ps = 0#usize by scalar_tac)] at h
+  · rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 0#usize by scalar_tac)] at h
     by_cases h1 : ps.val.length = 1
-    · rw [if_pos (show alloc.vec.Vec.len ps = 1#usize by scalar_tac)] at h
+    · rw [ite_eq_left (show alloc.vec.Vec.len ps = 1#usize by scalar_tac)] at h
       obtain ⟨x, hx⟩ := PropWhen.list_len_one h1
       obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists
         (alloc.vec.Vec.index_usize_spec ps 0#usize (by scalar_tac))
@@ -781,9 +781,9 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
       have hyx : y = x := by rw [hyv]; simp [hx]
       subst hyx
       simp [absPropWhen, absPropWhenRepr, absNames, hx]
-    · rw [if_neg (show ¬ alloc.vec.Vec.len ps = 1#usize by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 1#usize by scalar_tac)] at h
       by_cases h2 : ps.val.length = 2
-      · rw [if_pos (show alloc.vec.Vec.len ps = 2#usize by scalar_tac)] at h
+      · rw [ite_eq_left (show alloc.vec.Vec.len ps = 2#usize by scalar_tac)] at h
         obtain ⟨x, x', hx⟩ := PropWhen.list_len_two h2
         obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists
           (alloc.vec.Vec.index_usize_spec ps 0#usize (by scalar_tac))
@@ -819,7 +819,7 @@ private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
           simp only [absPropWhen, absPropWhenRepr, List.map_cons, List.map_nil]
           refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
           intro n; simp; tauto
-      · rw [if_neg (show ¬ alloc.vec.Vec.len ps = 2#usize by scalar_tac)] at h
+      · rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 2#usize by scalar_tac)] at h
         simp only [bind_eq_ok_iff] at h
         obtain ⟨v, hv, h⟩ := h
         rw [PropWhen.of_sorted_abs h]
@@ -1144,7 +1144,7 @@ theorem record_expr_binder_refines {t : Slice Std.U8} {i : Std.Usize}
     subst h
     refine ⟨?_, by omega, by omega⟩
     simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7,
-      Bool.false_eq_true, if_false]
+      Bool.false_eq_true, ite_false]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
       List.map_nil, Expr.forall_e_refines hnd, absBinderMeta]
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
@@ -1152,7 +1152,7 @@ theorem record_expr_binder_refines {t : Slice Std.U8} {i : Std.Usize}
     simp only [Result.ok.injEq] at h
     subst h
     refine ⟨?_, by omega, by omega⟩
-    simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7, if_true]
+    simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7, ite_true]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
       List.map_nil, Expr.lam_refines hnd, absBinderMeta]
 

@@ -194,38 +194,38 @@ private theorem unescapeFrom_valid :
     rw [PinsDec.unescapeFrom] at h
     dsimp only at h
     by_cases h1 : (decide (b = 32) || decide (b = 10)) = true
-    · rw [if_pos h1] at h
+    · rw [ite_eq_left h1] at h
       by_cases h2 : inEsc = true
-      · rw [if_pos h2] at h; simp at h
-      · rw [if_neg h2] at h
+      · rw [ite_eq_left h2] at h; simp at h
+      · rw [ite_eq_right h2] at h
         rw [Option.some.injEq, Prod.mk.injEq] at h
         rw [← h.1]; exact hout
-    · rw [if_neg h1] at h
+    · rw [ite_eq_right h1] at h
       by_cases h2 : inEsc = true
-      · rw [if_pos h2] at h
+      · rw [ite_eq_left h2] at h
         by_cases h3 : b = 59
-        · rw [if_pos h3] at h
+        · rw [ite_eq_left h3] at h
           by_cases h4 : PinsDec.isValidChar v = true
-          · rw [if_pos h4] at h
+          · rw [ite_eq_left h4] at h
             refine ih 0 false (out ++ [v]) cps r ?_ h
             intro c hc
             rcases List.mem_append.mp hc with hc | hc
             · exact hout c hc
             · rw [List.mem_singleton.mp hc]; exact isValidChar_of h4
-          · rw [if_neg h4] at h; simp at h
-        · rw [if_neg h3] at h
+          · rw [ite_eq_right h4] at h; simp at h
+        · rw [ite_eq_right h3] at h
           by_cases h5 : (decide (PinsDec.hexDigit b = 16) || decide (1114111 < v)) = true
-          · rw [if_pos h5] at h; simp at h
-          · rw [if_neg h5] at h
+          · rw [ite_eq_left h5] at h; simp at h
+          · rw [ite_eq_right h5] at h
             exact ih (v * 16 + PinsDec.hexDigit b) true out cps r hout h
-      · rw [if_neg h2] at h
+      · rw [ite_eq_right h2] at h
         by_cases h3 : b = 92
-        · rw [if_pos h3] at h
+        · rw [ite_eq_left h3] at h
           exact ih 0 true out cps r hout h
-        · rw [if_neg h3] at h
+        · rw [ite_eq_right h3] at h
           by_cases h4 : (decide (b < 33) || decide (126 < b)) = true
-          · rw [if_pos h4] at h; simp at h
-          · rw [if_neg h4] at h
+          · rw [ite_eq_left h4] at h; simp at h
+          · rw [ite_eq_right h4] at h
             refine ih 0 false (out ++ [b]) cps r ?_ h
             intro c hc
             rcases List.mem_append.mp hc with hc | hc
@@ -496,7 +496,7 @@ private theorem name_list_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
   | zero =>
     intro i k out hk hout res j h
     rw [pins_decode.name_list_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact hout
@@ -552,7 +552,7 @@ private theorem level_list_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
   | zero =>
     intro i k out hk hout res j h
     rw [pins_decode.level_list_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact hout
@@ -608,7 +608,7 @@ private theorem expr_list_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
   | zero =>
     intro i k out hk hout res j h
     rw [pins_decode.expr_list_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact hout
@@ -1465,7 +1465,7 @@ private theorem pins_eight_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
   | zero =>
     intro i k out hk hout res j h
     rw [pins_decode.pins_eight_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact hout
@@ -1516,7 +1516,7 @@ private theorem proofs_eight_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables
   | zero =>
     intro i k out hk hout res j h
     rw [pins_decode.proofs_eight_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
     exact hout

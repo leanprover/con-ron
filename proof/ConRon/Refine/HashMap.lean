@@ -102,7 +102,7 @@ theorem uscalar_div_eq {x y z : UScalar ty} (h : x / y = ok z) : z.val = x.val /
       have h0 : y.bv.toNat = 0 := hy
       apply BitVec.toNat_injective
       simpa using h0
-    rw [show x / y = UScalar.div x y from rfl, UScalar.div, if_neg (by simp [hb])] at h
+    rw [show x / y = UScalar.div x y from rfl, UScalar.div, ite_eq_right (by simp [hb])] at h
     simp at h
   · obtain ⟨w, hw, hval, -⟩ := UScalar.div_bv_spec x hy
     rw [h] at hw

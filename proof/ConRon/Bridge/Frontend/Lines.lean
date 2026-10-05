@@ -234,8 +234,8 @@ theorem freshName_run {s s' : AState} {sd : StateD} {i : Nat} {u : Unit}
     s' = s ∧ sd.names.bound i = false := by
   rw [ConRon.Arena.Frontend.StateD.freshName] at hrun
   by_cases hb : sd.names.bound i = true
-  · rw [if_pos hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
-  · rw [if_neg hb] at hrun
+  · rw [ite_eq_left hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
+  · rw [ite_eq_right hb] at hrun
     exact ⟨(AM.pure_ok hrun).2, by simpa using hb⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:221-222 StateD.freshLevel. -/
@@ -244,8 +244,8 @@ theorem freshLevel_run {s s' : AState} {sd : StateD} {i : Nat} {u : Unit}
     s' = s ∧ sd.levels.bound i = false := by
   rw [ConRon.Arena.Frontend.StateD.freshLevel] at hrun
   by_cases hb : sd.levels.bound i = true
-  · rw [if_pos hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
-  · rw [if_neg hb] at hrun
+  · rw [ite_eq_left hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
+  · rw [ite_eq_right hb] at hrun
     exact ⟨(AM.pure_ok hrun).2, by simpa using hb⟩
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:223-224 StateD.freshExpr. -/
@@ -254,8 +254,8 @@ theorem freshExpr_run {s s' : AState} {sd : StateD} {i : Nat} {u : Unit}
     s' = s ∧ sd.exprs.bound i = false := by
   rw [ConRon.Arena.Frontend.StateD.freshExpr] at hrun
   by_cases hb : sd.exprs.bound i = true
-  · rw [if_pos hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
-  · rw [if_neg hb] at hrun
+  · rw [ite_eq_left hb] at hrun; exact absurd (AM.fail_ok hrun) (by simp)
+  · rw [ite_eq_right hb] at hrun
     exact ⟨(AM.pure_ok hrun).2, by simpa using hb⟩
 
 /-! ## The three table writes
@@ -431,7 +431,7 @@ theorem parseNameEntryD_run {s s' : AState} (hok : StateOK s)
       { sc with names := sc.names.insert i (ConLeche.Name.str n str) }, ?_, ?_⟩
     · rw [ConLeche.Frontend.parseNameEntryD]
       simp only [hcln, ConLeche.Frontend.StateD.freshName,
-        ← hrel.names.bound i, hbound, Bool.false_eq_true, if_false]
+        ← hrel.names.bound i, hbound, Bool.false_eq_true, ite_false]
       rfl
     · exact { StateDRel.ext histep.ext hrel with
         names := (StateDRel.ext histep.ext hrel).names.insert hdh' }
@@ -456,7 +456,7 @@ theorem parseNameEntryD_run {s s' : AState} (hok : StateOK s)
       { sc with names := sc.names.insert i (ConLeche.Name.num n k) }, ?_, ?_⟩
     · rw [ConLeche.Frontend.parseNameEntryD]
       simp only [hcln, ConLeche.Frontend.StateD.freshName,
-        ← hrel.names.bound i, hbound, Bool.false_eq_true, if_false]
+        ← hrel.names.bound i, hbound, Bool.false_eq_true, ite_false]
       rfl
     · exact { StateDRel.ext histep.ext hrel with
         names := (StateDRel.ext histep.ext hrel).names.insert hdh' }
@@ -501,7 +501,7 @@ theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
         levels := (StateDRel.ext histep.ext hrel).levels.insert hdl }⟩
   have hguard : ConLeche.Frontend.StateD.freshLevel sc i = .ok () := by
     simp only [ConLeche.Frontend.StateD.freshLevel, ← hrel.levels.bound i,
-      hbound, Bool.false_eq_true, if_false]
+      hbound, Bool.false_eq_true, ite_false]
     rfl
   cases r with
   | succ u =>
@@ -616,7 +616,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
   rw [hs0] at hrest
   have hguard : ConLeche.Frontend.StateD.freshExpr sc i = .ok () := by
     simp only [ConLeche.Frontend.StateD.freshExpr, ← hrel.exprs.bound i,
-      hbound, Bool.false_eq_true, if_false]
+      hbound, Bool.false_eq_true, ite_false]
     rfl
   -- the ten arms differ only in the node they intern and its children
   have hcl : ∀ (e : EIdx) (s₃ : AState) (eP : Expr), IStep s s₃ → PersE e →
@@ -1601,7 +1601,7 @@ theorem ctorIx_fold_rel {st : NStore} (hw : NStoreWF st) :
       simp
     · have hyn : y ≠ n := by
         intro hc; subst hc; exact hxh (denoteN_inj hw hxy hn)
-      rw [if_neg (by simpa using hxh), if_neg (by simpa using hyn)]
+      rw [ite_eq_right (by simpa using hxh), ite_eq_right (by simpa using hyn)]
       exact hm h n hn
 
 
@@ -1618,10 +1618,10 @@ macro "vind_ctor_num" : tactic => `(tactic| (
   obtain ⟨hs3, rfl⟩ := indPiTeleLen_run hok fuel hdcty htele
   rw [hs3] at hsti
   split at hsti
-  · rename_i hnf; rw [if_pos hnf]
+  · rename_i hnf; rw [ite_eq_left hnf]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
     exact ⟨rfl, _, rfl, ⟨rfl, VInv.nil, (by show _ + 1 = _ + 1; rw [hj]), (by show Array.push _ c = Array.push _ c; rw [hord2])⟩⟩
-  · rename_i hnf; rw [if_neg hnf]
+  · rename_i hnf; rw [ite_eq_right hnf]
     obtain ⟨x, hsti⟩ := readName_bind hsti
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
     exact ⟨rfl, _, rfl, ⟨rfl, VInv.inv, hj, hord2⟩⟩))
@@ -1649,9 +1649,9 @@ macro "vind_ctor_ind" : tactic => `(tactic| (
           intro hc; rw [hc] at hdiw; exact he (denoteN_inj hnw hdiw hdT)
         rw [beq_eq_false_iff_ne.mpr he, beq_eq_false_iff_ne.mpr hne]
     split at hsti
-    · rename_i hiT; rw [hbeq] at hiT; rw [if_pos hiT]
+    · rename_i hiT; rw [hbeq] at hiT; rw [ite_eq_left hiT]
       vind_ctor_num
-    · rename_i hiT; rw [hbeq] at hiT; rw [if_neg hiT]
+    · rename_i hiT; rw [hbeq] at hiT; rw [ite_eq_right hiT]
       obtain ⟨x, hsti⟩ := readName_bind hsti
       obtain ⟨x, hsti⟩ := readName_bind hsti
       obtain ⟨x, hsti⟩ := readName_bind hsti
@@ -1681,25 +1681,25 @@ macro "vind_rec_head" : tactic => `(tactic| (
   rw [hrnC, except_ok_bind]
   split at hstep
   rotate_left
-  · rename_i hc; rw [if_neg hc]
+  · rename_i hc; rw [ite_eq_right hc]
     obtain ⟨x, hstep⟩ := readName_bind hstep
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
     exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-  rename_i hc1; rw [if_pos hc1]
+  rename_i hc1; rw [ite_eq_left hc1]
   split at hstep
   rotate_left
-  · rename_i hc; rw [if_neg hc]
+  · rename_i hc; rw [ite_eq_right hc]
     obtain ⟨x, hstep⟩ := readName_bind hstep
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
     exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-  rename_i hc2; rw [if_pos hc2]
+  rename_i hc2; rw [ite_eq_left hc2]
   split at hstep
   rotate_left
-  · rename_i hc; rw [if_neg hc]
+  · rename_i hc; rw [ite_eq_right hc]
     obtain ⟨x, hstep⟩ := readName_bind hstep
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
     exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-  rename_i hc3; rw [if_pos hc3]
+  rename_i hc3; rw [ite_eq_left hc3]
 ))
 
 set_option hygiene false in
@@ -1767,10 +1767,10 @@ macro "vind_rec_tail" : tactic => `(tactic| (
           rw [beq_eq_false_iff_ne.mpr he, beq_eq_false_iff_ne.mpr hne]
       by_cases ht : (tt.1 == p) = true
       rotate_left
-      · rw [if_neg ht] at hst3; rw [hbeq] at ht; rw [if_neg ht]
+      · rw [ite_eq_right ht] at hst3; rw [hbeq] at ht; rw [ite_eq_right ht]
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
         exact ⟨rfl, _, rfl, rfl, VInv.nil⟩
-      rw [if_pos ht] at hst3; rw [hbeq] at ht; rw [if_pos ht]
+      rw [ite_eq_left ht] at hst3; rw [hbeq] at ht; rw [ite_eq_left ht]
       obtain ⟨o, s₄, ho, hst3⟩ := AM.bind_ok hst3
       obtain ⟨hs4, rfl⟩ := piSortTeleLen?_run hok fuel hde3 ho
       rw [hs4] at hst3
@@ -1783,10 +1783,10 @@ macro "vind_rec_tail" : tactic => `(tactic| (
         rw [hpo] at hst3
         dsimp only at hst3 ⊢
         by_cases hn : ((List.map (fun x => x.numParams) tys).head?.getD 0 + r0.numIndices == n) = true
-        · rw [if_pos hn] at hst3; rw [if_pos hn]
+        · rw [ite_eq_left hn] at hst3; rw [ite_eq_left hn]
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
           exact ⟨rfl, _, rfl, rfl, VInv.nil⟩
-        · rw [if_neg hn] at hst3; rw [if_neg hn]
+        · rw [ite_eq_right hn] at hst3; rw [ite_eq_right hn]
           obtain ⟨x, hst3⟩ := readName_bind hst3
           obtain ⟨y, hst3⟩ := readName_bind hst3
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hst3
@@ -1846,19 +1846,19 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
   rw [ConLeche.Frontend.validateIndD]
   simp only [pure_bind] at hrun ⊢
   by_cases hu : (tys.any fun x => x.isUnsafe) = true
-  · rw [if_pos hu] at hrun; rw [if_pos hu]
+  · rw [ite_eq_left hu] at hrun; rw [ite_eq_left hu]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, _, rfl, trivial⟩
-  rw [if_neg hu] at hrun
-  rw [if_neg hu]
+  rw [ite_eq_right hu] at hrun
+  rw [ite_eq_right hu]
   by_cases hall : ((List.map (fun x => x.numParams) tys).all
       fun x => x == (List.map (fun x => x.numParams) tys).head?.getD 0) = true
   rotate_left
-  · rw [if_neg hall] at hrun; rw [if_neg hall]
+  · rw [ite_eq_right hall] at hrun; rw [ite_eq_right hall]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, _, rfl, trivial⟩
-  rw [if_pos hall] at hrun
-  rw [if_pos hall]
+  rw [ite_eq_left hall] at hrun
+  rw [ite_eq_left hall]
   have hnw : NStoreWF s.store.ns := nsWF_of_StateOK hok
   obtain ⟨rk, hwr⟩ := nsWF_of_StateOK hok
   obtain ⟨tyNames, s₁, h1, hrun⟩ := AM.bind_ok hrun
@@ -1896,18 +1896,18 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
   have hlen := ListRel.length_eq hflat
   by_cases hnodup : listed.flatten.Nodup
   rotate_left
-  · rw [if_neg hnodup] at hrun; rw [if_neg (fun h => hnodup (hnd.mpr h))]
+  · rw [ite_eq_right hnodup] at hrun; rw [ite_eq_right (fun h => hnodup (hnd.mpr h))]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, _, rfl, trivial⟩
-  rw [if_pos hnodup] at hrun
-  rw [if_pos (hnd.mp hnodup)]
+  rw [ite_eq_left hnodup] at hrun
+  rw [ite_eq_left (hnd.mp hnodup)]
   by_cases hlg : (listed.flatten.length == cts.length) = true
   rotate_left
-  · rw [if_neg hlg] at hrun; rw [if_neg (by rw [← hlen]; exact hlg)]
+  · rw [ite_eq_right hlg] at hrun; rw [ite_eq_right (by rw [← hlen]; exact hlg)]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨rfl, _, rfl, trivial⟩
-  rw [if_pos hlg] at hrun
-  rw [if_pos (by rw [← hlen]; exact hlg)]
+  rw [ite_eq_left hlg] at hrun
+  rw [ite_eq_left (by rw [← hlen]; exact hlg)]
   obtain ⟨fuel, s₁, h1, hrun⟩ := AM.bind_ok hrun
   have hs1 := storeFuel_run h1
   subst s₁
@@ -1964,9 +1964,9 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
           | some ci0 =>
             simp only [hcid] at hsti ⊢
             split at hsti
-            · rename_i hcj; rw [hj] at hcj; rw [if_pos hcj]
+            · rename_i hcj; rw [hj] at hcj; rw [ite_eq_left hcj]
               vind_ctor_ind
-            · rename_i hcj; rw [hj] at hcj; rw [if_neg hcj]
+            · rename_i hcj; rw [hj] at hcj; rw [ite_eq_right hcj]
               obtain ⟨x, hsti⟩ := readName_bind hsti
               obtain ⟨x, hsti⟩ := readName_bind hsti
               obtain ⟨rfl, rfl⟩ := AM.pure_ok hsti
@@ -2043,11 +2043,11 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
           vind_rec_head
           split at hstep
           rotate_left
-          · rename_i hk; rw [if_neg hk]
+          · rename_i hk; rw [ite_eq_right hk]
             obtain ⟨x, hstep⟩ := readName_bind hstep
             obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
             exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-          rename_i hk; rw [if_pos hk]
+          rename_i hk; rw [ite_eq_left hk]
           vind_rec_tail
         · rintro c2 ⟨hs2, hn2, hl2⟩
           vind_rec_fin
@@ -2088,11 +2088,11 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
           · obtain rfl : false = kE := Option.some.inj heq
             by_cases hk : (r0.k == false) = true
             rotate_left
-            · rw [if_neg hk] at hstep; rw [if_neg hk]
+            · rw [ite_eq_right hk] at hstep; rw [ite_eq_right hk]
               obtain ⟨x, hstep⟩ := readName_bind hstep
               obtain ⟨rfl, rfl⟩ := AM.pure_ok hstep
               exact ⟨rfl, _, rfl, rfl, VInv.inv⟩
-            rw [if_pos hk] at hstep; rw [if_pos hk]
+            rw [ite_eq_left hk] at hstep; rw [ite_eq_left hk]
             vind_rec_tail
         · rename_i kE0 hne
           exfalso
@@ -2386,11 +2386,11 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
     rw [hc, except_ok_bind]
     cases isUnsafe with
     | true =>
-      simp only [if_true] at hrun ⊢
+      simp only [ite_true] at hrun ⊢
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, trivial⟩
     | false =>
-      simp only [Bool.false_eq_true, if_false, pure_bind] at hrun ⊢
+      simp only [Bool.false_eq_true, ite_false, pure_bind] at hrun ⊢
       obtain ⟨sd', s₂, h2, hrun⟩ := AM.bind_ok hrun
       obtain ⟨hstep, hp', hrel'⟩ := pushDecl_built_run hok hoff hrel hp
         DeclProjNamed.of_axiomDecl (by simp only [denoteDecl, hdc]; rfl) h2
@@ -2447,11 +2447,11 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
     rw [hc, except_ok_bind]
     cases isUnsafe with
     | true =>
-      simp only [if_true] at hrun ⊢
+      simp only [ite_true] at hrun ⊢
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, trivial⟩
     | false =>
-      simp only [Bool.false_eq_true, if_false, pure_bind] at hrun ⊢
+      simp only [Bool.false_eq_true, ite_false, pure_bind] at hrun ⊢
       obtain ⟨vl, s₂, h2, hrun⟩ := AM.bind_ok hrun
       obtain ⟨hs2, e, he, hde⟩ := getDeclD_run hrel h2
       rw [hs2] at hrun

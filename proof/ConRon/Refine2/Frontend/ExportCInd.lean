@@ -97,21 +97,21 @@ theorem any_ty_unsafe_refines {tys v}
     (loop := fun i => frontend.export_c.any_ty_unsafe_loop tys (alloc.vec.Vec.len tys) i)
     (fun i v hn h => by
       rw [frontend.export_c.any_ty_unsafe_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun i v hi h => by
       have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
       rw [frontend.export_c.any_ty_unsafe_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hx' := vec_index_eq hi' hx
       have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
         simp [absIndTypeRecs, ← hx']
       rw [hxs]
       by_cases hu : x.is_unsafe = true
-      · rw [if_pos hu] at h
+      · rw [ite_eq_left hu] at h
         exact Or.inl ⟨hu, (Result.ok_injective h).symm⟩
-      · rw [if_neg hu] at h
+      · rw [ite_eq_right hu] at h
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have := ConRon.Refine.Nat.uadd_val hi1
         exact Or.inr ⟨by simpa [absIndTypeRec] using hu, i1, by simp at this; omega, h⟩)
@@ -129,23 +129,23 @@ theorem any_ty_nested_refines {tys v}
     (loop := fun i => frontend.export_c.any_ty_nested_loop tys (alloc.vec.Vec.len tys) i)
     (fun i v hn h => by
       rw [frontend.export_c.any_ty_nested_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun i v hi h => by
       have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
       rw [frontend.export_c.any_ty_nested_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hx' := vec_index_eq hi' hx
       have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
         simp [absIndTypeRecs, ← hx']
       rw [hxs]
       by_cases hu : (x.num_nested != 0#u64) = true
-      · rw [if_pos hu] at h
+      · rw [ite_eq_left hu] at h
         refine Or.inl ⟨?_, (Result.ok_injective h).symm⟩
         simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hu
         simpa [absIndTypeRec, absU64] using hu
-      · rw [if_neg hu] at h
+      · rw [ite_eq_right hu] at h
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have := ConRon.Refine.Nat.uadd_val hi1
         refine Or.inr ⟨?_, i1, by simp at this; omega, h⟩
@@ -167,23 +167,23 @@ theorem all_num_params_refines {tys n_pd v}
     (loop := fun i => frontend.export_c.all_num_params_loop tys n_pd (alloc.vec.Vec.len tys) i)
     (fun i v hn h => by
       rw [frontend.export_c.all_num_params_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by simp [absIndTypeRecs] at hn; scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun i v hi h => by
       have hi' : i.val < tys.val.length := by simpa [absIndTypeRecs] using hi
       rw [frontend.export_c.all_num_params_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hx' := vec_index_eq hi' hx
       have hxs : (absIndTypeRecs tys)[i.val]'hi = absIndTypeRec x := by
         simp [absIndTypeRecs, ← hx']
       rw [hxs]
       by_cases hu : (x.num_params != n_pd) = true
-      · rw [if_pos hu] at h
+      · rw [ite_eq_left hu] at h
         refine Or.inl ⟨?_, (Result.ok_injective h).symm⟩
         simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hu
         simpa [absIndTypeRec, absU64, absU] using hu
-      · rw [if_neg hu] at h
+      · rw [ite_eq_right hu] at h
         obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have := ConRon.Refine.Nat.uadd_val hi1
         refine Or.inr ⟨?_, i1, by simp at this; omega, h⟩
@@ -216,11 +216,11 @@ theorem ty_names_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
       frontend.export_c.ty_names_of_loop rsd tys out (alloc.vec.Vec.len tys) i)
     (fun out i o hn h => by
       rw [frontend.export_c.ty_names_of_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.ty_names_of_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       refine ⟨r, by rw [vec_index_eq hi hx]; exact st_name_refines hd hr, ?_⟩
@@ -244,11 +244,11 @@ theorem ty_types_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
       frontend.export_c.ty_types_of_loop rsd tys out (alloc.vec.Vec.len tys) i)
     (fun out i o hn h => by
       rw [frontend.export_c.ty_types_of_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.ty_types_of_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       refine ⟨r, by rw [vec_index_eq hi hx]; exact get_decl_d_refines hd hr, ?_⟩
@@ -273,11 +273,11 @@ theorem listed_ctors_of_refines {rsd lsd lst tys o} (hd : StateDRel rsd lsd)
       frontend.export_c.listed_ctors_of_loop rsd tys out (alloc.vec.Vec.len tys) i)
     (fun out i o hn h => by
       rw [frontend.export_c.listed_ctors_of_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.listed_ctors_of_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       refine ⟨r, by rw [vec_index_eq hi hx]; exact st_names_refines hd hr, ?_⟩
@@ -301,11 +301,11 @@ theorem ctor_names_of_refines {rsd lsd lst cts o} (hd : StateDRel rsd lsd)
       frontend.export_c.ctor_names_of_loop rsd cts out (alloc.vec.Vec.len cts) i)
     (fun out i o hn h => by
       rw [frontend.export_c.ctor_names_of_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len cts by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.ctor_names_of_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len cts by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       refine ⟨r, by rw [vec_index_eq hi hx]; exact st_name_refines hd hr, ?_⟩
@@ -335,7 +335,7 @@ theorem flatten_listed_refines {listed v}
       intro j out o hk h
       rw [frontend.export_c.flatten_listed_loop0_loop0.eq_def] at h
       by_cases hj : j < alloc.vec.Vec.len w
-      · rw [if_pos hj] at h
+      · rw [ite_eq_left hj] at h
         have hj' : j.val < w.val.length := by scalar_tac
         obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hv' := vec_index_some hv
@@ -353,7 +353,7 @@ theorem flatten_listed_refines {listed v}
         rw [this, e1, show j1.val = j.val + 1 by simp at hj1v; omega,
           List.drop_eq_getElem_cons hj', hn', hn1v]
         simp
-      · rw [if_neg hj] at h
+      · rw [ite_eq_right hj] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
   -- the outer loop
@@ -366,7 +366,7 @@ theorem flatten_listed_refines {listed v}
       intro i out o hk h
       rw [frontend.export_c.flatten_listed_loop0.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len listed
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < listed.val.length := by scalar_tac
         obtain ⟨w, hw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hw' := vec_index_some hw
@@ -381,7 +381,7 @@ theorem flatten_listed_refines {listed v}
           rw [List.getElem?_eq_getElem hi'] at hw'; exact Option.some_injective _ hw'
         rw [hw'']
         simp [absNIdxL, e1]
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by scalar_tac)]; simp
   have := hout _ 0#usize _ v rfl h
@@ -412,7 +412,7 @@ theorem names_have_dup_refines {flat v}
       intro i seen v hk hinv hS hnd h
       rw [frontend.export_c.names_have_dup_loop.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len flat
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < flat.val.length := by scalar_tac
         have hiL : i.val < (absNIdxL flat).length := by simpa [absNIdxL] using hi'
         obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -426,7 +426,7 @@ theorem names_have_dup_refines {flat v}
             (absNIdx n1 :: (absNIdxL flat).drop (i.val + 1)) := by
           rw [← hL, ← List.drop_eq_getElem_cons hiL, List.take_append_drop]
         by_cases hbt : b = true
-        · rw [if_pos hbt] at h
+        · rw [ite_eq_left hbt] at h
           cases Result.ok_injective h
           have hmem : absNIdx n1 ∈ (absNIdxL flat).take i.val := by
             rw [hbt] at hbv; exact of_decide_eq_true hbv.symm
@@ -435,7 +435,7 @@ theorem names_have_dup_refines {flat v}
             rintro ⟨-, -, hd⟩
             exact hd _ hmem _ List.mem_cons_self rfl
           rw [decide_eq_false this]; rfl
-        · rw [if_neg hbt] at h
+        · rw [ite_eq_right hbt] at h
           have hnm : absNIdx n1 ∉ (absNIdxL flat).take i.val := by
             intro hm; apply hbt; rw [hbv]; exact decide_eq_true hm
           obtain ⟨n2, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -462,7 +462,7 @@ theorem names_have_dup_refines {flat v}
             intro a ha b hb' hab
             simp only [List.mem_singleton] at hb'
             subst hb'; subst hab; exact hnm ha
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         rw [List.take_of_length_le (by simp [absNIdxL]; scalar_tac)] at hnd
         rw [decide_eq_true hnd]; rfl
@@ -494,7 +494,7 @@ theorem ctor_index_of_refines {ns m}
       intro i m1 lm o hk hr h
       rw [frontend.export_c.ctor_index_of_loop.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len ns
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < ns.val.length := by scalar_tac
         obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hn1' := vec_index_eq hi' hn1
@@ -519,7 +519,7 @@ theorem ctor_index_of_refines {ns m}
         have hcu : absU c = i.val := hcv
         rw [hcu] at this
         exact this
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by simp [absNIdxL]; scalar_tac)]
         exact hr
@@ -774,23 +774,23 @@ local macro "ctor_fields_tail" : tactic => `(tactic| (
   obtain ⟨i, hi', h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hiv := ConRon.Refine.Nat.uadd_val hi'
   by_cases hne : (i != v1) = true
-  · rw [if_pos hne] at h
+  · rw [ite_eq_left hne] at h
     have hne' : ¬ (absU n_pd + absU64 c.num_fields == absU v1) = true := by
       simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
       simp only [absU, absU64, beq_iff_eq]; omega
-    rw [if_neg hne']
+    rw [ite_eq_right hne']
     obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a => ?_)
       (fun e he => by subst he; exact (Result.ok_injective h).symm)
     subst hv2
     obtain ⟨_, rfl⟩ := msg_invalid_ok h
     exact SimLV.invalid (by rfl) _
-  · rw [if_neg hne] at h
+  · rw [ite_eq_right hne] at h
     cases Result.ok_injective h
     have heq : (absU n_pd + absU64 c.num_fields == absU v1) = true := by
       simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
       simp only [absU, absU64, beq_iff_eq]; omega
-    rw [if_pos heq]
+    rw [ite_eq_left heq]
     rfl))
 
 -- `check_one_ctor`'s `induct` check, ending in its `numFields` tail.
@@ -803,12 +803,12 @@ local macro "ctor_induct" : tactic => `(tactic| (
   obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [nidx_eq2_abs hb] at h
   by_cases hbt : (absNIdx v == absNIdx t) = true
-  · rw [if_pos hbt] at h
-    rw [if_pos hbt]
+  · rw [ite_eq_left hbt] at h
+    rw [ite_eq_left hbt]
     try simp only [pure_bind]
     ctor_fields_tail
-  · rw [if_neg hbt] at h
-    rw [if_neg hbt]
+  · rw [ite_eq_right hbt] at h
+    rw [ite_eq_right hbt]
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine SimLV.bind_name (show_name_refines hrel hinv hr1) (fun v1 hv1 a1 => ?_)
       (fun e he => by subst he; exact (Result.ok_injective h).symm)
@@ -829,11 +829,11 @@ set_option hygiene false in
 local macro "ctor_cidx" : tactic => `(tactic| (
   by_cases hcj : (ci != j) = true
   case pos =>
-    rw [if_pos hcj] at h
+    rw [ite_eq_left hcj] at h
     have hne : ¬ (absU64 ci == absU j) = true := by
       simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hcj
       simpa [absU64, absU] using hcj
-    rw [if_neg hne]
+    rw [ite_eq_right hne]
     obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine SimLV.bind_name (show_name_refines hrel hinv hr) (fun v hv a => ?_)
       (fun e he => by subst he; exact (Result.ok_injective h).symm)
@@ -844,11 +844,11 @@ local macro "ctor_cidx" : tactic => `(tactic| (
     subst hv1
     obtain ⟨_, rfl⟩ := msg_invalid_ok h
     exact SimLV.invalid (by rfl) _
-  rw [if_neg hcj] at h
+  rw [ite_eq_right hcj] at h
   have heq : (absU64 ci == absU j) = true := by
     simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hcj
     simpa [absU64, absU] using hcj
-  rw [if_pos heq]
+  rw [ite_eq_left heq]
   try simp only [pure_bind]))
 
 /-- **`check_one_ctor`** — the three redundant-field checks at one
@@ -918,7 +918,7 @@ theorem order_type_ctors_refines
       intro out j i o hk hil hj h
       rw [frontend.export_c.order_type_ctors_loop.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len ns
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < ns.val.length := by scalar_tac
         obtain ⟨nm, hnm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hnm' := vec_index_eq hi' hnm
@@ -947,7 +947,7 @@ theorem order_type_ctors_refines
             subst hk1
             exact u64_cast_usize_val' cts.property hkk
           have hk1l : ¬ k1 ≥ alloc.vec.Vec.len cts := by scalar_tac
-          rw [if_neg hk1l] at h
+          rw [ite_eq_right hk1l] at h
           have hA : (absIndCtorRecs cts).toArray[absU kk]? =
               some (absIndCtorRec (cts.val[k1.val]'(by omega))) := by
             simp only [absIndCtorRecs, List.getElem?_toArray, List.getElem?_map, absU,
@@ -982,7 +982,7 @@ theorem order_type_ctors_refines
           · rcases b with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
             subst hb
             exact ⟨_, rfl, rfl⟩
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         have hlen : i.val = ns.val.length := by scalar_tac
         rw [hlen, List.drop_eq_nil_of_le (by simp [absNIdxL]), List.forIn_nil]
@@ -1019,7 +1019,7 @@ theorem order_block_ctors_refines
       intro out i o hk h
       rw [frontend.export_c.order_block_ctors_loop.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len ty_names
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < ty_names.val.length := by scalar_tac
         obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hn1' := vec_index_eq hi' hn1
@@ -1047,7 +1047,7 @@ theorem order_block_ctors_refines
           rcases b1 with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
           subst hb
           exact ⟨_, rfl, rfl⟩
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by simp [absNIdxL]; scalar_tac), List.forIn_nil]
         rfl
@@ -1079,14 +1079,14 @@ theorem env_read_level_at_abs {pers rst lst} (hrel : AStateRel₀ pers rst lst)
   induction n with
   | zero =>
     intro fuel i o hn hrun
-    rw [arena.env.read_level_at, if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
+    rw [arena.env.read_level_at, ite_eq_left (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
       fuel = 0#u64)] at hrun
     obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases Result.ok_injective hrun
     exact ⟨ce, rfl, env_dangling_level_kind hce⟩
   | succ k ih =>
     intro fuel i o hn hrun
-    rw [arena.env.read_level_at, if_neg (by intro hc; rw [hc] at hn; simp at hn)] at hrun
+    rw [arena.env.read_level_at, ite_eq_right (by intro hc; rw [hc] at hn; simp at hn)] at hrun
     obtain ⟨l, hl, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [arena.store.EStore.ls] at hl
     cases Result.ok_injective hl
@@ -1577,7 +1577,7 @@ theorem check_rec_indices_refines
       intro i o hk h
       rw [frontend.export_c.check_rec_indices_loop.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len ty_names
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < ty_names.val.length := by scalar_tac
         have hnext : ∀ i1 : Std.Usize, i + 1#usize = ok i1 →
             frontend.export_c.check_rec_indices_loop pers rst.store fuel rn t_pre num_indices
@@ -1599,8 +1599,8 @@ theorem check_rec_indices_refines
         obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         rw [nidx_eq2_abs hb] at h
         by_cases hbt : (absNIdx n1 == absNIdx t_pre) = true
-        · rw [if_pos hbt] at h
-          rw [if_pos hbt]
+        · rw [ite_eq_left hbt] at h
+          rw [ite_eq_left hbt]
           obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have he' := vec_index_eq (by omega) he
           rw [he']
@@ -1619,11 +1619,11 @@ theorem check_rec_indices_refines
             obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
             have hi1v := ConRon.Refine.Nat.uadd_val hi1
             by_cases hne : (i1 != kk) = true
-            · rw [if_pos hne] at h
+            · rw [ite_eq_left hne] at h
               have hne' : ¬ (absU n_pd + absU num_indices == absU kk) = true := by
                 simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
                 simp only [absU, beq_iff_eq]; omega
-              rw [if_neg hne']
+              rw [ite_eq_right hne']
               simp only [bind_assoc, pure_bind]
               obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
               refine SimLV.bind_name (show_name_refines hrel hinv hr1) (fun v1 hv1 a1 => ?_)
@@ -1636,20 +1636,20 @@ theorem check_rec_indices_refines
               obtain ⟨i2, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
               obtain ⟨_, rfl⟩ := msg_invalid_ok h
               exact SimLV.invalid (by rfl) _
-            · rw [if_neg hne] at h
+            · rw [ite_eq_right hne] at h
               have heq : (absU n_pd + absU num_indices == absU kk) = true := by
                 simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
                 simp only [absU, beq_iff_eq]; omega
-              rw [if_pos heq]
+              rw [ite_eq_left heq]
               simp only [pure_bind]
               obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
               exact hnext i2 hi2 h
-        · rw [if_neg hbt] at h
-          rw [if_neg hbt]
+        · rw [ite_eq_right hbt] at h
+          rw [ite_eq_right hbt]
           simp only [pure_bind]
           obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           exact hnext i1 hi1 h
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by simp [absNIdxL, absEIdxL]; scalar_tac), List.forIn_nil]
         rfl
@@ -1663,22 +1663,22 @@ set_option hygiene false in
 local macro "rec_count" x:term "," y:term : tactic => `(tactic| (
   by_cases hne : ($x != $y) = true
   case pos =>
-    rw [if_pos hne] at h
+    rw [ite_eq_left hne] at h
     have hne' : ¬ (absU64 $x == absU $y) = true := by
       simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
       simpa [absU64, absU] using hne
-    rw [if_neg hne']
+    rw [ite_eq_right hne']
     obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a2 => ?_)
       (fun e he => by subst he; exact (Result.ok_injective h).symm)
     subst hv2
     obtain ⟨_, rfl⟩ := msg_invalid_ok h
     exact SimLV.invalid (by rfl) _
-  rw [if_neg hne] at h
+  rw [ite_eq_right hne] at h
   have heq : (absU64 $x == absU $y) = true := by
     simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
     simpa [absU64, absU] using hne
-  rw [if_pos heq]))
+  rw [ite_eq_left heq]))
 
 -- `check_one_rec`'s `T.rec` tail: the name's view, then `check_rec_indices`.
 set_option hygiene false in
@@ -1699,12 +1699,12 @@ local macro "rec_view_tail" : tactic => `(tactic| (
     · rename_i T heq
       injection heq with hT hs
       subst hT
-      rw [if_pos (hbr.mpr hs)] at h
+      rw [ite_eq_left (hbr.mpr hs)] at h
       refine SimLV.bind_lv (check_rec_indices_refines hrel hinv hlen h)
         (fun w hw => by subst hw; rfl) (fun b lv hb => ⟨_, rfl, hb⟩) (fun e he => he)
     · rename_i hnot
       have hbf : ¬ b = true := fun hbt => hnot _ (by rw [hbr.mp hbt])
-      rw [if_neg hbf] at h
+      rw [ite_eq_right hbf] at h
       cases Result.ok_injective h
       rfl))
 
@@ -1737,18 +1737,18 @@ theorem check_one_rec_refines
     dsimp only at h ⊢
     by_cases hk : (r.k != kE) = true
     case pos =>
-      rw [if_pos hk] at h
+      rw [ite_eq_left hk] at h
       have hk' : ¬ (r.k == kE) = true := by simpa using hk
-      rw [if_neg hk']
+      rw [ite_eq_right hk']
       obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       refine SimLV.bind_name (show_name_refines hrel hinv hr2) (fun v2 hv2 a2 => ?_)
         (fun e he => by subst he; exact (Result.ok_injective h).symm)
       subst hv2
       obtain ⟨_, rfl⟩ := msg_invalid_ok h
       exact SimLV.invalid (by rfl) _
-    rw [if_neg hk] at h
+    rw [ite_eq_right hk] at h
     have hk' : (r.k == kE) = true := by simpa using hk
-    rw [if_pos hk']
+    rw [ite_eq_left hk']
     rec_view_tail
 
 /-- **`check_rec_records`** — the `for r in rcs` loop, against
@@ -1778,7 +1778,7 @@ theorem check_rec_records_refines
       intro i o hk h
       rw [frontend.export_c.check_rec_records_loop.eq_def] at h
       by_cases hi : i < alloc.vec.Vec.len rcs
-      · rw [if_pos hi] at h
+      · rw [ite_eq_left hi] at h
         have hi' : i.val < rcs.val.length := by scalar_tac
         obtain ⟨irr, hirr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hirr' := vec_index_eq hi' hirr
@@ -1801,7 +1801,7 @@ theorem check_rec_records_refines
         · rcases b with _ | (lv' | _) <;> simp only [vOfOpt, reduceCtorEq, Option.some.injEq] at hb
           subst hb
           exact ⟨_, rfl, rfl⟩
-      · rw [if_neg hi] at h
+      · rw [ite_eq_right hi] at h
         cases Result.ok_injective h
         rw [List.drop_eq_nil_of_le (by simp [absIndRecRecs]; scalar_tac), List.forIn_nil]
         rfl
@@ -1856,15 +1856,15 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
   obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   rw [any_ty_unsafe_refines hb] at h
   by_cases hu : (absIndTypeRecs tys).any (·.isUnsafe) = true
-  · rw [if_pos hu] at h
-    rw [if_pos hu]
+  · rw [ite_eq_left hu] at h
+    rw [ite_eq_left hu]
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [frontend.export_c.declined] at h
     cases Result.ok_injective h
     exact ⟨_, _, rfl, rfl, rfl⟩
-  rw [if_neg hu] at h
-  rw [if_neg hu]
+  rw [ite_eq_right hu] at h
+  rw [ite_eq_right hu]
   simp only [pure_bind]
   obtain ⟨n_pd, hnpd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hnpd' : ((absIndTypeRecs tys).map (·.numParams)).head?.getD 0 = absU n_pd := by
@@ -1890,15 +1890,15 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
   rw [all_num_params_refines hb1] at h
   by_cases hall : ((absIndTypeRecs tys).map (·.numParams)).all (· == absU n_pd) = true
   swap
-  · rw [if_neg hall] at h
-    rw [if_neg hall]
+  · rw [ite_eq_right hall] at h
+    rw [ite_eq_right hall]
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [frontend.export_c.declined] at h
     cases Result.ok_injective h
     exact ⟨_, _, rfl, rfl, rfl⟩
-  rw [if_pos hall] at h
-  rw [if_pos hall]
+  rw [ite_eq_left hall] at h
+  rw [ite_eq_left hall]
   try simp only [pure_bind]
   -- the four name/type readers
   obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1935,34 +1935,34 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
   rw [names_have_dup_refines hb2, hfl] at h
   by_cases hnd : ((v2.val.map absNIdxL).flatten).Nodup
   swap
-  · rw [if_pos (by simp [hnd])] at h
-    rw [if_neg hnd]
+  · rw [ite_eq_left (by simp [hnd])] at h
+    rw [ite_eq_right hnd]
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases invalid_ok h
     exact ⟨_, _, rfl, rfl, rfl⟩
-  rw [if_neg (by simp [hnd])] at h
-  rw [if_pos hnd]
+  rw [ite_eq_right (by simp [hnd])] at h
+  rw [ite_eq_left hnd]
   have hflen : flat.val.length = ((v2.val.map absNIdxL).flatten).length := by
     rw [← hfl]; simp [absNIdxL]
   by_cases hne : (alloc.vec.Vec.len flat != alloc.vec.Vec.len cts) = true
-  · rw [if_pos hne] at h
+  · rw [ite_eq_left hne] at h
     have hne' : ¬ (((v2.val.map absNIdxL).flatten).length == (absIndCtorRecs cts).length) = true := by
       simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv] at hne
       simp only [beq_iff_eq, absIndCtorRecs, List.length_map, ← hflen]
       simpa using hne
-    rw [if_neg hne']
+    rw [ite_eq_right hne']
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     cases invalid_ok h
     exact ⟨_, _, rfl, rfl, rfl⟩
-  rw [if_neg hne] at h
+  rw [ite_eq_right hne] at h
   have heq : (((v2.val.map absNIdxL).flatten).length == (absIndCtorRecs cts).length) = true := by
     simp only [bne_iff_ne, ne_eq, UScalar.eq_equiv, Classical.not_not] at hne
     simp only [beq_iff_eq, absIndCtorRecs, List.length_map, ← hflen]
     simpa using hne
-  rw [if_pos heq]
+  rw [ite_eq_left heq]
   -- the constructor index, the fuel, the block's own order
   obtain ⟨ctor_ix, hix, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hX := ctor_index_of_refines hix
@@ -2001,12 +2001,12 @@ theorem validate_ind_d_refines {pers rst lst rsd lsd tys cts rcs o}
   subst hv5
   dsimp only at h
   by_cases hns : (absIndTypeRecs tys).any (·.numNested != 0) = true
-  · rw [if_pos hns] at h
+  · rw [ite_eq_left hns] at h
     cases Result.ok_injective h
-    rw [if_pos hns]
+    rw [ite_eq_left hns]
     rfl
-  rw [if_neg hns] at h
-  rw [if_neg hns]
+  rw [ite_eq_right hns] at h
+  rw [ite_eq_right hns]
   obtain ⟨r6, hr6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hR := check_rec_records_refines hrel hinv hd hlenNT hr6
   rw [hntv, hncv] at hR
@@ -2052,11 +2052,11 @@ theorem ind_block_types_refines {rsd lsd lst tys out o} (hd : StateDRel rsd lsd)
       frontend.export_c.ind_block_types_loop rsd tys out (alloc.vec.Vec.len tys) i)
     (fun out i o hn h => by
       rw [frontend.export_c.ind_block_types_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len tys by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.ind_block_types_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len tys by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [vec_index_eq hi hx]
@@ -2095,11 +2095,11 @@ theorem ind_block_ctors_refines {rsd lsd lst cts out o} (hd : StateDRel rsd lsd)
       frontend.export_c.ind_block_ctors_loop rsd cts out (alloc.vec.Vec.len cts) i)
     (fun out i o hn h => by
       rw [frontend.export_c.ind_block_ctors_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len cts by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.ind_block_ctors_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len cts by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len cts by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [vec_index_eq hi hx]
@@ -2142,11 +2142,11 @@ theorem ind_block_recs_refines {rsd lsd lst rcs out o} (hd : StateDRel rsd lsd)
       frontend.export_c.ind_block_recs_loop rsd rcs out (alloc.vec.Vec.len rcs) i)
     (fun out i o hn h => by
       rw [frontend.export_c.ind_block_recs_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len rcs by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len rcs by scalar_tac)] at h
       exact (Result.ok_injective h).symm)
     (fun out i o hi h => by
       rw [frontend.export_c.ind_block_recs_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len rcs by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len rcs by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [vec_index_eq hi hx]

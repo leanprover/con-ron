@@ -14,6 +14,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -156,14 +159,14 @@ theorem litToCtorIfNat_spec (s₀ : AState) (h : EIdx) (x : Expr)
         rintro r s2 ⟨hok2, hx2, hp2, hr⟩
         refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, ?_⟩
         rw [hr]
-        simp only [ConLeche.litToCtorIfNat, hS, if_true]
+        simp only [ConLeche.litToCtorIfNat, hS, ite_true]
       next hsupf =>
         have hS : ConLeche.natLitSupported env = false := by
           rw [← hsup]; simpa using hsupf
         mvcgen
         bridge_peel; subst_vars
         refine ⟨hok1, hx1, hp1, ?_⟩
-        simp only [ConLeche.litToCtorIfNat, hS, Bool.false_eq_true, if_false]
+        simp only [ConLeche.litToCtorIfNat, hS, Bool.false_eq_true, ite_false]
         exact denote_ext hda hx1
   all_goals
     dsimp only

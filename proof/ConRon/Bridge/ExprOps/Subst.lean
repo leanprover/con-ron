@@ -126,6 +126,9 @@ namespace ConRon.Bridge.ExprOps
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 4000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -307,7 +310,7 @@ theorem eidxCopyUpto_toList (xs : Array EIdx) (k : Nat) :
   | case1 i out h ih =>
     have hlt : i < xs.toList.length := by
       rw [Array.length_toList]; exact h.2
-    rw [eidxCopyUpto, dif_pos h, ih, Array.toList_push,
+    rw [eidxCopyUpto, dite_eq_left h, ih, Array.toList_push,
       List.drop_eq_getElem_cons hlt, show k - i = (k - i - 1) + 1 from by omega,
       List.take_succ_cons]
     simp only [Array.getElem_toList, List.append_assoc, List.cons_append,
@@ -317,9 +320,9 @@ theorem eidxCopyUpto_toList (xs : Array EIdx) (k : Nat) :
     · have hd : xs.toList.drop i = [] := by
         apply List.drop_eq_nil_of_le
         rw [Array.length_toList]; omega
-      rw [eidxCopyUpto, dif_neg h, hd]
+      rw [eidxCopyUpto, dite_eq_right h, hd]
       simp
-    · rw [eidxCopyUpto, dif_neg h, show k - i = 0 from by omega]
+    · rw [eidxCopyUpto, dite_eq_right h, show k - i = 0 from by omega]
       simp
 
 /-- con-leche: none — **Theorem 1 for `takeEidx`** (`ExprOps.lean:221`): the
@@ -639,7 +642,7 @@ theorem LiftAt.bvar_self {st : EStore} {h : EIdx} {amount c i : Nat}
   intro e he
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st h = some (Expr.liftLooseBVars amount c (.bvar i))
-  simp only [Expr.liftLooseBVars, if_neg hlt]
+  simp only [Expr.liftLooseBVars, ite_eq_right hlt]
   exact he
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:705 lowerBVars — the `.bvar` arm's
@@ -663,7 +666,7 @@ theorem LowerAt.bvar_self {st : EStore} {h : EIdx} {amount c i : Nat}
   intro e he
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st h = some (Expr.lowerBVars amount c (.bvar i))
-  simp only [Expr.lowerBVars, if_neg hlt]
+  simp only [Expr.lowerBVars, ite_eq_right hlt]
   exact he
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:724-726 instantiate1Lift — the
@@ -677,7 +680,7 @@ theorem Inst1LAt.bvar_subst {st st' : EStore} {h r : EIdx} {ve : Expr}
   intro e he
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st' r = some ((Expr.bvar i).instantiate1Lift ve d)
-  simp only [Expr.instantiate1Lift, if_pos heq]
+  simp only [Expr.instantiate1Lift, ite_eq_left heq]
   exact hr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:726 instantiate1Lift — the `.bvar`
@@ -701,7 +704,7 @@ theorem Inst1LAt.bvar_self {st : EStore} {h : EIdx} {ve : Expr} {d i : Nat}
   intro e he
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st h = some ((Expr.bvar i).instantiate1Lift ve d)
-  simp only [Expr.instantiate1Lift, if_neg hne, if_neg hgt]
+  simp only [Expr.instantiate1Lift, ite_eq_right hne, ite_eq_right hgt]
   exact he
 
 /-! ## H. The per-arm step lemmas
@@ -745,7 +748,7 @@ theorem InstLAt.bind_step {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx}
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
     with rfl | rfl
-  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, if_true] at hview hr
+  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, ite_true] at hview hr
     exact RelE.lam hwf hview (fun _ _ => by rw [Expr.instantiateList])
       ((ht.ext hx2).ext hx3) ((hb.of_ext hx1).ext hx3) hr
   · rw [eBindView] at hview hr
@@ -1173,7 +1176,7 @@ theorem InstLAt.bvar_below {st : EStore} (hwf : StoreWF st) {h : EIdx}
   intro e he
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st h = some ((Expr.bvar j).instantiateList ws d)
-  rw [Expr.instantiateList, if_pos hlt]
+  rw [Expr.instantiateList, ite_eq_left hlt]
   exact he
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:230 instantiateList — `.bvar j`
@@ -1186,8 +1189,8 @@ theorem InstLAt.bvar_above {st st' : EStore} (hwf : StoreWF st) {h r : EIdx}
   intro e he
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st' r = some ((Expr.bvar j).instantiateList ws d)
-  rw [Expr.instantiateList, if_neg hge,
-    dif_neg (show ¬ (j - d < ws.length) from by omega), hr, denoteEView, hlen]
+  rw [Expr.instantiateList, ite_eq_right hge,
+    dite_eq_right (show ¬ (j - d < ws.length) from by omega), hr, denoteEView, hlen]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:227-228 instantiateList — `.bvar
 j` INSIDE the range, with the twin's hoisted cutoff firing: the replacement is
@@ -1205,7 +1208,7 @@ theorem InstLAt.bvar_cut {st : EStore} (hwf : StoreWF st) {h vi : EIdx}
   show denoteE st vi = some ((Expr.bvar j).instantiateList ws d)
   have hg : ws[j - d] = w := by
     rw [List.getElem?_eq_getElem hj] at hwi; exact Option.some.inj hwi
-  rw [Expr.instantiateList, if_neg hge, dif_pos hj, hg]
+  rw [Expr.instantiateList, ite_eq_right hge, dite_eq_left hj, hg]
   have hd := EStore.derived_exact hwf hvi
   rw [hd] at hsat hle
   rw [instantiateList_of_raw_le hsat hle]
@@ -1226,7 +1229,7 @@ theorem InstLAt.bvar_rec {st st' : EStore} (hwf : StoreWF st) {h vi r : EIdx}
   show denoteE st' r = some ((Expr.bvar j).instantiateList ws d)
   have hg : ws[j - d] = w := by
     rw [List.getElem?_eq_getElem hj] at hwi; exact Option.some.inj hwi
-  rw [Expr.instantiateList, if_neg hge, dif_pos hj, hg]
+  rw [Expr.instantiateList, ite_eq_right hge, dite_eq_left hj, hg]
   exact hrec w hvi
 
 /-! ### The same four, at the arm's OWN hypotheses

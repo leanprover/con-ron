@@ -121,16 +121,16 @@ theorem pinAt_run (i : Nat) (lst : AState) :
       then Except.ok (lst.pins.names[i], lst)
       else Except.error (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
   by_cases h : i < lst.pins.names.size
-  · rw [dif_pos h]
+  · rw [dite_eq_left h]
     show (Arena.pinAt i) lst = _
     rw [Arena.pinAt]
     simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-      Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
-  · rw [dif_neg h]
+      Pure.pure, StateT.pure, Except.pure, Except.bind, dite_eq_left h]
+  · rw [dite_eq_right h]
     show (Arena.pinAt i) lst = _
     rw [Arena.pinAt]
     simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-      Pure.pure, Except.pure, Except.bind, dif_neg h,
+      Pure.pure, Except.pure, Except.bind, dite_eq_right h,
       Arena.fail, throwThe, MonadExceptOf.throw,
       Function.comp_apply, StateT.lift]
 
@@ -140,7 +140,7 @@ theorem natBinOpName_pred (c : NIdx) :
   intro lst
   by_cases h : PIN_NAT_PRED < lst.pins.names.size
   · have hp : natPredName.run lst = .ok (lst.pins.names[PIN_NAT_PRED], lst) := by
-      rw [natPredName, pinNatPred, pinAt_run, dif_pos h]
+      rw [natPredName, pinNatPred, pinAt_run, dite_eq_left h]
     rw [run_bind_ok hp]
   · have herr : ∀ {γ δ : Type} (f : γ → Except Arena.CheckError δ),
         (Except.error (Arena.CheckError.internal "arena: reserved-name pins not interned")
@@ -149,10 +149,10 @@ theorem natBinOpName_pred (c : NIdx) :
       fun _ => rfl
     have hp : natPredName.run lst = .error
         (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
-      rw [natPredName, pinNatPred, pinAt_run, dif_neg h]
+      rw [natPredName, pinNatPred, pinAt_run, dite_eq_right h]
     have ha : natAddName.run lst = .error
         (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
-      rw [natAddName, pinNatAdd, pinAt_run, dif_neg (by
+      rw [natAddName, pinNatAdd, pinAt_run, dite_eq_right (by
         simp only [PIN_NAT_PRED, PIN_NAT_ADD] at h ⊢; omega)]
     have hl : (natBinOpName c).run lst = .error
         (Arena.CheckError.internal "arena: reserved-name pins not interned") := by
@@ -471,14 +471,14 @@ theorem nidx_vec_contains_from_any (ns : alloc.vec.Vec arena.handle.NIdx)
   | zero =>
     intro i o hk h
     rw [arena.env.nidx_vec_contains_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ns by scalar_tac), Result.ok.injEq] at h
     rw [← h, List.drop_eq_nil_of_le (by omega)]
     rfl
   | succ k ih =>
     intro i o hk h
     have hlt : i.val < ns.val.length := by omega
     rw [arena.env.nidx_vec_contains_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ns by scalar_tac)] at h
     obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨_, rfl⟩ := ExprOps.vecIndexAt hn1
@@ -486,12 +486,12 @@ theorem nidx_vec_contains_from_any (ns : alloc.vec.Vec arena.handle.NIdx)
     rw [List.drop_eq_getElem_cons hlt, List.any_cons, ← hbv]
     cases b with
     | false =>
-      rw [if_neg (by simp)] at h
+      rw [ite_eq_right (by simp)] at h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi2v : i2.val = i.val + 1 := (ConRon.Refine.Nat.uadd_val hi2)
       rw [Bool.false_or, ih i2 o (by omega) h, hi2v]
     | true =>
-      rw [if_pos (by simp), Result.ok.injEq] at h
+      rw [ite_eq_left (by simp), Result.ok.injEq] at h
       rw [← h, Bool.true_or]
 
 @[lockstep] theorem nidx_vec_contains_spec (ns : alloc.vec.Vec arena.handle.NIdx)

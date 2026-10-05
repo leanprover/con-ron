@@ -127,8 +127,8 @@ theorem PersN_of_view {st : EStore} (hwf : StoreWF st)
   by_cases hp : h.isPersistent = true
   · exact hp
   · exfalso
-    rw [Arena.NStore.view, if_neg hp,
-      if_neg (by rw [(scratchOn_nested hwf).2.2, hoff]; simp)] at hv
+    rw [Arena.NStore.view, ite_eq_right hp,
+      ite_eq_right (by rw [(scratchOn_nested hwf).2.2, hoff]; simp)] at hv
     exact absurd hv (by simp)
 
 /-- con-leche: none — the same at a LEVEL handle. -/
@@ -138,8 +138,8 @@ theorem PersL_of_view {st : EStore} (hwf : StoreWF st)
   by_cases hp : h.isPersistent = true
   · exact hp
   · exfalso
-    rw [Arena.LStore.view, if_neg hp,
-      if_neg (by rw [(scratchOn_nested hwf).2.1, hoff]; simp)] at hv
+    rw [Arena.LStore.view, ite_eq_right hp,
+      ite_eq_right (by rw [(scratchOn_nested hwf).2.1, hoff]; simp)] at hv
     exact absurd hv (by simp)
 
 /-- con-leche: none — the same at an EXPRESSION handle. -/
@@ -151,12 +151,12 @@ theorem PersE_of_view {st : EStore} (_hwf : StoreWF st)
   · exfalso
     rw [Arena.EStore.view] at hv
     by_cases hb : ETag.isBind h.tag
-    · rw [if_pos hb] at hv
+    · rw [ite_eq_left hb] at hv
       have hbi : st.viewBindI h = none := by
-        rw [Arena.EStore.viewBindI, if_neg hp, if_neg (by rw [hoff]; simp)]
+        rw [Arena.EStore.viewBindI, ite_eq_right hp, ite_eq_right (by rw [hoff]; simp)]
       rw [Arena.EStore.viewBind, hbi] at hv
       exact absurd hv (by simp)
-    · rw [if_neg hb, if_neg hp, if_neg (by rw [hoff]; simp)] at hv
+    · rw [ite_eq_right hb, ite_eq_right hp, ite_eq_right (by rw [hoff]; simp)] at hv
       exact absurd hv (by simp)
 
 /-! ## The frame

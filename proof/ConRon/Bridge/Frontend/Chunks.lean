@@ -268,7 +268,7 @@ theorem feedChunk_run_le :
     rw [feedChunk] at hrun
     have hnot : ¬ (i < b.usize) := fun hlt => by
       have := ConLeche.Frontend.usizeInBounds b i hlt; omega
-    rw [dif_neg hnot] at hrun
+    rw [dite_eq_right hnot] at hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrun
     obtain ⟨h1, h2, h3⟩ : sd' = sd ∧ lineNo' = lineNo ∧ tail = i := by
       have := Except.ok.inj hv
@@ -276,13 +276,13 @@ theorem feedChunk_run_le :
         congrArg (Prod.snd ∘ Prod.snd) this⟩
     subst h1; subst h2; subst h3; subst hs
     refine ⟨ParseStep.refl hok, hp, sc, ?_, hrel⟩
-    rw [ConLeche.Frontend.feedChunk, dif_neg hnot]
+    rw [ConLeche.Frontend.feedChunk, dite_eq_right hnot]
   | succ n ih =>
     intro s s' hok hoff hpins sd sd' sc hrel hp b i lineNo lineNo' tail hmeas hrun
     rw [feedChunk] at hrun
     by_cases hlt : i < b.usize
     case neg =>
-      rw [dif_neg hlt] at hrun
+      rw [dite_eq_right hlt] at hrun
       obtain ⟨hv, hs⟩ := AM.pure_ok hrun
       obtain ⟨h1, h2, h3⟩ : sd' = sd ∧ lineNo' = lineNo ∧ tail = i := by
         have := Except.ok.inj hv
@@ -290,9 +290,9 @@ theorem feedChunk_run_le :
           congrArg (Prod.snd ∘ Prod.snd) this⟩
       subst h1; subst h2; subst h3; subst hs
       refine ⟨ParseStep.refl hok, hp, sc, ?_, hrel⟩
-      rw [ConLeche.Frontend.feedChunk, dif_neg hlt]
+      rw [ConLeche.Frontend.feedChunk, dite_eq_right hlt]
     case pos =>
-    rw [dif_pos hlt] at hrun
+    rw [dite_eq_left hlt] at hrun
     have hbase : ConLeche.Frontend.feedChunk sc b i lineNo
         = (match ConLeche.Frontend.scanLineFwd b i with
            | .err e =>
@@ -311,18 +311,18 @@ theorem feedChunk_run_le :
                    ConLeche.Frontend.feedChunk st b j (lineNo + 1)
                  else .error (.internal "the line scanner made no progress",
                    lineNo + 1)) := by
-      rw [ConLeche.Frontend.feedChunk, dif_pos hlt,
+      rw [ConLeche.Frontend.feedChunk, dite_eq_left hlt,
         ← ConLeche.Frontend.scanLineFwd_eq]
       rfl
     cases hsc : ConLeche.Frontend.scanLineFwd b i with
     | err e =>
       simp only [hsc] at hrun hbase
       by_cases hnl : ConLeche.Frontend.newlineFrom b i = true
-      · simp only [hnl, if_true] at hrun
+      · simp only [hnl, ite_true] at hrun
         exact absurd (AM.pure_ok hrun).1 (by simp)
       · have hnl' : ConLeche.Frontend.newlineFrom b i = false := by
           simpa using hnl
-        simp only [hnl', Bool.false_eq_true, if_false] at hrun hbase
+        simp only [hnl', Bool.false_eq_true, ite_false] at hrun hbase
         obtain ⟨hv, hs⟩ := AM.pure_ok hrun
         obtain ⟨h1, h2, h3⟩ : sd' = sd ∧ lineNo' = lineNo ∧ tail = i := by
           have := Except.ok.inj hv
@@ -333,7 +333,7 @@ theorem feedChunk_run_le :
     | ok r j =>
       simp only [hsc] at hrun hbase
       by_cases hj : (j == 0) = true
-      · simp only [hj, if_true] at hrun hbase
+      · simp only [hj, ite_true] at hrun hbase
         obtain ⟨hv, hs⟩ := AM.pure_ok hrun
         obtain ⟨h1, h2, h3⟩ : sd' = sd ∧ lineNo' = lineNo ∧ tail = i := by
           have := Except.ok.inj hv
@@ -342,7 +342,7 @@ theorem feedChunk_run_le :
         subst h1; subst h2; subst h3; subst hs
         exact ⟨ParseStep.refl hok, hp, sc, hbase, hrel⟩
       · have hj' : (j == 0) = false := by simpa using hj
-        simp only [hj', Bool.false_eq_true, if_false] at hrun hbase
+        simp only [hj', Bool.false_eq_true, ite_false] at hrun hbase
         obtain ⟨x, s₁, hline, hrest⟩ := AM.bind_ok hrun
         obtain ⟨hstep, hpers, y, hy, hxy⟩ :=
           applyLine_run hok hoff hpins hrel hp hline
@@ -354,8 +354,8 @@ theorem feedChunk_run_le :
           simp only [hy] at hbase
           simp only [] at hrest
           by_cases hij : i < j
-          · rw [dif_pos hij] at hbase
-            rw [dif_pos hij] at hrest
+          · rw [dite_eq_left hij] at hbase
+            rw [dite_eq_left hij] at hrest
             have hmeas' : b.size - j.toNat ≤ n := by
               have h1 := ConLeche.Frontend.usizeInBounds b i hlt
               have h2 := USize.lt_iff_toNat_lt.mp hij
@@ -365,7 +365,7 @@ theorem feedChunk_run_le :
                 hrel₁ (hpers st rfl)
                 hmeas' hrest
             exact ⟨hstep.trans hstep2, hpers2, sc₂, by rw [hbase, hcl2], hrel₂⟩
-          · rw [dif_neg hij] at hrest
+          · rw [dite_eq_right hij] at hrest
             exact absurd (AM.pure_ok hrest).1 (by simp)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:787-788 feedChunk — **every
@@ -407,9 +407,9 @@ theorem chunkStep_run {s s' : AState} (hok : StateOK s)
           = .ok (sc', carry', lineNo', total') ∧ StateDRel s'.store sd' sc' := by
   rw [chunkStep] at hrun
   by_cases hsz : total + buf0.size ≥ USize.size
-  · rw [if_pos hsz] at hrun
+  · rw [ite_eq_left hsz] at hrun
     exact absurd (AM.pure_ok hrun).1 (by simp)
-  · rw [if_neg hsz] at hrun
+  · rw [ite_eq_right hsz] at hrun
     simp only [pure_bind] at hrun
     obtain ⟨x, s₁, hfeed, hrest⟩ := AM.bind_ok hrun
     cases x with
@@ -426,7 +426,7 @@ theorem chunkStep_run {s s' : AState} (hok : StateOK s)
       obtain ⟨hstep, hpers, sc₁, hcl, hrel'⟩ :=
         feedChunk_run hok hoff hpins hrel hp hfeed
       refine ⟨hstep, hpers, sc₁, ?_, hrel'⟩
-      rw [ConLeche.Frontend.chunkStep, if_neg hsz]
+      rw [ConLeche.Frontend.chunkStep, ite_eq_right hsz]
       simp only [hcl]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:868-869 chunkFinish — the end of
@@ -443,14 +443,14 @@ theorem chunkFinish_run {s s' : AState} (hok : StateOK s)
         ParseResultRel s'.store r rc := by
   rw [chunkFinish] at hrun
   by_cases hce : carry.isEmpty = true
-  · rw [if_pos hce] at hrun
+  · rw [ite_eq_left hce] at hrun
     obtain ⟨hv, hs⟩ := AM.pure_ok hrun
     simp only [Except.ok.injEq] at hv
     subst hv; subst hs
     exact ⟨ParseStep.refl hok, PersParseResult.ofState hp, _,
-      by rw [ConLeche.Frontend.chunkFinish, if_pos hce],
+      by rw [ConLeche.Frontend.chunkFinish, ite_eq_left hce],
       ParseResultRel.ofState hrel⟩
-  · rw [if_neg hce] at hrun
+  · rw [ite_eq_right hce] at hrun
     simp only [pure_bind] at hrun
     obtain ⟨x, s₁, hfin, hrest⟩ := AM.bind_ok hrun
     cases x with
@@ -466,7 +466,7 @@ theorem chunkFinish_run {s s' : AState} (hok : StateOK s)
         applyFinalLine_run hok hoff hpins hrel hp hfin
       refine ⟨hstep, PersParseResult.ofState hpers, _, ?_,
         ParseResultRel.ofState hrel'⟩
-      rw [ConLeche.Frontend.chunkFinish, if_neg hce]
+      rw [ConLeche.Frontend.chunkFinish, ite_eq_right hce]
       simp only [hcl]
 
 /-! ## The two entry points -/
@@ -486,9 +486,9 @@ theorem parseBytes_run {s s' : AState} (hok : StateOK s)
         ParseResultRel s'.store r rc := by
   rw [parseBytes] at hrun
   by_cases hsz : b.size ≥ USize.size
-  · rw [if_pos hsz] at hrun
+  · rw [ite_eq_left hsz] at hrun
     exact absurd (AM.pure_ok hrun).1 (by simp)
-  · rw [if_neg hsz] at hrun
+  · rw [ite_eq_right hsz] at hrun
     simp only [pure_bind] at hrun
     obtain ⟨sd0, s0, hinit, hrest⟩ := AM.bind_ok hrun
     obtain ⟨hstep0, hp0, hrel0⟩ := StateD_init_run hok hoff hinit
@@ -505,7 +505,7 @@ theorem parseBytes_run {s s' : AState} (hok : StateOK s)
           (hpins.mono hstep0.ext hstep0.pins) hrel0
           hp0 hfeed
       by_cases htl : tail₁ < b.usize
-      · rw [if_pos htl] at hrest2
+      · rw [ite_eq_left htl] at hrest2
         obtain ⟨y, s₂, hfin, hrest3⟩ := AM.bind_ok hrest2
         cases y with
         | error e =>
@@ -522,17 +522,17 @@ theorem parseBytes_run {s s' : AState} (hok : StateOK s)
               (hpins.mono (hstep0.trans hstep1).ext (hstep0.trans hstep1).pins) hrel1 hp1 hfin
           refine ⟨(hstep0.trans hstep1).trans hstep2,
             PersParseResult.ofState hp2, _, ?_, ParseResultRel.ofState hrel2⟩
-          rw [ConLeche.Frontend.parseBytes, if_neg hsz]
-          simp only [hcl1, Bind.bind, Except.bind, htl, if_true, hcl2,
+          rw [ConLeche.Frontend.parseBytes, ite_eq_right hsz]
+          simp only [hcl1, Bind.bind, Except.bind, htl, ite_true, hcl2,
             pure, Except.pure]
-      · rw [if_neg htl] at hrest2
+      · rw [ite_eq_right htl] at hrest2
         obtain ⟨hv, hs⟩ := AM.pure_ok hrest2
         simp only [Except.ok.injEq] at hv
         subst hv; subst hs
         refine ⟨hstep0.trans hstep1, PersParseResult.ofState hp1, _, ?_,
           ParseResultRel.ofState hrel1⟩
-        rw [ConLeche.Frontend.parseBytes, if_neg hsz]
-        simp only [hcl1, Bind.bind, Except.bind, htl, if_false,
+        rw [ConLeche.Frontend.parseBytes, ite_eq_right hsz]
+        simp only [hcl1, Bind.bind, Except.bind, htl, ite_false,
           pure, Except.pure]
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:895-901 parseChunks.go — the

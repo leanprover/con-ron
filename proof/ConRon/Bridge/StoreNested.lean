@@ -146,22 +146,22 @@ theorem NStore.derived_intern {st : NStore} {rk : NIdx → Nat} (h : NWFAt st rk
       split
       · rfl
       · by_cases hp : i.isPersistent = true
-        · simp only [NStore.derived, hp, if_true]
+        · simp only [NStore.derived, hp, ite_true]
         · have hp' : i.isPersistent = false := by simpa using hp
           have hget : st.scr.get i = some v := by
             rw [← NStore.view_scr hp' hon]; exact hv
-          simp only [NStore.derived, hp', hon, if_true, Bool.false_eq_true,
-            if_false]
+          simp only [NStore.derived, hp', hon, ite_true, Bool.false_eq_true,
+            ite_false]
           exact NTables.derAt_push_of_get h.sizedS hget
     · rename_i hoff
       have hoff' : st.scratchOn = false := by simpa using hoff
       by_cases hp : i.isPersistent = true
       · have hget : st.pers.get i = some v := by
           rw [← NStore.view_pers hp]; exact hv
-        simp only [NStore.derived, hp, if_true]
+        simp only [NStore.derived, hp, ite_true]
         exact NTables.derAt_push_of_get h.sizedP hget
       · have hp' : i.isPersistent = false := by simpa using hp
-        simp only [NStore.derived, hp', hoff', Bool.false_eq_true, if_false]
+        simp only [NStore.derived, hp', hoff', Bool.false_eq_true, ite_false]
 
 /-- con-leche: none — interning a level leaves the derived column alone at
 every handle that already decoded. -/
@@ -176,22 +176,22 @@ theorem LStore.derived_intern {st : LStore} {rk : LIdx → Nat} (h : LWFAt st rk
       split
       · rfl
       · by_cases hp : i.isPersistent = true
-        · simp only [LStore.derived, hp, if_true]
+        · simp only [LStore.derived, hp, ite_true]
         · have hp' : i.isPersistent = false := by simpa using hp
           have hget : st.scr.get i = some v := by
             rw [← LStore.view_scr hp' hon]; exact hv
-          simp only [LStore.derived, hp', hon, if_true, Bool.false_eq_true,
-            if_false]
+          simp only [LStore.derived, hp', hon, ite_true, Bool.false_eq_true,
+            ite_false]
           exact LTables.derAt_push_of_get h.sizedS hget
     · rename_i hoff
       have hoff' : st.scratchOn = false := by simpa using hoff
       by_cases hp : i.isPersistent = true
       · have hget : st.pers.get i = some v := by
           rw [← LStore.view_pers hp]; exact hv
-        simp only [LStore.derived, hp, if_true]
+        simp only [LStore.derived, hp, ite_true]
         exact LTables.derAt_push_of_get h.sizedP hget
       · have hp' : i.isPersistent = false := by simpa using hp
-        simp only [LStore.derived, hp', hoff', Bool.false_eq_true, if_false]
+        simp only [LStore.derived, hp', hoff', Bool.false_eq_true, ite_false]
 
 /-- con-leche: none — interning a level list leaves the derived column alone
 at every handle that already decoded. -/
@@ -206,22 +206,22 @@ theorem LsStore.derived_intern {st : LsStore} (h : LsWF st) (w : LsNodeView)
       split
       · rfl
       · by_cases hp : i.isPersistent = true
-        · simp only [LsStore.derived, hp, if_true]
+        · simp only [LsStore.derived, hp, ite_true]
         · have hp' : i.isPersistent = false := by simpa using hp
           have hget : st.scr.get i = some v := by
             rw [← LsStore.view_scr hp' hon]; exact hv
-          simp only [LsStore.derived, hp', hon, if_true, Bool.false_eq_true,
-            if_false]
+          simp only [LsStore.derived, hp', hon, ite_true, Bool.false_eq_true,
+            ite_false]
           exact LsTables.derAt_push_of_get h.sizedS hget
     · rename_i hoff
       have hoff' : st.scratchOn = false := by simpa using hoff
       by_cases hp : i.isPersistent = true
       · have hget : st.pers.get i = some v := by
           rw [← LsStore.view_pers hp]; exact hv
-        simp only [LsStore.derived, hp, if_true]
+        simp only [LsStore.derived, hp, ite_true]
         exact LsTables.derAt_push_of_get h.sizedP hget
       · have hp' : i.isPersistent = false := by simpa using hp
-        simp only [LsStore.derived, hp', hoff', Bool.false_eq_true, if_false]
+        simp only [LsStore.derived, hp', hoff', Bool.false_eq_true, ite_false]
 
 /-! ## The invariant, lifted through one level of the nesting -/
 

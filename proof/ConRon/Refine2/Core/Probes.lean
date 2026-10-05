@@ -224,13 +224,13 @@ theorem cache_insert_step {K K' V V' : Type} [DecidableEq K] [BEq K'] [Hashable 
     rw [← hsize, ← hcapv]
     exact Std.UScalar.lt_equiv n _
   by_cases hb : n < arena.core_state.CACHE_CAP
-  · rw [if_pos (hcap.mp hb)]
-    rw [if_pos hb] at hfit
+  · rw [ite_eq_left (hcap.mp hb)]
+    rw [ite_eq_left hb] at hfit
     have hfit' : m = hm := Result.ok_injective hfit
     subst hfit'
     exact memo_insert_step heq hinj hinv hrel h
-  · rw [if_neg (fun hx => hb (hcap.mpr hx))]
-    rw [if_neg hb] at hfit
+  · rw [ite_eq_right (fun hx => hb (hcap.mpr hx))]
+    rw [ite_eq_right hb] at hfit
     obtain ⟨hinv0, -, hnone⟩ := ConRon.Refine.HashMap2.new_refines
       (HashableInst := HashableInst) hfit
     exact memo_insert_step heq hinj hinv0

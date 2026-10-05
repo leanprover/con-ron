@@ -134,7 +134,7 @@ private theorem uscalar_sub_add {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
 /-- `Char.ofNat` keeps a scalar value. -/
 theorem char_ofNat_toNat {n : Nat} (h : Nat.isValidChar n) :
     (Char.ofNat n).val.toNat = n := by
-  rw [Char.ofNat, dif_pos h]
+  rw [Char.ofNat, dite_eq_left h]
   simp [Char.ofNatAux]
 
 /-! ## `hex_val` (`Scan/Fast.lean:537-541`) -/
@@ -525,7 +525,7 @@ private theorem skip_digits_loop_digits {b : Slice Std.U8} (f : Nat) :
   | zero =>
     intro i j hf h
     rw [frontend.scan_fast.skip_digits_loop.eq_def] at h
-    rw [if_neg (show ¬ (i < Slice.len b) by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ (i < Slice.len b) by scalar_tac)] at h
     have hij : i = j := by simpa using h
     subst hij
     exact ⟨le_refl _, fun m hm h1 h2 => absurd h2 (by omega)⟩
@@ -533,13 +533,13 @@ private theorem skip_digits_loop_digits {b : Slice Std.U8} (f : Nat) :
     intro i j hf h
     rw [frontend.scan_fast.skip_digits_loop.eq_def] at h
     by_cases hlt : i < Slice.len b
-    · rw [if_pos hlt] at h
+    · rw [ite_eq_left hlt] at h
       have hi : i.val < b.val.length := by scalar_tac
       obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
       have hc' : c = b.val[i.val] := index_ok hi hc
       by_cases hwt : w = true
-      · rw [if_pos hwt] at h
+      · rw [ite_eq_left hwt] at h
         obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
         have hv := usize_add_one_inv hi3
         obtain ⟨hle, hall⟩ := ih i3 j (by omega) h
@@ -548,11 +548,11 @@ private theorem skip_digits_loop_digits {b : Slice Std.U8} (f : Nat) :
         by_cases hmi : m = i.val
         · subst hmi; rw [← hc']; exact (is_digit_val hw).mp hwt
         · exact hall m hm (by omega) h2
-      · rw [if_neg hwt] at h
+      · rw [ite_eq_right hwt] at h
         have hij : i = j := by simpa using h
         subst hij
         exact ⟨le_refl _, fun m hm h1 h2 => absurd h2 (by omega)⟩
-    · rw [if_neg hlt] at h
+    · rw [ite_eq_right hlt] at h
       have hij : i = j := by simpa using h
       subst hij
       exact ⟨le_refl _, fun m hm h1 h2 => absurd h2 (by omega)⟩
@@ -705,7 +705,7 @@ private theorem mul_add_small_loop_val (limbs : alloc.vec.Vec Std.U64) (m : Std.
             (m.val * limbsToNat (limbs.val.drop i.val) + carry.val) := by
     intro i carry out o c' hni h
     rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
-      if_neg (show ¬ (i < n) by scalar_tac)] at h
+      ite_eq_right (show ¬ (i < n) by scalar_tac)] at h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     rw [List.drop_eq_nil_of_le hni, ← h.1, ← h.2]
     simp [limbsToNat_nil]
@@ -716,7 +716,7 @@ private theorem mul_add_small_loop_val (limbs : alloc.vec.Vec Std.U64) (m : Std.
     intro i carry out o c' hd h
     rcases Nat.lt_or_ge i.val limbs.val.length with hin | hin
     · rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
-        if_pos (show i < n by scalar_tac)] at h
+        ite_eq_left (show i < n by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨x1, hx1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨x2, hx2, h⟩ := bind_eq_ok_iff.mp h
@@ -824,7 +824,7 @@ private theorem chunk_loop_val (digits : Slice Std.U8) (i k : Std.Usize) :
   | zero =>
     intro j chunk pow c' p' hd hjk hik h
     rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
-      if_neg (show ¬ (j < k) by scalar_tac)] at h
+      ite_eq_right (show ¬ (j < k) by scalar_tac)] at h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     rw [show k.val - j.val = 0 by omega]
     simp [← h.1, ← h.2, digitsVal]
@@ -832,7 +832,7 @@ private theorem chunk_loop_val (digits : Slice Std.U8) (i k : Std.Usize) :
     intro j chunk pow c' p' hd hjk hik h
     rcases Nat.lt_or_ge j.val k.val with hjk' | hjk'
     · rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
-        if_pos (show j < k by scalar_tac)] at h
+        ite_eq_left (show j < k by scalar_tac)] at h
       obtain ⟨a1, ha1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨a2, ha2, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨a3, ha3, h⟩ := bind_eq_ok_iff.mp h
@@ -876,7 +876,7 @@ private theorem chunk_loop_val (digits : Slice Std.U8) (i k : Std.Usize) :
       · rw [hp, hpowv, show k.val - j.val = (k.val - (j.val + 1)) + 1 by omega, pow_succ]
         ring
     · rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
-        if_neg (show ¬ (j < k) by scalar_tac)] at h
+        ite_eq_right (show ¬ (j < k) by scalar_tac)] at h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       rw [show k.val - j.val = 0 by omega]
       simp [← h.1, ← h.2, digitsVal]
@@ -894,7 +894,7 @@ private theorem from_decimal_go_loop_val (digits : Slice Std.U8) (n : Std.Usize)
   | zero =>
     intro i acc out hd hin h
     rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
-      if_neg (show ¬ (i < n) by scalar_tac)] at h
+      ite_eq_right (show ¬ (i < n) by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     rw [← h, show n.val - i.val = 0 by omega,
       List.drop_eq_nil_of_le (by omega)]
@@ -903,7 +903,7 @@ private theorem from_decimal_go_loop_val (digits : Slice Std.U8) (n : Std.Usize)
     intro i acc out hd hin h
     rcases Nat.lt_or_ge i.val n.val with hlt | hge
     · rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
-        if_pos (show i < n by scalar_tac)] at h
+        ite_eq_left (show i < n by scalar_tac)] at h
       obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨⟨chunk, pow⟩, hcl, h⟩ := bind_eq_ok_iff.mp h
@@ -943,7 +943,7 @@ private theorem from_decimal_go_loop_val (digits : Slice Std.U8) (n : Std.Usize)
         show n.val - i.val = k1.val + (n.val - (i.val + k1.val)) by omega, pow_add]
       ring
     · rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
-        if_neg (show ¬ (i < n) by scalar_tac)] at h
+        ite_eq_right (show ¬ (i < n) by scalar_tac)] at h
       simp only [Result.ok.injEq] at h
       rw [← h, show n.val - i.val = 0 by omega, List.drop_eq_nil_of_le (by omega)]
       simp [digitsVal]
@@ -1030,7 +1030,7 @@ private theorem all_digits_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
   | zero =>
     intro i hd'
     rw [frontend.nat_decimal.all_digits_loop.eq_def,
-      if_neg (show ¬ (i < n) by scalar_tac)]
+      ite_eq_right (show ¬ (i < n) by scalar_tac)]
   | succ d ih =>
     intro i hd'
     rcases Nat.lt_or_ge i.val n.val with hlt | hge
@@ -1040,13 +1040,13 @@ private theorem all_digits_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
         have := Slice.length_ineq digits; omega
       obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
       rw [frontend.nat_decimal.all_digits_loop.eq_def,
-        if_pos (show i < n by scalar_tac)]
+        ite_eq_left (show i < n by scalar_tac)]
       simp only [slice_index_ok hi, bind_tc_ok,
-        if_neg (show ¬ (digits.val[i.val] < 48#u8) by scalar_tac),
-        if_neg (show ¬ (digits.val[i.val] > 57#u8) by scalar_tac), hw]
+        ite_eq_right (show ¬ (digits.val[i.val] < 48#u8) by scalar_tac),
+        ite_eq_right (show ¬ (digits.val[i.val] > 57#u8) by scalar_tac), hw]
       exact ih w (by omega)
     · rw [frontend.nat_decimal.all_digits_loop.eq_def,
-        if_neg (show ¬ (i < n) by scalar_tac)]
+        ite_eq_right (show ¬ (i < n) by scalar_tac)]
 
 private theorem all_digits_ok (digits : Slice Std.U8)
     (hd : ∀ (m : Nat) (hm : m < digits.val.length),
@@ -1072,7 +1072,7 @@ private theorem chunk_loop_ok (digits : Slice Std.U8) (i k : Std.Usize) (hk : k.
     intro j chunk pow hd' hjk hc hp
     exact ⟨chunk, pow, by
       rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
-        if_neg (show ¬ (j < k) by scalar_tac)]⟩
+        ite_eq_right (show ¬ (j < k) by scalar_tac)]⟩
   | succ d ih =>
     intro j chunk pow hd' hjk hc hp
     rcases Nat.lt_or_ge j.val k.val with hjk' | hjk'
@@ -1112,13 +1112,13 @@ private theorem chunk_loop_ok (digits : Slice Std.U8) (i k : Std.Usize) (hk : k.
           rw [h10])
       refine ⟨c', p', ?_⟩
       rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
-        if_pos (show j < k by scalar_tac)]
+        ite_eq_left (show j < k by scalar_tac)]
       simp only [ha1, ha2, slice_index_ok hidx2, ha4, hchunk1, hpow1, hj1,
         bind_tc_ok, lift]
       exact hrec
     · exact ⟨chunk, pow, by
         rw [frontend.nat_decimal.from_decimal_go_loop0_loop0.eq_def,
-          if_neg (show ¬ (j < k) by scalar_tac)]⟩
+          ite_eq_right (show ¬ (j < k) by scalar_tac)]⟩
 
 /-! #### `mul_add_small` -/
 
@@ -1135,7 +1135,7 @@ private theorem mul_add_small_loop_ok (limbs : alloc.vec.Vec Std.U64) (m : Std.U
     intro i carry out hd hlen hile
     refine ⟨out, carry, ?_, by omega⟩
     rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
-      if_neg (show ¬ (i < n) by scalar_tac)]
+      ite_eq_right (show ¬ (i < n) by scalar_tac)]
   | succ d ih =>
     intro i carry out hd hlen hile
     rcases Nat.lt_or_ge i.val limbs.val.length with hin | hin
@@ -1168,12 +1168,12 @@ private theorem mul_add_small_loop_ok (limbs : alloc.vec.Vec Std.U64) (m : Std.U
               List.length_nil]; omega) (by omega)
       refine ⟨o, c', ?_, holen⟩
       rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
-        if_pos (show i < n by scalar_tac)]
+        ite_eq_left (show i < n by scalar_tac)]
       simp only [vec_index_ok limbs i hin, hp, ht, hout1, hsh, hi7, bind_tc_ok, lift]
       exact hrec
     · refine ⟨out, carry, ?_, by omega⟩
       rw [frontend.nat_decimal.mul_add_small_loop.eq_def,
-        if_neg (show ¬ (i < n) by scalar_tac)]
+        ite_eq_right (show ¬ (i < n) by scalar_tac)]
 
 /-- **`mul_add_small` succeeds** whenever one more limb fits. -/
 private theorem mul_add_small_ok (limbs : alloc.vec.Vec Std.U64) (m a : Std.U64)
@@ -1193,13 +1193,13 @@ private theorem mul_add_small_ok (limbs : alloc.vec.Vec Std.U64) (m a : Std.U64)
   · obtain ⟨w, hw, hwv⟩ := push_ok o c' (by omega)
     refine ⟨w, ?_, ?_⟩
     · show (if (c' != 0#u64) = true then alloc.vec.Vec.push o c' else ok o) = ok w
-      rw [if_pos hz, hw]
+      rw [ite_eq_left hz, hw]
     · rw [hwv]
       simp only [List.length_append, List.length_cons, List.length_nil]
       omega
   · refine ⟨o, ?_, by omega⟩
     show (if (c' != 0#u64) = true then alloc.vec.Vec.push o c' else ok o) = ok o
-    rw [if_neg hz]
+    rw [ite_eq_right hz]
 
 /-! #### The outer loop, `norm`, and `from_decimal` -/
 
@@ -1216,7 +1216,7 @@ private theorem from_decimal_go_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
     intro i limbs hd' hin hll
     exact ⟨limbs, by
       rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
-        if_neg (show ¬ (i < n) by scalar_tac)]⟩
+        ite_eq_right (show ¬ (i < n) by scalar_tac)]⟩
   | succ d ih =>
     intro i limbs hd' hin hll
     rcases Nat.lt_or_ge i.val n.val with hlt | hge
@@ -1229,8 +1229,8 @@ private theorem from_decimal_go_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
             ∧ 1 ≤ k1.val ∧ k1.val ≤ 19 ∧ k1.val ≤ k.val := by
         rw [frontend.nat_decimal.CHUNK_DIGITS]
         by_cases hgt : k > 19#usize
-        · exact ⟨19#usize, by rw [if_pos hgt], by scalar_tac, by scalar_tac, by scalar_tac⟩
-        · exact ⟨k, by rw [if_neg hgt], by omega, by scalar_tac, le_rfl⟩
+        · exact ⟨19#usize, by rw [ite_eq_left hgt], by scalar_tac, by scalar_tac, by scalar_tac⟩
+        · exact ⟨k, by rw [ite_eq_right hgt], by omega, by scalar_tac, le_rfl⟩
       obtain ⟨chunk, pow, hcl⟩ := chunk_loop_ok digits i k1 hk1hi (by omega) hd
         k1.val 0#usize 0#u64 1#u64 (by scalar_tac) (by scalar_tac)
         (by
@@ -1246,7 +1246,7 @@ private theorem from_decimal_go_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
       obtain ⟨out, hout⟩ := ih i1 limbs1 (by omega) (by omega) (by omega)
       refine ⟨out, ?_⟩
       rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
-        if_pos (show i < n by scalar_tac)]
+        ite_eq_left (show i < n by scalar_tac)]
       simp only [hk, hk1e, hcl, bind_tc_ok]
       show (do let limbs1 ← frontend.nat_decimal.mul_add_small limbs pow chunk
                let i1 ← i + k1
@@ -1255,7 +1255,7 @@ private theorem from_decimal_go_loop_ok (digits : Slice Std.U8) (n : Std.Usize)
       exact hout
     · exact ⟨limbs, by
         rw [frontend.nat_decimal.from_decimal_go_loop0.eq_def,
-          if_neg (show ¬ (i < n) by scalar_tac)]⟩
+          ite_eq_right (show ¬ (i < n) by scalar_tac)]⟩
 
 private theorem sig_len_ok (v : alloc.vec.Vec Std.U64) :
     ∀ (d : Nat) (k : Std.Usize), k.val ≤ d → k.val ≤ v.val.length →
@@ -1264,23 +1264,23 @@ private theorem sig_len_ok (v : alloc.vec.Vec Std.U64) :
   induction d with
   | zero =>
     intro k hd hkv
-    exact ⟨0#usize, by rw [ron.nat.sig_len, if_pos (show k = 0#usize by scalar_tac)],
+    exact ⟨0#usize, by rw [ron.nat.sig_len, ite_eq_left (show k = 0#usize by scalar_tac)],
       by scalar_tac⟩
   | succ d ih =>
     intro k hd hkv
     by_cases hz : k = 0#usize
-    · exact ⟨0#usize, by rw [ron.nat.sig_len, if_pos hz], by scalar_tac⟩
+    · exact ⟨0#usize, by rw [ron.nat.sig_len, ite_eq_left hz], by scalar_tac⟩
     · have hk0 : 0 < k.val := by
         by_contra hcon
         exact hz (by scalar_tac)
       obtain ⟨i, hi, hiv⟩ := usub_ok (x := k) (y := 1#usize) (by scalar_tac)
       have hilt : i.val < v.val.length := by scalar_tac
-      rw [ron.nat.sig_len, if_neg hz]
+      rw [ron.nat.sig_len, ite_eq_right hz]
       simp only [hi, vec_index_ok v i hilt, bind_tc_ok]
       by_cases hnz : (v.val[i.val]'hilt != 0#u64) = true
-      · exact ⟨k, by rw [if_pos hnz], le_rfl⟩
+      · exact ⟨k, by rw [ite_eq_left hnz], le_rfl⟩
       · obtain ⟨s, hs, hsv⟩ := ih i (by scalar_tac) (by omega)
-        exact ⟨s, by rw [if_neg hnz, hs], by scalar_tac⟩
+        exact ⟨s, by rw [ite_eq_right hnz, hs], by scalar_tac⟩
 
 private theorem copy_from_ok (v : alloc.vec.Vec Std.U64) (e : Std.Usize) :
     ∀ (d : Nat) (i : Std.Usize) (out : alloc.vec.Vec Std.U64), e.val - i.val ≤ d →
@@ -1290,13 +1290,13 @@ private theorem copy_from_ok (v : alloc.vec.Vec Std.U64) (e : Std.Usize) :
   induction d with
   | zero =>
     intro i out hd hb
-    exact ⟨out, by rw [ron.nat.copy_from, if_pos (show i ≥ e by scalar_tac)]⟩
+    exact ⟨out, by rw [ron.nat.copy_from, ite_eq_left (show i ≥ e by scalar_tac)]⟩
   | succ d ih =>
     intro i out hd hb
     by_cases hie : i ≥ e
-    · exact ⟨out, by rw [ron.nat.copy_from, if_pos hie]⟩
+    · exact ⟨out, by rw [ron.nat.copy_from, ite_eq_left hie]⟩
     · by_cases hiv : i ≥ alloc.vec.Vec.len v
-      · exact ⟨out, by rw [ron.nat.copy_from, if_neg hie, if_pos hiv]⟩
+      · exact ⟨out, by rw [ron.nat.copy_from, ite_eq_right hie, ite_eq_left hiv]⟩
       · have hilt : i.val < v.val.length := by scalar_tac
         have hlt : i.val < e.val := by scalar_tac
         obtain ⟨out1, hout1, hout1v⟩ := push_ok out (v.val[i.val]'hilt) (by omega)
@@ -1306,7 +1306,7 @@ private theorem copy_from_ok (v : alloc.vec.Vec Std.U64) (e : Std.Usize) :
           simp only [List.length_append, List.length_cons, List.length_nil]
           omega)
         refine ⟨w, ?_⟩
-        rw [ron.nat.copy_from, if_neg hie, if_neg hiv]
+        rw [ron.nat.copy_from, ite_eq_right hie, ite_eq_right hiv]
         simp only [vec_index_ok v i hilt, hout1, hi3, bind_tc_ok]
         exact hw
 
@@ -1317,12 +1317,12 @@ private theorem norm_ok (limbs : alloc.vec.Vec Std.U64) :
   rw [ron.nat.norm]
   simp only [hs, bind_tc_ok]
   by_cases heq : s = alloc.vec.Vec.len limbs
-  · exact ⟨{ limbs := limbs }, by rw [if_pos heq]⟩
+  · exact ⟨{ limbs := limbs }, by rw [ite_eq_left heq]⟩
   · obtain ⟨w, hw⟩ := copy_from_ok limbs s s.val 0#usize (alloc.vec.Vec.new Std.U64)
       (by scalar_tac) (by
         simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.length_nil]
         scalar_tac)
-    exact ⟨{ limbs := w }, by rw [if_neg heq]; simp only [hw, bind_tc_ok]⟩
+    exact ⟨{ limbs := w }, by rw [ite_eq_right heq]; simp only [hw, bind_tc_ok]⟩
 
 /-- **`nat_decimal::from_decimal` accepts every non-empty run of decimal
 digits.**  With `scan_quoted_nat_digits` this rules out the `none` arm at the
@@ -1340,14 +1340,14 @@ theorem from_decimal_ok {ds : Slice Std.U8} (hne : ds.val ≠ [])
     · exact absurd hv hne
     · simp
   rw [frontend.nat_decimal.from_decimal,
-    if_neg (show ¬ (Slice.len ds = 0#usize) by scalar_tac)]
+    ite_eq_right (show ¬ (Slice.len ds = 0#usize) by scalar_tac)]
   simp only [all_digits_ok ds hd', bind_tc_ok]
   obtain ⟨v, hv⟩ := from_decimal_go_loop_ok ds (Slice.len ds) (by scalar_tac) hd'
     ds.val.length 0#usize (alloc.vec.Vec.new Std.U64) (by scalar_tac) (by scalar_tac)
     (by simp only [alloc.vec.Vec.new, alloc.vec.Vec.from_val, List.length_nil]; omega)
   rw [frontend.nat_decimal.from_decimal_go]
   obtain ⟨n, hn⟩ := norm_ok v
-  exact ⟨n, by simp only [hv, hn, bind_tc_ok, if_true]⟩
+  exact ⟨n, by simp only [hv, hn, bind_tc_ok, ite_true]⟩
 
 end NatDecimal
 
@@ -1419,7 +1419,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
   split at h
   · -- not a quote
     rename_i hne
-    rw [if_pos (show (absByte c != 34) = true by
+    rw [ite_eq_left (show (absByte c != 34) = true by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
       scalar_tac)]
     rw [frontend.scan_fast.err] at h
@@ -1427,7 +1427,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
     rw [← h]
     exact ScanSim.err (ScanErrSim.mk rfl (by first | rfl | rw [absPos_toNat]))
   · rename_i heq
-    rw [if_neg (show ¬ ((absByte c != 34) = true) by
+    rw [ite_eq_right (show ¬ ((absByte c != 34) = true) by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
       scalar_tac)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
@@ -1436,7 +1436,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
     split at h
     · -- unterminated
       rename_i hz
-      rw [if_pos (show (absPos e == 0) = true by
+      rw [ite_eq_left (show (absPos e == 0) = true by
         simp only [beq_iff_eq]
         apply USize.toNat_inj.mp
         rw [absPos_toNat]
@@ -1447,7 +1447,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
       rw [← h]
       exact ScanSim.err (ScanErrSim.mk rfl (by first | rfl | rw [absPos_toNat]))
     · rename_i hnz
-      rw [if_neg (show ¬ ((absPos e == 0) = true) by
+      rw [ite_eq_right (show ¬ ((absPos e == 0) = true) by
         simp only [beq_iff_eq]
         intro hcon
         exact hnz (by
@@ -1460,7 +1460,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
       split at h
       · -- the escaped path
         rename_i hesct
-        rw [if_pos hesct]
+        rw [ite_eq_left hesct]
         obtain ⟨body, hbody, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         have hqa := hun body 0#usize (Slice.len body) q hq
@@ -1483,7 +1483,7 @@ theorem scan_string_refines (hu : Utf8DecodeSpec) (hun : UnescapeSpec)
           exact ScanSim.ok (by rw [absPos_add_one hi4])
       · -- the plain path
         rename_i hescf
-        rw [if_neg hescf]
+        rw [ite_eq_right hescf]
         obtain ⟨q, hq, h⟩ := bind_eq_ok_iff.mp h
         have hqa := hu b i2 e q hq
         simp only [absPos_toNat]
@@ -1532,18 +1532,18 @@ private theorem readNat_run (b : Slice Std.U8) (s e : Std.Usize)
     rw [readNat_eq, show e.val - k.val = 0 by omega]
     simp only [List.take_zero, List.foldl_nil]
     split
-    · rw [if_neg (by rw [hke']; exact hstop)]
+    · rw [ite_eq_right (by rw [hke']; exact hstop)]
     · rfl
   | succ d ih =>
     intro k acc hd hsk hke
     rcases Nat.lt_or_ge k.val e.val with hlt | hge
     · have hkb : k.val < b.val.length := by omega
       obtain ⟨hlo, hhi⟩ := hdig k.val hkb hsk hlt
-      have hpb : pByteAt b k.val = b.val[k.val] := by rw [pByteAt, dif_pos hkb]
+      have hpb : pByteAt b k.val = b.val[k.val] := by rw [pByteAt, dite_eq_left hkb]
       obtain ⟨k1, hk1, hk1v⟩ := usize_add_ok (i := k) (by
         have := Slice.length_ineq b; omega)
-      rw [readNat_eq, if_pos hkb,
-        if_pos (show isDigit (absByte (pByteAt b k.val)) = true by
+      rw [readNat_eq, ite_eq_left hkb,
+        ite_eq_left (show isDigit (absByte (pByteAt b k.val)) = true by
           rw [hpb, isDigit]
           simp only [Bool.and_eq_true, le_absByte_iff, absByte_le_iff, decide_eq_true_eq,
             UInt8.reduceToNat]
@@ -1556,7 +1556,7 @@ private theorem readNat_run (b : Slice Std.U8) (s e : Std.Usize)
       rw [readNat_eq, show e.val - k.val = 0 by omega]
       simp only [List.take_zero, List.foldl_nil]
       split
-      · rw [if_neg (by rw [hke']; exact hstop)]
+      · rw [ite_eq_right (by rw [hke']; exact hstop)]
       · rfl
 
 /-- **`scan_fast::scan_quoted_nat` refines `scanQuotedNat`**
@@ -1573,7 +1573,7 @@ theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
   rw [show byteAt (absBytes b) (absPos i) = absByte c from (byte_at_refines hc).symm]
   split at h
   · rename_i hne
-    rw [if_pos (show (absByte c != 34) = true by
+    rw [ite_eq_left (show (absByte c != 34) = true by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
       scalar_tac)]
     rw [frontend.scan_fast.err] at h
@@ -1581,7 +1581,7 @@ theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
     rw [← h]
     exact ScanSim.err (ScanErrSim.mk rfl (by rw [absPos_toNat]))
   · rename_i heq
-    rw [if_neg (show ¬ ((absByte c != 34) = true) by
+    rw [ite_eq_right (show ¬ ((absByte c != 34) = true) by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
       scalar_tac)]
     obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
@@ -1594,7 +1594,7 @@ theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
     split at h
     · -- an empty run
       rename_i hz
-      rw [if_pos (show ((absPos e == absPos i2) ||
+      rw [ite_eq_left (show ((absPos e == absPos i2) ||
           (byteAt (absBytes b) (absPos e) != 34)) = true by
         simp only [Bool.or_eq_true, beq_iff_eq]
         exact Or.inl (by rw [hz]))]
@@ -1608,7 +1608,7 @@ theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
       split at h
       · -- the run does not end in a quote
         rename_i hq
-        rw [if_pos (show ((absPos e == absPos i2) || (absByte c1 != 34)) = true by
+        rw [ite_eq_left (show ((absPos e == absPos i2) || (absByte c1 != 34)) = true by
           simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
           refine Or.inr ?_
           scalar_tac)]
@@ -1624,9 +1624,9 @@ theorem scan_quoted_nat_refines {b : Slice Std.U8} {i : Std.Usize}
           simpa using this.symm
         have hel : e.val < b.val.length := by
           by_contra hcon
-          rw [pByteAt, dif_neg hcon] at hebv
+          rw [pByteAt, dite_eq_right hcon] at hebv
           scalar_tac
-        rw [if_neg (show ¬ (((absPos e == absPos i2) || (absByte c1 != 34)) = true) by
+        rw [ite_eq_right (show ¬ (((absPos e == absPos i2) || (absByte c1 != 34)) = true) by
           simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat,
             beq_iff_eq, not_or, not_not]
           refine ⟨?_, hc1v⟩
@@ -1705,7 +1705,7 @@ private theorem win_nil {b : Slice Std.U8} {k n : Nat} (h : n ≤ k) : win b k n
 
 /-- The port's total byte accessor, inside the slice. -/
 private theorem pByteAt_val {b : Slice Std.U8} {m : Nat} (h : m < b.val.length) :
-    pByteAt b m = b.val[m] := by rw [pByteAt, dif_pos h]
+    pByteAt b m = b.val[m] := by rw [pByteAt, dite_eq_left h]
 
 /-- One byte off the front of the window. -/
 private theorem win_cons {b : Slice Std.U8} {k n : Nat} (hk : k < n) (hn : n ≤ b.val.length) :
@@ -1748,7 +1748,7 @@ private theorem fromUTF8_win {b : Slice Std.U8} {k n : Nat} {l : List Char}
     (h : l.flatMap String.utf8EncodeChar = win b k n) :
     String.fromUTF8? (winB b k n) = some (String.ofList l) := by
   have hb : winB b k n = l.utf8Encode := by rw [winB, utf8Encode_toByteArray, h]
-  rw [String.fromUTF8?, dif_pos (hb ▸ ByteArray.isValidUTF8_utf8Encode)]
+  rw [String.fromUTF8?, dite_eq_left (hb ▸ ByteArray.isValidUTF8_utf8Encode)]
   apply congrArg
   rw [← String.toByteArray_inj]
   rw [String.toByteArray_ofList]
@@ -1757,7 +1757,7 @@ private theorem fromUTF8_win {b : Slice Std.U8} {k n : Nat} {l : List Char}
 /-- A window nothing encodes is not valid UTF-8. -/
 private theorem fromUTF8_win_none {b : Slice Std.U8} {k n : Nat}
     (h : ¬ (winB b k n).IsValidUTF8) : String.fromUTF8? (winB b k n) = none := by
-  rw [String.fromUTF8?, dif_neg h]
+  rw [String.fromUTF8?, dite_eq_right h]
 
 /-- The window, as a `ByteArray`, is valid exactly when some list encodes it. -/
 private theorem winB_valid_iff {b : Slice Std.U8} {k n : Nat} :
@@ -1815,14 +1815,14 @@ private theorem enc_cases (c : Char) :
 private theorem enc_mk1 {v : Nat} (hv : Nat.isValidChar v) (h : v ≤ 0x7f) :
     String.utf8EncodeChar (Char.ofNat v) = [UInt8.ofNat v] := by
   simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
-  rw [if_pos h]
+  rw [ite_eq_left h]
 
 /-- A two-byte code point's encoding. -/
 private theorem enc_mk2 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x80 ≤ v) (h2 : v ≤ 0x7ff) :
     String.utf8EncodeChar (Char.ofNat v) =
       [UInt8.ofNat (v / 64 + 0xc0), UInt8.ofNat (v % 64 + 0x80)] := by
   simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
-  rw [if_neg (by omega), if_pos h2, Nat.mod_eq_of_lt (show v / 64 < 0x20 by omega)]
+  rw [ite_eq_right (by omega), ite_eq_left h2, Nat.mod_eq_of_lt (show v / 64 < 0x20 by omega)]
 
 /-- A three-byte code point's encoding. -/
 private theorem enc_mk3 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x800 ≤ v) (h2 : v ≤ 0xffff) :
@@ -1830,7 +1830,7 @@ private theorem enc_mk3 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x800 ≤ v) (h
       [UInt8.ofNat (v / 4096 + 0xe0), UInt8.ofNat (v / 64 % 64 + 0x80),
        UInt8.ofNat (v % 64 + 0x80)] := by
   simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
-  rw [if_neg (by omega), if_neg (by omega), if_pos h2,
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left h2,
     Nat.mod_eq_of_lt (show v / 4096 < 0x10 by omega)]
 
 /-- A four-byte code point's encoding. -/
@@ -1840,7 +1840,7 @@ private theorem enc_mk4 {v : Nat} (hv : Nat.isValidChar v) (h1 : 0x10000 ≤ v)
       [UInt8.ofNat (v / 262144 + 0xf0), UInt8.ofNat (v / 4096 % 64 + 0x80),
        UInt8.ofNat (v / 64 % 64 + 0x80), UInt8.ofNat (v % 64 + 0x80)] := by
   simp only [String.utf8EncodeChar, char_ofNat_toNat hv]
-  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega),
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
     Nat.mod_eq_of_lt (show v / 262144 < 0x08 by omega)]
 
 /-! ### The loop's claim, and the two ways of carrying it -/
@@ -2141,7 +2141,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
   | zero =>
     intro out k r hf h
     rw [frontend.scan_fast.utf8_decode_loop.eq_def] at h
-    rw [if_neg (show ¬ (k < n) by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ (k < n) by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     rw [← h]
     exact claim_stop (show n.val ≤ k.val by scalar_tac)
@@ -2150,11 +2150,11 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
     rw [frontend.scan_fast.utf8_decode_loop.eq_def] at h
     by_cases hlt : k < n
     case neg =>
-      rw [if_neg hlt] at h
+      rw [ite_eq_right hlt] at h
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact claim_stop (show n.val ≤ k.val by scalar_tac)
-    rw [if_pos hlt] at h
+    rw [ite_eq_left hlt] at h
     have hk : k.val < n.val := by scalar_tac
     have hkb : k.val < b.val.length := by omega
     obtain ⟨c0, hc0, h⟩ := bind_eq_ok_iff.mp h
@@ -2162,7 +2162,7 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
     -- one byte
     by_cases hlt128 : c0 < 128#u8
     case pos =>
-      rw [if_pos hlt128] at h
+      rw [ite_eq_left hlt128] at h
       have hc0n : c0.val < 128 := by scalar_tac
       obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
@@ -2172,53 +2172,53 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       refine claim_step (v := i) ?_ (vec_push_val hout1) (ih out1 k1 r (by omega) h)
       rw [hk1v]
       exact win_enc1 hn hk (by omega) (by rw [hp0, hiv])
-    rw [if_neg hlt128] at h
+    rw [ite_eq_right hlt128] at h
     have hc0n : 128 ≤ c0.val := by scalar_tac
     -- a continuation byte, or an overlong two-byte lead: no character starts here
     by_cases hlt194 : c0 < 194#u8
     case pos =>
-      rw [if_pos hlt194] at h
+      rw [ite_eq_left hlt194] at h
       have hc0n2 : c0.val < 194 := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
-    rw [if_neg hlt194] at h
+    rw [ite_eq_right hlt194] at h
     have hc0n2 : 194 ≤ c0.val := by scalar_tac
     -- two bytes
     by_cases hlt224 : c0 < 224#u8
     case pos =>
-      rw [if_pos hlt224] at h
+      rw [ite_eq_left hlt224] at h
       have hc0n3 : c0.val < 224 := by scalar_tac
       obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
       have hiv : i.val = k.val + 1 := by simpa using uscalar_add_val hi
       by_cases htr : n ≤ i
       case pos =>
-        rw [if_pos htr] at h
+        rw [ite_eq_left htr] at h
         have htr' : n.val ≤ k.val + 1 := by rw [← hiv]; scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
-      rw [if_neg htr] at h
+      rw [ite_eq_right htr] at h
       have hkn1 : k.val + 1 < n.val := by rw [← hiv]; scalar_tac
       obtain ⟨c1, hc1, h⟩ := bind_eq_ok_iff.mp h
       have hp1 : pByteAt b (k.val + 1) = c1 := by
         rw [← hiv, pByteAt_val (by omega), index_ok (by omega) hc1]
       by_cases hb1 : c1 < 128#u8
       case pos =>
-        rw [if_pos hb1] at h
+        rw [ite_eq_left hb1] at h
         have hb1' : c1.val < 128 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
-      rw [if_neg hb1] at h
+      rw [ite_eq_right hb1] at h
       by_cases hb2 : 192#u8 ≤ c1
       case pos =>
-        rw [if_pos hb2] at h
+        rw [ite_eq_left hb2] at h
         have hb2' : 192 ≤ c1.val := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
-      rw [if_neg hb2] at h
+      rw [ite_eq_right hb2] at h
       have hc1a : 128 ≤ c1.val := by scalar_tac
       have hc1b : c1.val < 192 := by scalar_tac
       obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
@@ -2245,23 +2245,23 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       rw [hk1v]
       exact win_enc2 hn hkn1 (by omega) (by omega)
         (by rw [hp0, e6]; omega) (by rw [hp1, e6]; omega)
-    rw [if_neg hlt224] at h
+    rw [ite_eq_right hlt224] at h
     have hc0n3 : 224 ≤ c0.val := by scalar_tac
     -- three bytes
     by_cases hlt240 : c0 < 240#u8
     case pos =>
-      rw [if_pos hlt240] at h
+      rw [ite_eq_left hlt240] at h
       have hc0n4 : c0.val < 240 := by scalar_tac
       obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
       have hiv : i.val = k.val + 2 := by simpa using uscalar_add_val hi
       by_cases htr : n ≤ i
       case pos =>
-        rw [if_pos htr] at h
+        rw [ite_eq_left htr] at h
         have htr' : n.val ≤ k.val + 2 := by rw [← hiv]; scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
-      rw [if_neg htr] at h
+      rw [ite_eq_right htr] at h
       have hkn2 : k.val + 2 < n.val := by rw [← hiv]; scalar_tac
       obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
       have hi1v : i1.val = k.val + 1 := by simpa using uscalar_add_val hi1
@@ -2273,36 +2273,36 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
         rw [← hiv, pByteAt_val (by omega), index_ok (by omega) hc2]
       by_cases hb1 : c1 < 128#u8
       case pos =>
-        rw [if_pos hb1] at h
+        rw [ite_eq_left hb1] at h
         have hb1' : c1.val < 128 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
-      rw [if_neg hb1] at h
+      rw [ite_eq_right hb1] at h
       by_cases hb2 : 192#u8 ≤ c1
       case pos =>
-        rw [if_pos hb2] at h
+        rw [ite_eq_left hb2] at h
         have hb2' : 192 ≤ c1.val := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
-      rw [if_neg hb2] at h
+      rw [ite_eq_right hb2] at h
       by_cases hb3 : c2 < 128#u8
       case pos =>
-        rw [if_pos hb3] at h
+        rw [ite_eq_left hb3] at h
         have hb3' : c2.val < 128 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
-      rw [if_neg hb3] at h
+      rw [ite_eq_right hb3] at h
       by_cases hb4 : 192#u8 ≤ c2
       case pos =>
-        rw [if_pos hb4] at h
+        rw [ite_eq_left hb4] at h
         have hb4' : 192 ≤ c2.val := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
-      rw [if_neg hb4] at h
+      rw [ite_eq_right hb4] at h
       have hc1a : 128 ≤ c1.val := by scalar_tac
       have hc1b : c1.val < 192 := by scalar_tac
       have hc2a : 128 ≤ c2.val := by scalar_tac
@@ -2338,16 +2338,16 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
         exact or_add64 (by omega) (by omega)
       by_cases hover : V < 2048#u32
       case pos =>
-        rw [if_pos hover] at h
+        rw [ite_eq_left hover] at h
         have hover' : V.val < 2048 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; omega)
-      rw [if_neg hover] at h
+      rw [ite_eq_right hover] at h
       have hover' : 2048 ≤ V.val := by scalar_tac
       by_cases hsur : 55296#u32 ≤ V
       case neg =>
-        rw [if_neg hsur] at h
+        rw [ite_eq_right hsur] at h
         have hsur' : V.val < 55296 := by scalar_tac
         obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
@@ -2356,16 +2356,16 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
         rw [hk1v]
         exact win_enc3 hn hkn2 (Or.inl (by omega)) (by omega) (by omega)
           (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
-      rw [if_pos hsur] at h
+      rw [ite_eq_left hsur] at h
       have hsur' : 55296 ≤ V.val := by scalar_tac
       by_cases hsur2 : V < 57344#u32
       case pos =>
-        rw [if_pos hsur2] at h
+        rw [ite_eq_left hsur2] at h
         have hsur2' : V.val < 57344 := by scalar_tac
         simp only [Result.ok.injEq] at h
         rw [← h]
         exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2]; omega)
-      rw [if_neg hsur2] at h
+      rw [ite_eq_right hsur2] at h
       have hsur2' : 57344 ≤ V.val := by scalar_tac
       obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
@@ -2374,28 +2374,28 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       rw [hk1v]
       exact win_enc3 hn hkn2 (Or.inr ⟨by omega, by omega⟩) (by omega) (by omega)
         (by rw [hp0, eV]; omega) (by rw [hp1, eV]; omega) (by rw [hp2, eV]; omega)
-    rw [if_neg hlt240] at h
+    rw [ite_eq_right hlt240] at h
     have hc0n4 : 240 ≤ c0.val := by scalar_tac
     -- four bytes, or a lead byte no character can have
     by_cases hlt245 : c0 < 245#u8
     case neg =>
-      rw [if_neg hlt245] at h
+      rw [ite_eq_right hlt245] at h
       have hc0n5 : 245 ≤ c0.val := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
-    rw [if_pos hlt245] at h
+    rw [ite_eq_left hlt245] at h
     have hc0n5 : c0.val < 245 := by scalar_tac
     obtain ⟨i, hi, h⟩ := bind_eq_ok_iff.mp h
     have hiv : i.val = k.val + 3 := by simpa using uscalar_add_val hi
     by_cases htr : n ≤ i
     case pos =>
-      rw [if_pos htr] at h
+      rw [ite_eq_left htr] at h
       have htr' : n.val ≤ k.val + 3 := by rw [← hiv]; scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0]; omega)
-    rw [if_neg htr] at h
+    rw [ite_eq_right htr] at h
     have hkn3 : k.val + 3 < n.val := by rw [← hiv]; scalar_tac
     obtain ⟨i1, hi1, h⟩ := bind_eq_ok_iff.mp h
     have hi1v : i1.val = k.val + 1 := by simpa using uscalar_add_val hi1
@@ -2412,52 +2412,52 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       rw [← hiv, pByteAt_val (by omega), index_ok (by omega) hc3]
     by_cases hb1 : c1 < 128#u8
     case pos =>
-      rw [if_pos hb1] at h
+      rw [ite_eq_left hb1] at h
       have hb1' : c1.val < 128 := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
-    rw [if_neg hb1] at h
+    rw [ite_eq_right hb1] at h
     by_cases hb2 : 192#u8 ≤ c1
     case pos =>
-      rw [if_pos hb2] at h
+      rw [ite_eq_left hb2] at h
       have hb2' : 192 ≤ c1.val := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp1]; omega)
-    rw [if_neg hb2] at h
+    rw [ite_eq_right hb2] at h
     by_cases hb3 : c2 < 128#u8
     case pos =>
-      rw [if_pos hb3] at h
+      rw [ite_eq_left hb3] at h
       have hb3' : c2.val < 128 := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
-    rw [if_neg hb3] at h
+    rw [ite_eq_right hb3] at h
     by_cases hb4 : 192#u8 ≤ c2
     case pos =>
-      rw [if_pos hb4] at h
+      rw [ite_eq_left hb4] at h
       have hb4' : 192 ≤ c2.val := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp2]; omega)
-    rw [if_neg hb4] at h
+    rw [ite_eq_right hb4] at h
     by_cases hb5 : c3 < 128#u8
     case pos =>
-      rw [if_pos hb5] at h
+      rw [ite_eq_left hb5] at h
       have hb5' : c3.val < 128 := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp3]; omega)
-    rw [if_neg hb5] at h
+    rw [ite_eq_right hb5] at h
     by_cases hb6 : 192#u8 ≤ c3
     case pos =>
-      rw [if_pos hb6] at h
+      rw [ite_eq_left hb6] at h
       have hb6' : 192 ≤ c3.val := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp3]; omega)
-    rw [if_neg hb6] at h
+    rw [ite_eq_right hb6] at h
     have hc1a : 128 ≤ c1.val := by scalar_tac
     have hc1b : c1.val < 192 := by scalar_tac
     have hc2a : 128 ≤ c2.val := by scalar_tac
@@ -2508,21 +2508,21 @@ private theorem utf8_decode_loop_spec (b : Slice Std.U8) (n : Std.Usize)
       exact or_add64 (by omega) (by omega)
     by_cases hover : V < 65536#u32
     case pos =>
-      rw [if_pos hover] at h
+      rw [ite_eq_left hover] at h
       have hover' : V.val < 65536 := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; omega)
-    rw [if_neg hover] at h
+    rw [ite_eq_right hover] at h
     have hover' : 65536 ≤ V.val := by scalar_tac
     by_cases hbig : 1114111#u32 < V
     case pos =>
-      rw [if_pos hbig] at h
+      rw [ite_eq_left hbig] at h
       have hbig' : 1114111 < V.val := by scalar_tac
       simp only [Result.ok.injEq] at h
       rw [← h]
       exact win_not_valid hn hk (by intro v; rw [hp0, hp1, hp2, hp3]; omega)
-    rw [if_neg hbig] at h
+    rw [ite_eq_right hbig] at h
     have hbig' : V.val ≤ 1114111 := by scalar_tac
     obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
@@ -2769,7 +2769,7 @@ private theorem unescape_simple_step {b : Slice Std.U8} {e j j2 : Std.Usize}
           (absChunk acc ++ utf8Of (absU32 val)) else none)
       = (o.map absChunk).bind String.fromUTF8? := by
   have hj2v : j2.val = j.val + 2 := by simpa using uscalar_add_val hj2
-  rw [dif_pos (show absPos j < absPos j + 1 + 1 by
+  rw [dite_eq_left (show absPos j < absPos j + 1 + 1 by
     rw [← absPos_add_two hj2]; exact absPos_lt_step (by omega))]
   rw [← absPos_add_two hj2, ← utf8_of_refines hv hacc1]
   exact hrec
@@ -2787,51 +2787,51 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
   | zero =>
     intro acc j o hf h
     rw [frontend.scan_fast.unescape_bytes_loop.eq_def] at h
-    rw [if_neg (show ¬ (j < Slice.len b) by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ (j < Slice.len b) by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     rw [← h, unescape,
-      dif_neg (show ¬ (absPos j < (absBytes b).usize) by rw [absPos_lt_usize]; scalar_tac)]
+      dite_eq_right (show ¬ (absPos j < (absBytes b).usize) by rw [absPos_lt_usize]; scalar_tac)]
     rfl
   | succ f ih =>
   intro acc j o hf h
   rw [frontend.scan_fast.unescape_bytes_loop.eq_def] at h
   by_cases hlen : j < Slice.len b
   case neg =>
-    rw [if_neg hlen] at h
+    rw [ite_eq_right hlen] at h
     simp only [Result.ok.injEq] at h
     rw [← h, unescape,
-      dif_neg (show ¬ (absPos j < (absBytes b).usize) by rw [absPos_lt_usize]; scalar_tac)]
+      dite_eq_right (show ¬ (absPos j < (absBytes b).usize) by rw [absPos_lt_usize]; scalar_tac)]
     rfl
-  rw [if_pos hlen] at h
+  rw [ite_eq_left hlen] at h
   have hjb : j.val < b.val.length := by scalar_tac
-  rw [unescape, dif_pos (show absPos j < (absBytes b).usize by rw [absPos_lt_usize]; exact hjb)]
+  rw [unescape, dite_eq_left (show absPos j < (absBytes b).usize by rw [absPos_lt_usize]; exact hjb)]
   by_cases hje : j < e
   case neg =>
-    rw [if_neg hje] at h
+    rw [ite_eq_right hje] at h
     simp only [Result.ok.injEq] at h
-    rw [← h, if_neg (show ¬ (absPos j < absPos e) by rw [absPos_lt]; scalar_tac)]
+    rw [← h, ite_eq_right (show ¬ (absPos j < absPos e) by rw [absPos_lt]; scalar_tac)]
     rfl
-  rw [if_pos hje] at h
-  rw [if_pos (show absPos j < absPos e by rw [absPos_lt]; scalar_tac)]
+  rw [ite_eq_left hje] at h
+  rw [ite_eq_left (show absPos j < absPos e by rw [absPos_lt]; scalar_tac)]
   obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
   have hp : pByteAt b j.val = c := by rw [pByteAt_val hjb, index_ok hjb hc]
   rw [uget_absPos, hp]
   by_cases h92 : (c != 92#u8) = true
   case pos =>
-    rw [if_pos h92] at h
-    rw [if_pos (show (absByte c != 92) = true by
+    rw [ite_eq_left h92] at h
+    rw [ite_eq_left (show (absByte c != 92) = true by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
       simp only [bne_iff_ne, ne_eq] at h92
       scalar_tac)]
     obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨j1, hj1, h⟩ := bind_eq_ok_iff.mp h
     have hj1v : j1.val = j.val + 1 := by simpa using uscalar_add_val hj1
-    rw [dif_pos (show absPos j < absPos j + 1 by
+    rw [dite_eq_left (show absPos j < absPos j + 1 by
       rw [← absPos_add_one hj1]; exact absPos_lt_step (by omega))]
     rw [← absPos_add_one hj1, ← absChunk_push hacc1]
     exact ih acc1 j1 o (by omega) h
-  rw [if_neg h92] at h
-  rw [if_neg (show ¬ ((absByte c != 92) = true) by
+  rw [ite_eq_right h92] at h
+  rw [ite_eq_right (show ¬ ((absByte c != 92) = true) by
     simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
     simp only [bne_iff_ne, ne_eq, not_not] at h92
     scalar_tac)]
@@ -2854,18 +2854,18 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
     have q110 : (absByte d == 110) = false := absByte_beq_of_ne n110
     have q114 : (absByte d == 114) = false := absByte_beq_of_ne n114
     have q116 : (absByte d == 116) = false := absByte_beq_of_ne n116
-    simp only [q34, q92, q47, q98, q102, q110, q114, q116, Bool.false_eq_true, if_false]
+    simp only [q34, q92, q47, q98, q102, q110, q114, q116, Bool.false_eq_true, ite_false]
     by_cases h117 : (d != 117#u8) = true
     case pos =>
-      rw [if_pos h117] at h
+      rw [ite_eq_left h117] at h
       simp only [Result.ok.injEq] at h
-      rw [← h, if_pos (show (absByte d != 117) = true by
+      rw [← h, ite_eq_left (show (absByte d != 117) = true by
         simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat]
         simp only [bne_iff_ne, ne_eq] at h117
         scalar_tac)]
       rfl
-    rw [if_neg h117] at h
-    rw [if_neg (show ¬ ((absByte d != 117) = true) by
+    rw [ite_eq_right h117] at h
+    rw [ite_eq_right (show ¬ ((absByte d != 117) = true) by
       simp only [bne_iff_ne, ne_eq, absByte_eq_iff, UInt8.reduceToNat, not_not]
       simp only [bne_iff_ne, ne_eq, not_not] at h117
       scalar_tac)]
@@ -2892,47 +2892,47 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
       rw [← hj6p]; exact absPos_lt_step (by omega)
     by_cases hlo : x < 55296#u32
     case pos =>
-      rw [if_pos hlo] at h
+      rw [ite_eq_left hlo] at h
       have hlo' : x.val < 55296 := by scalar_tac
-      rw [if_pos (show (decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true by
+      rw [ite_eq_left (show (decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true by
         simp only [Bool.or_eq_true, decide_eq_true_eq]
         exact Or.inl (absU32_lt_iff.mpr (by simpa using hlo')))]
-      rw [dif_pos hj6lt, ← hj6p]
+      rw [dite_eq_left hj6lt, ← hj6p]
       obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
       rw [← utf8_of_refines (Or.inl (by omega)) hacc1]
       exact ih acc1 j6 o (by omega) h
-    rw [if_neg hlo] at h
+    rw [ite_eq_right hlo] at h
     have hlo' : 55296 ≤ x.val := by scalar_tac
     by_cases hhi : 57344#u32 ≤ x
     case pos =>
-      rw [if_pos hhi] at h
+      rw [ite_eq_left hhi] at h
       have hhi' : 57344 ≤ x.val := by scalar_tac
-      rw [if_pos (show (decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true by
+      rw [ite_eq_left (show (decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true by
         simp only [Bool.or_eq_true, decide_eq_true_eq]
         exact Or.inr (le_absU32_iff.mpr (by simpa using hhi')))]
-      rw [dif_pos hj6lt, ← hj6p]
+      rw [dite_eq_left hj6lt, ← hj6p]
       obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
       rw [← utf8_of_refines (Or.inr ⟨by omega, by omega⟩) hacc1]
       exact ih acc1 j6 o (by omega) h
-    rw [if_neg hhi] at h
+    rw [ite_eq_right hhi] at h
     have hhi' : x.val < 57344 := by scalar_tac
-    rw [if_neg (show ¬ ((decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true) by
+    rw [ite_eq_right (show ¬ ((decide (absU32 x < 55296) || decide (57344 ≤ absU32 x)) = true) by
       simp only [Bool.or_eq_true, decide_eq_true_eq, not_or]
       refine ⟨fun hc => ?_, fun hc => ?_⟩
       · have := absU32_lt_iff.mp hc; simp at this; omega
       · have := le_absU32_iff.mp hc; simp at this; omega)]
     by_cases hlow : 56320#u32 ≤ x
     case pos =>
-      rw [if_pos hlow] at h
+      rw [ite_eq_left hlow] at h
       have hlow' : 56320 ≤ x.val := by scalar_tac
-      rw [if_pos (show (56320 : UInt32) ≤ absU32 x from le_absU32_iff.mpr (by simpa using hlow'))]
-      rw [dif_pos hj6lt, ← hj6p]
+      rw [ite_eq_left (show (56320 : UInt32) ≤ absU32 x from le_absU32_iff.mpr (by simpa using hlow'))]
+      rw [dite_eq_left hj6lt, ← hj6p]
       obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
       rw [← repl_abs, ← utf8_of_refines repl_valid hacc1]
       exact ih acc1 j6 o (by omega) h
-    rw [if_neg hlow] at h
+    rw [ite_eq_right hlow] at h
     have hlow' : x.val < 56320 := by scalar_tac
-    rw [if_neg (show ¬ ((56320 : UInt32) ≤ absU32 x) by
+    rw [ite_eq_right (show ¬ ((56320 : UInt32) ≤ absU32 x) by
       intro hc; have := le_absU32_iff.mp hc; simp at this; omega)]
     obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨cont1, hcont1, h⟩ := bind_eq_ok_iff.mp h
@@ -2944,12 +2944,12 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
       rw [pb0]
       by_cases e92 : i3 = 92#u8
       case neg =>
-        rw [if_neg e92] at hcont1
+        rw [ite_eq_right e92] at hcont1
         simp only [Result.ok.injEq] at hcont1
         have q : (absByte i3 == 92) = false := absByte_beq_of_ne e92
         rw [← hcont1, q]
         simp
-      rw [if_pos e92] at hcont1
+      rw [ite_eq_left e92] at hcont1
       have p92 : (absByte i3 == 92) = true := absByte_beq_of_eq e92
       rw [p92]
       obtain ⟨i4, hi4, hcont1⟩ := bind_eq_ok_iff.mp hcont1
@@ -2959,12 +2959,12 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
       rw [pb1]
       by_cases e117 : i5 = 117#u8
       case neg =>
-        rw [if_neg e117] at hcont1
+        rw [ite_eq_right e117] at hcont1
         simp only [Result.ok.injEq] at hcont1
         have q : (absByte i5 == 117) = false := absByte_beq_of_ne e117
         rw [← hcont1, q]
         simp
-      rw [if_pos e117] at hcont1
+      rw [ite_eq_left e117] at hcont1
       have p117 : (absByte i5 == 117) = true := absByte_beq_of_eq e117
       rw [p117]
       obtain ⟨i6, hi6, hcont1⟩ := bind_eq_ok_iff.mp hcont1
@@ -2974,12 +2974,12 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
       rw [pb2]
       by_cases e100 : i7 = 100#u8
       case pos =>
-        rw [if_pos e100] at hcont1
+        rw [ite_eq_left e100] at hcont1
         simp only [Result.ok.injEq] at hcont1
         have q : (absByte i7 == 100) = true := absByte_beq_of_eq e100
         rw [← hcont1, q]
         simp
-      rw [if_neg e100] at hcont1
+      rw [ite_eq_right e100] at hcont1
       obtain ⟨i8, hi8, hcont1⟩ := bind_eq_ok_iff.mp hcont1
       have hi78 : i8 = i7 := by
         rw [byte_at_eq] at hi7 hi8
@@ -3000,11 +3000,11 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
         (if cont1 = true then hex3 (absBytes b) (absPos j6 + 1 + 1 + 1) else none) := by
       by_cases hct : cont1 = true
       case pos =>
-        rw [if_pos hct] at hv2 ⊢
+        rw [ite_eq_left hct] at hv2 ⊢
         obtain ⟨i4, hi4, hv2⟩ := bind_eq_ok_iff.mp hv2
         rw [← absPos_add_three hi4]
         exact hex3_refines hv2
-      rw [if_neg hct] at hv2 ⊢
+      rw [ite_eq_right hct] at hv2 ⊢
       simp only [Result.ok.injEq] at hv2
       rw [← hv2]
       rfl
@@ -3012,7 +3012,7 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
     cases v2 with
     | none =>
       simp only [Option.map_none]
-      rw [dif_pos (show absPos j < absPos j6 by exact absPos_lt_step (by omega))]
+      rw [dite_eq_left (show absPos j < absPos j6 by exact absPos_lt_step (by omega))]
       obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
       rw [← repl_abs, ← utf8_of_refines repl_valid hacc1]
       exact ih acc1 j6 o (by omega) h
@@ -3021,16 +3021,16 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
     simp only [Option.map_some]
     by_cases hw : w < 3072#u32
     case pos =>
-      rw [if_pos hw] at h
+      rw [ite_eq_left hw] at h
       have hw' : w.val < 3072 := by scalar_tac
-      rw [if_pos (show absU32 w < 3072 from absU32_lt_iff.mpr (by simpa using hw'))]
-      rw [dif_pos (show absPos j < absPos j6 by exact absPos_lt_step (by omega))]
+      rw [ite_eq_left (show absU32 w < 3072 from absU32_lt_iff.mpr (by simpa using hw'))]
+      rw [dite_eq_left (show absPos j < absPos j6 by exact absPos_lt_step (by omega))]
       obtain ⟨acc1, hacc1, h⟩ := bind_eq_ok_iff.mp h
       rw [← repl_abs, ← utf8_of_refines repl_valid hacc1]
       exact ih acc1 j6 o (by omega) h
-    rw [if_neg hw] at h
+    rw [ite_eq_right hw] at h
     have hw' : 3072 ≤ w.val := by scalar_tac
-    rw [if_neg (show ¬ (absU32 w < 3072) by
+    rw [ite_eq_right (show ¬ (absU32 w < 3072) by
       intro hc; have := absU32_lt_iff.mp hc; simp at this; omega)]
     obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨i5, hi5, h⟩ := bind_eq_ok_iff.mp h
@@ -3059,7 +3059,7 @@ private theorem unescape_bytes_loop_refines (b : Slice Std.U8) (e : Std.Usize) (
     have acv : absU32 cv = absU32 i7 + 65536 := absU32_add hcv
     have hj12v : j12.val = j6.val + 6 := by simpa using uscalar_add_val hj12
     have hj12p : absPos j12 = absPos j6 + 1 + 1 + 1 + 1 + 1 + 1 := absPos_add_six hj12
-    rw [dif_pos (show absPos j < absPos j6 + 1 + 1 + 1 + 1 + 1 + 1 by
+    rw [dite_eq_left (show absPos j < absPos j6 + 1 + 1 + 1 + 1 + 1 + 1 by
       rw [← hj12p]; exact absPos_lt_step (by omega))]
     rw [← hj12p,
       show ((absU32 x &&& 1023) <<< (10 : UInt32) ||| absU32 w &&& 1023) + 65536 = absU32 cv from

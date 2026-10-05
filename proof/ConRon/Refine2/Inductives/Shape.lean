@@ -272,7 +272,7 @@ theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
   rw [arena.core.nidx_vec_beq] at h
   by_cases hl : alloc.vec.Vec.len a = alloc.vec.Vec.len b
   · have hlv : a.val.length = b.val.length := by scalar_tac
-    rw [if_pos hl] at h
+    rw [ite_eq_left hl] at h
     have key : ∀ (i : Std.Usize) (o : Bool),
         arena.core.nidx_vec_beq_from a b i = ok o →
         o = ((a.val.drop i.val).map absNIdx == (b.val.drop i.val).map absNIdx) := by
@@ -283,13 +283,13 @@ theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
         ?_ ?_ i () o hh
       · intro i _ hn o h
         rw [arena.core.nidx_vec_beq_from.eq_def] at h
-        rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
+        rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
         rw [← h, List.drop_eq_nil_of_le hn,
           List.drop_eq_nil_of_le (show b.val.length ≤ i.val by omega)]
         simp
       · intro i _ hi ih o h
         rw [arena.core.nidx_vec_beq_from.eq_def] at h
-        rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+        rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
         obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -300,12 +300,12 @@ theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
         have hbv : b1 = (absNIdx n == absNIdx n1) := nidx_eq2_abs hb1
         cases hbb : b1
         · rw [hbb] at h hbv
-          rw [if_neg (by simp), Result.ok.injEq] at h
+          rw [ite_eq_right (by simp), Result.ok.injEq] at h
           rw [← h]
           simp only [List.cons_beq_cons, ← hbv]
           simp
         · rw [hbb] at h hbv
-          rw [if_pos (by simp)] at h
+          rw [ite_eq_left (by simp)] at h
           obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hi2v : i2.val = i.val + 1 := absSz_add_one hi2
           rw [ih i2 () hi2v o h, hi2v]
@@ -313,7 +313,7 @@ theorem nidx_vec_beq_abs {a b : alloc.vec.Vec arena.handle.NIdx} {o : Bool}
           simp
     rw [key 0#usize o h]
     simp [absNIdxL, show ((0#usize : Std.Usize)).val = 0 by scalar_tac]
-  · rw [if_neg hl, Result.ok.injEq] at h
+  · rw [ite_eq_right hl, Result.ok.injEq] at h
     have hlv : a.val.length ≠ b.val.length := by
       intro hc; exact hl (by scalar_tac)
     have hne : absNIdxL a ≠ absNIdxL b := by
@@ -653,11 +653,11 @@ theorem append_eidx_from_abs {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.
     (fun i out => arena.core.append_eidx_from out ys i) ?_ ?_ i xs o hrun
   · intro i out o hn h
     rw [arena.core.append_eidx_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len ys by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ys by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.core.append_eidx_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len ys by
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ys by
       have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -691,11 +691,11 @@ theorem drop_eidx_from_abs {xs : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize
     (fun i out => arena.core.drop_eidx_from xs i out) ?_ ?_ k out o hrun
   · intro i out o hn h
     rw [arena.core.drop_eidx_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     rw [arena.core.drop_eidx_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len xs by
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by
       have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
     obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hqx : q = x := by
@@ -716,18 +716,18 @@ theorem drop_eidx_n_from_abs {xs : alloc.vec.Vec arena.handle.EIdx} :
   induction m with
   | zero =>
     intro n i o hn h
-    rw [arena.core.drop_eidx_n_from.eq_def, if_pos (by scalar_tac)] at h
+    rw [arena.core.drop_eidx_n_from.eq_def, ite_eq_left (by scalar_tac)] at h
     rw [drop_eidx_from_abs h, hn]
     simp [absEIdxL, alloc.vec.Vec.new]
   | succ m ih =>
     intro n i o hn h
-    rw [arena.core.drop_eidx_n_from.eq_def, if_neg (by scalar_tac)] at h
+    rw [arena.core.drop_eidx_n_from.eq_def, ite_eq_right (by scalar_tac)] at h
     by_cases hi : i ≥ alloc.vec.Vec.len xs
-    · rw [if_pos hi, Result.ok.injEq] at h
+    · rw [ite_eq_left hi, Result.ok.injEq] at h
       subst h
       rw [List.drop_eq_nil_of_le (by simp [alloc.vec.Vec.len] at hi; omega)]
       simp [absEIdxL, alloc.vec.Vec.new]
-    · rw [if_neg hi] at h
+    · rw [ite_eq_right hi] at h
       obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have h1 := ConRon.Refine.Nat.usub_val hn1

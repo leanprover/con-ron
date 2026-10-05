@@ -117,11 +117,11 @@ recursion and not a cursor. -/
   induction hk : k.val generalizing k st lst with
   | zero =>
     rw [arena.inductives.struct_install.check_struct_doms_at.eq_def,
-      if_pos (by scalar_tac), show absU k = 0 from hk, checkStructDomsAt]
+      ite_eq_left (by scalar_tac), show absU k = 0 from hk, checkStructDomsAt]
     lockstep
   | succ m ih =>
     rw [arena.inductives.struct_install.check_struct_doms_at.eq_def,
-      if_neg (by scalar_tac), show absU k = m + 1 from hk, checkStructDomsAt]
+      ite_eq_right (by scalar_tac), show absU k = m + 1 from hk, checkStructDomsAt]
     have hk1 : 1 ≤ k.val := by omega
     obtain rfl : m = k.val - 1 := by omega
     clear hk
@@ -167,11 +167,11 @@ cursor on. -/
     ?_ ?_ i st lst hrel hinv
   · intro st lst i hn hrel hinv
     rw [arena.inductives.struct_install.proj_bodies_scoped.eq_def, projBodiesScopedSpec]
-    rw [if_pos (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_left (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
   · intro st lst i hb hrel hinv ih
     rw [arena.inductives.struct_install.proj_bodies_scoped.eq_def, projBodiesScopedSpec]
-    rw [if_neg (by simp [alloc.vec.Vec.len]; scalar_tac)]
+    rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
     lockstep
 
 open Lockstep in
@@ -192,11 +192,11 @@ from field `j` on — the twin's `(List.range nF).allM`. -/
   induction hk : n_f.val - j.val generalizing j st lst with
   | zero =>
     rw [arena.inductives.struct_install.proj_fn_family_free.eq_def,
-      if_pos (by scalar_tac), projFnFamilyFreeSpec]
+      ite_eq_left (by scalar_tac), projFnFamilyFreeSpec]
     lockstep
   | succ m ih =>
     rw [arena.inductives.struct_install.proj_fn_family_free.eq_def,
-      if_neg (by scalar_tac), projFnFamilyFreeSpec]
+      ite_eq_right (by scalar_tac), projFnFamilyFreeSpec]
     lockstep
 
 open Lockstep in

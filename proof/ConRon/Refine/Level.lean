@@ -515,7 +515,7 @@ theorem subst_go_refines {ks : alloc.vec.Vec name.Name} {vs : alloc.vec.Vec leve
   | zero =>
     intro i hi u' hu'
     rw [level.subst_go.eq_def] at hu'
-    rw [if_pos (by scalar_tac)] at hu'
+    rw [ite_eq_left (by scalar_tac)] at hu'
     simp at hu'
     obtain ⟨_, rfl⟩ := level_param_inv hu'
     rw [List.drop_eq_nil_of_le (by simp; scalar_tac)]
@@ -559,12 +559,12 @@ theorem subst_go_refines {ks : alloc.vec.Vec name.Name} {vs : alloc.vec.Vec leve
           Name.name_beq_exact' (hks k (hkv ▸ List.getElem_mem _)) hn hc
         cases c
         · simp only [Bool.false_eq, decide_eq_false_iff_not] at hce
-          rw [if_neg (by rw [← hkv]; exact hce)]
+          rw [ite_eq_right (by rw [← hkv]; exact hce)]
           simp at hu'
           rw [← hwv]
           exact ih w (by scalar_tac) u' hu'
         · simp only [Bool.true_eq, decide_eq_true_eq] at hce
-          rw [if_pos (by rw [← hkv]; exact hce)]
+          rw [ite_eq_left (by rw [← hkv]; exact hce)]
           simp at hu'
           subst hu'
           exact ⟨by rw [hvv], hvs v (hvv ▸ List.getElem_mem _)⟩
@@ -874,14 +874,14 @@ theorem imax_rules_refines {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
   simp only [bind_eq_ok_iff] at h
   obtain ⟨b1, hb1, h⟩ := h
   cases b1
-  · simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+  · simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at h
     obtain ⟨b2, hb2, h⟩ := h
     cases b2
-    · simp only [Bool.false_eq_true, if_false] at h
+    · simp only [Bool.false_eq_true, ite_false] at h
       exact imax_rules_distrib_refines hQ hl hr hb1 hb2 h
-    · simp only [if_true] at h
+    · simp only [ite_true] at h
       exact by_cases_right_refines hQ hl hr hb1 hb2 h
-  · simp only [if_true] at h
+  · simp only [ite_true] at h
     exact by_cases_left_refines hQ hl hr hb1 h
 
 theorem level_beq_exact' {a b : level.Level} (ha : LevelWF a) (hb : LevelWF b) {c : Bool}
@@ -1145,12 +1145,12 @@ theorem rest_refines_aux {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
       rcases h with ⟨h1, h2⟩ | ⟨h1, ⟨h2, h3⟩ | ⟨h2, h3⟩⟩
       · have e := level_beq_exact' ha hx h1
         replace e : ¬ (absLevel a = absLevel x) := by simpa using e.symm
-        rw [if_neg (by simp [e])]
+        rw [ite_eq_right (by simp [e])]
         have hres := imax_rules_refines hQ hl hr h2
         simpa using hres
       · have e := level_beq_exact' hb hy h2
         replace e : ¬ (absLevel b = absLevel y) := by simpa using e.symm
-        rw [if_neg (by simp [e])]
+        rw [ite_eq_right (by simp [e])]
         have hres := imax_rules_refines hQ hl hr h3
         simpa using hres
       · have e1 := level_beq_exact' ha hx h1
@@ -1159,10 +1159,10 @@ theorem rest_refines_aux {fuel : Std.U64} (hQ : LeqCoreSpec fuel)
         replace e2 : absLevel b = absLevel y := by simpa using e2.symm
         split at h3
         · rename_i hd
-          rw [if_pos (by simp [e1, e2]; scalar_tac)]
+          rw [ite_eq_left (by simp [e1, e2]; scalar_tac)]
           simpa using h3
         · rename_i hd
-          rw [if_neg (by simp [e1, e2]; scalar_tac)]
+          rw [ite_eq_right (by simp [e1, e2]; scalar_tac)]
           have hres := imax_rules_refines hQ hl hr h3
           simpa using hres
     | Param q =>
@@ -1258,52 +1258,52 @@ theorem leq_core_refines_aux (N : Nat) : ∀ (fuel : Std.U64), fuel.val = N → 
       have ez := is_zero_kind_refines l bz hbz
       cases bz
       · replace ez : ¬ (absLevel l = ConLeche.Level.zero) := by simpa using ez.symm
-        rw [if_neg (by simp [ez])]
-        simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+        rw [ite_eq_right (by simp [ez])]
+        simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at h
         obtain ⟨bz2, hbz2, h⟩ := h
         have ez2 := is_zero_kind_refines r bz2 hbz2
         cases bz2
         · replace ez2 : ¬ (absLevel r = ConLeche.Level.zero) := by simpa using ez2.symm
-          rw [if_neg (by simp [ez2])]
-          simp only [Bool.false_eq_true, if_false, bind_tc_ok] at h
+          rw [ite_eq_right (by simp [ez2])]
+          simp only [Bool.false_eq_true, ite_false, bind_tc_ok] at h
           have hres := rest_refines_aux hQ' hl hr h
           rw [hf'v] at hres; exact hres
         · replace ez2 : absLevel r = ConLeche.Level.zero := by simpa using ez2.symm
-          simp only [if_true] at h
+          simp only [ite_true] at h
           split at h
           · rename_i hd
-            rw [if_pos ⟨ez2, by scalar_tac⟩]
+            rw [ite_eq_left ⟨ez2, by scalar_tac⟩]
             simpa using h
           · rename_i hd
-            rw [if_neg (by simp [ez2]; scalar_tac)]
+            rw [ite_eq_right (by simp [ez2]; scalar_tac)]
             simp only [bind_tc_ok] at h
             have hres := rest_refines_aux hQ' hl hr h
             rw [hf'v] at hres; exact hres
       · replace ez : absLevel l = ConLeche.Level.zero := by simpa using ez.symm
-        simp only [if_true] at h
+        simp only [ite_true] at h
         split at h
         · rename_i hd
-          rw [if_pos ⟨ez, by scalar_tac⟩]
+          rw [ite_eq_left ⟨ez, by scalar_tac⟩]
           simpa using h
         · rename_i hd
-          rw [if_neg (by simp [ez]; scalar_tac)]
+          rw [ite_eq_right (by simp [ez]; scalar_tac)]
           simp only [bind_eq_ok_iff] at h
           obtain ⟨bz2, hbz2, h⟩ := h
           have ez2 := is_zero_kind_refines r bz2 hbz2
           cases bz2
           · replace ez2 : ¬ (absLevel r = ConLeche.Level.zero) := by simpa using ez2.symm
-            rw [if_neg (by simp [ez2])]
-            simp only [Bool.false_eq_true, if_false, bind_tc_ok] at h
+            rw [ite_eq_right (by simp [ez2])]
+            simp only [Bool.false_eq_true, ite_false, bind_tc_ok] at h
             have hres := rest_refines_aux hQ' hl hr h
             rw [hf'v] at hres; exact hres
           · replace ez2 : absLevel r = ConLeche.Level.zero := by simpa using ez2.symm
-            simp only [if_true] at h
+            simp only [ite_true] at h
             split at h
             · rename_i hd2
-              rw [if_pos ⟨ez2, by scalar_tac⟩]
+              rw [ite_eq_left ⟨ez2, by scalar_tac⟩]
               simpa using h
             · rename_i hd2
-              rw [if_neg (by simp [ez2]; scalar_tac)]
+              rw [ite_eq_right (by simp [ez2]; scalar_tac)]
               simp only [bind_tc_ok] at h
               have hres := rest_refines_aux hQ' hl hr h
               rw [hf'v] at hres; exact hres
@@ -1333,16 +1333,16 @@ theorem is_equiv_refines' {l r : level.Level} (hl : LevelWF l) (hr : LevelWF r) 
   rw [ConLeche.Level.isEquiv]
   cases b
   · replace eb : ¬ (absLevel l = absLevel r) := by simpa using eb.symm
-    rw [if_neg (by simpa using eb)]
-    simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+    rw [ite_eq_right (by simpa using eb)]
+    simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at h
     obtain ⟨l1, hl1, l2, hl2, b1, hb1, h⟩ := h
     obtain ⟨e1, e1w⟩ := simplify_refines' l hl l1 hl1
     obtain ⟨e2, e2w⟩ := simplify_refines' r hr l2 hl2
     have eb1 := level_beq_exact' e1w e2w hb1
     cases b1
     · replace eb1 : ¬ (absLevel l1 = absLevel l2) := by simpa using eb1.symm
-      rw [if_neg (by rw [← e1, ← e2]; exact eb1)]
-      simp only [Bool.false_eq_true, if_false, bind_eq_ok_iff] at h
+      rw [ite_eq_right (by rw [← e1, ← e2]; exact eb1)]
+      simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at h
       obtain ⟨o1, ho1, h⟩ := h
       have g1 := leq_refines' hl hr ho1
       rw [g1]
@@ -1354,11 +1354,11 @@ theorem is_equiv_refines' {l r : level.Level} (hl : LevelWF l) (hr : LevelWF r) 
         · have g2 := leq_refines' hr hl h
           simpa using g2
     · replace eb1 : absLevel l1 = absLevel l2 := by simpa using eb1.symm
-      rw [if_pos (by rw [← e1, ← e2]; exact eb1)]
+      rw [ite_eq_left (by rw [← e1, ← e2]; exact eb1)]
       simpa using h
   · replace eb : absLevel l = absLevel r := by simpa using eb.symm
-    rw [if_pos (by simpa using eb)]
-    simp only [if_true] at h
+    rw [ite_eq_left (by simpa using eb)]
+    simp only [ite_true] at h
     simpa using h
 
 /-! ## `levelsHaveParam` (task #20)

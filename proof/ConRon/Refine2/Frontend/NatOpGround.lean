@@ -210,7 +210,7 @@ theorem used_consts_go_aux {pers rst lst} (hrel : AStateRel₀ pers rst lst)
   induction N with
   | zero =>
     intro seen ls acc fuel e o hn hs h
-    rw [frontend.nat_op_ground.used_consts_go, if_pos (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.used_consts_go, ite_eq_left (by scalar_tac)] at h
     obtain ⟨sl, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -241,17 +241,17 @@ theorem used_consts_go_aux {pers rst lst} (hrel : AStateRel₀ pers rst lst)
         rw [hx, except_ok_bind]
         exact ih seen1 s' acc2 fuel b o hn hs' h
     intro seen ls acc fuel e o hn hs h
-    rw [frontend.nat_op_ground.used_consts_go, if_neg (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.used_consts_go, ite_eq_right (by scalar_tac)] at h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hbv := seen_has_refines hs hb
     unfold usedConstsGo
     split at h
     · rename_i hbt
       cases Result.ok_injective h
-      rw [if_pos (by rw [← hbv]; exact hbt)]
+      rw [ite_eq_left (by rw [← hbv]; exact hbt)]
       exact ⟨ls, rfl, hs⟩
     · rename_i hbt
-      rw [if_neg (by rw [← hbv]; exact hbt)]
+      rw [ite_eq_right (by rw [← hbv]; exact hbt)]
       obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [dupId_eidx _ _ he1] at h
       obtain ⟨⟨old, seen1⟩, hins, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -332,14 +332,14 @@ theorem used_consts_rules_refines {pers rst lst seen ls acc rules o}
     induction k with
     | zero =>
       intro i seen ls out o hk hs h
-      rw [frontend.nat_op_ground.used_consts_rules_loop, if_neg (by scalar_tac)] at h
+      rw [frontend.nat_op_ground.used_consts_rules_loop, ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by omega)]
       exact ⟨ls, rfl, hs⟩
     | succ k ih =>
       intro i seen ls out o hk hs h
       have hi : i.val < rules.val.length := by omega
-      rw [frontend.nat_op_ground.used_consts_rules_loop, if_pos (by scalar_tac),
+      rw [frontend.nat_op_ground.used_consts_rules_loop, ite_eq_left (by scalar_tac),
         vec_index_ok_eq rules i hi, bind_tc_ok] at h
       obtain ⟨⟨r, seen1⟩, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have h1 := used_consts_go_refines hrel hinv hs hr
@@ -387,14 +387,14 @@ theorem used_consts_block_refines {pers rst lst seen ls acc block o}
     induction k with
     | zero =>
       intro i st lst seen ls out o hk hrel hinv hs h
-      rw [frontend.nat_op_ground.used_consts_block_loop, if_neg (by scalar_tac)] at h
+      rw [frontend.nat_op_ground.used_consts_block_loop, ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by omega)]
       exact ⟨ls, lst, rfl, hs, hrel, hinv⟩
     | succ k ih =>
       intro i st lst seen ls out o hk hrel hinv hs h
       have hi : i.val < block.val.length := by omega
-      rw [frontend.nat_op_ground.used_consts_block_loop, if_pos (by scalar_tac),
+      rw [frontend.nat_op_ground.used_consts_block_loop, ite_eq_left (by scalar_tac),
         vec_index_ok_eq block i hi, bind_tc_ok] at h
       obtain ⟨ci, hci, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hcia := i_constant_info_dup_abs hci
@@ -586,12 +586,12 @@ theorem nidx_contains_refines {ns n v}
         v = ((ns.val.drop i.val).map absNIdx).contains (absNIdx n)) ?_ ?_
     · intro i _ hn v h
       rw [frontend.nat_op_ground.nidx_contains_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len ns by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le hn]; rfl
     · intro i _ hi ih v h
       rw [frontend.nat_op_ground.nidx_contains_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len ns by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hxv : ns.val[i.val]'hi = x := by
@@ -659,7 +659,7 @@ theorem is_nat_op_record_refines {pers rst lst d o}
           subst hnv
           rw [hbt] at hbv
           refine ⟨lst2, ?_, hrel2, hinv2⟩
-          simp only [absIConstantVal, ← hbv, Bool.true_or, if_true]; rfl
+          simp only [absIConstantVal, ← hbv, Bool.true_or, ite_true]; rfl
         · rename_i hbf
           obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hb1v := nidx_contains_refines hb1
@@ -673,14 +673,14 @@ theorem is_nat_op_record_refines {pers rst lst d o}
             subst hnv
             rw [hb1t] at hb1v
             refine ⟨lst2, ?_, hrel2, hinv2⟩
-            simp only [absIConstantVal, hbv', ← hb1v, Bool.false_or, if_true]; rfl
+            simp only [absIConstantVal, hbv', ← hb1v, Bool.false_or, ite_true]; rfl
           · rename_i hb1f
             cases Result.ok_injective h
             have hb1v' : (absNIdxL nsn).contains (absNIdx cv.name) = false := by
               rw [← hb1v]; simpa using hb1f
             refine ⟨lst2, ?_, hrel2, hinv2⟩
             simp only [absIConstantVal, hbv', hb1v', Bool.false_or, Bool.false_eq_true,
-              if_false]; rfl
+              ite_false]; rfl
   | AxiomDecl _ => cases Result.ok_injective h; exact hnone _ rfl
   | ThmDecl _ _ => cases Result.ok_injective h; exact hnone _ rfl
   | OpaqueDecl _ _ => cases Result.ok_injective h; exact hnone _ rfl
@@ -731,12 +731,12 @@ theorem hoist_name_index_refines {ds m}
         NameIdxRel o (insertNames lidx i.val ((ns.val.drop j.val).map absNIdx))) ?_ ?_
     · intro j idx hn lidx o hr h
       rw [frontend.nat_op_ground.hoist_name_index_loop0_loop0.eq_def] at h
-      rw [if_neg (show ¬ j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ j < alloc.vec.Vec.len ns by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le hn]; exact hr
     · intro j idx hj ih lidx o hr h
       rw [frontend.nat_op_ground.hoist_name_index_loop0_loop0.eq_def] at h
-      rw [if_pos (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [ite_eq_left (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
       obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨idx1, hidx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -757,7 +757,7 @@ theorem hoist_name_index_refines {ds m}
         split at hidx1
         · rename_i hbt
           cases Result.ok_injective hidx1
-          rw [← hbv, hbt, if_pos rfl]; exact hr
+          rw [← hbv, hbt, ite_eq_left rfl]; exact hr
         · rename_i hbf
           obtain ⟨n1, hn1, hidx1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hidx1
           obtain ⟨i1, hi1, hidx1⟩ := ConRon.Refine.bind_eq_ok_iff.mp hidx1
@@ -768,7 +768,7 @@ theorem hoist_name_index_refines {ds m}
           have hi1v : i1.val = i.val := by
             simp only [lift, Result.ok.injEq] at hi1; subst hi1; exact usize_cast_u64_val' i
           have hbf' : lidx.contains (absNIdx n1) = false := by rw [← hbv]; simpa using hbf
-          rw [hbf', if_neg (by simp)]
+          rw [hbf', ite_eq_right (by simp)]
           obtain ⟨hR, -⟩ := ConRon.Refine.HashMap2.Rel_insert_wf nidx_eq2
             (fun a b _ _ e => absNIdx_inj e) hr.2 (anyNKeysOk _) hr.1 trivial hins
           obtain ⟨hI, -⟩ := ConRon.Refine.HashMap2.insert_refines_gen nidx_eq2 hr.2
@@ -790,12 +790,12 @@ theorem hoist_name_index_refines {ds m}
         NameIdxRel o (nameIndex (absIDeclArr ds) lidx i.val)) ?_ ?_
     · intro i idx hn lidx o hr h
       rw [frontend.nat_op_ground.hoist_name_index_loop0.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len ds by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len ds by scalar_tac)] at h
       cases Result.ok_injective h
-      rw [nameIndex, dif_neg (by simp [absIDeclArr]; omega)]; exact hr
+      rw [nameIndex, dite_eq_right (by simp [absIDeclArr]; omega)]; exact hr
     · intro i idx hi ih lidx o hr h
       rw [frontend.nat_op_ground.hoist_name_index_loop0.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len ds by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len ds by scalar_tac)] at h
       obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨ns, hns, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨idx1, hidx1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -808,7 +808,7 @@ theorem hoist_name_index_refines {ds m}
         exact Option.some_injective _ h1
       have hI := hin i ns hi 0#usize idx lidx idx1 hr hidx1
       have hlt : i.val < (absIDeclArr ds).size := by simpa [absIDeclArr] using hi
-      rw [nameIndex, dif_pos hlt]
+      rw [nameIndex, dite_eq_left hlt]
       have hnames : (absIDeclArr ds)[i.val].names = ns.val.map absNIdx := by
         rw [i_declaration_names_abs hns, ← hdv]; simp [absIDeclArr]
       rw [hnames]
@@ -907,12 +907,12 @@ theorem hoist_push_deps_refines {rm lm used stack sp i k o}
           ((used.val.drop u.val).map absNIdx) (absStack q.1 q.2)) ?_ ?_
     · intro u q hn o h
       rw [frontend.nat_op_ground.hoist_push_deps_loop.eq_def] at h
-      rw [if_neg (show ¬ u < alloc.vec.Vec.len used by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ u < alloc.vec.Vec.len used by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le hn]; rfl
     · intro u q hu ih o h
       rw [frontend.nat_op_ground.hoist_push_deps_loop.eq_def] at h
-      rw [if_pos (show u < alloc.vec.Vec.len used by scalar_tac)] at h
+      rw [ite_eq_left (show u < alloc.vec.Vec.len used by scalar_tac)] at h
       obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨og, hog, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨⟨st1, sp1⟩, hm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -939,21 +939,21 @@ theorem hoist_push_deps_refines {rm lm used stack sp i k o}
             else ok (q.1, q.2)) = ok (st1, sp1) := hm
         by_cases hmi : m > i
         · have hmi' : absU m > absU i := by simp only [absU]; scalar_tac
-          rw [if_pos hmi] at hm
+          rw [ite_eq_left hmi] at hm
           by_cases hmk : m = k
           · subst hmk
-            simp only [bne_self_eq_false, Bool.false_eq_true, if_false] at hm
+            simp only [bne_self_eq_false, Bool.false_eq_true, ite_false] at hm
             cases Result.ok_injective hm
             simp
           · have hmk' : (m != k) = true := by simpa using hmk
-            rw [if_pos hmk'] at hm
+            rw [ite_eq_left hmk'] at hm
             have hpush := stack_push_u64_refines hm
             have hmk'' : (absU m != absU k) = true := by
               simp only [absU, bne_iff_ne, ne_eq]
               intro e; apply hmk; exact UScalar.eq_of_val_eq e
-            simp only [hpush, hmi', hmk'', decide_true, Bool.and_self, if_true]
+            simp only [hpush, hmi', hmk'', decide_true, Bool.and_self, ite_true]
         · have hmi' : ¬ absU m > absU i := by simp only [absU]; scalar_tac
-          rw [if_neg hmi] at hm
+          rw [ite_eq_right hmi] at hm
           cases Result.ok_injective hm
           simp [hmi']
   have := key 0#usize (stack, sp) o h
@@ -987,12 +987,12 @@ theorem nameIndex_lt' (ds : Array IDeclaration) :
   induction n with
   | zero =>
     intro k idx hn h
-    rw [nameIndex, dif_neg (by omega)]
+    rw [nameIndex, dite_eq_right (by omega)]
     exact h
   | succ n ih =>
     intro k idx hn h
     have hk : k < ds.size := by omega
-    rw [nameIndex, dif_pos hk]
+    rw [nameIndex, dite_eq_left hk]
     exact ih (k + 1) _ (by omega) (hins k hk _ idx h)
 
 /-- The target map across an insert. -/
@@ -1052,7 +1052,7 @@ theorem hoist_close_loop_aux {pers : arena.store.PersTier}
   induction m with
   | zero =>
     intro st lst target ltarget stack sp F o hpn hsp hpF hsN hrel hinv ht h
-    rw [frontend.nat_op_ground.hoist_close_loop, if_neg (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.hoist_close_loop, ite_eq_right (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [absStack_zero (by omega), hoistClosure]
     exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
@@ -1091,7 +1091,7 @@ theorem hoist_close_loop_aux {pers : arena.store.PersTier}
           = hoistClosure (absIDeclArr ds) lm (absU i) F ltarget (absStack stack sp1) := by
         conv => lhs; rw [hoistClosure]
         conv => rhs; rw [hoistClosure]
-        simp only [hoistDropDone, hdone, if_true]
+        simp only [hoistDropDone, hdone, ite_true]
       rw [heq]
       exact ihm st lst target ltarget stack sp1 F o hpn (by omega) hpF hrest hrel hinv ht h
     · rename_i hbt
@@ -1132,8 +1132,8 @@ theorem hoist_close_loop_aux {pers : arena.store.PersTier}
             hoistClosure (absIDeclArr ds) lm (absU i) F' (ltarget.insert (absU k) (absU i))
               (hoistClosure.pushOne lm (absU i) (absU k) ns.toList (absStack stack sp1))) := by
         rw [hoistClosure]
-        simp only [hoistDropDone, hnd, Bool.false_eq_true, if_false]
-        simp only [hoistClosure.pushDeps, dif_pos (show absU k < (absIDeclArr ds).size by
+        simp only [hoistDropDone, hnd, Bool.false_eq_true, ite_false]
+        simp only [hoistClosure.pushDeps, dite_eq_left (show absU k < (absIDeclArr ds).size by
           rw [hsize]; exact hkN), hdsk, bind_assoc, pure_bind]
       rw [htw]
       unfold Sim₀ at hU
@@ -1232,7 +1232,7 @@ theorem hoist_targets_at_loop_aux {pers : arena.store.PersTier}
   induction n with
   | zero =>
     intro k st lst target ltarget o hn hk hrel hinv ht h
-    rw [frontend.nat_op_ground.hoist_targets_at_loop, if_neg (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop, ite_eq_right (by scalar_tac)] at h
     cases Result.ok_injective h
     have hnil : (absNIdxL gs).drop k.val = [] := by
       simp only [absNIdxL, List.drop_eq_nil_iff, List.length_map]; omega
@@ -1241,7 +1241,7 @@ theorem hoist_targets_at_loop_aux {pers : arena.store.PersTier}
       fun e he => by cases he⟩
   | succ n ih =>
     intro k st lst target ltarget o hn hk hrel hinv ht h
-    rw [frontend.nat_op_ground.hoist_targets_at_loop, if_pos (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.hoist_targets_at_loop, ite_eq_left (by scalar_tac)] at h
     obtain ⟨g, hg, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hgb, hgv⟩ := ExprOps.vecIndexAt hg
     have hdrop : (absNIdxL gs).drop k.val = absNIdx g :: (absNIdxL gs).drop (k.val + 1) := by
@@ -1266,7 +1266,7 @@ theorem hoist_targets_at_loop_aux {pers : arena.store.PersTier}
       simp only at h
       split at h
       · rename_i hji
-        rw [if_pos (show absU j > absU i by show j.val > i.val; scalar_tac)]
+        rw [ite_eq_left (show absU j > absU i by show j.val > i.val; scalar_tac)]
         obtain ⟨⟨r, st1⟩, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have HC := hoist_close_refines hrel hinv hr ht hidx (hidx _ _ hlm) hc
         cases r with
@@ -1286,7 +1286,7 @@ theorem hoist_targets_at_loop_aux {pers : arena.store.PersTier}
           rw [am_run_bind', hx, except_ok_bind]
           exact IH
       · rename_i hji
-        rw [if_neg (show ¬ absU j > absU i by show ¬ j.val > i.val; scalar_tac)]
+        rw [ite_eq_right (show ¬ absU j > absU i by show ¬ j.val > i.val; scalar_tac)]
         obtain ⟨k1, hk1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have hk1v : k1.val = k.val + 1 := by have := ConRon.Refine.Nat.uadd_val hk1; simpa using this
         have IH := ih k1 st lst target ltarget o (by omega) (by omega) hrel hinv ht h
@@ -1338,7 +1338,7 @@ theorem targetBound_insert {N : Nat} {t : Std.HashMap Nat Nat} {k i : Nat}
   rw [Std.HashMap.getElem?_insert] at hx
   by_cases hkx : k = x
   · subst hkx
-    simp only [BEq.rfl, if_true, Option.some.injEq] at hx
+    simp only [BEq.rfl, ite_true, Option.some.injEq] at hx
     subst hx
     exact ⟨hk, hi⟩
   · have : (k == x) = false := by simpa using hkx
@@ -1437,11 +1437,11 @@ theorem hoistTargetsGo_bound {ds : Array IDeclaration} {idx : Std.HashMap NIdx N
   induction n with
   | zero =>
     intro i target s t' s' hn ht h
-    rw [hoistTargetsGo, dif_neg (by omega)] at h
+    rw [hoistTargetsGo, dite_eq_right (by omega)] at h
     obtain ⟨rfl, -⟩ := am_pure_run_ok h; exact ht
   | succ n ih =>
     intro i target s t' s' hn ht h
-    rw [hoistTargetsGo, dif_pos (by omega)] at h
+    rw [hoistTargetsGo, dite_eq_left (by omega)] at h
     obtain ⟨r, s1, -, h⟩ := am_run_bind_ok h
     split at h
     · exact ih (i + 1) _ _ _ _ (by omega) ht h
@@ -1468,16 +1468,16 @@ theorem hoist_targets_loop_aux {pers : arena.store.PersTier}
   induction n with
   | zero =>
     intro i st lst target ltarget o hn hi hrel hinv ht h
-    rw [frontend.nat_op_ground.hoist_targets_loop, if_neg (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.hoist_targets_loop, ite_eq_right (by scalar_tac)] at h
     cases Result.ok_injective h
-    rw [hoistTargetsGo, dif_neg (by rw [hsize]; omega)]
+    rw [hoistTargetsGo, dite_eq_right (by rw [hsize]; omega)]
     exact ⟨fun t ht' => by cases ht'; exact ⟨ltarget, lst, rfl, ht, hrel, hinv⟩,
       fun e he => by cases he⟩
   | succ n ih =>
     intro i st lst target ltarget o hn hi hrel hinv ht h
-    rw [frontend.nat_op_ground.hoist_targets_loop, if_pos (by scalar_tac)] at h
+    rw [frontend.nat_op_ground.hoist_targets_loop, ite_eq_left (by scalar_tac)] at h
     have hlt : i.val < (absIDeclArr ds).size := by rw [hsize]; omega
-    rw [hoistTargetsGo, dif_pos hlt]
+    rw [hoistTargetsGo, dite_eq_left hlt]
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨hib, hiv⟩ := ExprOps.vecIndexAt hi1
     obtain ⟨d, hd, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1626,12 +1626,12 @@ theorem hoist_moved_idxs_refines {n rm lm v} (hr : TargetRel rm lm)
           (List.range' k.val (n.val - k.val)).filter (fun k => lm.contains k)) ?_ ?_
     · intro k out hn v h
       rw [frontend.nat_op_ground.hoist_moved_idxs_loop.eq_def] at h
-      rw [if_neg (show ¬ k < n by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ k < n by scalar_tac)] at h
       cases Result.ok_injective h
       simp [show n.val - k.val = 0 by omega]
     · intro k out hk ih v h
       rw [frontend.nat_op_ground.hoist_moved_idxs_loop.eq_def] at h
-      rw [if_pos (show k < n by scalar_tac)] at h
+      rw [ite_eq_left (show k < n by scalar_tac)] at h
       obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1750,8 +1750,8 @@ theorem hoistBucketAt_key_fst {s : Std.HashMap Nat Nat} {moved : List Nat}
     simp only [beq_iff_eq] at this
     rw [hoistKey_some this]
   · by_cases hc : s.contains t
-    · rw [if_pos hc] at h; simp at h
-    · rw [if_neg hc] at h
+    · rw [ite_eq_left hc] at h; simp at h
+    · rw [ite_eq_right hc] at h
       rw [List.mem_singleton.mp h, hoistKey_none
         (show s[t]? = none from by
           rw [Std.HashMap.contains_eq_isSome_getElem?] at hc
@@ -1776,8 +1776,8 @@ theorem hoistBucketAt_pairwise {s : Std.HashMap Nat Nat} {moved : List Nat}
     have hat : s[a]? = some t := by
       have := (List.mem_filter.mp ha).2; simpa using this
     by_cases hc : s.contains t
-    · rw [if_pos hc] at hb; simp at hb
-    · rw [if_neg hc] at hb
+    · rw [ite_eq_left hc] at hb; simp at hb
+    · rw [ite_eq_right hc] at hb
       have hbt : b = t := List.mem_singleton.mp hb
       have hnone : s[t]? = none := by
         rw [Std.HashMap.contains_eq_isSome_getElem?] at hc; simpa using hc
@@ -1813,8 +1813,8 @@ theorem mem_hoistBuckets {s : Std.HashMap Nat Nat} {n x : Nat}
     · have := (List.mem_filter.mp (List.mem_filter.mp h).1).1
       rwa [List.mem_range] at this
     · by_cases hc : s.contains t
-      · rw [if_pos hc] at h; simp at h
-      · rw [if_neg hc] at h; rw [List.mem_singleton.mp h]; exact ht
+      · rw [ite_eq_left hc] at h; simp at h
+      · rw [ite_eq_right hc] at h; rw [List.mem_singleton.mp h]; exact ht
   · intro hx
     by_cases hc : s.contains x
     · obtain ⟨t, ht⟩ : ∃ t, s[x]? = some t := by
@@ -1828,7 +1828,7 @@ theorem mem_hoistBuckets {s : Std.HashMap Nat Nat} {n x : Nat}
       exact List.mem_filter.mpr ⟨List.mem_range.mpr hx, by simpa using hc⟩
     · refine List.mem_flatMap.mpr ⟨x, List.mem_range.mpr hx, ?_⟩
       rw [hoistBucketAt]
-      exact List.mem_append.mpr (Or.inr (by rw [if_neg hc]; simp))
+      exact List.mem_append.mpr (Or.inr (by rw [ite_eq_right hc]; simp))
 
 theorem hoistBuckets_nodup {s : Std.HashMap Nat Nat} {moved : List Nat}
     (hmoved : moved.Pairwise (· < ·)) (n : Nat) :
@@ -1879,12 +1879,12 @@ theorem hoist_order_inner_refines {rm lm} (hr : TargetRel rm lm)
         ((moved.val.drop a.val).map absU).filter (fun k => lm[k]? == some t.val)) ?_ ?_
   · intro a order hn v h
     rw [frontend.nat_op_ground.hoist_order_loop0_loop0.eq_def] at h
-    rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ a < alloc.vec.Vec.len moved by scalar_tac)] at h
     cases Result.ok_injective h
     simp [List.drop_eq_nil_of_le hn]
   · intro a order hlt ih v h
     rw [frontend.nat_op_ground.hoist_order_loop0_loop0.eq_def] at h
-    rw [if_pos (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
+    rw [ite_eq_left (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
     obtain ⟨kk, hkk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1904,11 +1904,11 @@ theorem hoist_order_inner_refines {rm lm} (hr : TargetRel rm lm)
     simp only [absU, hi1v] at horder1 ⊢
     split at horder1
     · rename_i hbt
-      rw [ConRon.Refine.vec_push_val horder1, if_pos hbt]
+      rw [ConRon.Refine.vec_push_val horder1, ite_eq_left hbt]
       simp [absU]
     · rename_i hbf
       cases Result.ok_injective horder1
-      rw [if_neg hbf]
+      rw [ite_eq_right hbf]
 
 /-- `hoist_order`'s outer loop: the buckets from `t` on. -/
 theorem hoist_order_outer_refines {rm lm} (hr : TargetRel rm lm)
@@ -1926,12 +1926,12 @@ theorem hoist_order_outer_refines {rm lm} (hr : TargetRel rm lm)
           (hoistBucketAt lm (moved.val.map absU))) ?_ ?_
   · intro t order hn v h
     rw [frontend.nat_op_ground.hoist_order_loop0.eq_def] at h
-    rw [if_neg (show ¬ t < n by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ t < n by scalar_tac)] at h
     cases Result.ok_injective h
     simp [show n.val - t.val = 0 by omega]
   · intro t order hlt ih v h
     rw [frontend.nat_op_ground.hoist_order_loop0.eq_def] at h
-    rw [if_pos (show t < n by scalar_tac)] at h
+    rw [ite_eq_left (show t < n by scalar_tac)] at h
     obtain ⟨order1, horder1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1955,7 +1955,7 @@ theorem hoist_order_outer_refines {rm lm} (hr : TargetRel rm lm)
     split at horder2
     · rename_i hbt
       cases Result.ok_injective horder2
-      rw [h1, if_pos (by rw [← hbv]; exact hbt)]
+      rw [h1, ite_eq_left (by rw [← hbv]; exact hbt)]
       simp
     · rename_i hbf
       obtain ⟨t4, ht4, hpush⟩ := ConRon.Refine.bind_eq_ok_iff.mp horder2
@@ -1963,7 +1963,7 @@ theorem hoist_order_outer_refines {rm lm} (hr : TargetRel rm lm)
         simp only [lift, Result.ok.injEq] at ht4; subst ht4; exact usize_cast_u64_val' t
       rw [ConRon.Refine.vec_push_val hpush]
       simp only [List.map_append, List.map_cons, List.map_nil]
-      rw [h1, if_neg (by rw [← hbv]; simpa using hbf)]
+      rw [h1, ite_eq_right (by rw [← hbv]; simpa using hbf)]
       simp [ht4v, absU]
 
 /-- **`hoist_order`** — the sorted order `applyHoist` sorts by.  The port's
@@ -2019,12 +2019,12 @@ theorem hoist_reorder_refines {ds order v}
           ((order.val.drop i.val).map absU).flatMap (fun k => ((absIDeclArr ds)[k]?).toList)) ?_ ?_
     · intro i out hn v h
       rw [frontend.nat_op_ground.hoist_reorder_loop.eq_def] at h
-      rw [if_neg (show ¬ i < alloc.vec.Vec.len order by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ i < alloc.vec.Vec.len order by scalar_tac)] at h
       cases Result.ok_injective h
       simp [List.drop_eq_nil_of_le hn]
     · intro i out hi ih v h
       rw [frontend.nat_op_ground.hoist_reorder_loop.eq_def] at h
-      rw [if_pos (show i < alloc.vec.Vec.len order by scalar_tac)] at h
+      rw [ite_eq_left (show i < alloc.vec.Vec.len order by scalar_tac)] at h
       obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i3, hi3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -2079,12 +2079,12 @@ theorem hoist_moved_names_refines {ds moved rm lm v} (_hr : TargetRel rm lm)
     induction d with
     | zero =>
       intro k acc hd
-      rw [movedNames, dif_neg (by omega), hd]
+      rw [movedNames, dite_eq_right (by omega), hd]
       simp
     | succ d ih =>
       intro k acc hd
       have hk : k < (absIDeclArr ds).size := by omega
-      rw [movedNames, dif_pos hk, ih (k + 1) _ (by omega),
+      rw [movedNames, dite_eq_left hk, ih (k + 1) _ (by omega),
         show (absIDeclArr ds).size - k = ((absIDeclArr ds).size - (k + 1)) + 1 by omega,
         List.range'_succ, List.filter_cons]
       have hnm : nm k = (absIDeclArr ds)[k].names := by
@@ -2105,12 +2105,12 @@ theorem hoist_moved_names_refines {ds moved rm lm v} (_hr : TargetRel rm lm)
         (alloc.vec.Vec.len ns) j) ?_ ?_
     · intro j out o hn h
       rw [frontend.nat_op_ground.hoist_moved_names_loop0_loop0.eq_def] at h
-      rw [if_neg (show ¬ j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ j < alloc.vec.Vec.len ns by scalar_tac)] at h
       rw [← Result.ok_injective h]
     · intro j x out o hx h
       have hlt : j.val < ns.val.length := (List.getElem?_eq_some_iff.mp hx).1
       rw [frontend.nat_op_ground.hoist_moved_names_loop0_loop0.eq_def] at h
-      rw [if_pos (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
+      rw [ite_eq_left (show j < alloc.vec.Vec.len ns by scalar_tac)] at h
       obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -2134,12 +2134,12 @@ theorem hoist_moved_names_refines {ds moved rm lm v} (_hr : TargetRel rm lm)
           ((moved.val.drop a.val).map absU).flatMap nm) ?_ ?_
     · intro a out hn o h
       rw [frontend.nat_op_ground.hoist_moved_names_loop0.eq_def] at h
-      rw [if_neg (show ¬ a < alloc.vec.Vec.len moved by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ a < alloc.vec.Vec.len moved by scalar_tac)] at h
       cases Result.ok_injective h
       simp [List.drop_eq_nil_of_le hn]
     · intro a out ha ih o h
       rw [frontend.nat_op_ground.hoist_moved_names_loop0.eq_def] at h
-      rw [if_pos (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
+      rw [ite_eq_left (show a < alloc.vec.Vec.len moved by scalar_tac)] at h
       obtain ⟨i, hi, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -2273,15 +2273,15 @@ theorem hoist_nat_op_ground_refines {pers rst lst ds o}
         rw [hv, htk] at this
         simp at this
     by_cases hn0 : n = 0#usize
-    · rw [if_pos hn0] at h
+    · rw [ite_eq_left hn0] at h
       cases Result.ok_injective h
-      rw [if_pos (hemp.mpr hn0)]
+      rw [ite_eq_left (hemp.mpr hn0)]
       exact ⟨lst', rfl, hrel', hinv'⟩
-    · rw [if_neg hn0] at h
+    · rw [ite_eq_right hn0] at h
       obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       cases Result.ok_injective h
       have hne : ¬ lt.isEmpty = true := fun he => hn0 (hemp.mp he)
-      rw [if_neg hne]
+      rw [ite_eq_right hne]
       have hA := apply_hoist_refines hT (fun k tk hk _ => (hb k tk hk).2) hp
       refine ⟨lst', ?_, hrel', hinv'⟩
       rw [← hA]; rfl

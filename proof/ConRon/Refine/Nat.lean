@@ -203,7 +203,7 @@ theorem copy_from_val (v : alloc.vec.Vec Std.U64) (e : Std.Usize) (he : e.val �
     intro i out w hd h
     rw [ron.nat.copy_from] at h
     have hie : e.val ≤ i.val := by omega
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h; simp [Nat.sub_eq_zero_of_le hie]
   | succ d ih =>
@@ -263,7 +263,7 @@ theorem sig_len_val (v : alloc.vec.Vec Std.U64) :
   | zero =>
     intro k s hd hk h
     rw [ron.nat.sig_len] at h
-    rw [if_pos (by scalar_tac : k = 0#usize)] at h
+    rw [ite_eq_left (by scalar_tac : k = 0#usize)] at h
     simp only [Result.ok.injEq] at h
     subst h
     have h0 : (0#usize : Std.Usize).val = 0 := by scalar_tac
@@ -515,7 +515,7 @@ theorem cmp_from_val (a b : alloc.vec.Vec Std.U64) :
   | zero =>
     intro k c hd h
     rw [ron.nat.cmp_from] at h
-    rw [if_pos (by scalar_tac : k = 0#usize)] at h
+    rw [ite_eq_left (by scalar_tac : k = 0#usize)] at h
     simp only [Result.ok.injEq] at h
     have hk : k.val = 0 := by omega
     exact Or.inr (Or.inl ⟨h.symm, by rw [hk]; rfl⟩)
@@ -726,7 +726,7 @@ theorem add_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         (seg a.val i.val n.val + seg b.val i.val n.val + carry.val) := by
     intro i carry out w hni h
-    rw [ron.nat.add_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.add_from, ite_eq_left (by scalar_tac)] at h
     rw [seg_of_le hni, seg_of_le hni]
     split at h <;> rename_i hcz
     · simp only [Result.ok.injEq] at h
@@ -744,7 +744,7 @@ theorem add_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
   | succ d ih =>
     intro i carry out w hd hc h
     rcases Nat.lt_or_ge i.val n.val with hin | hin
-    · rw [ron.nat.add_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.add_from, ite_eq_right (by scalar_tac)] at h
       simp only [Std.core.num.U64.overflowing_add, Std.UScalar.overflowing_add] at h
       simp at h
       obtain ⟨x, hx, y, hy, cc, hcc, -, out1, hout1, i1, hi1, h⟩ := h
@@ -806,7 +806,7 @@ theorem sub_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
           = limbsToNat out.val + 2 ^ (64 * out.val.length) *
               (seg a.val i.val n.val + 2 ^ (64 * (n.val - i.val)) * bo) := by
     intro i borrow out w hni hb h
-    rw [ron.nat.sub_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.sub_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [seg_of_le hni, seg_of_le hni, Nat.sub_eq_zero_of_le hni]
@@ -819,7 +819,7 @@ theorem sub_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
   | succ d ih =>
     intro i borrow out w hd hb h
     rcases Nat.lt_or_ge i.val n.val with hin | hin
-    · rw [ron.nat.sub_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.sub_from, ite_eq_right (by scalar_tac)] at h
       simp only [Std.core.num.U64.overflowing_sub, Std.UScalar.overflowing_sub] at h
       simp at h
       obtain ⟨x, hx, y, hy, bl, hbl, -, out1, hout1, i1, hi1, h⟩ := h
@@ -914,7 +914,7 @@ theorem bitwise_block {f : Bool → Bool → Bool} (hf : f false false = false)
   rw [Nat.testBit_bitwise hf, Nat.testBit_two_pow_mul_add _ hx,
     Nat.testBit_two_pow_mul_add _ hy,
     Nat.testBit_two_pow_mul_add _ (Nat.bitwise_lt_two_pow (f := f) hx hy)]
-  by_cases hj : j < m <;> simp only [hj, if_true, if_false, Nat.testBit_bitwise hf]
+  by_cases hj : j < m <;> simp only [hj, ite_true, ite_false, Nat.testBit_bitwise hf]
 
 theorem land_limb {x y : Nat} (hx : x < 2 ^ 64) (hy : y < 2 ^ 64) (A B : Nat) :
     Nat.land (x + 2 ^ 64 * A) (y + 2 ^ 64 * B) = Nat.land x y + 2 ^ 64 * Nat.land A B :=
@@ -974,7 +974,7 @@ theorem and_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         Nat.land (seg a.val i.val n.val) (seg b.val i.val n.val) := by
     intro i out w hni h
-    rw [ron.nat.and_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.and_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [seg_of_le hni, seg_of_le hni]
@@ -985,7 +985,7 @@ theorem and_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
   | succ d ih =>
     intro i out w hd h
     rcases Nat.lt_or_ge i.val n.val with hin | hin
-    · rw [ron.nat.and_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.and_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left'] at h
       obtain ⟨x, hx, y, hy, out1, ⟨-, hout1⟩, i1, hi1, h⟩ := h
       have hi1' : i1.val = i.val + 1 := by have := uadd_val hi1; simpa using this
@@ -1038,7 +1038,7 @@ theorem or_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         Nat.lor (seg a.val i.val n.val) (seg b.val i.val n.val) := by
     intro i out w hni h
-    rw [ron.nat.or_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.or_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [seg_of_le hni, seg_of_le hni]
@@ -1049,7 +1049,7 @@ theorem or_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
   | succ d ih =>
     intro i out w hd h
     rcases Nat.lt_or_ge i.val n.val with hin | hin
-    · rw [ron.nat.or_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.or_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left'] at h
       obtain ⟨x, hx, y, hy, out1, ⟨-, hout1⟩, i1, hi1, h⟩ := h
       have hi1' : i1.val = i.val + 1 := by have := uadd_val hi1; simpa using this
@@ -1093,7 +1093,7 @@ theorem xor_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         Nat.xor (seg a.val i.val n.val) (seg b.val i.val n.val) := by
     intro i out w hni h
-    rw [ron.nat.xor_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.xor_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [seg_of_le hni, seg_of_le hni]
@@ -1104,7 +1104,7 @@ theorem xor_from_val (a b : alloc.vec.Vec Std.U64) (n : Std.Usize) :
   | succ d ih =>
     intro i out w hd h
     rcases Nat.lt_or_ge i.val n.val with hin | hin
-    · rw [ron.nat.xor_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.xor_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left'] at h
       obtain ⟨x, hx, y, hy, out1, ⟨-, hout1⟩, i1, hi1, h⟩ := h
       have hi1' : i1.val = i.val + 1 := by have := uadd_val hi1; simpa using this
@@ -1225,7 +1225,7 @@ theorem push_zeros_val :
   induction d with
   | zero =>
     intro out w count hd h
-    rw [ron.nat.push_zeros, if_pos (by scalar_tac)] at h
+    rw [ron.nat.push_zeros, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     have : count.val = 0 := by omega
@@ -1261,7 +1261,7 @@ theorem shl_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bi
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         (2 ^ bits.val * limbsToNat (v.val.drop i.val) + carry.val) := by
     intro i carry out w hni h
-    rw [ron.nat.shl_bits_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.shl_bits_from, ite_eq_left (by scalar_tac)] at h
     rw [List.drop_eq_nil_of_le hni]
     split at h <;> rename_i hcz
     · simp only [Result.ok.injEq] at h
@@ -1277,7 +1277,7 @@ theorem shl_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bi
   | succ d ih =>
     intro i carry out w hd hc h
     rcases Nat.lt_or_ge i.val v.val.length with hin | hin
-    · rw [ron.nat.shl_bits_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.shl_bits_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left',
         alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
       obtain ⟨x, hx, i2, hi2, i3, hi3, hi, hhi, out1, ⟨-, hout1⟩, i4, hi4, h⟩ := h
@@ -1432,7 +1432,7 @@ theorem skip_index_val (v : alloc.vec.Vec Std.U64) :
   induction d with
   | zero =>
     intro i remaining s hd hi h
-    rw [ron.nat.skip_index, if_pos (by scalar_tac)] at h
+    rw [ron.nat.skip_index, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     omega
@@ -1489,7 +1489,7 @@ theorem shr_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bi
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         (limbsToNat (v.val.drop i.val) / 2 ^ bits.val) := by
     intro i out w hni h
-    rw [ron.nat.shr_bits_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.shr_bits_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [List.drop_eq_nil_of_le hni]
@@ -1500,7 +1500,7 @@ theorem shr_bits_from_val (v : alloc.vec.Vec Std.U64) (bits : Std.U64) (hb2 : bi
   | succ d ih =>
     intro i out w hd h
     rcases Nat.lt_or_ge i.val v.val.length with hin | hin
-    · rw [ron.nat.shr_bits_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.shr_bits_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left',
         alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
       obtain ⟨x, hx, lo, hlo, i3, hi3, hi, hhi, out1, ⟨-, hout1⟩, h⟩ := h
@@ -1723,7 +1723,7 @@ theorem mul_u64_from_val (v : alloc.vec.Vec Std.U64) (m : Std.U64) :
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         (m.val * limbsToNat (v.val.drop i.val) + carry.val) := by
     intro i carry out w hni h
-    rw [ron.nat.mul_u64_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.mul_u64_from, ite_eq_left (by scalar_tac)] at h
     rw [List.drop_eq_nil_of_le hni]
     split at h <;> rename_i hcz
     · simp only [Result.ok.injEq] at h
@@ -1739,7 +1739,7 @@ theorem mul_u64_from_val (v : alloc.vec.Vec Std.U64) (m : Std.U64) :
   | succ d ih =>
     intro i carry out w hd h
     rcases Nat.lt_or_ge i.val v.val.length with hin | hin
-    · rw [ron.nat.mul_u64_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.mul_u64_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left',
         alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
       obtain ⟨x, hx, i5, hi5, t, ht, i7, hi7, out1, ⟨-, hout1⟩, i8, hi8, h⟩ := h
@@ -1818,7 +1818,7 @@ theorem mul_from_val (a b : ron.nat.Nat) :
   induction d with
   | zero =>
     intro i sh acc c hd hsh hwf h
-    rw [ron.nat.mul_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.mul_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [seg_of_le (by omega)]
@@ -1929,7 +1929,7 @@ theorem shl1_from_val (v : alloc.vec.Vec Std.U64) :
       limbsToNat w.val = limbsToNat out.val + 2 ^ (64 * out.val.length) *
         (2 * limbsToNat (v.val.drop i.val) + carry.val) := by
     intro i carry out w hni h
-    rw [ron.nat.shl1_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.shl1_from, ite_eq_left (by scalar_tac)] at h
     rw [List.drop_eq_nil_of_le hni]
     split at h <;> rename_i hcz
     · simp only [Result.ok.injEq] at h
@@ -1945,7 +1945,7 @@ theorem shl1_from_val (v : alloc.vec.Vec Std.U64) :
   | succ d ih =>
     intro i carry out w hd hc h
     rcases Nat.lt_or_ge i.val v.val.length with hin | hin
-    · rw [ron.nat.shl1_from, if_neg (by scalar_tac)] at h
+    · rw [ron.nat.shl1_from, ite_eq_right (by scalar_tac)] at h
       simp only [bind_eq_ok_iff, lift_eq_ok_iff, push_eq_ok_iff, exists_eq_left',
         alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
       obtain ⟨x, hx, i2, hi2, out1, ⟨-, hout1⟩, i4, hi4, i5, hi5, h⟩ := h
@@ -2003,7 +2003,7 @@ theorem dm_bits_val (a b : ron.nat.Nat) (i : Std.Usize) (x : Std.U64)
           + (toNat rem * 2 ^ j.val + x.val % 2 ^ j.val) / toNat b) % 2 ^ 64 ∧
         toNat r = (toNat rem * 2 ^ j.val + x.val % 2 ^ j.val) % toNat b ∧ NatWF r := by
     intro qacc rem ql r j hj hrw hrb h
-    rw [ron.nat.dm_bits, if_pos (by scalar_tac)] at h
+    rw [ron.nat.dm_bits, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨h1, h2⟩ := h
     subst h1; subst h2
@@ -2024,7 +2024,7 @@ theorem dm_bits_val (a b : ron.nat.Nat) (i : Std.Usize) (x : Std.U64)
     intro j qacc rem ql r hd hrw hrb h
     rcases Nat.eq_zero_or_pos j.val with hj0 | hj0
     · exact base qacc rem ql r j hj0 hrw hrb h
-    rw [ron.nat.dm_bits, if_neg (by scalar_tac)] at h
+    rw [ron.nat.dm_bits, ite_eq_right (by scalar_tac)] at h
     simp only [bind_eq_ok_iff, lift_eq_ok_iff, exists_eq_left',
       alloc.vec.Vec.index_slice_index, index_usize_eq_ok_iff] at h
     obtain ⟨i1, hi1, i2, hi2, i3, hi3, r1, hr1, cc, hcc, h⟩ := h
@@ -2132,7 +2132,7 @@ theorem rev_copy_from_val (v : alloc.vec.Vec Std.U64) :
   induction d with
   | zero =>
     intro k out w hd hk h
-    rw [ron.nat.rev_copy_from, if_pos (by scalar_tac)] at h
+    rw [ron.nat.rev_copy_from, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     have hz : k.val = 0 := by omega
@@ -2183,7 +2183,7 @@ theorem dm_limbs_val (a b : ron.nat.Nat) (hbw : NatWF b) (hb : 0 < toNat b) :
         limbsToNat l.reverse = toNat a / toNat b % 2 ^ (64 * i.val)) ∧
       toNat rem' = toNat a % toNat b ∧ NatWF rem' := by
     intro i qrev qrev' rem rem' hi0 hrw hrv h
-    rw [ron.nat.dm_limbs, if_pos (by scalar_tac)] at h
+    rw [ron.nat.dm_limbs, ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨h1, h2⟩ := h
     subst h1; subst h2
@@ -2202,7 +2202,7 @@ theorem dm_limbs_val (a b : ron.nat.Nat) (hbw : NatWF b) (hb : 0 < toNat b) :
     intro i qrev qrev' rem rem' hd hil hrw hrb hrv h
     rcases Nat.eq_zero_or_pos i.val with hi0 | hi0
     · exact base i qrev qrev' rem rem' hi0 hrw hrv h
-    rw [ron.nat.dm_limbs, if_neg (by scalar_tac)] at h
+    rw [ron.nat.dm_limbs, ite_eq_right (by scalar_tac)] at h
     simp only [bind_eq_ok_iff] at h
     obtain ⟨i1, hi1, h⟩ := h
     have hi1' : i1.val = i.val - 1 := (usub_val hi1).2.trans (by simp)

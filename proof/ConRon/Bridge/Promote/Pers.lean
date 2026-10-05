@@ -90,8 +90,8 @@ theorem AM.ite_ok {α : Type} {c : Prop} [Decidable c] {X Y : AM α}
     {s s' : AState} {a : α} (h : (if c then X else Y) s = .ok (a, s')) :
     (c ∧ X s = .ok (a, s')) ∨ (¬ c ∧ Y s = .ok (a, s')) := by
   by_cases hc : c
-  · rw [if_pos hc] at h; exact Or.inl ⟨hc, h⟩
-  · rw [if_neg hc] at h; exact Or.inr ⟨hc, h⟩
+  · rw [ite_eq_left hc] at h; exact Or.inl ⟨hc, h⟩
+  · rw [ite_eq_right hc] at h; exact Or.inr ⟨hc, h⟩
 
 /-- con-leche: none — `pure` in `AM`, inverted. -/
 theorem AM.pure_ok {α : Type} {a b : α} {s s' : AState}
@@ -287,7 +287,7 @@ theorem EStore.view_bracket (st : EStore) (i : EIdx) :
   simp only [EStore.view, EStore.viewBind, hbi, EStore.viewBM_bracket]
   by_cases hb : ETag.isBind i.tag = true
   · simp [hb]
-  · simp only [hb, Bool.false_eq_true, if_false]
+  · simp only [hb, Bool.false_eq_true, ite_false]
     simp only [EStore.enableScratch, EStore.dropScratch]
     by_cases hp : i.isPersistent = true
     · simp [hp]
@@ -523,10 +523,10 @@ theorem PersIFEnv.find {fe : IFEnv} (hp : PersIFEnv fe) {n : NIdx}
     obtain ⟨c, cj⟩ := p
     simp only at hf
     by_cases hlt : c < fe.visibleBelow
-    · rw [if_pos hlt] at hf
+    · rw [ite_eq_left hlt] at hf
       obtain rfl := Option.some.inj hf
       exact hp.idx n (c, cj) hidx
-    · rw [if_neg hlt] at hf; exact absurd hf (by simp)
+    · rw [ite_eq_right hlt] at hf; exact absurd hf (by simp)
 
 /-- con-leche: none — a declaration record is persistent (the parse builds
 them in the persistent tier, so this is the frontend tier's postcondition). -/

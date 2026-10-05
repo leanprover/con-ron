@@ -178,7 +178,7 @@ theorem env_pi_sort_tele_len_run {pers rst lst fuel h' o}
     | zero =>
       intro fuel cur o hk h
       rw [arena.env.pi_sort_tele_len] at h
-      rw [if_pos (by scalar_tac)] at h
+      rw [ite_eq_left (by scalar_tac)] at h
       obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨ce, hce, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -189,7 +189,7 @@ theorem env_pi_sort_tele_len_run {pers rst lst fuel h' o}
     | succ k ih =>
       intro fuel cur o hk h
       rw [arena.env.pi_sort_tele_len] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       obtain ⟨r, hr, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hV := env_view_e_run hrel hr
       simp only [piSortTeleLen?]

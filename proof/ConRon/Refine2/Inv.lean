@@ -262,7 +262,7 @@ theorem lidx_vec_eq_from_iff {a b : alloc.vec.Vec arena.handle.LIdx}
     intro i c hk h
     rw [arena.store.lidx_vec_eq_from.eq_def] at h
     simp only [] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
     subst h
     have h1 : a.val.drop i.val = [] := List.drop_eq_nil_of_le (by omega)
     have h2 : b.val.drop i.val = [] := List.drop_eq_nil_of_le (by omega)
@@ -272,12 +272,12 @@ theorem lidx_vec_eq_from_iff {a b : alloc.vec.Vec arena.handle.LIdx}
     rw [arena.store.lidx_vec_eq_from.eq_def] at h
     simp only [] at h
     by_cases hp : i.val ≥ a.val.length
-    · rw [if_pos (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
+    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac), Result.ok.injEq] at h
       subst h
       have h1 : a.val.drop i.val = [] := List.drop_eq_nil_of_le (by omega)
       have h2 : b.val.drop i.val = [] := List.drop_eq_nil_of_le (by omega)
       simp [h1, h2]
-    · rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
+    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
       have hai : i.val < a.val.length := by omega
       have hbi : i.val < b.val.length := by omega
       have hmax : i.val + 1 ≤ Std.Usize.max := by have := a.property; scalar_tac

@@ -512,17 +512,17 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     simp only [IFEnv.push, _root_.Std.HashMap.getElem?_insert, Function.update_apply]
     by_cases hm : m = n
     · subst hm
-      rw [if_pos rfl, if_pos (by simp [hname])]
+      rw [ite_eq_left rfl, ite_eq_left (by simp [hname])]
       simp only [Option.bind, hvv]
       rw [List.getElem?_append_right (by omega), hsv, Nat.sub_self]
       simp only [List.getElem?_cons_zero, Option.map_some]
       rw [hfe.visibleBelow]
-    · rw [if_neg hm]
+    · rw [ite_eq_right hm]
       have hne : ¬ ((absIConstantInfo ci).name == absNIdx m) = true := by
         simp only [beq_iff_eq]
         intro hc
         exact hm (absNIdx_inj (hc.symm.trans hname.symm))
-      rw [if_neg hne, ← hfe.idx m]
+      rw [ite_eq_right hne, ← hfe.idx m]
       cases hp : ConRon.Refine.HashMap2.toFun rf.idx m with
       | none => simp
       | some p =>
@@ -546,13 +546,13 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     rw [hupd, Function.update_apply] at hp
     by_cases hm : m = n
     · subst hm
-      rw [if_pos rfl] at hp
+      rw [ite_eq_left rfl] at hp
       obtain rfl : p = (rf.visible_below, s) := (Option.some_injective _ hp).symm
       refine ⟨ci, ?_, hname.symm⟩
       simp only [hvv, hsv]
       rw [List.getElem?_append_right (le_refl _), Nat.sub_self]
       rfl
-    · rw [if_neg hm] at hp
+    · rw [ite_eq_right hm] at hp
       obtain ⟨c, hc, hcn⟩ := hfe.keys m p hp
       refine ⟨c, ?_, hcn⟩
       rw [hvv, List.getElem?_append_left (hfinv.idxRange m p hp)]
@@ -569,11 +569,11 @@ theorem ifenv_push_refines {rf rf' : arena.env.IFEnv} {lf : IFEnv}
     simp only [List.length_append, List.length_cons, List.length_nil]
     by_cases hm : m = n
     · subst hm
-      rw [if_pos rfl] at hp
+      rw [ite_eq_left rfl] at hp
       obtain rfl : p = (rf.visible_below, s) := (Option.some_injective _ hp).symm
       simp only [hsv]
       omega
-    · rw [if_neg hm] at hp
+    · rw [ite_eq_right hm] at hp
       have := hfinv.idxRange m p hp
       omega
 

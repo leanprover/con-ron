@@ -312,7 +312,7 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
   | zero =>
     intro pers vis st mode lane fu fe lfe depth n e lst o _hx _hrel _hinv
       _hctx _hf hn hrun
-    rw [arena.core.whnf_loop, if_pos (absU_eq_zero hn)] at hrun
+    rw [arena.core.whnf_loop, ite_eq_left (absU_eq_zero hn)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -323,7 +323,7 @@ private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
   | succ m ih =>
     intro pers vis st mode lane fu fe lfe depth n e lst o hx hrel hinv hctx
       hf hn hrun
-    rw [arena.core.whnf_loop, if_neg (absU_ne_zero hn)] at hrun
+    rw [arena.core.whnf_loop, ite_eq_right (absU_ne_zero hn)] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have hiv : absU i = m := absU_pred hn hi
     rw [whnfLoop_succ, ← hiv]

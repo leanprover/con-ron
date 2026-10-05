@@ -106,7 +106,7 @@ example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
 
 /-! ## 1–2. The reported sites: `install_value_tail`, `install_constant_val_tail`
 
-The Checker lane closed both with `lockstep`, then `rw [bind_pure, if_neg …]`
+The Checker lane closed both with `lockstep`, then `rw [bind_pure, ite_eq_right …]`
 by hand, then `unresolved_consts_error` at a specialised copy fixed at
 `"value"`/`"type"`.  Both are one `lockstep` call now. -/
 

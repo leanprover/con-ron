@@ -61,10 +61,10 @@ private theorem annot_fold_hooked_aux {H : Type} (inst : arena.checker.InstallHo
     try dsimp only at hrun ⊢
     split at hrun
     · rename_i hge
-      rw [if_pos hge]
+      rw [ite_eq_left hge]
       exact hrun
     · rename_i hge
-      rw [if_neg hge]
+      rw [ite_eq_right hge]
       obtain ⟨p0, p1, p2⟩ := p
       try dsimp only at hrun
       obtain ⟨d, hd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun

@@ -126,7 +126,7 @@ theorem Rel_insert_wf [LawfulBEq K'] [LawfulHashable K'] {P : K → Prop}
   by_cases hkk : k' = key
   · subst hkk; simp
   · have hne : ¬(absK key = absK k') := fun hc => hkk (hinj key k' hk hk' hc).symm
-    rw [if_neg hkk, if_neg (by simpa using hne)]
+    rw [ite_eq_right hkk, ite_eq_right (by simpa using hne)]
     exact hrel k' hk'
 
 end Bridge

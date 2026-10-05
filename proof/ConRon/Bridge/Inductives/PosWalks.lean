@@ -253,7 +253,7 @@ theorem memberIdxAt?_spec (names : List NIdx) (namesP : List ConLeche.Name)
   obtain ⟨hN, hL, hd⟩ := hp
   simp only [Arena.memberIdxAt?] at hrun
   by_cases htg : (e.tag == ETag.const) = true
-  · rw [if_pos htg] at hrun
+  · rw [ite_eq_left htg] at hrun
     obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨hs1, ho⟩ := viewConst_run h1
     subst hs1
@@ -266,21 +266,21 @@ theorem memberIdxAt?_spec (names : List NIdx) (namesP : List ConLeche.Name)
       dsimp only at h2
       have hb' := beq_lshandle_eq hok.wf hls hL
       by_cases hb : (us == lvls) = true
-      · rw [if_pos hb] at h2
+      · rw [ite_eq_left hb] at h2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         refine ⟨PStep.refl hok, ?_⟩
         rw [hb'] at hb
         show _ = ConLeche.memberIdxAt? namesP lvlsP (.const nm ls)
-        simp only [ConLeche.memberIdxAt?, hb, if_true]
+        simp only [ConLeche.memberIdxAt?, hb, ite_true]
         exact findIdx_handle_eq hok.wf hn hN
-      · rw [if_neg hb] at h2
+      · rw [ite_eq_right hb] at h2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         refine ⟨PStep.refl hok, ?_⟩
         rw [hb'] at hb
         show _ = ConLeche.memberIdxAt? namesP lvlsP (.const nm ls)
         simp only [ConLeche.memberIdxAt?, hb]
         rfl
-  · rw [if_neg htg] at hrun
+  · rw [ite_eq_right htg] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
     show none = ConLeche.memberIdxAt? namesP lvlsP eP
@@ -394,14 +394,14 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         obtain ⟨hsA, hrA, hmA⟩ := ih memo f ef _ _ (b1, m1) hok ⟨hT, hf, hm⟩ hc1
         simp only at hrA
         cases b1
-        · simp only [Bool.false_eq_true, if_false] at hn1
+        · simp only [Bool.false_eq_true, ite_false] at hn1
           obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 a ea _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext ha hsA.ext, hmA⟩ hc2
           simp only at hrB
           exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
-        · simp only [if_true] at hn1
+        · simp only [ite_true] at hn1
           obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
@@ -416,14 +416,14 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
         simp only at hrA
         cases b1
-        · simp only [Bool.false_eq_true, if_false] at hn1
+        · simp only [Bool.false_eq_true, ite_false] at hn1
           obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
           simp only at hrB
           exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
-        · simp only [if_true] at hn1
+        · simp only [ite_true] at hn1
           obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
@@ -438,14 +438,14 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         obtain ⟨hsA, hrA, hmA⟩ := ih memo ty et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
         simp only at hrA
         cases b1
-        · simp only [Bool.false_eq_true, if_false] at hn1
+        · simp only [Bool.false_eq_true, ite_false] at hn1
           obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 b eb _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hbd hsA.ext, hmA⟩ hc2
           simp only at hrB
           exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hn2
-        · simp only [if_true] at hn1
+        · simp only [ite_true] at hn1
           obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
@@ -460,14 +460,14 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         obtain ⟨hsA, hrA, hmA⟩ := ih memo lt et _ _ (b1, m1) hok ⟨hT, hty, hm⟩ hc1
         simp only at hrA
         cases b1
-        · simp only [Bool.false_eq_true, if_false] at hn1
+        · simp only [Bool.false_eq_true, ite_false] at hn1
           obtain ⟨p2, sb, hc2, hn2⟩ := AM.bind_ok hn1
           obtain ⟨b2, m2⟩ := p2
           obtain ⟨hsB, hrB, hmB⟩ := ih m1 lv ev _ _ (b2, m2) hsA.ok
             ⟨denoteNListE_ext hsA.ext _ _ hT, denote_ext hval hsA.ext, hmA⟩ hc2
           simp only at hrB
           cases b2
-          · simp only [Bool.false_eq_true, if_false] at hn2
+          · simp only [Bool.false_eq_true, ite_false] at hn2
             obtain ⟨p3, sc, hc3, hn3⟩ := AM.bind_ok hn2
             obtain ⟨b3, m3⟩ := p3
             obtain ⟨hsC, hrC, hmC⟩ := ih m2 lb eb _ _ (b3, m3) hsB.ok
@@ -476,11 +476,11 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
             simp only at hrC
             exact fin ((hsA.trans hsB).trans hsC)
               (by simp only [Expr.nestOcc, ← hrA, ← hrB, ← hrC]; rfl) hmC hn3
-          · simp only [if_true] at hn2
+          · simp only [ite_true] at hn2
             obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn2
             obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin (hsA.trans hsB) (by simp only [Expr.nestOcc, ← hrA, ← hrB]; rfl) hmB hz
-        · simp only [if_true] at hn1
+        · simp only [ite_true] at hn1
           obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
@@ -534,7 +534,7 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
     obtain ⟨hT, hd⟩ := hp
     simp only [Arena.piDomsOcc] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
@@ -550,16 +550,16 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
         simp only [RV] at hc
         subst hc
         by_cases hb : Expr.nestOcc namesP lo hi dP = true
-        · rw [if_pos hb] at h4
+        · rw [ite_eq_left hb] at h4
           obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
           exact ⟨p3, by simp [Expr.piDomsOcc, hb]⟩
-        · rw [if_neg hb] at h4
+        · rw [ite_eq_right hb] at h4
           obtain ⟨p4, h5⟩ := ih b bP s₂ s' r p3.ok
             ⟨denoteNListE_ext p3.ext _ _ hT, denote_ext hbd p3.ext⟩ h4
           refine ⟨p3.trans p4, ?_⟩
           simp only [RV] at h5
           simp [Expr.piDomsOcc, hb, h5]
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show false = Expr.piDomsOcc namesP lo hi (n + 1) eP
@@ -1332,7 +1332,7 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
         (ctx.nP ≤ i ∧ i < ctx.nP + namesP.length + 0) := by
       simp [Arena.NestCtx.hiAt, hlen]
     by_cases hc : (decide (ctx.nP ≤ i) && decide (i < ctx.hiAt 0)) = true
-    · rw [if_pos hc] at hrun
+    · rw [ite_eq_left hc] at hrun
       obtain ⟨hlo, hhi⟩ := hiff.mp hc
       have hj : i - ctx.nP < ctx.names.length := by omega
       obtain ⟨nm, hnm, hn⟩ := denoteNList_getElem? hN (i - ctx.nP) _
@@ -1350,13 +1350,13 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
       have hgP : namesP.getD (i - ctx.nP) .anonymous = nm := by
         simp [List.getD_eq_getElem?_getD, hnm]
       simp only [ConLeche.nestHoleImg, ConLeche.NestCtx.hiAt, hgP]
-      rw [if_pos ⟨hlo, hhi⟩]
-    · rw [if_neg hc] at hrun
+      rw [ite_eq_left ⟨hlo, hhi⟩]
+    · rw [ite_eq_right hc] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show ConLeche.nestHoleImg _ [] i = none
       simp only [ConLeche.nestHoleImg, ConLeche.NestCtx.hiAt]
-      rw [if_neg (fun hh => hc (hiff.mpr hh))]
+      rw [ite_eq_right (fun hh => hc (hiff.mpr hh))]
   | succ n ih =>
     intro i fnd ctxP progP s₀ s' r hok hpins hp hrun
     obtain ⟨h1, h2, h3⟩ := hp
@@ -1370,7 +1370,7 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
       subst hctx
       simp [Arena.NestCtx.hiAt, ConLeche.NestCtx.hiAt, hlen, hlenP]
     by_cases hc : (i == ctx.hiAt n) = true
-    · rw [if_pos hc] at hrun
+    · rw [ite_eq_left hc] at hrun
       have hg : prog.getD n default = prog[n] := by
         simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hn]
       rw [hg] at hrun
@@ -1393,14 +1393,14 @@ theorem nestHoleImg_spec (ctx : Arena.NestCtx) (prog : List Arena.NestHole) :
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨(p1.trans p2).trans p3, _, ?_, hq⟩
       simp only [ConLeche.nestHoleImg]
-      rw [if_pos (hiff.mp hc)]
-    · rw [if_neg hc] at hrun
+      rw [ite_eq_left (hiff.mp hc)]
+    · rw [ite_eq_right hc] at hrun
       obtain ⟨hs, hr⟩ := ih i fnd ctxP progP' s₀ s' r hok hpins ⟨h1, hprog', by omega⟩ hrun
       refine ⟨hs, ?_⟩
       have heq : ConLeche.nestHoleImg ctxP (hP :: progP') i =
           ConLeche.nestHoleImg ctxP progP' i := by
         simp only [ConLeche.nestHoleImg]
-        rw [if_neg (fun hh => hc (hiff.mpr hh))]
+        rw [ite_eq_right (fun hh => hc (hiff.mpr hh))]
       rw [heq]
       exact hr
 
@@ -1438,7 +1438,7 @@ theorem phApp?_spec (b : Nat) :
     intro e eP s₀ s' r hok hd hrun
     simp only [Arena.phApp?] at hrun
     by_cases htg : (e.tag == ETag.const) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewConst_run h1
       rw [hs1] at h2
@@ -1451,7 +1451,7 @@ theorem phApp?_spec (b : Nat) :
         dsimp only at h2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         exact ⟨PStep.refl hok, (nm, ls), rfl, hn, hls⟩
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show Expr.phApp? b eP 0 = none
@@ -1462,7 +1462,7 @@ theorem phApp?_spec (b : Nat) :
     intro e eP s₀ s' r hok hd hrun
     simp only [Arena.phApp?] at hrun
     by_cases htg : (e.tag == ETag.app) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewApp_run h1
       rw [hs1] at h2
@@ -1474,7 +1474,7 @@ theorem phApp?_spec (b : Nat) :
         obtain ⟨fP, aP, rfl, hf, ha⟩ := denote_app_inv hok.wf hw hd
         dsimp only at h2
         by_cases hta : (a.tag == ETag.fvar) = true
-        · rw [if_pos hta] at h2
+        · rw [ite_eq_left hta] at h2
           obtain ⟨o2, s₂, h3, h4⟩ := AM.bind_ok h2
           obtain ⟨hs2, ho2⟩ := viewFVarIdx_run h3
           rw [hs2] at h4
@@ -1484,26 +1484,26 @@ theorem phApp?_spec (b : Nat) :
             obtain ⟨t, rfl⟩ := denote_of_viewFVarIdx hok.wf hta ho2.symm ha
             dsimp only at h4
             by_cases hj : (j == b + n) = true
-            · rw [if_pos hj] at h4
+            · rw [ite_eq_left hj] at h4
               have hj' : j = b + n := by simpa using hj
               have heq : Expr.phApp? b (.app fP (.fvar j t)) (n + 1) = Expr.phApp? b fP n := by
                 simp [Expr.phApp?, hj']
               rw [heq]
               exact ih f fP s₀ s' r hok hf h4
-            · rw [if_neg hj] at h4
+            · rw [ite_eq_right hj] at h4
               obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
               refine ⟨PStep.refl hok, ?_⟩
               show Expr.phApp? b (.app fP (.fvar j t)) (n + 1) = none
               have hj' : ¬ j = b + n := by simpa using hj
               simp [Expr.phApp?, hj']
-        · rw [if_neg hta] at h2
+        · rw [ite_eq_right hta] at h2
           obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
           refine ⟨PStep.refl hok, ?_⟩
           show Expr.phApp? b (.app fP aP) (n + 1) = none
           cases aP with
           | fvar j t => exact absurd (tag_fvar_of_denote hok.wf ha) (by simpa using hta)
           | _ => rfl
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show Expr.phApp? b eP (n + 1) = none
@@ -1528,7 +1528,7 @@ theorem nestCanonSub_spec (names : List NIdx) (namesP : List ConLeche.Name)
   have hbv := beq_lshandle_eq hok.wf hV hU
   have hfi := findIdx_handle_eq hok.wf hC hN
   by_cases hb : (v == us) = true
-  · rw [if_pos hb] at hrun
+  · rw [ite_eq_left hb] at hrun
     have hbP : (vP == usP) = true := by rw [← hbv]; exact hb
     cases hm : names.findIdx? (· == c) with
     | none =>
@@ -1536,7 +1536,7 @@ theorem nestCanonSub_spec (names : List NIdx) (namesP : List ConLeche.Name)
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show ConLeche.nestCanonSub namesP usP n cP vP = none
-      simp only [ConLeche.nestCanonSub, hbP, if_true, ← hfi, hm, Option.map_none]
+      simp only [ConLeche.nestCanonSub, hbP, ite_true, ← hfi, hm, Option.map_none]
     | some m =>
       rw [hm] at hrun
       dsimp only at hrun
@@ -1548,8 +1548,8 @@ theorem nestCanonSub_spec (names : List NIdx) (namesP : List ConLeche.Name)
       obtain ⟨p3, hq⟩ := internFVarE_run p2.ok hso k3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨p2.trans p3, _, ?_, hq⟩
-      simp only [ConLeche.nestCanonSub, hbP, if_true, ← hfi, hm, Option.map_some]
-  · rw [if_neg hb] at hrun
+      simp only [ConLeche.nestCanonSub, hbP, ite_true, ← hfi, hm, Option.map_some]
+  · rw [ite_eq_right hb] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
     have hbP : ¬ (vP == usP) = true := by rw [← hbv]; exact hb
@@ -2094,10 +2094,10 @@ theorem nestAcceptGroup_denote {st : EStore} (hwf : StoreWF st) {us : LsIdx}
           simp only [Arena.nestAcceptGroup, ConLeche.nestAcceptGroup]
           by_cases hin : keys.contains ⟨c, us, ds⟩ = true
           · have hinP : keysP.contains ⟨c', usP, dsP⟩ = true := by rw [← hcont]; exact hin
-            rw [if_pos hin, if_pos hinP]
+            rw [ite_eq_left hin, ite_eq_left hinP]
             exact ih gsP keys keysP hr hk
           · have hinP : ¬ keysP.contains ⟨c', usP, dsP⟩ = true := by rw [← hcont]; exact hin
-            rw [if_neg hin, if_neg hinP]
+            rw [ite_eq_right hin, ite_eq_right hinP]
             refine ih gsP _ _ hr ?_
             rw [Array.toList_push, Array.toList_push, List.mapM_append, hk]
             simp only [List.mapM_cons, List.mapM_nil, hkey, Option.bind_eq_bind,

@@ -149,13 +149,13 @@ theorem internPersistentN_aext {v : NNodeView} {s : AState} {r : NIdx} {s' : ASt
     by_cases hc : s.store.ns.pers.sizeOf v < Idx.idxCap
     · simp only [internPersistentN, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc] at h
+        ite_eq_left hc] at h
       exact AExt.of_run_eq h
         ⟨EStore.internNamePersistent_ext s.store v, rfl, rfl, rfl,
           EStore.scratchOn_internNamePersistent s.store v⟩
     · simp only [internPersistentN, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, fail_apply] at h
+        ite_eq_right hc, fail_apply] at h
       exact absurd h (by simp)
 
 theorem AExtOf.of_internPersistentN (v : NNodeView) :
@@ -172,13 +172,13 @@ theorem internPersistentL_aext {v : LNodeView} {s : AState} {r : LIdx} {s' : ASt
     by_cases hc : s.store.ls.pers.sizeOf v < Idx.idxCap
     · simp only [internPersistentL, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc] at h
+        ite_eq_left hc] at h
       exact AExt.of_run_eq h
         ⟨EStore.internLevelPersistent_ext s.store v, rfl, rfl, rfl,
           EStore.scratchOn_internLevelPersistent s.store v⟩
     · simp only [internPersistentL, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, fail_apply] at h
+        ite_eq_right hc, fail_apply] at h
       exact absurd h (by simp)
 
 theorem AExtOf.of_internPersistentL (v : LNodeView) :
@@ -195,13 +195,13 @@ theorem internPersistentLs_aext {v : LsNodeView} {s : AState} {r : LsIdx} {s' : 
     by_cases hc : s.store.lss.pers.sizeOf v < Idx.idxCap
     · simp only [internPersistentLs, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc] at h
+        ite_eq_left hc] at h
       exact AExt.of_run_eq h
         ⟨EStore.internLevelsPersistent_ext s.store v, rfl, rfl, rfl,
           EStore.scratchOn_internLevelsPersistent s.store v⟩
     · simp only [internPersistentLs, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, fail_apply] at h
+        ite_eq_right hc, fail_apply] at h
       exact absurd h (by simp)
 
 theorem AExtOf.of_internPersistentLs (v : LsNodeView) :

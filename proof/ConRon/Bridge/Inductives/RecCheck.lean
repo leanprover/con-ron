@@ -261,8 +261,8 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
       dsimp only at h2
       rw [hbeq] at h2
       by_cases hls : (ls == lvlsP) = true
-      · rw [if_pos hls] at h2
-        rw [if_pos hls]
+      · rw [ite_eq_left hls] at h2
+        rw [ite_eq_left hls]
         rw [hfi] at h2
         cases ht : namesP.findIdx? (· == nm) with
         | some t =>
@@ -288,8 +288,8 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
           rw [ht] at h2
           obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
           exact ⟨PStep.refl hok, hd, hm⟩
-      · rw [if_neg hls] at h2
-        rw [if_neg hls]
+      · rw [ite_eq_right hls] at h2
+        rw [ite_eq_right hls]
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
         exact ⟨PStep.refl hok, hd, hm⟩
     case app f a =>
@@ -572,38 +572,38 @@ theorem closed4_bind_run {β : Type} {k : Bool → AM β} {s₀ s' : AState} {a 
   obtain ⟨x1, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, -, rfl⟩ := bvarB_pstep hok ha k1
   by_cases c1 : (aP.bvarB != 0) = true
-  · rw [if_pos c1] at z1
+  · rw [ite_eq_left c1] at z1
     refine ⟨s1, p1, ?_⟩
     have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
       decide (bP.fvarB ≤ n)) = false := by
       simp only [bne_iff_ne, ne_eq] at c1
       simp [c1]
     rw [e]; exact z1
-  · rw [if_neg c1] at z1
+  · rw [ite_eq_right c1] at z1
     simp only [bne_iff_ne, ne_eq, Decidable.not_not] at c1
     obtain ⟨x2, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, -, rfl⟩ := bvarB_pstep p1.ok (denote_ext hb p1.ext) k2
     by_cases c2 : (bP.bvarB != 0) = true
-    · rw [if_pos c2] at z2
+    · rw [ite_eq_left c2] at z2
       refine ⟨s2, p1.trans p2, ?_⟩
       have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
         decide (bP.fvarB ≤ n)) = false := by
         simp only [bne_iff_ne, ne_eq] at c2
         simp [c1, c2]
       rw [e]; exact z2
-    · rw [if_neg c2] at z2
+    · rw [ite_eq_right c2] at z2
       simp only [bne_iff_ne, ne_eq, Decidable.not_not] at c2
       obtain ⟨x3, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, -, rfl⟩ := fvarB_pstep (p1.trans p2).ok
         (denote_ext ha (p1.trans p2).ext) k3
       by_cases c3 : aP.fvarB > n
-      · rw [if_pos c3] at z3
+      · rw [ite_eq_left c3] at z3
         refine ⟨s3, (p1.trans p2).trans p3, ?_⟩
         have : ¬ aP.fvarB ≤ n := by omega
         have e : (aP.bvarB == 0 && bP.bvarB == 0 && decide (aP.fvarB ≤ n) &&
           decide (bP.fvarB ≤ n)) = false := by simp [c1, c2, this]
         rw [e]; exact z3
-      · rw [if_neg c3] at z3
+      · rw [ite_eq_right c3] at z3
         obtain ⟨x4, s4, k4, z4⟩ := AM.bind_ok z3
         have p123 := (p1.trans p2).trans p3
         obtain ⟨p4, -, rfl⟩ := fvarB_pstep p123.ok (denote_ext hb p123.ext) k4
@@ -751,7 +751,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     by_cases hc : cl = true
     · rw [hc] at z1 hcl
       simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at z1
-      rw [if_pos hcl]
+      rw [ite_eq_left hcl]
       simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hcl
       obtain ⟨⟨⟨_, _⟩, hfa⟩, hfb⟩ := hcl
       have hwa : Expr.WScoped d (ConLeche.targetAbs namesP lvlsP holesP
@@ -780,18 +780,18 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       have ha'5 := denote_ext ha' (c4.ext.trans c5.ext)
       have hbeq := beq_of_denoteE c5.ok.state.wf ha'5 hb'
       by_cases he : (a' == b') = true
-      · rw [if_pos he] at z5
+      · rw [ite_eq_left he] at z5
         rw [he] at hbeq
-        rw [if_pos hbeq.symm]
+        rw [ite_eq_left hbeq.symm]
         obtain ⟨c6, v, rfl, hv⟩ := ih bs asP' bsP' s5 s' r c5.ok
           ⟨hA.ext c15.ext, denoteEList_ext c15.ext _ _ hpf, denoteEList_ext c15.ext _ _ has',
             denoteEList_ext c15.ext _ _ hbs'⟩ z5
         exact ⟨c15.trans c6, r, rfl, hv⟩
-      · rw [if_neg he] at z5
+      · rw [ite_eq_right he] at z5
         have hne : ¬ (ConLeche.targetAbs namesP lvlsP holesP (ConLeche.targetCanonParams pfvsP aP)
             == ConLeche.targetAbs namesP lvlsP holesP (ConLeche.targetCanonParams pfvsP bP))
               = true := by rw [← hbeq]; exact he
-        rw [if_neg hne]
+        rw [ite_eq_right hne]
         obtain ⟨t1, s6, k6, z6⟩ := AM.bind_ok z5
         obtain ⟨c6, v1, -, -, hF1⟩ := infer_crun hk henv c5.ok ha'5 hwa k6
         obtain ⟨t2, s7, k7, z7⟩ := AM.bind_ok z6
@@ -818,7 +818,7 @@ theorem targetParamsDefEq_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rw [hc'] at z1 hcl
       simp only [Bool.not_false, ↓reduceIte] at z1
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      rw [if_neg (by rw [hcl]; simp)]
+      rw [ite_eq_right (by rw [hcl]; simp)]
       exact ⟨c1, false, rfl, FOk.pure false⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:331-340 targetClassMatch
@@ -935,7 +935,7 @@ theorem targetMajorNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hany := RC.ctors_any_name c1.ok.state.wf hctor (dCtors_ext c1.ext _ _ hcs)
     simp only [ConLeche.targetMajorNfs]
     by_cases ha : (ctors.any (·.1.name == e.ctor)) = true
-    · rw [if_pos ha] at z1
+    · rw [ite_eq_left ha] at z1
       have ha' : (ctorsP.any (·.1.name == eP.ctor)) = true := by rw [← hany]; exact ha
       obtain ⟨m, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨c2, w, rfl, hW⟩ := targetClassMatch_spec fe hk henv p pP formerTys pfvs
@@ -952,16 +952,16 @@ theorem targetMajorNfs_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         refine ⟨c1.trans c2, eP :: v, ?_, ?_⟩
         · simp only [List.mapM_cons, Option.bind_eq_bind, Option.pure_def, he2, hv2,
             Option.bind_some]
-        · exact FOk.bind hF (by rw [if_pos ha']; exact FOk.bind hW (by simp; exact FOk.pure _))
+        · exact FOk.bind hF (by rw [ite_eq_left ha']; exact FOk.bind hW (by simp; exact FOk.pure _))
       | false =>
         simp only [Bool.false_eq_true, ↓reduceIte] at z2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
         refine ⟨c1.trans c2, v, hv2, ?_⟩
-        exact FOk.bind hF (by rw [if_pos ha']; exact FOk.bind hW (by simp; exact FOk.pure _))
-    · rw [if_neg ha] at z1
+        exact FOk.bind hF (by rw [ite_eq_left ha']; exact FOk.bind hW (by simp; exact FOk.pure _))
+    · rw [ite_eq_right ha] at z1
       have ha' : ¬ (ctorsP.any (·.1.name == eP.ctor)) = true := by rw [← hany]; exact ha
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      exact ⟨c1, v, hv, FOk.bind hF (by rw [if_neg ha']; exact FOk.pure _)⟩
+      exact ⟨c1, v, hv, FOk.bind hF (by rw [ite_eq_right ha']; exact FOk.pure _)⟩
 
 /-! ## A class's constructors, and the telescope reader -/
 
@@ -1010,7 +1010,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
     obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := Core.denoteEList_cons_inv hx
     simp only [Arena.targetPiDomsWith] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
@@ -1045,7 +1045,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
             rw [this]; rfl
           · show Frontend.denoteEList _ (d :: ds) = _
             simp only [Frontend.denoteEList, denote_ext hdd (p2.ext.trans p3.ext), hdsR]
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
@@ -1314,21 +1314,21 @@ theorem pinsWf_spec {env : Env} (fe : IFEnv) (lps : List NIdx) (lpsP : List ConL
     obtain ⟨p1, rfl⟩ := RC.hasFvarFast_pstep hok.state hqP k1
     simp only [List.all_cons]
     by_cases c1 : qP.hasFvar = true
-    · rw [if_pos c1] at z1
+    · rw [ite_eq_left c1] at z1
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       exact ⟨p1, by simp [c1]⟩
-    · rw [if_neg c1] at z1
+    · rw [ite_eq_right c1] at z1
       obtain ⟨b2, s2, k2, z2⟩ := AM.bind_ok z1
       obtain ⟨p2, rfl⟩ := RC.looseBVarsBoundedFast_pstep p1.ok (denote_ext hqP p1.ext) k2
       have p12 := p1.trans p2
       by_cases c2 : qP.looseBVarsBounded rP = true
-      · rw [if_neg (by simp [c2])] at z2
+      · rw [ite_eq_right (by simp [c2])] at z2
         obtain ⟨b3, s3, k3, z3⟩ := AM.bind_ok z2
         obtain ⟨p3, rfl⟩ := constsResolveFFast_pstep (hok.mono p12.ok p12.ext p12.pins)
           (denote_ext hqP p12.ext) k3
         have p13 := p12.trans p3
         by_cases c3 : qP.constsResolve env = true
-        · rw [if_neg (by simp [c3])] at z3
+        · rw [ite_eq_right (by simp [c3])] at z3
           obtain ⟨b4, s4, k4, z4⟩ := AM.bind_ok z3
           obtain ⟨hs4, hc4, hp4, rfl⟩ := allLevelParamsDefined_run p13.ok
             (denoteNListE_ext p13.ext _ _ hl) (denote_ext hqP p13.ext) k4
@@ -1336,17 +1336,17 @@ theorem pinsWf_spec {env : Env} (fe : IFEnv) (lps : List NIdx) (lpsP : List ConL
             (by rw [hs4]; exact Ext.refl _) (by rw [hs4]; exact BMExt.refl _) hc4 hp4
           have p14 := p13.trans p4
           by_cases c4 : qP.allLevelParamsDefined lpsP = true
-          · rw [if_neg (by simp [c4])] at z4
+          · rw [ite_eq_right (by simp [c4])] at z4
             obtain ⟨p5, hr⟩ := ih qsP s4 s' r (hok.mono p14.ok p14.ext p14.pins)
               ⟨denoteNListE_ext p14.ext _ _ hl, denoteEList_ext p14.ext _ _ hqsP⟩ z4
             exact ⟨p14.trans p5, by rw [hr]; simp [c1, c2, c3, c4]⟩
-          · rw [if_pos (by simpa using c4)] at z4
+          · rw [ite_eq_left (by simpa using c4)] at z4
             obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
             exact ⟨p14, by simp [c1, c2, c3, c4]⟩
-        · rw [if_pos (by simpa using c3)] at z3
+        · rw [ite_eq_left (by simpa using c3)] at z3
           obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
           exact ⟨p13, by simp [c1, c2, c3]⟩
-      · rw [if_pos (by simpa using c2)] at z2
+      · rw [ite_eq_left (by simpa using c2)] at z2
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
         exact ⟨p12, by simp [c1, c2]⟩
 
@@ -1384,10 +1384,10 @@ theorem levelsDeclaredFrom_spec (ps : List ConLeche.Name) :
     obtain rfl := Option.some.inj hlv
     simp only [List.all_cons]
     by_cases c : Level.allParamsDefined ps lP = true
-    · rw [if_pos c] at z1
+    · rw [ite_eq_left c] at z1
       obtain ⟨p, hr⟩ := ih lsP' s₀ s' r hok hls z1
       exact ⟨p, by rw [hr]; simp [c]⟩
-    · rw [if_neg c] at z1
+    · rw [ite_eq_right c] at z1
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
       exact ⟨PStep.refl hok, by simp [c]⟩
 
@@ -1431,7 +1431,7 @@ theorem nestedRuleSynGuards_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
   obtain ⟨p1, rfl⟩ := pinsWf_spec fe lps lpsP rP pins pinsP s₀ s1 b hok ⟨hl, hpins⟩ k1
   by_cases c1 : pinsP.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
       p.constsResolve env && p.allLevelParamsDefined lpsP) = true
-  · rw [if_neg (by simp [c1])] at z1
+  · rw [ite_eq_right (by simp [c1])] at z1
     obtain ⟨ls, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨hs2, hv⟩ := viewLs_run k2
     rw [hs2] at z2
@@ -1442,17 +1442,17 @@ theorem nestedRuleSynGuards_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
       ⟨denoteNListE_ext p1.ext _ _ hl, hls⟩ k3
     have p13 := p1.trans p3
     by_cases c2 : lvlsP.all (Level.allParamsDefined lpsP) = true
-    · rw [if_neg (by simp [c2])] at z3
+    · rw [ite_eq_right (by simp [c2])] at z3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-      refine ⟨p13, (lvlsP, pinsP), by rw [if_pos ⟨c1, c2⟩], ?_, ?_⟩
+      refine ⟨p13, (lvlsP, pinsP), by rw [ite_eq_left ⟨c1, c2⟩], ?_, ?_⟩
       · exact denoteLList_ext p3.ext.lss.ls _ _ hls
       · exact denoteEList_ext p13.ext _ _ hpins
-    · rw [if_pos (by simpa using c2)] at z3
+    · rw [ite_eq_left (by simpa using c2)] at z3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-      exact ⟨p13, by rw [if_neg (fun h => c2 h.2)]; rfl⟩
-  · rw [if_pos (by simpa using c1)] at z1
+      exact ⟨p13, by rw [ite_eq_right (fun h => c2 h.2)]; rfl⟩
+  · rw [ite_eq_left (by simpa using c1)] at z1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    exact ⟨p1, by rw [if_neg (fun h => c1 h.1)]; rfl⟩
+    exact ⟨p1, by rw [ite_eq_right (fun h => c1 h.1)]; rfl⟩
 
 namespace RC
 
@@ -1505,14 +1505,14 @@ theorem nestedRuleSynAt_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
   have hlen : args.length = domP.getAppArgs.length := denoteEList_length hargs
   simp only [RC.synAt]
   by_cases c1 : (args.length != cnP + k) = true
-  · rw [if_pos c1] at z2
+  · rw [ite_eq_left c1] at z2
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     refine ⟨p2, ?_⟩
-    rw [if_neg (by
+    rw [ite_eq_right (by
       intro h
       have : args.length = cnP + k := hlen.trans h.1
       exact absurd c1 (by rw [bne, this]; simp))]; rfl
-  · rw [if_neg c1] at z2
+  · rw [ite_eq_right c1] at z2
     have e1 : domP.getAppArgs.length = cnP + k := by simpa [hlen] using c1
     obtain ⟨back, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨p3, hback⟩ := liftList_spec k pins _ s2 s3 back p2.ok hpins k3
@@ -1520,14 +1520,14 @@ theorem nestedRuleSynAt_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
     have hpre3 := denoteEList_ext p23.ext _ _ (denoteEList_take hargs cnP)
     have hb1 := beq_of_denoteEList p3.ok.wf hpre3 hback
     by_cases c2 : (args.take cnP != back) = true
-    · rw [if_pos c2] at z3
+    · rw [ite_eq_left c2] at z3
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
       refine ⟨p23, ?_⟩
-      rw [if_neg (by
+      rw [ite_eq_right (by
         intro h
         have : (args.take cnP == back) = true := by rw [hb1]; exact h.2.1
         exact absurd c2 (by rw [bne, this]; simp))]; rfl
-    · rw [if_neg c2] at z3
+    · rw [ite_eq_right c2] at z3
       have e2 : (domP.getAppArgs.take cnP ==
           ((domP.getAppArgs.take cnP).map (Expr.lowerBVars k 0)).map
             (Expr.liftLooseBVars k 0)) = true := by
@@ -1540,14 +1540,14 @@ theorem nestedRuleSynAt_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
       rw [ExprOps.bvarRangeSpec_eq_range] at hb2
       simp only [Nat.zero_add] at hb2
       by_cases c3 : (args.drop cnP != want) = true
-      · rw [if_pos c3] at z4
+      · rw [ite_eq_left c3] at z4
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
         refine ⟨p24, ?_⟩
-        rw [if_neg (by
+        rw [ite_eq_right (by
           intro h
           have : (args.drop cnP == want) = true := by rw [hb2]; exact h.2.2.1
           exact absurd c3 (by rw [bne, this]; simp))]; rfl
-      · rw [if_neg c3] at z4
+      · rw [ite_eq_right c3] at z4
         have e3 : (domP.getAppArgs.drop cnP ==
             (List.range k).map (fun i => Expr.bvar (k - 1 - i))) = true := by
           rw [← hb2]; simpa using c3
@@ -1561,11 +1561,11 @@ theorem nestedRuleSynAt_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
             (fun p => !p.hasFvar && p.looseBVarsBounded rP && p.constsResolve env &&
               p.allLevelParamsDefined lpsP) = true ∧
             lvlsP.all (Level.allParamsDefined lpsP) = true
-        · rw [if_pos c4] at hr
-          rw [if_pos ⟨e1, e2, e3, c4.1, c4.2⟩]
+        · rw [ite_eq_left c4] at hr
+          rw [ite_eq_left ⟨e1, e2, e3, c4.1, c4.2⟩]
           exact hr
-        · rw [if_neg c4] at hr
-          rw [if_neg (fun h => c4 ⟨h.2.2.2.1, h.2.2.2.2⟩)]
+        · rw [ite_eq_right c4] at hr
+          rw [ite_eq_right (fun h => c4 ⟨h.2.2.2.1, h.2.2.2.2⟩)]
           exact hr
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — **the
@@ -1583,8 +1583,8 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
   simp only [Arena.nestedRuleSyn] at hrun
   simp only [Expr.nestedRuleSyn]
   by_cases hle : rP ≤ mI
-  · rw [if_pos hle] at hrun
-    rw [if_pos hle]
+  · rw [ite_eq_left hle] at hrun
+    rw [ite_eq_left hle]
     obtain ⟨q, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨hs1, hq⟩ := stripPis_pstep hok.state hd k1
     rw [hs1] at z1
@@ -1599,7 +1599,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
       rw [hsx]
       dsimp only at z1
       by_cases htg : (e.tag == ETag.forallE) = true
-      · rw [if_pos htg] at z1
+      · rw [ite_eq_left htg] at z1
         obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
         obtain ⟨hs2, ho⟩ := viewBind_run k2
         rw [hs2] at z2
@@ -1614,7 +1614,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
           obtain ⟨hs3, hhd⟩ := getAppFn_run hok.state hdom k3
           rw [hs3] at z3
           by_cases htc : (hd'.tag == ETag.const) = true
-          · rw [if_pos htc] at z3
+          · rw [ite_eq_left htc] at z3
             obtain ⟨o2, s4, k4, z4⟩ := AM.bind_ok z3
             obtain ⟨hs4, ho2⟩ := viewConst_run k4
             rw [hs4] at z4
@@ -1629,7 +1629,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
               dsimp only at z4
               exact nestedRuleSynAt_spec fe lps lpsP dom domP lvls lvlsP (mI - rP) rP cnP
                 s₀ s' r hok ⟨hl, hdom, hlvP⟩ z4
-          · rw [if_neg htc] at z3
+          · rw [ite_eq_right htc] at z3
             obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
             refine ⟨PStep.refl hok.state, ?_⟩
             dsimp only
@@ -1638,15 +1638,15 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
               rw [hg] at hhd
               exact absurd (tag_const_of_denote hok.state.wf hhd) (by simpa using htc)
             | _ => show _ = none; rfl
-      · rw [if_neg htg] at z1
+      · rw [ite_eq_right htg] at z1
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
         refine ⟨PStep.refl hok.state, ?_⟩
         cases x with
         | forallE dP bP m =>
           exact absurd (tag_forallE_of_denote hok.state.wf hx) (by simpa using htg)
         | _ => show _ = none; rfl
-  · rw [if_neg hle] at hrun
-    rw [if_neg hle]
+  · rw [ite_eq_right hle] at hrun
+    rw [ite_eq_right hle]
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok.state, rfl⟩
 
@@ -1982,14 +1982,14 @@ theorem restrictTo_push_find? {fe : IFEnv} {k : Nat} (hk : k ≤ fe.visibleBelow
   funext n
   simp only [IFEnv.find?, IFEnv.restrictTo, IFEnv.push, Std.HashMap.getElem?_insert]
   by_cases hEq : (ci.name == n) = true
-  · rw [if_pos hEq]
+  · rw [ite_eq_left hEq]
     have hn : ci.name = n := eq_of_beq hEq
     subst hn
     simp only [IFEnv.find?, IFEnv.restrictTo] at hnone
     have : ¬ fe.visibleBelow < k := by omega
     simp only [this, ↓reduceIte]
     exact hnone.symm
-  · rw [if_neg hEq]
+  · rw [ite_eq_right hEq]
 
 /-- con-leche: none — `IFEnvOK` reads the index only through `find?`. -/
 theorem IFEnvOK.of_find? {env : Env} {fe fe' : IFEnv} {s : AState} (h : IFEnvOK env fe s)
@@ -2254,12 +2254,12 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   have c13 := c2.trans c3
   have hb1 := RC.beq_binders_eq c3.ok.state.wf (denoteBinders_ext c3.ext _ _ hew) het
   by_cases cb : (ew != et) = true
-  · rw [if_pos cb] at z3
+  · rw [ite_eq_left cb] at z3
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-    rw [if_pos (by rw [bne, ← hb1]; exact cb)]
+    rw [ite_eq_left (by rw [bne, ← hb1]; exact cb)]
     exact ⟨c13, false, rfl, FOk.pure false⟩
-  · rw [if_neg cb] at z3
-    rw [if_neg (by rw [bne, ← hb1]; exact cb)]
+  · rw [ite_eq_right cb] at z3
+    rw [ite_eq_right (by rw [bne, ← hb1]; exact cb)]
     have hlw3 := denote_ext hlw c13.ext
     have hmd3 := denote_ext hmd c13.ext
     obtain ⟨lh, s4, k4, z4⟩ := AM.bind_ok z3
@@ -2269,7 +2269,7 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨hs5, hmh⟩ := getAppFn_run c3.ok.state hmd3 k5
     rw [hs5] at z5
     by_cases ct : (lh.tag == ETag.const && mh.tag == ETag.const) = true
-    · rw [if_pos ct] at z5
+    · rw [ite_eq_left ct] at z5
       simp only [Bool.and_eq_true] at ct
       obtain ⟨ct1, ct2⟩ := ct
       obtain ⟨o1, s6, k6, z6⟩ := AM.bind_ok z5
@@ -2306,7 +2306,7 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           (I'P == IP && lwP.getAppArgs.length == majDomP.getAppArgs.length) := by
         rw [hII, hll, hml]
       by_cases cA : (!(I' == I && la.length == ma.length)) = true
-      · rw [if_pos cA] at z9
+      · rw [ite_eq_left cA] at z9
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z9
         refine ⟨c13, false, rfl, ?_⟩
         have cA0 : (I'P == IP && lwP.getAppArgs.length == majDomP.getAppArgs.length) = false := by
@@ -2314,9 +2314,9 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           cases hb : (I' == I && la.length == ma.length) with
           | false => rfl
           | true => rw [hb] at cA; exact absurd cA (by decide)
-        rw [if_neg (by rw [cA0]; simp)]
+        rw [ite_eq_right (by rw [cA0]; simp)]
         exact FOk.pure false
-      · rw [if_neg cA] at z9
+      · rw [ite_eq_right cA] at z9
         have cA' : (I'P == IP && lwP.getAppArgs.length == majDomP.getAppArgs.length) = true := by
           rw [← hcA]
           cases hb : (I' == I && la.length == ma.length) with
@@ -2336,15 +2336,15 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         have c311 := c10.trans c11
         have hb2 := beq_of_denoteEList c11.ok.state.wf (denoteEList_ext c11.ext _ _ hle) hme
         by_cases cB : (le != me) = true
-        · rw [if_pos cB] at z11
+        · rw [ite_eq_left cB] at z11
           obtain ⟨rfl, rfl⟩ := AM.pure_ok z11
           refine ⟨c13.trans c311, false, rfl, ?_⟩
           have cB0 : ((lwP.getAppArgs.drop McP.nPc).map Expr.eraseFVarTys ==
               (majDomP.getAppArgs.drop McP.nPc).map Expr.eraseFVarTys) = false := by
             rw [← hb2]; simpa using cB
-          rw [if_neg (by rw [cA', cB0]; simp)]
+          rw [ite_eq_right (by rw [cA', cB0]; simp)]
           exact FOk.pure false
-        · rw [if_neg cB] at z11
+        · rw [ite_eq_right cB] at z11
           have cB' : ((lwP.getAppArgs.drop McP.nPc).map Expr.eraseFVarTys ==
               (majDomP.getAppArgs.drop McP.nPc).map Expr.eraseFVarTys) = true := by
             rw [← hb2]; simpa using cB
@@ -2364,8 +2364,8 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
           rw [hMnpc] at z14
           by_cases cC : (Expr.mkAppN (.const I'P us'P) (lwP.getAppArgs.take McP.nPc)).nestOcc
               pP.memberNames 0 0 = true
-          · rw [if_pos cC] at z14
-            rw [if_pos (by rw [cA', cB', cC]; rfl)]
+          · rw [ite_eq_left cC] at z14
+            rw [ite_eq_left (by rw [cA', cB', cC]; rfl)]
             obtain ⟨c15, v, rfl, hv⟩ := targetClassMatch_spec fe hk henv p pP formerTys Mc.pfvs
               formerTysP McP.pfvs Mc.lvls us' McP.lvls us'P Mc.ds (la.take McP.nPc) McP.ds
               (lwP.getAppArgs.take McP.nPc) hformer hMc.1 s14 s' r c14.ok
@@ -2377,13 +2377,13 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
                   (p12.ext.trans (p13.ext.trans p14.ext))) _ _ (denoteEList_take hla McP.nPc)⟩
               z14
             exact ⟨c14.trans c15, r, rfl, hv⟩
-          · rw [if_neg cC] at z14
+          · rw [ite_eq_right cC] at z14
             obtain ⟨rfl, rfl⟩ := AM.pure_ok z14
             have cC0 : (Expr.mkAppN (.const I'P us'P) (lwP.getAppArgs.take McP.nPc)).nestOcc
                 pP.memberNames 0 0 = false := by simpa using cC
-            rw [if_neg (by rw [cA', cB', cC0]; simp)]
+            rw [ite_eq_right (by rw [cA', cB', cC0]; simp)]
             exact ⟨c14, false, rfl, FOk.pure false⟩
-    · rw [if_neg ct] at z5
+    · rw [ite_eq_right ct] at z5
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
       refine ⟨c13, false, rfl, ?_⟩
       simp only [Bool.and_eq_true, not_and] at ct
@@ -2512,8 +2512,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
   have hk : p.k = pP.k := BlockShape.k_spec hsh
   simp only [Arena.targetRecPins] at hrun
   by_cases c1 : Arena.blockRecLpsOk p = true
-  case neg => rw [if_neg c1] at hrun; exact absurd hrun RC.failBindOk
-  rw [if_pos c1] at hrun
+  case neg => rw [ite_eq_right c1] at hrun; exact absurd hrun RC.failBindOk
+  rw [ite_eq_left c1] at hrun
   have hL : ConLeche.blockRecLpsOk pP = true := by rw [← blockRecLpsOk_spec hok.wf hsh]; exact c1
   obtain ⟨_, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨-, hs1⟩ := AM.pure_ok k1
@@ -2521,8 +2521,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
   obtain ⟨u, s2, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨p2, rfl⟩ := blockRecNamesUnreserved_spec pP p.recs _ _ u hok hp hrecs k2
   by_cases c2 : ConLeche.blockRecNamesUnreserved pP = true
-  case neg => rw [if_neg c2] at z2; exact absurd z2 RC.failBindOk
-  rw [if_pos c2] at z2
+  case neg => rw [ite_eq_right c2] at z2; exact absurd z2 RC.failBindOk
+  rw [ite_eq_left c2] at z2
   have hU := c2
   obtain ⟨_, s3, k3, z3⟩ := AM.bind_ok z2
   obtain ⟨-, hs3⟩ := AM.pure_ok k3
@@ -2538,8 +2538,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
       by rw [hk] at hown ⊢; exact hown⟩ k4
   by_cases c3 : ConLeche.blockRecNameSetOk
       { pP with recs := pP.recs.filter fun rc => decide (rc.tgt < pP.k) } = true
-  case neg => rw [if_neg c3] at z4; exact absurd z4 RC.failBindOk
-  rw [if_pos c3] at z4
+  case neg => rw [ite_eq_right c3] at z4; exact absurd z4 RC.failBindOk
+  rw [ite_eq_left c3] at z4
   have hS := c3
   obtain ⟨_, s5, k5, z5⟩ := AM.bind_ok z4
   obtain ⟨-, hs5⟩ := AM.pure_ok k5
@@ -2601,8 +2601,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           (List.map (fun x => x.cvR.name)
             (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).all
             (fun x => want.contains x)) = true
-    case neg => rw [if_neg cA] at zB; exact absurd zB RC.failBindOk
-    rw [if_pos cA] at zB
+    case neg => rw [ite_eq_right cA] at zB; exact absurd zB RC.failBindOk
+    rw [ite_eq_left cA] at zB
     rw [hA] at cA
     obtain ⟨_, sC, kC, zC⟩ := AM.bind_ok zB
     obtain ⟨-, hsC⟩ := AM.pure_ok kC
@@ -2610,8 +2610,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     have hnames := recShapeNames_go hrecsB
     have hnd := nameNodup_spec pB.ok.wf _ _ hnames
     by_cases cN : nameNodup (List.map (fun x => x.cvR.name) p.recs) = true
-    case neg => rw [if_neg cN] at zC; exact absurd zC RC.failBindOk
-    rw [if_pos cN] at zC
+    case neg => rw [ite_eq_right cN] at zC; exact absurd zC RC.failBindOk
+    rw [ite_eq_left cN] at zC
     rw [hnd] at cN
     obtain ⟨_, sD, kD, zD⟩ := AM.bind_ok zC
     obtain ⟨-, hsD⟩ := AM.pure_ok kD
@@ -2634,16 +2634,16 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           (RC.ctors3_names hcs)]
     by_cases cC : (cvTs.length == p.k && rs.length == p.recs.length &&
           List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) = true
-    · rw [if_pos cC] at zD
+    · rw [ite_eq_left cC] at zD
       obtain ⟨-, rfl⟩ := AM.pure_ok zD
       rw [hC] at cC
       refine ⟨pAB, 0, ?_⟩
       simp only [ConLeche.targetRecPins, hg0]
-      rw [if_pos hL, if_pos hU, if_pos hS, if_pos cA, if_pos (of_decide_eq_true (RC.nodup_of cN)), hq]
+      rw [ite_eq_left hL, ite_eq_left hU, ite_eq_left hS, ite_eq_left cA, ite_eq_left (of_decide_eq_true (RC.nodup_of cN)), hq]
       dsimp only
-      rw [if_pos cC]
+      rw [ite_eq_left cC]
       rfl
-    · rw [if_neg cC] at zD; exact absurd zD (fun hc => AM.fail_ok hc)
+    · rw [ite_eq_right cC] at zD; exact absurd zD (fun hc => AM.fail_ok hc)
   | cons ms rest =>
     rw [hm] at z5 hmems
     obtain ⟨mP, msP', hmP, hmsP, -⟩ := mapM_option_cons_inv hmems
@@ -2696,8 +2696,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           (List.map (fun x => x.cvR.name)
             (List.filter (fun rc => !decide (rc.tgt < p.k)) p.recs)).all
             (fun x => want.contains x)) = true
-    case neg => rw [if_neg cA] at zB; exact absurd zB RC.failBindOk
-    rw [if_pos cA] at zB
+    case neg => rw [ite_eq_right cA] at zB; exact absurd zB RC.failBindOk
+    rw [ite_eq_left cA] at zB
     rw [hA] at cA
     obtain ⟨_, sC, kC, zC⟩ := AM.bind_ok zB
     obtain ⟨-, hsC⟩ := AM.pure_ok kC
@@ -2705,8 +2705,8 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
     have hnames := recShapeNames_go hrecsB
     have hnd := nameNodup_spec pB.ok.wf _ _ hnames
     by_cases cN : nameNodup (List.map (fun x => x.cvR.name) p.recs) = true
-    case neg => rw [if_neg cN] at zC; exact absurd zC RC.failBindOk
-    rw [if_pos cN] at zC
+    case neg => rw [ite_eq_right cN] at zC; exact absurd zC RC.failBindOk
+    rw [ite_eq_left cN] at zC
     rw [hnd] at cN
     obtain ⟨_, sD, kD, zD⟩ := AM.bind_ok zC
     obtain ⟨-, hsD⟩ := AM.pure_ok kD
@@ -2729,16 +2729,16 @@ theorem targetRecPins_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape)
           (RC.ctors3_names hcs)]
     by_cases cC : (cvTs.length == p.k && rs.length == p.recs.length &&
           List.map (fun x => x.fst.name) p.allCtors == List.map (fun x => x.fst.name) cs) = true
-    · rw [if_pos cC] at zD
+    · rw [ite_eq_left cC] at zD
       obtain ⟨-, rfl⟩ := AM.pure_ok zD
       rw [hC] at cC
       refine ⟨pAB, 0, ?_⟩
       simp only [ConLeche.targetRecPins, hg0]
-      rw [if_pos hL, if_pos hU, if_pos hS, if_pos cA, if_pos (of_decide_eq_true (RC.nodup_of cN)), hq]
+      rw [ite_eq_left hL, ite_eq_left hU, ite_eq_left hS, ite_eq_left cA, ite_eq_left (of_decide_eq_true (RC.nodup_of cN)), hq]
       dsimp only
-      rw [if_pos cC]
+      rw [ite_eq_left cC]
       rfl
-    · rw [if_neg cC] at zD; exact absurd zD (fun hc => AM.fail_ok hc)
+    · rw [ite_eq_right cC] at zD; exact absurd zD (fun hc => AM.fail_ok hc)
 
 /-! ## A recursor's class, resolved -/
 
@@ -2768,12 +2768,12 @@ theorem closed1_run {s₀ s' : AState} {x : EIdx} {xP : Expr} {n : Nat} {r : Boo
   obtain ⟨x1, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨p1, -, rfl⟩ := bvarB_pstep hok hx k1
   by_cases c1 : (xP.bvarB != 0) = true
-  · rw [if_pos c1] at z1
+  · rw [ite_eq_left c1] at z1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
     refine ⟨p1, ?_⟩
     simp only [bne_iff_ne, ne_eq] at c1
     simp [c1]
-  · rw [if_neg c1] at z1
+  · rw [ite_eq_right c1] at z1
     simp only [bne_iff_ne, ne_eq, Decidable.not_not] at c1
     obtain ⟨x2, s2, k2, z2⟩ := AM.bind_ok z1
     obtain ⟨p2, -, rfl⟩ := fvarB_pstep p1.ok (denote_ext hx p1.ext) k2
@@ -2810,8 +2810,8 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hs2, hhd⟩ := getAppFn_run hok.state hmty k2
   rw [hs2] at z2
   by_cases ct : (hd.tag == ETag.const) = true
-  case neg => rw [if_neg ct] at z2; exact absurd z2 (fun hc => AM.fail_ok hc)
-  rw [if_pos ct] at z2
+  case neg => rw [ite_eq_right ct] at z2; exact absurd z2 (fun hc => AM.fail_ok hc)
+  rw [ite_eq_left ct] at z2
   obtain ⟨o, s3, k3, z3⟩ := AM.bind_ok z2
   obtain ⟨hs3, ho⟩ := viewConst_run k3
   rw [hs3] at z3
@@ -2851,17 +2851,17 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (denoteEList_take (denoteEList_ext p6.ext _ _ hfv) p.nP)
     rw [hmsP, hcAP]
     by_cases cm : (us == bl && List.take p.nP args == List.take p.nP fvs) = true
-    · rw [if_pos cm] at z6
+    · rw [ite_eq_left cm] at z6
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
       rw [hb1, hb2, hnP] at cm
       refine ⟨p6.toCore hok, _, ?_, FOk.bind FOk.unwrapOr (FOk.bind FOk.unwrapOr
-        (by rw [if_pos cm]; exact FOk.pure _))⟩
+        (by rw [ite_eq_left cm]; exact FOk.pure _))⟩
       obtain ⟨-, hnidx, -⟩ := dMember_inv hdm
       simp only [dMajor, denoteN_ext hI p6.ext, denoteLs_ext hus p6.ext,
         denoteEList_take (denoteEList_ext p6.ext _ _ hfv), dCtors_ext p6.ext _ _ hdc,
         denoteEList_ext p6.ext _ _ hpf, hnP, hnidx, List.mapM_nil]
       rfl
-    · rw [if_neg cm] at z6; exact absurd z6 (fun hc => AM.fail_ok hc)
+    · rw [ite_eq_right cm] at z6; exact absurd z6 (fun hc => AM.fail_ok hc)
   | none =>
     rw [hft] at z3
     dsimp only at z3 ⊢
@@ -2871,10 +2871,10 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     rw [hs4] at z4
     have hbq := beq_handle_eq hok.state.wf hI hq
     by_cases cq : (I == q) = true
-    · rw [if_pos cq] at z4; exact absurd z4 (fun hc => AM.fail_ok hc)
-    rw [if_neg cq] at z4
+    · rw [ite_eq_left cq] at z4; exact absurd z4 (fun hc => AM.fail_ok hc)
+    rw [ite_eq_right cq] at z4
     rw [hbq] at cq
-    rw [if_neg cq]
+    rw [ite_eq_right cq]
     obtain ⟨o2, s5, k5, z5⟩ := AM.bind_ok z4
     obtain ⟨p5, ho2⟩ := targetCtorsOf_spec (env := env) fe I IP s₀ s5 o2 hok.state
       ⟨hok.ienv.toS, hI⟩ k5
@@ -2892,16 +2892,16 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     have hlen : (List.take nPc args).length = (List.take nPc mtyP.getAppArgs).length :=
       denoteEList_length hds
     by_cases cl : ((List.take nPc args).length != nPc) = true
-    · rw [if_pos cl] at z5; exact absurd z5 (fun hc => AM.fail_ok hc)
-    rw [if_neg cl] at z5
+    · rw [ite_eq_left cl] at z5; exact absurd z5 (fun hc => AM.fail_ok hc)
+    rw [ite_eq_right cl] at z5
     obtain ⟨cls, s6, k6, z6⟩ := AM.bind_ok z5
     obtain ⟨p6, hcls⟩ := allM_E_pstep (fun _ => True) (fun _ h => h)
       (fun e eP s₀ s' b hok _ he hrun => RC.closed1_run hok he hrun)
       _ _ s5 s6 cls p5.ok trivial hds k6
     have c6 := c5.trans (p6.toCore c5.ok)
     by_cases cc : (!cls) = true
-    · rw [if_pos cc] at z6; exact absurd z6 (fun hc => AM.fail_ok hc)
-    rw [if_neg cc] at z6
+    · rw [ite_eq_left cc] at z6; exact absurd z6 (fun hc => AM.fail_ok hc)
+    rw [ite_eq_right cc] at z6
     have hcl1 : ((List.take nPc mtyP.getAppArgs).length == nPc &&
         (List.take nPc mtyP.getAppArgs).all fun x => x.bvarB == 0 && decide (x.fvarB ≤ pP.nP))
           = true := by
@@ -2909,7 +2909,7 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       have e1 : ((List.take nPc args).length == nPc) = true := by simpa using cl
       have e2 : cls = true := by simpa using cc
       rw [e1, ← hcls, e2]; rfl
-    rw [if_pos hcl1]
+    rw [ite_eq_left hcl1]
     obtain ⟨an, s7, k7, z7⟩ := AM.bind_ok z6
     obtain ⟨p7, han⟩ := anyM_E_pstep (fun st => Frontend.denoteNList st.ns p.memberNames =
         some pP.memberNames) (fun hx h => denoteNListE_ext hx _ _ h)
@@ -2919,10 +2919,10 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (denoteEList_ext p6.ext _ _ hds) k7
     have c7 := c6.trans (p7.toCore c6.ok)
     by_cases ca : an = true
-    case neg => rw [if_neg ca] at z7; exact absurd z7 RC.failBindOk
-    rw [if_pos ca] at z7
+    case neg => rw [ite_eq_right ca] at z7; exact absurd z7 RC.failBindOk
+    rw [ite_eq_left ca] at z7
     rw [han] at ca
-    rw [if_pos ca]
+    rw [ite_eq_left ca]
     obtain ⟨_, s8, k8, z8⟩ := AM.bind_ok z7
     obtain ⟨-, hs8⟩ := AM.pure_ok k8
     rw [hs8] at z8
@@ -2940,8 +2940,8 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨hlv, hs11⟩ := liftFueled_ok k11
     rw [hs11] at z11
     by_cases cb : b = true
-    case neg => rw [if_neg cb] at z11; exact absurd z11 RC.failBindOk
-    rw [if_pos cb] at z11
+    case neg => rw [ite_eq_right cb] at z11; exact absurd z11 RC.failBindOk
+    rw [ite_eq_left cb] at z11
     obtain ⟨_, s12, k12, z12⟩ := AM.bind_ok z11
     obtain ⟨-, hs12⟩ := AM.pure_ok k12
     rw [hs12] at z12
@@ -2955,6 +2955,6 @@ theorem targetMajorOf_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         dCtors_ext (p6.ext.trans (p7.ext.trans (c9.ext.trans c10.ext))) _ _ hctors,
         denoteEList_ext c10'.ext _ _ hpf, hni1, List.mapM_nil]
       rfl
-    · rw [if_pos cb]; exact FOk.pure _
+    · rw [ite_eq_left cb]; exact FOk.pure _
 
 end ConRon.Bridge.Inductives

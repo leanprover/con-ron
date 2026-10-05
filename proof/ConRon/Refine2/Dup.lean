@@ -181,12 +181,12 @@ private theorem eidx_vec_dup_from_map {es : alloc.vec.Vec arena.handle.EIdx} :
   refine vec_cursor_copy es id id (arena.env.eidx_vec_dup_from es) ?_ ?_
   · intro i out o hn h
     rw [arena.env.eidx_vec_dup_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len es by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < es.val.length := (List.getElem?_eq_some_iff.mp hx).1
     rw [arena.env.eidx_vec_dup_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len es by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len es by scalar_tac)] at h
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -240,12 +240,12 @@ private theorem i_rec_rules_dup_from_map {rs : alloc.vec.Vec arena.env.IRecRule}
     (arena.env.i_rec_rules_dup_from rs) ?_ ?_
   · intro i out o hn h
     rw [arena.env.i_rec_rules_dup_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < rs.val.length := (List.getElem?_eq_some_iff.mp hx).1
     rw [arena.env.i_rec_rules_dup_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
     obtain ⟨ir, hir, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨ir1, hir1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -348,12 +348,12 @@ theorem i_constant_infos_dup_from_abs {cs : alloc.vec.Vec arena.env.IConstantInf
     (arena.env.i_constant_infos_dup_from cs) ?_ ?_ i out o hrun
   · intro i out o hn h
     rw [arena.env.i_constant_infos_dup_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < cs.val.length := (List.getElem?_eq_some_iff.mp hx).1
     rw [arena.env.i_constant_infos_dup_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac)] at h
     obtain ⟨v, hv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v1, hv1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

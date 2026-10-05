@@ -91,14 +91,14 @@ theorem internPersistentN_run {v : NNodeView} {s : AState} {r : NIdx} {s' : ASta
     by_cases hc : s.store.ns.pers.sizeOf v < Idx.idxCap
     · simp only [internPersistentN, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨EStore.internNamePersistent_wf' hwf hv hp hc,
         NStore.internPersistent_view hns (fun _ => hc),
         NStore.internPersistent_pers hns (fun _ => hc)⟩
     · simp only [internPersistentN, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, ConRon.Bridge.fail_apply] at h
+        ite_eq_right hc, ConRon.Bridge.fail_apply] at h
       exact absurd h (by simp)
 
 /-! ## `promoteN` -/
@@ -320,14 +320,14 @@ theorem internPersistentL_run {v : LNodeView} {s : AState} {r : LIdx} {s' : ASta
     by_cases hc : s.store.ls.pers.sizeOf v < Idx.idxCap
     · simp only [internPersistentL, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨EStore.internLevelPersistent_wf' hwf hv hp hc,
         LStore.internPersistent_view hls (fun _ => hc),
         LStore.internPersistent_pers hls (fun _ => hc)⟩
     · simp only [internPersistentL, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, ConRon.Bridge.fail_apply] at h
+        ite_eq_right hc, ConRon.Bridge.fail_apply] at h
       exact absurd h (by simp)
 
 theorem LStore.ViewOK.of_denoteLView {st : LStore} {w : LNodeView} {u : Level}
@@ -649,14 +649,14 @@ theorem internPersistentLs_run {v : LsNodeView} {s : AState} {r : LsIdx} {s' : A
     by_cases hc : s.store.lss.pers.sizeOf v < Idx.idxCap
     · simp only [internPersistentLs, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨EStore.internLevelsPersistent_wf' hwf hv hp hc,
         LsStore.internPersistent_view hlss (fun _ => hc),
         LsStore.internPersistent_pers hlss (fun _ => hc)⟩
     · simp only [internPersistentLs, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, ConRon.Bridge.fail_apply] at h
+        ite_eq_right hc, ConRon.Bridge.fail_apply] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; under the promote window's

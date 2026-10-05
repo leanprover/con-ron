@@ -50,7 +50,7 @@ theorem quickDefEq_none {r : CoreFns CheckM} {d : Nat} {x y : Expr}
       exprTag x = ETag.lit ∨ exprTag x = ETag.forallE ∨ exprTag x = ETag.lam))) :
     ConLeche.quickDefEq mode r d x y = pure none := by
   unfold ConLeche.quickDefEq
-  rw [if_neg (by simp [hne])]
+  rw [ite_eq_right (by simp [hne])]
   split
   all_goals first
     | rfl
@@ -100,7 +100,7 @@ theorem qdArm_sort (u v : LIdx) (lu lv : ConLeche.Level)
       ⟨0, fun _ _ => by
         dsimp only
         unfold ConLeche.quickDefEq
-        rw [if_neg (by simp [hne])]
+        rw [ite_eq_right (by simp [hne])]
         simp only [ConLeche.liftFueled, ho, bind, Except.bind, pure,
           Except.pure]⟩⟩
 
@@ -114,7 +114,7 @@ theorem qdArm_lit {l₁ l₂ : ConLeche.Literal} (hok : CheckOK mode env fe s₀
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
           (.lit l₁) (.lit l₂) = .ok o)⌝⦄ :=
   triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
-    dsimp only; unfold ConLeche.quickDefEq; rw [if_neg (by simp [hne])]; rfl⟩⟩
+    dsimp only; unfold ConLeche.quickDefEq; rw [ite_eq_right (by simp [hne])]; rfl⟩⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **two binders
 of one kind**, batched (`defeqBinders_spec`). -/
@@ -163,7 +163,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
   · rename_i hab
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
       dsimp only
-      unfold ConLeche.quickDefEq; rw [if_pos hab]; rfl⟩⟩
+      unfold ConLeche.quickDefEq; rw [ite_eq_left hab]; rfl⟩⟩
   rename_i hab
   have hne : (x == y) = false := by simpa using hab
   simp only [tag_of_denote hwf hx, tag_of_denote hwf hy]
@@ -325,13 +325,13 @@ theorem isNatZero_spec (s₀ : AState) (e : EIdx) (x : Expr)
   rcases VD.of_view hwf hv hx with _ | _ | _ | ⟨c, us, nm, ls, hc, hus⟩ | _ |
     _ | _ | _ | ⟨l⟩ | _
   case lit =>
-    rw [if_pos (by tag_dec)]
+    rw [ite_eq_left (by tag_dec)]
     refine view_bind_triple hv ?_
     rcases l with n | st
     · cases n <;> exact triple_pure_post ⟨rfl, rfl⟩
     · exact triple_pure_post ⟨rfl, rfl⟩
   case const =>
-    rw [if_neg (by tag_dec), if_pos (by tag_dec)]
+    rw [ite_eq_right (by tag_dec), ite_eq_left (by tag_dec)]
     refine view_bind_triple hv ?_
     refine triple_seq (pinEmptyLevels_spec s₀ hok.pins) ?_
     rintro el s2 ⟨hs2, hel⟩
@@ -352,7 +352,7 @@ theorem isNatZero_spec (s₀ : AState) (e : EIdx) (x : Expr)
         · exact absurd ((ls_eq_iff_nil hwf hus hel).mp (beq_iff_eq.mp h)) (by simp)
       rw [this, Bool.and_false]; rfl
   all_goals
-    rw [if_neg (by tag_dec), if_neg (by tag_dec)]
+    rw [ite_eq_right (by tag_dec), ite_eq_right (by tag_dec)]
     exact triple_pure_post ⟨rfl, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1528-1533 Expr.natPred? — a
@@ -383,7 +383,7 @@ theorem natPred?_spec (s₀ : AState) (e : EIdx) (x : Expr)
   rcases VD.of_view hwf hv hx with _ | _ | _ | _ | ⟨f, a, ef, ea, hf, ha⟩ |
     _ | _ | _ | ⟨l⟩ | _
   case lit =>
-    rw [if_pos (by tag_dec)]
+    rw [ite_eq_left (by tag_dec)]
     refine view_bind_triple hv ?_
     rcases l with n | st
     · cases n with
@@ -395,7 +395,7 @@ theorem natPred?_spec (s₀ : AState) (e : EIdx) (x : Expr)
           simp only [denoteEO, hd1, denoteEView]; rfl⟩
     · exact triple_pure_post ⟨hok, Ext.refl _, rfl, rfl⟩
   case app =>
-    rw [if_neg (by tag_dec), if_pos (by tag_dec)]
+    rw [ite_eq_right (by tag_dec), ite_eq_left (by tag_dec)]
     refine triple_seq (viewApp_spec s₀ e) ?_
     rintro p s1 ⟨hs1, rfl⟩
     subst s1
@@ -440,7 +440,7 @@ theorem natPred?_spec (s₀ : AState) (e : EIdx) (x : Expr)
       exact triple_pure_post ⟨hok, Ext.refl _, rfl, by
         simp [denoteEO, ConLeche.Expr.natPred?]⟩
   all_goals
-    rw [if_neg (by tag_dec), if_neg (by tag_dec)]
+    rw [ite_eq_right (by tag_dec), ite_eq_right (by tag_dec)]
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, rfl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1523-1526 Expr.isLit — the twin's
@@ -472,13 +472,13 @@ theorem defeqOffset_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   split
   · rename_i hz
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
-      dsimp only; unfold ConLeche.defeqOffset; rw [if_pos hz]; rfl⟩⟩
+      dsimp only; unfold ConLeche.defeqOffset; rw [ite_eq_left hz]; rfl⟩⟩
   rename_i hz
   rw [tag_of_denote hwf hx, tag_of_denote hwf hy, exprTag_lit, exprTag_lit]
   split
   · rename_i hl
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
-      dsimp only; unfold ConLeche.defeqOffset; rw [if_neg hz, if_pos hl]; rfl⟩⟩
+      dsimp only; unfold ConLeche.defeqOffset; rw [ite_eq_right hz, ite_eq_left hl]; rfl⟩⟩
   rename_i hl
   refine triple_seq (natPred?_spec s₀ a x hok hx) ?_
   rintro o1 s1 ⟨hok1, hx1, hp1, ho1⟩
@@ -487,7 +487,7 @@ theorem defeqOffset_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     have hn : x.natPred? = none := by
       simp only [denoteEO, Option.some.injEq] at ho1; exact ho1.symm
     exact triple_pure_post ⟨hok1, hx1, hp1, ⟨0, fun F _ => by
-      dsimp only; unfold ConLeche.defeqOffset; rw [if_neg hz, if_neg hl, hn]; rfl⟩⟩
+      dsimp only; unfold ConLeche.defeqOffset; rw [ite_eq_right hz, ite_eq_right hl, hn]; rfl⟩⟩
   | some p =>
     obtain ⟨px, hpx, hdp⟩ : ∃ px, x.natPred? = some px ∧
         denoteE s1.store p = some px := by
@@ -503,7 +503,7 @@ theorem defeqOffset_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         simp only [denoteEO, Option.some.injEq] at ho2; exact ho2.symm
       exact triple_pure_post ⟨hok2, hx1.trans hx2, hp2.trans hp1, ⟨0, fun F _ => by
         dsimp only; unfold ConLeche.defeqOffset
-        rw [if_neg hz, if_neg hl, hpx, hn]; rfl⟩⟩
+        rw [ite_eq_right hz, ite_eq_right hl, hpx, hn]; rfl⟩⟩
     | some q =>
       obtain ⟨qy, hqy, hdq⟩ : ∃ qy, y.natPred? = some qy ∧
           denoteE s2.store q = some qy := by
@@ -518,7 +518,7 @@ theorem defeqOffset_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         hp3.trans (hp2.trans hp1), ⟨F3, fun F hF => by
           dsimp only
           unfold ConLeche.defeqOffset
-          rw [if_neg hz, if_neg hl, hpx, hqy]
+          rw [ite_eq_right hz, ite_eq_right hl, hpx, hqy]
           simp only [ConLeche.defeq_def, ConLeche.isDefEqCore_mono hF hF3, bind,
             Except.bind, pure, Except.pure]⟩⟩
 
@@ -581,7 +581,7 @@ theorem tryUnfoldProjApp_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       exact triple_pure_post ⟨hok1, hx1, hp1, none, rfl, (fun _ h => nomatch h),
         hE.imp fun F hF => by
           unfold ConLeche.tryUnfoldProjApp
-          simp only [hh, if_true, ConLeche.whnfCore_def, hF, heq, bind,
+          simp only [hh, ite_true, ConLeche.whnfCore_def, hF, heq, bind,
             Except.bind, pure, Except.pure]⟩
     · rename_i heq
       rw [hbeq] at heq
@@ -589,12 +589,12 @@ theorem tryUnfoldProjApp_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         (fun _ h => by cases h; exact hwv),
         hE.imp fun F hF => by
           unfold ConLeche.tryUnfoldProjApp
-          simp only [hh, if_true, ConLeche.whnfCore_def, hF, heq, bind,
-            Except.bind, pure, Except.pure, Bool.false_eq_true, if_false]⟩
+          simp only [hh, ite_true, ConLeche.whnfCore_def, hF, heq, bind,
+            Except.bind, pure, Except.pure, Bool.false_eq_true, ite_false]⟩
   · rename_i hh
     exact triple_pure_post ⟨hok, Ext.refl _, rfl, none, rfl, (fun _ h => nomatch h),
       ⟨0, fun _ _ => by
-        dsimp only; unfold ConLeche.tryUnfoldProjApp; rw [if_neg hh]; rfl⟩⟩
+        dsimp only; unfold ConLeche.tryUnfoldProjApp; rw [ite_eq_right hh]; rfl⟩⟩
 
 end ProjHeads
 
@@ -883,14 +883,14 @@ theorem lazyDeltaStep_spec {fe : IFEnv} {fuel : Nat} (henv : ConLeche.EnvWF env)
           (hp'.trans hp05) hd₂ (denote_ext hy5 hx') hw₂ hwy
           ⟨0, fun F _ u₃ hw => by
             unfold ConLeche.lazyDeltaStep
-            simp only [hua, hub, hlt, if_true, hu, ConLeche.whnfCore_def, hw,
+            simp only [hua, hub, hlt, ite_true, hu, ConLeche.whnfCore_def, hw,
               bind, Except.bind]⟩
       · intro s' hok' hx' hp' hu
         exact ds_pure_exit (v := .unknown) hok' (hx05.trans hx') (hp'.trans hp05) trivial
           ⟨0, fun F _ => by
             dsimp only
             unfold ConLeche.lazyDeltaStep
-            simp only [hua, hub, hlt, if_true, hu, pure, Except.pure]⟩
+            simp only [hua, hub, hlt, ite_true, hu, pure, Except.pure]⟩
     rename_i hlt1
     simp only [Bool.not_eq_true] at hlt1
     split

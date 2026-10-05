@@ -120,15 +120,15 @@ theorem restL_pick (p : IDeclaration → Bool) :
     obtain ⟨ih1, ih2⟩ := restL_pick p L M hl
     cases m with
     | true =>
-      simp only [restL, pickL, List.headD_cons, List.tail_cons, if_true, Bool.not_true,
-        Bool.false_and, Bool.false_eq_true, if_false, List.set_cons_succ]
+      simp only [restL, pickL, List.headD_cons, List.tail_cons, ite_true, Bool.not_true,
+        Bool.false_and, Bool.false_eq_true, ite_false, List.set_cons_succ]
       exact ⟨by simpa using ih1, ih2⟩
     | false =>
       by_cases hp : p d = true
       · simp [restL, pickL, hp, List.findIdx_cons]
       · have hp' : p d = false := by simpa using hp
         simp only [restL, pickL, List.headD_cons, List.tail_cons, Bool.false_eq_true,
-          if_false, Bool.not_false, Bool.true_and, hp', List.findIdx_cons, cond_false,
+          ite_false, Bool.not_false, Bool.true_and, hp', List.findIdx_cons,
           List.getElem?_cons_succ, List.set_cons_succ, List.eraseIdx_cons_succ]
         exact ⟨ih1, by rw [ih2]⟩
 
@@ -139,7 +139,7 @@ theorem restL_none :
   | d :: L, k, hk => by
     subst hk
     simp only [List.length_cons, List.replicate_succ, restL, List.headD_cons,
-      Bool.false_eq_true, if_false, List.tail_cons]
+      Bool.false_eq_true, ite_false, List.tail_cons]
     rw [restL_none L L.length rfl]
 
 theorem frontL_append (ps ds : Array IDeclaration) :
@@ -208,13 +208,13 @@ theorem i_declaration_names_abs {d : arena.env.IDeclaration} {v}
     | zero =>
       intro i out v hk h
       rw [arena.env.i_constant_info_names_from] at h
-      rw [if_pos (by scalar_tac)] at h
+      rw [ite_eq_left (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by omega)]; simp
     | succ k ih =>
       intro i out v hk h
       rw [arena.env.i_constant_info_names_from] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨n, hn, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -290,13 +290,13 @@ theorem declares_refines {n d v} (h : frontend.prepare.declares n d = ok v) :
     | zero =>
       intro i o hk h
       rw [arena.env.nidx_vec_contains_from] at h
-      rw [if_pos (by scalar_tac)] at h
+      rw [ite_eq_left (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by omega)]; rfl
     | succ k ih =>
       intro i o hk h
       rw [arena.env.nidx_vec_contains_from] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hbv : b = (absNIdx n1 == absNIdx n) := nidx_eq2_abs hb
@@ -304,7 +304,7 @@ theorem declares_refines {n d v} (h : frontend.prepare.declares n d = ok v) :
       rw [List.drop_eq_getElem_cons hlt, hx, List.map_cons, List.contains_cons]
       cases hbb : b
       · rw [hbb] at h hbv
-        rw [if_neg (by simp)] at h
+        rw [ite_eq_right (by simp)] at h
         obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         rw [ih i2 o (by have := usize_add_one_inv hi2; omega) h,
           usize_add_one_inv hi2]
@@ -312,7 +312,7 @@ theorem declares_refines {n d v} (h : frontend.prepare.declares n d = ok v) :
           rw [BEq.comm]; exact hbv.symm
         simp [this]
       · rw [hbb] at h hbv
-        rw [if_pos (by simp), Result.ok.injEq] at h
+        rw [ite_eq_left (by simp), Result.ok.injEq] at h
         subst h
         have : (absNIdx n == absNIdx n1) = true := by
           rw [BEq.comm]; exact hbv.symm
@@ -343,14 +343,14 @@ theorem pick_idx_refines {n ds picked k}
     | zero =>
       intro i r hk hle h
       rw [frontend.prepare.pick_idx_loop] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [List.drop_eq_nil_of_le (by simp only [List.length_map]; omega)]
       simp [pickL]; scalar_tac
     | succ k' ih =>
       intro i r hk hle h
       rw [frontend.prepare.pick_idx_loop] at h
-      rw [if_pos (by scalar_tac), if_pos rfl] at h
+      rw [ite_eq_left (by scalar_tac), ite_eq_left rfl] at h
       obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨hit1, hh1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -402,13 +402,13 @@ theorem no_picks_refines {n v} (h : frontend.prepare.no_picks n = ok v) :
     | zero =>
       intro i p v hk h
       rw [frontend.prepare.no_picks_loop] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       rw [hk]; simp
     | succ k ih =>
       intro i p v hk h
       rw [frontend.prepare.no_picks_loop] at h
-      rw [if_pos (by scalar_tac)] at h
+      rw [ite_eq_left (by scalar_tac)] at h
       obtain ⟨p1, hp1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hi1v := usize_add_one_inv hi1
@@ -489,7 +489,7 @@ theorem front_of_loop_refines {pers ps ds} :
   | zero =>
     intro j picked picks rst lst o hk hrel hinv hpl hpk hj h
     rw [frontend.prepare.front_of_loop] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     cases Result.ok_injective h
     have hnil : (absIDeclArr ps).toList.drop j.val = [] := by
       simp only [absIDeclArr, List.toList_toArray, List.drop_eq_nil_iff, List.length_map]
@@ -500,7 +500,7 @@ theorem front_of_loop_refines {pers ps ds} :
   | succ k ih =>
     intro j picked picks rst lst o hk hrel hinv hpl hpk hj h
     rw [frontend.prepare.front_of_loop] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     obtain ⟨d, hdv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨⟨r, ar1⟩, hkey, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have hK := prelude_key_refines hrel hinv hkey
@@ -595,7 +595,7 @@ theorem prepared_front_refines {out ps ds picks v}
     | zero =>
       intro j out v hk h
       rw [frontend.prepare.prepared_front_loop] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       have : (picks.val.map (·.val)).drop j.val = [] := by
         simp only [List.drop_eq_nil_iff, List.length_map]; omega
@@ -603,7 +603,7 @@ theorem prepared_front_refines {out ps ds picks v}
     | succ k ih =>
       intro j out v hk h
       rw [frontend.prepare.prepared_front_loop] at h
-      rw [if_pos (by scalar_tac)] at h
+      rw [ite_eq_left (by scalar_tac)] at h
       obtain ⟨kk, hkk, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hkki := vec_index_some hkk
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -654,7 +654,7 @@ theorem prepared_rest_refines {out ds picked v}
     | zero =>
       intro i out v hk h
       rw [frontend.prepare.prepared_rest_loop] at h
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       cases Result.ok_injective h
       have : (ds.val.map absIDeclaration).drop i.val = [] := by
         simp only [List.drop_eq_nil_iff, List.length_map]; omega
@@ -662,7 +662,7 @@ theorem prepared_rest_refines {out ds picked v}
     | succ k ih =>
       intro i out v hk h
       rw [frontend.prepare.prepared_rest_loop] at h
-      rw [if_pos (by scalar_tac)] at h
+      rw [ite_eq_left (by scalar_tac)] at h
       obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       have hbbi := vec_index_some hbb
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

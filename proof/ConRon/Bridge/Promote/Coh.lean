@@ -54,7 +54,7 @@ theorem lookupIdx_none {n : NIdx} : ∀ (as : List IConstantInfo) (c : Nat),
   | cons a as ih =>
     intro c h
     simp only [lookupIdx]
-    rw [if_neg (by simpa using h a (by simp)), ih _ (fun b hb => h b (by simp [hb]))]
+    rw [ite_eq_right (by simpa using h a (by simp)), ih _ (fun b hb => h b (by simp [hb]))]
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:51-60 mkFEnvGo — the index of
 `as ++ b` answers from `as` first, counting down from the whole length. -/
@@ -69,10 +69,10 @@ theorem mkIFEnvGo_append (n : NIdx) : ∀ (as b : List IConstantInfo),
     simp only [List.cons_append, mkIFEnvGo, Std.HashMap.getElem?_insert, lookupIdx,
       mkIFEnvGo_fst', List.length_append, List.length_cons]
     by_cases he : (a.name == n) = true
-    · rw [if_pos he, if_pos he]
+    · rw [ite_eq_left he, ite_eq_left he]
       simp only [Option.some_or, Option.some.injEq, Prod.mk.injEq, and_true]
       omega
-    · rw [if_neg he, if_neg he, ih b]
+    · rw [ite_eq_right he, ite_eq_right he, ih b]
       congr 2
       omega
 
@@ -92,10 +92,10 @@ theorem indexPromoted_getElem?_eq (n : NIdx) : ∀ (as : List IConstantInfo)
     rw [ih _ _ hnd.2, Std.HashMap.getElem?_insert]
     by_cases he : (a.name == n) = true
     · have hn : a.name = n := eq_of_beq he
-      rw [if_pos he, if_pos he, lookupIdx_none]
+      rw [ite_eq_left he, ite_eq_left he, lookupIdx_none]
       · rfl
       · intro b hb hbn; exact hnd.1 b hb (hbn.trans hn.symm)
-    · rw [if_neg he, if_neg he]
+    · rw [ite_eq_right he, ite_eq_right he]
 
 theorem eraseInstalled_getElem?_eq (n : NIdx) : ∀ (cs : List IConstantInfo)
     (idx : Std.HashMap NIdx (Nat × IConstantInfo)),
@@ -107,11 +107,11 @@ theorem eraseInstalled_getElem?_eq (n : NIdx) : ∀ (cs : List IConstantInfo)
     intro idx
     simp only [eraseInstalled, ih, Std.HashMap.getElem?_erase]
     by_cases h1 : ∃ c' ∈ cs, c'.name = n
-    · rw [if_pos h1, if_pos ⟨_, List.mem_cons_of_mem _ h1.choose_spec.1, h1.choose_spec.2⟩]
-    · rw [if_neg h1]
+    · rw [ite_eq_left h1, ite_eq_left ⟨_, List.mem_cons_of_mem _ h1.choose_spec.1, h1.choose_spec.2⟩]
+    · rw [ite_eq_right h1]
       by_cases h2 : c.name = n
-      · rw [if_pos (beq_iff_eq.mpr h2), if_pos ⟨c, by simp, h2⟩]
-      · rw [if_neg (by simpa using h2), if_neg]
+      · rw [ite_eq_left (beq_iff_eq.mpr h2), ite_eq_left ⟨c, by simp, h2⟩]
+      · rw [ite_eq_right (by simpa using h2), ite_eq_right]
         rintro ⟨c', hc', hn⟩
         rcases List.mem_cons.mp hc' with rfl | hc'
         · exact h2 hn

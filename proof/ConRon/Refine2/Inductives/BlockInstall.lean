@@ -166,13 +166,13 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
       simp only [alloc.vec.Vec.len] at this
       scalar_tac
     have hidx := bi_vec_index_eq p.members (UScalar.cast .Usize mi) mi.val hI hm
-    simp only [lift, bind_tc_ok, if_pos h1, hidx]
+    simp only [lift, bind_tc_ok, ite_eq_left h1, hidx]
     generalize p.members.val[mi.val] = m
     rcases hc : m.ctors.val with _ | ⟨⟨cv, nf⟩, _ | ⟨c2, rest⟩⟩
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
       rw [absMemberShape_ctors, absCtorsL, hc, List.map_nil]
-      simp only [if_neg hlen]
+      simp only [ite_eq_right hlen]
       lockstep
       bi_caps_leaf
     · have hlen : alloc.vec.Vec.len m.ctors = 1#usize := by
@@ -190,7 +190,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
     · have hlen : ¬ alloc.vec.Vec.len m.ctors = 1#usize := by
         intro h; have := congrArg (·.val) h; simp [alloc.vec.Vec.len, hc] at this
       rw [absMemberShape_ctors, absCtorsL, hc, List.map_cons, List.map_cons]
-      simp only [if_neg hlen]
+      simp only [ite_eq_right hlen]
       lockstep
       bi_caps_leaf
   · have hget : (absBlockShape p).members[absU mi]? = none := by
@@ -214,15 +214,18 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
   induction hf : fuel.val generalizing fuel e lst with
   | zero =>
     apply LSR.of_LS
-    rw [arena.inductives.block_install.pi_doms_mention_any.eq_def, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.pi_doms_mention_any.eq_def, ite_eq_left (by scalar_tac),
       show absU fuel = 0 from hf, piDomsMentionAny]
     lockstep
   | succ n ih =>
     apply LSR.of_LS
-    rw [arena.inductives.block_install.pi_doms_mention_any.eq_def, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.pi_doms_mention_any.eq_def, ite_eq_right (by scalar_tac),
       show absU fuel = n + 1 from hf, piDomsMentionAny]
     lockstep
 
+-- Lean 4.35 (task #110): elaborating the `cursor_induction` motive below
+-- needs more than the default 200 000 heartbeats.
+set_option maxHeartbeats 400000 in
 /-- `ctors_mention_any` ⊑ `blockRawRec`'s inner `anyM`, from the cursor on. -/
 @[lockstep] theorem ctors_mention_any_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx)
@@ -238,7 +241,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
   · intro i _ hn lst hrel
     apply LSR.of_LS
     rw [arena.inductives.block_install.ctors_mention_any.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, List.anyM]
     lockstep
   · intro i _ hlt ih lst hrel
@@ -251,7 +254,7 @@ The Rust tests `mi < len && ctors.len() == 1` where the twin matches
     clear ih
     apply LSR.of_LS
     rw [arena.inductives.block_install.ctors_mention_any.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cs by scalar_tac), absCtorsLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
     lockstep
 
@@ -277,7 +280,7 @@ def absMemberShapeLFrom (v : alloc.vec.Vec arena.inductives.block_parts.MemberSh
   · intro i _ hn lst hrel
     apply LSR.of_LS
     rw [arena.inductives.block_install.members_mention_any.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ms by scalar_tac), absMemberShapeLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ms by scalar_tac), absMemberShapeLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, List.anyM]
     lockstep
   · intro i _ hlt ih lst hrel
@@ -290,7 +293,7 @@ def absMemberShapeLFrom (v : alloc.vec.Vec arena.inductives.block_parts.MemberSh
     clear ih
     apply LSR.of_LS
     rw [arena.inductives.block_install.members_mention_any.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac), absMemberShapeLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ms by scalar_tac), absMemberShapeLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
     lockstep
     cases b
@@ -350,12 +353,12 @@ theorem check_block_teles_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
-    rw [arena.inductives.block_install.check_block_teles, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_teles, ite_eq_left (by scalar_tac),
       absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega), checkBlockTeles]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf n_p ms i out hn hrel hinv hfe
-    rw [arena.inductives.block_install.check_block_teles, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_teles, ite_eq_right (by scalar_tac),
       absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega), checkBlockTeles]
     lockstep
     rename_i o1 ho1
@@ -402,11 +405,11 @@ attribute [local lockstep_simp] IndInstPrims.unwrapOr_some' IndInstPrims.unwrapO
   have hvis := bi_hvis hfe
   induction hj : j.val generalizing j st lst with
   | zero =>
-    rw [arena.inductives.block_install.check_block_doms_at.eq_def, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_doms_at.eq_def, ite_eq_left (by scalar_tac),
       show absU j = 0 from hj, checkBlockDomsAt]
     lockstep
   | succ n ih =>
-    rw [arena.inductives.block_install.check_block_doms_at.eq_def, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_doms_at.eq_def, ite_eq_right (by scalar_tac),
       show absU j = n + 1 from hj, checkBlockDomsAt]
     obtain rfl : n = j.val - 1 := by omega
     clear hj
@@ -432,7 +435,7 @@ cursor on. -/
     ?_ ?_
   · intro st lst i hn hrel hinv
     rw [arena.inductives.block_install.check_block_agree.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
+      ite_eq_left (show i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
     lockstep
   · intro st lst i hi hrel hinv ih
     have ih' : ∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
@@ -444,7 +447,7 @@ cursor on. -/
     clear ih
     have hvis := bi_hvis hfe
     rw [arena.inductives.block_install.check_block_agree.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rest by scalar_tac), checkBlockAgree]
     lockstep
 
 /-- `cons_block_inds` ⊑ `consBlockInds` from the cursor on: the formers
@@ -465,7 +468,7 @@ pushed in block order, each with its capability record. -/
         (consBlockInds (absBlockShape p1) is_rec (absICVLFrom cv_tas i) i.val lf)) ?_ ?_ i ()
   · intro i _ hn fe lf st lst hfe hrel hinv
     rw [arena.inductives.block_install.cons_block_inds.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len cv_tas by scalar_tac), absICVLFrom,
+      ite_eq_left (show i ≥ alloc.vec.Vec.len cv_tas by scalar_tac), absICVLFrom,
       List.drop_eq_nil_of_le hn, List.map_nil, consBlockInds]
     lockstep
   · intro i _ hlt ih fe lf st lst hfe hrel hinv
@@ -477,7 +480,7 @@ pushed in block order, each with its capability record. -/
       fun j hj => ih j () hj
     clear ih
     rw [arena.inductives.block_install.cons_block_inds.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len cv_tas by scalar_tac), absICVLFrom,
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len cv_tas by scalar_tac), absICVLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, consBlockInds]
     lockstep
     rename_i caps _ cv1 hcv1 fe2 hfe2
@@ -594,16 +597,16 @@ theorem check_block_ctors_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
-    rw [arena.inductives.block_install.check_block_ctors, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_ctors, ite_eq_left (by scalar_tac),
       absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega)]
     simp only [checkBlockCtors]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf0 lf0 rf lf p cv_tas i out_c out_s hn hrel hinv hfe0 hfe
-    rw [arena.inductives.block_install.check_block_ctors, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_ctors, ite_eq_right (by scalar_tac),
       absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < cv_tas.val.length
-    · rw [if_neg (by scalar_tac), absICVLFrom, vecFrom_cons _ _ _ hc, checkBlockCtors]
+    · rw [ite_eq_right (by scalar_tac), absICVLFrom, vecFrom_cons _ _ _ hc, checkBlockCtors]
       lockstep
       rename_i oc hoc os hos
       have ha : a.val = i.val + 1 := by scalar_tac
@@ -612,7 +615,7 @@ theorem check_block_ctors_aux (m : Nat) :
       simp only [absMemberShapeLFrom, absICVLFrom, ha, absCtorsLL, absLIdxLLL, hoc, hos,
         List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
         List.nil_append]
-    · rw [if_pos (by scalar_tac), absICVLFrom, vecFrom_nil _ _ _ (by omega)]
+    · rw [ite_eq_left (by scalar_tac), absICVLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [checkBlockCtors]
       lockstep
 
@@ -670,19 +673,19 @@ theorem check_abs_ctor_sorts_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
-    rw [arena.inductives.block_install.check_abs_ctor_sorts, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.check_abs_ctor_sorts, ite_eq_left (by scalar_tac),
       absCtorsLFrom, vecFrom_nil _ _ _ (by omega)]
     simp only [checkAbsCtorSorts]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf ctx is_prop cs os i hn hrel hinv hfe
     have hvis := bi_hvis hfe
-    rw [arena.inductives.block_install.check_abs_ctor_sorts, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.check_abs_ctor_sorts, ite_eq_right (by scalar_tac),
       absCtorsLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < os.val.length
-    · rw [if_neg (by scalar_tac), vecFrom_cons _ _ _ hc, checkAbsCtorSorts]
+    · rw [ite_eq_right (by scalar_tac), vecFrom_cons _ _ _ hc, checkAbsCtorSorts]
       lockstep
-    · rw [if_pos (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
+    · rw [ite_eq_left (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
       simp only [checkAbsCtorSorts]
       lockstep
 
@@ -718,18 +721,18 @@ theorem check_abs_ctor_sorts_all_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst mode rf lf ctx is_prop css oss i hn hrel hinv hfe
-    rw [arena.inductives.block_install.check_abs_ctor_sorts_all, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.check_abs_ctor_sorts_all, ite_eq_left (by scalar_tac),
       vecFrom_nil _ _ _ (by omega)]
     simp only [checkAbsCtorSortsAll]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf ctx is_prop css oss i hn hrel hinv hfe
-    rw [arena.inductives.block_install.check_abs_ctor_sorts_all, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.check_abs_ctor_sorts_all, ite_eq_right (by scalar_tac),
       vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < oss.val.length
-    · rw [if_neg (by scalar_tac), vecFrom_cons _ _ _ hc, checkAbsCtorSortsAll]
+    · rw [ite_eq_right (by scalar_tac), vecFrom_cons _ _ _ hc, checkAbsCtorSortsAll]
       lockstep
-    · rw [if_pos (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
+    · rw [ite_eq_left (by scalar_tac), vecFrom_nil _ _ _ (by omega)]
       simp only [checkAbsCtorSortsAll]
       lockstep
 
@@ -859,14 +862,14 @@ theorem split_outs_abs {outs : alloc.vec.Vec (alloc.vec.Vec (alloc.vec.Vec
           ((absCtorOutsL outs).drop i.val).map (·.map (·.2))) ?_ ?_ i ()
   · intro i _ hn ks nfs o h
     rw [arena.inductives.block_install.split_outs.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len outs by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len outs by scalar_tac), Result.ok.injEq] at h
     subst h
     have : (absCtorOutsL outs).drop i.val = [] :=
       List.drop_eq_nil_of_le (by simp [absCtorOutsL]; omega)
     simp [this]
   · intro i _ hlt ih ks nfs o h
     rw [arena.inductives.block_install.split_outs.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len outs by scalar_tac)] at h
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len outs by scalar_tac)] at h
     obtain ⟨v, hv, g1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨v1, hv1, g2⟩ := ConRon.Refine.bind_eq_ok_iff.mp g1
     obtain ⟨ks1, hks1, g3⟩ := ConRon.Refine.bind_eq_ok_iff.mp g2
@@ -948,17 +951,17 @@ theorem check_block_idx_sorts_aux (m : Nat) :
   induction m with
   | zero =>
     intro pers st lst mode rf lf p cv_tas i out hn hrel hinv hfe
-    rw [arena.inductives.block_install.check_block_idx_sorts, if_pos (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_idx_sorts, ite_eq_left (by scalar_tac),
       absMemberShapeLFrom, vecFrom_nil _ _ _ (by omega)]
     simp only [checkBlockIdxSorts]
     lockstep
   | succ m ih =>
     intro pers st lst mode rf lf p cv_tas i out hn hrel hinv hfe
     have hvis := bi_hvis hfe
-    rw [arena.inductives.block_install.check_block_idx_sorts, if_neg (by scalar_tac),
+    rw [arena.inductives.block_install.check_block_idx_sorts, ite_eq_right (by scalar_tac),
       absMemberShapeLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hc : i.val < cv_tas.val.length
-    · rw [if_neg (by scalar_tac), absICVLFrom, vecFrom_cons _ _ _ hc, checkBlockIdxSorts]
+    · rw [ite_eq_right (by scalar_tac), absICVLFrom, vecFrom_cons _ _ _ hc, checkBlockIdxSorts]
       lockstep
       rename_i o1 ho1
       have ha : a.val = i.val + 1 := by scalar_tac
@@ -966,7 +969,7 @@ theorem check_block_idx_sorts_aux (m : Nat) :
       simp only [absMemberShapeLFrom, absICVLFrom, ha, absLIdxLL, ho1, absLIdxL,
         List.map_append, List.map_cons, List.map_nil, List.append_assoc, List.cons_append,
         List.nil_append]
-    · rw [if_pos (by scalar_tac), absICVLFrom, vecFrom_nil _ _ _ (by omega)]
+    · rw [ite_eq_left (by scalar_tac), absICVLFrom, vecFrom_nil _ _ _ (by omega)]
       simp only [checkBlockIdxSorts]
       lockstep
 
@@ -1015,13 +1018,13 @@ theorem cons_block_ctors_refines {n_p : Std.U64}
     ?_ ?_ i rf lf o hfe hrun
   · intro i rf hn lf o hfe h
     rw [arena.inductives.block_install.cons_block_ctors.eq_def,
-      if_pos (show i ≥ alloc.vec.Vec.len ctors_as by scalar_tac), Result.ok.injEq] at h
+      ite_eq_left (show i ≥ alloc.vec.Vec.len ctors_as by scalar_tac), Result.ok.injEq] at h
     subst h
     rw [List.drop_eq_nil_of_le hn, List.map_nil, consBlockCtors]
     exact hfe
   · intro i rf hi ih lf o hfe h
     rw [arena.inductives.block_install.cons_block_ctors.eq_def,
-      if_neg (show ¬ i ≥ alloc.vec.Vec.len ctors_as by scalar_tac)] at h
+      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ctors_as by scalar_tac)] at h
     obtain ⟨v, hv, g1⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨fe2, hfe2, g2⟩ := ConRon.Refine.bind_eq_ok_iff.mp g1
     obtain ⟨i2, hi2, g3⟩ := ConRon.Refine.bind_eq_ok_iff.mp g2

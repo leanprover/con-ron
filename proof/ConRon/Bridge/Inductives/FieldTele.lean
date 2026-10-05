@@ -41,7 +41,7 @@ theorem piBinders_run : ∀ (fuel : Nat) {h : EIdx} {hP : Expr} {s₀ s' : AStat
     intro h hP s₀ s' r hok hd hrun
     simp only [Arena.piBinders] at hrun
     by_cases htg : (h.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
       subst hs1
@@ -57,7 +57,7 @@ theorem piBinders_run : ∀ (fuel : Nat) {h : EIdx} {hP : Expr} {s₀ s' : AStat
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨rfl, ?_, hq2⟩
         simp [denoteBinders, hdd, hq1, Expr.piBinders]
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨rfl, ?_⟩
       cases hP with
@@ -151,7 +151,7 @@ theorem instPisWith_spec : ∀ (args : List EIdx) (argsP : List Expr) (e : EIdx)
     obtain rfl := (Option.some.inj ha).symm
     simp only [Arena.instPisWith] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨hs1, ho⟩ := viewBind_run h1
       rw [hs1] at h2
@@ -170,7 +170,7 @@ theorem instPisWith_spec : ∀ (args : List EIdx) (argsP : List Expr) (e : EIdx)
         obtain ⟨p3, hr⟩ := ih restP b' (bP.instantiate1 aP 0) s₂ s' r p2.ok
           ⟨denoteEList_ext p2.ext _ _ hR, hb'⟩ h4
         exact ⟨p2.trans p3, by simpa [ConLeche.instPisWith, Expr.instantiate1] using hr⟩
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show ConLeche.instPisWith (aP :: restP) eP = none

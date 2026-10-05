@@ -189,7 +189,7 @@ are never compared). -/
 theorem knotRel_zero : KnotRel 0 := by
   constructor
   · intro pers vis st mode lane fu fe lfe cheap depth e lst o _ _ _ hf hrun
-    rw [arena.core.knot_whnf_core, if_pos (absU_eq_zero hf)] at hrun
+    rw [arena.core.knot_whnf_core, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -197,7 +197,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnfCore _ _ _ _ _ _ _))
   · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
-    rw [arena.core.knot_whnf, if_pos (absU_eq_zero hf)] at hrun
+    rw [arena.core.knot_whnf, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -205,7 +205,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_whnf _ _ _ _ _ _))
   · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
-    rw [arena.core.knot_infer, if_pos (absU_eq_zero hf)] at hrun
+    rw [arena.core.knot_infer, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -213,7 +213,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_infer _ _ _ _ _ _))
   · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
-    rw [arena.core.knot_infer_io, if_pos (absU_eq_zero hf)] at hrun
+    rw [arena.core.knot_infer_io, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -221,7 +221,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_inferIO _ _ _ _ _ _))
   · intro pers vis st mode lane fu fe lfe depth a b lst o _ _ _ hf hrun
-    rw [arena.core.knot_defeq, if_pos (absU_eq_zero hf)] at hrun
+    rw [arena.core.knot_defeq, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -229,7 +229,7 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _))
   · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
-    rw [arena.core.knot_annotate, if_pos (absU_eq_zero hf)] at hrun
+    rw [arena.core.knot_annotate, ite_eq_left (absU_eq_zero hf)] at hrun
     obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -283,7 +283,7 @@ theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
         (absU depth) (absEIdx e)) := by
-  rw [arena.core.knot_annotate, if_neg (absU_ne_zero hf)] at hrun
+  rw [arena.core.knot_annotate, ite_eq_right (absU_ne_zero hf)] at hrun
   -- the memoized lane: `LANE_FULL`, and `LANE_IO` falls through to it
   have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
       (absU depth) (absEIdx e)
@@ -378,7 +378,7 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
     Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
         (absU depth) (absEIdx a) (absEIdx b)) := by
-  rw [arena.core.knot_defeq, if_neg (absU_ne_zero hf)] at hrun
+  rw [arena.core.knot_defeq, ite_eq_right (absU_ne_zero hf)] at hrun
   have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).defeq
       (absU depth) (absEIdx a) (absEIdx b)
       = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).defeq
@@ -475,16 +475,16 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).infer
         (absU depth) (absEIdx e)) := by
-  rw [arena.core.knot_infer, if_neg (absU_ne_zero hf)] at hrun
+  rw [arena.core.knot_infer, ite_eq_right (absU_ne_zero hf)] at hrun
   by_cases hio : lane = arena.core.LANE_IO
   · subst hio
-    rw [if_pos rfl] at hrun
+    rw [ite_eq_left rfl] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) (Or.inr rfl) hrun
     rw [laneKnotAt_false, laneKnot_io] at h2
     rw [laneKnot_io, coreKnotIO_succ_infer]
     exact h2
-  · rw [if_neg hio] at hrun
+  · rw [ite_eq_right hio] at hrun
     rw [show Sim₀ absEIdx pers lst o
           ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).infer
             (absU depth) (absEIdx e))
@@ -581,16 +581,16 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).inferIO
         (absU depth) (absEIdx e)) := by
-  rw [arena.core.knot_infer_io, if_neg (absU_ne_zero hf)] at hrun
+  rw [arena.core.knot_infer_io, ite_eq_right (absU_ne_zero hf)] at hrun
   by_cases hio : lane = arena.core.LANE_IO
   · subst hio
-    rw [if_pos rfl] at hrun
+    rw [ite_eq_left rfl] at hrun
     obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have h2 := hb.inferIO hrel hinv hctx (absU_pred hf hi) (Or.inr rfl) hrun
     rw [laneKnotAt_false, laneKnot_io] at h2
     rw [laneKnot_io, coreKnotIO_succ_inferIO]
     exact h2
-  · rw [if_neg hio] at hrun
+  · rw [ite_eq_right hio] at hrun
     rw [show Sim₀ absEIdx pers lst o
           ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).inferIO
             (absU depth) (absEIdx e))
@@ -598,7 +598,7 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
           ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).inferIO
             (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ hio]]
     obtain ⟨bg, hbg, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [io_gate_abs hbg, if_pos rfl] at hrun
+    rw [io_gate_abs hbg, ite_eq_left rfl] at hrun
     have hlane : (laneKnot (ConRon.Refine.absMode mode) lfe
           arena.core.LANE_FULL f).ioView
         = (coreKnot (ConRon.Refine.absMode mode) lfe id f).ioView := by
@@ -652,29 +652,29 @@ theorem whnf_core_stuck_tag_abs {e : arena.handle.EIdx} {b : Bool}
   obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   simp only [whnfCoreStuckTag, eidx_tag_abs ht]
   by_cases h1 : t = arena.handle.ETAG_APP
-  · rw [if_pos h1] at h
-    rw [if_pos ((etag_dec etag_app_abs).mpr h1)]
+  · rw [ite_eq_left h1] at h
+    rw [ite_eq_left ((etag_dec etag_app_abs).mpr h1)]
     exact (Result.ok_injective h).symm
-  · rw [if_neg h1] at h
-    rw [if_neg (fun hx => h1 ((etag_dec etag_app_abs).mp hx))]
+  · rw [ite_eq_right h1] at h
+    rw [ite_eq_right (fun hx => h1 ((etag_dec etag_app_abs).mp hx))]
     by_cases h2 : t = arena.handle.ETAG_PROJ
-    · rw [if_pos h2] at h
-      rw [if_pos ((etag_dec etag_proj_abs).mpr h2)]
+    · rw [ite_eq_left h2] at h
+      rw [ite_eq_left ((etag_dec etag_proj_abs).mpr h2)]
       exact (Result.ok_injective h).symm
-    · rw [if_neg h2] at h
-      rw [if_neg (fun hx => h2 ((etag_dec etag_proj_abs).mp hx))]
+    · rw [ite_eq_right h2] at h
+      rw [ite_eq_right (fun hx => h2 ((etag_dec etag_proj_abs).mp hx))]
       by_cases h3 : t = arena.handle.ETAG_LET_E
-      · rw [if_pos h3] at h
-        rw [if_pos ((etag_dec etag_letE_abs).mpr h3)]
+      · rw [ite_eq_left h3] at h
+        rw [ite_eq_left ((etag_dec etag_letE_abs).mpr h3)]
         exact (Result.ok_injective h).symm
-      · rw [if_neg h3] at h
-        rw [if_neg (fun hx => h3 ((etag_dec etag_letE_abs).mp hx))]
+      · rw [ite_eq_right h3] at h
+        rw [ite_eq_right (fun hx => h3 ((etag_dec etag_letE_abs).mp hx))]
         by_cases h4 : t = arena.handle.ETAG_BVAR
-        · rw [if_pos h4] at h
-          rw [if_pos ((etag_dec etag_bvar_abs).mpr h4)]
+        · rw [ite_eq_left h4] at h
+          rw [ite_eq_left ((etag_dec etag_bvar_abs).mpr h4)]
           exact (Result.ok_injective h).symm
-        · rw [if_neg h4] at h
-          rw [if_neg (fun hx => h4 ((etag_dec etag_bvar_abs).mp hx))]
+        · rw [ite_eq_right h4] at h
+          rw [ite_eq_right (fun hx => h4 ((etag_dec etag_bvar_abs).mp hx))]
           exact (Result.ok_injective h).symm
 
 theorem whnf_stuck_tag_abs {e : arena.handle.EIdx} {b : Bool}
@@ -684,35 +684,35 @@ theorem whnf_stuck_tag_abs {e : arena.handle.EIdx} {b : Bool}
   obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   simp only [whnfStuckTag, eidx_tag_abs ht]
   by_cases h1 : t = arena.handle.ETAG_SORT
-  · rw [if_pos h1] at h
-    rw [if_pos ((etag_dec etag_sort_abs).mpr h1)]
+  · rw [ite_eq_left h1] at h
+    rw [ite_eq_left ((etag_dec etag_sort_abs).mpr h1)]
     exact (Result.ok_injective h).symm
-  · rw [if_neg h1] at h
-    rw [if_neg (fun hx => h1 ((etag_dec etag_sort_abs).mp hx))]
+  · rw [ite_eq_right h1] at h
+    rw [ite_eq_right (fun hx => h1 ((etag_dec etag_sort_abs).mp hx))]
     by_cases h2 : t = arena.handle.ETAG_FVAR
-    · rw [if_pos h2] at h
-      rw [if_pos ((etag_dec etag_fvar_abs).mpr h2)]
+    · rw [ite_eq_left h2] at h
+      rw [ite_eq_left ((etag_dec etag_fvar_abs).mpr h2)]
       exact (Result.ok_injective h).symm
-    · rw [if_neg h2] at h
-      rw [if_neg (fun hx => h2 ((etag_dec etag_fvar_abs).mp hx))]
+    · rw [ite_eq_right h2] at h
+      rw [ite_eq_right (fun hx => h2 ((etag_dec etag_fvar_abs).mp hx))]
       by_cases h3 : t = arena.handle.ETAG_LAM
-      · rw [if_pos h3] at h
-        rw [if_pos ((etag_dec etag_lam_abs).mpr h3)]
+      · rw [ite_eq_left h3] at h
+        rw [ite_eq_left ((etag_dec etag_lam_abs).mpr h3)]
         exact (Result.ok_injective h).symm
-      · rw [if_neg h3] at h
-        rw [if_neg (fun hx => h3 ((etag_dec etag_lam_abs).mp hx))]
+      · rw [ite_eq_right h3] at h
+        rw [ite_eq_right (fun hx => h3 ((etag_dec etag_lam_abs).mp hx))]
         by_cases h4 : t = arena.handle.ETAG_FORALL_E
-        · rw [if_pos h4] at h
-          rw [if_pos ((etag_dec etag_forallE_abs).mpr h4)]
+        · rw [ite_eq_left h4] at h
+          rw [ite_eq_left ((etag_dec etag_forallE_abs).mpr h4)]
           exact (Result.ok_injective h).symm
-        · rw [if_neg h4] at h
-          rw [if_neg (fun hx => h4 ((etag_dec etag_forallE_abs).mp hx))]
+        · rw [ite_eq_right h4] at h
+          rw [ite_eq_right (fun hx => h4 ((etag_dec etag_forallE_abs).mp hx))]
           by_cases h5 : t = arena.handle.ETAG_LIT
-          · rw [if_pos h5] at h
-            rw [if_pos ((etag_dec etag_lit_abs).mpr h5)]
+          · rw [ite_eq_left h5] at h
+            rw [ite_eq_left ((etag_dec etag_lit_abs).mpr h5)]
             exact (Result.ok_injective h).symm
-          · rw [if_neg h5] at h
-            rw [if_neg (fun hx => h5 ((etag_dec etag_lit_abs).mp hx))]
+          · rw [ite_eq_right h5] at h
+            rw [ite_eq_right (fun hx => h5 ((etag_dec etag_lit_abs).mp hx))]
             exact (Result.ok_injective h).symm
 
 /-! ## The `whnfCore` field -/
@@ -746,7 +746,7 @@ theorem coreKnot_succ_whnfCore_eq (mode lfe f c d e) :
 theorem coreKnot_succ_whnfCore_stuck (mode lfe f c d e lst)
     (hs : whnfCoreStuckTag e = true) :
     ((coreKnot mode lfe id (f + 1)).whnfCore c d e).run lst = .ok (e, lst) := by
-  rw [coreKnot_succ_whnfCore_eq, if_pos hs]; rfl
+  rw [coreKnot_succ_whnfCore_eq, ite_eq_left hs]; rfl
 
 /-! ### The full (`cheap = false`) memo -/
 
@@ -759,7 +759,7 @@ theorem coreKnot_succ_whnfCore_split (mode lfe f d e lst)
                 let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe false d e
                 whnfCoreSet e x
                 pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_whnfCore_eq, if_neg (by simp [hs]), if_neg (by decide)]; rfl
+  rw [coreKnot_succ_whnfCore_eq, ite_eq_right (by simp [hs]), ite_eq_right (by decide)]; rfl
 
 theorem coreKnot_succ_whnfCore_hit (mode lfe f d e lst x)
     (hs : whnfCoreStuckTag e = false) (h : lst.caches.whnfCoreC[e]? = some x) :
@@ -786,7 +786,7 @@ theorem coreKnot_succ_whnfCoreCheap_split (mode lfe f d e lst)
                 let x ← whnfCoreBody mode (coreKnot mode lfe id f) lfe true d e
                 whnfCoreCheapSet e x
                 pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_whnfCore_eq, if_neg (by simp [hs]), if_pos rfl]; rfl
+  rw [coreKnot_succ_whnfCore_eq, ite_eq_right (by simp [hs]), ite_eq_left rfl]; rfl
 
 theorem coreKnot_succ_whnfCoreCheap_hit (mode lfe f d e lst x)
     (hs : whnfCoreStuckTag e = false) (h : lst.caches.whnfCoreCheapC[e]? = some x) :
@@ -810,12 +810,12 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
         (absU depth) (absEIdx e)) := by
-  rw [arena.core.knot_whnf_core, if_neg (absU_ne_zero hf)] at hrun
+  rw [arena.core.knot_whnf_core, ite_eq_right (absU_ne_zero hf)] at hrun
   obtain ⟨bt, hbt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hst : bt = whnfCoreStuckTag (absEIdx e) := whnf_core_stuck_tag_abs hbt
   by_cases hbv : bt = true
   · -- the tag short circuit, at EVERY lane
-    rw [if_pos hbv] at hrun
+    rw [ite_eq_left hbv] at hrun
     obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have ho : (core.result.Result.Ok e1, st) = o := Result.ok_injective hrun
     rw [← ho, dupId_eidx _ _ he1]
@@ -834,7 +834,7 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
           ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnfCore cheap
             (absU depth) (absEIdx e)) from by rw [htwin]]
     exact AOut₀.ok (coreKnot_succ_whnfCore_stuck _ _ _ _ _ _ _ hsv) hrel hinv
-  · rw [if_neg hbv] at hrun
+  · rw [ite_eq_right hbv] at hrun
     have hsv : whnfCoreStuckTag (absEIdx e) = false := by
       rw [← hst]; exact Bool.eq_false_iff.mpr hbv
     have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnfCore cheap
@@ -854,7 +854,7 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
         = coreKnot (ConRon.Refine.absMode mode) lfe id f := laneKnot_full _ _ _
     cases cheap with
     | false =>
-      rw [if_neg (by decide)] at hrun
+      rw [ite_eq_right (by decide)] at hrun
       obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hprobe := whnf_core_probe_abs hrel hinv hop
       cases hoc : op with
@@ -895,7 +895,7 @@ theorem knotRel_succ_whnfCore {f : Nat} (hb : BodyRel f)
           rw [am_run_bind, hset]
           rfl
     | true =>
-      rw [if_pos rfl] at hrun
+      rw [ite_eq_left rfl] at hrun
       obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hprobe := whnf_core_cheap_probe_abs hrel hinv hop
       cases hoc : op with
@@ -959,7 +959,7 @@ theorem coreKnot_succ_whnf_eq (mode lfe f d e) :
 theorem coreKnot_succ_whnf_stuck (mode lfe f d e lst)
     (hs : whnfStuckTag e = true) :
     ((coreKnot mode lfe id (f + 1)).whnf d e).run lst = .ok (e, lst) := by
-  rw [coreKnot_succ_whnf_eq, if_pos hs]; rfl
+  rw [coreKnot_succ_whnf_eq, ite_eq_left hs]; rfl
 
 theorem coreKnot_succ_whnf_split (mode lfe f d e lst)
     (hs : whnfStuckTag e = false) :
@@ -970,7 +970,7 @@ theorem coreKnot_succ_whnf_split (mode lfe f d e lst)
                 let x ← whnfBody (coreKnot mode lfe id f) lfe d e
                 whnfSet e x
                 pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_whnf_eq, if_neg (by simp [hs])]; rfl
+  rw [coreKnot_succ_whnf_eq, ite_eq_right (by simp [hs])]; rfl
 
 theorem coreKnot_succ_whnf_hit (mode lfe f d e lst x)
     (hs : whnfStuckTag e = false) (h : lst.caches.whnfC[e]? = some x) :
@@ -994,11 +994,11 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
     Sim₀ absEIdx pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf
         (absU depth) (absEIdx e)) := by
-  rw [arena.core.knot_whnf, if_neg (absU_ne_zero hf)] at hrun
+  rw [arena.core.knot_whnf, ite_eq_right (absU_ne_zero hf)] at hrun
   obtain ⟨bt, hbt, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   have hst : bt = whnfStuckTag (absEIdx e) := whnf_stuck_tag_abs hbt
   by_cases hbv : bt = true
-  · rw [if_pos hbv] at hrun
+  · rw [ite_eq_left hbv] at hrun
     obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     have ho : (core.result.Result.Ok e1, st) = o := Result.ok_injective hrun
     rw [← ho, dupId_eidx _ _ he1]
@@ -1017,7 +1017,7 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
           ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).whnf
             (absU depth) (absEIdx e)) from by rw [htwin]]
     exact AOut₀.ok (coreKnot_succ_whnf_stuck _ _ _ _ _ _ hsv) hrel hinv
-  · rw [if_neg hbv] at hrun
+  · rw [ite_eq_right hbv] at hrun
     have hsv : whnfStuckTag (absEIdx e) = false := by
       rw [← hst]; exact Bool.eq_false_iff.mpr hbv
     have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).whnf

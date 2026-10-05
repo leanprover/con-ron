@@ -48,12 +48,12 @@ theorem internBMPersistentE_ok {m : ConLeche.BinderMeta} {s : AState} {r : BMIdx
     by_cases hc : s.store.pers.bmSize < Idx.idxCap
     · simp only [internBMPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨fun _ => hc, rfl, rfl⟩
     · simp only [internBMPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, failRun] at h
+        ite_eq_right hc, failRun] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; the converse. -/
@@ -70,7 +70,7 @@ theorem internBMPersistentE_run {m : ConLeche.BinderMeta} {s : AState}
     have hc' : s.store.pers.bmSize < Idx.idxCap := hc hf
     simp only [internBMPersistentE, bind, StateT.bind, get, getThe, MonadStateOf.get,
       StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-      if_pos hc']
+      ite_eq_left hc']
 
 /-- con-leche: none — arena infrastructure; the same at the view. -/
 theorem internBMOfViewPersistentE_ok {v : ENodeView} {s : AState} {r : BMIdx}
@@ -126,11 +126,11 @@ theorem internPersistentE_ok {v : ENodeView} {s : AState} {r : EIdx} {s' : AStat
     | none =>
       by_cases hc : st1.pers.sizeOf v < Idx.idxCap
       · simp only [Except.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
-          set, Except.pure, hf, if_pos hc] at h
+          set, Except.pure, hf, ite_eq_left hc] at h
         obtain ⟨rfl, rfl⟩ := h
         exact ⟨fun _ => hc, rfl, rfl⟩
       · simp only [Except.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
-          set, Except.pure, hf, if_neg hc, failRun] at h
+          set, Except.pure, hf, ite_eq_right hc, failRun] at h
         exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; the converse: where the Rust's two
@@ -151,7 +151,7 @@ theorem internPersistentE_run_eq {v : ENodeView} {s : AState}
   | none =>
     have hc : st1.pers.sizeOf v < Idx.idxCap := hn hf
     simp only [Except.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
-      StateT.pure, set, StateT.set, StateT.bind, Except.pure, hf, if_pos hc]
+      StateT.pure, set, StateT.set, StateT.bind, Except.pure, hf, ite_eq_left hc]
     rfl
 
 /-! ### `internE`'s binder arm, in the Rust's order (task #97-T2-LOCKSTEP, D6)
@@ -178,7 +178,7 @@ theorem EStore.internBM_eq_of_findBM {st : EStore} {m : ConLeche.BinderMeta} {i 
     cases hon : st.scratchOn with
     | false => simp [hon] at hf
     | true =>
-      simp only [hon, if_true] at hf
+      simp only [hon, ite_true] at hf
       simp [EStore.internBM, hp, hon, hf]
 
 /-- con-leche: none — arena infrastructure; `internBME` succeeds exactly as
@@ -202,12 +202,12 @@ theorem internBME_ok {m : ConLeche.BinderMeta} {s : AState} {r : BMIdx} {s' : AS
         else s.store.pers.bmSize) < Idx.idxCap
     · simp only [internBME, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨fun _ => hc, rfl, rfl⟩
     · simp only [internBME, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, failRun] at h
+        ite_eq_right hc, failRun] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; a binder record the two-tier probe
@@ -226,7 +226,7 @@ theorem EStore.internBindI_eq_of_findBindI {st : EStore} {tag : UInt32} {ty b : 
     cases hon : st.scratchOn with
     | false => simp [hon] at hf
     | true =>
-      simp only [hon, if_true] at hf ⊢
+      simp only [hon, ite_true] at hf ⊢
       simp only [hf]
 
 /-- con-leche: none — arena infrastructure; `internBindIE`'s two arms end at
@@ -249,12 +249,12 @@ theorem internLamIE_ok {ty b : EIdx} {mi : BMIdx} {s : AState} {r : EIdx} {s' : 
         else s.store.pers.bindSizeOf ETag.lam) < Idx.idxCap
     · simp only [internLamIE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨rfl, rfl⟩
     · simp only [internLamIE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, failRun] at h
+        ite_eq_right hc, failRun] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; the same at the other array. -/
@@ -275,12 +275,12 @@ theorem internForallEIE_ok {ty b : EIdx} {mi : BMIdx} {s : AState} {r : EIdx}
         else s.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap
     · simp only [internForallEIE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨rfl, rfl⟩
     · simp only [internForallEIE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, failRun] at h
+        ite_eq_right hc, failRun] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; `internNodeE` (the eight non-binder
@@ -303,12 +303,12 @@ theorem internNodeE_ok {v : ENodeView} {s : AState} {r : EIdx} {s' : AState}
         else s.store.pers.sizeOf v) < Idx.idxCap
     · simp only [internNodeE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, StateT.pure, set, StateT.set, Except.bind, Except.pure, hf,
-        if_pos hc, Except.ok.injEq, Prod.mk.injEq] at h
+        ite_eq_left hc, Except.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       exact Or.inr ⟨rfl, rfl, rfl⟩
     · simp only [internNodeE, bind, StateT.bind, get, getThe, MonadStateOf.get,
         StateT.get, pure, set, Except.bind, Except.pure, hf,
-        if_neg hc, failRun] at h
+        ite_eq_right hc, failRun] at h
       exact absurd h (by simp)
 
 /-- con-leche: none — arena infrastructure; **`internE` at a `lam` view is its

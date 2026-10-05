@@ -129,7 +129,7 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
     intro g ih k out res hout h
     beta_reduce at h
     by_cases hlt : k < n
-    · rw [if_pos hlt] at h
+    · rw [ite_eq_left hlt] at h
       -- the one recursive step: a validated word is pushed.
       have hstep : ∀ (v : Std.U32) (out1 : alloc.vec.Vec Std.U32) (k1 : Std.Usize),
           Nat.isValidChar v.val → alloc.vec.Vec.push out v = ok out1 →
@@ -138,7 +138,7 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
       obtain ⟨c0, -, h⟩ := bind_eq_ok_iff.mp h
       by_cases h1 : c0 < 128#u8
       · -- ASCII
-        rw [if_pos h1] at h
+        rw [ite_eq_left h1] at h
         obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
@@ -146,24 +146,24 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
           rw [← lift_val hv]; exact Std.U8.cast_U32_val_eq c0
         have hc0 : c0.val < 128 := by scalar_tac
         exact hstep v out1 k1 (by unfold Nat.isValidChar; omega) hout1 h
-      · rw [if_neg h1] at h
+      · rw [ite_eq_right h1] at h
         by_cases h2 : c0 < 194#u8
-        · rw [if_pos h2] at h; simp at h
-        · rw [if_neg h2] at h
+        · rw [ite_eq_left h2] at h; simp at h
+        · rw [ite_eq_right h2] at h
           by_cases h3 : c0 < 224#u8
           · -- two bytes: below `0x800`
-            rw [if_pos h3] at h
+            rw [ite_eq_left h3] at h
             obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
             by_cases hn1 : n ≤ i
-            · rw [if_pos hn1] at h; simp at h
-            · rw [if_neg hn1] at h
+            · rw [ite_eq_left hn1] at h; simp at h
+            · rw [ite_eq_right hn1] at h
               obtain ⟨c1, -, h⟩ := bind_eq_ok_iff.mp h
               by_cases hg1 : c1 < 128#u8
-              · rw [if_pos hg1] at h; simp at h
-              · rw [if_neg hg1] at h
+              · rw [ite_eq_left hg1] at h; simp at h
+              · rw [ite_eq_right hg1] at h
                 by_cases hg2 : 192#u8 ≤ c1
-                · rw [if_pos hg2] at h; simp at h
-                · rw [if_neg hg2] at h
+                · rw [ite_eq_left hg2] at h; simp at h
+                · rw [ite_eq_right hg2] at h
                   obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
@@ -182,29 +182,29 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
                     have := and_le hi5; scalar_tac
                   exact hstep i6 out1 k1
                     (by have := or_lt hi6 e3 e5; unfold Nat.isValidChar; omega) hout1 h
-          · rw [if_neg h3] at h
+          · rw [ite_eq_right h3] at h
             by_cases h4 : c0 < 240#u8
             · -- three bytes: below `0x10000`, and not a surrogate
-              rw [if_pos h4] at h
+              rw [ite_eq_left h4] at h
               obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
               by_cases hn1 : n ≤ i
-              · rw [if_pos hn1] at h; simp at h
-              · rw [if_neg hn1] at h
+              · rw [ite_eq_left hn1] at h; simp at h
+              · rw [ite_eq_right hn1] at h
                 obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
                 obtain ⟨c1, -, h⟩ := bind_eq_ok_iff.mp h
                 obtain ⟨c2, -, h⟩ := bind_eq_ok_iff.mp h
                 by_cases hg1 : c1 < 128#u8
-                · rw [if_pos hg1] at h; simp at h
-                · rw [if_neg hg1] at h
+                · rw [ite_eq_left hg1] at h; simp at h
+                · rw [ite_eq_right hg1] at h
                   by_cases hg2 : 192#u8 ≤ c1
-                  · rw [if_pos hg2] at h; simp at h
-                  · rw [if_neg hg2] at h
+                  · rw [ite_eq_left hg2] at h; simp at h
+                  · rw [ite_eq_right hg2] at h
                     by_cases hg3 : c2 < 128#u8
-                    · rw [if_pos hg3] at h; simp at h
-                    · rw [if_neg hg3] at h
+                    · rw [ite_eq_left hg3] at h; simp at h
+                    · rw [ite_eq_right hg3] at h
                       by_cases hg4 : 192#u8 ≤ c2
-                      · rw [if_pos hg4] at h; simp at h
-                      · rw [if_neg hg4] at h
+                      · rw [ite_eq_left hg4] at h; simp at h
+                      · rw [ite_eq_right hg4] at h
                         obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
                         obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
                         obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
@@ -233,56 +233,56 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
                         -- the three-byte guards: overlong forms and the
                         -- surrogate block are refused.
                         by_cases hv1 : v < 2048#u32
-                        · rw [if_pos hv1] at h; simp at h
-                        · rw [if_neg hv1] at h
+                        · rw [ite_eq_left hv1] at h; simp at h
+                        · rw [ite_eq_right hv1] at h
                           by_cases hv2 : 55296#u32 ≤ v
-                          · rw [if_pos hv2] at h
+                          · rw [ite_eq_left hv2] at h
                             by_cases hv3 : v < 57344#u32
-                            · rw [if_pos hv3] at h; simp at h
-                            · rw [if_neg hv3] at h
+                            · rw [ite_eq_left hv3] at h; simp at h
+                            · rw [ite_eq_right hv3] at h
                               have hvge : 57344 ≤ v.val := by scalar_tac
                               obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
                               obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                               exact hstep v out1 k1
                                 (by unfold Nat.isValidChar; omega) hout1 h
-                          · rw [if_neg hv2] at h
+                          · rw [ite_eq_right hv2] at h
                             have hvlt : v.val < 55296 := by scalar_tac
                             obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
                             obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                             exact hstep v out1 k1
                               (by unfold Nat.isValidChar; omega) hout1 h
-            · rw [if_neg h4] at h
+            · rw [ite_eq_right h4] at h
               by_cases h5 : c0 < 245#u8
               · -- four bytes: the two guards *are* `Nat.isValidChar`'s upper
                 -- half, so no bit arithmetic is needed here.
-                rw [if_pos h5] at h
+                rw [ite_eq_left h5] at h
                 obtain ⟨i, -, h⟩ := bind_eq_ok_iff.mp h
                 by_cases hn1 : n ≤ i
-                · rw [if_pos hn1] at h; simp at h
-                · rw [if_neg hn1] at h
+                · rw [ite_eq_left hn1] at h; simp at h
+                · rw [ite_eq_right hn1] at h
                   obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨c1, -, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨c2, -, h⟩ := bind_eq_ok_iff.mp h
                   obtain ⟨c3, -, h⟩ := bind_eq_ok_iff.mp h
                   by_cases hg1 : c1 < 128#u8
-                  · rw [if_pos hg1] at h; simp at h
-                  · rw [if_neg hg1] at h
+                  · rw [ite_eq_left hg1] at h; simp at h
+                  · rw [ite_eq_right hg1] at h
                     by_cases hg2 : 192#u8 ≤ c1
-                    · rw [if_pos hg2] at h; simp at h
-                    · rw [if_neg hg2] at h
+                    · rw [ite_eq_left hg2] at h; simp at h
+                    · rw [ite_eq_right hg2] at h
                       by_cases hg3 : c2 < 128#u8
-                      · rw [if_pos hg3] at h; simp at h
-                      · rw [if_neg hg3] at h
+                      · rw [ite_eq_left hg3] at h; simp at h
+                      · rw [ite_eq_right hg3] at h
                         by_cases hg4 : 192#u8 ≤ c2
-                        · rw [if_pos hg4] at h; simp at h
-                        · rw [if_neg hg4] at h
+                        · rw [ite_eq_left hg4] at h; simp at h
+                        · rw [ite_eq_right hg4] at h
                           by_cases hg5 : c3 < 128#u8
-                          · rw [if_pos hg5] at h; simp at h
-                          · rw [if_neg hg5] at h
+                          · rw [ite_eq_left hg5] at h; simp at h
+                          · rw [ite_eq_right hg5] at h
                             by_cases hg6 : 192#u8 ≤ c3
-                            · rw [if_pos hg6] at h; simp at h
-                            · rw [if_neg hg6] at h
+                            · rw [ite_eq_left hg6] at h; simp at h
+                            · rw [ite_eq_right hg6] at h
                               obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
                               obtain ⟨i4, -, h⟩ := bind_eq_ok_iff.mp h
                               obtain ⟨i5, -, h⟩ := bind_eq_ok_iff.mp h
@@ -298,19 +298,19 @@ private theorem utf8_decode_loop_wf {b : Slice Std.U8} (n : Std.Usize) :
                               obtain ⟨i15, -, h⟩ := bind_eq_ok_iff.mp h
                               obtain ⟨v, -, h⟩ := bind_eq_ok_iff.mp h
                               by_cases hv1 : v < 65536#u32
-                              · rw [if_pos hv1] at h; simp at h
-                              · rw [if_neg hv1] at h
+                              · rw [ite_eq_left hv1] at h; simp at h
+                              · rw [ite_eq_right hv1] at h
                                 by_cases hv2 : 1114111#u32 < v
-                                · rw [if_pos hv2] at h; simp at h
-                                · rw [if_neg hv2] at h
+                                · rw [ite_eq_left hv2] at h; simp at h
+                                · rw [ite_eq_right hv2] at h
                                   have hlo : 65536 ≤ v.val := by scalar_tac
                                   have hhi : v.val ≤ 1114111 := by scalar_tac
                                   obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
                                   obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                                   exact hstep v out1 k1
                                     (by unfold Nat.isValidChar; omega) hout1 h
-              · rw [if_neg h5] at h; simp at h
-    · rw [if_neg hlt] at h
+              · rw [ite_eq_right h5] at h; simp at h
+    · rw [ite_eq_right hlt] at h
       simp only [Result.ok.injEq, Option.some.injEq] at h
       rw [← h]; exact hout
 
@@ -342,50 +342,50 @@ private theorem next_member_ge {b : Slice Std.U8} (f : Nat) :
   | zero =>
     intro i w k ks v ni nw hf h
     rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-    rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
+    rw [ite_eq_left (show i ≥ Slice.len b by scalar_tac)] at h
     simp at h
   | succ f ih =>
     intro i w k ks v ni nw hf h
     rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
     by_cases hend : i ≥ Slice.len b
-    · rw [if_pos hend] at h; simp at h
-    · rw [if_neg hend] at h
+    · rw [ite_eq_left hend] at h; simp at h
+    · rw [ite_eq_right hend] at h
       have hi : i.val < b.length := by scalar_tac
       obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
       obtain ⟨w1, -, h⟩ := bind_eq_ok_iff.mp h
       by_cases hws : w1 = true
-      · rw [if_pos hws] at h
+      · rw [ite_eq_left hws] at h
         obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
         have h1 := uadd_gt hi2 (by scalar_tac)
         have h2 := ih i2 w k ks v ni nw (by omega) h
         omega
-      · rw [if_neg hws] at h
+      · rw [ite_eq_right hws] at h
         by_cases hc1 : c = 125#u8
-        · rw [if_pos hc1] at h; simp at h
-        · rw [if_neg hc1] at h
+        · rw [ite_eq_left hc1] at h; simp at h
+        · rw [ite_eq_right hc1] at h
           by_cases hc2 : c = 44#u8
-          · rw [if_pos hc2] at h
+          · rw [ite_eq_left hc2] at h
             by_cases hw : w = true
-            · rw [if_pos hw] at h; simp at h
-            · rw [if_neg hw] at h
+            · rw [ite_eq_left hw] at h; simp at h
+            · rw [ite_eq_right hw] at h
               obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
               have h1 := uadd_gt hi2 (by scalar_tac)
               have h2 := ih i2 true k ks v ni nw (by omega) h
               omega
-          · rw [if_neg hc2] at h
+          · rw [ite_eq_right hc2] at h
             by_cases hc3 : c = 34#u8
-            · rw [if_pos hc3] at h
+            · rw [ite_eq_left hc3] at h
               by_cases hw : w = true
-              · rw [if_pos hw] at h
+              · rw [ite_eq_left hw] at h
                 obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
                 obtain ⟨ke, -, h⟩ := bind_eq_ok_iff.mp h
                 by_cases hke : ke = 0#usize
-                · rw [if_pos hke] at h; simp at h
-                · rw [if_neg hke] at h
+                · rw [ite_eq_left hke] at h; simp at h
+                · rw [ite_eq_right hke] at h
                   obtain ⟨v1, -, h⟩ := bind_eq_ok_iff.mp h
                   by_cases hv : v1 = i
-                  · rw [if_pos hv] at h; simp at h
-                  · rw [if_neg hv] at h
+                  · rw [ite_eq_left hv] at h; simp at h
+                  · rw [ite_eq_right hv] at h
                     obtain ⟨i3, -, h⟩ := bind_eq_ok_iff.mp h
                     obtain ⟨k1, -, h⟩ := bind_eq_ok_iff.mp h
                     simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
@@ -393,8 +393,8 @@ private theorem next_member_ge {b : Slice Std.U8} (f : Nat) :
                     obtain ⟨⟨-, hks, -⟩, -⟩ := h
                     subst hks
                     exact le_refl _
-              · rw [if_neg hw] at h; simp at h
-            · rw [if_neg hc3] at h; simp at h
+              · rw [ite_eq_right hw] at h; simp at h
+            · rw [ite_eq_right hc3] at h; simp at h
 
 /-- `scan_fast::slot_nat` closes with the module's `prog` guard, so a slot that
 succeeded really consumed at least one byte. -/
@@ -403,12 +403,12 @@ private theorem slot_nat_prog {b : Slice Std.U8} {ks v e : Std.Usize} {x : Std.U
   rw [frontend.scan_fast.slot_nat] at h
   obtain ⟨e1, -, h⟩ := bind_eq_ok_iff.mp h
   by_cases h1 : e1 = v
-  · rw [if_pos h1] at h; exact (err_ne_ok h).elim
-  · rw [if_neg h1] at h
+  · rw [ite_eq_left h1] at h; exact (err_ne_ok h).elim
+  · rw [ite_eq_right h1] at h
     obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
     rw [frontend.scan_fast.prog, Result.ok.injEq] at hb1
     by_cases h2 : b1 = true
-    · rw [if_pos h2] at h
+    · rw [ite_eq_left h2] at h
       obtain ⟨r, -, h⟩ := bind_eq_ok_iff.mp h
       cases r with
       | Err er => simp at h
@@ -417,7 +417,7 @@ private theorem slot_nat_prog {b : Slice Std.U8} {ks v e : Std.Usize} {x : Std.U
         rw [← h.2]
         rw [← hb1] at h2
         scalar_tac
-    · rw [if_neg h2] at h; exact (err_ne_ok h).elim
+    · rw [ite_eq_right h2] at h; exact (err_ne_ok h).elim
 
 /-- **The leaf.**  `scan_fast::utf8_decode`'s output is a sequence of scalar
 values -- for *every* byte slice, since the decoder's own guards are what carry
@@ -453,16 +453,16 @@ theorem scan_string_wf {b : Slice Std.U8} {i : Std.Usize}
   rw [frontend.scan_fast.scan_string] at h
   obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
   by_cases h1 : (i1 != 34#u8) = true
-  · rw [if_pos h1] at h; exact (err_ne_ok h).elim
-  · rw [if_neg h1] at h
+  · rw [ite_eq_left h1] at h; exact (err_ne_ok h).elim
+  · rw [ite_eq_right h1] at h
     obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨e, -, h⟩ := bind_eq_ok_iff.mp h
     by_cases h2 : e = 0#usize
-    · rw [if_pos h2] at h; exact (err_ne_ok h).elim
-    · rw [if_neg h2] at h
+    · rw [ite_eq_left h2] at h; exact (err_ne_ok h).elim
+    · rw [ite_eq_right h2] at h
       obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
       by_cases h3 : b1 = true
-      · rw [if_pos h3] at h
+      · rw [ite_eq_left h3] at h
         obtain ⟨body, -, h⟩ := bind_eq_ok_iff.mp h
         obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
         cases o with
@@ -471,7 +471,7 @@ theorem scan_string_wf {b : Slice Std.U8} {i : Std.Usize}
           obtain ⟨i4, -, h⟩ := bind_eq_ok_iff.mp h
           simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
           rw [← h.1]; exact unescape_wf ho
-      · rw [if_neg h3] at h
+      · rw [ite_eq_right h3] at h
         obtain ⟨o, ho, h⟩ := bind_eq_ok_iff.mp h
         cases o with
         | none => exact (err_ne_ok h).elim
@@ -496,7 +496,7 @@ private theorem next_member_lt {b : Slice Std.U8} {i : Std.Usize} {w : Bool}
     (h : frontend.scan_fast.next_member b i w = ok (.Ok x)) : i.val < b.length := by
   by_contra hc
   rw [frontend.scan_fast.next_member, frontend.scan_fast.next_member_loop.eq_def] at h
-  rw [if_pos (show i ≥ Slice.len b by scalar_tac)] at h
+  rw [ite_eq_left (show i ≥ Slice.len b by scalar_tac)] at h
   simp at h
 
 /-- `scan_fast::prog` is `ks < e`, read forwards. -/
@@ -530,23 +530,23 @@ private theorem scan_str_name_loop_wf {b : Slice Std.U8} (f : Nat) :
       split at h
       · -- `Close`: the record the loop has accumulated
         by_cases hnw : nw = true
-        · rw [if_pos hnw] at h
+        · rw [ite_eq_left hnw] at h
           by_cases hz : (seen != 0#u32) = true
-          · rw [if_pos hz] at h; exact (err_ne_ok h).elim
-          · rw [if_neg hz] at h
+          · rw [ite_eq_left hz] at h; exact (err_ne_ok h).elim
+          · rw [ite_eq_right hz] at h
             obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
             by_cases hm : (i1 != 3#u32) = true
-            · rw [if_pos hm] at h; exact (err_ne_ok h).elim
-            · rw [if_neg hm] at h
+            · rw [ite_eq_left hm] at h; exact (err_ne_ok h).elim
+            · rw [ite_eq_right hm] at h
               obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
               simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
                 Prod.mk.injEq] at h
               rw [← h.1]; exact hs
-        · rw [if_neg hnw] at h
+        · rw [ite_eq_right hnw] at h
           obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
           by_cases hm : (i1 != 3#u32) = true
-          · rw [if_pos hm] at h; exact (err_ne_ok h).elim
-          · rw [if_neg hm] at h
+          · rw [ite_eq_left hm] at h; exact (err_ne_ok h).elim
+          · rw [ite_eq_right hm] at h
             obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
             simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
               Prod.mk.injEq] at h
@@ -562,8 +562,8 @@ private theorem scan_str_name_loop_wf {b : Slice Std.U8} (f : Nat) :
             | -- `"pre"`: a machine word, the accumulator is untouched
               (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
                by_cases hd : b1 = true
-               · rw [if_pos hd] at h; exact (err_ne_ok h).elim
-               · rw [if_neg hd] at h
+               · rw [ite_eq_left hd] at h; exact (err_ne_ok h).elim
+               · rw [ite_eq_right hd] at h
                  obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
                  split at h
                  · rename_i _ p1
@@ -577,8 +577,8 @@ private theorem scan_str_name_loop_wf {b : Slice Std.U8} (f : Nat) :
             | -- `"str"`: the accumulator is replaced by `scan_string`'s value
               (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
                by_cases hd : b1 = true
-               · rw [if_pos hd] at h; exact (err_ne_ok h).elim
-               · rw [if_neg hd] at h
+               · rw [ite_eq_left hd] at h; exact (err_ne_ok h).elim
+               · rw [ite_eq_right hd] at h
                  obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
                  split at h
                  · rename_i _ p1
@@ -586,12 +586,12 @@ private theorem scan_str_name_loop_wf {b : Slice Std.U8} (f : Nat) :
                    simp only [uncurry_apply_pair] at h
                    obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
                    by_cases hp : b2 = true
-                   · rw [if_pos hp] at h
+                   · rw [ite_eq_left hp] at h
                      have he := prog_lt hb2 hp
                      obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
                      exact ih (b.length - e.val) (by omega) false e seen1 pre x r j
                        (le_refl _) (scan_string_wf hr1) h
-                   · rw [if_neg hp] at h; exact (err_ne_ok h).elim
+                   · rw [ite_eq_right hp] at h; exact (err_ne_ok h).elim
                  · simp at h)
     · simp at h
 
@@ -604,11 +604,11 @@ theorem scan_str_name_wf {b : Slice Std.U8} {i : Std.Usize}
   rw [frontend.scan_fast.scan_str_name] at h
   obtain ⟨c, -, h⟩ := bind_eq_ok_iff.mp h
   by_cases hc : c = 123#u8
-  · rw [if_pos hc] at h
+  · rw [ite_eq_left hc] at h
     obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
     exact scan_str_name_loop_wf (b.length - i2.val) true i2 0#u32 0#u64 _ r j
       (le_refl _) str_new h
-  · rw [if_neg hc] at h; exact (err_ne_ok h).elim
+  · rw [ite_eq_right hc] at h; exact (err_ne_ok h).elim
 
 /-! ### The records with no string payload
 

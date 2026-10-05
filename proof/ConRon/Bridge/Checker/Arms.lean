@@ -138,7 +138,7 @@ theorem checkDecl_quot_type_pure {μ : CheckMode} {F : Nat}
     (h : ConLeche.checkBasisDecl (m := CheckM) env .quotK = .ok env') :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.quotDecl .type c)
       = .ok env' := by
-  simp only [ConLeche.checkDecl, hhit, if_true]; exact h
+  simp only [ConLeche.checkDecl, hhit, ite_true]; exact h
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:602-626 checkDecl (the `.quotDecl`
 arm) at a MATCHING record of any other kind: the block is already installed
@@ -148,7 +148,7 @@ theorem checkDecl_quot_other_pure {μ : CheckMode} {F : Nat}
     (hk : k ≠ .type) (hhit : ConLeche.quotPinHit k c = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.quotDecl k c)
       = .ok env := by
-  cases k <;> simp only [ConLeche.checkDecl, hhit, if_true] <;> first
+  cases k <;> simp only [ConLeche.checkDecl, hhit, ite_true] <;> first
     | rfl
     | exact absurd rfl hk
 
@@ -193,7 +193,7 @@ theorem checkDecl_opaque_pure {μ : CheckMode} {F : Nat}
     (h3 : ConLeche.reduceOpNames.contains cA.name = false) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
       = .ok env2 := by
-  simp only [ConLeche.checkDecl, h1, h2, h3, Bool.false_eq_true, if_false, bind,
+  simp only [ConLeche.checkDecl, h1, h2, h3, Bool.false_eq_true, ite_false, bind,
     Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:491-500 checkDecl (the
@@ -207,7 +207,7 @@ theorem checkDecl_opaque_pin_pure {μ : CheckMode} {F : Nat}
       = .ok ()) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.opaqueDecl c x)
       = .ok env2 := by
-  simp only [ConLeche.checkDecl, h1, h2, h3, h4, if_true, bind, Except.bind,
+  simp only [ConLeche.checkDecl, h1, h2, h3, h4, ite_true, bind, Except.bind,
     pure, Except.pure]
 
 /-! ### The `.defnDecl` arm's four exits
@@ -228,7 +228,7 @@ theorem checkDecl_defn_pure_nn {μ : CheckMode} {F : Nat}
     (h4 : ConLeche.natDivModNames.contains cA.name = false) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env
       (.defnDecl c x hint) = .ok env2 := by
-  simp only [ConLeche.checkDecl, h1, h2, h3, h4, Bool.false_eq_true, if_false,
+  simp only [ConLeche.checkDecl, h1, h2, h3, h4, Bool.false_eq_true, ite_false,
     bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl — the
@@ -246,7 +246,7 @@ theorem checkDecl_defn_pure_nd {μ : CheckMode} {F : Nat}
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env
       (.defnDecl c x hint) = .ok env2 := by
   simp only [ConLeche.checkDecl, h1, h2, h3, h4, h5, Bool.false_eq_true,
-    if_false, if_true, bind, Except.bind, pure, Except.pure]
+    ite_false, ite_true, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl — the
 structural-`Nat` gate alone. -/
@@ -268,7 +268,7 @@ theorem checkDecl_defn_pure_yn {μ : CheckMode} {F : Nat}
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env
       (.defnDecl c x hint) = .ok env2 := by
   simp only [ConLeche.checkDecl, h1, h2, h3, hg, hf, hc, h4,
-    Bool.false_eq_true, if_false, if_true, bind, Except.bind, pure,
+    Bool.false_eq_true, ite_false, ite_true, bind, Except.bind, pure,
     Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl — both gates. -/
@@ -291,7 +291,7 @@ theorem checkDecl_defn_pure_yy {μ : CheckMode} {F : Nat}
       cA.name = .ok ()) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env
       (.defnDecl c x hint) = .ok env2 := by
-  simp only [ConLeche.checkDecl, h1, h2, h3, hg, hf, hc, h4, h5, if_true,
+  simp only [ConLeche.checkDecl, h1, h2, h3, hg, hf, hc, h4, h5, ite_true,
     bind, Except.bind, pure, Except.pure]
 
 /-! ### The `.axiomDecl` arm's six exits -/
@@ -306,7 +306,7 @@ theorem checkDecl_axiom_quotSound_pure {μ : CheckMode} {F : Nat}
       (ConLeche.quotBasis.getD 4 (.axiomInfo default)) = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok env := by
-  simp only [ConLeche.checkDecl, hnm, heq, if_true, pure, Except.pure]
+  simp only [ConLeche.checkDecl, hnm, heq, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — a standard
 axiom, installed. -/
@@ -317,7 +317,7 @@ theorem checkDecl_axiom_std_pure {μ : CheckMode} {F : Nat}
     (h2 : ConLeche.stdAxiomOk env cA = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo cA :: env.consts⟩ := by
-  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, if_true, bind, Except.bind,
+  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, ite_true, bind, Except.bind,
     pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl —
@@ -331,8 +331,8 @@ theorem checkDecl_axiom_trust_pure {μ : CheckMode} {F : Nat}
     (h4 : ConLeche.trustCompilerOk env cA = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo cA :: env.consts⟩ := by
-  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, h3, h4, Bool.false_eq_true,
-    if_false, if_true, bind, Except.bind, pure, Except.pure]
+  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, h3, h4, Bool.false_eq_true,
+    ite_false, ite_true, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — an
 `ofReduce*` axiom, installed. -/
@@ -347,8 +347,8 @@ theorem checkDecl_axiom_ofReduce_pure {μ : CheckMode} {F : Nat}
     (h5 : ConLeche.ofReduceAxOk env cA = true) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok ⟨.axiomInfo cA :: env.consts⟩ := by
-  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, h5, Bool.false_eq_true,
-    if_false, if_true, if_neg h3, if_pos h4, bind, Except.bind, pure,
+  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, h5, Bool.false_eq_true,
+    ite_false, ite_true, ite_eq_right h3, ite_eq_left h4, bind, Except.bind, pure,
     Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:502-560 checkDecl — `sorryAx`, the
@@ -366,8 +366,8 @@ theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
     (h6 : cA.name = ConLeche.sorryAxName) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env (.axiomDecl c)
       = .ok env := by
-  simp only [ConLeche.checkDecl, if_neg hnm, h1, h2, Bool.false_eq_true,
-    if_false, if_neg h3, if_neg h4, if_neg h5, if_pos h6, bind, Except.bind,
+  simp only [ConLeche.checkDecl, ite_eq_right hnm, h1, h2, Bool.false_eq_true,
+    ite_false, ite_eq_right h3, ite_eq_right h4, ite_eq_right h5, ite_eq_left h6, bind, Except.bind,
     pure, Except.pure]
 
 /-! ## The pin gates' pre-insertion view (task #97-T2-LOCKSTEP lane Checker round 2)

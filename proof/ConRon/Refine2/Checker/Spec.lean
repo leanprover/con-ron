@@ -345,7 +345,7 @@ theorem trustCompilerOk_split (fe : IFEnv) (cvA : IConstantVal) :
   congr 1; funext p; congr 1; funext b
   cases b
   · simp
-  simp only [Bool.true_eq_false, if_false]
+  simp only [Bool.true_eq_false, ite_false]
   congr 1; funext n2
   rcases fe.find? n2 with _ | ci
   · simp
@@ -523,7 +523,7 @@ theorem divModEnvGuardRestSpec_split (fe2 : IFEnv) :
   simp only [bind_assoc, pure_bind]
   refine ConRon.Refine2.am_bind_congr _ fun en => ConRon.Refine2.am_bind_congr _ fun ea => ?_
   by_cases h : (fe2.find? en == some ea) = true
-  · simp only [h, bne, Bool.not_true, Bool.false_eq_true, if_false, if_true]
+  · simp only [h, bne, Bool.not_true, Bool.false_eq_true, ite_false, ite_true]
     refine ConRon.Refine2.am_bind_congr _ fun t => ConRon.Refine2.am_bind_congr _ fun b => ?_
     cases b <;> rfl
   · simp [h, bne]

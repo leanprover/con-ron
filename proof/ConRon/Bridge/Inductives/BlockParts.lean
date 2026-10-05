@@ -484,7 +484,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
     obtain ⟨xs, x, hsp, -, hx⟩ := denoteBP_some hbp
     dsimp only at h2
     by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at h2
+    · rw [ite_eq_left htg] at h2
       obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨rfl, ho⟩ := viewBind_run h3
       cases o with
@@ -497,7 +497,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
         obtain ⟨hh, s₃, h5, h6⟩ := AM.bind_ok h4
         obtain ⟨rfl, hhd⟩ := getAppFn_run hok hdd h5
         by_cases htc : (hh.tag == ETag.const) = true
-        · rw [if_pos htc] at h6
+        · rw [ite_eq_left htc] at h6
           obtain ⟨o, s₄, h7, h8⟩ := AM.bind_ok h6
           obtain ⟨rfl, ho2⟩ := viewConst_run h7
           cases o with
@@ -525,7 +525,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
               simp only [ConLeche.recTargetOf, hsp, hc]
               rw [← hf, hfi]
               rfl
-        · rw [if_neg htc] at h6
+        · rw [ite_eq_right htc] at h6
           obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
           refine ⟨PStep.refl hok, ?_⟩
           show names.length = _
@@ -535,7 +535,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
           cases g with
           | const c us => exact absurd (tag_const_of_denote hok.wf hhd) (by simpa using htc)
           | _ => rfl
-    · rw [if_neg htg] at h2
+    · rw [ite_eq_right htg] at h2
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
       refine ⟨PStep.refl hok, ?_⟩
       show names.length = _
@@ -763,10 +763,10 @@ theorem blockGroups_spec (names : List NIdx) (namesP : List ConLeche.Name) (lvls
   · rename_i hk
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     refine ⟨PStep.refl hok, ?_⟩
-    rw [if_pos hk]
+    rw [ite_eq_left hk]
     exact mapM_option_cons hp.2.2 rfl
   · rename_i hk
-    rw [if_neg hk]
+    rw [ite_eq_right hk]
     obtain ⟨p1, hrel⟩ := mapM_pstep _ (fun m => csP.filter fun c =>
         ConLeche.ctorMember? namesP lpsP nP c == some m)
       (fun st b c => dCtors st b = some c)
@@ -1597,12 +1597,12 @@ theorem shapeTail_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
     simp only [hlpP, largeOfP]
     rw [g8, g9] at z5
     by_cases hc2 : (relpsP == cvT0P.levelParams && !cvT0P.levelParams.contains elimP) = true
-    · rw [if_pos hc2] at z5 ⊢
+    · rw [ite_eq_left hc2] at z5 ⊢
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
       refine ⟨q.trans q5, _, rfl, ?_⟩
       simp only [dShape, hmem, hR, denoteN_ext helim xs5, hy5, he, isProp_match_eq,
         Option.bind_eq_bind, Option.bind_some, Option.pure_def]
-    · rw [if_neg hc2] at z5 ⊢
+    · rw [ite_eq_right hc2] at z5 ⊢
       obtain ⟨anon, sA, kA, zA⟩ := AM.bind_ok z5
       obtain ⟨pA, hanon⟩ := internNNode_run p5.ok
         (by intro c hc; simp [NNodeView.children] at hc) kA
@@ -1774,9 +1774,9 @@ theorem blockShape?_run {μ : CheckMode} {env : Env} {fe : IFEnv} (nPd : Nat)
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
       refine ⟨q2, ?_⟩
       show _ = none
-      rw [if_neg hcnd]
+      rw [ite_eq_right hcnd]
     case isTrue hcnd =>
-    rw [if_pos hcnd]
+    rw [ite_eq_left hcnd]
     obtain ⟨o, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨hs3, hbp⟩ := stripPis_pstep q2.ok (denote_ext (denoteCV_type hT0) x2) k3
     rw [hs3] at z3

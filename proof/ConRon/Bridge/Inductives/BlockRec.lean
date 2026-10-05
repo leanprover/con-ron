@@ -36,10 +36,10 @@ theorem blockLargeElimAllowed_spec (p : Arena.BlockShape) (pP : ConLeche.BlockSh
   replace hlg := hlg.symm
   simp only [RV, ConLeche.blockLargeElimAllowed, hres, hlg, ← hk, ← hn]
   by_cases hz : Level.isNeverZero l = true
-  · rw [if_pos hz] at h2
+  · rw [ite_eq_left hz] at h2
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     exact ⟨p1, by simp [hz]⟩
-  · rw [if_neg hz] at h2
+  · rw [ite_eq_right hz] at h2
     simp only [Bool.not_eq_true] at hz
     cases nested
     · obtain ⟨rfl, rfl⟩ := AM.pure_ok h2

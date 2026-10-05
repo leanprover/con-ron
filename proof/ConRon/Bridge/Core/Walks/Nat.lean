@@ -22,6 +22,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -705,7 +708,7 @@ theorem reduceNatFueled_succ {F d : Nat} {c : ConLeche.Name} {a w : Expr}
     ConLeche.reduceNatFueled mode env F d (.app (.const c []) a) =
       .ok ((ConLeche.rawNatLit? w).map (fun n => .lit (.natVal (n + 1)))) := by
   have e1 : (ConLeche.pureFns mode env F).whnf d a = .ok w := hw
-  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, if_pos hg, e1, bind,
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, ite_eq_left hg, e1, bind,
     Except.bind]
   cases ConLeche.rawNatLit? w <;> rfl
 
@@ -714,7 +717,7 @@ declines. -/
 theorem reduceNatFueled_succ_no {F d : Nat} {c : ConLeche.Name} {a : Expr}
     (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
     ConLeche.reduceNatFueled mode env F d (.app (.const c []) a) = .ok none := by
-  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, if_neg hg]; rfl
+  simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, ite_eq_right hg]; rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the certified
 binary operation: the FIRST argument is head-normalised and read; only on a
@@ -731,7 +734,7 @@ theorem reduceNatFueled_bin {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
         | none => pure none) := by
   have e1 : (ConLeche.pureFns mode env F).whnf d a = .ok w₁ := h1
   simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
-  rw [if_pos hg]
+  rw [ite_eq_left hg]
   simp only [e1, bind, Except.bind]
   rfl
 
@@ -751,7 +754,7 @@ theorem reduceNatFueled_wf {F d : Nat} {c : ConLeche.Name} {a b w₁ : Expr}
         | none => pure none) := by
   have e1 : (ConLeche.pureFns mode env F).whnf d a = .ok w₁ := h1
   simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
-  rw [if_neg hg, if_pos hw]
+  rw [ite_eq_right hg, ite_eq_left hw]
   simp only [e1, bind, Except.bind]
   rfl
 
@@ -762,7 +765,7 @@ theorem reduceNatFueled_bin_no {F d : Nat} {c : ConLeche.Name} {a b : Expr}
     ConLeche.reduceNatFueled mode env F d (.app (.app (.const c []) a) b) =
       .ok none := by
   simp only [ConLeche.reduceNatFueled, ConLeche.reduceNat, NatBinOp] at hg ⊢
-  rw [if_neg hg, if_neg hw]; rfl
+  rw [ite_eq_right hg, ite_eq_right hw]; rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a subject of
 neither shape declines. -/
@@ -779,67 +782,67 @@ theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
     (h : ConLeche.natOpResult c a b = some y) : Expr.WScoped d y := by
   unfold ConLeche.natOpResult at h
   by_cases h0 : c = ConLeche.natPredName
-  · rw [if_pos h0] at h
+  · rw [ite_eq_left h0] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h0] at h
+  rw [ite_eq_right h0] at h
   by_cases h1 : c = ConLeche.natAddName
-  · rw [if_pos h1] at h
+  · rw [ite_eq_left h1] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h1] at h
+  rw [ite_eq_right h1] at h
   by_cases h2 : c = ConLeche.natSubName
-  · rw [if_pos h2] at h
+  · rw [ite_eq_left h2] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h2] at h
+  rw [ite_eq_right h2] at h
   by_cases h3 : c = ConLeche.natMulName
-  · rw [if_pos h3] at h
+  · rw [ite_eq_left h3] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h3] at h
+  rw [ite_eq_right h3] at h
   by_cases h4 : c = ConLeche.natPowName
-  · rw [if_pos h4] at h
+  · rw [ite_eq_left h4] at h
     by_cases hb : b > 16777216
-    · rw [if_pos hb] at h; cases h
-    · rw [if_neg hb] at h; cases h; simp [Expr.WScoped]
-  rw [if_neg h4] at h
+    · rw [ite_eq_left hb] at h; cases h
+    · rw [ite_eq_right hb] at h; cases h; simp [Expr.WScoped]
+  rw [ite_eq_right h4] at h
   by_cases h5 : c = ConLeche.natDivName
-  · rw [if_pos h5] at h
+  · rw [ite_eq_left h5] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h5] at h
+  rw [ite_eq_right h5] at h
   by_cases h6 : c = ConLeche.natModName
-  · rw [if_pos h6] at h
+  · rw [ite_eq_left h6] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h6] at h
+  rw [ite_eq_right h6] at h
   by_cases h7 : c = ConLeche.natGcdName
-  · rw [if_pos h7] at h
+  · rw [ite_eq_left h7] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h7] at h
+  rw [ite_eq_right h7] at h
   by_cases h8 : c = ConLeche.natLandName
-  · rw [if_pos h8] at h
+  · rw [ite_eq_left h8] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h8] at h
+  rw [ite_eq_right h8] at h
   by_cases h9 : c = ConLeche.natLorName
-  · rw [if_pos h9] at h
+  · rw [ite_eq_left h9] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h9] at h
+  rw [ite_eq_right h9] at h
   by_cases h10 : c = ConLeche.natXorName
-  · rw [if_pos h10] at h
+  · rw [ite_eq_left h10] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h10] at h
+  rw [ite_eq_right h10] at h
   by_cases h11 : c = ConLeche.natShiftLeftName
-  · rw [if_pos h11] at h
+  · rw [ite_eq_left h11] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h11] at h
+  rw [ite_eq_right h11] at h
   by_cases h12 : c = ConLeche.natShiftRightName
-  · rw [if_pos h12] at h
+  · rw [ite_eq_left h12] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h12] at h
+  rw [ite_eq_right h12] at h
   by_cases h13 : c = ConLeche.natBeqName
-  · rw [if_pos h13] at h
+  · rw [ite_eq_left h13] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h13] at h
+  rw [ite_eq_right h13] at h
   by_cases h14 : c = ConLeche.natBleName
-  · rw [if_pos h14] at h
+  · rw [ite_eq_left h14] at h
     cases h; simp [Expr.WScoped]
-  rw [if_neg h14] at h
+  rw [ite_eq_right h14] at h
   cases h
 
 /-- con-leche: none — `CheckOK`'s two projections the precondition goals

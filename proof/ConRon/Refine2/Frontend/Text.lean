@@ -50,14 +50,14 @@ theorem env_read_name_at_abs {pers : arena.store.PersTier} {ar : arena.store.ESt
   induction n with
   | zero =>
     intro fuel i o hn hrun
-    rw [arena.env.read_name_at, if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
+    rw [arena.env.read_name_at, ite_eq_left (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
       fuel = 0#u64)] at hrun
     obtain ⟨ce, hce, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases Result.ok_injective hrun
     exact ⟨ce, rfl, env_dangling_name_kind hce⟩
   | succ k ih =>
     intro fuel i o hn hrun
-    rw [arena.env.read_name_at, if_neg (by intro hc; rw [hc] at hn; simp at hn)] at hrun
+    rw [arena.env.read_name_at, ite_eq_right (by intro hc; rw [hc] at hn; simp at hn)] at hrun
     obtain ⟨ns, hns, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [arena.store.EStore.ns] at hns
     cases Result.ok_injective hns
@@ -135,14 +135,14 @@ theorem env_read_name_at_wf {pers : arena.store.PersTier} {ar : arena.store.ESto
   induction n with
   | zero =>
     intro fuel i o hn hrun
-    rw [arena.env.read_name_at, if_pos (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
+    rw [arena.env.read_name_at, ite_eq_left (Std.UScalar.eq_of_val_eq (by rw [hn]; rfl) :
       fuel = 0#u64)] at hrun
     obtain ⟨ce, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     cases Result.ok_injective hrun
     intro y hy; cases hy
   | succ k ih =>
     intro fuel i o hn hrun
-    rw [arena.env.read_name_at, if_neg (by intro hc; rw [hc] at hn; simp at hn)] at hrun
+    rw [arena.env.read_name_at, ite_eq_right (by intro hc; rw [hc] at hn; simp at hn)] at hrun
     obtain ⟨ns, hns, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [arena.store.EStore.ns] at hns
     cases Result.ok_injective hns
@@ -249,7 +249,7 @@ theorem env_read_names_from_abs {pers : arena.store.PersTier} {ar : arena.store.
   | zero =>
     intro i out hk hout o hrun
     rw [arena.env.read_names_from.eq_def] at hrun; simp only [] at hrun
-    rw [if_pos (by scalar_tac)] at hrun
+    rw [ite_eq_left (by scalar_tac)] at hrun
     rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
     exact ⟨out, (Result.ok_injective hrun).symm, by simp, hout⟩
   | succ k ih =>

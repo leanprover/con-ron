@@ -138,7 +138,7 @@ theorem filterMap_cons_eq (f : α → Option β) (a : α) (l : List α) :
 theorem filterMap_set {l : List α} {f : α → Option β} {i : Nat} (hi : i < l.length) (x : α) :
     (l.set i x).filterMap f
       = (l.take i).filterMap f ++ ((f x).toList ++ (l.drop (i + 1)).filterMap f) := by
-  rw [List.set_eq_take_append_cons_drop, if_pos hi, List.filterMap_append, filterMap_cons_eq]
+  rw [List.set_eq_take_append_cons_drop, ite_eq_left hi, List.filterMap_append, filterMap_cons_eq]
 
 /-- Replacing one slot: the new list is the new entry against everything the
 replaced slot did not contribute.  `y` is the neutral slot (`Slot.Vacant`,
@@ -863,7 +863,7 @@ theorem toFun_eq_none_iff : (∀ k, toFun m k = none) ↔ sl_v m = [] := by
     · rfl
     · exfalso
       have := h x.1
-      rw [toFun, hl, lookupK_cons, if_pos rfl] at this
+      rw [toFun, hl, lookupK_cons, ite_eq_left rfl] at this
       simp at this
   · intro h k; simp [toFun, h]
 
@@ -1510,7 +1510,7 @@ theorem insert_no_resize_spec {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
       lookupK_cons]
     by_cases hk' : k' = key
     · subst hk'; simp
-    · rw [if_neg (Ne.symm hk'), if_neg hk']
+    · rw [ite_eq_right (Ne.symm hk'), ite_eq_right hk']
       cases hs2 : slotKV m i2.val with
       | none => simp
       | some pw =>
@@ -2079,9 +2079,9 @@ theorem find_slot_spec {P : K → Prop} (hV : DupId DupV) (heq : Eq2Fwd Eq2Inst 
               ok ((none : Option V), m3))
         else ok ((none : Option V), mw)) = ok (none, m2) := by
       rcases ite_eq_ok h2 with ⟨hover, h2⟩ | ⟨hunder, h2⟩
-      · rw [if_pos (show mw.num_entries > mw.max_load from hover), bind_eq_ok_iff]
+      · rw [ite_eq_left (show mw.num_entries > mw.max_load from hover), bind_eq_ok_iff]
         exact ⟨m2, h2, rfl⟩
-      · rw [if_neg (show ¬ (mw.num_entries > mw.max_load) from hunder),
+      · rw [ite_eq_right (show ¬ (mw.num_entries > mw.max_load) from hunder),
           ← Result.ok_injective h2]
     rw [ron.hashmap2.HashMap2.insert]
     refine bind_eq_ok_iff.mpr ⟨m1, hens, ?_⟩
@@ -2107,9 +2107,9 @@ theorem uscalar_rem_eq {ty : UScalarTy} {x y z : UScalar ty} (h : x % y = ok z) 
     z.val = x.val % y.val := by
   by_cases hy : y.val = 0
   · exfalso
-    rw [show x % y = UScalar.rem x y from rfl, UScalar.rem, if_neg (by simp [hy])] at h
+    rw [show x % y = UScalar.rem x y from rfl, UScalar.rem, ite_eq_right (by simp [hy])] at h
     simp at h
-  · rw [show x % y = UScalar.rem x y from rfl, UScalar.rem, if_pos (by simp [hy])] at h
+  · rw [show x % y = UScalar.rem x y from rfl, UScalar.rem, ite_eq_left (by simp [hy])] at h
     rw [← Result.ok_injective h]
     simp only [UScalar.val]
     exact BitVec.toNat_umod
@@ -2328,7 +2328,7 @@ theorem repair_spec (F : Nat) :
             rw [hrep.dist_eq, show D = t.slots.val.length by omega, idx,
               Nat.add_mod_right, Nat.mod_eq_of_lt hholelt]
         have hcycjD : cyc t.slots.val.length hole.val j.val = D := by
-          rw [hcycj, if_neg (by omega)]
+          rw [hcycj, ite_eq_right (by omega)]
         rcases ite_eq_ok hact with ⟨hb1t, hact⟩ | ⟨hb1f, hact⟩
         · -- `act = 1`: the home of the entry at `j` is *not* cyclically inside
           -- `(hole, j]`, so the entry may be pulled back into the hole; `j`
@@ -2621,7 +2621,7 @@ theorem repair_spec (F : Nat) :
               have := idx_inj hpos hDlt hpos hc0
               omega
             have hcycjD : cyc t.slots.val.length hole.val j.val = D := by
-              rw [hcycj, if_neg (by omega)]
+              rw [hcycj, ite_eq_right (by omega)]
             -- `cyc i hole + cyc hole p = cyc i p`, and likewise through `j`
             have e1 := cyc_cases (n := t.slots.val.length) (a := i.val) (b := hole.val)
               (c := p) hpos hilt hholelt hp
@@ -2789,7 +2789,7 @@ theorem remove_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
           lookupK_cons]
         by_cases hk' : k' = key
         · subst hk'; simp [lookupK_eq_none_of_not_mem hkeyR]
-        · rw [if_neg (Ne.symm hk'), if_neg hk']
+        · rw [ite_eq_right (Ne.symm hk'), ite_eq_right hk']
       · intro p hp
         have hx : p ∈ sl_v t0 := hpermf.mem_iff.1 hp
         rw [ht0sl] at hx

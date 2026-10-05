@@ -133,12 +133,12 @@ theorem i_rec_rules_dup_from_id {rs : alloc.vec.Vec arena.env.IRecRule} :
   refine vec_cursor_copy rs id id (arena.env.i_rec_rules_dup_from rs) ?_ ?_
   · intro i out o hn h
     rw [arena.env.i_rec_rules_dup_from.eq_def] at h
-    rw [if_pos (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len rs by scalar_tac), Result.ok.injEq] at h
     rw [h]
   · intro i x out o hx h
     have hlt : i.val < rs.val.length := (List.getElem?_eq_some_iff.mp hx).1
     rw [arena.env.i_rec_rules_dup_from.eq_def] at h
-    rw [if_neg (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len rs by scalar_tac)] at h
     obtain ⟨ir, hir, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨ir1, hir1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -198,13 +198,13 @@ theorem drop_eidx_from_aux (n : Nat) :
   | zero =>
     intro xs k out r hn h
     rw [arena.core.drop_eidx_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_eq_nil_of_le (by omega)]; simp
   | succ m ih =>
     intro xs k out r hn h
     rw [arena.core.drop_eidx_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -225,12 +225,12 @@ theorem drop_eidx_n_from_aux (m : Nat) :
   | zero =>
     intro xs n i r hn h
     rw [arena.core.drop_eidx_n_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     rw [drop_eidx_from_aux _ xs i _ r rfl h, hn]; simp
   | succ m ih =>
     intro xs n i r hn h
     rw [arena.core.drop_eidx_n_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     dsimp only at h
     split at h
     · cases Result.ok_injective h
@@ -270,13 +270,13 @@ theorem append_eidx_from_aux (n : Nat) :
   | zero =>
     intro xs ys i r hn h
     rw [arena.core.append_eidx_from] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     cases Result.ok_injective h
     rw [List.drop_eq_nil_of_le (by omega)]; simp
   | succ m ih =>
     intro xs ys i r hn h
     rw [arena.core.append_eidx_from] at h
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -354,7 +354,7 @@ theorem take_eidx_n_from_aux (m : Nat) :
     rw [arena.expr_ops.take_eidx_n_from] at h
     split at h
     · cases Result.ok_injective h; rw [List.drop_eq_nil_of_le (by omega)]; simp
-    · rw [if_pos (by scalar_tac)] at h
+    · rw [ite_eq_left (by scalar_tac)] at h
       cases Result.ok_injective h; rw [List.drop_eq_nil_of_le (by omega)]; simp
   | succ m ih =>
     intro xs n i out r hn h
@@ -363,7 +363,7 @@ theorem take_eidx_n_from_aux (m : Nat) :
     · rename_i hn0
       cases Result.ok_injective h; subst hn0; simp
     · rename_i hn0
-      rw [if_neg (by scalar_tac)] at h
+      rw [ite_eq_right (by scalar_tac)] at h
       obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -548,16 +548,16 @@ theorem CastFits.val {x : Std.U64} {r : Std.Usize} (h : CastFits x r) (hx : x.va
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : absSz i < lst.pins.names.size
-    · rw [dif_pos h]
+    · rw [dite_eq_left h]
       show (Arena.pinAt (absSz i)) lst = _
       rw [Arena.pinAt]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
-    · rw [dif_neg h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, dite_eq_left h]
+    · rw [dite_eq_right h]
       show (Arena.pinAt (absSz i)) lst = _
       rw [Arena.pinAt]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, dif_neg h,
+        Pure.pure, Except.pure, Except.bind, dite_eq_right h,
         Arena.fail, throwThe, MonadExceptOf.throw,
         Function.comp_apply, StateT.lift]
   split at hrun
@@ -574,7 +574,7 @@ theorem CastFits.val {x : Std.U64} {r : Std.Usize} (h : CastFits x r) (hx : x.va
       show ¬ (i.val < st.pins.names.val.length)
       omega
     exact AErrSim.internal (s := "arena: reserved-name pins not interned")
-      (by rw [hrun2, dif_neg hnl])
+      (by rw [hrun2, dite_eq_right hnl])
   case isFalse hlt =>
     obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -584,7 +584,7 @@ theorem CastFits.val {x : Std.U64} {r : Std.Usize} (h : CastFits x r) (hx : x.va
     obtain ⟨hlt2, rfl⟩ := ConRon.Refine.ExprOps.vec_index_val hn
     have hlt3 : absSz i < lst.pins.names.size := by rw [hlen]; exact hlt2
     refine ⟨_, lst, ?_, rfl, hrel, hinv⟩
-    rw [hrun2, dif_pos hlt3]
+    rw [hrun2, dite_eq_left hlt3]
     have hi : lst.pins.names.toList[absSz i]? =
         (st.pins.names.val.map absNIdx)[absSz i]? := by rw [hnames]
     simp only [List.getElem?_map, Array.getElem?_toList] at hi

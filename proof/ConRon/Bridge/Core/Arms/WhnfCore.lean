@@ -54,6 +54,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -96,9 +99,9 @@ theorem whnfCore_proj_stuck {c : Bool} {F d i : Nat} {sn : Name}
   simp only [ConLeche.reduceProjCoreFueled] at hr
   rw [ConLeche.whnfCore_succ]
   cases c <;>
-    simp only [projScrut, if_true, Bool.false_eq_true, if_false] at hs <;>
+    simp only [projScrut, ite_true, Bool.false_eq_true, ite_false] at hs <;>
     simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, ConLeche.whnfCore_def,
-      if_true, Bool.false_eq_true, if_false, hs, hr, bind, Except.bind, pure,
+      ite_true, Bool.false_eq_true, ite_false, hs, hr, bind, Except.bind, pure,
       Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1072-1074 whnfCoreBody — **the rule
@@ -112,9 +115,9 @@ theorem whnfCore_proj_fire {c : Bool} {F d i : Nat} {sn : Name}
   simp only [ConLeche.reduceProjCoreFueled] at hr
   rw [ConLeche.whnfCore_succ]
   cases c <;>
-    simp only [projScrut, if_true, Bool.false_eq_true, if_false] at hs <;>
+    simp only [projScrut, ite_true, Bool.false_eq_true, ite_false] at hs <;>
     simp only [ConLeche.whnfCoreBody, ConLeche.whnf_def, ConLeche.whnfCore_def,
-      if_true, Bool.false_eq_true, if_false, hs, hr, bind, Except.bind] <;>
+      ite_true, Bool.false_eq_true, ite_false, hs, hr, bind, Except.bind] <;>
     exact hk
 
 /-! ## 3. The batched `.app` clause's identification
@@ -303,9 +306,9 @@ theorem whnfCoreBody_proj {fe : IFEnv} {fuel : Nat}
             s'.pins = s₀.pins ∧
             SimEOp (fun F => projScrut mode env c F d es) d s'.store r⌝⦄ := by
       cases c
-      · simp only [Bool.false_eq_true, if_false]
+      · simp only [Bool.false_eq_true, ite_false]
         exact hsim.whnf s₀ d pe es hok hpe hwes
-      · simp only [if_true]
+      · simp only [ite_true]
         exact hsim.whnfCore s₀ d pe es hok hpe hwes
     rw [ite_bind_fold]
     refine triple_seq h1 ?_

@@ -93,7 +93,7 @@ are stated at the two lists from the cursor on. -/
 `eidx_vec_beq` / `lidx_vec_beq` / `nidx_vec_beq` are the same function at
 three handle types: a cursor recursion whose leaf is the handle's `Eq2` and
 whose measure is `|a| - i`.  The Rust tests `i >= a.len()` and `i >= b.len()`
-in both branches — the nested repeat of the first test is dead, and `if_pos`
+in both branches — the nested repeat of the first test is dead, and `ite_eq_left`
 at the branch's own hypothesis is what kills it — so the four outcomes are
 *both past the end* (`true`), *one past* (`false` twice) and *both live*
 (the leaf, then the recursion).
@@ -122,29 +122,29 @@ private theorem eidx_vec_beq_aux (n : Nat) :
     have hlb := alloc.vec.Vec.len_val b
     by_cases ha : i ≥ a.len
     · have hae : a.val.length ≤ i.val := by scalar_tac
-      rw [if_pos ha] at hrun
+      rw [ite_eq_left ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp [absEIdxLFrom, List.drop_eq_nil_of_le hae, List.drop_eq_nil_of_le hbe]
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb, if_pos ha] at hrun
+        rw [ite_eq_right hb, ite_eq_left ha] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absEIdxLFrom, List.drop_eq_nil_of_le hae,
           List.drop_eq_getElem_cons hbl, List.map_nil, List.map_cons]
         simp
     · have hal : i.val < a.val.length := by scalar_tac
-      rw [if_neg ha, if_neg ha] at hrun
+      rw [ite_eq_right ha, ite_eq_right ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absEIdxLFrom, List.drop_eq_nil_of_le hbe,
           List.drop_eq_getElem_cons hal, List.map_nil, List.map_cons]
         simp
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb] at hrun
+        rw [ite_eq_right hb] at hrun
         obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -152,7 +152,7 @@ private theorem eidx_vec_beq_aux (n : Nat) :
         obtain ⟨hlt1, hev1⟩ := ConRon.Refine.ExprOps.vec_index_val he1
         have hb1v := eidx_eq2_abs_decide hb1
         by_cases hc : b1 = true
-        · rw [if_pos hc] at hrun
+        · rw [ite_eq_left hc] at hrun
           obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi5v : i5.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi5
           have hrec := ih (a.val.length - i5.val) (by omega) (i := i5) rfl hrun
@@ -165,7 +165,7 @@ private theorem eidx_vec_beq_aux (n : Nat) :
             heq, true_and]
         · simp only [Bool.not_eq_true] at hc
           rw [hc] at hrun hb1v
-          rw [if_neg (by simp)] at hrun
+          rw [ite_eq_right (by simp)] at hrun
           rw [← Result.ok_injective hrun]
           have hne : ¬ (absEIdx a.val[i.val] = absEIdx b.val[i.val]) := by
             rw [← hev, ← hev1]; exact of_decide_eq_false hb1v.symm
@@ -200,29 +200,29 @@ private theorem lidx_vec_beq_aux (n : Nat) :
     have hlb := alloc.vec.Vec.len_val b
     by_cases ha : i ≥ a.len
     · have hae : a.val.length ≤ i.val := by scalar_tac
-      rw [if_pos ha] at hrun
+      rw [ite_eq_left ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp [absLIdxLFrom, List.drop_eq_nil_of_le hae, List.drop_eq_nil_of_le hbe]
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb, if_pos ha] at hrun
+        rw [ite_eq_right hb, ite_eq_left ha] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absLIdxLFrom, List.drop_eq_nil_of_le hae,
           List.drop_eq_getElem_cons hbl, List.map_nil, List.map_cons]
         simp
     · have hal : i.val < a.val.length := by scalar_tac
-      rw [if_neg ha, if_neg ha] at hrun
+      rw [ite_eq_right ha, ite_eq_right ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absLIdxLFrom, List.drop_eq_nil_of_le hbe,
           List.drop_eq_getElem_cons hal, List.map_nil, List.map_cons]
         simp
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb] at hrun
+        rw [ite_eq_right hb] at hrun
         obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -230,7 +230,7 @@ private theorem lidx_vec_beq_aux (n : Nat) :
         obtain ⟨hlt1, hev1⟩ := ConRon.Refine.ExprOps.vec_index_val he1
         have hb1v := lidx_eq2_abs hb1
         by_cases hc : b1 = true
-        · rw [if_pos hc] at hrun
+        · rw [ite_eq_left hc] at hrun
           obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi5v : i5.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi5
           have hrec := ih (a.val.length - i5.val) (by omega) (i := i5) rfl hrun
@@ -243,7 +243,7 @@ private theorem lidx_vec_beq_aux (n : Nat) :
             heq, true_and]
         · simp only [Bool.not_eq_true] at hc
           rw [hc] at hrun hb1v
-          rw [if_neg (by simp)] at hrun
+          rw [ite_eq_right (by simp)] at hrun
           rw [← Result.ok_injective hrun]
           have hne : ¬ (absLIdx a.val[i.val] = absLIdx b.val[i.val]) := by
             rw [← hev, ← hev1]; exact of_decide_eq_false hb1v.symm
@@ -265,29 +265,29 @@ private theorem nidx_vec_beq_aux (n : Nat) :
     have hlb := alloc.vec.Vec.len_val b
     by_cases ha : i ≥ a.len
     · have hae : a.val.length ≤ i.val := by scalar_tac
-      rw [if_pos ha] at hrun
+      rw [ite_eq_left ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp [absNIdxLFrom, List.drop_eq_nil_of_le hae, List.drop_eq_nil_of_le hbe]
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb, if_pos ha] at hrun
+        rw [ite_eq_right hb, ite_eq_left ha] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absNIdxLFrom, List.drop_eq_nil_of_le hae,
           List.drop_eq_getElem_cons hbl, List.map_nil, List.map_cons]
         simp
     · have hal : i.val < a.val.length := by scalar_tac
-      rw [if_neg ha, if_neg ha] at hrun
+      rw [ite_eq_right ha, ite_eq_right ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absNIdxLFrom, List.drop_eq_nil_of_le hbe,
           List.drop_eq_getElem_cons hal, List.map_nil, List.map_cons]
         simp
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb] at hrun
+        rw [ite_eq_right hb] at hrun
         obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -295,7 +295,7 @@ private theorem nidx_vec_beq_aux (n : Nat) :
         obtain ⟨hlt1, hev1⟩ := ConRon.Refine.ExprOps.vec_index_val he1
         have hb1v := nidx_eq2_abs_decide hb1
         by_cases hc : b1 = true
-        · rw [if_pos hc] at hrun
+        · rw [ite_eq_left hc] at hrun
           obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi5v : i5.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi5
           have hrec := ih (a.val.length - i5.val) (by omega) (i := i5) rfl hrun
@@ -308,7 +308,7 @@ private theorem nidx_vec_beq_aux (n : Nat) :
             heq, true_and]
         · simp only [Bool.not_eq_true] at hc
           rw [hc] at hrun hb1v
-          rw [if_neg (by simp)] at hrun
+          rw [ite_eq_right (by simp)] at hrun
           rw [← Result.ok_injective hrun]
           have hne : ¬ (absNIdx a.val[i.val] = absNIdx b.val[i.val]) := by
             rw [← hev, ← hev1]; exact of_decide_eq_false hb1v.symm
@@ -350,7 +350,7 @@ theorem i_rec_rule_fire_beq_refines {a b : arena.env.IRecRuleFire} {o : Bool}
       obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have h1 := lidx_vec_beq_refines hb1
       by_cases hc : b1 = true
-      · rw [if_pos hc] at hrun
+      · rw [ite_eq_left hc] at hrun
         rw [hc] at h1
         have hl : absLIdxLFrom l1 0#usize = absLIdxLFrom l2 0#usize :=
           of_decide_eq_true h1.symm
@@ -360,7 +360,7 @@ theorem i_rec_rule_fire_beq_refines {a b : arena.env.IRecRuleFire} {o : Bool}
         simp [absIRecRuleFire, absEIdxLFrom, hl']
       · simp only [Bool.not_eq_true] at hc
         rw [hc] at hrun h1
-        rw [if_neg (by simp)] at hrun
+        rw [ite_eq_right (by simp)] at hrun
         rw [← Result.ok_injective hrun]
         have hl : ¬ (absLIdxLFrom l1 0#usize = absLIdxLFrom l2 0#usize) :=
           of_decide_eq_false h1.symm
@@ -385,14 +385,14 @@ private theorem beq_chain {b1 : Bool} {P Q : Prop} [Decidable P] [Decidable Q]
     (hx : ∀ o', x = ok o' → o' = decide Q) :
     o = decide (P ∧ Q) := by
   by_cases hb : b1 = true
-  · rw [if_pos hb] at hrun
+  · rw [ite_eq_left hb] at hrun
     rw [hx o hrun]
     rw [hb] at h1
     have hP : P := of_decide_eq_true h1.symm
     simp [hP]
   · simp only [Bool.not_eq_true] at hb
     rw [hb] at hrun h1
-    rw [if_neg (by simp)] at hrun
+    rw [ite_eq_right (by simp)] at hrun
     rw [← Result.ok_injective hrun]
     have hP : ¬ P := of_decide_eq_false h1.symm
     simp [hP]
@@ -411,10 +411,10 @@ private theorem beq_chain' {P P' Q : Prop} [Decidable P] [Decidable P']
     (hx : ∀ o', x = ok o' → o' = decide Q) :
     o = decide (P' ∧ Q) := by
   by_cases hP : P
-  · rw [if_pos hP] at hrun
+  · rw [ite_eq_left hP] at hrun
     rw [hx o hrun]
     simp [hPP.mp hP]
-  · rw [if_neg hP] at hrun
+  · rw [ite_eq_right hP] at hrun
     rw [← Result.ok_injective hrun]
     have hP' : ¬ P' := fun h => hP (hPP.mpr h)
     simp [hP']
@@ -494,29 +494,29 @@ private theorem i_rec_rules_beq_aux (n : Nat) :
     have hlb := alloc.vec.Vec.len_val b
     by_cases ha : i ≥ a.len
     · have hae : a.val.length ≤ i.val := by scalar_tac
-      rw [if_pos ha] at hrun
+      rw [ite_eq_left ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp [absIRecRuleLFrom, List.drop_eq_nil_of_le hae, List.drop_eq_nil_of_le hbe]
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb, if_pos ha] at hrun
+        rw [ite_eq_right hb, ite_eq_left ha] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absIRecRuleLFrom, List.drop_eq_nil_of_le hae,
           List.drop_eq_getElem_cons hbl, List.map_nil, List.map_cons]
         simp
     · have hal : i.val < a.val.length := by scalar_tac
-      rw [if_neg ha, if_neg ha] at hrun
+      rw [ite_eq_right ha, ite_eq_right ha] at hrun
       by_cases hb : i ≥ b.len
       · have hbe : b.val.length ≤ i.val := by scalar_tac
-        rw [if_pos hb] at hrun
+        rw [ite_eq_left hb] at hrun
         rw [← Result.ok_injective hrun]
         simp only [absIRecRuleLFrom, List.drop_eq_nil_of_le hbe,
           List.drop_eq_getElem_cons hal, List.map_nil, List.map_cons]
         simp
       · have hbl : i.val < b.val.length := by scalar_tac
-        rw [if_neg hb] at hrun
+        rw [ite_eq_right hb] at hrun
         obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -524,7 +524,7 @@ private theorem i_rec_rules_beq_aux (n : Nat) :
         obtain ⟨hlt1, hev1⟩ := ConRon.Refine.ExprOps.vec_index_val he1
         have hb1v := i_rec_rule_beq_refines hb1
         by_cases hc : b1 = true
-        · rw [if_pos hc] at hrun
+        · rw [ite_eq_left hc] at hrun
           obtain ⟨i5, hi5, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
           have hi5v : i5.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi5
           have hrec := ih (a.val.length - i5.val) (by omega) (i := i5) rfl hrun
@@ -537,7 +537,7 @@ private theorem i_rec_rules_beq_aux (n : Nat) :
             heq, true_and]
         · simp only [Bool.not_eq_true] at hc
           rw [hc] at hrun hb1v
-          rw [if_neg (by simp)] at hrun
+          rw [ite_eq_right (by simp)] at hrun
           rw [← Result.ok_injective hrun]
           have hne : ¬ (absIRecRule a.val[i.val] = absIRecRule b.val[i.val]) := by
             rw [← hev, ← hev1]; exact of_decide_eq_false hb1v.symm
@@ -805,8 +805,8 @@ theorem canonNameMap_cons (p : NIdx) (ps cs : List NIdx) (n : NIdx) :
   unfold canonNameMap
   rw [List.findIdx?_cons]
   by_cases h : (p == n) = true
-  · simp only [h, if_true]; cases cs <;> rfl
-  · simp only [h, Bool.false_eq_true, if_false]
+  · simp only [h, ite_true]; cases cs <;> rfl
+  · simp only [h, Bool.false_eq_true, ite_false]
     cases hf : ps.findIdx? (fun q => q == n) <;> simp
 
 theorem canonNameMap_nil (cs : List NIdx) (n : NIdx) : canonNameMap [] cs n = n := by
@@ -820,14 +820,14 @@ private theorem canon_name_map_from_aux (k : Nat) :
   induction k with
   | zero =>
     intro ps cs n i o hk hrun
-    rw [arena.canon.canon_name_map_from, if_pos (by scalar_tac)] at hrun
+    rw [arena.canon.canon_name_map_from, ite_eq_left (by scalar_tac)] at hrun
     simp only [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2, Result.ok.injEq] at hrun
     subst hrun
     rw [absNIdxLFrom, List.drop_eq_nil_of_le (by omega), List.map_nil, canonNameMap_nil]
   | succ m ih =>
     intro ps cs n i o hk hrun
     have hl : i.val < ps.val.length := by omega
-    rw [arena.canon.canon_name_map_from, if_neg (by scalar_tac)] at hrun
+    rw [arena.canon.canon_name_map_from, ite_eq_right (by scalar_tac)] at hrun
     obtain ⟨e, he, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨b1, hb1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨hlt, hev⟩ := ConRon.Refine.ExprOps.vec_index_val he
@@ -839,9 +839,9 @@ private theorem canon_name_map_from_aux (k : Nat) :
       rw [← List.map_tail, List.tail_drop]
     cases b1 with
     | true =>
-      simp only [if_true] at hrun ⊢
+      simp only [ite_true] at hrun ⊢
       by_cases hc : i < cs.len
-      · rw [if_pos hc] at hrun
+      · rw [ite_eq_left hc] at hrun
         obtain ⟨e2, he2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
         obtain ⟨hlt2, hev2⟩ := ConRon.Refine.ExprOps.vec_index_val he2
         simp only [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
@@ -849,14 +849,14 @@ private theorem canon_name_map_from_aux (k : Nat) :
         subst hrun
         have hcl : i.val < cs.val.length := by scalar_tac
         rw [absNIdxLFrom, List.drop_eq_getElem_cons hcl, List.map_cons, List.headD_cons, hev2]
-      · rw [if_neg hc] at hrun
+      · rw [ite_eq_right hc] at hrun
         simp only [arena.handle.NIdx.Insts.Con_ron_coreRonHashmapDup.dup2,
           Result.ok.injEq] at hrun
         subst hrun
         rw [absNIdxLFrom, List.drop_eq_nil_of_le (by scalar_tac)]
         rfl
     | false =>
-      simp only [Bool.false_eq_true, if_false] at hrun ⊢
+      simp only [Bool.false_eq_true, ite_false] at hrun ⊢
       obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
       have hi2v : i2.val = i.val + 1 := ConRon.Refine.HashMap.uscalar_add_eq hi2
       rw [ih (by omega) hrun, absNIdxLFrom, absNIdxLFrom, absNIdxLFrom, hi2v, htail]
@@ -981,11 +981,11 @@ private theorem canon_names_go_aux (k : Nat) :
   induction k with
   | zero =>
     intro pers st lst i n out hn hrel hinv
-    rw [arena.canon.canon_names_go, if_pos (by scalar_tac), canonNamesGo]
+    rw [arena.canon.canon_names_go, ite_eq_left (by scalar_tac), canonNamesGo]
     lockstep
   | succ m ih =>
     intro pers st lst i n out hn hrel hinv
-    rw [arena.canon.canon_names_go, if_neg (by scalar_tac), canonNamesGo]
+    rw [arena.canon.canon_names_go, ite_eq_right (by scalar_tac), canonNamesGo]
     simp only [bind_assoc, pure_bind]
     lockstep
 
@@ -1143,26 +1143,26 @@ private theorem canon_level_list_eq_aux (n : Nat) :
   | zero =>
     intro pers st lst ps ps2 cs fuel us vs i hn hrel hinv
     apply LSR.of_LS
-    rw [arena.canon.canon_level_list_eq, if_pos (by scalar_tac), absLIdxLFrom,
+    rw [arena.canon.canon_level_list_eq, ite_eq_left (by scalar_tac), absLIdxLFrom,
       vecFrom_nil _ _ _ (by omega)]
     by_cases hv : vs.val.length ≤ i.val
-    · rw [if_pos (by scalar_tac), absLIdxLFrom, vecFrom_nil _ _ _ hv]
+    · rw [ite_eq_left (by scalar_tac), absLIdxLFrom, vecFrom_nil _ _ _ hv]
       simp only [canonLevelListEq]
       lockstep
-    · rw [if_neg (by scalar_tac), if_pos (by scalar_tac), absLIdxLFrom,
+    · rw [ite_eq_right (by scalar_tac), ite_eq_left (by scalar_tac), absLIdxLFrom,
         vecFrom_cons _ _ _ (by omega)]
       simp only [canonLevelListEq]
       lockstep
   | succ m ih =>
     intro pers st lst ps ps2 cs fuel us vs i hn hrel hinv
     apply LSR.of_LS
-    rw [arena.canon.canon_level_list_eq, if_neg (by scalar_tac), if_neg (by scalar_tac),
+    rw [arena.canon.canon_level_list_eq, ite_eq_right (by scalar_tac), ite_eq_right (by scalar_tac),
       absLIdxLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hv : vs.val.length ≤ i.val
-    · rw [if_pos (by scalar_tac), absLIdxLFrom, vecFrom_nil _ _ _ hv]
+    · rw [ite_eq_left (by scalar_tac), absLIdxLFrom, vecFrom_nil _ _ _ hv]
       simp only [canonLevelListEq]
       lockstep
-    · rw [if_neg (by scalar_tac), absLIdxLFrom, vecFrom_cons _ _ _ (by omega)]
+    · rw [ite_eq_right (by scalar_tac), absLIdxLFrom, vecFrom_cons _ _ _ (by omega)]
       simp only [canonLevelListEq]
       lockstep
 
@@ -1300,26 +1300,26 @@ private theorem canon_rules_eq_aux (n : Nat) :
   | zero =>
     intro pers st lst ps ps2 cs fuel rs rs2 i hn hrel hinv
     apply LSR.of_LS
-    rw [arena.canon.canon_rules_eq, if_pos (by scalar_tac), absIRecRuleLFrom,
+    rw [arena.canon.canon_rules_eq, ite_eq_left (by scalar_tac), absIRecRuleLFrom,
       vecFrom_nil _ _ _ (by omega)]
     by_cases hv : rs2.val.length ≤ i.val
-    · rw [if_pos (by scalar_tac), absIRecRuleLFrom, vecFrom_nil _ _ _ hv]
+    · rw [ite_eq_left (by scalar_tac), absIRecRuleLFrom, vecFrom_nil _ _ _ hv]
       simp only [canonRulesEq]
       lockstep
-    · rw [if_neg (by scalar_tac), if_pos (by scalar_tac), absIRecRuleLFrom,
+    · rw [ite_eq_right (by scalar_tac), ite_eq_left (by scalar_tac), absIRecRuleLFrom,
         vecFrom_cons _ _ _ (by omega)]
       simp only [canonRulesEq]
       lockstep
   | succ m ih =>
     intro pers st lst ps ps2 cs fuel rs rs2 i hn hrel hinv
     apply LSR.of_LS
-    rw [arena.canon.canon_rules_eq, if_neg (by scalar_tac), if_neg (by scalar_tac),
+    rw [arena.canon.canon_rules_eq, ite_eq_right (by scalar_tac), ite_eq_right (by scalar_tac),
       absIRecRuleLFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hv : rs2.val.length ≤ i.val
-    · rw [if_pos (by scalar_tac), absIRecRuleLFrom, vecFrom_nil _ _ _ hv]
+    · rw [ite_eq_left (by scalar_tac), absIRecRuleLFrom, vecFrom_nil _ _ _ hv]
       simp only [canonRulesEq]
       lockstep
-    · rw [if_neg (by scalar_tac), absIRecRuleLFrom, vecFrom_cons _ _ _ (by omega)]
+    · rw [ite_eq_right (by scalar_tac), absIRecRuleLFrom, vecFrom_cons _ _ _ (by omega)]
       simp only [canonRulesEq]
       lockstep
 
@@ -1421,25 +1421,25 @@ private theorem canon_eq_list_aux (n : Nat) :
   induction n with
   | zero =>
     intro pers st lst xs ys i hn hrel hinv
-    rw [arena.canon.canon_eq_list, if_pos (by scalar_tac), absICILFrom,
+    rw [arena.canon.canon_eq_list, ite_eq_left (by scalar_tac), absICILFrom,
       vecFrom_nil _ _ _ (by omega)]
     by_cases hv : ys.val.length ≤ i.val
-    · rw [if_pos (by scalar_tac), absICILFrom, vecFrom_nil _ _ _ hv]
+    · rw [ite_eq_left (by scalar_tac), absICILFrom, vecFrom_nil _ _ _ hv]
       simp only [canonEqList]
       lockstep
-    · rw [if_neg (by scalar_tac), if_pos (by scalar_tac), absICILFrom,
+    · rw [ite_eq_right (by scalar_tac), ite_eq_left (by scalar_tac), absICILFrom,
         vecFrom_cons _ _ _ (by omega)]
       simp only [canonEqList]
       lockstep
   | succ m ih =>
     intro pers st lst xs ys i hn hrel hinv
-    rw [arena.canon.canon_eq_list, if_neg (by scalar_tac), if_neg (by scalar_tac),
+    rw [arena.canon.canon_eq_list, ite_eq_right (by scalar_tac), ite_eq_right (by scalar_tac),
       absICILFrom, vecFrom_cons _ _ _ (by omega)]
     by_cases hv : ys.val.length ≤ i.val
-    · rw [if_pos (by scalar_tac), absICILFrom, vecFrom_nil _ _ _ hv]
+    · rw [ite_eq_left (by scalar_tac), absICILFrom, vecFrom_nil _ _ _ hv]
       simp only [canonEqList]
       lockstep
-    · rw [if_neg (by scalar_tac), absICILFrom, vecFrom_cons _ _ _ (by omega)]
+    · rw [ite_eq_right (by scalar_tac), absICILFrom, vecFrom_cons _ _ _ (by omega)]
       simp only [canonEqList]
       lockstep
 

@@ -195,12 +195,12 @@ theorem code_points_from_val' (N : Nat) :
   | zero =>
     intro codes i out r hN h
     rw [kernel.core_types.code_points_from] at h
-    rw [if_pos (by have := Slice.len_val codes; scalar_tac)] at h
+    rw [ite_eq_left (by have := Slice.len_val codes; scalar_tac)] at h
     rw [← Result.ok_injective h, List.drop_eq_nil_of_le (by omega)]; simp
   | succ N ih =>
     intro codes i out r hN h
     rw [kernel.core_types.code_points_from] at h
-    rw [if_neg (by have := Slice.len_val codes; scalar_tac)] at h
+    rw [ite_eq_right (by have := Slice.len_val codes; scalar_tac)] at h
     obtain ⟨x, hx, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -456,14 +456,14 @@ unifying `?st.store` with a store (region G's form). -/
             simp only [absIProjTable, absU]; exact hlt
           refine ⟨_, lst1, rfl, ?_, hrel1, hinv1⟩
           dsimp only
-          rw [if_pos hlt', Option.map_some, i_proj_table_entry_abs hie]
+          rw [ite_eq_left hlt', Option.map_some, i_proj_table_entry_abs hie]
         · rename_i hge
           cases Result.ok_injective hm
           have hge' : ¬ absU i < (absIProjTable tbl).numFields := by
             simp only [absIProjTable, absU]; exact hge
           refine ⟨_, lst1, rfl, ?_, hrel1, hinv1⟩
           dsimp only
-          rw [if_neg hge']; rfl
+          rw [ite_eq_right hge']; rfl
       | _ =>
         simp only at hm
         cases Result.ok_injective hm

@@ -142,7 +142,7 @@ lists walked side by side. -/
   | zero =>
     intro i st lst rf lf hn hrel hinv hfe
     rw [arena.inductives.block_tail.check_block_tables.eq_def,
-      if_pos (by simp only [alloc.vec.Vec.len]; scalar_tac),
+      ite_eq_left (by simp only [alloc.vec.Vec.len]; scalar_tac),
       List.drop_eq_nil_of_le (by omega : p.members.val.length ≤ i.val)]
     simp only [List.map_nil, checkBlockTables]
     lockstep
@@ -150,12 +150,12 @@ lists walked side by side. -/
     intro i st lst rf lf hn hrel hinv hfe
     have hm : i.val < p.members.val.length := by omega
     rw [arena.inductives.block_tail.check_block_tables.eq_def,
-      if_neg (by simp only [alloc.vec.Vec.len]; scalar_tac),
+      ite_eq_right (by simp only [alloc.vec.Vec.len]; scalar_tac),
       List.drop_eq_getElem_cons hm]
     by_cases hc : i.val < ctors_as.val.length
-    · rw [if_neg (by simp only [alloc.vec.Vec.len]; scalar_tac), List.drop_eq_getElem_cons hc]
+    · rw [ite_eq_right (by simp only [alloc.vec.Vec.len]; scalar_tac), List.drop_eq_getElem_cons hc]
       by_cases hs : i.val < sortsss.val.length
-      · rw [if_neg (by simp only [alloc.vec.Vec.len]; scalar_tac), List.drop_eq_getElem_cons hs]
+      · rw [ite_eq_right (by simp only [alloc.vec.Vec.len]; scalar_tac), List.drop_eq_getElem_cons hs]
         simp only [List.map_cons]
         by_cases h1 : (ctors_as.val[i.val]).val.length = 1 ∧ (sortsss.val[i.val]).val.length = 1
         · obtain ⟨h1c, h1s⟩ := h1
@@ -171,11 +171,11 @@ lists walked side by side. -/
         · rw [checkBlockTables_other _ _ _ _ _ _ _ _
             (by simpa [absCtorsL, absLIdxLL] using h1)]
           lockstep
-      · rw [if_pos (by simp only [alloc.vec.Vec.len]; scalar_tac),
+      · rw [ite_eq_left (by simp only [alloc.vec.Vec.len]; scalar_tac),
           List.drop_eq_nil_of_le (by omega : sortsss.val.length ≤ i.val)]
         simp only [List.map_cons, List.map_nil, checkBlockTables]
         lockstep
-    · rw [if_pos (by simp only [alloc.vec.Vec.len]; scalar_tac),
+    · rw [ite_eq_left (by simp only [alloc.vec.Vec.len]; scalar_tac),
         List.drop_eq_nil_of_le (by omega : ctors_as.val.length ≤ i.val)]
       simp only [List.map_cons, List.map_nil, checkBlockTables]
       lockstep

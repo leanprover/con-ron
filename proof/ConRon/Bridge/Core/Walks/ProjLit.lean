@@ -17,6 +17,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -101,7 +104,7 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1),
           w, hw3, hww, F, ?_⟩
         simp only [ConLeche.projLitToCtorFueled, ConLeche.projLitToCtor, hS,
-          if_true]
+          ite_true]
         exact hF
       next hsupf =>
         have hS : ConLeche.strLitSupported env = false := by
@@ -111,7 +114,7 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         refine ⟨hok1, hx1, hp1, .lit (.strVal str), denote_ext hden hx1, hw, 0,
           ?_⟩
         simp only [ConLeche.projLitToCtorFueled, ConLeche.projLitToCtor, hS,
-          Bool.false_eq_true, if_false]
+          Bool.false_eq_true, ite_false]
         rfl
   all_goals
     dsimp only

@@ -128,8 +128,8 @@ theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs)
       have hp := hinv.perst
       rw [rPersE] at hp
       split at h <;> rename_i hs
-      · rw [if_pos hs] at hp; exact etables_get_wf hp h
-      · rw [if_neg hs] at hp; exact etables_get_wf hp h
+      · rw [ite_eq_left hs] at hp; exact etables_get_wf hp h
+      · rw [ite_eq_right hs] at hp; exact etables_get_wf hp h
     · split at h
       · exact etables_get_wf hinv.scrt h
       · rw [← Result.ok_injective h]; intro v hv; simp at hv

@@ -44,11 +44,11 @@ theorem infer_spine_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
   induction n with
   | zero =>
     intro pers vis st mode lane fu fe lfe depth ty acc args i lst hx hn hrel hinv hctx hf
-    rw [arena.core.infer_spine, inferSpine, dif_neg (by simp [absEIdxArr, absSz]; omega)]
+    rw [arena.core.infer_spine, inferSpine, dite_eq_right (by simp [absEIdxArr, absSz]; omega)]
     lockstep_e
   | succ m ih =>
     intro pers vis st mode lane fu fe lfe depth ty acc args i lst hx hn hrel hinv hctx hf
-    rw [arena.core.infer_spine, inferSpine, dif_pos (by simp [absEIdxArr, absSz]; omega)]
+    rw [arena.core.infer_spine, inferSpine, dite_eq_left (by simp [absEIdxArr, absSz]; omega)]
     lockstep_e
 
 
@@ -91,11 +91,11 @@ theorem infer_spine_io_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
   induction n with
   | zero =>
     intro pers vis st mode lane io fu fe lfe depth ty acc args i lst hx hn hrel hinv hctx hf
-    rw [arena.core.infer_spine_io, inferSpineIO, dif_neg (by simp [absEIdxArr, absSz]; omega)]
+    rw [arena.core.infer_spine_io, inferSpineIO, dite_eq_right (by simp [absEIdxArr, absSz]; omega)]
     lockstep_e
   | succ m ih =>
     intro pers vis st mode lane io fu fe lfe depth ty acc args i lst hx hn hrel hinv hctx hf
-    rw [arena.core.infer_spine_io, inferSpineIO, dif_pos (by simp [absEIdxArr, absSz]; omega)]
+    rw [arena.core.infer_spine_io, inferSpineIO, dite_eq_left (by simp [absEIdxArr, absSz]; omega)]
     lockstep_e
 
 
@@ -166,7 +166,7 @@ end spineIO
     · have hne : stk.val.length ≠ 0 := by scalar_tac
       show inferLamsOut _ _ (absLamStk stk) _ _ _ = _
       simp only [vec_len_abs]
-      rw [if_neg hne, absLamStk_last_pw stk _ (by assumption) (by scalar_tac)]
+      rw [ite_eq_right hne, absLamStk_last_pw stk _ (by assumption) (by scalar_tac)]
 
 
 theorem infer_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :

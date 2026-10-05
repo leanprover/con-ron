@@ -68,16 +68,16 @@ theorem pin_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AState
          else Except.error
            (Arena.CheckError.internal "arena: reserved-name pins not interned")) := by
     by_cases h : absSz i < lst.pins.names.size
-    · rw [dif_pos h]
+    · rw [dite_eq_left h]
       show (Arena.pinAt (absSz i)) lst = _
       rw [Arena.pinAt]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, StateT.pure, Except.pure, Except.bind, dif_pos h]
-    · rw [dif_neg h]
+        Pure.pure, StateT.pure, Except.pure, Except.bind, dite_eq_left h]
+    · rw [dite_eq_right h]
       show (Arena.pinAt (absSz i)) lst = _
       rw [Arena.pinAt]
       simp only [Bind.bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
-        Pure.pure, Except.pure, Except.bind, dif_neg h,
+        Pure.pure, Except.pure, Except.bind, dite_eq_right h,
         Arena.fail, throwThe, MonadExceptOf.throw,
         Function.comp_apply, StateT.lift]
   split at hrun
@@ -94,7 +94,7 @@ theorem pin_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AState
       show ¬ (i.val < st.pins.names.val.length)
       omega
     exact AErrSim.internal (s := "arena: reserved-name pins not interned")
-      (by rw [hrun2, dif_neg hnl])
+      (by rw [hrun2, dite_eq_right hnl])
   case isFalse hlt =>
     obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     obtain ⟨n1, hn1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -105,7 +105,7 @@ theorem pin_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AState
     have hlt3 : absSz i < lst.pins.names.size := by rw [hlen]; exact hlt2
     refine ⟨_, lst, ?_, rfl, hrel, hinv⟩
     show (Arena.pinAt (absSz i)).run lst = _
-    rw [hrun2, dif_pos hlt3]
+    rw [hrun2, dite_eq_left hlt3]
     have hi : lst.pins.names.toList[absSz i]? =
         (st.pins.names.val.map absNIdx)[absSz i]? := by rw [hnames]
     simp only [List.getElem?_map, Array.getElem?_toList] at hi
@@ -354,20 +354,20 @@ theorem estore_view_lit_abs {pers rs ls} (hrel : StoreRel pers rs ls)
   have hb2 := eidx_is_persistent_abs hb
   rw [EStore.viewLit]
   split at h <;> rename_i hbv
-  · rw [if_pos (show (absEIdx i).isPersistent = true by rw [hb2, hbv]), EStore.persGetLit]
+  · rw [ite_eq_left (show (absEIdx i).isPersistent = true by rw [hb2, hbv]), EStore.persGetLit]
     rw [arena.store.EStore.pers_get_lit] at h
     have h3 : arena.store.ETables.get_lit (rPersE pers rs) i = ok o := by
       unfold rPersE
       split at h <;> rename_i hs
-      · rw [if_pos hs]; exact h
-      · rw [if_neg hs]; exact h
+      · rw [ite_eq_left hs]; exact h
+      · rw [ite_eq_right hs]; exact h
     exact etables_get_lit_abs hrel.perst h3
-  · rw [if_neg (show ¬ (absEIdx i).isPersistent = true by rw [hb2]; simpa using hbv),
+  · rw [ite_eq_right (show ¬ (absEIdx i).isPersistent = true by rw [hb2]; simpa using hbv),
       hrel.scratchOn]
     split at h <;> rename_i hs
-    · rw [if_pos hs]
+    · rw [ite_eq_left hs]
       exact etables_get_lit_abs hrel.scrt h
-    · rw [if_neg hs]
+    · rw [ite_eq_right hs]
       have h2 : (none : Option kernel.expr.Literal) = o := Result.ok_injective h
       subst h2
       rfl
@@ -383,8 +383,8 @@ theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs)
     have h3 : arena.store.ETables.get_lit (rPersE pers rs) i = ok o := by
       unfold rPersE
       split at h <;> rename_i hs
-      · rw [if_pos hs]; exact h
-      · rw [if_neg hs]; exact h
+      · rw [ite_eq_left hs]; exact h
+      · rw [ite_eq_right hs]; exact h
     exact etables_get_lit_wf hinv.perst h3
   · split at h
     · exact etables_get_lit_wf hinv.scrt h
@@ -467,8 +467,8 @@ theorem estore_view_lit_wf' {pers rs} (hinv : StoreInv pers rs) {i : arena.handl
       have h3 : arena.store.ETables.get (rPersE pers rs) i = ok (some (.Lit l)) := by
         unfold rPersE
         split at h <;> rename_i hs
-        · rw [if_pos hs]; exact h
-        · rw [if_neg hs]; exact h
+        · rw [ite_eq_left hs]; exact h
+        · rw [ite_eq_right hs]; exact h
       exact etables_get_lit_wf' hinv.perst h3
     · split at h
       · exact etables_get_lit_wf' hinv.scrt h

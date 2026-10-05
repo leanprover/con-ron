@@ -31,6 +31,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -53,13 +56,13 @@ theorem viewBind_of_lam_tag {st : EStore} (hwf : StoreWF st) {v : EIdx}
     obtain ⟨et, eb, rfl, h1, h2⟩ := denote_lam_inv hwf hw hd
     have hb : ETag.isBind v.tag = true := by rw [htg]; decide
     refine ⟨ty, b, m, et, eb, ?_, rfl, h1, h2⟩
-    simp only [EStore.view, hb, if_true] at hw
+    simp only [EStore.view, hb, ite_true] at hw
     cases hvb : st.viewBind v with
     | none => rw [hvb] at hw; simp at hw
     | some p =>
       obtain ⟨ty', b', m'⟩ := p
       rw [hvb] at hw
-      simp only [eBindView, htg, beq_self_eq_true, if_true,
+      simp only [eBindView, htg, beq_self_eq_true, ite_true,
         Option.some.injEq, ENodeView.lam.injEq] at hw
       obtain ⟨rfl, rfl, rfl⟩ := hw
       rfl
@@ -95,7 +98,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
   | fuel + 1, s₀, h, E, hok, hd => by
     rw [getAppSpineGo]
     by_cases htg : (h.tag == ETag.app) = true
-    · rw [if_pos htg]
+    · rw [ite_eq_left htg]
       refine triple_seq (viewApp_spec s₀ h) ?_
       rintro o s1 ⟨hs1, rfl⟩
       subst s1
@@ -129,7 +132,7 @@ theorem getAppSpineGo_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx)
             rw [Array.getElem_push_eq, List.take_of_length_le (by simp; omega),
               Expr.mkAppN_append_one, Expr.mkAppN_getApp]
             exact hd
-    · rw [if_neg htg]
+    · rw [ite_eq_right htg]
       mvcgen
       subst_vars
       have hna : ∀ x y, E ≠ Expr.app x y := by
@@ -159,7 +162,7 @@ theorem headAndArgs_spec (s₀ : AState) (v : EIdx) (V : Expr)
         Frontend.denoteEList s₀.store r.2.toList = some V.getAppArgs⌝⦄ := by
   unfold headAndArgs
   by_cases htg : (v.tag == ETag.app) = true
-  · rw [if_pos htg]
+  · rw [ite_eq_left htg]
     refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ v hok
       (by rw [hd]; rfl)) ?_
     rintro hh s1 ⟨hs1, hr1⟩
@@ -171,7 +174,7 @@ theorem headAndArgs_spec (s₀ : AState) (v : EIdx) (V : Expr)
     mvcgen
     subst_vars
     exact ⟨rfl, hr1 V hd, by simpa using hr2 V hd⟩
-  · rw [if_neg htg]
+  · rw [ite_eq_right htg]
     mvcgen
     subst_vars
     have hna : ∀ x y, V ≠ Expr.app x y := by
@@ -196,12 +199,12 @@ theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
   unfold internAppRebuilt
   cases same with
   | true =>
-    simp only [if_true]
+    simp only [ite_true]
     mvcgen
     subst_vars
     exact ⟨hok, Ext.refl _, rfl, by simpa using hsame⟩
   | false =>
-    simp only [Bool.false_eq_true, if_false]
+    simp only [Bool.false_eq_true, ite_false]
     refine triple_mono (internE_ok_spec s₀ (.app f a) hok
       (viewOK_app (by rw [hf]; rfl) (by rw [ha]; rfl))) ?_
     rintro r s' ⟨hck, hx, hp, hr⟩
@@ -258,7 +261,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
   have happ : Expr.mkAppN V.getAppFn (V.getAppArgs ++ [A]) = .app V A := by
     rw [Expr.mkAppN_append_one, Expr.mkAppN_getApp]
   by_cases htc : (hd.tag == ETag.const) = true
-  · rw [if_pos htc]
+  · rw [ite_eq_left htc]
     have hdx : Frontend.denoteEList s₀.store (vargs.push a).toList =
         some (V.getAppArgs ++ [A]) := by
       simp only [Array.toList_push]
@@ -268,7 +271,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
       (fun f a => getAppFn_not_app V f a) rfl hdx (by rw [happ]; exact hw)
     rw [happ] at h
     exact h
-  · rw [if_neg htc]
+  · rw [ite_eq_right htc]
     mvcgen
     subst_vars
     have hnc : ∀ c us, (Expr.app V A).getAppFn ≠ .const c us := by
@@ -325,7 +328,7 @@ skip. -/
 theorem mWA_lam_skip {F d : Nat} {ty b a : Expr} {mb : BinderMeta}
     {rest : List Expr} (hg : ConLeche.betaGateFires mode mb.pw = true) :
     mWA mode env c F d (.lam ty b mb) (a :: rest) = mBP mode env c F d b [a] rest := by
-  simp only [mWA, mBP, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg, if_true]
+  simp only [mWA, mBP, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg, ite_true]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:165 whnfApp_lam — the
 certified β. -/
@@ -335,8 +338,8 @@ theorem mWA_lam_cert {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     (hdq : ConLeche.isDefEqCore mode env F d ta ty = .ok true) :
     mWA mode env c F d (.lam ty b mb) (a :: rest) = mBP mode env c F d b [a] rest := by
   simp only [mWA, mBP, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg,
-    Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
-    ConLeche.defeq_def, hdq, bind, Except.bind, if_true]
+    Bool.false_eq_true, ite_false, ConLeche.inferTypeIO_def, hio,
+    ConLeche.defeq_def, hdq, bind, Except.bind, ite_true]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:165 whnfApp_lam — the
 certificate fails: the redex is stuck. -/
@@ -347,7 +350,7 @@ theorem mWA_lam_fail {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     mWA mode env c F d (.lam ty b mb) (a :: rest) =
       .ok (Expr.mkAppN (.app (.lam ty b mb) a) rest) := by
   simp only [mWA, ConLeche.whnfApp_lam, ConLeche.whnfAppLam, hg,
-    Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
+    Bool.false_eq_true, ite_false, ConLeche.inferTypeIO_def, hio,
     ConLeche.defeq_def, hdq, bind, Except.bind]
   rfl
 
@@ -383,7 +386,7 @@ theorem mBP_lam_skip {F d : Nat} {ty b a : Expr} {mb : BinderMeta}
     {acc rest : List Expr} (hg : ConLeche.betaGateFires mode mb.pw = true) :
     mBP mode env c F d (.lam ty b mb) acc (a :: rest) =
       mBP mode env c F d b (a :: acc) rest := by
-  simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg, if_true]
+  simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg, ite_true]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:215 betaPeel_lam — the
 certified binder. -/
@@ -395,8 +398,8 @@ theorem mBP_lam_cert {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
     mBP mode env c F d (.lam ty b mb) acc (a :: rest) =
       mBP mode env c F d b (a :: acc) rest := by
   simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg,
-    Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
-    ConLeche.defeq_def, hdq, bind, Except.bind, if_true]
+    Bool.false_eq_true, ite_false, ConLeche.inferTypeIO_def, hio,
+    ConLeche.defeq_def, hdq, bind, Except.bind, ite_true]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:215 betaPeel_lam — the
 certificate fails. -/
@@ -409,7 +412,7 @@ theorem mBP_lam_fail {F d : Nat} {ty b a ta : Expr} {mb : BinderMeta}
       .ok (Expr.mkAppN (.app ((Expr.lam ty b mb).instantiateList acc) a)
         rest) := by
   simp only [mBP, ConLeche.betaPeel_lam, ConLeche.betaPeelLam, hg,
-    Bool.false_eq_true, if_false, ConLeche.inferTypeIO_def, hio,
+    Bool.false_eq_true, ite_false, ConLeche.inferTypeIO_def, hio,
     ConLeche.defeq_def, hdq, bind, Except.bind]
   rfl
 
@@ -557,7 +560,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
   have hwf := hok.state.wf
   rw [ConRon.Arena.whnfApp]
   by_cases hi : i < args.size
-  · rw [dif_pos hi]
+  · rw [dite_eq_left hi]
     obtain ⟨A, rest, hdrop, hdA, hrestD⟩ := denoteEList_drop_cons hi
       (ExprOps.denoteEList_drop i _ _ hctx.1)
     have hdrop' : xs.drop i = A :: rest := hdrop
@@ -567,7 +570,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
     have hwrest : ∀ x ∈ rest, Expr.WScoped d x :=
       fun x hx => hctx.2.1 x (hrestmem x hx)
     by_cases htl : (v.tag == ETag.lam) = true
-    · simp only [htl, if_true]
+    · simp only [htl, ite_true]
       obtain ⟨ty, body, mb, Ty, Body, hvb, rfl, hty, hbody⟩ :=
         viewBind_of_lam_tag hwf (by simpa using htl) hdv
       have hwTB : Expr.WScoped d Ty ∧ Expr.WScoped d Body := by
@@ -585,14 +588,14 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
         rw [ConLeche.instList_single]
         exact Expr.WScoped.instantiate1_gen hwA 0 hwTB.2
       by_cases hg : ConLeche.betaGateFires mode mb.pw = true
-      · rw [if_pos hg]
+      · rw [ite_eq_left hg]
         refine triple_mono (ihB (k - 1) (by omega) body #[args[i]] (i + 1) s₀
           Body [A] (by omega) hok hctx hbody hvec hwB1) ?_
         rintro r s' ⟨hck, hx, hp, v', hdv', hwv', F, hF⟩
         refine ⟨hck, hx, hp, v', hdv', hwv', F, ?_⟩
         rw [hdrop', mWA_lam_skip hg, ← hdrop1]
         exact hF
-      · rw [if_neg hg]
+      · rw [ite_eq_right hg]
         have hg' : ConLeche.betaGateFires mode mb.pw = false :=
           Bool.eq_false_iff.mpr hg
         refine triple_seq (hsim.inferIO s₀ d args[i] A hok hdA hwA) ?_
@@ -603,7 +606,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
         have hx03 : Ext s₀.store s3.store := hx2.trans hx3
         cases b with
         | true =>
-          simp only [if_true]
+          simp only [ite_true]
           refine triple_mono (ihB (k - 1) (by omega) body #[args[i]] (i + 1) s3
             Body [A] (by omega) hok3 (hctx.ext hx03) (denote_ext hbody hx03)
             (hvec.ext hx03) hwB1) ?_
@@ -615,7 +618,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
             (ConLeche.isDefEqCore_mono (by omega) hF2), ← hdrop1]
           exact mBP_mono (by omega) hF3
         | false =>
-          simp only [Bool.false_eq_true, if_false]
+          simp only [Bool.false_eq_true, ite_false]
           refine triple_seq (internAppRebuilt_spec s3 nodes[i]! same v args[i]
             (.lam Ty Body mb) A hok3 (denote_ext hdv hx03)
             (denote_ext hdA hx03) (fun hs => by
@@ -634,7 +637,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
           rw [hdrop']
           exact mWA_lam_fail hg' (ConLeche.inferTypeIO_mono (by omega) hF1)
             (ConLeche.isDefEqCore_mono (by omega) hF2)
-    · simp only [htl, Bool.false_eq_true, if_false]
+    · simp only [htl, Bool.false_eq_true, ite_false]
       have hnl : ∀ ty b mb, V ≠ .lam ty b mb := by
         obtain ⟨w, hw⟩ := denoteE_view hdv
         refine denote_not_lam hwf hw hdv ?_
@@ -704,7 +707,7 @@ theorem whnfApp_carry_step {fuel : Nat} (henv : ConLeche.EnvWF env)
         rw [hdrop', mWA_iota_some hnl (ConLeche.iotaRec_mono (by omega) hF1)
           (ConLeche.whnfCore_mono (by omega) hF2), ← hdrop1]
         exact mWA_mono (by omega) hF3
-  · rw [dif_neg hi]
+  · rw [dite_eq_right hi]
     mvcgen
     subst_vars
     have hlen := ExprOps.denoteEList_length _ _ hctx.1
@@ -739,7 +742,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
   have hwf := hok.state.wf
   rw [ConRon.Arena.betaPeel]
   by_cases hi : i < args.size
-  · rw [dif_pos hi]
+  · rw [dite_eq_left hi]
     obtain ⟨A, rest, hdrop, hdA, hrestD⟩ := denoteEList_drop_cons hi
       (ExprOps.denoteEList_drop i _ _ hctx.1)
     have hdrop' : xs.drop i = A :: rest := hdrop
@@ -749,7 +752,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
     have hwrest : ∀ x ∈ rest, Expr.WScoped d x :=
       fun x hx => hctx.2.1 x (hrestmem x hx)
     by_cases htl : (t.tag == ETag.lam) = true
-    · simp only [htl, if_true]
+    · simp only [htl, ite_true]
       obtain ⟨ty, body, mb, Ty, Body, hvb, rfl, hty, hbody⟩ :=
         viewBind_of_lam_tag hwf (by simpa using htl) hdt
       have hwTB : Expr.WScoped d (Ty.instantiateList ws) ∧
@@ -766,7 +769,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
       dsimp only
       rw [betaSkip_eq_fires hμ]
       by_cases hg : ConLeche.betaGateFires mode mb.pw = true
-      · rw [if_pos hg]
+      · rw [ite_eq_left hg]
         refine triple_mono (ihB (k - 1) (by omega) body (acc.push args[i])
           (i + 1) s₀ Body (A :: ws) (by omega) hok hctx hbody
           (InstLVec.push hacc hdA) hwB1) ?_
@@ -774,7 +777,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
         refine ⟨hck, hx, hp, v', hdv', hwv', F, ?_⟩
         rw [hdrop', mBP_lam_skip hg, ← hdrop1]
         exact hF
-      · rw [if_neg hg]
+      · rw [ite_eq_right hg]
         have hg' : ConLeche.betaGateFires mode mb.pw = false :=
           Bool.eq_false_iff.mpr hg
         refine triple_seq (instantiateListFast_ok_spec s₀ ty acc Ty ws hok hty
@@ -789,7 +792,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
         have hx04 : Ext s₀.store s4.store := (hx2.trans hx3).trans hx4
         cases b with
         | true =>
-          simp only [if_true]
+          simp only [ite_true]
           refine triple_mono (ihB (k - 1) (by omega) body (acc.push args[i])
             (i + 1) s4 Body (A :: ws) (by omega) hok4 (hctx.ext hx04)
             (denote_ext hbody hx04) ((InstLVec.push hacc hdA).ext hx04)
@@ -802,7 +805,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (ConLeche.isDefEqCore_mono (by omega) hF2), ← hdrop1]
           exact mBP_mono (by omega) hF3
         | false =>
-          simp only [Bool.false_eq_true, if_false]
+          simp only [Bool.false_eq_true, ite_false]
           refine triple_seq (instantiateListFast_ok_spec s4 t acc
             (.lam Ty Body mb) ws hok4 (denote_ext hdt hx04)
             (hacc.ext hx04)) ?_
@@ -829,7 +832,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
           rw [hdrop']
           exact mBP_lam_fail hg' (ConLeche.inferTypeIO_mono (by omega) hF1)
             (ConLeche.isDefEqCore_mono (by omega) hF2)
-    · simp only [htl, Bool.false_eq_true, if_false]
+    · simp only [htl, Bool.false_eq_true, ite_false]
       have hnl : ∀ ty b mb, T ≠ .lam ty b mb := by
         obtain ⟨w, hw⟩ := denoteE_view hdt
         refine denote_not_lam hwf hw hdt ?_
@@ -852,7 +855,7 @@ theorem betaPeel_carry_step {fuel : Nat} (hμ : mode.verifiedChecks = true)
       rw [hdrop', mBP_nonlam hnl (ConLeche.whnfCore_mono (by omega) hF1),
         ← hdrop']
       exact mWA_mono (by omega) hF2
-  · rw [dif_neg hi]
+  · rw [dite_eq_right hi]
     have hlen := ExprOps.denoteEList_length _ _ hctx.1
     simp only [Array.length_toList] at hlen
     have hnil : xs.drop i = [] := List.drop_eq_nil_of_le (by omega)

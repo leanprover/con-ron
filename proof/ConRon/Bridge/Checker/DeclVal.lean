@@ -145,7 +145,7 @@ theorem installValue_pure {μ : CheckMode} {F : Nat} {env : Env}
     (h9 : ty.constsResolve env = true) :
     ConLeche.installValue (ConLeche.fueledOps μ F) env c x = .ok ty := by
   simp only [ConLeche.installValue, ConLeche.fueledOps, h5, h6, h7, h8, h9,
-    Bool.false_eq_true, if_false, if_true, bind, Except.bind, pure, Except.pure]
+    Bool.false_eq_true, ite_false, ite_true, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
 value's guards and annotation.
@@ -724,7 +724,7 @@ theorem certifyNatEqs_cons_pure {μ : CheckMode} {env : Env} {F : Nat}
     (h1 : (ConLeche.fueledOps μ F).isDefEq env 2 q.1 q.2 = .ok true)
     (h2 : ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env qs = .ok true) :
     ConLeche.certifyNatEqs (ConLeche.fueledOps μ F) env (q :: qs) = .ok true := by
-  simp only [ConLeche.certifyNatEqs, h1, h2, if_true, bind, Except.bind]
+  simp only [ConLeche.certifyNatEqs, h1, h2, ite_true, bind, Except.bind]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:475-481 natOpNames — the seven
 structural fast-path operations, off the pin table.
@@ -892,51 +892,51 @@ theorem natOpDeps_run {cn : NIdx} {nm : ConLeche.Name} {ds : List NIdx}
   have b14 : (cn == hsr) = true ↔ nm = ConLeche.natShiftRightName := beq_handle_iff hok.wf hn d14
   -- the sixteen arms
   rcases AM.ite_ok w14 with ⟨y0, a0⟩ | ⟨z0, v0⟩
-  · exact frame _ a0 (by simp only [ConLeche.natOpDeps, if_pos (b0.mp y0)]; exact ⟨d0, trivial⟩)
+  · exact frame _ a0 (by simp only [ConLeche.natOpDeps, ite_eq_left (b0.mp y0)]; exact ⟨d0, trivial⟩)
   have nb0 : ¬ (nm = ConLeche.natPredName) := fun h => z0 (b0.mpr h)
   rcases AM.ite_ok v0 with ⟨y1, a1⟩ | ⟨z1, v1⟩
-  · exact frame _ a1 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_pos (b1.mp y1)]; exact ⟨d1, trivial⟩)
+  · exact frame _ a1 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_left (b1.mp y1)]; exact ⟨d1, trivial⟩)
   have nb1 : ¬ (nm = ConLeche.natAddName) := fun h => z1 (b1.mpr h)
   rcases AM.ite_ok v1 with ⟨y2, a2⟩ | ⟨z2, v2⟩
-  · exact frame _ a2 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_pos (b2.mp y2)]; exact ⟨d0, d2, trivial⟩)
+  · exact frame _ a2 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_left (b2.mp y2)]; exact ⟨d0, d2, trivial⟩)
   have nb2 : ¬ (nm = ConLeche.natSubName) := fun h => z2 (b2.mpr h)
   rcases AM.ite_ok v2 with ⟨y3, a3⟩ | ⟨z3, v3⟩
-  · exact frame _ a3 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_pos (b3.mp y3)]; exact ⟨d1, d3, trivial⟩)
+  · exact frame _ a3 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_left (b3.mp y3)]; exact ⟨d1, d3, trivial⟩)
   have nb3 : ¬ (nm = ConLeche.natMulName) := fun h => z3 (b3.mpr h)
   rcases AM.ite_ok v3 with ⟨y4, a4⟩ | ⟨z4, v4⟩
-  · exact frame _ a4 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_pos (b4.mp y4)]; exact ⟨d1, d3, d4, trivial⟩)
+  · exact frame _ a4 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_left (b4.mp y4)]; exact ⟨d1, d3, d4, trivial⟩)
   have nb4 : ¬ (nm = ConLeche.natPowName) := fun h => z4 (b4.mpr h)
   rcases AM.ite_ok v4 with ⟨y5, a5⟩ | ⟨z5, v5⟩
-  · exact frame _ a5 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_pos (b5.mp y5)]; exact ⟨d5, trivial⟩)
+  · exact frame _ a5 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_left (b5.mp y5)]; exact ⟨d5, trivial⟩)
   have nb5 : ¬ (nm = ConLeche.natBeqName) := fun h => z5 (b5.mpr h)
   rcases AM.ite_ok v5 with ⟨y6, a6⟩ | ⟨z6, v6⟩
-  · exact frame _ a6 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_pos (b6.mp y6)]; exact ⟨d6, trivial⟩)
+  · exact frame _ a6 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_left (b6.mp y6)]; exact ⟨d6, trivial⟩)
   have nb6 : ¬ (nm = ConLeche.natBleName) := fun h => z6 (b6.mpr h)
   rcases AM.ite_ok v6 with ⟨y7, a7⟩ | ⟨z7, v7⟩
-  · exact frame _ a7 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_pos (b7.mp y7)]; exact ⟨d0, d2, d6, d7, trivial⟩)
+  · exact frame _ a7 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_left (b7.mp y7)]; exact ⟨d0, d2, d6, d7, trivial⟩)
   have nb7 : ¬ (nm = ConLeche.natDivName) := fun h => z7 (b7.mpr h)
   rcases AM.ite_ok v7 with ⟨y8, a8⟩ | ⟨z8, v8⟩
-  · exact frame _ a8 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_pos (b8.mp y8)]; exact ⟨d0, d2, d6, d8, trivial⟩)
+  · exact frame _ a8 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_left (b8.mp y8)]; exact ⟨d0, d2, d6, d8, trivial⟩)
   have nb8 : ¬ (nm = ConLeche.natModName) := fun h => z8 (b8.mpr h)
   rcases AM.ite_ok v8 with ⟨y9, a9⟩ | ⟨z9, v9⟩
-  · exact frame _ a9 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_pos (b9.mp y9)]; exact ⟨d6, d8, d9, trivial⟩)
+  · exact frame _ a9 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_left (b9.mp y9)]; exact ⟨d6, d8, d9, trivial⟩)
   have nb9 : ¬ (nm = ConLeche.natGcdName) := fun h => z9 (b9.mpr h)
   rcases AM.ite_ok v9 with ⟨y10, a10⟩ | ⟨z10, v10⟩
-  · exact frame _ a10 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_pos (b10.mp y10)]; exact ⟨d1, d3, d6, d7, d8, d10, trivial⟩)
+  · exact frame _ a10 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_left (b10.mp y10)]; exact ⟨d1, d3, d6, d7, d8, d10, trivial⟩)
   have nb10 : ¬ (nm = ConLeche.natLandName) := fun h => z10 (b10.mpr h)
   rcases AM.ite_ok v10 with ⟨y11, a11⟩ | ⟨z11, v11⟩
-  · exact frame _ a11 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_pos (b11.mp y11)]; exact ⟨d1, d2, d3, d6, d7, d8, d11, trivial⟩)
+  · exact frame _ a11 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_right nb10, ite_eq_left (b11.mp y11)]; exact ⟨d1, d2, d3, d6, d7, d8, d11, trivial⟩)
   have nb11 : ¬ (nm = ConLeche.natLorName) := fun h => z11 (b11.mpr h)
   rcases AM.ite_ok v11 with ⟨y12, a12⟩ | ⟨z12, v12⟩
-  · exact frame _ a12 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_neg nb11, if_pos (b12.mp y12)]; exact ⟨d1, d3, d6, d7, d8, d12, trivial⟩)
+  · exact frame _ a12 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_right nb10, ite_eq_right nb11, ite_eq_left (b12.mp y12)]; exact ⟨d1, d3, d6, d7, d8, d12, trivial⟩)
   have nb12 : ¬ (nm = ConLeche.natXorName) := fun h => z12 (b12.mpr h)
   rcases AM.ite_ok v12 with ⟨y13, a13⟩ | ⟨z13, v13⟩
-  · exact frame _ a13 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_neg nb11, if_neg nb12, if_pos (b13.mp y13)]; exact ⟨d2, d3, d6, d13, trivial⟩)
+  · exact frame _ a13 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_right nb10, ite_eq_right nb11, ite_eq_right nb12, ite_eq_left (b13.mp y13)]; exact ⟨d2, d3, d6, d13, trivial⟩)
   have nb13 : ¬ (nm = ConLeche.natShiftLeftName) := fun h => z13 (b13.mpr h)
   rcases AM.ite_ok v13 with ⟨y14, a14⟩ | ⟨z14, v14⟩
-  · exact frame _ a14 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_neg nb11, if_neg nb12, if_neg nb13, if_pos (b14.mp y14)]; exact ⟨d2, d6, d7, d14, trivial⟩)
+  · exact frame _ a14 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_right nb10, ite_eq_right nb11, ite_eq_right nb12, ite_eq_right nb13, ite_eq_left (b14.mp y14)]; exact ⟨d2, d6, d7, d14, trivial⟩)
   have nb14 : ¬ (nm = ConLeche.natShiftRightName) := fun h => z14 (b14.mpr h)
-  exact frame _ v14 (by simp only [ConLeche.natOpDeps, if_neg nb0, if_neg nb1, if_neg nb2, if_neg nb3, if_neg nb4, if_neg nb5, if_neg nb6, if_neg nb7, if_neg nb8, if_neg nb9, if_neg nb10, if_neg nb11, if_neg nb12, if_neg nb13, if_neg nb14]; exact trivial)
+  exact frame _ v14 (by simp only [ConLeche.natOpDeps, ite_eq_right nb0, ite_eq_right nb1, ite_eq_right nb2, ite_eq_right nb3, ite_eq_right nb4, ite_eq_right nb5, ite_eq_right nb6, ite_eq_right nb7, ite_eq_right nb8, ite_eq_right nb9, ite_eq_right nb10, ite_eq_right nb11, ite_eq_right nb12, ite_eq_right nb13, ite_eq_right nb14]; exact trivial)
 
 /-! ## The structural-`Nat` guard, link by link
 
@@ -1609,7 +1609,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs21, e21⟩ := natAp1_run (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ok (hp.mono (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).ext (((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).pins) (denoteN_ext hn (((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) (denote_ext e7 ((((hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext)) q21
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w21
     refine ⟨((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ok, ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).ext, ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).caches, ((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_pos (b_pr.mp hc_pr), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_left (b_pr.mp hc_pr), EqPairsDenote]
     exact ⟨(denote_ext e20 (hs21.ext)), (denote_ext e5 ((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)), e21, (denote_ext e2 ((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext)), trivial⟩
   rcases AM.ite_ok k_pr with ⟨hc_ad, k_ad⟩ | ⟨hn_ad, k_ad⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_ad
@@ -1622,7 +1622,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs23, e23⟩ := natAp1_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext d6 (((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) e22 q23
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
     refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_pos (b_ad.mp hc_ad), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_left (b_ad.mp hc_ad), EqPairsDenote]
     exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), e23, trivial⟩
   rcases AM.ite_ok k_ad with ⟨hc_su, k_su⟩ | ⟨hn_su, k_su⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_su
@@ -1635,7 +1635,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs23, e23⟩ := natAp1_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext d13 (((hs20.ext).trans hs21.ext).trans hs22.ext)) e22 q23
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
     refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_pos (b_su.mp hc_su), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_right (fun h => hn_ad (b_ad.mpr h)), ite_eq_left (b_su.mp hc_su), EqPairsDenote]
     exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), e23, trivial⟩
   rcases AM.ite_ok k_su with ⟨hc_mu, k_mu⟩ | ⟨hn_mu, k_mu⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_mu
@@ -1648,7 +1648,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs23, e23⟩ := natAp2_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext d14 (((hs20.ext).trans hs21.ext).trans hs22.ext)) e22 (denote_ext e2 (((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) q23
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
     refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_pos (b_mu.mp hc_mu), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_right (fun h => hn_ad (b_ad.mpr h)), ite_eq_right (fun h => hn_su (b_su.mpr h)), ite_eq_left (b_mu.mp hc_mu), EqPairsDenote]
     exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e5 ((((((((hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), e23, trivial⟩
   rcases AM.ite_ok k_mu with ⟨hc_po, k_po⟩ | ⟨hn_po, k_po⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_po
@@ -1663,7 +1663,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs24, e24⟩ := natAp2_run ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok (hp.mono ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins) (denoteN_ext d16 ((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) e23 (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) q24
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w24
     refine ⟨(((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ok, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ext, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).caches, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_pos (b_po.mp hc_po), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_right (fun h => hn_ad (b_ad.mpr h)), ite_eq_right (fun h => hn_su (b_su.mpr h)), ite_eq_right (fun h => hn_mu (b_mu.mpr h)), ite_eq_left (b_po.mp hc_po), EqPairsDenote]
     exact ⟨(denote_ext e20 ((((hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e21 (((hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e22 ((hs23.ext).trans hs24.ext)), e24, trivial⟩
   rcases AM.ite_ok k_po with ⟨hc_be, k_be⟩ | ⟨hn_be, k_be⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_be
@@ -1678,7 +1678,7 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs24, e24⟩ := natAp2_run ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok (hp.mono ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins) (denoteN_ext hn ((((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) (denote_ext e2 ((((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) (denote_ext e3 (((((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)) q24
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w24
     refine ⟨(((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ok, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).ext, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).caches, (((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).trans hs24).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_neg (fun h => hn_po (b_po.mpr h)), if_pos (b_be.mp hc_be), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_right (fun h => hn_ad (b_ad.mpr h)), ite_eq_right (fun h => hn_su (b_su.mpr h)), ite_eq_right (fun h => hn_mu (b_mu.mpr h)), ite_eq_right (fun h => hn_po (b_po.mpr h)), ite_eq_left (b_be.mp hc_be), EqPairsDenote]
     exact ⟨(denote_ext e20 ((((hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e10 ((((((hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e21 (((hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e12 (((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e22 ((hs23.ext).trans hs24.ext)), (denote_ext e12 (((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext).trans hs24.ext)), (denote_ext e23 (hs24.ext)), e24, trivial⟩
   rcases AM.ite_ok k_be with ⟨hc_bl, k_bl⟩ | ⟨hn_bl, k_bl⟩
   · obtain ⟨v20, u20, q20, w20⟩ := AM.bind_ok k_bl
@@ -1691,11 +1691,11 @@ theorem natOpEquations_run {d : Nat} {cn : NIdx} {nm : ConLeche.Name}
     obtain ⟨hs23, e23⟩ := natAp2_run (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ok (hp.mono (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).ext (((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).pins) (denoteN_ext hn (((((((((((hs1.ext).trans hs2.ext).trans hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e2 (((((((((hs3.ext).trans hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) (denote_ext e3 ((((((((hs5.ext).trans hs7.ext).trans hs8.ext).trans hs10.ext).trans hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext)) q23
     obtain ⟨rfl, rfl⟩ := AM.pure_ok w23
     refine ⟨((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ok, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).ext, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).caches, ((((((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).trans hs20).trans hs21).trans hs22).trans hs23).pins, ?_⟩
-    simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_neg (fun h => hn_po (b_po.mpr h)), if_neg (fun h => hn_be (b_be.mpr h)), if_pos (b_bl.mp hc_bl), EqPairsDenote]
+    simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_right (fun h => hn_ad (b_ad.mpr h)), ite_eq_right (fun h => hn_su (b_su.mpr h)), ite_eq_right (fun h => hn_mu (b_mu.mpr h)), ite_eq_right (fun h => hn_po (b_po.mpr h)), ite_eq_right (fun h => hn_be (b_be.mpr h)), ite_eq_left (b_bl.mp hc_bl), EqPairsDenote]
     exact ⟨(denote_ext e20 (((hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e10 (((((hs12.ext).trans hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e21 ((hs22.ext).trans hs23.ext)), (denote_ext e12 ((((hs20.ext).trans hs21.ext).trans hs22.ext).trans hs23.ext)), (denote_ext e22 (hs23.ext)), e23, trivial⟩
   obtain ⟨rfl, rfl⟩ := AM.pure_ok k_bl
   refine ⟨((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ok, ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).ext, ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).caches, ((((((((hs1).trans hs2).trans hs3).trans hs5).trans hs7).trans hs8).trans hs10).trans hs12).pins, ?_⟩
-  simp only [ConLeche.natOpEquations, if_neg (fun h => hn_pr (b_pr.mpr h)), if_neg (fun h => hn_ad (b_ad.mpr h)), if_neg (fun h => hn_su (b_su.mpr h)), if_neg (fun h => hn_mu (b_mu.mpr h)), if_neg (fun h => hn_po (b_po.mpr h)), if_neg (fun h => hn_be (b_be.mpr h)), if_neg (fun h => hn_bl (b_bl.mpr h)), EqPairsDenote]
+  simp only [ConLeche.natOpEquations, ite_eq_right (fun h => hn_pr (b_pr.mpr h)), ite_eq_right (fun h => hn_ad (b_ad.mpr h)), ite_eq_right (fun h => hn_su (b_su.mpr h)), ite_eq_right (fun h => hn_mu (b_mu.mpr h)), ite_eq_right (fun h => hn_po (b_po.mpr h)), ite_eq_right (fun h => hn_be (b_be.mpr h)), ite_eq_right (fun h => hn_bl (b_bl.mpr h)), EqPairsDenote]
 
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:614-620 Expr.substConst0 — the
@@ -1736,12 +1736,12 @@ theorem substConst0_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr} 
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
         simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
         refine ⟨Frontend.IStepS.refl hst, ?_⟩
-        simp only [Expr.substConst0, hc, and_self, if_true]
+        simp only [Expr.substConst0, hc, and_self, ite_true]
         exact hx
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
         simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hc
         refine ⟨Frontend.IStepS.refl hst, ?_⟩
-        simp only [Expr.substConst0, if_neg hc]
+        simp only [Expr.substConst0, ite_eq_right hc]
         exact he
     case app f a =>
       obtain ⟨ef, ea, rfl, hf, ha⟩ := denote_app_inv hwf hv he
@@ -1991,10 +1991,10 @@ theorem reduceDeclPin_run {cH : NIdx} {cn : ConLeche.Name} {p : EIdx}
   rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
   · obtain ⟨hs, hv⟩ := Frontend.internExpr_sstep hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ConLeche.reduceDeclPin, if_pos (hiff.mp hc)]
+    rw [hv, ConLeche.reduceDeclPin, ite_eq_left (hiff.mp hc)]
   · obtain ⟨hs, hv⟩ := Frontend.internExpr_sstep hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ConLeche.reduceDeclPin, if_neg (fun h => hc (hiff.mpr h))]
+    rw [hv, ConLeche.reduceDeclPin, ite_eq_right (fun h => hc (hiff.mpr h))]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:215-218 reduceCertVar — the
 identity certificate's variable, `fvar 0` at the element type, interned. -/
@@ -2015,10 +2015,10 @@ theorem reduceCertVar_run {cH : NIdx} {cn : ConLeche.Name} {v : EIdx}
     rcases AM.ite_ok r00 with ⟨hc, k⟩ | ⟨hc, k⟩
     · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.natName) hp (by rfl) k
       refine ⟨?_, rfl⟩
-      rw [d2, ConLeche.reduceElemName, if_pos (hiff.mp hc)]
+      rw [d2, ConLeche.reduceElemName, ite_eq_left (hiff.mp hc)]
     · obtain ⟨rfl, d2⟩ := pinAt_run (x := ConLeche.boolName) hp (by rfl) k
       refine ⟨?_, rfl⟩
-      rw [d2, ConLeche.reduceElemName, if_neg (fun h => hc (hiff.mpr h))]
+      rw [d2, ConLeche.reduceElemName, ite_eq_right (fun h => hc (hiff.mpr h))]
   obtain ⟨hnm, rfl⟩ := hname
   obtain ⟨hs1, hty⟩ := constE_run hst hp hnm r0
   obtain ⟨hs2, hv⟩ := Frontend.internE_sstep hs1.ok
@@ -2140,7 +2140,7 @@ theorem checkReducePin_pure {μ : CheckMode} {env env2 : Env} {F : Nat}
       (ConLeche.reduceCertVar nm) = .ok true) :
     ConLeche.checkReducePin (ConLeche.fueledOps μ F) env env2 nm x = .ok () := by
   simp only [ConLeche.checkReducePin, ConLeche.fueledOps, h1, h2, h3, h4, h5, h6,
-    if_true, bind, Except.bind, pure, Except.pure]
+    ite_true, bind, Except.bind, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:93-110 checkOpaqueVal — an
 accepted opaque's raw value has no free variable (the second guard). -/

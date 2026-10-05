@@ -83,8 +83,8 @@ theorem installConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
     ConLeche.installConstantVal (ConLeche.fueledOps μ F) env c
       = .ok { c with type := ty } := by
   simp only [ConLeche.installConstantVal, ConLeche.fueledOps, h1, h2, h3, h4,
-    h5, h6, h7, h8, h9, Option.isSome_none, Bool.false_eq_true, if_false,
-    if_true, bind, Except.bind, pure, Except.pure]
+    h5, h6, h7, h8, h9, Option.isSome_none, Bool.false_eq_true, ite_false,
+    ite_true, bind, Except.bind, pure, Except.pure]
 
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
@@ -451,18 +451,18 @@ theorem IFEnv.restrictTo_find?_le {fe : IFEnv} {k : Nat}
     dsimp only at h ⊢
     -- **Re-ascribe before rewriting.**  `dsimp only` reduces the restricted
     -- bound in the PROPOSITION (`c0 < k`) but leaves the `Decidable` instance
-    -- at `(fe.restrictTo k).visibleBelow`, so neither `rw [if_pos hc]` nor
-    -- `simp only [if_pos hc]` matches.  The two are defeq, so a `have` with
+    -- at `(fe.restrictTo k).visibleBelow`, so neither `rw [ite_eq_left hc]` nor
+    -- `simp only [ite_eq_left hc]` matches.  The two are defeq, so a `have` with
     -- the type written out re-elaborates it at the canonical instance and
     -- everything below is ordinary (task #97-P3-Checker round 6; the
     -- fragility surfaced when `Core/Walks/Cached.lean` entered this module's
     -- import closure).
     have hh : (if c0 < k then some ci0 else none) = some ci := h
     by_cases hc : c0 < k
-    · rw [if_pos hc] at hh
-      rw [if_pos (Nat.lt_of_lt_of_le hc hk)]
+    · rw [ite_eq_left hc] at hh
+      rw [ite_eq_left (Nat.lt_of_lt_of_le hc hk)]
       exact hh
-    · rw [if_neg hc] at hh; simp at hh
+    · rw [ite_eq_right hc] at hh; simp at hh
 
 /-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow_eq_some — **soundness of
 the bound**: what the restricted index finds, the suffix finds too.  The
@@ -479,13 +479,13 @@ theorem mkIFEnvGo_below : ∀ (cs : List IConstantInfo) (n : NIdx) (k c : Nat)
     simp only [mkIFEnvGo] at h
     rw [Std.HashMap.getElem?_insert] at h
     by_cases hb : a.name == n
-    · rw [if_pos hb] at h
+    · rw [ite_eq_left hb] at h
       simp only [Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
       rw [mkIFEnvGo_fst] at hc
       have e0 : (a :: as).length - k = 0 := by simp only [List.length_cons]; omega
       rw [e0, List.drop_zero, List.find?_cons, hb]
-    · rw [if_neg hb] at h
+    · rw [ite_eq_right hb] at h
       have hbf : (a.name == n) = false := by simpa using hb
       have ihh := ih n k c ci h hc
       by_cases hk : k ≤ as.length
@@ -532,7 +532,7 @@ theorem mkIFEnvGo_below_of : ∀ (cs : List IConstantInfo) (n : NIdx) (k : Nat)
         intro hx
         obtain rfl : a.name = n := by simpa using hx
         exact hna (hcn ▸ List.mem_map_of_mem hcin)
-      rw [if_neg hb]
+      rw [ite_eq_right hb]
       exact ⟨c, hc, hck⟩
     · have hke : k = as.length + 1 := by omega
       subst hke
@@ -543,12 +543,12 @@ theorem mkIFEnvGo_below_of : ∀ (cs : List IConstantInfo) (n : NIdx) (k : Nat)
       · rw [hb] at h
         simp only [Option.some.injEq] at h
         subst h
-        rw [if_pos hb, mkIFEnvGo_fst]
+        rw [ite_eq_left hb, mkIFEnvGo_fst]
         exact ⟨as.length, rfl, Nat.lt_succ_self _⟩
       · have hbf : (a.name == n) = false := by simpa using hb
         rw [hbf] at h
         simp only at h
-        rw [if_neg hb]
+        rw [ite_eq_right hb]
         have hm := mkIFEnvGo_snd as n
         rw [h] at hm
         cases hg : (mkIFEnvGo as).2[n]? with
@@ -698,10 +698,10 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
       rw [hg] at hf
       dsimp only at hf
       by_cases hc : c0 < k
-      · rw [if_pos hc] at hf
+      · rw [ite_eq_left hc] at hf
         obtain rfl : ci0 = ci := Option.some.inj hf
         exact mkIFEnvGo_below _ n k c0 _ hg hc
-      · rw [if_neg hc] at hf; simp at hf
+      · rw [ite_eq_right hc] at hf; simp at hf
   have hbwd : ∀ (n : NIdx) (ci : IConstantInfo),
       (fe.env.consts.drop (fe.env.consts.length - k)).find?
         (fun d => d.name == n) = some ci →
@@ -709,7 +709,7 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
     intro n ci hf
     obtain ⟨c, hc, hck⟩ := mkIFEnvGo_below_of _ n k ci hk' hndH hf
     simp only [IFEnv.find?, IFEnv.restrictTo, hok.coh.2 n, hc]
-    rw [if_pos hck]
+    rw [ite_eq_left hck]
   refine ⟨?_, ?_, ?_⟩
   · intro n ci hf
     obtain ⟨nm, c, h1, h2, h3⟩ := hH n ci (hfwd n ci hf)
@@ -1047,7 +1047,7 @@ theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
         obtain ⟨c, ci⟩ := p
         have hc : c < fe.env.consts.length :=
           mkIFEnvGo_lt _ n c ci (hok.coh.2 n ▸ hg)
-        simp only [if_pos (show c < k by omega), if_pos (show c < fe.visibleBelow by omega)]
+        simp only [ite_eq_left (show c < k by omega), ite_eq_left (show c < fe.visibleBelow by omega)]
     rw [hpre]
     have h := hok.check.ienv
     exact ⟨fun n ci hf => h.hit n ci (by rw [← hfind]; exact hf),

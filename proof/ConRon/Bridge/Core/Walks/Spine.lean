@@ -65,6 +65,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -118,7 +121,7 @@ theorem lsTables_getLen_eq (t : LsTables) (i : LsIdx) :
     t.getLen i = (t.get i).map List.length := by
   simp only [LsTables.getLen, LsTables.get]
   by_cases h : (i.tag == LsTag.list) = true
-  · simp only [h, if_true]
+  · simp only [h, ite_true]
     cases t.lists.node? i.idxNat <;> simp
   · simp only [Bool.not_eq_true] at h
     simp [h]
@@ -466,7 +469,7 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     have hud : ConLeche.unfoldDefinition env x =
         some (Expr.mkAppN (dval.instantiateLevelParams dcv.levelParams ls)
           x.getAppArgs) := by
-      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, if_true]
+      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_true]
     refine ⟨hck1.mono hst3 hx13 hc13 hp13, hx01.trans hx13, hp13.trans hp01,
       fun x' hx' => ?_⟩
     obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
@@ -483,7 +486,7 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     have hul : ¬ ls.length = dcv.levelParams.length := by
       rw [← view_len_of_denoteLs hus hlsv, denoteNList_len hlps]; exact hlen
     have hud : ConLeche.unfoldDefinition env x = none := by
-      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, if_false]
+      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_false]
     refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
     obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
     rw [hud]
@@ -795,7 +798,7 @@ theorem defeqSpineFueled_const {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
       = .ok r) :
     ConLeche.defeqSpineFueled mode env F d x y = .ok r := by
   simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx, hy,
-    if_pos hc, hlv]
+    ite_eq_left hc, hlv]
   exact hr
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — an
@@ -808,7 +811,7 @@ theorem defeqSpineFueled_lvl {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     (hlv : ¬ (Level.isEquivList us us' = some true)) :
     ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
   simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx, hy,
-    if_pos hc]
+    ite_eq_left hc]
   cases hl : Level.isEquivList us us' with
   | none => rfl
   | some v =>
@@ -824,7 +827,7 @@ theorem defeqSpineFueled_ne {F d : Nat} {x y : Expr} {n n' : ConLeche.Name}
     (hc : ¬ (n = n' ∧ x.getAppArgs.length = y.getAppArgs.length)) :
     ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
   simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine, hx, hy,
-    if_neg hc]
+    ite_eq_right hc]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — the

@@ -68,7 +68,7 @@ theorem parse_source_loop_eq {S : Type}
       have hl := alloc.vec.Vec.len_val chunks
       scalar_tac
     rw [frontend.export_c.parse_source_loop] at hrun
-    rw [frontend.export_c.parse_chunks_loop, if_neg hge]
+    rw [frontend.export_c.parse_chunks_loop, ite_eq_right hge]
     have hlen : alloc.vec.Vec.len e = 0#usize := by
       have := alloc.vec.Vec.len_val e
       have h2 : e.val.length = 0 := by rw [he]; rfl
@@ -77,7 +77,7 @@ theorem parse_source_loop_eq {S : Type}
     rw [hnext] at hp
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hp)
     change (if alloc.vec.Vec.len e = 0#usize then _ else _) = ok o at hrun
-    rw [if_pos hlen] at hrun
+    rw [ite_eq_left hlen] at hrun
     obtain ⟨s, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
     rw [hs]
     simp only [bind_tc_ok]
@@ -104,7 +104,7 @@ theorem parse_source_loop_eq {S : Type}
       have := alloc.vec.Vec.len_val chunks
       scalar_tac
     rw [frontend.export_c.parse_source_loop] at hrun
-    rw [frontend.export_c.parse_chunks_loop, if_pos hlt']
+    rw [frontend.export_c.parse_chunks_loop, ite_eq_left hlt']
     have hlen : ¬ alloc.vec.Vec.len c = 0#usize := by
       intro h0
       have := alloc.vec.Vec.len_val c
@@ -115,7 +115,7 @@ theorem parse_source_loop_eq {S : Type}
     rw [hnext] at hp
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Result.ok_injective hp)
     change (if alloc.vec.Vec.len c = 0#usize then _ else _) = ok o at hrun
-    rw [if_neg hlen] at hrun
+    rw [ite_eq_right hlen] at hrun
     rw [vec_index_ok' (by simpa using hlt)]
     simp only [bind_tc_ok, hci]
     obtain ⟨s, hs, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun

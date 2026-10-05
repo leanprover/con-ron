@@ -99,7 +99,7 @@ theorem str_eq_from_refl (s : alloc.vec.Vec Std.U32) :
   | zero =>
     intro i h
     rw [name.str_eq_from.eq_def]; simp only []
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
   | succ n ih =>
     intro i h
     rw [name.str_eq_from.eq_def]; simp only []
@@ -260,7 +260,7 @@ theorem contains_from_refines {ns : alloc.vec.Vec name.Name} {n : name.Name}
   | zero =>
     intro i h c hc
     rw [name.contains_from.eq_def] at hc; simp only [] at hc
-    rw [if_pos (by scalar_tac)] at hc
+    rw [ite_eq_left (by scalar_tac)] at hc
     rw [List.drop_eq_nil_of_le (by scalar_tac)]
     simp only [List.map_nil, List.not_mem_nil, decide_false]
     simpa using hc.symm

@@ -719,10 +719,10 @@ theorem mkIFEnvGo_mem : ∀ (cs : List IConstantInfo) (n : NIdx)
     simp only [mkIFEnvGo] at h
     rw [Std.HashMap.getElem?_insert] at h
     by_cases hn : a.name == n
-    · rw [if_pos hn] at h
+    · rw [ite_eq_left hn] at h
       obtain rfl := Option.some.inj h
       simp
-    · rw [if_neg hn] at h
+    · rw [ite_eq_right hn] at h
       exact List.mem_cons_of_mem _ (ih n p h)
 
 /-- con-leche: none — `mkIFEnvGo_mem` at the index of a coherent `IFEnv`. -/
@@ -736,10 +736,10 @@ theorem IFEnv.find?_mem {fe : IFEnv} (hcoh : IFEnvCoh fe) {n : NIdx}
     rw [hg] at h
     dsimp only at h
     by_cases hc : c0 < fe.visibleBelow
-    · rw [if_pos hc] at h
+    · rw [ite_eq_left hc] at h
       obtain rfl : ci0 = ci := Option.some.inj h
       exact mkIFEnvGo_mem _ n (c0, ci0) hg
-    · rw [if_neg hc] at h; simp at h
+    · rw [ite_eq_right hc] at h; simp at h
 
 /-! ## The index IS the list
 
@@ -772,8 +772,8 @@ theorem mkIFEnvGo_snd : ∀ (cs : List IConstantInfo) (n : NIdx),
     simp only [mkIFEnvGo, List.find?_cons]
     rw [Std.HashMap.getElem?_insert]
     by_cases hn : a.name == n
-    · rw [if_pos hn]; simp [hn]
-    · rw [if_neg hn]; simp only [hn]; exact ih n
+    · rw [ite_eq_left hn]; simp [hn]
+    · rw [ite_eq_right hn]; simp only [hn]; exact ih n
 
 /-- con-leche: ConLeche/Verify/EnvBound.lean idxBelow — every counter the
 index hands out is below the list's length, so `mkIFEnv`'s own visibility
@@ -789,11 +789,11 @@ theorem mkIFEnvGo_lt : ∀ (cs : List IConstantInfo) (n : NIdx)
     simp only [mkIFEnvGo] at h
     rw [Std.HashMap.getElem?_insert] at h
     by_cases hn : a.name == n
-    · rw [if_pos hn] at h
+    · rw [ite_eq_left hn] at h
       obtain ⟨rfl, -⟩ := Prod.mk.injEq _ _ _ _ ▸ Option.some.inj h
       rw [mkIFEnvGo_fst]
       simp
-    · rw [if_neg hn] at h
+    · rw [ite_eq_right hn] at h
       exact Nat.lt_succ_of_lt (ih n c ci h)
 
 /-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find? — **the index of
@@ -809,7 +809,7 @@ theorem mkIFEnv_find? (e : IEnv) (n : NIdx) : (mkIFEnv e).find? n = e.find? n :=
     obtain ⟨c0, ci0⟩ := p
     rw [hg] at hm
     dsimp only
-    rw [if_pos (by rw [mkIFEnvGo_fst]; exact mkIFEnvGo_lt e.consts n c0 ci0 hg)]
+    rw [ite_eq_left (by rw [mkIFEnvGo_fst]; exact mkIFEnvGo_lt e.consts n c0 ci0 hg)]
     simpa using hm
 
 /-- con-leche: ConLeche/Verify/EnvBound.lean:243 mkFEnv_find? — the same at a
@@ -884,7 +884,7 @@ theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
       rw [keyF n hb] at hf
       obtain ⟨nm, c', hd, hc', he⟩ := h.hit n ci' hf
       refine ⟨nm, c', hd, hc', ?_⟩
-      rw [Env.find?_cons, if_neg, he]
+      rw [Env.find?_cons, ite_eq_right, he]
       intro hq
       obtain rfl := denoteN_inj hrk.nsWF (hq ▸ hnm) hd
       simp at hb
@@ -892,10 +892,10 @@ theorem IFEnvOK.push {env : Env} {fe : IFEnv} {s : AState}
     intro nm c₀ he
     rw [Env.find?_cons] at he
     by_cases hq : c.name = nm
-    · rw [if_pos hq] at he
+    · rw [ite_eq_left hq] at he
       obtain rfl : c₀ = c := (Option.some.inj he).symm
       exact ⟨ci.name, ci, hq ▸ hnm, keyT, hci⟩
-    · rw [if_neg hq] at he
+    · rw [ite_eq_right hq] at he
       obtain ⟨n, ci', hd, hf, hc'⟩ := h.cover nm c₀ he
       refine ⟨n, ci', hd, ?_, hc'⟩
       cases hb : (ci.name == n) with

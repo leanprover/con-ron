@@ -106,7 +106,7 @@ theorem fvarHead_run {e : EIdx} {eP : Expr} {s₀ s' : AState} {r : Option Nat}
   obtain ⟨hdh, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hhd⟩ := getAppFn_run hok hd h1
   by_cases htg : (hdh.tag == ETag.fvar) = true
-  · rw [if_pos htg] at h2
+  · rw [ite_eq_left htg] at h2
     obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨rfl, ho⟩ := viewFVarIdx_run h3
     cases o with
@@ -115,7 +115,7 @@ theorem fvarHead_run {e : EIdx} {eP : Expr} {s₀ s' : AState} {r : Option Nat}
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       obtain ⟨t, ht⟩ := denote_of_viewFVarIdx hok.wf htg ho.symm hhd
       exact ⟨rfl, by simp [fvarHeadP, ht]⟩
-  · rw [if_neg htg] at h2
+  · rw [ite_eq_right htg] at h2
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
     refine ⟨rfl, ?_⟩
     unfold fvarHeadP
@@ -323,7 +323,7 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
   obtain ⟨hdh, s₅, h9, h10⟩ := AM.bind_ok h8
   obtain ⟨rfl, hhd⟩ := getAppFn_run p3.ok hlast h9
   by_cases htg : (hdh.tag == ETag.const) = true
-  · rw [if_pos htg] at h10
+  · rw [ite_eq_left htg] at h10
     obtain ⟨o, s₆, h11, h12⟩ := AM.bind_ok h10
     obtain ⟨rfl, ho⟩ := viewConst_run h11
     cases o with
@@ -390,7 +390,7 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h14
     refine ⟨p3.trans p13, ?_⟩
     exact ⟨_, rfl, by simp [dSlot, denoteN_ext hn p13.ext]⟩
-  · rw [if_neg htg] at h10
+  · rw [ite_eq_right htg] at h10
     obtain ⟨rfl, rfl⟩ := AM.pure_ok h10
     refine ⟨p3, ?_⟩
     show _ = none
@@ -660,7 +660,7 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
   obtain ⟨rr, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hrr⟩ := piResult_run hok hd h1
   by_cases htg : (rr.tag == ETag.sort) = true
-  · rw [if_pos htg] at h2
+  · rw [ite_eq_left htg] at h2
     obtain ⟨u, hu⟩ := sort_of_tag hok.wf htg hrr
     unfold slotP
     rw [hu]
@@ -685,7 +685,7 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
     obtain ⟨hdh, s₃, h5, h6⟩ := AM.bind_ok h4
     obtain ⟨rfl, hhd⟩ := getAppFn_run hok hmd h5
     by_cases htc : (hdh.tag == ETag.const) = true
-    · rw [if_pos htc] at h6
+    · rw [ite_eq_left htc] at h6
       obtain ⟨o, s₄, h7, h8⟩ := AM.bind_ok h6
       obtain ⟨rfl, ho⟩ := viewConst_run h7
       cases o with
@@ -703,7 +703,7 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
       refine ⟨_, rfl, ?_⟩
       rw [classNPcOf_eq hok (hfe _ rfl) hsh hn]
       simp [dSlot, dClassKey, hn, hls, denoteEList_take hargs]
-    · rw [if_neg htc] at h6
+    · rw [ite_eq_right htc] at h6
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h6
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
@@ -712,7 +712,7 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
         rw [hg] at hhd
         exact absurd (tag_const_of_denote hok.wf hhd) (by simpa using htc)
       · rfl
-  · rw [if_neg htg] at h2
+  · rw [ite_eq_right htg] at h2
     have hns : ∀ u, domP.piResult ≠ .sort u := by
       intro u hu
       rw [hu] at hrr
@@ -766,7 +766,7 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
     obtain ⟨hsh, hfe, hd⟩ := hp
     simp only [Arena.classReadSlots] at hrun
     by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [if_pos htg] at hrun
+    · rw [ite_eq_left htg] at hrun
       obtain ⟨o, s₁, h1, h2⟩ := AM.bind_ok hrun
       obtain ⟨rfl, ho⟩ := viewBind_run h1
       cases o with
@@ -825,7 +825,7 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       refine ⟨q :: qs, by rw [hqs]; rfl, ?_⟩
       simp only [List.mapM_cons, dSlot_ext (p5.trans (p7.trans p9)).ext _ _ hsl, hrest,
         Option.bind_eq_bind, Option.bind_some, Option.pure_def]
-    · rw [if_neg htg] at hrun
+    · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none

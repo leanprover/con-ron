@@ -272,9 +272,9 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     have hbv := byte_at_end hb (by omega)
-    rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
-        if_neg (show ¬ (b = 32#u64) by scalar_tac),
-        if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ (b < 48#u64) by scalar_tac), ite_eq_left (show b > 57#u64 by scalar_tac),
+        ite_eq_right (show ¬ (b = 32#u64) by scalar_tac),
+        ite_eq_right (show ¬ (b = 10#u64) by scalar_tac)] at h
     obtain ⟨ce, rfl, hce⟩ := err_native h
     exact hce
   | succ k ih =>
@@ -284,9 +284,9 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
     obtain ⟨b, hb, h⟩ := h
     by_cases hend : t.length ≤ i.val
     · have hbv := byte_at_end hb hend
-      rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
-          if_neg (show ¬ (b = 32#u64) by scalar_tac),
-          if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ (b < 48#u64) by scalar_tac), ite_eq_left (show b > 57#u64 by scalar_tac),
+          ite_eq_right (show ¬ (b = 32#u64) by scalar_tac),
+          ite_eq_right (show ¬ (b = 10#u64) by scalar_tac)] at h
       obtain ⟨ce, rfl, hce⟩ := err_native h
       exact hce
     · have hi : i.val < t.length := by omega
@@ -346,9 +346,9 @@ private theorem read_nat_from_aux {t : Slice Std.U8} :
             refine ⟨?_, by omega, hjt⟩
             rw [hcons]
             simp only [PinsDec.readNatFrom]
-            rw [if_pos (show PinsDec.isDigit b.val = true by
+            rw [ite_eq_left (show PinsDec.isDigit b.val = true by
               simp only [PinsDec.isDigit, Bool.and_eq_true, decide_eq_true_eq]; omega)]
-            rw [if_neg (show ¬ (acc.val > 1000000000000000000) by omega)]
+            rw [ite_eq_right (show ¬ (acc.val > 1000000000000000000) by omega)]
             rw [show acc.val * 10 + (b.val - 48) = w4.val by omega]
             exact hrec
 
@@ -392,7 +392,7 @@ theorem read_nat_refines {t : Slice Std.U8} {i : Std.Usize}
       rw [h0] at hrec
       refine ⟨?_, hij, hjt⟩
       unfold PinsDec.readNat
-      rw [if_pos (show PinsDec.isDigit (PinsDec.byteAt (bytesFrom t i)) = true by
+      rw [ite_eq_left (show PinsDec.isDigit (PinsDec.byteAt (bytesFrom t i)) = true by
         rw [← byte_at_refines hb]
         simp only [PinsDec.isDigit, Bool.and_eq_true, decide_eq_true_eq]; omega)]
       exact hrec
@@ -462,9 +462,9 @@ private theorem read_big_nat_from_aux {t : Slice Std.U8} :
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     have hbv := byte_at_end hb (by omega)
-    rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
-        if_neg (show ¬ (b = 32#u64) by scalar_tac),
-        if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ (b < 48#u64) by scalar_tac), ite_eq_left (show b > 57#u64 by scalar_tac),
+        ite_eq_right (show ¬ (b = 32#u64) by scalar_tac),
+        ite_eq_right (show ¬ (b = 10#u64) by scalar_tac)] at h
     obtain ⟨ce, rfl, hce⟩ := err_native h
     exact hce
   | succ k ih =>
@@ -474,9 +474,9 @@ private theorem read_big_nat_from_aux {t : Slice Std.U8} :
     obtain ⟨b, hb, h⟩ := h
     by_cases hend : t.length ≤ i.val
     · have hbv := byte_at_end hb hend
-      rw [if_neg (show ¬ (b < 48#u64) by scalar_tac), if_pos (show b > 57#u64 by scalar_tac),
-          if_neg (show ¬ (b = 32#u64) by scalar_tac),
-          if_neg (show ¬ (b = 10#u64) by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ (b < 48#u64) by scalar_tac), ite_eq_left (show b > 57#u64 by scalar_tac),
+          ite_eq_right (show ¬ (b = 32#u64) by scalar_tac),
+          ite_eq_right (show ¬ (b = 10#u64) by scalar_tac)] at h
       obtain ⟨ce, rfl, hce⟩ := err_native h
       exact hce
     · have hi : i.val < t.length := by omega
@@ -532,7 +532,7 @@ private theorem read_big_nat_from_aux {t : Slice Std.U8} :
           refine ⟨?_, by omega, hjt⟩
           rw [hcons]
           simp only [PinsDec.readBigNatFrom]
-          rw [if_pos (show PinsDec.isDigit b.val = true by
+          rw [ite_eq_left (show PinsDec.isDigit b.val = true by
             simp only [PinsDec.isDigit, Bool.and_eq_true, decide_eq_true_eq]; omega)]
           rw [show Nat.toNat acc * 10 + (b.val - 48) = Nat.toNat nn by
             rw [hnnv, hshiftv, hdigv, htenv, hw3v]
@@ -585,7 +585,7 @@ theorem read_big_nat_refines {t : Slice Std.U8} {i : Std.Usize}
       rw [hzv] at hrec
       refine ⟨?_, hij, hjt⟩
       unfold PinsDec.readBigNat
-      rw [if_pos (show PinsDec.isDigit (PinsDec.byteAt (bytesFrom t i)) = true by
+      rw [ite_eq_left (show PinsDec.isDigit (PinsDec.byteAt (bytesFrom t i)) = true by
         rw [← byte_at_refines hb]
         simp only [PinsDec.isDigit, Bool.and_eq_true, decide_eq_true_eq]; omega)]
       exact hrec
@@ -618,7 +618,7 @@ theorem expect_id_refines {t : Slice Std.U8} {i want : Std.Usize}
       refine ⟨?_, hij, hjt⟩
       unfold PinsDec.expectId
       simp only [hidx]
-      rw [if_pos (show got.val = want.val from by scalar_tac)]
+      rw [ite_eq_left (show got.val = want.val from by scalar_tac)]
     · obtain ⟨ce, rfl, hce⟩ := err_native h
       exact hce
 
@@ -659,15 +659,15 @@ theorem is_valid_char_refines {v : Std.U64} {r : Bool}
   unfold PinsDec.isValidChar
   split at h
   · simp only [Result.ok.injEq] at h; subst h
-    rw [if_pos (by scalar_tac)]
+    rw [ite_eq_left (by scalar_tac)]
   · split at h
     · simp only [Result.ok.injEq] at h; subst h
-      rw [if_neg (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac)]
       have h3 : (57343 : Nat) < v.val := by scalar_tac
       simp only [h3, decide_true, Bool.true_and, decide_eq_decide]
       constructor <;> intro <;> scalar_tac
     · simp only [Result.ok.injEq] at h; subst h
-      rw [if_neg (by scalar_tac)]
+      rw [ite_eq_right (by scalar_tac)]
       have h3 : ¬ (57343 : Nat) < v.val := by scalar_tac
       simp [h3]
 
@@ -722,9 +722,9 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
     simp only [bind_eq_ok_iff] at h
     obtain ⟨b, hb, h⟩ := h
     have hbv := byte_at_end hb (by omega)
-    rw [if_neg (show ¬ (b = 32#u64) by scalar_tac),
-        if_neg (show ¬ (b = 10#u64) by scalar_tac),
-        if_pos (show b = 256#u64 by scalar_tac)] at h
+    rw [ite_eq_right (show ¬ (b = 32#u64) by scalar_tac),
+        ite_eq_right (show ¬ (b = 10#u64) by scalar_tac),
+        ite_eq_left (show b = 256#u64 by scalar_tac)] at h
     obtain ⟨ce, rfl, hce⟩ := err_native h
     exact hce
   | succ k ih =>
@@ -734,9 +734,9 @@ private theorem unescape_from_aux {t : Slice Std.U8} :
     obtain ⟨b, hb, h⟩ := h
     by_cases hend : t.length ≤ i.val
     · have hbv := byte_at_end hb hend
-      rw [if_neg (show ¬ (b = 32#u64) by scalar_tac),
-          if_neg (show ¬ (b = 10#u64) by scalar_tac),
-          if_pos (show b = 256#u64 by scalar_tac)] at h
+      rw [ite_eq_right (show ¬ (b = 32#u64) by scalar_tac),
+          ite_eq_right (show ¬ (b = 10#u64) by scalar_tac),
+          ite_eq_left (show b = 256#u64 by scalar_tac)] at h
       obtain ⟨ce, rfl, hce⟩ := err_native h
       exact hce
     · have hi : i.val < t.length := by omega
@@ -986,7 +986,7 @@ theorem read_string_refines {t : Slice Std.U8} {i : Std.Usize}
             simp only [List.length_map]; scalar_tac
           refine ⟨?_, by omega, hmt⟩
           simp only [PinsDec.readString, hidx, hsp, hun]
-          rw [if_pos hl]
+          rw [ite_eq_left hl]
         · obtain ⟨ce, rfl, hce⟩ := err_native h
           exact hce
 
@@ -1176,7 +1176,7 @@ private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
   | zero =>
     intro i k out hk hi o h
     rw [pins_decode.name_list_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [show k.val = 0 from by scalar_tac]
@@ -1294,7 +1294,7 @@ private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
   | zero =>
     intro i k out hk hi o h
     rw [pins_decode.level_list_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [show k.val = 0 from by scalar_tac]
@@ -1412,7 +1412,7 @@ private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} 
   | zero =>
     intro i k out hk hi o h
     rw [pins_decode.expr_list_from.eq_def] at h
-    rw [if_pos (show k = 0#usize from by scalar_tac)] at h
+    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     rw [show k.val = 0 from by scalar_tac]

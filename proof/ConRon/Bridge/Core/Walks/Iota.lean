@@ -40,6 +40,9 @@ namespace ConRon.Bridge.Core
 
 set_option autoImplicit false
 set_option mvcgen.warning false
+-- Lean 4.35 deprecated `mvcgen` for `vcgen`; the migration is a task of its
+-- own (DESIGN.md task #110), so the deprecation is silenced here until then.
+set_option linter.deprecated.syntax false
 set_option maxHeartbeats 1000000
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.Do
@@ -408,7 +411,7 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   next hm =>
     have hres : ConLeche.iotaIndexOkFueled mode env 0 d mI rP cnP ty ms is =
         .ok true := by
-      simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, if_pos hm]; rfl
+      simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, ite_eq_left hm]; rfl
     mvcgen
     bridge_peel; subst_vars
     exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
@@ -421,7 +424,7 @@ theorem iotaIndexOk_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         simp only [denoteEO, Option.some.injEq] at ho; exact ho.symm
       have hres : ConLeche.iotaIndexOkFueled mode env 0 d mI rP cnP ty ms is =
           .ok false := by
-        simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, if_neg hm, hn]
+        simp only [ConLeche.iotaIndexOkFueled, ConLeche.iotaIndexOk, ite_eq_right hm, hn]
         rfl
       mvcgen
       bridge_peel; subst_vars
@@ -488,7 +491,7 @@ theorem iotaRecFueled_guard {F d : Nat} {E : Expr} {c : ConLeche.Name}
     (hg : ¬ (E.getAppArgs.length = mI + 1 ∧ us.length = cv.levelParams.length)) :
     ConLeche.iotaRecFueled mode env F d E = .ok none := by
   simp only [ConLeche.iotaRecFueled, ConLeche.iotaRec, hE1, hf]
-  rw [if_neg hg]
+  rw [ite_eq_right hg]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — past the guard and
@@ -556,7 +559,7 @@ theorem iotaRecFueled_pre {F d : Nat} {E : Expr} {c : ConLeche.Name}
   have hpm' : ConLeche.prepareMajor mode (ConLeche.pureFns mode env F) env d c
       rules (E.getAppArgs.getD mI (.bvar 0)) = .ok major := hpm
   simp only [ConLeche.iotaRecFueled, ConLeche.iotaRec, hE1, hf]
-  rw [if_pos hg]
+  rw [ite_eq_left hg]
   simp only [hpm', bind, Except.bind]
   rfl
 
@@ -612,7 +615,7 @@ theorem iotaTail_len {F d : Nat} {us : List Level} {cv : ConstantVal}
     (hl : ¬ major.getAppArgs.length = rl.ctorParams + rl.nfields) :
     iotaTail mode env F d us cv mI rP rules args major = .ok none := by
   simp only [iotaTail, hm, hf, hr]
-  rw [if_neg hl]
+  rw [ite_eq_right hl]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:797-910 iotaRec — **the firing
@@ -652,21 +655,21 @@ theorem iotaTail_fire {F d : Nat} {us : List Level} {cv : ConstantVal}
           (args.take rP ++ major.getAppArgs.drop rl.ctorParams))
       else none) := by
   simp only [iotaTail, hm, hf, hr]
-  rw [if_pos hl, if_neg hin]
+  rw [ite_eq_left hl, ite_eq_right hin]
   simp only [ConLeche.liftFueled, h1, bind, Except.bind, pure, Except.pure]
   simp only [pure, Except.pure] at h2
   cases b1
   · rfl
-  · simp only [h2 rfl, if_true]
+  · simp only [h2 rfl, ite_true]
     cases b2
     · rfl
-    · simp only [h3 rfl rfl, if_true]
+    · simp only [h3 rfl rfl, ite_true]
       cases b3
       · rfl
-      · simp only [h4 rfl rfl rfl, if_true]
+      · simp only [h4 rfl rfl rfl, ite_true]
         cases b4
         · rfl
-        · simp only [h5 rfl rfl rfl rfl, if_true]
+        · simp only [h5 rfl rfl rfl rfl, ite_true]
           cases b5 <;> rfl
 
 /-! ### The twin side's index and rule facts -/
@@ -738,17 +741,17 @@ theorem findRule_denote {st : EStore} (hwf : StoreWF st) {cj : NIdx}
       by_cases hb : (r.ctor == cj) = true
       · have hb' : (x.ctor == cjn) = true := hbeq ▸ hb
         refine ⟨fun rl hrl => ?_, fun hn => ?_⟩
-        · simp only [ConRon.Arena.findRule, hb, if_true, Option.some.injEq] at hrl
+        · simp only [ConRon.Arena.findRule, hb, ite_true, Option.some.injEq] at hrl
           subst hrl
           exact ⟨x, hx, by simp [List.find?, hb']⟩
         · simp [ConRon.Arena.findRule, hb] at hn
       · have hb' : (x.ctor == cjn) = false := by rw [← hbeq]; simpa using hb
         have hbf : (r.ctor == cj) = false := by simpa using hb
         refine ⟨fun rl hrl => ?_, fun hn => ?_⟩
-        · simp only [ConRon.Arena.findRule, hbf, Bool.false_eq_true, if_false] at hrl
+        · simp only [ConRon.Arena.findRule, hbf, Bool.false_eq_true, ite_false] at hrl
           obtain ⟨rl', h1, h2⟩ := hr1 rl hrl
           exact ⟨rl', h1, by simp [List.find?, hb', h2]⟩
-        · simp only [ConRon.Arena.findRule, hbf, Bool.false_eq_true, if_false] at hn
+        · simp only [ConRon.Arena.findRule, hbf, Bool.false_eq_true, ite_false] at hn
           simp [List.find?, hb', hr2 hn]
     · simp at h
 
@@ -869,7 +872,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     · exact hwargs z (List.mem_of_mem_take hz)
     · rw [List.mem_singleton.mp hz]; exact hwvmaj
   have hwM : ∀ z ∈ vmaj.getAppArgs, Expr.WScoped d z := Expr.WScoped.getAppArgs hwvmaj
-  rw [if_pos (ConLeche.certs_of_verifiedChecks hμ)]
+  rw [ite_eq_left (ConLeche.certs_of_verifiedChecks hμ)]
   -- stage: the recursor's instantiated type, and its telescope run
   refine triple_seq (constTyAt_spec s₁ icv us cn ls (.recInfo dcv mI rP drules) hok
     (by rw [denoteCV_name hdcv, hname]) hls hfind hdcv) ?_
@@ -885,7 +888,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   have hx13 := hx2.trans hx3
   have hp13 : s3.pins = s₁.pins := hp3.trans hp2
   by_cases hc1t : c1 = true
-  · rw [if_pos hc1t]
+  · rw [ite_eq_left hc1t]
     subst hc1t
     refine triple_seq (constTyAt_spec s3 icvj usj cjn lsj (.ctorInfo dcvj cnP cnF) hok3
       (by rw [denoteCV_name (denoteCV_ext hdcvj hx13), hnamej])
@@ -899,7 +902,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     have hx15 := hx13.trans (hx4.trans hx5)
     have hp15 : s5.pins = s₁.pins := hp5.trans (hp4.trans hp13)
     by_cases hc2t : c2 = true
-    · rw [if_pos hc2t]
+    · rw [ite_eq_left hc2t]
       subst hc2t
       have hI := ExprOps.denoteEList_drop rP _ _
         (ExprOps.denoteEList_take mI _ _ (denoteEList_ext hx15 _ _ hargs))
@@ -927,7 +930,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         cases b5 <;> rfl
       dsimp only
       by_cases hc3t : c3 = true
-      · rw [if_pos hc3t]
+      · rw [ite_eq_left hc3t]
         subst hc3t
         have hv := hval true hF3
         refine triple_seq (ruleRhsAt_spec s6 c rl.ctor icv.levelParams rl.rhs us cn
@@ -955,7 +958,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         mvcgen
         bridge_peel; subst_vars
         exact ⟨hok8, hx16.trans (hx7.trans hx8), hp8.trans (hp7.trans hp16), hfin⟩
-      · rw [if_neg hc3t]
+      · rw [ite_eq_right hc3t]
         have hc3f : c3 = false := by simpa using hc3t
         subst hc3f
         have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
@@ -964,7 +967,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         mvcgen
         bridge_peel; subst_vars
         exact ⟨hok6, hx16, hp16, hfin⟩
-    · rw [if_neg hc2t]
+    · rw [ite_eq_right hc2t]
       have hc2f : c2 = false := by simpa using hc2t
       subst hc2f
       have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
@@ -980,7 +983,7 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
       mvcgen
       bridge_peel; subst_vars
       exact ⟨hok5, hx15, hp15, hfin⟩
-  · rw [if_neg hc1t]
+  · rw [ite_eq_right hc1t]
     have hc1f : c1 = false := by simpa using hc1t
     subst hc1f
     have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
@@ -1023,7 +1026,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
   have hxl : xs.length = sargs.size := by rw [denoteEList_len hxs]; simp
   unfold ConRon.Arena.iotaRecAt
   by_cases htag : (hd.tag == ETag.const) = true
-  · rw [if_pos htag]
+  · rw [ite_eq_left htag]
     refine triple_seq (viewConst_spec s₀ hd) ?_
     rintro oc s1 ⟨hs1, hoc⟩
     subst s1
@@ -1046,7 +1049,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
         have hlenlps := denoteNList_len hlps
         by_cases hne : sargs.size ≠ mI + 1
-        · rw [if_pos hne]
+        · rw [ite_eq_left hne]
           have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
               (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
             simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
@@ -1054,7 +1057,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           mvcgen
           bridge_peel; subst_vars
           exact ⟨hok, Ext.refl _, rfl, hfin⟩
-        · rw [if_neg hne]
+        · rw [ite_eq_right hne]
           have hmI : sargs.size = mI + 1 := by simpa using hne
           have hargs : Frontend.denoteEList s₀.store
               (takeEidx sargs sargs.size).toList = some xs := by
@@ -1070,7 +1073,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           dsimp only
           by_cases hg : (takeEidx sargs sargs.size).toList.length = mI + 1 ∧
               ls.length = icv.levelParams.length
-          · rw [if_pos hg]
+          · rw [ite_eq_left hg]
             have hgP : xs.length = mI + 1 ∧ ls.length = dcv.levelParams.length :=
               ⟨by rw [hxl, hmI], by rw [hg.2, hlenlps]⟩
             refine triple_seq (internE_ok_spec (mode := mode) (env := env) (fe := fe)
@@ -1124,12 +1127,12 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                   have hmargs := hrelA vmaj hvmaj
                   have hmlen := denoteEList_len hmargs
                   by_cases hl : margs.length = rl.ctorParams + rl.nfields
-                  · rw [if_pos hl]
+                  · rw [ite_eq_left hl]
                     have hlP : vmaj.getAppArgs.length = rl'.ctorParams + rl'.nfields := by
                       rw [hmlen, hl, hctp, hnf]
                     by_cases hin : rl.fire = .inert
-                    · rw [if_pos hin]; exact triple_fail
-                    · rw [if_neg hin]
+                    · rw [ite_eq_left hin]; exact triple_fail
+                    · rw [ite_eq_right hin]
                       have hin' : rl'.fire ≠ .inert := fun h => hin (hinert.mpr h)
                       have hwmargs : ∀ z ∈ vmaj.getAppArgs, Expr.WScoped d z :=
                         Expr.WScoped.getAppArgs hwvmaj
@@ -1164,7 +1167,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                       have hx48 : Ext s4.store s8.store := by rw [hst8]; exact hx7
                       have hp48 : s8.pins = s4.pins := hp8.trans hp7
                       by_cases hb1t : b1 = true
-                      · rw [if_pos hb1t]
+                      · rw [ite_eq_left hb1t]
                         subst hb1t
                         have hcert : mode.certs = true :=
                           ConLeche.certs_of_verifiedChecks hμ
@@ -1177,7 +1180,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                         -- stage: the parameter comparison (the twin's `do` inlines the rest at
                         -- each of its three branches; `iotaFam_spec` is that rest)
                         by_cases hcpt : rl.compareParams = true
-                        · rw [if_pos hcpt]
+                        · rw [ite_eq_left hcpt]
                           have hcpt' : rl'.compareParams = true := hcp ▸ hcpt
                           split
                           · refine triple_seq (Q := fun _ s' => CheckOK mode env fe s' ∧
@@ -1186,7 +1189,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                               bridge_peel; subst_vars
                               exact ⟨hok8, rfl, rfl⟩
                             rintro kp sk ⟨hokk, hstk, hpk⟩
-                            rw [if_pos (by rw [hcert]; rfl : (mode.certs || kp) = true)]
+                            rw [ite_eq_left (by rw [hcert]; rfl : (mode.certs || kp) = true)]
                             refine triple_seq (defEqList_spec hsim sk d _ _ _ _ hokk
                               (by rw [hstk]; exact hmt) (by rw [hstk]; exact hcm2')
                               (fun z hz => hwmargs z (List.mem_of_mem_take hz)) hcmpW) ?_
@@ -1198,9 +1201,9 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                   (vmaj.getAppArgs.take rl'.ctorParams)
                                   (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs rP).2
                                 else pure true : CheckM Bool) = .ok y := by
-                              rw [if_pos hcpt', hctp]; exact hFq
+                              rw [ite_eq_left hcpt', hctp]; exact hFq
                             by_cases hyt : y = true
-                            · rw [if_pos hyt]
+                            · rw [ite_eq_left hyt]
                               subst hyt
                               refine triple_mono (iotaFam_spec hμ henv hsim s10 d c icv icvj us usj rl
                                 (takeEidx sargs sargs.size).toList margs major mI rP cn cjn ls lsj dcv dcvj
@@ -1213,7 +1216,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                 hT h1 hq) ?_
                               rintro r s' ⟨ha, hb, hc, hd'⟩
                               exact ⟨ha, hx04.trans (hx410.trans hb), hc.trans (hp410.trans hp04), hd'⟩
-                            · rw [if_neg hyt]
+                            · rw [ite_eq_right hyt]
                               have hyf : y = false := by simpa using hyt
                               subst hyf
                               have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
@@ -1241,7 +1244,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                               bridge_peel; subst_vars
                               exact ⟨hokk0, hstk0, hpk0⟩
                             rintro kp sk ⟨hokk, hstk, hpk⟩
-                            rw [if_pos (by rw [hcert]; rfl : (mode.certs || kp) = true)]
+                            rw [ite_eq_left (by rw [hcert]; rfl : (mode.certs || kp) = true)]
                             refine triple_seq (defEqList_spec hsim sk d _ _ _ _ hokk
                               (by rw [hstk]; exact hmt) (by rw [hstk]; exact hcm2')
                               (fun z hz => hwmargs z (List.mem_of_mem_take hz)) hcmpW) ?_
@@ -1253,9 +1256,9 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                   (vmaj.getAppArgs.take rl'.ctorParams)
                                   (ConLeche.recFireComparands rl' dcv.levelParams ls dcvj.levelParams xs rP).2
                                 else pure true : CheckM Bool) = .ok y := by
-                              rw [if_pos hcpt', hctp]; exact hFq
+                              rw [ite_eq_left hcpt', hctp]; exact hFq
                             by_cases hyt : y = true
-                            · rw [if_pos hyt]
+                            · rw [ite_eq_left hyt]
                               subst hyt
                               refine triple_mono (iotaFam_spec hμ henv hsim s10 d c icv icvj us usj rl
                                 (takeEidx sargs sargs.size).toList margs major mI rP cn cjn ls lsj dcv dcvj
@@ -1268,7 +1271,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                                 hT h1 hq) ?_
                               rintro r s' ⟨ha, hb, hc, hd'⟩
                               exact ⟨ha, hx04.trans (hx410.trans hb), hc.trans (hp410.trans hp04), hd'⟩
-                            · rw [if_neg hyt]
+                            · rw [ite_eq_right hyt]
                               have hyf : y = false := by simpa using hyt
                               subst hyf
                               have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
@@ -1283,7 +1286,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                               mvcgen
                               bridge_peel; subst_vars
                               exact ⟨hok10, hx04.trans hx410, hp410.trans hp04, hfin⟩
-                        · rw [if_neg hcpt]
+                        · rw [ite_eq_right hcpt]
                           have hcpf : rl'.compareParams = false := by rw [← hcp]; simpa using hcpt
                           have hq : (if rl'.compareParams then
                               ConLeche.defEqListFueled mode env 0 d
@@ -1294,7 +1297,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                           · mvcgen
                           rintro y s10 ⟨hs10, rfl⟩
                           subst s10
-                          rw [if_pos rfl]
+                          rw [ite_eq_left rfl]
                           refine triple_mono (iotaFam_spec hμ henv hsim s8 d c icv icvj us usj rl
                             (takeEidx sargs sargs.size).toList margs major mI rP cn cjn ls lsj dcv dcvj
                             cnP cnF drules rl' xs vmaj Fp 0 hok8
@@ -1306,7 +1309,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                             hT h1 hq) ?_
                           rintro r s' ⟨ha, hb, hc, hd'⟩
                           exact ⟨ha, hx04.trans (hx48.trans hb), hc.trans (hp48.trans hp04), hd'⟩
-                      · rw [if_neg hb1t]
+                      · rw [ite_eq_right hb1t]
                         have hb1f : b1 = false := by simpa using hb1t
                         have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
                             (Expr.mkAppN (.const cn ls) xs)) d s8.store none := by
@@ -1321,7 +1324,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                         mvcgen
                         bridge_peel; subst_vars
                         exact ⟨hok8, hx04.trans hx48, hp48.trans hp04, hfin⟩
-                  · rw [if_neg hl]
+                  · rw [ite_eq_right hl]
                     have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
                         (Expr.mkAppN (.const cn ls) xs)) d s4.store none :=
                       simOOp_none (F := Fp) (by
@@ -1358,7 +1361,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
               mvcgen
               bridge_peel; subst_vars
               exact ⟨hok4, hx04, hp04, hfin⟩
-          · rw [if_neg hg]
+          · rw [ite_eq_right hg]
             have hfin : SimOOp (fun F => ConLeche.iotaRecFueled mode env F d
                 (Expr.mkAppN (.const cn ls) xs)) d s₀.store none :=
               simOOp_none (F := 0) (iotaRecFueled_guard hE1 hfind (by
@@ -1374,7 +1377,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         mvcgen
         bridge_peel; subst_vars
         exact ⟨hok, Ext.refl _, rfl, hfin⟩
-  · rw [if_neg htag]
+  · rw [ite_eq_right htag]
     obtain ⟨v, hv⟩ := denoteE_view hdh
     have hvt := EStore.tagOf_of_view hv
     have hnc := denote_not_const hwf hv hdh (by

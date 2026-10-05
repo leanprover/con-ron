@@ -114,7 +114,7 @@ private theorem pins_eight_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables}
     intro k i out o hk h
     have hk0 : k.val = 0 := by omega
     rw [pins_decode.pins_eight_from.eq_def] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     intro hi
@@ -174,7 +174,7 @@ private theorem pins_eight_from_start {t : Slice Std.U8} {i j k : Std.Usize}
     (hk : ¬ (k = 0#usize))
     (h : pins_decode.pins_eight_from t i tb k out = ok (.Ok (es, j))) :
     i.val ≤ t.length := by
-  rw [pins_decode.pins_eight_from.eq_def, if_neg hk] at h
+  rw [pins_decode.pins_eight_from.eq_def, ite_eq_right hk] at h
   obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
   cases r with
   | Err e => simp at h
@@ -225,7 +225,7 @@ private theorem proofs_eight_from_aux {t : Slice Std.U8} {tb : pins_decode.Table
     intro k i out o hk h
     have hk0 : k.val = 0 := by omega
     rw [pins_decode.proofs_eight_from.eq_def] at h
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     simp only [Result.ok.injEq] at h
     subst h
     intro hi
@@ -283,7 +283,7 @@ private theorem proofs_eight_from_start {t : Slice Std.U8} {i j k : Std.Usize}
     (hk : ¬ (k = 0#usize))
     (h : pins_decode.proofs_eight_from t i tb k out = ok (.Ok (es, j))) :
     i.val ≤ t.length := by
-  rw [pins_decode.proofs_eight_from.eq_def, if_neg hk] at h
+  rw [pins_decode.proofs_eight_from.eq_def, ite_eq_right hk] at h
   obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
   cases r with
   | Err e => simp at h

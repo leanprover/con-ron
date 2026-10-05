@@ -186,7 +186,7 @@ theorem block_names_aux (k : Nat) :
     intro block i out o hn h
     rw [arena.basis.block_names] at h
     have hl := alloc.vec.Vec.len_val block
-    rw [if_pos (by scalar_tac)] at h
+    rw [ite_eq_left (by scalar_tac)] at h
     obtain rfl := (Result.ok_injective h).symm
     have : absICILFrom block i = [] := by
       simp only [absICILFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
@@ -195,7 +195,7 @@ theorem block_names_aux (k : Nat) :
     intro block i out o hn h
     rw [arena.basis.block_names] at h
     have hl := alloc.vec.Vec.len_val block
-    rw [if_neg (by scalar_tac)] at h
+    rw [ite_eq_right (by scalar_tac)] at h
     obtain ⟨ii, hii, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨n, hn2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -255,7 +255,7 @@ theorem basis_pin_hit_go_aux (k : Nat) :
     have hl := alloc.vec.Vec.len_val ks
     have : absBasisKindLFrom ks i = [] := by
       simp only [absBasisKindLFrom]; rw [List.drop_eq_nil_of_le (by omega)]; rfl
-    rw [arena.basis.basis_pin_hit_go, this, basisPinHitGo, if_pos (by scalar_tac)]
+    rw [arena.basis.basis_pin_hit_go, this, basisPinHitGo, ite_eq_left (by scalar_tac)]
     exact LS.pure rfl hrel hinv
   | succ m ih =>
     intro pers st lst block ks i hn hrel hinv
@@ -264,7 +264,7 @@ theorem basis_pin_hit_go_aux (k : Nat) :
     have hcons : absBasisKindLFrom ks i = ConRon.Refine.absBasisKind ks.val[i.val] ::
         (ks.val.drop (i.val + 1)).map ConRon.Refine.absBasisKind := by
       simp only [absBasisKindLFrom]; rw [List.drop_eq_getElem_cons hi]; rfl
-    rw [arena.basis.basis_pin_hit_go, hcons, basisPinHitGo, if_neg (by scalar_tac)]
+    rw [arena.basis.basis_pin_hit_go, hcons, basisPinHitGo, ite_eq_right (by scalar_tac)]
     have hcanon : ∀ {st lst} (xs ys : alloc.vec.Vec arena.env.IConstantInfo),
         AStateRel₀ pers st lst → AStateInv pers st →
         LS pers (fun a b => b = id a) (arena.canon.canon_eq_list pers st xs ys 0#usize) lst
@@ -307,8 +307,8 @@ theorem quotPinHit_split (k : ConLeche.QuotKind) (cv : ConRon.Arena.IConstantVal
   unfold quotPinHit
   congr 1; funext blk
   by_cases h : k.slot < blk.length
-  · rw [dif_pos h, List.getElem?_eq_getElem h]
-  · rw [dif_neg h, List.getElem?_eq_none (by omega)]
+  · rw [dite_eq_left h, List.getElem?_eq_getElem h]
+  · rw [dite_eq_right h, List.getElem?_eq_none (by omega)]
 
 -- the twin's bound `dite` is split although no branch is ruled out at once
 -- (the bounds contradiction needs `len_val`, below)

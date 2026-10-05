@@ -60,7 +60,7 @@ empty `if_all_zero` is `.ifAllZero []`). -/
     kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
     alloc.vec.Vec.len] at h
   simp at h
-  rw [if_pos (by rfl)] at h
+  rw [ite_eq_left (by rfl)] at h
   simp at h
   subst h
   simp [TwinEq, absIIndCaps]
