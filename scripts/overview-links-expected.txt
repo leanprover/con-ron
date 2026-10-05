@@ -1999,187 +1999,229 @@
     96      (hrun : Arena.PooledAccepts μ pins ds s fe' s') :
     97      ∃ env' F', denoteFEnv s'.store fe' = some env' ∧
 
-== proof/ConRon/Bridge/Specs.lean#L1-L60
+== proof/ConRon/Bridge/WP.lean#L1-L38
+     1  /-
+     2  # `ConRon.Bridge.WP` — the `Std.Do` triples of this tier, read by `vcgen`
+     3  
+     4  Lean 4.35 deprecated `mvcgen` for `vcgen` (task #111).  The two are not the
+     5  same tactic on a new name: `mvcgen` generates verification conditions for
+     6  `Std.Do.Triple` goals (an `SPred` precondition, a `PostCond` postcondition),
+     7  and `vcgen` for `Std.WP.Triple` goals (a precondition in any complete
+     8  lattice — here `AState → Prop` — a plain postcondition function, and a
+     9  separate exception postcondition).  `vcgen` rejects a `Std.Do` goal outright
+    10  ("could not determine the program type of the goal"), and the `@[spec]`
+    11  attribute files a `Std.Do` triple in the legacy database only, which
+    12  `vcgen` does not read.
+    13  
+    14  Every statement of this tier is a `Std.Do` triple of one shape (DESIGN
+    15  §8.6's template, `Bridge/Specs.lean`):
+    16  
+    17  ```lean
+    18  ⦃fun s => ⌜P s⌝⦄ x ⦃⇓? r s' => ⌜Q r s'⌝⦄       -- x : AM α
+    19  ```
+    20  
+    21  and for `AM = StateT AState (Except CheckError)` that is *literally* the
+    22  `Std.WP` triple `Triple x P Q (fun _ => True)` — the `⇓?` is the exception
+    23  postcondition `⊤`.  This module is the bridge, in three pieces, so that no
+    24  statement changes:
+    25  
+    26  * `AM.do_of_wp` turns a `Std.Do` goal into the `Std.WP` one, so that a proof
+    27    starts `to_wp; vcgen [...]` (`to_wp` is `apply AM.do_of_wp` plus a zeta
+    28    reduction, below);
+    29  * `@[wp_spec]` on a `Std.Do` spec theorem `f_spec` derives its `Std.WP`
+    30    twin `f_spec.wp` (by `AM.wp_of_do`) and files THAT under `@[spec]`, so
+    31    `vcgen` finds it;
+    32  * `wp% h` does the same for a local hypothesis (an induction hypothesis, a
+    33    `Spec` record's field) passed in `vcgen [wp% h]`.
+    34  
+    35  The order instances on `Prop` are `scoped` in `Std.WP` (they come with its
+    36  triple notation, which would clash with `Std.Do`'s `⦃⦄`), so this module
+    37  re-scopes the two instances `vcgen` needs into `ConRon.Bridge`.
+    38  -/
+
+== proof/ConRon/Bridge/Specs.lean#L1-L62
      1  /-
      2  # `ConRon.Bridge.Specs` — one `@[spec]` theorem per `Monad.lean` primitive
      3  
      4  The thing task #97s's spike exists to fix: **one spec theorem per (B)
-     5  primitive, in one shape**, so that `mvcgen` can walk a twin's body without any
-     6  store reasoning appearing in the proof text.  The shape is the spike's
-     7  seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
-     8  
-     9  ```lean
-    10  @[spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
-    11      ⦃fun s => ⌜s = s₀⌝⦄ f args ⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄
-    12  ```
-    13  
-    14  1. **the precondition is `s = s₀` and nothing else** — every real
-    15     precondition is an ordinary hypothesis of the theorem, so `mspec` turns it
-    16     into a side goal instead of an entailment to discharge in the logic;
-    17  2. **`⇓?` (partial correctness), never `⇓`** — a (B) function may fail and
-    18     Theorem 1 claims nothing then (con-leche's `SimAt`,
-    19     `Verify/SimI.lean:244`);
-    20  3. **the postcondition names `s₀`**, the only way to state
-    21     `Ext s₀.store s'.store` in a triple;
-    22  4. **"the subject denotes" is an `isSome`, never a named `Expr`**;
-    23  5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
-    24     never a bare `∀ e, … → …`;
-    25  6. **a memo insert's spec states that the INVARIANT is preserved**, not that
-    26     the table grew — the single highest-value change of the spike;
-    27  7. **one named failure primitive** (`fail`), because a bare `throw` in
-    28     `StateT σ (Except ε)` leaves `mvcgen` with universe metavariables.
-    29  
-    30  ## The frame conditions
+     5  primitive, in one shape**, so that the verification-condition generator
+     6  (`mvcgen` until task #111, `vcgen` since, through `Bridge/WP.lean`'s
+     7  `@[wp_spec]` twin of each spec) can walk a twin's body without any store
+     8  reasoning appearing in the proof text.  The shape is the spike's
+     9  seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
+    10  
+    11  ```lean
+    12  @[spec, wp_spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
+    13      ⦃fun s => ⌜s = s₀⌝⦄ f args ⦃⇓? r s' => ⌜Post s₀ r s'⌝⦄
+    14  ```
+    15  
+    16  1. **the precondition is `s = s₀` and nothing else** — every real
+    17     precondition is an ordinary hypothesis of the theorem, so `mspec` turns it
+    18     into a side goal instead of an entailment to discharge in the logic;
+    19  2. **`⇓?` (partial correctness), never `⇓`** — a (B) function may fail and
+    20     Theorem 1 claims nothing then (con-leche's `SimAt`,
+    21     `Verify/SimI.lean:244`);
+    22  3. **the postcondition names `s₀`**, the only way to state
+    23     `Ext s₀.store s'.store` in a triple;
+    24  4. **"the subject denotes" is an `isSome`, never a named `Expr`**;
+    25  5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
+    26     never a bare `∀ e, … → …`;
+    27  6. **a memo insert's spec states that the INVARIANT is preserved**, not that
+    28     the table grew — the single highest-value change of the spike;
+    29  7. **one named failure primitive** (`fail`), because a bare `throw` in
+    30     `StateT σ (Except ε)` leaves `mvcgen` with universe metavariables.
     31  
-    32  `AState` has four fields and the `Memos` record has thirteen tables, so a
-    33  naive frame condition would be sixteen equations per spec.  Task #97b put the
-    34  per-call tables in ONE record and task #97c the per-declaration ones in
-    35  another for exactly this reason: every spec below frames the state in at most
-    36  four equations, and a memo write frames the other twelve tables with one
-    37  (`s'.memos = { s₀.memos with xC := … }`).
-    38  
-    39  `Bridge/StateOK.lean`'s `CheckOK.mono` is what those equations buy: the whole
-    40  checker invariant crosses an `ExprOps` call on `Ext` plus
-    41  `s'.caches = s₀.caches` plus `s'.pins = s₀.pins`.
-    42  
-    43  ## What is NOT here, and why
+    32  ## The frame conditions
+    33  
+    34  `AState` has four fields and the `Memos` record has thirteen tables, so a
+    35  naive frame condition would be sixteen equations per spec.  Task #97b put the
+    36  per-call tables in ONE record and task #97c the per-declaration ones in
+    37  another for exactly this reason: every spec below frames the state in at most
+    38  four equations, and a memo write frames the other twelve tables with one
+    39  (`s'.memos = { s₀.memos with xC := … }`).
+    40  
+    41  `Bridge/StateOK.lean`'s `CheckOK.mono` is what those equations buy: the whole
+    42  checker invariant crosses an `ExprOps` call on `Ext` plus
+    43  `s'.caches = s₀.caches` plus `s'.pins = s₀.pins`.
     44  
-    45  * **`internPersistentE` / `…N` / `…L` / `…Ls`.**  `Arena/Store.lean`'s own
-    46    note (the section "Interning into the PERSISTENT tier") states the
-    47    obligation for the BRACKET and not for the operation: `internPersistent`
-    48    breaks `fresh` transiently, and it is `promote … dropScratch` as a whole
-    49    that takes `StoreWF` to `StoreWF`.  Its four specs therefore belong to the
-    50    `Promote` tier, whose statement is that bracket, not to this file.
-    51  * **the eleven `internRebuilt*` faces of `ExprOps.lean`** are here, at the
-    52    end: they are `internE` plus task #97-P6-5's upward cutoff, and every
-    53    rebuilding walk goes through them.
-    54  
-    55  ## The closer
+    45  ## What is NOT here, and why
+    46  
+    47  * **`internPersistentE` / `…N` / `…L` / `…Ls`.**  `Arena/Store.lean`'s own
+    48    note (the section "Interning into the PERSISTENT tier") states the
+    49    obligation for the BRACKET and not for the operation: `internPersistent`
+    50    breaks `fresh` transiently, and it is `promote … dropScratch` as a whole
+    51    that takes `StoreWF` to `StoreWF`.  Its four specs therefore belong to the
+    52    `Promote` tier, whose statement is that bracket, not to this file.
+    53  * **the eleven `internRebuilt*` faces of `ExprOps.lean`** are here, at the
+    54    end: they are `internE` plus task #97-P6-5's upward cutoff, and every
+    55    rebuilding walk goes through them.
     56  
-    57  `bridge_vcs` at the end of this file is task #97s round 2's recipe: ONE
-    58  curated `grind` list, a `bridge_peel` in front of it, and a second stage that
-    59  puts the `RelE` transports back for the handful of verification conditions
-    60  that genuinely have to move an answer along the extension chain.  The arm
+    57  ## The closer
+    58  
+    59  `bridge_vcs` at the end of this file is task #97s round 2's recipe: ONE
+    60  curated `grind` list, a `bridge_peel` in front of it, and a second stage that
+    61  puts the `RelE` transports back for the handful of verification conditions
+    62  that genuinely have to move an answer along the extension chain.  The arm
 
-== proof/ConRon/Bridge/Inductives/Run.lean#L60-L78
-    60  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
-    61  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
-    62  answer related to the pure side's by `R`, having only grown the arena.
-    63  
-    64  Partial correctness, as everywhere in this library: a (B) function may fail
-    65  and Theorem 1 claims nothing then — which is why the hypothesis is
-    66  `c s0 = .ok (r, s')` and not an unconditional equation.
-    67  
-    68  **RUN form rather than a `Std.Do` triple**, and the reason is task
-    69  #97-P3-Checker §1's: this tier's work is composition, inversion and list
-    70  induction rather than verification conditions, and `Bridge/Checker/Fold.lean`
-    71  — the module that consumes `IndSpec` — is already written in run form
-    72  (`AM.bind_ok` is its only inversion).  A leaf walk proved with `mvcgen` in
-    73  task #97-P3-0's idiom reaches this shape by reading its triple at the `.ok`
-    74  branch; `Bridge/Inductives/Decl.lean`'s note says what that costs. -/
-    75  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
-    76      Prop :=
-    77    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
-    78      PStep s₀ s' ∧ R s'.store r
+== proof/ConRon/Bridge/Inductives/Run.lean#L59-L77
+    59  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
+    60  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
+    61  answer related to the pure side's by `R`, having only grown the arena.
+    62  
+    63  Partial correctness, as everywhere in this library: a (B) function may fail
+    64  and Theorem 1 claims nothing then — which is why the hypothesis is
+    65  `c s0 = .ok (r, s')` and not an unconditional equation.
+    66  
+    67  **RUN form rather than a `Std.Do` triple**, and the reason is task
+    68  #97-P3-Checker §1's: this tier's work is composition, inversion and list
+    69  induction rather than verification conditions, and `Bridge/Checker/Fold.lean`
+    70  — the module that consumes `IndSpec` — is already written in run form
+    71  (`AM.bind_ok` is its only inversion).  A leaf walk proved with `mvcgen` in
+    72  task #97-P3-0's idiom reaches this shape by reading its triple at the `.ok`
+    73  branch; `Bridge/Inductives/Decl.lean`'s note says what that costs. -/
+    74  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    75      Prop :=
+    76    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
+    77      PStep s₀ s' ∧ R s'.store r
 
-== proof/ConRon/Bridge/Inductives/Rel.lean#L50-L67
-    50  /-! ## The core grade -/
-    51  
-    52  /-- con-leche: none — **the bridge between the two grades**: a pure step
-    53  preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
-    54  `CheckOK.mono`.  This is what lets a core-grade function call a pure-grade one
-    55  and keep its own hypothesis. -/
-    56  theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
-    57      (h : PStep s s') (hc : CheckOK μ env fe s) : CoreStep μ env fe s s' :=
-    58    ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
-    59  
-    60  /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
-    61  statement**: the same at a function that calls the knot, so the invariant is
-    62  `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
-    63  inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
-    64  def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
-    65      (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
-    66    ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
-    67      c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
+== proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66
+    49  /-! ## The core grade -/
+    50  
+    51  /-- con-leche: none — **the bridge between the two grades**: a pure step
+    52  preserves the whole checking invariant, by `Bridge/StateOK.lean`'s
+    53  `CheckOK.mono`.  This is what lets a core-grade function call a pure-grade one
+    54  and keep its own hypothesis. -/
+    55  theorem PStep.toCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
+    56      (h : PStep s s') (hc : CheckOK μ env fe s) : CoreStep μ env fe s s' :=
+    57    ⟨hc.monoF h.ok h.ext h.cframe h.pins, h.ext, h.pins⟩
+    58  
+    59  /-- con-leche: ConLeche/Verify/Cached/SimC.lean:366 SimC — **the CORE grade's
+    60  statement**: the same at a function that calls the knot, so the invariant is
+    61  `CheckOK` and the frame is `CoreStep`.  The pure side's fuel existential lives
+    62  inside `R`, as `Bridge/Core/Knot.lean`'s `SimE` has it. -/
+    63  def CSpec (μ : CheckMode) (env : Env) (fe : IFEnv) {α : Type}
+    64      (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) : Prop :=
+    65    ∀ (s₀ s' : AState) (r : α), CheckOK μ env fe s₀ → P s₀.store →
+    66      c s₀ = .ok (r, s') → CoreStep μ env fe s₀ s' ∧ R s'.store r
 
-== proof/ConRon/Bridge/Inductives/StructParts.lean#L119-L165
-   119  /-! ## The spines -/
-   120  
-   121  /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:52-53 structPsAt
-   122  The parameter variables as seen from under `o` extra binders.
-   123  
-   124  **CLOSED** (task #97-P3-Ind round 2): a `Nat` recursion over
-   125  `internBVarE_run` with the cursor `k` generalised.  The pure side is a
-   126  `List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
-   127  the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
-   128  theorem structPsAt_go_run (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
-   129      {r : List EIdx}, StateOK s → Arena.structPsAt.go o nP n k s = .ok (r, s') →
-   130      PStep s s' ∧ Frontend.denoteEList s'.store r
-   131        = some ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + j))) := by
-   132    intro n
-   133    induction n with
-   134    | zero =>
-   135      intro k s s' r hok hrun
-   136      simp only [Arena.structPsAt.go] at hrun
-   137      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-   138      exact ⟨PStep.refl hok, rfl⟩
-   139    | succ n ih =>
-   140      intro k s s' r hok hrun
-   141      simp only [Arena.structPsAt.go] at hrun
-   142      obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
-   143      obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
-   144      obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
-   145      obtain ⟨hstep2, hrest⟩ := ih (k + 1) hstep1.ok h3
-   146      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
-   147      refine ⟨hstep1.trans hstep2, ?_⟩
-   148      have hkey : ((List.range (n + 1)).map fun j => Expr.bvar (o + nP - 1 - (k + j)))
-   149          = Expr.bvar (o + nP - 1 - k) ::
-   150            ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + 1 + j))) := by
-   151        rw [List.range_succ_eq_map, List.map_cons, List.map_map]
-   152        congr 1
-   153        refine List.map_congr_left (fun j _ => ?_)
-   154        simp only [Function.comp_apply]
-   155        congr 1
-   156        omega
-   157      rw [hkey]
-   158      simp only [Frontend.denoteEList, denote_ext hb hstep2.ext, hrest]
-   159  
-   160  theorem structPsAt_spec (o nP : Nat) :
-   161      PSpec PT (Arena.structPsAt o nP) (REL (ConLeche.structPsAt o nP)) := by
-   162    intro s₀ s' r hok _ hrun
-   163    obtain ⟨hstep, hd⟩ := structPsAt_go_run o nP nP 0 hok hrun
-   164    refine ⟨hstep, ?_⟩
-   165    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
+== proof/ConRon/Bridge/Inductives/StructParts.lean#L118-L164
+   118  /-! ## The spines -/
+   119  
+   120  /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:52-53 structPsAt
+   121  The parameter variables as seen from under `o` extra binders.
+   122  
+   123  **CLOSED** (task #97-P3-Ind round 2): a `Nat` recursion over
+   124  `internBVarE_run` with the cursor `k` generalised.  The pure side is a
+   125  `List.range` map, so the step is `List.range_succ_eq_map` and one `omega` on
+   126  the index arithmetic (`k + (j + 1) = k + 1 + j`). -/
+   127  theorem structPsAt_go_run (o nP : Nat) : ∀ (n k : Nat) {s s' : AState}
+   128      {r : List EIdx}, StateOK s → Arena.structPsAt.go o nP n k s = .ok (r, s') →
+   129      PStep s s' ∧ Frontend.denoteEList s'.store r
+   130        = some ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + j))) := by
+   131    intro n
+   132    induction n with
+   133    | zero =>
+   134      intro k s s' r hok hrun
+   135      simp only [Arena.structPsAt.go] at hrun
+   136      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+   137      exact ⟨PStep.refl hok, rfl⟩
+   138    | succ n ih =>
+   139      intro k s s' r hok hrun
+   140      simp only [Arena.structPsAt.go] at hrun
+   141      obtain ⟨b, s₁, h1, h2⟩ := AM.bind_ok hrun
+   142      obtain ⟨rest, s₂, h3, h4⟩ := AM.bind_ok h2
+   143      obtain ⟨hstep1, hb⟩ := internBVarE_run hok h1
+   144      obtain ⟨hstep2, hrest⟩ := ih (k + 1) hstep1.ok h3
+   145      obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
+   146      refine ⟨hstep1.trans hstep2, ?_⟩
+   147      have hkey : ((List.range (n + 1)).map fun j => Expr.bvar (o + nP - 1 - (k + j)))
+   148          = Expr.bvar (o + nP - 1 - k) ::
+   149            ((List.range n).map fun j => Expr.bvar (o + nP - 1 - (k + 1 + j))) := by
+   150        rw [List.range_succ_eq_map, List.map_cons, List.map_map]
+   151        congr 1
+   152        refine List.map_congr_left (fun j _ => ?_)
+   153        simp only [Function.comp_apply]
+   154        congr 1
+   155        omega
+   156      rw [hkey]
+   157      simp only [Frontend.denoteEList, denote_ext hb hstep2.ext, hrest]
+   158  
+   159  theorem structPsAt_spec (o nP : Nat) :
+   160      PSpec PT (Arena.structPsAt o nP) (REL (ConLeche.structPsAt o nP)) := by
+   161    intro s₀ s' r hok _ hrun
+   162    obtain ⟨hstep, hd⟩ := structPsAt_go_run o nP nP 0 hok hrun
+   163    refine ⟨hstep, ?_⟩
+   164    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
 
-== proof/ConRon/Bridge/Core/Knot.lean#L124-L141
-   124  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
-   125      Prop where
-   126    /-- Head normalization without delta, in either mode (`c` is the official
-   127    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
-   128    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   129      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   130      Expr.WScoped d e →
-   131      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore c d i
-   132      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   133          s'.pins = s₀.pins ∧
-   134          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄
-   135    /-- The full reduction loop. -/
-   136    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   137      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   138      Expr.WScoped d e →
-   139      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
-   140      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   141          s'.pins = s₀.pins ∧
+== proof/ConRon/Bridge/Core/Knot.lean#L121-L138
+   121  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
+   122      Prop where
+   123    /-- Head normalization without delta, in either mode (`c` is the official
+   124    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
+   125    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   126      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   127      Expr.WScoped d e →
+   128      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnfCore c d i
+   129      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   130          s'.pins = s₀.pins ∧
+   131          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r⌝⦄
+   132    /-- The full reduction loop. -/
+   133    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   134      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   135      Expr.WScoped d e →
+   136      ⦃fun s => ⌜s = s₀⌝⦄ (coreKnot mode fe id f).whnf d i
+   137      ⦃⇓? r s' => ⌜CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   138          s'.pins = s₀.pins ∧
 
-== proof/ConRon/Bridge/Core/Induction.lean#L73-L80
-    73  theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
-    74      (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true) :
-    75      ∀ f, KnotSpec mode env fe f
-    76    | 0 => knotSpec_zero mode env fe
-    77    | f + 1 =>
-    78      { whnfCore := fun {c} s₀ d i e hok hden hw =>
-    79          memoWhnfCore_step henv
-    80            (fun c => whnfCoreBody_spec henv hμ (knot_spec henv hμ f) c) (c := c)
+== proof/ConRon/Bridge/Core/Induction.lean#L72-L79
+    72  theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
+    73      (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true) :
+    74      ∀ f, KnotSpec mode env fe f
+    75    | 0 => knotSpec_zero mode env fe
+    76    | f + 1 =>
+    77      { whnfCore := fun {c} s₀ d i e hok hden hw =>
+    78          memoWhnfCore_step henv
+    79            (fun c => whnfCoreBody_spec henv hμ (knot_spec henv hμ f) c) (c := c)
 
 == proof/ConRon/Refine2/AbsState.lean#L326-L340
    326    /-- **Finding 16**: the TWIN store is well formed — Theorem 1's invariant,

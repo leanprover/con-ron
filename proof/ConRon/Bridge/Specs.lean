@@ -2,8 +2,10 @@
 # `ConRon.Bridge.Specs` — one `@[spec]` theorem per `Monad.lean` primitive
 
 The thing task #97s's spike exists to fix: **one spec theorem per (B)
-primitive, in one shape**, so that `mvcgen` can walk a twin's body without any
-store reasoning appearing in the proof text.  The shape is the spike's
+primitive, in one shape**, so that the verification-condition generator
+(`mvcgen` until task #111, `vcgen` since, through `Bridge/WP.lean`'s
+`@[wp_spec]` twin of each spec) can walk a twin's body without any store
+reasoning appearing in the proof text.  The shape is the spike's
 seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
 
 ```lean
@@ -76,21 +78,6 @@ set_option autoImplicit false
 set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena Std.Do
-
-/-! ## Two one-line tactics for the barrels
-
-Under `⇓?` every failing branch of a primitive leaves a verification
-condition of the shape `False → <postcondition>` — `fail_spec`'s success
-barrel, applied.  `spec_fails` closes exactly those and nothing else (`intro`
-fails on a conjunction, so the `try` cannot touch a real goal), and `spec_ro`
-is the whole proof of a read-only primitive: the barrels, then one `grind`. -/
-
-/-- con-leche: none — close the `False` barrels of a `⇓?` postcondition. -/
-macro "spec_fails" : tactic =>
-  `(tactic| all_goals try (intro hf; exact False.elim hf))
-
-/-- con-leche: none — the whole proof of a state-reading primitive. -/
-macro "spec_ro" : tactic => `(tactic| (spec_fails; all_goals grind))
 
 /-! ## The derived `match` auxiliaries, given an owner (task #97-P3-ExprOps
 round 4)
@@ -204,8 +191,8 @@ theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
 /-! ## The failure primitives (template rule 7) -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — **the failure
-spec**: a `fail` never returns, so under `⇓?` its success barrel is `False`
-and every continuation goal it produces closes by `.elim`. -/
+spec**: a `fail` never returns, so under `⇓?` its success barrel is `False`.
+`vcgen` reads `fail_wp` below instead. -/
 @[spec] theorem fail_spec {α : Type} (e : Arena.CheckError) :
     ⦃fun _ => ⌜True⌝⦄ (fail e : AM α) ⦃⇓? _r _s' => ⌜False⌝⦄ := by
   intro _ _; trivial
@@ -228,8 +215,9 @@ and every continuation goal it produces closes by `.elim`. -/
 better than the `@[wp_spec]` twin of the three above: with a SCHEMATIC
 postcondition `Q`, `fail` establishes any `Q` (it never returns, and `⇓?`'s
 exception postcondition is `True`), so the failing branch of a twin leaves
-no verification condition at all, where the twin's `False` barrel left one
-per failure site for `spec_fails` to close. -/
+no verification condition at all, where the `False` barrel left one per
+failure site (closed, under `mvcgen`, by a `spec_fails` macro that is gone
+with it). -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — `fail` meets
 every postcondition under partial correctness. -/
@@ -1395,9 +1383,7 @@ spec says; a `false` answer licenses nothing and the walk recurses. -/
     ⦃⇓? r s' => ⌜s' = s₀ ∧ (r = true →
         (bvarOfData (s₀.store.derived h)).toNat < satRange ∧
         (bvarOfData (s₀.store.derived h)).toNat ≤ d)⌝⦄ := by
-  to_wp; vcgen [instListCutoff]
-  spec_fails
-  all_goals grind
+  to_wp; vcgen [instListCutoff] with finish
 
 /-! ## The per-declaration bracket (DESIGN §8.3, "Drop")
 

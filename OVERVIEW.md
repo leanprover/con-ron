@@ -616,9 +616,11 @@ stream at some fuel.  Theorem 1 owns every invariant of the twin's state,
 `StoreWF` included.
 
 The store primitives and the type checker are specified by Hoare triples
-of Lean's `Std.Do`, in one fixed form, proved with `mvcgen`; the `@[spec]`
-lemmas of
-[`Bridge/Specs.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Specs.lean#L1-L60)
+of Lean's `Std.Do`, in one fixed form, proved with `vcgen` through a small
+bridge to `Std.WP`
+([`Bridge/WP.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/WP.lean#L1-L38),
+task #111); the `@[spec]` lemmas of
+[`Bridge/Specs.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Specs.lean#L1-L62)
 cover one primitive each:
 
 ```lean
@@ -631,8 +633,8 @@ statements are instead plain implications over a successful run, like the
 graded ones below.
 
 **Spec grades.**  A twin function's statement has one of two grades
-([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L60-L78),
-[`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L50-L67)):
+([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L59-L77),
+[`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66)):
 
 * **pure grade** (`PSpec`), for functions that do not call the type
   checker: invariant `StateOK` (the store is well-formed), frame `PStep`
@@ -647,7 +649,7 @@ A pure step lifts to a core step (`PStep.toCore`), so a core-grade function
 may call a pure-grade one; not the other way.
 
 An example at the pure grade
-([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L119-L165)).
+([`StructParts.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/StructParts.lean#L118-L164)).
 The twin's `structPsAt` interns a list of `bvar` nodes; the theorem says the
 list denotes con-leche's:
 
@@ -665,9 +667,9 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq`, `annotate`) is one statement indexed by fuel,
-[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L124-L141),
+[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L121-L138),
 proved by induction on the fuel in
-[`knot_spec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L73-L80).
+[`knot_spec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L72-L79).
 
 ### 7.4 Theorem 2: the Rust refines the twin
 
