@@ -96,47 +96,6 @@
  
  @[simp, simp_lists_safe]
  theorem getElem!_replicate {α : Type u} [Inhabited α] {i n : ℕ} {a : α} (h : i < n) :
---- a/Aeneas/Do/Elab.lean
-+++ b/Aeneas/Do/Elab.lean
-@@ -540,6 +540,29 @@
- meta def elabDoSeq (doSeq : TSyntax ``doSeq) : ElabM Expr :=
-   getDoElems doSeq >>= fun elems => elabDoSeqCore elems
- 
-+/-- con-ron patch (task #112): upstream #1340 made the elaborator emit the
-+    universe-polymorphic `Std.bind` for every bind.  con-ron's refinement proofs
-+    (the `lockstep` tactic, every lemma stated over a generated body) are written
-+    against the typeclass `Bind.bind` the elaborator emitted before, so a bind
-+    whose two value types live in the SAME universe is turned back into
-+    `Bind.bind` (definitionally equal, `bind_tc_eq`); a cross-universe bind keeps
-+    `Std.bind`.  The levels are unified, not compared: a `do` in a statement is
-+    elaborated before its value types are known (`(do …) = ok o` with `o`'s type
-+    still a metavariable), and a level left undetermined is one universe. -/
-+meta def normalizeSameUniverseBinds (e : Expr) : MetaM Expr :=
-+  Meta.transform e (post := fun e => do
-+    if e.isAppOfArity ``Aeneas.Std.bind 4 then
-+      if let .const _ [u, v] := e.getAppFn then
-+        if ← isLevelDefEq u v then
-+          let u ← instantiateLevelMVars u
-+          let res := Lean.mkConst ``Aeneas.Std.Result [u]
-+          let inst := mkApp2 (Lean.mkConst ``Monad.toBind [u, u]) res
-+            (Lean.mkConst ``Aeneas.Std.instMonadResult [u])
-+          let args := e.getAppArgs
-+          return .done (mkAppN (Lean.mkConst ``Bind.bind [u, u])
-+            #[res, inst, args[0]!, args[1]!, args[2]!, args[3]!])
-+    return .continue)
-+
- /-- Option to toggle the new Aeneas `do` elaborator -/
- meta register_option Aeneas.customDoElab : Bool := {
-     defValue := true
-@@ -562,7 +585,7 @@
-     let result ← Do.ElabM.execute (Do.elabDoSeq doSeq) expectedType?.get!
-     let result ← Term.ensureHasType expectedType? result
-     synthesizeSyntheticMVarsNoPostponing
--    instantiateMVars result
-+    Do.normalizeSameUniverseBinds (← instantiateMVars result)
-   else
-     Term.elabDo stx expectedType?
- 
 --- a/Aeneas/Do/Tests.lean
 +++ b/Aeneas/Do/Tests.lean
 @@ -626,13 +626,15 @@
