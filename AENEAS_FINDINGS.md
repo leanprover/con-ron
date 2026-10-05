@@ -379,13 +379,24 @@ emitted the typeclass `Bind.bind` before; the library's own definitions (`Vec.in
 …) and its `bind_tc_*` lemmas stay `Bind.bind`.  A client whose lemmas are stated with `do`
 and whose tactics match `Bind.bind` (ours: the whole Theorem-2 tier) finds every generated
 body and every one of its own statements in the new spelling and every library lemma in the
-old one — `rw [bind_tc_ok]` "did not find an occurrence" of a term printed identically.  The
-patch turns a bind whose two value types are in one universe back into `Bind.bind` after
-elaboration (the levels are unified, since a `do` in a statement is elaborated before its
-types are known); a cross-universe bind keeps `Std.bind`.  #1340's own message says the
-`Bind.bind` form "now only comes from code elaborated with Lean's `do`" — so a downstream
-user upgrading across it should expect every bind-shaped proof step to need the `Std.bind`
-lemma (`bind_ok`, `Std.bind_assoc`) or `bind_tc_eq` first.
+old one — `rw [bind_tc_ok]` "did not find an occurrence" of a term printed identically.
+Task #112 patched the elaborator to turn same-universe binds back into `Bind.bind`; **task
+#113 dropped that hunk and adopted `Std.bind`**, which is what upstream intends: #1340's own
+message says the `Bind.bind` form "now only comes from code elaborated with Lean's `do`",
+and the library already has the `Std.bind` lemmas (`bind_ok`, `bind_fail`, `Std.bind_assoc`,
+`Std.bind_pure`) beside the `Bind.bind` ones (`bind_tc_*`, `bind_assoc_eq`) and the bridge
+`bind_tc_eq : Bind.bind x f = bind x f` — no library change was needed.  The port is
+mechanical (`bind_tc_ok` → `bind_ok` at 322 sites, the tactic's `Bind.bind 6` tests on the
+Rust side → `Std.bind 4`, Rust-side `>>=` in statements → `Std.bind f k`; a library body
+unfolded in a proof, still `Bind.bind`, takes `bind_tc_eq` first) with one trap.
+**[surprise]** `Std.bind` is an ordinary `def`, where `Bind.bind` was an instance
+projection, so **unifying `Std.bind ?x ?f` with a term that is not a bind no longer fails
+fast**: the unifier unfolds `Std.bind` (to `ITree.bind`) and runs out of heartbeats, or
+postpones the problem and *logs* the mismatch, which `first`/`try`/`repeat` do not catch.
+Every `first | … | obtain … := bind_eq_ok_iff.mp h | …` alternative that may meet a
+non-bind (93 of them in Theorem 2) now checks the head first (`rust_bind_guard`).  Upstream
+could spare clients this by making `Std.bind` irreducible outside the library's own lemmas
+(as `Result` already is) — not tried here.
 
 **The trap the two options set, and it cost us real work.** **[bug]** The `leanOptions` are
 the **`aeneas` package's**, so they do **not** reach a downstream project.  Without them,

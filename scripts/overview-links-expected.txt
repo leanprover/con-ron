@@ -2294,38 +2294,38 @@
     29  | `LSRM` | `Result (Result α × M)` — a memoised reader walk | `all_level_params_defined_go` |
     30  
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L162-L166
-   162  /-- **The lockstep judgement** for a state-threading Rust computation. -/
-   163  def LS {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
-   164      (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState))
-   165      (lst : AState) (x : AM β) : Prop :=
-   166    ∀ o st', m = ok (o, st') → LOut pers R o st' (x.run lst)
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L164-L168
+   164  /-- **The lockstep judgement** for a state-threading Rust computation. -/
+   165  def LS {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+   166      (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState))
+   167      (lst : AState) (x : AM β) : Prop :=
+   168    ∀ o st', m = ok (o, st') → LOut pers R o st' (x.run lst)
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L168-L172
-   168  /-- A Rust READ that may fail: the state is `st` before and after. -/
-   169  def LSR {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
-   170      (m : Result (core.result.Result α kernel.core_types.CheckError))
-   171      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
-   172    ∀ o, m = ok o → LOut pers R o st (x.run lst)
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L170-L174
+   170  /-- A Rust READ that may fail: the state is `st` before and after. -/
+   171  def LSR {α β : Type} (pers : arena.store.PersTier) (R : α → β → Prop)
+   172      (m : Result (core.result.Result α kernel.core_types.CheckError))
+   173      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
+   174    ∀ o, m = ok o → LOut pers R o st (x.run lst)
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L632-L644
-   632  /-- **The lockstep judgement of a memoised state walk**: `LS` of the walk with
-   633  its memo moved into the answer; `R` relates `(answer, memo)` to the twin's
-   634  answer (typically the twin's `(answer, memo)` pair). -/
-   635  def LSM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
-   636      (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M))
-   637      (lst : AState) (x : AM β) : Prop :=
-   638    LS pers R (packM m) lst x
-   639  
-   640  /-- **The lockstep judgement of a memoised reader walk** at the state `st`. -/
-   641  def LSRM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
-   642      (m : Result (core.result.Result α kernel.core_types.CheckError × M))
-   643      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
-   644    LS pers R (packRM st m) lst x
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L634-L646
+   634  /-- **The lockstep judgement of a memoised state walk**: `LS` of the walk with
+   635  its memo moved into the answer; `R` relates `(answer, memo)` to the twin's
+   636  answer (typically the twin's `(answer, memo)` pair). -/
+   637  def LSM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
+   638      (m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState × M))
+   639      (lst : AState) (x : AM β) : Prop :=
+   640    LS pers R (packM m) lst x
+   641  
+   642  /-- **The lockstep judgement of a memoised reader walk** at the state `st`. -/
+   643  def LSRM {α β M : Type} (pers : arena.store.PersTier) (R : α × M → β → Prop)
+   644      (m : Result (core.result.Result α kernel.core_types.CheckError × M))
+   645      (st : arena.monad.AState) (lst : AState) (x : AM β) : Prop :=
+   646    LS pers R (packRM st m) lst x
 
-== proof/ConRon/Refine2/Tactic/Lockstep.lean#L2862-L2863
-  2862  /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
-  2863  macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
+== proof/ConRon/Refine2/Tactic/Lockstep.lean#L2870-L2871
+  2870  /-- **The lockstep tactic**: step until every goal is closed or stuck. -/
+  2871  macro "lockstep" : tactic => `(tactic| repeat' lockstep_step)
 
 == proof/ConRon/Refine2/Tactic/Attr.lean#L87-L95
     87  initialize registerBuiltinAttribute {
@@ -2338,31 +2338,31 @@
     94      let prio ← getAttrParamOptPrio stx[1]
     95      lockstepExt.add (.add k decl prio) kind
 
-== proof/ConRon/Refine/Abs.lean#L500-L523
-   500  /-- `ConLeche/Kernel/PropWhen.lean:360-384` -- the canonical-form invariant of
-   501  the sealed datum, in the same shape as `NameWF`/`LevelWF`.
-   502  
-   503  con-leche's `PropWhenRepr` carries it as proof *fields* (`two p q` needs
-   504  `p < q`, `many ps` needs `PropWhen.Sorted ps ∧ 2 < ps.length`), which Charon
-   505  erases (task #9, item 3); here they come back as the four smart constructors
-   506  that are the port's only way in — `prop_when::never`, `prop_when::if_all_zero`,
-   507  `prop_when::inter` and `prop_when::bind_z` (the module's whole set of public
-   508  producers; `of_sorted`/`two_prime` are Rust-private).  Canonical sortedness by
-   509  the port's own `prop_when::name_cmp` is therefore not *stated* but *derived*:
-   510  `ConRon/Refine/PropWhen.lean`'s `wf_shape` turns a `PropWhenWF` derivation
-   511  into the invariant `WFShape` — well-formed names, a strictly ascending
-   512  abstracted parameter list, and a `Many` that really holds more than two
-   513  names — and that is what makes `to_list` and `beq` exact.
-   514  
-   515  The `bind_z` constructor quantifies over the dictionary type `F`: the port's
-   516  stand-in for `bindZ`'s function argument (task #9, pattern 1). -/
-   517  inductive PropWhenWF : prop_when.PropWhen → Prop where
-   518    | never {pw} : prop_when.never = ok pw → PropWhenWF pw
-   519    | if_all_zero {ps pw} : NamesWF ps → prop_when.if_all_zero ps = ok pw → PropWhenWF pw
-   520    | inter {a b pw} : PropWhenWF a → PropWhenWF b → prop_when.inter a b = ok pw → PropWhenWF pw
-   521    | bind_z {F : Type} {inst : prop_when.NameToPw F} {f : F} {pw c} :
-   522        (∀ n, NameWF n → ∀ r, inst.apply f n = ok r → PropWhenWF r) →
-   523        PropWhenWF pw → prop_when.bind_z inst f pw = ok c → PropWhenWF c
+== proof/ConRon/Refine/Abs.lean#L536-L559
+   536  /-- `ConLeche/Kernel/PropWhen.lean:360-384` -- the canonical-form invariant of
+   537  the sealed datum, in the same shape as `NameWF`/`LevelWF`.
+   538  
+   539  con-leche's `PropWhenRepr` carries it as proof *fields* (`two p q` needs
+   540  `p < q`, `many ps` needs `PropWhen.Sorted ps ∧ 2 < ps.length`), which Charon
+   541  erases (task #9, item 3); here they come back as the four smart constructors
+   542  that are the port's only way in — `prop_when::never`, `prop_when::if_all_zero`,
+   543  `prop_when::inter` and `prop_when::bind_z` (the module's whole set of public
+   544  producers; `of_sorted`/`two_prime` are Rust-private).  Canonical sortedness by
+   545  the port's own `prop_when::name_cmp` is therefore not *stated* but *derived*:
+   546  `ConRon/Refine/PropWhen.lean`'s `wf_shape` turns a `PropWhenWF` derivation
+   547  into the invariant `WFShape` — well-formed names, a strictly ascending
+   548  abstracted parameter list, and a `Many` that really holds more than two
+   549  names — and that is what makes `to_list` and `beq` exact.
+   550  
+   551  The `bind_z` constructor quantifies over the dictionary type `F`: the port's
+   552  stand-in for `bindZ`'s function argument (task #9, pattern 1). -/
+   553  inductive PropWhenWF : prop_when.PropWhen → Prop where
+   554    | never {pw} : prop_when.never = ok pw → PropWhenWF pw
+   555    | if_all_zero {ps pw} : NamesWF ps → prop_when.if_all_zero ps = ok pw → PropWhenWF pw
+   556    | inter {a b pw} : PropWhenWF a → PropWhenWF b → prop_when.inter a b = ok pw → PropWhenWF pw
+   557    | bind_z {F : Type} {inst : prop_when.NameToPw F} {f : F} {pw c} :
+   558        (∀ n, NameWF n → ∀ r, inst.apply f n = ok r → PropWhenWF r) →
+   559        PropWhenWF pw → prop_when.bind_z inst f pw = ok c → PropWhenWF c
 
 == proof/ConRon/Refine2/ExprOps/Mut.lean#L136-L142
    136  @[lockstep] theorem intern_rebuilt_lam_ls (h : arena.handle.EIdx) (same : Bool)

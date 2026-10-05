@@ -706,16 +706,16 @@ The form depends on the shape of the Rust function:
 
 | judgement | Rust shape |
 |---|---|
-| [`LS`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L162-L166) | returns a result and a new state |
-| [`LSR`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L168-L172) | reads the state, may fail |
+| [`LS`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L164-L168) | returns a result and a new state |
+| [`LSR`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L170-L174) | reads the state, may fail |
 | `LSV`, `LSW` | reads and cannot fail; writes and cannot fail |
 | `LSP` | a Rust-only step with no twin counterpart (a copy, a `u64` decrement) |
-| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L632-L644) | a memoised walk that returns its memo beside the result |
+| [`LSM`, `LSRM`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L634-L646) | a memoised walk that returns its memo beside the result |
 
 `LS.toSim₀` converts back to the statement form.
 
 **The `lockstep` tactic**
-([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2862-L2863))
+([`lockstep`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Tactic/Lockstep.lean#L2870-L2871))
 steps the two programs together, one bind at a time.  At each Rust bind it
 looks up a lemma for the callee, applies it, and continues with the related
 results as hypotheses.  It splits a Rust `if` or `match`, and uses the facts
@@ -745,7 +745,7 @@ subtypes.  con-leche's `PropWhen`, for instance, carries a proof that its
 name list is sorted; the Rust `PropWhen` does not, so it admits values the
 twin's type cannot represent.  Where a lemma needs the erased fact, it takes
 it as a premise:
-[`PropWhenWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L500-L523)
+[`PropWhenWF`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine/Abs.lean#L536-L559)
 holds of exactly the values the port's smart constructors can build.  The
 store relation carries the same fact for every stored binder datum.  An
 example of a lemma with such a premise
