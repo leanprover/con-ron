@@ -67495,3 +67495,220 @@ sibling of the same family, which comes first in this export's order:
 exports, reproduction and probe scripts) are deleted, as is
 `_tmp/t97/nanoda-diag`.  `_tmp/corpus/*` and `_tmp/t97/nanoda-build`
 (now `3a24072`) stay.
+
+#### Slice 3 — why nanoda blows up and the others don't; the arena's newest perf tests (2026-10-06)
+
+**Verdict: this is a different cause from `perf/proj-lazy-struct`.**  The
+blow-up is nanoda's *two-valued* proof irrelevance.  When two proofs
+have types that are not definitionally equal, nanoda's `def_eq` does not
+stop there; it carries on with lazy delta and unfolds the proofs.  The
+official kernel stops, and con-leche/con-ron never compare the types at
+all.  The evidence, in order:
+
+1. **What is compared when it explodes.**  A second diagnostic nanoda
+   (`4c544ed` + `eprintln!`s in `reduce_rec`, `to_ctor_when_k` and
+   `def_eq_proj`, plus a backtrace at the first well-founded reduction;
+   scratch only) was run on `rat_g1e5` (below; it finishes at 8 GiB).
+   At v4.35.0-rc3 the trace is 508 151 lines against 8 377 at v4.33.0.
+   They are 201 061 `Nat.rec` on literals, 100 403 on `Nat.zero`,
+   100 009 `Acc.rec` and 99 999 `Or.rec`: a unary well-founded recursion
+   on 10⁵.  It starts right after
+   `def_eq_proj And.0` with
+   `L = Nat.gcd_dvd (natAbs (num (inv 10000))) (den 1)` and
+   `R = Nat.gcd_dvd (natAbs (num 100000)) (den (1/10⁹))`.  These are two
+   *proofs*, of `gcd 1 1 ∣ … ∧ …` and `gcd 10⁵ 10⁹ ∣ … ∧ …`, two
+   different propositions.  The backtrace at the first `WellFounded.rec`:
+   `def_eq` → `try_eq_const_app` (×4, comparing arguments) → `def_eq` →
+   `def_eq_proj` → `def_eq` → `lazy_delta_step` → `delta` → `whnf` →
+   `reduce_rec`.  So the proofs are unfolded: `Nat.gcd_dvd` is proved by
+   well-founded recursion, which nanoda runs in unary.  Hence the cost is
+   linear in the gcd, and so in the factor `Rat.mul` cancels.
+2. **Why nanoda unfolds them.**  `proof_irrel_eq` (`src/tc.rs:1337`) is
+   a `bool`: two proofs with non-defeq types give `false`, and `def_eq`
+   (`src/tc.rs:979`) falls through to `lazy_delta_step`.  The official
+   `is_def_eq_proof_irrel` (`src/kernel/type_checker.cpp:899` at
+   v4.35.0-rc3) returns `to_lbool(is_def_eq(t_type, s_type))` once `t`
+   is a proof, and `is_def_eq_core` returns on anything but `l_undef`
+   (line 1163).  So two proofs of different propositions are *not
+   equal*, and the proofs are never unfolded.  Also,
+   `try_eq_const_app` (`src/tc.rs:1231`) compares arguments
+   right to left (`.rev()`), so the trailing proof arguments of
+   `Int.divExact x y h` / `Nat.divExact` are compared before the
+   numbers that already differ.
+3. **The test.**  A scratch nanoda `4c544ed` (`nanoda-pi`) with the
+   official three-valued rule — a 10-line diagnostic patch in `def_eq`,
+   *not* the baseline binary:
+   * `rat_g1e6` (v4.35): 1.80 G instructions, 17 MB, accepts.  Unpatched:
+     159.2 G, aborted at 8 GiB.
+   * `rat_g1e5`: 1.81 G against 35.5 G.
+   * `v_rat_rfl` (below; no `Decidable` at all): 1.80 G at both toolchains,
+     against aborts at both unpatched.
+   * The whole v4.35.0-rc3 Mathlib export, under the 27 GiB cap and serially:
+     `Checked 719627 declarations with no errors`, 6 083.2 G
+     instructions, 17 min 34 s, 5.90 GB peak.  #107 (v4.33.0 export,
+     unpatched) was 6 054.0 G / 7.12 GB.
+   * `perf/proj-lazy-struct` still overflows its stack with the patch.
+   So the proof-irrelevance rule alone is the Mathlib cause, and the
+   proj-lazy weakness is a separate one.
+4. **(b) proj-lazy-struct across the bump.**  Stack overflow (exit 134)
+   at both `4c544ed` (16.99 G) and `3a24072` (16.64 G): nothing in
+   0.4.19 touched it.
+5. **(c) projection-free variants** (`Var.lean`, v4.33 and v4.35):
+   * `v_rat_rfl`, `(1/2000000 : Rat) * 1000000 = 1/2` by
+     `with_unfolding_all rfl`, has no `decide` and no `Decidable`
+     projection.  It aborts nanoda at 8 GiB **at v4.33.0 as well**
+     (159.2 G).  So the weakness predates v4.35; it is not caused by
+     `Decidable` becoming a structure.
+   * `.num`/`.den` of the same product by `rfl`, a `Nat.beq` on
+     `.num.natAbs`, and `decide` of `.den = 2` (a `Nat` equality) are all
+     cheap (1.79 G).  Only a comparison of two whole `Rat` values reaches
+     the two `reduced`/`den_nz` proof fields.
+   * v4.35's structure `Decidable` is what routes the `decide` of a `Rat`
+     equation into that comparison: `v_dec_small`, the `decide +kernel`
+     form, is cheap at v4.33.0 and aborts at v4.35.0-rc3.
+
+**Why con-leche and con-ron do not blow up.**  con-leche's `defeqBody`
+(`ConLeche/Kernel/Core.lean:1808-1818` at the pin `67f04630`) runs
+`propIrrel` (`:365-386`) right after the cheap `whnfCore` and
+`quickDefEq`, before any delta step.  When both sides' types have sort
+`Prop`, `propIrrel` returns `true` without comparing the types at all
+(`:384`).  Its docstring (`:320-327`) explains why: in its model every
+inhabitant of a proposition is the one proof point, and congruence
+compares argument pairs only after the earlier ones matched (left to
+right).  So a heterogeneous pair cannot be reached.  Two proofs are
+therefore never unfolded, whatever their propositions.  con-ron is the
+port of the same code (`crates/con-ron-core/src/arena/core.rs:4148
+prop_irrel`, called from `defeq_after_whnf` at `:10331`).  Their
+`majorToCtor` K path (`Core.lean:591-660`) ends in the same `defeq`
+and `proofIrrel`.  Neither has nanoda's two-valued fall-through.
+con-leche `1bcb0eb0e` ("PUNIT: unpin PUnit, remove the isUnitLikeTy
+special case") is not relevant: its diff to `proofIrrel` removes only the
+*unit-like* arm; the Prop arm (both sorts `Prop` → `true`) is unchanged.
+Both its parent and the pin therefore take the same path on these
+proofs, so it was not measured.
+
+**The repro, measured** (`Repro.lean`, one theorem per export via
+`lean4export Repro -- <decl>`, exporters `15f6055`/v4.33.0 and
+`66f1fb4`/v4.35.0-rc3).  Each export is ~5.2 MB.  The four checkers
+(con-ron master binary, con-leche at the pin `67f04630` built in a
+private clone under `_tmp/t114-s3`, nanoda `4c544ed` and `3a24072`) each
+ran 3 times, interleaved, under `ulimit -v` 8 GiB and `timeout 600`, with
+`perf stat -e instructions:u` and `time -v`.
+`rat_g1eK` is `((1 : Rat) / 1000000000) * 10^K = …` by
+`decide +kernel` (K = 6 with the `Int` cast, as in the culprit):
+
+| export | checker | instructions:u (median) | wall (min–max of 3) | peak RSS | verdict |
+|---|---|---:|---:|---:|---|
+| `rat_g1e4-v4.33.0` | con-ron | 3.02 G | 0.27–0.28 s | 98 MB | accept |
+| `rat_g1e4-v4.33.0` | con-leche | 7.58 G | 0.64–0.64 s | 70 MB | accept |
+| `rat_g1e4-v4.33.0` | nanoda-4c544ed | 1.81 G | 0.16–0.16 s | 17 MB | accept |
+| `rat_g1e4-v4.33.0` | nanoda-3a24072 | 1.80 G | 0.16–0.17 s | 17 MB | accept |
+| `rat_g1e4-v4.35.0-rc3` | con-ron | 2.86 G | 0.26–0.27 s | 106 MB | accept |
+| `rat_g1e4-v4.35.0-rc3` | con-leche | 6.93 G | 0.60–0.61 s | 72 MB | accept |
+| `rat_g1e4-v4.35.0-rc3` | nanoda-4c544ed | 5.20 G | 0.60–0.60 s | 152 MB | accept |
+| `rat_g1e4-v4.35.0-rc3` | nanoda-3a24072 | 5.15 G | 0.58–0.60 s | 151 MB | accept |
+| `rat_g1e5-v4.33.0` | con-ron | 3.02 G | 0.27–0.27 s | 98 MB | accept |
+| `rat_g1e5-v4.33.0` | con-leche | 7.58 G | 0.63–0.65 s | 71 MB | accept |
+| `rat_g1e5-v4.33.0` | nanoda-4c544ed | 1.81 G | 0.16–0.16 s | 17 MB | accept |
+| `rat_g1e5-v4.33.0` | nanoda-3a24072 | 1.80 G | 0.16–0.16 s | 17 MB | accept |
+| `rat_g1e5-v4.35.0-rc3` | con-ron | 2.86 G | 0.26–0.27 s | 106 MB | accept |
+| `rat_g1e5-v4.35.0-rc3` | con-leche | 6.93 G | 0.60–0.61 s | 73 MB | accept |
+| `rat_g1e5-v4.35.0-rc3` | nanoda-4c544ed | 35.45 G | 6.16–6.37 s | 1351 MB | accept |
+| `rat_g1e5-v4.35.0-rc3` | nanoda-3a24072 | 34.75 G | 5.88–6.20 s | 1349 MB | accept |
+| `rat_g1e6-v4.33.0` | con-ron | 3.02 G | 0.27–0.28 s | 98 MB | accept |
+| `rat_g1e6-v4.33.0` | con-leche | 7.58 G | 0.63–0.64 s | 70 MB | accept |
+| `rat_g1e6-v4.33.0` | nanoda-4c544ed | 1.81 G | 0.16–0.16 s | 17 MB | accept |
+| `rat_g1e6-v4.33.0` | nanoda-3a24072 | 1.81 G | 0.16–0.16 s | 17 MB | accept |
+| `rat_g1e6-v4.35.0-rc3` | con-ron | 2.87 G | 0.27–0.27 s | 108 MB | accept |
+| `rat_g1e6-v4.35.0-rc3` | con-leche | 6.93 G | 0.60–0.62 s | 73 MB | accept |
+| `rat_g1e6-v4.35.0-rc3` | nanoda-4c544ed | 159.21 G | 57.86–58.83 s | 6171 MB | **aborted at the 8 GiB cap** (exit 134; `memory allocation of 2415919120 bytes failed`) |
+| `rat_g1e6-v4.35.0-rc3` | nanoda-3a24072 | 155.98 G | 57.51–59.03 s | 6167 MB | **aborted at the 8 GiB cap** (exit 134; `memory allocation of 2415919120 bytes failed`) |
+
+**The arena's newest perf tests** (`lean-kernel-arena` at
+`_tmp/ka-upstream`, HEAD `69b4ab2`).  Exported the arena's own way:
+`python3 lka.py build-test perf/<name>` (Python with `pyyaml`,
+`jsonschema`, `markdown`, `jinja2` from `nix shell`), which exports
+each test's `export-decls` from its `.lean` file.  The exports are
+therefore at the **arena's toolchain, v4.34.1**, not our v4.35.0-rc3,
+and live in `_tmp/ka-upstream/_build/tests/perf/`.  Same four checkers,
+same harness (3 interleaved runs, 8 GiB, 600 s).  The arena itself gives
+con-ron and con-leche more threads and its own limits; this is a
+single-worker comparison.
+
+| test | checker | instructions:u (median) | wall (min–max of 3) | peak RSS | verdict |
+|---|---|---:|---:|---:|---|
+| `magma-list-deep-n21` | con-ron | 12.28 G | 1.45–1.67 s | 536 MB | accept |
+| `magma-list-deep-n21` | con-leche | 26.09 G | 3.60–3.70 s | 657 MB | accept |
+| `magma-list-deep-n21` | nanoda-4c544ed | 13.13 G | 1.40–1.50 s | 275 MB | accept |
+| `magma-list-deep-n21` | nanoda-3a24072 | 13.10 G | 1.40–1.50 s | 275 MB | accept |
+| `magma-list-deep-n36` | con-ron | 391.54 G | 66.58–92.53 s | 2 774 MB | **aborted at the 8 GiB cap** (exit 134) |
+| `magma-list-deep-n36` | con-leche | 139.90 G | 20.04–36.93 s | 4 937 MB | **out of memory at the 8 GiB cap** (exit 1; `INTERNAL PANIC: out of memory`) |
+| `magma-list-deep-n36` | nanoda-4c544ed | 231.98 G | 37.59–42.26 s | 2 596 MB | accept |
+| `magma-list-deep-n36` | nanoda-3a24072 | 231.74 G | 37.14–46.40 s | 2 595 MB | accept |
+| `magma-list-pair-n21` | con-ron | 81.50 G | 30.02–31.23 s | 3 248 MB | **aborted at the 8 GiB cap** (exit 134) |
+| `magma-list-pair-n21` | con-leche | 164.50 G | 25.42–26.17 s | 4 945 MB | **out of memory at the 8 GiB cap** (exit 1; `INTERNAL PANIC: out of memory`) |
+| `magma-list-pair-n21` | nanoda-4c544ed | 91.21 G | 20.66–21.16 s | 4 247 MB | accept |
+| `magma-list-pair-n21` | nanoda-3a24072 | 91.19 G | 20.70–21.05 s | 4 246 MB | accept |
+| `magma-list-pair-n7` | con-ron | 8.83 G | 1.44–3.20 s | 941 MB | accept |
+| `magma-list-pair-n7` | con-leche | 17.81 G | 2.95–3.62 s | 505 MB | accept |
+| `magma-list-pair-n7` | nanoda-4c544ed | 8.24 G | 1.17–1.24 s | 345 MB | accept |
+| `magma-list-pair-n7` | nanoda-3a24072 | 8.24 G | 1.16–1.19 s | 345 MB | accept |
+| `magma-string-n4` | con-ron | 14.08 G | 1.28–1.30 s | 175 MB | accept |
+| `magma-string-n4` | con-leche | 34.51 G | 3.09–3.11 s | 102 MB | accept |
+| `magma-string-n4` | nanoda-4c544ed | 12.93 G | 1.13–1.15 s | 51 MB | accept |
+| `magma-string-n4` | nanoda-3a24072 | 12.94 G | 1.12–1.15 s | 42 MB | accept |
+| `magma-string-pair-n9` | con-ron | 33.97 G | 3.91–3.93 s | 883 MB | accept |
+| `magma-string-pair-n9` | con-leche | 78.77 G | 9.37–9.53 s | 1 020 MB | accept |
+| `magma-string-pair-n9` | nanoda-4c544ed | 37.92 G | 4.29–4.34 s | 564 MB | accept |
+| `magma-string-pair-n9` | nanoda-3a24072 | 37.92 G | 4.25–4.29 s | 564 MB | accept |
+| `proj-cheap-struct` | con-ron | 0.16 G | 0.03–0.03 s | 59 MB | accept |
+| `proj-cheap-struct` | con-leche | 0.06 G | 0.02–0.02 s | 22 MB | accept |
+| `proj-cheap-struct` | nanoda-4c544ed | 0.02 G | 0.00–0.00 s | 17 MB | accept |
+| `proj-cheap-struct` | nanoda-3a24072 | 0.02 G | 0.00–0.01 s | 17 MB | accept |
+| `proj-lazy-struct` | con-ron | 0.15 G | 0.03–0.08 s | 57 MB | accept |
+| `proj-lazy-struct` | con-leche | 0.04 G | 0.01–0.02 s | 22 MB | accept |
+| `proj-lazy-struct` | nanoda-4c544ed | 16.99 G | 4.57–4.61 s | 598 MB | **stack overflow** (exit 134) |
+| `proj-lazy-struct` | nanoda-3a24072 | 16.64 G | 4.51–4.67 s | 592 MB | **stack overflow** (exit 134) |
+| `proj-stuck-struct` | con-ron | 0.15 G | 0.03–0.03 s | 55 MB | accept |
+| `proj-stuck-struct` | con-leche | 0.04 G | 0.01–0.01 s | 22 MB | accept |
+| `proj-stuck-struct` | nanoda-4c544ed | 0.01 G | 0.00–0.00 s | 17 MB | accept |
+| `proj-stuck-struct` | nanoda-3a24072 | 0.01 G | 0.00–0.01 s | 17 MB | accept |
+
+* **proj-lazy-struct**: nanoda overflows its stack at both commits;
+  con-ron and con-leche accept in 0.04–0.15 G.  proj-cheap-struct and
+  proj-stuck-struct are trivial for all four.
+* **The magma-list pair**: at the 8 GiB cap, con-ron
+  (`magma-list-deep-n36`, `magma-list-pair-n21`) aborts with an allocation
+  failure, and con-leche exits 1 with `INTERNAL PANIC: out of memory`.
+  The 8 GiB cap is this harness's `Init` cap, not the arena's.  A
+  diagnostic single run at the 27 GiB Mathlib cap (`--limit-kb`-style,
+  not a baseline number):
+
+  | test | checker | instructions:u | wall | peak RSS | verdict |
+  |---|---|---:|---:|---:|---|
+  | `magma-list-deep-n36` | con-ron | 391.74 G | 70.5 s | 4.87 GB | accept |
+  | `magma-list-deep-n36` | con-leche | 305.35 G | 69.8 s | 8.41 GB | accept |
+  | `magma-list-pair-n21` | con-ron | 96.13 G | 27.2 s | 5.88 GB | accept |
+  | `magma-list-pair-n21` | con-leche | 193.04 G | 40.9 s | 5.46 GB | accept |
+
+  On `magma-list-deep-n36` con-ron executes 128 % of con-leche's
+  instructions and 169 % of nanoda's.  That is the opposite of its
+  Mathlib ratio, and worth a lane of its own.  The aborted 8 GiB con-ron
+  run had already executed 391.54 G, so it died near the end.
+* The magma-string tests and the small magma-list tests accept
+  everywhere.  con-ron is at 0.41–0.50× con-leche's instructions there,
+  and at 0.90–1.09× nanoda's.
+
+**This corrects Slice 2's reading.**  The `to_ctor_when_k` in that backtrace
+is where the comparison *started* (the K-rescue's endpoint check).  The
+growth comes from unfolding the two proofs that two-valued proof
+irrelevance lets through.  "No obvious one-line fix" stands for the
+baseline: the fix is the ~10-line three-valued rule above.  It is
+nanoda's to make, and the measured baseline stays unpatched.
+
+**Scratch.**  The repro sources and their exports are kept in
+`_tmp/corpus/nanoda-proof-irrel/` (`Repro.lean`, `Var.lean`, 18 exports,
+90 MB).  The arena exports stay in `_tmp/ka-upstream/_build/`.  The
+rest of `_tmp/t114-s3` is deleted: the con-leche clone, the nanoda
+builds and diagnostics, the v4.33 exporter, and the raw measurement files
+(their numbers are above).
