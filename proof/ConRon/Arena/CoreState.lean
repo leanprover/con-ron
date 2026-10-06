@@ -145,7 +145,9 @@ instance : Inhabited Pins := ⟨Pins.empty⟩
 /-- con-leche: none — DESIGN §8.3's cap (lesson 10, "a cap, not an eviction
 policy"): a table that reaches this many entries is dropped whole.  A
 top-level `def` so the Rust is a `const` and the Lean never inlines a
-`Nat` literal into a comparison (DESIGN §8.4, lesson 7). -/
-def cacheCap : Nat := 4194304
+`Nat` literal into a comparison (DESIGN §8.4, lesson 7).  2^25 since task
+#115 (it was 2^22, which dropped `perf/magma-list-deep-n36`'s `whnfCore`
+memo eleven times; see the Rust `CACHE_CAP`). -/
+def cacheCap : Nat := 33554432
 
 end ConRon.Arena

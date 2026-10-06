@@ -394,7 +394,14 @@ impl Caches {
 /// twin: `proof/ConRon/Arena/CoreState.lean:99 cacheCap` — a top-level `def`
 /// there so that the Rust is a `const` and the Lean never inlines a `Nat`
 /// literal into a comparison (DESIGN.md §8.4, lesson 7).
-pub const CACHE_CAP: usize = 4194304;
+///
+/// **2^25 since task #115** (it was 2^22).  At 2^22 the `whnf_core` memo of
+/// `perf/magma-list-deep-n36`'s one declaration was dropped eleven times
+/// (it peaks at 14.5 M entries) and every drop re-ran the β work it had
+/// memoised: 391.7 G instructions against 147.1 G uncapped.  con-leche's
+/// `memoEI` has no cap at all; 2^25 is the order of its one cap
+/// (`instCCap`, 32 M), and a unary table at it is at most 2^26 slots × 16 B.
+pub const CACHE_CAP: usize = 33554432;
 
 // ---------------------------------------------------------------------------
 // The scratch-tier drop (`CoreState.lean:101-153`)

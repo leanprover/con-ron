@@ -169,6 +169,18 @@ const FIT_DECAY: usize = 8;
 /// instruction count keeps falling because that is the re-makes going away.
 const FIT_SLACK: usize = 64;
 
+/// con-leche: none — arena infrastructure (task #115)
+/// The slot count from which `clear_fit` no longer GROWS a table that its
+/// round's entries fit at `insert`'s own load factor.  `clear_fit` sizes for
+/// load ½ but `insert` resizes only past ¾, so a table that ended its round
+/// between the two was re-made at twice its size by its own clear — for the
+/// app cons table of `perf/magma-list-deep-n36`, 2^27 slots × 20 B
+/// allocated while the old 2^26 were still live, after the last declaration:
+/// the 8 GiB abort of task #114.  Below this size the pre-sizing pays
+/// (never growing on clear at all is +0.46 % instructions on `Init`); at and
+/// above it a table that held its round without a resize keeps its size.
+const FIT_NO_GROW: usize = 1048576;
+
 /// The largest stamp.  `clear` at this value vacates the slots and restarts
 /// the epoch at 1 rather than overflowing (the crate builds with
 /// `overflow-checks`, so the wrap must be explicit).
@@ -457,7 +469,9 @@ impl<K, V> HashMap2<K, V> {
     ///  * **the growth is taken in one step, before the round starts** —
     ///    when the mark is above the current size the table is re-made LARGER
     ///    here, while it is empty, so `insert`'s doubling-and-moving does not
-    ///    run inside the round at all.
+    ///    run inside the round at all — **except for a big table that held
+    ///    the mark at `insert`'s own load** (`FIT_NO_GROW`, task #115): that
+    ///    one is only cleared, since `insert` would not have grown it either.
     ///
     /// The unallocated table (`new`, task #35's lazy allocation) is left
     /// unallocated: a table that has never held anything must not be given
@@ -470,7 +484,7 @@ impl<K, V> HashMap2<K, V> {
         let hw: usize = if used > decayed { used } else { decayed };
         self.fit_hw = hw;
         let want: usize = pow2_at_least(hw + hw + 1, MIN_CAPACITY, POW2_FUEL);
-        if n == 0 || (want <= n && n / FIT_SLACK <= want) {
+        if n == 0 || (want <= n && n / FIT_SLACK <= want) || (n >= FIT_NO_GROW && hw <= self.max_load) {
             self.clear()
         } else {
             let table: HashMap2<K, V> = HashMap2::new_with_capacity_pow2(want);

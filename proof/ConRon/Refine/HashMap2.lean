@@ -1237,9 +1237,10 @@ theorem clear_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K 
         rw [UScalar.eq_equiv, hep, hiv]; omega
       simp [hne]
 
-/-- **`clear_fit` denotes the empty map too.**  Its three arms are `clear`,
-`clear`, and a fresh table of `want` slots; which one runs is a capacity
-decision, and a capacity is invisible to `toFun`. -/
+/-- **`clear_fit` denotes the empty map too.**  Its arms are `clear` (three
+times since task #115's `FIT_NO_GROW` arm) and a fresh table of `want`
+slots; which one runs is a capacity decision, and a capacity is invisible
+to `toFun`. -/
 theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.clear_fit m = ok m') :
     Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
@@ -1268,6 +1269,9 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       (fun _ => by rw [hlen]; exact hw2) (fun _ => by rw [hlen]; exact hw32)
       (fun _ => by rw [hmlv, html, hlen])
       (by rw [← Result.ok_injective hok]; rfl)
+  -- The `FIT_NO_GROW` arm (task #115) splits each former fresh-table leaf
+  -- into `clear` (a big table that held its round at `insert`'s load) and
+  -- the fresh table.
   split at h
   · exact clear_refines (Inv_fit_hw hinv hw) h
   · split at h
@@ -1275,12 +1279,24 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       obtain ⟨i3, -, h⟩ := h
       split at h
       · exact clear_refines (Inv_fit_hw hinv hw) h
+      · split at h
+        · split at h
+          · exact clear_refines (Inv_fit_hw hinv hw) h
+          · simp only [bind_eq_ok_iff] at h
+            obtain ⟨t, ht, hok⟩ := h
+            exact hremake ht hok
+        · simp only [bind_eq_ok_iff] at h
+          obtain ⟨t, ht, hok⟩ := h
+          exact hremake ht hok
+    · split at h
+      · split at h
+        · exact clear_refines (Inv_fit_hw hinv hw) h
+        · simp only [bind_eq_ok_iff] at h
+          obtain ⟨t, ht, hok⟩ := h
+          exact hremake ht hok
       · simp only [bind_eq_ok_iff] at h
         obtain ⟨t, ht, hok⟩ := h
         exact hremake ht hok
-    · simp only [bind_eq_ok_iff] at h
-      obtain ⟨t, ht, hok⟩ := h
-      exact hremake ht hok
 
 /-! ## `dup`, the pin loop's pre-attempt snapshot
 
