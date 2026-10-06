@@ -138,9 +138,7 @@ section Census
 #print axioms annotSet_spec
 #print axioms defeqSet_spec
 #print axioms EntryCacheOK.insert
-#print axioms EntryCacheOK.empty
-#print axioms EntryCacheOK.insert_capped
-#print axioms DefeqCacheOK.insert_capped
+#print axioms DefeqCacheOK.insert
 #print axioms CacheOK.insertWhnfCore
 #print axioms CacheOK.insertWhnf
 #print axioms CacheOK.insertInfer

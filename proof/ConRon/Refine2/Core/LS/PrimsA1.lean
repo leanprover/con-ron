@@ -1297,7 +1297,7 @@ theorem is_equiv_list_from_refines (ls rs : alloc.vec.Vec kernel.level.Level)
       (fun b => b = ConLeche.PropWhen.isNever (ConRon.Refine.absPropWhen pw)) :=
   fun _ h => ConRon.Refine.PropWhen.is_never_refines h
 
-/-! ## The Core memo tables: key, probe, capped write
+/-! ## The Core memo tables: key, probe, write
 
 (A `Bool`-valued probe states its answer as `id o`: a bare variable on the
 right of a `TwinEq` would be SUBSTITUTED by `lockstep`'s tidy step, which
@@ -1309,50 +1309,20 @@ use (`lvlEqC`, `lvlsEqC`, `constTyC`, `ruleRhsC`), stated as `@[lockstep]`
 steps: the key and the probe are Rust-only reads whose twin partner is a pure
 expression (`TwinEq`), the write is an `LSW` against the twin's inline `set`. -/
 
-theorem absLIdx_surj : Function.Surjective absLIdx := by
-  intro i
-  obtain ⟨w⟩ := i
-  obtain ⟨x, hx⟩ := absU32_surj w
-  exact ⟨⟨x⟩, by simp [absLIdx, hx]⟩
-
-theorem absLIdxPair_surj : Function.Surjective absLIdxPair := by
-  rintro ⟨a, b⟩
-  obtain ⟨x, hx⟩ := absLIdx_surj a
-  obtain ⟨y, hy⟩ := absLIdx_surj b
-  exact ⟨⟨x, y⟩, by simp [absLIdxPair, hx, hy]⟩
-
 theorem absLIdxPair_inj : Function.Injective absLIdxPair := by
   rintro ⟨a, b⟩ ⟨c, d⟩ h
   simp only [absLIdxPair, Prod.mk.injEq] at h
   simp [absLIdx_inj h.1, absLIdx_inj h.2]
-
-theorem absLsIdxPair_surj : Function.Surjective absLsIdxPair := by
-  rintro ⟨a, b⟩
-  obtain ⟨x, hx⟩ := absLsIdx_surj a
-  obtain ⟨y, hy⟩ := absLsIdx_surj b
-  exact ⟨⟨x, y⟩, by simp [absLsIdxPair, hx, hy]⟩
 
 theorem absLsIdxPair_inj : Function.Injective absLsIdxPair := by
   rintro ⟨a, b⟩ ⟨c, d⟩ h
   simp only [absLsIdxPair, Prod.mk.injEq] at h
   simp [absLsIdx_inj h.1, absLsIdx_inj h.2]
 
-theorem absNNLsKey_surj : Function.Surjective absNNLsKey := by
-  rintro ⟨a, b, c⟩
-  obtain ⟨x, hx⟩ := absNIdx_surj a
-  obtain ⟨y, hy⟩ := absNIdx_surj b
-  obtain ⟨z, hz⟩ := absLsIdx_surj c
-  exact ⟨⟨x, y, z⟩, by simp [absNNLsKey, hx, hy, hz]⟩
-
 theorem absNNLsKey_inj : Function.Injective absNNLsKey := by
   rintro ⟨a, b, c⟩ ⟨d, e, f⟩ h
   simp only [absNNLsKey, Prod.mk.injEq] at h
   simp [absNIdx_inj h.1, absNIdx_inj h.2.1, absLsIdx_inj h.2.2]
-
-/-- The twin's capped memo insert, named (the twin writes it inline). -/
-def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K) (v : V) :
-    _root_.Std.HashMap K V :=
-  (if m.size < cacheCap then m else ∅).insert k v
 
 @[lockstep] theorem lidx_pair_ls (u v : arena.handle.LIdx) :
     LSP (arena.core_state.lidx_pair u v)
@@ -1409,18 +1379,16 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
 @[lockstep] theorem lvl_eq_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.core_state.LIdxPair) (r : Bool) :
     LSW pers (arena.core.lvl_eq_set st k r) lst
-      (set { lst with caches := { lst.caches with lvlEqC := capIns lst.caches.lvlEqC (absLIdxPair k) (r) } } : AM Unit) := by
+      (set { lst with caches := { lst.caches with lvlEqC := lst.caches.lvlEqC.insert (absLIdxPair k) (r) } } : AM Unit) := by
   intro st' hrun
   rw [arena.core.lvl_eq_set] at hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨old, hm2⟩ := p
   have hst : st' = { st with caches := { st.caches with lvl_eq_c := hm2 } } :=
     (Result.ok_injective hrun).symm
   subst hst
-  obtain ⟨h1, h2⟩ := cache_insert_step lidxPair_eq2 absLIdxPair_surj absLIdxPair_inj
-    hinv.caches.lvlEqC hrel.caches.lvlEqC hn hfit hp
+  obtain ⟨h1, h2⟩ := memo_insert_step lidxPair_eq2 absLIdxPair_inj
+    hinv.caches.lvlEqC hrel.caches.lvlEqC hp
   exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with lvlEqC := h1 } },
     { hinv with caches := { hinv.caches with lvlEqC := h2 } }⟩
 
@@ -1443,18 +1411,16 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
 @[lockstep] theorem lvls_eq_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.core_state.LsIdxPair) (r : Bool) :
     LSW pers (arena.core.lvls_eq_set st k r) lst
-      (set { lst with caches := { lst.caches with lvlsEqC := capIns lst.caches.lvlsEqC (absLsIdxPair k) (r) } } : AM Unit) := by
+      (set { lst with caches := { lst.caches with lvlsEqC := lst.caches.lvlsEqC.insert (absLsIdxPair k) (r) } } : AM Unit) := by
   intro st' hrun
   rw [arena.core.lvls_eq_set] at hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨old, hm2⟩ := p
   have hst : st' = { st with caches := { st.caches with lvls_eq_c := hm2 } } :=
     (Result.ok_injective hrun).symm
   subst hst
-  obtain ⟨h1, h2⟩ := cache_insert_step lsidxPair_eq2 absLsIdxPair_surj absLsIdxPair_inj
-    hinv.caches.lvlsEqC hrel.caches.lvlsEqC hn hfit hp
+  obtain ⟨h1, h2⟩ := memo_insert_step lsidxPair_eq2 absLsIdxPair_inj
+    hinv.caches.lvlsEqC hrel.caches.lvlsEqC hp
   exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with lvlsEqC := h1 } },
     { hinv with caches := { hinv.caches with lvlsEqC := h2 } }⟩
 
@@ -1480,11 +1446,9 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
 @[lockstep] theorem const_ty_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.core_state.NLsKey) (r : arena.handle.EIdx) :
     LSW pers (arena.core.const_ty_set st k r) lst
-      (set { lst with caches := { lst.caches with constTyC := capIns lst.caches.constTyC (absNLsKey k) (absEIdx r) } } : AM Unit) := by
+      (set { lst with caches := { lst.caches with constTyC := lst.caches.constTyC.insert (absNLsKey k) (absEIdx r) } } : AM Unit) := by
   intro st' hrun
   rw [arena.core.const_ty_set] at hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨old, hm2⟩ := p
@@ -1492,8 +1456,8 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
   have hst : st' = { st with caches := { st.caches with const_ty_c := hm2 } } :=
     (Result.ok_injective hrun).symm
   subst hst
-  obtain ⟨h1, h2⟩ := cache_insert_step nlsKey_eq2 absNLsKey_surj absNLsKey_inj
-    hinv.caches.constTyC hrel.caches.constTyC hn hfit hp
+  obtain ⟨h1, h2⟩ := memo_insert_step nlsKey_eq2 absNLsKey_inj
+    hinv.caches.constTyC hrel.caches.constTyC hp
   exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with constTyC := h1 } },
     { hinv with caches := { hinv.caches with constTyC := h2 } }⟩
 
@@ -1519,11 +1483,9 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
 @[lockstep] theorem rule_rhs_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.core_state.NNLsKey) (r : arena.handle.EIdx) :
     LSW pers (arena.core.rule_rhs_set st k r) lst
-      (set { lst with caches := { lst.caches with ruleRhsC := capIns lst.caches.ruleRhsC (absNNLsKey k) (absEIdx r) } } : AM Unit) := by
+      (set { lst with caches := { lst.caches with ruleRhsC := lst.caches.ruleRhsC.insert (absNNLsKey k) (absEIdx r) } } : AM Unit) := by
   intro st' hrun
   rw [arena.core.rule_rhs_set] at hrun
-  obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨hm, hfit, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
   obtain ⟨old, hm2⟩ := p
@@ -1531,8 +1493,8 @@ def capIns {K V : Type} [BEq K] [Hashable K] (m : _root_.Std.HashMap K V) (k : K
   have hst : st' = { st with caches := { st.caches with rule_rhs_c := hm2 } } :=
     (Result.ok_injective hrun).symm
   subst hst
-  obtain ⟨h1, h2⟩ := cache_insert_step nnlsKey_eq2 absNNLsKey_surj absNNLsKey_inj
-    hinv.caches.ruleRhsC hrel.caches.ruleRhsC hn hfit hp
+  obtain ⟨h1, h2⟩ := memo_insert_step nnlsKey_eq2 absNNLsKey_inj
+    hinv.caches.ruleRhsC hrel.caches.ruleRhsC hp
   exact ⟨(), _, rfl, trivial, { hrel with caches := { hrel.caches with ruleRhsC := h1 } },
     { hinv with caches := { hinv.caches with ruleRhsC := h2 } }⟩
 

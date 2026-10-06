@@ -56,8 +56,8 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 3. **The five verification conditions are the three branches plus the two
    readbacks' preconditions**, and the two preconditions are
    `hok.caches.readL` and the same through the first frame.
-4. **The insert is `LvlEqCacheOK.insert_capped`**, whose cap branch costs
-   nothing — `Bridge/Core/Memo.lean`'s finding, here for the seventh time.
+4. **The insert is `LvlEqCacheOK.insert`**, a plain insert since task
+   #115 removed the cap.
 5. **The answer relation is not `Bridge/Core/Walks/Spec.lean`'s `SimVOp`.**
    The pure side of these five is not fueled at all (`Level.isEquiv` is a
    total function of two trees), so there is no `∃ F` and the conclusion is
@@ -81,17 +81,16 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 1. The five insert lemmas
 
-`Bridge/Core/Memo.lean`'s `EntryCacheOK.insert_capped` for the five tables it
-does not touch.  Each is the same two-branch split on the cap, with the
-empty-table case inlined. -/
+`Bridge/Core/Memo.lean`'s `EntryCacheOK.insert` for the five tables it does
+not touch. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC — the
-level-verdict cache's insert, through the cap. -/
-theorem LvlEqCacheOK.insert_capped {tbl : Std.HashMap (LIdx × LIdx) Bool}
+level-verdict cache's insert. -/
+theorem LvlEqCacheOK.insert {tbl : Std.HashMap (LIdx × LIdx) Bool}
     {st : EStore} (h : LvlEqCacheOK tbl st) {u v : LIdx} {lu lv : Level}
     {r : Bool} (hu : denoteL st.ls u = some lu)
     (hv : denoteL st.ls v = some lv) (heq : Level.isEquiv lu lv = some r) :
-    LvlEqCacheOK ((if tbl.size < cacheCap then tbl else ∅).insert (u, v) r)
+    LvlEqCacheOK (tbl.insert (u, v) r)
       st := by
   have key : ∀ (t : Std.HashMap (LIdx × LIdx) Bool), LvlEqCacheOK t st →
       LvlEqCacheOK (t.insert (u, v) r) st := by
@@ -103,20 +102,18 @@ theorem LvlEqCacheOK.insert_capped {tbl : Std.HashMap (LIdx × LIdx) Bool}
       obtain rfl := eq_of_beq hbeq
       exact ⟨lu, lv, hu, hv, heq⟩
     · exact ht k x hl
-  split
-  · exact key _ h
-  · exact key _ (by intro k x hl; simp at hl)
+  exact key _ h
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC — the
 same at the universe-argument LIST verdict cache. -/
-theorem LvlsEqCacheOK.insert_capped {tbl : Std.HashMap (LsIdx × LsIdx) Bool}
+theorem LvlsEqCacheOK.insert {tbl : Std.HashMap (LsIdx × LsIdx) Bool}
     {st : EStore} (h : LvlsEqCacheOK tbl st) {us vs : LsIdx}
     {lus lvs : List Level} {r : Bool}
     (hu : denoteLs st.lss us = some lus)
     (hv : denoteLs st.lss vs = some lvs)
     (heq : Level.isEquivList lus lvs = some r) :
     LvlsEqCacheOK
-      ((if tbl.size < cacheCap then tbl else ∅).insert (us, vs) r) st := by
+      (tbl.insert (us, vs) r) st := by
   have key : ∀ (t : Std.HashMap (LsIdx × LsIdx) Bool), LvlsEqCacheOK t st →
       LvlsEqCacheOK (t.insert (us, vs) r) st := by
     intro t ht k x hl
@@ -127,12 +124,10 @@ theorem LvlsEqCacheOK.insert_capped {tbl : Std.HashMap (LsIdx × LsIdx) Bool}
       obtain rfl := eq_of_beq hbeq
       exact ⟨lus, lvs, hu, hv, heq⟩
     · exact ht k x hl
-  split
-  · exact key _ h
-  · exact key _ (by intro k x hl; simp at hl)
+  exact key _ h
 
 /-- con-leche: none — the instantiated-constant TYPE cache's insert. -/
-theorem ConstTyCacheOK.insert_capped {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
+theorem ConstTyCacheOK.insert {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
     {st : EStore} (h : ConstTyCacheOK env tbl st) {n : NIdx} {us : LsIdx}
     {i : EIdx} {nm : ConLeche.Name} {ls : List Level} {ci : ConstantInfo}
     (hn : denoteN st.ns n = some nm) (hus : denoteLs st.lss us = some ls)
@@ -140,7 +135,7 @@ theorem ConstTyCacheOK.insert_capped {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
     (hi : denoteE st i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) :
     ConstTyCacheOK env
-      ((if tbl.size < cacheCap then tbl else ∅).insert (n, us) i) st := by
+      (tbl.insert (n, us) i) st := by
   have key : ∀ (t : Std.HashMap (NIdx × LsIdx) EIdx),
       ConstTyCacheOK env t st → ConstTyCacheOK env (t.insert (n, us) i) st := by
     intro t ht k j hl
@@ -151,12 +146,10 @@ theorem ConstTyCacheOK.insert_capped {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
       obtain rfl := eq_of_beq hbeq
       exact ⟨nm, ls, ci, hn, hus, hf, hi⟩
     · exact ht k j hl
-  split
-  · exact key _ h
-  · exact key _ (by intro k j hl; simp at hl)
+  exact key _ h
 
 /-- con-leche: none — the instantiated-constant VALUE cache's insert. -/
-theorem ConstValCacheOK.insert_capped {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
+theorem ConstValCacheOK.insert {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
     {st : EStore} (h : ConstValCacheOK env tbl st) {n : NIdx} {us : LsIdx}
     {i : EIdx} {nm : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
     {value : Expr} {hint : ReducibilityHint}
@@ -164,7 +157,7 @@ theorem ConstValCacheOK.insert_capped {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
     (hf : env.find? nm = some (.defnInfo cv value hint))
     (hi : denoteE st i = some (value.instantiateLevelParams cv.levelParams ls)) :
     ConstValCacheOK env
-      ((if tbl.size < cacheCap then tbl else ∅).insert (n, us) i) st := by
+      (tbl.insert (n, us) i) st := by
   have key : ∀ (t : Std.HashMap (NIdx × LsIdx) EIdx),
       ConstValCacheOK env t st →
       ConstValCacheOK env (t.insert (n, us) i) st := by
@@ -176,13 +169,11 @@ theorem ConstValCacheOK.insert_capped {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
       obtain rfl := eq_of_beq hbeq
       exact ⟨nm, ls, cv, value, hint, hn, hus, hf, hi⟩
     · exact ht k j hl
-  split
-  · exact key _ h
-  · exact key _ (by intro k j hl; simp at hl)
+  exact key _ h
 
 /-- con-leche: none — the ι rule right-hand-side cache's insert, at the
 THREE-part key. -/
-theorem RuleRhsCacheOK.insert_capped
+theorem RuleRhsCacheOK.insert
     {tbl : Std.HashMap (NIdx × NIdx × LsIdx) EIdx} {st : EStore}
     (h : RuleRhsCacheOK env tbl st) {rn cn : NIdx} {us : LsIdx} {i : EIdx}
     {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
@@ -193,7 +184,7 @@ theorem RuleRhsCacheOK.insert_capped
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
     (hi : denoteE st i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
     RuleRhsCacheOK env
-      ((if tbl.size < cacheCap then tbl else ∅).insert (rn, cn, us) i) st := by
+      (tbl.insert (rn, cn, us) i) st := by
   have key : ∀ (t : Std.HashMap (NIdx × NIdx × LsIdx) EIdx),
       RuleRhsCacheOK env t st →
       RuleRhsCacheOK env (t.insert (rn, cn, us) i) st := by
@@ -205,9 +196,7 @@ theorem RuleRhsCacheOK.insert_capped
       obtain rfl := eq_of_beq hbeq
       exact ⟨rnv, cnv, ls, cv, mi, rp, rules, rl, hr, hc, hus, hf, hrl, hi⟩
     · exact ht k j hl
-  split
-  · exact key _ h
-  · exact key _ (by intro k j hl; simp at hl)
+  exact key _ h
 
 /-! ### `CacheOK` past one of the five
 
@@ -221,9 +210,8 @@ theorem CacheOK.insertLvlEq {s : AState} (hc : CacheOK mode env s)
     (hv : denoteL s.store.ls v = some lv)
     (heq : Level.isEquiv lu lv = some r) :
     CacheOK mode env { s with caches := { s.caches with
-      lvlEqC := (if s.caches.lvlEqC.size < cacheCap then s.caches.lvlEqC
-        else ∅).insert (u, v) r } } :=
-  { hc with lvlEq := LvlEqCacheOK.insert_capped hc.lvlEq hu hv heq }
+      lvlEqC := s.caches.lvlEqC.insert (u, v) r } } :=
+  { hc with lvlEq := LvlEqCacheOK.insert hc.lvlEq hu hv heq }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC. -/
 theorem CacheOK.insertLvlsEq {s : AState} (hc : CacheOK mode env s)
@@ -232,9 +220,8 @@ theorem CacheOK.insertLvlsEq {s : AState} (hc : CacheOK mode env s)
     (hv : denoteLs s.store.lss vs = some lvs)
     (heq : Level.isEquivList lus lvs = some r) :
     CacheOK mode env { s with caches := { s.caches with
-      lvlsEqC := (if s.caches.lvlsEqC.size < cacheCap then s.caches.lvlsEqC
-        else ∅).insert (us, vs) r } } :=
-  { hc with lvlsEq := LvlsEqCacheOK.insert_capped hc.lvlsEq hu hv heq }
+      lvlsEqC := s.caches.lvlsEqC.insert (us, vs) r } } :=
+  { hc with lvlsEq := LvlsEqCacheOK.insert hc.lvlsEq hu hv heq }
 
 /-- con-leche: none — `CacheOK` past the instantiated-constant TYPE cache's
 insert. -/
@@ -246,9 +233,8 @@ theorem CacheOK.insertConstTy {s : AState} (hc : CacheOK mode env s)
     (hi : denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) :
     CacheOK mode env { s with caches := { s.caches with
-      constTyC := (if s.caches.constTyC.size < cacheCap then s.caches.constTyC
-        else ∅).insert (n, us) i } } :=
-  { hc with constTy := ConstTyCacheOK.insert_capped hc.constTy hn hus hf hi }
+      constTyC := s.caches.constTyC.insert (n, us) i } } :=
+  { hc with constTy := ConstTyCacheOK.insert hc.constTy hn hus hf hi }
 
 /-- con-leche: none — `CacheOK` past the instantiated-constant VALUE cache's
 insert. -/
@@ -259,9 +245,8 @@ theorem CacheOK.insertConstVal {s : AState} (hc : CacheOK mode env s)
     (hf : env.find? nm = some (.defnInfo cv value hint))
     (hi : denoteE s.store i = some (value.instantiateLevelParams cv.levelParams ls)) :
     CacheOK mode env { s with caches := { s.caches with
-      constValC := (if s.caches.constValC.size < cacheCap then s.caches.constValC
-        else ∅).insert (n, us) i } } :=
-  { hc with constVal := ConstValCacheOK.insert_capped hc.constVal hn hus hf hi }
+      constValC := s.caches.constValC.insert (n, us) i } } :=
+  { hc with constVal := ConstValCacheOK.insert hc.constVal hn hus hf hi }
 
 /-- con-leche: none — `CacheOK` past the ι right-hand-side cache's insert. -/
 theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
@@ -274,9 +259,8 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
     (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
     (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
     CacheOK mode env { s with caches := { s.caches with
-      ruleRhsC := (if s.caches.ruleRhsC.size < cacheCap then s.caches.ruleRhsC
-        else ∅).insert (rn, cn, us) i } } :=
-  { hc with ruleRhs := RuleRhsCacheOK.insert_capped hc.ruleRhs hr hcn hus hf hrl hi }
+      ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
+  { hc with ruleRhs := RuleRhsCacheOK.insert hc.ruleRhs hr hcn hus hf hrl hi }
 
 /-! ## 2. `lvlEq?` — the tier's exemplar, CLOSED -/
 
@@ -386,7 +370,7 @@ The miss branch is `instLPFast`, and `Bridge/ExprOps/Owed.lean`'s
 `instLPFast_spec` now carries the cache frame (a record equation naming
 `readLC`/`readNC`/`readLsC`) and `ReadNCacheOK` — task #97-P3-1 round 4, the
 answer to this tier's finding 19.  `CheckOK.ofInstLP` turns the two into
-`CheckOK` past the call; the insert is the capped one above.  This module
+`CheckOK` past the call; the insert is the one above.  This module
 imports `Bridge/ExprOps/Owed.lean` since round 4 (the derived-auxiliary wall
 of finding 18 is gone). -/
 
@@ -476,7 +460,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     obtain rfl := Option.some.inj (hus'.symm.trans hus)
     obtain rfl := Option.some.inj (hf'.symm.trans hf)
     exact hd
-  · -- the MISS: `instLPFast`, then the capped insert
+  · -- the MISS: `instLPFast`, then the insert
     rename_i hst hL hLs hN hx _ hc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
     have hd := hrel _ hty
@@ -787,8 +771,7 @@ theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
       have hreadLs5 : s₅.caches.readLsC = s₃.caches.readLsC := by rw [hs₅]
       have hlvl5 :
           s₅.caches.lvlEqC =
-            (if s₃.caches.lvlEqC.size < cacheCap then s₃.caches.lvlEqC
-              else ∅).insert (u, v) b := by
+            s₃.caches.lvlEqC.insert (u, v) b := by
         rw [hs₅]
       have hc5 :
           s₅.caches =
@@ -813,7 +796,7 @@ theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
         obtain ⟨hdu, hrl2⟩ := readLevelM_denote hrl hru
         obtain ⟨hdv, -⟩ := readLevelM_denote hrl2 hrv
         rw [hlvl5, hstore5]
-        exact LvlEqCacheOK.insert_capped (hf12.lvlEq hrl hle)
+        exact LvlEqCacheOK.insert (hf12.lvlEq hrl hle)
           (by rw [hst]; exact hdu) (by rw [hst2]; exact hdv) heq
       · intro hn
         rw [hreadN5, hstore5]
@@ -843,11 +826,11 @@ section Census
 #print axioms ReadbackFrame.ofReadN
 #print axioms ReadbackFrame.ofReadLs
 
-#print axioms LvlEqCacheOK.insert_capped
-#print axioms LvlsEqCacheOK.insert_capped
-#print axioms ConstTyCacheOK.insert_capped
-#print axioms ConstValCacheOK.insert_capped
-#print axioms RuleRhsCacheOK.insert_capped
+#print axioms LvlEqCacheOK.insert
+#print axioms LvlsEqCacheOK.insert
+#print axioms ConstTyCacheOK.insert
+#print axioms ConstValCacheOK.insert
+#print axioms RuleRhsCacheOK.insert
 #print axioms CacheOK.insertLvlEq
 #print axioms CacheOK.insertLvlsEq
 

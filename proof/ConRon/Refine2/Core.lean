@@ -7,7 +7,7 @@ entries against `Arena/Core.lean`'s `coreKnot` and `Arena/CoreIO.lean`'s
 
 | file | what | closed |
 |---|---|---|
-| `Core/Probes.lean` | the eight `Caches` probes and the eight capped writes the knot's slots and the delta step call (the cheap `whnfCore` memo, task #109, is the eighth), and `relOn_size` — the SIZE agreement the capacity test needs and `RelOn` does not carry | all |
+| `Core/Probes.lean` | the eight `Caches` probes and the eight writes the knot's slots and the delta step call (the cheap `whnfCore` memo, task #109, is the eighth) | all |
 | `Core/KnotRel.lean` | `laneKnot` / `laneKnotAt` (the port's `u32` lane and `bool` io flag as the twin's record), `CoreCtx`, and the two relations `KnotRel f` / `BodyRel f` | — |
 | `Core/Induction.lean` | `knotRel_zero`, the six `knotRel_succ_*` fields, `knotRel_succ : BodyRel f → KnotRel (f + 1)` and the fuel induction `knot_rel` | all |
 | `Core/Entries.lean` | the six fueled entry points, from `KnotRel` — what the Checker tier consumes | all |

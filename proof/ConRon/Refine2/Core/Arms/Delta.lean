@@ -622,7 +622,6 @@ theorem constValAt_split (n : NIdx) (lps : List NIdx) (value : EIdx)
                 let r ← instLPFast coreWalkFuel lps us value
                 let s ← get
                 let mp := s.caches.constValC
-                let mp := if mp.size < cacheCap then mp else ∅
                 let s := { s with caches := { s.caches with constValC := ∅ } }
                 set { s with caches :=
                   { s.caches with constValC := mp.insert (n, us) r } }
@@ -641,7 +640,6 @@ theorem constValAt_miss (n : NIdx) (lps : List NIdx) (value : EIdx) (us : LsIdx)
             let r ← instLPFast coreWalkFuel lps us value
             let s ← get
             let mp := s.caches.constValC
-            let mp := if mp.size < cacheCap then mp else ∅
             let s := { s with caches := { s.caches with constValC := ∅ } }
             set { s with caches :=
               { s.caches with constValC := mp.insert (n, us) r } }

@@ -77,7 +77,6 @@
 use crate::arena::core_state::{
     eidx_pair, lidx_pair,
     lsidx_pair, nls_key, nnls_key, EIdxPair, LIdxPair, LsIdxPair, NLsKey, NNLsKey,
-    CACHE_CAP,
 };
 use crate::arena::env;
 use crate::arena::env::{
@@ -556,15 +555,9 @@ pub fn lvl_eq(
 
 /// con-leche: ConLeche/Kernel/Level.lean:163-168 isEquiv
 /// Lean twin: `proof/ConRon/Arena/Core.lean:132-150 lvlEq?` — the record half
-/// of the probe, with DESIGN.md §8.3's cap (lesson 10: past `CACHE_CAP` the
-/// table is dropped whole) and the journal of the module note in
-/// `arena::core_state`.
+/// of the probe.  No cap: con-leche's tables have none, and task #115
+/// removed the port's (`arena::core_state`'s module note).
 pub fn lvl_eq_set(st: &mut AState, k: LIdxPair, r: bool) {
-    if st.caches.lvl_eq_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.lvl_eq_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.lvl_eq_c.insert(k, r);
 }
 
@@ -613,11 +606,6 @@ pub fn lvls_eq(
 /// con-leche: ConLeche/Kernel/Level.lean:168-174 isEquivList
 /// Lean twin: `proof/ConRon/Arena/Core.lean:152-170 lvlsEq?` — the record half.
 pub fn lvls_eq_set(st: &mut AState, k: LsIdxPair, r: bool) {
-    if st.caches.lvls_eq_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.lvls_eq_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.lvls_eq_c.insert(k, r);
 }
 
@@ -662,11 +650,6 @@ pub fn const_ty_at(
 /// con-leche: none — DESIGN.md §8.3's instantiated-constant cache
 /// Lean twin: `proof/ConRon/Arena/Core.lean:180-194 constTyAt` — the record half.
 pub fn const_ty_set(st: &mut AState, k: NLsKey, r: &EIdx) {
-    if st.caches.const_ty_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.const_ty_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.const_ty_c.insert(k, r.dup2());
 }
 
@@ -708,11 +691,6 @@ pub fn const_val_at(
 /// con-leche: none — DESIGN.md §8.3's `constValAt`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:196-211 constValAt` — the record half.
 pub fn const_val_set(st: &mut AState, k: NLsKey, r: &EIdx) {
-    if st.caches.const_val_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.const_val_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.const_val_c.insert(k, r.dup2());
 }
 
@@ -756,11 +734,6 @@ pub fn rule_rhs_at(
 /// con-leche: none — DESIGN.md §8.3's `ruleRhsAt`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:213-229 ruleRhsAt` — the record half.
 pub fn rule_rhs_set(st: &mut AState, k: NNLsKey, r: &EIdx) {
-    if st.caches.rule_rhs_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.rule_rhs_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.rule_rhs_c.insert(k, r.dup2());
 }
 
@@ -11164,9 +11137,10 @@ pub fn annotate_body(
 //
 // The twin's detach-before-update (lesson 14) and `@[noinline]` (lesson 15)
 // have no Rust counterpart: `&mut` IS the unique reference the detaching
-// manufactures, and `@[noinline]` is a Lean reference-count concern.  The cap
-// (DESIGN.md §8.3's lesson 10) and the journal (`arena::core_state`'s module
-// note) are in each recorder.
+// manufactures, and `@[noinline]` is a Lean reference-count concern.  Each
+// recorder is a plain insert, as con-leche's `memoEI`/`memoBI` are: the cap
+// they once carried was removed by task #115 (`arena::core_state`'s module
+// note).
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1012-1089 whnfCoreBody
@@ -11238,11 +11212,6 @@ pub fn whnf_stuck_tag(e: &EIdx) -> bool {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3738-3746 whnfCoreSet` — record a
 /// `whnfCore` answer.
 pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    if st.caches.whnf_core_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.whnf_core_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.whnf_core_c.insert(e.dup2(), r.dup2());
 }
 
@@ -11250,11 +11219,6 @@ pub fn whnf_core_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3748-3756 whnfCoreCheapSet` — record
 /// a CHEAP-mode `whnfCore` answer, in the cheap mode's own table.
 pub fn whnf_core_cheap_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    if st.caches.whnf_core_cheap_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.whnf_core_cheap_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.whnf_core_cheap_c.insert(e.dup2(), r.dup2());
 }
 
@@ -11262,11 +11226,6 @@ pub fn whnf_core_cheap_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3758-3765 whnfSet` — record a
 /// `whnf` answer.
 pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    if st.caches.whnf_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.whnf_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.whnf_c.insert(e.dup2(), r.dup2());
 }
 
@@ -11274,11 +11233,6 @@ pub fn whnf_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3767-3774 inferSet` — record a
 /// full-grade `infer` answer.
 pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    if st.caches.infer_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.infer_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.infer_c.insert(e.dup2(), r.dup2());
 }
 
@@ -11287,11 +11241,6 @@ pub fn infer_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 /// io-grade `infer` answer, in the io grade's OWN table (con-leche's task #170
 /// memo ruling).
 pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    if st.caches.infer_io_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.infer_io_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.infer_io_c.insert(e.dup2(), r.dup2());
 }
 
@@ -11299,11 +11248,6 @@ pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3786-3793 annotSet` — record an
 /// `annotate` answer.
 pub fn annot_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    if st.caches.annot_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.annot_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let _ = st.caches.annot_c.insert(e.dup2(), r.dup2());
 }
 
@@ -11312,11 +11256,6 @@ pub fn annot_set(st: &mut AState, e: &EIdx, r: &EIdx) {
 /// `defeq` verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores
 /// the `Bool` result `r`, which is what makes a negative memo sound).
 pub fn defeq_set(st: &mut AState, a: &EIdx, b: &EIdx, r: bool) {
-    if st.caches.defeq_c.len() < CACHE_CAP {
-        ()
-    } else {
-        st.caches.defeq_c = crate::ron::hashmap2::HashMap2::new();
-    }
     let k: EIdxPair = eidx_pair(a, b);
     let _ = st.caches.defeq_c.insert(k, r);
 }

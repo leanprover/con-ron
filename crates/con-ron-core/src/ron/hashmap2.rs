@@ -169,18 +169,6 @@ const FIT_DECAY: usize = 8;
 /// instruction count keeps falling because that is the re-makes going away.
 const FIT_SLACK: usize = 64;
 
-/// con-leche: none — arena infrastructure (task #115)
-/// The slot count from which `clear_fit` no longer GROWS a table that its
-/// round's entries fit at `insert`'s own load factor.  `clear_fit` sizes for
-/// load ½ but `insert` resizes only past ¾, so a table that ended its round
-/// between the two was re-made at twice its size by its own clear — for the
-/// app cons table of `perf/magma-list-deep-n36`, 2^27 slots × 20 B
-/// allocated while the old 2^26 were still live, after the last declaration:
-/// the 8 GiB abort of task #114.  Below this size the pre-sizing pays
-/// (never growing on clear at all is +0.46 % instructions on `Init`); at and
-/// above it a table that held its round without a resize keeps its size.
-const FIT_NO_GROW: usize = 1048576;
-
 /// The largest stamp.  `clear` at this value vacates the slots and restarts
 /// the epoch at 1 rather than overflowing (the crate builds with
 /// `overflow-checks`, so the wrap must be explicit).
@@ -352,14 +340,23 @@ impl<K, V> HashMap2<K, V> {
     }
 
     /// con-leche: none — arena infrastructure (task #97-P6-4b)
-    /// Give an unallocated table its initial `MIN_CAPACITY` slots; a no-op on
-    /// a table that already has some.  The epoch is **not** reset: a table
-    /// that was cleared before its first insert must not make its stale
-    /// nothing live again (there is none, but the invariant is simpler this
-    /// way).
+    /// Give an unallocated table its initial slots; a no-op on a table that
+    /// already has some.  The epoch is **not** reset: a table that was
+    /// cleared before its first insert must not make its stale nothing live
+    /// again (there is none, but the invariant is simpler this way).
+    ///
+    /// **The size is `clear_fit`'s, deferred to here** (task #115): twice the
+    /// high-water mark `fit_hw`, rounded up to a power of two, which is
+    /// `MIN_CAPACITY` for a table that never held anything (`fit_hw = 0`).
+    /// `clear_fit` re-sizes a table by dropping its slots, and the array of
+    /// the new size is made by the round's first insert — so a table that
+    /// is never written again (the scratch tier after the last declaration)
+    /// never allocates it.
     fn ensure_slots(&mut self) {
         if self.slots.len() == 0 {
-            let table = HashMap2::new_with_capacity_pow2(MIN_CAPACITY);
+            let want: usize =
+                pow2_at_least(self.fit_hw + self.fit_hw + 1, MIN_CAPACITY, POW2_FUEL);
+            let table = HashMap2::new_with_capacity_pow2(want);
             self.max_load = table.max_load;
             self.slots = table.slots;
         }
@@ -468,10 +465,10 @@ impl<K, V> HashMap2<K, V> {
     ///    outlier, not once per round;
     ///  * **the growth is taken in one step, before the round starts** —
     ///    when the mark is above the current size the table is re-made LARGER
-    ///    here, while it is empty, so `insert`'s doubling-and-moving does not
-    ///    run inside the round at all — **except for a big table that held
-    ///    the mark at `insert`'s own load** (`FIT_NO_GROW`, task #115): that
-    ///    one is only cleared, since `insert` would not have grown it either.
+    ///    while it is empty, so `insert`'s doubling-and-moving does not run
+    ///    inside the round at all.  Since task #115 "re-made" means its slots
+    ///    are dropped here and `ensure_slots` allocates the new size at the
+    ///    round's first insert.
     ///
     /// The unallocated table (`new`, task #35's lazy allocation) is left
     /// unallocated: a table that has never held anything must not be given
@@ -484,14 +481,20 @@ impl<K, V> HashMap2<K, V> {
         let hw: usize = if used > decayed { used } else { decayed };
         self.fit_hw = hw;
         let want: usize = pow2_at_least(hw + hw + 1, MIN_CAPACITY, POW2_FUEL);
-        if n == 0 || (want <= n && n / FIT_SLACK <= want) || (n >= FIT_NO_GROW && hw <= self.max_load) {
+        if n == 0 || (want <= n && n / FIT_SLACK <= want) {
             self.clear()
         } else {
-            let table: HashMap2<K, V> = HashMap2::new_with_capacity_pow2(want);
+            // The re-size is LAZY (task #115): the slots go now, and
+            // `ensure_slots` makes the array of `want` slots at the next
+            // round's first insert.  Made here, a table re-made larger had its
+            // old and new arrays alive at once, and a table never written
+            // again paid for an array nobody used — for the app cons table of
+            // `perf/magma-list-deep-n36`, 2^27 slots of 20 B after the last
+            // declaration: the 8 GiB abort.
             self.num_entries = 0;
-            self.max_load = table.max_load;
+            self.max_load = 0;
             self.epoch = 1;
-            self.slots = table.slots
+            self.slots = Vec::new()
         }
     }
 

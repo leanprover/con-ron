@@ -947,7 +947,7 @@ theorem sl_v_eq_nil_of_no_live {m' : ron.hashmap2.HashMap2 K V}
 /-- **A dead table is the empty map and satisfies `Inv`.**  The four empty
 tables of the module go through this: `new_with_capacity_pow2`,
 `ensure_slots`' first allocation, `clear`'s epoch bump and `clear_fit`'s
-re-make. -/
+dropped table. -/
 theorem dead_table_inv {m' : ron.hashmap2.HashMap2 K V}
     (hdead : ∀ j : Nat, slotKV m' j = none)
     (hstamps : ∀ (j : Nat) (g : Std.U32) (k : K) (v : V),
@@ -1011,50 +1011,6 @@ theorem new_refines {m' : ron.hashmap2.HashMap2 K V}
   have hm := Result.ok_injective h
   refine unallocated_inv (HashableInst := HashableInst) ?_ ?_ ?_ ?_ <;> rw [← hm] <;> rfl
 
-/-- `ensure_slots` gives an unallocated table its slots and leaves an
-allocated one alone; either way the abstract map, the entry count and the
-epoch are untouched, and the result *is* allocated — which is the hypothesis
-`try_resize_spec` needs.  **The epoch is not reset**: a
-table cleared before its first insert must not make its stale nothing live
-again. -/
-theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K V}
-    (h : ron.hashmap2.HashMap2.ensure_slots m = ok m') :
-    Inv HashableInst m' ∧ 0 < m'.slots.val.length ∧ sl_v m' = sl_v m ∧
-      m'.num_entries = m.num_entries ∧ m'.epoch = m.epoch ∧
-      (m'.slots.val.length = 32 ∨ m'.slots.val.length = m.slots.val.length) := by
-  rw [ron.hashmap2.HashMap2.ensure_slots] at h
-  split at h
-  · rename_i h0
-    have hs : m.slots.val = [] := vec_len_eq_zero_iff.mp h0
-    have hav : sl_v m = [] := sl_v_of_slots_nil hs
-    have hn : m.num_entries.val = 0 := by rw [hinv.entries, hav]; simp
-    obtain ⟨t, ht, hok⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨hts, htn, html, -, -⟩ := new_with_capacity_pow2_spec ht
-    have hm := Result.ok_injective hok
-    have hslots : m'.slots = t.slots := by rw [← hm]
-    have hent : m'.num_entries = m.num_entries := by rw [← hm]
-    have hep : m'.epoch = m.epoch := by rw [← hm]
-    have hmlv : m'.max_load = t.max_load := by rw [← hm]
-    have hcap : (ron.hashmap2.MIN_CAPACITY : Std.Usize).val = 32 := by
-      rw [ron.hashmap2.MIN_CAPACITY]; rfl
-    have hlen : m'.slots.val.length = 32 := by rw [hslots, hts, List.length_replicate, hcap]
-    have hsl : sl_v m' = [] := by rw [sl_v, hslots, hts]; simp
-    obtain ⟨hinv', -, -⟩ := vacant_table_inv (HashableInst := HashableInst)
-      (fun j => by rw [hslots, hts]; exact getElem!_replicate_vacant _ _) hsl
-      (by rw [hent, hn]) (by omega)
-      (fun _ => ⟨5, by rw [hlen]; norm_num⟩) (fun _ => by omega)
-      (fun _ => by rw [hmlv, html, hcap, hlen])
-      (by rw [hep]; exact hinv.epoch_pos)
-    exact ⟨hinv', by omega, by rw [hsl, hav], hent, hep, Or.inl hlen⟩
-  · rename_i h0
-    have hm := Result.ok_injective h
-    subst hm
-    have hpos : 0 < m.slots.val.length := by
-      rcases Nat.eq_zero_or_pos m.slots.val.length with hz | hp
-      · exact absurd (vec_len_eq_zero_iff.mpr (List.eq_nil_of_length_eq_zero hz)) h0
-      · exact hp
-    exact ⟨hinv, hpos, rfl, rfl, rfl, Or.inr rfl⟩
-
 omit [DecidableEq K] in
 /-- Verbatim from `HashMap.lean`: `pow2_at_least` is the same function under
 a different module path. -/
@@ -1086,6 +1042,59 @@ theorem pow2_at_least_spec (F : Nat) :
           · rw [uscalar_mul_eq hcap2, show (2#usize : Std.Usize).val = 2 by scalar_tac]
             omega
 
+/-- `ensure_slots` gives an unallocated table its slots and leaves an
+allocated one alone; either way the abstract map, the entry count and the
+epoch are untouched, and the result *is* allocated — which is the hypothesis
+`try_resize_spec` needs.  **The epoch is not reset**: a
+table cleared before its first insert must not make its stale nothing live
+again. -/
+theorem ensure_slots_spec (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K V}
+    (h : ron.hashmap2.HashMap2.ensure_slots m = ok m') :
+    Inv HashableInst m' ∧ 0 < m'.slots.val.length ∧ sl_v m' = sl_v m ∧
+      m'.num_entries = m.num_entries ∧ m'.epoch = m.epoch ∧
+      (32 ≤ m'.slots.val.length ∨ m'.slots.val.length = m.slots.val.length) := by
+  rw [ron.hashmap2.HashMap2.ensure_slots] at h
+  split at h
+  · rename_i h0
+    have hs : m.slots.val = [] := vec_len_eq_zero_iff.mp h0
+    have hav : sl_v m = [] := sl_v_of_slots_nil hs
+    have hn : m.num_entries.val = 0 := by rw [hinv.entries, hav]; simp
+    -- the size is `clear_fit`'s mark, deferred (task #115): any power of two
+    -- of at least `MIN_CAPACITY`, by `pow2_at_least_spec`
+    have hcap : (ron.hashmap2.MIN_CAPACITY : Std.Usize).val = 32 := by
+      rw [ron.hashmap2.MIN_CAPACITY]; rfl
+    obtain ⟨i1, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨i2, -, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨want, hwant, h⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hw2, hw32⟩ := pow2_at_least_spec ron.hashmap2.POW2_FUEL.val i2
+      ron.hashmap2.MIN_CAPACITY ron.hashmap2.POW2_FUEL want rfl ⟨5, by rw [hcap]; norm_num⟩
+      (by omega) hwant
+    obtain ⟨t, ht, hok⟩ := bind_eq_ok_iff.mp h
+    obtain ⟨hts, htn, html, -, -⟩ := new_with_capacity_pow2_spec ht
+    have hm := Result.ok_injective hok
+    have hslots : m'.slots = t.slots := by rw [← hm]
+    have hent : m'.num_entries = m.num_entries := by rw [← hm]
+    have hep : m'.epoch = m.epoch := by rw [← hm]
+    have hmlv : m'.max_load = t.max_load := by rw [← hm]
+    have hlen : m'.slots.val.length = want.val := by
+      rw [hslots, hts, List.length_replicate]
+    have hsl : sl_v m' = [] := by rw [sl_v, hslots, hts]; simp
+    obtain ⟨hinv', -, -⟩ := vacant_table_inv (HashableInst := HashableInst)
+      (fun j => by rw [hslots, hts]; exact getElem!_replicate_vacant _ _) hsl
+      (by rw [hent, hn]) (by omega)
+      (fun _ => by rw [hlen]; exact hw2) (fun _ => by rw [hlen]; exact hw32)
+      (fun _ => by rw [hmlv, html, hlen])
+      (by rw [hep]; exact hinv.epoch_pos)
+    exact ⟨hinv', by omega, by rw [hsl, hav], hent, hep, Or.inl (by omega)⟩
+  · rename_i h0
+    have hm := Result.ok_injective h
+    subst hm
+    have hpos : 0 < m.slots.val.length := by
+      rcases Nat.eq_zero_or_pos m.slots.val.length with hz | hp
+      · exact absurd (vec_len_eq_zero_iff.mpr (List.eq_nil_of_length_eq_zero hz)) h0
+      · exact hp
+    exact ⟨hinv, hpos, rfl, rfl, rfl, Or.inr rfl⟩
+
 theorem with_capacity_refines {c : Std.Usize} {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.with_capacity K V c = ok m') :
     Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
@@ -1109,7 +1118,8 @@ being touched.  The `EPOCH_MAX` wrap arm reuses the vacate walk, a halving induc
 kind `allocate_slots_spec` had before task #97-PERF-BULKFILL.
 
 `clear_fit` (task #97-P6-7's decaying high-water mark) adds nothing to the
-specification at all: its three arms are `clear` twice and a fresh table, and
+specification at all: its three arms are `clear` twice and an unallocated
+table (a fresh one until task #115 made the re-size lazy), and
 `fit_hw` is not a field `Inv` or `toFun` mentions — a capacity choice is
 invisible to the abstract map (DESIGN.md §3.2), which is exactly what
 `Inv_fit_hw` below says. -/
@@ -1237,41 +1247,25 @@ theorem clear_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K 
         rw [UScalar.eq_equiv, hep, hiv]; omega
       simp [hne]
 
-/-- **`clear_fit` denotes the empty map too.**  Its arms are `clear` (three
-times since task #115's `FIT_NO_GROW` arm) and a fresh table of `want`
-slots; which one runs is a capacity decision, and a capacity is invisible
-to `toFun`. -/
+/-- **`clear_fit` denotes the empty map too.**  Its three arms are `clear`,
+`clear`, and (task #115) an unallocated table whose next insert makes `want`
+slots; which one runs is a capacity decision, and a capacity is invisible to
+`toFun`. -/
 theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap2 K V}
     (h : ron.hashmap2.HashMap2.clear_fit m = ok m') :
     Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
   rw [ron.hashmap2.HashMap2.clear_fit] at h
   simp only [bind_eq_ok_iff] at h
-  obtain ⟨i, -, decayed, -, hw, -, i1, -, i2, -, want, hwant, h⟩ := h
-  have hmin : (ron.hashmap2.MIN_CAPACITY : Std.Usize).val = 32 := by
-    rw [ron.hashmap2.MIN_CAPACITY]; rfl
-  obtain ⟨hw2, hw32⟩ := pow2_at_least_spec ron.hashmap2.POW2_FUEL.val i2
-    ron.hashmap2.MIN_CAPACITY ron.hashmap2.POW2_FUEL want rfl ⟨5, by rw [hmin]; norm_num⟩
-    (by omega) hwant
-  have hremake : ∀ {t : ron.hashmap2.HashMap2 K V},
-      ron.hashmap2.HashMap2.new_with_capacity_pow2 K V want = ok t →
-      ok (α := ron.hashmap2.HashMap2 K V)
-        { t with num_entries := 0#usize, epoch := 1#u32, fit_hw := hw }
-        = ok m' →
+  obtain ⟨i, -, decayed, -, hw, -, i1, -, i2, -, want, -, h⟩ := h
+  -- the re-size arm drops the slots (task #115: `ensure_slots` makes the new
+  -- array at the next insert), so its table is `new`'s unallocated one
+  have hlazy : ok (α := ron.hashmap2.HashMap2 K V)
+        { num_entries := 0#usize, max_load := 0#usize, epoch := 1#u32, fit_hw := hw,
+          slots := alloc.vec.Vec.new (ron.hashmap2.Slot K V) } = ok m' →
       Inv HashableInst m' ∧ sl_v m' = [] ∧ ∀ k, toFun m' k = none := by
-    intro t ht hok
-    obtain ⟨hts, -, html, -, -⟩ := new_with_capacity_pow2_spec ht
-    have hslots : m'.slots.val = List.replicate want.val ron.hashmap2.Slot.Vacant := by
-      rw [← Result.ok_injective hok]; exact hts
-    have hlen : m'.slots.val.length = want.val := by rw [hslots]; simp
-    have hmlv : m'.max_load = t.max_load := by rw [← Result.ok_injective hok]
-    refine vacant_table_inv (fun j => by rw [hslots]; exact getElem!_replicate_vacant _ _)
-      (by rw [sl_v, hslots]; simp) (by rw [← Result.ok_injective hok]; rfl) (by omega)
-      (fun _ => by rw [hlen]; exact hw2) (fun _ => by rw [hlen]; exact hw32)
-      (fun _ => by rw [hmlv, html, hlen])
-      (by rw [← Result.ok_injective hok]; rfl)
-  -- The `FIT_NO_GROW` arm (task #115) splits each former fresh-table leaf
-  -- into `clear` (a big table that held its round at `insert`'s load) and
-  -- the fresh table.
+    intro hok
+    have hm := Result.ok_injective hok
+    refine unallocated_inv (HashableInst := HashableInst) ?_ ?_ ?_ ?_ <;> rw [← hm] <;> rfl
   split at h
   · exact clear_refines (Inv_fit_hw hinv hw) h
   · split at h
@@ -1279,24 +1273,8 @@ theorem clear_fit_refines (hinv : Inv HashableInst m) {m' : ron.hashmap2.HashMap
       obtain ⟨i3, -, h⟩ := h
       split at h
       · exact clear_refines (Inv_fit_hw hinv hw) h
-      · split at h
-        · split at h
-          · exact clear_refines (Inv_fit_hw hinv hw) h
-          · simp only [bind_eq_ok_iff] at h
-            obtain ⟨t, ht, hok⟩ := h
-            exact hremake ht hok
-        · simp only [bind_eq_ok_iff] at h
-          obtain ⟨t, ht, hok⟩ := h
-          exact hremake ht hok
-    · split at h
-      · split at h
-        · exact clear_refines (Inv_fit_hw hinv hw) h
-        · simp only [bind_eq_ok_iff] at h
-          obtain ⟨t, ht, hok⟩ := h
-          exact hremake ht hok
-      · simp only [bind_eq_ok_iff] at h
-        obtain ⟨t, ht, hok⟩ := h
-        exact hremake ht hok
+      · exact hlazy h
+    · exact hlazy h
 
 /-! ## `dup`, the pin loop's pre-attempt snapshot
 

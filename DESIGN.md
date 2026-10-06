@@ -2194,7 +2194,11 @@ on handles alone sound (nanoda §5, con-leche lesson 8).
     instantiated-constant cache `(NIdx, LsIdx) ↦ EIdx` for stored types,
     values and rule right-hand sides (con-leche #26's `constTyAt` family);
   * a cap, not an eviction policy (lesson 10): past a size the table is
-    dropped whole.
+    dropped whole.  **Removed by task #115**: con-leche's memos have no
+    cap, and on `perf/magma-list-deep-n36` the cap (2^22) emptied the
+    `whnf_core` memo eleven times inside one declaration, at 2.7× the
+    instructions.  The tables bound little, because their terms stay alive in
+    the store anyway, and every run is under `ulimit -v`.
   * every traversal has a cutoff off a derived field (lesson 20): instantiate
     returns at `bvarB ≤ offset`, abstract at `fvarB = 0`, level-subst at
     `hasLP = false`.
@@ -23406,7 +23410,8 @@ Four decisions worth recording.
   parameters).
 * **A cap, not an eviction policy** (lesson 10), at `cacheCap = 4 194 304`
   entries: past it the table is dropped whole and starts again.  One
-  `size` test per insert, and the Rust is one `len()`.
+  `size` test per insert, and the Rust is one `len()`.  *(Removed by task
+  #115; see §8.3.)*
 
 **The bracket.**  `enterScratch` turns the scratch tier on and clears the
 per-call `Memos` (they belong to no tier and the new tier reuses their
@@ -67757,10 +67762,11 @@ interned, so the store does not grow, but the instructions do.  Evidence:
   232 G, which is its usual ratio (n21: 12.28 / 26.09 = 0.47).
 * **Scaling.**  From n21 to n36, without the cap: con-ron ×12.0 (12.28 →
   147.1 G), con-leche ×11.7 (26.09 → 305.4 G).  The exponent is the same,
-  and the anomaly is the cap alone.  No intermediate n was measured: the
-  arena has no generator for these tests (the certificates come from a
-  corpus, and n21 and n36 are different equations), so there is nothing
-  to vary n with.
+  and the anomaly is the cap alone.  No intermediate n was measured.  The
+  arena has no generator for this family: each test is a separate
+  certificate taken from a corpus (the SAIR equational-theories
+  certificates), with its own equation and its own operation table, so
+  there is no parameter n to vary.
 
 **The memory side: a second, independent finding.**  At 8 GiB, master
 aborts **after `countermodel` has been checked**, in the declaration
@@ -67789,7 +67795,7 @@ After the last declaration this is pure waste.
   also runs out of memory at 8 GiB there), a lever of its own, and not
   this task's.
 
-**The proposed fix (phase 2, not started)**:
+**The phase-1 proposal** (superseded by Slice 2: the cap was removed, not raised, and the `clear_fit` rule below was replaced):
 1. `CACHE_CAP` 2^22 → 2^25, in the Rust and in the twin's `cacheCap`,
    then `extract.sh`.  The proofs use the value only through
    `Refine2/Core/Probes.lean:220-222` (`rw [CACHE_CAP, cacheCap]; rfl`),
@@ -67810,3 +67816,68 @@ diverging.
 Scratch: `_tmp/t115-scratch` (profiles, the two candidate diffs),
 `_tmp/t115-target` (master with line tables), `_tmp/t115-con-leche`
 (con-leche's executable at the pin, 447 MB).
+
+#### Slice 2 — the cap removed, `clear_fit`'s re-size made lazy (2026-10-06)
+
+**What landed.**
+1. **No cap** (the maintainer's ruling, not the raise phase 1 proposed).
+   `CACHE_CAP` and the twin's `cacheCap` are deleted, and the twelve
+   recorders in `arena/core.rs` (`whnf_core_set` … `defeq_set`, `lvl_eq_set`,
+   `lvls_eq_set`, `const_ty_set`, `const_val_set`, `rule_rhs_set`) are plain
+   inserts, as con-leche's `memoEI`/`memoBI` are.  The proof only lost
+   things: `Refine2/Core/Probes.lean` loses `relOn_size`, `cache_len_abs`,
+   `cache_insert_step` and its six `*_surj` lemmas (the bijection argument
+   existed only to match the two capacity branches), so a write is
+   `memo_insert_step`.  `LS/PrimsA1.lean` loses `capIns` and four more
+   `*_surj`.  `Bridge/Core/Memo.lean` and `Walks/Cached.lean` lose
+   `EntryCacheOK.empty` and the `if` of every `*.insert_capped`, which
+   became `*.insert`.  The hand-written proof files come out at +193 / −527
+   lines (`Generated/` excluded).
+2. **`clear_fit` re-sizes lazily** (`ron/hashmap2.rs`).  Its re-make arm now
+   only drops the slots, and `ensure_slots` allocates
+   `pow2_at_least(2·fit_hw + 1)` slots at the next round's first insert
+   (`MIN_CAPACITY` for a table that never held anything, as before).  A
+   table that is written again gets exactly the size it got before.  A
+   table that never is (the scratch tier after the last declaration) never
+   allocates it.  `ensure_slots_spec` and `clear_fit_refines` were updated
+   (`pow2_at_least_spec` moved above them); `unallocated_inv` covers the
+   dropped table.
+   **The phase-1 rule was measured and rejected.**  It never grew a table of
+   2^20 or more slots that held its round at ¾ load.  It is −1.0 %
+   instructions on Mathlib but **+11 % cycles** (2 078 / 2 073 G against
+   master's 1 861 / 1 874 G; wall 475 / 476 s against 430 / 434 s, two
+   pairs).  Such tables then sit between ½ and ¾ load round after round, and
+   the longer probe runs miss cache.  Freeing the old array before
+   allocating the new one does not help either: n36 still aborts at 8 GiB,
+   because the 2.68 GB array alone does not fit.
+
+**Measured** (`--verified --jobs=1 --progress=1000000`, `perf stat -e
+instructions:u,cycles:u`, GNU `time` peak RSS, one checker at a time,
+nothing else running).  Master is `793a3894`; the branch is this slice's
+binary:
+
+| input | cap | master instr. | branch instr. | master cycles | branch cycles | master RSS | branch RSS |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `Init` (3 runs each) | 8 GiB | 211.50 G | 212.08 G (+0.27 %) | 91.5–92.5 G | 91.9–92.9 G | 0.56 GB | 0.56 GB |
+| Mathlib (1 run) | 27 GiB | 3 847.9 G | 3 860.0 G (+0.31 %) | 1 861 / 1 874 G (2 runs) | 1 842 G | 7.28 / 7.31 GB | 7.33 GB |
+| `magma-list-deep-n21` | 8 GiB | 12.28 G | 12.33 G | | | 0.50 GB | 0.35 GB |
+| `magma-list-deep-n36` | 8 GiB | 391.54 G, **abort** | **147.91 G, accepts** | 247.3 G | 101.6 G | (2.78 GB) | 3.24 GB |
+| `magma-list-pair-n7` | 8 GiB | 8.83 G | 8.84 G | | | 0.94 GB | 0.59 GB |
+| `magma-list-pair-n21` | 8 GiB | abort at 81.5 G | abort at 56.2 G | | | | |
+| `magma-list-pair-n21` | 16 GiB | 96.13 G | 97.19 G | | | 5.89 GB | 6.36 GB |
+
+`Init` wall: master 20.93–21.16 s, branch 21.12–21.31 s (3 runs each).
+Mathlib wall: 430 / 434 s against 421 s.  The Mathlib peak is well inside
+the 3× con-leche budget (8.6 GB × 3).  The +0.3 % instructions on `Init` and
+Mathlib are the lazy allocation (`ensure_slots` now computes the size).  The
+cycles do not move.  n36 is now **0.48×** con-leche (305.4 G) and
+**0.64×** nanoda (232 G).  `magma-list-pair-n21` still does not fit 8 GiB.
+Its app cons table reaches 2^27 slots during the check, and without the cap
+its `whnf_core` memo keeps its 13 M rows (2^25 slots), so it aborts earlier
+than master did.  It is store-bound, it is a lever of its own, and con-leche
+does not fit 8 GiB there either.
+
+**OVERVIEW §5** no longer names a cap.  Two of its links into `core.rs`
+(the bracket and `LANE_*`) had already drifted on master: the gate's
+expectation had locked in `knot_whnf_core` and a byte table.  They now point
+at `flush_caches`…`enter_scratch` and the two lane constants.

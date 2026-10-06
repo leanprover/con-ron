@@ -310,7 +310,7 @@ empty scratch tier and FREEZES the store — its persistent tables leave it as
 the tier every read inside the bracket goes through (§4.4) — and
 `drop_scratch` discards the scratch tier, flushes the caches and thaws the
 tier back into the store
-([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11399-L11421)).
+([the bracket](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L11700-L11740)).
 Dropping the tier leaves persistent handles valid, because a persistent node
 never points into the scratch tier.
 
@@ -373,11 +373,11 @@ Two more tables sit in the same record for their allocation only: the
 declaration guards `allLevelParamsDefined` and `constsResolve` thread their
 memo as an argument, as con-leche does, and the port parks it in the state
 between calls, moving it out and emptying it at each entry
-([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L462-L509)),
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L447-L494)),
 or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
-([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L308-L355)).
+([`Caches`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L311-L358)).
 These are con-leche's memo tables:
 
 * `whnfCore`, `whnf`, `infer`, `inferIO` and `annotate`, each `EIdx ↦ EIdx`.
@@ -395,13 +395,12 @@ These are con-leche's memo tables:
 whenever a bracket closes (§4.3), and again at the start of each install
 step, as con-leche's `flushC` is.  A cache entry can name a scratch handle,
 so it must go with the tier.  The memos are cleared when a bracket opens and
-at every walk's entry.  No table evicts single entries; a table that
-reaches
-[`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L392-L404)
-(2²⁵ entries) is emptied whole.
+at every walk's entry.  No table evicts entries and none has a size cap,
+as in con-leche: a table grows for the length of its declaration and goes
+whole at the bracket.
 
 The type checker runs in two **lanes**
-([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L434-L443)),
+([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L437-L450)),
 one per con-leche knot: the full lane uses the caches above, and the IO lane runs `infer` and `inferIO` unmemoised and uses the
 full lane for everything else.
 

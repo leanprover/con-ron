@@ -37,14 +37,12 @@ The other two branches are con-leche's:
   and they are the reason this module imports con-leche's `Verify` tier at
   all.
 
-## What the cap costs the proof: nothing
+## No cap
 
-`whnfCoreSet` drops the table whole past `cacheCap` (DESIGN §8.3, lesson 10).
-The spec below therefore answers with the `if`, and the `CacheOK` insert
-lemma takes both branches — because `EntryCacheOK op ∅ st` is vacuously true,
-a dropped table is a cache of no rows and satisfies every clause.  This is the
-formal content of task #97f's "a dropped row is a cache miss and nothing
-else".
+Until task #115 `whnfCoreSet` dropped the table whole past `cacheCap` (DESIGN
+§8.3's former lesson 10), and the insert lemmas took both branches of the
+cap's `if`.  The cap is gone (con-leche's `memoEI` has none), and a setter is
+a plain insert.
 -/
 import ConRon.Bridge.Core.Knot
 
@@ -179,7 +177,7 @@ theorem coreKnot_inferIO_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
 
 /-! ## 2. The six cache setters' specs
 
-One equation each, and the `if` is the cap's own branch.  Stated as a whole
+One equation each, a plain insert.  Stated as a whole
 `AState` equality rather than as a table equation plus thirteen frames: the
 setter is one `set` of one record update, so the equation IS the spec and
 every frame condition a caller needs falls out of it by `simp`. -/
@@ -189,8 +187,7 @@ replaces exactly one field of one record. -/
 @[spec] theorem whnfCoreSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => s = s₀⦄ whnfCoreSet e r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        whnfCoreC := (if s₀.caches.whnfCoreC.size < cacheCap then
-          s₀.caches.whnfCoreC else ∅).insert e r } }; ⊤⦄ := by
+        whnfCoreC := s₀.caches.whnfCoreC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [whnfCoreSet] with finish
 
@@ -199,8 +196,7 @@ replaces exactly one field of one record. -/
 @[spec] theorem whnfCoreCheapSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => s = s₀⦄ whnfCoreCheapSet e r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        whnfCoreCheapC := (if s₀.caches.whnfCoreCheapC.size < cacheCap then
-          s₀.caches.whnfCoreCheapC else ∅).insert e r } }; ⊤⦄ := by
+        whnfCoreCheapC := s₀.caches.whnfCoreCheapC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [whnfCoreCheapSet] with finish
 
@@ -208,8 +204,7 @@ replaces exactly one field of one record. -/
 @[spec] theorem whnfSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => s = s₀⦄ whnfSet e r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        whnfC := (if s₀.caches.whnfC.size < cacheCap then
-          s₀.caches.whnfC else ∅).insert e r } }; ⊤⦄ := by
+        whnfC := s₀.caches.whnfC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [whnfSet] with finish
 
@@ -217,8 +212,7 @@ replaces exactly one field of one record. -/
 @[spec] theorem inferSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => s = s₀⦄ inferSet e r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        inferC := (if s₀.caches.inferC.size < cacheCap then
-          s₀.caches.inferC else ∅).insert e r } }; ⊤⦄ := by
+        inferC := s₀.caches.inferC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [inferSet] with finish
 
@@ -227,8 +221,7 @@ the io grade's own table. -/
 @[spec] theorem inferIOSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => s = s₀⦄ inferIOSet e r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        inferIOC := (if s₀.caches.inferIOC.size < cacheCap then
-          s₀.caches.inferIOC else ∅).insert e r } }; ⊤⦄ := by
+        inferIOC := s₀.caches.inferIOC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [inferIOSet] with finish
 
@@ -236,8 +229,7 @@ the io grade's own table. -/
 @[spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
     ⦃fun s => s = s₀⦄ annotSet e r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        annotC := (if s₀.caches.annotC.size < cacheCap then
-          s₀.caches.annotC else ∅).insert e r } }; ⊤⦄ := by
+        annotC := s₀.caches.annotC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [annotSet] with finish
 
@@ -246,16 +238,14 @@ the ORDERED pair and with the verdict. -/
 @[spec] theorem defeqSet_spec (s₀ : AState) (a b : EIdx) (r : Bool) :
     ⦃fun s => s = s₀⦄ defeqSet a b r
     ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        defeqC := (if s₀.caches.defeqC.size < cacheCap then
-          s₀.caches.defeqC else ∅).insert (a, b) r } }; ⊤⦄ := by
+        defeqC := s₀.caches.defeqC.insert (a, b) r } }; ⊤⦄ := by
   dsimp only
   vcgen [defeqSet] with finish
 
 /-! ## 3. The cache invariant under an insert
 
-con-leche's `CSOK.insert*` (`Verify/Cached/KnotC.lean:51-174`), with the cap's
-`if` taken by the generic lemma so that the six per-table versions are one
-line each. -/
+con-leche's `CSOK.insert*` (`Verify/Cached/KnotC.lean:51-174`), through the
+generic lemma so that the six per-table versions are one line each. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC — the
 generic entry-cache insert.  The row's backing is the depth-universal run,
@@ -276,38 +266,17 @@ theorem EntryCacheOK.insert {op : Nat → Nat → Expr → CheckM Expr}
     exact ⟨a, b, ha, hb, hrun⟩
   · exact h i' j' hl
 
-/-- con-leche: none — a table dropped by the cap holds no row, so it satisfies
-every clause: task #97f's "a dropped row is a cache miss and nothing else", as
-a lemma. -/
-theorem EntryCacheOK.empty {op : Nat → Nat → Expr → CheckM Expr}
-    {st : EStore} : EntryCacheOK op (∅ : Std.HashMap EIdx EIdx) st := by
-  intro i j hl; simp at hl
-
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC — the
-insert THROUGH the cap's branch, which is the shape the setter's spec
-produces. -/
-theorem EntryCacheOK.insert_capped {op : Nat → Nat → Expr → CheckM Expr}
-    {tbl : Std.HashMap EIdx EIdx} {st : EStore} (h : EntryCacheOK op tbl st)
-    {i j : EIdx} {a b : Expr} (ha : denoteE st i = some a)
-    (hb : denoteE st j = some b)
-    (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true → op F d a = .ok b) :
-    EntryCacheOK op
-      ((if tbl.size < cacheCap then tbl else ∅).insert i j) st := by
-  split
-  · exact EntryCacheOK.insert h ha hb hrun
-  · exact EntryCacheOK.insert EntryCacheOK.empty ha hb hrun
-
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:146 CSOK.insertDefeqC — the
 `defeq` verdict cache's insert, BOTH SIGNS (the row carries the `Bool` the
 pure run answered). -/
-theorem DefeqCacheOK.insert_capped {op : Nat → Nat → Expr → Expr → CheckM Bool}
+theorem DefeqCacheOK.insert {op : Nat → Nat → Expr → Expr → CheckM Bool}
     {tbl : Std.HashMap (EIdx × EIdx) Bool} {st : EStore}
     (h : DefeqCacheOK op tbl st) {i j : EIdx} {a b : Expr} {x : Bool}
     (ha : denoteE st i = some a) (hb : denoteE st j = some b)
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true → Expr.wscopedB d b = true →
       op F d a b = .ok x) :
     DefeqCacheOK op
-      ((if tbl.size < cacheCap then tbl else ∅).insert (i, j) x) st := by
+      (tbl.insert (i, j) x) st := by
   have key : ∀ (t : Std.HashMap (EIdx × EIdx) Bool), DefeqCacheOK op t st →
       DefeqCacheOK op (t.insert (i, j) x) st := by
     intro t ht k r hl
@@ -318,9 +287,7 @@ theorem DefeqCacheOK.insert_capped {op : Nat → Nat → Expr → Expr → Check
       obtain rfl := eq_of_beq hbeq
       exact ⟨a, b, ha, hb, hrun⟩
     · exact ht k r hl
-  split
-  · exact key _ h
-  · exact key _ (by intro k r hl; simp at hl)
+  exact key _ h
 
 /-! ### The six per-table versions
 
@@ -336,9 +303,8 @@ theorem CacheOK.insertWhnfCore {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
       ConLeche.whnfCore mode env F d a = .ok b) :
     CacheOK mode env { s with caches := { s.caches with
-      whnfCoreC := (if s.caches.whnfCoreC.size < cacheCap then
-        s.caches.whnfCoreC else ∅).insert i j } } :=
-  { hc with whnfCore := EntryCacheOK.insert_capped hc.whnfCore ha hb hrun }
+      whnfCoreC := s.caches.whnfCoreC.insert i j } } :=
+  { hc with whnfCore := EntryCacheOK.insert hc.whnfCore ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean CSOK.insertWhnfCoreCheapC. -/
 theorem CacheOK.insertWhnfCoreCheap {mode : CheckMode} {env : Env} {s : AState}
@@ -347,9 +313,8 @@ theorem CacheOK.insertWhnfCoreCheap {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
       ConLeche.whnfCore mode env F d a true = .ok b) :
     CacheOK mode env { s with caches := { s.caches with
-      whnfCoreCheapC := (if s.caches.whnfCoreCheapC.size < cacheCap then
-        s.caches.whnfCoreCheapC else ∅).insert i j } } :=
-  { hc with whnfCoreCheap := EntryCacheOK.insert_capped hc.whnfCoreCheap ha hb hrun }
+      whnfCoreCheapC := s.caches.whnfCoreCheapC.insert i j } } :=
+  { hc with whnfCoreCheap := EntryCacheOK.insert hc.whnfCoreCheap ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:69 CSOK.insertWhnfC. -/
 theorem CacheOK.insertWhnf {mode : CheckMode} {env : Env} {s : AState}
@@ -358,9 +323,8 @@ theorem CacheOK.insertWhnf {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
       ConLeche.whnf mode env F d a = .ok b) :
     CacheOK mode env { s with caches := { s.caches with
-      whnfC := (if s.caches.whnfC.size < cacheCap then
-        s.caches.whnfC else ∅).insert i j } } :=
-  { hc with whnf := EntryCacheOK.insert_capped hc.whnf ha hb hrun }
+      whnfC := s.caches.whnfC.insert i j } } :=
+  { hc with whnf := EntryCacheOK.insert hc.whnf ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:87 CSOK.insertInferC. -/
 theorem CacheOK.insertInfer {mode : CheckMode} {env : Env} {s : AState}
@@ -369,9 +333,8 @@ theorem CacheOK.insertInfer {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
       ConLeche.inferTypeCore mode env F d a = .ok b) :
     CacheOK mode env { s with caches := { s.caches with
-      inferC := (if s.caches.inferC.size < cacheCap then
-        s.caches.inferC else ∅).insert i j } } :=
-  { hc with infer := EntryCacheOK.insert_capped hc.infer ha hb hrun }
+      inferC := s.caches.inferC.insert i j } } :=
+  { hc with infer := EntryCacheOK.insert hc.infer ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:108 CSOK.insertInferIOC. -/
 theorem CacheOK.insertInferIO {mode : CheckMode} {env : Env} {s : AState}
@@ -380,9 +343,8 @@ theorem CacheOK.insertInferIO {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
       ConLeche.inferTypeIO mode env F d a = .ok b) :
     CacheOK mode env { s with caches := { s.caches with
-      inferIOC := (if s.caches.inferIOC.size < cacheCap then
-        s.caches.inferIOC else ∅).insert i j } } :=
-  { hc with inferIO := EntryCacheOK.insert_capped hc.inferIO ha hb hrun }
+      inferIOC := s.caches.inferIOC.insert i j } } :=
+  { hc with inferIO := EntryCacheOK.insert hc.inferIO ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:127 CSOK.insertAnnotC. -/
 theorem CacheOK.insertAnnot {mode : CheckMode} {env : Env} {s : AState}
@@ -391,9 +353,8 @@ theorem CacheOK.insertAnnot {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
       ConLeche.annotateCore mode env F d a = .ok b) :
     CacheOK mode env { s with caches := { s.caches with
-      annotC := (if s.caches.annotC.size < cacheCap then
-        s.caches.annotC else ∅).insert i j } } :=
-  { hc with annot := EntryCacheOK.insert_capped hc.annot ha hb hrun }
+      annotC := s.caches.annotC.insert i j } } :=
+  { hc with annot := EntryCacheOK.insert hc.annot ha hb hrun }
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:146 CSOK.insertDefeqC. -/
 theorem CacheOK.insertDefeq {mode : CheckMode} {env : Env} {s : AState}
@@ -402,9 +363,8 @@ theorem CacheOK.insertDefeq {mode : CheckMode} {env : Env} {s : AState}
     (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true → Expr.wscopedB d b = true →
       ConLeche.isDefEqCore mode env F d a b = .ok x) :
     CacheOK mode env { s with caches := { s.caches with
-      defeqC := (if s.caches.defeqC.size < cacheCap then
-        s.caches.defeqC else ∅).insert (i, j) x } } :=
-  { hc with defeq := DefeqCacheOK.insert_capped hc.defeq ha hb hrun }
+      defeqC := s.caches.defeqC.insert (i, j) x } } :=
+  { hc with defeq := DefeqCacheOK.insert hc.defeq ha hb hrun }
 
 /-! ### `CheckOK` past a cache insert
 

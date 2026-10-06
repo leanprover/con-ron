@@ -143,7 +143,6 @@ def lvlEq? (u v : LIdx) : AM (Option Bool) := do
     | some r => do
       let s ← get
       let mp := s.caches.lvlEqC
-      let mp := if mp.size < cacheCap then mp else ∅
       let s := { s with caches := { s.caches with lvlEqC := ∅ } }
       set { s with caches := { s.caches with lvlEqC := mp.insert (u, v) r } }
       pure (some r)
@@ -163,7 +162,6 @@ def lvlsEq? (us vs : LsIdx) : AM (Option Bool) := do
     | some r => do
       let s ← get
       let mp := s.caches.lvlsEqC
-      let mp := if mp.size < cacheCap then mp else ∅
       let s := { s with caches := { s.caches with lvlsEqC := ∅ } }
       set { s with caches := { s.caches with lvlsEqC := mp.insert (us, vs) r } }
       pure (some r)
@@ -188,7 +186,6 @@ def constTyAt (cv : IConstantVal) (us : LsIdx) : AM EIdx := do
     let r ← instLPFast coreWalkFuel cv.levelParams us cv.type
     let s ← get
     let mp := s.caches.constTyC
-    let mp := if mp.size < cacheCap then mp else ∅
     let s := { s with caches := { s.caches with constTyC := ∅ } }
     set { s with caches := { s.caches with constTyC := mp.insert (cv.name, us) r } }
     pure r
@@ -205,7 +202,6 @@ def constValAt (n : NIdx) (lps : List NIdx) (value : EIdx) (us : LsIdx) :
     let r ← instLPFast coreWalkFuel lps us value
     let s ← get
     let mp := s.caches.constValC
-    let mp := if mp.size < cacheCap then mp else ∅
     let s := { s with caches := { s.caches with constValC := ∅ } }
     set { s with caches := { s.caches with constValC := mp.insert (n, us) r } }
     pure r
@@ -222,7 +218,6 @@ def ruleRhsAt (recName ctor : NIdx) (lps : List NIdx) (rhs : EIdx)
     let r ← instLPFast coreWalkFuel lps us rhs
     let s ← get
     let mp := s.caches.ruleRhsC
-    let mp := if mp.size < cacheCap then mp else ∅
     let s := { s with caches := { s.caches with ruleRhsC := ∅ } }
     set { s with caches :=
       { s.caches with ruleRhsC := mp.insert (recName, ctor, us) r } }
@@ -3736,12 +3731,11 @@ slot is what DESIGN §3.4 rules out.  The bodies above are pure of memo
 logic, which is the property that matters. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1929 memoEI — record a
-`whnfCore` answer (detach before update, DESIGN §8.4 lesson 14; the cap is
-DESIGN §8.3's lesson 10 — past `cacheCap` the table is dropped whole). -/
+`whnfCore` answer (detach before update, DESIGN §8.4 lesson 14).  A plain
+insert, as con-leche's: the table's cap was removed by task #115. -/
 @[noinline] def whnfCoreSet (e r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.caches.whnfCoreC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with whnfCoreC := ∅ } }
   set { s with caches := { s.caches with whnfCoreC := mp.insert e r } }
 
@@ -3751,7 +3745,6 @@ CHEAP-mode `whnfCore` answer, in the cheap mode's OWN table (con-leche's
 @[noinline] def whnfCoreCheapSet (e r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.caches.whnfCoreCheapC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with whnfCoreCheapC := ∅ } }
   set { s with caches := { s.caches with whnfCoreCheapC := mp.insert e r } }
 
@@ -3760,7 +3753,6 @@ answer. -/
 @[noinline] def whnfSet (e r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.caches.whnfC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with whnfC := ∅ } }
   set { s with caches := { s.caches with whnfC := mp.insert e r } }
 
@@ -3769,7 +3761,6 @@ full-grade `infer` answer. -/
 @[noinline] def inferSet (e r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.caches.inferC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with inferC := ∅ } }
   set { s with caches := { s.caches with inferC := mp.insert e r } }
 
@@ -3779,7 +3770,6 @@ memo ruling). -/
 @[noinline] def inferIOSet (e r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.caches.inferIOC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with inferIOC := ∅ } }
   set { s with caches := { s.caches with inferIOC := mp.insert e r } }
 
@@ -3788,7 +3778,6 @@ memo ruling). -/
 @[noinline] def annotSet (e r : EIdx) : AM Unit := do
   let s ← get
   let mp := s.caches.annotC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with annotC := ∅ } }
   set { s with caches := { s.caches with annotC := mp.insert e r } }
 
@@ -3798,7 +3787,6 @@ verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores the
 @[noinline] def defeqSet (a b : EIdx) (r : Bool) : AM Unit := do
   let s ← get
   let mp := s.caches.defeqC
-  let mp := if mp.size < cacheCap then mp else ∅
   let s := { s with caches := { s.caches with defeqC := ∅ } }
   set { s with caches := { s.caches with defeqC := mp.insert (a, b) r } }
 

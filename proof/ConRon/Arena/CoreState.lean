@@ -25,9 +25,10 @@ the whole of one declaration's check and drops at its boundary:
   `cv.type.instantiateLevelParams cv.levelParams us` in the checker is one
   of these three.
 
-**A cap, not an eviction policy** (DESIGN §8.3, lesson 10): past
-`cacheCap` entries a table is dropped whole and starts again.  No LRU, no
-per-entry bookkeeping, and the Rust is one `len()` test.
+**No cap** (task #115), as in con-leche: a table grows for the length of
+its declaration and goes whole at the bracket.  The cap it had until then
+(`cacheCap = 2^22`, DESIGN §8.3's former lesson 10) dropped a full table
+and cost `perf/magma-list-deep-n36` 2.7× its instructions.
 
 **`dropScratchEntries`** is the per-declaration bracket's other half: an
 entry whose key or value names a SCRATCH handle must not survive the tier
@@ -103,7 +104,7 @@ structure Caches where
   readLsC : Std.HashMap LsIdx (List Level)
 
 /-- con-leche: ConLeche/Cached/StateC.lean:111-144 CState — the empty
-cache set: what a fresh run and every capped table start from. -/
+cache set: what a fresh run and every declaration start from. -/
 def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
@@ -139,15 +140,5 @@ one `pinAt` refuses. -/
 def Pins.empty : Pins := ⟨#[], [], ⟨0⟩, ⟨0⟩, ⟨0⟩⟩
 
 instance : Inhabited Pins := ⟨Pins.empty⟩
-
-/-! ## The cap -/
-
-/-- con-leche: none — DESIGN §8.3's cap (lesson 10, "a cap, not an eviction
-policy"): a table that reaches this many entries is dropped whole.  A
-top-level `def` so the Rust is a `const` and the Lean never inlines a
-`Nat` literal into a comparison (DESIGN §8.4, lesson 7).  2^25 since task
-#115 (it was 2^22, which dropped `perf/magma-list-deep-n36`'s `whnfCore`
-memo eleven times; see the Rust `CACHE_CAP`). -/
-def cacheCap : Nat := 33554432
 
 end ConRon.Arena
