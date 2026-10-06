@@ -1011,55 +1011,55 @@
     49  //! cutoff the original does not have needs its own licence proved.
     50  //!
 
-== crates/con-ron-core/src/arena/core_state.rs#L455-L502
-   455  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
-   456  /// The slot count past which `take_walk_memo` hands back a FRESH table
-   457  /// instead of a cleared one; see its note for how the value was chosen.
-   458  pub const WALK_MEMO_KEEP: usize = 1 << 16;
-   459  
-   460  /// con-leche: ConLeche/Kernel/Level.lean:401-403 Expr.allLevelParamsDefinedFast
-   461  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
-   462  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
-   463  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
-   464  /// **the parked walk memo, moved out of the state and emptied** (task
-   465  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
-   466  /// allocates nothing) for the length of the walk, and the entry puts the
-   467  /// grown table back afterwards; either way the table this returns is empty,
-   468  /// so the walk starts where the twin's does.
-   469  ///
-   470  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
-   471  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
-   472  /// does not leave a huge table behind for every later call.  `reset_map`'s
-   473  /// `clear_fit` already decays such a table, one eighth of its high-water mark
-   474  /// a call, so the guard only decides which of the two is cheaper for an
-   475  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
-   476  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
-   477  /// `perf stat -e instructions:u` run each, all accepting 57 977):
-   478  ///
-   479  /// | `WALK_MEMO_KEEP` | instructions:u |
-   480  /// |---|---:|
-   481  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
-   482  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
-   483  /// | 2^12 | 206 572 063 910 |
-   484  /// | 2^14 | 205 851 105 938 |
-   485  /// | **2^16** | **205 785 515 243** |
-   486  /// | no guard (2^60) | 205 783 023 575 |
-   487  ///
-   488  /// A guard low enough to trip on ordinary calls gives the saving back — at
-   489  /// nanoda's 1024 more than half of it — because those calls re-grow by
-   490  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
-   491  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
-   492  /// instructions over no guard), so it only ever fires on an outlier.
-   493  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
-   494      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
-   495      if m.capacity() > WALK_MEMO_KEEP {
-   496          HashMap::new()
-   497      } else {
-   498          let mut m2: HashMap<K, V> = m;
-   499          reset_map(&mut m2);
-   500          m2
-   501      }
-   502  }
+== crates/con-ron-core/src/arena/core_state.rs#L462-L509
+   462  /// con-leche: none — arena infrastructure (task #97-PERF-WALKMEMO)
+   463  /// The slot count past which `take_walk_memo` hands back a FRESH table
+   464  /// instead of a cleared one; see its note for how the value was chosen.
+   465  pub const WALK_MEMO_KEEP: usize = 1 << 16;
+   466  
+   467  /// con-leche: ConLeche/Kernel/Level.lean:401-403 Expr.allLevelParamsDefinedFast
+   468  /// con-leche: ConLeche/Kernel/DeclCheck.lean:190-192 Expr.constsResolveFFast
+   469  /// Lean twin: the `∅` that `proof/ConRon/Arena/CheckerBase.lean`'s
+   470  /// `allLevelParamsDefined` and `constsResolveFFast` start their walk from —
+   471  /// **the parked walk memo, moved out of the state and emptied** (task
+   472  /// #97-PERF-WALKMEMO).  The slot is left holding `HashMap::new()` (which
+   473  /// allocates nothing) for the length of the walk, and the entry puts the
+   474  /// grown table back afterwards; either way the table this returns is empty,
+   475  /// so the walk starts where the twin's does.
+   476  ///
+   477  /// **nanoda's guard** (`nanoda_lib/src/expr.rs`, `inst`): a table past
+   478  /// `WALK_MEMO_KEEP` slots is dropped rather than kept, so that one huge walk
+   479  /// does not leave a huge table behind for every later call.  `reset_map`'s
+   480  /// `clear_fit` already decays such a table, one eighth of its high-water mark
+   481  /// a call, so the guard only decides which of the two is cheaper for an
+   482  /// outlier: re-growing from nothing, or `clear_fit`'s re-make at the decayed
+   483  /// size.  The threshold, measured on `Init` (`--verified --jobs=1`, one
+   484  /// `perf stat -e instructions:u` run each, all accepting 57 977):
+   485  ///
+   486  /// | `WALK_MEMO_KEEP` | instructions:u |
+   487  /// |---|---:|
+   488  /// | fresh `HashMap::new()` per call (before) | 211 976 016 505 |
+   489  /// | 2^10 slots (nanoda's 1024) | 208 379 555 799 |
+   490  /// | 2^12 | 206 572 063 910 |
+   491  /// | 2^14 | 205 851 105 938 |
+   492  /// | **2^16** | **205 785 515 243** |
+   493  /// | no guard (2^60) | 205 783 023 575 |
+   494  ///
+   495  /// A guard low enough to trip on ordinary calls gives the saving back — at
+   496  /// nanoda's 1024 more than half of it — because those calls re-grow by
+   497  /// doubling, which is exactly the cost this table exists to avoid.  2^16 is
+   498  /// the smallest power tried that costs nothing measurable on `Init` (2.5 M
+   499  /// instructions over no guard), so it only ever fires on an outlier.
+   500  pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
+   501      let m: HashMap<K, V> = core::mem::replace(slot, HashMap::new());
+   502      if m.capacity() > WALK_MEMO_KEEP {
+   503          HashMap::new()
+   504      } else {
+   505          let mut m2: HashMap<K, V> = m;
+   506          reset_map(&mut m2);
+   507          m2
+   508      }
+   509  }
 
 == crates/con-ron-core/src/arena/core_state.rs#L308-L355
    308      pub whnf_core_c: HashMap<EIdx, EIdx>,
@@ -1111,13 +1111,20 @@
    354      pub read_ls_c: HashMap<LsIdx, Vec<Level>>,
    355  }
 
-== crates/con-ron-core/src/arena/core_state.rs#L392-L397
+== crates/con-ron-core/src/arena/core_state.rs#L392-L404
    392  /// con-leche: none — DESIGN.md §8.3's cap (lesson 10, "a cap, not an eviction
    393  /// policy"): a table that reaches this many entries is dropped whole.  Lean
    394  /// twin: `proof/ConRon/Arena/CoreState.lean:99 cacheCap` — a top-level `def`
    395  /// there so that the Rust is a `const` and the Lean never inlines a `Nat`
    396  /// literal into a comparison (DESIGN.md §8.4, lesson 7).
-   397  pub const CACHE_CAP: usize = 4194304;
+   397  ///
+   398  /// **2^25 since task #115** (it was 2^22).  At 2^22 the `whnf_core` memo of
+   399  /// `perf/magma-list-deep-n36`'s one declaration was dropped eleven times
+   400  /// (it peaks at 14.5 M entries) and every drop re-ran the β work it had
+   401  /// memoised: 391.7 G instructions against 147.1 G uncapped.  con-leche's
+   402  /// `memoEI` has no cap at all; 2^25 is the order of its one cap
+   403  /// (`instCCap`, 32 M), and a unary table at it is at most 2^26 slots × 16 B.
+   404  pub const CACHE_CAP: usize = 33554432;
 
 == crates/con-ron-core/src/arena/core.rs#L434-L443
    434      102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 97, 110,

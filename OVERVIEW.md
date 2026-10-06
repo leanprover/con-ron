@@ -373,7 +373,7 @@ Two more tables sit in the same record for their allocation only: the
 declaration guards `allLevelParamsDefined` and `constsResolve` thread their
 memo as an argument, as con-leche does, and the port parks it in the state
 between calls, moving it out and emptying it at each entry
-([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L455-L502)),
+([`take_walk_memo`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L462-L509)),
 or dropping it outright past 2¹⁶ slots.
 
 **Per-declaration caches**
@@ -397,8 +397,8 @@ step, as con-leche's `flushC` is.  A cache entry can name a scratch handle,
 so it must go with the tier.  The memos are cleared when a bracket opens and
 at every walk's entry.  No table evicts single entries; a table that
 reaches
-[`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L392-L397)
-(2²² entries) is emptied whole.
+[`CACHE_CAP`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core_state.rs#L392-L404)
+(2²⁵ entries) is emptied whole.
 
 The type checker runs in two **lanes**
 ([`LANE_*`](https://github.com/leanprover/con-ron/blob/master/crates/con-ron-core/src/arena/core.rs#L434-L443)),
