@@ -2,8 +2,9 @@
 # scripts/build-nanoda.sh -- the nanoda baseline binary of OVERVIEW section 9
 # (task #114), exactly as DESIGN.md "Task #97-P6-3" built it by hand:
 #
-#   * upstream `ammkrn/nanoda_lib` at commit 4c544ed (the one section 8.1's
-#     research report surveyed), cloned into $NANODA's build directory;
+#   * upstream `ammkrn/nanoda_lib` at the pin $NANODA_COMMIT below (#97-P6-3
+#     used 4c544ed, the one section 8.1's research report surveyed), cloned
+#     into $NANODA's build directory;
 #   * an empty `[workspace]` table appended to its `Cargo.toml` (`_tmp/` is
 #     inside the con-ron checkout, so Cargo would otherwise find con-ron's
 #     workspace and refuse; the table also restores nanoda's own
@@ -21,7 +22,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NANODA="${NANODA:-$ROOT/_tmp/t97/nanoda-build/target/release/nanoda_bin}"
 NANODA_URL="${NANODA_URL:-https://github.com/ammkrn/nanoda_lib}"
-NANODA_COMMIT=4c544ed4099c8227f07d5de77ad1e69fb0740a27
+# The pin.  #97-P6-3 measured 4c544ed (0.4.17); task #114 moved it to
+# upstream master 3a24072 (0.4.19).  Overridable for a one-off build.
+NANODA_COMMIT="${NANODA_COMMIT:-3a2407216ee84a75f9e1aead6803d0578be06ae7}"
 SRC="${NANODA%/target/release/nanoda_bin}"
 [[ $SRC != "$NANODA" ]] || { echo "build-nanoda.sh: \$NANODA must end in /target/release/nanoda_bin" >&2; exit 2; }
 

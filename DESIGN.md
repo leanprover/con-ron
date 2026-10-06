@@ -67252,8 +67252,8 @@ develop` from the checkout root and `cd proof` inside it.
 
 The first §9 refresh since task #107, after `_tmp/` was wiped and rebuilt
 and the toolchain moved v4.33.0 → v4.35.0-rc3 (task #110).  On master
-directly (scripts and documentation only).  **Result: the table was NOT
-refreshed** — nanoda aborted on the v4.35.0-rc3 Mathlib export, and
+directly (scripts and documentation only).  **Result of the first slice
+(superseded by Slice 2, which renders it): the table was NOT refreshed** — nanoda aborted on the v4.35.0-rc3 Mathlib export, and
 `scripts/perf-table.py` refuses to render a matrix with a failed run, so
 OVERVIEW §9 still shows #107's snapshot (v4.33.0 exports).  Nothing was
 hand-edited.
@@ -67354,3 +67354,144 @@ because the raw files are what `perf-table.py` renders from and the table is
 still owed; delete it once the nanoda question is settled.  `_tmp/corpus/*`
 (`mathlib.ndjson` 5.8 GiB, `init.ndjson` 330 MiB) and `_tmp/t97/nanoda-build`
 are kept for reuse.
+
+#### Slice 2 — a failed run renders; nanoda bumped; the culprit (2026-10-06)
+
+The maintainer's decision, in order: render failed runs, bump nanoda if
+upstream moved, and otherwise find the declaration.
+
+**1. `perf-table.py` renders a failed run** (commit `7808ea79`).  A run that
+exited non-zero is no longer a refusal.  Its cell says what happened,
+derived from the raw files: "timeout" for exit 124; "aborted: memory cap
+(N GiB)" for exit 134/137 when the peak RSS is at least 90 % of the run's
+cap, or stderr shows an allocation or thread-creation failure; otherwise
+"failed (exit N)".  The 90 % is needed because the cap is on address space,
+so a run killed at the cap has a peak RSS below it: nanoda died at
+27 670 724 KB against 28 311 552 KB.  The cap is the run's new `.limit`
+file (bench-baselines.sh now writes it).  Older runs have no such file, so
+the renderer asks `bench-baselines.sh --list`, which keeps one source for
+the caps.  A ratio that needs a failed cell prints "no figure (…)", and
+the budget sentence skips an export whose con-leche run failed.  In the
+raw block a failed run keeps its numbers and names the failure in the
+accepted column.  `--previous` skips such rows, both now and in a later
+parse.  The snapshot paragraph now names the exports' Lean version (from
+`identity.json`), because otherwise nothing in §9 says the exports changed.
+Refusal remains for a missing run, an exit-0 run with incomplete files, and
+disagreeing accepted counts.  OVERVIEW §9 is rendered from `_tmp/perf` by
+`perf-table.py --overview OVERVIEW.md --task '#114' --raw --previous
+DESIGN.md --previous-task '#107' _tmp/perf`; that command printed:
+
+**Identities** (`identity.json`): con-ron `37ca84fe35a01e4fa64b233f7b0751de7cec4d67` (md5 `ee87bd993221…`), con-leche `67f04630d88718e81aa4d07ab64501f68f105398` (md5 `c7bf6d1c3e4f…`), nanoda `4c544ed4099c8227f07d5de77ad1e69fb0740a27` (dirty) (md5 `e1a717d9366f…`); 2026-10-05; 96 hardware threads.
+
+| export | checker | instructions:u | wall | peak RSS (KB) | accepted | load (1 min) |
+|---|---|---:|---:|---:|---:|---:|
+| `Init` | con-ron ×1 | 211 499 455 945 / 211 499 557 119 / 211 499 892 519 | 21.84 / 21.99 / 22.02 s | 556 388 / 637 844 / 637 456 | 57 919 | 9.73 / 9.37 / 9.66 |
+| `Init` | con-ron ×8 | 212 882 553 544 / 212 986 017 704 / 212 972 712 294 | 5.42 / 5.49 / 5.56 s | 822 940 / 830 676 / 881 968 | 57 919 | 9.60 / 9.30 / 9.73 |
+| `Init` | con-leche ×1 | 488 942 675 175 / 488 945 443 239 / 488 928 005 502 | 48.19 / 48.28 / 48.26 s | 416 700 / 416 524 / 416 464 | 57 919 | 9.72 / 9.84 / 10.23 |
+| `Init` | nanoda | 225 758 992 045 / 225 758 993 311 / 225 758 993 041 | 23.36 / 23.94 / 23.64 s | 361 644 / 360 876 / 360 952 | 59 349 | 9.41 / 9.55 / 9.53 |
+| Mathlib | con-ron ×1 | 3 847 945 641 118 | 470.75 s | 7 260 856 | 703 103 | 9.52 |
+| Mathlib | con-ron ×8 | 3 861 261 916 597 | 128.39 s | 7 549 124 | 703 103 | 9.54 |
+| Mathlib | con-leche ×1 | 8 852 993 707 913 | 913.84 s | 7 314 968 | 703 103 | 14.35 |
+| Mathlib | nanoda | 2 306 258 975 968 | 790.25 s | 27 670 724 | aborted: memory cap (27 GiB) | 15.81 |
+
+Against task #107's raw block (medians; peak RSS is the largest run):
+
+| export | checker | instructions:u then | now | change | peak RSS then | now | change |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `Init` | con-ron ×1 | 204 237 025 546 | 211 499 557 119 | +3.6 % | 592 068 | 637 844 | +7.7 % |
+| `Init` | con-ron ×8 | 205 780 494 297 | 212 972 712 294 | +3.5 % | 891 864 | 881 968 | −1.1 % |
+| `Init` | con-leche ×1 | 455 000 166 305 | 488 942 675 175 | +7.5 % | 478 336 | 416 700 | −12.9 % |
+| `Init` | nanoda | 230 513 015 621 | 225 758 993 041 | −2.1 % | 364 164 | 361 644 | −0.7 % |
+| Mathlib | con-ron ×1 | 3 714 040 501 314 | 3 847 945 641 118 | +3.6 % | 6 756 120 | 7 260 856 | +7.5 % |
+| Mathlib | con-ron ×8 | 3 729 798 020 029 | 3 861 261 916 597 | +3.5 % | 7 351 148 | 7 549 124 | +2.7 % |
+| Mathlib | con-leche ×1 | 8 057 677 638 979 | 8 852 993 707 913 | +9.9 % | 8 688 760 | 7 314 968 | −15.8 % |
+
+The matrix ran 0 h 43 min (2 601 s).
+
+**2. nanoda upstream moved, and the bump does not help.**  `ammkrn/nanoda_lib`
+master (the repository #97-P6-3 cloned) is at `3a24072` (0.4.19, seven
+commits past `4c544ed`): a pretty-printer fix and sub-quadratic parsing of
+huge decimal nat literals.  The accepted export formats are still
+3.1.0–3.2.0.  `build-nanoda.sh` now takes the pin as one variable,
+`NANODA_COMMIT` (default `3a24072`, overridable for a one-off build).  The
+`[workspace]` patch is unchanged.  Under the same caps (`bench-baselines.sh
+--bin nanoda --out _tmp/perf-nanoda`):
+
+| export | nanoda | instructions:u | wall | peak RSS (KB) | result |
+|---|---|---:|---:|---:|---|
+| `Init` | `3a24072` | 225 886 531 963 / 225 886 583 271 / 225 886 527 764 | 23.49 / 23.68 / 23.71 s | 359 908 / 358 668 / 359 812 | 59 349 |
+| Mathlib | `3a24072` | 2 309 699 139 041 | 822.32 s | 27 718 180 | `memory allocation of 16505880600 bytes failed`, exit 134 |
+
+`Init` moves by +0.06 % in instructions against `4c544ed`.  Mathlib fails
+identically.  So §9's nanoda row stays the full matrix's `4c544ed` run, the
+one recorded in `identity.json`; re-running nanoda alone into `_tmp/perf`
+would rewrite `identity.json` from a different con-ron commit, for a row
+that fails anyway.  The pin stays at `3a24072`, so the next refresh measures
+it.
+
+**3. The culprit.**  A scratch copy of nanoda `4c544ed`
+(`_tmp/t97/nanoda-diag`, not the baseline binary) prints `DIAG <i> <name>`
+to stderr before each declaration, unbuffered.  Run serially
+(`num_threads: 0`) on the Mathlib export under the same 27 GiB cap and
+9 000 s timeout, it died on declaration 143 026 of 719 627:
+
+    _private.Std.Time.Date.Unit.Week.0.Std.Time.Week.Offset.ofMilliseconds._proof_1
+
+This is a Lean *core* declaration (`Std.Time`), not a Mathlib one.  So
+exporting only `Std.Time.Date.Unit.Week` at both toolchains reproduces the
+failure, using `lean4export` `15f6055` (v4.33.0) and `66f1fb4`
+(v4.35.0-rc3), about 107 MB each.  At v4.33.0 nanoda checks the 22 472
+declarations in 0.15 GB.  At v4.35.0-rc3 under 8 GiB it dies on a
+sibling of the same family, which comes first in this export's order:
+`_private.Std.Time.Time.Unit.Basic.0.Std.Time.Nanosecond.Offset.toMilliseconds._proof_1`.
+
+* **The proof term is unchanged.**  Both exports have the same `of_decide_eq_true
+  (instDecidableEqRat …) (Eq.refl true)`, a kernel `decide` of
+  `1/1000000000 * ((1000000 : Int) : Rat) = 1/1000`.
+* **What changed is its dependency closure.**  Of its 1 734 declarations,
+  100 are new or changed (a name-canonical structural diff).  The change
+  behind them is that v4.35 makes `Decidable` a structure.
+  `Decidable.decide` was a `casesOn` over `isTrue`/`isFalse` and is now a
+  projection (`λ p self, self.0`).  `Nat.decEq` is now `Decidable.intro
+  (Nat.beq n m) (Nat.decEq._proof_1 n m)`, and likewise `Bool.decEq`.
+  Also new are `Decidable.intro`, `Bool.Reflects`,
+  `Decidable.reflects_decide`, the `match_*` helpers of
+  `instDecidableAnd/Or/Not/Iff`, and `Nat.div_eq_ite`/`Nat.mod_eq_ite`.
+* **nanoda's backtrace** (`RUST_BACKTRACE=1`, 4 GiB cap) runs from `check_declar` →
+  `infer` → `def_eq` → `whnf` → **`to_ctor_when_k`** → `def_eq_app` →
+  `def_eq` ×9 → `whnf` → `inst_aux` ×14 → `mk_app` → `alloc_expr`.  The
+  memory is the per-declaration expression table, an `IndexMap<Expr>`, and
+  the 4 GiB run failed in its `reserve_rehash`.  The Mathlib run's single
+  16.5 GB allocation printed no backtrace; it is presumably the same table
+  doubling.  So nanoda's
+  K-like recursor reduction, while comparing the major premise's type
+  with the constructor's, starts a reduction whose expression count grows
+  without bound.
+* **Minimal reproduction** (one-theorem modules compiled with `lean -o`,
+  exported, then checked by nanoda under 4 GiB):
+  `theorem t : ((1 : Rat) / 1000000000) * ((1000000 : Int) : Rat) = 1 / 1000
+  := by decide +kernel` checks at v4.33.0 (whole export 0.36 GB, 29 s) and
+  aborts at v4.35.0-rc3.  The cost is linear in the factor `Rat.mul`
+  cancels (`g2 = gcd(b.num, a.den)`), not in the size of the numbers.
+  For `(1/1000000000) * 10^k`, peak RSS over the 0.36 GB baseline was
+  k = 3: +0, k = 4: +0.14 GB, k = 5: +1.3 GB, k = 6: over 4 GiB.
+  `(1/1000000000) * ((10 : Int) : Rat)` (g2 = 10) passes;
+  `(1/2000000) * 1000000` (g2 = 10^6, small numbers otherwise) aborts.
+  The arithmetic on its own is cheap: `decide +kernel` of `Nat.gcd
+  1000000 1000000000 = 1000000`, `Nat.divExact`, `Int.divExact` and `Nat`
+  division of the same literals each check at the baseline.  So the unary
+  work comes from how nanoda reduces the `Decidable` structure and the
+  proof-carrying `Rat.mul` (`Int.divExact … ⋯`, `den_nz`/`reduced`) on
+  the K path, not from the literal operations.  Lean's kernel, con-leche
+  and con-ron accept the same declarations cheaply.
+* **Not patched.**  There is no obvious one-line fix: the trigger is
+  a v4.35 core change interacting with nanoda's K-like reduction or lazy
+  delta.  This is a nanoda bug worth reporting upstream with the
+  one-theorem reproduction above.  Until then nanoda has no Mathlib
+  number on v4.35+ exports.
+
+**Scratch.**  `_tmp/perf` (the rendered numbers are above), `_tmp/perf-nanoda`
+(its numbers are in the table above) and `_tmp/nanoda-diag-114` (the Week
+exports, reproduction and probe scripts) are deleted, as is
+`_tmp/t97/nanoda-diag`.  `_tmp/corpus/*` and `_tmp/t97/nanoda-build`
+(now `3a24072`) stay.
