@@ -67712,3 +67712,101 @@ nanoda's to make, and the measured baseline stays unpatched.
 rest of `_tmp/t114-s3` is deleted: the con-leche clone, the nanoda
 builds and diagnostics, the v4.33 exporter, and the raw measurement files
 (their numbers are above).
+
+### Task #115 — why con-ron is slow on `perf/magma-list-deep-n36` (2026-10-06, Opus)
+
+Phase 1, diagnosis only: no code is changed.  Exports are #114 slice 3's
+(`lka.py build-test`, v4.34.1, `_tmp/ka-upstream/_build/tests/perf/`).
+Every run used `--verified --jobs=1` under `ulimit -v` and `timeout`, and
+was measured with `perf stat -e instructions:u`, one run each.  The binaries
+are master `793a3894` and diagnostic variants of it, all built in
+`_tmp/wt-t115`.  con-leche is the pin `67f04630`, built in
+`_tmp/t115-con-leche`.
+
+**Root cause: the `whnf_core` memo hits `CACHE_CAP` and is dropped whole,
+11 times, inside the one declaration `countermodel`.**  `CACHE_CAP =
+4 194 304` (`arena/core_state.rs:397`; twin `Arena/CoreState.lean:149
+cacheCap`) is con-ron's own cap: "con-leche: none", from §8.3's "lesson 10".
+con-leche's `memoEI` (`Cached/CoreC.lean:1915`) has no cap on `whnfCoreC`.
+Its only cap is `instCCap = 32 000 000`, on a different table.  So
+con-leche keeps the memo and con-ron re-derives every `whnfCore` after
+each drop.  The re-derivation re-runs β (`beta_peel` →
+`instantiate_list_go` → `intern_app`).  The nodes it builds are already
+interned, so the store does not grow, but the instructions do.  Evidence:
+
+* An `eprintln!` at every cap drop: n36 drops `whnf_core_c` 11 times and no
+  other table; n21 drops nothing.  With the cap removed, `whnf_core_c`
+  peaks at **14 540 224** entries at the flush.  The other memos are small:
+  `whnf` 28 894, `infer` 1 491, `defeq` 79.
+* The profile (`perf record -e instructions:u`, n21 → n36): `intern_app`
+  22 %, `instantiate_list_go` 19 %, `instantiate_list` 7 %,
+  `get_app_spine_go` 6 %.  The inclusive profile has 57 % under
+  `whnf_app`/`beta_peel`.  The shape is the same at both sizes: there is no
+  new hot spot, only more of the same work.
+* Varying the cap:
+
+  | n36, con-ron variant | instructions:u | peak RSS |
+  |---|---:|---:|
+  | master (cap 2^22) | 391.7 G (#114) | 4.87 GB |
+  | cap 2^24 | 147.11 G | 5.34 GB |
+  | cap 2^25 (`33 554 432`) | 147.11 G | 5.48 GB |
+  | cap 2^26 | 147.11 G | 5.34 GB |
+  | no cap | 147.13 G | 5.32 GB |
+
+  The fix takes con-ron to 0.48× con-leche's 305.4 G and 0.63× nanoda's
+  232 G, which is its usual ratio (n21: 12.28 / 26.09 = 0.47).
+* **Scaling.**  From n21 to n36, without the cap: con-ron ×12.0 (12.28 →
+  147.1 G), con-leche ×11.7 (26.09 → 305.4 G).  The exponent is the same,
+  and the anomaly is the cap alone.  No intermediate n was measured: the
+  arena has no generator for these tests (the certificates come from a
+  corpus, and n21 and n36 are different equations), so there is nothing
+  to vary n with.
+
+**The memory side: a second, independent finding.**  At 8 GiB, master
+aborts **after `countermodel` has been checked**, in the declaration
+bracket `leave_record` → `EStore::clear_scratch` → `ETables::reset` →
+`Tbl::reset` → `HashMap2::clear_fit` (`store.rs:2622`, `gdb` backtrace).
+`clear_fit` sizes the cleared table for load ½: `want =
+pow2_at_least(2·hw + 1)`.  `insert` resizes only at load ¾, so a table
+that ended its round between ½ and ¾ full is **re-made at twice its size
+by the clear**.  On n36 the app cons table holds about 40 M entries in 2^26
+slots, so the clear allocates 2^27 × 20 B = **2 684 354 560 bytes**, the
+exact failed allocation.  The old table is still live while it does.
+After the last declaration this is pure waste.
+* Candidate: in `clear_fit`, never grow a table of ≥ 2^20 slots whose
+  high-water mark fits its current `max_load`, together with cap 2^25.  It
+  measured: n36 **146.92 G, 3.24 GB peak, accepts at 8 GiB**; n21 12.26 G;
+  `Init` 211.494 G against master's 211.495 G.
+  The unthresholded version (never grow on clear) costs **+0.46 %** on
+  `Init` (212.46 G), because small tables do profit from being pre-sized.
+  Cap 2^25 alone is free on `Init` (211.495 G) but still aborts n36 at
+  8 GiB, in that clear.
+* `magma-list-pair-n21` is a different case.  The cap matters little
+  there: 96.13 G at master, 96.90 G at cap 2^25, 3 drops of a table with a
+  low hit rate.  Its 8 GiB abort is **during** the check: the app cons table
+  doubles to 2^27 slots, so more than 50 M app nodes are live in one
+  declaration's scratch tier.  That is genuine store growth (con-leche
+  also runs out of memory at 8 GiB there), a lever of its own, and not
+  this task's.
+
+**The proposed fix (phase 2, not started)**:
+1. `CACHE_CAP` 2^22 → 2^25, in the Rust and in the twin's `cacheCap`,
+   then `extract.sh`.  The proofs use the value only through
+   `Refine2/Core/Probes.lean:220-222` (`rw [CACHE_CAP, cacheCap]; rfl`),
+   which does not depend on it.  T2 stays in lockstep, since the constant
+   is shared.  T1 is untouched, since a memo drop is already proved sound
+   whatever the threshold.  Worst-case memory: one unary table at 2^26
+   slots × 16 B = 1 GiB, only in a declaration with more than 25 M
+   distinct calls.
+2. The `clear_fit` threshold rule (`ron/hashmap2.rs`, con-leche: none).
+   `Refine/HashMap2.lean:1243 clear_fit_refines` needs its case split
+   updated.  The arms are still `clear` or a fresh table, so the
+   denotation (∅) is unchanged.
+3. Before landing, re-measure Mathlib, because the cap may fire there
+   (it does not on `Init`).
+Nothing goes upstream: con-leche has no such cap, and con-ron is the one
+diverging.
+
+Scratch: `_tmp/t115-scratch` (profiles, the two candidate diffs),
+`_tmp/t115-target` (master with line tables), `_tmp/t115-con-leche`
+(con-leche's executable at the pin, 447 MB).
