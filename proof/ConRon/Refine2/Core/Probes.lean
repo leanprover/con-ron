@@ -47,8 +47,7 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 open ConRon.Refine.HashMap (Eq2Fwd DupId)
-open ConRon.Refine.HashMap2 (Inv KeysOk RelOn sl_v toFun support mem_support_iff
-  card_support)
+open ConRon.Refine.HashMap2 (Inv KeysOk RelOn sl_v toFun)
 
 /-! ## The `Caches` key abstractions are injective -/
 

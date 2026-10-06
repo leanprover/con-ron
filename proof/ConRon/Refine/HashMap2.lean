@@ -838,14 +838,6 @@ theorem contains_key_refines_gen {P : K → Prop} (heq : Eq2Fwd Eq2Inst P)
 /-- The support of the abstract map. -/
 def support (m : ron.hashmap2.HashMap2 K V) : Finset K := ((sl_v m).map Prod.fst).toFinset
 
-theorem mem_support_iff {k : K} : k ∈ support m ↔ (toFun m k).isSome := by
-  rw [support, List.mem_toFinset, toFun]
-  cases hl : lookupK (sl_v m) k with
-  | none => simp [lookupK_eq_none_iff.1 hl]
-  | some v =>
-    simp only [Option.isSome_some, iff_true]
-    exact List.mem_map.2 ⟨(k, v), lookupK_mem hl, rfl⟩
-
 theorem card_support (hinv : Inv HashableInst m) : (support m).card = (sl_v m).length := by
   rw [support, List.toFinset_card_of_nodup hinv.nodup, List.length_map]
 
