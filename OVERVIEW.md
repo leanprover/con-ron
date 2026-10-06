@@ -903,31 +903,32 @@ time and peak memory are secondary.  con-ron is its `cargo build --release`
 binary (mimalloc, its default allocator) and con-leche its `lake build`
 binary, both run with `--verified`; nanoda is its `cargo build --release`
 binary (the system allocator) in its default serial configuration.  The
-inputs are `lean4export` exports of Lean's `Init` (57 977 declarations) and
-of Mathlib (691 128).  The table is one snapshot, taken on 2026-10-01:
-con-ron at `fd543c55`, con-leche at its pin `a31e8297`, nanoda at
-`4c544ed4`.  `Init` wall time is the range of 3 runs on a shared machine
-(one-minute load average 0.9–5.6 at the starts of the runs); Mathlib was run
-once per checker, so it has no wall-time column.
+inputs are `lean4export` exports (made with Lean 4.35.0-rc3) of Lean's
+`Init` (57 919 declarations) and of Mathlib (703 103).  The table is one
+snapshot, taken on 2026-10-05: con-ron at `37ca84fe`, con-leche at its pin
+`67f04630`, nanoda at `4c544ed4`.  `Init` wall time is the range of 3 runs
+on a shared machine (one-minute load average 9.3–15.8 at the starts of the
+runs); Mathlib was run once per checker, so it has no wall-time column.
 
 | | `Init` instructions | `Init` wall, peak RSS | Mathlib instructions | Mathlib peak RSS |
 |---|---:|---|---:|---:|
-| **con-ron**, one worker | 204.24 G | 21.3–21.5 s, 0.59 GB | 3 714 G | 6.76 GB |
-| **con-ron**, eight workers | 205.78 G | 5.3 s, 0.88–0.89 GB | 3 730 G | 7.35 GB |
-| con-leche, one worker | 455.00 G | 43.9–44.6 s, 0.48 GB | 8 058 G | 8.69 GB |
-| nanoda, one worker | 230.51 G | 23.9–24.0 s, 0.36 GB | 6 054 G | 7.12 GB |
+| **con-ron**, one worker | 211.50 G | 21.8–22.0 s, 0.56–0.64 GB | 3 848 G | 7.26 GB |
+| **con-ron**, eight workers | 212.97 G | 5.4–5.6 s, 0.82–0.88 GB | 3 861 G | 7.55 GB |
+| con-leche, one worker | 488.94 G | 48.2–48.3 s, 0.42 GB | 8 853 G | 7.31 GB |
+| nanoda, one worker | 225.76 G | 23.4–23.9 s, 0.36 GB | aborted: memory cap (27 GiB) | 27.67 GB |
 
-Single-threaded, con-ron executes 44.9 % of con-leche's instructions on
-`Init` and 46.1 % on Mathlib, and 88.6 % and 61.3 % of nanoda's.  Eight
-workers change con-ron's instruction count by +0.8 % on `Init` and +0.4 % on
-Mathlib (medians of the runs throughout).  CLAUDE.md's memory budget is 3×
-con-leche's peak RSS on the same export: every con-ron peak is within it
-(largest peak 0.89 GB against 1.43 GB on `Init`, 7.35 GB against 26.07 GB on
-Mathlib).  `scripts/bench-baselines.sh` runs the measurements and
+Single-threaded, con-ron executes 43.3 % of con-leche's instructions on
+`Init` and 43.5 % on Mathlib, and 93.7 % and no figure (nanoda on Mathlib:
+aborted: memory cap (27 GiB)) of nanoda's.  Eight workers change con-ron's
+instruction count by +0.7 % on `Init` and +0.3 % on Mathlib (medians of the
+runs throughout).  CLAUDE.md's memory budget is 3× con-leche's peak RSS on
+the same export: every con-ron peak is within it (largest peak 0.88 GB
+against 1.25 GB on `Init`, 7.55 GB against 21.94 GB on Mathlib).
+`scripts/bench-baselines.sh` runs the measurements and
 `scripts/perf-table.py` writes this section from its raw files (both:
 `scripts/bench-baselines.sh --build --render --task <id>`);
 `scripts/corpus.sh` builds the exports; the raw numbers are in DESIGN.md's
-task #107 section.
+task #114 section.
 <!-- perf-table:end -->
 
 ## 10. Keeping the port honest

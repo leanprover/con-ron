@@ -24,15 +24,25 @@ a computed percentage.
                     section of FILE (this script's own format, which is also
                     task #97-REMEASURE's) and append a per-row comparison
 
-The renderer refuses (exit 1, naming the runs) when any run of the table's
-matrix is missing, exited non-zero (a cap, a timeout, a rejection) or has
-no instruction count, or when the checkers disagree on what they accepted.
+A run that exited non-zero is rendered, not refused (task #114): its
+cell says what happened, derived from its raw files -- "timeout" for exit
+124, "aborted: memory cap (N GiB)" for an abort (exit 134 or 137) that
+reached its `ulimit -v` cap (peak RSS at least 90 % of it, or an
+allocation/thread-creation failure on stderr), otherwise "failed (exit N)".
+The cap is the run's `.limit` file (bench-baselines.sh writes it), or, for
+a run older than that file, what `bench-baselines.sh --list` says.  Every
+comparison that needs a failed cell says so instead of a number.
+
+The renderer still refuses (exit 1, naming the runs) when any run of the
+table's matrix is missing, or exited 0 without a complete set of numbers,
+or when the checkers disagree on what they accepted.
 """
 
 import argparse
 import json
 import re
 import statistics
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -75,7 +85,54 @@ def read_run(stem):
     run["decls"] = int(m.group(1)) if m else None
     load = text(".load")
     run["load"] = float(load.split()[0]) if load else None
+    lim = text(".limit")
+    run["limit"] = int(lim.strip()) if lim and lim.strip().isdigit() else None
+    run["err"] = text(".err") or ""
+    run["fail"] = None
     return run
+
+
+MEM_FAIL = re.compile(r"memory allocation of \d+ bytes failed|failed to create thread"
+                      r"|cannot spawn|out of memory|Cannot allocate memory")
+
+
+def listed_limit(b, e):
+    """The cap `bench-baselines.sh --list` gives (bin, export), in KB."""
+    lst = subprocess.run(
+        [str(Path(__file__).with_name("bench-baselines.sh")), "--list",
+         "--bin", b, "--export", e], capture_output=True, text=True).stdout
+    m = re.search(rf"^{re.escape(b)}\s+{e}\s+\S+\s+(\d+) KB", lst, re.M)
+    return int(m.group(1)) if m else None
+
+
+def gib(kb):
+    return f"{round(kb / 1048576, 1):g} GiB"
+
+
+def failure(r, b, e):
+    """What a non-zero exit was, from the raw files only."""
+    x = r["exit"]
+    if x == 124:
+        return "timeout"
+    if x in (134, 137):
+        cap = r["limit"] or listed_limit(b, e)
+        if cap and ((r["rss"] or 0) >= 0.9 * cap or MEM_FAIL.search(r["err"])):
+            return f"aborted: memory cap ({gib(cap)})"
+    return f"failed (exit {x})"
+
+
+def ok(rs):
+    return [r for r in rs if r["fail"] is None]
+
+
+def failed(rs):
+    return [r for r in rs if r["fail"] is not None]
+
+
+def fail_label(rs):
+    fs = failed(rs)
+    lab = "; ".join(dict.fromkeys(r["fail"] for r in fs))
+    return lab if len(fs) == len(rs) else f"{lab} ({len(fs)} of {len(rs)} runs)"
 
 
 def read_matrix(d):
@@ -90,8 +147,10 @@ def read_matrix(d):
             if not rs:
                 bad.append(f"{b}-{e}: no runs")
             for r in rs:
-                if r["exit"] != 0:
-                    bad.append(f"{r['name']}: exit {r['exit']}")
+                if r["exit"] is None:
+                    bad.append(f"{r['name']}: no exit code")
+                elif r["exit"] != 0:
+                    r["fail"] = failure(r, b, e)
                 elif None in (r["ins"], r["wall"], r["rss"], r["decls"]):
                     bad.append(f"{r['name']}: incomplete raw files")
             runs[b, e] = rs
@@ -99,11 +158,11 @@ def read_matrix(d):
         sys.exit("perf-table.py: refusing to render:\n  " + "\n  ".join(bad))
     for e, _ in EXPORTS:
         counts = {r["decls"] for b in ("con-ron", "con-ron-j8", "con-leche")
-                  for r in runs[b, e]}
-        if len(counts) != 1:
+                  for r in ok(runs[b, e])}
+        if len(counts) > 1:
             sys.exit(f"perf-table.py: con-ron and con-leche accepted different "
                      f"declaration counts on {e}: {sorted(counts)}")
-        if len({r["decls"] for r in runs["nanoda", e]}) != 1:
+        if len({r["decls"] for r in ok(runs["nanoda", e])}) > 1:
             sys.exit(f"perf-table.py: nanoda's runs disagree on {e}")
     return runs
 
@@ -154,9 +213,29 @@ def median(rs, k):
     return statistics.median(r[k] for r in rs)
 
 
+def rss_span(rs):
+    v = [r["rss"] for r in rs if r["rss"] is not None]
+    return span(min(v), max(v), gb, "GB") if v else DASH
+
+
+def n_decls(runs, e):
+    for b in ("con-ron", "con-ron-j8", "con-leche"):
+        if ok(runs[b, e]):
+            return grp(ok(runs[b, e])[0]["decls"])
+    return "?"
+
+
+def lean_of(ident):
+    vs = {x.get("meta", {}).get("lean", {}).get("version")
+          for x in ident.get("exports", {}).values()}
+    vs.discard(None)
+    return ", ".join(sorted(vs))
+
+
 def render_overview(runs, ident, task):
-    n_init = runs["con-ron", "init"][0]["decls"]
-    n_ml = runs["con-ron", "mathlib"][0]["decls"]
+    n_init = n_decls(runs, "init")
+    n_ml = n_decls(runs, "mathlib")
+    lean = lean_of(ident)
     k_init = {len(runs[b, "init"]) for b, _, _ in ROWS}
     k_ml = {len(runs[b, "mathlib"]) for b, _, _ in ROWS}
     loads = [r["load"] for rs in runs.values() for r in rs if r["load"] is not None]
@@ -169,8 +248,9 @@ def render_overview(runs, ident, task):
           "`--verified`; nanoda is its `cargo build --release` binary (the "
           "system allocator) in its default serial configuration.  The inputs "
           "are `lean4export` exports "
-          f"of Lean's `Init` ({grp(n_init)} declarations) and of Mathlib "
-          f"({grp(n_ml)}).  The table is one snapshot, taken on {ident['date']}: "
+          + (f"(made with Lean {lean}) " if lean else "")
+          + f"of Lean's `Init` ({n_init} declarations) and of Mathlib "
+          f"({n_ml}).  The table is one snapshot, taken on {ident['date']}: "
           f"con-ron at `{short(ident['con-ron'])}`, con-leche at its pin "
           f"`{short(ident['con-leche'])}`, nanoda at `{short(ident['nanoda'])}`.  ")
     k = "/".join(str(x) for x in sorted(k_init))
@@ -192,33 +272,47 @@ def render_overview(runs, ident, task):
     lines = [head]
     for b, label, _ in ROWS:
         ri, rm = runs[b, "init"], runs[b, "mathlib"]
-        ins_i = f"{median(ri, 'ins') / 1e9:.2f} G"
-        wall_i = span(min(r["wall"] for r in ri), max(r["wall"] for r in ri),
-                      lambda x: f"{x:.1f}", "s")
-        rss_i = span(min(r["rss"] for r in ri), max(r["rss"] for r in ri), gb, "GB")
-        ins_m = f"{grp(round(median(rm, 'ins') / 1e9))} G"
-        rss_m = span(min(r["rss"] for r in rm), max(r["rss"] for r in rm), gb, "GB")
+        ins_i = (fail_label(ri) if failed(ri)
+                 else f"{median(ri, 'ins') / 1e9:.2f} G")
+        wi = [r["wall"] for r in ok(ri)]
+        wall_i = span(min(wi), max(wi), lambda x: f"{x:.1f}", "s") if wi else DASH
+        rss_i = rss_span(ri)
+        ins_m = (fail_label(rm) if failed(rm)
+                 else f"{grp(round(median(rm, 'ins') / 1e9))} G")
+        rss_m = rss_span(rm)
         lines.append(f"| {label} | {ins_i} | {wall_i}, {rss_i} | {ins_m} | {rss_m} |")
     table = "\n".join(lines)
 
-    def ratio(a, b, e):
-        return median(runs[a, e], "ins") / median(runs[b, e], "ins")
+    label = {b: raw for b, _, raw in ROWS}
+    ename_of = dict(EXPORTS)
+
+    def ratio(a, b, e, fmt):
+        for x in (a, b):
+            if failed(runs[x, e]):
+                return (f"no figure ({label[x]} on {ename_of[e]}: "
+                        f"{fail_label(runs[x, e])})")
+        return fmt(median(runs[a, e], "ins") / median(runs[b, e], "ins"))
+
+    def j8(x):
+        return signed_pct(x - 1)
 
     p2 = ("Single-threaded, con-ron executes "
-          f"{pct(ratio('con-ron', 'con-leche', 'init'))} of con-leche's "
-          f"instructions on `Init` and {pct(ratio('con-ron', 'con-leche', 'mathlib'))} "
-          f"on Mathlib, and {pct(ratio('con-ron', 'nanoda', 'init'))} and "
-          f"{pct(ratio('con-ron', 'nanoda', 'mathlib'))} of nanoda's.  "
+          f"{ratio('con-ron', 'con-leche', 'init', pct)} of con-leche's "
+          f"instructions on `Init` and {ratio('con-ron', 'con-leche', 'mathlib', pct)} "
+          f"on Mathlib, and {ratio('con-ron', 'nanoda', 'init', pct)} and "
+          f"{ratio('con-ron', 'nanoda', 'mathlib', pct)} of nanoda's.  "
           "Eight workers change con-ron's instruction count by "
-          f"{signed_pct(ratio('con-ron-j8', 'con-ron', 'init') - 1)} on `Init` and "
-          f"{signed_pct(ratio('con-ron-j8', 'con-ron', 'mathlib') - 1)} on Mathlib "
+          f"{ratio('con-ron-j8', 'con-ron', 'init', j8)} on `Init` and "
+          f"{ratio('con-ron-j8', 'con-ron', 'mathlib', j8)} on Mathlib "
           "(medians of the runs throughout).  ")
 
     # The memory budget, checked: the largest peak of each con-ron row
     # against BUDGET times the smallest con-leche peak on the same export.
     over, worst = [], {}
     for e, ename in EXPORTS:
-        cap = BUDGET * min(r["rss"] for r in runs["con-leche", e])
+        if not ok(runs["con-leche", e]):
+            continue
+        cap = BUDGET * min(r["rss"] for r in ok(runs["con-leche", e]))
         top = 0
         for b, label, _ in ROWS[:2]:
             peak = max(r["rss"] for r in runs[b, e])
@@ -234,7 +328,7 @@ def render_overview(runs, ident, task):
     else:
         p2 += ("every con-ron peak is within it (largest peak "
                + ", ".join(f"{gb(worst[e][0])} GB against {gb(worst[e][1])} GB "
-                           f"on {ename}" for e, ename in EXPORTS)
+                           f"on {ename}" for e, ename in EXPORTS if e in worst)
                + ").  ")
     p2 += ("`scripts/bench-baselines.sh` runs the measurements and "
            "`scripts/perf-table.py` writes this section from its raw files "
@@ -247,11 +341,15 @@ def render_overview(runs, ident, task):
 
 # ---- the DESIGN raw block --------------------------------------------------
 
-RAW_ROW = re.compile(r"^\| (`Init`|Mathlib) \| ([^|]+?) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|")
+RAW_ROW = re.compile(r"^\| (`Init`|Mathlib) \| ([^|]+?) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|")
 
 
 def ints(cell):
     return [int(x.replace(" ", "").replace(",", "")) for x in cell.split("/")]
+
+
+def num(x, f):
+    return "?" if x is None else f(x)
 
 
 def render_raw(runs, ident):
@@ -265,11 +363,15 @@ def render_raw(runs, ident):
     for e, ename in EXPORTS:
         for b, _, raw in ROWS:
             rs = runs[b, e]
+            # A failed run keeps its numbers (what perf and time saw up to
+            # the end) and names its failure in the accepted column.
+            acc = (grp(rs[0]["decls"]) if not failed(rs) else " / ".join(
+                r["fail"] if r["fail"] else grp(r["decls"]) for r in rs))
             out.append(
-                f"| {ename} | {raw} | " + " / ".join(grp(r["ins"]) for r in rs)
-                + " | " + " / ".join(f"{r['wall']:.2f}" for r in rs) + " s | "
-                + " / ".join(grp(r["rss"]) for r in rs) + " | "
-                + grp(rs[0]["decls"]) + " | "
+                f"| {ename} | {raw} | " + " / ".join(num(r["ins"], grp) for r in rs)
+                + " | " + " / ".join(num(r["wall"], lambda w: f"{w:.2f}") for r in rs)
+                + " s | " + " / ".join(num(r["rss"], grp) for r in rs) + " | "
+                + acc + " | "
                 + " / ".join("?" if r["load"] is None else f"{r['load']:.2f}" for r in rs)
                 + " |")
     return "\n".join(out)
@@ -289,6 +391,11 @@ def parse_previous(path, task):
         # the first row per key wins.
         r = RAW_ROW.match(line)
         if r and (r.group(1), r.group(2).strip()) not in prev:
+            # A row with a failed run (its accepted cell is not a number)
+            # is no baseline to compare against.
+            if not re.fullmatch(r"[\d ,]+", r.group(6).strip()):
+                prev[r.group(1), r.group(2).strip()] = None
+                continue
             prev[r.group(1), r.group(2).strip()] = (ints(r.group(3)), ints(r.group(5)))
     if not prev:
         sys.exit(f"perf-table.py: no raw rows in section 'Task {task}'")
@@ -301,7 +408,7 @@ def render_delta(runs, prev, task):
            "|---|---|---:|---:|---:|---:|---:|---:|"]
     for e, ename in EXPORTS:
         for b, _, raw in ROWS:
-            if (ename, raw) not in prev:
+            if prev.get((ename, raw)) is None or failed(runs[b, e]):
                 continue
             pi, pr = prev[ename, raw]
             ni, nr = median(runs[b, e], "ins"), max(r["rss"] for r in runs[b, e])

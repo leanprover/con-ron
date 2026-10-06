@@ -67,8 +67,9 @@
 #              tagged `-limit<KB>` in its file names, which the renderer
 #              ignores.
 #
-# Every run writes <out>/<bin>-<export>-r<N>.{perf,time,out,err,exit,load}
-# (`.load` is /proc/loadavg at the start of the run).  The matrix also
+# Every run writes <out>/<bin>-<export>-r<N>.{perf,time,out,err,exit,load,
+# limit} (`.load` is /proc/loadavg at the start of the run, `.limit` its
+# `ulimit -v` cap in KB).  The matrix also
 # writes <out>/identity.json (the date, and the commit and md5 of every
 # binary) and <out>/matrix.{start,end} (epoch seconds).
 set -euo pipefail
@@ -259,6 +260,7 @@ for exp in "${EXPORTS[@]}"; do
       fi
       echo "== $bin $exp run $r/$n (ulimit -v $kb KB, timeout ${to}s)" >&2
       cat /proc/loadavg > "$tag.load"
+      echo "$kb" > "$tag.limit"
       rc=0
       ( ulimit -v "$kb"
         "$GNUTIME" -v -o "$tag.time" -- \
