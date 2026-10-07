@@ -121,24 +121,24 @@ takes). -/
   induction u generalizing s₀ with
   | zero =>
     vcgen [internLevel, internLNode_spec]
-    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Option.map_eq_some_iff]
   | succ u ih =>
     vcgen [internLevel, ih, internLNode_spec]
-    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
       denoteL_ext]
   | max u v ihu ihv =>
     vcgen [internLevel, ihu, ihv, internLNode_spec]
-    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, opt2_eq_some_iff]
   | imax u v ihu ihv =>
     vcgen [internLevel, ihu, ihv, internLNode_spec]
-    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, opt2_eq_some_iff]
   | param n =>
     vcgen [internLevel, internName_spec, internLNode_spec]
-    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.trans, Option.map_eq_some_iff, denoteN_ext,
       denoteL_ext]
 
@@ -154,10 +154,10 @@ takes). -/
   induction us generalizing s₀ with
   | nil =>
     vcgen [internLevelList]
-    all_goals grind [denoteLList, Ext.refl]
+      with finish [denoteLList, Ext.refl]
   | cons u us ih =>
     vcgen [internLevelList, internLevel_spec, ih]
-    all_goals grind [denoteLList, Ext.trans, denoteL_ext, denoteLListE_ext]
+      with finish [denoteLList, Ext.trans, denoteL_ext, denoteLListE_ext]
 
 /-- con-leche: none — intern a list of transient levels and hash-cons the
 list node: what a `.const`'s universe arguments are. -/
@@ -170,7 +170,7 @@ list node: what a `.const`'s universe arguments are. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         denoteLs s'.store.lss h = some us; ⊤⦄ := by
   vcgen [internLevels, internLevelList_spec, internLsNode_spec]
-  all_goals grind [denoteLsView, denoteLs, Arena.LsStore.ViewOK, Ext.trans,
+    with finish [denoteLsView, denoteLs, Arena.LsStore.ViewOK, Ext.trans,
     lview_isSome_of_denote, denoteLListE_ext, denoteLList]
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the memoised
@@ -191,7 +191,7 @@ list node: what a `.const`'s universe arguments are. -/
     all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
   | cons a as ih =>
     vcgen [readNamesM, readNameM_spec, ih]
-    all_goals grind [Frontend.denoteNList, ReadNCacheOK]
+      with finish [Frontend.denoteNList, ReadNCacheOK]
 
 #print axioms internLevel_spec
 #print axioms internLevelList_spec

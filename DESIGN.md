@@ -67881,3 +67881,85 @@ does not fit 8 GiB there either.
 (the bracket and `LANE_*`) had already drifted on master: the gate's
 expectation had locked in `knot_whnf_core` and a byte table.  They now point
 at `flush_caches`…`enter_scratch` and the two lane constants.
+
+### Task #116 — the `vcgen` reference chapter, read properly (2026-10-07, Opus)
+
+**Why.**  Task #111's step 0 was to read the reference-manual chapter on
+`vcgen`, and its section above lists "reference-manual PR #927 (the
+`vcgen`/`Std.WP` chapter and tutorial)" among its sources.  It did not read
+it: the chapter exists only on #927's unmerged branch `vcgen-docs-nightly`,
+and #111 fetched `main`'s `Manual/VCGen.lean`, which is still the OLD
+chapter ("The `mvcgen` tactic", `SPred`/`⌜⌝`/`PostCond` throughout).  The
+rest came from a summary of the PR's description and from the rc3 sources,
+which is where #111/#111b's working knowledge really came from (so #111b's
+"The native form (reference manual PR #927, …)" rests on
+`Std/WP/Triple/Basic.lean`, not on the chapter).  This task read
+`Manual/VCGen.lean` and `Tutorial/VCGen.lean` at #927's head
+`c3420ae2789c06aeada1bad041c3896a97ed494d`, in full, via `gh api`, not a
+WebFetch summary, and checked each claim below against the rc3 sources.
+
+**What the chapter recommends, against what #111 did.**
+1. *Auto-framing spec shape* `⦃fun s => Q () (f s)⦄ x ⦃Q⦄` (schematic
+   postcondition): avoids an entailment VC `Q' ⊑ Q` per call.  Ours,
+   `⦃fun s => s = s₀⦄ … ⦃fun r s' => Post; ⊤⦄`, avoids it too: `vcgen` fills
+   `s₀` from the equality and `Post` arrives as a hypothesis.  Rewriting
+   ~950 triples (and `Hyp.lean`'s hypotheses) would give the same VCs.
+   Skipped.
+2. *Triples, exception postconditions, assertions*: #111b's form is the
+   chapter's — `; ⊤` for partial correctness, plain `Prop` assertions on a
+   concrete monad.  Nothing to change.
+3. *`@[spec]` and priorities*: specs are tried in priority order and
+   hypotheses that are triples act as specs; we use both.  `@[spec]` on a
+   *definition* means "unfold", which we do not need.  `attribute [-spec]`
+   still has no erase handler on rc3, so MemoSpecs' `@[spec high]` stays (its
+   comment named the `mvcgen`-era `Lean.Elab.Tactic.Do.findSpec`; it now
+   names `VCGen`'s `SpecTheorems.findSpecs`).
+4. *Logical variables* (chapter steps 4 and 6): a spec variable that does
+   not occur in the program stays a metavariable unless an equality conjunct
+   solves it, and conjuncts are solved by defeq, never by `assumption`.  So
+   #111's regressions (2) and (6) are documented behaviour, not bugs; the
+   `(ve := ve)` instantiations are the intended fix.
+5. *Pruning*: before a goal is processed its hypotheses are internalized
+   into `grind`'s E-graph, and a goal with contradictory hypotheses is
+   dropped.  That is `VCGen.Config.internalize`, on by default but turned
+   OFF by the front end when there is no `with` clause
+   (`Lean/Elab/Tactic/VCGen/Frontend.lean:475`).  So #111's regression (3),
+   decided branches entered, is a plain `vcgen` without `with`, and
+   `vcgen +internalize` is the documented answer.  **Adopted** (below).
+6. *`with finish [ps]`*: the VCs share one E-graph instead of each being
+   re-internalized.  #111 converted only the parameterless closers.
+   **Adopted** where it still applied.
+7. *Invariants, `+jp`, `stepLimit`, `until`, frames*: no loops in the tier;
+   `+jp` would reshape VCs and renumber `case vcN`.  Skipped.
+8. *`simplifying_assumptions [thms]`*: could keep structure-update
+   projections normalized; no mechanical site to measure.  Recorded only.
+9. *Imports and options*: the chapter's own setup is `import Std.WP`,
+   `import Std.Tactic.Do`, `set_option experimental.vcgen true`, so #111b
+   kept nothing legacy.  Moving the per-file option into `lakefile.toml`
+   would be churn.  Skipped.
+
+**Changes** (8 proof files, +29 −43; instructions, `perf stat -e
+instructions:u` on `lake env lean` as #111, each figure includes ~8.5 G of
+imports):
+
+| change | file | before | after |
+|---|---|---:|---:|
+| `all_goals grind [ps]` → `with finish [ps]` (9 sites) | `SpecsL.lean` | 12.1 G | **10.6 G** (2 runs each, identical) |
+| same (2 sites) | `ExprOps/InstLP.lean` | 46.3 G | 46.3 G |
+| dead-branch `simp only` deleted, `vcgen +internalize` (14 sites) | ProjCore, BetaSpine, DefeqPeel ×4, BinderLoop ×3, Proj, Stuck ×4 | | cost-neutral (Proj 15.6 → 15.5 G, rest equal) |
+
+The `+internalize` sites trade a workaround line plus its comment for the
+documented mechanism; SpecsL loses ~40 % of its own proof work.
+
+**Tried and rejected.**  `+internalize` at `Infer.lean`/`InferIO.lean`: "No
+spec found for program ci.toConstantVal" (not investigated further), so
+those `simp only [ht, …]` lines stay.  A grind-mode `bridge_vcs` under `vcgen …
+with …` in `Spine.lean`: no gain on 3 plain sites (232.1 → 233.4 G) and the
+17 `try` sites broke ~9 proofs because leftover VCs change shape.
+
+**Verdict.**  The chapter mostly confirms #111/#111b and explains three of
+its regressions as documented behaviour; the gains are small (≈1.5 G in
+SpecsL, 14 workaround lines gone) against the tier's ~5 100 G.  Lesson for
+future "read the docs" steps: an unmerged doc PR is read from its head
+branch (`gh api …/contents/<path>?ref=<head>`), and a fetched page whose
+title does not match what was asked for is a wrong version, not a summary.

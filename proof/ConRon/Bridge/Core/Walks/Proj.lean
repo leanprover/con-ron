@@ -667,8 +667,7 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
       obtain ⟨hf, hb⟩ := denote_not_forallE_bvar hok.state.wf hview hh hnf hnb
       exact ⟨0, iotaCertsFueled_notpi (instantiateList_not_forallE hf hb)⟩
-  · simp only [hi, dite_false]
-    vcgen
+  · vcgen +internalize
     bridge_peel; subst_vars
     refine ⟨hok, Ext.refl _, rfl, fun tyx ws xs _ _ hxs => ?_⟩
     have hnil : args.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)

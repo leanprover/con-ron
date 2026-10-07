@@ -1178,10 +1178,9 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             hgP m1 m2 (by
               simp only [m3, bind, Except.bind, Bool.false_eq_true, ite_false]
               rfl)⟩
-          -- `vcgen` does not prune the dead `if false = true` arm (`mvcgen`
-          -- did); simplify it away first
-          simp only [Bool.false_eq_true, ite_false]
-          vcgen
+          -- `+internalize` drops the dead `if false = true` arm (its
+          -- hypothesis is contradictory in `grind`'s E-graph, task #116)
+          vcgen +internalize
           bridge_peel; subst_vars
           exact ⟨hok9, hx09, hp09, hres⟩
         · -- the types agree: the family certificate, at the verified mode
@@ -1469,10 +1468,9 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             (Nat.le_max_right _ _)) hF3)
           (proofIrrelFueled_mono (Nat.le_trans (Nat.le_max_right F3 F4)
             (Nat.le_max_right _ _)) hF4)
-      -- (here and below: `vcgen` does not prune the dead arm of the decided
-      -- `if true = true`, so `↓reduceIte` drops it first)
-      · simp only [↓reduceIte]
-        vcgen
+      -- (here and below: `+internalize` drops the dead arm of the decided
+      -- `if true = true`, task #116)
+      · vcgen +internalize
         bridge_peel; subst_vars
         refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1),
           max (max F1 F2) F3, ?_⟩
@@ -1482,15 +1480,13 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           (structEtaCertFueled_mono (Nat.le_trans (Nat.le_max_right F1 F2)
             (Nat.le_max_left _ _)) hF2)
           (structUnitCertFueled_mono (Nat.le_max_right _ _) hF3)
-    · simp only [↓reduceIte]
-      vcgen
+    · vcgen +internalize
       bridge_peel; subst_vars
       refine ⟨hok2, hx1.trans hx2, hp2.trans hp1, max F1 F2, ?_⟩
       exact stuckIrrelFueled_eta2
         (structEtaCertFueled_mono (Nat.le_max_left _ _) hF1)
         (structEtaCertFueled_mono (Nat.le_max_right _ _) hF2)
-  · simp only [↓reduceIte]
-    vcgen
+  · vcgen +internalize
     bridge_peel; subst_vars
     exact ⟨hok1, hx1, hp1, F1, stuckIrrelFueled_eta1 hF1⟩
 

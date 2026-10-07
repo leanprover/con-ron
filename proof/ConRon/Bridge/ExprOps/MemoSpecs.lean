@@ -38,8 +38,9 @@ IDENTITY, not a clause"), so the one table carries two different invariants.
 `abstractRange` walk at all; the internalised form is generic in `f` and
 serves both.
 
-The specs below are `@[spec high]` because `Lean.Elab.Tactic.Do.findSpec`
-sorts the candidates by priority and `Specs.lean`'s versions match the same
+The specs below are `@[spec high]` because `vcgen`'s spec lookup
+(`Lean.Elab.Tactic.VCGen`'s `SpecTheorems.findSpecs`) sorts the candidates by
+priority and `Specs.lean`'s versions match the same
 program; `attribute [-spec]` is refused by the attribute (measured), so the
 priority is the only lever.  Each is proved by `vcgen [f]`: unlike
 `mvcgen [f]`, which applied `Specs.lean`'s spec from the database instead of

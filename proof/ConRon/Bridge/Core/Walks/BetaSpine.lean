@@ -197,8 +197,7 @@ theorem internAppRebuilt_spec (s₀ : AState) (node : EIdx) (same : Bool)
   unfold internAppRebuilt
   cases same with
   | true =>
-    simp only [ite_true]
-    vcgen
+    vcgen +internalize
     subst_vars
     exact ⟨hok, Ext.refl _, rfl, by simpa using hsame⟩
   | false =>

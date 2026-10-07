@@ -262,8 +262,7 @@ theorem defeqPeelDone_spec (s₀ : AState) (mism ml : Bool) :
     · exact triple_fail
     · exact triple_fail
   | false =>
-    simp only [Bool.false_eq_true, ite_false]
-    vcgen with finish
+    vcgen +internalize with finish
 
 /-- con-leche: none — the equality short-circuit: two equal handles are one
 opened pair, and the chain's syntactic fast path answers `true`. -/
@@ -318,8 +317,7 @@ theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
   have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
   cases v with
   | false =>
-    simp only [Bool.not_false, ite_true]
-    vcgen; subst_vars
+    vcgen +internalize; subst_vars
     exact ⟨hok3, hx03, hp03, F, .inl ⟨hF, rfl⟩⟩
   | true =>
     simp only [Bool.not_true, Bool.false_eq_true, ite_false]
@@ -517,8 +515,7 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       intro t2 dq s4 hok4 hx04 hp04 ht2 ⟨F1, hF1⟩
       cases dq with
       | false =>
-        simp only [Bool.not_false, ite_true]
-        vcgen; subst_vars
+        vcgen +internalize; subst_vars
         exact ⟨hok4, hx04, hp04, peel_step_pure (F2 := 0)
           (mm := mode.verifiedChecks && !(ma == mb)) (a.tag == ETag.lam) hF1
           (fun _ => rfl) (fun h => absurd h (by simp)) hmm⟩
@@ -620,8 +617,7 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
     fun F hF => ConLeche.isDefEqCore_mono hF hF1
   cases v with
   | false =>
-    simp only [Bool.not_false, ite_true]
-    vcgen; subst_vars
+    vcgen +internalize; subst_vars
     exact ⟨hok1, hx1, hp1, quick_step_pure (F2 := 0)
       (mm := mode.verifiedChecks && !(m1.pw == m2.pw)) isLam hne hdq
       (fun _ => rfl) (fun h => absurd h (by simp)) id⟩

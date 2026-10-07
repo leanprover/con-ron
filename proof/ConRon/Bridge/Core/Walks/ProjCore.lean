@@ -291,8 +291,7 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         · -- the rule FIRES: the selected field
           have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'
           have hdarg := denote_ext harg3 (hx38.trans hx9)
-          simp only [ite_true]
-          vcgen; bridge_peel; subst_vars
+          vcgen +internalize; bridge_peel; subst_vars
           refine ⟨hok9, hx09, hp09, ⟨_, ?_, ?_, max F2 F3, hfire⟩⟩
           · simp only [denoteEO, hdarg, Option.map_some]
           · intro x hx

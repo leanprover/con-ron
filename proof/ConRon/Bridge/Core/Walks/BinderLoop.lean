@@ -154,8 +154,7 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array (EIdx × BinderMeta)) :
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.inferLamsOut]
-      simp only [ite_true]
-      vcgen
+      vcgen +internalize
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
   | j + 1, s₀, cur, curx, prevPw, stkx, hok, hcur, hle, hstk => by
@@ -848,8 +847,7 @@ theorem inferPisOut_carry (stk : Array (LIdx × PropWhen)) (pv : PropWhen) :
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.inferPisOut]
-      simp only [ite_true]
-      vcgen
+      vcgen +internalize
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, vx, hv, rfl⟩
   | j + 1, s₀, v, vx, stkx, hok, hv, hz, hle, hstk => by
@@ -1238,8 +1236,7 @@ theorem annotateBindersOut_carry (isLam : Bool) (d : Nat)
     | cons _ _ => exact hstk.elim
     | nil =>
       rw [ConRon.Arena.annotateBindersOut]
-      simp only [ite_true]
-      vcgen
+      vcgen +internalize
       bridge_peel; subst_vars
       exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
   | j + 1, s₀, pw?, cur, curx, stkx, hok, hcur, hle, hstk => by

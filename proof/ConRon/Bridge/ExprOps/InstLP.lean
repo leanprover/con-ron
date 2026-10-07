@@ -119,7 +119,7 @@ level tree, by induction on the `Level` (the recursion `internLevel` takes: a
   induction u generalizing s₀ with
   | zero =>
     vcgen [internLevel, internLNode_spec]
-    all_goals grind [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
+      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
       LNodeView.nchildren, Ext.refl]
   | succ a ih =>
     vcgen [internLevel, ih, internLNode_spec]
@@ -154,7 +154,7 @@ level tree, by induction on the `Level` (the recursion `internLevel` takes: a
   induction us generalizing s₀ with
   | nil =>
     vcgen [internLevelList]
-    all_goals grind [denoteLList, Ext.refl]
+      with finish [denoteLList, Ext.refl]
   | cons u rest ih =>
     vcgen [internLevelList, internLevel_spec, ih]
     all_goals bridge_vcs [denoteLList, denoteL_ext, denoteLList_ext]
