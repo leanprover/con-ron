@@ -538,7 +538,7 @@ pub fn canon_rules_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:386-438 ProjTable
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-224 IConstantInfo.canonEq` —
 /// the `t == t'` of the `.projInfo` arm, field by field.  `canon` is the
 /// identity on a projection table (one never occurs in parsed input).
 pub fn i_proj_table_beq(t: &IProjTable, t2: &IProjTable) -> bool {
@@ -557,7 +557,7 @@ pub fn i_proj_table_beq(t: &IProjTable, t2: &IProjTable) -> bool {
 /// con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
 /// con-leche: ConLeche/Kernel/Canon.lean:238-240 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-224 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
 /// projection table is compared as it stands.
@@ -609,7 +609,7 @@ pub fn i_constant_info_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-224 IConstantInfo.canonEq` —
 /// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
 /// task #329 THMVAL): the common data, then the value at the same names,
 /// split at the twin's own `let cs` boundary.
@@ -646,7 +646,7 @@ pub fn canon_eq_cv_and_value(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:196-224 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
     pers: &PersTier,
@@ -683,7 +683,7 @@ pub fn canon_eq_cv_and_rules(
 
 /// con-leche: ConLeche/Kernel/Canon.lean:274-277 canonEqList
 /// con-leche: ConLeche/Kernel/Canon.lean:279-283 canonEqListFast
-/// Lean twin: `proof/ConRon/Arena/Canon.lean:230-237 canonEqList` — two blocks
+/// Lean twin: `proof/ConRon/Arena/Canon.lean:226-233 canonEqList` — two blocks
 /// are the same, member for member, up to the canonical form.
 pub fn canon_eq_list(
     pers: &PersTier,
@@ -765,7 +765,7 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
-/// Lean twin: `proof/ConRon/Arena/Env.lean:177-187 IConstantInfo` — the cited
+/// Lean twin: `proof/ConRon/Arena/Env.lean:177-188 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
 /// `Eq` and `Nat` bases are recognised by.

@@ -2388,7 +2388,7 @@ pub fn former_types(cvs: &Vec<IConstantVal>, i: usize, out: Vec<EIdx>) -> Vec<EI
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-773 genRecCheck` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-778 genRecCheck` — **the
 /// generated recursor stage**, at the constructors' environment `fe`, on the
 /// classes and the positivity check's table: the pins, the stream's recursor
 /// types checked, the elimination guard, the classes' table entries and
@@ -2432,7 +2432,7 @@ pub fn gen_rec_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-773 genRecCheck` — per class
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-778 genRecCheck` — per class
 /// and constructor: the table's entries, the datum, the inductive hypotheses,
 /// node agreement; every minor premise a constructor's.
 #[allow(clippy::too_many_arguments)]
@@ -2490,7 +2490,7 @@ pub fn gen_rec_classes(
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
 /// con-leche: ConLeche/Cached/CheckerC.lean:128-135 shadowOpsC
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-773 genRecCheck` —
+/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-778 genRecCheck` —
 /// generation: the prefix, every recursor's type checked and compared, the
 /// rule-less recursors pushed, the flush entering them, every rule
 /// installed, the recursors popped and the flush leaving them.  The rule-less

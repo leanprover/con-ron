@@ -871,7 +871,7 @@ pub fn promote_proj_table_rest(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:289-318 promoteCI
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:289-317 promoteCI
 /// **Promote a stored constant** — the seven `IConstantInfo` constructors,
 /// which is what "the handles the environment keeps" means.
 pub fn promote_ci(
@@ -925,7 +925,7 @@ pub fn promote_ci(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:330-338 promoteVG
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:329-337 promoteVG
 /// Promote the datum that crosses the install/check seam
 /// (`arena::checker_split`'s `ValueGroup`).  An `opaque`'s value is NOT in the
 /// environment — only the pending record holds it — so the seam is promoted
@@ -959,7 +959,7 @@ pub fn promote_vg(
 // (`Promote.lean:368-410`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:342-351 eraseInstalled
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:341-350 eraseInstalled
 /// Forget the index rows of the constants a step installed — `consts[i..]`,
 /// which over this `Vec`'s oldest-first order is the twin's `consts.take k`
 /// over its newest-first list.
@@ -980,8 +980,8 @@ pub fn erase_installed(fe: IFEnv, i: usize) -> IFEnv {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:353-359 indexPromoted
-/// Lean twin: `proof/ConRon/Arena/Promote.lean:361-381 promoteNew`
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:352-358 indexPromoted
+/// Lean twin: `proof/ConRon/Arena/Promote.lean:360-380 promoteNew`
 /// Promote the constants of slots `start..j` and re-index them at the
 /// installation counters they were pushed with, walking DOWN — the twin's list
 /// is newest-first and its counters run down from `c`, which over this `Vec`
@@ -1018,7 +1018,7 @@ pub fn index_promoted(
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:361-381 promoteNew
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:360-380 promoteNew
 /// **The phase-A bracket's promotion half**: the `k` constants the step just
 /// installed, copied into the persistent tier and re-indexed, everything below
 /// them untouched.
