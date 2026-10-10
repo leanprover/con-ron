@@ -67963,3 +67963,49 @@ SpecsL, 14 workaround lines gone) against the tier's ~5 100 G.  Lesson for
 future "read the docs" steps: an unmerged doc PR is read from its head
 branch (`gh api …/contents/<path>?ref=<head>`), and a fetched page whose
 title does not match what was asked for is a wrong version, not a summary.
+
+### Task #117 — con-leche sync 67f04630 → 3b37939f: proof irrelevance first, K majors stay stuck, theorems by statement (2026-10-10, Opus)
+
+con-leche goes from `67f04630` to **`3b37939f`** (con-leche master, 48
+commits, no toolchain move).  Most of it is con-leche-specific — its parallel
+parse and install (task #329) and copy avoidance in Lean's reference-counted
+runtime (#329 BLOCKCOPY, #331, #332) — and is re-cited, not ported.  What
+changes the executed checker's verdicts, or the kernel's data, is ported
+through the Rust, the extraction, the twin, Theorem 1 and Theorem 2.
+
+| upstream | what it did | here |
+|---|---|---|
+| **#333** | `defeqBody`: `quickDefEq` and proof irrelevance on the UNREDUCED pair, then the cheap `whnfCore` and `quickDefEq` on the reducts; no `propIrrel` after the `whnfCore` (a proof with no normal form is never reduced to be compared) | **ported**: `arena::core::defeq_unreduced` (new fragment between `defeq_body` and `defeq_after_whnf`; `propIrrel` left `defeq_after_whnf`), twin `defeqBody`; T1 `DbPre0`/`defeqBody_pre0`/`defeqBody_quick0`, `defeqBody_propIrrel` on the unreduced pair, `defeqBody_at` restaged; T2: `defeq_unreduced` is `lockstep_inline`, in `Core/Eqns.lean`'s block (107 functions) |
+| **#334** | `prepareMajor`'s K branch: after `majorToCtor`, the literal conversion only if `isCtorApp`, else the major unchanged (no `whnf`) | **ported**: `prepare_major`, twin; T1 `prepareMajorFueled_k` (now with `isCtorApp`) and `_kStuck`; T2 by `lockstep` unchanged |
+| **#330** | `whnfCoreLoopFuel`/`whnfLoopFuel`/`defeqLoopFuel` = `2^62` | **ported** (`WHNF_LOOP_FUEL`, `DEFEQ_LOOP_FUEL`: `u64`; twin `@[noinline]` for con-leche's reason); con-ron has no `whnfCoreLoopFuel` (skip list, task #105).  The bridge's `_eq` lemmas and T2's `absU` lemmas went through unchanged |
+| **#329 THMVAL** | `ConstantInfo.thmInfo` carries no value | **ported**: `kernel::env::ConstantInfo::ThmInfo(ConstantVal)`, `arena::env::IConstantInfo::ThmInfo(IConstantVal)`, intern, promote, canon (a theorem compares by statement), `annot_step_thm`, `check_thm_val_witness`; twin likewise; ~45 proof sites, every one a dropped argument (`denoteCI_thm_inv`'s shape, `constWF_thmInfo`, `PersCI`, the canon arm), as upstream found |
+| ExportC builders (#329 ROUNDS) | the record semantics as builders over three lookups (`nameOfF` … `declOfF`, `Lk`); `getDeclD`, `parsePwD`, `parseCVD`, `parseRuleD`, `validateIndD`, `installIndD` gone; `parseExportHandleD` moved to `Frontend/Stream.lean` (`serialLoop`) | **re-cited**: same computation at the serial parse's own tables; the Rust and the twin keep their functions.  T1 proves it: `Bridge/Frontend/Builders.lean` keeps the 67f04630 spellings (namespace `Prev`, elaborated with con-leche's `do` options) and one equation per function against the builders; `Lines.lean` reaches them only through those |
+| BLOCKCOPY, #331, #332 | `FEnv` base layer and overlay, `markLinear`, `blockRecInfosTF` + `FEnv.pushAll` replacing `consBlockRecsTF`, `ShadowOps.ruleEnv` (`classFeR`/`classFeROvl`), `checkDefnValCI`/`checkOpaqueValCI`, `ienv` and no memo state across records | **re-cited** with the deviation written down (`ifenv_find`, `IFEnv`, `cons_block_recs_t`, `gen_rec_generate`, twin likewise): on every environment the install threads the overlay and base are empty and `find?` is the plain lookup; the port's push/pop-in-place is its own answer to the same copy.  New helpers in `provenance-skip.txt` with reasons |
+| #329 LAYER, PARSE, INSTALL, STATS | driver to `ConLeche/Driver/`; parallel parse and install; end-of-run statistics | driver citations repointed (`Run.lean`, `CheckPool.lean`, `ParInstall.lean`'s serial `installLoop`); the rest skipped (`InstallSkel.lean *`) |
+| **#335** | an uncaught IO error exits 3, not 1 | con-ron's binary already did (an unreadable input is reported and exits 3; a failed write panics the checking thread, exit 3); the twin's `con-ron-lean` now wraps its `main` the same way |
+| **#336** | exit right after the verdict without freeing the heap | **ported**: `exit_after_verdict` (flush both streams, `std::process::exit`) on the verdict path of `check_main`; the twin's `Exe.main` flushes and `IO.Process.exit`s |
+
+**Findings.**  `update --auto`: 250 (136 `CHANGED`, 114 `GONE`), 366
+citations merely moved.  Buckets: 21 doc-only, 8 moved, 51 moved-by-name,
+115 changed, 55 deleted; **221 markers left after the mechanical pass, 0 at
+the end**.  Coverage 837/980 at the new pin → **839/958** (214 skipped):
+the 24 newly uncovered declarations are cited (`blockRecInfosTF`,
+`FEnv.pushAll`, the builders) or skipped with a reason; the three stale
+`BlockInstallF` skips are gone.  diff-e2e with master's binary at the new
+pin: 620/623 (`omega_kloop`, `omega_demo2`, `k_rescue_stuck` exit 3, fuel);
+the branch's binary: **623/623** at `--verified` and at `--trusted`
+(`--jobs=4`); `acc_major_reduce` accepts on both.
+
+**Measure** (`bump-con-leche.sh measure`, `Init`, con-ron, one worker):
+
+| binary | instructions:u | cycles:u |
+|---|---:|---:|
+| master `64a2172a` | 212 077 169 199 | 108 000 857 397 |
+| this branch | **212 174 123 408** (+0.046 %) | 103 296 974 287 |
+
+Both accept 57 919.  In the noise, as upstream's −0.16 % (#333) and
+−0.005 % (#334) on its own Init export.  (`cycles:u` ran beside a `lake
+build`.)
+
+**Docs.**  Eight OVERVIEW anchors whose text changed (citation lines and
+`check_main`'s exit) were re-read; every citing paragraph stays true.
