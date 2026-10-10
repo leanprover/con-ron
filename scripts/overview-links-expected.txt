@@ -825,7 +825,7 @@
 
 == crates/con-ron-core/src/arena/core.rs#L11735-L11775
  11735  /// con-leche: ConLeche/Cached/StateC.lean:319-326 CState.flushed
- 11736  /// Lean twin: `proof/ConRon/Arena/Core.lean:3951-3957 flushCaches` — **what
+ 11736  /// Lean twin: `proof/ConRon/Arena/Core.lean:3961-3967 flushCaches` — **what
  11737  /// the per-declaration bracket does to the caches**: it drops them whole,
  11738  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
  11739  /// this point.
@@ -843,7 +843,7 @@
  11751  }
  11752  
  11753  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 11754  /// Lean twin: `proof/ConRon/Arena/Core.lean:3959-3967 dropScratch` — drop the
+ 11754  /// Lean twin: `proof/ConRon/Arena/Core.lean:3969-3977 dropScratch` — drop the
  11755  /// scratch tier of the store and the cache entries that name it, in one
  11756  /// operation, so the two halves cannot drift apart; and **thaw** the store:
  11757  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
@@ -854,7 +854,7 @@
  11762  }
  11763  
  11764  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 11765  /// Lean twin: `proof/ConRon/Arena/Core.lean:3969-3976 enterScratch` — turn the
+ 11765  /// Lean twin: `proof/ConRon/Arena/Core.lean:3979-3986 enterScratch` — turn the
  11766  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
  11767  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
  11768  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
@@ -1135,7 +1135,7 @@
    439  // ---------------------------------------------------------------------------
    440  
    441  /// con-leche: ConLeche/Kernel/Core.lean:2069-2108 coreKnot
-   442  /// Lean twin: `proof/ConRon/Arena/Core.lean:3793-3892 coreKnot` — **the
+   442  /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot` — **the
    443  /// executed knot**: the memoized one, `pureFnsA`'s.
    444  pub const LANE_FULL: u32 = 0;
    445  
@@ -1494,7 +1494,7 @@
 == crates/con-ron-core/src/arena/checker.rs#L724-L751
    724  /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
    725  /// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-   726  /// Lean twin: `proof/ConRon/Arena/Checker.lean:304-339 internAllPins` — **the
+   726  /// Lean twin: `proof/ConRon/Arena/Checker.lean:309-344 internAllPins` — **the
    727  /// one-time tree walk of DESIGN.md §8.6 P2d**: every datum the checker compares
    728  /// a stream record against, interned into the tier that is live at the call —
    729  /// which, at the driver's call, is the persistent one.
@@ -1694,7 +1694,7 @@
    260  }
    261  
    262  /// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
-   263  /// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — the
+   263  /// Lean twin: `proof/ConRon/Arena/Checker.lean:153-207 annotStep` — the
    264  /// bracket's `some vg` arm: the seam promoted first and the environment at the
    265  /// SAME memo, then the tier dropped and the record pushed.
 
