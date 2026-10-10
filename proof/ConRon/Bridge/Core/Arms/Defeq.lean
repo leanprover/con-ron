@@ -177,7 +177,6 @@ theorem defeqBody_pre (h : DbPre mode env F d x y x' y') :
   rw [defeqBody_pre0 ⟨h.hab, h.hsc⟩, h.hq0]
   simp only [bind, Except.bind, h.hpi0, Bool.false_eq_true, ite_false,
     ConLeche.whnfCore_def, h.ha, h.hb]
-  rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the easy
 cases decide. -/

@@ -476,7 +476,7 @@ the sort), in the same order on both sides. -/
   | DefnInfo v _ _ =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | ThmInfo v _ =>
+  | ThmInfo v =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact plain v iv hiv (Result.ok_injective h).symm rfl
   | IndInfo v _ =>

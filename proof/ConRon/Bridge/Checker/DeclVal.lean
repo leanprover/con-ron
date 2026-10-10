@@ -1015,7 +1015,7 @@ theorem natIndOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
       | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, rfl, _⟩ := denoteCI_ctor_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
-      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
 
@@ -1041,7 +1041,7 @@ theorem natZeroOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
       | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
-      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
 
@@ -1114,7 +1114,7 @@ theorem natSuccOk_run {x : Option IConstantInfo} {y : Option ConstantInfo}
       | (obtain ⟨_, rfl, _⟩ := denoteCI_axiom_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_ind_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_defn_inv hd; exact RunsB.ret hst)
-      | (obtain ⟨_, _, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
+      | (obtain ⟨_, rfl, _⟩ := denoteCI_thm_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, _, rfl, _⟩ := denoteCI_rec_inv hd; exact RunsB.ret hst)
       | (obtain ⟨_, rfl, _⟩ := denoteCI_proj_inv hd; exact RunsB.ret hst)
 

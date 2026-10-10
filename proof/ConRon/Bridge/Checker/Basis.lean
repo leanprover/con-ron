@@ -1012,7 +1012,7 @@ theorem RunsB.matchAxiom {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
@@ -1035,7 +1035,7 @@ theorem RunsB.matchCtor0 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
@@ -1062,7 +1062,7 @@ theorem RunsB.matchCtor1 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
@@ -1089,7 +1089,7 @@ theorem RunsB.matchCtor2 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
@@ -1116,7 +1116,7 @@ theorem RunsB.matchRec3 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
@@ -1143,7 +1143,7 @@ theorem RunsB.matchRec4 {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
@@ -1435,7 +1435,7 @@ theorem RunsB.matchDefn {x : Option IConstantInfo} {y : Option ConstantInfo}
       | obtain ⟨v', rfl, hv⟩ := denoteCI_axiom_inv hd
       | obtain ⟨v', rfl, hv⟩ := denoteCI_ctor_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_defn_inv hd
-      | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_thm_inv hd
+      | obtain ⟨v', rfl, hv⟩ := denoteCI_thm_inv hd
       | obtain ⟨v', x, rfl, hv, -⟩ := denoteCI_rec_inv hd
       | obtain ⟨T, rfl, -⟩ := denoteCI_proj_inv hd
     all_goals first
