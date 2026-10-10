@@ -150,17 +150,10 @@ theorem toConstantVal_sstep {s s' : AState} (hok : StateOK s)
         rw [hw, he] at hd
         obtain rfl := Option.some.inj hd
         exact hpure w cw hw hrun
-  | thmInfo w e =>
-    simp only [Frontend.denoteCI] at hd
-    cases hw : Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases he : denoteE s.store e with
-      | none => rw [hw, he] at hd; simp at hd
-      | some x =>
-        rw [hw, he] at hd
-        obtain rfl := Option.some.inj hd
-        exact hpure w cw hw hrun
+  | thmInfo w =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    exact hpure w cw hw hrun
   | indInfo w cps =>
     simp only [Frontend.denoteCI] at hd
     cases hw : Frontend.denoteCV s.store w with
@@ -996,8 +989,8 @@ theorem RunsB.matchInd {x : Option IConstantInfo} {y : Option ConstantInfo}
       obtain ⟨v', rfl, -⟩ := denoteCI_ctor_inv hd; exact RunsB.ret hok
     | defnInfo v e hh =>
       obtain ⟨v', x, rfl, -⟩ := denoteCI_defn_inv hd; exact RunsB.ret hok
-    | thmInfo v e =>
-      obtain ⟨v', x, rfl, -⟩ := denoteCI_thm_inv hd; exact RunsB.ret hok
+    | thmInfo v =>
+      obtain ⟨v', rfl, -⟩ := denoteCI_thm_inv hd; exact RunsB.ret hok
     | recInfo v mI rP rs =>
       obtain ⟨v', x, rfl, -⟩ := denoteCI_rec_inv hd; exact RunsB.ret hok
     | projInfo t =>
@@ -1250,7 +1243,7 @@ theorem denoteCI_inj_ind {st : EStore} (hwf : StoreWF st) {ci ci' : IConstantInf
     | axiomInfo v => obtain ⟨_, he, _⟩ := denoteCI_axiom_inv hx; cases he
     | ctorInfo v _ _ => obtain ⟨_, he, _⟩ := denoteCI_ctor_inv hx; cases he
     | defnInfo v _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_defn_inv hx; cases he
-    | thmInfo v _ => obtain ⟨_, _, he, _⟩ := denoteCI_thm_inv hx; cases he
+    | thmInfo v => obtain ⟨_, he, _⟩ := denoteCI_thm_inv hx; cases he
     | recInfo v _ _ _ => obtain ⟨_, _, he, _⟩ := denoteCI_rec_inv hx; cases he
     | projInfo t => obtain ⟨_, he, _⟩ := denoteCI_proj_inv hx; cases he
   obtain ⟨v, cap, rfl, hv, hc⟩ := key h

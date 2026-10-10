@@ -1500,23 +1500,37 @@ theorem recRuleK_denote {st : EStore} {rules : List IRecRule}
     match rules', hl with
     | a :: b :: cs, _ => rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:758-795 prepareMajor — at a
-K-flagged recursor: the rescue on the raw major, then `whnf`, then the literal
-conversion. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:782-834 prepareMajor — at a
+K-flagged recursor whose rescue produced a constructor application: the
+literal conversion of the rescued major. -/
 theorem prepareMajorFueled_k {F d : Nat} {cn : ConLeche.Name}
-    {rules' : List RecRule} {x m1 m2 m3 : Expr}
+    {rules' : List RecRule} {x m1 m3 : Expr}
     (hk : ConLeche.recRuleK rules' = true)
     (h1 : ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok m1)
-    (h2 : ConLeche.whnf mode env F d m1 = .ok m2)
-    (h3 : ConLeche.litMajorToCtorFueled mode env F d m2 = .ok m3) :
+    (hc : ConLeche.isCtorApp env m1 = true)
+    (h3 : ConLeche.litMajorToCtorFueled mode env F d m1 = .ok m3) :
     ConLeche.prepareMajorFueled mode env F d cn rules' x = .ok m3 := by
   have e1 : ConLeche.majorToCtor mode (ConLeche.pureFns mode env F) env d cn
       rules' x = .ok m1 := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d m1 = .ok m2 := h2
-  have e3 : ConLeche.litMajorToCtor (ConLeche.pureFns mode env F) env d m2 =
+  have e3 : ConLeche.litMajorToCtor (ConLeche.pureFns mode env F) env d m1 =
       .ok m3 := h3
   simp only [ConLeche.prepareMajorFueled, ConLeche.prepareMajor, hk, ite_true,
-    e1, e2, e3, bind, Except.bind]
+    e1, hc, e3, bind, Except.bind]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:782-834 prepareMajor — at a
+K-flagged recursor whose rescue did not produce a constructor application:
+the major as the rescue left it (con-leche task #334). -/
+theorem prepareMajorFueled_kStuck {F d : Nat} {cn : ConLeche.Name}
+    {rules' : List RecRule} {x m1 : Expr}
+    (hk : ConLeche.recRuleK rules' = true)
+    (h1 : ConLeche.majorToCtorFueled mode env F d cn rules' x = .ok m1)
+    (hc : ConLeche.isCtorApp env m1 = false) :
+    ConLeche.prepareMajorFueled mode env F d cn rules' x = .ok m1 := by
+  have e1 : ConLeche.majorToCtor mode (ConLeche.pureFns mode env F) env d cn
+      rules' x = .ok m1 := h1
+  simp only [ConLeche.prepareMajorFueled, ConLeche.prepareMajor, hk, ite_true,
+    e1, hc, Bool.false_eq_true, ite_false, bind, Except.bind]
+  rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:758-795 prepareMajor — elsewhere:
 `whnf`, the literal conversion, then the rescue. -/
@@ -1536,8 +1550,9 @@ theorem prepareMajorFueled_nk {F d : Nat} {cn : ConLeche.Name}
     Bool.false_eq_true, ite_false, e1, e2, e3, bind, Except.bind]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:758-795 prepareMajor — **THEOREM 1
-for `prepareMajor`**: the official kernel's order, K rescue on the raw major
-or head normalisation first. -/
+for `prepareMajor`**: the K rescue on the raw major, then only the literal
+conversion of a rescued constructor (con-leche task #334), or head
+normalisation first. -/
 theorem prepareMajor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (c : NIdx) (rules : List IRecRule) (major : EIdx)
@@ -1559,14 +1574,28 @@ theorem prepareMajor_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     refine triple_seq (majorToCtor_spec hμ henv hsim s₀ d c rules major cn
       rules' x hok hr hden hw) ?_
     rintro m1 s1 ⟨hok1, hx1, hp1, v1, hv1, hwv1, F1, hF1⟩
-    refine triple_seq (hsim.whnf s1 d m1 v1 hok1 hv1 hwv1) ?_
-    rintro m2 s2 ⟨hok2, hx2, hp2, v2, hv2, hwv2, F2, hF2⟩
-    refine triple_mono (litMajorToCtor_spec hsim s2 d m2 v2 hok2 hv2 hwv2) ?_
-    rintro m3 s3 ⟨hok3, hx3, hp3, v3, hv3, hwv3, F3, hF3⟩
-    refine ⟨hok3, hx1.trans (hx2.trans hx3), hp3.trans (hp2.trans hp1), v3, hv3,
-      hwv3, max F1 (max F2 F3), prepareMajorFueled_k hk
-        (majorToCtorFueled_mono (by omega) hF1) (ConLeche.whnf_mono (by omega) hF2)
-        (litMajorToCtorFueled_mono (by omega) hF3)⟩
+    refine triple_seq (isCtorApp_spec s1 m1 v1 hok1 hv1) ?_
+    rintro ic s2 ⟨hs2, hic⟩
+    subst s2
+    by_cases hict : ic = true
+    · rw [ite_eq_left hict]
+      have hc : ConLeche.isCtorApp env v1 = true := hic ▸ hict
+      refine triple_mono (litMajorToCtor_spec hsim s1 d m1 v1 hok1 hv1 hwv1) ?_
+      rintro m3 s3 ⟨hok3, hx3, hp3, v3, hv3, hwv3, F3, hF3⟩
+      refine ⟨hok3, hx1.trans hx3, hp3.trans hp1, v3, hv3,
+        hwv3, max F1 F3, prepareMajorFueled_k hk
+          (majorToCtorFueled_mono (by omega) hF1) hc
+          (litMajorToCtorFueled_mono (by omega) hF3)⟩
+    · rw [ite_eq_right hict]
+      have hnc : ConLeche.isCtorApp env v1 = false := by rw [← hic]; simpa using hict
+      have hpost : CheckOK mode env fe s1 ∧ Ext s₀.store s1.store ∧
+          s1.pins = s₀.pins ∧
+          SimEOp (fun F => ConLeche.prepareMajorFueled mode env F d cn rules' x) d
+            s1.store m1 :=
+        ⟨hok1, hx1, hp1, v1, hv1, hwv1, F1, prepareMajorFueled_kStuck hk hF1 hnc⟩
+      vcgen
+      subst_vars
+      exact hpost
   next hk =>
     have hk' : ConLeche.recRuleK rules' = false := by simpa using hk
     refine triple_seq (hsim.whnf s₀ d major x hok hden hw) ?_

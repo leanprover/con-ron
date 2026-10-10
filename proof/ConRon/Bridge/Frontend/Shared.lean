@@ -920,25 +920,18 @@ theorem internCI_sstep {s s' : AState} (hok : StateOK s)
     subst hmm; subst hii
     exact ⟨hstep1.trans hstep2, hd, hm2,
       CIProjNamed.of_ne (by simp)⟩
-  | thmInfo v e =>
+  | thmInfo v =>
     rw [ConRon.Arena.Frontend.internCI] at hrun
     obtain ⟨p1, s₁, h1, hrest⟩ := AM.bind_ok hrun
     obtain ⟨m1, cv⟩ := p1
     obtain ⟨hstep1, hdcv, hm1⟩ := internCV_sstep hok hm h1
     simp only [] at hrest
-    obtain ⟨p2, s₂, h2, hrest2⟩ := AM.bind_ok hrest
-    obtain ⟨m2, x⟩ := p2
-    obtain ⟨hstep2, hdx, hm2⟩ :=
-      internExprGo_sstep e hstep1.ok hm1 h2
-    simp only [] at hrest2
-    have hd : denoteCI s₂.store (.thmInfo cv x) = some (.thmInfo v e) := by
-      simp only [denoteCI, denoteCV_ext hdcv hstep2.ext, hdx]
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
+    obtain ⟨hv, hst⟩ := AM.pure_ok hrest
     subst hst
     simp only [Prod.mk.injEq] at hv
     obtain ⟨hmm, hii⟩ := hv
     subst hmm; subst hii
-    exact ⟨hstep1.trans hstep2, hd, hm2,
+    exact ⟨hstep1, by simp only [denoteCI, hdcv, Option.map_some], hm1,
       CIProjNamed.of_ne (by simp)⟩
   | indInfo v cps =>
     rw [ConRon.Arena.Frontend.internCI] at hrun

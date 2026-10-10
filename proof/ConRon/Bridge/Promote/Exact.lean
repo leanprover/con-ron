@@ -254,7 +254,7 @@ theorem persCI_name {ci : IConstantInfo} (h : PersCI ci) : PersN ci.name := by
   cases ci with
   | axiomInfo v => exact (show PersCV v from h).name
   | defnInfo v e hint => exact h.1.name
-  | thmInfo v e => exact h.1.name
+  | thmInfo v => exact (show PersCV v from h).name
   | indInfo v c => exact h.1.name
   | ctorInfo v nP nF => exact (show PersCV v from h).name
   | recInfo v mI rP rs => exact h.1.name

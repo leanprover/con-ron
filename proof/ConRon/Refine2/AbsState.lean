@@ -390,7 +390,7 @@ def absIConstantInfo : arena.env.IConstantInfo → IConstantInfo
   | .AxiomInfo cv => .axiomInfo (absIConstantVal cv)
   | .DefnInfo cv v hint =>
     .defnInfo (absIConstantVal cv) (absEIdx v) (ConRon.Refine.absHint hint)
-  | .ThmInfo cv v => .thmInfo (absIConstantVal cv) (absEIdx v)
+  | .ThmInfo cv => .thmInfo (absIConstantVal cv)
   | .IndInfo cv caps => .indInfo (absIConstantVal cv) (absIIndCaps caps)
   | .CtorInfo cv np nf => .ctorInfo (absIConstantVal cv) (absU np) (absU nf)
   | .RecInfo cv mi rp rules =>

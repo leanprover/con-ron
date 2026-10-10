@@ -28,6 +28,7 @@ makes the fold theorems' `FoldOK` (`Arena.installThenCheck_bridge`'s `hok`)
 reachable at the post-parse state.
 -/
 import ConRon.Bridge.Frontend.Shared
+import ConRon.Bridge.Frontend.Builders
 
 namespace ConRon.Bridge.Frontend
 
@@ -148,7 +149,7 @@ declaration-level expression lookup is `StateD.expr` on both sides. -/
 theorem getDeclD_run {s s' : AState} {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc) {i : Nat}
     {h : EIdx} (hrun : getDeclD sd i s = .ok (h, s')) :
-    s' = s ∧ ∃ e, ConLeche.Frontend.getDeclD sc i = .ok e ∧
+    s' = s ∧ ∃ e, Prev.getDeclD sc i = .ok e ∧
       denoteE s.store h = some e :=
   StateD_expr_run hrel hrun
 
@@ -365,7 +366,7 @@ theorem parsePwD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {r : ConLeche.Frontend.PwRec} {pw : PropWhen}
     (hrun : parsePwD sd r s = .ok (pw, s')) :
-    s' = s ∧ ConLeche.Frontend.parsePwD sc r = .ok pw := by
+    s' = s ∧ Prev.parsePwD sc r = .ok pw := by
   cases r with
   | never =>
     rw [parsePwD] at hrun
@@ -386,7 +387,7 @@ theorem parsePwD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
       rw [hd] at hd2; exact (Option.some.injEq _ _ ▸ hd2).symm
     subst hv
     refine ⟨rfl, ?_⟩
-    rw [ConLeche.Frontend.parsePwD]
+    rw [Prev.parsePwD]
     simp only [hcl]
     rfl
 
@@ -429,7 +430,7 @@ theorem parseNameEntryD_run {s s' : AState} (hok : StateOK s)
     subst hs; subst hv
     refine ⟨histep.toParse hoff, hp.insertName hpn,
       { sc with names := sc.names.insert i (ConLeche.Name.str n str) }, ?_, ?_⟩
-    · rw [ConLeche.Frontend.parseNameEntryD]
+    · rw [Prev.parseNameEntryD_eq, Prev.parseNameEntryD]
       simp only [hcln, ConLeche.Frontend.StateD.freshName,
         ← hrel.names.bound i, hbound, Bool.false_eq_true, ite_false]
       rfl
@@ -454,7 +455,7 @@ theorem parseNameEntryD_run {s s' : AState} (hok : StateOK s)
     subst hs; subst hv
     refine ⟨histep.toParse hoff, hp.insertName hpn,
       { sc with names := sc.names.insert i (ConLeche.Name.num n k) }, ?_, ?_⟩
-    · rw [ConLeche.Frontend.parseNameEntryD]
+    · rw [Prev.parseNameEntryD_eq, Prev.parseNameEntryD]
       simp only [hcln, ConLeche.Frontend.StateD.freshName,
         ← hrel.names.bound i, hbound, Bool.false_eq_true, ite_false]
       rfl
@@ -518,7 +519,7 @@ theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
     refine hcl l s₂ uP.succ histep hpl ?_ hrest3 ⟨uP.succ, ?_, rfl⟩
     · rw [hdl]
       simp only [denoteLView, denoteL_ext hdlu histep.ext, Option.map_some]
-    · rw [ConLeche.Frontend.parseLevelEntryD]
+    · rw [Prev.parseLevelEntryD_eq, Prev.parseLevelEntryD]
       simp only [hguard, hclu]
       rfl
   | max a b =>
@@ -542,7 +543,7 @@ theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
     · rw [hdl]
       simp only [denoteLView, opt2_eq_some_iff]
       exact ⟨aP, bP, denoteL_ext hdla histep.ext, denoteL_ext hdlb histep.ext, rfl⟩
-    · rw [ConLeche.Frontend.parseLevelEntryD]
+    · rw [Prev.parseLevelEntryD_eq, Prev.parseLevelEntryD]
       simp only [hguard, hcla, hclb]
       rfl
   | imax a b =>
@@ -566,7 +567,7 @@ theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
     · rw [hdl]
       simp only [denoteLView, opt2_eq_some_iff]
       exact ⟨aP, bP, denoteL_ext hdla histep.ext, denoteL_ext hdlb histep.ext, rfl⟩
-    · rw [ConLeche.Frontend.parseLevelEntryD]
+    · rw [Prev.parseLevelEntryD_eq, Prev.parseLevelEntryD]
       simp only [hguard, hcla, hclb]
       rfl
   | param n =>
@@ -584,7 +585,7 @@ theorem parseLevelEntryD_run {s s' : AState} (hok : StateOK s)
     · rw [hdl]
       have hdn' : denoteN s₂.store.ls.ns hn = some nP := denoteN_ext hdn histep.ext
       simp only [denoteLView, hdn', Option.map_some]
-    · rw [ConLeche.Frontend.parseLevelEntryD]
+    · rw [Prev.parseLevelEntryD_eq, Prev.parseLevelEntryD]
       simp only [hguard, hcln]
       rfl
 
@@ -641,21 +642,21 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
     obtain ⟨e, s₁, hin, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨histep, hpe, hde⟩ := internE_istep hok hoff viewOK_bvar hin
     refine hcl e s₁ (.bvar k) histep hpe (by rw [hde]; rfl) hrest2 ?_
-    rw [ConLeche.Frontend.parseExprEntryD]
+    rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
     simp only [hguard, ConLeche.Expr.mkBvar_eq]
     rfl
   | natVal k =>
     obtain ⟨e, s₁, hin, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨histep, hpe, hde⟩ := internE_istep hok hoff viewOK_lit hin
     refine hcl e s₁ (.lit (.natVal k)) histep hpe (by rw [hde]; rfl) hrest2 ?_
-    rw [ConLeche.Frontend.parseExprEntryD]
+    rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
     simp only [hguard]
     rfl
   | strVal str =>
     obtain ⟨e, s₁, hin, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨histep, hpe, hde⟩ := internE_istep hok hoff viewOK_lit hin
     refine hcl e s₁ (.lit (.strVal str)) histep hpe (by rw [hde]; rfl) hrest2 ?_
-    rw [ConLeche.Frontend.parseExprEntryD]
+    rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
     simp only [hguard]
     rfl
   | sort u =>
@@ -668,7 +669,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
     refine hcl e s₂ (.sort uP) histep hpe ?_ hrest3 ?_
     · rw [hde]
       simp only [denoteEView, denoteL_ext hdlu histep.ext, Option.map_some]
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hclu]
       rfl
   | const n us =>
@@ -698,7 +699,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨nP, usP, denoteN_ext hdn (histep1.ext.trans histep2.ext),
         histep2.ext.lss.lst lsh usP hdlsh', rfl⟩
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hcln, hclus]
       rfl
   | app f a =>
@@ -716,7 +717,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
     · rw [hde]
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨fP, aP, denote_ext hdf histep.ext, denote_ext hda histep.ext, rfl⟩
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hclf, hcla]
       rfl
   | lam ty bd pw =>
@@ -738,7 +739,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨tyP, bdP, denote_ext hdty histep.ext, denote_ext hdbd histep.ext,
         rfl⟩
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hclty, hclbd, hclpw]
       rfl
   | forallE ty bd pw =>
@@ -760,7 +761,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨tyP, bdP, denote_ext hdty histep.ext, denote_ext hdbd histep.ext,
         rfl⟩
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hclty, hclbd, hclpw]
       rfl
   | letE ty vl bd =>
@@ -783,7 +784,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
       simp only [denoteEView, opt3_eq_some_iff]
       exact ⟨tyP, vlP, bdP, denote_ext hdty histep.ext,
         denote_ext hdvl histep.ext, denote_ext hdbd histep.ext, rfl⟩
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hclty, hclvl, hclbd]
       rfl
   | proj tn ix sub =>
@@ -802,7 +803,7 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨nP, subP, denoteN_ext hdn histep.ext,
         denote_ext hdsub histep.ext, rfl⟩
-    · rw [ConLeche.Frontend.parseExprEntryD]
+    · rw [Prev.parseExprEntryD_eq, Prev.parseExprEntryD]
       simp only [hguard, hcln, hclsub]
       rfl
 
@@ -816,7 +817,7 @@ theorem parseCVD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {cvr : ConLeche.Frontend.CVRec} {cv : IConstantVal}
     (hrun : parseCVD sd cvr s = .ok (cv, s')) :
-    s' = s ∧ ∃ c, ConLeche.Frontend.parseCVD sc cvr = .ok c ∧
+    s' = s ∧ ∃ c, Prev.parseCVD sc cvr = .ok c ∧
       denoteCV s.store cv = some c := by
   rw [parseCVD] at hrun
   obtain ⟨nm, s₁, hname, h1⟩ := AM.bind_ok hrun
@@ -831,7 +832,7 @@ theorem parseCVD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   obtain ⟨hv, hst⟩ := AM.pure_ok h3
   subst hv; subst hst
   refine ⟨rfl, ⟨n, xs, e⟩, ?_, by simp only [denoteCV, hdn, hdlps, hdty]⟩
-  rw [ConLeche.Frontend.parseCVD]
+  rw [Prev.parseCVD]
   simp only [hcln, hclty, hcllps]
   rfl
 
@@ -906,17 +907,10 @@ theorem toConstantVal_run {s s' : AState} (hok : StateOK s)
         rw [hw, he] at hd
         obtain rfl := Option.some.inj hd
         exact hpure w cw hw hrun
-  | thmInfo w e =>
-    simp only [ConRon.Arena.Frontend.denoteCI] at hd
-    cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
-    | none => rw [hw] at hd; simp at hd
-    | some cw =>
-      cases he : denoteE s.store e with
-      | none => rw [hw, he] at hd; simp at hd
-      | some x =>
-        rw [hw, he] at hd
-        obtain rfl := Option.some.inj hd
-        exact hpure w cw hw hrun
+  | thmInfo w =>
+    simp only [ConRon.Arena.Frontend.denoteCI, Option.map_eq_some_iff] at hd
+    obtain ⟨cw, hw, rfl⟩ := hd
+    exact hpure w cw hw hrun
   | indInfo w cps =>
     simp only [ConRon.Arena.Frontend.denoteCI] at hd
     cases hw : ConRon.Arena.Frontend.denoteCV s.store w with
@@ -1030,7 +1024,7 @@ theorem toConstantVal_type_run {s s' : AState} (hok : StateOK s)
     obtain ⟨a, -, -, b⟩ :=
       toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
     exact ⟨a, b⟩
-  | thmInfo w e =>
+  | thmInfo w =>
     obtain ⟨a, -, -, b⟩ :=
       toConstantVal_run hok hoff (CIProjNamed.of_ne (by simp)) hd hrun
     exact ⟨a, b⟩
@@ -1119,7 +1113,7 @@ theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
     {ru : ConLeche.Frontend.RuleRec} {rl : IRecRule}
     (hrun : parseRuleD sd ru s = .ok (rl, s')) :
-    s' = s ∧ ∃ r, ConLeche.Frontend.parseRuleD sc ru = .ok r ∧
+    s' = s ∧ ∃ r, Prev.parseRuleD sc ru = .ok r ∧
       denoteRule s.store rl = some r := by
   rw [parseRuleD] at hrun
   obtain ⟨c, s₁, hname, h1⟩ := AM.bind_ok hrun
@@ -1132,7 +1126,7 @@ theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   subst hv; subst hst
   refine ⟨rfl, RecRule.mk n ru.nfields 0 .inert e false false false, ?_,
     by simp only [denoteRule, hdn, hde, denoteFire]⟩
-  rw [ConLeche.Frontend.parseRuleD]
+  rw [Prev.parseRuleD]
   simp only [hcln, hclr]
   rfl
 
@@ -1143,7 +1137,7 @@ theorem parseRules_run {s : AState} (hok : StateOK s) {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc) :
     ∀ (rus : List ConLeche.Frontend.RuleRec) {rls : List IRecRule}
       {s' : AState}, (rus.mapM (parseRuleD sd)) s = .ok (rls, s') →
-      s' = s ∧ ∃ rs, rus.mapM (ConLeche.Frontend.parseRuleD sc) = .ok rs ∧
+      s' = s ∧ ∃ rs, rus.mapM (Prev.parseRuleD sc) = .ok rs ∧
         denoteRules s.store rls = some rs := by
   intro rus
   induction rus with
@@ -1841,9 +1835,9 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
     {rcs : List ConLeche.Frontend.IndRecRec}
     {x : RecordVerdict ⊕ (List ConLeche.Frontend.IndCtorRec × Nat)}
     (hrun : validateIndD sd tys cts rcs s = .ok (x, s')) :
-    s' = s ∧ ∃ y, ConLeche.Frontend.validateIndD sc tys cts rcs = .ok y ∧ VRes x y := by
+    s' = s ∧ ∃ y, Prev.validateIndD sc tys cts rcs = .ok y ∧ VRes x y := by
   rw [validateIndD] at hrun
-  rw [ConLeche.Frontend.validateIndD]
+  rw [Prev.validateIndD]
   simp only [pure_bind] at hrun ⊢
   by_cases hu : (tys.any fun x => x.isUnsafe) = true
   · rw [ite_eq_left hu] at hrun; rw [ite_eq_left hu]
@@ -1870,7 +1864,7 @@ theorem validateIndD_run' {s s' : AState} (hok : StateOK s) {sd : StateD}
   obtain ⟨tyTypes, s₁, h1, hrun⟩ := AM.bind_ok hrun
   obtain ⟨hs1, tyTypesC, httC, httR⟩ := mapM_sim
     (P := fun h e => denoteE s.store h = some e)
-    (g := fun t => ConLeche.Frontend.getDeclD sc t.cv.type)
+    (g := fun t => Prev.getDeclD sc t.cv.type)
     (fun t b s0' h => getDeclD_run hrel h) tys h1
   subst s₁
   obtain ⟨listed, s₁, h1, hrun⟩ := AM.bind_ok hrun
@@ -2165,7 +2159,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
     {rcs : List ConLeche.Frontend.IndRecRec} {nPd : Nat} {sd' : StateD}
     (hrun : installIndD sd tys cts rcs nPd s = .ok (sd', s')) :
     s' = s ∧ PersStateD sd' ∧
-      ∃ sc', ConLeche.Frontend.installIndD sc tys cts rcs nPd = .ok sc' ∧
+      ∃ sc', Prev.installIndD sc tys cts rcs nPd = .ok sc' ∧
         StateDRel s.store sd' sc' := by
   have hcaps := denoteCaps_default hpins.anon
   rw [installIndD] at hrun
@@ -2175,7 +2169,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
       (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
         pure (IConstantInfo.indInfo (← parseCVD sd x.cv) {})) s = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndTypeRec) => do
-          pure (ConstantInfo.indInfo (← ConLeche.Frontend.parseCVD sc x.cv) {}))
+          pure (ConstantInfo.indInfo (← Prev.parseCVD sc x.cv) {}))
             = .ok outP ∧
         ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
           out outP := by
@@ -2211,7 +2205,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
         pure (IConstantInfo.ctorInfo (← parseCVD sd x.cv) x.numParams x.numFields))
           s = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndCtorRec) => do
-          pure (ConstantInfo.ctorInfo (← ConLeche.Frontend.parseCVD sc x.cv)
+          pure (ConstantInfo.ctorInfo (← Prev.parseCVD sc x.cv)
             x.numParams x.numFields)) = .ok outP ∧
         ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
           out outP := by
@@ -2250,8 +2244,8 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
           (x.numParams + x.numMotives + x.numMinors + x.numIndices)
           (x.numParams + x.numMotives + x.numMinors) rules)) s = .ok (out, t) →
       t = s ∧ ∃ outP, (ts.mapM fun (x : ConLeche.Frontend.IndRecRec) => do
-          let rules ← x.rules.mapM (ConLeche.Frontend.parseRuleD sc)
-          pure (ConstantInfo.recInfo (← ConLeche.Frontend.parseCVD sc x.cv)
+          let rules ← x.rules.mapM (Prev.parseRuleD sc)
+          pure (ConstantInfo.recInfo (← Prev.parseCVD sc x.cv)
             (x.numParams + x.numMotives + x.numMinors + x.numIndices)
             (x.numParams + x.numMotives + x.numMinors) rules)) = .ok outP ∧
         ListRel (fun ci c => denoteCI s.store ci = some c ∧ ∀ tt, ci ≠ .projInfo tt)
@@ -2327,7 +2321,7 @@ theorem installIndD_run {s s' : AState} (hok : StateOK s)
     pushDecl_run hrel hp (PersDecl_of_denote hok.wf hoff hpn hd) hpn hd hrun
   refine ⟨hv, hp', ConLeche.Frontend.pushDecl sc
     (.indDecl (typesP ++ ctorsP ++ recsP) nPd), ?_, hrel'⟩
-  rw [ConLeche.Frontend.installIndD]
+  rw [Prev.installIndD]
   simp only [hcltys, hclcts, hclrcs]
   rfl
 
@@ -2379,7 +2373,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
   cases d with
   | ax cvr isUnsafe =>
     simp only [processLineCoreD] at hrun
-    simp only [ConLeche.Frontend.processLineCoreD]
+    simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]
     obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
     rw [hs1] at hrun
@@ -2400,7 +2394,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
     cases hints
     all_goals
       simp only [processLineCoreD] at hrun
-      simp only [ConLeche.Frontend.processLineCoreD]
+      simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]
       obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
       obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
       rw [hs1] at hrun
@@ -2424,7 +2418,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
         exact ⟨ParseStep.refl hok, (fun _ h => by cases h), _, rfl, trivial⟩
   | thm cvr value =>
     simp only [processLineCoreD] at hrun
-    simp only [ConLeche.Frontend.processLineCoreD]
+    simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]
     obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
     rw [hs1] at hrun
@@ -2440,7 +2434,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
     exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
   | opaq cvr value isUnsafe =>
     simp only [processLineCoreD] at hrun
-    simp only [ConLeche.Frontend.processLineCoreD]
+    simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]
     obtain ⟨cvp, s₁, h1, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
     rw [hs1] at hrun
@@ -2463,7 +2457,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
       exact ⟨hstep, fun _ h => by cases h; exact hp', _, rfl, hrel'⟩
   | quot cvr kind =>
     simp only [processLineCoreD] at hrun
-    simp only [ConLeche.Frontend.processLineCoreD]
+    simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]
     obtain ⟨cv, s₁, h1, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hs1, c, hc, hdc⟩ := parseCVD_run hok hrel h1
     rw [hs1] at hrun
@@ -2486,7 +2480,7 @@ theorem processLineCoreD_run {s s' : AState} (hok : StateOK s)
              | (exfalso; simp_all; done))
   | ind tys cts rcs =>
     simp only [processLineCoreD] at hrun
-    simp only [ConLeche.Frontend.processLineCoreD]
+    simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]
     obtain ⟨v, s₁, h1, hrun⟩ := AM.bind_ok hrun
     obtain ⟨hs1, y, hy, hvr⟩ := validateIndD_run' hok hrel h1
     rw [hs1] at hrun

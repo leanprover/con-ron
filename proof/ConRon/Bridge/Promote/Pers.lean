@@ -488,7 +488,7 @@ structure PersProjTable (t : IProjTable) : Prop where
 def PersCI : IConstantInfo → Prop
   | .axiomInfo v => PersCV v
   | .defnInfo v e _ => PersCV v ∧ PersE e
-  | .thmInfo v e => PersCV v ∧ PersE e
+  | .thmInfo v => PersCV v
   | .indInfo v c => PersCV v ∧ PersCaps c
   | .ctorInfo v _ _ => PersCV v
   | .recInfo v _ _ rs => PersCV v ∧ PersRules rs

@@ -1336,16 +1336,12 @@ theorem intern_ci_go_ls {pers st lst rm lm} {c : kernel.env.ConstantInfo}
     refine LSMI.bindP fun rh hrh => ?_
     rw [Lockstep.rhint_dup_spec h rh hrh]
     exact LSMI.pure hms2 rfl hrel2 hinv2
-  | ThmInfo v e =>
-    obtain ⟨hv, he⟩ := hwf
+  | ThmInfo v =>
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]
-    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hv) (by lsm_err) ?_
+    refine LSMI.bindM (intern_cv_go_ls hrel hinv hm hwf) (by lsm_err) ?_
     intro a b s st1 m1 lst1 hms hR hrel1 hinv1
     subst hR
-    refine LSMI.bindM (intern_expr_go_ls hrel1 hinv1 hms he) (by lsm_err) ?_
-    intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
-    subst hR2
-    exact LSMI.pure hms2 rfl hrel2 hinv2
+    exact LSMI.pure hms rfl hrel1 hinv1
   | IndInfo v c2 =>
     obtain ⟨hv, hc⟩ := hwf
     rw [arena.intern.intern_ci_go]; simp only [Frontend.internCI, ConRon.Refine.absConstantInfo]

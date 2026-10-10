@@ -254,7 +254,7 @@ three kinds the split reads carried field by field. -/
 def CIShape (st : EStore) : IConstantInfo → ConstantInfo → Prop
   | .axiomInfo _, .axiomInfo _ => True
   | .defnInfo _ _ _, .defnInfo _ _ _ => True
-  | .thmInfo _ _, .thmInfo _ _ => True
+  | .thmInfo _, .thmInfo _ => True
   | .indInfo v _, .indInfo cv _ => Frontend.denoteCV st v = some cv
   | .ctorInfo v a b, .ctorInfo cv a' b' => Frontend.denoteCV st v = some cv ∧ a = a' ∧ b = b'
   | .recInfo v a b rs, .recInfo cv a' b' rs' =>
@@ -273,11 +273,9 @@ theorem denoteCI_shape {st : EStore} {c : IConstantInfo} {x : ConstantInfo}
     split at h
     · obtain rfl := Option.some.inj h; trivial
     · exact nomatch h
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · obtain rfl := Option.some.inj h; trivial
-    · exact nomatch h
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, _, rfl⟩ := h; trivial
   | indInfo v caps =>
     simp only [Frontend.denoteCI] at h
     split at h

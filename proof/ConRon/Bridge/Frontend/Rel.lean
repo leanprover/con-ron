@@ -760,14 +760,11 @@ theorem PersCI_of_denote {st : EStore} (hwf : StoreWF st)
     cases h2 : denoteE st e with
     | none => rw [h1, h2] at hd; simp at hd
     | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
-  | thmInfo v e =>
+  | thmInfo v =>
     rw [denoteCI] at hd
     cases h1 : denoteCV st v with
     | none => rw [h1] at hd; simp at hd
-    | some cv =>
-    cases h2 : denoteE st e with
-    | none => rw [h1, h2] at hd; simp at hd
-    | some x => exact ⟨PersCV_of_denote hwf hoff h1, PersE_of_denote hwf hoff h2⟩
+    | some cv => exact PersCV_of_denote hwf hoff h1
   | indInfo v cp =>
     rw [denoteCI] at hd
     cases h1 : denoteCV st v with
@@ -912,7 +909,7 @@ theorem ciName_denote_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
   | projInfo t => exact ciName_denote_proj (hproj t rfl) h
   | axiomInfo v => exact denoteCI_name (by simp) h
   | defnInfo v e hh => exact denoteCI_name (by simp) h
-  | thmInfo v e => exact denoteCI_name (by simp) h
+  | thmInfo v => exact denoteCI_name (by simp) h
   | indInfo v caps => exact denoteCI_name (by simp) h
   | ctorInfo v nP nF => exact denoteCI_name (by simp) h
   | recInfo v mI rP rs => exact denoteCI_name (by simp) h

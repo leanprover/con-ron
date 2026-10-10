@@ -195,7 +195,7 @@ the record's step is itself the end of an accepted run, so the constant never
 has to be carried past it.  What survives of the cached proof is its first two
 ingredients — *the annotation of a bare constant is the constant*
 (`annotateCore_const`) and *a theorem record is never dropped*
-(`declThmRun_of`'s `env₂ = ⟨.thmInfo ⟨cv.name, cv.levelParams, type'⟩ value ::
+(`declThmRun_of`'s `env₂ = ⟨.thmInfo ⟨cv.name, cv.levelParams, type'⟩ ::
 env.consts⟩`) — and the third, the `PushChain`, is not needed at all.
 
 **It is still a con-leche-tier lemma** and belongs beside the original: the
@@ -239,7 +239,7 @@ theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
   obtain ⟨-, -, -, -, -, -, hann, -, -, -⟩ := hcv
   rw [hty] at hann
   obtain rfl : type' = .const n ls := annotateCore_const hann
-  refine ⟨ConstantInfo.thmInfo ⟨cv.name, cv.levelParams, .const n ls⟩ value,
+  refine ⟨ConstantInfo.thmInfo ⟨cv.name, cv.levelParams, .const n ls⟩,
     ?_, rfl⟩
   rw [henv]
   exact List.mem_cons_self

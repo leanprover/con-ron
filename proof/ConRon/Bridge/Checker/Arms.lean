@@ -645,7 +645,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
                 (certifyNatEqs_mono (Nat.le_trans hleC (Nat.le_max_left _ FD))
                   hcert) hd (checkDivModPin_mono (Nat.le_max_right _ FD) hpin)
       | .axiomInfo _, hfind
-      | .thmInfo _ _, hfind
+      | .thmInfo _, hfind
       | .indInfo _ _, hfind
       | .ctorInfo _ _ _, hfind
       | .recInfo _ _ _ _, hfind

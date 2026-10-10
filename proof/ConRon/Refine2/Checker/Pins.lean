@@ -2048,7 +2048,7 @@ theorem i_constant_info_to_constant_val_refines {pers rst lst c o}
   | DefnInfo v _ _ =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact plain v iv hiv (Result.ok_injective h).symm rfl
-  | ThmInfo v _ =>
+  | ThmInfo v =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     exact plain v iv hiv (Result.ok_injective h).symm rfl
   | IndInfo v _ =>

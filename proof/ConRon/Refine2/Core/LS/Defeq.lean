@@ -645,11 +645,12 @@ set_option maxHeartbeats 40000000 in
 
 /-! ## The body
 
-`defeq_after_whnf` / `defeq_after_lazy` are the tail of `defeqBody` (the
+`defeq_unreduced` / `defeq_after_whnf` / `defeq_after_lazy` are the tail of `defeqBody` (the
 port splits it after the cheap head normalization and after the lazy-delta
 loop); unfolded in place. -/
 
-attribute [lockstep_inline] arena.core.defeq_after_whnf arena.core.defeq_after_lazy
+attribute [lockstep_inline] arena.core.defeq_unreduced arena.core.defeq_after_whnf
+  arena.core.defeq_after_lazy
 
 set_option maxRecDepth 8000 in
 set_option maxHeartbeats 8000000 in

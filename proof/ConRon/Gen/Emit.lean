@@ -332,10 +332,9 @@ def gConstantInfo : ConstantInfo → G String
     let v ← gConstantVal cv
     let vv ← gExpr val
     bind "ci" s!"ConstantInfo::DefnInfo({v}, expr::dup(&{vv}), {gHint h})"
-  | .thmInfo cv val => do
+  | .thmInfo cv => do
     let v ← gConstantVal cv
-    let vv ← gExpr val
-    bind "ci" s!"ConstantInfo::ThmInfo({v}, expr::dup(&{vv}))"
+    bind "ci" s!"ConstantInfo::ThmInfo({v})"
   | .indInfo cv caps => do
     let v ← gConstantVal cv
     let cc ← gIndCaps caps

@@ -58,11 +58,9 @@ theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
     split at h
     · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
     · simp at h
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
-    · simp at h
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨rfl, v, rfl, hcv⟩
   | indInfo v caps =>
     simp only [Frontend.denoteCI] at h
     split at h

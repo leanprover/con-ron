@@ -92,14 +92,12 @@ theorem toConstantVal_nt_spec (s₀ : AState) (ci : IConstantInfo)
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
     obtain ⟨cv, x, hcv, _, rfl⟩ := denoteCI_defnInfo_inv hc; exact hcv
-  | thmInfo v e =>
+  | thmInfo v =>
     vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars
     refine ⟨rfl, fun c hc => ?_⟩
-    simp only [Frontend.denoteCI] at hc
-    split at hc
-    · rename_i cv x hcv _; cases hc; exact hcv
-    · simp at hc
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
+    obtain ⟨cv, hcv, rfl⟩ := hc; exact hcv
   | indInfo v caps =>
     vcgen [IConstantInfo.toConstantVal]
     bridge_peel; subst_vars

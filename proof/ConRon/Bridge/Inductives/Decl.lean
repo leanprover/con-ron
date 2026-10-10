@@ -164,17 +164,15 @@ theorem indParamsOk_spec (nP : Nat) (block : List IConstantInfo)
             rw [hr]
             simp only [ConLeche.indParamsOk, List.all_cons]
           · exact nomatch hc
-        | thmInfo v e =>
-          simp only [Frontend.denoteCI] at hc
-          split at hc
-          · obtain rfl := Option.some.inj hc
-            have hrun' : (if (true : Bool) = true then Arena.indParamsOk nP rest
-                else (pure false : AM Bool)) s₀ = .ok (r, s') := hrun
-            obtain ⟨hstep, hr⟩ := indParamsOk_tail (ih xs) hok hcs hrun'
-            refine ⟨hstep, ?_⟩
-            rw [hr]
-            simp only [ConLeche.indParamsOk, List.all_cons]
-          · exact nomatch hc
+        | thmInfo v =>
+          simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc
+          obtain ⟨cvP, _, rfl⟩ := hc
+          have hrun' : (if (true : Bool) = true then Arena.indParamsOk nP rest
+              else (pure false : AM Bool)) s₀ = .ok (r, s') := hrun
+          obtain ⟨hstep, hr⟩ := indParamsOk_tail (ih xs) hok hcs hrun'
+          refine ⟨hstep, ?_⟩
+          rw [hr]
+          simp only [ConLeche.indParamsOk, List.all_cons]
         | recInfo v mI rP rs =>
           simp only [Frontend.denoteCI] at hc
           split at hc

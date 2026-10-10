@@ -229,14 +229,9 @@ theorem denoteCI_defn_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
   | projInfo t =>
     simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
     obtain ⟨_, _, hc⟩ := h; simp at hc
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    cases hv : Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cvv =>
-      cases he : denoteE st e with
-      | none => rw [hv, he] at h; simp at h
-      | some xx => rw [hv, he] at h; simp at h
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, hc⟩ := h; simp at hc
   | indInfo v c =>
     simp only [Frontend.denoteCI] at h
     cases hv : Frontend.denoteCV st v with

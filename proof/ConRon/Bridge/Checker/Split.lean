@@ -782,7 +782,7 @@ def SplitInstall (μ : CheckMode) (F : Nat) (env : Env) (d : Declaration)
   (∃ cv value, d = .thmDecl cv value ∧ vg.kind = .thm ∧
     ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
     vg.jv = value ∧
-    env' = ⟨.thmInfo vg.cvA value :: env.consts⟩) ∨
+    env' = ⟨.thmInfo vg.cvA :: env.consts⟩) ∨
   (∃ cv value, d = .opaqueDecl cv value ∧
     ConLeche.reduceOpNames.contains cv.name = false ∧ vg.kind = .opaque ∧
     ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
@@ -1419,9 +1419,9 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     obtain ⟨rfl, rfl⟩ := hvv
     have hx2 : denoteE s2.store value = some x := denote_ext hv hsa.ext
     have htw := installConstantVal_typeWF hI
-    have hci : Frontend.denoteCI s2.store (.thmInfo cvA value)
-        = some (.thmInfo cA x) := by
-      simp only [Frontend.denoteCI, hcA, hx2]
+    have hci : Frontend.denoteCI s2.store (.thmInfo cvA)
+        = some (.thmInfo cA) := by
+      simp only [Frontend.denoteCI, hcA, Option.map_some]
     refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsa.ok.state hsa.ext hci
         (constWF_thmInfo htw.cons),
       hsa.ext, hsa.pins,

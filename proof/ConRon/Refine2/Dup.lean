@@ -312,11 +312,10 @@ theorem i_constant_info_dup_abs {c o : arena.env.IConstantInfo}
       rw [kernel.env.reducibility_hint_dup.eq_def] at hrh
       cases hint <;> simp only [] at hrh <;> exact (Result.ok_injective hrh).symm
     simp only [absIConstantInfo, i_constant_val_dup_abs hiv, dupId_eidx _ _ he, hrhv]
-  | ThmInfo cv v =>
+  | ThmInfo cv =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     rw [← Result.ok_injective h]
-    simp only [absIConstantInfo, i_constant_val_dup_abs hiv, dupId_eidx _ _ he]
+    simp only [absIConstantInfo, i_constant_val_dup_abs hiv]
   | IndInfo cv caps =>
     obtain ⟨iv, hiv, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨ic, hic, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

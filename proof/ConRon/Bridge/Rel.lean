@@ -1324,9 +1324,9 @@ theorem denoteCI_projInfo {st : EStore} {ci : IConstantInfo} {pt : ProjTable}
   | defnInfo v e hint =>
     simp only [Frontend.denoteCI] at h
     split at h <;> simp at h
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    split at h <;> simp at h
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨_, _, hc⟩ := h; exact absurd hc (by simp)
   | indInfo v c =>
     simp only [Frontend.denoteCI] at h
     split at h <;> simp at h
@@ -1360,16 +1360,10 @@ theorem denoteCI_ext {st st' : EStore} {ci : IConstantInfo} {c : ConstantInfo}
       | some x =>
         rw [hcv, he] at h
         rw [denoteCV_ext hcv hx, denote_ext he hx]; exact h
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h ⊢
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hcv, he] at h; simp at h
-      | some x =>
-        rw [hcv, he] at h
-        rw [denoteCV_ext hcv hx, denote_ext he hx]; exact h
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
+    obtain ⟨cv, hcv, hc⟩ := h
+    exact ⟨cv, denoteCV_ext hcv hx, hc⟩
   | indInfo v cp =>
     simp only [Frontend.denoteCI] at h ⊢
     cases hcv : Frontend.denoteCV st v with

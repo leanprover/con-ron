@@ -821,7 +821,7 @@ theorem unfoldDefConst_run (fe : IFEnv) (e : EIdx) (n : NIdx) (us : LsIdx)
         · rw [ite_eq_left hl, ite_eq_left hl]
         · rw [ite_eq_right hl, ite_eq_right hl]; rfl
     | axiomInfo _ => rfl
-    | thmInfo _ _ => rfl
+    | thmInfo _ => rfl
     | indInfo _ _ => rfl
     | ctorInfo _ _ _ => rfl
     | recInfo _ _ _ _ => rfl

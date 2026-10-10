@@ -367,9 +367,8 @@ theorem constant_info_dup_refines {c c' : env.ConstantInfo}
       exists_eq_left'] at h
     obtain ⟨cv, hcv, hint', hhint, rfl⟩ := h
     rw [constant_val_dup_refines hcv, reducibility_hint_dup_refines hhint]
-  | ThmInfo v value =>
-    simp only [env.constant_info_dup, bind_eq_ok_iff, expr_dup_val, Result.ok.injEq,
-      exists_eq_left'] at h
+  | ThmInfo v =>
+    simp only [env.constant_info_dup, bind_eq_ok_iff, Result.ok.injEq] at h
     obtain ⟨cv, hcv, rfl⟩ := h
     rw [constant_val_dup_refines hcv]
   | IndInfo v caps =>

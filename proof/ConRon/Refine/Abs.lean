@@ -700,7 +700,7 @@ def absProjTable (t : env.ProjTable) : ConLeche.ProjTable where
 def absConstantInfo : env.ConstantInfo → ConLeche.ConstantInfo
   | .AxiomInfo cv => .axiomInfo (absConstantVal cv)
   | .DefnInfo cv v h => .defnInfo (absConstantVal cv) (absExpr v) (absHint h)
-  | .ThmInfo cv v => .thmInfo (absConstantVal cv) (absExpr v)
+  | .ThmInfo cv => .thmInfo (absConstantVal cv)
   | .IndInfo cv c => .indInfo (absConstantVal cv) (absIndCaps c)
   | .CtorInfo cv np nf => .ctorInfo (absConstantVal cv) np.val nf.val
   | .RecInfo cv mi rp rs =>
@@ -788,7 +788,7 @@ per constructor in the cited field order. -/
 def ConstantInfoWF : env.ConstantInfo → Prop
   | .AxiomInfo cv => ConstantValWF cv
   | .DefnInfo cv v _ => ConstantValWF cv ∧ ExprWF v
-  | .ThmInfo cv v => ConstantValWF cv ∧ ExprWF v
+  | .ThmInfo cv => ConstantValWF cv
   | .IndInfo cv c => ConstantValWF cv ∧ IndCapsWF c
   | .CtorInfo cv _ _ => ConstantValWF cv
   | .RecInfo cv _ _ rs => ConstantValWF cv ∧ RecRulesWF rs

@@ -366,11 +366,10 @@ theorem constWF_defnInfo {env : Env} {cv : ConstantVal} {v : Expr}
    fun _ _ heq => ConLeche.ConstantInfo.noConfusion heq⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — the `thmInfo`
-introduction.  **A theorem's stored value carries no clause**: it is the
-record's RAW value, opaque to reduction and never read by the kernel or by the
-invariant, so the type half is the whole of it. -/
-theorem constWF_thmInfo {env : Env} {cv : ConstantVal} {v : Expr}
-    (ht : CVTypeWF env cv) : ConLeche.ConstWF env (.thmInfo cv v) :=
+introduction.  **A stored theorem carries no value** (con-leche task #329
+THMVAL), so the type half is the whole of it. -/
+theorem constWF_thmInfo {env : Env} {cv : ConstantVal}
+    (ht : CVTypeWF env cv) : ConLeche.ConstWF env (.thmInfo cv) :=
   ⟨ht.fvar, ht.lvls, ht.res, ht.bnd,
    fun _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
    fun _ _ _ _ heq => ConLeche.ConstantInfo.noConfusion heq,
@@ -485,9 +484,9 @@ cannot occur on a successful run).  It gains the same `htw` as the other two —
 and here it is spent twice, once for `WScoped 0 c.type` at the FIRST
 inference (which the other two do not make) and once at the conversion.
 
-**The stored value is `x`, not the witness.**  `ConstWF` gives a theorem's
-value no clause, so `constWF_thmInfo` is the type half alone and the annotated
-`y` never reaches the environment — exactly con-leche's own reading. -/
+**No value is stored** (con-leche task #329 THMVAL): `constWF_thmInfo` is the
+type half alone and the annotated `y` never reaches the environment — exactly
+con-leche's own reading. -/
 theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
     {fe fe' : IFEnv} {cv : IConstantVal} {c : ConstantVal} {value : EIdx}
     {x : Expr} {s s' : AState}
@@ -589,12 +588,11 @@ theorem checkThmVal_bridge {μ : CheckMode} {env : Env}
   have hext : Ext s.store s'.store :=
     hext4.trans (hstep6.ext.trans (hx7.trans hx8))
   have hcv8 : Frontend.denoteCV s'.store cv = some c := denoteCV_ext hcv7 hx8
-  have hx8v : denoteE s'.store value = some x := denote_ext hv hext
-  have hci8 : Frontend.denoteCI s'.store (.thmInfo cv value)
-      = some (.thmInfo c x) := by
-    simp only [Frontend.denoteCI, hcv8, hx8v]
+  have hci8 : Frontend.denoteCI s'.store (.thmInfo cv)
+      = some (.thmInfo c) := by
+    simp only [Frontend.denoteCI, hcv8, Option.map_some]
   refine ⟨⟨hck8, hext, by rw [hp8, hp7, hstep6.pins, hpin4]⟩,
-    Pushed.push fe _, ⟨.thmInfo c x :: env.consts⟩,
+    Pushed.push fe _, ⟨.thmInfo c :: env.consts⟩,
     max (max Fa Fb) (max F1 (max F2 F3)), ?_, ?_⟩
   · exact (hok.toStepOK.mono hext).push hck8.state
       (fun t hq => IConstantInfo.noConfusion hq) hci8

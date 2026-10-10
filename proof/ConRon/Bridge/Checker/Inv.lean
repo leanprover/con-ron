@@ -342,17 +342,10 @@ theorem denoteCI_pext {st st' : EStore} (hx : PExt st st') {ci : IConstantInfo}
       | some x =>
         rw [hcv, he] at h
         rw [denoteCV_pext hx hpv hcv, denoteE_pext hx hpe he]; exact h
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h ⊢
-    obtain ⟨hpv, hpe⟩ := hp
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hcv, he] at h; simp at h
-      | some x =>
-        rw [hcv, he] at h
-        rw [denoteCV_pext hx hpv hcv, denoteE_pext hx hpe he]; exact h
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h ⊢
+    obtain ⟨cv, hcv, hc⟩ := h
+    exact ⟨cv, denoteCV_pext hx hp hcv, hc⟩
   | indInfo v c' =>
     simp only [Frontend.denoteCI] at h ⊢
     obtain ⟨hpv, hpc⟩ := hp

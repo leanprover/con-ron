@@ -862,11 +862,9 @@ theorem denoteCI_recInfo {st : EStore} {ci : IConstantInfo}
     split at hd
     · exact nomatch (Option.some.inj hd)
     · exact absurd hd (by simp)
-  | thmInfo w e =>
+  | thmInfo w =>
     rw [ConRon.Arena.Frontend.denoteCI] at hd
-    split at hd
-    · exact nomatch (Option.some.inj hd)
-    · exact absurd hd (by simp)
+    rcases Option.map_eq_some_iff.mp hd with ⟨_, -, hh⟩; exact nomatch hh
   | indInfo w c =>
     rw [ConRon.Arena.Frontend.denoteCI] at hd
     split at hd
@@ -889,7 +887,7 @@ theorem ucBlockStep_denote {st : EStore} {ci : IConstantInfo}
     exact absurd hh (h iv imI irP irs)
   | axiomInfo _ => rfl
   | defnInfo _ _ _ => rfl
-  | thmInfo _ _ => rfl
+  | thmInfo _ => rfl
   | indInfo _ _ => rfl
   | ctorInfo _ _ _ => rfl
   | projInfo _ => rfl
@@ -1007,7 +1005,7 @@ theorem usedConstsBlock_run :
           exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | defnInfo v e hint =>
           exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
-        | thmInfo v e =>
+        | thmInfo v =>
           exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)
         | indInfo v c =>
           exact hgen (by intro _ _ _ _ hh; exact nomatch hh) (hnorules hr1)

@@ -537,29 +537,18 @@ theorem promoteCI_step {m m' : PMemo} {fuel : Nat} {ci ci' : IConstantInfo}
         rw [hcv, he] at hc
         rw [denoteCV_ext (hd1 cv hcv) hx2, hd2 x (hx1.expr _ _ he)]
         exact hc
-  | thmInfo v e =>
+  | thmInfo v =>
     simp only [promoteCI] at hrun
     obtain ⟨⟨m1, v1⟩, s1, h1, h2⟩ := AM.bind_ok hrun
     obtain ⟨hwf1, hm1, hx1, hp1, hn1, hd1⟩ := promoteCV_step hwf hm h1
-    obtain ⟨⟨m2, e2⟩, s2, h3, h4⟩ := AM.bind_ok h2
-    obtain ⟨hwf2, hm2, hp2, hd2⟩ := promoteE_core fuel m1 e s1 m2 e2 s2 hwf1 hm1 h3
-    have hx2 := (promoteE_aext m1 fuel e s1 (m2, e2) s2 h3).ext
-    obtain ⟨hr, rfl⟩ := AM.pure_ok h4
+    obtain ⟨hr, rfl⟩ := AM.pure_ok h2
     simp only [Prod.mk.injEq] at hr
     obtain ⟨rfl, rfl⟩ := hr
-    refine ⟨hwf2, hm2, hx1.trans hx2, ⟨hp1, hp2⟩,
-      hn1.post hx2, (fun _ h => by cases h), ?_⟩
+    refine ⟨hwf1, hm1, hx1, hp1, hn1, (fun _ h => by cases h), ?_⟩
     intro c hc
-    simp only [Frontend.denoteCI] at hc ⊢
-    cases hcv : Frontend.denoteCV s.store v with
-    | none => rw [hcv] at hc; simp at hc
-    | some cv =>
-      cases he : denoteE s.store e with
-      | none => rw [hcv, he] at hc; simp at hc
-      | some x =>
-        rw [hcv, he] at hc
-        rw [denoteCV_ext (hd1 cv hcv) hx2, hd2 x (hx1.expr _ _ he)]
-        exact hc
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hc ⊢
+    obtain ⟨cv, hcv, rfl⟩ := hc
+    exact ⟨cv, hd1 cv hcv, rfl⟩
   | indInfo v caps =>
     simp only [promoteCI] at hrun
     obtain ⟨⟨m1, v1⟩, s1, h1, h2⟩ := AM.bind_ok hrun

@@ -1920,7 +1920,7 @@ theorem checkDivModPin_bridge {μ : CheckMode}
       simp only [ConLeche.checkDivModPin, hG, hfindP, ite_true]
       exact hF
     | .axiomInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
-    | .thmInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
+    | .thmInfo _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .indInfo _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .ctorInfo _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)
     | .recInfo _ _ _ _, _, r1 => exact absurd r1 (by first | exact AM.Never.fail _ _ _ _ | exact AM.Never.fail_any _ _ _)

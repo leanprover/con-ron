@@ -1574,17 +1574,11 @@ theorem denoteCI_defn_inv {st : EStore} {v : IConstantVal} {e : EIdx}
     | none => rw [hcv, he] at h; simp at h
     | some x => rw [hcv, he] at h; exact ⟨cv, x, (Option.some.inj h).symm, rfl, rfl⟩
 
-theorem denoteCI_thm_inv {st : EStore} {v : IConstantVal} {e : EIdx}
-    {c : ConstantInfo} (h : Frontend.denoteCI st (.thmInfo v e) = some c) :
-    ∃ cv x, c = .thmInfo cv x ∧ Frontend.denoteCV st v = some cv ∧
-      denoteE st e = some x := by
-  simp only [Frontend.denoteCI] at h
-  cases hcv : Frontend.denoteCV st v with
-  | none => rw [hcv] at h; simp at h
-  | some cv =>
-    cases he : denoteE st e with
-    | none => rw [hcv, he] at h; simp at h
-    | some x => rw [hcv, he] at h; exact ⟨cv, x, (Option.some.inj h).symm, rfl, rfl⟩
+theorem denoteCI_thm_inv {st : EStore} {v : IConstantVal}
+    {c : ConstantInfo} (h : Frontend.denoteCI st (.thmInfo v) = some c) :
+    ∃ cv, c = .thmInfo cv ∧ Frontend.denoteCV st v = some cv := by
+  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+  obtain ⟨cv, hcv, rfl⟩ := h; exact ⟨cv, rfl, hcv⟩
 
 theorem denoteCI_ind_inv {st : EStore} {v : IConstantVal} {cap : IIndCaps}
     {c : ConstantInfo} (h : Frontend.denoteCI st (.indInfo v cap) = some c) :
@@ -1673,8 +1667,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
@@ -1764,8 +1758,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
           rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
           have hbad : (hA == hB) = false := by simpa using hch
           simp only [ConLeche.ConstantInfo.canonEqFast, hbad, Bool.and_false]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
@@ -1794,8 +1788,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-  | thmInfo vA eA =>
-    obtain ⟨xV, xE, rfl, hxV, hxE⟩ := denoteCI_thm_inv hci
+  | thmInfo vA =>
+    obtain ⟨xV, rfl, hxV⟩ := denoteCI_thm_inv hci
     cases ci' with
     | axiomInfo vB =>
       obtain ⟨yV, rfl, hyV⟩ := denoteCI_axiom_inv hci'
@@ -1809,51 +1803,14 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
-      obtain ⟨b1, s1, g1, k1⟩ := AM.bind_ok hrun
-      obtain ⟨hok1, hx1, hca1, hp1, he1⟩ := IConstantVal.canonEq_run hok hxV hyV g1
-      rw [ConLeche.ConstantVal.canonEq_eq_canonEqFast] at he1
-      rcases AM.ite_ok k1 with ⟨hc1, k2⟩ | ⟨hc1, k2⟩
-      · obtain ⟨cs, s2, g2, k9⟩ := AM.bind_ok k2
-        obtain ⟨hok2, hx2, hca2, hp2, hcsd⟩ := canonNames_run hok1 g2
-        obtain ⟨-, hlpsA, -⟩ := denoteCV_inv hxV
-        obtain ⟨-, hlpsB, -⟩ := denoteCV_inv hyV
-        have hcv1 : ConLeche.ConstantVal.canon xV = ConLeche.ConstantVal.canon yV :=
-          (ConLeche.ConstantVal.canonEqFast_iff xV yV).mp (he1 ▸ hc1)
-        have hlenAB : xV.levelParams.length = yV.levelParams.length := by
-          have hq := congrArg (fun z => (ConLeche.ConstantVal.levelParams z).length) hcv1
-          simpa [ConLeche.ConstantVal.canon] using hq
-        have hlenA : vA.levelParams.length = xV.levelParams.length :=
-          denoteNList_length _ _ hlpsA
-        have hlenB : vB.levelParams.length = yV.levelParams.length :=
-          denoteNList_length _ _ hlpsB
-        have hcslen : cs.length = vA.levelParams.length := by
-          have hq := denoteNList_length _ _ hcsd
-          simpa using hq
-        have hnums : Frontend.denoteNList s2.store.ns cs
-            = some ((List.range cs.length).map
-                (fun i => ConLeche.Name.num .anonymous i)) := by rw [hcslen]; exact hcsd
-        have hmA : CanonMapD s2.store.ns vA.levelParams cs xV.levelParams :=
-          { params := denoteNListE_ext hx2 _ _ (denoteNListE_ext hx1 _ _ hlpsA)
-            nums := hnums
-            len := hcslen.symm }
-        have hmB : CanonMapD s2.store.ns vB.levelParams cs yV.levelParams :=
-          { params := denoteNListE_ext hx2 _ _ (denoteNListE_ext hx1 _ _ hlpsB)
-            nums := hnums
-            len := by omega }
-        obtain ⟨rfl, he2⟩ := canonExprEq_run coreWalkFuel hok2 hmA hmB
-          (denote_ext (denote_ext hxE hx1) hx2)
-          (denote_ext (denote_ext hyE hx1) hx2) k9
-        refine ⟨hok2, hx1.trans hx2, by rw [hca2, hca1], by rw [hp2, hp1], ?_⟩
-        rw [he2, ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
-        simp only [ConLeche.ConstantInfo.canonEqFast, ← he1, hc1, Bool.true_and]
-      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-        refine ⟨hok1, hx1, hca1, hp1, ?_⟩
-        rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
-        have hbad : ConLeche.ConstantVal.canonEqFast xV yV = false := by
-          rw [← he1]; simpa using hc1
-        simp only [ConLeche.ConstantInfo.canonEqFast, hbad, Bool.false_and]
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
+      obtain ⟨hok1, hx1, hca1, hp1, he⟩ :=
+        IConstantVal.canonEq_run hok hxV hyV hrun
+      refine ⟨hok1, hx1, hca1, hp1, ?_⟩
+      rw [he, ConLeche.ConstantInfo.canonEq_eq_canonEqFast,
+        ConLeche.ConstantVal.canonEq_eq_canonEqFast]
+      rfl
     | indInfo vB capB =>
       obtain ⟨yV, yC, rfl, hyV, hyC⟩ := denoteCI_ind_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
@@ -1893,8 +1850,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
@@ -1940,8 +1897,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
@@ -1994,8 +1951,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
@@ -2087,8 +2044,8 @@ theorem IConstantInfo.canonEq_run {ci ci' : IConstantInfo} {c c' : ConstantInfo}
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]
         simp [ConLeche.ConstantInfo.canonEqFast]⟩
-    | thmInfo vB eB =>
-      obtain ⟨yV, yE, rfl, hyV, hyE⟩ := denoteCI_thm_inv hci'
+    | thmInfo vB =>
+      obtain ⟨yV, rfl, hyV⟩ := denoteCI_thm_inv hci'
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       exact ⟨hok, Ext.refl _, rfl, rfl, by
         rw [ConLeche.ConstantInfo.canonEq_eq_canonEqFast]

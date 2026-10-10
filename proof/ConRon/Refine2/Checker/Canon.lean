@@ -745,12 +745,9 @@ theorem i_constant_info_beq_refines {a b : arena.env.IConstantInfo} {o : Bool}
     refine beq_chain (eidx_eq2_abs_decide hb2) h ?_
     intro o2 h
     exact ConRon.Refine.Env.reducibility_hint_beq_refines h
-  case ThmInfo.ThmInfo x v y w =>
-    simp only [absIConstantInfo, IConstantInfo.thmInfo.injEq]
-    obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    refine beq_chain (i_constant_val_beq_refines hb1) h ?_
-    intro o1 h
-    exact eidx_eq2_abs_decide h
+  case ThmInfo.ThmInfo x y =>
+    rw [i_constant_val_beq_refines hrun]
+    simp [absIConstantInfo]
   case IndInfo.IndInfo x c y d =>
     simp only [absIConstantInfo, IConstantInfo.indInfo.injEq]
     obtain ⟨b1, hb1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun

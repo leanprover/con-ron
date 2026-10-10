@@ -226,7 +226,7 @@ theorem blockSplitCtors_of_not_ctor (L : List IConstantInfo)
   | [], _ => simp [blockSplitCtors, blockSplitRecs]
   | .axiomInfo _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
   | .defnInfo _ _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
-  | .thmInfo _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
+  | .thmInfo _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
   | .indInfo _ _ :: _, _ => simp [blockSplitCtors, blockSplitRecs]
   | .ctorInfo cv np nf :: rest, hL => exact absurd rfl (hL cv np nf rest)
   | .recInfo _ _ _ _ :: rest, _ =>
@@ -243,7 +243,7 @@ theorem blockSplit_of_not_ind (L : List IConstantInfo)
   | .axiomInfo a :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.axiomInfo a :: r) <;> rfl
   | .defnInfo a b c :: r, _ =>
     simp only [blockSplit]; cases blockSplitCtors (.defnInfo a b c :: r) <;> rfl
-  | .thmInfo a b :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.thmInfo a b :: r) <;> rfl
+  | .thmInfo a :: r, _ => simp only [blockSplit]; cases blockSplitCtors (.thmInfo a :: r) <;> rfl
   | .indInfo cv caps :: rest, hL => exact absurd rfl (hL cv caps rest)
   | .ctorInfo a b c :: r, _ =>
     simp only [blockSplit]; cases blockSplitCtors (.ctorInfo a b c :: r) <;> rfl
@@ -283,7 +283,7 @@ theorem block_split_recs_abs {block : alloc.vec.Vec arena.env.IConstantInfo} :
           i_rec_rules_dup_abs hv]
     | AxiomInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | DefnInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
-    | ThmInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
+    | ThmInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | IndInfo _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | CtorInfo _ _ _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]
     | ProjInfo _ => simp only [Result.ok.injEq] at h2; subst h2; rw [bp_absICILFrom_cons' hx]; simp [absIConstantInfo, blockSplitRecs]

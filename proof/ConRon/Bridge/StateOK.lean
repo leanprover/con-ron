@@ -1004,17 +1004,10 @@ theorem denoteCI_name {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
         rw [hcv, he] at h
         obtain rfl := Option.some.inj h
         exact denoteCV_name hcv
-  | thmInfo v e =>
-    simp only [Frontend.denoteCI] at h
-    cases hcv : Frontend.denoteCV st v with
-    | none => rw [hcv] at h; simp at h
-    | some cv =>
-      cases he : denoteE st e with
-      | none => rw [hcv, he] at h; simp at h
-      | some x =>
-        rw [hcv, he] at h
-        obtain rfl := Option.some.inj h
-        exact denoteCV_name hcv
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact denoteCV_name hcv
   | indInfo v caps =>
     simp only [Frontend.denoteCI] at h
     cases hcv : Frontend.denoteCV st v with
@@ -1082,7 +1075,7 @@ theorem denoteCI_name_of {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
   | projInfo t => exact denoteCI_name_proj (hproj t rfl) h
   | axiomInfo v => exact denoteCI_name (by simp) h
   | defnInfo v e hh => exact denoteCI_name (by simp) h
-  | thmInfo v e => exact denoteCI_name (by simp) h
+  | thmInfo v => exact denoteCI_name (by simp) h
   | indInfo v caps => exact denoteCI_name (by simp) h
   | ctorInfo v nP nF => exact denoteCI_name (by simp) h
   | recInfo v mI rP rs => exact denoteCI_name (by simp) h

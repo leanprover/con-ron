@@ -225,16 +225,16 @@ theorem valueFrontRun_valueWF {μ : CheckMode} {F : Nat} {env : Env}
   exact ⟨g1, hlp, Expr.constsResolve_mono hres, g2⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — a checked header,
-stored with no value (`axiomInfo`) or with an unread one (`thmInfo`). -/
+stored with no value (`axiomInfo`, `thmInfo`). -/
 theorem constWF_ofType {env : Env} {c : ConstantInfo}
     (ht : c.toConstantVal.type.hasFvar = false ∧
       c.toConstantVal.type.allLevelParamsDefined c.toConstantVal.levelParams = true ∧
       c.toConstantVal.type.constsResolve env = true ∧
       c.toConstantVal.type.looseBVarsBounded 0 = true)
-    (hc : (∃ cv, c = .axiomInfo cv) ∨ ∃ cv v, c = .thmInfo cv v) : ConstWF env c := by
+    (hc : (∃ cv, c = .axiomInfo cv) ∨ ∃ cv, c = .thmInfo cv) : ConstWF env c := by
   obtain ⟨t1, t2, t3, t4⟩ := ht
   refine ⟨t1, t2, t3, t4, ?_, ?_, ?_, ?_⟩ <;>
-    rcases hc with ⟨cv, rfl⟩ | ⟨cv, v, rfl⟩ <;>
+    rcases hc with ⟨cv, rfl⟩ | ⟨cv, rfl⟩ <;>
     first
       | (intro _ _ _ heq; exact ConstantInfo.noConfusion heq)
       | (intro _ _ _ _ heq; exact ConstantInfo.noConfusion heq)
@@ -269,7 +269,7 @@ theorem checkDecl_wf_pure {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}
   | thmDecl cv value =>
     obtain ⟨type', value', hcv, -, -, rfl⟩ := hrun
     exact ⟨EnvWF.cons hwf (constWF_ofType (constantValRun_typeWF hcv _)
-      (Or.inr ⟨_, _, rfl⟩)), NoTowerPush.cons _ _ rfl⟩
+      (Or.inr ⟨_, rfl⟩)), NoTowerPush.cons _ _ rfl⟩
   | opaqueDecl cv value =>
     obtain ⟨type', value', hcv, -, rfl, -⟩ := hrun
     exact ⟨EnvWF.cons hwf (constWF_ofType (constantValRun_typeWF hcv _)

@@ -478,7 +478,7 @@ def checkThmValWitnessSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let vtype ← inferTypeCore mode fe checkFuel 0 jv
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
     fail (.invalid "type mismatch in theorem")
-  pure (fe.push (.thmInfo cv value))
+  pure (fe.push (.thmInfo cv))
 
 /-- `checkThmVal` past its proposition test is `checkThmValWitnessSpec` — the
 Rust's `check_thm_val` / `check_thm_val_witness` split. -/
@@ -802,7 +802,7 @@ def annotStepOpaqueSpec (mode : CheckMode) (pins : List INatOpPinSet)
 def annotStepThmSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM (IFEnv × Option ValueGroup) := do
   let cvA ← installConstantVal mode fe cv
-  pure (fe.push (.thmInfo cvA value), some ⟨.thm, cvA, value⟩)
+  pure (fe.push (.thmInfo cvA), some ⟨.thm, cvA, value⟩)
 
 /-- `annotStepGo`'s `.defnDecl` install half. -/
 def annotStepDefnInstallSpec (mode : CheckMode) (fe : IFEnv)

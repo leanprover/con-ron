@@ -77,28 +77,31 @@ theorem defeqBody_boolTrue (hab : (x == y) = false)
   rw [hsc]
   simp only [bind, Except.bind, ite_true, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the prefix
-every later exit has run**, at one fuel: no syntactic hit, no eq-true
-shortcut, the two cheap head normal forms. -/
-structure DbPre (mode : CheckMode) (env : Env) (F d : Nat)
-    (x y x' y' : Expr) : Prop where
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the prefix
+up to the UNREDUCED pair (con-leche task #333): no syntactic hit, no eq-true
+shortcut. -/
+structure DbPre0 (mode : CheckMode) (env : Env) (F d : Nat) (x y : Expr) : Prop where
   hab : (x == y) = false
   hsc : (if (y.isBoolTrue && !x.hasFvar) = true then
       ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d x
     else pure false) = (.ok false : CheckM Bool)
-  ha : ConLeche.whnfCore mode env F d x true = .ok x'
-  hb : ConLeche.whnfCore mode env F d y true = .ok y'
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
-the prefix: `quickDefEq` on the cheap head normal forms and what follows. -/
-theorem defeqBody_pre (h : DbPre mode env F d x y x' y') :
+the eq-true shortcut: `quickDefEq` and proof irrelevance on the UNREDUCED
+pair, then the cheap head normal forms and what follows. -/
+theorem defeqBody_pre0 (h : DbPre0 mode env F d x y) :
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y =
-      (ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x' y' >>= fun o =>
+      (ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y >>= fun o =>
         match o with
         | some v => pure v
         | none => do
-          if ← ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x' y' then
+          if ← ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x y then
             pure true else
+          let x' ← (ConLeche.pureFns mode env F).whnfCore true d x
+          let y' ← (ConLeche.pureFns mode env F).whnfCore true d y
+          match ← ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x' y' with
+          | some v => pure v
+          | none =>
           match ← ConLeche.lazyDeltaReduction mode (ConLeche.pureFns mode env F)
               env d ConLeche.defeqLoopFuel x' y' with
           | .verdict v => pure v
@@ -115,7 +118,64 @@ theorem defeqBody_pre (h : DbPre mode env F d x y x' y') :
   rw [ConLeche.defeqBody]
   simp only [h.hab, Bool.false_eq_true, ite_false]
   rw [h.hsc]
-  simp only [bind, Except.bind, Bool.false_eq_true, ite_false,
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the easy
+cases decide on the UNREDUCED pair. -/
+theorem defeqBody_quick0 {v : Bool} (h : DbPre0 mode env F d x y)
+    (hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y
+      = .ok (some v)) :
+    ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok v := by
+  rw [defeqBody_pre0 h, hq]; rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **proof
+irrelevance**, on the UNREDUCED pair (con-leche task #333). -/
+theorem defeqBody_propIrrel (h : DbPre0 mode env F d x y)
+    (hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y = .ok none)
+    (hpi : ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x y = .ok true) :
+    ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok true := by
+  rw [defeqBody_pre0 h, hq]
+  simp only [bind, Except.bind, hpi]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **the prefix
+every later exit has run**, at one fuel: no syntactic hit, no eq-true
+shortcut, no easy case and no proof irrelevance on the unreduced pair, the two
+cheap head normal forms. -/
+structure DbPre (mode : CheckMode) (env : Env) (F d : Nat)
+    (x y x' y' : Expr) : Prop where
+  hab : (x == y) = false
+  hsc : (if (y.isBoolTrue && !x.hasFvar) = true then
+      ConLeche.boolTrueShortcut (ConLeche.pureFns mode env F) d x
+    else pure false) = (.ok false : CheckM Bool)
+  hq0 : ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x y = .ok none
+  hpi0 : ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x y = .ok false
+  ha : ConLeche.whnfCore mode env F d x true = .ok x'
+  hb : ConLeche.whnfCore mode env F d y true = .ok y'
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
+the prefix: `quickDefEq` on the cheap head normal forms and what follows. -/
+theorem defeqBody_pre (h : DbPre mode env F d x y x' y') :
+    ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y =
+      (ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x' y' >>= fun o =>
+        match o with
+        | some v => pure v
+        | none => do
+          match ← ConLeche.lazyDeltaReduction mode (ConLeche.pureFns mode env F)
+              env d ConLeche.defeqLoopFuel x' y' with
+          | .verdict v => pure v
+          | .unknown a₁ b₁ =>
+          if ← ConLeche.defeqProjPair mode (ConLeche.pureFns mode env F) env d a₁ b₁
+            then pure true else
+          if !a₁.headIsProj && !b₁.headIsProj then
+            ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d a₁ b₁ else
+          let a₂ ← (ConLeche.pureFns mode env F).whnfCore false d a₁
+          let b₂ ← (ConLeche.pureFns mode env F).whnfCore false d b₁
+          if a₂ == a₁ && b₂ == b₁ then
+            ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d a₁ b₁
+          else (ConLeche.pureFns mode env F).defeq d a₂ b₂) := by
+  rw [defeqBody_pre0 ⟨h.hab, h.hsc⟩, h.hq0]
+  simp only [bind, Except.bind, h.hpi0, Bool.false_eq_true, ite_false,
     ConLeche.whnfCore_def, h.ha, h.hb]
   rfl
 
@@ -127,22 +187,11 @@ theorem defeqBody_quick {v : Bool} (h : DbPre mode env F d x y x' y')
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok v := by
   rw [defeqBody_pre h, hq]; rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **proof
-irrelevance**. -/
-theorem defeqBody_propIrrel (h : DbPre mode env F d x y x' y')
-    (hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x' y' = .ok none)
-    (hpi : ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x' y' = .ok true) :
-    ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok true := by
-  rw [defeqBody_pre h, hq]
-  simp only [bind, Except.bind, hpi]
-  rfl
-
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the facts
 past the lazy-delta loop that the last four exits share. -/
 structure DbMid (mode : CheckMode) (env : Env) (F d : Nat)
     (x' y' : Expr) (r : LazyRes) : Prop where
   hq : ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d x' y' = .ok none
-  hpi : ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x' y' = .ok false
   hl : ConLeche.lazyDeltaReduction mode (ConLeche.pureFns mode env F) env d
     ConLeche.defeqLoopFuel x' y' = .ok r
 
@@ -152,7 +201,7 @@ theorem defeqBody_verdict {v : Bool} (h : DbPre mode env F d x y x' y')
     (hm : DbMid mode env F d x' y' (.verdict v)) :
     ConLeche.defeqBody mode (ConLeche.pureFns mode env F) env d x y = .ok v := by
   rw [defeqBody_pre h, hm.hq]
-  simp only [bind, Except.bind, hm.hpi, Bool.false_eq_true, ite_false, hm.hl]
+  simp only [bind, Except.bind, hm.hl]
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — the body past
@@ -170,7 +219,7 @@ theorem defeqBody_unknown {a₁ b₁ : Expr} (h : DbPre mode env F d x y x' y')
               ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d a₁ b₁
             else ConLeche.isDefEqCore mode env F d a₂ b₂)) := by
   rw [defeqBody_pre h, hm.hq]
-  simp only [bind, Except.bind, hm.hpi, Bool.false_eq_true, ite_false, hm.hl]
+  simp only [bind, Except.bind, hm.hl]
   rfl
 
 end PureBody
@@ -400,8 +449,9 @@ variable {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1791-1831 defeqBody — **THEOREM 1
 for the body at FIXED denotations of its two subjects**, stage by stage: the
-syntactic fast path, the eq-true shortcut, the cheap head normal forms,
-`quickDefEq`, proof irrelevance, the lazy-delta loop, the proj/proj check,
+syntactic fast path, the eq-true shortcut, `quickDefEq` and proof irrelevance
+on the unreduced pair (con-leche task #333), the cheap head normal forms,
+`quickDefEq` again, the lazy-delta loop, the proj/proj check,
 and — only at a projection-headed side — the full `whnfCore` and either the
 stuck comparison or a restart through the knot. -/
 theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
@@ -447,24 +497,55 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
     obtain ⟨F, hF⟩ := hsc.exists
     exact triple_pure_post ⟨hok3, hx03, hp03, F, defeqBody_boolTrue hab hF⟩
   simp only [Bool.false_eq_true, ↓reduceIte]
+  have hpre0 : Ev (fun F => DbPre0 mode env F d x y) := hsc.imp fun _ h1 => ⟨hab, h1⟩
+  -- the easy cases on the UNREDUCED pair (con-leche task #333)
+  refine triple_seq (quickDefEq_spec hsim d s3 a b x y hok3 (denote_ext hx hx03)
+    (denote_ext hy hx03) hwx hwy) ?_
+  rintro q0 t1 ⟨hokt1, hxt1, hpt1, hq0⟩
+  have hx0t1 := hx03.trans hxt1
+  have hp0t1 : t1.pins = s₀.pins := hpt1.trans hp03
+  cases q0 with
+  | some v =>
+    exact triple_pure_post ⟨hokt1, hx0t1, hp0t1,
+      Ev.exists ((hpre0.and hq0).imp fun _ ⟨h1, h2⟩ => defeqBody_quick0 h1 h2)⟩
+  | none =>
+  dsimp only
+  -- proof irrelevance on the UNREDUCED pair
+  refine triple_seq (propIrrel_spec hsim t1 d a b x y hokt1 (denote_ext hx hx0t1)
+    (denote_ext hy hx0t1) hwx hwy) ?_
+  rintro pir0 t2 ⟨hokt2, hxt2, hpt2, hpiF0⟩
+  have hpi0 : Ev (fun F => ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x y
+      = .ok pir0) :=
+    Ev.of_mono (p := fun F => ConLeche.propIrrel (ConLeche.pureFns mode env F) env d
+      x y = .ok pir0) (fun hle h => propIrrelFueled_mono hle h) hpiF0
+  have hx0t2 := hx0t1.trans hxt2
+  have hp0t2 : t2.pins = s₀.pins := hpt2.trans hp0t1
+  cases pir0
+  case true =>
+    simp only [ite_true]
+    exact triple_pure_post ⟨hokt2, hx0t2, hp0t2,
+      Ev.exists (((hpre0.and hq0).and hpi0).imp fun _ ⟨⟨h1, h2⟩, h3⟩ =>
+        defeqBody_propIrrel h1 h2 h3)⟩
+  simp only [Bool.false_eq_true, ↓reduceIte]
   -- the two cheap head normal forms
-  refine triple_seq (hsim.whnfCore (c := true) s3 d a x hok3 (denote_ext hx hx03)
+  refine triple_seq (hsim.whnfCore (c := true) t2 d a x hokt2 (denote_ext hx hx0t2)
     hwx) ?_
   rintro a' s4 ⟨hok4, hx4, hp4, x', hdx', hwx', F4, hF4⟩
-  have hx04 := hx03.trans hx4
+  have hx04 := hx0t2.trans hx4
   refine triple_seq (hsim.whnfCore (c := true) s4 d b y hok4 (denote_ext hy hx04)
     hwy) ?_
   rintro b' s5 ⟨hok5, hx5, hp5, y', hdy', hwy', F5, hF5⟩
   have hx05 := hx04.trans hx5
-  have hp05 : s5.pins = s₀.pins := hp5.trans (hp4.trans hp03)
+  have hp05 : s5.pins = s₀.pins := hp5.trans (hp4.trans hp0t2)
   have hdx5 := denote_ext hdx' hx5
   have ha : Ev (fun F => ConLeche.whnfCore mode env F d x true = .ok x') :=
     Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨F4, hF4⟩
   have hb : Ev (fun F => ConLeche.whnfCore mode env F d y true = .ok y') :=
     Ev.of_mono (fun hle h => ConLeche.whnfCore_mono hle h) ⟨F5, hF5⟩
   have hpre : Ev (fun F => DbPre mode env F d x y x' y') :=
-    ((hsc.and ha).and hb).imp fun _ ⟨⟨h1, h2⟩, h3⟩ => ⟨hab, h1, h2, h3⟩
-  -- the easy cases
+    ((((hpre0.and hq0).and hpi0).and ha).and hb).imp
+      fun _ ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ => ⟨h1.hab, h1.hsc, h2, h3, h4, h5⟩
+  -- the easy cases on the reducts
   refine triple_seq (quickDefEq_spec hsim d s5 a' b' x' y' hok5 hdx5 hdy' hwx'
     hwy') ?_
   rintro q s6 ⟨hok6, hx6, hp6, hq⟩
@@ -476,35 +557,19 @@ theorem defeqBody_at (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = tr
       Ev.exists ((hpre.and hq).imp fun _ ⟨h1, h2⟩ => defeqBody_quick h1 h2)⟩
   | none =>
   dsimp only
-  -- proof irrelevance
   have hdx6 := denote_ext hdx5 hx6
   have hdy6 := denote_ext hdy' hx6
-  refine triple_seq (propIrrel_spec hsim s6 d a' b' x' y' hok6 hdx6 hdy6 hwx' hwy') ?_
-  rintro pir s7 ⟨hok7, hx7, hp7, hpiF⟩
-  have hpi : Ev (fun F => ConLeche.propIrrel (ConLeche.pureFns mode env F) env d x' y'
-      = .ok pir) :=
-    Ev.of_mono (p := fun F => ConLeche.propIrrel (ConLeche.pureFns mode env F) env d
-      x' y' = .ok pir) (fun hle h => propIrrelFueled_mono hle h) hpiF
-  have hx07 := hx06.trans hx7
-  have hp07 : s7.pins = s₀.pins := hp7.trans hp06
-  cases pir
-  case true =>
-    simp only [ite_true]
-    exact triple_pure_post ⟨hok7, hx07, hp07,
-      Ev.exists (((hpre.and hq).and hpi).imp fun _ ⟨⟨h1, h2⟩, h3⟩ =>
-        defeqBody_propIrrel h1 h2 h3)⟩
-  simp only [Bool.false_eq_true, ↓reduceIte]
   -- the lazy-delta loop
-  refine triple_seq (lazyDeltaReduction_spec henv hsim d ConRon.Arena.defeqLoopFuel s7
-    a' b' x' y' hok7 (denote_ext hdx6 hx7) (denote_ext hdy6 hx7) hwx' hwy') ?_
+  refine triple_seq (lazyDeltaReduction_spec henv hsim d ConRon.Arena.defeqLoopFuel s6
+    a' b' x' y' hok6 hdx6 hdy6 hwx' hwy') ?_
   rintro lr s8 ⟨hok8, hx8, hp8, w, hrw, hL⟩
   rw [defeqLoopFuel_eq] at hL
-  have hx08 := hx07.trans hx8
-  have hp08 : s8.pins = s₀.pins := hp8.trans hp07
+  have hx08 := hx06.trans hx8
+  have hp08 : s8.pins = s₀.pins := hp8.trans hp06
   have hmid : ∀ w', w = w' → Ev (fun F => DbPre mode env F d x y x' y' ∧
       DbMid mode env F d x' y' w') := fun w' hw' =>
-    (((hpre.and hq).and hpi).and hL).imp fun _ ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩ =>
-      ⟨h1, ⟨h2, h3, hw' ▸ h4⟩⟩
+    ((hpre.and hq).and hL).imp fun _ ⟨⟨h1, h2⟩, h4⟩ =>
+      ⟨h1, ⟨h2, hw' ▸ h4⟩⟩
   rcases lr with v | ⟨a₁, b₁⟩ <;> rcases w with v' | ⟨x₁, y₁⟩ <;>
     simp only [LRRel] at hrw
   · subst hrw
