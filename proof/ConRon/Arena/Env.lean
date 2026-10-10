@@ -175,12 +175,12 @@ def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
 /-! ## Stored constants -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo — the information
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IConstantInfo_bridge, then delete this line
-stored about an accepted constant, over handles. -/
+stored about an accepted constant, over handles.  A theorem is stored by its
+statement only (con-leche task #329 THMVAL). -/
 inductive IConstantInfo where
   | axiomInfo (val : IConstantVal)
   | defnInfo (val : IConstantVal) (value : EIdx) (hint : ReducibilityHint)
-  | thmInfo (val : IConstantVal) (value : EIdx)
+  | thmInfo (val : IConstantVal)
   | indInfo (val : IConstantVal) (caps : IIndCaps)
   | ctorInfo (val : IConstantVal) (numParams numFields : Nat)
   | recInfo (val : IConstantVal) (majorIdx rulePrefix : Nat) (rules : List IRecRule)
@@ -221,12 +221,11 @@ def projTableName (T : NIdx) : AM NIdx := do
 /-! ## Reading a stored constant -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:638-641 ConstantInfo.toConstantVal —
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IConstantInfo.toConstantVal_bridge, then delete this line
 the constant's common data.  The `.projInfo` arm BUILDS the reserved table name
 and the closed dummy type `Sort 1`, which over handles means interning them:
 that is the one reason this projection is monadic (see the module note). -/
 def IConstantInfo.toConstantVal : IConstantInfo → AM IConstantVal
-  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v _ => pure v
+  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => pure v
   | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ => pure v
   | .projInfo tbl => do
     let z ← internLNode .zero
@@ -239,7 +238,7 @@ name, `ConstantInfo.name` at line 644.  PURE, unlike `toConstantVal`: it is
 the environment index's key, and `IProjTable.tableName` is the stored handle
 that makes it so (see the module note). -/
 def IConstantInfo.name : IConstantInfo → NIdx
-  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v _ => v.name
+  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v.name
   | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ => v.name
   | .projInfo tbl => tbl.tableName
 
@@ -296,14 +295,12 @@ def mkIFEnvGo : List IConstantInfo → Nat × Std.HashMap NIdx (Nat × IConstant
     (p.1 + 1, p.2.insert ci.name (p.1, ci))
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:121-125 mkFEnv — build the index of
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.mkIFEnv_bridge, then delete this line
 `env`, with nothing hidden. -/
 def mkIFEnv (env : IEnv) : IFEnv :=
   let p := mkIFEnvGo env.consts
   ⟨env, p.2, p.1⟩
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:129-148 FEnv.find? — indexed lookup,
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IFEnv.find?_bridge, then delete this line
 bounded by the visibility counter. -/
 def IFEnv.find? (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
   match fe.idx[n]? with
@@ -316,7 +313,6 @@ def IFEnv.restrictTo (fe : IFEnv) (k : Nat) : IFEnv :=
   { fe with visibleBelow := k }
 
 /-- con-leche: ConLeche/Kernel/FEnv.lean:155-162 FEnv.push — the index of the
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IFEnv.push_bridge, then delete this line
 cons-extended environment: the new entry gets the next installation counter and
 the visibility bound advances with it. -/
 def IFEnv.push (fe : IFEnv) (ci : IConstantInfo) : IFEnv :=

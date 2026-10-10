@@ -32,7 +32,7 @@ checking, so P2b–P2e grow the checker without touching the driver, and the
 capstone of §8.2 will be a statement about this one function.  It is the
 same shape as con-leche's `checkMain` ∘ `parseChunks`, minus the IO: the
 heartbeat, the receipts and the diagnostics are the driver's and touch no
-verdict (`Main.lean:461-711`'s own argument for why ONE loop serves the
+verdict (`ConLeche/Driver/Run.lean`'s `checkMain`, its own argument for why ONE loop serves the
 plain run and `--progress` alike).
 
 **What is NOT here.**  No `import ConRon.Refine`: (B) is a checker, not a
@@ -127,15 +127,14 @@ materialises as one buffer and the handle stays readable as a pipe.  It is
 driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
-/-- con-leche: Main.lean:462-648 checkMain
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.runPipelineHead_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
 `chunks` are the 4 MiB reads in order, `mode` the checking mode, `pins`
 the pin-variant list; the result is the FILE's accepted
 declaration-record count — con-leche's verdict number, "a property of the
-INPUT" (`Main.lean:661-676`).
+INPUT" (`ConLeche/Driver/Run.lean`'s `checkMain`).
 
 **The FRONTEND half is real since task #97e**: the built-in prelude is
 parsed, the stream's chunks are parsed into the persistent tier of one
@@ -162,14 +161,13 @@ def runPipelineHead :
   | .error e => pure (.error e)
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
-/-- con-leche: Main.lean:462-648 checkMain
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.runPipelineTail_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
 The pipeline AFTER the parse: `preparePrelude`, then **the fold** (task
 #97d), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
 
 The verdict number is con-leche's own, "a property of the INPUT"
-(`Main.lean:661-676`): the records the parse produced, which no later step
+(`ConLeche/Driver/Run.lean`'s `checkMain`): the records the parse produced, which no later step
 moves.  The fold's own environment is discarded — an accept is the
 statement, not the environment.
 
@@ -235,8 +233,7 @@ def msSecs (ms : Nat) : String :=
   let c := (ms % 1000) / 10
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:638-651 parseExportHandleD
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.readFold_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/Stream.lean:297-311 serialLoop
 **THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
 buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
 its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
@@ -272,8 +269,7 @@ partial def readFold (h : IO.FS.Handle)
     | .ok (.ok (st, carry, lineNo, total), s) =>
       readFold h st carry lineNo total (chunks + 1) s
 
-/-- con-leche: Main.lean:462-648 checkMain
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.runPipelineIO_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -301,7 +297,6 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
 /-- con-leche: Main.lean:91-310 usage
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.usage_bridge, then delete this line
 The usage text, on stdout under `--help` and on stderr before a usage
 error.  It is con-leche's, shortened to what this binary actually has and
 saying plainly what it does not: the shape and the vocabulary are the same
@@ -399,8 +394,7 @@ def parseArgs : List String → Args → Args
       { a with bad := some s!"unknown option {s}" }
     else parseArgs rest { a with files := a.files.push s }
 
-/-- con-leche: Main.lean:462-648 checkMain
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.checkMain_bridge, then delete this line
+/-- con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
@@ -439,7 +433,6 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     return e.exitCode
 
 /-- con-leche: Main.lean:428-485 main
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.main_bridge, then delete this line
 `--help` in any argument position prints the usage on stdout and exits 0,
 reading nothing.  A bad flag prints its message and the usage on stderr
 and exits 3, as does a command line that does not name exactly one file.

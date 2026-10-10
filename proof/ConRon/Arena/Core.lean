@@ -1922,16 +1922,18 @@ def recRuleK (rules : List IRecRule) : Bool :=
   | _ => false
 
 /-- con-leche: ConLeche/Kernel/Core.lean:782-834 prepareMajor — the major
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Core.prepareMajor_bridge, then delete this line
-premise's preparation before a rule fires, in the official kernel's order:
-at a K-flagged recursor the K rescue runs on the **raw** major, elsewhere the
-major is head-normalized first. -/
+premise's preparation before a rule fires: at a K-flagged recursor the K
+rescue runs on the **raw** major and, if it did not produce a constructor
+application, the major is left as it is (con-leche task #334: no head
+normalization, a deliberate deviation from the official kernel); elsewhere
+the major is head-normalized first, in the official order. -/
 def prepareMajor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     (recName : NIdx) (rules : List IRecRule) (major : EIdx) : AM EIdx := do
   if recRuleK rules then do
     let majorK ← majorToCtor mode r fe depth recName rules major
-    let major₀ ← r.whnf depth majorK
-    litMajorToCtor r fe depth major₀
+    if ← isCtorApp fe majorK then
+      litMajorToCtor r fe depth majorK
+    else pure majorK
   else do
     let major₀ ← r.whnf depth major
     let major₁ ← litMajorToCtor r fe depth major₀
@@ -2385,10 +2387,12 @@ def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       fail (.notImplemented "whnf beyond the supported fragment")
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 whnfLoopFuel — step budget
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Core.whnfLoopFuel_bridge, then delete this line
-of the `whnf` reduction loop (lean4lean's `FuelConfig.whnf`, same value).
-Literal-acceleration and delta steps are *iteration*, not recursion. -/
-def whnfLoopFuel : Nat := 100000
+of the `whnf` reduction loop.  Literal-acceleration and delta steps are
+*iteration*, not recursion.  Effectively unbounded since con-leche task #330:
+`2^62`, con-leche's value (exhaustion is an internal error, never an accept).
+`@[noinline]` for con-leche's reason: a literal at or above `2^32` is parsed
+from its decimal string at every use otherwise. -/
+@[noinline] def whnfLoopFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1139-1154 whnfStep — one iteration
 of the reduction loop: head-normalize, try literal acceleration, unfold one
@@ -3312,10 +3316,9 @@ inductive LazyResA where
   | unknown (a b : EIdx)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1681-1687 defeqLoopFuel — step
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Core.defeqLoopFuel_bridge, then delete this line
-budget of the two lazy-delta loops (lean4lean's `FuelConfig.lazyDelta`).
-Exhaustion is an internal error, never a verdict. -/
-def defeqLoopFuel : Nat := 100000
+budget of the two lazy-delta loops.  Exhaustion is an internal error, never a
+verdict.  Effectively unbounded since con-leche task #330: `2^62`. -/
+@[noinline] def defeqLoopFuel : Nat := 4611686018427387904  -- 2^62
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1689-1722 lazyDeltaReduction
 con-leche: ConLeche/Cached/CoreC.lean:1551-1574 lazyDeltaReductionI — **the
@@ -3456,11 +3459,11 @@ def defeqStuck (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
   | _, _ => stuckIrrel mode r fe depth a b
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1824-1881 defeqBody — **the
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Core.defeqBody_bridge, then delete this line
 definitional-equality body** (the official kernel's `is_def_eq_core`, clause
-for clause): the syntactic fast path; the `Bool.true` shortcut; the CHEAP head
-normalization of both sides; `quickDefEq`; proof irrelevance; the lazy-delta
-loop; the proj/proj check; the FULL `whnfCore` of both sides (only when one
+for clause except con-leche task #333's reordering): the syntactic fast path;
+the `Bool.true` shortcut; `quickDefEq` and proof irrelevance on the UNREDUCED
+pair (so that a proof is never head-normalized to be compared); the CHEAP head
+normalization of both sides; `quickDefEq` again; the lazy-delta loop; the proj/proj check; the FULL `whnfCore` of both sides (only when one
 of them is projection-headed — elsewhere the two modes agree) and, if either
 changed, a restart; and the stuck comparison. -/
 def defeqBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
@@ -3473,12 +3476,15 @@ def defeqBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
       boolTrueShortcut r depth a
     else pure false
   if sc then pure true else do
+  match ← quickDefEq mode r depth a b with
+  | some v => pure v
+  | none =>
+  if ← propIrrel r fe depth a b then pure true else do
   let a' ← r.whnfCore true depth a
   let b' ← r.whnfCore true depth b
   match ← quickDefEq mode r depth a' b' with
   | some v => pure v
   | none =>
-  if ← propIrrel r fe depth a' b' then pure true else do
   match ← lazyDeltaReduction mode r fe depth defeqLoopFuel a' b' with
   | .verdict v => pure v
   | .unknown a₁ b₁ =>

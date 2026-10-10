@@ -47,6 +47,16 @@ recognisers.
 **Every inductive block is pushed as one `IndDecl`**, unconditionally; the
 uniform installer (`Arena/Inductives/**`) does the rest.
 
+**The builders read the state directly.**  Since con-leche task #329 its
+builders (`nameOfF`, `levelOfF`, `exprOfF`, `cvOfF`, `ruleOfF`,
+`validateIndF`, `indBlockOfF`, `declOfF`) take the three table lookups as
+parameters (`Lk`), so that its rounds parse can run them over a window's
+partly built tables, and `processLineCoreD` is `declOf` then `pushDecl`.  The
+serial parse hands them the state's own tables (`StateD.lk`), which is what
+this twin reads: the same computation under the twin's own names
+(`getDeclD`, `parsePwD`, `parseCVD`, `parseRuleD`, `validateIndD`,
+`installIndD`), each citing the builder it mirrors.
+
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
 index errors are `fail (.internal …)` with con-leche's own text and no line
 number; a scan error and a record verdict keep theirs, since those are values.
@@ -101,7 +111,6 @@ def pushDecl (st : StateD) (d : IDeclaration) : AM StateD :=
   pure { st with decls := st.decls.push d }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:74-77 StateD.name — the name
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.StateD.name_bridge, then delete this line
 table read. -/
 def StateD.name (st : StateD) (i : Nat) : AM NIdx :=
   match st.names.get? i with
@@ -109,7 +118,6 @@ def StateD.name (st : StateD) (i : Nat) : AM NIdx :=
   | none => fail (.internal s!"undefined name index {i}")
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:79-82 StateD.level — the level
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.StateD.level_bridge, then delete this line
 table read. -/
 def StateD.level (st : StateD) (i : Nat) : AM LIdx :=
   match st.levels.get? i with
@@ -117,22 +125,19 @@ def StateD.level (st : StateD) (i : Nat) : AM LIdx :=
   | none => fail (.internal s!"undefined level index {i}")
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:84-87 StateD.expr — the
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.StateD.expr_bridge, then delete this line
 expression table read. -/
 def StateD.expr (st : StateD) (i : Nat) : AM EIdx :=
   match st.exprs.get? i with
   | some e => pure e
   | none => fail (.internal s!"undefined expr index {i}")
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:89-99 getDeclD —
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.getDeclD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:84-87 StateD.expr —
 declaration-level expression lookup: the table read.  (The frontend tree-size
 budget that used to sit here was retired at con-leche's task #215.) -/
 def getDeclD (st : StateD) (i : Nat) : AM EIdx :=
   st.expr i
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:101-104 parsePwD — the `pw` datum
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.parsePwD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:119-122 pwOfF — the `pw` datum
 over the direct name table.  `PropWhen` holds `ConLeche.Name`s — task #97a's
 store already carries con-leche's `BinderMeta` inside its binder node — so the
 resolved handles are read BACK to names here, which is `denoteN` itself. -/
@@ -169,7 +174,6 @@ expression test, on a borrowed state. -/
 /-! ## Table entries -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:206-210 parseNameEntryD — a
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.parseNameEntryD_bridge, then delete this line
 name-table entry: the node is INTERNED and the table records its handle. -/
 def parseNameEntryD (st : StateD) (i : Nat) : NameRec → AM StateD
   | .str pre s => do
@@ -184,7 +188,6 @@ def parseNameEntryD (st : StateD) (i : Nat) : NameRec → AM StateD
     pure { st with names := st.names.insert i h }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:212-216 parseLevelEntryD — a
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.parseLevelEntryD_bridge, then delete this line
 level-table entry, interned. -/
 def parseLevelEntryD (st : StateD) (i : Nat) (r : LevelRec) : AM StateD := do
   st.freshLevel i
@@ -196,7 +199,6 @@ def parseLevelEntryD (st : StateD) (i : Nat) (r : LevelRec) : AM StateD := do
   pure { st with levels := st.levels.insert i l }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:218-222 parseExprEntryD — an
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.parseExprEntryD_bridge, then delete this line
 expression-table entry: the node is interned from the children's HANDLES, and
 the packed derived word `Expr.data` computes is computed by `intern` out of
 the children's derived columns (task #97a's `EStore.derOfView`).  Binder names
@@ -231,8 +233,7 @@ def parseExprEntryD (st : StateD) (i : Nat) (r : ExprRec) : AM StateD := do
 
 /-! ## Declaration records -/
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:193-199 parseCVD — a
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.parseCVD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:226-232 cvOfF — a
 declaration's common data; the type stays a handle. -/
 def parseCVD (st : StateD) (cv : CVRec) : AM IConstantVal := do
   let name ← st.name cv.name
@@ -267,16 +268,14 @@ def piResultD : Nat → EIdx → AM EIdx
     | .forallE _ b _ => piResultD fuel b
     | _ => pure h
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:209-212 parseRuleD — one recursor
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.parseRuleD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:242-245 ruleOfF — one recursor
 rule of an inductive record, resolved.  The install-computed fields carry
 con-leche's own parse placeholders. -/
 def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
   pure (IRecRule.mk (← st.name ru.ctor) ru.nfields 0 .inert
     (← getDeclD st ru.rhs) false false false)
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:214-366 validateIndD — an
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.validateIndD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:247-399 validateIndF — an
 inductive record, VALIDATED: the half of the record's processing that reads
 the state and changes nothing.  Every guard, every verdict and every message
 is con-leche's; what changed is that a name comparison is a handle comparison
@@ -388,8 +387,7 @@ def validateIndD (st : @& StateD) (tys : List IndTypeRec) (cts : List IndCtorRec
     | _ => pure ()
   return .inr (cts, nPd)
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:368-373 installIndD — an
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.installIndD_bridge, then delete this line
+/-- con-leche: ConLeche/Frontend/ExportC.lean:401-423 indBlockOfF — an
 inductive record, INSTALLED: the block's constants, pushed as one `IndDecl`.
 Every change to the state a validated inductive record makes is here.
 
@@ -417,7 +415,6 @@ def installIndD (st : StateD) (tys : List IndTypeRec)
   pushDecl st (.indDecl block nPd)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:486-491 processLineCoreD — the
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.processLineCoreD_bridge, then delete this line
 record's own semantics: the declaration kinds, producing `IDeclaration`
 records.  Every branch, guard and error string is con-leche's; the
 projection-function rewrite that used to run in the `.defn`/`.thm` arms is
@@ -470,7 +467,6 @@ def processLineCoreD (st : StateD) (d : DeclRec) :
     | .inr (cts, nPd) => pure (.inl (← installIndD st tys cts rcs nPd))
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:493-500 applyDeclD — a
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.applyDeclD_bridge, then delete this line
 declaration record.  `sorryAx` is the FOLD's: the parse forwards every
 declaration record, the `sorryAx` axiom record included. -/
 def applyDeclD (st : StateD) (d : DeclRec) :
@@ -478,7 +474,6 @@ def applyDeclD (st : StateD) (d : DeclRec) :
   processLineCoreD st d
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:502-512 applyLine — THE SEMANTIC
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove ExportC.applyLine_bridge, then delete this line
 LAYER: one scanned line applied to the parse state.  The scanned record is
 con-leche's own (`Scan/Fast.lean`, reused); what this does with it is resolve
 the indices and INTERN the nodes.  There is no rewrite and no modeller seam

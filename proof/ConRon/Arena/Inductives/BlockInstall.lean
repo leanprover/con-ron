@@ -14,10 +14,10 @@ constructors' cons.  The Rust twin is `arena::inductives::block_install`.
 * **The `…F` twins collapse into these** (task #97c's deviation 1): the arena
   has one environment representation, `IFEnv`, so `checkBlockTeleF`,
   `checkBlockIndsF`, … ARE these functions, cited beside their pure twins.
-  `consBlockRecs`, `consBlockRecsF`, `blockRecInfosF`, `FEnv.pushAll` and
-  `consBlockRecsFFast` (the member-major recursor cons and its `@[csimp]` fast
-  form) are not ported: the executed stage conses through `consBlockRecsTF`
-  (`Arena/Inductives/RecCheck.lean`); `consBlockRecsBare` and
+  `consBlockRecs` and the member-major recursor cons (con-leche deleted the
+  latter at its task #332) are not ported: the executed stage conses the
+  records of `blockRecInfosTF` (`Arena/Inductives/RecCheck.lean`'s
+  `consBlockRecsTF`); `consBlockRecsBare` and
   `openPisParamsIdx` are read by nothing executed.
 * **`blockCapsAt`'s record is built by branches**, not `&&`/`!` (AENEAS_FINDINGS
   F18), and it is an `AM` function: the result sort is a handle, read

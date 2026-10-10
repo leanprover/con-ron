@@ -106,7 +106,6 @@ def checkBlockTables (p : BlockShape) :
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:125-138 checkBlockTail
 con-leche: ConLeche/Cached/CheckerC.lean:157-179 checkBlockTailS
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 **The install after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the recursor stage, the
 recursors consed at their majors, and the projection tables. -/

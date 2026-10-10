@@ -722,11 +722,10 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.defnInfo cv value hint))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:50-80 checkThmVal — check a
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 `theorem` declaration's value against its checked constant (whose type must
-additionally be a proposition).  **A theorem is stored by its statement**: the
-constant keeps the record's own (raw) value as an unread datum, and the
-annotated value is a realizability witness, checked and then discarded. -/
+additionally be a proposition).  **A theorem is stored by its statement
+only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the annotated
+value is a realizability witness, checked and then discarded. -/
 def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
   let stype ← inferTypeCore mode fe checkFuel 0 cv.type
@@ -738,7 +737,7 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let vtype ← inferTypeCore mode fe checkFuel 0 jv
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
     fail (.invalid "type mismatch in theorem")
-  pure (fe.push (.thmInfo cv value))
+  pure (fe.push (.thmInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:82-105 checkOpaqueVal — check an
 `opaque` declaration's value against its checked constant: exactly the theorem

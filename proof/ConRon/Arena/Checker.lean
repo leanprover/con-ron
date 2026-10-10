@@ -76,14 +76,14 @@ open ConLeche
 /-! ## The two-phase fold the binary runs -/
 
 /-- con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
 con-leche: ConLeche/Cached/Installed.lean:431-438 checkPendingList
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
 
-con-leche's two fold steps live in `StateT CState (Except (CheckError × Nat))`
-and their error arm is `.error (e, i)` — the state is *dropped*, because
-`Except` carries none.  (B) has ONE monad (DESIGN §8.4) whose error type is
+con-leche's two fold steps live in `Except (CheckError × Nat)` (phase A's
+`annotDeclStep` installs every record from a fresh memo state since con-leche
+task #329, P0) and their error arm is `.error (e, i)` — no state comes back,
+because `Except` carries none.  (B) has ONE monad (DESIGN §8.4) whose error type is
 `CheckError`, so the position has to travel as a VALUE, and the error arm
 therefore has to produce *some* state.  Task #97d wrote the pre-step state `s`
 there, which reads as "restore".  It is not a restore that anything observes —
@@ -111,7 +111,6 @@ structure PendingCheck where
   deriving Inhabited
 
 /-- con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC — phase A's
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotStepGo_bridge, then delete this line
 step body: annotate-and-install for the three value kinds, the ordinary step
 `checkDecl` for everything else.
 
@@ -135,11 +134,12 @@ def annotStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
       let jv ← installValue mode fe cvA value
       pure (fe.push (.defnInfo cvA jv hint), some ⟨.defn, cvA, jv⟩)
   | .thmDecl cv value => do
-    -- a theorem installs BY STATEMENT: the header's install half only; the
-    -- value is recorded raw and never touched here (phase B annotates it), so
-    -- phase A never enters a theorem's body
+    -- a theorem installs BY STATEMENT: the header's install half only, the
+    -- constant pushed with its statement only (con-leche task #329 THMVAL);
+    -- the value is recorded raw and never touched here (phase B annotates
+    -- it), so phase A never enters a theorem's body
     let cvA ← installConstantVal mode fe cv
-    pure (fe.push (.thmInfo cvA value), some ⟨.thm, cvA, value⟩)
+    pure (fe.push (.thmInfo cvA), some ⟨.thm, cvA, value⟩)
   | .opaqueDecl cv value => do
     if (← reduceOpNames).contains cv.name then
       pure (← checkDecl mode pins fe (.opaqueDecl cv value), none)
@@ -151,7 +151,6 @@ def annotStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     pure (← checkDecl mode pins fe pd, none)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC — **phase A's
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotStep_bridge, then delete this line
 step, bracketed**; `i` is the fold position the record is tagged with.
 
 **The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
@@ -208,7 +207,6 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep — phase
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotDeclStep_bridge, then delete this line
 A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the
 declaration that failed.
@@ -218,8 +216,11 @@ declares `And`, `And.intro` or `And.rec` and is not the toolchain's `And`
 block is rejected here, whatever its kind, ahead of the kind dispatch and
 outside the scratch bracket.
 
-con-leche changes monad here (`StateT CState (Except (CheckError × Nat))`);
-(B) has ONE monad (DESIGN §8.4), so the tag is produced as a VALUE by reading
+con-leche changes monad here (`Except (CheckError × Nat)`, each record
+installed from a fresh memo state since its task #329; the twin threads its
+`AState`, whose per-declaration caches the bracket flushes, so the store and
+the level memos alone cross a record — the port's own memory discipline, not a
+verdict); (B) has ONE monad (DESIGN §8.4), so the tag is produced as a VALUE by reading
 the step's own outcome — the treatment task #97e gives the parser's two
 position-carrying failures. -/
 def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
@@ -235,7 +236,6 @@ def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls — phase A as
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotFold_bridge, then delete this line
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
 def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
@@ -249,7 +249,6 @@ def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
     | .ok p' => annotFold mode pins p' ds
 
 /-- con-leche: ConLeche/Cached/Installed.lean:262-281 checkPending — **phase
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.checkPending_bridge, then delete this line
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
@@ -279,7 +278,6 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
     | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls — **the
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.installThenCheck_bridge, then delete this line
 declaration fold the binary runs**: install every record (phase A), check
 every recorded declaration (phase B), return the environment.  The `× Nat` of
 the error is the failure's POSITION in the fold. -/
@@ -293,10 +291,9 @@ def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     | .ok () => pure (.ok fe)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls — the fold's
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.atDecl_bridge, then delete this line
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
-(`Main.lean:461-711`); the seam of (B) has no position channel
+(`ConLeche/Driver/Run.lean`'s `checkMain`); the seam of (B) has no position channel
 (`Arena/Main.lean`'s note), so the position goes into the text — beside
 `Frontend.atLine`, which does the same for the PARSE's position and must not
 be confused with it: a line number and a fold position are different

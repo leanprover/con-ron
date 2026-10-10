@@ -134,10 +134,7 @@ def denoteCI (st : EStore) : IConstantInfo → Option ConstantInfo
     match denoteCV st v, denoteE st e with
     | some cv, some x => some (.defnInfo cv x h)
     | _, _ => none
-  | .thmInfo v e =>
-    match denoteCV st v, denoteE st e with
-    | some cv, some x => some (.thmInfo cv x)
-    | _, _ => none
+  | .thmInfo v => (denoteCV st v).map .thmInfo
   | .indInfo v c =>
     match denoteCV st v, denoteCaps st c with
     | some cv, some caps => some (.indInfo cv caps)
@@ -336,10 +333,9 @@ def internCI (m : EMemo) : ConstantInfo → AM (EMemo × IConstantInfo)
     let (m, cv) ← internCV m v
     let (m, x) ← internExprGo m e
     pure (m, .defnInfo cv x h)
-  | .thmInfo v e => do
+  | .thmInfo v => do
     let (m, cv) ← internCV m v
-    let (m, x) ← internExprGo m e
-    pure (m, .thmInfo cv x)
+    pure (m, .thmInfo cv)
   | .indInfo v c => do
     let (m, cv) ← internCV m v
     let caps ← internCaps c

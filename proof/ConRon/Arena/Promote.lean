@@ -298,10 +298,9 @@ def promoteCI (m : PMemo) (fuel : Nat) :
     let (m, cv) ← promoteCV m fuel v
     let (m, x) ← promoteE m fuel e
     pure (m, .defnInfo cv x h)
-  | .thmInfo v e => do
+  | .thmInfo v => do
     let (m, cv) ← promoteCV m fuel v
-    let (m, x) ← promoteE m fuel e
-    pure (m, .thmInfo cv x)
+    pure (m, .thmInfo cv)
   | .indInfo v c => do
     let (m, cv) ← promoteCV m fuel v
     let (m, caps) ← promoteCaps m fuel c

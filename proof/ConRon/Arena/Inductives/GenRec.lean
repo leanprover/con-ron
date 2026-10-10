@@ -722,9 +722,7 @@ where
       go (m + 1) rest fe2 (prevs ++ [(cv.name, prev)])
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove GenRec.genRecCheck_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:128-135 shadowOpsC
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove GenRec.genRecCheck_bridge, then delete this line
 **The generated recursor stage**, at the constructors' environment `fe`, on
 the classes and the positivity check's table: the pins, the stream's recursor
 types checked, the elimination guard, the classes' table entries and
@@ -733,7 +731,12 @@ compared, the rule-less recursors pushed, the flush entering them, every rule
 installed, the recursors popped (the pushes undone in reverse order) and the
 flush leaving them.  Hands the index back, as the Rust does (the module
 note).  The Rust's `some_outside`, `minor_count`, `ctor_count`,
-`former_types`, `gen_rec_classes` and `gen_rec_generate` are its parts. -/
+`former_types`, `gen_rec_classes` and `gen_rec_generate` are its parts.  The
+rule-less recursors' environment is con-leche's `so.ruleEnv` (task #332):
+`classFeR` in the pure install (pushed, as here) and the overlay
+`classFeROvl` in `shadowOpsC`, which answers `find?` as the push would; the
+temporary push and pop here is the port's own answer to the same index
+copy. -/
 def genRecCheck (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nestedBit : Bool)
     (params : List EIdx) (tbl : List NestCtorNf) (rd : ClassRead) (ms : List TargetMajor)
     (cvTas : List IConstantVal) (block : List IConstantInfo) :

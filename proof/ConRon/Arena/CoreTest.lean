@@ -151,10 +151,9 @@ private def internCI : ConstantInfo → AM IConstantInfo
     let icv ← internCV cv
     let iv ← internExprT v
     pure (.defnInfo icv iv h)
-  | .thmInfo cv v => do
+  | .thmInfo cv => do
     let icv ← internCV cv
-    let iv ← internExprT v
-    pure (.thmInfo icv iv)
+    pure (.thmInfo icv)
   | .indInfo cv caps => do
     let icv ← internCV cv
     let ic ← internCaps caps

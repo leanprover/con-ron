@@ -493,13 +493,16 @@ major is not a member. -/
 def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) : Bool :=
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:607-617 consBlockRecsTF
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:617-627 blockRecInfosTF
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
 con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
 **The checked family consed through the index, at its majors**: each recursor
 with its rules at ITS major, the rules' lookups at the constructors'
 environment, i.e. at its visibility bound `vis₂` while the recursors are pushed
-above it. -/
+above it.  con-leche (task #332) builds the records first (`blockRecInfosTF`,
+every lookup at the constructors' `fe₂`) and pushes them after
+(`FEnv.pushAll`); this pushes each as it is built, its lookups bounded at
+`vis₂` — the same environment, so the same records in the same order. -/
 def consBlockRecsTF (vis₂ : Nat) (p : BlockShape) :
     Nat → List (IConstantVal × TargetMajor × List EIdx) → IFEnv → AM IFEnv
   | _, [], fe => pure fe

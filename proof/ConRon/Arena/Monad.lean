@@ -115,7 +115,6 @@ instance : Inhabited Memos := ⟨Memos.empty⟩
 /-! ## The state and the monad -/
 
 /-- con-leche: ConLeche/Cached/StateC.lean:99-130 CState — the checker state of
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Monad.AState_bridge, then delete this line
 (B) as P2b needs it: the arena and the per-call memo tables.  P2c extends it
 with the per-declaration caches (`whnfCore`, `whnf`, the three infer grades,
 `defeq`) and the environment index. -/

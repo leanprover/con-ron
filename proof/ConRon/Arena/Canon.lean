@@ -194,10 +194,8 @@ def canonRulesEq (ps ps' cs : List NIdx) (fuel : Nat) :
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 con-leche: ConLeche/Kernel/Canon.lean:238-240 ConstantInfo.canonEq
 con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
--- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 Two stored constants have the same canonical form.  `.indInfo`'s capabilities
 are not compared (`canon` resets both to `{}`), and a projection table is
 compared as it stands (`canon` is the identity there — a table never occurs in
@@ -211,11 +209,7 @@ def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
         canonExprEq cv.levelParams cv'.levelParams cs coreWalkFuel v v'
       else pure false
     else pure false
-  | .thmInfo cv v, .thmInfo cv' v' => do
-    if ← cv.canonEq cv' then do
-      let cs ← canonNames cv.levelParams.length
-      canonExprEq cv.levelParams cv'.levelParams cs coreWalkFuel v v'
-    else pure false
+  | .thmInfo cv, .thmInfo cv' => cv.canonEq cv'
   | .indInfo cv _, .indInfo cv' _ => cv.canonEq cv'
   | .ctorInfo cv nP nF, .ctorInfo cv' nP' nF' => do
     if nP == nP' && nF == nF' then cv.canonEq cv' else pure false
