@@ -2894,11 +2894,10 @@ pub fn check_defn_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:50-80 checkThmVal
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:724-740 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
-/// additionally be a proposition).  **A theorem is stored by its statement**:
-/// the constant keeps the record's own (raw) value as an unread datum, and the
+/// additionally be a proposition).  **A theorem is stored by its statement
+/// only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the
 /// annotated value is a realizability witness, checked and then discarded.
 pub fn check_thm_val(
     pers: &PersTier,
@@ -2933,11 +2932,9 @@ pub fn check_thm_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:50-80 checkThmVal
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:724-740 checkThmVal` — the
 /// witness half: the value's guards and annotation, its inferred type against
-/// the statement, and the push of `.thmInfo cv value` — the **raw** value, as
-/// the twin's clause stores it.
+/// the statement, and the push of `.thmInfo cv` — the statement only.
 pub fn check_thm_val_witness(
     pers: &PersTier,
     st: &mut AState,
@@ -2957,10 +2954,7 @@ pub fn check_thm_val_witness(
                         if ok {
                             Ok(ifenv_push(
                                 fe,
-                                IConstantInfo::ThmInfo(
-                                    crate::arena::env::i_constant_val_dup(cv),
-                                    value.dup2(),
-                                ),
+                                IConstantInfo::ThmInfo(crate::arena::env::i_constant_val_dup(cv)),
                             ))
                         } else {
                             fail(CheckError::Invalid(code_points(&M_TYPE_MISMATCH_THM)))

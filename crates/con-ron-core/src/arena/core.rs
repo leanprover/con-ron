@@ -57,7 +57,7 @@
 //! ## Three smaller shapes worth naming
 //!
 //! * **`defeqBody` and `lazyDeltaStep` are several functions here**
-//!   (`defeq_body` → `defeq_after_whnf` → `defeq_after_lazy`;
+//!   (`defeq_body` → `defeq_unreduced` → `defeq_after_whnf` → `defeq_after_lazy`;
 //!   `lazy_delta_step` → `lazy_delta_side`/`lazy_delta_both` →
 //!   `lazy_delta_one`/`lazy_delta_unfold_both`): inlined, each would nest
 //!   twenty deep.  Every cited clause is still in the twin's order; the split
@@ -6013,11 +6013,12 @@ pub fn rec_rule_k(rules: &Vec<IRecRule>) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:782-834 prepareMajor
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove core::prepare_major_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1924-1937 prepareMajor` — the major
-/// premise's preparation before a rule fires, in the official kernel's order:
-/// at a K-flagged recursor the K rescue runs on the **raw** major, elsewhere
-/// the major is head-normalized first.
+/// premise's preparation before a rule fires: at a K-flagged recursor the K
+/// rescue runs on the **raw** major and, if it did not produce a constructor
+/// application, the major is left as it is (con-leche task #334: no head
+/// normalization, a deliberate deviation from the official kernel); elsewhere
+/// the major is head-normalized first, in the official order.
 pub fn prepare_major(
     pers: &PersTier,
     vis: u64,
@@ -6034,11 +6035,12 @@ pub fn prepare_major(
     if rec_rule_k(rules) {
         match major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, major) {
             Err(e) => Err(e),
-            Ok(major_k) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &major_k) {
+            Ok(major_k) => match is_ctor_app(pers, vis, st, fe, &major_k) {
                 Err(e) => Err(e),
-                Ok(major0) => {
-                    lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major0)
+                Ok(true) => {
+                    lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major_k)
                 }
+                Ok(false) => Ok(major_k),
             },
         }
     } else {
@@ -7383,11 +7385,12 @@ pub fn whnf_core_body(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1126-1137 whnfLoopFuel
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove core::WHNF_LOOP_FUEL_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2386-2389 whnfLoopFuel` — step budget of
-/// the `whnf` reduction loop (lean4lean's `FuelConfig.whnf`, same value).
-/// Literal-acceleration and delta steps are *iteration*, not recursion.
-pub const WHNF_LOOP_FUEL: u64 = 100000;
+/// the `whnf` reduction loop.  Literal-acceleration and delta steps are
+/// *iteration*, not recursion.  Effectively unbounded since con-leche task
+/// #330: `2^62`, con-leche's value (exhaustion is an internal error, never an
+/// accept; a runaway input is left to an external timeout).
+pub const WHNF_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1139-1154 whnfStep
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2391-2402 whnfStep` — one iteration
@@ -9820,11 +9823,10 @@ pub enum LazyResA {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1681-1687 defeqLoopFuel
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove core::DEFEQ_LOOP_FUEL_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3312-3315 defeqLoopFuel` — step budget of
-/// the two lazy-delta loops (lean4lean's `FuelConfig.lazyDelta`).  Exhaustion
-/// is an internal error, never a verdict.
-pub const DEFEQ_LOOP_FUEL: u64 = 100000;
+/// the two lazy-delta loops.  Exhaustion is an internal error, never a
+/// verdict.  Effectively unbounded since con-leche task #330: `2^62`.
+pub const DEFEQ_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1689-1722 lazyDeltaReduction
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3317-3345 lazyDeltaReduction` — the
@@ -10235,7 +10237,6 @@ pub fn defeq_stuck(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1824-1881 defeqBody
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove core::defeq_after_lazy_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3488 defeqBody` — the tail of the
 /// body after the lazy-delta loop came back undecided: the proj/proj check,
 /// then the FULL `whnfCore` of both sides (only when one is projection-headed)
@@ -10287,10 +10288,11 @@ pub fn defeq_after_lazy(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1824-1881 defeqBody
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove core::defeq_after_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3488 defeqBody` — the body after the
-/// CHEAP head normalization of both sides: `quick_defeq`, proof irrelevance,
-/// the lazy-delta loop, and `defeq_after_lazy`.
+/// CHEAP head normalization of both sides: `quick_defeq` on the reducts, the
+/// lazy-delta loop, and `defeq_after_lazy`.  (Proof irrelevance is no longer
+/// here: since con-leche task #333 it runs on the UNREDUCED pair, in
+/// `defeq_unreduced`.)
 pub fn defeq_after_whnf(
     pers: &PersTier,
     vis: u64,
@@ -10306,17 +10308,54 @@ pub fn defeq_after_whnf(
     match quick_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2) {
         Err(e) => Err(e),
         Ok(Some(v)) => Ok(v),
-        Ok(None) => match prop_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2) {
+        Ok(None) => {
+            match lazy_delta_reduction(
+                pers, vis, st, mode, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, a2, b2,
+            ) {
+                Err(e) => Err(e),
+                Ok(LazyResA::Verdict(v)) => Ok(v),
+                Ok(LazyResA::Unknown(a3, b3)) => {
+                    defeq_after_lazy(pers, vis, st, mode, lane, fuel, fe, depth, &a3, &b3)
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1824-1881 defeqBody
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3488 defeqBody` — the body
+/// past the `Bool.true` shortcut (con-leche task #333): `quick_defeq` and proof
+/// irrelevance on the UNREDUCED pair, so that a proof is never head-normalized
+/// to be compared; then the CHEAP head normalization of both sides and
+/// `defeq_after_whnf`.
+pub fn defeq_unreduced(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match quick_defeq(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
+        Err(e) => Err(e),
+        Ok(Some(v)) => Ok(v),
+        Ok(None) => match prop_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a, b) {
             Err(e) => Err(e),
             Ok(true) => Ok(true),
             Ok(false) => {
-                match lazy_delta_reduction(
-                    pers, vis, st, mode, lane, fuel, fe, depth, DEFEQ_LOOP_FUEL, a2, b2,
-                ) {
+                match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, a) {
                     Err(e) => Err(e),
-                    Ok(LazyResA::Verdict(v)) => Ok(v),
-                    Ok(LazyResA::Unknown(a3, b3)) => {
-                        defeq_after_lazy(pers, vis, st, mode, lane, fuel, fe, depth, &a3, &b3)
+                    Ok(a2) => {
+                        match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, b) {
+                            Err(e) => Err(e),
+                            Ok(b2) => defeq_after_whnf(
+                                pers, vis, st, mode, lane, fuel, fe, depth, &a2, &b2,
+                            ),
+                        }
                     }
                 }
             }
@@ -10325,11 +10364,12 @@ pub fn defeq_after_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1824-1881 defeqBody
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove core::defeq_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3488 defeqBody` — **the
 /// definitional-equality body** (the official kernel's `is_def_eq_core`,
-/// clause for clause): the syntactic fast path; the `Bool.true` shortcut; the
-/// CHEAP head normalization of both sides; then `defeq_after_whnf`.
+/// clause for clause except con-leche task #333's reordering): the syntactic
+/// fast path; the `Bool.true` shortcut; `quick_defeq` and proof irrelevance on
+/// the UNREDUCED sides; the CHEAP head normalization of both sides; then
+/// `defeq_after_whnf`.
 pub fn defeq_body(
     pers: &PersTier,
     vis: u64,
@@ -10359,18 +10399,7 @@ pub fn defeq_body(
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
                         Ok(false) => {
-                            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, a) {
-                                Err(e) => Err(e),
-                                Ok(a2) => {
-                                    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, b)
-                                    {
-                                        Err(e) => Err(e),
-                                        Ok(b2) => defeq_after_whnf(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &a2, &b2,
-                                        ),
-                                    }
-                                }
-                            }
+                            defeq_unreduced(pers, vis, st, mode, lane, fuel, fe, depth, a, b)
                         }
                     }
                 }

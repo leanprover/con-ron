@@ -896,12 +896,9 @@ pub fn promote_ci(
                 )),
             },
         },
-        IConstantInfo::ThmInfo(v, e) => match promote_cv(tier, st, m, fuel, v) {
+        IConstantInfo::ThmInfo(v) => match promote_cv(tier, st, m, fuel, v) {
             Err(er) => Err(er),
-            Ok((m2, cv)) => match promote_e(tier, st, m2, fuel, e) {
-                Err(er) => Err(er),
-                Ok((m3, x)) => Ok((m3, IConstantInfo::ThmInfo(cv, x))),
-            },
+            Ok((m2, cv)) => Ok((m2, IConstantInfo::ThmInfo(cv))),
         },
         IConstantInfo::IndInfo(v, c) => match promote_cv(tier, st, m, fuel, v) {
             Err(e) => Err(e),

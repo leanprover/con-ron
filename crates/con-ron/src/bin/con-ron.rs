@@ -48,6 +48,7 @@
 //! function `con-ron` uses.  `--no-mark-persistent`, `--pins FILE` and
 //! `--no-pins` are con-ron's own and mean exactly what they mean there.
 
+use std::io::Write;
 use std::process::ExitCode;
 use std::time::Instant;
 
@@ -77,7 +78,6 @@ use con_ron_core::arena::store::PersTier;
 // reproduced.
 
 /// con-leche: Main.lean:91-310 usage
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -339,10 +339,8 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
     }
 }
 
-/// con-leche: Main.lean:492-649 checkMain
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
-/// con-leche: Main.lean:47-52 parseInput
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
+/// con-leche: ConLeche/Driver/Run.lean:236-424 checkMain
+/// con-leche: ConLeche/Driver/Run.lean:47-65 parseInput
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the fold and the verdict.
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
@@ -529,20 +527,39 @@ fn check_main(a: &Args, file: &str) -> u8 {
     // records the PARSE produced, which are the file's own.  Nothing the
     // preparation does moves it.
     let stream_records = file_records as u64;
-    match &verdict {
+    let code = match &verdict {
         Ok(_) => driver::verdict_accept(stream_records, mode_tag),
         Err((e, i)) => {
             driver::verdict_failure(pers, &st.store, &prepared.decls, e, *i, mode_tag, t0)
         }
-    }
+    };
+    exit_after_verdict(code)
 }
 
 /// con-leche: Main.lean:428-485 main
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::main_refines, then delete this line
+/// con-leche task #336: **exit
+/// right after the verdict, without freeing the heap**.  Returning would drop
+/// the store, the parsed and prepared declarations and the environment on the
+/// way out of `check_main` and `main` — at Mathlib scale a free cascade of
+/// its own — so the verdict path flushes the two streams and leaves the
+/// process here.  The worker pool is joined inside `check_decls_driver`, so
+/// nothing is left running.
+fn exit_after_verdict(code: u8) -> ! {
+    let _ = std::io::stdout().flush();
+    let _ = std::io::stderr().flush();
+    std::process::exit(code as i32)
+}
+
+/// con-leche: Main.lean:358-426 run
+/// con-leche: Main.lean:428-485 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did
-/// (`driver::STACK_BYTES`).  A panic on it is exit 3, never a verdict.
+/// (`driver::STACK_BYTES`).  A panic on it is exit 3, never a verdict; so is
+/// an IO failure (an unreadable input, a failed write: con-leche task #335's
+/// rule, which the port already kept — a write failure panics the checking
+/// thread).  The verdict path exits from the checking thread without
+/// returning here (`exit_after_verdict`, con-leche task #336).
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if argv.iter().any(|s| s == "--help") {

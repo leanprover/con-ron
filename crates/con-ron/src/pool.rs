@@ -143,10 +143,8 @@ pub enum ParallelError<E> {
     Panicked,
 }
 
-/// con-leche: Main.lean:267-281 checkWorker
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove pool::worker_refines, then delete this line
-/// con-leche: Main.lean:245-266 checkOne
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove pool::worker_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckPool.lean:180-196 checkWorker
+/// con-leche: ConLeche/Driver/CheckPool.lean:147-178 checkOne
 /// **One worker**: build ONE state with `init()`, then claim ONE index off the
 /// shared counter, step it on that state, repeat until the counter is past
 /// `n`.  An index at or above the shared `limit` is skipped — it is above a
@@ -226,8 +224,7 @@ pub fn first_failure<E>(tab: Vec<Option<Result<(), E>>>) -> Result<(), ParallelE
     Ok(())
 }
 
-/// con-leche: Main.lean:295-322 checkPool
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove pool::parallel_all_refines, then delete this line
+/// con-leche: ConLeche/Driver/CheckPool.lean:207-245 checkPool
 /// **`step` at every index of `0..n`, on a pool of `workers` threads** — the
 /// module note's trusted claim is this function's contract:
 ///

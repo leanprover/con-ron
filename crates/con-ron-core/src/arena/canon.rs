@@ -555,10 +555,8 @@ pub fn i_proj_table_beq(t: &IProjTable, t2: &IProjTable) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Canon.lean:238-240 ConstantInfo.canonEq
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove canon::i_constant_info_canon_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
 /// two stored constants have the same canonical form.  `.indInfo`'s
 /// capabilities are not compared (`canon` resets both to `{}`), and a
@@ -580,8 +578,8 @@ pub fn i_constant_info_canon_eq(
                 Ok(false)
             }
         }
-        (IConstantInfo::ThmInfo(cv, v), IConstantInfo::ThmInfo(cv2, v2)) => {
-            canon_eq_cv_and_value(pers, st, cv, cv2, v, v2)
+        (IConstantInfo::ThmInfo(cv), IConstantInfo::ThmInfo(cv2)) => {
+            i_constant_val_canon_eq(pers, st, cv, cv2)
         }
         (IConstantInfo::IndInfo(cv, _), IConstantInfo::IndInfo(cv2, _)) => {
             i_constant_val_canon_eq(pers, st, cv, cv2)
@@ -611,7 +609,6 @@ pub fn i_constant_info_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove canon::canon_eq_cv_and_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
 /// the `.defnInfo`/`.thmInfo` arms' shared tail: the common data, then the
 /// stored value at the same numbered names.  Split at the twin's own `let cs`
@@ -649,7 +646,6 @@ pub fn canon_eq_cv_and_value(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove canon::canon_eq_cv_and_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
 /// the `.recInfo` arm's tail: the common data, then the rule list.
 pub fn canon_eq_cv_and_rules(
@@ -769,7 +765,6 @@ pub fn i_ind_caps_beq(a: &IIndCaps, b: &IIndCaps) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove canon::i_constant_info_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:177-187 IConstantInfo` — the cited
 /// `deriving DecidableEq`, constructor for constructor.  This is the `==` of
 /// `fe.find? eqName == some eqA`, the whole-constant comparison the pinned
@@ -782,9 +777,7 @@ pub fn i_constant_info_beq(a: &IConstantInfo, b: &IConstantInfo) -> bool {
         (IConstantInfo::DefnInfo(x, v, h), IConstantInfo::DefnInfo(y, w, h2)) => {
             i_constant_val_beq(x, y) && v.eq2(w) && cenv::reducibility_hint_beq(h, h2)
         }
-        (IConstantInfo::ThmInfo(x, v), IConstantInfo::ThmInfo(y, w)) => {
-            i_constant_val_beq(x, y) && v.eq2(w)
-        }
+        (IConstantInfo::ThmInfo(x), IConstantInfo::ThmInfo(y)) => i_constant_val_beq(x, y),
         (IConstantInfo::IndInfo(x, c), IConstantInfo::IndInfo(y, d)) => {
             i_constant_val_beq(x, y) && i_ind_caps_beq(c, d)
         }

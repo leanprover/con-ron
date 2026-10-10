@@ -225,10 +225,6 @@ ConLeche/Kernel/Inductives/BlockParts.lean offs A constructor-offset reading of 
 ConLeche/Kernel/Inductives/BlockParts.lean recTgtAt A recursor-to-target reading of `BlockShape` for the proofs; no executed caller.
 ConLeche/Kernel/Inductives/BlockInstall.lean consBlockRecs The pure-knot spelling of the recursors' cons; the port has one fold, the cached one, whose cons is `consBlockRecsT` (`rec_check::cons_block_recs_t`).
 ConLeche/Kernel/Inductives/BlockInstall.lean openPisParamsIdx A `Prop`-side index reading of the parameter opening, used only by the Verify tier.
-ConLeche/Kernel/Inductives/BlockInstallF.lean consBlockRecsF As `consBlockRecs`: the `FEnv` spelling of the same cons, which the port writes once as `cons_block_recs_t`.
-ConLeche/Kernel/Inductives/BlockInstallF.lean blockRecInfosF The `ConstantInfo` list `consBlockRecsF` pushes; as `consBlockRecsF`.
-ConLeche/Kernel/Inductives/BlockInstallF.lean FEnv.pushAll The list push `consBlockRecsF` runs; the port pushes one by one in `cons_block_recs_t`.
-ConLeche/Kernel/Inductives/BlockInstallF.lean consBlockRecsFFast The fast twin of `consBlockRecsF`; as `consBlockRecsF`.
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps The operations record the recursor check is parameterised by; the port has one instance, the cached one (`shadowOpsC`), and calls the core entry points and `flush_caches` directly (`gen_rec.rs`'s module note).
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.ofOps The pure-knot instance of `ShadowOps`; as `ShadowOps`.
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.fueled The fueled pure instance of `ShadowOps`; as `ShadowOps`.
@@ -313,3 +309,24 @@ ConLeche/Kernel/PropWhen.lean holds Ported as `kernel::prop_when::holds`, used o
 ConLeche/Cached/Installed.lean checkPendingList Was `arena::checker::check_pending_list`, whose only user was `crates/con-ron/src/pool.rs`'s test that the pool equals the one-worker walk; now that test's private helper (tests are not provenance-scanned), task #105 — the driver runs the pool over the verified `check_pending`.
 ConLeche/Kernel/ExprOps.lean sizeB Ported only as a benchmark row (`examples/bench.rs`) and a tree-oracle comparison; deleted with them, task #105.
 ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the pure walk the memoized `fvar_leaves_fast`/`leaf_guard`/`fab_scope_ok` are tested against; now a private helper of that test module (tests are not provenance-scanned), task #105.
+
+# ---------------------------------------------------------------------------
+# con-leche task #329 (the `more-parallel` campaign: parallel parse and
+# install) and tasks #331/#332 (copy avoidance in Lean's RC runtime) — task
+# #117's sync.  The port's arena has its own environment and its own block
+# install discipline (push and pop in place), and runs neither a parallel
+# install nor the rounds parse; what these declarations change in con-leche
+# is how often a Lean array is copied, never a verdict.
+# ---------------------------------------------------------------------------
+
+ConLeche/Kernel/FEnv.lean FBase The parallel install's frozen base layer of predicted slots (task #329); empty on every environment the serial install threads, and the port has no parallel install.
+ConLeche/Kernel/FEnv.lean baseShard The base layer's shard choice; as `FBase`.
+ConLeche/Kernel/FEnv.lean baseGet? The base layer's sharded lookup; as `FBase`.
+ConLeche/Kernel/FEnv.lean FBase.find? The base layer's lookup; as `FBase` (`find?` falls through to it on an index miss, which on the serial install's environments answers `none`).
+ConLeche/Kernel/FEnv.lean overlay The read-only overlay view sharing an index (task #329 BLOCKCOPY, #331), which avoids a copy of the Lean bucket array; the port's block install pushes and pops in place (`ifenv_push_temp`/`ifenv_pop_temp`) and its pinned arms read the pushed index, which on the install's environments is the same `find?`.
+ConLeche/Kernel/FEnv.lean markLinear The identity that sets the Lean runtime's linearity bit on the index (task #331); the port's index is a Rust value with no reference count.
+ConLeche/Kernel/Inductives/GenRec.lean blockRecInfosBare The records `classFeROvl` lays over the index; as `overlay` (the port pushes them, `gen_rec_generate`).
+ConLeche/Kernel/Inductives/GenRec.lean classFeROvl The cached driver's `ShadowOps.ruleEnv`, `classFeR` as an overlay (task #332); the pure install's `classFeR` is what the port computes, with its own push and pop (`gen_rec_generate`).
+ConLeche/Cached/ParsedC.lean checkDefnValCI The unpushed half of `checkDefnValC` (task #331), so that the pinned arms certify against an overlay before the push; the port's pinned arms read the pushed index, the same `find?` (`check_decl`).
+ConLeche/Cached/ParsedC.lean checkOpaqueValCI The unpushed half of `checkOpaqueValC`; as `checkDefnValCI`.
+ConLeche/Cached/InstallSkel.lean * The parallel install's predicted-slot skeletons (task #329 PINSTALL); the port installs serially.

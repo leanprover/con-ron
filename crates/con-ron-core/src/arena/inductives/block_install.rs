@@ -14,11 +14,10 @@
 //! * **The `…F` twins collapse into these** (task #97c's deviation 1): the
 //!   arena has one environment representation, `IFEnv`, so
 //!   `checkBlockTeleF`, `checkBlockIndsF`, … ARE these functions, cited
-//!   beside their pure twins.  `consBlockRecsF`, `blockRecInfosF`,
-//!   `FEnv.pushAll` and `consBlockRecsFFast` (the member-major recursor cons
-//!   and its `@[csimp]` fast form) are not ported: the executed stage conses
-//!   through `consBlockRecsTF` (`arena::inductives::rec_check`), and so is
-//!   `consBlockRecs`; `openPisParamsIdx` is read by nothing executed.
+//!   beside their pure twins.  The member-major recursor cons is not
+//!   ported (con-leche deleted it at task #332): the executed stage conses
+//!   through `blockRecInfosTF`'s records (`arena::inductives::rec_check`),
+//!   and so is `consBlockRecs`; `openPisParamsIdx` is read by nothing executed.
 //! * **`blockCapsAt`'s record is built by branches**, not `&&`/`!`
 //!   (AENEAS_FINDINGS F18).
 //! * **`checkBlockPositivity`'s `find?` is the environment** (the

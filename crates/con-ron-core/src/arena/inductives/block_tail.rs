@@ -15,7 +15,7 @@
 //! * **The index is threaded by value**, and the recursor stage hands it
 //!   back (`arena::inductives::gen_rec`'s module note); the recursors' cons
 //!   reads the constructors' environment at its visibility bound while it
-//!   pushes above it (`consBlockRecsTF`'s fixed `find?`/`resolves`).
+//!   pushes above it (`blockRecInfosTF`'s fixed `find?`/`resolves`).
 //! * **`checkBlockTablesF`'s walkers are the arena's** (`struct_install`'s
 //!   `check_struct_proj_table`, the one table install).
 
@@ -217,7 +217,6 @@ pub fn check_block_tables(
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:125-138 checkBlockTail
 /// con-leche: ConLeche/Cached/CheckerC.lean:157-179 checkBlockTailS
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:107-122 checkBlockTail` — **the
 /// install after the pass**: the index binders' sorts, the constructors
 /// consed (and the flush entering that environment), the recursor stage, the

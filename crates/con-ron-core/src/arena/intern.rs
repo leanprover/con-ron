@@ -499,12 +499,9 @@ pub fn intern_ci_go(
                 Ok(x) => Ok(IConstantInfo::DefnInfo(cv, x, cenv::reducibility_hint_dup(h))),
             },
         },
-        ConstantInfo::ThmInfo(v, e) => match intern_cv_go(pers, st, m, v) {
+        ConstantInfo::ThmInfo(v) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),
-            Ok(cv) => match intern_expr_go(pers, st, m, e) {
-                Err(err) => Err(err),
-                Ok(x) => Ok(IConstantInfo::ThmInfo(cv, x)),
-            },
+            Ok(cv) => Ok(IConstantInfo::ThmInfo(cv)),
         },
         ConstantInfo::IndInfo(v, c2) => match intern_cv_go(pers, st, m, v) {
             Err(err) => Err(err),

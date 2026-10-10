@@ -7,7 +7,7 @@
 //! a class resolved from a major (`targetMajorOf`) and typed
 //! (`targetMajorPins`), the recursor records' pins (`targetRecPins`), node
 //! agreement (`targetK53`), and the stored family's rules (`tgtStoredRules`,
-//! `consBlockRecsTF`) with the container bit (`blockNestedBit`).
+//! `blockRecInfosTF`) with the container bit (`blockNestedBit`).
 //!
 //! ## The twin's deviations
 //!
@@ -1605,14 +1605,18 @@ pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) ->
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:607-617 consBlockRecsTF
-/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove rec_check::cons_block_recs_t_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:617-627 blockRecInfosTF
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:496-509 consBlockRecsTF` — **the
 /// checked family consed through the index, at its majors**: each recursor
 /// with its rules at ITS major, the rules' lookups (`find?`, `resolves`) at the
 /// constructors' environment, i.e. at its visibility bound `vis2` while the
-/// recursors are pushed above it.
+/// recursors are pushed above it.  con-leche (task #332) builds the records
+/// first (`blockRecInfosTF`, every lookup at the constructors' `fe₂`) and
+/// pushes them after (`FEnv.pushAll`); the port pushes each as it is built,
+/// with its lookups bounded at `vis2` — the same environment, so the same
+/// records in the same order.
 pub fn cons_block_recs_t(
     pers: &PersTier,
     vis2: u64,

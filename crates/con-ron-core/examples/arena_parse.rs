@@ -23,7 +23,7 @@
 //! nothing without: there is nothing left to skip.
 //!
 //! **The reads are interleaved with the parse**, in 4 MiB chunks
-//! (`export_c::CHUNK_SIZE`): this is `parseExportHandleD`'s loop, whose pure
+//! (`export_c::CHUNK_SIZE`): this is `serialLoop`'s loop (`Frontend/Stream.lean`), whose pure
 //! meaning is `parse_chunks` of the chunks the handle hands out
 //! (con-leche's `parseChunks_eq_parseExportD`).  The twin's driver reads the
 //! whole file into a chunk list first and its own task section flags that as
