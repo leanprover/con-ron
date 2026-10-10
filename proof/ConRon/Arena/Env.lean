@@ -175,6 +175,7 @@ def IProjTable.entry (tbl : IProjTable) (i : Nat) : IProjEntry :=
 /-! ## Stored constants -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo — the information
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IConstantInfo_bridge, then delete this line
 stored about an accepted constant, over handles. -/
 inductive IConstantInfo where
   | axiomInfo (val : IConstantVal)
@@ -220,6 +221,7 @@ def projTableName (T : NIdx) : AM NIdx := do
 /-! ## Reading a stored constant -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:638-641 ConstantInfo.toConstantVal —
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IConstantInfo.toConstantVal_bridge, then delete this line
 the constant's common data.  The `.projInfo` arm BUILDS the reserved table name
 and the closed dummy type `Sort 1`, which over handles means interning them:
 that is the one reason this projection is monadic (see the module note). -/
@@ -276,7 +278,7 @@ obligation for exactly this reason). -/
 def IEnv.find? (env : IEnv) (n : NIdx) : Option IConstantInfo :=
   env.consts.find? (·.name == n)
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:26-46 FEnv — the environment with its
+/-- con-leche: ConLeche/Kernel/FEnv.lean:76-96 FEnv — the environment with its
 `O(1)` index (DESIGN §8.3 lesson 13).  Entries with counter `< visibleBelow`
 are visible; `visibleBelow` doubles as the next counter `push` hands out. -/
 structure IFEnv where
@@ -284,7 +286,7 @@ structure IFEnv where
   idx : Std.HashMap NIdx (Nat × IConstantInfo)
   visibleBelow : Nat
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:48-57 mkFEnvGo — the index build, from
+/-- con-leche: ConLeche/Kernel/FEnv.lean:110-119 mkFEnvGo — the index build, from
 the back: the newest (front) constant is inserted last and wins, exactly as
 `List.find?` takes the first match. -/
 def mkIFEnvGo : List IConstantInfo → Nat × Std.HashMap NIdx (Nat × IConstantInfo)
@@ -293,25 +295,28 @@ def mkIFEnvGo : List IConstantInfo → Nat × Std.HashMap NIdx (Nat × IConstant
     let p := mkIFEnvGo cs
     (p.1 + 1, p.2.insert ci.name (p.1, ci))
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:59-63 mkFEnv — build the index of
+/-- con-leche: ConLeche/Kernel/FEnv.lean:121-125 mkFEnv — build the index of
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.mkIFEnv_bridge, then delete this line
 `env`, with nothing hidden. -/
 def mkIFEnv (env : IEnv) : IFEnv :=
   let p := mkIFEnvGo env.consts
   ⟨env, p.2, p.1⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:67-72 FEnv.find? — indexed lookup,
+/-- con-leche: ConLeche/Kernel/FEnv.lean:129-148 FEnv.find? — indexed lookup,
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IFEnv.find?_bridge, then delete this line
 bounded by the visibility counter. -/
 def IFEnv.find? (fe : IFEnv) (n : NIdx) : Option IConstantInfo :=
   match fe.idx[n]? with
   | some (c, ci) => if c < fe.visibleBelow then some ci else none
   | none => none
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:74-77 FEnv.restrictTo — restrict the
+/-- con-leche: ConLeche/Kernel/FEnv.lean:150-153 FEnv.restrictTo — restrict the
 view to the first `k` installed constants; `O(1)`, a field update. -/
 def IFEnv.restrictTo (fe : IFEnv) (k : Nat) : IFEnv :=
   { fe with visibleBelow := k }
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:79-86 FEnv.push — the index of the
+/-- con-leche: ConLeche/Kernel/FEnv.lean:155-162 FEnv.push — the index of the
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Env.IFEnv.push_bridge, then delete this line
 cons-extended environment: the new entry gets the next installation counter and
 the visibility bound advances with it. -/
 def IFEnv.push (fe : IFEnv) (ci : IConstantInfo) : IFEnv :=
@@ -329,7 +334,7 @@ def IFEnv.popTemp (fe : IFEnv) (n : NIdx) (prev : Option (Nat × IConstantInfo))
     | none => fe.idx.erase n),
    fe.visibleBelow - 1⟩
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:88-92 FEnv.findProj? — indexed
+/-- con-leche: ConLeche/Kernel/FEnv.lean:189-193 FEnv.findProj? — indexed
 projection-table lookup. -/
 def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : AM (Option IProjEntry) := do
   match fe.find? (← projTableName T) with

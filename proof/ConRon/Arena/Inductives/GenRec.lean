@@ -702,9 +702,9 @@ def checkBlockClasses (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (params :
       fail (.invalid "generated recursor: the recursor family does not have exactly one \
         class per member (official: invalid recursor)")
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-549 classFeR
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:253-257 classFeR
 con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:338-346 consBlockRecsBare
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:175-180 consBlockRecsBareF
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:134-139 consBlockRecsBareF
 **The rule-less generated recursors consed onto the constructors'
 environment**, pushed TEMPORARILY (the module note): each recursor `m` at its
 record's major index and rule prefix, with no rule.  Returns the rows the
@@ -721,8 +721,10 @@ where
       let fe2 := fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) [])
       go (m + 1) rest fe2 (prevs ++ [(cv.name, prev)])
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
-con-leche: ConLeche/Cached/CheckerC.lean:128-134 shadowOpsC
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove GenRec.genRecCheck_bridge, then delete this line
+con-leche: ConLeche/Cached/CheckerC.lean:128-135 shadowOpsC
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove GenRec.genRecCheck_bridge, then delete this line
 **The generated recursor stage**, at the constructors' environment `fe`, on
 the classes and the positivity check's table: the pins, the stream's recursor
 types checked, the elimination guard, the classes' table entries and

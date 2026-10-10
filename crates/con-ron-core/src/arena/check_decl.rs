@@ -657,7 +657,8 @@ pub fn check_axiom_decl_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl
-/// con-leche: ConLeche/Cached/ParsedC.lean:156-265 checkDeclC
+/// con-leche: ConLeche/Cached/ParsedC.lean:167-281 checkDeclC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove check_decl::check_ind_decl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:82-211 checkDecl` — the `.indDecl`
 /// arm.  **THE PINNED BASIS BLOCKS FIRST**: a stream's `Nat` block arrives as
 /// an ordinary inductive block and is recognised HERE; a block under a pinned

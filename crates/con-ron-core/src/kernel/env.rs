@@ -435,7 +435,8 @@ pub fn proj_table_dup(t: &ProjTable) -> ProjTable {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:468-493 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove env::ConstantInfo_refines, then delete this line
 /// Information stored about an accepted constant.
 pub enum ConstantInfo {
     AxiomInfo(ConstantVal),
@@ -465,7 +466,8 @@ pub fn rec_rules_copy_from(rs: &Vec<RecRule>, i: usize, out: Vec<RecRule>) -> Ve
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:468-493 ConstantInfo
+/// con-leche: ConLeche/Kernel/Env.lean:467-493 ConstantInfo
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove env::constant_info_dup_refines, then delete this line
 /// The record copy; what `fenv::push` needs, because a pushed constant lands
 /// both in `env.consts` and in the index (where Lean shares one value).
 pub fn constant_info_dup(c: &ConstantInfo) -> ConstantInfo {

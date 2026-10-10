@@ -137,7 +137,7 @@ pub fn check_basis_decl_install(
 // The two-phase fold the binary runs (`Checker.lean:210-341` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Cached/Installed.lean:82-90 PendingCheck
+/// con-leche: ConLeche/Cached/Installed.lean:85-93 PendingCheck
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:102-110 PendingCheck` — a
 /// phase-A record awaiting its phase-B check: the datum that crosses the
 /// install/check seam, the fold position of the declaration (its error tag) and
@@ -148,7 +148,8 @@ pub struct PendingCheck {
     pub vis: u64,
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — phase
 /// A's step BODY: annotate-and-install for the three value kinds, the ordinary
 /// step `check_decl` for everything else.  The four arms are four functions,
@@ -182,7 +183,8 @@ pub fn annot_step_go(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove crates/con-ron-core/src/arena/checker.rs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — **phase
 /// A's step, bracketed**; `i` is the fold position the record is tagged with.
 ///
@@ -259,7 +261,8 @@ pub fn annot_step(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_promote_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:151-205 annotStep` — the
 /// bracket's `some vg` arm: the seam promoted first and the environment at the
 /// SAME memo, then the tier dropped and the record pushed.
@@ -299,7 +302,8 @@ pub fn annot_step_promote(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_defn_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.defnDecl` arm: a pin-certified operation takes the ordinary step (its
 /// check is not separable from its install), everything else is annotated,
@@ -332,7 +336,8 @@ pub fn annot_step_defn(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_defn_install_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.defnDecl` arm's install and push.  The environment counter the pending
 /// record carries is the BRACKET's now (task #97-P6-2): it reads it before the
@@ -370,7 +375,8 @@ pub fn annot_step_defn_install(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_thm_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.thmDecl` arm: **a theorem installs BY STATEMENT**.  The header's install
 /// half only; the value is recorded raw and never touched here (phase B
@@ -398,7 +404,8 @@ pub fn annot_step_thm(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_opaque_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// `.opaqueDecl` arm: a `reduce*` witness takes the ordinary step (its identity
 /// certificate is part of its install), everything else is annotated, installed
@@ -426,7 +433,8 @@ pub fn annot_step_opaque(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_opaque_install_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// opaque arm's install and push.  **An `opaque`'s value is not in the
 /// environment**: the arm pushes `.axiomInfo cvA` and hands the annotated
@@ -458,7 +466,8 @@ pub fn annot_step_opaque_install(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC
+/// con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_step_other_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:112-149 annotStepGo` — the
 /// catch-all arm, shared by the three gated branches above: the ordinary step,
 /// which records nothing pending.
@@ -476,7 +485,8 @@ pub fn annot_step_other(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep
+/// con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_decl_step_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:207-231 annotDeclStep` — phase
 /// A's step with the position carried and the error tagged: a failing step
 /// reports the `CheckError` together with `i`, the fold position of the
@@ -516,7 +526,8 @@ pub fn annot_decl_step(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_fold_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:233-244 annotFold` — phase A as
 /// a fold over the records, as an index recursion threading the accumulator by
 /// value.
@@ -539,7 +550,8 @@ pub fn annot_fold(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:269-283 checkPending
+/// con-leche: ConLeche/Cached/Installed.lean:262-281 checkPending
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove crates/con-ron-core/src/arena/checker.rs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:246-262 checkPending` —
 /// **phase B's check of one record**, against the prefix view
 /// `fe.restrictTo pc.vis`.
@@ -597,6 +609,7 @@ pub fn check_pending(
 // ---------------------------------------------------------------------------
 
 /// con-leche: Main.lean:60-134 installLoop
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::InstallHook_refines, then delete this line
 /// What the driver prints between phase A's steps (the `--progress`
 /// heartbeat's install line), as a trait the verified fold calls: the hook
 /// takes the state by SHARED reference and returns nothing, so it cannot
@@ -606,11 +619,13 @@ pub fn check_pending(
 /// the implementations live in the unverified crate.
 pub trait InstallHook {
     /// con-leche: Main.lean:60-134 installLoop
+    /// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::install_before_refines, then delete this line
     /// Before record `pos` of `total` is installed.
     fn install_before(&self, pers: &PersTier, ar: &EStore, pos: u64, total: usize, d: &IDeclaration);
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::annot_fold_hooked_refines, then delete this line
 /// Lean twin: none — `annot_fold` with the driver's hook; the twin has no hook
 /// and the refinement is `annot_fold`'s, through the equation
 /// `annot_fold_hooked_eq` (`Refine2/Checker/Phased.lean`).
@@ -639,7 +654,8 @@ pub fn annot_fold_hooked<H: InstallHook>(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::fold_start_refines, then delete this line
 /// Lean twin: none — the fold's start triple, `(0, mkIFEnv IEnv.empty, #[])`,
 /// which `installThenCheck` writes inline.
 /// Phase A's starting accumulator, so that the driver builds it with the same
@@ -703,6 +719,7 @@ pub fn pins_dup(p: &Pins) -> Pins {
 }
 
 /// con-leche: Main.lean:263-279 checkWorker
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove checker::worker_state_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Phased.lean:29-36 AState.worker` — the twin's
 /// phase-B worker reads the persistent tier where it is.
 /// **A phase-B worker's start state** (task #97-P6-6b's `pool::worker_state`,

@@ -194,8 +194,10 @@ def canonRulesEq (ps ps' cs : List NIdx) (fuel : Nat) :
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:82-97 ConstantInfo.canon
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 con-leche: ConLeche/Kernel/Canon.lean:238-240 ConstantInfo.canonEq
-con-leche: ConLeche/Kernel/Canon.lean:242-261 ConstantInfo.canonEqFast
+con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Canon.IConstantInfo.canonEq_bridge, then delete this line
 Two stored constants have the same canonical form.  `.indInfo`'s capabilities
 are not compared (`canon` resets both to `{}`), and a projection table is
 compared as it stands (`canon` is the identity there — a table never occurs in
@@ -227,8 +229,8 @@ def IConstantInfo.canonEq : IConstantInfo → IConstantInfo → AM Bool
   | .projInfo t, .projInfo t' => pure (t == t')
   | _, _ => pure false
 
-/-- con-leche: ConLeche/Kernel/Canon.lean:277-280 canonEqList
-con-leche: ConLeche/Kernel/Canon.lean:282-286 canonEqListFast
+/-- con-leche: ConLeche/Kernel/Canon.lean:274-277 canonEqList
+con-leche: ConLeche/Kernel/Canon.lean:279-283 canonEqListFast
 Two blocks are the same, member for member, up to the canonical form. -/
 def canonEqList : List IConstantInfo → List IConstantInfo → AM Bool
   | [], [] => pure true

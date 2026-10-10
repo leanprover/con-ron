@@ -76,7 +76,8 @@ use con_ron_core::arena::store::PersTier;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: Main.lean:651-848 usage
+/// con-leche: Main.lean:91-310 usage
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -207,7 +208,7 @@ declaration with no effect on any block.  A block whose shape the installer
 does not recognise declines (exit 2), naming it.  The binary reads no
 environment variable.";
 
-/// con-leche: Main.lean:850-864 Args
+/// con-leche: Main.lean:312-326 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -221,7 +222,7 @@ struct Args {
     bad: Option<String>,
 }
 
-/// con-leche: Main.lean:866-894 parseArgs
+/// con-leche: Main.lean:328-356 parseArgs
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -339,7 +340,9 @@ fn frontend_exit(e: &CheckError, mode_tag: &str) -> u8 {
 }
 
 /// con-leche: Main.lean:492-649 checkMain
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// con-leche: Main.lean:47-52 parseInput
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::check_main_refines, then delete this line
 /// The driver's front matter: the prelude, the streaming parse, the
 /// preparation, the pin walk, the receipts, then the fold and the verdict.
 /// It is the Lean twin's `runPipelineIO` with the heartbeat and the receipts
@@ -534,7 +537,8 @@ fn check_main(a: &Args, file: &str) -> u8 {
     }
 }
 
-/// con-leche: Main.lean:896-923 main
+/// con-leche: Main.lean:428-485 main
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove con-ron::main_refines, then delete this line
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did

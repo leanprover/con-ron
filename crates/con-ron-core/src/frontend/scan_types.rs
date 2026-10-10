@@ -568,6 +568,7 @@ pub fn id_table_empty<T>() -> IdTable<T> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:345-347 IdTable.get?
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove scan_types::id_table_get_refines, then delete this line
 /// The value at a stream index, dense `Vec` first.
 pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     let k = i as usize;

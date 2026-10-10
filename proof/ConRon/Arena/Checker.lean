@@ -75,8 +75,9 @@ open ConLeche
 
 /-! ## The two-phase fold the binary runs -/
 
-/-- con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep
-con-leche: ConLeche/Cached/Installed.lean:433-440 checkPendingList
+/-- con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
+con-leche: ConLeche/Cached/Installed.lean:431-438 checkPendingList
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
 
@@ -99,7 +100,7 @@ So the arm hands back the EMPTY state — which is what con-leche's arm means
 `&mut` state the caller stops using).  Nothing on the error path reads it. -/
 def AState.abandoned : AState := AState.init EStore.empty
 
-/-- con-leche: ConLeche/Cached/Installed.lean:82-90 PendingCheck — a phase-A
+/-- con-leche: ConLeche/Cached/Installed.lean:85-93 PendingCheck — a phase-A
 record awaiting its phase-B check: the datum that crosses the install/check
 seam, the fold position of the declaration (its error tag) and the environment
 counter at the install. -/
@@ -109,7 +110,8 @@ structure PendingCheck where
   vis : Nat
   deriving Inhabited
 
-/-- con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC — phase A's
+/-- con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC — phase A's
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotStepGo_bridge, then delete this line
 step body: annotate-and-install for the three value kinds, the ordinary step
 `checkDecl` for everything else.
 
@@ -148,7 +150,8 @@ def annotStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
   | pd => do
     pure (← checkDecl mode pins fe pd, none)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:143-182 annotStepC — **phase A's
+/-- con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC — **phase A's
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotStep_bridge, then delete this line
 step, bracketed**; `i` is the fold position the record is tagged with.
 
 **The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
@@ -204,7 +207,8 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     dropScratch
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:184-206 annotDeclStep — phase
+/-- con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep — phase
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotDeclStep_bridge, then delete this line
 A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the
 declaration that failed.
@@ -230,7 +234,8 @@ def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     .ok (.error (.invalid "`And` must be the standard `And`", p.1), AState.abandoned)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:454-459 checkDecls — phase A as
+/-- con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls — phase A as
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.annotFold_bridge, then delete this line
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
 def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
@@ -243,7 +248,8 @@ def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => pure (.error e)
     | .ok p' => annotFold mode pins p' ds
 
-/-- con-leche: ConLeche/Cached/Installed.lean:269-283 checkPending — **phase
+/-- con-leche: ConLeche/Cached/Installed.lean:262-281 checkPending — **phase
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.checkPending_bridge, then delete this line
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
@@ -261,7 +267,7 @@ def checkPending (mode : CheckMode) (fe : IFEnv) (pc : PendingCheck) :
   checkValueGroup mode (fe.restrictTo pc.vis) pc.vg
   dropScratch
 
-/-- con-leche: ConLeche/Cached/Installed.lean:433-440 checkPendingList — phase
+/-- con-leche: ConLeche/Cached/Installed.lean:431-438 checkPendingList — phase
 B as a pure walk: every record checked from a fresh memo state, a failure
 tagged with the record's fold position. -/
 def checkPendingList (mode : CheckMode) (fe : IFEnv) :
@@ -272,7 +278,8 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
     | .ok ((), s') => checkPendingList mode fe rest s'
     | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:442-459 checkDecls — **the
+/-- con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls — **the
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.installThenCheck_bridge, then delete this line
 declaration fold the binary runs**: install every record (phase A), check
 every recorded declaration (phase B), return the environment.  The `× Nat` of
 the error is the failure's POSITION in the fold. -/
@@ -285,7 +292,8 @@ def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     | .error e => pure (.error e)
     | .ok () => pure (.ok fe)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:442-459 checkDecls — the fold's
+/-- con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls — the fold's
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Checker.atDecl_bridge, then delete this line
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
 (`Main.lean:461-711`); the seam of (B) has no position channel

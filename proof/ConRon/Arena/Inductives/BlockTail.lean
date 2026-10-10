@@ -51,7 +51,7 @@ structure BlockPass where
   tbl : List NestCtorNf
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
-con-leche: ConLeche/Cached/CheckerC.lean:136-154 checkBlockPassS
+con-leche: ConLeche/Cached/CheckerC.lean:137-155 checkBlockPassS
 **One pass over the formers, the constructors and the classes** at the
 block's `is_rec` verdict: the formers (and the flush entering the environment
 that holds them all), the constructors, the walk's context, the classes, and
@@ -84,7 +84,7 @@ def checkBlockRec (mode : CheckMode) (fe : IFEnv) (p : BlockParts) (nested : Boo
   genRecCheck mode fe p.shape nested params tbl rd ms cvTas block
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:108-123 checkBlockTables
-con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:191-204 checkBlockTablesF
+con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:150-163 checkBlockTablesF
 **The projection table at every STRUCTURE-LIKE member** (one constructor, no
 index): the member's table at the tagged tower's projection offset `1`;
 nothing at any other member.  The three lists are walked side by side, as the
@@ -105,7 +105,8 @@ def checkBlockTables (p : BlockShape) :
   | _, _, _, fe => pure fe
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:125-138 checkBlockTail
-con-leche: ConLeche/Cached/CheckerC.lean:156-169 checkBlockTailS
+con-leche: ConLeche/Cached/CheckerC.lean:157-179 checkBlockTailS
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 **The install after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the recursor stage, the
 recursors consed at their majors, and the projection tables. -/
@@ -122,7 +123,7 @@ def checkBlockTail (mode : CheckMode) (block : List IConstantInfo) (q : BlockPas
   checkBlockTables q.p.shape q.p.shape.members q.ctorsAs q.sortsss fe₃
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:140-148 checkBlock
-con-leche: ConLeche/Cached/CheckerC.lean:171-179 checkBlockKS
+con-leche: ConLeche/Cached/CheckerC.lean:181-189 checkBlockKS
 **Check and install a block on the uniform route**: the distinct names, the
 flush, the pass at official's `is_rec`, and the install after it. -/
 def checkBlock (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo)

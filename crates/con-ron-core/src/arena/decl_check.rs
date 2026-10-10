@@ -2894,6 +2894,7 @@ pub fn check_defn_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:50-80 checkThmVal
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:724-740 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition).  **A theorem is stored by its statement**:
@@ -2932,6 +2933,7 @@ pub fn check_thm_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:50-80 checkThmVal
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:724-740 checkThmVal` — the
 /// witness half: the value's guards and annotation, its inferred type against
 /// the statement, and the push of `.thmInfo cv value` — the **raw** value, as

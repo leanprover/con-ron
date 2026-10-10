@@ -2286,9 +2286,9 @@ pub fn check_block_classes(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-549 classFeR
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:253-257 classFeR
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:338-346 consBlockRecsBare
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:175-180 consBlockRecsBareF
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:134-139 consBlockRecsBareF
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:705-722 classFeR` — **the
 /// rule-less generated recursors consed onto the constructors' environment**,
 /// pushed TEMPORARILY in place (the module note): each recursor `m` at its
@@ -2322,7 +2322,7 @@ pub fn class_fe_r_push(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-549 classFeR
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:253-257 classFeR
 /// Lean twin: the inverse of `class_fe_r_push`: the pushes popped in reverse
 /// order, every displaced row restored, so the index is the constructors'
 /// again exactly.
@@ -2340,7 +2340,8 @@ pub fn class_fe_r_pop(fe: IFEnv, prevs: &Vec<(NIdx, Option<(u64, u64)>)>, i: usi
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::some_outside_refines, then delete this line
 /// Lean twin: `Ms.any (·.member.isNone)`.
 pub fn some_outside(ms: &Vec<TargetMajor>, i: usize) -> bool {
     if i >= ms.len() {
@@ -2353,7 +2354,8 @@ pub fn some_outside(ms: &Vec<TargetMajor>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::minor_count_refines, then delete this line
 /// Lean twin: `(rd.slots.filter ClassSlot.isMinor).length`.
 pub fn minor_count(slots: &Vec<ClassSlot>, i: usize, acc: u64) -> u64 {
     if i >= slots.len() {
@@ -2365,7 +2367,8 @@ pub fn minor_count(slots: &Vec<ClassSlot>, i: usize, acc: u64) -> u64 {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::ctor_count_refines, then delete this line
 /// Lean twin: `(ctors.map List.length).sum`.
 pub fn ctor_count(xss: &Vec<Vec<ClassCtor>>, i: usize, acc: u64) -> u64 {
     if i >= xss.len() {
@@ -2387,7 +2390,8 @@ pub fn former_types(cvs: &Vec<IConstantVal>, i: usize, out: Vec<EIdx>) -> Vec<EI
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::gen_rec_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-773 genRecCheck` — **the
 /// generated recursor stage**, at the constructors' environment `fe`, on the
 /// classes and the positivity check's table: the pins, the stream's recursor
@@ -2431,7 +2435,8 @@ pub fn gen_rec_check(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::gen_rec_classes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-773 genRecCheck` — per class
 /// and constructor: the table's entries, the datum, the inductive hypotheses,
 /// node agreement; every minor premise a constructor's.
@@ -2488,8 +2493,10 @@ pub fn gen_rec_classes(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:551-593 genRecCheck
-/// con-leche: ConLeche/Cached/CheckerC.lean:128-134 shadowOpsC
+/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:545-587 genRecCheck
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::gen_rec_generate_refines, then delete this line
+/// con-leche: ConLeche/Cached/CheckerC.lean:128-135 shadowOpsC
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove gen_rec::gen_rec_generate_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-773 genRecCheck` —
 /// generation: the prefix, every recursor's type checked and compared, the
 /// rule-less recursors pushed, the flush entering them, every rule

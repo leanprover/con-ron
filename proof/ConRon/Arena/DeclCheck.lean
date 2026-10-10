@@ -722,6 +722,7 @@ def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   pure (fe.push (.defnInfo cv value hint))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:50-80 checkThmVal — check a
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 `theorem` declaration's value against its checked constant (whose type must
 additionally be a proposition).  **A theorem is stored by its statement**: the
 constant keeps the record's own (raw) value as an unread datum, and the

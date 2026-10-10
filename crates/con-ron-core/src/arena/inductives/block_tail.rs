@@ -69,7 +69,7 @@ pub struct BlockPass {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
-/// con-leche: ConLeche/Cached/CheckerC.lean:136-154 checkBlockPassS
+/// con-leche: ConLeche/Cached/CheckerC.lean:137-155 checkBlockPassS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:53-74 checkBlockPass` — **one
 /// pass over the formers, the constructors and the classes** at the block's
 /// `is_rec` verdict: the formers (and the flush entering the environment
@@ -97,7 +97,7 @@ pub fn check_block_pass(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
-/// con-leche: ConLeche/Cached/CheckerC.lean:136-154 checkBlockPassS
+/// con-leche: ConLeche/Cached/CheckerC.lean:137-155 checkBlockPassS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:53-74 checkBlockPass` — the
 /// walk's context, the classes, the root frame and the seeds.
 #[allow(clippy::too_many_arguments)]
@@ -168,7 +168,7 @@ pub fn check_block_rec(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:108-123 checkBlockTables
-/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:191-204 checkBlockTablesF
+/// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:150-163 checkBlockTablesF
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:86-105 checkBlockTables` — **the
 /// projection table at every STRUCTURE-LIKE member** (one constructor, no
 /// index) from member `i` on: the member's table at the tagged tower's
@@ -216,7 +216,8 @@ pub fn check_block_tables(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:125-138 checkBlockTail
-/// con-leche: ConLeche/Cached/CheckerC.lean:156-169 checkBlockTailS
+/// con-leche: ConLeche/Cached/CheckerC.lean:157-179 checkBlockTailS
+/// con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:107-122 checkBlockTail` — **the
 /// install after the pass**: the index binders' sorts, the constructors
 /// consed (and the flush entering that environment), the recursor stage, the
@@ -247,7 +248,7 @@ pub fn check_block_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:140-148 checkBlock
-/// con-leche: ConLeche/Cached/CheckerC.lean:171-179 checkBlockKS
+/// con-leche: ConLeche/Cached/CheckerC.lean:181-189 checkBlockKS
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:124-137 checkBlock` — **check
 /// and install a block on the uniform route**: the distinct names, the flush,
 /// the pass at official's `is_rec`, and the install after it.

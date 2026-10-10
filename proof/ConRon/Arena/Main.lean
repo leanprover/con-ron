@@ -83,7 +83,7 @@ P2d retires it.  `Arena/Core.lean` and every twin below it already branch on
 representation-free types rather than copying them), and two spellings of one
 two-constructor enum in one import closure is one too many. -/
 
-/-- con-leche: Main.lean:42-45 ConLeche.CheckError.exitCode
+/-- con-leche: ConLeche/Driver/Run.lean:34-37 ConLeche.CheckError.exitCode
 The exit code of each error kind.  1 rejected, 2 declined, 3 error; 0 is
 the accept and has no error to map.  The 1/2 distinction is con-leche's
 and is load-bearing: a reject is a verdict about the input, a decline a
@@ -97,7 +97,7 @@ def CheckError.exitCode : CheckError → UInt32
   | .internal _ => 3
   | .native _ => 3
 
-/-- con-leche: Main.lean:42-45 ConLeche.CheckError.exitCode
+/-- con-leche: ConLeche/Driver/Run.lean:34-37 ConLeche.CheckError.exitCode
 The message a failing run prints, beside the code above.  con-leche builds
 it from the error's own `ToString`; the arena's is the same three words in
 front of the same payload, plus its own for `native`. -/
@@ -128,6 +128,7 @@ driver reads as con-leche's does. -/
 def chunkSize : USize := Frontend.chunkSize
 
 /-- con-leche: Main.lean:462-648 checkMain
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.runPipelineHead_bridge, then delete this line
 **THE SEAM** (DESIGN.md §8.4): the whole checker, from the input's chunks
 to the verdict.
 
@@ -162,6 +163,7 @@ def runPipelineHead :
   | .ok pre => pure (.ok (pre, ← Frontend.StateD.init))
 
 /-- con-leche: Main.lean:462-648 checkMain
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.runPipelineTail_bridge, then delete this line
 The pipeline AFTER the parse: `preparePrelude`, then **the fold** (task
 #97d), then the verdict number.  Shared verbatim by the pure seam and by the
 driver's interleaved loop, which is what makes the two the same computation.
@@ -189,7 +191,7 @@ def runPipelineTail (mode : CheckMode) (pins : List NatOpPinSet)
   | .error (e, n) => pure (.error (atDecl e n))
   | .ok _ => pure (.ok records)
 
-/-- con-leche: Main.lean:424-435 progressStride
+/-- con-leche: Main.lean:52-63 progressStride
 The progress heartbeat's stride, read off `--progress[=<stride>]`.  No
 flag is off; bare `--progress` is stride 1.  A value that is not a decimal
 numeral, and `0` — the flag asking for no heartbeat — are usage errors
@@ -203,7 +205,7 @@ def progressStride (v : String) : Except String Nat :=
   | none => .error s!"--progress takes a declaration stride \
       (a decimal numeral of at least 1), got {repr v}"
 
-/-- con-leche: Main.lean:437-460 jobsCount
+/-- con-leche: Main.lean:65-88 jobsCount
 The worker count, read off `--jobs=<n>`: a decimal numeral of at least 1.
 `0` and a non-numeral are usage errors (exit 3); without the flag the
 count is the machine's hardware thread count.
@@ -234,6 +236,7 @@ def msSecs (ms : Nat) : String :=
   s!"{s}.{if c < 10 then "0" else ""}{c}"
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:638-651 parseExportHandleD
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.readFold_bridge, then delete this line
 **THE READ LOOP**: the handle read strictly forward, 4 MiB at a time, each
 buffer fed to `Frontend.chunkStep` and then dropped; the first empty read is
 its end of file and `Frontend.chunkFinish` closes the stream.  Never seeked,
@@ -270,6 +273,7 @@ partial def readFold (h : IO.FS.Handle)
       readFold h st carry lineNo total (chunks + 1) s
 
 /-- con-leche: Main.lean:462-648 checkMain
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.runPipelineIO_bridge, then delete this line
 **THE SEAM, DRIVEN FROM A HANDLE**: `runPipelineHead`, then `readFold` in
 place of the pure seam's `parseChunksGo`, then `runPipelineTail` — the same
 three steps `runPipeline` runs, with the input never held whole.  The chunk
@@ -296,7 +300,8 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
-/-- con-leche: Main.lean:651-848 usage
+/-- con-leche: Main.lean:91-310 usage
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.usage_bridge, then delete this line
 The usage text, on stdout under `--help` and on stderr before a usage
 error.  It is con-leche's, shortened to what this binary actually has and
 saying plainly what it does not: the shape and the vocabulary are the same
@@ -355,7 +360,7 @@ def usage : String := String.intercalate "\n" [
   "What is NOT here is the PROOF: Theorem 1 of section 8.2 (this checker",
   "accepting implies con-leche's pure checker accepting) is phase P3."]
 
-/-- con-leche: Main.lean:850-864 Args
+/-- con-leche: Main.lean:312-326 Args
 The parsed command line.  `progress = 0` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
@@ -367,7 +372,7 @@ structure Args where
   files : Array String := #[]
   bad : Option String := none
 
-/-- con-leche: Main.lean:866-894 parseArgs
+/-- con-leche: Main.lean:328-356 parseArgs
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
@@ -395,6 +400,7 @@ def parseArgs : List String → Args → Args
     else parseArgs rest { a with files := a.files.push s }
 
 /-- con-leche: Main.lean:462-648 checkMain
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.checkMain_bridge, then delete this line
 The driver, which `main` calls in process: read the chunks, run the seam,
 print the verdict.  Every VERDICT line names the mode — a `--trusted` run,
 the unverified lane, must never be mistaken for a `--verified` one in a
@@ -432,7 +438,8 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
-/-- con-leche: Main.lean:896-923 main
+/-- con-leche: Main.lean:428-485 main
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Main.main_bridge, then delete this line
 `--help` in any argument position prints the usage on stdout and exits 0,
 reading nothing.  A bad flag prints its message and the usage on stderr
 and exits 3, as does a command line that does not name exactly one file.

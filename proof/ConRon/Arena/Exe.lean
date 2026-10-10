@@ -11,7 +11,8 @@ import closure, and `ConRon/Capstone.lean` is exactly such a closure (task
 #97-COMPOSE).
 -/
 
-/-- con-leche: Main.lean:896-923 main
+/-- con-leche: Main.lean:428-485 main
+-- con-leche: CHANGED since 67f04630 — re-port, re-test, re-prove Exe.main_bridge, then delete this line
 Lake's entry point.  A `lean_exe`'s root module must declare a TOP-LEVEL
 `main`, and the driver (`ConRon/Arena/Main.lean`) lives in the `ConRon.Arena` namespace with the
 rest of (B), so this forwards to it — the arrangement `ConRon/Gen/Main.lean`
