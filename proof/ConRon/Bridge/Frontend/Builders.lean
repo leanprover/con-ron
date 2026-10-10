@@ -349,28 +349,6 @@ def processLineCoreD (st : StateD) (d : DeclRec) : M (StateD ⊕ RecordVerdict) 
     | .inl v => pure (.inr v)
     | .inr (cts, nPd) => return .inl (← installIndD st tys cts rcs nPd)
 
-/-- A declaration record.  **`sorryAx` is the FOLD's** (user ruling):
-the parse forwards every declaration record, the `sorryAx` axiom record
-included — the fold checks its type, installs nothing for it, and
-declines at the first record that USES the name
-(`ConLeche/Kernel/Checker.lean`'s `.axiomDecl` arm, `unknownConstError`
-and `unresolvedConstsError`); the parser owns no semantic decision. -/
-def applyDeclD (st : StateD) (d : DeclRec) : M (StateD ⊕ RecordVerdict) :=
-  processLineCoreD st d
-
-/-- **The semantic layer**: one scanned line applied to the parse
-state, reading the fields of the syntax record the byte recogniser
-produced (`ConLeche/Frontend/Scan/Fast.lean`, task #256). -/
-def applyLine (st : StateD) (r : LineRec) : M (StateD ⊕ RecordVerdict) :=
-  match r with
-  | .expr i e => do pure (.inl (← parseExprEntryD st i e))
-  | .name i n => do pure (.inl (← parseNameEntryD st i n))
-  | .level i l => do pure (.inl (← parseLevelEntryD st i l))
-  | .decl d => applyDeclD st d
-  | .header => pure (.inl st)
-  | .blank => pure (.inl st)
-
-
 /-! ## The equations: what the parse runs now is the old spelling -/
 
 theorem getDeclD_eq (st : StateD) (i : Nat) : getDeclD st i = st.expr i := rfl
@@ -400,9 +378,6 @@ theorem parseExprEntryD_eq (st : StateD) (i : Nat) (r : ExprRec) :
 theorem parseCVD_eq (st : StateD) (cv : CVRec) :
     parseCVD st cv = cvOfF st.name st.level st.expr cv := rfl
 
-theorem parseRuleD_eq (st : StateD) (ru : RuleRec) :
-    parseRuleD st ru = ruleOfF st.name st.level st.expr ru := rfl
-
 theorem parseRuleD_fn (st : StateD) :
     parseRuleD st = ruleOfF st.name st.level st.expr := rfl
 
@@ -429,14 +404,5 @@ theorem processLineCoreD_eq (st : StateD) (d : DeclRec) :
     (try split) <;>
     simp only [bind_assoc, pure_bind]
   all_goals (cases ‹HintsRec› <;> rfl)
-
-theorem applyDeclD_eq (st : StateD) (d : DeclRec) :
-    ConLeche.Frontend.applyDeclD st d = applyDeclD st d := by
-  rw [ConLeche.Frontend.applyDeclD, applyDeclD, processLineCoreD_eq]
-
-theorem applyLine_eq (st : StateD) (r : LineRec) :
-    ConLeche.Frontend.applyLine st r = applyLine st r := by
-  cases r <;> simp only [ConLeche.Frontend.applyLine, applyLine, parseExprEntryD_eq,
-    parseNameEntryD_eq, parseLevelEntryD_eq, applyDeclD_eq]
 
 end ConRon.Bridge.Frontend.Prev
