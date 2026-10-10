@@ -278,7 +278,7 @@ obligation for exactly this reason). -/
 def IEnv.find? (env : IEnv) (n : NIdx) : Option IConstantInfo :=
   env.consts.find? (·.name == n)
 
-/-- con-leche: ConLeche/Kernel/FEnv.lean:76-96 FEnv — the environment with its
+/-- con-leche: ConLeche/Kernel/FEnv.lean:76-108 FEnv — the environment with its
 `O(1)` index (DESIGN §8.3 lesson 13).  Entries with counter `< visibleBelow`
 are visible; `visibleBelow` doubles as the next counter `push` hands out. -/
 structure IFEnv where

@@ -610,9 +610,9 @@ pub fn i_constant_info_canon_eq(
 
 /// con-leche: ConLeche/Kernel/Canon.lean:242-258 ConstantInfo.canonEqFast
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:196-228 IConstantInfo.canonEq` —
-/// the `.defnInfo`/`.thmInfo` arms' shared tail: the common data, then the
-/// stored value at the same numbered names.  Split at the twin's own `let cs`
-/// boundary, which is where the two arms coincide.
+/// the `.defnInfo` arm's tail (a stored theorem has no value since con-leche
+/// task #329 THMVAL): the common data, then the value at the same names,
+/// split at the twin's own `let cs` boundary.
 pub fn canon_eq_cv_and_value(
     pers: &PersTier,
     st: &mut AState,
