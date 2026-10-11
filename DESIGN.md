@@ -67979,7 +67979,7 @@ through the Rust, the extraction, the twin, Theorem 1 and Theorem 2.
 | **#334** | `prepareMajor`'s K branch: after `majorToCtor`, the literal conversion only if `isCtorApp`, else the major unchanged (no `whnf`) | **ported**: `prepare_major`, twin; T1 `prepareMajorFueled_k` (now with `isCtorApp`) and `_kStuck`; T2 by `lockstep` unchanged |
 | **#330** | `whnfCoreLoopFuel`/`whnfLoopFuel`/`defeqLoopFuel` = `2^62` | **ported** (`WHNF_LOOP_FUEL`, `DEFEQ_LOOP_FUEL`: `u64`; twin `@[noinline]` for con-leche's reason); con-ron has no `whnfCoreLoopFuel` (skip list, task #105).  The bridge's `_eq` lemmas and T2's `absU` lemmas went through unchanged |
 | **#329 THMVAL** | `ConstantInfo.thmInfo` carries no value | **ported**: `kernel::env::ConstantInfo::ThmInfo(ConstantVal)`, `arena::env::IConstantInfo::ThmInfo(IConstantVal)`, intern, promote, canon (a theorem compares by statement), `annot_step_thm`, `check_thm_val_witness`; twin likewise; ~45 proof sites, every one a dropped argument (`denoteCI_thm_inv`'s shape, `constWF_thmInfo`, `PersCI`, the canon arm), as upstream found |
-| ExportC builders (#329 ROUNDS) | the record semantics as builders over three lookups (`nameOfF` … `declOfF`, `Lk`); `getDeclD`, `parsePwD`, `parseCVD`, `parseRuleD`, `validateIndD`, `installIndD` gone; `parseExportHandleD` moved to `Frontend/Stream.lean` (`serialLoop`) | **re-cited**: same computation at the serial parse's own tables; the Rust and the twin keep their functions.  T1 proves it: `Bridge/Frontend/Builders.lean` keeps the 67f04630 spellings (namespace `Prev`, elaborated with con-leche's `do` options) and one equation per function against the builders; `Lines.lean` reaches them only through those |
+| ExportC builders (#329 ROUNDS) | the record semantics as builders over three lookups (`nameOfF` … `declOfF`, `Lk`); `getDeclD`, `parsePwD`, `parseCVD`, `parseRuleD`, `validateIndD`, `installIndD` gone; `parseExportHandleD` moved to `Frontend/Stream.lean` (`serialLoop`) | **re-cited**: same computation at the serial parse's own tables; the Rust and the twin keep their functions.  T1 is stated against the builders directly (`cvOfF sc.name sc.level sc.expr`, `indBlockOfF`, `declOf`/`declOfF` at `StateD.lk`) as of task #118, which removed the reference copy `Bridge/Frontend/Builders.lean` this task had added |
 | BLOCKCOPY, #331, #332 | `FEnv` base layer and overlay, `markLinear`, `blockRecInfosTF` + `FEnv.pushAll` replacing `consBlockRecsTF`, `ShadowOps.ruleEnv` (`classFeR`/`classFeROvl`), `checkDefnValCI`/`checkOpaqueValCI`, `ienv` and no memo state across records | **re-cited** with the deviation written down (`ifenv_find`, `IFEnv`, `cons_block_recs_t`, `gen_rec_generate`, twin likewise): on every environment the install threads the overlay and base are empty and `find?` is the plain lookup; the port's push/pop-in-place is its own answer to the same copy.  New helpers in `provenance-skip.txt` with reasons |
 | #329 LAYER, PARSE, INSTALL, STATS | driver to `ConLeche/Driver/`; parallel parse and install; end-of-run statistics | driver citations repointed (`Run.lean`, `CheckPool.lean`, `ParInstall.lean`'s serial `installLoop`); the rest skipped (`InstallSkel.lean *`) |
 | **#335** | an uncaught IO error exits 3, not 1 | con-ron's binary already did (an unreadable input is reported and exits 3; a failed write panics the checking thread, exit 3); the twin's `con-ron-lean` now wraps its `main` the same way |
@@ -68009,3 +68009,32 @@ build`.)
 
 **Docs.**  Eight OVERVIEW anchors whose text changed (citation lines and
 `check_main`'s exit) were re-read; every citing paragraph stays true.
+
+### Task #118 — no reference copy of con-leche's builders (2026-10-11, Opus)
+
+The maintainer's rule (con-leche's task #332): no reference copies — proofs
+are repaired against the code that runs.  Task #117 had kept con-leche
+`67f04630`'s state-reading parse functions verbatim in
+`proof/ConRon/Bridge/Frontend/Builders.lean` (408 lines, namespace `Prev`,
+elaborated under con-leche's `backward.do.legacy false` /
+`respectTransparency true`) with one equation each against the builders, and
+`Bridge/Frontend/Lines.lean` reached con-leche only through them (39 `Prev.`
+uses).  **Builders.lean is deleted**; `Lines.lean` states every theorem
+against con-leche's current functions:
+
+| was | now |
+|---|---|
+| `Prev.getDeclD sc i` | `sc.expr i` |
+| `Prev.parsePwD sc r` | `pwOfF sc.name sc.level sc.expr r` |
+| `Prev.parseCVD sc`, `Prev.parseRuleD sc`, `Prev.validateIndD sc` | `cvOfF`, `ruleOfF`, `validateIndF` at `sc.name sc.level sc.expr` |
+| `∃ sc', Prev.installIndD sc … = .ok sc' ∧ StateDRel … sc'` | `∃ d, indBlockOfF sc.name sc.level sc.expr … = .ok d ∧ StateDRel … (pushDecl sc d)` |
+| `rw [Prev.parse{Name,Level,Expr}EntryD_eq, Prev.…]` | `simp only [ConLeche.Frontend.parse…EntryD, nameOf/levelOf/exprOf, …OfF, StateD.lk]` |
+| `simp only [Prev.processLineCoreD_eq, Prev.processLineCoreD]` | `simp only [ConLeche.Frontend.processLineCoreD, declOf, declOfF, StateD.lk]` |
+
+No lemma was needed: every proof step after the unfolding went through as it
+was (the builders at `StateD.lk` reduce to the old bodies by `simp only` and
+the `rfl`s that closed the old goals), including `processLineCoreD`'s match
+on `declOf`'s result.  `Lines.lean` 2593 → 2610 lines (the unfoldings
+spelled out where a `Prev` equation stood; one `open` of the builder names),
+net −391 with Builders.lean gone; the special `do`/transparency options went with the copies.
+No Rust, extraction or twin change.
