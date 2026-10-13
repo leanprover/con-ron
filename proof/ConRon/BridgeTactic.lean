@@ -404,8 +404,10 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
         for (u, v, pe) in edges do
           unless (n.find? (· == u)).isSome do continue
           let ty ← inferType u
-          let motive := Expr.lam `z ty
-            (n.replace fun x => if x == u then some (.bvar 0) else none) .default
+          -- abstracted through a local, not `.bvar 0`: an occurrence under
+          -- a binder must not be captured by it
+          let motive ← withLocalDeclD `z ty fun z =>
+            mkLambdaFVars #[z] (n.replace fun x => if x == u then some z else none)
           let n' ← projNorm (n.replace fun x => if x == u then some v else none)
           if ← all.anyM (fun (y, _) => same n' y) then continue
           let p ← mkEqTrans pn (← mkCongrArg motive pe)
@@ -686,6 +688,22 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
         if e.hasExprMVar then return none
         return some e
       if let some p := r then return some p
+  -- a `∀`-HYPOTHESIS as a lemma: a callee's postcondition that concludes a
+  -- non-fact (`memo insert's ∀ f, MemoOK f … → RelE … → MemoOK f …`); its
+  -- conclusion is not a denotation (those are `chainHyp`'s)
+  if isFactShape t then return none
+  for h in (← read).hyps.reverse do
+    let some rt := h.rel? | continue
+    let r ← attempt do
+      let (args, _, concl) ← forallMetaTelescope rt
+      if isFactShape concl then return none
+      unless ← mayMatch concl t do return none
+      unless ← same concl t do return none
+      unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
+      let e ← instantiateMVars (mkAppN h.pf args)
+      if e.hasExprMVar then return none
+      return some e
+    if let some p := r then return some p
   return none
 
 /-- The `Prop` premises of a lemma, in order.  A premise that is neither a
@@ -1278,8 +1296,8 @@ def storeNorm (g : MVarId) : MetaM MVarId := g.withContext do
     for (lhs, r, pr) in subst do
       unless (e.find? (isStore · lhs)).isSome do continue
       let ty ← inferType lhs
-      let motive := Expr.lam `z ty
-        (e.replace fun x => if isStore x lhs then some (.bvar 0) else none) .default
+      let motive ← withLocalDeclD `z ty fun z =>
+        mkLambdaFVars #[z] (e.replace fun x => if isStore x lhs then some z else none)
       let e' := e.replace fun x => if isStore x lhs then some r else none
       let step ← mkCongrArg motive pr
       let pf' ← match pf with
