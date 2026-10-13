@@ -435,6 +435,16 @@ theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
       exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
     · cases h
 
+/-- con-leche: none — `eBindView` at the `lam` tag (task #120: an unfolding
+`bridge_auto` is handed). -/
+theorem eBindView_lam (ty b : EIdx) : eBindView ETag.lam ty b = .lam ty b := by
+  simp [eBindView]
+
+/-- con-leche: none — `eBindView` at the `forallE` tag. -/
+theorem eBindView_forallE (ty b : EIdx) :
+    eBindView ETag.forallE ty b = .forallE ty b := by
+  simp [eBindView, ETag.lam, ETag.forallE]
+
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — `derivedE` does not
 touch the state and returns the packed word; with `EStore.derived_exact` that
 word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
@@ -466,24 +476,9 @@ theorem internLamE_spec_view (s₀ : AState) (ty b : EIdx)
         denoteE s'.store h = denoteEView s'.store (.lam ty b); ⊤⦄ := by
   vcgen [internLamE]
   all_goals subst_vars
-  -- **The cons HIT**: the probe comes first, so this arm answers the handle
-  -- the `lams` table already holds and moves nothing.
-  vc_arm (hfind : EStore.findBind _ _ _ _ = some _) =>
-    have hview := EStore.view_of_findBind (tag := ETag.lam) hwf (by decide) hfind
-    have heb : eBindView ETag.lam ty b = ENodeView.lam ty b := by
-      simp [eBindView]
-    rw [heb] at hview
-    obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteE_unfold hwf' hview⟩
-  -- the MISS: the append, under the capacity test
-  vc_arm (hcap : _ < Idx.idxCap) =>
-    obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
-      EStore.internBind_spec (tag := ETag.lam) hwf (by decide) hty hb hcap
-    have heb : eBindView ETag.lam ty b = ENodeView.lam ty b := by
-      simp [eBindView]
-    rw [heb] at h5 h6
-    exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
+  bridge_auto [EStore.view_of_findBind (tag := ETag.lam) (htag := rfl), denoteE_view_eq,
+      EStore.internBind_spec (tag := ETag.lam) (htag := rfl)]
+    unfolding [eBindView_lam]
 
 theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
     (hwf : StoreWF s₀.store) (hty : (s₀.store.view ty).isSome = true)
@@ -496,24 +491,9 @@ theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
         denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ := by
   vcgen [internForallEE]
   all_goals subst_vars
-  -- the probe HIT
-  vc_arm (hfind : EStore.findBind _ _ _ _ = some _) =>
-    have hview :=
-      EStore.view_of_findBind (tag := ETag.forallE) hwf (by decide) hfind
-    have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b := by
-      simp [eBindView, ETag.lam, ETag.forallE]
-    rw [heb] at hview
-    obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteE_unfold hwf' hview⟩
-  -- the MISS: the append, under the capacity test
-  vc_arm (hcap : _ < Idx.idxCap) =>
-    obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
-      EStore.internBind_spec (tag := ETag.forallE) hwf (by decide) hty hb hcap
-    have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b := by
-      simp [eBindView, ETag.lam, ETag.forallE]
-    rw [heb] at h5 h6
-    exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
+  bridge_auto [EStore.view_of_findBind (tag := ETag.forallE) (htag := rfl), denoteE_view_eq,
+      EStore.internBind_spec (tag := ETag.forallE) (htag := rfl)]
+    unfolding [eBindView_forallE]
 
 /-- con-leche: none — `internLamE_spec_view` at denoting children: the face
 the node-building walks use. -/
@@ -580,21 +560,8 @@ theorem internNodeE_spec (s₀ : AState) (w : ENodeView)
         denoteE s'.store h = denoteEView s'.store w; ⊤⦄ := by
   vcgen [internNodeE]
   all_goals subst_vars
-  -- **The cons HIT** (task #97-P5-1's finding 9, fixed in the twin at
-  -- #97-P3-1): `internNodeE` probes before it tests the capacity, exactly as
-  -- the Rust does, so this branch answers the handle the cons table already
-  -- holds and moves nothing.  `EStore.view_of_find` is `StoreWF`'s own
-  -- `consP`/`consS` clause read left to right — no capacity in it.
-  vc_arm (hfind : EStore.find? _ _ = some _) =>
-    have hview := EStore.view_of_find hwf hfind
-    obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteE_unfold hwf' hview⟩
-  -- the MISS: the append, under the capacity test
-  vc_arm (hcap : _ < Idx.idxCap) =>
-    obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap
-    exact ⟨h1, h2, EStore.lss_intern _ _,
-      EStore.scratchOn_intern _ _, rfl, rfl, rfl, h3, h4⟩
+  bridge_auto [EStore.view_of_find, denoteE_view_eq, EStore.intern_spec]
+    unfolding [EStore.lss_intern, EStore.scratchOn_intern]
 
 /-- con-leche: none — `AM.of_run`'s converse at a fixed pre-state: a
 partial-correctness triple from a statement about every accepting run. -/
@@ -778,6 +745,38 @@ LIST, by induction on the list (the recursion `readNames` itself takes). -/
     vcgen [readNames, ih]
     all_goals (bridge_peel; subst_vars; grind [Frontend.denoteNList])
 
+/-- con-leche: none — the NAME store's probe hit, at `StoreWF` (task #120:
+the cons-hit arm of the three nested interns as lemmas `bridge_auto` takes). -/
+theorem EStore.nview_of_find {st : EStore} {v : NNodeView} {i : NIdx}
+    (h : StoreWF st) (hf : st.ns.find? v = some i) : st.ns.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h; exact NStore.view_of_find hwf.nsWF hf
+
+/-- con-leche: none — a name node's denotation is its view's. -/
+theorem EStore.denoteN_view_eq {st : EStore} {v : NNodeView} {i : NIdx}
+    (h : StoreWF st) (hv : st.ns.view i = some v) :
+    denoteN st.ns i = denoteNView st.ns v := by
+  obtain ⟨rk, hwf⟩ := h
+  obtain ⟨rkn, hnw⟩ := hwf.nsWF
+  exact denoteN_unfold hnw hv
+
+/-- con-leche: none — the LEVEL store's probe hit, at `StoreWF`. -/
+theorem EStore.lview_of_find {st : EStore} {v : LNodeView} {i : LIdx}
+    (h : StoreWF st) (hf : st.ls.find? v = some i) : st.ls.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h; exact LStore.view_of_find hwf.lsWF hf
+
+/-- con-leche: none — a level node's denotation is its view's. -/
+theorem EStore.denoteL_view_eq {st : EStore} {v : LNodeView} {i : LIdx}
+    (h : StoreWF st) (hv : st.ls.view i = some v) :
+    denoteL st.ls i = denoteLView st.ls v := by
+  obtain ⟨rk, hwf⟩ := h
+  obtain ⟨rkl, hlw⟩ := hwf.lsWF
+  exact denoteL_unfold hlw hv
+
+/-- con-leche: none — the LEVEL-LIST store's probe hit, at `StoreWF`. -/
+theorem EStore.lsview_of_find {st : EStore} {v : LsNodeView} {i : LsIdx}
+    (h : StoreWF st) (hf : st.lss.find? v = some i) : st.lss.view i = some v := by
+  obtain ⟨rk, hwf⟩ := h; exact LsStore.view_of_find hwf.lssWF hf
+
 /-- con-leche: none — hash-cons a name node, through the nesting.  The store
 half is `Bridge/StoreNested.lean`'s `EStore.internName_spec`; this is that
 fact under the wrapper's own capacity branch. -/
@@ -792,19 +791,7 @@ fact under the wrapper's own capacity branch. -/
         denoteN s'.store.ns h = denoteNView s'.store.ns v; ⊤⦄ := by
   vcgen [internNNode]
   all_goals subst_vars
-  -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
-  -- it tests the capacity, exactly as the Rust does.
-  vc_arm (hfind : NStore.find? _ _ = some _) =>
-    obtain ⟨rk, hwf'⟩ := hwf
-    obtain ⟨rkn, hnw⟩ := hwf'.nsWF
-    have hview := NStore.view_of_find ⟨rkn, hnw⟩ hfind
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteN_unfold hnw hview⟩
-  -- the MISS: the append, under the capacity test
-  vc_arm (hcap : _ < Idx.idxCap) =>
-    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-      EStore.internName_spec hwf hv (by exact hcap)
-    exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
+  bridge_auto [EStore.nview_of_find, EStore.denoteN_view_eq, EStore.internName_spec]
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — intern a transient
 name, by induction on the `Name` tree (the recursion `internName` takes: a
@@ -860,19 +847,7 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         denoteL s'.store.ls h = denoteLView s'.store.ls v; ⊤⦄ := by
   vcgen [internLNode]
   all_goals subst_vars
-  -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
-  -- it tests the capacity, exactly as the Rust does.
-  vc_arm (hfind : LStore.find? _ _ = some _) =>
-    obtain ⟨rk, hwf'⟩ := hwf
-    obtain ⟨rkl, hlw⟩ := hwf'.lsWF
-    have hview := LStore.view_of_find ⟨rkl, hlw⟩ hfind
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteL_unfold hlw hview⟩
-  -- the MISS: the append, under the capacity test
-  vc_arm (hcap : _ < Idx.idxCap) =>
-    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-      EStore.internLevel_spec hwf hv (by exact hcap)
-    exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
+  bridge_auto [EStore.lview_of_find, EStore.denoteL_view_eq, EStore.internLevel_spec]
 
 /-! ## The level-list store -/
 
@@ -902,18 +877,7 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         denoteLs s'.store.lss h = denoteLsView s'.store.lss v; ⊤⦄ := by
   vcgen [internLsNode]
   all_goals subst_vars
-  -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
-  -- it tests the capacity, exactly as the Rust does.
-  vc_arm (hfind : LsStore.find? _ _ = some _) =>
-    obtain ⟨rk, hwf'⟩ := hwf
-    have hview := LsStore.view_of_find hwf'.lssWF hfind
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
-      denoteLs_unfold hview⟩
-  -- the MISS: the append, under the capacity test
-  vc_arm (hcap : _ < Idx.idxCap) =>
-    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-      EStore.internLevels_spec hwf hv (by exact hcap)
-    exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
+  bridge_auto [EStore.lsview_of_find, denoteLs_unfold, EStore.internLevels_spec]
 
 /-! ## The readback memos (task #97-P6-13)
 
@@ -1243,18 +1207,25 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
         simp only [List.getElem?_cons_succ] at h1 h2
         exact ih ys k n x hd.2 h1 h2
 
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
+the pin at slot `i`, when the table has one, denotes `pinNames[i]` (task
+#120: `pinAt`'s one arm as a lemma). -/
+theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
+    (hlt : i < s.pins.names.size) :
+    ∀ x, pinNames[i]? = some x → denoteN s.store.ns s.pins.names[i] = some x := by
+  intro x hx
+  refine denoteNL_get _ pinNames i _ x hp.names ?_ hx
+  have hlt' : i < s.pins.names.toList.length := by simpa using hlt
+  rw [List.getElem?_eq_getElem hlt']
+  simp
+
 @[spec] theorem pinAt_spec (s₀ : AState) (i : Nat) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinAt i
     ⦃fun n s' => s' = s₀ ∧ ∀ x, pinNames[i]? = some x →
         denoteN s₀.store.ns n = some x; ⊤⦄ := by
   vcgen [pinAt]
   all_goals subst_vars
-  vc_arm (hlt : i < (AState.pins ?ps).names.size) =>
-    refine ⟨rfl, fun x hx => ?_⟩
-    refine denoteNL_get _ pinNames i _ x hp.names ?_ hx
-    have hlt' : i < ps.pins.names.toList.length := by simpa using hlt
-    rw [List.getElem?_eq_getElem hlt']
-    simp
+  bridge_auto [PinsOK.pinAt]
 
 @[spec] theorem pinReserved_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinReserved

@@ -361,21 +361,6 @@ theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
     | none => rw [ha, has] at h; simp at h
     | some xs' => rw [ha, has] at h; exact ⟨x, xs', rfl, rfl, (Option.some.inj h).symm⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — two empty
-spines agree. -/
-theorem defEqListFueled_nil {F d : Nat} :
-    ConLeche.defEqListFueled mode env F d [] [] = .ok true := rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — a length
-mismatch declines (empty against a cons). -/
-theorem defEqListFueled_ln {F d : Nat} {y : Expr} {ys : List Expr} :
-    ConLeche.defEqListFueled mode env F d [] (y :: ys) = .ok false := rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — and the
-other way round. -/
-theorem defEqListFueled_rn {F d : Nat} {x : Expr} {xs : List Expr} :
-    ConLeche.defEqListFueled mode env F d (x :: xs) [] = .ok false := rfl
-
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
 agree, so the verdict is the tails'.  **At ONE fuel**: the caller merges the
 head's and the tail's with `isDefEqCore_mono` and `defEqListFueled_mono`. -/
@@ -399,6 +384,27 @@ theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
   simp only [ConLeche.defEqListFueled, ConLeche.defEqList, hd, bind,
     Except.bind]
   rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the cons/cons
+arm, heads agreeing, as the answer relation at the larger fuel (task #120:
+the fuel merge as a lemma in the shape the verification condition has). -/
+theorem defEqList_cons_true_sim {F₁ F₂ d : Nat} {x y : Expr}
+    {xs ys : List Expr} {r : Bool}
+    (h : ConLeche.isDefEqCore mode env F₁ d x y = .ok true)
+    (ht : ConLeche.defEqList (pureFns mode env F₂) env d xs ys = .ok r) :
+    SimBOp (fun F => ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys)) r :=
+  ⟨max F₁ F₂, defEqListFueled_cons_true
+    (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) h)
+    (defEqListFueled_mono (Nat.le_max_right _ _) ht)⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the heads
+disagree: the verdict is the head comparison's. -/
+theorem defEqList_cons_false_sim {F d : Nat} {x y : Expr}
+    {xs ys : List Expr} {r : Bool} (hnb : ¬ r = true)
+    (h : ConLeche.isDefEqCore mode env F d x y = .ok r) :
+    SimBOp (fun F => ConLeche.defEqListFueled mode env F d (x :: xs) (y :: ys)) false := by
+  obtain rfl : r = false := by cases r <;> simp_all
+  exact ⟨F, defEqListFueled_cons_false h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **the
 induction**, in the ∃/∀ shape the recursive call forces (see the section
@@ -426,27 +432,18 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     | nil =>
       vcgen [ConRon.Arena.defEqList]
       bridge_peel; subst_vars
-      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
-      obtain rfl := denoteEList_nil_inv hx
-      obtain rfl := denoteEList_nil_inv hy
-      exact ⟨0, defEqListFueled_nil⟩
+      bridge_auto [denoteEList_nil_inv]
     | cons b bs' =>
       vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
-      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
-      obtain rfl := denoteEList_nil_inv hx
-      obtain ⟨y, ys', _, _, rfl⟩ := denoteEList_cons_inv hy
-      exact ⟨0, defEqListFueled_ln⟩
+      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv]
   | cons a as' ih =>
     intro bs s₀ hok hda hdb
     cases bs with
     | nil =>
       vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
-      refine ⟨hok, Ext.refl _, rfl, fun xs ys hx hy => ?_⟩
-      obtain ⟨x, xs', _, _, rfl⟩ := denoteEList_cons_inv hx
-      obtain rfl := denoteEList_nil_inv hy
-      exact ⟨0, defEqListFueled_rn⟩
+      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv]
     | cons b bs' =>
       have hdq := hsim.defeq'
       -- the two lists' heads and tails, before the walk: every precondition
@@ -461,26 +458,7 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       have hwys : ∀ z ∈ ys', Expr.WScoped d z := fun z hz => hwy z (by simp [hz])
       vcgen [ConRon.Arena.defEqList, hdq, ih]
       all_goals (bridge_peel; subst_vars)
-      bridge_frame
-      bridge_fwd
-      bridge_frame
-      -- the heads agree: the tails' verdict, at the larger fuel
-      vc_arm (hF1 : ConLeche.isDefEqCore _ _ ?F1 _ x y = .ok true)
-          (hF2 : ConLeche.defEqList (pureFns _ _ ?F2) _ _ xs' ys' = .ok _) =>
-        intro zs ws hz hw
-        obtain rfl := eq_of_eq_some hxs hz
-        obtain rfl := eq_of_eq_some hys hw
-        exact ⟨max F1 F2,
-          defEqListFueled_cons_true
-            (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) hF1)
-            (defEqListFueled_mono (Nat.le_max_right _ _) hF2)⟩
-      -- the heads disagree
-      vc_arm (hnb : ¬ ?rb = true) (hF1 : ConLeche.isDefEqCore _ _ _ _ x y = .ok ?rb) =>
-        obtain rfl : rb = false := by cases rb <;> simp_all
-        intro zs ws hz hw
-        obtain rfl := eq_of_eq_some hxs hz
-        obtain rfl := eq_of_eq_some hys hw
-        exact ⟨_, defEqListFueled_cons_false hF1⟩
+      bridge_auto [defEqList_cons_true_sim, defEqList_cons_false_sim]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
@@ -506,8 +484,7 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  vc_arm (h4 : ∀ xs ys, Frontend.denoteEList _ as = some xs → _) => exact h4 xs ys hda hdb
+  bridge_auto
 
 /-! ## 6. The axiom census
 

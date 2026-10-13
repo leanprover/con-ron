@@ -883,6 +883,16 @@ partial def frameGoal (snap : Snap) (g : MVarId) : MetaM (List MVarId) := g.with
 
 /-! ## 3. Forward: instantiate what the context already knows -/
 
+/-- The premise with its head constant unfolded once, if that constant is a
+non-reducible definition (not a frame predicate or an answer relation). -/
+def unfoldHeadOnce (t : Expr) : MetaM (Option Expr) := do
+  let some n := t.getAppFn.constName? | return none
+  if relNames.contains n || isFrameShape t then return none
+  unless (← getEnv).find? n matches some (.defnInfo _) do return none
+  if getReducibilityStatusCore (← getEnv) n == .reducible then return none
+  let some t' ← unfoldDefinition? t | return none
+  return some t'.headBeta
+
 /-- All the ways to instantiate the telescope `args` (premises matched
 against hypotheses, facts proved by `provedFact`, frame premises by `prove`):
 each a closed instance of `mk`. -/
@@ -924,16 +934,20 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
       let r ← instances rest mk acc
       restore s
       return r
-    -- a premise matched against every hypothesis: branch
+    -- a premise matched against every hypothesis: branch (as stated, and
+    -- with a non-reducible head definition unfolded once: a lemma's
+    -- `st.capOK w` against the program's own branch condition)
     let aT ← normNeg aT
+    let aTs := #[aT] ++ (← unfoldHeadOnce aT).toArray
     let mut acc := acc
     for h in (← read).hyps.reverse do
-      unless ← mayMatch h.ty aT do continue
-      let s ← save
-      if ← same h.ty aT then
-        a.mvarId!.assign h.pf
-        acc ← instances rest mk acc
-      restore s
+      for aT in aTs do
+        unless ← mayMatch h.ty aT do continue
+        let s ← save
+        if ← same h.ty aT then
+          a.mvarId!.assign h.pf
+          acc ← instances rest mk acc
+        restore s
     -- an equation about a CLOSED term (`pinNames[PIN_NAT]? = some x`): no
     -- hypothesis states it, evaluation decides it
     if acc.isEmpty then
@@ -1013,8 +1027,9 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
         let closedEq := match aT'.eq? with
           | some (_, l, _) => !l.hasFVar && !l.hasMVar
           | none => false
+        let aTs := #[aT'] ++ (← unfoldHeadOnce aT').toArray
         unless closedEq do
-          unless ← (← read).hyps.anyM (fun h => (mayMatch h.ty aT' : MetaM Bool)) do
+          unless ← (← read).hyps.anyM (fun h => aTs.anyM (fun t => (mayMatch h.ty t : MetaM Bool))) do
             dead := kinds.size - 1
     let mut insts := #[]
     let mut anchor := false
@@ -1097,9 +1112,10 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t := (← instantiateMVars d.type).cleanupAnnotations
-    unless isFactShape t do continue
+    -- a denotation, or any other function answering `some` (`env.find? nm`)
     let some (_, l, r) := t.eq? | continue
     unless r.isAppOfArity ``Option.some 2 do continue
+    unless isFactShape t || l.getAppFn.isConst do continue
     facts := facts.push (l, r.appArg!, d.toExpr)
   let mut news : Array Hypothesis := #[]
   let mut snap? : Option Snap := none
@@ -1115,6 +1131,7 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
                             value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p₁, p₂] }
         continue
       -- the same handle at two stores of one `Ext` chain: one value
+      unless isFactShape (← mkEq l₁ (← mkAppM ``Option.some #[a])) do continue
       let snap ← snap?.getDM snapshot
       snap? := some snap
       let t₂ ← mkEq l₂ (← mkAppM ``Option.some #[a])
@@ -1127,7 +1144,24 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
         news := news.push { userName := `fwd, type := ← mkEq a b,
                             value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p₁, q] }
   if news.isEmpty then return g
-  let (_, g) ← g.assertHypotheses news
+  let (fvs, g) ← g.assertHypotheses news
+  -- two answers built by one constructor (`.defnInfo cv val hint` against
+  -- `.defnInfo cv' val' hint'`): their fields, by injection
+  let mut g := g
+  for fv in fvs do
+    let ok ← g.withContext do
+      let t ← instantiateMVars (← fv.getType)
+      let some (_, a, b) := t.eq? | return false
+      let env ← getEnv
+      let ctor (e : Expr) : Option Name := e.getAppFn.constName?.bind fun n =>
+        match env.find? n with
+        | some (.ctorInfo _) => some n
+        | _ => none
+      return (ctor a).isSome && ctor a == ctor b
+    unless ok do continue
+    match ← observing? (Meta.injection g fv) with
+    | some (.subgoal g' _ _) => g := g'
+    | _ => pure ()
   return g
 
 /-- Clear what the substitutions left trivial among the hypotheses NOT in
@@ -1221,6 +1255,32 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   -- hypotheses before the rounds, so that the facts take part; a known
   -- denotation is identified at the end (`unifyFacts`)
   if introFacts then
+    -- a block of data binders followed by facts about them
+    -- (`∀ xs ys, denoteEList … = some xs → denoteEList … = some ys → …`)
+    let block ← g.withContext do
+      let t ← whnfR (← instantiateMVars (← g.getType))
+      forallTelescopeReducing t fun xs _ => do
+        let mut n := 0
+        while n < xs.size do
+          unless ← isProp (← inferType xs[n]!) do n := n + 1; continue
+          break
+        if n < 2 then return 0
+        let mut k := n
+        while k < xs.size do
+          let ty ← inferType xs[k]!
+          if (← isProp ty) && isFactShape ty then k := k + 1 else break
+        if k == n then return 0
+        -- and the lookups that follow (`env.find? nm = some ci`), which
+        -- `unifyFacts` identifies with the context's own
+        while k < xs.size do
+          let ty ← inferType xs[k]!
+          match ty.eq? with
+          | some (_, _, r) => if r.isAppOfArity ``Option.some 2 then k := k + 1 else break
+          | none => break
+        return k
+    if block > 0 then
+      let (_, g') ← g.introNP block
+      g := g'
     repeat
       let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
       let .forallE _ _ body _ := t | break
@@ -1274,6 +1334,10 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   -- `seen` mentions), and only when an equation solves a variable: on a
   -- verification condition's context `substVars` is the dearest step
   g ← substNew g old
+  -- once more: an identification can make two lookups' keys equal
+  -- (`nm' = nm`, then `env.find? nm = some ci'` against `… = some ci`)
+  let g' ← g.withContext (unifyFacts g)
+  if g' != g then g ← substNew g' old
   -- what the substitution made reducible (`Expr.WScoped d x` at `x := .app …`)
   let g' ← peelAll g
   if g' != g then g ← substNew g' old
@@ -1352,6 +1416,50 @@ syntax (name := bridgeFwd) "bridge_fwd" (" [" term,* "]")? : tactic
   setGoals out
 
 namespace Frame
+
+/-- Close `g` when it is (or unfolds to) `∃ x, P x` and a hypothesis is
+`P w` for some `w` (reducibly, after β): the answer relations `SimBOp`,
+`SimE`, … are such `∃ F, …`, and `bridge_fwd` peels the instance a lemma
+produced into its witness and its body. -/
+def closeExistsByHyp (g : MVarId) : MetaM Bool := g.withContext do
+  let t ← whnfD (← instantiateMVars (← g.getType))
+  unless t.isAppOfArity ``Exists 2 do return false
+  let α := t.appFn!.appArg!
+  let p := t.appArg!
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let s ← saveState
+    let w ← mkFreshExprMVar α
+    let body ← Core.betaReduce (p.beta #[w])
+    let ht ← Core.betaReduce (← instantiateMVars d.type)
+    if ← same ht body then
+      let w ← instantiateMVars w
+      unless w.hasExprMVar do
+        g.assign (← mkAppOptM ``Exists.intro #[α, p, w, d.toExpr])
+        return true
+    s.restore
+  -- no hypothesis: the body may hold by `rfl` whatever the witness (a pure
+  -- function's base case, `defEqList … [] [] = .ok true` at any fuel); the
+  -- check is bounded, and the witness defaults when the body ignores it
+  let s ← saveState
+  try
+    let w ← mkFreshExprMVar α
+    let body ← Core.betaReduce (p.beta #[w])
+    if let some (_, l, r) := body.eq? then
+      let ok ← tryCatchRuntimeEx
+        (withCurrHeartbeats <| withTheReader Core.Context (fun c => { c with maxHeartbeats := 20000 * 1000 })
+          (withDefault (Meta.isDefEq l r)))
+        (fun _ => pure false)
+      if ok then
+        let w ← instantiateMVars w
+        let w ← if w.hasExprMVar then mkAppOptM ``Inhabited.default #[α, none] else pure w
+        let body ← Core.betaReduce (p.beta #[w])
+        let some (_, l, _) := body.eq? | do s.restore; return false
+        g.assign (← mkAppOptM ``Exists.intro #[α, p, w, ← mkEqRefl l])
+        return true
+  catch _ => pure ()
+  s.restore
+  return false
 
 /-- Close `g` with `h : ∀ xs, C … = C' xs → False` (a "not this constructor"
 fact) when the goal's own split made the equation `rfl`. -/
@@ -1442,6 +1550,7 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
   catch _ => pure ()
   s.restore
   if ← closeByNegCtor g then return true
+  if ← closeExistsByHyp g then return true
   -- a conjunction: each conjunct finished on its own
   let tg ← g.withContext do whnfR (← instantiateMVars (← g.getType))
   if tg.isAppOfArity ``And 2 then
