@@ -1580,66 +1580,51 @@ theorem key_at_refines {b : Slice Std.U8} {i kl : Std.Usize} {k : frontend.scan_
     split at w00
     · rename_i hkl
       subst hkl
-      obtain ⟨s46, hs46, w91⟩ := bind_eq_ok_iff.mp w00
-      obtain ⟨v46, hv46, w92⟩ := bind_eq_ok_iff.mp w91
-      have q46 := key_lit (cs := [112, 119]) hj hs46
-        (by simp [frontend.scan_fast.key_at.S_PW]) (by decide) hv46
-      split at w92
-      · have hk : k = frontend.scan_types.Key.KPw := by simpa using w92.symm
+      obtain ⟨s47, hs47, w93⟩ := bind_eq_ok_iff.mp w00
+      obtain ⟨v47, hv47, w94⟩ := bind_eq_ok_iff.mp w93
+      have q47 := key_lit (cs := [112, 114, 101]) hj hs47
+        (by simp [frontend.scan_fast.key_at.S_PRE]) (by decide) hv47
+      split at w94
+      · have hk : k = frontend.scan_types.Key.KPre := by simpa using w94.symm
         subst hk
         key_close
-      · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w92.symm
+      · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w94.symm
         subst hk
         key_close
     · split at w00
       · rename_i hkl
         subst hkl
-        obtain ⟨s47, hs47, w93⟩ := bind_eq_ok_iff.mp w00
-        obtain ⟨v47, hv47, w94⟩ := bind_eq_ok_iff.mp w93
-        have q47 := key_lit (cs := [112, 114, 101]) hj hs47
-          (by simp [frontend.scan_fast.key_at.S_PRE]) (by decide) hv47
-        split at w94
-        · have hk : k = frontend.scan_types.Key.KPre := by simpa using w94.symm
+        obtain ⟨s48, hs48, w95⟩ := bind_eq_ok_iff.mp w00
+        obtain ⟨v48, hv48, w96⟩ := bind_eq_ok_iff.mp w95
+        have q48 := key_lit (cs := [112, 114, 111, 106]) hj hs48
+          (by simp [frontend.scan_fast.key_at.S_PROJ]) (by decide) hv48
+        split at w96
+        · have hk : k = frontend.scan_types.Key.KProj := by simpa using w96.symm
           subst hk
           key_close
-        · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w94.symm
+        · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w96.symm
           subst hk
           key_close
       · split at w00
         · rename_i hkl
           subst hkl
-          obtain ⟨s48, hs48, w95⟩ := bind_eq_ok_iff.mp w00
-          obtain ⟨v48, hv48, w96⟩ := bind_eq_ok_iff.mp w95
-          have q48 := key_lit (cs := [112, 114, 111, 106]) hj hs48
-            (by simp [frontend.scan_fast.key_at.S_PROJ]) (by decide) hv48
-          split at w96
-          · have hk : k = frontend.scan_types.Key.KProj := by simpa using w96.symm
+          obtain ⟨s49, hs49, w97⟩ := bind_eq_ok_iff.mp w00
+          obtain ⟨v49, hv49, w98⟩ := bind_eq_ok_iff.mp w97
+          have q49 := key_lit (cs := [112, 97, 114, 97, 109]) hj hs49
+            (by simp [frontend.scan_fast.key_at.S_PARAM]) (by decide) hv49
+          split at w98
+          · have hk : k = frontend.scan_types.Key.KParam := by simpa using w98.symm
             subst hk
             key_close
-          · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w96.symm
+          · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w98.symm
             subst hk
             key_close
-        · split at w00
-          · rename_i hkl
-            subst hkl
-            obtain ⟨s49, hs49, w97⟩ := bind_eq_ok_iff.mp w00
-            obtain ⟨v49, hv49, w98⟩ := bind_eq_ok_iff.mp w97
-            have q49 := key_lit (cs := [112, 97, 114, 97, 109]) hj hs49
-              (by simp [frontend.scan_fast.key_at.S_PARAM]) (by decide) hv49
-            split at w98
-            · have hk : k = frontend.scan_types.Key.KParam := by simpa using w98.symm
-              subst hk
-              key_close
-            · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w98.symm
-              subst hk
-              key_close
-          · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w00.symm
-            subst hk
-            have gk2 : ¬ kl.val = 2 := by scalar_tac
-            have gk3 : ¬ kl.val = 3 := by scalar_tac
-            have gk4 : ¬ kl.val = 4 := by scalar_tac
-            have gk5 : ¬ kl.val = 5 := by scalar_tac
-            key_close
+        · have hk : k = frontend.scan_types.Key.KUnknown := by simpa using w00.symm
+          subst hk
+          have gk3 : ¬ kl.val = 3 := by scalar_tac
+          have gk4 : ¬ kl.val = 4 := by scalar_tac
+          have gk5 : ¬ kl.val = 5 := by scalar_tac
+          key_close
   · have hcb' : byteAt (absBytes b) (absPos i + 1) = 113 := by rw [hcb]; rfl
     rw [hcb']
     simp only []
