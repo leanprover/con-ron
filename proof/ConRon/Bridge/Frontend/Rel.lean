@@ -149,15 +149,8 @@ theorem PersE_of_view {st : EStore} (_hwf : StoreWF st)
   by_cases hp : h.isPersistent = true
   · exact hp
   · exfalso
-    rw [Arena.EStore.view] at hv
-    by_cases hb : ETag.isBind h.tag
-    · rw [ite_eq_left hb] at hv
-      have hbi : st.viewBindI h = none := by
-        rw [Arena.EStore.viewBindI, ite_eq_right hp, ite_eq_right (by rw [hoff]; simp)]
-      rw [Arena.EStore.viewBind, hbi] at hv
-      exact absurd hv (by simp)
-    · rw [ite_eq_right hb, ite_eq_right hp, ite_eq_right (by rw [hoff]; simp)] at hv
-      exact absurd hv (by simp)
+    rw [Arena.EStore.view, ite_eq_right hp, ite_eq_right (by rw [hoff]; simp)] at hv
+    exact absurd hv (by simp)
 
 /-! ## The frame
 
@@ -625,13 +618,12 @@ theorem PersCV_of_denote {st : EStore} (hwf : StoreWF st)
   exact ⟨PersN_of_denote hwf hoff h1, PersNList_of_denote hwf hoff h2,
     PersE_of_denote hwf hoff h3⟩
 
-/-- con-leche: none — a recursor rule's firing mode; the two constant arms
-carry no handle at all. -/
+/-- con-leche: none — a recursor rule's firing mode; the constant arm
+carries no handle at all. -/
 theorem PersFire_of_denote {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {fr : IRecRuleFire} {f : RecRuleFire}
     (hd : denoteFire st fr = some f) : PersFire fr := by
   cases fr with
-  | inert => trivial
   | plain => trivial
   | nested lvls pins =>
     rw [denoteFire] at hd

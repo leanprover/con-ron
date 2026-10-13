@@ -65,17 +65,48 @@ theorem checkBlockPass_envWF {μ : CheckMode} {F : Nat} {env : Env} {p₀ : Bloc
   subst h
   exact ⟨henv₁, henv₂⟩
 
-/-- con-leche: Kernel/Inductives/BlockTail.lean:129 checkBlockTail — from a
-pass whose constructors' environment is well-formed, the install after it
-yields a well-formed environment (`genRecCheck_recsWF`, then the tables). -/
+/-- con-leche: Kernel/Inductives/BlockTail.lean:62 checkBlockPass — the pass's
+canonical parameters are one per block parameter (`blockNestCtx` opens the head
+former's `nP` binders), and every class it checked as a major is, at an outside
+inductive, at parameters below the block's (`targetMajorOf`'s outside arm).
+These are `genRecCheck_recsWF`'s premises; upstream reads them off its cached
+run (`checkBlockPassS_run`), here off the pure one. -/
+theorem checkBlockPass_classes {μ : CheckMode} {F : Nat} {env : Env} {p₀ : BlockParts}
+    {isRec : Bool} {q : BlockPass Env}
+    (h : checkBlockPass (fueledOps μ F) env p₀ isRec = .ok q) :
+    q.params.length = q.p.nP ∧ ∀ M ∈ q.cls, ClassOutParams q.p.nP M := by
+  obtain ⟨p₁, ctx, holes, -, -, -, -, hctx, hcls, -, -, hpar, -, hp⟩ := checkBlockPass_inv h
+  obtain ⟨_, fvsP, _, -, hop, rfl, -⟩ := blockNestCtx_inv hctx
+  refine ⟨?_, fun M hM => ?_⟩
+  · rw [hpar, hp]
+    exact ConLeche.Verify.openPisAtFvars_length _ hop
+  · obtain ⟨C⟩ := checkBlockClasses_run hcls
+    obtain ⟨hlen, hall⟩ := classMajors_run C.hMs
+    obtain ⟨i, hi⟩ := List.getElem?_of_mem hM
+    have hik : i < C.keys.length := by
+      have := (List.getElem?_eq_some_iff.mp hi).1; omega
+    obtain ⟨M', hM', ⟨R⟩⟩ := hall i _ (List.getElem?_eq_getElem hik)
+    rw [hi] at hM'
+    obtain rfl := Option.some.inj hM'
+    intro hMn
+    obtain ⟨-, -, -, -, -, -, hl, hsc, -⟩ := R.major.outside_facts hMn
+    rw [hp]
+    exact ⟨hl, hsc⟩
+
+/-- con-leche: Kernel/Inductives/BlockTail.lean:127 checkBlockTail — from a
+pass whose constructors' environment is well-formed, whose parameters are the
+block's and whose outside classes sit below them (`checkBlockPass_classes`),
+the install after it yields a well-formed environment (`genRecCheck_recsWF`,
+then the tables). -/
 theorem checkBlockTail_envWF {μ : CheckMode} {F : Nat} {block : List ConstantInfo}
     {q : BlockPass Env} {env' : Env}
     (henv₂ : EnvWF (consBlockCtors q.p.nP q.ctorsAs q.env₁))
+    (hpl : q.params.length = q.p.nP) (hcls : ∀ M ∈ q.cls, ClassOutParams q.p.nP M)
     (h : checkBlockTail (fueledOps μ F) block q = .ok env') : EnvWF env' := by
   unfold checkBlockTail at h
   obtain ⟨_, -, h⟩ := exceptBind_ok h
   obtain ⟨out, hR, h⟩ := exceptBind_ok h
-  have henv₃ := ConLeche.Cached.genRecCheck_recsWF (mode := μ) henv₂ hR
+  have henv₃ := ConLeche.Cached.genRecCheck_recsWF (mode := μ) henv₂ hR hpl hcls
     (consBlockCtors q.p.nP q.ctorsAs q.env₁).find?
   exact checkBlockTables_envWF _ _ henv₃ h
 
@@ -89,7 +120,8 @@ theorem checkBlock_envWF {μ : CheckMode} {F : Nat} {env env' : Env}
   dsimp only at h
   split at h
   · obtain ⟨q, hP, h⟩ := exceptBind_ok h
-    exact checkBlockTail_envWF (checkBlockPass_envWF henv hP).2 h
+    obtain ⟨hpl, hcls⟩ := checkBlockPass_classes hP
+    exact checkBlockTail_envWF (checkBlockPass_envWF henv hP).2 hpl hcls h
   · obtain ⟨_, h, -⟩ := exceptBind_ok h
     exact nomatch h
 

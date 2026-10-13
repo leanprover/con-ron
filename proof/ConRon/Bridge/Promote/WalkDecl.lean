@@ -173,12 +173,6 @@ theorem promoteFire_step {m m' : PMemo} {fuel : Nat} {f f' : IRecRuleFire}
       (∀ c, Frontend.denoteFire s.store f = some c →
         Frontend.denoteFire s'.store f' = some c) := by
   cases f with
-  | inert =>
-    simp only [promoteFire] at hrun
-    obtain ⟨hr, rfl⟩ := AM.pure_ok hrun
-    simp only [Prod.mk.injEq] at hr
-    obtain ⟨rfl, rfl⟩ := hr
-    exact ⟨hwf, hm, Ext.refl _, trivial, fun _ h => h⟩
   | plain =>
     simp only [promoteFire] at hrun
     obtain ⟨hr, rfl⟩ := AM.pure_ok hrun
@@ -699,8 +693,8 @@ theorem promoteVG_step {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
     (hrun : promoteVG m fuel g s = .ok ((m', g'), s')) :
     StoreWF' s'.store ∧ PMemoOK m' s'.store ∧ Ext s.store s'.store ∧ PersVG g' ∧
       g'.kind = g.kind ∧
-      (∀ c, Frontend.denoteCV s.store g.cvA = some c →
-        Frontend.denoteCV s'.store g'.cvA = some c) ∧
+      (∀ c, Frontend.denoteCV s.store g.cv = some c →
+        Frontend.denoteCV s'.store g'.cv = some c) ∧
       (∀ e, denoteE s.store g.jv = some e → denoteE s'.store g'.jv = some e) := by
   simp only [promoteVG] at hrun
   obtain ⟨⟨m1, c1⟩, s1, h1, h2⟩ := AM.bind_ok hrun

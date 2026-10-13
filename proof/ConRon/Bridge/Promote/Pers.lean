@@ -264,34 +264,13 @@ theorem LsStore.view_bracket (st : LsStore) (i : LsIdx) :
   · simp [hp]
   · simp [hp, LsTables.get_empty]
 
-/-- con-leche: none — the binder datum reads the same at both ends. -/
-theorem EStore.viewBM_bracket (st : EStore) (i : BMIdx) :
-    st.enableScratch.viewBM i = st.dropScratch.viewBM i := by
-  simp only [EStore.viewBM, EStore.enableScratch, EStore.dropScratch,
-    EStore.persGetBM]
-  by_cases hp : i.isPersistent = true
-  · simp [hp]
-  · simp [hp, ETables.getBM_empty]
-
-/-- con-leche: none — the expression store's view is the same at both ends;
-the two binder tags go through `viewBind`, whose two reads are the lemma above
-and `viewBindI`'s own tier select. -/
+/-- con-leche: none — the expression store's view is the same at both ends. -/
 theorem EStore.view_bracket (st : EStore) (i : EIdx) :
     st.enableScratch.view i = st.dropScratch.view i := by
-  have hbi : st.enableScratch.viewBindI i = st.dropScratch.viewBindI i := by
-    simp only [EStore.viewBindI, EStore.enableScratch, EStore.dropScratch,
-      EStore.persGetBind]
-    by_cases hp : i.isPersistent = true
-    · simp [hp]
-    · simp [hp, ETables.getBind_empty]
-  simp only [EStore.view, EStore.viewBind, hbi, EStore.viewBM_bracket]
-  by_cases hb : ETag.isBind i.tag = true
-  · simp [hb]
-  · simp only [hb, Bool.false_eq_true, ite_false]
-    simp only [EStore.enableScratch, EStore.dropScratch]
-    by_cases hp : i.isPersistent = true
-    · simp [hp]
-    · simp [hp, ETables.get_empty]
+  simp only [EStore.view, EStore.enableScratch, EStore.dropScratch]
+  by_cases hp : i.isPersistent = true
+  · simp [hp]
+  · simp [hp, ETables.get_empty]
 
 /-- con-leche: none — a name's readback depends on the store only through its
 `view`. -/
@@ -451,7 +430,6 @@ structure PersCV (cv : IConstantVal) : Prop where
 
 /-- con-leche: none — a recursor rule's firing mode is persistent. -/
 def PersFire : IRecRuleFire → Prop
-  | .inert => True
   | .plain => True
   | .nested lvls pins => PersLList lvls ∧ PersEList pins
 
@@ -543,7 +521,7 @@ def PersDecl : IDeclaration → Prop
 persistent: `Arena/Promote.lean`'s `promoteVG` is what makes it so, and it is
 what lets phase B run after phase A's `dropScratch`. -/
 structure PersVG (g : Arena.ValueGroup) : Prop where
-  cvA : PersCV g.cvA
+  cv : PersCV g.cv
   jv : PersE g.jv
 
 /-- con-leche: none — a `Nat`-operation pin variant is persistent

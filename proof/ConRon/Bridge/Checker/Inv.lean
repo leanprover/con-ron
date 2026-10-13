@@ -210,7 +210,6 @@ theorem denoteFire_pext {st st' : EStore} (hx : PExt st st') {f : IRecRuleFire}
     {r : RecRuleFire} (hp : PersFire f) (h : Frontend.denoteFire st f = some r) :
     Frontend.denoteFire st' f = some r := by
   cases f with
-  | inert => exact h
   | plain => exact h
   | nested lvls pins =>
     simp only [Frontend.denoteFire] at h ⊢
