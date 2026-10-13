@@ -460,8 +460,6 @@ private theorem i_rec_rule_eq_but_rhs_aux {r r2 : arena.env.IRecRule} {o : Bool}
   intro o4 h
   refine beq_chain' Iff.rfl h ?_
   intro o5 h
-  refine beq_chain' Iff.rfl h ?_
-  intro o6 h
   exact beq_last h
 
 /-- `i_rec_rule_beq` ⊑ `==` on `IRecRule`. -/
@@ -553,10 +551,9 @@ theorem i_rec_rules_beq_refines {a b : alloc.vec.Vec arena.env.IRecRule}
   i_rec_rules_beq_aux _ rfl hrun
 
 /-- `i_ind_caps_beq` ⊑ `==` on `IIndCaps`, at canonical `sort_z`s
-(`PropWhenWF`, the erased subtype invariant `IConstantInfoWF` carries).  The
-port compares two `PropWhen`s by REPRESENTATION (`prop_when::beq`, i.e.
-`equiv_r`), the twin by value; they agree exactly on canonical data
-(`PropWhen.beq_iff`): `Many [p]` and `One p` abstract to the same value. -/
+(`PropWhenWF`, the erased invariant `IConstantInfoWF` carries).  The port
+compares two `PropWhen`s constructor by constructor (`prop_when::beq`), the
+twin by value; they agree on well-formed data (`PropWhen.beq_refines`). -/
 theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
     (ha : ConRon.Refine.PropWhenWF a.sort_z) (hb : ConRon.Refine.PropWhenWF b.sort_z)
     (hrun : arena.canon.i_ind_caps_beq a b = ok o) :
@@ -579,13 +576,9 @@ theorem i_ind_caps_beq_refines {a b : arena.env.IIndCaps} {o : Bool}
   refine beq_chain' Iff.rfl h ?_
   intro o7 h
   obtain ⟨b8, hb8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hiff := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
-    (ConRon.Refine.PropWhen.wf_shape hb) hb8
   have h8 : b8 = decide (ConRon.Refine.absPropWhen a.sort_z
-      = ConRon.Refine.absPropWhen b.sort_z) := by
-    cases b8
-    · exact (decide_eq_false (fun hc => by simpa using hiff.mpr hc)).symm
-    · exact (decide_eq_true (hiff.mp rfl)).symm
+      = ConRon.Refine.absPropWhen b.sort_z) :=
+    ConRon.Refine.PropWhen.beq_refines ha hb hb8
   refine beq_chain h8 h ?_
   intro o8 h
   obtain ⟨b9, hb9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1031,10 +1024,10 @@ def canonExprEqAtSpec (ps ps' cs : List NIdx) (fuel : Nat) :
   | .app f x, .app f' x' => do
     if ← canonExprEq ps ps' cs fuel f f' then canonExprEq ps ps' cs fuel x x'
     else pure false
-  | .lam t bd _, .lam t' bd' _ => do
+  | .lam t bd, .lam t' bd' => do
     if ← canonExprEq ps ps' cs fuel t t' then canonExprEq ps ps' cs fuel bd bd'
     else pure false
-  | .forallE t bd _, .forallE t' bd' _ => do
+  | .forallE t bd, .forallE t' bd' => do
     if ← canonExprEq ps ps' cs fuel t t' then canonExprEq ps ps' cs fuel bd bd'
     else pure false
   | .letE t v bd, .letE t' v' bd' => do
