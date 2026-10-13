@@ -115,20 +115,15 @@ theorem IStepS.toIStep {s s' : AState} (h : IStepS s s')
 theorem internE_scratchOn {s s' : AState} {v : ENodeView} {h : EIdx}
     (hrun : internE v s = .ok (h, s')) :
     s'.store.scratchOn = s.store.scratchOn := by
-  -- the two binder arms (task #97-T2-LOCKSTEP D6): the datum step, then the
-  -- node step at its handle, each read off by `Arena/PersistentRun.lean`
+  -- the two binder arms: the binder array's intern, read off by
+  -- `Arena/PersistentRun.lean`
   cases v
-  case lam ty b m =>
-    obtain ⟨mi, s₁, h1, h2⟩ := internE_lam_split hrun
-    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
-    obtain ⟨-, rfl⟩ := internLamIE_ok h2
-    simp only [EStore.internLamI, EStore.scratchOn_internBindI, EStore.scratchOn_internBM]
-  case forallE ty b m =>
-    obtain ⟨mi, s₁, h1, h2⟩ := internE_forallE_split hrun
-    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
-    obtain ⟨-, rfl⟩ := internForallEIE_ok h2
-    simp only [EStore.internForallEI, EStore.scratchOn_internBindI,
-      EStore.scratchOn_internBM]
+  case lam ty b =>
+    obtain ⟨-, rfl⟩ := internLamE_ok (internE_lam_split hrun)
+    exact EStore.scratchOn_internBind _ _ _ _
+  case forallE ty b =>
+    obtain ⟨-, rfl⟩ := internForallEE_ok (internE_forallE_split hrun)
+    exact EStore.scratchOn_internBind _ _ _ _
   all_goals
     rcases internNodeE_ok hrun with ⟨-, rfl⟩ | ⟨-, -, rfl⟩
     · rfl
@@ -140,9 +135,9 @@ theorem internE_sstep {s s' : AState} (hok : StateOK s)
     {v : ENodeView} (hv : s.store.ViewOK v)
     {h : EIdx} (hrun : internE v s = .ok (h, s')) :
     IStepS s s' ∧ denoteE s'.store h = denoteEView s'.store v := by
-  obtain ⟨hwf, hx, -, -, -, hm, hc, hp, -, hden⟩ :=
+  obtain ⟨hwf, hx, -, hon, hm, hc, hp, -, hden⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s v hok.wf hv)
-  exact ⟨⟨⟨hwf⟩, hx, internE_scratchOn hrun, hm, hc, hp⟩, hden⟩
+  exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, hden⟩
 
 theorem internName_sstep {s s' : AState} (hok : StateOK s)
     {nm : ConLeche.Name} {h : NIdx}
@@ -370,10 +365,10 @@ theorem internExprGo_sstep :
       subst hmm; subst hhh
       exact ⟨(hstep1.trans hstep2).trans hstep3, hde,
         (hm2.mono hstep3.ext).insert hde⟩
-  | lam ty b bi ihty ihb =>
+  | lam ty b ihty ihb =>
     intro s s' m m' h hok hm hrun
     rw [internExprGo] at hrun
-    cases hmem : m[Expr.lam ty b bi]? with
+    cases hmem : m[Expr.lam ty b]? with
     | some hh =>
       rw [hmem] at hrun
       simp only [] at hrun
@@ -401,7 +396,7 @@ theorem internExprGo_sstep :
         internE_sstep hstep2.ok
           (viewOK_lam (by rw [denote_ext hdt hstep2.ext]; rfl)
             (by rw [hdb]; rfl)) hin
-      have hde : denoteE s₃.store x = some (Expr.lam ty b bi) := by
+      have hde : denoteE s₃.store x = some (Expr.lam ty b) := by
         rw [hden]
         simp only [denoteEView, opt2_eq_some_iff]
         exact ⟨ty, b, denote_ext hdt (hstep2.ext.trans hstep3.ext),
@@ -413,10 +408,10 @@ theorem internExprGo_sstep :
       subst hmm; subst hhh
       exact ⟨(hstep1.trans hstep2).trans hstep3, hde,
         (hm2.mono hstep3.ext).insert hde⟩
-  | forallE ty b bi ihty ihb =>
+  | forallE ty b ihty ihb =>
     intro s s' m m' h hok hm hrun
     rw [internExprGo] at hrun
-    cases hmem : m[Expr.forallE ty b bi]? with
+    cases hmem : m[Expr.forallE ty b]? with
     | some hh =>
       rw [hmem] at hrun
       simp only [] at hrun
@@ -444,7 +439,7 @@ theorem internExprGo_sstep :
         internE_sstep hstep2.ok
           (viewOK_forallE (by rw [denote_ext hdt hstep2.ext]; rfl)
             (by rw [hdb]; rfl)) hin
-      have hde : denoteE s₃.store x = some (Expr.forallE ty b bi) := by
+      have hde : denoteE s₃.store x = some (Expr.forallE ty b) := by
         rw [hden]
         simp only [denoteEView, opt2_eq_some_iff]
         exact ⟨ty, b, denote_ext hdt (hstep2.ext.trans hstep3.ext),
@@ -696,14 +691,6 @@ theorem internFire_sstep {s s' : AState} (hok : StateOK s)
     IStepS s s' ∧ denoteFire s'.store fi = some f ∧
       EMemoOK s'.store m' := by
   cases f with
-  | inert =>
-    rw [ConRon.Arena.Frontend.internFire] at hrun
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-    subst hst
-    simp only [Prod.mk.injEq] at hv
-    obtain ⟨hmm, hii⟩ := hv
-    subst hmm; subst hii
-    exact ⟨IStepS.refl hok, rfl, hm⟩
   | plain =>
     rw [ConRon.Arena.Frontend.internFire] at hrun
     obtain ⟨hv, hst⟩ := AM.pure_ok hrun
@@ -750,7 +737,7 @@ theorem internRule_sstep {s s' : AState} (hok : StateOK s)
     internExprGo_sstep rl.rhs hstep2.ok hm2 h3
   simp only [] at hrest3
   have hd : denoteRule s₃.store
-      ⟨hc, rl.nfields, rl.ctorParams, hf, hr, rl.k, rl.eta, rl.paramsBlind⟩
+      ⟨hc, rl.nfields, rl.ctorParams, hf, hr, rl.k, rl.eta⟩
       = some rl := by
     simp only [denoteRule, denoteN_ext hdc (hstep2.ext.trans hstep3.ext),
       denoteFire_ext hdf hstep3.ext, hdr]
@@ -1042,10 +1029,9 @@ theorem internE_istep {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {v : ENodeView} (hv : s.store.ViewOK v)
     {h : EIdx} (hrun : internE v s = .ok (h, s')) :
     IStep s s' ∧ PersE h ∧ denoteE s'.store h = denoteEView s'.store v := by
-  obtain ⟨hwf, hx, -, -, -, hm, hc, hp, hview, hden⟩ :=
+  obtain ⟨hwf, hx, -, hon, hm, hc, hp, hview, hden⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s v hok.wf hv)
-  have hon : s'.store.scratchOn = false := by
-    rw [internE_scratchOn hrun]; exact hoff
+  rw [hoff] at hon
   exact ⟨⟨⟨hwf⟩, hx, hon, hm, hc, hp⟩, PersE_of_view hwf hon hview, hden⟩
 
 /-- con-leche: none — a NAME node: a view leaf. -/
