@@ -746,17 +746,15 @@ pub fn all_basis_kinds() -> Vec<BasisKind> {
 
 /// con-leche: ConLeche/Kernel/NatOpPins.lean:75-78 _
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:309-344 internAllPins` — the
-/// standard and compiler-trust axiom pins, in the twin's order.  The twin's
-/// `iffA`/`propextA` family is this port's raw one (`arena::std_axioms`'
-/// module note).
+/// standard and compiler-trust axiom pins, in the twin's order.
 pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
-    match crate::arena::std_axioms::iff_raw(pers, st) {
+    match crate::arena::std_axioms::iff_a(pers, st) {
         Err(e) => Err(e),
-        Ok(_) => match crate::arena::std_axioms::iff_intro_raw(pers, st) {
+        Ok(_) => match crate::arena::std_axioms::iff_intro_a(pers, st) {
             Err(e) => Err(e),
-            Ok(_) => match crate::arena::std_axioms::iff_rec_raw(pers, st) {
+            Ok(_) => match crate::arena::std_axioms::iff_rec_a(pers, st) {
                 Err(e) => Err(e),
-                Ok(_) => match crate::arena::std_axioms::nonempty_raw(pers, st) {
+                Ok(_) => match crate::arena::std_axioms::nonempty_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(_) => intern_all_axiom_pins_rest(pers, st),
                 },
@@ -769,13 +767,13 @@ pub fn intern_all_axiom_pins(pers: &PersTier, st: &mut AState) -> Result<(), Che
 /// Lean twin: `proof/ConRon/Arena/Checker.lean:309-344 internAllPins` — the
 /// rest of the axiom pins and the two reduce pins.
 pub fn intern_all_axiom_pins_rest(pers: &PersTier, st: &mut AState) -> Result<(), CheckError> {
-    match crate::arena::std_axioms::nonempty_intro_raw(pers, st) {
+    match crate::arena::std_axioms::nonempty_intro_a(pers, st) {
         Err(e) => Err(e),
-        Ok(_) => match crate::arena::std_axioms::nonempty_rec_raw(pers, st) {
+        Ok(_) => match crate::arena::std_axioms::nonempty_rec_a(pers, st) {
             Err(e) => Err(e),
-            Ok(_) => match crate::arena::std_axioms::propext_raw(pers, st) {
+            Ok(_) => match crate::arena::std_axioms::propext_a(pers, st) {
                 Err(e) => Err(e),
-                Ok(_) => match crate::arena::std_axioms::choice_raw(pers, st) {
+                Ok(_) => match crate::arena::std_axioms::choice_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(_) => intern_all_trust_pins(pers, st),
                 },
@@ -884,12 +882,11 @@ mod tests {
 
     use crate::kernel::env::{ConstantInfo, ConstantVal};
     use crate::kernel::expr;
-    use crate::kernel::expr::{BinderMeta, Expr};
+    use crate::kernel::expr::Expr;
 
     use crate::kernel::level;
     use crate::kernel::name;
     use crate::kernel::name::Name;
-    use crate::kernel::prop_when;
     use crate::kernel::std_axioms as cstd;
 
     // --- the mode, the pins, and the outcome comparisons ---------------------
@@ -914,10 +911,6 @@ mod tests {
 
     fn nm(s: &str) -> Name {
         name::mk_str(name::anonymous(), s.chars().map(|c| c as u32).collect())
-    }
-
-    fn never() -> BinderMeta {
-        expr::binder_meta(prop_when::never())
     }
 
     fn nat_ty() -> Expr {
@@ -982,12 +975,11 @@ mod tests {
         let mut st = pinned_state();
         let a = ok(intern_cv(pers, &mut st, c));
         let b = ok(intern_cv(pers, &mut st, pin));
-        ok(i_constant_val_matches_pin(pers, &st, &a, &b))
+        i_constant_val_matches_pin(&a, &b)
     }
 
     /// On an identical term, one that differs in its type, one that differs
-    /// only in a binder's `pw` datum (which the comparison forgives), and one
-    /// that differs in its level parameters.  Expected answers as in
+    /// in a binder's codomain, and one that differs in its level parameters.  Expected answers as in
     /// `std_axiom_ok_answers`.
     #[test]
     fn matches_pin_answers() {
@@ -1001,21 +993,17 @@ mod tests {
             &cv(name::dup(&two), Vec::new(), expr::sort(level::zero()))
         ), false);
         assert_eq!(matches_pin(
-            &cv(
-                name::dup(&two),
-                Vec::new(),
-                expr::forall_e(nat_ty(), nat_ty(), never())
-            ),
-            &cv(
-                name::dup(&two),
-                Vec::new(),
-                expr::forall_e(
-                    nat_ty(),
-                    nat_ty(),
-                    expr::binder_meta(prop_when::if_all_zero(Vec::new()))
-                )
-            )
+            &cv(name::dup(&two), Vec::new(), expr::forall_e(nat_ty(), nat_ty())),
+            &cv(name::dup(&two), Vec::new(), expr::forall_e(nat_ty(), nat_ty()))
         ), true);
+        assert_eq!(matches_pin(
+            &cv(name::dup(&two), Vec::new(), expr::forall_e(nat_ty(), nat_ty())),
+            &cv(
+                name::dup(&two),
+                Vec::new(),
+                expr::forall_e(nat_ty(), expr::sort(level::zero()))
+            )
+        ), false);
         let mut lps: Vec<Name> = Vec::with_capacity(1);
         lps.push(nm("u"));
         assert_eq!(matches_pin(

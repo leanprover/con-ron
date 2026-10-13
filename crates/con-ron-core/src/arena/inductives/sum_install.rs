@@ -37,8 +37,6 @@ use crate::arena::store::ENodeView;
 use crate::kernel::core_types;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
-use crate::kernel::expr;
-use crate::kernel::expr::BinderMeta;
 use crate::kernel::level;
 use crate::ron::hashmap::{Dup, Eq2};
 use crate::arena::store::PersTier;
@@ -147,7 +145,6 @@ pub const M_CTOR_IDX: [u32; 50] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:34-57 whnfTelescope
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::whnf_telescope_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:37-55 whnfTelescope`
 /// — **official's telescope loop** (`check_inductive_types`): peel `n` Π
 /// binders off `e`, reducing the residual to weak head normal form before each
@@ -162,8 +159,8 @@ pub fn whnf_telescope(
     i: u64,
     n: u64,
     e: &EIdx,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<(Vec<(EIdx, BinderMeta)>, LIdx), CheckError> {
+    out: Vec<EIdx>,
+) -> Result<(Vec<EIdx>, LIdx), CheckError> {
     match core::whnf(pers, vis, st, mode, fe, core::CHECK_FUEL, i, e) {
         Err(er) => Err(er),
         Ok(e2) => match view(pers, st, &e2) {
@@ -185,8 +182,8 @@ pub fn whnf_telescope(
                             match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                                 Err(er) => Err(er),
                                 Ok(b) => {
-                                    let mut o: Vec<(EIdx, BinderMeta)> = out;
-                                    o.push((dom, bm));
+                                    let mut o: Vec<EIdx> = out;
+                                    o.push(dom);
                                     whnf_telescope(pers, vis, st, mode, fe, i + 1, n - 1, &b, o)
                                 }
                             }
@@ -206,7 +203,6 @@ pub fn whnf_telescope(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:211-219 closeTelescope
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::close_telescope_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:162-170 closeTelescope`
 /// — close a telescope opened at the free variables `i ..< i + bs.length` back
 /// into a syntactic Π-telescope over `body`.  The cursor recursion builds the
@@ -214,7 +210,7 @@ pub fn whnf_telescope(
 pub fn close_telescope(
     pers: &PersTier,
     st: &mut AState,
-    bs: &Vec<(EIdx, BinderMeta)>,
+    bs: &Vec<EIdx>,
     k: usize,
     i: u64,
     body: &EIdx,
@@ -227,8 +223,7 @@ pub fn close_telescope(
             Ok(inner) => match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &inner, i, 0) {
                 Err(e) => Err(e),
                 Ok(closed) => {
-                    let dom: EIdx = bs[k].0.dup2();
-                    let bm: BinderMeta = expr::binder_meta_dup(&bs[k].1);
+                    let dom: EIdx = bs[k].dup2();
                     intern_e_forall_e(pers, st, dom, closed)
                 }
             },
@@ -237,9 +232,7 @@ pub fn close_telescope(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_tele_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-31 checkSumTeleF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_tele_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:57-84 checkSumTele`
 /// — the type former's TELESCOPE (con-leche's task #195): the checked declared
 /// type when it is already a syntactic telescope of `n` Π binders ending in a
@@ -270,7 +263,6 @@ pub fn check_sum_tele(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_tele_slow_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:74-84 checkSumTele.checkSumTeleSlow`
 /// — the `_` arm of `checkSumTele`'s match, named because over handles the
 /// syntactic test is two `view`s and duplicating the arm would duplicate the
@@ -299,7 +291,7 @@ pub fn check_sum_tele_slow(
                     };
                     match checker_base::check_constant_val(pers, vis, st, mode, fe, &cv2) {
                         Err(e) => Err(e),
-                        Ok(cv_ta) => Ok((cv_ta, q.1)),
+                        Ok(()) => Ok((cv2, q.1)),
                     }
                 }
             },
@@ -456,12 +448,10 @@ pub fn field_sort_bound(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_ctor_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:71-102 checkSumCtorF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_ctor_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:129-172 checkSumCtor`
 /// — stage 2, one constructor's type: the ordinary constant check, the
-/// annotated result shape, the parameter pins against the type former's opened
+/// result shape, the parameter pins against the type former's opened
 /// telescope, the pre-block resolution of the field domains, and the per-field
 /// universe bound.
 #[allow(clippy::too_many_arguments)]
@@ -484,7 +474,7 @@ pub fn check_sum_ctor(
 ) -> Result<(IConstantVal, Vec<LIdx>), CheckError> {
     match checker_base::check_constant_val(pers, fe.visible_below, st, mode, fe, cv_c) {
         Err(e) => Err(e),
-        Ok(cv_ca) => match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_ca.ty) {
+        Ok(()) => match expr_ops::strip_pis(pers, st, n_p + n_f, &cv_c.ty) {
                 Err(e) => Err(e),
                 Ok(None) => fail(core_types::not_implemented(code_points(&M_CTOR_TELE))),
                 Ok(Some(cq)) => {
@@ -494,7 +484,7 @@ pub fn check_sum_ctor(
                         Ok(true) => check_sum_ctor_frames(
                             pers,
                             st, mode, fe0, fe, t, lps, n_p, n_idx, res_sort, is_prop, large, n_f,
-                            cv_ta, cv_ca,
+                            cv_ta, env::i_constant_val_dup(cv_c),
                         ),
                     }
                 }
@@ -503,7 +493,6 @@ pub fn check_sum_ctor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_ctor_frames_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:129-172 checkSumCtor`
 /// — the opened frames: the constructor's parameters against the former's, the
 /// opened residual's shape, the field domains' pre-block resolution and the
@@ -557,7 +546,6 @@ pub fn check_sum_ctor_frames(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_ctor_resid_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:129-172 checkSumCtor`
 /// — the opened residual is the family at the opened parameter variables
 /// followed by the index expressions, the field domains and the index
@@ -613,7 +601,6 @@ pub fn check_sum_ctor_resid(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::check_sum_ctor_sorts_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:129-172 checkSumCtor`
 /// — the field domains and the index expressions resolve BEFORE the block, and
 /// the fields' sorts are measured under the official bound.
@@ -650,7 +637,6 @@ pub fn check_sum_ctor_sorts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::field_doms_resolve_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:129-172 checkSumCtor`
 /// — every field domain resolves at the PRE-BLOCK environment.
 pub fn field_doms_resolve(
@@ -676,7 +662,6 @@ pub fn field_doms_resolve(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::idx_args_resolve_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:129-172 checkSumCtor`
 /// — the index expressions never mention the block.
 pub fn idx_args_resolve(
@@ -789,13 +774,12 @@ pub fn cons_sum_ctors(n_p: u64, ctors: &Vec<(IConstantVal, u64)>, i: usize, fe: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:169-180 sumRules
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove sum_install::sum_rules_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:198-213 sumRules`
+/// Lean twin: `proof/ConRon/Arena/Inductives/SumInstall.lean:200-211 sumRules`
 /// — the stored rules: constructor `j`'s with the generated right-hand side
-/// `j`, plain when the generated type's major is the family at the parameters,
-/// with the two rescue bits `recRuleBits` reads off the block's own store and
-/// `paramsBlind`, because the route's rule law holds at any pair of fitting
-/// parameter spines.
+/// `j`, `.plain` (the major is the family at the recursor's parameters), with
+/// the two rescue bits `recRuleBits` reads off the block's own store.  (Task
+/// #119: the `recRulePlain` test, the `.inert` arm and `paramsBlind` are gone
+/// upstream; `rec_name` stays because con-leche keeps it.)
 #[allow(clippy::too_many_arguments)]
 pub fn sum_rules(
     pers: &PersTier,
@@ -804,9 +788,6 @@ pub fn sum_rules(
     fe: &IFEnv,
     rec_name: &NIdx,
     n_p: u64,
-    m_i: u64,
-    r_p: u64,
-    rec_ty: &EIdx,
     ctors: &Vec<(IConstantVal, u64)>,
     rhss: &Vec<EIdx>,
     i: usize,
@@ -815,46 +796,21 @@ pub fn sum_rules(
     if i >= ctors.len() || i >= rhss.len() {
         Ok(out)
     } else {
-        match expr_ops::rec_rule_plain(pers, st, CORE_WALK_FUEL, rec_ty, m_i, r_p, n_p) {
+        let rl = IRecRule {
+            ctor: ctors[i].0.name.dup2(),
+            nfields: ctors[i].1,
+            ctor_params: n_p,
+            fire: IRecRuleFire::Plain,
+            rhs: rhss[i].dup2(),
+            k: false,
+            eta: false,
+        };
+        match core::rec_rule_bits(pers, vis, st, fe, rl) {
             Err(e) => Err(e),
-            Ok(plain) => {
-                let fire = if plain {
-                    IRecRuleFire::Plain
-                } else {
-                    IRecRuleFire::Inert
-                };
-                let rl = IRecRule {
-                    ctor: ctors[i].0.name.dup2(),
-                    nfields: ctors[i].1,
-                    ctor_params: n_p,
-                    fire,
-                    rhs: rhss[i].dup2(),
-                    k: false,
-                    eta: false,
-                    params_blind: true,
-                };
-                match core::rec_rule_bits(pers, vis, st, fe, rec_name, rl) {
-                    Err(e) => Err(e),
-                    Ok(r) => {
-                        let mut o: Vec<IRecRule> = out;
-                        o.push(r);
-                        sum_rules(
-                            pers,
-                            vis,
-                            st,
-                            fe,
-                            rec_name,
-                            n_p,
-                            m_i,
-                            r_p,
-                            rec_ty,
-                            ctors,
-                            rhss,
-                            i + 1,
-                            o,
-                        )
-                    }
-                }
+            Ok(r) => {
+                let mut o: Vec<IRecRule> = out;
+                o.push(r);
+                sum_rules(pers, vis, st, fe, rec_name, n_p, ctors, rhss, i + 1, o)
             }
         }
     }

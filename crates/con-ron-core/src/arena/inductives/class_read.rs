@@ -362,7 +362,7 @@ pub fn class_read_slot(
                         if bs.len() == 0 {
                             Ok(None)
                         } else {
-                            let mdom: EIdx = bs[bs.len() - 1].0.dup2();
+                            let mdom: EIdx = bs[bs.len() - 1].dup2();
                             match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &mdom) {
                                 Err(e) => Err(e),
                                 Ok(hd) => {

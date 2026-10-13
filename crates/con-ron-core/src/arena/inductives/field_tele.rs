@@ -20,7 +20,6 @@ use crate::arena::monad::{fail, fail_dangling_e, view_bind, AState};
 use crate::arena::store::PersTier;
 use crate::kernel::core_types;
 use crate::kernel::core_types::{code_points, CheckError};
-use crate::kernel::expr::BinderMeta;
 use crate::ron::hashmap::Dup;
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -31,7 +30,6 @@ pub const M_FUEL_PI_BINDERS: [u32; 25] = [
 ];
 
 /// con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove field_tele::pi_binders_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/FieldTele.lean:19-32 piBinders` — all
 /// leading `∀` binders of an expression (outermost first) and the body.  Lean
 /// conses on the way out; the port pushes on the way in, which is the same
@@ -41,16 +39,16 @@ pub fn pi_binders(
     st: &AState,
     fuel: u64,
     h: &EIdx,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<(Vec<(EIdx, BinderMeta)>, EIdx), CheckError> {
+    out: Vec<EIdx>,
+) -> Result<(Vec<EIdx>, EIdx), CheckError> {
     if fuel == 0 {
         fail(core_types::internal(code_points(&M_FUEL_PI_BINDERS)))
     } else if h.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, h) {
             None => fail_dangling_e(),
             Some((ty, b)) => {
-                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((ty, m));
+                let mut o: Vec<EIdx> = out;
+                o.push(ty);
                 pi_binders(pers, st, fuel - 1, &b, o)
             }
         }

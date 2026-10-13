@@ -134,7 +134,6 @@ pub const M_NOT_FORMER: [u32; 43] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-86 blockCapsAt
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_install::ctor_name_list_refines, then delete this line
 /// Lean twin: `cs.map (·.1.name)` — the constructors' names, in order.
 pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -> Vec<NIdx> {
     if i >= cs.len() {
@@ -147,13 +146,13 @@ pub fn ctor_name_list(cs: &Vec<(IConstantVal, u64)>, i: usize, out: Vec<NIdx>) -
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-86 blockCapsAt
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_install::block_caps_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:48-86 blockCapsAt` — **the
 /// capability record of member `mi`**: at a member with ONE constructor, η
 /// (index-free, not `Prop`, the block not recursive), unit-likeness (and no
 /// field), rule K (one member, no field, `Prop`) and the result sort's
-/// zero-ness; at every member the block's members, its parameter count and
-/// the member's constructors.  (`p.members.getD mi default`: the default
+/// zero-ness; at every member the block's members, its parameter count, the
+/// member's constructors and (con-leche task #349) the result sort's
+/// zero-ness.  (`p.members.getD mi default`: the default
 /// member has no constructor.)
 pub fn block_caps_at(
     pers: &PersTier,
@@ -212,11 +211,19 @@ pub fn block_caps_at(
         } else {
             Vec::new()
         };
-        let mut caps: IIndCaps = env::i_ind_caps_default();
-        caps.all = names;
-        caps.nparams = p.n_p;
-        caps.ctors = cs;
-        Ok(caps)
+        // con-leche task #349: the result sort's zero-ness is recorded for
+        // EVERY member (the ι case split, `iotaCtorNeverProp`, reads it)
+        match read_level_m(pers, st, &p.res_sort) {
+            Err(e) => Err(e),
+            Ok(l) => {
+                let mut caps: IIndCaps = env::i_ind_caps_default();
+                caps.sort_z = level::zeroness_of(&l);
+                caps.all = names;
+                caps.nparams = p.n_p;
+                caps.ctors = cs;
+                Ok(caps)
+            }
+        }
     }
 }
 
@@ -225,7 +232,6 @@ pub fn block_caps_at(
 pub const M_FUEL_PI_DOMS: [u32; 32] = [102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 105, 68, 111, 109, 115, 77, 101, 110, 116, 105, 111, 110, 65, 110, 121];
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:88-93 Expr.piDomsMentionAny
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_install::pi_doms_mention_any_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:88-100 piDomsMentionAny` —
 /// does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one
 /// of `names`?  No reduction; the `||` short-circuits.  Fueled, one unit per
@@ -308,9 +314,7 @@ pub fn block_raw_rec(pers: &PersTier, st: &AState, p: &BlockParts) -> Result<boo
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:111-122 checkBlockTele
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_install::check_block_tele_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_install::check_block_tele_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockInstall.lean:112-125 checkBlockTele` —
 /// one member's type former: the constant check, official's telescope loop
 /// and the result sort, without the environment cons.
@@ -325,7 +329,7 @@ pub fn check_block_tele(
     let vis: u64 = fe.visible_below;
     match checker_base::check_constant_val(pers, vis, st, mode, fe, &ms.cv_t) {
         Err(e) => Err(e),
-        Ok(cv_ta0) => match sum_install::check_sum_tele(pers, vis, st, mode, fe, &ms.cv_t, n_p + ms.n_idx, &cv_ta0) {
+        Ok(()) => match sum_install::check_sum_tele(pers, vis, st, mode, fe, &ms.cv_t, n_p + ms.n_idx, &ms.cv_t) {
             Err(e) => Err(e),
             Ok((cv_ta, s)) => match expr_ops::strip_pis(pers, st, n_p + ms.n_idx, &cv_ta.ty) {
                 Err(e) => Err(e),

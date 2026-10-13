@@ -58,7 +58,7 @@ use crate::arena::core::{
 };
 use crate::arena::core_state::{take_walk_memo, Caches};
 use crate::arena::env::{
-    ifenv_find, nidx_vec_dup, IConstantInfo,
+    ifenv_find, IConstantInfo,
     IConstantVal, IFEnv,
 };
 use crate::arena::expr_ops::{

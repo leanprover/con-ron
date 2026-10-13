@@ -33,11 +33,11 @@ use crate::arena::checker_base::{
     or_else_attempt, OrElseStep,
 };
 use crate::arena::checker_split::{
-    install_value, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
+    install_value_guards, M_THM_NOT_PROP, M_TYPE_MISMATCH_DEFN, M_TYPE_MISMATCH_OPAQUE,
     M_TYPE_MISMATCH_THM,
 };
 use crate::arena::core::{
-    annotate_core, bool_false_name, bool_name, bool_true_name, const_e, ensure_sort_core,
+    bool_false_name, bool_name, bool_true_name, const_e, ensure_sort_core,
     infer_type_core, is_def_eq_core, lift_fueled, lvl_eq, nat_add_name, nat_ap1, nat_ap2,
     nat_ble_name, nat_div_name, nat_gcd_name, nat_land_name, nat_lor_name, nat_mod_name,
     nat_mul_name, nat_op_deps, nat_op_guard, nat_op_stored_ok, nat_shift_left_name,
@@ -55,10 +55,10 @@ use crate::arena::monad::{
 };
 use crate::arena::nat_op_pin_set::INatOpPinSet;
 use crate::arena::std_axioms::{
-    choice_name, choice_raw, eq_a, i_constant_val_matches_pin, iff_intro_name,
-    iff_intro_raw, iff_name, iff_raw, iff_rec_name, iff_rec_raw, nat_a, nonempty_intro_name,
-    nonempty_intro_raw, nonempty_name, nonempty_raw, nonempty_rec_name, nonempty_rec_raw,
-    propext_name, propext_raw,
+    choice_name, choice_a, eq_a, i_constant_val_matches_pin, iff_intro_name,
+    iff_intro_a, iff_name, iff_a, iff_rec_name, iff_rec_a, nat_a, nonempty_intro_name,
+    nonempty_intro_a, nonempty_name, nonempty_a, nonempty_rec_name, nonempty_rec_a,
+    propext_name, propext_a,
 };
 use crate::arena::store::LNodeView;
 use crate::arena::trust_axioms::{
@@ -146,9 +146,7 @@ pub const M_DUP_DECL: [u32; 21] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::eq_basis_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::eq_basis_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the
 /// pinned `Eq` basis, as its own function.  The twin's
 /// `fe.find? eqName == some eqA` is a whole-constant comparison
@@ -173,9 +171,7 @@ pub fn eq_basis_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::iff_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::iff_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the stored
 /// `Iff` type former against the pin.  Factored out of the twin's `&&` cascade
 /// so each lookup's `match` ends before the next one begins (task #14's borrow
@@ -191,7 +187,7 @@ pub fn iff_pinned(
         Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_i, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_i);
-                match iff_raw(pers, st) {
+                match iff_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
@@ -202,7 +198,6 @@ pub fn iff_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:57-91 ConstantVal.matchesPin
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::matches_pin_of_ci_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the
 /// twin's `cvI.matchesPin (← (← iffA).toConstantVal)`: the pin's common data,
 /// then the comparison.  One function, because six call sites spell it.
@@ -214,14 +209,12 @@ pub fn matches_pin_of_ci(
 ) -> Result<bool, CheckError> {
     match i_constant_info_to_constant_val(pers, &mut st.store, &pin_ci) {
         Err(e) => Err(e),
-        Ok(pcv) => i_constant_val_matches_pin(pers, st, cv, &pcv),
+        Ok(pcv) => Ok(i_constant_val_matches_pin(cv, &pcv)),
     }
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::iff_intro_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::iff_intro_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the stored
 /// `Iff.intro` against the pin, at the pinned arity `2 2`.
 pub fn iff_intro_pinned(
@@ -236,7 +229,7 @@ pub fn iff_intro_pinned(
             Some(IConstantInfo::CtorInfo(cv_ii, n_p, n_f)) => {
                 if *n_p == 2 && *n_f == 2 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ii);
-                    match iff_intro_raw(pers, st) {
+                    match iff_intro_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
@@ -250,9 +243,7 @@ pub fn iff_intro_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::iff_rec_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::iff_rec_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the stored
 /// `Iff.rec` against the pin, at the pinned arity `4 4`.  Only its *type* is
 /// used, never its reduction rules.
@@ -268,7 +259,7 @@ pub fn iff_rec_pinned(
             Some(IConstantInfo::RecInfo(cv_ir, m_i, r_p, _)) => {
                 if *m_i == 4 && *r_p == 4 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ir);
-                    match iff_rec_raw(pers, st) {
+                    match iff_rec_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
@@ -282,9 +273,7 @@ pub fn iff_rec_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::nonempty_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::nonempty_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the stored
 /// `Nonempty` type former against the pin.
 pub fn nonempty_pinned(
@@ -298,7 +287,7 @@ pub fn nonempty_pinned(
         Ok(n) => match ifenv_find(vis, fe, &n) {
             Some(IConstantInfo::IndInfo(cv_n, _)) => {
                 let cv = crate::arena::env::i_constant_val_dup(cv_n);
-                match nonempty_raw(pers, st) {
+                match nonempty_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
@@ -309,9 +298,7 @@ pub fn nonempty_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::nonempty_intro_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::nonempty_intro_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the stored
 /// `Nonempty.intro` against the pin, at the pinned arity `1 1`.
 pub fn nonempty_intro_pinned(
@@ -326,7 +313,7 @@ pub fn nonempty_intro_pinned(
             Some(IConstantInfo::CtorInfo(cv_ni, n_p, n_f)) => {
                 if *n_p == 1 && *n_f == 1 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_ni);
-                    match nonempty_intro_raw(pers, st) {
+                    match nonempty_intro_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
@@ -340,9 +327,7 @@ pub fn nonempty_intro_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::nonempty_rec_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::nonempty_rec_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the stored
 /// `Nonempty.rec` against the pin, at the pinned arity `3 3`.
 pub fn nonempty_rec_pinned(
@@ -357,7 +342,7 @@ pub fn nonempty_rec_pinned(
             Some(IConstantInfo::RecInfo(cv_nr, m_i, r_p, _)) => {
                 if *m_i == 3 && *r_p == 3 {
                     let cv = crate::arena::env::i_constant_val_dup(cv_nr);
-                    match nonempty_rec_raw(pers, st) {
+                    match nonempty_rec_a(pers, st) {
                     Err(e) => Err(e),
                     Ok(p) => matches_pin_of_ci(pers, st, &cv, p),
                 }
@@ -371,9 +356,7 @@ pub fn nonempty_rec_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::std_axiom_ok_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::std_axiom_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — is this
 /// checked axiom one of the two recognized standard axioms, over
 /// standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
@@ -386,19 +369,19 @@ pub fn std_axiom_ok(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match propext_name(st) {
         Err(e) => Err(e),
         Ok(pn) => {
-            if cv_a.name.eq2(&pn) {
-                std_axiom_ok_propext(pers, vis, st, fe, cv_a)
+            if cv.name.eq2(&pn) {
+                std_axiom_ok_propext(pers, vis, st, fe, cv)
             } else {
                 match choice_name(st) {
                     Err(e) => Err(e),
                     Ok(cn) => {
-                        if cv_a.name.eq2(&cn) {
-                            std_axiom_ok_choice(pers, vis, st, fe, cv_a)
+                        if cv.name.eq2(&cn) {
+                            std_axiom_ok_choice(pers, vis, st, fe, cv)
                         } else {
                             Ok(false)
                         }
@@ -410,18 +393,15 @@ pub fn std_axiom_ok(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::std_axiom_ok_propext_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the
 /// `propext` branch: the pinned `Eq` basis and the three `Iff` constants, then
-/// the axiom's own type.  The pin is `propextRaw` rather than the twin's
-/// `propextA`, which `matchesPin` cannot tell apart (`arena::std_axioms`'
-/// module note).
+/// the axiom's own type.
 pub fn std_axiom_ok_propext(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match eq_basis_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
@@ -435,7 +415,7 @@ pub fn std_axiom_ok_propext(
                         if !b1 {
                             Ok(false)
                         } else {
-                            std_axiom_ok_propext_rest(pers, vis, st, fe, cv_a)
+                            std_axiom_ok_propext_rest(pers, vis, st, fe, cv)
                         }
                     }
                 }
@@ -445,7 +425,6 @@ pub fn std_axiom_ok_propext(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::std_axiom_ok_propext_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the two
 /// remaining `Iff` constants and `propext`'s own type.
 pub fn std_axiom_ok_propext_rest(
@@ -453,7 +432,7 @@ pub fn std_axiom_ok_propext_rest(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match iff_intro_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
@@ -467,9 +446,9 @@ pub fn std_axiom_ok_propext_rest(
                         if !b3 {
                             Ok(false)
                         } else {
-                            match propext_raw(pers, st) {
+                            match propext_a(pers, st) {
                                 Err(e) => Err(e),
-                                Ok(p) => i_constant_val_matches_pin(pers, st, cv_a, &p),
+                                Ok(p) => Ok(i_constant_val_matches_pin(cv, &p)),
                             }
                         }
                     }
@@ -480,7 +459,6 @@ pub fn std_axiom_ok_propext_rest(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::std_axiom_ok_choice_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the
 /// `Classical.choice` branch: the three `Nonempty` constants, then the axiom's
 /// own type.
@@ -489,7 +467,7 @@ pub fn std_axiom_ok_choice(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match nonempty_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
@@ -503,7 +481,7 @@ pub fn std_axiom_ok_choice(
                         if !b2 {
                             Ok(false)
                         } else {
-                            std_axiom_ok_choice_rest(pers, vis, st, fe, cv_a)
+                            std_axiom_ok_choice_rest(pers, vis, st, fe, cv)
                         }
                     }
                 }
@@ -513,7 +491,6 @@ pub fn std_axiom_ok_choice(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::std_axiom_ok_choice_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:35-83 stdAxiomOk` — the
 /// recursor and `Classical.choice`'s own type.
 pub fn std_axiom_ok_choice_rest(
@@ -521,7 +498,7 @@ pub fn std_axiom_ok_choice_rest(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match nonempty_rec_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
@@ -529,9 +506,9 @@ pub fn std_axiom_ok_choice_rest(
             if !b3 {
                 Ok(false)
             } else {
-                match choice_raw(pers, st) {
+                match choice_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(c) => i_constant_val_matches_pin(pers, st, cv_a, &c),
+                    Ok(c) => Ok(i_constant_val_matches_pin(cv, &c)),
                 }
             }
         }
@@ -543,9 +520,7 @@ pub fn std_axiom_ok_choice_rest(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::true_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::true_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:87-100 trustCompilerOk` — the
 /// stored `True` against its pin.
 pub fn true_pinned(
@@ -561,7 +536,7 @@ pub fn true_pinned(
                 let cv = crate::arena::env::i_constant_val_dup(cv_t);
                 match true_cv_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
+                    Ok(p) => Ok(i_constant_val_matches_pin(&cv, &p)),
                 }
             }
             _ => Ok(false),
@@ -570,9 +545,7 @@ pub fn true_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::true_intro_pinned_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::true_intro_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:87-100 trustCompilerOk` — the
 /// stored `True.intro` against its pin, at the pinned arity `0 0`.
 pub fn true_intro_pinned(
@@ -589,7 +562,7 @@ pub fn true_intro_pinned(
                     let cv = crate::arena::env::i_constant_val_dup(cv_ti);
                     match true_intro_cv_a(pers, st) {
                         Err(e) => Err(e),
-                        Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
+                        Ok(p) => Ok(i_constant_val_matches_pin(&cv, &p)),
                     }
                 } else {
                     Ok(false)
@@ -601,9 +574,7 @@ pub fn true_intro_pinned(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::trust_compiler_ok_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::trust_compiler_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:87-100 trustCompilerOk` — is
 /// `Lean.trustCompiler` installable here?  The `True` family must be stored
 /// with the pinned shapes, and the checked axiom's type must match the pin.
@@ -612,7 +583,7 @@ pub fn trust_compiler_ok(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
     match true_pinned(pers, vis, st, fe) {
         Err(e) => Err(e),
@@ -628,7 +599,7 @@ pub fn trust_compiler_ok(
                         } else {
                             match trust_compiler_a(pers, st) {
                                 Err(e) => Err(e),
-                                Ok(p) => i_constant_val_matches_pin(pers, st, cv_a, &p),
+                                Ok(p) => Ok(i_constant_val_matches_pin(cv, &p)),
                             }
                         }
                     }
@@ -655,7 +626,7 @@ pub fn reduce_stored_ok(
             let cv = crate::arena::env::i_constant_val_dup(cv_r);
             match reduce_op_cv_a(pers, st, c) {
                 Err(e) => Err(e),
-                Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
+                Ok(p) => Ok(i_constant_val_matches_pin(&cv, &p)),
             }
         }
         _ => Ok(false),
@@ -711,7 +682,7 @@ pub fn reduce_elem_ok_bool(
                 let cv = crate::arena::env::i_constant_val_dup(cv_b);
                 match bool_cv_a(pers, st) {
                     Err(e) => Err(e),
-                    Ok(p) => i_constant_val_matches_pin(pers, st, &cv, &p),
+                    Ok(p) => Ok(i_constant_val_matches_pin(&cv, &p)),
                 }
             }
             _ => Ok(false),
@@ -720,9 +691,7 @@ pub fn reduce_elem_ok_bool(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:171-181 ofReduceAxOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::of_reduce_ax_ok_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:289-295 ofReduceAxOkF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::of_reduce_ax_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:125-135 ofReduceAxOk` — is
 /// this checked axiom a pinned `ofReduce*` over a standardly-shaped
 /// environment?
@@ -731,9 +700,9 @@ pub fn of_reduce_ax_ok(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
 ) -> Result<bool, CheckError> {
-    match of_reduce_op(st, &cv_a.name) {
+    match of_reduce_op(st, &cv.name) {
         Err(e) => Err(e),
         Ok(c) => match eq_basis_pinned(pers, vis, st, fe) {
             Err(e) => Err(e),
@@ -741,7 +710,7 @@ pub fn of_reduce_ax_ok(
                 if !b {
                     Ok(false)
                 } else {
-                    of_reduce_ax_ok_rest(pers, vis, st, fe, cv_a, &c)
+                    of_reduce_ax_ok_rest(pers, vis, st, fe, cv, &c)
                 }
             }
         },
@@ -749,7 +718,6 @@ pub fn of_reduce_ax_ok(
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:171-181 ofReduceAxOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::of_reduce_ax_ok_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:125-135 ofReduceAxOk` — the
 /// element and storage guards, then the axiom's own type.
 pub fn of_reduce_ax_ok_rest(
@@ -757,7 +725,7 @@ pub fn of_reduce_ax_ok_rest(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    cv_a: &IConstantVal,
+    cv: &IConstantVal,
     c: &NIdx,
 ) -> Result<bool, CheckError> {
     match reduce_elem_ok(pers, vis, st, fe, c) {
@@ -772,9 +740,9 @@ pub fn of_reduce_ax_ok_rest(
                         if !b2 {
                             Ok(false)
                         } else {
-                            match of_reduce_pin_a(pers, st, &cv_a.name) {
+                            match of_reduce_pin_a(pers, st, &cv.name) {
                                 Err(e) => Err(e),
-                                Ok(p) => i_constant_val_matches_pin(pers, st, cv_a, &p),
+                                Ok(p) => Ok(i_constant_val_matches_pin(cv, &p)),
                             }
                         }
                     }
@@ -2275,12 +2243,10 @@ pub fn div_mod_certs_guard(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_certs_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:380-394 checkDivModCertsF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_certs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:553-574 checkDivModCerts` —
 /// check the pinned certificates of op `c`: per certificate, the vendored
-/// proof (with the op's self-references replaced by the stored annotated value
+/// proof (with the op's self-references replaced by the stored value
 /// — the checks run in the *pre-insertion* environment) is applied to free
 /// variables typed by the pinned open statement, its type inferred, and
 /// compared against the pinned characteristic equation.  The twin's
@@ -2318,9 +2284,8 @@ pub fn check_div_mod_certs(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_cert_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:553-574 checkDivModCerts` —
-/// one certificate, past its guard: the substituted proof applied, annotated,
+/// one certificate, past its guard: the substituted proof applied, then
 /// inferred and compared.
 #[allow(clippy::too_many_arguments)]
 pub fn check_div_mod_cert_at(
@@ -2341,19 +2306,15 @@ pub fn check_div_mod_cert_at(
             Err(e) => Err(e),
             Ok(hs) => match div_mod_cert_applied(pers, st, &p, &hs) {
                 Err(e) => Err(e),
-                Ok(applied) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 4, &applied) {
-                    Err(e) => Err(e),
-                    Ok(applied_a) => {
-                        check_div_mod_cert_tail(pers, vis, st, mode, fe, c, ann_val, stmts, proofs, i, applied_a)
-                    }
-                },
+                Ok(applied) => {
+                    check_div_mod_cert_tail(pers, vis, st, mode, fe, c, ann_val, stmts, proofs, i, applied)
+                }
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_cert_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:553-574 checkDivModCerts` —
 /// the inference and the comparison, then the next certificate.
 #[allow(clippy::too_many_arguments)]
@@ -2389,9 +2350,7 @@ pub fn check_div_mod_cert_tail(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:304-324 checkDivModPinAt
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_pin_at_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:396-404 checkDivModPinAtF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_pin_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:576-590 checkDivModPinAt` —
 /// **one pin variant's attempt**: the stored value against the variant's pin by
 /// definitional equality, and on a match the variant's certificates.  `true` =
@@ -2410,24 +2369,20 @@ pub fn check_div_mod_pin_at(
 ) -> Result<bool, CheckError> {
     match div_mod_decl_pin(st, ps, c) {
         Err(e) => Err(e),
-        Ok(p) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &p) {
+        Ok(pin_a) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value2, &pin_a) {
             Err(e) => Err(e),
-            Ok(pin_a) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value2, &pin_a) {
-                Err(e) => Err(e),
-                Ok(ok_pin) => {
-                    if ok_pin {
-                        check_div_mod_pin_certs(pers, vis, st, mode, fe, c, value2, ps)
-                    } else {
-                        Ok(false)
-                    }
+            Ok(ok_pin) => {
+                if ok_pin {
+                    check_div_mod_pin_certs(pers, vis, st, mode, fe, c, value2, ps)
+                } else {
+                    Ok(false)
                 }
-            },
+            }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:304-324 checkDivModPinAt
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_div_mod_pin_certs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:576-590 checkDivModPinAt` —
 /// the certificates, past the pin comparison.
 pub fn check_div_mod_pin_certs(
@@ -2512,7 +2467,6 @@ pub fn check_div_mod_pin_loop(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove crates/con-ron-core/src/arena/decl_check.rs_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Checker.lean:334-356 checkDivModPinLoop
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
 /// **`orElseAttempt (checkDivModPinAt …)`, the one recovering seam, as one
@@ -2683,9 +2637,7 @@ pub fn defn_value(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_reduce_pin_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:434-453 checkReducePinF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_reduce_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:651-685 checkReducePin` — the
 /// `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the ordinary
 /// opaque check: the stored constant carries the pinned type, the witness value
@@ -2723,7 +2675,6 @@ pub fn check_reduce_pin(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_reduce_pin_pre_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:651-685 checkReducePin` — the
 /// body at the pre-insertion view: the element guard, the pin's own syntactic
 /// guards, the definitional comparison of the witness against the pin, and the
@@ -2761,9 +2712,8 @@ pub fn check_reduce_pin_pre(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_reduce_pin_value_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:651-685 checkReducePin` — the
-/// witness and the pin, annotated and compared.
+/// witness and the pin, compared.
 pub fn check_reduce_pin_value(
     pers: &PersTier,
     vis: u64,
@@ -2773,33 +2723,22 @@ pub fn check_reduce_pin_value(
     c: &NIdx,
     value: &EIdx,
 ) -> Result<(), CheckError> {
-    match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value) {
+    match reduce_decl_pin(pers, st, c) {
         Err(e) => Err(e),
-        Ok(val_a) => match reduce_decl_pin(pers, st, c) {
+        Ok(pin_a) => match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value, &pin_a) {
             Err(e) => Err(e),
-            Ok(p) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &p) {
-                Err(e) => Err(e),
-                Ok(pin_a) => {
-                    match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &val_a, &pin_a) {
-                        Err(e) => Err(e),
-                        Ok(ok_pin) => {
-                            if ok_pin {
-                                check_reduce_identity(pers, vis, st, mode, fe, c, &val_a)
-                            } else {
-                                fail(CheckError::NotImplemented(code_points(
-                                    &M_REDUCE_SPELLING,
-                                )))
-                            }
-                        }
-                    }
+            Ok(ok_pin) => {
+                if ok_pin {
+                    check_reduce_identity(pers, vis, st, mode, fe, c, value)
+                } else {
+                    fail(CheckError::NotImplemented(code_points(&M_REDUCE_SPELLING)))
                 }
-            },
+            }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_reduce_identity_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:651-685 checkReducePin` — the
 /// identity certificate: `valA x ≡ x` at depth 1 over `reduceCertVar`.
 pub fn check_reduce_identity(
@@ -2896,7 +2835,6 @@ pub fn subst_const0_pairs(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_defn_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:712-722 checkDefnVal` — check
 /// a `def` declaration's value against its checked constant, returning the
 /// pushed index.  The reducibility hint is stored untouched: it steers only the
@@ -2910,9 +2848,9 @@ pub fn check_defn_val(
     value: &EIdx,
     hint: &ReducibilityHint,
 ) -> Result<IFEnv, CheckError> {
-    match install_value(pers, fe.visible_below, st, mode, &fe, cv, value) {
+    match install_value_guards(pers, fe.visible_below, st, &fe, cv, value) {
         Err(e) => Err(e),
-        Ok(value_a) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &value_a) {
+        Ok(()) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, value) {
             Err(e) => Err(e),
             Ok(vtype) => {
                 match is_def_eq_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
@@ -2923,7 +2861,7 @@ pub fn check_defn_val(
                                 fe,
                                 IConstantInfo::DefnInfo(
                                     crate::arena::env::i_constant_val_dup(cv),
-                                    value_a,
+                                    value.dup2(),
                                     crate::kernel::env::reducibility_hint_dup(hint),
                                 ),
                             ))
@@ -2938,12 +2876,11 @@ pub fn check_defn_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_thm_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:724-740 checkThmVal` — check a
 /// `theorem` declaration's value against its checked constant (whose type must
 /// additionally be a proposition).  **A theorem is stored by its statement
 /// only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the
-/// annotated value is a realizability witness, checked and then discarded.
+/// checked value is a realizability witness, checked and then discarded.
 pub fn check_thm_val(
     pers: &PersTier,
     st: &mut AState,
@@ -2977,9 +2914,8 @@ pub fn check_thm_val(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_thm_val_witness_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:724-740 checkThmVal` — the
-/// witness half: the value's guards and annotation, its inferred type against
+/// witness half: the value's guards, its inferred type against
 /// the statement, and the push of `.thmInfo cv` — the statement only.
 pub fn check_thm_val_witness(
     pers: &PersTier,
@@ -2989,9 +2925,9 @@ pub fn check_thm_val_witness(
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match install_value(pers, fe.visible_below, st, mode, &fe, cv, value) {
+    match install_value_guards(pers, fe.visible_below, st, &fe, cv, value) {
         Err(e) => Err(e),
-        Ok(jv) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &jv) {
+        Ok(()) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, value) {
             Err(e) => Err(e),
             Ok(vtype) => {
                 match is_def_eq_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {
@@ -3013,7 +2949,6 @@ pub fn check_thm_val_witness(
 }
 
 /// con-leche: ConLeche/Kernel/Checker.lean:81-103 checkOpaqueVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove decl_check::check_opaque_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/DeclCheck.lean:742-753 checkOpaqueVal` —
 /// check an `opaque` declaration's value against its checked constant: exactly
 /// the theorem check without the is-a-proposition requirement.  The result is
@@ -3027,9 +2962,9 @@ pub fn check_opaque_val(
     cv: &IConstantVal,
     value: &EIdx,
 ) -> Result<IFEnv, CheckError> {
-    match install_value(pers, fe.visible_below, st, mode, &fe, cv, value) {
+    match install_value_guards(pers, fe.visible_below, st, &fe, cv, value) {
         Err(e) => Err(e),
-        Ok(value_a) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &value_a) {
+        Ok(()) => match infer_type_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, value) {
             Err(e) => Err(e),
             Ok(vtype) => {
                 match is_def_eq_core(pers, fe.visible_below, st, mode, &fe, CHECK_FUEL, 0, &vtype, &cv.ty) {

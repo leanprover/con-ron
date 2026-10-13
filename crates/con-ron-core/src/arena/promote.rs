@@ -936,15 +936,15 @@ pub fn promote_vg(
     fuel: u64,
     g: ValueGroup,
 ) -> Result<(PMemo, ValueGroup), CheckError> {
-    match promote_cv(tier, st, m, fuel, &g.cv_a) {
+    match promote_cv(tier, st, m, fuel, &g.cv) {
         Err(e) => Err(e),
-        Ok((m2, cv_a)) => match promote_e(tier, st, m2, fuel, &g.jv) {
+        Ok((m2, cv)) => match promote_e(tier, st, m2, fuel, &g.jv) {
             Err(e) => Err(e),
             Ok((m3, jv)) => Ok((
                 m3,
                 ValueGroup {
                     kind: g.kind,
-                    cv_a,
+                    cv,
                     jv,
                 },
             )),

@@ -39,7 +39,6 @@ use crate::kernel::core_types;
 use crate::ron::hashmap::HashMap;
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:45-89 ErrTag
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::ErrTag_refines, then delete this line
 /// What went wrong, as a static tag: the recogniser reports a position and one
 /// of these, and the driver renders the sentence.  No formatting runs while a
 /// stream is being read.
@@ -64,7 +63,6 @@ pub enum ErrTag {
     BadUtf8,
     BadBinderInfo,
     BadHints,
-    BadPw,
     BadNatVal,
     Trailing,
     NoProgress,
@@ -82,7 +80,6 @@ pub struct ScanErr {
 
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:97-117 ErrTag.describe
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::err_tag_describe_refines, then delete this line
 /// The sentence the driver prints for a syntactic failure.
 pub fn err_tag_describe(t: &ErrTag) -> Vec<u32> {
     match t {
@@ -199,13 +196,6 @@ pub fn err_tag_describe(t: &ErrTag) -> Vec<u32> {
             ];
             core_types::code_points(&M)
         }
-        ErrTag::BadPw => {
-            const M: [u32; 18] = [
-                109, 97, 108, 102, 111, 114, 109, 101, 100, 32, 112, 119,
-                32, 102, 105, 101, 108, 100,
-            ];
-            core_types::code_points(&M)
-        }
         ErrTag::BadNatVal => {
             const M: [u32; 24] = [
                 109, 97, 108, 102, 111, 114, 109, 101, 100, 32, 110, 97,
@@ -277,17 +267,7 @@ pub enum LevelRec {
     Param(u64),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:151-155 PwRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::PwRec_refines, then delete this line
-/// The `pw` datum a binder may carry (the checker's own annotated output;
-/// absent in a raw export, which is `never`).  Name indices.
-pub enum PwRec {
-    Never,
-    IfAllZero(Vec<u64>),
-}
-
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:147-161 ExprRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::ExprRec_refines, then delete this line
 /// An expression-table entry.  The binder `name` index is required to be
 /// present and well-formed and is then DROPPED (task #203: parsed binders are
 /// anonymous), as is `binderInfo` (task #142) and `letE`'s `nondep`.
@@ -299,8 +279,8 @@ pub enum ExprRec {
     Sort(u64),
     Const(u64, Vec<u64>),
     App(u64, u64),
-    Lam(u64, u64, PwRec),
-    ForallE(u64, u64, PwRec),
+    Lam(u64, u64),
+    ForallE(u64, u64),
     LetE(u64, u64, u64),
     Proj(u64, u64, u64),
     NatVal(Vec<u8>),
@@ -399,7 +379,6 @@ pub enum LineRec {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:243-316 Key
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::Key_refines, then delete this line
 /// Every key of the dialect, as a no-argument enumeration.  A key outside this
 /// alphabet is an error — the recogniser knows the whole format, and a key it
 /// does not know is a stream it does not know.
@@ -453,7 +432,6 @@ pub enum Key {
     KParam,
     KPre,
     KProj,
-    KPw,
     KQuot,
     KRecs,
     KRegular,
@@ -526,24 +504,23 @@ pub fn key_code(k: &Key) -> u64 {
         Key::KParam => 46,
         Key::KPre => 47,
         Key::KProj => 48,
-        Key::KPw => 49,
-        Key::KQuot => 50,
-        Key::KRecs => 51,
-        Key::KRegular => 52,
-        Key::KRhs => 53,
-        Key::KRules => 54,
-        Key::KSafety => 55,
-        Key::KSort => 56,
-        Key::KStr => 57,
-        Key::KStrVal => 58,
-        Key::KStruct => 59,
-        Key::KSucc => 60,
-        Key::KThm => 61,
-        Key::KType => 62,
-        Key::KTypeName => 63,
-        Key::KTypes => 64,
-        Key::KUs => 65,
-        Key::KValue => 66,
+        Key::KQuot => 49,
+        Key::KRecs => 50,
+        Key::KRegular => 51,
+        Key::KRhs => 52,
+        Key::KRules => 53,
+        Key::KSafety => 54,
+        Key::KSort => 55,
+        Key::KStr => 56,
+        Key::KStrVal => 57,
+        Key::KStruct => 58,
+        Key::KSucc => 59,
+        Key::KThm => 60,
+        Key::KType => 61,
+        Key::KTypeName => 62,
+        Key::KTypes => 63,
+        Key::KUs => 64,
+        Key::KValue => 65,
     }
 }
 
@@ -685,7 +662,6 @@ mod tests {
             ErrTag::BadUtf8,
             ErrTag::BadBinderInfo,
             ErrTag::BadHints,
-            ErrTag::BadPw,
             ErrTag::BadNatVal,
             ErrTag::Trailing,
             ErrTag::NoProgress,

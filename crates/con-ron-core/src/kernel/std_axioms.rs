@@ -9,43 +9,13 @@
 //! after pinning their types *and the shapes of the inductives they quantify
 //! over* to the toolchain's.
 //!
-//! ## `matchesPin` is compared against the RAW pins, and that is exact
+//! ## The pins are plain values
 //!
-//! con-leche writes the pins twice: the *raw* ones here (hand-written with
-//! the builder, `basis_builder`), and the *annotated* ones `iffA`,
-//! `iffIntroA`, `iffRecA`, `nonemptyA`, `nonemptyIntroA`, `nonemptyRecA`,
-//! `propextA`, `choiceA`, computed from them at elaboration time by
-//! `#annotate_basis`/`#annotate_pins`.  `stdAxiomOk` compares against the
-//! annotated ones — and it compares with `ConstantVal.matchesPin`, whose type
-//! test is `a.erasePw == b.erasePw`, i.e. **up to every binder's prop-ness
-//! datum**.
-//!
-//! The annotation pass changes nothing else in a term without a `letE` node
-//! (`annotateBody`, `Kernel/Core.lean:2746`: the `bvar`/`fvar`/`sort`/
-//! `const`/`lit`/`app`/`proj` arms rebuild the node, the `lam`/`forallE` arms
-//! recompute `pw`, and only the `letE` arm changes the shape — by zeta
-//! reduction, and no pin here has a `letE`).  So
-//!
-//! ```text
-//! matchesPin cv (annotate pin) = matchesPin cv pin
-//! ```
-//!
-//! and the port compares against the **raw** pin, which it can write down,
-//! instead of the annotated one, which is a generated table (task #22).  Each
-//! raw-pin function therefore carries its annotated twin's citation too, and
-//! this is the whole reason `std_axioms` needs no pin table.  The two pins
-//! that are *not* consumed through `matchesPin` — `eqA` and `natA`, compared
-//! by exact `ConstantInfo` equality — are `kernel::basis_pins`' stubs.
-//!
-//! ## What else is here
-//!
-//! `Expr.erasePw` is the specification of the comparison and
-//! `Expr.erasePwEq` its executed lockstep form (`@[csimp]`): the spec
-//! rebuilds both trees, which is `O(tree)` on the side that comes from the
-//! stream and exhausts memory on a DAG-shared tower; the lockstep descent
-//! stops at the first disagreement and is bounded by the *pin*'s size.  The
-//! port implements both, as task #13's `@[csimp]` rule asks, and calls the
-//! fast one.
+//! Since con-leche's task #342 a binder carries no datum, so the pins are
+//! hand-written through the builder (`basis_builder`) and compared with
+//! `ConstantVal.matchesPin`, which is plain equality of name, level
+//! parameters and type.  The two pins compared by exact `ConstantInfo`
+//! equality — `eqA` and `natA` — are `kernel::basis_pins`' stubs.
 
 use crate::kernel::basis_builder;
 use crate::kernel::basis_names;
@@ -124,18 +94,13 @@ pub fn nonempty_rec_name() -> Name {
 }
 
 // ---------------------------------------------------------------------------
-// The raw pins (`StdAxioms.lean:217-298`)
+// The pins (`StdAxioms.lean:93-166`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:208-210 iffRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_raw_refines, then delete this line
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_raw_refines, then delete this line
-/// `Iff (a b : Prop) : Prop`.  The second citation is the `#annotate_basis`
-/// command that computes the *annotated* pin `iffA` the guard below compares
-/// against; see the module note for why the raw one gives the same verdict.
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:93-95 iffA
+/// `Iff (a b : Prop) : Prop`.
 /// Deviation: `IndCaps`' `{}` is `env::ind_caps_default()`.
-pub fn iff_raw() -> ConstantInfo {
+pub fn iff_a() -> ConstantInfo {
     ConstantInfo::IndInfo(
         ConstantVal {
             name: iff_name(),
@@ -149,10 +114,9 @@ pub fn iff_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:212-220 iffIntroRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_intro_raw_refines, then delete this line
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:97-105 iffIntroA
 /// `Iff.intro (a b : Prop) (mp : a → b) (mpr : b → a) : Iff a b`.
-pub fn iff_intro_raw() -> ConstantInfo {
+pub fn iff_intro_a() -> ConstantInfo {
     ConstantInfo::CtorInfo(
         ConstantVal {
             name: iff_intro_name(),
@@ -202,12 +166,11 @@ pub fn iff_rec_intro() -> Expr {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_rec_raw_refines, then delete this line
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA
 /// `Iff.rec.{u} (a b : Prop) (motive : Iff a b → Sort u)`
 /// `(intro : ∀ mp mpr, motive (Iff.intro a b mp mpr)) (t : Iff a b) :`
 /// `motive t`.
-pub fn iff_rec_raw() -> ConstantInfo {
+pub fn iff_rec_a() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
     lps.push(basis_builder::u_n());
     ConstantInfo::RecInfo(
@@ -256,14 +219,9 @@ pub fn one_level() -> Vec<Level> {
     us
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::propext_raw_refines, then delete this line
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::propext_raw_refines, then delete this line
-/// `propext (a b : Prop) : Iff a b → Eq.{1} Prop a b`.  The second citation
-/// is the `#annotate_pins` command computing `propextA` (see the module
-/// note).
-pub fn propext_raw() -> ConstantVal {
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:126-133 propextA
+/// `propext (a b : Prop) : Iff a b → Eq.{1} Prop a b`.
+pub fn propext_a() -> ConstantVal {
     ConstantVal {
         name: propext_name(),
         level_params: Vec::new(),
@@ -289,10 +247,9 @@ pub fn propext_raw() -> ConstantVal {
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_raw_refines, then delete this line
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:135-137 nonemptyA
 /// `Nonempty.{u} (α : Sort u) : Prop`.
-pub fn nonempty_raw() -> ConstantInfo {
+pub fn nonempty_a() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
     lps.push(basis_builder::u_n());
     ConstantInfo::IndInfo(
@@ -308,10 +265,9 @@ pub fn nonempty_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_intro_raw_refines, then delete this line
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:139-145 nonemptyIntroA
 /// `Nonempty.intro.{u} (α : Sort u) (val : α) : Nonempty α`.
-pub fn nonempty_intro_raw() -> ConstantInfo {
+pub fn nonempty_intro_a() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
     lps.push(basis_builder::u_n());
     let mut us: Vec<Level> = Vec::new();
@@ -336,13 +292,12 @@ pub fn nonempty_intro_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_rec_raw_refines, then delete this line
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA
 /// `Nonempty.rec.{u} (α : Sort u) (motive : Nonempty α → Prop)`
 /// `(intro : ∀ val, motive (Nonempty.intro α val)) (t : Nonempty α) :`
 /// `motive t`.  The motive sort is pinned to `Prop` (the cited guidance: a
 /// pin that fixes a level is easier to consume than one that quantifies it).
-pub fn nonempty_rec_raw() -> ConstantInfo {
+pub fn nonempty_rec_a() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
     lps.push(basis_builder::u_n());
     let mut us1: Vec<Level> = Vec::new();
@@ -394,10 +349,9 @@ pub fn nonempty_rec_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::choice_raw_refines, then delete this line
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:161-166 choiceA
 /// `Classical.choice.{u} (α : Sort u) : Nonempty α → α`.
-pub fn choice_raw() -> ConstantVal {
+pub fn choice_a() -> ConstantVal {
     let mut lps: Vec<Name> = Vec::new();
     lps.push(basis_builder::u_n());
     let mut us: Vec<Level> = Vec::new();
@@ -418,27 +372,17 @@ pub fn choice_raw() -> ConstantVal {
     }
 }
 
-// ---------------------------------------------------------------------------
-// The install guard (`StdAxioms.lean:322-373`, `DeclCheck.lean:240-273`)
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 mod tests {
-    use crate::kernel::basis_builder;
-    use crate::kernel::expr;
     use crate::kernel::name;
-    use crate::kernel::prop_when;
     use crate::kernel::std_axioms;
 
-    /// The pinned names: `Iff.intro` is a child of `Iff`; and the raw pins
-    /// carry the parse placeholder on every binder.
+    /// The pinned names: `Iff.intro` is a child of `Iff`.
     #[test]
     fn the_pinned_names() {
         assert!(name::beq(
             &std_axioms::iff_intro_name(),
             &name::mk_str(std_axioms::iff_name(), vec![105, 110, 116, 114, 111])
         ));
-        let m = expr::binder_meta(prop_when::never());
-        assert!(expr::binder_meta_beq(&basis_builder::never_meta(), &m));
     }
 }

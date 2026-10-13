@@ -68,7 +68,7 @@
 
 use crate::frontend::scan_types::{
     key_beq, CVRec, DeclRec, ErrTag, ExprRec, HintsRec, IndCtorRec, IndRecRec, IndTypeRec, Key,
-    LevelRec, LineRec, NameRec, PwRec, RuleRec, ScanErr, ScanRes,
+    LevelRec, LineRec, NameRec, RuleRec, ScanErr, ScanRes,
 };
 
 /// con-leche: none — `ScanErr.mk` at a byte offset; con-leche writes the
@@ -162,7 +162,6 @@ pub fn key_end(b: &[u8], j: usize) -> usize {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:224-443 keyAt
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::key_at_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:160-162 lit1
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:164-166 lit2
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:168-171 lit3
@@ -174,7 +173,6 @@ pub fn key_end(b: &[u8], j: usize) -> usize {
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:207-213 lit9
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:215-222 lit10
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:190-210 keyTable
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::key_at_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:212-216 keyOf
 /// Classify the key whose opening quote is at `i` and whose contents are `kl`
 /// bytes: a switch on the first byte, then on the length — which leaves at
@@ -526,14 +524,7 @@ pub fn key_at(b: &[u8], i: usize, kl: usize) -> Key {
         }
         // 'p'
         112 => {
-            if kl == 2 {
-                const S_PW: [u8; 2] = *b"pw";
-                if match_lit(b, j, &S_PW) {
-                    Key::KPw
-                } else {
-                    Key::KUnknown
-                }
-            } else if kl == 3 {
+            if kl == 3 {
                 const S_PRE: [u8; 3] = *b"pre";
                 if match_lit(b, j, &S_PRE) {
                     Key::KPre
@@ -1222,36 +1213,6 @@ pub fn scan_nat_list(b: &[u8], i: usize) -> ScanRes<Vec<u64>> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Fast.lean:706-715 scanPw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_pw_refines, then delete this line
-/// con-leche: ConLeche/Frontend/Scan/Naive.lean:264-272 naivePw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_pw_refines, then delete this line
-/// The `pw` datum: `"never"` or a list of name indices.
-pub fn scan_pw(b: &[u8], i: usize) -> ScanRes<PwRec> {
-    // The literals below end in the JSON string's own closing quote, so they
-    // could never have been `&str` constants: Aeneas emits a `&str` constant
-    // as `toStr "..."` **without escaping a double quote inside it**, and the
-    // Lean that comes out does not parse (AENEAS_FINDINGS §2.1's F17, found by
-    // `lake build` at task #84).  Since task #86 every literal in this file is
-    // a byte array, for the second half of §3.8's reason.
-    const S_NEVER: [u8; 6] = *b"never\"";
-    if byte_at(b, i) == 91 {
-        let (ns, j) = match scan_nat_list_loop(b, i + 1) {
-            Err(er) => return Err(er),
-            Ok(p) => p,
-        };
-        Ok((PwRec::IfAllZero(ns), j))
-    } else if byte_at(b, i) == 34 {
-        if match_lit(b, i + 1, &S_NEVER) {
-            Ok((PwRec::Never, i + 7))
-        } else {
-            err(i, ErrTag::BadPw)
-        }
-    } else {
-        err(i, ErrTag::BadPw)
-    }
-}
-
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:703-728 scanHints
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:264-293 naiveHints
 /// A definition's `hints`: `"abbrev"`, `"opaque"` or `{"regular":n}`.
@@ -1677,9 +1638,7 @@ pub fn scan_app_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:947-1010 scanLamExprLoop
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_binder_expr_loop_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1019-1082 scanForallExprLoop
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_binder_expr_loop_refines, then delete this line
 /// The two binder loops are one function here: `Fast.lean`'s two copies
 /// differ only in the constructor they return, and `Scan/Naive.lean` already
 /// shares them (`binderFields`, one field table for both).  `lam` selects the
@@ -1690,7 +1649,6 @@ pub fn scan_binder_expr_loop(b: &[u8], i: usize, lam: bool) -> ScanRes<ExprRec> 
     let mut seen: u32 = 0;
     let mut bd: u64 = 0;
     let mut ty: u64 = 0;
-    let mut pw: PwRec = PwRec::Never;
     loop {
         let (mem, ni, nw) = match next_member(b, i, want_member) {
             Err(er) => return Err(er),
@@ -1708,9 +1666,9 @@ pub fn scan_binder_expr_loop(b: &[u8], i: usize, lam: bool) -> ScanRes<ExprRec> 
                 }
                 return Ok((
                     if lam {
-                        ExprRec::Lam(ty, bd, pw)
+                        ExprRec::Lam(ty, bd)
                     } else {
-                        ExprRec::ForallE(ty, bd, pw)
+                        ExprRec::ForallE(ty, bd)
                     },
                     i + 1,
                 ));
@@ -1769,22 +1727,6 @@ pub fn scan_binder_expr_loop(b: &[u8], i: usize, lam: bool) -> ScanRes<ExprRec> 
                     i = e;
                     want_member = false;
                 }
-                Key::KPw => {
-                    if dup(seen, 16) {
-                        return err(ks, ErrTag::DuplicateKey);
-                    }
-                    let (x, e) = match scan_pw(b, v) {
-                        Err(er) => return Err(er),
-                        Ok(p) => p,
-                    };
-                    if !prog(ks, e) {
-                        return err(ks, ErrTag::NoProgress);
-                    }
-                    pw = x;
-                    seen |= 16;
-                    i = e;
-                    want_member = false;
-                }
                 _ => return err(ks, ErrTag::UnknownKey),
             },
         }
@@ -1792,12 +1734,9 @@ pub fn scan_binder_expr_loop(b: &[u8], i: usize, lam: bool) -> ScanRes<ExprRec> 
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1012-1017 scanLamExpr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_lam_expr_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:429-430 naiveLamExpr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_lam_expr_refines, then delete this line
 /// A `lam` binder.  `binderInfo` and `name` are validated and dropped (tasks
-/// #142, #203); `pw` is the checker's own annotation and is absent from a raw
-/// export.
+/// #142, #203).
 pub fn scan_lam_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
         scan_binder_expr_loop(b, i + 1, true)
@@ -1807,9 +1746,7 @@ pub fn scan_lam_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Fast.lean:1084-1088 scanForallExpr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_forall_expr_refines, then delete this line
 /// con-leche: ConLeche/Frontend/Scan/Naive.lean:432-433 naiveForallExpr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_fast::scan_forall_expr_refines, then delete this line
 /// A `forallE` binder; as `lam`.
 pub fn scan_forall_expr(b: &[u8], i: usize) -> ScanRes<ExprRec> {
     if byte_at(b, i) == 123 {
@@ -4256,7 +4193,6 @@ mod tests {
             "param",
             "pre",
             "proj",
-            "pw",
             "quot",
             "recs",
             "regular",
@@ -4291,7 +4227,7 @@ mod tests {
             let lke = key_end(lb, 1);
             assert!(!key_beq(&key_at(lb, 0, lke - 1), &k), "{}x classifies", sp);
         }
-        assert_eq!(codes.len(), 66);
+        assert_eq!(codes.len(), 65);
     }
 
     /// The three table kinds and a declaration, in the raw exporter's key
@@ -4346,18 +4282,18 @@ mod tests {
         }
     }
 
-    /// A binder line: `binderInfo` and `name` are required and dropped, `pw`
-    /// is optional and defaults to `never`.
+    /// A binder line: `binderInfo` and `name` are required and dropped; a
+    /// `pw` field (task #119: the binder datum is gone) is an unknown key.
     #[test]
     fn binder_lines() {
         assert!(matches!(
             one("{\"forallE\":{\"binderInfo\":\"instImplicit\",\"body\":2,\"name\":3,\"type\":4},\"ie\":5}\n"),
-            LineRec::Expr(5, ExprRec::ForallE(4, 2, PwRec::Never))
+            LineRec::Expr(5, ExprRec::ForallE(4, 2))
         ));
-        assert!(matches!(
-            one("{\"lam\":{\"binderInfo\":\"default\",\"body\":2,\"name\":0,\"type\":4,\"pw\":[1,2]},\"ie\":5}\n"),
-            LineRec::Expr(5, ExprRec::Lam(4, 2, PwRec::IfAllZero(_)))
-        ));
+        is_tag(
+            "{\"lam\":{\"binderInfo\":\"default\",\"body\":2,\"name\":0,\"type\":4,\"pw\":[1,2]},\"ie\":5}\n",
+            ErrTag::UnknownKey,
+        );
         is_tag(
             "{\"lam\":{\"binderInfo\":\"weird\",\"body\":2,\"name\":0,\"type\":4},\"ie\":5}\n",
             ErrTag::BadBinderInfo,

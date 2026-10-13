@@ -14,7 +14,7 @@
 //!   (`arena::inductives::rec_check`'s module note): `so.flush` is
 //!   `core::flush_caches`, and the rule stage's `opsRuleR feR` is the core at
 //!   the rule-less recursors' visibility bound with a flush LEAVING its
-//!   `inferType` (`sharedOpsRuleR`; the stage never calls its `annotate`).
+//!   `inferType` (`sharedOpsRuleR`).
 //! * **`feR` is `fe` with the rule-less recursors pushed TEMPORARILY**
 //!   (`env::ifenv_push_temp`) and popped once the rules are typed, so `feT`
 //!   (the constructors' environment) is the same index at its lower
@@ -23,8 +23,6 @@
 //!   value and hands it back.
 //! * **`recOf` is `classRecOf recCls cvGs`, specialised**; `classRead`'s
 //!   `nPc` is `classNPcOf p fe₁`.
-//! * **`ClassGen.bm` is a field**, computed once from `elim` where con-leche
-//!   recomputes the pure `⟨Level.zeronessOf g.elim⟩` at every use.
 //! * **A `getD … default` out of range** reads the interned default
 //!   (`.bvar 0` for a term, `target_major_default` for a class); the stage
 //!   never forms such an index.
@@ -49,16 +47,12 @@ use crate::arena::expr_ops;
 use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx, ETAG_CONST};
 use crate::arena::monad::{
     fail, fail_dangling_e, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam,
-    intern_e_sort, read_level_m, view_const, AState,
+    intern_e_sort, view_const, AState,
 };
 use crate::arena::store::PersTier;
 use crate::kernel::core_types;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
-use crate::kernel::expr;
-use crate::kernel::expr::BinderMeta;
-use crate::kernel::level;
-use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
 
 // ---------------------------------------------------------------------------
@@ -257,15 +251,6 @@ pub const M_RULE_TELE: [u32; 107] = [
     102, 105, 101, 108, 100, 115,
 ];
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `generated recursor: a rule of  does not annotate its λ-binders with the family's elimination datum`, as code points.
-pub const M_RULE_PW: [u32; 98] = [
-    103, 101, 110, 101, 114, 97, 116, 101, 100, 32, 114, 101, 99, 117, 114, 115, 111, 114, 58, 32,
-    97, 32, 114, 117, 108, 101, 32, 111, 102, 32, 32, 100, 111, 101, 115, 32, 110, 111, 116, 32,
-    97, 110, 110, 111, 116, 97, 116, 101, 32, 105, 116, 115, 32, 955, 45, 98, 105, 110, 100, 101,
-    114, 115, 32, 119, 105, 116, 104, 32, 116, 104, 101, 32, 102, 97, 109, 105, 108, 121, 39, 115,
-    32, 101, 108, 105, 109, 105, 110, 97, 116, 105, 111, 110, 32, 100, 97, 116, 117, 109,
-];
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `generated recursor: the rule of  calls a class whose recursor the stream omits (official: unknown constant)`, as code points.
 pub const M_RULE_OMIT: [u32; 107] = [
     103, 101, 110, 101, 114, 97, 116, 101, 100, 32, 114, 101, 99, 117, 114, 115, 111, 114, 58, 32,
@@ -396,14 +381,13 @@ pub fn class_ctor_dup(x: &ClassCtor) -> ClassCtor {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:85-88 closeLams
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::close_lams_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:66-74 closeLams` — close a
 /// telescope of `λ`s opened at `i ..< i + bs.length` (`closeTelescope`'s
 /// twin), innermost first.
 pub fn close_lams(
     pers: &PersTier,
     st: &mut AState,
-    bs: &Vec<(EIdx, BinderMeta)>,
+    bs: &Vec<EIdx>,
     k: usize,
     i: u64,
     body: &EIdx,
@@ -416,8 +400,7 @@ pub fn close_lams(
             Ok(inner) => match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &inner, i, 0) {
                 Err(e) => Err(e),
                 Ok(closed) => {
-                    let dom: EIdx = bs[k].0.dup2();
-                    let bm: BinderMeta = expr::binder_meta_dup(&bs[k].1);
+                    let dom: EIdx = bs[k].dup2();
                     intern_e_lam(pers, st, dom, closed)
                 }
             },
@@ -426,11 +409,9 @@ pub fn close_lams(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:90-102 ClassGen
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::ClassGen_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:76-92 ClassGen` — what
 /// generation reads: the block, the classes, the layout, the constructors,
-/// the elimination level, the generated prefix; `bm` is `ClassGen.bm`,
-/// computed once (the module note).
+/// the elimination level, the generated prefix.
 pub struct ClassGen {
     pub n_p: u64,
     pub params: Vec<EIdx>,
@@ -439,8 +420,7 @@ pub struct ClassGen {
     pub slots: Vec<ClassSlot>,
     pub ctors: Vec<Vec<ClassCtor>>,
     pub elim: LIdx,
-    pub bm: BinderMeta,
-    pub pre: Vec<(EIdx, BinderMeta)>,
+    pub pre: Vec<EIdx>,
 }
 
 /// con-leche: none — `xs.getD i default` on a term list, the default interned (`.bvar 0`)
@@ -454,43 +434,30 @@ pub fn expr_get_d(pers: &PersTier, st: &mut AState, xs: &Vec<EIdx>, i: u64) -> R
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:104-106 classBinder
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_binders_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:102-107 classBinder` — the binders
-/// of opened variables at the default datum (`.never`), `xs.map classBinder`.
+/// of opened variables (their types), `xs.map classBinder`.
 pub fn class_binders(
     pers: &PersTier,
     st: &AState,
     xs: &Vec<EIdx>,
     i: usize,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<Vec<(EIdx, BinderMeta)>, CheckError> {
+    out: Vec<EIdx>,
+) -> Result<Vec<EIdx>, CheckError> {
     if i >= xs.len() {
         Ok(out)
     } else {
         match expr_ops::fvar_type_d(pers, st, &xs[i]) {
             Err(e) => Err(e),
             Ok(t) => {
-                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((t));
+                let mut o: Vec<EIdx> = out;
+                o.push(t);
                 class_binders(pers, st, xs, i + 1, o)
             }
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:106-111 ClassGen.bm
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_gen_bm_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:89-90 ClassGen.bm` — **the
-/// generated binders' datum**: the elimination level's zero-ness.
-pub fn class_gen_bm(pers: &PersTier, st: &mut AState, elim: &LIdx) -> Result<BinderMeta, CheckError> {
-    match read_level_m(pers, st, elim) {
-        Err(e) => Err(e),
-        Ok(l) => Ok(expr::binder_meta(level::zeroness_of(&l))),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:108-109 ClassGen.binder
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::gen_binders_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:116-121 ClassGen.binder` — the
 /// generated binders of opened variables, `xs.map g.binder`, appended to `out`.
 pub fn gen_binders(
@@ -499,16 +466,16 @@ pub fn gen_binders(
     g: &ClassGen,
     xs: &Vec<EIdx>,
     i: usize,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<Vec<(EIdx, BinderMeta)>, CheckError> {
+    out: Vec<EIdx>,
+) -> Result<Vec<EIdx>, CheckError> {
     if i >= xs.len() {
         Ok(out)
     } else {
         match expr_ops::fvar_type_d(pers, st, &xs[i]) {
             Err(e) => Err(e),
             Ok(t) => {
-                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((t));
+                let mut o: Vec<EIdx> = out;
+                o.push(t);
                 gen_binders(pers, st, g, xs, i + 1, o)
             }
         }
@@ -579,7 +546,6 @@ pub fn gen_major(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:125-128 ClassGen.motiveTy
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::motive_ty_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:149-159 ClassGen.motiveTy` — class
 /// `c`'s motive type at depth `d`: `∀ ı⃗ (t : I D⃗ ı⃗), Sort ℓ`.
 pub fn motive_ty(pers: &PersTier, st: &mut AState, g: &ClassGen, c: u64, d: u64) -> Result<Option<EIdx>, CheckError> {
@@ -632,7 +598,6 @@ pub fn ih_parts(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:138-158 ClassGen.minorTy
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::rec_fields_refines, then delete this line
 /// Lean twin: `(List.range x.nF).filterMap …` — the recursive fields `(i, t,
 /// tele)` of a constructor, in field order.
 pub fn rec_fields(ks: &Vec<ClassField>, n_f: u64, i: u64, out: Vec<(u64, u64, u64)>) -> Vec<(u64, u64, u64)> {
@@ -653,7 +618,6 @@ pub fn rec_fields(ks: &Vec<ClassField>, n_f: u64, i: u64, out: Vec<(u64, u64, u6
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:138-158 ClassGen.minorTy
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::minor_ihs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:175-222 ClassGen.minorTy` — the
 /// minor premise's inductive hypotheses from recursive field `l` on: per
 /// field `f` (walked type `w`), `∀ a⃗, motive_t e⃗ (f a⃗)` at depth `d + nF + l`.
@@ -668,8 +632,8 @@ pub fn minor_ihs(
     ws: &Vec<EIdx>,
     recs: &Vec<(u64, u64, u64)>,
     l: usize,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<Option<Vec<(EIdx, BinderMeta)>>, CheckError> {
+    out: Vec<EIdx>,
+) -> Result<Option<Vec<EIdx>>, CheckError> {
     if l >= recs.len() {
         Ok(Some(out))
     } else {
@@ -698,8 +662,8 @@ pub fn minor_ihs(
                                         Ok(bs) => match close_telescope(pers, st, &bs, 0, e, &body) {
                                             Err(er) => Err(er),
                                             Ok(ih) => {
-                                                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                                                o.push((ih));
+                                                let mut o: Vec<EIdx> = out;
+                                                o.push(ih);
                                                 minor_ihs(pers, st, g, x, d, fvs, ws, recs, l + 1, o)
                                             }
                                         },
@@ -715,7 +679,6 @@ pub fn minor_ihs(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:138-158 ClassGen.minorTy
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::minor_ty_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:175-222 ClassGen.minorTy` —
 /// constructor `x`'s minor premise type at depth `d`, of class `c`: its
 /// declared fields, then per recursive field its inductive hypothesis, over
@@ -750,7 +713,6 @@ pub fn minor_ty(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:138-158 ClassGen.minorTy
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::minor_ty_concl_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:175-222 ClassGen.minorTy` — the
 /// conclusion `motive_c (res.args.drop nPc) (C ds fvs)` and the closed
 /// telescope.
@@ -765,7 +727,7 @@ pub fn minor_ty_concl(
     ci: &TargetMajor,
     fvs: &Vec<EIdx>,
     res: &EIdx,
-    ihs: Vec<(EIdx, BinderMeta)>,
+    ihs: Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
     match expr_ops::get_app_args(pers, st, CORE_WALK_FUEL, res) {
         Err(e) => Err(e),
@@ -785,7 +747,7 @@ pub fn minor_ty_concl(
                                 Ok(concl) => match gen_binders(pers, st, g, fvs, 0, Vec::new()) {
                                     Err(e) => Err(e),
                                     Ok(fbs) => {
-                                        let bs: Vec<(EIdx, BinderMeta)> = expr_ops::binder_copy_from(&ihs, 0, fbs);
+                                        let bs: Vec<EIdx> = expr_ops::binder_copy_from(&ihs, 0, fbs);
                                         match close_telescope(pers, st, &bs, 0, d, &concl) {
                                             Err(e) => Err(e),
                                             Ok(r) => Ok(Some(r)),
@@ -802,7 +764,6 @@ pub fn minor_ty_concl(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::motives_before_refines, then delete this line
 /// Lean twin: `((List.range s).filter (motive at ·)).length` — the motives
 /// before slot `s`.
 pub fn motives_before(slots: &Vec<ClassSlot>, s: usize, i: usize, acc: u64) -> u64 {
@@ -816,7 +777,6 @@ pub fn motives_before(slots: &Vec<ClassSlot>, s: usize, i: usize, acc: u64) -> u
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::find_class_ctor_refines, then delete this line
 /// Lean twin: `(g.ctors.getD c []).find? (·.cv.name == C)`.
 pub fn find_class_ctor(g: &ClassGen, c: u64, cn: &NIdx) -> Option<ClassCtor> {
     if c < g.ctors.len() as u64 {
@@ -827,7 +787,6 @@ pub fn find_class_ctor(g: &ClassGen, c: u64, cn: &NIdx) -> Option<ClassCtor> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::find_class_ctor_in_refines, then delete this line
 /// Lean twin: the `find?`'s index recursion.
 pub fn find_class_ctor_in(xs: &Vec<ClassCtor>, cn: &NIdx, i: usize) -> Option<ClassCtor> {
     if i >= xs.len() {
@@ -840,7 +799,6 @@ pub fn find_class_ctor_in(xs: &Vec<ClassCtor>, cn: &NIdx, i: usize) -> Option<Cl
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::slot_binder_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:224-253 ClassGen.prefixBinders` —
 /// slot `s`'s binder type at depth `nP + s`: a motive's type (its class the
 /// count of motives before it), or the minor premise of its constructor.
@@ -856,7 +814,6 @@ pub fn slot_binder(pers: &PersTier, st: &mut AState, g: &ClassGen, s: usize) -> 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::slot_binders_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:224-253 ClassGen.prefixBinders` —
 /// the slot binders from `s` on (each at depth `nP + s`).
 pub fn slot_binders(
@@ -864,8 +821,8 @@ pub fn slot_binders(
     st: &mut AState,
     g: &ClassGen,
     s: usize,
-    out: Vec<(EIdx, BinderMeta)>,
-) -> Result<Option<Vec<(EIdx, BinderMeta)>>, CheckError> {
+    out: Vec<EIdx>,
+) -> Result<Option<Vec<EIdx>>, CheckError> {
     if s >= g.slots.len() {
         Ok(Some(out))
     } else {
@@ -873,8 +830,8 @@ pub fn slot_binders(
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some(ty)) => {
-                let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((ty));
+                let mut o: Vec<EIdx> = out;
+                o.push(ty);
                 slot_binders(pers, st, g, s + 1, o)
             }
         }
@@ -882,10 +839,9 @@ pub fn slot_binders(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::prefix_binders_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:224-253 ClassGen.prefixBinders` —
 /// the prefix binders: the parameters, then every slot in the stream's order.
-pub fn prefix_binders(pers: &PersTier, st: &mut AState, g: &ClassGen) -> Result<Option<Vec<(EIdx, BinderMeta)>>, CheckError> {
+pub fn prefix_binders(pers: &PersTier, st: &mut AState, g: &ClassGen) -> Result<Option<Vec<EIdx>>, CheckError> {
     match gen_binders(pers, st, g, &g.params, 0, Vec::new()) {
         Err(e) => Err(e),
         Ok(pbs) => slot_binders(pers, st, g, 0, pbs),
@@ -893,7 +849,6 @@ pub fn prefix_binders(pers: &PersTier, st: &mut AState, g: &ClassGen) -> Result<
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:175-182 classGenRecTy
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_gen_rec_ty_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:255-269 classGenRecTy` — **the
 /// generated recursor type** at class `c`: the prefix, the class's indices
 /// and its major, over the motive applied to them.
@@ -907,8 +862,8 @@ pub fn class_gen_rec_ty(pers: &PersTier, st: &mut AState, g: &ClassGen, c: u64) 
             Ok(t) => match gen_binders(pers, st, g, &ifs, 0, expr_ops::binder_copy_from(&g.pre, 0, Vec::new())) {
                 Err(e) => Err(e),
                 Ok(bs) => {
-                    let mut bs2: Vec<(EIdx, BinderMeta)> = bs;
-                    bs2.push((maj));
+                    let mut bs2: Vec<EIdx> = bs;
+                    bs2.push(maj);
                     match mot_var(pers, st, g, c) {
                         Err(e) => Err(e),
                         Ok(mv) => {
@@ -1273,7 +1228,6 @@ pub fn class_fields_of(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:251-266 classNodesAgree
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_nodes_agree_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:377-395 classNodesAgree` — **node
 /// agreement at one recursive field** (K.53′): at every entry of the
 /// constructor from `j` on, field `i` (opened at the datum's variables `fvs`)
@@ -1288,7 +1242,7 @@ pub fn class_nodes_agree(
     p: &BlockShape,
     former_tys: &Vec<EIdx>,
     mc: &TargetMajor,
-    tele: &Vec<(EIdx, BinderMeta)>,
+    tele: &Vec<EIdx>,
     leaf: &EIdx,
     fvs: &Vec<EIdx>,
     i: u64,
@@ -1657,18 +1611,18 @@ pub fn class_former_tys(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:359-380 classConstOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_const_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:516-540 classConstOk` — **a
-/// generated constant, checked**: `checkConstantValF` without the annotation
-/// pass (the generator writes every binder datum), the guards in the cited
-/// order, then its type inferred and a sort.
+/// generated constant, checked**: `checkConstantValF` — the generated type is
+/// stored as the generator built it; inference validates it like any other
+/// declared type: the guards in the cited order, then its type inferred and a
+/// sort.
 pub fn class_const_ok(
     pers: &PersTier,
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
-    cv: IConstantVal,
-) -> Result<IConstantVal, CheckError> {
+    cv: &IConstantVal,
+) -> Result<(), CheckError> {
     let vis: u64 = fe.visible_below;
     if env::ifenv_find(vis, fe, &cv.name).is_some() {
         fail(core_types::invalid(code_points(&M_DUP_DECL)))
@@ -1691,7 +1645,6 @@ pub fn class_const_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:359-380 classConstOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_const_ok_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:516-540 classConstOk` — the
 /// type's guards and its inference.
 pub fn class_const_ok_type(
@@ -1699,8 +1652,8 @@ pub fn class_const_ok_type(
     st: &mut AState,
     mode: &CheckMode,
     fe: &IFEnv,
-    cv: IConstantVal,
-) -> Result<IConstantVal, CheckError> {
+    cv: &IConstantVal,
+) -> Result<(), CheckError> {
     let vis: u64 = fe.visible_below;
     if !checker_base::name_nodup(&cv.level_params) {
         fail(core_types::invalid(code_points(&M_DUP_UNIV)))
@@ -1724,7 +1677,7 @@ pub fn class_const_ok_type(
                             Err(e) => Err(e),
                             Ok(stype) => match core::ensure_sort_core(pers, vis, st, mode, fe, core::CHECK_FUEL, 0, &stype) {
                                 Err(e) => Err(e),
-                                Ok(_) => Ok(cv),
+                                Ok(_) => Ok(()),
                             },
                         },
                     },
@@ -1735,7 +1688,6 @@ pub fn class_const_ok_type(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:382-401 classRecTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_rec_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:542-561 classRecTyOk` — **one
 /// recursor's generated type, checked and compared**: the record's member,
 /// rule prefix and major index are the generated ones; the generated type is
@@ -1774,9 +1726,9 @@ pub fn class_rec_ty_ok(
                             level_params: env::nidx_vec_dup(&rc.cv_r.level_params),
                             ty: gty,
                         };
-                        match class_const_ok(pers, st, mode, fe, cv) {
+                        match class_const_ok(pers, st, mode, fe, &cv) {
                             Err(e) => Err(e),
-                            Ok(cv_g) => match core::is_def_eq_core(
+                            Ok(()) => match core::is_def_eq_core(
                                 pers,
                                 fe.visible_below,
                                 st,
@@ -1785,11 +1737,11 @@ pub fn class_rec_ty_ok(
                                 core::CHECK_FUEL,
                                 0,
                                 &cv_ri.ty,
-                                &cv_g.ty,
+                                &cv.ty,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(false) => fail(core_types::invalid(code_points(&M_REC_DEFEQ))),
-                                Ok(true) => Ok(cv_g),
+                                Ok(true) => Ok(cv),
                             },
                         }
                     }
@@ -1834,7 +1786,6 @@ pub fn class_rec_tys_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::domains_resolve_refines, then delete this line
 /// Lean twin: `rbs.all (fun b => w.resolve feT b.1)` — the rule's λ-domains
 /// resolve at the constructors' environment (visibility bound `vis_t`).
 pub fn domains_resolve(
@@ -1842,13 +1793,13 @@ pub fn domains_resolve(
     vis_t: u64,
     st: &mut AState,
     fe: &IFEnv,
-    rbs: &Vec<(EIdx, BinderMeta)>,
+    rbs: &Vec<EIdx>,
     i: usize,
 ) -> Result<bool, CheckError> {
     if i >= rbs.len() {
         Ok(true)
     } else {
-        let d: EIdx = rbs[i].0.dup2();
+        let d: EIdx = rbs[i].dup2();
         match checker_base::consts_resolve_f_fast(pers, vis_t, st, fe, &d) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
@@ -1858,28 +1809,13 @@ pub fn domains_resolve(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::domains_pw_refines, then delete this line
-/// Lean twin: `rbs.all (fun b => b.2.pw == pw)`.
-pub fn domains_pw(rbs: &Vec<(EIdx, BinderMeta)>, pw: &crate::kernel::prop_when::PropWhen, i: usize) -> bool {
-    if i >= rbs.len() {
-        true
-    } else if prop_when::beq(&rbs[i].1.pw, pw) {
-        domains_pw(rbs, pw, i + 1)
-    } else {
-        false
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_rule_ok_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:97-123 sharedOpsRuleR
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_rule_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:575-605 classRuleOk` — **one
 /// generated rule, installed as generated**: closed, its level parameters the
 /// recursor's, resolving and typed at the rule-less recursors' environment
 /// (bound `vis_r`; `sharedOpsRuleR`'s flush leaving the inference), its
 /// λ-telescope `n` long, its λ-domains resolving at the constructors'
-/// environment (bound `vis_t`) and annotated with the family's datum `pw`.
+/// environment (bound `vis_t`).
 #[allow(clippy::too_many_arguments)]
 pub fn class_rule_ok(
     pers: &PersTier,
@@ -1889,7 +1825,6 @@ pub fn class_rule_ok(
     vis_r: u64,
     fe: &IFEnv,
     cv_r: &IConstantVal,
-    pw: &crate::kernel::prop_when::PropWhen,
     n: u64,
     gen: EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -1914,7 +1849,7 @@ pub fn class_rule_ok(
                             // `sharedOpsRuleR`'s `inferType`: the flush leaving the
                             // rule-less recursors' environment
                             core::flush_caches(st);
-                            class_rule_ok_tail(pers, st, vis_t, fe, cv_r, pw, n, gen)
+                            class_rule_ok_tail(pers, st, vis_t, fe, cv_r, n, gen)
                         }
                     },
                 },
@@ -1924,9 +1859,8 @@ pub fn class_rule_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_rule_ok_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:575-605 classRuleOk` — the
-/// λ-telescope, its domains' resolution and their datum.
+/// λ-telescope and its domains' resolution.
 #[allow(clippy::too_many_arguments)]
 pub fn class_rule_ok_tail(
     pers: &PersTier,
@@ -1934,7 +1868,6 @@ pub fn class_rule_ok_tail(
     vis_t: u64,
     fe: &IFEnv,
     _cv_r: &IConstantVal,
-    pw: &crate::kernel::prop_when::PropWhen,
     n: u64,
     gen: EIdx,
 ) -> Result<EIdx, CheckError> {
@@ -1947,19 +1880,12 @@ pub fn class_rule_ok_tail(
                 Err(e) => Err(e),
                 Ok(er) => fail(er),
             },
-            Ok(true) => {
-                if domains_pw(&rbs, pw, 0) {
-                    Ok(gen)
-                } else {
-                    fail(core_types::internal(code_points(&M_RULE_PW)))
-                }
-            }
+            Ok(true) => Ok(gen),
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:437-448 classRulesOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_rules_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:607-621 classRulesOk` — a
 /// recursor's generated rules, one per constructor of its class, from `i` on.
 #[allow(clippy::too_many_arguments)]
@@ -1974,7 +1900,6 @@ pub fn class_rules_ok(
     rec_cls: &Vec<u64>,
     cv_gs: &Vec<IConstantVal>,
     cv_r: &IConstantVal,
-    pw: &crate::kernel::prop_when::PropWhen,
     c: u64,
     xs: &Vec<ClassCtor>,
     i: usize,
@@ -1990,12 +1915,12 @@ pub fn class_rules_ok(
                 Ok(None) => fail(core_types::invalid(code_points(&M_RULE_OMIT))),
                 Ok(Some(gen)) => {
                     let n: u64 = g.n_p + (g.slots.len() as u64) + xs[i].n_f;
-                    match class_rule_ok(pers, st, mode, vis_t, vis_r, fe, cv_r, pw, n, gen) {
+                    match class_rule_ok(pers, st, mode, vis_t, vis_r, fe, cv_r, n, gen) {
                         Err(e) => Err(e),
                         Ok(r) => {
                             let mut o: Vec<EIdx> = out;
                             o.push(r);
-                            class_rules_ok(pers, st, mode, vis_t, vis_r, fe, g, rec_cls, cv_gs, cv_r, pw, c, xs, i + 1, o)
+                            class_rules_ok(pers, st, mode, vis_t, vis_r, fe, g, rec_cls, cv_gs, cv_r, c, xs, i + 1, o)
                         }
                     }
                 }
@@ -2005,7 +1930,6 @@ pub fn class_rules_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:450-459 classRecsRulesOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_recs_rules_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:623-636 classRecsRulesOk` — every
 /// recursor's generated rules, with its class, from `i` on (the shorter of
 /// the two lists decides, as the cited zip does).
@@ -2019,7 +1943,6 @@ pub fn class_recs_rules_ok(
     fe: &IFEnv,
     g: &ClassGen,
     rec_cls: &Vec<u64>,
-    pw: &crate::kernel::prop_when::PropWhen,
     cv_gs: &Vec<IConstantVal>,
     i: usize,
     out: Vec<(IConstantVal, TargetMajor, Vec<EIdx>)>,
@@ -2033,14 +1956,14 @@ pub fn class_recs_rules_ok(
         } else {
             Vec::new()
         };
-        match class_rules_ok(pers, st, mode, vis_t, vis_r, fe, g, rec_cls, cv_gs, &cv_gs[i], pw, c, &xs, 0, Vec::new()) {
+        match class_rules_ok(pers, st, mode, vis_t, vis_r, fe, g, rec_cls, cv_gs, &cv_gs[i], c, &xs, 0, Vec::new()) {
             Err(e) => Err(e),
             Ok(rhss) => match rec_check::target_major_at(pers, st, &g.cls, c) {
                 Err(e) => Err(e),
                 Ok(m) => {
                     let mut o: Vec<(IConstantVal, TargetMajor, Vec<EIdx>)> = out;
                     o.push((env::i_constant_val_dup(&cv_gs[i]), m, rhss));
-                    class_recs_rules_ok(pers, st, mode, vis_t, vis_r, fe, g, rec_cls, pw, cv_gs, i + 1, o)
+                    class_recs_rules_ok(pers, st, mode, vis_t, vis_r, fe, g, rec_cls, cv_gs, i + 1, o)
                 }
             },
         }
@@ -2060,7 +1983,6 @@ pub fn class_ctors_dup(xs: &Vec<ClassCtor>, i: usize, out: Vec<ClassCtor>) -> Ve
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:461-468 classStreamRecs
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_stream_recs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:638-645 classStreamRecs` — the
 /// stream's recursor constants, checked (`checkConstantValF`), from `i` on.
 pub fn class_stream_recs(
@@ -2077,9 +1999,9 @@ pub fn class_stream_recs(
     } else {
         match checker_base::check_constant_val(pers, fe.visible_below, st, mode, fe, &rcs[i].cv_r) {
             Err(e) => Err(e),
-            Ok(cv) => {
+            Ok(()) => {
                 let mut o: Vec<IConstantVal> = out;
-                o.push(cv);
+                o.push(env::i_constant_val_dup(&rcs[i].cv_r));
                 class_stream_recs(pers, st, mode, fe, rcs, i + 1, o)
             }
         }
@@ -2161,44 +2083,13 @@ pub fn class_seeds(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:490-501 classKeyOf
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::annotate_list_refines, then delete this line
-/// Lean twin: `k.ds.mapM (ops.annotate env nP)` — the key's parameters
-/// annotated at the formers' environment over the parameters, in order.
-pub fn annotate_list(
-    pers: &PersTier,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    d: u64,
-    xs: &Vec<EIdx>,
-    i: usize,
-    out: Vec<EIdx>,
-) -> Result<Vec<EIdx>, CheckError> {
-    if i >= xs.len() {
-        Ok(out)
-    } else {
-        let x: EIdx = xs[i].dup2();
-        match core::annotate_core(pers, fe.visible_below, st, mode, fe, core::CHECK_FUEL, d, &x) {
-            Err(e) => Err(e),
-            Ok(y) => {
-                let mut o: Vec<EIdx> = out;
-                o.push(y);
-                annotate_list(pers, st, mode, fe, d, xs, i + 1, o)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:490-501 classKeyOf
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_key_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:667-682 classKeyOf` — **a class
 /// key, made checkable**: moved to the canonical parameter variables, its
-/// parameters closed over them, and annotated at the formers' environment.
+/// parameters closed over them.  (Task #119: no longer annotated — the
+/// `mode`/`fe` parameters went with it.)
 pub fn class_key_of(
     pers: &PersTier,
     st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
     n_p: u64,
     params: &Vec<EIdx>,
     k: &ClassKey,
@@ -2208,27 +2099,16 @@ pub fn class_key_of(
         Ok(k2) => match params_closed(pers, st, &k2.ds, n_p, 0) {
             Err(e) => Err(e),
             Ok(false) => fail(core_types::invalid(code_points(&M_MAJOR_PARAMS))),
-            Ok(true) => match annotate_list(pers, st, mode, fe, n_p, &k2.ds, 0, Vec::new()) {
-                Err(e) => Err(e),
-                Ok(ds) => Ok(ClassKey {
-                    ind: k2.ind,
-                    lvls: k2.lvls,
-                    ds,
-                }),
-            },
+            Ok(true) => Ok(k2),
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:490-501 classKeyOf
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::class_keys_of_refines, then delete this line
-/// Lean twin: `rd.classes.mapM (classKeyOf ops env₁ p.nP params)`.
-#[allow(clippy::too_many_arguments)]
+/// Lean twin: `rd.classes.mapM (classKeyOf p.nP params)`.
 pub fn class_keys_of(
     pers: &PersTier,
     st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
     n_p: u64,
     params: &Vec<EIdx>,
     ks: &Vec<ClassKey>,
@@ -2238,19 +2118,18 @@ pub fn class_keys_of(
     if i >= ks.len() {
         Ok(out)
     } else {
-        match class_key_of(pers, st, mode, fe, n_p, params, &ks[i]) {
+        match class_key_of(pers, st, n_p, params, &ks[i]) {
             Err(e) => Err(e),
             Ok(k) => {
                 let mut o: Vec<ClassKey> = out;
                 o.push(k);
-                class_keys_of(pers, st, mode, fe, n_p, params, ks, i + 1, o)
+                class_keys_of(pers, st, n_p, params, ks, i + 1, o)
             }
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-521 checkBlockClasses
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::classes_at_member_refines, then delete this line
 /// Lean twin: `(Ms.filter (·.member == some t)).length` — the classes at member
 /// `t`, counted.
 pub fn classes_at_member(ms: &Vec<TargetMajor>, t: u64, i: usize, acc: u64) -> u64 {
@@ -2270,7 +2149,6 @@ pub fn classes_at_member(ms: &Vec<TargetMajor>, t: u64, i: usize, acc: u64) -> u
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-521 checkBlockClasses
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::one_class_per_member_refines, then delete this line
 /// Lean twin: `(List.range p.k).all fun t => … == 1` — exactly one class per
 /// member, from member `t` on.
 pub fn one_class_per_member(ms: &Vec<TargetMajor>, k: u64, t: u64) -> bool {
@@ -2284,7 +2162,6 @@ pub fn one_class_per_member(ms: &Vec<TargetMajor>, k: u64, t: u64) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-521 checkBlockClasses
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::check_block_classes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:684-703 checkBlockClasses` — **the
 /// classes, read and checked** at the formers' environment `fe`: the
 /// pre-pass on the stream's raw recursor types, every class key made
@@ -2304,7 +2181,7 @@ pub fn check_block_classes(
         Ok(None) => fail(core_types::invalid(code_points(&M_SHAPE))),
         Ok(Some(rd)) => {
             let ks: Vec<ClassKey> = class_read::classes(&rd.slots, 0, Vec::new());
-            match class_keys_of(pers, st, mode, fe, p.n_p, params, &ks, 0, Vec::new()) {
+            match class_keys_of(pers, st, p.n_p, params, &ks, 0, Vec::new()) {
                 Err(e) => Err(e),
                 Ok(keys) => match class_majors(pers, st, mode, fe, p, ctors_as, params, &keys, 0, Vec::new()) {
                     Err(e) => Err(e),
@@ -2376,7 +2253,6 @@ pub fn class_fe_r_pop(fe: IFEnv, prevs: &Vec<(NIdx, Option<(u64, u64)>)>, i: usi
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::some_outside_refines, then delete this line
 /// Lean twin: `Ms.any (·.member.isNone)`.
 pub fn some_outside(ms: &Vec<TargetMajor>, i: usize) -> bool {
     if i >= ms.len() {
@@ -2390,7 +2266,6 @@ pub fn some_outside(ms: &Vec<TargetMajor>, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::minor_count_refines, then delete this line
 /// Lean twin: `(rd.slots.filter ClassSlot.isMinor).length`.
 pub fn minor_count(slots: &Vec<ClassSlot>, i: usize, acc: u64) -> u64 {
     if i >= slots.len() {
@@ -2403,7 +2278,6 @@ pub fn minor_count(slots: &Vec<ClassSlot>, i: usize, acc: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::ctor_count_refines, then delete this line
 /// Lean twin: `(ctors.map List.length).sum`.
 pub fn ctor_count(xss: &Vec<Vec<ClassCtor>>, i: usize, acc: u64) -> u64 {
     if i >= xss.len() {
@@ -2426,7 +2300,6 @@ pub fn former_types(cvs: &Vec<IConstantVal>, i: usize, out: Vec<EIdx>) -> Vec<EI
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::gen_rec_check_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-778 genRecCheck` — **the
 /// generated recursor stage**, at the constructors' environment `fe`, on the
 /// classes and the positivity check's table: the pins, the stream's recursor
@@ -2471,7 +2344,6 @@ pub fn gen_rec_check(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::gen_rec_classes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-778 genRecCheck` — per class
 /// and constructor: the table's entries, the datum, the inductive hypotheses,
 /// node agreement; every minor premise a constructor's.
@@ -2503,23 +2375,19 @@ pub fn gen_rec_classes(
                         Err(e) => Err(e),
                         Ok(former_tys_c) => match struct_parts::struct_elim_level(pers, st, &p.elim, p.large) {
                             Err(e) => Err(e),
-                            Ok(elim) => match class_gen_bm(pers, st, &elim) {
-                                Err(e) => Err(e),
-                                Ok(bm) => {
-                                    let g0: ClassGen = ClassGen {
-                                        n_p: p.n_p,
-                                        params: env::eidx_vec_dup(params),
-                                        cls: ms2,
-                                        former_tys: former_tys_c,
-                                        slots: class_read::slots_dup(&rd.slots, 0, Vec::new()),
-                                        ctors,
-                                        elim,
-                                        bm,
-                                        pre: Vec::new(),
-                                    };
-                                    gen_rec_generate(pers, st, mode, fe, p, rd, cv_ris, g0)
-                                }
-                            },
+                            Ok(elim) => {
+                                let g0: ClassGen = ClassGen {
+                                    n_p: p.n_p,
+                                    params: env::eidx_vec_dup(params),
+                                    cls: ms2,
+                                    former_tys: former_tys_c,
+                                    slots: class_read::slots_dup(&rd.slots, 0, Vec::new()),
+                                    ctors,
+                                    elim,
+                                    pre: Vec::new(),
+                                };
+                                gen_rec_generate(pers, st, mode, fe, p, rd, cv_ris, g0)
+                            }
                         },
                     }
                 }
@@ -2529,7 +2397,6 @@ pub fn gen_rec_classes(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove gen_rec::gen_rec_generate_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:125-132 shadowOpsC
 /// Lean twin: `proof/ConRon/Arena/Inductives/GenRec.lean:724-778 genRecCheck` —
 /// generation: the prefix, every recursor's type checked and compared, the
@@ -2565,8 +2432,7 @@ pub fn gen_rec_generate(
                     let prevs: Vec<(NIdx, Option<(u64, u64)>)> = pushed.1;
                     let vis_r: u64 = fe_r.visible_below;
                     core::flush_caches(st);
-                    let pw: crate::kernel::prop_when::PropWhen = prop_when::dup(&g.bm.pw);
-                    match class_recs_rules_ok(pers, st, mode, vis_t, vis_r, &fe_r, &g, &rd.rec_cls, &pw, &cv_gs, 0, Vec::new()) {
+                    match class_recs_rules_ok(pers, st, mode, vis_t, vis_r, &fe_r, &g, &rd.rec_cls, &cv_gs, 0, Vec::new()) {
                         Err(e) => Err(e),
                         Ok(out) => {
                             let fe2: IFEnv = class_fe_r_pop(fe_r, &prevs, prevs.len());

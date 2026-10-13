@@ -88,7 +88,6 @@ use crate::kernel::expr_ops::sub_nat;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when::PropWhen;
 use crate::ron::hashmap::{Dup, Eq2};
 // The arena's tables are the epoch-stamped open-addressed map
 // (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below

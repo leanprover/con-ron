@@ -45,7 +45,6 @@ use crate::arena::handle::EIdx;
 use crate::arena::monad::{fail, AState};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
-use crate::ron::hashmap::Dup;
 use crate::arena::store::PersTier;
 
 // ---------------------------------------------------------------------------

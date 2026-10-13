@@ -67,13 +67,6 @@ pub const M_TBL_SCOPE: [u32; 48] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `projection name family taken`, as code points — `con_ron_core::kernel::inductives::struct_install`'s own, so the differential test can compare error text.
-pub const M_TBL_FAM: [u32; 28] = [
-    112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 110, 97, 109, 101, 32, 102, 97, 109, 105,
-    108, 121, 32, 116, 97, 107, 101, 110,
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `projection table taken`, as code points — `con_ron_core::kernel::inductives::struct_install`'s own, so the differential test can compare error text.
 pub const M_TBL_TAKEN: [u32; 22] = [
     112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 97, 98, 108, 101, 32, 116, 97, 107,
@@ -151,13 +144,11 @@ pub fn check_struct_doms_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-79 checkStructProjTable
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-87 checkStructProjTableF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_install::check_struct_proj_table_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-69 checkStructProjTable`
 /// — stage 5: **the projection table** (con-leche's task #175 S1).  One
 /// constant per structure: the fields' result-type bodies read off the
-/// *annotated* constructor type by substitution alone, the per-field guard
+/// stored constructor type by substitution alone, the per-field guard
 /// levels, the constructor and the counts.  `IProjTable.table_name` is the
 /// reserved name the install interned, kept rather than recomputed
 /// (`arena::env`'s one added field).
@@ -199,7 +190,6 @@ pub fn check_struct_proj_table(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-79 checkStructProjTable
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_install::proj_bodies_scoped_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-69 checkStructProjTable`
 /// — the bodies' scoping, validated once at insertion: fvar-free, level
 /// parameters within the structure's, resolving, scoped at the parameters and
@@ -244,10 +234,10 @@ pub fn proj_bodies_scoped(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-79 checkStructProjTable
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_install::check_struct_proj_table_names_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-69 checkStructProjTable`
-/// — the projection-function name family and the table's own reserved name
-/// must be free, and then the table is stored.
+/// — the table's own reserved name must be free, and then the table is
+/// stored.  (Task #119: the projection-function name family test is gone
+/// upstream.)
 #[allow(clippy::too_many_arguments)]
 pub fn check_struct_proj_table_names(
     pers: &PersTier,
@@ -263,62 +253,27 @@ pub fn check_struct_proj_table_names(
     bodies: Vec<EIdx>,
     fe: IFEnv,
 ) -> Result<IFEnv, CheckError> {
-    match proj_fn_family_free(pers, fe.visible_below, st, &fe, t, n_f, 0) {
+    match env::proj_table_name(pers, &mut st.store, t) {
         Err(e) => Err(e),
-        Ok(false) => fail(core_types::invalid(code_points(&M_TBL_FAM))),
-        Ok(true) => match env::proj_table_name(pers, &mut st.store, t) {
-            Err(e) => Err(e),
-            Ok(tn) => {
-                if env::ifenv_find(fe.visible_below, &fe, &tn).is_some() {
-                    fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
-                } else {
-                    let tbl = IProjTable {
-                        struct_name: t.dup2(),
-                        table_name: tn,
-                        level_params: env::nidx_vec_dup(lps),
-                        num_params: n_p,
-                        ctor: c.dup2(),
-                        num_fields: n_f,
-                        struct_sort: res_sort.dup2(),
-                        bodies,
-                        guards,
-                        off,
-                    };
-                    Ok(env::ifenv_push(fe, IConstantInfo::ProjInfo(tbl)))
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-79 checkStructProjTable
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_install::proj_fn_family_free_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Inductives/StructInstall.lean:39-69 checkStructProjTable`
-/// — the `(List.range nF).allM` of the projection-function name family, as a
-/// counted recursion.  `arena::inductives::modeled`'s `proj_fn_family_free` is
-/// the same test at the modeled route's own call site; the twin writes it out
-/// at both.
-pub fn proj_fn_family_free(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    t: &NIdx,
-    n_f: u64,
-    j: u64,
-) -> Result<bool, CheckError> {
-    if j >= n_f {
-        Ok(true)
-    } else {
-        match env::proj_fn_name(pers, &mut st.store, t, j) {
-            Err(e) => Err(e),
-            Ok(pn) => {
-                if env::ifenv_find(vis, fe, &pn).is_none() {
-                    proj_fn_family_free(pers, vis, st, fe, t, n_f, j + 1)
-                } else {
-                    Ok(false)
-                }
+        Ok(tn) => {
+            if env::ifenv_find(fe.visible_below, &fe, &tn).is_some() {
+                fail(core_types::invalid(code_points(&M_TBL_TAKEN)))
+            } else {
+                let tbl = IProjTable {
+                    struct_name: t.dup2(),
+                    table_name: tn,
+                    level_params: env::nidx_vec_dup(lps),
+                    num_params: n_p,
+                    ctor: c.dup2(),
+                    num_fields: n_f,
+                    struct_sort: res_sort.dup2(),
+                    bodies,
+                    guards,
+                    off,
+                };
+                Ok(env::ifenv_push(fe, IConstantInfo::ProjInfo(tbl)))
             }
         }
     }
 }
+

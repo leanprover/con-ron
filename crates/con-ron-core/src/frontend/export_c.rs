@@ -74,7 +74,7 @@ use crate::frontend::scan_types;
 use crate::frontend::scan_types::{
     id_table_get, id_table_insert, id_table_singleton, scan_err_render, CVRec, DeclRec,
     ErrTag, ExprRec, HintsRec, IdTable, IndCtorRec, IndRecRec, IndTypeRec, LevelRec, LineRec,
-    NameRec, PwRec, RuleRec, ScanErr,
+    NameRec, RuleRec, ScanErr,
 };
 use crate::frontend::text;
 use crate::kernel::core_types;
@@ -82,8 +82,6 @@ use crate::kernel::core_types::CheckError;
 use crate::kernel::env::{QuotKind, ReducibilityHint};
 use crate::kernel::expr;
 use crate::kernel::level;
-use crate::kernel::prop_when;
-use crate::kernel::prop_when::PropWhen;
 use crate::ron::hashmap::{Dup, Eq2};
 // The arena's tables are the epoch-stamped open-addressed map
 // (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
@@ -360,31 +358,6 @@ pub fn get_decl_d(st: &StateD, i: u64) -> Result<EIdx, LineErr> {
     st_expr(st, i)
 }
 
-/// con-leche: ConLeche/Frontend/ExportC.lean:119-122 pwOfF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove export_c::parse_pw_d_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:140-148 parsePwD` —
-/// the `pw` datum over the direct name table.  `PropWhen` holds `Name`s — task
-/// #97a's store already carries `BinderMeta`, hence `PropWhen`, inside its
-/// binder node — so the resolved handles are READ BACK to names here, which is
-/// `denoteN` itself (DESIGN.md §8.3 lesson 4's move, at the name store).
-pub fn parse_pw_d(
-    pers: &PersTier,
-    ar: &EStore,
-    st: &StateD,
-    r: &PwRec,
-) -> Result<PropWhen, LineErr>  {
-    match r {
-        PwRec::Never => Ok(prop_when::never()),
-        PwRec::IfAllZero(ns) => match st_names(st, ns) {
-            Err(e) => Err(e),
-            Ok(hs) => match env::read_names(pers, ar, &hs) {
-                Err(e) => fail(e),
-                Ok(out) => Ok(prop_when::if_all_zero(out)),
-            },
-        },
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The rebinding test (`ExportC.lean:202-222` of the twin)
 // ---------------------------------------------------------------------------
@@ -588,7 +561,6 @@ pub fn parse_expr_entry_d(
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:133-160 exprOfF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove export_c::parse_expr_rec_d_refines, then delete this line
 /// The value half of `parse_expr_entry_d` (see `parse_level_rec_d`), which
 /// here INTERNS rather than returning a view: a `const` node's universe
 /// arguments are one `LsIdx` of their own (`intern_levels`), which is what
@@ -635,31 +607,23 @@ pub fn parse_expr_rec_d(
                 },
             },
         },
-        ExprRec::Lam(ty, bd, pw) => match st_expr(st, *ty) {
+        ExprRec::Lam(ty, bd) => match st_expr(st, *ty) {
             Err(e) => Err(e),
             Ok(t) => match st_expr(st, *bd) {
                 Err(e) => Err(e),
-                Ok(b) => match parse_pw_d(pers, ar, st, pw) {
-                    Err(e) => Err(e),
-                    Ok(p) => match ar.intern(pers, ENodeView::Lam(t, b, expr::binder_meta(p))) {
-                        Err(e) => fail(e),
-                        Ok(h) => Ok(h),
-                    },
+                Ok(b) => match ar.intern(pers, ENodeView::Lam(t, b)) {
+                    Err(e) => fail(e),
+                    Ok(h) => Ok(h),
                 },
             },
         },
-        ExprRec::ForallE(ty, bd, pw) => match st_expr(st, *ty) {
+        ExprRec::ForallE(ty, bd) => match st_expr(st, *ty) {
             Err(e) => Err(e),
             Ok(t) => match st_expr(st, *bd) {
                 Err(e) => Err(e),
-                Ok(b) => match parse_pw_d(pers, ar, st, pw) {
-                    Err(e) => Err(e),
-                    Ok(p) => {
-                        match ar.intern(pers, ENodeView::ForallE(t, b, expr::binder_meta(p))) {
-                            Err(e) => fail(e),
-                            Ok(h) => Ok(h),
-                        }
-                    }
+                Ok(b) => match ar.intern(pers, ENodeView::ForallE(t, b)) {
+                    Err(e) => fail(e),
+                    Ok(h) => Ok(h),
                 },
             },
         },
@@ -730,7 +694,6 @@ pub fn parse_cv_d(st: &StateD, cv: &CVRec) -> Result<IConstantVal, LineErr> {
 
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:227-233 indPiTeleLen
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove export_c::ind_pi_tele_len_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:245-254 indPiTeleLen`
 /// — the syntactic Π-telescope length of a declared type: official counts a
 /// constructor's binders by walking `is_pi` without reducing, and the count
@@ -761,12 +724,9 @@ pub fn ind_pi_tele_len(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Res
 }
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:1164-1168 piResult
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove export_c::pi_result_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:256-269 piResultD` — the
-/// body of a syntactic `∀`-telescope over the full `view_e` (it decodes a
-/// binder's datum, where `arena/expr_ops.rs`'s `pi_result` reads
-/// `view_bind_i`; the twin follows this one: task #97-T2-LOCKSTEP lane
-/// Frontend).  `validate_ind_d`'s `is_K_target` is its one caller.  Three
+/// body of a syntactic `∀`-telescope over the full `view_e` (the twin follows
+/// this one: task #97-T2-LOCKSTEP lane Frontend).  `validate_ind_d`'s `is_K_target` is its one caller.  Three
 /// lines, spelled here rather than left as a hole where it is needed.
 pub fn pi_result(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Result<EIdx, LineErr> {
     let mut cur = h.dup2();
@@ -787,7 +747,6 @@ pub fn pi_result(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Result<EI
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-238 ruleOfF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove export_c::parse_rule_d_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/ExportC.lean:271-276 parseRuleD` —
 /// one recursor rule of an inductive record, resolved.  The install-computed
 /// fields carry con-leche's own parse placeholders.
@@ -802,7 +761,6 @@ pub fn parse_rule_d(st: &StateD, ru: &RuleRec) -> Result<IRecRule, LineErr> {
 }
 
 /// con-leche: ConLeche/Frontend/ExportC.lean:235-238 ruleOfF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove export_c::parse_rules_d_refines, then delete this line
 /// A recursor record's whole rule list (`r.rules.mapM (parseRuleD st)`).
 pub fn parse_rules_d(st: &StateD, rus: &Vec<RuleRec>) -> Result<Vec<IRecRule>, LineErr> {
     let mut out: Vec<IRecRule> = Vec::with_capacity(rus.len());

@@ -19,15 +19,12 @@
 //! `sorryAx` remains the only tolerated (skip-taint) axiom
 //! (`std_axioms::tolerated_axiom_names`).
 //!
-//! **The pins are the raw ones.**  `reduceNatCvA`, `reduceBoolCvA`,
-//! `ofReduceNatA` and `ofReduceBoolA` are computed from `reduceOpRaw` /
-//! `ofReduceRaw` at elaboration time by `#annotate_pins`, and every consumer
-//! reads them through `ConstantVal.matchesPin`, which erases binder prop-ness
-//! data — the only thing annotation changes here.  So `reduce_op_cv_a` and
-//! `of_reduce_pin_a` return the **raw** pins and carry the annotated twins'
-//! citation; `std_axioms`' module note has the argument in full.  The one
-//! pin this does *not* work for is `natA` in `reduce_elem_ok`, compared by
-//! exact `ConstantInfo` equality — `kernel::basis_pins`' stub.
+//! **The pins.**  `reduceNatCvA`, `reduceBoolCvA`, `ofReduceNatA` and
+//! `ofReduceBoolA` are `reduceOpRaw` / `ofReduceRaw` at the two names (since
+//! con-leche's task #342 there is no annotated form), and every consumer
+//! reads them through `ConstantVal.matchesPin`, which is plain equality.
+//! `natA` in `reduce_elem_ok` is compared by exact `ConstantInfo` equality —
+//! `kernel::basis_pins`' stub.
 //!
 //! The `Env`/`FEnv` twins (`trustCompilerOkF`, `reduceStoredOkF`,
 //! `reduceElemOkF`, `ofReduceAxOkF`, `reducePinGuardF`) are the same Rust
@@ -134,8 +131,7 @@ pub fn of_reduce_op(n: &Name) -> Name {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:83-84 trueCvA
-/// Pinned `True` (shape only; capabilities are not pinned).  Already written
-/// annotated in the Lean — `Sort 0` has no binder.
+/// Pinned `True` (shape only; capabilities are not pinned).
 pub fn true_cv_a() -> ConstantVal {
     ConstantVal {
         name: true_name(),
@@ -236,30 +232,47 @@ pub fn eq_app(c: &Name, x: Expr, y: Expr) -> Expr {
     )
 }
 
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:119-120 reduceNatCvA
+/// Pinned `Lean.reduceNat`.
+pub fn reduce_nat_cv_a() -> ConstantVal {
+    reduce_op_raw(&reduce_nat_name())
+}
+
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:122-123 reduceBoolCvA
+/// Pinned `Lean.reduceBool`.
+pub fn reduce_bool_cv_a() -> ConstantVal {
+    reduce_op_raw(&reduce_bool_name())
+}
+
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:125-126 ofReduceNatA
+/// Pinned `Lean.ofReduceNat`.
+pub fn of_reduce_nat_a() -> ConstantVal {
+    of_reduce_raw(&of_reduce_nat_name())
+}
+
+/// con-leche: ConLeche/Kernel/TrustAxioms.lean:128-129 ofReduceBoolA
+/// Pinned `Lean.ofReduceBool`.
+pub fn of_reduce_bool_a() -> ConstantVal {
+    of_reduce_raw(&of_reduce_bool_name())
+}
+
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:131-133 reduceOpCvA
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:140-142 _
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove trust_axioms::reduce_op_cv_a_refines, then delete this line
-/// The pinned type of a reduce operation.  Deviation: the *raw* pin, which
-/// `matchesPin` cannot tell from the annotated one (module note); the second
-/// citation is the `#annotate_pins` command that computes the annotated form.
+/// The pinned type of a reduce operation.
 pub fn reduce_op_cv_a(c: &Name) -> ConstantVal {
     if name::beq(c, &reduce_nat_name()) {
-        reduce_op_raw(&reduce_nat_name())
+        reduce_nat_cv_a()
     } else {
-        reduce_op_raw(&reduce_bool_name())
+        reduce_bool_cv_a()
     }
 }
 
 /// con-leche: ConLeche/Kernel/TrustAxioms.lean:135-137 ofReducePinA
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:144-147 _
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove trust_axioms::of_reduce_pin_a_refines, then delete this line
-/// The pin an `ofReduce*` axiom is matched against (raw; see
-/// `reduce_op_cv_a`).
+/// The pin an `ofReduce*` axiom is matched against.
 pub fn of_reduce_pin_a(n: &Name) -> ConstantVal {
     if name::beq(n, &of_reduce_nat_name()) {
-        of_reduce_raw(&of_reduce_nat_name())
+        of_reduce_nat_a()
     } else {
-        of_reduce_raw(&of_reduce_bool_name())
+        of_reduce_bool_a()
     }
 }
 

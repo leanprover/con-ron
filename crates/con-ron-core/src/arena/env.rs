@@ -960,7 +960,7 @@ impl Dup for IConstantInfo {
 //
 // `view`, `viewN`, `readName` and `readLevel` are `Arena/Monad.lean`'s, whose
 // Rust home is `arena/monad.rs`.  This module (`pi_sort_tele_len`) and
-// `frontend/` (the error text, `parse_pw_d`, `k_expected_of`) need four of
+// `frontend/` (the error text, `k_expected_of`) need four of
 // them today; they are spelled here, together, and move when that module
 // lands.  The two readbacks are `Denote.lean`'s `denoteN`/`denoteL`, fuel and
 // all, which task #97-P4a kept in `mod tests` because nothing shipped needed

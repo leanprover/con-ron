@@ -83,10 +83,10 @@ use crate::arena::env::{
     IConstantInfo, IConstantVal, IFEnv, IIndCaps, IProjEntry, IRecRule, IRecRuleFire,
 };
 use crate::arena::expr_ops::{
-    abstract1_fast, abstract_range_fast, bvar_b, cons_eidx, get_app_args, get_app_fn,
+    abstract1_fast, abstract_range_fast, cons_eidx, get_app_args, get_app_fn,
     has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, lam_pair,
     leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
-    snoc_eidx_of, strip_pis,
+    snoc_eidx_of,
     take_eidx, take_eidx_n, wscoped_b_fast,
 };
 use crate::arena::handle::{
@@ -109,7 +109,6 @@ use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
-use crate::kernel::prop_when::PropWhen;
 use crate::ron::hashmap::{Dup, Eq2};
 use crate::ron::nat;
 use crate::ron::nat::Nat;
