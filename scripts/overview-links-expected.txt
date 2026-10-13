@@ -2149,25 +2149,25 @@
    163    refine ⟨hstep, ?_⟩
    164    simpa only [ConLeche.structPsAt, Nat.zero_add] using hd
 
-== proof/ConRon/Bridge/Core/Knot.lean#L121-L138
-   121  round 2's rule 8 — "the record of knot hypotheses costs nothing"). -/
-   122  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
-   123      Prop where
-   124    /-- Head normalization without delta, in either mode (`c` is the official
-   125    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
-   126    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   127      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   128      Expr.WScoped d e →
-   129      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnfCore c d i
-   130      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-   131          s'.pins = s₀.pins ∧
-   132          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r; ⊤⦄
-   133    /-- The full reduction loop. -/
-   134    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-   135      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-   136      Expr.WScoped d e →
-   137      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
-   138      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+== proof/ConRon/Bridge/Core/Knot.lean#L109-L126
+   109  round 2's rule 8 — "the record of knot hypotheses costs nothing"). -/
+   110  structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
+   111      Prop where
+   112    /-- Head normalization without delta, in either mode (`c` is the official
+   113    kernel's `cheap_proj`; con-leche's claims generalize the same way). -/
+   114    whnfCore : ∀ {c : Bool} (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   115      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   116      Expr.WScoped d e →
+   117      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnfCore c d i
+   118      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+   119          s'.pins = s₀.pins ∧
+   120          SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s'.store r; ⊤⦄
+   121    /-- The full reduction loop. -/
+   122    whnf : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
+   123      CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
+   124      Expr.WScoped d e →
+   125      ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
+   126      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
 
 == proof/ConRon/Bridge/Core/Induction.lean#L55-L62
     55  theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
@@ -2204,12 +2204,12 @@
    349  /-- The Rust-side invariant of the whole state. -/
    350  structure AStateInv (pers : arena.store.PersTier) (rs : arena.monad.AState) :
 
-== proof/ConRon/Refine2/Shape.lean#L230-L234
-   230  /-- The lockstep simulation statement for a state-threading Rust function. -/
-   231  def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
-   232      (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
-   233      (x : AM β) : Prop :=
-   234    AOut₀ A pers o.1 o.2 (x.run lst)
+== proof/ConRon/Refine2/Shape.lean#L224-L228
+   224  /-- The lockstep simulation statement for a state-threading Rust function. -/
+   225  def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
+   226      (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)
+   227      (x : AM β) : Prop :=
+   228    AOut₀ A pers o.1 o.2 (x.run lst)
 
 == proof/ConRon/Refine2/Checker/Shape.lean#L146-L150
    146  def SimRel₀ {α β : Type} (R : α → β → Prop) (pers : arena.store.PersTier)

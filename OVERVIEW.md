@@ -665,7 +665,7 @@ number of nodes left, composing `internBVarE`'s spec with `PStep.trans`.
 
 The type checker itself (con-leche's knot of `whnfCore`, `whnf`, `infer`,
 `inferIO`, `defeq`) is one statement indexed by fuel,
-[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L121-L138),
+[`KnotSpec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Knot.lean#L109-L126),
 proved by induction on the fuel in
 [`knot_spec`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Core/Induction.lean#L55-L62).
 
@@ -689,7 +689,7 @@ for hash maps, by the map they represent.
 holds the Rust-only invariants, such as each hash map's own well-formedness.
 
 **The statement.**  A state-threading Rust function is specified by
-[`Sim₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Shape.lean#L230-L234):
+[`Sim₀`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Refine2/Shape.lean#L224-L228):
 if the Rust returns `Ok r` in state `st'`, the twin returns `A r` in a state
 related to `st'`; if the Rust returns a mirrored error, the twin throws the
 same kind (`Native` included: the twin raises its `native` at the same point,
