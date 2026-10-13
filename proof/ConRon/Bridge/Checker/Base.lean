@@ -28,8 +28,7 @@ nothing.  So the bridge says nothing about that arm and does not need to.
 
 ## The rest, and why it is stated rather than proved
 
-Everything else here bottoms out in `KnotSpec` (the annotation and the
-inference calls) and in the `ExprOps` tier's walks, and the guards that do
+Everything else here bottoms out in `KnotSpec` (the inference call) and in the `ExprOps` tier's walks, and the guards that do
 NOT are the memoised ones — `allLevelParamsDefined` and `constsResolveFFast`
 — which `Arena/CheckerBase.lean` carries because con-leche's own tree walks do
 not terminate on a shared DAG (con-leche's task #210 Part B).  Each is a
@@ -235,8 +234,9 @@ theorem isProjFnShape_run {st : EStore} {n : NIdx} {x : ConLeche.Name}
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:95-119 checkConstantVal —
 **THE declaration front door**, and what every arm of
-`Bridge/Checker/Decl.lean` bottoms out in: the six guards, the annotation, the
-inference and the sort test.
+`Bridge/Checker/Decl.lean` bottoms out in: the eight guards, the inference of
+the type as stored, and the sort test.  It returns nothing (con-leche e74d32ad:
+no annotation pass, `checkConstantVal` returns `Unit`).
 
 The conclusion is a refinement, as everywhere in this tier: an accepting arena
 run gives an accepting pure run whose answer the arena's answer denotes.  The
@@ -246,7 +246,7 @@ because the arena's acceptance has to imply con-leche's.
 Proved: the six guards (`fe.find?` through `IFEnvOK`, `reservedBasisNames`
 and `isProjFnShape` through the two lemmas above, `nameNodup`,
 `looseBVarsBoundedFast` and `hasFvarFast` through `Bridge/ExprOps/Walks.lean`),
-then `KnotSpec.annotate`, `allLevelParamsDefined_run`,
+then `allLevelParamsDefined_run`,
 `constsResolveFFast_run`, `KnotSpec.infer` and
 `EnsureSortSpec.ensureSort`, in that order.  Task #97-P3-Checker's sorry list,
 item 11 — then the single highest-value proof of the tier, since all
@@ -259,32 +259,30 @@ constant, where `FoldOK`'s `PersIFEnv` is false; the proof never read
 `PersIFEnv` (the two sites that did computed an unused denotation).  The
 arms use `checkConstantVal_bridge_of_fold`. -/
 theorem checkConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
-    {c : ConstantVal} {ty sty : Expr} {u : Level}
+    {c : ConstantVal} {sty : Expr} {u : Level}
     (h1 : env.find? c.name = none)
     (h2 : ConLeche.reservedBasisNames.contains c.name = false)
     (h3 : c.name.isProjFnShape = false)
     (h4 : ConLeche.Name.nodup c.levelParams = true)
     (h5 : c.type.looseBVarsBounded 0 = true)
     (h6 : c.type.hasFvar = false)
-    (h7 : ConLeche.annotateCore μ env F 0 c.type = .ok ty)
-    (h8 : ty.allLevelParamsDefined c.levelParams = true)
-    (h9 : ty.constsResolve env = true)
-    (h10 : ConLeche.inferTypeCore μ env F 0 ty = .ok sty)
+    (h8 : c.type.allLevelParamsDefined c.levelParams = true)
+    (h9 : c.type.constsResolve env = true)
+    (h10 : ConLeche.inferTypeCore μ env F 0 c.type = .ok sty)
     (h11 : ConLeche.ensureSortCore μ env F 0 sty = .ok u) :
-    ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c
-      = .ok { c with type := ty } := by
+    ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok () := by
   simp only [ConLeche.checkConstantVal, ConLeche.fueledOps, h1, h2, h3, h4, h5,
-    h6, h7, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
+    h6, h8, h9, h10, h11, Option.isSome_none, Bool.false_eq_true, ite_false,
     ite_true, bind, Except.bind, pure, Except.pure]
 
 theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
-    {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
+    {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
     (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hck0 : CheckOK μ env fe s) (henv : EnvWF env)
     (hcv : Frontend.denoteCV s.store cv = some c)
-    (hrun : checkConstantVal μ fe cv s = .ok (cvA, s')) :
-    CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
-      ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA := by
+    (hrun : checkConstantVal μ fe cv s = .ok ((), s')) :
+    CoreStep μ env fe s s' ∧ ∃ F,
+      ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok () := by
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
   have hknot := hk.knot env fe henv
   have hsortS := hk.sort env fe henv
@@ -375,61 +373,39 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
   have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
       = some c.levelParams := by rw [h6st]; exact hlps5
   have hws : Expr.WScoped 0 c.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
-  -- 7. the annotation
-  obtain ⟨type, s7, g7r, r11⟩ := AM.bind_ok r10
-  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
-      t.pins = s6.pins ∧
-      Core.SimE (ConLeche.annotateCore μ env) 0 c.type t.store r)
-    rfl g7r (hknot.annotate s6 0 cv.type c.type hck6 hty6 hws)
-  obtain ⟨v, hv7, hwsv, F7, hF7⟩ := hsim7
-  have hnm7 : denoteN s7.store.ns cv.name = some c.name := denoteN_ext hnm6 hx7
-  have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
-      = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
-  -- 8. the undeclared-universe-parameter guard
-  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
+  -- 7. the undeclared-universe-parameter guard
+  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r10
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
-    allLevelParamsDefined_run hck7.state hlps7 hv7 g8r
+    allLevelParamsDefined_run hck6.state hlps6 hty6 g8r
   obtain ⟨hlpd, r13⟩ := AM.dunless_ok AM.Never.fail_any r12
   replace r13 := AM.pure_bind_ok r13
-  have hlpdP : v.allLevelParamsDefined c.levelParams = true := by
+  have hlpdP : c.type.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
   have hck8 : CheckOK μ env fe s8 :=
-    hck7.mono ⟨by rw [h8st]; exact hck7.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
+    hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
-  have hv8 : denoteE s8.store type = some v := by rw [h8st]; exact hv7
-  have hnm8 : denoteN s8.store.ns cv.name = some c.name := by rw [h8st]; exact hnm7
-  have hlps8 : Frontend.denoteNList s8.store.ns cv.levelParams
-      = some c.levelParams := by rw [h8st]; exact hlps7
-  -- 9. the unresolved-constant guard
+  have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
+  -- 8. the unresolved-constant guard
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
-  have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run hck8 hv8 g9r
+    constsResolveFFast_run hck8 hty8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.fail_any) r14
+    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail_any) r14
   replace r15 := AM.pure_bind_ok r15
-  have hcrP : v.constsResolve env = true := by rw [← h9r]; exact hcr
+  have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK μ env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
-  have hv9 : denoteE s9.store type = some v := by rw [h9st]; exact hv8
-  have hnm9 : denoteN s9.store.ns cv.name = some c.name := by rw [h9st]; exact hnm8
-  have hlps9 : Frontend.denoteNList s9.store.ns cv.levelParams
-      = some c.levelParams := by rw [h9st]; exact hlps8
-  -- 10. the inference
+  have hty9 : denoteE s9.store cv.type = some c.type := by rw [h9st]; exact hty8
+  -- 9. the inference, of the type AS STORED
   obtain ⟨stype, s10, g10r, r16⟩ := AM.bind_ok r15
   obtain ⟨hck10, hx10, hp10, hsim10⟩ := AM.of_run (P := fun t => t = s9)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s9.store t.store ∧
       t.pins = s9.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ env) 0 v t.store r)
-    rfl g10r (hknot.infer s9 0 type v hck9 hv9 hwsv)
+      Core.SimE (ConLeche.inferTypeCore μ env) 0 c.type t.store r)
+    rfl g10r (hknot.infer s9 0 cv.type c.type hck9 hty9 hws)
   obtain ⟨w, hw10, hwsw, F10, hF10⟩ := hsim10
-  have hv10 : denoteE s10.store type = some v := denote_ext hv9 hx10
-  have hnm10 : denoteN s10.store.ns cv.name = some c.name := denoteN_ext hnm9 hx10
-  have hlps10 : Frontend.denoteNList s10.store.ns cv.levelParams
-      = some c.levelParams := denoteNList_ext hx10.lss.ls.ns _ _ hlps9
-  -- 11. the sort test
+  -- 10. the sort test
   obtain ⟨u, s11, g11r, r17⟩ := AM.bind_ok r16
   obtain ⟨hck11, hx11, hp11, hsim11⟩ := AM.of_run (P := fun t => t = s10)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s10.store t.store ∧
@@ -437,55 +413,42 @@ theorem checkConstantVal_bridge {μ : CheckMode} {env : Env}
       SimL (ConLeche.ensureSortCore μ env) 0 w t.store r)
     rfl g11r (hsortS s10 0 stype w hck10 hw10 hwsw)
   obtain ⟨uu, huu, F11, hF11⟩ := hsim11
-  have hv11 : denoteE s11.store type = some v := denote_ext hv10 hx11
-  have hnm11 : denoteN s11.store.ns cv.name = some c.name := denoteN_ext hnm10 hx11
-  have hlps11 : Frontend.denoteNList s11.store.ns cv.levelParams
-      = some c.levelParams := denoteNList_ext hx11.lss.ls.ns _ _ hlps10
-  -- 12. the answer
-  obtain ⟨hcvA, hs'⟩ := AM.pure_ok r17
-  subst hcvA
-  subst hs'
+  -- 11. the answer: the run ENDS at the sort test
+  obtain ⟨-, rfl⟩ := AM.pure_ok r17
   -- the frame
   have hext : Ext s.store s'.store := by
     refine hp2.ext.trans ?_
-    rw [← h5st, ← h6st]
-    refine hx7.trans ?_
-    rw [← h8st, ← h9st]
+    rw [← h5st, ← h6st, ← h8st, ← h9st]
     exact hx10.trans hx11
   have hpins : s'.pins = s.pins := by
-    rw [hp11, hp10, h9p, h8p, hp7, h6p, h5p, hp2.pins]
-  have hle7 : F7 ≤ max (max F7 F10) F11 :=
-    Nat.le_trans (Nat.le_max_left F7 F10) (Nat.le_max_left _ F11)
-  have hle10 : F10 ≤ max (max F7 F10) F11 :=
-    Nat.le_trans (Nat.le_max_right F7 F10) (Nat.le_max_left _ F11)
-  have hle11 : F11 ≤ max (max F7 F10) F11 := Nat.le_max_right _ F11
-  refine ⟨⟨hck11, hext, hpins⟩,
-    ⟨{ c with type := v }, max (max F7 F10) F11, ?_, ?_⟩⟩
-  · simp only [Frontend.denoteCV, hnm11, hlps11, hv11]
-  · exact checkConstantVal_pure hfindP hresP hprojP hnodP hlbbP hfvP
-      (ConLeche.annotateCore_mono hle7 hF7) hlpdP hcrP
-      (ConLeche.inferTypeCore_mono hle10 hF10)
-      (ConLeche.ensureSortCore_mono hle11 hF11)
+    rw [hp11, hp10, h9p, h8p, h6p, h5p, hp2.pins]
+  have hle10 : F10 ≤ max F10 F11 := Nat.le_max_left F10 F11
+  have hle11 : F11 ≤ max F10 F11 := Nat.le_max_right F10 F11
+  refine ⟨⟨hck11, hext, hpins⟩, max F10 F11, ?_⟩
+  exact checkConstantVal_pure hfindP hresP hprojP hnodP hlbbP hfvP
+    hlpdP hcrP
+    (ConLeche.inferTypeCore_mono hle10 hF10)
+    (ConLeche.ensureSortCore_mono hle11 hF11)
 
 
 /-- con-leche: ConLeche/Verify/Cached/BridgeCS1.lean:43 checkConstantValS_sim —
 `checkConstantVal_bridge` at the fold's invariant, which is what the seven
 arms hold. -/
 theorem checkConstantVal_bridge_of_fold {μ : CheckMode} {env : Env}
-    {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
+    {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
-    (hrun : checkConstantVal μ fe cv s = .ok (cvA, s')) :
-    CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
-      ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA :=
+    (hrun : checkConstantVal μ fe cv s = .ok ((), s')) :
+    CoreStep μ env fe s s' ∧ ∃ F,
+      ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok () :=
   checkConstantVal_bridge hμ hk hok.check hok.envWF hcv hrun
 
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:279 checkConstantVal_datF —
 one fuel for the front door, through con-leche's own monotone family. -/
-theorem checkConstantVal_mono {μ : CheckMode} {env : Env} {c cA : ConstantVal}
+theorem checkConstantVal_mono {μ : CheckMode} {env : Env} {c : ConstantVal}
     {F F' : Nat} (hle : F ≤ F')
-    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok cA) :
-    ConLeche.checkConstantVal (ConLeche.fueledOps μ F') env c = .ok cA := by
+    (h : ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env c = .ok ()) :
+    ConLeche.checkConstantVal (ConLeche.fueledOps μ F') env c = .ok () := by
   rw [← ConLeche.checkConstantVal_datF (mode := μ)] at h ⊢
   exact (ConLeche.checkConstantVal (ConLeche.fueledOpsM μ) env c).property hle h
 
