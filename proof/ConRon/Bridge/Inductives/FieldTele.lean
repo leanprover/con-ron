@@ -26,10 +26,10 @@ the twin's telescope reader, as a run: read-only, the binders and the body
 denote con-leche's; the twin's fuel is invisible under partial correctness
 (exhaustion fails). -/
 theorem piBinders_run : ∀ (fuel : Nat) {h : EIdx} {hP : Expr} {s₀ s' : AState}
-    {r : List (EIdx × BinderMeta) × EIdx},
+    {r : List EIdx × EIdx},
     StateOK s₀ → denoteE s₀.store h = some hP →
     Arena.piBinders fuel h s₀ = .ok (r, s') →
-    s' = s₀ ∧ denoteBinders s₀.store r.1 = some hP.piBinders.1 ∧
+    s' = s₀ ∧ Frontend.denoteEList s₀.store r.1 = some hP.piBinders.1 ∧
       denoteE s₀.store r.2 = some hP.piBinders.2 := by
   intro fuel
   induction fuel with
@@ -48,15 +48,15 @@ theorem piBinders_run : ∀ (fuel : Nat) {h : EIdx} {hP : Expr} {s₀ s' : AStat
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some p =>
-        obtain ⟨d, b, m⟩ := p
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        obtain ⟨d, b⟩ := p
+        have hw := view_forallE_of_viewBind htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
         obtain ⟨q, s₂, h3, h4⟩ := AM.bind_ok h2
         obtain ⟨rfl, hq1, hq2⟩ := ih hok hbd h3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
         refine ⟨rfl, ?_, hq2⟩
-        simp [denoteBinders, hdd, hq1, Expr.piBinders]
+        simp [Frontend.denoteEList, hdd, hq1, Expr.piBinders]
     · rw [ite_eq_right htg] at hrun
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨rfl, ?_⟩
@@ -69,7 +69,7 @@ all leading `∀` binders and the body, as a `PSpec`. -/
 theorem piBinders_spec (fuel : Nat) (h : EIdx) (hP : Expr) :
     PSpec (fun st => denoteE st h = some hP)
       (Arena.piBinders fuel h)
-      (fun st r => denoteBinders st r.1 = some (Expr.piBinders hP).1 ∧
+      (fun st r => Frontend.denoteEList st r.1 = some (Expr.piBinders hP).1 ∧
         denoteE st r.2 = some (Expr.piBinders hP).2) := by
   intro s₀ s' r hok hd hrun
   obtain ⟨rfl, h1, h2⟩ := piBinders_run fuel hok hd hrun
@@ -79,9 +79,9 @@ theorem piBinders_spec (fuel : Nat) (h : EIdx) (hP : Expr) :
 Close a body under a telescope, abstracting the free variables as it goes.
 A list induction over `Bridge/ExprOps/Owed.lean`'s `abstract1Fast_spec` (at
 `Rel.lean`'s `Core.fvarBSpec`) and `internForallEE_run`. -/
-theorem closeTelescope_spec (bs : List (EIdx × BinderMeta))
-    (bsP : List (Expr × BinderMeta)) (i : Nat) (body : EIdx) (bodyP : Expr) :
-    PSpec (fun st => denoteBinders st bs = some bsP ∧
+theorem closeTelescope_spec (bs : List EIdx)
+    (bsP : List Expr) (i : Nat) (body : EIdx) (bodyP : Expr) :
+    PSpec (fun st => Frontend.denoteEList st bs = some bsP ∧
         denoteE st body = some bodyP)
       (Arena.closeTelescope bs i body)
       (RE (ConLeche.closeTelescope bsP i bodyP)) := by
@@ -89,20 +89,19 @@ theorem closeTelescope_spec (bs : List (EIdx × BinderMeta))
   | nil =>
     intro s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
-    simp only [denoteBinders, Option.some.injEq] at hbs
+    simp only [Frontend.denoteEList, Option.some.injEq] at hbs
     subst hbs
     simp only [Arena.closeTelescope] at hrun
     obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
     exact ⟨PStep.refl hok, hbody⟩
-  | cons b bs ih =>
+  | cons dom bs ih =>
     intro s₀ s' r hok hpre hrun
     obtain ⟨hbs, hbody⟩ := hpre
-    obtain ⟨dom, bm⟩ := b
-    simp only [denoteBinders] at hbs
+    simp only [Frontend.denoteEList] at hbs
     cases hdom : denoteE s₀.store dom with
     | none => rw [hdom] at hbs; simp at hbs
     | some domP =>
-    cases hrest : denoteBinders s₀.store bs with
+    cases hrest : Frontend.denoteEList s₀.store bs with
     | none => rw [hdom, hrest] at hbs; simp at hbs
     | some rest =>
     rw [hdom, hrest] at hbs
@@ -111,10 +110,10 @@ theorem closeTelescope_spec (bs : List (EIdx × BinderMeta))
     obtain ⟨inner, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨p1, hin⟩ := ih rest (i + 1) s₀ s1 inner hok ⟨hrest, hbody⟩ k1
     obtain ⟨cl, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s1) rfl k2
       (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s1 inner i 0 p1.ok
         (by rw [hin]; rfl))
-    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h3 h4 h5
+    have p2 : PStep s1 s2 := PStep.of_caches h1 h2 h4 h5
     obtain ⟨p3, hr⟩ := internForallEE_run p2.ok (denote_ext hdom (p1.ext.trans p2.ext))
       (h7 _ hin) z2
     exact ⟨p1.trans (p2.trans p3), hr⟩
@@ -158,14 +157,14 @@ theorem instPisWith_spec : ∀ (args : List EIdx) (argsP : List Expr) (e : EIdx)
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some p =>
-        obtain ⟨d, b, m⟩ := p
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        obtain ⟨d, b⟩ := p
+        have hw := view_forallE_of_viewBind htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
         obtain ⟨b', s₂, h3, h4⟩ := AM.bind_ok h2
-        obtain ⟨q1, q2, q3, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run hok hA
+        obtain ⟨q1, q2, q4, q5, -, q7⟩ := ExprOps.instantiate1Fast_run hok hA
           (by rw [hbd]; rfl) h3
-        have p2 : PStep s₀ s₂ := PStep.of_caches q1 q2 q3 q4 q5
+        have p2 : PStep s₀ s₂ := PStep.of_caches q1 q2 q4 q5
         have hb' : denoteE s₂.store b' = some (bP.instantiate1 aP 0) := q7 _ hbd
         obtain ⟨p3, hr⟩ := ih restP b' (bP.instantiate1 aP 0) s₂ s' r p2.ok
           ⟨denoteEList_ext p2.ext _ _ hR, hb'⟩ h4
