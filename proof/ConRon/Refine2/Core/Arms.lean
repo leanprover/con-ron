@@ -7,7 +7,7 @@ holds and the fuel induction runs — and what is left is the other direction,
 
     bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f
 
-— *"given the knot at `f`, the six BODIES at `f` refine the twin's"*, which is
+— *"given the knot at `f`, the five BODIES at `f` refine the twin's"*, which is
 `arena::core`'s 11 719 lines.  This file is the tier's index and that one
 statement; the arms themselves live in `Core/Arms/`:
 
@@ -16,38 +16,35 @@ statement; the arms themselves live in `Core/Arms/`:
 | `Core/Eqns.lean` | the 105 `partial_fixpoint` unfolding equations of `arena::core`'s two mutual blocks, derived ONCE (≈ 9.4 s each; ≈ 17 min, once) and cached into one `.olean` that every arm file imports | — |
 | `Core/Arms/Sort.lean` | the `view`/tag agreement — the ten-way `EStore_view_tagOf` and the `sort` projection — and **`ensure_sort_refines`** | **all** |
 | `Core/Arms/Delta.lean` | the `whnf` loop's DELTA leaf (task #97-P5-Core-2): `ifenv_find_abs` (the environment index's one reader), the `const` tag/view agreement, `nidx_vec_dup_val`, `const_val_at_refines` and **`unfold_definition_refines`** — lockstep since task #97-P5-Core round 4, closed modulo `ExprOpsHyp` (the `ExprOps` migration's two walks) | **all** (modulo `ExprOpsHyp`) |
-| `Core/Arms/Loops.lean` | the `whnf` loop's SECOND fuel dimension: `whnf_step` / `whnf_loop` / `whnf_body` **closed**; `defeq_body_refines` (the `defeq_step`/`defeq_loop` pair went with con-leche 8afe1815, task #109) | all |
-| `Core/Arms/Batched.lean` | the five batched clauses of tasks #97-P6-9, -11, -12 and -14, each against the twin's own batched form | 0 of 5 |
+| `Core/Arms/Loops.lean` | the `whnf` loop's SECOND fuel dimension: `whnf_step` / `whnf_loop_loop` / `whnf_body` **closed**; `defeq_body_refines` (the `defeq_step`/`defeq_loop` pair went with con-leche 8afe1815, task #109) | all |
 
 ## What each body needs, counted
 
-`crates/con-ron-core/src/arena/core.rs` translates to **105 functions** in the
-generated model, in two mutual blocks: 96 in the `whnf`/`infer`/`defeq` block
-(`arena.core.reduce_nat` … `arena.core.knot_defeq`) and 9 in the `annotate` block (`annotate_pis_leaf` … `knot_annotate`).
-`knot_*` are six of those and are closed; `ensure_sort` and the eight
+`crates/con-ron-core/src/arena/core.rs` translates to **102 functions** in the
+generated model's one mutual `partial_fixpoint` block (`arena.core.reduce_nat`
+… `arena.core.knot_defeq`; the `annotate` block went with the annotate pass,
+task #119).  `knot_*` are five of those and are closed; `ensure_sort` and the
 `*_probe`/`*_set` are closed (`Core/Arms/Sort.lean`, `Core/Probes.lean`).  The
-rest — **≈ 95 functions** — is what `bodyRel_of_knot` unfolds into, and the six
-bodies' own arms are:
+rest is what `bodyRel_of_knot` unfolds into, and the five bodies' own arms
+are:
 
 | body | arms (twin clauses) | port helpers under it |
 |---|---:|---:|
-| `whnf_core_body` | 10 views, of which `app` and `proj` recurse (the `cheap_proj` flag threaded, task #109) | `whnf_app`, `beta_peel`, `whnf_core_proj`, `reduce_proj_core{,_at,_fire}`, `proj_cert{,_at}`, `iota_rec_*` (10) |
-| `whnf_body` | the loop (`whnf_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}` (closed since); `unfold_definition` **closed**, `Core/Arms/Delta.lean` |
-| `infer_body` | 10 views | `infer_forall`, `infer_proj`, `infer_lam{,_open,_cod}`, `infer_spine`, `infer_app`, `infer_lams{,_leaf,_leaf_check}`, `infer_pis{,_leaf}` |
-| `infer_body_io` | 10 views | `infer_forall_io{,_at}`, `infer_app_io_at`, `infer_spine_io`, `infer_proj_io` |
+| `whnf_core_body` | the `WhnfStep` loop (`whnf_core_loop_loop` over `whnf_core_step`), whose step views 10 kinds, of which `app` and `proj` recurse (the `cheap_proj` flag threaded, task #109) | `whnf_app`, `beta_peel`, `whnf_core_step_proj`, `reduce_proj_core{,_at,_fire}`, `proj_cert{,_at}`, `tele_arity_ok`, `iota_rec_*` |
+| `whnf_body` | the loop (`whnf_loop_loop`/`whnf_step` at `WHNF_LOOP_FUEL`) — **closed**, `Core/Arms/Loops.lean` | `reduce_nat{,_succ,_bin,_wf}`; `unfold_definition` **closed**, `Core/Arms/Delta.lean` |
+| `infer_body` | 10 views | `infer_forall`, `infer_proj{,_at,_miss,_prop}`, `infer_lam`, `infer_let`, `infer_spine`, `infer_app`, `infer_lams{,_leaf}`, `infer_pis{,_leaf}` |
+| `infer_body_io` | 10 views | `infer_forall_io{,_at}`, `infer_app_io_at`, `infer_spine_io`, `infer_lam_open`, `infer_let_io`, `infer_proj` |
 | `defeq_body` | the official `is_def_eq_core` shape (task #109): `quick_defeq`, the lazy-delta loop `lazy_delta_reduction` and the projection loop `lazy_delta_proj_reduction` (each on its own budget, `DEFEQ_LOOP_FUEL`), `defeq_proj_pair`, `defeq_stuck` | `defeq_{spine,binders,peel,peel_leaf,offset,str_app,apps,after_lazy,after_whnf}`, `lazy_delta_{step,side,one,both,unfold_both,nat,proj_fields}`, `delta_quick`, `try_unfold_proj_app`, `is_nat_zero`, `nat_pred`, `head_is_proj`, `bool_true_shortcut`, `proof_irrel`, `prop_irrel`, `eta_cert*`, `struct_*_cert*`, `major_to_ctor*` (≈ 40) |
-| `annotate_body` | 10 views | `annotate_{binder,let,proj,proj_at,binders_out,pis,pis_leaf,lams,lams_leaf}` |
 
 ## Two shapes that are NOT the `ExprOps` tier's
 
-1. **A local loop's continuation is a closure in the twin and a counter in the
-   port** — `Core/Arms/Loops.lean`, where it is closed for `whnf` and where the
-   off-by-one in task #97-P5-Core's two statements is corrected (its
-   finding 13).
-2. **The batched clauses carry an `Array` accumulator and a cursor at once** —
-   `Core/Arms/Batched.lean`, which is task #97-P5-0's finding 5.
+1. **A loop's budget is a counter in the port and a `Nat` argument in the
+   twin** — `Core/Arms/Loops.lean` and `Core/LS/WhnfCore.lean` (the
+   `WhnfStep` loops, task #119).
+2. **The batched clauses carry an `Array` accumulator and a cursor at once**
+   (task #97-P5-0's finding 5), proved in the `Core/LS/*` files.
 
-## Why the six bodies' own dispatches were still open (round 3)
+## Why the bodies' own dispatches were still open (round 3)
 
 They are closed since (task #97-P5-Core round 5 zipped them in `lockstep`,
 round 6 discharged `exprOpsHyp`).  Round 3's budget is **≈ 20 lines of shape step, 2 lines of idiom and 0.26 s of
@@ -76,16 +73,13 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-! ## The six bodies, and the tier's (now closed) obligations
+/-! ## The five bodies, and the tier's (now closed) obligations
 
-**Task #97-P5-Core round 4: the skeleton.**  `bodyRel_of_knot` is no longer
-one `sorry`: it is the seven `BodyRel` fields assembled from one child per
-body, every child a LOCKSTEP statement over `AStateRel₀` (no `StoreWF`, no
-`EResolves`, `Sim₀`).  Two of the seven are already the loops of
-`Core/Arms/Loops.lean` (`whnf_body_refines`, closed modulo `reduce_nat` and
-the `ExprOpsHyp` bundle; `defeq_body_refines`); the other five are the ten-way
-dispatches below.  All seven are closed since task #97-P5-Core round 5, and
-`exprOpsHyp` since round 6. -/
+**Task #97-P5-Core round 4: the skeleton.**  `bodyRel_of_knot` is the five
+`BodyRel` fields assembled from one child per body, every child a LOCKSTEP
+statement over `AStateRel₀` (no `StoreWF`, no `EResolves`, `Sim₀`).  Two are
+the loops of `Core/Arms/Loops.lean` (`whnf_body_refines`;
+`defeq_body_refines`); the other three are the ten-way dispatches below. -/
 
 /-- `arena::core::whnf_core_body` against `Arena.whnfCoreBody` — the
 head-normalization body.  Lockstep (task #97-P5-Core round 5). -/
@@ -109,7 +103,7 @@ theorem infer_body_refines {f : Nat} (hk : KnotRel f)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
     (hrun : arena.core.infer_body pers vis st mode lane fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
-      (inferBody (ConRon.Refine.absMode mode)
+      (inferBody
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.infer_body_ls hk hx hrel hinv hctx hf) hrun
@@ -123,22 +117,10 @@ theorem infer_body_io_refines {f : Nat} (hk : KnotRel f)
     (hio : io = true ∨ lane = arena.core.LANE_IO)
     (hrun : arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o) :
     Sim₀ absEIdx pers lst o
-      (inferBodyIO (ConRon.Refine.absMode mode)
+      (inferBodyIO
         (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.infer_body_io_ls hk hx hrel hinv hctx hf hio) hrun
-
-/-- `arena::core::annotate_body` against `Arena.annotateBody`.  Lockstep (task #97-P5-Core round 5). -/
-theorem annotate_body_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o) :
-    Sim₀ absEIdx pers lst o
-      (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) :=
-  Lockstep.LS.toSim₀ (Lockstep.annotate_body_ls hk hx hrel hinv hctx hf) hrun
 
 /-- **The `ExprOps` tier's lockstep obligations, discharged** (task #97-P5-Core
 round 6) — every field of `Core/Arms/Delta.lean`'s `ExprOpsHyp` is the
@@ -163,7 +145,6 @@ theorem exprOpsHyp (pers : arena.store.PersTier) : ExprOpsHyp pers where
   hasFvarFast hrel hinv hrun := Lockstep.LS.toSim₀ (ConRon.Refine2.has_fvar_fast_ls hrel hinv _ _) hrun
   looseBVarsBoundedFast hrel hinv hrun :=
     Lockstep.LS.toSim₀ (ConRon.Refine2.loose_bvars_bounded_fast_ls hrel hinv _ _ _) hrun
-  lamPw hrel hinv hrun := Lockstep.LSR.toAOut₀ (ExprOps.lam_pw_ls hrel hinv _) hrun
   piResult hrel hinv hrun := Lockstep.LSR.toAOut₀ (ExprOps.pi_result_ls hrel hinv _ _) hrun
   stripPis hrel hinv hrun := Lockstep.LSR.toAOut₀ (ExprOps.strip_pis_ls hrel hinv _ _) hrun
   wscopedBFast hrel hinv hrun :=
@@ -177,8 +158,8 @@ theorem exprOpsHyp (pers : arena.store.PersTier) : ExprOpsHyp pers where
   notProofFast hrel hinv hctx hrun :=
     Lockstep.LS.toSim₀ (A := id) (Lockstep.PPR.not_proof_fast_ls hrel hinv hctx _ _) hrun
 
-/-- **`KnotRel f → BodyRel f`**, assembled from its seven children (task
-#97-P5-Core rounds 4–6; `sorry`-free since round 6). -/
+/-- **`KnotRel f → BodyRel f`**, assembled from its five children (task
+#97-P5-Core rounds 4–6). -/
 theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
   { whnfCore := fun h1 h2 h3 h4 h5 =>
       whnf_core_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
@@ -187,9 +168,7 @@ theorem bodyRel_of_knot : ∀ f, KnotRel f → BodyRel f := fun _ hk =>
     infer := fun h1 h2 h3 h4 h5 => infer_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
     inferIO := fun h1 h2 h3 h4 hio h5 =>
       infer_body_io_refines hk (exprOpsHyp _) h1 h2 h3 h4 hio h5
-    defeq := fun h1 h2 h3 h4 h5 => defeq_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5
-    annotate := fun h1 h2 h3 h4 h5 =>
-      annotate_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5 }
+    defeq := fun h1 h2 h3 h4 h5 => defeq_body_refines hk (exprOpsHyp _) h1 h2 h3 h4 h5 }
 
 /-- **The knot, unconditionally** — the theorem the Checker tier wants. -/
 theorem knotRel (f : Nat) : KnotRel f := knot_rel bodyRel_of_knot f
