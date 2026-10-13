@@ -249,8 +249,8 @@ theorem structUnitCert_guard {F d : Nat} {x y ta wta : Expr} {T : Name}
   rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the two
-types are compared, and the verdict is the family certificate's (or `false`
-when they differ). -/
+types are compared (a ∀ is never a family's application, con-leche's task
+#342 L18; no certificate on the type application, L11b). -/
 theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
     {us : List Level} {cvT : ConstantVal} {caps : IndCaps} {r : Bool}
     (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
@@ -262,11 +262,8 @@ theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
       us.length = cvT.levelParams.length)
     (h3 : ConLeche.inferTypeIO mode env F d y = .ok tb)
     (h4 : ConLeche.whnf mode env F d tb = .ok wtb)
-    (h5 : (do
-      if ← ConLeche.isDefEqCore mode env F d wta wtb then
-        ConLeche.iotaCertsFueled mode env F d false
-          (cvT.type.instantiateLevelParams cvT.levelParams us) wta.getAppArgs
-      else pure false : CheckM Bool) = .ok r) :
+    (h5 : (if wtb.isForallE then pure false
+      else ConLeche.isDefEqCore mode env F d wta wtb : CheckM Bool) = .ok r) :
     ConLeche.structUnitCertFueled mode env F d x y = .ok r := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
@@ -426,8 +423,7 @@ def EtaGuard (env : Env) (w : Expr) (c T : Name) (us' : List Level)
     w.getAppArgs.length = caps.etaParams ∧
     us'.length = cvT.levelParams.length ∧
     cvc.levelParams = cvT.levelParams ∧
-    (ConLeche.towerSlotsAll env T caps.etaFields ||
-      ConLeche.recSlotsAll env T caps.etaFields) = true
+    ConLeche.towerSlotsAll env T caps.etaFields = true
 
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
 guard fails. -/
@@ -447,8 +443,9 @@ theorem structEtaCertWith_guard {F d : Nat} {x y w : Expr} {c T : Name}
   rw [ite_eq_left hlen, ite_eq_right hg]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — past
-the guard: the level comparison and the four certificates, verbatim. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:360-404 structEtaCertWith — past
+the guard: the level comparison and the two spine comparisons, verbatim (no
+certificate on the type application, con-leche's task #342 L11b). -/
 theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
     {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
     {caps : IndCaps}
@@ -462,35 +459,20 @@ theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
       (do
         if ← ConLeche.liftFueled "level comparison"
             (Level.isEquivList us us') then
-          if ← ConLeche.iotaCertsFueled mode env F d false
-              (cvT.type.instantiateLevelParams cvT.levelParams us')
-              w.getAppArgs then
-            if ← (if ConLeche.towerSlotsAll env T caps.etaFields then pure true
-                else ConLeche.structEtaProjCertsFueled mode env F d T us'
-                  w.getAppArgs y cvT.levelParams
-                  (List.range caps.etaFields)) then
-              if ← ConLeche.defEqListFueled mode env F d
-                  (x.getAppArgs.take caps.etaParams) w.getAppArgs then
-                if ← (if mode.ttChecks then
-                    ConLeche.iotaCertsFueled mode env F d false
-                      (cvc.type.instantiateLevelParams cvc.levelParams us)
-                      (w.getAppArgs ++ ConLeche.etaProjs env T us'
-                        w.getAppArgs y caps.etaFields)
-                  else pure true) then
-                  ConLeche.defEqListFueled mode env F d
-                    (x.getAppArgs.drop caps.etaParams)
-                    (ConLeche.etaProjs env T us' w.getAppArgs y caps.etaFields)
-                else pure false
-              else pure false
-            else pure false
+          if ← ConLeche.defEqListFueled mode env F d
+              (x.getAppArgs.take caps.etaParams) w.getAppArgs then
+            ConLeche.defEqListFueled mode env F d
+              (x.getAppArgs.drop caps.etaParams)
+              (ConLeche.etaProjs T y caps.etaFields)
           else pure false
         else pure false : CheckM Bool) := by
   simp only [ConLeche.structEtaCertWithFueled, ConLeche.structEtaCertWith, hh, hf,
     hw, hfT]
   unfold EtaGuard at hg
   rw [ite_eq_left hlen, ite_eq_left hg]
+  rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — the
+/-- con-leche: ConLeche/Kernel/Core.lean:360-404 structEtaCertWith — the
 tail's exits, each stated at the facts the twin's stages name. -/
 theorem structEtaCertWith_exits {F d : Nat} {x y w : Expr} {c T : Name}
     {us us' : List Level} {cvc cvT : ConstantVal} {cnP cnF : Nat}
@@ -504,43 +486,16 @@ theorem structEtaCertWith_exits {F d : Nat} {x y w : Expr} {c T : Name}
     (Level.isEquivList us us' = some false →
       ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
     (Level.isEquivList us us' = some true →
-      ConLeche.iotaCertsFueled mode env F d false
-        (cvT.type.instantiateLevelParams cvT.levelParams us') w.getAppArgs
-        = .ok false →
-      ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
-    (Level.isEquivList us us' = some true →
-      ConLeche.iotaCertsFueled mode env F d false
-        (cvT.type.instantiateLevelParams cvT.levelParams us') w.getAppArgs
-        = .ok true →
-      ∀ pc, (if ConLeche.towerSlotsAll env T caps.etaFields then pure true
-          else ConLeche.structEtaProjCertsFueled mode env F d T us'
-            w.getAppArgs y cvT.levelParams (List.range caps.etaFields) :
-            CheckM Bool) = .ok pc →
-      (pc = false →
+      ∀ dq, ConLeche.defEqListFueled mode env F d
+        (x.getAppArgs.take caps.etaParams) w.getAppArgs = .ok dq →
+      (dq = false →
         ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
-      (pc = true →
-        ∀ dq, ConLeche.defEqListFueled mode env F d
-          (x.getAppArgs.take caps.etaParams) w.getAppArgs = .ok dq →
-        (dq = false →
-          ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
-        (dq = true →
-          ∀ tt, (if mode.ttChecks then
-              ConLeche.iotaCertsFueled mode env F d false
-                (cvc.type.instantiateLevelParams cvc.levelParams us)
-                (w.getAppArgs ++ ConLeche.etaProjs env T us' w.getAppArgs y
-                  caps.etaFields)
-            else pure true : CheckM Bool) = .ok tt →
-          (tt = false →
-            ConLeche.structEtaCertWithFueled mode env F d x y w = .ok false) ∧
-          (tt = true → ∀ r, ConLeche.defEqListFueled mode env F d
-              (x.getAppArgs.drop caps.etaParams)
-              (ConLeche.etaProjs env T us' w.getAppArgs y caps.etaFields)
-              = .ok r →
-            ConLeche.structEtaCertWithFueled mode env F d x y w = .ok r)))) := by
+      (dq = true → ∀ r, ConLeche.defEqListFueled mode env F d
+          (x.getAppArgs.drop caps.etaParams)
+          (ConLeche.etaProjs T y caps.etaFields) = .ok r →
+        ConLeche.structEtaCertWithFueled mode env F d x y w = .ok r)) := by
   rw [structEtaCertWith_tail hh hf hlen hw hfT hg]
-  refine ⟨fun hl => ?_, fun hl h1 => ?_, fun hl h1 pc hpc => ⟨fun hp => ?_,
-    fun hp dq hdq => ⟨fun hd => ?_, fun hd tt htt => ⟨fun ht => ?_,
-      fun ht r hr => ?_⟩⟩⟩⟩
+  refine ⟨fun hl => ?_, fun hl dq hdq => ⟨fun hd => ?_, fun hd r hr => ?_⟩⟩
   all_goals subst_vars
   all_goals clear hg hh hf hlen hw hfT
   all_goals simp_all only [ConLeche.liftFueled, pure, Except.pure, bind,
@@ -574,22 +529,6 @@ theorem triple_ite_seq {α β : Type} {c : Prop} [Decidable c] {x y : AM α}
   rw [e]
   exact triple_seq hxy hk
 
-/-- con-leche: ConLeche/Verify/Mono.lean:158 isDefEqCore_mono — the merge at
-the per-slot certificates' conditional. -/
-theorem pcIte_mono {F F' : Nat} (hle : F ≤ F') {d : Nat} {Tn : Name}
-    {ls : List Level} {xs : List Expr} {y : Expr} {lps : List Name}
-    {nF : Nat} {c r : Bool}
-    (h : (if c = true then pure true else
-      ConLeche.structEtaProjCertsFueled mode env F d Tn ls xs y lps
-        (List.range nF) : CheckM Bool) = .ok r) :
-    (if c = true then pure true else
-      ConLeche.structEtaProjCertsFueled mode env F' d Tn ls xs y lps
-        (List.range nF) : CheckM Bool) = .ok r := by
-  cases c
-  · simp only [Bool.false_eq_true, ite_false] at h ⊢
-    exact structEtaProjCertsFueled_mono hle h
-  · simp only [ite_true] at h ⊢; exact h
-
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — **THEOREM
 1 for `structEtaCertWith`**, the structure-η certificate against a GIVEN
 weak-head-normal type `wtb` of the stuck side.
@@ -620,387 +559,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertWithFueled mode env F d x y w)
           r; ⊤⦄ := by
-  have hwf := hok.state.wf
-  obtain ⟨rk, hrk⟩ := hok.state.wf
-  unfold ConRon.Arena.structEtaCertWith
-  -- stage 1: the candidate's head
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
-    (by rw [hda]; rfl)) ?_
-  rintro hd s1 ⟨hs1, hrelF⟩
-  subst s1
-  have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  cases vh
-  case const c us =>
-    obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf hvh hdd
-    dsimp only
-    split
-    next icvc cnP cnF hfdc =>
-      obtain ⟨dcvc, hdcvc, hfindc⟩ := env_ctor_of_index hok hcn hfdc
-      -- stage 2: its arguments
-      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ a hok.state
-        (by rw [hda]; rfl)) ?_
-      rintro aargs s2 ⟨hs2, hrelA⟩
-      subst s2
-      have haargs : Frontend.denoteEList s₀.store aargs = some x.getAppArgs :=
-        hrelA x hda
-      have hlenEq : x.getAppArgs.length = aargs.length := denoteEList_len haargs
-      by_cases hlenT : aargs.length = cnP + cnF
-      · rw [ite_eq_left hlenT]
-        have hlenP : x.getAppArgs.length = cnP + cnF := hlenEq ▸ hlenT
-        -- stage 3: the stuck side's type's head
-        refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ wtb hok.state
-          (by rw [hdw]; rfl)) ?_
-        rintro hw' s3 ⟨hs3, hrelW⟩
-        subst s3
-        have hdw' : denoteE s₀.store hw' = some w.getAppFn := hrelW w hdw
-        obtain ⟨vw, hvw⟩ := denoteE_view hdw'
-        refine tag_view_bind_triple hvw ?_
-          (fun hne => by cases vw <;> first | rfl | exact absurd rfl hne)
-        cases vw
-        case const T us' =>
-          obtain ⟨Tn, ls', hgw, hTn, hus'⟩ := denote_const_inv hwf hvw hdw'
-          dsimp only
-          split
-          next icvT icaps hfdT =>
-            obtain ⟨dcvT, dcaps, hdcvT, hdcaps, hfindT⟩ :=
-              env_ind_of_index hok hTn hfdT
-            have hcapsD : ∃ ct als cts, denoteN s₀.store.ns icaps.etaCtor = some ct ∧
-                dcaps = ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
-                  icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
-                  als, icaps.nparams, cts⟩ := by
-              simp only [Frontend.denoteCaps] at hdcaps
-              split at hdcaps
-              · rename_i ct als cts hct _ _
-                exact ⟨ct, als, cts, hct, (Option.some.inj hdcaps).symm⟩
-              · simp at hdcaps
-            obtain ⟨ct, als, cts, hct, rfl⟩ := hcapsD
-            -- stage 4: the type's arguments, the reserved names, the levels
-            refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ wtb
-              hok.state (by rw [hdw]; rfl)) ?_
-            rintro targs s4 ⟨hs4, hrelT⟩
-            subst s4
-            have htargs : Frontend.denoteEList s₀.store targs = some w.getAppArgs :=
-              hrelT w hdw
-            refine triple_seq (reservedBasisNames_spec s₀ hok) ?_
-            rintro res s5 ⟨hok5, hx5, hp5, hres⟩
-            have hwf5 := hok5.state.wf
-            refine triple_seq (viewLsLen_spec s5 us') ?_
-            rintro ol s6 ⟨hs6, hol⟩
-            subst s6
-            rw [viewLen_of_denoteLs (denoteLs_ext hus' hx5)] at hol
-            subst hol
-            dsimp only
-            -- stage 5: the slot discipline
-            refine triple_seq (towerSlotsAll_spec s5 T Tn icaps.etaFields hok5
-              (denoteN_ext hTn hx5)) ?_
-            rintro tw s6 ⟨hok6, hx6, hp6, htw⟩
-            refine triple_ite_seq (Q := fun slots s => CheckOK mode env fe s ∧
-              Ext s6.store s.store ∧ s.pins = s6.pins ∧
-              slots = (ConLeche.towerSlotsAll env Tn icaps.etaFields ||
-                ConLeche.recSlotsAll env Tn icaps.etaFields)) ?_ ?_
-            · refine triple_ite (fun htt => ?_) (fun htf => ?_)
-              · refine triple_pureC ⟨hok6, Ext.refl _, rfl, ?_⟩
-                have : ConLeche.towerSlotsAll env Tn icaps.etaFields = true :=
-                  htw ▸ htt
-                rw [this, Bool.true_or]
-              · refine triple_mono (recSlotsAll_spec s6 T Tn icaps.etaFields hok6
-                  (denoteN_ext hTn (hx5.trans hx6))) ?_
-                rintro r s' ⟨h1, h2, h3, h4⟩
-                refine ⟨h1, h2, h3, ?_⟩
-                have : ConLeche.towerSlotsAll env Tn icaps.etaFields = false := by
-                  rw [← htw]; simpa using htf
-                rw [h4, this, Bool.false_or]
-            rintro slots s7 ⟨hok7, hx7, hp7, hslots⟩
-            have hx07 : Ext s₀.store s7.store := hx5.trans (hx6.trans hx7)
-            have hp07 : s7.pins = s₀.pins := hp7.trans (hp6.trans hp5)
-            obtain ⟨_, hlpsC, _⟩ := denoteCV_inv hdcvc
-            obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
-            have hctr : icaps.etaCtor = c ↔ ct = cn :=
-              ⟨fun h => by subst h; exact Option.some.inj (hct.symm.trans hcn),
-               fun h => by subst h; exact denoteN_inj hrk.nsWF hct hcn⟩
-            have hguard : (icaps.eta = true ∧ icaps.etaCtor = c ∧
-                res.contains T = false ∧ res.contains c = false ∧
-                targs.length = icaps.etaParams ∧
-                ls'.length = icvT.levelParams.length ∧
-                icvc.levelParams = icvT.levelParams ∧ slots = true) ↔
-                EtaGuard env w cn Tn ls' dcvc dcvT
-                  ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
-                    icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
-                    als, icaps.nparams, cts⟩ := by
-              unfold EtaGuard
-              rw [hctr, denoteNList_containsC hwf5 res _ hres T Tn
-                  (denoteN_ext hTn hx5),
-                denoteNList_containsC hwf5 res _ hres c cn (denoteN_ext hcn hx5),
-                ← denoteEList_len htargs, denoteNList_len hlpsT,
-                denoteNList_eq_iff hwf hlpsC hlpsT, hslots]
-            have hwx : ∀ z ∈ x.getAppArgs, Expr.WScoped d z :=
-              Expr.WScoped.getAppArgs hwa
-            have hwtargs : ∀ z ∈ w.getAppArgs, Expr.WScoped d z :=
-              Expr.WScoped.getAppArgs hww
-            refine triple_ite (fun hgT => ?_) (fun hgF => ?_)
-            · have hgP := hguard.mp hgT
-              have hEx := fun F => structEtaCertWith_exits (mode := mode) (F := F)
-                (d := d) (y := y) hgf hfindc hlenP hgw hfindT hgP
-              -- stage 6: the two level lists
-              refine triple_seq (lvlsEq?_spec s7 us us' hok7) ?_
-              rintro q s8 ⟨hok8, hst8, hp8, lus, lvs, hlus, hlvs, hq⟩
-              rw [denoteLs_ext hus hx07] at hlus
-              rw [denoteLs_ext hus' hx07] at hlvs
-              obtain rfl := Option.some.inj hlus
-              obtain rfl := Option.some.inj hlvs
-              refine triple_seq (liftFueled_spec s8 _ q) ?_
-              rintro okL s9 ⟨hs9, hokL⟩
-              subst s9
-              have hlv : Level.isEquivList ls ls' = some okL := hq ▸ hokL
-              have hx08 : Ext s₀.store s8.store := by rw [hst8]; exact hx07
-              have hp08 : s8.pins = s₀.pins := hp8.trans hp07
-              refine triple_ite (fun hokT => ?_) (fun hokF => ?_)
-              · have hokL' : okL = true := hokT
-                subst hokL'
-                have hc := ConLeche.certs_of_verifiedChecks hμ
-                refine triple_ite (fun _ => ?_) (fun hnc => absurd hc hnc)
-                -- stage 7: the type former's telescope certificate
-                have hcv8 := denoteCV_ext hdcvT hx08
-                have hnameT : dcvT.name = Tn := env_find_name hfindT
-                refine triple_seq (constTyAt_spec s8 icvT us' Tn ls' _ hok8
-                  (by rw [denoteCV_name hcv8, hnameT]) (denoteLs_ext hus' hx08)
-                  hfindT hcv8) ?_
-                rintro ty s10 ⟨hok10, hx10, hp10, hty⟩
-                have hx010 := hx08.trans hx10
-                have htargs10 := denoteEList_ext hx010 _ _ htargs
-                refine triple_seq (iotaCerts_spec hsim d false ty targs s10 hok10
-                  ⟨_, _, hty, Expr.WScoped.of_not_hasFvar
-                    (ConLeche.const_ty_hasFvar henv hfindT ls'), htargs10,
-                    hwtargs⟩) ?_
-                rintro fam s11 ⟨hok11, hx11, hp11, hfam⟩
-                obtain ⟨F1, hF1⟩ := hfam _ _ hty htargs10
-                have hx011 := hx010.trans hx11
-                have hp011 : s11.pins = s₀.pins := hp11.trans (hp10.trans hp08)
-                refine triple_ite (fun hfT' => ?_) (fun hfF => ?_)
-                · have hfam' : fam = true := hfT'
-                  subst hfam'
-                  -- stage 8: the per-slot certificates (the tower read is
-                  -- under `mode.certs`, as in the port)
-                  refine triple_ite (fun hnc => absurd hnc (by simp [hc]))
-                    (fun _ => ?_)
-                  refine triple_seq (towerSlotsAll_spec s11 T Tn icaps.etaFields
-                    hok11 (denoteN_ext hTn hx011)) ?_
-                  rintro tw2 s12 ⟨hok12, hx12, hp12, htw2⟩
-                  have hx012 := hx011.trans hx12
-                  refine triple_ite_seq (Q := fun pc s => CheckOK mode env fe s ∧
-                    Ext s12.store s.store ∧ s.pins = s12.pins ∧
-                    SimBOp (fun F => (if ConLeche.towerSlotsAll env Tn
-                        icaps.etaFields then pure true
-                      else ConLeche.structEtaProjCertsFueled mode env F d Tn ls'
-                        w.getAppArgs y dcvT.levelParams
-                        (List.range icaps.etaFields) : CheckM Bool)) pc) ?_ ?_
-                  · refine triple_ite (fun htt => ?_) (fun htf => ?_)
-                    · have ht : ConLeche.towerSlotsAll env Tn icaps.etaFields =
-                          true := htw2 ▸ htt
-                      exact triple_pureC ⟨hok12, Ext.refl _, rfl, 0,
-                        by dsimp only; rw [ite_eq_left ht]; rfl⟩
-                    · have ht : ConLeche.towerSlotsAll env Tn icaps.etaFields =
-                          false := by rw [← htw2]; simpa using htf
-                      refine triple_mono (structEtaProjCerts_spec henv hsim d T us'
-                        targs b icvT.levelParams Tn ls' w.getAppArgs y
-                        dcvT.levelParams hwtargs hwb (List.range icaps.etaFields)
-                        s12 hok12 (denoteN_ext hTn hx012) (denoteLs_ext hus' hx012)
-                        (denoteEList_ext hx012 _ _ htargs) (denote_ext hdb hx012)
-                        (denoteNList_ext hx012.lss.ls.ns _ _ hlpsT)) ?_
-                      rintro r s' ⟨h1, h2, h3, F, hF⟩
-                      exact ⟨h1, h2, h3, F, by
-                        dsimp only; rw [ite_eq_right (by simp [ht])]; exact hF⟩
-                  rintro pc s13 ⟨hok13, hx13, hp13, F2, hF2⟩
-                  have hx013 := hx012.trans hx13
-                  have hp013 : s13.pins = s₀.pins :=
-                    hp13.trans (hp12.trans hp011)
-                  refine triple_ite (fun hpT => ?_) (fun hpF => ?_)
-                  · have hpc : pc = true := hpT
-                    subst hpc
-                    -- stage 9: the parameters agree
-                    have haargs13 := denoteEList_ext hx013 _ _
-                      (ExprOps.denoteEList_take icaps.etaParams aargs _ haargs)
-                    refine triple_seq (defEqList_spec hsim s13 d
-                      (aargs.take icaps.etaParams) targs _ _ hok13 haargs13
-                      (denoteEList_ext hx013 _ _ htargs)
-                      (fun z hz => hwx z (List.mem_of_mem_take hz)) hwtargs) ?_
-                    rintro dq s14 ⟨hok14, hx14, hp14, F3, hF3⟩
-                    have hx014 := hx013.trans hx14
-                    have hp014 : s14.pins = s₀.pins := hp14.trans hp013
-                    refine triple_ite (fun hdT => ?_) (fun hdF => ?_)
-                    · have hdq : dq = true := hdT
-                      subst hdq
-                      -- stage 11: the fabricated fields agree
-                      have hfin : ∀ (s15 : AState) (G0 : Nat),
-                          CheckOK mode env fe s15 → Ext s₀.store s15.store →
-                          s15.pins = s₀.pins →
-                          (∀ G, G0 ≤ G → (if mode.ttChecks then
-                              ConLeche.iotaCertsFueled mode env G d false
-                                (dcvc.type.instantiateLevelParams dcvc.levelParams
-                                  ls)
-                                (w.getAppArgs ++ ConLeche.etaProjs env Tn ls'
-                                  w.getAppArgs y icaps.etaFields)
-                            else pure true : CheckM Bool) = .ok true) →
-                          ⦃fun s => s = s15⦄
-                            (do
-                              let projs ← ConRon.Arena.etaProjs fe T us' targs b
-                                icaps.etaFields
-                              ConRon.Arena.defEqList (coreKnot mode fe id fuel) fe d
-                                (aargs.drop icaps.etaParams) projs)
-                          ⦃fun r s' => CheckOK mode env fe s' ∧
-                            Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-                            SimBOp (fun F => ConLeche.structEtaCertWithFueled mode
-                              env F d x y w) r; ⊤⦄ := by
-                        intro s15 G0 hok15 hx015 hp015 hG0
-                        refine triple_seq (etaProjs_spec s15 T us' targs b
-                          icaps.etaFields Tn ls' w.getAppArgs y hok15
-                          (denoteN_ext hTn hx015) (denoteLs_ext hus' hx015)
-                          (denoteEList_ext hx015 _ _ htargs)
-                          (denote_ext hdb hx015)) ?_
-                        rintro projs s16 ⟨hok16, hx16, hp16, hprojs⟩
-                        have hx016 := hx015.trans hx16
-                        refine triple_mono (defEqList_spec hsim s16 d
-                          (aargs.drop icaps.etaParams) projs _ _ hok16
-                          (denoteEList_ext hx016 _ _
-                            (ExprOps.denoteEList_drop icaps.etaParams aargs _
-                              haargs))
-                          hprojs (fun z hz => hwx z (List.mem_of_mem_drop hz))
-                          (etaProjs_WScoped hwtargs hwb)) ?_
-                        rintro r s17 ⟨hok17, hx17, hp17, F5, hF5⟩
-                        refine ⟨hok17, hx016.trans hx17,
-                          hp17.trans (hp16.trans hp015), F1 + F2 + F3 + G0 + F5, ?_⟩
-                        exact (((((hEx (F1 + F2 + F3 + G0 + F5)).2.2 hlv
-                          (iotaCertsFueled_mono (by omega) hF1) true
-                          (pcIte_mono (by omega) hF2)).2 rfl true
-                          (defEqListFueled_mono (by omega) hF3)).2 rfl true
-                          (hG0 _ (by omega))).2 rfl r
-                          (defEqListFueled_mono (by omega) hF5))
-                      refine triple_ite (fun httT => ?_) (fun httF => ?_)
-                      · -- stage 10: the synthetic-spine certificate (TT lane)
-                        have hcv14 := denoteCV_ext hdcvc hx014
-                        have hnameC : dcvc.name = cn := env_find_name hfindc
-                        refine triple_seq (constTyAt_spec s14 icvc us cn ls _ hok14
-                          (by rw [denoteCV_name hcv14, hnameC])
-                          (denoteLs_ext hus hx014) hfindc hcv14) ?_
-                        rintro tyC s15 ⟨hok15, hx15, hp15, htyC⟩
-                        have hx015 := hx014.trans hx15
-                        refine triple_seq (etaProjs_spec s15 T us' targs b
-                          icaps.etaFields Tn ls' w.getAppArgs y hok15
-                          (denoteN_ext hTn hx015) (denoteLs_ext hus' hx015)
-                          (denoteEList_ext hx015 _ _ htargs)
-                          (denote_ext hdb hx015)) ?_
-                        rintro projs s16 ⟨hok16, hx16, hp16, hprojs⟩
-                        have hx016 := hx015.trans hx16
-                        have happ := denoteEList_appendC targs projs _ _
-                          (denoteEList_ext hx016 _ _ htargs) hprojs
-                        have hwapp : ∀ z ∈ w.getAppArgs ++ ConLeche.etaProjs env Tn
-                            ls' w.getAppArgs y icaps.etaFields,
-                            Expr.WScoped d z := by
-                          intro z hz
-                          rcases List.mem_append.mp hz with hz | hz
-                          · exact hwtargs z hz
-                          · exact etaProjs_WScoped hwtargs hwb z hz
-                        have htyC16 := denote_ext htyC hx16
-                        refine triple_seq (iotaCerts_spec hsim d false tyC
-                          (targs ++ projs) s16 hok16
-                          ⟨_, _, htyC16, Expr.WScoped.of_not_hasFvar
-                            (ConLeche.const_ty_hasFvar henv hfindc ls), happ,
-                            hwapp⟩) ?_
-                        rintro ttb s17 ⟨hok17, hx17, hp17, httb⟩
-                        obtain ⟨F4, hF4⟩ := httb _ _ htyC16 happ
-                        have hx017 := hx016.trans hx17
-                        have hp017 : s17.pins = s₀.pins :=
-                          hp17.trans (hp16.trans (hp15.trans hp014))
-                        have hF4' : ∀ G, F4 ≤ G → (if mode.ttChecks then
-                            ConLeche.iotaCertsFueled mode env G d false
-                              (dcvc.type.instantiateLevelParams dcvc.levelParams ls)
-                              (w.getAppArgs ++ ConLeche.etaProjs env Tn ls'
-                                w.getAppArgs y icaps.etaFields)
-                          else pure true : CheckM Bool) = .ok ttb := fun G hle => by
-                          rw [ite_eq_left httT]; exact iotaCertsFueled_mono hle hF4
-                        refine triple_ite (fun htbT => ?_) (fun htbF => ?_)
-                        · have htb : ttb = true := htbT
-                          subst htb
-                          exact hfin s17 F4 hok17 hx017 hp017 hF4'
-                        · have htb : ttb = false := by simpa using htbF
-                          subst htb
-                          exact triple_pureC ⟨hok17, hx017, hp017,
-                            F1 + F2 + F3 + F4,
-                            (((((hEx (F1 + F2 + F3 + F4)).2.2 hlv
-                              (iotaCertsFueled_mono (by omega) hF1) true
-                              (pcIte_mono (by omega) hF2)).2 rfl true
-                              (defEqListFueled_mono (by omega) hF3)).2 rfl false
-                              (hF4' _ (by omega))).1 rfl)⟩
-                      · refine triple_seq (triple_pureC
-                          (Q := fun (r : Bool) s => r = true ∧ s = s14)
-                          ⟨rfl, rfl⟩) ?_
-                        rintro ttb s' ⟨rfl, hs'⟩
-                        subst s'
-                        refine triple_ite (fun _ => ?_) (fun h => absurd rfl h)
-                        exact hfin s14 0 hok14 hx014 hp014
-                          (fun G _ => by rw [ite_eq_right httF]; rfl)
-                    · have hdq : dq = false := by simpa using hdF
-                      subst hdq
-                      exact triple_pureC ⟨hok14, hx014, hp014, F1 + F2 + F3,
-                        ((((hEx (F1 + F2 + F3)).2.2 hlv
-                          (iotaCertsFueled_mono (by omega) hF1) true
-                          (pcIte_mono (by omega) hF2)).2 rfl false
-                          (defEqListFueled_mono (by omega) hF3)).1 rfl)⟩
-                  · have hpc : pc = false := by simpa using hpF
-                    subst hpc
-                    exact triple_pureC ⟨hok13, hx013, hp013, F1 + F2,
-                      (((hEx (F1 + F2)).2.2 hlv
-                        (iotaCertsFueled_mono (by omega) hF1) false
-                        (pcIte_mono (by omega) hF2)).1 rfl)⟩
-                · have hfam' : fam = false := by simpa using hfF
-                  subst hfam'
-                  exact triple_pureC ⟨hok11, hx011, hp011, F1,
-                    (hEx F1).2.1 hlv hF1⟩
-              · have hokL' : okL = false := by simpa using hokF
-                subst hokL'
-                exact triple_pureC ⟨hok8, hx08, hp08, 0, (hEx 0).1 hlv⟩
-            · exact triple_pureC ⟨hok7, hx07, hp07, 0,
-                structEtaCertWith_guard hgf hfindc hlenP hgw hfindT
-                  (fun h => hgF (hguard.mpr h))⟩
-          next hnd =>
-            have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
-            have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
-                .ok false := structEtaCertWith_noind hgf hfindc hlenP hgw hnf
-            vcgen
-            bridge_peel; subst_vars
-            exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
-        all_goals
-          have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
-              .ok false := structEtaCertWith_nohead_w hgf hfindc hlenP
-                (denote_not_const hwf hvw hdw' (by intro c us h; cases h))
-          dsimp only
-          vcgen
-          bridge_peel; subst_vars
-          exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
-      · rw [ite_eq_right hlenT]
-        have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
-            .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
-        vcgen
-        bridge_peel; subst_vars
-        exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
-    next hnd =>
-      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
-      have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
-          .ok false := structEtaCertWith_noctor hgf hnc
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
-  all_goals
-    have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
-        .ok false := structEtaCertWith_nohead
-          (denote_not_const hwf hvh hdd (by intro c us h; cases h))
-    dsimp only
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, 0, hres⟩
+  sorry
 
 /-! ## 2. The three children -/
 
@@ -1195,7 +754,7 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           rintro ty s10 ⟨hok10, hx10, hp10, hty⟩
           have hwty : Expr.WScoped d
               (dcv.type.instantiateLevelParams dcv.levelParams ls) :=
-            Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls)
+            Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind ls)
           have hwargs : ∀ z ∈ vwta.getAppArgs, Expr.WScoped d z :=
             Expr.WScoped.getAppArgs hwvwta
           have hargs10 := denoteEList_ext (hx29.trans hx10) _ _ hargs
