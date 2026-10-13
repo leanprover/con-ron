@@ -988,7 +988,7 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
   have hb := ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden
   vcgen [hb]
   rename_i hpost
-  obtain ⟨h1, h2, _hbm, h3, h4, h5, h6⟩ := hpost
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hpost
   refine ⟨h1, h2, h3, h4, h5, fun w hw => ?_⟩
   rw [hve] at hw
   obtain rfl := (Option.some.inj hw).symm

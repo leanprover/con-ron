@@ -574,6 +574,43 @@ theorem view_of_viewBind_forallE {st : EStore} {i ty b : EIdx}
   rw [view_of_viewBind h, eBindView, htg]
   simp [ETag.lam, ETag.forallE]
 
+/-- con-leche: none — the converse at the tier: a tier that decodes a handle
+to a binder view projects the same two fields. -/
+theorem ETables.getBind_of_get {t : ETables} {i ty b : EIdx} {v : ENodeView}
+    (h : t.get i = some v) (hv : v = .lam ty b ∨ v = .forallE ty b) :
+    t.getBind i = some (ty, b) := by
+  simp only [ETables.get] at h
+  simp only [ETables.getBind]
+  repeat' split at h
+  all_goals first
+    | (obtain ⟨r, hr, rfl⟩ := Option.map_eq_some_iff.mp h
+       rcases hv with hv | hv <;> cases hv <;> simp_all [ETag.lam, ETag.forallE])
+    | exact absurd h (by simp)
+
+/-- con-leche: none — **the converse of `view_of_viewBind`**: a handle that
+views to a λ (or a ∀) is read by `viewBind` as its two fields. -/
+theorem viewBind_of_view {st : EStore} {i ty b : EIdx} {v : ENodeView}
+    (h : st.view i = some v) (hv : v = .lam ty b ∨ v = .forallE ty b) :
+    st.viewBind i = some (ty, b) := by
+  rw [EStore.view_eq_tier] at h
+  simp only [EStore.viewBind, EStore.persGetBind]
+  by_cases hp : i.isPersistent = true
+  · rw [ite_eq_left hp] at h ⊢; exact ETables.getBind_of_get h hv
+  · simp only [Bool.not_eq_true] at hp
+    rw [hp] at h ⊢; simp only [Bool.false_eq_true, ite_false] at h ⊢
+    by_cases hon : st.scratchOn = true
+    · rw [ite_eq_left hon] at h ⊢; exact ETables.getBind_of_get h hv
+    · simp only [Bool.not_eq_true] at hon
+      rw [hon] at h; simp at h
+
+theorem viewBind_of_view_lam {st : EStore} {i ty b : EIdx}
+    (h : st.view i = some (.lam ty b)) : st.viewBind i = some (ty, b) :=
+  viewBind_of_view h (Or.inl rfl)
+
+theorem viewBind_of_view_forallE {st : EStore} {i ty b : EIdx}
+    (h : st.view i = some (.forallE ty b)) : st.viewBind i = some (ty, b) :=
+  viewBind_of_view h (Or.inr rfl)
+
 /-! ### The same eight, in the form the twins' tag dispatch produces
 
 A twin tests `h.tag == ETag.C` (a `Bool`) and then takes the projection, so
