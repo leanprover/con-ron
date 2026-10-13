@@ -185,16 +185,17 @@ impl Dup for EIdxNat {
 /// con-leche threads each memo as an explicit argument-and-result pair
 /// (`instantiate1Go v memo e d : Expr × Std.HashMap …`), and
 /// `con_ron_core::kernel::expr_ops` turns that into a `&mut HashMap`
-/// parameter; the arena carries the nine tables in the state instead, which
+/// parameter; the arena carries the eight tables in the state instead, which
 /// is what lets a `…Fast` entry clear one without its callers seeing it.
 ///
-/// **Nine tables, one per con-leche `…Go` the arena runs**, because the walks
+/// **Eight tables, one per con-leche `…Go` the arena runs**, because the walks
 /// NEST: `instantiate1Lift`'s `bvar` arm runs `liftLooseBVars`, so a shared
 /// table would answer one walk with the other's answers.  One of those walks
 /// has no cursor (`instLPGo` keys on the node alone); the arena keys it at
-/// cursor `0`, so that all seven handle-valued tables have one shape.
+/// cursor `0`, so that all six handle-valued tables have one shape.
 /// (`resetMetaGo` and `renameConstsGo` had tables here too; the arena runs
-/// neither walk, and task #105 removed both.)
+/// neither walk, and task #105 removed both; `lowerLooseBVars`' went with
+/// the walk, task #119.)
 pub struct Memos {
     /// `instantiate1` (`ExprOps.lean:80-116`).
     pub inst1_c: HashMap<EIdxNat, EIdx>,
@@ -303,13 +304,13 @@ impl Memos {
 /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:115-132 AState` — the checker
 /// state of (C): the arena, the per-call memo tables and — since task
-/// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the three infer
+/// #97-P4c — the per-declaration caches (`whnfCore`, `whnf`, the two infer
 /// grades, `defeq`, the level verdicts, the instantiated constants).
 pub struct AState {
     pub store: EStore,
     pub memos: Memos,
     /// The per-DECLARATION caches (task #97-P4c, `arena::core_state`): the
-    /// five entry-point memos (and `whnfCore`'s cheap mode's own), the
+    /// four entry-point memos (and `whnfCore`'s cheap mode's own), the
     /// `defeq` verdict table, the two level-verdict tables and the three lazy
     /// instantiated-constant tables.
     /// A record of its own beside `memos`, because the per-call clear and the

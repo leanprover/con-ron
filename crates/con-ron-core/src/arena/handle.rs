@@ -443,52 +443,52 @@ impl Dup for LsIdx {
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:189-191 ETag.bvar` — the `bvar`
-/// constructor, line 344.
+/// constructor, line 316.
 pub const ETAG_BVAR: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:192-194 ETag.fvar` — the `fvar`
-/// constructor, line 345.
+/// constructor, line 317.
 pub const ETAG_FVAR: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:195-197 ETag.sort` — the `sort`
-/// constructor, line 346.
+/// constructor, line 318.
 pub const ETAG_SORT: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:198-200 ETag.const` — the `const`
-/// constructor, line 347.
+/// constructor, line 319.
 pub const ETAG_CONST: u32 = 3;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:201-203 ETag.app` — the `app`
-/// constructor, line 348.
+/// constructor, line 320.
 pub const ETAG_APP: u32 = 4;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:204-206 ETag.lam` — the `lam`
-/// constructor, line 349.
+/// constructor, line 321.
 pub const ETAG_LAM: u32 = 5;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:207-209 ETag.forallE` — the
-/// `forallE` constructor, line 350.
+/// `forallE` constructor, line 322.
 pub const ETAG_FORALL_E: u32 = 6;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:210-212 ETag.letE` — the `letE`
-/// constructor, line 351.
+/// constructor, line 323.
 pub const ETAG_LET_E: u32 = 7;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:213-215 ETag.lit` — the `lit`
-/// constructor, line 352.
+/// constructor, line 324.
 pub const ETAG_LIT: u32 = 8;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:216-218 ETag.proj` — the `proj`
-/// constructor, line 353.
+/// constructor, line 325.
 pub const ETAG_PROJ: u32 = 9;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr

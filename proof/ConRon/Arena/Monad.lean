@@ -114,7 +114,7 @@ instance : Inhabited Memos := ⟨Memos.empty⟩
 
 /-- con-leche: ConLeche/Cached/StateC.lean:99-127 CState — the checker state of
 (B) as P2b needs it: the arena and the per-call memo tables.  P2c extends it
-with the per-declaration caches (`whnfCore`, `whnf`, the three infer grades,
+with the per-declaration caches (`whnfCore`, `whnf`, the two infer grades,
 `defeq`) and the environment index. -/
 structure AState where
   store : EStore

@@ -690,7 +690,7 @@ pub fn worker_state(pins: &Pins) -> AState {
 /// which, at the driver's call, is the persistent one.
 ///
 /// The five basis blocks in both forms (the RAW ones `basis_pin_hit` and
-/// `quot_pin_hit` compare against, the ANNOTATED ones `check_basis_decl`
+/// `quot_pin_hit` compare against, the STORED ones `check_basis_decl`
 /// installs), the standard and compiler-trust axiom pins, the reserved names
 /// the guards compare by handle, and the `Nat`-operation pin variants, whose
 /// interned form is the checker's pin-list parameter (con-leche's task #304).
