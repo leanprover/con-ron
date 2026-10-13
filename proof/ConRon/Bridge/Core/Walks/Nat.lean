@@ -69,6 +69,34 @@ theorem rawNatLit?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
     | strVal _ => rfl
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — the
+constant arm: `Nat.zero` exactly when the name is the pinned one and the
+levels the empty list, both tested by handle. -/
+theorem rawNatLit?_const_eq {st : EStore} {c nz : NIdx}
+    {us el : LsIdx} {nm : ConLeche.Name} {ls : List Level}
+    (hn : denoteN st.ns c = some nm) (hls : denoteLs st.lss us = some ls)
+    (hel : denoteLs st.lss el = some [])
+    (hnz : ∀ x, pinNames[PIN_NAT_ZERO]? = some x → denoteN st.ns nz = some x)
+    (hwf : StoreWF st) :
+    (if (c == nz && us == el) = true then some 0 else none) =
+      ConLeche.rawNatLit? (.const nm ls) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  rw [beq_of_denoteN hrk.nsWF hn (hnz _ rfl), beq_of_denoteLs hrk.lss hls hel]
+  cases ls with
+  | nil =>
+    simp only [ConLeche.rawNatLit?]
+    by_cases hz : nm = ConLeche.natZeroName <;> simp [hz]
+  | cons l ls => simp [ConLeche.rawNatLit?]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? —
+`rawNatLit?_of_view` in the arm's orientation. -/
+theorem rawNatLit?_none {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
+    (he : denoteE st h = some e)
+    (hnl : ∀ n, v = .lit (.natVal n) → False)
+    (hnc : ∀ c us, v = .const c us → False) :
+    none = ConLeche.rawNatLit? e := (rawNatLit?_of_view hwf hv he hnl hnc).symm
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:269-274 rawNatLit? — **THEOREM 1
 for `rawNatLit?`**: the literal reading of a head normal form. -/
 theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
@@ -76,30 +104,10 @@ theorem rawNatLit?_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun s => s = s₀⦄ ConRon.Arena.rawNatLit? h
     ⦃fun r s' => s' = s₀ ∧ r = ConLeche.rawNatLit? x; ⊤⦄ := by
   have hp := hok.pins
-  obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.rawNatLit?, ConRon.Arena.emptyLevels,
     ConRon.Arena.pinNatZero]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [denote_lit_inv]
-  bridge_frame
-  -- a `Nat` literal
-  vc_arm ⊢ some _ = ConLeche.rawNatLit? (.lit _) => rfl
-  -- a constant: `Nat.zero` exactly when it is the pinned name at no levels
-  vc_arm (hv : EStore.view _ _ = some (.const ?c ?us))
-      (hn : denoteN _ ?c = some ?nm) (hls : denoteLs _ ?us = some ?ls)
-      (hel : denoteLs _ _ = some [])
-      (hnz : ∀ x, pinNames[PIN_NAT_ZERO]? = some x → denoteN _ _ = some x) =>
-    rw [beq_of_denoteN hrk.nsWF hn (hnz _ rfl), beq_of_denoteLs hrk.lss hls hel]
-    cases ls with
-    | nil =>
-      simp only [ConLeche.rawNatLit?]
-      by_cases hz : nm = ConLeche.natZeroName <;> simp [hz]
-    | cons l ls => simp [ConLeche.rawNatLit?]
-  -- anything else
-  vc_arm (hnl : ∀ n, ?v = ENodeView.lit (.natVal n) → False)
-      (hnc : ∀ c us, ?v = ENodeView.const c us → False) (hv : EStore.view _ _ = some ?v) =>
-    exact (rawNatLit?_of_view hok.state.wf hv hden hnl hnc).symm
+  bridge_auto [denote_lit_inv, rawNatLit?_const_eq, rawNatLit?_none]
 
 /-! ## 3. The name tests -/
 
@@ -156,15 +164,7 @@ theorem natOpStored_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     ⦃fun b s' => s' = s₀ ∧ b = ConLeche.natOpStored env nm; ⊤⦄ := by
   vcgen [ConRon.Arena.natOpStored]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [env_defn_of_index, env_not_defn_of_index]
-  bridge_frame
-  -- stored as a definition
-  vc_arm (hfind : env.find? _ = some (.defnInfo _ _ _)) =>
-    simp only [ConLeche.natOpStored, hfind]
-  -- not stored as one
-  vc_arm (hnd : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) =>
-    simp only [ConLeche.natOpStored]
+  bridge_auto [env_defn_of_index, env_not_defn_of_index] unfolding [ConLeche.natOpStored]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:602-612 natOpWfNames — **THEOREM
 1 for `natOpWfNames`**: the eight pinned handles answer con-leche's
@@ -381,6 +381,19 @@ theorem isEmpty_of_denoteNList {st : NStore} {hs : List NIdx}
   have := denoteNList_len h
   cases hs <;> cases xs <;> simp_all
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — the stored
+inductive's shape, its type compared with the interned `Sort 1` by handle. -/
+theorem natIndOk_eq {st : EStore} {v : IConstantVal}
+    {cv : ConstantVal} {caps : IndCaps} {s1 : EIdx}
+    (hlps : Frontend.denoteNList st.ns v.levelParams = some cv.levelParams)
+    (hty : denoteE st v.type = some cv.type)
+    (hs1 : denoteE st s1 = some (.sort (.succ .zero)))
+    (hwf : StoreWF st) :
+    (v.levelParams.isEmpty && v.type == s1) =
+      ConLeche.natIndOk (some (.indInfo cv caps)) := by
+  simp only [ConLeche.natIndOk, isEmpty_of_denoteNList hlps,
+    beq_of_denoteE hwf hty hs1]
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:202-206 natIndOk — **THEOREM 1
 for `natIndOk`**. -/
 theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
@@ -403,10 +416,7 @@ theorem natIndOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       obtain ⟨_hnm, hlps, hty⟩ := denoteCV_inv hcv
       vcgen [ConRon.Arena.natIndOk, ConRon.Arena.sortOne]
       all_goals (bridge_peel; subst_vars)
-      bridge_frame
-      vc_arm (hs1 : denoteE _ _ = some (.sort _)) =>
-        simp only [ConLeche.natIndOk, isEmpty_of_denoteNList hlps,
-          beq_of_denoteE hwf hty hs1]
+      bridge_auto [natIndOk_eq]
     all_goals
       (have hn : ¬ ∃ cv caps, c = .indInfo cv caps := fun h' => by
          obtain ⟨v, caps, hv⟩ := (denoteCI_ind_iff hci).mpr h'; cases hv
@@ -424,6 +434,13 @@ theorem viewOK_const_of_denote {st : EStore} {n : NIdx} {us : LsIdx}
   obtain ⟨w, hw, _⟩ := denoteLs_view hl
   exact viewOK_const (nview_isSome_of_denote hn) (by rw [hw]; rfl)
 
+/-- con-leche: none — an interned constant node denotes the constant. -/
+theorem denoteE_const_of_view {st : EStore} {r : EIdx} {n : NIdx} {el : LsIdx}
+    {nm : ConLeche.Name} (hd : denoteE st r = denoteEView st (.const n el))
+    (hn : denoteN st.ns n = some nm) (hel : denoteLs st.lss el = some []) :
+    denoteE st r = some (.const nm []) := by
+  rw [hd]; simp only [denoteEView, hn, hel, opt2]
+
 /-- con-leche: none — **THEOREM 1 for `constE`**: the level-monomorphic
 constant at a denoted name. -/
 theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
@@ -435,12 +452,19 @@ theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
   have hwf := hok.state.wf
   vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame [viewOK_const_of_denote]
-  -- the interned node denotes the constant
-  vc_arm (hd : denoteE _ _ = denoteEView _ _) (hel : denoteLs _ _ = some [])
-      (hx : Ext _ _) =>
-    rw [hd]
-    simp only [denoteEView, denoteN_ext hn hx, denoteLs_ext hel hx, opt2]
+  bridge_auto [viewOK_const_of_denote, denoteE_const_of_view]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — the stored
+constructor's shape, its type compared with the interned `Nat` by handle. -/
+theorem natZeroOk_eq {st : EStore} {v : IConstantVal}
+    {cv : ConstantVal} {nP nF : Nat} {nc : EIdx}
+    (hd : denoteE st nc = some (.const ConLeche.natName []))
+    (hlps : Frontend.denoteNList st.ns v.levelParams = some cv.levelParams)
+    (hty : denoteE st v.type = some cv.type)
+    (hwf : StoreWF st) :
+    (v.levelParams.isEmpty && v.type == nc) =
+      ConLeche.natZeroOk (some (.ctorInfo cv nP nF)) := by
+  simp only [ConLeche.natZeroOk, isEmpty_of_denoteNList hlps, beq_of_denoteE hwf hty hd]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:208-212 natZeroOk — **THEOREM 1
 for `natZeroOk`**. -/
@@ -467,12 +491,7 @@ theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         constE_spec (mode := mode) (env := env) (fe := fe) s n ConLeche.natName
       vcgen [ConRon.Arena.natZeroOk, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
-      bridge_frame
-      -- the type compared with the interned `Nat` by handle
-      vc_arm (hck : CheckOK _ _ _ ?s) (hd : denoteE (AState.store ?s) _ = some (Expr.const _ []))
-          (hx : Ext _ (AState.store ?s)) =>
-        simp only [ConLeche.natZeroOk, isEmpty_of_denoteNList hlps,
-          beq_of_denoteE hck.state.wf (denote_ext hty hx) hd]
+      bridge_auto [natZeroOk_eq]
     all_goals
       (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
          obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
@@ -493,9 +512,11 @@ theorem denote_not_forallE_of_tag' {st : EStore} (hwf : StoreWF st) {h : EIdx}
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — a stored
 `Nat.succ` with universe parameters is not the expected shape. -/
-theorem natSuccOk_levels {cv : ConstantVal} {nP nF : Nat}
-    (h : (!cv.levelParams.isEmpty) = true) :
-    ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) = false := by
+theorem natSuccOk_levels {st : NStore} {v : IConstantVal} {cv : ConstantVal}
+    {nP nF : Nat} (hlps : Frontend.denoteNList st v.levelParams = some cv.levelParams)
+    (h : (!v.levelParams.isEmpty) = true) :
+    false = ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) := by
+  rw [isEmpty_of_denoteNList hlps] at h
   simp only [Bool.not_eq_eq_eq_not, Bool.not_true] at h
   simp only [ConLeche.natSuccOk, h, Bool.false_and]
 
@@ -503,11 +524,38 @@ theorem natSuccOk_levels {cv : ConstantVal} {nP nF : Nat}
 whose type is not a `∀`. -/
 theorem natSuccOk_not_forallE {cv : ConstantVal} {nP nF : Nat}
     (h : ∀ p q, cv.type ≠ .forallE p q) :
-    ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) = false := by
+    false = ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) := by
   simp only [ConLeche.natSuccOk]
   split
   · next heq => exact absurd heq (h _ _)
   · simp
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — the type is a
+`∀`: both sides compared with the interned `Nat` by handle. -/
+theorem natSuccOk_forallE {st : EStore} {v : IConstantVal}
+    {cv : ConstantVal} {nP nF : Nat} {dom body nc : EIdx} {p q : Expr}
+    (hp1 : denoteE st dom = some p) (hq1 : denoteE st body = some q)
+    (hd : denoteE st nc = some (.const ConLeche.natName []))
+    (hpq : cv.type = .forallE p q)
+    (hlps : Frontend.denoteNList st.ns v.levelParams = some cv.levelParams)
+    (hne : ¬ (!v.levelParams.isEmpty) = true)
+    (hwf : StoreWF st) :
+    (dom == nc && body == nc) = ConLeche.natSuccOk (some (.ctorInfo cv nP nF)) := by
+  rw [isEmpty_of_denoteNList hlps] at hne
+  simp only [ConLeche.natSuccOk, hpq, beq_of_denoteE hwf hp1 hd, beq_of_denoteE hwf hq1 hd]
+  have hle : cv.levelParams.isEmpty = true := by simpa using hne
+  rw [hle, Bool.true_and]
+  split
+  · next c1 c2 heq =>
+    simp only [Expr.forallE.injEq] at heq
+    obtain ⟨rfl, rfl⟩ := heq
+    rw [Bool.eq_iff_iff]; simp
+  · next hne' =>
+    by_cases hp : p = .const ConLeche.natName []
+    · by_cases hq : q = .const ConLeche.natName []
+      · subst hp hq; exact absurd rfl (hne' _ _)
+      · simp [hq]
+    · simp [hp]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:214-223 natSuccOk — **THEOREM 1
 for `natSuccOk`**. -/
@@ -535,38 +583,8 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       vcgen [ConRon.Arena.natSuccOk, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      bridge_frame
-      bridge_fwd [denote_not_forallE, denote_not_forallE_of_tag']
-      bridge_frame
-      -- the type has universe parameters
-      vc_arm (hne : (!v.levelParams.isEmpty) = true) =>
-        rw [isEmpty_of_denoteNList hlps] at hne
-        exact (natSuccOk_levels hne).symm
-      -- the type is not a `∀` (by its view or by its tag)
-      vc_arm (hnot : ∀ p q, cv.type ≠ .forallE p q) =>
-        exact (natSuccOk_not_forallE hnot).symm
-      -- the type is a `∀`: both sides compared with the interned `Nat`
-      vc_arm (hpq : cv.type = .forallE ?p ?q) (hck : CheckOK _ _ _ ?s)
-          (hp1 : denoteE (AState.store ?s) _ = some ?p)
-          (hq1 : denoteE (AState.store ?s) _ = some ?q)
-          (hd : denoteE (AState.store ?s) _ = some (Expr.const _ []))
-          (hne : ¬ (!v.levelParams.isEmpty) = true) =>
-        rw [isEmpty_of_denoteNList hlps] at hne
-        simp only [ConLeche.natSuccOk, hpq,
-          beq_of_denoteE hck.state.wf hp1 hd, beq_of_denoteE hck.state.wf hq1 hd]
-        have hle : cv.levelParams.isEmpty = true := by simpa using hne
-        rw [hle, Bool.true_and]
-        split
-        · next c1 c2 heq =>
-          simp only [Expr.forallE.injEq] at heq
-          obtain ⟨rfl, rfl⟩ := heq
-          rw [Bool.eq_iff_iff]; simp
-        · next hne' =>
-          by_cases hp : p = .const ConLeche.natName []
-          · by_cases hq : q = .const ConLeche.natName []
-            · subst hp hq; exact absurd rfl (hne' _ _)
-            · simp [hq]
-          · simp [hp]
+      bridge_auto [denote_not_forallE, denote_not_forallE_of_tag', natSuccOk_levels,
+        natSuccOk_not_forallE, natSuccOk_forallE]
     all_goals
       (have hn : ¬ ∃ cv nP nF, c = .ctorInfo cv nP nF := fun h' => by
          obtain ⟨v, nP, nF, hv⟩ := (denoteCI_ctor_iff hci).mpr h'; cases hv
@@ -591,7 +609,7 @@ theorem natLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
   vcgen [ConRon.Arena.natLitSupported, ConRon.Arena.pinNat,
     ConRon.Arena.pinNatZero, ConRon.Arena.pinNatSucc, hi, hz, hs]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame [optCI_find, CheckOK.pins]
+  bridge_auto [optCI_find, CheckOK.pins] unfolding [ConLeche.natLitSupported]
   -- the three declines and the conjunction: con-leche's `&&` at the verdicts
   all_goals
     cases h1 : ConLeche.natIndOk (env.find? ConLeche.natName) <;>
@@ -617,9 +635,7 @@ theorem rawNatLit?_spec' (s₀ : AState) (h : EIdx)
   have hb := rawNatLit?_spec s₀ h x hok hx
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
+  bridge_auto
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `natBinOpName`
 in answer shape. -/
@@ -646,9 +662,7 @@ theorem natBinOpName_spec' (s₀ : AState) (c : NIdx)
   have hb := natBinOpName_spec s₀ c nm hok hn
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
+  bridge_auto
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:677-700 natOpStored — answer
 shape. -/
@@ -662,9 +676,7 @@ theorem natOpStored_spec' (s₀ : AState) (c : NIdx)
   have hb := natOpStored_spec s₀ c nm hok hn
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
+  bridge_auto
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:556-582 natOpResult — answer
 shape. -/
@@ -679,9 +691,7 @@ theorem natOpResult_spec' (s₀ : AState) (c : NIdx) (a b : Nat)
   have hb := natOpResult_spec s₀ c nm a b hok hn
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
+  bridge_auto
 
 /-! ### `reduceNat`'s pure side at its exits
 
@@ -932,47 +942,68 @@ theorem wf_guard_no {c : NIdx} {wf : List NIdx} {nm : ConLeche.Name} {b : Bool}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a unary
 application of a constant WITH universe levels is no operation. -/
-theorem reduceNat_unary_levels {F d : Nat} {nm : ConLeche.Name} {ls : List Level}
-    {a : Expr} (h : ls ≠ []) :
-    ConLeche.reduceNatFueled mode env F d (.app (.const nm ls) a) = .ok none :=
-  reduceNatFueled_none_of
+theorem simOOp_unary_levels {d : Nat} {st : EStore} {nm : ConLeche.Name}
+    {ls : List Level} {a : Expr} (h : ls ≠ []) :
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d (.app (.const nm ls) a))
+      d st none :=
+  reduceNat_decline 0 <| reduceNatFueled_none_of
     (fun c a' h' => by
       simp only [Expr.app.injEq, Expr.const.injEq] at h'; exact h h'.1.2)
     (fun c a' b' h' => by simp at h')
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — nor is a binary
 one. -/
-theorem reduceNat_binary_levels {F d : Nat} {nm : ConLeche.Name}
+theorem simOOp_binary_levels {d : Nat} {st : EStore} {nm : ConLeche.Name}
     {ls : List Level} {a b : Expr} (h : ls ≠ []) :
-    ConLeche.reduceNatFueled mode env F d (.app (.app (.const nm ls) a) b) = .ok none :=
-  reduceNatFueled_none_of
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
+      (.app (.app (.const nm ls) a) b)) d st none :=
+  reduceNat_decline 0 <| reduceNatFueled_none_of
     (fun c a' h' => by simp at h')
     (fun c a' b' h' => by
       simp only [Expr.app.injEq, Expr.const.injEq] at h'; exact h h'.1.1.2)
 
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the unary guard
+declines. -/
+theorem simOOp_succ_no {d : Nat} {st : EStore} {c : ConLeche.Name} {a : Expr}
+    (hg : ¬ (c = ConLeche.natSuccName ∧ ConLeche.natLitSupported env = true)) :
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d (.app (.const c []) a))
+      d st none :=
+  reduceNat_decline 0 (reduceNatFueled_succ_no hg)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — neither binary
+guard. -/
+theorem simOOp_bin_no {d : Nat} {st : EStore} {c : ConLeche.Name} {a b : Expr}
+    (hg : ¬ (NatBinOp c ∧ ConLeche.natOpStored env c = true))
+    (hw : ¬ (ConLeche.natOpWfNames.contains c ∧ ConLeche.natLitSupported env = true)) :
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
+      (.app (.app (.const c []) a) b)) d st none :=
+  reduceNat_decline 0 (reduceNatFueled_bin_no hg hw)
+
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a binary
 application whose head is not a constant. -/
-theorem reduceNat_bin_nc {F d : Nat} {f a b : Expr}
+theorem simOOp_bin_nc {d : Nat} {st : EStore} {f a b : Expr}
     (h : ∀ n us, f ≠ .const n us) :
-    ConLeche.reduceNatFueled mode env F d (.app (.app f a) b) = .ok none :=
-  reduceNatFueled_none_of
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d (.app (.app f a) b))
+      d st none :=
+  reduceNat_decline 0 <| reduceNatFueled_none_of
     (fun c a' h' => by simp at h')
     (fun c a' b' h' => by simp only [Expr.app.injEq] at h'; exact h c [] h'.1.1)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — a unary
 application whose head is neither a constant nor an application. -/
-theorem reduceNat_un_ncna {F d : Nat} {f a : Expr}
+theorem simOOp_un_ncna {d : Nat} {st : EStore} {f a : Expr}
     (hnc : ∀ n us, f ≠ .const n us) (hna : ∀ g a, f ≠ .app g a) :
-    ConLeche.reduceNatFueled mode env F d (.app f a) = .ok none :=
-  reduceNatFueled_none_of
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d (.app f a)) d st none :=
+  reduceNat_decline 0 <| reduceNatFueled_none_of
     (fun c a' h' => by simp only [Expr.app.injEq] at h'; exact hnc c [] h'.1)
     (fun c a' b' h' => by simp only [Expr.app.injEq] at h'; exact hna _ _ h'.1)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — not an
 application at all. -/
-theorem reduceNat_na {F d : Nat} {x : Expr} (h : ∀ f a, x ≠ .app f a) :
-    ConLeche.reduceNatFueled mode env F d x = .ok none :=
-  reduceNatFueled_none_of (fun _ _ h' => h _ _ h') (fun _ _ _ h' => h _ _ h')
+theorem simOOp_na {d : Nat} {st : EStore} {x : Expr} (h : ∀ f a, x ≠ .app f a) :
+    SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d st none :=
+  reduceNat_decline 0 <|
+    reduceNatFueled_none_of (fun _ _ h' => h _ _ h') (fun _ _ _ h' => h _ _ h')
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — `Nat.succ`
 FIRES on a literal. -/
@@ -1113,60 +1144,14 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   -- every `then` arm that no arm's proof needs; clear them so the contexts are
   -- the view-first twin's again (the two new `else` arms are vc47 and vc50)
   all_goals clear_tag_hyps
-  bridge_frame [viewOK_lit]
-  bridge_fwd [denote_not_const, denote_not_const_of_tag, denote_not_app,
+  -- every exit is one of the `simOOp_*` lemmas, its premises the guards'
+  -- pure meaning (`*_guard`) and the callees' answers
+  bridge_auto [viewOK_lit, denote_not_const, denote_not_const_of_tag, denote_not_app,
     denote_not_app_of_tag, levels_nil, levels_ne, succ_guard, succ_guard_no,
-    bin_guard, bin_guard_no, wf_guard, wf_guard_no]
-  bridge_frame [viewOK_lit]
-  -- a constant WITH universe levels: no operation
-  vc_arm (hd : denoteE _ e = some (.app (.const _ ?ls) _)) (h : ?ls ≠ []) =>
-    exact reduceNat_decline 0 (reduceNat_unary_levels h)
-  vc_arm (hd : denoteE _ e = some (.app (.app (.const _ ?ls) _) _)) (h : ?ls ≠ []) =>
-    exact reduceNat_decline 0 (reduceNat_binary_levels h)
-  -- `Nat.succ`: the guard declines, the argument is a literal, or it is not
-  vc_arm (hng : ¬ (_ = ConLeche.natSuccName ∧ _)) =>
-    exact reduceNat_decline 0 (reduceNatFueled_succ_no hng)
-  vc_arm (hs : ConLeche.natLitSupported _ = true) (hw : ConLeche.whnf _ _ _ _ _ = .ok ?w)
-      (hr : some _ = ConLeche.rawNatLit? ?w) (hx : denoteE _ _ = denoteEView _ (.lit _)) =>
-    exact simOOp_succ_some hs hw hr hx
-  vc_arm (hd : denoteE _ e = some (.app (.const _ _) _))
-      (hs : ConLeche.natLitSupported _ = true) (hw : ConLeche.whnf _ _ _ _ _ = .ok ?w)
-      (hr : none = ConLeche.rawNatLit? ?w) =>
-    exact simOOp_succ_none hs hw hr
-  -- the certified binary operation: fires, or the second or the first
-  -- argument is not a literal
-  vc_arm (hd : denoteE _ e = some (.app (.app (.const _ _) ?a) ?b)) (hb : NatBinOp _) (hs : ConLeche.natOpStored _ _ = true)
-      (hw₁ : ConLeche.whnf _ _ _ _ ?a = .ok ?w₁) (hr₁ : some _ = ConLeche.rawNatLit? ?w₁)
-      (hw₂ : ConLeche.whnf _ _ _ _ ?b = .ok ?w₂) (hr₂ : some _ = ConLeche.rawNatLit? ?w₂)
-      (hres : denoteEO _ _ = some (ConLeche.natOpResult _ _ _)) =>
-    exact simOOp_bin_fire hb hs hw₁ hr₁ hw₂ hr₂ hres
-  vc_arm (hd : denoteE _ e = some (.app (.app (.const _ _) ?a) ?b)) (hb : NatBinOp _) (hs : ConLeche.natOpStored _ _ = true)
-      (hw₁ : ConLeche.whnf _ _ _ _ ?a = .ok ?w₁) (hr₁ : some _ = ConLeche.rawNatLit? ?w₁)
-      (hw₂ : ConLeche.whnf _ _ _ _ ?b = .ok ?w₂) (hr₂ : none = ConLeche.rawNatLit? ?w₂) =>
-    exact simOOp_bin_snd hb hs hw₁ hr₁ hw₂ hr₂
-  vc_arm (hd : denoteE _ e = some (.app (.app (.const _ _) ?a) _)) (hb : NatBinOp _) (hs : ConLeche.natOpStored _ _ = true)
-      (hw₁ : ConLeche.whnf _ _ _ _ ?a = .ok ?w₁) (hr₁ : none = ConLeche.rawNatLit? ?w₁) =>
-    exact simOOp_bin_fst hb hs hw₁ hr₁
-  -- the WF-pinned safety net: the same two declines, and neither guard
-  vc_arm (hd : denoteE _ e = some (.app (.app (.const _ _) ?a) ?b))
-      (hg : ¬ (NatBinOp _ ∧ _)) (hc : List.contains _ _ = true) (hs : ConLeche.natLitSupported _ = true)
-      (hw₁ : ConLeche.whnf _ _ _ _ ?a = .ok ?w₁) (hr₁ : some _ = ConLeche.rawNatLit? ?w₁)
-      (hw₂ : ConLeche.whnf _ _ _ _ ?b = .ok ?w₂) (hr₂ : none = ConLeche.rawNatLit? ?w₂) =>
-    exact simOOp_wf_snd hg hc hs hw₁ hr₁ hw₂ hr₂
-  vc_arm (hd : denoteE _ e = some (.app (.app (.const _ _) ?a) _))
-      (hg : ¬ (NatBinOp _ ∧ _)) (hc : List.contains _ _ = true) (hs : ConLeche.natLitSupported _ = true)
-      (hw₁ : ConLeche.whnf _ _ _ _ ?a = .ok ?w₁) (hr₁ : none = ConLeche.rawNatLit? ?w₁) =>
-    exact simOOp_wf_fst hg hc hs hw₁ hr₁
-  vc_arm (hg : ¬ (NatBinOp _ ∧ _)) (hnw : ¬ (List.contains _ _ = true ∧ _)) =>
-    exact reduceNat_decline 0 (reduceNatFueled_bin_no hg hnw)
-  -- the shapes that are not an operation at all
-  vc_arm (hd : denoteE _ e = some (.app (.app ?f _) _)) (hnc : ∀ n us, ?f ≠ .const n us) =>
-    exact reduceNat_decline 0 (reduceNat_bin_nc hnc)
-  vc_arm (hd : denoteE _ e = some (.app ?f _)) (hnc : ∀ n us, ?f ≠ .const n us)
-      (hna : ∀ g a, ?f ≠ .app g a) =>
-    exact reduceNat_decline 0 (reduceNat_un_ncna hnc hna)
-  vc_arm (hna : ∀ f a, x ≠ .app f a) =>
-    exact reduceNat_decline 0 (reduceNat_na hna)
+    bin_guard, bin_guard_no, wf_guard, wf_guard_no,
+    simOOp_unary_levels, simOOp_binary_levels, simOOp_succ_no, simOOp_succ_some,
+    simOOp_succ_none, simOOp_bin_fire, simOOp_bin_snd, simOOp_bin_fst, simOOp_wf_snd,
+    simOOp_wf_fst, simOOp_bin_no, simOOp_bin_nc, simOOp_un_ncna, simOOp_na]
 
 /-! ## 7. The axiom census -/
 
