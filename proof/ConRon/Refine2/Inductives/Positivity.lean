@@ -272,14 +272,14 @@ empty memo. -/
 
 /-- `close_telescope` ⊑ `closeTelescope`, the telescope from the cursor on. -/
 @[lockstep] theorem close_telescope_ls {pers}
-    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {body : arena.handle.EIdx} (hte : TeleWF bs) :
+    {bs : alloc.vec.Vec arena.handle.EIdx}
+    {body : arena.handle.EIdx} :
     ∀ (k : Std.Usize) (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absEIdx a)
         (arena.inductives.positivity.close_telescope pers st bs k i body) lst
         (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
   intro k i st lst hrel hinv
-  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+  refine ls_cursor_acc bs absEIdx
     (fun (w : Std.U64) l => closeTelescope l (absU w) (absEIdx body))
     (fun st k w => arena.inductives.positivity.close_telescope pers st bs k w body)
     ?_ ?_ k st lst i hrel hinv
@@ -294,7 +294,6 @@ empty memo. -/
           (arena.inductives.positivity.close_telescope pers st' bs j w' body) lst'
           (closeTelescope (absBinderLFrom bs j) (absU w') (absEIdx body)) := ih
     clear ih
-    have hpw := TeleWF.get hte k.val hk
     rw [arena.inductives.positivity.close_telescope.eq_def,
       ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len bs by scalar_tac), closeTelescope]
     lockstep
@@ -370,39 +369,6 @@ theorem nest_occ_go_aux (n : Nat) :
     apply LSR.of_LS
     rw [arena.inductives.positivity.nest_occ_any.eq_def,
       ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac), absEIdxLFrom,
-      List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
-    lockstep
-
-/-- `nest_occ_any_binder` ⊑ `List.anyM (nestOcc … ·.1)` over a telescope from
-the cursor on. -/
-@[lockstep] theorem nest_occ_any_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (names : alloc.vec.Vec arena.handle.NIdx) (lo hi : Std.U64)
-    (bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize) :
-    LSR pers (fun a b => b = a)
-      (arena.inductives.positivity.nest_occ_any_binder pers st names lo hi bs i) st lst
-      ((absBinderLFrom bs i).anyM fun b => nestOcc (absNIdxL names) (absU lo) (absU hi) b.1) := by
-  suffices H : ∀ (i : Std.Usize) (u : Unit) lst, AStateRel₀ pers st lst →
-      LSR pers (fun a b => b = a)
-      (arena.inductives.positivity.nest_occ_any_binder pers st names lo hi bs i) st lst
-      ((absBinderLFrom bs i).anyM fun b => nestOcc (absNIdxL names) (absU lo) (absU hi) b.1) from
-    H i () lst hrel
-  refine cursor_induction (fun i : Std.Usize => i.val) bs.val.length _ ?_ ?_
-  · intro i _ hn lst hrel
-    apply LSR.of_LS
-    rw [arena.inductives.positivity.nest_occ_any_binder.eq_def,
-      ite_eq_left (show i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
-      List.drop_eq_nil_of_le hn, List.map_nil, List.anyM]
-    lockstep
-  · intro i _ hlt ih lst hrel
-    have ih' : ∀ j : Std.Usize, j.val = i.val + 1 → ∀ lst, AStateRel₀ pers st lst →
-        LSR pers (fun a b => b = a)
-        (arena.inductives.positivity.nest_occ_any_binder pers st names lo hi bs j) st lst
-        ((absBinderLFrom bs j).anyM fun b => nestOcc (absNIdxL names) (absU lo) (absU hi) b.1) :=
-      fun j hj => ih j () hj
-    clear ih
-    apply LSR.of_LS
-    rw [arena.inductives.positivity.nest_occ_any_binder.eq_def,
-      ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len bs by scalar_tac), absBinderLFrom,
       List.drop_eq_getElem_cons hlt, List.map_cons, List.anyM]
     lockstep
 
