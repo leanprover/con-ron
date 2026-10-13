@@ -90,13 +90,12 @@ theorem reduceProjCore_cert_false {F d i : Nat} {sn : Name} {c e' : Expr}
     (hg : k = entry.ctor ∧ i < entry.numFields ∧
       e'.getAppArgs.length = entry.numParams + entry.numFields ∧
       us.length = entry.levelParams.length ∧ entry.fireOk us = true)
-    (hcert : ConLeche.projCertAt (ConLeche.pureFns mode env F) env d
-      mode.verifiedChecks mode.betaGate k us e'.getAppArgs = .ok false) :
+    (hcert : ConLeche.projCertAt env mode.verifiedChecks k e'.getAppArgs = false) :
     ConLeche.reduceProjCoreFueled mode env F d sn i c = .ok none := by
   simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
     hh, bind, Except.bind]
-  rw [ite_eq_left hg, hcert]
-  rfl
+  rw [ite_eq_left hg]
+  simp [hcert, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:996-1008 reduceProjCore — the table
 fires, the guards hold and **the certificate succeeds**: the selected
@@ -110,14 +109,13 @@ theorem reduceProjCore_fire {F d i : Nat} {sn : Name} {c e' : Expr}
     (hg : k = entry.ctor ∧ i < entry.numFields ∧
       e'.getAppArgs.length = entry.numParams + entry.numFields ∧
       us.length = entry.levelParams.length ∧ entry.fireOk us = true)
-    (hcert : ConLeche.projCertAt (ConLeche.pureFns mode env F) env d
-      mode.verifiedChecks mode.betaGate k us e'.getAppArgs = .ok true) :
+    (hcert : ConLeche.projCertAt env mode.verifiedChecks k e'.getAppArgs = true) :
     ConLeche.reduceProjCoreFueled mode env F d sn i c =
       .ok (some (e'.getAppArgs.getD (entry.numParams + i) (.bvar 0))) := by
   simp only [ConLeche.reduceProjCoreFueled, ConLeche.reduceProjCore, hl, ht,
     hh, bind, Except.bind]
-  rw [ite_eq_left hg, hcert]
-  rfl
+  rw [ite_eq_left hg]
+  simp [hcert, pure, Except.pure]
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:466 reduceProjCore_mono — at
 the pure knot. -/
@@ -249,7 +247,7 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
         subst hcE
         -- stage 7: the `getD` default
         refine triple_seq (internE_spec s7 (.bvar 0) hok7.state.wf viewOK_bvar) ?_
-        rintro b0 s8 ⟨hwf8, hx8, _hbm8, _hl8, _hsc8, _hm8, hc8, hp8, _hv8, _hd8⟩
+        rintro b0 s8 ⟨hwf8, hx8, _hl8, _hsc8, _hm8, hc8, hp8, _hv8, _hd8⟩
         have hok8 : CheckOK mode env fe s8 := hok7.mono ⟨hwf8⟩ hx8 hc8 hp8
         have hx38 : Ext s3.store s8.store := by rw [← hst]; exact hx8
         -- the argument the rule selects, in range on both sides
@@ -275,24 +273,23 @@ theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
           rw [getD_of_lt hj']
           exact hwargs _ (List.getElem_mem _)
         -- stage 8: the certificate
-        refine triple_seq (projCertAt_spec hsim henv s8 d mode.verifiedChecks
-          mode.betaGate entry.ctor us args cn ls v'.getAppArgs hok8
-          (denoteN_ext hcn hx38) (denoteLs_ext hus hx38)
-          (denoteEList_ext hx38 _ _ hargs) hwargs) ?_
-        rintro cert s9 ⟨hok9, hx9, hp9, F3, hF3⟩
-        have hx09 : Ext s₀.store s9.store := hx07.trans (hx8.trans hx9)
-        have hp09 : s9.pins = s₀.pins := hp9.trans (hp8.trans hp07)
-        have hplc' := projLitToCtorFueled_mono (Nat.le_max_left F2 F3) hplc
-        have hcert' := projCertAtFueled_mono (Nat.le_max_right F2 F3) hF3
+        refine triple_seq (projCertAt_spec s8 hok8 mode.verifiedChecks entry.ctor
+          args cn v'.getAppArgs (denoteN_ext hcn hx38)
+          (denoteEList_ext hx38 _ _ hargs)) ?_
+        rintro cert s9 ⟨hs9, hcert'⟩
+        subst hs9
+        have hx09 : Ext s₀.store s9.store := hx07.trans hx8
+        have hp09 : s9.pins = s₀.pins := hp8.trans hp07
+        have hplc' := hplc
         cases cert
         · -- the certificate fails
-          exact hnone s9 hok9 hx09 hp09
-            ⟨max F2 F3, reduceProjCore_cert_false hplc' hfp hgf hgP hcert'⟩
+          exact hnone s9 hok8 hx09 hp09
+            ⟨F2, reduceProjCore_cert_false hplc' hfp hgf hgP hcert'.symm⟩
         · -- the rule FIRES: the selected field
-          have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'
-          have hdarg := denote_ext harg3 (hx38.trans hx9)
+          have hfire := reduceProjCore_fire hplc' hfp hgf hgP hcert'.symm
+          have hdarg := denote_ext harg3 hx38
           vcgen +internalize; bridge_peel; subst_vars
-          refine ⟨hok9, hx09, hp09, ⟨_, ?_, ?_, max F2 F3, hfire⟩⟩
+          refine ⟨hok8, hx09, hp09, ⟨_, ?_, ?_, F2, hfire⟩⟩
           · simp only [denoteEO, hdarg, Option.map_some]
           · intro x hx
             cases hx
