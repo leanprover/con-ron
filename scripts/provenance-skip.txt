@@ -22,8 +22,7 @@
 # Elaboration-time meta code: the Rust core has no elaborator (DESIGN.md §4)
 # ---------------------------------------------------------------------------
 
-ConLeche/Kernel/BasisGen.lean * The `#annotate_basis`/`#annotate_pins` elaborators and their `Qq` quotations — meta code that runs while con-leche elaborates; its *results* are carried as generated source (`kernel/basis_tables.rs`, task #22) and as the annotated pins in `std_axioms`/`trust_axioms`.
-ConLeche/Kernel/TrustAxioms.lean trustPinEnv The private environment `#annotate_pins` is run over while `TrustAxioms.lean` elaborates; what the port carries is the annotated pins that command produces, which `trust_axioms.rs` holds.
+ConLeche/Kernel/BasisGen.lean * The `#stored_basis` elaborator (until task #119 also `#annotate_basis`/`#annotate_pins`) and its `Qq` quotations — meta code that runs while con-leche elaborates; its *results* are carried as generated source (`kernel/basis_tables.rs`, task #22).
 
 # ---------------------------------------------------------------------------
 # Proof-tier and mode-gated variants of bodies the port has once (§3.1)
@@ -39,19 +38,16 @@ ConLeche/Kernel/TypeChecker.lean pureFns The PURE knot at `CheckM`; §3.1 gives 
 ConLeche/Kernel/ExprOps.lean Inst1MemoInv A memo invariant, `Prop`-valued ("every recorded answer is the real one"): the specification the port's memo is proved against, not code.
 ConLeche/Kernel/ExprOps.lean InstLMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean LiftMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
-ConLeche/Kernel/ExprOps.lean ResetMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean RenameMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean MemoBInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean MemoFInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean Abs1MemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
-ConLeche/Kernel/ExprOps.lean LowerMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean Inst1LMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/ExprOps.lean ILPMemoInv A `Prop`-valued memo invariant, as `Inst1MemoInv`.
 ConLeche/Kernel/Level.lean LPMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/DeclCheck.lean CRFMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/StructParts.lean LooseBVarMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/StructParts.lean MentionsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
-ConLeche/Kernel/PropWhen.lean casesZ The registered `cases`/`induction` eliminator of `PropWhen` — an elaboration-time device for writing proofs against the two-constructor view, with no run-time content.
 ConLeche/Cached/Installed.lean InstallRun Phase A's accepting run, an `inductive … : Prop`; the parallel driver's evidence plumbing (`cached/installed.rs`'s module note), whose verdict is `check_pending_list`, which IS ported.
 ConLeche/Cached/Installed.lean InstalledEnv A structure indexed by an `InstallRun` proof; evidence plumbing, as `InstallRun`.
 ConLeche/Cached/Installed.lean GroupChecked "Record `i` has been checked", a `Prop`; evidence plumbing, as `InstallRun`.
@@ -81,7 +77,6 @@ ConLeche/Kernel/Expr.lean ptrDec Identity decided by the pointer test; `expr::pt
 # ---------------------------------------------------------------------------
 
 ConLeche/Kernel/Name.lean toString A `Name`'s display string, for messages and the driver's output.
-ConLeche/Kernel/PropWhen.lean reprPrec' The `Repr` instance's renderer, kept byte-identical for `#eval (repr …)` of a stored pin.
 
 # ---------------------------------------------------------------------------
 # Bridges to the Lean host, and one declaration nothing reads
@@ -221,10 +216,8 @@ ConLeche/Kernel/Inductives/Positivity.lean ReplaceFVarsMemoInv A `Prop`-valued m
 ConLeche/Kernel/Inductives/Positivity.lean ReplaceAppsMemoInv A `Prop`-valued memo invariant, as `ExprOps.lean`'s.
 ConLeche/Kernel/Inductives/Positivity.lean NestedPositivity The `Prop`-valued specification of nested positivity that `nestPos` decides; no run-time content.
 ConLeche/Kernel/Inductives/Positivity.lean nestedBlockPositivity The specification's block-level reading of `NestedPositivity`; the executed test is `checkBlockPositivity` (`block_install.rs`), which is ported.
-ConLeche/Kernel/Inductives/BlockParts.lean offs A constructor-offset reading of `BlockShape` for the proofs; no executed caller.
 ConLeche/Kernel/Inductives/BlockParts.lean recTgtAt A recursor-to-target reading of `BlockShape` for the proofs; no executed caller.
 ConLeche/Kernel/Inductives/BlockInstall.lean consBlockRecs The pure-knot spelling of the recursors' cons; the port has one fold, the cached one, whose cons is `consBlockRecsT` (`rec_check::cons_block_recs_t`).
-ConLeche/Kernel/Inductives/BlockInstall.lean openPisParamsIdx A `Prop`-side index reading of the parameter opening, used only by the Verify tier.
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps The operations record the recursor check is parameterised by; the port has one instance, the cached one (`shadowOpsC`), and calls the core entry points and `flush_caches` directly (`gen_rec.rs`'s module note).
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.ofOps The pure-knot instance of `ShadowOps`; as `ShadowOps`.
 ConLeche/Kernel/Inductives/RecCheck.lean ShadowOps.fueled The fueled pure instance of `ShadowOps`; as `ShadowOps`.
@@ -254,7 +247,6 @@ ConLeche/Kernel/Inductives/SumParts.lean InductiveShape A block member read as o
 # ledger shows.
 
 ConLeche/Cached/CoreC.lean litToCtorIfNatI Was the second citation on `kernel/core_k.rs`'s `lit_to_ctor_if_nat` (deleted, task #105 sweep: dead, the retired `cached` checker's only caller is gone).
-ConLeche/Cached/CoreC.lean annotBinderMetaI Was the second citation on `kernel/core_k.rs`'s `annot_binder_meta` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/ExprOpsC.lean MemoXP Was the citation on `kernel/expr_ops.rs`'s `memo1_get_if` (deleted, task #105 sweep: the memo dictionary type of the retired `cached` checker's `Expr`-tree walks).
 ConLeche/Cached/ExprOpsC.lean MemoXP.insert Was the citation on `kernel/expr_ops.rs`'s `memo1_insert_if`/`memo_e_record` (deleted, task #105 sweep, as `MemoXP` above).
 ConLeche/Cached/ExprOpsC.lean MemoXP.shared Was the citation on `kernel/expr_ops.rs`'s `memo1_get_if`/`memo_e_probe` (deleted, task #105 sweep, as `MemoXP` above).
@@ -272,7 +264,6 @@ ConLeche/Cached/StateC.lean sameConstHeadsC Was the second citation on `kernel/c
 ConLeche/Cached/StateC.lean rawNatLitC? Was the second citation on `kernel/core_k.rs`'s `raw_nat_lit` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Cached/StateC.lean etaCtorShapeC Was the second citation on `kernel/core_k.rs`'s `eta_ctor_shape` (deleted, task #105 sweep, as `litToCtorIfNatI` above).
 ConLeche/Kernel/Core.lean whnfCoreLoopFuel Was `kernel/core_k.rs`'s `whnf_core_loop_fuel`, a fuel constant for the retired Expr-tree checker's loop (deleted, task #105 sweep): the arena's own loop fuel is `arena::core::WHNF_CORE_LOOP_FUEL`.
-ConLeche/Kernel/CoreDefs.lean betaGateFires Was `kernel/core_k.rs`'s `beta_gate_fires`, dead since the retired Expr-tree checker's `cached` bodies that called it are gone (deleted, task #105 sweep); the arena has its own `arena::core::beta_gate_fires`.
 ConLeche/Kernel/DeclCheck.lean natOpCodF Was `kernel/core_k.rs`'s `nat_op_deps` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpTyPinnedF Was `kernel/core_k.rs`'s `nat_op_ty_pinned` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
 ConLeche/Kernel/DeclCheck.lean natOpStoredOkF Was `kernel/core_k.rs`'s `nat_op_stored_ok` (deleted, task #105 sweep, as `whnfCoreLoopFuel` above).
@@ -284,9 +275,6 @@ ConLeche/Kernel/Expr.lean hasLP Ported as `kernel::expr`'s data-word reader, use
 ConLeche/Kernel/Expr.lean bvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean fvarBRaw Ported as `kernel::expr`'s data-word reader, used only by tests; now a private helper of `kernel::expr`'s test module, task #105.
 ConLeche/Kernel/Expr.lean bvarPoolSize Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
-ConLeche/Kernel/ExprOps.lean resetMeta Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
-ConLeche/Kernel/ExprOps.lean resetMetaGo Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
-ConLeche/Kernel/ExprOps.lean resetMetaFast Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean sizeF Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean renameConsts Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean renameConstsGo Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
@@ -301,11 +289,11 @@ ConLeche/Kernel/ExprOps.lean abstractRange Ported only as the tree oracle of an 
 ConLeche/Kernel/ExprOps.lean wscopedB Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean looseBVarsBounded Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean hasFvar Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
-ConLeche/Kernel/ExprOps.lean exprPtrBEq Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/ExprOps.lean _root_.ConLeche.Expr.hasLevelParam Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Level.lean isNonZero Ported, but used only by its own unit test (dead in the binary and in every proof); deleted with it, task #105.
 ConLeche/Kernel/Level.lean Expr.instantiateLevelParams Ported only as the tree oracle of an arena differential test; deleted with it, task #105.
 ConLeche/Kernel/PropWhen.lean holds Ported as `kernel::prop_when::holds`, used only as the tests' oracle for the `PropWhen` laws; now a private helper in that test module (tests are not provenance-scanned), task #105.
+ConLeche/Kernel/PropWhen.lean paramsDefined Read only by the binder datum's level-parameter guard (`allLevelParamsDefined`'s binder arm) until con-leche's task #342 removed the datum; it survives upstream for the proofs, and the Rust port had no other caller, so `kernel::prop_when::params_defined` was deleted with the datum (task #119).
 ConLeche/Cached/Installed.lean checkPendingList Was `arena::checker::check_pending_list`, whose only user was `crates/con-ron/src/pool.rs`'s test that the pool equals the one-worker walk; now that test's private helper (tests are not provenance-scanned), task #105 — the driver runs the pool over the verified `check_pending`.
 ConLeche/Kernel/ExprOps.lean sizeB Ported only as a benchmark row (`examples/bench.rs`) and a tree-oracle comparison; deleted with them, task #105.
 ConLeche/Kernel/ExprOps.lean fvarLeaves Was `arena::expr_ops::fvar_leaves`, the pure walk the memoized `fvar_leaves_fast`/`leaf_guard`/`fab_scope_ok` are tested against; now a private helper of that test module (tests are not provenance-scanned), task #105.

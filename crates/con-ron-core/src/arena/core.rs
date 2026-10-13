@@ -3926,6 +3926,7 @@ pub fn pi_residual(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:261-270 defEqList
+/// con-leche: ConLeche/Cached/CoreC.lean:180-188 defEqListI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1310-1317 defEqList` — pairwise
 /// definitional equality of two spines.  The twin's `| _, _ => false`
 /// catch-all is the length test.
@@ -4565,6 +4566,7 @@ pub fn struct_eta_cert(
 
 /// con-leche: ConLeche/Kernel/Core.lean:427-455 structUnitCert
 /// con-leche: ConLeche/Cached/CoreC.lean:364-387 structUnitCertI
+/// con-leche: ConLeche/Kernel/ExprOps.lean:771-774 isForallE
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1539-1568 structUnitCert` — the
 /// certificate's tail, once the family's capabilities have been read: `b`'s
 /// whnf'd type is no `∀` (con-leche task #342 L18) and is defeq to `a`'s.
