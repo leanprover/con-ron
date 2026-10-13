@@ -339,9 +339,8 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
   simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hg, hvv]
 
 /-- `proj_table_name_ls` at a store argument named apart from the state
-(`ifenv_find_proj_ls`'s form): the table-less `.proj` arm of `annotate_proj_at`
-(con-leche's PROJREJ, task #105) builds the table name on the store the lookup
-returned. -/
+(`ifenv_find_proj_ls`'s form): the projection-miss arm of `infer_proj`
+(`infer_proj_miss`) builds the table name on the store the lookup returned. -/
 theorem proj_table_name_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (s : arena.store.EStore) (hs : st.store = s)
     (t : arena.handle.NIdx) :
