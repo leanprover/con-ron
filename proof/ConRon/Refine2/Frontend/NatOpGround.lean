@@ -281,8 +281,8 @@ theorem used_consts_go_aux {pers rst lst} (hrel : AStateRel₀ pers rst lst)
         exact ⟨_, by simp only [absENodeView, absNIdxArr_push hacc1]; rfl, hs1⟩
       | FVar _ ty => exact ih seen1 _ acc i ty o hiv hs1 h
       | App f a => exact two seen1 _ acc i f a o hiv hs1 h
-      | Lam ty b _ => exact two seen1 _ acc i ty b o hiv hs1 h
-      | ForallE ty b _ => exact two seen1 _ acc i ty b o hiv hs1 h
+      | Lam ty b => exact two seen1 _ acc i ty b o hiv hs1 h
+      | ForallE ty b => exact two seen1 _ acc i ty b o hiv hs1 h
       | LetE ty v b =>
         obtain ⟨⟨r1, seen2⟩, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
         have h2 := two seen1 _ acc i ty v _ hiv hs1 hr1

@@ -108,21 +108,22 @@ example {pers st lst} {vis : Std.U64} {rf : arena.env.IFEnv} {lf : IFEnv}
 
 The Checker lane closed both with `lockstep`, then `rw [bind_pure, ite_eq_right …]`
 by hand, then `unresolved_consts_error` at a specialised copy fixed at
-`"value"`/`"type"`.  Both are one `lockstep` call now. -/
+`"value"`/`"type"`.  Both are one `lockstep` call now (since task #119 the
+value install is the guard-only `install_value_guards_tail`). -/
 
-theorem install_value_tail_refines' {pers st lst} {vis : Std.U64} {rf lf}
-    {cv : arena.env.IConstantVal} {value_a : arena.handle.EIdx} {o}
+theorem install_value_guards_tail_refines' {pers st lst} {vis : Std.U64} {rf lf}
+    {cv : arena.env.IConstantVal} {value : arena.handle.EIdx} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRel rf lf) (hfinv : IFEnvInv rf)
-    (hrun : arena.checker_split.install_value_tail pers vis st rf cv value_a = ok o) :
-    Sim₀ absEIdx pers lst o
-      (installValueTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
-        (absEIdx value_a)) := by
+    (hrun : arena.checker_split.install_value_guards_tail pers vis st rf cv value = ok o) :
+    Sim₀ (fun _ : Unit => ()) pers lst o
+      (installValueGuardsTailSpec (lf.restrictTo (absU vis)) (absIConstantVal cv)
+        (absEIdx value)) := by
   have hfeI : IFEnvRelI rf lf := ⟨hfe, hfinv⟩
-  have hctx := IFEnvInv.coreCtxSelf hfe hfinv
+  have hctx := IFEnvInv.coreCtxAt vis hfe hfinv
   refine LS.toSim₀ ?_ hrun
-  rw [arena.checker_split.install_value_tail]
-  unfold installValueTailSpec
+  rw [arena.checker_split.install_value_guards_tail]
+  unfold installValueGuardsTailSpec
   lockstep
 
 /-! ## 2. A Rust bind against a twin `if` in bind position -/
@@ -655,6 +656,6 @@ example {pers st lst} (n : Nat)
 /-! ## The axiom census -/
 
 #print axioms lift_fueled_any_ls
-#print axioms install_value_tail_refines'
+#print axioms install_value_guards_tail_refines'
 
 end ConRon.Refine2.Lockstep.Tests

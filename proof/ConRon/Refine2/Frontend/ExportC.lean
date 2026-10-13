@@ -1569,14 +1569,14 @@ theorem ind_pi_tele_len_refines {pers rst lst fuel h' o}
         have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
         unfold SimLR
         cases ev with
-        | ForallE ty b m =>
+        | ForallE ty b =>
           obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           obtain ⟨left1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hn1v := ConRon.Refine.Nat.uadd_val hn1
           have hl1v := (ConRon.Refine.Nat.usub_val hl1).2
           have hR := ih left1 n1 b o (by simp at hl1v; omega) h
           have e : ((view (absEIdx cur) >>= fun v => (match v with
-              | .forallE _ b _ => do let t ← indPiTeleLen k b; pure (t + 1)
+              | .forallE _ b => do let t ← indPiTeleLen k b; pure (t + 1)
               | _ => pure 0) >>= fun t => pure (n.val + t)) : AM Nat).run lst =
               ((do let t ← indPiTeleLen k (absEIdx b); pure (n1.val + t)) : AM Nat).run lst := by
             rw [view_bind_run hV']
@@ -1643,7 +1643,7 @@ theorem pi_result_refines {pers rst lst fuel h' o}
         have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
         unfold SimLR
         cases ev with
-        | ForallE ty b m =>
+        | ForallE ty b =>
           obtain ⟨left1, hl1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hl1v := (ConRon.Refine.Nat.usub_val hl1).2
           have hR := ih left1 b o (by simp at hl1v; omega) h

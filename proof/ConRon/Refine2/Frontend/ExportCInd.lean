@@ -1414,8 +1414,8 @@ theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
     | FVar _ _ => cases Result.ok_injective h; rfl
     | Const _ _ => cases Result.ok_injective h; rfl
     | App _ _ => cases Result.ok_injective h; rfl
-    | Lam _ _ _ => cases Result.ok_injective h; rfl
-    | ForallE _ _ _ => cases Result.ok_injective h; rfl
+    | Lam _ _ => cases Result.ok_injective h; rfl
+    | ForallE _ _ => cases Result.ok_injective h; rfl
     | LetE _ _ _ => cases Result.ok_injective h; rfl
     | Lit _ => cases Result.ok_injective h; rfl
     | Proj _ _ _ => cases Result.ok_injective h; rfl
@@ -1444,8 +1444,8 @@ theorem k_expected_of_refines {pers rst lst fuel ty_types listed cts o}
     | FVar _ _ => cases Result.ok_injective h
     | Const _ _ => cases Result.ok_injective h
     | App _ _ => cases Result.ok_injective h
-    | Lam _ _ _ => cases Result.ok_injective h
-    | ForallE _ _ _ => cases Result.ok_injective h
+    | Lam _ _ => cases Result.ok_injective h
+    | ForallE _ _ => cases Result.ok_injective h
     | LetE _ _ _ => cases Result.ok_injective h
     | Lit _ => cases Result.ok_injective h
     | Proj _ _ _ => cases Result.ok_injective h
