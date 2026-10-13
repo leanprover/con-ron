@@ -37,48 +37,14 @@ open scoped ConRon.Refine2.IndSide
 
 open ConRon.Arena
 
-/-! ## The binders' canonical metas (`PropWhenWF`, the erased subtype invariant)
-
-The telescope walks push `(dom, meta)` pairs whose `meta` comes from a view
-(`EViewMetaWF`, from `AStateInv`); `close_telescope` interns them back, which
-needs the fact (the cleanup lane's statement change).  One side-tier move:
-a pushed vector's binders are canonical when the old ones and the pushed
-meta are. -/
-
-theorem bwf_push {out o : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {d : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
-    (hv : o.val = out.val ++ [(d, m)]) (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw)
-    (hm : ConRon.Refine.PropWhenWF m.pw) : ∀ p ∈ o.val, ConRon.Refine.PropWhenWF p.2.pw := by
-  intro p hp
-  rw [hv] at hp
-  rcases List.mem_append.mp hp with hp | hp
-  · exact hout p hp
-  · rw [List.mem_singleton.mp hp]; exact hm
-
-theorem wf_of_view_some {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
-    (h : ∀ t : arena.handle.EIdx × arena.handle.EIdx × kernel.expr.BinderMeta,
-      some (ty, b, m) = some t → ConRon.Refine.PropWhenWF t.2.2.pw) :
-    ConRon.Refine.PropWhenWF m.pw := h _ rfl
-
-theorem bwf_new : ∀ p ∈ (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)).val,
-    ConRon.Refine.PropWhenWF p.2.pw := by
-  intro p hp; simp [alloc.vec.Vec.new] at hp
-
-local macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| first
-      | exact bwf_new
-      | (apply bwf_push; all_goals first | assumption | (simp only [Lockstep.EViewMetaWF] at *; assumption) | (apply wf_of_view_some; assumption) | (subst_vars; simpa using ‹ConRon.Refine.PropWhenWF _›)))
-
 /-! ## The type former's stage -/
 
 theorem whnf_telescope_aux (m : Nat) :
     ∀ {pers st lst} {vis : Std.U64} {rf lf} {mode : kernel.env.CheckMode} {i n : Std.U64}
-      {e : arena.handle.EIdx} {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)},
+      {e : arena.handle.EIdx} {out : alloc.vec.Vec arena.handle.EIdx},
       n.val = m → AStateRel₀ pers st lst → AStateInv pers st → IFEnvRelI rf lf →
-      absU vis = lf.visibleBelow → (∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) →
-      Lockstep.LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
-          ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw)
+      absU vis = lf.visibleBelow →
+      Lockstep.LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2))
         (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
         (do
           let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
@@ -86,11 +52,11 @@ theorem whnf_telescope_aux (m : Nat) :
           pure (absBinderL out ++ q.1, q.2)) := by
   induction m with
   | zero =>
-    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis
     rw [arena.inductives.sum_install.whnf_telescope, show absU n = 0 from hn, whnfTelescope_zero]
     lockstep
   | succ m ih =>
-    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis hout
+    intro pers st lst vis rf lf mode i n e out hn hrel hinv hfe hvis
     rw [arena.inductives.sum_install.whnf_telescope, show absU n = m + 1 from hn, whnfTelescope_succ]
     have hn1 : 1 ≤ n.val := by omega
     obtain rfl : m = n.val - 1 := by omega
@@ -109,19 +75,17 @@ at the end, where it must be a sort. -/
     {mode : kernel.env.CheckMode}
     {i n : Std.U64}
     {e : arena.handle.EIdx}
-    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {out : alloc.vec.Vec arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow)
-    (hout : ∀ p ∈ out.val, ConRon.Refine.PropWhenWF p.2.pw) :
-    LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2) ∧
-        ∀ p ∈ r.1.val, ConRon.Refine.PropWhenWF p.2.pw) (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
+    (hvis : absU vis = lf.visibleBelow) :
+    LS pers (fun r b => b = (absBinderL r.1, absLIdx r.2)) (arena.inductives.sum_install.whnf_telescope pers vis st mode rf i n e out) lst
       (do
         let q ← whnfTelescope (ConRon.Refine.absMode mode) lf (absU i) (absU n)
           (absEIdx e)
         pure (absBinderL out ++ q.1, q.2)) :=
-  whnf_telescope_aux _ rfl hrel hinv hfe hvis hout
+  whnf_telescope_aux _ rfl hrel hinv hfe hvis
 
 open Lockstep in
 /-- `close_telescope` ⊑ `closeTelescope` from the cursor on: close a telescope
@@ -129,19 +93,18 @@ opened at the free variables `i ..< i + bs.length` back into a syntactic
 Π-telescope over `body`. -/
 @[lockstep] theorem sum_close_telescope_ls
     {pers st lst}
-    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {bs : alloc.vec.Vec arena.handle.EIdx}
     {k : Std.Usize}
     {i : Std.U64}
     {body : arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hpw : ∀ p ∈ bs.val, ConRon.Refine.PropWhenWF p.2.pw) :
+    (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a) (arena.inductives.sum_install.close_telescope pers st bs k i body) lst
       (closeTelescope (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
   revert st lst hrel hinv
   simp only [absBinderLFrom]
   intro st lst hrel hinv
-  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+  refine ls_cursor_acc bs absEIdx
     (fun i xs => closeTelescope xs (absU i) (absEIdx body))
     (fun st k i => arena.inductives.sum_install.close_telescope pers st bs k i body)
     ?_ ?_ k st lst i hrel hinv
@@ -154,7 +117,6 @@ opened at the free variables `i ..< i + bs.length` back into a syntactic
     try simp only []
     rw [arena.inductives.sum_install.close_telescope.eq_def, closeTelescope]
     rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
-    have hpwk := hpw _ (List.getElem_mem hb)
     lockstep
 
 open Lockstep in
