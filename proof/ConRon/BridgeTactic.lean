@@ -1314,28 +1314,62 @@ def closeByNegCtor (g : MVarId) : MetaM Bool := g.withContext do
     catch _ => s.restore
   return false
 
-/-- The `Expr`-typed locals a case split may settle: those a tag fact
-(`exprTag e …`) or a "not this constructor" fact mentions. -/
-def splitCandidates (g : MVarId) : MetaM (Array FVarId) := g.withContext do
-  let mut out := #[]
-  for d in (← getLCtx) do
-    if d.isImplementationDetail then continue
-    unless (← whnfR (← instantiateMVars d.type)).isConstOf `ConLeche.Expr do continue
-    let x := d.toExpr
-    let mentioned ← (← getLCtx).anyM fun h => do
-      if h.isImplementationDetail || h.fvarId == d.fvarId then return false
-      let t ← instantiateMVars h.type
-      unless t.containsFVar d.fvarId do return false
-      if (t.find? fun e => e.isAppOf `ConRon.Bridge.exprTag && e.appArg! == x).isSome then
-        return true
-      let t ← normNeg t
-      return t.isForall && (t.find? fun e => e.isConstOf ``False).isSome
-    if mentioned then out := out.push d.fvarId
+/-- The arguments of the `exprTag _` subterms of `t` (closed ones). -/
+partial def tagSubjects (t : Expr) : Array Expr :=
+  match t with
+  | .app f a =>
+    if t.isAppOfArity `ConRon.Bridge.exprTag 1 && !a.hasLooseBVars then #[a]
+    else tagSubjects f ++ tagSubjects a
+  | .forallE _ d b _ => tagSubjects d ++ tagSubjects b
+  | .lam _ d b _ => tagSubjects d ++ tagSubjects b
+  | .mdata _ b => tagSubjects b
+  | _ => #[]
+
+/-- The `Expr`s a case split may settle: the subjects of the tag facts
+(`exprTag t …`) and of the "not this constructor" facts (`∀ …, t = C … →
+False`) — a local, or a term such as `x.getAppFn` (generalized first). -/
+def splitCandidates (g : MVarId) : MetaM (Array Expr) := g.withContext do
+  let mut out : Array Expr := #[]
+  for h in (← getLCtx) do
+    if h.isImplementationDetail then continue
+    let t ← instantiateMVars h.type
+    -- tag facts
+    for e in tagSubjects t do
+      unless out.contains e do out := out.push e
+    -- not-this-constructor facts
+    let tn ← normNeg t
+    if tn.isForall then
+      let mut b := tn
+      while b.isForall do b := b.bindingBody!
+      if b.isConstOf ``False then
+        let mut c := tn
+        let mut prem : Option Expr := none
+        while c.isForall do
+          prem := some c.bindingDomain!
+          c := c.bindingBody!
+        if let some pr := prem then
+          if let some (ty, l, _) := pr.eq? then
+            if ty.isConstOf `ConLeche.Expr && !l.hasLooseBVars && !out.contains l then
+              out := out.push l
   return out
 
+/-- Split `e` in `g`: `cases` a local; generalize a term first (in the goal
+and every hypothesis that mentions it). -/
+def splitOn (g : MVarId) (e : Expr) : MetaM (Array MVarId) := g.withContext do
+  if e.isFVar then
+    return (← g.cases e.fvarId!).map (·.mvarId)
+  let mut hyps : Array FVarId := #[]
+  for d in (← getLCtx) do
+    unless d.isImplementationDetail do hyps := hyps.push d.fvarId
+  let (_, xs, g') ← g.generalizeHyp #[{ expr := e, xName? := `e }] hyps
+  let some x := xs[0]? | return #[]
+  return (← g'.cases x).map (·.mvarId)
+
 /-- `bridge_finish` on one goal: the cheap closers, else a case split on a
-candidate `Expr` and the closers on every constructor (depth two). -/
-partial def finishGoal (g : MVarId) (closer : Syntax) (depth : Nat) : TacticM Bool := do
+candidate `Expr` and the closers on every constructor (depth two); else the
+pure functions unfolded once and the split tried again. -/
+partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
+    (depth : Nat) : TacticM Bool := do
   let s ← saveState
   setGoals [g]
   try
@@ -1345,14 +1379,29 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (depth : Nat) : TacticM Bo
   s.restore
   if ← closeByNegCtor g then return true
   if depth == 0 then return false
-  for fv in ← splitCandidates g do
+  for e in ← splitCandidates g do
     let s ← saveState
     try
-      let subs ← g.cases fv
+      let subs ← splitOn g e
+      if subs.isEmpty then s.restore; continue
       let mut all := true
       for sub in subs do
-        unless ← finishGoal sub.mvarId closer (depth - 1) do all := false; break
+        unless ← finishGoal sub closer none (depth - 1) do all := false; break
       if all then return true
+    catch _ => pure ()
+    s.restore
+  -- the pure functions unfolded: a `match` on a term the facts settle
+  if let some u := unfold then
+    let s ← saveState
+    try
+      setGoals [g]
+      evalTactic u
+      match ← getUnsolvedGoals with
+      | [] => return true
+      | [g'] =>
+        if g' != g then
+          if ← finishGoal g' closer none depth then return true
+      | _ => pure ()
     catch _ => pure ()
     s.restore
   return false
@@ -1386,11 +1435,15 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
   let fns : Array Term :=
     if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
   let closer ← finishCloser fns
+  let unfold? : Option Syntax ← if fns.isEmpty then pure none else do
+    let lems : Array (TSyntax `Lean.Parser.Tactic.simpLemma) ←
+      fns.mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
+    pure (some (← `(tactic| simp only [$lems,*])))
   let gs ← getGoals
   let mut out := []
   for g in gs do
     if ← g.isAssigned then continue
-    unless ← Frame.finishGoal g closer 2 do out := out ++ [g]
+    unless ← Frame.finishGoal g closer unfold? 2 do out := out ++ [g]
   setGoals out
 
 /-- con-leche: none — **the whole pipeline** (task #120):
