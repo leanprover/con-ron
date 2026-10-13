@@ -1033,9 +1033,10 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t := (← instantiateMVars d.type).cleanupAnnotations
-    unless isFactShape t do continue
+    -- a denotation, or any other function answering `some` (`env.find? nm`)
     let some (_, l, r) := t.eq? | continue
     unless r.isAppOfArity ``Option.some 2 do continue
+    unless isFactShape t || l.getAppFn.isConst do continue
     facts := facts.push (l, r.appArg!, d.toExpr)
   let mut news : Array Hypothesis := #[]
   let mut snap? : Option Snap := none
@@ -1051,6 +1052,7 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
                             value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p₁, p₂] }
         continue
       -- the same handle at two stores of one `Ext` chain: one value
+      unless isFactShape (← mkEq l₁ (← mkAppM ``Option.some #[a])) do continue
       let snap ← snap?.getDM snapshot
       snap? := some snap
       let t₂ ← mkEq l₂ (← mkAppM ``Option.some #[a])
@@ -1063,7 +1065,24 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
         news := news.push { userName := `fwd, type := ← mkEq a b,
                             value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p₁, q] }
   if news.isEmpty then return g
-  let (_, g) ← g.assertHypotheses news
+  let (fvs, g) ← g.assertHypotheses news
+  -- two answers built by one constructor (`.defnInfo cv val hint` against
+  -- `.defnInfo cv' val' hint'`): their fields, by injection
+  let mut g := g
+  for fv in fvs do
+    let ok ← g.withContext do
+      let t ← instantiateMVars (← fv.getType)
+      let some (_, a, b) := t.eq? | return false
+      let env ← getEnv
+      let ctor (e : Expr) : Option Name := e.getAppFn.constName?.bind fun n =>
+        match env.find? n with
+        | some (.ctorInfo _) => some n
+        | _ => none
+      return (ctor a).isSome && ctor a == ctor b
+    unless ok do continue
+    match ← observing? (Meta.injection g fv) with
+    | some (.subgoal g' _ _) => g := g'
+    | _ => pure ()
   return g
 
 /-- Clear what the substitutions left trivial among the hypotheses NOT in
@@ -1171,7 +1190,15 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
         while k < xs.size do
           let ty ← inferType xs[k]!
           if (← isProp ty) && isFactShape ty then k := k + 1 else break
-        return if k > n then k else 0
+        if k == n then return 0
+        -- and the lookups that follow (`env.find? nm = some ci`), which
+        -- `unifyFacts` identifies with the context's own
+        while k < xs.size do
+          let ty ← inferType xs[k]!
+          match ty.eq? with
+          | some (_, _, r) => if r.isAppOfArity ``Option.some 2 then k := k + 1 else break
+          | none => break
+        return k
     if block > 0 then
       let (_, g') ← g.introNP block
       g := g'
@@ -1228,6 +1255,10 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   -- `seen` mentions), and only when an equation solves a variable: on a
   -- verification condition's context `substVars` is the dearest step
   g ← substNew g old
+  -- once more: an identification can make two lookups' keys equal
+  -- (`nm' = nm`, then `env.find? nm = some ci'` against `… = some ci`)
+  let g' ← g.withContext (unifyFacts g)
+  if g' != g then g ← substNew g' old
   -- what the substitution made reducible (`Expr.WScoped d x` at `x := .app …`)
   let g' ← peelAll g
   if g' != g then g ← substNew g' old
