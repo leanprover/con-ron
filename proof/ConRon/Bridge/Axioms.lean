@@ -17,7 +17,6 @@ failure of the task rather than of the build.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.SpecsL
-import ConRon.Bridge.StoreBM
 import ConRon.Bridge.ExprOps.Inst1
 import ConRon.Bridge.ExprOps.Leaves
 import ConRon.Bridge.ExprOps.Guards

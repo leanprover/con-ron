@@ -48,7 +48,6 @@ unfolding `f` (so these proofs used to `unfold f` first), `vcgen` unfolds a
 definition named in its list.
 -/
 import ConRon.Bridge.Specs
-import ConRon.Bridge.StoreBM
 
 namespace ConRon.Bridge.ExprOps
 

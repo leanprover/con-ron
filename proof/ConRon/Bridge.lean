@@ -79,7 +79,6 @@ import ConRon.Bridge.Rel
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
-import ConRon.Bridge.StoreBM
 import ConRon.Bridge.Specs
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.ExprOps

@@ -314,13 +314,10 @@ theorem EStore.wf_of_lss {st : EStore} {lss' : LsStore} {rk : EIdx → Nat}
     EWFAt { st with lss := lss' } rk := by
   refine { lss := hwf, childOK := h.childOK, nchildOK := ?nchildOK,
            lchildOK := ?lchildOK, lschildOK := ?lschildOK, rankP := h.rankP,
-           rankS := h.rankS, bmChildOK := h.bmChildOK, consP := h.consP,
-           consS := h.consS, fresh := h.fresh, bmConsP := h.bmConsP,
-           bmConsS := h.bmConsS, bmFresh := h.bmFresh, bmKeyP := h.bmKeyP,
-           bmKeyS := h.bmKeyS, derExact := ?derExact,
-           bmDerExact := h.bmDerExact, sizedP := h.sizedP, sizedS := h.sizedS,
-           capP := h.capP, capS := h.capS, bmCapP := h.bmCapP,
-           bmCapS := h.bmCapS, scrOff := h.scrOff,
+           rankS := h.rankS, consP := h.consP,
+           consS := h.consS, fresh := h.fresh, derExact := ?derExact,
+           sizedP := h.sizedP, sizedS := h.sizedS,
+           capP := h.capP, capS := h.capS, scrOff := h.scrOff,
            sync := h.sync.trans hon.symm }
   case nchildOK =>
     intro i v hi c hc
