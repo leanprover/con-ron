@@ -68119,3 +68119,226 @@ erased invariant of its own); 22 changed anchors re-read and repointed.
 README: one link renumbered; its sentence "binder data (the `PropWhen`
 field) are also hash-consed" is now false and is the maintainer's to
 rewrite.
+### Task #120 — Theorem 1's verification conditions addressed by shape, not by position (2026-10-13, Opus)
+
+**The problem.**  Theorem 1's simulation proofs (`proof/ConRon/Bridge/**`)
+ran `vcgen` over an arena walk and then discharged the verification
+conditions BY POSITION: `case vc15 => rename_i s0 s1 _ s2 _ _ _ hck1 hx01 …`.
+One extra call in the twin shifts every `vcN` number and every `rename_i`
+position, so every con-leche sync rewrote these blocks although nothing
+mathematical had moved (at `5ce5c13b`: 286 `case vcN` lines and 271 `rename_i` in the twenty
+modules below).  Two
+kinds of residue were written that way:
+
+* the **frame** — a callee's precondition (`CheckOK s`, `StateOK s`,
+  `StoreWF s.store`, a handle that denotes at the CURRENT store, an
+  `∃ v, denoteE … = some v ∧ WScoped d v`) and a postcondition's frame
+  conjuncts (`Ext s₀.store s₃.store`, `s₃.pins = s₀.pins`, `CheckOK s₃`), each
+  a CHAIN through the calls' postconditions: `denote_ext hden (hx01.trans
+  hx12)`, `hck2.mono hst hx23 hc32 hp32`, `by rw [hp32, hp21, hp10]`;
+* the **arms** — the mathematics of one branch of the walk, which needs the
+  callees' answers (`obtain ⟨…⟩ := hrel x hden`), the view inversions
+  (`denote_const_inv hwf hview …`) and the environment-index facts by name.
+
+**The answer: three tactics, and a rule.**
+
+```lean
+  vcgen [f, hcallee₁, …]
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame [side-condition lemmas]   -- closes preconditions and frames
+  bridge_fwd [domain lemmas]             -- puts the callees' answers in context
+  bridge_frame                           -- closes what the answers enabled
+  -- each remaining arm, by the shape of its branch condition / target:
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
+      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
+    exact (unfoldableHead_of_not_defn hgf hnd).symm
+  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
+    exact (unfoldableHead_of_not_const hnc).symm
+```
+
+* **`bridge_frame [l₁, …]`** closes a goal that is a frame fact, by SEARCH
+  over the context rather than by naming hypotheses: a hypothesis; an `Ext`
+  chain (and any `R` with `R.refl`/`R.trans`, e.g. `ReadbackFrame`); an
+  equation chain (`s₃.pins = s₀.pins`, structure-field equations of a
+  postcondition record included); `StateOK`/`StoreWF`/`CheckOK` past the
+  chain (`CheckOK.mono`/`.monoF`); a `CacheFrame` chain; a denotation carried
+  along the chain (`denote_ext` and its six siblings) or read off an answer
+  relation or a callee's `∀ x, denoteE s c = some x → …` postcondition; its
+  `isSome`; an `∃ v, denote… = some v ∧ P v` precondition; a closed equation
+  by `rfl` (pin tables); and the lemmas `lᵢ` (premises proved the same way,
+  backtracking over candidates).  On a goal it cannot close it splits the
+  top-level `∧` and closes the frame conjuncts it can — only if one closes,
+  so an arm's own conjunction stays whole.
+* **`bridge_fwd [l₁, …]`** saturates the context: every answer relation
+  (`RelE`, `RelEL`, `RelEO`, `RelV`, any definition that unfolds to a `∀`), every
+  `∀`-postcondition, the eight view inversions `denote_*_inv` and the lemmas
+  `lᵢ` are instantiated at what the context knows (denotations transported
+  along the chain, frame premises by `bridge_frame`'s search, other premises
+  matched against hypotheses), the instances are added (`fwd✝`), `∧`/`∃` are
+  split (also inside `SimE`/`SimOOp`/`SimBOp` and `Expr.WScoped` at a
+  constructor), two answers for one handle are unified (`a = b`), and the
+  variables those equations solve are substituted.  Semi-naive rounds (a
+  source fires again only if a premise could match a new hypothesis), at most
+  eight.  On a goal `∀ x, denote… = some x → …` whose denotation is known it
+  introduces `x` and identifies it with the known one.
+* **`vc_arm (h₁ : T₁) … ⊢ T => tac`** runs `tac` on every open goal whose
+  context has hypotheses of types `T₁ …` (and whose target is `T`), matched
+  reducibly with `_` holes, backtracking over candidates; `?x` in a pattern
+  names the local it matched (and constrains the later patterns: the target
+  is matched first).  A goal it does not match stays open; an arm that
+  matches NO goal is an error that lists, per open goal, the first pattern
+  that found nothing — which is exactly what a sync that removed a branch
+  should say.
+
+**`vc_arm` against what Lean, Batteries and Mathlib already have** (the
+maintainer's question: "is `vc_arm` different from `show`?").  Core `show t`
+and Batteries' `case _ : t => tac` select the FIRST goal whose TARGET unifies
+with `t`; Batteries' `case _ n₁ … : t` names hypotheses by POSITION (the most
+recent inaccessible ones, exactly what `rename_i` does); core `rename t => h`
+names ONE hypothesis by type (the most recent match, no backtracking, no
+shared variables); `case vcN` / `next` / `on_goal n` / `pick_goal n` select
+by tag or index, which is the very thing that moves.  None keys a goal by its
+HYPOTHESES, and here that is what distinguishes the arms: the targets of
+`sameConstHeads`'s four declining arms are all `false = sameConstHeads _ _`,
+of `reduceNat`'s fourteen exits all `SimOOp … _`, of a memo walk's arms all
+`RelE _ _ h _ _` — only the branch condition (`¬ (h.tag == const)`, the
+view's constructor, the probe's `= some _`) tells them apart.  `vc_arm`
+differs from `show`/`case _ : t` in four ways, each of which an arm needed:
+(i) it matches hypotheses, with `_` holes, up to `¬`/`≠`, backtracking over
+candidates; (ii) `?x` binds a variable shared between patterns and names the
+local it matched (`(hgfa : Expr.getAppFn ?fa = .const ?na _) (hna : denoteN _
+?ca = some ?na) ⊢ (?ca == ?cb) = …` pairs each head with its own name); (iii)
+it runs on EVERY matching goal (`sameConstHeads`'s view-catch-all and
+tag-`else` arms share one proof), and leaves the others; (iv) an arm matching
+nothing is an error naming, per goal, the pattern that failed — `show` would
+just pick another goal.  Where the target alone distinguishes an arm,
+`case _ : t => tac` (Batteries) is the upstream equivalent of `vc_arm ⊢ t =>`
+— but `Bridge` imports neither Batteries nor Mathlib (task #97a), and the
+mixed `(h : T) … ⊢ t` form needs one tactic anyway, so `vc_arm` keeps the
+target form too.  `vcgen`'s own `vcN` tags are positional by construction;
+`mvcgen`'s named invariant goals (`inv1`) cover loop invariants, not branches.
+The closest upstream relative of (i)+(iii) is a `first | (rename t => h; tac)
+| …` chain per goal, which loses (ii), backtracking, and the diagnostics, and
+turns a failing proof into a silent fallthrough.
+
+**The rule** (now in CLAUDE.md): a Theorem 1 verification-condition proof
+has no `case vcN`, no `rename_i` and no positional `next =>` after `vcgen`.
+The frame goes to `bridge_frame`; the answers come from `bridge_fwd`; an arm
+is a `vc_arm` keyed by its branch condition (the `if`'s hypothesis, the
+view's constructor, the probe's `= some _`) or its target, and its body is
+preferably ONE `exact` of a small pure lemma stated in the shape the arm has
+(`unfoldDefinition_none_post`, `sameConstHeads_nc_right`, Memo's
+`CheckOK.insertWhnfAt`, Nat's `simOOp_bin_fire`, Leaves' `fvarLeavesGo_leaf`).
+`grind` stays where it already was (the `ExprOps` closers); none was added.
+
+**Engineering findings.**
+
+1. **Reducible unification only, and `respectTransparency` back on.**  A
+   default-transparency `isDefEq` of `denoteE st h = some ?x` against a
+   hypothesis `denoteN …` unfolds both denotations — a heartbeat timeout on
+   ONE goal.  The project sets `backward.isDefEq.respectTransparency=false`
+   for Aeneas, which bumps implicit arguments to default; the search sets it
+   back to `true` locally.  `¬`/`≠` are normalised to `→ False` before a
+   match (`Not` is not reducible), and a cheap syntactic `quickMatch` (rigid
+   heads, distinct locals) runs before every unification.
+2. **Precompiled.**  The meta code is its own library, `ConRonBridgeTactic`
+   (`proof/ConRon/BridgeTactic.lean`, imports Lean alone, `precompileModules =
+   true`; `Bridge/Frame.lean` holds the lemmas it composes and checks the
+   single-backtick constant names it uses exist).  Interpreted, the three
+   tactics cost 6.6 G instructions on `reduceNat`'s 50 verification
+   conditions; native, 2.3 G — against 2.5 G for the hand-written cases they
+   replace.
+3. **`supply` must check types** (found by the core lane): assigning a
+   telescope argument without unifying its type let `CheckOK.mono h` be built
+   with `h` at the wrong state — elaborated, then rejected by the kernel.
+4. **`substVars` is the dearest step** on a verification condition's
+   context; `bridge_fwd` substitutes only the equations it added.
+5. **`?x` must be fresh**: a pattern name colliding with a `vcgen` binder
+   name (`?tbl`) or an earlier arm's hole failed with "synthetic hole has
+   already been defined"; patterns are renamed apart (`?_vcarm.x`).
+6. **An `∃` in a hypothesis is always destructured**, but not
+   `StoreWF` (`∃ rk, EWFAt …`, wanted whole by the frame) nor any `…WF`/`…OK`
+   invariant.
+7. **Telescopes stay as stated** (nat lane): normalising `ls ≠ []` turned a
+   conclusion into a premise and the lemma never fired.
+
+**Before → after** (`case vc` = lines with `case vcN`; instructions:u of the
+module, `measure.sh` = `lake env lean` with the module's options and the
+tactic library loaded, imports included; baseline at `5ce5c13b`):
+
+| module | `case vc` | `rename_i` | `next` | lines | `vc_arm` | instructions |
+|---|---:|---:|---:|---:|---:|---:|
+| `Core/Walks/Spine` | 50 → 0 | 33 → 0 | 0 → 0 | 1214 → 1034 | 21 | 19.4G → 20.0G |
+| `Core/Walks/Nat` | 47 → 0 | 58 → 0 | 0 → 0 | 1294 → 1224 | 25 | 106.6G → 114.1G |
+| `ExprOps/Subst` | 29 → 0 | 4 → 0 | 21 → 0 | 2131 → 2028 | 58 | 1416.4G → 188.5G |
+| `ExprOps/Abs` | 5 → 0 | 2 → 0 | 5 → 0 | 854 → 849 | 10 | 523.1G → 75.8G |
+| `ExprOps/Owed` | 3 → 0 | 1 → 0 | 13 → 0 | 872 → 828 | 24 | 1139.4G → 341.9G |
+| `Core/Memo` | 28 → 0 | 18 → 2 | 0 → 0 | 891 → 943 | 11 | 10.9G → 12.0G |
+| `Core/Arms/Whnf` | 10 → 0 | 8 → 0 | 0 → 0 | 280 → 268 | 1 | 5.9G → 6.1G |
+| `Core/Arms/Infer` | 9 → 0 | 5 → 0 | 11 → 11 | 833 → 836 | 5 | 14.1G → 14.2G |
+| `Core/Arms/InferIO` | 9 → 0 | 5 → 0 | 0 → 0 | 789 → 793 | 5 | 10.8G → 10.9G |
+| `Core/Walks/Proj` | 15 → 0 | 13 → 0 | 0 → 4 | 863 → 815 | 7 | 12.3G → 15.4G |
+| `Core/Walks/StrLit` | 14 → 0 | 46 → 26 | 0 → 0 | 1181 → 1134 | 7 | 40.7G → 40.2G |
+| `Core/Walks/PropRead` | 7 → 0 | 9 → 3 | 0 → 2 | 1598 → 1610 | 5 | 55.9G → 55.9G |
+| `ExprOps/Leaves` | 24 → 0 | 3 → 3 | 0 → 0 | 917 → 944 | 17 | 96.6G → 98.2G |
+| `ExprOps/Inst1` | 2 → 0 | 3 → 0 | 11 → 0 | 598 → 596 | 13 | 402.4G → 402.6G |
+| `ExprOps/Walks` | 2 → 0 | 2 → 0 | 0 → 0 | 146 → 147 | 2 | 7.0G → 7.1G |
+| `ExprOps/MemoSpecs` | 4 → 0 | 6 → 0 | 0 → 0 | 618 → 609 | 1 | 7.9G → 7.9G |
+| `Core/Walks/Cached` | 10 → 0 | 19 → 0 | 0 → 11 | 878 → 882 | 12 | 8.8G → 10.6G |
+| `Core/Walks/Owed` | 7 → 0 | 5 → 0 | 0 → 0 | 549 → 528 | 3 | 6.2G → 8.7G |
+| `Core/Walks/Guards` | 5 → 0 | 3 → 0 | 0 → 0 | 160 → 155 | 2 | 4.6G → 4.7G |
+| `Specs` | 6 → 0 | 28 → 0 | 0 → 0 | 1362 → 1343 | 13 | 21.6G → 21.7G |
+| **the 20 modules** | **286 → 0** | **271 → 34** | **61 → 28** | **18 028 → 17 566** | **242** | **3911 G → 1457 G** |
+
+The ExprOps rows are the gain: Subst/Abs/Owed ran `all_goals try bridge_vcs`
+first, so `grind` was attempted on every arm it could not close, and the arms
+found their step-lemma arguments with `abs_hyp`/`subst_hyp`, which fall back
+to `grind` when `assumption` picks the wrong hypothesis (one
+`abstract1ArmProj` arm alone: 200 G).  Addressed arms with pattern-named
+arguments, the frame by `bridge_frame`, and `bridge_vcs` LAST (so `grind`
+sees only the callees' preconditions) take the three modules from 3 079 G to
+606 G (the lane measured Owed at 183 G with its own tactic; the merged
+`proveArgs`, which branches over the hypotheses for every premise with
+metavariables, costs it 342 G — still 3.3× under its baseline).  Elsewhere
+the cost is flat: the largest increases are Owed (Core) 1.40×, Proj 1.25×,
+Cached 1.20×; everything else within 10 %.
+
+`next` that remain are after a `split` on a program `if`/con-leche `match`
+(`inferProj_spec`'s staged `triple_seq`, Cached's `*CacheOK.insert` lemmas,
+Proj, PropRead), and `rename_i` that remain are in pure lemmas after a
+`split`/`cases` of con-leche's own shape functions (StrLit 26, Memo 2,
+Leaves 3, PropRead 3): neither moves when the arena changes.
+
+**How it was done.**  The tactics and `Core/Walks/Spine.lean` first (one
+author), then six lanes in parallel worktrees, one file group each, each
+lane free to make additive tactic commits; ten such commits came back
+(`supply`'s type check; backtracking in `vc_arm` and in lemma premises; fresh
+`?x`; the lemma list as a fallback for every goal; closed equations by `rfl`;
+`∀`-conclusion lemmas; transitive relations and structure-field equations;
+memo-frame congruence; un-normalised telescopes; eight rounds) and were merged
+by hand into `ConRon/BridgeTactic.lean`.  New pure lemmas went into the
+modules, in the shape their arms have: Spine's `sameConstHeads_nc_*`/`_na_*`,
+`unfoldDefinition_none_post`, `denote_not_{const,app}_of_tag`; Nat's guard
+and exit lemmas (`succ_guard`, `bin_guard`, `simOOp_bin_fire`, …); Memo's
+`SimE.of_row`, `row_of_run` and one `CheckOK.insert…At` per table; Whnf's
+`whnfLoop_*_ex`; Cached's `CheckOK.ofReadL2`/`ofReadLs2`; Leaves'
+`fvarLeavesGo_leaf`; Abs's `viewMono_trans`; `Bridge/Frame.lean`'s
+`MemoOK.get_hit'` and `isSome_denote_ext`.
+
+**What stays hand-written, and why.**  The arms' mathematics: a cache hit
+needs the cache invariant's row plus functional uniqueness; a miss's
+`CheckOK` of a record-updated state is a per-table insert lemma; fuel merges
+(`max F₁ F₂` plus monotonicity) are per-walk lemmas; name equality through
+`denoteN_inj`; the arity guards' length arithmetic.  All of them are
+addressed by shape now.  Not converted: the `split`-then-`rename_i h` idiom of
+the `triple_seq`-style proofs (Frontend/Lines, Arms/DefeqLazy,
+Inductives/BlockParts, …: one hypothesis per split, stable), and the files
+outside this task's list.
+
+**Patterns, for the next author.**  Name pattern variables distinctively
+(`?mid`, `?chA`, `?rh`); a table probe needs its table named
+(`(AState.caches _).constTyC[k]? = some ?rh`); when a `subst_vars` has
+removed `s₀`, reach the surviving state through a `?ps` binding; give the
+callee's WScoped facts before `vcgen` (`have hwaa := hwa.getAppArgs`) so the
+frame finds them; key a recursive call's facts by the child handle they
+mention.

@@ -187,6 +187,17 @@ section for every task you land.
     `### Task …` heading (as `#### Slice N`), never appended at the end of
     DESIGN.md — end-of-file appends from concurrent lanes land under the
     wrong heading (found by the merge queue twice).
+* **Theorem 1 verification conditions are addressed by shape, never by
+  position** (task #120, DESIGN `### Task #120`).  After `vcgen` in
+  `proof/ConRon/Bridge/**`: no `case vcN`, no `rename_i`, no positional
+  `next =>`.  Use `bridge_frame [lemmas]` for preconditions and frame
+  conjuncts, `bridge_fwd [lemmas]` to put the callees' answers and the view
+  inversions in context, and `vc_arm (h : T) … ⊢ t => tac` for each arm,
+  keyed by its branch condition; prefer an arm body that is one `exact` of a
+  small pure lemma.  The tactics' meta code is `ConRon/BridgeTactic.lean`
+  (a precompiled library: `lake env lean` needs
+  `--load-dynlib=.lake/build/lib/libcon_x2dron_ConRonBridgeTactic.so` to run
+  it natively).
 * **`Refine2/Tactic/Lockstep.lean` is shared core.**  Lanes extend the
   `lockstep` tactic through its extension points — `@[lockstep]`/
   `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do
