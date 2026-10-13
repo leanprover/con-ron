@@ -8,22 +8,15 @@ differ from `Bridge/Core/Arms/Infer.lean`'s:
 
 | clause | exit | lemma |
 |---|---|---|
-| `.lam` | **no domain-sort run** (official's `infer_lambda` at `infer_only`) | `inferIO_lam_chain`, `inferIO_lam_leaf`, `inferIO_lam_trusted` |
-| `.app` | **the licensed arm**: the ∀'s datum is `never`, so no certificate | `inferIO_app_licensed` |
-| `.app` | the unlicensed arm: the certificate runs, as at the full grade | `inferIO_app_cert` |
+| `.lam` | **no domain-sort run** (official's `infer_lambda` at `infer_only`) | `inferIO_lam` |
+| `.app` | **no argument check** (official's `infer_only`, con-leche's task #346) | the batched `inferSpineIO` |
+| `.letE` | the body at its value, no check (con-leche's task #342 R-C) | `inferIO_letE` |
 
 Everything else (`.sort`, `.fvar`, `.const`, the two literals, `.forallE`,
-`.proj`, the two throws) is byte-identical to `inferBody`'s, and the io
-lemmas for those clauses are the same proofs at `inferTypeIO`; the four that
-this round states are below, the rest are listed in DESIGN §8's task section.
-
-## Why the statements are at `betaGate = true`
-
-The knot's io slot selects the grade once per level: at `mode.betaGate = false`
-the slot IS full inference (`ConLeche.inferTypeIO_off`), so the io lemmas are
-`Infer.lean`'s verbatim and there is nothing to state.  The bridge is stated
-at `.verified`, where the bit is on — which is also where the twin's
-`mode.ioGate` agrees with it (task #97c's smaller deviation 4).
+`.proj`, the throw) is `inferBody`'s, and the io lemmas for those clauses are
+the same proofs at `inferTypeIO`.  The io slot is the io body at EVERY mode
+(con-leche's task #346: the gate is gone), so nothing here is conditional on
+the mode.
 
 ## The grade propagates through the RECORD, not through a flag
 
@@ -51,42 +44,28 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env}
 
-/-! ## 1. The λ clause: no domain-sort run -/
+/-! ## 1. The λ and `let` clauses -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1328-1349 inferBodyIO — the io λ
-clause's **chain rule**.  Note what is NOT here: `inferBody`'s
-`r.whnf (← r.infer ty)` domain-sort run.  Official's `infer_lambda` skips it
-at `infer_only`, and the P row never consumed it. -/
-theorem inferIO_lam_chain {F d : Nat} {ty body bt : Expr} {mb : BinderMeta}
-    {pwI : PropWhen} (hg : mode.betaGate = true)
+/-- con-leche: ConLeche/Kernel/Core.lean:1225-1234 inferBodyIO — the io λ
+clause: no domain-sort run (official's `infer_lambda` skips it at
+`infer_only`), the body's io type abstracted. -/
+theorem inferIO_lam {F d : Nat} {ty body bt : Expr}
     (hb : ConLeche.inferTypeIO mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty)) = .ok bt)
-    (hv : mode.verifiedChecks = true) (hpw : body.lamPw = some pwI)
-    (hz : (mb.pw == pwI) = true) :
-    ConLeche.inferTypeIO mode env (F + 1) d (.lam ty body mb) =
-      .ok (.forallE ty (bt.abstract1 d) mb) := by
-  rw [ConLeche.inferTypeIO_succ, ite_eq_left hg]
+      (body.instantiate1 (.fvar d ty)) = .ok bt) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.lam ty body) =
+      .ok (.forallE ty (bt.abstract1 d)) := by
+  rw [ConLeche.inferTypeIO_succ]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    hb, hv, hpw, hz, bind, Except.bind, ite_true, pure, Except.pure]
+    hb, bind, Except.bind, pure, Except.pure]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1340-1348 inferBodyIO — the io λ
-clause's **innermost binder**: the codomain-sort validation stays (it is what
-makes the λ datum trustworthy), and at this grade its own inference is the io
-one too. -/
-theorem inferIO_lam_leaf {F d : Nat} {ty body bt btt : Expr}
-    {mb : BinderMeta} {vb : Level} (hg : mode.betaGate = true)
-    (hb : ConLeche.inferTypeIO mode env F (d + 1)
-      (body.instantiate1 (.fvar d ty)) = .ok bt)
-    (hv : mode.verifiedChecks = true) (hpw : body.lamPw = none)
-    (hbtt : ConLeche.inferTypeIO mode env F (d + 1) bt = .ok btt)
-    (hvb : ConLeche.whnf mode env F (d + 1) btt = .ok (.sort vb))
-    (hz : (Level.zeronessOf vb == mb.pw) = true) :
-    ConLeche.inferTypeIO mode env (F + 1) d (.lam ty body mb) =
-      .ok (.forallE ty (bt.abstract1 d) mb) := by
-  rw [ConLeche.inferTypeIO_succ, ite_eq_left hg]
-  simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    ConLeche.ensureSort, ConLeche.whnf_def, hb, hv, hpw, hbtt, hvb, hz, bind,
-    Except.bind, ite_true, pure, Except.pure]
+/-- con-leche: ConLeche/Kernel/Core.lean:1267-1270 inferBodyIO — the io
+`let` clause, official `infer_let` at `infer_only`: the body at its value, no
+check of the type or the value (con-leche's task #342 R-C). -/
+theorem inferIO_letE {F d : Nat} {ty v b res : Expr}
+    (hr : ConLeche.inferTypeIO mode env F d (b.instantiate1 v) = .ok res) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.letE ty v b) = .ok res := by
+  rw [ConLeche.inferTypeIO_succ]
+  exact hr
 
 /-! ## 3. The body theorem -/
 
@@ -95,7 +74,7 @@ theorem inferIO_lam_leaf {F d : Nat} {ty body bt btt : Expr}
 projection at a **non-`Prop`** structure, at the io grade: `inferBody`'s
 clause verbatim, with the subject's type read through the io slot. -/
 theorem inferIO_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
-    {us : List Level} {entry : ProjEntry} (hgate : mode.betaGate = true)
+    {us : List Level} {entry : ProjEntry}
     (hpe : ConLeche.inferTypeIO mode env F d pe = .ok tpe)
     (hw : ConLeche.whnf mode env F d tpe = .ok te)
     (hh : te.getAppFn = .const T us)
@@ -105,7 +84,7 @@ theorem inferIO_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
     (hp : ¬ (Level.isEquiv entry.structSort .zero == some true)) :
     ConLeche.inferTypeIO mode env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
-  rw [ConLeche.inferTypeIO_succ, ite_eq_left hgate]
+  rw [ConLeche.inferTypeIO_succ]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.whnf_def, hpe, hw, hh, ht, bind, Except.bind]
   rw [ite_eq_left hg]
@@ -114,7 +93,7 @@ theorem inferIO_proj_nonprop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — the
 projection at a **`Prop`** structure, at the io grade. -/
 theorem inferIO_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
-    {us : List Level} {entry : ProjEntry} (hgate : mode.betaGate = true)
+    {us : List Level} {entry : ProjEntry}
     (hpe : ConLeche.inferTypeIO mode env F d pe = .ok tpe)
     (hw : ConLeche.whnf mode env F d tpe = .ok te)
     (hh : te.getAppFn = .const T us)
@@ -127,7 +106,7 @@ theorem inferIO_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
         == some true)) :
     ConLeche.inferTypeIO mode env (F + 1) d (.proj sn i pe) =
       .ok (entry.typeAt us te.getAppArgs pe) := by
-  rw [ConLeche.inferTypeIO_succ, ite_eq_left hgate]
+  rw [ConLeche.inferTypeIO_succ]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
     ConLeche.whnf_def, hpe, hw, hh, ht, bind, Except.bind]
   rw [ite_eq_left hg]
@@ -190,22 +169,18 @@ theorem inferIO_strLit {F d : Nat} {s : String}
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the io
 ∀-formation rule**: `Infer.lean`'s `infer_forallE` with both inferences at
 the io grade (the record `CoreFns.ioView` passes down). -/
-theorem inferIO_forallE {F d : Nat} {ty body tty bt : Expr} {mb : BinderMeta}
-    {u v : Level} (hg : mode.betaGate = true)
-    (hty : ConLeche.inferTypeIO mode env F d ty = .ok tty)
+theorem inferIO_forallE {F d : Nat} {ty body tty bt : Expr}
+    {u v : Level} (hty : ConLeche.inferTypeIO mode env F d ty = .ok tty)
     (hw : ConLeche.whnf mode env F d tty = .ok (.sort u))
     (hb : ConLeche.inferTypeIO mode env F (d + 1)
       (body.instantiate1 (.fvar d ty)) = .ok bt)
-    (hv : ConLeche.whnf mode env F (d + 1) bt = .ok (.sort v))
-    (hz : mode.verifiedChecks = true → (Level.zeronessOf v == mb.pw) = true) :
-    ConLeche.inferTypeIO mode env (F + 1) d (.forallE ty body mb) =
+    (hv : ConLeche.whnf mode env F (d + 1) bt = .ok (.sort v)) :
+    ConLeche.inferTypeIO mode env (F + 1) d (.forallE ty body) =
       .ok (.sort (.imax u v)) := by
-  rw [ConLeche.inferTypeIO_succ, ite_eq_left hg]
+  rw [ConLeche.inferTypeIO_succ]
   simp only [ConLeche.inferBodyIO, CoreFns.ioView, ConLeche.inferTypeIO_def,
-    ConLeche.ensureSort, ConLeche.whnf_def, hty, hw, hb, hv, bind, Except.bind]
-  cases hm : mode.verifiedChecks with
-  | false => simp [pure, Except.pure]
-  | true => simp only [hz hm, pure, Except.pure]; simp
+    ConLeche.ensureSort, ConLeche.whnf_def, hty, hw, hb, hv, bind, Except.bind,
+    pure, Except.pure]
 
 /-! ### The dispatch's children (task #97-P3-Core round 5)
 
@@ -223,7 +198,7 @@ the licence test is the datum alone by `hμ`), then con-leche's
 `inferSpineIO_sound` (at `hg`) and `Expr.mkAppN_getApp`. -/
 theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -274,7 +249,7 @@ io grade.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -444,16 +419,16 @@ theorem triple_pure_lam {α : Type} {s₀ : AState} {v : α}
   subst_vars; exact h
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1109-1274 inferBody — the λ
-clause's result `.forallE ty (bt.abstract1 depth) mb`, the twin's
+clause's result `.forallE ty (bt.abstract1 depth)`, the twin's
 `inferLamResult`: `abstract1Fast` (over the Core tier's `fvarBSpec`,
 `Walks/FvarB.lean`) then one intern. -/
 theorem inferLamResult_spec {fe : IFEnv} (s₀ : AState) (ty bt : EIdx) (d : Nat)
-    (m : BinderMeta) (et vbt : Expr) (hok : CheckOK mode env fe s₀)
+    (et vbt : Expr) (hok : CheckOK mode env fe s₀)
     (hdt : denoteE s₀.store ty = some et) (hdb : denoteE s₀.store bt = some vbt) :
-    ⦃fun s => s = s₀⦄ inferLamResult ty bt d m
+    ⦃fun s => s = s₀⦄ inferLamResult ty bt d
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
-        denoteE s'.store r = some (.forallE et (vbt.abstract1 d) m); ⊤⦄ := by
+        denoteE s'.store r = some (.forallE et (vbt.abstract1 d)); ⊤⦄ := by
   unfold inferLamResult
   refine triple_seq (ExprOps.abstract1Fast_spec fvarBSpec coreWalkFuel s₀ bt d 0
     hok.state (by rw [hdb]; rfl)) ?_
@@ -461,9 +436,9 @@ theorem inferLamResult_spec {fe : IFEnv} (s₀ : AState) (ty bt : EIdx) (d : Nat
   have hok1 := hok.mono hso1 hx1 hc1 hp1
   have hdab : denoteE s1.store ab = some (vbt.abstract1 d 0) := hrel vbt hdb
   have hdt1 := denote_ext hdt hx1
-  refine triple_mono (internE_spec s1 (.forallE ty ab) hok1.state.wf
-    (viewOK_forallE (by rw [hdt1]; rfl) (by rw [hdab]; rfl))) ?_
-  rintro r s2 ⟨hwf2, hx2, _, _, _, _, hc2, hp2, _, hd2⟩
+  refine triple_mono (internForallEE_spec s1 ty ab hok1.state.wf
+    (by rw [hdt1]; rfl) (by rw [hdab]; rfl)) ?_
+  rintro r s2 ⟨hwf2, hx2, _, _, _, hc2, hp2, _, hd2⟩
   refine ⟨hok1.mono ⟨hwf2⟩ hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
   rw [hd2]
   simp [denoteEView, denote_ext hdt1 hx2, denote_ext hdab hx2]
@@ -500,17 +475,13 @@ theorem ensureSort_ioView_spec {fe : IFEnv} {fuel : Nat}
   all_goals exact triple_fail
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1328-1349 inferBodyIO — **the `.lam`
-clause**, chained and with no domain-sort run: `instantiate1Fast`,
-`KnotSpec.infer`, `lamPw`, `ensureSort`, `inferLamResult`; pure side
-`inferIO_lam_chain`/`_leaf` (the `_trusted` exit is unreachable under `hμ`).
-**CLOSED** (task #97-P3-Core round 6, lane `lam`), staged: `internE` of the
-free variable, `instantiate1Fast_specE`, the io knot slot, `lamPw_spec`, then
-either the chain exit or the leaf's io knot slot, `ensureSort_ioView_spec`
-and `readLevelM_spec`; both exits end in `inferLamResult_spec`, whose
-`abstract1Fast` needs the Core tier's `fvarBSpec` (`Walks/FvarB.lean`). -/
+clause**, with no domain-sort run: `internE` of the free variable,
+`instantiate1Fast_specE`, the io knot slot, then `inferLamResult_spec`, whose
+`abstract1Fast` needs the Core tier's `fvarBSpec` (`Walks/FvarB.lean`); pure
+side `inferIO_lam`. -/
 theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -526,7 +497,7 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
   unfold ConRon.Arena.inferBodyIO
   refine view_bind_triple hv ?_
   cases v
-  case lam ty b m =>
+  case lam ty b =>
     obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hv hden
     have hwt : Expr.WScoped d et := by unfold Expr.WScoped at hw; exact hw.1
     have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2
@@ -560,61 +531,13 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     rintro bt s3 ⟨hok3, hx3, hp3, vbt, hvbt, hwvbt, F1, hF1⟩
     have hx03 : Ext s₀.store s3.store := hx02.trans hx3
     have hp03 : s3.pins = s₀.pins := hp3.trans (hp2.trans hp1)
-    have hwres : Expr.WScoped d (.forallE et (vbt.abstract1 d) m) := by
+    have hwres : Expr.WScoped d (.forallE et (vbt.abstract1 d)) := by
       unfold Expr.WScoped; exact ⟨hwt, ConLeche.WScoped.abstract1 0 hwvbt⟩
-    rw [ite_eq_left hμ]
-    -- stage 4: the body's own binder datum
-    refine triple_seq (ExprOps.lamPw_spec s3 b hok3.state
-      (by rw [denote_ext hdb hx03]; rfl)) ?_
-    rintro pw s4 ⟨hs4, hpw⟩
-    subst s4
-    have hpw' : pw = eb.lamPw := hpw eb (denote_ext hdb hx03)
-    cases pw with
-    | some pwI =>
-      dsimp only
-      split
-      · exact triple_fail
-      · rename_i hz
-        have hz' : (m.pw == pwI) = true := by simpa using hz
-        refine triple_mono (inferLamResult_spec s3 ty bt d m et vbt hok3
-          (denote_ext hdt hx03) hvbt) ?_
-        rintro r s' ⟨hok', hx', hp', hd'⟩
-        exact ⟨hok', hx03.trans hx', hp'.trans hp03, _, hd', hwres, F1 + 1,
-          inferIO_lam_chain hg hF1 hμ hpw'.symm hz'⟩
-    | none =>
-      dsimp only
-      -- stage 5: the leaf's codomain sort
-      have hi5 : ⦃fun s => s = s3⦄
-          (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer (d + 1) bt
-          ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s3.store s'.store ∧
-            s'.pins = s3.pins ∧
-            SimE (ConLeche.inferTypeIO mode env) (d + 1) vbt s'.store r; ⊤⦄ :=
-        hsim.inferIO s3 (d + 1) bt vbt hok3 hvbt hwvbt
-      refine triple_seq hi5 ?_
-      rintro btt s5 ⟨hok5, hx5, hp5, vbtt, hvbtt, hwvbtt, F2, hF2⟩
-      refine triple_seq (ensureSort_ioView_spec hsim s5 (d + 1) btt vbtt hok5
-        hvbtt hwvbtt) ?_
-      rintro vb s6 ⟨hok6, hx6, hp6, U, hU, F3, hF3⟩
-      refine triple_seq (readLevelM_spec s6 vb hok6.caches.readL) ?_
-      rintro lvb s7 ⟨hst7, hm7, hp7, hc7, hl7, hL7⟩
-      have hok7 := CheckOK.ofReadbackFrame hok6
-        (ReadbackFrame.ofReadL hst7 hm7 hp7 hc7 hL7)
-      obtain rfl : lvb = U := Option.some.inj (hl7.symm.trans hU)
-      have hx37 : Ext s3.store s7.store := by
-        rw [hst7]; exact hx5.trans hx6
-      split
-      · exact triple_fail
-      · rename_i hz
-        have hz' : (Level.zeronessOf lvb == m.pw) = true := by simpa using hz
-        refine triple_mono (inferLamResult_spec s7 ty bt d m et vbt hok7
-          (denote_ext hdt (hx03.trans hx37)) (denote_ext hvbt hx37)) ?_
-        rintro r s' ⟨hok', hx', hp', hd'⟩
-        refine ⟨hok', hx03.trans (hx37.trans hx'),
-          hp'.trans (hp7.trans (hp6.trans (hp5.trans hp03))), _, hd', hwres,
-          max F1 (max F2 F3) + 1, ?_⟩
-        exact inferIO_lam_leaf hg (ConLeche.inferTypeIO_mono (by omega) hF1) hμ
-          hpw'.symm (ConLeche.inferTypeIO_mono (by omega) hF2)
-          (ConLeche.whnf_mono (by omega) hF3) hz'
+    refine triple_mono (inferLamResult_spec s3 ty bt d et vbt hok3
+      (denote_ext hdt hx03) hvbt) ?_
+    rintro r s' ⟨hok', hx', hp', hd'⟩
+    exact ⟨hok', hx03.trans hx', hp'.trans hp03, _, hd', hwres, F1 + 1,
+      inferIO_lam hF1⟩
   all_goals
     exfalso
     rw [htag] at htg
@@ -627,7 +550,7 @@ clause**, `inferBody`'s verbatim at the io grade.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (_hg : mode.betaGate = true)     (_hsim : KnotSpec mode env fe fuel)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -684,7 +607,7 @@ literal clauses**, `inferBody`'s verbatim at the io grade.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (_hg : mode.betaGate = true)     (_hsim : KnotSpec mode env fe fuel)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -742,7 +665,7 @@ callee is applied at a subject whose denotation the previous stage NAMED,
 and every callee rule it needs was already closed. -/
 theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true)     (hsim : KnotSpec mode env fe fuel)
+    (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
@@ -911,18 +834,61 @@ theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
 
 #print axioms inferBodyIO_proj
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1267-1270 inferBodyIO — **the `let`
+clause** at the io grade: the body at its value. -/
+theorem inferBodyIO_letE {fe : IFEnv} {fuel : Nat}
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e) (htag : i.tag = ETag.letE) :
+    ⦃fun s => s = s₀⦄
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case letE ty w b =>
+    obtain ⟨et, ew, eb, rfl, _, hdw, hdb⟩ := denote_letE_inv hwf hv hden
+    have hww : Expr.WScoped d ew := by unfold Expr.WScoped at hw; exact hw.2.1
+    have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2.2
+    dsimp only
+    refine triple_seq (instantiate1Fast_ok_spec s₀ b w eb ew hok hdb hdw) ?_
+    rintro ob s1 ⟨hok1, hx1, hp1, hdob⟩
+    have hi : ⦃fun s => s = s1⦄
+        (CoreFnsA.ioView (coreKnot mode fe id fuel)).infer d ob
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s1.store s'.store ∧
+          s'.pins = s1.pins ∧
+          SimE (ConLeche.inferTypeIO mode env) d (eb.instantiate1 ew)
+            s'.store r; ⊤⦄ :=
+      hsim.inferIO s1 d ob _ hok1 hdob (Expr.WScoped.instantiate1_gen hww 0 hwb)
+    refine triple_mono hi ?_
+    rintro r s' ⟨hok', hx', hp', R, hdR, hwR, F, hF⟩
+    exact ⟨hok', hx1.trans hx', hp'.trans hp1, R, hdR, hwR, F + 1,
+      inferIO_letE hF⟩
+  all_goals
+    exfalso
+    rw [htag] at htg
+    simp [ENodeView.tagOf, ETag.proj, ETag.app, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit] at htg
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1295-1298 inferBodyIO — **the leaf
-clauses**: `.sort`, `.fvar`, and the two throws.
+clauses**: `.sort`, `.fvar`, and the throw.
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
-    (_hg : mode.betaGate = true)     (_hsim : KnotSpec mode env fe fuel)
+    (_hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e)
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj)
     (hnf : i.tag ≠ ETag.forallE) (hnm : i.tag ≠ ETag.lam)
-    (hnc : i.tag ≠ ETag.const) (hnl : i.tag ≠ ETag.lit) :
+    (hnc : i.tag ≠ ETag.const) (hnl : i.tag ≠ ETag.lit)
+    (hnlet : i.tag ≠ ETag.letE) :
     ⦃fun s => s = s₀⦄
       inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
@@ -939,7 +905,7 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
   | proj n k sub => exact absurd htg hnp
   | lam ty b => exact absurd htg hnm
   | forallE ty b => exact absurd htg hnf
-  | letE ty w b => vcgen
+  | letE ty w b => exact absurd htg hnlet
   | bvar k => vcgen
   | fvar k t =>
     obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
@@ -986,24 +952,26 @@ this lane's λ clause and the batched-telescope debt of `Infer.lean` does NOT
 apply here. -/
 theorem inferBodyIO_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
-    (hg : mode.betaGate = true) (hsim : KnotSpec mode env fe fuel) :
+    (hsim : KnotSpec mode env fe fuel) :
     BodySpec mode env fe
       (inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe)
       (ConLeche.inferTypeIO mode env) := by
   intro s₀ d i e hok hden hw
   by_cases ha : i.tag = ETag.app
-  · exact inferBodyIO_app henv hμ hg hsim s₀ d i e hok hden hw ha
+  · exact inferBodyIO_app henv hμ hsim s₀ d i e hok hden hw ha
   by_cases hp : i.tag = ETag.proj
-  · exact inferBodyIO_proj henv hμ hg hsim s₀ d i e hok hden hw hp
+  · exact inferBodyIO_proj henv hμ hsim s₀ d i e hok hden hw hp
   by_cases hf : i.tag = ETag.forallE
-  · exact inferBodyIO_forallE henv hμ hg hsim s₀ d i e hok hden hw hf
+  · exact inferBodyIO_forallE henv hμ hsim s₀ d i e hok hden hw hf
   by_cases hm : i.tag = ETag.lam
-  · exact inferBodyIO_lam henv hμ hg hsim s₀ d i e hok hden hw hm
+  · exact inferBodyIO_lam henv hμ hsim s₀ d i e hok hden hw hm
   by_cases hc : i.tag = ETag.const
-  · exact inferBodyIO_const henv hμ hg hsim s₀ d i e hok hden hw hc
+  · exact inferBodyIO_const henv hμ hsim s₀ d i e hok hden hw hc
   by_cases hl : i.tag = ETag.lit
-  · exact inferBodyIO_lit henv hμ hg hsim s₀ d i e hok hden hw hl
-  exact inferBodyIO_leaf henv hμ hg hsim s₀ d i e hok hden hw ha hp hf hm hc hl
+  · exact inferBodyIO_lit henv hμ hsim s₀ d i e hok hden hw hl
+  by_cases hlt : i.tag = ETag.letE
+  · exact inferBodyIO_letE hsim s₀ d i e hok hden hw hlt
+  exact inferBodyIO_leaf henv hμ hsim s₀ d i e hok hden hw ha hp hf hm hc hl hlt
 
 /-! ## The axiom census of the closed children (task #97-P3-Core round 5,
 sub-lane Leaves) -/
