@@ -259,8 +259,6 @@ proof/ConRon/Arena/Denote.lean opt3 T2 As `opt2`: the denotation's own vocabular
 proof/ConRon/Arena/Denote.lean denoteEAux T2 As `opt2`: the denotation's own vocabulary.
 proof/ConRon/Arena/Denote.lean denoteE T2 As `opt2`: the denotation's own vocabulary.
 proof/ConRon/Arena/Denote.lean NExt T2 As `opt2`: the denotation's own vocabulary.
-proof/ConRon/Arena/Store.lean EStore.capOKBM T2 A `Prop` (the binder-datum tier's capacity precondition): bridge vocabulary, nothing the Rust computes.
-proof/ConRon/Arena/Store.lean EStore.capOKBMPersistent T2 As `EStore.capOKBM`.
 
 # -------------------------------------------------------------------------
 # A BRANCH of a twin: the Rust cites the dispatcher, per `twin-lines.py`
@@ -278,9 +276,6 @@ proof/ConRon/Arena/Store.lean EStore.persGetConst T2 As `EStore.persGetApp`: a t
 proof/ConRon/Arena/Store.lean EStore.persGetConstName T2 As `EStore.persGetApp`: a tier arm of the projection above it.
 proof/ConRon/Arena/Store.lean EStore.persGetFVarTy T2 As `EStore.persGetApp`: a tier arm of the projection above it.
 proof/ConRon/Arena/Store.lean EStore.persGetLit T2 As `EStore.persGetApp`: a tier arm of the projection above it.
-proof/ConRon/Arena/Store.lean EStore.persGetBM T2 As `EStore.persGetApp`: a tier arm of the projection above it.
-proof/ConRon/Arena/Store.lean EStore.persGetBMDer T2 As `EStore.persGetApp`: a tier arm of the projection above it.
-proof/ConRon/Arena/Store.lean EStore.persFindBM T2 As `EStore.persGetApp`: a tier arm of the projection above it.
 proof/ConRon/Arena/Store.lean EStore.persFind? T2 As `EStore.persGetApp`: a tier arm of the projection above it.
 proof/ConRon/Arena/Store.lean EStore.scrFind? T2 As `EStore.persGetApp`: a tier arm of the projection above it.
 proof/ConRon/Arena/Store.lean derOfBind T2 One constructor arm of `EStore.derOfView`; `store.rs`'s `der_of_*` cites `EStore.derOfView`, which has the row.
