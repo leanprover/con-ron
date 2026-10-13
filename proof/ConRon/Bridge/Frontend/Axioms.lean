@@ -180,13 +180,13 @@ real work, ten constructors — `parseExprEntryD_run`. -/
 
 `checkDeclsPure_thmDecl_const` and `no_False_theorem_accepted_pure` are the
 one part of the capstone's path that is a con-leche-tier lemma, and they are
-sorry-FREE: `annotateCore_const` is the annotation half and
+sorry-FREE: the stored type is the declared one (con-leche's
+`ConstantValRun`, task #119: no annotation pass) and
 `checkDeclsPure_prefix` replaces con-leche's cached-tier `PushChain` half
 outright (`Bridge/Frontend/Capstone.lean` §2).  Task #97-P3-Frontend's sorry
 list item 24 is therefore discharged, and the upstream ask is the RE-STATEMENT
 (the prefix form), not the proof. -/
 
-#print axioms annotateCore_const
 #print axioms checkDeclsPure_prefix
 #print axioms checkDeclsPure_thmDecl_const
 #print axioms no_False_theorem_accepted_pure
