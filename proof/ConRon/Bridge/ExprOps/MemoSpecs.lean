@@ -304,6 +304,101 @@ reflexive there. -/
   case vc3 => exact hwf
   case vc4 => exact hv
 
+/-! ### The binder intern at the V shape
+
+`internLamE` / `internForallEE` are not `internE`'s faces (they probe the
+binder RECORD), so they get their own view-monotone specs:
+`Bridge/Specs.lean`'s `_spec_view` and `internLamE_ok` / `internForallEE_ok`
+for the monotonicity.  Not `@[spec]`: a walk that wants them says
+`attribute [local spec high] internRebuiltBind_specV`. -/
+
+/-- con-leche: none — `internLamE` with view monotonicity. -/
+theorem internLamE_specV (s₀ : AState) (ty b : EIdx) (hwf : StoreWF s₀.store)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true) :
+    ⦃fun s => s = s₀⦄ internLamE ty b
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        s'.store.view h = some (.lam ty b) ∧
+        denoteE s'.store h = denoteEView s'.store (.lam ty b); ⊤⦄ := by
+  refine AM.triple_of_run_at fun h s' hrun => ?_
+  obtain ⟨p1, p2, p3, p4, p5, p6, p7, p8, p9⟩ :=
+    AM.of_run (P := fun t => t = s₀) rfl hrun (internLamE_spec_view s₀ ty b hwf hty hb)
+  refine ⟨p1, p2, p3, p4, p5, p6, p7, fun j w hj => ?_, p8, p9⟩
+  rcases internLamE_ok hrun with rfl | rfl
+  · exact hj
+  · exact EStore.view_internBind_mono _ _ _ _ hj
+
+/-- con-leche: none — `internForallEE` with view monotonicity. -/
+theorem internForallEE_specV (s₀ : AState) (ty b : EIdx) (hwf : StoreWF s₀.store)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true) :
+    ⦃fun s => s = s₀⦄ internForallEE ty b
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        s'.store.view h = some (.forallE ty b) ∧
+        denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ := by
+  refine AM.triple_of_run_at fun h s' hrun => ?_
+  obtain ⟨p1, p2, p3, p4, p5, p6, p7, p8, p9⟩ :=
+    AM.of_run (P := fun t => t = s₀) rfl hrun
+      (internForallEE_spec_view s₀ ty b hwf hty hb)
+  refine ⟨p1, p2, p3, p4, p5, p6, p7, fun j w hj => ?_, p8, p9⟩
+  rcases internForallEE_ok hrun with rfl | rfl
+  · exact hj
+  · exact EStore.view_internBind_mono _ _ _ _ hj
+
+/-- con-leche: none — the two binder arms at a tag the caller carries, with
+view monotonicity. -/
+theorem internBindE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
+    (hwf : StoreWF s₀.store) (htag : ETag.isBind tag = true)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true) :
+    ⦃fun s => s = s₀⦄ internBindE tag ty b
+    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        s'.store.view h = some (eBindView tag ty b) ∧
+        denoteE s'.store h = denoteEView s'.store (eBindView tag ty b); ⊤⦄ := by
+  rcases ETag.isBind_eq htag with rfl | rfl
+  · simpa [internBindE, eBindView] using internLamE_specV s₀ ty b hwf hty hb
+  · simpa [internBindE, eBindView, ETag.lam, ETag.forallE] using
+      internForallEE_specV s₀ ty b hwf hty hb
+
+/-- con-leche: none — `internRebuiltBind` at the V shape.  The `same = true`
+branch answers the handle it was given, so the view monotonicity is reflexive
+there. -/
+theorem internRebuiltBind_specV (s₀ : AState) (h : EIdx) (same : Bool)
+    (tag : UInt32) (ty b : EIdx) (hwf : StoreWF s₀.store)
+    (htag : ETag.isBind tag = true)
+    (hty : (s₀.store.view ty).isSome = true)
+    (hb : (s₀.store.view b).isSome = true)
+    (hsame : same = true → s₀.store.view h = some (eBindView tag ty b)) :
+    ⦃fun s => s = s₀⦄ internRebuiltBind h same tag ty b
+    ⦃fun r s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
+        s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
+        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
+        (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
+        s'.store.view r = some (eBindView tag ty b) ∧
+        denoteE s'.store r = denoteEView s'.store (eBindView tag ty b); ⊤⦄ := by
+  by_cases hc : same = true
+  · have hprog : internRebuiltBind h same tag ty b = pure h := by
+      simp [internRebuiltBind, hc]
+    rw [hprog]
+    vcgen
+    rename_i s hs
+    subst hs
+    exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, rfl, fun _ _ hj => hj, hsame hc,
+      denoteE_view_eq hwf (hsame hc)⟩
+  · have hprog : internRebuiltBind h same tag ty b = internBindE tag ty b := by
+      simp [internRebuiltBind, hc]
+    rw [hprog]
+    exact internBindE_specV s₀ tag ty b hwf htag hty hb
+
 /-! ### The per-constructor faces, at the V shape
 
 One line each, exactly as `Bridge/Specs.lean`'s are: `internRebuiltX h same
