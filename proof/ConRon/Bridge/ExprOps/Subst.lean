@@ -2,7 +2,7 @@
 # `ConRon.Bridge.ExprOps.Subst` — Theorem 1 for the SUBSTITUTING walks
 
 DESIGN §8.2's Theorem 1 for group A of the `ExprOps` bridge tier (task
-#97-P3-0): `instantiateList`, `liftLooseBVars`, `lowerBVars`,
+#97-P3-0): `instantiateList`, `liftLooseBVars`,
 `instantiate1Lift`, `instPisAtLift` and the three pure `Array` helpers the
 first of them consumes.  `ExprOps/Inst1.lean` is the exemplar and this file
 copies its shape — the `…Spec` record for one level of the recursion, the fuel
@@ -21,8 +21,6 @@ induction, the per-arm `_step` lemmas, the `attribute [-grind]` line, the
 | `instantiateListFast` | :670 | `instantiateListFast_spec`, `_run` |
 | `liftLooseBVarsGo` | :491 | `LiftSpec`, `liftLooseBVarsGo_spec` |
 | `liftLooseBVarsFast` | :552 | `liftLooseBVarsFast_spec`, `_run` |
-| `lowerBVarsGo` | :1700 | `LowerSpec`, `lowerBVarsGo_spec` |
-| `lowerBVarsFast` | :1761 | `lowerBVarsFast_spec`, `_run` |
 | `instantiate1LiftGo` | :1779 | `Inst1LSpec`, `instantiate1LiftGo_spec` |
 | `instantiate1LiftFast` | :1843 | `instantiate1LiftFast_spec`, `_run` |
 | `instPisAtLift` | :3057 | `RelEO.instPisAtLift_{cons,none}`, `instPisAtLift_spec` |
@@ -39,11 +37,9 @@ induction, the per-arm `_step` lemmas, the `attribute [-grind]` line, the
    at the replacement (task #97-P6-9) — and both uses are licensed by it.
 2. **`liftLooseBVarsGo` likewise** (`bvarBRaw < satRange && bvarBRaw ≤ c`):
    `liftLooseBVars_of_bvarBound_le`, the same induction at a different offset.
-3. **`lowerBVarsGo`'s and `instantiate1LiftGo`'s cutoffs ARE con-leche's own**,
-   so their licences are QUOTED, not reproved:
-   `Expr.lowerBVars_of_bvarBound_le` (`ConLeche/Kernel/ExprOps.lean:1959`) and
-   `Expr.instantiate1Lift_of_bvarBound_le` (`:2169`), wrapped as
-   `LowerAt.cutoff` and `Inst1LAt.cutoff`.
+3. **`instantiate1LiftGo`'s cutoff IS con-leche's own**, so its licence is
+   QUOTED, not reproved: `Expr.instantiate1Lift_of_bvarBound_le`, wrapped as
+   `Inst1LAt.cutoff`.
 4. **The substitution vector is an `Array EIdx` in PUSH order** (task
    #97-P6-15, DESIGN §8.6's accumulator ruling): con-leche's `vs[j - d]` is the
    twin's entry `j - d` counted FROM THE END (`ExprOps.lean`'s own note,
@@ -64,14 +60,12 @@ and `instantiateListGo`: one theorem per constructor arm
 level's record as its induction hypothesis and its own tag hypothesis, and a
 dispatcher whose `vcgen` list is the arm theorems.  Two verification
 conditions then survive each dispatcher — the derived-word cutoff and the
-catch-all leaf — against the twenty-odd the inline body left, and the three
+catch-all leaf — against the twenty-odd the inline body left, and the
 goals task #97-P3-0 recorded as open are closed:
 
 * the `.bvar` arm's four branches, through `InstLAt.bvar_{below,cutV,recV,
   aboveV}` and `InstLVec.get'`;
-* the binder arms' `internBindIE` side conditions, through `BMExt`
-  (`Bridge/StoreBM.lean`) — the conjunct every `…Spec` record of this file's
-  two walks now carries;
+* the binder arms, through `view_of_viewBind` and `internBindE`'s spec;
 * `instPisAtLift`'s `cons` step, through `RelEO.instPisAtLift_cons` and
   `RelEO.instPisAtLift_none`.
 
@@ -87,7 +81,7 @@ arms also got the intern's facts as the goal's ANTECEDENTS, to `intro`;
 
 * **A spec parameter the program does not mention was filled in by `mvcgen`
   from the local context** (and is left open by `vcgen`; see below).  `Bridge/Specs.lean`'s four memo-insert specs
-  (`instLSet_spec`, `liftSet_spec`, `lowerSet_spec`, `inst1LSet_spec`) take the
+  (`instLSet_spec`, `liftSet_spec`, `inst1LSet_spec`) take the
   walk's own parameter — `ws`, `amount`, `ve` — as an ordinary argument, and
   `mspec` has nothing to unify it against; in `liftLooseBVarsGo`'s arms it
   picks the cutoff's `bRaw`, and in the `proj` arm the projection index.  The
@@ -98,27 +92,13 @@ arms also got the intern's facts as the goal's ANTECEDENTS, to `intro`;
   `@[spec]` does **not** override an earlier one for the same program.  Under
   `vcgen` (task #111) each walk passes the generic spec INSTANTIATED in its
   `vcgen` list instead.  `liftSet_specG` carries the full note.
-* **`bvarB` is not one of these thirteen twins**, and `lowerBVarsGo` /
-  `instantiate1LiftGo` test it.  Round 3 carried its Theorem 1 as a
+* **`bvarB` is not one of these twins**, and `instantiate1LiftGo` tests it.  Round 3 carried its Theorem 1 as a
   hypothesis `hbb : ∀ f, BvarBSpec (bvarB f)`; **round 4 discharged it**
-  (`bvarB_bvarBSpec`) and deleted every binder, so the four entry points and
+  (`bvarB_bvarBSpec`) and deleted every binder, so the entry points and
   `instPisAtLift_spec` are callable with no hypothesis about `bvarB` at all.
   The discharge was not free: `Bridge/ExprOps/Ranges.lean` had to state the
-  two memo-frame conjuncts `BvarBSpec` asks for and `bvarB_spec` did not
-  (`s'.memos.lowerC` and `s'.memos.inst1LC`) — see §4 of that round.
-* **`BMExt` is in every record of this file** (round 4).  `LiftSpec`,
-  `LowerSpec` and `Inst1LSpec` stated `Ext` and not `BMExt`, where their
-  siblings `InstLPureSpec` / `InstLSpec` state both — and
-  `Bridge/Inductives/Rel.lean`'s `PStep` has a `bm` field, so a
-  `PSpec`-grade twin that lifts could not produce a frame AT ALL
-  (`structIdxAt_spec` and, through it, the Inductives tier's groups 3 and 4
-  and `closeTelescope`).  The conjunct is threaded through the three records,
-  `liftLooseBVarsFast`, `lowerBVarsFast`, `instantiate1LiftFast`,
-  `instantiateListFast` (spec and run form each) and `instPisAtLift_spec`.
-  It cost **one `BMExt.refl _` or one
-  `by grind only [BMExt.trans, BMExt.refl]` per verification condition and
-  nothing else**: `Bridge/Specs.lean`'s intern specs have carried `BMExt`
-  since task #97-P3-1 §3, so the fact was already in every arm's context.
+  memo-frame conjunct `BvarBSpec` asks for and `bvarB_spec` did not
+  (`s'.memos.inst1LC`) — see §4 of that round.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.Ranges
@@ -400,7 +380,8 @@ theorem InstLVec.get {st : EStore} {vs : Array EIdx} {ws : List Expr}
 `instantiateList` and `liftLooseBVars` carry a cutoff con-leche does NOT have
 (`ExprOps.lean`'s module note, "The two derived cutoffs").  Its licence is the
 analogue of `Inst1.lean`'s `instantiate1_of_bvarBound_le` and of con-leche's
-own `lowerBVars_of_bvarBound_le`: the same induction at a different offset. -/
+own `instantiate1Lift_of_bvarBound_le`: the same induction at a different
+offset. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — **the
 first derived cutoff's licence**: a term with no loose `bvar` at or above the
@@ -503,11 +484,6 @@ relation. -/
 abbrev LiftAt (amount c : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
   RelE (Expr.liftLooseBVars amount c)
 
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `lowerBVars`' answer
-relation. -/
-abbrev LowerAt (amount c : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
-  RelE (Expr.lowerBVars amount c)
-
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiate1Lift`'s
 answer relation. -/
 abbrev Inst1LAt (ve : Expr) (d : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
@@ -544,18 +520,6 @@ theorem LiftAt.cutoff {st : EStore} (hwf : StoreWF st) {h : EIdx}
   rw [liftLooseBVars_of_raw_le hsat hle]
   exact he
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1959 lowerBVars_of_bvarBound_le —
-`lowerBVarsGo`'s cutoff arm, which is con-leche's OWN cutoff: the licence is
-quoted, not reproved.  The bound arrives as `bvarB`'s answer relation rather
-than as a derived-word read, because that is what the twin tests. -/
-theorem LowerAt.cutoff {st : EStore} {h : EIdx} {amount c bb : Nat}
-    (hv : RelV Expr.bvarBound st h bb) (hle : bb ≤ c + amount) :
-    LowerAt amount c st h st h := by
-  intro e he
-  show denoteE st h = some (Expr.lowerBVars amount c e)
-  rw [Expr.lowerBVars_of_bvarBound_le e amount c (by rw [← hv e he]; exact hle)]
-  exact he
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2169 instantiate1Lift_of_bvarBound_le
 — `instantiate1LiftGo`'s cutoff arm, con-leche's own, quoted. -/
 theorem Inst1LAt.cutoff {st : EStore} {h : EIdx} {ve : Expr} {d bb : Nat}
@@ -569,7 +533,7 @@ theorem Inst1LAt.cutoff {st : EStore} {h : EIdx} {ve : Expr} {d bb : Nat}
 
 /-! ## G2. The leaf and `bvar` arms of a view-dispatching walk
 
-`liftLooseBVarsGo`, `lowerBVarsGo` and `instantiate1LiftGo` dispatch on the
+`liftLooseBVarsGo` and `instantiate1LiftGo` dispatch on the
 whole `view`, so their four leaf arms and their `bvar` arm arrive with the
 view in hand and are closed by one lemma each rather than by the tag
 calculus. -/
@@ -604,15 +568,6 @@ theorem liftLooseBVars_leaf {amount c : Nat} {e : Expr}
   rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ <;>
     simp [Expr.liftLooseBVars]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:704-716 lowerBVars — the identity
-on leaves. -/
-theorem lowerBVars_leaf {amount c : Nat} {e : Expr}
-    (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
-      (∃ n us, e = .const n us) ∨ ∃ l, e = .lit l) :
-    Expr.lowerBVars amount c e = e := by
-  rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ <;>
-    simp [Expr.lowerBVars]
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:722-739 instantiate1Lift — the
 identity on leaves. -/
 theorem instantiate1Lift_leaf {ve : Expr} {d : Nat} {e : Expr}
@@ -643,30 +598,6 @@ theorem LiftAt.bvar_self {st : EStore} {h : EIdx} {amount c i : Nat}
   obtain rfl := denote_bvar_inv hwf hview he
   show denoteE st h = some (Expr.liftLooseBVars amount c (.bvar i))
   simp only [Expr.liftLooseBVars, ite_eq_right hlt]
-  exact he
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:705 lowerBVars — the `.bvar` arm's
-LOWERING branch. -/
-theorem LowerAt.bvar_down {st st' : EStore} {h r : EIdx} {amount c i : Nat}
-    (hwf : StoreWF st) (hview : st.view h = some (.bvar i))
-    (hge : i ≥ c + amount)
-    (hr : denoteE st' r = denoteEView st' (.bvar (i - amount))) :
-    LowerAt amount c st h st' r := by
-  intro e he
-  obtain rfl := denote_bvar_inv hwf hview he
-  show denoteE st' r = some (Expr.lowerBVars amount c (.bvar i))
-  rw [hr]
-  simp [Expr.lowerBVars, hge, denoteEView]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:705 lowerBVars — the `.bvar` arm's
-IDENTITY branch. -/
-theorem LowerAt.bvar_self {st : EStore} {h : EIdx} {amount c i : Nat}
-    (hwf : StoreWF st) (hview : st.view h = some (.bvar i))
-    (hlt : ¬ (i ≥ c + amount)) : LowerAt amount c st h st h := by
-  intro e he
-  obtain rfl := denote_bvar_inv hwf hview he
-  show denoteE st h = some (Expr.lowerBVars amount c (.bvar i))
-  simp only [Expr.lowerBVars, ite_eq_right hlt]
   exact he
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:724-726 instantiate1Lift — the
@@ -714,10 +645,9 @@ theorem Inst1LAt.bvar_self {st : EStore} {h : EIdx} {ve : Expr} {d i : Nat}
 in the shape the verification-condition generator produces (task #97s round 2,
 item 3).
 
-The three walks that dispatch on `view` (`liftLooseBVarsGo`, `lowerBVarsGo`,
+The two walks that dispatch on `view` (`liftLooseBVarsGo`,
 `instantiate1LiftGo`) hand their arm the view DIRECTLY, so they need no `_tag`
-variant and no `viewBM` detour — which is why they carry none of `Inst1.lean`'s
-binder-arm gaps.  The two that dispatch on the TAG (`instantiateList`,
+variant.  The two that dispatch on the TAG (`instantiateList`,
 `instantiateListGo`) use `Inst1.lean`'s `_tag` shape. -/
 
 section Steps
@@ -757,17 +687,17 @@ theorem InstLAt.bind_step {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx} {tg
       ((ht.ext hx2).ext hx3) ((hb.of_ext hx1).ext hx3) hr
 
 theorem InstLAt.bind_step' {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx}
-    {mi : BMIdx} {tg : UInt32} (hwf : StoreWF st)
+    {tg : UInt32} (hwf : StoreWF st)
     (htg : ETag.isBind tg = true) (htg2 : tg = h.tag)
-    (hvb : some (ty, b, mi) = st.viewBindI h) (hbm : st.viewBM mi = some m)
+    (hvb : some (ty, b) = st.viewBind h)
     (hx1 : Ext st s1) (ht : InstLAt ws d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLAt ws (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
     (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     InstLAt ws d st h s3 r := by
   refine InstLAt.bind_step hwf htg ?_ hx1 ht hx2 hb hx3 hr
-  rw [htg2] at htg ⊢
-  exact view_of_viewBindI htg hvb.symm hbm
+  rw [htg2]
+  exact view_of_viewBind hvb.symm
 
 theorem InstLAt.letE_step {ws : List Expr} {d : Nat}
     {h ty w b rt rw rb r : EIdx} (hwf : StoreWF st)
@@ -863,60 +793,6 @@ theorem LiftAt.proj_step {amount c : Nat} {h sub rs r : EIdx} {n : NIdx}
   RelE.proj hwf hview (fun _ => rfl) (hs.ext hx2) hn0
     (denoteN_ext (denoteN_ext hn0 hx1) hx2) hr
 
-/-! ### `lowerBVars` -/
-
-theorem LowerAt.app_step {amount c : Nat} {h f a rf ra r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.app f a))
-    (hx1 : Ext st s1) (hf : LowerAt amount c st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : LowerAt amount c s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    LowerAt amount c st h s3 r :=
-  RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
-    ((ha.of_ext hx1).ext hx3) hr
-
-theorem LowerAt.lam_step {amount c : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b))
-    (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
-    LowerAt amount c st h s3 r :=
-  RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-    ((hb.of_ext hx1).ext hx3) hr
-
-theorem LowerAt.forallE_step {amount c : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b))
-    (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
-    LowerAt amount c st h s3 r :=
-  RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-    ((hb.of_ext hx1).ext hx3) hr
-
-theorem LowerAt.letE_step {amount c : Nat} {h ty w b rt rw rb r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.letE ty w b))
-    (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : LowerAt amount c s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : LowerAt amount (c + 1) s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    LowerAt amount c st h s4 r :=
-  RelE.letE hwf hview (fun _ _ _ => rfl) (((ht.ext hx2).ext hx3).ext hx4)
-    (((hw.of_ext hx1).ext hx3).ext hx4)
-    ((hb.of_ext (hx1.trans hx2)).ext hx4) hr
-
-theorem LowerAt.proj_step {amount c : Nat} {h sub rs r : EIdx} {n : NIdx}
-    {i : Nat} {nm : ConLeche.Name} (hwf : StoreWF st)
-    (hview : st.view h = some (.proj n i sub))
-    (hx1 : Ext st s1) (hs : LowerAt amount c st sub s1 rs)
-    (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : LowerAt amount c st h s2 r :=
-  RelE.proj hwf hview (fun _ => rfl) (hs.ext hx2) hn0
-    (denoteN_ext (denoteN_ext hn0 hx1) hx2) hr
-
 /-! ### `instantiate1Lift` -/
 
 theorem Inst1LAt.app_step {ve : Expr} {d : Nat} {h f a rf ra r : EIdx}
@@ -976,9 +852,9 @@ end Steps
 
 /-! ## H2. The store-equality casts, and the view-FIRST arm lemmas
 
-`lowerBVarsGo` and `instantiate1LiftGo` read con-leche's `bvarB` before they
-read the node, and `bvarB` moves the STATE (`bvarBoundMemo` clears its own
-memo) while leaving the STORE alone.  Every arm of those two walks therefore
+`instantiate1LiftGo` reads con-leche's `bvarB` before it reads the node, and
+`bvarB` moves the STATE (`bvarBoundMemo` clears its own memo) while leaving
+the STORE alone.  Every arm of that walk therefore
 proves its answer at a store that is *equal* to, but not syntactically, the
 one its statement names.  Two one-line casts absorb that, and the arm lemmas
 below take the VIEW first so that `assumption` pins the store before it is
@@ -1001,61 +877,6 @@ theorem RelE.leaf_viewV {f : Expr -> Expr} {st : EStore} {h : EIdx}
     (hleaf : (∃ k t, v = .fvar k t) ∨ (∃ u, v = .sort u) ∨
       (∃ n us, v = .const n us) ∨ ∃ l, v = .lit l) : RelE f st h st h :=
   RelE.leaf_view hwf hview hid hleaf
-
-/-- con-leche: none — the `app` arm, view first. -/
-theorem LowerAt.app_stepV {amount c : Nat} {st s1 s2 s3 : EStore}
-    {h f a rf ra r : EIdx} (hview : st.view h = some (.app f a))
-    (hwf : StoreWF st)
-    (hx1 : Ext st s1) (hf : LowerAt amount c st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : LowerAt amount c s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    LowerAt amount c st h s3 r :=
-  LowerAt.app_step hwf hview hx1 hf hx2 ha hx3 hr
-
-/-- con-leche: none — the `lam` arm, view first. -/
-theorem LowerAt.lam_stepV {amount c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx}
-    (hview : st.view h = some (.lam ty b)) (hwf : StoreWF st)
-    (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
-    LowerAt amount c st h s3 r :=
-  LowerAt.lam_step hwf hview hx1 ht hx2 hb hx3 hr
-
-/-- con-leche: none — the `forallE` arm, view first. -/
-theorem LowerAt.forallE_stepV {amount c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx}
-    (hview : st.view h = some (.forallE ty b)) (hwf : StoreWF st)
-    (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
-    LowerAt amount c st h s3 r :=
-  LowerAt.forallE_step hwf hview hx1 ht hx2 hb hx3 hr
-
-/-- con-leche: none — the `letE` arm, view first. -/
-theorem LowerAt.letE_stepV {amount c : Nat} {st s1 s2 s3 s4 : EStore}
-    {h ty w b rt rw rb r : EIdx}
-    (hview : st.view h = some (.letE ty w b)) (hwf : StoreWF st)
-    (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : LowerAt amount c s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : LowerAt amount (c + 1) s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    LowerAt amount c st h s4 r :=
-  LowerAt.letE_step hwf hview hx1 ht hx2 hw hx3 hb hx4 hr
-
-/-- con-leche: none — the `proj` arm, view first. -/
-theorem LowerAt.proj_stepV {amount c : Nat} {st s1 s2 : EStore}
-    {h sub rs r : EIdx} {n : NIdx} {i : Nat} {nm : ConLeche.Name}
-    (hview : st.view h = some (.proj n i sub)) (hwf : StoreWF st)
-    (hx1 : Ext st s1) (hs : LowerAt amount c st sub s1 rs)
-    (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : LowerAt amount c st h s2 r :=
-  LowerAt.proj_step hwf hview hx1 hs hx2 hr hn0
 
 /-- con-leche: none — the `app` arm, view first. -/
 theorem Inst1LAt.app_stepV {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
@@ -1111,19 +932,6 @@ theorem Inst1LAt.proj_stepV {ve : Expr} {d : Nat} {st s1 s2 : EStore}
     (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
     (hn0 : denoteN st.ns n = some nm) : Inst1LAt ve d st h s2 r :=
   Inst1LAt.proj_step hwf hview hx1 hs hx2 hr hn0
-
-/-- con-leche: none — `LowerAt.bvar_down`, view first. -/
-theorem LowerAt.bvar_downV {st st' : EStore} {h r : EIdx} {amount c i : Nat}
-    (hview : st.view h = some (.bvar i)) (hwf : StoreWF st)
-    (hge : i ≥ c + amount)
-    (hr : denoteE st' r = denoteEView st' (.bvar (i - amount))) :
-    LowerAt amount c st h st' r := LowerAt.bvar_down hwf hview hge hr
-
-/-- con-leche: none — `LowerAt.bvar_self`, view first. -/
-theorem LowerAt.bvar_selfV {st : EStore} {h : EIdx} {amount c i : Nat}
-    (hview : st.view h = some (.bvar i)) (hwf : StoreWF st)
-    (hlt : ¬ (i ≥ c + amount)) : LowerAt amount c st h st h :=
-  LowerAt.bvar_self hwf hview hlt
 
 /-- con-leche: none — `Inst1LAt.bvar_subst`, view first. -/
 theorem Inst1LAt.bvar_substV {st st' : EStore} {h r : EIdx} {ve : Expr}
@@ -1295,7 +1103,7 @@ theorem InstLAt.bvar_aboveV {st st' : EStore} (hwf : StoreWF st) {c r : EIdx}
 
 /-! ## I. `bvarB`'s Theorem 1, as the two con-leche cutoffs consume it
 
-`lowerBVarsGo` and `instantiate1LiftGo` test con-leche's own `bvarB` — the
+`instantiate1LiftGo` tests con-leche's own `bvarB` — the
 packed field, or the memoized recomputation on the saturated branch
 (`Arena/ExprOps.lean:1486`).  **`bvarB` is not one of this file's thirteen
 twins**: it belongs to the packed-range group.  Round 3 carried its Theorem 1
@@ -1305,7 +1113,7 @@ was open; round 4 **discharged** it from `ExprOps/Ranges.lean`'s `bvarB_spec`
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — Theorem 1 for
 `bvarB`, in the shape the two cutoff walks need: the answer is
-`Expr.bvarBound`, the store stands still, and the walks' own memo tables are
+`Expr.bvarBound`, the store stands still, and the walk's own memo table is
 untouched (`bvarBoundMemo` clears only `bvarBC`). -/
 structure BvarBSpec (prog : EIdx → AM Nat) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx), StateOK s₁ →
@@ -1313,22 +1121,22 @@ structure BvarBSpec (prog : EIdx → AM Nat) : Prop where
     ⦃fun s => s = s₁⦄ prog c
     ⦃fun r s' => StateOK s' ∧ StoreWF s'.store ∧ s'.store = s₁.store ∧
         s'.caches = s₁.caches ∧
-        s'.pins = s₁.pins ∧ s'.memos.lowerC = s₁.memos.lowerC ∧
+        s'.pins = s₁.pins ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
         RelV Expr.bvarBound s₁.store c r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — **`BvarBSpec`,
 discharged**, from `ExprOps/Ranges.lean`'s `bvarB_spec`.
 
-Two of `BvarBSpec`'s eight conjuncts are free of the packed-range group's own
+Two of `BvarBSpec`'s seven conjuncts are free of the packed-range group's own
 statement: `StateOK s'` and `StoreWF s'.store` are `hok` transported along
 `s'.store = s₁.store`, because `Bridge/StateOK.lean`'s `StateOK` is the single
-field `StoreWF s.store`.  The other six have to BE `bvarB_spec`'s, and the two
-memo-frame ones (`lowerC`, `inst1LC`) were the gap round 4 closed: `bvarB`
-clears and refills `memos.bvarBC` and touches no other table, and the whole
-chain (`bvarBClear_spec`, `bvarBSet_spec`) hands back a RECORD update
-`{ memos with bvarBC := _ }`, so both conjuncts are a projection away —
-but only once the two `Ranges.lean` statements say so. -/
+field `StoreWF s.store`.  The other five have to BE `bvarB_spec`'s, and the
+memo-frame one (`inst1LC`) was the gap round 4 closed: `bvarB` clears and
+refills `memos.bvarBC` and touches no other table, and the whole chain
+(`bvarBClear_spec`, `bvarBSet_spec`) hands back a RECORD update
+`{ memos with bvarBC := _ }`, so the conjunct is a projection away — but only
+once the `Ranges.lean` statements say so. -/
 theorem bvarB_bvarBSpec (fuel : Nat) : BvarBSpec (bvarB fuel) := by
   constructor
   intro s₁ c hok hden
@@ -1412,8 +1220,7 @@ by induction on `Expr` at `Expr.bvarBRaw_exact`'s guard.  Everything else is
 clause for clause.
 
 Unlike `instantiate1Go`, this walk dispatches on the whole `view`, so its ten
-arms arrive with the node view in hand: no `_tag` lemma, no `viewBM` detour,
-and therefore none of `Inst1.lean`'s binder-arm gaps. -/
+arms arrive with the node view in hand: no `_tag` lemma. -/
 theorem liftLooseBVarsGo_spec (amount : Nat) :
     ∀ fuel, LiftSpec amount (liftLooseBVarsGo amount fuel) := by
   intro fuel
@@ -1438,8 +1245,8 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
         LiftAt.cutoff hok.wf (by grind) (by grind)⟩
     -- `bvar`, the branch that interns the lifted index
     case vc2 =>
-      rename_i hwf2 hx hbm _hlss _hscr hmem hcc hpp _hvw hrr _hle _hv
-      exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, hbm, hcc, hpp,
+      rename_i hwf2 hx _hlss _hscr hmem hcc hpp _hvw hrr _hle _hv
+      exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, hcc, hpp,
         by rw [hmem], LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hrr⟩
     -- `bvar`, the branch below the cutoff
     case vc5 =>
@@ -1471,34 +1278,34 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       · exact LiftAt.lam_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
       · grind only [Ext.trans]
     -- `forallE`: the arm's postcondition, then the memo insert's answer
-    case vc37 =>
+    case vc38 =>
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
         by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    case vc40 =>
+    case vc41 =>
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
       · grind only [Ext.trans]
     -- `letE`: the arm's postcondition, then the memo insert's answer
-    case vc50 =>
+    case vc52 =>
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
         by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    case vc53 =>
+    case vc55 =>
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
       · grind only [Ext.trans]
     -- `proj`: the arm's postcondition, then the memo insert's answer
-    case vc66 =>
+    case vc68 =>
       obtain ⟨nm, es, _, hn0, _⟩ :=
         denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
         by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
-    case vc69 =>
+    case vc71 =>
       obtain ⟨nm, es, _, hn0, _⟩ :=
         denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
       refine RelE.retarget ?_ ?_ hden
@@ -1524,7 +1331,7 @@ theorem liftLooseBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState}
     {e r : EIdx} (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (liftLooseBVarsFast fuel amount c e).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧
       s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.liftC = ∅ ∧
       s'.memos.inst1LC = s₀.memos.inst1LC ∧
@@ -1533,24 +1340,6 @@ theorem liftLooseBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState}
     (liftLooseBVarsFast_spec fuel amount c s₀ e hok hden)
 
 /-! ## K. Theorem 1 for `lowerBVars`, `instantiate1Lift` and `instPisAtLift` -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1995-1997 LowerMemoInv — the memo
-insert's spec for `lowerC`, generic in the pure function (see
-`liftSet_specG`). -/
-@[spec high] theorem lowerSet_specG (s₀ : AState) (f : Nat → Expr → Expr)
-    (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s₀.memos.lowerC s₀.store)
-    (hk : (denoteE s₀.store k.1).isSome = true)
-    (hr : RelE (f k.2) s₀.store k.1 s₀.store r) :
-    ⦃fun s => s = s₀⦄ lowerSet k r
-    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with lowerC := s₀.memos.lowerC.insert k r } ∧
-        MemoOK f s'.memos.lowerC s'.store; ⊤⦄ := by
-  unfold lowerSet
-  dsimp only
-  vcgen
-  all_goals (bridge_peel; subst_vars)
-  all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv — the memo
 insert's spec for `inst1LC`, generic in the pure function (see
@@ -1569,127 +1358,6 @@ insert's spec for `inst1LC`, generic in the pure function (see
   vcgen
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
-
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
-one level of `lowerBVarsGo`'s recursion. -/
-structure LowerSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
-  run : ∀ (s₁ : AState) (c : EIdx) (cc : Nat), StateOK s₁ →
-    LowerMemoA amount s₁ → (denoteE s₁.store c).isSome = true →
-    ⦃fun s => s = s₁⦄ rec c cc
-    ⦃fun r s' => StateOK s' ∧ LowerMemoA amount s' ∧ Ext s₁.store s'.store ∧
-        s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
-        LowerAt amount cc s₁.store c s'.store r; ⊤⦄
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:694-716 lowerBVars
-con-leche: ConLeche/Kernel/ExprOps.lean:2014-2051 lowerBVarsGo
-**THEOREM 1 for `lowerBVars`**, at one level of the recursion.
-
-The cutoff is **con-leche's own** (`bvarB ≤ c + amount`), so its licence is
-QUOTED and not reproved: `Expr.lowerBVars_of_bvarBound_le`
-(`ConLeche/Kernel/ExprOps.lean:1959`), wrapped as `LowerAt.cutoff`.
-
-`bvarB_bvarBSpec` is `bvarB`'s Theorem 1, quoted (round 3 carried it as a
-hypothesis, because `bvarB` — `Arena/ExprOps.lean:1486` — is not one of this
-file's thirteen twins; see `BvarBSpec` above).  Its one cost in the proof is
-that every arm's `view` read happens at the state `bvarB` returned, whose
-store is *equal to* but not syntactically `s₁.store`; `RelE.src_eq` /
-`RelE.tgt_eq` and the view-first arm lemmas absorb that. -/
-theorem lowerBVarsGo_spec (amount : Nat) :
-    ∀ fuel, LowerSpec amount (lowerBVarsGo amount fuel) := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    constructor
-    intro s₀ h c _ _ _
-    vcgen [lowerBVarsGo_zero]
-    all_goals bridge_vcs [Expr.lowerBVars]
-  | succ fuel ih =>
-    constructor
-    intro s₀ h c hok hm hden
-    have hrec := ih.run
-    have hbbr := (bvarB_bvarBSpec fuel).run
-    vcgen [lowerBVarsGo_succ, lowerArmApp, lowerArmLam, lowerArmForallE,
-      lowerArmLet, lowerArmProj, hrec, hbbr,
-      lowerSet_specG (f := fun c e => Expr.lowerBVars amount c e)]
-    all_goals try bridge_vcs [Expr.lowerBVars]
-    all_goals clear hbbr
-    all_goals (bridge_peel; subst_vars)
-    -- the `bvarB` cutoff, which is con-leche's own
-    case vc1 =>
-      refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl],
-        by grind, by grind, ?_⟩
-      exact RelE.tgt_eq (by subst_hyp)
-        (LowerAt.cutoff (by subst_hyp) (by subst_hyp))
-    -- `bvar`, the branch that interns the lowered index
-    case vc2 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp)
-        (LowerAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp)
-          (by subst_hyp))
-    -- `bvar`, inside the window
-    case vc5 =>
-      refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl],
-        by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp)
-        (LowerAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    -- the four leaves
-    case vc6 | vc7 | vc8 | vc9 =>
-      refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl],
-        by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp)
-        (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
-          (fun _ hh => lowerBVars_leaf hh) (by grind))
-    -- `app`, `lam`, `forallE`, `letE`, `proj`: each arm's postcondition, then the
-    -- memo insert's answer
-    case vc11 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (LowerAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc14 =>
-      exact RelE.retarget (LowerAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc24 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (LowerAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc27 =>
-      exact RelE.retarget (LowerAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc37 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (LowerAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc40 =>
-      exact RelE.retarget (LowerAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc50 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (LowerAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc53 =>
-      exact RelE.retarget (LowerAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc66 =>
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (LowerAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
-    case vc69 =>
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
-      exact RelE.retarget (LowerAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
-        (by grind only [Ext.trans]) (by grind)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `instantiate1LiftGo`'s recursion. -/
@@ -1746,12 +1414,11 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
         (Inst1LAt.cutoff (by subst_hyp) (by subst_hyp))
     -- `bvar`, the SUBSTITUTING branch: the nested `liftLooseBVarsFast`
     case vc2 =>
-      rename_i hans _ _ _ _ _ _ _ _
       refine ⟨by assumption, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_substV (by subst_hyp) (by subst_hyp) (by subst_hyp)
-          (hans ve (by grind)))
+          (‹LiftAt _ 0 _ v _ _› ve (by grind)))
     -- `bvar`, the branch that interns the lowered index
     case vc5 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
@@ -1794,60 +1461,34 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc32 =>
       exact RelE.retarget (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
         (by grind only [Ext.trans]) (by grind)
-    case vc44 =>
+    case vc45 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc47 =>
+    case vc48 =>
       exact RelE.retarget (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
         (by grind only [Ext.trans]) (by grind)
-    case vc59 =>
+    case vc61 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc62 =>
+    case vc64 =>
       exact RelE.retarget (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
         (by grind only [Ext.trans]) (by grind)
-    case vc78 =>
+    case vc80 =>
       obtain ⟨nm, es, _, hn0, _⟩ :=
         denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
         by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
-    case vc81 =>
+    case vc83 =>
       obtain ⟨nm, es, _, hn0, _⟩ :=
         denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       exact RelE.retarget (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
         (by grind only [Ext.trans]) (by grind)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2146-2148 lowerBVarsFast —
-**THEOREM 1 for `lowerBVars`, at the entry point**. -/
-theorem lowerBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
-    (hok : StateOK s₀)
-    (hden : (denoteE s₀.store e).isSome = true) :
-    ⦃fun s => s = s₀⦄ lowerBVarsFast fuel amount c e
-    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        s'.memos.lowerC = ∅ ∧ LowerAt amount c s₀.store e s'.store r; ⊤⦄ := by
-  have hr := (lowerBVarsGo_spec amount fuel).run
-  vcgen [lowerBVarsFast, hr]
-  all_goals bridge_vcs [Expr.lowerBVars]
-
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
-a RUN. -/
-theorem lowerBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
-    (hok : StateOK s₀)
-    (hden : (denoteE s₀.store e).isSome = true)
-    (hrun : (lowerBVarsFast fuel amount c e).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
-      s'.caches = s₀.caches ∧
-      s'.pins = s₀.pins ∧ s'.memos.lowerC = ∅ ∧
-      LowerAt amount c s₀.store e s'.store r :=
-  AM.of_run (P := fun s => s = s₀) rfl hrun
-    (lowerBVarsFast_spec fuel amount c s₀ e hok hden)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
 **THEOREM 1 for `instantiate1Lift`, at the entry point**. -/
@@ -1870,7 +1511,7 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiate1LiftFast fuel e v d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧
       s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.inst1LC = ∅ ∧
       Inst1LAt ve d s₀.store e s'.store r :=
@@ -1896,7 +1537,7 @@ step at a NON-`∀` head: con-leche's own catch-all clause answers `none`, and
 so does the twin. -/
 theorem RelEO.instPisAtLift_none {st st' : EStore} (hwf : StoreWF st)
     {c : EIdx} {vw : ENodeView} (hview : st.view c = some vw)
-    (hne : ∀ ty b m, vw ≠ .forallE ty b) {ea : Expr} {eas : List Expr} :
+    (hne : ∀ ty b, vw ≠ .forallE ty b) {ea : Expr} {eas : List Expr} :
     RelEO (fun e => Expr.instPisAtLift (ea :: eas) e) st c st' none := by
   intro e he
   rw [denoteE_view_eq hwf hview] at he
@@ -1964,7 +1605,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
       next =>
         bridge_peel
         subst_vars
-        rename_i hx2 _ _ _ _ _ _
+        rename_i hx2 _ _ _ _ _
         rw [denoteEList_ext hx2 _ _ heas]
         rfl
       next =>
@@ -2014,11 +1655,7 @@ Two departures from `Inst1.lean`'s `Inst1Spec`, both forced by this walk:
 * `s'.memos = s₁.memos` rather than a memo invariant: this walk is the
   unmemoized one and touches no table at all, and `instantiateListGo`'s
   `.bvar` branch needs exactly that frame to carry `InstLMemoA ws` across it.
-
-`BMExt` (task #97-P3-1, `Bridge/StoreBM.lean`) is the binder-datum store's own
-extension, which `Ext` cannot say because a `BMIdx` denotes nothing; it is
-what closes the binder arm, whose `internBindIE` precondition is asked at the
-store the two recursive calls left behind. -/
+ -/
 structure InstLPureSpec (vs : Array EIdx) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ →
@@ -2053,8 +1690,7 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
-BINDER ARM (`lam` and `forallE` in one, as the tag dispatch tests them).  The
-datum survives the two recursive calls by `BMExt` (task #97-P3-1). -/
+BINDER ARM (`lam` and `forallE` in one, as the tag dispatch tests them). -/
 theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (ih : InstLPureSpec vs ws (instantiateList vs fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hvec : InstLVec s₁.store vs ws)
@@ -2068,27 +1704,22 @@ theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   vcgen [instListArmBind, hrec]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  all_goals obtain ⟨mm, hbm, _htag0, hvw⟩ :=
-    view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
-  -- the arm's postcondition, through `internBindIE`'s answer
-  case vc1 =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-    refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) ?_
-    grind
-  -- `internBindIE`'s three side conditions.  The datum survives the two
-  -- recursive calls by `BMExt` — the conjunct `Bridge/StoreBM.lean` exists
-  -- for, and the reason task #97-P3-0 left this arm open.
-  case vc5 => grind [BMExt.get]
-  case vc6 | vc7 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    exact view_isSome (by grind)
-  -- the two recursive calls' subjects denote
-  case vc10 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    grind
-  case vc13 => exact (isSome_eBindView hok.wf hvw hden).1
+  all_goals have hvw := view_of_viewBind (i := c) (Eq.symm ‹some _ = EStore.viewBind _ c›)
+  all_goals first
+    -- the arm's postcondition, through `internBindE`'s answer
+    | (refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind,
+         by grind, by grind, ?_⟩
+       refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp)
+         (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+         (by subst_hyp) ?_
+       grind)
+    -- `internBindE`'s side conditions: the rebuilt children have views
+    | (have h2 := isSome_eBindView hok.wf hvw hden
+       exact view_isSome (by grind))
+    -- the two recursive calls' subjects denote
+    | exact (isSome_eBindView hok.wf hvw hden).1
+    | (have h2 := isSome_eBindView hok.wf hvw hden
+       grind)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `letE` ARM; the body descends at `dd + 1`. -/
@@ -2173,7 +1804,7 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   -- vector.
   next =>
     exact ⟨by assumption, by assumption, by assumption, by assumption,
-      by assumption, by assumption,
+      by assumption,
       InstLAt.bvar_recV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
         (by subst_hyp) (by assumption)⟩
   -- that recursion's subject denotes.
@@ -2245,8 +1876,7 @@ theorem instantiateList_spec :
 one level of the MEMOIZED `instantiateListGo`'s recursion.  The memo table is
 keyed for ONE substitution list (`InstLMemoA ws`) and this walk never shortens
 it — the shortening `.bvar` arm is the unmemoized walk, called by name — so
-the record carries the invariant where the pure walk carries a memo frame.
-`BMExt` is here for the binder arm, exactly as in `InstLPureSpec`. -/
+the record carries the invariant where the pure walk carries a memo frame. -/
 structure InstLSpec (vs : Array EIdx) (ws : List Expr)
     (rec : EIdx → Nat → AM EIdx) : Prop where
   run : ∀ (s₁ : AState) (c : EIdx) (dd : Nat), StateOK s₁ → InstLMemoA ws s₁ →
@@ -2289,7 +1919,7 @@ theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     · grind only [Ext.trans]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
-BINDER ARM, the one `BMExt` exists for (task #97-P3-1). -/
+BINDER ARM. -/
 theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (ih : InstLSpec vs ws (instantiateListGo vs fuel)) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : InstLMemoA ws s₁)
@@ -2305,36 +1935,29 @@ theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
   all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  all_goals obtain ⟨mm, hbm, _htag0, hvw⟩ :=
-    view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
-  -- the arm's postcondition, then the memo insert's answer
-  case vc2 =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) ?_
-    grind
-  case vc5 =>
-    refine RelE.retarget ?_ ?_ hden
-    · refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
-        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) ?_
-      grind
-    · grind only [Ext.trans]
-  -- `internBindIE`'s three side conditions.  The datum survives the two
-  -- recursive calls by `BMExt` — the conjunct `Bridge/StoreBM.lean` exists
-  -- for, and the reason task #97-P3-0 left this arm open.
-  case vc9 => grind [BMExt.get]
-  case vc10 | vc11 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    exact view_isSome (by grind)
-  -- the two recursive calls' subjects denote
-  case vc15 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    grind
-  case vc19 => exact (isSome_eBindView hok.wf hvw hden).1
+  all_goals have hvw := view_of_viewBind (i := c) (Eq.symm ‹some _ = EStore.viewBind _ c›)
+  all_goals first
+    -- the arm's postcondition, then the memo insert's answer
+    | (refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
+         by grind only [Ext.trans],
+         by grind, by grind, ?_⟩
+       refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp)
+         (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+         (by subst_hyp) ?_
+       grind)
+    | (refine RelE.retarget ?_ ?_ hden
+       · refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp)
+           (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+           (by subst_hyp) ?_
+         grind
+       · grind only [Ext.trans])
+    -- `internBindE`'s side conditions: the rebuilt children have views
+    | (have h2 := isSome_eBindView hok.wf hvw hden
+       exact view_isSome (by grind))
+    -- the two recursive calls' subjects denote
+    | exact (isSome_eBindView hok.wf hvw hden).1
+    | (have h2 := isSome_eBindView hok.wf hvw hden
+       grind)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `letE` ARM; the body descends at `dd + 1`. -/
@@ -2465,7 +2088,7 @@ theorem instantiateListFast_run {fuel : Nat} {s₀ s' : AState} {e r : EIdx}
     (hvec : InstLVec s₀.store vs ws)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiateListFast fuel e vs d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧
       s'.caches = s₀.caches ∧
       s'.pins = s₀.pins ∧ s'.memos.instLC = ∅ ∧
       InstLAt ws d s₀.store e s'.store r :=
@@ -2488,19 +2111,14 @@ name. -/
 #print axioms InstLVec.last
 #print axioms InstLAt.cutoff
 #print axioms LiftAt.cutoff
-#print axioms LowerAt.cutoff
 #print axioms Inst1LAt.cutoff
 #print axioms liftSet_specG
-#print axioms lowerSet_specG
 #print axioms inst1LSet_specG
 #print axioms instLSet_specG
 #print axioms bvarB_bvarBSpec
 #print axioms liftLooseBVarsGo_spec
 #print axioms liftLooseBVarsFast_spec
 #print axioms liftLooseBVarsFast_run
-#print axioms lowerBVarsGo_spec
-#print axioms lowerBVarsFast_spec
-#print axioms lowerBVarsFast_run
 #print axioms instantiate1LiftGo_spec
 #print axioms instantiate1LiftFast_spec
 #print axioms instantiate1LiftFast_run
