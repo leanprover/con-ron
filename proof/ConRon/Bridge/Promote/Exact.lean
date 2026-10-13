@@ -65,12 +65,12 @@ checks the same term phase A installed.
 PROVED (task #97-P3-Promote): `promoteVG_step`. -/
 theorem promoteVG_spec {m m' : PMemo} {fuel : Nat} {g g' : Arena.ValueGroup}
     {c : ConstantVal} {e : Expr} {s s' : AState} (hwf : StoreWF' s.store)
-    (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cvA = some c)
+    (hm : PMemoOK m s.store) (hcv : Frontend.denoteCV s.store g.cv = some c)
     (hjv : denoteE s.store g.jv = some e)
     (hrun : promoteVG m fuel g s = .ok ((m', g'), s')) :
     StoreWF' s'.store ∧ Ext s.store s'.store ∧ PMemoOK m' s'.store ∧
       PersVG g' ∧ g'.kind = g.kind ∧
-      Frontend.denoteCV s'.store g'.cvA = some c ∧
+      Frontend.denoteCV s'.store g'.cv = some c ∧
       denoteE s'.store g'.jv = some e ∧ PFrame s s' := by
   obtain ⟨a, b, -, c, d, e1, e2⟩ := promoteVG_step hwf hm hrun
   have hx := promoteVG_aext m fuel g s (m', g') s' hrun
