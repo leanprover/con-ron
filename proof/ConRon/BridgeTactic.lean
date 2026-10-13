@@ -834,6 +834,16 @@ partial def frameGoal (snap : Snap) (g : MVarId) : MetaM (List MVarId) := g.with
 
 /-! ## 3. Forward: instantiate what the context already knows -/
 
+/-- The premise with its head constant unfolded once, if that constant is a
+non-reducible definition (not a frame predicate or an answer relation). -/
+def unfoldHeadOnce (t : Expr) : MetaM (Option Expr) := do
+  let some n := t.getAppFn.constName? | return none
+  if relNames.contains n || isFrameShape t then return none
+  unless (← getEnv).find? n matches some (.defnInfo _) do return none
+  if getReducibilityStatusCore (← getEnv) n == .reducible then return none
+  let some t' ← unfoldDefinition? t | return none
+  return some t'.headBeta
+
 /-- All the ways to instantiate the telescope `args` (premises matched
 against hypotheses, facts proved by `provedFact`, frame premises by `prove`):
 each a closed instance of `mk`. -/
@@ -875,16 +885,20 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
       let r ← instances rest mk acc
       restore s
       return r
-    -- a premise matched against every hypothesis: branch
+    -- a premise matched against every hypothesis: branch (as stated, and
+    -- with a non-reducible head definition unfolded once: a lemma's
+    -- `st.capOK w` against the program's own branch condition)
     let aT ← normNeg aT
+    let aTs := #[aT] ++ (← unfoldHeadOnce aT).toArray
     let mut acc := acc
     for h in (← read).hyps.reverse do
-      unless ← mayMatch h.ty aT do continue
-      let s ← save
-      if ← same h.ty aT then
-        a.mvarId!.assign h.pf
-        acc ← instances rest mk acc
-      restore s
+      for aT in aTs do
+        unless ← mayMatch h.ty aT do continue
+        let s ← save
+        if ← same h.ty aT then
+          a.mvarId!.assign h.pf
+          acc ← instances rest mk acc
+        restore s
     return acc
 
 /-- Order a telescope: matched premises first (they branch and fix the
@@ -950,7 +964,8 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
       kinds := kinds.push (p, p && !isFrameShape aT)
       if p && !isFrameShape aT && !isFactShape aT && dead == args.size then
         let aT' ← normNeg aT
-        unless ← (← read).hyps.anyM (fun h => (mayMatch h.ty aT' : MetaM Bool)) do
+        let aTs := #[aT'] ++ (← unfoldHeadOnce aT').toArray
+        unless ← (← read).hyps.anyM (fun h => aTs.anyM (fun t => (mayMatch h.ty t : MetaM Bool))) do
           dead := kinds.size - 1
     let mut insts := #[]
     let mut anchor := false
