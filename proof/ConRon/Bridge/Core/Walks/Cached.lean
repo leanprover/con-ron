@@ -263,6 +263,151 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
       ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
   { hc with ruleRhs := RuleRhsCacheOK.insert hc.ruleRhs hr hcn hus hf hrl hi }
 
+/-! ### The five caches' hit and insert, at `CheckOK` (task #120)
+
+Frame rules and hit rules in the shape `bridge_auto` instantiates: a miss arm's
+`CheckOK` of the inserted state is `bridge_frame [CheckOK.insertX]` over the
+callee's frame, a hit arm's answer is the row's clause read off `CheckOK`.
+The inserted state is spelled as the twin builds it — the table emptied
+first (the linearity idiom of `Arena/Core.lean`), then the row added to the
+table read before — so that the conclusion unifies with the verification
+condition syntactically. -/
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
+`CheckOK` past the level-verdict insert. -/
+theorem CheckOK.insertLvlEq {s : AState} (h : CheckOK mode env fe s)
+    {u v : LIdx} {lu lv : Level} {r : Bool}
+    (hu : denoteL s.store.ls u = some lu) (hv : denoteL s.store.ls v = some lv)
+    (heq : Level.isEquiv lu lv = some r) :
+    CheckOK mode env fe
+      { ({ s with caches := { s.caches with lvlEqC := ∅ } } : AState) with
+        caches := { ({ s with caches := { s.caches with lvlEqC := ∅ } } : AState).caches with
+          lvlEqC := s.caches.lvlEqC.insert (u, v) r } } :=
+  CheckOK.ofCache h (CacheOK.insertLvlEq h.caches hu hv heq) rfl rfl
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
+the same at the level-list verdict cache. -/
+theorem CheckOK.insertLvlsEq {s : AState} (h : CheckOK mode env fe s)
+    {us vs : LsIdx} {lus lvs : List Level} {r : Bool}
+    (hu : denoteLs s.store.lss us = some lus) (hv : denoteLs s.store.lss vs = some lvs)
+    (heq : Level.isEquivList lus lvs = some r) :
+    CheckOK mode env fe
+      { ({ s with caches := { s.caches with lvlsEqC := ∅ } } : AState) with
+        caches := { ({ s with caches := { s.caches with lvlsEqC := ∅ } } : AState).caches with
+          lvlsEqC := s.caches.lvlsEqC.insert (us, vs) r } } :=
+  CheckOK.ofCache h (CacheOK.insertLvlsEq h.caches hu hv heq) rfl rfl
+
+/-- con-leche: none — `CheckOK` past the instantiated-constant TYPE insert. -/
+theorem CheckOK.insertConstTy {s : AState} (h : CheckOK mode env fe s)
+    {n : NIdx} {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level}
+    {ci : ConstantInfo}
+    (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls)
+    (hf : env.find? nm = some ci)
+    (hi : denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
+      ci.toConstantVal.levelParams ls)) :
+    CheckOK mode env fe
+      { ({ s with caches := { s.caches with constTyC := ∅ } } : AState) with
+        caches := { ({ s with caches := { s.caches with constTyC := ∅ } } : AState).caches with
+          constTyC := s.caches.constTyC.insert (n, us) i } } :=
+  CheckOK.ofCache h (CacheOK.insertConstTy h.caches hn hus hf hi) rfl rfl
+
+/-- con-leche: none — `CheckOK` past the instantiated-constant VALUE insert. -/
+theorem CheckOK.insertConstVal {s : AState} (h : CheckOK mode env fe s)
+    {n : NIdx} {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level}
+    {cv : ConstantVal} {value : Expr} {hint : ReducibilityHint}
+    (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls)
+    (hf : env.find? nm = some (.defnInfo cv value hint))
+    (hi : denoteE s.store i = some (value.instantiateLevelParams cv.levelParams ls)) :
+    CheckOK mode env fe
+      { ({ s with caches := { s.caches with constValC := ∅ } } : AState) with
+        caches := { ({ s with caches := { s.caches with constValC := ∅ } } : AState).caches with
+          constValC := s.caches.constValC.insert (n, us) i } } :=
+  CheckOK.ofCache h (CacheOK.insertConstVal h.caches hn hus hf hi) rfl rfl
+
+/-- con-leche: none — `CheckOK` past the ι right-hand-side insert. -/
+theorem CheckOK.insertRuleRhs {s : AState} (h : CheckOK mode env fe s)
+    {rn cn : NIdx} {us : LsIdx} {i : EIdx}
+    {rnv cnv : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
+    {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    (hr : denoteN s.store.ns rn = some rnv) (hcn : denoteN s.store.ns cn = some cnv)
+    (hus : denoteLs s.store.lss us = some ls)
+    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
+    (hi : denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls)) :
+    CheckOK mode env fe
+      { ({ s with caches := { s.caches with ruleRhsC := ∅ } } : AState) with
+        caches := { ({ s with caches := { s.caches with ruleRhsC := ∅ } } : AState).caches with
+          ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
+  CheckOK.ofCache h (CacheOK.insertRuleRhs h.caches hr hcn hus hf hrl hi) rfl rfl
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a level-verdict HIT is
+`Level.isEquiv`'s verdict at the two denotations. -/
+theorem CheckOK.lvlEq_hit {s : AState} (h : CheckOK mode env fe s) {u v : LIdx}
+    {r : Bool} (hhit : s.caches.lvlEqC[(u, v)]? = some r) :
+    ∃ lu lv, denoteL s.store.ls u = some lu ∧ denoteL s.store.ls v = some lv ∧
+      some r = Level.isEquiv lu lv := by
+  obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlEq (u, v) r hhit
+  exact ⟨lu, lv, hu, hv, he.symm⟩
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the same at two
+universe-argument lists. -/
+theorem CheckOK.lvlsEq_hit {s : AState} (h : CheckOK mode env fe s) {us vs : LsIdx}
+    {r : Bool} (hhit : s.caches.lvlsEqC[(us, vs)]? = some r) :
+    ∃ lus lvs, denoteLs s.store.lss us = some lus ∧ denoteLs s.store.lss vs = some lvs ∧
+      some r = Level.isEquivList lus lvs := by
+  obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlsEq (us, vs) r hhit
+  exact ⟨lu, lv, hu, hv, he.symm⟩
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK (the `constTy` clause) — a
+TYPE-cache HIT denotes the constant's type at the key's levels. -/
+theorem CheckOK.constTy_hit {s : AState} (h : CheckOK mode env fe s) {n : NIdx}
+    {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level} {ci : ConstantInfo}
+    (hhit : s.caches.constTyC[(n, us)]? = some i) (hf : env.find? nm = some ci)
+    (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls) :
+    denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
+      ci.toConstantVal.levelParams ls) := by
+  obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := h.caches.constTy _ i hhit
+  obtain rfl := eq_of_eq_some hn hn'
+  obtain rfl := eq_of_eq_some hus hus'
+  obtain rfl := eq_of_eq_some hf hf'
+  exact hd
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a VALUE-cache HIT. -/
+theorem CheckOK.constVal_hit {s : AState} (h : CheckOK mode env fe s) {n : NIdx}
+    {us : LsIdx} {i : EIdx} {nm : ConLeche.Name} {ls : List Level} {cv : ConstantVal}
+    {val : Expr} {hint : ReducibilityHint}
+    (hhit : s.caches.constValC[(n, us)]? = some i)
+    (hf : env.find? nm = some (.defnInfo cv val hint))
+    (hn : denoteN s.store.ns n = some nm) (hus : denoteLs s.store.lss us = some ls) :
+    denoteE s.store i = some (val.instantiateLevelParams cv.levelParams ls) := by
+  obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ := h.caches.constVal _ i hhit
+  obtain rfl := eq_of_eq_some hn hn'
+  obtain rfl := eq_of_eq_some hus hus'
+  rw [hf] at hf'
+  cases hf'
+  exact hd
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a rule-RHS-cache HIT. -/
+theorem CheckOK.ruleRhs_hit {s : AState} (h : CheckOK mode env fe s)
+    {rn cn : NIdx} {us : LsIdx} {i : EIdx} {rnv cnv : ConLeche.Name} {ls : List Level}
+    {cv : ConstantVal} {mi rp : Nat} {rules : List RecRule} {rl : RecRule}
+    (hhit : s.caches.ruleRhsC[(rn, cn, us)]? = some i)
+    (hf : env.find? rnv = some (.recInfo cv mi rp rules))
+    (hrl : rules.find? (fun r => r.ctor == cnv) = some rl)
+    (hr : denoteN s.store.ns rn = some rnv) (hcn : denoteN s.store.ns cn = some cnv)
+    (hus : denoteLs s.store.lss us = some ls) :
+    denoteE s.store i = some (rl.rhs.instantiateLevelParams cv.levelParams ls) := by
+  obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
+    h.caches.ruleRhs _ i hhit
+  obtain rfl := eq_of_eq_some hr hr'
+  obtain rfl := eq_of_eq_some hcn hc'
+  obtain rfl := eq_of_eq_some hus hus'
+  rw [hf] at hf'
+  cases hf'
+  rw [hrl] at hrl'
+  cases hrl'
+  exact hd
+
 /-! ## 2. `lvlEq?` — the tier's exemplar, CLOSED -/
 
 /-- con-leche: none — `CheckOK`'s level-readback table, as a frame rule
@@ -330,16 +475,7 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
           r = Level.isEquiv lu lv; ⊤⦄ := by
   vcgen [lvlEq?]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame [CheckOK.readL', CheckOK.ofReadL2]
-  -- the cache hit: the row's own clause
-  vc_arm (hhit : _[(u, v)]? = some _) =>
-    obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlEq (u, v) _ hhit
-    exact ⟨lu, lv, hu, hv, he.symm⟩
-  -- a miss with a verdict: inserted
-  vc_arm (heq : Level.isEquiv _ _ = some _) (hL : ReadLCacheOK (AState.caches ?s).readLC _) =>
-    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofReadL2]
-    exact CheckOK.ofCache hck (CacheOK.insertLvlEq hck.caches (by bridge_frame)
-      (by bridge_frame) heq) rfl rfl
+  bridge_auto [CheckOK.readL', CheckOK.ofReadL2, CheckOK.insertLvlEq, CheckOK.lvlEq_hit]
 
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
 **THEOREM 1 for `lvlsEq?`**.  Five verification conditions, the same five,
@@ -354,17 +490,8 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
           r = Level.isEquivList lus lvs; ⊤⦄ := by
   vcgen [lvlsEq?]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame [CheckOK.readLs', CheckOK.ofReadLs2]
-  -- the cache hit: the row's own clause
-  vc_arm (hhit : _[(us, vs)]? = some _) =>
-    obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlsEq (us, vs) _ hhit
-    exact ⟨lu, lv, hu, hv, he.symm⟩
-  -- a miss with a verdict: inserted
-  vc_arm (heq : Level.isEquivList _ _ = some _)
-      (hL : ReadLsCacheOK (AState.caches ?s).readLsC _) =>
-    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofReadLs2]
-    exact CheckOK.ofCache hck (CacheOK.insertLvlsEq hck.caches (by bridge_frame)
-      (by bridge_frame) heq) rfl rfl
+  bridge_auto [CheckOK.readLs', CheckOK.ofReadLs2, CheckOK.insertLvlsEq,
+    CheckOK.lvlsEq_hit]
 
 /-! ## 4. The three instantiated-constant caches — CLOSED (round 4)
 
@@ -453,21 +580,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (by rw [hty]; rfl)
   vcgen [constTyAt, hi]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
-  -- the HIT: the row's own clause, at the three functional denotations
-  vc_arm (hhit : (AState.caches _).constTyC[(cv.name, us)]? = some ?rh) =>
-    obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := hok.caches.constTy _ rh hhit
-    obtain rfl := Option.some.inj (hn'.symm.trans hn)
-    obtain rfl := Option.some.inj (hus'.symm.trans hus)
-    obtain rfl := Option.some.inj (hf'.symm.trans hf)
-    exact hd
-  -- the MISS: `instLPFast`, then the insert
-  vc_arm (hd : denoteE (AState.store ?s) _ = some (Expr.instantiateLevelParams _ _ _)) =>
-    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofInstLP]
-    exact CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches (by bridge_frame)
-      (by bridge_frame) hf hd) rfl rfl
+  bridge_auto [CheckOK.ofInstLP, CheckOK.insertConstTy, CheckOK.constTy_hit]
 
 /-- con-leche: none — `constTyAt_spec` in ANSWER shape: the constant comes
 out of the environment index (`projCert` reads it off `fe.find?`), so its
@@ -489,13 +602,7 @@ theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
   have h := constTyAt_spec s₀ cv us nm ls ci hok hn hus hf hcv
   vcgen [h]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  vc_arm (hd : denoteE _ _ = some (Expr.instantiateLevelParams _ _ _)) =>
-    intro nm' ls' ci' hn' hus' hf'
-    obtain rfl := Option.some.inj (hn.symm.trans hn')
-    obtain rfl := Option.some.inj (hus.symm.trans hus')
-    obtain rfl := Option.some.inj (hf.symm.trans hf')
-    exact hd
+  bridge_auto
 
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
 expensive half, and the reason `unfoldDefinition` is not free).  **CLOSED**
@@ -519,23 +626,7 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (by rw [hval]; rfl)
   vcgen [constValAt, hi]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
-  -- the HIT
-  vc_arm (hhit : (AState.caches _).constValC[(n, us)]? = some ?rh) =>
-    obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ :=
-      hok.caches.constVal _ rh hhit
-    obtain rfl := Option.some.inj (hn'.symm.trans hn)
-    obtain rfl := Option.some.inj (hus'.symm.trans hus)
-    rw [hfd] at hf'
-    cases hf'
-    exact hd
-  -- the MISS
-  vc_arm (hd : denoteE (AState.store ?s) _ = some (Expr.instantiateLevelParams _ _ _)) =>
-    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofInstLP]
-    exact CheckOK.ofCache hck (CacheOK.insertConstVal hck.caches (by bridge_frame)
-      (by bridge_frame) hfd hd) rfl rfl
+  bridge_auto [CheckOK.ofInstLP, CheckOK.insertConstVal, CheckOK.constVal_hit]
 
 /-- con-leche: none — `constValAt_spec` in ANSWER shape (round 3's rule: *a
 walk whose subject is another walk's answer must not take that answer's
@@ -564,14 +655,7 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
     hlps hval hfd
   vcgen [h]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  vc_arm (hd : denoteE _ _ = some (Expr.instantiateLevelParams _ _ _)) =>
-    intro nm' ls' cv' val' hint' hn' hus' hfd'
-    obtain rfl := Option.some.inj (hn.symm.trans hn')
-    obtain rfl := Option.some.inj (hus.symm.trans hus')
-    rw [hfd] at hfd'
-    cases hfd'
-    exact hd
+  bridge_auto
 
 /-- con-leche: none — **THEOREM 1 for `ruleRhsAt`** (an ι rule's right-hand
 side at the recursor's universe instantiation).  **CLOSED** (round 4). -/
@@ -596,26 +680,7 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (by rw [hrhs]; rfl)
   vcgen [ruleRhsAt, hi]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
-  bridge_frame
-  -- the HIT
-  vc_arm (hhit : (AState.caches _).ruleRhsC[(recName, ctor, us)]? = some ?rh) =>
-    obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
-      hok.caches.ruleRhs _ rh hhit
-    obtain rfl := Option.some.inj (hr'.symm.trans hr)
-    obtain rfl := Option.some.inj (hc'.symm.trans hc)
-    obtain rfl := Option.some.inj (hus'.symm.trans hus)
-    rw [hfr] at hf'
-    cases hf'
-    rw [hrl] at hrl'
-    cases hrl'
-    exact hd
-  -- the MISS
-  vc_arm (hd : denoteE (AState.store ?s) _ = some (Expr.instantiateLevelParams _ _ _)) =>
-    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofInstLP]
-    exact CheckOK.ofCache hck (CacheOK.insertRuleRhs hck.caches (by bridge_frame)
-      (by bridge_frame) (by bridge_frame) hfr hrl hd) rfl rfl
+  bridge_auto [CheckOK.ofInstLP, CheckOK.insertRuleRhs, CheckOK.ruleRhs_hit]
 
 /-! ## 4b. `lvlEq?`'s FRAME, with no cache-content hypothesis (task #97-P3-Frame)
 
