@@ -115,6 +115,6 @@ def absClassCtor (x : arena.inductives.gen_rec.ClassCtor) : ClassCtor :=
 def absClassGen (g : arena.inductives.gen_rec.ClassGen) : ClassGen :=
   ⟨absU g.n_p, absEIdxL g.params, g.cls.val.map absTargetMajor, absEIdxL g.former_tys,
     g.slots.val.map absClassSlot, g.ctors.val.map (fun cs => cs.val.map absClassCtor),
-    absLIdx g.elim, ConRon.Refine.absBinderMeta g.bm, absBinderL g.pre⟩
+    absLIdx g.elim, absBinderL g.pre⟩
 
 end ConRon.Refine2
