@@ -563,8 +563,7 @@ theorem class_read_ihs_acc {pers st} (n_p : Std.U64) (mot_pos : alloc.vec.Vec St
   rw [hnil]
   exact LS.pure rfl (by assumption) (by assumption)
   rename_i bs _ hlt v hv
-  have hv' : (absBinderL bs).getLast? =
-      some ((fun q => (absEIdx q.1, ConRon.Refine.absBinderMeta q.2)) bs.val[a.val]) := by
+  have hv' : (absBinderL bs).getLast? = some (absEIdx bs.val[a.val]) := by
     rw [absBinderL, List.getLast?_map, List.getLast?_eq_getElem?,
       show bs.val.length - 1 = a.val by scalar_tac, List.getElem?_eq_getElem hlt]
     rfl
