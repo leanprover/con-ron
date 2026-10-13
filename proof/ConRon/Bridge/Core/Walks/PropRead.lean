@@ -362,6 +362,13 @@ theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
 
 
+/-- con-leche: none — a denoting handle's view and its denotation carry one
+tag. -/
+theorem denote_tag_eq {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {v : ENodeView} {x : Expr} (hv : st.view h = some v)
+    (hx : denoteE st h = some x) : v.tagOf = exprTag x :=
+  (EStore.tagOf_of_view hv).symm.trans (tag_of_denote hwf hx)
+
 /-- con-leche: none — **a `pure` exit** at a pinned state. -/
 theorem triple_pureR {α : Type} {s₀ : AState} {v : α}
     {Q : α → AState → Prop} (h : Q v s₀) :
@@ -453,7 +460,7 @@ theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
     · rw [ite_eq_right htg]
       refine triple_pureR ⟨rfl, fun x hx => ?_⟩
       rw [tag_of_denote hok.state.wf hx] at htg
-      cases x <;> simp_all [exprTag, Expr.binderDom, denoteEO]
+      cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Expr.binderDom, denoteEO]
   | succ k ih =>
     intro s₀ h hok
     rw [ConRon.Arena.binderDom]
@@ -476,7 +483,7 @@ theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
     · rw [ite_eq_right htg]
       refine triple_pureR ⟨rfl, fun x hx => ?_⟩
       rw [tag_of_denote hok.state.wf hx] at htg
-      cases x <;> simp_all [exprTag, Expr.binderDom, denoteEO]
+      cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Expr.binderDom, denoteEO]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — **THEOREM 1
 for `numArgs`**, in answer shape.  The arena's walk is fueled and FAILS at
@@ -597,7 +604,7 @@ theorem lamProj?_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
       · rw [ite_eq_right htb]
         refine triple_pureR ⟨rfl, fun x hx => ?_⟩
         rw [tag_of_denote hok.state.wf hx] at htl htb
-        cases x <;> simp_all [exprTag, ConLeche.lamProj?]
+        cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, ConLeche.lamProj?]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — **THEOREM
 1 for `unwrapIdDefs`**, in answer shape: the answer denotes con-leche's
@@ -798,7 +805,7 @@ theorem peelPisW_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (e : EIdx),
         have htu' := htu
         rw [tag_of_denote hwf hux] at htu'
         generalize ConLeche.unwrapIdDefs env.find? 4 x = U at htu' ⊢
-        cases U <;> simp_all [exprTag, denoteEO]
+        cases U <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, denoteEO]
 
 /-! ## 3. The head readers -/
 
@@ -813,32 +820,224 @@ theorem substPWAt_spec' (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     ⦃fun s => s = s₀⦄ ConRon.Arena.substPWAt lps us pw
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = some (Level.substPW ks vs pw); ⊤⦄ := by
-  sorry
+  unfold ConRon.Arena.substPWAt
+  split
+  · refine triple_seq (readNamesM_spec s₀ lps hok.caches.readN) ?_
+    rintro ks' s1 ⟨hst1, hm1, hp1, hc1, hks1, hN1⟩
+    have hf1 := ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN1
+    have hok1 := CheckOK.ofReadbackFrame hok hf1
+    refine triple_seq (readLevelsM_spec s1 us hok1.caches.readLs) ?_
+    rintro vs' s2 ⟨hst2, hm2, hp2, hc2, hvs2, hLs2⟩
+    have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hLs2
+    rw [hks] at hks1
+    rw [hst1, hvs] at hvs2
+    obtain rfl := Option.some.inj hks1
+    obtain rfl := Option.some.inj hvs2
+    exact triple_pureR ⟨CheckOK.ofReadbackFrame hok (hf1.trans hf2),
+      (hf1.trans hf2).store, (hf1.trans hf2).pins, rfl⟩
+  · rename_i hne
+    exact triple_pureR ⟨hok, rfl, rfl, by
+      rw [substPW_cutoff (fun a as h => hne a as h)]⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:112-131 headTypePW — **THEOREM 1
 for `headTypePW`**, in answer shape (the head is `getAppFn`'s answer; the
 telescope root is the type the walk started at). -/
 theorem headTypePW_spec' (fuel : Nat) (s₀ : AState) (root : EIdx) (d : Nat)
     (h : EIdx) (n : Nat) (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ x, denoteE s₀.store h = some x) :
+    (hpre : ∃ x, denoteE s₀.store h = some x)
+    (hroot : ∃ rx, denoteE s₀.store root = some rx) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headTypePW fe fuel root d h n
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ rx x, denoteE s₀.store root = some rx →
         denoteE s₀.store h = some x →
         r = ConLeche.headTypePW env.find? rx d x n; ⊤⦄ := by
-  sorry
+  obtain ⟨x₀, hx₀⟩ := hpre
+  obtain ⟨rx₀, hrx₀⟩ := hroot
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hx₀
+  have hvt := denote_tag_eq hwf hv hx₀
+  unfold ConRon.Arena.headTypePW
+  refine view_bind_triple hv ?_
+  -- the residual of a denoting type handle
+  have tail : ∀ (T : EIdx) (tx : Expr), denoteE s₀.store T = some tx →
+      ⦃fun s => s = s₀⦄ (do
+        let res ← ConRon.Arena.peelPisW fe fuel n T
+        ConRon.Arena.residualPW res)
+      ⦃fun r s' => s' = s₀ ∧
+        r = ConLeche.residualPW (ConLeche.peelPisW env.find? n tx); ⊤⦄ := by
+    intro T tx hT
+    refine triple_seq (peelPisW_spec' fuel n s₀ T hok ⟨tx, hT⟩) ?_
+    rintro res s1 ⟨hs1, hres⟩
+    subst s1
+    refine triple_mono (residualPW_spec' s₀ res hok) ?_
+    rintro r s' ⟨rfl, hr⟩
+    exact ⟨rfl, hr _ (hres tx hT)⟩
+  cases v
+  case const I us =>
+    dsimp only
+    cases hfd : fe.find? I with
+    | none =>
+      dsimp only
+      exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+        obtain ⟨nm, ls, rfl, hf⟩ := const_miss hok hv hfd hx
+        exact (headTypePW_const_none (Or.inl hf)).symm⟩
+    | some ci =>
+      dsimp only
+      by_cases htow : ci.isTowerEntry = true
+      · rw [ite_eq_left htow]
+        exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+          obtain ⟨nm, ls, c, rfl, hf, ht⟩ := const_tower hok hv hfd hx
+          exact (headTypePW_const_none
+            (Or.inr ⟨c, hf, Or.inl (ht ▸ htow)⟩)).symm⟩
+      · rw [ite_eq_right htow]
+        have htow' : ci.isTowerEntry = false := by simpa using htow
+        refine triple_seq (toConstantVal_nt_spec s₀ ci htow') ?_
+        rintro cv s1 ⟨hs1, hcv⟩
+        subst s1
+        obtain ⟨nm, ls, c, rfl, hls, hf, ht, hlps, hty, hll, hvl⟩ :=
+          const_hit hok hv hfd hcv hx₀
+        have hct : c.isTowerEntry = false := by rw [← ht]; exact htow'
+        refine triple_seq (viewLsLen_spec s₀ us) ?_
+        rintro ol s2 ⟨hs2, hol⟩
+        subst s2
+        rw [hvl] at hol
+        subst hol
+        dsimp only
+        by_cases hlen : ls.length = cv.levelParams.length
+        · rw [ite_eq_left hlen]
+          have hl : ls.length = c.toConstantVal.levelParams.length := by
+            rw [hll]; exact hlen
+          refine triple_seq (peelPisW_spec' fuel n s₀ cv.type hok ⟨_, hty⟩) ?_
+          rintro res s3 ⟨hs3, hres⟩
+          subst s3
+          refine triple_seq (residualPW_spec' s₀ res hok) ?_
+          rintro opw s4 ⟨hs4, hopw⟩
+          subst s4
+          have hpw := hopw _ (hres _ hty)
+          cases opw with
+          | none =>
+            exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+              obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+              rw [headTypePW_const_hit hf hct hl, ← hpw]; rfl⟩
+          | some pw =>
+            refine triple_mono (substPWAt_spec' s₀ cv.levelParams us pw _ _ hok
+              hlps hls) ?_
+            rintro r s' ⟨hok', hst', hp', rfl⟩
+            exact ⟨hok', hst', hp', fun rx x _ hx => by
+              obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+              rw [headTypePW_const_hit hf hct hl, ← hpw]; rfl⟩
+        · rw [ite_eq_right hlen]
+          exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+            obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+            exact (headTypePW_const_none
+              (Or.inr ⟨c, hf, Or.inr (by rw [hll]; exact hlen)⟩)).symm⟩
+  case fvar k ty =>
+    dsimp only
+    obtain ⟨t, rfl, ht⟩ := denote_fvar_inv hwf hv hx₀
+    refine triple_mono (tail ty t ht) ?_
+    rintro r s' ⟨rfl, hr⟩
+    exact ⟨hok, rfl, rfl, fun rx x _ hx => by
+      obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+      rw [hr]; rfl⟩
+  case bvar i =>
+    dsimp only
+    rw [denote_bvar_inv hwf hv hx₀] at hx₀
+    by_cases hid : i < d
+    · rw [ite_eq_left hid]
+      refine triple_seq (binderDom_spec' (d - 1 - i) s₀ root hok) ?_
+      rintro oD s1 ⟨hs1, hoD⟩
+      subst s1
+      have hD := hoD rx₀ hrx₀
+      cases oD with
+      | none =>
+        exact triple_pureR ⟨hok, rfl, rfl, fun rx x hr hx => by
+          obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+          obtain rfl := Option.some.inj (hr.symm.trans hrx₀)
+          have hn : rx.binderDom (d - 1 - i) = none := by
+            simpa [denoteEO] using hD.symm
+          simp [ConLeche.headTypePW, hid, hn]⟩
+      | some D =>
+        obtain ⟨Dx, hDx, hDd⟩ := denoteEO_some_inv hD
+        refine triple_mono (tail D Dx hDd) ?_
+        rintro r s' ⟨rfl, hr⟩
+        exact ⟨hok, rfl, rfl, fun rx x hrr hx => by
+          obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+          obtain rfl := Option.some.inj (hrr.symm.trans hrx₀)
+          rw [hr]; simp [ConLeche.headTypePW, hid, hDx]⟩
+    · rw [ite_eq_right hid]
+      exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+        obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+        simp [ConLeche.headTypePW, hid]⟩
+  all_goals
+    dsimp only
+    exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+      obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+      cases x <;> simp_all [exprTag, ENodeView.tagOf, ConLeche.headTypePW,
+        ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj]⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:136-140 typeSortPWGo — **THEOREM
 1 for `typeSortPWGo`**, by induction on the fuel. -/
 theorem typeSortPWGo_spec' (root : EIdx) (fuel : Nat) : ∀ (s₀ : AState)
     (R : EIdx) (d : Nat), CheckOK mode env fe s₀ →
     (∃ x, denoteE s₀.store R = some x) →
+    (∃ rx, denoteE s₀.store root = some rx) →
     ⦃fun s => s = s₀⦄ ConRon.Arena.typeSortPWGo fe root fuel R d
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ rx x, denoteE s₀.store root = some rx →
         denoteE s₀.store R = some x →
         r = ConLeche.typeSortPWGo env.find? rx x d; ⊤⦄ := by
-  sorry
+  induction fuel with
+  | zero =>
+    intro s₀ R d _ _ _
+    rw [ConRon.Arena.typeSortPWGo]
+    exact triple_fail
+  | succ fuel ih =>
+    intro s₀ R d hok hpre hroot
+    obtain ⟨x₀, hx₀⟩ := hpre
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.typeSortPWGo]
+    by_cases htf : (R.tag == ETag.forallE) = true
+    · rw [ite_eq_left htf]
+      refine triple_seq (viewBind_spec s₀ R) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewBind R with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨A, b⟩ := p
+        dsimp only
+        have hv := view_of_viewBind_forallE (by simpa using htf) hvb
+        obtain ⟨_, eb₀, _, _, hb₀⟩ := denote_forallE_inv hwf hv hx₀
+        refine triple_mono (ih s₀ b (d + 1) hok ⟨eb₀, hb₀⟩ hroot) ?_
+        rintro r s' ⟨hok', hst', hp', hr⟩
+        refine ⟨hok', hst', hp', fun rx x hrx hx => ?_⟩
+        obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hwf hv hx
+        rw [hr rx eb hrx hb]; rfl
+    · rw [ite_eq_right htf]
+      by_cases hts : (R.tag == ETag.sort) = true
+      · rw [ite_eq_left hts]
+        exact triple_pureR ⟨hok, rfl, rfl, fun rx x _ hx => by
+          have hts' := hts
+          rw [tag_of_denote hwf hx] at hts'
+          cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, ConLeche.typeSortPWGo]⟩
+      · rw [ite_eq_right hts]
+        refine triple_seq (ExprOps.getAppFn_spec fuel s₀ R hok.state
+          (by rw [hx₀]; rfl)) ?_
+        rintro fn s1 ⟨hs1, hrelF⟩
+        subst s1
+        refine triple_seq (numArgs_spec' fuel s₀ R hok ⟨x₀, hx₀⟩) ?_
+        rintro k s2 ⟨hs2, hk⟩
+        subst s2
+        refine triple_mono (headTypePW_spec' fuel s₀ root d fn k hok
+          ⟨_, hrelF x₀ hx₀⟩ hroot) ?_
+        rintro r s' ⟨hok', hst', hp', hr⟩
+        refine ⟨hok', hst', hp', fun rx x hrx hx => ?_⟩
+        rw [hr rx _ hrx (hrelF x hx), hk x hx]
+        have htf' := htf
+        have hts' := hts
+        rw [tag_of_denote hwf hx] at htf' hts'
+        cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, ConLeche.typeSortPWGo]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:148-150 typeSortPW — **THEOREM 1
 for `typeSortPW`**, in answer shape. -/
@@ -849,7 +1048,10 @@ theorem typeSortPW_spec' (fuel : Nat) (s₀ : AState) (T : EIdx)
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store T = some x →
         r = ConLeche.typeSortPW env.find? x; ⊤⦄ := by
-  sorry
+  unfold ConRon.Arena.typeSortPW
+  refine triple_mono (typeSortPWGo_spec' T fuel s₀ T 0 hok hpre hpre) ?_
+  rintro r s' ⟨hok', hst', hp', hr⟩
+  exact ⟨hok', hst', hp', fun x hx => hr x x hx hx⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:156-183 headProofPW — **THEOREM 1
 for `headProofPW`**, in answer shape. -/
