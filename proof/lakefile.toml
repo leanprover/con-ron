@@ -4,7 +4,7 @@ name = "con-ron"
 # `lean_exe`s below stay out: the table generator and the pin dump are run by
 # their scripts, the arena driver and bench are gated by the differential and
 # by measurement, not by the build.
-defaultTargets = ["ConRon", "ConRonTools", "ConRonArena", "ConRonBridge",
+defaultTargets = ["ConRon", "ConRonTools", "ConRonBridgeTactic", "ConRonArena", "ConRonBridge",
   "ConRonRefine2", "ConRonCapstone"]
 
 # con-leche, the Lean checker this port refines (DESIGN.md §1).  A plain lake
@@ -47,6 +47,15 @@ roots = ["ConRon"]
 # Project tooling that is Lean metaprogramming rather than proof: the `sorry`
 # frontier of task #97-FRONTIER (`#sorry_frontier`, `scripts/frontier.sh`).
 # Depends on Lean core only, so every other library may import it.
+# The meta code of Theorem 1's position-free closers (`bridge_frame`,
+# `bridge_fwd`, `vc_arm`; task #120).  Lean alone, and PRECOMPILED: the
+# closers run on every verification condition of `ConRonBridge`, and the
+# interpreter costs a multiple of native code there.
+[[lean_lib]]
+name = "ConRonBridgeTactic"
+roots = ["ConRon.BridgeTactic"]
+precompileModules = true
+
 [[lean_lib]]
 name = "ConRonTools"
 roots = ["ConRon.Tools"]

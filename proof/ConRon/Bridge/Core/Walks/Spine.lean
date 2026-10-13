@@ -756,9 +756,9 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (hlen : List.length _ = List.length _)
       (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
       (hys : Frontend.denoteEList _ _ = some y.getAppArgs)
-      (hiso : some true = Level.isEquivList _ _) (hrec : SimBOp _ _) =>
-    obtain ⟨F, hF⟩ := hrec
-    exact ⟨F, defeqSpineFueled_const hgfa hgfb
+      (hiso : some true = Level.isEquivList _ _)
+      (hF : ConLeche.defEqList _ _ _ x.getAppArgs y.getAppArgs = .ok _) =>
+    exact ⟨_, defeqSpineFueled_const hgfa hgfb
       ⟨rfl, by rw [denoteEList_len hxs, denoteEList_len hys, hlen]⟩ hiso.symm hF⟩
   -- the level lists differ
   vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hgfb : Expr.getAppFn y = .const _ _)
