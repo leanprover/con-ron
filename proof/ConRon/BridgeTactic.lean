@@ -368,6 +368,21 @@ partial def quickMatch (env : Environment) (a b : Expr) (depth : Nat := 3) : Boo
 /-- `quickMatch` at the top: the filter every search runs before `same`. -/
 def mayMatch (ht t : Expr) : MetaM Bool := return quickMatch (← getEnv) ht t
 
+/-- A CLOSED equation (no local, no metavariable) by `rfl` at default
+transparency: a pin table's entry, `pinNames[PIN_NAT]? = some natName`, which
+a callee's `∀ x, pinNames[i]? = some x → …` premise asks for.  Closed terms
+evaluate; nothing in the context can make the check expensive. -/
+def closedRfl (t : Expr) : FM (Option Expr) := do
+  let some (_, a, b) := t.eq? | return none
+  if t.hasFVar || t.hasMVar then return none
+  let s ← (saveState : MetaM _)
+  try
+    if ← withDefault (Meta.isDefEq a b) then
+      -- typed as the equation itself, so that `supply`'s check sees `t`
+      return some (← mkExpectedTypeHint (← mkEqRefl a) t)
+    s.restore; return none
+  catch _ => s.restore; return none
+
 /-- A hypothesis whose type is `t` (reducibly, the most recent first). -/
 def findHyp (t : Expr) : FM (Option Expr) := do
   let t ← normNeg t
@@ -413,7 +428,8 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
         let some ph ← attempt (provedFact fuel ft) | return none
         return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
       return none
-    return ← eqPath ty a b
+    if let some p ← eqPath ty a b then return some p
+    return ← closedRfl t
   if t.isAppOfArity ``Exists 2 then
     let body := t.appArg!
     let α := t.appFn!.appArg!
@@ -651,7 +667,9 @@ partial def chainHyp (fuel : Nat) (t : Expr) : FM (Option Expr) := do
 metavariable — from a hypothesis, from a `∀`-hypothesis (`chainHyp`), or from
 either at an earlier store and an `Ext` path. -/
 partial def provedFact (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  if !isFactShape t then return ← findHyp t
+  if !isFactShape t then
+    if let some h ← findHyp t then return some h
+    return ← closedRfl t
   if let some h ← findHyp t then return some h
   if let some h ← chainHyp fuel t then return some h
   -- the one transport lemma whose conclusion has `t`'s head
@@ -783,11 +801,16 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
     FM (Array (Expr × Expr) × Array Bool) := do
   let mut out : Array (Expr × Expr) := #[]
   let mut srcs : Array (Expr × Expr × Option Nat) := #[]
+  -- the telescopes are taken WITHOUT `normNeg`: a conclusion `ls ≠ []` must
+  -- stay a conclusion, not become a premise `ls = []` (premises are
+  -- normalised where they are matched)
   for h in (← read).hyps do
-    if let some r := h.rel? then srcs := srcs.push (h.pf, r, none)
+    if h.rel?.isSome then
+      let r ← unfoldRel (← instantiateMVars (← inferType h.pf))
+      if r.isForall then srcs := srcs.push (h.pf, r, none)
   for l in lemmas, i in [0:lemmas.size] do
     if deadL[i]?.getD false then continue
-    srcs := srcs.push (l, ← normNeg (← inferType l), some i)
+    srcs := srcs.push (l, ← inferType l, some i)
   let mut deadL := deadL
   if deadL.size < lemmas.size then deadL := Array.replicate lemmas.size false
   for (h, ht, li?) in srcs do
@@ -1004,7 +1027,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) :
   let mut deadL : Array Bool := #[]
   let mut cache : Std.HashMap FVarId Hyp := {}
   let mut first := true
-  for _ in [0:4] do
+  for _ in [0:8] do
     let (news, snap) ← g.withContext do
       let mut ls := #[]
       for n in defaults do ls := ls.push (← mkConstWithFreshMVarLevels n)
@@ -1141,8 +1164,8 @@ partial def matchPats (g : MVarId) (pats : List (Ident × Term)) (used : Array F
   | [] => return some #[]
   | (_, pat) :: rest =>
     let s0 ← saveState
-    let pt ← normNeg (← Term.withoutErrToSorry <|
-      Tactic.elabTerm pat none (mayPostpone := true))
+    let pt ← Term.withoutErrToSorry <| Tactic.elabTerm pat none (mayPostpone := true)
+    let pt ← normNeg (← instantiateMVars pt)
     for d in (← getLCtx).decls.toArray.reverse do
       let some d := d | continue
       if d.isImplementationDetail || used.contains d.fvarId then continue
