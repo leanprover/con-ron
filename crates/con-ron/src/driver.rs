@@ -127,7 +127,7 @@ pub fn message(e: &CheckError) -> String {
         .collect()
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:285-287 msSecs
+/// con-leche: ConLeche/Cached/ParsedC.lean:252-254 msSecs
 /// Milliseconds as seconds.  Also a deliberate skip in the core, for
 /// `declCLabel`'s reason.  Deviation: three decimals rather than con-leche's
 /// one.
@@ -205,7 +205,7 @@ pub fn verdict_word(code: u8) -> &'static str {
 /// (`pool`'s module note), tens of MB.
 pub const JOBS_DEFAULT_CAP: u64 = 16;
 
-/// con-leche: Main.lean:358-426 run
+/// con-leche: Main.lean:360-428 run
 /// The `--jobs` default, which con-leche reads in `run` off
 /// `System.Platform.Internal.getHardwareConcurrency` — "one worker per
 /// hardware thread", and one worker on a machine that reports none — capped
@@ -325,7 +325,7 @@ pub fn value_kind_word(k: &ValueKind) -> &'static str {
     }
 }
 
-/// con-leche: ConLeche/Cached/ParsedC.lean:289-299 declCLabel
+/// con-leche: ConLeche/Cached/ParsedC.lean:256-266 declCLabel
 /// con-leche: ConLeche/Driver/Run.lean:41-45 declCName
 /// A record's display label, `crate::driver::decl_label`'s seven arms with
 /// the names READ BACK out of the store: a handle is not a name until the
@@ -401,6 +401,7 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::PhaseObserver_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
 /// What a caller wants to know between the steps of the fold —
 /// `crate::driver::PhaseObserver` over the arena's records, with the store
@@ -442,6 +443,7 @@ pub trait PhaseObserver {
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// After the `done`-th of `m` recorded checks completed.
     fn check_after(&mut self, _pers: &PersTier, _ar: &EStore, _done: usize, _m: usize, _pc: &PendingCheck) {}
 
@@ -466,13 +468,16 @@ pub struct Silent;
 impl PhaseObserver for Silent {}
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::impl InstallHook for Silent_refines, then delete this line
 impl InstallHook for Silent {
     /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::install_before_refines, then delete this line
     /// Nothing.
     fn install_before(&self, _pers: &PersTier, _ar: &EStore, _pos: u64, _total: usize, _d: &IDeclaration) {}
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::check_line_refines, then delete this line
 /// con-leche: ConLeche/Driver/CheckPool.lean:147-178 checkOne
 /// The heartbeat's line after phase B's `k`-th record, on the worker that
 /// checked it: `parallel_all`'s `after` hook.  `heartbeat` is the port's
@@ -506,7 +511,7 @@ fn check_line<O: PhaseObserver>(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:394-418 collectChecks
+/// con-leche: ConLeche/Cached/Installed.lean:385-409 collectChecks
 /// Phase B's answer as a verdict: `parallel_all`'s first failing INDEX named
 /// by its record's fold position, and the pool's own failures (a missing
 /// result, a panicked worker) as internal errors — exit 3, never a verdict on
@@ -527,7 +532,8 @@ pub fn phase_b_verdict(
     }
 }
 
-/// con-leche: ConLeche/Cached/Installed.lean:440-457 checkDecls
+/// con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove crates/con-ron/src/driver.rs_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
 /// **The driver**: the two-phase fold with the boundary visible — a straight
 /// line of calls, with the observer's lines between them and the pool for
@@ -629,6 +635,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
 
 /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
 /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::Heartbeat_refines, then delete this line
 /// **The heartbeat**, `crate::driver::Heartbeat`'s line shapes with
 /// `con-ron: ` for the prefix:
 ///
@@ -736,10 +743,12 @@ impl Heartbeat {
 }
 
 /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::impl InstallHook for Heartbeat_refines, then delete this line
 /// The heartbeat's install line, as phase A's hook: it reads the clock and
 /// the store and writes nothing but standard error.
 impl InstallHook for Heartbeat {
     /// con-leche: ConLeche/Driver/ParInstall.lean:113-194 installLoop
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::install_before_refines, then delete this line
     /// `con-ron: install <i>/<N> <decl> t=<s>s`, before the install.
     fn install_before(
         &self,
@@ -762,6 +771,7 @@ impl InstallHook for Heartbeat {
 }
 
 /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::impl PhaseObserver for Heartbeat_refines, then delete this line
 /// con-leche: ConLeche/Driver/Run.lean:85-234 checkDeclsIO
 /// The heartbeat as an observer of the two phases.
 impl PhaseObserver for Heartbeat {
@@ -816,6 +826,7 @@ impl PhaseObserver for Heartbeat {
     }
 
     /// con-leche: ConLeche/Driver/CheckPool.lean:83-103 checkHeartbeat
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove driver::check_after_refines, then delete this line
     /// `con-ron: check <done>/<M> <kind> <name> t=<s>s`, after the check.
     fn check_after(
         &mut self,

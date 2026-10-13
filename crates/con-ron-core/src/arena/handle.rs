@@ -162,6 +162,7 @@ pub struct LsIdx {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::BMIdx_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:73-83 BMIdx` — `BMIdx`, a handle
 /// into the **binder datum store**: the same word layout as the other four (tag
 /// 0, the tier bit, the index), for a store with ONE constructor and so no tag
@@ -223,11 +224,13 @@ impl EIdx {
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::impl BMIdx_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:112-117 Idx.mk` —
 /// `Idx.mk`/`tier`/`index`/`isPersistent`/`idxNat` at the binder-datum store.
 /// The tag field is always `0`: the store has one constructor.
 impl BMIdx {
     /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::pack_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:112-117 Idx.mk` — `Idx.mk` at
     /// the binder-datum store.
     pub fn pack(tier: u32, idx: u32) -> BMIdx {
@@ -235,6 +238,7 @@ impl BMIdx {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::of_word_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:61 Idx.ofWord` — `Idx.ofWord`
     /// at the binder-datum store.
     pub fn of_word(w: u32) -> BMIdx {
@@ -242,6 +246,7 @@ impl BMIdx {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::is_persistent_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent` —
     /// `Idx.isPersistent` at the binder-datum store.
     pub fn is_persistent(&self) -> bool {
@@ -249,6 +254,7 @@ impl BMIdx {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::idx_nat_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat` —
     /// `Idx.idxNat` at the binder-datum store.
     pub fn idx_nat(&self) -> usize {
@@ -505,57 +511,68 @@ impl Dup for BMIdx {
 // that a reader can line the two up by eye.  Each tag cites the parent
 // inductive and names the constructor it stands for.
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_BVAR_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:201-203 ETag.bvar` — the `bvar`
 /// constructor, line 344.
 pub const ETAG_BVAR: u32 = 0;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_FVAR_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:204-206 ETag.fvar` — the `fvar`
 /// constructor, line 345.
 pub const ETAG_FVAR: u32 = 1;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_SORT_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:207-209 ETag.sort` — the `sort`
 /// constructor, line 346.
 pub const ETAG_SORT: u32 = 2;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_CONST_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:210-212 ETag.const` — the `const`
 /// constructor, line 347.
 pub const ETAG_CONST: u32 = 3;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_APP_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:213-215 ETag.app` — the `app`
 /// constructor, line 348.
 pub const ETAG_APP: u32 = 4;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_LAM_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:216-218 ETag.lam` — the `lam`
 /// constructor, line 349.
 pub const ETAG_LAM: u32 = 5;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_FORALL_E_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:219-221 ETag.forallE` — the
 /// `forallE` constructor, line 350.
 pub const ETAG_FORALL_E: u32 = 6;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_LET_E_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:222-224 ETag.letE` — the `letE`
 /// constructor, line 351.
 pub const ETAG_LET_E: u32 = 7;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_LIT_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:225-227 ETag.lit` — the `lit`
 /// constructor, line 352.
 pub const ETAG_LIT: u32 = 8;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_PROJ_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:228-230 ETag.proj` — the `proj`
 /// constructor, line 353.
 pub const ETAG_PROJ: u32 = 9;
 
-/// con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr
+/// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::e_tag_is_bind_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Handle.lean:232-239 ETag.isBind` —
 /// `ETag.isBind`: `lam` or `forallE`, the two constructors that share the
 /// `BindNode` record shape. A named predicate rather than the disjunction

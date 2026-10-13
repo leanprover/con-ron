@@ -71,6 +71,7 @@ abbrev LIdx := Idx .level
 /-- con-leche: none — level-list handle (DESIGN §8.3). -/
 abbrev LsIdx := Idx .levels
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — a handle into the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.BMIdx_bridge, then delete this line
 **binder datum store** (task #97-P6-16): the same word layout as the other
 four (the tier bit and the index), for a store with ONE constructor and so no
 tag to spend — `BMIdx.pack` passes tag `0`.
@@ -198,38 +199,49 @@ that a reader can line the two up by eye.  Each tag cites the parent
 inductive and names the constructor it stands for. -/
 
 namespace ETag
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `bvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.bvar_bridge, then delete this line
 constructor, line 344. -/
 def bvar : UInt32 := 0
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `fvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.fvar_bridge, then delete this line
 constructor, line 345. -/
 def fvar : UInt32 := 1
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `sort`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.sort_bridge, then delete this line
 constructor, line 346. -/
 def sort : UInt32 := 2
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `const`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.const_bridge, then delete this line
 constructor, line 347. -/
 def const : UInt32 := 3
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `app`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.app_bridge, then delete this line
 constructor, line 348. -/
 def app : UInt32 := 4
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `lam`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.lam_bridge, then delete this line
 constructor, line 349. -/
 def lam : UInt32 := 5
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `forallE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `forallE`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.forallE_bridge, then delete this line
 constructor, line 350. -/
 def forallE : UInt32 := 6
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.letE_bridge, then delete this line
 constructor, line 351. -/
 def letE : UInt32 := 7
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `lit`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.lit_bridge, then delete this line
 constructor, line 352. -/
 def lit : UInt32 := 8
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.proj_bridge, then delete this line
 constructor, line 353. -/
 def proj : UInt32 := 9
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — `lam` (line 349) or
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — `lam` (line 349) or
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.isBind_bridge, then delete this line
 `forallE` (line 350), the two constructors that share the `BindNode` record
 shape (task #97-P6-10).  A named predicate rather than the disjunction written
 at the use site: the walks that dispatch on the handle's own tag hold the

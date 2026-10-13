@@ -336,6 +336,7 @@ pub fn class_read_minor(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove class_read::class_read_slot_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:181-205 classReadSlots` — one
 /// prefix binder's domain read as a motive (its telescope ends in a sort:
 /// the class is its last binder's domain, at the class's parameter count)
@@ -404,6 +405,7 @@ pub fn u64_snoc(xs: &Vec<u64>, x: u64) -> Vec<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove class_read::class_read_slots_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/ClassRead.lean:181-205 classReadSlots` — read
 /// the prefix binders `n` of a recursor type opened at the parameters (`e`,
 /// depth `d`), classifying each as a motive or a minor premise; each binder

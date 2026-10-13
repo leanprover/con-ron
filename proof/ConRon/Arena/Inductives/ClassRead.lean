@@ -144,7 +144,7 @@ def classReadMinor (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx) :
               pure (some (.minor c cn ihs))
           else pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:486-492 classNPcOf
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:475-481 classNPcOf
 An inductive's parameter count as the pre-pass reads it: the block's at a
 member, the stored `IndCaps`' otherwise (`0` at no inductive).  Placed here,
 not in `GenRec` (module note). -/
@@ -156,6 +156,7 @@ def classNPcOf (p : BlockShape) (fe : IFEnv) (i : NIdx) : Nat :=
     | _ => 0
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ClassRead.classReadSlot_bridge, then delete this line
 One prefix binder's domain read as a motive (its telescope ends in a sort: the
 class is its last binder's domain, at the class's parameter count) or as a
 minor premise. -/
@@ -179,6 +180,7 @@ def classReadSlot (p : BlockShape) (fe : IFEnv) (np : Nat) (motPos : List Nat) (
   else classReadMinor np motPos d dom
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ClassRead.classReadSlots_bridge, then delete this line
 Read the prefix binders `n` of a recursor type opened at the parameters (`e`,
 depth `d`), classifying each as a motive or a minor premise; each binder
 opened at `d` before the next is read.  `none` off the shape.  `nPc` is

@@ -247,40 +247,46 @@ structure LsStore where
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `bvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.BVarNode_bridge, then delete this line
 constructor, line 344. -/
 structure BVarNode where
   i : Nat
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `fvar`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.FVarNode_bridge, then delete this line
 constructor, line 345. -/
 structure FVarNode where
   idx : Nat
   ty : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `sort`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.SortNode_bridge, then delete this line
 constructor, line 346. -/
 structure SortNode where
   u : LIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `const`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.ConstNode_bridge, then delete this line
 constructor, line 347. -/
 structure ConstNode where
   n : NIdx
   us : LsIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `app`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.AppNode_bridge, then delete this line
 constructor, line 348. -/
 structure AppNode where
   f : EIdx
   a : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `lam`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.BindNode_bridge, then delete this line
 constructor, line 349, and `forallE`, line 350: same three fields, its own
 array.  The binder datum is a HANDLE (task #97-P6-16), so the record is three
 handles and its cons key is three words. -/
@@ -291,6 +297,7 @@ structure BindNode where
   deriving DecidableEq, Repr, Inhabited, Hashable
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the **binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.BMNode_bridge, then delete this line
 datum store**'s one record (task #97-P6-16): a `BinderMeta`'s `PropWhen`,
 hash-consed exactly as every other node of the arena is, so that a `BindNode`
 names it by a handle.
@@ -310,7 +317,8 @@ structure BMNode where
   pw : ConLeche.PropWhen
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.LetNode_bridge, then delete this line
 constructor, line 351. -/
 structure LetNode where
   ty : EIdx
@@ -318,13 +326,15 @@ structure LetNode where
   body : EIdx
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `lit`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.LitNode_bridge, then delete this line
 constructor, line 352. -/
 structure LitNode where
   l : ConLeche.Literal
   deriving DecidableEq, Repr, Inhabited, Hashable
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.ProjNode_bridge, then delete this line
 constructor, line 353. -/
 structure ProjNode where
   n : NIdx
@@ -343,7 +353,8 @@ instance : BEq LetNode := instBEqOfDecidableEq
 instance : BEq LitNode := instBEqOfDecidableEq
 instance : BEq ProjNode := instBEqOfDecidableEq
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the store-side view of
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the store-side view of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.ENodeView_bridge, then delete this line
 an expression node: con-leche's ten constructors with every subterm replaced
 by a handle.  `BinderMeta` and `Literal` stay *values* (they are not
 expressions), exactly as DESIGN §8.3 specifies. -/
@@ -374,6 +385,7 @@ structure ETables where
   lits : Tbl LitNode EIdx UInt64
   projs : Tbl ProjNode EIdx UInt64
   /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the tier's
+  -- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.EStore_bridge, then delete this line
   **binder-datum store** (task #97-P6-16): the hash-consed `PropWhen`s the
   `lam` and `forallE` records name by a `BMIdx`, with the derived column
   holding `PropWhen`'s own hash so that `derOfBind`'s two scalars are one
@@ -753,13 +765,13 @@ instance : Inhabited LsStore := ⟨empty⟩
   if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:131-134 levelsHash — the derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:117-120 levelsHash — the derived
 record of a level-list handle. -/
 @[inline] def derived (st : LsStore) (i : LsIdx) : LDer :=
   if i.isPersistent then st.pers.derAt i
   else if st.scratchOn then st.scr.derAt i else default
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:131-134 levelsHash — and
+/-- con-leche: ConLeche/Kernel/Expr.lean:117-120 levelsHash — and
 `Kernel/Expr.lean:125-127 levelsHaveParam`: the derived record a level list
 would get.  `O(n)` in the list, as con-leche's own fold is. -/
 def derOfView (st : LsStore) : LsNodeView → LDer
@@ -921,11 +933,13 @@ caller's tag having already told the two apart. -/
   (t.projs.node? i.idxNat).map fun r => (r.n, r.i, r.e)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — read one binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.getBM_bridge, then delete this line
 datum out of this tier's store (task #97-P6-16). -/
 @[inline] def getBM (t : ETables) (i : BMIdx) : Option ConLeche.BinderMeta :=
   (t.bms.node? i.idxNat).map fun r => ⟨r.pw⟩
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.getBMDer_bridge, then delete this line
 datum's two DERIVED scalars, its hash (the column) and its has-a-parameter bit
 (a read of the record), which is all `derOfBind` wants of it. -/
 @[inline] def getBMDer (t : ETables) (i : BMIdx) : UInt64 × Bool :=
@@ -934,6 +948,7 @@ datum's two DERIVED scalars, its hash (the column) and its has-a-parameter bit
   | some r => (t.bms.derAt i.idxNat, r.pw.hasParams)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.findBM_bridge, then delete this line
 datum's cons probe in THIS tier. -/
 def findBM (t : ETables) (m : ConLeche.BinderMeta) : Option BMIdx :=
   t.bms.find? ⟨m.pw⟩
@@ -967,10 +982,12 @@ def bindSizeOf (t : ETables) (tag : UInt32) : Nat :=
   if tag == ETag.lam then t.lams.size else t.foralls.size
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — how many binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.bmSize_bridge, then delete this line
 data this tier holds; `internBM`'s capacity test is stated on it. -/
 @[inline] def bmSize (t : ETables) : Nat := t.bms.size
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — append a binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.pushBM_bridge, then delete this line
 datum to this tier, returning its handle.  `BMIdx`'s tag field is `0`: the
 store has one constructor. -/
 @[noinline] def pushBM (t : ETables) (m : ConLeche.BinderMeta) (d : UInt64)
@@ -1082,7 +1099,8 @@ def sizeOf (t : ETables) (v : ENodeView) : Nat :=
 
 end ETables
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `lam` (hash tag
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam` (hash tag
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfBind_bridge, then delete this line
 19) and `forallE` (23) arms of `derOfView` as a function of five scalars: the
 two children's derived words, the datum's hash and its has-a-parameter bit.
 A function rather than the arm itself because `derOfBindAt` (which holds a
@@ -1094,7 +1112,8 @@ arithmetic on scalars they read differently. -/
     (max (fvarOfData dt) (fvarOfData db))
     (lpOfData dt || lpOfData db || pm)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `letE` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE` arm of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfLet_bridge, then delete this line
 `derOfView` over the three children's derived words.  A function for the
 reason `derOfBind` is one. -/
 @[inline] def derOfLet (dt dv db : UInt64) : UInt64 :=
@@ -1104,7 +1123,8 @@ reason `derOfBind` is one. -/
     (max (max (fvarOfData dt) (fvarOfData dv)) (fvarOfData db))
     (lpOfData dt || lpOfData dv || lpOfData db)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the inverse of
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the inverse of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.eBindView_bridge, then delete this line
 `EStore.viewBind` (task #97-P6-10): rebuild the binder view a walk decoded
 with `viewBind`, at the tag it decoded it at.  `lam` (line 349) and `forallE`
 (line 350) have one record shape and the projection reads either; this is the
@@ -1245,6 +1265,7 @@ siblings, with `view`'s own tier test in front. -/
   st.pers.getBind i
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.viewBindI_bridge, then delete this line
 projection that stops at the datum's HANDLE (task #97-P6-16).  This is what
 the rebuilding walks want: a walk that takes a binder apart and puts it back
 together never looks inside the datum, it only carries it across. -/
@@ -1253,11 +1274,13 @@ together never looks inside the datum, it only carries it across. -/
   else if st.scratchOn then st.scr.getBind i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the persistent
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.persGetBM_bridge, then delete this line
 arm of `EStore.viewBM`. -/
 @[inline] def persGetBM (st : EStore) (i : BMIdx) : Option ConLeche.BinderMeta :=
   st.pers.getBM i
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — decode a binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.viewBM_bridge, then delete this line
 datum handle, the tier bit selecting the array set as it does for every other
 handle kind (task #97-P6-16). -/
 @[inline] def viewBM (st : EStore) (i : BMIdx) : Option ConLeche.BinderMeta :=
@@ -1265,11 +1288,13 @@ handle kind (task #97-P6-16). -/
   else if st.scratchOn then st.scr.getBM i else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the persistent
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.persGetBMDer_bridge, then delete this line
 arm of `EStore.bmDer`. -/
 @[inline] def persGetBMDer (st : EStore) (i : BMIdx) : UInt64 × Bool :=
   st.pers.getBMDer i
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.bmDer_bridge, then delete this line
 datum's two derived scalars, which is everything `derOfBind` asks of it. -/
 @[inline] def bmDer (st : EStore) (i : BMIdx) : UInt64 × Bool :=
   if i.isPersistent then st.persGetBMDer i
@@ -1298,7 +1323,8 @@ one tier cannot resolve it (task #97-P6-16). -/
   else if i.isPersistent then st.pers.get i
   else if st.scratchOn then st.scr.get i else none
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `data` computed
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derived_bridge, then delete this line
 field, lines 357-402: the packed derived word of an expression handle. -/
 @[inline] def derived (st : EStore) (i : EIdx) : UInt64 :=
   if i.isPersistent then st.pers.derAt i
@@ -1325,25 +1351,30 @@ Each arm is a function of that arm's own fields, called from both, and
 `rfl` per constructor and `derived_exact` (`WFProofs.lean`) is still one
 `simp` per constructor. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `bvar` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfBVar_bridge, then delete this line
 @[inline] def derOfBVar (_st : EStore) (i : Nat) : UInt64 :=
   packData (hash32 (mixHash 3 (hash i))) (satSucc i) 0 false
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `fvar` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfFVar_bridge, then delete this line
 @[inline] def derOfFVar (st : EStore) (idx : Nat) (ty : EIdx) : UInt64 :=
   packData (hash32 (mixHash 5 (mixHash (hash idx) (hashOfData (st.derived ty)))))
     0 (satSucc idx) (lpOfData (st.derived ty))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `sort` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfSort_bridge, then delete this line
 @[inline] def derOfSort (st : EStore) (u : LIdx) : UInt64 :=
   packData (hash32 (mixHash 7 (st.lder u).hash)) 0 0 (st.lder u).hasParam
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `const` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfConst_bridge, then delete this line
 @[inline] def derOfConst (st : EStore) (n : NIdx) (us : LsIdx) : UInt64 :=
   packData (hash32 (mixHash 11 (mixHash (st.nder n) (st.lsder us).hash)))
     0 0 (st.lsder us).hasParam
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `app` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfApp_bridge, then delete this line
 @[inline] def derOfApp (st : EStore) (f a : EIdx) : UInt64 :=
   packData (hash32 (mixHash 17
       (mixHash (hashOfData (st.derived f)) (hashOfData (st.derived a)))))
@@ -1351,13 +1382,15 @@ Each arm is a function of that arm's own fields, called from both, and
     (max (fvarOfData (st.derived f)) (fvarOfData (st.derived a)))
     (lpOfData (st.derived f) || lpOfData (st.derived a))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `lam` (tag 19) and
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam` (tag 19) and
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfBindAt_bridge, then delete this line
 `forallE` (tag 23) arms at a datum held as a VALUE. -/
 @[inline] def derOfBindAt (st : EStore) (tag : UInt64) (ty b : EIdx)
     (m : ConLeche.BinderMeta) : UInt64 :=
   derOfBind tag (st.derived ty) (st.derived b) (hash m.pw) m.pw.hasParams
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the `lam`/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfBindAtI_bridge, then delete this line
 `forallE` arm over the datum's HANDLE (task #97-P6-16): the two scalars
 `derOfBind` wants of the datum are the binder-datum store's own derived column
 and a read of its record, so the arithmetic is unchanged and no `PropWhen` is
@@ -1368,21 +1401,25 @@ whenever `viewBM mi = some m`, by the datum column's own `derExact`. -/
   let bd := st.bmDer mi
   derOfBind tag (st.derived ty) (st.derived b) bd.1 bd.2
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `letE` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfLetAt_bridge, then delete this line
 @[inline] def derOfLetAt (st : EStore) (ty v b : EIdx) : UInt64 :=
   derOfLet (st.derived ty) (st.derived v) (st.derived b)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `lit` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfLit_bridge, then delete this line
 @[inline] def derOfLit (_st : EStore) (l : ConLeche.Literal) : UInt64 :=
   packData (hash32 (mixHash 31 (hash l))) 0 0 false
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `proj` arm. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj` arm. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfProj_bridge, then delete this line
 @[inline] def derOfProj (st : EStore) (s : NIdx) (i : Nat) (e : EIdx) : UInt64 :=
   packData (hash32 (mixHash 37 (mixHash (st.nder s)
       (mixHash (hash i) (hashOfData (st.derived e))))))
     (bvarOfData (st.derived e)) (fvarOfData (st.derived e)) (lpOfData (st.derived e))
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the `data` computed
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `data` computed
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.derOfView_bridge, then delete this line
 field, lines 357-402: the derived word a node view *would* get, computed in
 `O(1)` from the children's, as the ten arms' dispatch. -/
 def derOfView (st : EStore) (v : ENodeView) : UInt64 :=
@@ -1410,11 +1447,13 @@ proof is the argument `denoteE`'s injectivity already runs, at a store with no
 children. -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the persistent
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.persFindBM_bridge, then delete this line
 arm of `EStore.findBM`. -/
 def persFindBM (st : EStore) (m : ConLeche.BinderMeta) : Option BMIdx :=
   st.pers.findBM m
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum's cons
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.findBM_bridge, then delete this line
 probe over both tiers, persistent first (the store's own order).  A datum that
 is not interned names no binder node, so `none` here is `none` for the whole
 `find?`. -/
@@ -1424,6 +1463,7 @@ def findBM (st : EStore) (m : ConLeche.BinderMeta) : Option BMIdx :=
   | none => if st.scratchOn then st.scr.findBM m else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — hash-cons a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internBM_bridge, then delete this line
 binder datum. -/
 def internBM (st : EStore) (m : ConLeche.BinderMeta) : EStore × BMIdx :=
   match st.persFindBM m with
@@ -1446,6 +1486,7 @@ def internBM (st : EStore) (m : ConLeche.BinderMeta) : EStore × BMIdx :=
       ({ st with pers := tb }, i)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum's
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internBMPersistent_bridge, then delete this line
 promote-intern: `internPersistent`'s clauses at the datum store, so that a
 promoted binder names a PERSISTENT datum. -/
 def internBMPersistent (st : EStore) (m : ConLeche.BinderMeta) : EStore × BMIdx :=
@@ -1459,15 +1500,18 @@ def internBMPersistent (st : EStore) (m : ConLeche.BinderMeta) : EStore × BMIdx
     ({ st with pers := tb }, i)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — `internBM`'s
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.capOKBM_bridge, then delete this line
 capacity precondition. -/
 def capOKBM (st : EStore) : Prop :=
   (if st.scratchOn then st.scr.bmSize else st.pers.bmSize) < Idx.idxCap
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta —
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.capOKBMPersistent_bridge, then delete this line
 `internBMPersistent`'s capacity precondition. -/
 def capOKBMPersistent (st : EStore) : Prop := st.pers.bmSize < Idx.idxCap
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — does interning
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.eViewNeedsBM_bridge, then delete this line
 this view also intern a binder DATUM?  Only the two binder arms do, and they
 are the only ones whose capacity test must also look at `bms` — which is why
 `internE`'s wrapper tests `capOKBM` exactly here (the Rust's `intern_bm` makes
@@ -1478,6 +1522,7 @@ the same test inside itself, and raises the same `Native`). -/
   | _ => false
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum handle
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.findBMOfView_bridge, then delete this line
 a view's cons key needs, PROBED and not interned: a binder whose datum has
 never been interned is in neither table, so `none` here is `none` for the whole
 `find?`.  A non-binder view names no datum and the value is never read. -/
@@ -1488,6 +1533,7 @@ def findBMOfView (st : EStore) (v : ENodeView) : Option BMIdx :=
   | _ => some (Idx.ofWord 0)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum handle
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internBMOfView_bridge, then delete this line
 a view's cons key needs, INTERNED.  `intern`'s first step. -/
 def internBMOfView (st : EStore) (v : ENodeView) : EStore × BMIdx :=
   match v with
@@ -1496,6 +1542,7 @@ def internBMOfView (st : EStore) (v : ENodeView) : EStore × BMIdx :=
   | _ => (st, Idx.ofWord 0)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum handle
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internBMOfViewPersistent_bridge, then delete this line
 a view names, made PERSISTENT, so that `internPersistent` goes on working over
 the view while the record names the datum by a handle. -/
 def internBMOfViewPersistent (st : EStore) (v : ENodeView) : EStore × BMIdx :=
@@ -1528,6 +1575,7 @@ def eViewHasScratchChild : ENodeView → Bool
   | .proj n _ e => if n.isPersistent then !e.isPersistent else true
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the `sk` test of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.bindHasScratchChild_bridge, then delete this line
 the Rust's `EStore::intern_lam_i` / `intern_forall_e_i` over the binder
 RECORD: the two expression children and then the datum HANDLE, in the
 Rust's nesting. -/
@@ -1634,6 +1682,7 @@ the ledger asks for (`internC r = intern (viewOf r)`, `rfl` after the
 the Rust's ten paths explicit. -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the persistent
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.persFindBindMaybe_bridge, then delete this line
 half of the binder probe, SKIPPED as the Rust's `intern_lam_i` /
 `intern_forall_e_i` skip it: `sk` is `bindHasScratchChild` at the record's
 three handles, datum included (task #97-T2-LOCKSTEP D2). -/
@@ -1642,6 +1691,7 @@ def persFindBindMaybe (st : EStore) (tag : UInt32) (r : BindNode) : Option EIdx 
   if sk then none else st.pers.findBind tag r
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the two-tier
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.findBindI_bridge, then delete this line
 cons probe at a binder record whose datum is already a HANDLE: literally
 `internBindI`'s own two `match` scrutinees, in `internBindI`'s order
 (persistent first, scratch only when the scratch tier is open).
@@ -1659,6 +1709,7 @@ def findBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
   | none => if st.scratchOn then st.scr.findBind tag r else none
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — `intern`'s
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internBindI_bridge, then delete this line
 clauses at a binder record whose datum is already a HANDLE (task #97-P6-16).
 
 This is what the rebuilding walks call: they take a binder apart with
@@ -1689,10 +1740,12 @@ def internBindI (st : EStore) (tag : UInt32) (ty b : EIdx) (mi : BMIdx) :
       ({ st with pers := tb }, h)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — `intern` at the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internLamI_bridge, then delete this line
 `lam` constructor over a datum HANDLE. -/
 @[inline] def internLamI (st : EStore) (ty b : EIdx) (mi : BMIdx) : EStore × EIdx :=
   st.internBindI ETag.lam ty b mi
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — `intern` at the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Store.internForallEI_bridge, then delete this line
 `forallE` constructor over a datum HANDLE. -/
 @[inline] def internForallEI (st : EStore) (ty b : EIdx) (mi : BMIdx) : EStore × EIdx :=
   st.internBindI ETag.forallE ty b mi

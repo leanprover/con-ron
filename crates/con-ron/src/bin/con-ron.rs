@@ -77,7 +77,8 @@ use con_ron_core::arena::store::PersTier;
 // `--help` prints `con_ron_dump::ALLOCATOR` so a measurement can be
 // reproduced.
 
-/// con-leche: Main.lean:91-310 usage
+/// con-leche: Main.lean:91-312 usage
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with
@@ -208,7 +209,7 @@ declaration with no effect on any block.  A block whose shape the installer
 does not recognise declines (exit 2), naming it.  The binary reads no
 environment variable.";
 
-/// con-leche: Main.lean:312-326 Args
+/// con-leche: Main.lean:314-328 Args
 /// What the command line asked for — `con-ron`'s `Args`, field for field, so
 /// that a script written against one binary reads against the other.
 struct Args {
@@ -222,7 +223,7 @@ struct Args {
     bad: Option<String>,
 }
 
-/// con-leche: Main.lean:328-356 parseArgs
+/// con-leche: Main.lean:330-358 parseArgs
 /// The argument parse, clause for clause as `con-ron`'s: the mode flags in
 /// either order with the heartbeat, `=`-carrying spellings after the bare
 /// ones, an unknown `-`-leading word a usage error, everything else a file.
@@ -536,7 +537,7 @@ fn check_main(a: &Args, file: &str) -> u8 {
     exit_after_verdict(code)
 }
 
-/// con-leche: Main.lean:428-485 main
+/// con-leche: Main.lean:430-487 main
 /// con-leche task #336: **exit
 /// right after the verdict, without freeing the heap**.  Returning would drop
 /// the store, the parsed and prepared declarations and the environment on the
@@ -550,8 +551,8 @@ fn exit_after_verdict(code: u8) -> ! {
     std::process::exit(code as i32)
 }
 
-/// con-leche: Main.lean:358-426 run
-/// con-leche: Main.lean:428-485 main
+/// con-leche: Main.lean:360-428 run
+/// con-leche: Main.lean:430-487 main
 /// The entry point.  The checker runs IN THIS PROCESS: it spawns no copy of
 /// itself, and the whole run — parse, preparation, pin walk, fold — is on one
 /// 1 GiB-stack thread, which the arena needs more than the tree checker did

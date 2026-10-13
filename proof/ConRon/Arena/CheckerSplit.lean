@@ -46,7 +46,8 @@ def ValueKind.word : ValueKind → String
   | .thm => "theorem"
   | .opaque => "opaque"
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:50-59 ValueGroup — what the
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:50-58 ValueGroup — what the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.ValueGroup_bridge, then delete this line
 install half hands the check half: the kind, the header with its type
 annotated, and the value — ANNOTATED for a definition or an opaque, RAW for a
 theorem (the install half never looked at it: a theorem is stored by its
@@ -58,6 +59,7 @@ structure ValueGroup where
   deriving Inhabited
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.installConstantVal_bridge, then delete this line
 `checkConstantVal` minus its inference: the syntactic guards and the
 annotation of the type.  con-leche writes the shared clauses out twice and so
 does this, clause for clause. -/
@@ -84,6 +86,7 @@ def installConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
   pure { cv with type := type }
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.installValue_bridge, then delete this line
 value half of `check{Defn,Thm,Opaque}Val` minus its inference: the guards and
 the annotation of the value. -/
 def installValue (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
@@ -100,7 +103,8 @@ def installValue (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     fail (← unresolvedConstsError "value" value)
   pure value
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:102-119 checkValueGroup —
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup —
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.checkValueGroup_bridge, then delete this line
 **the check half of a value declaration**, at the environment the constant was
 installed at: the type's sort, the theorem's is-a-proposition test, for a
 theorem the value's guards and annotation, and the value's type against the

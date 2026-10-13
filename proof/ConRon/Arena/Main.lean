@@ -296,7 +296,8 @@ def runPipelineIO (h : IO.FS.Handle) (mode : CheckMode)
       | .error e => pure (.error e, chunks, tParse, 0)
       | .ok (v, s') => pure (v, chunks, tParse, s'.store.persCount)
 
-/-- con-leche: Main.lean:91-310 usage
+/-- con-leche: Main.lean:91-312 usage
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Main.usage_bridge, then delete this line
 The usage text, on stdout under `--help` and on stderr before a usage
 error.  It is con-leche's, shortened to what this binary actually has and
 saying plainly what it does not: the shape and the vocabulary are the same
@@ -355,7 +356,7 @@ def usage : String := String.intercalate "\n" [
   "What is NOT here is the PROOF: Theorem 1 of section 8.2 (this checker",
   "accepting implies con-leche's pure checker accepting) is phase P3."]
 
-/-- con-leche: Main.lean:312-326 Args
+/-- con-leche: Main.lean:314-328 Args
 The parsed command line.  `progress = 0` is "no flag given"; `jobs = none`
 is "no flag given", one worker per hardware thread. -/
 structure Args where
@@ -367,7 +368,7 @@ structure Args where
   files : Array String := #[]
   bad : Option String := none
 
-/-- con-leche: Main.lean:328-356 parseArgs
+/-- con-leche: Main.lean:330-358 parseArgs
 The argument parse, clause for clause: the mode flags in either order with
 the heartbeat, `=`-carrying spellings after the bare ones, an unknown
 `-`-leading word a usage error, everything else a file. -/
@@ -432,7 +433,7 @@ def checkMain (file : String) (mode : CheckMode) (pins : List NatOpPinSet)
     IO.eprintln s!"con-ron-lean: {e.message} ({modeTag}) t={msSecs (now - t0)}s"
     return e.exitCode
 
-/-- con-leche: Main.lean:428-485 main
+/-- con-leche: Main.lean:430-487 main
 `--help` in any argument position prints the usage on stdout and exits 0,
 reading nothing.  A bad flag prints its message and the usage on stderr
 and exits 3, as does a command line that does not name exactly one file.

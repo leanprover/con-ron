@@ -91,6 +91,7 @@ def ENodeView.lschildren : ENodeView → List LsIdx
   | _ => []
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum a node
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove WF.ENodeView.bmOf_bridge, then delete this line
 view carries, if it carries one.  `EStore.findBMOfView` is `findBM` at this
 (task #97-P6-16). -/
 def ENodeView.bmOf : ENodeView → Option ConLeche.BinderMeta

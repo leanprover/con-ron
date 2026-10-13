@@ -1,6 +1,6 @@
 //! The annotated basis blocks, generated (DESIGN.md §5 P1.5, task #22).
 //!
-//! con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+//! con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
 //!
 //! **Generated file — do not edit.**  Written by
 //! `proof/ConRon/Gen/Main.lean` (`cd proof && lake exe con-ron-gen-tables`)
@@ -34,12 +34,12 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::prop_when;
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:30-36 eqReflRaw
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:38-42 eqRecMotive
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:44-61 eqRecRaw
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:63-64 eqBasis
+/// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-27 eqRaw
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:29-35 eqReflRaw
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:37-41 eqRecMotive
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:43-60 eqRecRaw
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:62-63 eqBasis
 /// The annotated `eq` block (`BasisKind.declsA .eqK` = [eqA, eqReflA, eqRecA]).
 ///
 /// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
@@ -189,15 +189,16 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     out0
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:21-22 natT
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-26 natRaw
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:28-30 natZeroRaw
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:32-34 natSuccRaw
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:36-37 natRecMotive
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:39-44 natRecSucc
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:46-65 natRecRaw
-/// con-leche: ConLeche/Kernel/Basis/Nat.lean:67-68 natBasis
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-27 natRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_tables::basis_decls_nat_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:29-31 natZeroRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:33-35 natSuccRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:37-38 natRecMotive
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:40-45 natRecSucc
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:47-66 natRecRaw
+/// con-leche: ConLeche/Kernel/Basis/Nat.lean:68-69 natBasis
 /// The annotated `nat` block (`BasisKind.declsA .natK` = [natA, natZeroA, natSuccA, natRecA]).
 ///
 /// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 4
@@ -350,10 +351,11 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     out0
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: ConLeche/Kernel/Basis/Empty.lean:21-23 emptyRaw
-/// con-leche: ConLeche/Kernel/Basis/Empty.lean:25-32 emptyRecRaw
-/// con-leche: ConLeche/Kernel/Basis/Empty.lean:34-35 emptyBasis
+/// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:20-22 emptyRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_tables::basis_decls_empty_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:24-31 emptyRecRaw
+/// con-leche: ConLeche/Kernel/Basis/Empty.lean:33-34 emptyBasis
 /// The annotated `empty` block (`BasisKind.declsA .emptyK` = [emptyA, emptyRecA]).
 ///
 /// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
@@ -417,10 +419,10 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     out0
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
-/// con-leche: ConLeche/Kernel/Basis/False.lean:38-40 falseRaw
-/// con-leche: ConLeche/Kernel/Basis/False.lean:42-49 falseRecRaw
-/// con-leche: ConLeche/Kernel/Basis/False.lean:51-52 falseBasis
+/// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/Basis/False.lean:37-39 falseRaw
+/// con-leche: ConLeche/Kernel/Basis/False.lean:41-48 falseRecRaw
+/// con-leche: ConLeche/Kernel/Basis/False.lean:50-51 falseBasis
 /// The annotated `false` block (`BasisKind.declsA .falseK` = [falseA, falseRecA]).
 ///
 /// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
@@ -483,9 +485,10 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
     out0
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:26-28 quotRel
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:30-34 quotRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_tables::basis_decls_quot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:36-42 quotMkRaw
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:44-45 quotLiftF
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:47-53 quotLiftH

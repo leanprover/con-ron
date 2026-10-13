@@ -44,7 +44,7 @@ pub fn basis_kind_decls(
     intern_ci_list(pers, st, &basis_raw::basis_kind_decls(k))
 }
 
-/// con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA
+/// con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
 /// Lean twin: `proof/ConRon/Arena/Basis.lean:41-45 BasisKind.declsA` — the
 /// ANNOTATED constants of one basis block, in dependency order, interned.
 /// This is what `check_basis_decl` installs.

@@ -146,6 +146,7 @@ impl Eq2 for ExprNatKey {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/ExprOps.lean:954-960 isLam
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr_ops::is_lam_refines, then delete this line
 /// Is the expression a λ?
 pub fn is_lam(e: &Expr) -> bool {
     match expr::view(&e) {

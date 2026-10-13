@@ -138,6 +138,7 @@ pub fn nat_compare(m: u64, n: u64) -> Ordering {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:74-84 Name.cmp
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::name_cmp_refines, then delete this line
 /// `Name.cmp`, the structural lexicographic order that makes the canonical
 /// form canonical: constructor order `anonymous < str < num`, then the
 /// prefix, then the payload.  The nine arms are the Lean's nine arms.
@@ -185,12 +186,14 @@ pub fn names_copy(xs: &Vec<Name>) -> Vec<Name> {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:206-216 merge
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::merge_refines, then delete this line
 /// `PropWhen.merge`, the ordered union of two sorted lists.
 pub fn merge(as_: &Vec<Name>, bs: &Vec<Name>) -> Vec<Name> {
     merge_from(as_, 0, bs, 0, Vec::new())
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:206-216 merge
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::merge_from_refines, then delete this line
 /// The index recursion the cited `List` recursion becomes: `i`/`j` are the
 /// two cons positions and `out` the prefix already emitted, which is what
 /// Lean builds by consing on the way out.
@@ -227,12 +230,14 @@ pub fn merge_from(
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:282-285 canon
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::canon_refines, then delete this line
 /// `PropWhen.canon` — sort and deduplicate by folding the singletons in.
 pub fn canon(ps: &Vec<Name>) -> Vec<Name> {
     canon_from(ps, 0)
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:282-285 canon
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::canon_from_refines, then delete this line
 /// The index recursion the cited `List.foldr` becomes: a `foldr` is the
 /// recursion that merges `ps[i]` into the canonical form of `ps[i+1..]`.
 pub fn canon_from(ps: &Vec<Name>, i: usize) -> Vec<Name> {
@@ -249,7 +254,9 @@ pub fn canon_from(ps: &Vec<Name>, i: usize) -> Vec<Name> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:354-378 PropWhenRepr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::PropWhenRepr_refines, then delete this line
 /// con-leche: ConLeche/Kernel/PropWhen.lean:195-196 PropWhen.Sorted
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::PropWhenRepr_refines, then delete this line
 /// The five constructors of the cited `private inductive`.  Deviation: the
 /// invariants the Lean constructors carry as proof fields — `two` requires
 /// `p < q`, `many` requires the cited `Sorted ps` and `2 < ps.length` — are
@@ -276,7 +283,8 @@ enum PropWhenRepr {
     Many(P<Vec<Name>>),
 }
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:380-409 PropWhen
+/// con-leche: ConLeche/Kernel/PropWhen.lean:32-38 PropWhen
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::PropWhen_refines, then delete this line
 /// The zero-ness datum: for a level `l`, the set `Z(l) = {φ | eval φ l = 0}`
 /// of zeroing valuations, which is either empty (`never`) or "every
 /// parameter in `ps` is zero" (`if_all_zero ps`).  The field is private, so
@@ -286,7 +294,8 @@ pub struct PropWhen {
     repr: PropWhenRepr,
 }
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:380-409 PropWhen
+/// con-leche: ConLeche/Kernel/PropWhen.lean:32-38 PropWhen
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::of_repr_refines, then delete this line
 /// The cited `private ofRepr ::` constructor.
 fn of_repr(r: PropWhenRepr) -> PropWhen {
     PropWhen { repr: r }
@@ -332,6 +341,7 @@ pub fn names_beq(ps: &Vec<Name>, qs: &Vec<Name>) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:431-438 PropWhen.equivR
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::equiv_r_refines, then delete this line
 /// `PropWhen.equivR`: structural equality spelled constructor-wise, so that
 /// the name comparisons go through `Name.beq` (the pointer- and
 /// hash-guarded one) rather than a derived structural walk.
@@ -349,7 +359,9 @@ fn equiv_r(x: &PropWhenRepr, y: &PropWhenRepr) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:443-447 PropWhen.decEq
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::beq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/PropWhen.lean:449 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::beq_refines, then delete this line
 /// `PropWhen.decEq` and the `DecidableEq` instance it feeds.  By canonicity
 /// this *is* zero-ness agreement at every valuation (`eq_iff_holds`), which
 /// is why the checker compares data with `==` and no separate equivalence
@@ -369,6 +381,7 @@ pub fn names_hash_from(ps: &Vec<Name>, i: usize, acc: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:354-378 PropWhenRepr
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::hash_repr_refines, then delete this line
 /// The cited inductive's `deriving Hashable`: the constructor index, then
 /// `mixHash` folded over the fields (`Lean/Elab/Deriving/Hashable.lean:50`).
 /// Deviation: the derived instance also folds the *erased proof* fields
@@ -391,7 +404,9 @@ fn hash_repr(r: &PropWhenRepr) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:451-453 PropWhen.hash'
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::hash_pw_refines, then delete this line
 /// con-leche: ConLeche/Kernel/PropWhen.lean:455 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::hash_pw_refines, then delete this line
 /// `PropWhen.hash'` and the `Hashable` instance it feeds — a hash of the
 /// parameter *set*, by canonicity.
 pub fn hash_pw(pw: &PropWhen) -> u64 {
@@ -399,10 +414,12 @@ pub fn hash_pw(pw: &PropWhen) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:455 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::impl Hashable for PropWhen_refines, then delete this line
 /// The cited `instance : Hashable PropWhen := ⟨hash'⟩`, as the key
 /// dictionary of `crate::ron::hashmap` (task #7).
 impl Hashable for PropWhen {
     /// con-leche: ConLeche/Kernel/PropWhen.lean:451-453 PropWhen.hash'
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::hash64_refines, then delete this line
     /// `hash'`.
     fn hash64(&self) -> u64 {
         hash_pw(self)
@@ -410,10 +427,12 @@ impl Hashable for PropWhen {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:449 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::impl Eq2 for PropWhen_refines, then delete this line
 /// The cited `instance : DecidableEq PropWhen := decEq`, as the key
 /// dictionary of `crate::ron::hashmap` (task #7).
 impl Eq2 for PropWhen {
     /// con-leche: ConLeche/Kernel/PropWhen.lean:443-447 PropWhen.decEq
+    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::eq2_refines, then delete this line
     /// `decEq`.
     fn eq2(&self, other: &Self) -> bool {
         beq(self, other)
@@ -425,12 +444,14 @@ impl Eq2 for PropWhen {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:464-467 PropWhen.never
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::never_refines, then delete this line
 /// "The codomain sort is nonzero at every valuation."
 pub fn never() -> PropWhen {
     of_repr(PropWhenRepr::Never)
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:474-481 PropWhen.ofSorted
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::of_sorted_refines, then delete this line
 /// `PropWhen.ofSorted`: the datum of an *already sorted* list — the
 /// dedicated small constructors up to length 2, the list chain above.
 /// Deviations: the sortedness proof is erased (see `PropWhenRepr`), so the
@@ -450,6 +471,7 @@ fn of_sorted(ps: Vec<Name>) -> PropWhen {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:483-489 PropWhen.two'
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::two_prime_refines, then delete this line
 /// `PropWhen.two'`: the two-name datum from two arbitrary names — one
 /// comparison, no list cell.  (Lean's `'` has no Rust spelling; the name is
 /// `two_prime`.)
@@ -466,6 +488,7 @@ fn two_prime(p: &Name, q: &Name) -> PropWhen {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:491-501 PropWhen.ifAllZero
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::if_all_zero_refines, then delete this line
 /// **The smart constructor**: "every parameter in `ps` is zero", normalised
 /// to the canonical representative of the *set* of `ps`.  The empty and
 /// singleton cases touch no list cell and no comparison, the pair case is
@@ -485,6 +508,7 @@ pub fn if_all_zero(ps: Vec<Name>) -> PropWhen {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:503-512 PropWhen.toList
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::to_list_refines, then delete this line
 /// The parameter list of a datum — sorted and duplicate-free; `never` reads
 /// as `[]` (use `to_list_opt` where the distinction matters).  Deviation:
 /// the result is an owned copy, since the `many` arm cannot hand out the
@@ -505,6 +529,7 @@ pub fn to_list(pw: &PropWhen) -> Vec<Name> {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:514-519 PropWhen.toList?
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::to_list_opt_refines, then delete this line
 /// `toList?` — the view that inverts `if_all_zero`: `None` at `never`.
 pub fn to_list_opt(pw: &PropWhen) -> Option<Vec<Name>> {
     match &pw.repr {
@@ -517,7 +542,8 @@ pub fn to_list_opt(pw: &PropWhen) -> Option<Vec<Name>> {
 // The observers (`PropWhen.lean:684-799`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:710-732 PropWhen.isNever
+/// con-leche: ConLeche/Kernel/PropWhen.lean:52-55 PropWhen.isNever
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::is_never_refines, then delete this line
 /// Is the datum `never`?  The only kernel-decidable reading of the
 /// annotation that the verification tier licenses a check-skip on, and only
 /// under `μ.verifiedChecks` — see the cited doc comment.
@@ -529,6 +555,7 @@ pub fn is_never(pw: &PropWhen) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/PropWhen.lean:745-753 PropWhen.hasParams
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::has_params_refines, then delete this line
 /// Does the datum mention any level parameter — is `Level.substPW` ever
 /// non-trivial on it?  Folded into `Expr.hasLevelParam`.
 pub fn has_params(pw: &PropWhen) -> bool {
@@ -551,7 +578,8 @@ pub fn all_contained_from(params: &Vec<Name>, ps: &Vec<Name>, i: usize) -> bool 
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:772-783 PropWhen.paramsDefined
+/// con-leche: ConLeche/Kernel/PropWhen.lean:60-65 PropWhen.paramsDefined
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::params_defined_refines, then delete this line
 /// Are all parameters of the datum among `params`?  Folded into
 /// `Expr.allLevelParamsDefined`: level instantiation's composition law is
 /// false for data whose parameters escape the declaration's.
@@ -571,7 +599,8 @@ pub fn params_defined(params: &Vec<Name>, pw: &PropWhen) -> bool {
 // The producers (`PropWhen.lean:861-955`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:855-868 PropWhen.inter
+/// con-leche: ConLeche/Kernel/PropWhen.lean:70-76 PropWhen.inter
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::inter_refines, then delete this line
 /// Intersection of two zero-ness predicates (the `max` rule: a `max` is zero
 /// iff both sides are): `never` absorbs, sets unite through the ordered
 /// merge, so the output is canonical.  The `always`/singleton arms answer
@@ -596,7 +625,8 @@ pub trait NameToPw {
     fn apply(&self, n: &Name) -> PropWhen;
 }
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:925-928 PropWhen.bindZ.go
+/// con-leche: ConLeche/Kernel/PropWhen.lean:96-99 PropWhen.bindZ.go
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::bind_z_go_from_refines, then delete this line
 /// The index recursion the cited `List` fold becomes.
 pub fn bind_z_go_from<F>(f: &F, ps: &Vec<Name>, i: usize) -> PropWhen
 where
@@ -609,7 +639,8 @@ where
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:925-928 PropWhen.bindZ.go
+/// con-leche: ConLeche/Kernel/PropWhen.lean:96-99 PropWhen.bindZ.go
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::bind_z_go_refines, then delete this line
 /// `bindZ.go`, the list-level fold; the `i = 0` wrapper of the recursion
 /// above.
 pub fn bind_z_go<F>(f: &F, ps: &Vec<Name>) -> PropWhen
@@ -619,7 +650,8 @@ where
     bind_z_go_from(f, ps, 0)
 }
 
-/// con-leche: ConLeche/Kernel/PropWhen.lean:930-942 PropWhen.bindZ
+/// con-leche: ConLeche/Kernel/PropWhen.lean:101-105 PropWhen.bindZ
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_when::bind_z_refines, then delete this line
 /// Substitute each parameter of the datum by a whole datum and intersect
 /// ("all of `ps` zero" becomes "all replacements zero") — the monadic bind
 /// of the zero-ness reading.  Canonical on output because `inter` is.

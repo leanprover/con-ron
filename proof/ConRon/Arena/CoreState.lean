@@ -51,7 +51,8 @@ open ConLeche
 
 /-! ## The record -/
 
-/-- con-leche: ConLeche/Cached/StateC.lean:99-130 CState — the
+/-- con-leche: ConLeche/Cached/StateC.lean:99-127 CState — the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CoreState.Caches_bridge, then delete this line
 per-declaration caches of the arena checker, in one record beside
 `Monad.lean`'s per-call `Memos`.  Keeping the two apart is deliberate: the
 per-call clear (`inst1Clear` and its ten siblings) and the per-declaration
@@ -103,7 +104,8 @@ structure Caches where
   /-- The same for an interned universe-argument LIST (`readLevels`). -/
   readLsC : Std.HashMap LsIdx (List Level)
 
-/-- con-leche: ConLeche/Cached/StateC.lean:99-130 CState — the empty
+/-- con-leche: ConLeche/Cached/StateC.lean:99-127 CState — the empty
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CoreState.Caches.empty_bridge, then delete this line
 cache set: what a fresh run and every declaration start from. -/
 def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 

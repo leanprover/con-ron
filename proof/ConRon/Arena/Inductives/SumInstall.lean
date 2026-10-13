@@ -35,6 +35,7 @@ open ConLeche
 /-! ## The type former's stage -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:34-57 whnfTelescope
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.whnfTelescope_bridge, then delete this line
 **Official's telescope loop** (`check_inductive_types`): peel `n` Π binders off
 `e`, reducing the residual to weak head normal form before each binder and at
 the end, where it must be a sort. -/
@@ -55,7 +56,9 @@ def whnfTelescope (mode : CheckMode) (fe : IFEnv) :
     | _, _ + 1 => fail (.invalid "direct sum: type former does not reduce to a telescope")
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-30 checkSumTeleF
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumTele_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-31 checkSumTeleF
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumTele_bridge, then delete this line
 The type former's TELESCOPE (task #195): the checked declared type when it is
 already a syntactic telescope of `n` Π binders ending in a sort, else the
 declared type's whnf'd telescope, closed and checked as the former's type in
@@ -72,6 +75,7 @@ def checkSumTele (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
   | none => checkSumTeleSlow mode fe cv n cvTa₀
 where
   /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
+  -- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
   The `_` arm of `checkSumTele`'s match, named because over handles the
   syntactic test is two `view`s and duplicating the arm would duplicate the
   whnf loop. -/
@@ -86,8 +90,8 @@ where
 /-! ## The constructors' stage -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:75-100 checkStructFieldSortsI
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:32-48 checkStructFieldSortsIF
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:50-68 checkStructFieldSortsIFA
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:33-49 checkStructFieldSortsIF
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:51-69 checkStructFieldSortsIFA
 The fields' sorts over the opened constructor telescope, with the official
 per-field universe bound unless the family is propositional.  Walks the fields
 from the last to the first and returns the sorts in field order. -/
@@ -111,7 +115,8 @@ def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
     let rest ← checkStructFieldSortsI mode fe isProp large s nP fvs idxArgs j
     pure (rest ++ [u])
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.fieldDomsResolve_bridge, then delete this line
 Every field domain resolves at the PRE-BLOCK environment. -/
 def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | [] => pure true
@@ -119,15 +124,18 @@ def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     let t ← fvarTypeD x
     if ← constsResolveFFast fe₀ t then fieldDomsResolve fe₀ xs else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.idxArgsResolve_bridge, then delete this line
 The index expressions never mention the block. -/
 def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | [] => pure true
   | e :: es => do
     if ← constsResolveFFast fe₀ e then idxArgsResolve fe₀ es else pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-147 checkSumCtor
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:70-100 checkSumCtorF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumCtor_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:71-102 checkSumCtorF
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumCtor_bridge, then delete this line
 Stage 2, one constructor's type: the ordinary constant check, the annotated
 result shape, the parameter pins against the type former's opened telescope,
 the pre-block resolution of the field domains, and the per-field universe
@@ -171,8 +179,8 @@ def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     idxArgs nF
   pure (cvCa, sorts)
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:149-161 checkSumCtors
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:102-112 checkSumCtorsF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:150-162 checkSumCtors
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:104-114 checkSumCtorsF
 Stage 2, all constructors' types, at the environment holding the type
 former. -/
 def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
@@ -187,15 +195,16 @@ def checkSumCtors (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
       cvTa cs
     pure ((cvCa, c.2) :: rest, sorts :: srest)
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:163-166 consSumCtors
-con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:114-117 consSumCtorsF
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:164-167 consSumCtors
+con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:116-119 consSumCtorsF
 The constructors' conses, in order (the first constructor deepest).  Pure: the
 index push touches no term. -/
 def consSumCtors (nP : Nat) : List (IConstantVal × Nat) → IFEnv → IFEnv
   | [], fe => fe
   | c :: cs, fe => consSumCtors nP cs (fe.push (.ctorInfo c.1 nP c.2))
 
-/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:168-184 sumRules
+/-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:169-180 sumRules
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.sumRules_bridge, then delete this line
 The stored rules: constructor `j`'s with the generated right-hand side `j`,
 plain when the generated type's major is the family at the parameters, with
 the two rescue bits `recRuleBits` reads off the block's own store and

@@ -57,7 +57,7 @@ inductive CheckError where
 
 /-! ## The per-call memo tables -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:60-62 Inst1MemoInv — the memo
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:54-56 Inst1MemoInv — the memo
 tables of the `ExprOps` twins, in one record.
 
 con-leche threads each memo as an explicit argument-and-result pair
@@ -105,7 +105,7 @@ structure Memos where
   /-- The same at a universe-argument LIST handle, for the `.const` arm. -/
   instLPLsC : Std.HashMap LsIdx LsIdx
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast — every
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast — every
 walk starts from the empty memo (`(instantiate1Go v {} e d).1`), so this is
 what a top-level entry installs. -/
 def Memos.empty : Memos := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
@@ -114,7 +114,8 @@ instance : Inhabited Memos := ⟨Memos.empty⟩
 
 /-! ## The state and the monad -/
 
-/-- con-leche: ConLeche/Cached/StateC.lean:99-130 CState — the checker state of
+/-- con-leche: ConLeche/Cached/StateC.lean:99-127 CState — the checker state of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.AState_bridge, then delete this line
 (B) as P2b needs it: the arena and the per-call memo tables.  P2c extends it
 with the per-declaration caches (`whnfCore`, `whnf`, the three infer grades,
 `defeq`) and the environment index. -/
@@ -133,7 +134,7 @@ structure AState where
   answer. -/
   pins : Pins
 
-/-- con-leche: ConLeche/Cached/StateC.lean:137-139 CheckCM
+/-- con-leche: ConLeche/Cached/StateC.lean:134-136 CheckCM
 con-leche: ConLeche/Kernel/Core.lean:77 CheckM
 The one monad of (B)
 (DESIGN §8.4: "`AM := StateT AState (Except CheckError)` and nothing
@@ -152,7 +153,8 @@ def fail {α : Type} (e : CheckError) : AM α := throwThe CheckError e
 
 /-! ## The expression store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — decode a handle.  A
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — decode a handle.  A
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.view_bridge, then delete this line
 dangling handle is an internal error: the checker never builds one, and the
 bridge claims nothing on failure. -/
 @[inline] def view (h : EIdx) : AM ENodeView := do
@@ -161,7 +163,8 @@ bridge claims nothing on failure. -/
   | some v => pure v
   | none => fail (.internal "arena: dangling expression handle")
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-387 Expr — the packed derived
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the packed derived
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.derivedE_bridge, then delete this line
 word of a handle (the `data` computed field, lines 357-402), read in `O(1)`
 off the derived column. -/
 @[inline] def derivedE (h : EIdx) : AM UInt64 := do
@@ -169,6 +172,7 @@ off the derived column. -/
   pure (s.store.derived h)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — hash-cons a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.internBME_bridge, then delete this line
 binder DATUM, the Rust's `EStore::intern_bm` clause for clause (task
 #97-T2-LOCKSTEP D6): the persistent probe, the scratch probe when the scratch
 tier is open, and the capacity test only where the datum is APPENDED — on the
@@ -192,6 +196,7 @@ def internBME (m : ConLeche.BinderMeta) : AM BMIdx := do
       fail (.native "arena: expression constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — `internE` at the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.internLamIE_bridge, then delete this line
 `lam` constructor with the binder datum already a HANDLE (task #97-P6-16).
 The capacity test is `internE`'s own, at the binder array.
 
@@ -224,6 +229,7 @@ def internLamIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
       fail (.native "arena: expression constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — `internE` at the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.internForallEIE_bridge, then delete this line
 `forallE` constructor with the binder datum already a HANDLE.  Probe first,
 for `internLamIE`'s reason and at the other array. -/
 def internForallEIE (ty b : EIdx) (mi : BMIdx) : AM EIdx := do
@@ -313,7 +319,8 @@ returns the field and nothing else, and the caller spells the decline with
 inventing thirteen messages (task #97-P6-10; `#[cold]` on the Rust side, which
 Charon does not read). -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `none` arm of
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `none` arm of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.failDanglingE_bridge, then delete this line
 `view`, spelled once. -/
 def failDanglingE {α : Type} : AM α :=
   fail (.internal "arena: dangling expression handle")
@@ -331,57 +338,69 @@ whole `ENodeView` and dispatch on the tag a second time.  Each projection is
 `EStore`'s own under a state read, and each answers `Option` rather than
 failing, so that the caller spells `view`'s decline itself. -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `app` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app` projection. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewApp_bridge, then delete this line
 @[inline] def viewApp (h : EIdx) : AM (Option (EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewApp h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `bvar` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar` projection. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewBVar_bridge, then delete this line
 @[inline] def viewBVar (h : EIdx) : AM (Option Nat) := do
   let s ← get; pure (s.store.viewBVar h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `sort` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort` projection. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewSort_bridge, then delete this line
 @[inline] def viewSort (h : EIdx) : AM (Option LIdx) := do
   let s ← get; pure (s.store.viewSort h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `const` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const` projection. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewConst_bridge, then delete this line
 @[inline] def viewConst (h : EIdx) : AM (Option (NIdx × LsIdx)) := do
   let s ← get; pure (s.store.viewConst h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the head NAME of a
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the head NAME of a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewConstName_bridge, then delete this line
 `const` node; the level arguments are left in the store. -/
 @[inline] def viewConstName (h : EIdx) : AM (Option NIdx) := do
   let s ← get; pure (s.store.viewConstName h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `fvar` index. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar` index. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewFVarIdx_bridge, then delete this line
 @[inline] def viewFVarIdx (h : EIdx) : AM (Option Nat) := do
   let s ← get; pure (s.store.viewFVarIdx h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `fvar` binder
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar` binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewFVarTy_bridge, then delete this line
 type. -/
 @[inline] def viewFVarTy (h : EIdx) : AM (Option EIdx) := do
   let s ← get; pure (s.store.viewFVarTy h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `lit` projection. -/
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit` projection. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewLit_bridge, then delete this line
 @[inline] def viewLit (h : EIdx) : AM (Option ConLeche.Literal) := do
   let s ← get; pure (s.store.viewLit h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the binder projection,
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the binder projection,
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewBind_bridge, then delete this line
 with the datum decoded. -/
 @[inline] def viewBind (h : EIdx) : AM (Option (EIdx × EIdx × ConLeche.BinderMeta)) := do
   let s ← get; pure (s.store.viewBind h)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewBindI_bridge, then delete this line
 projection that stops at the datum's HANDLE (task #97-P6-16): a walk that
 takes a binder apart and puts it back never looks inside the datum. -/
 @[inline] def viewBindI (h : EIdx) : AM (Option (EIdx × EIdx × BMIdx)) := do
   let s ← get; pure (s.store.viewBindI h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `letE`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewLet_bridge, then delete this line
 projection. -/
 @[inline] def viewLet (h : EIdx) : AM (Option (EIdx × EIdx × EIdx)) := do
   let s ← get; pure (s.store.viewLet h)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the `proj`
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj`
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewProj_bridge, then delete this line
 projection. -/
 @[inline] def viewProj (h : EIdx) : AM (Option (NIdx × Nat × EIdx)) := do
   let s ← get; pure (s.store.viewProj h)
@@ -418,6 +437,7 @@ owes is `internCE (fields) = internE (.C fields)`, `rfl`. -/
   internE (.proj n i e)
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the two binder
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.internBindIE_bridge, then delete this line
 arms at a tag the caller carries and a datum it holds as a handle: the shape
 the rebuilding walks want, where `eBindView` + `internE` stood. -/
 @[inline] def internBindIE (tag : UInt32) (ty b : EIdx) (mi : BMIdx) : AM EIdx :=
@@ -510,7 +530,7 @@ def internLNode (v : LNodeView) : AM LIdx := do
     else
       fail (.native "arena: level constructor array full")
 
-/-- con-leche: ConLeche/Kernel/Level.lean:30-41 subst — **the readback**
+/-- con-leche: ConLeche/Kernel/Level.lean:31-42 subst — **the readback**
 (DESIGN §8.3 lesson 4, "intern the representation, not the algorithm"): a
 level ALGORITHM runs on a transient `ConLeche.Level` tree read out of the
 store, never on handles.  The readback is `denoteL` itself, so the spec
@@ -542,7 +562,8 @@ def internLevel : Level → AM LIdx
 
 /-! ## The level-list store's primitives -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — decode a
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — decode a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.viewLs_bridge, then delete this line
 universe-argument list handle (the `const` node's second field, line 347). -/
 @[inline] def viewLs (h : LsIdx) : AM LsNodeView := do
   let s ← get
@@ -568,7 +589,7 @@ def internLsNode (v : LsNodeView) : AM LsIdx := do
     else
       fail (.native "arena: level-list array full")
 
-/-- con-leche: ConLeche/Kernel/Level.lean:30-41 subst — read a universe
+/-- con-leche: ConLeche/Kernel/Level.lean:31-42 subst — read a universe
 argument list back as transient `Level` trees. -/
 def readLevels (h : LsIdx) : AM (List Level) := do
   let s ← get
@@ -613,7 +634,7 @@ The obligation is a MEMO obligation and not a new algorithm: `denoteL`,
 `denoteN` and `denoteLs` are functions of the store, so a hit answers with the
 row the miss stored. -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:30-41 subst — the memoised
+/-- con-leche: ConLeche/Kernel/Level.lean:31-42 subst — the memoised
 `readLevel`. -/
 def readLevelM (h : LIdx) : AM Level := do
   let s ← get
@@ -653,7 +674,7 @@ def readNamesM : List NIdx → AM (List ConLeche.Name)
     let xs ← readNamesM hs
     pure (x :: xs)
 
-/-- con-leche: ConLeche/Kernel/Level.lean:30-41 subst — the memoised
+/-- con-leche: ConLeche/Kernel/Level.lean:31-42 subst — the memoised
 `readLevels`. -/
 def readLevelsM (h : LsIdx) : AM (List Level) := do
   let s ← get
@@ -679,6 +700,7 @@ one at the same place, against the persistent array; the error is the same
 -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — arena
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.internBMPersistentE_bridge, then delete this line
 infrastructure; the binder datum's promote-intern, with the Rust's
 `intern_bm_persistent` capacity test where it makes it: on the persistent
 datum MISS only.  (The Rust's frozen-tier `Native` arm before it is gone since
@@ -698,6 +720,7 @@ def internBMPersistentE (m : ConLeche.BinderMeta) : AM BMIdx := do
       fail (.native "arena: expression constructor array full")
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — arena
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.internBMOfViewPersistentE_bridge, then delete this line
 infrastructure; the datum a view names, made persistent: the Rust's
 `intern_bm_of_view_persistent`.  A non-binder view names no datum. -/
 def internBMOfViewPersistentE (v : ENodeView) : AM BMIdx :=
@@ -789,12 +812,14 @@ the table before the update (DESIGN §8.4 lesson 14) and every drop sets the
 `Memos` field to `∅`; both are `@[noinline]` for the same reason the store's
 mutations are (lesson 15). -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.inst1Get_bridge, then delete this line
 `instantiate1` memo. -/
 @[inline] def inst1Get (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.inst1C[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — record an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — record an
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.inst1Set_bridge, then delete this line
 `instantiate1` answer (detach before update). -/
 @[noinline] def inst1Set (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -802,18 +827,20 @@ mutations are (lesson 15). -/
   let s := { s with memos := { s.memos with inst1C := ∅ } }
   set { s with memos := { s.memos with inst1C := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:182-184 instantiate1Fast — the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast — the
 memo is "dropped after each call, since it also depends on `v`". -/
 @[noinline] def inst1Clear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with inst1C := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — probe
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — probe
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLGet_bridge, then delete this line
 the `instantiateList` memo. -/
 @[inline] def instLGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.instLC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — record
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — record
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLSet_bridge, then delete this line
 an `instantiateList` answer. -/
 @[noinline] def instLSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -821,18 +848,20 @@ an `instantiateList` answer. -/
   let s := { s with memos := { s.memos with instLC := ∅ } }
   set { s with memos := { s.memos with instLC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast — drop
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:365-367 instantiateListFast — drop
 the `instantiateList` memo (it depends on `vs`). -/
 @[noinline] def instLClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with instLC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:508-544 liftLooseBVarsGo — probe
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — probe
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.liftGet_bridge, then delete this line
 the `liftLooseBVars` memo. -/
 @[inline] def liftGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.liftC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:508-544 liftLooseBVarsGo — record
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — record
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.liftSet_bridge, then delete this line
 a `liftLooseBVars` answer. -/
 @[noinline] def liftSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -840,18 +869,20 @@ a `liftLooseBVars` answer. -/
   let s := { s with memos := { s.memos with liftC := ∅ } }
   set { s with memos := { s.memos with liftC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:610-612 liftLooseBVarsFast — drop
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:604-606 liftLooseBVarsFast — drop
 the `liftLooseBVars` memo (it depends on `amount`). -/
 @[noinline] def liftClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with liftC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2066-2110 abstract1Go — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.abs1Get_bridge, then delete this line
 `abstract1` memo. -/
 @[inline] def abs1Get (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.abs1C[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2066-2110 abstract1Go — record an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — record an
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.abs1Set_bridge, then delete this line
 `abstract1` answer. -/
 @[noinline] def abs1Set (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -859,18 +890,20 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
   let s := { s with memos := { s.memos with abs1C := ∅ } }
   set { s with memos := { s.memos with abs1C := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2204-2206 abstract1Fast — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1958-1960 abstract1Fast — drop the
 `abstract1` memo (it depends on `d`). -/
 @[noinline] def abs1Clear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with abs1C := ∅ } }
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.lowerGet_bridge, then delete this line
 `lowerBVars` memo. -/
 @[inline] def lowerGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.lowerC[k]?
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — record a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.lowerSet_bridge, then delete this line
 `lowerBVars` answer. -/
 @[noinline] def lowerSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -879,17 +912,20 @@ the `liftLooseBVars` memo (it depends on `amount`). -/
   set { s with memos := { s.memos with lowerC := mp.insert k r } }
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2418-2420 lowerBVarsFast — drop
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.lowerClear_bridge, then delete this line
 the `lowerBVars` memo (it depends on `amount`). -/
 @[noinline] def lowerClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with lowerC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2494-2533 instantiate1LiftGo —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.inst1LGet_bridge, then delete this line
 probe the `instantiate1Lift` memo. -/
 @[inline] def inst1LGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.inst1LC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2494-2533 instantiate1LiftGo —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.inst1LSet_bridge, then delete this line
 record an `instantiate1Lift` answer. -/
 @[noinline] def inst1LSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -897,18 +933,20 @@ record an `instantiate1Lift` answer. -/
   let s := { s with memos := { s.memos with inst1LC := ∅ } }
   set { s with memos := { s.memos with inst1LC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2628-2630 instantiate1LiftFast —
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2169-2171 instantiate1LiftFast —
 drop the `instantiate1Lift` memo (it depends on `v`). -/
 @[noinline] def inst1LClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with inst1LC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo — probe
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — probe
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLPGet_bridge, then delete this line
 the level-substitution memo. -/
 @[inline] def instLPGet (k : EIdx × Nat) : AM (Option EIdx) := do
   let s ← get; pure s.memos.instLPC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — record a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLPSet_bridge, then delete this line
 level-substitution answer. -/
 @[noinline] def instLPSet (k : EIdx × Nat) (r : EIdx) : AM Unit := do
   let s ← get
@@ -916,19 +954,21 @@ level-substitution answer. -/
   let s := { s with memos := { s.memos with instLPC := ∅ } }
   set { s with memos := { s.memos with instLPC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2985-2987 Expr.instLPFast — drop
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2492-2494 Expr.instLPFast — drop
 the level-substitution memo (it depends on `ks` and `us`). -/
 @[noinline] def instLPClear : AM Unit := do
   let s ← get
   set { s with memos :=
     { s.memos with instLPC := ∅, instLPLC := ∅, instLPLsC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLPLGet_bridge, then delete this line
 level-handle substitution memo (task #97-P6-13). -/
 @[inline] def instLPLGet (h : LIdx) : AM (Option LIdx) := do
   let s ← get; pure s.memos.instLPLC[h]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — record a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLPLSet_bridge, then delete this line
 level-handle substitution. -/
 @[noinline] def instLPLSet (h : LIdx) (r : LIdx) : AM Unit := do
   let s ← get
@@ -936,12 +976,14 @@ level-handle substitution. -/
   let s := { s with memos := { s.memos with instLPLC := ∅ } }
   set { s with memos := { s.memos with instLPLC := mp.insert h r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLPLsGet_bridge, then delete this line
 level-LIST substitution memo. -/
 @[inline] def instLPLsGet (h : LsIdx) : AM (Option LsIdx) := do
   let s ← get; pure s.memos.instLPLsC[h]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2831-2870 Expr.instLPGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — record a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.instLPLsSet_bridge, then delete this line
 level-LIST substitution. -/
 @[noinline] def instLPLsSet (h : LsIdx) (r : LsIdx) : AM Unit := do
   let s ← get
@@ -949,12 +991,14 @@ level-LIST substitution. -/
   let s := { s with memos := { s.memos with instLPLsC := ∅ } }
   set { s with memos := { s.memos with instLPLsC := mp.insert h r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1645-1669 bvarBoundGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.bvarBGet_bridge, then delete this line
 loose-bvar-bound memo. -/
 @[inline] def bvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.bvarBC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1645-1669 bvarBoundGo — record a
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo — record a
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.bvarBSet_bridge, then delete this line
 loose-bvar bound. -/
 @[noinline] def bvarBSet (k : EIdx) (r : Nat) : AM Unit := do
   let s ← get
@@ -962,18 +1006,20 @@ loose-bvar bound. -/
   let s := { s with memos := { s.memos with bvarBC := ∅ } }
   set { s with memos := { s.memos with bvarBC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1671-1672 bvarBoundMemo — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1425-1426 bvarBoundMemo — drop the
 loose-bvar-bound memo. -/
 @[noinline] def bvarBClear : AM Unit := do
   let s ← get
   set { s with memos := { s.memos with bvarBC := ∅ } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1674-1699 fvarRangeGo — probe the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo — probe the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.fvarBGet_bridge, then delete this line
 fvar-range memo. -/
 @[inline] def fvarBGet (k : EIdx) : AM (Option Nat) := do
   let s ← get; pure s.memos.fvarBC[k]?
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1674-1699 fvarRangeGo — record an
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo — record an
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Monad.fvarBSet_bridge, then delete this line
 fvar range. -/
 @[noinline] def fvarBSet (k : EIdx) (r : Nat) : AM Unit := do
   let s ← get
@@ -981,7 +1027,7 @@ fvar range. -/
   let s := { s with memos := { s.memos with fvarBC := ∅ } }
   set { s with memos := { s.memos with fvarBC := mp.insert k r } }
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1701-1702 fvarRangeMemo — drop the
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1455-1456 fvarRangeMemo — drop the
 fvar-range memo. -/
 @[noinline] def fvarBClear : AM Unit := do
   let s ← get

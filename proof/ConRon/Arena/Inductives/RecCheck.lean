@@ -54,7 +54,9 @@ open ConLeche
 /-! ## The holes: the block's members abstracted to free variables -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:65-85 targetAbs
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetAbsGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:106-146 targetAbsGo
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetAbsGo_bridge, then delete this line
 **The member abstraction of one term**: every member at the block's levels
 `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on the
 node. -/
@@ -407,6 +409,7 @@ def targetCtorAt (M : TargetMajor) (c : IConstantVal) : AM EIdx :=
   | none => instLPFast coreWalkFuel c.levelParams M.lvls c.type
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetK53_bridge, then delete this line
 **K.53′ at one recorded field** `f`: its telescope is the call's `tele` and its
 leaf the callee's major `majDom`, up to the free variables' annotations, the
 leaf's head and arity the major's, its indices up to annotations, its class
@@ -448,6 +451,7 @@ def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List
       else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:568-573 targetPiDomsWith
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetPiDomsWith_bridge, then delete this line
 The domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 `xs`. -/
 def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
@@ -466,6 +470,7 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 /-! ## The stored family -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-595 auxRuleFireR
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.auxRuleFireR_bridge, then delete this line
 **The firing mode of a rule at an OUTSIDE major**: `.nested` at the syntactic
 reading of the recursor type's major domain, `.inert` when it fails.
 `resolves` is the constructors' environment `fe`. -/
@@ -474,7 +479,8 @@ def auxRuleFireR (fe : IFEnv) (cv : IConstantVal) (mI rP nPc : Nat) : AM IRecRul
   | some (lvls, pins) => pure (.nested lvls pins)
   | none => pure .inert
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:597-607 tgtStoredRules
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.tgtStoredRules_bridge, then delete this line
 **One checked recursor's stored rules, at its major**: `sumRules` at the
 major's parameter count and constructors, every rule firing as `auxRuleFireR`
 reads it at an OUTSIDE major (the reading computed once, the module note). -/
@@ -487,15 +493,17 @@ def tgtStoredRules (fe : IFEnv) (cv : IConstantVal) (mI rP : Nat) (M : TargetMaj
     let f ← auxRuleFireR fe cv mI rP M.nPc
     pure (rules.map fun rl => { rl with fire := f })
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:609-615 blockNestedBit
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:616-622 blockNestedBit
 **The block's container bit**: some field kind is not flat or some recursor's
 major is not a member. -/
 def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) : Bool :=
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:617-627 blockRecInfosTF
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
-con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
+con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-104 consBlockRecsT
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
 **The checked family consed through the index, at its majors**: each recursor
 with its rules at ITS major, the rules' lookups at the constructors'
 environment, i.e. at its visibility bound `vis₂` while the recursors are pushed

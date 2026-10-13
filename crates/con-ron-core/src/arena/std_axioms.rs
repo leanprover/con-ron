@@ -61,49 +61,49 @@ pub const M_FUEL_ERASE_PW: [u32; 25] = [
 // The reserved names, interned (`StdAxioms.lean:34-51` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:38-39 propextName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:33-34 propextName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:36-37 propextName`.
 pub fn propext_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_propext(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:41-42 choiceName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:36-37 choiceName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:38-39 choiceName`.
 pub fn choice_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_choice(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:44-45 iffName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:39-40 iffName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:40-41 iffName`.
 pub fn iff_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_iff(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:47-48 iffIntroName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:42-43 iffIntroName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:42-43 iffIntroName`.
 pub fn iff_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_iff_intro(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:50-51 iffRecName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:45-46 iffRecName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:44-45 iffRecName`.
 pub fn iff_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_iff_rec(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:53-54 nonemptyName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:48-49 nonemptyName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:46-47 nonemptyName`.
 pub fn nonempty_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_nonempty(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:56-57 nonemptyIntroName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:51-52 nonemptyIntroName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:48-49 nonemptyIntroName`.
 pub fn nonempty_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_nonempty_intro(st)
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:59-60 nonemptyRecName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:54-55 nonemptyRecName
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:50-51 nonemptyRecName`.
 pub fn nonempty_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_nonempty_rec(st)
@@ -114,7 +114,9 @@ pub fn nonempty_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:62-113 Expr.erasePw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::erase_pw_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::erase_pw_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:55-88 erasePwEq` —
 /// `a.erasePw = b.erasePw`, decided in lockstep on two handles.  `erasePw`
 /// preserves every node's constructor and its non-recursive fields (it only
@@ -143,6 +145,7 @@ pub fn erase_pw_eq(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::erase_pw_eq_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:55-88 erasePwEq` — the ten
 /// arms, past the two views.
 pub fn erase_pw_eq_at(
@@ -199,6 +202,7 @@ pub fn erase_pw_eq_at(
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::erase_pw_eq_two_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:55-88 erasePwEq` — the twin's
 /// `if ← erasePwEq … then erasePwEq … else pure false`, which four of its arms
 /// spell identically (`arena::canon::canon_expr_eq_two`'s reason).
@@ -223,8 +227,10 @@ pub fn erase_pw_eq_two(
     }
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:115-117 ConstantVal.matchesPin
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:57-91 ConstantVal.matchesPin
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::i_constant_val_matches_pin_refines, then delete this line
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:197-201 ConstantVal.matchesPinFast
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::i_constant_val_matches_pin_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:90-99 IConstantVal.matchesPin`
 /// — shape comparison for the standard pins: exact name, level parameters and
 /// counts, type up to the `pw` datum.  A name comparison is a handle
@@ -250,54 +256,63 @@ pub fn i_constant_val_matches_pin(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:208-210 iffRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:108-109 iffRaw`.
 pub fn iff_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::iff_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:212-220 iffIntroRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_intro_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:110-111 iffIntroRaw`.
 pub fn iff_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::iff_intro_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_rec_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:112-113 iffRecRaw`.
 pub fn iff_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::iff_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::propext_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:114-115 propextRaw`.
 pub fn propext_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::propext_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:116-117 nonemptyRaw`.
 pub fn nonempty_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_intro_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:118-119 nonemptyIntroRaw`.
 pub fn nonempty_intro_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_intro_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_rec_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:120-121 nonemptyRecRaw`.
 pub fn nonempty_rec_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {
     intern_ci(pers, st, &cstd::nonempty_rec_raw())
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::choice_raw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:122-123 choiceRaw`.
 pub fn choice_raw(pers: &PersTier, st: &mut AState) -> Result<IConstantVal, CheckError> {
     intern_cv(pers, st, &cstd::choice_raw())
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::eq_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:125-129 eqA` — the ANNOTATED `Eq`
 /// pin, interned.  It is the comparand of every "requires the pinned `Eq`
 /// basis" test in the checker, and the one pin compared by whole-constant
@@ -307,6 +322,7 @@ pub fn eq_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckErro
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nat_a_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:131-133 natA` — the ANNOTATED
 /// `Nat` pin, interned.
 pub fn nat_a(pers: &PersTier, st: &mut AState) -> Result<IConstantInfo, CheckError> {

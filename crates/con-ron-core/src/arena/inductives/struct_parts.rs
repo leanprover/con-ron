@@ -119,7 +119,7 @@ pub fn param_levels_go(
 // The families and the spines (`StructParts.lean:66-125` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:50-53 structPsAt
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:41-44 structPsAt
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:69-79 structPsAt`
 /// — the parameter variables as seen from under `o` extra binders:
 /// `p_k = bvar (o + nP - 1 - k)`, `structFam`'s argument spine.
@@ -132,7 +132,7 @@ pub fn struct_ps_at(
     struct_ps_at_from(pers, st, o, n_p, 0, Vec::new())
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:50-53 structPsAt
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:41-44 structPsAt
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:79 structPsAt.go`
 /// — the cursor recursion behind `struct_ps_at`.
 pub fn struct_ps_at_from(
@@ -157,7 +157,7 @@ pub fn struct_ps_at_from(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:55-58 structElimLevel
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:46-49 structElimLevel
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:81-85 structElimLevel`
 /// — the recursor's elimination level: the fresh parameter at the large
 /// eliminator, `zero` at the small one.
@@ -178,7 +178,7 @@ pub fn struct_elim_level(
 // The generated recursor at an indexed family (`StructParts.lean:159-188`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:79-85 structCtorResidOk
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:70-76 structCtorResidOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:89-100 structCtorResidOk`
 /// — a constructor residual's shape at an indexed family: the family at exactly
 /// the parameter variables (`o` binders below the parameter frame) followed by
@@ -221,7 +221,7 @@ pub fn struct_ctor_resid_ok(
 // The projection bodies (`StructParts.lean:313-335` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:87-93 structProjPs
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:78-84 structProjPs
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:104-107 structProjPs`
 /// — the parameter spine of the generated projection types, spelled at the
 /// frame of the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`.
@@ -229,7 +229,7 @@ pub fn struct_proj_ps(pers: &PersTier, st: &mut AState, n_p: u64) -> Result<Vec<
     struct_ps_at(pers, st, 1, n_p)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:95-101 structProjArgP
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:86-92 structProjArgP
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:109-114 structProjArgP`
 /// — the `j`-th earlier-field substitute in a tower entry's generated type: the
 /// first-class node `t.j` (`.proj T j` of the subject).
@@ -261,7 +261,7 @@ pub fn hlb_probe(memo: &HashMap<EIdxNat, bool>, k: &EIdxNat) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:190-195 Expr.hasLooseBVarBIns
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:181-186 Expr.hasLooseBVarBIns
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:118-123 hasLooseBVarBIns`
 /// — record one answer for `(e, i)` in the memo the walk hands back.
 pub fn has_loose_bvar_b_ins(
@@ -274,9 +274,12 @@ pub fn has_loose_bvar_b_ins(
     (r.0, memo)
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:111-124 Expr.hasLooseBVar
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:126-145 Expr.hasLooseBVarB
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:197-233 Expr.hasLooseBVarBGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:102-115 Expr.hasLooseBVar
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_go_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:117-136 Expr.hasLooseBVarB
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_go_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:188-224 Expr.hasLooseBVarBGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:125-171 hasLooseBVarBGo`
 /// — does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
 /// (`bvarB ≤ i`) and its per-call memo, both kept: the cutoff stops the walk
@@ -324,7 +327,8 @@ pub fn has_loose_bvar_b_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:197-233 Expr.hasLooseBVarBGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:188-224 Expr.hasLooseBVarBGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:125-171 hasLooseBVarBGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead
 /// at the memo's join (task #97-P4c's extraction rule 5, and P4a's second).
@@ -366,7 +370,7 @@ pub fn has_loose_bvar_b_node(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:379-381 Expr.hasLooseBVarBFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:370-372 Expr.hasLooseBVarBFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:173-176 hasLooseBVarBFast`
 /// — the executed `hasLooseBVarB` (one memoized DAG walk).
 pub fn has_loose_bvar_b_fast(
@@ -385,7 +389,7 @@ pub fn has_loose_bvar_b_fast(
 // `structUsedLater` and the guard table (`StructParts.lean:399-451`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:388-396 structUsedLater
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:379-387 structUsedLater
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:178-184 structUsedLater`
 /// — **field `j` is used by a later field**, the official `infer_proj`'s
 /// `has_loose_bvars(binding_body(r))` at step `j`.
@@ -403,7 +407,7 @@ pub fn struct_used_later(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:424-429 structUsedLaterGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:415-420 structUsedLaterGo
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:186-192 structUsedLaterGo`
 /// — memoized `structUsedLater`, taking and returning the shared memo.
 pub fn struct_used_later_go(
@@ -421,7 +425,7 @@ pub fn struct_used_later_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:440-447 structUsedLaterList
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:431-438 structUsedLaterList
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:194-203 structUsedLaterList`
 /// — `structUsedLater cty nP j` for `j = base, …, base + n - 1`, in order,
 /// through one shared memo.  Lean conses on the way out; the port pushes on the
@@ -473,8 +477,8 @@ pub fn sort_get_d(sorts: &Vec<LIdx>, j: u64, z: &LIdx) -> LIdx {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:398-411 structProjGuards
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:222 structProjGuards.col`
 /// — the inner fold: field `i`'s own sort joined with the sorts of the earlier
 /// fields that a later field uses.
@@ -501,8 +505,8 @@ pub fn struct_proj_guards_col(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:398-411 structProjGuards
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:230 structProjGuards.row`
 /// — the outer fold, one guard level per field.  Lean conses on the way out;
 /// the port pushes on the way in, at the same order of effects.
@@ -531,8 +535,8 @@ pub fn struct_proj_guards_row(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:398-411 structProjGuards
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:205-230 structProjGuards`
 /// — **the projection guard levels**.  con-leche's two forms are one twin: the
 /// `nF` `structUsedLater` answers are computed first through one shared memo
@@ -555,7 +559,8 @@ pub fn struct_proj_guards(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:503-521 structProjBodiesGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:494-512 structProjBodiesGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::struct_proj_bodies_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:232-248 structProjBodiesGo`
 /// — **the projection bodies of a recognised block**, one walk of the
 /// constructor telescope: field `i`'s domain is body `i`, and the field is
@@ -594,7 +599,7 @@ pub fn struct_proj_bodies_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:523-526 structProjBodies
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:514-517 structProjBodies
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:250-259 structProjBodies`
 /// — the block's projection bodies, as the table stores them.
 pub fn struct_proj_bodies(
@@ -630,8 +635,10 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:528-537 Expr.mentionsConst
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:569-604 Expr.mentionsConstGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:519-528 Expr.mentionsConst
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:560-595 Expr.mentionsConstGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:263-304 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  A syntactic walk (`fvar`
 /// annotations included; a `.proj` node names its structure), with con-leche's
@@ -668,7 +675,8 @@ pub fn mentions_const_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:569-604 Expr.mentionsConstGo
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:560-595 Expr.mentionsConstGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::mentions_const_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:263-304 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
@@ -721,7 +729,7 @@ pub fn mentions_const_node(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:677-679 Expr.mentionsConstFast
+/// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:668-670 Expr.mentionsConstFast
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:306-309 mentionsConst`
 /// — the executed `mentionsConst` (one memoized DAG walk).
 pub fn mentions_const(

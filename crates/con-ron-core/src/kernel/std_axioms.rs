@@ -64,7 +64,7 @@ use std::vec::Vec;
 // The pinned names (`StdAxioms.lean:38-69`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:38-39 propextName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:33-34 propextName
 /// The name `propext`.  Deviation (task #18's point 10): a pinned name is a
 /// function that rebuilds its `Name`, because the Aeneas subset has no
 /// module-initialization constant.
@@ -72,7 +72,7 @@ pub fn propext_name() -> Name {
     name::mk_str(name::anonymous(), { const S: [u32; 7] = [112, 114, 111, 112, 101, 120, 116]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:41-42 choiceName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:36-37 choiceName
 /// The name `Classical.choice`.
 pub fn choice_name() -> Name {
     name::mk_str(
@@ -84,25 +84,25 @@ pub fn choice_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:44-45 iffName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:39-40 iffName
 /// The name `Iff`.
 pub fn iff_name() -> Name {
     name::mk_str(name::anonymous(), { const S: [u32; 3] = [73, 102, 102]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:47-48 iffIntroName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:42-43 iffIntroName
 /// The name `Iff.intro`.
 pub fn iff_intro_name() -> Name {
     name::mk_str(iff_name(), { const S: [u32; 5] = [105, 110, 116, 114, 111]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:50-51 iffRecName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:45-46 iffRecName
 /// The name `Iff.rec`.
 pub fn iff_rec_name() -> Name {
     name::mk_str(iff_name(), { const S: [u32; 3] = [114, 101, 99]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:53-54 nonemptyName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:48-49 nonemptyName
 /// The name `Nonempty`.
 pub fn nonempty_name() -> Name {
     name::mk_str(
@@ -111,13 +111,13 @@ pub fn nonempty_name() -> Name {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:56-57 nonemptyIntroName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:51-52 nonemptyIntroName
 /// The name `Nonempty.intro`.
 pub fn nonempty_intro_name() -> Name {
     name::mk_str(nonempty_name(), { const S: [u32; 5] = [105, 110, 116, 114, 111]; core_types::code_points(&S) })
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:59-60 nonemptyRecName
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:54-55 nonemptyRecName
 /// The name `Nonempty.rec`.
 pub fn nonempty_rec_name() -> Name {
     name::mk_str(nonempty_name(), { const S: [u32; 3] = [114, 101, 99]; core_types::code_points(&S) })
@@ -128,7 +128,9 @@ pub fn nonempty_rec_name() -> Name {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:208-210 iffRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_raw_refines, then delete this line
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:291-297 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_raw_refines, then delete this line
 /// `Iff (a b : Prop) : Prop`.  The second citation is the `#annotate_basis`
 /// command that computes the *annotated* pin `iffA` the guard below compares
 /// against; see the module note for why the raw one gives the same verdict.
@@ -148,6 +150,7 @@ pub fn iff_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:212-220 iffIntroRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_intro_raw_refines, then delete this line
 /// `Iff.intro (a b : Prop) (mp : a → b) (mpr : b → a) : Iff a b`.
 pub fn iff_intro_raw() -> ConstantInfo {
     ConstantInfo::CtorInfo(
@@ -177,7 +180,7 @@ pub fn iff_intro_raw() -> ConstantInfo {
     )
 }
 
-/// con-leche: ConLeche/Kernel/StdAxioms.lean:222-227 iffRecIntro
+/// con-leche: ConLeche/Kernel/StdAxioms.lean:107-112 iffRecIntro
 /// `Iff.rec`'s minor premise, in the `a`/`b`/`motive` binder context:
 /// `∀ (mp : a → b) (mpr : b → a), motive (Iff.intro a b mp mpr)`.
 pub fn iff_rec_intro() -> Expr {
@@ -200,6 +203,7 @@ pub fn iff_rec_intro() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::iff_rec_raw_refines, then delete this line
 /// `Iff.rec.{u} (a b : Prop) (motive : Iff a b → Sort u)`
 /// `(intro : ∀ mp mpr, motive (Iff.intro a b mp mpr)) (t : Iff a b) :`
 /// `motive t`.
@@ -253,7 +257,9 @@ pub fn one_level() -> Vec<Level> {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::propext_raw_refines, then delete this line
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:299-302 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::propext_raw_refines, then delete this line
 /// `propext (a b : Prop) : Iff a b → Eq.{1} Prop a b`.  The second citation
 /// is the `#annotate_pins` command computing `propextA` (see the module
 /// note).
@@ -284,6 +290,7 @@ pub fn propext_raw() -> ConstantVal {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_raw_refines, then delete this line
 /// `Nonempty.{u} (α : Sort u) : Prop`.
 pub fn nonempty_raw() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
@@ -302,6 +309,7 @@ pub fn nonempty_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_intro_raw_refines, then delete this line
 /// `Nonempty.intro.{u} (α : Sort u) (val : α) : Nonempty α`.
 pub fn nonempty_intro_raw() -> ConstantInfo {
     let mut lps: Vec<Name> = Vec::new();
@@ -329,6 +337,7 @@ pub fn nonempty_intro_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::nonempty_rec_raw_refines, then delete this line
 /// `Nonempty.rec.{u} (α : Sort u) (motive : Nonempty α → Prop)`
 /// `(intro : ∀ val, motive (Nonempty.intro α val)) (t : Nonempty α) :`
 /// `motive t`.  The motive sort is pinned to `Prop` (the cited guidance: a
@@ -386,6 +395,7 @@ pub fn nonempty_rec_raw() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove std_axioms::choice_raw_refines, then delete this line
 /// `Classical.choice.{u} (α : Sort u) : Nonempty α → α`.
 pub fn choice_raw() -> ConstantVal {
     let mut lps: Vec<Name> = Vec::new();

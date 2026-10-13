@@ -332,7 +332,9 @@ pub fn names_find_idx(ns: &Vec<NIdx>, n: &NIdx, i: usize) -> Option<u64> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:42-54 Expr.mentionsAnyConst
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::mentions_any_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:84-119 Expr.mentionsAnyGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::mentions_any_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:98-140 mentionsAnyGo` —
 /// does any of the constants `names` occur in `e`?  A syntactic walk (`fvar`
 /// annotations included; a `.proj` node names its structure), memoised on
@@ -371,6 +373,7 @@ pub fn mentions_any_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:84-119 Expr.mentionsAnyGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::mentions_any_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:98-140 mentionsAnyGo` — the
 /// walk's compound arms.
 pub fn mentions_any_node(
@@ -474,6 +477,7 @@ pub fn member_idx_at(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:211-219 closeTelescope
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::close_telescope_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:162-170 closeTelescope` —
 /// close a telescope opened at the free variables `i ..< i + bs.length` back
 /// into a syntactic Π-telescope over `body`.  The cursor recursion builds the
@@ -508,7 +512,9 @@ pub fn close_telescope(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:328-345 Expr.nestOcc
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_occ_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:347-377 Expr.nestOccGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_occ_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:174-210 nestOccGo` — does a
 /// MEMBER or a HOLE (the free variables `lo ..< hi`) occur in `e`?  A free
 /// variable's annotation is NOT looked into, and a `.proj` node's structure
@@ -549,6 +555,7 @@ pub fn nest_occ_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:347-377 Expr.nestOccGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_occ_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:174-210 nestOccGo` — the
 /// walk's compound arms, each a short circuit.
 pub fn nest_occ_node(
@@ -613,6 +620,7 @@ pub fn nest_occ(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:328-345 Expr.nestOcc
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_occ_any_refines, then delete this line
 /// Lean twin: `xs.any (·.nestOcc names lo hi)` — some element of `xs[i..]`
 /// mentions a member or a hole (in order, stopping at the first).
 pub fn nest_occ_any(
@@ -637,6 +645,7 @@ pub fn nest_occ_any(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:328-345 Expr.nestOcc
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_occ_any_binder_refines, then delete this line
 /// Lean twin: `bs.any (fun b => b.1.nestOcc names lo hi)` over a binder list.
 pub fn nest_occ_any_binder(
     pers: &PersTier,
@@ -660,6 +669,7 @@ pub fn nest_occ_any_binder(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:514-519 instPisWith
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::inst_pis_with_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:218-230 instPisWith` —
 /// instantiate the leading `Π` binders of `e` at `args[i..]`, in order.
 pub fn inst_pis_with(
@@ -801,6 +811,7 @@ pub fn max_u64(a: u64, b: u64) -> u64 {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::depth_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:258-296 depthGo` — the
 /// longest root-to-leaf path (`fvar` annotations not descended), memoised on
 /// the node, so a DAG costs its distinct nodes.
@@ -837,6 +848,7 @@ pub fn depth_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::depth_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:258-296 depthGo` — the
 /// walk's compound arms.
 pub fn depth_node(
@@ -1304,6 +1316,7 @@ pub struct HoleImgMap {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::FvMap_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:429-438 FvMap` — the
 /// function argument of `replaceFVars`, one variant per instantiation
 /// con-leche writes (the module note): `nestHoleImg ctx prog`, `nestKeyMap ds
@@ -1336,6 +1349,7 @@ pub fn eidx_get(xs: &Vec<EIdx>, i: u64) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::fv_map_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:456-469 fvMapAt` — the map
 /// `f` applied to the variable `i`, by the variant.
 pub fn fv_map_at(
@@ -1370,7 +1384,9 @@ pub fn memo_e_probe(memo: &HashMap<EIdx, EIdx>, k: &EIdx) -> Option<EIdx> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_fvars_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_fvars_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:471-523 replaceFVarsGo` —
 /// replace the free variables `f` maps (a mapped variable is replaced whole,
 /// its annotation not descended into), memoised on the node.
@@ -1412,6 +1428,7 @@ pub fn replace_fvars_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_fvars_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:471-523 replaceFVarsGo` — the
 /// walk's compound arms, each rebuilt.
 pub fn replace_fvars_node(
@@ -1495,6 +1512,7 @@ pub fn replace_fvars(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_fvars_list_refines, then delete this line
 /// Lean twin: `xs.map (·.replaceFVars f)` — each element read back, in order.
 pub fn replace_fvars_list(
     pers: &PersTier,
@@ -1667,7 +1685,9 @@ pub fn app_hole(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:930-947 Expr.replaceApps
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_apps_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:966-1004 Expr.replaceAppsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_apps_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:613-665 replaceAppsGo` — **the
 /// whole-application replacement**, pre-order, at `nestCanonSub names us`: a
 /// subterm that is a whole application is replaced by its hole and not
@@ -1713,6 +1733,7 @@ pub fn replace_apps_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:966-1004 Expr.replaceAppsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_apps_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:613-665 replaceAppsGo` — the
 /// walk's compound arms: an application is a whole application (its hole) or
 /// rebuilt from its replaced halves.
@@ -1781,6 +1802,7 @@ pub fn replace_apps_node(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:966-1004 Expr.replaceAppsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::replace_apps_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:613-665 replaceAppsGo` — the
 /// application arm's rebuild, split off so the arm ends in a call (extraction
 /// rule F3).
@@ -1917,6 +1939,7 @@ pub fn nest_crest(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::ind_cv_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:708-744 nestInstType` — the
 /// `indInfo` lookup of the container, its constant read out.
 pub fn ind_cv_of(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<IConstantVal> {
@@ -1927,6 +1950,7 @@ pub fn ind_cv_of(vis: u64, fe: &IFEnv, c: &NIdx) -> Option<IConstantVal> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_inst_type_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:708-744 nestInstType` — the
 /// instantiation's type former, checked as official checks the auxiliary
 /// type before the block exists: the level count, the parameters bound, (N2)
@@ -1964,6 +1988,7 @@ pub fn nest_inst_type(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_inst_type_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:708-744 nestInstType` — the
 /// instantiated type, its telescope and its sort.
 pub fn nest_inst_type_at(
@@ -1992,6 +2017,7 @@ pub fn nest_inst_type_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_inst_type_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:708-744 nestInstType` — (N2)
 /// and (N3).
 #[allow(clippy::too_many_arguments)]
@@ -2029,6 +2055,7 @@ pub fn nest_res_head(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, Che
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1169-1186 nestFields
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_fields_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:850-875 nestFields` — a
 /// constructor's field telescope `cur` (`nF` fields from field `j`), each
 /// field through the walk at its depth `base + j`, the field opened at the
@@ -2085,6 +2112,7 @@ pub fn nest_fields(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1188-1196 nestCtorNf
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_ctor_nf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:752-762 nestCtorNf` — **a
 /// frame constructor's record** (K.53′): the constructor at the frame's key
 /// `(us, ds)` under the frames `prog`, its walked telescope `closed`
@@ -3054,6 +3082,7 @@ pub fn nest_cont_params(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_pos_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1038-1097 nestPos` — **the
 /// positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
 /// into the field, `prog` the instantiations in progress.  The reduct (the
@@ -3094,6 +3123,7 @@ pub fn nest_pos(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_pos_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1038-1097 nestPos` — the reduct
 /// `w` mentions a member or a hole: a `Π` whose domain is hole-free (`pi`, the
 /// codomain walked one binder in), a hole application (`holeApp`), a stored
@@ -3163,6 +3193,7 @@ pub fn nest_pos_at(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::nest_pos_hole_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1038-1097 nestPos` — the
 /// `holeApp` case: a hole standing for its entry's whole application to the
 /// parameters, applied to hole-free indices, at its full arity (official
@@ -3265,7 +3296,8 @@ pub fn nest_root_canon(
 // Uniform occurrences: official's `check_uniform_ind_occs`
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1543-1548 Expr.piDomsOcc
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1542-1547 Expr.piDomsOcc
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove positivity::pi_doms_occ_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1131-1143 piDomsOcc` — does a
 /// member or a hole occur in one of the first `n` binder domains of `e`?
 pub fn pi_doms_occ(
@@ -3293,7 +3325,7 @@ pub fn pi_doms_occ(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1550-1559 nestUniformOk
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1549-1558 nestUniformOk
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1145-1156 nestUniformOk` —
 /// **official's `check_uniform_ind_occs` at one constructor**: the parameters'
 /// domains name no member, and its canonical crest has no member constant
@@ -3324,7 +3356,7 @@ pub fn nest_uniform_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1569 nestUniform
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1560-1568 nestUniform
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1158-1166 nestUniform` — one
 /// member's constructors from `i` on: `true` when all pass.
 pub fn nest_uniform_member(
@@ -3346,7 +3378,7 @@ pub fn nest_uniform_member(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1561-1569 nestUniform
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1560-1568 nestUniform
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1158-1166 nestUniform` —
 /// `nestUniformOk` at every stored constructor of every member, before the
 /// walk, in order, stopping at the first failure: a REJECT with official's
@@ -3373,7 +3405,7 @@ pub fn nest_uniform(
 // The root frame and the seeds
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1585-1600 nestRoot
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1584-1599 nestRoot
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1170-1182 nestRoot` — **the
 /// root frame**: every member's constructors through `nestCtors` at the root
 /// key (the block's levels, the canonical parameters, the holes above them),
@@ -3425,7 +3457,7 @@ pub fn nest_root(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1630-1638 nestSeedOf
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1629-1637 nestSeedOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1184-1194 nestSeedOf` — one
 /// parameter of a resolved class moved to the walk's representation: its
 /// whole member applications abstracted to the canonical holes, then every
@@ -3446,7 +3478,7 @@ pub fn nest_seed_param(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1630-1638 nestSeedOf
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1629-1637 nestSeedOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1184-1194 nestSeedOf` — the
 /// class's parameters, each moved (`ds.map …`, in order).
 pub fn nest_seed_params(
@@ -3473,7 +3505,7 @@ pub fn nest_seed_params(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1630-1638 nestSeedOf
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1629-1637 nestSeedOf
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1184-1194 nestSeedOf` — **a
 /// resolved class as a seed**: the outside class `I.{us} ds` in the walk's
 /// representation, with its parameter count.
@@ -3501,7 +3533,7 @@ pub fn nest_seed_of(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1640-1654 nestSeeds
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1639-1653 nestSeeds
 /// Lean twin: `key.ds.foldl (fun a d => max a (whnfWalkFuel d)) fuelSlack` — a
 /// seed's fuel, left to right.
 pub fn seed_fuel(pers: &PersTier, st: &AState, ds: &Vec<EIdx>, i: usize, acc: u64) -> Result<u64, CheckError> {
@@ -3515,7 +3547,7 @@ pub fn seed_fuel(pers: &PersTier, st: &AState, ds: &Vec<EIdx>, i: usize, acc: u6
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1640-1654 nestSeeds
+/// con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1639-1653 nestSeeds
 /// Lean twin: `proof/ConRon/Arena/Inductives/Positivity.lean:1196-1210 nestSeeds` — **the
 /// seeds walked**, in order, at the root: each class a container instance met
 /// at the empty frame stack (`nestContKey`), at the fuel its parameters'

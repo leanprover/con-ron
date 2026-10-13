@@ -146,7 +146,7 @@ pub fn native(m: Vec<u32>) -> CheckError {
     CheckError::Native(m)
 }
 
-/// con-leche: ConLeche/Kernel/Checker.lean:331-335 divModAttemptReason
+/// con-leche: ConLeche/Kernel/Checker.lean:329-333 divModAttemptReason
 /// The message out of an error, by move.  The cited `divModAttemptReason ps
 /// (some e)` renders `e` into the variant's decline reason with `toString`;
 /// the port has no `ToString` instance (the note on `CheckError` above) and

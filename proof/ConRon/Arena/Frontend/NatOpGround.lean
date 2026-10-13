@@ -44,6 +44,7 @@ open ConRon.Arena
 /-! ## The constants a record references -/
 
 /-- con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo — the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove NatOpGround.usedConstsGo_bridge, then delete this line
 constants an expression DAG references, each node visited once.  con-leche's
 `Std.HashSet Expr` (pointer-first equality, computed hash) is a
 `Std.HashSet EIdx` here, whose hash IS the handle word. -/

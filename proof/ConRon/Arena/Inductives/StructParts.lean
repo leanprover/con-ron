@@ -66,7 +66,7 @@ def paramLevels (lps : List NIdx) : AM LsIdx := do
 
 /-! ## The spines -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:50-53 structPsAt
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:41-44 structPsAt
 The parameter variables as seen from under `o` extra binders:
 `p_k = bvar (o + nP - 1 - k)`. -/
 def structPsAt (o nP : Nat) : AM (List EIdx) :=
@@ -78,7 +78,7 @@ def structPsAt (o nP : Nat) : AM (List EIdx) :=
       pure (b :: rest)
   go nP 0
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:55-58 structElimLevel
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:46-49 structElimLevel
 The recursor's elimination level: the fresh parameter at the large
 eliminator, `zero` at the small one. -/
 def structElimLevel (elim : NIdx) (large : Bool) : AM LIdx :=
@@ -86,7 +86,7 @@ def structElimLevel (elim : NIdx) (large : Bool) : AM LIdx :=
 
 /-! ## A constructor's residual at an indexed family -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:79-85 structCtorResidOk
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:70-76 structCtorResidOk
 A constructor residual's shape at an indexed family: the family at exactly the
 parameter variables (`o` binders below the parameter frame) followed by `nIdx`
 index expressions. -/
@@ -101,12 +101,12 @@ def structCtorResidOk (T : NIdx) (lps : List NIdx) (nP o nIdx : Nat)
 
 /-! ## The projection bodies -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:87-93 structProjPs
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:78-84 structProjPs
 The parameter spine of the generated projection types, spelled at the frame of
 the final `∀ p⃗ (t : T p⃗), _` telescope: `p_k = bvar (nP - k)`. -/
 def structProjPs (nP : Nat) : AM (List EIdx) := structPsAt 1 nP
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:95-101 structProjArgP
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:86-92 structProjArgP
 The `j`-th earlier-field substitute in a tower entry's generated type: the
 first-class node `t.j` (`.proj T j` of the subject). -/
 def structProjArgP (T : NIdx) (j : Nat) : AM EIdx := do
@@ -115,16 +115,19 @@ def structProjArgP (T : NIdx) (j : Nat) : AM EIdx := do
 
 /-! ## `hasLooseBVar` — one twin for the pure walk, the cutoff and the memo -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:190-195 Expr.hasLooseBVarBIns
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:181-186 Expr.hasLooseBVarBIns
 Record one answer for `(e, i)` in the memo the walk hands back. -/
 @[inline] def hasLooseBVarBIns (e : EIdx) (i : Nat)
     (r : Bool × Std.HashMap (EIdx × Nat) Bool) :
     Bool × Std.HashMap (EIdx × Nat) Bool :=
   (r.1, r.2.insert (e, i) r.1)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:111-124 Expr.hasLooseBVar
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:126-145 Expr.hasLooseBVarB
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:197-233 Expr.hasLooseBVarBGo
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:102-115 Expr.hasLooseBVar
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.hasLooseBVarBGo_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/StructParts.lean:117-136 Expr.hasLooseBVarB
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.hasLooseBVarBGo_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/StructParts.lean:188-224 Expr.hasLooseBVarBGo
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.hasLooseBVarBGo_bridge, then delete this line
 Does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
 (`bvarB ≤ i`) and con-leche's per-call memo, both kept: the cutoff stops the
 walk where the variable CANNOT occur, the memo shares a shared node's answer
@@ -170,12 +173,12 @@ def hasLooseBVarBGo (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat) :
           | _ => pure (false, memo)
         pure (hasLooseBVarBIns h i r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:379-381 Expr.hasLooseBVarBFast
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:370-372 Expr.hasLooseBVarBFast
 The executed `hasLooseBVarB` (one memoized DAG walk). -/
 def hasLooseBVarBFast (i : Nat) (e : EIdx) : AM Bool := do
   pure (← hasLooseBVarBGo ∅ i coreWalkFuel e).1
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:388-396 structUsedLater
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:379-387 structUsedLater
 **Field `j` is used by a later field** — the official `infer_proj`'s
 `has_loose_bvars(binding_body(r))` at step `j`. -/
 def structUsedLater (cty : EIdx) (nP j : Nat) : AM Bool := do
@@ -183,7 +186,7 @@ def structUsedLater (cty : EIdx) (nP j : Nat) : AM Bool := do
   | some (_, rest) => hasLooseBVarBFast 0 rest
   | none => pure false
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:424-429 structUsedLaterGo
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:415-420 structUsedLaterGo
 Memoized `structUsedLater`, taking and returning the shared memo. -/
 def structUsedLaterGo (memo : Std.HashMap (EIdx × Nat) Bool) (cty : EIdx)
     (nP j : Nat) : AM (Bool × Std.HashMap (EIdx × Nat) Bool) := do
@@ -191,7 +194,7 @@ def structUsedLaterGo (memo : Std.HashMap (EIdx × Nat) Bool) (cty : EIdx)
   | some (_, rest) => hasLooseBVarBGo memo 0 coreWalkFuel rest
   | none => pure (false, memo)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:440-447 structUsedLaterList
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:431-438 structUsedLaterList
 `structUsedLater cty nP j` for `j = base, …, base + n - 1`, in order, through
 one shared memo. -/
 def structUsedLaterList (cty : EIdx) (nP : Nat) :
@@ -202,8 +205,8 @@ def structUsedLaterList (cty : EIdx) (nP : Nat) :
     let rest ← structUsedLaterList cty nP r.2 n (base + 1)
     pure (r.1 :: rest)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:398-411 structProjGuards
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:477-487 structProjGuardsFast
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:389-402 structProjGuards
+con-leche: ConLeche/Kernel/Inductives/StructParts.lean:468-478 structProjGuardsFast
 **The projection guard levels**: for field `i`, its own sort joined with the
 sorts of the earlier fields that a later field uses.  con-leche's two forms
 are one twin here (task #97b's rule): the `nF` `structUsedLater` answers are
@@ -229,7 +232,8 @@ def structProjGuards (cty : EIdx) (nP nF : Nat) (sorts : List LIdx) :
       pure (g :: rest)
   row 0 nF
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:503-521 structProjBodiesGo
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:494-512 structProjBodiesGo
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.structProjBodiesGo_bridge, then delete this line
 **The projection bodies of a recognised block**, one walk of the constructor
 telescope: field `i`'s domain is body `i`, and the field is replaced by the
 subject's projection `.proj T i (bvar 0)` before the walk continues. -/
@@ -247,7 +251,7 @@ def structProjBodiesGo (T : NIdx) : Nat → Nat → EIdx → AM (Option (List EI
       | _ => pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:523-526 structProjBodies
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:514-517 structProjBodies
 The block's projection bodies, as the table stores them. -/
 def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
     AM (Option (Array EIdx)) := do
@@ -260,8 +264,10 @@ def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
 
 /-! ## `mentionsConst` — one twin for the pure walk and the memo -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:528-537 Expr.mentionsConst
-con-leche: ConLeche/Kernel/Inductives/StructParts.lean:569-604 Expr.mentionsConstGo
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:519-528 Expr.mentionsConst
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
+con-leche: ConLeche/Kernel/Inductives/StructParts.lean:560-595 Expr.mentionsConstGo
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
 Does the constant `T` occur in `e`?  A syntactic walk (`fvar` annotations
 included; a `.proj` node names its structure), with con-leche's per-call memo
 keyed by the node — `T` is fixed for the whole walk. -/
@@ -303,7 +309,7 @@ def mentionsConstGo (T : NIdx) (memo : Std.HashMap EIdx Bool) :
           | _ => pure (false, memo)
         pure (r, memo.insert h r)
 
-/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:677-679 Expr.mentionsConstFast
+/-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:668-670 Expr.mentionsConstFast
 The executed `mentionsConst` (one memoized DAG walk). -/
 def mentionsConst (T : NIdx) (e : EIdx) : AM Bool := do
   pure (← mentionsConstGo T ∅ coreWalkFuel e).1

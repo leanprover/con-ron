@@ -116,8 +116,11 @@ pub fn never_meta() -> BinderMeta {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:85-88 BasisDSL.pi
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::pi_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:90-93 BasisDSL.piI
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::pi_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:95-97 BasisDSL.piA
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::pi_refines, then delete this line
 /// `∀ (x : ty), body` at the *raw* binder annotation (`pw` at the parse
 /// placeholder `.never`).  The three cited helpers build the same node and
 /// differ only in the binder name they document, which `Expr` does not carry
@@ -127,7 +130,9 @@ pub fn pi(ty: Expr, body: Expr) -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:99-101 BasisDSL.lm
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::lm_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:103-106 BasisDSL.lmI
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::lm_refines, then delete this line
 /// `fun (x : ty) => body` at the raw binder annotation (see `pi`).
 pub fn lm(ty: Expr, body: Expr) -> Expr {
     expr::lam(ty, body, never_meta())

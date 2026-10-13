@@ -178,7 +178,8 @@ def denoteLs (st : LsStore) (i : LsIdx) : Option (List Level) :=
 
 /-! ## Expressions -/
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the fuel-indexed
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the fuel-indexed
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Denote.denoteEAux_bridge, then delete this line
 readback of an expression handle. -/
 def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
   | 0, _ => none
@@ -200,7 +201,8 @@ def denoteEAux (st : EStore) : Nat → EIdx → Option Expr
       | .proj n k e =>
         opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteEAux st f e)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:328-338 Expr — the readback of an
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the readback of an
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Denote.denoteE_bridge, then delete this line
 expression handle, at the store's own node count as fuel. -/
 def denoteE (st : EStore) (i : EIdx) : Option Expr :=
   denoteEAux st (st.nodeCount + 1) i

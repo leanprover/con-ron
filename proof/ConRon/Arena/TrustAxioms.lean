@@ -22,29 +22,29 @@ open ConLeche
 
 /-! ## The reserved names, interned -/
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:52-53 trueName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:49-50 trueName -/
 def trueName : AM NIdx := pinTrue
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:55-56 trueIntroName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:52-53 trueIntroName -/
 def trueIntroName : AM NIdx := pinTrueIntro
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:58-59 trustCompilerName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:55-56 trustCompilerName -/
 def trustCompilerName : AM NIdx := pinTrustCompiler
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:61-62 reduceNatName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:58-59 reduceNatName -/
 def reduceNatName : AM NIdx := pinReduceNat
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:64-65 reduceBoolName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:61-62 reduceBoolName -/
 def reduceBoolName : AM NIdx := pinReduceBool
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:67-68 ofReduceNatName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:64-65 ofReduceNatName -/
 def ofReduceNatName : AM NIdx := pinOfReduceNat
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:70-71 ofReduceBoolName -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:67-68 ofReduceBoolName -/
 def ofReduceBoolName : AM NIdx := pinOfReduceBool
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:73-74 reduceOpNames — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:70-71 reduceOpNames — the
 reduce operations pinned at their `opaque` install. -/
 def reduceOpNames : AM (List NIdx) := do
   let a ← reduceNatName
   let b ← reduceBoolName
   pure [a, b]
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:76-78 ofReduceOp — the reduce
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:73-75 ofReduceOp — the reduce
 operation an `ofReduce*` axiom speaks about.  con-leche's `if n =
 ofReduceNatName` is a handle comparison here. -/
 def ofReduceOp (n : NIdx) : AM NIdx := do
@@ -53,43 +53,47 @@ def ofReduceOp (n : NIdx) : AM NIdx := do
 
 /-! ## The pinned shapes -/
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:89-90 trueCvA -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:83-84 trueCvA -/
 def trueCvA : AM IConstantVal := internCV ConLeche.trueCvA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:92-93 trueIntroCvA -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:86-87 trueIntroCvA -/
 def trueIntroCvA : AM IConstantVal := internCV ConLeche.trueIntroCvA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:95-96 trustCompilerA -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:89-90 trustCompilerA -/
 def trustCompilerA : AM IConstantVal := internCV ConLeche.trustCompilerA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:98-99 boolCvA -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:92-93 boolCvA -/
 def boolCvA : AM IConstantVal := internCV ConLeche.boolCvA
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:101-103 reduceElemName — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:95-97 reduceElemName — the
 element inductive of a reduce operation. -/
 def reduceElemName (c : NIdx) : AM NIdx := do
   let rn ← reduceNatName
   if c == rn then pinNat else boolName
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:105-107 reduceElemTy — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:99-101 reduceElemTy — the
 element type of a reduce operation, as the pinned constant. -/
 def reduceElemTy (c : NIdx) : AM EIdx := do
   constE (← reduceElemName c)
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:140-142 _ — the annotated
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.reduceNatCvA_bridge, then delete this line
 pinned type of `Lean.reduceNat` (`#annotate_pins`' `reduceNatCvA`). -/
 def reduceNatCvA : AM IConstantVal := internCV ConLeche.reduceNatCvA
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:140-142 _ — `reduceBoolCvA`. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.reduceBoolCvA_bridge, then delete this line
 def reduceBoolCvA : AM IConstantVal := internCV ConLeche.reduceBoolCvA
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:144-147 _ — `ofReduceNatA`'s slot, RAW. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.ofReduceNatA_bridge, then delete this line
 def ofReduceNatA : AM IConstantVal := internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:144-147 _ — `ofReduceBoolA`'s slot, RAW. -/
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.ofReduceBoolA_bridge, then delete this line
 def ofReduceBoolA : AM IConstantVal := internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:149-151 reduceOpCvA — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:131-133 reduceOpCvA — the
 annotated pinned type of a reduce operation. -/
 def reduceOpCvA (c : NIdx) : AM IConstantVal := do
   let rn ← reduceNatName
   if c == rn then reduceNatCvA else reduceBoolCvA
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:153-155 ofReducePinA — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:135-137 ofReducePinA — the
 annotated pin an `ofReduce*` axiom is matched against. -/
 def ofReducePinA (n : NIdx) : AM IConstantVal := do
   let orn ← ofReduceNatName
@@ -105,13 +109,13 @@ def reduceBoolDeclPin : AM EIdx := internExpr ConLeche.reduceBoolDeclPin
 `Lean.reduceNat`'s pinned value, `fun (n : Nat) => n`. -/
 def reduceNatDeclPin : AM EIdx := internExpr ConLeche.reduceNatDeclPin
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:203-208 reduceDeclPin — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:185-190 reduceDeclPin — the
 pinned defining expression of a reduce operation. -/
 def reduceDeclPin (c : NIdx) : AM EIdx := do
   let rn ← reduceNatName
   if c == rn then reduceNatDeclPin else reduceBoolDeclPin
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:216-219 reduceCertVar — the
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:198-201 reduceCertVar — the
 identity certificate's variable: `fvar 0` at the element type. -/
 def reduceCertVar (c : NIdx) : AM EIdx := do
   internE (.fvar 0 (← reduceElemTy c))

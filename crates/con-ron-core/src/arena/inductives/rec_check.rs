@@ -230,7 +230,9 @@ pub const M_NO_SPLIT: [u32; 36] = [
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:65-85 targetAbs
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_abs_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:106-146 targetAbsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_abs_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:56-110 targetAbsGo` — **the
 /// member abstraction of one term**: every member at the block's levels
 /// `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on
@@ -283,6 +285,7 @@ pub fn target_abs_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:106-146 targetAbsGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_abs_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:56-110 targetAbsGo` — the
 /// walk's compound arms, each rebuilt.
 #[allow(clippy::too_many_arguments)]
@@ -1252,6 +1255,7 @@ pub fn target_ctor_at(pers: &PersTier, st: &mut AState, m: &TargetMajor, c: &ICo
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::erase_binders_refines, then delete this line
 /// Lean twin: `teleW.map (fun b => (b.1.eraseFVarTys, b.2))` — a telescope's
 /// domains erased, in order.
 pub fn erase_binders(
@@ -1277,6 +1281,7 @@ pub fn erase_binders(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::erase_list_refines, then delete this line
 /// Lean twin: `xs.map Expr.eraseFVarTys`, in order.
 pub fn erase_list(
     pers: &PersTier,
@@ -1315,6 +1320,7 @@ pub fn binders_beq(a: &Vec<(EIdx, BinderMeta)>, b: &Vec<(EIdx, BinderMeta)>, i: 
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_k53_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — **K.53′ at
 /// one recorded field** `f`: its telescope is the call's `tele` and its leaf
 /// the callee's major `maj_dom`, up to the free variables' annotations, and
@@ -1353,6 +1359,7 @@ pub fn target_k53(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_k53_leaf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — the
 /// leaf's head constant and arity against the major's, its indices up to
 /// annotations, its class naming a member, then the per-component match.
@@ -1393,6 +1400,7 @@ pub fn target_k53_leaf(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_k53_args_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — the
 /// cited `&&` chain, left to right: the heads, the arities, the erased
 /// indices, the class naming a member; then `targetClassMatch`.
@@ -1443,6 +1451,7 @@ pub fn target_k53_args(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_k53_class_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:409-448 targetK53` — the leaf's
 /// class `I'.{us'} lp` names a member (official's `is_nested`), and matches
 /// the callee's class per component.
@@ -1477,6 +1486,7 @@ pub fn target_k53_class(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:568-573 targetPiDomsWith
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::target_pi_doms_with_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:450-464 targetPiDomsWith` — the
 /// domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 /// `xs`.
@@ -1515,6 +1525,7 @@ pub fn target_pi_doms_with(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-595 auxRuleFireR
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::aux_rule_fire_r_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:468-475 auxRuleFireR` — **the
 /// firing mode of a rule at an OUTSIDE major**: `.nested` at the syntactic
 /// reading of the recursor type's major domain, `.inert` when it fails.
@@ -1537,7 +1548,8 @@ pub fn aux_rule_fire_r(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:597-607 tgtStoredRules
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::refire_refines, then delete this line
 /// Lean twin: `rules.map fun rl => { rl with fire := f }` — every rule refired
 /// at the one reading.
 pub fn refire(rules: Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: Vec<IRecRule>) -> Vec<IRecRule> {
@@ -1552,7 +1564,8 @@ pub fn refire(rules: Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: Vec<IRecRul
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:597-607 tgtStoredRules
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::tgt_stored_rules_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:477-488 tgtStoredRules` — **one
 /// checked recursor's stored rules, at its major**: `sumRules` at the major's
 /// parameter count and constructors, every rule `.nested` at an OUTSIDE
@@ -1581,7 +1594,7 @@ pub fn tgt_stored_rules(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:609-615 blockNestedBit
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:616-622 blockNestedBit
 /// Lean twin: `p.recs.any (fun rc => !(rc.tgt < p.k))`.
 pub fn some_aux_rec(rs: &Vec<RecShape>, k: u64, i: usize) -> bool {
     if i >= rs.len() {
@@ -1593,7 +1606,7 @@ pub fn some_aux_rec(rs: &Vec<RecShape>, k: u64, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:609-615 blockNestedBit
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:616-622 blockNestedBit
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:490-494 blockNestedBit` — **the
 /// block's container bit**: some field kind is not flat or some recursor's
 /// major is not a member.
@@ -1605,9 +1618,11 @@ pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) ->
     }
 }
 
-/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:617-627 blockRecInfosTF
+/// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::cons_block_recs_t_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
-/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
+/// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-104 consBlockRecsT
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove rec_check::cons_block_recs_t_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:496-513 consBlockRecsTF` — **the
 /// checked family consed through the index, at its majors**: each recursor
 /// with its rules at ITS major, the rules' lookups (`find?`, `resolves`) at the

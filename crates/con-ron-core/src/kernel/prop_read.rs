@@ -24,7 +24,8 @@ use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
 use std::vec::Vec;
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:136-139 PropWhen.isProp
+/// con-leche: ConLeche/Kernel/PropRead.lean:198-202 PropWhen.isProp
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::is_prop_refines, then delete this line
 /// Is the datum "always zero" — the sort is `Prop` at every valuation?  The
 /// cited `pw == (.ifAllZero [])` goes through the port's `prop_when::beq`.
 pub fn is_prop(pw: &PropWhen) -> bool {

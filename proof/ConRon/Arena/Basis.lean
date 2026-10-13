@@ -38,7 +38,7 @@ constants of one basis block, in dependency order, interned. -/
 def BasisKind.decls (k : BasisKind) : AM (List IConstantInfo) :=
   internCIList (ConLeche.BasisKind.decls k)
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA — the
+/-- con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA — the
 ANNOTATED constants of one basis block, in dependency order, interned.  This
 is what `checkBasisDecl` installs. -/
 def BasisKind.declsA (k : BasisKind) : AM (List IConstantInfo) :=

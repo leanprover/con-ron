@@ -39,6 +39,7 @@ open ConLeche
 /-! ## The syntactic residual -/
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis — the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove PropRead.peelNeverPis_bridge, then delete this line
 residual after peeling `k` *syntactic* ∀ binders whose data are all
 `.never`.  Structural on `k`, so no fuel: con-leche's own recursion
 measure survives the change of representation unchanged. -/
@@ -53,7 +54,7 @@ def peelNeverPis : Nat → EIdx → AM (Option EIdx)
       | some (_, b, m) => if m.pw.isNever then peelNeverPis k b else pure none
     else pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — the number
+/-- con-leche: ConLeche/Kernel/PropRead.lean:55-58 Expr.numArgs — the number
 of arguments of an application spine.  A spine walk, hence fuel. -/
 def numArgs : Nat → EIdx → AM Nat
   | 0, _ => fail (.internal "fuel exhausted: numArgs")
@@ -68,7 +69,7 @@ def numArgs : Nat → EIdx → AM Nat
         pure (n + 1)
     else pure 0
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:62-68 residualPW — the
 zero-ness datum of the sort of a *residual type*.  The level is read back
 and `Level.zeronessOf` is con-leche's own (deviation 3). -/
 def residualPW : Option EIdx → AM (Option PropWhen)
@@ -86,7 +87,8 @@ def residualPW : Option EIdx → AM (Option PropWhen)
 
 /-! ## The head readers -/
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:73-90 headTypePW — the datum of
+/-- con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW — the datum of
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove PropRead.headTypePW_bridge, then delete this line
 a type-former application's *head* at `n` arguments.  A constant head reads
 its stored type, an fvar head its declared type; the residual after `n`
 syntactic binders is read by `residualPW`. -/
@@ -123,7 +125,8 @@ def headTypePW (fe : IFEnv) : EIdx → Nat → AM (Option PropWhen)
       residualPW res
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:92-103 typeSortPW — the
+/-- con-leche: ConLeche/Kernel/PropRead.lean:142-150 typeSortPW — the
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove PropRead.typeSortPW_bridge, then delete this line
 zero-ness datum of the sort of the *type* `T` ("is `T` a proposition?").
 con-leche's last arm rebinds the scrutinee; the twin keeps the handle. -/
 def typeSortPW (fe : IFEnv) (fuel : Nat) (T : EIdx) : AM (Option PropWhen) := do
@@ -135,7 +138,8 @@ def typeSortPW (fe : IFEnv) (fuel : Nat) (T : EIdx) : AM (Option PropWhen) := do
     let n ← numArgs fuel T
     headTypePW fe fn n
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:105-122 headProofPW — the datum
+/-- con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW — the datum
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove PropRead.headProofPW_bridge, then delete this line
 of a term's *head* (any arity): a constant head answers from its stored
 type, an fvar head from its declared type; sorts, ∀s and literals are never
 proofs. -/
@@ -166,7 +170,8 @@ def headProofPW (fe : IFEnv) (fuel : Nat) : EIdx → AM (Option PropWhen)
     | .sort _ | .forallE .. | .lit _ => pure (some .never)
     | _ => pure none
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — the zero-ness
+/-- con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW — the zero-ness
+-- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove PropRead.proofPW_bridge, then delete this line
 datum of the sort of the *type* of `a` ("is `a` a proof?"), read off `a`'s
 head symbol at any arity. -/
 def proofPW (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM (Option PropWhen) := do
@@ -182,7 +187,7 @@ def proofPW (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM (Option PropWhen) := do
 
 /-! ## The two arms -/
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:141-146 notProofFast —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast —
 **definitely not a proof**: the datum is known and is not always-zero.
 Refusing the proof-irrelevance shortcut is always sound. -/
 def notProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do
@@ -190,7 +195,7 @@ def notProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do
   | some pw => pure !pw.isProp
   | none => pure false
 
-/-- con-leche: ConLeche/Kernel/PropRead.lean:148-153 isProofFast —
+/-- con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast —
 **definitely a proof**: the datum is known and always-zero (the
 squash-regime licence, con-leche's `prf_of_isProofFast`). -/
 def isProofFast (fe : IFEnv) (fuel : Nat) (a : EIdx) : AM Bool := do

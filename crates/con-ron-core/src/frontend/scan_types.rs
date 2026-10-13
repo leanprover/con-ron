@@ -38,7 +38,8 @@
 use crate::kernel::core_types;
 use crate::ron::hashmap::HashMap;
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:46-92 ErrTag
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:45-89 ErrTag
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::ErrTag_refines, then delete this line
 /// What went wrong, as a static tag: the recogniser reports a position and one
 /// of these, and the driver renders the sentence.  No formatting runs while a
 /// stream is being read.
@@ -70,7 +71,7 @@ pub enum ErrTag {
     IndexOverflow,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:94-98 ScanErr
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:91-95 ScanErr
 /// Where the recogniser stopped, and why.  `offset` is a byte offset from the
 /// start of the *chunk*; the caller subtracts the line's start, as
 /// `feed_chunk` does.
@@ -80,7 +81,8 @@ pub struct ScanErr {
 }
 
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:100-121 ErrTag.describe
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:97-117 ErrTag.describe
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::err_tag_describe_refines, then delete this line
 /// The sentence the driver prints for a syntactic failure.
 pub fn err_tag_describe(t: &ErrTag) -> Vec<u32> {
     match t {
@@ -239,12 +241,12 @@ pub fn err_tag_describe(t: &ErrTag) -> Vec<u32> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:123-130 ScanRes
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:119-126 ScanRes
 /// A scanner's result: the value and the position after it, or a failure
 /// (deviation 3 of the module note).
 pub type ScanRes<T> = Result<(T, usize), ScanErr>;
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:132-134 ScanErr.render
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:128-130 ScanErr.render
 /// The parse-error message, at the byte offset in the line:
 /// `s!"{e.what.describe} (byte {e.offset})"`.
 pub fn scan_err_render(e: &ScanErr) -> Vec<u32> {
@@ -258,7 +260,7 @@ pub fn scan_err_render(e: &ScanErr) -> Vec<u32> {
     crate::frontend::text::cat(b, &core_types::code_points(&CLOSE))
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:138-142 NameRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:134-138 NameRec
 /// A name-table entry: `{"in":i,"str":{"pre":p,"str":s}}` or
 /// `{"in":i,"num":{"i":n,"pre":p}}`.
 pub enum NameRec {
@@ -266,7 +268,7 @@ pub enum NameRec {
     Num(u64, u64),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:144-149 LevelRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:140-145 LevelRec
 /// A level-table entry.
 pub enum LevelRec {
     Succ(u64),
@@ -276,6 +278,7 @@ pub enum LevelRec {
 }
 
 /// con-leche: ConLeche/Frontend/Scan/Types.lean:151-155 PwRec
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::PwRec_refines, then delete this line
 /// The `pw` datum a binder may carry (the checker's own annotated output;
 /// absent in a raw export, which is `never`).  Name indices.
 pub enum PwRec {
@@ -283,7 +286,8 @@ pub enum PwRec {
     IfAllZero(Vec<u64>),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:157-171 ExprRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:147-161 ExprRec
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::ExprRec_refines, then delete this line
 /// An expression-table entry.  The binder `name` index is required to be
 /// present and well-formed and is then DROPPED (task #203: parsed binders are
 /// anonymous), as is `binderInfo` (task #142) and `letE`'s `nondep`.
@@ -303,7 +307,7 @@ pub enum ExprRec {
     StrVal(Vec<u32>),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:173-177 CVRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:163-167 CVRec
 /// A declaration's common data, in stream indices.
 pub struct CVRec {
     pub name: u64,
@@ -311,7 +315,7 @@ pub struct CVRec {
     pub ty: u64,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:179-183 HintsRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:169-173 HintsRec
 /// A definition's reducibility hint.
 pub enum HintsRec {
     Abbrev,
@@ -319,7 +323,7 @@ pub enum HintsRec {
     Regular(u64),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:185-189 RuleRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:175-179 RuleRec
 /// One recursor rule.
 pub struct RuleRec {
     pub ctor: u64,
@@ -327,7 +331,7 @@ pub struct RuleRec {
     pub rhs: u64,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:191-200 IndTypeRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:181-190 IndTypeRec
 /// One member of an inductive block's `types`.
 pub struct IndTypeRec {
     pub cv: CVRec,
@@ -340,7 +344,7 @@ pub struct IndTypeRec {
     pub num_params: u64,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:202-215 IndCtorRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:192-205 IndCtorRec
 /// One member of an inductive block's `ctors`.  `cidx` and `induct` are the
 /// format's REDUNDANT fields (task #271, issues #5 and #7): the block's own
 /// records determine both, and the parse validates what the stream claims
@@ -355,7 +359,7 @@ pub struct IndCtorRec {
     pub induct: Option<u64>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:217-226 IndRecRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:207-216 IndRecRec
 /// One member of an inductive block's `recs`.
 pub struct IndRecRec {
     pub cv: CVRec,
@@ -368,7 +372,7 @@ pub struct IndRecRec {
     pub rules: Vec<RuleRec>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:228-238 DeclRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:218-228 DeclRec
 /// A declaration record.  `safety` and `kind` keep their spelling (as code
 /// points): both are reported back to the user verbatim (an unsupported
 /// safety is a DECLINE naming it).
@@ -381,7 +385,7 @@ pub enum DeclRec {
     Ind(Vec<IndTypeRec>, Vec<IndCtorRec>, Vec<IndRecRec>),
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:240-249 LineRec
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:230-239 LineRec
 /// One line of the stream.
 pub enum LineRec {
     Name(u64, NameRec),
@@ -394,7 +398,8 @@ pub enum LineRec {
     Blank,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:253-327 Key
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:243-316 Key
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove scan_types::Key_refines, then delete this line
 /// Every key of the dialect, as a no-argument enumeration.  A key outside this
 /// alphabet is an error — the recogniser knows the whole format, and a key it
 /// does not know is a stream it does not know.
@@ -547,7 +552,7 @@ pub fn key_beq(a: &Key, b: &Key) -> bool {
     key_code(a) == key_code(b)
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:340-343 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:329-332 IdTable
 /// A stream-index-keyed partial map: dense prefix, sparse overflow.
 /// lean4export emits ids densely and in order, so the common insert is a push
 /// onto the dense `Vec`; a gap or an out-of-order id goes to the sparse
@@ -558,7 +563,7 @@ pub struct IdTable<T> {
     pub sparse: HashMap<u64, T>,
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:340-343 IdTable
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:329-332 IdTable
 /// The empty table (Lean's field defaults `dense := #[]`, `sparse := {}`).
 pub fn id_table_empty<T>() -> IdTable<T> {
     IdTable {
@@ -567,7 +572,7 @@ pub fn id_table_empty<T>() -> IdTable<T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:345-347 IdTable.get?
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:334-336 IdTable.get?
 /// The value at a stream index, dense `Vec` first.
 pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     let k = i as usize;
@@ -578,7 +583,7 @@ pub fn id_table_get<T>(t: &IdTable<T>, i: u64) -> Option<&T> {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:349-356 IdTable.insert
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:338-345 IdTable.insert
 /// Bind a stream index.  The dense case is a push; a rebinding below the
 /// frontier overwrites; anything beyond the frontier goes sparse.
 pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
@@ -592,7 +597,7 @@ pub fn id_table_insert<T>(t: &mut IdTable<T>, i: u64, x: T) {
     }
 }
 
-/// con-leche: ConLeche/Frontend/Scan/Types.lean:358-360 IdTable.singleton
+/// con-leche: ConLeche/Frontend/Scan/Types.lean:347-349 IdTable.singleton
 /// A table with index 0 bound (the implicit `Name.anonymous` / `Level.zero` of
 /// the format).
 pub fn id_table_singleton<T>(x: T) -> IdTable<T> {

@@ -256,7 +256,8 @@ pub fn pins_dup(p: &Pins) -> Pins {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::attempt_snapshot_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
 /// take the snapshot, before the attempt runs: **a full copy of the whole
 /// checker state** (task #97-T2-LOCKSTEP D4b) — the four stores with both
@@ -276,7 +277,8 @@ pub fn attempt_snapshot(st: &AState) -> AState {
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::attempt_restore_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
 /// the restore of `OrElseStep::Recovered`: the snapshot is MOVED back as the
 /// whole state, so everything the attempt did goes (module note 6).
@@ -288,7 +290,8 @@ pub fn attempt_restore(st: &mut AState, snap: AState) {
 // The variant fallback (`CheckerBase.lean:87-139`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::OrElseStep_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:36-54 OrElseStep` — what
 /// `orElse` decides once the attempt has run.  con-leche's clause is
 /// three-way; the port's is four, and the arena's is the port's:
@@ -312,7 +315,8 @@ pub enum OrElseStep {
     Failed(CheckError),
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:22-50 CheckerOps
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::or_else_attempt_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:77-106 orElseAttempt` —
 /// **the attempt's verdict.**  This is the ONE place (C) recovers from a
 /// thrown error, and it is scoped to one `Nat.div`/`Nat.mod` pin variant's
@@ -340,7 +344,7 @@ pub fn or_else_attempt(attempt: Result<bool, CheckError>) -> OrElseStep {
 // Name-shape tests (`CheckerBase.lean:141-172`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup
+/// con-leche: ConLeche/Kernel/Level.lean:211-214 Name.nodup
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:115-120 nameNodup` — no
 /// duplicates in a list of name HANDLES.  A name comparison is a handle
 /// comparison (DESIGN.md §8.3: `denoteN` is injective).
@@ -348,7 +352,7 @@ pub fn name_nodup(ns: &Vec<NIdx>) -> bool {
     name_nodup_from(ns, 0)
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup
+/// con-leche: ConLeche/Kernel/Level.lean:211-214 Name.nodup
 /// The cited `List` recursion as an index recursion over the tail `ns[i..]`.
 pub fn name_nodup_from(ns: &Vec<NIdx>, i: usize) -> bool {
     if i >= ns.len() {
@@ -360,7 +364,7 @@ pub fn name_nodup_from(ns: &Vec<NIdx>, i: usize) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:214-217 Name.nodup
+/// con-leche: ConLeche/Kernel/Level.lean:211-214 Name.nodup
 /// The cited `ns.contains n` over the tail.
 pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
     if i >= ns.len() {
@@ -372,7 +376,7 @@ pub fn nidx_contains_from(ns: &Vec<NIdx>, i: usize, n: &NIdx) -> bool {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:219-226 Name.isProjFnShape
+/// con-leche: ConLeche/Kernel/Level.lean:216-223 Name.isProjFnShape
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:122-136 NIdx.isProjFnShape`
 /// — is this shaped like an installed projection function's name
 /// (`(T.proj).i`) or a projection table's (`(T.projTable).0`)?  Both shapes
@@ -416,8 +420,10 @@ pub fn memo_b_get(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:247-264 Expr.allLevelParamsDefined
-/// con-leche: ConLeche/Kernel/Level.lean:295-328 Expr.allLevelParamsDefinedGo
+/// con-leche: ConLeche/Kernel/Level.lean:242-258 Expr.allLevelParamsDefined
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_go_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:152-189
 /// allLevelParamsDefinedGo` — the memoized walk.  `params` are transient names
 /// (DESIGN.md §8.3's lesson 4: a level algorithm runs on trees, so the
@@ -448,7 +454,8 @@ pub fn all_level_params_defined_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:295-328 Expr.allLevelParamsDefinedGo
+/// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:152-189
 /// allLevelParamsDefinedGo` — the arms, past the probe.
 pub fn all_level_params_defined_node(
@@ -513,7 +520,8 @@ pub fn all_level_params_defined_node(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:295-328 Expr.allLevelParamsDefinedGo
+/// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_binder_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:152-189
 /// allLevelParamsDefinedGo` — the twin's one `.lam | .forallE` clause, which
 /// additionally reads the binder's `pw` datum.
@@ -542,7 +550,8 @@ pub fn all_level_params_defined_binder(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:295-328 Expr.allLevelParamsDefinedGo
+/// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_params_defined_list_refines, then delete this line
 /// The `.const` clause's `ls.all (Level.allParamsDefined params)`, as an index
 /// recursion (§3.4 forbids the closure `List.all` takes).
 pub fn all_params_defined_list(params: &Vec<Name>, ls: &Vec<Level>, i: usize) -> bool {
@@ -555,7 +564,7 @@ pub fn all_params_defined_list(params: &Vec<Name>, ls: &Vec<Level>, i: usize) ->
     }
 }
 
-/// con-leche: ConLeche/Kernel/Level.lean:401-403 Expr.allLevelParamsDefinedFast
+/// con-leche: ConLeche/Kernel/Level.lean:395-397 Expr.allLevelParamsDefinedFast
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:191-196 allLevelParamsDefined`
 /// — the executed `allLevelParamsDefined`: one memoized DAG walk, at the
 /// parameter list read back once.
@@ -581,7 +590,9 @@ pub fn all_level_params_defined(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:209-247 constsResolveFGo` —
 /// the memoized walk.  The four LEAF clauses are `arena::core`'s
 /// `consts_resolve` at one node, exactly as con-leche's `…Go` calls the pure
@@ -624,6 +635,7 @@ pub fn consts_resolve_f_go(
 }
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:209-247 constsResolveFGo` —
 /// the six memoized arms, past the probe.  The `.proj` arm's `fe.find? s` is
 /// the structure's own resolution, as the twin has it.
@@ -659,6 +671,7 @@ pub fn consts_resolve_f_node(
 }
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_two_refines, then delete this line
 /// The twin's `(b₁ && b₂, memo)` of the two-child arms.  **Both children are
 /// walked**, as the twin walks them: the conjunction is not short-circuited,
 /// because the memo the second walk fills is part of the state.
@@ -727,7 +740,7 @@ pub fn fvar_type_ds(
 // `mentionsConst` (module note 5)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:68-88 unresolvedConstsError
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:67-87 unresolvedConstsError
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:274-284 unresolvedConstsError`
 /// — **the verdict at a term whose constants do not all resolve.**  A term that
 /// mentions `sorryAx` DECLINES (the axiom is tolerated as a declaration and
@@ -759,8 +772,10 @@ pub fn unresolved_consts_error(
 // The per-declaration constant check (`CheckerBase.lean:321-354`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:92-116 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-374 checkConstantValF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
 /// checks common to all declarations: fresh name, no reserved name, no
 /// reserved projection shape, well-formed universe parameters, and a type that
@@ -787,8 +802,10 @@ pub fn check_constant_val(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:92-116 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-374 checkConstantValF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
 /// the six SYNTACTIC guards, in the twin's order.  Split off so the annotation
 /// is a tail call and the guards do not join on a borrowed state; shared with
@@ -817,7 +834,8 @@ pub fn check_constant_val_guards(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:92-116 checkConstantVal
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
 /// the four guards past the reserved-name test.
 pub fn check_constant_val_guards_rest(
@@ -857,8 +875,10 @@ pub fn check_constant_val_guards_rest(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:92-116 checkConstantVal
-/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-374 checkConstantValF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
 /// the tail past the annotation: the two guards on the ANNOTATED type, the
 /// type's own sort, and the record update `{ cv with type := type }`.
@@ -883,8 +903,10 @@ pub fn check_constant_val_after_annot(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:92-116 checkConstantVal
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::install_constant_val_tail_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::install_constant_val_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal`
 /// (and `CheckerSplit.lean:64-85 installConstantVal`, which spells it a second
 /// time) — the two guards on the annotated type and the header they produce.
@@ -930,7 +952,8 @@ pub fn install_constant_val_tail(
 // The strategy-independent helpers (`CheckerBase.lean:356-543`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:118-128 openPisAtFvars
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:146-156 openPisAtFvars
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::open_pis_at_fvars_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:323-339 openPisAtFvars` —
 /// open the first `n` `∀`-binders at fresh free variables `0..n-1` (each
 /// fvar's type is the binder domain, instantiated with the earlier fvars).
@@ -966,7 +989,8 @@ pub fn open_pis_at_fvars(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:130-144 openPisAtFvarsFGo
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:158-172 openPisAtFvarsFGo
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::open_pis_at_fvars_f_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:341-358 openPisAtFvarsFGo` —
 /// core of `openPisAtFvarsF`: `acc` holds the already-created fvars — the list
 /// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector
@@ -1014,7 +1038,7 @@ pub fn open_pis_at_fvars_f_go(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:146-153 openPisAtFvarsF
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:174-181 openPisAtFvarsF
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:360-367 openPisAtFvarsF` —
 /// one-pass `openPisAtFvars` (the fallback covers telescopes whose binders only
 /// appear after substitution).  **The executed one.**
@@ -1032,7 +1056,7 @@ pub fn open_pis_at_fvars_f(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:198-204 unwrapOr
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:226-232 unwrapOr
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:369-374 unwrapOr` — unwrap
 /// an optional value or fail with the given error.
 pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
@@ -1053,7 +1077,7 @@ pub fn unwrap_or<T>(o: Option<T>, err: CheckError) -> Result<T, CheckError> {
 // dedup deleted that file and brought them here, and the Rust follows.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:443-477 indParamsOk
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:381-394 indParamsOk` —
 /// **the stream's declared parameter count, checked as official checks it**
 /// (con-leche's task #228).  Both halves are one-sided on purpose: `false`
@@ -1081,7 +1105,7 @@ pub fn ind_params_ok(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:588-622 indParamsOk
+/// con-leche: ConLeche/Kernel/Env.lean:443-477 indParamsOk
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:381-394 indParamsOk` — one
 /// member's test: a type former's Π-telescope is at least `nP` long, a
 /// constructor's own parameter count is exactly `nP`, and everything else

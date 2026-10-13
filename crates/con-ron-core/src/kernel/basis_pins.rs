@@ -48,7 +48,8 @@ use crate::kernel::env::ConstantInfo;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
-/// con-leche: ConLeche/Kernel/Basis/Eq.lean:22-28 eqRaw
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_pins::eq_a_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Basis/Eq.lean:21-27 eqRaw
 /// The pinned annotated `Eq` type former, `eqA` — the head of the `.eqK`
 /// block (`BasisKind.declsA .eqK = [eqA, eqReflA, eqRecA]`).
 ///
@@ -71,6 +72,7 @@ pub fn eq_a() -> ConstantInfo {
 }
 
 /// con-leche: ConLeche/Kernel/BasisA.lean:29-44 _
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_pins::nat_a_refines, then delete this line
 /// The pinned annotated `Nat` type former, `natA` — the head of the `.natK`
 /// block (`BasisKind.declsA .natK = [natA, natZeroA, natSuccA, natRecA]`).
 pub fn nat_a() -> ConstantInfo {

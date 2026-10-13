@@ -53,6 +53,7 @@ const M_FUEL_NUM_ARGS: [u32; 23] = [
 ];
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::peel_never_pis_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:41-54 peelNeverPis` — the
 /// residual after peeling `k` *syntactic* ∀ binders whose data are all
 /// `.never`.  Structural on `k`, so no fuel: con-leche's own recursion
@@ -83,7 +84,7 @@ pub fn peel_never_pis(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs
+/// con-leche: ConLeche/Kernel/PropRead.lean:55-58 Expr.numArgs
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:56-69 numArgs` — the number of
 /// arguments of an application spine.  A spine walk, hence fuel.
 pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
@@ -104,7 +105,7 @@ pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:62-68 residualPW
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:71-85 residualPW` — the
 /// zero-ness datum of the sort of a *residual type*.  The level is read back
 /// and `level::zeroness_of` is con-leche's own (deviation 3).
@@ -129,7 +130,8 @@ pub fn residual_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:73-90 headTypePW
+/// con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::head_type_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:89-124 headTypePW` — the datum
 /// of a type-former application's *head* at `n` arguments.  A constant head
 /// reads its stored type, an fvar head its declared type; the residual after
@@ -205,7 +207,8 @@ pub fn head_type_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:92-103 typeSortPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:142-150 typeSortPW
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::type_sort_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:126-136 typeSortPW` — the
 /// zero-ness datum of the sort of the *type* `t` ("is `t` a proposition?").
 /// con-leche's last arm rebinds the scrutinee; the twin keeps the handle.
@@ -231,7 +234,8 @@ pub fn type_sort_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:105-122 headProofPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::head_proof_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:138-167 headProofPW` — the
 /// datum of a term's *head* (any arity): a constant head answers from its
 /// stored type, an fvar head from its declared type; sorts, ∀s and literals
@@ -306,7 +310,8 @@ pub fn head_proof_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW
+/// con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW
+/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::proof_pw_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:169-181 proofPW` — the
 /// zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"), read
 /// off `a`'s head symbol at any arity.
@@ -331,7 +336,7 @@ pub fn proof_pw(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:141-146 notProofFast
+/// con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:185-191 notProofFast` —
 /// **definitely not a proof**: the datum is known and is not always-zero.
 /// Refusing the proof-irrelevance shortcut is always sound.  The cited
@@ -357,7 +362,7 @@ pub fn not_proof_fast(
     }
 }
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:148-153 isProofFast
+/// con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast
 /// Lean twin: `proof/ConRon/Arena/PropRead.lean:193-199 isProofFast` —
 /// **definitely a proof**: the datum is known and always-zero (the
 /// squash-regime licence, con-leche's `prf_of_isProofFast`).
