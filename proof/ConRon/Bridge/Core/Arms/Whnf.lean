@@ -205,14 +205,21 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
       hwc, reduceNat_spec hsim, hud, ih]
     all_goals (bridge_peel; subst_vars)
-    -- the calls' `CheckOK` preconditions, and `whnfCore`'s two off the
-    -- subject: hypotheses already
-    bridge_frame
-    bridge_fwd [denoteEO_some_inv, denoteEO_none_inv]
     -- every exit: the three iterations' fuels merged by the `_ex` lemmas
-    bridge_frame [whnfLoop_reduceNat_ex, whnfLoop_delta_ex, whnfLoop_done_ex]
+    bridge_auto [whnfLoop_reduceNat_ex, whnfLoop_delta_ex, whnfLoop_done_ex]
 
 /-! ## 4. The body theorem -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the loop's
+answer at the twin's budget is a `whnf` answer (`whnf_of_loop` with the
+budgets' equation, in the shape `bridge_auto` concludes). -/
+theorem SimE.of_whnfLoop {st : EStore} {r : EIdx} {d F : Nat} {e v : Expr}
+    (h : denoteE st r = some v) (hw : Expr.WScoped d v)
+    (hF : ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d
+      ConRon.Arena.whnfLoopFuel e = .ok v) :
+    SimE (ConLeche.whnf mode env) d e st r := by
+  rw [whnfLoopFuel_eq] at hF
+  exact ⟨v, h, hw, F + 1, whnf_of_loop hF⟩
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean whnfBodyC_sim — **THEOREM 1
 for `whnfBody`**.
@@ -231,12 +238,8 @@ theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
   have hloop := whnfLoop_spec henv hsim
   vcgen [ConRon.Arena.whnfBody, hloop]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd
   -- the loop's answer, through the entry bracket
-  vc_arm (hF : ConLeche.whnfLoop _ _ _ _ _ = .ok _) =>
-    rw [whnfLoopFuel_eq] at hF
-    exact SimE.intro (by bridge_frame) (by bridge_frame) (whnf_of_loop hF)
+  bridge_auto [SimE.of_whnfLoop]
 
 /-! ## 5. The axiom census -/
 
