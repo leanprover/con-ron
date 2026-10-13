@@ -139,10 +139,7 @@ theorem checkStructProjTable_shape {T C : NIdx} {lps : List NIdx} {nP nF : Nat}
   obtain ⟨b5, s₅, -, z5⟩ := AM.bind_ok z4
   obtain ⟨-, z6⟩ := AM.dunless_ok hnever z5
   replace z6 := AM.pure_bind_ok z6
-  obtain ⟨tn, s₆, -, z7⟩ := AM.bind_ok z6
-  obtain ⟨-, z8⟩ := AM.dunless_ok hnever z7
-  replace z8 := AM.pure_bind_ok z8
-  obtain ⟨rfl, rfl⟩ := AM.pure_ok z8
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z6
   exact ⟨_, rfl⟩
 
 /-- con-leche: none — `denoteLLists` at a cons, inverted. -/
@@ -524,7 +521,7 @@ def ClassesStageSpec (μ : CheckMode) : Prop :=
       (Arena.checkBlockClasses μ fe₁ p params ctorsAs)
       (fun st r v => dClassRead st r.1 = some v.1 ∧ r.2.mapM (dMajor st) = some v.2 ∧
         ∀ M ∈ v.2, ConLeche.Cached.ClassMajScoped pP.nP M)
-      (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) env₁ pP paramsP ctorsAsP)
+      (ConLeche.checkBlockClasses (fueledOpsM μ) (mkFEnv env₁) pP paramsP ctorsAsP)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:494-499 classSeeds — the
 seeds' statement, as the pass consumes it. -/
@@ -648,7 +645,7 @@ theorem checkBlockTail_of {μ : CheckMode} (hk : CoreSpec μ Arena.checkFuel)
   have x4 := c4.ext
   obtain ⟨env₃, hden₃, rfl⟩ := hrel4.denote
   obtain ⟨l, hl, hfe₃⟩ := consBlockRecsTF_shape _ _ _ _ _ _ _ _ h7
-  have hienv₃ : IFEnvOK (consBlockRecsT env₂.find? (·.constsResolve env₂) shP 0 outP env₂)
+  have hienv₃ : IFEnvOK (consBlockRecsT env₂.find? shP 0 outP env₂)
       fe₃ s₄ := by
     subst hfe₃
     exact IFEnvOK_pushAll c4.ok.state l fe₂b env₂ _
@@ -775,7 +772,7 @@ theorem checkBlockPass_of {μ : CheckMode} (hμ : μ.verifiedChecks = true)
     (fun k hk x hx => by
       obtain ⟨M, hM, hMn, rfl⟩ := ConLeche.Cached.mem_classSeeds hk
       exact (ConLeche.nestSeedOf_ds hnh hlen (fun y hy => ConLeche.Expr.fvarB_le (by
-        rw [hnP]; exact (hMsc M hM).2.1 hMn y hy)) x hx).2 (fun y hy => (hhw y hy).1) hpar)
+        rw [hnP]; exact (((hMsc M hM).2.1 hMn).2 y hy).2)) x hx).2 (fun y hy => (hhw y hy).1) hpar)
     s₇ s₈ ns c7.ok
     ⟨dCtx_ext _ (x5.trans (x6.trans c7.ext)) _ _ hctx, hseeds, dState_ext c7.ext _ _ hpos⟩
     h15
