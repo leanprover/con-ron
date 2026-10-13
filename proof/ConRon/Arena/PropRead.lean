@@ -110,7 +110,7 @@ def residualPW : Option EIdx → AM (Option PropWhen)
 λ-telescope that is a single bound variable: `some (k, j)` for
 `fun x₁ … x_k => x_{k-j}`.  A walk down the λ chain, hence fuel. -/
 def lamProj? : Nat → Nat → EIdx → AM (Option (Nat × Nat))
-  | 0, _, _ => fail (.internal "fuel exhausted: lamProj?")
+  | 0, _, _ => fail (.internal "fuel exhausted: propRead")
   | fuel + 1, k, h => do
     if h.tag == ETag.lam then
       match ← viewBind h with
@@ -225,7 +225,7 @@ counting the binders, then read the residual's head.  A walk down the
 telescope, hence fuel. -/
 def typeSortPWGo (fe : IFEnv) (root : EIdx) : Nat → EIdx → Nat →
     AM (Option PropWhen)
-  | 0, _, _ => fail (.internal "fuel exhausted: typeSortPW")
+  | 0, _, _ => fail (.internal "fuel exhausted: propRead")
   | fuel + 1, R, d => do
     if R.tag == ETag.forallE then
       match ← viewBind R with
@@ -281,7 +281,7 @@ datum of the sort of the *type* of `a` ("is `a` a proof?"): a λ answers from
 its body, a `let` from its body, an application from its function, anything
 else from its head.  A walk, hence fuel. -/
 def proofPW (fe : IFEnv) : Nat → EIdx → AM (Option PropWhen)
-  | 0, _ => fail (.internal "fuel exhausted: proofPW")
+  | 0, _ => fail (.internal "fuel exhausted: propRead")
   | fuel + 1, a => do
     -- tag first, then the projection, as the port (task #97-P5-Core round 6,
     -- D1)

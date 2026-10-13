@@ -33,8 +33,9 @@
 use crate::arena::env;
 use crate::arena::env::{IConstantInfo, IFEnv};
 use crate::arena::expr_ops::{get_app_args, get_app_fn};
-use crate::arena::handle::{EIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_LAM, ETAG_SORT};
+use crate::arena::handle::{EIdx, ETAG_APP, ETAG_BVAR, ETAG_CONST, ETAG_FORALL_E, ETAG_LAM, ETAG_LET_E, ETAG_SORT};
 use crate::arena::monad::read_level;
+use crate::arena::monad::{view_const_name, view_let};
 use crate::arena::monad::{
     fail, fail_dangling_e, fail_dangling_ls, read_levels_m, read_names_m, view, view_app,
     view_bind, view_bvar, view_ls_len, view_sort, AState,
@@ -197,9 +198,10 @@ pub fn unwrap_id_defs(
     } else {
         match get_app_fn(pers, st, fuel, e) {
             Err(er) => Err(er),
-            Ok(hd) => match view(pers, st, &hd) {
-                Err(er) => Err(er),
-                Ok(ENodeView::Const(c, _)) => match env::ifenv_find(vis, fe, &c) {
+            Ok(hd) => if hd.tag() == ETAG_CONST {
+                match view_const_name(pers, st, &hd) {
+                None => fail_dangling_e(),
+                Some(c) => match env::ifenv_find(vis, fe, &c) {
                     Some(IConstantInfo::DefnInfo(_, v0, _)) => {
                         let v: EIdx = v0.dup2();
                         match lam_proj(pers, st, fuel, 0, &v) {
@@ -224,7 +226,9 @@ pub fn unwrap_id_defs(
                     Some(_) => Ok(e.dup2()),
                     None => Ok(e.dup2()),
                 },
-                Ok(_) => Ok(e.dup2()),
+                }
+            } else {
+                Ok(e.dup2())
             },
         }
     }
@@ -391,17 +395,23 @@ pub fn type_sort_pw_go(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PROP_READ)))
     } else {
-        match view(pers, st, t) {
-            Err(e) => Err(e),
-            Ok(ENodeView::ForallE(_, b)) => type_sort_pw_go(pers, vis, st, fe, fuel - 1, root, &b, d + 1),
-            Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
-            Ok(_) => match get_app_fn(pers, st, fuel, t) {
+        // tag first, then the binder projection, as the twin (task #97-P5-Core
+        // round 6, D1); the inner walks run at the decremented fuel
+        if t.tag() == ETAG_FORALL_E {
+            match view_bind(pers, st, t) {
+                None => fail_dangling_e(),
+                Some((_, b)) => type_sort_pw_go(pers, vis, st, fe, fuel - 1, root, &b, d + 1),
+            }
+        } else if t.tag() == ETAG_SORT {
+            Ok(Some(prop_when::never()))
+        } else {
+            match get_app_fn(pers, st, fuel - 1, t) {
                 Err(e) => Err(e),
-                Ok(fnh) => match num_args(pers, st, fuel, t) {
+                Ok(fnh) => match num_args(pers, st, fuel - 1, t) {
                     Err(e) => Err(e),
-                    Ok(n) => head_type_pw(pers, vis, st, fe, fuel, root, d, &fnh, n),
+                    Ok(n) => head_type_pw(pers, vis, st, fe, fuel - 1, root, d, &fnh, n),
                 },
-            },
+            }
         }
     }
 }
@@ -502,12 +512,25 @@ pub fn proof_pw(
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_PROP_READ)))
     } else {
-        match view(pers, st, a) {
-            Err(e) => Err(e),
-            Ok(ENodeView::Lam(_, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
-            Ok(ENodeView::LetE(_, _, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
-            Ok(ENodeView::App(f, _)) => proof_pw(pers, vis, st, fe, fuel - 1, &f),
-            Ok(_) => head_proof_pw(pers, vis, st, fe, fuel, a),
+        // tag first, then the projection, as the twin (task #97-P5-Core
+        // round 6, D1)
+        if a.tag() == ETAG_LAM {
+            match view_bind(pers, st, a) {
+                None => fail_dangling_e(),
+                Some((_, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
+            }
+        } else if a.tag() == ETAG_LET_E {
+            match view_let(pers, st, a) {
+                None => fail_dangling_e(),
+                Some((_, _, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
+            }
+        } else if a.tag() == ETAG_APP {
+            match view_app(pers, st, a) {
+                None => fail_dangling_e(),
+                Some((f, _)) => proof_pw(pers, vis, st, fe, fuel - 1, &f),
+            }
+        } else {
+            head_proof_pw(pers, vis, st, fe, fuel - 1, a)
         }
     }
 }
