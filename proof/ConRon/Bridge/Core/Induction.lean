@@ -141,10 +141,12 @@ standard axioms. -/
 #print axioms memoInferIO_step
 #print axioms memoDefeq_step
 
-/-! ### The per-arm step lemmas — closed, fifty-two of them -/
+/-! ### The per-arm step lemmas -/
 
-#print axioms whnfCore_proj_stuck
-#print axioms whnfCore_proj_fire
+#print axioms mStep_app
+#print axioms mStep_proj_none
+#print axioms mStep_proj_some
+#print axioms whnfCore_of_loopM
 #print axioms reduceProjCore_none
 #print axioms reduceProjCore_head
 #print axioms reduceProjCore_guard
@@ -164,8 +166,9 @@ standard axioms. -/
 #print axioms infer_proj_nonprop
 #print axioms infer_proj_prop
 
-#print axioms inferIO_lam_chain
-#print axioms inferIO_lam_leaf
+#print axioms infer_letE
+#print axioms inferIO_lam
+#print axioms inferIO_letE
 
 #print axioms defeqBody_syntactic
 #print axioms defeqBody_boolTrue
@@ -189,7 +192,10 @@ written, and the `sorryAx` it then printed came from two walk theorems of
 `Bridge/Core/Walks/Owed.lean` — `reduceNat_spec` and `unfoldDefinition_spec`
 — and from nothing else. -/
 
-#print axioms whnfCoreBody_app_batched
+#print axioms betaPeel_carry
+#print axioms whnfApp_carry
+#print axioms whnfCoreStep_spec
+#print axioms whnfCoreLoop_spec
 #print axioms whnfCoreBody_spec
 #print axioms whnfBody_spec
 #print axioms inferBody_app_batched

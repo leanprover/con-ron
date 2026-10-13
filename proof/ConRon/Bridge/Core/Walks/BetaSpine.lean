@@ -271,7 +271,7 @@ theorem whnfApp_iotaStep_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     refine ⟨hok, Ext.refl _, rfl, none, rfl,
       ⟨fun (x : Expr) (hx : (none : Option Expr) = some x) => by simp at hx,
         0, ?_⟩⟩
-    exact ConLeche.iotaRec_head_not_const _ env d hnc
+    exact iotaRecFueled_nohead hnc
 
 /-! ## 3. The pure mirrors at the pure knot
 
@@ -475,7 +475,7 @@ theorem instantiateListFast_ok_spec (s₀ : AState) (e : EIdx) (acc : Array EIdx
         s'.pins = s₀.pins ∧ denoteE s'.store r = some (E.instantiateList ws); ⊤⦄ :=
   triple_mono (ExprOps.instantiateListFast_spec coreWalkFuel s₀ e acc 0 ws
       hok.state hvec (by rw [hde]; rfl))
-    (fun _ _ ⟨hst, hx, _, hc, hp, _, hrel⟩ =>
+    (fun _ _ ⟨hst, hx, hc, hp, _, hrel⟩ =>
       ⟨hok.mono hst hx hc hp, hx, hp, hrel E hde⟩)
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:220 betaPeelW — **the
@@ -537,6 +537,7 @@ theorem betaPeel_carry (d : Nat) (args : Array EIdx) (xs : List Expr) :
         (by omega) hok hctx hbody (InstLVec.push hacc hdA) hwB1) ?_
       rintro r s' ⟨hck, hx, hp, R, hdR, hwR, F, hF⟩
       refine ⟨hck, hx, hp, R, hdR, hwR, F, ?_⟩
+      dsimp only at hF ⊢
       rw [hdrop', mBP_lam, ← hdrop1]
       exact hF
     · simp only [htl, Bool.false_eq_true, ite_false]
@@ -549,22 +550,26 @@ theorem betaPeel_carry (d : Nat) (args : Array EIdx) (xs : List Expr) :
         hacc) ?_
       rintro e2 s1 ⟨hok1, hx1, hp1, hde2⟩
       have hrest1 : Frontend.denoteEList s1.store (args.toList.drop i) =
-          some (A :: rest) := denoteEList_ext' hx1 (by rw [← hdrop'];
-            exact ExprOps.denoteEList_drop i _ _ hctx.1)
+          some (A :: rest) := denoteEList_ext' hx1 (by
+            rw [← hdrop']; exact ExprOps.denoteEList_drop i _ _ hctx.1)
       refine triple_seq (ExprOps.mkAppNFrom_spec _ s1 e2 args i rfl
         hok1.state (by rw [hde2]; rfl) (by rw [hrest1]; rfl)) ?_
-      rintro r s2 ⟨hst2, hx2, _, _, hc2, hp2, hrel⟩
+      rintro r s2 ⟨hst2, hx2, _, hc2, hp2, hrel⟩
+      have hpost : StepPost mode env fe d s₀
+          (fun F => mBP mode env F d T ws (xs.drop i)) (.cont r) s2 := by
+        refine ⟨hok1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, by rw [hp2, hp1],
+          .cont (Expr.mkAppN (T.instantiateList ws) (A :: rest)),
+          by simp [denoteStep, hrel _ _ hde2 hrest1],
+          Expr.WScoped.mkAppN hwT (by
+            intro x hx; rcases List.mem_cons.mp hx with rfl | hx
+            · exact hwA
+            · exact hwrest x hx), 0, ?_⟩
+        dsimp only
+        rw [hdrop']
+        exact mBP_nonlam hnl
       vcgen
       subst_vars
-      refine ⟨hok1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, by rw [hp2, hp1],
-        .cont (Expr.mkAppN (T.instantiateList ws) (A :: rest)),
-        by simp [denoteStep, hrel _ _ hde2 hrest1],
-        Expr.WScoped.mkAppN hwT (by
-          intro x hx; rcases List.mem_cons.mp hx with rfl | hx
-          · exact hwA
-          · exact hwrest x hx), 0, ?_⟩
-      rw [hdrop']
-      exact mBP_nonlam hnl
+      exact hpost
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:202 whnfAppW — **the `whnfApp`
 carry**, by induction on `args.size - i`, over `betaPeel_carry` at a λ head
@@ -630,6 +635,7 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
         Body [A] rfl hok ⟨hctx.1, hctx.2.1⟩ hbody hvec hwB1) ?_
       rintro r s' ⟨hck, hx, hp, R, hdR, hwR, F, hF⟩
       refine ⟨hck, hx, hp, R, hdR, hwR, F, ?_⟩
+      dsimp only at hF ⊢
       rw [hdrop', mWA_lam, ← hdrop1]
       exact hF
     · simp only [htl, Bool.false_eq_true, ite_false]
@@ -678,6 +684,7 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
         rintro r s' ⟨hck, hx, hp, R, hdR, hwR, F2, hF2⟩
         refine ⟨hck, hx02.trans hx, by rw [hp, hp2, hp1], R, hdR, hwR,
           F1 + F2, ?_⟩
+        dsimp only at hF2 ⊢
         rw [hdrop', mWA_iota_none hnl (ConLeche.iotaRec_mono (by omega) hF1),
           ← hdrop1]
         exact mWA_mono (by omega) hF2
@@ -691,15 +698,19 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
           denoteEList_ext' hx02 hrestD
         refine triple_seq (ExprOps.mkAppNFrom_spec _ s2 e2 args (i + 1) rfl
           hok2.state (by rw [hdE2]; rfl) (by rw [hrest2]; rfl)) ?_
-        rintro r s3 ⟨hst3, hx3, _, _, hc3, hp3, hrel⟩
+        rintro r s3 ⟨hst3, hx3, _, hc3, hp3, hrel⟩
+        have hpost : StepPost mode env fe d s₀
+            (fun F => mWA mode env F d V (xs.drop i)) (.cont r) s3 := by
+          refine ⟨hok2.mono hst3 hx3 hc3 hp3, hx02.trans hx3,
+            by rw [hp3, hp2, hp1], .cont (Expr.mkAppN E2 rest),
+            by simp [denoteStep, hrel _ _ hdE2 hrest2],
+            Expr.WScoped.mkAppN hwE2 hwrest, F1, ?_⟩
+          dsimp only
+          rw [hdrop']
+          exact mWA_iota_some hnl hF1
         vcgen
         subst_vars
-        refine ⟨hok2.mono hst3 hx3 hc3 hp3, hx02.trans hx3,
-          by rw [hp3, hp2, hp1], .cont (Expr.mkAppN E2 rest),
-          by simp [denoteStep, hrel _ _ hdE2 hrest2],
-          Expr.WScoped.mkAppN hwE2 hwrest, F1, ?_⟩
-        rw [hdrop']
-        exact mWA_iota_some hnl hF1
+        exact hpost
 
 section Census
 

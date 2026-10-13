@@ -345,71 +345,64 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     rw [hrel _ hb]; rfl
   -- the postcondition
   case vc1 =>
-    rename_i hst1 hst2 hx2 _ hL hc2 hLs hp2 hN _ hrel2 hx1 _ hc1 hp1 _ hrel1
+    rename_i hst1 hst2 hx2 hL hc2 hLs hp2 hN _ hrel2 hx1 hc1 hp1 _ hrel1
     have hck1 := CheckOK.ofInstLP hok hst1 hx1 hL hLs hN hc1 hp1
     refine ⟨hck1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
     rw [hrel2 _ (hrel1 _ hb)]
     rfl
 
 
-/-! ## 5a. `iotaCerts` — the batched spine certificate (round 4)
+/-! ## 5a. `iotaCertsFull` — the batched full-grade telescope certificate
 
-`Arena/Core.lean`'s `iotaCertsAux` carries a PUSH-order accumulator of
+`Arena/Core.lean`'s `iotaCertsFullAux` carries a PUSH-order accumulator of
 pending substitutions (task #97-P6-9) and matches on the UN-instantiated
-telescope, flushing at a `.bvar` head; con-leche's `iotaCerts` substitutes
-eagerly.  The two meet through `ExprOps/Subst.lean`'s `InstLVec`: at every
-step the arena's `(h, acc)` denotes con-leche's `tyx.instantiateList ws`.
-This is con-leche's own `Verify/Cached/DiscC1.lean:131 iotaCertsCAux_sim`,
-and the induction is its lexicographic measure `(args.size - i, acc.size)`,
-spelled as two nested strong inductions. -/
+telescope, flushing at a `.bvar` head; con-leche's `iotaCertsFull` (task
+#342 L10: ι's case 3, every slot at the FULL grade) substitutes eagerly.  The
+two meet through `ExprOps/Subst.lean`'s `InstLVec`: at every step the arena's
+`(h, acc)` denotes con-leche's `tyx.instantiateList ws`.  This is con-leche's
+own cached-tier simulation, and the induction is its lexicographic measure
+`(args.size - i, acc.size)`. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — the spine ran
-out: certified. -/
-theorem iotaCertsFueled_nil {F d : Nat} {lic : Bool} {ty : Expr} :
-    ConLeche.iotaCertsFueled mode env F d lic ty [] = .ok true := by
-  simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts]; rfl
+/-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — the spine
+ran out: certified. -/
+theorem iotaCertsFullFueled_nil {F d : Nat} {ty : Expr} :
+    ConLeche.iotaCertsFullFueled mode env F d ty [] = .ok true := by
+  simp only [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull]; rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a licensed
-`.never` slot is skipped. -/
-theorem iotaCertsFueled_skip {F d : Nat} {lic : Bool} {t b : Expr} {x : Expr} {xs : List Expr}
-    (hg : (lic && m.pw.isNever) = true) :
-    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b) (x :: xs) =
-      ConLeche.iotaCertsFueled mode env F d lic (b.instantiate1 x) xs := by
-  simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg, ite_true]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a certified
-slot: the argument's type agrees with the domain, and the walk continues. -/
-theorem iotaCertsFueled_cert {F d : Nat} {lic : Bool} {t b : Expr} {x ta : Expr} {xs : List Expr}
-    (hg : (lic && m.pw.isNever) = false)
-    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+/-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — a certified
+slot: the argument's FULL-grade type agrees with the domain, and the walk
+continues. -/
+theorem iotaCertsFullFueled_cert {F d : Nat} {t b : Expr} {x ta : Expr}
+    {xs : List Expr}
+    (h1 : ConLeche.inferTypeCore mode env F d x = .ok ta)
     (h2 : ConLeche.isDefEqCore mode env F d ta t = .ok true) :
-    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b) (x :: xs) =
-      ConLeche.iotaCertsFueled mode env F d lic (b.instantiate1 x) xs := by
-  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+    ConLeche.iotaCertsFullFueled mode env F d (.forallE t b) (x :: xs) =
+      ConLeche.iotaCertsFullFueled mode env F d (b.instantiate1 x) xs := by
+  have e1 : (ConLeche.pureFns mode env F).infer d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok true := h2
-  simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg,
-    Bool.false_eq_true, ite_false, e1, e2, bind, Except.bind, ite_true]
+  simp only [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull, e1, e2,
+    bind, Except.bind, ite_true]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a slot whose
-argument's type does not agree: declined. -/
-theorem iotaCertsFueled_fail {F d : Nat} {lic : Bool} {t b : Expr} {x ta : Expr} {xs : List Expr}
-    (hg : (lic && m.pw.isNever) = false)
-    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
+/-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — a slot
+whose argument's type does not agree: declined. -/
+theorem iotaCertsFullFueled_fail {F d : Nat} {t b : Expr} {x ta : Expr}
+    {xs : List Expr}
+    (h1 : ConLeche.inferTypeCore mode env F d x = .ok ta)
     (h2 : ConLeche.isDefEqCore mode env F d ta t = .ok false) :
-    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b) (x :: xs) =
+    ConLeche.iotaCertsFullFueled mode env F d (.forallE t b) (x :: xs) =
       .ok false := by
-  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
+  have e1 : (ConLeche.pureFns mode env F).infer d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok false := h2
-  simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg,
-    Bool.false_eq_true, ite_false, e1, e2, bind, Except.bind]
+  simp only [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull, e1, e2,
+    bind, Except.bind]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — arguments left
-over and no binder to take them: declined. -/
-theorem iotaCertsFueled_notpi {F d : Nat} {lic : Bool} {ty x : Expr}
-    {xs : List Expr} (h : ∀ t b m, ty ≠ .forallE t b) :
-    ConLeche.iotaCertsFueled mode env F d lic ty (x :: xs) = .ok false := by
-  cases ty <;> simp_all [ConLeche.iotaCertsFueled, ConLeche.iotaCerts] <;> rfl
+/-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — arguments
+left over and no binder to take them: declined. -/
+theorem iotaCertsFullFueled_notpi {F d : Nat} {ty x : Expr}
+    {xs : List Expr} (h : ∀ t b, ty ≠ .forallE t b) :
+    ConLeche.iotaCertsFullFueled mode env F d ty (x :: xs) = .ok false := by
+  cases ty <;> simp_all [ConLeche.iotaCertsFullFueled, ConLeche.iotaCertsFull] <;> rfl
 
 /-- con-leche: none — a denoting suffix of an argument array, peeled at its
 first index. -/
@@ -444,15 +437,15 @@ theorem InstLVec.empty (st : EStore) : ExprOps.InstLVec st #[] [] := rfl
 theorem instantiateList_forallE {t b : Expr}
     {ws : List Expr} :
     (Expr.forallE t b).instantiateList ws =
-      .forallE (t.instantiateList ws) (b.instantiateList ws 1) m := by
+      .forallE (t.instantiateList ws) (b.instantiateList ws 1) := by
   simp [Expr.instantiateList]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211 instantiateList — a head
 that is neither a ∀ nor a loose variable keeps its constructor, so it is not
 a ∀ afterwards either. -/
 theorem instantiateList_not_forallE {e : Expr} {ws : List Expr}
-    (hf : ∀ t b m, e ≠ .forallE t b) (hb : ∀ k, e ≠ .bvar k) :
-    ∀ t b m, e.instantiateList ws ≠ .forallE t b m := by
+    (hf : ∀ t b, e ≠ .forallE t b) (hb : ∀ k, e ≠ .bvar k) :
+    ∀ t b, e.instantiateList ws ≠ .forallE t b := by
   cases e <;> simp_all [Expr.instantiateList]
 
 /-- con-leche: none — a handle whose VIEW is neither a ∀ nor a loose
@@ -460,9 +453,9 @@ variable denotes neither. -/
 theorem denote_not_forallE_bvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} {v : ENodeView} (hv : st.view h = some v)
     (he : denoteE st h = some e)
-    (hne : ∀ ty b m, v = .forallE ty b m → False)
+    (hne : ∀ ty b, v = .forallE ty b → False)
     (hnb : ∀ k, v = .bvar k → False) :
-    (∀ p q m, e ≠ .forallE p q) ∧ ∀ k, e ≠ .bvar k := by
+    (∀ p q, e ≠ .forallE p q) ∧ ∀ k, e ≠ .bvar k := by
   cases v with
   | bvar i => exact absurd rfl (hnb i)
   | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
@@ -470,17 +463,17 @@ theorem denote_not_forallE_bvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | const n us => obtain ⟨p, q, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
   | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b => exact absurd rfl (hne ty b m)
+  | forallE ty b => exact absurd rfl (hne ty b)
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:131 iotaCertsCAux_sim —
+/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean iotaCertsFullCAux_sim —
 **the induction**, in ∃/∀ shape (the recursive calls' subjects are answers
 of `instantiateListFast` and of the accumulator push). -/
-theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (d : Nat) (lic : Bool) (args : Array EIdx) :
+theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (d : Nat) (args : Array EIdx) :
     ∀ (k m : Nat) (h : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState),
       args.size - i = k → acc.size = m → CheckOK mode env fe s₀ →
       (∃ tyx ws xs, denoteE s₀.store h = some tyx ∧
@@ -489,238 +482,46 @@ theorem iotaCertsAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         Frontend.denoteEList s₀.store (args.toList.drop i) = some xs ∧
         ∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.iotaCertsAux (coreKnot mode fe id fuel) fe d lic h acc
+        ConRon.Arena.iotaCertsFullAux (coreKnot mode fe id fuel) fe d h acc
           args i
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∀ tyx ws xs, denoteE s₀.store h = some tyx →
             ExprOps.InstLVec s₀.store acc ws →
             Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
-            SimBOp (fun F => ConLeche.iotaCertsFueled mode env F d lic
+            SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d
               (tyx.instantiateList ws) xs) r; ⊤⦄ := by
-  intro k
-  induction k using Nat.strongRecOn with
-  | _ k ihk =>
-  intro m
-  induction m using Nat.strongRecOn with
-  | _ m ihm =>
-  intro h acc i s₀ hk hm hok hpre
-  obtain ⟨tyx, ws, xs, hh, hacc, hwty, hxs, hwxs⟩ := hpre
-  rw [ConRon.Arena.iotaCertsAux]
-  by_cases hi : i < args.size
-  · simp only [hi, dite_true]
-    have ihF := fun (h' : EIdx) (acc' : Array EIdx) (s' : AState) =>
-      ihk (args.size - (i + 1)) (by omega) acc'.size h' acc' (i + 1) s' rfl rfl
-    have ihB := fun (h' : EIdx) (s' : AState) (hlt : 0 < m) =>
-      ihm 0 hlt h' #[] i s' hk rfl
-    have hio := hsim.inferIO'
-    have hdq := hsim.defeq'
-    have hl := fun (s : AState) (e : EIdx) =>
-      ExprOps.instantiateListFast_spec coreWalkFuel s e acc 0 ws
-    obtain ⟨x, xs', rfl, hx, hxs'⟩ := denoteEList_drop_cons hi hxs
-    have hwx : Expr.WScoped d x := hwxs x (by simp)
-    have hwxs' : ∀ z ∈ xs', Expr.WScoped d z := fun z hz => hwxs z (by simp [hz])
-    -- the postcondition's three subjects are functional
-    have huniq : ∀ (st : EStore) tyx' ws' xs'', Ext s₀.store st →
-        denoteE st h = some tyx' → ExprOps.InstLVec st acc ws' →
-        Frontend.denoteEList st (args.toList.drop i) = some xs'' →
-        tyx' = tyx ∧ ws' = ws ∧ xs'' = x :: xs' := by
-      intro st tyx' ws' xs'' hxt h1 h2 h3
-      refine ⟨Option.some.inj (h1.symm.trans (denote_ext hh hxt)),
-        InstLVec.unique h2 (hacc.ext hxt), ?_⟩
-      rw [denoteEList_ext hxt _ _ hxs] at h3
-      exact (Option.some.inj h3).symm
-    vcgen [ihF, ihB, hio, hdq, hl]
-    all_goals (bridge_peel; subst_vars)
-    -- the licensed SKIP
-    case vc1 =>
-      rename_i _s0 t' b' mb hg _rb _s1 hck hxt hp hrec hview
-      refine ⟨hck, hxt, hp, fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
-      obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
-      obtain ⟨p, q, rfl, _, hq⟩ := denote_forallE_inv hok.state.wf hview hh
-      obtain ⟨F, hF⟩ := hrec q (x :: ws') xs' hq (InstLVec.push hacc hx) hxs'
-      refine ⟨F, ?_⟩
-      show ConLeche.iotaCertsFueled mode env _ d lic _ _ = _
-      rw [instantiateList_forallE, iotaCertsFueled_skip hg,
-        ← Expr.instantiateList_cons]
-      exact hF
-    case vc2 => exact hok
-    case vc3 =>
-      rename_i hview
-      obtain ⟨p, q, rfl, _, hq⟩ := denote_forallE_inv hok.state.wf hview hh
-      simp only [instantiateList_forallE, Expr.WScoped] at hwty
-      refine ⟨q, x :: ws, xs', hq, InstLVec.push hacc hx, ?_, hxs', hwxs'⟩
-      rw [Expr.instantiateList_cons]
-      exact Expr.WScoped.instantiate1_gen hwx 0 hwty.2
-    -- the certified slot: the preconditions
-    case vc13 => exact hok.state
-    case vc14 => exact hacc
-    case vc15 =>
-      rename_i hview
-      obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hok.state.wf hview hh
-      rw [hp]; rfl
-    case vc11 =>
-      rename_i hst hxt _ hc hp _ _ _
-      exact hok.mono hst hxt hc hp
-    case vc12 =>
-      rename_i _ hxt _ _ _ _ _ _
-      exact ⟨x, denote_ext hx hxt, hwx⟩
-    case vc8 | vc5 => assumption
-    case vc9 =>
-      rename_i _ _ hx01 _ _ _ hsio _ _ _ _ _
-      obtain ⟨v, hv, hw, _⟩ := hsio x (denote_ext hx hx01)
-      exact ⟨v, hv, hw⟩
-    case vc10 =>
-      rename_i _ _ _ hx12 _ _ _ _ _ _ hinst hview
-      obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hok.state.wf hview hh
-      simp only [instantiateList_forallE, Expr.WScoped] at hwty
-      exact ⟨_, denote_ext (hinst p hp) hx12, hwty.1⟩
-    case vc4 =>
-      rename_i _s0 t' b' mb hg _s1 _s2 _s3 _rb _s4 _ _ _ hck hx01 hx12 hx23
-        hx34 _ hp21 hsio hp32 hp43 hrec _ hp10 _ hinst hview hsdq
-      refine ⟨hck, ((hx01.trans hx12).trans hx23).trans hx34,
-        by rw [hp43, hp32, hp21, hp10], fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
-      obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
-      obtain ⟨p, q, rfl, hp, hq⟩ := denote_forallE_inv hok.state.wf hview hh
-      obtain ⟨ta, hta, _, F1, hF1⟩ := hsio x (denote_ext hx hx01)
-      obtain ⟨F2, hF2⟩ := hsdq ta _ hta (denote_ext (hinst p hp) hx12)
-      have hx03 := (hx01.trans hx12).trans hx23
-      obtain ⟨F3, hF3⟩ := hrec q (x :: ws') xs' (denote_ext hq hx03)
-        (InstLVec.push (hacc.ext hx03) (denote_ext hx hx03))
-        (denoteEList_ext hx03 _ _ hxs')
-      refine ⟨F1 + F2 + F3, ?_⟩
-      show ConLeche.iotaCertsFueled mode env _ d lic _ _ = _
-      rw [instantiateList_forallE,
-        iotaCertsFueled_cert (Bool.eq_false_iff.mpr hg)
-          (ConLeche.inferTypeIO_mono (by omega) hF1)
-          (ConLeche.isDefEqCore_mono (by omega) hF2),
-        ← Expr.instantiateList_cons]
-      exact iotaCertsFueled_mono (by omega) hF3
-    case vc6 =>
-      rename_i hx01 hx12 hx23 _ _ _ _ _ _ _ _ hview _
-      obtain ⟨p, q, rfl, _, hq⟩ := denote_forallE_inv hok.state.wf hview hh
-      simp only [instantiateList_forallE, Expr.WScoped] at hwty
-      have hx03 := (hx01.trans hx12).trans hx23
-      refine ⟨q, x :: ws, xs', denote_ext hq hx03,
-        InstLVec.push (hacc.ext hx03) (denote_ext hx hx03), ?_,
-        denoteEList_ext hx03 _ _ hxs', hwxs'⟩
-      rw [Expr.instantiateList_cons]
-      exact Expr.WScoped.instantiate1_gen hwx 0 hwty.2
-    -- the slot's type does not agree
-    case vc7 =>
-      rename_i _s0 t' b' mb hg _s1 _s2 rb _s3 hnb _ _ hck hx01 hx12 hx23 _ hp21
-        hsio hp32 hsdq _ hp10 _ hinst hview
-      refine ⟨hck, (hx01.trans hx12).trans hx23, by rw [hp32, hp21, hp10],
-        fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
-      obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
-      obtain ⟨p, q, rfl, hp, _⟩ := denote_forallE_inv hok.state.wf hview hh
-      obtain ⟨ta, hta, _, F1, hF1⟩ := hsio x (denote_ext hx hx01)
-      obtain ⟨F2, hF2⟩ := hsdq ta _ hta (denote_ext (hinst p hp) hx12)
-      obtain rfl : rb = false := by simpa using hnb
-      refine ⟨F1 + F2, ?_⟩
-      show ConLeche.iotaCertsFueled mode env _ d lic _ _ = _
-      rw [instantiateList_forallE]
-      exact iotaCertsFueled_fail (Bool.eq_false_iff.mpr hg)
-        (ConLeche.inferTypeIO_mono (by omega) hF1)
-        (ConLeche.isDefEqCore_mono (by omega) hF2)
-    -- a loose variable with nothing pending: declined
-    case vc16 =>
-      rename_i _ k hsz hview
-      refine ⟨hok, Ext.refl _, rfl, fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
-      obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
-      have hws : ws' = [] := by
-        have h0 : acc = #[] := Array.eq_empty_of_size_eq_zero hsz
-        subst h0
-        exact InstLVec.unique hacc (InstLVec.empty _)
-      subst hws
-      rw [denote_bvar_inv hok.state.wf hview hh, ConLeche.Expr.instantiateList_nil]
-      exact ⟨0, iotaCertsFueled_notpi (by simp)⟩
-    -- the FLUSH: the pending substitution is applied and the walk looks again
-    case vc21 => exact hok.state
-    case vc22 => exact hacc
-    case vc23 => rw [hh]; rfl
-    case vc17 =>
-      rename_i _s0 _k _hsz _s1 _rb _s2 _hst hck hx01 hx12 _ hp21 hrec _ hp10 _
-        hinst _
-      refine ⟨hck, hx01.trans hx12, by rw [hp21, hp10],
-        fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
-      obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
-      have := hrec _ [] (x :: xs') (hinst _ hh) (InstLVec.empty _)
-        (denoteEList_ext hx01 _ _ hxs)
-      rwa [ConLeche.Expr.instantiateList_nil] at this
-    case vc18 => omega
-    case vc19 =>
-      rename_i hst hx01 _ hc10 hp10 _ _ _
-      exact hok.mono hst hx01 hc10 hp10
-    case vc20 =>
-      rename_i _ hx01 _ _ _ _ hinst _
-      refine ⟨_, [], x :: xs', hinst _ hh, InstLVec.empty _, ?_,
-        denoteEList_ext hx01 _ _ hxs, hwxs⟩
-      rw [ConLeche.Expr.instantiateList_nil]; exact hwty
-    -- any other head: declined on both sides
-    case vc24 =>
-      rename_i _ _ hnf hnb hview
-      refine ⟨hok, Ext.refl _, rfl, fun tyx' ws' xs'' h1 h2 h3 => ?_⟩
-      obtain ⟨rfl, rfl, rfl⟩ := huniq _ _ _ _ (Ext.refl _) h1 h2 h3
-      obtain ⟨hf, hb⟩ := denote_not_forallE_bvar hok.state.wf hview hh hnf hnb
-      exact ⟨0, iotaCertsFueled_notpi (instantiateList_not_forallE hf hb)⟩
-  · vcgen +internalize
-    bridge_peel; subst_vars
-    refine ⟨hok, Ext.refl _, rfl, fun tyx ws xs _ _ hxs => ?_⟩
-    have hnil : args.toList.drop i = [] := List.drop_eq_nil_of_le (by simp; omega)
-    rw [hnil] at hxs
-    obtain rfl := denoteEList_nil_inv hxs
-    exact ⟨0, iotaCertsFueled_nil⟩
+  sorry
 
-/-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — **THEOREM 1
-for `iotaCerts`**, the empty-accumulator entry of `iotaCertsAux_go`, in
-answer shape (its subject is `constTyAt`'s answer at every caller). -/
-theorem iotaCerts_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (d : Nat) (lic : Bool) (h : EIdx) (args : List EIdx) (s₀ : AState)
+/-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — **THEOREM 1
+for `iotaCertsFull`**, the empty-accumulator entry of `iotaCertsFullAux_go`,
+in answer shape (its subject is `constTyAt`'s answer at its caller). -/
+theorem iotaCertsFull_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (d : Nat) (h : EIdx) (args : List EIdx) (s₀ : AState)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ tyx xs, denoteE s₀.store h = some tyx ∧ Expr.WScoped d tyx ∧
       Frontend.denoteEList s₀.store args = some xs ∧
       ∀ x ∈ xs, Expr.WScoped d x) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.iotaCerts (coreKnot mode fe id fuel) fe d lic h args
+      ConRon.Arena.iotaCertsFull (coreKnot mode fe id fuel) fe d h args
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         ∀ tyx xs, denoteE s₀.store h = some tyx →
           Frontend.denoteEList s₀.store args = some xs →
-          SimBOp (fun F => ConLeche.iotaCertsFueled mode env F d lic tyx xs)
+          SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d tyx xs)
             r; ⊤⦄ := by
   obtain ⟨tyx, xs, hh, hw, hxs, hwxs⟩ := hpre
-  have hg := iotaCertsAux_go hsim d lic args.toArray _ _ h #[] 0 s₀
+  have hg := iotaCertsFullAux_go hsim d args.toArray _ _ h #[] 0 s₀
     rfl rfl hok ⟨tyx, [], xs, hh, InstLVec.empty _,
       by rw [ConLeche.Expr.instantiateList_nil]; exact hw,
       by simpa using hxs, hwxs⟩
-  unfold ConRon.Arena.iotaCerts
+  unfold ConRon.Arena.iotaCertsFull
   vcgen [hg]
   rename_i hpost
   obtain ⟨hck, hx, hp, hr⟩ := hpost
   refine ⟨hck, hx, hp, fun tyx' xs' h1 h2 => ?_⟩
   have := hr tyx' [] xs' h1 (InstLVec.empty _) (by simpa using h2)
   rwa [ConLeche.Expr.instantiateList_nil] at this
-
-/-- con-leche: ConLeche/Kernel/Core.lean:912-947 projCert — the head is a
-stored constructor: the certificate is `iotaCerts` at its instantiated
-type. -/
-theorem projCertFueled_ctor {F d : Nat} {lic : Bool} {cn : ConLeche.Name}
-    {ls : List Level} {xs : List Expr} {cv : ConstantVal} {nP nF : Nat}
-    (hf : env.find? cn = some (.ctorInfo cv nP nF)) :
-    ConLeche.projCertFueled mode env F d lic cn ls xs =
-      ConLeche.iotaCertsFueled mode env F d lic
-        (cv.type.instantiateLevelParams cv.levelParams ls) xs := by
-  simp only [ConLeche.projCertFueled, ConLeche.projCert, hf]
-
-/-- con-leche: ConLeche/Kernel/Core.lean:912-947 projCert — anything else:
-declined. -/
-theorem projCertFueled_not {F d : Nat} {lic : Bool} {cn : ConLeche.Name}
-    {ls : List Level} {xs : List Expr}
-    (h : ∀ cv nP nF, env.find? cn ≠ some (.ctorInfo cv nP nF)) :
-    ConLeche.projCertFueled mode env F d lic cn ls xs = .ok false := by
-  simp only [ConLeche.projCertFueled, ConLeche.projCert]
-  rfl
 
 /-- con-leche: none — a stored constructor denotes a constructor, with the
 same two counts. -/
@@ -809,106 +610,117 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
-/-- con-leche: ConLeche/Kernel/Core.lean:912-947 projCert — **THEOREM 1 for
-the structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)` fires
-only after its constructor spine is certified against `C`'s stored type at the
-redex's own levels.
+/-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — **THEOREM 1 for
+`peelPis`**: read-only, and the answer denotes con-leche's peel. -/
+theorem peelPis_spec (s₀ : AState) (hwf : StoreWF s₀.store) :
+    ∀ (k : Nat) (h : EIdx) (E : Expr), denoteE s₀.store h = some E →
+      ⦃fun s => s = s₀⦄ ConRon.Arena.peelPis k h
+      ⦃fun r s' => s' = s₀ ∧ denoteEO s₀.store r = some (Expr.peelPis k E); ⊤⦄
+  | 0, h, E, hd => by
+    rw [ConRon.Arena.peelPis]
+    vcgen
+    subst_vars
+    exact ⟨rfl, by simp [denoteEO, hd, Expr.peelPis]⟩
+  | k + 1, h, E, hd => by
+    rw [ConRon.Arena.peelPis]
+    by_cases htg : (h.tag == ETag.forallE) = true
+    · rw [ite_eq_left htg]
+      refine triple_seq (viewBind_spec s₀ h) ?_
+      rintro o s1 ⟨hs1, rfl⟩
+      subst s1
+      cases hvb : s₀.store.viewBind h with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨ty, b⟩ := p
+        dsimp only
+        have hv := view_of_viewBind_forallE (by simpa using htg) hvb
+        obtain ⟨T, B, rfl, _, hB⟩ := denote_forallE_inv hwf hv hd
+        refine triple_mono (peelPis_spec s₀ hwf k b B hB) ?_
+        rintro r s' ⟨rfl, hr⟩
+        exact ⟨rfl, by simpa [Expr.peelPis] using hr⟩
+    · rw [ite_eq_right htg]
+      vcgen
+      subst_vars
+      refine ⟨rfl, ?_⟩
+      obtain ⟨v, hv⟩ := denoteE_view hd
+      have hnf := denote_not_forallE hwf hv hd (fun ty b hvb => htg (by
+        rw [EStore.tagOf_of_view hv, hvb]; rfl))
+      cases E <;> simp_all [denoteEO, Expr.peelPis]
 
-**CLOSED** (round 4), on `constTyAt_spec'` and `iotaCerts_spec` above.
-**Two preconditions were missing and are repaired** — exactly con-leche's own
-`Verify/Cached/DiscC2.lean:442 projCertC_sim`'s: `EnvWF env` (the
-constructor's stored type is closed, `const_ty_hasFvar`, which is what makes
-the telescope well-scoped at `d`) and the arguments' well-scopedness at `d`
-(the knot's `inferIO`/`defeq` slots take it at every slot).  Without them
-the statement is not provable, and its caller (`whnfCoreBody`'s `.proj` arm)
-holds both. -/
-theorem projCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (henv : ConLeche.EnvWF env)
-    (s₀ : AState) (d : Nat) (lic : Bool) (c : NIdx) (us : LsIdx)
-    (args : List EIdx) (cn : ConLeche.Name) (ls : List Level)
-    (xs : List Expr) (hok : CheckOK mode env fe s₀)
-    (hc : denoteN s₀.store.ns c = some cn)
-    (hus : denoteLs s₀.store.lss us = some ls)
-    (hargs : Frontend.denoteEList s₀.store args = some xs)
-    (hwargs : ∀ x ∈ xs, Expr.WScoped d x) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.projCert (coreKnot mode fe id fuel) fe d lic c us args
-    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.projCertFueled mode env F d lic cn ls xs)
-          b; ⊤⦄ := by
-  have hct := fun (s : AState) (cv : IConstantVal) (u : LsIdx) =>
-    constTyAt_spec' (mode := mode) (env := env) (fe := fe) s cv u
-  have hic := fun (s : AState) (h : EIdx) (a : List EIdx) =>
-    iotaCerts_spec hsim d lic h a s
-  vcgen [ConRon.Arena.projCert, hct, hic]
-  all_goals (bridge_peel; subst_vars)
-  -- the two callees' preconditions
-  case vc4 | vc2 => assumption
-  case vc5 =>
-    rename_i hfd
-    obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
-    have hname : dcv.name = cn := env_find_name hfind
-    exact ⟨cn, ls, _, by rw [denoteCV_name hdcv, hname], hus, hfind, hdcv⟩
-  case vc3 =>
-    rename_i hfd _ _ hx _ hct'
-    obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
-    have hname : dcv.name = cn := env_find_name hfind
-    refine ⟨_, _, hct' cn ls _ (by rw [denoteCV_name hdcv, hname]) hus hfind,
-      Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls),
-      denoteEList_ext hx _ _ hargs, hwargs⟩
-  -- the head is a stored constructor
-  case vc1 =>
-    rename_i hfd _ _ _ _ hck hx01 hx hp10 hct' hp hcert
-    obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hc hfd
-    have hname : dcv.name = cn := env_find_name hfind
-    have hty := hct' cn ls _ (by rw [denoteCV_name hdcv, hname]) hus hfind
-    obtain ⟨F, hF⟩ := hcert _ xs hty (denoteEList_ext hx01 _ _ hargs)
-    refine ⟨hck, hx01.trans hx, hp.trans hp10, F, ?_⟩
-    show ConLeche.projCertFueled mode env _ d lic cn ls xs = _
-    rw [projCertFueled_ctor hfind]
-    exact hF
-  -- it is not
-  case vc6 =>
-    rename_i hnd
-    exact ⟨hok, Ext.refl _, rfl, 0,
-      projCertFueled_not (env_not_ctor_of_index hok hc hnd)⟩
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:752-753 teleArityOk — **THEOREM
+1 for `teleArityOk`**: read-only, and the syntactic arity test agrees. -/
+theorem teleArityOk_spec (s₀ : AState) (hwf : StoreWF s₀.store) (ty : EIdx)
+    (T : Expr) (args : List EIdx) (xs : List Expr)
+    (hT : denoteE s₀.store ty = some T)
+    (hxs : Frontend.denoteEList s₀.store args = some xs) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.teleArityOk ty args
+    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.teleArityOk T xs; ⊤⦄ := by
+  have hlen := ExprOps.denoteEList_length _ _ hxs
+  unfold ConRon.Arena.teleArityOk
+  refine triple_seq (peelPis_spec s₀ hwf args.length ty T hT) ?_
+  rintro o s1 ⟨rfl, ho⟩
+  vcgen
+  subst_vars
+  refine ⟨rfl, ?_⟩
+  simp only [ConLeche.teleArityOk, ← hlen]
+  cases o <;> cases hp : Expr.peelPis args.length T <;>
+    simp_all [denoteEO]
 
-/-- con-leche: ConLeche/Kernel/Core.lean:949-961 projCertAt — **THEOREM 1 for
-`projCertAt`**: the fire certificate of a projection, gated on
-`mode.verifiedChecks`.  **CLOSED** (round 4; moved here from
-`Walks/Owed.lean`): the `verified = false` arm is `pure true` on both sides,
-the `true` arm is `projCert_spec`, and the statement gains the same two
-missing preconditions (`EnvWF env`, the arguments' scope). -/
-theorem projCertAt_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
-    (henv : ConLeche.EnvWF env)
-    (s₀ : AState) (d : Nat) (verified lic : Bool) (c : NIdx) (us : LsIdx)
-    (args : List EIdx) (cn : ConLeche.Name) (ls : List Level)
-    (xs : List Expr) (hok : CheckOK mode env fe s₀)
+/-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — **THEOREM 1 for
+the structural projection's certificate**: the constructor's stored type has
+the spine's arity (`teleArityOk`, con-leche's task #342 L18).  Read-only. -/
+theorem projCert_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
+    (c : NIdx) (args : List EIdx) (cn : ConLeche.Name) (xs : List Expr)
     (hc : denoteN s₀.store.ns c = some cn)
-    (hus : denoteLs s₀.store.lss us = some ls)
-    (hargs : Frontend.denoteEList s₀.store args = some xs)
-    (hwargs : ∀ x ∈ xs, Expr.WScoped d x) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.projCertAt (coreKnot mode fe id fuel) fe d verified lic c
-        us args
-    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp
-          (fun F => ConLeche.projCertAtFueled mode env F d verified lic cn ls
-            xs) b; ⊤⦄ := by
+    (hargs : Frontend.denoteEList s₀.store args = some xs) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.projCert fe c args
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.projCert env cn xs; ⊤⦄ := by
+  unfold ConRon.Arena.projCert
+  cases hfd : fe.find? c with
+  | none =>
+    dsimp only
+    vcgen
+    subst_vars
+    exact ⟨rfl, by
+      simp [ConLeche.projCert, IFEnvOK.miss hok.state hok.ienv hc hfd]⟩
+  | some ci =>
+    obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hfd
+    obtain rfl := Option.some.inj (hn'.symm.trans hc)
+    cases ci with
+    | ctorInfo icv nP nF =>
+      obtain ⟨dcv, hdcv, rfl⟩ := denoteCI_ctorInfo_inv hci
+      obtain ⟨_, _, hty⟩ := denoteCV_inv hdcv
+      dsimp only
+      refine triple_mono (teleArityOk_spec s₀ hok.state.wf icv.type dcv.type
+        args xs hty hargs) ?_
+      rintro r s' ⟨rfl, hr⟩
+      exact ⟨rfl, by simp [ConLeche.projCert, hfind, hr]⟩
+    | _ =>
+      dsimp only
+      vcgen
+      subst_vars
+      refine ⟨rfl, ?_⟩
+      simp only [ConLeche.projCert, hfind]
+      cases cc <;> first | rfl | (obtain ⟨v, hv⟩ := denoteCI_ctor_inv hci; cases hv)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — **THEOREM 1 for
+`projCertAt`**: the verified mode checks the arity, the trusted mode nothing.
+Read-only. -/
+theorem projCertAt_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
+    (verified : Bool) (c : NIdx) (args : List EIdx) (cn : ConLeche.Name)
+    (xs : List Expr) (hc : denoteN s₀.store.ns c = some cn)
+    (hargs : Frontend.denoteEList s₀.store args = some xs) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.projCertAt fe verified c args
+    ⦃fun b s' => s' = s₀ ∧ b = ConLeche.projCertAt env verified cn xs; ⊤⦄ := by
   cases verified with
   | true =>
-    have hp := projCert_spec hsim henv s₀ d lic c us args cn ls xs hok hc hus
-      hargs hwargs
-    simp only [ConRon.Arena.projCertAt, ite_true]
-    vcgen [hp]
-    assumption
+    simp only [ConRon.Arena.projCertAt, ConLeche.projCertAt, ite_true]
+    exact projCert_spec s₀ hok c args cn xs hc hargs
   | false =>
-    simp only [ConRon.Arena.projCertAt, Bool.false_eq_true, ite_false]
+    simp only [ConRon.Arena.projCertAt, ConLeche.projCertAt, Bool.false_eq_true,
+      ite_false]
     vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok, Ext.refl _, rfl, 0, rfl⟩
+    all_goals simp_all
 
 /-! ## 6. The axiom census -/
 
@@ -917,8 +729,10 @@ section Census
 #print axioms projTableName_spec
 #print axioms readNamesM_frame
 #print axioms IProjEntry.typeAt_spec
-#print axioms iotaCertsAux_go
-#print axioms iotaCerts_spec
+#print axioms iotaCertsFullAux_go
+#print axioms iotaCertsFull_spec
+#print axioms peelPis_spec
+#print axioms teleArityOk_spec
 #print axioms projCert_spec
 #print axioms projCertAt_spec
 

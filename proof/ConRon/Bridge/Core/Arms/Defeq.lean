@@ -10,7 +10,7 @@ answer at some fuel (`Ev`, `DqPost`: `Arms/DefeqBase.lean`):
 
 | twin function | spec | module |
 |---|---|---|
-| `quickDefEq` (binder arms: the batched `defeqBinders`) | `quickDefEq_spec` (`defeqBinders_spec`) | `Arms/DefeqLazy.lean` (`Arms/DefeqPeel.lean`) |
+| `quickDefEq` (∀ arm: the batched `defeqBinders`; λ arm: `defeqLams`) | `quickDefEq_spec` (`defeqBinders_spec`, `defeqLams_spec`) | `Arms/DefeqLazy.lean` (`Arms/DefeqPeel.lean`) |
 | `isNatZero`, `natPred?`, `defeqOffset` | `isNatZero_spec`, `natPred?_spec`, `defeqOffset_spec` | `Arms/DefeqLazy.lean` |
 | `headIsProj`, `tryUnfoldProjApp` | `headIsProj_spec`, `tryUnfoldProjApp_spec` | `Arms/DefeqLazy.lean` |
 | `deltaQuick`, `lazyDeltaStep` | `deltaQuick_spec`, `lazyDeltaStep_spec` | `Arms/DefeqLazy.lean` |
@@ -25,18 +25,18 @@ body, each under the facts the exit has established (`defeqBody_quick` …
 `defeqBody_restart`).  The projection rule of `lazyDeltaProjReduction` is
 `Walks/ProjCore.lean`'s `reduceProjCore_spec`.
 
-## The batched binder descent
+## The batched ∀ descent
 
-`quickDefEq`'s `.forallE`/`.lam` arms are the ones the twin does NOT run
-clause for clause: `defeqBinders` compares the first domains and then hands
-the two telescopes to the batched `defeqPeel`, which opens each domain
-against the accumulated free variables in ONE `instantiateList`.  Its
-identification against the chained arms (task #97-P6-14's port-side debt) is
-`Arms/DefeqPeel.lean`'s `defeqBinders_spec`; the peel's justification is the
-same as before: at each level the chain runs `defeqBody`, whose prefix is a
-no-op on two binders (`isBoolTrue` is `false`, the cheap `whnfCore` is the
-identity on binders), so it reaches `quickDefEq`'s binder arm on the pair
-itself (`isDefEqCore_bnd`).
+`quickDefEq`'s `.forallE` arm is the one the twin does NOT run clause for
+clause: `defeqBinders` compares the first domains and then hands the two
+telescopes to the batched `defeqPeel`, which opens each domain against the
+accumulated free variables in ONE `instantiateList`.  Its identification
+against the chained arm (task #97-P6-14's port-side debt) is
+`Arms/DefeqPeel.lean`'s `defeqBinders_spec`: at each level the chain runs
+`defeqBody`, whose prefix is a no-op on two ∀s (`isBoolTrue` is `false`), so
+it reaches `quickDefEq`'s ∀ arm on the pair itself (`isDefEqCore_forallE`).
+The λ arm is con-leche's own `defeqLams` (task #342), run level by level by
+the twin as well (`defeqLams_spec`).
 -/
 import ConRon.Bridge.Core.Arms.DefeqLazy
 import ConRon.Bridge.Core.Arms.DefeqStuck

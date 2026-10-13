@@ -332,7 +332,7 @@ theorem whnfCoreBody_spec {fe : IFEnv} {fuel : Nat}
     BodySpec mode env fe (whnfCoreBody mode (coreKnot mode fe id fuel) fe c)
       (fun F d e => ConLeche.whnfCore mode env F d e c) := by
   intro s₀ d i e hok hden hw
-  unfold whnfCoreBody
+  unfold ConRon.Arena.whnfCoreBody
   refine triple_mono (whnfCoreLoop_spec henv hμ hsim c d _ s₀ i e hok hden hw) ?_
   rintro r s' ⟨hck, hx, hp, v, hdv, hwv, F, hF⟩
   exact ⟨hck, hx, hp, v, hdv, hwv, whnfCore_of_loopM hF⟩

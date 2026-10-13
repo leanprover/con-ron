@@ -31,7 +31,7 @@ theorem internE_ok_spec (s₀ : AState) (w : ENodeView)
     ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ denoteE s'.store h = denoteEView s'.store w; ⊤⦄ :=
   triple_mono (internE_spec s₀ w hok.state.wf hv)
-    (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', _, hd⟩ =>
+    (fun _ _ ⟨hwf', hx', _, _, _, hc', hp', _, hd⟩ =>
       ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hd⟩)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 strLitToConstructor — the

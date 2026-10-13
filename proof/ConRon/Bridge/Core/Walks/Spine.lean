@@ -1035,7 +1035,156 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.etaCertFueled mode env F d t x y)
           r; ⊤⦄ := by
-  sorry
+  have hwt : Expr.WScoped d t := by unfold Expr.WScoped at hwa; exact hwa.1
+  have hwx : Expr.WScoped d x := by unfold Expr.WScoped at hwa; exact hwa.2
+  have tpure : ∀ {s : AState} {v : Bool} {Q : Bool → AState → Prop}, Q v s →
+      ⦃fun s' => s' = s⦄ (pure v : AM Bool) ⦃fun r s' => Q r s'; ⊤⦄ := by
+    intro s v Q h
+    vcgen
+    subst_vars; exact h
+  -- the guard: `ioNeutral` reads the spine head's tag
+  have hneu : ⦃fun s => s = s₀⦄ ConRon.Arena.ioNeutral b
+      ⦃fun r s' => s' = s₀ ∧ r = y.ioNeutral; ⊤⦄ := by
+    unfold ConRon.Arena.ioNeutral
+    refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ b hok.state
+      (by rw [hdy]; rfl)) ?_
+    rintro hd s1 ⟨rfl, hrel⟩
+    have hh := hrel y hdy
+    obtain ⟨v, hv⟩ := denoteE_view hh
+    have htag := EStore.tagOf_of_view hv
+    rw [denoteE_view_eq hok.state.wf hv] at hh
+    unfold Expr.ioNeutral
+    generalize y.getAppFn = g at hh ⊢
+    cases v <;>
+      simp [htag, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
+        Option.map_eq_some_iff, ENodeView.tagOf, ETag.bvar, ETag.fvar,
+        ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE,
+        ETag.lit, ETag.proj] at hh ⊢ <;>
+      first
+        | (obtain ⟨_, _, _, _, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+        | (obtain ⟨_, _, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+        | (obtain ⟨_, _, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+        | (obtain ⟨_, _, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+        | (obtain ⟨_, rfl⟩ := hh; exact tpure ⟨rfl, rfl⟩)
+        | (subst hh; exact tpure ⟨rfl, rfl⟩)
+        | exact tpure ⟨rfl, rfl⟩
+  unfold ConRon.Arena.etaCert
+  refine triple_seq hneu ?_
+  rintro nb s1 ⟨rfl, rfl⟩
+  cases hn : y.ioNeutral
+  · simp only [Bool.not_false, ite_true]
+    exact tpure ⟨hok, Ext.refl _, rfl, 0, etaCertFueled_notNeutral hn⟩
+  simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+  -- the comparand's type, reduced
+  refine triple_seq (hsim.inferIO s1 d b y hok hdy hwb) ?_
+  rintro tb s2 ⟨hok2, hx2, hp2, vtb, hvtb, hwvtb, F1, hF1⟩
+  refine triple_seq (hsim.whnf s2 d tb vtb hok2 hvtb hwvtb) ?_
+  rintro w s3 ⟨hok3, hx3, hp3, vw, hvw, hwvw, F2, hF2⟩
+  have hx03 := hx2.trans hx3
+  obtain ⟨v, hv⟩ := denoteE_view hvw
+  refine tag_view_bind_triple hv ?_
+    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
+  cases v
+  case forallE ty₂ cod₂ =>
+    obtain ⟨p, q, rfl, hp, hq⟩ := denote_forallE_inv hok3.state.wf hv hvw
+    have hwpq : Expr.WScoped d p ∧ Expr.WScoped d q := by
+      simpa only [Expr.WScoped] using hwvw
+    dsimp only
+    -- the domains
+    refine triple_seq (hsim.defeq s3 d ty₂ ty₁ p t hok3 hp
+      (denote_ext hdt hx03) hwpq.1 hwt) ?_
+    rintro bd s4 ⟨hok4, hx4, hp4, F3, hF3⟩
+    cases bd
+    · simp only [Bool.false_eq_true, ite_false]
+      exact tpure ⟨hok4, hx03.trans hx4, by rw [hp4, hp3, hp2],
+        F1 + F2 + F3, etaCertFueled_dom hn
+          (ConLeche.inferTypeIO_mono (by omega) hF1)
+          (ConLeche.whnf_mono (by omega) hF2)
+          (ConLeche.isDefEqCore_mono (by omega) hF3)⟩
+    simp only [ite_true]
+    have hx04 := hx03.trans hx4
+    -- the fresh variable
+    have hdt4 := denote_ext hdt hx04
+    refine triple_seq (internE_spec s4 (.fvar d ty₁) hok4.state.wf
+      (viewOK_fvar (by rw [hdt4]; rfl))) ?_
+    rintro fv s5 ⟨hwf5, hx5, -, -, hm5, hc5, hp5, -, hd5⟩
+    have hok5 := hok4.mono ⟨hwf5⟩ hx5 hc5 hp5
+    have hfv : denoteE s5.store fv = some (.fvar d t) := by
+      rw [hd5]; simp [denoteEView, denote_ext hdt4 hx5]
+    have hx05 := hx04.trans hx5
+    -- the λ body, opened
+    refine triple_seq (instantiate1Fast_ok_spec s5 body₁ fv x (.fvar d t) hok5
+      (denote_ext hdx hx05) hfv) ?_
+    rintro lhs s6 ⟨hok6, hx6, hp6, hlhs⟩
+    have hx06 := hx05.trans hx6
+    -- the comparand, applied
+    have hfv6 := denote_ext hfv hx6
+    refine triple_seq (internE_spec s6 (.app b fv) hok6.state.wf
+      (viewOK_app (by rw [denote_ext hdy hx06]; rfl) (by rw [hfv6]; rfl))) ?_
+    rintro rhs s7 ⟨hwf7, hx7, -, -, -, hc7, hp7, -, hd7⟩
+    have hok7 := hok6.mono ⟨hwf7⟩ hx7 hc7 hp7
+    have hrhs : denoteE s7.store rhs = some (.app y (.fvar d t)) := by
+      rw [hd7]
+      simp [denoteEView, denote_ext hdy (hx06.trans hx7), denote_ext hfv6 hx7,
+        opt2]
+    have hx07 := hx06.trans hx7
+    have hwl : Expr.WScoped (d + 1) (x.instantiate1 (.fvar d t)) :=
+      Expr.WScoped.instantiate1 hwt 0 hwx
+    have hwr : Expr.WScoped (d + 1) (.app y (.fvar d t)) := by
+      simp only [Expr.WScoped]
+      exact ⟨hwb.mono (Nat.le_succ d), Nat.lt_succ_self d, hwt⟩
+    -- the bodies
+    refine triple_seq (hsim.defeq s7 (d + 1) lhs rhs _ _ hok7
+      (denote_ext hlhs hx7) hrhs hwl hwr) ?_
+    rintro bb s8 ⟨hok8, hx8, hp8, F4, hF4⟩
+    have hx08 := hx07.trans hx8
+    have hp80 : s8.pins = s1.pins := by
+      rw [hp8, hp7, hp6, hp5, hp4, hp3, hp2]
+    cases bb
+    · simp only [Bool.not_false, ite_true]
+      exact tpure ⟨hok8, hx08, hp80, F1 + F2 + F3 + F4, etaCertFueled_body hn
+          (ConLeche.inferTypeIO_mono (by omega) hF1)
+          (ConLeche.whnf_mono (by omega) hF2)
+          (ConLeche.isDefEqCore_mono (by omega) hF3)
+          (ConLeche.isDefEqCore_mono (by omega) hF4)⟩
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+    cases hv : mode.verifiedChecks
+    · simp only [Bool.false_eq_true, ite_false]
+      exact tpure ⟨hok8, hx08, hp80, F1 + F2 + F3 + F4, etaCertFueled_trusted hn
+          (ConLeche.inferTypeIO_mono (by omega) hF1)
+          (ConLeche.whnf_mono (by omega) hF2)
+          (ConLeche.isDefEqCore_mono (by omega) hF3)
+          (ConLeche.isDefEqCore_mono (by omega) hF4) hv⟩
+    simp only [ite_true]
+    -- the λ/η tax: the λ body's full-grade type against the codomain
+    refine triple_seq (hsim.infer s8 (d + 1) lhs _ hok8
+      (denote_ext hlhs (hx7.trans hx8)) hwl) ?_
+    rintro t₁ s9 ⟨hok9, hx9, hp9, vt₁, hvt₁, hwvt₁, F5, hF5⟩
+    have hx39 := (hx4.trans hx5).trans
+      ((hx6.trans hx7).trans (hx8.trans hx9))
+    refine triple_seq (instantiate1Fast_ok_spec s9 cod₂ fv q (.fvar d t) hok9
+      (denote_ext hq hx39) (denote_ext hfv
+        ((hx6.trans hx7).trans (hx8.trans hx9)))) ?_
+    rintro t₂ s10 ⟨hok10, hx10, hp10, ht₂⟩
+    refine triple_mono (hsim.defeq s10 (d + 1) t₁ t₂ _ _ hok10
+      (denote_ext hvt₁ hx10) ht₂ hwvt₁
+      (Expr.WScoped.instantiate1 hwt 0 hwpq.2)) ?_
+    rintro r s11 ⟨hok11, hx11, hp11, F6, hF6⟩
+    refine ⟨hok11, ((hx08.trans hx9).trans hx10).trans hx11,
+      by rw [hp11, hp10, hp9, hp80], F1 + F2 + F3 + F4 + F5 + F6, ?_⟩
+    exact etaCertFueled_tax hn
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.whnf_mono (by omega) hF2)
+      (ConLeche.isDefEqCore_mono (by omega) hF3)
+      (ConLeche.isDefEqCore_mono (by omega) hF4) hv
+      (ConLeche.inferTypeCore_mono (by omega) hF5)
+      (ConLeche.isDefEqCore_mono (by omega) hF6)
+  all_goals
+    dsimp only
+    exact tpure ⟨hok3, hx03, by rw [hp3, hp2], F1 + F2, etaCertFueled_nf hn
+      (ConLeche.inferTypeIO_mono (by omega) hF1)
+      (ConLeche.whnf_mono (by omega) hF2)
+      (denote_not_forallE hok3.state.wf hv hvw (fun _ _ h => nomatch h))⟩
 
 /-! ## 5. A knot slot's answer, forgotten -/
 
