@@ -72,7 +72,6 @@ def checkSumTele (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
   | none => checkSumTeleSlow mode fe cv n cvTa₀
 where
   /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
-  -- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
   The `_` arm of `checkSumTele`'s match, named because over handles the
   syntactic test is two `view`s and duplicating the arm would duplicate the
   whnf loop. -/

@@ -28,7 +28,7 @@ prefix environment, and those assemble the pure fold whatever the split
 (`Bridge/Checker/Phased.lean`'s `Arena.pooledAccepts_bridge`). -/
 
 /-- con-leche: ConLeche/Driver/CheckPool.lean:207-245 checkPool — **the pooled fold, accepted**:
-phase A (`annotFold`) accepted with environment `fe` and pending records
+phase A (`installFold`) accepted with environment `fe` and pending records
 `pend`, ending in `s'`; and `parts`, one record list per worker, each drawn
 from `pend`, together covering it, each accepted by `checkPendingList` from
 `s'.worker`.  The twin of the Rust's `PoolAccepts`
@@ -36,7 +36,7 @@ from `pend`, together covering it, each accepted by `checkPendingList` from
 def PooledAccepts (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : Array IDeclaration) (s : AState) (fe : IFEnv) (s' : AState) : Prop :=
   ∃ (n : Nat) (pend : Array PendingCheck) (parts : List (List PendingCheck)),
-    annotFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList s
+    installFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList s
       = .ok (.ok (n, fe, pend), s') ∧
     (∀ pc ∈ pend.toList, ∃ w ∈ parts, pc ∈ w) ∧
     (∀ w ∈ parts, ∀ pc ∈ w, pc ∈ pend.toList) ∧

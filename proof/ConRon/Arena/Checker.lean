@@ -16,7 +16,7 @@ con-leche has both, and so does (B), because they are different things:
   together.
 * **`installThenCheck`** is what the BINARY runs
   (`ConLeche/Cached/Installed.lean:450-455`, whose `checkDecls` is the
-  driver's own algorithm): phase A installs every record, annotating its
+  driver's own algorithm): phase A installs every record, guarding its
   header and its value but not inferring; phase B checks each recorded
   declaration against the PREFIX VIEW it was installed at.  con-leche proves
   the two are the same accept (`fullyChecked_checkDecls`); the arena's two
@@ -35,12 +35,12 @@ appends goes with the tier.
 #97-P6-2).  Task #97d ran phase A persistently, because the terms an install
 leaves behind must not be in a tier that is about to vanish.  They must not —
 but they are a handful of handles, and the install was interning every
-intermediate of the annotation and the inference under them beside those: on
+intermediate of the inference under them beside those: on
 `Init`, 5.06 M permanent nodes on top of the parse's 6.14 M, **+82 %**.  So
 phase A opens the scratch tier as phase B does, and the handles that leave the
 step are **promoted** into the persistent tier first — a memoised structural
 copy, `Arena/Promote.lean`, run on the constants the step installed and on the
-`PendingCheck` it recorded.  `annotStep` is that bracket; `annotStepGo` is the
+`PendingCheck` it recorded.  `installStep` is that bracket; `installStepGo` is the
 four arms it wraps.
 
 `checkDeclsPure` gets the same bracket, in `checkDeclStep`.  It is the
@@ -49,7 +49,7 @@ the tier regime is where every term the checker builds lives, so the two folds
 must be one algorithm under it and differ only in their phase structure.
 
 What is NOT bracketed is `checkDecl` itself — a bracket belongs to a FOLD
-STEP, and `checkDecl` is also called from inside one (`annotStepGo`'s
+STEP, and `checkDecl` is also called from inside one (`installStepGo`'s
 fall-through clause, for the kinds whose check is not separable from their
 install: axioms, basis and quotient blocks, inductive blocks and the
 `Nat`-operation and `reduce*` pin gates).  Those install what they check, and
@@ -75,14 +75,13 @@ open ConLeche
 
 /-! ## The two-phase fold the binary runs -/
 
-/-- con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.AState.abandoned_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/Installed.lean:175-196 installDeclStep
 con-leche: ConLeche/Cached/Installed.lean:422-429 checkPendingList
 **The state a FAILING fold step hands back**, and the reason it is not the
 pre-step state.
 
 con-leche's two fold steps live in `Except (CheckError × Nat)` (phase A's
-`annotDeclStep` installs every record from a fresh memo state since con-leche
+`installDeclStep` installs every record from a fresh memo state since con-leche
 task #329, P0) and their error arm is `.error (e, i)` — no state comes back,
 because `Except` carries none.  (B) has ONE monad (DESIGN §8.4) whose error type is
 `CheckError`, so the position has to travel as a VALUE, and the error arm
@@ -111,12 +110,11 @@ structure PendingCheck where
   vis : Nat
   deriving Inhabited
 
-/-- con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC — phase A's
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.annotStepGo_bridge, then delete this line
-step body: annotate-and-install for the three value kinds, the ordinary step
+/-- con-leche: ConLeche/Cached/Installed.lean:135-173 installStepC — phase A's
+step body: guard-and-install for the three value kinds, the ordinary step
 `checkDecl` for everything else.
 
-**The body, not the step** — `annotStep` below is this under the
+**The body, not the step** — `installStep` below is this under the
 per-declaration bracket, and the split exists so the bracket is written ONCE
 for the four arms instead of four times (DESIGN §8.3, "Phase A runs in the
 scratch tier too, with promotion").  What the body returns is what a step
@@ -126,42 +124,41 @@ counter the pending record carries are the bracket's to supply; it reads the
 counter BEFORE the step, which is both con-leche's own RC-linearity note (read
 it after the push and the push copies the whole index) and what makes the
 promotion's `k` computable without holding `fe` across the step. -/
-def annotStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
+def installStepGo (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv) :
     IDeclaration → AM (IFEnv × Option ValueGroup)
   | .defnDecl cv value hint => do
     if (← natOpNames).contains cv.name || (← natDivModNames).contains cv.name then
       pure (← checkDecl mode pins fe (.defnDecl cv value hint), none)
     else do
-      let cvA ← installConstantVal mode fe cv
-      let jv ← installValue mode fe cvA value
-      pure (fe.push (.defnInfo cvA jv hint), some ⟨.defn, cvA, jv⟩)
+      installHeader fe cv
+      installValueGuards fe cv value
+      pure (fe.push (.defnInfo cv value hint), some ⟨.defn, cv, value⟩)
   | .thmDecl cv value => do
     -- a theorem installs BY STATEMENT: the header's install half only, the
     -- constant pushed with its statement only (con-leche task #329 THMVAL);
-    -- the value is recorded raw and never touched here (phase B annotates
-    -- it), so phase A never enters a theorem's body
-    let cvA ← installConstantVal mode fe cv
-    pure (fe.push (.thmInfo cvA), some ⟨.thm, cvA, value⟩)
+    -- the value is recorded raw and never touched here (phase B guards it),
+    -- so phase A never enters a theorem's body
+    installHeader fe cv
+    pure (fe.push (.thmInfo cv), some ⟨.thm, cv, value⟩)
   | .opaqueDecl cv value => do
     if (← reduceOpNames).contains cv.name then
       pure (← checkDecl mode pins fe (.opaqueDecl cv value), none)
     else do
-      let cvA ← installConstantVal mode fe cv
-      let jv ← installValue mode fe cvA value
-      pure (fe.push (.axiomInfo cvA), some ⟨.opaque, cvA, jv⟩)
+      installHeader fe cv
+      installValueGuards fe cv value
+      pure (fe.push (.axiomInfo cv), some ⟨.opaque, cv, value⟩)
   | pd => do
     pure (← checkDecl mode pins fe pd, none)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:143-181 annotStepC — **phase A's
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.annotStep_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/Installed.lean:135-173 installStepC — **phase A's
 step, bracketed**; `i` is the fold position the record is tagged with.
 
 **The bracket, and why phase A has one** (DESIGN §8.3, "Phase A runs in the
 scratch tier too, with promotion", the coordinator's amendment after task
 #97-P4f's measurement).  Task #97d ran phase A in the PERSISTENT tier, on the
 reading that the install writes exactly the terms the environment keeps.  It
-does — but it does not write ONLY those: `installConstantVal` and
-`installValue` annotate, and annotation infers, and inference reduces, and
+does — but it did not write ONLY those: the install annotated (until
+con-leche's task #342), and annotation inferred, and inference reduced, and
 every intermediate of all of that was interned permanently beside them.
 Measured on `Init`: 5.06 M permanent nodes on top of the parse's 6.14 M,
 **+82 %**, and con-ron's own peak RSS ×3.9.  con-leche and con-ron get the
@@ -182,21 +179,21 @@ the `PendingCheck`s name persistent handles only, which is what lets
 `dropScratch` take the tier — and it must run after the step and before the
 drop: the scratch nodes are gone once the tier is dropped.
 
-**The flush stays where con-leche puts it, at the head** — `annotStepC`
-reaches its four arms through `annotValueC` (`Cached/Installed.lean:139`), the
-`.thmDecl` arm's own `flushC` (`:168`) and `checkDeclStepC`
+**The flush stays where con-leche puts it, at the head** — `installStepC`
+reaches its four arms through `installGuardsC`, the `.thmDecl` arm's own
+`flushC` and `checkDeclStepC`
 (`Cached/ParsedC.lean:279-282`, "one step of the converted-declaration fold:
 flush, then check"), so con-leche enters every phase-A record with EMPTY
 caches (task #97g's item 4).  `dropScratch` flushes too — no cache row may
 name a handle of the tier it drops — so what the head flush covers is the
 FIRST record of the fold, whose caches are whatever `internAllPins` left. -/
-def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
+def installStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     (fe : IFEnv) (pend : Array PendingCheck) (pd : IDeclaration) :
     AM (IFEnv × Array PendingCheck) := do
   let vis := fe.visibleBelow
   flushCaches
   enterScratch
-  let (fe, vg?) ← annotStepGo mode pins fe pd
+  let (fe, vg?) ← installStepGo mode pins fe pd
   let k := fe.visibleBelow - vis
   match vg? with
   | none => do
@@ -209,8 +206,7 @@ def annotStep (mode : CheckMode) (pins : List INatOpPinSet) (i : Nat)
     dropScratch
     pure (fe, pend.push ⟨vg, i, vis⟩)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:183-204 annotDeclStep — phase
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.annotDeclStep_bridge, then delete this line
+/-- con-leche: ConLeche/Cached/Installed.lean:175-196 installDeclStep — phase
 A's step with the position carried and the error tagged: a failing step
 reports the `CheckError` together with `i`, the fold position of the
 declaration that failed.
@@ -227,12 +223,12 @@ the level memos alone cross a record — the port's own memory discipline, not a
 verdict); (B) has ONE monad (DESIGN §8.4), so the tag is produced as a VALUE by reading
 the step's own outcome — the treatment task #97e gives the parser's two
 position-carrying failures. -/
-def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
+def installDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
     (p : Nat × IFEnv × Array PendingCheck) (pd : IDeclaration) :
     AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck)) := fun s =>
   match andPinOk pd s with
   | .ok (true, s₁) =>
-    match annotStep mode pins p.1 p.2.1 p.2.2 pd s₁ with
+    match installStep mode pins p.1 p.2.1 p.2.2 pd s₁ with
     | .ok ((fe', pend'), s') => .ok (.ok (p.1 + 1, fe', pend'), s')
     | .error e => .ok (.error (e, p.1), AState.abandoned)
   | .ok (false, _) =>
@@ -240,21 +236,19 @@ def annotDeclStep (mode : CheckMode) (pins : List INatOpPinSet)
   | .error e => .ok (.error (e, p.1), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls — phase A as
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.annotFold_bridge, then delete this line
 a fold over the records.  con-leche's `Array.foldlM` takes a closure; DESIGN
 §3.4's rule for a `List` fold is an explicit recursion. -/
-def annotFold (mode : CheckMode) (pins : List INatOpPinSet)
+def installFold (mode : CheckMode) (pins : List INatOpPinSet)
     (p : Nat × IFEnv × Array PendingCheck) :
     List IDeclaration →
     AM (Except (CheckError × Nat) (Nat × IFEnv × Array PendingCheck))
   | [] => pure (.ok p)
   | d :: ds => do
-    match ← annotDeclStep mode pins p d with
+    match ← installDeclStep mode pins p d with
     | .error e => pure (.error e)
-    | .ok p' => annotFold mode pins p' ds
+    | .ok p' => installFold mode pins p' ds
 
 /-- con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending — **phase
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.checkPending_bridge, then delete this line
 B's check of one record**, against the prefix view `fe.restrictTo pc.vis`,
 from a fresh memo state.
 
@@ -284,13 +278,12 @@ def checkPendingList (mode : CheckMode) (fe : IFEnv) :
     | .error e => .ok (.error (e, pc.pos), AState.abandoned)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls — **the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.installThenCheck_bridge, then delete this line
 declaration fold the binary runs**: install every record (phase A), check
 every recorded declaration (phase B), return the environment.  The `× Nat` of
 the error is the failure's POSITION in the fold. -/
 def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     (ds : Array IDeclaration) : AM (Except (CheckError × Nat) IFEnv) := do
-  match ← annotFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList with
+  match ← installFold mode pins (0, mkIFEnv IEnv.empty, #[]) ds.toList with
   | .error e => pure (.error e)
   | .ok (_, fe, pend) =>
     match ← checkPendingList mode fe pend.toList with
@@ -298,7 +291,6 @@ def installThenCheck (mode : CheckMode) (pins : List INatOpPinSet)
     | .ok () => pure (.ok fe)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:431-448 checkDecls — the fold's
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Checker.atDecl_bridge, then delete this line
 failure, with its POSITION rendered into the message.  con-leche's driver
 reports the declaration by indexing the record array it already holds
 (`ConLeche/Driver/Run.lean`'s `checkMain`); the seam of (B) has no position channel
@@ -321,27 +313,22 @@ compares a stream record against, interned into the tier that is live at the
 call — which, at the driver's call, is the persistent one.
 
 The six basis blocks in both forms (the RAW ones `basisPinHit` and
-`quotPinHit` compare against, the ANNOTATED ones `checkBasisDecl` installs),
+`quotPinHit` compare against, the STORED ones `checkBasisDecl` installs),
 the standard and compiler-trust axiom pins, the reserved names the guards
 compare by handle, and the `Nat`-operation pin variants, whose interned form
 is the checker's pin-list parameter (con-leche's task #304).
 
-**The standard-axiom and `ofReduce*` pins are interned RAW** (`iffRaw` …
-`choiceRaw`; `ofReduceNatA`/`ofReduceBoolA` hold the raw pins,
-`Arena/TrustAxioms.lean`), because the port interns them raw and the exact
-store relation of Theorem 2 needs the port's values (task #97-P5-Top round 2,
-ruling (a)).  Nothing con-leche computes changes: the pins are only ever
-compared by `matchesPin`, which erases the `pw` datum — the one thing
-annotation writes (`Bridge/Checker/Basis.lean`'s `*_matchesPin_raw`). -/
+The standard-axiom and `ofReduce*` pins are con-leche's (`iffA` … `choiceA`,
+`ofReduceNatA`/`ofReduceBoolA`), compared by `matchesPin`'s plain equality. -/
 def internAllPins (pins : List NatOpPinSet) : AM (List INatOpPinSet) := do
   let _ ← BasisKind.decls .eqK;    let _ ← BasisKind.declsA .eqK
   let _ ← BasisKind.decls .natK;   let _ ← BasisKind.declsA .natK
   let _ ← BasisKind.decls .emptyK; let _ ← BasisKind.declsA .emptyK
   let _ ← BasisKind.decls .falseK; let _ ← BasisKind.declsA .falseK
   let _ ← BasisKind.decls .quotK;  let _ ← BasisKind.declsA .quotK
-  let _ ← iffRaw; let _ ← iffIntroRaw; let _ ← iffRecRaw
-  let _ ← nonemptyRaw; let _ ← nonemptyIntroRaw; let _ ← nonemptyRecRaw
-  let _ ← propextRaw; let _ ← choiceRaw
+  let _ ← iffA; let _ ← iffIntroA; let _ ← iffRecA
+  let _ ← nonemptyA; let _ ← nonemptyIntroA; let _ ← nonemptyRecA
+  let _ ← propextA; let _ ← choiceA
   let _ ← trueCvA; let _ ← trueIntroCvA; let _ ← trustCompilerA; let _ ← boolCvA
   let _ ← reduceNatCvA; let _ ← reduceBoolCvA
   let _ ← ofReduceNatA; let _ ← ofReduceBoolA
