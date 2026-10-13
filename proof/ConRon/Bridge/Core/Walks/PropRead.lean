@@ -1059,10 +1059,154 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headProofPW fe fuel h
-    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store h = some x →
         r = ConLeche.headProofPW env.find? x; ⊤⦄ := by
-  sorry
+  obtain ⟨x₀, hx₀⟩ := hpre
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hx₀
+  have hvt := denote_tag_eq hwf hv hx₀
+  have hext : ∀ {t : AState}, t.store = s₀.store → Ext s₀.store t.store :=
+    fun h => by rw [h]; exact Ext.refl _
+  unfold ConRon.Arena.headProofPW
+  refine view_bind_triple hv ?_
+  cases v
+  case const I us =>
+    dsimp only
+    cases hfd : fe.find? I with
+    | none =>
+      dsimp only
+      exact triple_pureR ⟨hok, Ext.refl _, rfl, fun x hx => by
+        obtain ⟨nm, ls, rfl, hf⟩ := const_miss hok hv hfd hx
+        exact (headProofPW_const_none (Or.inl hf)).symm⟩
+    | some ci =>
+      dsimp only
+      by_cases htow : ci.isTowerEntry = true
+      · rw [ite_eq_left htow]
+        exact triple_pureR ⟨hok, Ext.refl _, rfl, fun x hx => by
+          obtain ⟨nm, ls, c, rfl, hf, ht⟩ := const_tower hok hv hfd hx
+          exact (headProofPW_const_none
+            (Or.inr ⟨c, hf, Or.inl (ht ▸ htow)⟩)).symm⟩
+      · rw [ite_eq_right htow]
+        have htow' : ci.isTowerEntry = false := by simpa using htow
+        refine triple_seq (toConstantVal_nt_spec s₀ ci htow') ?_
+        rintro cv s1 ⟨hs1, hcv⟩
+        subst s1
+        obtain ⟨nm, ls, c, rfl, hls, hf, ht, hlps, hty, hll, hvl⟩ :=
+          const_hit hok hv hfd hcv hx₀
+        have hct : c.isTowerEntry = false := by rw [← ht]; exact htow'
+        refine triple_seq (viewLsLen_spec s₀ us) ?_
+        rintro ol s2 ⟨hs2, hol⟩
+        subst s2
+        rw [hvl] at hol
+        subst hol
+        dsimp only
+        by_cases hlen : ls.length = cv.levelParams.length
+        · rw [ite_eq_left hlen]
+          have hl : ls.length = c.toConstantVal.levelParams.length := by
+            rw [hll]; exact hlen
+          refine triple_seq (typeSortPW_spec' fuel s₀ cv.type hok ⟨_, hty⟩) ?_
+          rintro opw s3 ⟨hok3, hst3, hp3, hopw⟩
+          have hpw := hopw _ hty
+          cases opw with
+          | none =>
+            exact triple_pureR ⟨hok3, hext hst3, hp3, fun x hx => by
+              obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+              rw [headProofPW_const_hit hf hct hl, ← hpw]; rfl⟩
+          | some pw =>
+            refine triple_mono (substPWAt_spec' s3 cv.levelParams us pw _ _ hok3
+              (by rw [hst3]; exact hlps) (by rw [hst3]; exact hls)) ?_
+            rintro r s' ⟨hok', hst', hp', rfl⟩
+            exact ⟨hok', hext (hst'.trans hst3), hp'.trans hp3, fun x hx => by
+              obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+              rw [headProofPW_const_hit hf hct hl, ← hpw]; rfl⟩
+        · rw [ite_eq_right hlen]
+          exact triple_pureR ⟨hok, Ext.refl _, rfl, fun x hx => by
+            obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+            exact (headProofPW_const_none
+              (Or.inr ⟨c, hf, Or.inr (by rw [hll]; exact hlen)⟩)).symm⟩
+  case fvar k ty =>
+    dsimp only
+    obtain ⟨t, rfl, ht⟩ := denote_fvar_inv hwf hv hx₀
+    refine triple_mono (typeSortPW_spec' fuel s₀ ty hok ⟨t, ht⟩) ?_
+    rintro r s' ⟨hok', hst', hp', hr⟩
+    exact ⟨hok', hext hst', hp', fun x hx => by
+      obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+      rw [hr t ht]; rfl⟩
+  case proj S i sub =>
+    dsimp only
+    obtain ⟨Sn, es, rfl, hS, _⟩ := denote_proj_inv hwf hv hx₀
+    refine triple_seq (projTableName_spec s₀ S Sn hwf hS) ?_
+    rintro rn s1 ⟨hwf1, hx1, _, hc1, hp1, hdn⟩
+    have hok1 := hok.mono ⟨hwf1⟩ hx1 hc1 hp1
+    have hopt := optCI_find hok1 hdn
+    cases hfd : fe.find? rn with
+    | none =>
+      rw [hfd] at hopt
+      exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+        obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+        simp [ConLeche.headProofPW, show env.find? (ConLeche.projTableName Sn)
+          = none from hopt]⟩
+    | some ci =>
+      rw [hfd] at hopt
+      obtain ⟨c', hci, hfind⟩ := hopt
+      cases ci
+      case projInfo tbl =>
+        simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+        obtain ⟨pt, hpt, rfl⟩ := hci
+        obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
+        have htok := hok1.ienv.proj rn tbl hfd
+        dsimp only
+        by_cases hi : i < tbl.numFields
+        · rw [ite_eq_left hi]
+          have hpe := denoteProjTable_entry hpt (by rw [htok.bodies]; exact hi)
+            (by rw [htok.guards]; exact hi)
+          obtain ⟨_, _, _, hbody, _⟩ := denoteProjEntry_inv hpe
+          refine triple_seq (typeSortPW_spec' fuel s1 (tbl.entry i).body hok1
+            ⟨_, hbody⟩) ?_
+          rintro opw s2 ⟨hok2, hst2, hp2, hopw⟩
+          have hpw := hopw _ hbody
+          have hx02 : Ext s₀.store s2.store :=
+            hx1.trans (by rw [hst2]; exact Ext.refl _)
+          have hres : ∀ x, denoteE s₀.store h = some x →
+              ConLeche.headProofPW env.find? x =
+                match ConLeche.typeSortPW env.find? (pt.entry i).body with
+                | some pw => if pw.isNever then some pw else none
+                | none => none := by
+            intro x hx
+            obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+            simp only [ConLeche.headProofPW, hfind]
+            rw [ite_eq_left (by rw [hnf]; exact hi)]
+            first | rfl | (split <;> simp_all)
+          cases opw with
+          | none =>
+            exact triple_pureR ⟨hok2, hx02, hp2.trans hp1, fun x hx => by
+              rw [hres x hx, ← hpw]⟩
+          | some pw =>
+            exact triple_pureR ⟨hok2, hx02, hp2.trans hp1, fun x hx => by
+              rw [hres x hx, ← hpw]⟩
+        · rw [ite_eq_right hi]
+          exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+            obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+            simp only [ConLeche.headProofPW, hfind]
+            rw [ite_eq_right (by rw [hnf]; exact hi)]⟩
+      all_goals
+        dsimp only
+        have hnp : ∀ pt, c' ≠ .projInfo pt := by
+          rintro pt rfl
+          simp only [Frontend.denoteCI] at hci
+          first | (simp at hci) | (split at hci <;> simp_all)
+        exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+          obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+          simp only [ConLeche.headProofPW, hfind]
+          cases c' <;> first | rfl | exact absurd rfl (hnp _)⟩
+  all_goals
+    dsimp only
+    exact triple_pureR ⟨hok, Ext.refl _, rfl, fun x hx => by
+      obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+      cases x <;> simp_all [exprTag, ENodeView.tagOf, ConLeche.headProofPW,
+        ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj]⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — **THEOREM 1
 for `proofPW`**, in answer shape: `annotPwLam` calls it on the knot's
@@ -1072,10 +1216,82 @@ theorem proofPW_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store a = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.proofPW fe fuel a
-    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store a = some x →
         r = ConLeche.proofPW env.find? x; ⊤⦄ := by
-  sorry
+  induction fuel generalizing s₀ a with
+  | zero =>
+    rw [ConRon.Arena.proofPW]
+    exact triple_fail
+  | succ fuel ih =>
+    obtain ⟨x₀, hx₀⟩ := hpre
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.proofPW]
+    by_cases hl : (a.tag == ETag.lam) = true
+    · rw [ite_eq_left hl]
+      refine triple_seq (viewBind_spec s₀ a) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewBind a with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨A, b⟩ := p
+        dsimp only
+        have hv := view_of_viewBind_lam (by simpa using hl) hvb
+        obtain ⟨_, eb₀, _, _, hb₀⟩ := denote_lam_inv hwf hv hx₀
+        refine triple_mono (ih s₀ b hok ⟨eb₀, hb₀⟩) ?_
+        rintro r s' ⟨hok', hx', hp', hr⟩
+        refine ⟨hok', hx', hp', fun x hx => ?_⟩
+        obtain ⟨et, eb, rfl, _, hb⟩ := denote_lam_inv hwf hv hx
+        rw [hr eb hb]; rfl
+    rw [ite_eq_right hl]
+    by_cases hlt : (a.tag == ETag.letE) = true
+    · rw [ite_eq_left hlt]
+      refine triple_seq (viewLet_spec s₀ a) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewLet a with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨T, w, b⟩ := p
+        dsimp only
+        have hv := view_of_viewLet_tag hlt hvb
+        obtain ⟨_, _, eb₀, _, _, _, hb₀⟩ := denote_letE_inv hwf hv hx₀
+        refine triple_mono (ih s₀ b hok ⟨eb₀, hb₀⟩) ?_
+        rintro r s' ⟨hok', hx', hp', hr⟩
+        refine ⟨hok', hx', hp', fun x hx => ?_⟩
+        obtain ⟨et, ew, eb, rfl, _, _, hb⟩ := denote_letE_inv hwf hv hx
+        rw [hr eb hb]; rfl
+    rw [ite_eq_right hlt]
+    by_cases hap : (a.tag == ETag.app) = true
+    · rw [ite_eq_left hap]
+      refine triple_seq (viewApp_spec s₀ a) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewApp a with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨f, g⟩ := p
+        dsimp only
+        have hv := view_of_viewApp_tag hap hvb
+        obtain ⟨ef₀, _, _, hf₀, _⟩ := denote_app_inv hwf hv hx₀
+        refine triple_mono (ih s₀ f hok ⟨ef₀, hf₀⟩) ?_
+        rintro r s' ⟨hok', hx', hp', hr⟩
+        refine ⟨hok', hx', hp', fun x hx => ?_⟩
+        obtain ⟨ef, ea, rfl, hf, _⟩ := denote_app_inv hwf hv hx
+        rw [hr ef hf]; rfl
+    rw [ite_eq_right hap]
+    refine triple_mono (headProofPW_spec' fuel s₀ a hok ⟨x₀, hx₀⟩) ?_
+    rintro r s' ⟨hok', hx', hp', hr⟩
+    refine ⟨hok', hx', hp', fun x hx => ?_⟩
+    rw [hr x hx]
+    have hl' := hl
+    have hlt' := hlt
+    have hap' := hap
+    rw [tag_of_denote hwf hx] at hl' hlt' hap'
+    cases x <;> simp_all [exprTag, ConLeche.proofPW,
+      ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam,
+        ETag.forallE, ETag.letE, ETag.lit, ETag.proj]
 
 /-! ## 4. The two arms
 
@@ -1090,18 +1306,19 @@ theorem notProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store a = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.notProofFast fe fuel a
-    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store a = some x →
         b = ConLeche.notProofFast env.find? x; ⊤⦄ := by
-  have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
-    hok hpre
-  vcgen [ConRon.Arena.notProofFast, hb]
-  all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  all_goals
-    (rename_i hr
-     refine ⟨‹_›, ‹_›, ‹_›, fun x hx => ?_⟩
-     simp only [ConLeche.notProofFast, ← hr x hx])
+  unfold ConRon.Arena.notProofFast
+  refine triple_seq (proofPW_spec' fuel s₀ a hok hpre) ?_
+  rintro r s1 ⟨hok1, hx1, hp1, hr⟩
+  cases r with
+  | none =>
+    exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+      simp only [ConLeche.notProofFast, ← hr x hx]⟩
+  | some pw =>
+    exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+      simp only [ConLeche.notProofFast, ← hr x hx]⟩
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:148-153 isProofFast — **THEOREM
 1 for `isProofFast`**, in answer shape. -/
@@ -1109,18 +1326,19 @@ theorem isProofFast_spec' (fuel : Nat) (s₀ : AState) (a : EIdx)
     (hok : CheckOK mode env fe s₀)
     (hpre : ∃ x, denoteE s₀.store a = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isProofFast fe fuel a
-    ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+    ⦃fun b s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∀ x, denoteE s₀.store a = some x →
         b = ConLeche.isProofFast env.find? x; ⊤⦄ := by
-  have hb := proofPW_spec' (mode := mode) (env := env) (fe := fe) fuel s₀ a
-    hok hpre
-  vcgen [ConRon.Arena.isProofFast, hb]
-  all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  all_goals
-    (rename_i hr
-     refine ⟨‹_›, ‹_›, ‹_›, fun x hx => ?_⟩
-     simp only [ConLeche.isProofFast, ← hr x hx])
+  unfold ConRon.Arena.isProofFast
+  refine triple_seq (proofPW_spec' fuel s₀ a hok hpre) ?_
+  rintro r s1 ⟨hok1, hx1, hp1, hr⟩
+  cases r with
+  | none =>
+    exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+      simp only [ConLeche.isProofFast, ← hr x hx]⟩
+  | some pw =>
+    exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+      simp only [ConLeche.isProofFast, ← hr x hx]⟩
 
 /-! ### `propIrrel`'s pure side at its five exits -/
 
@@ -1245,299 +1463,151 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.propIrrelFueled mode env F d x y) r; ⊤⦄ := by
-  have hnp := fun (s : AState) (e : EIdx) =>
-    notProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
-  have hip := fun (s : AState) (e : EIdx) =>
-    isProofFast_spec' (mode := mode) (env := env) (fe := fe) coreWalkFuel s e
-  have hi := hsim.inferIO'
-  have hn := hsim.whnf'
-  vcgen [ConRon.Arena.propIrrel, ConRon.Arena.zeroLevel,
-    ConRon.Arena.liftFueled, hnp, hip, hi, hn,
-    lvlEq?_spec (mode := mode) (env := env) (fe := fe)]
-  all_goals (bridge_peel; subst_vars)
-  all_goals clear_tag_hyps
-  -- the callees' `CheckOK` and pin preconditions
-  case vc4 | vc8 | vc10 | vc12 | vc14 | vc18 | vc20 | vc22 | vc24 | vc26 | vc28
-    | vc30 => assumption
-  -- the two zero pins' (the port's `prop_sorts_zero_right` re-reads it)
-  case vc5 | vc15 => exact CheckOK.pins (by assumption)
-  -- the two subjects' denotations, carried to the state each call runs in
-  case vc31 => exact ⟨x, hda⟩
-  case vc29 =>
-    rename_i _ hst_s0_s1 _ _
-    exact ⟨y, by rw [hst_s0_s1]; exact hdb⟩
-  case vc27 =>
-    rename_i hst_s0_s1 hst_s1_s2 _ _ _ _
-    exact ⟨x, by rw [hst_s1_s2, hst_s0_s1]; exact hda⟩
-  case vc25 =>
-    rename_i s3 r2 s2 r1 s1 hg0 r0 s0 hck_s2 hck_s1 hck_s0 hst_s2_s3 hst_s1_s2 hst_s0_s1
-      hp_s2_s3 hnp_a hp_s1_s2 hnp_b hp_s0_s1 hip_a
-    exact ⟨y, by rw [hst_s0_s1, hst_s1_s2, hst_s2_s3]; exact hdb⟩
-  case vc23 =>
-    rename_i s4 r3 s3 r2 s2 hg1 r1 s1 r0 s0 hg0 hck_s3 hck_s2 hck_s1 hck_s0 hst_s3_s4
-      hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b hp_s1_s2 hip_a hp_s0_s1
-      hip_b
-    exact ⟨x, by rw [hst_s0_s1, hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hda,
-      hwa⟩
-  case vc21 =>
-    rename_i s5 r4 s4 r3 s3 hg1 r2 s2 r1 s1 hg0 s0 hck_s4 hck_s3 hck_s2 hck_s1 hck_s0
-      hst_s4_s5 hst_s3_s4 hst_s2_s3 hst_s1_s2 hx_s1_s0 hp_s4_s5 hnp_a hp_s3_s4 hnp_b
-      hp_s2_s3 hip_a hp_s1_s2 hip_b hp_s0_s1 hio_a
-    exact SimE.exists_denote (hio_a x
-      (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4, hst_s4_s5]; exact hda))
-  case vc19 =>
-    rename_i s6 r5 s5 r4 s4 hg1 r3 s3 r2 s2 hg0 s1 r0 s0 hck_s5 hck_s4 hck_s3 hck_s2 hck_s1
-      hck_s0 hst_s5_s6 hst_s4_s5 hst_s3_s4 hst_s2_s3 hx_s2_s1 hx_s1_s0 hp_s5_s6 hnp_a
-      hp_s4_s5 hnp_b hp_s3_s4 hip_a hp_s2_s3 hip_b hp_s1_s2 hio_a hp_s0_s1 hio_r1
-    obtain ⟨ta, hta, _, _⟩ := hio_a x
-      (by rw [hst_s2_s3, hst_s3_s4, hst_s4_s5, hst_s5_s6]; exact hda)
-    exact SimE.exists_denote (hio_r1 ta hta)
-  case vc13 =>
-    rename_i s8 r7 s7 r6 s6 hg1 r5 s5 r4 s4 hg0 s3 r2 s2 u0 s1 s0 hck_s7 hck_s6 hck_s5
-      hck_s4 hck_s3 hck_s2 hck_s0 hst_s7_s8 hst_s6_s7 hst_s5_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2
-      hst_s0_s1 hp_s7_s8 hnp_a hp_s6_s7 hnp_b hp_s5_s6 hip_a hp_s4_s5 hip_b hp_s3_s4 hio_a
-      hp_s2_s3 hio_r3 hp_s0_s1 hz_r0 hck_s1 hx_s2_s1 hp_s1_s2 hwh_r2 hvs_r1 heq_u0
-    have hx : Ext s8.store s0.store :=
-      ((((((ext_of_store_eq hst_s7_s8).trans (ext_of_store_eq hst_s6_s7)).trans
-        (ext_of_store_eq hst_s5_s6)).trans (ext_of_store_eq hst_s4_s5)).trans
-        ((hx_s4_s3.trans hx_s3_s2).trans hx_s2_s1)).trans
-        (ext_of_store_eq hst_s0_s1))
-    exact ⟨y, denote_ext hdb hx, hwb⟩
-  case vc11 =>
-    rename_i s9 r8 s8 r7 s7 hg1 r6 s6 r5 s5 hg0 s4 r3 s3 u0 s2 s1 s0 hck_s8 hck_s7 hck_s6
-      hck_s5 hck_s4 hck_s3 hck_s1 hck_s0 hst_s8_s9 hst_s7_s8 hst_s6_s7 hst_s5_s6 hx_s5_s4
-      hx_s4_s3 hst_s1_s2 hx_s1_s0 hp_s8_s9 hnp_a hp_s7_s8 hnp_b hp_s6_s7 hip_a hp_s5_s6
-      hip_b hp_s4_s5 hio_a hp_s3_s4 hio_r4 hp_s1_s2 hp_s0_s1 hio_b hz_r1 hck_s2 hx_s3_s2
-      hp_s2_s3 hwh_r3 hvs_r2 heq_u0
-    have hx : Ext s9.store s1.store :=
-      ((((((ext_of_store_eq hst_s8_s9).trans (ext_of_store_eq hst_s7_s8)).trans
-        (ext_of_store_eq hst_s6_s7)).trans (ext_of_store_eq hst_s5_s6)).trans
-        ((hx_s5_s4.trans hx_s4_s3).trans hx_s3_s2)).trans
-        (ext_of_store_eq hst_s1_s2))
-    exact SimE.exists_denote (hio_b y (denote_ext hdb hx))
-  case vc9 =>
-    rename_i s10 r9 s9 r8 s8 hg1 r7 s7 r6 s6 hg0 s5 r4 s4 u0 s3 s2 s1 r0 s0 hck_s9 hck_s8
-      hck_s7 hck_s6 hck_s5 hck_s4 hck_s2 hck_s1 hck_s0 hst_s9_s10 hst_s8_s9 hst_s7_s8
-      hst_s6_s7 hx_s6_s5 hx_s5_s4 hst_s2_s3 hx_s2_s1 hx_s1_s0 hp_s9_s10 hnp_a hp_s8_s9 hnp_b
-      hp_s7_s8 hip_a hp_s6_s7 hip_b hp_s5_s6 hio_a hp_s4_s5 hio_r5 hp_s2_s3 hp_s1_s2 hio_b
-      hp_s0_s1 hio_r1 hz_r2 hck_s3 hx_s4_s3 hp_s3_s4 hwh_r4 hvs_r3 heq_u0
-    have hx : Ext s10.store s2.store :=
-      ((((((ext_of_store_eq hst_s9_s10).trans (ext_of_store_eq hst_s8_s9)).trans
-        (ext_of_store_eq hst_s7_s8)).trans (ext_of_store_eq hst_s6_s7)).trans
-        ((hx_s6_s5.trans hx_s5_s4).trans hx_s4_s3)).trans
-        (ext_of_store_eq hst_s2_s3))
-    obtain ⟨tb, htb, _, _⟩ := hio_b y (denote_ext hdb hx)
-    exact SimE.exists_denote (hio_r1 tb htb)
-  -- the "not a proof" arm refuses
-  case vc1 =>
-    rename_i s2 r1 s1 r0 s0 hg0 hck_s1 hck_s0 hst_s1_s2 hst_s0_s1 hp_s1_s2 hnp_a hp_s0_s1
-      hnp_b
-    refine ⟨hck_s0, ext_of_store_eq (hst_s0_s1.trans hst_s1_s2),
-      hp_s0_s1.trans hp_s1_s2, 0, propIrrel_no ?_⟩
-    rw [hnp_a x hda, hnp_b y (by rw [hst_s1_s2]; exact hdb)] at hg0
-    exact hg0
-  -- the "yes" arm licenses
-  case vc2 =>
-    rename_i s4 r3 s3 r2 s2 hg1 r1 s1 r0 s0 hg0 hck_s3 hck_s2 hck_s1 hck_s0 hst_s3_s4
-      hst_s2_s3 hst_s1_s2 hst_s0_s1 hp_s3_s4 hnp_a hp_s2_s3 hnp_b hp_s1_s2 hip_a hp_s0_s1
-      hip_b
-    refine ⟨hck_s0, ext_of_store_eq
-        (hst_s0_s1.trans (hst_s1_s2.trans (hst_s2_s3.trans hst_s3_s4))),
-      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans hp_s3_s4)), 0,
-      propIrrel_yes ?_ ?_⟩
-    · rw [hnp_a x hda, hnp_b y (by rw [hst_s3_s4]; exact hdb)] at hg1
-      simpa using hg1
-    · rw [hip_a x (by rw [hst_s2_s3, hst_s3_s4]; exact hda),
-        hip_b y (by rw [hst_s1_s2, hst_s2_s3, hst_s3_s4]; exact hdb)] at hg0
-      exact hg0
-  -- the slow path to its end: both sides are sorts
-  case vc3 =>
-    rename_i s12 r10 s11 r9 s10 hg1 r8 s9 r7 s8 hg0 s7 r5 s6 r4 u1 r3 s5 s4 s3 r1 s2 u0 s1
-      s0 hck_s11 hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s4 hck_s3 hck_s2 hck_s0 hst_s11_s12
-      hst_s10_s11 hst_s9_s10 hst_s8_s9 hx_s8_s7 hx_s7_s6 hst_s4_s5 hx_s4_s3 hx_s3_s2
-      hst_s0_s1 hp_s11_s12 hnp_a hp_s10_s11 hnp_b hp_s9_s10 hip_a hp_s8_s9 hip_b hp_s7_s8
-      hio_a hp_s6_s7 hio_r6 hp_s4_s5 hp_s3_s4 hio_b hp_s2_s3 hio_r2 hp_s0_s1 hz_r3 hck_s5
-      hx_s6_s5 hp_s5_s6 hwh_r5 hvs_r4 heq_u1 hz2 hck_s1 hx_s2_s1 hp_s1_s2 hwh_r1 hvs_r0
-      heq_u0
-    have hx128 : Ext s12.store s8.store :=
-      (((ext_of_store_eq hst_s11_s12).trans (ext_of_store_eq hst_s10_s11)).trans
-        (ext_of_store_eq hst_s9_s10)).trans (ext_of_store_eq hst_s8_s9)
-    have hx84 : Ext s8.store s4.store :=
-      ((hx_s8_s7.trans hx_s7_s6).trans hx_s6_s5).trans
-        (ext_of_store_eq hst_s4_s5)
-    have hx40 : Ext s4.store s0.store :=
-      ((hx_s4_s3.trans hx_s3_s2).trans hx_s2_s1).trans
-        (ext_of_store_eq hst_s0_s1)
-    refine ⟨hck_s0, (hx128.trans hx84).trans hx40,
-      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
-        (hp_s4_s5.trans (hp_s5_s6.trans (hp_s6_s7.trans (hp_s7_s8.trans
-        (hp_s8_s9.trans (hp_s9_s10.trans (hp_s10_s11.trans
-        hp_s11_s12)))))))))), ?_⟩
-    -- the first side
-    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx128)
-    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r6 ta hta
-    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r5 tta htta
-    obtain ⟨uT, rfl, huT⟩ := denote_sort_inv hck_s5.state.wf hvs_r4 hw
-    obtain ⟨lu, lv, hlu, hlv, hA⟩ := heq_u1
-    rw [huT] at hlu; rw [hz_r3] at hlv
-    cases hlu; cases hlv
-    -- the second side
-    obtain ⟨tb, htb, _, F4, hF4⟩ := hio_b y (denote_ext hdb (hx128.trans hx84))
-    obtain ⟨ttb, httb, _, F5, hF5⟩ := hio_r2 tb htb
-    obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
-    obtain ⟨vT, rfl, hvT⟩ := denote_sort_inv hck_s1.state.wf hvs_r0 hw2
-    obtain ⟨lu', lv', hlu', hlv', hB⟩ := heq_u0
-    rw [hvT] at hlu'; rw [hz2] at hlv'
-    cases hlu'; cases hlv'
-    -- the two guards declined
-    rw [hnp_a x hda, hnp_b y (by rw [hst_s11_s12]; exact hdb)] at hg1
-    rw [hip_a x (by rw [hst_s10_s11, hst_s11_s12]; exact hda),
-      hip_b y (by rw [hst_s9_s10, hst_s10_s11, hst_s11_s12]; exact hdb)] at hg0
-    refine ⟨F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow (by simpa using hg1)
-      (by simpa using hg0)
-      (ConLeche.inferTypeIO_mono (by omega) hF1)
-      (ConLeche.inferTypeIO_mono (by omega) hF2)
-      (ConLeche.whnf_mono (by omega) hF3) hA.symm
-      (ConLeche.inferTypeIO_mono (by omega) hF4)
-      (ConLeche.inferTypeIO_mono (by omega) hF5)
-      (ConLeche.whnf_mono (by omega) hF6) hB.symm⟩
-  -- the second side's type's type is not a sort
-  case vc6 =>
-    rename_i s11 r10 s10 r9 s9 hg1 r8 s8 r7 s7 hg0 s6 r5 s5 r4 u0 s4 s3 s2 r1 s1 s0 x1 hnv0
-      hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5 hck_s3 hck_s2 hck_s1 hst_s10_s11 hst_s9_s10
-      hst_s8_s9 hst_s7_s8 hx_s7_s6 hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hp_s10_s11 hnp_a
-      hp_s9_s10 hnp_b hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6 hio_r6 hp_s3_s4
-      hp_s2_s3 hio_b hp_s1_s2 hio_r2 hz_r3 hck_s4 hx_s5_s4 hp_s4_s5 hwh_r5 hvs_r4 heq_u0
-      hck_s0 hx_s1_s0 hp_s0_s1 hwh_r1 hv_r0
-    have hx117 : Ext s11.store s7.store :=
-      (((ext_of_store_eq hst_s10_s11).trans (ext_of_store_eq hst_s9_s10)).trans
-        (ext_of_store_eq hst_s8_s9)).trans (ext_of_store_eq hst_s7_s8)
-    have hx73 : Ext s7.store s3.store :=
-      ((hx_s7_s6.trans hx_s6_s5).trans hx_s5_s4).trans
-        (ext_of_store_eq hst_s3_s4)
-    have hx30 : Ext s3.store s0.store :=
-      (hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0
-    refine ⟨hck_s0, (hx117.trans hx73).trans hx30,
-      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
-        (hp_s4_s5.trans (hp_s5_s6.trans (hp_s6_s7.trans (hp_s7_s8.trans
-        (hp_s8_s9.trans (hp_s9_s10.trans hp_s10_s11))))))))), ?_⟩
-    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx117)
-    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r6 ta hta
-    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r5 tta htta
-    obtain ⟨uT, rfl, huT⟩ := denote_sort_inv hck_s4.state.wf hvs_r4 hw
-    obtain ⟨lu, lv, hlu, hlv, hA⟩ := heq_u0
-    rw [huT] at hlu; rw [hz_r3] at hlv
-    cases hlu; cases hlv
-    obtain ⟨tb, htb, _, F4, hF4⟩ := hio_b y (denote_ext hdb (hx117.trans hx73))
-    obtain ⟨ttb, httb, _, F5, hF5⟩ := hio_r2 tb htb
-    obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
-    have hns := denote_not_sort hck_s0.state.wf hv_r0 hw2 hnv0
-    rw [hnp_a x hda, hnp_b y (by rw [hst_s10_s11]; exact hdb)] at hg1
-    rw [hip_a x (by rw [hst_s9_s10, hst_s10_s11]; exact hda),
-      hip_b y (by rw [hst_s8_s9, hst_s9_s10, hst_s10_s11]; exact hdb)] at hg0
-    exact ⟨F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow_b (by simpa using hg1)
-      (by simpa using hg0)
-      (ConLeche.inferTypeIO_mono (by omega) hF1)
-      (ConLeche.inferTypeIO_mono (by omega) hF2)
-      (ConLeche.whnf_mono (by omega) hF3) hA.symm
-      (ConLeche.inferTypeIO_mono (by omega) hF4)
-      (ConLeche.inferTypeIO_mono (by omega) hF5)
-      (ConLeche.whnf_mono (by omega) hF6) hns⟩
-  -- the first side's type's type is not a sort
-  -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
-  -- the `sort` TAG; its view comes back from its denotation)
-  case vc7 =>
-    rename_i s11 r10 s10 r9 s9 hg1 r8 s8 r7 s7 hg0 s6 r5 s5 r4 u0 s4 s3 s2 r1 s1 s0 htag
-      hck_s10 hck_s9 hck_s8 hck_s7 hck_s6 hck_s5 hck_s3 hck_s2 hck_s1 hck_s0 hst_s10_s11
-      hst_s9_s10 hst_s8_s9 hst_s7_s8 hx_s7_s6 hx_s6_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1 hx_s1_s0
-      hp_s10_s11 hnp_a hp_s9_s10 hnp_b hp_s8_s9 hip_a hp_s7_s8 hip_b hp_s6_s7 hio_a hp_s5_s6
-      hio_r6 hp_s3_s4 hp_s2_s3 hio_b hp_s1_s2 hio_r2 hp_s0_s1 hwh_r1 hz_r3 hck_s4 hx_s5_s4
-      hp_s4_s5 hwh_r5 hvs_r4 heq_u0
-    have hx117 : Ext s11.store s7.store :=
-      (((ext_of_store_eq hst_s10_s11).trans (ext_of_store_eq hst_s9_s10)).trans
-        (ext_of_store_eq hst_s8_s9)).trans (ext_of_store_eq hst_s7_s8)
-    have hx73 : Ext s7.store s3.store :=
-      ((hx_s7_s6.trans hx_s6_s5).trans hx_s5_s4).trans
-        (ext_of_store_eq hst_s3_s4)
-    have hx30 : Ext s3.store s0.store :=
-      (hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0
-    refine ⟨hck_s0, (hx117.trans hx73).trans hx30,
-      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
-        (hp_s4_s5.trans (hp_s5_s6.trans (hp_s6_s7.trans (hp_s7_s8.trans
-        (hp_s8_s9.trans (hp_s9_s10.trans hp_s10_s11))))))))), ?_⟩
-    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx117)
-    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r6 ta hta
-    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r5 tta htta
-    obtain ⟨uT, rfl, huT⟩ := denote_sort_inv hck_s4.state.wf hvs_r4 hw
-    obtain ⟨lu, lv, hlu, hlv, hA⟩ := heq_u0
-    rw [huT] at hlu; rw [hz_r3] at hlv
-    cases hlu; cases hlv
-    obtain ⟨tb, htb, _, F4, hF4⟩ := hio_b y (denote_ext hdb (hx117.trans hx73))
-    obtain ⟨ttb, httb, _, F5, hF5⟩ := hio_r2 tb htb
-    obtain ⟨w2, hw2, _, F6, hF6⟩ := hwh_r1 ttb httb
-    obtain ⟨vv, hvv⟩ := denoteE_view hw2
-    have hns := denote_not_sort hck_s0.state.wf hvv hw2 (fun u hh => view_tagOf_ne hvv (t := ETag.sort) htag (by rw [hh]; rfl))
-    rw [hnp_a x hda, hnp_b y (by rw [hst_s10_s11]; exact hdb)] at hg1
-    rw [hip_a x (by rw [hst_s9_s10, hst_s10_s11]; exact hda),
-      hip_b y (by rw [hst_s8_s9, hst_s9_s10, hst_s10_s11]; exact hdb)] at hg0
-    exact ⟨F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow_b (by simpa using hg1)
-      (by simpa using hg0)
-      (ConLeche.inferTypeIO_mono (by omega) hF1)
-      (ConLeche.inferTypeIO_mono (by omega) hF2)
-      (ConLeche.whnf_mono (by omega) hF3) hA.symm
-      (ConLeche.inferTypeIO_mono (by omega) hF4)
-      (ConLeche.inferTypeIO_mono (by omega) hF5)
-      (ConLeche.whnf_mono (by omega) hF6) hns⟩
-  -- the first side's type's type is not a sort
-  case vc16 =>
-    rename_i s7 r6 s6 r5 s5 hg1 r4 s4 r3 s3 hg0 s2 r1 s1 s0 x1 hnv0 hck_s6 hck_s5 hck_s4
-      hck_s3 hck_s2 hck_s1 hst_s6_s7 hst_s5_s6 hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1
-      hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a hp_s3_s4 hip_b hp_s2_s3 hio_a hp_s1_s2
-      hio_r2 hck_s0 hx_s1_s0 hp_s0_s1 hwh_r1 hv_r0
-    have hx73 : Ext s7.store s3.store :=
-      (((ext_of_store_eq hst_s6_s7).trans (ext_of_store_eq hst_s5_s6)).trans
-        (ext_of_store_eq hst_s4_s5)).trans (ext_of_store_eq hst_s3_s4)
-    refine ⟨hck_s0, hx73.trans ((hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0),
-      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
-        (hp_s4_s5.trans (hp_s5_s6.trans hp_s6_s7))))), ?_⟩
-    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx73)
-    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r2 ta hta
-    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r1 tta htta
-    have hns := denote_not_sort hck_s0.state.wf hv_r0 hw hnv0
-    rw [hnp_a x hda, hnp_b y (by rw [hst_s6_s7]; exact hdb)] at hg1
-    rw [hip_a x (by rw [hst_s5_s6, hst_s6_s7]; exact hda),
-      hip_b y (by rw [hst_s4_s5, hst_s5_s6, hst_s6_s7]; exact hdb)] at hg0
-    exact ⟨F1 + F2 + F3, propIrrel_slow_a (by simpa using hg1)
-      (by simpa using hg0)
+  have hwf := hok.state.wf
+  unfold ConRon.Arena.propIrrel
+  -- the two fast arms
+  refine triple_seq (notProofFast_spec' coreWalkFuel s₀ a hok ⟨x, hda⟩) ?_
+  rintro na s1 ⟨hok1, hx1, hp1, hna⟩
+  refine triple_seq (notProofFast_spec' coreWalkFuel s1 b hok1
+    ⟨y, denote_ext hdb hx1⟩) ?_
+  rintro nb s2 ⟨hok2, hx2, hp2, hnb⟩
+  have hx02 := hx1.trans hx2
+  have hp02 : s2.pins = s₀.pins := hp2.trans hp1
+  have hN : (na || nb) = (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) := by
+    rw [hna x hda, hnb y (denote_ext hdb hx1)]
+  by_cases hNT : (na || nb) = true
+  · rw [ite_eq_left hNT]
+    exact triple_pureR ⟨hok2, hx02, hp02, 0, propIrrel_no (hN ▸ hNT)⟩
+  rw [ite_eq_right hNT]
+  have hNF : (ConLeche.notProofFast env.find? x ||
+      ConLeche.notProofFast env.find? y) = false := by
+    rw [← hN]; simpa using hNT
+  refine triple_seq (isProofFast_spec' coreWalkFuel s2 a hok2
+    ⟨x, denote_ext hda hx02⟩) ?_
+  rintro ia s3 ⟨hok3, hx3, hp3, hia⟩
+  refine triple_seq (isProofFast_spec' coreWalkFuel s3 b hok3
+    ⟨y, denote_ext hdb (hx02.trans hx3)⟩) ?_
+  rintro ib s4 ⟨hok4, hx4, hp4, hib⟩
+  have hx04 := (hx02.trans hx3).trans hx4
+  have hp04 : s4.pins = s₀.pins := hp4.trans (hp3.trans hp02)
+  have hI : (ia && ib) = (ConLeche.isProofFast env.find? x &&
+      ConLeche.isProofFast env.find? y) := by
+    rw [hia x (denote_ext hda hx02), hib y (denote_ext hdb (hx02.trans hx3))]
+  by_cases hIT : (ia && ib) = true
+  · rw [ite_eq_left hIT]
+    exact triple_pureR ⟨hok4, hx04, hp04, 0, propIrrel_yes hNF (hI ▸ hIT)⟩
+  rw [ite_eq_right hIT]
+  have hIF : (ConLeche.isProofFast env.find? x &&
+      ConLeche.isProofFast env.find? y) = false := by
+    rw [← hI]; simpa using hIT
+  -- the slow path: the first side's type's type
+  refine triple_seq (hsim.inferIO s4 d a x hok4 (denote_ext hda hx04) hwa) ?_
+  rintro ta s5 ⟨hok5, hx5, hp5, vta, hvta, hwvta, F1, hF1⟩
+  refine triple_seq (hsim.inferIO s5 d ta vta hok5 hvta hwvta) ?_
+  rintro tta s6 ⟨hok6, hx6, hp6, vtta, hvtta, hwvtta, F2, hF2⟩
+  refine triple_seq (hsim.whnf s6 d tta vtta hok6 hvtta hwvtta) ?_
+  rintro hh s7 ⟨hok7, hx7, hp7, vw, hvw, _, F3, hF3⟩
+  have hx07 := ((hx04.trans hx5).trans hx6).trans hx7
+  have hp07 : s7.pins = s₀.pins := hp7.trans (hp6.trans (hp5.trans hp04))
+  obtain ⟨vv, hvv⟩ := denoteE_view hvw
+  refine tag_view_bind_triple_else hvv ?_ (fun hne => ?_)
+  rotate_left
+  · -- not a sort
+    have hns := denote_not_sort hok7.state.wf hvv hvw
+      (fun u hh => hne (by rw [hh]; rfl))
+    exact triple_pureR ⟨hok7, hx07, hp07, F1 + F2 + F3, propIrrel_slow_a hNF hIF
       (ConLeche.inferTypeIO_mono (by omega) hF1)
       (ConLeche.inferTypeIO_mono (by omega) hF2)
       (ConLeche.whnf_mono (by omega) hF3) hns⟩
-  -- round 4: the tag-first twin's `else` arm (the whnf answer does not carry
-  -- the `sort` TAG; its view comes back from its denotation)
-  case vc17 =>
-    rename_i s7 r6 s6 r5 s5 hg1 r4 s4 r3 s3 hg0 s2 r1 s1 s0 htag hck_s6 hck_s5 hck_s4 hck_s3
-      hck_s2 hck_s1 hck_s0 hst_s6_s7 hst_s5_s6 hst_s4_s5 hst_s3_s4 hx_s3_s2 hx_s2_s1
-      hx_s1_s0 hp_s6_s7 hnp_a hp_s5_s6 hnp_b hp_s4_s5 hip_a hp_s3_s4 hip_b hp_s2_s3 hio_a
-      hp_s1_s2 hio_r2 hp_s0_s1 hwh_r1
-    have hx73 : Ext s7.store s3.store :=
-      (((ext_of_store_eq hst_s6_s7).trans (ext_of_store_eq hst_s5_s6)).trans
-        (ext_of_store_eq hst_s4_s5)).trans (ext_of_store_eq hst_s3_s4)
-    refine ⟨hck_s0, hx73.trans ((hx_s3_s2.trans hx_s2_s1).trans hx_s1_s0),
-      hp_s0_s1.trans (hp_s1_s2.trans (hp_s2_s3.trans (hp_s3_s4.trans
-        (hp_s4_s5.trans (hp_s5_s6.trans hp_s6_s7))))), ?_⟩
-    obtain ⟨ta, hta, _, F1, hF1⟩ := hio_a x (denote_ext hda hx73)
-    obtain ⟨tta, htta, _, F2, hF2⟩ := hio_r2 ta hta
-    obtain ⟨w, hw, _, F3, hF3⟩ := hwh_r1 tta htta
-    obtain ⟨vv, hvv⟩ := denoteE_view hw
-    have hns := denote_not_sort hck_s0.state.wf hvv hw (fun u hh => view_tagOf_ne hvv (t := ETag.sort) htag (by rw [hh]; rfl))
-    rw [hnp_a x hda, hnp_b y (by rw [hst_s6_s7]; exact hdb)] at hg1
-    rw [hip_a x (by rw [hst_s5_s6, hst_s6_s7]; exact hda),
-      hip_b y (by rw [hst_s4_s5, hst_s5_s6, hst_s6_s7]; exact hdb)] at hg0
-    exact ⟨F1 + F2 + F3, propIrrel_slow_a (by simpa using hg1)
-      (by simpa using hg0)
+  cases vv
+  case sort uT =>
+    obtain ⟨lT, rfl, hlT⟩ := denote_sort_inv hok7.state.wf hvv hvw
+    dsimp only
+    unfold ConRon.Arena.zeroLevel
+    refine triple_seq (pinZeroLevel_spec s7 hok7.pins) ?_
+    rintro z s8 ⟨hs8, hz⟩
+    subst s8
+    refine triple_seq (lvlEq?_spec s7 uT z hok7) ?_
+    rintro q s9 ⟨hok9, hst9, hp9, lu, lv, hlu, hlv, hq⟩
+    rw [hlT] at hlu; rw [hz] at hlv
+    obtain rfl := Option.some.inj hlu
+    obtain rfl := Option.some.inj hlv
+    cases q with
+    | none =>
+      simp only [ConRon.Arena.liftFueled]
+      exact triple_seq (Q := fun _ _ => False) triple_fail (fun _ _ h => h.elim)
+    | some okA =>
+      simp only [ConRon.Arena.liftFueled, pure_bind]
+      have hx09 : Ext s₀.store s9.store := hx07.trans (by rw [hst9]; exact Ext.refl _)
+      have hp09 : s9.pins = s₀.pins := hp9.trans hp07
+      -- the second side
+      refine triple_seq (hsim.inferIO s9 d b y hok9 (denote_ext hdb hx09) hwb) ?_
+      rintro tb s10 ⟨hok10, hx10, hp10, vtb, hvtb, hwvtb, F4, hF4⟩
+      refine triple_seq (hsim.inferIO s10 d tb vtb hok10 hvtb hwvtb) ?_
+      rintro ttb s11 ⟨hok11, hx11, hp11, vttb, hvttb, hwvttb, F5, hF5⟩
+      refine triple_seq (hsim.whnf s11 d ttb vttb hok11 hvttb hwvttb) ?_
+      rintro hh2 s12 ⟨hok12, hx12, hp12, vw2, hvw2, _, F6, hF6⟩
+      have hx012 := ((hx09.trans hx10).trans hx11).trans hx12
+      have hp012 : s12.pins = s₀.pins := hp12.trans (hp11.trans (hp10.trans hp09))
+      obtain ⟨vv2, hvv2⟩ := denoteE_view hvw2
+      refine tag_view_bind_triple_else hvv2 ?_ (fun hne => ?_)
+      rotate_left
+      · have hns := denote_not_sort hok12.state.wf hvv2 hvw2
+          (fun u hh => hne (by rw [hh]; rfl))
+        exact triple_pureR ⟨hok12, hx012, hp012, F1 + F2 + F3 + F4 + F5 + F6,
+          propIrrel_slow_b hNF hIF
+            (ConLeche.inferTypeIO_mono (by omega) hF1)
+            (ConLeche.inferTypeIO_mono (by omega) hF2)
+            (ConLeche.whnf_mono (by omega) hF3) hq.symm
+            (ConLeche.inferTypeIO_mono (by omega) hF4)
+            (ConLeche.inferTypeIO_mono (by omega) hF5)
+            (ConLeche.whnf_mono (by omega) hF6) hns⟩
+      cases vv2
+      case sort vT =>
+        obtain ⟨lV, rfl, hlV⟩ := denote_sort_inv hok12.state.wf hvv2 hvw2
+        dsimp only
+        refine triple_seq (pinZeroLevel_spec s12 hok12.pins) ?_
+        rintro z2 s13 ⟨hs13, hz2⟩
+        subst s13
+        refine triple_seq (lvlEq?_spec s12 vT z2 hok12) ?_
+        rintro q2 s14 ⟨hok14, hst14, hp14, lu2, lv2, hlu2, hlv2, hq2⟩
+        rw [hlV] at hlu2; rw [hz2] at hlv2
+        obtain rfl := Option.some.inj hlu2
+        obtain rfl := Option.some.inj hlv2
+        cases q2 with
+        | none =>
+          simp only [ConRon.Arena.liftFueled]
+          exact triple_seq (Q := fun _ _ => False) triple_fail (fun _ _ h => h.elim)
+        | some okB =>
+          simp only [ConRon.Arena.liftFueled, pure_bind]
+          exact triple_pureR ⟨hok14,
+            hx012.trans (by rw [hst14]; exact Ext.refl _), hp14.trans hp012,
+            F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow hNF hIF
+              (ConLeche.inferTypeIO_mono (by omega) hF1)
+              (ConLeche.inferTypeIO_mono (by omega) hF2)
+              (ConLeche.whnf_mono (by omega) hF3) hq.symm
+              (ConLeche.inferTypeIO_mono (by omega) hF4)
+              (ConLeche.inferTypeIO_mono (by omega) hF5)
+              (ConLeche.whnf_mono (by omega) hF6) hq2.symm⟩
+      all_goals
+        dsimp only
+        exact triple_pureR ⟨hok12, hx012, hp012, F1 + F2 + F3 + F4 + F5 + F6,
+          propIrrel_slow_b hNF hIF
+            (ConLeche.inferTypeIO_mono (by omega) hF1)
+            (ConLeche.inferTypeIO_mono (by omega) hF2)
+            (ConLeche.whnf_mono (by omega) hF3) hq.symm
+            (ConLeche.inferTypeIO_mono (by omega) hF4)
+            (ConLeche.inferTypeIO_mono (by omega) hF5)
+            (ConLeche.whnf_mono (by omega) hF6)
+            (denote_not_sort hok12.state.wf hvv2 hvw2 (fun _ h => nomatch h))⟩
+  all_goals
+    dsimp only
+    exact triple_pureR ⟨hok7, hx07, hp07, F1 + F2 + F3, propIrrel_slow_a hNF hIF
       (ConLeche.inferTypeIO_mono (by omega) hF1)
       (ConLeche.inferTypeIO_mono (by omega) hF2)
-      (ConLeche.whnf_mono (by omega) hF3) hns⟩
+      (ConLeche.whnf_mono (by omega) hF3)
+      (denote_not_sort hok7.state.wf hvv hvw (fun _ h => nomatch h))⟩
 
 /-! ## 6. The axiom census -/
 
