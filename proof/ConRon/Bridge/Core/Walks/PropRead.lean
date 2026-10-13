@@ -138,7 +138,7 @@ theorem denote_not_sort {st : EStore} (hwf : StoreWF st) {h : EIdx}
 theorem denote_not_lam {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} {v : ENodeView} (hv : st.view h = some v)
     (he : denoteE st h = some e)
-    (hne : ∀ ty b m, v = .lam ty b m → False) : ∀ p q m, e ≠ .lam p q m := by
+    (hne : ∀ ty b, v = .lam ty b → False) : ∀ p q, e ≠ .lam p q m := by
   cases v with
   | bvar i => rw [denote_bvar_inv hwf hv he]; simp
   | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
@@ -570,7 +570,7 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
 /-- con-leche: ConLeche/Kernel/PropRead.lean:92-103 typeSortPW — the last
 arm: neither a ∀ nor a sort reads its head. -/
 theorem typeSortPW_other {find? : ConLeche.Name → Option ConstantInfo}
-    {x : Expr} (hf : ∀ p q m, x ≠ .forallE p q) (hs : ∀ l, x ≠ .sort l) :
+    {x : Expr} (hf : ∀ p q, x ≠ .forallE p q) (hs : ∀ l, x ≠ .sort l) :
     ConLeche.typeSortPW find? x =
       ConLeche.headTypePW find? x.getAppFn x.numArgs := by
   cases x <;> first
@@ -761,7 +761,7 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — the last arm:
 anything but a λ reads its head. -/
 theorem proofPW_other {find? : ConLeche.Name → Option ConstantInfo}
-    {x : Expr} (hl : ∀ p q m, x ≠ .lam p q) :
+    {x : Expr} (hl : ∀ p q, x ≠ .lam p q) :
     ConLeche.proofPW find? x = ConLeche.headProofPW find? x.getAppFn := by
   cases x <;> first
     | rfl
