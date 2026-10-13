@@ -35,9 +35,8 @@ modules off it.**  A body walk that eventually needs one of these will
 import this module beside `Owed.lean`; nothing on the chain has to.
 
 **And this module is a workaround, not a fix.**  `Arena/Core.lean` calls
-`ensureSort` from `inferBodyIO`'s `.forallE` arm, from `annotateBody` and
-from `inferLamsLeafCheck`, so `Arms/{InferIO,Annotate,Infer}.lean` meet the
-same wall the day those arms are written — and all three are ON the chain.
+`ensureSort` from `inferBodyIO`'s `.forallE` arm and from the binder walks, so
+`Arms/{InferIO,Infer}.lean` meet the same wall — and both are ON the chain.
 The auxiliary is *derived on demand*, so the real repair is to give it one
 owner (force its derivation in `Bridge/Specs.lean`, which every module of
 this library imports); DESIGN §8's `### Task #97-P3-Core-2` round 3

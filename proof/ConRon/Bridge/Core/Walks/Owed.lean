@@ -88,7 +88,7 @@ abstracted:
 | `SimOOp` — an `Option EIdx` answer | `reduceNat`, `iotaRec` |
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
 | `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
-| `SimVOp` — any shared type | `annotPwPi`, `annotPwLam` (`PropWhen`), `headHint` (`ReducibilityHint`) |
+| `SimVOp` — any shared type | `headHint` (`ReducibilityHint`) |
 | an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `isBoolTrue`, CLOSED in `Walks/Guards.lean`) |
 
 **The last row is the cheap one and it is worth naming.**  Four walks of the
@@ -111,7 +111,7 @@ theorems, to `Walks/PropRead.lean`.  Left here:
 * **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
   `litMajorToCtor`;
 * **`stuckIrrel`** and **`iotaRec`**, the two towers (`iotaRec`'s
-  `ruleRhsAt` and `iotaCerts` legs are now closed callee rules).
+  `ruleRhsAt` and `iotaCertsFull` legs are now closed callee rules).
 
 (Round 2's reading of this list said *"ten of the sixteen wait on an
 `ExprOps`-tier callee rule that this tier does not import"*.  That was true

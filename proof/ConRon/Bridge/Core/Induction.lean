@@ -131,7 +131,7 @@ section Census
 #print axioms whnfCore_of_stuck
 #print axioms whnf_of_stuck
 
-/-! ### **The six memo wrappers — closed.**  This is the tier's own result:
+/-! ### **The five memo wrappers — closed.**  This is the tier's own result:
 the whole memo layer of Theorem 1's Core tier is sorry-free, at the three
 standard axioms. -/
 

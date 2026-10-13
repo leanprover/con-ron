@@ -13,8 +13,8 @@ steps, one knot induction**:
 * `Core/Memo.lean` — the six slots unfolded once, the six cache setters'
   `@[spec]` theorems, the `CacheOK` insert lemmas, the **stuck-tag branch**
   (task #97-P6-7's lever 2, which con-leche's `memoEI` has no counterpart
-  for) and **the six memo-wrapper steps**;
-* `Core/Arms/{WhnfCore,Whnf,Infer,InferIO,Defeq,Annotate}.lean` — rule 8's
+  for) and **the five memo-wrapper steps**;
+* `Core/Arms/{WhnfCore,Whnf,Infer,InferIO,Defeq*}.lean` — rule 8's
   step-lemma inventory, one per exit of each PURE clause, plus that body's
   `BodySpec` theorem;
 * `Core/Induction.lean` — `knot_spec : ∀ f, KnotSpec mode env fe f`,

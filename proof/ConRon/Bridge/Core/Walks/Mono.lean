@@ -8,8 +8,7 @@ module's contents and prices them:
 > needed … the fuel existential sits inside the answer relation and `mvcgen`
 > never touches it."*  **That is true of a body and false of a LOOP.**  A walk
 > that calls the knot ONCE per clause hands its `∃ F` straight out.  A walk
-> that calls it in a `List` recursion (`defEqList`, `iotaCerts`,
-> `structEtaProjCerts`) or in a fuel loop (`whnfLoop`, `lazyDeltaReduction`, `lazyDeltaProjReduction`) gets one
+> that calls it in a `List` recursion (`defEqList`, `iotaCertsFull`) or in a fuel loop (`whnfLoop`, `lazyDeltaReduction`, `lazyDeltaProjReduction`) gets one
 > existential per iteration and has to merge them into one — which is exactly
 > `Verify/Mono.lean`'s job.  con-leche has `isDefEqCore_mono` and
 > `pureFns_mono`; it does NOT have `defEqList_mono`, because its own proof

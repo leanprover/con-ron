@@ -6,7 +6,7 @@ bodies (`BodySpec`, `BodySpecV`) because all six take one or two `EIdx`
 subjects and answer an `EIdx` or a `Bool`.  The ~110 walks of
 `Arena/Core.lean` that are not knot slots do not: they answer `Option EIdx`
 (`unfoldDefinition`, `reduceNat`, `iotaRec`), `LIdx` (`ensureSort`),
-`PropWhen` (`annotPwPi`), `List EIdx` (`etaProjs`), `Bool` at one subject, at
+`List EIdx` (`etaProjs`), `Bool` at one subject, at
 two, at a pair of LISTS, at no subject at all.
 
 So this module does not fix a body shape; it fixes the **answer relation**,
@@ -31,7 +31,7 @@ straight to `Bridge/Core/Knot.lean`'s.
 `SimE` carries `Expr.WScoped d v` because the memo insert needs it (see
 `Bridge/Core/Knot.lean`).  A walk's answer needs it exactly when the answer
 is fed back into a knot slot: `unfoldDefinition`'s reduct is (`whnfStep`
-hands it to `whnfLoop`, which calls `whnfCore`), `annotPwPi`'s `PropWhen` is
+hands it to `whnfLoop`, which calls `whnfCore`), `headHint`'s hint is
 not.  So `SimEOp` and `SimOOp` carry it and `SimBOp`/`SimLOp`/`SimVOp` do
 not.
 -/
@@ -69,8 +69,7 @@ answer**, which names no handle and therefore needs no target store.
 def SimBOp (P : Nat → CheckM Bool) (x : Bool) : Prop := ∃ F, P F = .ok x
 
 /-- con-leche: ConLeche/Verify/SimI.lean:252 RelV — **the
-representation-free answer at any type** (`annotPwPi`'s `PropWhen`,
-`headHint`'s `ReducibilityHint`, `rawNatLit?`'s `Option Nat`): the arena's
+representation-free answer at any type** (`headHint`'s `ReducibilityHint`, `rawNatLit?`'s `Option Nat`): the arena's
 value IS con-leche's, because the type is one both tiers share. -/
 def SimVOp {α : Type} (P : Nat → CheckM α) (x : α) : Prop := ∃ F, P F = .ok x
 

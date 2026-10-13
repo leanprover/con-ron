@@ -96,8 +96,8 @@ modules that each derive the same one cannot then sit in one import closure:
     from ConRon.Bridge.Core.Walks.Owed
 
 That is what forced `Bridge/Core/Walks/Spine.lean` into a sibling module off
-the knot-facing chain, and what `Arms/{InferIO,Annotate,Infer}` — all three ON
-the chain and all three calling `ensureSort` — would hit next.
+the knot-facing chain, and what `Arms/{InferIO,Infer}` — both ON the chain and both
+calling `ensureSort` — would hit next.
 
 **The repair is to give the auxiliary ONE owner, and this file is it**: every
 module of `ConRon/Bridge/**` imports it, and a derivation finds an imported
