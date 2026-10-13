@@ -30,7 +30,7 @@ this file is where the arena tower collects the interest.
   terms is a HANDLE comparison (DESIGN §8.3: `denoteN`/`denoteE` are
   injective, so index inequality IS structural inequality), which is the one
   place this file leans on exactness.  The Rust is a pure function, the twin a
-  `pure`: an `LSV` statement.
+  `pure`: a Rust-only `LSP` step.
 * `basis_pin_hit_go` — con-leche's task-#215 NAME pre-filter in front of
   `canonEqList`, and `find?`'s semantics spelled as a helper (DESIGN §3.4
   forbids the closure): a name match that then fails the canonical comparison
@@ -480,45 +480,44 @@ open Lockstep in
   rw [ConRon.Refine.Expr.literal_beq_refines ha hb h]
   cases h' : decide (ConRon.Refine.absLiteral a = ConRon.Refine.absLiteral b) <;> simp_all
 
+/-- The twin's `matchesPin` is a `pure` of its three comparisons. -/
+@[lockstep_simp] theorem IConstantVal.matchesPin_eq (cv pin : IConstantVal) :
+    cv.matchesPin pin = pure (cv.name == pin.name && cv.levelParams == pin.levelParams &&
+      cv.type == pin.type) := rfl
+
 open Lockstep in
 /-- `i_constant_val_matches_pin` ⊑ `IConstantVal.matchesPin` — exact name,
 level parameters and type, compared as handles.  The Rust is a pure function
-of its two records and the twin a `pure`, so the statement is `LSV` at any
-related state. -/
-@[lockstep] theorem i_constant_val_matches_pin_ls {pers st lst}
-    {cv : arena.env.IConstantVal}
-    {pin : arena.env.IConstantVal}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSV pers (fun a b => b = id a)
-      (arena.std_axioms.i_constant_val_matches_pin cv pin) st lst
-      ((absIConstantVal cv).matchesPin (absIConstantVal pin)) := by
+of its two records and the twin a `pure` (`IConstantVal.matchesPin_eq`), so the
+statement is a Rust-only `LSP` step whose answer is the twin's value. -/
+@[lockstep] theorem i_constant_val_matches_pin_spec
+    (cv pin : arena.env.IConstantVal) :
+    LSP (arena.std_axioms.i_constant_val_matches_pin cv pin)
+      (fun a => a = ((absIConstantVal cv).name == (absIConstantVal pin).name &&
+        (absIConstantVal cv).levelParams == (absIConstantVal pin).levelParams &&
+        (absIConstantVal cv).type == (absIConstantVal pin).type)) := by
   intro a ha
-  have key : ((absIConstantVal cv).name == (absIConstantVal pin).name &&
-      (absIConstantVal cv).levelParams == (absIConstantVal pin).levelParams &&
-      (absIConstantVal cv).type == (absIConstantVal pin).type) = a := by
-    rw [arena.std_axioms.i_constant_val_matches_pin] at ha
-    obtain ⟨b, hb, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-    have hb' := nidx_eq2_abs hb
-    subst hb'
-    simp only [absIConstantVal]
-    cases hn : (absNIdx cv.name == absNIdx pin.name)
-    · simp only [hn, Bool.false_eq_true, ↓reduceIte] at ha
+  rw [arena.std_axioms.i_constant_val_matches_pin] at ha
+  obtain ⟨b, hb, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
+  have hb' := nidx_eq2_abs hb
+  subst hb'
+  simp only [absIConstantVal]
+  cases hn : (absNIdx cv.name == absNIdx pin.name)
+  · simp only [hn, Bool.false_eq_true, ↓reduceIte] at ha
+    cases Result.ok_injective ha
+    simp
+  · simp only [hn, ↓reduceIte] at ha
+    obtain ⟨b1, hb1, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
+    have hb1' := nidx_vec_beq_spec _ _ b1 hb1
+    subst hb1'
+    cases hl : (cv.level_params.val.map absNIdx == pin.level_params.val.map absNIdx)
+    · simp only [hl, Bool.false_eq_true, ↓reduceIte] at ha
       cases Result.ok_injective ha
       simp
-    · simp only [hn, ↓reduceIte] at ha
-      obtain ⟨b1, hb1, ha⟩ := ConRon.Refine.bind_eq_ok_iff.mp ha
-      have hb1' := nidx_vec_beq_spec _ _ b1 hb1
-      subst hb1'
-      cases hl : (cv.level_params.val.map absNIdx == pin.level_params.val.map absNIdx)
-      · simp only [hl, Bool.false_eq_true, ↓reduceIte] at ha
-        cases Result.ok_injective ha
-        simp
-      · simp only [hl, ↓reduceIte] at ha
-        have ht := eidx_eq2_abs ha
-        subst ht
-        simp
-  exact ⟨a, lst, by rw [← key]; rfl, rfl, hrel, hinv⟩
+    · simp only [hl, ↓reduceIte] at ha
+      have ht := eidx_eq2_abs ha
+      subst ht
+      simp
 
 /-- `iff_a` ⊑ `iffA` — the con-leche pin, interned. -/
 theorem iff_a_refines {pers st lst} {o}
