@@ -103,6 +103,7 @@ arms also got the intern's facts as the goal's ANTECEDENTS, to `intro`;
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.ExprOps.TagFirst
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.ExprOps
 
@@ -1190,6 +1191,18 @@ Expr.liftLooseBVars amount c e)` — and the `exact` step is gone. -/
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:411-413 LiftMemoInv — a memo HIT
+answers by the invariant, in the shape a walk's hit arm has (`some r =
+tbl'[(h, c)]?`, the key spelled out, the table and the stores up to the
+frame's equations): task #120's one-`exact` hit arm. -/
+theorem MemoOK.get_hit' {f : Nat → Expr → Expr}
+    {tbl tbl' : Std.HashMap (EIdx × Nat) EIdx} {st st₁ st₂ : EStore} {h : EIdx}
+    {c : Nat} {r : EIdx} (hm : MemoOK f tbl st) (hk : some r = tbl'[(h, c)]?)
+    (ht : tbl' = tbl) (h₁ : st₁ = st) (h₂ : st₂ = st) :
+    RelE (f c) st₁ h st₂ r := by
+  subst ht h₁ h₂
+  exact MemoOK.get (k := (h, c)) hm hk.symm
+
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `liftLooseBVarsGo`'s recursion.
 
@@ -1237,81 +1250,59 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     vcgen [liftLooseBVarsGo_succ, liftArmApp, liftArmLam, liftArmForallE,
       liftArmLet, liftArmProj, hrec,
       liftSet_specG (f := fun c e => Expr.liftLooseBVars amount c e)]
-    all_goals try bridge_vcs [Expr.liftLooseBVars]
     all_goals (bridge_peel; subst_vars)
-    -- the derived-word cutoff
-    case vc1 =>
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
-        LiftAt.cutoff hok.wf (by grind) (by grind)⟩
-    -- `bvar`, the branch that interns the lifted index
-    case vc2 =>
-      rename_i hwf2 hx _hlss _hscr hmem hcc hpp _hvw hrr _hle _hv
-      exact ⟨⟨hwf2⟩, MemoOK.mono hm hx (by rw [hmem]), hx, hcc, hpp,
-        by rw [hmem], LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hrr⟩
-    -- `bvar`, the branch below the cutoff
-    case vc5 =>
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
-        LiftAt.bvar_self hok.wf (by subst_hyp) (by subst_hyp)⟩
-    -- the four leaves
-    case vc6 | vc7 | vc8 | vc9 =>
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
-        RelE.leaf_view hok.wf (by subst_hyp) (fun _ hh => liftLooseBVars_leaf hh)
-          (by grind)⟩
-    -- `app`: the arm's postcondition, then the memo insert's answer
-    case vc11 =>
-      refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans],
-        by grind, by grind, by grind, ?_⟩
-      exact LiftAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    case vc14 =>
+    bridge_frame [MemoOK.mono]
+    -- the memo hit
+    vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+    -- `bvar`: the branch that interns the lifted index, then the one below
+    -- the cutoff
+    vc_arm (hv : EStore.view _ h = some (.bvar _)) (hr : denoteE _ _ = denoteEView _ _)
+        ⊢ RelE _ _ _ _ _ =>
+      exact LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hr
+    vc_arm (hv : EStore.view _ h = some (.bvar _)) ⊢ RelE _ _ h _ h =>
+      exact LiftAt.bvar_self hok.wf hv (by subst_hyp)
+    -- each congruence arm's answer, then the memo insert's (retargeted)
+    vc_arm (hv : EStore.view _ h = some (.app _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      · grind only [Ext.trans]
-    -- `lam`: the arm's postcondition, then the memo insert's answer
-    case vc24 =>
-      refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans],
-        by grind, by grind, by grind, ?_⟩
-      exact LiftAt.lam_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    case vc27 =>
+      · bridge_frame
+    vc_arm (hv : EStore.view _ h = some (.app _ _)) ⊢ RelE _ _ h _ _ =>
+      exact LiftAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+    vc_arm (hv : EStore.view _ h = some (.lam _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.lam_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      · grind only [Ext.trans]
-    -- `forallE`: the arm's postcondition, then the memo insert's answer
-    case vc38 =>
-      refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans],
-        by grind, by grind, by grind, ?_⟩
-      exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    case vc41 =>
+      · bridge_frame
+    vc_arm (hv : EStore.view _ h = some (.lam _ _)) ⊢ RelE _ _ h _ _ =>
+      exact LiftAt.lam_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+    vc_arm (hv : EStore.view _ h = some (.forallE _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      · grind only [Ext.trans]
-    -- `letE`: the arm's postcondition, then the memo insert's answer
-    case vc52 =>
-      refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans],
-        by grind, by grind, by grind, ?_⟩
-      exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    case vc55 =>
+      · bridge_frame
+    vc_arm (hv : EStore.view _ h = some (.forallE _ _)) ⊢ RelE _ _ h _ _ =>
+      exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+    vc_arm (hv : EStore.view _ h = some (.letE _ _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      · grind only [Ext.trans]
-    -- `proj`: the arm's postcondition, then the memo insert's answer
-    case vc68 =>
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
-      refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans],
-        by grind, by grind, by grind, ?_⟩
-      exact LiftAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
-    case vc71 =>
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
+      · bridge_frame
+    vc_arm (hv : EStore.view _ h = some (.letE _ _ _)) ⊢ RelE _ _ h _ _ =>
+      exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+    vc_arm (hv : EStore.view _ h = some (.proj _ _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
+      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_proj hok.wf (h := h) hv hden
       refine RelE.retarget ?_ ?_ hden
       · exact LiftAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
-      · grind only [Ext.trans]
-
+      · bridge_frame
+    vc_arm (hv : EStore.view _ h = some (.proj _ _ _)) ⊢ RelE _ _ h _ _ =>
+      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_proj hok.wf (h := h) hv hden
+      exact LiftAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
+    -- the four leaves
+    vc_arm (hv : EStore.view _ h = some _) ⊢ RelE _ _ h _ h =>
+      exact RelE.leaf_view hok.wf hv (fun _ hh => liftLooseBVars_leaf hh) (by grind)
+    -- the derived-word cutoff
+    vc_arm ⊢ RelE _ _ h _ h =>
+      exact LiftAt.cutoff hok.wf (by grind) (by grind)
+    -- the callees' preconditions
+    all_goals bridge_vcs [Expr.liftLooseBVars]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:532-534 liftLooseBVarsFast —
 **THEOREM 1 for `liftLooseBVars`, at the entry point**: clear, walk, clear. -/
 theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
@@ -1388,94 +1379,66 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     vcgen [instantiate1LiftGo_succ, inst1LiftArmApp, inst1LiftArmLam,
       inst1LiftArmForallE, inst1LiftArmLet, inst1LiftArmProj, hrec, hbbr,
       hlift, inst1LSet_specG (f := fun dd e => Expr.instantiate1Lift e ve dd)]
-    all_goals try bridge_vcs [Expr.instantiate1Lift]
     all_goals clear hbbr hlift
     all_goals (bridge_peel; subst_vars)
+    bridge_frame [MemoOK.mono]
+    -- the memo hit
+    vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
     -- the `bvarB` cutoff, which is con-leche's own
-    case vc1 =>
-      refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl],
-        by grind, by grind, ?_⟩
-      exact RelE.tgt_eq (by subst_hyp)
-        (Inst1LAt.cutoff (by subst_hyp) (by subst_hyp))
+    vc_arm (hbb : ?bb ≤ d) (hrv : RelV Expr.bvarBound _ h ?bb) ⊢ RelE _ _ h _ h =>
+      exact RelE.tgt_eq (by subst_hyp) (Inst1LAt.cutoff (by subst_hyp) (by subst_hyp))
     -- `bvar`, the SUBSTITUTING branch: the nested `liftLooseBVarsFast`
-    case vc2 =>
-      refine ⟨by assumption, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+    vc_arm (hl : RelE (Expr.liftLooseBVars _ 0) _ v _ _) ⊢ RelE _ _ h _ _ =>
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_substV (by subst_hyp) (by subst_hyp) (by subst_hyp)
-          (‹LiftAt _ 0 _ v _ _› ve (by grind)))
+          (hl ve (by bridge_frame)))
     -- `bvar`, the branch that interns the lowered index
-    case vc5 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
+    vc_arm (hv : EStore.view _ h = some (.bvar _)) (hd : denoteE _ ?res = denoteEView _ _)
+        ⊢ RelE _ _ h _ ?res =>
       exact RelE.src_eq (by subst_hyp)
-        (Inst1LAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp)
-          (by subst_hyp) (by subst_hyp))
+        (Inst1LAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     -- `bvar`, below the cursor
-    case vc8 =>
-      refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl],
-        by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp)
-        (Inst1LAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp)
-          (by subst_hyp))
+    vc_arm (hv : EStore.view _ h = some (.bvar _)) ⊢ RelE _ _ h _ h =>
+      exact RelE.src_eq (by subst_hyp) (Inst1LAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     -- the four leaves
-    case vc9 | vc10 | vc11 | vc12 =>
-      refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl],
-        by grind, by grind, ?_⟩
+    vc_arm (hv : EStore.view _ h = some _) ⊢ RelE _ _ h _ h =>
       exact RelE.src_eq (by subst_hyp)
-        (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
-          (fun _ hh => instantiate1Lift_leaf hh) (by grind))
-    -- `app`, `lam`, `forallE`, `letE`, `proj`: each arm's postcondition, then the
-    -- memo insert's answer
-    case vc14 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (Inst1LAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc17 =>
+        (RelE.leaf_viewV hv (by subst_hyp) (fun _ hh => instantiate1Lift_leaf hh) (by grind))
+    -- `app`: the memo insert's answer, then the arm's postcondition
+    vc_arm (hv : EStore.view _ h = some (.app _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       exact RelE.retarget (Inst1LAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc29 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc32 =>
+        (by bridge_frame) (by bridge_frame)
+    vc_arm (hv : EStore.view _ h = some (.app _ _)) ⊢ RelE _ _ h _ _ =>
+      exact RelE.src_eq (by subst_hyp) (Inst1LAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
+    -- `lam`: the memo insert's answer, then the arm's postcondition
+    vc_arm (hv : EStore.view _ h = some (.lam _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       exact RelE.retarget (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc45 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc48 =>
+        (by bridge_frame) (by bridge_frame)
+    vc_arm (hv : EStore.view _ h = some (.lam _ _)) ⊢ RelE _ _ h _ _ =>
+      exact RelE.src_eq (by subst_hyp) (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
+    -- `forallE`: the memo insert's answer, then the arm's postcondition
+    vc_arm (hv : EStore.view _ h = some (.forallE _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       exact RelE.retarget (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc61 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-    case vc64 =>
+        (by bridge_frame) (by bridge_frame)
+    vc_arm (hv : EStore.view _ h = some (.forallE _ _)) ⊢ RelE _ _ h _ _ =>
+      exact RelE.src_eq (by subst_hyp) (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
+    -- `letE`: the memo insert's answer, then the arm's postcondition
+    vc_arm (hv : EStore.view _ h = some (.letE _ _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
       exact RelE.retarget (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
-        (by grind only [Ext.trans]) (by grind)
-    case vc80 =>
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
-      exact RelE.src_eq (by subst_hyp) (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
-    case vc83 =>
-      obtain ⟨nm, es, _, hn0, _⟩ :=
-        denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
+        (by bridge_frame) (by bridge_frame)
+    vc_arm (hv : EStore.view _ h = some (.letE _ _ _)) ⊢ RelE _ _ h _ _ =>
+      exact RelE.src_eq (by subst_hyp) (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
+    -- `proj`: the struct name's denotation from `denote_eq_projV`
+    vc_arm (hv : EStore.view _ h = some (.proj _ _ _)) ⊢ RelE _ _ (Prod.fst _) _ _ =>
+      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       exact RelE.retarget (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
-        (by grind only [Ext.trans]) (by grind)
-
+        (by bridge_frame) (by bridge_frame)
+    vc_arm (hv : EStore.view _ h = some (.proj _ _ _)) ⊢ RelE _ _ h _ _ =>
+      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
+      exact RelE.src_eq (by subst_hyp) (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
+    -- the callees' preconditions
+    all_goals bridge_vcs [Expr.instantiate1Lift]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2358-2360 instantiate1LiftFast —
 **THEOREM 1 for `instantiate1Lift`, at the entry point**. -/
 theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
@@ -1565,45 +1528,35 @@ theorem instPisAtLift_spec (fuel : Nat) :
   | cons a as ih =>
     intro s₀ c hok hargs hden
     have hrec := ih
-    obtain ⟨xs0, hxs0⟩ := Option.isSome_iff_exists.mp hargs
-    simp only [Frontend.denoteEList] at hxs0
-    split at hxs0
-    · rename_i ea eas hea heas
-      have hil := fun (s : AState) (e : EIdx) =>
-        instantiate1LiftFast_spec fuel s e a 0 ea
-      vcgen [instPisAtLift, hrec, hil]
-      all_goals try bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO,
-        Frontend.denoteEList]
-      -- THREE verification conditions survive the closer: the `cons` step's
-      -- own postcondition, the recursive call's `denoteEList` precondition at
-      -- the store the nested lift left behind, and the non-`∀` head.
-      next =>
-        bridge_peel
-        subst_vars
-        tf_views
-        rename_i hans _ _ _
-        refine ⟨by assumption, by grind only [Ext.trans], by grind, by grind, ?_⟩
-        intro xs hxs
-        simp only [Frontend.denoteEList, hea, heas] at hxs
-        obtain rfl := Option.some.inj hxs
-        refine RelEO.instPisAtLift_cons hok.wf (by subst_hyp) (by subst_hyp) ?_
-        exact hans _ (denoteEList_ext (by subst_hyp) _ _ heas)
-      next =>
-        bridge_peel
-        subst_vars
-        rename_i hx2 _ _ _ _ _
-        rw [denoteEList_ext hx2 _ _ heas]
-        rfl
-      next =>
-        bridge_peel
-        subst_vars
-        tf_views
-        refine ⟨hok, Ext.refl _, rfl, rfl, ?_⟩
-        intro xs hxs
-        simp only [Frontend.denoteEList, hea, heas] at hxs
-        obtain rfl := Option.some.inj hxs
-        exact RelEO.instPisAtLift_none hok.wf (by assumption) (by assumption)
-    · exact absurd hxs0 (by simp)
+    obtain ⟨ea, hea⟩ : ∃ ea, denoteE s₀.store a = some ea := by
+      obtain ⟨xs0, hxs0⟩ := Option.isSome_iff_exists.mp hargs
+      cases h : denoteE s₀.store a <;> simp_all [Frontend.denoteEList]
+    obtain ⟨eas, heas⟩ : ∃ eas, Frontend.denoteEList s₀.store as = some eas := by
+      obtain ⟨xs0, hxs0⟩ := Option.isSome_iff_exists.mp hargs
+      cases h : Frontend.denoteEList s₀.store as <;> simp_all [Frontend.denoteEList]
+    have hil := fun (s : AState) (e : EIdx) =>
+      instantiate1LiftFast_spec fuel s e a 0 ea
+    vcgen [instPisAtLift, hrec, hil]
+    all_goals (bridge_peel; subst_vars)
+    bridge_frame
+    -- the `cons` step's own postcondition: the head instantiated, then the
+    -- recursive call's answer
+    vc_arm (hans : ∀ xs, Frontend.denoteEList _ as = some xs → _) =>
+      tf_views
+      intro xs hxs
+      simp only [Frontend.denoteEList, hea, heas] at hxs
+      obtain rfl := Option.some.inj hxs
+      refine RelEO.instPisAtLift_cons hok.wf (by subst_hyp) (by subst_hyp) ?_
+      exact hans _ (denoteEList_ext (by subst_hyp) _ _ heas)
+    -- the non-`∀` head
+    vc_arm (hnf : ¬ (c.tag == ETag.forallE) = true) ⊢ ∀ _, _ =>
+      tf_views
+      intro xs hxs
+      simp only [Frontend.denoteEList, hea, heas] at hxs
+      obtain rfl := Option.some.inj hxs
+      exact RelEO.instPisAtLift_none hok.wf (by assumption) (by assumption)
+    -- the callees' preconditions
+    all_goals bridge_vcs [Expr.instPisAtLift, RelEO, denoteEO, Frontend.denoteEList]
 
 /-! ## L. Theorem 1 for `instantiateList` -/
 
@@ -1664,17 +1617,14 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instListArmApp, hrec]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
-  -- ONE verification condition survives: `internAppE`'s postcondition, the
-  -- arm's ANSWER (there is no memo insert behind it — this is the unmemoized
-  -- walk).
-  next =>
-    bridge_peel
-    subst_vars
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-    exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame [InstLVec.ext]
+  -- the arm's ANSWER, through `internAppE`'s postcondition (there is no memo
+  -- insert behind it — this is the unmemoized walk)
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+  -- the callees' preconditions
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 BINDER ARM (`lam` and `forallE` in one, as the tag dispatch tests them). -/
 theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
@@ -1688,25 +1638,21 @@ theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instListArmBind, hrec]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
+  bridge_frame [InstLVec.ext]
   all_goals have hvw := view_of_viewBind (i := c) (Eq.symm ‹some _ = EStore.viewBind _ c›)
+  -- the arm's postcondition, through `internBindE`'s answer
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) ?_
+    grind
+  -- `internBindE`'s side conditions (the rebuilt children have views) and
+  -- the two recursive calls' subjects (they denote)
   all_goals first
-    -- the arm's postcondition, through `internBindE`'s answer
-    | (refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind,
-         by grind, by grind, ?_⟩
-       refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp)
-         (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-         (by subst_hyp) ?_
-       grind)
-    -- `internBindE`'s side conditions: the rebuilt children have views
     | (have h2 := isSome_eBindView hok.wf hvw hden
        exact view_isSome (by grind))
-    -- the two recursive calls' subjects denote
     | exact (isSome_eBindView hok.wf hvw hden).1
     | (have h2 := isSome_eBindView hok.wf hvw hden
        grind)
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `letE` ARM; the body descends at `dd + 1`. -/
 theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
@@ -1720,15 +1666,11 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instListArmLet, hrec]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
-  next =>
-    bridge_peel
-    subst_vars
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-    exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp)
-
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame [InstLVec.ext]
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList — the
 `proj` ARM.  The struct NAME is carried unchanged, and its denotation comes
 from `denote_eq_proj`'s existential, which `grind` cannot see through. -/
@@ -1743,17 +1685,14 @@ theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instListArmProj, hrec]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
-  next =>
-    bridge_peel
-    subst_vars
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame [InstLVec.ext]
+  vc_arm ⊢ RelE _ _ c _ _ =>
     obtain ⟨nm, es, _, hn0, _⟩ :=
       denote_eq_proj hok.wf (h := c)
         (view_of_viewProj_tag htg (by subst_hyp)) hden
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
-    exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
-
+    exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — the
 `bvar` ARM, the one arm of this walk that is not a congruence: it recurses
 into the REPLACEMENT with the SHORTER vector `lastEidx vs (j - d)`, which is
@@ -1773,35 +1712,30 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := fun (m : Nat) => (ih m).run
   vcgen [instListArmBVar, hrec]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.last,
-    InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  -- `j < d`: a bound variable of the term itself.
-  next =>
-    exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-      InstLAt.bvar_below hok.wf
-        (view_of_viewBVar_tag (by subst_hyp) (by subst_hyp)) (by subst_hyp)⟩
-  -- in range, the twin's HOISTED cutoff firing at the replacement.
-  next =>
-    exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-      InstLAt.bvar_cutV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by grind) (by grind)⟩
-  -- in range, con-leche's own recursion into the replacement at the SHORTER
-  -- vector.
-  next =>
-    exact ⟨by assumption, by assumption, by assumption, by assumption,
-      by assumption,
-      InstLAt.bvar_recV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by assumption)⟩
-  -- that recursion's subject denotes.
-  next =>
-    exact InstLVec.isSome_get hvec (by subst_hyp)
-  -- out of range: the index drops by the vector's length.
-  next =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
+  bridge_frame [InstLVec.ext]
+  -- `j < d`: a bound variable of the term itself
+  vc_arm (hlt : _ < dd) ⊢ RelE _ _ c _ c =>
+    exact InstLAt.bvar_below hok.wf
+      (view_of_viewBVar_tag (by subst_hyp) (by subst_hyp)) (by subst_hyp)
+  -- in range, the twin's HOISTED cutoff firing at the replacement
+  vc_arm ⊢ RelE _ _ c _ (GetElem.getElem vs _ _) =>
+    exact InstLAt.bvar_cutV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by grind) (by grind)
+  -- out of range: the index drops by the vector's length
+  vc_arm (hd : denoteE _ ?res = denoteEView _ (.bvar _)) ⊢ RelE _ _ c _ ?res =>
     exact InstLAt.bvar_aboveV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp)
-
+  -- in range, con-leche's own recursion into the replacement at the SHORTER
+  -- vector
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    exact InstLAt.bvar_recV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by assumption)
+  -- that recursion's subject denotes
+  vc_arm ⊢ (denoteE _ (GetElem.getElem vs _ _)).isSome = true =>
+    exact InstLVec.isSome_get hvec (by subst_hyp)
+  -- and its shorter vector
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.last, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:191-235 instantiateList —
 **THEOREM 1 for the unmemoized bulk instantiation**, by induction on the fuel,
 generalised over the vector (which the `.bvar` arm shortens).
@@ -1839,24 +1773,17 @@ theorem instantiateList_spec :
     have hbvar := instListArmBVar_spec vs ws fuel
       (fun m => ih (lastEidx vs m) (ws.take m))
     vcgen [instantiateList_succ, happ, hbind, hbvar, hlet, hproj]
-    all_goals try bridge_vcs [Expr.instantiateList]
-    -- TWO verification conditions survive the closer: the derived-word cutoff
-    -- and the catch-all leaf.
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-        InstLAt.cutoff hok.wf (by grind) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
+    all_goals (bridge_peel; subst_vars)
+    bridge_frame [InstLVec.ext, MemoOK.mono]
+    -- the derived-word cutoff
+    vc_arm (hcut : true = true → _) ⊢ RelE _ _ h _ h =>
+      exact InstLAt.cutoff hok.wf (by grind) (by grind)
+    -- the catch-all leaf, past the five tag tests
+    vc_arm (hnb : ¬ (h.tag == ETag.bvar) = true) ⊢ RelE _ _ h _ h =>
       obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
       obtain ⟨vw, hvw⟩ := denoteE_view he0
-      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
-        InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
-          (by grind)⟩
-
-/-! ### `instantiateListGo`, the memoized walk -/
+      exact InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
+        (by grind)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of the MEMOIZED `instantiateListGo`'s recursion.  The memo table is
@@ -1887,23 +1814,19 @@ theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   have hrec := ih.run
   vcgen [instListGoArmApp, hrec,
     instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  -- the arm's postcondition, then the memo insert's answer
-  next =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp)
-  next =>
-    refine RelE.retarget ?_ ?_ hden
-    · exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by subst_hyp)
-    · grind only [Ext.trans]
-
+  bridge_frame [MemoOK.mono, InstLVec.ext]
+  -- the memo hit
+  vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+    exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+  -- the memo insert's answer, then the arm's
+  vc_arm ⊢ RelE _ _ (Prod.fst _) _ _ =>
+    exact RelE.retarget (InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
+      (by bridge_frame) (by bridge_frame)
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+  -- the callees' preconditions
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 BINDER ARM. -/
 theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
@@ -1919,32 +1842,28 @@ theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   have hrec := ih.run
   vcgen [instListGoArmBind, hrec,
     instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  all_goals have hvw := view_of_viewBind (i := c) (Eq.symm ‹some _ = EStore.viewBind _ c›)
+  bridge_frame [MemoOK.mono, InstLVec.ext]
+  -- the memo hit
+  vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+    exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+  all_goals try (have hvw := view_of_viewBind (i := c) (Eq.symm ‹some _ = EStore.viewBind _ c›))
+  -- the memo insert's answer, then the arm's postcondition
+  vc_arm ⊢ RelE _ _ (Prod.fst _) _ _ =>
+    refine RelE.retarget (InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) (by subst_hyp)
+      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by grind)) ?_ ?_
+    all_goals bridge_frame
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) ?_
+    grind
+  -- `internBindE`'s side conditions (the rebuilt children have views) and
+  -- the two recursive calls' subjects (they denote)
   all_goals first
-    -- the arm's postcondition, then the memo insert's answer
-    | (refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-         by grind only [Ext.trans],
-         by grind, by grind, ?_⟩
-       refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp)
-         (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-         (by subst_hyp) ?_
-       grind)
-    | (refine RelE.retarget ?_ ?_ hden
-       · refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp)
-           (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-           (by subst_hyp) ?_
-         grind
-       · grind only [Ext.trans])
-    -- `internBindE`'s side conditions: the rebuilt children have views
     | (have h2 := isSome_eBindView hok.wf hvw hden
        exact view_isSome (by grind))
-    -- the two recursive calls' subjects denote
     | exact (isSome_eBindView hok.wf hvw hden).1
     | (have h2 := isSome_eBindView hok.wf hvw hden
        grind)
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `letE` ARM; the body descends at `dd + 1`. -/
 theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
@@ -1960,23 +1879,19 @@ theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   have hrec := ih.run
   vcgen [instListGoArmLet, hrec,
     instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  -- the arm's postcondition, then the memo insert's answer
-  next =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp)
-  next =>
-    refine RelE.retarget ?_ ?_ hden
-    · exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
-    · grind only [Ext.trans]
-
+  bridge_frame [MemoOK.mono, InstLVec.ext]
+  -- the memo hit
+  vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+    exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+  -- the memo insert's answer, then the arm's
+  vc_arm ⊢ RelE _ _ (Prod.fst _) _ _ =>
+    exact RelE.retarget (InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
+      (by bridge_frame) (by bridge_frame)
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
+  -- the callees' preconditions
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo — the
 `proj` ARM.  The struct NAME is carried unchanged, and its denotation comes
 from `denote_eq_proj`'s existential, which `grind` cannot see through. -/
@@ -1993,25 +1908,25 @@ theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   have hrec := ih.run
   vcgen [instListGoArmProj, hrec,
     instLSet_specG (f := fun dd e => Expr.instantiateList e ws dd)]
-  all_goals try bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
   all_goals (bridge_peel; subst_vars)
-  all_goals
+  bridge_frame [MemoOK.mono, InstLVec.ext]
+  -- the memo hit
+  vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+    exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+  -- the memo insert's answer, then the arm's
+  vc_arm ⊢ RelE _ _ (Prod.fst _) _ _ =>
     obtain ⟨nm, es, _, hn0, _⟩ :=
       denote_eq_proj hok.wf (h := c)
         (view_of_viewProj_tag htg (by subst_hyp)) hden
-  -- the arm's postcondition, then the memo insert's answer
-  next =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
-      (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
-  next =>
-    refine RelE.retarget ?_ ?_ hden
-    · exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp)
-        (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
-    · grind only [Ext.trans]
-
+    exact RelE.retarget (InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
+      (by bridge_frame) (by bridge_frame)
+  vc_arm ⊢ RelE _ _ c _ _ =>
+    obtain ⟨nm, es, _, hn0, _⟩ :=
+      denote_eq_proj hok.wf (h := c)
+        (view_of_viewProj_tag htg (by subst_hyp)) hden
+    exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
+  -- the callees' preconditions
+  all_goals bridge_vcs [Expr.instantiateList, InstLVec.ext, InstLVec.length]
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:267-303 instantiateListGo —
 **THEOREM 1 for the memoized bulk instantiation**.  Its `.bvar` arm delegates
 to the unmemoized walk above, exactly as con-leche's does, so the proof
@@ -2035,23 +1950,17 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
     have hproj := instListGoArmProj_spec vs ws fuel ih
     have hpure := (instantiateList_spec fuel vs ws).run
     vcgen [instantiateListGo_succ, happ, hbind, hlet, hproj, hpure]
-    all_goals try bridge_vcs [Expr.instantiateList]
-    -- TWO verification conditions survive the closer: the derived-word cutoff
-    -- and the catch-all leaf.  The `.bvar` branch is the UNMEMOIZED walk, by
-    -- name, exactly as con-leche's is.
-    next =>
-      bridge_peel
-      subst_vars
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
-        InstLAt.cutoff hok.wf (by grind) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
+    all_goals (bridge_peel; subst_vars)
+    bridge_frame [InstLVec.ext, MemoOK.mono]
+    -- the derived-word cutoff
+    vc_arm (hcut : true = true → _) ⊢ RelE _ _ h _ h =>
+      exact InstLAt.cutoff hok.wf (by grind) (by grind)
+    -- the catch-all leaf, past the five tag tests
+    vc_arm (hnb : ¬ (h.tag == ETag.bvar) = true) ⊢ RelE _ _ h _ h =>
       obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
       obtain ⟨vw, hvw⟩ := denoteE_view he0
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
-        InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
-          (by grind)⟩
+      exact InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
+        (by grind)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast —
 **THEOREM 1 for `instantiateList`, at the entry point**. -/
