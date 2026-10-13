@@ -74,6 +74,20 @@ theorem get_app_spine_go_aux (n : Nat) :
   rw [arena.core.head_and_args, headAndArgs]
   lockstep
 
+/-- `io_neutral` (the η guard: the spine head's tag is not λ, `let` or a
+bound variable) against `ioNeutral`. -/
+@[lockstep] theorem io_neutral_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.io_neutral pers st e) st lst
+      (ioNeutral (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.core.io_neutral, ioNeutral]
+  lockstep
+  -- glue: the port answers `t != BVAR`, the twin tests and answers a literal
+  split
+  · rename_i hb; subst hb; rw [bne_self_eq_false]; lockstep
+  · rename_i hb; rw [bne_iff_ne.mpr hb]; lockstep
+
 /-! ## Straight-line state-threading helpers -/
 
 section
@@ -386,6 +400,7 @@ end tele
 
 #print axioms get_app_spine_ls
 #print axioms head_and_args_ls
+#print axioms io_neutral_ls
 #print axioms intern_app_rebuilt_ls
 #print axioms defeq_no_fvars_ls
 #print axioms fab_scope_ok_ls
