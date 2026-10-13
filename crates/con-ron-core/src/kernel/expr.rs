@@ -3,7 +3,7 @@
 //! The `Level` half of that file (lines 35-139: the `Level` inductive, its
 //! `Hashable`/`BEq` instances, `levelHasParam`, `levelsHaveParam`,
 //! `levelHash` and `levelsHash`) was ported at task #3 and lives in
-//! `crate::kernel::level`; this module is everything from `BinderMeta` on.
+//! `crate::kernel::level`; this module is everything from `Literal` on.
 //!
 //! Conventions, as in `name.rs` and `level.rs`: an `Expr` is a `P` tree
 //! whose node stores the `@[computed_field] data` word, written by the smart
@@ -91,68 +91,19 @@ use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::ron::nat;
-use crate::kernel::prop_when;
-use crate::kernel::prop_when::PropWhen;
 use crate::ron::ptr;
 use crate::ron::ptr::P;
 
 // ---------------------------------------------------------------------------
-// Binder metadata and literals (`Expr.lean:93-112`)
+// Literals (`Expr.lean:92-96`)
 // ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::BinderMeta_refines, then delete this line
-/// The one datum a binder carries: the codomain prop-ness annotation, which
-/// the untrusted annotate pass writes and the checker validates.
-///
-/// **The datum is inline again (task #90).**  Task #38 put the whole
-/// `PropWhen` behind its own `P` handle, because a `PropWhen` was 24 bytes by
-/// value at the time (`PropWhenRepr::Many(Vec<Name>)` set the width) and a
-/// binder datum sits *inside* `ExprKind::Lam`/`ForallE`.  `PropWhen` is now
-/// one word wider than its own tag — `Never`/`Always`/`One` cost no heap
-/// cell, and only the rare `Two`/`Many` box their payload (`prop_when.rs`'s
-/// module note) — so boxing `BinderMeta` on top of that bought nothing but
-/// an extra allocation and a reference count on the checker's hottest arm:
-/// the field goes back to holding a `PropWhen` by value, one word narrower
-/// than the `P<PropWhen>` it replaces (16 bytes against a 40-byte `P` block).
-/// `absBinderMeta` is unchanged either way, because `P<T>` is modeled as `T`
-/// (DESIGN.md §3.2).
-pub struct BinderMeta {
-    pub pw: PropWhen,
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::binder_meta_refines, then delete this line
-/// The cited structure's anonymous constructor: every caller hands over a
-/// `PropWhen` by value, as the Lean constructor does, and (task #90) the
-/// field now just holds it.
-pub fn binder_meta(pw: PropWhen) -> BinderMeta {
-    BinderMeta { pw }
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::binder_meta_beq_refines, then delete this line
-/// The cited `deriving DecidableEq`, spelled out so that the comparison goes
-/// through `PropWhen.decEq` rather than a derived structural walk.
-pub fn binder_meta_beq(a: &BinderMeta, b: &BinderMeta) -> bool {
-    prop_when::beq(&a.pw, &b.pw)
-}
-
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-/// Share a binder datum.  Task #90: `PropWhen`'s own `dup` (a reference bump
-/// on its rare `Two`/`Many` arms, a plain copy otherwise), not `ptr::clone` —
-/// the field is no longer itself behind a handle.
-pub fn binder_meta_dup(m: &BinderMeta) -> BinderMeta {
-    BinderMeta { pw: prop_when::dup(&m.pw) }
-}
 
 /// con-leche: ConLeche/Kernel/Expr.lean:92-96 Literal
 /// The two literals.  Deviation (DESIGN.md §3.3): `natVal`'s `Nat` is
 /// `crate::ron::nat::Nat`, the crate's own bignum, and `strVal`'s `String` is a
 /// `Vec<u32>` of code points.
 ///
-/// **Both payloads are behind a handle** (task #38, and the note on
-/// `BinderMeta`): a `Vec` header is 24 bytes, so an inline `Literal` was 32
+/// **Both payloads are behind a handle** (task #38): a `Vec` header is 24 bytes, so an inline `Literal` was 32
 /// and `ExprKind::Lit` was one of the two arms that kept the node wide once
 /// the binder datum had shrunk.  Behind handles the literal is two words.  Every
 /// *pattern* is unchanged — `P<T>` derefs to `T`, and `P<T>` is modeled as
@@ -347,8 +298,8 @@ pub enum ExprKind {
     Sort(Level),
     Const(Name, P<Vec<Level>>),
     App(Expr, Expr),
-    Lam(Expr, Expr, BinderMeta),
-    ForallE(Expr, Expr, BinderMeta),
+    Lam(Expr, Expr),
+    ForallE(Expr, Expr),
     LetE(Expr, Expr, Expr),
     Lit(Literal),
     Proj(Name, u64, Expr),
@@ -406,8 +357,8 @@ pub enum ExprView<'a> {
     Sort(&'a Level),
     Const(&'a Name, &'a P<Vec<Level>>),
     App(&'a Expr, &'a Expr),
-    Lam(&'a Expr, &'a Expr, &'a BinderMeta),
-    ForallE(&'a Expr, &'a Expr, &'a BinderMeta),
+    Lam(&'a Expr, &'a Expr),
+    ForallE(&'a Expr, &'a Expr),
     LetE(&'a Expr, &'a Expr, &'a Expr),
     Lit(&'a Literal),
     Proj(&'a Name, &'a u64, &'a Expr),
@@ -426,8 +377,8 @@ pub fn view<'a>(e: &'a Expr) -> ExprView<'a> {
         ExprKind::Sort(u) => ExprView::Sort(u),
         ExprKind::Const(n, us) => ExprView::Const(n, us),
         ExprKind::App(f, a) => ExprView::App(f, a),
-        ExprKind::Lam(ty, body, m) => ExprView::Lam(ty, body, m),
-        ExprKind::ForallE(ty, body, m) => ExprView::ForallE(ty, body, m),
+        ExprKind::Lam(ty, body) => ExprView::Lam(ty, body),
+        ExprKind::ForallE(ty, body) => ExprView::ForallE(ty, body),
         ExprKind::LetE(ty, value, body) => ExprView::LetE(ty, value, body),
         ExprKind::Lit(l) => ExprView::Lit(l),
         ExprKind::Proj(n, idx, sub) => ExprView::Proj(n, idx, sub),
@@ -524,26 +475,22 @@ pub fn app(f: Expr, a: Expr) -> Expr {
 /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::lam_refines, then delete this line
 /// con-leche: ConLeche/Cached/ExprNodes.lean:95-96 mkLam
 /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::lam_refines, then delete this line
-/// `Expr.lam`: hash tag 19 over the type, the body and the binder datum; the
-/// bvar bound drops the bound occurrence (`satPred` on the body's), the fvar
-/// range does not, and the level-param bit picks up `m.pw.hasParams`.
-pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
+/// `Expr.lam`: hash tag 19 over the type and the body; the bvar bound drops
+/// the bound occurrence (`satPred` on the body's), the fvar range does not.
+pub fn lam(ty: Expr, body: Expr) -> Expr {
     let dt: u64 = data(&ty);
     let db: u64 = data(&body);
     let h: u64 = hash32(name::mix_hash(
         19,
-        name::mix_hash(
-            hash_of_data(dt),
-            name::mix_hash(hash_of_data(db), prop_when::hash_pw(&m.pw)),
-        ),
+        name::mix_hash(hash_of_data(dt), hash_of_data(db)),
     ));
     let d: u64 = pack_data(
         h,
         max_u64(bvar_of_data(dt), sat_pred(bvar_of_data(db))),
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
-        lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
+        lp_of_data(dt) || lp_of_data(db),
     );
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lam(ty, body, m) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::Lam(ty, body) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
@@ -551,23 +498,20 @@ pub fn lam(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
 /// con-leche: ConLeche/Cached/ExprNodes.lean:98-99 mkForallE
 /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::forall_e_refines, then delete this line
 /// `Expr.forallE`: `lam`'s equation with hash tag 23.
-pub fn forall_e(ty: Expr, body: Expr, m: BinderMeta) -> Expr {
+pub fn forall_e(ty: Expr, body: Expr) -> Expr {
     let dt: u64 = data(&ty);
     let db: u64 = data(&body);
     let h: u64 = hash32(name::mix_hash(
         23,
-        name::mix_hash(
-            hash_of_data(dt),
-            name::mix_hash(hash_of_data(db), prop_when::hash_pw(&m.pw)),
-        ),
+        name::mix_hash(hash_of_data(dt), hash_of_data(db)),
     ));
     let d: u64 = pack_data(
         h,
         max_u64(bvar_of_data(dt), sat_pred(bvar_of_data(db))),
         max_u64(fvar_of_data(dt), fvar_of_data(db)),
-        lp_of_data(dt) || lp_of_data(db) || prop_when::has_params(&m.pw),
+        lp_of_data(dt) || lp_of_data(db),
     );
-    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::ForallE(ty, body, m) }))
+    Expr(ptr::new(ExprNode { data: d, kind: ExprKind::ForallE(ty, body) }))
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
@@ -654,8 +598,8 @@ pub fn beq_recursive(e: &Expr) -> bool {
     match view(e) {
         ExprView::Fvar(_, _) => true,
         ExprView::App(_, _) => true,
-        ExprView::Lam(_, _, _) => true,
-        ExprView::ForallE(_, _, _) => true,
+        ExprView::Lam(_, _) => true,
+        ExprView::ForallE(_, _) => true,
         ExprView::LetE(_, _, _) => true,
         ExprView::Proj(_, _, _) => true,
         _ => false,
@@ -870,12 +814,8 @@ pub fn beq_arm(m: BeqMap, a: &Expr, b: &Expr) -> (bool, BeqMap) {
         (ExprView::Sort(u), ExprView::Sort(v)) => (level::beq(u, v), m),
         (ExprView::Const(n, us), ExprView::Const(n2, vs)) => (const_beq(n, us, n2, vs), m),
         (ExprView::App(f, x), ExprView::App(g, y)) => beq_both(m, f, g, x, y),
-        (ExprView::Lam(t1, b1, m1), ExprView::Lam(t2, b2, m2)) => {
-            beq_both_when(m, binder_meta_beq(m1, m2), t1, t2, b1, b2)
-        }
-        (ExprView::ForallE(t1, b1, m1), ExprView::ForallE(t2, b2, m2)) => {
-            beq_both_when(m, binder_meta_beq(m1, m2), t1, t2, b1, b2)
-        }
+        (ExprView::Lam(t1, b1), ExprView::Lam(t2, b2)) => beq_both(m, t1, t2, b1, b2),
+        (ExprView::ForallE(t1, b1), ExprView::ForallE(t2, b2)) => beq_both(m, t1, t2, b1, b2),
         (ExprView::LetE(t1, v1, b1), ExprView::LetE(t2, v2, b2)) => {
             beq_three(m, t1, t2, v1, v2, b1, b2)
         }
@@ -998,25 +938,6 @@ pub fn beq_both(m: BeqMap, x1: &Expr, y1: &Expr, x2: &Expr, y2: &Expr) -> (bool,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:845-940 Expr.beqGoX
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::beq_both_when_refines, then delete this line
-/// The cited `.lam`/`.forallE` arms: the binder datum decides the arm, then
-/// the domain and the body.
-pub fn beq_both_when(
-    m: BeqMap,
-    cond: bool,
-    x1: &Expr,
-    y1: &Expr,
-    x2: &Expr,
-    y2: &Expr,
-) -> (bool, BeqMap) {
-    if cond {
-        beq_both(m, x1, y1, x2, y2)
-    } else {
-        (false, m)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:845-940 Expr.beqGoX
 /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr::beq_three_refines, then delete this line
 /// The cited `.letE` arm: the type, the value, the body.
 pub fn beq_three(
@@ -1134,8 +1055,7 @@ pub fn mk_bvar(i: u64) -> Expr {
      These are the *spec* this port will be proved against.
    * `deriving Repr` and the `Repr` instances: rendering only, and §3.1 says
      message strings need not match.
-   * `deriving Inhabited` on `Expr` and `instance : Inhabited BinderMeta`
-     (:106): Lean needs a default for `Array.get!`-style partiality; the port
+   * `deriving Inhabited` on `Expr`: Lean needs a default for `Array.get!`-style partiality; the port
      does not, since `Vec` indexing is checked in the model.
    * the `Level` half (:35-139) — ported at task #3, in `crate::kernel::level`.
    * the accessors this file's docstring points at but does not contain
@@ -1176,7 +1096,6 @@ impl Eq2 for Expr {
 #[cfg(test)]
 mod tests {
     use crate::kernel::expr;
-    use crate::kernel::expr::BinderMeta;
     use crate::kernel::expr::Expr;
     use crate::kernel::expr::ExprView;
     use crate::ron::hashmap::Eq2;
@@ -1187,7 +1106,6 @@ mod tests {
     use crate::kernel::name;
     use crate::kernel::name::Name;
     use crate::ron::nat;
-    use crate::kernel::prop_when;
 
     /// The three fields of a node's data word, read back (con-leche's
     /// `Expr.hasLevelParam'`/`bvarBRaw`/`fvarBRaw`; test-only since task #105).
@@ -1213,20 +1131,6 @@ mod tests {
         s.chars().map(|c| c as u32).collect()
     }
 
-    /// `BinderMeta` with the `never` datum — the parser's default.
-    fn bm_never() -> BinderMeta {
-        expr::binder_meta(prop_when::never())
-    }
-
-    /// `BinderMeta` claiming "prop when these parameters are zero".
-    fn bm(ps: &[&str]) -> BinderMeta {
-        let mut v: Vec<Name> = Vec::new();
-        for s in ps {
-            v.push(nm(s));
-        }
-        expr::binder_meta(prop_when::if_all_zero(v))
-    }
-
     /// A representative battery of terms, each built from scratch.
     fn battery() -> Vec<Expr> {
         let mut v: Vec<Expr> = Vec::new();
@@ -1244,11 +1148,10 @@ mod tests {
             expr::mk_const(nm("Nat.succ"), Vec::new()),
             expr::bvar(0),
         ));
-        v.push(expr::lam(expr::sort(level::zero()), expr::bvar(0), bm_never()));
+        v.push(expr::lam(expr::sort(level::zero()), expr::bvar(0)));
         v.push(expr::forall_e(
             expr::sort(level::zero()),
-            expr::bvar(1),
-            bm(&["u"]),
+            expr::bvar(1)
         ));
         v.push(expr::let_e(
             expr::sort(level::zero()),
@@ -1335,11 +1238,11 @@ mod tests {
         // A binder drops one — but a saturated body stays saturated, since
         // the stored value means "at least".
         let ty = expr::sort(level::zero());
-        let deep = expr::lam(expr::dup(&ty), expr::bvar(1000000), bm_never());
+        let deep = expr::lam(expr::dup(&ty), expr::bvar(1000000));
         assert_eq!(bvar_b_raw(&deep), 32767);
-        let shallow = expr::lam(expr::dup(&ty), expr::bvar(5), bm_never());
+        let shallow = expr::lam(expr::dup(&ty), expr::bvar(5));
         assert_eq!(bvar_b_raw(&shallow), 5);
-        let closed = expr::lam(expr::dup(&ty), expr::bvar(0), bm_never());
+        let closed = expr::lam(expr::dup(&ty), expr::bvar(0));
         assert_eq!(bvar_b_raw(&closed), 0);
         // The fvar range saturates the same way, and does not descend into
         // an `fvar`'s type annotation.
@@ -1371,10 +1274,8 @@ mod tests {
         let l = expr::let_e(expr::bvar(3), expr::bvar(1), expr::bvar(6));
         assert_eq!(bvar_b_raw(&l), 6);
         assert_eq!(fvar_b_raw(&l), 0);
-        // `lam`'s bit picks up the binder datum's parameters.
-        let m = expr::lam(expr::dup(&s0), expr::bvar(0), bm(&["u"]));
-        assert!(has_lp(&m));
-        let m2 = expr::lam(expr::dup(&s0), expr::bvar(0), bm_never());
+        // `lam`'s bit is its children's.
+        let m2 = expr::lam(expr::dup(&s0), expr::bvar(0));
         assert!(!has_lp(&m2));
         // `proj` copies its subterm's fields.
         let p = expr::proj(nm("Prod"), 0, expr::dup(&a));
@@ -1421,34 +1322,25 @@ mod tests {
         let shared = expr::app(expr::bvar(0), expr::bvar(1));
         let dag = expr::lam(
             expr::app(expr::dup(&shared), expr::dup(&shared)),
-            expr::app(expr::dup(&shared), expr::bvar(2)),
-            bm(&["u"]),
+            expr::app(expr::dup(&shared), expr::bvar(2))
         );
         let tree = expr::lam(
             expr::app(
                 expr::app(expr::bvar(0), expr::bvar(1)),
                 expr::app(expr::bvar(0), expr::bvar(1)),
             ),
-            expr::app(expr::app(expr::bvar(0), expr::bvar(1)), expr::bvar(2)),
-            bm(&["u"]),
+            expr::app(expr::app(expr::bvar(0), expr::bvar(1)), expr::bvar(2))
         );
         assert!(!expr::ptr_eq(&dag, &tree));
         assert!(expr::beq(&dag, &tree));
         assert_eq!(expr::data(&dag), expr::data(&tree));
-        // A different binder datum, a different body, a different type.
-        let other_meta = expr::lam(
-            expr::app(expr::dup(&shared), expr::dup(&shared)),
-            expr::app(expr::dup(&shared), expr::bvar(2)),
-            bm(&["v"]),
-        );
-        assert!(!expr::beq(&dag, &other_meta));
+        // A different body, a different type.
         let other_body = expr::lam(
             expr::app(expr::dup(&shared), expr::dup(&shared)),
-            expr::app(expr::dup(&shared), expr::bvar(3)),
-            bm(&["u"]),
+            expr::app(expr::dup(&shared), expr::bvar(3))
         );
         assert!(!expr::beq(&dag, &other_body));
-        let other_ty = expr::lam(expr::dup(&ty), expr::dup(&shared), bm_never());
+        let other_ty = expr::lam(expr::dup(&ty), expr::dup(&shared));
         assert!(!expr::beq(&dag, &other_ty));
     }
 
@@ -1519,8 +1411,8 @@ mod tests {
         ));
         // `lam` and `forallE` are different constructors with the same
         // fields — the tag (and the hash) must separate them.
-        let l = expr::lam(expr::sort(level::dup(&z)), expr::bvar(0), bm_never());
-        let f = expr::forall_e(expr::sort(level::dup(&z)), expr::bvar(0), bm_never());
+        let l = expr::lam(expr::sort(level::dup(&z)), expr::bvar(0));
+        let f = expr::forall_e(expr::sort(level::dup(&z)), expr::bvar(0));
         assert!(!expr::beq(&l, &f));
         assert_ne!(expr::hash(&l), expr::hash(&f));
     }
@@ -1734,13 +1626,11 @@ mod tests {
         assert!(expr::beq_recursive(&expr::app(expr::bvar(0), expr::bvar(0))));
         assert!(expr::beq_recursive(&expr::lam(
             expr::dup(&ty),
-            expr::bvar(0),
-            bm_never()
+            expr::bvar(0)
         )));
         assert!(expr::beq_recursive(&expr::forall_e(
             expr::dup(&ty),
-            expr::bvar(0),
-            bm_never()
+            expr::bvar(0)
         )));
         assert!(expr::beq_recursive(&expr::let_e(
             expr::dup(&ty),
@@ -1771,14 +1661,7 @@ mod tests {
     }
 
     #[test]
-    fn binder_meta_and_literal_helpers() {
-        let m1 = bm(&["u", "v"]);
-        let m2 = bm(&["v", "u"]);
-        // `PropWhen` is canonical, so the two orderings are one datum.
-        assert!(expr::binder_meta_beq(&m1, &m2));
-        assert!(!expr::binder_meta_beq(&m1, &bm_never()));
-        let d = expr::binder_meta_dup(&m1);
-        assert!(expr::binder_meta_beq(&m1, &d));
+    fn literal_helpers() {
         let l = expr::literal_str(cps("héllo"));
         let l2 = expr::literal_dup(&l);
         assert!(expr::literal_beq(&l, &l2));
@@ -1790,14 +1673,12 @@ mod tests {
         assert_eq!(expr::str_copy(&cps("abc")), cps("abc"));
     }
 
-    /// Task #90: `PropWhen` inlined again in `BinderMeta` (task #38's
-    /// `P<PropWhen>` indirection removed).  Printed and pinned so a further
-    /// repacking announces its own saving here, next to `con-ron-dump`'s
-    /// fuller `node_sizes` table.
+    /// Task #90's size table (task #119: the binder datum is gone from the
+    /// node).  Printed so a further repacking announces its own saving here,
+    /// next to `con-ron-dump`'s fuller `node_sizes` table.
     #[test]
     fn task_90_sizes() {
         eprintln!("PropWhen        {}", std::mem::size_of::<crate::kernel::prop_when::PropWhen>());
-        eprintln!("BinderMeta      {}", std::mem::size_of::<BinderMeta>());
         eprintln!("Expr (handle)   {}", std::mem::size_of::<Expr>());
         eprintln!("ExprKind        {}", std::mem::size_of::<super::ExprKind>());
         eprintln!("ExprNode        {}", std::mem::size_of::<super::ExprNode>());

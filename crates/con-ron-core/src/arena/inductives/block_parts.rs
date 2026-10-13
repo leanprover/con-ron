@@ -431,7 +431,7 @@ pub fn rec_target_of(
             if q.1.tag() == ETAG_FORALL_E {
                 match view_bind(pers, st, &q.1) {
                     None => fail_dangling_e(),
-                    Some((dom, _, _)) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &dom) {
+                    Some((dom, _)) => match expr_ops::get_app_fn(pers, st, CORE_WALK_FUEL, &dom) {
                         Err(e) => Err(e),
                         Ok(hd) => {
                             if hd.tag() == ETAG_CONST {

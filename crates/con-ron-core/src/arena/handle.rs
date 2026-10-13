@@ -161,24 +161,6 @@ pub struct LsIdx {
     pub word: u32,
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::BMIdx_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:73-83 BMIdx` — `BMIdx`, a handle
-/// into the **binder datum store**: the same word layout as the other four (tag
-/// 0, the tier bit, the index), for a store with ONE constructor and so no tag
-/// to spend.
-///
-/// DESIGN.md §8.3 gives `lam`/`forallE` a `BinderMeta` INSIDE the node
-/// record, which makes the record twenty-four bytes with a `PropWhen` — and
-/// a `PropWhen` is `Arc`-carrying at `one`/`two`/`many`, so every `dup2` of a
-/// binder record is a reference count and every cons probe of the binder
-/// tables compares one (task #97-P6-10 §3 priced the pair at 2–3 % of
-/// `Init`).  With the datum interned the record is three `u32`s of POD, its
-/// hash is `pack2`-shaped like the other nine, and its `eq2` is three word
-/// comparisons.
-pub struct BMIdx {
-    pub word: u32,
-}
 
 // ---------------------------------------------------------------------------
 // Per-kind operations: `Handle.lean`'s `Idx.*` at each of the four kinds
@@ -223,44 +205,6 @@ impl EIdx {
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::impl BMIdx_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:112-117 Idx.mk` —
-/// `Idx.mk`/`tier`/`index`/`isPersistent`/`idxNat` at the binder-datum store.
-/// The tag field is always `0`: the store has one constructor.
-impl BMIdx {
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::pack_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Handle.lean:112-117 Idx.mk` — `Idx.mk` at
-    /// the binder-datum store.
-    pub fn pack(tier: u32, idx: u32) -> BMIdx {
-        BMIdx { word: word_mk(0, tier, idx) }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::of_word_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Handle.lean:61 Idx.ofWord` — `Idx.ofWord`
-    /// at the binder-datum store.
-    pub fn of_word(w: u32) -> BMIdx {
-        BMIdx { word: w }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::is_persistent_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent` —
-    /// `Idx.isPersistent` at the binder-datum store.
-    pub fn is_persistent(&self) -> bool {
-        word_is_persistent(self.word)
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::idx_nat_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat` —
-    /// `Idx.idxNat` at the binder-datum store.
-    pub fn idx_nat(&self) -> usize {
-        word_idx_nat(self.word)
-    }
-}
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:57-63 Idx
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .name`.
@@ -487,21 +431,7 @@ impl Dup for LsIdx {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
-impl Eq2 for BMIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
-    fn eq2(&self, other: &BMIdx) -> bool {
-        self.word == other.word
-    }
-}
 
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for BMIdx {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> BMIdx {
-        BMIdx { word: self.word }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The constructor tags (`Handle.lean:204-279`)

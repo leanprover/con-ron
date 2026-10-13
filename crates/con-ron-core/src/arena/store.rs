@@ -67,11 +67,8 @@
 use crate::kernel::core_types::code_points;
 use crate::kernel::core_types::CheckError;
 use crate::kernel::expr;
-use crate::kernel::expr::BinderMeta;
 use crate::kernel::expr::Literal;
 use crate::kernel::name;
-use crate::kernel::prop_when;
-use crate::kernel::prop_when::PropWhen;
 use crate::ron::hashmap::Dup;
 use crate::ron::hashmap::Eq2;
 // The arena's tables are the epoch-stamped open-addressed map
@@ -85,7 +82,6 @@ use crate::arena::core_state::reset_map;
 use std::vec::Vec;
 
 use crate::arena::handle::e_tag_is_bind;
-use crate::arena::handle::BMIdx;
 use crate::arena::handle::EIdx;
 use crate::arena::handle::LIdx;
 use crate::arena::handle::LsIdx;
@@ -879,32 +875,6 @@ pub struct AppNode {
 pub struct BindNode {
     pub ty: EIdx,
     pub body: EIdx,
-    pub m: BMIdx,
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::BMNode_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` — `BMNode`, the
-/// binder-datum store's one record: a `BinderMeta`'s `PropWhen`, hash-consed
-/// exactly as every other node of the arena is, so that a `BindNode` names it
-/// by a `u32`.
-///
-/// **Why the datum leaves the node record** (task #97-P6-10 §3, priced there
-/// and taken here).  `PropWhen` is sixteen bytes and `Arc`-carrying at
-/// `one`/`two`/`many`, so the binder record was twenty-four bytes with a
-/// reference count inside it: `Tbl<BindNode>::dup2` was a `binder_meta_dup`,
-/// `Tbl<BindNode>::eq2` a `prop_when::beq` and `hash64` a `hash_pw`, at every
-/// probe of the two hottest cons tables after `apps`.  Interned, the record is
-/// three `u32`s of POD and the datum is compared, hashed and copied ONCE per
-/// distinct value instead of once per binder node.
-///
-/// The cons discipline is the store's own (DESIGN.md §8.3): the persistent
-/// table is probed before the scratch one, so a scratch datum never
-/// duplicates a persistent one and `BMIdx` equality is `PropWhen` equality —
-/// which is what keeps `denote` injective on `lam`/`forallE` now that the
-/// node record names the datum rather than holding it.
-pub struct BMNode {
-    pub pw: PropWhen,
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
@@ -1013,29 +983,13 @@ impl Hashable for AppNode {
 impl Hashable for BindNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:283-291 BindNode
     ///
-    /// **Three words, packed** (task #97-P6-16): the datum is a `BMIdx` now,
-    /// so the record hashes the way `ProjNode` and `LetNode` do — the two
-    /// handles into one `u64` by `pack2`, folded with the third — instead of
-    /// folding in a `hash_pw` that walked a `PropWhen`.
+    /// **Two words, packed** (task #119: no binder datum): the two handles
+    /// into one `u64` by `pack2`, as `AppNode`'s.
     fn hash64(&self) -> u64 {
-        fold3(pack2(self.ty.word, self.body.word), self.m.word as u64)
+        pack2(self.ty.word, self.body.word)
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::impl Hashable for BMNode_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` — the binder-datum
-/// store's cons key.
-impl Hashable for BMNode {
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::hash64_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:293-311 BMNode` —
-    /// `PropWhen.hash`, which is what the binder record used to fold in at
-    /// every probe.
-    fn hash64(&self) -> u64 {
-        prop_when::hash_pw(&self.pw)
-    }
-}
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:313-319 LetNode
 impl Hashable for LetNode {
@@ -1118,30 +1072,13 @@ impl Eq2 for BindNode {
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:340 instBEqBindNode
     fn eq2(&self, other: &BindNode) -> bool {
         if self.ty.word == other.ty.word {
-            if self.body.word == other.body.word {
-                self.m.word == other.m.word
-            } else {
-                false
-            }
+            self.body.word == other.body.word
         } else {
             false
         }
     }
 }
 
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::impl Eq2 for BMNode_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Store.lean:341 instBEqBMNode` — the
-/// binder-datum store's key equality, which is `BinderMeta`'s own `DecidableEq`
-/// (`expr::binder_meta_beq`'s body).
-impl Eq2 for BMNode {
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::eq2_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:341 instBEqBMNode`
-    fn eq2(&self, other: &BMNode) -> bool {
-        prop_when::beq(&self.pw, &other.pw)
-    }
-}
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:342 instBEqLetNode
 impl Eq2 for LetNode {
@@ -1230,18 +1167,10 @@ impl Dup for BindNode {
         BindNode {
             ty: self.ty.dup2(),
             body: self.body.dup2(),
-            m: self.m.dup2(),
         }
     }
 }
 
-/// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-impl Dup for BMNode {
-    /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
-    fn dup2(&self) -> BMNode {
-        BMNode { pw: prop_when::dup(&self.pw) }
-    }
-}
 
 /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
 impl Dup for LetNode {
@@ -1271,17 +1200,17 @@ impl Dup for ProjNode {
 /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::ENodeView_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Store.lean:346-361 ENodeView` — the
 /// store-side view of an expression node: con-leche's ten constructors with
-/// every subterm replaced by a handle.  `BinderMeta` and `Literal` stay
-/// *values* (they are not expressions), exactly as DESIGN.md §8.3 specifies,
-/// and they are `con-ron-core`'s own types.
+/// every subterm replaced by a handle.  `Literal` stays a *value* (it is
+/// not an expression), exactly as DESIGN.md §8.3 specifies,
+/// and it is `con-ron-core`'s own type.
 pub enum ENodeView {
     BVar(u64),
     FVar(u64, EIdx),
     Sort(LIdx),
     Const(NIdx, LsIdx),
     App(EIdx, EIdx),
-    Lam(EIdx, EIdx, BinderMeta),
-    ForallE(EIdx, EIdx, BinderMeta),
+    Lam(EIdx, EIdx),
+    ForallE(EIdx, EIdx),
     LetE(EIdx, EIdx, EIdx),
     Lit(Literal),
     Proj(NIdx, u64, EIdx),
@@ -1301,15 +1230,6 @@ pub struct ETables {
     pub lets: Tbl<LetNode, EIdx, u64>,
     pub lits: Tbl<LitNode, EIdx, u64>,
     pub projs: Tbl<ProjNode, EIdx, u64>,
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::EStore_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:376-382 ETables.bms` — the tier's
-    /// **binder-datum store**: the hash-consed `PropWhen`s the `lam` and
-    /// `forallE` records name by a `BMIdx`, with the derived column holding
-    /// `PropWhen.hash` so that `derOfBind`'s two scalars are one indexed load.
-    /// It rides in `ETables` rather than beside it because it lives and dies
-    /// with the tier exactly as the ten node arrays do.
-    pub bms: Tbl<BMNode, BMIdx, u64>,
 }
 
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:384-392 EStore
@@ -2616,7 +2536,6 @@ impl ETables {
             lets: Tbl::empty(),
             lits: Tbl::empty(),
             projs: Tbl::empty(),
-            bms: Tbl::empty(),
         }
     }
 
@@ -2633,8 +2552,7 @@ impl ETables {
         self.foralls.reset();
         self.lets.reset();
         self.lits.reset();
-        self.projs.reset();
-        self.bms.reset()
+        self.projs.reset()
     }
 
     /// con-leche: none — the value copy that Lean's value semantics hides (DESIGN.md §3.2)
@@ -2652,7 +2570,6 @@ impl ETables {
             lets: self.lets.dup(),
             lits: self.lits.dup(),
             projs: self.projs.dup(),
-            bms: self.bms.dup(),
         }
     }
 
@@ -2839,52 +2756,17 @@ impl ETables {
     /// tag picks the array, as it does in `get`; the two binder constructors
     /// have the same record shape.
     #[inline(always)]
-    pub fn get_bind(&self, i: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
+    pub fn get_bind(&self, i: &EIdx) -> Option<(EIdx, EIdx)> {
         if i.tag() == ETAG_LAM {
             match self.lams.node(i.idx_nat()) {
                 None => None,
-                Some(r) => Some((r.ty.dup2(), r.body.dup2(), r.m.dup2())),
+                Some(r) => Some((r.ty.dup2(), r.body.dup2())),
             }
         } else {
             match self.foralls.node(i.idx_nat()) {
                 None => None,
-                Some(r) => Some((r.ty.dup2(), r.body.dup2(), r.m.dup2())),
+                Some(r) => Some((r.ty.dup2(), r.body.dup2())),
             }
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::get_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:923-926 ETables.getBM` — read
-    /// one binder datum out of this tier's store.
-    #[inline(always)]
-    pub fn get_bm(&self, i: &BMIdx) -> Option<BinderMeta> {
-        match self.bms.node(i.idx_nat()) {
-            None => None,
-            Some(r) => Some(expr::binder_meta(prop_when::dup(&r.pw))),
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::find_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:936-939 ETables.findBM` — the
-    /// binder datum's cons probe in THIS tier. The record is built here, inside
-    /// a leaf with no branch, as `ETables::find` builds its own.
-    pub fn find_bm(&self, m: &BinderMeta) -> Option<BMIdx> {
-        self.bms.find(&BMNode { pw: prop_when::dup(&m.pw) })
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::get_bm_der_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:928-934 ETables.getBMDer` —
-    /// the binder datum's two DERIVED scalars, `PropWhen.hash` (the column) and
-    /// `PropWhen.hasParams` (a tag test on the record), which is all
-    /// `derOfBind` wants of it.
-    #[inline(always)]
-    pub fn get_bm_der(&self, i: &BMIdx) -> (u64, bool) {
-        match self.bms.node(i.idx_nat()) {
-            None => (0, false),
-            Some(r) => (self.bms.der_at(i.idx_nat()), prop_when::has_params(&r.pw)),
         }
     }
 
@@ -2948,7 +2830,7 @@ impl ETables {
     /// and is worth nothing (measured).  `ETables::push` given the same
     /// attribute is +3.8 % cycles and is not taken.
     #[inline(always)]
-    pub fn find(&self, v: &ENodeView, mi: &BMIdx) -> Option<EIdx> {
+    pub fn find(&self, v: &ENodeView) -> Option<EIdx> {
         match v {
             ENodeView::BVar(i) => self.bvars.find(&BVarNode { i: *i }),
             ENodeView::FVar(idx, ty) => {
@@ -2959,16 +2841,10 @@ impl ETables {
                 self.consts.find(&ConstNode { n: n.dup2(), us: us.dup2() })
             }
             ENodeView::App(f, a) => self.apps.find(&AppNode { f: f.dup2(), a: a.dup2() }),
-            ENodeView::Lam(ty, b, _) => self.lams.find(&BindNode {
-                ty: ty.dup2(),
-                body: b.dup2(),
-                m: mi.dup2(),
-            }),
-            ENodeView::ForallE(ty, b, _) => self.foralls.find(&BindNode {
-                ty: ty.dup2(),
-                body: b.dup2(),
-                m: mi.dup2(),
-            }),
+            ENodeView::Lam(ty, b) => self.lams.find(&BindNode { ty: ty.dup2(), body: b.dup2() }),
+            ENodeView::ForallE(ty, b) => {
+                self.foralls.find(&BindNode { ty: ty.dup2(), body: b.dup2() })
+            }
             ENodeView::LetE(ty, val, b) => self.lets.find(&LetNode {
                 ty: ty.dup2(),
                 val: val.dup2(),
@@ -2991,8 +2867,8 @@ impl ETables {
             ENodeView::Sort(_) => self.sorts.full(),
             ENodeView::Const(_, _) => self.consts.full(),
             ENodeView::App(_, _) => self.apps.full(),
-            ENodeView::Lam(_, _, _) => self.lams.full(),
-            ENodeView::ForallE(_, _, _) => self.foralls.full(),
+            ENodeView::Lam(_, _) => self.lams.full(),
+            ENodeView::ForallE(_, _) => self.foralls.full(),
             ENodeView::LetE(_, _, _) => self.lets.full(),
             ENodeView::Lit(_) => self.lits.full(),
             ENodeView::Proj(_, _, _) => self.projs.full(),
@@ -3000,7 +2876,7 @@ impl ETables {
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:93-98 ETables.push
-    pub fn push(&mut self, v: ENodeView, d: u64, mi: BMIdx, tier: u32) -> EIdx {
+    pub fn push(&mut self, v: ENodeView, d: u64, tier: u32) -> EIdx {
         match v {
             ENodeView::BVar(i) => {
                 let h: EIdx = EIdx::pack(ETAG_BVAR, tier, self.bvars.size() as u32);
@@ -3027,14 +2903,14 @@ impl ETables {
                 self.apps.push(AppNode { f, a }, d, h.dup2());
                 h
             }
-            ENodeView::Lam(ty, b, _) => {
+            ENodeView::Lam(ty, b) => {
                 let h: EIdx = EIdx::pack(ETAG_LAM, tier, self.lams.size() as u32);
-                self.lams.push(BindNode { ty, body: b, m: mi }, d, h.dup2());
+                self.lams.push(BindNode { ty, body: b }, d, h.dup2());
                 h
             }
-            ENodeView::ForallE(ty, b, _) => {
+            ENodeView::ForallE(ty, b) => {
                 let h: EIdx = EIdx::pack(ETAG_FORALL_E, tier, self.foralls.size() as u32);
-                self.foralls.push(BindNode { ty, body: b, m: mi }, d, h.dup2());
+                self.foralls.push(BindNode { ty, body: b }, d, h.dup2());
                 h
             }
             ENodeView::LetE(ty, val, b) => {
@@ -3061,35 +2937,22 @@ impl ETables {
 /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` — the
 /// `lam` (hash tag 19) and `forallE` (23) arms, which differ in nothing but
 /// the tag.  It is `con_ron_core::kernel::expr::lam`'s body with `data(&ty)`
-/// and `data(&body)` replaced by the derived column, and `m`'s two reads
-/// passed in as scalars.
-///
-/// **Why it is a function and not the arm itself.**  The twin writes both
-/// arms out inline.  Inlined here, the three-way `lpOfData ty || lpOfData b
-/// || m.pw.hasParams` sits inside a `match` arm that still holds borrows into
-/// the `&ENodeView`, and Aeneas cannot join the short-circuit branches under
-/// those loans: *"Could not match the contexts"* (`interp/Interp.ml:617`),
-/// measured at P4a.  Neither hoisting the `has_params` read to its own `let`
-/// nor binding the whole disjunction to one moves it.  The two-way
-/// disjunction of the `app` arm is fine, and
-/// `con_ron_core::kernel::expr::lam` — the same three-way disjunction, with
-/// `m` owned and no enclosing match — extracts today.  Lifting the arm's
-/// arithmetic into a function of five scalars is what makes the loans dead at
-/// the join, and it costs the transliteration nothing: `der_of_bind 19` and
-/// `der_of_bind 23` are the twin's two arms verbatim.
-pub fn der_of_bind(tag: u64, dt: u64, db: u64, hm: u64, pm: bool) -> u64 {
+/// and `data(&body)` replaced by the derived column.  A function of three
+/// scalars rather than the arm itself because P4a found Aeneas could not join
+/// the short-circuit of the level-parameter bit under the `&ENodeView` loans
+/// of an inline arm (*"Could not match the contexts"*); the binder datum's
+/// third disjunct is gone (task #119), and the function stays the twin's two
+/// arms verbatim.
+pub fn der_of_bind(tag: u64, dt: u64, db: u64) -> u64 {
     let h: u64 = expr::hash32(name::mix_hash(
         tag,
-        name::mix_hash(
-            expr::hash_of_data(dt),
-            name::mix_hash(expr::hash_of_data(db), hm),
-        ),
+        name::mix_hash(expr::hash_of_data(dt), expr::hash_of_data(db)),
     ));
     expr::pack_data(
         h,
         expr::max_u64(expr::bvar_of_data(dt), expr::sat_pred(expr::bvar_of_data(db))),
         expr::max_u64(expr::fvar_of_data(dt), expr::fvar_of_data(db)),
-        expr::lp_of_data(dt) || expr::lp_of_data(db) || pm,
+        expr::lp_of_data(dt) || expr::lp_of_data(db),
     )
 }
 
@@ -3129,11 +2992,11 @@ pub fn der_of_let(dt: u64, dv: u64, db: u64) -> u64 {
 /// `forallE` have one record shape and the projection reads either; this is the
 /// one place the two arms are told apart again, so the walks that dispatch on
 /// the handle's own tag keep the two clauses of the twin as one clause each.
-pub fn e_bind_view(tag: u32, ty: EIdx, body: EIdx, m: BinderMeta) -> ENodeView {
+pub fn e_bind_view(tag: u32, ty: EIdx, body: EIdx) -> ENodeView {
     if tag == ETAG_LAM {
-        ENodeView::Lam(ty, body, m)
+        ENodeView::Lam(ty, body)
     } else {
-        ENodeView::ForallE(ty, body, m)
+        ENodeView::ForallE(ty, body)
     }
 }
 
@@ -3176,14 +3039,14 @@ pub fn e_view_has_scratch_child(v: &ENodeView) -> bool {
                 true
             }
         }
-        ENodeView::Lam(ty, b, _) => {
+        ENodeView::Lam(ty, b) => {
             if ty.is_persistent() {
                 !b.is_persistent()
             } else {
                 true
             }
         }
-        ENodeView::ForallE(ty, b, _) => {
+        ENodeView::ForallE(ty, b) => {
             if ty.is_persistent() {
                 !b.is_persistent()
             } else {
@@ -3293,11 +3156,11 @@ impl EStore {
     /// persistent tier and the shared `PersTier` is made HERE and a value
     /// comes back, so no borrow ever leaves the choice and no region enters
     /// the record every function of the crate threads as `&mut`.
-    fn pers_find(&self, pers: &PersTier, v: &ENodeView, mi: &BMIdx) -> Option<EIdx> {
+    fn pers_find(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
         if pers.frozen {
-            pers.e.find(v, mi)
+            pers.e.find(v)
         } else {
-            self.pers.find(v, mi)
+            self.pers.find(v)
         }
     }
 
@@ -3365,7 +3228,7 @@ impl EStore {
         if e_tag_is_bind(i.tag()) {
             match self.view_bind(pers, i) {
                 None => None,
-                Some(t) => Some(e_bind_view(i.tag(), t.0, t.1, t.2)),
+                Some(t) => Some(e_bind_view(i.tag(), t.0, t.1)),
             }
         } else if i.is_persistent() {
             self.pers_get(pers, i)
@@ -3498,37 +3361,11 @@ impl EStore {
     /// con-leche: none — arena infrastructure (task #97-P6-10); Lean twin:
     /// `proof/ConRon/Arena/Store.lean:1243-1245 EStore.persGetBind`
     #[inline(always)]
-    fn pers_get_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
+    fn pers_get_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx)> {
         if pers.frozen {
             pers.e.get_bind(i)
         } else {
             self.pers.get_bind(i)
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::pers_get_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1260-1265 EStore.viewBM` — the
-    /// persistent arm of `EStore.viewBM`.
-    #[inline(always)]
-    fn pers_get_bm(&self, pers: &PersTier, i: &BMIdx) -> Option<BinderMeta> {
-        if pers.frozen {
-            pers.e.get_bm(i)
-        } else {
-            self.pers.get_bm(i)
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::pers_get_bm_der_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1272-1276 EStore.bmDer` — the
-    /// persistent arm of `EStore.bmDer`.
-    #[inline(always)]
-    fn pers_get_bm_der(&self, pers: &PersTier, i: &BMIdx) -> (u64, bool) {
-        if pers.frozen {
-            pers.e.get_bm_der(i)
-        } else {
-            self.pers.get_bm_der(i)
         }
     }
 
@@ -3647,153 +3484,17 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure; Lean twin:
     /// `proof/ConRon/Arena/Store.lean:1278-1287 EStore.viewBind` —
-    /// `EStore.viewBind`, the binder projection of `EStore.view`.
+    /// `EStore.viewBind`, the binder projection of `EStore.view`: the domain
+    /// and the body (task #119: a binder carries nothing else, so the
+    /// handle-only `viewBindI` it used to stand beside is this function).
     #[inline(always)]
-    pub fn view_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
-        match self.view_bind_i(pers, i) {
-            None => None,
-            Some(t) => match self.view_bm(pers, &t.2) {
-                None => None,
-                Some(m) => Some((t.0, t.1, m)),
-            },
-        }
-    }
-
-    /// con-leche: none — arena infrastructure (task #97-P6-16); Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1247-1253 EStore.viewBindI` —
-    /// `EStore.viewBindI`, the binder projection that stops at the datum's
-    /// HANDLE. This is what the rebuilding walks want: a walk that takes a
-    /// binder apart and puts it back together never looks inside the datum, it
-    /// only carries it across, and carrying a `BMIdx` is a register move where
-    /// carrying a `BinderMeta` was a reference count out and a reference count
-    /// back.
-    #[inline(always)]
-    pub fn view_bind_i(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
+    pub fn view_bind(&self, pers: &PersTier, i: &EIdx) -> Option<(EIdx, EIdx)> {
         if i.is_persistent() {
             self.pers_get_bind(pers, i)
         } else if self.scratch_on {
             self.scr.get_bind(i)
         } else {
             None
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::view_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1260-1265 EStore.viewBM` —
-    /// `EStore.viewBM`: decode a binder datum handle, the tier bit selecting
-    /// the array set as it does for every other handle kind.
-    #[inline(always)]
-    pub fn view_bm(&self, pers: &PersTier, i: &BMIdx) -> Option<BinderMeta> {
-        if i.is_persistent() {
-            self.pers_get_bm(pers, i)
-        } else if self.scratch_on {
-            self.scr.get_bm(i)
-        } else {
-            None
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::bm_der_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1272-1276 EStore.bmDer` —
-    /// `EStore.bmDer`, the binder datum's two derived scalars (`PropWhen.hash`,
-    /// `PropWhen.hasParams`), which is everything `derOfBind` asks of it.
-    #[inline(always)]
-    pub fn bm_der(&self, pers: &PersTier, i: &BMIdx) -> (u64, bool) {
-        if i.is_persistent() {
-            self.pers_get_bm_der(pers, i)
-        } else if self.scratch_on {
-            self.scr.get_bm_der(i)
-        } else {
-            (0, false)
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::find_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:936-939 EStore.findBM` —
-    /// `EStore.findBM`, the datum's cons probe over both tiers, persistent
-    /// first (the store's own order). A datum that is not interned names no
-    /// binder node, so `find` answers `none` for the whole binder view.
-    pub fn find_bm(&self, pers: &PersTier, m: &BinderMeta) -> Option<BMIdx> {
-        match self.pers_find_bm(pers, m) {
-            Some(i) => Some(i),
-            None => {
-                if self.scratch_on {
-                    self.scr.find_bm(m)
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::pers_find_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:936-939 EStore.findBM` — the
-    /// persistent arm of `EStore.findBM`.
-    fn pers_find_bm(&self, pers: &PersTier, m: &BinderMeta) -> Option<BMIdx> {
-        if pers.frozen {
-            pers.e.find_bm(m)
-        } else {
-            self.pers.find_bm(m)
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::pers_find_bm_node_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:936-939 EStore.findBM` — the
-    /// persistent arm of `EStore.findBM` at the datum's RECORD, which
-    /// `intern_bm` builds once (a value-returning reader, like `pers_find_bm`:
-    /// Aeneas declines the two-way borrow when the choice is inlined).
-    fn pers_find_bm_node(&self, pers: &PersTier, r: &BMNode) -> Option<BMIdx> {
-        if pers.frozen {
-            pers.e.bms.find(r)
-        } else {
-            self.pers.bms.find(r)
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::intern_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1426-1446 EStore.internBM` —
-    /// `EStore.internBM`: hash-cons a binder datum, `intern`'s own clauses at a
-    /// store with one constructor — the persistent probe, the scratch probe,
-    /// the capacity test, the append to the tier the store is in. The datum has
-    /// no children, so there is no `eViewHasScratchChild` arm to skip the
-    /// persistent probe with.
-    pub fn intern_bm(&mut self, pers: &PersTier, m: BinderMeta) -> Result<BMIdx, CheckError> {
-        let r: BMNode = BMNode { pw: m.pw };
-        let hit: Option<BMIdx> = self.pers_find_bm_node(pers, &r);
-        match hit {
-            Some(hp) => Ok(hp),
-            None => {
-                if self.scratch_on {
-                    let at: (usize, Option<BMIdx>) = self.scr.bms.find_slot(&r);
-                    match at.1 {
-                        Some(hs) => Ok(hs),
-                        None => {
-                            if self.scr.bms.full() {
-                                Err(CheckError::Native(code_points(&M_E_CAP)))
-                            } else {
-                                let d: u64 = prop_when::hash_pw(&r.pw);
-                                let h: BMIdx =
-                                    BMIdx::pack(TIER_S, self.scr.bms.size() as u32);
-                                self.scr.bms.push_at(at.0, r, d, h.dup2());
-                                Ok(h)
-                            }
-                        }
-                    }
-                } else if self.pers.bms.full() {
-                    Err(CheckError::Native(code_points(&M_E_CAP)))
-                } else {
-                    let d: u64 = prop_when::hash_pw(&r.pw);
-                    let h: BMIdx = BMIdx::pack(TIER_P, self.pers.bms.size() as u32);
-                    self.pers.bms.push(r, d, h.dup2());
-                    Ok(h)
-                }
-            }
         }
     }
 
@@ -3930,30 +3631,6 @@ impl EStore {
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::der_of_bind_at_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:485-492 EStore.derOfView` —
-    /// the `lam` (hash tag 19) and `forallE` (23) arms, whose arithmetic is
-    /// `der_of_bind`'s (see that function's note for why it is a function of
-    /// five scalars and not the arm itself).  See `der_of_bvar`'s note.
-    #[inline(always)]
-    pub fn der_of_bind_at(
-        &self,
-        pers: &PersTier,
-        tag: u64,
-        ty: &EIdx,
-        b: &EIdx,
-        m: &BinderMeta,
-    ) -> u64 {
-        der_of_bind(
-            tag,
-            self.derived(pers, ty),
-            self.derived(pers, b),
-            prop_when::hash_pw(&m.pw),
-            prop_when::has_params(&m.pw),
-        )
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
     /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::der_of_bind_at_i_refines, then delete this line
     /// Lean twin: `proof/ConRon/Arena/Store.lean:1360-1369 EStore.derOfBindAtI`
     /// — `derOfBindAtI`, the `lam`/`forallE` arm over the datum's HANDLE: the
@@ -3961,16 +3638,8 @@ impl EStore {
     /// own derived column and a tag test on its record, so the arithmetic is
     /// unchanged and no `PropWhen` is walked.
     #[inline(always)]
-    pub fn der_of_bind_at_i(
-        &self,
-        pers: &PersTier,
-        tag: u64,
-        ty: &EIdx,
-        b: &EIdx,
-        m: &BMIdx,
-    ) -> u64 {
-        let bd: (u64, bool) = self.bm_der(pers, m);
-        der_of_bind(tag, self.derived(pers, ty), self.derived(pers, b), bd.0, bd.1)
+    pub fn der_of_bind_at(&self, pers: &PersTier, tag: u64, ty: &EIdx, b: &EIdx) -> u64 {
+        der_of_bind(tag, self.derived(pers, ty), self.derived(pers, b))
     }
 
     /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
@@ -4048,8 +3717,8 @@ impl EStore {
             ENodeView::Sort(u) => self.der_of_sort(pers, u),
             ENodeView::Const(n, us) => self.der_of_const(pers, n, us),
             ENodeView::App(f, a) => self.der_of_app(pers, f, a),
-            ENodeView::Lam(ty, b, m) => self.der_of_bind_at(pers, 19, ty, b, m),
-            ENodeView::ForallE(ty, b, m) => self.der_of_bind_at(pers, 23, ty, b, m),
+            ENodeView::Lam(ty, b) => self.der_of_bind_at(pers, 19, ty, b),
+            ENodeView::ForallE(ty, b) => self.der_of_bind_at(pers, 23, ty, b),
             ENodeView::LetE(ty, val, b) => self.der_of_let_at(pers, ty, val, b),
             ENodeView::Lit(l) => self.der_of_lit(l),
             ENodeView::Proj(s, i, e) => self.der_of_proj(pers, s, *i, e),
@@ -4063,47 +3732,30 @@ impl EStore {
     /// task #97-T2-LOCKSTEP (D2): `EStore.persFindMaybe`, and Theorem 1 owns
     /// the equation that the skip changes nothing under `StoreWF`
     /// (`Arena/WFSkip.lean`).
-    pub fn pers_find_maybe(&self, pers: &PersTier, v: &ENodeView, mi: &BMIdx) -> Option<EIdx> {
+    pub fn pers_find_maybe(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
         if self.scratch_on {
             if e_view_has_scratch_child(v) {
                 None
             } else {
-                self.pers_find(pers, v, mi)
+                self.pers_find(pers, v)
             }
         } else {
-            self.pers_find(pers, v, mi)
+            self.pers_find(pers, v)
         }
     }
 
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:90-91 EStore.find?
     /// Probe both tiers, persistent first (nanoda's `alloc_expr`).
     pub fn find(&self, pers: &PersTier, v: &ENodeView) -> Option<EIdx> {
-        match self.find_bm_of_view(pers, v) {
-            None => None,
-            Some(mi) => match self.pers_find_maybe(pers, v, &mi) {
-                Some(i) => Some(i),
-                None => {
-                    if self.scratch_on {
-                        self.scr.find(v, &mi)
-                    } else {
-                        None
-                    }
+        match self.pers_find_maybe(pers, v) {
+            Some(i) => Some(i),
+            None => {
+                if self.scratch_on {
+                    self.scr.find(v)
+                } else {
+                    None
                 }
-            },
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::find_bm_of_view_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1480-1488 EStore.findBMOfView`
-    /// — the datum handle a view's cons key needs, PROBED and not interned: a
-    /// binder whose datum has never been interned is not in either table, so
-    /// `none` here is `none` for the whole `find`.
-    fn find_bm_of_view(&self, pers: &PersTier, v: &ENodeView) -> Option<BMIdx> {
-        match v {
-            ENodeView::Lam(_, _, m) => self.find_bm(pers, m),
-            ENodeView::ForallE(_, _, m) => self.find_bm(pers, m),
-            _ => Some(BMIdx::of_word(0)),
+            }
         }
     }
 
@@ -4119,8 +3771,7 @@ impl EStore {
     /// the persistent probe built it (inside `ETables::find`), the scratch
     /// probe built it a second time, `der_of_view` re-dispatched to compute
     /// the derived word, and `ETables::push` re-dispatched and built it a
-    /// third time to append it.  A binder paid `binder_meta_dup` at each of
-    /// the three.  So the tag is read once here and the ten per-constructor
+    /// third time to append it.  So the tag is read once here and the ten per-constructor
     /// paths below each build their record ONCE and hand the same `&r` to the
     /// two probes, to the capacity test and to the push — the same clauses in
     /// the same order, with the dispatch and the two rebuilds gone.
@@ -4135,8 +3786,8 @@ impl EStore {
             ENodeView::Sort(u) => self.intern_sort(pers, u),
             ENodeView::Const(n, us) => self.intern_const(pers, n, us),
             ENodeView::App(f, a) => self.intern_app(pers, f, a),
-            ENodeView::Lam(ty, body, m) => self.intern_lam(pers, ty, body, m),
-            ENodeView::ForallE(ty, body, m) => self.intern_forall_e(pers, ty, body, m),
+            ENodeView::Lam(ty, body) => self.intern_lam(pers, ty, body),
+            ENodeView::ForallE(ty, body) => self.intern_forall_e(pers, ty, body),
             ENodeView::LetE(ty, val, body) => self.intern_let_e(pers, ty, val, body),
             ENodeView::Lit(l) => self.intern_lit(pers, l),
             ENodeView::Proj(n, i, e) => self.intern_proj(pers, n, i, e),
@@ -4443,40 +4094,19 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure; Lean twin:
     /// `proof/ConRon/Arena/Store.lean:501-521 EStore.intern` — its `lam`
-    /// arm, over the node RECORD rather than over the view (the twin has no
-    /// separate `EStore.internLam`: `intern` inlines it).
+    /// arm, over the node RECORD rather than over the view (task #119: with
+    /// the binder datum gone the record is two handles, and the handle-datum
+    /// `internLamI` it used to sit behind is this function).
     ///
     /// The clauses are `intern`'s own, in `intern`'s order — the persistent
     /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
     /// own arm), the scratch probe, the capacity test, the append — with the
     /// node record built ONCE and shared by all four.  See `intern`'s note.
-    pub fn intern_lam(&mut self, pers: &PersTier, ty: EIdx, body: EIdx, m: BinderMeta) -> Result<EIdx, CheckError> {
-        match self.intern_bm(pers, m) {
-            Err(e) => Err(e),
-            Ok(mi) => self.intern_lam_i(pers, ty, body, mi),
-        }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1691-1694 EStore.internLamI` —
-    /// `EStore.internLamI`, the `lam` arm over a node record whose binder datum
-    /// is already a HANDLE.
-    ///
-    /// This is the clause the rebuilding walks call: they take a binder apart
-    /// with `view_bind_i` and put it back with this, so the datum is never
-    /// decoded, never compared and never reference-counted on the way through
-    /// — the record is three `u32`s of POD from end to end.  `intern_lam`
-    /// is this with the datum interned first, which is what a caller that
-    /// holds a `BinderMeta` (the parser, the modeller, a fresh binder) wants.
-    pub fn intern_lam_i(&mut self, pers: &PersTier, ty: EIdx, body: EIdx, m: BMIdx) -> Result<EIdx, CheckError> {
-        let r: BindNode = BindNode { ty, body, m };
+    pub fn intern_lam(&mut self, pers: &PersTier, ty: EIdx, body: EIdx) -> Result<EIdx, CheckError> {
+        let r: BindNode = BindNode { ty, body };
         let sk: bool = if self.scratch_on {
             if r.ty.is_persistent() {
-                if r.body.is_persistent() {
-                    !r.m.is_persistent()
-                } else {
-                    true
-                }
+                !r.body.is_persistent()
             } else {
                 true
             }
@@ -4501,7 +4131,7 @@ impl EStore {
                             if self.scr.lams.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
-                                let d: u64 = self.der_of_bind_at_i(pers, 19, &r.ty, &r.body, &r.m);
+                                let d: u64 = self.der_of_bind_at(pers, 19, &r.ty, &r.body);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_LAM, TIER_S, self.scr.lams.size() as u32);
                                 self.scr.lams.push_at(at.0, r, d, h.dup2());
@@ -4512,7 +4142,7 @@ impl EStore {
                 } else if self.pers.lams.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
-                    let d: u64 = self.der_of_bind_at_i(pers, 19, &r.ty, &r.body, &r.m);
+                    let d: u64 = self.der_of_bind_at(pers, 19, &r.ty, &r.body);
                     let h: EIdx = EIdx::pack(ETAG_LAM, TIER_P, self.pers.lams.size() as u32);
                     self.pers.lams.push(r, d, h.dup2());
                     Ok(h)
@@ -4523,40 +4153,19 @@ impl EStore {
 
     /// con-leche: none — arena infrastructure; Lean twin:
     /// `proof/ConRon/Arena/Store.lean:501-521 EStore.intern` — its `forall_e`
-    /// arm, over the node RECORD rather than over the view (the twin has no
-    /// separate `EStore.internForallE`: `intern` inlines it).
+    /// arm, over the node RECORD rather than over the view (task #119: the
+    /// record is two handles, and the handle-datum `internForallEI` it used to
+    /// sit behind is this function).
     ///
     /// The clauses are `intern`'s own, in `intern`'s order — the persistent
     /// probe (skipped when a child is scratch, `e_view_has_scratch_child`'s
     /// own arm), the scratch probe, the capacity test, the append — with the
     /// node record built ONCE and shared by all four.  See `intern`'s note.
-    pub fn intern_forall_e(&mut self, pers: &PersTier, ty: EIdx, body: EIdx, m: BinderMeta) -> Result<EIdx, CheckError> {
-        match self.intern_bm(pers, m) {
-            Err(e) => Err(e),
-            Ok(mi) => self.intern_forall_e_i(pers, ty, body, mi),
-        }
-    }
-
-    /// con-leche: none — arena infrastructure; Lean twin:
-    /// `proof/ConRon/Arena/Store.lean:1695-1698 EStore.internForallEI` —
-    /// `EStore.internForallEI`, the `forall_e` arm over a node record whose
-    /// binder datum is already a HANDLE.
-    ///
-    /// This is the clause the rebuilding walks call: they take a binder apart
-    /// with `view_bind_i` and put it back with this, so the datum is never
-    /// decoded, never compared and never reference-counted on the way through
-    /// — the record is three `u32`s of POD from end to end.  `intern_forall_e`
-    /// is this with the datum interned first, which is what a caller that
-    /// holds a `BinderMeta` (the parser, the modeller, a fresh binder) wants.
-    pub fn intern_forall_e_i(&mut self, pers: &PersTier, ty: EIdx, body: EIdx, m: BMIdx) -> Result<EIdx, CheckError> {
-        let r: BindNode = BindNode { ty, body, m };
+    pub fn intern_forall_e(&mut self, pers: &PersTier, ty: EIdx, body: EIdx) -> Result<EIdx, CheckError> {
+        let r: BindNode = BindNode { ty, body };
         let sk: bool = if self.scratch_on {
             if r.ty.is_persistent() {
-                if r.body.is_persistent() {
-                    !r.m.is_persistent()
-                } else {
-                    true
-                }
+                !r.body.is_persistent()
             } else {
                 true
             }
@@ -4581,7 +4190,7 @@ impl EStore {
                             if self.scr.foralls.full() {
                                 Err(CheckError::Native(code_points(&M_E_CAP)))
                             } else {
-                                let d: u64 = self.der_of_bind_at_i(pers, 23, &r.ty, &r.body, &r.m);
+                                let d: u64 = self.der_of_bind_at(pers, 23, &r.ty, &r.body);
                                 let h: EIdx =
                                     EIdx::pack(ETAG_FORALL_E, TIER_S, self.scr.foralls.size() as u32);
                                 self.scr.foralls.push_at(at.0, r, d, h.dup2());
@@ -4592,7 +4201,7 @@ impl EStore {
                 } else if self.pers.foralls.full() {
                     Err(CheckError::Native(code_points(&M_E_CAP)))
                 } else {
-                    let d: u64 = self.der_of_bind_at_i(pers, 23, &r.ty, &r.body, &r.m);
+                    let d: u64 = self.der_of_bind_at(pers, 23, &r.ty, &r.body);
                     let h: EIdx = EIdx::pack(ETAG_FORALL_E, TIER_P, self.pers.foralls.size() as u32);
                     self.pers.foralls.push(r, d, h.dup2());
                     Ok(h)
@@ -4923,61 +4532,20 @@ impl PersTier {
         }
     }
 
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::intern_bm_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1448-1459
-    /// EStore.internBMPersistent` — the binder datum's promote-intern:
-    /// `internPersistent`'s clauses at the datum table, so that a promoted
-    /// binder names a PERSISTENT datum.
-    pub fn intern_bm(&mut self, m: BinderMeta) -> Result<BMIdx, CheckError> {
-        let r: BMNode = BMNode { pw: m.pw };
-        match self.e.bms.find(&r) {
-            Some(hp) => Ok(hp),
-            None => {
-                if self.e.bms.full() {
-                    Err(CheckError::Native(code_points(&M_E_CAP)))
-                } else {
-                    let d: u64 = prop_when::hash_pw(&r.pw);
-                    let h: BMIdx = BMIdx::pack(TIER_P, self.e.bms.size() as u32);
-                    self.e.bms.push(r, d, h.dup2());
-                    Ok(h)
-                }
-            }
-        }
-    }
-
-    /// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove store::intern_bm_of_view_refines, then delete this line
-    /// Lean twin: `proof/ConRon/Arena/Store.lean:1498-1505
-    /// EStore.internBMOfViewPersistent` — the binder datum a view names, made
-    /// persistent, so that `intern_e` can go on working over the view while
-    /// the record names the datum by a handle. A non-binder view names no
-    /// datum and the value is never read.
-    pub fn intern_bm_of_view(&mut self, v: &ENodeView) -> Result<BMIdx, CheckError> {
-        match v {
-            ENodeView::Lam(_, _, m) => self.intern_bm(expr::binder_meta_dup(m)),
-            ENodeView::ForallE(_, _, m) => self.intern_bm(expr::binder_meta_dup(m)),
-            _ => Ok(BMIdx::of_word(0)),
-        }
-    }
-
     /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Store.lean:1883-1894 EStore.internPersistent
     /// Hash-cons an expression node into the tier; `ar` is the store the
     /// node's children are read in.
     pub fn intern_e(&mut self, ar: &EStore, v: ENodeView) -> Result<EIdx, CheckError> {
-        match self.intern_bm_of_view(&v) {
-            Err(e) => Err(e),
-            Ok(mi) => match self.e.find(&v, &mi) {
-                Some(i) => Ok(i),
-                None => {
-                    if self.e.full_of(&v) {
-                        Err(CheckError::Native(code_points(&M_E_CAP)))
-                    } else {
-                        let d: u64 = ar.der_of_view(self, &v);
-                        Ok(self.e.push(v, d, mi, TIER_P))
-                    }
+        match self.e.find(&v) {
+            Some(i) => Ok(i),
+            None => {
+                if self.e.full_of(&v) {
+                    Err(CheckError::Native(code_points(&M_E_CAP)))
+                } else {
+                    let d: u64 = ar.der_of_view(self, &v);
+                    Ok(self.e.push(v, d, TIER_P))
                 }
-            },
+            }
         }
     }
 }
@@ -5108,15 +4676,15 @@ mod tests {
                     _ => None,
                 }
             }
-            Some(ENodeView::Lam(ty, b, m)) => {
+            Some(ENodeView::Lam(ty, b)) => {
                 match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
-                    (Some(x), Some(y)) => Some(expr::lam(x, y, m)),
+                    (Some(x), Some(y)) => Some(expr::lam(x, y)),
                     _ => None,
                 }
             }
-            Some(ENodeView::ForallE(ty, b, m)) => {
+            Some(ENodeView::ForallE(ty, b)) => {
                 match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
-                    (Some(x), Some(y)) => Some(expr::forall_e(x, y, m)),
+                    (Some(x), Some(y)) => Some(expr::forall_e(x, y)),
                     _ => None,
                 }
             }
@@ -5346,11 +4914,10 @@ mod tests {
         let b0 = ok(st.intern(pers, ENodeView::BVar(0)));
         let lam = ok(st.intern(pers, ENodeView::Lam(
             s0.dup2(),
-            b0.dup2(),
-            expr::binder_meta(prop_when::never()),
+            b0.dup2()
         )));
         let e_b0 = expr::bvar(0);
-        let e_lam = expr::lam(e_s0(), expr::bvar(0), expr::binder_meta(prop_when::never()));
+        let e_lam = expr::lam(e_s0(), expr::bvar(0));
         assert!(eq_e(&denote_e(pers, &st, &b0), &e_b0)); // #guard 32
         assert!(eq_e(&denote_e(pers, &st, &lam), &e_lam)); // #guard 33
         assert_eq!(st.derived(pers, &b0), expr::data(&e_b0)); // #guard 34
@@ -5411,10 +4978,9 @@ mod tests {
         let b0 = ok(st.intern(pers, ENodeView::BVar(0)));
         let fa = ok(st.intern(pers, ENodeView::ForallE(
             s0.dup2(),
-            b0.dup2(),
-            expr::binder_meta(prop_when::never()),
+            b0.dup2()
         )));
-        let e_fa = expr::forall_e(e_s0(), expr::bvar(0), expr::binder_meta(prop_when::never()));
+        let e_fa = expr::forall_e(e_s0(), expr::bvar(0));
         assert!(eq_e(&denote_e(pers, &st, &fa), &e_fa));
         assert_eq!(st.derived(pers, &fa), expr::data(&e_fa));
 

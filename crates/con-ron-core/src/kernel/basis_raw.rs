@@ -48,6 +48,7 @@ use crate::kernel::core_types;
 use crate::kernel::env;
 use crate::kernel::env::{BasisKind, ConstantInfo, ConstantVal, IndCaps, RecRule};
 use crate::kernel::expr;
+use crate::kernel::level;
 use crate::kernel::expr::Expr;
 use crate::kernel::name;
 use crate::kernel::name::Name;
@@ -105,10 +106,9 @@ pub fn cv(n: Name, lps: Vec<Name>, ty: Expr) -> ConstantVal {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:117-121 BasisDSL.rule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_raw::rule_refines, then delete this line
 /// A raw iota rule: the install-computed fields (`ctorParams`, `fire`, `k`,
-/// `eta`, `paramsBlind`) at their parse placeholders, which is what the
-/// exporter emits and what `#annotate_basis` recomputes.
+/// `eta`) at their parse placeholders, which is what the exporter emits and
+/// what `#stored_basis` recomputes.
 pub fn rule(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
     env::rec_rule_parsed(ctor, nfields, rhs)
 }
@@ -237,12 +237,12 @@ pub fn nat_t() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:24-27 natRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_raw::nat_raw_refines, then delete this line
 /// `Nat : Type`.
 pub fn nat_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::nat_name(), Vec::new(), type1()),
         IndCaps {
+            sort_z: level::zeroness_of(&level::succ(level::zero())),
             all: vec1(bnm::nat_name()),
             ctors: vec2(bnm::nat_zero_name(), bnm::nat_succ_name()),
             ..env::ind_caps_default()
@@ -364,12 +364,12 @@ pub fn nat_basis() -> Vec<ConstantInfo> {
 // --- Empty -----------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:20-22 emptyRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_raw::empty_raw_refines, then delete this line
 /// `Empty : Type`.
 pub fn empty_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
         cv(bnm::empty_name(), Vec::new(), type1()),
         IndCaps {
+            sort_z: level::zeroness_of(&level::succ(level::zero())),
             all: vec1(bnm::empty_name()),
             ..env::ind_caps_default()
         },
@@ -457,7 +457,6 @@ pub fn quot_rel() -> Expr {
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:30-34 quotRaw
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_raw::quot_raw_refines, then delete this line
 /// `Quot.{u} {α : Sort u} (r : α → α → Prop) : Sort u`.
 pub fn quot_raw() -> ConstantInfo {
     ConstantInfo::IndInfo(
@@ -466,7 +465,7 @@ pub fn quot_raw() -> ConstantInfo {
             vec1(u_n()),
             pi(srt(u()), pi(quot_rel(), srt(u()))),
         ),
-        env::ind_caps_default(),
+        IndCaps { sort_z: level::zeroness_of(&u()), ..env::ind_caps_default() },
     )
 }
 

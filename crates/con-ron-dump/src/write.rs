@@ -251,13 +251,13 @@ impl Writer {
                 format!("c {} {}", ni, id_list(&ls))
             }
             ExprView::App(f, a) => format!("a {} {}", self.eid(f), self.eid(a)),
-            ExprView::Lam(ty, b, m) => {
+            ExprView::Lam(ty, b) => {
                 let t = self.eid(ty);
                 let bi = self.eid(b);
                 let p = self.w_pw(&m.pw);
                 format!("l {} {} {}", t, bi, p)
             }
-            ExprView::ForallE(ty, b, m) => {
+            ExprView::ForallE(ty, b) => {
                 let t = self.eid(ty);
                 let bi = self.eid(b);
                 let p = self.w_pw(&m.pw);
@@ -303,7 +303,7 @@ impl Writer {
                     kids.push(expr::dup(f));
                     kids.push(expr::dup(a));
                 }
-                ExprView::Lam(ty, b, _) | ExprView::ForallE(ty, b, _) => {
+                ExprView::Lam(ty, b) | ExprView::ForallE(ty, b) => {
                     kids.push(expr::dup(ty));
                     kids.push(expr::dup(b));
                 }

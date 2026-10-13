@@ -84,8 +84,8 @@ use crate::arena::env::{
 };
 use crate::arena::expr_ops::{
     abstract1_fast, abstract_range_fast, bvar_b, cons_eidx, get_app_args, get_app_fn,
-    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine,
-    lam_pw, leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
+    has_fvar_fast, instantiate1_fast, instantiate_list_fast, inst_lp_fast, inst_spine, lam_pair,
+    leaf_guard, loose_bvars_bounded_fast, mk_app_n, mk_app_n_from, pi_result,
     snoc_eidx_of, strip_pis,
     take_eidx, take_eidx_n, wscoped_b_fast,
 };
@@ -95,15 +95,15 @@ use crate::arena::handle::{
     ETAG_LIT, ETAG_PROJ, ETAG_SORT,
 };
 use crate::arena::monad::{
-    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bind_i, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
+    AState, fail, fail_dangling_e, fail_dangling_ls, intern_e_app, intern_e_bvar, intern_e_const, intern_e_forall_e, intern_e_fvar, intern_e_lam, intern_e_let_e, intern_e_lit, intern_e_proj, intern_e_sort, intern_l_node, intern_level, intern_ls_node, read_level_m, read_levels_m, read_name_m, read_names_m, view, view_app, view_bind, view_bvar, view_const, view_const_name, view_lit, view_ls, view_ls_len, view_sort,
 };
-use crate::arena::prop_read::{is_proof_fast, not_proof_fast, proof_pw, type_sort_pw};
+use crate::arena::prop_read::{is_proof_fast, not_proof_fast, peel_pis};
 use crate::arena::store::{ENodeView, LNodeView};
 use crate::arena::pins::{pin_and, pin_reserved, pin_bool, pin_bool_false, pin_bool_true, pin_char, pin_char_of_nat, pin_empty_levels, pin_list, pin_list_cons, pin_list_nil, pin_nat, pin_nat_add, pin_nat_beq, pin_nat_ble, pin_nat_div, pin_nat_gcd, pin_nat_land, pin_nat_lor, pin_nat_mod, pin_nat_mul, pin_nat_pow, pin_nat_pred, pin_nat_shift_left, pin_nat_shift_right, pin_nat_sub, pin_nat_succ, pin_nat_xor, pin_nat_zero, pin_sorry_ax, pin_sort_one, pin_string, pin_string_of_list, pin_zero_level};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::{CheckMode, ReducibilityHint};
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Literal};
+use crate::kernel::expr::Literal;
 use crate::kernel::expr_ops::sub_nat;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -204,6 +204,13 @@ pub const M_LET_WHNF: [u32; 42] = [
 pub const M_BVAR_WHNF: [u32; 34] = [
     119, 104, 110, 102, 32, 98, 101, 121, 111, 110, 100, 32, 116, 104, 101, 32, 115, 117,
     112, 112, 111, 114, 116, 101, 100, 32, 102, 114, 97, 103, 109, 101, 110, 116
+];
+
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: whnfCore loop"`, as code points.
+pub const M_FUEL_WHNF_CORE_LOOP: [u32; 29] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 119, 104, 110,
+    102, 67, 111, 114, 101, 32, 108, 111, 111, 112,
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -427,25 +434,16 @@ pub const M_FUEL_DEFEQ: [u32; 21] = [
     102, 101, 113
 ];
 
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"fuel exhausted: annotate"`, as code points.
-pub const M_FUEL_ANNOTATE: [u32; 24] = [
-    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 97, 110,
-    110, 111, 116, 97, 116, 101
-];
-
 // ---------------------------------------------------------------------------
 // The lanes: the twin's `r : CoreFnsA`, defunctionalized (the module note)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::LANE_FULL_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot` — **the
 /// executed knot**: the memoized one, `pureFnsA`'s.
 pub const LANE_FULL: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-64 coreKnotIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::LANE_IO_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the io knot
 /// (the leaf lane): `infer` and `inferIO` are `inferBodyIO` tied to this knot,
 /// unmemoized; every other slot is the full knot's.
@@ -844,6 +842,21 @@ pub fn lift_fueled(o: Option<bool>) -> Result<bool, CheckError> {
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:40-48 Expr.ioNeutral
+/// Lean twin: `proof/ConRon/Arena/Core.lean:300-310 ioNeutral` — is the
+/// spine's head neither a λ nor a `let` (nor a loose bound variable)?  The io
+/// grade's claim of such a term is a membership of its io-inferred type
+/// (con-leche task #342 L18); `etaCert` asks it of the stuck side.
+pub fn io_neutral(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckError> {
+    match get_app_fn(pers, st, CORE_WALK_FUEL, e) {
+        Err(er) => Err(er),
+        Ok(h) => {
+            let t: u32 = h.tag();
+            Ok(!(t == ETAG_LAM || t == ETAG_LET_E || t == ETAG_BVAR))
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:51-58 isCtorApp
 /// Lean twin: `proof/ConRon/Arena/Core.lean:312-323 isCtorApp` — is the
 /// expression headed by a stored constructor?
@@ -887,6 +900,79 @@ pub fn caps_never_zero(
             Err(er) => Err(er),
             Ok(vs) => Ok(prop_when::is_never(&level::subst_pw(&ks, &vs, &caps.sort_z))),
         },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:72-93 iotaCtorNeverProp
+/// Lean twin: `proof/ConRon/Arena/Core.lean:333-352 iotaCtorNeverProp` — **the
+/// ι case split's test** (con-leche task #342 L10): is the constructor's
+/// family never `Prop` at the level instantiation `us`?  The ι step asks it at
+/// the rule's comparand levels.  Read off the family's recorded sort
+/// zero-ness (`IndCaps.sortZ`).
+pub fn iota_ctor_never_prop(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    cvj: &IConstantVal,
+    us: &LsIdx,
+) -> Result<bool, CheckError> {
+    match pi_result(pers, st, CORE_WALK_FUEL, &cvj.ty) {
+        Err(er) => Err(er),
+        Ok(pr) => match get_app_fn(pers, st, CORE_WALK_FUEL, &pr) {
+            Err(er) => Err(er),
+            Ok(h) => {
+                if h.tag() == ETAG_CONST {
+                    match view_const_name(pers, st, &h) {
+                        None => fail_dangling_e(),
+                        Some(t) => match env::ifenv_find(vis, fe, &t) {
+                            Some(IConstantInfo::IndInfo(cvt0, caps0)) => {
+                                let lps: Vec<NIdx> = env::nidx_vec_dup(&cvt0.level_params);
+                                let caps: IIndCaps = env::i_ind_caps_dup(caps0);
+                                match view_ls_len(pers, st, us) {
+                                    None => fail_dangling_ls(),
+                                    Some(usl) => {
+                                        if lps.len() == usl {
+                                            caps_never_zero(pers, st, &lps, us, &caps)
+                                        } else {
+                                            Ok(false)
+                                        }
+                                    }
+                                }
+                            }
+                            Some(_) => Ok(false),
+                            None => Ok(false),
+                        },
+                    }
+                } else {
+                    Ok(false)
+                }
+            }
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:95-104 iotaCase3
+/// Lean twin: `proof/ConRon/Arena/Core.lean:354-366 iotaCase3` — **case 3 of
+/// the ι case split** (con-leche task #342 L10, S5c): a rule that is not K
+/// whose constructor's family may be `Prop` at the comparand levels `us`.
+/// Lean's `!rl.k && …` short-circuits, so the family is not read at a K rule.
+pub fn iota_case3(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    rl: &IRecRule,
+    cvj: &IConstantVal,
+    us: &LsIdx,
+) -> Result<bool, CheckError> {
+    if rl.k {
+        Ok(false)
+    } else {
+        match iota_ctor_never_prop(pers, vis, st, fe, cvj, us) {
+            Err(er) => Err(er),
+            Ok(np) => Ok(!np),
+        }
     }
 }
 
@@ -1168,7 +1254,7 @@ pub fn nat_succ_ok(
                         Ok(nc) => if ty.tag() == ETAG_FORALL_E {
                             match view_bind(pers, st, &ty) {
                                 None => fail_dangling_e(),
-                                Some((dom, body, _)) => {
+                                Some((dom, body)) => {
                                     if dom.eq2(&nc) {
                                         Ok(body.eq2(&nc))
                                     } else {
@@ -1327,12 +1413,12 @@ pub fn consts_resolve(
                 Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &a),
                 Ok(false) => Ok(false),
             },
-            Ok(ENodeView::Lam(ty, body, _)) => match consts_resolve(pers, vis, st, fe, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, body)) => match consts_resolve(pers, vis, st, fe, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &body),
                 Ok(false) => Ok(false),
             },
-            Ok(ENodeView::ForallE(ty, body, _)) => {
+            Ok(ENodeView::ForallE(ty, body)) => {
                 match consts_resolve(pers, vis, st, fe, fuel - 1, &ty) {
                     Err(e) => Err(e),
                     Ok(true) => consts_resolve(pers, vis, st, fe, fuel - 1, &body),
@@ -1625,7 +1711,7 @@ pub fn list_ty_ok(
                                 Ok(sort) => if cv.ty.tag() == ETAG_FORALL_E {
                                     match view_bind(pers, st, &cv.ty) {
                                         None => fail_dangling_e(),
-                                        Some((d, b, _)) => {
+                                        Some((d, b)) => {
                                             if d.eq2(&sort) {
                                                 Ok(b.eq2(&sort))
                                             } else {
@@ -1662,7 +1748,7 @@ pub fn list_nil_ty_body(
     if ty.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, ty) {
             None => fail_dangling_e(),
-            Some((d, b, _)) => {
+            Some((d, b)) => {
                 if !d.eq2(sort) {
                     Ok(false)
                 } else {
@@ -1773,21 +1859,21 @@ pub fn list_cons_ty_body(
             Ok(cod3) => if ty.tag() == ETAG_FORALL_E {
                 match view_bind(pers, st, ty) {
                     None => fail_dangling_e(),
-                    Some((d1, r1, _)) => {
+                    Some((d1, r1)) => {
                         if !d1.eq2(sort) {
                             Ok(false)
                         } else {
                             if r1.tag() == ETAG_FORALL_E {
                                 match view_bind(pers, st, &r1) {
                                     None => fail_dangling_e(),
-                                    Some((d2, r2, _)) => {
+                                    Some((d2, r2)) => {
                                         if !d2.eq2(b0) {
                                             Ok(false)
                                         } else {
                                             if r2.tag() == ETAG_FORALL_E {
                                                 match view_bind(pers, st, &r2) {
                                                     None => fail_dangling_e(),
-                                                    Some((d3, c3, _)) => {
+                                                    Some((d3, c3)) => {
                                                         if d3.eq2(&dom3) {
                                                             Ok(c3.eq2(&cod3))
                                                         } else {
@@ -1915,7 +2001,7 @@ pub fn char_of_nat_ty_ok(
                                     Ok(cc) => if cv.ty.tag() == ETAG_FORALL_E {
                                         match view_bind(pers, st, &cv.ty) {
                                             None => fail_dangling_e(),
-                                            Some((d, b, _)) => {
+                                            Some((d, b)) => {
                                                 if d.eq2(&nc) {
                                                     Ok(b.eq2(&cc))
                                                 } else {
@@ -1971,7 +2057,7 @@ pub fn string_of_list_ty_body(
                                                 Ok(sc) => if ty.tag() == ETAG_FORALL_E {
                                                     match view_bind(pers, st, ty) {
                                                         None => fail_dangling_e(),
-                                                        Some((d, b, _)) => {
+                                                        Some((d, b)) => {
                                                             if d.eq2(&dom) {
                                                                 Ok(b.eq2(&sc))
                                                             } else {
@@ -3225,19 +3311,19 @@ pub fn subst_const_all(
                     Ok(a2) => intern_e_app(pers, st, f2, a2),
                 },
             },
-            Ok(ENodeView::Lam(ty, b, mb)) => match subst_const_all(pers, st, n, r, fuel - 1, &ty) {
+            Ok(ENodeView::Lam(ty, b)) => match subst_const_all(pers, st, n, r, fuel - 1, &ty) {
                 Err(e) => Err(e),
                 Ok(t2) => match subst_const_all(pers, st, n, r, fuel - 1, &b) {
                     Err(e) => Err(e),
-                    Ok(b2) => intern_e_lam(pers, st, t2, b2, mb),
+                    Ok(b2) => intern_e_lam(pers, st, t2, b2),
                 },
             },
-            Ok(ENodeView::ForallE(ty, b, mb)) => {
+            Ok(ENodeView::ForallE(ty, b)) => {
                 match subst_const_all(pers, st, n, r, fuel - 1, &ty) {
                     Err(e) => Err(e),
                     Ok(t2) => match subst_const_all(pers, st, n, r, fuel - 1, &b) {
                         Err(e) => Err(e),
-                        Ok(b2) => intern_e_forall_e(pers, st, t2, b2, mb),
+                        Ok(b2) => intern_e_forall_e(pers, st, t2, b2),
                     },
                 }
             }
@@ -3358,7 +3444,7 @@ pub fn nat_op_ty_pinned(
                         if ty.tag() == ETAG_FORALL_E {
                             match view_bind(pers, st, ty) {
                                 None => fail_dangling_e(),
-                                Some((dom, body, _)) => {
+                                Some((dom, body)) => {
                                     if dom.eq2(&nc) {
                                         nat_op_cod(pers, vis, st, fe, c, &body)
                                     } else {
@@ -3373,10 +3459,10 @@ pub fn nat_op_ty_pinned(
                         if ty.tag() == ETAG_FORALL_E {
                             match view_bind(pers, st, ty) {
                                 None => fail_dangling_e(),
-                                Some((dom, rest, _)) => if rest.tag() == ETAG_FORALL_E {
+                                Some((dom, rest)) => if rest.tag() == ETAG_FORALL_E {
                                     match view_bind(pers, st, &rest) {
                                         None => fail_dangling_e(),
-                                        Some((dom2, body, _)) => {
+                                        Some((dom2, body)) => {
                                             if dom.eq2(&nc) && dom2.eq2(&nc) {
                                                 nat_op_cod(pers, vis, st, fe, c, &body)
                                             } else {
@@ -3796,14 +3882,14 @@ pub fn reduce_nat_wf(
 // fuel; what they call into the store does.
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/Core.lean:256-289 iotaCerts
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1245-1249 iotaCerts` — certify a
-/// spine against a recursor telescope: each argument's inferred type is defeq
-/// to the corresponding (instantiated) domain.  **The ι-slot licence**: at a
-/// *licensed* walk (`lic = true`) a slot whose ∀-binder datum is `.never` is
-/// skipped.  The twin's `List` recursion is a cursor over the `Vec`.
-pub fn iota_certs(
+/// con-leche: ConLeche/Kernel/Core.lean:244-259 iotaCertsFull
+/// con-leche: ConLeche/Cached/CoreC.lean:175-178 iotaCertsFullI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1245-1249 iotaCertsFull` — **the
+/// full-grade telescope certificate** (ι's case 3): every argument is inferred
+/// at the FULL grade and its type compared with its (instantiated) domain; no
+/// slot is skipped.  The cached tier's bulk form at the empty accumulator.
+/// (Task #119: was `iotaCerts`, with the ι-slot licence and the io grade.)
+pub fn iota_certs_full(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -3812,36 +3898,26 @@ pub fn iota_certs(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    lic: bool,
     h: &EIdx,
     args: &Vec<EIdx>,
     i: usize,
 ) -> Result<bool, CheckError> {
     let acc: Vec<EIdx> = Vec::new();
-    iota_certs_aux(pers, vis, st, mode, lane, fuel, fe, depth, lic, h, acc, args, i)
+    iota_certs_full_aux(pers, vis, st, mode, lane, fuel, fe, depth, h, acc, args, i)
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:150-189 iotaCertsIAux
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_certs_aux_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1203-1243 iotaCertsAux` — the
-/// cached tier's bulk form of `iotaCerts`.
+/// con-leche: ConLeche/Cached/CoreC.lean:146-173 iotaCertsFullIAux
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1203-1243 iotaCertsFullAux` — the
+/// cached tier's bulk form of `iotaCertsFull`.
 ///
-/// **The batched instantiation lever** (task #97-P6-9), the certificate half:
-/// peel the RAW telescope while the certified arguments accumulate, and
-/// substitute only each binder's DOMAIN (small) instead of copying the whole
-/// residual telescope per argument.  `acc` is the list `instantiate_list`
-/// takes at cursor 0, built in PUSH order on an OWNED vector (task
-/// #97-P6-15): `Vec::push` where the list conses, read from the end, so the
-/// denotation is the same list and the walk is `O(n)` where the cons chain
-/// was `O(n^2)`.  The identification with the chain of
-/// `instantiate1` the spec-shaped body ran is `Expr.instantiateList_cons`
-/// (`ConLeche/Verify/InstList.lean`).
-///
-/// A raw `bvar` body — whose substitution could expose further `∀`-binders,
-/// which is the fold's semantics — substitutes the accumulator and re-enters
-/// at the same argument, exactly as the twin does; every other non-`forallE`
-/// view is `false`, as it is in the spec.
-pub fn iota_certs_aux(
+/// **The batched instantiation lever** (task #97-P6-9): peel the RAW telescope
+/// while the certified arguments accumulate, and substitute only each
+/// binder's DOMAIN instead of copying the whole residual telescope per
+/// argument.  `acc` is the list `instantiate_list` takes at cursor 0, built in
+/// PUSH order on an OWNED vector (task #97-P6-15).  A raw `bvar` body
+/// substitutes the accumulator and re-enters at the same argument, exactly as
+/// the cited function does; every other non-`forallE` view is `false`.
+pub fn iota_certs_full_aux(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -3850,7 +3926,6 @@ pub fn iota_certs_aux(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    lic: bool,
     h: &EIdx,
     acc: Vec<EIdx>,
     args: &Vec<EIdx>,
@@ -3861,38 +3936,25 @@ pub fn iota_certs_aux(
     } else {
         match view(pers, st, h) {
             Err(e) => Err(e),
-            Ok(ENodeView::ForallE(ty, body, mb)) => {
+            Ok(ENodeView::ForallE(ty, body)) => {
                 let arg: EIdx = args[i].dup2();
-                if lic && prop_when::is_never(&mb.pw) {
-                    let mut acc2: Vec<EIdx> = acc;
-                    acc2.push(arg);
-                    iota_certs_aux(
-                        pers, vis, st, mode, lane, fuel, fe, depth, lic, &body, acc2, args,
-                        i + 1,
-                    )
-                } else {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &acc, 0) {
+                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &acc, 0) {
+                    Err(e) => Err(e),
+                    Ok(ty2) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
                         Err(e) => Err(e),
-                        Ok(ty2) => {
-                            match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &arg) {
-                                Err(e) => Err(e),
-                                Ok(ta) => match knot_defeq(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2,
-                                ) {
-                                    Err(e) => Err(e),
-                                    Ok(false) => Ok(false),
-                                    Ok(true) => {
-                                        let mut acc2: Vec<EIdx> = acc;
-                                        acc2.push(arg);
-                                        iota_certs_aux(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, lic,
-                                            &body, acc2, args, i + 1,
-                                        )
-                                    }
-                                },
+                        Ok(ta) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2) {
+                            Err(e) => Err(e),
+                            Ok(false) => Ok(false),
+                            Ok(true) => {
+                                let mut acc2: Vec<EIdx> = acc;
+                                acc2.push(arg);
+                                iota_certs_full_aux(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args,
+                                    i + 1,
+                                )
                             }
-                        }
-                    }
+                        },
+                    },
                 }
             }
             Ok(ENodeView::BVar(_)) => {
@@ -3903,9 +3965,8 @@ pub fn iota_certs_aux(
                         Err(e) => Err(e),
                         Ok(ty2) => {
                             let acc2: Vec<EIdx> = Vec::new();
-                            iota_certs_aux(
-                                pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty2, acc2,
-                                args, i,
+                            iota_certs_full_aux(
+                                pers, vis, st, mode, lane, fuel, fe, depth, &ty2, acc2, args, i,
                             )
                         }
                     }
@@ -3917,7 +3978,6 @@ pub fn iota_certs_aux(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:705-710 piResidual
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::pi_residual_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1251-1262 piResidual` — peel a
 /// ∀-telescope along an argument list.
 pub fn pi_residual(
@@ -3933,7 +3993,7 @@ pub fn pi_residual(
         if e.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, e) {
                 None => fail_dangling_e(),
-                Some((_, b, _)) => {
+                Some((_, b)) => {
                     let a: EIdx = args[i].dup2();
                     match instantiate1_fast(pers, st, CORE_WALK_FUEL, &b, &a, 0) {
                         Err(er) => Err(er),
@@ -4199,99 +4259,10 @@ pub fn prop_irrel(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:388-411 structEtaProjCerts
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_proj_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1345-1362 structEtaProjCerts` — the
-/// per-projection telescope certificates of a structural eta certification at
-/// a **projection-function** slot family.  The twin's `List Nat` is
-/// `List.range nF` at every call site, so the port is the counted recursion
-/// `towerSlotsAllGo` already is.
-pub fn struct_eta_proj_certs(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    t: &NIdx,
-    us2: &LsIdx,
-    targs: &Vec<EIdx>,
-    b: &EIdx,
-    lps_t: &Vec<NIdx>,
-    n: u64,
-    j: u64,
-) -> Result<bool, CheckError> {
-    if n == 0 {
-        Ok(true)
-    } else {
-        match env::proj_fn_name(pers, &mut st.store, t, j) {
-            Err(e) => Err(e),
-            Ok(nm) => match env::ifenv_find(vis, fe, &nm) {
-                Some(IConstantInfo::RecInfo(cvp, _, _, _)) => {
-                    let cvp_lps: Vec<NIdx> = env::nidx_vec_dup(&cvp.level_params);
-                    let cvp_ty: EIdx = cvp.ty.dup2();
-                    let cvp_name: NIdx = cvp.name.dup2();
-                    match strip_pis(pers, st, targs.len() as u64 + 1, &cvp_ty) {
-                        Err(e) => Err(e),
-                        Ok(None) => Ok(false),
-                        Ok(Some(_)) => {
-                            if !nidx_vec_beq(&cvp_lps, lps_t) {
-                                Ok(false)
-                            } else {
-                                let cv = IConstantVal {
-                                    name: cvp_name,
-                                    level_params: cvp_lps,
-                                    ty: cvp_ty,
-                                };
-                                match const_ty_at(pers, st, &cv, us2) {
-                                    Err(e) => Err(e),
-                                    Ok(ty) => {
-                                        let spine: Vec<EIdx> =
-                                            snoc_eidx_of(targs, b);
-                                        match iota_certs(
-                                            pers,
-                                            vis,
-                                            st, mode, lane, fuel, fe, depth, false, &ty,
-                                            &spine, 0,
-                                        ) {
-                                            Err(e) => Err(e),
-                                            Ok(false) => Ok(false),
-                                            Ok(true) => struct_eta_proj_certs(
-                                                pers,
-                                                vis,
-                                                st,
-                                                mode,
-                                                lane,
-                                                fuel,
-                                                fe,
-                                                depth,
-                                                t,
-                                                us2,
-                                                targs,
-                                                b,
-                                                lps_t,
-                                                n - 1,
-                                                j + 1,
-                                            ),
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-        }
-    }
-}
-
 /// con-leche: none — `List NIdx` equality; Lean's `deriving DecidableEq` on the level-parameter list
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1345-1362 structEtaProjCerts` — the
-/// cited `cvp.levelParams = lpsT`, over the `Vec` the port stores it in.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1345-1362 nidxListBEq` — a
+/// level-parameter list comparison (`structEtaCertWith`'s `cvc.levelParams =
+/// cvT.levelParams`, `recRuleEtaOf`'s), over the `Vec` the port stores it in.
 pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>) -> bool {
     if a.len() == b.len() {
         nidx_vec_beq_from(a, b, 0)
@@ -4301,7 +4272,7 @@ pub fn nidx_vec_beq(a: &Vec<NIdx>, b: &Vec<NIdx>) -> bool {
 }
 
 /// con-leche: none — `List NIdx` equality; Lean's `deriving DecidableEq` on the level-parameter list
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1345-1362 structEtaProjCerts` — the
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1345-1362 nidxListBEq` — the
 /// cursor recursion behind `nidx_vec_beq`.
 pub fn nidx_vec_beq_from(a: &Vec<NIdx>, b: &Vec<NIdx>, i: usize) -> bool {
     if i >= a.len() {
@@ -4352,56 +4323,10 @@ pub fn tower_slots_all(
     tower_slots_all_go(pers, vis, st, fe, t, n_f, 0)
 }
 
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:670-678 recSlotsAll
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_slots_all_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1379-1386 recSlotsAllGo` — the
-/// projection-function slot walk, as a counted recursion.
-pub fn rec_slots_all_go(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    t: &NIdx,
-    n: u64,
-    j: u64,
-) -> Result<bool, CheckError> {
-    if n == 0 {
-        Ok(true)
-    } else {
-        match env::proj_fn_name(pers, &mut st.store, t, j) {
-            Err(e) => Err(e),
-            Ok(nm) => match env::ifenv_find(vis, fe, &nm) {
-                Some(IConstantInfo::RecInfo(_, _, _, _)) => {
-                    rec_slots_all_go(pers, vis, st, fe, t, n - 1, j + 1)
-                }
-                Some(_) => Ok(false),
-                None => Ok(false),
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:670-678 recSlotsAll
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_slots_all_refines, then delete this line
-/// con-leche: ConLeche/Kernel/FEnv.lean:203-208 FEnv.recSlotsAllF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_slots_all_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1388-1393 recSlotsAll` — are all
-/// `nF` projection slots of `T` recursor-backed projection functions?
-pub fn rec_slots_all(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    t: &NIdx,
-    n_f: u64,
-) -> Result<bool, CheckError> {
-    rec_slots_all_go(pers, vis, st, fe, t, n_f, 0)
-}
-
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:719-724 etaProjs
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::proj_nodes_go_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:305-312 projNodesI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1395-1402 projNodesGo` — the
-/// `.proj` half of the fabricated projections, as a counted recursion.
+/// `.proj T j b` spine, as a counted recursion over `List.range nF`.
 pub fn proj_nodes_go(
     pers: &PersTier,
     st: &mut AState,
@@ -4424,63 +4349,19 @@ pub fn proj_nodes_go(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:719-724 etaProjs
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::proj_apps_go_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1404-1413 projAppsGo` — the
-/// projection-function half, as a counted recursion.
-pub fn proj_apps_go(
-    pers: &PersTier,
-    st: &mut AState,
-    t: &NIdx,
-    us: &LsIdx,
-    targs: &Vec<EIdx>,
-    b: &EIdx,
-    n: u64,
-    j: u64,
-) -> Result<Vec<EIdx>, CheckError> {
-    if n == 0 {
-        Ok(Vec::new())
-    } else {
-        match env::proj_fn_name(pers, &mut st.store, t, j) {
-            Err(e) => Err(e),
-            Ok(nm) => match intern_e_const(pers, st, nm, us.dup2()) {
-                Err(e) => Err(e),
-                Ok(f) => {
-                    let spine: Vec<EIdx> = snoc_eidx_of(targs, b);
-                    match mk_app_n(pers, st, &f, &spine) {
-                        Err(e) => Err(e),
-                        Ok(p) => match proj_apps_go(pers, st, t, us, targs, b, n - 1, j + 1) {
-                            Err(e) => Err(e),
-                            Ok(rest) => Ok(cons_eidx(&p, &rest)),
-                        },
-                    }
-                }
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:719-724 etaProjs
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::eta_projs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1415-1421 etaProjs` — the
-/// fabricated projections of a structure-eta spine: `.proj T j b` nodes when
-/// every slot has a table entry, else the modeled path's projection-function
-/// applications.
+/// fabricated projections of a structure-eta spine: the `.proj T j b` nodes
+/// (task #119: every slot of an η family the checker uses has a table entry,
+/// `towerSlotsAll`, so the projection-function spelling and its environment
+/// read are gone).
 pub fn eta_projs(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
-    fe: &IFEnv,
     t: &NIdx,
-    us: &LsIdx,
-    targs: &Vec<EIdx>,
     b: &EIdx,
     n_f: u64,
 ) -> Result<Vec<EIdx>, CheckError> {
-    match tower_slots_all(pers, vis, st, fe, t, n_f) {
-        Err(e) => Err(e),
-        Ok(true) => proj_nodes_go(pers, st, t, b, n_f, 0),
-        Ok(false) => proj_apps_go(pers, st, t, us, targs, b, n_f, 0),
-    }
+    proj_nodes_go(pers, st, t, b, n_f, 0)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Names.lean:95-102 reservedBasisNames
@@ -4503,12 +4384,13 @@ pub fn reserved_basis_names(st: &AState) -> Result<Vec<NIdx>, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:358-402 structEtaCertWith
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_cert_tail_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:314-351 structEtaCertWithI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1464-1542 structEtaCertWith` — the
-/// certificate's tail, from `defEqList (aargs.take caps.etaParams) targs` on:
-/// the parameter comparison, the TT-lane synthetic-spine certification
-/// (con-leche's task #137, skipped unless `mode.ttChecks`) and the field
-/// comparison against the fabricated projections.
+/// certificate's tail, from the level comparison on: the constructor's levels
+/// against the type's, `defEqList (aargs.take caps.etaParams) targs` and the
+/// field comparison against the `.proj` nodes.  No type-application
+/// certificate and no per-slot one (con-leche task #342 L11b, L-DEAD: `wtb` is
+/// the reduced type of `b`, so its spine fits the former's telescope).
 pub fn struct_eta_cert_tail(
     pers: &PersTier,
     vis: u64,
@@ -4518,105 +4400,6 @@ pub fn struct_eta_cert_tail(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cvc: &IConstantVal,
-    us: &LsIdx,
-    t: &NIdx,
-    us2: &LsIdx,
-    targs: &Vec<EIdx>,
-    b: &EIdx,
-    aargs: &Vec<EIdx>,
-    eta_params: u64,
-    eta_fields: u64,
-) -> Result<bool, CheckError> {
-    let head: Vec<EIdx> = take_eidx_n(aargs, eta_params);
-    match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, targs, 0) {
-        Err(e) => Err(e),
-        Ok(false) => Ok(false),
-        Ok(true) => {
-            let tt = if crate::kernel::env::tt_checks(mode) {
-                match const_ty_at(pers, st, cvc, us) {
-                    Err(e) => Err(e),
-                    Ok(ty_c) => match eta_projs(pers, vis, st, fe, t, us2, targs, b, eta_fields) {
-                        Err(e) => Err(e),
-                        Ok(projs) => {
-                            let spine: Vec<EIdx> =
-                                append_eidx_of(targs, &projs);
-                            iota_certs(
-                                pers,
-                                vis,
-                                st, mode, lane, fuel, fe, depth, false, &ty_c, &spine, 0,
-                            )
-                        }
-                    },
-                }
-            } else {
-                Ok(true)
-            };
-            match tt {
-                Err(e) => Err(e),
-                Ok(false) => Ok(false),
-                Ok(true) => match eta_projs(pers, vis, st, fe, t, us2, targs, b, eta_fields) {
-                    Err(e) => Err(e),
-                    Ok(projs) => {
-                        let rest: Vec<EIdx> = drop_eidx_n(aargs, eta_params);
-                        def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, &projs, 0)
-                    }
-                },
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:358-402 structEtaCertWith
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_cert_fam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1464-1542 structEtaCertWith` — the
-/// twin's `famT`: the type-former telescope certificate, a certificate FAMILY
-/// gated on `mode.certs` (task #97f, P2f).  Its own function so the gate's
-/// `.trusted` arm does not compute `constTyAt` either — the twin's `if
-/// mode.certs then iotaCerts … (← constTyAt cvT us') targs else pure true` has
-/// the lookup INSIDE the branch.
-pub fn struct_eta_cert_fam(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    cvt: &IConstantVal,
-    us2: &LsIdx,
-    targs: &Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    if !crate::kernel::env::certs(mode) {
-        Ok(true)
-    } else {
-        match const_ty_at(pers, st, cvt, us2) {
-            Err(e) => Err(e),
-            Ok(ty_t) => {
-                iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:358-402 structEtaCertWith
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_cert_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1464-1542 structEtaCertWith` — the
-/// certificate's middle, from the level comparison on: the structure's own
-/// telescope certificate, the per-slot certificates (which a tabled family
-/// does not have) and the tail above.
-pub fn struct_eta_cert_certs(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    cvc: &IConstantVal,
-    cvt: &IConstantVal,
     us: &LsIdx,
     t: &NIdx,
     us2: &LsIdx,
@@ -4631,66 +4414,32 @@ pub fn struct_eta_cert_certs(
         Ok(o) => match lift_fueled(o) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
-            // the type-former telescope certificate and the per-slot ones are
-            // certificate FAMILIES (official's `try_eta_struct_core` runs
-            // neither), so `mode.certs` gates them both (task #97f, P2f;
-            // `Cached/CoreC.lean:437` and `:440`).  At `.trusted` the two type
-            // lookups do not happen either: they are read nowhere else.
-            Ok(true) => match struct_eta_cert_fam(
-                pers,
-                vis,
-                st, mode, lane, fuel, fe, depth, cvt, us2, targs,
-            ) {
-                Err(e) => Err(e),
-                Ok(false) => Ok(false),
-                Ok(true) => {
-                    let percerts = if !crate::kernel::env::certs(mode) {
-                        Ok(true)
-                    } else {
-                        match tower_slots_all(pers, vis, st, fe, t, eta_fields) {
-                            Err(e) => Err(e),
-                            Ok(true) => Ok(true),
-                            Ok(false) => struct_eta_proj_certs(
-                                pers,
-                                vis,
-                                st,
-                                mode,
-                                lane,
-                                fuel,
-                                fe,
-                                depth,
-                                t,
-                                us2,
-                                targs,
-                                b,
-                                &cvt.level_params,
-                                eta_fields,
-                                0,
-                            ),
-                        }
-                    };
-                    match percerts {
+            Ok(true) => {
+                let head: Vec<EIdx> = take_eidx_n(aargs, eta_params);
+                match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, targs, 0) {
+                    Err(e) => Err(e),
+                    Ok(false) => Ok(false),
+                    Ok(true) => match eta_projs(pers, st, t, b, eta_fields) {
                         Err(e) => Err(e),
-                        Ok(false) => Ok(false),
-                        Ok(true) => struct_eta_cert_tail(
-                            pers,
-                            vis,
-                            st, mode, lane, fuel, fe, depth, cvc, us, t, us2, targs, b,
-                            aargs, eta_params, eta_fields,
-                        ),
-                    }
+                        Ok(projs) => {
+                            let rest: Vec<EIdx> = drop_eidx_n(aargs, eta_params);
+                            def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &rest, &projs, 0)
+                        }
+                    },
                 }
-            },
+            }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:358-402 structEtaCertWith
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_cert_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:314-351 structEtaCertWithI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1464-1542 structEtaCertWith` — the
 /// certificate's head: the stuck side's whnf'd type must be a stored,
 /// eta-capable, non-reserved inductive at the candidate's own constructor,
-/// with matching arities and level parameters.
+/// with matching arities and level parameters, and every field slot a
+/// projection-table entry (`towerSlotsAll`; task #119: the
+/// projection-function slot discipline `recSlotsAll` is gone).
 pub fn struct_eta_cert_at(
     pers: &PersTier,
     vis: u64,
@@ -4723,15 +4472,7 @@ pub fn struct_eta_cert_at(
                                 Ok(reserved) => match view_ls(pers, st, &us2) {
                                     Err(e) => Err(e),
                                     Ok(uslen) => {
-                                        let slots =
-                                            match tower_slots_all(pers, vis, st, fe, &t, caps.eta_fields) {
-                                                Err(e) => Err(e),
-                                                Ok(true) => Ok(true),
-                                                Ok(false) => {
-                                                    rec_slots_all(pers, vis, st, fe, &t, caps.eta_fields)
-                                                }
-                                            };
-                                        match slots {
+                                        match tower_slots_all(pers, vis, st, fe, &t, caps.eta_fields) {
                                             Err(e) => Err(e),
                                             Ok(sl) => {
                                                 if caps.eta
@@ -4746,7 +4487,7 @@ pub fn struct_eta_cert_at(
                                                     )
                                                     && sl
                                                 {
-                                                    struct_eta_cert_certs(
+                                                    struct_eta_cert_tail(
                                                         pers,
                                                         vis,
                                                         st,
@@ -4755,8 +4496,6 @@ pub fn struct_eta_cert_at(
                                                         fuel,
                                                         fe,
                                                         depth,
-                                                        cvc,
-                                                        &cvt,
                                                         us,
                                                         &t,
                                                         &us2,
@@ -4787,10 +4526,10 @@ pub fn struct_eta_cert_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:358-402 structEtaCertWith
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_cert_with_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:314-351 structEtaCertWithI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1464-1542 structEtaCertWith` — the
-/// structure-eta certificate against a *given* weak-head-normal type of the
-/// stuck side.
+/// structure-eta certificate against the weak-head-normal type `wtb` of the
+/// stuck side `b`.
 pub fn struct_eta_cert_with(
     pers: &PersTier,
     vis: u64,
@@ -4875,7 +4614,7 @@ pub fn eta_ctor_shape(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:404-425 structEtaCert
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_eta_cert_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:353-362 structEtaCertI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1561-1570 structEtaCert` —
 /// structural eta certification for a stored eta-capable structure.  The
 /// constructor-shape test comes FIRST (the divergence audit's D13).
@@ -4907,10 +4646,12 @@ pub fn struct_eta_cert(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:427-455 structUnitCert
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_unit_cert_tail_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:364-387 structUnitCertI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1572-1606 structUnitCert` — the
-/// certificate's tail, once the family's capabilities have been read: the two
-/// whnf'd types are defeq and the structure's telescope is certified.
+/// certificate's tail, once the family's capabilities have been read: `b`'s
+/// whnf'd type is no `∀` (con-leche task #342 L18) and is defeq to `a`'s.
+/// No type-application certificate (task #342 L11b), as official's
+/// `is_def_eq_unit_like`.
 pub fn struct_unit_cert_tail(
     pers: &PersTier,
     vis: u64,
@@ -4920,9 +4661,6 @@ pub fn struct_unit_cert_tail(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cvt: &IConstantVal,
-    us2: &LsIdx,
-    targs: &Vec<EIdx>,
     wta: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
@@ -4930,36 +4668,19 @@ pub fn struct_unit_cert_tail(
         Err(e) => Err(e),
         Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
             Err(e) => Err(e),
-            Ok(wtb) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, wta, &wtb) {
-                Err(e) => Err(e),
-                Ok(false) => Ok(false),
-                // the type-former telescope certificate is a certificate
-                // FAMILY (official's `is_def_eq_unit_like` stops at the defeq
-                // above), so `mode.certs` gates it — the twin's `if mode.certs
-                // then iotaCerts … (← constTyAt cvT us') targs else pure true`,
-                // lookup inside the branch (task #97f, P2f;
-                // `Cached/CoreC.lean:508`)
-                Ok(true) => {
-                    if !crate::kernel::env::certs(mode) {
-                        Ok(true)
-                    } else {
-                        match const_ty_at(pers, st, cvt, us2) {
-                            Err(e) => Err(e),
-                            Ok(ty_t) => iota_certs(
-                                pers,
-                                vis,
-                                st, mode, lane, fuel, fe, depth, false, &ty_t, targs, 0,
-                            ),
-                        }
-                    }
+            Ok(wtb) => {
+                if wtb.tag() == ETAG_FORALL_E {
+                    Ok(false)
+                } else {
+                    knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, wta, &wtb)
                 }
-            },
+            }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:427-455 structUnitCert
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::struct_unit_cert_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:364-387 structUnitCertI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1572-1606 structUnitCert` —
 /// unit-likeness certification: `a` and `b` inhabit the same stored unit-like
 /// family.
@@ -5001,10 +4722,8 @@ pub fn struct_unit_cert(
                                                     && uslen.len() == cvt.level_params.len()
                                                 {
                                                     struct_unit_cert_tail(
-                                                        pers,
-                                                        vis,
-                                                        st, mode, lane, fuel, fe, depth, &cvt,
-                                                        &us2, &targs, &wta, b,
+                                                        pers, vis, st, mode, lane, fuel, fe, depth,
+                                                        &wta, b,
                                                     )
                                                 } else {
                                                     Ok(false)
@@ -5027,9 +4746,12 @@ pub fn struct_unit_cert(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:457-483 etaCert
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::eta_cert_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:389-412 etaCertI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1608-1627 etaCert` — eta
-/// certification for a one-sided λ against a stuck term `b`.
+/// certification for a one-sided λ against a stuck term `b`: `b`'s head is no
+/// λ and no `let` (`Expr.ioNeutral`, con-leche task #342 L18), its whnf'd
+/// type is a `∀` whose domain is defeq to the λ's, and (`eta_cert_body`) the
+/// λ's body is pointwise the application of `b`.
 pub fn eta_cert(
     pers: &PersTier,
     vis: u64,
@@ -5041,39 +4763,43 @@ pub fn eta_cert(
     depth: u64,
     ty1: &EIdx,
     body1: &EIdx,
-    m1: &BinderMeta,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
-    match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
+    match io_neutral(pers, st, b) {
         Err(e) => Err(e),
-        Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
+        Ok(false) => Ok(false),
+        Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, b) {
             Err(e) => Err(e),
-            Ok(w) => if w.tag() == ETAG_FORALL_E {
-                match view_bind(pers, st, &w) {
-                    None => fail_dangling_e(),
-                    Some((ty2, _, m2)) => {
-                        match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
-                            Err(e) => Err(e),
-                            Ok(false) => Ok(false),
-                            Ok(true) => {
-                                eta_cert_body(pers, vis, st, mode, lane, fuel, fe, depth, ty1, body1, m1,
-                                    &m2, b)
+            Ok(tb) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tb) {
+                Err(e) => Err(e),
+                Ok(w) => if w.tag() == ETAG_FORALL_E {
+                    match view_bind(pers, st, &w) {
+                        None => fail_dangling_e(),
+                        Some((ty2, cod2)) => {
+                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, ty1) {
+                                Err(e) => Err(e),
+                                Ok(false) => Ok(false),
+                                Ok(true) => eta_cert_body(
+                                    pers, vis, st, mode, lane, fuel, fe, depth, ty1, body1, &cod2, b,
+                                ),
                             }
                         }
-                    },
-                }
-            } else {
-                Ok(false)
+                    }
+                } else {
+                    Ok(false)
+                },
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:457-483 etaCert
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::eta_cert_body_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:389-412 etaCertI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1608-1627 etaCert` — the cited
 /// certificate's body, once the domains agree: open the λ at a fresh free
-/// variable, compare against `b` applied to it, then compare the annotations.
+/// variable and compare against `b` applied to it; then, at the verified mode
+/// only, **the η check** (con-leche task #342, T2): the λ body's FULL-grade
+/// type against the `∀`'s codomain at the variable.
 pub fn eta_cert_body(
     pers: &PersTier,
     vis: u64,
@@ -5085,25 +4811,30 @@ pub fn eta_cert_body(
     depth: u64,
     ty1: &EIdx,
     body1: &EIdx,
-    m1: &BinderMeta,
-    m2: &BinderMeta,
+    cod2: &EIdx,
     b: &EIdx,
 ) -> Result<bool, CheckError> {
     match intern_e_fvar(pers, st, depth, ty1.dup2()) {
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
             Err(e) => Err(e),
-            Ok(lhs) => match intern_e_app(pers, st, b.dup2(), fv.dup2()) {
+            Ok(b1) => match intern_e_app(pers, st, b.dup2(), fv.dup2()) {
                 Err(e) => Err(e),
-                Ok(rhs) => {
-                    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &lhs, &rhs) {
+                Ok(ba) => {
+                    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &b1, &ba) {
                         Err(e) => Err(e),
                         Ok(false) => Ok(false),
                         Ok(true) => {
-                            if crate::kernel::env::verified_checks(mode)
-                                && !prop_when::beq(&m1.pw, &m2.pw)
-                            {
-                                fail(CheckError::NotImplemented(code_points(&M_ETA)))
+                            if crate::kernel::env::verified_checks(mode) {
+                                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, &b1) {
+                                    Err(e) => Err(e),
+                                    Ok(t1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, cod2, &fv, 0) {
+                                        Err(e) => Err(e),
+                                        Ok(t2) => knot_defeq(
+                                            pers, vis, st, mode, lane, fuel, fe, depth + 1, &t1, &t2,
+                                        ),
+                                    },
+                                }
                             } else {
                                 Ok(true)
                             }
@@ -5116,7 +4847,7 @@ pub fn eta_cert_body(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:485-492 stuckIrrel
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::stuck_irrel_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:414-420 stuckIrrelI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1629-1637 stuckIrrel` — the
 /// fallback for structurally distinct stuck terms: structural eta in either
 /// direction, unit-likeness, else proof irrelevance.
@@ -5148,21 +4879,18 @@ pub fn stuck_irrel(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:739-743 etaFabArgsE
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::eta_fab_args_e_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1639-1644 etaFabArgsE` —
-/// `etaFabArgs` at the entry kind: the projections are `etaProjs`'.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1639-1644 etaFabArgsE` — the
+/// eta-rescue fabrication's argument spine: the major's type's arguments, then
+/// the major's projections (`etaProjs`).
 pub fn eta_fab_args_e(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
-    fe: &IFEnv,
     t: &NIdx,
-    ust: &LsIdx,
     targs: &Vec<EIdx>,
     major: &EIdx,
     n_f: u64,
 ) -> Result<Vec<EIdx>, CheckError> {
-    match eta_projs(pers, vis, st, fe, t, ust, targs, major, n_f) {
+    match eta_projs(pers, st, t, major, n_f) {
         Err(e) => Err(e),
         Ok(ps) => Ok(append_eidx_of(targs, &ps)),
     }
@@ -5272,7 +5000,6 @@ pub fn and_rescue_slots(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::fab_scope_ok_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:423-448 majorToCtorI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1687-1704 fabScopeOk` — the scope
 /// guard the three rescue branches share: the fabricated major is well-scoped,
@@ -5307,11 +5034,14 @@ pub fn fab_scope_ok(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the K
-/// rescue's certificate chain, once the fabricated major is built: the scope
-/// guard, the synthetic-spine certification (con-leche's task #71), the
-/// official `to_cnstr_when_K` type check and proof irrelevance.
+/// con-leche: ConLeche/Cached/CoreC.lean:422-524 majorToCtorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtorChecks` — the
+/// K and `And` rescues' checks, once the fabricated major is built: the scope
+/// guard, the official `to_cnstr_when_K` type check (both modes) and proof
+/// irrelevance, a certificate family off at the trusted mode
+/// (`certAtI mode (proofIrrelI …)`).  Task #119: the synthetic-spine
+/// telescope certificate that stood between the guard and the type check is
+/// gone (con-leche task #342 L-DEAD), and so are its arguments.
 pub fn major_to_ctor_certs(
     pers: &PersTier,
     vis: u64,
@@ -5321,9 +5051,6 @@ pub fn major_to_ctor_certs(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cvj: &IConstantVal,
-    ust: &LsIdx,
-    spine: &Vec<EIdx>,
     fab: &EIdx,
     tmaj: &EIdx,
     major: &EIdx,
@@ -5331,70 +5058,29 @@ pub fn major_to_ctor_certs(
     match fab_scope_ok(pers, st, depth, fab, major) {
         Err(e) => Err(e),
         Ok(false) => Ok(major.dup2()),
-        // the synthetic-spine certification (con-leche's task #71) is a
-        // certificate FAMILY, gated on `mode.certs` (task #97f, P2f;
-        // `Cached/CoreC.lean:576` and `:654`), and so is the `proofIrrel`
-        // below the official `to_cnstr_when_K` type check (`:588`, `:658`).
-        // The type check itself runs at both modes.
-        Ok(true) => match iota_certs_fam(pers, vis, st, mode, lane, fuel, fe, depth, cvj, ust, spine) {
+        Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, fab) {
             Err(e) => Err(e),
-            Ok(false) => Ok(major.dup2()),
-            Ok(true) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, fab) {
+            Ok(tfab) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, tmaj, &tfab) {
                 Err(e) => Err(e),
-                Ok(tfab) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, tmaj, &tfab)
-                {
-                    Err(e) => Err(e),
-                    Ok(false) => Ok(major.dup2()),
-                    Ok(true) => {
-                        let ir = if !crate::kernel::env::certs(mode) {
-                            Ok(true)
-                        } else {
-                            proof_irrel(pers, vis, st, mode, lane, fuel, fe, depth, fab, major)
-                        };
-                        match ir {
-                            Err(e) => Err(e),
-                            Ok(true) => Ok(fab.dup2()),
-                            Ok(false) => Ok(major.dup2()),
-                        }
+                Ok(false) => Ok(major.dup2()),
+                Ok(true) => {
+                    let ir = if !crate::kernel::env::verified_checks(mode) {
+                        Ok(true)
+                    } else {
+                        proof_irrel(pers, vis, st, mode, lane, fuel, fe, depth, fab, major)
+                    };
+                    match ir {
+                        Err(e) => Err(e),
+                        Ok(true) => Ok(fab.dup2()),
+                        Ok(false) => Ok(major.dup2()),
                     }
-                },
+                }
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_certs_fam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the
-/// twin's `famK`/`famE`/`famA`: the synthetic-spine certificate, a certificate
-/// FAMILY gated on `mode.certs` (task #97f, P2f).  Its own function so the
-/// gate's `.trusted` arm does not compute `constTyAt` either — the twin has
-/// the lookup INSIDE the branch — and because the three rescues spell it.
-pub fn iota_certs_fam(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    cvj: &IConstantVal,
-    ust: &LsIdx,
-    spine: &Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    if !crate::kernel::env::certs(mode) {
-        Ok(true)
-    } else {
-        match const_ty_at(pers, st, cvj, ust) {
-            Err(e) => Err(e),
-            Ok(tyj) => iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, false, &tyj, spine, 0),
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_k_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the
 /// K-flagged branch (`to_cnstr_when_K`): the major's whnf'd type is the rule's
 /// own inductive, and the fabricated major is its constructor at the type's
@@ -5439,11 +5125,8 @@ pub fn major_to_ctor_k(
                                                         match mk_app_n(pers, st, &hd, &spine) {
                                                             Err(e) => Err(e),
                                                             Ok(fab) => major_to_ctor_certs(
-                                                                pers,
-                                                                vis,
-                                                                st, mode, lane, fuel, fe,
-                                                                depth, cvj, &ust, &spine,
-                                                                &fab, &tmaj, major,
+                                                                pers, vis, st, mode, lane, fuel,
+                                                                fe, depth, &fab, &tmaj, major,
                                                             ),
                                                         }
                                                     }
@@ -5468,59 +5151,14 @@ pub fn major_to_ctor_k(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_eta_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the η
-/// rescue's certificate chain, ending in the structure-eta certificate (the
-/// pinned `PUnit`'s 0-field fallback went with the pin, con-leche's lane
-/// PUNIT).
-pub fn major_to_ctor_eta_certs(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    cvj: &IConstantVal,
-    ust: &LsIdx,
-    fab_args: &Vec<EIdx>,
-    fab: &EIdx,
-    tmaj: &EIdx,
-    major: &EIdx,
-) -> Result<EIdx, CheckError> {
-    match fab_scope_ok(pers, st, depth, fab, major) {
-        Err(e) => Err(e),
-        Ok(false) => Ok(major.dup2()),
-        // the synthetic-spine certificate, a family (task #97f, P2f;
-        // `Cached/CoreC.lean:621`).  The structure-eta certificate below it is
-        // the VERDICT, not a family, and runs at both modes.
-        Ok(true) => {
-            match iota_certs_fam(pers, vis, st, mode, lane, fuel, fe, depth, cvj, ust, fab_args) {
-                    Err(e) => Err(e),
-                    Ok(false) => Ok(major.dup2()),
-                    Ok(true) => {
-                        match struct_eta_cert_with(
-                            pers,
-                            vis,
-                            st, mode, lane, fuel, fe, depth, fab, major, tmaj,
-                        ) {
-                            Err(e) => Err(e),
-                            Ok(true) => Ok(fab.dup2()),
-                            Ok(false) => Ok(major.dup2()),
-                        }
-                    }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_eta_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:422-524 majorToCtorI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the
 /// η-capable branch: the fabricated major is the structure's constructor at
-/// the type's parameters and the installed projections of the stuck major.
-/// The *instantiated* non-`Prop` test is con-leche's task #61.
+/// the type's parameters and the `.proj` nodes of the stuck major.  The
+/// *instantiated* non-`Prop` test is con-leche's task #61; the last three
+/// conditions are the keys of the η law (con-leche task #342 L-DEAD): neither
+/// the family nor its constructor a reserved basis name, every field slot a
+/// projection-table entry.
 pub fn major_to_ctor_eta(
     pers: &PersTier,
     vis: u64,
@@ -5530,7 +5168,6 @@ pub fn major_to_ctor_eta(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cvj: &IConstantVal,
     cvt: &IConstantVal,
     caps: &IIndCaps,
     t: &NIdx,
@@ -5558,11 +5195,9 @@ pub fn major_to_ctor_eta(
                                                 && ustl.len() == cvt.level_params.len()
                                                 && nz
                                             {
-                                                major_to_ctor_eta_build(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, cvj,
-                                                    caps, t, &ust, &targs, &tmaj, major,
+                                                major_to_ctor_eta_keys(
+                                                    pers, vis, st, fe, depth, caps, t, &ust,
+                                                    &targs, major,
                                                 )
                                             } else {
                                                 Ok(major.dup2())
@@ -5582,57 +5217,73 @@ pub fn major_to_ctor_eta(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_eta_build_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the η
-/// branch's fabrication: the argument spine and the constructor application.
-pub fn major_to_ctor_eta_build(
+/// con-leche: ConLeche/Cached/CoreC.lean:422-524 majorToCtorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtorEtaKeys` —
+/// the η branch's three law keys (`reservedBasisNames` on the family and on
+/// its constructor, `towerSlotsAll`), then the fabrication.
+pub fn major_to_ctor_eta_keys(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cvj: &IConstantVal,
     caps: &IIndCaps,
     t: &NIdx,
     ust: &LsIdx,
     targs: &Vec<EIdx>,
-    tmaj: &EIdx,
     major: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match eta_fab_args_e(pers, vis, st, fe, t, ust, targs, major, caps.eta_fields) {
+    match reserved_basis_names(st) {
         Err(e) => Err(e),
-        Ok(fab_args) => {
-            match intern_e_const(pers, st, caps.eta_ctor.dup2(), ust.dup2()) {
-                Err(e) => Err(e),
-                Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
+        Ok(reserved) => {
+            if !env::nidx_vec_contains(&reserved, t)
+                && !env::nidx_vec_contains(&reserved, &caps.eta_ctor)
+            {
+                match tower_slots_all(pers, vis, st, fe, t, caps.eta_fields) {
                     Err(e) => Err(e),
-                    Ok(fab) => major_to_ctor_eta_certs(
-                        pers,
-                        vis,
-                        st,
-                        mode,
-                        lane,
-                        fuel,
-                        fe,
-                        depth,
-                        cvj,
-                        ust,
-                        &fab_args,
-                        &fab,
-                        tmaj,
-                        major,
-                    ),
-                },
+                    Ok(true) => major_to_ctor_eta_build(pers, st, depth, caps, t, ust, targs, major),
+                    Ok(false) => Ok(major.dup2()),
+                }
+            } else {
+                Ok(major.dup2())
             }
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_and_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:422-524 majorToCtorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the η
+/// branch's fabrication: the argument spine, the constructor application and
+/// the scope guard.  No certificate on the fabricated spine (con-leche task
+/// #342 L11b): the major is the fabrication by the family's η law.
+pub fn major_to_ctor_eta_build(
+    pers: &PersTier,
+    st: &mut AState,
+    depth: u64,
+    caps: &IIndCaps,
+    t: &NIdx,
+    ust: &LsIdx,
+    targs: &Vec<EIdx>,
+    major: &EIdx,
+) -> Result<EIdx, CheckError> {
+    match eta_fab_args_e(pers, st, t, targs, major, caps.eta_fields) {
+        Err(e) => Err(e),
+        Ok(fab_args) => match intern_e_const(pers, st, caps.eta_ctor.dup2(), ust.dup2()) {
+            Err(e) => Err(e),
+            Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
+                Err(e) => Err(e),
+                Ok(fab) => match fab_scope_ok(pers, st, depth, &fab, major) {
+                    Err(e) => Err(e),
+                    Ok(true) => Ok(fab),
+                    Ok(false) => Ok(major.dup2()),
+                },
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — **THE
 /// `And`-ONLY η RESCUE** (the user ruling: `And` and nothing else): the
 /// fabricated major is `And.intro` at the two `.proj` nodes of the stuck one.
@@ -5674,9 +5325,7 @@ pub fn major_to_ctor_and(
                                                 && ars
                                             {
                                                 major_to_ctor_and_build(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, cvj,
+                                                    pers, vis, st, mode, lane, fuel, fe, depth,
                                                     ctor, t, &ust, &targs, &tmaj, major,
                                                 )
                                             } else {
@@ -5697,7 +5346,6 @@ pub fn major_to_ctor_and(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_and_build_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the `And`
 /// branch's fabrication and its certificate chain.
 pub fn major_to_ctor_and_build(
@@ -5709,7 +5357,6 @@ pub fn major_to_ctor_and_build(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cvj: &IConstantVal,
     ctor: &NIdx,
     t: &NIdx,
     ust: &LsIdx,
@@ -5729,10 +5376,7 @@ pub fn major_to_ctor_and_build(
                     Ok(hd) => match mk_app_n(pers, st, &hd, &fab_args) {
                         Err(e) => Err(e),
                         Ok(fab) => major_to_ctor_certs(
-                            pers,
-                            vis,
-                            st, mode, lane, fuel, fe, depth, cvj, ust, &fab_args, &fab,
-                            tmaj, major,
+                            pers, vis, st, mode, lane, fuel, fe, depth, &fab, tmaj, major,
                         ),
                     },
                 }
@@ -5742,7 +5386,6 @@ pub fn major_to_ctor_and_build(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — the
 /// three-way branch on the rule's stamped bits, once the rule's constructor
 /// and its inductive have been found.
@@ -5768,7 +5411,7 @@ pub fn major_to_ctor_at(
     if k {
         major_to_ctor_k(pers, vis, st, mode, lane, fuel, fe, depth, cvj, cn_p, ctor, t, major)
     } else if eta {
-        major_to_ctor_eta(pers, vis, st, mode, lane, fuel, fe, depth, cvj, cvt, caps, t, major)
+        major_to_ctor_eta(pers, vis, st, mode, lane, fuel, fe, depth, cvt, caps, t, major)
     } else {
         match pin_and(st) {
             Err(e) => Err(e),
@@ -5788,7 +5431,6 @@ pub fn major_to_ctor_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:494-655 majorToCtor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::major_to_ctor_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1706-1840 majorToCtor` — **the
 /// stuck-major rescue** (`to_cnstr_when_K` and `to_cnstr_when_structure`): a
 /// recursor's major premise that does not whnf to a constructor application
@@ -5975,17 +5617,17 @@ pub fn rec_rule_k_of(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:818-841 recRuleEtaOf
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_rule_eta_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1888-1907 recRuleEtaOf` — **the
-/// η-rescue bit at install** (`RecRule.eta`).  `Name.isProjFnShape` is a
-/// predicate on a `ConLeche.Name`, so the recursor's name is read back for it —
-/// an install-time path, never a reduction-time one.
+/// η-rescue bit at install** (`RecRule.eta`): the rule's constructor is the η
+/// constructor of a stored η-capable inductive and carries that inductive's
+/// own level parameters.  (Task #119: the recursor-name test
+/// `!Name.isProjFnShape recName` held at every stored recursor and is gone,
+/// with the parameter.)
 pub fn rec_rule_eta_of(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    rec_name: &NIdx,
     ctor: &NIdx,
 ) -> Result<bool, CheckError> {
     match env::ifenv_find(vis, fe, ctor) {
@@ -6001,17 +5643,9 @@ pub fn rec_rule_eta_of(
                             None => fail_dangling_e(),
                             Some(t) => match env::ifenv_find(vis, fe, &t) {
                                 Some(IConstantInfo::IndInfo(cvt, caps)) => {
-                                    let eta: bool = caps.eta;
-                                    let eta_ctor: NIdx = caps.eta_ctor.dup2();
-                                    let cvt_lps: Vec<NIdx> =
-                                        env::nidx_vec_dup(&cvt.level_params);
-                                    match read_name_m(pers, st, rec_name) {
-                                        Err(e) => Err(e),
-                                        Ok(rn) => Ok(eta
-                                            && eta_ctor.eq2(ctor)
-                                            && !level::name_is_proj_fn_shape(&rn)
-                                            && nidx_vec_beq(&cvj_lps, &cvt_lps)),
-                                    }
+                                    Ok(caps.eta
+                                        && caps.eta_ctor.eq2(ctor)
+                                        && nidx_vec_beq(&cvj_lps, &cvt.level_params))
                                 }
                                 Some(_) => Ok(false),
                                 None => Ok(false),
@@ -6029,7 +5663,6 @@ pub fn rec_rule_eta_of(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:843-853 recRuleBits
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_rule_bits_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1909-1915 recRuleBits` — **stamp a
 /// rule's two rescue bits at install** — the one place the K and η-rescue
 /// conditions are decided.  Lean's `{ rl with … }` is a rebuilt record here.
@@ -6038,12 +5671,11 @@ pub fn rec_rule_bits(
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
-    rec_name: &NIdx,
     rl: IRecRule,
 ) -> Result<IRecRule, CheckError> {
     match rec_rule_k_of(pers, vis, st, fe, &rl.ctor) {
         Err(e) => Err(e),
-        Ok(k) => match rec_rule_eta_of(pers, vis, st, fe, rec_name, &rl.ctor) {
+        Ok(k) => match rec_rule_eta_of(pers, vis, st, fe, &rl.ctor) {
             Err(e) => Err(e),
             Ok(eta) => Ok(IRecRule {
                 ctor: rl.ctor,
@@ -6053,7 +5685,6 @@ pub fn rec_rule_bits(
                 rhs: rl.rhs,
                 k,
                 eta,
-                params_blind: rl.params_blind,
             }),
         },
     }
@@ -6070,14 +5701,33 @@ pub fn rec_rule_k(rules: &Vec<IRecRule>) -> bool {
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:687-691 Expr.isStrLit
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1918-1922 isStrLit` — is `e` a
+/// `String` literal?  (The structure rescue leaves one to the literal
+/// conversion, as lean4#15351's `to_cnstr_when_structure` does.)
+pub fn is_str_lit(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckError> {
+    if e.tag() == ETAG_LIT {
+        match view_lit(pers, st, e) {
+            None => fail_dangling_e(),
+            Some(Literal::StrVal(_)) => Ok(true),
+            Some(_) => Ok(false),
+        }
+    } else {
+        Ok(false)
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:693-767 prepareMajor
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::prepare_major_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:548-570 prepareMajorI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1924-1940 prepareMajor` — the major
-/// premise's preparation before a rule fires: at a K-flagged recursor the K
+/// premise's preparation before a rule fires.  At a K-flagged recursor the K
 /// rescue runs on the **raw** major and, if it did not produce a constructor
-/// application, the major is left as it is (con-leche task #334: no head
-/// normalization, a deliberate deviation from the official kernel); elsewhere
-/// the major is head-normalized first, in the official order.
+/// application, the major is left as it is (con-leche task #334).  Elsewhere
+/// the order of lean4#15351 (con-leche task #342 R2): the structure rescues
+/// run on the major **as found** (a `String` literal skips them), and only if
+/// they produce no constructor is the major head-normalized, its literal
+/// converted and the rescue tried once more on the reduct — so a structure
+/// major whose head normalization does not terminate is rescued off its type.
 pub fn prepare_major(
     pers: &PersTier,
     vis: u64,
@@ -6103,24 +5753,56 @@ pub fn prepare_major(
             },
         }
     } else {
-        match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, major) {
+        let major_e: Result<EIdx, CheckError> = match is_str_lit(pers, st, major) {
             Err(e) => Err(e),
-            Ok(major0) => {
-                match lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major0) {
-                    Err(e) => Err(e),
-                    Ok(major1) => major_to_ctor(
-                        pers,
-                        vis,
-                        st, mode, lane, fuel, fe, depth, rec_name, rules, &major1,
-                    ),
-                }
+            Ok(true) => Ok(major.dup2()),
+            Ok(false) => {
+                major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, major)
             }
+        };
+        match major_e {
+            Err(e) => Err(e),
+            Ok(major_e) => match is_ctor_app(pers, vis, st, fe, &major_e) {
+                Err(e) => Err(e),
+                Ok(true) => Ok(major_e),
+                Ok(false) => prepare_major_whnf(
+                    pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, &major_e,
+                ),
+            },
         }
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:693-767 prepareMajor
+/// con-leche: ConLeche/Cached/CoreC.lean:548-570 prepareMajorI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1924-1940 prepareMajorWhnf` — the
+/// non-K path past a rescue that produced no constructor: head-normalize the
+/// major, convert its literal, try the rescue once more on the reduct.
+pub fn prepare_major_whnf(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    rec_name: &NIdx,
+    rules: &Vec<IRecRule>,
+    major: &EIdx,
+) -> Result<EIdx, CheckError> {
+    match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, major) {
+        Err(e) => Err(e),
+        Ok(major0) => match lit_major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, &major0) {
+            Err(e) => Err(e),
+            Ok(major1) => {
+                major_to_ctor(pers, vis, st, mode, lane, fuel, fe, depth, rec_name, rules, &major1)
+            }
+        },
+    }
+}
+
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:897-916 recFireComparands
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::subst_levels_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1942-1952 substLevelsAt` — the
 /// nested rule's stored level comparands, substituted and re-interned
 /// (`lvls.map (Level.subst lps us)` as a named recursion).
@@ -6154,7 +5836,6 @@ pub fn subst_levels_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:897-916 recFireComparands
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::subst_param_levels_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1954-1964 substParamLevels` — the
 /// canonical rule's level comparands, `cvjLps.map fun p => Level.subst lps us
 /// (.param p)`, as a named recursion.
@@ -6188,7 +5869,6 @@ pub fn subst_param_levels(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:897-916 recFireComparands
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::inst_spine_pins_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1966-1976 instSpinePins` — the
 /// nested rule's stored parameter pins, level-instantiated and instantiated at
 /// the recursor's leading-argument spine, as a named recursion.  `rP - 1` is
@@ -6226,97 +5906,70 @@ pub fn inst_spine_pins(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:897-916 recFireComparands
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_fire_comparands_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1978-1997 recFireComparands` — the
-/// level and constructor-parameter comparands a firing rule's checks compare
-/// the major's constructor levels and parameters against.
-pub fn rec_fire_comparands(
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1978-1997 recFireLevels` — the
+/// LEVEL comparands of a firing rule (`(recFireComparands …).1`): the
+/// recursor's own instantiation of the constructor's level parameters at a
+/// `.plain` rule, the stored container instantiation at a `.nested` one.  The
+/// ι case split is decided at these levels.  Task #119: `recFireComparands`'
+/// two halves are two functions, as the cached `iotaRecI` computes them —
+/// the levels inside the case-3 block, the parameters only past its level
+/// comparison.
+pub fn rec_fire_levels(
     pers: &PersTier,
     st: &mut AState,
     rl: &IRecRule,
     lps: &Vec<NIdx>,
     us: &LsIdx,
     cvj_lps: &Vec<NIdx>,
-    args: &Vec<EIdx>,
-    r_p: u64,
-) -> Result<(LsIdx, Vec<EIdx>), CheckError> {
-    match &rl.fire {
-        IRecRuleFire::Nested(lvls, pins) => {
-            let lvls2: Vec<LIdx> = env::lidx_vec_dup(lvls);
-            let pins2: Vec<EIdx> = env::eidx_vec_dup(pins);
-            match read_names_m(pers, st, lps) {
-                Err(e) => Err(e),
-                Ok(ks) => match read_levels_m(pers, st, us) {
-                    Err(e) => Err(e),
-                    Ok(vs) => {
-                        match subst_levels_at(pers, st, &ks, &vs, &lvls2, 0, Vec::new()) {
-                            Err(e) => Err(e),
-                            Ok(ls) => match intern_ls_node(pers, st, ls) {
-                                Err(e) => Err(e),
-                                Ok(lsh) => {
-                                    match inst_spine_pins(
-                                        pers,
-                                        st,
-                                        lps,
-                                        us,
-                                        args,
-                                        r_p,
-                                        &pins2,
-                                        0,
-                                        Vec::new(),
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(ps) => Ok((lsh, ps)),
-                                    }
-                                }
-                            },
-                        }
-                    }
-                },
-            }
-        }
-        IRecRuleFire::Inert => {
-            rec_fire_comparands_plain(pers, st, rl, lps, us, cvj_lps, args)
-        }
-        IRecRuleFire::Plain => {
-            rec_fire_comparands_plain(pers, st, rl, lps, us, cvj_lps, args)
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:897-916 recFireComparands
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::rec_fire_comparands_plain_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1978-1997 recFireComparands` — the
-/// cited `| _ =>` arm: the canonical rule's comparands.  Spelled once and
-/// called from the two non-`nested` constructors, which is what Lean's
-/// wildcard is.
-pub fn rec_fire_comparands_plain(
-    pers: &PersTier,
-    st: &mut AState,
-    rl: &IRecRule,
-    lps: &Vec<NIdx>,
-    us: &LsIdx,
-    cvj_lps: &Vec<NIdx>,
-    args: &Vec<EIdx>,
-) -> Result<(LsIdx, Vec<EIdx>), CheckError> {
+) -> Result<LsIdx, CheckError> {
     match read_names_m(pers, st, lps) {
         Err(e) => Err(e),
         Ok(ks) => match read_levels_m(pers, st, us) {
             Err(e) => Err(e),
-            Ok(vs) => match subst_param_levels(pers, st, &ks, &vs, cvj_lps, 0, Vec::new()) {
-                Err(e) => Err(e),
-                Ok(ls) => match intern_ls_node(pers, st, ls) {
+            Ok(vs) => {
+                let ls = match &rl.fire {
+                    IRecRuleFire::Nested(lvls, _) => {
+                        let lvls2: Vec<LIdx> = env::lidx_vec_dup(lvls);
+                        subst_levels_at(pers, st, &ks, &vs, &lvls2, 0, Vec::new())
+                    }
+                    IRecRuleFire::Plain => subst_param_levels(pers, st, &ks, &vs, cvj_lps, 0, Vec::new()),
+                };
+                match ls {
                     Err(e) => Err(e),
-                    Ok(lsh) => Ok((lsh, take_eidx_n(args, rl.ctor_params))),
-                },
-            },
+                    Ok(ls) => intern_ls_node(pers, st, ls),
+                }
+            }
         },
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:897-916 recFireComparands
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1999-2010 recFireArgs` — the
+/// PARAMETER comparands of a firing rule (`(recFireComparands …).2`): the
+/// recursor's leading arguments at a `.plain` rule, the stored pins at the
+/// recursor's levels and leading arguments at a `.nested` one.
+pub fn rec_fire_args(
+    pers: &PersTier,
+    st: &mut AState,
+    rl: &IRecRule,
+    lps: &Vec<NIdx>,
+    us: &LsIdx,
+    args: &Vec<EIdx>,
+    r_p: u64,
+) -> Result<Vec<EIdx>, CheckError> {
+    match &rl.fire {
+        IRecRuleFire::Nested(_, pins) => {
+            let pins2: Vec<EIdx> = env::eidx_vec_dup(pins);
+            inst_spine_pins(pers, st, lps, us, args, r_p, &pins2, 0, Vec::new())
+        }
+        IRecRuleFire::Plain => Ok(take_eidx_n(args, rl.ctor_params)),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::find_rule_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1999-2004 findRule` — the rule
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2012-2017 findRule` — the rule
 /// lookup `rules.find? (fun r' => r'.ctor == cj)`, as a named recursion
 /// (DESIGN.md §3.4).  The index is returned rather than the rule, so that the
 /// caller reads the record out of the `Vec` it is stored in.
@@ -6331,11 +5984,11 @@ pub fn find_rule(rules: &Vec<IRecRule>, c: &NIdx, i: usize) -> Option<usize> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_fire_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — the firing
-/// rule's certificate chain: the level comparison, the parameter comparison,
-/// the two *licensed* telescope runs, the canonical-index comparison and the
-/// right-hand side's application.
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2019-2040 iotaRecFire` — a matched
+/// rule fires: **the ι case split** (con-leche task #342 L10, S5c) decides
+/// whether the constructor application is checked at all (`iota_rec_cert`, ONE
+/// certificate family, off at the trusted mode), then the reduct.
 pub fn iota_rec_fire(
     pers: &PersTier,
     vis: u64,
@@ -6355,33 +6008,103 @@ pub fn iota_rec_fire(
     r_p: u64,
     args: &Vec<EIdx>,
     margs: &Vec<EIdx>,
-    major: &EIdx,
 ) -> Result<Option<EIdx>, CheckError> {
-    match rec_fire_comparands(pers, st, rl, &cv.level_params, us, &cvj.level_params, args, r_p) {
+    match iota_rec_cert(
+        pers, vis, st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, m_i, r_p, args, margs,
+    ) {
         Err(e) => Err(e),
-        Ok(cmp) => match lvls_eq(pers, st, usj, &cmp.0) {
+        Ok(false) => Ok(None),
+        Ok(true) => iota_rec_reduct(pers, st, cv, rl, rec_c, us, r_p, args, margs),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// con-leche: ConLeche/Cached/CoreC.lean:268-271 certAtI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2042-2066 iotaRecCert` — **the
+/// whole case-3 decision, one certificate family** (`certAtI mode (…)`):
+/// at the trusted mode `true` without running; at the verified mode the
+/// level comparands are computed and, at a case-3 redex (`iotaCase3`: not K,
+/// the constructor's family may be `Prop` at the comparand levels), the
+/// constructor application is checked (`iota_rec_case3`).  Cases 1 and 2 fire
+/// with no check, as official's `inductive_reduce_rec`.
+pub fn iota_rec_cert(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    cv: &IConstantVal,
+    cvj: &IConstantVal,
+    rl: &IRecRule,
+    us: &LsIdx,
+    usj: &LsIdx,
+    m_i: u64,
+    r_p: u64,
+    args: &Vec<EIdx>,
+    margs: &Vec<EIdx>,
+) -> Result<bool, CheckError> {
+    if !crate::kernel::env::verified_checks(mode) {
+        Ok(true)
+    } else {
+        match rec_fire_levels(pers, st, rl, &cv.level_params, us, &cvj.level_params) {
             Err(e) => Err(e),
-            Ok(o) => match lift_fueled(o) {
+            Ok(cmp_lvls) => match iota_case3(pers, vis, st, fe, rl, cvj, &cmp_lvls) {
                 Err(e) => Err(e),
-                Ok(false) => Ok(None),
-                Ok(true) => {
-                    let p_ok = if env::i_rec_rule_compare_params(rl) {
-                        iota_rec_params(
-                            pers,
-                            vis,
-                            st, mode, lane, fuel, fe, depth, rl, rec_c, margs, &cmp.1,
-                        )
-                    } else {
-                        Ok(true)
-                    };
-                    match p_ok {
+                Ok(false) => Ok(true),
+                Ok(true) => iota_rec_case3(
+                    pers, vis, st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, &cmp_lvls,
+                    m_i, r_p, args, margs,
+                ),
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2068-2092 iotaRecCase3` — a case-3
+/// redex's checks: the constructor's levels against the comparand levels,
+/// its parameters against the parameter comparands, then the telescope and
+/// index certificates (`iota_rec_fam`).
+pub fn iota_rec_case3(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    cv: &IConstantVal,
+    cvj: &IConstantVal,
+    rl: &IRecRule,
+    us: &LsIdx,
+    usj: &LsIdx,
+    cmp_lvls: &LsIdx,
+    m_i: u64,
+    r_p: u64,
+    args: &Vec<EIdx>,
+    margs: &Vec<EIdx>,
+) -> Result<bool, CheckError> {
+    match lvls_eq(pers, st, usj, cmp_lvls) {
+        Err(e) => Err(e),
+        Ok(o) => match lift_fueled(o) {
+            Err(e) => Err(e),
+            Ok(false) => Ok(false),
+            Ok(true) => match rec_fire_args(pers, st, rl, &cv.level_params, us, args, r_p) {
+                Err(e) => Err(e),
+                Ok(cmp_args) => {
+                    let head: Vec<EIdx> = take_eidx_n(margs, rl.ctor_params);
+                    match def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, &cmp_args, 0) {
                         Err(e) => Err(e),
-                        Ok(false) => Ok(None),
-                        Ok(true) => iota_rec_certs(
-                            pers,
-                            vis,
-                            st, mode, lane, fuel, fe, depth, cv, cvj, rl, rec_c, us, usj,
-                            m_i, r_p, args, margs, major,
+                        Ok(false) => Ok(false),
+                        Ok(true) => iota_rec_fam(
+                            pers, vis, st, mode, lane, fuel, fe, depth, cvj, rl, usj, m_i, r_p,
+                            args, margs,
                         ),
                     }
                 }
@@ -6391,95 +6114,13 @@ pub fn iota_rec_fire(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_params_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — the
-/// parameter comparison.  It is **verdict-relevant** for a nested rule (the
-/// comparands ARE the pins) and for a projection-function rule, and a
-/// certificate FAMILY for every other plain rule: `Cached/CoreC.lean:797`'s
-/// `certUnlessI` with exactly that `keep` (task #97f, P2f).  The
-/// projection-shape test reads the recursor's name BACK and runs con-leche's
-/// own pure predicate, as the twin does — this module sits below
-/// `arena::checker_base`, whose `nidx_is_proj_fn_shape` is the same test on a
-/// handle.
-pub fn iota_rec_params(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    rl: &IRecRule,
-    rec_c: &NIdx,
-    margs: &Vec<EIdx>,
-    comparands: &Vec<EIdx>,
-) -> Result<bool, CheckError> {
-    let keep: Result<bool, CheckError> = match rl.fire {
-        IRecRuleFire::Nested(_, _) => Ok(true),
-        _ => match read_name_m(pers, st, rec_c) {
-            Err(e) => Err(e),
-            Ok(n) => Ok(crate::kernel::level::name_is_proj_fn_shape(&n)),
-        },
-    };
-    match keep {
-        Err(e) => Err(e),
-        Ok(k) => {
-            if crate::kernel::env::certs(mode) || k {
-                let head: Vec<EIdx> = take_eidx_n(margs, rl.ctor_params);
-                def_eq_list(pers, vis, st, mode, lane, fuel, fe, depth, &head, comparands, 0)
-            } else {
-                Ok(true)
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_certs_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — **ONE
-/// certificate family**: the two *licensed* telescope runs and the
-/// canonical-index comparison.  Nothing here is read outside the family, so
-/// the whole block is what `.trusted` omits, the two type lookups included
-/// (task #97f, P2f; `Cached/CoreC.lean:814`).  Then the reduct.
-pub fn iota_rec_certs(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    cv: &IConstantVal,
-    cvj: &IConstantVal,
-    rl: &IRecRule,
-    rec_c: &NIdx,
-    us: &LsIdx,
-    usj: &LsIdx,
-    m_i: u64,
-    r_p: u64,
-    args: &Vec<EIdx>,
-    margs: &Vec<EIdx>,
-    major: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
-    match iota_rec_fam(
-        pers,
-        vis,
-        st, mode, lane, fuel, fe, depth, cv, cvj, rl, us, usj, m_i, r_p, args, margs,
-        major,
-    ) {
-        Err(e) => Err(e),
-        Ok(false) => Ok(None),
-        Ok(true) => iota_rec_reduct(pers, st, cv, rl, rec_c, us, r_p, args, margs),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_fam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — the family
-/// itself, gated on `mode.certs`.
-#[allow(clippy::too_many_arguments)]
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2094-2110 iotaRecFam` — the
+/// constructor telescope at the FULL grade (`iotaCertsFull`) and the
+/// canonical-index comparison (`iotaIndexOk`).  The constructor's type is
+/// looked up only here, where the certificates consume it.  (Task #119: the
+/// recursor's own telescope run is gone — con-leche task #349 — and so is the
+/// ι-slot licence.)
 pub fn iota_rec_fam(
     pers: &PersTier,
     vis: u64,
@@ -6489,70 +6130,34 @@ pub fn iota_rec_fam(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    cv: &IConstantVal,
     cvj: &IConstantVal,
     rl: &IRecRule,
-    us: &LsIdx,
     usj: &LsIdx,
     m_i: u64,
     r_p: u64,
     args: &Vec<EIdx>,
     margs: &Vec<EIdx>,
-    major: &EIdx,
 ) -> Result<bool, CheckError> {
-    if !crate::kernel::env::certs(mode) {
-        Ok(true)
-    } else {
-        let lic: bool = crate::kernel::env::beta_gate(mode);
-        match const_ty_at(pers, st, cv, us) {
+    match const_ty_at(pers, st, cvj, usj) {
+        Err(e) => Err(e),
+        Ok(ty_c) => match iota_certs_full(pers, vis, st, mode, lane, fuel, fe, depth, &ty_c, margs, 0) {
             Err(e) => Err(e),
-            Ok(ty_r) => {
-                let spine: Vec<EIdx> = snoc_eidx(take_eidx_n(args, m_i), major);
-                match iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty_r, &spine, 0) {
-                    Err(e) => Err(e),
-                    Ok(false) => Ok(false),
-                    Ok(true) => match const_ty_at(pers, st, cvj, usj) {
-                        Err(e) => Err(e),
-                        Ok(ty_c) => {
-                            match iota_certs(
-                                pers,
-                                vis,
-                                st, mode, lane, fuel, fe, depth, lic, &ty_c, margs, 0,
-                            ) {
-                                Err(e) => Err(e),
-                                Ok(false) => Ok(false),
-                                Ok(true) => {
-                                    let idx: Vec<EIdx> = drop_eidx_n(&take_eidx_n(args, m_i), r_p);
-                                    iota_index_ok(
-                                        pers,
-                                        vis,
-                                        st,
-                                        mode,
-                                        lane,
-                                        fuel,
-                                        fe,
-                                        depth,
-                                        m_i,
-                                        r_p,
-                                        rl.ctor_params,
-                                        &ty_c,
-                                        margs,
-                                        &idx,
-                                    )
-                                }
-                            }
-                        }
-                    },
-                }
+            Ok(false) => Ok(false),
+            Ok(true) => {
+                let idx: Vec<EIdx> = drop_eidx_n(&take_eidx_n(args, m_i), r_p);
+                iota_index_ok(
+                    pers, vis, st, mode, lane, fuel, fe, depth, m_i, r_p, rl.ctor_params, &ty_c,
+                    margs, &idx,
+                )
             }
-        }
+        },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_reduct_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — the ι reduct:
-/// the rule's right-hand side at the recursor's levels, applied to the
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2112-2124 iotaRecReduct` — the ι
+/// reduct: the rule's right-hand side at the recursor's levels, applied to the
 /// recursor's leading arguments and the constructor's fields.
 pub fn iota_rec_reduct(
     pers: &PersTier,
@@ -6579,11 +6184,11 @@ pub fn iota_rec_reduct(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_major_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — the major's
-/// side of the step: it whnfs to a fully applied constructor with a matching
-/// rule, and a matched *inert* rule is a positive detection of an unsupported
-/// feature.
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2126-2170 iotaRecMajor` — the
+/// major's side of the step: it is a fully applied constructor with a
+/// matching rule.  (Task #119: the inert-rule decline is gone with
+/// `RecRuleFire.inert`.)
 pub fn iota_rec_major(
     pers: &PersTier,
     vis: u64,
@@ -6620,20 +6225,11 @@ pub fn iota_rec_major(
                                         if margs.len() as u64 != rl.ctor_params + rl.nfields {
                                             Ok(None)
                                         } else {
-                                            match rl.fire {
-                                                IRecRuleFire::Inert => {
-                                                    fail(CheckError::NotImplemented(
-                                                        code_points(&M_NESTED_RULE),
-                                                    ))
-                                                }
-                                                _ => iota_rec_fire(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, cv,
-                                                    &cvj, &rl, rec_c, us, &usj, m_i, r_p,
-                                                    args, &margs, major,
-                                                ),
-                                            }
+                                            iota_rec_fire(
+                                                pers, vis, st, mode, lane, fuel, fe, depth, cv,
+                                                &cvj, &rl, rec_c, us, &usj, m_i, r_p, args,
+                                                &margs,
+                                            )
                                         }
                                     }
                                 }
@@ -6651,8 +6247,8 @@ pub fn iota_rec_major(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:769-868 iotaRec
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::iota_rec_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2006-2105 iotaRecAt` — `iotaRec` with
+/// con-leche: ConLeche/Cached/CoreC.lean:605-682 iotaRecI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2172-2240 iotaRecAt` — `iotaRec` with
 /// its two spine walks HOISTED: the head and the argument vector are the
 /// caller's, and `n` says how many of `sargs` the expression `e` applies.
 ///
@@ -6661,7 +6257,9 @@ pub fn iota_rec_major(
 /// the spine, so `getAppFn`+`getAppArgs` were walked once per argument: a
 /// quadratic that neither checker's shape needs.  The arity test moves in
 /// front of the level-list read for the same reason (both are pure tests of
-/// the same conjunction, and the arity one is O(1) here).
+/// the same conjunction, and the arity one is O(1) here).  The third
+/// conjunct (con-leche task #342 L18) is the recursor's stored type's
+/// syntactic arity, which the uncertified recursor spine is read against.
 pub fn iota_rec_at(
     pers: &PersTier,
     vis: u64,
@@ -6675,51 +6273,46 @@ pub fn iota_rec_at(
     sargs: &Vec<EIdx>,
     n: usize,
 ) -> Result<Option<EIdx>, CheckError> {
-    {
-        if hd.tag() == ETAG_CONST {
-            match view_const(pers, st, hd) {
-                None => fail_dangling_e(),
-                Some((c, us)) => match env::ifenv_find(vis, fe, &c) {
-                    Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
-                        let m_i: u64 = *m_i0;
-                        // **The arity test hoisted over the copies** (task
-                        // #97-P6-10), the move this function's note already makes
-                        // for the level-list read.  `whnf_app` asks `iota_rec_at`
-                        // at every reduction step and the answer is `none` at the
-                        // wrong arity, so copying the recursor's `IConstantVal`
-                        // and its whole rule vector first — Lean shares both by
-                        // value; the Rust copies (DESIGN.md §3.2) — is work for a
-                        // branch that reads neither.  Both are pure tests of the
-                        // same conjunction and this one is `O(1)`.
-                        if n as u64 != m_i + 1 {
-                            Ok(None)
-                        } else {
-                            let cv: IConstantVal = env::i_constant_val_dup(cv0);
-                            let r_p: u64 = *r_p0;
-                            let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
-                            let args: Vec<EIdx> = take_eidx(sargs, n);
-                            match view_ls_len(pers, st, &us) {
-                                None => fail_dangling_ls(),
-                                Some(usl) => {
+    if hd.tag() == ETAG_CONST {
+        match view_const(pers, st, hd) {
+            None => fail_dangling_e(),
+            Some((c, us)) => match env::ifenv_find(vis, fe, &c) {
+                Some(IConstantInfo::RecInfo(cv0, m_i0, r_p0, rules0)) => {
+                    let m_i: u64 = *m_i0;
+                    // **The arity test hoisted over the copies** (task
+                    // #97-P6-10): `whnf_app` asks `iota_rec_at` at every
+                    // reduction step and the answer is `none` at the wrong
+                    // arity, so copying the recursor's `IConstantVal` and its
+                    // whole rule vector first is work for a branch that reads
+                    // neither.
+                    if n as u64 != m_i + 1 {
+                        Ok(None)
+                    } else {
+                        let cv: IConstantVal = env::i_constant_val_dup(cv0);
+                        let r_p: u64 = *r_p0;
+                        let rules: Vec<IRecRule> = env::i_rec_rules_dup(rules0);
+                        let args: Vec<EIdx> = take_eidx(sargs, n);
+                        match view_ls_len(pers, st, &us) {
+                            None => fail_dangling_ls(),
+                            Some(usl) => match peel_pis(pers, st, m_i + 1, &cv.ty) {
+                                Err(er) => Err(er),
+                                Ok(peeled) => {
                                     if args.len() as u64 == m_i + 1
                                         && usl == cv.level_params.len()
+                                        && peeled.is_some()
                                     {
                                         match intern_e_bvar(pers, st, 0) {
                                             Err(er) => Err(er),
                                             Ok(b0) => {
                                                 let maj0: EIdx = get_d_eidx(&args, m_i, &b0);
                                                 match prepare_major(
-                                                    pers,
-                                                    vis,
-                                                    st, mode, lane, fuel, fe, depth, &c,
+                                                    pers, vis, st, mode, lane, fuel, fe, depth, &c,
                                                     &rules, &maj0,
                                                 ) {
                                                     Err(er) => Err(er),
                                                     Ok(major) => iota_rec_major(
-                                                        pers,
-                                                        vis,
-                                                        st, mode, lane, fuel, fe, depth, &cv,
-                                                        &rules, &c, &us, m_i, r_p, &args,
+                                                        pers, vis, st, mode, lane, fuel, fe, depth,
+                                                        &cv, &rules, &c, &us, m_i, r_p, &args,
                                                         &major,
                                                     ),
                                                 }
@@ -6729,16 +6322,16 @@ pub fn iota_rec_at(
                                         Ok(None)
                                     }
                                 }
-                            }
+                            },
                         }
                     }
-                    Some(_) => Ok(None),
-                    None => Ok(None),
-                },
-            }
-        } else {
-            Ok(None)
+                }
+                Some(_) => Ok(None),
+                None => Ok(None),
+            },
         }
+    } else {
+        Ok(None)
     }
 }
 
@@ -6773,33 +6366,36 @@ pub fn proj_entry_type_at(
     }
 }
 
+/// con-leche: ConLeche/Kernel/CoreDefs.lean:745-753 teleArityOk
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2294-2299 teleArityOk` — **the
+/// telescope check of a spine** (con-leche task #342 L18): the telescope's
+/// syntactic arity, nothing else.
+pub fn tele_arity_ok(pers: &PersTier, st: &AState, ty: &EIdx, args: &Vec<EIdx>) -> Result<bool, CheckError> {
+    match peel_pis(pers, st, args.len() as u64, ty) {
+        Err(e) => Err(e),
+        Ok(r) => Ok(r.is_some()),
+    }
+}
+
 /// con-leche: ConLeche/Kernel/Core.lean:870-882 projCert
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::proj_cert_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2294-2304 projCert` — **the
-/// structural projection's certificate**: the redex `proj_i (C p⃗ x⃗)` fires
-/// only after its constructor spine is certified against `C`'s stored type at
-/// the redex's own levels.
+/// con-leche: ConLeche/Cached/CoreC.lean:684-688 projCertF
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2301-2310 projCert` — **the
+/// structural projection's check** (con-leche task #175 W6, #342 L18): the
+/// redex `proj_i (C p⃗ x⃗)` fires only where `C`'s stored type has the spine's
+/// arity (`teleArityOk`; level instantiation keeps the arity, so the stored
+/// type is read uninstantiated).  Task #119: was a telescope certificate run.
 pub fn proj_cert(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
     fe: &IFEnv,
-    depth: u64,
-    lic: bool,
     c: &NIdx,
-    us: &LsIdx,
     args: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
     match env::ifenv_find(vis, fe, c) {
         Some(IConstantInfo::CtorInfo(cvc0, _, _)) => {
-            let cvc: IConstantVal = env::i_constant_val_dup(cvc0);
-            match const_ty_at(pers, st, &cvc, us) {
-                Err(e) => Err(e),
-                Ok(ty) => iota_certs(pers, vis, st, mode, lane, fuel, fe, depth, lic, &ty, args, 0),
-            }
+            let ty: EIdx = cvc0.ty.dup2();
+            tele_arity_ok(pers, st, &ty, args)
         }
         Some(_) => Ok(false),
         None => Ok(false),
@@ -6807,36 +6403,29 @@ pub fn proj_cert(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:884-892 projCertAt
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::proj_cert_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2306-2311 projCertAt` — **the fire
-/// certificate as the mode runs it**: the P core certifies the constructor
-/// spine; the parity core is the official kernel's, which certifies nothing.
+/// con-leche: ConLeche/Cached/CoreC.lean:690-693 projCertAtF
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2312-2318 projCertAt` — **the fire
+/// check as the mode runs it**: the verified core checks the constructor
+/// telescope's arity; the trusted core is the official kernel's, which checks
+/// nothing.
 pub fn proj_cert_at(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
     fe: &IFEnv,
-    depth: u64,
     verified: bool,
-    lic: bool,
     c: &NIdx,
-    us: &LsIdx,
     args: &Vec<EIdx>,
 ) -> Result<bool, CheckError> {
     if verified {
-        proj_cert(pers, vis, st, mode, lane, fuel, fe, depth, lic, c, us, args)
+        proj_cert(pers, vis, st, fe, c, args)
     } else {
         Ok(true)
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:894-924 reduceProjCore
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::reduce_proj_core_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:695-718 reduceProjCoreI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::reduce_proj_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2313-2347 reduceProjCore` — **the
 /// projection rule on a reduced scrutinee** (the official kernel's
 /// `reduce_proj_core`): the scrutinee's string-literal expansion, then the
@@ -6860,7 +6449,7 @@ pub fn reduce_proj_core(
         Ok(ep) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, sn, i) {
             Err(e) => Err(e),
             Ok(Some(entry)) => {
-                reduce_proj_core_at(pers, vis, st, mode, lane, fuel, fe, depth, i, &ep, &entry)
+                reduce_proj_core_at(pers, vis, st, mode, fe, i, &ep, &entry)
             }
             Ok(None) => Ok(None),
         },
@@ -6868,7 +6457,6 @@ pub fn reduce_proj_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:894-924 reduceProjCore
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::reduce_proj_core_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2313-2347 reduceProjCore` — the
 /// projection rule at a tower entry: the scrutinee's head must be the entry's
 /// constructor at the right arities, and the fire certificate must hold.
@@ -6877,10 +6465,7 @@ pub fn reduce_proj_core_at(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
     fe: &IFEnv,
-    depth: u64,
     i: u64,
     ep: &EIdx,
     entry: &IProjEntry,
@@ -6905,10 +6490,7 @@ pub fn reduce_proj_core_at(
                                     && fok
                                 {
                                     reduce_proj_core_fire(
-                                        pers,
-                                        vis,
-                                        st, mode, lane, fuel, fe, depth, i, entry,
-                                        &c, &us, &args,
+                                        pers, vis, st, mode, fe, i, entry, &c, &args,
                                     )
                                 } else {
                                     Ok(None)
@@ -6925,7 +6507,6 @@ pub fn reduce_proj_core_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:894-924 reduceProjCore
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::reduce_proj_core_fire_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2313-2347 reduceProjCore` — the
 /// fire itself: the selected field, behind the mode's certificate.
 pub fn reduce_proj_core_fire(
@@ -6933,14 +6514,10 @@ pub fn reduce_proj_core_fire(
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
     fe: &IFEnv,
-    depth: u64,
     i: u64,
     entry: &IProjEntry,
     c: &NIdx,
-    us: &LsIdx,
     args: &Vec<EIdx>,
 ) -> Result<Option<EIdx>, CheckError> {
     match intern_e_bvar(pers, st, 0) {
@@ -6948,12 +6525,7 @@ pub fn reduce_proj_core_fire(
         Ok(b0) => {
             let arg: EIdx = get_d_eidx(args, entry.num_params + i, &b0);
             let verified: bool = crate::kernel::env::verified_checks(mode);
-            let lic: bool = crate::kernel::env::beta_gate(mode);
-            match proj_cert_at(
-                pers,
-                vis,
-                st, mode, lane, fuel, fe, depth, verified, lic, c, us, args,
-            ) {
+            match proj_cert_at(pers, vis, st, fe, verified, c, args) {
                 Err(e) => Err(e),
                 Ok(true) => Ok(Some(arg)),
                 Ok(false) => Ok(None),
@@ -6962,23 +6534,38 @@ pub fn reduce_proj_core_fire(
     }
 }
 
+/// con-leche: ConLeche/Kernel/Core.lean:997-1006 WhnfStep
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2343-2348 WhnfStep` — the outcome
+/// of one step of the head-normalization loop: the head normal form, or the
+/// term the loop continues with (con-leche task #342 R2).  A step RETURNS its
+/// continuation instead of calling it, so every reduction step is the loop's
+/// own iteration and a chain of any length — a non-terminating one included —
+/// runs in constant native stack.
+pub enum WhnfStep {
+    Done(EIdx),
+    Cont(EIdx),
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:977-995 whnfCoreLoopFuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2350-2353 whnfCoreLoopFuel` — step
+/// budget of the head-normalization loop: `2^62`, con-leche's value (task
+/// #330); exhaustion is an internal error, never a verdict, and a runaway
+/// input is left to the external timeout.
+pub const WHNF_CORE_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
+
 /// con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::whnf_core_proj_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2349-2387 whnfCoreBody`
-/// The `.proj` clause: the scrutinee by `whnf`, or — in the CHEAP mode
-/// (official `cheap_proj`) — by the cheap `whnfCore`, then the projection
-/// rule (`reduce_proj_core`), and the fired field head-normalized in the same
-/// mode.
+/// con-leche: ConLeche/Cached/CoreC.lean:768-804 whnfCoreStepI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2355-2378 whnfCoreStepProj`
+/// The `.proj` clause of the step: the scrutinee by `whnf`, or — in the CHEAP
+/// mode (official `cheap_proj`) — by the cheap `whnfCore`, then the
+/// projection rule (`reduce_proj_core`): a fired field is the term the loop
+/// continues with.
 ///
 /// **A stuck projection is its own input `e`** (con-leche's task #323,
-/// KEEPPROJ; official `whnf_core`: `reduce_proj` fails and `r = e`).  The
-/// scrutinee's reduct is computed to try the rule and then dropped: a
-/// `.proj sn i ep` would lose the scrutinee's head constant, and with it the
-/// defeq's arguments-first comparison of `a.i =?= b.i` — exponential on
-/// con-leche's `proj_stuck_struct` fixture.  The spec writes
-/// `.proj sn i pe`; over handles that is `e` itself, as the value clauses
-/// are, so no node is interned.
-pub fn whnf_core_proj(
+/// KEEPPROJ; official `whnf_core`: `reduce_proj` fails and `r = e`): the
+/// scrutinee's reduct is computed to try the rule and then dropped, so no
+/// node is interned.
+pub fn whnf_core_step_proj(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -6992,7 +6579,7 @@ pub fn whnf_core_proj(
     sn: &NIdx,
     i: u64,
     pe: &EIdx,
-) -> Result<EIdx, CheckError> {
+) -> Result<WhnfStep, CheckError> {
     let rc = if cheap {
         knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, true, depth, pe)
     } else {
@@ -7002,8 +6589,8 @@ pub fn whnf_core_proj(
         Err(er) => Err(er),
         Ok(c) => match reduce_proj_core(pers, vis, st, mode, lane, fuel, fe, depth, sn, i, &c) {
             Err(er) => Err(er),
-            Ok(Some(m)) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &m),
-            Ok(None) => Ok(e.dup2()),
+            Ok(Some(m)) => Ok(WhnfStep::Cont(m)),
+            Ok(None) => Ok(WhnfStep::Done(e.dup2())),
         },
     }
 }
@@ -7100,29 +6687,23 @@ pub fn head_and_args(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:739-766 whnfAppI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2191-2237 whnfApp` — the cached
-/// tier's bulk-β argument loop, the EXECUTED checker's own `.app` clause.
+/// tier's bulk-β argument loop, the EXECUTED checker's own `.app` step.
 ///
-/// **The batched instantiation lever** (task #97-P6-9, DESIGN §8's ruling
-/// before §8.7).  The spec-shaped body this replaces re-entered the knot once
-/// per argument, so a λ-chain of `n` binders applied to `n` arguments cost `n`
-/// substitution walks and interned `n − 1` intermediate λ nodes; this loop
-/// consumes the whole spine against the whnf'd head `v` and hands a
-/// consecutive run of λ binders to `beta_peel`, which substitutes the
-/// accumulated argument vector in ONE `instantiate_list` walk.  con-leche
-/// makes the same move between its PURE and its CACHED tier and proves the two
-/// equal: `ConLeche/Verify/BetaSpine.lean`'s `whnfApp_sound` /
-/// `whnfApp_sound_body`, whose per-argument decomposition is
-/// `Expr.instantiateList_cons` (`ConLeche/Verify/InstList.lean`).
+/// **The batched instantiation lever** (task #97-P6-9).  The loop consumes
+/// the spine against the whnf'd head `v` and hands a consecutive run of λ
+/// binders to `beta_peel`, which substitutes the accumulated argument vector
+/// in ONE `instantiate_list` walk (con-leche's `ConLeche/Verify/BetaSpine.lean`
+/// identifies the two).  β is uniform (con-leche task #342 S0: no certificate,
+/// no gate).  **It returns a `WhnfStep`** (task #342 R2): the stuck spine is
+/// `Done`, and a fired ι hands the loop its reduct applied to the rest of the
+/// spine (`Cont`) — the loop, not a nested call, continues with it.
 ///
-/// Three things travel with `v`, and all three are bookkeeping the spec-shaped
-/// body got for free from its own recursion:
+/// Three things travel with `v`, all bookkeeping:
 ///   * `same` — `v` still IS the function part of `nodes[i]`, which is task
 ///     #97-P6-5's upward cutoff (`intern_app_rebuilt`);
 ///   * `hd` and `vargs` — `v = mkAppN hd vargs`, so that the ι step is
-///     `iota_rec_at` and not a fresh `getAppFn`/`getAppArgs` walk per argument
-///     (the spec shape's is quadratic in the spine);
+///     `iota_rec_at` and not a fresh `getAppFn`/`getAppArgs` walk per argument;
 ///   * `i` — the cursor into `args`, which is the twin's list pattern.
 pub fn whnf_app(
     pers: &PersTier,
@@ -7132,7 +6713,6 @@ pub fn whnf_app(
     lane: u32,
     fuel: u64,
     fe: &IFEnv,
-    cheap: bool,
     depth: u64,
     v: &EIdx,
     hd: &EIdx,
@@ -7141,64 +6721,20 @@ pub fn whnf_app(
     args: &Vec<EIdx>,
     nodes: &Vec<EIdx>,
     i: usize,
-) -> Result<EIdx, CheckError> {
+) -> Result<WhnfStep, CheckError> {
     if i >= args.len() {
-        Ok(v.dup2())
+        Ok(WhnfStep::Done(v.dup2()))
     } else {
         let a: EIdx = args[i].dup2();
         let node: EIdx = nodes[i].dup2();
         if v.tag() == ETAG_LAM {
             match view_bind(pers, st, v) {
                 None => fail_dangling_e(),
-                Some((ty, body, mb)) => {
-                    // **THE β SITE'S GATE** (task #97f, P2f): the EXECUTED core
-                    // reads `CheckMode.betaSkip` (`Cached/CoreC.lean:876`/`:918`), which
-                    // is `beta_gate_fires` weakened by `!mode.certs` — the β
-                    // certificate is a certificate FAMILY, skipped wholesale at
-                    // `.trusted`.  The two agree at `.verified`, the mode the
-                    // bridge is stated at.
-                    if crate::kernel::env::beta_skip(mode, &mb.pw) {
-                        let mut acc: Vec<EIdx> = Vec::new();
-                        acc.push(a);
-                        beta_peel(
-                            pers, vis, st, mode, lane, fuel, fe, cheap, depth, &body, acc, args, nodes,
-                            i + 1,
-                        )
-                    } else {
-                        // con-leche's task #172 B4: the certificate's inference
-                        // runs at the io grade.
-                        match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
-                            Err(e) => Err(e),
-                            Ok(ta) => {
-                                match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty) {
-                                    Err(e) => Err(e),
-                                    Ok(true) => {
-                                        let mut acc: Vec<EIdx> = Vec::new();
-                                        acc.push(a);
-                                        beta_peel(
-                                            pers, vis, st, mode, lane, fuel, fe, cheap, depth, &body, acc,
-                                            args, nodes, i + 1,
-                                        )
-                                    }
-                                    // The certificate failed: the redex is stuck.
-                                    // ι cannot fire under a λ head, so the twin's
-                                    // `mkAppNM fa rest` re-applies the rest without
-                                    // another ι attempt, and so does this.
-                                    Ok(false) => {
-                                        match intern_app_rebuilt(pers, st, &node, same, v, &a) {
-                                            Err(e) => Err(e),
-                                            Ok(fa) => mk_app_n_from(pers, st, &fa, args, i + 1),
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                Some((_, body)) => {
+                    let mut acc: Vec<EIdx> = Vec::new();
+                    acc.push(a);
+                    beta_peel(pers, st, &body, acc, args, i + 1)
                 }
-                // The stuck step: `whnf_core_stuck_app`'s two lines, opened up so
-                // that the head and the argument vector can be carried rather than
-                // re-walked — applying one more argument to a spine does NOT move
-                // its head, and its argument vector is one `push`.,
             }
         } else {
             match intern_app_rebuilt(pers, st, &node, same, v, &a) {
@@ -7211,31 +6747,19 @@ pub fn whnf_app(
                     let step = if hd.tag() == ETAG_CONST {
                         iota_rec_at(pers, vis, st, mode, lane, fuel, fe, depth, hd, &va, n)
                     } else {
-                        // `iotaRec`'s own first two steps are `getAppFn` and a
-                        // `.const` match, so a spine whose head is anything
-                        // else returns `none` from every prefix: con-leche's
-                        // `iotaArityOk` guard, in the form the arena can spell
-                        // off the handle's tag.
+                        // `iotaArityOk`'s `.const` match, off the handle's tag.
                         Ok(None)
                     };
                     match step {
                         Err(e) => Err(e),
                         Ok(None) => whnf_app(
-                            pers, vis, st, mode, lane, fuel, fe, cheap, depth, &ap, hd, va, same2,
-                            args, nodes, i + 1,
+                            pers, vis, st, mode, lane, fuel, fe, depth, &ap, hd, va, same2, args,
+                            nodes, i + 1,
                         ),
-                        Ok(Some(e2)) => {
-                            match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &e2) {
-                                Err(e) => Err(e),
-                                Ok(v2) => match head_and_args(pers, st, &v2) {
-                                    Err(e) => Err(e),
-                                    Ok(hv) => whnf_app(
-                                        pers, vis, st, mode, lane, fuel, fe, cheap, depth, &v2, &hv.0,
-                                        hv.1, false, args, nodes, i + 1,
-                                    ),
-                                },
-                            }
-                        }
+                        Ok(Some(e2)) => match mk_app_n_from(pers, st, &e2, args, i + 1) {
+                            Err(e) => Err(e),
+                            Ok(e3) => Ok(WhnfStep::Cont(e3)),
+                        },
                     }
                 }
             }
@@ -7244,109 +6768,43 @@ pub fn whnf_app(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:720-737 betaPeelI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::beta_peel_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2239-2273 betaPeel` — the peel loop
 /// of `whnf_app`.
 ///
 /// `t` is the RAW (unsubstituted) λ body after the binders consumed so far and
 /// `acc` their arguments — the list `instantiate_list` takes at cursor `0`,
-/// built in PUSH order on an OWNED vector (task #97-P6-15: `Vec::push` where
-/// the list conses, read from the end) — and `instantiateList e (v :: vs) d =
-/// (instantiateList e vs (d + 1)).instantiate1 v d`
-/// (`ConLeche/Verify/InstList.lean`'s `instantiateList_cons`) is the equation
-/// that identifies one peeled group with the chain of `instantiate1` the
-/// spec-shaped body ran.  Each binder's certificate substitutes only its
-/// DOMAIN; the body is substituted once, when peeling stops.
+/// built in PUSH order on an OWNED vector (task #97-P6-15).  The body is
+/// substituted once, when peeling stops, and handed to the loop (`Cont`)
+/// together with the arguments left over.
 pub fn beta_peel(
     pers: &PersTier,
-    vis: u64,
     st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    cheap: bool,
-    depth: u64,
     t: &EIdx,
     acc: Vec<EIdx>,
     args: &Vec<EIdx>,
-    nodes: &Vec<EIdx>,
     i: usize,
-) -> Result<EIdx, CheckError> {
+) -> Result<WhnfStep, CheckError> {
     if i >= args.len() {
         match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
             Err(e) => Err(e),
-            Ok(e2) => knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &e2),
+            Ok(e2) => Ok(WhnfStep::Cont(e2)),
+        }
+    } else if t.tag() == ETAG_LAM {
+        match view_bind(pers, st, t) {
+            None => fail_dangling_e(),
+            Some((_, body)) => {
+                let mut acc2: Vec<EIdx> = acc;
+                acc2.push(args[i].dup2());
+                beta_peel(pers, st, &body, acc2, args, i + 1)
+            }
         }
     } else {
-        let a: EIdx = args[i].dup2();
-        if t.tag() == ETAG_LAM {
-            match view_bind(pers, st, t) {
-                None => fail_dangling_e(),
-                Some((ty, body, mb)) => {
-                    if crate::kernel::env::beta_skip(mode, &mb.pw) {
-                        let mut acc2: Vec<EIdx> = acc;
-                        acc2.push(a);
-                        beta_peel(
-                            pers, vis, st, mode, lane, fuel, fe, cheap, depth, &body, acc2, args, nodes,
-                            i + 1,
-                        )
-                    } else {
-                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &acc, 0) {
-                            Err(e) => Err(e),
-                            Ok(ty2) => {
-                                match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
-                                    Err(e) => Err(e),
-                                    Ok(ta) => match knot_defeq(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &ty2,
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(true) => {
-                                            let mut acc2: Vec<EIdx> = acc;
-                                            acc2.push(a);
-                                            beta_peel(
-                                                pers, vis, st, mode, lane, fuel, fe, cheap, depth, &body,
-                                                acc2, args, nodes, i + 1,
-                                            )
-                                        }
-                                        Ok(false) => {
-                                            match instantiate_list_fast(
-                                                pers, st, CORE_WALK_FUEL, t, &acc, 0,
-                                            ) {
-                                                Err(e) => Err(e),
-                                                Ok(f2) => match intern_app(pers, st, &f2, &a) {
-                                                    Err(e) => Err(e),
-                                                    Ok(fa) => {
-                                                        mk_app_n_from(pers, st, &fa, args, i + 1)
-                                                    }
-                                                },
-                                            }
-                                        }
-                                    },
-                                }
-                            }
-                        }
-                    }
-                },
-            }
-        } else {
-            match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
+        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &acc, 0) {
+            Err(e) => Err(e),
+            Ok(e2) => match mk_app_n_from(pers, st, &e2, args, i) {
                 Err(e) => Err(e),
-                Ok(e2) => match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &e2) {
-                    Err(e) => Err(e),
-                    // The peeled group is over and the spine is not: the twin
-                    // re-enters `whnfAppI` at the SAME argument.  A β has
-                    // happened, so the accumulated head is no longer the
-                    // original prefix and the upward cutoff is OFF.
-                    Ok(v2) => match head_and_args(pers, st, &v2) {
-                        Err(e) => Err(e),
-                        Ok(hv) => whnf_app(
-                            pers, vis, st, mode, lane, fuel, fe, cheap, depth, &v2, &hv.0, hv.1, false,
-                            args, nodes, i,
-                        ),
-                    },
-                },
-            }
+                Ok(e3) => Ok(WhnfStep::Cont(e3)),
+            },
         }
     }
 }
@@ -7396,13 +6854,112 @@ pub fn intern_app_rebuilt(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::whnf_core_body_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2349-2387 whnfCoreBody` — the
-/// head-normalization body: beta (with the per-redex argument certificate),
-/// iota (with the stuck-major machinery) and the projection rule — but **no
-/// delta**.  Values return themselves, which over handles is the handle
-/// itself: hash-consing makes `.sort u` interned from a `.sort u` view the
-/// same node.
+/// con-leche: ConLeche/Cached/CoreC.lean:768-804 whnfCoreStepI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2380-2420 whnfCoreStep` — one
+/// head-normalization step (β, ι, projection, ζ — **no δ**), returning the head
+/// normal form or the term to continue with.  Only the spine head's
+/// normalization stays a knot call (genuine nesting, bounded by the term's
+/// depth); every *reduction* step is the loop's iteration.  Values return
+/// themselves, which over handles is the handle itself.
+pub fn whnf_core_step(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    cheap: bool,
+    depth: u64,
+    e: &EIdx,
+) -> Result<WhnfStep, CheckError> {
+    match view(pers, st, e) {
+        Err(er) => Err(er),
+        Ok(ENodeView::Sort(_)) => Ok(WhnfStep::Done(e.dup2())),
+        Ok(ENodeView::FVar(_, _)) => Ok(WhnfStep::Done(e.dup2())),
+        Ok(ENodeView::ForallE(_, _)) => Ok(WhnfStep::Done(e.dup2())),
+        Ok(ENodeView::Lam(_, _)) => Ok(WhnfStep::Done(e.dup2())),
+        Ok(ENodeView::Const(_, _)) => Ok(WhnfStep::Done(e.dup2())),
+        Ok(ENodeView::Lit(_)) => Ok(WhnfStep::Done(e.dup2())),
+        // **The batched β spine** (task #97-P6-9): the spine's head is
+        // normalized once and the whole argument vector is run through
+        // `whnf_app`.
+        Ok(ENodeView::App(_, _)) => match get_app_spine(pers, st, CORE_WALK_FUEL, e) {
+            Err(er) => Err(er),
+            Ok(sp) => {
+                let hd: EIdx = sp.0;
+                let args: Vec<EIdx> = sp.1;
+                let nodes: Vec<EIdx> = sp.2;
+                match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &hd) {
+                    Err(er) => Err(er),
+                    Ok(v) => {
+                        let same: bool = v.eq2(&hd);
+                        match head_and_args(pers, st, &v) {
+                            Err(er) => Err(er),
+                            Ok(hv) => whnf_app(
+                                pers, vis, st, mode, lane, fuel, fe, depth, &v, &hv.0, hv.1, same,
+                                &args, &nodes, 0,
+                            ),
+                        }
+                    }
+                }
+            }
+        },
+        Ok(ENodeView::Proj(sn, i, pe)) => {
+            whnf_core_step_proj(pers, vis, st, mode, lane, fuel, fe, cheap, depth, e, &sn, i, &pe)
+        }
+        // ζ, Lean's way (con-leche task #342 S0): lets are stored as Lean
+        // stores them, and the reduct is the loop's next term.
+        Ok(ENodeView::LetE(_, v, b)) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &b, &v, 0) {
+            Err(er) => Err(er),
+            Ok(e2) => Ok(WhnfStep::Cont(e2)),
+        },
+        Ok(ENodeView::BVar(_)) => fail(CheckError::NotImplemented(code_points(&M_BVAR_WHNF))),
+    }
+}
+
+/// con-leche: ConLeche/Cached/CoreC.lean:806-817 whnfCoreLoopI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2422-2432 whnfCoreLoop` — iterate
+/// `whnf_core_step` on its own step budget.  **A real loop** (task #119,
+/// after con-leche task #342 R2): con-leche's self tail call compiles to a
+/// jump, and Rust promises no tail calls, so the iteration is spelled as one —
+/// a reduction chain of any length runs in constant native stack, and a
+/// non-terminating one runs until the external timeout.  Extraction's
+/// `-loops-to-rec` turns it back into the twin's recursion.
+pub fn whnf_core_loop(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    cheap: bool,
+    depth: u64,
+    n: u64,
+    e: &EIdx,
+) -> Result<EIdx, CheckError> {
+    let mut k: u64 = n;
+    let mut cur: EIdx = e.dup2();
+    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+        if k == 0 {
+            return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_CORE_LOOP)));
+        }
+        match whnf_core_step(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &cur) {
+            Err(er) => return Err(er),
+            Ok(WhnfStep::Done(v)) => return Ok(v),
+            Ok(WhnfStep::Cont(e2)) => {
+                cur = e2;
+                k = k - 1;
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
+/// con-leche: ConLeche/Cached/CoreC.lean:819-822 whnfCoreBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2434-2438 whnfCoreBody` — the
+/// head-normalization body: the loop at its own step budget.
 pub fn whnf_core_body(
     pers: &PersTier,
     vis: u64,
@@ -7415,55 +6972,7 @@ pub fn whnf_core_body(
     depth: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match view(pers, st, e) {
-        Err(er) => Err(er),
-        Ok(ENodeView::Sort(_)) => Ok(e.dup2()),
-        Ok(ENodeView::FVar(_, _)) => Ok(e.dup2()),
-        Ok(ENodeView::ForallE(_, _, _)) => Ok(e.dup2()),
-        Ok(ENodeView::Lam(_, _, _)) => Ok(e.dup2()),
-        Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
-        Ok(ENodeView::Lit(_)) => Ok(e.dup2()),
-        // **The batched β spine** (task #97-P6-9), con-leche's
-        // `Cached/CoreC.lean:942-996 whnfCoreStepI`'s own `.app` clause: the
-        // spine's head is normalized once and the whole argument vector is run
-        // through `whnf_app`, which batches a consecutive run of λ binders into
-        // ONE `instantiate_list` walk.  The spec-shaped clause this replaces
-        // re-entered the knot per argument.
-        Ok(ENodeView::App(_, _)) => {
-            match get_app_spine(pers, st, CORE_WALK_FUEL, e) {
-                Err(er) => Err(er),
-                Ok(sp) => {
-                    let hd: EIdx = sp.0;
-                    let args: Vec<EIdx> = sp.1;
-                    let nodes: Vec<EIdx> = sp.2;
-                    match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, cheap, depth, &hd) {
-                        Err(er) => Err(er),
-                        Ok(v) => {
-                            let same: bool = v.eq2(&hd);
-                            match head_and_args(pers, st, &v) {
-                                Err(er) => Err(er),
-                                Ok(hv) => whnf_app(
-                                    pers, vis, st, mode, lane, fuel, fe, cheap, depth, &v, &hv.0, hv.1,
-                                    same, &args, &nodes, 0,
-                                ),
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Ok(ENodeView::Proj(sn, i, pe)) => {
-            whnf_core_proj(pers, vis, st, mode, lane, fuel, fe, cheap, depth, e, &sn, i, &pe)
-        }
-        // **Unreachable by construction** (con-leche's task #241): annotate
-        // output is let-free.
-        Ok(ENodeView::LetE(_, _, _)) => {
-            fail(CheckError::Internal(code_points(&M_LET_WHNF)))
-        }
-        Ok(ENodeView::BVar(_)) => {
-            fail(CheckError::NotImplemented(code_points(&M_BVAR_WHNF)))
-        }
-    }
+    whnf_core_loop(pers, vis, st, mode, lane, fuel, fe, cheap, depth, WHNF_CORE_LOOP_FUEL, e)
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1008-1019 whnfLoopFuel
@@ -7475,12 +6984,15 @@ pub fn whnf_core_body(
 pub const WHNF_LOOP_FUEL: u64 = 4611686018427387904; // 2^62
 
 /// con-leche: ConLeche/Kernel/Core.lean:1021-1036 whnfStep
+/// con-leche: ConLeche/Cached/CoreC.lean:876-890 whnfStepI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2397-2408 whnfStep` — one iteration
 /// of the reduction loop: head-normalize, try literal acceleration, unfold one
-/// definition — and hand the reduct to the loop's continuation.  The twin's
-/// `k : EIdx → AM EIdx` is the loop's step budget `n` here (the module note's
-/// deviation 2); `k x` is `whnf_loop(…, n, x)`, which is what `whnfLoop`
-/// passes.
+/// definition.  **The continuation is returned, not called** (task #119): the
+/// cited `k e'` is `Cont(e')`, and `whnf_loop` — a real loop — continues with
+/// it.  con-leche makes the same move by inlining the step into the loop so
+/// that its continuation call is the loop's own tail call (task #342 R2); a
+/// Rust tail call is not a jump, so the port returns the step, as
+/// `whnf_core_step` does.
 pub fn whnf_step(
     pers: &PersTier,
     vis: u64,
@@ -7490,27 +7002,29 @@ pub fn whnf_step(
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
-    n: u64,
     e: &EIdx,
-) -> Result<EIdx, CheckError> {
+) -> Result<WhnfStep, CheckError> {
     match knot_whnf_core(pers, vis, st, mode, lane, fuel, fe, false, depth, e) {
         Err(er) => Err(er),
         Ok(e1) => match reduce_nat(pers, vis, st, mode, lane, fuel, fe, depth, &e1) {
             Err(er) => Err(er),
-            Ok(Some(e2)) => whnf_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, &e2),
+            Ok(Some(e2)) => Ok(WhnfStep::Cont(e2)),
             Ok(None) => match unfold_definition(pers, vis, st, fe, &e1) {
                 Err(er) => Err(er),
-                Ok(Some(e2)) => whnf_loop(pers, vis, st, mode, lane, fuel, fe, depth, n, &e2),
-                Ok(None) => Ok(e1),
+                Ok(Some(e2)) => Ok(WhnfStep::Cont(e2)),
+                Ok(None) => Ok(WhnfStep::Done(e1)),
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1038-1043 whnfLoop
+/// con-leche: ConLeche/Cached/CoreC.lean:892-896 whnfLoopI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2410-2415 whnfLoop` — the reduction
-/// loop: iterate `whnfStep` on its own step budget, so the whole chain costs
-/// one knot level however many steps it takes.
+/// loop: iterate `whnf_step` on its own step budget, so the whole chain costs
+/// one knot level however many steps it takes.  **A real loop** (task #119),
+/// for `whnf_core_loop`'s reason: a δ chain of any length runs in constant
+/// native stack (con-leche fixture `whnf_delta_loop`).
 pub fn whnf_loop(
     pers: &PersTier,
     vis: u64,
@@ -7523,10 +7037,20 @@ pub fn whnf_loop(
     n: u64,
     e: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    if n == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_WHNF_LOOP)))
-    } else {
-        whnf_step(pers, vis, st, mode, lane, fuel, fe, depth, n - 1, e)
+    let mut k: u64 = n;
+    let mut cur: EIdx = e.dup2();
+    loop { // lint: allow (task #119: constant native stack, DESIGN.md §3.4)
+        if k == 0 {
+            return fail(CheckError::Internal(code_points(&M_FUEL_WHNF_LOOP)));
+        }
+        match whnf_step(pers, vis, st, mode, lane, fuel, fe, depth, &cur) {
+            Err(er) => return Err(er),
+            Ok(WhnfStep::Done(v)) => return Ok(v),
+            Ok(WhnfStep::Cont(e2)) => {
+                cur = e2;
+                k = k - 1;
+            }
+        }
     }
 }
 
@@ -7575,40 +7099,39 @@ pub fn ensure_sort(
 }
 
 // ---------------------------------------------------------------------------
-// Inference (`Core.lean:2089-2339`)
+// Inference (`Core.lean:1057-1268`)
 //
-// `inferBody` and `inferBodyIO` differ in exactly two clauses (the λ's domain
-// sort and the application's per-argument certificate) and agree verbatim in
-// the other eight.  The twin writes both out in full, as con-leche does; the
-// port spells each shared clause once and calls it from both, which is
-// `con_ron_core::cached::core_c`'s own arrangement (`infer_const_i`,
-// `infer_lit_nat`, `infer_fvar`, `infer_proj_at`).
+// `inferBody` (the full grade) and `inferBodyIO` (official's `infer_only`)
+// differ at four clauses since con-leche's task #342: the application's
+// per-argument check, the λ's domain-sort run, the ∀/λ telescope loops (the
+// io grade's binder clauses are chained) and the `let` (the full grade runs
+// official's `infer_let` triple, the io grade infers the body at its value);
+// the other six agree verbatim, the projection's included (`inferBodyIOI`'s
+// `| _ => inferBodyI r fe depth e` at the io view).  The twin writes both
+// out in full, as con-leche does; the port spells each shared clause once
+// and calls it from both, the projection with the `io` flag that is the io
+// view.
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lam_result_refines, then delete this line
+/// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2433-2439 inferLamResult` — the λ
-/// clause's result, `.forallE ty (bt.abstract1 depth) mb`.  con-leche writes it
-/// once at the end of a clause with three exits; the arena names it, so the
-/// three exits share one spelling and no arm is duplicated.
+/// clause's result, `.forallE ty (bt.abstract1 depth)`.
 pub fn infer_lam_result(
     pers: &PersTier,
     st: &mut AState,
     ty: &EIdx,
     bt: &EIdx,
     depth: u64,
-    mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
     match abstract1_fast(pers, st, CORE_WALK_FUEL, bt, depth, 0) {
         Err(e) => Err(e),
-        Ok(ab) => intern_e_forall_e(pers, st, ty.dup2(), ab, expr::binder_meta_dup(mb)),
+        Ok(ab) => intern_e_forall_e(pers, st, ty.dup2(), ab),
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_sort_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_sort_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
 /// The `.sort` clause, which both bodies write identically.
@@ -7620,9 +7143,7 @@ pub fn infer_sort(pers: &PersTier, st: &mut AState, u: &LIdx) -> Result<EIdx, Ch
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_fvar_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_fvar_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
 /// The `.fvar` clause — the scope check at the leaf of a traversal that
@@ -7636,9 +7157,7 @@ pub fn infer_fvar(idx: u64, ty: &EIdx, depth: u64) -> Result<EIdx, CheckError> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_const_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_const_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
 /// The `.const` clause, which both bodies write identically: the stored type
@@ -7681,9 +7200,7 @@ pub fn infer_const(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lit_nat_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lit_nat_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
 /// The `.lit (.natVal _)` clause, which both bodies write identically.
@@ -7704,9 +7221,7 @@ pub fn infer_lit_nat(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lit_str_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lit_str_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
 /// The `.lit (.strVal _)` clause, which both bodies write identically.
@@ -7727,13 +7242,10 @@ pub fn infer_lit_str(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_forall_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
-/// The `.forallE` clause, which both bodies write identically: the domain's
-/// sort, the opened codomain's sort, the validated annotation and `imax`.
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody` — the full
+/// body's `.forallE` clause: the domain's sort, then the binder-telescope loop
+/// (`infer_pis`), which infers the codomain sort and folds `imax` outward.
 pub fn infer_forall(
     pers: &PersTier,
     vis: u64,
@@ -7745,7 +7257,6 @@ pub fn infer_forall(
     depth: u64,
     ty: &EIdx,
     body: &EIdx,
-    mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
     match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
@@ -7753,27 +7264,24 @@ pub fn infer_forall(
             Err(e) => Err(e),
             Ok(w) => if w.tag() == ETAG_SORT {
                 // Binder-telescope loop (con-leche's task #72, `inferBodyI`'s
-                // `.forallE` case): peel the whole ∀-chain, open in bulk, fold
-                // `imax` outward.  The first binder is peeled here, which is why
-                // `infer_pis` starts at `k = 1` with one free variable and a
-                // one-entry stack.
+                // `.forallE` case): the first binder is peeled here, which is
+                // why `infer_pis` starts at `k = 1` with one free variable and
+                // a one-entry stack.
                 match view_sort(pers, st, &w) {
                     None => fail_dangling_e(),
-                    Some(u) => {
-                        match intern_e_fvar(pers, st, depth, ty.dup2()) {
-                            Err(e) => Err(e),
-                            Ok(fv) => {
-                                let mut fvs: Vec<EIdx> = Vec::new();
-                                fvs.push(fv);
-                                let mut stk: Vec<(LIdx, PropWhen)> = Vec::new();
-                                stk.push((u, prop_when::dup(&mb.pw)));
-                                infer_pis(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body,
-                                    1, fvs, stk,
-                                )
-                            }
+                    Some(u) => match intern_e_fvar(pers, st, depth, ty.dup2()) {
+                        Err(e) => Err(e),
+                        Ok(fv) => {
+                            let mut fvs: Vec<EIdx> = Vec::new();
+                            fvs.push(fv);
+                            let mut stk: Vec<LIdx> = Vec::new();
+                            stk.push(u);
+                            infer_pis(
+                                pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1,
+                                fvs, stk,
+                            )
                         }
-                    }
+                    },
                 }
             } else {
                 fail(CheckError::Invalid(code_points(&M_SORT)))
@@ -7783,18 +7291,20 @@ pub fn infer_forall(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_proj_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
-/// The `.proj` clause, which both bodies write identically: the subject type's
-/// head must be the node's own structure name (con-leche's task #175 wiring
-/// W5), and a projection out of a propositional structure must land in `Prop`.
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferProj` — the `.proj`
+/// clause, shared by both bodies (`inferBodyIOI` dispatches it to
+/// `inferBodyI` at the io view, which is the `io` flag here): the subject's
+/// type head-normalized, its head a constant with a projection-table entry at
+/// field `i`; without one, official's `infer_proj` verdict
+/// (`proj_miss_error`); a head that is no constant rejects.
 pub fn infer_proj(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
+    io: bool,
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
@@ -7802,7 +7312,7 @@ pub fn infer_proj(
     i: u64,
     pe: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, pe) {
+    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, pe) {
         Err(e) => Err(e),
         Ok(tp) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tp) {
             Err(e) => Err(e),
@@ -7817,14 +7327,12 @@ pub fn infer_proj(
                                 Ok(Some(entry)) => {
                                     infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
                                 }
-                                Ok(None) => {
-                                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
-                                }
+                                Ok(None) => infer_proj_miss(pers, vis, st, fe, &te, &t, sn, i),
                             }
                         },
                     }
                 } else {
-                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
+                    fail(CheckError::Invalid(code_points(&M_INVALID_PROJ)))
                 },
             },
         },
@@ -7832,9 +7340,40 @@ pub fn infer_proj(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_proj_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferProjMiss` — the
+/// `.proj` clause with no table entry at field `i`: `projMissError` at the
+/// table's presence and the subject type's argument count.
+pub fn infer_proj_miss(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    te: &EIdx,
+    t: &NIdx,
+    sn: &NIdx,
+    i: u64,
+) -> Result<EIdx, CheckError> {
+    match env::proj_table_name(pers, &mut st.store, t) {
+        Err(e) => Err(e),
+        Ok(tbl) => {
+            let has_table: bool = env::ifenv_find(vis, fe, &tbl).is_some();
+            match get_app_args(pers, st, CORE_WALK_FUEL, te) {
+                Err(e) => Err(e),
+                Ok(targs) => fail(proj_miss_error(vis, fe, has_table, t, sn, i, targs.len() as u64)),
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody` — the `.proj`
-/// clause's body, once the entry has been found.
+/// clause's body, once the entry has been found: the node must name the
+/// subject type's head (official `infer_proj`, con-leche's TASK #271) at the
+/// entry's parameter count — two rejects that the annotate pass used to make
+/// and inference makes since con-leche task #342 L-CK — then the levels, the
+/// propositional structure's restriction and the instantiated body.
 pub fn infer_proj_at(
     pers: &PersTier,
     st: &mut AState,
@@ -7847,33 +7386,37 @@ pub fn infer_proj_at(
 ) -> Result<EIdx, CheckError> {
     match get_app_args(pers, st, CORE_WALK_FUEL, te) {
         Err(e) => Err(e),
-        Ok(targs) => match view_ls_len(pers, st, us) {
-            None => fail_dangling_ls(),
-            Some(usl) => {
-                if t.eq2(sn)
-                    && targs.len() as u64 == entry.num_params
-                    && usl == entry.level_params.len()
-                {
-                    match zero_level(st) {
-                        Err(e) => Err(e),
-                        Ok(z) => match lvl_eq(pers, st, &entry.struct_sort, &z) {
-                            Err(e) => Err(e),
-                            Ok(Some(true)) => {
-                                infer_proj_prop(pers, st, entry, us, &targs, pe)
+        Ok(targs) => {
+            if !t.eq2(sn) {
+                fail(CheckError::Invalid(code_points(&M_OTHER_STRUCT)))
+            } else if targs.len() as u64 != entry.num_params {
+                fail(CheckError::Invalid(code_points(&M_PARAMS)))
+            } else {
+                match view_ls_len(pers, st, us) {
+                    None => fail_dangling_ls(),
+                    Some(usl) => {
+                        if usl == entry.level_params.len() {
+                            match zero_level(st) {
+                                Err(e) => Err(e),
+                                Ok(z) => match lvl_eq(pers, st, &entry.struct_sort, &z) {
+                                    Err(e) => Err(e),
+                                    Ok(Some(true)) => {
+                                        infer_proj_prop(pers, st, entry, us, &targs, pe)
+                                    }
+                                    Ok(_) => proj_entry_type_at(pers, st, entry, us, &targs, pe),
+                                },
                             }
-                            Ok(_) => proj_entry_type_at(pers, st, entry, us, &targs, pe),
-                        },
+                        } else {
+                            fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
+                        }
                     }
-                } else {
-                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
                 }
             }
-        },
+        }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_proj_prop_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody` — the
 /// propositional structure's extra premise: the field's guard level must be
 /// `Prop` at this instantiation.
@@ -7907,11 +7450,10 @@ pub fn infer_proj_prop(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody` — the λ
-/// clause: the domain's sort is run (unlike the io grade's), then the opened
-/// body's type, then con-leche's task #161 chain rule or the task-#152
-/// codomain-sort computation.
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody` — the full
+/// body's λ clause: the domain's sort is run (unlike the io grade's), then the
+/// binder-telescope loop (`infer_lams`).
 pub fn infer_lam(
     pers: &PersTier,
     vis: u64,
@@ -7923,27 +7465,24 @@ pub fn infer_lam(
     depth: u64,
     ty: &EIdx,
     body: &EIdx,
-    mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
     match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
         Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
             Err(e) => Err(e),
             Ok(w) => if w.tag() == ETAG_SORT {
-                // Binder-telescope loop (con-leche's task #72, `inferBodyI`'s
-                // `.lam` case): peel the whole λ-chain, open in bulk, rebuild
-                // with `abstract_range`.  The first binder is peeled here, which
-                // is why `infer_lams` starts at `k = 1` with one free variable
-                // and a one-entry stack.  The codomain sort itself is not read:
-                // the `.lam` case wants only that the type's whnf IS a sort,
-                // which the handle's own tag says (task #97-P6-13).
+                // Binder-telescope loop (con-leche's task #72): the first binder
+                // is peeled here, which is why `infer_lams` starts at `k = 1`
+                // with one free variable and a one-entry stack.  The domain's
+                // sort itself is not read: the `.lam` case wants only that the
+                // type's whnf IS a sort, which the handle's own tag says.
                 match intern_e_fvar(pers, st, depth, ty.dup2()) {
                     Err(e) => Err(e),
                     Ok(fv) => {
                         let mut fvs: Vec<EIdx> = Vec::new();
                         fvs.push(fv);
-                        let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
-                        stk.push((ty.dup2(), expr::binder_meta_dup(mb)));
+                        let mut stk: Vec<EIdx> = Vec::new();
+                        stk.push(ty.dup2());
                         infer_lams(
                             pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body, 1, fvs,
                             stk,
@@ -7957,18 +7496,12 @@ pub fn infer_lam(
     }
 }
 
-/// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lam_open_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lam_open_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
-/// The λ clause from the opening on, which the two bodies share: the binder is
-/// opened at a fresh free variable, the body's type is inferred, and the
-/// annotation is validated.  The ONE difference is which grade the
-/// codomain-sort leaf infers at — `r.inferIO` in the full body, `r.infer` in
-/// the io body (`io = true` here) — so the flag is that difference and
-/// nothing else.
+/// con-leche: ConLeche/Cached/CoreC.lean:1136-1184 inferBodyIOI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferLamOpen` — the io
+/// body's λ clause, chained: no domain-sort run (official's `infer_lambda` at
+/// `infer_only`), the binder opened at a fresh free variable, the body's type
+/// inferred through this lane (`io`, the knot's `ioView`), and the result.
 pub fn infer_lam_open(
     pers: &PersTier,
     vis: u64,
@@ -7980,46 +7513,27 @@ pub fn infer_lam_open(
     depth: u64,
     ty: &EIdx,
     body: &EIdx,
-    mb: &BinderMeta,
     io: bool,
 ) -> Result<EIdx, CheckError> {
     match intern_e_fvar(pers, st, depth, ty.dup2()) {
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
-            Ok(ob) => {
-                // `r.infer` in both bodies.  In the full body `io` is `false`
-                // and `knot_infer_at` IS `knot_infer`; in the io body it is the
-                // knot's `ioView` substitution.
-                let bt = knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob);
-                match bt {
-                    Err(e) => Err(e),
-                    Ok(bt) => {
-                        if crate::kernel::env::verified_checks(mode) {
-                            infer_lam_cod(
-                                pers,
-                                vis,
-                                st, mode, lane, fuel, fe, depth, ty, body, mb, &bt,
-                            )
-                        } else {
-                            infer_lam_result(pers, st, ty, &bt, depth, mb)
-                        }
-                    }
-                }
-            }
+            Ok(ob) => match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
+                Err(e) => Err(e),
+                Ok(bt) => infer_lam_result(pers, st, ty, &bt, depth),
+            },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lam_cod_refines, then delete this line
-/// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lam_cod_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO`
-/// The λ clause's validated-annotation half: the chain rule at a λ-headed
-/// body, the codomain-sort computation at the innermost binder.
-pub fn infer_lam_cod(
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferLet` — the full
+/// body's `let` clause, official's `infer_let` (con-leche task #342 S0): the
+/// `let`'s type is a type, the value's type matches it, then the body with the
+/// value substituted — the ζ reduct, as Lean's kernel infers it.
+pub fn infer_let(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -8029,71 +7543,67 @@ pub fn infer_lam_cod(
     fe: &IFEnv,
     depth: u64,
     ty: &EIdx,
-    body: &EIdx,
-    mb: &BinderMeta,
-    bt: &EIdx,
+    v: &EIdx,
+    b: &EIdx,
 ) -> Result<EIdx, CheckError> {
-    match lam_pw(pers, st, body) {
+    match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
         Err(e) => Err(e),
-        // con-leche's task #161 chain rule: datum equality with the
-        // neighbour, no inference.
-        Ok(Some(pw_i)) => {
-            if !prop_when::beq(&mb.pw, &pw_i) {
-                fail(CheckError::NotImplemented(code_points(&M_CHAIN)))
-            } else {
-                infer_lam_result(pers, st, ty, bt, depth, mb)
-            }
-        }
-        // the innermost binder: the task-#152 codomain-sort computation
-        Ok(None) => {
-            // The full body writes `r.inferIO (depth+1) bt` and the io body
-            // writes `r.infer (depth+1) bt`; both resolve to this knot's io
-            // slot — in the io body because its record IS the io view (or, at
-            // `LANE_IO`, because the knot's two infer slots are one function.
-            let btt = knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth + 1, bt);
-            match btt {
+        Ok(tty) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &tty) {
+            Err(e) => Err(e),
+            Ok(_) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, v) {
                 Err(e) => Err(e),
-                Ok(btt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &btt) {
+                Ok(tv) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &tv, ty) {
                     Err(e) => Err(e),
-                    Ok(vb) => match read_level_m(pers, st, &vb) {
+                    Ok(false) => fail(CheckError::Invalid(code_points(&M_LET_VALUE))),
+                    Ok(true) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, b, v, 0) {
                         Err(e) => Err(e),
-                        Ok(lvb) => {
-                            if !prop_when::beq(&level::zeroness_of(&lvb), &mb.pw) {
-                                fail(CheckError::NotImplemented(code_points(&M_LEAF)))
-                            } else {
-                                infer_lam_result(pers, st, ty, bt, depth, mb)
-                            }
-                        }
+                        Ok(ob) => knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &ob),
                     },
                 },
-            }
-        }
+            },
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
+/// con-leche: ConLeche/Cached/CoreC.lean:1136-1184 inferBodyIOI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferLetIO` — the io
+/// body's `let` clause, official's `infer_let` at `infer_only` (con-leche task
+/// #342 R-C): the body at its value, no check of the type or the value.
+pub fn infer_let_io(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    io: bool,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    v: &EIdx,
+    b: &EIdx,
+) -> Result<EIdx, CheckError> {
+    match instantiate1_fast(pers, st, CORE_WALK_FUEL, b, v, 0) {
+        Err(e) => Err(e),
+        Ok(ob) => knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, &ob),
     }
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:824-853 inferSpineI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2651-2679 inferSpine` — the cached
 /// tier's application-inference spine loop, the EXECUTED checker's own `.app`
 /// clause.
 ///
 /// **The batched instantiation lever** (task #97-P6-9), the telescope half.
-/// The spec-shaped clause this replaces inferred the type of every PREFIX of
-/// the spine and substituted one argument into it per level — so the residual
-/// Π-telescope, binders and all, was rebuilt once per argument, which is where
-/// task #97-P6-8a's 5.15× `forallE` excess comes from.  This walks the RAW
-/// telescope structurally with the arguments accumulated in `acc` (the list
-/// `instantiate_list` takes at cursor 0, in PUSH order on an OWNED vector —
-/// task #97-P6-15) and substitutes each
-/// domain, and the residual, in ONE walk.  con-leche makes the same move
-/// between its PURE and its CACHED tier and proves the two equal:
-/// `ConLeche/Verify/BetaSpine.lean` (`inferSpine_sound`), whose per-argument
-/// decomposition is `Expr.instantiateList_cons`
-/// (`ConLeche/Verify/InstList.lean`).
+/// This walks the RAW telescope structurally with the arguments accumulated in
+/// `acc` (the list `instantiate_list` takes at cursor 0, in PUSH order on an
+/// OWNED vector — task #97-P6-15) and substitutes each domain, and the
+/// residual, in ONE walk.  con-leche proves the identification with the
+/// spec-shaped clause (`ConLeche/Verify/BetaSpine.lean`, `inferSpine_sound`).
 ///
 /// The non-`forallE` arm is the twin's: substitute, `whnf`, and restart the
-/// accumulator — a telescope step the raw term did not have is exactly the
-/// spec's `whnf`-then-`instantiate1` level.
+/// accumulator.  Every argument is checked against its domain, at the full
+/// grade.
 pub fn infer_spine(
     pers: &PersTier,
     vis: u64,
@@ -8115,7 +7625,7 @@ pub fn infer_spine(
         if ty.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, ty) {
                 None => fail_dangling_e(),
-                Some((dom, body, _)) => {
+                Some((dom, body)) => {
                     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(dom2) => {
@@ -8150,7 +7660,7 @@ pub fn infer_spine(
                     Ok(w) => if w.tag() == ETAG_FORALL_E {
                         match view_bind(pers, st, &w) {
                             None => fail_dangling_e(),
-                            Some((dom, body, _)) => {
+                            Some((dom, body)) => {
                                 match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
                                     Err(e) => Err(e),
                                     Ok(ta) => match knot_defeq(
@@ -8182,7 +7692,6 @@ pub fn infer_spine(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2681-2688 inferApp` — the `.app`
 /// clause of the cached inference body: the spine's head is inferred once and
 /// its Π-telescope is walked against the whole spine.
@@ -8211,162 +7720,63 @@ pub fn infer_app(
 
 // ---------------------------------------------------------------------------
 // The inference binder-telescope loops (con-leche's task #72,
-// `Cached/CoreC.lean:1140-1290`) — task #97-P6-12.
+// `Cached/CoreC.lean:910-1023`) — task #97-P6-12.
 //
-// The spec-shaped clauses these replace opened ONE binder against ONE fresh
-// free variable, inferred the whole residual telescope under it, and closed it
-// again with one whole-body `abstract1` — so a chain of `k` binders walked its
-// own tail `k` times.  con-leche's cached tier peels the whole chain:
-// each domain is opened against the free variables accumulated so far in ONE
-// `instantiate_list`, the residual leaf is opened once and inferred once, and
-// the rebuild closes each domain with ONE `abstract_range`.  The identification
-// with the chained spec bodies is `ConLeche/Verify/BinderLoop.lean`
-// (`inferLams_sound`, `inferPis_sound`), over `Expr.instantiateList_cons`
-// (`ConLeche/Verify/InstList.lean:54-116`) and `abstractRange_succ`
-// (`ConLeche/Verify/AbstractRange.lean:29-55`).
+// con-leche's cached tier peels the whole chain: each domain is opened against
+// the free variables accumulated so far in ONE `instantiate_list`, the
+// residual leaf is opened once and inferred once, and the rebuild closes each
+// domain with ONE `abstract_range`.  The identification with the chained spec
+// bodies is `ConLeche/Verify/BinderLoop.lean` (`inferLams_sound`,
+// `inferPis_sound`).
 //
-// The two shapes that are the arena's rather than con-leche's are the same two
-// `annotate_pis` / `annotate_lams` already carry (task #97-P6-11): the stack is
-// a `Vec` pushed OUTERMOST-first and consumed by a count `n` counting down,
+// The two shapes that are the arena's rather than con-leche's: the stack is a
+// `Vec` pushed OUTERMOST-first and consumed by a count `n` counting down,
 // where con-leche conses a `List` innermost-first and consumes its head — so
 // `stk[j]` is the binder at level `d + j` and `j` is exactly the
-// `abstract_range` width its domain wants, and `stk[n - 1]` is con-leche's
-// `stk` head; and `fvs` is built with `Vec::push` and read by
-// `instantiate_list` at cursor 0 FROM THE END (task #97-P6-15), where
-// con-leche pushes outermost-first and reads with `instantiateRev` — the two
-// vectors now grow the same way, and the twin's clause changes with the Rust
-// (`List` with `::` becomes `Array` with `Array.push`).
+// `abstract_range` width its domain wants; and `fvs` is built with
+// `Vec::push` and read by `instantiate_list` at cursor 0 FROM THE END (task
+// #97-P6-15).
 //
 // **Only the full grade loops.**  con-leche's `inferBodyIOI` keeps BOTH binder
-// clauses chained on purpose ("the loops are the front door's optimization, and
-// looping the io lane would owe the whole loop-identification walk family a
-// second, io-graded instance for a lane whose subjects are internal
-// re-inferences"), so `infer_lam_open` / `infer_lam_cod` / `infer_lam_result`
-// survive as the io body's λ clause and are unchanged.
+// clauses chained on purpose, so `infer_lam_open` / `infer_forall_io` are the
+// io body's binder clauses.  Task #119 (con-leche task #342): the stacks carry
+// no binder datum and the leaf runs no codomain check.
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/CoreC.lean:926-937 inferLamsOutI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lams_out_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2465-2482 inferLamsOut` — the
 /// outward rebuild of the λ telescope loop: fold the stack innermost binder
-/// first, rebuilding one `∀` node per entry.
-///
-/// `stk[j]` is the binder at level `d + j` and its opened domain may mention
-/// the `j` free variables below it, so `abstract_range ty d j` is what closes
-/// it — where the per-binder clause spent one whole-body `abstract1` per level.
-/// `j = 0` (the outermost binder) is `abstract_range_fast`'s own identity
-/// clause and costs nothing.
-///
-/// con-leche's task #161 chain rule, threaded: a node's prop-ness annotation
-/// must agree with its inner neighbour's, and `prev_pw` is that neighbour's
-/// datum — the leaf phase supplies the first one (§`infer_lams_leaf`), so the
-/// innermost step compares the entry with itself and is vacuously true.  The
-/// intermediate `∀`-node inferences of the chained body are value-determined by
-/// the peel phase's domain sorts and the leaf phase's body-type sort and cannot
-/// fail (con-leche's task #100 stage 6).
+/// first, rebuilding one `∀` node per entry.  `stk[j]` is the binder at level
+/// `d + j` and its opened domain may mention the `j` free variables below it,
+/// so `abstract_range ty d j` closes it.  The intermediate `∀`-node inferences
+/// of the chained body are value-determined and cannot fail.
 pub fn infer_lams_out(
     pers: &PersTier,
     st: &mut AState,
-    mode: &CheckMode,
     d: u64,
-    stk: &Vec<(EIdx, BinderMeta)>,
+    stk: &Vec<EIdx>,
     n: usize,
     cur: &EIdx,
-    prev_pw: &PropWhen,
 ) -> Result<EIdx, CheckError> {
     if n == 0 {
         Ok(cur.dup2())
     } else {
         let j: usize = n - 1;
-        if crate::kernel::env::verified_checks(mode)
-            && !prop_when::beq(&stk[j].1.pw, prev_pw)
-        {
-            fail(CheckError::NotImplemented(code_points(&M_CHAIN)))
-        } else {
-            match abstract_range_fast(pers, st, CORE_WALK_FUEL, &stk[j].0, d, j as u64, 0) {
-                Err(e) => Err(e),
-                Ok(ty_abs) => {
-                    let m: BinderMeta = expr::binder_meta_dup(&stk[j].1);
-                    let pw2: PropWhen = prop_when::dup(&m.pw);
-                    match intern_e_forall_e(pers, st, ty_abs, cur.dup2(), m) {
-                        Err(e) => Err(e),
-                        Ok(nd) => infer_lams_out(pers, st, mode, d, stk, j, &nd, &pw2),
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Cached/CoreC.lean:939-952 inferLamsLeafI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lams_leaf_check_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2484-2499 inferLamsLeafCheck` — the
-/// `match t with | .lam .. => pure () | _ => if mode.verifiedChecks then …`
-/// statement of the λ loop's leaf phase, which the arena names so that the
-/// leaf's common tail is written once.
-///
-/// con-leche's task #152: at the verified modes the chain's body type is
-/// sort-checked here — the spec's codomain check (`infer_lam_cod`'s
-/// `lam_pw = none` branch), which fires at the innermost binder of a λ chain,
-/// i.e. exactly when the peel stops on a non-λ residual.  The guard is the same
-/// one the spec uses, on the same term, and the datum it validates is the
-/// innermost binder's, `stk`'s head.
-pub fn infer_lams_leaf_check(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    k: u64,
-    stk: &Vec<(EIdx, BinderMeta)>,
-    bt: &EIdx,
-) -> Result<(), CheckError> {
-    if !crate::kernel::env::verified_checks(mode) {
-        Ok(())
-    } else {
-        match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, d + k, bt) {
+        match abstract_range_fast(pers, st, CORE_WALK_FUEL, &stk[j], d, j as u64, 0) {
             Err(e) => Err(e),
-            Ok(btt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, d + k, &btt) {
+            Ok(ty_abs) => match intern_e_forall_e(pers, st, ty_abs, cur.dup2()) {
                 Err(e) => Err(e),
-                Ok(vb) => {
-                    let n: usize = stk.len();
-                    if n == 0 {
-                        Ok(())
-                    } else {
-                        match read_level_m(pers, st, &vb) {
-                            Err(e) => Err(e),
-                            Ok(lvb) => {
-                                if prop_when::beq(&level::zeroness_of(&lvb), &stk[n - 1].1.pw) {
-                                    Ok(())
-                                } else {
-                                    fail(CheckError::NotImplemented(code_points(&M_LEAF)))
-                                }
-                            }
-                        }
-                    }
-                }
+                Ok(nd) => infer_lams_out(pers, st, d, stk, j, &nd),
             },
         }
     }
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:939-952 inferLamsLeafI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lams_leaf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2501-2520 inferLamsLeaf` — the leaf
 /// phase of the λ telescope loop: bulk-open the residual body against the whole
-/// accumulated free-variable vector, infer it ONCE, run the innermost binder's
-/// codomain check, close the leaf with ONE `abstract_range`, then rebuild
-/// outward.
-///
-/// The fold's initial neighbour is con-leche's own: a λ residual (the
-/// fuel-exhausted path) supplies its own annotation — the head entry's chain
-/// check then compares against it, exactly as the spec's per-node clause does;
-/// a non-λ residual makes the head entry's step vacuous, its codomain fact
-/// being `infer_lams_leaf_check` above.  `lam_pw` is `Expr.lamPw`, an O(1) read
-/// of the node's own stored datum, and it decides both.
+/// accumulated free-variable vector, infer it ONCE, close the leaf with ONE
+/// `abstract_range`, then rebuild outward.
 pub fn infer_lams_leaf(
     pers: &PersTier,
     vis: u64,
@@ -8379,43 +7789,17 @@ pub fn infer_lams_leaf(
     t: &EIdx,
     k: u64,
     fvs: Vec<EIdx>,
-    stk: &Vec<(EIdx, BinderMeta)>,
+    stk: &Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
         Ok(ob) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &ob) {
             Err(e) => Err(e),
-            Ok(bt) => match lam_pw(pers, st, t) {
+            Ok(bt) => match abstract_range_fast(pers, st, CORE_WALK_FUEL, &bt, d, k, 0) {
                 Err(e) => Err(e),
-                Ok(lpw) => {
-                    let chk: Result<(), CheckError> = match &lpw {
-                        Some(_) => Ok(()),
-                        None => infer_lams_leaf_check(
-                            pers, vis, st, mode, lane, fuel, fe, d, k, stk, &bt,
-                        ),
-                    };
-                    match chk {
-                        Err(e) => Err(e),
-                        Ok(()) => {
-                            let n: usize = stk.len();
-                            let prev_pw: PropWhen = match lpw {
-                                Some(p) => p,
-                                None => {
-                                    if n == 0 {
-                                        prop_when::never()
-                                    } else {
-                                        prop_when::dup(&stk[n - 1].1.pw)
-                                    }
-                                }
-                            };
-                            match abstract_range_fast(pers, st, CORE_WALK_FUEL, &bt, d, k, 0) {
-                                Err(e) => Err(e),
-                                Ok(cur) => {
-                                    infer_lams_out(pers, st, mode, d, stk, n, &cur, &prev_pw)
-                                }
-                            }
-                        }
-                    }
+                Ok(cur) => {
+                    let n: usize = stk.len();
+                    infer_lams_out(pers, st, d, stk, n, &cur)
                 }
             },
         },
@@ -8423,19 +7807,11 @@ pub fn infer_lams_leaf(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:954-974 inferLamsI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_lams_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2522-2552 inferLams` — the
 /// λ-telescope inference loop: peel the raw λ-chain, checking each opened
 /// domain to be a type on the way in. `k >= 1` counts the opened binders (the
 /// first is peeled by `infer_lam`'s own clause) and `fvs` holds their free
-/// variables — the list `instantiate_list` takes at cursor 0, in PUSH order on
-/// an OWNED vector (task #97-P6-15).
-///
-/// One peeled domain is ONE `instantiate_list` walk over the domain alone,
-/// where the per-binder clause substituted into the whole residual telescope
-/// once per level; `Expr.instantiateList_cons`
-/// (`ConLeche/Verify/InstList.lean:54-116`) is the equation that identifies the
-/// batch with the chain of `instantiate1` the spec-shaped body ran.
+/// variables, in PUSH order on an OWNED vector (task #97-P6-15).
 pub fn infer_lams(
     pers: &PersTier,
     vis: u64,
@@ -8449,110 +7825,74 @@ pub fn infer_lams(
     t: &EIdx,
     k: u64,
     fvs: Vec<EIdx>,
-    stk: Vec<(EIdx, BinderMeta)>,
+    stk: Vec<EIdx>,
 ) -> Result<EIdx, CheckError> {
-    // The peel's test is a tag read off the handle word and the binder
-    // PROJECTION (task #97-P6-10): the loop asks "is this still a λ?" once per
-    // binder and wants only the three fields when it is.
     if peel == 0 || t.tag() != ETAG_LAM {
         infer_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
         match view_bind(pers, st, t) {
             None => fail_dangling_e(),
-            Some(p) => {
-                let ty: EIdx = p.0;
-                let body: EIdx = p.1;
-                let mb: BinderMeta = p.2;
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
+            Some((ty, body)) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
+                Err(e) => Err(e),
+                Ok(tyo) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
                     Err(e) => Err(e),
-                    Ok(tyo) => {
-                        match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
-                            Err(e) => Err(e),
-                            Ok(tty) => {
-                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                    Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                        Err(e) => Err(e),
+                        Ok(w) => {
+                            if w.tag() == ETAG_SORT {
+                                match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
                                     Err(e) => Err(e),
-                                    Ok(w) => if w.tag() == ETAG_SORT {
-                                        match view_sort(pers, st, &w) {
-                                            None => fail_dangling_e(),
-                                            Some(_) => {
-                                                match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
-                                                    Err(e) => Err(e),
-                                                    Ok(fv) => {
-                                                        let mut fvs2: Vec<EIdx> = fvs;
-                                                        fvs2.push(fv);
-                                                        let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
-                                                        stk2.push((tyo, mb));
-                                                        infer_lams(
-                                                            pers, vis, st, mode, lane, fuel, fe, d,
-                                                            peel - 1, &body, k + 1, fvs2, stk2,
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                        }
-                                    } else {
-                                        {
-                                            fail(CheckError::Invalid(code_points(&M_SORT)))
-                                        }
-                                    },
+                                    Ok(fv) => {
+                                        let mut fvs2: Vec<EIdx> = fvs;
+                                        fvs2.push(fv);
+                                        let mut stk2: Vec<EIdx> = stk;
+                                        stk2.push(tyo);
+                                        infer_lams(
+                                            pers, vis, st, mode, lane, fuel, fe, d, peel - 1, &body,
+                                            k + 1, fvs2, stk2,
+                                        )
+                                    }
                                 }
+                            } else {
+                                fail(CheckError::Invalid(code_points(&M_SORT)))
                             }
                         }
-                    }
-                }
-            }
+                    },
+                },
+            },
         }
     }
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:976-987 inferPisOutI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_pis_out_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2554-2570 inferPisOut` — the
 /// outward fold of the ∀ telescope loop: fold the accumulated domain sorts by
 /// `imax`, innermost binder first, which is exactly the chained `∀`-rule's
-/// result value.
-///
-/// con-leche's task #272 (its GitHub issue #9): the codomain sort's zero-ness
-/// datum is **threaded, not recomputed**.  `zeronessOf (imax u v) = zeronessOf
-/// v` holds definitionally, so every node of a ∀ telescope shares the leaf's
-/// datum, and the fold pays ONE `read_level` in the leaf phase where the
-/// per-binder clause paid one per binder — and where con-leche's own pre-#272
-/// fold walked `zeronessOf` down a growing right spine, `O(k²)` in the
-/// telescope depth.  `pv` is that leaf datum; the pure mirror
-/// (`Verify/BinderLoop.lean:156-163 inferPisOut`) recomputes it at every step
-/// and `Verify/Cached/BinderLoopC.lean:359-404 inferPisOutC_sim` is where the
-/// two are identified.
+/// result value.  It reads no per-node datum (con-leche task #272: a walk of
+/// the growing right spine was `O(k²)`).
 pub fn infer_pis_out(
     pers: &PersTier,
     st: &mut AState,
-    mode: &CheckMode,
-    stk: &Vec<(LIdx, PropWhen)>,
+    stk: &Vec<LIdx>,
     n: usize,
     v: &LIdx,
-    pv: &PropWhen,
 ) -> Result<LIdx, CheckError> {
     if n == 0 {
         Ok(v.dup2())
     } else {
         let j: usize = n - 1;
-        if crate::kernel::env::verified_checks(mode) && !prop_when::beq(pv, &stk[j].1) {
-            fail(CheckError::NotImplemented(code_points(&M_COD)))
-        } else {
-            match intern_l_node(pers, st, LNodeView::Imax(stk[j].0.dup2(), v.dup2())) {
-                Err(e) => Err(e),
-                Ok(v2) => infer_pis_out(pers, st, mode, stk, j, &v2, pv),
-            }
+        match intern_l_node(pers, st, LNodeView::Imax(stk[j].dup2(), v.dup2())) {
+            Err(e) => Err(e),
+            Ok(v2) => infer_pis_out(pers, st, stk, j, &v2),
         }
     }
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:989-1000 inferPisLeafI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_pis_leaf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2572-2584 inferPisLeaf` — the leaf
 /// phase of the ∀ telescope loop: bulk-open the residual body against the whole
 /// accumulated free-variable vector, infer its sort ONCE, then fold the domain
-/// sorts outward. The telescope's zero-ness datum is read HERE, once, and
-/// threaded.
+/// sorts outward.
 pub fn infer_pis_leaf(
     pers: &PersTier,
     vis: u64,
@@ -8565,7 +7905,7 @@ pub fn infer_pis_leaf(
     t: &EIdx,
     k: u64,
     fvs: Vec<EIdx>,
-    stk: &Vec<(LIdx, PropWhen)>,
+    stk: &Vec<LIdx>,
 ) -> Result<EIdx, CheckError> {
     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
         Err(e) => Err(e),
@@ -8573,35 +7913,24 @@ pub fn infer_pis_leaf(
             Err(e) => Err(e),
             Ok(bt) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, d + k, &bt) {
                 Err(e) => Err(e),
-                Ok(v) => match read_level_m(pers, st, &v) {
-                    Err(e) => Err(e),
-                    Ok(lv) => {
-                        let pv: PropWhen = level::zeroness_of(&lv);
-                        let n: usize = stk.len();
-                        match infer_pis_out(pers, st, mode, stk, n, &v, &pv) {
-                            Err(e) => Err(e),
-                            Ok(iv) => intern_e_sort(pers, st, iv),
-                        }
+                Ok(v) => {
+                    let n: usize = stk.len();
+                    match infer_pis_out(pers, st, stk, n, &v) {
+                        Err(e) => Err(e),
+                        Ok(iv) => intern_e_sort(pers, st, iv),
                     }
-                },
+                }
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:1002-1023 inferPisI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_pis_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2586-2608 inferPis` — the
-/// ∀-telescope inference loop (con-leche's task #100 stage 6: the `∀`-rule
-/// INFERS its codomain sort, the stored annotation is not read): peel the raw
-/// ∀-chain, checking each opened domain to be a type on the way in and
-/// accumulating its sort, infer the bulk-opened leaf's sort once, and fold
-/// `imax` outward.
-///
-/// The stack carries `(LIdx, PropWhen)` and no expression at all — a ∀
-/// telescope's inference builds no binder node, only the folded level and the
-/// one `sort` around it, which is why this loop takes the whole per-level
-/// `instantiate1` of the residual telescope off the run and puts nothing back.
+/// ∀-telescope inference loop: peel the raw ∀-chain, checking each opened
+/// domain to be a type on the way in and accumulating its sort, infer the
+/// bulk-opened leaf's sort once, and fold `imax` outward.  The stack carries
+/// levels and no expression at all.
 pub fn infer_pis(
     pers: &PersTier,
     vis: u64,
@@ -8615,65 +7944,53 @@ pub fn infer_pis(
     t: &EIdx,
     k: u64,
     fvs: Vec<EIdx>,
-    stk: Vec<(LIdx, PropWhen)>,
+    stk: Vec<LIdx>,
 ) -> Result<EIdx, CheckError> {
-    // The peel's test is a tag read off the handle word and the binder
-    // PROJECTION (task #97-P6-10), as `infer_lams`' is.
     if peel == 0 || t.tag() != ETAG_FORALL_E {
         infer_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
     } else {
         match view_bind(pers, st, t) {
             None => fail_dangling_e(),
-            Some(p) => {
-                let ty: EIdx = p.0;
-                let body: EIdx = p.1;
-                let mb: BinderMeta = p.2;
-                match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
+            Some((ty, body)) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
+                Err(e) => Err(e),
+                Ok(tyo) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
                     Err(e) => Err(e),
-                    Ok(tyo) => {
-                        match knot_infer(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
-                            Err(e) => Err(e),
-                            Ok(tty) => {
-                                match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
-                                    Err(e) => Err(e),
-                                    Ok(w) => if w.tag() == ETAG_SORT {
-                                        match view_sort(pers, st, &w) {
-                                            None => fail_dangling_e(),
-                                            Some(u) => {
-                                                match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
-                                                    Err(e) => Err(e),
-                                                    Ok(fv) => {
-                                                        let mut fvs2: Vec<EIdx> = fvs;
-                                                        fvs2.push(fv);
-                                                        let mut stk2: Vec<(LIdx, PropWhen)> = stk;
-                                                        stk2.push((u, prop_when::dup(&mb.pw)));
-                                                        infer_pis(
-                                                            pers, vis, st, mode, lane, fuel, fe, d,
-                                                            peel - 1, &body, k + 1, fvs2, stk2,
-                                                        )
-                                                    }
-                                                }
-                                            },
-                                        }
-                                    } else {
-                                        {
-                                            fail(CheckError::Invalid(code_points(&M_SORT)))
+                    Ok(tty) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, d + k, &tty) {
+                        Err(e) => Err(e),
+                        Ok(w) => {
+                            if w.tag() == ETAG_SORT {
+                                match view_sort(pers, st, &w) {
+                                    None => fail_dangling_e(),
+                                    Some(u) => match intern_e_fvar(pers, st, d + k, tyo.dup2()) {
+                                        Err(e) => Err(e),
+                                        Ok(fv) => {
+                                            let mut fvs2: Vec<EIdx> = fvs;
+                                            fvs2.push(fv);
+                                            let mut stk2: Vec<LIdx> = stk;
+                                            stk2.push(u);
+                                            infer_pis(
+                                                pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                                &body, k + 1, fvs2, stk2,
+                                            )
                                         }
                                     },
                                 }
+                            } else {
+                                fail(CheckError::Invalid(code_points(&M_SORT)))
                             }
                         }
-                    }
-                }
-            }
+                    },
+                },
+            },
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1057-1170 inferBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_body_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1025-1134 inferBodyI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2735-2818 inferBody` — the
-/// inference body.
+/// full-grade inference body (official's `infer_type_core` with
+/// `infer_only = false`).
 pub fn infer_body(
     pers: &PersTier,
     vis: u64,
@@ -8692,18 +8009,18 @@ pub fn infer_body(
         Ok(ENodeView::Const(n, us)) => infer_const(pers, vis, st, fe, &n, &us),
         Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, vis, st, fe),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, vis, st, fe),
-        Ok(ENodeView::ForallE(ty, body, mb)) => {
-            infer_forall(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
+        Ok(ENodeView::ForallE(ty, body)) => {
+            infer_forall(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body)
         }
-        Ok(ENodeView::Lam(ty, body, mb)) => {
-            infer_lam(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb)
+        Ok(ENodeView::Lam(ty, body)) => {
+            infer_lam(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body)
         }
         Ok(ENodeView::App(_, _)) => infer_app(pers, vis, st, mode, lane, fuel, fe, depth, e),
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            infer_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
+            infer_proj(pers, vis, st, mode, lane, false, fuel, fe, depth, &sn, i, &pe)
         }
-        Ok(ENodeView::LetE(_, _, _)) => {
-            fail(CheckError::Internal(code_points(&M_LET_INFER)))
+        Ok(ENodeView::LetE(ty, v, b)) => {
+            infer_let(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &v, &b)
         }
         Ok(ENodeView::BVar(_)) => {
             fail(CheckError::NotImplemented(code_points(&M_BVAR_INFER)))
@@ -8712,12 +8029,13 @@ pub fn infer_body(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_body_io_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1136-1184 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO` — **the io
-/// inference body**: `inferBody` with two clauses changed — no domain-sort run
-/// at the λ (official's `infer_lambda` skips it at `infer_only`), and the
-/// application rule's per-argument certificate skipped when the ∀'s validated
-/// annotation licenses it.
+/// inference body**, official's `infer_type_core` with `infer_only = true`
+/// (con-leche tasks #161, #170, #346): the application's arguments are not
+/// checked against their domains, the λ's domain is not checked to be a type,
+/// and a `let` infers its body at its value with no check of the type or the
+/// value.  The binder clauses are chained.
 ///
 /// The `io` flag is the twin's `CoreFnsA.ioView`: it says whether this body's
 /// `r.infer` is the knot's `inferIO` slot (`coreKnot`'s io slot passes
@@ -8742,21 +8060,20 @@ pub fn infer_body_io(
         Ok(ENodeView::Const(n, us)) => infer_const(pers, vis, st, fe, &n, &us),
         Ok(ENodeView::Lit(Literal::NatVal(_))) => infer_lit_nat(pers, vis, st, fe),
         Ok(ENodeView::Lit(Literal::StrVal(_))) => infer_lit_str(pers, vis, st, fe),
-        Ok(ENodeView::ForallE(ty, body, mb)) => {
-            infer_forall_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &ty, &body, &mb)
+        Ok(ENodeView::ForallE(ty, body)) => {
+            infer_forall_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &ty, &body)
         }
-        // con-leche's task #168 stage 2: no domain-sort run at the io grade
-        Ok(ENodeView::Lam(ty, body, mb)) => {
-            infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, io)
+        Ok(ENodeView::Lam(ty, body)) => {
+            infer_lam_open(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, io)
         }
         Ok(ENodeView::App(_, _)) => {
             infer_app_io_at(pers, vis, st, mode, lane, io, fuel, fe, depth, e)
         }
         Ok(ENodeView::Proj(sn, i, pe)) => {
-            infer_proj_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &sn, i, &pe)
+            infer_proj(pers, vis, st, mode, lane, io, fuel, fe, depth, &sn, i, &pe)
         }
-        Ok(ENodeView::LetE(_, _, _)) => {
-            fail(CheckError::Internal(code_points(&M_LET_INFER)))
+        Ok(ENodeView::LetE(_, v, b)) => {
+            infer_let_io(pers, vis, st, mode, lane, io, fuel, fe, depth, &v, &b)
         }
         Ok(ENodeView::BVar(_)) => {
             fail(CheckError::NotImplemented(code_points(&M_BVAR_INFER)))
@@ -8765,9 +8082,10 @@ pub fn infer_body_io(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_forall_io_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1136-1184 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO` — the io
-/// body's ∀ clause: `inferBody`'s, with `r.infer` resolved through this lane.
+/// body's ∀ clause, chained: the domain's sort through this lane, then
+/// `infer_forall_io_at`.
 pub fn infer_forall_io(
     pers: &PersTier,
     vis: u64,
@@ -8780,7 +8098,6 @@ pub fn infer_forall_io(
     depth: u64,
     ty: &EIdx,
     body: &EIdx,
-    mb: &BinderMeta,
 ) -> Result<EIdx, CheckError> {
     match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, ty) {
         Err(e) => Err(e),
@@ -8790,9 +8107,7 @@ pub fn infer_forall_io(
                 match view_sort(pers, st, &w) {
                     None => fail_dangling_e(),
                     Some(u) => infer_forall_io_at(
-                        pers,
-                        vis,
-                        st, mode, lane, io, fuel, fe, depth, ty, body, mb, &u,
+                        pers, vis, st, mode, lane, io, fuel, fe, depth, ty, body, &u,
                     ),
                 }
             } else {
@@ -8803,9 +8118,10 @@ pub fn infer_forall_io(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_forall_io_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1136-1184 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO` — the io
-/// body's ∀ clause, once the domain's sort is known.
+/// body's ∀ clause, once the domain's sort is known: the opened codomain's
+/// sort and `imax`.
 pub fn infer_forall_io_at(
     pers: &PersTier,
     vis: u64,
@@ -8818,59 +8134,28 @@ pub fn infer_forall_io_at(
     depth: u64,
     ty: &EIdx,
     body: &EIdx,
-    mb: &BinderMeta,
     u: &LIdx,
 ) -> Result<EIdx, CheckError> {
     match intern_e_fvar(pers, st, depth, ty.dup2()) {
         Err(e) => Err(e),
         Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
             Err(e) => Err(e),
-            Ok(ob) => {
-                match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
+            Ok(ob) => match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth + 1, &ob) {
+                Err(e) => Err(e),
+                Ok(tb) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &tb) {
                     Err(e) => Err(e),
-                    Ok(tb) => {
-                        match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth + 1, &tb) {
-                            Err(e) => Err(e),
-                            Ok(v) => {
-                                let ok =
-                                    if crate::kernel::env::verified_checks(mode) {
-                                        match read_level_m(pers, st, &v) {
-                                            Err(e) => Err(e),
-                                            Ok(lv) => Ok(prop_when::beq(
-                                                &level::zeroness_of(&lv),
-                                                &mb.pw,
-                                            )),
-                                        }
-                                    } else {
-                                        Ok(true)
-                                    };
-                                match ok {
-                                    Err(e) => Err(e),
-                                    Ok(false) => fail(CheckError::NotImplemented(
-                                        code_points(&M_COD),
-                                    )),
-                                    Ok(true) => {
-                                        match intern_l_node(
-                                            pers,
-                                            st,
-                                            LNodeView::Imax(u.dup2(), v.dup2()),
-                                        ) {
-                                            Err(e) => Err(e),
-                                            Ok(iu) => intern_e_sort(pers, st, iu),
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+                    Ok(v) => match intern_l_node(pers, st, LNodeView::Imax(u.dup2(), v.dup2())) {
+                        Err(e) => Err(e),
+                        Ok(iu) => intern_e_sort(pers, st, iu),
+                    },
+                },
+            },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_app_io_at_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1136-1184 inferBodyIOI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO` — the io
 /// body's `.app` clause, with `r.infer` resolved through this lane.
 pub fn infer_app_io_at(
@@ -8892,9 +8177,7 @@ pub fn infer_app_io_at(
                 Err(er) => Err(er),
                 Ok(tf) => {
                     let acc: Vec<EIdx> = Vec::new();
-                    infer_spine_io(
-                        pers, vis, st, mode, lane, io, fuel, fe, depth, &tf, acc, &hv.1, 0,
-                    )
+                    infer_spine_io(pers, vis, st, mode, lane, fuel, fe, depth, &tf, acc, &hv.1, 0)
                 }
             }
         }
@@ -8902,25 +8185,17 @@ pub fn infer_app_io_at(
 }
 
 /// con-leche: ConLeche/Cached/CoreC.lean:855-874 inferSpineIOI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_spine_io_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2690-2725 inferSpineIO` —
-/// `infer_spine` with the per-argument certificate gated: **THE io SITE** (task
-/// #97f, P2f), where the executed core reads `CheckMode.ioSkip` — the datum
-/// weakened by `!mode.certs`, the io-grade argument certificate being a
-/// certificate FAMILY. The two agree at `.verified`, the mode the bridge is
-/// stated at.
-///
-/// A syntactic `.forallE` is its own whnf, so the syntactic step's datum is
-/// the datum the pure io body reads off the whnf'd type (con-leche's own note
-/// on `inferSpineIOI`); the returned type is the same telescope walk either
-/// way, so the lane stays annotation-blind in its results.
+/// Lean twin: `proof/ConRon/Arena/Core.lean:2690-2725 inferSpineIO` — **the
+/// io-grade spine walk**, official's `infer_only` (con-leche task #342, #346):
+/// the function's type is walked through the arguments with no argument
+/// inference and no domain comparison.  A syntactic `.forallE` is its own
+/// whnf; anything else is instantiated and whnf'd before the next step.
 pub fn infer_spine_io(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     mode: &CheckMode,
     lane: u32,
-    io: bool,
     fuel: u64,
     fe: &IFEnv,
     depth: u64,
@@ -8936,128 +8211,37 @@ pub fn infer_spine_io(
         if ty.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, ty) {
                 None => fail_dangling_e(),
-                Some((dom, body, mt)) => {
-                    let cert = if crate::kernel::env::io_skip(mode, &mt.pw) {
-                        Ok(true)
-                    } else {
-                        match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
-                            Err(e) => Err(e),
-                            Ok(dom2) => {
-                                match knot_infer_at(
-                                    pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
-                                ) {
-                                    Err(e) => Err(e),
-                                    Ok(ta) => knot_defeq(
-                                        pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom2,
-                                    ),
-                                }
-                            }
-                        }
-                    };
-                    match cert {
-                        Err(e) => Err(e),
-                        Ok(false) => fail(CheckError::Invalid(code_points(&M_APP_MISMATCH))),
-                        Ok(true) => {
-                            let mut acc2: Vec<EIdx> = acc;
-                            acc2.push(a);
-                            infer_spine_io(
-                                pers, vis, st, mode, lane, io, fuel, fe, depth, &body, acc2, args,
-                                i + 1,
-                            )
-                        }
-                    }
-                },
+                Some((_, body)) => {
+                    let mut acc2: Vec<EIdx> = acc;
+                    acc2.push(a);
+                    infer_spine_io(pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args, i + 1)
+                }
             }
         } else {
             match instantiate_list_fast(pers, st, CORE_WALK_FUEL, ty, &acc, 0) {
                 Err(e) => Err(e),
                 Ok(ty2) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &ty2) {
                     Err(e) => Err(e),
-                    Ok(w) => if w.tag() == ETAG_FORALL_E {
-                        match view_bind(pers, st, &w) {
-                            None => fail_dangling_e(),
-                            Some((dom, body, mt)) => {
-                                let cert = if crate::kernel::env::io_skip(mode, &mt.pw) {
-                                    Ok(true)
-                                } else {
-                                    match knot_infer_at(
-                                        pers, vis, st, mode, lane, io, fuel, fe, depth, &a,
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(ta) => knot_defeq(
-                                            pers, vis, st, mode, lane, fuel, fe, depth, &ta, &dom,
-                                        ),
-                                    }
-                                };
-                                match cert {
-                                    Err(e) => Err(e),
-                                    Ok(false) => {
-                                        fail(CheckError::Invalid(code_points(&M_APP_MISMATCH)))
-                                    }
-                                    Ok(true) => {
-                                        let mut acc2: Vec<EIdx> = Vec::new();
-                                        acc2.push(a);
-                                        infer_spine_io(
-                                            pers, vis, st, mode, lane, io, fuel, fe, depth, &body,
-                                            acc2, args, i + 1,
-                                        )
-                                    }
+                    Ok(w) => {
+                        if w.tag() == ETAG_FORALL_E {
+                            match view_bind(pers, st, &w) {
+                                None => fail_dangling_e(),
+                                Some((_, body)) => {
+                                    let mut acc2: Vec<EIdx> = Vec::new();
+                                    acc2.push(a);
+                                    infer_spine_io(
+                                        pers, vis, st, mode, lane, fuel, fe, depth, &body, acc2, args,
+                                        i + 1,
+                                    )
                                 }
-                            },
+                            }
+                        } else {
+                            fail(CheckError::Invalid(code_points(&M_FN)))
                         }
-                    } else {
-                        fail(CheckError::Invalid(code_points(&M_FN)))
-                    },
+                    }
                 },
             }
         }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1172-1268 inferBodyIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::infer_proj_io_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2820-2939 inferBodyIO` — the io
-/// body's `.proj` clause, with `r.infer` resolved through this lane.
-pub fn infer_proj_io(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    io: bool,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    sn: &NIdx,
-    i: u64,
-    pe: &EIdx,
-) -> Result<EIdx, CheckError> {
-    match knot_infer_at(pers, vis, st, mode, lane, io, fuel, fe, depth, pe) {
-        Err(e) => Err(e),
-        Ok(tp) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &tp) {
-            Err(e) => Err(e),
-            Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
-                Err(e) => Err(e),
-                Ok(hd) => if hd.tag() == ETAG_CONST {
-                    match view_const(pers, st, &hd) {
-                        None => fail_dangling_e(),
-                        Some((t, us)) => {
-                            match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &t, i) {
-                                Err(e) => Err(e),
-                                Ok(Some(entry)) => {
-                                    infer_proj_at(pers, st, &te, sn, pe, &t, &us, &entry)
-                                }
-                                Ok(None) => {
-                                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
-                                }
-                            }
-                        },
-                    }
-                } else {
-                    fail(CheckError::NotImplemented(code_points(&M_NOENTRY)))
-                },
-            },
-        },
     }
 }
 
@@ -9168,21 +8352,18 @@ pub fn defeq_no_fvars(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_binders_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3116-3128 defeqBinders` — the two
-/// binder-congruence arms of `quickDefEq`, which the twin's `quickDefEq` writes
-/// twice (once for `∀`, once for `λ`) and which differ only in the message of
-/// the annotation mismatch.  `is_lam` selects it.
+/// con-leche: ConLeche/Cached/CoreC.lean:1214-1233 quickDefEqI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3116-3128 defeqBinders` — the `∀`
+/// arm of `quickDefEq` (binder congruence: domains, then bodies opened at the
+/// RIGHT domain).
 ///
-/// **The FIRST binder of the joint peel** (task #97-P6-14).  This clause is
-/// con-leche's own, unchanged, down to the free variable: the domains are
-/// compared at `depth`, the fresh `fvar (depth, ty₂)` carries the SECOND
-/// side's domain, and the annotation data are compared after the bodies are.
-/// What changes is what happens to the bodies: instead of opening both with
-/// `instantiate1` and re-entering the knot — which walks the whole remaining
-/// telescope twice per binder — the two RAW bodies go to `defeq_peel`, which
-/// continues the descent without building them.  See that function's note for
-/// the identification the bridge owes.
+/// **The FIRST binder of the joint peel** (task #97-P6-14).  The domains are
+/// compared at `depth` and the fresh `fvar (depth, ty₂)` carries the SECOND
+/// side's domain, as con-leche's clause does; instead of opening both bodies
+/// with `instantiate1` and re-entering the knot — which walks the whole
+/// remaining telescope twice per binder — the two RAW bodies go to
+/// `defeq_peel`.  (Task #119: the λ arm is `defeq_lams` now, con-leche's own
+/// structural descent, and the binder-datum comparison is gone.)
 pub fn defeq_binders(
     pers: &PersTier,
     vis: u64,
@@ -9194,11 +8375,8 @@ pub fn defeq_binders(
     depth: u64,
     ty1: &EIdx,
     body1: &EIdx,
-    m1: &BinderMeta,
     ty2: &EIdx,
     body2: &EIdx,
-    m2: &BinderMeta,
-    is_lam: bool,
 ) -> Result<bool, CheckError> {
     match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ty1, ty2) {
         Err(e) => Err(e),
@@ -9208,89 +8386,38 @@ pub fn defeq_binders(
             Ok(fv) => {
                 let mut fvs: Vec<EIdx> = Vec::new();
                 fvs.push(fv);
-                let mm: bool = crate::kernel::env::verified_checks(mode)
-                    && !prop_when::beq(&m1.pw, &m2.pw);
-                let ml: bool = if mm { is_lam } else { false };
-                defeq_peel(
-                    pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1,
-                    fvs, mm, ml,
-                )
+                defeq_peel(pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, body1, body2, 1, fvs)
             }
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove crates/con-ron-core/src/arena/core.rs_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1214-1233 quickDefEqI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3020-3114 defeqPeel` — **the
-/// batched defeq binder descent**, and the one lever of this campaign that is
-/// the PORT's own algorithm rather than a clause copied from con-leche's cached
-/// tier: `Cached/CoreC.lean` `quickDefEqI` keeps its `.forallE`/`.lam`
-/// arms chained, so there is nothing upstream to mirror and the bridge owes its
-/// own identification lemma. Licensed by the maintainer's ruling before
-/// DESIGN.md §8.7 ("do it here — with its own identification lemma against the
-/// pure tier's chained arms owed by the bridge (P3)").
+/// batched `∀` defeq descent**, the PORT's own algorithm (task #97-P6-14; the
+/// maintainer's ruling before DESIGN.md §8.7, with its identification lemma
+/// against the chained arm owed by the bridge).
 ///
-/// **What it does.**  `a` and `b` are the two RAW bodies of the binders peeled
-/// so far — never opened — `fvs` holds the `k` free variables the peel has
-/// introduced, innermost first, and `d + k` is the depth the next binder sits
-/// at.  While both handles carry the SAME binder tag the loop peels one more
-/// level: each domain is opened against the accumulated `fvs` in ONE
-/// `instantiate_list`, the two opened domains are compared with `knot_defeq`
-/// exactly where the chain compares them, the fresh `fvar (d + k, ty₂')` is
-/// pushed, and the two raw bodies go round again.  The leaf
-/// (`defeq_peel_leaf`) opens both residuals ONCE against the whole `fvs` and
-/// hands the pair back to the knot.
+/// `a` and `b` are the two RAW bodies of the `∀` binders peeled so far — never
+/// opened — `fvs` holds the `k` free variables the peel has introduced, and
+/// `d + k` is the depth the next binder sits at.  While both handles are `∀`s
+/// the loop peels one more level: each domain is opened against the
+/// accumulated `fvs` in ONE `instantiate_list`, the two opened domains are
+/// compared with `knot_defeq` exactly where the chain compares them, the
+/// fresh `fvar (d + k, ty₂')` is pushed, and the two raw bodies go round
+/// again.  The leaf (`defeq_peel_leaf`) opens both residuals ONCE and hands
+/// the pair back to the knot — which is the chain's own next step, and is
+/// where a λ/λ pair under the telescope meets `defeq_lams`.
 ///
-/// **The identification the bridge owes** — *batched descent = the pure
-/// chain*, on every input, by `instantiateList_cons` and the per-binder domain
-/// check.  Its four parts, which are what makes the loop's guard what it is:
-///
-///  1. *The opens agree.*  The chain's `k`-fold `instantiate1` of a domain at
-///     cursors `k-1, …, 0` is one `instantiateList` against the same free
-///     variables at cursor 0 — con-leche's `Expr.instantiateList_cons`
-///     (`Verify/InstList.lean:54-117`), the equation tasks #97-P6-9, -11 and
-///     -12 already cite.  The same equation identifies the leaf's single open
-///     with the chain's last one.
-///  2. *The chain really reaches this arm at every peeled level.*  At level
-///     `j` the chain runs a WHOLE `defeqBody` on the opened pair, so the peel
-///     is sound only because every earlier step is a no-op on a pair of
-///     same-kind binder nodes: `isBoolTrue` is `false` off any non-`.const`,
-///     and `whnfCore` (either mode) is the identity on `.forallE` and `.lam`
-///     (its first four clauses) — so `quickDefEq` is reached on the pair
-///     itself, and its binder arm is the one this loop continues.  The
-///     guard peels only when both handles carry the same binder tag, and
-///     stopping EARLIER is always safe: the leaf hands the pair to the knot,
-///     which is the chain's own next step.
-///  3. *A failure lands at the same binder.*  The domain comparison at level
-///     `j` runs before the descent past `j`, in the chain's order, so a
-///     domain that is not defeq returns the same `false` (and an erroring
-///     domain the same error) at the same `k` the chain returns it at.  The
-///     annotation-data check is the other way round — the chain tests it on
-///     the way OUT, innermost binder first, and only once the body's
-///     comparison has returned `true` — so the loop carries the INNERMOST
-///     mismatching level (`mism`, with `mism_lam` for the message that level
-///     would raise) and the leaf raises it after, and only after, the residual
-///     pair has come back `true`.  Deeper mismatches, past the peel, are
-///     raised inside that call, before this one looks at its own flag, which
-///     is again the chain's order.
-///  4. *The caches see less, and that is all.*  The chain probes and writes
-///     the `defeq` memo at each of the `k` intermediate opened pairs; the
-///     batch never builds those pairs, so it neither probes nor writes them.
-///     A probe that would have hit returns the memo's stored verdict, which is
-///     the verdict of recomputing it (that is the memo's own soundness
-///     obligation, unchanged here), so the result is the same; a write that
-///     does not happen only turns a later hit into a later miss.  Likewise the
-///     per-level `whnfCore` and `hasFvar` memo entries.  The one asymmetry
-///     that is NOT a cache: the batch spends one unit of knot `fuel` where the
-///     chain spends `k`, so it can return a verdict where the chain runs out.
-///     Fuel exhaustion is an `Internal` error and never a verdict, and the
-///     bridge's statement is existential in the fuel (`∃ F`), so this is the
-///     same latitude `PEEL_FUEL` itself has.
-///
-/// The stack the chain would hold is two scalars because the only per-level
-/// datum the outward pass needs is that innermost mismatch; the domains and
-/// the binder kinds are not revisited.
+/// The identification the bridge owes: the opens agree
+/// (`Expr.instantiateList_cons`); the chain reaches the `∀` arm at every peeled
+/// level (`isBoolTrue` is `false` off a `.const`, `whnfCore` is the identity on
+/// `.forallE`); a failure lands at the same binder; and the caches see less,
+/// which changes no verdict.  Task #119: no binder datum is compared, so the
+/// outward pass of the old peel is gone, and the peel no longer descends
+/// through λ pairs (con-leche's λ/λ arm is `defeqLams`, whose innermost-level
+/// type comparison a joint peel would not run).
 pub fn defeq_peel(
     pers: &PersTier,
     vis: u64,
@@ -9305,31 +8432,18 @@ pub fn defeq_peel(
     b: &EIdx,
     k: u64,
     fvs: Vec<EIdx>,
-    mism: bool,
-    mism_lam: bool,
 ) -> Result<bool, CheckError> {
-    // The peel's test is a tag read off the two handle words (the ruling
-    // before §8.7's "isApp/isLam/isForallE … off the u32 handle alone") and
-    // the binder PROJECTION (task #97-P6-10), as `infer_pis`' and
-    // `annotate_pis`' are.
-    let ta: u32 = a.tag();
     if a.eq2(b) {
-        // `quickDefEq`'s OWN first test, one level up: the chain opens these two
-        // residuals against the same free variables and hands the pair to the
-        // knot, whose `a == b` test then decides `true` — so the peel may stop
-        // here without opening anything.  (Equal handles are equal nodes, so
-        // every binder inside carries the same annotation datum on both sides
-        // and the checks the chain skips with it all hold.)  The outward
-        // annotation pass of the binders ALREADY peeled still runs.
-        defeq_peel_done(mism, mism_lam)
-    } else if peel == 0 || ta != b.tag() || (ta != ETAG_FORALL_E && ta != ETAG_LAM) {
-        defeq_peel_leaf(
-            pers, vis, st, mode, lane, fuel, fe, d, a, b, k, fvs, mism, mism_lam,
-        )
+        // `quickDefEq`'s OWN first test, one level up: the chain opens these
+        // two residuals against the same free variables and hands the pair to
+        // the knot, whose `a == b` test then decides `true`.
+        Ok(true)
+    } else if peel == 0 || a.tag() != ETAG_FORALL_E || b.tag() != ETAG_FORALL_E {
+        defeq_peel_leaf(pers, vis, st, mode, lane, fuel, fe, d, a, b, k, fvs)
     } else {
-        match view_bind_i(pers, st, a) {
+        match view_bind(pers, st, a) {
             None => fail_dangling_e(),
-            Some(pa) => match view_bind_i(pers, st, b) {
+            Some(pa) => match view_bind(pers, st, b) {
                 None => fail_dangling_e(),
                 Some(pb) => {
                     // The domains are the same walk of the same input when the
@@ -9350,48 +8464,22 @@ pub fn defeq_peel(
                                     let dq: Result<bool, CheckError> = if same_dom {
                                         Ok(true)
                                     } else {
-                                        knot_defeq(
-                                            pers, vis, st, mode, lane, fuel, fe, d + k, &t1, &t2,
-                                        )
+                                        knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &t1, &t2)
                                     };
                                     match dq {
                                         Err(e) => Err(e),
                                         Ok(false) => Ok(false),
-                                        Ok(true) => {
-                                            match intern_e_fvar(pers, st, d + k, t2.dup2()) {
-                                                Err(e) => Err(e),
-                                                Ok(fv) => {
-                                                    let mut fvs2: Vec<EIdx> = fvs;
-                                                    fvs2.push(fv);
-                                                    // The annotation test is
-                                                    // the datum HANDLES (task
-                                                    // #97-P6-16): the binder
-                                                    // datum is interned, so
-                                                    // `BMIdx` equality IS
-                                                    // `PropWhen` equality — the
-                                                    // cons table's own
-                                                    // exactness — and the
-                                                    // innermost-first order of
-                                                    // the chain's test is
-                                                    // unchanged.
-                                                    let mm: bool =
-                                                        crate::kernel::env::verified_checks(
-                                                            mode,
-                                                        ) && !pa.2.eq2(&pb.2);
-                                                    let m2: bool = mism || mm;
-                                                    let ml2: bool = if mm {
-                                                        ta == ETAG_LAM
-                                                    } else {
-                                                        mism_lam
-                                                    };
-                                                    defeq_peel(
-                                                        pers, vis, st, mode, lane, fuel, fe, d,
-                                                        peel - 1, &pa.1, &pb.1, k + 1, fvs2,
-                                                        m2, ml2,
-                                                    )
-                                                }
+                                        Ok(true) => match intern_e_fvar(pers, st, d + k, t2.dup2()) {
+                                            Err(e) => Err(e),
+                                            Ok(fv) => {
+                                                let mut fvs2: Vec<EIdx> = fvs;
+                                                fvs2.push(fv);
+                                                defeq_peel(
+                                                    pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
+                                                    &pa.1, &pb.1, k + 1, fvs2,
+                                                )
                                             }
-                                        }
+                                        },
                                     }
                                 }
                             }
@@ -9404,14 +8492,11 @@ pub fn defeq_peel(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_peel_leaf_refines, then delete this line
+/// con-leche: ConLeche/Cached/CoreC.lean:1214-1233 quickDefEqI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3010-3018 defeqPeelLeaf` — the
 /// batched descent's LEAF phase: the two residuals are opened ONCE against the
 /// whole accumulated `fvs` and handed back to the knot at the depth the peel
-/// reached, which is the chain's own recursive call at its last binder; then,
-/// and only if that pair came back `true`, the innermost annotation-data
-/// mismatch the peel recorded is raised, with the message of the binder kind
-/// that level had.
+/// reached, which is the chain's own recursive call at its last binder.
 pub fn defeq_peel_leaf(
     pers: &PersTier,
     vis: u64,
@@ -9425,51 +8510,130 @@ pub fn defeq_peel_leaf(
     b: &EIdx,
     k: u64,
     fvs: Vec<EIdx>,
-    mism: bool,
-    mism_lam: bool,
 ) -> Result<bool, CheckError> {
     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, a, &fvs, 0) {
         Err(e) => Err(e),
         Ok(o1) => match instantiate_list_fast(pers, st, CORE_WALK_FUEL, b, &fvs, 0) {
             Err(e) => Err(e),
-            Ok(o2) => match knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &o1, &o2) {
+            Ok(o2) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, d + k, &o1, &o2),
+        },
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1305-1308 lamsFuel
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3130-3133 lamsFuel` — descent
+/// budget of the λ-telescope comparison (`defeq_lams`): `2^62`.  Exhaustion is
+/// not an error: the level reached is compared as the innermost one, which is
+/// always sound.
+pub const LAMS_FUEL: u64 = 4611686018427387904; // 2^62
+
+/// con-leche: ConLeche/Kernel/Core.lean:1310-1317 defeqLamsInner
+/// con-leche: ConLeche/Cached/CoreC.lean:1191-1198 defeqLamsInnerI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3135-3150 defeqLamsInner` — the
+/// innermost level of `defeq_lams`: the opened bodies, and at the verified
+/// mode their FULL-grade types (con-leche task #342: the λ check, T1).
+pub fn defeq_lams_inner(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    depth: u64,
+    b1: &EIdx,
+    b2: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, b1, b2) {
+        Err(e) => Err(e),
+        Ok(false) => Ok(false),
+        Ok(true) => {
+            if crate::kernel::env::verified_checks(mode) {
+                match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, b1) {
+                    Err(e) => Err(e),
+                    Ok(t1) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth + 1, b2) {
+                        Err(e) => Err(e),
+                        Ok(t2) => knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth + 1, &t1, &t2),
+                    },
+                }
+            } else {
+                Ok(true)
+            }
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams
+/// con-leche: ConLeche/Cached/CoreC.lean:1200-1212 defeqLamsI
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3152-3180 defeqLams` — **λ-telescope
+/// congruence** (con-leche task #342, #349): two λs compare their domains;
+/// while both opened bodies are λs (and not equal) the comparison descends
+/// into them directly, comparing domains only; at the innermost level the
+/// opened bodies are compared and, at the verified mode, so are their
+/// FULL-grade types.  The descent is the λ arm's own, not a recursive `defeq`
+/// call: a recursive call could answer two λs by proof irrelevance or the
+/// memo, which skips the type comparison the outer levels rely on.
+pub fn defeq_lams(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    mode: &CheckMode,
+    lane: u32,
+    fuel: u64,
+    fe: &IFEnv,
+    lfuel: u64,
+    depth: u64,
+    ty1: &EIdx,
+    body1: &EIdx,
+    ty2: &EIdx,
+    body2: &EIdx,
+) -> Result<bool, CheckError> {
+    match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, ty1, ty2) {
+        Err(e) => Err(e),
+        Ok(false) => Ok(false),
+        Ok(true) => match intern_e_fvar(pers, st, depth, ty2.dup2()) {
+            Err(e) => Err(e),
+            Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body1, &fv, 0) {
                 Err(e) => Err(e),
-                Ok(false) => Ok(false),
-                Ok(true) => defeq_peel_done(mism, mism_lam),
+                Ok(b1) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body2, &fv, 0) {
+                    Err(e) => Err(e),
+                    Ok(b2) => {
+                        let lp: Result<Option<(EIdx, EIdx, EIdx, EIdx)>, CheckError> = if lfuel == 0 {
+                            Ok(None)
+                        } else {
+                            lam_pair(pers, st, &b1, &b2)
+                        };
+                        match lp {
+                            Err(e) => Err(e),
+                            Ok(Some((ty1b, body1b, ty2b, body2b))) => {
+                                if b1.eq2(&b2) {
+                                    Ok(true)
+                                } else {
+                                    defeq_lams(
+                                        pers, vis, st, mode, lane, fuel, fe, lfuel - 1, depth + 1,
+                                        &ty1b, &body1b, &ty2b, &body2b,
+                                    )
+                                }
+                            }
+                            Ok(None) => {
+                                defeq_lams_inner(pers, vis, st, mode, lane, fuel, fe, depth, &b1, &b2)
+                            }
+                        }
+                    }
+                },
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_peel_done_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:2998-3008 defeqPeelDone` — the
-/// batched descent's OUTWARD annotation pass, reached once the residual pair
-/// has come back `true`: the chain tests `m₁.pw == m₂.pw` on the way out,
-/// innermost binder first, and raises at the first mismatch, so the one the
-/// peel recorded is the one that fires and `mism_lam` is the message of the
-/// binder kind it sat at.
-pub fn defeq_peel_done(mism: bool, mism_lam: bool) -> Result<bool, CheckError> {
-    if mism {
-        if mism_lam {
-            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_LAM)))
-        } else {
-            fail(CheckError::NotImplemented(code_points(&M_DEFEQ_PI)))
-        }
-    } else {
-        Ok(true)
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::quick_defeq_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1214-1233 quickDefEqI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::quick_defeq_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3130-3156 quickDefEq` — **the easy
+/// Lean twin: `proof/ConRon/Arena/Core.lean:3182-3208 quickDefEq` — **the easy
 /// cases** (the official kernel's `quick_is_def_eq`): the syntactic fast path,
-/// and the pairs decided on the spot — two sorts, two literals, two `∀`s and
-/// two `λ`s (binder congruence, batched: `defeq_binders`).  `None` is "not an
-/// easy case".  Only a pair of equal tags among those four kinds is viewed.
+/// and the pairs decided on the spot — two sorts, two literals, two `∀`s
+/// (binder congruence, batched: `defeq_binders`) and two `λ`s (`defeq_lams`).
+/// `None` is "not an easy case".  Only a pair of equal tags among those four
+/// kinds is viewed.
 pub fn quick_defeq(
     pers: &PersTier,
     vis: u64,
@@ -9506,20 +8670,18 @@ pub fn quick_defeq(
                         (ENodeView::Lit(l1), ENodeView::Lit(l2)) => {
                             Ok(Some(expr::literal_beq(&l1, &l2)))
                         }
-                        (
-                            ENodeView::ForallE(ty1, body1, m1),
-                            ENodeView::ForallE(ty2, body2, m2),
-                        ) => match defeq_binders(
-                            pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1, &ty2,
-                            &body2, &m2, false,
-                        ) {
-                            Err(e) => Err(e),
-                            Ok(ok) => Ok(Some(ok)),
-                        },
-                        (ENodeView::Lam(ty1, body1, m1), ENodeView::Lam(ty2, body2, m2)) => {
+                        (ENodeView::ForallE(ty1, body1), ENodeView::ForallE(ty2, body2)) => {
                             match defeq_binders(
-                                pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1,
-                                &ty2, &body2, &m2, true,
+                                pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, &ty2, &body2,
+                            ) {
+                                Err(e) => Err(e),
+                                Ok(ok) => Ok(Some(ok)),
+                            }
+                        }
+                        (ENodeView::Lam(ty1, body1), ENodeView::Lam(ty2, body2)) => {
+                            match defeq_lams(
+                                pers, vis, st, mode, lane, fuel, fe, LAMS_FUEL, depth, &ty1, &body1,
+                                &ty2, &body2,
                             ) {
                                 Err(e) => Err(e),
                                 Ok(ok) => Ok(Some(ok)),
@@ -10160,7 +9322,6 @@ pub fn defeq_proj_pair(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1576-1643 defeqStuck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_str_app_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3390-3459 defeqStuck` — the string arms,
 /// merged with their mirror image: a string literal `s` against a unary
 /// `String.ofList` application whose function part is `fo`, compared
@@ -10228,7 +9389,6 @@ pub fn defeq_str_app(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1576-1643 defeqStuck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_apps_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3390-3459 defeqStuck` — stuck
 /// applications: **spine-wise** congruence (official's `is_def_eq_app`), never
 /// a recursion on the partial applications.
@@ -10285,9 +9445,7 @@ pub fn defeq_apps(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1576-1643 defeqStuck
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_stuck_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1361-1408 defeqStuckI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::defeq_stuck_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3390-3459 defeqStuck` — **the stuck
 /// comparison** (the tail of the official kernel's `is_def_eq_core`): a string
 /// literal against `String.ofList`, the same free variable, the same constant
@@ -10343,16 +9501,16 @@ pub fn defeq_stuck(
                 (ENodeView::App(_, _), ENodeView::App(_, _)) => {
                     defeq_apps(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2)
                 }
-                (ENodeView::Lam(ty1, body1, m1), _) => {
-                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, &m1, b2)
+                (ENodeView::Lam(ty1, body1), _) => {
+                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty1, &body1, b2)
                     {
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
                         Ok(false) => stuck_irrel(pers, vis, st, mode, lane, fuel, fe, depth, a2, b2),
                     }
                 }
-                (_, ENodeView::Lam(ty2, body2, m2)) => {
-                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, &body2, &m2, a2)
+                (_, ENodeView::Lam(ty2, body2)) => {
+                    match eta_cert(pers, vis, st, mode, lane, fuel, fe, depth, &ty2, &body2, a2)
                     {
                         Err(e) => Err(e),
                         Ok(true) => Ok(true),
@@ -10537,772 +9695,12 @@ pub fn defeq_body(
     }
 }
 
-// ---------------------------------------------------------------------------
-// The untrusted annotation writes (`Core.lean:2595-2719`)
-// ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:927-928 pwWritten
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::pw_written_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3504-3506 pwWritten` — is this datum a
-/// real (non-placeholder) input annotation?
-pub fn pw_written(pw: &PropWhen) -> bool {
-    !prop_when::is_never(pw)
-}
-
-/// con-leche: ConLeche/Kernel/CoreDefs.lean:930-936 annotBinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annot_binder_meta_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3508-3514 annotBinderMeta` — the
-/// datum a rebuilt binder ends up with: the one threaded in from the node
-/// below, unless it carries a real input annotation.  Twinned, as con-leche
-/// declares it; `annotateBody` inlines the same test.
-pub fn annot_binder_meta(pw: Option<PropWhen>, mb: &BinderMeta) -> BinderMeta {
-    match pw {
-        Some(p) => {
-            if pw_written(&mb.pw) {
-                expr::binder_meta_dup(mb)
-            } else {
-                expr::binder_meta(p)
-            }
-        }
-        None => expr::binder_meta_dup(mb),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1897-1928 annotPwPi
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annot_pw_pi_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3516-3528 annotPwPi` — the ∀ node's
-/// datum: the zero-ness of the *codomain*'s sort, on the already-annotated
-/// opened body.  The head-symbol reader comes first and subsumes the chain
-/// read.
-pub fn annot_pw_pi(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    body: &EIdx,
-) -> Result<PropWhen, CheckError> {
-    match type_sort_pw(pers, vis, st, fe, CORE_WALK_FUEL, body) {
-        Err(e) => Err(e),
-        Ok(Some(pw)) => Ok(pw),
-        // io grade: `body'` is already annotated (bottom-up)
-        Ok(None) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, body) {
-            Err(e) => Err(e),
-            Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
-                Err(e) => Err(e),
-                Ok(v) => match read_level_m(pers, st, &v) {
-                    Err(e) => Err(e),
-                    Ok(lv) => Ok(level::zeroness_of(&lv)),
-                },
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1930-1944 annotPwLam
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annot_pw_lam_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3530-3540 annotPwLam` — the λ node's
-/// datum: the zero-ness of the sort of the *body's type*.
-pub fn annot_pw_lam(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    body: &EIdx,
-) -> Result<PropWhen, CheckError> {
-    match proof_pw(pers, vis, st, fe, CORE_WALK_FUEL, body) {
-        Err(e) => Err(e),
-        Ok(Some(pw)) => Ok(pw),
-        Ok(None) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, body) {
-            Err(e) => Err(e),
-            Ok(bt) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &bt) {
-                Err(e) => Err(e),
-                Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
-                    Err(e) => Err(e),
-                    Ok(vb) => match read_level_m(pers, st, &vb) {
-                        Err(e) => Err(e),
-                        Ok(lvb) => Ok(level::zeroness_of(&lvb)),
-                    },
-                },
-            },
-        },
-    }
-}
-
-// ---------------------------------------------------------------------------
-// The annotation's binder-telescope loops (`Cached/CoreC.lean:1636-1779`)
-//
-// **The batched instantiation lever, the annotation half** (task #97-P6-11),
-// under the ruling before DESIGN.md §8.7: con-leche itself makes the
-// multi-substitution move between its PURE and its CACHED tier, so the arena
-// may substitute a whole accumulated vector in one walk where the pure
-// checker loops `instantiate1` — and the bridge owes the equation con-leche
-// already proves.
-//
-// The spec-shaped clause (`annotate_binder`, which survives below as the λ
-// residual) opens the body of EVERY binder of a ∀/λ telescope against one
-// fresh free variable and abstracts the annotated result back, so a telescope
-// of `k` binders walks its own tail `k` times and re-interns every binder
-// under it once per level.  That is task #97-P6-8a's binder excess against
-// nanoda, and 17.1 % of the Mathlib prefix's new nodes after task #97-P6-9.
-//
-// con-leche's cached tier peels the whole telescope instead
-// (`annotatePisI`/`annotateLamsI`, its own task #72): each domain is opened
-// against the free variables accumulated so far in ONE `instantiateList`, the
-// residual leaf is opened once and annotated once, and the outward rebuild
-// closes each domain with ONE `abstractRange`.  `ConLeche/Verify/BinderLoop.lean`
-// proves both loops sound against the chained bodies
-// (`annotatePis_sound:1612`, `annotateLams_sound:1714`), and
-// `ConLeche/Verify/Cached/BinderLoopC.lean` relates the cached spelling to
-// those pure mirrors clause by clause; §6 of the task section is the ledger.
-//
-// Two shapes are the arena's rather than con-leche's, for DESIGN.md §3.4's
-// reasons and no other:
-//
-//   * `annotateBindersOutI` takes the node builder `mk` as a function
-//     argument.  A closure is what §3.4 rules out, so the arena passes
-//     `is_lam : bool` and branches — the same collapse `annotate_binder`
-//     already makes over con-leche's two `annotateBody` binder clauses.
-//   * the stack is a `Vec<(EIdx, BinderMeta)>` pushed OUTERMOST-first and
-//     consumed by a count `n` counting down, where con-leche conses a `List`
-//     innermost-first and consumes its head: `stk[j]` is then the binder at
-//     level `d + j`, and `j` is exactly the `abstractRange` width its domain
-//     wants.  `annotatePisPwI`/`annotateLamsPwI` — the one-line `Option`
-//     wrappers around the datum computation — are inlined at the two leaves.
-// ---------------------------------------------------------------------------
-
 /// con-leche: ConLeche/Cached/StateC.lean:138-142 peelFuel
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2459-2463 peelFuel` — the fuel of
 /// the two telescope peels, con-leche's number verbatim. Exhaustion is not an
 /// error: the loop falls through to its leaf phase with the binders peeled so
 /// far, which is con-leche's own `| 0, t, k, fvs, stk => …LeafI` clause.
 pub const PEEL_FUEL: u64 = 16777216;
-
-/// con-leche: ConLeche/Cached/CoreC.lean:1694-1721 annotateBindersOutI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_binders_out_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3551-3570 annotateBindersOut` — the
-/// outward rebuild of both annotation telescope loops: fold the stack innermost
-/// binder first, rebuilding one binder node per entry.
-///
-/// `stk[j]` is the binder at level `d + j` and its annotated domain may mention
-/// the `j` free variables below it, so `abstract_range ty' d j` is what closes
-/// it — where the per-binder clause spent one whole-body `abstract1` per level.
-/// `j = 0` (the outermost binder) is `abstract_range_fast`'s own identity clause
-/// and costs nothing.
-///
-/// con-leche's task #161 P5 (the untrusted write): `pw` is the datum written
-/// just below, threaded outward — `zeronessOf (imax u v) = zeronessOf v` makes
-/// every ∀ node's codomain-sort zero-ness its inner neighbour's, and the λ
-/// chain rule says the same of λ nodes, so the telescope pays ONE computation,
-/// in the leaf phase, and every node above reads.  A binder whose input datum
-/// is a real annotation (`pw_written`) is left alone, and it is that datum that
-/// travels on.
-pub fn annotate_binders_out(
-    pers: &PersTier,
-    st: &mut AState,
-    is_lam: bool,
-    d: u64,
-    pw: Option<PropWhen>,
-    stk: &Vec<(EIdx, BinderMeta)>,
-    n: usize,
-    cur: &EIdx,
-) -> Result<EIdx, CheckError> {
-    if n == 0 {
-        Ok(cur.dup2())
-    } else {
-        let j: usize = n - 1;
-        match abstract_range_fast(pers, st, CORE_WALK_FUEL, &stk[j].0, d, j as u64, 0) {
-            Err(e) => Err(e),
-            Ok(ty_abs) => {
-                let written: bool = match pw {
-                    Some(_) => true,
-                    None => false,
-                };
-                let m: BinderMeta = annot_binder_meta(pw, &stk[j].1);
-                let pw2: Option<PropWhen> = if written {
-                    Some(prop_when::dup(&m.pw))
-                } else {
-                    None
-                };
-                let node = if is_lam {
-                    intern_e_lam(pers, st, ty_abs, cur.dup2(), m)
-                } else {
-                    intern_e_forall_e(pers, st, ty_abs, cur.dup2(), m)
-                };
-                match node {
-                    Err(e) => Err(e),
-                    Ok(nd) => annotate_binders_out(pers, st, is_lam, d, pw2, stk, j, &nd),
-                }
-            }
-        }
-    }
-}
-
-/// con-leche: ConLeche/Cached/CoreC.lean:1749-1758 annotatePisLeafI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_pis_leaf_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3572-3582 annotatePisLeaf` — the
-/// leaf phase of the ∀ telescope loop: bulk-open the residual body against the
-/// whole accumulated free-variable vector, annotate it ONCE, compute the
-/// telescope's datum once, close the leaf with ONE `abstract_range`, then
-/// rebuild outward.
-///
-/// `annotatePisPwI` (`:1693-1702`) is the `some (annotPwPiI …)` line, inlined:
-/// the write is UNGATED in con-leche since 2026-09-06 — writing the datum is
-/// part of the real checker's algorithm and only VALIDATING it is
-/// certification-only work — so both modes compute it here.
-pub fn annotate_pis_leaf(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    t: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-    stk: &Vec<(EIdx, BinderMeta)>,
-) -> Result<EIdx, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
-        Err(e) => Err(e),
-        Ok(to) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &to) {
-            Err(e) => Err(e),
-            Ok(leafp) => {
-                match annot_pw_pi(pers, vis, st, mode, lane, fuel, fe, d + k, &leafp) {
-                    Err(e) => Err(e),
-                    Ok(p) => match abstract_range_fast(pers, st, CORE_WALK_FUEL, &leafp, d, k, 0) {
-                        Err(e) => Err(e),
-                        Ok(cur) => {
-                            let n: usize = stk.len();
-                            annotate_binders_out(pers, st, false, d, Some(p), stk, n, &cur)
-                        }
-                    },
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Cached/CoreC.lean:1760-1775 annotatePisI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_pis_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3584-3599 annotatePis` — the
-/// ∀-telescope annotation loop: peel the raw ∀-chain, annotating each opened
-/// domain on the way in. `k >= 1` counts the opened binders (the first is
-/// peeled by `annotate_body`'s own clause) and `fvs` holds their free variables
-/// — the list `instantiate_list` takes at cursor 0, in PUSH order on an OWNED
-/// vector (task #97-P6-15).
-///
-/// One peeled domain is ONE `instantiate_list` walk over the domain alone,
-/// where the per-binder clause substituted into the whole residual telescope
-/// once per level; `Expr.instantiateList_cons`
-/// (`ConLeche/Verify/InstList.lean:54-116`) is the equation that identifies the
-/// batch with the chain of `instantiate1` the spec-shaped body ran.
-pub fn annotate_pis(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    peel: u64,
-    t: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-    stk: Vec<(EIdx, BinderMeta)>,
-) -> Result<EIdx, CheckError> {
-    if peel == 0 {
-        annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
-    } else {
-        if t.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, t) {
-                None => fail_dangling_e(),
-                Some((ty, body, mb)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
-                        Err(e) => Err(e),
-                        Ok(tyo) => {
-                            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
-                                Err(e) => Err(e),
-                                Ok(typ) => {
-                                    match intern_e_fvar(pers, st, d + k, typ.dup2()) {
-                                        Err(e) => Err(e),
-                                        Ok(fv) => {
-                                            let mut fvs2: Vec<EIdx> = fvs;
-                                            fvs2.push(fv);
-                                            let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
-                                            stk2.push((typ, mb));
-                                            annotate_pis(
-                                                pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
-                                                &body, k + 1, fvs2, stk2,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-            }
-        } else {
-            annotate_pis_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
-        }
-    }
-}
-
-/// con-leche: ConLeche/Cached/CoreC.lean:1798-1807 annotateLamsLeafI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_lams_leaf_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3601-3609 annotateLamsLeaf` —
-/// `annotate_pis_leaf` rebuilding λ nodes, with the λ chain's datum
-/// (`annotPwLamI`: the zero-ness of the sort of the innermost body's TYPE) in
-/// place of the ∀ telescope's. `annotateLamsPwI` (`:1747-1751`) is inlined with
-/// it.
-pub fn annotate_lams_leaf(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    t: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-    stk: &Vec<(EIdx, BinderMeta)>,
-) -> Result<EIdx, CheckError> {
-    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, t, &fvs, 0) {
-        Err(e) => Err(e),
-        Ok(to) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &to) {
-            Err(e) => Err(e),
-            Ok(leafp) => {
-                match annot_pw_lam(pers, vis, st, mode, lane, fuel, fe, d + k, &leafp) {
-                    Err(e) => Err(e),
-                    Ok(p) => match abstract_range_fast(pers, st, CORE_WALK_FUEL, &leafp, d, k, 0) {
-                        Err(e) => Err(e),
-                        Ok(cur) => {
-                            let n: usize = stk.len();
-                            annotate_binders_out(pers, st, true, d, Some(p), stk, n, &cur)
-                        }
-                    },
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Cached/CoreC.lean:1809-1822 annotateLamsI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_lams_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3611-3625 annotateLams` — the λ
-/// twin of `annotate_pis`. Its caller guards it with `bvar_b e == 0`
-/// (`annotate_body`'s λ clause): con-leche's own note says the λ loop is
-/// chain-identical only on `bvar`-closed nodes, because the chained tails
-/// re-open exactly what they closed, and the derived word decides that in O(1).
-pub fn annotate_lams(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    d: u64,
-    peel: u64,
-    t: &EIdx,
-    k: u64,
-    fvs: Vec<EIdx>,
-    stk: Vec<(EIdx, BinderMeta)>,
-) -> Result<EIdx, CheckError> {
-    if peel == 0 {
-        annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
-    } else {
-        if t.tag() == ETAG_LAM {
-            match view_bind(pers, st, t) {
-                None => fail_dangling_e(),
-                Some((ty, body, mb)) => {
-                    match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &ty, &fvs, 0) {
-                        Err(e) => Err(e),
-                        Ok(tyo) => {
-                            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, d + k, &tyo) {
-                                Err(e) => Err(e),
-                                Ok(typ) => {
-                                    match intern_e_fvar(pers, st, d + k, typ.dup2()) {
-                                        Err(e) => Err(e),
-                                        Ok(fv) => {
-                                            let mut fvs2: Vec<EIdx> = fvs;
-                                            fvs2.push(fv);
-                                            let mut stk2: Vec<(EIdx, BinderMeta)> = stk;
-                                            stk2.push((typ, mb));
-                                            annotate_lams(
-                                                pers, vis, st, mode, lane, fuel, fe, d, peel - 1,
-                                                &body, k + 1, fvs2, stk2,
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-            }
-        } else {
-            annotate_lams_leaf(pers, vis, st, mode, lane, fuel, fe, d, t, k, fvs, &stk)
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1946-2065 annotateBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_binder_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3645-3733 annotateBody` — the two
-/// binder clauses, which differ only in the node they rebuild and in which
-/// datum computation they run when the input annotation is a placeholder.
-///
-/// Since task #97-P6-11 this is the **λ RESIDUAL** and nothing else:
-/// `annotate_body`'s binder clauses run the telescope loops above, and
-/// con-leche's cached `annotateBodyI` keeps this single-binder clause for the
-/// one case its λ loop does not cover — a λ node whose `bvarB` is not zero.
-/// `is_lam = false` is therefore unreachable, exactly as it is in con-leche
-/// (whose `.forallE` clause has no such fallback), and on `Init` and on the
-/// Mathlib 25 % prefix this function is entered ZERO times: every λ node the
-/// annotation pass meets there is `bvar`-closed.
-pub fn annotate_binder(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    ty: &EIdx,
-    body: &EIdx,
-    mb: &BinderMeta,
-    is_lam: bool,
-) -> Result<EIdx, CheckError> {
-    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
-        Err(e) => Err(e),
-        Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
-            Err(e) => Err(e),
-            Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, body, &fv, 0) {
-                Err(e) => Err(e),
-                Ok(ob) => {
-                    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth + 1, &ob) {
-                        Err(e) => Err(e),
-                        Ok(bodyp) => {
-                            let pw = if !pw_written(&mb.pw) {
-                                if is_lam {
-                                    annot_pw_lam(
-                                        pers,
-                                        vis,
-                                        st, mode, lane, fuel, fe, depth + 1, &bodyp,
-                                    )
-                                } else {
-                                    annot_pw_pi(
-                                        pers,
-                                        vis,
-                                        st, mode, lane, fuel, fe, depth + 1, &bodyp,
-                                    )
-                                }
-                            } else {
-                                Ok(prop_when::dup(&mb.pw))
-                            };
-                            match pw {
-                                Err(e) => Err(e),
-                                Ok(pw) => {
-                                    match abstract1_fast(
-                                        pers,
-                                        st,
-                                        CORE_WALK_FUEL,
-                                        &bodyp,
-                                        depth,
-                                        0,
-                                    ) {
-                                        Err(e) => Err(e),
-                                        Ok(ab) => {
-                                            let m = expr::binder_meta(pw);
-                                            if is_lam {
-                                                intern_e_lam(pers, st, typ, ab, m)
-                                            } else {
-                                                intern_e_forall_e(pers, st, typ, ab, m)
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1946-2065 annotateBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_let_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3645-3733 annotateBody` — the
-/// `.letE` clause: con-leche's task #217 runs the official `infer_let` triple
-/// HERE, before the ζ reduct is taken, which is why no other pass ever meets a
-/// `let`.
-pub fn annotate_let(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    ty: &EIdx,
-    v: &EIdx,
-    b: &EIdx,
-) -> Result<EIdx, CheckError> {
-    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, ty) {
-        Err(e) => Err(e),
-        Ok(typ) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &typ) {
-            Err(e) => Err(e),
-            Ok(t) => match ensure_sort(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
-                Err(e) => Err(e),
-                Ok(_) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, v) {
-                    Err(e) => Err(e),
-                    Ok(vp) => match knot_infer(pers, vis, st, mode, lane, fuel, fe, depth, &vp) {
-                        Err(e) => Err(e),
-                        Ok(tv) => {
-                            match knot_defeq(pers, vis, st, mode, lane, fuel, fe, depth, &tv, &typ) {
-                                Err(e) => Err(e),
-                                Ok(false) => {
-                                    fail(CheckError::Invalid(code_points(&M_LET_VALUE)))
-                                }
-                                Ok(true) => {
-                                    match instantiate1_fast(pers, st, CORE_WALK_FUEL, b, v, 0) {
-                                        Err(e) => Err(e),
-                                        Ok(bz) => knot_annotate(
-                                            pers,
-                                            vis,
-                                            st, mode, lane, fuel, fe, depth, &bz,
-                                        ),
-                                    }
-                                }
-                            }
-                        }
-                    },
-                },
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1946-2065 annotateBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_proj_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3645-3733 annotateBody` — the
-/// `.proj` clause: con-leche's task #271 (issue #7) checks the node's OWN
-/// structure name, official's `infer_proj` premise, here.
-pub fn annotate_proj(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    sn: &NIdx,
-    i: u64,
-    pe: &EIdx,
-) -> Result<EIdx, CheckError> {
-    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, pe) {
-        Err(e) => Err(e),
-        Ok(ep) => match knot_infer_io(pers, vis, st, mode, lane, fuel, fe, depth, &ep) {
-            Err(e) => Err(e),
-            Ok(t) => match knot_whnf(pers, vis, st, mode, lane, fuel, fe, depth, &t) {
-                Err(e) => Err(e),
-                Ok(te) => match get_app_fn(pers, st, CORE_WALK_FUEL, &te) {
-                    Err(e) => Err(e),
-                    Ok(hd) => if hd.tag() == ETAG_CONST {
-                        match view_const_name(pers, st, &hd) {
-                            None => fail_dangling_e(),
-                            Some(tn) => {
-                                annotate_proj_at(pers, vis, st, fe, sn, i, &ep, &te, &tn)
-                            },
-                        }
-                    } else {
-                        // official `infer_proj`: the whnf'd type's head is no constant
-                        fail(CheckError::Invalid(code_points(&M_INVALID_PROJ)))
-                    },
-                },
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1946-2065 annotateBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_proj_at_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3645-3733 annotateBody` — the
-/// `.proj` clause's body, once the subject type's head is known.
-pub fn annotate_proj_at(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    fe: &IFEnv,
-    sn: &NIdx,
-    i: u64,
-    ep: &EIdx,
-    te: &EIdx,
-    tn: &NIdx,
-) -> Result<EIdx, CheckError> {
-    match env::ifenv_find_proj(pers, vis, &mut st.store, fe, tn, i) {
-        Err(e) => Err(e),
-        Ok(Some(entry)) => {
-            if !tn.eq2(sn) {
-                fail(CheckError::Invalid(code_points(&M_OTHER_STRUCT)))
-            } else {
-                match get_app_args(pers, st, CORE_WALK_FUEL, te) {
-                    Err(e) => Err(e),
-                    Ok(targs) => {
-                        if targs.len() as u64 != entry.num_params {
-                            fail(CheckError::Invalid(code_points(&M_PARAMS)))
-                        } else {
-                            intern_e_proj(pers, st, tn.dup2(), i, ep.dup2())
-                        }
-                    }
-                }
-            }
-        }
-        // no table entry: official's `infer_proj` verdict (`projMissError`)
-        Ok(None) => match env::proj_table_name(pers, &mut st.store, tn) {
-            Err(e) => Err(e),
-            Ok(tbl) => {
-                let has_table: bool = env::ifenv_find(vis, fe, &tbl).is_some();
-                match get_app_args(pers, st, CORE_WALK_FUEL, te) {
-                    Err(e) => Err(e),
-                    Ok(targs) => fail(proj_miss_error(vis, fe, has_table, tn, sn, i, targs.len() as u64)),
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1946-2065 annotateBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_body_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3645-3733 annotateBody` — the
-/// annotation body: compute the codomain-sort annotations of every binder,
-/// bottom-up, by real inference on the opened (already annotated) body.
-pub fn annotate_body(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    e: &EIdx,
-) -> Result<EIdx, CheckError> {
-    match view(pers, st, e) {
-        Err(er) => Err(er),
-        Ok(ENodeView::BVar(_)) => Ok(e.dup2()),
-        // leaf scope check, as in `inferBody`
-        Ok(ENodeView::FVar(idx, _)) => {
-            if idx < depth {
-                Ok(e.dup2())
-            } else {
-                fail(CheckError::Invalid(code_points(&M_FVAR)))
-            }
-        }
-        Ok(ENodeView::Sort(_)) => Ok(e.dup2()),
-        Ok(ENodeView::Const(_, _)) => Ok(e.dup2()),
-        Ok(ENodeView::Lit(Literal::NatVal(_))) => match nat_lit_supported(pers, vis, st, fe) {
-            Err(er) => Err(er),
-            Ok(true) => Ok(e.dup2()),
-            Ok(false) => fail(CheckError::Invalid(code_points(&M_NAT))),
-        },
-        Ok(ENodeView::Lit(Literal::StrVal(_))) => match str_lit_supported(pers, vis, st, fe) {
-            Err(er) => Err(er),
-            Ok(true) => Ok(e.dup2()),
-            Ok(false) => fail(CheckError::NotImplemented(code_points(&M_STR))),
-        },
-        // structural (con-leche's task #100 stage 6)
-        Ok(ENodeView::App(f, a)) => {
-            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &f) {
-                Err(er) => Err(er),
-                Ok(fp) => match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &a) {
-                    Err(er) => Err(er),
-                    Ok(ap) => {
-                        let same: bool = fp.eq2(&f) && ap.eq2(&a);
-                        crate::arena::expr_ops::intern_rebuilt_app(pers, st, e, same, fp, ap)
-                    }
-                },
-            }
-        }
-        // Binder-telescope loop (con-leche's task #72, `annotateBodyI`'s
-        // `.forallE` case): peel the whole ∀-chain, open in bulk, rebuild with
-        // `abstract_range`.  The first binder is peeled here, which is why
-        // `annotate_pis` starts at `k = 1` with one free variable.
-        Ok(ENodeView::ForallE(ty, body, mb)) => {
-            match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &ty) {
-                Err(er) => Err(er),
-                Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
-                    Err(er) => Err(er),
-                    Ok(fv) => {
-                        let mut fvs: Vec<EIdx> = Vec::new();
-                        fvs.push(fv);
-                        let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
-                        stk.push((typ, mb));
-                        annotate_pis(
-                            pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL, &body, 1,
-                            fvs, stk,
-                        )
-                    }
-                },
-            }
-        }
-        // con-leche's `annotateBodyI`'s `.lam` case: "the λ-loop is chain-
-        // identical only on bvar-closed nodes (the chained tails re-open
-        // exactly what they closed); disciplined inputs always are, and the
-        // cached bound decides in O(1)".  Otherwise the spec-shaped
-        // single-binder clause below runs, unchanged.
-        Ok(ENodeView::Lam(ty, body, mb)) => match bvar_b(pers, st, CORE_WALK_FUEL, e) {
-            Err(er) => Err(er),
-            Ok(b) => {
-                if b == 0 {
-                    match knot_annotate(pers, vis, st, mode, lane, fuel, fe, depth, &ty) {
-                        Err(er) => Err(er),
-                        Ok(typ) => match intern_e_fvar(pers, st, depth, typ.dup2()) {
-                            Err(er) => Err(er),
-                            Ok(fv) => {
-                                let mut fvs: Vec<EIdx> = Vec::new();
-                                fvs.push(fv);
-                                let mut stk: Vec<(EIdx, BinderMeta)> = Vec::new();
-                                stk.push((typ, mb));
-                                annotate_lams(
-                                    pers, vis, st, mode, lane, fuel, fe, depth, PEEL_FUEL,
-                                    &body, 1, fvs, stk,
-                                )
-                            }
-                        },
-                    }
-                } else {
-                    annotate_binder(
-                        pers, vis, st, mode, lane, fuel, fe, depth, &ty, &body, &mb, true,
-                    )
-                }
-            }
-        },
-        Ok(ENodeView::LetE(ty, v, b)) => {
-            annotate_let(pers, vis, st, mode, lane, fuel, fe, depth, &ty, &v, &b)
-        }
-        Ok(ENodeView::Proj(sn, i, pe)) => {
-            annotate_proj(pers, vis, st, mode, lane, fuel, fe, depth, &sn, i, &pe)
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The knot (`Core.lean:2721-2859`)
@@ -11322,7 +9720,6 @@ pub fn annotate_body(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::whnf_core_stuck_tag_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:2148-2160 whnfCoreStuckTag` — **the
 /// head kinds `whnfCoreBody` answers with its own argument**, read off the
 /// handle's constructor tag without decoding the node.
@@ -11423,13 +9820,6 @@ pub fn infer_io_set(st: &mut AState, e: &EIdx, r: &EIdx) {
     let _ = st.caches.infer_io_c.insert(e.dup2(), r.dup2());
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1448-1461 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3786-3792 annotSet` — record an
-/// `annotate` answer.
-pub fn annot_set(st: &mut AState, e: &EIdx, r: &EIdx) {
-    let _ = st.caches.annot_c.insert(e.dup2(), r.dup2());
-}
-
 /// con-leche: ConLeche/Cached/CoreC.lean:1464-1477 memoBI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3794-3801 defeqSet` — record a
 /// `defeq` verdict at the ORDERED pair, both signs (con-leche's `defeqC` stores
@@ -11489,16 +9879,6 @@ pub fn infer_io_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
     }
 }
 
-/// con-leche: ConLeche/Cached/CoreC.lean:1442-1460 memoEI
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot` — the `annotC`
-/// probe.
-pub fn annot_probe(st: &AState, e: &EIdx) -> Option<EIdx> {
-    match st.caches.annot_c.get(e) {
-        Some(r) => Some(r.dup2()),
-        None => None,
-    }
-}
-
 /// con-leche: ConLeche/Cached/CoreC.lean:1464-1477 memoBI
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot` — the `defeqC` probe
 /// at the ORDERED pair.
@@ -11510,9 +9890,7 @@ pub fn defeq_probe(st: &AState, k: &EIdxPair) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1477-1542 coreKnotI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_whnf_core_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the
 /// `whnfCore` slot.**  At `LANE_FULL` and `LANE_IO` it is the memoized body
@@ -11559,9 +9937,7 @@ pub fn knot_whnf_core(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1477-1542 coreKnotI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_whnf_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `whnf` slot.
 pub fn knot_whnf(
@@ -11594,11 +9970,8 @@ pub fn knot_whnf(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1477-1542 coreKnotI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-64 coreKnotIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_infer_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `infer`
 /// slot.**  At `LANE_FULL` it is `inferBody` under `inferC`; at `LANE_IO` it is
@@ -11633,19 +10006,14 @@ pub fn knot_infer(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1477-1542 coreKnotI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// con-leche: ConLeche/Kernel/CoreIO.lean:44-64 coreKnotIO
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_infer_io_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — **the `inferIO`
-/// slot.**  At `LANE_FULL` the selector is `mode.betaGate`, con-leche's
-/// `Kernel/Core.lean` spelling and not `Cached/CoreC.lean`'s `mode.ioGate`;
-/// the two agree at `.verified`, which is the only mode the bridge is stated
-/// at.  The io body runs under its own table (`inferIOC`), the full body under
-/// `inferC`: a hit in one grade never serves the other (DESIGN.md §8.3,
-/// lesson 9).  `LANE_IO`'s is its `infer` slot again.
+/// slot.**  At `LANE_FULL` it is the io body at every mode (con-leche task
+/// #346: official's `infer_only`) under its own table (`inferIOC`): a hit in
+/// one grade never serves the other (DESIGN.md §8.3, lesson 9).  `LANE_IO`'s
+/// is its `infer` slot again.
 pub fn knot_infer_io(
     pers: &PersTier,
     vis: u64,
@@ -11661,7 +10029,7 @@ pub fn knot_infer_io(
         fail(CheckError::Internal(code_points(&M_FUEL_INFER)))
     } else if lane == LANE_IO {
         infer_body_io(pers, vis, st, mode, lane, false, fuel - 1, fe, depth, e)
-    } else if crate::kernel::env::io_gate(mode) {
+    } else {
         match infer_io_probe(st, e) {
             Some(r) => Ok(r),
             None => {
@@ -11673,17 +10041,6 @@ pub fn knot_infer_io(
                     }
                 }
             }
-        }
-    } else {
-        match infer_probe(st, e) {
-            Some(r) => Ok(r),
-            None => match infer_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
-                Err(er) => Err(er),
-                Ok(r) => {
-                    infer_set(st, e, &r);
-                    Ok(r)
-                }
-            },
         }
     }
 }
@@ -11716,9 +10073,7 @@ pub fn knot_infer_at(
 }
 
 /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// con-leche: ConLeche/Cached/CoreC.lean:1477-1542 coreKnotI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_defeq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot`
 /// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `defeq`
 /// slot, memoized at the ORDERED pair.
@@ -11744,40 +10099,6 @@ pub fn knot_defeq(
                 Err(er) => Err(er),
                 Ok(r) => {
                     defeq_set(st, a, b, r);
-                    Ok(r)
-                }
-            },
-        }
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_annotate_refines, then delete this line
-/// con-leche: ConLeche/Cached/CoreC.lean:1477-1542 coreKnotI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::knot_annotate_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3803-3902 coreKnot`
-/// Lean twin: `proof/ConRon/Arena/CoreIO.lean:30-47 coreKnotIO` — the `annotate`
-/// slot.
-pub fn knot_annotate(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    _lane: u32,
-    fuel: u64,
-    fe: &IFEnv,
-    depth: u64,
-    e: &EIdx,
-) -> Result<EIdx, CheckError> {
-    if fuel == 0 {
-        fail(CheckError::Internal(code_points(&M_FUEL_ANNOTATE)))
-    } else {
-        match annot_probe(st, e) {
-            Some(r) => Ok(r),
-            None => match annotate_body(pers, vis, st, mode, LANE_FULL, fuel - 1, fe, depth, e) {
-                Err(er) => Err(er),
-                Ok(r) => {
-                    annot_set(st, e, &r);
                     Ok(r)
                 }
             },
@@ -11854,23 +10175,6 @@ pub fn is_def_eq_core(
     knot_defeq(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, a, b)
 }
 
-/// con-leche: ConLeche/Kernel/TypeChecker.lean:54-56 annotateCore
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::annotate_core_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:3943-3947 annotateCore` — the
-/// annotation pass (fueled).
-pub fn annotate_core(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    fuel: u64,
-    depth: u64,
-    e: &EIdx,
-) -> Result<EIdx, CheckError> {
-    knot_annotate(pers, vis, st, mode, LANE_FULL, fuel, fe, depth, e)
-}
-
 /// con-leche: ConLeche/Kernel/TypeChecker.lean:52-54 ensureSortCore
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3949-3953 ensureSortCore` —
 /// `ensureSort` over the knot (fueled).
@@ -11892,7 +10196,6 @@ pub fn ensure_sort_core(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:313-320 CState.flushed
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::flush_caches_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:3961-3967 flushCaches` — **what
 /// the per-declaration bracket does to the caches**: it drops them whole,
 /// which is con-leche's own `flushC`, the operation its driver runs at exactly

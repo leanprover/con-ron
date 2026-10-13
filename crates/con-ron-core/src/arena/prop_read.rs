@@ -3,47 +3,52 @@
 //! The Rust twin of `proof/ConRon/Arena/PropRead.lean`, which is
 //! `ConLeche/Kernel/PropRead.lean` (con-leche's task #168) clause for clause
 //! over handles: two pure readers that answer "is this type a proposition?" /
-//! "is this term a proof?" off the head symbol, the arity and the validated
-//! `pw` annotations — no inference, no reduction.  `core::prop_irrel`'s two
-//! fast arms and the annotation pass's two datum computations are their only
-//! callers, and all four are on the hot path, so the readers exist to keep
-//! inference out of them.
+//! "is this term a proof?" off the head symbol, the arity and the residual
+//! sorts of stored types — no inference, no reduction.  `core::prop_irrel`'s
+//! two fast arms are their only callers.
+//!
+//! **Task #119 (con-leche's task #342 S0/L18).**  With the binder datum gone
+//! from `Expr`, the readers no longer read a ∀'s or a λ's annotation: a ∀
+//! telescope is peeled down to its residual head (`typeSortPWGo`, which also
+//! reads a telescope-bvar head's binder domain, `binderDom`), a λ, a `let` and
+//! an application answer from their body or function (`proofPW`), a
+//! projection answers "not a proof" from its field's stored type, and the
+//! peels look through identity-like wrapper definitions (`outParam`, …:
+//! `lamProj?`, `unwrapIdDefs`, `peelPisW`).
 //!
 //! **The three deviations are the twin's, and they are systematic.**
 //!
 //! 1. **The lookup is not abstracted.**  con-leche writes `(find? : Name →
-//!    Option ConstantInfo)` so that the plain environment and the indexed one
-//!    share the body; the arena has ONE environment type — `IFEnv`, the index
-//!    (DESIGN.md §8.3, lesson 13) — so the twin takes `fe : IFEnv` and calls
-//!    `fe.find?`.  Passing `fe.find?` would be a closure, which DESIGN.md
-//!    §3.4 forbids.
+//!    Option ConstantInfo)`; the arena has ONE environment type — `IFEnv`, the
+//!    index (DESIGN.md §8.3, lesson 13) — so the twin takes `fe : IFEnv` and
+//!    calls `fe.find?`.  Passing `fe.find?` would be a closure (§3.4).
 //! 2. **The readers are monadic**: every structural match on a term is a
 //!    `view`, so a pure `Expr → Option PropWhen` is an `EIdx → AM (Option
-//!    PropWhen)` and a spine walk takes an explicit `fuel`.
+//!    PropWhen)` and a walk down a term takes an explicit `fuel`.
 //! 3. **Levels are read back, not twinned** (DESIGN.md §8.3, lesson 4).
 //!    `level::subst_pw` and `level::zeroness_of` are con-ron-core's own, run
-//!    on transient `Level` trees and `Name`s that `read_levels` / `read_names`
-//!    hand over.  `PropWhen` itself is con-ron-core's, so `PropWhen.isProp`
-//!    needs no twin at all — it is `con_ron_core::kernel::prop_read::is_prop`.
-//!
-//! The Rust of the twin's `AM` is `arena::monad`'s: `&mut AState` first plus
-//! `Result`.  `peel_never_pis` and `residual_pw` can fail only through
-//! `view`, so they are `Result` like everything else.
+//!    on transient `Level` trees and `Name`s.  `PropWhen` itself is
+//!    con-ron-core's, so `PropWhen.isProp` is `kernel::prop_read::is_prop`.
 
 use crate::arena::env;
-use crate::arena::env::IFEnv;
-use crate::arena::handle::{EIdx, ETAG_APP, ETAG_FORALL_E, ETAG_LAM, ETAG_SORT};
-use crate::arena::expr_ops::get_app_fn;
-use crate::arena::monad::{fail, fail_dangling_ls, view, view_ls_len, AState, fail_dangling_e, view_app, view_bind, view_sort, read_levels_m, read_names_m};
+use crate::arena::env::{IConstantInfo, IFEnv};
+use crate::arena::expr_ops::{get_app_args, get_app_fn};
+use crate::arena::handle::{EIdx, ETAG_APP, ETAG_BVAR, ETAG_FORALL_E, ETAG_LAM, ETAG_SORT};
 use crate::arena::monad::read_level;
+use crate::arena::monad::{
+    fail, fail_dangling_e, fail_dangling_ls, read_levels_m, read_names_m, view, view_app,
+    view_bind, view_bvar, view_ls_len, view_sort, AState,
+};
 use crate::arena::store::ENodeView;
+use crate::arena::store::PersTier;
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::level;
 use crate::kernel::prop_read;
 use crate::kernel::prop_when;
 use crate::kernel::prop_when::PropWhen;
 use crate::ron::hashmap::Dup;
-use crate::arena::store::PersTier;
+use crate::arena::handle::NIdx;
+use crate::arena::handle::LsIdx;
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"fuel exhausted: numArgs"`, as code points.
@@ -52,95 +57,276 @@ const M_FUEL_NUM_ARGS: [u32; 23] = [
     65, 114, 103, 115,
 ];
 
-/// con-leche: ConLeche/Kernel/PropRead.lean:44-56 Expr.peelNeverPis
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::peel_never_pis_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:41-54 peelNeverPis` — the
-/// residual after peeling `k` *syntactic* ∀ binders whose data are all
-/// `.never`.  Structural on `k`, so no fuel: con-leche's own recursion
-/// measure survives the change of representation unchanged.
-pub fn peel_never_pis(
-    pers: &PersTier,
-    st: &AState,
-    k: u64,
-    h: &EIdx,
-) -> Result<Option<EIdx>, CheckError> {
+/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
+/// `"fuel exhausted: propRead"`, as code points: the fuel of the readers'
+/// walks down a term (`lamProj?`, `typeSortPWGo`, `proofPW`), which con-leche
+/// writes as structural recursions.
+const M_FUEL_PROP_READ: [u32; 24] = [
+    102, 117, 101, 108, 32, 101, 120, 104, 97, 117, 115, 116, 101, 100, 58, 32, 112, 114, 111,
+    112, 82, 101, 97, 100,
+];
+
+/// con-leche: none — the depth bound `4` of `peelPisW`'s two `unwrapIdDefs` calls
+const UNWRAP_FUEL: u64 = 4;
+
+/// con-leche: ConLeche/Kernel/PropRead.lean:40-46 Expr.peelPis
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:41-54 peelPis` — the residual
+/// after peeling `k` *syntactic* ∀ binders, whatever their domains (no
+/// substitution).  Structural on `k`, so no fuel.
+pub fn peel_pis(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<Option<EIdx>, CheckError> {
     if k == 0 {
         Ok(Some(h.dup2()))
-    } else {
-        if h.tag() == ETAG_FORALL_E {
-            match view_bind(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((_, b, m)) => {
-                    if prop_when::is_never(&m.pw) {
-                        peel_never_pis(pers, st, k - 1, &b)
-                    } else {
-                        Ok(None)
-                    }
-                },
-            }
-        } else {
-            Ok(None)
+    } else if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, b)) => peel_pis(pers, st, k - 1, &b),
         }
+    } else {
+        Ok(None)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/PropRead.lean:48-53 Expr.binderDom
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:56-67 binderDom` — the domain
+/// of the `k`-th syntactic ∀ binder (`0` = outermost) of a telescope,
+/// unsubstituted.  Structural on `k`.
+pub fn binder_dom(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<Option<EIdx>, CheckError> {
+    if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((a, b)) => {
+                if k == 0 {
+                    Ok(Some(a))
+                } else {
+                    binder_dom(pers, st, k - 1, &b)
+                }
+            }
+        }
+    } else {
+        Ok(None)
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:55-58 Expr.numArgs
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:56-69 numArgs` — the number of
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:69-82 numArgs` — the number of
 /// arguments of an application spine.  A spine walk, hence fuel.
 pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
     if fuel == 0 {
         fail(CheckError::Internal(code_points(&M_FUEL_NUM_ARGS)))
-    } else {
-        if h.tag() == ETAG_APP {
-            match view_app(pers, st, h) {
-                None => fail_dangling_e(),
-                Some((f, _)) => match num_args(pers, st, fuel - 1, &f) {
-                    Err(e) => Err(e),
-                    Ok(n) => Ok(n + 1),
-                },
-            }
-        } else {
-            Ok(0)
+    } else if h.tag() == ETAG_APP {
+        match view_app(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((f, _)) => match num_args(pers, st, fuel - 1, &f) {
+                Err(e) => Err(e),
+                Ok(n) => Ok(n + 1),
+            },
         }
+    } else {
+        Ok(0)
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:62-68 residualPW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:71-85 residualPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:84-98 residualPW` — the
 /// zero-ness datum of the sort of a *residual type*.  The level is read back
 /// and `level::zeroness_of` is con-leche's own (deviation 3).
-pub fn residual_pw(
-    pers: &PersTier,
-    st: &AState,
-    h: Option<EIdx>,
-) -> Result<Option<PropWhen>, CheckError> {
+pub fn residual_pw(pers: &PersTier, st: &AState, h: Option<EIdx>) -> Result<Option<PropWhen>, CheckError> {
     match h {
-        Some(r) => if r.tag() == ETAG_SORT {
-            match view_sort(pers, st, &r) {
-                None => fail_dangling_e(),
-                Some(u) => match read_level(pers, st, &u) {
-                    Err(e) => Err(e),
-                    Ok(l) => Ok(Some(level::zeroness_of(&l))),
-                },
+        Some(r) => {
+            if r.tag() == ETAG_SORT {
+                match view_sort(pers, st, &r) {
+                    None => fail_dangling_e(),
+                    Some(u) => match read_level(pers, st, &u) {
+                        Err(e) => Err(e),
+                        Ok(l) => Ok(Some(level::zeroness_of(&l))),
+                    },
+                }
+            } else {
+                Ok(None)
             }
-        } else {
-            Ok(None)
-        },
+        }
+        None => Ok(None),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/PropRead.lean:70-76 lamProj?
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:100-118 lamProj?` — the body
+/// of a λ-telescope that is a single bound variable: `some (k, j)` for
+/// `fun x₁ … x_k => x_{k-j}` (the shape of `outParam`, `semiOutParam`,
+/// `optParam`, `autoParam`).  A walk down the λ chain, hence fuel.
+pub fn lam_proj(pers: &PersTier, st: &AState, fuel: u64, k: u64, h: &EIdx) -> Result<Option<(u64, u64)>, CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_PROP_READ)))
+    } else if h.tag() == ETAG_LAM {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, b)) => lam_proj(pers, st, fuel - 1, k + 1, &b),
+        }
+    } else if h.tag() == ETAG_BVAR {
+        match view_bvar(pers, st, h) {
+            None => fail_dangling_e(),
+            Some(j) => {
+                if j < k {
+                    Ok(Some((k, j)))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+/// con-leche: ConLeche/Kernel/PropRead.lean:78-96 unwrapIdDefs
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:120-147 unwrapIdDefs` — unfold
+/// an identity-like wrapper (a definition whose value is `fun x₁ … x_k =>
+/// x_i`, e.g. `outParam`) at the head of a residual type, `n` times at most;
+/// definitional (δ then β).
+pub fn unwrap_id_defs(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    fuel: u64,
+    n: u64,
+    e: &EIdx,
+) -> Result<EIdx, CheckError> {
+    if n == 0 {
+        Ok(e.dup2())
+    } else {
+        match get_app_fn(pers, st, fuel, e) {
+            Err(er) => Err(er),
+            Ok(hd) => match view(pers, st, &hd) {
+                Err(er) => Err(er),
+                Ok(ENodeView::Const(c, _)) => match env::ifenv_find(vis, fe, &c) {
+                    Some(IConstantInfo::DefnInfo(_, v0, _)) => {
+                        let v: EIdx = v0.dup2();
+                        match lam_proj(pers, st, fuel, 0, &v) {
+                            Err(er) => Err(er),
+                            Ok(Some((k, j))) => match get_app_args(pers, st, fuel, e) {
+                                Err(er) => Err(er),
+                                Ok(args) => {
+                                    if k <= args.len() as u64 && args.len() as u64 == k {
+                                        // `args.getD (k - 1 - j) e`: `j < k`
+                                        // by `lamProj?`, so the index is in
+                                        // range and the default unread.
+                                        let a: EIdx = args[(k - 1 - j) as usize].dup2();
+                                        unwrap_id_defs(pers, vis, st, fe, fuel, n - 1, &a)
+                                    } else {
+                                        Ok(e.dup2())
+                                    }
+                                }
+                            },
+                            Ok(None) => Ok(e.dup2()),
+                        }
+                    }
+                    Some(_) => Ok(e.dup2()),
+                    None => Ok(e.dup2()),
+                },
+                Ok(_) => Ok(e.dup2()),
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/PropRead.lean:98-105 peelPisW
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:149-168 peelPisW` —
+/// `peel_pis` through identity-like wrappers (`outParam (α → Sort u)`).
+/// Structural on `k`.
+pub fn peel_pis_w(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    fuel: u64,
+    k: u64,
+    h: &EIdx,
+) -> Result<Option<EIdx>, CheckError> {
+    if k == 0 {
+        match unwrap_id_defs(pers, vis, st, fe, fuel, UNWRAP_FUEL, h) {
+            Err(e) => Err(e),
+            Ok(r) => Ok(Some(r)),
+        }
+    } else if h.tag() == ETAG_FORALL_E {
+        match view_bind(pers, st, h) {
+            None => fail_dangling_e(),
+            Some((_, b)) => peel_pis_w(pers, vis, st, fe, fuel, k - 1, &b),
+        }
+    } else {
+        match unwrap_id_defs(pers, vis, st, fe, fuel, UNWRAP_FUEL, h) {
+            Err(e) => Err(e),
+            Ok(u) => {
+                if u.tag() == ETAG_FORALL_E {
+                    match view_bind(pers, st, &u) {
+                        None => fail_dangling_e(),
+                        Some((_, b)) => peel_pis_w(pers, vis, st, fe, fuel, k - 1, &b),
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+}
+
+/// con-leche: none — `Level.substPW ks us pw = pw` at a parameter-free datum
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:170-176 pwParamFree` — the
+/// cutoff that skips the two readbacks of `subst_pw`: `bindZ` is the identity
+/// at `never` and at `ifAllZero []` (task #97-P6-10's "cutoff hoisted over the
+/// readback"), which are what a `Prop`-or-never head carries.
+pub fn pw_param_free(pw: &PropWhen) -> bool {
+    match pw {
+        PropWhen::Never => true,
+        PropWhen::IfAllZero(ps) => ps.is_empty(),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW
+/// con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:178-198 substConstPW` — the
+/// constant arm both head readers share, past the datum: level-instantiate
+/// it at the use's levels (`(…).map (Level.substPW cv.levelParams us)`).
+pub fn subst_const_pw(
+    pers: &PersTier,
+    st: &mut AState,
+    lps: &Vec<NIdx>,
+    us: &LsIdx,
+    pw: Option<PropWhen>,
+) -> Result<Option<PropWhen>, CheckError> {
+    match pw {
+        Some(p) => {
+            if pw_param_free(&p) {
+                Ok(Some(p))
+            } else {
+                match read_names_m(pers, st, lps) {
+                    Err(e) => Err(e),
+                    Ok(ks) => match read_levels_m(pers, st, us) {
+                        Err(e) => Err(e),
+                        Ok(vs) => Ok(Some(level::subst_pw(&ks, &vs, &p))),
+                    },
+                }
+            }
+        }
         None => Ok(None),
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::head_type_pw_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:89-124 headTypePW` — the datum
-/// of a type-former application's *head* at `n` arguments.  A constant head
-/// reads its stored type, an fvar head its declared type; the residual after
-/// `n` syntactic binders is read by `residual_pw`.
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:200-247 headTypePW` — the datum
+/// of a type-former application's *head* at `n` arguments: a constant head
+/// reads its stored type (level-instantiated), an fvar head its declared type,
+/// a `bvar` head (inside the ∀ telescope `root`, `d` binders deep) its
+/// binder's domain; the residual after `n` syntactic binders (through
+/// identity wrappers) is read by `residual_pw`.
 pub fn head_type_pw(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
+    fuel: u64,
+    root: &EIdx,
+    d: u64,
     h: &EIdx,
     n: u64,
 ) -> Result<Option<PropWhen>, CheckError> {
@@ -157,36 +343,11 @@ pub fn head_type_pw(
                             None => fail_dangling_ls(),
                             Some(usl) => {
                                 if usl == cv.level_params.len() {
-                                    match peel_never_pis(pers, st, n, &cv.ty) {
+                                    match peel_pis_w(pers, vis, st, fe, fuel, n, &cv.ty) {
                                         Err(e) => Err(e),
                                         Ok(res) => match residual_pw(pers, st, res) {
                                             Err(e) => Err(e),
-                                            // The cutoff hoisted over the
-                                            // readback, as in `head_proof_pw`.
-                                            Ok(Some(pw)) => {
-                                                if !prop_when::has_params(&pw) {
-                                                    Ok(Some(pw))
-                                                } else {
-                                                    match read_names_m(
-                                                        pers,
-                                                        st,
-                                                        &cv.level_params,
-                                                    ) {
-                                                        Err(e) => Err(e),
-                                                        Ok(ks) => {
-                                                            match read_levels_m(pers, st, &us) {
-                                                                Err(e) => Err(e),
-                                                                Ok(vs) => Ok(Some(
-                                                                    level::subst_pw(
-                                                                        &ks, &vs, &pw,
-                                                                    ),
-                                                                )),
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            Ok(None) => Ok(None),
+                                            Ok(pw) => subst_const_pw(pers, st, &cv.level_params, &us, pw),
                                         },
                                     }
                                 } else {
@@ -199,19 +360,65 @@ pub fn head_type_pw(
             }
             None => Ok(None),
         },
-        Ok(ENodeView::FVar(_, ty)) => match peel_never_pis(pers, st, n, &ty) {
+        Ok(ENodeView::FVar(_, ty)) => match peel_pis_w(pers, vis, st, fe, fuel, n, &ty) {
             Err(e) => Err(e),
             Ok(res) => residual_pw(pers, st, res),
         },
+        Ok(ENodeView::BVar(i)) => {
+            if i < d {
+                match binder_dom(pers, st, d - 1 - i, root) {
+                    Err(e) => Err(e),
+                    Ok(Some(dom)) => match peel_pis_w(pers, vis, st, fe, fuel, n, &dom) {
+                        Err(e) => Err(e),
+                        Ok(res) => residual_pw(pers, st, res),
+                    },
+                    Ok(None) => Ok(None),
+                }
+            } else {
+                Ok(None)
+            }
+        }
         Ok(_) => Ok(None),
     }
 }
 
+/// con-leche: ConLeche/Kernel/PropRead.lean:133-140 typeSortPWGo
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:249-266 typeSortPWGo` — the
+/// walk of `typeSortPW`: peel the ∀ telescope (a ∀'s prop-ness is its
+/// codomain's: `zeronessOf (imax u v) = zeronessOf v`), counting the binders,
+/// then read the residual's head.
+pub fn type_sort_pw_go(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    fuel: u64,
+    root: &EIdx,
+    t: &EIdx,
+    d: u64,
+) -> Result<Option<PropWhen>, CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_PROP_READ)))
+    } else {
+        match view(pers, st, t) {
+            Err(e) => Err(e),
+            Ok(ENodeView::ForallE(_, b)) => type_sort_pw_go(pers, vis, st, fe, fuel - 1, root, &b, d + 1),
+            Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
+            Ok(_) => match get_app_fn(pers, st, fuel, t) {
+                Err(e) => Err(e),
+                Ok(fnh) => match num_args(pers, st, fuel, t) {
+                    Err(e) => Err(e),
+                    Ok(n) => head_type_pw(pers, vis, st, fe, fuel, root, d, &fnh, n),
+                },
+            },
+        }
+    }
+}
+
 /// con-leche: ConLeche/Kernel/PropRead.lean:142-150 typeSortPW
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::type_sort_pw_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:126-136 typeSortPW` — the
-/// zero-ness datum of the sort of the *type* `t` ("is `t` a proposition?").
-/// con-leche's last arm rebinds the scrutinee; the twin keeps the handle.
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:268-276 typeSortPW` — the
+/// zero-ness datum of the sort of the *type* `t` ("is `t` a proposition?"),
+/// read off `t`'s shape.  `none` = unknown.
 pub fn type_sort_pw(
     pers: &PersTier,
     vis: u64,
@@ -220,26 +427,15 @@ pub fn type_sort_pw(
     fuel: u64,
     t: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    match view(pers, st, t) {
-        Err(e) => Err(e),
-        Ok(ENodeView::ForallE(_, _, m)) => Ok(Some(m.pw)),
-        Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
-        Ok(_) => match get_app_fn(pers, st, fuel, t) {
-            Err(e) => Err(e),
-            Ok(fnh) => match num_args(pers, st, fuel, t) {
-                Err(e) => Err(e),
-                Ok(n) => head_type_pw(pers, vis, st, fe, &fnh, n),
-            },
-        },
-    }
+    type_sort_pw_go(pers, vis, st, fe, fuel, t, t, 0)
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::head_proof_pw_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:138-167 headProofPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:278-321 headProofPW` — the
 /// datum of a term's *head* (any arity): a constant head answers from its
-/// stored type, an fvar head from its declared type; sorts, ∀s and literals
-/// are never proofs.
+/// stored type (prop-ness is invariant under application), an fvar head from
+/// its declared type; sorts, ∀s and literals are never proofs; a projection
+/// answers from its field's stored type, "not a proof" only.
 pub fn head_proof_pw(
     pers: &PersTier,
     vis: u64,
@@ -263,34 +459,7 @@ pub fn head_proof_pw(
                                 if usl == cv.level_params.len() {
                                     match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
                                         Err(e) => Err(e),
-                                        // **The cutoff hoisted over the
-                                        // readback** (task #97-P6-10), the
-                                        // shape task #97-P6-9's item 5 has.
-                                        // `Level.substPW ks vs pw = pw` when
-                                        // `pw` names no parameter (its `never`
-                                        // and `always` arms are what
-                                        // `PropWhen.hasParams` is false on,
-                                        // and `bindZ` is the identity there),
-                                        // so on a parameter-free datum — which
-                                        // is what a `Prop`-or-never head
-                                        // carries — both readbacks are
-                                        // computed and dropped.
-                                        Ok(Some(pw)) => {
-                                            if !prop_when::has_params(&pw) {
-                                                Ok(Some(pw))
-                                            } else {
-                                                match read_names_m(pers, st, &cv.level_params) {
-                                                    Err(e) => Err(e),
-                                                    Ok(ks) => match read_levels_m(pers, st, &us) {
-                                                        Err(e) => Err(e),
-                                                        Ok(vs) => Ok(Some(level::subst_pw(
-                                                            &ks, &vs, &pw,
-                                                        ))),
-                                                    },
-                                                }
-                                            }
-                                        }
-                                        Ok(None) => Ok(None),
+                                        Ok(pw) => subst_const_pw(pers, st, &cv.level_params, &us, pw),
                                     }
                                 } else {
                                     Ok(None)
@@ -304,17 +473,32 @@ pub fn head_proof_pw(
         },
         Ok(ENodeView::FVar(_, ty)) => type_sort_pw(pers, vis, st, fe, fuel, &ty),
         Ok(ENodeView::Sort(_)) => Ok(Some(prop_when::never())),
-        Ok(ENodeView::ForallE(_, _, _)) => Ok(Some(prop_when::never())),
+        Ok(ENodeView::ForallE(_, _)) => Ok(Some(prop_when::never())),
         Ok(ENodeView::Lit(_)) => Ok(Some(prop_when::never())),
+        Ok(ENodeView::Proj(s, i, _)) => match env::ifenv_find_proj(pers, vis, &mut st.store, fe, &s, i) {
+            Err(e) => Err(e),
+            Ok(Some(entry)) => match type_sort_pw(pers, vis, st, fe, fuel, &entry.body) {
+                Err(e) => Err(e),
+                Ok(Some(pw)) => {
+                    if prop_when::is_never(&pw) {
+                        Ok(Some(pw))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                Ok(None) => Ok(None),
+            },
+            Ok(None) => Ok(None),
+        },
         Ok(_) => Ok(None),
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove prop_read::proof_pw_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:169-181 proofPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:323-342 proofPW` — the
 /// zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"), read
-/// off `a`'s head symbol at any arity.
+/// off `a`'s head symbol at any arity: a λ and a `let` answer from their body,
+/// an application from its function, anything else from its head.
 pub fn proof_pw(
     pers: &PersTier,
     vis: u64,
@@ -323,24 +507,23 @@ pub fn proof_pw(
     fuel: u64,
     a: &EIdx,
 ) -> Result<Option<PropWhen>, CheckError> {
-    if a.tag() == ETAG_LAM {
-        match view_bind(pers, st, a) {
-            None => fail_dangling_e(),
-            Some((_, _, m)) => Ok(Some(m.pw)),
-        }
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_PROP_READ)))
     } else {
-        match get_app_fn(pers, st, fuel, a) {
+        match view(pers, st, a) {
             Err(e) => Err(e),
-            Ok(fnh) => head_proof_pw(pers, vis, st, fe, fuel, &fnh),
+            Ok(ENodeView::Lam(_, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
+            Ok(ENodeView::LetE(_, _, b)) => proof_pw(pers, vis, st, fe, fuel - 1, &b),
+            Ok(ENodeView::App(f, _)) => proof_pw(pers, vis, st, fe, fuel - 1, &f),
+            Ok(_) => head_proof_pw(pers, vis, st, fe, fuel, a),
         }
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:185-191 notProofFast` —
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:344-350 notProofFast` —
 /// **definitely not a proof**: the datum is known and is not always-zero.
-/// Refusing the proof-irrelevance shortcut is always sound.  The cited
-/// `!pw.isProp` is an `if` nest, as `con_ron_core::kernel::prop_read`'s is.
+/// Refusing the proof-irrelevance shortcut is always sound.
 pub fn not_proof_fast(
     pers: &PersTier,
     vis: u64,
@@ -363,9 +546,9 @@ pub fn not_proof_fast(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:193-199 isProofFast` —
-/// **definitely a proof**: the datum is known and always-zero (the
-/// squash-regime licence, con-leche's `prf_of_isProofFast`).
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:352-358 isProofFast` —
+/// **definitely a proof**: the datum is known and always-zero (justified by
+/// the squash regime, con-leche's `prf_of_isProofFast`).
 pub fn is_proof_fast(
     pers: &PersTier,
     vis: u64,

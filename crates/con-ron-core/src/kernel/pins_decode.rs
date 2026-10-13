@@ -9,8 +9,10 @@
 //! iterators, `?`, `String` errors — and a unit test holds the two together on
 //! the embedded text.
 //!
-//! **The grammar** is FORMAT.md's: the header line, then `N`/`L`/`W`/`E`
-//! records (the interned `Name`/`Level`/`PropWhen`/`Expr` DAG), `S` records
+//! **The grammar** is FORMAT.md's: the header line, then `N`/`L`/`E`
+//! records (the interned `Name`/`Level`/`Expr` DAG; task #119: the binder
+//! datum and with it the `W` records and the `l`/`f` records' third field are
+//! gone), `S` records
 //! (one per toolchain variant, in the order
 //! `checker::check_div_mod_pin_loop` tries them) and the `end <count>` footer.
 //! Ids are dense and backward-only, which is what lets a single forward pass
@@ -53,12 +55,10 @@ use crate::kernel::name;
 use crate::kernel::name::Name;
 use crate::kernel::nat_op_pins::NatOpPinSet;
 use crate::kernel::pins_text::PINS_TEXT;
-use crate::kernel::prop_when;
-use crate::kernel::prop_when::PropWhen;
 use crate::ron::nat;
 use std::vec::Vec;
 
-/// con-leche: none — `Read.lean`'s `RState`, restricted to the pin dump's four id spaces
+/// con-leche: none — `Read.lean`'s `RState`, restricted to the pin dump's three id spaces
 /// The forward pass's state: one table per id space, in emission order, plus
 /// the pin variants read so far.  A reference `<id>` is an index into a table
 /// that already has `id` entries, which FORMAT.md §2's "ids are dense and
@@ -66,7 +66,6 @@ use std::vec::Vec;
 pub struct Tables {
     pub names: Vec<Name>,
     pub levels: Vec<Level>,
-    pub pws: Vec<PropWhen>,
     pub exprs: Vec<Expr>,
     pub sets: Vec<NatOpPinSet>,
 }
@@ -77,7 +76,6 @@ pub fn tables_new() -> Tables {
     Tables {
         names: Vec::new(),
         levels: Vec::new(),
-        pws: Vec::new(),
         exprs: Vec::new(),
         sets: Vec::new(),
     }
@@ -420,20 +418,6 @@ pub fn level_ref(t: &[u8], i: usize, tb: &Tables) -> CheckM<(Level, usize)> {
     }
 }
 
-/// con-leche: none — `Read.lean`'s `pwRef`
-pub fn pw_ref(t: &[u8], i: usize, tb: &Tables) -> CheckM<(PropWhen, usize)> {
-    match read_index(t, i) {
-        Err(e) => Err(e),
-        Ok((k, j)) => {
-            if k < tb.pws.len() {
-                Ok((prop_when::dup(&tb.pws[k]), j))
-            } else {
-                Err(bad_text())
-            }
-        }
-    }
-}
-
 /// con-leche: none — `Read.lean`'s `exprRef`
 pub fn expr_ref(t: &[u8], i: usize, tb: &Tables) -> CheckM<(Expr, usize)> {
     match read_index(t, i) {
@@ -761,59 +745,6 @@ pub fn record_level_param(
     }
 }
 
-/// con-leche: none — `Read.lean`'s `W` arm of `parseRecord`
-/// `W <id> n` | `W <id> z <names>`: the zero-ness datum, through its public
-/// API exactly as the writer wrote it through `toList?`.
-pub fn record_pw(t: &[u8], i: usize, tb: Tables) -> CheckM<(Tables, usize)> {
-    match expect_id(t, i, tb.pws.len()) {
-        Err(e) => Err(e),
-        Ok(i) => match after_space(t, i) {
-            Err(e) => Err(e),
-            Ok(i) => {
-                let k = byte_at(t, i);
-                if k == 110 {
-                    // `n`: never
-                    match after_newline(t, i + 1) {
-                        Err(e) => Err(e),
-                        Ok(i) => {
-                            let mut tb = tb;
-                            tb.pws.push(prop_when::never());
-                            Ok((tb, i))
-                        }
-                    }
-                } else if k == 122 {
-                    // `z`: if all of these parameters are zero
-                    record_pw_zero(t, i + 1, tb)
-                } else {
-                    Err(bad_text())
-                }
-            }
-        },
-    }
-}
-
-/// con-leche: none — the `z` arm of `Read.lean`'s `W` record
-pub fn record_pw_zero(
-    t: &[u8],
-    i: usize,
-    tb: Tables,
-) -> CheckM<(Tables, usize)> {
-    match after_space(t, i) {
-        Err(e) => Err(e),
-        Ok(i) => match name_list(t, i, &tb) {
-            Err(e) => Err(e),
-            Ok((ps, i)) => match after_newline(t, i) {
-                Err(e) => Err(e),
-                Ok(i) => {
-                    let mut tb = tb;
-                    tb.pws.push(prop_when::if_all_zero(ps));
-                    Ok((tb, i))
-                }
-            },
-        },
-    }
-}
-
 /// con-leche: none — `Read.lean`'s `E` arm of `parseRecord`
 /// `E <id> <kind> …`, the ten `Expr` constructors of FORMAT.md §4.  Each node
 /// is built by the port's own smart constructor, so the stored word (hash,
@@ -998,25 +929,17 @@ pub fn record_expr_binder(
                 Err(e) => Err(e),
                 Ok(i) => match expr_ref(t, i, &tb) {
                     Err(e) => Err(e),
-                    Ok((body, i)) => match after_space(t, i) {
+                    Ok((body, i)) => match after_newline(t, i) {
                         Err(e) => Err(e),
-                        Ok(i) => match pw_ref(t, i, &tb) {
-                            Err(e) => Err(e),
-                            Ok((pw, i)) => match after_newline(t, i) {
-                                Err(e) => Err(e),
-                                Ok(i) => {
-                                    let m = expr::binder_meta(pw);
-                                    let mut tb = tb;
-                                    if is_lam {
-                                        tb.exprs.push(expr::lam(ty, body, m));
-                                    } else {
-                                        tb.exprs
-                                            .push(expr::forall_e(ty, body, m));
-                                    }
-                                    Ok((tb, i))
-                                }
-                            },
-                        },
+                        Ok(i) => {
+                            let mut tb = tb;
+                            if is_lam {
+                                tb.exprs.push(expr::lam(ty, body));
+                            } else {
+                                tb.exprs.push(expr::forall_e(ty, body));
+                            }
+                            Ok((tb, i))
+                        }
                     },
                 },
             },
@@ -1278,8 +1201,6 @@ pub fn run_records(t: &[u8], i: usize, tb: Tables) -> CheckM<Vec<NatOpPinSet>> {
                     record_name(t, j, tb)
                 } else if k == 76 {
                     record_level(t, j, tb)
-                } else if k == 87 {
-                    record_pw(t, j, tb)
                 } else if k == 69 {
                     record_expr(t, j, tb)
                 } else if k == 83 {

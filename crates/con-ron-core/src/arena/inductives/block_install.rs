@@ -243,7 +243,7 @@ pub fn pi_doms_mention_any(
     } else if e.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, e) {
             None => fail_dangling_e(),
-            Some((ty, b, _)) => match positivity::mentions_any_const(pers, st, names, &ty) {
+            Some((ty, b)) => match positivity::mentions_any_const(pers, st, names, &ty) {
                 Err(er) => Err(er),
                 Ok(true) => Ok(true),
                 Ok(false) => pi_doms_mention_any(pers, st, names, fuel - 1, &b),

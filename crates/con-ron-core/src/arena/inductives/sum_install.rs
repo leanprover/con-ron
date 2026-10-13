@@ -175,7 +175,7 @@ pub fn whnf_telescope(
                     fail(core_types::invalid(code_points(&M_TELE_SHAPE)))
                 }
             }
-            Ok(ENodeView::ForallE(dom, body, bm)) => {
+            Ok(ENodeView::ForallE(dom, body)) => {
                 if n == 0 {
                     fail(core_types::invalid(code_points(&M_TELE_SORT)))
                 } else {
@@ -229,7 +229,7 @@ pub fn close_telescope(
                 Ok(closed) => {
                     let dom: EIdx = bs[k].0.dup2();
                     let bm: BinderMeta = expr::binder_meta_dup(&bs[k].1);
-                    intern_e_forall_e(pers, st, dom, closed, bm)
+                    intern_e_forall_e(pers, st, dom, closed)
                 }
             },
         }

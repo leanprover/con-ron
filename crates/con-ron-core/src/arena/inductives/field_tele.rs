@@ -48,7 +48,7 @@ pub fn pi_binders(
     } else if h.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, h) {
             None => fail_dangling_e(),
-            Some((ty, b, m)) => {
+            Some((ty, b)) => {
                 let mut o: Vec<(EIdx, BinderMeta)> = out;
                 o.push((ty, m));
                 pi_binders(pers, st, fuel - 1, &b, o)

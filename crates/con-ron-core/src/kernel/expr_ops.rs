@@ -150,7 +150,7 @@ impl Eq2 for ExprNatKey {
 /// Is the expression a λ?
 pub fn is_lam(e: &Expr) -> bool {
     match expr::view(&e) {
-        ExprView::Lam(_, _, _) => true,
+        ExprView::Lam(_, _) => true,
         _ => false,
     }
 }

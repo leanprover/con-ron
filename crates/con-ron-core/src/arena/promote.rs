@@ -508,16 +508,16 @@ pub fn promote_e_node(
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::Lam(ty, body, bm) => match promote_e_two(tier, st, m, fuel, &ty, &body) {
+        ENodeView::Lam(ty, body) => match promote_e_two(tier, st, m, fuel, &ty, &body) {
             Err(e) => Err(e),
-            Ok((m2, x, y)) => match intern_persistent_e(tier, st, ENodeView::Lam(x, y, bm)) {
+            Ok((m2, x, y)) => match intern_persistent_e(tier, st, ENodeView::Lam(x, y)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
         },
-        ENodeView::ForallE(ty, body, bm) => match promote_e_two(tier, st, m, fuel, &ty, &body) {
+        ENodeView::ForallE(ty, body) => match promote_e_two(tier, st, m, fuel, &ty, &body) {
             Err(e) => Err(e),
-            Ok((m2, x, y)) => match intern_persistent_e(tier, st, ENodeView::ForallE(x, y, bm)) {
+            Ok((m2, x, y)) => match intern_persistent_e(tier, st, ENodeView::ForallE(x, y)) {
                 Err(e) => Err(e),
                 Ok(r) => Ok((m2, r)),
             },
@@ -696,7 +696,6 @@ pub fn promote_fire(
     f: &IRecRuleFire,
 ) -> Result<(PMemo, IRecRuleFire), CheckError> {
     match f {
-        IRecRuleFire::Inert => Ok((m, IRecRuleFire::Inert)),
         IRecRuleFire::Plain => Ok((m, IRecRuleFire::Plain)),
         IRecRuleFire::Nested(lvls, pins) => match promote_l_list(tier, st, m, fuel, lvls) {
             Err(e) => Err(e),
@@ -733,7 +732,6 @@ pub fn promote_rule(
                         rhs: r,
                         k: rl.k,
                         eta: rl.eta,
-                        params_blind: rl.params_blind,
                     },
                 )),
             },

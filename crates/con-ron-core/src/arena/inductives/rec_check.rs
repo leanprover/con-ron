@@ -311,22 +311,22 @@ pub fn target_abs_node(
                 },
             },
         },
-        ENodeView::Lam(ty, body, bm) => match target_abs_go(pers, st, names, lvls, holes, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body) => match target_abs_go(pers, st, names, lvls, holes, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((t2, m)) => match target_abs_go(pers, st, names, lvls, holes, m, fuel, &body) {
                 Err(e) => Err(e),
-                Ok((b2, m2)) => match intern_e_lam(pers, st, t2, b2, bm) {
+                Ok((b2, m2)) => match intern_e_lam(pers, st, t2, b2) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((r, m2)),
                 },
             },
         },
-        ENodeView::ForallE(ty, body, bm) => {
+        ENodeView::ForallE(ty, body) => {
             match target_abs_go(pers, st, names, lvls, holes, memo, fuel, &ty) {
                 Err(e) => Err(e),
                 Ok((t2, m)) => match target_abs_go(pers, st, names, lvls, holes, m, fuel, &body) {
                     Err(e) => Err(e),
-                    Ok((b2, m2)) => match intern_e_forall_e(pers, st, t2, b2, bm) {
+                    Ok((b2, m2)) => match intern_e_forall_e(pers, st, t2, b2) {
                         Err(e) => Err(e),
                         Ok(r) => Ok((r, m2)),
                     },
@@ -1273,7 +1273,7 @@ pub fn erase_binders(
             Err(e) => Err(e),
             Ok(y) => {
                 let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((y, expr::binder_meta_dup(&bs[i].1)));
+                o.push((y));
                 erase_binders(pers, st, bs, i + 1, o)
             }
         }
@@ -1503,7 +1503,7 @@ pub fn target_pi_doms_with(
     } else if e.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, e) {
             None => fail_dangling_e(),
-            Some((d, b, _)) => {
+            Some((d, b)) => {
                 let x: EIdx = xs[i].dup2();
                 match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &b, &x, 0) {
                     Err(er) => Err(er),

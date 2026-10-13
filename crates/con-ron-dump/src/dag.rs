@@ -108,7 +108,7 @@ impl Walk {
                     stack.push(expr::dup(f));
                     stack.push(expr::dup(a));
                 }
-                ExprView::Lam(ty, b, m) | ExprView::ForallE(ty, b, m) => {
+                ExprView::Lam(ty, b) | ExprView::ForallE(ty, b) => {
                     stack.push(expr::dup(ty));
                     stack.push(expr::dup(b));
                     self.pw(&m.pw);

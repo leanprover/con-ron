@@ -2,9 +2,10 @@
 //!
 //! The Rust twin of `proof/ConRon/Arena/CheckerSplit.lean`, which is
 //! con-leche's `Kernel/CheckerSplit.lean`: `checkDecl`'s three value kinds
-//! split into an INSTALL half (the syntactic guards and the annotation) and a
-//! CHECK half (the inference and the conversion), with `ValueGroup` as the
-//! datum that crosses the seam.
+//! split into an INSTALL half (the syntactic guards) and a CHECK half (the
+//! inference and the conversion), with `ValueGroup` as the datum that crosses
+//! the seam.  Since con-leche's task #342 the install half computes nothing
+//! but verdicts: the constant is stored as declared.
 //!
 //! **This is where (C)'s per-declaration bracket lives** (DESIGN.md §8.3, and
 //! `arena::checker`'s `check_pending`).  `arena::core`'s `enter_scratch` /
@@ -12,9 +13,8 @@
 //! exactly the line between what a declaration LEAVES BEHIND and what it merely
 //! computes:
 //!
-//! * the install half writes the annotated type and the annotated value, and
-//!   those are the terms the environment stores — so they must be PERSISTENT,
-//!   and the half runs outside the bracket;
+//! * the install half stores the declared type and value, which the parse
+//!   already put in the persistent tier;
 //! * the check half infers the type's sort, infers the value's type and
 //!   compares it with the declared one.  Everything it allocates is
 //!   intermediate, and the scratch tier is dropped at its end.
@@ -31,13 +31,13 @@
 //! agreement con-leche's `fullyChecked_checkDecls` is about.
 
 use crate::arena::checker_base::{
-    check_constant_val_guards, consts_resolve_f_fast, install_constant_val_tail,
-    unresolved_consts_error,
+    check_constant_val_guards, consts_resolve_f_fast, install_header_tail,
+    unresolved_consts_fail,
 };
 use crate::arena::checker_base::all_level_params_defined;
 use crate::arena::core::{
-    annotate_core, ensure_sort_core, infer_type_core, is_def_eq_core, lift_fueled, lvl_eq,
-    zero_level, CHECK_FUEL, CORE_WALK_FUEL,
+    ensure_sort_core, infer_type_core, is_def_eq_core, lift_fueled, lvl_eq, zero_level,
+    CHECK_FUEL, CORE_WALK_FUEL,
 };
 use crate::arena::env::{IConstantVal, IFEnv};
 use crate::arena::expr_ops::{has_fvar_fast, loose_bvars_bounded_fast};
@@ -141,15 +141,15 @@ pub fn is_thm(k: &ValueKind) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:50-58 ValueGroup
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::ValueGroup_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:49-58 ValueGroup` — what
-/// the install half hands the check half: the kind, the header with its type
-/// annotated, and the value — ANNOTATED for a definition or an opaque, RAW for
-/// a theorem (the install half never looked at it: a theorem is stored by its
-/// statement, and the check half annotates the value itself).
+/// the install half hands the check half: the kind, the header and the value
+/// — guarded for a definition or an opaque, unguarded for a theorem (the
+/// install half never looked at it: a theorem is stored by its statement, and
+/// the check half runs the value's guards itself).  Task #119: the header
+/// field is `cv` (con-leche's `cvA`, the annotated header, is gone).
 pub struct ValueGroup {
     pub kind: ValueKind,
-    pub cv_a: IConstantVal,
+    pub cv: IConstantVal,
     pub jv: EIdx,
 }
 
@@ -157,47 +157,43 @@ pub struct ValueGroup {
 // The install half (`CheckerSplit.lean:60-101` of the twin)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::install_constant_val_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:60-84 installConstantVal`
-/// — `checkConstantVal` minus its inference: the syntactic guards and the
-/// annotation of the type.  con-leche writes the shared clauses out twice and
-/// so does the twin; the port writes them once, as
-/// `arena::checker_base::{check_constant_val_guards, install_constant_val_tail}`,
-/// and both front doors call them — the two functions ARE the twin's two
-/// clause groups, so nothing is lost and a drift between the halves is
-/// impossible.
-pub fn install_constant_val(
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader
+/// con-leche: ConLeche/Cached/Installed.lean:94-113 installHeaderC
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:60-84 installHeader` —
+/// `checkConstantVal` minus its inference: the syntactic guards, header and
+/// type.  con-leche writes the clauses out twice and so does the twin; the
+/// port writes them once, as `arena::checker_base::{check_constant_val_guards,
+/// install_header_tail}`, and both front doors call them.  Task #119: was
+/// `installConstantVal`, which also annotated the type and returned the
+/// annotated header.
+pub fn install_header(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
-    mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
-) -> Result<IConstantVal, CheckError> {
+) -> Result<(), CheckError> {
     match check_constant_val_guards(pers, vis, st, fe, cv) {
         Err(e) => Err(e),
-        Ok(()) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
-            Err(e) => Err(e),
-            Ok(ty) => install_constant_val_tail(pers, vis, st, fe, cv, ty),
-        },
+        Ok(()) => install_header_tail(pers, vis, st, fe, cv),
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::install_value_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:86-101 installValue` — the
-/// value half of `check{Defn,Thm,Opaque}Val` minus its inference: the guards
-/// and the annotation of the value.
-pub fn install_value(
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:83-94 installValueGuards
+/// con-leche: ConLeche/Cached/Installed.lean:115-125 installValueGuardsC
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:86-101 installValueGuards`
+/// — the value half of `check{Defn,Thm,Opaque}Val` minus its inference: the
+/// value's syntactic guards (no loose bound variable, no free variable,
+/// declared universe parameters, resolving constants).  Task #119: was
+/// `installValue`, which also annotated the value.
+pub fn install_value_guards(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
-    mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
     value: &EIdx,
-) -> Result<EIdx, CheckError> {
+) -> Result<(), CheckError> {
     match loose_bvars_bounded_fast(pers, st, CORE_WALK_FUEL, 0, value) {
         Err(e) => Err(e),
         Ok(b) => {
@@ -210,10 +206,7 @@ pub fn install_value(
                         if f {
                             fail(CheckError::Invalid(code_points(&M_FVAR_VALUE)))
                         } else {
-                            match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, value) {
-                                Err(e) => Err(e),
-                                Ok(value_a) => install_value_tail(pers, vis, st, fe, cv, value_a),
-                            }
+                            install_value_guards_tail(pers, vis, st, fe, cv, value)
                         }
                     }
                 }
@@ -222,35 +215,32 @@ pub fn install_value(
     }
 }
 
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::install_value_tail_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:86-101 installValue` — the
-/// tail past the annotation: the level-parameter and resolution guards on the
-/// ANNOTATED value.
-pub fn install_value_tail(
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:83-94 installValueGuards
+/// con-leche: ConLeche/Cached/Installed.lean:115-125 installValueGuardsC
+/// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:86-101 installValueGuards`
+/// — the two guards past the scope tests: the level-parameter and the
+/// resolution guard (else `unresolvedConstsErrorL`'s verdict).
+pub fn install_value_guards_tail(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
-    value_a: EIdx,
-) -> Result<EIdx, CheckError> {
-    match all_level_params_defined(pers, st, &cv.level_params, &value_a) {
+    value: &EIdx,
+) -> Result<(), CheckError> {
+    match all_level_params_defined(pers, st, &cv.level_params, value) {
         Err(e) => Err(e),
         Ok(d) => {
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_VALUE)))
             } else {
-                match consts_resolve_f_fast(pers, vis, st, fe, &value_a) {
+                match consts_resolve_f_fast(pers, vis, st, fe, value) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            match unresolved_consts_error(pers, st, &value_a) {
-                                Err(e) => Err(e),
-                                Ok(e) => fail(e),
-                            }
+                            unresolved_consts_fail(pers, vis, st, fe, value)
                         } else {
-                            Ok(value_a)
+                            Ok(())
                         }
                     }
                 }
@@ -264,13 +254,13 @@ pub fn install_value_tail(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::check_value_group_refines, then delete this line
+/// con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-121 checkValueGroup` —
 /// **the check half of a value declaration**, at the environment the constant
 /// was installed at: the type's sort, the theorem's is-a-proposition test, for
-/// a theorem the value's guards and annotation, and the value's type against
-/// the declared one — the inference and conversion calls of `checkConstantVal`
-/// and `check{Defn,Thm,Opaque}Val`, in their order, with their messages.
+/// a theorem the value's guards, and the value's type against the declared one
+/// — the inference and conversion calls of `checkConstantVal` and
+/// `check{Defn,Thm,Opaque}Val`, in their order, with their messages.
 pub fn check_value_group(
     pers: &PersTier,
     vis: u64,
@@ -279,7 +269,7 @@ pub fn check_value_group(
     fe: &IFEnv,
     g: &ValueGroup,
 ) -> Result<(), CheckError> {
-    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &g.cv_a.ty) {
+    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &g.cv.ty) {
         Err(e) => Err(e),
         Ok(stype) => match ensure_sort_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stype) {
             Err(e) => Err(e),
@@ -289,12 +279,11 @@ pub fn check_value_group(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::check_value_group_value_refines, then delete this line
+/// con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-121 checkValueGroup` —
-/// the cited `let jv ← if g.kind = .thm then … else pure g.jv`: a theorem's
-/// statement must be a proposition, and its raw value's guards and annotation
-/// run here.  A definition's or an opaque's value was annotated at the install
-/// and is taken as it is.
+/// the cited `if g.kind = .thm then …`: a theorem's statement must be a
+/// proposition, and its raw value's guards run here.  A definition's or an
+/// opaque's value was guarded at the install.
 pub fn check_value_group_value(
     pers: &PersTier,
     vis: u64,
@@ -313,9 +302,9 @@ pub fn check_value_group_value(
                     Err(e) => Err(e),
                     Ok(is_prop) => {
                         if is_prop {
-                            match install_value(pers, vis, st, mode, fe, &g.cv_a, &g.jv) {
+                            match install_value_guards(pers, vis, st, fe, &g.cv, &g.jv) {
                                 Err(e) => Err(e),
-                                Ok(jv) => check_value_group_tail(pers, vis, st, mode, fe, g, jv),
+                                Ok(()) => check_value_group_tail(pers, vis, st, mode, fe, g),
                             }
                         } else {
                             fail(CheckError::Invalid(code_points(&M_THM_NOT_PROP)))
@@ -325,16 +314,16 @@ pub fn check_value_group_value(
             },
         }
     } else {
-        check_value_group_tail(pers, vis, st, mode, fe, g, g.jv.dup2())
+        check_value_group_tail(pers, vis, st, mode, fe, g)
     }
 }
 
 /// con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_split::check_value_group_tail_refines, then delete this line
+/// con-leche: ConLeche/Cached/Installed.lean:254-272 checkPending
 /// Lean twin: `proof/ConRon/Arena/CheckerSplit.lean:103-121 checkValueGroup` —
-/// the cited tail past the `let jv ← if …` join: the value's inferred type
-/// against the declared one.  Split off so the two branches of the join are
-/// tail calls.
+/// the cited tail past the theorem's test: the value's inferred type against
+/// the declared one.  Split off so the two branches of the `if` are tail
+/// calls.
 pub fn check_value_group_tail(
     pers: &PersTier,
     vis: u64,
@@ -342,12 +331,11 @@ pub fn check_value_group_tail(
     mode: &CheckMode,
     fe: &IFEnv,
     g: &ValueGroup,
-    jv: EIdx,
 ) -> Result<(), CheckError> {
-    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &jv) {
+    match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &g.jv) {
         Err(e) => Err(e),
         Ok(vtype) => {
-            match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &vtype, &g.cv_a.ty) {
+            match is_def_eq_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &vtype, &g.cv.ty) {
                 Err(e) => Err(e),
                 Ok(ok) => {
                     if ok {

@@ -24,12 +24,11 @@
 
 use crate::kernel::core_types;
 use crate::kernel::expr;
-use crate::kernel::expr::{BinderMeta, Expr};
+use crate::kernel::expr::Expr;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when;
 use std::vec::Vec;
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:41-42 BasisDSL.bn
@@ -107,35 +106,21 @@ pub fn cnst(n: Name, us: Vec<Level>) -> Expr {
     expr::mk_const(n, us)
 }
 
-/// con-leche: none — the `⟨.never⟩` binder datum every raw-pin binder carries
-/// The parse placeholder: "nothing is known about this codomain's
-/// prop-ness".  Lean writes it inline as an anonymous-constructor literal in
-/// `pi`/`piI`/`piA`/`lm`/`lmI`.
-pub fn never_meta() -> BinderMeta {
-    expr::binder_meta(prop_when::never())
-}
-
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:85-88 BasisDSL.pi
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::pi_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:90-93 BasisDSL.piI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::pi_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:95-97 BasisDSL.piA
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::pi_refines, then delete this line
-/// `∀ (x : ty), body` at the *raw* binder annotation (`pw` at the parse
-/// placeholder `.never`).  The three cited helpers build the same node and
+/// `∀ (x : ty), body`.  The three cited helpers build the same node and
 /// differ only in the binder name they document, which `Expr` does not carry
 /// — see the module note.
 pub fn pi(ty: Expr, body: Expr) -> Expr {
-    expr::forall_e(ty, body, never_meta())
+    expr::forall_e(ty, body)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:99-101 BasisDSL.lm
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::lm_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:103-106 BasisDSL.lmI
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove basis_builder::lm_refines, then delete this line
-/// `fun (x : ty) => body` at the raw binder annotation (see `pi`).
+/// `fun (x : ty) => body` (see `pi`).
 pub fn lm(ty: Expr, body: Expr) -> Expr {
-    expr::lam(ty, body, never_meta())
+    expr::lam(ty, body)
 }
 
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:108-109 BasisDSL.ap2

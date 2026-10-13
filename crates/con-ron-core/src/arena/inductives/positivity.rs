@@ -393,14 +393,14 @@ pub fn mentions_any_node(
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::Lam(ty, body, _) => match mentions_any_go(pers, st, names, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body) => match mentions_any_go(pers, st, names, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((b1, m)) => match mentions_any_go(pers, st, names, m, fuel, &body) {
                 Err(e) => Err(e),
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::ForallE(ty, body, _) => {
+        ENodeView::ForallE(ty, body) => {
             match mentions_any_go(pers, st, names, memo, fuel, &ty) {
                 Err(e) => Err(e),
                 Ok((b1, m)) => match mentions_any_go(pers, st, names, m, fuel, &body) {
@@ -500,7 +500,7 @@ pub fn close_telescope(
                 Ok(closed) => {
                     let dom: EIdx = bs[k].0.dup2();
                     let bm: BinderMeta = expr::binder_meta_dup(&bs[k].1);
-                    intern_e_forall_e(pers, st, dom, closed, bm)
+                    intern_e_forall_e(pers, st, dom, closed)
                 }
             },
         }
@@ -574,12 +574,12 @@ pub fn nest_occ_node(
             Ok((true, m)) => Ok((true, m)),
             Ok((false, m)) => nest_occ_go(pers, st, names, lo, hi, m, fuel, &a),
         },
-        ENodeView::Lam(ty, body, _) => match nest_occ_go(pers, st, names, lo, hi, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body) => match nest_occ_go(pers, st, names, lo, hi, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
             Ok((false, m)) => nest_occ_go(pers, st, names, lo, hi, m, fuel, &body),
         },
-        ENodeView::ForallE(ty, body, _) => {
+        ENodeView::ForallE(ty, body) => {
             match nest_occ_go(pers, st, names, lo, hi, memo, fuel, &ty) {
                 Err(e) => Err(e),
                 Ok((true, m)) => Ok((true, m)),
@@ -684,7 +684,7 @@ pub fn inst_pis_with(
     } else if e.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, e) {
             None => fail_dangling_e(),
-            Some((_, body, _)) => {
+            Some((_, body)) => {
                 let a: EIdx = args[i].dup2();
                 match expr_ops::instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &a, 0) {
                     Err(er) => Err(er),
@@ -866,14 +866,14 @@ pub fn depth_node(
                 Ok((d2, m2)) => Ok((max_u64(d1, d2) + 1, m2)),
             },
         },
-        ENodeView::Lam(ty, body, _) => match depth_go(pers, st, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body) => match depth_go(pers, st, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((d1, m)) => match depth_go(pers, st, m, fuel, &body) {
                 Err(e) => Err(e),
                 Ok((d2, m2)) => Ok((max_u64(d1, d2) + 1, m2)),
             },
         },
-        ENodeView::ForallE(ty, body, _) => match depth_go(pers, st, memo, fuel, &ty) {
+        ENodeView::ForallE(ty, body) => match depth_go(pers, st, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((d1, m)) => match depth_go(pers, st, m, fuel, &body) {
                 Err(e) => Err(e),
@@ -1451,21 +1451,21 @@ pub fn replace_fvars_node(
                 },
             },
         },
-        ENodeView::Lam(ty, body, bm) => match replace_fvars_go(pers, st, f, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body) => match replace_fvars_go(pers, st, f, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((t2, m)) => match replace_fvars_go(pers, st, f, m, fuel, &body) {
                 Err(e) => Err(e),
-                Ok((b2, m2)) => match intern_e_lam(pers, st, t2, b2, bm) {
+                Ok((b2, m2)) => match intern_e_lam(pers, st, t2, b2) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((r, m2)),
                 },
             },
         },
-        ENodeView::ForallE(ty, body, bm) => match replace_fvars_go(pers, st, f, memo, fuel, &ty) {
+        ENodeView::ForallE(ty, body) => match replace_fvars_go(pers, st, f, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((t2, m)) => match replace_fvars_go(pers, st, f, m, fuel, &body) {
                 Err(e) => Err(e),
-                Ok((b2, m2)) => match intern_e_forall_e(pers, st, t2, b2, bm) {
+                Ok((b2, m2)) => match intern_e_forall_e(pers, st, t2, b2) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((r, m2)),
                 },
@@ -1755,22 +1755,22 @@ pub fn replace_apps_node(
             Ok(Some(r)) => Ok((r, memo)),
             Ok(None) => replace_apps_app(pers, st, names, us, b, n, memo, fuel, &a, &x),
         },
-        ENodeView::Lam(t, body, bm) => match replace_apps_go(pers, st, names, us, b, n, memo, fuel, &t) {
+        ENodeView::Lam(t, body) => match replace_apps_go(pers, st, names, us, b, n, memo, fuel, &t) {
             Err(e) => Err(e),
             Ok((t2, m)) => match replace_apps_go(pers, st, names, us, b, n, m, fuel, &body) {
                 Err(e) => Err(e),
-                Ok((b2, m2)) => match intern_e_lam(pers, st, t2, b2, bm) {
+                Ok((b2, m2)) => match intern_e_lam(pers, st, t2, b2) {
                     Err(e) => Err(e),
                     Ok(r) => Ok((r, m2)),
                 },
             },
         },
-        ENodeView::ForallE(t, body, bm) => {
+        ENodeView::ForallE(t, body) => {
             match replace_apps_go(pers, st, names, us, b, n, memo, fuel, &t) {
                 Err(e) => Err(e),
                 Ok((t2, m)) => match replace_apps_go(pers, st, names, us, b, n, m, fuel, &body) {
                     Err(e) => Err(e),
-                    Ok((b2, m2)) => match intern_e_forall_e(pers, st, t2, b2, bm) {
+                    Ok((b2, m2)) => match intern_e_forall_e(pers, st, t2, b2) {
                         Err(e) => Err(e),
                         Ok(r) => Ok((r, m2)),
                     },
@@ -2084,7 +2084,7 @@ pub fn nest_fields(
     } else if cur.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, cur) {
             None => fail_dangling_e(),
-            Some((a, b, bm)) => {
+            Some((a, b)) => {
                 match nest_pos(pers, st, mode, fe, ctx, fuel, prog, base + j, 0, &a, ns) {
                     Err(e) => Err(e),
                     Ok((k, nd, ns2)) => match intern_e_fvar(pers, st, base + j, a.dup2()) {
@@ -3146,7 +3146,7 @@ pub fn nest_pos_at(
     if w.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, w) {
             None => fail_dangling_e(),
-            Some((a, b, bm)) => match nest_occ(pers, st, &ctx.names, ctx.n_p, hi, &a) {
+            Some((a, b)) => match nest_occ(pers, st, &ctx.names, ctx.n_p, hi, &a) {
                 Err(er) => Err(er),
                 Ok(true) => fail(core_types::invalid(code_points(&M_NON_POSITIVE))),
                 Ok(false) => match intern_e_fvar(pers, st, dep, a.dup2()) {
@@ -3157,7 +3157,7 @@ pub fn nest_pos_at(
                             Err(er) => Err(er),
                             Ok((k, nb, ns2)) => match expr_ops::abstract1_fast(pers, st, CORE_WALK_FUEL, &nb, dep, 0) {
                                 Err(er) => Err(er),
-                                Ok(nb2) => match intern_e_forall_e(pers, st, a, nb2, bm) {
+                                Ok(nb2) => match intern_e_forall_e(pers, st, a, nb2) {
                                     Err(er) => Err(er),
                                     Ok(r) => Ok((k, r, ns2)),
                                 },
@@ -3314,7 +3314,7 @@ pub fn pi_doms_occ(
     } else if e.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, e) {
             None => fail_dangling_e(),
-            Some((d, b, _)) => match nest_occ(pers, st, names, lo, hi, &d) {
+            Some((d, b)) => match nest_occ(pers, st, names, lo, hi, &d) {
                 Err(er) => Err(er),
                 Ok(true) => Ok(true),
                 Ok(false) => pi_doms_occ(pers, st, names, lo, hi, n - 1, &b),

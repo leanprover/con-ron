@@ -59,77 +59,23 @@ use std::vec::Vec;
 /// con-leche: ConLeche/Kernel/Env.lean:53-56 CheckMode
 /// The checker's two-valued mode setting, validated once at startup and
 /// threaded as configuration.  `deriving DecidableEq, Repr, Inhabited` is
-/// dropped: nothing executable compares two modes (the five accessors below
-/// are what the kernel reads).
+/// dropped: nothing executable compares two modes (`verified_checks` below is
+/// what the kernel reads).
 pub enum CheckMode {
     Verified,
     Trusted,
 }
 
-/// con-leche: ConLeche/Kernel/Env.lean:67-68 CheckMode.ttChecks
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::tt_checks_refines, then delete this line
-/// The seven TT-lane checks: constantly `false` since con-leche's task #148.
-/// The cited wildcard arm is spelled out over the two constructors.
-pub fn tt_checks(m: &CheckMode) -> bool {
-    match m {
-        CheckMode::Verified => false,
-        CheckMode::Trusted => false,
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Env.lean:77-79 CheckMode.verifiedChecks
-/// The verified mode's extra checks (the λ-rule's codomain-sort check).
+/// The verified mode's extra checks: the η and λ/λ body-type comparisons and
+/// the certificate families (the K/`And` rescues' proof irrelevance, ι's
+/// case-3 decision, the projection fire's arity check) — everything the
+/// trusted mode omits.
 pub fn verified_checks(m: &CheckMode) -> bool {
     match m {
         CheckMode::Trusted => false,
         CheckMode::Verified => true,
     }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:106-108 CheckMode.betaGate
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::beta_gate_refines, then delete this line
-/// The β-certificate gate.
-pub fn beta_gate(m: &CheckMode) -> bool {
-    match m {
-        CheckMode::Verified => true,
-        CheckMode::Trusted => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:128-129 CheckMode.ioGate
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::io_gate_refines, then delete this line
-/// The io-grade knot slot: `true` at both modes.  The cited wildcard arm is
-/// spelled out over the two constructors.
-pub fn io_gate(m: &CheckMode) -> bool {
-    match m {
-        CheckMode::Verified => true,
-        CheckMode::Trusted => true,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:160-162 CheckMode.certs
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::certs_refines, then delete this line
-/// The certificate families: the work that exists only so the soundness
-/// proof can consume it.
-pub fn certs(m: &CheckMode) -> bool {
-    match m {
-        CheckMode::Verified => true,
-        CheckMode::Trusted => false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:171-172 CheckMode.betaSkip
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::beta_skip_refines, then delete this line
-/// The β site's read: `!mode.certs || (mode.betaGate && pw.isNever)`.
-pub fn beta_skip(m: &CheckMode, pw: &PropWhen) -> bool {
-    !certs(m) || (beta_gate(m) && prop_when::is_never(pw))
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:180-181 CheckMode.ioSkip
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::io_skip_refines, then delete this line
-/// The io site's read: `!mode.certs || pw.isNever`.
-pub fn io_skip(m: &CheckMode, pw: &PropWhen) -> bool {
-    !certs(m) || prop_when::is_never(pw)
 }
 
 // ---------------------------------------------------------------------------
@@ -196,21 +142,18 @@ pub fn constant_val_dup(cv: &ConstantVal) -> ConstantVal {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::RecRuleFire_refines, then delete this line
-/// How a stored recursor rule may fire (install-computed; the parse
-/// placeholder is `.inert`).
+/// How a stored recursor rule fires (install-computed; the parse placeholder
+/// is `.plain`): `.plain` at a member major, `.nested lvls pins` at an outside
+/// one (the comparands of a case-3 fire).
 pub enum RecRuleFire {
-    Inert,
     Plain,
     Nested(Vec<Level>, Vec<Expr>),
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::rec_rule_fire_dup_refines, then delete this line
 /// The copy; `.nested`'s two lists are copied spine-wise.
 pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
     match f {
-        RecRuleFire::Inert => RecRuleFire::Inert,
         RecRuleFire::Plain => RecRuleFire::Plain,
         RecRuleFire::Nested(lvls, pins) => {
             RecRuleFire::Nested(levels_copy(lvls), exprs_copy(pins))
@@ -219,10 +162,9 @@ pub fn rec_rule_fire_dup(f: &RecRuleFire) -> RecRuleFire {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::RecRule_refines, then delete this line
-/// One iota rule of a recursor.  The five install-computed fields
-/// (`ctorParams`, `fire`, `k`, `eta`, `paramsBlind`) carry parse
-/// placeholders `0`/`.inert`/`false` until the install computes them
+/// One iota rule of a recursor.  The four install-computed fields
+/// (`ctorParams`, `fire`, `k`, `eta`) carry parse placeholders
+/// `0`/`.plain`/`false` until the install computes them
 /// (task #10, surprise 2); the Lean's `:= false`/`:= 0` field defaults
 /// become `rec_rule_parsed` below, since Rust has none.
 pub struct RecRule {
@@ -233,11 +175,9 @@ pub struct RecRule {
     pub rhs: Expr,
     pub k: bool,
     pub eta: bool,
-    pub params_blind: bool,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::rec_rule_dup_refines, then delete this line
 /// The record copy.
 pub fn rec_rule_dup(r: &RecRule) -> RecRule {
     RecRule {
@@ -248,16 +188,13 @@ pub fn rec_rule_dup(r: &RecRule) -> RecRule {
         rhs: expr::dup(&r.rhs),
         k: r.k,
         eta: r.eta,
-        params_blind: r.params_blind,
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::rec_rule_parsed_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Basis/Builder.lean:117-121 BasisDSL.rule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::rec_rule_parsed_refines, then delete this line
 /// A rule at the cited *parse placeholders* — the Lean's field defaults
-/// `ctorParams := 0`, `fire := .inert`, `k := eta := paramsBlind := false`,
+/// `ctorParams := 0`, `fire := .plain`, `k := eta := false`,
 /// which a parsed stream always carries (task #10's census: all 2 715 parsed
 /// rules).  Rust has no field defaults, so the record the parser builds goes
 /// through this constructor.
@@ -266,11 +203,10 @@ pub fn rec_rule_parsed(ctor: Name, nfields: u64, rhs: Expr) -> RecRule {
         ctor,
         nfields,
         ctor_params: 0,
-        fire: RecRuleFire::Inert,
+        fire: RecRuleFire::Plain,
         rhs,
         k: false,
         eta: false,
-        params_blind: false,
     }
 }
 
@@ -601,24 +537,10 @@ mod tests {
     #[test]
     fn mode_accessors() {
         for m in [CheckMode::Verified, CheckMode::Trusted] {
-            assert!(!env::tt_checks(&m));
-            assert!(env::io_gate(&m));
-            // `certs` and `verifiedChecks` agree at both constructors, and
-            // `betaGate` differs from them nowhere either (Env.lean:97-101).
-            assert_eq!(env::certs(&m), env::verified_checks(&m));
-            assert_eq!(env::beta_gate(&m), env::certs(&m));
+            let _ = env::verified_checks(&m);
         }
         assert!(env::verified_checks(&CheckMode::Verified));
         assert!(!env::verified_checks(&CheckMode::Trusted));
-        // betaSkip/ioSkip: at `.trusted` both are the literal `true`.
-        let never = prop_when::never();
-        let always = prop_when::if_all_zero(Vec::new());
-        assert!(env::beta_skip(&CheckMode::Trusted, &always));
-        assert!(env::io_skip(&CheckMode::Trusted, &always));
-        assert!(env::beta_skip(&CheckMode::Verified, &never));
-        assert!(!env::beta_skip(&CheckMode::Verified, &always));
-        assert!(env::io_skip(&CheckMode::Verified, &never));
-        assert!(!env::io_skip(&CheckMode::Verified, &always));
     }
 
     #[test]
@@ -662,8 +584,8 @@ mod tests {
                 assert_eq!(rules.len(), 1);
                 // the parse placeholders (task #10, surprise 2)
                 assert_eq!(rules[0].ctor_params, 0);
-                assert!(!rules[0].k && !rules[0].eta && !rules[0].params_blind);
-                assert!(matches!(rules[0].fire, env::RecRuleFire::Inert));
+                assert!(!rules[0].k && !rules[0].eta);
+                assert!(matches!(rules[0].fire, env::RecRuleFire::Plain));
             }
             _ => panic!("wrong constructor"),
         }
@@ -671,7 +593,7 @@ mod tests {
         // `never` (task #10, surprise 6)
         let caps = env::ind_caps_default();
         assert!(!prop_when::is_never(&caps.sort_z));
-        assert!(!prop_when::has_params(&caps.sort_z));
+        assert!(prop_when::is_prop(&caps.sort_z));
         let caps2 = env::ind_caps_dup(&caps);
         assert!(prop_when::beq(&caps.sort_z, &caps2.sort_z));
         // the remaining copies

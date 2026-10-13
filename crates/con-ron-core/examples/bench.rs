@@ -96,7 +96,7 @@ fn mk_tele(pers: &PersTier, st: &mut AState, dom: &EIdx, n: u64, body: EIdx) -> 
         b = take(intern_e(
             pers,
             st,
-            ENodeView::ForallE(dom.dup2(), b, expr::binder_meta(prop_when::never())),
+            ENodeView::ForallE(dom.dup2(), b),
         ));
     }
     b
@@ -158,7 +158,7 @@ fn peel_pis(pers: &PersTier, st: &mut AState, fuel: u64, arg: &EIdx, n: u64, h: 
     let mut cur = h.dup2();
     for _ in 0..n {
         match take(view(pers, st, &cur)) {
-            ENodeView::ForallE(_, body, _) => {
+            ENodeView::ForallE(_, body) => {
                 cur = take(instantiate1_fast(pers, st, fuel, &body, arg, 0));
             }
             _ => return cur.word as u64,

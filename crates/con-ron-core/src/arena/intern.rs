@@ -149,18 +149,18 @@ pub fn intern_expr_node(
                 Ok(ha) => intern_e(pers, st, ENodeView::App(hf, ha)),
             },
         },
-        ExprView::Lam(ty, b, bi) => match intern_expr_go(pers, st, m, ty) {
+        ExprView::Lam(ty, b) => match intern_expr_go(pers, st, m, ty) {
             Err(err) => Err(err),
             Ok(ht) => match intern_expr_go(pers, st, m, b) {
                 Err(err) => Err(err),
-                Ok(hb) => intern_e(pers, st, ENodeView::Lam(ht, hb, expr::binder_meta_dup(bi))),
+                Ok(hb) => intern_e(pers, st, ENodeView::Lam(ht, hb)),
             },
         },
-        ExprView::ForallE(ty, b, bi) => match intern_expr_go(pers, st, m, ty) {
+        ExprView::ForallE(ty, b) => match intern_expr_go(pers, st, m, ty) {
             Err(err) => Err(err),
             Ok(ht) => match intern_expr_go(pers, st, m, b) {
                 Err(err) => Err(err),
-                Ok(hb) => intern_e(pers, st, ENodeView::ForallE(ht, hb, expr::binder_meta_dup(bi))),
+                Ok(hb) => intern_e(pers, st, ENodeView::ForallE(ht, hb)),
             },
         },
         ExprView::LetE(ty, v, b) => match intern_expr_go(pers, st, m, ty) {
@@ -327,7 +327,6 @@ pub fn intern_fire(
     f: &RecRuleFire,
 ) -> Result<IRecRuleFire, CheckError> {
     match f {
-        RecRuleFire::Inert => Ok(IRecRuleFire::Inert),
         RecRuleFire::Plain => Ok(IRecRuleFire::Plain),
         RecRuleFire::Nested(lvls, pins) => match intern_level_list_go(pers, st, lvls, 0, Vec::new()) {
             Err(err) => Err(err),
@@ -361,7 +360,6 @@ pub fn intern_rule(
                     rhs: r,
                     k: rl.k,
                     eta: rl.eta,
-                    params_blind: rl.params_blind,
                 }),
             },
         },

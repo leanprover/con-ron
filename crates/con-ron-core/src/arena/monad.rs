@@ -64,7 +64,7 @@
 
 use crate::arena::core_state::reset_map;
 use crate::arena::core_state::Caches;
-use crate::arena::handle::{BMIdx, EIdx, LIdx, LsIdx, NIdx};
+use crate::arena::handle::{EIdx, LIdx, LsIdx, NIdx};
 use crate::arena::handle::ETAG_LAM;
 use crate::arena::pins::Pins;
 use crate::arena::store::{
@@ -72,7 +72,6 @@ use crate::arena::store::{
 };
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::expr;
-use crate::kernel::expr::BinderMeta;
 use crate::kernel::expr::Literal;
 use crate::kernel::level;
 use crate::kernel::level::Level;
@@ -493,18 +492,8 @@ pub fn view_lit(pers: &PersTier, st: &AState, h: &EIdx) -> Option<Literal> {
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:368-371 viewBind` — `viewBind`,
 /// the binder projection.
 #[inline(always)]
-pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, BinderMeta)> {
+pub fn view_bind(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx)> {
     st.store.view_bind(pers, h)
-}
-
-/// con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove monad::view_bind_i_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:373-377 viewBindI` — `viewBindI`,
-/// the binder projection that stops at the datum's HANDLE (see
-/// `EStore::view_bind_i`).
-#[inline(always)]
-pub fn view_bind_i(pers: &PersTier, st: &AState, h: &EIdx) -> Option<(EIdx, EIdx, BMIdx)> {
-    st.store.view_bind_i(pers, h)
 }
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
@@ -557,8 +546,8 @@ pub fn intern_e(pers: &PersTier, st: &mut AState, v: ENodeView) -> Result<EIdx, 
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:396-397 internBVarE` — `internBVarE`,
 /// the `bvar` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_bvar`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -575,8 +564,8 @@ pub fn intern_e_bvar(
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:396-399 internFVarE` — `internFVarE`,
 /// the `fvar` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_fvar`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -594,8 +583,8 @@ pub fn intern_e_fvar(
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:396-401 internSortE` — `internSortE`,
 /// the `sort` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_sort`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -613,8 +602,8 @@ pub fn intern_e_sort(
 /// `internConstE`, the `const` arm of `proof/ConRon/Arena/Monad.lean:155-166
 /// internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_const`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -632,8 +621,8 @@ pub fn intern_e_const(
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:396-405 internAppE` — `internAppE`,
 /// the `app` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_app`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -652,8 +641,8 @@ pub fn intern_e_app(
 /// `internLamE`, the `lam` arm of `proof/ConRon/Arena/Monad.lean:155-166
 /// internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_lam`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -663,31 +652,29 @@ pub fn intern_e_lam(
     st: &mut AState,
     ty: EIdx,
     body: EIdx,
-    m: BinderMeta,
 ) -> Result<EIdx, CheckError> {
-    st.store.intern_lam(pers, ty, body, m)
+    st.store.intern_lam(pers, ty, body)
 }
 
 
 
 /// con-leche: none — hash-cons an expression node
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:420-424 internBindIE` —
-/// `internBindIE`, the two binder arms at a tag the caller carries and a datum
-/// it holds as a handle: the shape the rebuilding walks want, where
-/// `e_bind_view` + `internE` stood.
+/// Lean twin: `proof/ConRon/Arena/Monad.lean:420-424 internBindE` —
+/// `internBindE`, the two binder arms at a tag the caller carries: the shape
+/// the rebuilding walks want, where `e_bind_view` + `internE` stood.  (Task
+/// #119: was `internBindIE`, over a binder-datum handle as well.)
 #[inline(always)]
-pub fn intern_e_bind_i(
+pub fn intern_e_bind(
     pers: &PersTier,
     st: &mut AState,
     tag: u32,
     ty: EIdx,
     body: EIdx,
-    m: BMIdx,
 ) -> Result<EIdx, CheckError> {
     if tag == ETAG_LAM {
-        st.store.intern_lam_i(pers, ty, body, m)
+        st.store.intern_lam(pers, ty, body)
     } else {
-        st.store.intern_forall_e_i(pers, ty, body, m)
+        st.store.intern_forall_e(pers, ty, body)
     }
 }
 
@@ -696,8 +683,8 @@ pub fn intern_e_bind_i(
 /// `internForallEE`, the `forall_e` arm of
 /// `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_forall_e`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -707,17 +694,16 @@ pub fn intern_e_forall_e(
     st: &mut AState,
     ty: EIdx,
     body: EIdx,
-    m: BinderMeta,
 ) -> Result<EIdx, CheckError> {
-    st.store.intern_forall_e(pers, ty, body, m)
+    st.store.intern_forall_e(pers, ty, body)
 }
 
 /// con-leche: none — hash-cons an expression node
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:412-413 internLetEE` — `internLetEE`,
 /// the `let_e` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_let_e`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -736,8 +722,8 @@ pub fn intern_e_let_e(
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:412-415 internLitE` — `internLitE`,
 /// the `lit` arm of `proof/ConRon/Arena/Monad.lean:155-166 internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_lit`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note
@@ -755,8 +741,8 @@ pub fn intern_e_lit(
 /// `internProjE`, the `proj` arm of `proof/ConRon/Arena/Monad.lean:155-166
 /// internE`.
 ///
-/// `internE` takes an `ENodeView`, so every caller BUILT one — a 32-byte
-/// value with a `BinderMeta` in it, passed by value, taken apart again by
+/// `internE` takes an `ENodeView`, so every caller BUILT one — a
+/// multi-word value passed by value, taken apart again by
 /// `EStore::intern`'s dispatch and dropped.  This wrapper takes the arm's
 /// fields and goes straight to `EStore::intern_proj`, so the view is never
 /// built at all.  Same store operation, same decline; see `intern_e`'s note

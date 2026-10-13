@@ -124,8 +124,8 @@ pub fn used_consts_node(
             Ok(out)
         }
         Ok(ENodeView::App(f, a)) => used_consts_two(pers, st, seen, acc, fuel, &f, &a),
-        Ok(ENodeView::Lam(ty, b, _)) => used_consts_two(pers, st, seen, acc, fuel, &ty, &b),
-        Ok(ENodeView::ForallE(ty, b, _)) => used_consts_two(pers, st, seen, acc, fuel, &ty, &b),
+        Ok(ENodeView::Lam(ty, b)) => used_consts_two(pers, st, seen, acc, fuel, &ty, &b),
+        Ok(ENodeView::ForallE(ty, b)) => used_consts_two(pers, st, seen, acc, fuel, &ty, &b),
         Ok(ENodeView::LetE(ty, v, b)) => match used_consts_two(pers, st, seen, acc, fuel, &ty, &v)
         {
             Err(er) => Err(er),

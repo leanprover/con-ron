@@ -24,9 +24,9 @@
 //! rather than copying them.  The Rust does the same across the crate
 //! boundary: they are `con_ron_core::kernel::{env,prop_when}`'s own types,
 //! used as they are.  `PropWhen` is the interesting one: it holds
-//! `ConLeche.Name`s, but task #97a already put `BinderMeta` — hence
-//! `PropWhen` — inside the store's own `lam`/`forallE` node, so a handle twin
-//! of it would be a second spelling of a datum the representation uses.
+//! `ConLeche.Name`s, and it is read only as `IndCaps.sortZ` (task #119: the
+//! binder datum it once also was is gone), so a handle twin of it would buy
+//! nothing.
 //!
 //! **The one added field, and why.**  `IProjTable` carries a `table_name:
 //! NIdx` con-leche's `ProjTable` does not.  con-leche COMPUTES the reserved
@@ -196,22 +196,18 @@ pub fn i_constant_val_dup(cv: &IConstantVal) -> IConstantVal {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::IRecRuleFire_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:74-81 IRecRuleFire` — how a stored
-/// recursor rule may fire.  `.nested`'s level and pin lists become handle
-/// lists; the parse writes the placeholder `.inert` and never the other two.
+/// recursor rule fires.  `.nested`'s level and pin lists become handle lists;
+/// the parse writes the placeholder `.plain`.
 pub enum IRecRuleFire {
-    Inert,
     Plain,
     Nested(Vec<LIdx>, Vec<EIdx>),
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::i_rec_rule_fire_dup_refines, then delete this line
 /// The copy; `.nested`'s two lists are copied spine-wise.
 pub fn i_rec_rule_fire_dup(f: &IRecRuleFire) -> IRecRuleFire {
     match f {
-        IRecRuleFire::Inert => IRecRuleFire::Inert,
         IRecRuleFire::Plain => IRecRuleFire::Plain,
         IRecRuleFire::Nested(lvls, pins) => {
             IRecRuleFire::Nested(lidx_vec_dup(lvls), eidx_vec_dup(pins))
@@ -220,11 +216,10 @@ pub fn i_rec_rule_fire_dup(f: &IRecRuleFire) -> IRecRuleFire {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::IRecRule_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:83-96 IRecRule` — one iota rule of
-/// a recursor.  `ctor_params`, `fire`, `k`, `eta` and `params_blind` are
-/// install-computed and carry the parse placeholders `0`/`.inert`/`false`,
-/// exactly as con-leche's do.
+/// a recursor.  `ctor_params`, `fire`, `k` and `eta` are install-computed and
+/// carry the parse placeholders `0`/`.plain`/`false`, exactly as con-leche's
+/// do.
 pub struct IRecRule {
     pub ctor: NIdx,
     pub nfields: u64,
@@ -233,11 +228,9 @@ pub struct IRecRule {
     pub rhs: EIdx,
     pub k: bool,
     pub eta: bool,
-    pub params_blind: bool,
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::i_rec_rule_dup_refines, then delete this line
 /// The record copy.
 pub fn i_rec_rule_dup(r: &IRecRule) -> IRecRule {
     IRecRule {
@@ -248,14 +241,12 @@ pub fn i_rec_rule_dup(r: &IRecRule) -> IRecRule {
         rhs: r.rhs.dup2(),
         k: r.k,
         eta: r.eta,
-        params_blind: r.params_blind,
     }
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::i_rec_rule_parsed_refines, then delete this line
 /// A rule at the cited *parse placeholders* — the Lean's field defaults
-/// `ctorParams := 0`, `fire := .inert`, `k := eta := paramsBlind := false`.
+/// `ctorParams := 0`, `fire := .plain`, `k := eta := false`.
 /// Rust has no field defaults, so the record the parser builds
 /// (`export_c::parse_rule_d`) goes through this constructor, exactly as
 /// con-ron-core's `env::rec_rule_parsed` does.
@@ -264,23 +255,10 @@ pub fn i_rec_rule_parsed(ctor: NIdx, nfields: u64, rhs: EIdx) -> IRecRule {
         ctor,
         nfields,
         ctor_params: 0,
-        fire: IRecRuleFire::Inert,
+        fire: IRecRuleFire::Plain,
         rhs,
         k: false,
         eta: false,
-        params_blind: false,
-    }
-}
-
-/// con-leche: ConLeche/Kernel/Env.lean:276-283 RecRule.compareParams
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::i_rec_rule_compare_params_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:98-103 IRecRule.compareParams` —
-/// whether the iota step compares this rule's parameter comparands.
-pub fn i_rec_rule_compare_params(rl: &IRecRule) -> bool {
-    match rl.fire {
-        IRecRuleFire::Plain => !rl.params_blind,
-        IRecRuleFire::Inert => true,
-        IRecRuleFire::Nested(..) => true,
     }
 }
 
@@ -572,24 +550,6 @@ pub fn i_declaration_dup(d: &IDeclaration) -> IDeclaration {
 // ---------------------------------------------------------------------------
 // The reserved names (`Env.lean:212-222` of the twin)
 // ---------------------------------------------------------------------------
-
-/// con-leche: ConLeche/Kernel/Env.lean:623-628 projFnName
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::proj_fn_name_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Env.lean:208-213 projFnName` — the public
-/// projection-*function* name for field `i` of structure `T`.  Building a name
-/// means interning it, so the twin is monadic and this takes the store.
-pub fn proj_fn_name(
-    pers: &PersTier,
-    ar: &mut EStore,
-    t: &NIdx,
-    i: u64,
-) -> Result<NIdx, CheckError>  {
-    const S: [u32; 4] = [112, 114, 111, 106];
-    match ar.intern_name(pers, NNodeView::Str(t.dup2(), core_types::code_points(&S))) {
-        Err(e) => Err(e),
-        Ok(s) => ar.intern_name(pers, NNodeView::Num(s, i)),
-    }
-}
 
 /// con-leche: ConLeche/Kernel/Env.lean:478-482 projTableName
 /// Lean twin: `proof/ConRon/Arena/Env.lean:215-219 projTableName` — the
@@ -1169,7 +1129,6 @@ pub fn dangling_level() -> CheckError {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Env.lean:427-441 Expr.piSortTeleLen?
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove env::pi_sort_tele_len_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:342-352 piSortTeleLen?` — the
 /// length of a syntactic Π-telescope ending in a SORT.  A spine walk, so the
 /// fuel is the store's node count; con-leche's structural recursion is the
@@ -1189,7 +1148,7 @@ pub fn pi_sort_tele_len(
     }
     match view_e(pers, ar, h) {
         Err(e) => Err(e),
-        Ok(ENodeView::ForallE(_, body, _)) => match pi_sort_tele_len(pers, ar, fuel - 1, &body) {
+        Ok(ENodeView::ForallE(_, body)) => match pi_sort_tele_len(pers, ar, fuel - 1, &body) {
             Err(e) => Err(e),
             Ok(None) => Ok(None),
             Ok(Some(n)) => Ok(Some(n + 1)),

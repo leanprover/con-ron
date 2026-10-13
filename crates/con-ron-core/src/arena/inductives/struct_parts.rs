@@ -346,12 +346,12 @@ pub fn has_loose_bvar_b_node(
             Ok((true, m)) => Ok((true, m)),
             Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i, fuel, &a),
         },
-        ENodeView::Lam(ty, b, _) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
+        ENodeView::Lam(ty, b) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
             Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i + 1, fuel, &b),
         },
-        ENodeView::ForallE(ty, b, _) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
+        ENodeView::ForallE(ty, b) => match has_loose_bvar_b_go(pers, st, memo, i, fuel, &ty) {
             Err(e) => Err(e),
             Ok((true, m)) => Ok((true, m)),
             Ok((false, m)) => has_loose_bvar_b_go(pers, st, m, i + 1, fuel, &b),
@@ -581,7 +581,7 @@ pub fn struct_proj_bodies_go(
         if h.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
-                Some((fdom, body, _)) => match struct_proj_arg_p(pers, st, t, i) {
+                Some((fdom, body)) => match struct_proj_arg_p(pers, st, t, i) {
                     Err(e) => Err(e),
                     Ok(a) => match expr_ops::instantiate1_lift_fast(pers, st, CORE_WALK_FUEL, &body, &a, 0) {
                         Err(e) => Err(e),
@@ -697,14 +697,14 @@ pub fn mentions_const_node(
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::Lam(ty, body, _) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
+        ENodeView::Lam(ty, body) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((b1, m)) => match mentions_const_go(pers, st, t, m, fuel, &body) {
                 Err(e) => Err(e),
                 Ok((b2, m2)) => Ok((b1 || b2, m2)),
             },
         },
-        ENodeView::ForallE(ty, body, _) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
+        ENodeView::ForallE(ty, body) => match mentions_const_go(pers, st, t, memo, fuel, &ty) {
             Err(e) => Err(e),
             Ok((b1, m)) => match mentions_const_go(pers, st, t, m, fuel, &body) {
                 Err(e) => Err(e),

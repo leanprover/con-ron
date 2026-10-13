@@ -171,10 +171,10 @@ pub fn erase_pw_eq_at(
         (ENodeView::App(f, x), ENodeView::App(f2, x2)) => {
             erase_pw_eq_two(pers, st, fuel, &f, &f2, &x, &x2)
         }
-        (ENodeView::Lam(t, bd, _), ENodeView::Lam(t2, bd2, _)) => {
+        (ENodeView::Lam(t, bd), ENodeView::Lam(t2, bd2)) => {
             erase_pw_eq_two(pers, st, fuel, &t, &t2, &bd, &bd2)
         }
-        (ENodeView::ForallE(t, bd, _), ENodeView::ForallE(t2, bd2, _)) => {
+        (ENodeView::ForallE(t, bd), ENodeView::ForallE(t2, bd2)) => {
             erase_pw_eq_two(pers, st, fuel, &t, &t2, &bd, &bd2)
         }
         (ENodeView::LetE(t, v, bd), ENodeView::LetE(t2, v2, bd2)) => {

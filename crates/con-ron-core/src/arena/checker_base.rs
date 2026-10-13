@@ -53,8 +53,8 @@
 //!    moves anything itself.
 
 use crate::arena::core::{
-    annotate_core, consts_resolve, ensure_sort_core, infer_type_core,
-    reserved_basis_names, CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_UNKNOWN_CONST,
+    consts_resolve, ensure_sort_core, infer_type_core, reserved_basis_names, str_lit_supported,
+    CHECK_FUEL, CORE_WALK_FUEL, M_SORRY, M_STR, M_UNKNOWN_CONST,
 };
 use crate::arena::core_state::{take_walk_memo, Caches};
 use crate::arena::env::{
@@ -73,12 +73,11 @@ use crate::arena::store::{ENodeView, NNodeView};
 use crate::arena::pins::{pin_sorry_ax, Pins};
 use crate::kernel::core_types::{code_points, CheckError};
 use crate::kernel::env::CheckMode;
-use crate::kernel::expr::BinderMeta;
+use crate::kernel::expr::Literal;
 use crate::kernel::level;
 use crate::kernel::level::Level;
 use crate::kernel::name;
 use crate::kernel::name::Name;
-use crate::kernel::prop_when;
 use crate::ron::hashmap::{Dup, Eq2};
 // The arena's tables are the epoch-stamped open-addressed map
 // (DESIGN.md's `Task #97-P6-4b`), aliased so that every use site below
@@ -421,9 +420,7 @@ pub fn memo_b_get(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:242-258 Expr.allLevelParamsDefined
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:152-189
 /// allLevelParamsDefinedGo` — the memoized walk.  `params` are transient names
 /// (DESIGN.md §8.3's lesson 4: a level algorithm runs on trees, so the
@@ -455,7 +452,6 @@ pub fn all_level_params_defined_go(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:152-189
 /// allLevelParamsDefinedGo` — the arms, past the probe.
 pub fn all_level_params_defined_node(
@@ -489,11 +485,11 @@ pub fn all_level_params_defined_node(
                 }
             }
         },
-        Ok(ENodeView::Lam(t, b, m)) => {
-            all_level_params_defined_binder(pers, st, params, memo, fuel, &t, &b, &m)
+        Ok(ENodeView::Lam(t, b)) => {
+            all_level_params_defined_binder(pers, st, params, memo, fuel, &t, &b)
         }
-        Ok(ENodeView::ForallE(t, b, m)) => {
-            all_level_params_defined_binder(pers, st, params, memo, fuel, &t, &b, &m)
+        Ok(ENodeView::ForallE(t, b)) => {
+            all_level_params_defined_binder(pers, st, params, memo, fuel, &t, &b)
         }
         Ok(ENodeView::LetE(t, v, b)) => {
             match all_level_params_defined_go(pers, st, params, memo, fuel, &t) {
@@ -521,10 +517,9 @@ pub fn all_level_params_defined_node(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_level_params_defined_binder_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:152-189
-/// allLevelParamsDefinedGo` — the twin's one `.lam | .forallE` clause, which
-/// additionally reads the binder's `pw` datum.
+/// allLevelParamsDefinedGo` — the twin's `.lam` and `.forallE` clauses, which
+/// are one shape (the domain, then the body).
 pub fn all_level_params_defined_binder(
     pers: &PersTier,
     st: &AState,
@@ -533,7 +528,6 @@ pub fn all_level_params_defined_binder(
     fuel: u64,
     t: &EIdx,
     b: &EIdx,
-    m: &BinderMeta,
 ) -> Result<bool, CheckError> {
     match all_level_params_defined_go(pers, st, params, memo, fuel, t) {
         Err(e) => Err(e),
@@ -543,7 +537,7 @@ pub fn all_level_params_defined_binder(
             } else {
                 match all_level_params_defined_go(pers, st, params, memo, fuel, b) {
                     Err(e) => Err(e),
-                    Ok(b2) => Ok(b2 && prop_when::params_defined(params, &m.pw)),
+                    Ok(b2) => Ok(b2),
                 }
             }
         }
@@ -551,7 +545,6 @@ pub fn all_level_params_defined_binder(
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::all_params_defined_list_refines, then delete this line
 /// The `.const` clause's `ls.all (Level.allParamsDefined params)`, as an index
 /// recursion (§3.4 forbids the closure `List.all` takes).
 pub fn all_params_defined_list(params: &Vec<Name>, ls: &Vec<Level>, i: usize) -> bool {
@@ -590,9 +583,7 @@ pub fn all_level_params_defined(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:209-247 constsResolveFGo` —
 /// the memoized walk.  The four LEAF clauses are `arena::core`'s
 /// `consts_resolve` at one node, exactly as con-leche's `…Go` calls the pure
@@ -635,7 +626,6 @@ pub fn consts_resolve_f_go(
 }
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:209-247 constsResolveFGo` —
 /// the six memoized arms, past the probe.  The `.proj` arm's `fe.find? s` is
 /// the structure's own resolution, as the twin has it.
@@ -651,8 +641,8 @@ pub fn consts_resolve_f_node(
     match v {
         ENodeView::FVar(_, ty) => consts_resolve_f_go(pers, vis, st, fe, memo, fuel, &ty),
         ENodeView::App(f, a) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &f, &a),
-        ENodeView::Lam(ty, body, _) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
-        ENodeView::ForallE(ty, body, _) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
+        ENodeView::Lam(ty, body) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
+        ENodeView::ForallE(ty, body) => consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &body),
         ENodeView::LetE(ty, val, body) => {
             match consts_resolve_f_two(pers, vis, st, fe, memo, fuel, &ty, &val) {
                 Err(e) => Err(e),
@@ -671,7 +661,6 @@ pub fn consts_resolve_f_node(
 }
 
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::consts_resolve_f_two_refines, then delete this line
 /// The twin's `(b₁ && b₂, memo)` of the two-child arms.  **Both children are
 /// walked**, as the twin walks them: the conjunction is not short-circuited,
 /// because the memo the second walk fills is part of the state.
@@ -768,19 +757,142 @@ pub fn unresolved_consts_error(
     }
 }
 
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:89-111 Expr.hasStrLitGo
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:286-320 hasStrLitGo` — does
+/// the term contain a string literal?  A memoized walk (error path only), the
+/// memo keyed by the node; con-leche's visited-set returns `false` at a
+/// revisit, which is the answer the first visit already gave unless it found
+/// one — and then the walk has returned `true` already.
+pub fn has_str_lit_go(
+    pers: &PersTier,
+    st: &AState,
+    memo: &mut HashMap<EIdx, bool>,
+    fuel: u64,
+    h: &EIdx,
+) -> Result<bool, CheckError> {
+    if fuel == 0 {
+        fail(CheckError::Internal(code_points(&M_FUEL_CRF)))
+    } else {
+        match view(pers, st, h) {
+            Err(e) => Err(e),
+            Ok(ENodeView::Lit(Literal::StrVal(_))) => Ok(true),
+            Ok(ENodeView::BVar(_)) => Ok(false),
+            Ok(ENodeView::Sort(_)) => Ok(false),
+            Ok(ENodeView::Const(_, _)) => Ok(false),
+            Ok(ENodeView::Lit(_)) => Ok(false),
+            Ok(v) => match memo_b_get(memo, h) {
+                Some(_) => Ok(false),
+                None => {
+                    memo.insert(h.dup2(), false);
+                    has_str_lit_node(pers, st, memo, fuel - 1, v)
+                }
+            },
+        }
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:89-111 Expr.hasStrLitGo
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:286-320 hasStrLitGo` — the
+/// walk's arms past the visit, each child in order, stopping at the first
+/// string literal.
+pub fn has_str_lit_node(
+    pers: &PersTier,
+    st: &AState,
+    memo: &mut HashMap<EIdx, bool>,
+    fuel: u64,
+    v: ENodeView,
+) -> Result<bool, CheckError> {
+    match v {
+        ENodeView::FVar(_, ty) => has_str_lit_go(pers, st, memo, fuel, &ty),
+        ENodeView::App(f, a) => has_str_lit_two(pers, st, memo, fuel, &f, &a),
+        ENodeView::Lam(t, b) => has_str_lit_two(pers, st, memo, fuel, &t, &b),
+        ENodeView::ForallE(t, b) => has_str_lit_two(pers, st, memo, fuel, &t, &b),
+        ENodeView::LetE(t, v2, b) => match has_str_lit_two(pers, st, memo, fuel, &t, &v2) {
+            Err(e) => Err(e),
+            Ok(true) => Ok(true),
+            Ok(false) => has_str_lit_go(pers, st, memo, fuel, &b),
+        },
+        ENodeView::Proj(_, _, x) => has_str_lit_go(pers, st, memo, fuel, &x),
+        _ => Ok(false),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:89-111 Expr.hasStrLitGo
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:286-320 hasStrLitGo` — two
+/// children, the second only if the first had none.
+pub fn has_str_lit_two(
+    pers: &PersTier,
+    st: &AState,
+    memo: &mut HashMap<EIdx, bool>,
+    fuel: u64,
+    a: &EIdx,
+    b: &EIdx,
+) -> Result<bool, CheckError> {
+    match has_str_lit_go(pers, st, memo, fuel, a) {
+        Err(e) => Err(e),
+        Ok(true) => Ok(true),
+        Ok(false) => has_str_lit_go(pers, st, memo, fuel, b),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:113-119 unresolvedConstsErrorL
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:322-332 unresolvedConstsErrorL`
+/// — `unresolved_consts_error` with a string-literal guard ahead of it: a
+/// string literal is DECLINED here, before resolution, when the String support
+/// declarations are not yet present (con-leche task #342 L-CK: the guard the
+/// annotate pass used to run).  `str_ok` is the caller's `strLitSupported`.
+pub fn unresolved_consts_error_l(
+    pers: &PersTier,
+    st: &mut AState,
+    str_ok: bool,
+    e: &EIdx,
+) -> Result<CheckError, CheckError> {
+    let lit: Result<bool, CheckError> = if str_ok {
+        Ok(false)
+    } else {
+        let mut memo: HashMap<EIdx, bool> = HashMap::new();
+        has_str_lit_go(pers, st, &mut memo, CORE_WALK_FUEL, e)
+    };
+    match lit {
+        Err(err) => Err(err),
+        Ok(true) => Ok(CheckError::NotImplemented(code_points(&M_STR))),
+        Ok(false) => unresolved_consts_error(pers, st, e),
+    }
+}
+
+/// con-leche: ConLeche/Kernel/CheckerBase.lean:113-119 unresolvedConstsErrorL
+/// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
+/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:334-345 unresolvedConstsFail`
+/// — the failing arm every front door spells: `throw (unresolvedConstsErrorL
+/// (strLitSupportedF fe) where_ e)`, the support test read first, as Lean
+/// evaluates the argument.
+pub fn unresolved_consts_fail<T>(
+    pers: &PersTier,
+    vis: u64,
+    st: &mut AState,
+    fe: &IFEnv,
+    e: &EIdx,
+) -> Result<T, CheckError> {
+    match str_lit_supported(pers, vis, st, fe) {
+        Err(err) => Err(err),
+        Ok(ok) => match unresolved_consts_error_l(pers, st, ok, e) {
+            Err(err) => Err(err),
+            Ok(err) => fail(err),
+        },
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The per-declaration constant check (`CheckerBase.lean:321-354`)
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
 /// checks common to all declarations: fresh name, no reserved name, no
 /// reserved projection shape, well-formed universe parameters, and a type that
-/// is a type and mentions only declared parameters.  Returns the constant with
-/// its type **annotated**; the guards run on the annotated type.
+/// is a type and mentions only declared parameters.  **Returns nothing**
+/// (con-leche task #342 S5C): the constant is stored as declared.
 ///
 /// The twin reads the name back for four of the six messages (DESIGN.md §8.3's
 /// "readback happens only for the environment index's error text"); the port
@@ -792,25 +904,29 @@ pub fn check_constant_val(
     mode: &CheckMode,
     fe: &IFEnv,
     cv: &IConstantVal,
-) -> Result<IConstantVal, CheckError> {
+) -> Result<(), CheckError> {
     match check_constant_val_guards(pers, vis, st, fe, cv) {
         Err(e) => Err(e),
-        Ok(()) => match annotate_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+        Ok(()) => match install_header_tail(pers, vis, st, fe, cv) {
             Err(e) => Err(e),
-            Ok(ty) => check_constant_val_after_annot(pers, vis, st, mode, fe, cv, ty),
+            Ok(()) => match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv.ty) {
+                Err(e) => Err(e),
+                Ok(stype) => match ensure_sort_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stype) {
+                    Err(e) => Err(e),
+                    Ok(_u) => Ok(()),
+                },
+            },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_guards_refines, then delete this line
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
-/// the six SYNTACTIC guards, in the twin's order.  Split off so the annotation
-/// is a tail call and the guards do not join on a borrowed state; shared with
-/// `arena::checker_split::install_constant_val`, which the twin writes out
-/// clause for clause a second time (as con-leche does).
+/// the six SYNTACTIC guards on the header, in the twin's order.  Shared with
+/// `arena::checker_split::install_header`, which the twin writes out clause for
+/// clause a second time (as con-leche does).
 pub fn check_constant_val_guards(
     pers: &PersTier,
     vis: u64,
@@ -835,7 +951,6 @@ pub fn check_constant_val_guards(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_guards_rest_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
 /// the four guards past the reserved-name test.
 pub fn check_constant_val_guards_rest(
@@ -876,70 +991,35 @@ pub fn check_constant_val_guards_rest(
 }
 
 /// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
 /// con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::check_constant_val_after_annot_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal` —
-/// the tail past the annotation: the two guards on the ANNOTATED type, the
-/// type's own sort, and the record update `{ cv with type := type }`.
-pub fn check_constant_val_after_annot(
-    pers: &PersTier,
-    vis: u64,
-    st: &mut AState,
-    mode: &CheckMode,
-    fe: &IFEnv,
-    cv: &IConstantVal,
-    ty: EIdx,
-) -> Result<IConstantVal, CheckError> {
-    match install_constant_val_tail(pers, vis, st, fe, cv, ty) {
-        Err(e) => Err(e),
-        Ok(cv_a) => match infer_type_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &cv_a.ty) {
-            Err(e) => Err(e),
-            Ok(stype) => match ensure_sort_core(pers, vis, st, mode, fe, CHECK_FUEL, 0, &stype) {
-                Err(e) => Err(e),
-                Ok(_u) => Ok(cv_a),
-            },
-        },
-    }
-}
-
-/// con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::install_constant_val_tail_refines, then delete this line
-/// con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove checker_base::install_constant_val_tail_refines, then delete this line
+/// con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader
 /// Lean twin: `proof/ConRon/Arena/CheckerBase.lean:288-319 checkConstantVal`
-/// (and `CheckerSplit.lean:64-85 installConstantVal`, which spells it a second
-/// time) — the two guards on the annotated type and the header they produce.
-/// This is exactly the install half's tail, so the two twins share it here
-/// where the Lean writes it twice.
-pub fn install_constant_val_tail(
+/// (and `CheckerSplit.lean installHeader`, which spells it a second time) —
+/// the two guards on the declared type: its universe parameters are declared,
+/// and its constants resolve (else `unresolvedConstsErrorL`'s verdict).  This
+/// is exactly the install half's tail, so the two twins share it here where
+/// the Lean writes it twice.  Task #119: was `install_constant_val_tail`, on
+/// the annotated type, returning the annotated header.
+pub fn install_header_tail(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
     fe: &IFEnv,
     cv: &IConstantVal,
-    ty: EIdx,
-) -> Result<IConstantVal, CheckError> {
-    match all_level_params_defined(pers, st, &cv.level_params, &ty) {
+) -> Result<(), CheckError> {
+    match all_level_params_defined(pers, st, &cv.level_params, &cv.ty) {
         Err(e) => Err(e),
         Ok(d) => {
             if !d {
                 fail(CheckError::Invalid(code_points(&M_UNDECL_TYPE)))
             } else {
-                match consts_resolve_f_fast(pers, vis, st, fe, &ty) {
+                match consts_resolve_f_fast(pers, vis, st, fe, &cv.ty) {
                     Err(e) => Err(e),
                     Ok(r) => {
                         if !r {
-                            match unresolved_consts_error(pers, st, &ty) {
-                                Err(e) => Err(e),
-                                Ok(e) => fail(e),
-                            }
+                            unresolved_consts_fail(pers, vis, st, fe, &cv.ty)
                         } else {
-                            Ok(IConstantVal {
-                                name: cv.name.dup2(),
-                                level_params: nidx_vec_dup(&cv.level_params),
-                                ty,
-                            })
+                            Ok(())
                         }
                     }
                 }
@@ -971,7 +1051,7 @@ pub fn open_pis_at_fvars(
         if h.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
-                Some((dom, body, _)) => match intern_e_fvar(pers, st, i, dom) {
+                Some((dom, body)) => match intern_e_fvar(pers, st, i, dom) {
                     Err(e) => Err(e),
                     Ok(fv) => match instantiate1_fast(pers, st, CORE_WALK_FUEL, &body, &fv, 0) {
                         Err(e) => Err(e),
@@ -1014,7 +1094,7 @@ pub fn open_pis_at_fvars_f_go(
         if h.tag() == ETAG_FORALL_E {
             match view_bind(pers, st, h) {
                 None => fail_dangling_e(),
-                Some((dom, body, _)) => {
+                Some((dom, body)) => {
                     match instantiate_list_fast(pers, st, CORE_WALK_FUEL, &dom, &acc, 0) {
                         Err(e) => Err(e),
                         Ok(d) => match intern_e_fvar(pers, st, i, d) {

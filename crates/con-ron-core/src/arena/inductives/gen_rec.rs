@@ -418,7 +418,7 @@ pub fn close_lams(
                 Ok(closed) => {
                     let dom: EIdx = bs[k].0.dup2();
                     let bm: BinderMeta = expr::binder_meta_dup(&bs[k].1);
-                    intern_e_lam(pers, st, dom, closed, bm)
+                    intern_e_lam(pers, st, dom, closed)
                 }
             },
         }
@@ -471,7 +471,7 @@ pub fn class_binders(
             Err(e) => Err(e),
             Ok(t) => {
                 let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((t, expr::binder_meta(prop_when::never())));
+                o.push((t));
                 class_binders(pers, st, xs, i + 1, o)
             }
         }
@@ -508,7 +508,7 @@ pub fn gen_binders(
             Err(e) => Err(e),
             Ok(t) => {
                 let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((t, expr::binder_meta_dup(&g.bm)));
+                o.push((t));
                 gen_binders(pers, st, g, xs, i + 1, o)
             }
         }
@@ -588,7 +588,7 @@ pub fn motive_ty(pers: &PersTier, st: &mut AState, g: &ClassGen, c: u64, d: u64)
         Ok(None) => Ok(None),
         Ok(Some((ifs, maj))) => match intern_e_sort(pers, st, g.elim.dup2()) {
             Err(e) => Err(e),
-            Ok(srt) => match intern_e_forall_e(pers, st, maj, srt, expr::binder_meta(prop_when::never())) {
+            Ok(srt) => match intern_e_forall_e(pers, st, maj, srt) {
                 Err(e) => Err(e),
                 Ok(body) => match class_binders(pers, st, &ifs, 0, Vec::new()) {
                     Err(e) => Err(e),
@@ -699,7 +699,7 @@ pub fn minor_ihs(
                                             Err(er) => Err(er),
                                             Ok(ih) => {
                                                 let mut o: Vec<(EIdx, BinderMeta)> = out;
-                                                o.push((ih, expr::binder_meta_dup(&g.bm)));
+                                                o.push((ih));
                                                 minor_ihs(pers, st, g, x, d, fvs, ws, recs, l + 1, o)
                                             }
                                         },
@@ -874,7 +874,7 @@ pub fn slot_binders(
             Ok(None) => Ok(None),
             Ok(Some(ty)) => {
                 let mut o: Vec<(EIdx, BinderMeta)> = out;
-                o.push((ty, expr::binder_meta_dup(&g.bm)));
+                o.push((ty));
                 slot_binders(pers, st, g, s + 1, o)
             }
         }
@@ -908,7 +908,7 @@ pub fn class_gen_rec_ty(pers: &PersTier, st: &mut AState, g: &ClassGen, c: u64) 
                 Err(e) => Err(e),
                 Ok(bs) => {
                     let mut bs2: Vec<(EIdx, BinderMeta)> = bs;
-                    bs2.push((maj, expr::binder_meta_dup(&g.bm)));
+                    bs2.push((maj));
                     match mot_var(pers, st, g, c) {
                         Err(e) => Err(e),
                         Ok(mv) => {

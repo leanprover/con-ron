@@ -130,7 +130,6 @@ pub fn canon_name_map_from(ps: &Vec<NIdx>, cs: &Vec<NIdx>, n: &NIdx, i: usize) -
 
 /// con-leche: ConLeche/Kernel/Canon.lean:28-35 canonLevel
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_level_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:77-99 canonLevelEq` —
 /// `canonLevel ps u == canonLevel ps' v`, decided in lockstep on the two level
 /// handles.  `canonLevel` preserves every node's constructor (it rewrites only
@@ -160,7 +159,6 @@ pub fn canon_level_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_level_eq_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:77-99 canonLevelEq` — the arms,
 /// past the two views.  Split at the twin's own `match` boundary so the views'
 /// borrows end before the recursion (task #97-P4c's rule).
@@ -211,7 +209,6 @@ pub fn canon_level_eq_at(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_level_list_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:101-111 canonLevelListEq` — the
 /// `.const` clause's `us.map (canonLevel m) == us'.map (canonLevel m')`, at
 /// two universe-argument lists read out of the level-list store.  The cited
@@ -246,7 +243,6 @@ pub fn canon_level_list_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_levels_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:113-117 canonLevelsEq` — the same
 /// at two interned universe-argument LIST handles.
 pub fn canon_levels_eq(
@@ -273,9 +269,7 @@ pub fn canon_levels_eq(
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/Canon.lean:37-55 canonExpr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_expr_eq_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_expr_eq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:121-163 canonExprEq` — **the
 /// agreement for expressions**, in lockstep on two handles.  `canonExpr`
 /// preserves every node's constructor (it rewrites only levels, and resets the
@@ -307,7 +301,6 @@ pub fn canon_expr_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_expr_eq_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:121-163 canonExprEq` — the ten
 /// arms, past the two views.
 pub fn canon_expr_eq_at(
@@ -342,10 +335,10 @@ pub fn canon_expr_eq_at(
         (ENodeView::App(f, x), ENodeView::App(f2, x2)) => {
             canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &f, &f2, &x, &x2)
         }
-        (ENodeView::Lam(t, bd, _), ENodeView::Lam(t2, bd2, _)) => {
+        (ENodeView::Lam(t, bd), ENodeView::Lam(t2, bd2)) => {
             canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &t, &t2, &bd, &bd2)
         }
-        (ENodeView::ForallE(t, bd, _), ENodeView::ForallE(t2, bd2, _)) => {
+        (ENodeView::ForallE(t, bd), ENodeView::ForallE(t2, bd2)) => {
             canon_expr_eq_two(pers, st, ps, ps2, cs, fuel, &t, &t2, &bd, &bd2)
         }
         (ENodeView::LetE(t, v, bd), ENodeView::LetE(t2, v2, bd2)) => {
@@ -373,7 +366,6 @@ pub fn canon_expr_eq_at(
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::canon_expr_eq_two_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:121-163 canonExprEq` — the twin's
 /// `if ← canonExprEq … then canonExprEq … else pure false`, which four of its
 /// arms spell identically.  One function rather than four copies.
@@ -439,13 +431,11 @@ pub fn i_constant_val_canon_eq(
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::i_rec_rule_fire_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Canon.lean:180-194 canonRulesEq` — the
 /// derived `BEq` on a rule's firing mode, which the record comparison below
 /// needs and `arena::env` does not carry (it has the copy only).
 pub fn i_rec_rule_fire_beq(a: &IRecRuleFire, b: &IRecRuleFire) -> bool {
     match (a, b) {
-        (IRecRuleFire::Inert, IRecRuleFire::Inert) => true,
         (IRecRuleFire::Plain, IRecRuleFire::Plain) => true,
         (IRecRuleFire::Nested(l1, p1), IRecRuleFire::Nested(l2, p2)) => {
             lidx_vec_beq(l1, l2, 0) && eidx_vec_beq(p1, p2, 0)
@@ -508,7 +498,6 @@ pub fn i_rec_rule_eq_but_rhs(r: &IRecRule, r2: &IRecRule) -> bool {
         && i_rec_rule_fire_beq(&r.fire, &r2.fire)
         && r.k == r2.k
         && r.eta == r2.eta
-        && r.params_blind == r2.params_blind
 }
 
 /// con-leche: ConLeche/Kernel/Canon.lean:202-209 canonRulesEqFast
@@ -736,7 +725,6 @@ pub fn i_constant_val_beq(a: &IConstantVal, b: &IConstantVal) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::i_rec_rule_beq_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Env.lean:83-96 IRecRule` — the cited
 /// `deriving DecidableEq`: `i_rec_rule_eq_but_rhs` and the right-hand side.
 pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
@@ -744,7 +732,6 @@ pub fn i_rec_rule_beq(a: &IRecRule, b: &IRecRule) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove canon::i_rec_rules_beq_refines, then delete this line
 /// A rule list compared elementwise.
 pub fn i_rec_rules_beq(a: &Vec<IRecRule>, b: &Vec<IRecRule>, i: usize) -> bool {
     if i >= a.len() && i >= b.len() {

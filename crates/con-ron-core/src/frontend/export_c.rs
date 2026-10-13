@@ -745,7 +745,7 @@ pub fn ind_pi_tele_len(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Res
     while left > 0 {
         match env::view_e(pers, ar, &cur) {
             Err(e) => return fail(e),
-            Ok(ENodeView::ForallE(_, b, _)) => {
+            Ok(ENodeView::ForallE(_, b)) => {
                 cur = b;
                 n += 1;
             }
@@ -774,7 +774,7 @@ pub fn pi_result(pers: &PersTier, ar: &EStore, fuel: u64, h: &EIdx) -> Result<EI
     while left > 0 {
         match env::view_e(pers, ar, &cur) {
             Err(e) => return fail(e),
-            Ok(ENodeView::ForallE(_, b, _)) => cur = b,
+            Ok(ENodeView::ForallE(_, b)) => cur = b,
             Ok(_) => return Ok(cur),
         }
         left -= 1;

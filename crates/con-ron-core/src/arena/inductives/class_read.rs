@@ -428,7 +428,7 @@ pub fn class_read_slots(
     } else if e.tag() == ETAG_FORALL_E {
         match view_bind(pers, st, e) {
             None => fail_dangling_e(),
-            Some((dom, body, _)) => match class_read_slot(pers, st, p, fe, np, mot_pos, d, &dom) {
+            Some((dom, body)) => match class_read_slot(pers, st, p, fe, np, mot_pos, d, &dom) {
                 Err(er) => Err(er),
                 Ok(None) => Ok(None),
                 Ok(Some(slot)) => {
