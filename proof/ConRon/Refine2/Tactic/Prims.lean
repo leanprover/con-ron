@@ -515,8 +515,9 @@ attribute [lockstep_simp] absPairE absLetT absProjT absBindI
   exact estore_view_sort_abs hrel.store hrun
 
 /-- A literal read out of well-formed tables is well formed (task #97-T2-LOCKSTEP
-lane Checker DeclCheck: `erase_pw_eq`'s literal arm compares with
-`literal_beq`, exact only under `LiteralWF`). -/
+lane Checker DeclCheck: a literal comparison is `literal_beq`, exact only under
+`LiteralWF`; the walk that first needed it, `erase_pw_eq`, went with the binder
+datum at task #119). -/
 theorem etables_get_lit_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
     {o : Option arena.store.ENodeView}
     (h : arena.store.ETables.get rt i = ok o) :

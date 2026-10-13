@@ -4,7 +4,8 @@
 **Task #97-P5-Bracket** (DESIGN.md §8.2).  `arena::core::{flush_caches,
 enter_scratch, drop_scratch}` against `Arena/Core.lean`'s `flushCaches` /
 `enterScratch` / `dropScratch`, and the ONE composite lemma the checker tier's
-three bracketed steps — `check_decl_step`, `annot_step`, `check_pending` —
+three bracketed steps — `check_decl_step`, `install_step` (the install fold's,
+`annot_step` before task #119), `check_pending` —
 consume.
 
 ## Why this is one bracket lemma and not three `SimS`s

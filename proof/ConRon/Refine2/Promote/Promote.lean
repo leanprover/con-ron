@@ -59,7 +59,7 @@ open ConRon.Refine.HashMap2 (Inv RelOn)
 /-- **`arena::promote::PMemo::empty` is the twin's `PMemo.empty`** — four
 fresh `HashMap2`s against four empty `Std.HashMap`s, `Refine2/Promote/Intern.lean`'s
 `memo_empty_refines` four times over.  The fold's bracket starts from it, so
-it is what `check_decl_step` and `annot_step` consume. -/
+it is what `check_decl_step` and `install_step` consume. -/
 theorem pmemo_empty_refines {o} (hrun : arena.promote.PMemo.empty = ok o) :
     PMemoRel o PMemo.empty := by
   rw [arena.promote.PMemo.empty] at hrun
