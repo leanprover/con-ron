@@ -3,8 +3,9 @@
 phase 3).
 
 `crates/con-ron-core/src/frontend/scan_fast.rs:1169-1608` against
-`ConLeche/Frontend/Scan/Fast.lean:666-905`: the index-list loop, the two
-variant-valued fields `pw` and `hints`, and the first two **slot loops** —
+`ConLeche/Frontend/Scan/Fast.lean:666-905`: the index-list loop, the
+variant-valued field `hints` (the `pw` field went with the binder datum, task
+#119), and the first two **slot loops** —
 the two name-table records.
 
 ## What this file gives the record scanners
@@ -24,10 +25,6 @@ Agents E, I and L consume exactly these, plus the object skeleton below.
         (h : frontend.scan_fast.scan_nat_list_loop b i = ok o) :
         ScanSim absU64s o (scanNatListLoop (absBytes b) (absPos i) [] true)
 
-    theorem scan_pw_refines
-        (h : frontend.scan_fast.scan_pw b i = ok o) :
-        ScanSim absPwRec o (scanPw (absBytes b) (absPos i))
-
     theorem scan_hints_refines (kf : KitFacts b)
         (h : frontend.scan_fast.scan_hints b i = ok o) :
         ScanSim absHintsRec o (scanHints (absBytes b) (absPos i))
@@ -41,7 +38,7 @@ Agents E, I and L consume exactly these, plus the object skeleton below.
         ScanSim absNameRec o (scanNumName (absBytes b) (absPos i))
 
 `b : Slice Std.U8`, `i : Std.Usize` and the port's outcome `o` are implicit in
-all of them.  `scan_nat_list_loop_refines` is exported because `scanPw` and
+all of them.  `scan_nat_list_loop_refines` is exported because
 every list-valued slot of the tier enter the loop past the `[` rather than
 through `scanNatList`; `scan_str_name_loop_refines` and
 `scan_num_name_loop_refines` likewise.
@@ -707,7 +704,7 @@ private theorem scan_nat_list_loop_aux {b : Slice Std.U8} (f : Nat) :
       exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
 
 /-- **`scan_nat_list_loop` refines `scanNatListLoop`** at the empty
-accumulator (`Scan/Fast.lean:674-698`).  `scanPw` and every list-valued slot
+accumulator (`Scan/Fast.lean:674-698`).  Every list-valued slot
 of the tier enter here, past the `[`. -/
 theorem scan_nat_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result (alloc.vec.Vec Std.U64 × Std.Usize)
@@ -737,68 +734,6 @@ theorem scan_nat_list_refines {b : Slice Std.U8} {i : Std.Usize}
   · rw [ite_eq_right h91] at h
     rw [ite_eq_right (by simp [h91]), err_val h]
     exact ScanErrSim.mk (t := .expectedList) rfl (by simp)
-
-/-! ## `pw`
-
-`scan_fast.rs:1226-1249` against `Scan/Fast.lean:707-715 scanPw`. -/
-
-/-- **`scan_pw` refines `scanPw`** (`Scan/Fast.lean:707-715`). -/
-theorem scan_pw_refines {b : Slice Std.U8} {i : Std.Usize}
-    {o : core.result.Result (frontend.scan_types.PwRec × Std.Usize)
-           frontend.scan_types.ScanErr}
-    (h : frontend.scan_fast.scan_pw b i = ok o) :
-    ScanSim absPwRec o (scanPw (absBytes b) (absPos i)) := by
-  rw [frontend.scan_fast.scan_pw] at h
-  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
-  have hcA : absByte c = byteAt (absBytes b) (absPos i) := byte_at_refines hc
-  rw [scanPw, ← hcA, show ((91 : UInt8)) = absByte 91#u8 from rfl,
-    show ((34 : UInt8)) = absByte 34#u8 from rfl, absByte_beq_u8, absByte_beq_u8]
-  by_cases h91 : c = 91#u8
-  · rw [ite_eq_left h91] at h
-    rw [ite_eq_left (beq_iff_eq.mpr h91)]
-    obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-    have hrs := scan_nat_list_loop_refines hr
-    rw [← absPos_add_one hi2]
-    cases r with
-    | Ok p =>
-      obtain ⟨ns, j⟩ := p
-      rw [← Result.ok_injective h]
-      rw [ScanSim] at hrs
-      rw [hrs]
-      rfl
-    | Err er =>
-      rw [← Result.ok_injective h]
-      intro le hle
-      rw [hrs le hle]
-  · rw [ite_eq_right h91] at h
-    rw [ite_eq_right (by simp [h91])]
-    by_cases h34 : c = 34#u8
-    · rw [ite_eq_left h34] at h
-      rw [ite_eq_left (beq_iff_eq.mpr h34)]
-      obtain ⟨i2, hi2, h⟩ := bind_eq_ok_iff.mp h
-      obtain ⟨s, hs, h⟩ := bind_eq_ok_iff.mp h
-      have hsv : s.val = [110#u8, 101#u8, 118#u8, 101#u8, 114#u8, 34#u8] := by
-        rw [slice_lit_val hs]; simp [global_simps]
-      have hsb : absBytes s = "never\"".toUTF8 := by rw [absBytes, hsv]; decide
-      obtain ⟨b1, hb1, h⟩ := bind_eq_ok_iff.mp h
-      have hb1' : b1 = matchLit (absBytes b) (absPos i2) "never\"".toUTF8 0 := by
-        rw [← hsb]; exact match_lit_refines (by rw [hsv]; decide) hb1
-      rw [← absPos_add_one hi2, ← hb1']
-      by_cases hbt : b1 = true
-      · rw [ite_eq_left hbt] at h ⊢
-        obtain ⟨i3, hi3, h⟩ := bind_eq_ok_iff.mp h
-        rw [← Result.ok_injective h]
-        refine ScanSim.ok ?_
-        rw [absPos_add hi3, show absPos 7#usize = (7 : USize) from by
-          apply USize.toNat_inj.mp; simp]
-        rfl
-      · rw [ite_eq_right hbt] at h ⊢
-        rw [err_val h]
-        exact ScanErrSim.mk (t := .badPw) rfl (by simp)
-    · rw [ite_eq_right h34] at h
-      rw [ite_eq_right (by simp [h34]), err_val h]
-      exact ScanErrSim.mk (t := .badPw) rfl (by simp)
 
 /-! ## The slot loops' measure
 
@@ -1595,10 +1530,6 @@ axiom: nothing below leans on anything but `propext`, `Classical.choice` and
 /-- info: 'ConRon.Refine2.Frontend.scan_nat_list_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms scan_nat_list_refines
-
-/-- info: 'ConRon.Refine2.Frontend.scan_pw_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms scan_pw_refines
 
 /-- info: 'ConRon.Refine2.Frontend.scan_hints_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

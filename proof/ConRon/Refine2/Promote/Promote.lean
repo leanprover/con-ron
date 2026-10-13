@@ -293,12 +293,12 @@ def promoteENodeSpec (m : PMemo) (fuel : Nat) : ENodeView → AM (PMemo × EIdx)
   | .app f a => do
     let (m, (f, a)) ← promoteETwo m fuel f a
     pure (m, ← internPersistentE (.app f a))
-  | .lam ty body bm => do
+  | .lam ty body => do
     let (m, (ty, body)) ← promoteETwo m fuel ty body
-    pure (m, ← internPersistentE (.lam ty body bm))
-  | .forallE ty body bm => do
+    pure (m, ← internPersistentE (.lam ty body))
+  | .forallE ty body => do
     let (m, (ty, body)) ← promoteETwo m fuel ty body
-    pure (m, ← internPersistentE (.forallE ty body bm))
+    pure (m, ← internPersistentE (.forallE ty body))
   | .letE ty val body => do
     let (m, (ty, val)) ← promoteETwo m fuel ty val
     let (m, body) ← promoteE m fuel body
