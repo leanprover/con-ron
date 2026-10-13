@@ -35,8 +35,7 @@ instance.  Each is stated against the twin's own arm or its `==`.
 
 Every statement here is proved; the file has no `sorry`.  The walks are the
 shared tactic's recipe: the fuel peels at `canon_level_eq`/`canon_expr_eq`
-are one induction each over the walk and its node fragment (the shape of
-`Checker/Axioms.lean`'s `erase_pw_eq`), the three cursor walks and
+are one induction each over the walk and its node fragment, the three cursor walks and
 `canon_names_go` an `_aux` induction on what is left, every case one
 `lockstep`.  The readers are `LSR` (`&AState` in the Rust); the interning
 entries keep their `Sim₀` statements, proved from private `LS` forms.  One
@@ -1060,7 +1059,7 @@ Read-only: the twin `view`s and compares, and the only failure is the fuel
 arm's `Internal`.  The Rust reads the store only (`&AState`), so the
 statements are `LSR` (the old `SimRE` forms were `sorry`, and asked for more:
 the twin's state unchanged).  The walk and its node fragment are one fuel
-induction, the shape of `Checker/Axioms.lean`'s `erase_pw_eq`. -/
+induction. -/
 
 open Lockstep in
 private def CanonLevelEqAt (k : Nat) : Prop :=
@@ -1191,7 +1190,7 @@ views as values, so it owes their `EViewMetaWF` (the literal arm's
 `literal_beq` is exact only on well-formed literals; the views come from
 `view_ls`, which supplies it).  The pair fragment's statement compared `a`
 with `b` where the Rust compares `a` with `a2` (its callers pass `(f, f2, x,
-x2)`); corrected, as `erase_pw_eq_two`'s was. -/
+x2)`); corrected. -/
 
 open Lockstep in
 private def CanonExprEqAt (k : Nat) : Prop :=

@@ -662,7 +662,7 @@ theorem some_aux_rec_abs (rs : alloc.vec.Vec arena.inductives.block_parts.RecSha
       show ((0#usize : Std.Usize)).val = 0 by scalar_tac, List.drop_zero]
     rw [show absU k = p.members.val.length from hk']
 
-/-! ## `erase_list`, `erase_binders`: the twin's inline `mapM eraseFVarTys` -/
+/-! ## `erase_list`: the twin's inline `mapM eraseFVarTys` -/
 
 theorem erase_list_acc {pers} (xs : alloc.vec.Vec arena.handle.EIdx) :
     ∀ (i : Std.Usize) st lst (out : alloc.vec.Vec arena.handle.EIdx),

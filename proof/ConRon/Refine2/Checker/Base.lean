@@ -70,7 +70,7 @@ since `lf.restrictTo lf.visibleBelow = lf`.
 **Which nine.**  Exactly the functions the port can reach from
 `check_value_group` while still threading that `vis`, computed from the Rust
 call graph and no wider: `check_value_group`, `check_value_group_value`,
-`check_value_group_tail`, `install_value`, `install_value_tail`
+`check_value_group_tail`, `install_value_guards`, `install_value_guards_tail`
 (`arena::checker_split`) and `consts_resolve_f_{go,node,two,fast}`
 (`arena::checker_base`).  The rest of the closure is `arena::core`'s, where
 the same repair is `Refine2/Core/KnotRel.lean`'s `CoreCtx` (its `fenv` clause
@@ -503,7 +503,7 @@ theorem nidx_contains_from_refines {ns : alloc.vec.Vec arena.handle.NIdx}
 
 /-- `arena::core::nat_op_names` ⊑ `natOpNames` — the seven structural `Nat`
 operations, as seven pin reads (task #97-P5-Top: a child of
-`annot_step_defn_refines`; the function is `arena::core`'s, but no tier had
+`install_step_defn_refines`; the function is `arena::core`'s, but no tier had
 stated it). -/
 theorem nat_op_names_refines {pers st lst} {o}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
@@ -2191,7 +2191,7 @@ is-a-proposition test and, for a theorem, the value's guards.
 
 **Open, and stopped on a divergence** (task #97-P5-Top round 3).  The glue is
 written in the round-3 log (`is_thm ; zero_level ; lvl_eq ; lift_fueled ;
-install_value ; check_value_group_tail`, with `lvl_eq_refines` above), but it
+install_value_guards ; check_value_group_tail`, with `lvl_eq_refines` above), but it
 closes only with clauses the statement does not have and, by the
 coordinator's round-3 rule, must not grow.  (The NOT-A-PROPOSITION decline,
 the third blocker of round 3, is gone: task #97-T2-LOCKSTEP step 1 made the
@@ -2200,7 +2200,7 @@ reads the name there.)
 
 * (task #97-T2-LOCKSTEP) the `Good`/`EResolves` plumbing that stopped it is
   gone with the lockstep statements; it is one `lockstep` call once
-  `install_value_refines` (a leaf) is `@[lockstep]`. -/
+  `install_value_guards_refines` (a leaf) is `@[lockstep]`. -/
 theorem check_value_group_value_refines {pers st lst} {vis : Std.U64} {rf lf}
     {mode : kernel.env.CheckMode} {g : arena.checker_split.ValueGroup}
     {u : arena.handle.LIdx} {o}
