@@ -993,6 +993,33 @@ syntax (name := vcArm) "vc_arm" (ppSpace "(" ident " : " term ")")*
 
 namespace Frame
 
+/-- The hypothesis patterns, matched depth first: each pattern's candidates
+(the most recent first, distinct from the earlier patterns' choices) are
+tried in turn, and a later pattern that finds nothing backtracks into the
+next candidate of an earlier one (the nat lane's fix: `(hck : CheckOK _ _ _
+?s) (hd : denoteE ?s.store _ = …)` failed when a CheckOK at another state
+came first). -/
+partial def matchPats (g : MVarId) (pats : List (Ident × Term)) (used : Array FVarId) :
+    TacticM (Option (Array FVarId)) := g.withContext do
+  match pats with
+  | [] => return some #[]
+  | (_, pat) :: rest =>
+    let s0 ← saveState
+    let pt ← normNeg (← Term.withoutErrToSorry <|
+      Tactic.elabTerm pat none (mayPostpone := true))
+    for d in (← getLCtx).decls.toArray.reverse do
+      let some d := d | continue
+      if d.isImplementationDetail || used.contains d.fvarId then continue
+      let dt ← normNeg (← instantiateMVars d.type)
+      unless ← mayMatch dt pt do continue
+      let st ← saveState
+      if ← withAssignableSyntheticOpaque (same dt pt) then
+        if let some more ← matchPats g rest (used.push d.fvarId) then
+          return some (#[d.fvarId] ++ more)
+      st.restore
+    s0.restore
+    return none
+
 /-- Match the patterns against `g`'s context; on success, the goal with the
 matched hypotheses (and `?x` variables) renamed. -/
 def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
@@ -1009,28 +1036,29 @@ def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
   let s ← saveState
   let before := (← getMCtx).decls
   try
-    let mut used : Array FVarId := #[]
     let mut renames : Array (FVarId × Name) := #[]
     -- the target first: its `?x` constrain the hypothesis patterns
     if let some tgt := tgt? then
       let tt ← Term.withoutErrToSorry <| Tactic.elabTerm tgt none (mayPostpone := true)
       unless ← withAssignableSyntheticOpaque (same (← instantiateMVars (← g.getType)) tt) do
         s.restore; return .error m!"the target is not {tgt}"
-    for (n, pat) in pats do
-      let pt ← normNeg (← Term.withoutErrToSorry <|
-        Tactic.elabTerm pat none (mayPostpone := true))
-      let mut found := none
-      for d in (← getLCtx).decls.toArray.reverse do
-        let some d := d | continue
-        if d.isImplementationDetail || used.contains d.fvarId then continue
-        let dt ← normNeg (← instantiateMVars d.type)
-        unless ← mayMatch dt pt do continue
-        let st ← saveState
-        if ← withAssignableSyntheticOpaque (same dt pt) then
-          found := some d.fvarId; break
-        st.restore
-      let some fv := found | s.restore; return .error m!"no hypothesis `{n.getId} : {pat}`"
-      used := used.push fv
+    -- the hypotheses, with backtracking: a later pattern that fails sends
+    -- the search back to the next candidate of an earlier one
+    let some fvs ← matchPats g pats.toList #[] | do
+      -- which pattern? the first with no candidate on its own, if any
+      let mut culprit : MessageData := m!"no consistent choice of hypotheses"
+      for (n, pat) in pats do
+        let s1 ← saveState
+        let ok ← (do
+          let some _ ← matchPats g [(n, pat)] #[] | pure false
+          pure true)
+        s1.restore
+        unless ok do
+          culprit := m!"no hypothesis `{n.getId} : {pat}`"
+          break
+      s.restore
+      return .error culprit
+    for (n, _) in pats, fv in fvs do
       renames := renames.push (fv, n.getId)
     -- `?x` in a pattern names the local it matched
     for (mv, n) in (← getMCtx).decls.toList.filterMap (fun (mv, d) =>
