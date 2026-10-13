@@ -506,8 +506,8 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
+  -- the induction's own `∀ xs ys, … → …`, applied by `bridge_frame`
   bridge_frame
-  vc_arm (h4 : ∀ xs ys, Frontend.denoteEList _ as = some xs → _) => exact h4 xs ys hda hdb
 
 /-! ## 6. The axiom census
 

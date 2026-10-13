@@ -239,6 +239,13 @@ structure Snap where
   /-- `bridge_frame [l₁, …]`'s extra lemmas, tried last (their elaboration
   metavariables abstracted, so that each use instantiates afresh) -/
   lemmas : Array AbstractMVarsResult := #[]
+  /-- each lemma's final conclusion, binders left loose (`quickMatch` reads a
+  loose bound variable as a hole): the cheap filter in front of opening it -/
+  lemmaSkels : Array Expr := #[]
+  /-- the closed goals `prove` already failed on, with the fuel it had: a
+  monotonicity chain (`∀ i v, a.view i = some v → b.view i = some v`) tried
+  backwards re-asks the same intermediate goals exponentially often -/
+  failCache : Option (IO.Ref (Std.HashMap Expr Nat)) := none
 
 abbrev FM := ReaderT Snap MetaM
 
@@ -331,102 +338,6 @@ def extPath (a b : Expr) : FM (Option Expr) := do
     frontier := next
   return none
 
-/-- A proof of `a = b` from the snapshot's equalities of the same type,
-breadth first, in either orientation. -/
-def eqPath (ty a b : Expr) : FM (Option Expr) := do
-  if ← same a b then return some (← mkEqRefl a)
-  let mut edges : Array (Expr × Expr × Expr) := #[]
-  for h in (← read).hyps do
-    if let some (ty', u, v) := h.ty.eq? then
-      if isFactShape h.ty then continue
-      unless ← same ty ty' do continue
-      edges := edges.push (u, v, h.pf)
-      edges := edges.push (v, u, ← mkEqSymm h.pf)
-  if edges.isEmpty then return none
-  let mut frontier : Array (Expr × Expr) := #[(a, ← mkEqRefl a)]
-  let mut seen : Array Expr := #[a]
-  for _ in [0:edges.size] do
-    let mut next := #[]
-    for (n, pn) in frontier do
-      for (src, dst, pe) in edges do
-        unless ← same n src do continue
-        if ← seen.anyM (fun x => (same dst x : MetaM Bool)) then continue
-        let p ← mkEqTrans pn pe
-        if ← same dst b then return some p
-        seen := seen.push dst
-        next := next.push (dst, p)
-    if next.isEmpty then return none
-    frontier := next
-  return none
-
-/-- Reduce projections of structure instances, innermost first:
-`{ m with liftC := x }.inst1LC` is `m.inst1LC`.  Nothing else is unfolded (a
-`whnfD` would open `HashMap.insert`). -/
-partial def projNorm (e : Expr) : MetaM Expr := do
-  let e := e.cleanupAnnotations
-  match e.getAppFn with
-  | .const n _ =>
-    let some info ← getProjectionFnInfo? n | return e
-    let args := e.getAppArgs
-    if args.size != info.numParams + 1 then return e
-    let st ← projNorm args[info.numParams]!
-    let stw ← whnfR st
-    if let .const cn _ := stw.getAppFn then
-      if let some (.ctorInfo ctor) := (← getEnv).find? cn then
-        let fields := stw.getAppArgs.extract ctor.numParams stw.getAppNumArgs
-        if let some f := fields[info.i]? then return ← projNorm f
-    return mkAppN e.getAppFn (args.set! info.numParams st)
-  | _ => return e
-
-/-- `eqPath` through CONGRUENCE: a step rewrites, inside the current node, an
-occurrence of one side of a hypothesis `u = v` of ANY type by the other, and
-then reduces projections of structure instances — so that `s₂.memos = { s₁.memos with
-liftC := … }` carries `s₂.memos.inst1LC = s₁.memos.inst1LC` (task #120: the
-memo-table frame of every memoized walk).  Both sides are rewritten (at most four steps each) and the search meets in
-the middle, so a target that itself mentions projections of later states
-(`{ s₂.caches with readLC := s.caches.readLC }`) is reached too. -/
-def eqPathCongr (a b : Expr) : FM (Option Expr) := do
-  let mut edges : Array (Expr × Expr × Expr) := #[]
-  for h in (← read).hyps do
-    if let some (_, u, v) := h.ty.eq? then
-      if isFactShape h.ty then continue
-      if u.isFVar && v.isFVar then continue
-      edges := edges.push (u, v, h.pf)
-      edges := edges.push (v, u, ← mkEqSymm h.pf)
-  if edges.isEmpty then return none
-  -- every node reachable from `x` in at most four rewrites, with `x = node`
-  let reach (x : Expr) : MetaM (Array (Expr × Expr)) := do
-    let mut all : Array (Expr × Expr) := #[(x, ← mkEqRefl x)]
-    let mut frontier := all
-    for _ in [0:4] do
-      let mut next := #[]
-      for (n, pn) in frontier do
-        for (u, v, pe) in edges do
-          unless (n.find? (· == u)).isSome do continue
-          let ty ← inferType u
-          -- abstracted through a local, not `.bvar 0`: an occurrence under
-          -- a binder must not be captured by it
-          let motive ← withLocalDeclD `z ty fun z =>
-            mkLambdaFVars #[z] (n.replace fun x => if x == u then some z else none)
-          let n' ← projNorm (n.replace fun x => if x == u then some v else none)
-          if ← all.anyM (fun (y, _) => same n' y) then continue
-          let p ← mkEqTrans pn (← mkCongrArg motive pe)
-          all := all.push (n', p)
-          next := next.push (n', p)
-          if all.size > 64 then return all
-      if next.isEmpty then return all
-      frontier := next
-    return all
-  -- meet in the middle: a node both sides reach (the target may mention
-  -- the same projections, `{ s₂.caches with readLC := s.caches.readLC }`)
-  let ra ← reach a
-  let rb ← reach b
-  for (na, pa) in ra do
-    for (nb, pb) in rb do
-      if ← same na nb then
-        return some (← mkEqTrans pa (← mkEqSymm pb))
-  return none
-
 /-- Could `a` match `b` reducibly?  A syntactic over-approximation in front of
 `same`: two applications of DIFFERENT constants (or of one constant at
 different arities) never match at reducible transparency unless a head is
@@ -455,6 +366,136 @@ partial def quickMatch (env : Environment) (a b : Expr) (depth : Nat := 3) : Boo
   | .fvar _, .const n _ => !rigid n
   | .const n _, .fvar _ => !rigid n
   | _, _ => true
+
+/-- A proof of `a = b` from the snapshot's equalities of the same type,
+breadth first, in either orientation. -/
+def eqPath (ty a b : Expr) : FM (Option Expr) := do
+  if ← same a b then return some (← mkEqRefl a)
+  let env ← getEnv
+  let mut edges : Array (Expr × Expr × Expr) := #[]
+  for h in (← read).hyps do
+    if let some (ty', u, v) := h.ty.eq? then
+      if isFactShape h.ty then continue
+      unless ← same ty ty' do continue
+      edges := edges.push (u, v, h.pf)
+      edges := edges.push (v, u, ← mkEqSymm h.pf)
+  if edges.isEmpty then return none
+  let mut frontier : Array (Expr × Expr) := #[(a, ← mkEqRefl a)]
+  let mut seen : Array Expr := #[a]
+  for _ in [0:edges.size] do
+    let mut next := #[]
+    for (n, pn) in frontier do
+      for (src, dst, pe) in edges do
+        unless quickMatch env n src do continue
+        unless ← same n src do continue
+        if ← seen.anyM (fun x => (do
+            if !quickMatch env dst x then return false
+            same dst x : MetaM Bool)) then continue
+        let p ← mkEqTrans pn pe
+        if quickMatch env dst b then
+          if ← same dst b then return some p
+        seen := seen.push dst
+        next := next.push (dst, p)
+    if next.isEmpty then return none
+    frontier := next
+  return none
+
+/-- Reduce projections of structure instances, innermost first:
+`{ m with liftC := x }.inst1LC` is `m.inst1LC`.  Nothing else is unfolded (a
+`whnfD` would open `HashMap.insert`). -/
+partial def projNorm (e : Expr) : MetaM Expr := do
+  let e := e.cleanupAnnotations
+  match e.getAppFn with
+  | .const n _ =>
+    let some info ← getProjectionFnInfo? n | return e
+    let args := e.getAppArgs
+    if args.size != info.numParams + 1 then return e
+    let st ← projNorm args[info.numParams]!
+    let stw ← whnfR st
+    if let .const cn _ := stw.getAppFn then
+      if let some (.ctorInfo ctor) := (← getEnv).find? cn then
+        let fields := stw.getAppArgs.extract ctor.numParams stw.getAppNumArgs
+        if let some f := fields[info.i]? then return ← projNorm f
+    return mkAppN e.getAppFn (args.set! info.numParams st)
+  | _ => return e
+
+/-- A FRAME term: a local, a projection of one, or a structure instance whose
+fields are (`s₂.memos.inst1LC`, `{ s.caches with readLC := … }`). -/
+partial def projShaped (e : Expr) : MetaM Bool := do
+  let e := e.cleanupAnnotations
+  if e.isFVar then return true
+  -- a closed value (`∅`, a cleared table)
+  if !e.hasFVar && !e.hasMVar then return true
+  match e with
+  | .proj _ _ x => projShaped x
+  | _ =>
+    let .const n _ := e.getAppFn | return false
+    if let some info ← getProjectionFnInfo? n then
+      let args := e.getAppArgs
+      if args.size == info.numParams + 1 then return ← projShaped args[info.numParams]!
+      return false
+    if let some (.ctorInfo ci) := (← getEnv).find? n then
+      let args := e.getAppArgs
+      for x in args.extract ci.numParams args.size do
+        unless ← projShaped x do return false
+      return true
+    return false
+
+/-- `eqPath` through CONGRUENCE: a step rewrites, inside the current node, an
+occurrence of one side of a hypothesis `u = v` of ANY type by the other, and
+then reduces projections of structure instances — so that `s₂.memos = { s₁.memos with
+liftC := … }` carries `s₂.memos.inst1LC = s₁.memos.inst1LC` (task #120: the
+memo-table frame of every memoized walk).  Both sides are rewritten (at most six steps each) and the search meets in
+the middle, so a target that itself mentions projections of later states
+(`{ s₂.caches with readLC := s.caches.readLC }`) is reached too. -/
+def eqPathCongr (a b : Expr) : FM (Option Expr) := do
+  let mut edges : Array (Expr × Expr × Expr) := #[]
+  for h in (← read).hyps do
+    if let some (_, u, v) := h.ty.eq? then
+      if isFactShape h.ty then continue
+      if u.isFVar && v.isFVar then continue
+      edges := edges.push (u, v, h.pf)
+      edges := edges.push (v, u, ← mkEqSymm h.pf)
+  if edges.isEmpty then return none
+  -- every node reachable from `x` in at most four rewrites, with `x = node`
+  let reach (x : Expr) : MetaM (Array (Expr × Expr)) := do
+    let mut all : Array (Expr × Expr) := #[(x, ← mkEqRefl x)]
+    let mut frontier := all
+    for _ in [0:6] do
+      let mut next := #[]
+      for (n, pn) in frontier do
+        for (u, v, pe) in edges do
+          unless (n.find? (· == u)).isSome do continue
+          let ty ← inferType u
+          -- abstracted through a local, not `.bvar 0`: an occurrence under
+          -- a binder must not be captured by it
+          let motive ← withLocalDeclD `z ty fun z =>
+            mkLambdaFVars #[z] (n.replace fun x => if x == u then some z else none)
+          let n' ← projNorm (n.replace fun x => if x == u then some v else none)
+          if ← all.anyM (fun (y, _) => same n' y) then continue
+          let p ← mkEqTrans pn (← mkCongrArg motive pe)
+          all := all.push (n', p)
+          next := next.push (n', p)
+          if all.size > 128 then return all
+      if next.isEmpty then return all
+      frontier := next
+    return all
+  -- meet in the middle: a node both sides reach (the target may mention
+  -- the same projections, `{ s₂.caches with readLC := s.caches.readLC }`)
+  let ra ← reach a
+  let rb ← reach b
+  for (na, pa) in ra do
+    for (nb, pb) in rb do
+      if ← same na nb then
+        return some (← mkEqTrans pa (← mkEqSymm pb))
+  return none
+
+/-- The final conclusion of a `∀`-telescope, its binders left loose. -/
+partial def forallSkel (t : Expr) : Expr :=
+  match t with
+  | .forallE _ _ b _ => forallSkel b
+  | .mdata _ b => forallSkel b
+  | _ => t
 
 /-- `quickMatch` at the top: the filter every search runs before `same`. -/
 def mayMatch (ht t : Expr) : MetaM Bool := return quickMatch (← getEnv) ht t
@@ -489,9 +530,20 @@ mutual
 rules, then `bridge_frame [l₁, …]`'s lemmas (for every goal shape: an `∃ F`
 fuel merge, an equation a walk-specific lemma concludes). -/
 partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  if let some p ← attempt (proveCore fuel t) then return some p
-  if (← read).lemmas.isEmpty || fuel == 0 then return none
-  proveByLemmas fuel (← instantiateMVars t).cleanupAnnotations
+  let t ← instantiateMVars t
+  let fc := (← read).failCache
+  let key? : Option (IO.Ref (Std.HashMap Expr Nat)) := if t.hasMVar then none else fc
+  if let some ref := key? then
+    let m ← (ref.get : IO _)
+    if let some f := m[t]? then
+      if f ≥ fuel then return none
+  let r ← (do
+    if let some p ← attempt (proveCore fuel t) then return some p
+    if (← read).lemmas.isEmpty || fuel == 0 then return none
+    proveByLemmas fuel t.cleanupAnnotations : FM (Option Expr))
+  if r.isNone then
+    if let some ref := key? then (ref.modify (·.insert t fuel) : IO Unit)
+  return r
 
 /-- The built-in rules of `prove`.  `fuel` bounds the backward chaining
 through `CheckOK.mono`, `StateOK` and the `∃` intro. -/
@@ -504,6 +556,15 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     return some (mkApp4 (mkConst ``And.intro) t.appFn!.appArg! t.appArg! pa pb)
   if let some h ← findHyp t then return some h
   if fuel == 0 then return none
+  -- a disjunction (a bracket's "the table was dropped or nothing moved"):
+  -- either side
+  if t.isAppOfArity ``Or 2 then
+    let a := t.appFn!.appArg!; let b := t.appArg!
+    if let some p ← attempt (prove fuel a) then
+      return some (mkApp3 (mkConst ``Or.inl) a b p)
+    if let some p ← attempt (prove fuel b) then
+      return some (mkApp3 (mkConst ``Or.inr) a b p)
+    return none
   if t.isAppOfArity `ConRon.Arena.Ext 2 then
     return ← extPath t.appFn!.appArg! t.appArg!
   if let some (ty, a, b) := t.eq? then
@@ -535,6 +596,14 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     -- (a lemma premise `st.view h = some (.app ?f ?a)` no hypothesis states)
     -- every rewrite unifies, and the search is the dearest step of a frame
     if t.hasExprMVar then return none
+    -- and only at a structure type (a state, its caches, a table) or between
+    -- FRAME terms (projections of states, structure updates); a view read
+    -- (`Option ENodeView`) is never one (measured: an `internRebuilt`
+    -- "unchanged child" view goal cost 1.5 s here)
+    let isStruct ← do
+      let ty' ← whnfR ty
+      pure (ty'.getAppFn.constName?.any (isStructure (← getEnv)))
+    unless isStruct || ((← projShaped a) && (← projShaped b)) do return ← closedRfl t
     if let some p ← eqPathCongr a b then return some p
     return ← closedRfl t
   if t.isAppOfArity ``Exists 2 then
@@ -669,7 +738,12 @@ the `StateOK`/`StoreWF`/`CheckOK` searches: a walk's own frame rule — a cache
 insert, a readback frame — is passed this way): its conclusion unified with
 `t`, every premise proved by `prove`. -/
 partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  for lr in (← read).lemmas do
+  let env ← getEnv
+  let skels := (← read).lemmaSkels
+  for lr in (← read).lemmas, i in [0:(← read).lemmas.size] do
+    if !t.isForall then
+      if let some sk := skels[i]? then
+        unless quickMatch env sk t do continue
     -- the lemma's conclusion may itself be a `∀` (a monotonicity chain's
     -- `∀ i v, a.view i = some v → c.view i = some v`): every telescope
     -- length, longest first
@@ -677,7 +751,9 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       let (_, _, l) ← openAbstractMVarsResult lr
       let (args, _, _) ← forallMetaTelescope (← inferType l)
       pure args.size
-    for k' in [0:n + 1] do
+    -- a goal that is not a `∀` meets only the full telescope's conclusion
+    let tries := if t.isForall then n + 1 else 1
+    for k' in [0:tries] do
       let r ← attempt do
         let (_, _, l) ← openAbstractMVarsResult lr
         let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k')
@@ -694,6 +770,7 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   if isFactShape t then return none
   for h in (← read).hyps.reverse do
     let some rt := h.rel? | continue
+    unless h.concls.any (quickMatch env · t) do continue
     let r ← attempt do
       let (args, _, concl) ← forallMetaTelescope rt
       if isFactShape concl then return none
@@ -968,7 +1045,8 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
       if r.isForall then srcs := srcs.push (h.pf, r, none)
   for l in lemmas, i in [0:lemmas.size] do
     if deadL[i]?.getD false then continue
-    srcs := srcs.push (l, ← inferType l, some i)
+    let lt ← inferType l
+    srcs := srcs.push (l, lt, some i)
   let mut deadL := deadL
   if deadL.size < lemmas.size then deadL := Array.replicate lemmas.size false
   for (h, ht, li?) in srcs do
@@ -1461,10 +1539,16 @@ syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
     let snap ← g.withContext do
       let snap ← Frame.snapshot
       let mut ls := #[]
-      for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
+      let mut sk := #[]
+      for t in extra do
+        let e ← Tactic.elabTerm t none
+        sk := sk.push (Frame.forallSkel (← instantiateMVars (← inferType e)))
+        ls := ls.push (← abstractMVars e)
       for n in Frame.frameDefaults do
-        ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
-      pure { snap with lemmas := ls }
+        let e ← mkConstWithFreshMVarLevels n
+        sk := sk.push (Frame.forallSkel (← inferType e))
+        ls := ls.push (← abstractMVars e)
+      pure { snap with lemmas := ls, lemmaSkels := sk, failCache := some (← IO.mkRef {}) }
     out := out ++ (← Frame.frameGoal snap g)
   setGoals out
 
