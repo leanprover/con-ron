@@ -329,9 +329,7 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
         have hl : ls.length = c.toConstantVal.levelParams.length := by
           rw [← view_len_of_denoteLs hus hview, hlen', hlp]
         exact ⟨hck, hx, hp, _, hd nm ls c hname hus hfind,
-          Expr.WScoped.of_not_hasFvar (by
-            rw [ConLeche.Expr.hasFvar_instantiateLevelParams]
-            exact (henv _ (List.mem_of_find?_eq_some hfind)).1),
+          Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind ls),
           1, infer_const hfind hct hl⟩
       · -- `vcgen` does not read the case hypothesis: the guard is rewritten
         -- first, and the failing branch then leaves no condition at all
