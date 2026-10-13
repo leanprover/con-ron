@@ -353,7 +353,6 @@ namespace ConRon.Bridge
 #print axioms checkBasisDecl_bridge
 
 -- task #97-P3-Checker round 8
-#print axioms erasePwEq_run
 #print axioms matchesPin_run
 #print axioms denoteCV_inj
 #print axioms denoteCI_inj_ind
