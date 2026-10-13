@@ -86,7 +86,8 @@ theorem etables_get_wf {rt} (hinv : ETablesInv rt)
   · simp at h
 
 /-- **The Rust store's view is well formed** — `StoreInv`'s `nodesP` at the
-two tables whose records carry a value (`lits`, `bms`). -/
+table whose records carry a value (`lits`; `bms` went with the binder datum at
+task #119). -/
 theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs)
     {i : arena.handle.EIdx} {o : Option arena.store.ENodeView}
     (h : arena.store.EStore.view rs pers i = ok o) :
@@ -99,29 +100,15 @@ theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs)
     cases q with
     | none => rw [← Result.ok_injective h]; intro v hv; simp at hv
     | some tr =>
-      obtain ⟨ty, body, bm⟩ := tr
+      obtain ⟨ty, body⟩ := tr
       simp only at h
       obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [← Result.ok_injective h]
       intro v hv; simp only [Option.some.injEq] at hv; subst hv
-      rw [arena.store.EStore.view_bind] at hq
-      obtain ⟨q1, -, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
-      cases q1 with
-      | none => cases Result.ok_injective hq
-      | some t1 =>
-        obtain ⟨e0, e1, bmi⟩ := t1
-        simp only at hq
-        obtain ⟨q2, hq2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
-        cases q2 with
-        | none => cases Result.ok_injective hq
-        | some m =>
-          simp only [Result.ok.injEq, Option.some.injEq, Prod.mk.injEq] at hq
-          obtain ⟨-, -, rfl⟩ := hq
-          have hpw := estore_view_bm_wf hinv hq2 m rfl
-          rw [arena.store.e_bind_view] at hev
-          split at hev
-          · cases Result.ok_injective hev; exact hpw
-          · cases Result.ok_injective hev; exact hpw
+      rw [arena.store.e_bind_view] at hev
+      split at hev
+      · cases Result.ok_injective hev; trivial
+      · cases Result.ok_injective hev; trivial
   · obtain ⟨b1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     split at h
     · rw [arena.store.EStore.pers_get] at h
@@ -310,9 +297,8 @@ theorem view_glue {P t : arena.store.PersTier} {st : arena.monad.AState}
     {h : arena.handle.EIdx} (hP : P.frozen = false) :
     arena.monad.view t st h = arena.monad.view P (glue t st) h := by
   simp only [arena.monad.view, arena.store.EStore.view, arena.store.EStore.view_bind,
-    arena.store.EStore.view_bind_i, arena.store.EStore.view_bm,
     arena.store.EStore.pers_get, arena.store.EStore.pers_get_bind,
-    arena.store.EStore.pers_get_bm, glue, glueE, rPersE, hP]
+    glue, glueE, rPersE, hP]
   cases t.frozen <;> simp
 
 /-! ### A promote-intern keeps the tier frozen -/
@@ -344,55 +330,26 @@ theorem intern_persistent_ls_frozen {t st v r t'}
     | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
     | split at h)
 
-theorem pertier_intern_bm_frozen {t m r t'}
-    (h : arena.store.PersTier.intern_bm t m = ok (r, t')) : t'.frozen = t.frozen := by
-  rw [arena.store.PersTier.intern_bm] at h
-  repeat' (first
-    | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
-        _ ∧ _); rfl)
-    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h; try dsimp only at h)
-    | split at h)
-
-theorem pertier_intern_bm_of_view_frozen {t v r t'}
-    (h : arena.store.PersTier.intern_bm_of_view t v = ok (r, t')) : t'.frozen = t.frozen := by
-  cases v <;> simp only [arena.store.PersTier.intern_bm_of_view] at h <;>
-    first
-    | (rust_bind_guard h; obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-       first
-       | exact pertier_intern_bm_frozen h
-       | (obtain ⟨-, rfl⟩ := (by simpa only [Prod.mk.injEq] using Result.ok_injective h :
-            _ ∧ _); rfl))
-
 theorem intern_persistent_e_frozen {t st v r t'}
     (h : arena.monad.intern_persistent_e t st v = ok (r, t')) : t'.frozen = t.frozen := by
   rw [arena.monad.intern_persistent_e, arena.store.PersTier.intern_e] at h
-  obtain ⟨⟨r1, t1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have h1f : t1.frozen = t.frozen := pertier_intern_bm_of_view_frozen h1
-  rw [← h1f]
-  clear h1
-  cases r1 with
-  | Err e =>
-    simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+  obtain ⟨o, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+  cases o with
+  | some i =>
+    simp only [Result.ok.injEq, Prod.mk.injEq] at h
     obtain ⟨-, rfl⟩ := h; rfl
-  | Ok mi =>
-    simp only [Aeneas.Std.uncurry] at h
-    obtain ⟨o, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases o with
-    | some i =>
+  | none =>
+    simp only at h
+    obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    split at h
+    · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       simp only [Result.ok.injEq, Prod.mk.injEq] at h
       obtain ⟨-, rfl⟩ := h; rfl
-    | none =>
-      simp only at h
-      obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      split at h
-      · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        simp only [Result.ok.injEq, Prod.mk.injEq] at h
-        obtain ⟨-, rfl⟩ := h; rfl
-      · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨⟨_, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
-        obtain ⟨-, rfl⟩ := h; rfl
+    · obtain ⟨_, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨⟨_, _⟩, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      simp only [Aeneas.Std.uncurry, Result.ok.injEq, Prod.mk.injEq] at h
+      obtain ⟨-, rfl⟩ := h; rfl
 
 namespace Lockstep
 

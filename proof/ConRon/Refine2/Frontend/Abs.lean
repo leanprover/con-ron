@@ -167,7 +167,6 @@ def absErrTag : frontend.scan_types.ErrTag → Option ConLeche.Frontend.ErrTag
   | .BadUtf8 => some .badUtf8
   | .BadBinderInfo => some .badBinderInfo
   | .BadHints => some .badHints
-  | .BadPw => some .badPw
   | .BadNatVal => some .badNatVal
   | .Trailing => some .trailing
   | .NoProgress => some .noProgress
@@ -280,7 +279,6 @@ def absKey : frontend.scan_types.Key → ConLeche.Frontend.Key
   | .KParam => .kParam
   | .KPre => .kPre
   | .KProj => .kProj
-  | .KPw => .kPw
   | .KQuot => .kQuot
   | .KRecs => .kRecs
   | .KRegular => .kRegular
@@ -317,11 +315,6 @@ def absLevelRec : frontend.scan_types.LevelRec → ConLeche.Frontend.LevelRec
   | .Imax u v => .imax (absU64 u) (absU64 v)
   | .Param n => .param (absU64 n)
 
-/-- `PwRec` (`Types.lean:152-156`). -/
-def absPwRec : frontend.scan_types.PwRec → ConLeche.Frontend.PwRec
-  | .Never => .never
-  | .IfAllZero ns => .ifAllZero (absU64s ns)
-
 /-- `ExprRec` (`Types.lean:158-172`).  The `NatVal` arm is deviation 2: the
 port keeps the literal's decimal digits and `natOfDigits` is their value. -/
 def absExprRec : frontend.scan_types.ExprRec → ConLeche.Frontend.ExprRec
@@ -329,8 +322,8 @@ def absExprRec : frontend.scan_types.ExprRec → ConLeche.Frontend.ExprRec
   | .Sort u => .sort (absU64 u)
   | .Const n us => .const (absU64 n) (absU64s us)
   | .App f a => .app (absU64 f) (absU64 a)
-  | .Lam t b pw => .lam (absU64 t) (absU64 b) (absPwRec pw)
-  | .ForallE t b pw => .forallE (absU64 t) (absU64 b) (absPwRec pw)
+  | .Lam t b => .lam (absU64 t) (absU64 b)
+  | .ForallE t b => .forallE (absU64 t) (absU64 b)
   | .LetE t v b => .letE (absU64 t) (absU64 v) (absU64 b)
   | .Proj tn i s => .proj (absU64 tn) (absU64 i) (absU64 s)
   | .NatVal ds => .natVal (natOfDigits ds)
