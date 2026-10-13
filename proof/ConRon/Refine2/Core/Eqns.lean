@@ -47,10 +47,11 @@ elab "force_eqns" ids:ident+ : command => do
       let _ ← Lean.Meta.getEqnsFor? n
       let _ ← Lean.Meta.getUnfoldEqnFor? n
 
-/-! ## Block 1 — `arena::core`'s `whnf` / `infer` / `defeq` block, 107 functions
+/-! ## The block — `arena::core`'s `whnf` / `infer` / `defeq` block, 102 functions
 
-`ConRon/Generated/Funs.lean:26991-33739`: `arena.core.reduce_nat` …
-`arena.core.knot_defeq`. -/
+`ConRon/Generated/Funs.lean:25433-31349`: `arena.core.reduce_nat` …
+`arena.core.knot_defeq`.  (The `annotate` block of 9 went with the annotate
+pass, task #119.) -/
 
 open ConRon.Generated in
 force_eqns
@@ -58,18 +59,15 @@ force_eqns
   arena.core.reduce_nat_succ
   arena.core.reduce_nat_bin
   arena.core.reduce_nat_wf
-  arena.core.iota_certs
-  arena.core.iota_certs_aux
+  arena.core.iota_certs_full
+  arena.core.iota_certs_full_aux
   arena.core.def_eq_list
   arena.core.iota_index_ok
   arena.core.proof_irrel
   arena.core.prop_sorts_zero
   arena.core.prop_sorts_zero_right
   arena.core.prop_irrel
-  arena.core.struct_eta_proj_certs
   arena.core.struct_eta_cert_tail
-  arena.core.struct_eta_cert_fam
-  arena.core.struct_eta_cert_certs
   arena.core.struct_eta_cert_at
   arena.core.struct_eta_cert_with
   arena.core.struct_eta_cert
@@ -79,11 +77,8 @@ force_eqns
   arena.core.eta_cert_body
   arena.core.stuck_irrel
   arena.core.major_to_ctor_certs
-  arena.core.iota_certs_fam
   arena.core.major_to_ctor_k
-  arena.core.major_to_ctor_eta_certs
   arena.core.major_to_ctor_eta
-  arena.core.major_to_ctor_eta_build
   arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build
   arena.core.major_to_ctor_at
@@ -91,22 +86,22 @@ force_eqns
   arena.core.lit_major_to_ctor
   arena.core.proj_lit_to_ctor
   arena.core.prepare_major
+  arena.core.prepare_major_whnf
   arena.core.iota_rec_fire
-  arena.core.iota_rec_params
-  arena.core.iota_rec_certs
+  arena.core.iota_rec_cert
+  arena.core.iota_rec_case3
   arena.core.iota_rec_fam
   arena.core.iota_rec_major
   arena.core.iota_rec_at
-  arena.core.proj_cert
-  arena.core.proj_cert_at
   arena.core.reduce_proj_core
-  arena.core.reduce_proj_core_at
-  arena.core.reduce_proj_core_fire
-  arena.core.whnf_core_proj
+  arena.core.whnf_core_step_proj
   arena.core.whnf_app
-  arena.core.beta_peel
+  arena.core.whnf_core_step
+  arena.core.whnf_core_loop_loop
+  arena.core.whnf_core_loop
   arena.core.whnf_core_body
   arena.core.whnf_step
+  arena.core.whnf_loop_loop
   arena.core.whnf_loop
   arena.core.whnf_body
   arena.core.ensure_sort
@@ -114,10 +109,10 @@ force_eqns
   arena.core.infer_proj
   arena.core.infer_lam
   arena.core.infer_lam_open
-  arena.core.infer_lam_cod
+  arena.core.infer_let
+  arena.core.infer_let_io
   arena.core.infer_spine
   arena.core.infer_app
-  arena.core.infer_lams_leaf_check
   arena.core.infer_lams_leaf
   arena.core.infer_lams
   arena.core.infer_pis_leaf
@@ -128,12 +123,13 @@ force_eqns
   arena.core.infer_forall_io_at
   arena.core.infer_app_io_at
   arena.core.infer_spine_io
-  arena.core.infer_proj_io
   arena.core.bool_true_shortcut
   arena.core.defeq_spine
   arena.core.defeq_binders
   arena.core.defeq_peel
   arena.core.defeq_peel_leaf
+  arena.core.defeq_lams_inner
+  arena.core.defeq_lams
   arena.core.quick_defeq
   arena.core.defeq_offset
   arena.core.try_unfold_proj_app
@@ -161,21 +157,5 @@ force_eqns
   arena.core.knot_infer_io
   arena.core.knot_infer_at
   arena.core.knot_defeq
-
-/-! ## Block 2 — the `annotate` block, 9 functions
-
-`ConRon/Generated/Funs.lean:33838-34381`. -/
-
-open ConRon.Generated in
-force_eqns
-  arena.core.annotate_pis_leaf
-  arena.core.annotate_pis
-  arena.core.annotate_lams_leaf
-  arena.core.annotate_lams
-  arena.core.annotate_binder
-  arena.core.annotate_let
-  arena.core.annotate_proj
-  arena.core.annotate_body
-  arena.core.knot_annotate
 
 end ConRon.Refine2.Core.Eqns

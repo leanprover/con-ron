@@ -368,41 +368,15 @@ def absLevels (us : alloc.vec.Vec level.Level) : List ConLeche.Level :=
 def absNames (ns : alloc.vec.Vec name.Name) : List ConLeche.Name :=
   ns.val.map absName
 
-/-- `prop_when::Ordering` is the port's own three-value enum (task #9, item 9);
-Lean's is core's `Ordering`. -/
-def absOrdering : prop_when.Ordering → Ordering
-  | .Lt => .lt
-  | .Eq => .eq
-  | .Gt => .gt
-
-/-- `ConLeche/Kernel/PropWhen.lean:386-415` -- the Rust `PropWhen` as a
-`ConLeche.PropWhen`, at the level of the representation.
-
-con-leche's datum is *sealed*: `PropWhenRepr` is a `private inductive`, and
-`PropWhen` is a one-field structure whose constructor *and* field are
-`private`, so nothing outside `PropWhen.lean` can build or match one.  The
-abstraction therefore goes through the public smart constructors `never` and
-`ifAllZero` — which is enough, because those two name every value of the type
-(`casesZ`, `PropWhen.lean:645-661`).  **No `import all` is needed** (the
-documented escape con-leche's own proofs use): the five Rust constructors map
-onto the two Lean producers — `Never` onto `never`, `Always` onto
-`ifAllZero []`, `One`/`Two`/`Many` onto `ifAllZero` of their parameter list.
-`ifAllZero` normalizes, so this is well defined for *any* Rust datum, well
-formed or not; `PropWhenWF` is what makes it *injective*.
-
-Since task #90 `Two`'s and `Many`'s payloads sit behind a `P` handle, which
-DESIGN.md §3.2's model erases: `Two`'s argument *is* the pair `Name × Name`
-and `Many`'s *is* the `Vec<Name>`, so the two arms read them directly. -/
-def absPropWhenRepr : prop_when.PropWhenRepr → ConLeche.PropWhen
+/-- `ConLeche/Kernel/PropWhen.lean:32-38` -- the Rust `PropWhen` as a
+`ConLeche.PropWhen`.  Since task #119 (con-leche's task #342 S5A) both sides are
+the same plain two-constructor datum, `never | ifAllZero (ps : List Name)`,
+uncanonicalised: the abstraction maps constructor to constructor and the
+parameter vector through `absNames`.  `PropWhenWF` below is what makes it
+injective (the names'). -/
+def absPropWhen : prop_when.PropWhen → ConLeche.PropWhen
   | .Never => .never
-  | .Always => .ifAllZero []
-  | .One p => .ifAllZero [absName p]
-  | .Two pq => .ifAllZero [absName pq.1, absName pq.2]
-  | .Many ps => .ifAllZero (absNames ps)
-
-/-- The datum, through its (Rust-private, Lean-private) representation. -/
-def absPropWhen (pw : prop_when.PropWhen) : ConLeche.PropWhen :=
-  absPropWhenRepr pw.repr
+  | .IfAllZero ps => .ifAllZero (absNames ps)
 
 /-- `ConLeche/Kernel/Expr.lean:108-112` -- the two literals.  `natVal`'s `Nat`
 is the crate's own bignum (`ConRon/Refine/Nat.lean`'s `toNat`) and `strVal`'s
@@ -410,10 +384,6 @@ is the crate's own bignum (`ConRon/Refine/Nat.lean`'s `toNat`) and `strVal`'s
 def absLiteral : expr.Literal → ConLeche.Literal
   | .NatVal n => .natVal (Nat.toNat n)
   | .StrVal s => .strVal (absString s)
-
-/-- `ConLeche/Kernel/Expr.lean:93-104` -- the one datum a binder carries. -/
-def absBinderMeta (m : expr.BinderMeta) : ConLeche.BinderMeta :=
-  { pw := absPropWhen m.pw }
 
 /- `ConLeche/Kernel/Expr.lean:285-403` -- the Rust `Expr` tree as a
 `ConLeche.Expr`.  The `@[computed_field] data` word is *dropped*: it is a
@@ -433,8 +403,8 @@ def absExprKind : expr.ExprKind → ConLeche.Expr
   | .«Sort» u => .sort (absLevel u)
   | .Const n us => .const (absName n) (absLevels us)
   | .App f a => .app (absExpr f) (absExpr a)
-  | .Lam ty b m => .lam (absExpr ty) (absExpr b) (absBinderMeta m)
-  | .ForallE ty b m => .forallE (absExpr ty) (absExpr b) (absBinderMeta m)
+  | .Lam ty b => .lam (absExpr ty) (absExpr b)
+  | .ForallE ty b => .forallE (absExpr ty) (absExpr b)
   | .LetE ty v b => .letE (absExpr ty) (absExpr v) (absExpr b)
   | .Lit l => .lit (absLiteral l)
   | .Proj s i e => .proj (absName s) i.val (absExpr e)
@@ -451,14 +421,10 @@ def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
 @[simp] theorem absLevel_mk (h : Std.U64) (k : level.LevelKind) :
     absLevel (.mk (.mk h k)) = absLevelKind k := by rw [absLevel, absLevelNode]
 
-@[simp] theorem absPropWhen_mk (r : prop_when.PropWhenRepr) :
-    absPropWhen (.mk r) = absPropWhenRepr r := rfl
-
 @[simp] theorem absExpr_mk (d : Std.U64) (k : expr.ExprKind) :
     absExpr (.mk (.mk d k)) = absExprKind k := by rw [absExpr, absExprNode]
 
-attribute [simp] absNameKind absLevelKind absPropWhenRepr absExprKind absLiteral
-attribute [simp] absBinderMeta
+attribute [simp] absNameKind absLevelKind absPropWhen absExprKind absLiteral
 
 /-! ## Smart-constructor shapes
 
@@ -533,36 +499,16 @@ inductive LevelWF : level.Level → Prop where
 /-- A `Vec<Name>` all of whose entries are well formed. -/
 def NamesWF (ns : alloc.vec.Vec name.Name) : Prop := ∀ n ∈ ns.val, NameWF n
 
-/-- `ConLeche/Kernel/PropWhen.lean:360-384` -- the canonical-form invariant of
-the sealed datum, in the same shape as `NameWF`/`LevelWF`.
-
-con-leche's `PropWhenRepr` carries it as proof *fields* (`two p q` needs
-`p < q`, `many ps` needs `PropWhen.Sorted ps ∧ 2 < ps.length`), which Charon
-erases (task #9, item 3); here they come back as the four smart constructors
-that are the port's only way in — `prop_when::never`, `prop_when::if_all_zero`,
-`prop_when::inter` and `prop_when::bind_z` (the module's whole set of public
-producers; `of_sorted`/`two_prime` are Rust-private).  Canonical sortedness by
-the port's own `prop_when::name_cmp` is therefore not *stated* but *derived*:
-`ConRon/Refine/PropWhen.lean`'s `wf_shape` turns a `PropWhenWF` derivation
-into the invariant `WFShape` — well-formed names, a strictly ascending
-abstracted parameter list, and a `Many` that really holds more than two
-names — and that is what makes `to_list` and `beq` exact.
-
-The `bind_z` constructor quantifies over the dictionary type `F`: the port's
-stand-in for `bindZ`'s function argument (task #9, pattern 1). -/
-inductive PropWhenWF : prop_when.PropWhen → Prop where
-  | never {pw} : prop_when.never = ok pw → PropWhenWF pw
-  | if_all_zero {ps pw} : NamesWF ps → prop_when.if_all_zero ps = ok pw → PropWhenWF pw
-  | inter {a b pw} : PropWhenWF a → PropWhenWF b → prop_when.inter a b = ok pw → PropWhenWF pw
-  | bind_z {F : Type} {inst : prop_when.NameToPw F} {f : F} {pw c} :
-      (∀ n, NameWF n → ∀ r, inst.apply f n = ok r → PropWhenWF r) →
-      PropWhenWF pw → prop_when.bind_z inst f pw = ok c → PropWhenWF c
+/-- `ConLeche/Kernel/PropWhen.lean:32-38` -- a datum is well formed when its
+parameter names are.  (Before task #119 this was an inductive predicate over
+the four smart constructors of the sealed, canonical representation; the plain
+datum has no invariant beyond its names.) -/
+def PropWhenWF : prop_when.PropWhen → Prop
+  | .Never => True
+  | .IfAllZero ps => NamesWF ps
 
 /-- A `Vec<Level>` all of whose entries are well formed. -/
 def LevelsWF (us : alloc.vec.Vec level.Level) : Prop := ∀ u ∈ us.val, LevelWF u
-
-/-- A binder datum is well formed when its `PropWhen` is. -/
-def BinderMetaWF (m : expr.BinderMeta) : Prop := PropWhenWF m.pw
 
 /-- A literal is well formed when its payload is: the bignum normalised
 (`ron::nat`'s invariant), the string a sequence of valid code points. -/
@@ -586,10 +532,8 @@ inductive ExprWF : expr.Expr → Prop where
   | sort {u e} : LevelWF u → expr.sort u = ok e → ExprWF e
   | mk_const {n us e} : NameWF n → LevelsWF us → expr.mk_const n us = ok e → ExprWF e
   | app {f a e} : ExprWF f → ExprWF a → expr.app f a = ok e → ExprWF e
-  | lam {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-      expr.lam ty b m = ok e → ExprWF e
-  | forall_e {ty b m e} : ExprWF ty → ExprWF b → BinderMetaWF m →
-      expr.forall_e ty b m = ok e → ExprWF e
+  | lam {ty b e} : ExprWF ty → ExprWF b → expr.lam ty b = ok e → ExprWF e
+  | forall_e {ty b e} : ExprWF ty → ExprWF b → expr.forall_e ty b = ok e → ExprWF e
   | let_e {ty v b e} : ExprWF ty → ExprWF v → ExprWF b →
       expr.let_e ty v b = ok e → ExprWF e
   | lit {l e} : LiteralWF l → expr.lit l = ok e → ExprWF e
@@ -653,7 +597,6 @@ def absHint : env.ReducibilityHint → ConLeche.ReducibilityHint
 
 /-- `ConLeche/Kernel/Env.lean:243` — `RecRuleFire`. -/
 def absFire : env.RecRuleFire → ConLeche.RecRuleFire
-  | .Inert => .inert
   | .Plain => .plain
   | .Nested us es => .nested (absLevels us) (absExprs es)
 
@@ -666,7 +609,6 @@ def absRecRule (r : env.RecRule) : ConLeche.RecRule where
   rhs := absExpr r.rhs
   k := r.k
   eta := r.eta
-  paramsBlind := r.params_blind
 
 /-- `ConLeche/Kernel/Env.lean:362` — `IndCaps`. -/
 def absIndCaps (c : env.IndCaps) : ConLeche.IndCaps where
@@ -760,7 +702,6 @@ def ConstantValWF (cv : env.ConstantVal) : Prop :=
 
 /-- `RecRuleFire`: `.nested`'s stored level and pin lists. -/
 def RecRuleFireWF : env.RecRuleFire → Prop
-  | .Inert => True
   | .Plain => True
   | .Nested us es => LevelsWF us ∧ ExprsWF es
 

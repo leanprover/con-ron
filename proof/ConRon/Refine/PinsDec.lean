@@ -47,7 +47,7 @@ fixed value or bounds into `33 … 126`, so the ASCII fact fell out of
 
 **Fuel, in one place.**  Every recursion here is structural — on the byte list
 (`readNatFrom`, `unescapeFrom`), on the pattern (`startsWith`) or on the
-counter (`nameListFrom` and its siblings) — except the record pass, whose step
+counter (`levelListFrom` and its siblings) — except the record pass, whose step
 consumes a record of unknown length.  `runRecords` therefore takes a `Nat`
 fuel and `decode` passes the byte count, which is more than the record count.
 That is also the shape the model's side wants: `kernel::pins_decode::
@@ -184,7 +184,6 @@ into a list that is already long enough. -/
 structure Tables where
   names : List Name := []
   levels : List Level := []
-  pws : List PropWhen := []
   exprs : List Expr := []
   sets : List NatOpPinSet := []
   deriving Inhabited
@@ -207,14 +206,6 @@ def levelRef (bs : Bytes) (tb : Tables) : Option (Level × Bytes) :=
     | some u => some (u, r)
     | none => none
 
-/-- `pw_ref`. -/
-def pwRef (bs : Bytes) (tb : Tables) : Option (PropWhen × Bytes) :=
-  match readIndex bs with
-  | none => none
-  | some (k, r) => match tb.pws[k]? with
-    | some p => some (p, r)
-    | none => none
-
 /-- `expr_ref`. -/
 def exprRef (bs : Bytes) (tb : Tables) : Option (Expr × Bytes) :=
   match readIndex bs with
@@ -222,23 +213,6 @@ def exprRef (bs : Bytes) (tb : Tables) : Option (Expr × Bytes) :=
   | some (k, r) => match tb.exprs[k]? with
     | some e => some (e, r)
     | none => none
-
-/-- `name_list_from`. -/
-def nameListFrom (bs : Bytes) (tb : Tables) : Nat → List Name →
-    Option (List Name × Bytes)
-  | 0, out => some (out, bs)
-  | k + 1, out =>
-    match afterSpace bs with
-    | none => none
-    | some r => match nameRef r tb with
-      | none => none
-      | some (n, r) => nameListFrom r tb k (out ++ [n])
-
-/-- `name_list`. -/
-def nameList (bs : Bytes) (tb : Tables) : Option (List Name × Bytes) :=
-  match readIndex bs with
-  | none => none
-  | some (n, r) => nameListFrom r tb n []
 
 /-- `level_list_from`. -/
 def levelListFrom (bs : Bytes) (tb : Tables) : Nat → List Level →
@@ -377,31 +351,6 @@ def recordLevel (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
       else if k = 112 then recordLevelParam r tb
       else none
 
-/-- `record_pw_zero`. -/
-def recordPwZero (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
-  match afterSpace bs with
-  | none => none
-  | some r => match nameList r tb with
-    | none => none
-    | some (ps, r) => match afterNewline r with
-      | none => none
-      | some r => some ({ tb with pws := tb.pws ++ [.ifAllZero ps] }, r)
-
-/-- `record_pw`: `W <id> n` | `W <id> z <names>`. -/
-def recordPw (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
-  match expectId bs tb.pws.length with
-  | none => none
-  | some r => match afterSpace r with
-    | none => none
-    | some [] => none
-    | some (k :: r) =>
-      if k = 110 then
-        match afterNewline r with
-        | none => none
-        | some r => some ({ tb with pws := tb.pws ++ [.never] }, r)
-      else if k = 122 then recordPwZero r tb
-      else none
-
 /-- `record_expr_bvar`. -/
 def recordExprBvar (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
   match afterSpace bs with
@@ -475,15 +424,11 @@ def recordExprBinder (bs : Bytes) (tb : Tables) (isLam : Bool) :
       | none => none
       | some r => match exprRef r tb with
         | none => none
-        | some (body, r) => match afterSpace r with
+        | some (body, r) => match afterNewline r with
           | none => none
-          | some r => match pwRef r tb with
-            | none => none
-            | some (pw, r) => match afterNewline r with
-              | none => none
-              | some r =>
-                some ({ tb with exprs := tb.exprs ++
-                  [if isLam then .lam ty body ⟨pw⟩ else .forallE ty body ⟨pw⟩] }, r)
+          | some r =>
+            some ({ tb with exprs := tb.exprs ++
+              [if isLam then .lam ty body else .forallE ty body] }, r)
 
 /-- `record_expr_let`. -/
 def recordExprLet (bs : Bytes) (tb : Tables) : Option (Tables × Bytes) :=
