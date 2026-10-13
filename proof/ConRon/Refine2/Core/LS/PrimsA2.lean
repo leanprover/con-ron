@@ -3,10 +3,10 @@
 
 Task #97-P5-Core round 5, region A2 (the shape helpers and small loops).  The
 `@[lockstep]` pairs `Core/LS/Shapes.lean` needs that no earlier file has:
-the Rust-only value steps on binder data (`binder_meta_dup`, `prop_when::dup`,
+the Rust-only value steps on binder data (`prop_when::dup`,
 `prop_when::beq`, `prop_when::is_never`, `verified_checks`, the `usize → u64`
 cast, `NIdx` equality), the pin `pin_and`, the store-level name builders
-(`proj_fn_name`, `ifenv_find_proj`) and the interns `intern_e_const` /
+(`ifenv_find_proj`) and the interns `intern_e_const` /
 `intern_l_node`.  The interns and the name builders intern, so they are
 stated here and wait on the foundation's intern slice.
 -/
@@ -34,16 +34,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   intro b h
   cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
-@[lockstep] theorem binder_meta_dup_ls (m : kernel.expr.BinderMeta) :
-    LSP (kernel.expr.binder_meta_dup m) (fun r => r = m) :=
-  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
-
-@[lockstep] theorem binder_meta_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.expr.binder_meta pw) (fun r => r = { pw }) := by
-  intro r h
-  rw [kernel.expr.binder_meta] at h
-  exact (Result.ok_injective h).symm
-
 @[lockstep] theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
@@ -55,9 +45,7 @@ canonical-form (`PropWhenWF`) data. -/
     LSP (kernel.prop_when.beq a b)
       (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) := by
   intro c h
-  have := ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
-    (ConRon.Refine.PropWhen.wf_shape hb) h
-  cases c <;> simp_all
+  exact ConRon.Refine.PropWhen.beq_refines ha hb h
 
 /-- `usize as u64`: a widening, so the value is kept. -/
 @[lockstep] theorem cast_u64_usize_ls (i : Std.Usize) :

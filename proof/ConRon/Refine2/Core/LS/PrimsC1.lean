@@ -188,17 +188,6 @@ theorem eidx_copy_all_map {xs : alloc.vec.Vec arena.handle.EIdx} {n : Std.Usize}
       (fun b => b = ConLeche.PropWhen.isNever (ConRon.Refine.absPropWhen pw)) :=
   fun _ h => ConRon.Refine.PropWhen.is_never_refines h
 
-@[lockstep] theorem certs_ls (m : kernel.env.CheckMode) :
-    LSP (kernel.env.certs m) (fun b => b = (ConRon.Refine.absMode m).certs) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.certs, Result.ok.injEq] at h; rw [← h]; rfl)
-
-@[lockstep] theorem tt_checks_ls (m : kernel.env.CheckMode) :
-    LSP (kernel.env.tt_checks m) (fun b => b = (ConRon.Refine.absMode m).ttChecks) :=
-  by
-  intro b h
-  cases m <;> (simp only [kernel.env.tt_checks, Result.ok.injEq] at h; rw [← h]; rfl)
-
 @[lockstep] theorem verified_checks_ls (m : kernel.env.CheckMode) :
     LSP (kernel.env.verified_checks m)
       (fun b => b = (ConRon.Refine.absMode m).verifiedChecks) :=
@@ -206,10 +195,10 @@ theorem eidx_copy_all_map {xs : alloc.vec.Vec arena.handle.EIdx} {n : Std.Usize}
   intro b h
   cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
-attribute [local lockstep_simp] ConRon.Refine.absBinderMeta ExprOps.absStrip Option.isSome_some
+attribute [local lockstep_simp] ExprOps.absStrip Option.isSome_some
   Option.isSome_none
 
-/-! ## `PropWhen` comparison and the binder datum's well-formedness -/
+/-! ## `PropWhen` comparison -/
 
 /-- `prop_when::beq` against the twin's `==` on the abstraction: exact on
 well-formed data (`Refine/PropWhen.lean`'s `beq_refines`). -/
@@ -218,34 +207,6 @@ well-formed data (`Refine/PropWhen.lean`'s `beq_refines`). -/
     LSP (kernel.prop_when.beq a b)
       (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) :=
   fun _ h => ConRon.Refine.PropWhen.beq_refines ha hb h
-
-/-- `view_bind` with the datum's well-formedness (`AStateInv`'s `bms` clause)
-carried in the answer relation.  Not `@[lockstep]`: a body that needs the
-fact takes it as a local hypothesis, which `lockstep` tries first. -/
-theorem view_bind_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
-    (hbind : ETag.isBind (absEIdx h).tag = true) :
-    LSV pers (fun a b => (∀ t, a = some t → ConRon.Refine.PropWhenWF t.2.2.pw) ∧
-        b = Option.map absBindM a)
-      (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h)) := by
-  intro o hrun
-  obtain ⟨b, lst', hx, hR, h1, h2⟩ := view_bind_ls hrel hinv h hbind o hrun
-  refine ⟨b, lst', hx, ⟨fun t ht => ?_, hR.2⟩, h1, h2⟩
-  subst ht
-  obtain ⟨ty, bo, m⟩ := t
-  exact view_bind_meta_wf hinv hrun
-
-/-- `view_bind_wf_ls` as a proposition, for a body to take into its context
-(`have hvb := viewBindWF_holds pers; unfold ViewBindWF at hvb`). -/
-def ViewBindWF (pers : arena.store.PersTier) : Prop :=
-  ∀ {st : arena.monad.AState} {lst : AState}, AStateRel₀ pers st lst → AStateInv pers st →
-    ∀ (h : arena.handle.EIdx), ETag.isBind (absEIdx h).tag = true →
-    LSV pers (fun a b => (∀ t, a = some t → ConRon.Refine.PropWhenWF t.2.2.pw) ∧
-        b = Option.map absBindM a)
-      (arena.monad.view_bind pers st h) st lst (Arena.viewBind (absEIdx h))
-
-theorem viewBindWF_holds (pers : arena.store.PersTier) : ViewBindWF pers :=
-  fun hrel hinv h hb => view_bind_wf_ls hrel hinv h hb
 
 /-! ## Rust-only scalar and handle steps -/
 
@@ -478,7 +439,7 @@ namespace ConRon.Refine2.Lockstep.PC1.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] ConRon.Refine.absBinderMeta ExprOps.absStrip
+attribute [scoped lockstep_simp] ExprOps.absStrip
   Option.isSome_some Option.isSome_none absIIndCaps_eta absIIndCaps_etaCtor
   absIIndCaps_etaParams absIIndCaps_etaFields absIIndCaps_unitlike absIIndCaps_unitParams
   absIConstantVal_levelParams absIConstantVal_type absConstT
