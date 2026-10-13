@@ -99,7 +99,7 @@ theorem ReadbackFrame.ext {s₀ s' : AState} (h : ReadbackFrame s₀ s') :
 /-! ## 2. `CacheOK` and `CheckOK` across a frame -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC (the
-frame half) — **the eleven clauses that did not move**, recovered from the
+frame half) — **the ten clauses that did not move**, recovered from the
 one equation, plus the three that did, carried by the frame itself. -/
 theorem CacheOK.ofReadbackFrame {mode : CheckMode} {env : Env} {s s' : AState}
     (h : CacheOK mode env s) (hf : ReadbackFrame s s') : CacheOK mode env s'
@@ -109,7 +109,6 @@ theorem CacheOK.ofReadbackFrame {mode : CheckMode} {env : Env} {s s' : AState}
   whnf := by rw [hf.caches, hf.store]; exact h.whnf
   infer := by rw [hf.caches, hf.store]; exact h.infer
   inferIO := by rw [hf.caches, hf.store]; exact h.inferIO
-  annot := by rw [hf.caches, hf.store]; exact h.annot
   defeq := by rw [hf.caches, hf.store]; exact h.defeq
   lvlEq := by rw [hf.caches, hf.store]; exact h.lvlEq
   lvlsEq := by rw [hf.caches, hf.store]; exact h.lvlsEq
