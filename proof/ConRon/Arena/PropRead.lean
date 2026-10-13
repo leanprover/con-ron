@@ -266,14 +266,14 @@ def headProofPW (fe : IFEnv) (fuel : Nat) (h : EIdx) : AM (Option PropWhen) := d
   | .fvar _ ty => typeSortPW fe fuel ty
   | .sort _ | .forallE .. | .lit _ => pure (some .never)
   | .proj S i _ =>
-    match fe.find? (← projTableName S) with
-    | some (.projInfo tbl) =>
-      if i < tbl.numFields then do
-        match ← typeSortPW fe fuel (tbl.entry i).body with
-        | some pw => pure (if pw.isNever then some pw else none)
-        | none => pure none
-      else pure none
-    | _ => pure none
+    -- the indexed projection-table lookup, as the port (`ifenv_find_proj`:
+    -- the table's name, the find, the field-count test, the entry)
+    match ← fe.findProj? S i with
+    | some entry => do
+      match ← typeSortPW fe fuel entry.body with
+      | some pw => pure (if pw.isNever then some pw else none)
+      | none => pure none
+    | none => pure none
   | _ => pure none
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW — the zero-ness
