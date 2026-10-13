@@ -20,10 +20,8 @@ recursion, the fuel induction), the arm step lemmas' shape ("the shape
   `ExprOps/Guards.lean` — the `Bool` and `Nat` walks, whose answers are
   representation-free and whose relation is therefore `RelV` with no target
   store at all (which is what makes them the cheapest group);
-* `ExprOps/Spine.lean`, `ExprOps/TelescopeF.lean` — the spine and telescope
-  operations, most of which take neither fuel nor a memo, and the batched
-  telescope peels whose push-order accumulator denotes con-leche's list
-  REVERSED.
+* `ExprOps/Spine.lean` — the spine and telescope operations, most of which
+  take neither fuel nor a memo.
 -/
 import ConRon.Bridge.Specs
 

@@ -38,7 +38,7 @@ import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.ExprOps.Ranges
 import ConRon.Bridge.ExprOps.Subst
 import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.ExprOps.TelescopeF
+import ConRon.Bridge.ExprOps.Spine
 
 namespace ConRon.Bridge.Inductives
 
@@ -461,7 +461,7 @@ theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
 /-! ## One reader on loan from the `ExprOps` tier
 
 `Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and
-its Theorem 1 **belongs in `Bridge/ExprOps/TelescopeF.lean`** beside
+its Theorem 1 **belongs in `Bridge/ExprOps/Spine.lean`** beside
 `stripPis`' — but that tier has not stated it, and
 `Bridge/Inductives/Decl.lean`'s `indParamsOk_spec` (the arm's own gate) needs
 it.  It is proved here, at this tier's frame. -/
