@@ -361,9 +361,17 @@ def findHyp (t : Expr) : FM (Option Expr) := do
 
 mutual
 
-/-- The frame solver: a proof of `t`, or `none`.  `fuel` bounds the
-backward chaining through `CheckOK.mono`, `StateOK` and the `∃` intro. -/
+/-- The frame solver: a proof of `t`, or `none` — `proveCore`'s built-in
+rules, then `bridge_frame [l₁, …]`'s lemmas (for every goal shape: an `∃ F`
+fuel merge, an equation a walk-specific lemma concludes). -/
 partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
+  if let some p ← attempt (proveCore fuel t) then return some p
+  if (← read).lemmas.isEmpty || fuel == 0 then return none
+  proveByLemmas fuel (← instantiateMVars t).cleanupAnnotations
+
+/-- The built-in rules of `prove`.  `fuel` bounds the backward chaining
+through `CheckOK.mono`, `StateOK` and the `∃` intro. -/
+partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   let t := (← instantiateMVars t).cleanupAnnotations
   if t.isConstOf ``True then return some (mkConst ``True.intro)
   if t.isAppOfArity ``And 2 then
@@ -437,8 +445,7 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       unless h.ty.isAppOfArity `ConRon.Bridge.CheckOK 4 do continue
       for lem in [`ConRon.Bridge.CheckOK.mono, `ConRon.Bridge.CheckOK.monoF] do
         if let some p ← attempt (applyLemma fuel lem h.pf t) then return some p
-    -- a state the chain does not reach (a cache insert): the caller's lemmas
-    proveByLemmas fuel t
+    return none
   | some `ConRon.Bridge.CacheFrame =>
     let a := t.appFn!.appArg!
     let b := t.appArg!
@@ -456,7 +463,7 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     let some px ← extPath (← mkAppM `ConRon.Arena.AState.store #[a]) (← mkAppM `ConRon.Arena.AState.store #[b])
       | return none
     return some (← mkAppM `ConRon.Bridge.CacheFrame.of_eq #[pc, px])
-  | _ => proveByLemmas fuel t
+  | _ => return none
 
 /-- The goal from one of `bridge_frame [l₁, …]`'s lemmas: its conclusion
 unified with `t`, every premise proved by `prove`. -/
@@ -627,6 +634,19 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
       restore s
       return r
     if isFactShape aT then
+      -- every hypothesis that IS the fact (an inversion lemma fires at each),
+      -- else one derived fact (transported, or read off a relation)
+      let mut acc := acc
+      let mut direct := false
+      for h in (← read).hyps.reverse do
+        unless ← mayMatch h.ty aT do continue
+        let s ← save
+        if ← same h.ty aT then
+          direct := true
+          a.mvarId!.assign h.pf
+          acc ← instances rest mk acc
+        restore s
+      if direct then return acc
       let s ← save
       let some p ← attempt (provedFact 2 aT) | return acc
       unless ← supply a p do restore s; return acc
