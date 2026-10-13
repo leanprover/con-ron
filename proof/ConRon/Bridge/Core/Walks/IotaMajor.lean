@@ -489,7 +489,7 @@ theorem majorK_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           rintro tyC s10 ⟨hok10, hx10, hp10, htyC⟩
           have hwtyC : Expr.WScoped d
               (dcvj.type.instantiateLevelParams dcvj.levelParams lsu) :=
-            Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfj lsu)
+            Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfj lsu)
           have htk10 := ExprOps.denoteEList_take cnP _ _
             (denoteEList_ext (hx39.trans hx10) _ _ htargs)
           refine triple_seq (iotaCerts_spec hsim d false tyC (targs.take cnP) s10 hok10
@@ -901,7 +901,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         rintro tyC s12 ⟨hok12, hx12, hp12, htyC⟩
         have hwtyC : Expr.WScoped d
             (dcvj.type.instantiateLevelParams dcvj.levelParams lsu) :=
-          Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfj lsu)
+          Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfj lsu)
         have hfa12 := denoteEList_ext (hx10.trans (by rw [← hst11]; exact hx12)) _ _ hfa9
         refine triple_seq (iotaCerts_spec hsim d false tyC fabArgs s12 hok12
           ⟨_, _, htyC, hwtyC, hfa12, hwargs⟩) ?_
@@ -1202,7 +1202,7 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         rintro tyC s13 ⟨hok13, hx13', hp13', htyC⟩
         have hwtyC : Expr.WScoped d
             (dcvj.type.instantiateLevelParams dcvj.levelParams lsu) :=
-          Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfj lsu)
+          Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfj lsu)
         have hfa13 := denoteEList_ext (hx11.trans (by rw [← hst12]; exact hx13')) _ _ hfa
         refine triple_seq (iotaCerts_spec hsim d false tyC _ s13 hok13
           ⟨_, _, htyC, hwtyC, hfa13, hwargs⟩) ?_

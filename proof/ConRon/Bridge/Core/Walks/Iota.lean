@@ -860,10 +860,10 @@ theorem iotaFam_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     have := List.find?_some hfind'
     simpa using this
   have hwtyR : Expr.WScoped d (dcv.type.instantiateLevelParams dcv.levelParams ls) :=
-    Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfind ls)
+    Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind ls)
   have hwtyC : Expr.WScoped d
       (dcvj.type.instantiateLevelParams dcvj.levelParams lsj) :=
-    Expr.WScoped.of_not_hasFvar (ConLeche.const_ty_hasFvar henv hfindj lsj)
+    Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfindj lsj)
   have hwA : ∀ z ∈ xs.take mI ++ [vmaj], Expr.WScoped d z := by
     intro z hz
     rcases List.mem_append.mp hz with hz | hz

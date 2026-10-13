@@ -861,4 +861,18 @@ have written". -/
 
 end Census
 
+/-- con-leche: ConLeche/Verify/EnvWF.lean ConstWF — a stored constant's type
+has no free variables, after any level instantiation (con-leche's own copy,
+`Verify/InferLemmas.lean`'s `const_ty_hasFvar`, was retired upstream as
+census-dead; the bridge's walks read it at the projection certificate, the
+ι recursor's type and the η family's former). -/
+theorem const_ty_hasFvar {env : Env} (henv : ConLeche.EnvWF env)
+    {n : ConLeche.Name} {ci : ConstantInfo} (hf : env.find? n = some ci)
+    (us : List Level) :
+    (ci.toConstantVal.type.instantiateLevelParams ci.toConstantVal.levelParams
+      us).hasFvar = false := by
+  have hwf := henv _ (List.mem_of_find?_eq_some hf)
+  rw [Expr.hasFvar_instantiateLevelParams]
+  exact hwf.1
+
 end ConRon.Bridge.Core
