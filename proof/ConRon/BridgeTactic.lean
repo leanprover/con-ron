@@ -885,6 +885,17 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
         a.mvarId!.assign h.pf
         acc ← instances rest mk acc
       restore s
+    -- an equation about a CLOSED term (`pinNames[PIN_NAT]? = some x`): no
+    -- hypothesis states it, evaluation decides it
+    if acc.isEmpty then
+      if let some (_, l, r) := aT.eq? then
+        if !l.hasFVar && !l.hasMVar then
+          let s ← save
+          let ok ← try withTransparency .default (Meta.isDefEq l r) catch _ => pure false
+          if ok then
+            a.mvarId!.assign (← mkEqRefl l)
+            acc ← instances rest mk acc
+          restore s
     return acc
 
 /-- Order a telescope: matched premises first (they branch and fix the
@@ -950,8 +961,12 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
       kinds := kinds.push (p, p && !isFrameShape aT)
       if p && !isFrameShape aT && !isFactShape aT && dead == args.size then
         let aT' ← normNeg aT
-        unless ← (← read).hyps.anyM (fun h => (mayMatch h.ty aT' : MetaM Bool)) do
-          dead := kinds.size - 1
+        let closedEq := match aT'.eq? with
+          | some (_, l, _) => !l.hasFVar && !l.hasMVar
+          | none => false
+        unless closedEq do
+          unless ← (← read).hyps.anyM (fun h => (mayMatch h.ty aT' : MetaM Bool)) do
+            dead := kinds.size - 1
     let mut insts := #[]
     let mut anchor := false
     -- a view inversion with no anchor before its first dead premise stays
