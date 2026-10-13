@@ -2,11 +2,9 @@
 # `ConRon.Refine2.Core.LS.PrimsG` — region G's primitive pairs (the annotation pass)
 
 Task #97-P5-Core round 5, region G.  The `@[lockstep]` pairs the annotation
-bodies (`annotate_body` and its binder loops) step through that no earlier
-file provides: the binder stack's abstraction, the level read and its
-zero-ness, the handle equalities, the `usize → u64` cast, and one pending
-intern prim (`ifenv_find_proj`, which interns the projection table's
-reserved name).
+bodies stepped through (the annotate pass went with con-leche's task #342;
+what is left serves `Core/LS/PropRead.lean`): the level read and its
+zero-ness, the handle equalities, the `usize → u64` cast.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
@@ -22,41 +20,16 @@ namespace ConRon.Refine2.Lockstep.PG
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
-/-! ## Abstractions -/
+/-! ## Abstractions
 
-/-- The annotation loops' binder stack (`Vec<(EIdx, BinderMeta)>`, pushed
-outermost first) as the twin's `Array (EIdx × BinderMeta)`. -/
-def absStk (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    Array (EIdx × ConLeche.BinderMeta) :=
-  (v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray
-
-
-/-! The containers normalise to `List.toArray (List.map …)`. -/
-
-theorem absStk_eq (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    absStk v = (v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray := rfl
+The containers normalise to `List.toArray (List.map …)`. -/
 
 theorem absEIdxArr_eq (v : alloc.vec.Vec arena.handle.EIdx) :
     absEIdxArr v = (v.val.map absEIdx).toArray := rfl
 
-theorem absStk_size (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    (absStk v).size = v.val.length := by
-  simp [absStk]
-
 theorem vec_len_abs {α : Type} (v : alloc.vec.Vec α) :
     absSz (alloc.vec.Vec.len v) = v.val.length := by
   simp [absSz]
-
-/-- The binder stack's index, as a twin fact about the twin's `stk[j]!`. -/
-theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-    (i : Std.Usize) :
-    LSP (alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-        (arena.handle.EIdx × kernel.expr.BinderMeta)) v i)
-      (fun x => TwinEq ((absStk v)[i.val]!) (absEIdx x.1, ConRon.Refine.absBinderMeta x.2)) := by
-  intro x h
-  obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt h
-  show _ = _
-  simp [absStk, hb, ← hx]
 
 @[local lockstep_simp] theorem peel_fuel_val : (arena.core.PEEL_FUEL).val = peelFuel := by
   rw [arena.core.PEEL_FUEL, Arena.peelFuel]; rfl
@@ -70,12 +43,6 @@ theorem stk_index_twin (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bind
 @[lockstep] theorem prop_when_dup_spec (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
   fun _ h => ConRon.Refine.PropWhen.dup_eq h
-
-@[lockstep] theorem binder_meta_spec (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.expr.binder_meta pw) (fun r => r = { pw }) := by
-  intro r h
-  rw [kernel.expr.binder_meta] at h
-  exact (Result.ok_injective h).symm
 
 @[lockstep] theorem usize_cast_u64_spec (x : Std.Usize) :
     LSP (lift (Std.UScalar.cast .U64 x)) (fun r => r.val = x.val) := by
