@@ -182,17 +182,17 @@ theorem denote_app_inv {st : EStore} (hwf : StoreWF st) {h f a : EIdx}
   obtain ⟨x, y, hx, hy, rfl⟩ := he; exact ⟨x, y, rfl, hx, hy⟩
 
 theorem denote_lam_inv {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    {m : BinderMeta} {e : Expr} (hw : st.view h = some (.lam ty b m))
+    {e : Expr} (hw : st.view h = some (.lam ty b))
     (he : denoteE st h = some e) :
-    ∃ et eb, e = .lam et eb m ∧ denoteE st ty = some et ∧
+    ∃ et eb, e = .lam et eb ∧ denoteE st ty = some et ∧
       denoteE st b = some eb := by
   rw [denoteE_view_eq hwf hw, denoteEView, opt2_eq_some_iff] at he
   obtain ⟨x, y, hx, hy, rfl⟩ := he; exact ⟨x, y, rfl, hx, hy⟩
 
 theorem denote_forallE_inv {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    {m : BinderMeta} {e : Expr} (hw : st.view h = some (.forallE ty b m))
+    {e : Expr} (hw : st.view h = some (.forallE ty b))
     (he : denoteE st h = some e) :
-    ∃ et eb, e = .forallE et eb m ∧ denoteE st ty = some et ∧
+    ∃ et eb, e = .forallE et eb ∧ denoteE st ty = some et ∧
       denoteE st b = some eb := by
   rw [denoteE_view_eq hwf hw, denoteEView, opt2_eq_some_iff] at he
   obtain ⟨x, y, hx, hy, rfl⟩ := he; exact ⟨x, y, rfl, hx, hy⟩
@@ -242,7 +242,7 @@ a node and along an extension, which is all the automation needs. -/
   exact ⟨by rw [hx]; rfl, by rw [hy]; rfl⟩
 
 @[grind →] theorem isSome_lam {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    {m : BinderMeta} (hw : st.view h = some (.lam ty b m))
+    (hw : st.view h = some (.lam ty b))
     (hs : (denoteE st h).isSome = true) :
     (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
@@ -250,7 +250,7 @@ a node and along an extension, which is all the automation needs. -/
   exact ⟨by rw [hx]; rfl, by rw [hy]; rfl⟩
 
 @[grind →] theorem isSome_forallE {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {m : BinderMeta} (hw : st.view h = some (.forallE ty b m))
+    {h ty b : EIdx} (hw : st.view h = some (.forallE ty b))
     (hs : (denoteE st h).isSome = true) :
     (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
@@ -278,8 +278,8 @@ a node and along an extension, which is all the automation needs. -/
 whose binder clause is shared between `lam` and `forallE` (which is every
 rebuilding walk since task #97-P6-16) needs no case split. -/
 @[grind →] theorem isSome_eBindView {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {m : BinderMeta} {tg : UInt32}
-    (hview : st.view h = some (eBindView tg ty b m))
+    {h ty b : EIdx} {tg : UInt32}
+    (hview : st.view h = some (eBindView tg ty b))
     (hs : (denoteE st h).isSome = true) :
     (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
   unfold eBindView at hview
@@ -342,18 +342,18 @@ these fire on it. -/
   exact ⟨x, y, he, hx, hy⟩
 
 @[grind →] theorem denote_eq_lam {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {m : BinderMeta} (hw : st.view h = some (.lam ty b m))
+    {h ty b : EIdx} (hw : st.view h = some (.lam ty b))
     (hs : (denoteE st h).isSome = true) :
-    ∃ et eb, denoteE st h = some (.lam et eb m) ∧
+    ∃ et eb, denoteE st h = some (.lam et eb) ∧
       denoteE st ty = some et ∧ denoteE st b = some eb := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
   obtain ⟨x, y, rfl, hx, hy⟩ := denote_lam_inv hwf hw he
   exact ⟨x, y, he, hx, hy⟩
 
 @[grind →] theorem denote_eq_forallE {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {m : BinderMeta} (hw : st.view h = some (.forallE ty b m))
+    {h ty b : EIdx} (hw : st.view h = some (.forallE ty b))
     (hs : (denoteE st h).isSome = true) :
-    ∃ et eb, denoteE st h = some (.forallE et eb m) ∧
+    ∃ et eb, denoteE st h = some (.forallE et eb) ∧
       denoteE st ty = some et ∧ denoteE st b = some eb := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
   obtain ⟨x, y, rfl, hx, hy⟩ := denote_forallE_inv hwf hw he
@@ -396,25 +396,23 @@ the `apps` array projects an `app`.  The twins always test first (task
 handle's own tag word BEFORE reading the store"), so the hypothesis is always
 available. -/
 
-/-- con-leche: none — at a non-binder tag `view` IS the tier select over
-`ETables.get`; the two binder arms are the ones that go through `viewBind`. -/
-theorem EStore.view_eq_tier {st : EStore} {i : EIdx}
-    (hb : ETag.isBind i.tag = false) :
+/-- con-leche: none — `view` IS the tier select over `ETables.get` (task
+#119: the binder arms no longer go through a datum store). -/
+theorem EStore.view_eq_tier {st : EStore} {i : EIdx} :
     st.view i = (if i.isPersistent then st.pers.get i
       else if st.scratchOn then st.scr.get i else none) := by
-  simp only [EStore.view, hb, Bool.false_eq_true, ite_false]
+  simp only [EStore.view]
 
 /-- con-leche: none — the tier select is the same for `view` and for every
 projection, so the transfer is proved ONCE over an abstract pair of tier
 readers and each projection below is three lines. -/
 theorem EStore.view_of_proj {st : EStore} {i : EIdx} {v : ENodeView}
     {α : Type} {p : ETables → EIdx → Option α} {x : α}
-    (hb : ETag.isBind i.tag = false)
     (hstep : ∀ t : ETables, p t i = some x → t.get i = some v)
     (h : (if i.isPersistent then p st.pers i
           else if st.scratchOn then p st.scr i else none) = some x) :
     st.view i = some v := by
-  simp only [EStore.view, hb, Bool.false_eq_true, ite_false]
+  simp only [EStore.view]
   by_cases hp : i.isPersistent = true
   · rw [ite_eq_left hp] at h ⊢; exact hstep _ h
   · simp only [Bool.not_eq_true] at hp
@@ -469,7 +467,7 @@ theorem ETables.get_of_getLet {t : ETables} {i : EIdx} {ty val b : EIdx}
   simp only [ETables.getLet, Option.map_eq_some_iff, Prod.mk.injEq] at h
   obtain ⟨r, hr, rfl, rfl, rfl⟩ := h
   simp [ETables.get, htg, hr, ETag.letE, ETag.bvar, ETag.fvar, ETag.sort,
-    ETag.const, ETag.app, ETag.isBind, ETag.lam, ETag.forallE]
+    ETag.const, ETag.app, ETag.lam, ETag.forallE]
 
 theorem ETables.get_of_getProj {t : ETables} {i : EIdx} {n : NIdx} {k : Nat}
     {e : EIdx} (htg : i.tag = ETag.proj) (h : t.getProj i = some (n, k, e)) :
@@ -477,16 +475,38 @@ theorem ETables.get_of_getProj {t : ETables} {i : EIdx} {n : NIdx} {k : Nat}
   simp only [ETables.getProj, Option.map_eq_some_iff, Prod.mk.injEq] at h
   obtain ⟨r, hr, rfl, rfl, rfl⟩ := h
   simp [ETables.get, htg, hr, ETag.proj, ETag.bvar, ETag.fvar, ETag.sort,
-    ETag.const, ETag.app, ETag.isBind, ETag.lam, ETag.forallE, ETag.letE,
+    ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE,
     ETag.lit]
+
+theorem ETables.get_of_getBind {t : ETables} {i ty b : EIdx}
+    (h : t.getBind i = some (ty, b)) :
+    t.get i = some (eBindView i.tag ty b) := by
+  simp only [ETables.getBind] at h
+  by_cases hl : (i.tag == ETag.lam) = true
+  · rw [ite_eq_left hl] at h
+    simp only [Option.map_eq_some_iff, Prod.mk.injEq] at h
+    obtain ⟨r, hr, rfl, rfl⟩ := h
+    have hl' : i.tag = ETag.lam := by simpa using hl
+    simp [ETables.get, eBindView, hl', hr, ETag.lam, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.app]
+  · simp only [Bool.not_eq_true] at hl
+    rw [hl] at h; simp only [Bool.false_eq_true, ite_false] at h
+    by_cases hf : (i.tag == ETag.forallE) = true
+    · rw [ite_eq_left hf] at h
+      simp only [Option.map_eq_some_iff, Prod.mk.injEq] at h
+      obtain ⟨r, hr, rfl, rfl⟩ := h
+      have hf' : i.tag = ETag.forallE := by simpa using hf
+      simp [ETables.get, eBindView, hf', hr, ETag.lam, ETag.forallE, ETag.bvar,
+        ETag.fvar, ETag.sort, ETag.const, ETag.app]
+    · simp only [Bool.not_eq_true] at hf
+      rw [hf] at h; simp at h
 
 /-! ### The eleven `EStore` projections against `view` -/
 
 theorem view_of_viewBVar {st : EStore} {i : EIdx} {k : Nat}
     (htg : i.tag = ETag.bvar) (h : st.viewBVar i = some k) :
     st.view i = some (.bvar k) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getBVar htg hh) h
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getBVar htg hh) h
 
 /-- con-leche: none — the `fvar` node is the one whose fields are read by TWO
 projections (`viewFVarIdx` and `viewFVarTy`, task #97-P6-10), so the tier
@@ -494,7 +514,7 @@ select is taken by hand here instead of through `view_of_proj`. -/
 theorem view_of_viewFVar {st : EStore} {i : EIdx} {k : Nat} {ty : EIdx}
     (htg : i.tag = ETag.fvar) (hk : st.viewFVarIdx i = some k)
     (hty : st.viewFVarTy i = some ty) : st.view i = some (.fvar k ty) := by
-  rw [EStore.view_eq_tier (by rw [htg]; decide)]
+  rw [EStore.view_eq_tier]
   simp only [EStore.viewFVarIdx, EStore.persGetFVarIdx] at hk
   simp only [EStore.viewFVarTy, EStore.persGetFVarTy] at hty
   by_cases hp : i.isPersistent = true
@@ -510,61 +530,48 @@ theorem view_of_viewFVar {st : EStore} {i : EIdx} {k : Nat} {ty : EIdx}
 theorem view_of_viewSort {st : EStore} {i : EIdx} {u : LIdx}
     (htg : i.tag = ETag.sort) (h : st.viewSort i = some u) :
     st.view i = some (.sort u) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getSort htg hh) h
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getSort htg hh) h
 
 theorem view_of_viewConst {st : EStore} {i : EIdx} {n : NIdx} {us : LsIdx}
     (htg : i.tag = ETag.const) (h : st.viewConst i = some (n, us)) :
     st.view i = some (.const n us) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getConst htg hh) h
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getConst htg hh) h
 
 theorem view_of_viewApp {st : EStore} {i f a : EIdx}
     (htg : i.tag = ETag.app) (h : st.viewApp i = some (f, a)) :
     st.view i = some (.app f a) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getApp htg hh) h
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getApp htg hh) h
 
 theorem view_of_viewLet {st : EStore} {i ty val b : EIdx}
     (htg : i.tag = ETag.letE) (h : st.viewLet i = some (ty, val, b)) :
     st.view i = some (.letE ty val b) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getLet htg hh) h
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getLet htg hh) h
 
 theorem view_of_viewProj {st : EStore} {i : EIdx} {n : NIdx} {k : Nat}
     {e : EIdx} (htg : i.tag = ETag.proj) (h : st.viewProj i = some (n, k, e)) :
     st.view i = some (.proj n k e) :=
-  EStore.view_of_proj (by rw [htg]; decide)
-    (fun _ hh => ETables.get_of_getProj htg hh) h
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getProj htg hh) h
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the BINDER
-projection pair.  `view`'s two binder arms go through `viewBind`, which is
-`viewBindI` and then `viewBM` at the datum handle it answers, so this is one
-`simp` and no tier reasoning at all (task #97-LC finding 2: `bms` has one
-constructor and `getBM` does not dispatch on the tag). -/
-theorem view_of_viewBindI {st : EStore} {i ty b : EIdx} {mi : BMIdx}
-    {m : ConLeche.BinderMeta} (htg : ETag.isBind i.tag = true)
-    (h1 : st.viewBindI i = some (ty, b, mi)) (h2 : st.viewBM mi = some m) :
-    st.view i = some (eBindView i.tag ty b m) := by
-  simp only [EStore.view, htg, ite_true, EStore.viewBind, h1, h2]
+/-- con-leche: none — the BINDER projection: `viewBind` reads either binder
+array, and `eBindView` rebuilds the constructor the handle's own tag names. -/
+theorem view_of_viewBind {st : EStore} {i ty b : EIdx}
+    (h : st.viewBind i = some (ty, b)) :
+    st.view i = some (eBindView i.tag ty b) :=
+  EStore.view_of_proj (fun _ hh => ETables.get_of_getBind hh) h
 
 /-- con-leche: none — and the same at the `lam` tag, where `eBindView`
 resolves. -/
-theorem view_of_viewBindI_lam {st : EStore} {i ty b : EIdx} {mi : BMIdx}
-    {m : ConLeche.BinderMeta} (htg : i.tag = ETag.lam)
-    (h1 : st.viewBindI i = some (ty, b, mi)) (h2 : st.viewBM mi = some m) :
-    st.view i = some (.lam ty b m) := by
-  have hb : ETag.isBind i.tag = true := by rw [htg]; decide
-  rw [view_of_viewBindI hb h1 h2, eBindView, htg]
+theorem view_of_viewBind_lam {st : EStore} {i ty b : EIdx}
+    (htg : i.tag = ETag.lam) (h : st.viewBind i = some (ty, b)) :
+    st.view i = some (.lam ty b) := by
+  rw [view_of_viewBind h, eBindView, htg]
   simp
 
 /-- con-leche: none — and at the `forallE` tag. -/
-theorem view_of_viewBindI_forallE {st : EStore} {i ty b : EIdx} {mi : BMIdx}
-    {m : ConLeche.BinderMeta} (htg : i.tag = ETag.forallE)
-    (h1 : st.viewBindI i = some (ty, b, mi)) (h2 : st.viewBM mi = some m) :
-    st.view i = some (.forallE ty b m) := by
-  have hb : ETag.isBind i.tag = true := by rw [htg]; decide
-  rw [view_of_viewBindI hb h1 h2, eBindView, htg]
+theorem view_of_viewBind_forallE {st : EStore} {i ty b : EIdx}
+    (htg : i.tag = ETag.forallE) (h : st.viewBind i = some (ty, b)) :
+    st.view i = some (.forallE ty b) := by
+  rw [view_of_viewBind h, eBindView, htg]
   simp [ETag.lam, ETag.forallE]
 
 /-! ### The same eight, in the form the twins' tag dispatch produces
@@ -611,34 +618,6 @@ derives the `view` fact itself and the arm proofs never mention it. -/
     st.view i = some (.fvar k ty) :=
   view_of_viewFVar (by simpa using htg) hk hty
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — **what a
-rebuilding walk gets from `viewBindI`**: the datum decodes, its tag is `0`
-(task #97-LC finding 2, which `Bridge/StoreBind.lean`'s spec needs as a
-hypothesis) and the handle's view is the binder view the datum spells out.
-All three are `EWFAt.bmChildOK`'s own conjuncts. -/
-theorem view_of_viewBindI_wf {st : EStore} (hwf : StoreWF st) {i ty b : EIdx}
-    {mi : BMIdx} (htg : ETag.isBind i.tag = true)
-    (h1 : st.viewBindI i = some (ty, b, mi)) :
-    ∃ m, st.viewBM mi = some m ∧ mi.tag = 0 ∧
-      st.view i = some (eBindView i.tag ty b m) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  obtain ⟨hs, _, htag0⟩ := hrk.bmChildOK i ty b mi h1
-  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hs
-  exact ⟨m, hm, htag0, view_of_viewBindI htg h1 hm⟩
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — the two facts
-`Bridge/StoreBind.lean`'s spec asks of a datum handle, read off `EWFAt` and
-keyed on the `viewBindI` read so that the closer derives them itself.  Stated
-with `isSome` rather than with the datum's VALUE (template rule 4): the value
-is recovered inside the consumer's postcondition, so nothing has to be
-guessed. -/
-@[grind →] theorem bmOK_of_viewBindI {st : EStore} (hwf : StoreWF st)
-    {i ty b : EIdx} {mi : BMIdx} (h : st.viewBindI i = some (ty, b, mi)) :
-    (st.viewBM mi).isSome = true ∧ mi.tag = 0 := by
-  obtain ⟨rk, hrk⟩ := hwf
-  obtain ⟨hs, _, htag0⟩ := hrk.bmChildOK i ty b mi h
-  exact ⟨hs, htag0⟩
-
 /-! ### The handle carries the tag of its own view
 
 Task #97-P6-13's licence for the tag dispatch, as a lemma: "a handle in a
@@ -654,68 +633,25 @@ constructor its tag names. -/
 theorem ETables.tagOf_of_get {t : ETables} {i : EIdx} {v : ENodeView}
     (h : t.get i = some v) : i.tag = v.tagOf := by
   simp only [ETables.get] at h
-  split at h
-  · rename_i hc
-    obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-    simpa [ENodeView.tagOf] using hc
-  · split at h
-    · rename_i hc
-      obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-      simpa [ENodeView.tagOf] using hc
-    · split at h
-      · rename_i hc
-        obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-        simpa [ENodeView.tagOf] using hc
-      · split at h
-        · rename_i hc
-          obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-          simpa [ENodeView.tagOf] using hc
-        · split at h
-          · rename_i hc
-            obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-            simpa [ENodeView.tagOf] using hc
-          · split at h
-            · exact absurd h (by simp)
-            · split at h
-              · rename_i hc
-                obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-                simpa [ENodeView.tagOf] using hc
-              · split at h
-                · rename_i hc
-                  obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-                  simpa [ENodeView.tagOf] using hc
-                · split at h
-                  · rename_i hc
-                    obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
-                    simpa [ENodeView.tagOf] using hc
-                  · exact absurd h (by simp)
+  repeat' split at h
+  all_goals first
+    | (obtain ⟨r, _, rfl⟩ := Option.map_eq_some_iff.mp h
+       simp_all [ENodeView.tagOf])
+    | exact absurd h (by simp)
 
-/-- con-leche: none — the same at the whole store: the two binder arms go
-through `eBindView`, which builds the constructor the tag names by
-definition. -/
+/-- con-leche: none — the same at the whole store.
+-/
 theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
     (h : st.view i = some v) : i.tag = v.tagOf := by
-  by_cases hb : ETag.isBind i.tag = true
-  · simp only [EStore.view, hb, ite_true] at h
-    split at h
-    · exact absurd h (by simp)
-    · rename_i ty b m _
-      obtain rfl := Option.some.inj h
-      rcases (show i.tag = ETag.lam ∨ i.tag = ETag.forallE by
-          simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at hb; exact hb)
-        with hl | hl
-      · rw [eBindView, hl]; simp [ENodeView.tagOf]
-      · rw [eBindView, hl]; simp [ENodeView.tagOf, ETag.lam, ETag.forallE]
-  · simp only [Bool.not_eq_true] at hb
-    rw [EStore.view_eq_tier hb] at h
-    by_cases hp : i.isPersistent = true
-    · rw [ite_eq_left hp] at h; exact ETables.tagOf_of_get h
-    · simp only [Bool.not_eq_true] at hp
-      rw [hp] at h; simp only [Bool.false_eq_true, ite_false] at h
-      by_cases hon : st.scratchOn = true
-      · rw [ite_eq_left hon] at h; exact ETables.tagOf_of_get h
-      · simp only [Bool.not_eq_true] at hon
-        rw [hon] at h; simp at h
+  rw [EStore.view_eq_tier] at h
+  by_cases hp : i.isPersistent = true
+  · rw [ite_eq_left hp] at h; exact ETables.tagOf_of_get h
+  · simp only [Bool.not_eq_true] at hp
+    rw [hp] at h; simp only [Bool.false_eq_true, ite_false] at h
+    by_cases hon : st.scratchOn = true
+    · rw [ite_eq_left hon] at h; exact ETables.tagOf_of_get h
+    · simp only [Bool.not_eq_true] at hon
+      rw [hon] at h; simp at h
 
 /-! ### The tag-first twin's two arms (task #97-P5-Core round 4)
 
@@ -738,27 +674,20 @@ theorem view_tagOf_ne {st : EStore} {h : EIdx} {v : ENodeView} {t : UInt32}
   rw [← EStore.tagOf_of_view hv]
   simpa using ht
 
-/-- con-leche: none — **a `forallE`-tagged handle's `viewBindI` is its view**,
-on a well-formed store (the datum decodes: `EWFAt.bmChildOK`). -/
-theorem view_forallE_of_viewBindI {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    {mi : BMIdx} (htg : (h.tag == ETag.forallE) = true)
-    (h1 : st.viewBindI h = some (ty, b, mi)) :
-    ∃ m, st.view h = some (.forallE ty b m) := by
-  have hb : ETag.isBind h.tag = true := by
-    have : h.tag = ETag.forallE := by simpa using htg
-    rw [this]; rfl
-  obtain ⟨m, _, _, hv⟩ := view_of_viewBindI_wf hwf hb h1
-  refine ⟨m, ?_⟩
-  rw [hv, eBindView, show h.tag = ETag.forallE by simpa using htg]
-  rfl
+/-- con-leche: none — **a `forallE`-tagged handle's `viewBind` is its view**. -/
+theorem view_forallE_of_viewBind {st : EStore} {h ty b : EIdx}
+    (htg : (h.tag == ETag.forallE) = true)
+    (h1 : st.viewBind h = some (ty, b)) :
+    st.view h = some (.forallE ty b) :=
+  view_of_viewBind_forallE (by simpa using htg) h1
 
 /-- con-leche: none — the body of a `forallE`-tagged handle read through
-`viewBindI` denotes when the handle does. -/
-theorem isSome_body_of_viewBindI {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    {mi : BMIdx} (htg : (h.tag == ETag.forallE) = true)
-    (h1 : st.viewBindI h = some (ty, b, mi)) (hd : (denoteE st h).isSome = true) :
+`viewBind` denotes when the handle does. -/
+theorem isSome_body_of_viewBind {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
+    (htg : (h.tag == ETag.forallE) = true)
+    (h1 : st.viewBind h = some (ty, b)) (hd : (denoteE st h).isSome = true) :
     (denoteE st b).isSome = true := by
-  obtain ⟨m, hv⟩ := view_forallE_of_viewBindI hwf htg h1
+  have hv := view_forallE_of_viewBind htg h1
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hd
   obtain ⟨_, eb, _, _, hb⟩ := denote_forallE_inv hwf hv he
   rw [hb]; rfl
@@ -786,9 +715,9 @@ theorem denote_leaf_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
     obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
     exact Or.inr (Or.inr (Or.inl ⟨nm, ls, rfl⟩))
   | app f a => exact absurd (htag.trans rfl) happ
-  | lam ty b m =>
+  | lam ty b =>
     rw [htag] at hbind; simp [ENodeView.tagOf, ETag.isBind] at hbind
-  | forallE ty b m =>
+  | forallE ty b =>
     rw [htag] at hbind
     simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hbind
   | letE ty w b => exact absurd (htag.trans rfl) hlet
@@ -827,11 +756,11 @@ theorem denoteEView_ext {st st' : EStore} {w : ENodeView} {e : Expr}
     simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
     obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
     exact ⟨x, y, denote_ext hxx hx, denote_ext hyy hx, rfl⟩
-  | lam ty b m =>
+  | lam ty b =>
     simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
     obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
     exact ⟨x, y, denote_ext hxx hx, denote_ext hyy hx, rfl⟩
-  | forallE ty b m =>
+  | forallE ty b =>
     simp only [denoteEView, opt2_eq_some_iff] at hd ⊢
     obtain ⟨x, y, hxx, hyy, rfl⟩ := hd
     exact ⟨x, y, denote_ext hxx hx, denote_ext hyy hx, rfl⟩
@@ -950,7 +879,6 @@ theorem denoteFire_ext {st st' : EStore} {f : IRecRuleFire} {g : RecRuleFire}
     (h : Frontend.denoteFire st f = some g) (hx : Ext st st') :
     Frontend.denoteFire st' f = some g := by
   cases f with
-  | inert => exact h
   | plain => exact h
   | nested lvls pins =>
     simp only [Frontend.denoteFire] at h ⊢
@@ -1566,22 +1494,22 @@ theorem RelE.app {F Ff Fa : Expr → Expr} {st st' : EStore}
   rw [hr, denoteEView, hdec, hf ef hdf, ha ea hda]; rfl
 
 theorem RelE.lam {F Ft Fb : Expr → Expr} {st st' : EStore}
-    {h ty b rt rb r : EIdx} {m m' : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b m))
-    (hdec : ∀ x y, F (.lam x y m) = .lam (Ft x) (Fb y) m')
+    {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.lam ty b))
+    (hdec : ∀ x y, F (.lam x y) = .lam (Ft x) (Fb y))
     (ht : RelE Ft st ty st' rt) (hb : RelE Fb st b st' rb)
-    (hr : denoteE st' r = denoteEView st' (.lam rt rb m')) :
+    (hr : denoteE st' r = denoteEView st' (.lam rt rb)) :
     RelE F st h st' r := by
   intro e he
   obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hview he
   rw [hr, denoteEView, hdec, ht et hdt, hb eb hdb]; rfl
 
 theorem RelE.forallE {F Ft Fb : Expr → Expr} {st st' : EStore}
-    {h ty b rt rb r : EIdx} {m m' : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
-    (hdec : ∀ x y, F (.forallE x y m) = .forallE (Ft x) (Fb y) m')
+    {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.forallE ty b))
+    (hdec : ∀ x y, F (.forallE x y) = .forallE (Ft x) (Fb y))
     (ht : RelE Ft st ty st' rt) (hb : RelE Fb st b st' rb)
-    (hr : denoteE st' r = denoteEView st' (.forallE rt rb m')) :
+    (hr : denoteE st' r = denoteEView st' (.forallE rt rb)) :
     RelE F st h st' r := by
   intro e he
   obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hview he
@@ -1664,9 +1592,9 @@ theorem viewOK_app {st : EStore} {f a : EIdx}
    by simp [ENodeView.nchildren], by simp [ENodeView.lchildren],
    by simp [ENodeView.lschildren]⟩
 
-theorem viewOK_lam {st : EStore} {ty b : EIdx} {m : BinderMeta}
+theorem viewOK_lam {st : EStore} {ty b : EIdx}
     (ht : (denoteE st ty).isSome = true) (hb : (denoteE st b).isSome = true) :
-    st.ViewOK (.lam ty b m) :=
+    st.ViewOK (.lam ty b) :=
   ⟨by intro c hc; simp [ENodeView.echildren] at hc
       rcases hc with rfl | rfl
       · exact view_isSome ht
@@ -1674,9 +1602,9 @@ theorem viewOK_lam {st : EStore} {ty b : EIdx} {m : BinderMeta}
    by simp [ENodeView.nchildren], by simp [ENodeView.lchildren],
    by simp [ENodeView.lschildren]⟩
 
-theorem viewOK_forallE {st : EStore} {ty b : EIdx} {m : BinderMeta}
+theorem viewOK_forallE {st : EStore} {ty b : EIdx}
     (ht : (denoteE st ty).isSome = true) (hb : (denoteE st b).isSome = true) :
-    st.ViewOK (.forallE ty b m) :=
+    st.ViewOK (.forallE ty b) :=
   ⟨by intro c hc; simp [ENodeView.echildren] at hc
       rcases hc with rfl | rfl
       · exact view_isSome ht
