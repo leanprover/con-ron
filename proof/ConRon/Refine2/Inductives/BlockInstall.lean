@@ -127,7 +127,10 @@ theorem bi_vec_index_eq {α : Type} (v : alloc.vec.Vec α) (i : Std.Usize) (k : 
 /-- The default-record arm's leaf: the Rust's `{ default with all, nparams,
 ctors }` against the twin's record literal. -/
 macro "bi_caps_leaf" : tactic => `(tactic| (
-  refine LS.pure ⟨?_, by assumption⟩ (by assumption) (by assumption)
+  refine LS.pure ⟨?_, by
+    first
+      | assumption
+      | exact (‹ConRon.Refine.PropWhenWF _ ∧ _›).1⟩ (by assumption) (by assumption)
   simp only [TwinEq, absIIndCaps, IIndCaps.mk.injEq] at *
   simp_all [absBlockShape, alloc.vec.Vec.new, absNIdxL, absU, absIConstantVal_name]))
 
