@@ -25,6 +25,7 @@ import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -83,6 +84,66 @@ theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
   rw [ConLeche.whnfLoop, ConLeche.whnfStep]
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind, pure,
     Except.pure]
+
+/-! ### The three iterations with their fuels merged (task #120)
+
+The same three step lemmas, each from the three runs a verification
+condition has — one `∃ F` per callee — with the `max` merge inside, so that an
+arm is closed by `bridge_frame [...]` instead of a hand-written merge.  And the
+two inversions of an OPTIONAL answer (`denoteEO`) the loop's callees return. -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — the literal
+acceleration, fuels merged. -/
+theorem whnfLoop_reduceNat_ex {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ res : Expr}
+    (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok (some e₂))
+    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ = .ok res) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok res :=
+  ⟨max F₁ (max F₂ F₃), whnfLoop_reduceNat
+    (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
+    (reduceNatFueled_mono
+      (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
+    (whnfLoopFueled_mono
+      (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hk)⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1123-1124 whnfStep — the delta step,
+fuels merged. -/
+theorem whnfLoop_delta_ex {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ res : Expr}
+    (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok none)
+    (h3 : ConLeche.unfoldDefinition env e₁ = some e₂)
+    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ = .ok res) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok res :=
+  ⟨max F₁ (max F₂ F₃), whnfLoop_delta
+    (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
+    (reduceNatFueled_mono
+      (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
+    h3
+    (whnfLoopFueled_mono
+      (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hk)⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — the loop's exit,
+fuels merged. -/
+theorem whnfLoop_done_ex {F₁ F₂ d n : Nat} {e e₁ : Expr}
+    (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
+    (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok none)
+    (h3 : ConLeche.unfoldDefinition env e₁ = none) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok e₁ :=
+  ⟨max F₁ F₂, whnfLoop_done
+    (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
+    (reduceNatFueled_mono (Nat.le_max_right _ _) h2) h3⟩
+
+/-- con-leche: none — an optional handle that is `some` denotes a `some`. -/
+theorem denoteEO_some_inv {st : EStore} {r : EIdx} {v : Option Expr}
+    (h : denoteEO st (some r) = some v) : ∃ x, v = some x ∧ denoteE st r = some x := by
+  simp only [denoteEO, Option.map_eq_some_iff] at h
+  obtain ⟨x, hx, rfl⟩ := h
+  exact ⟨x, rfl, hx⟩
+
+/-- con-leche: none — the absent handle denotes `none`. -/
+theorem denoteEO_none_inv {st : EStore} {v : Option Expr}
+    (h : denoteEO st none = some v) : v = none :=
+  (Option.some.inj h).symm
 
 /-! ## 2. The entry bracket -/
 
@@ -158,82 +219,10 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     all_goals (bridge_peel; subst_vars)
     -- the calls' `CheckOK` preconditions, and `whnfCore`'s two off the
     -- subject: hypotheses already
-    all_goals try assumption
-    -- `reduceNat`'s second precondition, off the `whnfCore` answer
-    case vc11 =>
-      rename_i hsE
-      obtain ⟨x, hx, hwx, _⟩ := hsE
-      exact ⟨x, hx, hwx⟩
-    -- ARM 1: the literal acceleration fires
-    case vc3 =>
-      rename_i hsE _hp hrn
-      obtain ⟨x, hx, _, _⟩ := hsE
-      obtain ⟨v, hv, hwv, _⟩ := SimOOp.some_inv (hrn x hx)
-      exact ⟨v, hv, hwv⟩
-    case vc1 =>
-      rename_i _ck1 _ck2 hck hx01 hx12 hx23 hp10 hsE hp21 hp32 hloop hrn
-      refine ⟨hck, hx01.trans (hx12.trans hx23), hp32.trans (hp21.trans hp10), ?_⟩
-      intro e' he'
-      obtain rfl : e' = e := by rw [hden] at he'; exact (Option.some.inj he').symm
-      obtain ⟨e₁, he₁, _hw₁, F₁, hF₁⟩ := hsE
-      obtain ⟨e₂, he₂, _hw₂, F₂, hF₂⟩ := SimOOp.some_inv (hrn e₁ he₁)
-      obtain ⟨v, hv, hwv, F₃, hF₃⟩ := hloop e₂ he₂
-      refine ⟨v, hv, hwv, max F₁ (max F₂ F₃), ?_⟩
-      exact whnfLoop_reduceNat
-        (ConLeche.whnfCore_mono (Nat.le_max_left _ _) hF₁)
-        (reduceNatFueled_mono
-          (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) hF₂)
-        (whnfLoopFueled_mono
-          (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hF₃)
-    -- ARM 2: `unfoldDefinition`'s precondition
-    case vc9 =>
-      rename_i hx12 _ hsE _ _
-      obtain ⟨x, hx, hwx, _⟩ := hsE
-      exact ⟨x, denote_ext hx hx12, hwx⟩
-    -- ARM 2: the delta step fires
-    case vc6 =>
-      rename_i hx12 _ _ hsE _ _ _ hud
-      obtain ⟨e₁, he₁, _hw₁, _⟩ := hsE
-      obtain ⟨hdo, hws⟩ := hud e₁ (denote_ext he₁ hx12)
-      simp only [denoteEO, Option.map_eq_some_iff] at hdo
-      obtain ⟨v, hv, hveq⟩ := hdo
-      exact ⟨v, hv, hws v hveq.symm⟩
-    case vc4 =>
-      rename_i _ck1 _ck2 _ck3 hck hx01 hx12 hx23 hx34 hp10 hsE hp21 hp32 hp43
-        hloop hrn hud
-      refine ⟨hck, hx01.trans (hx12.trans (hx23.trans hx34)),
-        hp43.trans (hp32.trans (hp21.trans hp10)), ?_⟩
-      intro e' he'
-      obtain rfl : e' = e := by rw [hden] at he'; exact (Option.some.inj he').symm
-      obtain ⟨e₁, he₁, _hw₁, F₁, hF₁⟩ := hsE
-      obtain ⟨F₂, hF₂⟩ := SimOOp.none_inv (hrn e₁ he₁)
-      obtain ⟨hdo, _hws⟩ := hud e₁ (denote_ext he₁ hx12)
-      simp only [denoteEO, Option.map_eq_some_iff] at hdo
-      obtain ⟨e₂, he₂, hveq⟩ := hdo
-      obtain ⟨v, hv, hwv, F₃, hF₃⟩ := hloop e₂ he₂
-      refine ⟨v, hv, hwv, max F₁ (max F₂ F₃), ?_⟩
-      exact whnfLoop_delta
-        (ConLeche.whnfCore_mono (Nat.le_max_left _ _) hF₁)
-        (reduceNatFueled_mono
-          (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) hF₂)
-        hveq.symm
-        (whnfLoopFueled_mono
-          (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hF₃)
-    -- ARM 3: nothing reduces — the `whnfCore` reduct IS the head normal form
-    case vc7 =>
-      rename_i _ck1 _ck2 hck hx01 hx12 hx23 hp10 hsE hp21 hp32 hrn hud
-      refine ⟨hck, hx01.trans (hx12.trans hx23), hp32.trans (hp21.trans hp10), ?_⟩
-      intro e' he'
-      obtain rfl : e' = e := by rw [hden] at he'; exact (Option.some.inj he').symm
-      obtain ⟨e₁, he₁, hw₁, F₁, hF₁⟩ := hsE
-      obtain ⟨F₂, hF₂⟩ := SimOOp.none_inv (hrn e₁ he₁)
-      obtain ⟨hdo, _hws⟩ := hud e₁ (denote_ext he₁ hx12)
-      simp only [denoteEO] at hdo
-      refine ⟨e₁, denote_ext he₁ (hx12.trans hx23), hw₁, max F₁ F₂, ?_⟩
-      exact whnfLoop_done
-        (ConLeche.whnfCore_mono (Nat.le_max_left _ _) hF₁)
-        (reduceNatFueled_mono (Nat.le_max_right _ _) hF₂)
-        (Option.some.inj hdo).symm
+    bridge_frame
+    bridge_fwd [denoteEO_some_inv, denoteEO_none_inv]
+    -- every exit: the three iterations' fuels merged by the `_ex` lemmas
+    bridge_frame [whnfLoop_reduceNat_ex, whnfLoop_delta_ex, whnfLoop_done_ex]
 
 /-! ## 4. The body theorem -/
 
@@ -254,13 +243,12 @@ theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
   have hloop := whnfLoop_spec henv hsim
   vcgen [ConRon.Arena.whnfBody, hloop]
   all_goals (bridge_peel; subst_vars)
-  case vc2 => exact hok
-  case vc3 => exact ⟨e, hden, hw⟩
-  case vc1 =>
-    rename_i hck hx hp hres
-    obtain ⟨v, hv, hwv, F, hF⟩ := hres e hden
+  bridge_frame
+  bridge_fwd
+  -- the loop's answer, through the entry bracket
+  vc_arm (hF : ConLeche.whnfLoop _ _ _ _ _ = .ok _) =>
     rw [whnfLoopFuel_eq] at hF
-    exact ⟨hck, hx, hp, v, hv, hwv, F + 1, whnf_of_loop hF⟩
+    exact SimE.intro (by bridge_frame) (by bridge_frame) (whnf_of_loop hF)
 
 /-! ## 5. The axiom census -/
 
