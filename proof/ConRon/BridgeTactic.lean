@@ -529,12 +529,24 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     if inst.isAppOfArity ``And 2 then
       let some pa ← attempt (prove fuel inst.appFn!.appArg!) | return none
       let some pb ← attempt (prove fuel inst.appArg!) | return none
+      if !(← x.mvarId!.isAssigned) then
+        let some d ← attempt (do return some (← mkAppOptM ``Inhabited.default #[α, none]))
+          | return none
+        x.mvarId!.assign d
       let x ← instantiateMVars x
+      let pa ← instantiateMVars pa
+      let pb ← instantiateMVars pb
       return some (← mkAppOptM ``Exists.intro #[α, body, x,
         mkApp4 (mkConst ``And.intro) (← instantiateMVars inst.appFn!.appArg!)
           (← instantiateMVars inst.appArg!) pa pb])
     let some pa ← attempt (prove fuel inst) | return none
-    return some (← mkAppOptM ``Exists.intro #[α, body, ← instantiateMVars x, pa])
+    -- a witness the proof did not fix (a fuel the lemma is uniform in): any
+    if !(← x.mvarId!.isAssigned) then
+      let some d ← attempt (do return some (← mkAppOptM ``Inhabited.default #[α, none]))
+        | return none
+      x.mvarId!.assign d
+    return some (← mkAppOptM ``Exists.intro #[α, body, ← instantiateMVars x,
+      ← instantiateMVars pa])
   match t.getAppFn.constName? with
   | some `ConRon.Bridge.StateOK =>
     let s := t.appArg!
@@ -607,6 +619,14 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     let env ← getEnv
     if t.getAppNumArgs ≥ 2 && env.contains (n ++ `trans) && env.contains (n ++ `refl) then
       if let some p ← relPath fuel n t then return some p
+    -- a definition that unfolds to an `∃`/`∧` (`SimBOp`, `SimE`): unfolded
+    if peelable n then
+      if let some (.defnInfo _) := env.find? n then
+        if let some t' ← unfoldDefinition? t then
+          let t' := t'.headBeta
+          if t'.isAppOfArity ``Exists 2 || t'.isAppOfArity ``And 2 then
+            if let some p ← attempt (prove fuel t') then
+              return some (← mkExpectedTypeHint p t)
     return none
   | none => return none
 
@@ -657,20 +677,49 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     -- the lemma's conclusion may itself be a `∀` (a monotonicity chain's
     -- `∀ i v, a.view i = some v → c.view i = some v`): every telescope
     -- length, longest first
-    let n ← do
+    let (n, skels) ← do
       let (_, _, l) ← openAbstractMVarsResult lr
-      let (args, _, _) ← forallMetaTelescope (← inferType l)
-      pure args.size
+      let ty ← instantiateMVars (← inferType l)
+      let (args, _, _) ← forallMetaTelescope ty
+      -- the conclusion after each telescope length, syntactically (loose
+      -- bound variables match anything in `quickMatch`)
+      let mut c := ty
+      let mut cs : Array Expr := #[c]
+      while c.isForall do
+        c := c.bindingBody!
+        cs := cs.push c
+      pure (args.size, cs)
+    -- a cheap syntactic filter first: the conclusion at telescope length
+    -- `n - k'` must match the goal (either way round for an equation)
+    let env ← getEnv
+    let skelOk (c : Expr) : Bool :=
+      quickMatch env c t || (match c.eq? with
+        | some (ty, a, b) => quickMatch env (mkApp3 c.getAppFn ty b a) t
+        | none => false)
     for k' in [0:n + 1] do
+     unless skelOk (skels[n - k']?.getD t) do continue
+     -- an equation also in the other orientation (`false = f x` from a lemma
+     -- `f x = false`)
+     for flip in [false, true] do
       let r ← attempt do
         let (_, _, l) ← openAbstractMVarsResult lr
         let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k')
+        let concl ← if flip then
+            match concl.eq? with
+            | some (ty, a, b) => pure (mkApp3 (mkConst ``Eq [← getLevel ty]) ty b a)
+            | none => pure concl
+          else pure concl
+        if flip && !concl.isAppOfArity ``Eq 3 then return none
         unless ← mayMatch concl t do return none
         unless ← same concl t do return none
         unless ← proveArgs fuel args.toList do return none
-        let e ← instantiateMVars (mkAppN l args)
-        if e.hasExprMVar then return none
-        return some e
+        -- the lemma's own arguments must be determined; a metavariable of
+        -- the goal's (an `∃`'s witness the lemma is uniform in) may remain
+        for a in args do
+          unless ← a.mvarId!.isAssigned do return none
+        let p ← instantiateMVars (mkAppN l args)
+        if flip then return some (← mkEqSymm p)
+        return some p
       if let some p := r then return some p
   return none
 
@@ -1373,24 +1422,32 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
   let s ← saveState
   setGoals [g]
   try
-    evalTactic closer
+    evalTactic (← `(tactic| first | rfl | contradiction | assumption | trivial))
     if (← getUnsolvedGoals).isEmpty then return true
   catch _ => pure ()
   s.restore
   if ← closeByNegCtor g then return true
-  if depth == 0 then return false
-  for e in ← splitCandidates g do
+  -- a conjunction: each conjunct finished on its own
+  let tg ← g.withContext do whnfR (← instantiateMVars (← g.getType))
+  if tg.isAppOfArity ``And 2 then
     let s ← saveState
     try
-      let subs ← splitOn g e
-      if subs.isEmpty then s.restore; continue
-      let mut all := true
-      for sub in subs do
-        unless ← finishGoal sub closer none (depth - 1) do all := false; break
-      if all then return true
+      let ga ← mkFreshExprSyntheticOpaqueMVar tg.appFn!.appArg! (← g.getTag)
+      let gb ← mkFreshExprSyntheticOpaqueMVar tg.appArg! (← g.getTag)
+      g.assign (mkApp4 (mkConst ``And.intro) tg.appFn!.appArg! tg.appArg! ga gb)
+      if (← finishGoal ga.mvarId! closer unfold depth) &&
+          (← finishGoal gb.mvarId! closer unfold depth) then return true
     catch _ => pure ()
     s.restore
-  -- the pure functions unfolded: a `match` on a term the facts settle
+  if depth == 0 then
+    setGoals [g]
+    try
+      evalTactic closer
+      if (← getUnsolvedGoals).isEmpty then return true
+    catch _ => pure ()
+    s.restore
+    return false
+  -- the pure functions unfolded first: a `match` on a term the facts settle
   if let some u := unfold then
     let s ← saveState
     try
@@ -1404,6 +1461,24 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
       | _ => pure ()
     catch _ => pure ()
     s.restore
+  for e in ← splitCandidates g do
+    let s ← saveState
+    try
+      let subs ← splitOn g e
+      if subs.isEmpty then s.restore; continue
+      let mut all := true
+      for sub in subs do
+        unless ← finishGoal sub closer none (depth - 1) do all := false; break
+      if all then return true
+    catch _ => pure ()
+    s.restore
+  -- the full closer (`simp only [fᵢ, *]`), dearest
+  setGoals [g]
+  try
+    evalTactic closer
+    if (← getUnsolvedGoals).isEmpty then return true
+  catch _ => pure ()
+  s.restore
   return false
 
 end Frame

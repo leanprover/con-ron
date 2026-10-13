@@ -161,6 +161,13 @@ theorem view_len_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
   rw [lsStore_viewLen_eq, hv, Option.map_some] at hl
   exact Option.some.inj hl
 
+/-- con-leche: none — `viewLen_of_denoteLs` in the orientation `vcgen`
+hands the length read (`some n = st.viewLen us`): the read IS the length
+(task #120: a `bridge_auto` lemma). -/
+theorem viewLen_eq_length {st : LsStore} {i : LsIdx} {us : List Level} {n : Nat}
+    (hl : some n = st.viewLen i) (h : denoteLs st i = some us) : n = us.length :=
+  Option.some.inj (hl.trans (viewLen_of_denoteLs h))
+
 /-- con-leche: none — a denoting NAME-handle list keeps its length.
 `Bridge/Rel.lean` has this at expression and level handles
 (`denoteEList_len`, `denoteLList_len`) and not at names. -/
@@ -355,24 +362,8 @@ theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   vcgen [ConRon.Arena.unfoldableHead, hfn]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
-    denote_not_const_of_tag]
-  bridge_frame
-  -- the definition arm: the twin compares the level-list length it read
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _))
-      (hlen : some _ = LsStore.viewLen _ _) (hus : denoteLs _ _ = some _)
-      (hlps : Frontend.denoteNList _ _ = some _) =>
-    rw [viewLen_of_denoteLs hus] at hlen
-    simp only [ConLeche.unfoldableHead, hgf, hfind, Option.some.inj hlen,
-      denoteNList_len hlps]
-  -- the not-a-definition arm
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
-      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
-    exact (unfoldableHead_of_not_defn hgf hnd).symm
-  -- the not-a-constant arms (the view's catch-all and the tag-first `else`)
-  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
-    exact (unfoldableHead_of_not_const hnc).symm
+  bridge_auto [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
+    viewLen_eq_length, denoteNList_len] unfolding [ConLeche.unfoldableHead]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — the
 postcondition of a DECLINING arm, from con-leche's own `none` (task #120: one
@@ -382,6 +373,65 @@ theorem unfoldDefinition_none_post {st : EStore} {x : Expr} {d : Nat}
     denoteEO st none = some (ConLeche.unfoldDefinition env x) ∧
       ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y := by
   rw [h]; exact ⟨rfl, fun y hy => nomatch hy⟩
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — the
+four exits of the arena's walk, each in the shape its verification condition
+has (task #120: `bridge_auto`'s lemma list applies them, its frame search
+supplies the premises).  The definition UNFOLDS: the level count read off the
+list's view agrees with the stored level parameters. -/
+theorem unfoldDefinition_post_unfold (henv : ConLeche.EnvWF env) {st st' : EStore}
+    {x : Expr} {d : Nat} (hwx : Expr.WScoped d x) {nm : ConLeche.Name}
+    {ls : List Level} {dcv : ConstantVal} {dval : Expr} {hint : ReducibilityHint}
+    {cv : IConstantVal} {us : LsIdx} {usl : List LIdx} {r : EIdx}
+    (hgf : x.getAppFn = .const nm ls)
+    (hfind : env.find? nm = some (.defnInfo dcv dval hint))
+    (hlsv : st.lss.view us = some usl) (hus : denoteLs st.lss us = some ls)
+    (hlps : Frontend.denoteNList st.ns cv.levelParams = some dcv.levelParams)
+    (hlen : usl.length = cv.levelParams.length)
+    (hr : denoteE st' r = some (Expr.mkAppN
+      (dval.instantiateLevelParams dcv.levelParams ls) x.getAppArgs)) :
+    denoteEO st' (some r) = some (ConLeche.unfoldDefinition env x) ∧
+      ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y := by
+  have hul := (view_len_of_denoteLs hus hlsv).symm.trans
+    (hlen.trans (denoteNList_len hlps).symm)
+  refine ⟨?_, fun y hy => ConLeche.unfoldDefinition_WScoped henv hy hwx⟩
+  simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_true, denoteEO, hr,
+    Option.map_some]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — the
+level count does not match: both decline. -/
+theorem unfoldDefinition_post_len {st st' : EStore} {x : Expr} {d : Nat}
+    {nm : ConLeche.Name} {ls : List Level} {dcv : ConstantVal} {dval : Expr}
+    {hint : ReducibilityHint} {cv : IConstantVal} {us : LsIdx} {usl : List LIdx}
+    (hgf : x.getAppFn = .const nm ls)
+    (hfind : env.find? nm = some (.defnInfo dcv dval hint))
+    (hlsv : st.lss.view us = some usl) (hus : denoteLs st.lss us = some ls)
+    (hlps : Frontend.denoteNList st.ns cv.levelParams = some dcv.levelParams)
+    (hlen : ¬ usl.length = cv.levelParams.length) :
+    denoteEO st' none = some (ConLeche.unfoldDefinition env x) ∧
+      ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y := by
+  refine unfoldDefinition_none_post ?_
+  rw [view_len_of_denoteLs hus hlsv, ← denoteNList_len hlps] at hlen
+  simp only [ConLeche.unfoldDefinition, hgf, hfind, hlen, ite_false]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — a
+constant that is not a stored definition: both decline. -/
+theorem unfoldDefinition_post_nodefn {st' : EStore} {x : Expr} {d : Nat}
+    {nm : ConLeche.Name} {ls : List Level} (hgf : x.getAppFn = .const nm ls)
+    (hnd : ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint)) :
+    denoteEO st' none = some (ConLeche.unfoldDefinition env x) ∧
+      ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y := by
+  refine unfoldDefinition_none_post ?_
+  simp only [ConLeche.unfoldDefinition, hgf]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — the
+head is not a constant: both decline. -/
+theorem unfoldDefinition_post_nc {st' : EStore} {x : Expr} {d : Nat}
+    (hnc : ∀ n us, x.getAppFn ≠ .const n us) :
+    denoteEO st' none = some (ConLeche.unfoldDefinition env x) ∧
+      ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y := by
+  refine unfoldDefinition_none_post ?_
+  simp only [ConLeche.unfoldDefinition]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition —
 **THEOREM 1 for `unfoldDefinition`**: unfold the (application of a)
@@ -421,35 +471,9 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
   vcgen [ConRon.Arena.unfoldDefinition, hfn, hargs, hmk, hcv]
   all_goals (bridge_peel; subst_vars)
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
-    denote_not_const_of_tag]
-  bridge_frame
-  -- the definition UNFOLDS
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _))
-      (hlen : List.length _ = _) (hlsv : LsStore.view _ _ = some _)
-      (hus : denoteLs _ _ = some _) (hlps : Frontend.denoteNList _ _ = some _)
-      (hr : denoteE _ _ = some (Expr.mkAppN _ _)) =>
-    have hul := (view_len_of_denoteLs hus hlsv).symm.trans
-      (hlen.trans (denoteNList_len hlps).symm)
-    refine ⟨?_, fun y hy => ConLeche.unfoldDefinition_WScoped henv hy hwx⟩
-    simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_true, denoteEO, hr,
-      Option.map_some]
-  -- every other arm declines, and so does con-leche
-  all_goals refine unfoldDefinition_none_post ?_
-  -- the level count does not match
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _))
-      (hlen : ¬ List.length _ = _) (hlsv : LsStore.view _ _ = some _)
-      (hus : denoteLs _ _ = some _) (hlps : Frontend.denoteNList _ _ = some _) =>
-    rw [view_len_of_denoteLs hus hlsv, ← denoteNList_len hlps] at hlen
-    simp only [ConLeche.unfoldDefinition, hgf, hfind, hlen, ite_false]
-  -- the head is a constant but not a stored definition
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
-      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
-    simp only [ConLeche.unfoldDefinition, hgf]
-  -- the head is not a constant
-  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
-    simp only [ConLeche.unfoldDefinition]
+  bridge_auto [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
+    denote_not_const_of_tag, unfoldDefinition_post_unfold henv hwx,
+    unfoldDefinition_post_len, unfoldDefinition_post_nodefn, unfoldDefinition_post_nc]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
 for `headHint`**: the reducibility hint of the constant at the head.
@@ -481,20 +505,8 @@ theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   vcgen [ConRon.Arena.headHint, hfn]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [env_defn_of_index, env_not_defn_of_index, denote_not_const,
-    denote_not_const_of_tag]
-  bridge_frame
-  -- the definition arm
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _)) =>
-    simp only [ConLeche.headHint, hgf, hfind]
-  -- the not-a-definition arm
-  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
-      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
-    exact (headHint_of_not_defn hgf hnd).symm
-  -- the not-a-constant arms (the view's catch-all and the tag-first `else`)
-  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
-    exact (headHint_of_not_const hnc).symm
+  bridge_auto [env_defn_of_index, env_not_defn_of_index, denote_not_const]
+    unfolding [ConLeche.headHint]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
 second head is not a constant (task #120: the four declining arms as lemmas,
@@ -603,6 +615,18 @@ theorem beq_of_denoteN {st : NStore} (hwf : NStoreWF st) {n₁ n₂ : NIdx}
       simp only [beq_eq_false_iff_ne]; exact hne
     rw [e1, e2]
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — both
+heads are constants: the verdict is the comparison of their NAME HANDLES
+(task #120: the shape of the walk's last verification condition). -/
+theorem sameConstHeads_handles {st : EStore} (hwf : StoreWF st) {ca cb : NIdx}
+    {na nb : ConLeche.Name} {fa a fb b : Expr} {lsa lsb : List Level}
+    (hna : denoteN st.ns ca = some na) (hnb : denoteN st.ns cb = some nb)
+    (hgfa : fa.getAppFn = .const na lsa) (hgfb : fb.getAppFn = .const nb lsb) :
+    (ca == cb) = ConLeche.sameConstHeads (.app fa a) (.app fb b) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  rw [beq_of_denoteN hrk.nsWF hna hnb]
+  simp only [ConLeche.sameConstHeads, hgfa, hgfb]
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
 **CLOSED** (round 3).  Nine verification conditions, the most of the three,
@@ -617,28 +641,9 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
   obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.sameConstHeads, hfn]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [denote_not_const, denote_not_const_of_tag, denote_not_app,
-    denote_not_app_of_tag]
-  bridge_frame
-  -- both heads are constants: the names compared by handle
-  vc_arm (hgfa : Expr.getAppFn ?fa = .const ?na _) (hgfb : Expr.getAppFn ?fb = .const ?nb _)
-      (hna : denoteN _ ?ca = some ?na) (hnb : denoteN _ ?cb = some ?nb)
-      ⊢ (?ca == ?cb) = ConLeche.sameConstHeads (.app ?fa _) (.app ?fb _) =>
-    rw [beq_of_denoteN hrk.nsWF hna hnb]
-    simp only [ConLeche.sameConstHeads, hgfa, hgfb]
-  -- a head is not a constant (by its view or by its tag)
-  vc_arm (hnc : ∀ n us, Expr.getAppFn ?fb ≠ .const n us)
-      ⊢ false = ConLeche.sameConstHeads (.app _ _) (.app ?fb _) =>
-    exact (sameConstHeads_nc_right hnc).symm
-  vc_arm (hnc : ∀ n us, Expr.getAppFn ?fa ≠ .const n us)
-      ⊢ false = ConLeche.sameConstHeads (.app ?fa _) _ =>
-    exact (sameConstHeads_nc_left hnc).symm
-  -- a subject is not an application
-  vc_arm (hna : ∀ f a, ?y ≠ .app f a) ⊢ false = ConLeche.sameConstHeads (.app _ _) ?y =>
-    exact (sameConstHeads_na_right hna).symm
-  vc_arm (hna : ∀ f a, ?x ≠ .app f a) ⊢ false = ConLeche.sameConstHeads ?x _ =>
-    exact (sameConstHeads_na_left hna).symm
+  bridge_auto [denote_not_const, denote_not_const_of_tag, denote_not_app,
+    denote_not_app_of_tag, sameConstHeads_handles, sameConstHeads_nc_right,
+    sameConstHeads_nc_left, sameConstHeads_na_right, sameConstHeads_na_left]
 
 /-! ### `defeqSpine`, the walk that consumes the whole round
 
@@ -720,6 +725,25 @@ theorem defeqSpineFueled_nc_left {F d : Nat} {x y : Expr}
   simp only [ConLeche.defeqSpineFueled, ConLeche.defeqSpine]
   rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — the
+names-or-arities exit in the arena's terms: the twin compares the head NAME
+HANDLES and the spines' HANDLE lists (task #120: the shape `bridge_auto`'s
+lemma list applies). -/
+theorem defeqSpineFueled_ne_handles {F d : Nat} {st : EStore} (hwf : StoreWF st)
+    {x y : Expr} {ca cb : NIdx} {aa bb : List EIdx} {n n' : ConLeche.Name}
+    {us us' : List Level}
+    (hna : denoteN st.ns ca = some n) (hnb : denoteN st.ns cb = some n')
+    (hxs : Frontend.denoteEList st aa = some x.getAppArgs)
+    (hys : Frontend.denoteEList st bb = some y.getAppArgs)
+    (hx : x.getAppFn = .const n us) (hy : y.getAppFn = .const n' us')
+    (hne : ¬ (ca = cb ∧ aa.length = bb.length)) :
+    ConLeche.defeqSpineFueled mode env F d x y = .ok false := by
+  obtain ⟨rk, hrk⟩ := hwf
+  refine defeqSpineFueled_ne hx hy fun ⟨h1, h2⟩ =>
+    hne ⟨(name_eq_iff_of_denoteN hrk.nsWF hna hnb).mpr h1, ?_⟩
+  rw [← denoteEList_len hxs, ← denoteEList_len hys]
+  exact h2
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — **THEOREM 1
 for `defeqSpine`**: two applications of the same constant are defeq if their
 universe arguments and their argument vectors are.  **CLOSED** (round 3).
@@ -748,42 +772,11 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.defeqSpine, hfn, hag, lvlsEq?_spec (mode := mode) (env := env) (fe := fe), hdl]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [denote_not_const, denote_not_const_of_tag]
-  bridge_frame
-  -- heads, level lists and argument lists all agree
-  vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hgfb : Expr.getAppFn y = .const _ _)
-      (hlen : List.length _ = List.length _)
-      (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
-      (hys : Frontend.denoteEList _ _ = some y.getAppArgs)
-      (hiso : some true = Level.isEquivList _ _)
-      (hF : ConLeche.defEqList _ _ _ x.getAppArgs y.getAppArgs = .ok _) =>
-    exact ⟨_, defeqSpineFueled_const hgfa hgfb
-      ⟨rfl, by rw [denoteEList_len hxs, denoteEList_len hys, hlen]⟩ hiso.symm hF⟩
-  -- the level lists differ
-  vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hgfb : Expr.getAppFn y = .const _ _)
-      (hlen : List.length _ = List.length _)
-      (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
-      (hys : Frontend.denoteEList _ _ = some y.getAppArgs)
-      (hnt : Level.isEquivList _ _ ≠ some true) =>
-    exact ⟨0, defeqSpineFueled_lvl hgfa hgfb
-      ⟨rfl, by rw [denoteEList_len hxs, denoteEList_len hys, hlen]⟩ hnt⟩
-  -- the head names or the arities differ
-  vc_arm (hgfa : Expr.getAppFn x = .const ?na _) (hgfb : Expr.getAppFn y = .const ?nb _)
-      (hna : denoteN _ ?ca = some ?na) (hnb : denoteN _ ?cb = some ?nb)
-      (hne : ¬ (?ca = ?cb ∧ _))
-      (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
-      (hys : Frontend.denoteEList _ _ = some y.getAppArgs) =>
-    refine ⟨0, defeqSpineFueled_ne hgfa hgfb fun ⟨h1, h2⟩ =>
-      hne ⟨(name_eq_iff_of_denoteN hrk.nsWF hna hnb).mpr h1, ?_⟩⟩
-    rw [← denoteEList_len hxs, ← denoteEList_len hys]
-    exact h2
-  -- `b`'s head is not a constant (by its view or by its tag)
-  vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hnc : ∀ n us, Expr.getAppFn y ≠ .const n us) =>
-    exact ⟨0, defeqSpineFueled_nc_right hgfa hnc⟩
-  -- `a`'s head is not a constant
-  vc_arm (hnc : ∀ n us, Expr.getAppFn x ≠ .const n us) =>
-    exact ⟨0, defeqSpineFueled_nc_left hnc⟩
+  bridge_auto [denote_not_const, denote_not_const_of_tag, denoteEList_len,
+    defeqSpineFueled_const, defeqSpineFueled_lvl, defeqSpineFueled_ne_handles,
+    defeqSpineFueled_nc_right, defeqSpineFueled_nc_left]
+    unfolding [ConLeche.defeqSpine, defeqSpineFueled_const, defeqSpineFueled_lvl,
+      defeqSpineFueled_ne, defeqSpineFueled_nc_right, defeqSpineFueled_nc_left]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt —
 `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` with the substituted
