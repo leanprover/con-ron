@@ -56,7 +56,7 @@ binders over a fixed domain, innermost body first. -/
 def mkTele (dom : EIdx) : Nat → EIdx → AM EIdx
   | 0, body => pure body
   | n + 1, body => do
-    let body' ← internE (.forallE dom body ⟨.never⟩)
+    let body' ← internE (.forallE dom body)
     mkTele dom n body'
 
 /-- con-leche: none — benchmark scaffolding: the DAG tower
@@ -118,7 +118,7 @@ def peelPis (fuel : Nat) (arg : EIdx) : Nat → EIdx → AM Nat
   | 0, h => pure h.word.toNat
   | n + 1, h => do
     match ← view h with
-    | .forallE _ body _ => do
+    | .forallE _ body => do
       let b ← instantiate1Fast fuel body arg 0
       peelPis fuel arg n b
     | _ => pure h.word.toNat

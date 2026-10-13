@@ -96,12 +96,12 @@ def exprGetD (xs : List EIdx) (i : Nat) : AM EIdx :=
   | some x => pure x
   | none => internE (.bvar 0)
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:102-104 classBinder
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:104-106 classBinder
 The binder of an opened variable: its type; the Rust's `class_binders` is
 `xs.mapM classBinder`. -/
 def classBinder (x : EIdx) : AM EIdx := fvarTypeD x
 
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:113-114 ClassGen.binder
+/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:108-109 ClassGen.binder
 A generated binder of an opened variable; the Rust's `gen_binders` is
 `xs.mapM g.binder`. -/
 def ClassGen.binder (_g : ClassGen) (x : EIdx) : AM EIdx := fvarTypeD x
