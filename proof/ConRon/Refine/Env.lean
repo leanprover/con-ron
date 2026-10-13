@@ -209,7 +209,6 @@ identity. -/
 theorem rec_rule_fire_dup_refines {f f' : env.RecRuleFire}
     (h : env.rec_rule_fire_dup f = ok f') : f' = f := by
   cases f with
-  | Inert => simp only [env.rec_rule_fire_dup, Result.ok.injEq] at h; exact h.symm
   | Plain => simp only [env.rec_rule_fire_dup, Result.ok.injEq] at h; exact h.symm
   | Nested lvls pins =>
     simp only [env.rec_rule_fire_dup, bind_eq_ok_iff, Result.ok.injEq] at h
@@ -226,13 +225,13 @@ theorem rec_rule_dup_refines {r r' : env.RecRule}
   rw [rec_rule_fire_dup_refines hf]
 
 /-- `ConLeche/Kernel/Env.lean:259-292` -- `env::rec_rule_parsed` builds the
-cited structure at its *field defaults*: `ctorParams := 0`, `fire := .inert`,
-`k := eta := paramsBlind := false`. -/
+cited structure at its parse placeholders: `ctorParams := 0`, `fire := .plain`,
+`k := eta := false`. -/
 theorem rec_rule_parsed_refines {ctor : name.Name} {nfields : Std.U64}
     {rhs : expr.Expr} {r : env.RecRule}
     (h : env.rec_rule_parsed ctor nfields rhs = ok r) :
     absRecRule r =
-      ⟨absName ctor, nfields.val, 0, .inert, absExpr rhs, false, false, false⟩ := by
+      ⟨absName ctor, nfields.val, 0, .plain, absExpr rhs, false, false⟩ := by
   simp only [env.rec_rule_parsed, Result.ok.injEq] at h
   rw [← h]; rfl
 
@@ -260,7 +259,7 @@ theorem ind_caps_default_refines {c : env.IndCaps} (h : env.ind_caps_default = o
   obtain ⟨n, hn, pw, hpw, rfl⟩ := h
   rw [absIndCaps]
   simp only [Name.anonymous_refines hn,
-    PropWhen.if_all_zero_refines (fun _ hm => by simp [alloc.vec.Vec.new] at hm) hpw,
+    PropWhen.if_all_zero_refines hpw,
     absNames]
   simp [alloc.vec.Vec.new]
 

@@ -48,7 +48,6 @@ import ConRon.Refine.BasisNames
 import ConRon.Refine.BasisRaw
 import ConRon.Refine.CoreKNames
 import ConRon.Refine.PropRead
-import ConRon.Refine.CoreKShapes
 import ConRon.Refine.PinsDec
 import ConRon.Refine.PinsBytes
 import ConRon.Refine.PinsAbs

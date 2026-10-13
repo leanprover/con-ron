@@ -21,7 +21,7 @@ SUBJECT the arena still calls:
 | infrastructure | `SimpSets`, `Abs`, `Fixpoint` (`partial_induct`: `fixpoint_induct` for an `= ok` motive, task #99-PFIX; `Scalars` was deleted at task #97-PRUNE: nothing imported it) |
 | runtime primitives (`ron/`) | `Nat`, `HashMap`, `HashMapWF`, `HashMap2`, `HashMap2WF` |
 | representation-free types (`kernel/`) | `Name`, `Level`, `PropWhen`, `Expr`, `ExprOps`, `ExprOpsFields`, `ExprOpsSubst`, `ExprOpsMeta`, `Env`, `FEnv`, `Canon`, `PropRead` |
-| `core_k`'s readers, names and shape guards | `CoreKBase`, `CoreKNames`, `CoreKShapes` (`CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead; `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKInfer` and `CoreKProj` deleted, task #105 SW-R2: nothing live was left in them) |
+| `core_k`'s readers, names and shape guards | `CoreKBase`, `CoreKNames` (`CoreKShapes` deleted, task #119: the `level::name_is_proj_fn_shape` walk it held went with the kernel-tier dead code; `CoreKPinned` deleted, task #105-DC-refine: every declaration in it was dead; `CoreKVec`, `CoreKLits`, `CoreKSupport`, `CoreKGuards`, `CoreKNatOps`, `CoreKInfer` and `CoreKProj` deleted, task #105 SW-R2: nothing live was left in them) |
 | the pinned data | `BasisTables`, `BasisNames`, `BasisRaw`, `BasisPins`, `StdAxioms`, `TrustAxioms` |
 | the `con-ron-pins/1` decoder | `PinsDec`, `PinsBytes`, `PinsAbs`, `PinsRecords`, `PinsRun` (`Pins` deleted, task #105 SW-R2: only its module note was left; `PinsAscii`, `PinsSplit`, `PinsRead` — the reader half — deleted with it: nothing used them) |
 

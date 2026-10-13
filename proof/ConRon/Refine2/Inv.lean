@@ -3,7 +3,7 @@
 
 **Deliverable 1 of task #97 P5, part 2.**  What the Rust state must satisfy
 for a refinement lemma to say anything: the `ron::hashmap2` table invariant
-on each of the eighteen cons tables and the twenty-seven memo and cache
+on each of the seventeen cons tables and the twenty-seven memo and cache
 tables, the key restriction `KeysOk` that makes their `Eq2` dictionary exact,
 and nothing else — see `Refine2/AbsStore.lean`'s note on why the capacity
 invariant round 2 predicted is not among them.
@@ -14,10 +14,10 @@ invariant round 2 predicted is not among them.
 the port's own dictionaries, and this file discharges both once per key type:
 
 * **`Eq2Fwd Eq2Inst P`** — "`eq2` never lies about `P`-keys".  Fourteen of the
-  eighteen node records are handles and scalars through and through, so their
+  seventeen node records are handles and scalars through and through, so their
   `eq2` is a chain of `u32`/`u64` comparisons and `P` is `True`.  The other
   four carry a value with a CACHED WORD beside it (`StrNode`'s code points,
-  `ListNode`'s handle vector, `LitNode`'s `Literal`, `BMNode`'s `PropWhen`)
+  `ListNode`'s handle vector, `LitNode`'s `Literal`)
   and go through `kernel::name::str_eq`, `arena::store::lidx_vec_eq`,
   `kernel::expr::literal_beq` and `kernel::prop_when::beq`, whose exactness
   is `Refine/{Name,Expr,PropWhen}.lean`'s and holds on well-formed values
@@ -35,7 +35,7 @@ attribute [-grind] U32.bv_eq_imp_eq UScalar.val_eq_imp
 namespace ConRon.Refine2
 
 open ConRon.Arena
-open ConRon.Refine (StrWF LiteralWF PropWhenWF)
+open ConRon.Refine (StrWF LiteralWF)
 open ConRon.Refine.HashMap (Eq2Fwd DupId)
 open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun)
 
@@ -44,7 +44,7 @@ open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun)
 Every `eq2` below is read the same way: it returns `true` exactly on equal
 records.  `Eq2Fwd`'s conclusion is `c = decide (a = b)`, which that
 equivalence gives in two lines — stated once here rather than at each of the
-eighteen. -/
+seventeen. -/
 
 theorem eq2Fwd_of_iff {K : Type} [DecidableEq K] {I : ron.hashmap.Eq2 K}
     {P : K → Prop}
@@ -204,13 +204,13 @@ theorem proj_eq2 :
   simp only [arena.store.ProjNode.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
   grind
 
-/-! ### The two records that carry a cached word
+/-! ### The record that carries a cached word
 
-`LitNode`'s `Literal` and `BMNode`'s `PropWhen` both hold a hash beside the
-value, so `literal_beq`/`prop_when::beq` decide equality of the ABSTRACTED
-value and `Refine/Expr.lean`'s `absLiteral_inj` / `Refine/PropWhen.lean`'s
-`absPropWhen_injective` turn that into equality of the record — under the WF
-predicate, which is why `TblRel` is `RelOn` and not `Rel`. -/
+`LitNode`'s `Literal` holds a hash beside the value, so `literal_beq` decides
+equality of the ABSTRACTED value and `Refine/Expr.lean`'s `absLiteral_inj`
+turns that into equality of the record — under the WF predicate, which is why
+`TblRel` is `RelOn` and not `Rel`.  (`BMNode`, the binder datum's record, was
+the other one until task #119.) -/
 
 theorem lit_eq2 :
     Eq2Fwd arena.store.LitNode.Insts.Con_ron_coreRonHashmapEq2 LitNodeWF := by
@@ -226,22 +226,6 @@ theorem lit_eq2 :
   · intro he
     have hl : la = lb := ((arena.store.LitNode.mk.injEq _ _).mp he)
     simp [hl]
-
-theorem bm_eq2 :
-    Eq2Fwd arena.store.BMNode.Insts.Con_ron_coreRonHashmapEq2 BMNodeWF := by
-  apply eq2Fwd_of_iff
-  intro a b c ha hb h
-  obtain ⟨pa⟩ := a; obtain ⟨pb⟩ := b
-  simp only [arena.store.BMNode.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  rw [ConRon.Refine.PropWhen.beq_iff (ConRon.Refine.PropWhen.wf_shape ha)
-    (ConRon.Refine.PropWhen.wf_shape hb) h]
-  constructor
-  · intro hc
-    have hp := ConRon.Refine.PropWhen.absPropWhen_injective ha hb hc
-    simpa using hp
-  · intro he
-    have hp : pa = pb := ((arena.store.BMNode.mk.injEq _ _).mp he)
-    simp [hp]
 
 /-! ### `ListNode`: the handle vector compared element by element
 
@@ -362,9 +346,6 @@ theorem dupId_lidx : DupId arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup := 
 theorem dupId_lsidx : DupId arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup := by
   intro a b h; exact (Result.ok_injective h).symm
 
-theorem dupId_bmidx : DupId arena.handle.BMIdx.Insts.Con_ron_coreRonHashmapDup := by
-  intro a b h; exact (Result.ok_injective h).symm
-
 /-! ## One table, and one tier
 
 `TblInv` is `Refine/HashMap2.lean`'s `Inv` on the cons table plus the key
@@ -380,12 +361,10 @@ structure TblInv {A I D : Type} [DecidableEq A] (hA : ron.hashmap.Hashable A)
   keys : KeysOk P rt.cons
   /-- **Every record in the NODE column is well formed too** (task #97-P5-2).
   `keys` says it of the cons table; this says it of the array, and the two
-  are separate because `Tbl.node` reads the array and not the table.  It is
-  what the binder datum's `hasParams` needs: `prop_when::has_params` refines
-  `PropWhen.hasParams` only on a `WFShape` value (`Refine/PropWhen.lean`'s
-  `has_params_shape`), and that bit is OBSERVED — it is `derOfBind`'s `pm`,
-  hence the parent word's `lpOfData`.  `push` re-establishes it from the
-  caller's own `P a`, so it costs one line per writing lemma. -/
+  are separate because `Tbl.node` reads the array and not the table.  (It was
+  introduced for the binder datum's `hasParams`, gone at task #119; a read of
+  a node's `StrWF`/`LiteralWF` payload uses it now.)  `push` re-establishes it
+  from the caller's own `P a`, so it costs one line per writing lemma. -/
   nodesP : ∀ p ∈ rt.rows.val, P p.1
 
 structure NTablesInv (rt : arena.store.NTables) : Prop where
@@ -433,8 +412,6 @@ structure ETablesInv (rt : arena.store.ETables) : Prop where
     LitNodeWF rt.lits
   projs : TblInv arena.store.ProjNode.Insts.Con_ron_coreRonHashmapHashable
     ProjNodeWF rt.projs
-  bms : TblInv arena.store.BMNode.Insts.Con_ron_coreRonHashmapHashable
-    BMNodeWF rt.bms
 
 /-! ## The four stores, and the persistent tier
 
@@ -541,8 +518,8 @@ macro "frz_tac" : tactic => `(tactic| first
 
 /-! ## Axiom census
 
-The eighteen `Eq2Fwd` obligations and the `lidx_vec_eq` induction, at the
-three standard axioms.  `Classical.choice` is there for the eighteen
+The seventeen `Eq2Fwd` obligations and the `lidx_vec_eq` induction, at the
+three standard axioms.  `Classical.choice` is there for the seventeen
 `DecidableEq` instances of `Refine2/AbsStore.lean` (whose note says why
 nothing is lost by them) and for nothing else. -/
 
@@ -554,9 +531,6 @@ nothing is lost by them) and for nothing else. -/
 
 /-- info: 'ConRon.Refine2.lit_eq2' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms lit_eq2
-
-/-- info: 'ConRon.Refine2.bm_eq2' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms bm_eq2
 
 /-- info: 'ConRon.Refine2.list_eq2' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms list_eq2

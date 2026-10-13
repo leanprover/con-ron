@@ -58,8 +58,8 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     intro pw h
     rw [level.zeroness_of.eq_def] at h
     simp only [arc_deref_eq, bind_ok, level_node_kind] at h
-    refine ⟨?_, PropWhen.if_all_zero_wf (fun n hn => by simp at hn) h⟩
-    rw [PropWhen.if_all_zero_refines (fun n hn => by simp at hn) h]
+    refine ⟨?_, PropWhen.if_all_zero_wf (fun n hn => by simp [alloc.vec.Vec.new] at hn) h⟩
+    rw [PropWhen.if_all_zero_refines h]
     simp [ConLeche.Level.zeronessOf, absNames, alloc.vec.Vec.new]
   | @succ a u ha h1 _ =>
     obtain ⟨hh, hu⟩ := level_succ_inv h1
@@ -100,7 +100,7 @@ theorem zeroness_of_refines {l : level.Level} (hl : LevelWF l) :
     have hnames : NamesWF ps := by
       intro k hk; rw [hpsv] at hk; simp at hk; rw [hk]; exact hn
     refine ⟨?_, PropWhen.if_all_zero_wf hnames h⟩
-    rw [PropWhen.if_all_zero_refines hnames h]
+    rw [PropWhen.if_all_zero_refines h]
     have : absNames ps = [absName n] := by unfold absNames; rw [hpsv]; simp
     rw [this]
     simp [ConLeche.Level.zeronessOf]

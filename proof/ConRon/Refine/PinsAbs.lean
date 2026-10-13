@@ -60,7 +60,7 @@ def absPins (ps : alloc.vec.Vec nat_op_pins.NatOpPinSet) :
 The two abstractions `Refine/PinsBytes.lean`'s induction is stated over.  Both
 are plain `map`s: the refinement never needs a well-formedness side condition,
 because every value a record installs is built by a *smart constructor* whose
-own refinement lemma (`Refine/{Name,Level,PropWhen,Expr}.lean`) already says
+own refinement lemma (`Refine/{Name,Level,Expr}.lean`) already says
 what it abstracts to. -/
 
 /-- The model's byte slice as `PinsDec.Bytes`.  Aeneas models `Str` as
@@ -73,7 +73,6 @@ read through the abstraction of its element type, in emission order. -/
 def absTables (tb : pins_decode.Tables) : PinsDec.Tables :=
   { names := tb.names.val.map absName
     levels := tb.levels.val.map absLevel
-    pws := tb.pws.val.map absPropWhen
     exprs := tb.exprs.val.map absExpr
     sets := tb.sets.val.map absNatOpPinSet }
 

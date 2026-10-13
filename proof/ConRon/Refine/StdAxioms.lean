@@ -6,38 +6,20 @@ import ConLeche.Kernel.DeclCheck
 /-! # `kernel::std_axioms` — the two recognized standard axioms (task #56)
 
 `CORE_PLAN.md` step 7.  `crates/con-ron-core/src/kernel/std_axioms.rs` is
-`ConLeche/Kernel/StdAxioms.lean`: the pinned names, the *raw* pins written with
-`Basis/Builder.lean`'s DSL, the pin comparison (`Expr.erasePw`/
-`ConstantVal.matchesPin`, and their executed `@[csimp]` twins
-`Expr.erasePwEq`/`ConstantVal.matchesPinFast`), and the install guard
-`stdAxiomOk`/`stdAxiomOkF` that consumes all of it.
+`ConLeche/Kernel/StdAxioms.lean`: the pinned names and the pins written with `Basis/Builder.lean`'s DSL.
 
-## The key fact of this module: RAW pins, and the comparison cannot tell
+## The pins are plain values (task #119)
 
-con-leche writes each pin twice — the raw one, hand-written with the builder,
-and the annotated one (`iffA`, `iffIntroA`, `iffRecA`, `nonemptyA`,
-`nonemptyIntroA`, `nonemptyRecA`, `propextA`, `choiceA`), computed from it at
-elaboration time by `#annotate_basis`/`#annotate_pins`.  `stdAxiomOk` compares
-against the *annotated* one; the port compares against the *raw* one, which it
-can write down (task #24's "`matchesPin` is compared against the RAW pins, and
-that is exact").  The bridge is
-
-```text
-matchesPin cv (annotate pin) = matchesPin cv pin
-```
-
-and **it is proved here, not assumed**: `matchesPin`'s type test is
-`a.erasePw == b.erasePw`, so `matchesPin_congr` below reduces the claim to
-three closed equations between the annotated and the raw pin — same name, same
-level parameters, same `erasePw` of the type — each of which is `rfl` on the
-two closed terms (`iffA_matchesPin_raw` … `choiceA_matchesPin_raw`, eight of
-them).  So the port's deviation costs the proof nothing at all, and the
-annotated pins are cited on the same items the raw ones are.
+Until con-leche's task #342 the pins were written twice — raw, and annotated
+by `#annotate_basis`/`#annotate_pins` — and the port compared against the raw
+one through `matchesPin`'s `erasePw`.  A binder carries no datum any more, so
+`iffA` … `choiceA` are hand-written with the builder and the port's
+`iff_a` … `choice_a` refine them directly.
 
 ## What is stated against what
 
 * A **pin builder** gets a closed equality in the style of
-  `Refine/BasisTables.lean`: `absConstantInfo <the port's pin> = <the raw
+  `Refine/BasisTables.lean`: `absConstantInfo <the port's pin> = <the
   con-leche pin>`, with the hereditary `ConstantInfoWF` beside it.  Nothing is
   hypothesised; the pins are closed terms on both sides.
 * A **pinned name** gets `Refine/BasisNames.lean`'s shape
@@ -45,7 +27,7 @@ annotated pins are cited on the same items the raw ones are.
   `str_lit_step`.
 * A **guard** (`iff_pinned`, …, `std_axiom_ok`) is a pure `bool`, so it gets
   exactness: the Rust `Bool` *is* the cited Lean `Bool`, at the con-leche
-  spelling with the *annotated* pins, i.e. the guard is literally the cited
+  spelling, i.e. the guard is literally the cited
   `match` of `stdAxiomOkF`.  The hypotheses are `CoreKBase`'s `FindAgree`/
   `FindWF` rather than the full `FEnv.FEnvRel`/`FEnv.FEnvWF` (the module reads
   the index only through `fenv::find`), with `std_axiom_ok_refines_of_rel` the
@@ -70,7 +52,7 @@ imported, so the thirteen builder steps this module needs are proved here under
 descriptive names (`bb_*`).  **To be unified into `Refine/BasisBuilder.lean`**
 when one exists.  They also record task #24's deviation 2: `pi`/`piI`/`piA` are
 one Rust function and `lm`/`lmI` another, because `Expr` carries no binder
-name, so each `bb_*` step concludes the *node* (`.forallE ty b ⟨.never⟩`) and
+name, so each `bb_*` step concludes the *node* (`.forallE ty b`) and
 `BasisDSL_pi_eq`/`BasisDSL_lm_eq` say that node is every one of the cited
 spellings.
 
@@ -125,27 +107,13 @@ theorem bb_cnst {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.Expr}
   rw [basis_builder.cnst] at h
   exact ⟨Expr.mk_const_refines h, Expr.mk_const_wf hn hus h⟩
 
-/-- The `⟨.never⟩` binder datum every raw-pin binder carries
-(`basis_builder::never_meta`; con-leche writes it inline). -/
-theorem bb_never_meta {m : expr.BinderMeta} (h : basis_builder.never_meta = ok m) :
-    absBinderMeta m = (⟨.never⟩ : ConLeche.BinderMeta) ∧ BinderMetaWF m := by
-  rw [basis_builder.never_meta] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨pw, hpw, hm⟩ := h
-  simp only [expr.binder_meta, Result.ok.injEq] at hm
-  subst hm
-  exact ⟨by rw [absBinderMeta, PropWhen.never_refines hpw], PropWhen.never_wf hpw⟩
-
 /-- `Basis/Builder.lean:85-97 BasisDSL.pi`/`piI`/`piA` — `basis_builder::pi`
 (one Rust function for all three; see `BasisDSL_pi_eq`). -/
 theorem bb_pi {ty b e : expr.Expr} (hty : ExprWF ty) (hb : ExprWF b)
     (h : basis_builder.pi ty b = ok e) :
-    absExpr e = .forallE (absExpr ty) (absExpr b) ⟨.never⟩ ∧ ExprWF e := by
+    absExpr e = .forallE (absExpr ty) (absExpr b) ∧ ExprWF e := by
   rw [basis_builder.pi] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨m, hm, hf⟩ := h
-  obtain ⟨hmabs, hmwf⟩ := bb_never_meta hm
-  exact ⟨by rw [Expr.forall_e_refines hf, hmabs], Expr.forall_e_wf hty hb hmwf hf⟩
+  exact ⟨Expr.forall_e_refines h, Expr.forall_e_wf hty hb h⟩
 
 /-- `Basis/Builder.lean:108-109 BasisDSL.ap2` — `basis_builder::ap2`. -/
 theorem bb_ap2 {f a b e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a) (hb : ExprWF b)
@@ -351,20 +319,16 @@ theorem levels_singleton {v : alloc.vec.Vec level.Level} {u : level.Level}
   rcases hx with rfl
   exact hu
 
-/-! ## The raw pins (`StdAxioms.lean:217-298`)
+/-! ## The pins (`StdAxioms.lean:93-166`)
 
 Each is a closed equality in the style of `Refine/BasisTables.lean`: what the
 port builds *is* the con-leche pin, with the hereditary `*WF` beside it.  The
-`#annotate_basis`/`#annotate_pins` citation on the Rust item is honoured by the
-`*_matchesPin_raw` section below, not here: these lemmas are about the raw pin,
-which is what the Rust writes. -/
+pins are plain values since task #119. -/
 
-/-- `ConLeche/Kernel/StdAxioms.lean:217-219 iffRaw`
-(`:308-314` `#annotate_basis`, computing `iffA`) — `std_axioms::iff_raw`
-refines `iffRaw`.  Deviation: `IndCaps`' `{}` is `env::ind_caps_default`. -/
-theorem iff_raw_refines {ci : env.ConstantInfo} (h : std_axioms.iff_raw = ok ci) :
-    absConstantInfo ci = ConLeche.iffRaw ∧ ConstantInfoWF ci := by
-  rw [std_axioms.iff_raw] at h
+/-- `ConLeche/Kernel/StdAxioms.lean` `iffA` — `std_axioms::iff_a` refines `iffA`. Deviation: `IndCaps`' `{}` is `env::ind_caps_default`. -/
+theorem iff_a_refines {ci : env.ConstantInfo} (h : std_axioms.iff_a = ok ci) :
+    absConstantInfo ci = ConLeche.iffA ∧ ConstantInfoWF ci := by
+  rw [std_axioms.iff_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, e, he, e1, he1, e2, he2, ic, hic, rfl⟩ := h
   obtain ⟨na, nw⟩ := iff_name_refines hn
@@ -376,12 +340,11 @@ theorem iff_raw_refines {ci : env.ConstantInfo} (h : std_axioms.iff_raw = ok ci)
     Env.ind_caps_default_refines hic]
   rfl
 
-/-- `ConLeche/Kernel/StdAxioms.lean:221-229 iffIntroRaw` —
-`std_axioms::iff_intro_raw` refines `iffIntroRaw`, at the pinned arity `2 2`. -/
-theorem iff_intro_raw_refines {ci : env.ConstantInfo}
-    (h : std_axioms.iff_intro_raw = ok ci) :
-    absConstantInfo ci = ConLeche.iffIntroRaw ∧ ConstantInfoWF ci := by
-  rw [std_axioms.iff_intro_raw] at h
+/-- `ConLeche/Kernel/StdAxioms.lean` `iffIntroA` — `std_axioms::iff_intro_a` refines `iffIntroA`, at the pinned arity `2 2`. -/
+theorem iff_intro_a_refines {ci : env.ConstantInfo}
+    (h : std_axioms.iff_intro_a = ok ci) :
+    absConstantInfo ci = ConLeche.iffIntroA ∧ ConstantInfoWF ci := by
+  rw [std_axioms.iff_intro_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, e, he, e1, he1, e2, he2, e3, he3, e4, he4, n1, hn1, e5, he5,
     e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, e11, he11, rfl⟩ := h
@@ -430,13 +393,12 @@ theorem iff_rec_intro_refines {e : expr.Expr} (h : std_axioms.iff_rec_intro = ok
     levels_new.1]
   rfl
 
-/-- `ConLeche/Kernel/StdAxioms.lean:238-248 iffRecRaw` —
-`std_axioms::iff_rec_raw` refines `iffRecRaw`, at the pinned arity `4 4` and
+/-- `ConLeche/Kernel/StdAxioms.lean` `iffRecA` — `std_axioms::iff_rec_a` refines `iffRecA`, at the pinned arity `4 4` and
 with no reduction rules. -/
-theorem iff_rec_raw_refines {ci : env.ConstantInfo}
-    (h : std_axioms.iff_rec_raw = ok ci) :
-    absConstantInfo ci = ConLeche.iffRecRaw ∧ ConstantInfoWF ci := by
-  rw [std_axioms.iff_rec_raw] at h
+theorem iff_rec_a_refines {ci : env.ConstantInfo}
+    (h : std_axioms.iff_rec_a = ok ci) :
+    absConstantInfo ci = ConLeche.iffRecA ∧ ConstantInfoWF ci := by
+  rw [std_axioms.iff_rec_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, lps, hlps, n1, hn1, e, he, n2, hn2, e1, he1, e2, he2, e3, he3,
     e4, he4, l, hl, e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10,
@@ -473,7 +435,7 @@ theorem iff_rec_raw_refines {ci : env.ConstantInfo}
   · intro r hr; simp [alloc.vec.Vec.new] at hr
 
 /-- con-leche: none — `std_axioms::one_level` is the level list `[.succ .zero]`
-the pinned `Eq` of `propextRaw`'s conclusion carries; Lean writes it inline. -/
+the pinned `Eq` of `propextA`'s conclusion carries; Lean writes it inline. -/
 theorem one_level_refines {v : alloc.vec.Vec level.Level}
     (h : std_axioms.one_level = ok v) :
     absLevels v = [.succ .zero] ∧ LevelsWF v := by
@@ -484,12 +446,10 @@ theorem one_level_refines {v : alloc.vec.Vec level.Level}
   obtain ⟨a, w⟩ := levels_singleton hw hpush
   exact ⟨by rw [a, Level.succ_refines hl1, Level.zero_refines hl], w⟩
 
-/-- `ConLeche/Kernel/StdAxioms.lean:254-261 propextRaw`
-(`:316-319` `#annotate_pins`, computing `propextA`) —
-`std_axioms::propext_raw` refines `propextRaw`. -/
-theorem propext_raw_refines {cv : env.ConstantVal} (h : std_axioms.propext_raw = ok cv) :
-    absConstantVal cv = ConLeche.propextRaw ∧ ConstantValWF cv := by
-  rw [std_axioms.propext_raw] at h
+/-- `ConLeche/Kernel/StdAxioms.lean` `propextA` — `std_axioms::propext_a` refines `propextA`. -/
+theorem propext_a_refines {cv : env.ConstantVal} (h : std_axioms.propext_a = ok cv) :
+    absConstantVal cv = ConLeche.propextA ∧ ConstantValWF cv := by
+  rw [std_axioms.propext_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, e, he, n1, hn1, e1, he1, e2, he2, e3, he3, e4, he4, n2, hn2,
     vs, hvs, e5, he5, e6, he6, e7, he7, e8, he8, e9, he9, e10, he10, rfl⟩ := h
@@ -513,12 +473,11 @@ theorem propext_raw_refines {cv : env.ConstantVal} (h : std_axioms.propext_raw =
     vsa, levels_new.1, names_new.1]
   rfl
 
-/-- `ConLeche/Kernel/StdAxioms.lean:263-265 nonemptyRaw` —
-`std_axioms::nonempty_raw` refines `nonemptyRaw`. -/
-theorem nonempty_raw_refines {ci : env.ConstantInfo}
-    (h : std_axioms.nonempty_raw = ok ci) :
-    absConstantInfo ci = ConLeche.nonemptyRaw ∧ ConstantInfoWF ci := by
-  rw [std_axioms.nonempty_raw] at h
+/-- `ConLeche/Kernel/StdAxioms.lean` `nonemptyA` — `std_axioms::nonempty_a` refines `nonemptyA`. -/
+theorem nonempty_a_refines {ci : env.ConstantInfo}
+    (h : std_axioms.nonempty_a = ok ci) :
+    absConstantInfo ci = ConLeche.nonemptyA ∧ ConstantInfoWF ci := by
+  rw [std_axioms.nonempty_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, lps, hlps, n1, hn1, l, hl, e, he, e1, he1, e2, he2, ic, hic, rfl⟩ := h
   obtain ⟨ua, uw⟩ := bb_u_n hn
@@ -533,12 +492,11 @@ theorem nonempty_raw_refines {ci : env.ConstantInfo}
     Env.ind_caps_default_refines hic]
   rfl
 
-/-- `ConLeche/Kernel/StdAxioms.lean:267-273 nonemptyIntroRaw` —
-`std_axioms::nonempty_intro_raw` refines `nonemptyIntroRaw`, at arity `1 1`. -/
-theorem nonempty_intro_raw_refines {ci : env.ConstantInfo}
-    (h : std_axioms.nonempty_intro_raw = ok ci) :
-    absConstantInfo ci = ConLeche.nonemptyIntroRaw ∧ ConstantInfoWF ci := by
-  rw [std_axioms.nonempty_intro_raw] at h
+/-- `ConLeche/Kernel/StdAxioms.lean` `nonemptyIntroA` — `std_axioms::nonempty_intro_a` refines `nonemptyIntroA`, at arity `1 1`. -/
+theorem nonempty_intro_a_refines {ci : env.ConstantInfo}
+    (h : std_axioms.nonempty_intro_a = ok ci) :
+    absConstantInfo ci = ConLeche.nonemptyIntroA ∧ ConstantInfoWF ci := by
+  rw [std_axioms.nonempty_intro_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, lps, hlps, l, hl, us, hus, n1, hn1, e, he, e1, he1, n2, hn2,
     e2, he2, e3, he3, e4, he4, e5, he5, e6, he6, rfl⟩ := h
@@ -559,13 +517,12 @@ theorem nonempty_intro_raw_refines {ci : env.ConstantInfo}
     a3, a2, a1, a, n2a, usa, lva]
   rfl
 
-/-- `ConLeche/Kernel/StdAxioms.lean:275-287 nonemptyRecRaw` —
-`std_axioms::nonempty_rec_raw` refines `nonemptyRecRaw`, at arity `3 3`, with
+/-- `ConLeche/Kernel/StdAxioms.lean` `nonemptyRecA` — `std_axioms::nonempty_rec_a` refines `nonemptyRecA`, at arity `3 3`, with
 the motive sort pinned to `Prop` (the cited guidance). -/
-theorem nonempty_rec_raw_refines {ci : env.ConstantInfo}
-    (h : std_axioms.nonempty_rec_raw = ok ci) :
-    absConstantInfo ci = ConLeche.nonemptyRecRaw ∧ ConstantInfoWF ci := by
-  rw [std_axioms.nonempty_rec_raw] at h
+theorem nonempty_rec_a_refines {ci : env.ConstantInfo}
+    (h : std_axioms.nonempty_rec_a = ok ci) :
+    absConstantInfo ci = ConLeche.nonemptyRecA ∧ ConstantInfoWF ci := by
+  rw [std_axioms.nonempty_rec_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, lps, hlps, l, hl, us1, hus1, us2, hus2, us3, hus3, n1, hn1,
     e, he, n2, hn2, e1, he1, e2, he2, e3, he3, e4, he4, e5, he5, e6, he6,
@@ -605,12 +562,10 @@ theorem nonempty_rec_raw_refines {ci : env.ConstantInfo}
     rfl
   · intro r hr; simp [alloc.vec.Vec.new] at hr
 
-/-- `ConLeche/Kernel/StdAxioms.lean:293-298 choiceRaw`
-(`:316-319` `#annotate_pins`, computing `choiceA`) — `std_axioms::choice_raw`
-refines `choiceRaw`. -/
-theorem choice_raw_refines {cv : env.ConstantVal} (h : std_axioms.choice_raw = ok cv) :
-    absConstantVal cv = ConLeche.choiceRaw ∧ ConstantValWF cv := by
-  rw [std_axioms.choice_raw] at h
+/-- `ConLeche/Kernel/StdAxioms.lean` `choiceA` — `std_axioms::choice_a` refines `choiceA`. -/
+theorem choice_a_refines {cv : env.ConstantVal} (h : std_axioms.choice_a = ok cv) :
+    absConstantVal cv = ConLeche.choiceA ∧ ConstantValWF cv := by
+  rw [std_axioms.choice_a] at h
   simp only [bind_eq_ok_iff, Result.ok.injEq] at h
   obtain ⟨n, hn, lps, hlps, l, hl, us, hus, n1, hn1, e, he, n2, hn2, e1, he1,
     e2, he2, e3, he3, e4, he4, e5, he5, e6, he6, rfl⟩ := h

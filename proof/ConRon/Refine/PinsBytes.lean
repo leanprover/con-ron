@@ -30,7 +30,6 @@ import ConRon.Refine.PinsAbs
 import ConRon.Refine.Nat
 import ConRon.Refine.Name
 import ConRon.Refine.Level
-import ConRon.Refine.PropWhen
 
 open Aeneas Aeneas.Std Result
 open ConRon.Generated ConRon.Generated.kernel
@@ -1075,47 +1074,6 @@ theorem level_ref_refines {t : Slice Std.U8} {i : Std.Usize}
 
 /-- The full outcome; the `.Err` branch is the module's one `Native` error,
 either `read_index`'s or the out-of-range back-reference's own. -/
-theorem pw_ref_refines {t : Slice Std.U8} {i : Std.Usize}
-    {tb : pins_decode.Tables}
-    {o : core.result.Result (prop_when.PropWhen × Std.Usize) core_types.CheckError}
-    (h : pins_decode.pw_ref t i tb = ok o) :
-    match o with
-    | .Ok (p, j) =>
-        PinsDec.pwRef (bytesFrom t i) (absTables tb) = some (absPropWhen p, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
-    | .Err ce => absErrKind ce = none := by
-  rw [pins_decode.pw_ref] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨r, hr, h⟩ := h
-  cases r with
-  | Err e =>
-    simp only [Result.ok.injEq] at h
-    subst h
-    exact read_index_refines hr
-  | Ok pr =>
-    obtain ⟨kk, j1⟩ := pr
-    replace h : (if kk < alloc.vec.Vec.len tb.pws then _ else _) = ok o := h
-    split at h
-    · rename_i hkb
-      have hkl : kk.val < tb.pws.length := by scalar_tac
-      rw [vec_index_ok hkl] at h
-      simp only [bind_ok, bind_eq_ok_iff] at h
-      obtain ⟨c, hc, h⟩ := h
-      have hcv := PropWhen.dup_eq hc
-      subst hcv
-      simp only [Result.ok.injEq] at h
-      subst h
-      obtain ⟨hidx, hij, hjt⟩ := read_index_refines hr
-      refine ⟨?_, hij, hjt⟩
-      have htab : (absTables tb).pws[kk.val]? = some (absPropWhen tb.pws.val[kk.val]) := by
-        simp only [absTables, List.getElem?_map, List.getElem?_eq_getElem hkl]
-        rfl
-      simp only [PinsDec.pwRef, hidx, htab]
-    · obtain ⟨ce, rfl, hce⟩ := err_native h
-      exact hce
-
-/-- The full outcome; the `.Err` branch is the module's one `Native` error,
-either `read_index`'s or the out-of-range back-reference's own. -/
 theorem expr_ref_refines {t : Slice Std.U8} {i : Std.Usize}
     {tb : pins_decode.Tables}
     {o : core.result.Result (expr.Expr × Std.Usize) core_types.CheckError}
@@ -1157,127 +1115,9 @@ theorem expr_ref_refines {t : Slice Std.U8} {i : Std.Usize}
 
 /-! ## Counted lists -/
 
-/-- The induction behind `name_list_from_refines`: the recursion is on the
+/-- The induction behind `level_list_from_refines`: the recursion is on the
 *counter*, and the `i ≤ t.length` bound is what the `k = 0` arm hands back —
 that arm accepts any index, in range or not. -/
-private theorem name_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} :
-    ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec name.Name),
-      k.val ≤ kf → i.val ≤ t.length →
-      ∀ (o : core.result.Result (alloc.vec.Vec name.Name × Std.Usize) core_types.CheckError),
-        pins_decode.name_list_from t i tb k out = ok o →
-        match o with
-        | .Ok (res, j) =>
-            PinsDec.nameListFrom (bytesFrom t i) (absTables tb) k.val (absNames out)
-                = some (absNames res, bytesFrom t j)
-              ∧ i.val ≤ j.val ∧ j.val ≤ t.length
-        | .Err ce => absErrKind ce = none := by
-  intro kf
-  induction kf with
-  | zero =>
-    intro i k out hk hi o h
-    rw [pins_decode.name_list_from.eq_def] at h
-    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
-    simp only [Result.ok.injEq] at h
-    subst h
-    rw [show k.val = 0 from by scalar_tac]
-    exact ⟨by simp [PinsDec.nameListFrom], le_refl _, hi⟩
-  | succ kf ih =>
-    intro i k out hk hi o h
-    rw [pins_decode.name_list_from.eq_def] at h
-    split at h
-    · simp only [Result.ok.injEq] at h
-      subst h
-      rename_i hk0
-      rw [show k.val = 0 from by scalar_tac]
-      exact ⟨by simp [PinsDec.nameListFrom], le_refl _, hi⟩
-    · rename_i hk0
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨r, hr, h⟩ := h
-      cases r with
-      | Err e =>
-        simp only [Result.ok.injEq] at h
-        subst h
-        exact after_space_refines hr
-      | Ok j1 =>
-        simp only [] at h
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨r1, hr1, h⟩ := h
-        cases r1 with
-        | Err e =>
-          simp only [Result.ok.injEq] at h
-          subst h
-          exact name_ref_refines hr1
-        | Ok pr =>
-          obtain ⟨x0, m⟩ := pr
-          replace h : (Std.bind (alloc.vec.Vec.push out x0) _) = ok o := h
-          simp only [bind_eq_ok_iff] at h
-          obtain ⟨out1, hpush, k1, hk1, h⟩ := h
-          obtain ⟨hsp, hij1, hj1t⟩ := after_space_refines hr
-          obtain ⟨href, hj1m, hmt⟩ := name_ref_refines hr1
-          obtain ⟨w, hw, hwv⟩ := usize_sub_ok (i := k) (show 1 ≤ k.val from by scalar_tac)
-          rw [hw, Result.ok.injEq] at hk1
-          subst hk1
-          cases o with
-          | Err ce => exact ih m w out1 (by omega) hmt _ h
-          | Ok pr1 =>
-          obtain ⟨res, j⟩ := pr1
-          obtain ⟨hrec, hmj, hjt⟩ := ih m w out1 (by omega) hmt _ h
-          refine ⟨?_, by omega, hjt⟩
-          obtain ⟨kv, hkv⟩ : ∃ kv, k.val = kv + 1 := ⟨k.val - 1, by scalar_tac⟩
-          rw [hkv]
-          simp only [PinsDec.nameListFrom, hsp, href]
-          rw [show absNames out ++ [absName x0] = absNames out1 from by
-            simp [absNames, vec_push_val hpush]]
-          rw [show kv = w.val from by omega]
-          exact hrec
-
-/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
-theorem name_list_from_refines {t : Slice Std.U8} {i : Std.Usize}
-    {tb : pins_decode.Tables} {k : Std.Usize} {out : alloc.vec.Vec name.Name}
-    {o : core.result.Result (alloc.vec.Vec name.Name × Std.Usize) core_types.CheckError}
-    (hi : i.val ≤ t.length)
-    (h : pins_decode.name_list_from t i tb k out = ok o) :
-    match o with
-    | .Ok (ns, j) =>
-        PinsDec.nameListFrom (bytesFrom t i) (absTables tb) k.val (absNames out)
-            = some (absNames ns, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
-    | .Err ce => absErrKind ce = none := by
-  cases o <;> exact name_list_from_aux k.val i k out (le_refl _) hi _ h
-
-/-- The full outcome; the `.Err` branch is the module's one `Native` error. -/
-theorem name_list_refines {t : Slice Std.U8} {i : Std.Usize}
-    {tb : pins_decode.Tables}
-    {o : core.result.Result (alloc.vec.Vec name.Name × Std.Usize) core_types.CheckError}
-    (h : pins_decode.name_list t i tb = ok o) :
-    match o with
-    | .Ok (ns, j) =>
-        PinsDec.nameList (bytesFrom t i) (absTables tb) = some (absNames ns, bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
-    | .Err ce => absErrKind ce = none := by
-  rw [pins_decode.name_list] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨r, hr, h⟩ := h
-  cases r with
-  | Err e =>
-    simp only [Result.ok.injEq] at h
-    subst h
-    exact read_index_refines hr
-  | Ok pr =>
-    obtain ⟨n0, j1⟩ := pr
-    replace h : pins_decode.name_list_from t j1 tb n0 (alloc.vec.Vec.new name.Name) = ok o := h
-    obtain ⟨hidx, hij1, hj1t⟩ := read_index_refines hr
-    cases o with
-    | Err ce => exact name_list_from_refines hj1t h
-    | Ok pr1 =>
-    obtain ⟨ns, j⟩ := pr1
-    obtain ⟨hrec, hj1j, hjt⟩ := name_list_from_refines hj1t h
-    refine ⟨?_, by omega, hjt⟩
-    rw [show absNames (alloc.vec.Vec.new name.Name) = [] from rfl] at hrec
-    simp only [PinsDec.nameList, hidx]
-    exact hrec
-
-/-- The induction behind `level_list_from_refines`; see `name_list_from_aux`. -/
 private theorem level_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} :
     ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec level.Level),
       k.val ≤ kf → i.val ≤ t.length →
@@ -1395,7 +1235,7 @@ theorem level_list_refines {t : Slice Std.U8} {i : Std.Usize}
     simp only [PinsDec.levelList, hidx]
     exact hrec
 
-/-- The induction behind `expr_list_from_refines`; see `name_list_from_aux`. -/
+/-- The induction behind `expr_list_from_refines`; see `level_list_from_aux`. -/
 private theorem expr_list_from_aux {t : Slice Std.U8} {tb : pins_decode.Tables} :
     ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec expr.Expr),
       k.val ≤ kf → i.val ≤ t.length →

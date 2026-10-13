@@ -424,7 +424,11 @@ def absExprs (es : alloc.vec.Vec expr.Expr) : List ConLeche.Expr :=
 @[simp] theorem absExpr_mk (d : Std.U64) (k : expr.ExprKind) :
     absExpr (.mk (.mk d k)) = absExprKind k := by rw [absExpr, absExprNode]
 
-attribute [simp] absNameKind absLevelKind absPropWhen absExprKind absLiteral
+attribute [simp] absNameKind absLevelKind absExprKind absLiteral
+
+@[simp] theorem absPropWhen_Never : absPropWhen .Never = .never := rfl
+@[simp] theorem absPropWhen_IfAllZero (ps : alloc.vec.Vec name.Name) :
+    absPropWhen (.IfAllZero ps) = .ifAllZero (absNames ps) := rfl
 
 /-! ## Smart-constructor shapes
 

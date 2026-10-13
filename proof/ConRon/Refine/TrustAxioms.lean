@@ -1,6 +1,9 @@
 import ConLeche.Kernel.DeclCheck
 import ConRon.Refine.CoreKNames
-import ConRon.Refine.CoreKShapes
+import ConRon.Refine.CoreKBase
+import ConLeche.Kernel.FEnv
+import ConLeche.Kernel.Core
+import ConLeche.Cached.StateC
 
 /-! # `kernel::trust_axioms` and `kernel::trust_pins` — the compiler-trust
 family (task #56)
@@ -13,28 +16,13 @@ family (task #56)
 declaration against them, and the two hand-pinned identity values the reduce
 operations' install compares against.
 
-## The pins are the RAW ones, and that is exact (task #24)
+## The pins are plain values (task #119)
 
-`TrustAxioms.lean` writes its pins twice: the raw ones, hand-written with
-`Basis/Builder.lean`'s DSL (`reduceOpRaw`, `ofReduceRaw`), and the annotated
-ones (`reduceNatCvA`, `reduceBoolCvA`, `ofReduceNatA`, `ofReduceBoolA`)
-computed from them at elaboration time by `#annotate_pins`.  Every consumer
-goes through `ConstantVal.matchesPin`, whose type test is
-`a.erasePw == b.erasePw`, so `matchesPin cv (annotate pin) = matchesPin cv pin`
-and the port compares against the raw pin, which it can write down, with the
-annotated twin cited on the same item (DESIGN.md task #24).
-
-Here that argument is not an argument at all but a **closed computation**:
-`matchesPin_reduceOpCvA` and `matchesPin_ofReducePinA` below are `rfl` — the four
-annotated pins and the raw ones they came from have the same name, the same
-(empty) level parameters and `erasePw`-equal types.  (`reduceNatCvA` is in
-fact *literally* `reduceOpRaw reduceNatName`: its one binder's codomain is a
-`.const`, so `annotPwPi` answers the parse placeholder `.never` the raw pin
-already carries.  The two `ofReduce*` pins differ from their raw forms in
-exactly the three binder data `erasePw` erases.)  So each pin builder's lemma
-is the closed equality against the **raw** con-leche pin, and each guard's
-lemma is exactness against the cited Lean guard *as written* — with the
-annotated pin in it.
+Until con-leche's task #342 the pins were written twice — raw, and annotated
+by `#annotate_pins` — and the port compared against the raw one through
+`matchesPin`'s `erasePw`.  A binder carries no datum any more, so
+`reduceNatCvA` … `ofReduceBoolA` are literally `reduceOpRaw`/`ofReduceRaw`
+at the pinned name, and the port's four `*_a` builders refine them directly.
 
 ## The `F`-twins, and what is stated against what
 
@@ -72,7 +60,7 @@ Neither is a new claim; both are discharged where the sibling lands.
 
 ## Two things proved here that belong elsewhere
 
-* **The raw-pin builder's six steps** (`never_meta`, `pi`, `lm`, `cnst`, `bv`,
+* **The raw-pin builder's five steps** (`pi`, `lm`, `cnst`, `bv`,
   `ap2`/`ap3`) and `std_axioms::one_level`: another task-#56 file's modules, so
   they are proved here as *steps* (the shape `CoreKBase.str_lit_step` has)
   rather than as `<fn>_refines` lemmas that would claim the module.  **To be
@@ -257,37 +245,22 @@ theorem namesWF_new : NamesWF (alloc.vec.Vec.new name.Name) := by
 theorem levelsWF_new : LevelsWF (alloc.vec.Vec.new level.Level) := by
   intro u hu; simp [alloc.vec.Vec.new] at hu
 
-/-- `Basis/Builder.lean`'s `⟨.never⟩` binder datum, which
-`pi`/`piI`/`piA`/`lm`/`lmI` write inline (`basis_builder::never_meta`). -/
-theorem never_meta_step {m : expr.BinderMeta} (h : basis_builder.never_meta = ok m) :
-    absBinderMeta m = ⟨.never⟩ ∧ BinderMetaWF m := by
-  rw [basis_builder.never_meta] at h
-  obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
-  rw [expr.binder_meta] at h
-  simp only [Result.ok.injEq] at h
-  subst h
-  exact ⟨by simp [PropWhen.never_refines hpw], PropWhenWF.never hpw⟩
-
 /-- `Basis/Builder.lean:85-97 pi`/`piI`/`piA` — `∀ (x : ty), body` at the raw
 binder annotation (one Rust function, three citations; the binder name the
 three differ in is not carried by `Expr`). -/
 theorem pi_step {ty b e : expr.Expr} (hty : ExprWF ty) (hb : ExprWF b)
     (h : basis_builder.pi ty b = ok e) :
-    absExpr e = .forallE (absExpr ty) (absExpr b) ⟨.never⟩ ∧ ExprWF e := by
+    absExpr e = .forallE (absExpr ty) (absExpr b) ∧ ExprWF e := by
   rw [basis_builder.pi] at h
-  obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hmabs, hmwf⟩ := never_meta_step hm
-  exact ⟨by rw [Expr.forall_e_refines h, hmabs], ExprWF.forall_e hty hb hmwf h⟩
+  exact ⟨Expr.forall_e_refines h, ExprWF.forall_e hty hb h⟩
 
 /-- `Basis/Builder.lean:99-106 lm`/`lmI` — `fun (x : ty) => body` at the raw
 binder annotation. -/
 theorem lm_step {ty b e : expr.Expr} (hty : ExprWF ty) (hb : ExprWF b)
     (h : basis_builder.lm ty b = ok e) :
-    absExpr e = .lam (absExpr ty) (absExpr b) ⟨.never⟩ ∧ ExprWF e := by
+    absExpr e = .lam (absExpr ty) (absExpr b) ∧ ExprWF e := by
   rw [basis_builder.lm] at h
-  obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨hmabs, hmwf⟩ := never_meta_step hm
-  exact ⟨by rw [Expr.lam_refines h, hmabs], ExprWF.lam hty hb hmwf h⟩
+  exact ⟨Expr.lam_refines h, ExprWF.lam hty hb h⟩
 
 /-- `Basis/Builder.lean:75-76 cnst` — a constant at the given universe
 arguments. -/
@@ -521,61 +494,45 @@ theorem of_reduce_raw_refines {n : name.Name} {cv : env.ConstantVal} (hn : NameW
     ConLeche.BasisDSL.ap3, absLevels_new]
   rfl
 
-/-- `ConLeche/Kernel/TrustAxioms.lean:146-148 reduceOpCvA`,
-`:137-139` (the `#annotate_pins` command) — `trust_axioms::reduce_op_cv_a`
-returns the **raw** pin at the selected operation, which `matchesPin` cannot
-tell from the annotated `reduceOpCvA` (`matchesPin_reduceOpCvA`; the module
-note has the argument). -/
-theorem reduce_op_cv_a_refines {c : name.Name} {cv : env.ConstantVal} (hc : NameWF c)
-    (h : trust_axioms.reduce_op_cv_a c = ok cv) :
-    absConstantVal cv
-        = (if absName c = ConLeche.reduceNatName then
-              ConLeche.reduceOpRaw ConLeche.reduceNatName
-            else ConLeche.reduceOpRaw ConLeche.reduceBoolName)
-      ∧ ConstantValWF cv := by
-  rw [trust_axioms.reduce_op_cv_a] at h
+/-- `ConLeche/Kernel/TrustAxioms.lean` `reduceNatCvA` — `trust_axioms::reduce_nat_cv_a` refines
+`reduceNatCvA` (a plain value since task #119; the raw/annotated pair is gone). -/
+theorem reduce_nat_cv_a_refines {cv : env.ConstantVal} (h : trust_axioms.reduce_nat_cv_a = ok cv) :
+    absConstantVal cv = ConLeche.reduceNatCvA ∧ ConstantValWF cv := by
+  rw [trust_axioms.reduce_nat_cv_a] at h
   obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨ea, fa⟩ := reduce_nat_name_refines ha
-  rw [Name.beq_refines hc fa hb, ea] at h
-  by_cases hq : absName c = ConLeche.reduceNatName
-  · rw [ite_eq_left hq]
-    simp only [hq, decide_true, ite_eq_left] at h
-    obtain ⟨habs, hwf⟩ := reduce_op_raw_refines fa h
-    exact ⟨by rw [habs, ea], hwf⟩
-  · rw [ite_eq_right hq]
-    simp only [hq, decide_false, Bool.false_eq_true, ite_false] at h
-    obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨e1, f1⟩ := reduce_bool_name_refines hn1
-    obtain ⟨habs, hwf⟩ := reduce_op_raw_refines f1 h
-    exact ⟨by rw [habs, e1], hwf⟩
+  obtain ⟨habs, hwf⟩ := reduce_op_raw_refines fa h
+  exact ⟨by rw [habs, ea]; rfl, hwf⟩
 
-/-- `ConLeche/Kernel/TrustAxioms.lean:150-152 ofReducePinA`, `:141-144` (the
-`#annotate_pins` command) — `trust_axioms::of_reduce_pin_a` returns the **raw**
-pin an `ofReduce*` axiom is matched against (`matchesPin_ofReducePinA`). -/
-theorem of_reduce_pin_a_refines {n : name.Name} {cv : env.ConstantVal} (hn : NameWF n)
-    (h : trust_axioms.of_reduce_pin_a n = ok cv) :
-    absConstantVal cv
-        = (if absName n = ConLeche.ofReduceNatName then
-              ConLeche.ofReduceRaw ConLeche.ofReduceNatName
-            else ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
-      ∧ ConstantValWF cv := by
-  rw [trust_axioms.of_reduce_pin_a] at h
+/-- `ConLeche/Kernel/TrustAxioms.lean` `reduceBoolCvA` — `trust_axioms::reduce_bool_cv_a` refines
+`reduceBoolCvA` (a plain value since task #119; the raw/annotated pair is gone). -/
+theorem reduce_bool_cv_a_refines {cv : env.ConstantVal} (h : trust_axioms.reduce_bool_cv_a = ok cv) :
+    absConstantVal cv = ConLeche.reduceBoolCvA ∧ ConstantValWF cv := by
+  rw [trust_axioms.reduce_bool_cv_a] at h
   obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨b, hb, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ea, fa⟩ := reduce_bool_name_refines ha
+  obtain ⟨habs, hwf⟩ := reduce_op_raw_refines fa h
+  exact ⟨by rw [habs, ea]; rfl, hwf⟩
+
+/-- `ConLeche/Kernel/TrustAxioms.lean` `ofReduceNatA` — `trust_axioms::of_reduce_nat_a` refines
+`ofReduceNatA` (a plain value since task #119; the raw/annotated pair is gone). -/
+theorem of_reduce_nat_a_refines {cv : env.ConstantVal} (h : trust_axioms.of_reduce_nat_a = ok cv) :
+    absConstantVal cv = ConLeche.ofReduceNatA ∧ ConstantValWF cv := by
+  rw [trust_axioms.of_reduce_nat_a] at h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
   obtain ⟨ea, fa⟩ := of_reduce_nat_name_refines ha
-  rw [Name.beq_refines hn fa hb, ea] at h
-  by_cases hq : absName n = ConLeche.ofReduceNatName
-  · rw [ite_eq_left hq]
-    simp only [hq, decide_true, ite_eq_left] at h
-    obtain ⟨habs, hwf⟩ := of_reduce_raw_refines fa h
-    exact ⟨by rw [habs, ea], hwf⟩
-  · rw [ite_eq_right hq]
-    simp only [hq, decide_false, Bool.false_eq_true, ite_false] at h
-    obtain ⟨n1, hn1, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨e1, f1⟩ := of_reduce_bool_name_refines hn1
-    obtain ⟨habs, hwf⟩ := of_reduce_raw_refines f1 h
-    exact ⟨by rw [habs, e1], hwf⟩
+  obtain ⟨habs, hwf⟩ := of_reduce_raw_refines fa h
+  exact ⟨by rw [habs, ea]; rfl, hwf⟩
+
+/-- `ConLeche/Kernel/TrustAxioms.lean` `ofReduceBoolA` — `trust_axioms::of_reduce_bool_a` refines
+`ofReduceBoolA` (a plain value since task #119; the raw/annotated pair is gone). -/
+theorem of_reduce_bool_a_refines {cv : env.ConstantVal} (h : trust_axioms.of_reduce_bool_a = ok cv) :
+    absConstantVal cv = ConLeche.ofReduceBoolA ∧ ConstantValWF cv := by
+  rw [trust_axioms.of_reduce_bool_a] at h
+  obtain ⟨a, ha, h⟩ := bind_eq_ok_iff.mp h
+  obtain ⟨ea, fa⟩ := of_reduce_bool_name_refines ha
+  obtain ⟨habs, hwf⟩ := of_reduce_raw_refines fa h
+  exact ⟨by rw [habs, ea]; rfl, hwf⟩
 
 /-! ## `kernel::trust_pins` — the two hand-pinned identity values
 

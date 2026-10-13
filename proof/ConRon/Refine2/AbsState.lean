@@ -367,14 +367,13 @@ def absIConstantVal (cv : arena.env.IConstantVal) : IConstantVal :=
   ⟨absNIdx cv.name, cv.level_params.val.map absNIdx, absEIdx cv.ty⟩
 
 def absIRecRuleFire : arena.env.IRecRuleFire → IRecRuleFire
-  | .Inert => .inert
   | .Plain => .plain
   | .Nested lvls pins =>
     .nested (lvls.val.map absLIdx) (pins.val.map absEIdx)
 
 def absIRecRule (r : arena.env.IRecRule) : IRecRule :=
   ⟨absNIdx r.ctor, absU r.nfields, absU r.ctor_params, absIRecRuleFire r.fire,
-    absEIdx r.rhs, r.k, r.eta, r.params_blind⟩
+    absEIdx r.rhs, r.k, r.eta⟩
 
 def absIIndCaps (c : arena.env.IIndCaps) : IIndCaps :=
   ⟨c.eta, absNIdx c.eta_ctor, absU c.eta_params, absU c.eta_fields, c.unitlike,
@@ -433,15 +432,12 @@ def IFEnvKeys (rf : arena.env.IFEnv) : Prop :=
 #97-P5-Core round 5, coordinator's ruling (d)): the data a lockstep step reads
 out of the environment and hands to a function that is exact only on
 canonical data — the subtype invariants Charon erased from con-leche's
-types, and nothing else (the maintainer's ruling).  The Rust `PropWhen` is
-con-leche's sealed canonical datum
-with its proof fields erased (`two p q` needs `p < q`, `many ps` sorted and
-longer than two), so the Rust type admits values the twin's `ConLeche.PropWhen`
-cannot represent, on which `prop_when::beq`/`subst_pw` differ — the store side
-carries the same fact as `TblRel`'s `RelOn PropWhenWF` key predicate.  Only
-the clause a proof needs is here: an inductive's result-sort datum, read by
-`arena::core::caps_never_zero`: the erased subtype invariant of con-leche's
-`PropWhen`.  (Add a clause only with the proof that needs it.) -/
+types, and nothing else (the maintainer's ruling).  Since task #119 the
+Rust `PropWhen` is con-leche's plain `never | ifAllZero ps` datum, and its one
+invariant is that the parameter names are well formed (`absName` is
+injective only there, so `prop_when::beq` is exact only there).  Only the
+clause a proof needs is here: an inductive's result-sort datum.  (Add a
+clause only with the proof that needs it.) -/
 def IConstantInfoWF : arena.env.IConstantInfo → Prop
   | .IndInfo _ caps => ConRon.Refine.PropWhenWF caps.sort_z
   | _ => True

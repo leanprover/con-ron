@@ -4,7 +4,7 @@ task #64's decoder refinement, the record layer.
 
 One lemma per record function, in the file's order.  Each is forward reasoning
 through `Refine/PinsBytes.lean`'s readers and then *one* smart-constructor
-lemma from `Refine/{Name,Level,PropWhen,Expr}.lean`: the reader never writes a
+lemma from `Refine/{Name,Level,Expr}.lean`: the reader never writes a
 cached datum itself, so the node the port installs abstracts to the node
 `ConRon/Dump/Pins.lean` installs, and nothing about hashes or packed words is
 ever unfolded here.
@@ -451,474 +451,6 @@ theorem record_level_refines {t : Slice Std.U8} {i : Std.Usize}
   · obtain ⟨ce, rfl, hce⟩ := err_native h
     exact hce
 
-/-! ## `prop_when::if_all_zero` without a well-formedness side condition
-
-Everything above installs a node whose abstraction is read straight off the
-node (`Refine/Abs.lean`'s `*_inv` lemmas), so nothing needs to know that the
-children are well formed.  The `W` record is the exception: it installs
-`prop_when::if_all_zero`, which *normalises* its argument with
-`prop_when::name_cmp`, and `Refine/PropWhen.lean`'s `if_all_zero_shape`
-therefore asks for `NamesWF ps` — its route to the port's comparison agreeing
-with `ConLeche.Name.cmp` is `name_cmp_refines`, an induction on the `NameWF`
-derivation.  The decoder cannot supply that: `Refine/PinsBytes.lean`'s
-`name_list_refines` claims no `NamesWF`, and the `StrWF` a `NameWF.str` needs
-would have to come out of `read_string_refines`, which claims only its
-`PinsDec` equation.
-
-So the record's equation is proved from a *weaker* fact, which needs no
-hypothesis at all: canonicalisation neither invents nor loses a **member**,
-and `ConLeche.PropWhen.ifAllZero` is determined by its member set
-(`ConLeche.PropWhen.ifAllZero_eq_iff`).  The only step that can drop a name is
-a `name_cmp = Eq` comparison, and `name_cmp_eq_abs` below says such a
-comparison forces the two names to abstract to the same `ConLeche.Name`.
-
-**Why no invariant is needed.**  `prop_when::name_cmp` never reads the stored
-hash word, and it compares a `Str` payload as a raw `u32` list and a `Num`
-payload as a raw `u64`.  So `name_cmp a b = Eq` forces `a` and `b` to have the
-same kind tree and the same payloads — everything `absName` looks at — and
-therefore `absName a = absName b`, whether or not either node was built by a
-smart constructor and whatever the code points are.  That is strictly stronger
-than what `if_all_zero_shape` gets from `name_cmp_refines`, which buys the
-*full* agreement with `ConLeche.Name.cmp` and has to pay `NameWF` for it.
-
-**Where this belongs.**  Everything from `nat_compare_eq` to `if_all_zero_abs`
-is `prop_when` theory, not decoder theory; it is parked here only because
-`Refine/PropWhen.lean` is outside this task's ownership and moving it would
-invalidate most of the `Refine/` oleans.  It is owed to `Refine/PropWhen.lean`,
-beside `if_all_zero_shape` — the conditional sibling that `if_all_zero_abs`
-generalises — and DESIGN.md records the move as owed work.
--/
-
-private theorem nat_compare_eq {m n : Std.U64}
-    (h : prop_when.nat_compare m n = ok .Eq) : m.val = n.val := by
-  rw [prop_when.nat_compare] at h
-  split at h
-  · simp at h
-  · split at h
-    · simp at h
-    · scalar_tac
-
-private theorem str_compare_from_eq {a b : alloc.vec.Vec Std.U32} :
-    ∀ k (i : Std.Usize), a.length - i.val ≤ k →
-      prop_when.str_compare_from a b i = ok .Eq →
-      a.val.drop i.val = b.val.drop i.val := by
-  intro k
-  induction k with
-  | zero =>
-    intro i hk h
-    rw [prop_when.str_compare_from.eq_def] at h; simp only [] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-    rw [List.drop_eq_nil_of_le (show a.val.length ≤ i.val by scalar_tac)]
-    by_cases hbl : i.val ≥ b.val.length
-    · rw [List.drop_eq_nil_of_le (show b.val.length ≤ i.val by scalar_tac)]
-    · exfalso
-      rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
-      rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-      simp at h
-  | succ k ih =>
-    intro i hk h
-    rw [prop_when.str_compare_from.eq_def] at h; simp only [] at h
-    by_cases hal : i.val ≥ a.val.length
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-      rw [List.drop_eq_nil_of_le (show a.val.length ≤ i.val by scalar_tac)]
-      by_cases hbl : i.val ≥ b.val.length
-      · rw [List.drop_eq_nil_of_le (show b.val.length ≤ i.val by scalar_tac)]
-      · exfalso
-        rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
-        rw [ite_eq_left (show i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-        simp at h
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-      rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len a by scalar_tac)] at h
-      have hai : i.val < a.val.length := by scalar_tac
-      by_cases hbl : i.val ≥ b.val.length
-      · exfalso
-        rw [ite_eq_left (show i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
-        simp at h
-      · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len b by scalar_tac)] at h
-        have hbi : i.val < b.val.length := by scalar_tac
-        obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec a i hai)
-        obtain ⟨z, hz, hzv⟩ := WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec b i hbi)
-        subst hyv; subst hzv
-        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hz,
-          Result.ok.injEq, exists_eq_left'] at h
-        split at h
-        · simp at h
-        · split at h
-          · simp at h
-          · rename_i hnlt hngt
-            have heq : a.val[i.val] = b.val[i.val] := by scalar_tac
-            have hmax : i.val + 1 ≤ Std.Usize.max := by
-              have := a.slice.property; scalar_tac
-            obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-            simp only [hw, bind_ok] at h
-            rw [List.drop_eq_getElem_cons hai, List.drop_eq_getElem_cons hbi, heq,
-              ← hwv, ih w (by scalar_tac) h]
-
-private theorem str_compare_eq {a b : alloc.vec.Vec Std.U32}
-    (h : prop_when.str_compare a b = ok .Eq) : a.val = b.val := by
-  rw [prop_when.str_compare] at h
-  have := str_compare_from_eq a.length 0#usize (by scalar_tac) h
-  simpa using this
-
-private theorem name_cmp_eq_abs : ∀ (n : Nat) (a b : name.Name), sizeOf a ≤ n →
-    prop_when.name_cmp a b = ok .Eq → absName a = absName b := by
-  intro n
-  induction n with
-  | zero =>
-    intro a b hs _
-    exfalso
-    obtain ⟨⟨ha, ka⟩⟩ := a
-    simp at hs
-  | succ n ih =>
-    intro a b hs hc
-    obtain ⟨⟨ha, ka⟩⟩ := a
-    obtain ⟨⟨hb, kb⟩⟩ := b
-    rw [prop_when.name_cmp.eq_def] at hc
-    simp only [arc_deref_eq, bind_ok, name.Name._0._simpLemma_,
-      name.NameNode.kind._simpLemma_] at hc
-    cases ka with
-    | Anonymous =>
-      cases kb with
-      | Anonymous => simp [absName, absNameNode, absNameKind]
-      | Str q t => simp at hc
-      | Num q k => simp at hc
-    | Str p s =>
-      cases kb with
-      | Anonymous => simp at hc
-      | Num q k => simp at hc
-      | Str q t =>
-        simp only [bind_eq_ok_iff] at hc
-        obtain ⟨o, ho, o1, ho1, hc⟩ := hc
-        cases o with
-        | Lt => simp [prop_when.ord_then] at hc
-        | Gt => simp [prop_when.ord_then] at hc
-        | Eq =>
-          simp only [prop_when.ord_then, Result.ok.injEq] at hc
-          subst hc
-          have hp := ih p q (by simp at hs; omega) ho
-          have hst := str_compare_eq ho1
-          simp only [absName, absNameNode, absNameKind, hp, absString, hst]
-    | Num p m =>
-      cases kb with
-      | Anonymous => simp at hc
-      | Str q t => simp at hc
-      | Num q k =>
-        simp only [bind_eq_ok_iff] at hc
-        obtain ⟨o, ho, o1, ho1, hc⟩ := hc
-        cases o with
-        | Lt => simp [prop_when.ord_then] at hc
-        | Gt => simp [prop_when.ord_then] at hc
-        | Eq =>
-          simp only [prop_when.ord_then, Result.ok.injEq] at hc
-          subst hc
-          have hp := ih p q (by simp at hs; omega) ho
-          have hst := nat_compare_eq ho1
-          simp only [absName, absNameNode, absNameKind, hp, hst]
-
-private theorem merge_from_mem {as_ bs : alloc.vec.Vec name.Name} :
-    ∀ k : Nat, ∀ (i j : Std.Usize) (out v : alloc.vec.Vec name.Name),
-      (as_.length - i.val) + (bs.length - j.val) ≤ k →
-      prop_when.merge_from as_ i bs j out = ok v →
-      ∀ x : ConLeche.Name, x ∈ absNames v ↔
-        x ∈ absNames out ∨ x ∈ (as_.val.drop i.val).map absName ∨
-        x ∈ (bs.val.drop j.val).map absName := by
-  intro k
-  induction k with
-  | zero =>
-    intro i j out v hk h x
-    rw [prop_when.merge_from.eq_def] at h; simp only [] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
-    have hv := PropWhen.append_from_val bs bs.length j out v (by scalar_tac) h
-    rw [List.drop_eq_nil_of_le (show as_.val.length ≤ i.val by scalar_tac)]
-    simp [absNames, hv]
-  | succ k ih =>
-    intro i j out v hk h x
-    rw [prop_when.merge_from.eq_def] at h; simp only [] at h
-    by_cases hal : i.val ≥ as_.val.length
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
-      have hv := PropWhen.append_from_val bs bs.length j out v (by scalar_tac) h
-      rw [List.drop_eq_nil_of_le (show as_.val.length ≤ i.val by scalar_tac)]
-      simp [absNames, hv]
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len as_ by scalar_tac)] at h
-      have hai : i.val < as_.val.length := by scalar_tac
-      by_cases hbl : j.val ≥ bs.val.length
-      · rw [ite_eq_left (show j ≥ alloc.vec.Vec.len bs by scalar_tac)] at h
-        have hv := PropWhen.append_from_val as_ as_.length i out v (by scalar_tac) h
-        rw [List.drop_eq_nil_of_le (show bs.val.length ≤ j.val by scalar_tac)]
-        simp [absNames, hv]
-      · rw [ite_eq_right (show ¬ j ≥ alloc.vec.Vec.len bs by scalar_tac)] at h
-        have hbj : j.val < bs.val.length := by scalar_tac
-        have hmaxi : i.val + 1 ≤ Std.Usize.max := by
-          have := as_.slice.property; scalar_tac
-        have hmaxj : j.val + 1 ≤ Std.Usize.max := by
-          have := bs.slice.property; scalar_tac
-        obtain ⟨wi, hwi, hwiv⟩ := usize_add_ok hmaxi
-        obtain ⟨wj, hwj, hwjv⟩ := usize_add_ok hmaxj
-        obtain ⟨y, hy, hyv⟩ :=
-          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec as_ i hai)
-        obtain ⟨z, hz, hzv⟩ :=
-          WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec bs j hbj)
-        subst hyv; subst hzv
-        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hz,
-          Result.ok.injEq, exists_eq_left', name_dup_eq, hwi, hwj] at h
-        obtain ⟨o, ho, h⟩ := h
-        cases o with
-        | Lt =>
-          simp only [bind_eq_ok_iff, bind_ok] at h
-          obtain ⟨out1, hout1, h⟩ := h
-          have hrec := ih wi j out1 v (by scalar_tac) h x
-          rw [hwiv] at hrec
-          rw [hrec, absNames, absNames, vec_push_val hout1,
-            List.drop_eq_getElem_cons hai]
-          simp only [List.map_append, List.map_cons, List.map_nil, List.mem_append,
-            List.mem_cons, List.not_mem_nil, or_false]
-          tauto
-        | Eq =>
-          simp only [bind_eq_ok_iff, bind_ok] at h
-          obtain ⟨out1, hout1, h⟩ := h
-          have habs :=
-            name_cmp_eq_abs (sizeOf as_.val[i.val]) as_.val[i.val] bs.val[j.val]
-              le_rfl ho
-          have hrec := ih wi wj out1 v (by scalar_tac) h x
-          rw [hwiv, hwjv] at hrec
-          rw [hrec, absNames, absNames, vec_push_val hout1,
-            List.drop_eq_getElem_cons hai, List.drop_eq_getElem_cons hbj]
-          simp only [List.map_append, List.map_cons, List.map_nil, List.mem_append,
-            List.mem_cons, List.not_mem_nil, or_false, habs]
-          tauto
-        | Gt =>
-          simp only [bind_eq_ok_iff, bind_ok] at h
-          obtain ⟨out1, hout1, h⟩ := h
-          have hrec := ih i wj out1 v (by scalar_tac) h x
-          rw [hwjv] at hrec
-          rw [hrec, absNames, absNames, vec_push_val hout1,
-            List.drop_eq_getElem_cons hbj]
-          simp only [List.map_append, List.map_cons, List.map_nil, List.mem_append,
-            List.mem_cons, List.not_mem_nil, or_false]
-          tauto
-
-private theorem merge_mem {as_ bs v : alloc.vec.Vec name.Name}
-    (h : prop_when.merge as_ bs = ok v) :
-    ∀ x : ConLeche.Name, x ∈ absNames v ↔ x ∈ absNames as_ ∨ x ∈ absNames bs := by
-  rw [prop_when.merge] at h
-  intro x
-  have hm := merge_from_mem (as_.length + bs.length) 0#usize 0#usize _ v
-    (by scalar_tac) h x
-  simpa [absNames, alloc.vec.Vec.new,
-    show (0#usize : Std.Usize).val = 0 from rfl] using hm
-
-private theorem canon_from_mem {ps : alloc.vec.Vec name.Name} :
-    ∀ k : Nat, ∀ (i : Std.Usize) (v : alloc.vec.Vec name.Name),
-      ps.length - i.val ≤ k → prop_when.canon_from ps i = ok v →
-      ∀ x : ConLeche.Name, x ∈ absNames v ↔ x ∈ (ps.val.drop i.val).map absName := by
-  intro k
-  induction k with
-  | zero =>
-    intro i v hk h x
-    rw [prop_when.canon_from.eq_def] at h; simp only [] at h
-    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
-    simp only [Result.ok.injEq] at h; subst h
-    rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac)]
-    simp [absNames, alloc.vec.Vec.new]
-  | succ k ih =>
-    intro i v hk h x
-    rw [prop_when.canon_from.eq_def] at h; simp only [] at h
-    by_cases hle : i.val ≥ ps.val.length
-    · rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
-      simp only [Result.ok.injEq] at h; subst h
-      rw [List.drop_eq_nil_of_le (show ps.val.length ≤ i.val by scalar_tac)]
-      simp [absNames, alloc.vec.Vec.new]
-    · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ps by scalar_tac)] at h
-      have hi : i.val < ps.val.length := by scalar_tac
-      have hmax : i.val + 1 ≤ Std.Usize.max := by have := ps.slice.property; scalar_tac
-      obtain ⟨w, hw, hwv⟩ := usize_add_ok hmax
-      obtain ⟨y, hy, hyv⟩ :=
-        WP.spec_imp_exists (alloc.vec.Vec.index_usize_spec ps i hi)
-      subst hyv
-      simp only [hw, bind_ok, bind_eq_ok_iff, alloc.vec.Vec.index_slice_index,
-        hy] at h
-      obtain ⟨rest, hrest, sg, hsg, h⟩ := h
-      have hrec := ih w rest (by scalar_tac) hrest x
-      rw [hwv] at hrec
-      have hsgv := Name.singleton_refines hsg
-      rw [merge_mem h x, hsgv, hrec, List.drop_eq_getElem_cons hi]
-      simp only [List.map_cons, List.mem_cons, List.not_mem_nil, or_false]
-
-private theorem canon_mem {ps v : alloc.vec.Vec name.Name}
-    (h : prop_when.canon ps = ok v) :
-    ∀ x : ConLeche.Name, x ∈ absNames v ↔ x ∈ absNames ps := by
-  rw [prop_when.canon] at h
-  intro x
-  have hm := canon_from_mem ps.length 0#usize v (by scalar_tac) h x
-  simpa [absNames, show (0#usize : Std.Usize).val = 0 from rfl] using hm
-
-/-- **`prop_when::if_all_zero` refines `PropWhen.ifAllZero`, with no
-well-formedness side condition** — the unconditional form of
-`Refine/PropWhen.lean`'s `if_all_zero_shape`.  The `0`- and `1`-element cases
-install the argument verbatim; `two_prime`'s `Eq` arm and `canon`'s dedup are
-the only places a name is dropped, and both drop one whose abstraction is
-already there (`name_cmp_eq_abs`), so the member set — all `ifAllZero` reads
-(`ConLeche.PropWhen.ifAllZero_eq_iff`) — is unchanged. -/
-private theorem if_all_zero_abs {ps : alloc.vec.Vec name.Name}
-    {pw : prop_when.PropWhen} (h : prop_when.if_all_zero ps = ok pw) :
-    absPropWhen pw = .ifAllZero (absNames ps) := by
-  rw [prop_when.if_all_zero.eq_def] at h; simp only [] at h
-  by_cases h0 : ps.val.length = 0
-  · rw [ite_eq_left (show alloc.vec.Vec.len ps = 0#usize by scalar_tac),
-      PropWhen.of_repr_eq, Result.ok.injEq] at h
-    subst h
-    have hnil : ps.val = [] := List.eq_nil_iff_length_eq_zero.mpr h0
-    simp [absPropWhen, absPropWhenRepr, absNames, hnil]
-  · rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 0#usize by scalar_tac)] at h
-    by_cases h1 : ps.val.length = 1
-    · rw [ite_eq_left (show alloc.vec.Vec.len ps = 1#usize by scalar_tac)] at h
-      obtain ⟨x, hx⟩ := PropWhen.list_len_one h1
-      obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists
-        (alloc.vec.Vec.index_usize_spec ps 0#usize (by scalar_tac))
-      simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, name_dup_eq,
-        PropWhen.of_repr_eq, Result.ok.injEq, exists_eq_left'] at h
-      subst h
-      have hyx : y = x := by rw [hyv]; simp [hx]
-      subst hyx
-      simp [absPropWhen, absPropWhenRepr, absNames, hx]
-    · rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 1#usize by scalar_tac)] at h
-      by_cases h2 : ps.val.length = 2
-      · rw [ite_eq_left (show alloc.vec.Vec.len ps = 2#usize by scalar_tac)] at h
-        obtain ⟨x, x', hx⟩ := PropWhen.list_len_two h2
-        obtain ⟨y, hy, hyv⟩ := WP.spec_imp_exists
-          (alloc.vec.Vec.index_usize_spec ps 0#usize (by scalar_tac))
-        obtain ⟨z, hz, hzv⟩ := WP.spec_imp_exists
-          (alloc.vec.Vec.index_usize_spec ps 1#usize (by scalar_tac))
-        simp only [alloc.vec.Vec.index_slice_index, bind_eq_ok_iff, hy, hz,
-          Result.ok.injEq, exists_eq_left'] at h
-        have hyx : y = x := by rw [hyv]; simp [hx]
-        have hzx : z = x' := by rw [hzv]; simp [hx]
-        subst hyx; subst hzx
-        rw [prop_when.two_prime] at h
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨o, ho, h⟩ := h
-        rw [absNames, hx]
-        cases o with
-        | Lt =>
-          simp only [name_dup_eq, ptr_new_eq, bind_ok, PropWhen.of_repr_eq,
-            Result.ok.injEq] at h
-          subst h
-          simp [absPropWhen, absPropWhenRepr]
-        | Eq =>
-          simp only [name_dup_eq, bind_ok, PropWhen.of_repr_eq,
-            Result.ok.injEq] at h
-          subst h
-          have habs := name_cmp_eq_abs (sizeOf y) y z le_rfl ho
-          simp only [absPropWhen, absPropWhenRepr, List.map_cons, List.map_nil]
-          refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
-          intro n; simp [habs]
-        | Gt =>
-          simp only [name_dup_eq, ptr_new_eq, bind_ok, PropWhen.of_repr_eq,
-            Result.ok.injEq] at h
-          subst h
-          simp only [absPropWhen, absPropWhenRepr, List.map_cons, List.map_nil]
-          refine (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr ?_
-          intro n; simp; tauto
-      · rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 2#usize by scalar_tac)] at h
-        simp only [bind_eq_ok_iff] at h
-        obtain ⟨v, hv, h⟩ := h
-        rw [PropWhen.of_sorted_abs h]
-        exact (ConLeche.PropWhen.ifAllZero_eq_iff _ _).mpr (canon_mem hv)
-
-/-! ## `W` — the prop-when records -/
-
-/-- The full outcome (task #67).  The `.Err` branch is the module's one
-`Native` error, about which nothing is claimed: con-leche has no decoder
-to mirror, so every failure here is `bad_text` — see the module note. -/
-theorem record_pw_zero_refines {t : Slice Std.U8} {i : Std.Usize}
-    {tb : pins_decode.Tables}
-    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
-    (h : pins_decode.record_pw_zero t i tb = ok o) :
-    match o with
-    | .Ok (tb', j) =>
-        PinsDec.recordPwZero (bytesFrom t i) (absTables tb)
-            = some (absTables tb', bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
-    | .Err ce => absErrKind ce = none := by
-  rw [pins_decode.record_pw_zero] at h
-  obtain ⟨i1, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact after_space_refines hce
-  obtain ⟨e1, b1, b2⟩ := after_space_refines hr
-  obtain ⟨⟨ns, i2⟩, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact name_list_refines hce
-  obtain ⟨e2, b3, b4⟩ := name_list_refines hr1
-  obtain ⟨i3, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact after_newline_refines hce
-  obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
-  obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
-  obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-  simp only [Result.ok.injEq] at h
-  subst h
-  refine ⟨?_, by omega, by omega⟩
-  simp only [PinsDec.recordPwZero, e1, e2, e3]
-  simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
-    List.map_nil, if_all_zero_abs hnd]
-
-/-- The full outcome (task #67).  The `.Err` branch is the module's one
-`Native` error, about which nothing is claimed: con-leche has no decoder
-to mirror, so every failure here is `bad_text` — see the module note. -/
-theorem record_pw_refines {t : Slice Std.U8} {i : Std.Usize}
-    {tb : pins_decode.Tables}
-    {o : core.result.Result (pins_decode.Tables × Std.Usize) core_types.CheckError}
-    (h : pins_decode.record_pw t i tb = ok o) :
-    match o with
-    | .Ok (tb', j) =>
-        PinsDec.recordPw (bytesFrom t i) (absTables tb)
-            = some (absTables tb', bytesFrom t j)
-          ∧ i.val ≤ j.val ∧ j.val ≤ t.length
-    | .Err ce => absErrKind ce = none := by
-  rw [pins_decode.record_pw] at h
-  obtain ⟨i2, hr, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact expect_id_refines hce
-  obtain ⟨e1, b1, b2⟩ := expect_id_refines hr
-  obtain ⟨i3, hr1, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact after_space_refines hce
-  obtain ⟨e2, b3, b4⟩ := after_space_refines hr1
-  obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
-  have hkv := byte_at_refines hk
-  have hlen : (absTables tb).pws.length = (alloc.vec.Vec.len tb.pws).val := by
-    simp [absTables]
-  split at h
-  · -- `n`: never
-    rename_i hkb
-    obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
-    have hi4v := step_val hi4
-    have hc : bytesFrom t i3 = 110 :: bytesFrom t i4 :=
-      bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
-    obtain ⟨i5, hr2, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-    case inr => exact after_newline_refines hce
-    obtain ⟨e3, b5, b6⟩ := after_newline_refines hr2
-    obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
-    obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
-    simp only [Result.ok.injEq] at h
-    subst h
-    refine ⟨?_, by omega, by omega⟩
-    simp only [PinsDec.recordPw, hlen, e1, e2, hc, reduceIte, e3]
-    simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
-      List.map_nil, PropWhen.absPropWhen_never (PropWhen.never_shape hnd).2]
-  split at h
-  · -- `z`: `ifAllZero` of a name list
-    rename_i hkb
-    obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
-    have hi4v := step_val hi4
-    have hc : bytesFrom t i3 = 122 :: bytesFrom t i4 :=
-      bytesFrom_cons_val (by rw [← hkv, hkb]; rfl) (by omega) hi4v
-    cases o with
-    | Err ce => exact record_pw_zero_refines h
-    | Ok pr =>
-    obtain ⟨tb', j⟩ := pr
-    obtain ⟨e3, b5, b6⟩ := record_pw_zero_refines h
-    refine ⟨?_, by omega, by omega⟩
-    simp only [PinsDec.recordPw, hlen, e1, e2, hc]
-    simp [e3]
-  · obtain ⟨ce, rfl, hce⟩ := err_native h
-    exact hce
-
 /-! ## `E` — the expression records -/
 
 /-- The full outcome (task #67).  The `.Err` branch is the module's one
@@ -1126,35 +658,26 @@ theorem record_expr_binder_refines {t : Slice Std.U8} {i : Std.Usize}
   case inr => exact expr_ref_refines hce
   obtain ⟨e4, b7, b8⟩ := expr_ref_refines hr3
   obtain ⟨i5, hr4, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact after_space_refines hce
-  obtain ⟨e5, b9, b10⟩ := after_space_refines hr4
-  obtain ⟨⟨pw, i6⟩, hr5, h⟩ | ⟨ce, hce, rfl⟩ := peel h
-  case inr => exact pw_ref_refines hce
-  obtain ⟨e6, b11, b12⟩ := pw_ref_refines hr5
-  obtain ⟨i7, hr6, h⟩ | ⟨ce, hce, rfl⟩ := peel h
   case inr => exact after_newline_refines hce
-  obtain ⟨e7, b13, b14⟩ := after_newline_refines hr6
-  obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
-  simp only [expr.binder_meta, Result.ok.injEq] at hm
-  subst hm
+  obtain ⟨e5, b9, b10⟩ := after_newline_refines hr4
   cases isLam
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
     simp only [Result.ok.injEq] at h
     subst h
     refine ⟨?_, by omega, by omega⟩
-    simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7,
+    simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5,
       Bool.false_eq_true, ite_false]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
-      List.map_nil, Expr.forall_e_refines hnd, absBinderMeta]
+      List.map_nil, Expr.forall_e_refines hnd]
   · obtain ⟨nd, hnd, h⟩ := bind_eq_ok_iff.mp h
     obtain ⟨w, hw, h⟩ := bind_eq_ok_iff.mp h
     simp only [Result.ok.injEq] at h
     subst h
     refine ⟨?_, by omega, by omega⟩
-    simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, e6, e7, ite_true]
+    simp only [PinsDec.recordExprBinder, e1, e2, e3, e4, e5, ite_true]
     simp only [absTables, vec_push_val hw, List.map_append, List.map_cons,
-      List.map_nil, Expr.lam_refines hnd, absBinderMeta]
+      List.map_nil, Expr.lam_refines hnd]
 
 /-- The full outcome (task #67).  The `.Err` branch is the module's one
 `Native` error, about which nothing is claimed: con-leche has no decoder
@@ -1515,16 +1038,12 @@ theorem record_expr_refines {t : Slice Std.U8} {i : Std.Usize}
 
 Nothing of this file's own, and nothing from the layer below: the record
 lemmas are `ok`-driven by `Refine/PinsBytes.lean`'s readers and close with the
-smart-constructor lemmas of `Refine/{Name,Level,PropWhen,Expr}.lean`, all of
+smart-constructor lemmas of `Refine/{Name,Level,Expr}.lean`, all of
 which census at con-leche's own three.  `record_expr_refines` is the widest
-dispatch and `record_pw_zero_refines` the one record that normalises, so they
-are the two worth pinning. -/
+dispatch, so it is the one worth pinning, with the name record. -/
 
 /-- info: 'ConRon.Refine.PinsRecords.record_expr_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms record_expr_refines
-
-/-- info: 'ConRon.Refine.PinsRecords.record_pw_zero_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms record_pw_zero_refines
 
 /-- info: 'ConRon.Refine.PinsRecords.record_name_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms record_name_refines

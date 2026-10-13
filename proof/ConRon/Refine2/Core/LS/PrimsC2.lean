@@ -19,7 +19,10 @@ files (`PA2.nidx_eq2_ls`, `PC1.certs_ls` …); the coordinator deduplicates at
 merge.
 -/
 import ConRon.Refine2.Core.LS.Prims
-import ConRon.Refine.CoreKShapes
+import ConRon.Refine.CoreKBase
+import ConLeche.Kernel.FEnv
+import ConLeche.Kernel.Core
+import ConLeche.Cached.StateC
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg

@@ -115,7 +115,7 @@ in 30 s (51 s of CPU: the six are independent).
 
 The one thing that has to be said out loud is **`with_reducible`**.  Without
 it the `first` alternation is not merely wasteful but catastrophic: matching
-`hx : expr.lam ty b m = ok e` against `expr.dup ?e = ok ?r` at default
+`hx : expr.lam ty b = ok e` against `expr.dup ?e = ok ?r` at default
 transparency unfolds *both* generated bodies and reduces a `lam` node's whole
 hash computation before failing, at ~100 s for that one step, so the four
 blocks that build a `lam` never finish.  At `reducible` transparency a
@@ -156,7 +156,7 @@ theorem infos_push_wf {v w : alloc.vec.Vec env.ConstantInfo} {x : env.ConstantIn
     (hv : ConstantInfosWF v) (hx : ConstantInfoWF x)
     (h : alloc.vec.Vec.push v x = ok w) : ConstantInfosWF w := vec_all_push hv hx h
 
-/-! The three `dup`s and `expr::binder_meta` are the identity in the model
+/-! The three `dup`s are the identity in the model
 (DESIGN.md §3.2), so they transport well-formedness rather than build it; the
 `*WF` predicates have no constructor for them. -/
 
@@ -170,11 +170,6 @@ theorem level_dup_wf {u r : level.Level} (hu : LevelWF u) (h : level.dup u = ok 
 
 theorem expr_dup_wf {e r : expr.Expr} (he : ExprWF e) (h : expr.dup e = ok r) :
     ExprWF r := by rw [Expr.dup_eq h]; exact he
-
-theorem binder_meta_wf {pw : prop_when.PropWhen} {m : expr.BinderMeta}
-    (hpw : PropWhenWF pw) (h : expr.binder_meta pw = ok m) : BinderMetaWF m := by
-  simp only [expr.binder_meta, Result.ok.injEq] at h
-  subst h; exact hpw
 
 /-! The empty vector, at each of the six element types the tables push onto. -/
 
@@ -237,13 +232,12 @@ local macro_rules
        | (with_reducible have := expr_dup_wf (by assumption) hx)
        | (with_reducible have := names_push_wf (by wf_elem) (by wf_elem) hx)
        | (with_reducible have := str_push_wf (by wf_elem) (by wf_elem) hx)
-       | (with_reducible have := binder_meta_wf (by assumption) hx)
-       | (with_reducible have := Expr.forall_e_wf (by assumption) (by assumption) (by assumption) hx)
+       | (with_reducible have := Expr.forall_e_wf (by assumption) (by assumption) hx)
        | (with_reducible have := Expr.app_wf (by assumption) (by assumption) hx)
        | (with_reducible have := PropWhen.if_all_zero_wf (by wf_elem) hx)
        | (with_reducible have := name_dup_wf (by assumption) hx)
        | (with_reducible have := Name.mk_str_wf (by assumption) (by wf_elem) hx)
-       | (with_reducible have := Expr.lam_wf (by assumption) (by assumption) (by assumption) hx)
+       | (with_reducible have := Expr.lam_wf (by assumption) (by assumption) hx)
        | (with_reducible have := Expr.mk_bvar_wf hx)
        | (with_reducible have := level_dup_wf (by assumption) hx)
        | (with_reducible have := Expr.sort_wf (by assumption) hx)

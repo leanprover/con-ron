@@ -63,22 +63,24 @@ namespace ConRon.Refine.PropRead
 
 /-! ## `head_proof_pw`, `proof_pw` and the two verdicts -/
 
-/-- `prop_read::is_prop` refines `PropWhen.isProp` (`PropRead.lean:136-139`):
-the cited `pw == (.ifAllZero [])` goes through the port's `prop_when::beq`,
-whose exactness on well-formed data is `PropWhen.beq_refines`. -/
-theorem is_prop_refines {pw : prop_when.PropWhen} {b : Bool} (hpw : PropWhenWF pw)
+/-- `prop_read::is_prop` refines `PropWhen.isProp` (`PropRead.lean:200-202`):
+the port tests `ifAllZero`'s vector for emptiness. -/
+theorem is_prop_refines {pw : prop_when.PropWhen} {b : Bool}
     (h : prop_read.is_prop pw = ok b) :
     b = ConLeche.PropWhen.isProp (absPropWhen pw) := by
-  rw [prop_read.is_prop] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨pw1, hpw1, hb⟩ := h
-  have hnames : NamesWF (alloc.vec.Vec.new name.Name) := by
-    intro q hq; simp [alloc.vec.Vec.new] at hq
-  have hbeq : ∀ x y : ConLeche.PropWhen, decide (x = y) = (x == y) := by
-    intro x y; rw [Bool.eq_iff_iff]; simp
-  rw [PropWhen.beq_refines hpw (PropWhen.if_all_zero_wf hnames hpw1) hb,
-    PropWhen.if_all_zero_refines hnames hpw1]
-  simp [ConLeche.PropWhen.isProp, absNames, alloc.vec.Vec.new, hbeq]
+  cases pw with
+  | Never =>
+    simp only [prop_read.is_prop, Result.ok.injEq] at h; subst h; rfl
+  | IfAllZero ps =>
+    simp only [prop_read.is_prop, Result.ok.injEq] at h; subst h
+    rcases hv : ps.val with _ | ⟨x, xs⟩
+    · have hl : ps.val.length = 0 := by simp [hv]
+      have h0 : alloc.vec.Vec.len ps = 0#usize := by scalar_tac
+      rw [h0]; simp [absPropWhen, absNames, hv, ConLeche.PropWhen.isProp]
+    · have hl : ps.val.length = xs.length + 1 := by simp [hv]
+      have h0 : ¬ alloc.vec.Vec.len ps = 0#usize := by
+        intro hc; have := congrArg Std.UScalar.val hc; simp at this; scalar_tac
+      rw [decide_eq_false h0]; simp [absPropWhen, absNames, hv, ConLeche.PropWhen.isProp]
 
 /-! ## Axiom census (DESIGN.md §5, the P3 gate)
 

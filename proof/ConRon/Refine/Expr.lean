@@ -329,8 +329,8 @@ theorem satPred_lt {n : Nat} (h : n < 32768) :
 
 /-- `lam`'s and `forall_e`'s bit recurrences are the same; this is the common
 half, stated over the node the caller built. -/
-theorem binder_bits {ty bo : expr.Expr} {m : expr.BinderMeta} {k : expr.ExprKind}
-    {i9 i10 i11 i12 i13 i14 i15 d : Std.U64} {bt b1 : Bool}
+theorem binder_bits {ty bo : expr.Expr} {k : expr.ExprKind}
+    {i9 i10 i11 i12 i13 i14 i15 d d' : Std.U64} {bt b1 : Bool}
     (hi9 : expr.bvar_of_data (dataOf ty) = ok i9)
     (hi10 : expr.bvar_of_data (dataOf bo) = ok i10)
     (hi11 : expr.sat_pred i10 = ok i11)
@@ -339,17 +339,14 @@ theorem binder_bits {ty bo : expr.Expr} {m : expr.BinderMeta} {k : expr.ExprKind
     (hi14 : expr.fvar_of_data (dataOf bo) = ok i14)
     (hi15 : expr.max_u64 i13 i14 = ok i15)
     (hbt : expr.lp_of_data (dataOf ty) = ok bt)
-    (hb1 : (if bt = true then ok true
-      else do let b2 ← expr.lp_of_data (dataOf bo)
-              if b2 = true then ok true else prop_when.has_params m.pw) = ok b1)
+    (hb1 : (if bt = true then ok true else expr.lp_of_data (dataOf bo)) = ok b1)
     (hd : expr.pack_data d i12 i15 b1 = ok d') :
     bvarBits (expr.Expr.mk (expr.ExprNode.mk d' k)) = max (bvarBits ty)
         (if bvarBits bo = ConLeche.satRange then ConLeche.satRange
          else bvarBits bo - 1) ∧
       fvarBits (expr.Expr.mk (expr.ExprNode.mk d' k)) =
         max (fvarBits ty) (fvarBits bo) ∧
-      ∀ hp, prop_when.has_params m.pw = ok hp →
-        lpBit (expr.Expr.mk (expr.ExprNode.mk d' k)) = (lpBit ty || lpBit bo || hp) := by
+      lpBit (expr.Expr.mk (expr.ExprNode.mk d' k)) = (lpBit ty || lpBit bo) := by
   have hsp : i11.val =
       if bvarBits bo = ConLeche.satRange then ConLeche.satRange else bvarBits bo - 1 := by
     have h1 := sat_pred_val hi11
@@ -369,56 +366,44 @@ theorem binder_bits {ty bo : expr.Expr} {m : expr.BinderMeta} {k : expr.ExprKind
     rw [e15]; have := fvarBits_lt ty; have := fvarBits_lt bo; omega
   obtain ⟨c1, c2, c3⟩ := node_bits (k := k) hlt12 hlt15 hd
   refine ⟨by rw [c1, e12], by rw [c2, e15], ?_⟩
-  intro hp hhp
   have ebt : bt = lpBit ty := lp_bit_val hbt
   cases hct : bt
   · rw [hct] at hb1
-    simp only [Bool.false_eq_true, ite_false, bind_eq_ok_iff] at hb1
-    obtain ⟨b2, hb2, hb1⟩ := hb1
-    have eb2 : b2 = lpBit bo := lp_bit_val hb2
-    cases hc2 : b2
-    · rw [hc2] at hb1
-      simp only [Bool.false_eq_true, ite_false] at hb1
-      rw [c3, Result.ok_injective (hb1.symm.trans hhp), ← ebt, hct, ← eb2, hc2]
-      rfl
-    · rw [hc2] at hb1
-      simp only [ite_true, Result.ok.injEq] at hb1
-      rw [c3, ← hb1, ← ebt, hct, ← eb2, hc2]
-      rfl
+    simp only [Bool.false_eq_true, ite_false] at hb1
+    rw [c3, lp_bit_val hb1, ← ebt, hct]
+    rfl
   · rw [hct] at hb1
     simp only [ite_true, Result.ok.injEq] at hb1
     rw [c3, ← hb1, ← ebt, hct]
     rfl
 
-theorem lam_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
-    (h : expr.lam ty bo m = ok e) :
-    ∃ d, e = .mk (.mk d (.Lam ty bo m)) ∧
+theorem lam_inv {ty bo : expr.Expr} {e : expr.Expr}
+    (h : expr.lam ty bo = ok e) :
+    ∃ d, e = .mk (.mk d (.Lam ty bo)) ∧
       bvarBits e = max (bvarBits ty)
         (if bvarBits bo = ConLeche.satRange then ConLeche.satRange
          else bvarBits bo - 1) ∧
       fvarBits e = max (fvarBits ty) (fvarBits bo) ∧
-      ∀ hp, prop_when.has_params m.pw = ok hp →
-        lpBit e = (lpBit ty || lpBit bo || hp) := by
+      lpBit e = (lpBit ty || lpBit bo) := by
   rw [expr.lam.eq_def] at h
   simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
+  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hdb; subst hnd; subst he
   exact ⟨d, rfl, binder_bits hi9 hi10 hi11 hi12 hi13 hi14 hi15 hbt hb1 hd⟩
 
-theorem forall_e_inv {ty bo : expr.Expr} {m : expr.BinderMeta} {e : expr.Expr}
-    (h : expr.forall_e ty bo m = ok e) :
-    ∃ d, e = .mk (.mk d (.ForallE ty bo m)) ∧
+theorem forall_e_inv {ty bo : expr.Expr} {e : expr.Expr}
+    (h : expr.forall_e ty bo = ok e) :
+    ∃ d, e = .mk (.mk d (.ForallE ty bo)) ∧
       bvarBits e = max (bvarBits ty)
         (if bvarBits bo = ConLeche.satRange then ConLeche.satRange
          else bvarBits bo - 1) ∧
       fvarBits e = max (fvarBits ty) (fvarBits bo) ∧
-      ∀ hp, prop_when.has_params m.pw = ok hp →
-        lpBit e = (lpBit ty || lpBit bo || hp) := by
+      lpBit e = (lpBit ty || lpBit bo) := by
   rw [expr.forall_e.eq_def] at h
   simp only [bind_eq_ok_iff, ptr_new_eq, data_eq, Result.ok.injEq] at h
-  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -, _, -, _, -,
+  obtain ⟨dt, hdt, db, hdb, _, -, _, -, _, -, _, -, _, -,
     i9, hi9, i10, hi10, i11, hi11, i12, hi12, i13, hi13, i14, hi14, i15, hi15,
     bt, hbt, b1, hb1, d, hd, _, hnd, he⟩ := h
   subst hdt; subst hdb; subst hnd; subst he
@@ -523,13 +508,13 @@ theorem mk_const_wf {n : name.Name} {us : alloc.vec.Vec level.Level} {e : expr.E
 theorem app_wf {f a e : expr.Expr} (hf : ExprWF f) (ha : ExprWF a) :
     expr.app f a = ok e → ExprWF e := ExprWF.app hf ha
 
-theorem lam_wf {ty bo e : expr.Expr} {m : expr.BinderMeta}
-    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) :
-    expr.lam ty bo m = ok e → ExprWF e := ExprWF.lam hty hbo hm
+theorem lam_wf {ty bo e : expr.Expr}
+    (hty : ExprWF ty) (hbo : ExprWF bo) :
+    expr.lam ty bo = ok e → ExprWF e := ExprWF.lam hty hbo
 
-theorem forall_e_wf {ty bo e : expr.Expr} {m : expr.BinderMeta}
-    (hty : ExprWF ty) (hbo : ExprWF bo) (hm : BinderMetaWF m) :
-    expr.forall_e ty bo m = ok e → ExprWF e := ExprWF.forall_e hty hbo hm
+theorem forall_e_wf {ty bo e : expr.Expr}
+    (hty : ExprWF ty) (hbo : ExprWF bo) :
+    expr.forall_e ty bo = ok e → ExprWF e := ExprWF.forall_e hty hbo
 
 /-! ### The same, with the Rust equation first (task #71)
 
@@ -564,14 +549,14 @@ theorem app_refines {f a e : expr.Expr} (h : expr.app f a = ok e) :
     absExpr e = .app (absExpr f) (absExpr a) := by
   obtain ⟨d, rfl, -, -, -⟩ := app_inv h; simp
 
-theorem lam_refines {ty bo e : expr.Expr} {m : expr.BinderMeta}
-    (h : expr.lam ty bo m = ok e) :
-    absExpr e = .lam (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+theorem lam_refines {ty bo e : expr.Expr}
+    (h : expr.lam ty bo = ok e) :
+    absExpr e = .lam (absExpr ty) (absExpr bo) := by
   obtain ⟨d, rfl, -, -, -⟩ := lam_inv h; simp
 
-theorem forall_e_refines {ty bo e : expr.Expr} {m : expr.BinderMeta}
-    (h : expr.forall_e ty bo m = ok e) :
-    absExpr e = .forallE (absExpr ty) (absExpr bo) (absBinderMeta m) := by
+theorem forall_e_refines {ty bo e : expr.Expr}
+    (h : expr.forall_e ty bo = ok e) :
+    absExpr e = .forallE (absExpr ty) (absExpr bo) := by
   obtain ⟨d, rfl, -, -, -⟩ := forall_e_inv h; simp
 
 theorem let_e_refines {ty v bo e : expr.Expr} (h : expr.let_e ty v bo = ok e) :
@@ -658,16 +643,6 @@ theorem literal_dup_eq {l c : expr.Literal} (h : expr.literal_dup l = ok c) : c 
     simp only [expr.literal_dup, ptr_clone_eq, bind_ok, Result.ok.injEq] at h
     exact h.symm
 
-/-- `expr::binder_meta_dup` is the identity in the model.  Since task #90 the
-datum is held by value, so this is `prop_when::dup`'s identity one field in
-rather than `Arc::clone`'s. -/
-theorem binder_meta_dup_eq {m c : expr.BinderMeta} (h : expr.binder_meta_dup m = ok c) :
-    c = m := by
-  obtain ⟨pw⟩ := m
-  simp only [expr.binder_meta_dup, bind_eq_ok_iff, Result.ok.injEq] at h
-  obtain ⟨w, hw, hc⟩ := h
-  rw [← hc, PropWhen.dup_eq hw]
-
 /-! ## The derived equalities on the leaf data -/
 
 /-- `expr::literal_beq` refines `Literal`'s `DecidableEq`, exactly. -/
@@ -693,15 +668,6 @@ theorem literal_beq_refines {a b : expr.Literal} {c : Bool}
       simp only [expr.literal_beq, arc_deref_eq, bind_ok] at h
       rw [Name.str_eq_refines ha hb h]
       simp
-
-/-- `expr::binder_meta_beq` refines `BinderMeta`'s `DecidableEq`, exactly. -/
-theorem binder_meta_beq_refines {a b : expr.BinderMeta} {c : Bool}
-    (ha : BinderMetaWF a) (hb : BinderMetaWF b)
-    (h : expr.binder_meta_beq a b = ok c) :
-    c = decide (absBinderMeta a = absBinderMeta b) := by
-  simp only [expr.binder_meta_beq] at h
-  rw [PropWhen.beq_refines ha hb h]
-  simp [absBinderMeta]
 
 /-! ## `List Level` equality
 
@@ -836,14 +802,6 @@ theorem absLiteral_inj {a b : expr.Literal} (ha : LiteralWF a) (hb : LiteralWF b
       simp only [absLiteral, ConLeche.Literal.strVal.injEq] at h
       rw [Name.absString_inj ha hb h]
 
-theorem absBinderMeta_inj {a b : expr.BinderMeta} (ha : BinderMetaWF a)
-    (hb : BinderMetaWF b) (h : absBinderMeta a = absBinderMeta b) : a = b := by
-  obtain ⟨pa⟩ := a
-  obtain ⟨pb⟩ := b
-  simp only [absBinderMeta, ConLeche.BinderMeta.mk.injEq] at h
-  rw [expr.BinderMeta.mk.injEq]
-  exact PropWhen.absPropWhen_injective ha hb h
-
 theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     absExpr a = absExpr b → a = b := by
   induction ha generalizing b with
@@ -869,10 +827,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -907,10 +865,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -944,10 +902,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -982,10 +940,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -1020,10 +978,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
       have q2 : a1 = a2 := iha1 ha2 hab.2
       subst q1; subst q2
       exact Result.ok_injective (h1.symm.trans h2)
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -1035,7 +993,7 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       simp at hab
-  | @lam ty1 bo1 m1 e1 hty1 hbo1 hm1 h1 ihty1 ihbo1 =>
+  | @lam ty1 bo1 e1 hty1 hbo1 h1 ihty1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := lam_inv h1
     intro hab
     cases hb with
@@ -1054,15 +1012,14 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.lam.injEq] at hab
       have q1 : ty1 = ty2 := ihty1 hty2 hab.1
-      have q2 : bo1 = bo2 := ihbo1 hbo2 hab.2.1
-      have q3 : m1 = m2 := absBinderMeta_inj hm1 hm2 hab.2.2
-      subst q1; subst q2; subst q3
+      have q2 : bo1 = bo2 := ihbo1 hbo2 hab.2
+      subst q1; subst q2
       exact Result.ok_injective (h1.symm.trans h2)
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -1074,7 +1031,7 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @proj s2 i2 x2 e2 hs2 hx2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := proj_inv h2
       simp at hab
-  | @forall_e ty1 bo1 m1 e1 hty1 hbo1 hm1 h1 ihty1 ihbo1 =>
+  | @forall_e ty1 bo1 e1 hty1 hbo1 h1 ihty1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := forall_e_inv h1
     intro hab
     cases hb with
@@ -1093,16 +1050,15 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.forallE.injEq] at hab
       have q1 : ty1 = ty2 := ihty1 hty2 hab.1
-      have q2 : bo1 = bo2 := ihbo1 hbo2 hab.2.1
-      have q3 : m1 = m2 := absBinderMeta_inj hm1 hm2 hab.2.2
-      subst q1; subst q2; subst q3
+      have q2 : bo1 = bo2 := ihbo1 hbo2 hab.2
+      subst q1; subst q2
       exact Result.ok_injective (h1.symm.trans h2)
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
@@ -1132,10 +1088,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -1171,10 +1127,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -1208,10 +1164,10 @@ theorem absExpr_injective {a b : expr.Expr} (ha : ExprWF a) (hb : ExprWF b) :
     | @app f2 a2 e2 hf2 ha2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := app_inv h2
       simp at hab
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       simp at hab
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       simp at hab
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
@@ -1458,33 +1414,6 @@ theorem both_step {P Q : Prop} [Decidable P] [Decidable Q] {m : BeqMap}
     rw [h2 m1 rm h']
     simp [hp]
 
-/-- The `.lam`/`.forallE` arms: the binder datum decides the arm, then the
-domain and the body (`expr::beq_both_when`). -/
-theorem both_when_step {P Q R : Prop} [Decidable P] [Decidable Q] [Decidable R]
-    {test : Result Bool} {m : BeqMap} {x1 y1 x2 y2 : expr.Expr}
-    {rm : Bool × BeqMap}
-    (htest : ∀ c, test = ok c → c = decide P)
-    (h1 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
-        expr.beq_go m x1 y1 = ok rm → rm.1 = decide Q)
-    (h2 : ∀ (m : BeqMap) (rm : Bool × BeqMap),
-        expr.beq_go m x2 y2 = ok rm → rm.1 = decide R)
-    (h : (do let c ← test; expr.beq_both_when m c x1 y1 x2 y2) = ok rm) :
-    rm.1 = decide (P ∧ Q ∧ R) := by
-  obtain ⟨c, hc, h⟩ := bind_eq_ok_iff.mp h
-  have e := htest c hc
-  rw [expr.beq_both_when] at h
-  cases c with
-  | false =>
-    simp only [Bool.false_eq_true, ite_false, Result.ok.injEq] at h
-    rw [← h]
-    have hnp : ¬ P := of_decide_eq_false e.symm
-    simp [hnp]
-  | true =>
-    simp only [ite_true] at h
-    have hp : P := of_decide_eq_true e.symm
-    rw [both_step h1 h2 h]
-    simp [hp]
-
 /-- The `.letE` arm: the type, the value, the body (`expr::beq_three`). -/
 theorem three_step {P Q R : Prop} [Decidable P] [Decidable Q] [Decidable R]
     {m : BeqMap} {x1 y1 x2 y2 x3 y3 : expr.Expr} {rm : Bool × BeqMap}
@@ -1601,14 +1530,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -1682,14 +1611,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -1762,14 +1691,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -1842,14 +1771,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -1923,14 +1852,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
       rw [both_step (P := absExpr f1 = absExpr f2) (Q := absExpr a1 = absExpr a2)
         (fun m rm hr => ihf1 f2 hf2 m rm hr) (fun m rm hr => iha1 a2 ha2 m rm hr) h]
       simp only [absExpr_mk, absExprKind, ConLeche.Expr.app.injEq]
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -1958,11 +1887,11 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-  | @lam ty1 bo1 m1 e1 hty1 hbo1 hm1 h1 ihty1 ihbo1 =>
+  | @lam ty1 bo1 e1 hty1 hbo1 h1 ihty1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := lam_inv h1
     intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
-    case inr => exact beq_go_data_ne (ExprWF.lam hty1 hbo1 hm1 h1) hb h (by simpa using hdd)
+    case inr => exact beq_go_data_ne (ExprWF.lam hty1 hbo1 h1) hb h (by simpa using hdd)
     obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
     rw [← hrm]
     cases hb with
@@ -2001,21 +1930,17 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
-      rw [both_when_step (P := absBinderMeta m1 = absBinderMeta m2)
-        (Q := absExpr ty1 = absExpr ty2) (R := absExpr bo1 = absExpr bo2)
-        (fun y hy => binder_meta_beq_refines hm1 hm2 hy)
-        (fun m rm hr => ihty1 ty2 hty2 m rm hr)
-        (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
-      simp only [absExpr_mk, absExprKind, ConLeche.Expr.lam.injEq, decide_eq_decide]
-      tauto
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+      rw [both_step (P := absExpr ty1 = absExpr ty2) (Q := absExpr bo1 = absExpr bo2)
+        (fun m rm hr => ihty1 ty2 hty2 m rm hr) (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
+      simp only [absExpr_mk, absExprKind, ConLeche.Expr.lam.injEq]
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -2043,11 +1968,11 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-  | @forall_e ty1 bo1 m1 e1 hty1 hbo1 hm1 h1 ihty1 ihbo1 =>
+  | @forall_e ty1 bo1 e1 hty1 hbo1 h1 ihty1 ihbo1 =>
     obtain ⟨d1, rfl, -, -, -⟩ := forall_e_inv h1
     intro b hb m rm h
     rcases eq_or_ne d1 (dataOf b) with hdd | hdd
-    case inr => exact beq_go_data_ne (ExprWF.forall_e hty1 hbo1 hm1 h1) hb h (by simpa using hdd)
+    case inr => exact beq_go_data_ne (ExprWF.forall_e hty1 hbo1 h1) hb h (by simpa using hdd)
     obtain ⟨rm, h, hrm⟩ := beq_go_arm h (by simpa using hdd)
     rw [← hrm]
     cases hb with
@@ -2086,27 +2011,23 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       have hd2 : d1 = d2 := by simpa using hdd
       subst hd2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind] at h
-      rw [both_when_step (P := absBinderMeta m1 = absBinderMeta m2)
-        (Q := absExpr ty1 = absExpr ty2) (R := absExpr bo1 = absExpr bo2)
-        (fun y hy => binder_meta_beq_refines hm1 hm2 hy)
-        (fun m rm hr => ihty1 ty2 hty2 m rm hr)
-        (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
-      simp only [absExpr_mk, absExprKind, ConLeche.Expr.forallE.injEq, decide_eq_decide]
-      tauto
+      rw [both_step (P := absExpr ty1 = absExpr ty2) (Q := absExpr bo1 = absExpr bo2)
+        (fun m rm hr => ihty1 ty2 hty2 m rm hr) (fun m rm hr => ihbo1 bo2 hbo2 m rm hr) h]
+      simp only [absExpr_mk, absExprKind, ConLeche.Expr.forallE.injEq]
     | @let_e ty2 v2 bo2 e2 hty2 hv2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := let_e_inv h2
       rw [expr.beq_arm.eq_def] at h
@@ -2171,14 +2092,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -2255,14 +2176,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -2335,14 +2256,14 @@ theorem beq_go_abs {a : expr.Expr} (ha : ExprWF a) :
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @lam ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @lam ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := lam_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
         expr.ExprNode.kind._simpLemma_, kernel.expr.ExprView.ofKind, Result.ok.injEq] at h
       rw [← h]
       simp
-    | @forall_e ty2 bo2 m2 e2 hty2 hbo2 hm2 h2 =>
+    | @forall_e ty2 bo2 e2 hty2 hbo2 h2 =>
       obtain ⟨d2, rfl, -, -, -⟩ := forall_e_inv h2
       rw [expr.beq_arm.eq_def] at h
       simp only [expr_view_eq, arc_deref_eq, bind_ok, expr.Expr._0._simpLemma_,
@@ -2423,7 +2344,7 @@ theorem eq2_refines {a b : expr.Expr} {c : Bool} (ha : ExprWF a) (hb : ExprWF b)
 
 /-! ## What has no refinement lemma, and why
 
-* `expr::hash`, `expr::binder_meta_hash`, `expr::literal_hash` and the
+* `expr::hash`, `expr::literal_hash` and the
   `Hashable` dictionary: DESIGN.md §3.2.  `mixHash` is opaque in Lean, the port
   hashes its own bignums and strings, and a hash value only ever picks a memo
   bucket -- which the abstract-map relation of §3.3 does not see.  The *other*
@@ -2477,8 +2398,8 @@ theorem ExprWF.kids {e : expr.Expr} (h : ExprWF e) :
     | .«Sort» u => LevelWF u
     | .Const n us => NameWF n ∧ LevelsWF us
     | .App f a => ExprWF f ∧ ExprWF a
-    | .Lam ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
-    | .ForallE ty b m => ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m
+    | .Lam ty b => ExprWF ty ∧ ExprWF b
+    | .ForallE ty b => ExprWF ty ∧ ExprWF b
     | .LetE ty v b => ExprWF ty ∧ ExprWF v ∧ ExprWF b
     | .Lit l => LiteralWF l
     | .Proj s _ x => NameWF s ∧ ExprWF x := by
@@ -2489,9 +2410,9 @@ theorem ExprWF.kids {e : expr.Expr} (h : ExprWF e) :
   | @mk_const n us e hn hus h1 =>
     obtain ⟨_, _, -, rfl, -, -, -⟩ := Expr.mk_const_inv h1; exact ⟨hn, hus⟩
   | @app f a e hf ha h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.app_inv h1; exact ⟨hf, ha⟩
-  | @lam ty b m e hty hb hm h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.lam_inv h1; exact ⟨hty, hb, hm⟩
-  | @forall_e ty b m e hty hb hm h1 =>
-    obtain ⟨_, rfl, -, -, -⟩ := Expr.forall_e_inv h1; exact ⟨hty, hb, hm⟩
+  | @lam ty b e hty hb h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.lam_inv h1; exact ⟨hty, hb⟩
+  | @forall_e ty b e hty hb h1 =>
+    obtain ⟨_, rfl, -, -, -⟩ := Expr.forall_e_inv h1; exact ⟨hty, hb⟩
   | @let_e ty v b e hty hv hb h1 =>
     obtain ⟨_, rfl, -, -, -⟩ := Expr.let_e_inv h1; exact ⟨hty, hv, hb⟩
   | @lit l e hl h1 => obtain ⟨_, rfl, -, -, -⟩ := Expr.lit_inv h1; exact hl
@@ -2507,10 +2428,10 @@ theorem ExprWF.const_kids {d n us} (h : ExprWF (.mk (.mk d (.Const n us)))) :
     NameWF n ∧ LevelsWF us := ExprWF.kids h
 theorem ExprWF.app_kids {d f a} (h : ExprWF (.mk (.mk d (.App f a)))) : ExprWF f ∧ ExprWF a :=
   ExprWF.kids h
-theorem ExprWF.lam_kids {d ty b m} (h : ExprWF (.mk (.mk d (.Lam ty b m)))) :
-    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := ExprWF.kids h
-theorem ExprWF.forall_e_kids {d ty b m} (h : ExprWF (.mk (.mk d (.ForallE ty b m)))) :
-    ExprWF ty ∧ ExprWF b ∧ BinderMetaWF m := ExprWF.kids h
+theorem ExprWF.lam_kids {d ty b} (h : ExprWF (.mk (.mk d (.Lam ty b)))) :
+    ExprWF ty ∧ ExprWF b := ExprWF.kids h
+theorem ExprWF.forall_e_kids {d ty b} (h : ExprWF (.mk (.mk d (.ForallE ty b)))) :
+    ExprWF ty ∧ ExprWF b := ExprWF.kids h
 theorem ExprWF.let_e_kids {d ty v b} (h : ExprWF (.mk (.mk d (.LetE ty v b)))) :
     ExprWF ty ∧ ExprWF v ∧ ExprWF b := ExprWF.kids h
 theorem ExprWF.lit_kids {d l} (h : ExprWF (.mk (.mk d (.Lit l)))) : LiteralWF l := ExprWF.kids h
@@ -2527,10 +2448,10 @@ theorem ExprWF.ind_node {motive : (e : expr.Expr) → ExprWF e → Prop}
       motive (.mk (.mk d (.Const n us))) h)
     (app : ∀ d f a (h : ExprWF (.mk (.mk d (.App f a)))), (∀ h, motive f h) → (∀ h, motive a h) →
       motive (.mk (.mk d (.App f a))) h)
-    (lam : ∀ d ty b m (h : ExprWF (.mk (.mk d (.Lam ty b m)))), (∀ h, motive ty h) →
-      (∀ h, motive b h) → motive (.mk (.mk d (.Lam ty b m))) h)
-    (forall_e : ∀ d ty b m (h : ExprWF (.mk (.mk d (.ForallE ty b m)))), (∀ h, motive ty h) →
-      (∀ h, motive b h) → motive (.mk (.mk d (.ForallE ty b m))) h)
+    (lam : ∀ d ty b (h : ExprWF (.mk (.mk d (.Lam ty b)))), (∀ h, motive ty h) →
+      (∀ h, motive b h) → motive (.mk (.mk d (.Lam ty b))) h)
+    (forall_e : ∀ d ty b (h : ExprWF (.mk (.mk d (.ForallE ty b)))), (∀ h, motive ty h) →
+      (∀ h, motive b h) → motive (.mk (.mk d (.ForallE ty b))) h)
     (let_e : ∀ d ty v b (h : ExprWF (.mk (.mk d (.LetE ty v b)))), (∀ h, motive ty h) →
       (∀ h, motive v h) → (∀ h, motive b h) → motive (.mk (.mk d (.LetE ty v b))) h)
     (lit : ∀ d l (h : ExprWF (.mk (.mk d (.Lit l)))), motive (.mk (.mk d (.Lit l))) h)
@@ -2550,12 +2471,12 @@ theorem ExprWF.ind_node {motive : (e : expr.Expr) → ExprWF e → Prop}
   | @app f a e hf ha h1 ihf iha =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.app_inv h1
     exact app d f a (.app hf ha h1) (fun _ => ihf) (fun _ => iha)
-  | @lam ty bo m e hty hbo hm h1 ihty ihbo =>
+  | @lam ty bo e hty hbo h1 ihty ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.lam_inv h1
-    exact lam d ty bo m (.lam hty hbo hm h1) (fun _ => ihty) (fun _ => ihbo)
-  | @forall_e ty bo m e hty hbo hm h1 ihty ihbo =>
+    exact lam d ty bo (.lam hty hbo h1) (fun _ => ihty) (fun _ => ihbo)
+  | @forall_e ty bo e hty hbo h1 ihty ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.forall_e_inv h1
-    exact forall_e d ty bo m (.forall_e hty hbo hm h1) (fun _ => ihty) (fun _ => ihbo)
+    exact forall_e d ty bo (.forall_e hty hbo h1) (fun _ => ihty) (fun _ => ihbo)
   | @let_e ty vv bo e hty hvv hbo h1 ihty ihvv ihbo =>
     obtain ⟨d, rfl, -, -, -⟩ := Expr.let_e_inv h1
     exact let_e d ty vv bo (.let_e hty hvv hbo h1) (fun _ => ihty) (fun _ => ihvv) (fun _ => ihbo)

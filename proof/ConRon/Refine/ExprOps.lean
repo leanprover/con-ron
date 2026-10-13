@@ -37,22 +37,13 @@ open ConRon.Generated ConRon.Generated.kernel
 
 namespace ConRon.Refine.ExprOps
 
-/-! ## Two plumbing steps the repacked node added (task #38)
+/-! ## A plumbing step (task #34)
 
-Since the node was repacked, every place that used to write the binder datum
-inline calls the smart constructor `expr::binder_meta`; and the `Vec`
-accumulators are pre-sized (`Vec::with_capacity`, task #34).  Both are the
-identity in the model, and both are stated as `simp` lemmas so that the bind
-they add collapses inside the `simp only [expr_view_eq, arc_deref_eq, bind_ok, …]` step
-every walk below already runs.  (Task #38 made `BinderMeta.pw` an
-`Arc<PropWhen>`; task #90 shrank `PropWhen` to one word's payload and put the
-datum back by value, so `binder_meta` no longer allocates -- but it is still
-the one constructor every binder goes through, and this lemma is unchanged.) -/
-
-/-- `expr::binder_meta` is the datum wrapper, i.e. the identity. -/
-@[simp, rust_reduce, rust_invert] theorem binder_meta_eq (pw : prop_when.PropWhen) :
-    expr.binder_meta pw = ok ⟨pw⟩ := by
-  simp [expr.binder_meta]
+The `Vec` accumulators are pre-sized (`Vec::with_capacity`); that is the
+identity in the model, stated as a `simp` lemma so the bind collapses inside
+the `simp only [expr_view_eq, arc_deref_eq, bind_ok, …]` step every walk below
+already runs.  (The binder datum's constructor `expr::binder_meta`, the other
+step here, went with the datum at task #119.) -/
 
 /-- `Vec::with_capacity` is `Vec::new` in the model: an empty list. -/
 @[simp] theorem with_capacity_val {α : Type} (c : Std.Usize) :

@@ -17,7 +17,7 @@ which is task #97-LC's own equation, one tier deep in each of the four stores.
 
 | Rust | twin | abstraction |
 |---|---|---|
-| `EIdx`/`NIdx`/`LIdx`/`LsIdx`/`BMIdx` = `{word : u32}` | `Idx k` = `{word : UInt32}` | a FUNCTION (`absEIdx`, …) — the same word |
+| `EIdx`/`NIdx`/`LIdx`/`LsIdx` = `{word : u32}` | `Idx k` = `{word : UInt32}` | a FUNCTION (`absEIdx`, …) — the same word |
 | a node record (`AppNode` = two handles) | the same record over `Idx` | a FUNCTION (`absAppNode`, …) |
 | `Tbl.rows : Vec (A × D)` | `Tbl.nodes : Array α` **and** `Tbl.der : Array δ` | a FUNCTION each way (task #97-P6-10 interleaved the two columns; `rows.map (·.1)` and `rows.map (·.2)`) |
 | `Tbl.cons : ron::HashMap2<A, I>` | `Tbl.cons : Std.HashMap α ι` | a **RELATION** — `Refine/HashMap2.lean`'s `Rel`, because a `Std.HashMap` is not recoverable from a probe agreement |
@@ -84,7 +84,6 @@ noncomputable instance : DecidableEq arena.store.SortNode := Classical.decEq _
 noncomputable instance : DecidableEq arena.store.ConstNode := Classical.decEq _
 noncomputable instance : DecidableEq arena.store.AppNode := Classical.decEq _
 noncomputable instance : DecidableEq arena.store.BindNode := Classical.decEq _
-noncomputable instance : DecidableEq arena.store.BMNode := Classical.decEq _
 noncomputable instance : DecidableEq arena.store.LetNode := Classical.decEq _
 noncomputable instance : DecidableEq arena.store.LitNode := Classical.decEq _
 noncomputable instance : DecidableEq arena.store.ProjNode := Classical.decEq _
@@ -92,7 +91,7 @@ noncomputable instance : DecidableEq arena.store.ProjNode := Classical.decEq _
 /-! ## The handles
 
 DESIGN §8.3: "handles are the same `u32` words".  One function per kind
-because the Rust has five distinct one-field structures where the twin has one
+because the Rust has four distinct one-field structures where the twin has one
 generic `Idx k`; each is `absU32` on the word and nothing else. -/
 
 /-- con-leche: none — an expression handle. -/
@@ -103,14 +102,11 @@ def absNIdx (i : arena.handle.NIdx) : NIdx := ⟨absU32 i.word⟩
 def absLIdx (i : arena.handle.LIdx) : LIdx := ⟨absU32 i.word⟩
 /-- con-leche: none — a universe-argument-list handle. -/
 def absLsIdx (i : arena.handle.LsIdx) : LsIdx := ⟨absU32 i.word⟩
-/-- con-leche: none — a binder-datum handle (task #97-P6-16). -/
-def absBMIdx (i : arena.handle.BMIdx) : BMIdx := ⟨absU32 i.word⟩
 
 @[simp] theorem absEIdx_word (i) : (absEIdx i).word = absU32 i.word := rfl
 @[simp] theorem absNIdx_word (i) : (absNIdx i).word = absU32 i.word := rfl
 @[simp] theorem absLIdx_word (i) : (absLIdx i).word = absU32 i.word := rfl
 @[simp] theorem absLsIdx_word (i) : (absLsIdx i).word = absU32 i.word := rfl
-@[simp] theorem absBMIdx_word (i) : (absBMIdx i).word = absU32 i.word := rfl
 
 theorem absEIdx_inj : Function.Injective absEIdx := by
   intro a b h
@@ -131,12 +127,6 @@ theorem absLIdx_inj : Function.Injective absLIdx := by
   cases a; cases b; simpa using absU32_inj hw
 
 theorem absLsIdx_inj : Function.Injective absLsIdx := by
-  intro a b h
-  have hw : absU32 a.word = absU32 b.word := by
-    simpa using congrArg Idx.word h
-  cases a; cases b; simpa using absU32_inj hw
-
-theorem absBMIdx_inj : Function.Injective absBMIdx := by
   intro a b h
   have hw : absU32 a.word = absU32 b.word := by
     simpa using congrArg Idx.word h
@@ -226,8 +216,7 @@ def absConstNode (r : arena.store.ConstNode) : ConstNode :=
   ⟨absNIdx r.n, absLsIdx r.us⟩
 def absAppNode (r : arena.store.AppNode) : AppNode := ⟨absEIdx r.f, absEIdx r.a⟩
 def absBindNode (r : arena.store.BindNode) : BindNode :=
-  ⟨absEIdx r.ty, absEIdx r.body, absBMIdx r.m⟩
-def absBMNode (r : arena.store.BMNode) : BMNode := ⟨ConRon.Refine.absPropWhen r.pw⟩
+  ⟨absEIdx r.ty, absEIdx r.body⟩
 def absLetNode (r : arena.store.LetNode) : LetNode :=
   ⟨absEIdx r.ty, absEIdx r.val, absEIdx r.body⟩
 def absLitNode (r : arena.store.LitNode) : LitNode := ⟨ConRon.Refine.absLiteral r.l⟩
@@ -262,9 +251,8 @@ def absENodeView : arena.store.ENodeView → ENodeView
   | .Sort u => .sort (absLIdx u)
   | .Const n us => .const (absNIdx n) (absLsIdx us)
   | .App f a => .app (absEIdx f) (absEIdx a)
-  | .Lam ty b m => .lam (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)
-  | .ForallE ty b m =>
-    .forallE (absEIdx ty) (absEIdx b) (ConRon.Refine.absBinderMeta m)
+  | .Lam ty b => .lam (absEIdx ty) (absEIdx b)
+  | .ForallE ty b => .forallE (absEIdx ty) (absEIdx b)
   | .LetE ty v b => .letE (absEIdx ty) (absEIdx v) (absEIdx b)
   | .Lit l => .lit (ConRon.Refine.absLiteral l)
   | .Proj n i e => .proj (absNIdx n) (absU i) (absEIdx e)
@@ -272,7 +260,7 @@ def absENodeView : arena.store.ENodeView → ENodeView
 attribute [simp] absNNodeView absLNodeView absENodeView absLsNodeView
 attribute [simp] absAnonNode absStrNode absNumNode absZeroNode absSuccNode
   absBinLNode absParamNode absListNode absLDer absBVarNode absFVarNode
-  absSortNode absConstNode absAppNode absBindNode absBMNode absLetNode
+  absSortNode absConstNode absAppNode absBindNode absLetNode
   absLitNode absProjNode
 
 /-! ## One table
@@ -337,9 +325,9 @@ structure TblRel {A I D α ι δ ω : Type} [DecidableEq A] [BEq α] [Hashable �
 
 `RelOn P` rather than `Rel`, for the reason `HashMap2WF.lean`'s own note
 gives: the `Eq2` dictionary of a key type that carries a CACHED WORD
-(`StrNode`'s code points, `LitNode`'s `Literal`, `BMNode`'s `PropWhen`) is
+(`StrNode`'s code points, `LitNode`'s `Literal`) is
 exact only on well-formed keys, so the probe agreement can only be claimed
-there.  Fourteen of the eighteen key types are handles and scalars through
+there.  Fifteen of the seventeen key types are handles and scalars through
 and through and take `True`. -/
 
 def AnonNodeWF (_ : arena.store.AnonNode) : Prop := True
@@ -359,7 +347,6 @@ def BindNodeWF (_ : arena.store.BindNode) : Prop := True
 def LetNodeWF (_ : arena.store.LetNode) : Prop := True
 def LitNodeWF (r : arena.store.LitNode) : Prop := ConRon.Refine.LiteralWF r.l
 def ProjNodeWF (_ : arena.store.ProjNode) : Prop := True
-def BMNodeWF (r : arena.store.BMNode) : Prop := ConRon.Refine.PropWhenWF r.pw
 
 /-! ## The four tiers -/
 
@@ -389,13 +376,6 @@ structure ETablesRel (rt : arena.store.ETables) (lt : ETables) : Prop where
   lets : TblRel LetNodeWF absLetNode absEIdx absU64 derObsE rt.lets lt.lets
   lits : TblRel LitNodeWF absLitNode absEIdx absU64 derObsE rt.lits lt.lits
   projs : TblRel ProjNodeWF absProjNode absEIdx absU64 derObsE rt.projs lt.projs
-  /-- **The binder datum's derived column leaves the relation whole** (task
-  #97-P5-2): it holds `hash m.pw` and nothing else — `getBMDer` reads the
-  has-a-parameter bit off the NODE (`r.pw.hasParams`), not off the column, and
-  the column's only other reader is the parent's own hash.  So `derObsN`, for
-  the reason §1 of task #97-P5-1 gives at the name tier: a hash cannot be in
-  the relation because `mixHash` is `opaque`. -/
-  bms : TblRel BMNodeWF absBMNode absBMIdx absU64 derObsN rt.bms lt.bms
 
 /-! ## The persistent arm: which of the two tiers holds it
 

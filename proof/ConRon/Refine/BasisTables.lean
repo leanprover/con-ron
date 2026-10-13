@@ -268,38 +268,6 @@ theorem levels_have_param_from_aux (us : alloc.vec.Vec level.Level) :
     level.levels_have_param us ⦃ _ => True ⦄ := by
   unfold level.levels_have_param; step*
 
-theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
-    ∀ (n : Nat) (i : Std.Usize) (acc : Std.U64), ps.val.length - i.val ≤ n →
-      prop_when.names_hash_from ps i acc ⦃ _ => True ⦄ := by
-  intro n
-  induction n with
-  | zero =>
-    intro i acc hle
-    rw [prop_when.names_hash_from.eq_def]; simp only []
-    rw [ite_eq_left (show alloc.vec.Vec.len ps ≤ i by scalar_tac)]
-    step*
-  | succ n ih =>
-    intro i acc hle
-    rw [prop_when.names_hash_from.eq_def]; simp only []
-    split
-    · step*
-    · rename_i hlt; step*
-
-@[local step] theorem names_hash_from_spec (ps : alloc.vec.Vec name.Name)
-    (i : Std.Usize) (acc : Std.U64) :
-    prop_when.names_hash_from ps i acc ⦃ _ => True ⦄ :=
-  names_hash_from_aux ps ps.val.length i acc (by omega)
-
-@[local step] theorem hash_repr_spec (r : prop_when.PropWhenRepr) :
-    prop_when.hash_repr r ⦃ _ => True ⦄ := by unfold prop_when.hash_repr; split <;> step*
-
-@[local step] theorem has_params_spec (pw : prop_when.PropWhen) :
-    prop_when.has_params pw ⦃ _ => True ⦄ := by
-  unfold prop_when.has_params; split <;> step*
-
-@[local step] theorem hash_pw_spec (pw : prop_when.PropWhen) :
-    prop_when.hash_pw pw ⦃ _ => True ⦄ := by unfold prop_when.hash_pw; step*
-
 /-! ### The node constructors: the shape, with the hash forgotten -/
 
 @[local step] theorem name_anonymous_spec :
@@ -344,65 +312,26 @@ theorem names_hash_from_aux (ps : alloc.vec.Vec name.Name) :
   repeat' (first | step | split)
   all_goals simp_all
 
-/-- The binder datum's constructor (task #38: the datum is behind a handle,
-so the generated table builds one through `expr::binder_meta` instead of a
-struct literal). -/
-@[local step] theorem expr_binder_meta_spec (pw : prop_when.PropWhen) :
-    expr.binder_meta pw ⦃ m => m = ⟨pw⟩ ⦄ := by unfold expr.binder_meta; step*
-
-@[local step] theorem expr_lam_spec (ty b : expr.Expr) (m : expr.BinderMeta) :
-    expr.lam ty b m ⦃ e => ∃ h, e = .mk (.mk h (.Lam ty b m)) ⦄ := by
+@[local step] theorem expr_lam_spec (ty b : expr.Expr) :
+    expr.lam ty b ⦃ e => ∃ h, e = .mk (.mk h (.Lam ty b)) ⦄ := by
   unfold expr.lam
   repeat' (first | step | split)
   all_goals simp_all
 
-@[local step] theorem expr_forall_e_spec (ty b : expr.Expr) (m : expr.BinderMeta) :
-    expr.forall_e ty b m ⦃ e => ∃ h, e = .mk (.mk h (.ForallE ty b m)) ⦄ := by
+@[local step] theorem expr_forall_e_spec (ty b : expr.Expr) :
+    expr.forall_e ty b ⦃ e => ∃ h, e = .mk (.mk h (.ForallE ty b)) ⦄ := by
   unfold expr.forall_e
   repeat' (first | step | split)
   all_goals simp_all
 
-/-! ### The zero-ness datum
-
-`prop_when::if_all_zero` decides the `0`/`1`/`2` cases without touching
-`canon`, so the two shapes the tables use need no canonicalisation lemma and
-no `NameWF`: the length hypothesis picks the branch.  (A length-3 spec would
-need `canon`/`merge`/`name_cmp` totality, which nothing here asks for.) -/
-
-@[local step] theorem of_repr_spec (r : prop_when.PropWhenRepr) :
-    prop_when.of_repr r ⦃ w => w = ⟨r⟩ ⦄ := by unfold prop_when.of_repr; step*
+/-! ### The zero-ness datum (the plain datum since task #119) -/
 
 @[local step] theorem prop_when_never_spec :
-    prop_when.never ⦃ w => w = ⟨.Never⟩ ⦄ := by unfold prop_when.never; step*
+    prop_when.never ⦃ w => w = .Never ⦄ := by unfold prop_when.never; step*
 
-theorem if_all_zero_nil_spec (ps : alloc.vec.Vec name.Name)
-    (h : ps.val = []) : prop_when.if_all_zero ps ⦃ w => w = ⟨.Always⟩ ⦄ := by
-  unfold prop_when.if_all_zero
-  rw [ite_eq_left (show alloc.vec.Vec.len ps = 0#usize by scalar_tac)]
-  step*
-
-theorem if_all_zero_one_spec (ps : alloc.vec.Vec name.Name)
-    (n : name.Name) (h : ps.val = [n]) :
-    prop_when.if_all_zero ps ⦃ w => w = ⟨.One n⟩ ⦄ := by
-  unfold prop_when.if_all_zero
-  rw [ite_eq_right (show ¬ alloc.vec.Vec.len ps = 0#usize by scalar_tac),
-      ite_eq_left (show alloc.vec.Vec.len ps = 1#usize by scalar_tac)]
-  step*
-
-/-- The two shapes as `step` sees them in a generated table: the empty vector
-is syntactic, and a one-element vector arrives as a `Vec::push` result, so its
-spec carries the list equation as a side goal. -/
-@[local step] theorem if_all_zero_new_spec :
-    prop_when.if_all_zero (alloc.vec.Vec.new name.Name) ⦃ w => w = ⟨.Always⟩ ⦄ :=
-  if_all_zero_nil_spec _ (by simp [alloc.vec.Vec.new])
-
-@[local step] theorem if_all_zero_singleton_spec (ps : alloc.vec.Vec name.Name)
-    (h : ∃ n, ps.val = [n]) :
-    prop_when.if_all_zero ps ⦃ w => ∃ n, ps.val = [n] ∧ w = ⟨.One n⟩ ⦄ := by
-  obtain ⟨n, hn⟩ := h
-  have := if_all_zero_one_spec ps n hn
-  apply WP.spec_mono this
-  intro w hw; exact ⟨n, hn, hw⟩
+@[local step] theorem if_all_zero_spec (ps : alloc.vec.Vec name.Name) :
+    prop_when.if_all_zero ps ⦃ w => w = .IfAllZero ps ⦄ := by
+  unfold prop_when.if_all_zero; step*
 
 /-! ## The statement
 
@@ -437,7 +366,7 @@ macro_rules
          absConstantVal, absIndCaps, absRecRule, absFire, absExpr, absExprNode,
          absExprKind, absName, absNameNode, absNameKind, absNames, absString,
          absLevel, absLevelNode, absLevelKind, absLevels, absPropWhen,
-         absPropWhenRepr, absLiteral]
+         absLiteral]
        all_goals (rcases Std.Usize.bounds_eq with hb | hb <;>
          simp_all [hb, Std.U32.max, Std.U64.max, Std.U32.numBits, Std.U64.numBits])
        all_goals (simp only [absBasisKind]; first | rfl | decide)))
