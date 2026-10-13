@@ -86,6 +86,7 @@ import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Spine
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -138,12 +139,11 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
         (r = none → env.findProj? Tn i = none); ⊤⦄ := by
   vcgen [ConRon.Arena.IFEnv.findProj?, projTableName_spec (Tn := Tn)]
   all_goals (bridge_peel; subst_vars)
-  case vc3 => exact hok.state.wf
-  case vc4 => exact hT
+  bridge_frame
   -- the index stores a TABLE at the reserved name
-  case vc1 =>
-    rename_i _s1 rn _s2 tbl hfind hwf2 hext hm hc hp hdn
-    have hck : CheckOK mode env fe _s2 := hok.mono ⟨hwf2⟩ hext hc hp
+  vc_arm (hfind : IFEnv.find? _ ?rn = some (IConstantInfo.projInfo ?tbl))
+      (hdn : denoteN (AState.store ?s).ns _ = some (ConLeche.projTableName _)) =>
+    have hck : CheckOK mode env fe s := by bridge_frame
     obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
     obtain rfl : nm = ConLeche.projTableName Tn := by
       rw [hnm] at hdn; exact Option.some.inj hdn
@@ -151,28 +151,25 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
     obtain ⟨pt, hpt, rfl⟩ := hci
     obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
     obtain ⟨hbsz, hgsz, -⟩ := hck.ienv.proj rn tbl hfind
-    refine ⟨hck, hext, hm, hc, hp, ?_, ?_⟩
-    · intro e he
-      split at he
-      · rename_i hlt
+    refine ⟨fun e he => ?_, fun he => ?_⟩
+    · split at he
+      next hlt =>
         obtain rfl := Option.some.inj he
         exact ⟨pt.entry i,
           denoteProjTable_entry hpt (by rw [hbsz]; exact hlt)
             (by rw [hgsz]; exact hlt),
           ConLeche.Env.findProj?_of_table hfindE (by rw [hnf]; exact hlt)⟩
-      · exact absurd he (by simp)
-    · intro he
-      split at he
-      · exact absurd he (by simp)
-      · rename_i hlt
+      next => exact absurd he (by simp)
+    · split at he
+      next => exact absurd he (by simp)
+      next hlt =>
         simp only [ConLeche.Env.findProj?, hfindE]
         exact ite_eq_right (by rw [hnf]; exact hlt)
   -- the index stores no table there, so neither does the environment
-  case vc2 =>
-    rename_i _s1 rn _s2 hwf2 hext hm hc hp hdn hno
-    have hck : CheckOK mode env fe _s2 := hok.mono ⟨hwf2⟩ hext hc hp
-    refine ⟨hck, hext, hm, hc, hp, fun e he => absurd he (by simp),
-      fun _ => ?_⟩
+  vc_arm (hno : ∀ tbl, IFEnv.find? _ ?rn ≠ some (.projInfo tbl))
+      (hdn : denoteN (AState.store ?s).ns _ = some (ConLeche.projTableName _)) =>
+    have hck : CheckOK mode env fe s := by bridge_frame
+    refine ⟨fun e he => absurd he (by simp), fun _ => ?_⟩
     cases hf : fe.find? rn with
     | none =>
       exact ConLeche.Env.findProj?_none_of_fresh
@@ -210,15 +207,12 @@ theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
   | cons a as ih =>
     vcgen [-readNamesM_spec, ConRon.Arena.readNamesM,
       readNameM_spec, ih]
-    all_goals bridge_peel
-    all_goals subst_vars
-    all_goals first
-      | assumption
-      | (rename_i hst1 hf2 hden2 hm1 hp1 hc1 hden1 hN1
-         have hf1 := ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN1
-         rw [hst1] at hden2
-         exact ⟨hf1.trans hf2,
-           by simp only [Frontend.denoteNList, hden1, hden2]⟩)
+    all_goals (bridge_peel; subst_vars)
+    bridge_frame [ReadbackFrame.ofReadN]
+    vc_arm (hx : denoteN (AState.store ?s).ns a = some _)
+        (hxs : Frontend.denoteNList _ as = some ?xs) =>
+      have hxs' : Frontend.denoteNList s.store.ns as = some xs := by bridge_frame
+      simp only [Frontend.denoteNList, hx, hxs']
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
 **THEOREM 1 for the tower-fire guard**: at a `Prop`-declared structure the
@@ -243,57 +237,20 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
   vcgen [lvlEq?_spec (mode := mode) (env := env) (fe := fe),
     -readNamesM_spec, readNamesM_frame]
   all_goals (bridge_peel; subst_vars)
-  -- the two pin/invariant side goals
-  case vc7 => exact hok.pins
-  case vc6 => exact hok
-  -- the three readback preconditions, each `CheckOK` carried to the state
-  -- the previous call left
-  case vc5 =>
-    rename_i hck _ _ _ _
-    exact hck.caches.readN
-  case vc4 =>
-    rename_i hck hf _ _ _ _ _
-    exact (CheckOK.ofReadbackFrame hck hf).caches.readLs
-  case vc3 =>
-    rename_i hck hf2 _ hst _ hm _ _ hp hc _ hLs _
-    exact (CheckOK.ofReadbackFrame hck
-      (hf2.trans (ReadbackFrame.ofReadLs hst hm hp hc hLs))).caches.readL
+  bridge_frame [CheckOK.ofReadbackFrame, ReadbackFrame.ofReadLs, ReadbackFrame.ofReadL,
+    ReadbackFrame.ofReadN, CheckOK.pins, CheckOK.caches, CacheOK.readN, CacheOK.readL,
+    CacheOK.readLs]
+  bridge_fwd
+  bridge_frame
   -- the guard DECLINES: the structure sort is not provably zero, so the rule
   -- fires unconditionally and con-leche's first disjunct is `true`
-  case vc1 =>
-    rename_i _s1 r _s2 hcond hck hst hp heq hzero
-    obtain ⟨lu, lv, hlu, hlv, hr⟩ := heq
-    rw [hss] at hlu
-    rw [hzero] at hlv
-    obtain rfl : lu = p.structSort := (Option.some.inj hlu).symm
-    obtain rfl : lv = Level.zero := (Option.some.inj hlv).symm
-    refine ⟨hck, hst, hp, ?_⟩
-    simp only [ConLeche.ProjEntry.fireOk, ← hr, hcond, Bool.true_or]
+  vc_arm (hcond : (!Level.isEquiv _ _ == some true) = true) =>
+    simp only [ConLeche.ProjEntry.fireOk, hcond, Bool.true_or]
   -- the guard FIRES: the structure sort IS provably zero, so con-leche's
-  -- first disjunct is `false` and the verdict is the field sort's
-  case vc2 =>
-    rename_i _s4 rb _s3 hcond _s2 _s1 _s0 hck3 hf2 hlps3 hst21 hst10 hst34 hm21 hm10 hp34 heq3 hp21 hp10 hc21
-      hc10 hus2 hLs1 hfs1 hL1 hzero
-    have hf3 := ReadbackFrame.ofReadLs hst21 hm21 hp21 hc21 hLs1
-    have hf4 := ReadbackFrame.ofReadL hst10 hm10 hp10 hc10 hL1
-    have hf := (hf2.trans hf3).trans hf4
-    refine ⟨CheckOK.ofReadbackFrame hck3 hf, hf.store.trans hst34,
-      hf.pins.trans hp34, ?_⟩
-    -- the three readbacks ARE con-leche's three arguments
-    rw [hst34, hlps] at hlps3
-    rw [hf2.store, hst34, hus] at hus2
-    rw [hf3.store, hf2.store, hst34, hfs] at hfs1
-    obtain rfl : ks = p.levelParams := (Option.some.inj hlps3).symm
-    obtain rfl : vs = ls := (Option.some.inj hus2).symm
-    obtain rfl : fs = p.fieldSort := (Option.some.inj hfs1).symm
-    -- and the guard's own verdict is `some true`
-    obtain ⟨lu, lv, hlu, hlv, hr⟩ := heq3
-    rw [hss] at hlu
-    rw [hzero] at hlv
-    obtain rfl : lu = p.structSort := (Option.some.inj hlu).symm
-    obtain rfl : lv = Level.zero := (Option.some.inj hlv).symm
-    have hrb : p.structSort.isEquiv Level.zero = some true := by
-      rw [← hr]; simpa using hcond
+  -- first disjunct is `false` and the verdict is the field sort's (the three
+  -- readbacks ARE con-leche's three arguments: `bridge_fwd` unified them)
+  vc_arm (hcond : ¬ (!Level.isEquiv _ _ == some true) = true) =>
+    have hrb : p.structSort.isEquiv Level.zero = some true := by simpa using hcond
     simp only [ConLeche.ProjEntry.fireOk, hrb, beq_self_eq_true,
       Bool.not_true, Bool.false_or]
 
@@ -337,20 +294,14 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     exact ExprOps.denoteEList_snoc hpe _ _ hargs
   vcgen [ConRon.Arena.IProjEntry.typeAt, hi, hl]
   all_goals (bridge_peel; subst_vars)
-  -- `instantiateListFast_spec`'s three preconditions
-  case vc2 => assumption
-  case vc3 => exact hvec.ext ‹Ext _ _›
-  case vc4 =>
-    rename_i hrel
-    rw [hrel _ hb]; rfl
-  -- the postcondition
-  case vc1 =>
-    rename_i hst1 hst2 hx2 hL hc2 hLs hp2 hN _ hrel2 hx1 hc1 hp1 _ hrel1
-    have hck1 := CheckOK.ofInstLP hok hst1 hx1 hL hLs hN hc1 hp1
-    refine ⟨hck1.mono hst2 hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
-    rw [hrel2 _ (hrel1 _ hb)]
+  bridge_frame [CheckOK.ofInstLP, ExprOps.InstLVec.ext]
+  bridge_fwd
+  bridge_frame
+  -- the postcondition: the level instantiation, then the list instantiation
+  vc_arm (hrel : RelE (fun e => Expr.instantiateList e _) _ _ _ _)
+      (hb' : denoteE _ _ = some (Expr.instantiateLevelParams _ _ _)) =>
+    rw [hrel _ hb']
     rfl
-
 
 /-! ## 5a. `iotaCertsFull` — the batched full-grade telescope certificate
 
@@ -639,11 +590,12 @@ theorem iotaCertsFull_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       by simpa using hxs, hwxs⟩
   unfold ConRon.Arena.iotaCertsFull
   vcgen [hg]
-  rename_i hpost
-  obtain ⟨hck, hx, hp, hr⟩ := hpost
-  refine ⟨hck, hx, hp, fun tyx' xs' h1 h2 => ?_⟩
-  have := hr tyx' [] xs' h1 (InstLVec.empty _) (by simpa using h2)
-  rwa [ConLeche.Expr.instantiateList_nil] at this
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  vc_arm (hr : ∀ tyx ws xs, denoteE _ h = some tyx → _) =>
+    intro tyx' xs' h1 h2
+    have := hr tyx' [] xs' h1 (InstLVec.empty _) (by simpa using h2)
+    rwa [ConLeche.Expr.instantiateList_nil] at this
 
 /-- con-leche: none — a stored constructor denotes a constructor, with the
 same two counts. -/

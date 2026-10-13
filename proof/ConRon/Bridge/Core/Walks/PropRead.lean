@@ -40,6 +40,7 @@ The has-parameters cutoff (task #97-P6-10) is con-leche's own
 -/
 import ConRon.Bridge.Core.Walks.Nat
 import ConRon.Bridge.Core.Walks.Proj
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -466,6 +467,27 @@ theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
       rw [tag_of_denote hok.state.wf hx] at htg
       cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Expr.binderDom, denoteEO]
 
+/-- con-leche: none — `view_of_viewApp_tag` in the orientation `vcgen`
+hands a projection's answer (`some (f, a) = st.viewApp i`), so that
+`bridge_fwd` reads the view off the arm's own hypotheses (task #120). -/
+theorem view_of_viewApp_tag' {st : EStore} {i f a : EIdx}
+    (htg : (i.tag == ETag.app) = true) (h : some (f, a) = st.viewApp i) :
+    st.view i = some (.app f a) :=
+  view_of_viewApp_tag htg h.symm
+
+/-- con-leche: none — the same at a `sort` projection. -/
+theorem view_of_viewSort_tag' {st : EStore} {i : EIdx} {u : LIdx}
+    (htg : (i.tag == ETag.sort) = true) (h : some u = st.viewSort i) :
+    st.view i = some (.sort u) :=
+  view_of_viewSort_tag htg h.symm
+
+/-- con-leche: none — a handle whose TAG is not `sort` denotes no sort. -/
+theorem denote_not_sort_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} (he : denoteE st h = some e)
+    (ht : ¬ (h.tag == ETag.sort) = true) : ∀ l, e ≠ .sort l := by
+  obtain ⟨v, hview, hne⟩ := view_not_of_tagB he ht
+  exact denote_not_sort hwf hview he (fun u hh => hne (by rw [hh]; rfl))
+
 /-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — **THEOREM 1
 for `numArgs`**, in answer shape.  The arena's walk is fueled and FAILS at
 fuel `0`; `; ⊤` claims nothing of a failure, so the equation is unconditional
@@ -484,26 +506,15 @@ theorem numArgs_spec' (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
     obtain ⟨x₀, hx₀⟩ := hpre
     vcgen [ConRon.Arena.numArgs, ih]
     all_goals (bridge_peel; subst_vars)
-    -- tag first, then the `app` projection (task #97-P5-Core round 6)
-    case vc2 => exact hok
-    case vc3 =>
-      rename_i htg s0 f a hv
-      obtain ⟨ef, _, _, hf, _⟩ := denote_app_inv hok.state.wf
-        (view_of_viewApp_tag htg hv.symm) hx₀
-      exact ⟨ef, hf⟩
-    case vc1 =>
-      rename_i htg f a s0 hr hv
-      refine ⟨rfl, fun x hx => ?_⟩
-      obtain ⟨ef, ea, rfl, hf, _⟩ := denote_app_inv hok.state.wf
-        (view_of_viewApp_tag htg hv.symm) hx
-      rw [hr ef hf]; rfl
-    case vc4 =>
-      rename_i s0 hnt
-      refine ⟨rfl, fun x hx => ?_⟩
-      obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
-      have hna := denote_not_app' hok.state.wf hview hx
-        (fun f a hh => hne (by rw [hh]; rfl))
-      cases x <;> first | rfl | exact absurd rfl (hna _ _)
+    bridge_frame
+    bridge_fwd [view_of_viewApp_tag', denote_not_app_of_tag]
+    bridge_frame
+    -- an application: one more argument than its function (`bridge_fwd`
+    -- substituted the recursive call's answer)
+    vc_arm ⊢ Expr.numArgs _ + 1 = Expr.numArgs (.app _ _) => rfl
+    -- not an application (by its tag): no arguments
+    vc_arm (hna : ∀ f a, x₀ ≠ .app f a) =>
+      cases x₀ <;> first | rfl | exact absurd rfl (hna _ _)
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW — **THEOREM 1
 for `residualPW`**, in answer shape (the residual is `peelNeverPis`'s
@@ -516,24 +527,24 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
         pw = ConLeche.residualPW ox; ⊤⦄ := by
   vcgen [ConRon.Arena.residualPW]
   all_goals (bridge_peel; subst_vars)
-  -- tag first, then the `sort` projection (task #97-P5-Core round 6)
-  case vc1 =>
-    rename_i h htg u s0 hl hv
-    refine ⟨rfl, fun ox hox => ?_⟩
+  bridge_frame
+  -- a `sort` node: its level's zeroness
+  vc_arm (htg : (Idx.tag ?h == ETag.sort) = true) (hv : some ?u = EStore.viewSort _ ?h)
+      (hl : denoteL _ ?u = some _) =>
+    intro ox hox
     obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
     obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hok.state.wf
-      (view_of_viewSort_tag htg hv.symm) hx
+      (view_of_viewSort_tag' htg hv) hx
     rw [hl] at hl'; cases hl'; rfl
-  case vc2 =>
-    rename_i s0 h hnt
-    refine ⟨rfl, fun ox hox => ?_⟩
+  -- not a `sort` node (by its tag)
+  vc_arm (hnt : ¬ (_ == ETag.sort) = true) =>
+    intro ox hox
     obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
-    obtain ⟨v, hview, hne⟩ := view_not_of_tagB hx hnt
-    have hns := denote_not_sort hok.state.wf hview hx
-      (fun u hh => hne (by rw [hh]; rfl))
+    have hns := denote_not_sort_of_tag hok.state.wf hx hnt
     cases x <;> first | rfl | exact absurd rfl (hns _)
-  case vc3 =>
-    refine ⟨rfl, fun ox hox => ?_⟩
+  -- no residual at all
+  vc_arm ⊢ ∀ ox, denoteEO _ none = some ox → _ =>
+    intro ox hox
     rw [denoteEO_none_inv hox]; rfl
 
 /-! ## 2b. The identity-like wrappers (con-leche's task #342) -/
@@ -803,7 +814,8 @@ theorem substPWAt_spec' (s₀ : AState) (lps : List NIdx) (us : LsIdx)
         s'.pins = s₀.pins ∧ r = some (Level.substPW ks vs pw); ⊤⦄ := by
   unfold ConRon.Arena.substPWAt
   split
-  · refine triple_seq (readNamesM_spec s₀ lps hok.caches.readN) ?_
+  next =>
+    refine triple_seq (readNamesM_spec s₀ lps hok.caches.readN) ?_
     rintro ks' s1 ⟨hst1, hm1, hp1, hc1, hks1, hN1⟩
     have hf1 := ReadbackFrame.ofReadN hst1 hm1 hp1 hc1 hN1
     have hok1 := CheckOK.ofReadbackFrame hok hf1
@@ -816,7 +828,7 @@ theorem substPWAt_spec' (s₀ : AState) (lps : List NIdx) (us : LsIdx)
     obtain rfl := Option.some.inj hvs2
     exact triple_pureR ⟨CheckOK.ofReadbackFrame hok (hf1.trans hf2),
       (hf1.trans hf2).store, (hf1.trans hf2).pins, rfl⟩
-  · rename_i hne
+  next hne =>
     exact triple_pureR ⟨hok, rfl, rfl, by
       rw [substPW_cutoff (fun a as h => hne a as h)]⟩
 
