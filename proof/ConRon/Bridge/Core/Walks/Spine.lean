@@ -59,6 +59,7 @@ task #105.)
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -269,6 +270,16 @@ theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
+
+/-- con-leche: none — `denote_not_const` at the tag-first twin's `else` arm:
+a handle whose TAG is not `const` denotes no constant (task #120: the shape
+`bridge_fwd` instantiates from the arm's own hypotheses). -/
+theorem denote_not_const_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} (he : denoteE st h = some e)
+    (ht : ¬ (h.tag == ETag.const) = true) : ∀ n us, e ≠ .const n us := by
+  obtain ⟨v, hv⟩ := denoteE_view he
+  exact denote_not_const hwf hv he
+    (fun c us hh => view_tagOf_ne hv (t := ETag.const) ht (by rw [hh]; rfl))
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index's HIT
 half at a definition**: a handle the index answers `defnInfo` at denotes a
 name the environment answers `defnInfo` at, with the same hint. -/
@@ -342,45 +353,35 @@ theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
     ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.unfoldableHead env x; ⊤⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
-  obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.unfoldableHead, hfn]
   all_goals (bridge_peel; subst_vars)
-  -- `getAppFn_spec`'s two preconditions
-  case vc5 => exact hok.state
-  case vc6 => rw [hden]; rfl
-  -- the definition arm
-  case vc1 =>
-    rename_i _ _ _ _ _ _ hfd _ usl hrel hview hlen
-    refine ⟨hok, rfl, rfl, ?_⟩
-    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
-    have hul : usl = ls.length := by
-      rw [viewLen_of_denoteLs hus] at hlen; exact Option.some.inj hlen
-    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
-    simp only [ConLeche.unfoldableHead, hgf, hfind, hul,
+  bridge_frame
+  bridge_fwd [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
+    denote_not_const_of_tag]
+  bridge_frame
+  -- the definition arm: the twin compares the level-list length it read
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _))
+      (hlen : some _ = LsStore.viewLen _ _) (hus : denoteLs _ _ = some _)
+      (hlps : Frontend.denoteNList _ _ = some _) =>
+    rw [viewLen_of_denoteLs hus] at hlen
+    simp only [ConLeche.unfoldableHead, hgf, hfind, Option.some.inj hlen,
       denoteNList_len hlps]
   -- the not-a-definition arm
-  case vc2 =>
-    rename_i _ _ _ _ hrel hview hnd
-    refine ⟨hok, rfl, rfl, ?_⟩
-    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    exact (unfoldableHead_of_not_defn hgf (env_not_defn_of_index hok hn hnd)).symm
-  -- the not-a-constant arm
-  case vc3 =>
-    rename_i _ _ _ hnc hrel hview
-    refine ⟨hok, rfl, rfl, ?_⟩
-    exact (unfoldableHead_of_not_const
-      (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
-  -- the tag-first `else` arm (task #97-P5-Core round 4): the head's view comes
-  -- back from its denotation, and its tag is not `const`
-  case vc4 =>
-    have hr := (‹RelE Expr.getAppFn _ e _ _›) x hden
-    obtain ⟨v, hv⟩ := denoteE_view hr
-    refine ⟨hok, rfl, rfl, ?_⟩
-    exact (unfoldableHead_of_not_const (denote_not_const hok.state.wf hv hr
-      (fun c us hh => view_tagOf_ne hv (t := ETag.const) ‹_› (by rw [hh]; rfl)))).symm
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
+      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
+    exact (unfoldableHead_of_not_defn hgf hnd).symm
+  -- the not-a-constant arms (the view's catch-all and the tag-first `else`)
+  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
+    exact (unfoldableHead_of_not_const hnc).symm
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition — the
+postcondition of a DECLINING arm, from con-leche's own `none` (task #120: one
+`refine` for all four declining arms, whatever order `vcgen` hands them in). -/
+theorem unfoldDefinition_none_post {st : EStore} {x : Expr} {d : Nat}
+    (h : ConLeche.unfoldDefinition env x = none) :
+    denoteEO st none = some (ConLeche.unfoldDefinition env x) ∧
+      ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y := by
+  rw [h]; exact ⟨rfl, fun y hy => nomatch hy⟩
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:136-155 unfoldDefinition —
 **THEOREM 1 for `unfoldDefinition`**: unfold the (application of a)
@@ -417,102 +418,38 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
   have hcv := fun (s : AState) (n : NIdx) (lps : List NIdx) (value : EIdx)
       (us : LsIdx) => constValAt_spec' (mode := mode) (env := env) (fe := fe)
         s n lps value us
-  obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.unfoldDefinition, hfn, hargs, hmk, hcv]
   all_goals (bridge_peel; subst_vars)
   all_goals (bridge_peel; subst_vars)
-  -- the callees' preconditions
-  case vc2 | vc5 | vc13 => apply CheckOK.state; assumption
-  case vc7 => exact hok
-  case vc14 => rw [hden]; rfl
-  case vc6 => rw [denote_ext hden ‹Ext _ _›]; rfl
-  case vc4 =>
-    rw [(‹RelEL Expr.getAppArgs _ e _ _›) x (denote_ext hden ‹Ext _ _›)]; rfl
-  case vc8 =>
-    rename_i _ _ _ _ _ _ hfd _ _ _ hrel hview
-    obtain ⟨nm, ls, _, hn, hus⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    obtain ⟨dcv, dval, hdcv, hdval, hfind⟩ := env_defn_of_index hok hn hfd
-    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
-    exact ⟨nm, ls, dcv, dval, _, hn, hus, hlps, hdval, hfind⟩
-  case vc3 =>
-    rename_i _ _ _ _ _ _ hfd _ _ _ _ hrel hview _ _ _ _ hcvr
-    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    obtain ⟨dcv, dval, _, _, hfind⟩ := env_defn_of_index hok hn hfd
-    rw [hcvr nm ls dcv dval _ hn hus hfind]; rfl
+  bridge_frame
+  bridge_fwd [env_defn_of_index, env_not_defn_of_index, denoteCV_inv, denote_not_const,
+    denote_not_const_of_tag]
+  bridge_frame
   -- the definition UNFOLDS
-  case vc1 =>
-    rename_i _ _ _ _ _ _ hfd _ hlen _ _ hst3 hx13 _ hc13 hp13 hmkr hlsv hrel
-      hview hck1 hargsr hx01 hp01 hcvr
-    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
-    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
-    have hv := hcvr nm ls dcv dval _ hn hus hfind
-    have ha := hargsr x (denote_ext hden hx01)
-    have hr := hmkr _ _ hv ha
-    have hul : ls.length = dcv.levelParams.length := by
-      rw [← view_len_of_denoteLs hus hlsv, hlen, denoteNList_len hlps]
-    have hud : ConLeche.unfoldDefinition env x =
-        some (Expr.mkAppN (dval.instantiateLevelParams dcv.levelParams ls)
-          x.getAppArgs) := by
-      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_true]
-    refine ⟨hck1.mono hst3 hx13 hc13 hp13, hx01.trans hx13, hp13.trans hp01,
-      fun x' hx' => ?_⟩
-    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
-    refine ⟨by rw [hud]; simp only [denoteEO, hr, Option.map_some], ?_⟩
-    intro y hy
-    exact ConLeche.unfoldDefinition_WScoped henv hy hwx
-  -- the level count does not match: both decline
-  case vc9 =>
-    rename_i _ _ _ _ _ _ hfd _ hlen hlsv hrel hview
-    obtain ⟨nm, ls, hgf, hn, hus⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    obtain ⟨dcv, dval, hdcv, _, hfind⟩ := env_defn_of_index hok hn hfd
-    obtain ⟨_, hlps, _⟩ := denoteCV_inv hdcv
-    have hul : ¬ ls.length = dcv.levelParams.length := by
-      rw [← view_len_of_denoteLs hus hlsv, denoteNList_len hlps]; exact hlen
-    have hud : ConLeche.unfoldDefinition env x = none := by
-      simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_false]
-    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
-    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
-    rw [hud]
-    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _))
+      (hlen : List.length _ = _) (hlsv : LsStore.view _ _ = some _)
+      (hus : denoteLs _ _ = some _) (hlps : Frontend.denoteNList _ _ = some _)
+      (hr : denoteE _ _ = some (Expr.mkAppN _ _)) =>
+    have hul := (view_len_of_denoteLs hus hlsv).symm.trans
+      (hlen.trans (denoteNList_len hlps).symm)
+    refine ⟨?_, fun y hy => ConLeche.unfoldDefinition_WScoped henv hy hwx⟩
+    simp only [ConLeche.unfoldDefinition, hgf, hfind, hul, ite_true, denoteEO, hr,
+      Option.map_some]
+  -- every other arm declines, and so does con-leche
+  all_goals refine unfoldDefinition_none_post ?_
+  -- the level count does not match
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _))
+      (hlen : ¬ List.length _ = _) (hlsv : LsStore.view _ _ = some _)
+      (hus : denoteLs _ _ = some _) (hlps : Frontend.denoteNList _ _ = some _) =>
+    rw [view_len_of_denoteLs hus hlsv, ← denoteNList_len hlps] at hlen
+    simp only [ConLeche.unfoldDefinition, hgf, hfind, hlen, ite_false]
   -- the head is a constant but not a stored definition
-  case vc10 =>
-    rename_i _ _ _ _ hrel hview hnd
-    obtain ⟨nm, ls, hgf, hn, _⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    have hud : ConLeche.unfoldDefinition env x = none := by
-      have h := env_not_defn_of_index hok hn hnd
-      simp only [ConLeche.unfoldDefinition, hgf]
-    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
-    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
-    rw [hud]
-    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
+      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
+    simp only [ConLeche.unfoldDefinition, hgf]
   -- the head is not a constant
-  case vc11 =>
-    rename_i _ _ _ hnc hrel hview
-    have hud : ConLeche.unfoldDefinition env x = none := by
-      have h := denote_not_const hok.state.wf hview (hrel x hden) hnc
-      simp only [ConLeche.unfoldDefinition]
-    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
-    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
-    rw [hud]
-    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
-  -- the head's TAG is not `const` (task #97-P5-Core round 4's tag-first arm)
-  case vc12 =>
-    have hr := (‹RelE Expr.getAppFn _ e _ _›) x hden
-    obtain ⟨v, hv⟩ := denoteE_view hr
-    have hud : ConLeche.unfoldDefinition env x = none := by
-      have h := denote_not_const hok.state.wf hv hr
-        (fun c us hh => view_tagOf_ne hv (t := ETag.const) ‹_› (by rw [hh]; rfl))
-      simp only [ConLeche.unfoldDefinition]
-    refine ⟨hok, Ext.refl _, rfl, fun x' hx' => ?_⟩
-    obtain rfl : x' = x := Option.some.inj (hx'.symm.trans hden)
-    rw [hud]
-    exact ⟨rfl, fun y hy => absurd hy (by simp)⟩
+  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
+    simp only [ConLeche.unfoldDefinition]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
 for `headHint`**: the reducibility hint of the constant at the head.
@@ -542,40 +479,58 @@ theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
     ⦃fun h s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ h = ConLeche.headHint env x; ⊤⦄ := by
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
-  obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.headHint, hfn]
   all_goals (bridge_peel; subst_vars)
-  -- `getAppFn_spec`'s two preconditions
-  case vc5 => exact hok.state
-  case vc6 => rw [hden]; rfl
+  bridge_frame
+  bridge_fwd [env_defn_of_index, env_not_defn_of_index, denote_not_const,
+    denote_not_const_of_tag]
+  bridge_frame
   -- the definition arm
-  case vc1 =>
-    rename_i _ _ _ _ _ _ _ hfd hrel hview
-    refine ⟨hok, rfl, rfl, ?_⟩
-    obtain ⟨nm, ls, hgf, hn, _⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    obtain ⟨dcv, dval, _, _, hfind⟩ := env_defn_of_index hok hn hfd
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _) (hfind : env.find? _ = some (.defnInfo _ _ _)) =>
     simp only [ConLeche.headHint, hgf, hfind]
   -- the not-a-definition arm
-  case vc2 =>
-    rename_i _ _ _ _ hrel hview hnd
-    refine ⟨hok, rfl, rfl, ?_⟩
-    obtain ⟨nm, ls, hgf, hn, _⟩ :=
-      denote_const_inv hok.state.wf hview (hrel x hden)
-    exact (headHint_of_not_defn hgf (env_not_defn_of_index hok hn hnd)).symm
-  -- the not-a-constant arm
-  case vc3 =>
-    rename_i _ _ _ hnc hrel hview
-    refine ⟨hok, rfl, rfl, ?_⟩
-    exact (headHint_of_not_const
-      (denote_not_const hok.state.wf hview (hrel x hden) hnc)).symm
-  -- the tag-first `else` arm (task #97-P5-Core round 4)
-  case vc4 =>
-    have hr := (‹RelE Expr.getAppFn _ e _ _›) x hden
-    obtain ⟨v, hv⟩ := denoteE_view hr
-    refine ⟨hok, rfl, rfl, ?_⟩
-    exact (headHint_of_not_const (denote_not_const hok.state.wf hv hr
-      (fun c us hh => view_tagOf_ne hv (t := ETag.const) ‹_› (by rw [hh]; rfl)))).symm
+  vc_arm (hgf : Expr.getAppFn _ = .const _ _)
+      (hnd : ∀ cv val hint, env.find? _ ≠ some (.defnInfo cv val hint)) =>
+    exact (headHint_of_not_defn hgf hnd).symm
+  -- the not-a-constant arms (the view's catch-all and the tag-first `else`)
+  vc_arm (hnc : ∀ n us, Expr.getAppFn _ ≠ .const n us) =>
+    exact (headHint_of_not_const hnc).symm
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
+second head is not a constant (task #120: the four declining arms as lemmas,
+so that each arm is one `exact`). -/
+theorem sameConstHeads_nc_right {f₁ a₁ f₂ a₂ : Expr}
+    (h : ∀ n us, f₂.getAppFn ≠ .const n us) :
+    ConLeche.sameConstHeads (.app f₁ a₁) (.app f₂ a₂) = false := by
+  simp only [ConLeche.sameConstHeads]
+  cases hgx : f₁.getAppFn <;> cases hgy : f₂.getAppFn <;>
+    first | rfl | exact absurd hgy (h _ _)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
+first head is not a constant. -/
+theorem sameConstHeads_nc_left {f₁ a₁ y : Expr}
+    (h : ∀ n us, f₁.getAppFn ≠ .const n us) :
+    ConLeche.sameConstHeads (.app f₁ a₁) y = false := by
+  cases y with
+  | app f₂ a₂ =>
+    simp only [ConLeche.sameConstHeads]
+    cases hgx : f₁.getAppFn <;> cases f₂.getAppFn <;>
+      first | rfl | exact absurd hgx (h _ _)
+  | _ => simp only [ConLeche.sameConstHeads]
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
+second subject is not an application. -/
+theorem sameConstHeads_na_right {f₁ a₁ y : Expr} (h : ∀ f a, y ≠ .app f a) :
+    ConLeche.sameConstHeads (.app f₁ a₁) y = false := by
+  simp only [ConLeche.sameConstHeads]
+  cases hy : y <;> first | rfl | exact absurd hy (h _ _)
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
+first subject is not an application. -/
+theorem sameConstHeads_na_left {x y : Expr} (h : ∀ f a, x ≠ .app f a) :
+    ConLeche.sameConstHeads x y = false := by
+  simp only [ConLeche.sameConstHeads]
+  cases hx : x <;> cases hy : y <;> first | rfl | exact absurd hx (h _ _)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
@@ -603,6 +558,14 @@ theorem denote_not_app {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
+
+/-- con-leche: none — `denote_not_app` at the tag-first `else` arm. -/
+theorem denote_not_app_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
+    {e : Expr} (he : denoteE st h = some e)
+    (ht : ¬ (h.tag == ETag.app) = true) : ∀ f a, e ≠ .app f a := by
+  obtain ⟨v, hv⟩ := denoteE_view he
+  exact denote_not_app hwf hv he
+    (fun f a hh => view_tagOf_ne hv (t := ETag.app) ht (by rw [hh]; rfl))
 /-- con-leche: none — a handle whose VIEW is not a `.forallE` denotes an
 expression that is not a `.forallE`.  `etaCert`'s not-a-∀ exit. -/
 theorem denote_not_forallE {st : EStore} (hwf : StoreWF st) {h : EIdx}
@@ -653,102 +616,29 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.sameConstHeads, hfn]
-  -- Thirteen verification conditions since the twin tests the tags first
-  -- (task #97-P5-Core round 4): the four callee preconditions, the verdict,
-  -- and for each of the four tests its view-side catch-all AND its tag-side
-  -- `else` (which recovers the view from the denotation).
   all_goals (bridge_peel; subst_vars)
-  case vc4 | vc8 => exact hok.state
-  case vc9 =>
-    rename_i hva _
-    obtain ⟨ex, ea, hx, hdf, _⟩ := denote_app_inv hok.state.wf hva hda
-    rw [hdf]; rfl
-  case vc5 =>
-    rename_i hvb _
-    obtain ⟨ey, eb, hy, hdf, _⟩ := denote_app_inv hok.state.wf hvb hdb
-    rw [hdf]; rfl
-  case vc1 =>
-    rename_i hrelb hrela hva hvb hvra hvrb
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
-    obtain ⟨nma, lsa, hgfa, hna, _⟩ :=
-      denote_const_inv hok.state.wf hvra (hrela ex hdfa)
-    obtain ⟨nmb, lsb, hgfb, hnb, _⟩ :=
-      denote_const_inv hok.state.wf hvrb (hrelb ey hdfb)
-    refine ⟨hok, rfl, rfl, ?_⟩
+  bridge_frame
+  bridge_fwd [denote_not_const, denote_not_const_of_tag, denote_not_app,
+    denote_not_app_of_tag]
+  bridge_frame
+  -- both heads are constants: the names compared by handle
+  vc_arm (hgfa : Expr.getAppFn ?fa = .const ?na _) (hgfb : Expr.getAppFn ?fb = .const ?nb _)
+      (hna : denoteN _ ?ca = some ?na) (hnb : denoteN _ ?cb = some ?nb)
+      ⊢ (?ca == ?cb) = ConLeche.sameConstHeads (.app ?fa _) (.app ?fb _) =>
     rw [beq_of_denoteN hrk.nsWF hna hnb]
     simp only [ConLeche.sameConstHeads, hgfa, hgfb]
-  case vc2 =>
-    rename_i hncb hrelb hrela hva hvb hvra hvrb
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
-    have hnc := denote_not_const hok.state.wf hvrb (hrelb ey hdfb) hncb
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
-      first | rfl | exact absurd hgy (hnc _ _)
-  case vc3 =>
-    rename_i htb hrelb hrela hva hvb hvra
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
-    obtain ⟨vb, hvrb⟩ := denoteE_view (hrelb ey hdfb)
-    have hnc := denote_not_const hok.state.wf hvrb (hrelb ey hdfb)
-      (fun c us hh => view_tagOf_ne hvrb (t := ETag.const) htb (by rw [hh]; rfl))
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
-      first | rfl | exact absurd hgy (hnc _ _)
-  case vc6 =>
-    rename_i hnca hrela hva hvb hvra
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
-    have hnc := denote_not_const hok.state.wf hvra (hrela ex hdfa) hnca
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
-      first | rfl | exact absurd hgx (hnc _ _)
-  case vc7 =>
-    rename_i hta hrela hva hvb
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    obtain ⟨ey, eb, rfl, hdfb, _⟩ := denote_app_inv hok.state.wf hvb hdb
-    obtain ⟨va, hvra⟩ := denoteE_view (hrela ex hdfa)
-    have hnc := denote_not_const hok.state.wf hvra (hrela ex hdfa)
-      (fun c us hh => view_tagOf_ne hvra (t := ETag.const) hta (by rw [hh]; rfl))
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hgx : ex.getAppFn <;> cases hgy : ey.getAppFn <;>
-      first | rfl | exact absurd hgx (hnc _ _)
-  case vc10 =>
-    rename_i hnab hva hvb
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    have hna := denote_not_app hok.state.wf hvb hdb hnab
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hy : y <;> first | rfl | exact absurd hy (hna _ _)
-  case vc11 =>
-    rename_i htb hva
-    obtain ⟨ex, ea, rfl, hdfa, _⟩ := denote_app_inv hok.state.wf hva hda
-    obtain ⟨vb, hvb⟩ := denoteE_view hdb
-    have hna := denote_not_app hok.state.wf hvb hdb
-      (fun f a hh => view_tagOf_ne hvb (t := ETag.app) htb (by rw [hh]; rfl))
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hy : y <;> first | rfl | exact absurd hy (hna _ _)
-  case vc12 =>
-    rename_i hnaa hva
-    have hna := denote_not_app hok.state.wf hva hda hnaa
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hx : x <;> cases hy : y <;> first | rfl | exact absurd hx (hna _ _)
-  case vc13 =>
-    rename_i hta
-    obtain ⟨va, hva⟩ := denoteE_view hda
-    have hna := denote_not_app hok.state.wf hva hda
-      (fun f a hh => view_tagOf_ne hva (t := ETag.app) hta (by rw [hh]; rfl))
-    refine ⟨hok, rfl, rfl, ?_⟩
-    simp only [ConLeche.sameConstHeads]
-    cases hx : x <;> cases hy : y <;> first | rfl | exact absurd hx (hna _ _)
-
+  -- a head is not a constant (by its view or by its tag)
+  vc_arm (hnc : ∀ n us, Expr.getAppFn ?fb ≠ .const n us)
+      ⊢ false = ConLeche.sameConstHeads (.app _ _) (.app ?fb _) =>
+    exact (sameConstHeads_nc_right hnc).symm
+  vc_arm (hnc : ∀ n us, Expr.getAppFn ?fa ≠ .const n us)
+      ⊢ false = ConLeche.sameConstHeads (.app ?fa _) _ =>
+    exact (sameConstHeads_nc_left hnc).symm
+  -- a subject is not an application
+  vc_arm (hna : ∀ f a, ?y ≠ .app f a) ⊢ false = ConLeche.sameConstHeads (.app _ _) ?y =>
+    exact (sameConstHeads_na_right hna).symm
+  vc_arm (hna : ∀ f a, ?x ≠ .app f a) ⊢ false = ConLeche.sameConstHeads ?x _ =>
+    exact (sameConstHeads_na_left hna).symm
 
 /-! ### `defeqSpine`, the walk that consumes the whole round
 
@@ -853,117 +743,47 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   have hfn := ExprOps.getAppFn_spec coreWalkFuel
   have hag := ExprOps.getAppArgs_spec coreWalkFuel
   have hdl := defEqList_go hsim d
+  have hwaa := hwa.getAppArgs
+  have hwbb := hwb.getAppArgs
   obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.defeqSpine, hfn, hag, lvlsEq?_spec (mode := mode) (env := env) (fe := fe), hdl]
   all_goals (bridge_peel; subst_vars)
-  -- the four spine reads' `StateOK`/`isSome` preconditions, and the two
-  -- `CheckOK`s of `lvlsEq?` and the list comparison
-  case vc8 | vc10 | vc14 | vc18 => exact hok.state
-  case vc11 | vc19 => rw [hda]; rfl
-  case vc9 | vc15 => rw [hdb]; rfl
-  case vc6 => exact hok
-  case vc2 => assumption
+  bridge_frame
+  bridge_fwd [denote_not_const, denote_not_const_of_tag]
+  bridge_frame
   -- heads, level lists and argument lists all agree
-  case vc1 =>
-    rename_i hlen hck1 hck hst1 hxt hpn1 hpn hrec hrelB hrelA hrelFb hrelFa
-      hviewA hviewB hlvs
-    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
-      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
-    obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
-      denote_const_inv hok.state.wf hviewB (hrelFb y hdb)
-    have hnn : nma = nmb := Option.some.inj (hna.symm.trans hnb)
-    have hdaa := hrelA x hda
-    have hdbb := hrelB y hdb
-    have hlenX : x.getAppArgs.length = y.getAppArgs.length := by
-      rw [denoteEList_len hdaa, denoteEList_len hdbb, hlen]
-    obtain ⟨lus, lvs, hlu, hlv, hiso⟩ := hlvs
-    rw [husa] at hlu; rw [husb] at hlv
-    obtain rfl : lus = lsa := (Option.some.inj hlu).symm
-    obtain rfl : lvs = lsb := (Option.some.inj hlv).symm
-    refine ⟨hck, by rw [← hst1]; exact hxt, by rw [hpn, hpn1], ?_⟩
-    obtain ⟨F, hF⟩ :=
-      hrec x.getAppArgs y.getAppArgs (by rw [hst1]; exact hdaa)
-        (by rw [hst1]; exact hdbb)
-    exact ⟨F, defeqSpineFueled_const hgfa hgfb ⟨hnn, hlenX⟩ hiso.symm hF⟩
-  -- the argument lists denote, in the state `lvlsEq?` left
-  case vc3 =>
-    rename_i _ hst _ hrelB hrelA _ _ _ _ _
-    exact ⟨x.getAppArgs, by rw [hst]; exact hrelA x hda,
-      fun z hz => hwa.getAppArgs z hz⟩
-  case vc4 =>
-    rename_i _ hst _ hrelB hrelA _ _ _ _ _
-    exact ⟨y.getAppArgs, by rw [hst]; exact hrelB y hdb,
-      fun z hz => hwb.getAppArgs z hz⟩
+  vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hgfb : Expr.getAppFn y = .const _ _)
+      (hlen : List.length _ = List.length _)
+      (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
+      (hys : Frontend.denoteEList _ _ = some y.getAppArgs)
+      (hiso : some true = Level.isEquivList _ _) (hrec : SimBOp _ _) =>
+    obtain ⟨F, hF⟩ := hrec
+    exact ⟨F, defeqSpineFueled_const hgfa hgfb
+      ⟨rfl, by rw [denoteEList_len hxs, denoteEList_len hys, hlen]⟩ hiso.symm hF⟩
   -- the level lists differ
-  case vc5 =>
-    rename_i rv hnt hlen hck0 hst0 hpn0 hrelB hrelA hrelFb hrelFa hviewA hviewB
-      hlvs
-    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
-      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
-    obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
-      denote_const_inv hok.state.wf hviewB (hrelFb y hdb)
-    have hnn : nma = nmb := Option.some.inj (hna.symm.trans hnb)
-    have hdaa := hrelA x hda
-    have hdbb := hrelB y hdb
-    have hlenX : x.getAppArgs.length = y.getAppArgs.length := by
-      rw [denoteEList_len hdaa, denoteEList_len hdbb, hlen]
-    obtain ⟨lus, lvs, hlu, hlv, hiso⟩ := hlvs
-    rw [husa] at hlu; rw [husb] at hlv
-    obtain rfl : lus = lsa := (Option.some.inj hlu).symm
-    obtain rfl : lvs = lsb := (Option.some.inj hlv).symm
-    refine ⟨hck0, by rw [hst0]; exact Ext.refl _, hpn0,
-      ⟨0, defeqSpineFueled_lvl hgfa hgfb ⟨hnn, hlenX⟩
-        (fun hc => hnt (hiso.trans hc))⟩⟩
+  vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hgfb : Expr.getAppFn y = .const _ _)
+      (hlen : List.length _ = List.length _)
+      (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
+      (hys : Frontend.denoteEList _ _ = some y.getAppArgs)
+      (hnt : Level.isEquivList _ _ ≠ some true) =>
+    exact ⟨0, defeqSpineFueled_lvl hgfa hgfb
+      ⟨rfl, by rw [denoteEList_len hxs, denoteEList_len hys, hlen]⟩ hnt⟩
   -- the head names or the arities differ
-  case vc7 =>
-    rename_i hne hrelB hrelA hrelFb hrelFa hviewA hviewB
-    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
-      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
-    obtain ⟨nmb, lsb, hgfb, hnb, husb⟩ :=
-      denote_const_inv hok.state.wf hviewB (hrelFb y hdb)
-    have hdaa := hrelA x hda
-    have hdbb := hrelB y hdb
-    refine ⟨hok, Ext.refl _, rfl, ⟨0, defeqSpineFueled_ne hgfa hgfb ?_⟩⟩
-    intro hc
-    obtain ⟨h1, h2⟩ := hc
-    refine hne ⟨(name_eq_iff_of_denoteN hrk.nsWF hna hnb).mpr h1, ?_⟩
-    rw [← denoteEList_len hdaa, ← denoteEList_len hdbb]
+  vc_arm (hgfa : Expr.getAppFn x = .const ?na _) (hgfb : Expr.getAppFn y = .const ?nb _)
+      (hna : denoteN _ ?ca = some ?na) (hnb : denoteN _ ?cb = some ?nb)
+      (hne : ¬ (?ca = ?cb ∧ _))
+      (hxs : Frontend.denoteEList _ _ = some x.getAppArgs)
+      (hys : Frontend.denoteEList _ _ = some y.getAppArgs) =>
+    refine ⟨0, defeqSpineFueled_ne hgfa hgfb fun ⟨h1, h2⟩ =>
+      hne ⟨(name_eq_iff_of_denoteN hrk.nsWF hna hnb).mpr h1, ?_⟩⟩
+    rw [← denoteEList_len hxs, ← denoteEList_len hys]
     exact h2
-  -- `b`'s head is not a constant
-  case vc12 =>
-    rename_i _ hncb hrelFb hrelFa hviewA hviewB
-    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
-      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
-    exact ⟨hok, Ext.refl _, rfl,
-      ⟨0, defeqSpineFueled_nc_right hgfa
-        (denote_not_const hok.state.wf hviewB (hrelFb y hdb) hncb)⟩⟩
-  -- `b`'s head does not carry the `const` TAG (round 4's tag-first arm)
-  case vc13 =>
-    rename_i htb hrelFb hrelFa hviewA
-    obtain ⟨nma, lsa, hgfa, hna, husa⟩ :=
-      denote_const_inv hok.state.wf hviewA (hrelFa x hda)
-    obtain ⟨vb, hviewB⟩ := denoteE_view (hrelFb y hdb)
-    exact ⟨hok, Ext.refl _, rfl,
-      ⟨0, defeqSpineFueled_nc_right hgfa
-        (denote_not_const hok.state.wf hviewB (hrelFb y hdb)
-          (fun c us hh => view_tagOf_ne hviewB (t := ETag.const) htb
-            (by rw [hh]; rfl)))⟩⟩
+  -- `b`'s head is not a constant (by its view or by its tag)
+  vc_arm (hgfa : Expr.getAppFn x = .const _ _) (hnc : ∀ n us, Expr.getAppFn y ≠ .const n us) =>
+    exact ⟨0, defeqSpineFueled_nc_right hgfa hnc⟩
   -- `a`'s head is not a constant
-  case vc16 =>
-    rename_i _ hnca hrelFa hviewA
-    exact ⟨hok, Ext.refl _, rfl,
-      ⟨0, defeqSpineFueled_nc_left
-        (denote_not_const hok.state.wf hviewA (hrelFa x hda) hnca)⟩⟩
-  -- `a`'s head does not carry the `const` TAG
-  case vc17 =>
-    rename_i hta hrelFa
-    obtain ⟨va, hviewA⟩ := denoteE_view (hrelFa x hda)
-    exact ⟨hok, Ext.refl _, rfl,
-      ⟨0, defeqSpineFueled_nc_left
-        (denote_not_const hok.state.wf hviewA (hrelFa x hda)
-          (fun c us hh => view_tagOf_ne hviewA (t := ETag.const) hta
-            (by rw [hh]; rfl)))⟩⟩
-
+  vc_arm (hnc : ∀ n us, Expr.getAppFn x ≠ .const n us) =>
+    exact ⟨0, defeqSpineFueled_nc_left hnc⟩
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt —
 `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` with the substituted
