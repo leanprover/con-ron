@@ -347,6 +347,13 @@ theorem view_not_of_tagB {st : EStore} {h : EIdx} {e : Expr}
 `peelPis` is `Walks/Proj.lean`'s `peelPis_spec` (the recursor's and the
 projection certificate's arity read it too). -/
 
+/-- con-leche: none — `view_of_viewBind_forallE` at the twin's tag test and
+in `vcgen`'s orientation (task #120). -/
+theorem view_of_viewBind_forallE' {st : EStore} {i ty b : EIdx}
+    (htg : (i.tag == ETag.forallE) = true) (h : some (ty, b) = st.viewBind i) :
+    st.view i = some (.forallE ty b) :=
+  view_of_viewBind_forallE (by simpa using htg) h.symm
+
 /-- con-leche: ConLeche/Kernel/PropRead.lean:50-54 Expr.binderDom — **THEOREM
 1 for `binderDom`**, in answer shape.  Read-only, structural on `k`. -/
 theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
@@ -357,48 +364,16 @@ theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
   induction k with
   | zero =>
     intro s₀ h hok
-    rw [ConRon.Arena.binderDom]
-    by_cases htg : (h.tag == ETag.forallE) = true
-    · rw [ite_eq_left htg]
-      refine triple_seq (viewBind_spec s₀ h) ?_
-      rintro ob s1 ⟨hs1, hob⟩
-      subst s1; subst hob
-      cases hvb : s₀.store.viewBind h with
-      | none => exact triple_failDanglingE
-      | some p =>
-        obtain ⟨A, b⟩ := p
-        dsimp only
-        refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-        obtain ⟨et, eb, rfl, hA, _⟩ := denote_forallE_inv hok.state.wf
-          (view_of_viewBind_forallE (by simpa using htg) hvb) hx
-        simp [denoteEO, hA, Expr.binderDom]
-    · rw [ite_eq_right htg]
-      refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-      rw [tag_of_denote hok.state.wf hx] at htg
-      cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Expr.binderDom, denoteEO]
+    vcgen [ConRon.Arena.binderDom]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto [view_of_viewBind_forallE'] unfolding [Expr.binderDom, denoteEO,
+      Option.map_some]
   | succ k ih =>
     intro s₀ h hok
-    rw [ConRon.Arena.binderDom]
-    by_cases htg : (h.tag == ETag.forallE) = true
-    · rw [ite_eq_left htg]
-      refine triple_seq (viewBind_spec s₀ h) ?_
-      rintro ob s1 ⟨hs1, hob⟩
-      subst s1; subst hob
-      cases hvb : s₀.store.viewBind h with
-      | none => exact triple_failDanglingE
-      | some p =>
-        obtain ⟨A, b⟩ := p
-        dsimp only
-        refine triple_mono (ih s₀ b hok) ?_
-        rintro r s' ⟨rfl, hr⟩
-        refine ⟨rfl, fun x hx => ?_⟩
-        obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf
-          (view_of_viewBind_forallE (by simpa using htg) hvb) hx
-        rw [hr eb hb]; rfl
-    · rw [ite_eq_right htg]
-      refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-      rw [tag_of_denote hok.state.wf hx] at htg
-      cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Expr.binderDom, denoteEO]
+    vcgen [ConRon.Arena.binderDom, ih]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto [view_of_viewBind_forallE'] unfolding [Expr.binderDom, denoteEO,
+      Option.map_some]
 
 /-- con-leche: none — a handle whose TAG is not `sort` denotes no sort. -/
 theorem denote_not_sort_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
@@ -442,13 +417,20 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
 
 /-! ## 2b. The identity-like wrappers (con-leche's task #342) -/
 
+/-- con-leche: none — `view_of_viewBind_lam` at the twin's tag test and in
+`vcgen`'s orientation (task #120). -/
+theorem view_of_viewBind_lam' {st : EStore} {i ty b : EIdx}
+    (htg : (i.tag == ETag.lam) = true) (h : some (ty, b) = st.viewBind i) :
+    st.view i = some (.lam ty b) :=
+  view_of_viewBind_lam (by simpa using htg) h.symm
+
 /-- con-leche: ConLeche/Kernel/PropRead.lean:73-79 lamProj? — **THEOREM 1 for
 `lamProj?`**.  Read-only; the arena's walk is fueled and fails at fuel `0`. -/
 theorem lamProj?_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
     CheckOK mode env fe s₀ →
     ⦃fun s => s = s₀⦄ ConRon.Arena.lamProj? fuel k h
     ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
-        r = ConLeche.lamProj? k x; ⊤⦄ := by
+        ConLeche.lamProj? k x = r; ⊤⦄ := by
   induction fuel with
   | zero =>
     intro k s₀ h _
@@ -456,40 +438,47 @@ theorem lamProj?_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
     exact triple_fail
   | succ fuel ih =>
     intro k s₀ h hok
-    rw [ConRon.Arena.lamProj?]
-    by_cases htl : (h.tag == ETag.lam) = true
-    · rw [ite_eq_left htl]
-      refine triple_seq (viewBind_spec s₀ h) ?_
-      rintro ob s1 ⟨hs1, hob⟩
-      subst s1; subst hob
-      cases hvb : s₀.store.viewBind h with
-      | none => exact triple_failDanglingE
-      | some p =>
-        obtain ⟨A, b⟩ := p
-        dsimp only
-        refine triple_mono (ih (k + 1) s₀ b hok) ?_
-        rintro r s' ⟨rfl, hr⟩
-        refine ⟨rfl, fun x hx => ?_⟩
-        obtain ⟨et, eb, rfl, _, hb⟩ := denote_lam_inv hok.state.wf
-          (view_of_viewBind_lam (by simpa using htl) hvb) hx
-        rw [hr eb hb]; rfl
-    · rw [ite_eq_right htl]
-      by_cases htb : (h.tag == ETag.bvar) = true
-      · rw [ite_eq_left htb]
-        refine triple_seq (viewBVar_spec s₀ h) ?_
-        rintro ob s1 ⟨hs1, hob⟩
-        subst s1; subst hob
-        cases hvb : s₀.store.viewBVar h with
-        | none => exact triple_failDanglingE
-        | some j =>
-          dsimp only
-          refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-          rw [denote_bvar_inv hok.state.wf (view_of_viewBVar_tag htb hvb) hx]
-          rfl
-      · rw [ite_eq_right htb]
-        refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-        rw [tag_of_denote hok.state.wf hx] at htl htb
-        cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, ConLeche.lamProj?]
+    vcgen [ConRon.Arena.lamProj?, ih]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto [view_of_viewBind_lam', denote_bvar_inv] unfolding [ConLeche.lamProj?]
+
+/-- con-leche: none — `view_of_viewConstName` at the twin's tag test and in
+`vcgen`'s orientation (task #120: a forward rule for `bridge_auto`). -/
+theorem view_of_viewConstName' {st : EStore} {i : EIdx} {n : NIdx}
+    (htg : (i.tag == ETag.const) = true) (h : some n = st.viewConstName i) :
+    ∃ us, st.view i = some (.const n us) :=
+  view_of_viewConstName (by simpa using htg) h.symm
+
+/-- con-leche: none — `denoteEList_getD` with the index universal, so that a
+forward step can state it once for every index. -/
+theorem denoteEList_getD' {st : EStore} {hs : List EIdx} {xs : List Expr}
+    {e : EIdx} {x : Expr} (h : Frontend.denoteEList st hs = some xs)
+    (hx : denoteE st e = some x) :
+    ∀ i, denoteE st (hs.getD i e) = some (xs.getD i x) :=
+  fun i => denoteEList_getD h i e x hx
+
+/-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — the head is
+not a constant: nothing to unwrap. -/
+theorem unwrapIdDefs_not_const {find? : ConLeche.Name → Option ConstantInfo}
+    {n : Nat} {x : Expr} (h : ∀ c us, x.getAppFn ≠ .const c us) :
+    ConLeche.unwrapIdDefs find? (n + 1) x = x := by
+  rw [ConLeche.unwrapIdDefs]
+  split
+  next c us heq => exact absurd heq (h c us)
+  next => rfl
+
+/-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — the head
+constant is not a stored definition. -/
+theorem unwrapIdDefs_not_defn {find? : ConLeche.Name → Option ConstantInfo}
+    {n : Nat} {x : Expr} {nm : ConLeche.Name} {ls : List Level}
+    (hgf : x.getAppFn = .const nm ls)
+    (h : ∀ cv val hint, find? nm ≠ some (.defnInfo cv val hint)) :
+    ConLeche.unwrapIdDefs find? (n + 1) x = x := by
+  rw [ConLeche.unwrapIdDefs, hgf]
+  dsimp only
+  split
+  next cv v hint heq => exact absurd heq (h cv v hint)
+  next => rfl
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — **THEOREM
 1 for `unwrapIdDefs`**, in answer shape: the answer denotes con-leche's
@@ -508,109 +497,37 @@ theorem unwrapIdDefs_spec' (fuel : Nat) : ∀ (n : Nat) (s₀ : AState) (e : EId
   | succ n ih =>
     intro s₀ e hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
-    have hwf := hok.state.wf
-    rw [ConRon.Arena.unwrapIdDefs]
-    refine triple_seq (ExprOps.getAppFn_spec fuel s₀ e hok.state
-      (by rw [hx₀]; rfl)) ?_
-    rintro hh s1 ⟨hs1, hrelF⟩
-    subst s1
-    have hdd : denoteE s₀.store hh = some x₀.getAppFn := hrelF x₀ hx₀
-    -- the answer `e` itself, when the head declines
-    have hkeep : ∀ (c : Expr → Prop), (∀ x, denoteE s₀.store e = some x →
-        ConLeche.unwrapIdDefs env.find? (n + 1) x = x) →
-        ⦃fun s => s = s₀⦄ (pure e : AM EIdx)
-        ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store e = some x →
-          denoteE s₀.store r = some (ConLeche.unwrapIdDefs env.find? (n + 1)
-            x); ⊤⦄ := by
-      intro _ h
-      exact triple_pureR ⟨rfl, fun x hx => by rw [h x hx, hx]⟩
-    by_cases htc : (hh.tag == ETag.const) = true
-    · rw [ite_eq_left htc]
-      refine triple_seq (viewConstName_spec s₀ hh) ?_
-      rintro oc s2 ⟨hs2, hoc⟩
-      subst s2; subst hoc
-      cases hvc : s₀.store.viewConstName hh with
-      | none => exact triple_failDanglingE
-      | some c =>
-        dsimp only
-        obtain ⟨us, hview⟩ := view_of_viewConstName (by simpa using htc) hvc
-        obtain ⟨nm, ls, hgf, hn, _⟩ := denote_const_inv hwf hview hdd
-        have hgf' : ∀ x, denoteE s₀.store e = some x →
-            x.getAppFn = .const nm ls := fun x hx => by
-          obtain rfl := Option.some.inj (hx.symm.trans hx₀); exact hgf
-        have hopt := optCI_find hok hn
-        cases hfd : fe.find? c with
-        | none =>
-          rw [hfd] at hopt
-          refine hkeep (fun _ => True) (fun x hx => ?_)
-          simp only [ConLeche.unwrapIdDefs, hgf' x hx]
-          rw [show env.find? nm = none from hopt]
-        | some ci =>
-          rw [hfd] at hopt
-          obtain ⟨c', hci, hfind⟩ := hopt
-          cases ci
-          case defnInfo cv v hint =>
-            obtain ⟨dcv, vx, _, hv, rfl⟩ := denoteCI_defnInfo_inv hci
-            dsimp only
-            refine triple_seq (lamProj?_spec' fuel 0 s₀ v hok) ?_
-            rintro op s3 ⟨hs3, hop⟩
-            subst s3
-            have hop' := hop vx hv
-            subst hop'
-            cases hlp : ConLeche.lamProj? 0 vx with
-            | none =>
-              dsimp only
-              refine hkeep (fun _ => True) (fun x hx => ?_)
-              simp only [ConLeche.unwrapIdDefs, hgf' x hx, hfind, hlp]
-            | some kj =>
-              obtain ⟨k, j⟩ := kj
-              dsimp only
-              refine triple_seq (ExprOps.getAppArgs_spec fuel s₀ e hok.state
-                (by rw [hx₀]; rfl)) ?_
-              rintro args s4 ⟨hs4, hrelA⟩
-              subst s4
-              have hargs : Frontend.denoteEList s₀.store args =
-                  some x₀.getAppArgs := hrelA x₀ hx₀
-              have hlen : x₀.getAppArgs.length = args.length :=
-                denoteEList_len hargs
-              by_cases hg : (decide (k ≤ args.length) && args.length == k) = true
-              · rw [ite_eq_left hg]
-                have hd := denoteEList_getD hargs (k - 1 - j) e x₀ hx₀
-                refine triple_mono (ih s₀ (args.getD (k - 1 - j) e) hok
-                  ⟨_, hd⟩) ?_
-                rintro r s' ⟨rfl, hr⟩
-                refine ⟨rfl, fun x hx => ?_⟩
-                obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-                rw [hr _ hd]
-                have hg' : (decide (k ≤ x.getAppArgs.length) &&
-                    x.getAppArgs.length == k) = true := by rw [hlen]; exact hg
-                simp only [ConLeche.unwrapIdDefs, hgf, hfind, hlp, hg', ite_true]
-              · rw [ite_eq_right hg]
-                refine hkeep (fun _ => True) (fun x hx => ?_)
-                obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-                have hg' : ¬ (decide (k ≤ x.getAppArgs.length) &&
-                    x.getAppArgs.length == k) = true := by rw [hlen]; exact hg
-                simp only [ConLeche.unwrapIdDefs, hgf, hfind, hlp]
-                rw [ite_eq_right hg']
-          all_goals
-            dsimp only
-            refine hkeep (fun _ => True) (fun x hx => ?_)
-            have hnd : ∀ cv vx hint, c' ≠ .defnInfo cv vx hint := by
-              rintro cv vx hint rfl
-              simp only [Frontend.denoteCI] at hci
-              first | (simp at hci) | (split at hci <;> simp_all)
-            simp only [ConLeche.unwrapIdDefs, hgf' x hx, hfind]
-            cases c' <;> first | rfl | exact absurd rfl (hnd _ _ _)
-    · rw [ite_eq_right htc]
-      refine hkeep (fun _ => True) (fun x hx => ?_)
-      obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-      have hne := htc
-      rw [tag_of_denote hwf hdd] at hne
-      simp only [ConLeche.unwrapIdDefs]
-      split
-      · rename_i c us' heq
-        rw [heq] at hne; simp [exprTag] at hne
-      · rfl
+    vcgen [ConRon.Arena.unwrapIdDefs, ExprOps.getAppFn_spec fuel, viewConstName_spec,
+      lamProj?_spec' (mode := mode) (env := env) (fe := fe) fuel,
+      ExprOps.getAppArgs_spec fuel, ih]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto [view_of_viewConstName', denote_const_inv, denoteEList_getD', env_defn_of_index,
+      env_not_defn_of_index, denote_not_const_of_tag, denoteEList_len]
+      unfolding [ConLeche.unwrapIdDefs, unwrapIdDefs_not_const, unwrapIdDefs_not_defn,
+        ite_true, ite_false, Bool.false_eq_true]
+
+/-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — not a `∀`
+itself, but a `∀` once its identity-like wrappers are unwrapped (task #120:
+the step as a rewrite rule for `bridge_auto`). -/
+theorem peelPisW_succ_unwrap {f : ConLeche.Name → Option ConstantInfo} {k : Nat}
+    {x : Expr} (ht : (exprTag x == ETag.forallE) = true → False)
+    (_hu : (exprTag (ConLeche.unwrapIdDefs f 4 x) == ETag.forallE) = true) :
+    ConLeche.peelPisW f (k + 1) x =
+      match ConLeche.unwrapIdDefs f 4 x with
+      | .forallE _ b => ConLeche.peelPisW f k b
+      | _ => none := by
+  cases x <;> first | (exact absurd rfl ht) | rfl
+
+/-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — no `∀`
+either way: no peel. -/
+theorem peelPisW_succ_none {f : ConLeche.Name → Option ConstantInfo} {k : Nat}
+    {x : Expr} (ht : (exprTag x == ETag.forallE) = true → False)
+    (hu : (exprTag (ConLeche.unwrapIdDefs f 4 x) == ETag.forallE) = true → False) :
+    ConLeche.peelPisW f (k + 1) x = none := by
+  cases x <;> first | (exact absurd rfl ht) | skip
+  all_goals
+    simp only [ConLeche.peelPisW]
+    split <;> first | rfl | (next h => rw [h] at hu; exact absurd rfl hu)
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — **THEOREM 1
 for `peelPisW`**, in answer shape. -/
@@ -623,74 +540,17 @@ theorem peelPisW_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (e : EIdx),
   induction k with
   | zero =>
     intro s₀ e hok hpre
-    rw [ConRon.Arena.peelPisW]
-    refine triple_seq (unwrapIdDefs_spec' fuel 4 s₀ e hok hpre) ?_
-    rintro u s1 ⟨hs1, hu⟩
-    subst s1
-    refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-    simp [denoteEO, hu x hx, ConLeche.peelPisW]
+    obtain ⟨x₀, hx₀⟩ := hpre
+    vcgen [ConRon.Arena.peelPisW, unwrapIdDefs_spec' (mode := mode) (env := env) (fe := fe)]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto unfolding [ConLeche.peelPisW, denoteEO, Option.map_some]
   | succ k ih =>
     intro s₀ e hok hpre
     obtain ⟨x₀, hx₀⟩ := hpre
-    have hwf := hok.state.wf
-    rw [ConRon.Arena.peelPisW]
-    by_cases htg : (e.tag == ETag.forallE) = true
-    · rw [ite_eq_left htg]
-      refine triple_seq (viewBind_spec s₀ e) ?_
-      rintro ob s1 ⟨hs1, hob⟩
-      subst s1; subst hob
-      cases hvb : s₀.store.viewBind e with
-      | none => exact triple_failDanglingE
-      | some p =>
-        obtain ⟨A, b⟩ := p
-        dsimp only
-        have hv := view_of_viewBind_forallE (by simpa using htg) hvb
-        obtain ⟨_, eb₀, _, _, hb₀⟩ := denote_forallE_inv hwf hv hx₀
-        refine triple_mono (ih s₀ b hok ⟨eb₀, hb₀⟩) ?_
-        rintro r s' ⟨rfl, hr⟩
-        refine ⟨rfl, fun x hx => ?_⟩
-        obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hwf hv hx
-        rw [hr eb hb]; rfl
-    · rw [ite_eq_right htg]
-      have hnf : ∀ x, denoteE s₀.store e = some x →
-          ConLeche.peelPisW env.find? (k + 1) x =
-            match ConLeche.unwrapIdDefs env.find? 4 x with
-            | .forallE _ b => ConLeche.peelPisW env.find? k b
-            | _ => none := by
-        intro x hx
-        have htg' := htg
-        rw [tag_of_denote hwf hx] at htg'
-        cases x <;> (try simp [exprTag] at htg') <;> first | rfl | simp [ConLeche.peelPisW]
-      refine triple_seq (unwrapIdDefs_spec' fuel 4 s₀ e hok ⟨x₀, hx₀⟩) ?_
-      rintro u s1 ⟨hs1, hu⟩
-      subst s1
-      have hu₀ := hu x₀ hx₀
-      by_cases htu : (u.tag == ETag.forallE) = true
-      · rw [ite_eq_left htu]
-        refine triple_seq (viewBind_spec s₀ u) ?_
-        rintro ob s1 ⟨hs1, hob⟩
-        subst s1; subst hob
-        cases hvb : s₀.store.viewBind u with
-        | none => exact triple_failDanglingE
-        | some p =>
-          obtain ⟨A, b⟩ := p
-          dsimp only
-          have hv := view_of_viewBind_forallE (by simpa using htu) hvb
-          obtain ⟨_, eb₀, _, _, hb₀⟩ := denote_forallE_inv hwf hv hu₀
-          refine triple_mono (ih s₀ b hok ⟨eb₀, hb₀⟩) ?_
-          rintro r s' ⟨rfl, hr⟩
-          refine ⟨rfl, fun x hx => ?_⟩
-          obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-          obtain ⟨et, eb, heq, _, hb⟩ := denote_forallE_inv hwf hv hu₀
-          rw [hnf _ hx₀, heq, hr eb hb]
-      · rw [ite_eq_right htu]
-        refine triple_pureR ⟨rfl, fun x hx => ?_⟩
-        rw [hnf _ hx]
-        have hux := hu x hx
-        have htu' := htu
-        rw [tag_of_denote hwf hux] at htu'
-        generalize ConLeche.unwrapIdDefs env.find? 4 x = U at htu' ⊢
-        cases U <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, denoteEO]
+    vcgen [ConRon.Arena.peelPisW, unwrapIdDefs_spec' (mode := mode) (env := env) (fe := fe), ih]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto [view_of_viewBind_forallE'] unfolding [denoteEO.eq_1, peelPisW_succ_unwrap,
+      peelPisW_succ_none, ConLeche.peelPisW.eq_2, exprTag, beq_self_eq_true]
 
 /-! ## 3. The head readers -/
 
