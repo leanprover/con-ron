@@ -959,6 +959,22 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
   let (_, g) ← g.assertHypotheses news
   return g
 
+/-- Clear what the substitutions left trivial among the hypotheses NOT in
+`old`: an equation `a = a`.  (Not a repeated type: an arm may name either
+copy.) -/
+def clearTrivial (g : MVarId) (old : Std.HashSet FVarId) : MetaM MVarId := g.withContext do
+  let mut g := g
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← instantiateMVars d.type
+    if old.contains d.fvarId then continue
+    let triv := match t.eq? with
+      | some (_, a, b) => a == b
+      | none => false
+    if triv then
+      if let some g' ← observing? (g.clear d.fvarId) then g := g'
+  return g
+
 /-- `peelNew` at every hypothesis that is (or unfolds to) a conjunction or an
 existential. -/
 def peelAll (g : MVarId) : MetaM MVarId := do
@@ -1063,6 +1079,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) :
   -- what the substitution made reducible (`Expr.WScoped d x` at `x := .app …`)
   let g' ← peelAll g
   if g' != g then g ← substNew g' old
+  g ← clearTrivial g old
   -- the goal's own `∀ x, denote… = some x → …`
   repeat
     let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
