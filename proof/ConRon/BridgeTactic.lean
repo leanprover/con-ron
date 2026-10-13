@@ -108,14 +108,6 @@ def same (a b : Expr) : MetaM Bool :=
   withOptions (fun o => o.setBool `backward.isDefEq.respectTransparency true) <|
     withReducible (Meta.isDefEq a b)
 
-/-- Supply `p` for the telescope argument `a`: an unassigned metavariable is
-assigned outright (its type and `p`'s agree up to `normNeg`, which a
-reducible check would not see), anything else is compared. -/
-def supply (a p : Expr) : MetaM Bool := do
-  if a.isMVar && !(← a.mvarId!.isAssigned) then
-    a.mvarId!.assign p; return true
-  same a p
-
 /-- `¬ p` and `a ≠ b` spelled `p → False` and `a = b → False`, so that a
 reducible match sees through them (`Not` is not reducible).  The proofs are
 unchanged: the two spellings are definitionally equal. -/
@@ -128,6 +120,20 @@ def normNeg (e : Expr) : MetaM Expr := do
       return .visit (.forallE `h (← mkEq x.appFn!.appArg! x.appArg!) (mkConst ``False)
         .default)
     return .continue)
+
+/-- Supply `p` for the telescope argument `a`: an unassigned metavariable is
+assigned once its type and `p`'s agree up to `normNeg` (a reducible check on
+the raw types would not see through `Not`), which also unifies the
+telescope's earlier implicit arguments; anything else is compared.  (The
+type check is not optional: assigning outright let `CheckOK.mono h` be built
+with `h` at the wrong state — a kernel error, found by task #120's Memo lane.) -/
+def supply (a p : Expr) : MetaM Bool := do
+  if a.isMVar && !(← a.mvarId!.isAssigned) then
+    let ta ← normNeg (← instantiateMVars (← inferType a))
+    let tp ← normNeg (← instantiateMVars (← inferType p))
+    unless ← same ta tp do return false
+    a.mvarId!.assign p; return true
+  same a p
 
 /-- Is `t` an equation whose left side is a denotation (`factHeads`)? -/
 def isFactShape (t : Expr) : Bool :=
