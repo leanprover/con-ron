@@ -62,7 +62,6 @@ import ConRon.Refine2.Core.Arms.Delta
 import ConRon.Refine2.Core.Arms.Loops
 import ConRon.Refine2.Core.LS.WhnfCore
 import ConRon.Refine2.Core.LS.Infer
-import ConRon.Refine2.Core.LS.Annotate
 import ConRon.Refine2.Core.LS.PropRead
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)

@@ -5,34 +5,25 @@
 the `ExprOps` tier's: *"a local loop's continuation is a closure in the twin and
 a counter in the port"*.
 
-    whnfStep  r fe depth (k : EIdx → AM EIdx) e         whnf_step  … n e
-    whnfLoop  r fe depth (m + 1) e                      whnf_loop  … n e
+    whnfStep  r fe depth e : AM WhnfStep               whnf_step  … e
+    whnfLoop  r fe depth (m + 1) e                      whnf_loop_loop  … k e
 
-so the induction is on `n`, a second fuel dimension INSIDE the knot's induction
-on `f`, and the refinement has to name the function the port's scalar stands
-for.  This is task #97-P5-0's finding 6 (`RenameRel`) one level up, and it is
+so the induction is on `k`, a second fuel dimension INSIDE the knot's induction
+on `f`.  This is task #97-P5-0's finding 6 (`RenameRel`) one level up, and it is
 the same move `Core/KnotRel.lean` makes for the lane.  (The `defeq` side had the
 same pair, `defeqStep`/`defeqLoop`, until con-leche 8afe1815 — task #109 —
 restructured definitional equality after the official `is_def_eq_core`; its
 two remaining loops recurse on their own budget without a continuation, see
 the last section.)
 
-## Finding 13 — the off-by-one in task #97-P5-Core's two statements
+## The `WhnfStep` loop (task #119, con-leche's task #342 R2)
 
-That round stated `whnf_step_refines` against
-`whnfStep … (whnfLoop … (absU n - 1))` with a side condition `1 ≤ absU n`, and
-the old `defeq_step_refines` likewise.  **The port's `whnf_step` passes its own
-`n` on unchanged**:
-
-    whnf_loop(…, n, e) = if n = 0 then Internal else whnf_step(…, n - 1, e)
-    whnf_step(…, n, e) = … whnf_loop(…, n, e₂) …
-
-so `whnf_step(…, n, …)` is `whnfStep … (whnfLoop … (absU n))`: there is no
-`- 1` and no side condition, because the decrement is the LOOP's and it is
-exactly `whnfLoop (m + 1) = whnfStep … (whnfLoop m)`.  Stated the other way the
-lemma claims the twin runs one iteration fewer than the port, which is false as
-soon as a literal step or a delta step fires.  Both statements are re-cut here
-and `1 ≤ absU n` is gone from both.
+The step no longer takes the loop as a continuation: `whnf_step` returns a
+`WhnfStep` and the loop iterates it (`whnf_loop_loop`, Aeneas's
+`-loops-to-rec` spelling), as the twin's `whnfStep` / `whnfLoop` do.  So the
+induction is on the loop's own counter `k` against the twin's `whnfLoop k`,
+and task #97-P5-Core's finding 13 (the off-by-one between the step's `n` and
+the loop's) has nothing left to say: the decrement is the loop's alone.
 
 ## What the loops are carried on
 
@@ -96,244 +87,65 @@ theorem reduce_nat_refines {f : Nat} (hk : KnotRel f)
         (absU depth) (absEIdx e)) :=
   Lockstep.LS.toSim₀ (Lockstep.reduce_nat_ls hk hrel hinv hctx hf) hrun
 
-/-! ## The twin's two equations -/
+/-! ## The step and the loop, in lockstep
 
-/-- `whnfStep`'s run, split at its three binds: the knot's `whnfCore`, then
-`reduceNat`, then `unfoldDefinition`, with the continuation applied to
-whichever reduct fired. -/
-theorem whnfStep_run (r : CoreFnsA) (fe : IFEnv) (d : Nat)
-    (k : EIdx → AM EIdx) (e : EIdx) (lst : AState) :
-    (whnfStep r fe d k e).run lst
-      = ((r.whnfCore false d e).run lst) >>= fun p =>
-          ((reduceNat r fe d p.1).run p.2) >>= fun q =>
-            match q.1 with
-            | some e2 => (k e2).run q.2
-            | none =>
-              ((unfoldDefinition fe p.1).run q.2) >>= fun s =>
-                match s.1 with
-                | some e2 => (k e2).run s.2
-                | none => .ok (p.1, s.2) := by
-  show ((do
-      let e₁ ← r.whnfCore false d e
-      let n ← reduceNat r fe d e₁
-      match n with
-      | some e₂ => k e₂
-      | none =>
-        let u ← unfoldDefinition fe e₁
-        match u with
-        | some e₂ => k e₂
-        | none => pure e₁) : AM EIdx).run lst = _
-  rw [am_run_bind]
-  cases (r.whnfCore false d e).run lst with
-  | error er => rfl
-  | ok p =>
-    obtain ⟨e1, lst1⟩ := p
-    show ((do
-        let n ← reduceNat r fe d e1
-        match n with
-        | some e₂ => k e₂
-        | none =>
-          let u ← unfoldDefinition fe e1
-          match u with
-          | some e₂ => k e₂
-          | none => pure e1) : AM EIdx).run lst1
-      = ((reduceNat r fe d e1).run lst1) >>= fun q =>
-          match q.1 with
-          | some e2 => (k e2).run q.2
-          | none =>
-            ((unfoldDefinition fe e1).run q.2) >>= fun s =>
-              match s.1 with
-              | some e2 => (k e2).run s.2
-              | none => .ok (e1, s.2)
-    rw [am_run_bind]
-    cases (reduceNat r fe d e1).run lst1 with
-    | error er => rfl
-    | ok q =>
-      obtain ⟨n, lst2⟩ := q
-      cases n with
-      | some e2 => rfl
-      | none =>
-        show ((do
-            let u ← unfoldDefinition fe e1
-            match u with
-            | some e₂ => k e₂
-            | none => pure e1) : AM EIdx).run lst2
-          = ((unfoldDefinition fe e1).run lst2) >>= fun s =>
-              match s.1 with
-              | some e2 => (k e2).run s.2
-              | none => .ok (e1, s.2)
-        rw [am_run_bind]
-        cases (unfoldDefinition fe e1).run lst2 with
-        | error er => rfl
-        | ok s => obtain ⟨u, lst3⟩ := s; cases u <;> rfl
+Since con-leche's task #342 R2 the step RETURNS its continuation
+(`WhnfStep`) and the loop is the iteration (`whnf_loop_loop`, Aeneas's
+`-loops-to-rec` spelling of the Rust `loop`), so the second fuel dimension is
+the loop's own counter against the twin's `whnfLoop` argument, one induction,
+and the step is a plain zip. -/
 
-/-- `whnfLoop` at a successor: one `whnfStep` whose continuation is the loop at
-the predecessor.  The twin's own equation, named so the port's `n - 1` meets
-it. -/
-theorem whnfLoop_succ (r : CoreFnsA) (fe : IFEnv) (d m : Nat) (e : EIdx) :
-    whnfLoop r fe d (m + 1) e = whnfStep r fe d (whnfLoop r fe d m) e := rfl
+namespace Lockstep
 
-/-- `whnfLoop` at zero: the twin's own `internal`, which the port mirrors. -/
-theorem whnfLoop_zero_run (r : CoreFnsA) (fe : IFEnv) (d : Nat) (e : EIdx)
-    (lst : AState) :
-    (whnfLoop r fe d 0 e).run lst
-      = .error (Arena.CheckError.internal "fuel exhausted: whnf loop") := rfl
+open scoped ConRon.Refine2.Lockstep.PD.CoreLSReg
 
-/-! ## `whnf_step`'s body, once, parametric in the continuation
+attribute [local lockstep_simp] absWhnfStep
 
-The port's `whnf_step(n)` calls `whnf_loop(n)` and `whnf_loop(n)` calls
-`whnf_step(n - 1)`, so the two are ONE recursion.  Factoring the step's body
-out with the continuation's refinement as a hypothesis is what lets the loop's
-induction and the public step lemma share it — the alternative is to write the
-forty-line body twice. -/
-
-private theorem whnf_step_of_cont {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth n e lst o}
+@[lockstep] theorem whnf_step_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth e lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hcont : ∀ {st' : arena.monad.AState} {lst' : AState} {e' o'},
-      AStateRel₀ pers st' lst' → AStateInv pers st' →
-      arena.core.whnf_loop pers vis st' mode lane fu fe depth n e' = ok o' →
-      Sim₀ absEIdx pers lst' o'
-        (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-          (absU depth) (absU n) (absEIdx e')))
-    (hrun : arena.core.whnf_step pers vis st mode lane fu fe depth n e = ok o) :
-    Sim₀ absEIdx pers lst o
-      (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth)
-        (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-          (absU depth) (absU n)) (absEIdx e)) := by
-  rw [arena.core.whnf_step] at hrun
-  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨r, st1⟩ := p
-  have hwc := hk.whnfCore hrel hinv hctx hf hp
-  have t0 := whnfStep_run (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-    (absU depth)
-    (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-      (absU depth) (absU n)) (absEIdx e) lst
-  cases r with
-  | Err er =>
-    rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hwc) _) t0)
-  | Ok e1 =>
-    obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hwc
-    have t1 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth)
-        (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-          (absU depth) (absU n)) (absEIdx e)).run lst
-        = ((reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-              (absU depth) (absEIdx e1)).run lst1) >>= fun q =>
-            match q.1 with
-            | some e2 =>
-              ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-                  (absU depth) (absU n)) e2).run q.2
-            | none =>
-              ((unfoldDefinition lfe (absEIdx e1)).run q.2) >>= fun s =>
-                match s.1 with
-                | some e2 =>
-                  ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-                      lfe (absU depth) (absU n)) e2).run s.2
-                | none => .ok (absEIdx e1, s.2) := by
-      rw [t0, hb1]; rfl
-    obtain ⟨p2, hp2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r2, st2⟩ := p2
-    have hrn := reduce_nat_refines hk hrel1 hinv1 hctx hf hp2
-    cases r2 with
-    | Err er =>
-      rw [← Result.ok_injective hrun]
-      exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hrn) _) t1)
-    | Ok on =>
-      obtain ⟨lst2, hb2, hrel2, hinv2⟩ := Sim₀.apply hrn
-      cases on with
-      | some e2 =>
-        have t2 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-            lfe (absU depth)
-            (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-              (absU depth) (absU n)) (absEIdx e)).run lst
-            = ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-                (absU depth) (absU n)) (absEIdx e2)).run lst2 := by
-          rw [t1, hb2]; rfl
-        exact AOut₀.of_eq (hcont hrel2 hinv2 hrun) t2
-      | none =>
-        have t2 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-            lfe (absU depth)
-            (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-              (absU depth) (absU n)) (absEIdx e)).run lst
-            = ((unfoldDefinition lfe (absEIdx e1)).run lst2) >>= fun s =>
-                match s.1 with
-                | some e2 =>
-                  ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-                      lfe (absU depth) (absU n)) e2).run s.2
-                | none => .ok (absEIdx e1, s.2) := by
-          rw [t1, hb2]; rfl
-        obtain ⟨p3, hp3, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨r3, st3⟩ := p3
-        have hud := unfold_definition_refines hx hrel2 hinv2 hctx hp3
-        cases r3 with
-        | Err er =>
-          rw [← Result.ok_injective hrun]
-          exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hud) _) t2)
-        | Ok ou =>
-          obtain ⟨lst3, hb3, hrel3, hinv3⟩ := Sim₀.apply hud
-          cases ou with
-          | some e2 =>
-            have t3 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-                lfe (absU depth)
-                (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-                  (absU depth) (absU n)) (absEIdx e)).run lst
-                = ((whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-                    lfe (absU depth) (absU n)) (absEIdx e2)).run lst3 := by
-              rw [t2, hb3]; rfl
-            exact AOut₀.of_eq (hcont hrel3 hinv3 hrun) t3
-          | none =>
-            have t3 : (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-                lfe (absU depth)
-                (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-                  (absU depth) (absU n)) (absEIdx e)).run lst
-                = .ok (absEIdx e1, lst3) := by
-              rw [t2, hb3]; rfl
-            rw [← Result.ok_injective hrun]
-            exact AOut₀.ok t3 hrel3 hinv3
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absWhnfStep a)
+      (arena.core.whnf_step pers vis st mode lane fu fe depth e) lst
+      (whnfStep (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
+        (absEIdx e)) := by
+  rw [arena.core.whnf_step, whnfStep]
+  lockstep
 
-/-! ## The loop, by induction on the port's counter -/
-
-private theorem whnf_loop_aux {f : Nat} (hk : KnotRel f) (m : Nat) :
-    ∀ {pers vis st mode lane fu fe lfe depth n e lst o},
-      ExprOpsHyp pers →
-      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-      absU fu = f →
-      absU n = m →
-      arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o →
-      Sim₀ absEIdx pers lst o
-        (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-          (absU depth) m (absEIdx e)) := by
-  induction m with
+theorem whnf_loop_loop_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe depth k cur lst},
+      ExprOpsHyp pers → (k : Std.U64).val = n →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = absEIdx a)
+        (arena.core.whnf_loop_loop pers vis st mode lane fu fe depth k cur) lst
+        (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) n
+          (absEIdx cur)) := by
+  induction n with
   | zero =>
-    intro pers vis st mode lane fu fe lfe depth n e lst o _hx _hrel _hinv
-      _hctx _hf hn hrun
-    rw [arena.core.whnf_loop, ite_eq_left (absU_eq_zero hn)] at hrun
-    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r1, hr1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [fail_run hr1] at hrun
-    rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (s := "fuel exhausted: whnf loop")
-      (whnfLoop_zero_run _ _ _ _ _))
+    intro pers vis st mode lane fu fe lfe depth k cur lst hx hn hrel hinv hctx hf
+    rw [arena.core.whnf_loop_loop, whnfLoop, ite_eq_left (by scalar_tac)]
+    lockstep
   | succ m ih =>
-    intro pers vis st mode lane fu fe lfe depth n e lst o hx hrel hinv hctx
-      hf hn hrun
-    rw [arena.core.whnf_loop, ite_eq_right (absU_ne_zero hn)] at hrun
-    obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have hiv : absU i = m := absU_pred hn hi
-    rw [whnfLoop_succ, ← hiv]
-    refine whnf_step_of_cont hk hx hrel hinv hctx hf ?_ hrun
-    intro st' lst' e' o' hrel' hinv' hrun'
-    rw [hiv]
-    exact ih hx hrel' hinv' hctx hf hiv hrun'
+    intro pers vis st mode lane fu fe lfe depth k cur lst hx hn hrel hinv hctx hf
+    rw [arena.core.whnf_loop_loop, whnfLoop, ite_eq_right (by scalar_tac)]
+    lockstep
+
+@[lockstep] theorem whnf_loop_loop_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth k cur lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = absEIdx a)
+      (arena.core.whnf_loop_loop pers vis st mode lane fu fe depth k cur) lst
+      (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) (absU k)
+        (absEIdx cur)) :=
+  whnf_loop_loop_aux hk _ hx rfl hrel hinv hctx hf
+
+end Lockstep
 
 /-- `arena::core::whnf_loop` against `Arena.whnfLoop` — the second fuel
-dimension, closed (modulo `reduce_nat_refines` and the `ExprOpsHyp` seam). -/
+dimension, closed. -/
 theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth n e lst o}
     (hx : ExprOpsHyp pers)
@@ -342,12 +154,13 @@ theorem whnf_loop_refines {f : Nat} (hk : KnotRel f)
     (hrun : arena.core.whnf_loop pers vis st mode lane fu fe depth n e = ok o) :
     Sim₀ absEIdx pers lst o
       (whnfLoop (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absU n) (absEIdx e)) :=
-  whnf_loop_aux hk (absU n) hx hrel hinv hctx hf rfl hrun
-
+        (absU depth) (absU n) (absEIdx e)) := by
+  refine Lockstep.LS.toSim₀ ?_ hrun
+  rw [arena.core.whnf_loop]
+  lockstep
 
 /-- `arena::core::whnf_body` against `Arena.whnfBody`: the loop at its own step
-budget, `WHNF_LOOP_FUEL = whnfLoopFuel = 100000` on both sides. -/
+budget, `WHNF_LOOP_FUEL = whnfLoopFuel` on both sides. -/
 theorem whnf_body_refines {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst o}
     (hx : ExprOpsHyp pers)
@@ -389,8 +202,8 @@ theorem defeq_body_refines {f : Nat} (hk : KnotRel f)
 
 section Axioms
 
-/-- info: 'ConRon.Refine2.whnfStep_run' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms whnfStep_run
+/-- info: 'ConRon.Refine2.whnf_body_refines' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms whnf_body_refines
 
 end Axioms
 

@@ -213,14 +213,14 @@ macro "lockstep_f" : tactic =>
 /-! ## The batched binder descent's leaf -/
 
 @[lockstep] theorem defeq_peel_leaf_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe d a b k fvs mism mismLam lst}
+    {pers vis st mode lane fu fe lfe d a b k fvs lst}
     (_hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_peel_leaf pers vis st mode lane fu fe d a b k fvs mism mismLam) lst
+      (arena.core.defeq_peel_leaf pers vis st mode lane fu fe d a b k fvs) lst
       (defeqPeelLeaf (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        (absU d) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) := by
+        (absU d) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs)) := by
   rw [arena.core.defeq_peel_leaf, defeqPeelLeaf]
   lockstep_f
 
@@ -258,29 +258,27 @@ with smart unfolding ON the recursive call's `match peel` sits under the
 monad's binders, so `rfl` cannot see through the structural recursion. -/
 
 set_option smartUnfolding false in
-theorem defeqPeel_zero (mode : ConLeche.CheckMode) (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
-    (fvs : Array EIdx) (mism mismLam : Bool) :
-    defeqPeel mode r d 0 a b k fvs mism mismLam
-      = if a == b then defeqPeelDone mism mismLam
-        else defeqPeelLeaf r d a b k fvs mism mismLam := by
+theorem defeqPeel_zero (r : CoreFnsA) (d : Nat) (a b : EIdx) (k : Nat)
+    (fvs : Array EIdx) :
+    defeqPeel r d 0 a b k fvs
+      = if a == b then pure true else defeqPeelLeaf r d a b k fvs := by
   rfl
 
 set_option smartUnfolding false in
-theorem defeqPeel_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (d m : Nat) (a b : EIdx) (k : Nat)
-    (fvs : Array EIdx) (mism mismLam : Bool) :
-    defeqPeel mode r d (m + 1) a b k fvs mism mismLam
+theorem defeqPeel_succ (r : CoreFnsA) (d m : Nat) (a b : EIdx) (k : Nat)
+    (fvs : Array EIdx) :
+    defeqPeel r d (m + 1) a b k fvs
       = (do
-    let ta := a.tag
-    if a == b then defeqPeelDone mism mismLam
-    else if ta != b.tag || !(ETag.isBind ta) then
-      defeqPeelLeaf r d a b k fvs mism mismLam
+    if a == b then pure true
+    else if a.tag != ETag.forallE || b.tag != ETag.forallE then
+      defeqPeelLeaf r d a b k fvs
     else
-      match ← viewBindI a with
+      match ← viewBind a with
       | none => failDanglingE
-      | some (da, ba, ma) =>
-        match ← viewBindI b with
+      | some (da, ba) =>
+        match ← viewBind b with
         | none => failDanglingE
-        | some (db, bb, mb) => do
+        | some (db, bb) => do
           let sameDom := da == db
           let t1 ← instantiateListFast coreWalkFuel da fvs 0
           let t2 ← if sameDom then pure t1
@@ -289,10 +287,7 @@ theorem defeqPeel_succ (mode : ConLeche.CheckMode) (r : CoreFnsA) (d m : Nat) (a
           if !dq then pure false
           else do
             let fv ← internFVarE (d + k) t2
-            let mm := mode.verifiedChecks && !(ma == mb)
-            let m2 := mism || mm
-            let ml2 := if mm then ta == ETag.lam else mismLam
-            defeqPeel mode r d m ba bb (k + 1) (fvs.push fv) m2 ml2 : AM Bool) := by
+            defeqPeel r d m ba bb (k + 1) (fvs.push fv) : AM Bool) := by
   rfl
 
 set_option maxRecDepth 8000 in
@@ -301,52 +296,110 @@ theorem defeq_peel_aux {f : Nat} (hk : KnotRel f) {pers : arena.store.PersTier}
     (hx : ExprOpsHyp pers) {vis mode lane fu fe lfe} (hctx : CoreCtx vis fe lfe)
     (hf : absU fu = f) (d : Std.U64) (n : Nat) :
     ∀ {st : arena.monad.AState} {lst : AState} (peel : Std.U64) (a b : arena.handle.EIdx)
-      (k : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx) (mism mismLam : Bool),
+      (k : Std.U64) (fvs : alloc.vec.Vec arena.handle.EIdx),
       peel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = a)
-        (arena.core.defeq_peel pers vis st mode lane fu fe d peel a b k fvs mism mismLam) lst
-        (defeqPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-          (absU d) n (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) := by
+        (arena.core.defeq_peel pers vis st mode lane fu fe d peel a b k fvs) lst
+        (defeqPeel (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+          (absU d) n (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs)) := by
   induction n with
   | zero =>
-    intro st lst peel a b k fvs mism mismLam hn hrel hinv
+    intro st lst peel a b k fvs hn hrel hinv
     rw [arena.core.defeq_peel, defeqPeel_zero]
-    lockstep
+    lockstep_f
   | succ m ih =>
-    intro st lst peel a b k fvs mism mismLam hn hrel hinv
+    intro st lst peel a b k fvs hn hrel hinv
     have hpush := @PF.vec_push_eidx_ls
     rw [arena.core.defeq_peel, defeqPeel_succ]
     lockstep_f
 
-
 @[lockstep] theorem defeq_peel_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe d peel a b k fvs mism mismLam lst}
+    {pers vis st mode lane fu fe lfe d peel a b k fvs lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_peel pers vis st mode lane fu fe d peel a b k fvs mism mismLam) lst
-      (defeqPeel (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        (absU d) (absU peel) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs) mism mismLam) :=
-  defeq_peel_aux hk hx hctx hf d _ peel a b k fvs mism mismLam rfl hrel hinv
+      (arena.core.defeq_peel pers vis st mode lane fu fe d peel a b k fvs) lst
+      (defeqPeel (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        (absU d) (absU peel) (absEIdx a) (absEIdx b) (absU k) (absEIdxArr fvs)) :=
+  defeq_peel_aux hk hx hctx hf d _ peel a b k fvs rfl hrel hinv
 
 /-! ## The binder-congruence arm -/
 
 @[lockstep] theorem defeq_binders_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth ty1 body1 m1 ty2 body2 m2 isLam lst}
+    {pers vis st mode lane fu fe lfe depth ty1 body1 ty2 body2 lst}
     (hx : ExprOpsHyp pers)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hm1 : ConRon.Refine.PropWhenWF m1.pw) (hm2 : ConRon.Refine.PropWhenWF m2.pw) :
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
     LS pers (fun a b => b = a)
-      (arena.core.defeq_binders pers vis st mode lane fu fe depth ty1 body1 m1 ty2 body2 m2
-        isLam) lst
-      (defeqBinders (ConRon.Refine.absMode mode) (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
-        (absU depth) (absEIdx ty1) (absEIdx body1) (ConRon.Refine.absBinderMeta m1)
-        (absEIdx ty2) (absEIdx body2) (ConRon.Refine.absBinderMeta m2) isLam) := by
+      (arena.core.defeq_binders pers vis st mode lane fu fe depth ty1 body1 ty2 body2) lst
+      (defeqBinders (laneKnot (ConRon.Refine.absMode mode) lfe lane f)
+        (absU depth) (absEIdx ty1) (absEIdx body1) (absEIdx ty2) (absEIdx body2)) := by
   have hpush := @PF.vec_push_eidx_ls
   rw [arena.core.defeq_binders, defeqBinders]
   lockstep_f
+
+/-! ## The λ-telescope congruence: `defeq_lams_inner` / `defeq_lams` -/
+
+/-- `arena::expr_ops::lam_pair` (two λs: the tags, then the two binder
+projections) against `lamPair?`. -/
+@[lockstep] theorem lam_pair_ls {pers st a b lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun x y => y = x.map fun t =>
+        (absEIdx t.1, absEIdx t.2.1, absEIdx t.2.2.1, absEIdx t.2.2.2))
+      (arena.expr_ops.lam_pair pers st a b) st lst (lamPair? (absEIdx a) (absEIdx b)) := by
+  apply LSR.of_LS
+  rw [arena.expr_ops.lam_pair, lamPair?]
+  lockstep_f
+
+@[lockstep] theorem defeq_lams_inner_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe depth b1 b2 lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_lams_inner pers vis st mode lane fu fe depth b1 b2) lst
+      (defeqLamsInner (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) (absU depth) (absEIdx b1)
+        (absEIdx b2)) := by
+  rw [arena.core.defeq_lams_inner, defeqLamsInner]
+  lockstep_f
+
+set_option maxHeartbeats 2000000 in
+theorem defeq_lams_aux {f : Nat} (hk : KnotRel f) (n : Nat) :
+    ∀ {pers vis st mode lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst},
+      ExprOpsHyp pers → (lfuel : Std.U64).val = n →
+      AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe → absU fu = f →
+      LS pers (fun a b => b = a)
+        (arena.core.defeq_lams pers vis st mode lane fu fe lfuel depth ty1 body1 ty2 body2) lst
+        (defeqLams (ConRon.Refine.absMode mode)
+          (laneKnot (ConRon.Refine.absMode mode) lfe lane f) n (absU depth) (absEIdx ty1)
+          (absEIdx body1) (absEIdx ty2) (absEIdx body2)) := by
+  induction n with
+  | zero =>
+    intro pers vis st mode lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst hx hn hrel hinv
+      hctx hf
+    rw [arena.core.defeq_lams, defeqLams]
+    lockstep_f
+  | succ m ih =>
+    intro pers vis st mode lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst hx hn hrel hinv
+      hctx hf
+    rw [arena.core.defeq_lams, defeqLams]
+    lockstep_f
+
+@[lockstep] theorem defeq_lams_ls {f : Nat} (hk : KnotRel f)
+    {pers vis st mode lane fu fe lfe lfuel depth ty1 body1 ty2 body2 lst}
+    (hx : ExprOpsHyp pers)
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    LS pers (fun a b => b = a)
+      (arena.core.defeq_lams pers vis st mode lane fu fe lfuel depth ty1 body1 ty2 body2) lst
+      (defeqLams (ConRon.Refine.absMode mode)
+        (laneKnot (ConRon.Refine.absMode mode) lfe lane f) (absU lfuel) (absU depth)
+        (absEIdx ty1) (absEIdx body1) (absEIdx ty2) (absEIdx body2)) :=
+  defeq_lams_aux hk _ hx rfl hrel hinv hctx hf
+
+@[local lockstep_simp] theorem lams_fuel_abs : absU arena.core.LAMS_FUEL = lamsFuel := by
+  rw [arena.core.LAMS_FUEL, lamsFuel]; rfl
 
 /-! ## `quickDefEq` — the easy cases
 
