@@ -51,6 +51,7 @@ are guarded by tag equations rather than by `view` patterns.
 `denote_leaf_of_tag` are what let the catch-all `else` arm know it is looking
 at one of the four leaves.
 -/
+import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 
 namespace ConRon.Bridge.ExprOps
@@ -357,18 +358,10 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
   vcgen [instantiate1ArmBVar]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  -- `i = dd`: the answer is the substituted handle itself.
-  next =>
-    rename_i _s i hvb
-    refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
-    intro e he
-    have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
-    subst heq
-    simpa [Expr.instantiate1] using hv
   -- `i > dd`: the lowered index is interned.
-  next =>
-    rename_i _s i hne hgt r _st hwf' hx _hlss _hscr _hmemos hcaches hpins _hview' hden'
-      hvb
+  vc_arm (hne : ¬ _ = _) (hgt : _ < _) (hvb : some _ = EStore.viewBVar _ c)
+      (hwf' : StoreWF _) (hx : Ext _ _) (hcaches : AState.caches _ = _)
+      (hpins : AState.pins _ = _) (hden' : denoteE _ _ = denoteEView _ _) =>
     refine ⟨⟨hwf'⟩, hm.mono hx (by grind), hx, hcaches, hpins, ?_⟩
     intro e he
     have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
@@ -376,13 +369,19 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
     rw [hden']
     simp [Expr.instantiate1, hne, hgt, denoteEView]
   -- `i < dd`: the node is its own instantiation.
-  next =>
-    rename_i _s i hne hle hvb
+  vc_arm (hne : ¬ _ = _) (hle : ¬ _ < _) (hvb : some _ = EStore.viewBVar _ c) =>
     refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
     intro e he
     have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
     subst heq
     simpa [Expr.instantiate1, hne, hle] using he
+  -- `i = dd`: the answer is the substituted handle itself.
+  vc_arm (hvb : some _ = EStore.viewBVar _ c) =>
+    refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
+    intro e he
+    have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
+    subst heq
+    simpa [Expr.instantiate1] using hv
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `app`
 ARM: probe, project, recurse into both children, rebuild, insert. -/
@@ -401,13 +400,13 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   -- the arm's postcondition, then the memo insert's answer
-  next =>
+  vc_arm ⊢ StateOK _ ∧ _ =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
       by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact Inst1At.app_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
-  next =>
+  vc_arm ⊢ RelE _ _ _ _ _ =>
     refine RelE.retarget ?_ ?_ hden
     · exact Inst1At.app_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
         (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -432,13 +431,13 @@ theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   all_goals have hvw := view_of_viewBind (i := c) (by arm_hyp)
   all_goals have h2 := isSome_eBindView hok.wf hvw hden
   -- the postcondition, then the memo insert's answer
-  case vc2 =>
+  vc_arm ⊢ StateOK _ ∧ _ =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
       by grind only [Ext.trans], by grind, by grind, ?_⟩
     refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) ?_
     grind
-  case vc5 =>
+  vc_arm ⊢ RelE _ _ _ _ _ =>
     refine RelE.retarget ?_ ?_ hden
     · refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) (by arm_hyp)
         (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) ?_
@@ -468,14 +467,14 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
   -- the postcondition, then the memo insert's answer
-  next =>
+  vc_arm ⊢ StateOK _ ∧ _ =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
       by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact Inst1At.letE_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp)
-  next =>
+  vc_arm ⊢ RelE _ _ _ _ _ =>
     refine RelE.retarget ?_ ?_ hden
     · exact Inst1At.letE_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
         (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -502,13 +501,13 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   all_goals obtain ⟨nm, es, _, hn0, _⟩ :=
     denote_eq_proj hok.wf (view_of_viewProj_tag (i := c) htg (by arm_hyp)) hden
   -- the postcondition, then the memo insert's answer
-  next =>
+  vc_arm ⊢ StateOK _ ∧ _ =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
       by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact Inst1At.proj_step' hok.wf htg (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) hn0
-  next =>
+  vc_arm ⊢ RelE _ _ _ _ _ =>
     refine RelE.retarget ?_ ?_ hden
     · exact Inst1At.proj_step' hok.wf htg (by arm_hyp) (by arm_hyp)
         (by arm_hyp) (by arm_hyp) (by arm_hyp) hn0
@@ -540,14 +539,13 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
     all_goals try bridge_vcs [Expr.instantiate1]
     -- TWO verification conditions survive the closer, against the inline
     -- body's eighteen: the derived-word cutoff and the catch-all.
-    next =>
-      bridge_peel
-      subst_vars
+    all_goals (bridge_peel; subst_vars)
+    -- the derived-word cutoff
+    vc_arm (hcut : (decide (_ < _) && decide (_ ≤ _)) = true) =>
       exact ⟨hok, hm, Ext.refl _, rfl, rfl,
         Inst1At.cutoff hok.wf (by grind) (by grind)⟩
-    next =>
-      bridge_peel
-      subst_vars
+    -- the catch-all: no tag test fired
+    vc_arm (hnp : ¬(h.tag == ETag.proj) = true) =>
       obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
       obtain ⟨vw, hvw⟩ := denoteE_view he
       exact ⟨hok, hm, Ext.refl _, rfl, rfl,

@@ -48,6 +48,7 @@ these five dispatch on `view` DIRECTLY (a `match ← view h` over the ten
 arrive already carrying their `view` equation and `Bridge/Rel.lean`'s group 5
 inversions fire on it without help.
 -/
+import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.TagFirst
 
@@ -117,21 +118,21 @@ theorem lamPair?_spec (s₀ : AState) (a b : EIdx) (hok : StateOK s₀)
             denoteE s₀.store t₁ = some et₁ ∧ denoteE s₀.store b₁ = some eb₁ ∧
             denoteE s₀.store t₂ = some et₂ ∧ denoteE s₀.store b₂ = some eb₂; ⊤⦄ := by
   vcgen [lamPair?]
-  all_goals subst_vars
-  case vc1 =>
-    rename_i _ htg _ _ _ _ _ _ h1 h2
-    obtain ⟨rfl, h1⟩ := h1
-    obtain ⟨rfl, h2⟩ := h2
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  -- both tags are `lam`: the binder views are the views
+  vc_arm (htg : (a.tag == ETag.lam && b.tag == ETag.lam) = true)
+      (h1 : some _ = EStore.viewBind _ a) (h2 : some _ = EStore.viewBind _ b) =>
     simp only [Bool.and_eq_true, beq_iff_eq] at htg
     have hva := view_of_viewBind_lam htg.1 h1.symm
     have hvb := view_of_viewBind_lam htg.2 h2.symm
-    refine ⟨rfl, fun ea eb hea heb => ?_⟩
+    intro ea eb hea heb
     obtain ⟨t₁, b₁, rfl, ht₁, hb₁⟩ := denote_lam_inv hok.wf hva hea
     obtain ⟨t₂, b₂, rfl, ht₂, hb₂⟩ := denote_lam_inv hok.wf hvb heb
     exact ⟨t₁, b₁, t₂, b₂, rfl, ht₁, hb₁, ht₂, hb₂⟩
-  case vc2 =>
-    rename_i _ htg
-    refine ⟨rfl, fun ea eb hea heb => ?_⟩
+  -- a tag is not `lam`: neither denotation is a λ
+  vc_arm (htg : ¬ (a.tag == ETag.lam && b.tag == ETag.lam) = true) =>
+    intro ea eb hea heb
     show Expr.lamPair? ea eb = none
     cases ea <;> cases eb <;> try rfl
     exact absurd (by simp [tag_lam_of_denote hok.wf hea, tag_lam_of_denote hok.wf heb])
