@@ -114,8 +114,6 @@ namespace IndModeledPrims
 
 theorem absIRecRule_ctorParams (r : arena.env.IRecRule) :
     (absIRecRule r).ctorParams = absU r.ctor_params := rfl
-theorem absIRecRule_paramsBlind (r : arena.env.IRecRule) :
-    (absIRecRule r).paramsBlind = r.params_blind := rfl
 
 theorem absIIndCaps_ruleK (c : arena.env.IIndCaps) : (absIIndCaps c).ruleK = c.rule_k := rfl
 
@@ -127,15 +125,6 @@ theorem decide_u64_eq_zero (x : Std.U64) : decide (x = 0#u64) = (x.val == 0) := 
     simp [h, this]
 
 end IndModeledPrims
-
-section RuleBits
-open Lockstep IndModeledPrims
-attribute [local lockstep_simp] Lockstep.absIRecRule_ctor absIRecRule_nfields_eq
-  IndModeledPrims.absIRecRule_ctorParams Lockstep.absIRecRule_fire
-  Lockstep.absIRecRule_rhs Lockstep.absIRecRule_k Lockstep.absIRecRule_eta
-  IndModeledPrims.absIRecRule_paramsBlind Lockstep.PC1.absIIndCaps_eta Lockstep.PC1.absIIndCaps_etaCtor IndModeledPrims.absIIndCaps_ruleK IndModeledPrims.decide_u64_eq_zero etag_const_abs
-
-end RuleBits
 
 open Lockstep in
 /-- `arena::canon::eidx_vec_beq` from `0` is `==` on the abstracted lists. -/
