@@ -3,37 +3,37 @@
 
 **Task #97-P5-Core, the relation task #97-P5-1 asked to be written before any
 `core` lemma is stated.**  DESIGN §8.4 gives (B) a knot that is a RECORD of
-six closures (`CoreFnsA`) and §3.4 forbids the port a closure at all, so
-`arena::core`'s six entry points take **the lane as a `u32` scalar** and
+five closures (`CoreFnsA`) and §3.4 forbids the port a closure at all, so
+`arena::core`'s five entry points take **the lane as a `u32` scalar** and
 dispatch on it:
 
 | port | twin |
 |---|---|
 | `knot_whnf_core … lane fuel … cheap …` | `(<lane's knot> f).whnfCore cheap` (the official `cheap_proj` flag is an argument on both sides) |
-| `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq`, `knot_annotate` | the record's other five slots |
+| `knot_whnf`, `knot_infer`, `knot_infer_io`, `knot_defeq` | the record's other four slots |
 | `LANE_FULL` (`0`) | `Core.lean`'s `coreKnot mode fe id` |
 | `LANE_IO` (`2`) | `CoreIO.lean`'s `coreKnotIO mode fe` |
 
 (`LANE_GATED` and `coreKnotGated` went with con-leche's modeled route, task
-#105; `knot_whnf_core`, `knot_whnf`, `knot_defeq` and `knot_annotate` no
+#105; `knot_whnf_core`, `knot_whnf` and `knot_defeq` no
 longer read the lane at all.)
 | `knot_infer_at … io …` | `CoreFnsA.ioView` applied or not — **the port's
   `io : bool` IS the `ioView` substitution** (its own doc comment says so) |
 
 `laneKnot` and `laneKnotAt` are that table as functions, and `KnotRel f` is
-*"at fuel `f`, each of the six port entries refines the corresponding slot of
+*"at fuel `f`, each of the five port entries refines the corresponding slot of
 the lane's twin knot"* — one relation, established once by induction on the
 fuel (`Core/Induction.lean`) and consumed FIELD-WISE at every call site inside
 a body (`hknot.whnf`, `hknot.defeq`, …), exactly as task #97s round 2's rule 8
 found the record of knot hypotheses costs nothing.
 
-## Why a structure and not six lemmas
+## Why a structure and not five lemmas
 
-The six are mutually recursive through the bodies, so they are established
+The five are mutually recursive through the bodies, so they are established
 together or not at all; and a body arm wants to name one of them
 (`hknot.infer`) in a `grind` list without dragging the other five's
 instantiations in.  A structure gives both.  `BodyRel f` is its partner —
-*"the six BODIES at fuel `f` refine the twin's bodies tied to the lane's knot
+*"the five BODIES at fuel `f` refine the twin's bodies tied to the lane's knot
 at `f`"* — and the two compose:
 
     BodyRel f → KnotRel (f + 1)        `Core/Induction.lean`'s `knotRel_succ`
@@ -113,7 +113,7 @@ def laneKnotAt (mode : ConLeche.CheckMode) (fe : IFEnv) (lane : Std.U32)
   rw [laneKnotAt, ite_eq_right (by decide)]
 
 /-- The port's lane is NOT `LANE_IO` exactly when the twin's knot is the full
-one — the reading every `else` arm of the six entries takes. -/
+one — the reading every `else` arm of the five entries takes. -/
 theorem laneKnot_of_ne (mode fe f) {lane : Std.U32}
     (hi : ¬ lane = arena.core.LANE_IO) :
     laneKnot mode fe lane f = coreKnot mode fe id f := by
@@ -187,7 +187,7 @@ theorem CoreCtx.idx {vis : Std.U64} {fe : arena.env.IFEnv} {lfe : IFEnv}
 
 /-! ## The two relations -/
 
-/-- **`KnotRel f`** — at fuel `f`, each of `arena::core`'s six knot entries
+/-- **`KnotRel f`** — at fuel `f`, each of `arena::core`'s five knot entries
 refines the corresponding slot of the lane's twin knot.  Established once by
 `Core/Induction.lean`'s fuel induction, consumed field-wise everywhere else.
 
@@ -233,13 +233,6 @@ structure KnotRel (f : Nat) : Prop where
     Sim₀ id pers lst o
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeq
         (absU depth) (absEIdx a) (absEIdx b))
-  annotate : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
-    arena.core.knot_annotate pers vis st mode lane fu fe depth e = ok o →
-    Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).annotate
-        (absU depth) (absEIdx e))
 
 /-- **`knot_infer_at`, derived.**  `if io then knot_infer_io else knot_infer`
 against `(laneKnotAt … io f).infer`, which is `r.inferIO` under the io view
@@ -264,7 +257,7 @@ theorem KnotRel.inferAt {f : Nat} (h : KnotRel f)
     rw [laneKnotAt_false]
     exact h.infer hrel hinv hctx hf hrun
 
-/-- **`BodyRel f`** — the six bodies at fuel `f`, against the twin's bodies
+/-- **`BodyRel f`** — the five bodies at fuel `f`, against the twin's bodies
 tied to the lane's knot at `f`.  This is what `Core/Arms/*` owes and what
 `knotRel_succ` consumes; the port's body carries the same `lane` it was called
 at, and its own recursive `knot_*` calls are at the SAME fuel, which is why
@@ -302,7 +295,7 @@ structure BodyRel (f : Nat) : Prop where
     absU fu = f →
     arena.core.infer_body pers vis st mode lane fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
-      (inferBody (ConRon.Refine.absMode mode)
+      (inferBody
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx e))
   inferIO : ∀ {pers vis st mode lane io fu fe lfe depth e lst o},
@@ -311,7 +304,7 @@ structure BodyRel (f : Nat) : Prop where
     (io = true ∨ lane = arena.core.LANE_IO) →
     arena.core.infer_body_io pers vis st mode lane io fu fe depth e = ok o →
     Sim₀ absEIdx pers lst o
-      (inferBodyIO (ConRon.Refine.absMode mode)
+      (inferBodyIO
         (laneKnotAt (ConRon.Refine.absMode mode) lfe lane io f) lfe
         (absU depth) (absEIdx e))
   defeq : ∀ {pers vis st mode lane fu fe lfe depth a b lst o},
@@ -322,12 +315,5 @@ structure BodyRel (f : Nat) : Prop where
       (defeqBody (ConRon.Refine.absMode mode)
         (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
         (absU depth) (absEIdx a) (absEIdx b))
-  annotate : ∀ {pers vis st mode lane fu fe lfe depth e lst o},
-    AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-    absU fu = f →
-    arena.core.annotate_body pers vis st mode lane fu fe depth e = ok o →
-    Sim₀ absEIdx pers lst o
-      (annotateBody (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e))
 
 end ConRon.Refine2

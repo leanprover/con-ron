@@ -616,7 +616,7 @@ install/check seam, and the one record of the declaration layer that is not in
 `Refine2/AbsState.lean` (it belongs to `arena::checker_split`, not
 `arena::env`). -/
 def absValueGroup (g : arena.checker_split.ValueGroup) : ValueGroup :=
-  ⟨absValueKind g.kind, absIConstantVal g.cv_a, absEIdx g.jv⟩
+  ⟨absValueKind g.kind, absIConstantVal g.cv, absEIdx g.jv⟩
 
 attribute [simp] absValueKind absValueGroup
 

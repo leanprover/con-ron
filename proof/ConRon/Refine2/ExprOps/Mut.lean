@@ -134,20 +134,16 @@ include hrel hinv
   rw [arena.expr_ops.intern_rebuilt_app, internRebuiltApp]; lockstep
 
 @[lockstep] theorem intern_rebuilt_lam_ls (h : arena.handle.EIdx) (same : Bool)
-    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_lam pers st h same ty b m)
-      lst (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx b)
-        (ConRon.Refine.absBinderMeta m)) := by
+    (ty b : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.intern_rebuilt_lam pers st h same ty b)
+      lst (internRebuiltLam (absEIdx h) same (absEIdx ty) (absEIdx b)) := by
   rw [arena.expr_ops.intern_rebuilt_lam, internRebuiltLam]; lockstep
 
 @[lockstep] theorem intern_rebuilt_forall_e_ls (h : arena.handle.EIdx) (same : Bool)
-    (ty b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw) :
+    (ty b : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.expr_ops.intern_rebuilt_forall_e pers st h same ty b m)
-      lst (internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx b)
-        (ConRon.Refine.absBinderMeta m)) := by
+      (arena.expr_ops.intern_rebuilt_forall_e pers st h same ty b)
+      lst (internRebuiltForallE (absEIdx h) same (absEIdx ty) (absEIdx b)) := by
   rw [arena.expr_ops.intern_rebuilt_forall_e, internRebuiltForallE]; lockstep
 
 @[lockstep] theorem intern_rebuilt_let_e_ls (h : arena.handle.EIdx) (same : Bool)
@@ -162,13 +158,12 @@ include hrel hinv
       lst (internRebuiltProj (absEIdx h) same (absNIdx n) (absU i) (absEIdx e)) := by
   rw [arena.expr_ops.intern_rebuilt_proj, internRebuiltProj]; lockstep
 
-@[lockstep] theorem intern_rebuilt_bind_i_ls (h : arena.handle.EIdx) (same : Bool)
-    (tag : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
+@[lockstep] theorem intern_rebuilt_bind_ls (h : arena.handle.EIdx) (same : Bool)
+    (tag : Std.U32) (ty b : arena.handle.EIdx) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.expr_ops.intern_rebuilt_bind_i pers st h same tag ty b m)
-      lst (internRebuiltBindI (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b)
-        (absBMIdx m)) := by
-  rw [arena.expr_ops.intern_rebuilt_bind_i, internRebuiltBindI]; lockstep
+      (arena.expr_ops.intern_rebuilt_bind pers st h same tag ty b)
+      lst (internRebuiltBind (absEIdx h) same (absU32 tag) (absEIdx ty) (absEIdx b)) := by
+  rw [arena.expr_ops.intern_rebuilt_bind, internRebuiltBind]; lockstep
 
 end rebuilt
 
@@ -581,40 +576,6 @@ end abstract_range_go
   rw [arena.expr_ops.abstract_range_fast, abstractRangeFast]
   lockstep
 
-section lower_bvars_go
-attribute [local lockstep_simp] lowerArmApp lowerArmLam lowerArmForallE lowerArmLet lowerArmProj
-
-theorem lower_bvars_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (amount : Std.U64) (fuel : Std.U64) (h : arena.handle.EIdx) (c : Std.U64),
-      fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absEIdx a) (arena.expr_ops.lower_bvars_go pers st amount fuel h c) lst
-        (lowerBVarsGo (absU amount) n (absEIdx h) (absU c)) := by
-  induction n with
-  | zero =>
-    intro pers st lst amount fuel h c hn hrel hinv
-    rw [arena.expr_ops.lower_bvars_go, lowerBVarsGo_zero]
-    lockstep
-  | succ m ih =>
-    intro pers st lst amount fuel h c hn hrel hinv
-    rw [arena.expr_ops.lower_bvars_go, lowerBVarsGo_succ]
-    lockstep
-
-@[lockstep] theorem lower_bvars_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (amount : Std.U64) (fuel : Std.U64) (h : arena.handle.EIdx) (c : Std.U64) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.lower_bvars_go pers st amount fuel h c) lst
-      (lowerBVarsGo (absU amount) (absU fuel) (absEIdx h) (absU c)) :=
-  lower_bvars_go_aux _ amount fuel h c rfl hrel hinv
-
-end lower_bvars_go
-
-@[lockstep] theorem lower_bvars_fast_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel amount c : Std.U64) (e : arena.handle.EIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.expr_ops.lower_bvars_fast pers st fuel amount c e) lst
-      (lowerBVarsFast (absU fuel) (absU amount) (absU c) (absEIdx e)) := by
-  rw [arena.expr_ops.lower_bvars_fast, lowerBVarsFast]
-  lockstep
-
 section instantiate1_lift_go
 attribute [local lockstep_simp] inst1LiftArmApp inst1LiftArmLam inst1LiftArmForallE inst1LiftArmLet inst1LiftArmProj
 
@@ -676,35 +637,6 @@ theorem inst_spine_from_aux (n : Nat) :
     LS pers (fun a b => b = absEIdx a) (arena.expr_ops.inst_spine pers st fuel args t e) lst
       (instSpine (absU fuel) (absEIdxList args) (absU t) (absEIdx e)) := by
   rw [arena.expr_ops.inst_spine]
-  lockstep
-
-theorem bvar_range_aux (N : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (m_i n k : Std.U64),
-      n.val = N → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absEIdxList a) (arena.expr_ops.bvar_range pers st m_i n k) lst
-        (bvarRange (absU m_i) N (absU k)) := by
-  induction N with
-  | zero =>
-    intro pers st lst m_i n k hn hrel hinv
-    rw [arena.expr_ops.bvar_range, bvarRange]
-    lockstep
-  | succ m ih =>
-    intro pers st lst m_i n k hn hrel hinv
-    rw [arena.expr_ops.bvar_range, bvarRange]
-    lockstep
-
-@[lockstep] theorem bvar_range_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (m_i n k : Std.U64) :
-    LS pers (fun a b => b = absEIdxList a) (arena.expr_ops.bvar_range pers st m_i n k) lst
-      (bvarRange (absU m_i) (absU n) (absU k)) :=
-  bvar_range_aux _ m_i n k rfl hrel hinv
-
-@[lockstep] theorem rec_rule_plain_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (fuel : Std.U64) (rec_ty : arena.handle.EIdx) (m_i r_p cn_p : Std.U64) :
-    LS pers (fun a b => b = id a) (arena.expr_ops.rec_rule_plain pers st fuel rec_ty m_i r_p cn_p) lst
-      (recRulePlain (absU fuel) (absEIdx rec_ty) (absU m_i) (absU r_p) (absU cn_p)) := by
-  rw [arena.expr_ops.rec_rule_plain, recRulePlain]
   lockstep
 
 theorem inst_pis_at_lift_from_aux (n : Nat) :
