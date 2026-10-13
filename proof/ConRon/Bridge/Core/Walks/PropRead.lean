@@ -1577,10 +1577,9 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
         obtain rfl := Option.some.inj hlv2
         cases q2 with
         | none =>
-          simp only [ConRon.Arena.liftFueled]
           exact triple_seq (Q := fun _ _ => False) triple_fail (fun _ _ h => h.elim)
         | some okB =>
-          simp only [ConRon.Arena.liftFueled, pure_bind]
+          simp only [pure_bind]
           exact triple_pureR ⟨hok14,
             hx012.trans (by rw [hst14]; exact Ext.refl _), hp14.trans hp012,
             F1 + F2 + F3 + F4 + F5 + F6, propIrrel_slow hNF hIF
