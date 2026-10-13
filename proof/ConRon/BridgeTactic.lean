@@ -83,6 +83,7 @@ def usedConstants : List Name :=
    `ConRon.Bridge.denote_proj_inv,
    `ConRon.Bridge.denote_sort_inv,
    `ConRon.Bridge.eq_of_eq_some,
+   `ConRon.Bridge.isSome_denote_ext,
    `ConRon.Bridge.isSome_of_eq_some,
    `Std.Do.Triple]
 
@@ -336,6 +337,72 @@ def eqPath (ty a b : Expr) : FM (Option Expr) := do
     frontier := next
   return none
 
+/-- Reduce projections of structure instances, innermost first:
+`{ m with liftC := x }.inst1LC` is `m.inst1LC`.  Nothing else is unfolded (a
+`whnfD` would open `HashMap.insert`). -/
+partial def projNorm (e : Expr) : MetaM Expr := do
+  let e := e.cleanupAnnotations
+  match e.getAppFn with
+  | .const n _ =>
+    let some info ← getProjectionFnInfo? n | return e
+    let args := e.getAppArgs
+    if args.size != info.numParams + 1 then return e
+    let st ← projNorm args[info.numParams]!
+    let stw ← whnfR st
+    if let .const cn _ := stw.getAppFn then
+      if let some (.ctorInfo ctor) := (← getEnv).find? cn then
+        let fields := stw.getAppArgs.extract ctor.numParams stw.getAppNumArgs
+        if let some f := fields[info.i]? then return ← projNorm f
+    return mkAppN e.getAppFn (args.set! info.numParams st)
+  | _ => return e
+
+/-- `eqPath` through CONGRUENCE: a step rewrites, inside the current node, an
+occurrence of one side of a hypothesis `u = v` of ANY type by the other, and
+then reduces projections of structure instances — so that `s₂.memos = { s₁.memos with
+liftC := … }` carries `s₂.memos.inst1LC = s₁.memos.inst1LC` (task #120: the
+memo-table frame of every memoized walk).  Both sides are rewritten (at most four steps each) and the search meets in
+the middle, so a target that itself mentions projections of later states
+(`{ s₂.caches with readLC := s.caches.readLC }`) is reached too. -/
+def eqPathCongr (a b : Expr) : FM (Option Expr) := do
+  let mut edges : Array (Expr × Expr × Expr) := #[]
+  for h in (← read).hyps do
+    if let some (_, u, v) := h.ty.eq? then
+      if isFactShape h.ty then continue
+      if u.isFVar && v.isFVar then continue
+      edges := edges.push (u, v, h.pf)
+      edges := edges.push (v, u, ← mkEqSymm h.pf)
+  if edges.isEmpty then return none
+  -- every node reachable from `x` in at most four rewrites, with `x = node`
+  let reach (x : Expr) : MetaM (Array (Expr × Expr)) := do
+    let mut all : Array (Expr × Expr) := #[(x, ← mkEqRefl x)]
+    let mut frontier := all
+    for _ in [0:4] do
+      let mut next := #[]
+      for (n, pn) in frontier do
+        for (u, v, pe) in edges do
+          unless (n.find? (· == u)).isSome do continue
+          let ty ← inferType u
+          let motive := Expr.lam `z ty
+            (n.replace fun x => if x == u then some (.bvar 0) else none) .default
+          let n' ← projNorm (n.replace fun x => if x == u then some v else none)
+          if ← all.anyM (fun (y, _) => same n' y) then continue
+          let p ← mkEqTrans pn (← mkCongrArg motive pe)
+          all := all.push (n', p)
+          next := next.push (n', p)
+          if all.size > 64 then return all
+      if next.isEmpty then return all
+      frontier := next
+    return all
+  -- meet in the middle: a node both sides reach (the target may mention
+  -- the same projections, `{ s₂.caches with readLC := s.caches.readLC }`)
+  let ra ← reach a
+  let rb ← reach b
+  for (na, pa) in ra do
+    for (nb, pb) in rb do
+      if ← same na nb then
+        return some (← mkEqTrans pa (← mkEqSymm pb))
+  return none
+
 /-- Could `a` match `b` reducibly?  A syntactic over-approximation in front of
 `same`: two applications of DIFFERENT constants (or of one constant at
 different arities) never match at reducible transparency unless a head is
@@ -425,10 +492,21 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       let x ← mkFreshExprMVar α
       let ft ← mkEq o (← mkAppM ``Option.some #[x])
       if isFactShape ft then
-        let some ph ← attempt (provedFact fuel ft) | return none
-        return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
+        if let some ph ← attempt (provedFact fuel ft) then
+          return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
+        -- an `isSome` hypothesis at an earlier store, carried along the chain
+        if o.isAppOfArity `ConRon.Arena.denoteE 2 then
+          for h in (← read).hyps.reverse do
+            let some (_, a', b') := h.ty.eq? | continue
+            unless b'.isConstOf ``Bool.true && a'.isAppOfArity ``Option.isSome 2 do continue
+            let o' := a'.appArg!
+            unless o'.isAppOfArity `ConRon.Arena.denoteE 2 do continue
+            unless ← same o'.appArg! o.appArg! do continue
+            let some px ← extPath o'.appFn!.appArg! o.appFn!.appArg! | continue
+            return some (← mkAppM `ConRon.Bridge.isSome_denote_ext #[h.pf, px])
       return none
     if let some p ← eqPath ty a b then return some p
+    if let some p ← eqPathCongr a b then return some p
     return ← closedRfl t
   if t.isAppOfArity ``Exists 2 then
     let body := t.appArg!
@@ -563,39 +641,55 @@ insert, a readback frame — is passed this way): its conclusion unified with
 `t`, every premise proved by `prove`. -/
 partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   for lr in (← read).lemmas do
-    let r ← attempt do
+    -- the lemma's conclusion may itself be a `∀` (a monotonicity chain's
+    -- `∀ i v, a.view i = some v → c.view i = some v`): every telescope
+    -- length, longest first
+    let n ← do
       let (_, _, l) ← openAbstractMVarsResult lr
-      let (args, _, concl) ← forallMetaTelescope (← inferType l)
-      unless ← mayMatch concl t do return none
-      unless ← same concl t do return none
-      unless ← solvePremises (fuel - 1) args.toList do return none
-      let e ← instantiateMVars (mkAppN l args)
-      if e.hasExprMVar then return none
-      return some e
-    if let some p := r then return some p
+      let (args, _, _) ← forallMetaTelescope (← inferType l)
+      pure args.size
+    for k' in [0:n + 1] do
+      let r ← attempt do
+        let (_, _, l) ← openAbstractMVarsResult lr
+        let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k')
+        unless ← mayMatch concl t do return none
+        unless ← same concl t do return none
+        unless ← proveArgs fuel args.toList do return none
+        let e ← instantiateMVars (mkAppN l args)
+        if e.hasExprMVar then return none
+        return some e
+      if let some p := r then return some p
   return none
 
-/-- Discharge a lemma's premises in order, BACKTRACKING over the hypotheses
-a premise matches (a `CheckOK ?s` premise has one candidate per state, and
-only the one a later `ReadbackFrame ?s s` premise reaches is right); a
-premise no hypothesis matches goes to `prove`. -/
-partial def solvePremises (fuel : Nat) : List Expr → FM Bool
+/-- The `Prop` premises of a lemma, in order.  A premise that is neither a
+frame predicate nor a denotation fact (`MemoOK f tbl st`) is matched against
+EVERY hypothesis, with backtracking: the first match fixes metavariables
+(here the store) that a later premise (`Ext st s`) may refute. -/
+partial def proveArgs (fuel : Nat) (args : List Expr) : FM Bool := do
+  match args with
   | [] => return true
-  | a :: rest => do
-    if ← a.mvarId!.isAssigned then return ← solvePremises fuel rest
+  | a :: rest =>
+    if ← a.mvarId!.isAssigned then return ← proveArgs fuel rest
     let aT ← instantiateMVars (← inferType a)
-    unless ← isProp aT do return ← solvePremises fuel rest
+    unless ← isProp aT do return ← proveArgs fuel rest
+    -- a closed premise: proved; one with metavariables (`CheckOK ?s`, a
+    -- frame or fact premise included) branches over the hypotheses first
+    if !aT.hasExprMVar then
+      let some pa ← prove (fuel - 1) aT | return false
+      unless ← supply a pa do return false
+      return ← proveArgs fuel rest
     let aTn ← normNeg aT
     for h in (← read).hyps.reverse do
       unless ← mayMatch h.ty aTn do continue
       let s ← save
       if (← same h.ty aTn) && (← supply a h.pf) then
-        if ← solvePremises fuel rest then return true
+        if ← proveArgs fuel rest then return true
       restore s
+    -- no hypothesis: the search itself
     let s ← save
-    if let some pa ← prove fuel aT then
+    if let some pa ← prove (fuel - 1) aT then
       if ← supply a pa then
-        if ← solvePremises fuel rest then return true
+        if ← proveArgs fuel rest then return true
     restore s
     return false
 

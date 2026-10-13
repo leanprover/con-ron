@@ -82,6 +82,7 @@ import ConRon.Bridge.ExprOps.MemoSpecs
 import ConRon.Bridge.ExprOps.InstLP
 import ConRon.Bridge.SpecsL
 import ConRon.Bridge.ExprOps.TagFirst
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.ExprOps
 
@@ -250,6 +251,18 @@ structure AbsRangeGoSpec (d k : Nat) (rec : EIdx → Nat → AM EIdx) : Prop whe
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         AbsRangeAt d k c s₁.store h s'.store r; ⊤⦄
 
+/-- con-leche: none — the two goals a memoized arm's MISS leaves after
+`bridge_frame` splits its postcondition, from the arm's answer `hans`: the
+memo insert's invariant (through the insert's own `∀ f, MemoOK f … →
+RelE … → MemoOK f …`), and the view monotonicity with the answer (task
+#120). -/
+macro "abs_post " hins:term:max h:term : tactic => `(tactic| first
+  | exact $hins _ (by bridge_frame [MemoOK.mono])
+      (RelE.retarget_self $h (by bridge_frame) (by bridge_frame))
+  | exact ($h).ext (by bridge_frame)
+  | (refine ⟨?_, ($h).ext (by bridge_frame)⟩
+     bridge_frame [viewMono_trans, viewMono_of_eq]))
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange —
 **THEOREM 1 for the EXECUTED `abstractRange`**, at one level of the
 recursion, by induction on the fuel.  `abstract1Go_spec`'s shape: the `fvarB`
@@ -270,95 +283,66 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
     have hfvb := hfv.run
     vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
       absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, hrec, hfvb]
-    all_goals try bridge_vcs [Expr.abstractRange]
-    all_goals try bridge_vcs [Expr.abstractRange, view_of_viewBind,
-      isSome_eBindView, view_isSome]
     all_goals (bridge_peel; subst_vars)
-    -- The structural verification conditions that remain: the derived-word
-    -- cutoff, `app`'s postcondition, the binder arm's postcondition and its
-    -- side conditions, the `fvar` arm's two branches, `letE`'s and `proj`'s
-    -- postconditions and the catch-all.  They are the conditions
-    -- of `ExprOps/Abs.lean`'s five `abstract1Go` arm theorems and its
-    -- dispatcher together — the two executed walks differ only at the `fvar`
-    -- arm and at the binder body's cursor.
-    -- the cutoff
-    case vc1 =>
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
-        by grind, by grind, ?_⟩
-      exact (AbsRangeAt.cutoff (by abs_hyp) (by abs_hyp)).ext
-        (by grind only [Ext.refl])
-    -- `app`
-    case vc3 =>
-      have hans := AbsRangeAt.app_step' (by abs_hyp) hok.wf
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- the binder arm's postcondition
-    case vc16 =>
-      have hans := AbsRangeAt.bind_step' (by abs_hyp) hok.wf (by abs_hyp) rfl
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- the remaining structural conditions: the binder arm's side conditions
-    -- (the two rebuilt children have views at the store the intern happens
-    -- in, `internRebuiltBind`'s `hsame`, the two recursive calls' subjects
-    -- denote), the `fvar` arm in the range and outside it, `letE`, `proj`,
-    -- and the catch-all
-    all_goals first
-      | (obtain ⟨hty, _⟩ :=
-           bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
-         exact view_isSome_of_rel hty (by abs_hyp) (by abs_hyp))
-      | (obtain ⟨_, hb⟩ :=
-           bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
-         exact view_isSome_of_rel (denote_isSome_ext hb (by abs_hyp)) (by abs_hyp)
-           (by grind only [Ext.refl]))
-      | (have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.bvar _)›
-         refine ⟨by grind only [StateOK, StateOK.mk],
-           by grind [MemoOK.mono, Ext.refl], by grind only [Ext.trans],
-           by grind, by grind, by grind, ?_⟩
-         exact AbsRangeAt.fvar_hit' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
-           (by abs_hyp) (by rw [hr, denoteEView]))
-      | exact ⟨by grind only [StateOK, StateOK.mk],
-          by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
-          by grind, by grind,
-          AbsRangeAt.fvar_miss' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
-            (by abs_hyp) (by grind only [Ext.refl])⟩
-      | (have hans := AbsRangeAt.letE_step' (by abs_hyp) hok.wf
-           (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-           (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-         have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-         exact ⟨by grind only [StateOK, StateOK.mk],
-           by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-           by grind only [Ext.trans], by grind, by grind, by grind,
-           hans.ext (by grind only [Ext.refl])⟩)
-      | (have hans := AbsRangeAt.proj_step' (by abs_hyp) hok.wf hden
-           (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-           (by abs_hyp)
-         have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-         exact ⟨by grind only [StateOK, StateOK.mk],
-           by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-           by grind only [Ext.trans], by grind, by grind, by grind,
-           hans.ext (by grind only [Ext.refl])⟩)
-      | exact ⟨by grind only [StateOK, StateOK.mk],
-          by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
-          by grind, by grind,
-          AbsRangeAt.leaf'' hok.wf hden (by abs_hyp) (by abs_hyp) (by abs_hyp)
-            (by abs_hyp) (by abs_hyp) (by grind only [Ext.refl])⟩
-      -- the two recursive calls' subjects denote
-      | (obtain ⟨hty, hb⟩ := bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
-         first
-         | exact hty
-         | exact denote_isSome_ext hb (by abs_hyp)
-         | exact hb)
+    bridge_frame [MemoOK.mono, viewMono_trans, viewMono_of_eq]
+    -- the memo hits
+    vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+    -- the derived-word cutoff
+    vc_arm (hfb : ?fb ≤ d) (hfr : RelV Expr.fvarRange _ h ?fb) ⊢ RelE _ _ h _ h =>
+      exact (AbsRangeAt.cutoff (by abs_hyp) (by abs_hyp)).ext (by bridge_frame)
+    -- the four congruence arms' answers, inserted: each splits into the
+    -- insert's invariant and the rest of the postcondition (`abs_post`)
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _)
+        (hva : some (?cf, ?ca) = EStore.viewApp _ h) (hf : RelE _ _ ?cf _ _)
+        (ha : RelE _ _ ?ca _ _) (hr : denoteE _ _ = denoteEView _ (.app _ _)) =>
+      have hans := AbsRangeAt.app_step' (by bridge_frame) hok.wf (by assumption) hva (by bridge_frame) hf
+        (by bridge_frame) ha (by bridge_frame) hr
+      abs_post hins hans
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _)
+        (hvb : some (?cty, ?cb) = EStore.viewBind _ h) (ht : RelE _ _ ?cty _ _)
+        (hb : RelE _ _ ?cb _ _) (hr : denoteE _ _ = denoteEView _ (eBindView _ _ _)) =>
+      have hans := AbsRangeAt.bind_step' (by bridge_frame) hok.wf (by assumption) rfl hvb (by bridge_frame) ht
+        (by bridge_frame) hb (by bridge_frame) hr
+      abs_post hins hans
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _)
+        (hvl : some (?cty, ?cw, ?cb) = EStore.viewLet _ h) (ht : RelE _ _ ?cty _ _)
+        (hw : RelE _ _ ?cw _ _) (hb : RelE _ _ ?cb _ _)
+        (hr : denoteE _ _ = denoteEView _ (.letE _ _ _)) =>
+      have hans := AbsRangeAt.letE_step' (by bridge_frame) hok.wf (by assumption) hvl (by bridge_frame) ht
+        (by bridge_frame) hw (by bridge_frame) hb (by bridge_frame) hr
+      abs_post hins hans
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _)
+        (hvp : some _ = EStore.viewProj _ h) (hs : RelE _ _ _ _ _)
+        (hr : denoteE _ _ = denoteEView _ (.proj _ _ _)) =>
+      have hans := AbsRangeAt.proj_step' (by bridge_frame) hok.wf hden (by assumption) hvp (by bridge_frame) hs
+        (by bridge_frame) hr
+      abs_post hins hans
+    -- the `fvar` arm in the range (a fresh `bvar` is interned) and outside it
+    vc_arm (hvi : some _ = EStore.viewFVarIdx _ h)
+        (hr : denoteE _ _ = denoteEView _ (.bvar _)) =>
+      have hans := AbsRangeAt.fvar_hit' (by bridge_frame) hok.wf (by assumption) hvi
+        (by assumption) (by rw [hr, denoteEView])
+      -- the view-monotonicity conjunct may already be closed by the frame
+      first
+        | exact hans
+        | (refine ⟨?_, hans⟩; bridge_frame [viewMono_trans, viewMono_of_eq])
+    vc_arm (hvi : some _ = EStore.viewFVarIdx _ h) ⊢ RelE _ _ h _ h =>
+      exact AbsRangeAt.fvar_miss' (by bridge_frame) hok.wf (by assumption) hvi (by assumption)
+        (by bridge_frame)
+    -- the catch-all, past the five tag tests
+    vc_arm (hnp : ¬ (h.tag == ETag.proj) = true) ⊢ RelE _ _ h _ h =>
+      exact AbsRangeAt.leaf'' hok.wf hden (by abs_hyp) (by abs_hyp) (by abs_hyp)
+        (by abs_hyp) (by abs_hyp) (by bridge_frame)
+    -- the binder arm's side conditions: the two rebuilt children have views
+    vc_arm (hvb : some _ = EStore.viewBind _ h) =>
+      obtain ⟨hcty, hcb⟩ := bind_children_hop (by bridge_frame) hok.wf hvb hden
+    vc_arm (hrel : RelE _ _ _ _ ?cr) ⊢ (EStore.view _ ?cr).isSome = true =>
+      exact view_isSome_of_rel (by bridge_frame) hrel (by bridge_frame)
+    -- the arms' and the callees' preconditions
+    bridge_frame
+    all_goals bridge_vcs [Expr.abstractRange, view_of_viewBind, isSome_eBindView,
+      view_isSome]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange — the
 EXECUTED descent at one state, against the SPEC descent `Abs.lean` proves.
@@ -591,6 +575,45 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         InstLPAt ks us s₁.store h s'.store r; ⊤⦄
 
+/-- con-leche: none — `ReadLCacheOK.mono` across a moved table (task #120:
+`bridge_frame`'s frame lemma; the table equation is the frame's). -/
+theorem ReadLCacheOK.mono' {tbl tbl' : Std.HashMap LIdx Level} {st st' : EStore}
+    (h : ReadLCacheOK tbl st) (hx : Ext st st') (ht : tbl' = tbl) :
+    ReadLCacheOK tbl' st' := ht ▸ h.mono hx
+
+/-- con-leche: none — and `ReadLsCacheOK.mono`. -/
+theorem ReadLsCacheOK.mono' {tbl tbl' : Std.HashMap LsIdx (List Level)}
+    {st st' : EStore} (h : ReadLsCacheOK tbl st) (hx : Ext st st')
+    (ht : tbl' = tbl) : ReadLsCacheOK tbl' st' := ht ▸ h.mono hx
+
+/-- con-leche: none — a store whose three tables are another's has its views
+(`view_eq_of_tables`), as the arms' view-monotonicity conjunct states it. -/
+theorem viewMono_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
+    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) :
+    ∀ i v, st.view i = some v → st'.view i = some v :=
+  fun i _ hv => (view_eq_of_tables hp hs ho i).trans hv
+
+/-- con-leche: none — the goals a LEVEL arm (`sort`, `const`) leaves after
+`bridge_frame`, from its answer `h`: the answer itself (at the frame's
+store), or the view monotonicity with it, or the cache-table equation (task
+#120). -/
+macro "lp_post " h:term : tactic => `(tactic| first
+  | exact ($h).ext (by bridge_frame)
+  | (refine ⟨?_, ($h).ext (by bridge_frame)⟩
+     bridge_frame [viewMono_trans, viewMono_of_eq, viewMono_of_tables])
+  | grind)
+
+/-- con-leche: none — the goals a REBUILDING arm leaves: as `lp_post`, and
+the memo insert's invariant through the insert's own `∀ f, MemoOK f … →
+RelE … → MemoOK f …` (`hins`). -/
+macro "lp_post_ins " hins:term:max h:term : tactic => `(tactic| first
+  | exact $hins _ (by bridge_frame [MemoOK.mono])
+      (RelE.retarget_self $h (by bridge_frame) (by bridge_frame))
+  | exact ($h).ext (by bridge_frame)
+  | (refine ⟨?_, ($h).ext (by bridge_frame)⟩
+     bridge_frame [viewMono_trans, viewMono_of_eq, viewMono_of_tables])
+  | grind)
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 **THEOREM 1 for `instantiateLevelParams`**, at one level of the recursion, by
 induction on the fuel.  `resetMetaGo_spec`'s shape with the `hasLP` cutoff in
@@ -612,124 +635,58 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
       instLPArmForallE, instLPArmLet, instLPArmProj, hrec,
       substLMemoAt_spec, substLsMemoAt_spec]
-    all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadLCacheOK.mono,
-      ReadLsCacheOK.mono, view_eq_of_tables]
     all_goals (bridge_peel; subst_vars)
-    -- Twelve structural verification conditions remain, in goal order: the
-    -- `hasLP` cutoff, the two LEAF views, the `sort` arm, the `const` arm
-    -- (postcondition and its universe-argument `ViewOK`), then the six
-    -- rebuilding arms.  `resetMetaGo_spec`'s list with the cutoff and the
-    -- two LEVEL arms added.
+    bridge_frame [MemoOK.mono, MemoLOK.mono, MemoLsOK.mono, ReadLCacheOK.mono',
+      ReadLsCacheOK.mono', viewMono_trans, viewMono_of_eq, viewMono_of_tables]
+    -- the memo hits
+    vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
+      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
     -- the `hasLP` cutoff
-    next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
-        fun _ _ hi => hi,
-        InstLPAt.cutoff hok.wf (by grind)⟩
-    -- `bvar`, `lit`
-    next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
-        fun _ _ hi => hi,
-        InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
-    next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
-        fun _ _ hi => hi,
-        InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
-    -- `sort`: the LEVEL arm, `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
-    next =>
-      have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.sort _)›
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
-        by grind [view_eq_of_tables], ?_⟩
-      exact InstLPAt.sort_step hok.wf (by lp_hyp)
-        (RelL.ext (by lp_hyp) (by assumption)) hr
-    -- `const`: the universe-argument LIST arm
-    next =>
-      have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.const _ _)›
-      obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf (by lp_hyp) hden
-      refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind,
-        by grind [view_eq_of_tables], ?_⟩
-      exact InstLPAt.const_step hok.wf (by lp_hyp) hn0
-        (by grind only [Ext.trans]) (RelLs.ext (by lp_hyp) (by assumption)) hr
+    vc_arm (hc : (!lpOfData _) = true) ⊢ RelE _ _ h _ h =>
+      exact (InstLPAt.cutoff hok.wf (by grind)).ext (by bridge_frame)
+    -- the two LEVEL arms (`sort`, `const`): no memo insert behind them, so
+    -- the goals are the answer and the frame `bridge_frame` left
+    vc_arm (hv : EStore.view _ h = some (.sort _)) (hu : RelL _ _ _ _ _)
+        (hr : denoteE _ _ = denoteEView _ (.sort _)) =>
+      lp_post (InstLPAt.sort_step hok.wf hv (hu.ext (by bridge_frame)) hr)
+    vc_arm (hv : EStore.view _ h = some (.const _ _)) (hvs : RelLs _ _ _ _ _)
+        (hr : denoteE _ _ = denoteEView _ (.const _ _)) =>
+      obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf hv hden
+      lp_post (InstLPAt.const_step hok.wf hv hn0 (by bridge_frame) (hvs.ext (by bridge_frame)) hr)
     -- `const`'s `ViewOK` at the substituted universe-argument list
-    next =>
-      rename_i hrls _ _
-      obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf (by lp_hyp) hden
-      obtain ⟨w, hw, _⟩ := denoteLs_view (hrls ls hl0)
+    vc_arm (hv : EStore.view _ h = some (.const _ _)) (hvs : RelLs _ _ _ _ ?cr)
+        ⊢ (LsStore.view _ ?cr).isSome = true =>
+      obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf hv hden
+      obtain ⟨w, hw, _⟩ := denoteLs_view (hvs ls hl0)
       rw [hw]; rfl
-    -- `fvar`: the annotation is descended into
-    next =>
-      have hans := InstLPAt.fvar_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- `app`
-    next =>
-      have hans := InstLPAt.app_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- `lam` and `forallE`
-    next =>
-      have hans := InstLPAt.lam_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    next =>
-      have hans := InstLPAt.forallE_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- `letE`
-    next =>
-      have hans := InstLPAt.letE_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- `proj`
-    next =>
-      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_proj hok.wf (by lp_hyp) hden
-      have hans := InstLPAt.proj_step hok.wf (by lp_hyp) (by lp_hyp)
-        (by lp_hyp) (by lp_hyp) (by lp_hyp) hn0
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
-        by grind only [Ext.trans],
-        by grind [ReadLCacheOK.mono],
-        by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
+    -- the rebuilding arms, each answer then inserted
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _) (hv : EStore.view _ h = some (.fvar _ _)) (ht : RelE _ _ _ _ _)
+        (hr : denoteE _ _ = denoteEView _ (.fvar _ _)) =>
+      lp_post_ins hins (InstLPAt.fvar_step hok.wf hv (by bridge_frame) ht (by bridge_frame) hr)
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _) (hv : EStore.view _ h = some (.app ?cf ?ca)) (hf : RelE _ _ ?cf _ _)
+        (ha : RelE _ _ ?ca _ _) (hr : denoteE _ _ = denoteEView _ (.app _ _)) =>
+      lp_post_ins hins (InstLPAt.app_step hok.wf hv (by bridge_frame) hf (by bridge_frame) ha (by bridge_frame) hr)
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _) (hv : EStore.view _ h = some (.lam ?cty ?cb)) (ht : RelE _ _ ?cty _ _)
+        (hb : RelE _ _ ?cb _ _) (hr : denoteE _ _ = denoteEView _ (.lam _ _)) =>
+      lp_post_ins hins (InstLPAt.lam_step hok.wf hv (by bridge_frame) ht (by bridge_frame) hb (by bridge_frame) hr)
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _) (hv : EStore.view _ h = some (.forallE ?cty ?cb))
+        (ht : RelE _ _ ?cty _ _) (hb : RelE _ _ ?cb _ _)
+        (hr : denoteE _ _ = denoteEView _ (.forallE _ _)) =>
+      lp_post_ins hins (InstLPAt.forallE_step hok.wf hv (by bridge_frame) ht (by bridge_frame) hb (by bridge_frame) hr)
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _) (hv : EStore.view _ h = some (.letE ?cty ?cw ?cb))
+        (ht : RelE _ _ ?cty _ _) (hw : RelE _ _ ?cw _ _) (hb : RelE _ _ ?cb _ _)
+        (hr : denoteE _ _ = denoteEView _ (.letE _ _ _)) =>
+      lp_post_ins hins (InstLPAt.letE_step hok.wf hv (by bridge_frame) ht (by bridge_frame) hw (by bridge_frame) hb (by bridge_frame) hr)
+    vc_arm (hins : ∀ f, MemoOK f _ _ → _ → MemoOK f _ _) (hv : EStore.view _ h = some (.proj _ _ _)) (hs : RelE _ _ _ _ _)
+        (hr : denoteE _ _ = denoteEView _ (.proj _ _ _)) =>
+      obtain ⟨nm, es, _, hn0, _⟩ := denote_eq_proj hok.wf hv hden
+      lp_post_ins hins (InstLPAt.proj_step hok.wf hv (by bridge_frame) hs (by bridge_frame) hr hn0)
+    -- the `bvar` and `lit` leaves
+    vc_arm (hv : EStore.view _ h = some _) ⊢ RelE _ _ h _ h =>
+      exact (InstLPAt.leaf hok.wf hv (by grind)).ext (by bridge_frame)
+    -- the arms' and the callees' preconditions
+    all_goals bridge_vcs [Expr.instantiateLevelParams, ReadLCacheOK.mono,
+      ReadLsCacheOK.mono, view_eq_of_tables]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the walk
 at one state, which is the form the entry consumes. -/
@@ -852,14 +809,13 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
       (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
   dsimp only
   vcgen [instLPFast, hr]
-  all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono]
+  all_goals (bridge_peel; subst_vars)
   -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
   -- without reading `ks`/`us` back and without clearing the memo.
-  next =>
-    bridge_peel
-    subst_vars
+  vc_arm (hc : (!lpOfData _) = true) ⊢ StateOK _ ∧ _ =>
     exact ⟨hok, Ext.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
       InstLPAt.cutoff hok.wf (by grind)⟩
+  all_goals bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono]
 
 /-! ## The axiom check -/
 

@@ -83,6 +83,14 @@ theorem denoteEO_ext {st st' : EStore} {r : Option EIdx} {v : Option ConLeche.Ex
 theorem isSome_of_eq_some {α : Type} {o : Option α} {a : α} (h : o = some a) :
     o.isSome = true := by rw [h]; rfl
 
+/-- con-leche: none — a handle that denotes still denotes past an extension
+(its `isSome`, as the walks' preconditions state it). -/
+theorem isSome_denote_ext {st st' : EStore} {h : EIdx}
+    (hs : (denoteE st h).isSome = true) (hx : Ext st st') :
+    (denoteE st' h).isSome = true := by
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
+  rw [denote_ext he hx]; rfl
+
 /-- con-leche: none — the denotation fact that discharges an
 `∃ v, denote… = some v ∧ P v` precondition. -/
 theorem exists_some_and {α : Type} {o : Option α} {a : α} {P : α → Prop}
@@ -91,6 +99,18 @@ theorem exists_some_and {α : Type} {o : Option α} {a : α} {P : α → Prop}
 /-- con-leche: none — a function's answer is unique. -/
 theorem eq_of_eq_some {α : Type} {o : Option α} {a b : α} (h₁ : o = some a)
     (h₂ : o = some b) : a = b := Option.some.inj (h₁.symm.trans h₂)
+
+/-- con-leche: none — a memo HIT
+answers by the invariant, in the shape a walk's hit arm has (`some r =
+tbl'[(h, c)]?`, the key spelled out, the table and the stores up to the
+frame's equations): task #120's one-`exact` hit arm. -/
+theorem MemoOK.get_hit' {f : Nat → ConLeche.Expr → ConLeche.Expr}
+    {tbl tbl' : Std.HashMap (EIdx × Nat) EIdx} {st st₁ st₂ : EStore} {h : EIdx}
+    {c : Nat} {r : EIdx} (hm : MemoOK f tbl st) (hk : some r = tbl'[(h, c)]?)
+    (ht : tbl' = tbl) (h₁ : st₁ = st) (h₂ : st₂ = st) :
+    RelE (f c) st₁ h st₂ r := by
+  subst ht h₁ h₂
+  exact MemoOK.get (k := (h, c)) hm hk.symm
 
 -- `ConRon.BridgeTactic` names the constants above (and the bridge's own)
 -- with single backticks, unchecked: this checks them.
