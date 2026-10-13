@@ -22,11 +22,9 @@ carry no term at all and are census class **(P)**: `ReducibilityHint`,
 `BasisKind` and `QuotKind` are imported from con-leche and used as they are —
 DESIGN §8.7's ruling ((B) imports con-leche's representation-free types rather
 than copying them).  So is `PropWhen`, which `IndCaps.sortZ` carries: it holds
-`ConLeche.Name`s, but task #97a already put con-leche's `BinderMeta` — hence
-`PropWhen` — inside the store's `lam`/`forallE` node (`Arena/Store.lean`'s
-`ENodeView.lam`), so a `PropWhen` over real names is what the arena's own
-representation uses and a handle twin of it would be a second spelling of the
-same datum.
+`ConLeche.Name`s, and since task #342 upstream it is a plain `never |
+ifAllZero (List Name)` datum that only `capsNeverZero` and the ι case split
+read (`isNever`), so a handle twin of it would buy nothing.
 
 **The one added field, and why.**  `IProjTable` carries a `tableName : NIdx`
 con-leche's `ProjTable` does not.  con-leche COMPUTES the reserved name
@@ -72,20 +70,16 @@ structure IConstantVal where
 /-! ## Recursor rules -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:88-114 RecRuleFire — how a stored
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Env.IRecRuleFire_bridge, then delete this line
-recursor rule may fire.  `.nested`'s level and pin lists become handle lists;
-the parse writes the placeholder `.inert` and never the other two. -/
+recursor rule fires.  `.nested`'s level and pin lists become handle lists;
+the parse writes the placeholder `.plain`. -/
 inductive IRecRuleFire where
-  | inert
   | plain
   | nested (lvls : List LIdx) (pins : List EIdx)
   deriving DecidableEq, Repr, Inhabited
 
 /-- con-leche: ConLeche/Kernel/Env.lean:116-147 RecRule — one iota rule of a
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Env.IRecRule_bridge, then delete this line
-recursor.  `ctorParams`, `fire`, `k`, `eta` and `paramsBlind` are
-install-computed and carry the parse placeholders `0`/`.inert`/`false`, exactly
-as con-leche's do. -/
+recursor.  `ctorParams`, `fire`, `k` and `eta` are install-computed and carry
+the parse placeholders `0`/`.plain`/`false`, exactly as con-leche's do. -/
 structure IRecRule where
   ctor : NIdx
   nfields : Nat
@@ -94,23 +88,13 @@ structure IRecRule where
   rhs : EIdx
   k : Bool := false
   eta : Bool := false
-  paramsBlind : Bool := false
   deriving DecidableEq, Repr, Inhabited
-
-/-- con-leche: ConLeche/Kernel/Env.lean:276-283 RecRule.compareParams — whether
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Env.IRecRule.compareParams_bridge, then delete this line
-the iota step compares this rule's parameter comparands. -/
-def IRecRule.compareParams (rl : IRecRule) : Bool :=
-  match rl.fire with
-  | .plain => !rl.paramsBlind
-  | _ => true
 
 /-! ## Inductive capabilities -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:192-239 IndCaps — the definitional
 capabilities of a stored inductive type.  `etaCtor` is a handle; `sortZ` stays
-con-leche's `PropWhen`, which is the datum the store's own binder metadata
-already carries (see the module note). -/
+con-leche's `PropWhen` (see the module note). -/
 structure IIndCaps where
   eta : Bool := false
   /-- con-leche's default is `.anonymous`; the handle's is the zero word.
@@ -207,14 +191,6 @@ inductive IDeclaration where
   deriving DecidableEq, Repr, Inhabited
 
 /-! ## The reserved names -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:623-628 projFnName — the public
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Env.projFnName_bridge, then delete this line
-projection-*function* name for field `i` of structure `T`.  Building a name
-means interning it, so the twin is monadic. -/
-def projFnName (T : NIdx) (i : Nat) : AM NIdx := do
-  let s ← internNNode (.str T "proj")
-  internNNode (.num s i)
 
 /-- con-leche: ConLeche/Kernel/Env.lean:478-482 projTableName — the reserved
 name of structure `T`'s projection table. -/
@@ -344,7 +320,6 @@ def IFEnv.findProj? (fe : IFEnv) (T : NIdx) (i : Nat) : AM (Option IProjEntry) :
 /-! ## The syntactic Π-telescope -/
 
 /-- con-leche: ConLeche/Kernel/Env.lean:427-441 Expr.piSortTeleLen? — the length
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Env.piSortTeleLen?_bridge, then delete this line
 of a syntactic Π-telescope ending in a SORT.  A spine walk, so the fuel is the
 store's node count; con-leche's structural recursion is the same walk with the
 node read through `view`. -/
@@ -352,7 +327,7 @@ def piSortTeleLen? : Nat → EIdx → AM (Option Nat)
   | 0, _ => fail (.internal "fuel exhausted: piSortTeleLen?")
   | fuel + 1, h => do
     match ← view h with
-    | .forallE _ body _ => pure ((← piSortTeleLen? fuel body).map (· + 1))
+    | .forallE _ body => pure ((← piSortTeleLen? fuel body).map (· + 1))
     | .sort _ => pure (some 0)
     | _ => pure none
 
