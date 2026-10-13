@@ -151,9 +151,8 @@ def promoteLs (m : PMemo) (fuel : Nat) (h : LsIdx) : AM (PMemo × LsIdx) := do
 
 /-- con-leche: none — arena infrastructure; **promote an EXPRESSION handle**:
 the structural copy of DESIGN §8.3, memoised on the node.  Ten clauses, the
-store's ten constructors, each promoting its own children first — `BinderMeta`
-and `Literal` are values and carry no handle (DESIGN §8.3), so they cross
-unchanged. -/
+store's ten constructors, each promoting its own children first — a `Literal`
+is a value and carries no handle (DESIGN §8.3), so it crosses unchanged. -/
 def promoteE (m : PMemo) : Nat → EIdx → AM (PMemo × EIdx)
   | 0, _ => fail (.internal "fuel exhausted: promoteE")
   | fuel + 1, h => do
@@ -179,14 +178,14 @@ def promoteE (m : PMemo) : Nat → EIdx → AM (PMemo × EIdx)
             let (m, f) ← promoteE m fuel f
             let (m, a) ← promoteE m fuel a
             pure (m, ← internPersistentE (.app f a))
-          | .lam ty body bm => do
+          | .lam ty body => do
             let (m, ty) ← promoteE m fuel ty
             let (m, body) ← promoteE m fuel body
-            pure (m, ← internPersistentE (.lam ty body bm))
-          | .forallE ty body bm => do
+            pure (m, ← internPersistentE (.lam ty body))
+          | .forallE ty body => do
             let (m, ty) ← promoteE m fuel ty
             let (m, body) ← promoteE m fuel body
-            pure (m, ← internPersistentE (.forallE ty body bm))
+            pure (m, ← internPersistentE (.forallE ty body))
           | .letE ty val body => do
             let (m, ty) ← promoteE m fuel ty
             let (m, val) ← promoteE m fuel val
@@ -221,8 +220,8 @@ def promoteEList (m : PMemo) (fuel : Nat) : List EIdx → AM (PMemo × List EIdx
 /-! ## The declaration layer
 
 `Arena/Env.lean`'s record, field for field: every `EIdx`, `NIdx`, `LIdx` and
-`List LIdx` in it is promoted, and every `Nat`, `Bool`, `ReducibilityHint`,
-`PropWhen` and `BinderMeta` crosses unchanged (they carry no handle — DESIGN
+`List LIdx` in it is promoted, and every `Nat`, `Bool`, `ReducibilityHint` and
+`PropWhen` crosses unchanged (they carry no handle — DESIGN
 §8.7's ruling that (B) imports con-leche's representation-free types).  The
 shape is `Arena/Frontend/Readback.lean`'s intern direction, which walks the
 same record for the same reason. -/
@@ -238,7 +237,6 @@ def promoteCV (m : PMemo) (fuel : Nat) (cv : IConstantVal) :
 /-- con-leche: none — arena infrastructure; promote a rule's firing mode. -/
 def promoteFire (m : PMemo) (fuel : Nat) :
     IRecRuleFire → AM (PMemo × IRecRuleFire)
-  | .inert => pure (m, .inert)
   | .plain => pure (m, .plain)
   | .nested lvls pins => do
     let (m, lvls) ← promoteLList m fuel lvls
@@ -251,7 +249,7 @@ def promoteRule (m : PMemo) (fuel : Nat) (rl : IRecRule) :
   let (m, c) ← promoteN m fuel rl.ctor
   let (m, f) ← promoteFire m fuel rl.fire
   let (m, r) ← promoteE m fuel rl.rhs
-  pure (m, ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta, rl.paramsBlind⟩)
+  pure (m, ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta⟩)
 
 /-- con-leche: none — arena infrastructure; promote a rule list. -/
 def promoteRules (m : PMemo) (fuel : Nat) :
@@ -332,9 +330,9 @@ value is NOT in the environment — only the pending record holds it — so the
 seam is promoted beside the environment and at the SAME memo. -/
 def promoteVG (m : PMemo) (fuel : Nat) (g : ValueGroup) :
     AM (PMemo × ValueGroup) := do
-  let (m, cvA) ← promoteCV m fuel g.cvA
+  let (m, cv) ← promoteCV m fuel g.cv
   let (m, jv) ← promoteE m fuel g.jv
-  pure (m, ⟨g.kind, cvA, jv⟩)
+  pure (m, ⟨g.kind, cv, jv⟩)
 
 /-! ## The fold's entry: a step's newly installed constants -/
 

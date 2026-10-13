@@ -1,8 +1,8 @@
 /-
 # `ConRon.Arena.CoreIO` — the io knot (the leaf lane), over handles
 
-The twin of `ConLeche/Kernel/CoreIO.lean`.  `whnfCore` / `whnf` / `defeq` /
-`annotate` are the *full* knot's at the same fuel — the io lane consumes the
+The twin of `ConLeche/Kernel/CoreIO.lean`.  `whnfCore` / `whnf` / `defeq`
+are the *full* knot's at the same fuel — the io lane consumes the
 certified reduction and definitional equality and never supplies them — and
 `infer` is `inferBodyIO` tied to the io knot one level down.  The full knot
 never mentions this one: that asymmetry is con-leche's mode-provenance
@@ -28,7 +28,6 @@ namespace ConRon.Arena
 open ConLeche
 
 /-- con-leche: ConLeche/Kernel/CoreIO.lean:44-64 coreKnotIO — **the io
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CoreIO.coreKnotIO_bridge, then delete this line
 knot** (the leaf lane).  Its own `inferIO` slot is the io body again: the io
 grade is idempotent, there being nothing below io to select. -/
 def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
@@ -37,14 +36,12 @@ def coreKnotIO (mode : CheckMode) (fe : IFEnv) : Nat → CoreFnsA
       whnf := fun _ _ => fail (.internal "fuel exhausted: whnf")
       infer := fun _ _ => fail (.internal "fuel exhausted: infer")
       defeq := fun _ _ _ => fail (.internal "fuel exhausted: defeq")
-      annotate := fun _ _ => fail (.internal "fuel exhausted: annotate")
       inferIO := fun _ _ => fail (.internal "fuel exhausted: infer") }
   | fuel + 1 =>
     { whnfCore := (coreKnot mode fe id (fuel + 1)).whnfCore
       whnf := (coreKnot mode fe id (fuel + 1)).whnf
       defeq := (coreKnot mode fe id (fuel + 1)).defeq
-      annotate := (coreKnot mode fe id (fuel + 1)).annotate
-      infer := fun d e => inferBodyIO mode (coreKnotIO mode fe fuel) fe d e
-      inferIO := fun d e => inferBodyIO mode (coreKnotIO mode fe fuel) fe d e }
+      infer := fun d e => inferBodyIO (coreKnotIO mode fe fuel) fe d e
+      inferIO := fun d e => inferBodyIO (coreKnotIO mode fe fuel) fe d e }
 
 end ConRon.Arena

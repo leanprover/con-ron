@@ -7,7 +7,7 @@ Task #97a, follow-up 4, second half.  `WFProofs.lean`'s last section gives
 stated there, because it is MONADIC: twenty walks in
 `AM = StateT AState (Except CheckError)`, not functions on an `EStore`.
 
-Task #97-P5-2 §11 item 4 names `promote` beside `internBindI` and the three
+Task #97-P5-2 §11 item 4 names `promote` beside `internBind` and the three
 node interns as an `Ext` the refinement demands and the store layer does not
 supply, and `Bridge/Promote/Exact.lean`'s six-conjunct `promote*_spec`s each
 carried `Ext s.store s'.store` and a `PFrame` among their `sorry`s.  Those two
@@ -472,8 +472,8 @@ theorem promoteNew_aext (m : PMemo) (fuel k : Nat) (fe : IFEnv) :
 and (task #97a's arithmetic packing) no `bv_decide` axiom. -/
 
 #print axioms Ext.of_view_mono
-#print axioms EStore.internBM_ext
-#print axioms EStore.internAt_ext
+#print axioms EStore.intern_ext
+#print axioms EStore.internBind_ext
 #print axioms EStore.internPersistent_ext
 #print axioms EStore.internName_ext
 #print axioms EStore.internLevel_ext

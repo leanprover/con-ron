@@ -2,8 +2,7 @@
 # `ConRon.Arena.CheckerSplit` — the install/check seam of a value declaration
 
 The twin of `ConLeche/Kernel/CheckerSplit.lean`: `checkDecl`'s three value
-kinds split into an INSTALL half (the syntactic guards and the annotation) and
-a CHECK half (the inference and the conversion), with `ValueGroup` as the
+kinds split into an INSTALL half (the syntactic guards) and a CHECK half (the inference and the conversion), with `ValueGroup` as the
 datum that crosses the seam.
 
 **This is where (B)'s per-declaration bracket lives** (DESIGN §8.3's "Drop",
@@ -12,9 +11,9 @@ and this task's deliverable (b)).  `Arena/Core.lean`'s `enterScratch` /
 exactly the line between what a declaration LEAVES BEHIND and what it merely
 computes:
 
-* the install half writes the annotated type and the annotated value, and
-  those are the terms the environment stores — so they must be PERSISTENT, and
-  the half runs outside the bracket;
+* the install half guards the type and the value, which are the terms the
+  environment stores as declared — so they must be PERSISTENT, and the half
+  runs outside the bracket;
 * the check half infers the type's sort, infers the value's type and compares
   it with the declared one.  Everything it allocates is intermediate, and the
   scratch tier is dropped at its end.
@@ -47,24 +46,20 @@ def ValueKind.word : ValueKind → String
   | .opaque => "opaque"
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:50-58 ValueGroup — what the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.ValueGroup_bridge, then delete this line
-install half hands the check half: the kind, the header with its type
-annotated, and the value — ANNOTATED for a definition or an opaque, RAW for a
-theorem (the install half never looked at it: a theorem is stored by its
-statement, and the check half annotates the value itself). -/
+install half hands the check half: the kind, the header, and the value —
+guarded for a definition or an opaque (the install half stored it), unguarded
+for a theorem (the install half never looked at it: a theorem is stored by its
+statement, and the check half runs the value's guards itself). -/
 structure ValueGroup where
   kind : ValueKind
-  cvA : IConstantVal
+  cv : IConstantVal
   jv : EIdx
   deriving Inhabited
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.installConstantVal_bridge, then delete this line
-`checkConstantVal` minus its inference: the syntactic guards and the
-annotation of the type.  con-leche writes the shared clauses out twice and so
-does this, clause for clause. -/
-def installConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
-    AM IConstantVal := do
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader —
+`checkConstantVal` minus its inference: the syntactic guards.  con-leche writes
+the shared clauses out twice and so does this, clause for clause. -/
+def installHeader (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
@@ -77,51 +72,43 @@ def installConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     fail (.invalid "loose bound variable in type")
   if ← hasFvarFast coreWalkFuel cv.type then
     fail (.invalid "unexpected free variable in type")
-  let type ← annotateCore mode fe checkFuel 0 cv.type
-  unless ← allLevelParamsDefined cv.levelParams type do
+  unless ← allLevelParamsDefined cv.levelParams cv.type do
     fail (.invalid
       "undeclared universe parameter in type")
-  unless ← constsResolveFFast fe type do
-    fail (← unresolvedConstsError "type" type)
-  pure { cv with type := type }
+  unless ← constsResolveFFast fe cv.type do
+    fail (← unresolvedConstsErrorL (← strLitSupported fe) "type" cv.type)
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:87-100 installValue — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.installValue_bridge, then delete this line
-value half of `check{Defn,Thm,Opaque}Val` minus its inference: the guards and
-the annotation of the value. -/
-def installValue (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
-    (value : EIdx) : AM EIdx := do
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:83-94 installValueGuards — the
+value half of `check{Defn,Thm,Opaque}Val` minus its inference: the guards. -/
+def installValueGuards (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    AM Unit := do
   unless ← looseBVarsBoundedFast coreWalkFuel 0 value do
     fail (.invalid "loose bound variable in value")
   if ← hasFvarFast coreWalkFuel value then
     fail (.invalid "unexpected free variable in value")
-  let value ← annotateCore mode fe checkFuel 0 value
   unless ← allLevelParamsDefined cv.levelParams value do
     fail (.invalid
       "undeclared universe parameter in value")
   unless ← constsResolveFFast fe value do
-    fail (← unresolvedConstsError "value" value)
-  pure value
+    fail (← unresolvedConstsErrorL (← strLitSupported fe) "value" value)
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:96-112 checkValueGroup —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerSplit.checkValueGroup_bridge, then delete this line
 **the check half of a value declaration**, at the environment the constant was
 installed at: the type's sort, the theorem's is-a-proposition test, for a
-theorem the value's guards and annotation, and the value's type against the
+theorem the value's guards, and the value's type against the
 declared one — the inference and conversion calls of `checkConstantVal` and
 `check{Defn,Thm,Opaque}Val`, in their order, with their messages. -/
 def checkValueGroup (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) :
     AM Unit := do
-  let stype ← inferTypeCore mode fe checkFuel 0 g.cvA.type
+  let stype ← inferTypeCore mode fe checkFuel 0 g.cv.type
   let u ← ensureSortCore mode fe checkFuel 0 stype
-  let jv ← if g.kind == .thm then do
-      let z ← zeroLevel
-      unless ← liftFueled "level comparison" (← lvlEq? u z) do
-        fail (.invalid "type of theorem is not a proposition")
-      installValue mode fe g.cvA g.jv
-    else pure g.jv
-  let vtype ← inferTypeCore mode fe checkFuel 0 jv
-  unless ← isDefEqCore mode fe checkFuel 0 vtype g.cvA.type do
+  if g.kind == .thm then do
+    let z ← zeroLevel
+    unless ← liftFueled "level comparison" (← lvlEq? u z) do
+      fail (.invalid "type of theorem is not a proposition")
+    installValueGuards fe g.cv g.jv
+  let vtype ← inferTypeCore mode fe checkFuel 0 g.jv
+  unless ← isDefEqCore mode fe checkFuel 0 vtype g.cv.type do
     fail (.invalid s!"type mismatch in {g.kind.word}")
 
 end ConRon.Arena

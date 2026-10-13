@@ -7,8 +7,8 @@ every top-level entry, because their answers depend on the substituted term.
 This module holds the **per-declaration** ones, which the checker keeps for
 the whole of one declaration's check and drops at its boundary:
 
-* the five unary entry-point memos `whnfCore`, `whnf`, `infer`, `inferIO`,
-  `annotate` : `EIdx ↦ EIdx` — *three separate infer grades*, because
+* the four unary entry-point memos `whnfCore`, `whnf`, `infer`, `inferIO`
+  : `EIdx ↦ EIdx` — *two separate infer grades*, because
   con-leche's lesson 9 is that a hit in one grade must never serve another
   (`ConLeche/Cached/CoreC.lean:1966-1975`: "a hit in the io memo never
   serves a full-infer query");
@@ -52,7 +52,6 @@ open ConLeche
 /-! ## The record -/
 
 /-- con-leche: ConLeche/Cached/StateC.lean:99-127 CState — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CoreState.Caches_bridge, then delete this line
 per-declaration caches of the arena checker, in one record beside
 `Monad.lean`'s per-call `Memos`.  Keeping the two apart is deliberate: the
 per-call clear (`inst1Clear` and its ten siblings) and the per-declaration
@@ -75,8 +74,6 @@ structure Caches where
   serves a full-`infer` query, and a full-`infer` hit never serves this
   one. -/
   inferIOC : Std.HashMap EIdx EIdx
-  /-- The annotation pass at the node (`CState.annotC`). -/
-  annotC : Std.HashMap EIdx EIdx
   /-- Definitional equality at the ORDERED pair, with the verdict — both
   signs, as con-leche's `defeqC` stores them. -/
   defeqC : Std.HashMap (EIdx × EIdx) Bool
@@ -96,7 +93,7 @@ structure Caches where
   (task #97-P6-13): "`Level` ops … run on transient `Level` trees read back
   from `LIdx` (*memoised readback per declaration*; levels are small)".  A
   level handle's denotation is a function of the handle and of the tier it
-  names, so it is stable for exactly as long as the other eleven tables are,
+  names, so it is stable for exactly as long as the other ten tables are,
   and the per-declaration flush is what makes that true. -/
   readLC : Std.HashMap LIdx Level
   /-- The same for a NAME handle (`readName`). -/
@@ -105,9 +102,8 @@ structure Caches where
   readLsC : Std.HashMap LsIdx (List Level)
 
 /-- con-leche: ConLeche/Cached/StateC.lean:99-127 CState — the empty
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CoreState.Caches.empty_bridge, then delete this line
 cache set: what a fresh run and every declaration start from. -/
-def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
+def Caches.empty : Caches := ⟨∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅, ∅⟩
 
 instance : Inhabited Caches := ⟨Caches.empty⟩
 

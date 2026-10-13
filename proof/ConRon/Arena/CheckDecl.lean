@@ -60,7 +60,7 @@ def checkShapelessFormers (mode : CheckMode) (fe : IFEnv) :
   | ci :: rest => do
     match ci with
     | .indInfo cv _ => do
-      let _ ← checkConstantVal mode fe cv
+      checkConstantVal mode fe cv
       checkShapelessFormers mode fe rest
     | _ => checkShapelessFormers mode fe rest
 
@@ -80,14 +80,13 @@ def checkShapeless (mode : CheckMode) (fe : IFEnv) (block : List IConstantInfo) 
 /-! ## One declaration -/
 
 /-- con-leche: ConLeche/Kernel/CheckDecl.lean:40-214 checkDecl — **check a
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckDecl.checkDecl_bridge, then delete this line
 single declaration, extending the environment on success.**  Clause for
 clause; `env : Env` is the index (`Arena/Core.lean`'s deviation 1). -/
 def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (d : IDeclaration) : AM IFEnv := do
   match d with
   | .defnDecl cv value hint => do
-    let cv ← checkConstantVal mode fe cv
+    checkConstantVal mode fe cv
     let fe2 ← checkDefnVal mode fe cv value hint
     -- Structural-`Nat` pins: the fast-path ops must be the standard
     -- structural recursions — their recurrence equations are checked by
@@ -125,10 +124,10 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
       checkDivModPin mode pins (fe2.restrictTo fe.visibleBelow) fe2 cv.name
     pure fe2
   | .thmDecl cv value => do
-    let cv ← checkConstantVal mode fe cv
+    checkConstantVal mode fe cv
     checkThmVal mode fe cv value
   | .opaqueDecl cv value => do
-    let cv ← checkConstantVal mode fe cv
+    checkConstantVal mode fe cv
     let fe2 ← checkOpaqueVal mode fe cv value
     -- Compiler-trust opaques (`Lean.reduceNat`/`Lean.reduceBool`): the stored
     -- value must be definitionally equal to the build-time pin.
@@ -150,30 +149,30 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
         else fail (.notImplemented "quotient soundness axiom mismatch")
       | none => fail (.notImplemented "quotient soundness axiom mismatch")
     else do
-      let cvA ← checkConstantVal mode fe cv
-      if ← stdAxiomOk fe cvA then
-        pure (fe.push (.axiomInfo cvA))
-      else if cvA.name == (← trustCompilerName) then
+      checkConstantVal mode fe cv
+      if ← stdAxiomOk fe cv then
+        pure (fe.push (.axiomInfo cv))
+      else if cv.name == (← trustCompilerName) then
         -- `Lean.trustCompiler : True` is trivially realizable: installed
         -- exactly like a checked `opaque` with witness value `True.intro`
         -- over the pinned `True` family.
-        if ← trustCompilerOk fe cvA then
-          pure (fe.push (.axiomInfo cvA))
+        if ← trustCompilerOk fe cv then
+          pure (fe.push (.axiomInfo cv))
         else fail (.notImplemented
           "unsupported Lean.trustCompiler shape")
-      else if cvA.name == (← ofReduceNatName) || cvA.name == (← ofReduceBoolName) then
+      else if cv.name == (← ofReduceNatName) || cv.name == (← ofReduceBoolName) then
         -- The pinned `ofReduce*` axioms: over the pinned `Eq` basis, the
         -- element inductive and the identity-certified reduce opaque,
         -- `∀ a b, reduce a = b → a = b` interprets to an inhabited
         -- proposition.
-        if ← ofReduceAxOk fe cvA then
-          pure (fe.push (.axiomInfo cvA))
+        if ← ofReduceAxOk fe cv then
+          pure (fe.push (.axiomInfo cv))
         else fail (.notImplemented
           "unsupported compiler-trust axiom environment")
-      else if cvA.name == (← propextName) || cvA.name == (← choiceName) then
+      else if cv.name == (← propextName) || cv.name == (← choiceName) then
         fail (.notImplemented
           "standard axiom shape mismatch")
-      else if cvA.name == (← pinSorryAx) then
+      else if cv.name == (← pinSorryAx) then
         -- `sorryAx` is the one axiom the checker tolerates as a DECLARATION:
         -- the record is skipped and the run continues, and any USE of the
         -- name declines at the record that uses it.
@@ -215,7 +214,7 @@ def checkDecl (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
 step of the pure fold, bracketed**: `checkDecl` inside the per-declaration
 scratch tier, with the constants it installed promoted before the tier goes.
 
-The bracket is `annotStep`'s, letter for letter — one `checkDecl` where phase
+The bracket is `installStep`'s, letter for letter — one `checkDecl` where phase
 A has an install half, and no `ValueGroup` because the pure fold checks what
 it installs in the same step.  DESIGN §8.3's amendment puts it here too, so
 that **the two folds stay one algorithm**: the tier regime is not an

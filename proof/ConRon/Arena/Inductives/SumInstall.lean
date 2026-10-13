@@ -35,30 +35,27 @@ open ConLeche
 /-! ## The type former's stage -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:34-57 whnfTelescope
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.whnfTelescope_bridge, then delete this line
 **Official's telescope loop** (`check_inductive_types`): peel `n` Π binders off
 `e`, reducing the residual to weak head normal form before each binder and at
 the end, where it must be a sort. -/
 def whnfTelescope (mode : CheckMode) (fe : IFEnv) :
-    Nat → Nat → EIdx → AM (List (EIdx × BinderMeta) × LIdx)
+    Nat → Nat → EIdx → AM (List EIdx × LIdx)
   | i, n, e => do
     let e' ← whnf mode fe checkFuel i e
     match ← view e', n with
     | .sort s, 0 => pure ([], s)
     | .sort _, _ + 1 => fail (.invalid "direct sum: type former does not reduce to a telescope")
-    | .forallE _ _ _, 0 => fail (.invalid "direct sum: type former does not reduce to a sort")
-    | .forallE dom body bm, n + 1 => do
+    | .forallE _ _, 0 => fail (.invalid "direct sum: type former does not reduce to a sort")
+    | .forallE dom body, n + 1 => do
       let fv ← internE (.fvar i dom)
       let b ← instantiate1Fast coreWalkFuel body fv 0
       let (bs, s) ← whnfTelescope mode fe (i + 1) n b
-      pure ((dom, bm) :: bs, s)
+      pure (dom :: bs, s)
     | _, 0 => fail (.invalid "direct sum: type former does not reduce to a sort")
     | _, _ + 1 => fail (.invalid "direct sum: type former does not reduce to a telescope")
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumTele_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:20-31 checkSumTeleF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumTele_bridge, then delete this line
 The type former's TELESCOPE (task #195): the checked declared type when it is
 already a syntactic telescope of `n` Π binders ending in a sort, else the
 declared type's whnf'd telescope, closed and checked as the former's type in
@@ -75,7 +72,6 @@ def checkSumTele (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) (n : Nat)
   | none => checkSumTeleSlow mode fe cv n cvTa₀
 where
   /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:59-73 checkSumTele
-  -- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkStructFieldSortsI_bridge, then delete this line
   The `_` arm of `checkSumTele`'s match, named because over handles the
   syntactic test is two `view`s and duplicating the arm would duplicate the
   whnf loop. -/
@@ -84,7 +80,8 @@ where
     let (bs, s) ← whnfTelescope mode fe 0 n cvTa₀.type
     let sortS ← internE (.sort s)
     let ty ← closeTelescope bs 0 sortS
-    let cvTa ← checkConstantVal mode fe { cv with type := ty }
+    let cvTa := { cv with type := ty }
+    checkConstantVal mode fe cvTa
     pure (cvTa, s)
 
 /-! ## The constructors' stage -/
@@ -116,7 +113,6 @@ def checkStructFieldSortsI (mode : CheckMode) (fe : IFEnv) (isProp large : Bool)
     pure (rest ++ [u])
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.fieldDomsResolve_bridge, then delete this line
 Every field domain resolves at the PRE-BLOCK environment. -/
 def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | [] => pure true
@@ -125,7 +121,6 @@ def fieldDomsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     if ← constsResolveFFast fe₀ t then fieldDomsResolve fe₀ xs else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.idxArgsResolve_bridge, then delete this line
 The index expressions never mention the block. -/
 def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
   | [] => pure true
@@ -133,18 +128,17 @@ def idxArgsResolve (fe₀ : IFEnv) : List EIdx → AM Bool
     if ← constsResolveFFast fe₀ e then idxArgsResolve fe₀ es else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:102-148 checkSumCtor
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumCtor_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/SumInstallF.lean:71-102 checkSumCtorF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.checkSumCtor_bridge, then delete this line
-Stage 2, one constructor's type: the ordinary constant check, the annotated
-result shape, the parameter pins against the type former's opened telescope,
+Stage 2, one constructor's type: the ordinary constant check (the constructor
+is stored AS DECLARED), the result shape, the parameter pins against the type former's opened telescope,
 the pre-block resolution of the field domains, and the per-field universe
 bound. -/
 def checkSumCtor (mode : CheckMode) (fe₀ fe : IFEnv) (T : NIdx)
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
     (cvC : IConstantVal) (nF : Nat) (cvTa : IConstantVal) :
     AM (IConstantVal × List LIdx) := do
-  let cvCa ← checkConstantVal mode fe cvC
+  checkConstantVal mode fe cvC
+  let cvCa := cvC
   let (_, cbody) ← unwrapOr (← stripPis (nP + nF) cvCa.type)
     (.notImplemented "direct sum: constructor telescope")
   -- official's `is_valid_ind_app` on the constructor's result: a REJECT, not a
@@ -204,21 +198,16 @@ def consSumCtors (nP : Nat) : List (IConstantVal × Nat) → IFEnv → IFEnv
   | c :: cs, fe => consSumCtors nP cs (fe.push (.ctorInfo c.1 nP c.2))
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:169-180 sumRules
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove SumInstall.sumRules_bridge, then delete this line
 The stored rules: constructor `j`'s with the generated right-hand side `j`,
-plain when the generated type's major is the family at the parameters, with
-the two rescue bits `recRuleBits` reads off the block's own store and
-`paramsBlind`, because the route's rule law holds at any pair of fitting
-parameter spines. -/
-def sumRules (fe : IFEnv) (recName : NIdx) (nP mI rP : Nat) (recTy : EIdx) :
+`.plain` (the major is the family at the recursor's parameters), with the two
+rescue bits `recRuleBits` reads off the block's own store. -/
+def sumRules (fe : IFEnv) (recName : NIdx) (nP : Nat) :
     List (IConstantVal × Nat) → List EIdx → AM (List IRecRule)
   | c :: cs, rhs :: rhss => do
-    let plain ← recRulePlain coreWalkFuel recTy mI rP nP
-    let r ← recRuleBits fe recName
-      { ctor := c.1.name, nfields := c.2, ctorParams := nP,
-        fire := if plain then .plain else .inert,
-        rhs := rhs, paramsBlind := true }
-    pure (r :: (← sumRules fe recName nP mI rP recTy cs rhss))
+    let r ← recRuleBits fe
+      { ctor := c.1.name, nfields := c.2, ctorParams := nP, fire := .plain,
+        rhs := rhs }
+    pure (r :: (← sumRules fe recName nP cs rhss))
   | _, _ => pure []
 
 end ConRon.Arena

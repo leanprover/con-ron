@@ -64,21 +64,18 @@ structure ClassCtor where
   deriving Inhabited
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:85-88 closeLams
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.closeLams_bridge, then delete this line
 Close a telescope of `λ`s opened at `i ..< i + bs.length` (`closeTelescope`'s
 twin), innermost first. -/
-def closeLams : List (EIdx × BinderMeta) → Nat → EIdx → AM EIdx
+def closeLams : List EIdx → Nat → EIdx → AM EIdx
   | [], _, body => pure body
-  | (dom, bm) :: bs, i, body => do
+  | dom :: bs, i, body => do
     let inner ← closeLams bs (i + 1) body
     let closed ← abstract1Fast coreWalkFuel inner i 0
-    internE (.lam dom closed bm)
+    internE (.lam dom closed)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:90-102 ClassGen
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.ClassGen_bridge, then delete this line
 What generation reads: the block, the classes, the layout, the constructors,
-the elimination level, the generated prefix; `bm` is the generated binders'
-datum, computed once (`classGenBm`, the module note). -/
+the elimination level, the generated prefix. -/
 structure ClassGen where
   nP : Nat
   params : List EIdx
@@ -88,10 +85,8 @@ structure ClassGen where
   slots : List ClassSlot
   ctors : List (List ClassCtor)
   elim : LIdx
-  /-- the generated binders' datum (con-leche's `ClassGen.bm`) -/
-  bm : BinderMeta
   /-- the generated prefix binders (`ClassGen.prefixBinders`), computed once -/
-  pre : List (EIdx × BinderMeta)
+  pre : List EIdx
 
 /-- con-leche: none — `xs.getD i default` on a term list, the default interned (`.bvar 0`)
 The Rust's `expr_get_d`: the element in range, else the interned `.bvar 0`
@@ -102,28 +97,14 @@ def exprGetD (xs : List EIdx) (i : Nat) : AM EIdx :=
   | none => internE (.bvar 0)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:104-106 classBinder
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classBinder_bridge, then delete this line
-The binder of an opened variable at the default datum (`.never`); the Rust's
-`class_binders` is `xs.mapM classBinder`. -/
-def classBinder (x : EIdx) : AM (EIdx × BinderMeta) := do
-  let t ← fvarTypeD x
-  pure (t, ⟨.never⟩)
-
-/-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:106-111 ClassGen.bm
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classGenBm_bridge, then delete this line
-**The generated binders' datum**: the elimination level's zero-ness, computed
-once into the `ClassGen.bm` field (the module note). -/
-def classGenBm (elim : LIdx) : AM BinderMeta := do
-  let l ← readLevelM elim
-  pure ⟨Level.zeronessOf l⟩
+The binder of an opened variable: its type; the Rust's `class_binders` is
+`xs.mapM classBinder`. -/
+def classBinder (x : EIdx) : AM EIdx := fvarTypeD x
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:108-109 ClassGen.binder
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.ClassGen.binder_bridge, then delete this line
 A generated binder of an opened variable; the Rust's `gen_binders` is
 `xs.mapM g.binder`. -/
-def ClassGen.binder (g : ClassGen) (x : EIdx) : AM (EIdx × BinderMeta) := do
-  let t ← fvarTypeD x
-  pure (t, g.bm)
+def ClassGen.binder (_g : ClassGen) (x : EIdx) : AM EIdx := fvarTypeD x
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:111-112 ClassGen.slotVar
 The prefix variable of slot `s`. -/
@@ -152,14 +133,13 @@ def ClassGen.major (g : ClassGen) (c d : Nat) : AM (Option (List EIdx × EIdx)) 
       pure (some (ifs, maj))
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:125-128 ClassGen.motiveTy
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.ClassGen.motiveTy_bridge, then delete this line
 Class `c`'s motive type at depth `d`: `∀ ı⃗ (t : I D⃗ ı⃗), Sort ℓ`. -/
 def ClassGen.motiveTy (g : ClassGen) (c d : Nat) : AM (Option EIdx) := do
   match ← g.major c d with
   | none => pure none
   | some (ifs, maj) => do
     let srt ← internE (.sort g.elim)
-    let body ← internE (.forallE maj srt ⟨.never⟩)
+    let body ← internE (.forallE maj srt)
     let bs ← ifs.mapM classBinder
     let r ← closeTelescope bs d body
     pure (some r)
@@ -179,7 +159,6 @@ def ClassGen.ihParts (g : ClassGen) (t tele : Nat) (w : EIdx) (d : Nat) :
     pure (some (xs, args.drop nPc))
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:138-158 ClassGen.minorTy
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.ClassGen.minorTy_bridge, then delete this line
 Constructor `x`'s minor premise type at depth `d`, of class `c`: its declared
 fields, then per recursive field `f` (walked type `w`) its inductive
 hypothesis `∀ a⃗, motive_t e⃗ (f a⃗)` at depth `d + nF + l`, over the motive at
@@ -199,7 +178,7 @@ def ClassGen.minorTy (g : ClassGen) (c : Nat) (x : ClassCtor) (d : Nat) :
         match x.kinds.getD i .ordinary with
         | .recursive t tele => some (i, t, tele)
         | .ordinary => none
-      let rec ihsGo : Nat → List (Nat × Nat × Nat) → AM (Option (List (EIdx × BinderMeta)))
+      let rec ihsGo : Nat → List (Nat × Nat × Nat) → AM (Option (List EIdx))
         | _, [] => pure (some [])
         | l, (i, t, tele) :: rest => do
           let e := d + x.nF + l
@@ -215,7 +194,7 @@ def ClassGen.minorTy (g : ClassGen) (c : Nat) (x : ClassCtor) (d : Nat) :
             let ih ← closeTelescope bs e body
             match ← ihsGo (l + 1) rest with
             | none => pure none
-            | some ihs => pure (some ((ih, g.bm) :: ihs))
+            | some ihs => pure (some (ih :: ihs))
       match ← ihsGo 0 recs with
       | none => pure none
       | some ihs => do
@@ -229,15 +208,14 @@ def ClassGen.minorTy (g : ClassGen) (c : Nat) (x : ClassCtor) (d : Nat) :
         pure (some r)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:160-173 ClassGen.prefixBinders
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.ClassGen.prefixBinders_bridge, then delete this line
 The prefix binders: the parameters, then every slot in the stream's order,
 slot `s` at depth `nP + s` — a motive's type (its class the count of motives
 before it) or the minor premise of its constructor.  The Rust's
 `motives_before`, `find_class_ctor`, `slot_binder` and `slot_binders` are its
 parts. -/
-def ClassGen.prefixBinders (g : ClassGen) : AM (Option (List (EIdx × BinderMeta))) := do
+def ClassGen.prefixBinders (g : ClassGen) : AM (Option (List EIdx)) := do
   let pbs ← g.params.mapM g.binder
-  let rec slotsGo : Nat → List ClassSlot → AM (Option (List (EIdx × BinderMeta)))
+  let rec slotsGo : Nat → List ClassSlot → AM (Option (List EIdx))
     | _, [] => pure (some [])
     | s, sl :: sls => do
       let d := g.nP + s
@@ -255,13 +233,12 @@ def ClassGen.prefixBinders (g : ClassGen) : AM (Option (List (EIdx × BinderMeta
       | some ty =>
         match ← slotsGo (s + 1) sls with
         | none => pure none
-        | some rest => pure (some ((ty, g.bm) :: rest))
+        | some rest => pure (some (ty :: rest))
   match ← slotsGo 0 g.slots with
   | none => pure none
   | some sbs => pure (some (pbs ++ sbs))
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:175-182 classGenRecTy
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classGenRecTy_bridge, then delete this line
 **The generated recursor type** at class `c`: the prefix, the class's indices
 and its major, over the motive applied to them. -/
 def classGenRecTy (g : ClassGen) (c : Nat) : AM (Option EIdx) := do
@@ -271,7 +248,7 @@ def classGenRecTy (g : ClassGen) (c : Nat) : AM (Option EIdx) := do
   | some (ifs, maj) => do
     let t ← internE (.fvar (rP + ifs.length) maj)
     let ibs ← ifs.mapM g.binder
-    let bs := g.pre ++ ibs ++ [(maj, g.bm)]
+    let bs := g.pre ++ ibs ++ [maj]
     let mv ← g.motVar c
     let body ← mkAppN mv (ifs ++ [t])
     let r ← closeTelescope bs 0 body
@@ -384,12 +361,11 @@ def classFieldsOf (p : BlockShape) (ihs : List (Nat × Nat)) :
         not its recursive fields (official: invalid recursor)")
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:251-266 classNodesAgree
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classNodesAgree_bridge, then delete this line
 **Node agreement at one recursive field** (K.53′): at every entry of the
 constructor, field `i` (opened at the datum's variables `fvs`) passes
 `targetK53` against the inductive hypothesis's class `mc`. -/
 def classNodesAgree (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List EIdx)
-    (mc : TargetMajor) (tele : List (EIdx × BinderMeta)) (leaf : EIdx) (fvs : List EIdx)
+    (mc : TargetMajor) (tele : List EIdx) (leaf : EIdx) (fvs : List EIdx)
     (i : Nat) : List NestCtorNf → AM Unit
   | [] => pure ()
   | e :: es => do
@@ -524,12 +500,11 @@ def classFormerTy (fe : IFEnv) (cvTas : List IConstantVal) (m : TargetMajor) : A
     | _ => fail (.internal "generated recursor: a class's former vanished")
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:359-380 classConstOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classConstOk_bridge, then delete this line
-**A generated constant, checked**: `checkConstantValF` without the annotation
-pass (the generator writes every binder datum), the guards in the cited
-order, then its type inferred and a sort.  The Rust's `class_const_ok_type`
-is its second half. -/
-def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM IConstantVal := do
+**A generated constant, checked**: `checkConstantValF` — the generated type is
+stored as the generator built it; inference validates it like any other
+declared type: the guards in the cited order, then its type inferred and a
+sort.  The Rust's `class_const_ok_type` is its second half. -/
+def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
@@ -548,10 +523,8 @@ def classConstOk (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) : AM IConst
     fail (← unresolvedConstsError "type of" cv.type)
   let stype ← inferTypeCore mode fe checkFuel 0 cv.type
   let _u ← ensureSortCore mode fe checkFuel 0 stype
-  pure cv
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:382-401 classRecTyOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classRecTyOk_bridge, then delete this line
 **One recursor's generated type, checked and compared**: the record's member,
 rule prefix and major index are the generated ones; the generated type is
 checked as a constant under the record's name and level parameters and must
@@ -567,7 +540,8 @@ def classRecTyOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) (rc : 
   match ← classGenRecTy g c with
   | none => fail (.internal "generated recursor: recursor type")
   | some gty => do
-    let cvG ← classConstOk mode fe ⟨rc.cvR.name, rc.cvR.levelParams, gty⟩
+    let cvG : IConstantVal := ⟨rc.cvR.name, rc.cvR.levelParams, gty⟩
+    classConstOk mode fe cvG
     if ← isDefEqCore mode fe checkFuel 0 cvRi.type cvG.type then pure cvG
     else fail (.invalid "generated recursor: the type of  is not the generated one \
       (official: invalid recursor)")
@@ -585,17 +559,15 @@ def classRecTysOk (mode : CheckMode) (fe : IFEnv) (g : ClassGen) (k : Nat) :
   | _, _, _ => fail (.internal "generated recursor: recursor list")
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:414-435 classRuleOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classRuleOk_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:97-123 sharedOpsRuleR
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classRuleOk_bridge, then delete this line
 **One generated rule, installed as generated**: closed, its level parameters
 the recursor's, resolving and typed at the rule-less recursors' environment
 `feR` (`sharedOpsRuleR`'s flush leaving the inference), its λ-telescope `n`
 long, its λ-domains resolving at the constructors' environment (`feR` at the
-bound `visT`) and annotated with the family's datum `pw`.  The Rust's
-`domains_resolve`, `domains_pw` and `class_rule_ok_tail` are its parts. -/
+bound `visT`).  The Rust's `domains_resolve` and `class_rule_ok_tail` are its
+parts. -/
 def classRuleOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (cvR : IConstantVal)
-    (pw : PropWhen) (n : Nat) (gen : EIdx) : AM EIdx := do
+    (n : Nat) (gen : EIdx) : AM EIdx := do
   unless ← looseBVarsBoundedFast coreWalkFuel 0 gen do
     fail (.internal "generated recursor: a rule of  is not closed")
   if ← hasFvarFast coreWalkFuel gen then
@@ -612,17 +584,14 @@ def classRuleOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (cvR : IConstantVa
   | none => fail (.internal "generated recursor: a rule of  is not a λ-telescope over the \
       recursor's prefix and the constructor's fields")
   | some (rbs, _) => do
-    unless ← rbs.allM (fun b => constsResolveFFast (feR.restrictTo visT) b.1) do
+    unless ← rbs.allM (fun b => constsResolveFFast (feR.restrictTo visT) b) do
       fail (← unresolvedConstsError "the domains of a generated rule of" gen)
-    if rbs.all (fun b => b.2.pw == pw) then pure gen
-    else fail (.internal "generated recursor: a rule of  does not annotate its λ-binders \
-      with the family's elimination datum")
+    pure gen
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:437-448 classRulesOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classRulesOk_bridge, then delete this line
 A recursor's generated rules, one per constructor of its class. -/
 def classRulesOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (g : ClassGen)
-    (recCls : List Nat) (cvGs : List IConstantVal) (cvR : IConstantVal) (pw : PropWhen)
+    (recCls : List Nat) (cvGs : List IConstantVal) (cvR : IConstantVal)
     (c : Nat) : List ClassCtor → AM (List EIdx)
   | [] => pure []
   | x :: xs => do
@@ -631,35 +600,33 @@ def classRulesOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (g : ClassGen)
     | none => fail (.invalid "generated recursor: the rule of  calls a class whose recursor \
         the stream omits (official: unknown constant)")
     | some gen => do
-      let r ← classRuleOk mode visT feR cvR pw (g.nP + g.slots.length + x.nF) gen
-      let rs ← classRulesOk mode visT feR g recCls cvGs cvR pw c xs
+      let r ← classRuleOk mode visT feR cvR (g.nP + g.slots.length + x.nF) gen
+      let rs ← classRulesOk mode visT feR g recCls cvGs cvR c xs
       pure (r :: rs)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:450-459 classRecsRulesOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classRecsRulesOk_bridge, then delete this line
 Every recursor's generated rules, with its class (the shorter of the two
 lists decides, as the cited zip does).  `recCls` and `cvGs` are the whole
 lists `classRecOf` reads; the two walked lists are their tails. -/
 def classRecsRulesOk (mode : CheckMode) (visT : Nat) (feR : IFEnv) (g : ClassGen)
-    (recCls : List Nat) (pw : PropWhen) (cvGs : List IConstantVal) :
+    (recCls : List Nat) (cvGs : List IConstantVal) :
     List IConstantVal → List Nat → AM (List (IConstantVal × TargetMajor × List EIdx))
   | cvG :: cvs, c :: cs => do
     let xs := g.ctors.getD c []
-    let rhss ← classRulesOk mode visT feR g recCls cvGs cvG pw c xs
+    let rhss ← classRulesOk mode visT feR g recCls cvGs cvG c xs
     let m ← targetMajorAt g.cls c
-    let rest ← classRecsRulesOk mode visT feR g recCls pw cvGs cvs cs
+    let rest ← classRecsRulesOk mode visT feR g recCls cvGs cvs cs
     pure ((cvG, m, rhss) :: rest)
   | _, _ => pure []
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:461-468 classStreamRecs
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classStreamRecs_bridge, then delete this line
 The stream's recursor constants, checked (`checkConstantValF`). -/
 def classStreamRecs (mode : CheckMode) (fe : IFEnv) : List RecShape → AM (List IConstantVal)
   | [] => pure []
   | rc :: rcs => do
-    let cv ← checkConstantVal mode fe rc.cvR
+    checkConstantVal mode fe rc.cvR
     let cvs ← classStreamRecs mode fe rcs
-    pure (cv :: cvs)
+    pure (rc.cvR :: cvs)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:470-473 classKeyCanon
 A class key's parameters moved to the block's canonical parameter
@@ -682,13 +649,10 @@ def classSeeds (ctx : NestCtx) (holes : List EIdx) : List TargetMajor → AM (Li
       pure (sd :: rest)
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:490-501 classKeyOf
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.classKeyOf_bridge, then delete this line
 **A class key, made checkable**: moved to the canonical parameter variables,
 its parameters closed over them (the Rust's `params_closed`, the `bvarB`
-read first), and annotated at the formers' environment over the parameters
-(the Rust's `annotate_list`). -/
-def classKeyOf (mode : CheckMode) (fe : IFEnv) (nP : Nat) (params : List EIdx)
-    (k : ClassKey) : AM ClassKey := do
+read first). -/
+def classKeyOf (nP : Nat) (params : List EIdx) (k : ClassKey) : AM ClassKey := do
   let k2 ← classKeyCanon params k
   let closed ← k2.ds.allM fun x => do
     if (← bvarB coreWalkFuel x) != 0 then pure false
@@ -696,11 +660,9 @@ def classKeyOf (mode : CheckMode) (fe : IFEnv) (nP : Nat) (params : List EIdx)
   unless closed do
     fail (.invalid "target rec: the major's parameters mention more than the \
       recursor's parameters")
-  let ds ← k2.ds.mapM fun x => annotateCore mode fe checkFuel nP x
-  pure { k2 with ds := ds }
+  pure k2
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:503-521 checkBlockClasses
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.checkBlockClasses_bridge, then delete this line
 **The classes, read and checked** at the formers' environment `fe`: the
 pre-pass on the stream's raw recursor types, every class key made checkable,
 every class checked as a major over the canonical parameters, exactly one
@@ -713,7 +675,7 @@ def checkBlockClasses (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (params :
       shape (official: invalid recursor)")
   | some rd => do
     let ks := ClassRead.classes rd.slots
-    let keys ← ks.mapM (classKeyOf mode fe p.nP params)
+    let keys ← ks.mapM (classKeyOf p.nP params)
     let ms ← classMajors mode fe p ctorsAs params keys
     if (List.range p.k).all (fun t => (ms.filter (·.member == some t)).length == 1) then
       pure (rd, ms)
@@ -741,7 +703,6 @@ where
       go (m + 1) rest fe2 (prevs ++ [(cv.name, prev)])
 
 /-- con-leche: ConLeche/Kernel/Inductives/GenRec.lean:530-572 genRecCheck
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove GenRec.genRecCheck_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:125-132 shadowOpsC
 **The generated recursor stage**, at the constructors' environment `fe`, on
 the classes and the positivity check's table: the pins, the stream's recursor
@@ -782,8 +743,7 @@ def genRecCheck (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nestedBit : Bo
   -- generation
   let formerTysC ← ms2.mapM (classFormerTy fe cvTas)
   let elim ← structElimLevel p.elim p.large
-  let bm ← classGenBm elim
-  let g0 : ClassGen := ⟨p.nP, params, ms2, formerTysC, rd.slots, ctors, elim, bm, []⟩
+  let g0 : ClassGen := ⟨p.nP, params, ms2, formerTysC, rd.slots, ctors, elim, []⟩
   match ← g0.prefixBinders with
   | none => fail (.internal "generated recursor: recursor prefix")
   | some pre => do
@@ -792,7 +752,7 @@ def genRecCheck (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (nestedBit : Bo
     let visT := fe.visibleBelow
     let (feR, prevs) := classFeR p cvGs rd.recCls fe
     flushCaches
-    let out ← classRecsRulesOk mode visT feR g rd.recCls g.bm.pw cvGs cvGs rd.recCls
+    let out ← classRecsRulesOk mode visT feR g rd.recCls cvGs cvGs rd.recCls
     let fe2 := prevs.foldr (fun (n, prev) acc => acc.popTemp n prev) feR
     flushCaches
     pure (fe2, out)

@@ -52,7 +52,6 @@ the same one, read in `O(1)` off the derived column instead of recomputed:
 |---|---|---|
 | `instantiate1Go` | `bvarBRaw < satRange && bvarBRaw ≤ d` | `bvarBRaw_exact` + task #97s's `instantiate1_of_bvarBound_le` |
 | `abstract1Go` | `fvarB ≤ d` | `abstract1_of_fvarRange_le` |
-| `lowerBVarsGo` | `bvarB ≤ c + amount` | `lowerBVars_of_bvarBound_le` |
 | `instantiate1LiftGo` | `bvarB ≤ d` | `instantiate1Lift_of_bvarBound_le` |
 | `instLPGo` | `hasLP = false` | `Expr.instantiateLevelParams_eq_self` |
 | `instantiateList`, `instantiateListGo` | `bvarBRaw < satRange && bvarBRaw ≤ d` | DERIVED, below |
@@ -68,9 +67,7 @@ without one because "a cutoff the original does not have needs its licence
 proved".  P2f's gate is what forced the question: `tests/e2e/proj_share.ndjson`
 does not finish without them, with 18 % of its cycles in `instantiateList`.
 The licence is elementary and is written out here for P3 to discharge as two
-`Expr`-level lemmas (the shape of `ExprOps.lean`'s own
-`lowerBVars_of_bvarBound_le`, which is the SAME argument at a different
-offset):
+`Expr`-level lemmas:
 
   * `looseBVarsBounded d e → instantiateList e vs d = e`.  Induction on `e`.
     The only clause that is not the congruence is `.bvar j`, and
@@ -102,7 +99,7 @@ lived.
 
 `instLPGo` is the only twin that touches a level ALGORITHM.  It reads the
 substitution back out of the store once, at the top-level entry, runs
-con-leche's own `Level.subst` / `Level.substPW` on the transient trees, and
+con-leche's own `Level.subst` on the transient trees, and
 re-interns the result.  `Level.hasParam` and `Expr.hasLevelParam` are not
 walks at all here: both are exactly the derived bit the store already carries.
 -/
@@ -127,7 +124,7 @@ It is applied ONLY to the walks whose downward cutoff is inexact, which is
 where it can fire at all: `abstract1Go` (the cutoff is `fvarB ≤ d`, and the arm
 abstracts the index `= d`), `abstractRangeGo` and `instLPGo` (the cutoff is
 the `hasLP` bit, and a substitution touching none of the parameters present is
-the identity).  `instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo`, `lowerBVarsGo` and
+the identity).  `instantiate1Go`, `instantiateListGo`, `liftLooseBVarsGo` and
 `instantiate1LiftGo` are NOT given it: their cutoff is `bvarB ≤ d` against a
 field that is EXACT below saturation, so past the cutoff a loose `bvar` at or
 above `d` really is present and really does move. -/
@@ -149,13 +146,12 @@ above `d` really is present and really does move. -/
 @[inline] def internRebuiltApp (h : EIdx) (same : Bool) (f a : EIdx) : AM EIdx :=
   if same then pure h else internAppE f a
 /-- con-leche: none — `internRebuilt` at the `lam` arm's fields. -/
-@[inline] def internRebuiltLam (h : EIdx) (same : Bool) (ty b : EIdx)
-    (m : ConLeche.BinderMeta) : AM EIdx :=
-  if same then pure h else internLamE ty b m
+@[inline] def internRebuiltLam (h : EIdx) (same : Bool) (ty b : EIdx) : AM EIdx :=
+  if same then pure h else internLamE ty b
 /-- con-leche: none — `internRebuilt` at the `forallE` arm's fields. -/
-@[inline] def internRebuiltForallE (h : EIdx) (same : Bool) (ty b : EIdx)
-    (m : ConLeche.BinderMeta) : AM EIdx :=
-  if same then pure h else internForallEE ty b m
+@[inline] def internRebuiltForallE (h : EIdx) (same : Bool) (ty b : EIdx) :
+    AM EIdx :=
+  if same then pure h else internForallEE ty b
 /-- con-leche: none — `internRebuilt` at the `letE` arm's fields. -/
 @[inline] def internRebuiltLetE (h : EIdx) (same : Bool) (ty val b : EIdx) :
     AM EIdx := if same then pure h else internLetEE ty val b
@@ -163,15 +159,12 @@ above `d` really is present and really does move. -/
 @[inline] def internRebuiltProj (h : EIdx) (same : Bool) (n : NIdx) (i : Nat)
     (e : EIdx) : AM EIdx := if same then pure h else internProjE n i e
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.internRebuiltBindI_bridge, then delete this line
-`internRebuiltBind` at a binder datum the walk is CARRYING ACROSS rather than
-changing (task #97-P6-16): a substituting walk takes a binder apart and puts
-it back with the same datum, and since the datum is interned the round trip
-carries its `BMIdx` and never decodes it. -/
-@[inline] def internRebuiltBindI (h : EIdx) (same : Bool) (tag : UInt32)
-    (ty b : EIdx) (mi : BMIdx) : AM EIdx :=
-  if same then pure h else internBindIE tag ty b mi
+/-- con-leche: none — `internRebuilt` at a binder arm's fields and the tag the
+walk decoded them at: a substituting walk takes a binder apart and puts it
+back with `internBindE`. -/
+@[inline] def internRebuiltBind (h : EIdx) (same : Bool) (tag : UInt32)
+    (ty b : EIdx) : AM EIdx :=
+  if same then pure h else internBindE tag ty b
 
 /-! ## Handle vectors, built by `Array.push`
 
@@ -244,7 +237,6 @@ own fuel.  A leaf arm whose whole body is `pure h` has nothing to split and
 stays in the dispatcher. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1ArmBVar_bridge, then delete this line
 `bvar` arm.  It does not recurse, so it sits outside the `mutual` block:
 `i = d` answers the substituted handle, `i > d` interns the lowered index,
 `i < d` answers the handle itself. -/
@@ -259,9 +251,7 @@ def instantiate1ArmBVar (v : EIdx) (h : EIdx) (d : Nat) : AM EIdx := do
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:23-39 instantiate1
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1Go_bridge, then delete this line
 con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1Go_bridge, then delete this line
 Replace `bvar d` by `v`, lowering loose `bvar`s above `d` by one.  The
 derived-word cutoff comes first (`bvarB ≤ d`, read off the packed word in
 `O(1)`); the five leaf kinds answer without touching the memo; everything
@@ -289,7 +279,6 @@ def instantiate1Go (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) : AM EIdx :=
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1ArmApp_bridge, then delete this line
 arm: probe, project, recurse into both children, rebuild, insert. -/
 def instantiate1ArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -307,7 +296,6 @@ def instantiate1ArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1ArmBind_bridge, then delete this line
 binder arm, `lam` and `forallE` in one exactly as the tag dispatch tests them
 (`ETag.isBind`); the datum travels as a HANDLE (task #97-P6-16). -/
 def instantiate1ArmBind (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
@@ -315,18 +303,17 @@ def instantiate1ArmBind (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
   match ← inst1Get (h, d) with
   | some r => pure r
   | none =>
-    match ← viewBindI h with
+    match ← viewBind h with
     | none => failDanglingE
-    | some (ty, body, m) => do
+    | some (ty, body) => do
       let t ← instantiate1Go v fuel ty d
       let b' ← instantiate1Go v fuel body (d + 1)
-      let r ← internBindIE h.tag t b' m
+      let r ← internBindE h.tag t b'
       inst1Set (h, d) r
       pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1ArmLet_bridge, then delete this line
 `letE` arm; the body descends at `d + 1`. -/
 def instantiate1ArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -345,7 +332,6 @@ def instantiate1ArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:74-110 instantiate1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1ArmProj_bridge, then delete this line
 `proj` arm. -/
 def instantiate1ArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -408,7 +394,6 @@ replacement with a *shorter* list and the memo is keyed for the outer one. -/
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiateList_bridge, then delete this line
 unmemoized bulk instantiation.  con-leche's termination measure is
 `(vs.length, sizeOf e)`; the arena's single fuel counter decreases on both
 kinds of recursive call, which is the same order flattened.  This is the
@@ -437,7 +422,6 @@ def instantiateList (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListArmApp_bridge, then delete this line
 `app` arm. -/
 def instListArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -450,20 +434,18 @@ def instListArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListArmBind_bridge, then delete this line
 binder arm. -/
 def instListArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
-  match ← viewBindI h with
+  match ← viewBind h with
   | none => failDanglingE
-  | some (ty, body, m) => do
+  | some (ty, body) => do
     let t ← instantiateList vs fuel ty d
     let b ← instantiateList vs fuel body (d + 1)
-    internBindIE h.tag t b m
+    internBindE h.tag t b
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListArmLet_bridge, then delete this line
 `letE` arm. -/
 def instListArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -477,7 +459,6 @@ def instListArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListArmProj_bridge, then delete this line
 `proj` arm. -/
 def instListArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -489,7 +470,6 @@ def instListArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:185-229 instantiateList — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListArmBVar_bridge, then delete this line
 `bvar` arm, which is the one that recurses with a SHORTER argument vector. -/
 def instListArmBVar (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -544,7 +524,6 @@ theorem instantiateList_succ (vs : Array EIdx) (fuel : Nat) (h : EIdx)
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiateListGo_bridge, then delete this line
 memoized bulk instantiation.  The `bvar` arm delegates to the pure walk
 above, exactly as con-leche's does — so it is called by name and is not one
 of this block's arms.  This is the DISPATCHER; the arms are split per DESIGN
@@ -570,7 +549,6 @@ def instantiateListGo (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListGoArmApp_bridge, then delete this line
 `app` arm. -/
 def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -588,25 +566,23 @@ def instListGoArmApp (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListGoArmBind_bridge, then delete this line
 binder arm. -/
 def instListGoArmBind (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
   match ← instLGet (h, d) with
   | some r => pure r
   | none =>
-    match ← viewBindI h with
+    match ← viewBind h with
     | none => failDanglingE
-    | some (ty, body, m) => do
+    | some (ty, body) => do
       let t ← instantiateListGo vs fuel ty d
       let b ← instantiateListGo vs fuel body (d + 1)
-      let r ← internBindIE h.tag t b m
+      let r ← internBindE h.tag t b
       instLSet (h, d) r
       pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListGoArmLet_bridge, then delete this line
 `letE` arm. -/
 def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -625,7 +601,6 @@ def instListGoArmLet (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:261-297 instantiateListGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instListGoArmProj_bridge, then delete this line
 `proj` arm. -/
 def instListGoArmProj (vs : Array EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
     AM EIdx := do
@@ -680,9 +655,7 @@ def instantiateListFast (fuel : Nat) (e : EIdx) (vs : Array EIdx) (d : Nat := 0)
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:452-472 liftLooseBVars
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftLooseBVarsGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftLooseBVarsGo_bridge, then delete this line
 Bump every loose bound variable `≥ cutoff` by `amount`.  This is the
 DISPATCHER (arms split per DESIGN §8.6's ruling of 2026-09-22).  A leaf arm
 whose whole body is `pure h` has nothing to split and stays here; every arm
@@ -710,14 +683,13 @@ def liftLooseBVarsGo (amount : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
     | .const _ _ => pure h
     | .lit _ => pure h
     | .app a b => liftArmApp amount fuel h c a b
-    | .lam ty body m => liftArmLam amount fuel h c ty body m
-    | .forallE ty body m => liftArmForallE amount fuel h c ty body m
+    | .lam ty body => liftArmLam amount fuel h c ty body
+    | .forallE ty body => liftArmForallE amount fuel h c ty body
     | .letE ty val body => liftArmLet amount fuel h c ty val body
     | .proj n i sub => liftArmProj amount fuel h c n i sub
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftArmApp_bridge, then delete this line
 `app` arm. -/
 def liftArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (a b : EIdx) :
     AM EIdx := do
@@ -732,37 +704,34 @@ def liftArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (a b : EIdx) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftArmLam_bridge, then delete this line
 `lam` arm; the body descends at `c + 1`. -/
-def liftArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
-    (m : ConLeche.BinderMeta) : AM EIdx := do
+def liftArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx) :
+    AM EIdx := do
   match ← liftGet (h, c) with
   | some r => pure r
   | none => do
     let t ← liftLooseBVarsGo amount fuel ty c
     let b ← liftLooseBVarsGo amount fuel body (c + 1)
-    let r ← internE (.lam t b m)
+    let r ← internLamE t b
     liftSet (h, c) r
     pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftArmForallE_bridge, then delete this line
 `forallE` arm. -/
-def liftArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
-    (m : ConLeche.BinderMeta) : AM EIdx := do
+def liftArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx) :
+    AM EIdx := do
   match ← liftGet (h, c) with
   | some r => pure r
   | none => do
     let t ← liftLooseBVarsGo amount fuel ty c
     let b ← liftLooseBVarsGo amount fuel body (c + 1)
-    let r ← internE (.forallE t b m)
+    let r ← internForallEE t b
     liftSet (h, c) r
     pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftArmLet_bridge, then delete this line
 `letE` arm. -/
 def liftArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
     AM EIdx := do
@@ -778,7 +747,6 @@ def liftArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:502-538 liftLooseBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.liftArmProj_bridge, then delete this line
 `proj` arm. -/
 def liftArmProj (amount fuel : Nat) (h : EIdx) (c : Nat) (n : NIdx) (i : Nat)
     (sub : EIdx) : AM EIdx := do
@@ -815,8 +783,8 @@ theorem liftLooseBVarsGo_succ (amount fuel : Nat) (h : EIdx) (c : Nat) :
       | .const _ _ => pure h
       | .lit _ => pure h
       | .app a b => liftArmApp amount fuel h c a b
-      | .lam ty body m => liftArmLam amount fuel h c ty body m
-      | .forallE ty body m => liftArmForallE amount fuel h c ty body m
+      | .lam ty body => liftArmLam amount fuel h c ty body
+      | .forallE ty body => liftArmForallE amount fuel h c ty body
       | .letE ty val body => liftArmLet amount fuel h c ty val body
       | .proj n i sub => liftArmProj amount fuel h c n i sub) := by
   rw [liftLooseBVarsGo]
@@ -833,7 +801,6 @@ def liftLooseBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:636-643 sizeB — the binder
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.sizeB_bridge, then delete this line
 node count, `fvar` annotations NOT descended into.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22); the five leaf kinds are one
 expression and stay here. -/
@@ -844,13 +811,12 @@ def sizeB (fuel : Nat) (h : EIdx) : AM Nat :=
     match ← view h with
     | .bvar _ | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 1
     | .app f a => sizeBArmApp fuel f a
-    | .lam ty body _ | .forallE ty body _ => sizeBArmBind fuel ty body
+    | .lam ty body | .forallE ty body => sizeBArmBind fuel ty body
     | .letE ty val body => sizeBArmLet fuel ty val body
     | .proj _ _ sub => sizeBArmProj fuel sub
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:636-643 sizeB — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.sizeBArmApp_bridge, then delete this line
 arm. -/
 def sizeBArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   let x ← sizeB fuel f
@@ -859,7 +825,6 @@ def sizeBArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:636-643 sizeB — the binder
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.sizeBArmBind_bridge, then delete this line
 arm (`lam` and `forallE` share it, as they do in con-leche). -/
 def sizeBArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   let x ← sizeB fuel ty
@@ -868,7 +833,6 @@ def sizeBArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:636-643 sizeB — the `letE`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.sizeBArmLet_bridge, then delete this line
 arm. -/
 def sizeBArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   let x ← sizeB fuel ty
@@ -878,7 +842,6 @@ def sizeBArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:636-643 sizeB — the `proj`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.sizeBArmProj_bridge, then delete this line
 arm. -/
 def sizeBArmProj (fuel : Nat) (sub : EIdx) : AM Nat := do
   let x ← sizeB fuel sub
@@ -890,7 +853,6 @@ end
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:716-728 fvarLeaves — all reachable
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeaves_bridge, then delete this line
 `fvar` leaves, hereditarily through their annotations.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22). -/
 def fvarLeaves (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) :=
@@ -900,14 +862,13 @@ def fvarLeaves (fuel : Nat) (h : EIdx) : AM (List (Nat × EIdx)) :=
     match ← view h with
     | .fvar idx ty => fvarLeavesArmFVar fuel idx ty
     | .app f a => fvarLeavesArmApp fuel f a
-    | .lam ty b _ | .forallE ty b _ => fvarLeavesArmBind fuel ty b
+    | .lam ty b | .forallE ty b => fvarLeavesArmBind fuel ty b
     | .letE t v b => fvarLeavesArmLet fuel t v b
     | .proj _ _ sub => fvarLeaves fuel sub
     | .bvar _ | .sort _ | .const _ _ | .lit _ => pure []
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:716-728 fvarLeaves — the `fvar`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesArmFVar_bridge, then delete this line
 arm: the leaf itself, then its annotation. -/
 def fvarLeavesArmFVar (fuel : Nat) (idx : Nat) (ty : EIdx) :
     AM (List (Nat × EIdx)) := do
@@ -916,7 +877,6 @@ def fvarLeavesArmFVar (fuel : Nat) (idx : Nat) (ty : EIdx) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:716-728 fvarLeaves — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesArmApp_bridge, then delete this line
 arm. -/
 def fvarLeavesArmApp (fuel : Nat) (f a : EIdx) : AM (List (Nat × EIdx)) := do
   let x ← fvarLeaves fuel f
@@ -925,7 +885,6 @@ def fvarLeavesArmApp (fuel : Nat) (f a : EIdx) : AM (List (Nat × EIdx)) := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:716-728 fvarLeaves — the binder
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesArmBind_bridge, then delete this line
 arm. -/
 def fvarLeavesArmBind (fuel : Nat) (ty b : EIdx) : AM (List (Nat × EIdx)) := do
   let x ← fvarLeaves fuel ty
@@ -934,7 +893,6 @@ def fvarLeavesArmBind (fuel : Nat) (ty b : EIdx) : AM (List (Nat × EIdx)) := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:716-728 fvarLeaves — the `letE`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesArmLet_bridge, then delete this line
 arm. -/
 def fvarLeavesArmLet (fuel : Nat) (t v b : EIdx) : AM (List (Nat × EIdx)) := do
   let x ← fvarLeaves fuel t
@@ -995,7 +953,6 @@ needs none. -/
 mutual
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.wscopedBGo_bridge, then delete this line
 memoized scope walk.  `fvar` annotations are descended (at the annotation's
 own index, not `d`), so the cached fvar range does not decide it and the memo
 key carries `d`.  The dispatcher (arms split per DESIGN §8.6's ruling of
@@ -1018,15 +975,14 @@ def wscopedBGo (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat) (d : Nat)
             if idx < d then wscopedBGo memo fuel idx ty
             else pure (false, memo)
           | .app f a => wscopedBGoArmApp memo fuel d f a
-          | .lam ty body _ => wscopedBGoArmBind memo fuel d ty body
-          | .forallE ty body _ => wscopedBGoArmBind memo fuel d ty body
+          | .lam ty body => wscopedBGoArmBind memo fuel d ty body
+          | .forallE ty body => wscopedBGoArmBind memo fuel d ty body
           | .letE ty val body => wscopedBGoArmLet memo fuel d ty val body
           | .proj _ _ sub => wscopedBGo memo fuel d sub
         pure (r, memo'.insert (h, d) r)
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.wscopedBGoArmApp_bridge, then delete this line
 arm. -/
 def wscopedBGoArmApp (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
     (d : Nat) (f a : EIdx) : AM (Bool × Std.HashMap (EIdx × Nat) Bool) := do
@@ -1035,7 +991,6 @@ def wscopedBGoArmApp (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.wscopedBGoArmBind_bridge, then delete this line
 binder arm (`lam` and `forallE` have the same clause, so they share it). -/
 def wscopedBGoArmBind (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
     (d : Nat) (ty body : EIdx) :
@@ -1045,7 +1000,6 @@ def wscopedBGoArmBind (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1020-1079 wscopedBXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.wscopedBGoArmLet_bridge, then delete this line
 `letE` arm. -/
 def wscopedBGoArmLet (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
     (d : Nat) (ty val body : EIdx) :
@@ -1082,8 +1036,8 @@ theorem wscopedBGo_succ (memo : Std.HashMap (EIdx × Nat) Bool) (fuel : Nat)
               if idx < d then wscopedBGo memo fuel idx ty
               else pure (false, memo)
             | .app f a => wscopedBGoArmApp memo fuel d f a
-            | .lam ty body _ => wscopedBGoArmBind memo fuel d ty body
-            | .forallE ty body _ => wscopedBGoArmBind memo fuel d ty body
+            | .lam ty body => wscopedBGoArmBind memo fuel d ty body
+            | .forallE ty body => wscopedBGoArmBind memo fuel d ty body
             | .letE ty val body => wscopedBGoArmLet memo fuel d ty val body
             | .proj _ _ sub => wscopedBGo memo fuel d sub
           pure (r, memo'.insert (h, d) r)) := by
@@ -1097,7 +1051,6 @@ def wscopedBFast (fuel d : Nat) (h : EIdx) : AM Bool := do
 mutual
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesGo_bridge, then delete this line
 reachable `fvar` leaves, accumulated with a `seen` set so a shared subterm is
 walked once.  The accumulation order is con-leche's (its `acc` is consed on
 the way in), and the result is used only as a membership base.  The
@@ -1120,14 +1073,13 @@ def fvarLeavesGo (acc : List (Nat × EIdx)) (seen : Std.HashMap EIdx Unit)
         | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
         | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
         | .app f a => fvarLeavesGoArmApp acc seen fuel f a
-        | .lam ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
-        | .forallE ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+        | .lam ty body => fvarLeavesGoArmBind acc seen fuel ty body
+        | .forallE ty body => fvarLeavesGoArmBind acc seen fuel ty body
         | .letE ty val body => fvarLeavesGoArmLet acc seen fuel ty val body
         | .proj _ _ sub => fvarLeavesGo acc seen fuel sub
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesGoArmApp_bridge, then delete this line
 `app` arm. -/
 def fvarLeavesGoArmApp (acc : List (Nat × EIdx))
     (seen : Std.HashMap EIdx Unit) (fuel : Nat) (f a : EIdx) :
@@ -1137,7 +1089,6 @@ def fvarLeavesGoArmApp (acc : List (Nat × EIdx))
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesGoArmBind_bridge, then delete this line
 binder arm. -/
 def fvarLeavesGoArmBind (acc : List (Nat × EIdx))
     (seen : Std.HashMap EIdx Unit) (fuel : Nat) (ty body : EIdx) :
@@ -1147,7 +1098,6 @@ def fvarLeavesGoArmBind (acc : List (Nat × EIdx))
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1088-1142 fvarLeavesGoC — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarLeavesGoArmLet_bridge, then delete this line
 `letE` arm. -/
 def fvarLeavesGoArmLet (acc : List (Nat × EIdx))
     (seen : Std.HashMap EIdx Unit) (fuel : Nat) (ty val body : EIdx) :
@@ -1182,8 +1132,8 @@ theorem fvarLeavesGo_succ (acc : List (Nat × EIdx))
           | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (acc, seen)
           | .fvar idx ty => fvarLeavesGo ((idx, ty) :: acc) seen fuel ty
           | .app f a => fvarLeavesGoArmApp acc seen fuel f a
-          | .lam ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
-          | .forallE ty body _ => fvarLeavesGoArmBind acc seen fuel ty body
+          | .lam ty body => fvarLeavesGoArmBind acc seen fuel ty body
+          | .forallE ty body => fvarLeavesGoArmBind acc seen fuel ty body
           | .letE ty val body => fvarLeavesGoArmLet acc seen fuel ty val body
           | .proj _ _ sub => fvarLeavesGo acc seen fuel sub) := by
   rw [fvarLeavesGo]
@@ -1205,7 +1155,6 @@ def leafMem : List (Nat × EIdx) → Nat → EIdx → Bool
 mutual
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.leavesSubGo_bridge, then delete this line
 fabrication-side leaf-subset test: every reachable `fvar` leaf of the walked
 term is one of `bl`.  Memoized on the node, because `bl` is fixed for the
 call.  The dispatcher (arms split per DESIGN §8.6's ruling of 2026-09-22);
@@ -1228,15 +1177,14 @@ def leavesSubGo (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
             if leafMem bl idx ty then leavesSubGo bl memo fuel ty
             else pure (false, memo)
           | .app f a => leavesSubArmApp bl memo fuel f a
-          | .lam ty body _ => leavesSubArmBind bl memo fuel ty body
-          | .forallE ty body _ => leavesSubArmBind bl memo fuel ty body
+          | .lam ty body => leavesSubArmBind bl memo fuel ty body
+          | .forallE ty body => leavesSubArmBind bl memo fuel ty body
           | .letE ty val body => leavesSubArmLet bl memo fuel ty val body
           | .proj _ _ sub => leavesSubGo bl memo fuel sub
         pure (r, memo'.insert h r)
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.leavesSubArmApp_bridge, then delete this line
 `app` arm. -/
 def leavesSubArmApp (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
     (fuel : Nat) (f a : EIdx) : AM (Bool × Std.HashMap EIdx Bool) := do
@@ -1245,7 +1193,6 @@ def leavesSubArmApp (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.leavesSubArmBind_bridge, then delete this line
 binder arm (`lam` and `forallE` have the same clause, so they share it). -/
 def leavesSubArmBind (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
     (fuel : Nat) (ty body : EIdx) : AM (Bool × Std.HashMap EIdx Bool) := do
@@ -1254,7 +1201,6 @@ def leavesSubArmBind (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1188-1247 leavesSubXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.leavesSubArmLet_bridge, then delete this line
 `letE` arm. -/
 def leavesSubArmLet (bl : List (Nat × EIdx)) (memo : Std.HashMap EIdx Bool)
     (fuel : Nat) (ty val body : EIdx) :
@@ -1292,8 +1238,8 @@ theorem leavesSubGo_succ (bl : List (Nat × EIdx))
               if leafMem bl idx ty then leavesSubGo bl memo fuel ty
               else pure (false, memo)
             | .app f a => leavesSubArmApp bl memo fuel f a
-            | .lam ty body _ => leavesSubArmBind bl memo fuel ty body
-            | .forallE ty body _ => leavesSubArmBind bl memo fuel ty body
+            | .lam ty body => leavesSubArmBind bl memo fuel ty body
+            | .forallE ty body => leavesSubArmBind bl memo fuel ty body
             | .letE ty val body => leavesSubArmLet bl memo fuel ty val body
             | .proj _ _ sub => leavesSubGo bl memo fuel sub
           pure (r, memo'.insert h r)) := by
@@ -1315,16 +1261,21 @@ def leafGuard (fuel : Nat) (fab base : EIdx) : AM Bool := do
 
 Each is a single `view` and a test: no recursion, no fuel. -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:962-969 lamPw — a λ node's
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lamPw_bridge, then delete this line
-prop-ness annotation, `none` off λs.  `PropWhen` is a value and not a term,
-so it crosses the signature unchanged. -/
-def lamPw (h : EIdx) : AM (Option PropWhen) := do
-  -- tag first, then the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
-  if h.tag == ETag.lam then
-    match ← viewBind h with
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:771-774 isForallE — is the
+expression a ∀?  A tag read off the handle word. -/
+@[inline] def isForallE (h : EIdx) : Bool := h.tag == ETag.forallE
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — two λs: their
+domains and bodies (the descent of the λ-telescope comparison, `defeqLams`).
+The tags first, then the two binder projections. -/
+def lamPair? (a b : EIdx) : AM (Option (EIdx × EIdx × EIdx × EIdx)) := do
+  if a.tag == ETag.lam && b.tag == ETag.lam then
+    match ← viewBind a with
     | none => failDanglingE
-    | some (_, _, m) => pure (some m.pw)
+    | some (ty₁, body₁) =>
+      match ← viewBind b with
+      | none => failDanglingE
+      | some (ty₂, body₂) => pure (some (ty₁, body₁, ty₂, body₂))
   else pure none
 
 /-! ## Application spines -/
@@ -1376,50 +1327,45 @@ decreasing_by omega
 /-! ## Telescopes -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1148-1154 stripLams — strip `k`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.stripLams_bridge, then delete this line
 leading λs.  The recursion is structural on `k`, so no fuel. -/
-def stripLams : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
+def stripLams : Nat → EIdx → AM (Option (List EIdx × EIdx))
   | 0, h => pure (some ([], h))
   | k + 1, h => do
     -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
     if h.tag == ETag.lam then
       match ← viewBind h with
       | none => failDanglingE
-      | some (ty, b, m) => do
+      | some (ty, b) => do
         match ← stripLams k b with
-        | some p => pure (some ((ty, m) :: p.1, p.2))
+        | some p => pure (some (ty :: p.1, p.2))
         | none => pure none
     else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1156-1162 stripPis — strip `k`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.stripPis_bridge, then delete this line
 leading `∀`s. -/
-def stripPis : Nat → EIdx → AM (Option (List (EIdx × BinderMeta) × EIdx))
+def stripPis : Nat → EIdx → AM (Option (List EIdx × EIdx))
   | 0, h => pure (some ([], h))
   | k + 1, h => do
     -- tag first, then the binder projection (task #97-T2-LOCKSTEP, D1)
     if h.tag == ETag.forallE then
       match ← viewBind h with
       | none => failDanglingE
-      | some (ty, b, m) => do
+      | some (ty, b) => do
         match ← stripPis k b with
-        | some p => pure (some ((ty, m) :: p.1, p.2))
+        | some p => pure (some (ty :: p.1, p.2))
         | none => pure none
     else pure none
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1164-1168 piResult — the body of a
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.piResult_bridge, then delete this line
 syntactic `∀`-telescope. -/
 def piResult : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: piResult")
   | fuel + 1, h => do
-    -- tag first, then the binder projection that stops at the datum HANDLE:
-    -- the port's `pi_result` reads `view_bind_i` and never decodes the datum
-    -- (task #97-P5-Core round 4's audit)
+    -- tag first, then the binder projection (task #97-P5-Core round 4's audit)
     if h.tag == ETag.forallE then
-      match ← viewBindI h with
+      match ← viewBind h with
       | none => failDanglingE
-      | some (_, b, _) => piResult fuel b
+      | some (_, b) => piResult fuel b
     else pure h
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1298-1303 fvarTypeD — the type
@@ -1440,42 +1386,6 @@ def instSpine (fuel : Nat) : List EIdx → Nat → EIdx → AM EIdx
     let e' ← instantiate1Fast fuel e a t
     instSpine fuel as (t - 1) e'
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1504-1519 recRulePlain — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.bvarRange_bridge, then delete this line
-comparand `(List.range cnP).map (fun k => Expr.bvar (mI - 1 - k))`, interned.
-Structural on the count, so no fuel. -/
-def bvarRange (mI : Nat) : Nat → Nat → AM (List EIdx)
-  | 0, _ => pure []
-  | n + 1, k => do
-    let b ← internE (.bvar (mI - 1 - k))
-    let rest ← bvarRange mI n (k + 1)
-    pure (b :: rest)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1504-1519 recRulePlain — a
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.recRulePlain_bridge, then delete this line
-recursor rule is canonical when its constructor's parameters are exactly the
-recursor's own leading arguments.  The `==` on the argument prefix is index
-equality (the `==` inventory's line 1240): exactness makes it the structural
-comparison con-leche writes. -/
-def recRulePlain (fuel : Nat) (recTy : EIdx) (mI rP cnP : Nat) : AM Bool := do
-  if !(decide (cnP ≤ rP) && decide (rP ≤ mI)) then
-    pure false
-  else
-    match ← stripPis mI recTy with
-    | some p => do
-      if p.2.tag == ETag.forallE then
-        -- the binder projection, as the port (task #97-T2-LOCKSTEP, D1)
-        match ← viewBind p.2 with
-        | none => failDanglingE
-        | some (dom, _, _) => do
-          let args ← getAppArgs fuel dom
-          let want ← bvarRange mI cnP 0
-          -- the prefix the comparand is as long as (`want.length`, which is
-          -- `cnP`), as the port's `eidx_take_beq` takes it (task #97-T2-LOCKSTEP)
-          pure (args.take want.length == want)
-      else pure false
-    | none => pure false
-
 /-! ## The packed range fields and their saturated-branch recomputations
 
 `ExprOps.lean:1293-1303`, `:1312-1323`, `:1368-1425`, `:1427-1439`.  The
@@ -1486,9 +1396,7 @@ that walk is memoized exactly as con-leche's is. -/
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1324-1334 Expr.bvarBound
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.bvarBoundGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.bvarBoundGo_bridge, then delete this line
 The memoized exact loose-bvar bound.  con-leche's `bvarBound` is the pure
 specification and `bvarBoundGo` the memoized walk; the arena has one
 function.  The memo is probed for every node, leaves included, as con-leche
@@ -1507,7 +1415,7 @@ def bvarBoundGo (fuel : Nat) (h : EIdx) : AM Nat :=
         | .bvar i => pure (i + 1)
         | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 0
         | .app f a => bvarBoundArmApp fuel f a
-        | .lam ty body _ | .forallE ty body _ => bvarBoundArmBind fuel ty body
+        | .lam ty body | .forallE ty body => bvarBoundArmBind fuel ty body
         | .letE ty val body => bvarBoundArmLet fuel ty val body
         | .proj _ _ sub => bvarBoundGo fuel sub)
       bvarBSet h r
@@ -1515,7 +1423,6 @@ def bvarBoundGo (fuel : Nat) (h : EIdx) : AM Nat :=
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.bvarBoundArmApp_bridge, then delete this line
 arm. -/
 def bvarBoundArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   let x ← bvarBoundGo fuel f
@@ -1524,7 +1431,6 @@ def bvarBoundArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.bvarBoundArmBind_bridge, then delete this line
 binder arm: the body's bound loses the binder it crossed. -/
 def bvarBoundArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   let x ← bvarBoundGo fuel ty
@@ -1533,7 +1439,6 @@ def bvarBoundArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1399-1423 bvarBoundGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.bvarBoundArmLet_bridge, then delete this line
 `letE` arm. -/
 def bvarBoundArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   let x ← bvarBoundGo fuel ty
@@ -1561,7 +1466,7 @@ theorem bvarBoundGo_succ (fuel : Nat) (h : EIdx) :
           | .bvar i => pure (i + 1)
           | .fvar _ _ | .sort _ | .const _ _ | .lit _ => pure 0
           | .app f a => bvarBoundArmApp fuel f a
-          | .lam ty body _ | .forallE ty body _ => bvarBoundArmBind fuel ty body
+          | .lam ty body | .forallE ty body => bvarBoundArmBind fuel ty body
           | .letE ty val body => bvarBoundArmLet fuel ty val body
           | .proj _ _ sub => bvarBoundGo fuel sub)
         bvarBSet h r
@@ -1578,9 +1483,7 @@ def bvarBoundMemo (fuel : Nat) (e : EIdx) : AM Nat := do
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1343-1354 Expr.fvarRange
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarRangeGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarRangeGo_bridge, then delete this line
 The memoized exact fvar range (`fvar` annotations are not descended into,
 matching the abstraction traversals).  The dispatcher (arms split per DESIGN
 §8.6's ruling of 2026-09-22). -/
@@ -1596,7 +1499,7 @@ def fvarRangeGo (fuel : Nat) (h : EIdx) : AM Nat :=
         | .fvar idx _ => pure (idx + 1)
         | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 0
         | .app f a => fvarRangeArmApp fuel f a
-        | .lam ty body _ | .forallE ty body _ => fvarRangeArmBind fuel ty body
+        | .lam ty body | .forallE ty body => fvarRangeArmBind fuel ty body
         | .letE ty val body => fvarRangeArmLet fuel ty val body
         | .proj _ _ sub => fvarRangeGo fuel sub)
       fvarBSet h r
@@ -1604,7 +1507,6 @@ def fvarRangeGo (fuel : Nat) (h : EIdx) : AM Nat :=
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarRangeArmApp_bridge, then delete this line
 arm. -/
 def fvarRangeArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
   let x ← fvarRangeGo fuel f
@@ -1613,7 +1515,6 @@ def fvarRangeArmApp (fuel : Nat) (f a : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarRangeArmBind_bridge, then delete this line
 binder arm; unlike `bvarBound` the cursor does not move. -/
 def fvarRangeArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
   let x ← fvarRangeGo fuel ty
@@ -1622,7 +1523,6 @@ def fvarRangeArmBind (fuel : Nat) (ty body : EIdx) : AM Nat := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1428-1453 fvarRangeGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.fvarRangeArmLet_bridge, then delete this line
 `letE` arm. -/
 def fvarRangeArmLet (fuel : Nat) (ty val body : EIdx) : AM Nat := do
   let x ← fvarRangeGo fuel ty
@@ -1650,7 +1550,7 @@ theorem fvarRangeGo_succ (fuel : Nat) (h : EIdx) :
           | .fvar idx _ => pure (idx + 1)
           | .bvar _ | .sort _ | .const _ _ | .lit _ => pure 0
           | .app f a => fvarRangeArmApp fuel f a
-          | .lam ty body _ | .forallE ty body _ => fvarRangeArmBind fuel ty body
+          | .lam ty body | .forallE ty body => fvarRangeArmBind fuel ty body
           | .letE ty val body => fvarRangeArmLet fuel ty val body
           | .proj _ _ sub => fvarRangeGo fuel sub)
         fvarBSet h r
@@ -1699,7 +1599,6 @@ The fvar-range cutoff comes first: a node whose whole subtree mentions no
 `fvar` at or above `d` is its own abstraction. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1ArmFVar_bridge, then delete this line
 `fvar` arm.  It does not recurse, so it sits outside the `mutual` block. -/
 def abstract1ArmFVar (d : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
   match ← viewFVarIdx h with
@@ -1709,9 +1608,7 @@ def abstract1ArmFVar (d : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:655-671 abstract1
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1Go_bridge, then delete this line
 con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1Go_bridge, then delete this line
 Close a binder body: replace `fvar d …` leaves by `bvar k`, bumping `k` under
 binders.  `fvar` annotations are not descended into.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22). -/
@@ -1733,7 +1630,6 @@ def abstract1Go (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx :=
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1ArmApp_bridge, then delete this line
 arm. -/
 def abstract1ArmApp (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
   match ← abs1Get (h, k) with
@@ -1750,25 +1646,23 @@ def abstract1ArmApp (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1ArmBind_bridge, then delete this line
 binder arm; the body descends at `k + 1`. -/
 def abstract1ArmBind (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
     AM EIdx := do
   match ← abs1Get (h, k) with
   | some r => pure r
   | none =>
-    match ← viewBindI h with
+    match ← viewBind h with
     | none => failDanglingE
-    | some (ty, body, m) => do
+    | some (ty, body) => do
       let t ← abstract1Go d fuel ty k
       let b ← abstract1Go d fuel body (k + 1)
-      let r ← internRebuiltBindI h (t == ty && b == body) h.tag t b m
+      let r ← internRebuiltBind h (t == ty && b == body) h.tag t b
       abs1Set (h, k) r
       pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1ArmLet_bridge, then delete this line
 `letE` arm. -/
 def abstract1ArmLet (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
   match ← abs1Get (h, k) with
@@ -1786,7 +1680,6 @@ def abstract1ArmLet (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) : AM EIdx := do
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1820-1864 abstract1Go — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstract1ArmProj_bridge, then delete this line
 `proj` arm. -/
 def abstract1ArmProj (d : Nat) (fuel : Nat) (h : EIdx) (k : Nat) :
     AM EIdx := do
@@ -1854,7 +1747,6 @@ call the key `(h, c)` determines the result at the call's own fixed `d` and
 `k`.  That is a table IDENTITY, not a clause. -/
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.absRangeArmFVar_bridge, then delete this line
 `fvar` arm, which does not recurse and so sits outside the `mutual` block. -/
 def absRangeArmFVar (d k : Nat) (h : EIdx) (c : Nat) : AM EIdx := do
   match ← viewFVarIdx h with
@@ -1866,9 +1758,7 @@ def absRangeArmFVar (d k : Nat) (h : EIdx) (c : Nat) : AM EIdx := do
 mutual
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:676-692 abstractRangeP
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstractRangeGo_bridge, then delete this line
 con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.abstractRangeGo_bridge, then delete this line
 The memoized `abstractRange` walk: close the `k` free variables
 `d … d + k - 1` into `bvar`s at cursor `c`, innermost binder to the lowest
 index.  The dispatcher (arms split per DESIGN §8.6's ruling of
@@ -1891,7 +1781,6 @@ def abstractRangeGo (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) : AM EIdx :=
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.absRangeGoArmApp_bridge, then delete this line
 `app` arm. -/
 def absRangeGoArmApp (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
     AM EIdx := do
@@ -1909,25 +1798,23 @@ def absRangeGoArmApp (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.absRangeGoArmBind_bridge, then delete this line
 binder arm; the body descends at `c + 1`. -/
 def absRangeGoArmBind (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
     AM EIdx := do
   match ← abs1Get (h, c) with
   | some r => pure r
   | none =>
-    match ← viewBindI h with
+    match ← viewBind h with
     | none => failDanglingE
-    | some (ty, body, m) => do
+    | some (ty, body) => do
       let t ← abstractRangeGo d k fuel ty c
       let b ← abstractRangeGo d k fuel body (c + 1)
-      let r ← internRebuiltBindI h (t == ty && b == body) h.tag t b m
+      let r ← internRebuiltBind h (t == ty && b == body) h.tag t b
       abs1Set (h, c) r
       pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.absRangeGoArmLet_bridge, then delete this line
 `letE` arm. -/
 def absRangeGoArmLet (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
     AM EIdx := do
@@ -1946,7 +1833,6 @@ def absRangeGoArmLet (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:707-738 abstractRangeXP — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.absRangeGoArmProj_bridge, then delete this line
 `proj` arm. -/
 def absRangeGoArmProj (d k : Nat) (fuel : Nat) (h : EIdx) (c : Nat) :
     AM EIdx := do
@@ -2000,151 +1886,6 @@ def abstractRangeFast (fuel : Nat) (e : EIdx) (d k c : Nat) : AM EIdx := do
     abs1Clear
     pure r
 
-/-! ## `lowerBVars` — `ExprOps.lean:694-716`, `:2012-2049`, `:2144-2146` -/
-
-mutual
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:772-794 lowerBVars
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerBVarsGo_bridge, then delete this line
-con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerBVarsGo_bridge, then delete this line
-Lower every loose bound variable `≥ cutoff + amount` by `amount`, with
-con-leche's own `bvarB ≤ c + amount` cutoff.  The dispatcher (arms split per
-DESIGN §8.6's ruling of 2026-09-22); the four leaf arms are `pure h` and stay
-here, and so does the `bvar` arm, which is one `if` and no memo. -/
-def lowerBVarsGo (amount : Nat) (fuel : Nat) (h : EIdx) (c : Nat) : AM EIdx :=
-  match fuel with
-  | 0 => fail (.internal "fuel exhausted: lowerBVars")
-  | fuel + 1 => do
-    let bb ← bvarB fuel h
-    if bb ≤ c + amount then
-      pure h
-    else
-      match ← view h with
-      | .bvar i => if i ≥ c + amount then internE (.bvar (i - amount)) else pure h
-      | .fvar _ _ => pure h
-      | .sort _ => pure h
-      | .const _ _ => pure h
-      | .lit _ => pure h
-      | .app f a => lowerArmApp amount fuel h c f a
-      | .lam ty body m => lowerArmLam amount fuel h c ty body m
-      | .forallE ty body m => lowerArmForallE amount fuel h c ty body m
-      | .letE ty val body => lowerArmLet amount fuel h c ty val body
-      | .proj n i sub => lowerArmProj amount fuel h c n i sub
-termination_by (fuel, 0)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerArmApp_bridge, then delete this line
-`app` arm. -/
-def lowerArmApp (amount fuel : Nat) (h : EIdx) (c : Nat) (f a : EIdx) :
-    AM EIdx := do
-  match ← lowerGet (h, c) with
-  | some r => pure r
-  | none => do
-    let f' ← lowerBVarsGo amount fuel f c
-    let a' ← lowerBVarsGo amount fuel a c
-    let r ← internE (.app f' a')
-    lowerSet (h, c) r
-    pure r
-termination_by (fuel, 1)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerArmLam_bridge, then delete this line
-`lam` arm. -/
-def lowerArmLam (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
-    (m : ConLeche.BinderMeta) : AM EIdx := do
-  match ← lowerGet (h, c) with
-  | some r => pure r
-  | none => do
-    let t ← lowerBVarsGo amount fuel ty c
-    let b ← lowerBVarsGo amount fuel body (c + 1)
-    let r ← internE (.lam t b m)
-    lowerSet (h, c) r
-    pure r
-termination_by (fuel, 1)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerArmForallE_bridge, then delete this line
-`forallE` arm. -/
-def lowerArmForallE (amount fuel : Nat) (h : EIdx) (c : Nat) (ty body : EIdx)
-    (m : ConLeche.BinderMeta) : AM EIdx := do
-  match ← lowerGet (h, c) with
-  | some r => pure r
-  | none => do
-    let t ← lowerBVarsGo amount fuel ty c
-    let b ← lowerBVarsGo amount fuel body (c + 1)
-    let r ← internE (.forallE t b m)
-    lowerSet (h, c) r
-    pure r
-termination_by (fuel, 1)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerArmLet_bridge, then delete this line
-`letE` arm. -/
-def lowerArmLet (amount fuel : Nat) (h : EIdx) (c : Nat) (ty val body : EIdx) :
-    AM EIdx := do
-  match ← lowerGet (h, c) with
-  | some r => pure r
-  | none => do
-    let t ← lowerBVarsGo amount fuel ty c
-    let w ← lowerBVarsGo amount fuel val c
-    let b ← lowerBVarsGo amount fuel body (c + 1)
-    let r ← internE (.letE t w b)
-    lowerSet (h, c) r
-    pure r
-termination_by (fuel, 1)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2286-2323 lowerBVarsGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerArmProj_bridge, then delete this line
-`proj` arm. -/
-def lowerArmProj (amount fuel : Nat) (h : EIdx) (c : Nat) (n : NIdx) (i : Nat)
-    (sub : EIdx) : AM EIdx := do
-  match ← lowerGet (h, c) with
-  | some r => pure r
-  | none => do
-    let u ← lowerBVarsGo amount fuel sub c
-    let r ← internE (.proj n i u)
-    lowerSet (h, c) r
-    pure r
-termination_by (fuel, 1)
-
-end
-
-/-- con-leche: none — `lowerBVarsGo`'s clause at fuel `0` (template rule 9). -/
-theorem lowerBVarsGo_zero (amount : Nat) (h : EIdx) (c : Nat) :
-    lowerBVarsGo amount 0 h c =
-      fail (.internal "fuel exhausted: lowerBVars") := by
-  rw [lowerBVarsGo]
-
-/-- con-leche: none — `lowerBVarsGo`'s clause at `fuel + 1` (template rule
-9). -/
-theorem lowerBVarsGo_succ (amount fuel : Nat) (h : EIdx) (c : Nat) :
-    lowerBVarsGo amount (fuel + 1) h c = (do
-      let bb ← bvarB fuel h
-      if bb ≤ c + amount then
-        pure h
-      else
-        match ← view h with
-        | .bvar i => if i ≥ c + amount then internE (.bvar (i - amount)) else pure h
-        | .fvar _ _ => pure h
-        | .sort _ => pure h
-        | .const _ _ => pure h
-        | .lit _ => pure h
-        | .app f a => lowerArmApp amount fuel h c f a
-        | .lam ty body m => lowerArmLam amount fuel h c ty body m
-        | .forallE ty body m => lowerArmForallE amount fuel h c ty body m
-        | .letE ty val body => lowerArmLet amount fuel h c ty val body
-        | .proj n i sub => lowerArmProj amount fuel h c n i sub) := by
-  rw [lowerBVarsGo]
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2418-2420 lowerBVarsFast — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.lowerBVarsFast_bridge, then delete this line
-top-level entry. -/
-def lowerBVarsFast (fuel amount c : Nat) (e : EIdx) : AM EIdx := do
-  lowerClear
-  let r ← lowerBVarsGo amount fuel e c
-  lowerClear
-  pure r
-
 /-! ## `instantiate1Lift` — `ExprOps.lean:718-739`, `:2222-2261`, `:2356-2358`
 
 The general capture-avoiding substitution: unlike `instantiate1`, the
@@ -2156,9 +1897,7 @@ separate memo tables. -/
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:613-634 instantiate1Lift
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1LiftGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instantiate1LiftGo_bridge, then delete this line
 Replace `bvar d` by `v`, lifting `v`'s loose `bvar`s past the binders crossed
 on the way, with con-leche's own `bvarB ≤ d` cutoff.  The dispatcher (arms
 split per DESIGN §8.6's ruling of 2026-09-22); the `bvar` arm — the NESTED
@@ -2182,14 +1921,13 @@ def instantiate1LiftGo (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
       | .const _ _ => pure h
       | .lit _ => pure h
       | .app f a => inst1LiftArmApp v fuel h d f a
-      | .lam ty body m => inst1LiftArmLam v fuel h d ty body m
-      | .forallE ty body m => inst1LiftArmForallE v fuel h d ty body m
+      | .lam ty body => inst1LiftArmLam v fuel h d ty body
+      | .forallE ty body => inst1LiftArmForallE v fuel h d ty body
       | .letE ty val body => inst1LiftArmLet v fuel h d ty val body
       | .proj n i sub => inst1LiftArmProj v fuel h d n i sub
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.inst1LiftArmApp_bridge, then delete this line
 the `app` arm. -/
 def inst1LiftArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (f a : EIdx) :
     AM EIdx := do
@@ -2204,37 +1942,34 @@ def inst1LiftArmApp (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (f a : EIdx) :
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.inst1LiftArmLam_bridge, then delete this line
 the `lam` arm. -/
 def inst1LiftArmLam (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
-    (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+    (ty body : EIdx) : AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
     let t ← instantiate1LiftGo v fuel ty d
     let b ← instantiate1LiftGo v fuel body (d + 1)
-    let r ← internE (.lam t b m)
+    let r ← internLamE t b
     inst1LSet (h, d) r
     pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.inst1LiftArmForallE_bridge, then delete this line
 the `forallE` arm. -/
 def inst1LiftArmForallE (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
-    (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+    (ty body : EIdx) : AM EIdx := do
   match ← inst1LGet (h, d) with
   | some r => pure r
   | none => do
     let t ← instantiate1LiftGo v fuel ty d
     let b ← instantiate1LiftGo v fuel body (d + 1)
-    let r ← internE (.forallE t b m)
+    let r ← internForallEE t b
     inst1LSet (h, d) r
     pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.inst1LiftArmLet_bridge, then delete this line
 the `letE` arm. -/
 def inst1LiftArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
     (ty val body : EIdx) : AM EIdx := do
@@ -2250,7 +1985,6 @@ def inst1LiftArmLet (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2035-2074 instantiate1LiftGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.inst1LiftArmProj_bridge, then delete this line
 the `proj` arm. -/
 def inst1LiftArmProj (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) (n : NIdx)
     (i : Nat) (sub : EIdx) : AM EIdx := do
@@ -2290,8 +2024,8 @@ theorem instantiate1LiftGo_succ (v : EIdx) (fuel : Nat) (h : EIdx) (d : Nat) :
         | .const _ _ => pure h
         | .lit _ => pure h
         | .app f a => inst1LiftArmApp v fuel h d f a
-        | .lam ty body m => inst1LiftArmLam v fuel h d ty body m
-        | .forallE ty body m => inst1LiftArmForallE v fuel h d ty body m
+        | .lam ty body => inst1LiftArmLam v fuel h d ty body
+        | .forallE ty body => inst1LiftArmForallE v fuel h d ty body
         | .letE ty val body => inst1LiftArmLet v fuel h d ty val body
         | .proj n i sub => inst1LiftArmProj v fuel h d n i sub) := by
   rw [instantiate1LiftGo]
@@ -2304,7 +2038,6 @@ def instantiate1LiftFast (fuel : Nat) (e v : EIdx) (d : Nat := 0) : AM EIdx := d
   pure r
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2178-2191 instPisAtLift —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instPisAtLift_bridge, then delete this line
 instantiate the leading `∀`-binders at *open* arguments. -/
 def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
   | [], e => pure (some e)
@@ -2313,7 +2046,7 @@ def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
     if h.tag == ETag.forallE then
       match ← viewBind h with
       | none => failDanglingE
-      | some (_, body, _) => do
+      | some (_, body) => do
         let b ← instantiate1LiftFast fuel body a 0
         instPisAtLift fuel as b
     else pure none
@@ -2322,7 +2055,7 @@ def instPisAtLift (fuel : Nat) : List EIdx → EIdx → AM (Option EIdx)
 
 **The one twin that touches a level algorithm** (DESIGN §8.3 lesson 4).  The
 substitution's names and levels are read back ONCE, at the entry, and the
-walk then runs con-leche's own `Level.subst` and `Level.substPW` on transient
+walk then runs con-leche's own `Level.subst` on transient
 trees and re-interns the result.  The twin's `ks`/`us` are therefore
 `List Name` and `List Level`, not `List NIdx` and `LsIdx` as the census's
 mechanical column has them — that column's rule stops where lesson 4
@@ -2338,7 +2071,6 @@ def substLevelList (ks : List ConLeche.Name) (us : List Level) :
   | u :: rest => Level.subst ks us u :: substLevelList ks us rest
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.substLMemoAt_bridge, then delete this line
 LEVEL-handle substitution behind a per-call memo (task #97-P6-13).
 `instLPGo`'s `.sort` arm reads a level back, runs `Level.subst` and re-interns
 once per OCCURRENCE; keyed on the level handle alone, the whole of that is one
@@ -2356,7 +2088,6 @@ def substLMemoAt (ks : List ConLeche.Name) (us : List Level) (u : LIdx) : AM LId
     pure hl
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the same
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.substLsMemoAt_bridge, then delete this line
 at a universe-argument LIST handle, for the `.const` arm. -/
 def substLsMemoAt (ks : List ConLeche.Name) (us : List Level) (vs : LsIdx) :
     AM LsIdx := do
@@ -2371,7 +2102,6 @@ def substLsMemoAt (ks : List ConLeche.Name) (us : List Level) (vs : LsIdx) :
 mutual
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPGo_bridge, then delete this line
 substitute level parameters throughout an expression, with con-leche's own
 `hasLP = false` cutoff (the whole subtree is level-parameter free, so the
 substitution is the identity on it).  `.sort` and `.const` read their levels
@@ -2399,14 +2129,13 @@ def instLPGo (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
         internRebuiltConst h (vs' == vs) n vs'
       | .fvar i ty => instLPArmFVar ks us fuel h i ty
       | .app f a => instLPArmApp ks us fuel h f a
-      | .lam ty body m => instLPArmLam ks us fuel h ty body m
-      | .forallE ty body m => instLPArmForallE ks us fuel h ty body m
+      | .lam ty body => instLPArmLam ks us fuel h ty body
+      | .forallE ty body => instLPArmForallE ks us fuel h ty body
       | .letE ty val body => instLPArmLet ks us fuel h ty val body
       | .proj n i sub => instLPArmProj ks us fuel h n i sub
 termination_by (fuel, 0)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPArmFVar_bridge, then delete this line
 `fvar` arm. -/
 def instLPArmFVar (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (i : Nat) (ty : EIdx) : AM EIdx := do
@@ -2420,7 +2149,6 @@ def instLPArmFVar (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPArmApp_bridge, then delete this line
 `app` arm. -/
 def instLPArmApp (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (f a : EIdx) : AM EIdx := do
@@ -2435,39 +2163,34 @@ def instLPArmApp (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPArmLam_bridge, then delete this line
-`lam` arm; the binder's prop-ness datum is substituted too. -/
+`lam` arm. -/
 def instLPArmLam (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
-    (h : EIdx) (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+    (h : EIdx) (ty body : EIdx) : AM EIdx := do
   match ← instLPGet (h, 0) with
   | some r => pure r
   | none => do
     let t ← instLPGo ks us fuel ty
     let b ← instLPGo ks us fuel body
-    let m2 : ConLeche.BinderMeta := ⟨Level.substPW ks us m.pw⟩
-    let r ← internRebuiltLam h (t == ty && b == body && m2 == m) t b m2
+    let r ← internRebuiltLam h (t == ty && b == body) t b
     instLPSet (h, 0) r
     pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPArmForallE_bridge, then delete this line
 `forallE` arm. -/
 def instLPArmForallE (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
-    (h : EIdx) (ty body : EIdx) (m : ConLeche.BinderMeta) : AM EIdx := do
+    (h : EIdx) (ty body : EIdx) : AM EIdx := do
   match ← instLPGet (h, 0) with
   | some r => pure r
   | none => do
     let t ← instLPGo ks us fuel ty
     let b ← instLPGo ks us fuel body
-    let m2 : ConLeche.BinderMeta := ⟨Level.substPW ks us m.pw⟩
-    let r ← internRebuiltForallE h (t == ty && b == body && m2 == m) t b m2
+    let r ← internRebuiltForallE h (t == ty && b == body) t b
     instLPSet (h, 0) r
     pure r
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPArmLet_bridge, then delete this line
 `letE` arm. -/
 def instLPArmLet (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (ty val body : EIdx) : AM EIdx := do
@@ -2483,7 +2206,6 @@ def instLPArmLet (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
 termination_by (fuel, 1)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2338-2377 Expr.instLPGo — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExprOps.instLPArmProj_bridge, then delete this line
 `proj` arm. -/
 def instLPArmProj (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (h : EIdx) (n : NIdx) (i : Nat) (sub : EIdx) : AM EIdx := do
@@ -2523,8 +2245,8 @@ theorem instLPGo_succ (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
           internRebuiltConst h (vs' == vs) n vs'
         | .fvar i ty => instLPArmFVar ks us fuel h i ty
         | .app f a => instLPArmApp ks us fuel h f a
-        | .lam ty body m => instLPArmLam ks us fuel h ty body m
-        | .forallE ty body m => instLPArmForallE ks us fuel h ty body m
+        | .lam ty body => instLPArmLam ks us fuel h ty body
+        | .forallE ty body => instLPArmForallE ks us fuel h ty body
         | .letE ty val body => instLPArmLet ks us fuel h ty val body
         | .proj n i sub => instLPArmProj ks us fuel h n i sub) := by
   rw [instLPGo]

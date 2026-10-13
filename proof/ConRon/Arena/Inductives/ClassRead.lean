@@ -156,7 +156,6 @@ def classNPcOf (p : BlockShape) (fe : IFEnv) (i : NIdx) : Nat :=
     | _ => 0
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ClassRead.classReadSlot_bridge, then delete this line
 One prefix binder's domain read as a motive (its telescope ends in a sort: the
 class is its last binder's domain, at the class's parameter count) or as a
 minor premise. -/
@@ -167,7 +166,7 @@ def classReadSlot (p : BlockShape) (fe : IFEnv) (np : Nat) (motPos : List Nat) (
     let (bs, _) ← piBinders coreWalkFuel dom
     match bs.getLast? with
     | none => pure none
-    | some (mdom, _) => do
+    | some mdom => do
       let hd ← getAppFn coreWalkFuel mdom
       if hd.tag == ETag.const then
         match ← viewConst hd with
@@ -180,7 +179,6 @@ def classReadSlot (p : BlockShape) (fe : IFEnv) (np : Nat) (motPos : List Nat) (
   else classReadMinor np motPos d dom
 
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:107-124 classReadSlots
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ClassRead.classReadSlots_bridge, then delete this line
 Read the prefix binders `n` of a recursor type opened at the parameters (`e`,
 depth `d`), classifying each as a motive or a minor premise; each binder
 opened at `d` before the next is read.  `none` off the shape.  `nPc` is
@@ -192,7 +190,7 @@ def classReadSlots (p : BlockShape) (fe : IFEnv) (np : Nat) :
     if e.tag == ETag.forallE then
       match ← viewBind e with
       | none => failDanglingE
-      | some (dom, body, _) =>
+      | some (dom, body) =>
         match ← classReadSlot p fe np motPos d dom with
         | none => pure none
         | some slot => do

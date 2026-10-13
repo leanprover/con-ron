@@ -112,7 +112,7 @@ private def hasTable (dsCL : List Declaration) : Bool :=
 /-! ## Term builders -/
 
 /-- con-leche: none — a `∀` binder at the parse placeholder datum. -/
-private def pi (ty b : ConLeche.Expr) : ConLeche.Expr := .forallE ty b ⟨.never⟩
+private def pi (ty b : ConLeche.Expr) : ConLeche.Expr := .forallE ty b
 /-- con-leche: none — a fixture name. -/
 private def nm (s : String) : ConLeche.Name := ConLeche.Name.anonymous.str s
 /-- con-leche: none — a fixture name `a.b`. -/
@@ -131,7 +131,7 @@ private def sortP (u : String) : ConLeche.Expr := .sort (.param (nm u))
 reads the stream's rules, so only the constructor and the field count are
 meaningful. -/
 private def rl (c : ConLeche.Name) (nF : Nat) : RecRule :=
-  { ctor := c, nfields := nF, ctorParams := 0, fire := .inert, rhs := ty1 }
+  { ctor := c, nfields := nF, ctorParams := 0, fire := .plain, rhs := ty1 }
 
 /-! ## Fixture 1 — `N`, a recursive family -/
 

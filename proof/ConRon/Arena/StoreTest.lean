@@ -126,7 +126,7 @@ This is `derived_exact` (`WFProofs.lean`) computed on both sides: the arena's
 private def fixture2 : EStore × EIdx × EIdx :=
   let st := fst
   let (st, b0) := st.intern (.bvar 0)
-  let (st, lam) := st.intern (.lam hS0 b0 ⟨.never⟩)
+  let (st, lam) := st.intern (.lam hS0 b0)
   (st, b0, lam)
 
 private def st2 : EStore := fixture2.1
@@ -134,7 +134,7 @@ private def hB0 : EIdx := fixture2.2.1
 private def hLam : EIdx := fixture2.2.2
 
 private def eB0 : Expr := .bvar 0
-private def eLam : Expr := .lam eS0 eB0 ⟨.never⟩
+private def eLam : Expr := .lam eS0 eB0
 
 #guard denoteE st2 hB0 == some eB0
 #guard denoteE st2 hLam == some eLam

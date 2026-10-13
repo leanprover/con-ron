@@ -7,8 +7,8 @@ proofs"):
 
 > build a tiny environment by hand as con-leche values, intern it into the
 > arena, run the arena twin on handles, read the answer back with `denoteE`,
-> and compare with con-leche's own `whnf` / `inferTypeCore` / `isDefEqCore` /
-> `annotateCore` applied to the *denotations*.
+> and compare with con-leche's own `whnf` / `inferTypeCore` / `isDefEqCore`
+> applied to the *denotations*.
 
 The comparison is over the **whole outcome**: an `ok` must meet an `ok` at
 the same term, and an error must meet an error of the same kind AND the same
@@ -58,14 +58,14 @@ private def internExprT : ConLeche.Expr → AM EIdx
     let hf ← internExprT f
     let ha ← internExprT a
     internE (.app hf ha)
-  | .lam ty b m => do
+  | .lam ty b => do
     let ht ← internExprT ty
     let hb ← internExprT b
-    internE (.lam ht hb m)
-  | .forallE ty b m => do
+    internE (.lam ht hb)
+  | .forallE ty b => do
     let ht ← internExprT ty
     let hb ← internExprT b
-    internE (.forallE ht hb m)
+    internE (.forallE ht hb)
   | .letE ty v b => do
     let ht ← internExprT ty
     let hv ← internExprT v
@@ -118,7 +118,6 @@ private def internCaps (c : IndCaps) : AM IIndCaps := do
 
 /-- con-leche: none — intern a `RecRuleFire`. -/
 private def internFire : RecRuleFire → AM IRecRuleFire
-  | .inert => pure .inert
   | .plain => pure .plain
   | .nested lvls pins => do
     let ls ← internLevelListT lvls
@@ -131,8 +130,7 @@ private def internRule (rl : RecRule) : AM IRecRule := do
   let f ← internFire rl.fire
   let rhs ← internExprT rl.rhs
   pure { ctor := c, nfields := rl.nfields, ctorParams := rl.ctorParams,
-         fire := f, rhs := rhs, k := rl.k, eta := rl.eta,
-         paramsBlind := rl.paramsBlind }
+         fire := f, rhs := rhs, k := rl.k, eta := rl.eta }
 
 /-- con-leche: none — intern a list of `RecRule`s. -/
 private def internRules : List RecRule → AM (List IRecRule)
@@ -210,7 +208,7 @@ private def envCL : ConLeche.Env :=
      .axiomInfo ⟨propName, [], .sort .zero⟩,
      .axiomInfo ⟨axName, [], natTy⟩,
      .defnInfo ⟨twoName, [], natTy⟩ (.app succE (.app succE zeroE)) (.regular 1),
-     .ctorInfo ⟨ConLeche.natSuccName, [], .forallE natTy natTy ⟨.never⟩⟩ 0 1,
+     .ctorInfo ⟨ConLeche.natSuccName, [], .forallE natTy natTy⟩ 0 1,
      .ctorInfo ⟨ConLeche.natZeroName, [], natTy⟩ 0 0,
      .indInfo ⟨ConLeche.natName, [], .sort (.succ .zero)⟩ {} ]⟩
 
@@ -230,15 +228,15 @@ private def tLit3 : ConLeche.Expr := .lit (.natVal 3)
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tSucc3 : ConLeche.Expr := .app succE tLit3
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
-private def tIdNat : ConLeche.Expr := .lam natTy (.bvar 0) ⟨.never⟩
+private def tIdNat : ConLeche.Expr := .lam natTy (.bvar 0)
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tBetaTwo : ConLeche.Expr := .app tIdNat tTwo
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
-private def tSuccLam : ConLeche.Expr := .lam natTy (.app succE (.bvar 0)) ⟨.never⟩
+private def tSuccLam : ConLeche.Expr := .lam natTy (.app succE (.bvar 0))
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tBetaSucc : ConLeche.Expr := .app tSuccLam tLit3
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
-private def tPiNat : ConLeche.Expr := .forallE natTy natTy ⟨.never⟩
+private def tPiNat : ConLeche.Expr := .forallE natTy natTy
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tSort0 : ConLeche.Expr := .sort .zero
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
@@ -250,7 +248,7 @@ private def tPfA : ConLeche.Expr := .const pfAName []
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tPfB : ConLeche.Expr := .const pfBName []
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
-private def tIdProp : ConLeche.Expr := .lam propE (.bvar 0) ⟨.never⟩
+private def tIdProp : ConLeche.Expr := .lam propE (.bvar 0)
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tUnknown : ConLeche.Expr := .const (uAnon.str "nope") []
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
@@ -260,17 +258,17 @@ private def tLetBad : ConLeche.Expr := .letE natTy tSort0 (.bvar 0)
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tAppAx : ConLeche.Expr := .app tIdNat tAx
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
-private def tPiPi : ConLeche.Expr := .forallE natTy tPiNat ⟨.never⟩
+private def tPiPi : ConLeche.Expr := .forallE natTy tPiNat
 /-- con-leche: none — a subject term, written once as a con-leche value; the
 arena side is its interning.  A THREE-binder ∀ and a TWO-binder λ, so that the
 telescope loops of tasks #97-P6-11 and #97-P6-12 are compared against
 con-leche's chained bodies at a depth the single-binder subjects cannot
 reach. -/
 private def tPi3 : ConLeche.Expr :=
-  .forallE natTy (.forallE natTy (.forallE natTy natTy ⟨.never⟩) ⟨.never⟩) ⟨.never⟩
+  .forallE natTy (.forallE natTy (.forallE natTy natTy))
 /-- con-leche: none — a subject term, written once as a con-leche value; the arena side is its interning. -/
 private def tLam2 : ConLeche.Expr :=
-  .lam natTy (.lam natTy (.app succE (.bvar 1)) ⟨.never⟩) ⟨.never⟩
+  .lam natTy (.lam natTy (.app succE (.bvar 1)))
 /-- con-leche: none — a subject term, written once as a con-leche value; the
 arena side is its interning.  A TWO-argument β redex, which is what task
 #97-P6-9's `betaPeel` peels in one group. -/
@@ -379,8 +377,7 @@ which is only meaningful because these hold. -/
 /-! ## The mode, the fuel, and the outcome comparison -/
 
 /-- con-leche: none — the mode every check runs at: `.verified`, the lane the
-bridge is stated at and the one where the arena's io selector
-(`mode.betaGate`) and con-leche's cached one (`mode.ioGate`) agree. -/
+bridge is stated at. -/
 private def MU : CheckMode := .verified
 
 /-- con-leche: none — the knot fuel and the ambient depth.  The fixture's
@@ -451,8 +448,7 @@ private def okB : ConLeche.CheckM Bool → Bool → Bool
 #guard okE (ConLeche.inferTypeCore MU envCL F 0 tIdNat) tPiNat
 #guard okB (ConLeche.isDefEqCore MU envCL F 0 tPfA tPfB) true
 #guard okB (ConLeche.isDefEqCore MU envCL F 0 tTwo tLit7) false
-#guard okE (ConLeche.annotateCore MU envCL F 0 tIdProp)
-  (.lam propE (.bvar 0) ⟨.ifAllZero []⟩)
+#guard okE (ConLeche.inferTypeCore MU envCL F 0 tLetTwo) natTy
 
 /-! ## `whnf` — twelve subjects
 
@@ -551,34 +547,20 @@ the fixture, which they must at `.verified`. -/
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.nat FX.sort0)
   (ConLeche.isDefEqCore MU envCL F 0 natTy tSort0)
 
-/-! ## `annotate` — twelve subjects, the last two failures -/
+/-! ## `let` — official's `infer_let` (con-leche's task #342), and `whnf`'s ζ
 
-#guard chkE (annotateCore MU FX.fe F 0 FX.sort0)
-  (ConLeche.annotateCore MU envCL F 0 tSort0)
-#guard chkE (annotateCore MU FX.fe F 0 FX.lit7)
-  (ConLeche.annotateCore MU envCL F 0 tLit7)
-#guard chkE (annotateCore MU FX.fe F 0 FX.two)
-  (ConLeche.annotateCore MU envCL F 0 tTwo)
-#guard chkE (annotateCore MU FX.fe F 0 FX.idNat)
-  (ConLeche.annotateCore MU envCL F 0 tIdNat)
-#guard chkE (annotateCore MU FX.fe F 0 FX.idProp)
-  (ConLeche.annotateCore MU envCL F 0 tIdProp)
-#guard chkE (annotateCore MU FX.fe F 0 FX.piNat)
-  (ConLeche.annotateCore MU envCL F 0 tPiNat)
-#guard chkE (annotateCore MU FX.fe F 0 FX.piPi)
-  (ConLeche.annotateCore MU envCL F 0 tPiPi)
-#guard chkE (annotateCore MU FX.fe F 0 FX.succ3)
-  (ConLeche.annotateCore MU envCL F 0 tSucc3)
-#guard chkE (annotateCore MU FX.fe F 0 FX.succLam)
-  (ConLeche.annotateCore MU envCL F 0 tSuccLam)
-#guard chkE (annotateCore MU FX.fe F 0 FX.letTwo)
-  (ConLeche.annotateCore MU envCL F 0 tLetTwo)
--- the two failure shapes: a let whose value does not fit its type, and an
--- out-of-scope free variable
-#guard chkE (annotateCore MU FX.fe F 0 FX.letBad)
-  (ConLeche.annotateCore MU envCL F 0 tLetBad)
-#guard chkE (annotateCore MU FX.fe F 0 FX.fv0)
-  (ConLeche.annotateCore MU envCL F 0 tFv0)
+A let whose value fits its type infers its body at the value; a let whose
+value does not is rejected; `whnfCore` reduces the `let`. -/
+
+#guard chkE (inferTypeCore MU FX.fe F 0 FX.letTwo)
+  (ConLeche.inferTypeCore MU envCL F 0 tLetTwo)
+#guard chkE (inferTypeCore MU FX.fe F 0 FX.letBad)
+  (ConLeche.inferTypeCore MU envCL F 0 tLetBad)
+#guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.letTwo)
+  (ConLeche.inferTypeIO MU envCL F 0 tLetTwo)
+#guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.letTwo)
+  (ConLeche.whnfCore MU envCL F 0 tLetTwo)
+#guard chkE (whnf MU FX.fe F 0 FX.letTwo) (ConLeche.whnf MU envCL F 0 tLetTwo)
 
 /-! ## The batched walks, against con-leche's own chained bodies
 
@@ -591,15 +573,9 @@ against `ConLeche`'s chained body on the denotation. -/
 -- `inferPis` / `inferPisOut`'s `imax` fold, three binders deep
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.pi3)
   (ConLeche.inferTypeCore MU envCL F 0 tPi3)
--- `annotatePis` / `annotateBindersOut`, the same subject
-#guard chkE (annotateCore MU FX.fe F 0 FX.pi3)
-  (ConLeche.annotateCore MU envCL F 0 tPi3)
 -- `inferLams` / `inferLamsLeaf` / `inferLamsOut`, two binders deep
 #guard chkE (inferTypeCore MU FX.fe F 0 FX.lam2)
   (ConLeche.inferTypeCore MU envCL F 0 tLam2)
--- `annotateLams` / `annotateLamsLeaf`, the same subject
-#guard chkE (annotateCore MU FX.fe F 0 FX.lam2)
-  (ConLeche.annotateCore MU envCL F 0 tLam2)
 -- `whnfApp` / `betaPeel`: a two-argument β redex peeled in ONE group
 #guard chkE ((pureFnsA MU FX.fe F).whnfCore false 0 FX.beta2)
   (ConLeche.whnfCore MU envCL F 0 tBeta2)
@@ -609,7 +585,8 @@ against `ConLeche`'s chained body on the denotation. -/
   (ConLeche.inferTypeCore MU envCL F 0 tBeta2)
 #guard chkE ((pureFnsA MU FX.fe F).inferIO 0 FX.beta2)
   (ConLeche.inferTypeIO MU envCL F 0 tBeta2)
--- `defeqBinders` / `defeqPeel`: two telescopes peeled together
+-- `defeqBinders` / `defeqPeel` (∀) and `defeqLams` (λ): two telescopes
+-- descended together
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.pi3)
   (ConLeche.isDefEqCore MU envCL F 0 tPi3 tPi3)
 #guard chkB (isDefEqCore MU FX.fe F 0 FX.pi3 FX.piPi)
@@ -640,8 +617,8 @@ private def chkL (c : AM LIdx) (expect : ConLeche.CheckM Level) : Bool :=
 
 The entry-point memos are the reason this tier exists, so they get their own
 checks: after one `whnf`, the state's table carries the entry; a second call
-returns the SAME HANDLE; and the three infer grades keep three tables (a
-`whnf` never populates `inferC`). -/
+returns the SAME HANDLE; and the two infer grades keep two tables (a `whnf`
+never populates `inferC`). -/
 
 /-- con-leche: none — run a computation from the fixture state and read a
 `Bool` out of it. -/
@@ -674,13 +651,12 @@ it against a state whose table was filled by hand gives that entry back. -/
     pure (r == r₂)
   | none => pure false)
 
-/- The three infer grades keep three tables: a `whnf` run populates
-`whnfC` and `whnfCoreC`, never `annotC`. -/
+/- A `whnf` run populates `whnfC` and `whnfCoreC`, never the infer tables. -/
 #guard runB (do
   let _ ← whnf MU FX.fe F 0 FX.two
   let s ← get
   pure (s.caches.whnfC.size > 0 && s.caches.whnfCoreC.size > 0 &&
-    s.caches.annotC.size == 0))
+    s.caches.inferC.size == 0))
 
 /- A full-grade `infer` populates `inferC`; the io grade populates
 `inferIOC`, and an io hit never lands in `inferC` (DESIGN §8.3, lesson 9). -/

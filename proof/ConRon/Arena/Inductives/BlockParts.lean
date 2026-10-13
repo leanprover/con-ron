@@ -203,7 +203,6 @@ def blockSplit : List IConstantInfo →
     | none => none
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:252-269 recTargetOf
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockParts.recTargetOf_bridge, then delete this line
 **The member a recursor's MAJOR names**: strip the `mI` binders the record
 claims, the next binder is the major, and its domain's head constant is read
 against the member names; `names.length` — no member — otherwise. -/
@@ -215,7 +214,7 @@ def recTargetOf (names : List NIdx) (mI : Nat) (ty : EIdx) : AM Nat := do
     if q.2.tag == ETag.forallE then
       match ← viewBind q.2 with
       | none => failDanglingE
-      | some (dom, _, _) => do
+      | some (dom, _) => do
         let hd ← getAppFn coreWalkFuel dom
         if hd.tag == ETag.const then
           match ← viewConst hd with

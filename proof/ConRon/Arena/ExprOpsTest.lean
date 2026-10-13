@@ -97,24 +97,24 @@ private def fx : Fx :=
   let (st, fv1) := st.intern (.fvar 1 s1)
   let (st, ap1) := st.intern (.app cf b0)
   let (st, pj) := st.intern (.proj foo 0 ap1)
-  let (st, lamT) := st.intern (.lam s0 ap1 ⟨.never⟩)
+  let (st, lamT) := st.intern (.lam s0 ap1)
   let (st, apbf) := st.intern (.app b1 fv0)
-  let (st, allT) := st.intern (.forallE s0 apbf ⟨.never⟩)
+  let (st, allT) := st.intern (.forallE s0 apbf)
   let (st, apbb) := st.intern (.app b0 b1)
   let (st, letT) := st.intern (.letE s0 cf apbb)
   let (st, apcb) := st.intern (.app cb b0)
   let (st, apfv) := st.intern (.app fv1 b0)
   let (st, apb2) := st.intern (.app b2 apfv)
   let (st, pj2) := st.intern (.proj foo 0 apb2)
-  let (st, inner) := st.intern (.forallE s1 pj2 ⟨.never⟩)
+  let (st, inner) := st.intern (.forallE s1 pj2)
   let (st, letB) := st.intern (.letE su apcb inner)
-  let (st, big) := st.intern (.lam s0 letB ⟨.never⟩)
+  let (st, big) := st.intern (.lam s0 letB)
   let (st, apb10) := st.intern (.app b1 b0)
-  let (st, piIn) := st.intern (.forallE s1 apb10 ⟨.never⟩)
-  let (st, piT) := st.intern (.forallE s0 piIn ⟨.never⟩)
-  let (st, piS) := st.intern (.forallE s0 s1 ⟨.never⟩)
-  let (st, lamIn) := st.intern (.lam s1 apb10 ⟨.never⟩)
-  let (st, lamT2) := st.intern (.lam s0 lamIn ⟨.never⟩)
+  let (st, piIn) := st.intern (.forallE s1 apb10)
+  let (st, piT) := st.intern (.forallE s0 piIn)
+  let (st, piS) := st.intern (.forallE s0 s1)
+  let (st, lamIn) := st.intern (.lam s1 apb10)
+  let (st, lamT2) := st.intern (.lam s0 lamIn)
   let (st, sp1) := st.intern (.app cf fv0)
   let (st, spine) := st.intern (.app sp1 b0)
   { st, z, one, pu, anon, foo, bar, uN, usZ, usU,
@@ -156,7 +156,7 @@ to `E h`, which is only meaningful because these hold. -/
 #guard denoteE fx.st fx.lit7 == some (Expr.lit (.natVal 7))
 #guard denoteE fx.st fx.lamT ==
   some (Expr.lam (.sort .zero)
-    (.app (.const (.str .anonymous "foo") [.zero]) (.bvar 0)) ⟨.never⟩)
+    (.app (.const (.str .anonymous "foo") [.zero]) (.bvar 0)))
 #guard denoteE fx.st fx.big ==
   some (Expr.lam (.sort .zero)
     (.letE (.sort (.param (.str .anonymous "u")))
@@ -164,11 +164,11 @@ to `E h`, which is only meaningful because these hold. -/
       (.forallE (.sort (.succ .zero))
         (.proj (.str .anonymous "foo") 0
           (.app (.bvar 2) (.app (.fvar 1 (.sort (.succ .zero))) (.bvar 0))))
-        ⟨.never⟩))
-    ⟨.never⟩)
+       ))
+   )
 #guard denoteE fx.st fx.piT ==
   some (Expr.forallE (.sort .zero)
-    (.forallE (.sort (.succ .zero)) (.app (.bvar 1) (.bvar 0)) ⟨.never⟩) ⟨.never⟩)
+    (.forallE (.sort (.succ .zero)) (.app (.bvar 1) (.bvar 0))))
 #guard (denoteE fx.st fx.letT).isSome
 #guard (denoteE fx.st fx.allT).isSome
 #guard (denoteE fx.st fx.pj).isSome
@@ -198,15 +198,6 @@ private def mapDenIdx (s : EStore) : List (Nat × EIdx) → Option (List (Nat ×
   | (i, h) :: hs =>
     match denoteE s h, mapDenIdx s hs with
     | some e, some es => some ((i, e) :: es)
-    | _, _ => none
-
-/-- con-leche: none — map `denoteE` over a binder list. -/
-private def mapDenB (s : EStore) :
-    List (EIdx × BinderMeta) → Option (List (Expr × BinderMeta))
-  | [] => some []
-  | (h, m) :: hs =>
-    match denoteE s h, mapDenB s hs with
-    | some e, some es => some ((e, m) :: es)
     | _, _ => none
 
 /-- con-leche: none — an `EIdx`-valued twin against a con-leche `Expr`. -/
@@ -252,13 +243,6 @@ private def chkN (c : AM Nat) (expect : Nat) : Bool :=
   | .ok (r, _) => r == expect
   | .error _ => false
 
-/-- con-leche: none — an `Option PropWhen`-valued twin (no term crosses the
-result, so the comparison is direct). -/
-private def chkOPw (c : AM (Option PropWhen)) (expect : Option PropWhen) : Bool :=
-  match c.run S0 with
-  | .ok (r, _) => r == expect
-  | .error _ => false
-
 /-- con-leche: none — the `fvarLeaves` shape. -/
 private def chkFvL (c : AM (List (Nat × EIdx))) (expect : List (Nat × Expr)) : Bool :=
   match c.run S0 with
@@ -275,11 +259,11 @@ private def chkPair (c : AM (Option (List EIdx × EIdx)))
   | _, _ => false
 
 /-- con-leche: none — the `stripLams` / `stripPis` shape. -/
-private def chkBinders (c : AM (Option (List (EIdx × BinderMeta) × EIdx)))
-    (expect : Option (List (Expr × BinderMeta) × Expr)) : Bool :=
+private def chkBinders (c : AM (Option (List EIdx × EIdx)))
+    (expect : Option (List Expr × Expr)) : Bool :=
   match c.run S0, expect with
   | .ok (some r, s'), some p =>
-    mapDenB s'.store r.1 == some p.1 && denoteE s'.store r.2 == some p.2
+    mapDen s'.store r.1 == some p.1 && denoteE s'.store r.2 == some p.2
   | .ok (none, _), none => true
   | _, _ => false
 
@@ -391,8 +375,18 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 
 /-! ## The one-node readers -/
 
-#guard chkOPw (lamPw fx.big) (Expr.lamPw (E fx.big))
-#guard chkOPw (lamPw fx.piT) (Expr.lamPw (E fx.piT))
+#guard isForallE fx.piT == Expr.isForallE (E fx.piT)
+#guard isForallE fx.big == Expr.isForallE (E fx.big)
+#guard
+  match (lamPair? fx.lamT2 fx.lamT).run S0, Expr.lamPair? (E fx.lamT2) (E fx.lamT) with
+  | .ok (some (a, b, c, d), s'), some (a', b', c', d') =>
+    denoteE s'.store a == some a' && denoteE s'.store b == some b' &&
+      denoteE s'.store c == some c' && denoteE s'.store d == some d'
+  | _, _ => false
+#guard
+  match (lamPair? fx.lamT2 fx.piT).run S0, Expr.lamPair? (E fx.lamT2) (E fx.piT) with
+  | .ok (none, _), none => true
+  | _, _ => false
 #guard chkB (hasFvarFast F fx.big) (Expr.hasFvar (E fx.big))
 #guard chkB (hasFvarFast F fx.piT) (Expr.hasFvar (E fx.piT))
 #guard chkB (hasFvarFast F fx.fv0) (Expr.hasFvar (E fx.fv0))
@@ -424,11 +418,6 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 #guard chkE (instSpine F [fx.cf, fx.s1] 1 fx.big)
   (Expr.instSpine [E fx.cf, E fx.s1] 1 (E fx.big))
 #guard chkE (instSpine F [] 0 fx.big) (Expr.instSpine [] 0 (E fx.big))
-
-#guard chkB (recRulePlain F fx.piT 2 2 1) (Expr.recRulePlain (E fx.piT) 2 2 1)
-#guard chkB (recRulePlain F fx.piT 1 1 1) (Expr.recRulePlain (E fx.piT) 1 1 1)
-#guard chkB (recRulePlain F fx.piT 2 1 2) (Expr.recRulePlain (E fx.piT) 2 1 2)
-#guard chkB (recRulePlain F fx.big 2 2 1) (Expr.recRulePlain (E fx.big) 2 2 1)
 
 /-! ## The packed range fields -/
 
@@ -464,14 +453,6 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 #guard chkE (abstract1Fast F fx.fv0 0 0) (Expr.abstract1 (E fx.fv0) 0 0)
 #guard chkE (abstract1Go 1 F fx.big 0) (Expr.abstract1 (E fx.big) 1 0)
 
-/-! ## `lowerBVars` — `ExprOps.lean:694-716`, `:2012-2049`, `:2144-2146` -/
-
-#guard chkE (lowerBVarsFast F 1 0 fx.big) (Expr.lowerBVars 1 0 (E fx.big))
-#guard chkE (lowerBVarsFast F 2 0 fx.big) (Expr.lowerBVars 2 0 (E fx.big))
-#guard chkE (lowerBVarsFast F 1 1 fx.big) (Expr.lowerBVars 1 1 (E fx.big))
-#guard chkE (lowerBVarsFast F 5 0 fx.big) (Expr.lowerBVars 5 0 (E fx.big))
-#guard chkE (lowerBVarsGo 1 F fx.big 0) (Expr.lowerBVars 1 0 (E fx.big))
-
 /-! ## `instantiate1Lift` — `ExprOps.lean:718-739`, `:2222-2261`, `:2356-2358` -/
 
 #guard chkE (instantiate1LiftFast F fx.big fx.cf 0) ((E fx.big).instantiate1Lift (E fx.cf) 0)
@@ -487,9 +468,9 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 
 /-! ## Equality -/
 
-#guard (fx.big == fx.big) == Expr.exprPtrBEq (E fx.big) (E fx.big)
-#guard (fx.big == fx.letT) == Expr.exprPtrBEq (E fx.big) (E fx.letT)
-#guard (fx.s0 == fx.s1) == Expr.exprPtrBEq (E fx.s0) (E fx.s1)
+#guard (fx.big == fx.big) == (E fx.big == E fx.big)
+#guard (fx.big == fx.letT) == (E fx.big == E fx.letT)
+#guard (fx.s0 == fx.s1) == (E fx.s0 == E fx.s1)
 -- interning is hash-consing, so a rebuilt node is the SAME handle and the
 -- index test is the structural test (`denoteE_inj`, task #97a)
 #guard
@@ -517,7 +498,7 @@ private def leafSpec (fab base : EIdx) : AM Bool := do
 
 #guard
   match (view fx.big).run S0 with
-  | .ok (.lam ty body _, _) => ty == fx.s0 && body != fx.s0
+  | .ok (.lam ty body, _) => ty == fx.s0 && body != fx.s0
   | _ => false
 
 #guard
