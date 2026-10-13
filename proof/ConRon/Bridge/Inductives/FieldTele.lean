@@ -61,7 +61,7 @@ theorem piBinders_run : ∀ (fuel : Nat) {h : EIdx} {hP : Expr} {s₀ s' : AStat
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
       refine ⟨rfl, ?_⟩
       cases hP with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => exact ⟨rfl, hd⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/FieldTele.lean:45-52 Expr.piBinders —
@@ -175,7 +175,7 @@ theorem instPisWith_spec : ∀ (args : List EIdx) (argsP : List Expr) (e : EIdx)
       refine ⟨PStep.refl hok, ?_⟩
       show ConLeche.instPisWith (aP :: restP) eP = none
       cases eP with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
 

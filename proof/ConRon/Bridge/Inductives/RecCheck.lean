@@ -1049,7 +1049,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
       cases eP with
-      | forallE dP bP m =>
+      | forallE dP bP =>
         exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
@@ -1641,7 +1641,7 @@ theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
         refine ⟨PStep.refl hok.state, ?_⟩
         cases x with
-        | forallE dP bP m =>
+        | forallE dP bP =>
           exact absurd (tag_forallE_of_denote hok.state.wf hx) (by simpa using htg)
         | _ => show _ = none; rfl
   · rw [ite_eq_right hle] at hrun

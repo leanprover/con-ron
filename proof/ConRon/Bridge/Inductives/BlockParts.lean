@@ -540,7 +540,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       simp only [ConLeche.recTargetOf, hsp]
       rw [hlen]
       cases x with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
+      | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
       | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?

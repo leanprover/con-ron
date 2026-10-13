@@ -1060,7 +1060,7 @@ theorem natSuccOk_eq (cv : ConstantVal) (nP nF : Nat) :
   simp only [ConLeche.natSuccOk]
   congr 1
   cases ht : cv.type with
-  | forallE dx bx m =>
+  | forallE dx bx =>
     simp only [natSuccTy]
     cases dx <;> cases bx <;> (try simp)
     all_goals

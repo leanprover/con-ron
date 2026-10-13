@@ -623,7 +623,7 @@ def motPosP (motPos : List Nat) (d np : Nat) : ConLeche.ClassSlot → List Nat
 
 theorem classReadSlots_succ (nPc : ConLeche.Name → Nat) (np n : Nat) (motPos : List Nat)
     (d : Nat) (dom body : Expr) (m : BinderMeta) :
-    ConLeche.classReadSlots nPc np (n + 1) motPos d (.forallE dom body m) =
+    ConLeche.classReadSlots nPc np (n + 1) motPos d (.forallE dom body) =
       (slotP nPc np motPos d dom).bind fun slot =>
         (ConLeche.classReadSlots nPc np n (motPosP motPos d np slot) (d + 1)
           (body.instantiate1 (.fvar d dom))).bind fun rest => some (slot :: rest) := by
@@ -830,7 +830,7 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
       cases eP with
-      | forallE a b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | forallE a b => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => simp [ConLeche.classReadSlots]
 
 /-! ## `classReadRecCls` -/

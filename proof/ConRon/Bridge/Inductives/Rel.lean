@@ -907,7 +907,7 @@ theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
     (hok : StateOK s) (hrun : Arena.lvlEq? u v s = .ok (r, s')) : PStep s s' := by
   obtain ⟨hst, -, hp, hcf⟩ := Core.lvlEq?_frame hrun
   exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
-    by rw [hst]; exact BMExt.refl _, hcf, hp⟩
+    by rw [hst]; exact hcf, hp⟩
 
 /-- con-leche: none — **`readLevelM` at the pure grade's frame** (task
 #97-T2-LOCKSTEP lane Inductives round 3, ruling 1: the twin reads a level back
@@ -918,7 +918,7 @@ theorem readLevelM_pstep {s s' : AState} {h : LIdx} {u : Level}
     (hok : StateOK s) (hrun : readLevelM h s = .ok (u, s')) : PStep s s' := by
   obtain ⟨hst, -, hp, -⟩ := Core.readLevelM_frame hrun
   exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
-    by rw [hst]; exact BMExt.refl _, Core.CacheFrame.ofReadLevelM hrun, hp⟩
+    by rw [hst]; exact Core.CacheFrame.ofReadLevelM hrun, hp⟩
 
 /-- con-leche: none — `readLevelM`'s ANSWER, which is the denotation only
 under `ReadLCacheOK`, carried from the statement's along the pure steps before

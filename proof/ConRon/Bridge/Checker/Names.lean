@@ -379,7 +379,7 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
               = Expr.allLevelParamsDefined params (.app xf xa) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
           exact ⟨rfl, hres, hm1.insert hd hres⟩
-      | lam t bd m =>
+      | lam t bd =>
         obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_lam_inv hwf hv hd
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
@@ -392,7 +392,7 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
           obtain ⟨rfl, rfl⟩ := hq
           have hbf : b1 = false := by simpa using hc
           have hres : (false : Bool)
-              = Expr.allLevelParamsDefined params (.lam xt xb m) := by
+              = Expr.allLevelParamsDefined params (.lam xt xb) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
           exact ⟨rfl, hres, hm1.insert hd hres⟩
         · obtain ⟨q2, s4, g4, k5⟩ :=
@@ -405,11 +405,11 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
           obtain ⟨rfl, rfl⟩ := hq
           have hbt : b1 = true := by simpa using hc
           have hres : (b2 && ConLeche.PropWhen.paramsDefined params m.pw)
-              = Expr.allLevelParamsDefined params (.lam xt xb m) := by
+              = Expr.allLevelParamsDefined params (.lam xt xb) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt,
               Bool.true_and]
           exact ⟨rfl, hres, hm2.insert hd hres⟩
-      | forallE t bd m =>
+      | forallE t bd =>
         obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_forallE_inv hwf hv hd
         obtain ⟨q1, s3, g3, k3⟩ :=
           AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k2
@@ -422,7 +422,7 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
           obtain ⟨rfl, rfl⟩ := hq
           have hbf : b1 = false := by simpa using hc
           have hres : (false : Bool)
-              = Expr.allLevelParamsDefined params (.forallE xt xb m) := by
+              = Expr.allLevelParamsDefined params (.forallE xt xb) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, hbf, Bool.false_and]
           exact ⟨rfl, hres, hm1.insert hd hres⟩
         · obtain ⟨q2, s4, g4, k5⟩ :=
@@ -435,7 +435,7 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
           obtain ⟨rfl, rfl⟩ := hq
           have hbt : b1 = true := by simpa using hc
           have hres : (b2 && ConLeche.PropWhen.paramsDefined params m.pw)
-              = Expr.allLevelParamsDefined params (.forallE xt xb m) := by
+              = Expr.allLevelParamsDefined params (.forallE xt xb) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt,
               Bool.true_and]
           exact ⟨rfl, hres, hm2.insert hd hres⟩
@@ -590,7 +590,7 @@ theorem constsResolve_run {env : Env} {fe : IFEnv} :
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
         have hbf : b1 = false := by simpa using hc
         exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hbf, Bool.false_and]⟩
-    | lam t bd m =>
+    | lam t bd =>
       obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_lam_inv hwf hv hd
       obtain ⟨b1, s2, g2, k2⟩ := AM.bind_ok (α := Bool) k1
       obtain ⟨rfl, hb1⟩ := ih hok hp hie hxt g2
@@ -600,7 +600,7 @@ theorem constsResolve_run {env : Env} {fe : IFEnv} :
       · obtain ⟨rfl, rfl⟩ := AM.pure_ok k3
         have hbf : b1 = false := by simpa using hc
         exact ⟨rfl, by simp only [Expr.constsResolve, ← hb1, hbf, Bool.false_and]⟩
-    | forallE t bd m =>
+    | forallE t bd =>
       obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_forallE_inv hwf hv hd
       obtain ⟨b1, s2, g2, k2⟩ := AM.bind_ok (α := Bool) k1
       obtain ⟨rfl, hb1⟩ := ih hok hp hie hxt g2
@@ -833,7 +833,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         have hres : (b1 && b2) = Expr.constsResolve env (.app xf xa) := by
           simp only [Expr.constsResolve, ← hb1, ← hb2]
         exact ⟨rfl, hres, hm2.insert hd hres⟩
-    | lam t bd m =>
+    | lam t bd =>
       obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_lam_inv hwf hv hd
       cases hhit : tbl[h]? with
       | some r =>
@@ -860,10 +860,10 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         obtain ⟨hq, rfl⟩ := AM.pure_ok gX
         simp only [Prod.mk.injEq] at hq
         obtain ⟨rfl, rfl⟩ := hq
-        have hres : (b1 && b2) = Expr.constsResolve env (.lam xt xb m) := by
+        have hres : (b1 && b2) = Expr.constsResolve env (.lam xt xb) := by
           simp only [Expr.constsResolve, ← hb1, ← hb2]
         exact ⟨rfl, hres, hm2.insert hd hres⟩
-    | forallE t bd m =>
+    | forallE t bd =>
       obtain ⟨xt, xb, rfl, hxt, hxb⟩ := denote_forallE_inv hwf hv hd
       cases hhit : tbl[h]? with
       | some r =>
@@ -890,7 +890,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
         obtain ⟨hq, rfl⟩ := AM.pure_ok gX
         simp only [Prod.mk.injEq] at hq
         obtain ⟨rfl, rfl⟩ := hq
-        have hres : (b1 && b2) = Expr.constsResolve env (.forallE xt xb m) := by
+        have hres : (b1 && b2) = Expr.constsResolve env (.forallE xt xb) := by
           simp only [Expr.constsResolve, ← hb1, ← hb2]
         exact ⟨rfl, hres, hm2.insert hd hres⟩
     | letE t w bd =>

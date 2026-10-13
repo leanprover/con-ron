@@ -2361,7 +2361,7 @@ theorem nestPos_succ (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
           refine FOk.bind hFw ?_
           simp only [hA, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
           cases wP with
-          | forallE a b bm => exact absurd rfl (hnf a b bm)
+          | forallE a b => exact absurd rfl (hnf a b bm)
           | _ =>
             simp only [hg, hhP, ← List.not_any_eq_all_not, hB, Bool.not_false, Bool.true_and,
               hL, ↓reduceIte]
@@ -2389,7 +2389,7 @@ theorem nestPos_succ (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
       refine FOk.bind hFw ?_
       simp only [hA, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
       cases wP with
-      | forallE a b bm => exact absurd rfl (hnf a b bm)
+      | forallE a b => exact absurd rfl (hnf a b bm)
       | _ =>
         simp only [hg, hC', Bool.false_eq_true, ↓reduceIte]
         exact FOk.bind hF1 (FOk.pure _)

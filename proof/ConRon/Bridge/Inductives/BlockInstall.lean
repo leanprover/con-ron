@@ -321,7 +321,7 @@ theorem piDomsMentionAny_spec (names : List NIdx) (namesP : List ConLeche.Name) 
       refine ⟨PStep.refl hok, ?_⟩
       show false = Expr.piDomsMentionAny namesP eP
       cases eP with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
 /-- con-leche: none — `List.anyM` at the pure frame, over a denoted list, the

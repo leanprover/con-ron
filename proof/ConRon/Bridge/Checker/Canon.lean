@@ -672,11 +672,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -719,11 +719,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -762,11 +762,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -820,11 +820,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -877,11 +877,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
             · rfl
             · exact absurd (he1.trans hb) hc
           simp only [ConLeche.canonExprEqFast, h1, Bool.false_and]
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -897,7 +897,7 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-    | lam tA bA mA =>
+    | lam tA bA =>
       obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_lam_inv hwf hva hx
       cases vb with
       | bvar iB =>
@@ -920,7 +920,7 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
         obtain ⟨rfl, he1⟩ := ih hok hm hm' hxT hyT g3
@@ -938,7 +938,7 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
             · rfl
             · exact absurd (he1.trans hb) hc
           simp only [ConLeche.canonExprEqFast, h1, Bool.false_and]
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -954,7 +954,7 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-    | forallE tA bA mA =>
+    | forallE tA bA =>
       obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_forallE_inv hwf hva hx
       cases vb with
       | bvar iB =>
@@ -977,11 +977,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
         obtain ⟨rfl, he1⟩ := ih hok hm hm' hxT hyT g3
@@ -1034,11 +1034,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -1105,11 +1105,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
@@ -1148,11 +1148,11 @@ theorem canonExprEq_run {ps ps' cs : List NIdx}
         obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | lam tB bB mB =>
+      | lam tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩
-      | forallE tB bB mB =>
+      | forallE tB bB =>
         obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
         obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
         exact ⟨rfl, by simp [ConLeche.canonExprEqFast]⟩

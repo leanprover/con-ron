@@ -331,15 +331,15 @@ theorem hasLooseBVarB_app {i : Nat} {f a : Expr}
       (Expr.hasLooseBVarB i f || Expr.hasLooseBVarB i a) := by
   rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
-theorem hasLooseBVarB_lam {i : Nat} {ty b : Expr} {m : BinderMeta}
-    (hc : ¬ (Expr.lam ty b m).bvarB ≤ i) :
-    Expr.hasLooseBVarB i (.lam ty b m) =
+theorem hasLooseBVarB_lam {i : Nat} {ty b : Expr}
+    (hc : ¬ (Expr.lam ty b).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.lam ty b) =
       (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
   rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
-theorem hasLooseBVarB_forallE {i : Nat} {ty b : Expr} {m : BinderMeta}
-    (hc : ¬ (Expr.forallE ty b m).bvarB ≤ i) :
-    Expr.hasLooseBVarB i (.forallE ty b m) =
+theorem hasLooseBVarB_forallE {i : Nat} {ty b : Expr}
+    (hc : ¬ (Expr.forallE ty b).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.forallE ty b) =
       (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
   rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
@@ -858,7 +858,7 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
       | none =>
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4
         refine ⟨q4, ?_⟩
-        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP m) = none
+        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP) = none
         simp only [ConLeche.structProjBodiesGo]
         rw [show ConLeche.structProjBodiesGo TP k (i + 1) _ = none from ho]
         rfl
