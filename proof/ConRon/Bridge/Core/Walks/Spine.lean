@@ -995,6 +995,19 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
   exact h6
 
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast —
+`instantiate1Fast_spec` at the tier's invariant (the `.letE` exit's ζ). -/
+theorem instantiate1Fast_ok_spec (s₀ : AState) (b w : EIdx) (B W : Expr)
+    (hok : CheckOK mode env fe s₀) (hdb : denoteE s₀.store b = some B)
+    (hdw : denoteE s₀.store w = some W) :
+    ⦃fun s => s = s₀⦄ instantiate1Fast coreWalkFuel b w 0
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ denoteE s'.store r = some (B.instantiate1 W); ⊤⦄ :=
+  triple_mono (ExprOps.instantiate1Fast_spec coreWalkFuel s₀ b w 0 W hok.state hdw
+      (by rw [hdb]; rfl))
+    (fun _ _ ⟨hst, hx, hc, hp, _, hrel⟩ =>
+      ⟨hok.mono hst hx hc hp, hx, hp, hrel B hdb⟩)
+
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 

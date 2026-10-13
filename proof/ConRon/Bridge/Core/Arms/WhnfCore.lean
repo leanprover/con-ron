@@ -189,7 +189,7 @@ theorem whnfCoreStep_spec {fe : IFEnv} {fuel : Nat}
   | bvar k => exact triple_fail
   | letE ty w b =>
     obtain ⟨et, ew, eb, rfl, _, hdw, hdb⟩ := denote_letE_inv hwf hv hden
-    have hws : Expr.WScoped d ew ∧ Expr.WScoped (d + 1) eb := by
+    have hws : Expr.WScoped d ew ∧ Expr.WScoped d eb := by
       simp only [Expr.WScoped] at hw; exact ⟨hw.2.1, hw.2.2⟩
     dsimp only
     refine triple_seq (instantiate1Fast_ok_spec s₀ b w eb ew hok hdb hdw) ?_

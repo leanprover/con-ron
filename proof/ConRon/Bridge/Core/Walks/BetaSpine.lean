@@ -478,19 +478,6 @@ theorem instantiateListFast_ok_spec (s₀ : AState) (e : EIdx) (acc : Array EIdx
     (fun _ _ ⟨hst, hx, _, hc, hp, _, hrel⟩ =>
       ⟨hok.mono hst hx hc hp, hx, hp, hrel E hde⟩)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast —
-`instantiate1Fast_spec` at the tier's invariant (the `.letE` exit's ζ). -/
-theorem instantiate1Fast_ok_spec (s₀ : AState) (b w : EIdx) (B W : Expr)
-    (hok : CheckOK mode env fe s₀) (hdb : denoteE s₀.store b = some B)
-    (hdw : denoteE s₀.store w = some W) :
-    ⦃fun s => s = s₀⦄ instantiate1Fast coreWalkFuel b w 0
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ denoteE s'.store r = some (B.instantiate1 W); ⊤⦄ :=
-  triple_mono (ExprOps.instantiate1Fast_spec coreWalkFuel s₀ b w 0 W hok.state hdw
-      (by rw [hdb]; rfl))
-    (fun _ _ ⟨hst, hx, hc, hp, _, hrel⟩ =>
-      ⟨hok.mono hst hx hc hp, hx, hp, hrel B hdb⟩)
-
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:220 betaPeelW — **the
 `betaPeel` carry**, by induction on `args.size - i`. -/
 theorem betaPeel_carry (d : Nat) (args : Array EIdx) (xs : List Expr) :
@@ -626,7 +613,7 @@ theorem whnfApp_carry {fuel : Nat} (henv : ConLeche.EnvWF env)
     · simp only [htl, ite_true]
       obtain ⟨ty, body, Ty, Body, hvb, rfl, hty, hbody⟩ :=
         viewBind_of_lam_tag hwf (by simpa using htl) hdv
-      have hwTB : Expr.WScoped d Ty ∧ Expr.WScoped (d + 1) Body := by
+      have hwTB : Expr.WScoped d Ty ∧ Expr.WScoped d Body := by
         simpa only [Expr.WScoped] using hwV
       refine triple_seq (viewBind_spec s₀ v) ?_
       rintro o s1 ⟨hs1, rfl⟩

@@ -101,6 +101,25 @@ theorem infer_strLit {F d : Nat} {s : String}
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1166-1171 inferBody — **the `let`
+clause**, official `infer_let` (con-leche's task #342 S0): the type is a
+type, the value's type is the type, then the body at the value. -/
+theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
+    (htty : ConLeche.inferTypeCore mode env F d ty = .ok tty)
+    (hs : ConLeche.ensureSortCore mode env F d tty = .ok u)
+    (htv : ConLeche.inferTypeCore mode env F d v = .ok tv)
+    (hde : ConLeche.isDefEqCore mode env F d tv ty = .ok true)
+    (hr : ConLeche.inferTypeCore mode env F d (b.instantiate1 v) = .ok res) :
+    ConLeche.inferTypeCore mode env (F + 1) d (.letE ty v b) = .ok res := by
+  have e1 : (ConLeche.pureFns mode env F).infer d ty = .ok tty := htty
+  have e2 : ConLeche.ensureSort (ConLeche.pureFns mode env F) env d tty = .ok u := hs
+  have e3 : (ConLeche.pureFns mode env F).infer d v = .ok tv := htv
+  have e4 : (ConLeche.pureFns mode env F).defeq d tv ty = .ok true := hde
+  have e5 : (ConLeche.pureFns mode env F).infer d (b.instantiate1 v) = .ok res := hr
+  rw [ConLeche.inferTypeCore_succ]
+  simp only [ConLeche.inferBody, e1, e2, e3, e4, e5, bind, Except.bind]
+  rfl
+
 /-! ## 4. The projection clause
 
 Two success exits, and the guard that separates them is con-leche's task #175
@@ -555,9 +574,77 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
 
 #print axioms inferBody_proj
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1166-1171 inferBody — **the `let`
+clause** (official `infer_let`, con-leche's task #342 S0): the type's type is
+a sort, the value's type is the type, then the body at the value. -/
+theorem inferBody_letE {fe : IFEnv} {fuel : Nat}
+    (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e) (htag : i.tag = ETag.letE) :
+    ⦃fun s => s = s₀⦄
+      inferBody (coreKnot mode fe id fuel) fe d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
+  have hwf := hok.state.wf
+  obtain ⟨v, hv⟩ := denoteE_view hden
+  have htg := EStore.tagOf_of_view hv
+  refine view_bind_triple hv ?_
+  cases v
+  case letE ty w b =>
+    obtain ⟨et, ew, eb, rfl, hdt, hdw, hdb⟩ := denote_letE_inv hwf hv hden
+    have hwt : Expr.WScoped d et := by unfold Expr.WScoped at hw; exact hw.1
+    have hww : Expr.WScoped d ew := by unfold Expr.WScoped at hw; exact hw.2.1
+    have hwb : Expr.WScoped d eb := by unfold Expr.WScoped at hw; exact hw.2.2
+    dsimp only
+    -- the type's type
+    refine triple_seq (hsim.infer s₀ d ty et hok hdt hwt) ?_
+    rintro tty s1 ⟨hok1, hx1, hp1, Tty, hdtty, hwtty, F1, hF1⟩
+    -- is a sort
+    refine triple_seq (ensureSortCore_spec hsim s1 d tty Tty hok1 hdtty hwtty) ?_
+    rintro u s2 ⟨hok2, hx2, hp2, U, _, F2, hF2⟩
+    have hx02 : Ext s₀.store s2.store := hx1.trans hx2
+    -- the value's type
+    refine triple_seq (hsim.infer s2 d w ew hok2 (denote_ext hdw hx02) hww) ?_
+    rintro tv s3 ⟨hok3, hx3, hp3, Tv, hdtv, hwtv, F3, hF3⟩
+    have hx03 : Ext s₀.store s3.store := hx02.trans hx3
+    -- against the type
+    refine triple_seq (hsim.defeq s3 d tv ty Tv et hok3 hdtv
+      (denote_ext hdt hx03) hwtv hwt) ?_
+    rintro ok s4 ⟨hok4, hx4, hp4, F4, hF4⟩
+    have hx04 : Ext s₀.store s4.store := hx03.trans hx4
+    cases ok with
+    | false => exact triple_fail
+    | true =>
+      simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+      -- the body at the value
+      refine triple_seq (instantiate1Fast_ok_spec s4 b w eb ew hok4
+        (denote_ext hdb hx04) (denote_ext hdw hx04)) ?_
+      rintro ob s5 ⟨hok5, hx5, hp5, hdob⟩
+      have hx05 : Ext s₀.store s5.store := hx04.trans hx5
+      refine triple_mono (hsim.infer s5 d ob (eb.instantiate1 ew) hok5 hdob
+        (Expr.WScoped.instantiate1_gen hww 0 hwb)) ?_
+      rintro r s6 ⟨hok6, hx6, hp6, R, hdR, hwR, F5, hF5⟩
+      refine ⟨hok6, hx05.trans hx6,
+        by rw [hp6, hp5, hp4, hp3, hp2, hp1], R, hdR, hwR,
+        max F1 (max F2 (max F3 (max F4 F5))) + 1, ?_⟩
+      exact infer_letE
+        (ConLeche.inferTypeCore_mono (by omega) hF1)
+        (ConLeche.ensureSortCore_mono (by omega) hF2)
+        (ConLeche.inferTypeCore_mono (by omega) hF3)
+        (ConLeche.isDefEqCore_mono (by omega) hF4)
+        (ConLeche.inferTypeCore_mono (by omega) hF5)
+  all_goals
+    exfalso
+    rw [htag] at htg
+    simp [ENodeView.tagOf, ETag.proj, ETag.app, ETag.bvar, ETag.fvar,
+      ETag.sort, ETag.const, ETag.lam, ETag.forallE, ETag.letE,
+      ETag.lit] at htg
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1115-1125 inferBody — **the leaf
 clauses**: `.sort` (one level intern and one node intern), `.fvar` (the
-scope check), and the two throws (`.letE`, `.bvar`).
+scope check), and the throw (`.bvar`).
 **CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
 theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
@@ -567,7 +654,7 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (hna : i.tag ≠ ETag.app) (hnp : i.tag ≠ ETag.proj)
     (hnb : ETag.isBind i.tag = false) (hnc : i.tag ≠ ETag.const)
-    (hnl : i.tag ≠ ETag.lit) :
+    (hnl : i.tag ≠ ETag.lit) (hnlet : i.tag ≠ ETag.letE) :
     ⦃fun s => s = s₀⦄
       inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
@@ -586,7 +673,7 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
   | forallE ty b =>
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
-  | letE ty w b => vcgen
+  | letE ty w b => exact absurd htg hnlet
   | bvar k => vcgen
   | fvar k t =>
     obtain ⟨t', rfl, ht⟩ := denote_fvar_inv hwf hv hden
@@ -644,8 +731,10 @@ theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
   · exact inferBody_const henv hμ hsim s₀ d i e hok hden hw hc
   by_cases hl : i.tag = ETag.lit
   · exact inferBody_lit henv hμ hsim s₀ d i e hok hden hw hl
+  by_cases hlt : i.tag = ETag.letE
+  · exact inferBody_letE hsim s₀ d i e hok hden hw hlt
   exact inferBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hp
-    (Bool.eq_false_iff.mpr hb) hc hl
+    (Bool.eq_false_iff.mpr hb) hc hl hlt
 
 /-! ## The axiom census of the closed children (task #97-P3-Core round 5,
 sub-lane Leaves) -/
