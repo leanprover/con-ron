@@ -705,7 +705,7 @@ private theorem scan_nat_list_loop_aux {b : Slice Std.U8} (f : Nat) :
 
 /-- **`scan_nat_list_loop` refines `scanNatListLoop`** at the empty
 accumulator (`Scan/Fast.lean:674-698`).  Every list-valued slot
-of the tier enter here, past the `[`. -/
+of the tier enters here, past the `[`. -/
 theorem scan_nat_list_loop_refines {b : Slice Std.U8} {i : Std.Usize}
     {o : core.result.Result (alloc.vec.Vec Std.U64 × Std.Usize)
            frontend.scan_types.ScanErr}
