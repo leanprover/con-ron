@@ -1191,18 +1191,6 @@ Expr.liftLooseBVars amount c e)` — and the `exact` step is gone. -/
   all_goals (bridge_peel; subst_vars)
   all_goals exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:411-413 LiftMemoInv — a memo HIT
-answers by the invariant, in the shape a walk's hit arm has (`some r =
-tbl'[(h, c)]?`, the key spelled out, the table and the stores up to the
-frame's equations): task #120's one-`exact` hit arm. -/
-theorem MemoOK.get_hit' {f : Nat → Expr → Expr}
-    {tbl tbl' : Std.HashMap (EIdx × Nat) EIdx} {st st₁ st₂ : EStore} {h : EIdx}
-    {c : Nat} {r : EIdx} (hm : MemoOK f tbl st) (hk : some r = tbl'[(h, c)]?)
-    (ht : tbl' = tbl) (h₁ : st₁ = st) (h₂ : st₂ = st) :
-    RelE (f c) st₁ h st₂ r := by
-  subst ht h₁ h₂
-  exact MemoOK.get (k := (h, c)) hm hk.symm
-
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `liftLooseBVarsGo`'s recursion.
 

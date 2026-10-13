@@ -342,7 +342,9 @@ partial def projNorm (e : Expr) : MetaM Expr := do
 occurrence of one side of a hypothesis `u = v` of ANY type by the other, and
 then reduces projections of structure instances — so that `s₂.memos = { s₁.memos with
 liftC := … }` carries `s₂.memos.inst1LC = s₁.memos.inst1LC` (task #120: the
-memo-table frame of every memoized walk).  Breadth first, at most six steps. -/
+memo-table frame of every memoized walk).  Both sides are rewritten (at most four steps each) and the search meets in
+the middle, so a target that itself mentions projections of later states
+(`{ s₂.caches with readLC := s.caches.readLC }`) is reached too. -/
 def eqPathCongr (a b : Expr) : FM (Option Expr) := do
   let mut edges : Array (Expr × Expr × Expr) := #[]
   for h in (← read).hyps do
@@ -352,24 +354,35 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
       edges := edges.push (u, v, h.pf)
       edges := edges.push (v, u, ← mkEqSymm h.pf)
   if edges.isEmpty then return none
-  let mut frontier : Array (Expr × Expr) := #[(a, ← mkEqRefl a)]
-  let mut seen : Array Expr := #[a]
-  for _ in [0:6] do
-    let mut next := #[]
-    for (n, pn) in frontier do
-      for (u, v, pe) in edges do
-        unless (n.find? (· == u)).isSome do continue
-        let ty ← inferType u
-        let motive := Expr.lam `z ty (n.replace fun x => if x == u then some (.bvar 0) else none)
-          .default
-        let n' ← projNorm (n.replace fun x => if x == u then some v else none)
-        if ← seen.anyM (fun x => (same n' x : MetaM Bool)) then continue
-        let p ← mkEqTrans pn (← mkCongrArg motive pe)
-        if ← same n' b then return some p
-        seen := seen.push n'
-        next := next.push (n', p)
-    if next.isEmpty then return none
-    frontier := next
+  -- every node reachable from `x` in at most four rewrites, with `x = node`
+  let reach (x : Expr) : MetaM (Array (Expr × Expr)) := do
+    let mut all : Array (Expr × Expr) := #[(x, ← mkEqRefl x)]
+    let mut frontier := all
+    for _ in [0:4] do
+      let mut next := #[]
+      for (n, pn) in frontier do
+        for (u, v, pe) in edges do
+          unless (n.find? (· == u)).isSome do continue
+          let ty ← inferType u
+          let motive := Expr.lam `z ty
+            (n.replace fun x => if x == u then some (.bvar 0) else none) .default
+          let n' ← projNorm (n.replace fun x => if x == u then some v else none)
+          if ← all.anyM (fun (y, _) => same n' y) then continue
+          let p ← mkEqTrans pn (← mkCongrArg motive pe)
+          all := all.push (n', p)
+          next := next.push (n', p)
+          if all.size > 64 then return all
+      if next.isEmpty then return all
+      frontier := next
+    return all
+  -- meet in the middle: a node both sides reach (the target may mention
+  -- the same projections, `{ s₂.caches with readLC := s.caches.readLC }`)
+  let ra ← reach a
+  let rb ← reach b
+  for (na, pa) in ra do
+    for (nb, pb) in rb do
+      if ← same na nb then
+        return some (← mkEqTrans pa (← mkEqSymm pb))
   return none
 
 /-- Could `a` match `b` reducibly?  A syntactic over-approximation in front of
