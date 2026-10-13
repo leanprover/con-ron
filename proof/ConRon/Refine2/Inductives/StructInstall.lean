@@ -6,12 +6,13 @@
 `proof/ConRon/Arena/Inductives/StructInstall.lean`: the binder-domain walk
 and the projection TABLE the uniform route stores at a structure-like block.
 
-**Five `pub fn`s against two twin `def`s**, and the three extra are DESIGN
-§3.4's rules at `checkStructProjTable`'s two `allM`s and its `let`-boundary.
-`Refine2/Inductives/Spec.lean` carries all three transcriptions.
+**Four `pub fn`s against two twin `def`s**, and the two extra are DESIGN
+§3.4's rules at `checkStructProjTable`'s `allM` and its `let`-boundary (the
+projection-name family test went upstream, task #119).
+`Refine2/Inductives/Spec.lean` carries the transcriptions.
 
-**Finding 10 reaches this module.**  `check_struct_doms_at`,
-`proj_bodies_scoped` and `proj_fn_family_free` take `vis : u64` beside `fe`
+**Finding 10 reaches this module.**  `check_struct_doms_at` and
+`proj_bodies_scoped` take `vis : u64` beside `fe`
 (task #97-P6-6b), so each carries `hvis : absU vis = lf.visibleBelow`.
 `check_struct_proj_table` and its `_names` tail do NOT: they take `fe` by
 value and read `fe.visible_below` themselves, which `IFEnvRel.visibleBelow`
@@ -172,31 +173,6 @@ cursor on. -/
   · intro st lst i hb hrel hinv ih
     rw [arena.inductives.struct_install.proj_bodies_scoped.eq_def, projBodiesScopedSpec]
     rw [ite_eq_right (by simp [alloc.vec.Vec.len]; scalar_tac)]
-    lockstep
-
-open Lockstep in
-/-- `proj_fn_family_free` ⊑ the projection-function name family's freeness
-from field `j` on — the twin's `(List.range nF).allM`. -/
-@[lockstep] theorem proj_fn_family_free_ls
-    {pers st lst}
-    {vis : Std.U64}
-    {rf lf}
-    {t : arena.handle.NIdx}
-    {n_f j : Std.U64}
-    (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st)
-    (hfe : IFEnvRelI rf lf)
-    (hvis : absU vis = lf.visibleBelow) :
-    LS pers (fun a b => b = id a) (arena.inductives.struct_install.proj_fn_family_free pers vis st rf t n_f j) lst
-      (projFnFamilyFreeSpec lf (absNIdx t) (absU n_f - absU j) (absU j)) := by
-  induction hk : n_f.val - j.val generalizing j st lst with
-  | zero =>
-    rw [arena.inductives.struct_install.proj_fn_family_free.eq_def,
-      ite_eq_left (by scalar_tac), projFnFamilyFreeSpec]
-    lockstep
-  | succ m ih =>
-    rw [arena.inductives.struct_install.proj_fn_family_free.eq_def,
-      ite_eq_right (by scalar_tac), projFnFamilyFreeSpec]
     lockstep
 
 open Lockstep in

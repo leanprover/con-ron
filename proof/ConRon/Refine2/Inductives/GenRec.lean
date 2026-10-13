@@ -12,9 +12,8 @@ against `proof/ConRon/Arena/Inductives/GenRec.lean`: the generator
   its `mapM.loop` form (the accumulator reversed), so the statement at the
   cursor needs no append lemma; the callers' form (`0`, `Vec::new()`) is the
   twin's `mapM` by definition.
-* A Rust telescope pushed into `close_telescope`/`close_lams` carries
-  `TeleWF` (the binders' erased `PropWhen` invariant) beside its
-  abstraction; the generated datum `g.bm` is canonical (`ClassGenWF`).
+* A telescope is a list of handles since task #119 (the binder datum, the
+  generator's `g.bm` and their well-formedness side conditions are gone).
 -/
 import ConRon.Refine2.Inductives.Positivity
 import ConRon.Refine2.Inductives.Prims
@@ -66,21 +65,8 @@ attribute [local lockstep high] drop_eidx_n_twin
     (absClassGen g).ctors = g.ctors.val.map (fun cs => cs.val.map absClassCtor) := rfl
 @[lockstep_simp] theorem absClassGen_elim (g : arena.inductives.gen_rec.ClassGen) :
     (absClassGen g).elim = absLIdx g.elim := rfl
-@[lockstep_simp] theorem absClassGen_bm (g : arena.inductives.gen_rec.ClassGen) :
-    (absClassGen g).bm = ConRon.Refine.absBinderMeta g.bm := rfl
 @[lockstep_simp] theorem absClassGen_pre (g : arena.inductives.gen_rec.ClassGen) :
     (absClassGen g).pre = absBinderL g.pre := rfl
-
-/-- The generator's representation facts: its datum and its prefix are
-canonical (`PropWhenWF`, the erased subtype invariant). -/
-def ClassGenWF (g : arena.inductives.gen_rec.ClassGen) : Prop :=
-  ConRon.Refine.PropWhenWF g.bm.pw ∧ TeleWF g.pre
-
-theorem ClassGenWF.bm {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g) :
-    ConRon.Refine.PropWhenWF g.bm.pw := h.1
-
-theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g) :
-    TeleWF g.pre := h.2
 
 /-! ## The copies (identities) -/
 
@@ -120,14 +106,14 @@ theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g
 
 /-- `close_lams` ⊑ `closeLams`, the telescope from the cursor on. -/
 @[lockstep] theorem close_lams_ls {pers}
-    {bs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {body : arena.handle.EIdx} (hte : TeleWF bs) :
+    {bs : alloc.vec.Vec arena.handle.EIdx}
+    {body : arena.handle.EIdx} :
     ∀ (k : Std.Usize) (i : Std.U64) st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absEIdx a)
         (arena.inductives.gen_rec.close_lams pers st bs k i body) lst
         (closeLams (absBinderLFrom bs k) (absU i) (absEIdx body)) := by
   intro k i st lst hrel hinv
-  refine ls_cursor_acc bs (fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2))
+  refine ls_cursor_acc bs absEIdx
     (fun (w : Std.U64) l => closeLams l (absU w) (absEIdx body))
     (fun st k w => arena.inductives.gen_rec.close_lams pers st bs k w body)
     ?_ ?_ k st lst i hrel hinv
@@ -142,7 +128,6 @@ theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g
           (arena.inductives.gen_rec.close_lams pers st' bs j w' body) lst'
           (closeLams (absBinderLFrom bs j) (absU w') (absEIdx body)) := ih
     clear ih
-    have hpw := TeleWF.get hte k.val hk
     rw [arena.inductives.gen_rec.close_lams.eq_def,
       ite_eq_right (show ¬ k ≥ alloc.vec.Vec.len bs by scalar_tac), closeLams]
     lockstep
@@ -161,27 +146,27 @@ theorem ClassGenWF.pre {g : arena.inductives.gen_rec.ClassGen} (h : ClassGenWF g
 /-! ## The binders: `class_binders`, `gen_binders` (`List.mapM` in its loop form) -/
 
 @[lockstep_simp] theorem absBinderL_new :
-    absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) = [] := rfl
+    absBinderL (alloc.vec.Vec.new arena.handle.EIdx) = [] := rfl
 
 theorem class_binders_acc {pers st} (xs : alloc.vec.Vec arena.handle.EIdx) :
-    ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) lst,
-      AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
-      LSR pers (fun a b => b = absBinderL a ∧ TeleWF a)
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absBinderL a)
         (arena.inductives.gen_rec.class_binders pers st xs i out) st lst
         (List.mapM.loop classBinder ((xs.val.drop i.val).map absEIdx) (absBinderL out).reverse) := by
   refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
-    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
-      LSR pers (fun a b => b = absBinderL a ∧ TeleWF a)
+    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absBinderL a)
         (arena.inductives.gen_rec.class_binders pers st xs i out) st lst
         (List.mapM.loop classBinder ((xs.val.drop i.val).map absEIdx)
           (absBinderL out).reverse)) ?_ ?_
-  · intro i out hn lst hrel hinv hout
+  · intro i out hn lst hrel hinv
     rw [List.drop_eq_nil_of_le hn, List.map_nil, List.mapM.loop, List.reverse_reverse]
     apply LSR.of_LS
     rw [arena.inductives.gen_rec.class_binders.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac)]
     lockstep
-  · intro i out hi ih lst hrel hinv hout
+  · intro i out hi ih lst hrel hinv
     rw [List.drop_eq_getElem_cons hi, List.map_cons, List.mapM.loop]
     apply LSR.of_LS
     rw [arena.inductives.gen_rec.class_binders.eq_def,
@@ -191,34 +176,33 @@ theorem class_binders_acc {pers st} (xs : alloc.vec.Vec arena.handle.EIdx) :
 /-- `class_binders` from `0` into `Vec::new()` ⊑ `xs.mapM classBinder`. -/
 @[lockstep] theorem class_binders_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (xs : alloc.vec.Vec arena.handle.EIdx) :
-    LSR pers (fun a b => b = absBinderL a ∧ TeleWF a)
+    LSR pers (fun a b => b = absBinderL a)
       (arena.inductives.gen_rec.class_binders pers st xs 0#usize (alloc.vec.Vec.new _)) st lst
       ((absEIdxL xs).mapM classBinder) := by
   have h := class_binders_acc (pers := pers) xs 0#usize (alloc.vec.Vec.new _) lst hrel hinv
-    TeleWF.new
   simpa [absEIdxL, absBinderL, alloc.vec.Vec.new, List.mapM] using h
 
 theorem gen_binders_acc {pers st} (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (xs : alloc.vec.Vec arena.handle.EIdx) :
-    ∀ (i : Std.Usize) (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) lst,
-      AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
-      LSR pers (fun a b => b = absBinderL a ∧ TeleWF a)
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (i : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absBinderL a)
         (arena.inductives.gen_rec.gen_binders pers st g xs i out) st lst
         (List.mapM.loop (absClassGen g).binder ((xs.val.drop i.val).map absEIdx)
           (absBinderL out).reverse) := by
   refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
-    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
-      LSR pers (fun a b => b = absBinderL a ∧ TeleWF a)
+    (fun i out => ∀ lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LSR pers (fun a b => b = absBinderL a)
         (arena.inductives.gen_rec.gen_binders pers st g xs i out) st lst
         (List.mapM.loop (absClassGen g).binder ((xs.val.drop i.val).map absEIdx)
           (absBinderL out).reverse)) ?_ ?_
-  · intro i out hn lst hrel hinv hout
+  · intro i out hn lst hrel hinv
     rw [List.drop_eq_nil_of_le hn, List.map_nil, List.mapM.loop, List.reverse_reverse]
     apply LSR.of_LS
     rw [arena.inductives.gen_rec.gen_binders.eq_def,
       ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac)]
     lockstep
-  · intro i out hi ih lst hrel hinv hout
+  · intro i out hi ih lst hrel hinv
     rw [List.drop_eq_getElem_cons hi, List.map_cons, List.mapM.loop]
     apply LSR.of_LS
     rw [arena.inductives.gen_rec.gen_binders.eq_def,
@@ -228,12 +212,11 @@ theorem gen_binders_acc {pers st} (g : arena.inductives.gen_rec.ClassGen)
 /-- `gen_binders` from `0` into `Vec::new()` ⊑ `xs.mapM g.binder`. -/
 @[lockstep high] theorem gen_binders_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (xs : alloc.vec.Vec arena.handle.EIdx) :
-    LSR pers (fun a b => b = absBinderL a ∧ TeleWF a)
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LSR pers (fun a b => b = absBinderL a)
       (arena.inductives.gen_rec.gen_binders pers st g xs 0#usize (alloc.vec.Vec.new _)) st lst
       ((absEIdxL xs).mapM (absClassGen g).binder) := by
-  have h := gen_binders_acc (pers := pers) g hbm xs 0#usize (alloc.vec.Vec.new _) lst hrel hinv
-    TeleWF.new
+  have h := gen_binders_acc (pers := pers) g xs 0#usize (alloc.vec.Vec.new _) lst hrel hinv
   simpa [absEIdxL, absBinderL, alloc.vec.Vec.new, List.mapM] using h
 
 /-- `List.mapM.loop` with an accumulator is the `mapM` behind it. -/
@@ -251,12 +234,12 @@ theorem mapM_loop_acc {α β : Type} (f : α → AM β) (l : List α) (acc : Lis
 in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
 @[lockstep] theorem gen_binders_pre_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (xs : alloc.vec.Vec arena.handle.EIdx)
-    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (hout : TeleWF out) :
-    LSR pers (fun a b => absBinderL a = absBinderL out ++ b ∧ TeleWF a)
+    (xs : alloc.vec.Vec arena.handle.EIdx)
+    (out : alloc.vec.Vec arena.handle.EIdx) :
+    LSR pers (fun a b => absBinderL a = absBinderL out ++ b)
       (arena.inductives.gen_rec.gen_binders pers st g xs 0#usize out) st lst
       ((absEIdxL xs).mapM (absClassGen g).binder) := by
-  have h := gen_binders_acc (pers := pers) g hbm xs 0#usize out lst hrel hinv hout
+  have h := gen_binders_acc (pers := pers) g xs 0#usize out lst hrel hinv
   rw [mapM_loop_acc, List.reverse_reverse] at h
   have h2 := LSR.of_map h
   have e : (List.mapM.loop (absClassGen g).binder
@@ -269,16 +252,8 @@ in front of the answer (`classGenRecTy`'s `g.pre ++ ibs`). -/
   cases o with
   | Err e => exact h3
   | Ok a =>
-    obtain ⟨b, lst', hb, ⟨h4, h5⟩, h6, h7⟩ := h3
-    exact ⟨b, lst', hb, ⟨h4.symm, h5⟩, h6, h7⟩
-
-/-- `class_gen_bm` ⊑ `classGenBm`, the datum canonical. -/
-@[lockstep] theorem class_gen_bm_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (elim : arena.handle.LIdx) :
-    LS pers (fun a b => b = ConRon.Refine.absBinderMeta a ∧ ConRon.Refine.PropWhenWF a.pw)
-      (arena.inductives.gen_rec.class_gen_bm pers st elim) lst (classGenBm (absLIdx elim)) := by
-  rw [arena.inductives.gen_rec.class_gen_bm, classGenBm]
-  lockstep
+    obtain ⟨b, lst', hb, h4, h6, h7⟩ := h3
+    exact ⟨b, lst', hb, h4.symm, h6, h7⟩
 
 /-- `slot_var` ⊑ `ClassGen.slotVar`. -/
 @[lockstep] theorem slot_var_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -610,7 +585,7 @@ theorem find_class_ctor_in_abs (xs : alloc.vec.Vec arena.inductives.gen_rec.Clas
 
 /-- `binder_copy_from … 0 Vec::new()` is a copy. -/
 theorem binder_copy_from_new_spec
-    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
     LSP (arena.expr_ops.binder_copy_from xs 0#usize (alloc.vec.Vec.new _)) (fun r => r = xs) := by
   refine vec_copy_id xs (arena.expr_ops.binder_copy_from xs) ?_ ?_
   · intro i out o hn h
@@ -625,10 +600,9 @@ theorem binder_copy_from_new_spec
       have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
     subst hqx
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [dupId_eidx _ _ he1, ConRon.Refine.Expr.binder_meta_dup_eq hbm1] at hout1
+    rw [dupId_eidx _ _ he1] at hout1
     exact ⟨i2, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1, h⟩
 
 attribute [local lockstep high] binder_copy_from_new_spec
@@ -743,37 +717,26 @@ twin's answer (`OptBinders out`), and the step closes the twin's
 `match ← ihsGo … with | some ihs => pure (some (ih :: ihs))` by
 `ls_tail_opt_cons`. -/
 
-/-- An optional telescope's binders are canonical. -/
-def OptTeleWF (a : Option (alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))) : Prop :=
-  ∀ v, a = some v → TeleWF v
-
-theorem OptTeleWF.none : OptTeleWF none := fun _ h => by cases h
-
-theorem OptTeleWF.some {v} (h : TeleWF v) : OptTeleWF (Option.some v) := fun _ h' => by
-  cases h'; exact h
-
-theorem OptTeleWF.get {v} (h : OptTeleWF (Option.some v)) : TeleWF v := h v rfl
-
 /-- The answer relation of an optional telescope built onto `out`. -/
-def OptBinders (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-    (a : Option (alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)))
-    (b : Option (List (EIdx × ConLeche.BinderMeta))) : Prop :=
-  a.map absBinderL = b.map (absBinderL out ++ ·) ∧ OptTeleWF a
+def OptBinders (out : alloc.vec.Vec arena.handle.EIdx)
+    (a : Option (alloc.vec.Vec arena.handle.EIdx))
+    (b : Option (List EIdx)) : Prop :=
+  a.map absBinderL = b.map (absBinderL out ++ ·)
 
 theorem ls_tail_opt_cons {pers : arena.store.PersTier}
-    {m : Result (core.result.Result (Option (alloc.vec.Vec (arena.handle.EIdx ×
-      kernel.expr.BinderMeta))) kernel.core_types.CheckError × arena.monad.AState)}
-    {lst : AState} {x : AM (Option (List (EIdx × ConLeche.BinderMeta)))}
-    {y : EIdx × ConLeche.BinderMeta}
-    {out out1 : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {m : Result (core.result.Result (Option (alloc.vec.Vec arena.handle.EIdx))
+      kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x : AM (Option (List EIdx))}
+    {y : EIdx}
+    {out out1 : alloc.vec.Vec arena.handle.EIdx}
     (h : LS pers (OptBinders out1) m lst x) (hout : absBinderL out1 = absBinderL out ++ [y]) :
     LS pers (OptBinders out) m lst (do
       match ← x with
       | none => pure none
       | some ihs => pure (some (y :: ihs))) := by
   have h2 := LS.tail_bind_pure (R := OptBinders out) (f := Option.map (y :: ·)) h (by
-    intro a b ⟨h1, h2⟩
-    refine ⟨?_, h2⟩
+    intro a b h1
+    simp only [OptBinders] at h1 ⊢
     rw [h1, hout]
     cases b <;> simp)
   refine LS.twin_eq h2 ?_
@@ -781,37 +744,36 @@ theorem ls_tail_opt_cons {pers : arena.store.PersTier}
   funext r
   cases r <;> rfl
 
-theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
+theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
     (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64)
     (fvs ws : alloc.vec.Vec arena.handle.EIdx)
     (recs : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64)) :
-    ∀ (l : Std.Usize) (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) st lst,
-      AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+    ∀ (l : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (OptBinders out)
         (arena.inductives.gen_rec.minor_ihs pers st g x d fvs ws recs l out) lst
         (ClassGen.minorTy.ihsGo (absClassGen g) (absClassCtor x) (absU d) (absEIdxL fvs)
           (absEIdxL ws) l.val ((recs.val.drop l.val).map absTriple)) := by
   intro l
   refine cursor_induction (fun i : Std.Usize => i.val) recs.val.length
-    (fun l out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+    (fun l out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (OptBinders out)
         (arena.inductives.gen_rec.minor_ihs pers st g x d fvs ws recs l out) lst
         (ClassGen.minorTy.ihsGo (absClassGen g) (absClassCtor x) (absU d) (absEIdxL fvs)
           (absEIdxL ws) l.val ((recs.val.drop l.val).map absTriple))) ?_ ?_ l
-  · intro l out hn st lst hrel hinv hout
+  · intro l out hn st lst hrel hinv
     rw [List.drop_eq_nil_of_le hn, List.map_nil, ClassGen.minorTy.ihsGo,
       arena.inductives.gen_rec.minor_ihs.eq_def,
       ite_eq_left (show l ≥ alloc.vec.Vec.len recs by scalar_tac)]
-    exact LS.pure ⟨by simp, OptTeleWF.some hout⟩ hrel hinv
-  · intro l out hl ih st lst hrel hinv hout
+    exact LS.pure (by simp [OptBinders]) hrel hinv
+  · intro l out hl ih st lst hrel hinv
     rw [List.drop_eq_getElem_cons hl, List.map_cons, absTriple, ClassGen.minorTy.ihsGo,
       arena.inductives.gen_rec.minor_ihs.eq_def,
       ite_eq_right (show ¬ l ≥ alloc.vec.Vec.len recs by scalar_tac)]
     lockstep
-    · exact LS.pure ⟨rfl, OptTeleWF.none⟩ ‹_› ‹_›
     · rename_i ihd out1 hout1
       have hjv : a.val = l.val + 1 := by simpa using hP
-      have h1 := ih a out1 hjv _ _ ‹_› ‹_› (TeleWF.push hout1 hout hbm)
+      have h1 := ih a out1 hjv _ _ ‹_› ‹_›
       rw [hjv] at h1
       refine ls_tail_opt_cons h1 ?_
       simp [absBinderL, hout1]
@@ -819,20 +781,18 @@ theorem minor_ihs_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConR
 /-- `minor_ihs` from `0` into `Vec::new()` ⊑ `minorTy.ihsGo … 0`. -/
 @[lockstep] theorem minor_ihs_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
     (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64)
     (fvs ws : alloc.vec.Vec arena.handle.EIdx)
     (recs : alloc.vec.Vec (Std.U64 × Std.U64 × Std.U64)) :
-    LS pers (fun a b => b = a.map absBinderL ∧ OptTeleWF a)
+    LS pers (fun a b => b = a.map absBinderL)
       (arena.inductives.gen_rec.minor_ihs pers st g x d fvs ws recs 0#usize (alloc.vec.Vec.new _))
       lst
       (ClassGen.minorTy.ihsGo (absClassGen g) (absClassCtor x) (absU d) (absEIdxL fvs)
         (absEIdxL ws) 0 (recs.val.map absTriple)) := by
-  have h := minor_ihs_acc g hbm x d fvs ws recs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
-    TeleWF.new
+  have h := minor_ihs_acc g x d fvs ws recs 0#usize (alloc.vec.Vec.new _) st lst hrel hinv
   refine LS.tail h (by simp) ?_
-  intro a b ⟨h1, h2⟩
-  refine ⟨?_, h2⟩
+  intro a b h1
+  simp only [OptBinders] at h1
   rw [h1]
   cases b <;> simp [absBinderL, alloc.vec.Vec.new]
 
@@ -937,7 +897,7 @@ theorem gr_kind_read {γ : Type} (ks : alloc.vec.Vec arena.inductives.gen_rec.Cl
     cases hk : ks.val[i.val] <;> simp [arena.inductives.gen_rec.class_field_dup]
   · rw [ite_eq_right (by scalar_tac), dite_eq_right h, bind_ok]
 
-theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
+theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
     (rlvls : arena.handle.LsIdx) (x : arena.inductives.gen_rec.ClassCtor) (r_p : Std.U64)
     (fvs ws pvars : alloc.vec.Vec arena.handle.EIdx) :
@@ -981,7 +941,6 @@ theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : Con
 /-- `rule_calls` from field `0` into `Vec::new()` ⊑ `classGenRule.callsGo … nF 0`. -/
 @[lockstep] theorem rule_calls_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
     (rlvls : arena.handle.LsIdx) (x : arena.inductives.gen_rec.ClassCtor) (r_p : Std.U64)
     (fvs ws pvars : alloc.vec.Vec arena.handle.EIdx) :
@@ -991,7 +950,7 @@ theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : Con
       (classGenRule.callsGo (absClassGen g) (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
         (absLsIdx rlvls) (absClassCtor x) (absU r_p) (absEIdxL fvs) (absEIdxL ws)
         (absEIdxL pvars) (absU x.n_f) 0) := by
-  have h := rule_calls_acc g hbm rec_cls cv_gs rlvls x r_p fvs ws pvars _ 0#u64
+  have h := rule_calls_acc g rec_cls cv_gs rlvls x r_p fvs ws pvars _ 0#u64
     (alloc.vec.Vec.new _) st lst rfl hrel hinv
   refine LS.tail h (by simp [absU]) ?_
   intro a b h1
@@ -1001,13 +960,11 @@ theorem rule_calls_acc {pers} (g : arena.inductives.gen_rec.ClassGen) (hbm : Con
 
 /-- `class_gen_rule_close` ⊑ `grRuleClose` (`classGenRule`'s tail). -/
 @[lockstep] theorem class_gen_rule_close_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
     (s : Std.U64) (fvs ihs : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = a.map absEIdx)
       (arena.inductives.gen_rec.class_gen_rule_close pers st g s fvs ihs) lst
       (grRuleClose (absClassGen g) (absU s) (absEIdxL fvs) (absEIdxL ihs)) := by
-  have hbm := hg.bm
-  have hpre := hg.pre
   rw [arena.inductives.gen_rec.class_gen_rule_close, grRuleClose]
   lockstep
 
@@ -1042,14 +999,13 @@ theorem classGenRule_eq : classGenRule = classGenRule' := by
   · congr 1; funext p; rcases p with ⟨_, _ | _⟩ <;> rfl
 
 @[lockstep] theorem class_gen_rule_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
     (rec_cls : alloc.vec.Vec Std.U64) (cv_gs : alloc.vec.Vec arena.env.IConstantVal)
     (rlvls : arena.handle.LsIdx) (c : Std.U64) (x : arena.inductives.gen_rec.ClassCtor) :
     LS pers (fun a b => b = a.map absEIdx)
       (arena.inductives.gen_rec.class_gen_rule pers st g rec_cls cv_gs rlvls c x) lst
       (classGenRule (absClassGen g) (absNatL rec_cls) (cv_gs.val.map absIConstantVal)
         (absLsIdx rlvls) (absU c) (absClassCtor x)) := by
-  have hbm := hg.bm
   rw [arena.inductives.gen_rec.class_gen_rule, classGenRule_eq, classGenRule']
   lockstep
 
@@ -1271,8 +1227,8 @@ theorem some_outside_abs (ms : alloc.vec.Vec arena.inductives.rec_check.TargetMa
 
 /-- `binder_copy_from` is a copy onto `out`. -/
 theorem binder_copy_from_val_spec
-    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (i : Std.Usize)
-    (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
+    (xs : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize)
+    (out : alloc.vec.Vec arena.handle.EIdx) :
     LSP (arena.expr_ops.binder_copy_from xs i out)
       (fun r => r.val = out.val ++ xs.val.drop i.val) := by
   intro r h
@@ -1291,34 +1247,10 @@ theorem binder_copy_from_val_spec
       have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
     subst hqx
     obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    rw [dupId_eidx _ _ he1, ConRon.Refine.Expr.binder_meta_dup_eq hbm1] at hout1
+    rw [dupId_eidx _ _ he1] at hout1
     exact ⟨i2, q, out1, absSz_add_one hi2, by simpa using ConRon.Refine.vec_push_val hout1, rfl, h⟩
-
-theorem TeleWF.copy {r out xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {i : Nat} (h : r.val = out.val ++ xs.val.drop i) (ho : TeleWF out) (hx : TeleWF xs) :
-    TeleWF r := by
-  intro p hp
-  rw [h, List.mem_append] at hp
-  rcases hp with hp | hp
-  · exact ho p hp
-  · exact hx p (List.mem_of_mem_drop hp)
-
-namespace GenRecSide
-
-/-- The generator's side alternatives: a copied telescope's `TeleWF`, an
-optional telescope's `TeleWF` at `some`. -/
-scoped macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| first
-      | (refine TeleWF.copy (by assumption) (by assumption) (by assumption); done)
-      | (exact OptTeleWF.get (by assumption)))
-
-end GenRecSide
-
-open scoped GenRecSide
 
 /-- `gen_major` ⊑ `ClassGen.major`. -/
 @[lockstep] theorem gen_major_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -1343,7 +1275,7 @@ attribute [local lockstep high] binder_copy_from_val_spec
 /-- `minorTy`'s tail: the conclusion and the closed telescope (the Rust's
 `minor_ty_concl`). -/
 def grMinorConcl (g : ClassGen) (c : Nat) (x : ClassCtor) (d : Nat) (ci : TargetMajor)
-    (fvs : List EIdx) (res : EIdx) (ihs : List (EIdx × ConLeche.BinderMeta)) :
+    (fvs : List EIdx) (res : EIdx) (ihs : List EIdx) :
     AM (Option EIdx) := do
   let ra ← getAppArgs coreWalkFuel res
   let cc ← internE (.const x.cv.name ci.lvls)
@@ -1374,12 +1306,10 @@ theorem minorTy_eq : ClassGen.minorTy = minorTy' := by
 
 /-- `minor_ty_concl` ⊑ `grMinorConcl` (`minorTy`'s tail). -/
 @[lockstep] theorem minor_ty_concl_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (c : Std.U64)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (c : Std.U64)
     (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64)
     (ci : arena.inductives.rec_check.TargetMajor) (fvs : alloc.vec.Vec arena.handle.EIdx)
-    (res : arena.handle.EIdx) (ihs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-    (hihs : TeleWF ihs) :
+    (res : arena.handle.EIdx) (ihs : alloc.vec.Vec arena.handle.EIdx) :
     LS pers (fun a b => b = a.map absEIdx)
       (arena.inductives.gen_rec.minor_ty_concl pers st g c x d ci fvs res ihs) lst
       (grMinorConcl (absClassGen g) (absU c) (absClassCtor x) (absU d) (absTargetMajor ci)
@@ -1389,8 +1319,7 @@ theorem minorTy_eq : ClassGen.minorTy = minorTy' := by
 
 /-- `minor_ty` ⊑ `ClassGen.minorTy`. -/
 @[lockstep] theorem minor_ty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (c : Std.U64)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (c : Std.U64)
     (x : arena.inductives.gen_rec.ClassCtor) (d : Std.U64) :
     LS pers (fun a b => b = a.map absEIdx)
       (arena.inductives.gen_rec.minor_ty pers st g c x d) lst
@@ -1432,7 +1361,7 @@ theorem slotsGo_cons (g : ClassGen) (s : Nat) (sl : ClassSlot) (sls : List Class
       | some ty =>
         match ← ClassGen.prefixBinders.slotsGo g (s + 1) sls with
         | none => pure none
-        | some rest => pure (some ((ty, g.bm) :: rest))) := by
+        | some rest => pure (some (ty :: rest))) := by
   rw [ClassGen.prefixBinders.slotsGo.eq_def]
   cases sl with
   | motive k =>
@@ -1450,8 +1379,7 @@ theorem slotsGo_cons (g : ClassGen) (s : Nat) (sl : ClassSlot) (sls : List Class
 
 /-- `slot_binder` at a slot `sl` ⊑ `grSlotTy`. -/
 theorem slot_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) (s : Std.Usize)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (s : Std.Usize)
     (sl : arena.inductives.class_read.ClassSlot) (hsl : g.slots.val[s.val]? = some sl) :
     LS pers (fun a b => b = a.map absEIdx)
       (arena.inductives.gen_rec.slot_binder pers st g s) lst
@@ -1460,55 +1388,52 @@ theorem slot_binder_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
   simp only [bind_ok]
   cases sl <;> simp only [grSlotTy, absClassSlot] <;> lockstep
 
-theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) :
-    ∀ (s : Std.Usize) (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) st lst,
-      AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen) :
+    ∀ (s : Std.Usize) (out : alloc.vec.Vec arena.handle.EIdx) st lst,
+      AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (OptBinders out)
         (arena.inductives.gen_rec.slot_binders pers st g s out) lst
         (ClassGen.prefixBinders.slotsGo (absClassGen g) s.val
           ((g.slots.val.drop s.val).map absClassSlot)) := by
   intro s
   refine cursor_induction (fun i : Std.Usize => i.val) g.slots.val.length
-    (fun s out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st → TeleWF out →
+    (fun s out => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (OptBinders out)
         (arena.inductives.gen_rec.slot_binders pers st g s out) lst
         (ClassGen.prefixBinders.slotsGo (absClassGen g) s.val
           ((g.slots.val.drop s.val).map absClassSlot))) ?_ ?_ s
-  · intro s out hn st lst hrel hinv hout
+  · intro s out hn st lst hrel hinv
     rw [List.drop_eq_nil_of_le hn, List.map_nil, ClassGen.prefixBinders.slotsGo,
       arena.inductives.gen_rec.slot_binders.eq_def,
       ite_eq_left (show s ≥ alloc.vec.Vec.len g.slots by scalar_tac)]
-    exact LS.pure ⟨by simp, OptTeleWF.some hout⟩ hrel hinv
-  · intro s out hs ih st lst hrel hinv hout
+    exact LS.pure (by simp [OptBinders]) hrel hinv
+  · intro s out hs ih st lst hrel hinv
     rw [List.drop_eq_getElem_cons hs, List.map_cons, slotsGo_cons,
       arena.inductives.gen_rec.slot_binders.eq_def,
       ite_eq_right (show ¬ s ≥ alloc.vec.Vec.len g.slots by scalar_tac)]
-    have hsb := slot_binder_ls (pers := pers) hrel hinv g hbm s _ (List.getElem?_eq_getElem hs)
+    have hsb := slot_binder_ls (pers := pers) hrel hinv g s _ (List.getElem?_eq_getElem hs)
     lockstep
-    · exact LS.pure ⟨rfl, OptTeleWF.none⟩ ‹_› ‹_›
     · rename_i ty out1 hout1
       have hjv : a.val = s.val + 1 := by simpa using hP
-      have h1 := ih a out1 hjv _ _ ‹_› ‹_› (TeleWF.push hout1 hout hbm)
+      have h1 := ih a out1 hjv _ _ ‹_› ‹_›
       rw [hjv] at h1
       refine ls_tail_opt_cons h1 ?_
       simp [absBinderL, hout1]
 
 /-- `prefix_binders` ⊑ `ClassGen.prefixBinders`. -/
 @[lockstep] theorem prefix_binders_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
-    (hbm : ConRon.Refine.PropWhenWF g.bm.pw) :
-    LS pers (fun a b => b = a.map absBinderL ∧ OptTeleWF a)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) :
+    LS pers (fun a b => b = a.map absBinderL)
       (arena.inductives.gen_rec.prefix_binders pers st g) lst
       ((absClassGen g).prefixBinders) := by
   rw [arena.inductives.gen_rec.prefix_binders, ClassGen.prefixBinders]
   lockstep
-  have h1 := slot_binders_acc (pers := pers) g hbm 0#usize a st _ hrel hinv hR
+  have h1 := slot_binders_acc (pers := pers) g 0#usize a st _ hrel hinv
   simp only [show ((0#usize : Std.Usize)).val = 0 from rfl, List.drop_zero] at h1
-  have h2 := LS.tail_bind_pure (R := fun a b => b = Option.map absBinderL a ∧ OptTeleWF a)
+  have h2 := LS.tail_bind_pure (R := fun a b => b = Option.map absBinderL a)
     (f := Option.map (absBinderL a ++ ·)) h1 (by
-      intro x y ⟨hxy, hw⟩
-      refine ⟨?_, hw⟩
+      intro x y hxy
+      simp only [OptBinders] at hxy
       rw [hxy])
   refine LS.twin_eq h2 ?_
   congr 1
@@ -1517,13 +1442,11 @@ theorem slot_binders_acc {pers} (g : arena.inductives.gen_rec.ClassGen)
 
 /-- `class_gen_rec_ty` ⊑ `classGenRecTy`. -/
 @[lockstep] theorem class_gen_rec_ty_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen) (hg : ClassGenWF g)
+    (hinv : AStateInv pers st) (g : arena.inductives.gen_rec.ClassGen)
     (c : Std.U64) :
     LS pers (fun a b => b = a.map absEIdx)
       (arena.inductives.gen_rec.class_gen_rec_ty pers st g c) lst
       (classGenRecTy (absClassGen g) (absU c)) := by
-  have hbm := hg.bm
-  have hpre := hg.pre
   rw [arena.inductives.gen_rec.class_gen_rec_ty, classGenRecTy]
   lockstep
 

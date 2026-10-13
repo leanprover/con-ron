@@ -361,7 +361,7 @@ theorem IFEnvInv.idxRange {rf : arena.env.IFEnv} (h : IFEnvInv rf) :
 specifies a well-formed table and says nothing about a malformed one — and
 every one of them CONCLUDES `IFEnvRel` alone.  A fold then cannot take its own
 step twice: a fold feeds its step's answer back into the step and has no
-`IFEnvInv` for it, and phase A hands `annot_fold`'s environment to phase B's
+`IFEnvInv` for it, and phase A hands `install_fold`'s environment to phase B's
 `check_pending`, which demands one.
 
 So the RESULT relation of every `IFEnv`-returning statement on the fold's path

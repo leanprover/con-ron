@@ -7,9 +7,9 @@ concludes it for the post-state; nothing concluded it for the START state.
 The binary makes that state as `AState::init(EStore::empty())` read through
 `PersTier::empty()`, and the twin driver as `AState.init EStore.empty`.
 
-`init_rel` below relates the two: the thirty-seven empty cons tables of the
+`init_rel` below relates the two: the empty cons tables of the
 four store tiers (`tbl_empty_rel`, one lemma for all of them — an empty `Tbl` is
-an empty row vector and a fresh `HashMap2`), the thirteen per-call memos and
+an empty row vector and a fresh `HashMap2`), the twelve per-call memos and
 the fourteen per-declaration caches (fresh `HashMap2`s, related to `∅`), the
 unfilled pin table (three word-0 handles and two empty vectors against the
 twin's `Pins.empty`), and `StoreWF EStore.empty` (`Arena/WFProofs.lean`'s
@@ -33,7 +33,7 @@ open ConRon.Arena
 open ConRon.Refine.HashMap2 (Inv KeysOk RelOn sl_v)
 
 /-- **One empty cons table**: an empty row vector and a fresh `HashMap2`,
-against the twin's `Tbl.empty`.  All thirty-seven tables of the four tiers are
+against the twin's `Tbl.empty`.  Every table of the four tiers is
 this lemma. -/
 private theorem tbl_empty_eq {A I D : Type}
     {hA : ron.hashmap.Hashable A} {e2 : ron.hashmap.Eq2 A} {dA : ron.hashmap.Dup A}
@@ -119,15 +119,14 @@ theorem etables_empty {rt : arena.store.ETables}
   obtain ⟨t6, ht6, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t7, ht7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t8, ht8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t9, ht9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have h' := Result.ok_injective h
   subst h'
   exact ⟨⟨tbl_empty_rel ht, tbl_empty_rel ht1, tbl_empty_rel ht2, tbl_empty_rel ht3,
       tbl_empty_rel ht4, tbl_empty_rel ht5, tbl_empty_rel ht5, tbl_empty_rel ht6,
-      tbl_empty_rel ht7, tbl_empty_rel ht8, tbl_empty_rel ht9⟩,
+      tbl_empty_rel ht7, tbl_empty_rel ht8⟩,
     ⟨tbl_empty_inv ht, tbl_empty_inv ht1, tbl_empty_inv ht2, tbl_empty_inv ht3,
       tbl_empty_inv ht4, tbl_empty_inv ht5, tbl_empty_inv ht5, tbl_empty_inv ht6,
-      tbl_empty_inv ht7, tbl_empty_inv ht8, tbl_empty_inv ht9⟩⟩
+      tbl_empty_inv ht7, tbl_empty_inv ht8⟩⟩
 
 /-- The empty store, with every flag down.  `pers` is never read: the
 relation's persistent arm is the store's own tier when `pers` is not
@@ -197,10 +196,10 @@ theorem memos_empty {rm : arena.monad.Memos} (h : arena.monad.Memos.empty = ok r
   have r0 := fun {V' : Type} (absV : arena.handle.EIdx → V') =>
     ConRon.Refine.HashMap2.RelOn_empty (P := fun _ => True) (K' := EIdx × Nat)
       (absK := absEIdxNat) (absV := absV) n0
-  exact ⟨⟨r0 _, r0 _, r0 _, r0 _, r0 _, r0 _, r0 _,
+  exact ⟨⟨r0 _, r0 _, r0 _, r0 _, r0 _, r0 _,
       ConRon.Refine.HashMap2.RelOn_empty n1, ConRon.Refine.HashMap2.RelOn_empty n1,
       ConRon.Refine.HashMap2.RelOn_empty n2, ConRon.Refine.HashMap2.RelOn_empty n3⟩,
-    ⟨i0, i0, i0, i0, i0, i0, i0, i1, i1, i2, i3, i4, i4⟩⟩
+    ⟨i0, i0, i0, i0, i0, i0, i1, i1, i2, i3, i4, i4⟩⟩
 
 theorem caches_empty {rc : arena.core_state.Caches}
     (h : arena.core_state.Caches.empty = ok rc) :
@@ -237,13 +236,13 @@ theorem caches_empty {rc : arena.core_state.Caches}
     (HashableInst := arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapHashable) hm8
   refine ⟨⟨ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
       ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
-      ConRon.Refine.HashMap2.RelOn_empty n0, ConRon.Refine.HashMap2.RelOn_empty n0,
+      ConRon.Refine.HashMap2.RelOn_empty n0,
       ConRon.Refine.HashMap2.RelOn_empty n1,
       ConRon.Refine.HashMap2.RelOn_empty n2, ConRon.Refine.HashMap2.RelOn_empty n3,
       ConRon.Refine.HashMap2.RelOn_empty n4, ConRon.Refine.HashMap2.RelOn_empty n4,
       ConRon.Refine.HashMap2.RelOn_empty n5, ConRon.Refine.HashMap2.RelOn_empty n6,
       ConRon.Refine.HashMap2.RelOn_empty n7, ConRon.Refine.HashMap2.RelOn_empty n8⟩,
-    ⟨i0, i0, i0, i0, i0, i0, i1, i2, i3, i4, i4, i5, i6, i7, i8, ?_, ?_, ?_⟩⟩
+    ⟨i0, i0, i0, i0, i0, i1, i2, i3, i4, i4, i5, i6, i7, i8, ?_, ?_, ?_⟩⟩
   · intro p hp; rw [s6] at hp; cases hp
   · intro p hp; rw [s7] at hp; cases hp
   · intro p hp; rw [s8] at hp; cases hp
