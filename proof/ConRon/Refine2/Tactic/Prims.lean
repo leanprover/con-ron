@@ -12,14 +12,9 @@ below is that proof with `AStateRel₀`.
 the foundation's intern slice (task #97-T2-LOCKSTEP slice 3) they are the
 `Refine2/Specs.lean` `intern_*_run₀` lemmas in `LS` form (task #97-P5-Core
 round 5, which also added `fvar`, `sort`, `const`, `lit`, the level node, the
-level list and `intern_level`).  The binder interns exist only as
-`intern_e_{lam,forall_e}_wf_ls` (task #97-T2-LOCKSTEP D6):
-`intern_e_{lam,forall_e}_run₀` need `PropWhenWF m.pw` of the Rust INPUT datum
-(the `bms` cons key is a `PropWhen`, so `TblRel` is `RelOn PropWhenWF`).  The
-premise-free `sorry` statements `intern_e_{lam,forall_e}_ls` that stood beside
-them were false and are deleted (task #97-T2-LOCKSTEP lane Inductives round 6):
-every caller threads the datum's well-formedness to where it is read (a store
-read carries it) or built (`never`, `if_all_zero`, `zeroness_of`).
+level list and `intern_level`).  The binder interns are
+`intern_e_{lam,forall_e}_ls`, premise-free since task #119 (they needed the
+binder datum's `PropWhenWF` while the datum was a cons key).
 -/
 import ConRon.Refine2.Tactic.Lockstep
 import ConRon.Refine2.Specs
@@ -103,7 +98,7 @@ attribute [lockstep_simp] etag_const_abs etag_fvar_abs etag_lit_abs
 @[lockstep_simp] theorem isBind_forallE : ETag.isBind ETag.forallE = true := rfl
 @[lockstep_simp] theorem isBind_lam : ETag.isBind ETag.lam = true := rfl
 
-attribute [lockstep_simp] decide_eq_true_eq etag_forallE_abs etag_lam_abs absBindM beq_self_eq_true
+attribute [lockstep_simp] decide_eq_true_eq etag_forallE_abs etag_lam_abs beq_self_eq_true
 
 /-! ## Rust-only steps -/
 
@@ -199,141 +194,8 @@ open ConRon.Arena
 /-! ## Representation facts the `ExprOps` walks read (task #97-T2-LOCKSTEP lane ExprOps)
 
 Kind 1 of task #97-T2-AUDIT §2: well-formedness of the RUST values a read
-answers (a binder datum's `PropWhen`, a readback level), from `AStateInv`
-alone.  Moved here from `ExprOps/Mut.lean`, which now imports this file. -/
-
-theorem etables_get_bm_wf {rt : arena.store.ETables} (hinv : ETablesInv rt)
-    {m : arena.handle.BMIdx} {o : Option kernel.expr.BinderMeta}
-    (h : arena.store.ETables.get_bm rt m = ok o) :
-    ∀ bm, o = some bm → ConRon.Refine.PropWhenWF bm.pw := by
-  rw [arena.store.ETables.get_bm] at h
-  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hwf := tbl_node_wf hinv.bms hp
-  cases hpc : p with
-  | none =>
-    rw [hpc] at h
-    have h2 : (none : Option kernel.expr.BinderMeta) = o := Result.ok_injective h
-    subst h2
-    intro bm hbm; cases hbm
-  | some r =>
-    rw [hpc] at h hwf
-    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h2 : some bm = o := Result.ok_injective h
-    subst h2
-    rw [ConRon.Refine.PropWhen.dup_eq hpw] at hbm
-    have h3 : bm = ⟨r.pw⟩ := by
-      rw [kernel.expr.binder_meta] at hbm
-      exact (Result.ok_injective hbm).symm
-    subst h3
-    intro bm' hbm'
-    simp only [Option.some.injEq] at hbm'
-    subst hbm'
-    exact hwf r rfl
-
-theorem estore_view_bm_wf {pers rs} (hinv : StoreInv pers rs)
-    {m : arena.handle.BMIdx} {o}
-    (h : arena.store.EStore.view_bm rs pers m = ok o) :
-    ∀ bm, o = some bm → ConRon.Refine.PropWhenWF bm.pw := by
-  rw [arena.store.EStore.view_bm] at h
-  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  split at h
-  · rw [arena.store.EStore.pers_get_bm] at h
-    have h3 : arena.store.ETables.get_bm (rPersE pers rs) m = ok o := by
-      unfold rPersE
-      split at h <;> rename_i hs
-      · rw [ite_eq_left hs]; exact h
-      · rw [ite_eq_right hs]; exact h
-    exact etables_get_bm_wf hinv.perst h3
-  · split at h
-    · exact etables_get_bm_wf hinv.scrt h
-    · have h2 : (none : Option kernel.expr.BinderMeta) = o := Result.ok_injective h
-      subst h2
-      intro bm hbm; cases hbm
-
-/-- At a non-binder tag `view` is `ETables.get`, which answers no binder
-view. -/
-theorem view_nonbind_bmOf {st : EStore} {i : EIdx} (hnb : ETag.isBind i.tag = false)
-    {v : ENodeView} (hv : st.view i = some v) : v.bmOf = none := by
-  rw [EStore.view, ite_eq_right (by rw [hnb]; simp)] at hv
-  split at hv
-  · exact ETables.bmOf_get hv
-  · split at hv
-    · exact ETables.bmOf_get hv
-    · cases hv
-
-/-- **A binder view's datum is well formed** — `bms`' `TblInv`, read through
-`view`.  The non-binder branch cannot produce a binder view, which the TWIN
-says: `ETables.get` answers no binder view (`ETables.bmOf_get`). -/
-theorem estore_view_bind_wf {pers rs ls} (hrel : StoreRel pers rs ls)
-    (hinv : StoreInv pers rs) {i : arena.handle.EIdx} {o}
-    (h : arena.store.EStore.view rs pers i = ok o) {ty b : arena.handle.EIdx}
-    {m : kernel.expr.BinderMeta}
-    (hv : o = some (.Lam ty b m) ∨ o = some (.ForallE ty b m)) :
-    ConRon.Refine.PropWhenWF m.pw := by
-  have habs := estore_view_abs hrel h
-  rw [arena.store.EStore.view] at h
-  obtain ⟨t, ht, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨bb, hbb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have htg := eidx_tag_abs ht
-  have hib := etag_isBind_abs hbb
-  split at h <;> rename_i hbv
-  · obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases hqc : q with
-    | none =>
-      rw [hqc] at h
-      have h2 : (none : Option arena.store.ENodeView) = o := Result.ok_injective h
-      subst h2
-      rcases hv with hv | hv <;> cases hv
-    | some tt =>
-      rw [hqc] at h
-      obtain ⟨ty', bo', mm⟩ := tt
-      obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have h2 : some ev = o := Result.ok_injective h
-      subst h2
-      have hmm : m = mm := by
-        rw [arena.store.e_bind_view] at hev
-        split at hev
-        · have := Result.ok_injective hev
-          rcases hv with hv | hv <;> rw [← this] at hv <;>
-            simp only [Option.some.injEq, reduceCtorEq] at hv
-          exact (arena.store.ENodeView.Lam.inj hv).2.2.symm
-        · have := Result.ok_injective hev
-          rcases hv with hv | hv <;> rw [← this] at hv <;>
-            simp only [Option.some.injEq, reduceCtorEq] at hv
-          exact (arena.store.ENodeView.ForallE.inj hv).2.2.symm
-      subst hmm
-      rw [hqc] at hq
-      rw [arena.store.EStore.view_bind] at hq
-      obtain ⟨o1, -, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
-      cases ho1 : o1 with
-      | none =>
-        rw [ho1] at hq
-        have := Result.ok_injective hq
-        cases this
-      | some t3 =>
-        rw [ho1] at hq
-        obtain ⟨e1, e2, bmi⟩ := t3
-        obtain ⟨o2, ho2, hq⟩ := ConRon.Refine.bind_eq_ok_iff.mp hq
-        cases ho2c : o2 with
-        | none =>
-          rw [ho2c] at hq
-          have := Result.ok_injective hq
-          cases this
-        | some m2 =>
-          rw [ho2c] at hq ho2
-          have h3 := Result.ok_injective hq
-          simp only [Option.some.injEq, Prod.mk.injEq] at h3
-          rw [← h3.2.2]
-          exact estore_view_bm_wf hinv ho2 m2 rfl
-  · -- the non-binder branch: the twin view is `ETables.get`, which answers no
-    -- binder view
-    exfalso
-    have hnb : ETag.isBind (absEIdx i).tag = false := by
-      rw [htg, hib]; simpa using hbv
-    rcases hv with hv | hv <;> subst hv <;>
-      exact absurd (view_nonbind_bmOf hnb habs) (by simp [absENodeView, ENodeView.bmOf])
+answers (a readback level; the binder datum's `PropWhen` went with the datum
+at task #119), from `AStateInv` alone.  Moved here from `ExprOps/Mut.lean`, which now imports this file. -/
 
 theorem read_level_m_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LIdx}
     {o} (hrun : arena.monad.read_level_m pers st h = ok o) :
@@ -604,14 +466,15 @@ lane Inductives Modeled. -/
     (fun _ hr => by rw [arena.monad.view_proj] at hr; exact estore_view_proj_abs hrel.store hr)
     hrel hinv
 
-@[lockstep] theorem view_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+/-- `arena::monad::view_bind` against `Arena.viewBind`, at a binder tag. -/
+@[lockstep] theorem view_bind_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx)
     (hbind : ETag.isBind (absEIdx h).tag = true) :
-    LSV pers (fun a b => b = Option.map absBindI a) (arena.monad.view_bind_i pers st h) st lst
-      (Arena.viewBindI (absEIdx h)) :=
-  LSV.of_store_read (F := fun s => s.viewBindI (absEIdx h)) (fun _ => rfl)
+    LSV pers (fun a b => b = Option.map absBindI a) (arena.monad.view_bind pers st h) st lst
+      (Arena.viewBind (absEIdx h)) :=
+  LSV.of_store_read (F := fun s => s.viewBind (absEIdx h)) (fun _ => rfl)
     (fun _ hr => by
-      rw [arena.monad.view_bind_i] at hr; exact estore_view_bind_i_abs hrel.store hbind hr)
+      rw [arena.monad.view_bind] at hr; exact estore_view_bind_abs hrel.store hbind hr)
     hrel hinv
 
 /-- `derived_e` against `derivedE`: the word, up to its hash (`derObsE`), read
@@ -650,46 +513,6 @@ attribute [lockstep_simp] absPairE absLetT absProjT absBindI
   refine ⟨_, lst, rfl, ?_, hrel, hinv⟩
   rw [arena.monad.view_sort] at hrun
   exact estore_view_sort_abs hrel.store hrun
-
-/-- The datum `view_bind` answers is well formed (kind 1, from `AStateInv`). -/
-theorem view_bind_meta_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.EIdx}
-    {ty b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
-    (hrun : arena.monad.view_bind pers st h = ok (some (ty, b, m))) :
-    ConRon.Refine.PropWhenWF m.pw := by
-  rw [arena.monad.view_bind, arena.store.EStore.view_bind] at hrun
-  obtain ⟨o1, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  cases ho1 : o1 with
-  | none => rw [ho1] at hrun; cases Result.ok_injective hrun
-  | some t3 =>
-    rw [ho1] at hrun
-    obtain ⟨e1, e2, bmi⟩ := t3
-    obtain ⟨o2, ho2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    cases ho2c : o2 with
-    | none => rw [ho2c] at hrun; cases Result.ok_injective hrun
-    | some m2 =>
-      rw [ho2c] at hrun ho2
-      have h3 := Result.ok_injective hrun
-      simp only [Option.some.injEq, Prod.mk.injEq] at h3
-      rw [← h3.2.2]
-      exact estore_view_bm_wf hinv.store ho2 m2 rfl
-
-/-- `arena::monad::view_bind` against `Arena.viewBind`, at a binder tag; the
-datum it answers is well formed (the `PropWhenWF` an intern of a rebuilt binder
-needs). -/
-@[lockstep] theorem view_bind_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (h : arena.handle.EIdx)
-    (hbind : ETag.isBind (absEIdx h).tag = true) :
-    LSV pers (fun a b => (∀ t, a = some t → ConRon.Refine.PropWhenWF t.2.2.pw) ∧
-        b = Option.map absBindM a) (arena.monad.view_bind pers st h) st lst
-      (Arena.viewBind (absEIdx h)) := by
-  intro o hrun
-  refine ⟨_, lst, rfl, ⟨fun t ht => ?_, ?_⟩, hrel, hinv⟩
-  · subst ht
-    obtain ⟨ty, b, m⟩ := t
-    exact view_bind_meta_wf hinv hrun
-  · rw [arena.monad.view_bind] at hrun
-    exact estore_view_bind_abs hrel.store hbind hrun
-
 
 /-- A literal read out of well-formed tables is well formed (task #97-T2-LOCKSTEP
 lane Checker DeclCheck: `erase_pw_eq`'s literal arm compares with
@@ -744,24 +567,21 @@ theorem estore_view_lit_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle
       · simp at h
 
 /-- What a caller of `view` may assume of the RUST view beyond its abstraction
-(kind 1: from `AStateInv`): a binder's datum is well formed, and so is a literal. -/
+(kind 1: from `AStateInv`): a literal is well formed.  (A binder's datum was
+the other clause until task #119.) -/
 def EViewMetaWF : arena.store.ENodeView → Prop
-  | .Lam _ _ m => ConRon.Refine.PropWhenWF m.pw
-  | .ForallE _ _ m => ConRon.Refine.PropWhenWF m.pw
   | .Lit l => ConRon.Refine.LiteralWF l
   | _ => True
 
-theorem view_meta_wf {pers st lst} (hrel : AStateRel₀ pers st lst)
+theorem view_meta_wf {pers st lst} (_hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) {h : arena.handle.EIdx} {v : arena.store.ENodeView}
     (hq : arena.store.EStore.view st.store pers h = ok (some v)) : EViewMetaWF v := by
   cases v with
-  | Lam ty b m => exact estore_view_bind_wf hrel.store hinv.store hq (Or.inl rfl)
-  | ForallE ty b m => exact estore_view_bind_wf hrel.store hinv.store hq (Or.inr rfl)
   | Lit l => exact estore_view_lit_wf hinv.store hq l rfl
   | _ => trivial
 
 /-- `arena::monad::view` against `Arena.view` (`view_run` over `AStateRel₀`); the
-Rust view's binder datum is well formed (`EViewMetaWF`). -/
+Rust view's literal is well formed (`EViewMetaWF`). -/
 @[lockstep] theorem view_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSR pers (fun a b => EViewMetaWF a ∧ b = absENodeView a) (arena.monad.view pers st h) st lst
@@ -1176,20 +996,6 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   obtain ⟨h1, h2⟩ := ConRon.Refine.ExprOps.subst_pw_refines hks hus hpw h
   exact ⟨h2, h1⟩
 
-@[lockstep] theorem binder_meta_spec (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.expr.binder_meta pw) (fun m => m = { pw := pw }) := by
-  intro m h; rw [kernel.expr.binder_meta] at h; exact (Result.ok_injective h).symm
-
-@[lockstep] theorem binder_meta_beq_spec {a b : kernel.expr.BinderMeta}
-    (ha : ConRon.Refine.PropWhenWF a.pw) (hb : ConRon.Refine.PropWhenWF b.pw) :
-    LSP (kernel.expr.binder_meta_beq a b)
-      (fun c => c = (ConRon.Refine.absBinderMeta a == ConRon.Refine.absBinderMeta b)) := by
-  intro c h
-  rw [ConRon.Refine.Expr.binder_meta_beq_refines ha hb h]
-  rfl
-
-attribute [lockstep_simp] ConRon.Refine.absBinderMeta
-
 /-! ## The state-free helpers of `ExprOps/Pure.lean`, as Rust-only steps -/
 
 attribute [lockstep_simp] ExprOps.absEIdxL ExprOps.absFvlL ExprOps.absBinderL
@@ -1242,11 +1048,10 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
 
 attribute [lockstep_simp] id_eq
 
-@[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    LSP (arena.expr_ops.cons_binder ty m xs)
-      (fun r => ExprOps.absBinderL r =
-        (absEIdx ty, ConRon.Refine.absBinderMeta m) :: ExprOps.absBinderL xs) :=
+@[lockstep] theorem cons_binder_spec (ty : arena.handle.EIdx)
+    (xs : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.expr_ops.cons_binder ty xs)
+      (fun r => ExprOps.absBinderL r = absEIdx ty :: ExprOps.absBinderL xs) :=
   fun _ h => ExprOps.cons_binder_refines h
 
 /-- `take_eidx_n` (the prefix at a `u64` count) against `takeEidx` at that count. -/
@@ -1487,8 +1292,7 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
     LSP kernel.prop_when.never (fun r => ConRon.Refine.PropWhenWF r ∧
       ConRon.Refine.absPropWhen r = ConLeche.PropWhen.never) := by
   intro r h
-  exact ⟨ConRon.Refine.PropWhenWF.never h,
-    ConRon.Refine.PropWhen.absPropWhen_never (ConRon.Refine.PropWhen.never_shape h).2⟩
+  exact ⟨ConRon.Refine.PropWhen.never_wf h, ConRon.Refine.PropWhen.never_refines h⟩
 
 @[lockstep] theorem last_eidx_spec (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
     LSP (arena.expr_ops.last_eidx xs k)
@@ -1543,22 +1347,6 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
     (hinv : AStateInv pers st) :
     LSW pers (arena.monad.abs1_clear st) lst Arena.abs1Clear :=
   LSW.ofSimS₀ fun _ h => abs1_clear_run₀ hrel hinv h
-
-@[lockstep] theorem lower_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
-    LSV pers (fun a b => b = Option.map absEIdx a) (arena.monad.lower_get st k) st lst
-      (Arena.lowerGet (absEIdxNat k)) :=
-  LSV.ofSimR (fun _ h => lower_get_run₀ hrel hinv h) hrel hinv
-
-@[lockstep] theorem lower_set_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) (r : arena.handle.EIdx) :
-    LSW pers (arena.monad.lower_set st k r) lst (Arena.lowerSet (absEIdxNat k) (absEIdx r)) :=
-  LSW.ofSimS₀ fun _ h => lower_set_run₀ hrel hinv h
-
-@[lockstep] theorem lower_clear_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) :
-    LSW pers (arena.monad.lower_clear st) lst Arena.lowerClear :=
-  LSW.ofSimS₀ fun _ h => lower_clear_run₀ hrel hinv h
 
 @[lockstep] theorem inst1_l_get_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (k : arena.monad.EIdxNat) :
@@ -1667,21 +1455,19 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
       (Arena.internAppE (absEIdx f) (absEIdx a)) :=
   LS.ofSim₀ fun _ h => intern_e_app_run₀ hrel hinv f a h
 
-/-- `intern_e_lam` with its datum's `PropWhenWF` in context: the `₀` lemma. -/
-@[lockstep] theorem intern_e_lam_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b m) lst
-      (Arena.internLamE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  LS.ofSim₀ fun _ h => intern_e_lam_run₀ hrel hinv t b m hpw h
+/-- `intern_e_lam`: the `₀` lemma (task #119: no datum, so no premise). -/
+@[lockstep] theorem intern_e_lam_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_lam pers st t b) lst
+      (Arena.internLamE (absEIdx t) (absEIdx b)) :=
+  LS.ofSim₀ fun _ h => intern_e_lam_run₀ hrel hinv t b h
 
-/-- `intern_e_forall_e` with its datum's `PropWhenWF` in context. -/
-@[lockstep] theorem intern_e_forall_e_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) (m : kernel.expr.BinderMeta)
-    (hpw : ConRon.Refine.PropWhenWF m.pw) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b m) lst
-      (Arena.internForallEE (absEIdx t) (absEIdx b) (ConRon.Refine.absBinderMeta m)) :=
-  LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b m hpw h
+/-- `intern_e_forall_e`: the `₀` lemma. -/
+@[lockstep] theorem intern_e_forall_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t b : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_forall_e pers st t b) lst
+      (Arena.internForallEE (absEIdx t) (absEIdx b)) :=
+  LS.ofSim₀ fun _ h => intern_e_forall_e_run₀ hrel hinv t b h
 
 @[lockstep] theorem intern_e_let_e_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (t v b : arena.handle.EIdx) :
@@ -1689,11 +1475,11 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
       (Arena.internLetEE (absEIdx t) (absEIdx v) (absEIdx b)) :=
   LS.ofSim₀ fun _ h => intern_e_let_e_run₀ hrel hinv t v b h
 
-@[lockstep] theorem intern_e_bind_i_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (t : Std.U32) (ty b : arena.handle.EIdx) (m : arena.handle.BMIdx) :
-    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bind_i pers st t ty b m) lst
-      (Arena.internBindIE (absU32 t) (absEIdx ty) (absEIdx b) (absBMIdx m)) :=
-  LS.ofSim₀ fun _ h => intern_e_bind_i_run₀ hrel hinv t ty b m h
+@[lockstep] theorem intern_e_bind_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
+    (hinv : AStateInv pers st) (t : Std.U32) (ty b : arena.handle.EIdx) :
+    LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e_bind pers st t ty b) lst
+      (Arena.internBindE (absU32 t) (absEIdx ty) (absEIdx b)) :=
+  LS.ofSim₀ fun _ h => intern_e_bind_run₀ hrel hinv t ty b h
 
 @[lockstep] theorem intern_e_proj_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n : arena.handle.NIdx) (i : Std.U64) (s : arena.handle.EIdx) :

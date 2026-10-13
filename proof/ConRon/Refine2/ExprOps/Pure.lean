@@ -74,8 +74,7 @@ namespace ConRon.Refine2.ExprOps
 
 open ConRon.Arena
 open ConRon.Refine2
-open ConRon.Refine (NameWF LevelWF absName absLevel absNames absLevels
-  absBinderMeta)
+open ConRon.Refine (NameWF LevelWF absName absLevel absNames absLevels)
 open ConRon.Refine.HashMap (Eq2Fwd DupId)
 open ConRon.Refine.HashMap2 (Inv KeysOk RelOn toFun)
 
@@ -92,11 +91,9 @@ def absEIdxL (v : alloc.vec.Vec arena.handle.EIdx) : List EIdx := v.val.map absE
 def absEIdxArr (v : alloc.vec.Vec arena.handle.EIdx) : Array EIdx :=
   (absEIdxL v).toArray
 
-/-- A `Vec<(EIdx, BinderMeta)>` as the twin's `List (EIdx × BinderMeta)` — the
-`stripLams`/`stripPis` telescope. -/
-def absBinderL (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    List (EIdx × ConLeche.BinderMeta) :=
-  v.val.map (fun p => (absEIdx p.1, absBinderMeta p.2))
+/-- The `stripLams`/`stripPis` telescope: since task #119 a list of binder
+types, `absEIdxL` itself (the binder datum is gone). -/
+abbrev absBinderL (v : alloc.vec.Vec arena.handle.EIdx) : List EIdx := absEIdxL v
 
 /-- A `Vec<(u64, EIdx)>` as the twin's `List (Nat × EIdx)` — the `fvar`-leaf
 list. -/
@@ -112,8 +109,6 @@ def absFvlL (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) : List (Nat × EI
 @[simp] theorem absEIdxL_length (v) : (absEIdxL v).length = v.val.length := by
   simp [absEIdxL]
 
-@[simp] theorem absBinderL_length (v) : (absBinderL v).length = v.val.length := by
-  simp [absBinderL]
 
 @[simp] theorem absFvlL_length (v) : (absFvlL v).length = v.val.length := by
   simp [absFvlL]
@@ -510,10 +505,8 @@ theorem take_eidx_n_refines {xs : alloc.vec.Vec arena.handle.EIdx} {c : Std.U64}
 
 /-! ## The binder telescope's cons -/
 
-theorem binder_copy_from_aux
-    (xs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    ∀ (n : Nat) (i : Std.Usize)
-      (out r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)),
+theorem binder_copy_from_aux (xs : alloc.vec.Vec arena.handle.EIdx) :
+    ∀ (n : Nat) (i : Std.Usize) (out r : alloc.vec.Vec arena.handle.EIdx),
       xs.val.length ≤ i.val + n →
       arena.expr_ops.binder_copy_from xs i out = ok r →
       absBinderL r = absBinderL out ++ (absBinderL xs).drop i.val := by
@@ -536,50 +529,43 @@ theorem binder_copy_from_aux
       simp
     · rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by scalar_tac)] at h
       have hxi : i.val < xs.val.length := by omega
-      obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨e, bm⟩ := p
+      obtain ⟨e, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      obtain ⟨bm1, hbm1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       obtain ⟨hb, hpv⟩ := vecIndexAt hp
       have hee : e1 = e := dupId_eidx e e1 he1
-      have hbb : bm1 = bm := ConRon.Refine.Expr.binder_meta_dup_eq hbm1
-      have hov : out1.val = out.val ++ [(e1, bm1)] := ConRon.Refine.vec_push_val hout1
+      have hov : out1.val = out.val ++ [e1] := ConRon.Refine.vec_push_val hout1
       have hi2v : i2.val = i.val + 1 :=
         (ConRon.Refine.Nat.uadd_val hi2).trans (by simp)
       have hih := ih i2 out1 r (by omega) h
       rw [hih, hi2v]
       have hd : (absBinderL xs).drop i.val
-          = (absEIdx e, absBinderMeta bm) :: (absBinderL xs).drop (i.val + 1) := by
+          = absEIdx e :: (absBinderL xs).drop (i.val + 1) := by
         rw [List.drop_eq_getElem_cons (by simpa using hxi)]
-        simp only [absBinderL, List.getElem_map, hpv]
-      have hob : absBinderL out1
-          = absBinderL out ++ [(absEIdx e, absBinderMeta bm)] := by
-        simp [absBinderL, hov, hee, hbb]
+        simp only [absBinderL, absEIdxL, List.getElem_map, hpv]
+      have hob : absBinderL out1 = absBinderL out ++ [absEIdx e] := by
+        simp [absBinderL, absEIdxL, hov, hee]
       rw [hd, hob]
       simp
 
-theorem binder_copy_from_refines
-    {xs out r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+theorem binder_copy_from_refines {xs out r : alloc.vec.Vec arena.handle.EIdx}
     {i : Std.Usize}
     (h : arena.expr_ops.binder_copy_from xs i out = ok r) :
     absBinderL r = absBinderL out ++ (absBinderL xs).drop i.val :=
   binder_copy_from_aux xs xs.val.length i out r (by omega) h
 
-theorem cons_binder_refines {ty : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
-    {xs r : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    (h : arena.expr_ops.cons_binder ty m xs = ok r) :
-    absBinderL r = (absEIdx ty, absBinderMeta m) :: absBinderL xs := by
+theorem cons_binder_refines {ty : arena.handle.EIdx}
+    {xs r : alloc.vec.Vec arena.handle.EIdx}
+    (h : arena.expr_ops.cons_binder ty xs = ok r) :
+    absBinderL r = absEIdx ty :: absBinderL xs := by
   rw [arena.expr_ops.cons_binder] at h
   obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨out, hout, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hee : e = ty := dupId_eidx ty e he
-  have hbb : bm = m := ConRon.Refine.Expr.binder_meta_dup_eq hbm
-  have hov : out.val = [(e, bm)] := ConRon.Refine.push_new_val hout
+  have hov : out.val = [e] := ConRon.Refine.push_new_val hout
   rw [binder_copy_from_refines h]
-  simp [absBinderL, hov, hee, hbb]
+  simp [absBinderL, absEIdxL, hov, hee]
 
 /-! ## The memo relations (finding 2, and finding 3 for `SeenRel`) -/
 

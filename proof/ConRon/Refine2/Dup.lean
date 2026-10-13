@@ -210,7 +210,6 @@ theorem i_rec_rule_fire_dup_abs {f o : arena.env.IRecRuleFire}
     absIRecRuleFire o = absIRecRuleFire f := by
   rw [arena.env.i_rec_rule_fire_dup.eq_def] at h
   cases f with
-  | Inert => rw [Result.ok_injective h]
   | Plain => rw [Result.ok_injective h]
   | Nested lvls pins =>
     simp only [] at h
