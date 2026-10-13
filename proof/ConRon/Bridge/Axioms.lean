@@ -28,8 +28,7 @@ namespace ConRon.Bridge
 #print axioms EStore.internName_spec
 #print axioms EStore.internLevel_spec
 #print axioms EStore.internLevels_spec
-#print axioms EStore.internBindI_spec
-#print axioms EStore.viewBM_intern_mono
+#print axioms EStore.internBind_spec
 
 /-! ## The denotation calculus -/
 
@@ -39,9 +38,9 @@ namespace ConRon.Bridge
 #print axioms denote_leaf_of_tag
 #print axioms EStore.tagOf_of_view
 #print axioms view_of_viewApp
-#print axioms view_of_viewBindI
-#print axioms view_of_viewBindI_wf
-#print axioms bmOK_of_viewBindI
+#print axioms view_of_viewBind
+#print axioms view_forallE_of_viewBind
+#print axioms isSome_body_of_viewBind
 #print axioms denoteEView_ext
 #print axioms denoteCI_ext
 
@@ -74,11 +73,10 @@ namespace ConRon.Bridge
 #print axioms derivedE_spec
 #print axioms internE_spec
 #print axioms internAppE_spec
-#print axioms internLamIE_spec
-#print axioms internBindIE_spec
-#print axioms internBindIE_spec'
+#print axioms internLamE_spec
+#print axioms internBindE_spec
 #print axioms viewApp_spec
-#print axioms viewBindI_spec
+#print axioms viewBind_spec
 #print axioms readName_spec
 #print axioms readNames_spec
 #print axioms internName_spec
@@ -106,20 +104,14 @@ namespace ConRon.Bridge
 /-! ## The `ExprOps` tier's exemplar — **closed** (task #97-P3-1)
 
 Task #97-P3-0 left `instantiate1Go_spec` with five open goals and printed only
-what the file proved on its own.  All five are closed: the binder arm's two by
-`Bridge/StoreBM.lean`'s `BMExt` threaded through the intern specs, the `bvar`
-arm's three by the arm-split ruling, which makes the `bvar` arm a theorem of
-its own where unfolding the answer relation cannot reach any other arm.  So
-the whole chain is printed here — the five arm theorems, the dispatcher, the
-entry bracket and the run form — and every one of them must report the three.
+what the file proved on its own.  All five are closed: the binder arm's two
+through the intern specs (task #119: binders carry no datum, so the binder-datum
+store and its extension relation `BMExt` are gone), the `bvar` arm's three by
+the arm-split ruling, which makes the `bvar` arm a theorem of its own where
+unfolding the answer relation cannot reach any other arm.  So the whole chain
+is printed here — the five arm theorems, the dispatcher, the entry bracket and
+the run form — and every one of them must report the three. -/
 
-The binder-datum store's extension relation is printed with them: it is the
-one piece of new store reasoning the round added, and the two `intern` facts
-under it are what every rebuilding walk's binder arm now leans on. -/
-
-#print axioms BMExt.intern
-#print axioms BMExt.internAt
-#print axioms BMExt.get
 #print axioms ConRon.Arena.EStore.view_of_find
 #print axioms ConRon.Arena.NStore.view_of_find
 #print axioms ConRon.Arena.LStore.view_of_find
