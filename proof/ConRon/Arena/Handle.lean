@@ -51,7 +51,6 @@ inductive IdxKind where
   | name
   | level
   | levels
-  | bm
   deriving DecidableEq, Repr, Inhabited
 
 /-- con-leche: none — the arena handle.  con-leche's arena era used a bare
@@ -70,18 +69,6 @@ abbrev NIdx := Idx .name
 abbrev LIdx := Idx .level
 /-- con-leche: none — level-list handle (DESIGN §8.3). -/
 abbrev LsIdx := Idx .levels
-/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — a handle into the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.BMIdx_bridge, then delete this line
-**binder datum store** (task #97-P6-16): the same word layout as the other
-four (the tier bit and the index), for a store with ONE constructor and so no
-tag to spend — `BMIdx.pack` passes tag `0`.
-
-DESIGN §8.3 gives `lam`/`forallE` a `BinderMeta` INSIDE the node record, which
-makes the record carry a `PropWhen`; with the datum interned the record is
-three handles and its cons key is three words.  `Idx` is already generic in
-its kind, so `mk`, `ofWord`, `tier`, `index`, `isPersistent` and `idxNat` —
-and the four roundtrip lemmas — come with the fifth kind at no cost. -/
-abbrev BMIdx := Idx .bm
 
 namespace Idx
 
@@ -200,49 +187,38 @@ inductive and names the constructor it stands for. -/
 
 namespace ETag
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `bvar`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.bvar_bridge, then delete this line
-constructor, line 344. -/
+constructor, line 316. -/
 def bvar : UInt32 := 0
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `fvar`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.fvar_bridge, then delete this line
-constructor, line 345. -/
+constructor, line 317. -/
 def fvar : UInt32 := 1
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `sort`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.sort_bridge, then delete this line
-constructor, line 346. -/
+constructor, line 318. -/
 def sort : UInt32 := 2
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `const`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.const_bridge, then delete this line
-constructor, line 347. -/
+constructor, line 319. -/
 def const : UInt32 := 3
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `app`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.app_bridge, then delete this line
-constructor, line 348. -/
+constructor, line 320. -/
 def app : UInt32 := 4
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lam`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.lam_bridge, then delete this line
-constructor, line 349. -/
+constructor, line 321. -/
 def lam : UInt32 := 5
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `forallE`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.forallE_bridge, then delete this line
-constructor, line 350. -/
+constructor, line 322. -/
 def forallE : UInt32 := 6
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `letE`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.letE_bridge, then delete this line
-constructor, line 351. -/
+constructor, line 323. -/
 def letE : UInt32 := 7
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `lit`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.lit_bridge, then delete this line
-constructor, line 352. -/
+constructor, line 324. -/
 def lit : UInt32 := 8
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `proj`
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.proj_bridge, then delete this line
-constructor, line 353. -/
+constructor, line 325. -/
 def proj : UInt32 := 9
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — `lam` (line 349) or
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Handle.isBind_bridge, then delete this line
-`forallE` (line 350), the two constructors that share the `BindNode` record
+/-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — `lam` (line 321) or
+`forallE` (line 322), the two constructors that share the `BindNode` record
 shape (task #97-P6-10).  A named predicate rather than the disjunction written
 at the use site: the walks that dispatch on the handle's own tag hold the
 handle while they test it, and task #97-P4a's extraction rule 2 asks for the

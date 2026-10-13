@@ -28,7 +28,6 @@ The clauses, in the order a reader meets them:
 | `derExact` | the derived column is `derOfView` of the node — *locally*; the global `derived st i = e.data` is a theorem (`derived_exact`) |
 | `sized` | the derived array is as long as the node array |
 | `cap` | no constructor array exceeds 2^27 entries, so a handle's 27-bit index is injective on it |
-| `bmKey` | every binder key a cons table holds names a datum the store can decode |
 | `scrOff` | the scratch tier is empty while the scratch flag is off |
 | `sync` | the nesting's scratch flags move together (task #97a) |
 
@@ -70,7 +69,7 @@ def ENodeView.echildren : ENodeView → List EIdx
   | .bvar _ | .sort _ | .const _ _ | .lit _ => []
   | .fvar _ ty => [ty]
   | .app f a => [f, a]
-  | .lam ty b _ | .forallE ty b _ => [ty, b]
+  | .lam ty b | .forallE ty b => [ty, b]
   | .letE ty v b => [ty, v, b]
   | .proj _ _ e => [e]
 
@@ -89,15 +88,6 @@ def ENodeView.lchildren : ENodeView → List LIdx
 def ENodeView.lschildren : ENodeView → List LsIdx
   | .const _ us => [us]
   | _ => []
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:92-102 BinderMeta — the datum a node
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove WF.ENodeView.bmOf_bridge, then delete this line
-view carries, if it carries one.  `EStore.findBMOfView` is `findBM` at this
-(task #97-P6-16). -/
-def ENodeView.bmOf : ENodeView → Option ConLeche.BinderMeta
-  | .lam _ _ m => some m
-  | .forallE _ _ m => some m
-  | _ => none
 
 /-! ## Table shape predicates -/
 
@@ -120,7 +110,6 @@ def LsTables.Sized (t : LsTables) : Prop := t.lists.Sized
 def ETables.Sized (t : ETables) : Prop :=
   t.bvars.Sized ∧ t.fvars.Sized ∧ t.sorts.Sized ∧ t.consts.Sized ∧ t.apps.Sized
     ∧ t.lams.Sized ∧ t.foralls.Sized ∧ t.lets.Sized ∧ t.lits.Sized ∧ t.projs.Sized
-    ∧ t.bms.Sized
 
 /-! ## The name store's invariant -/
 
@@ -219,21 +208,7 @@ def LsStoreWF (st : LsStore) : Prop := LsWF st
 /-- con-leche: none — arena infrastructure; the expression store's
 well-formedness at an explicit rank; it carries the three stores below it.
 Precedent: con-leche's retired `Setlec/Kernel/ArenaWF.lean:900 EStore.TWF`
-(at 94a1cf78).
-
-**Why the three binder-datum clauses say `tag = 0`** (task #97-LC).  The
-datum store has ONE constructor, so `ETables.getBM` has no tag dispatch —
-it reads `bms` at the handle's index and nothing else, exactly as the Rust's
-`ETables::get_bm` does, and `BMIdx::pack` passes tag `0` unconditionally.
-The other three stores get the handle's tag back for free, because their
-`get` dispatches on it: there, `(tag, tier, index)` determines the word, and
-a cons table's `↔` is satisfiable.  Here it is not — two handles differing
-only in their tag bits decode to the SAME datum, so without `tag = 0` the
-`bmConsP`/`bmConsS` equivalences would force `findBM` to answer both, and
-`EWFAt` would hold only of a store whose datum tables are empty.  The
-invariant says instead what the dispatch would have said, and both sides
-establish it by construction: `ETables.pushBM` builds its handle as
-`Idx.mk 0 tier _`, and `Idx.tag_mk` gives `tag = 0`. -/
+(at 94a1cf78). -/
 structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
   lss : LsStoreWF st.lss
   childOK : ∀ i v, st.view i = some v → ∀ c ∈ v.echildren,
@@ -249,31 +224,16 @@ structure EWFAt (st : EStore) (rk : EIdx → Nat) : Prop where
     rk i < st.persCount
   rankS : ∀ i, i.isPersistent = false → (st.view i).isSome = true →
     rk i < st.nodeCount
-  bmChildOK : ∀ i ty b mi, st.viewBindI i = some (ty, b, mi) →
-    (st.viewBM mi).isSome = true ∧ (i.isPersistent = true → mi.isPersistent = true)
-      ∧ mi.tag = 0
   consP : ∀ v i, st.persFind? v = some i ↔
     (st.view i = some v ∧ i.isPersistent = true)
   consS : ∀ v i, st.scrFind? v = some i ↔
     (st.view i = some v ∧ i.isPersistent = false)
   fresh : ∀ v i, st.scrFind? v = some i → st.persFind? v = none
-  bmConsP : ∀ m i, st.pers.findBM m = some i ↔
-    (st.viewBM i = some m ∧ i.isPersistent = true ∧ i.tag = 0)
-  bmConsS : ∀ m i, st.scr.findBM m = some i ↔
-    (st.viewBM i = some m ∧ i.isPersistent = false ∧ i.tag = 0)
-  bmFresh : ∀ m i, st.scr.findBM m = some i → st.pers.findBM m = none
-  bmKeyP : ∀ v mj i, st.pers.find? v mj = some i →
-    v.bmOf = none ∨ ∃ m, st.pers.findBM m = some mj
-  bmKeyS : ∀ v mj i, st.scr.find? v mj = some i →
-    v.bmOf = none ∨ ∃ m, st.findBM m = some mj
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
-  bmDerExact : ∀ i m, st.viewBM i = some m → st.bmDer i = (hash m.pw, m.pw.hasParams)
   sizedP : st.pers.Sized
   sizedS : st.scr.Sized
   capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
-  bmCapP : st.pers.bmSize ≤ Idx.idxCap
-  bmCapS : st.scr.bmSize ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 
@@ -337,9 +297,8 @@ def denoteEView (st : EStore) : ENodeView → Option Expr
   | .sort u => (denoteL st.ls u).map Expr.sort
   | .const n us => opt2 Expr.const (denoteN st.ns n) (denoteLs st.lss us)
   | .app g a => opt2 Expr.app (denoteE st g) (denoteE st a)
-  | .lam ty b m => opt2 (fun x y => Expr.lam x y m) (denoteE st ty) (denoteE st b)
-  | .forallE ty b m =>
-    opt2 (fun x y => Expr.forallE x y m) (denoteE st ty) (denoteE st b)
+  | .lam ty b => opt2 Expr.lam (denoteE st ty) (denoteE st b)
+  | .forallE ty b => opt2 Expr.forallE (denoteE st ty) (denoteE st b)
   | .letE ty w b => opt3 Expr.letE (denoteE st ty) (denoteE st w) (denoteE st b)
   | .lit l => some (.lit l)
   | .proj n k e => opt2 (fun nm x => Expr.proj nm k x) (denoteN st.ns n) (denoteE st e)
@@ -386,7 +345,7 @@ bracket by restoring `fresh` vacuously.
 ### The shape
 
 One weak sibling per store, clause for clause with the strong one minus
-`fresh` (and minus `bmFresh` at the expression store), each nesting the WEAK
+`fresh`, each nesting the WEAK
 invariant of the store below it — because the name, level and level-list
 promotions append to those nested tiers and break their `fresh` too.
 `Bridge/Promote/StoreP.lean`'s `EWFAtP` is the same idea one tier up; it
@@ -470,8 +429,8 @@ structure LsWF' (st : LsStore) : Prop where
 promotion-well-formed. -/
 def LsStoreWF' (st : LsStore) : Prop := LsWF' st
 
-/-- con-leche: none — arena infrastructure; `EWFAt` minus `fresh` and
-`bmFresh`, over the weak level-list invariant. -/
+/-- con-leche: none — arena infrastructure; `EWFAt` minus `fresh`, over the
+weak level-list invariant. -/
 structure EWFAt' (st : EStore) (rk : EIdx → Nat) : Prop where
   lss : LsStoreWF' st.lss
   childOK : ∀ i v, st.view i = some v → ∀ c ∈ v.echildren,
@@ -487,41 +446,21 @@ structure EWFAt' (st : EStore) (rk : EIdx → Nat) : Prop where
     rk i < st.persCount
   rankS : ∀ i, i.isPersistent = false → (st.view i).isSome = true →
     rk i < st.nodeCount
-  bmChildOK : ∀ i ty b mi, st.viewBindI i = some (ty, b, mi) →
-    (st.viewBM mi).isSome = true ∧ (i.isPersistent = true → mi.isPersistent = true)
-      ∧ mi.tag = 0
   consP : ∀ v i, st.persFind? v = some i ↔
     (st.view i = some v ∧ i.isPersistent = true)
-  /-- **Only the forward half of `consS` survives a promotion** (task
-  #97-P5-Fresh's second finding): `EStore.internBMPersistent` moves a binder
-  view's CONS KEY, because the key holds the datum HANDLE and `findBM` probes
-  the persistent datum table first.  Promote a datum that only the scratch
-  tier held and every scratch binder node interned under the old (scratch)
-  handle becomes unreachable through `scrFind?` — `consS`'s `←` direction
-  fails at it, while the node itself still decodes.  What is still true, and
-  what canonicity actually rests on, is that the scratch cons table never
-  LIES: a handle it does answer decodes to the view it was asked about. -/
+  /-- **Only the forward half of `consS`** (task #97-P5-Fresh's second
+  finding).  That finding was the binder datum's: promoting a datum moved a
+  binder view's cons key.  The datum is gone (task #119), so the full `consS`
+  would hold again; the weak invariant keeps the forward half, which is all
+  its consumers read: the scratch cons table never LIES — a handle it does
+  answer decodes to the view it was asked about. -/
   consSof : ∀ v i, st.scrFind? v = some i →
     (st.view i = some v ∧ i.isPersistent = false)
-  bmConsP : ∀ m i, st.pers.findBM m = some i ↔
-    (st.viewBM i = some m ∧ i.isPersistent = true ∧ i.tag = 0)
-  bmConsS : ∀ m i, st.scr.findBM m = some i ↔
-    (st.viewBM i = some m ∧ i.isPersistent = false ∧ i.tag = 0)
-  bmKeyP : ∀ v mj i, st.pers.find? v mj = some i →
-    v.bmOf = none ∨ ∃ m, st.pers.findBM m = some mj
-  /-- `bmKeyS` weakened for the same reason: *"the scratch cons table's datum
-  keys DECODE"* rather than *"`findBM` answers them"*, because promoting a
-  datum is exactly what stops `findBM` answering the scratch handle. -/
-  bmKeyS : ∀ v mj i, st.scr.find? v mj = some i →
-    v.bmOf = none ∨ (st.viewBM mj).isSome = true
   derExact : ∀ i v, st.view i = some v → st.derived i = st.derOfView v
-  bmDerExact : ∀ i m, st.viewBM i = some m → st.bmDer i = (hash m.pw, m.pw.hasParams)
   sizedP : st.pers.Sized
   sizedS : st.scr.Sized
   capP : ∀ v, st.pers.sizeOf v ≤ Idx.idxCap
   capS : ∀ v, st.scr.sizeOf v ≤ Idx.idxCap
-  bmCapP : st.pers.bmSize ≤ Idx.idxCap
-  bmCapS : st.scr.bmSize ≤ Idx.idxCap
   scrOff : st.scratchOn = false → st.scr = ETables.empty
   sync : st.scratchOn = st.lss.scratchOn
 
@@ -564,9 +503,7 @@ theorem LsStoreWF'.of_wf {st : LsStore} (h : LsStoreWF st) : LsStoreWF' st :=
   LsWF'.of_wf h
 
 /-! The expression store's own `of_wf` is in `Arena/WFProofs.lean`'s
-append-only section, not here: the weakened `bmKeyS` needs
-`EWFAt.viewBM_of_findBM` to turn *"`findBM` answers this handle"* into
-*"this handle decodes"*, and that lemma lives one file up. -/
+append-only section. -/
 
 /-! ### A promotion's added precondition: the view's children are persistent
 
