@@ -52,15 +52,16 @@ namespace ConRon.Arena
 
 open ConLeche
 
-/-! ## `checkConstantVal` / `installConstantVal`, in four
+/-! ## `checkConstantVal` / `installHeader`, in three
 
 The Rust splits the common constant check at the two points where a guard
 would otherwise join on a borrowed state (`check_constant_val_guards` /
-`_rest`) and at the annotation (`install_constant_val_tail` /
-`check_constant_val_after_annot`).  `Arena/CheckerBase.lean`'s
-`checkConstantVal` and `Arena/CheckerSplit.lean`'s `installConstantVal` write
-the same clauses out twice, as con-leche does; these four are the shared
-pieces. -/
+`_rest`) and at the declared type's two resolution guards
+(`install_header_tail`, which `check_constant_val` shares with
+`install_header`).  `Arena/CheckerBase.lean`'s `checkConstantVal` and
+`Arena/CheckerSplit.lean`'s `installHeader` write the same clauses out twice,
+as con-leche does; these three are the shared pieces.  (Task #119: the
+annotation between the guards and the tail is gone, and both return `Unit`.) -/
 
 /-- The four guards past the reserved-name test:
 `Arena/CheckerBase.lean:checkConstantVal` clauses 3-6. -/
@@ -83,56 +84,52 @@ def checkConstantValGuardsSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit := do
     fail (.invalid "reserved basis name")
   checkConstantValGuardsRestSpec cv
 
-/-- The two guards on the ANNOTATED type and the header they produce —
-`installConstantVal`'s tail, which `checkConstantVal` shares. -/
-def installConstantValTailSpec (fe : IFEnv) (cv : IConstantVal) (ty : EIdx) :
-    AM IConstantVal :=
-  allLevelParamsDefined cv.levelParams ty >>= fun d =>
+/-- The failing arm every front door spells, `throw (unresolvedConstsErrorL
+(strLitSupportedF fe) where_ e)` — the Rust's `unresolved_consts_fail`. -/
+def unresolvedConstsFailSpec {α : Type} (fe : IFEnv) (where_ : String) (e : EIdx) :
+    AM α := do
+  fail (← unresolvedConstsErrorL (← strLitSupported fe) where_ e)
+
+/-- The two guards on the declared type — `installHeader`'s tail, which
+`checkConstantVal` shares (the Rust's `install_header_tail`). -/
+def installHeaderTailSpec (fe : IFEnv) (cv : IConstantVal) : AM Unit :=
+  allLevelParamsDefined cv.levelParams cv.type >>= fun d =>
     if d then
-      constsResolveFFast fe ty >>= fun r =>
-        if r then pure { cv with type := ty }
-        else unresolvedConstsError "type" ty >>= fun e => fail e
+      constsResolveFFast fe cv.type >>= fun r =>
+        if r then pure ()
+        else unresolvedConstsFailSpec fe "type" cv.type
     else fail (.invalid "undeclared universe parameter in type")
 
-/-- `checkConstantVal`'s tail past the annotation: the install-side tail, then
-the type's own inference and sort check. -/
-def checkConstantValAfterAnnotSpec (mode : CheckMode) (fe : IFEnv)
-    (cv : IConstantVal) (ty : EIdx) : AM IConstantVal := do
-  let cvA ← installConstantValTailSpec fe cv ty
-  let stype ← inferTypeCore mode fe checkFuel 0 cvA.type
-  let _u ← ensureSortCore mode fe checkFuel 0 stype
-  pure cvA
-
-/-- `installValue`'s tail past the annotation. -/
-def installValueTailSpec (fe : IFEnv) (cv : IConstantVal) (valueA : EIdx) :
-    AM EIdx :=
-  allLevelParamsDefined cv.levelParams valueA >>= fun d =>
+/-- `installValueGuards`' tail past the two scope tests (the Rust's
+`install_value_guards_tail`). -/
+def installValueGuardsTailSpec (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    AM Unit :=
+  allLevelParamsDefined cv.levelParams value >>= fun d =>
     if d then
-      constsResolveFFast fe valueA >>= fun r =>
-        if r then pure valueA
-        else unresolvedConstsError "value" valueA >>= fun e => fail e
+      constsResolveFFast fe value >>= fun r =>
+        if r then pure ()
+        else unresolvedConstsFailSpec fe "value" value
     else fail (.invalid "undeclared universe parameter in value")
 
 /-! ## `checkValueGroup`, in three -/
 
 /-- `checkValueGroup`'s tail: the value's type against the declared one. -/
-def checkValueGroupTailSpec (mode : CheckMode) (fe : IFEnv) (g : ValueGroup)
-    (jv : EIdx) : AM Unit := do
-  let vtype ← inferTypeCore mode fe checkFuel 0 jv
-  unless ← isDefEqCore mode fe checkFuel 0 vtype g.cvA.type do
+def checkValueGroupTailSpec (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) :
+    AM Unit := do
+  let vtype ← inferTypeCore mode fe checkFuel 0 g.jv
+  unless ← isDefEqCore mode fe checkFuel 0 vtype g.cv.type do
     fail (.invalid s!"type mismatch in {g.kind.word}")
 
 /-- `checkValueGroup`'s middle: the theorem's is-a-proposition test and, for a
-theorem, the value's guards and annotation. -/
+theorem, the value's guards. -/
 def checkValueGroupValueSpec (mode : CheckMode) (fe : IFEnv) (g : ValueGroup)
     (u : LIdx) : AM Unit := do
-  let jv ← if g.kind == .thm then do
-      let z ← zeroLevel
-      unless ← liftFueled "level comparison" (← lvlEq? u z) do
-        fail (.invalid "type of theorem is not a proposition")
-      installValue mode fe g.cvA g.jv
-    else pure g.jv
-  checkValueGroupTailSpec mode fe g jv
+  if g.kind == .thm then do
+    let z ← zeroLevel
+    unless ← liftFueled "level comparison" (← lvlEq? u z) do
+      fail (.invalid "type of theorem is not a proposition")
+    installValueGuards fe g.cv g.jv
+  checkValueGroupTailSpec mode fe g
 
 /-! ## `indParamsOk`'s per-member test -/
 
@@ -152,44 +149,40 @@ Each says that the named twin IS its transcription composed — the file's whole
 proof obligation, and the only thing a reader has to check against
 `Arena/CheckerBase.lean` and `Arena/CheckerSplit.lean`. -/
 
-/-- `checkConstantVal` is its four pieces. -/
+/-- `checkConstantVal` is its three pieces and the inference. -/
 theorem checkConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
     (cv : IConstantVal) :
     checkConstantVal mode fe cv = (do
       checkConstantValGuardsSpec fe cv
-      let type ← annotateCore mode fe checkFuel 0 cv.type
-      checkConstantValAfterAnnotSpec mode fe cv type) := by
+      installHeaderTailSpec fe cv
+      let stype ← inferTypeCore mode fe checkFuel 0 cv.type
+      let _u ← ensureSortCore mode fe checkFuel 0 stype) := by
   twin_reduce [checkConstantVal, checkConstantValGuardsSpec,
-    checkConstantValGuardsRestSpec, checkConstantValAfterAnnotSpec,
-    installConstantValTailSpec]
+    checkConstantValGuardsRestSpec, installHeaderTailSpec, unresolvedConstsFailSpec]
 
-/-- `installConstantVal` is the same guards and the install-side tail. -/
-theorem installConstantVal_unfold (mode : CheckMode) (fe : IFEnv)
-    (cv : IConstantVal) :
-    installConstantVal mode fe cv = (do
+/-- `installHeader` is the same guards and the shared tail. -/
+theorem installHeader_unfold (fe : IFEnv) (cv : IConstantVal) :
+    installHeader fe cv = (do
       checkConstantValGuardsSpec fe cv
-      let type ← annotateCore mode fe checkFuel 0 cv.type
-      installConstantValTailSpec fe cv type) := by
-  twin_reduce [installConstantVal, checkConstantValGuardsSpec,
-    checkConstantValGuardsRestSpec, installConstantValTailSpec]
+      installHeaderTailSpec fe cv) := by
+  twin_reduce [installHeader, checkConstantValGuardsSpec,
+    checkConstantValGuardsRestSpec, installHeaderTailSpec, unresolvedConstsFailSpec]
 
-/-- `installValue` is its guards, its annotation and its tail. -/
-theorem installValue_unfold (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
-    (value : EIdx) :
-    installValue mode fe cv value = (do
+/-- `installValueGuards` is its two scope tests and its tail. -/
+theorem installValueGuards_unfold (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    installValueGuards fe cv value = (do
       unless ← looseBVarsBoundedFast coreWalkFuel 0 value do
         fail (.invalid "loose bound variable in value")
       if ← hasFvarFast coreWalkFuel value then
         fail (.invalid
           "unexpected free variable in value")
-      let valueA ← annotateCore mode fe checkFuel 0 value
-      installValueTailSpec fe cv valueA) := by
-  twin_reduce [installValue, installValueTailSpec]
+      installValueGuardsTailSpec fe cv value) := by
+  twin_reduce [installValueGuards, installValueGuardsTailSpec, unresolvedConstsFailSpec]
 
 /-- `checkValueGroup` is its three pieces. -/
 theorem checkValueGroup_unfold (mode : CheckMode) (fe : IFEnv) (g : ValueGroup) :
     checkValueGroup mode fe g = (do
-      let stype ← inferTypeCore mode fe checkFuel 0 g.cvA.type
+      let stype ← inferTypeCore mode fe checkFuel 0 g.cv.type
       let u ← ensureSortCore mode fe checkFuel 0 stype
       checkValueGroupValueSpec mode fe g u) := by
   twin_reduce [checkValueGroup, checkValueGroupValueSpec,
@@ -224,7 +217,7 @@ def eqBasisPinnedSpec (fe : IFEnv) : AM Bool := do
 /-- `stdAxiomOk`'s `Iff` clause. -/
 def iffPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffName) with
-  | some (.indInfo cvI _) => cvI.matchesPin (← (← iffRaw).toConstantVal)
+  | some (.indInfo cvI _) => cvI.matchesPin (← (← iffA).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Iff.intro` clause, its arity test an explicit `if` as the
@@ -233,7 +226,7 @@ port writes it (the twin's literal pattern `.ctorInfo cv 2 2`, split by
 def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffIntroName) with
   | some (.ctorInfo cvIi np nf) =>
-    if np == 2 && nf == 2 then do cvIi.matchesPin (← (← iffIntroRaw).toConstantVal)
+    if np == 2 && nf == 2 then do cvIi.matchesPin (← (← iffIntroA).toConstantVal)
     else pure false
   | _ => pure false
 
@@ -241,21 +234,21 @@ def iffIntroPinnedSpec (fe : IFEnv) : AM Bool := do
 def iffRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← iffRecName) with
   | some (.recInfo cvIr mi rp _) =>
-    if mi == 4 && rp == 4 then do cvIr.matchesPin (← (← iffRecRaw).toConstantVal)
+    if mi == 4 && rp == 4 then do cvIr.matchesPin (← (← iffRecA).toConstantVal)
     else pure false
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty` clause. -/
 def nonemptyPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyName) with
-  | some (.indInfo cvN _) => cvN.matchesPin (← (← nonemptyRaw).toConstantVal)
+  | some (.indInfo cvN _) => cvN.matchesPin (← (← nonemptyA).toConstantVal)
   | _ => pure false
 
 /-- `stdAxiomOk`'s `Nonempty.intro` clause. -/
 def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyIntroName) with
   | some (.ctorInfo cvNi np nf) =>
-    if np == 1 && nf == 1 then do cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)
+    if np == 1 && nf == 1 then do cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)
     else pure false
   | _ => pure false
 
@@ -263,7 +256,7 @@ def nonemptyIntroPinnedSpec (fe : IFEnv) : AM Bool := do
 def nonemptyRecPinnedSpec (fe : IFEnv) : AM Bool := do
   match fe.find? (← nonemptyRecName) with
   | some (.recInfo cvNr mi rp _) =>
-    if mi == 3 && rp == 3 then do cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)
+    if mi == 3 && rp == 3 then do cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)
     else pure false
   | _ => pure false
 
@@ -283,29 +276,29 @@ def trueIntroPinnedSpec (fe : IFEnv) : AM Bool := do
 
 /-- `stdAxiomOk`'s `propext` arm past the `Eq` basis and `Iff` clauses (the
 port's `std_axiom_ok_propext_rest` starts at `iff_intro_pinned`). -/
-def stdAxiomOkPropextRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+def stdAxiomOkPropextRestSpec (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   if !(← iffIntroPinnedSpec fe) then pure false
   else if !(← iffRecPinnedSpec fe) then pure false
-  else cvA.matchesPin (← propextRaw)
+  else cv.matchesPin (← propextA)
 
 /-- `stdAxiomOk`'s `propext` arm. -/
-def stdAxiomOkPropextSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+def stdAxiomOkPropextSpec (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   if !(← eqBasisPinnedSpec fe) then pure false
   else if !(← iffPinnedSpec fe) then pure false
-  else stdAxiomOkPropextRestSpec fe cvA
+  else stdAxiomOkPropextRestSpec fe cv
 
 /-- `stdAxiomOk`'s `Classical.choice` arm past the `Nonempty` and
 `Nonempty.intro` clauses (the port's `std_axiom_ok_choice_rest` starts at
 `nonempty_rec_pinned`). -/
-def stdAxiomOkChoiceRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+def stdAxiomOkChoiceRestSpec (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   if !(← nonemptyRecPinnedSpec fe) then pure false
-  else cvA.matchesPin (← choiceRaw)
+  else cv.matchesPin (← choiceA)
 
 /-- `stdAxiomOk`'s `Classical.choice` arm. -/
-def stdAxiomOkChoiceSpec (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+def stdAxiomOkChoiceSpec (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   if !(← nonemptyPinnedSpec fe) then pure false
   else if !(← nonemptyIntroPinnedSpec fe) then pure false
-  else stdAxiomOkChoiceRestSpec fe cvA
+  else stdAxiomOkChoiceRestSpec fe cv
 
 /-- `reduceElemOk`'s `Bool` arm. -/
 def reduceElemOkBoolSpec (fe : IFEnv) : AM Bool := do
@@ -315,28 +308,28 @@ def reduceElemOkBoolSpec (fe : IFEnv) : AM Bool := do
 
 /-- `ofReduceAxOk`'s tail past the operation it names and the `Eq` basis test
 (the port's `of_reduce_ax_ok_rest` starts at `reduce_elem_ok`). -/
-def ofReduceAxOkRestSpec (fe : IFEnv) (cvA : IConstantVal) (c : NIdx) :
+def ofReduceAxOkRestSpec (fe : IFEnv) (cv : IConstantVal) (c : NIdx) :
     AM Bool := do
   if !(← reduceElemOk fe c) then pure false
   else if !(← reduceStoredOk fe c) then pure false
-  else cvA.matchesPin (← ofReducePinA cvA.name)
+  else cv.matchesPin (← ofReducePinA cv.name)
 
 /-- `ofReduceAxOk` split where the port splits it. -/
-theorem ofReduceAxOk_split (fe : IFEnv) (cvA : IConstantVal) :
-    ofReduceAxOk fe cvA = (do
-      let c ← ofReduceOp cvA.name
+theorem ofReduceAxOk_split (fe : IFEnv) (cv : IConstantVal) :
+    ofReduceAxOk fe cv = (do
+      let c ← ofReduceOp cv.name
       if !(← eqBasisPinnedSpec fe) then pure false
-      else ofReduceAxOkRestSpec fe cvA c) := by
+      else ofReduceAxOkRestSpec fe cv c) := by
   simp only [ofReduceAxOk, ofReduceAxOkRestSpec, eqBasisPinnedSpec, bind_assoc, pure_bind]
   rfl
 
 /-- `trustCompilerOk` split where the port splits it, the twin's literal arity
 pattern read as the port's explicit test. -/
-theorem trustCompilerOk_split (fe : IFEnv) (cvA : IConstantVal) :
-    trustCompilerOk fe cvA = (do
+theorem trustCompilerOk_split (fe : IFEnv) (cv : IConstantVal) :
+    trustCompilerOk fe cv = (do
       if !(← truePinnedSpec fe) then pure false
       else if !(← trueIntroPinnedSpec fe) then pure false
-      else cvA.matchesPin (← trustCompilerA)) := by
+      else cv.matchesPin (← trustCompilerA)) := by
   simp only [trustCompilerOk, truePinnedSpec, trueIntroPinnedSpec, bind_assoc]
   congr 1; funext n
   rcases fe.find? n with _ | ci
@@ -356,13 +349,13 @@ theorem trustCompilerOk_split (fe : IFEnv) (cvA : IConstantVal) :
 /-- `stdAxiomOk` split where the port splits it (`std_axiom_ok` →
 `std_axiom_ok_{propext,choice}`), the literal arity patterns read as the port's
 explicit tests. -/
-theorem stdAxiomOk_split (fe : IFEnv) (cvA : IConstantVal) :
-    stdAxiomOk fe cvA = (do
+theorem stdAxiomOk_split (fe : IFEnv) (cv : IConstantVal) :
+    stdAxiomOk fe cv = (do
       let pn ← propextName
-      if cvA.name == pn then stdAxiomOkPropextSpec fe cvA
+      if cv.name == pn then stdAxiomOkPropextSpec fe cv
       else do
         let cn ← choiceName
-        if cvA.name == cn then stdAxiomOkChoiceSpec fe cvA else pure false) := by
+        if cv.name == cn then stdAxiomOkChoiceSpec fe cv else pure false) := by
   simp only [stdAxiomOk, stdAxiomOkPropextSpec, stdAxiomOkPropextRestSpec, eqBasisPinnedSpec,
     iffPinnedSpec, iffIntroPinnedSpec, iffRecPinnedSpec, stdAxiomOkChoiceSpec,
     stdAxiomOkChoiceRestSpec, nonemptyPinnedSpec, nonemptyIntroPinnedSpec,
@@ -451,10 +444,9 @@ def checkReduceIdentitySpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
 then the identity certificate. -/
 def checkReducePinValueSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value : EIdx) : AM Unit := do
-  let valA ← annotateCore mode fe checkFuel 0 value
-  let pinA ← annotateCore mode fe checkFuel 0 (← reduceDeclPin c)
-  let okPin ← isDefEqCore mode fe checkFuel 0 valA pinA
-  if okPin then checkReduceIdentitySpec mode fe c valA
+  let pinA ← reduceDeclPin c
+  let okPin ← isDefEqCore mode fe checkFuel 0 value pinA
+  if okPin then checkReduceIdentitySpec mode fe c value
   else fail (.notImplemented
     "unsupported compiler-trust opaque spelling")
 
@@ -474,8 +466,8 @@ def checkReducePinPreSpec (mode : CheckMode) (fe : IFEnv) (c : NIdx)
 /-- `checkThmVal`'s tail past the is-a-proposition test. -/
 def checkThmValWitnessSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
-  let jv ← installValue mode fe cv value
-  let vtype ← inferTypeCore mode fe checkFuel 0 jv
+  installValueGuards fe cv value
+  let vtype ← inferTypeCore mode fe checkFuel 0 value
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
     fail (.invalid "type mismatch in theorem")
   pure (fe.push (.thmInfo cv))
@@ -675,36 +667,36 @@ def checkIndDeclArmSpec (mode : CheckMode) (fe : IFEnv)
 /-- `checkDecl`'s axiom arm past the `ofReduce*` test: the two standard
 axioms' shape mismatch, `sorryAx` tolerated as a DECLARATION, everything else
 declined. -/
-def checkAxiomDeclRestSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
-  if cvA.name == (← propextName) || cvA.name == (← choiceName) then
+def checkAxiomDeclRestSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do
+  if cv.name == (← propextName) || cv.name == (← choiceName) then
     fail (.notImplemented
       "standard axiom shape mismatch")
-  else if cvA.name == (← pinSorryAx) then pure fe
+  else if cv.name == (← pinSorryAx) then pure fe
   else fail (.notImplemented "non-standard axiom")
 
 /-- `checkDecl`'s axiom arm at the `ofReduce*` names. -/
-def checkAxiomDeclOfReduceSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
-  if cvA.name == (← ofReduceNatName) || cvA.name == (← ofReduceBoolName) then
-    if ← ofReduceAxOk fe cvA then pure (fe.push (.axiomInfo cvA))
+def checkAxiomDeclOfReduceSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do
+  if cv.name == (← ofReduceNatName) || cv.name == (← ofReduceBoolName) then
+    if ← ofReduceAxOk fe cv then pure (fe.push (.axiomInfo cv))
     else fail (.notImplemented
       "unsupported compiler-trust axiom environment")
-  else checkAxiomDeclRestSpec fe cvA
+  else checkAxiomDeclRestSpec fe cv
 
 /-- `checkDecl`'s axiom arm at `Lean.trustCompiler`. -/
-def checkAxiomDeclTrustSpec (fe : IFEnv) (cvA : IConstantVal) : AM IFEnv := do
-  if cvA.name == (← trustCompilerName) then
-    if ← trustCompilerOk fe cvA then pure (fe.push (.axiomInfo cvA))
+def checkAxiomDeclTrustSpec (fe : IFEnv) (cv : IConstantVal) : AM IFEnv := do
+  if cv.name == (← trustCompilerName) then
+    if ← trustCompilerOk fe cv then pure (fe.push (.axiomInfo cv))
     else fail (.notImplemented
       "unsupported Lean.trustCompiler shape")
-  else checkAxiomDeclOfReduceSpec fe cvA
+  else checkAxiomDeclOfReduceSpec fe cv
 
 /-- `checkDecl`'s axiom arm past `Quot.sound`: the common constant check, then
 the standard-axiom gate. -/
 def checkAxiomDeclStdSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     AM IFEnv := do
-  let cvA ← checkConstantVal mode fe cv
-  if ← stdAxiomOk fe cvA then pure (fe.push (.axiomInfo cvA))
-  else checkAxiomDeclTrustSpec fe cvA
+  checkConstantVal mode fe cv
+  if ← stdAxiomOk fe cv then pure (fe.push (.axiomInfo cv))
+  else checkAxiomDeclTrustSpec fe cv
 
 /-- `checkDecl`'s `Quot.sound` record: compared with the pin, installing
 NOTHING of its own. -/
@@ -725,7 +717,7 @@ def checkAxiomDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
 /-- `checkDecl`'s `.opaqueDecl` arm. -/
 def checkOpaqueDeclSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
-  let cv ← checkConstantVal mode fe cv
+  checkConstantVal mode fe cv
   let fe2 ← checkOpaqueVal mode fe cv value
   if (← reduceOpNames).contains cv.name then
     checkReducePin mode (fe2.restrictTo fe.visibleBelow) fe2 cv.name value
@@ -777,48 +769,47 @@ def checkDefnPinsSpec (mode : CheckMode) (pins : List INatOpPinSet)
 /-- `checkDecl`'s `.defnDecl` arm, whole. -/
 def checkDefnDeclSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) : AM IFEnv := do
-  let cv ← checkConstantVal mode fe cv
+  checkConstantVal mode fe cv
   let fe2 ← checkDefnVal mode fe cv value hint
   checkDefnPinsSpec mode pins (fe2.restrictTo fe.visibleBelow) fe2 cv.name
 
 /-! ### Phase A's step body, in six -/
 
-/-- `annotStepGo`'s `.opaqueDecl` install half. -/
-def annotStepOpaqueInstallSpec (mode : CheckMode) (fe : IFEnv)
-    (cv : IConstantVal) (value : EIdx) : AM (IFEnv × Option ValueGroup) := do
-  let cvA ← installConstantVal mode fe cv
-  let jv ← installValue mode fe cvA value
-  pure (fe.push (.axiomInfo cvA), some ⟨.opaque, cvA, jv⟩)
+/-- `installStepGo`'s `.opaqueDecl` install half. -/
+def installStepOpaqueInstallSpec (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
+    AM (IFEnv × Option ValueGroup) := do
+  installHeader fe cv
+  installValueGuards fe cv value
+  pure (fe.push (.axiomInfo cv), some ⟨.opaque, cv, value⟩)
 
-/-- `annotStepGo`'s `.opaqueDecl` arm. -/
-def annotStepOpaqueSpec (mode : CheckMode) (pins : List INatOpPinSet)
+/-- `installStepGo`'s `.opaqueDecl` arm. -/
+def installStepOpaqueSpec (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (pd : IDeclaration) (cv : IConstantVal) (value : EIdx) :
     AM (IFEnv × Option ValueGroup) := do
   if (← reduceOpNames).contains cv.name then
     pure (← checkDecl mode pins fe pd, none)
-  else annotStepOpaqueInstallSpec mode fe cv value
+  else installStepOpaqueInstallSpec fe cv value
 
-/-- `annotStepGo`'s `.thmDecl` arm: a theorem installs BY STATEMENT. -/
-def annotStepThmSpec (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
-    (value : EIdx) : AM (IFEnv × Option ValueGroup) := do
-  let cvA ← installConstantVal mode fe cv
-  pure (fe.push (.thmInfo cvA), some ⟨.thm, cvA, value⟩)
-
-/-- `annotStepGo`'s `.defnDecl` install half. -/
-def annotStepDefnInstallSpec (mode : CheckMode) (fe : IFEnv)
-    (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
+/-- `installStepGo`'s `.thmDecl` arm: a theorem installs BY STATEMENT. -/
+def installStepThmSpec (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
     AM (IFEnv × Option ValueGroup) := do
-  let cvA ← installConstantVal mode fe cv
-  let jv ← installValue mode fe cvA value
-  pure (fe.push (.defnInfo cvA jv hint), some ⟨.defn, cvA, jv⟩)
+  installHeader fe cv
+  pure (fe.push (.thmInfo cv), some ⟨.thm, cv, value⟩)
 
-/-- `annotStepGo`'s `.defnDecl` arm. -/
-def annotStepDefnSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
+/-- `installStepGo`'s `.defnDecl` install half. -/
+def installStepDefnInstallSpec (fe : IFEnv) (cv : IConstantVal) (value : EIdx)
+    (hint : ReducibilityHint) : AM (IFEnv × Option ValueGroup) := do
+  installHeader fe cv
+  installValueGuards fe cv value
+  pure (fe.push (.defnInfo cv value hint), some ⟨.defn, cv, value⟩)
+
+/-- `installStepGo`'s `.defnDecl` arm. -/
+def installStepDefnSpec (mode : CheckMode) (pins : List INatOpPinSet) (fe : IFEnv)
     (pd : IDeclaration) (cv : IConstantVal) (value : EIdx)
     (hint : ReducibilityHint) : AM (IFEnv × Option ValueGroup) := do
   if (← natOpNames).contains cv.name || (← natDivModNames).contains cv.name then
     pure (← checkDecl mode pins fe pd, none)
-  else annotStepDefnInstallSpec mode fe cv value hint
+  else installStepDefnInstallSpec fe cv value hint
 
 /-! ### The startup walk, in six
 
@@ -835,20 +826,10 @@ runs `iff`, `iff.intro`, `iff.rec`, `Nonempty` and then `_rest`,
 sets in sequence.  Five of the six statements were therefore false (every one
 but `internAllNamesSpec`'s: its twin interned MORE than the port).
 
-**And they intern the RAW pins, as the Rust does.**
-`arena::std_axioms` interns `iff_raw` … `choice_raw` and `arena::trust_axioms`
-`of_reduce_pin_a` = the RAW `ofReduceRaw` (both modules' notes: `matchesPin`
-erases the `pw` datum, which is all annotation writes).  Task #97-P5-Top found
-the twin's `internAllPins` interning the ANNOTATED `iffA` … `choiceA`,
-`ofReduceNatA`, `ofReduceBoolA` — six of them different values, so `StoreRel`,
-which is exact, failed.  Round 2 took ruling (a): the twin interns the raw
-pins too (`Arena/Checker.lean`'s `internAllPins`, `Arena/DeclCheck.lean`'s
-`stdAxiomOk`, and `Arena/TrustAxioms.lean`'s `ofReduceNatA`/`ofReduceBoolA`,
-whose slots now hold the raw pins), Theorem 1 carrying the `matchesPin`
-equalities (`Bridge/Checker/Basis.lean`).  So `internAllPinsPortSpec` below
-IS `internAllPins`, up to the monad laws (`internAllPinsPortSpec_eq`,
-`Checker/Top.lean`), and the check-time transcriptions above compare against
-the raw pins as well. -/
+**The pins are con-leche's plain values** (task #119: the raw/annotated
+pair is gone with the annotation), interned as the Rust interns them, so
+`internAllPinsPortSpec` below IS `internAllPins`, up to the monad laws
+(`internAllPinsPortSpec_eq`, `Checker/Top.lean`). -/
 
 /-- `internAllPins`' reserved-name half — `intern_all_names`. -/
 def internAllNamesSpec : AM Unit := do
@@ -856,7 +837,7 @@ def internAllNamesSpec : AM Unit := do
   let _ ← natOpNames; let _ ← natDivModNames; let _ ← reduceOpNames
   let _ ← pinSorryAx; let _ ← pinQuotSound
 
-/-- `intern_all_reduce_pins`: the four `reduce*`/`ofReduce*` shapes (raw) and
+/-- `intern_all_reduce_pins`: the four `reduce*`/`ofReduce*` shapes and
 the two pinned defining expressions. -/
 def internAllReducePinsSpec : AM Unit := do
   let _ ← reduceNatCvA; let _ ← reduceBoolCvA
@@ -868,17 +849,17 @@ def internAllTrustPinsSpec : AM Unit := do
   let _ ← trueCvA; let _ ← trueIntroCvA; let _ ← trustCompilerA; let _ ← boolCvA
   internAllReducePinsSpec
 
-/-- `intern_all_axiom_pins_rest`: the standard axiom pins past `Nonempty`
-(raw), then the trust pins. -/
+/-- `intern_all_axiom_pins_rest`: the standard axiom pins past `Nonempty`,
+then the trust pins. -/
 def internAllAxiomPinsRestSpec : AM Unit := do
-  let _ ← nonemptyIntroRaw; let _ ← nonemptyRecRaw
-  let _ ← propextRaw; let _ ← choiceRaw
+  let _ ← nonemptyIntroA; let _ ← nonemptyRecA
+  let _ ← propextA; let _ ← choiceA
   internAllTrustPinsSpec
 
-/-- `intern_all_axiom_pins`: the `Iff` family and `Nonempty` (raw), then the
+/-- `intern_all_axiom_pins`: the `Iff` family and `Nonempty`, then the
 rest. -/
 def internAllAxiomPinsSpec : AM Unit := do
-  let _ ← iffRaw; let _ ← iffIntroRaw; let _ ← iffRecRaw; let _ ← nonemptyRaw
+  let _ ← iffA; let _ ← iffIntroA; let _ ← iffRecA; let _ ← nonemptyA
   internAllAxiomPinsRestSpec
 
 /-- `intern_all_basis` from the cursor on: the basis blocks in BOTH forms. -/
@@ -913,10 +894,8 @@ seventh too.-/
 theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) :
     checkDecl mode pins fe (.axiomDecl cv) = checkAxiomDeclSpec mode fe cv := by
-  -- the transcription reads `cvA.name` where the twin reads `cv.name` in its
-  -- decline messages; `checkConstantVal` answers `{ cv with type := _ }`, so
-  -- exposing that `pure` makes the two the same projection.  The `Quot.sound`
-  -- arm matches on `blk[4]?` at two different matchers, so it is peeled first.
+  -- The `Quot.sound` arm matches on `blk[4]?` at two different matchers, so it
+  -- is peeled first.
   simp only [checkDecl, checkAxiomDeclSpec]
   refine ConRon.Refine2.am_bind_congr _ ?_
   intro q
@@ -927,8 +906,7 @@ theorem checkDecl_axiomDecl (mode : CheckMode) (pins : List INatOpPinSet)
     cases blk[4]? <;> rfl
   · simp only [hq, ↓reduceIte, Bool.false_eq_true]
     twin_reduce [checkAxiomDeclStdSpec, checkAxiomDeclTrustSpec,
-      checkAxiomDeclOfReduceSpec, checkAxiomDeclRestSpec, checkConstantVal_unfold,
-      checkConstantValAfterAnnotSpec, installConstantValTailSpec]
+      checkAxiomDeclOfReduceSpec, checkAxiomDeclRestSpec]
 
 /-- The stored definition's value — the twin's `match fe2.find? c with |
 some (.defnInfo _ v _)`, under the name the Rust gives it (`defn_value`). -/
@@ -992,13 +970,13 @@ theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
   twin_reduce [checkDecl, checkDefnDeclSpec, checkDefnPinsSpec,
     checkDefnDivModPinSpec, checkStructuralNatPinSpec, checkStructuralNatPinEqsSpec,
     checkStructuralNatPinCertifySpec]
-  refine congrArg _ (funext fun cvA => congrArg _ (funext fun fe2 =>
+  refine congrArg _ (funext fun _ => congrArg _ (funext fun fe2 =>
     congrArg _ (funext fun ns => ?_)))
   split
   · refine congrArg _ (funext fun deps => congrArg _ (funext fun a =>
       congrArg _ (funext fun b => ?_)))
     split
-    · cases fe2.find? cvA.name with
+    · cases fe2.find? cv.name with
       | none => simp only [ConRon.Refine2.am_fail_bind]
       | some ci =>
         cases ci <;> simp only [ConRon.Refine2.am_fail_bind, bind_assoc]
@@ -1011,8 +989,8 @@ theorem checkDecl_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
 theorem checkDecl_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
     checkDecl mode pins fe (.thmDecl cv value) = (do
-      let cvA ← checkConstantVal mode fe cv
-      checkThmVal mode fe cvA value) := by
+      checkConstantVal mode fe cv
+      checkThmVal mode fe cv value) := by
   twin_reduce [checkDecl]
 
 theorem checkDecl_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
@@ -1043,37 +1021,37 @@ theorem checkDecl_quotDecl (mode : CheckMode) (pins : List INatOpPinSet)
   intro b
   cases b <;> cases k <;> rfl
 
-/-! ## `annotStepGo`, arm by arm (task #97-P5-Top)
+/-! ## `installStepGo`, arm by arm (task #97-P5-Top)
 
 The twin writes phase A's step body as one `match` with its three value arms
 inline; the port splits each into a function, and the tier states them
-against the `annotStep*Spec` transcriptions above.  These four equations are
-what makes `annot_step_go_refines` a dispatch. -/
+against the `installStep*Spec` transcriptions above.  These four equations are
+what makes `install_step_go_refines` a dispatch. -/
 
-theorem annotStepGo_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem installStepGo_defnDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) (hint : ReducibilityHint) :
-    annotStepGo mode pins fe (.defnDecl cv value hint)
-      = annotStepDefnSpec mode pins fe (.defnDecl cv value hint) cv value hint := by
-  simp only [annotStepGo, annotStepDefnSpec, annotStepDefnInstallSpec]
+    installStepGo mode pins fe (.defnDecl cv value hint)
+      = installStepDefnSpec mode pins fe (.defnDecl cv value hint) cv value hint := by
+  simp only [installStepGo, installStepDefnSpec, installStepDefnInstallSpec]
 
-theorem annotStepGo_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem installStepGo_thmDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
-    annotStepGo mode pins fe (.thmDecl cv value) = annotStepThmSpec mode fe cv value := by
-  simp only [annotStepGo, annotStepThmSpec]
+    installStepGo mode pins fe (.thmDecl cv value) = installStepThmSpec fe cv value := by
+  simp only [installStepGo, installStepThmSpec]
 
-theorem annotStepGo_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
+theorem installStepGo_opaqueDecl (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (cv : IConstantVal) (value : EIdx) :
-    annotStepGo mode pins fe (.opaqueDecl cv value)
-      = annotStepOpaqueSpec mode pins fe (.opaqueDecl cv value) cv value := by
-  simp only [annotStepGo, annotStepOpaqueSpec, annotStepOpaqueInstallSpec]
+    installStepGo mode pins fe (.opaqueDecl cv value)
+      = installStepOpaqueSpec mode pins fe (.opaqueDecl cv value) cv value := by
+  simp only [installStepGo, installStepOpaqueSpec, installStepOpaqueInstallSpec]
 
 /-- The catch-all: every kind but the three value kinds takes the ordinary
 step and records nothing. -/
-theorem annotStepGo_other (mode : CheckMode) (pins : List INatOpPinSet)
+theorem installStepGo_other (mode : CheckMode) (pins : List INatOpPinSet)
     (fe : IFEnv) (pd : IDeclaration)
     (h : ∀ cv v hint, pd ≠ .defnDecl cv v hint) (h2 : ∀ cv v, pd ≠ .thmDecl cv v)
     (h3 : ∀ cv v, pd ≠ .opaqueDecl cv v) :
-    annotStepGo mode pins fe pd = (do pure (← checkDecl mode pins fe pd, none)) := by
+    installStepGo mode pins fe pd = (do pure (← checkDecl mode pins fe pd, none)) := by
   cases pd with
   | defnDecl cv v hint => exact absurd rfl (h cv v hint)
   | thmDecl cv v => exact absurd rfl (h2 cv v)
