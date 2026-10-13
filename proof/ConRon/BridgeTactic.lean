@@ -526,16 +526,24 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
 unified with `t`, every premise proved by `prove`. -/
 partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   for lr in (← read).lemmas do
-    let r ← attempt do
+    -- the lemma's conclusion may itself be a `∀` (a monotonicity chain's
+    -- `∀ i v, a.view i = some v → c.view i = some v`): every telescope
+    -- length, longest first
+    let n ← do
       let (_, _, l) ← openAbstractMVarsResult lr
-      let (args, _, concl) ← forallMetaTelescope (← inferType l)
-      unless ← mayMatch concl t do return none
-      unless ← same concl t do return none
-      unless ← proveArgs fuel args.toList do return none
-      let e ← instantiateMVars (mkAppN l args)
-      if e.hasExprMVar then return none
-      return some e
-    if let some p := r then return some p
+      let (args, _, _) ← forallMetaTelescope (← inferType l)
+      pure args.size
+    for k' in [0:n + 1] do
+      let r ← attempt do
+        let (_, _, l) ← openAbstractMVarsResult lr
+        let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k')
+        unless ← mayMatch concl t do return none
+        unless ← same concl t do return none
+        unless ← proveArgs fuel args.toList do return none
+        let e ← instantiateMVars (mkAppN l args)
+        if e.hasExprMVar then return none
+        return some e
+      if let some p := r then return some p
   return none
 
 /-- The `Prop` premises of a lemma, in order.  A premise that is neither a
