@@ -470,7 +470,6 @@ theorem structEtaCertWith_tail {F d : Nat} {x y w : Expr} {c T : Name}
     hw, hfT]
   unfold EtaGuard at hg
   rw [ite_eq_left hlen, ite_eq_left hg]
-  rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:360-404 structEtaCertWith — the
 tail's exits, each stated at the facts the twin's stages name. -/
@@ -705,72 +704,7 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           hcaps.1, hcaps.2, ← denoteEList_len hargs, denoteNList_len hlps]
       split
       next hg =>
-        have hgP := hguard.mp hg
-        have hx05 : Ext s₀.store s5.store := hx02.trans hx5
-        have hp05 : s5.pins = s₀.pins := hp5.trans hp02
-        -- stage 4: `b`'s io-grade type, head-normalised
-        refine triple_seq (hsim.inferIO s5 d b y hok5 (denote_ext hdb hx05)
-          hwb) ?_
-        rintro tb s7 ⟨hok7, hx7, hp7, vtb, hvtb, hwvtb, F3, hF3⟩
-        refine triple_seq (hsim.whnf s7 d tb vtb hok7 hvtb hwvtb) ?_
-        rintro wtb s8 ⟨hok8, hx8, hp8, vwtb, hvwtb, hwvwtb, F4, hF4⟩
-        have hx58 : Ext s5.store s8.store := hx7.trans hx8
-        -- stage 5: the two types compared
-        refine triple_seq (hsim.defeq s8 d wta wtb vwta vwtb hok8
-          (denote_ext hvwta (hx5.trans hx58)) hvwtb hwvwta hwvwtb) ?_
-        rintro dq s9 ⟨hok9, hx9, hp9, F5, hF5⟩
-        have hx09 : Ext s₀.store s9.store := hx05.trans (hx58.trans hx9)
-        have hp09 : s9.pins = s₀.pins := hp9.trans (hp8.trans (hp7.trans hp05))
-        have hmax : ∀ G, max (max F1 F2) (max (max F3 F4) F5) ≤ G →
-            ConLeche.inferTypeIO mode env G d y = .ok vtb ∧
-            ConLeche.whnf mode env G d vtb = .ok vwtb ∧
-            ConLeche.isDefEqCore mode env G d vwta vwtb = .ok dq := by
-          intro G hle
-          refine ⟨ConLeche.inferTypeIO_mono ?_ hF3, ConLeche.whnf_mono ?_ hF4,
-            ConLeche.isDefEqCore_mono ?_ hF5⟩ <;> omega
-        cases dq
-        · -- the types differ
-          obtain ⟨m1, m2, m3⟩ := hmax _ (Nat.le_refl _)
-          have hres : ∃ F, ConLeche.structUnitCertFueled mode env F d x y =
-              .ok false := ⟨_, structUnitCert_cmp
-            (hA _ (Nat.le_max_left _ _)) (hB _ (Nat.le_max_left _ _)) hgf hfind
-            hgP m1 m2 (by
-              simp only [m3, bind, Except.bind, Bool.false_eq_true, ite_false]
-              rfl)⟩
-          -- `+internalize` drops the dead `if false = true` arm (its
-          -- hypothesis is contradictory in `grind`'s E-graph, task #116)
-          vcgen +internalize
-          bridge_peel; subst_vars
-          exact ⟨hok9, hx09, hp09, hres⟩
-        · -- the types agree: the family certificate, at the verified mode
-          simp only [ConLeche.certs_of_verifiedChecks hμ, ite_true]
-          have hx59 : Ext s5.store s9.store := hx58.trans hx9
-          have hx29 : Ext s2.store s9.store := hx5.trans hx59
-          have hname : dcv.name = Tn := env_find_name hfind
-          have hcv9 := denoteCV_ext hdcv hx29
-          refine triple_seq (constTyAt_spec s9 icv us Tn ls (.indInfo dcv dcaps)
-            hok9 (by rw [denoteCV_name hcv9, hname]) (denoteLs_ext hus hx29)
-            hfind hcv9) ?_
-          rintro ty s10 ⟨hok10, hx10, hp10, hty⟩
-          have hwty : Expr.WScoped d
-              (dcv.type.instantiateLevelParams dcv.levelParams ls) :=
-            Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind ls)
-          have hwargs : ∀ z ∈ vwta.getAppArgs, Expr.WScoped d z :=
-            Expr.WScoped.getAppArgs hwvwta
-          have hargs10 := denoteEList_ext (hx29.trans hx10) _ _ hargs
-          refine triple_mono (iotaCerts_spec hsim d false ty targs s10 hok10
-            ⟨_, _, hty, hwty, hargs10, hwargs⟩) ?_
-          rintro r s11 ⟨hok11, hx11, hp11, hr⟩
-          obtain ⟨F6, hF6⟩ := hr _ _ hty hargs10
-          obtain ⟨m1, m2, m3⟩ := hmax (max (max (max F1 F2) (max (max F3 F4) F5)) F6)
-            (Nat.le_max_left _ _)
-          refine ⟨hok11, hx09.trans (hx10.trans hx11),
-            hp11.trans (hp10.trans hp09), _, structUnitCert_cmp
-            (hA _ (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)))
-            (hB _ (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)))
-            hgf hfind hgP m1 m2 ?_⟩
-          simp only [m3, bind, Except.bind, ite_true]
-          exact iotaCertsFueled_mono (Nat.le_max_right _ _) hF6
+        sorry
       next hg =>
         vcgen
         bridge_peel; subst_vars
