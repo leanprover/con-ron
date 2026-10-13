@@ -87,12 +87,17 @@ theorem mentions_const_go_aux (n : Nat) :
     rw [arena.inductives.struct_parts.mentions_const_go, mentionsConstGo]
     unfold arena.inductives.struct_parts.mentions_const_node
     lockstep
-    -- the `.proj` arm: the port tested `s.eq2(t)` first (false here), the twin
-    -- reads `s == T || b`
+    -- the `.const` arm and the `.proj` arm's two outcomes: the port's
+    -- `eq2` answer, read as the twin's `==`
     all_goals
-      simp only [Bool.not_eq_true] at hc
-      simp only [hc, Bool.false_or]
-      exact LS.pure ⟨_, hP, rfl⟩ hrel hinv
+      have he := nidx_eq2_abs hf
+      first
+        | (subst he; exact LS.pure ⟨_, hm, rfl⟩ hrel hinv)
+        | (rw [← he, Bool.true_or]; exact LS.pure ⟨_, hP, rfl⟩ hrel hinv)
+        | (simp only [Bool.not_eq_true] at hc
+           rw [hc] at he
+           rw [← he, Bool.false_or]
+           exact LS.pure ⟨_, hP, rfl⟩ hrel hinv)
 
 open Lockstep in
 @[lockstep] theorem mentions_const_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
@@ -202,7 +207,7 @@ theorem env_pi_sort_tele_len_run {pers rst lst fuel h' o}
       | Ok ev =>
         have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
         cases ev with
-        | ForallE ty b m =>
+        | ForallE ty b =>
           obtain ⟨f1, hf1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hf1v := (ConRon.Refine.Nat.usub_val hf1).2
           obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
