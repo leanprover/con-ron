@@ -78,7 +78,6 @@ use con_ron_core::arena::store::PersTier;
 // reproduced.
 
 /// con-leche: Main.lean:91-312 usage
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove con-ron::USAGE_refines, then delete this line
 /// The usage text.  DESIGN.md §3.1: message strings need not match.  It is
 /// `con-ron`'s synopsis — the same flags in the same order, because
 /// `scripts/diff-e2e.sh` passes them to whichever binary `--bin` names — with

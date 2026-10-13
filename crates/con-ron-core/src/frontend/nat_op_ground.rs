@@ -83,7 +83,6 @@ pub fn seen_has(seen: &HashMap<EIdx, bool>, e: &EIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove nat_op_ground::used_consts_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:46-70 usedConstsGo`
 /// — the constants an expression DAG references, each node visited once.
 pub fn used_consts_go(
@@ -105,7 +104,6 @@ pub fn used_consts_go(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove nat_op_ground::used_consts_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Frontend/NatOpGround.lean:46-70 usedConstsGo`
 /// — the arms, past the visited test.
 pub fn used_consts_node(
@@ -142,7 +140,6 @@ pub fn used_consts_node(
 }
 
 /// con-leche: ConLeche/Frontend/NatOpGround.lean:54-77 usedConstsGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove nat_op_ground::used_consts_two_refines, then delete this line
 /// The twin's two-child arms, which it spells three times.
 pub fn used_consts_two(
     pers: &PersTier,

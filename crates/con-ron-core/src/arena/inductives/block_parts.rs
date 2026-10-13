@@ -411,7 +411,6 @@ pub fn block_split(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:252-269 recTargetOf
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_parts::rec_target_of_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockParts.lean:205-227 recTargetOf` — **the
 /// member a recursor's MAJOR names**: strip the `mI` binders the record
 /// claims, the next binder is the major, and its domain's head constant is

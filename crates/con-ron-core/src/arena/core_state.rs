@@ -7,10 +7,10 @@
 //! which the checker keeps for the whole of one declaration's check and drops
 //! at its boundary (DESIGN.md §8.3, "Caches", second and third bullets):
 //!
-//! * the five unary entry-point memos `whnf_core`, `whnf`, `infer`,
-//!   `infer_io`, `annotate` : `EIdx ↦ EIdx` — *three separate infer grades*,
-//!   because con-leche's lesson 9 is that a hit in one grade must never serve
-//!   another;
+//! * the unary entry-point memos `whnf_core`, `whnf`, `infer`, `infer_io` :
+//!   `EIdx ↦ EIdx` — *two separate infer grades*, because con-leche's lesson
+//!   9 is that a hit in one grade must never serve another (task #119: the
+//!   annotation pass's memo is gone with the pass);
 //! * `defeq` on the ORDERED pair with the `bool` verdict, both signs;
 //! * the two level-verdict caches (`(LIdx, LIdx)`, `(LsIdx, LsIdx)`);
 //! * the three lazy instantiated-constant caches (`const_ty_at` /
@@ -27,7 +27,7 @@
 //! ## The one deviation from the twin, and it is the RESET
 //!
 //! The twin's per-declaration bracket assigns `Caches.empty`; the port calls
-//! `Caches::reset`, which empties the eleven tables **in place**
+//! `Caches::reset`, which empties every table **in place**
 //! (`reset_map`, below) and keeps their bucket arrays.  Same value, one
 //! allocation fewer per declaration — task #97-P6-1's first lever, and the
 //! reason is measured in `reset_map`'s own note.
@@ -67,8 +67,7 @@ use std::vec::Vec;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::EIdxPair_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:79-81 Caches.defeqC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:77-79 Caches.defeqC` — the
 /// ORDERED pair of expression handles the `defeq` verdict is stored at.
 pub struct EIdxPair {
     pub a: EIdx,
@@ -103,14 +102,14 @@ impl Dup for EIdxPair {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:79-81 Caches.defeqC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:77-79 Caches.defeqC
 /// Build a `defeq` key, copying the two handle words.
 pub fn eidx_pair(a: &EIdx, b: &EIdx) -> EIdxPair {
     EIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:164-169 isEquiv
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:82-83 Caches.lvlEqC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:80-81 Caches.lvlEqC` — the
 /// pair of level handles a `Level.isEquiv` verdict is cached at.
 pub struct LIdxPair {
     pub a: LIdx,
@@ -145,14 +144,14 @@ impl Dup for LIdxPair {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:82-83 Caches.lvlEqC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:80-81 Caches.lvlEqC
 /// Build a level-verdict key.
 pub fn lidx_pair(a: &LIdx, b: &LIdx) -> LIdxPair {
     LIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
 /// con-leche: ConLeche/Kernel/Level.lean:169-175 isEquivList
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:84-85 Caches.lvlsEqC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:82-83 Caches.lvlsEqC` — the
 /// pair of universe-argument lists a pairwise verdict is cached at.
 pub struct LsIdxPair {
     pub a: LsIdx,
@@ -187,15 +186,14 @@ impl Dup for LsIdxPair {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:84-85 Caches.lvlsEqC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:82-83 Caches.lvlsEqC
 /// Build a level-list-verdict key.
 pub fn lsidx_pair(a: &LsIdx, b: &LsIdx) -> LsIdxPair {
     LsIdxPair { a: a.dup2(), b: b.dup2() }
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::NLsKey_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:86-87 Caches.constTyC` — a
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:84-85 Caches.constTyC` — a
 /// stored constant's name together with a universe-argument list: the key of
 /// the two instantiated-constant caches.
 pub struct NLsKey {
@@ -231,15 +229,14 @@ impl Dup for NLsKey {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:86-87 Caches.constTyC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:84-85 Caches.constTyC
 /// Build an instantiated-constant key.
 pub fn nls_key(n: &NIdx, us: &LsIdx) -> NLsKey {
     NLsKey { n: n.dup2(), us: us.dup2() }
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::NNLsKey_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:90-93 Caches.ruleRhsC` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:88-91 Caches.ruleRhsC` — the
 /// TRIPLE a rule's right-hand side is determined by: the recursor, the rule's
 /// constructor and the levels.
 pub struct NNLsKey {
@@ -287,7 +284,7 @@ impl Dup for NNLsKey {
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:90-93 Caches.ruleRhsC
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/CoreState.lean:88-91 Caches.ruleRhsC
 /// Build an iota-rule right-hand-side key.
 pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
     NNLsKey {
@@ -302,8 +299,7 @@ pub fn nnls_key(rec_name: &NIdx, ctor: &NIdx, us: &LsIdx) -> NNLsKey {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::Caches_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:54-104 Caches` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:54-102 Caches` — the
 /// per-declaration caches of the arena checker, in one record beside
 /// `arena::monad`'s per-call `Memos`.  Keeping the two apart is deliberate:
 /// the per-call clear and the per-declaration drop are different operations
@@ -325,8 +321,6 @@ pub struct Caches {
     /// serves a full-`infer` query, and a full-`infer` hit never serves this
     /// one.
     pub infer_io_c: HashMap<EIdx, EIdx>,
-    /// The annotation pass at the node (`CState.annotC`).
-    pub annot_c: HashMap<EIdx, EIdx>,
     /// Definitional equality at the ORDERED pair, with the verdict — both
     /// signs, as con-leche's `defeqC` stores them.
     pub defeq_c: HashMap<EIdxPair, bool>,
@@ -347,7 +341,7 @@ pub struct Caches {
     /// "`Level` ops … run on transient `Level` trees read back from `LIdx`
     /// (*memoised readback per declaration*; levels are small)".  A level
     /// handle's denotation is a function of the handle and of the tier it
-    /// names, so it is stable for exactly as long as the other ten tables
+    /// names, so it is stable for exactly as long as the other tables
     /// are, and `Caches::reset` is what makes that true.  The value is an
     /// `Arc` tree, so a hit is one reference bump where a miss rebuilds the
     /// whole tree node by node.
@@ -362,17 +356,15 @@ pub struct Caches {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:106-108 Caches.empty` — the
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty` — the
 /// empty cache set: what a fresh run and every capped table start from.
-/// `ron::HashMap::new` allocates nothing (task #35), so eleven empty tables
-/// cost eleven headers.  This is what a fresh run and every capped table
+/// `ron::HashMap::new` allocates nothing (task #35), so the empty tables
+/// cost one header each.  This is what a fresh run and every capped table
 /// start from; the per-declaration flush is `Caches::reset` below, which
 /// reaches the same value without freeing the buckets.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:99-127 CState
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::empty_refines, then delete this line
-        /// Lean twin: `proof/ConRon/Arena/CoreState.lean:106-108 Caches.empty`.
+            /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
     pub fn empty() -> Caches {
         Caches {
             whnf_core_c: HashMap::new(),
@@ -380,7 +372,6 @@ impl Caches {
             whnf_c: HashMap::new(),
             infer_c: HashMap::new(),
             infer_io_c: HashMap::new(),
-            annot_c: HashMap::new(),
             defeq_c: HashMap::new(),
             lvl_eq_c: HashMap::new(),
             lvls_eq_c: HashMap::new(),
@@ -500,21 +491,18 @@ pub fn take_walk_memo<K, V>(slot: &mut HashMap<K, V>) -> HashMap<K, V> {
 }
 
 /// con-leche: ConLeche/Cached/StateC.lean:313-320 CState.flushed
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::impl Caches_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/CoreState.lean:106-108 Caches.empty` — the
-/// per-declaration flush, as an in-place reset of the eleven tables rather
-/// than eleven fresh records.  `Caches::empty` stays for `AState::init`.
+/// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty` — the
+/// per-declaration flush, as an in-place reset of the tables rather
+/// than fresh records.  `Caches::empty` stays for `AState::init`.
 impl Caches {
     /// con-leche: ConLeche/Cached/StateC.lean:313-320 CState.flushed
-    /// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core_state::reset_refines, then delete this line
-        /// Lean twin: `proof/ConRon/Arena/CoreState.lean:106-108 Caches.empty`.
+            /// Lean twin: `proof/ConRon/Arena/CoreState.lean:104-106 Caches.empty`.
     pub fn reset(&mut self) {
         reset_map(&mut self.whnf_core_c);
         reset_map(&mut self.whnf_core_cheap_c);
         reset_map(&mut self.whnf_c);
         reset_map(&mut self.infer_c);
         reset_map(&mut self.infer_io_c);
-        reset_map(&mut self.annot_c);
         reset_map(&mut self.defeq_c);
         reset_map(&mut self.lvl_eq_c);
         reset_map(&mut self.lvls_eq_c);

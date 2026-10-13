@@ -3,7 +3,7 @@
 //! Everything the checker does *to* a term that is not building or comparing
 //! one (`crate::kernel::expr`): opening and closing binders (`instantiate1`,
 //! `instantiateList`, `abstract1`, `abstractRange`), shifting loose bound
-//! variables (`liftLooseBVars`, `lowerBVars`, `instantiate1Lift`), reading
+//! variables (`liftLooseBVars`, `instantiate1Lift`), reading
 //! spines and telescopes (`getAppFn`, `getAppArgs`, `stripPis`, `instPisAt`
 //! and friends), and the *exact* derived-field accessors `bvarB`/`fvarB`
 //! with the memoized walks behind their saturated branch.
@@ -16,9 +16,9 @@
 //! `*Fast` wrapper and the `@[csimp]` lemma together; the lemma *is* the
 //! transparency argument for the deviation, since it is a kernel-checked
 //! equation between the two, so the port's single function refines the
-//! logical definition by that equation.  Nine families are folded this way
+//! logical definition by that equation.  The families are folded this way
 //! (`instantiate1`, `instantiateList`, `liftLooseBVars`, `resetMeta`,
-//! `abstract1`, `lowerBVars`, `instantiate1Lift`, `renameConsts` and
+//! `abstract1`, `instantiate1Lift`, `renameConsts` and
 //! `instantiateLevelParams`), plus `hasFvar` and `looseBVarsBounded`, whose
 //! `*Fast` members are not walks at all but `O(1)` reads of the packed word.
 //!
@@ -45,12 +45,11 @@
 //!
 //! Order follows the Lean file; where a `@[csimp]` family's members are far
 //! apart the single Rust item sits at the *logical* definition's position,
-//! which is why `abstract1`, `lower_bvars` and `instantiate1_lift` use
+//! which is why `abstract1` and `instantiate1_lift` use
 //! `fvar_b`/`bvar_b` before this file defines them.
 
 use crate::kernel::expr;
 use crate::kernel::expr::Expr;
-use crate::kernel::expr::ExprView;
 use crate::ron::hashmap::Eq2;
 use crate::ron::hashmap::Hashable;
 use crate::kernel::name;
@@ -63,11 +62,9 @@ use crate::kernel::name;
 /// `a - b` as Lean's `Nat` computes it.  Rust's `-` on `u64` underflows (a
 /// `fail` in the Aeneas model), so every place the cited Lean subtracts
 /// without a guard that keeps the result non-negative goes through this:
-/// `bvarBound`'s `body.bvarBound - 1`, `instSpine`'s `t - 1` and
-/// `recRulePlain`'s `mI - 1 - k`.  Where the Lean arm *does* carry the guard
-/// (`instantiate1`'s `i > d` before `.bvar (i - 1)`, `lowerBVars`'s
-/// `i ≥ c + amount` before `.bvar (i - amount)`) the port subtracts
-/// directly, as the cited code does.
+/// `bvarBound`'s `body.bvarBound - 1` and `instSpine`'s `t - 1`.  Where the
+/// Lean arm *does* carry the guard (`instantiate1`'s `i > d` before
+/// `.bvar (i - 1)`) the port subtracts directly, as the cited code does.
 pub fn sub_nat(a: u64, b: u64) -> u64 {
     if a >= b {
         a - b
@@ -145,16 +142,6 @@ impl Eq2 for ExprNatKey {
 // Sizes, abstraction, scope predicates (`ExprOps.lean:741-913`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: ConLeche/Kernel/ExprOps.lean:954-960 isLam
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove expr_ops::is_lam_refines, then delete this line
-/// Is the expression a λ?
-pub fn is_lam(e: &Expr) -> bool {
-    match expr::view(&e) {
-        ExprView::Lam(_, _) => true,
-        _ => false,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // `allLevelParamsDefined` (`Level.lean:251-412`), the second `Expr` operation
 // spelled in `Kernel/Level.lean` for import order (task #13's note).  Task
@@ -178,8 +165,8 @@ pub fn is_lam(e: &Expr) -> bool {
      (:750), `looseBVarsBounded_iff` (:1305), `hasFvar_eq_false_iff` (:1325),
      `fvarRange_bne_zero` (:1332), `bvarBRaw_exact` (:1453),
      `fvarBRaw_exact` (:1587), `bvarB_eq`/`fvarB_eq`,
-     `abstract1_of_fvarRange_le` (:1762), `lowerBVars_of_bvarBound_le`
-     (:1956), `instantiate1Lift_of_bvarBound_le` (:2166),
+     `abstract1_of_fvarRange_le` (:1762),
+     `instantiate1Lift_of_bvarBound_le` (:2166),
      `Level.subst_eq_self` (:2408), `Level.allParamsDefined_of_not_hasParam`
      (:2414), `Level.substPW_eq_self` (:2439),
      `PropWhen.paramsDefined_of_not_hasParams` (:2450),

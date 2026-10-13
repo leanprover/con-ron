@@ -1558,7 +1558,7 @@ pub fn refire(rules: Vec<IRecRule>, f: &IRecRuleFire, i: usize, out: Vec<IRecRul
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:477-488 tgtStoredRules` — **one
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:498-509 tgtStoredRules` — **one
 /// checked recursor's stored rules, at its major**: `sumRules` at the major's
 /// parameter count and constructors; at an OUTSIDE major every rule fires
 /// `auxRuleFire` (computed once).
@@ -1598,7 +1598,7 @@ pub fn some_aux_rec(rs: &Vec<RecShape>, k: u64, i: usize) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:616-622 blockNestedBit
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:490-494 blockNestedBit` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:511-515 blockNestedBit` — **the
 /// block's container bit**: some field kind is not flat or some recursor's
 /// major is not a member.
 pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) -> bool {
@@ -1612,7 +1612,7 @@ pub fn block_nested_bit(p: &BlockShape, kinds: &Vec<Vec<Vec<NestFieldKind>>>) ->
 /// con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
 /// con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-104 consBlockRecsT
-/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:496-513 consBlockRecsTF` — **the
+/// Lean twin: `proof/ConRon/Arena/Inductives/RecCheck.lean:517-534 consBlockRecsTF` — **the
 /// checked family consed through the index, at its majors**: each recursor
 /// with its rules at ITS major, the rules' lookups (`find?`) at the
 /// constructors' environment, i.e. at its visibility bound `vis2` while the

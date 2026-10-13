@@ -49,8 +49,8 @@ pub const M_DUP_CTOR: [u32; 33] = [
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:25-52 BlockPass
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:34-51 BlockPass` — **what one
 /// pass over the formers, the constructors and the classes yields**: the
-/// environment holding all k formers, the annotated formers, the completed
-/// record, the annotated constructors and their fields' sorts per member,
+/// environment holding all k formers, the checked formers, the completed
+/// record, the checked constructors and their fields' sorts per member,
 /// the positivity function's kinds and normal forms, the canonical
 /// parameters, the pre-pass's reading, the classes, and the positivity
 /// check's table.
@@ -69,9 +69,7 @@ pub struct BlockPass {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_tail::check_block_pass_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:134-152 checkBlockPassS
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_tail::check_block_pass_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:53-74 checkBlockPass` — **one
 /// pass over the formers, the constructors and the classes** at the block's
 /// `is_rec` verdict: the formers (and the flush entering the environment
@@ -99,9 +97,7 @@ pub fn check_block_pass(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_tail::check_block_pass_classes_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:134-152 checkBlockPassS
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_tail::check_block_pass_classes_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:53-74 checkBlockPass` — the
 /// walk's context, the classes, the root frame and the seeds.
 #[allow(clippy::too_many_arguments)]
@@ -220,9 +216,7 @@ pub fn check_block_tables(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:123-136 checkBlockTail
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// con-leche: ConLeche/Cached/CheckerC.lean:154-176 checkBlockTailS
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove block_tail::check_block_tail_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/BlockTail.lean:107-122 checkBlockTail` — **the
 /// install after the pass**: the index binders' sorts, the constructors
 /// consed (and the flush entering that environment), the recursor stage, the

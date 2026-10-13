@@ -61,15 +61,15 @@ use crate::ron::hashmap::Hashable;
 // The layout constants (`Handle.lean:91-103`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:102-103 Idx.tierP
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:90-91 Idx.tierP
 /// The persistent tier's bit value (DESIGN.md §8.3).
 pub const TIER_P: u32 = 0;
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:104-105 Idx.tierS
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:92-93 Idx.tierS
 /// The scratch tier's bit value (DESIGN.md §8.3).
 pub const TIER_S: u32 = 1;
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:107-110 Idx.idxCap
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:95-98 Idx.idxCap
 /// `2^27`: the per-constructor, per-tier node capacity.  `intern` raises
 /// `CheckError::Native` at it (DESIGN.md §8.3: "the Rust raises `Native` at
 /// the limit, the Lean `throw`s the same kind"); the Lean's `capOK` is the
@@ -85,7 +85,7 @@ pub const TAG_SPAN: u32 = 268435456;
 // The word arithmetic (`Handle.lean:104-127`), written once for all four kinds
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-117 Idx.mk
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:100-105 Idx.mk
 /// Assemble a handle word from its three fields.  `+`, not `|`: the fields
 /// are disjoint, so addition *is* the bitwise join, and the arithmetic form
 /// is what makes the roundtrip lemmas `omega`-provable.
@@ -100,32 +100,32 @@ pub fn word_mk(tag: u32, tier: u32, idx: u32) -> u32 {
     tag * TAG_SPAN + tier * IDX_CAP + idx
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:119-120 Idx.tag
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:107-108 Idx.tag
 /// The constructor tag (bits 31…28).
 pub fn word_tag(w: u32) -> u32 {
     w / TAG_SPAN
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:122-123 Idx.tier
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:110-111 Idx.tier
 /// The tier bit (bit 27).
 pub fn word_tier(w: u32) -> u32 {
     w / IDX_CAP % 2
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:125-126 Idx.index
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:113-114 Idx.index
 /// The index into the constructor's array (bits 26…0).
 pub fn word_index(w: u32) -> u32 {
     w % IDX_CAP
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:116-118 Idx.isPersistent
 /// Is this handle in the persistent tier?  A persistent handle survives
 /// `drop_scratch`; a scratch one does not (DESIGN.md §8.3).
 pub fn word_is_persistent(w: u32) -> bool {
     word_tier(w) == 0
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:120-121 Idx.idxNat
 /// A handle's index, as the `usize` every array read wants.  The Lean's
 /// `idxNat : Nat` is `i.index.toNat`; `IDX_CAP` bounds it, so the cast is
 /// exact on every platform the crate builds for.
@@ -137,25 +137,25 @@ pub fn word_idx_nat(w: u32) -> usize {
 // The four handle kinds (`Handle.lean:59-75`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:65-66 EIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:64-65 EIdx
 /// An expression handle (DESIGN.md §8.3).
 pub struct EIdx {
     pub word: u32,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:67-68 NIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:66-67 NIdx
 /// A name handle (DESIGN.md §8.3).
 pub struct NIdx {
     pub word: u32,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:69-70 LIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:68-69 LIdx
 /// A level handle (DESIGN.md §8.3).
 pub struct LIdx {
     pub word: u32,
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:71-72 LsIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:70-71 LsIdx
 /// A level-list handle (DESIGN.md §8.3).
 pub struct LsIdx {
     pub word: u32,
@@ -166,10 +166,10 @@ pub struct LsIdx {
 // Per-kind operations: `Handle.lean`'s `Idx.*` at each of the four kinds
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:57-63 Idx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:56-62 Idx
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .expr`.
 impl EIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-117 Idx.mk
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:100-105 Idx.mk
     /// `pack`, not `mk`: Aeneas names a structure's own constructor
     /// `EIdx.mk`, and an associated `mk` would collide with it in the
     /// generated Lean (measured, P4a — "Name clash detected: … bound to the
@@ -179,37 +179,37 @@ impl EIdx {
         EIdx { word: word_mk(tag, tier, idx) }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:61 Idx.ofWord
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:60 Idx.ofWord
     pub fn of_word(w: u32) -> EIdx {
         EIdx { word: w }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:119-120 Idx.tag
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:107-108 Idx.tag
     pub fn tag(&self) -> u32 {
         word_tag(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:122-123 Idx.tier
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:110-111 Idx.tier
     pub fn tier(&self) -> u32 {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:116-118 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:120-121 Idx.idxNat
     pub fn idx_nat(&self) -> usize {
         word_idx_nat(self.word)
     }
 }
 
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:57-63 Idx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:56-62 Idx
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .name`.
 impl NIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-117 Idx.mk
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:100-105 Idx.mk
     /// `pack`, not `mk`: Aeneas names a structure's own constructor
     /// `EIdx.mk`, and an associated `mk` would collide with it in the
     /// generated Lean (measured, P4a — "Name clash detected: … bound to the
@@ -219,36 +219,36 @@ impl NIdx {
         NIdx { word: word_mk(tag, tier, idx) }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:61 Idx.ofWord
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:60 Idx.ofWord
     pub fn of_word(w: u32) -> NIdx {
         NIdx { word: w }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:119-120 Idx.tag
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:107-108 Idx.tag
     pub fn tag(&self) -> u32 {
         word_tag(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:122-123 Idx.tier
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:110-111 Idx.tier
     pub fn tier(&self) -> u32 {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:116-118 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:120-121 Idx.idxNat
     pub fn idx_nat(&self) -> usize {
         word_idx_nat(self.word)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:57-63 Idx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:56-62 Idx
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .level`.
 impl LIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-117 Idx.mk
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:100-105 Idx.mk
     /// `pack`, not `mk`: Aeneas names a structure's own constructor
     /// `EIdx.mk`, and an associated `mk` would collide with it in the
     /// generated Lean (measured, P4a — "Name clash detected: … bound to the
@@ -258,36 +258,36 @@ impl LIdx {
         LIdx { word: word_mk(tag, tier, idx) }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:61 Idx.ofWord
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:60 Idx.ofWord
     pub fn of_word(w: u32) -> LIdx {
         LIdx { word: w }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:119-120 Idx.tag
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:107-108 Idx.tag
     pub fn tag(&self) -> u32 {
         word_tag(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:122-123 Idx.tier
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:110-111 Idx.tier
     pub fn tier(&self) -> u32 {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:116-118 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:120-121 Idx.idxNat
     pub fn idx_nat(&self) -> usize {
         word_idx_nat(self.word)
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:57-63 Idx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:56-62 Idx
 /// `Idx.mk`/`tag`/`tier`/`index`/`isPersistent`/`idxNat` at `k = .levels`.
 impl LsIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:112-117 Idx.mk
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:100-105 Idx.mk
     /// `pack`, not `mk`: Aeneas names a structure's own constructor
     /// `EIdx.mk`, and an associated `mk` would collide with it in the
     /// generated Lean (measured, P4a — "Name clash detected: … bound to the
@@ -297,27 +297,27 @@ impl LsIdx {
         LsIdx { word: word_mk(tag, tier, idx) }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:61 Idx.ofWord
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:60 Idx.ofWord
     pub fn of_word(w: u32) -> LsIdx {
         LsIdx { word: w }
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:119-120 Idx.tag
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:107-108 Idx.tag
     pub fn tag(&self) -> u32 {
         word_tag(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:122-123 Idx.tier
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:110-111 Idx.tier
     pub fn tier(&self) -> u32 {
         word_tier(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:128-130 Idx.isPersistent
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:116-118 Idx.isPersistent
     pub fn is_persistent(&self) -> bool {
         word_is_persistent(self.word)
     }
 
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:132-133 Idx.idxNat
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:120-121 Idx.idxNat
     pub fn idx_nat(&self) -> usize {
         word_idx_nat(self.word)
     }
@@ -327,70 +327,70 @@ impl LsIdx {
 // The dictionaries a `ron::HashMap` keyed by a handle needs (`Handle.lean:78-88`)
 // ---------------------------------------------------------------------------
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
 /// **The word IS the hash**: nanoda's identity hasher (`unique_hasher.rs`),
 /// no mixing at all.
 impl Hashable for EIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
     fn hash64(&self) -> u64 {
         self.word as u64
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
 impl Hashable for NIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
     fn hash64(&self) -> u64 {
         self.word as u64
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
 impl Hashable for LIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
     fn hash64(&self) -> u64 {
         self.word as u64
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
 impl Hashable for LsIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:98-100 instHashableIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:86-88 instHashableIdx
     fn hash64(&self) -> u64 {
         self.word as u64
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
 /// Structural equality of handles is equality of the word (and it is lawful,
 /// `Handle.lean:82-84`, which is what makes a handle-keyed table a partial
 /// function on words).
 impl Eq2 for EIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
     fn eq2(&self, other: &EIdx) -> bool {
         self.word == other.word
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
 impl Eq2 for NIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
     fn eq2(&self, other: &NIdx) -> bool {
         self.word == other.word
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
 impl Eq2 for LIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
     fn eq2(&self, other: &LIdx) -> bool {
         self.word == other.word
     }
 }
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
 impl Eq2 for LsIdx {
-    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:89-90 instBEqIdx
+    /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:77-78 instBEqIdx
     fn eq2(&self, other: &LsIdx) -> bool {
         self.word == other.word
     }
@@ -442,68 +442,57 @@ impl Dup for LsIdx {
 // inductive and names the constructor it stands for.
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_BVAR_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:201-203 ETag.bvar` — the `bvar`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:189-191 ETag.bvar` — the `bvar`
 /// constructor, line 344.
 pub const ETAG_BVAR: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_FVAR_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:204-206 ETag.fvar` — the `fvar`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:192-194 ETag.fvar` — the `fvar`
 /// constructor, line 345.
 pub const ETAG_FVAR: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_SORT_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:207-209 ETag.sort` — the `sort`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:195-197 ETag.sort` — the `sort`
 /// constructor, line 346.
 pub const ETAG_SORT: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_CONST_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:210-212 ETag.const` — the `const`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:198-200 ETag.const` — the `const`
 /// constructor, line 347.
 pub const ETAG_CONST: u32 = 3;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_APP_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:213-215 ETag.app` — the `app`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:201-203 ETag.app` — the `app`
 /// constructor, line 348.
 pub const ETAG_APP: u32 = 4;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_LAM_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:216-218 ETag.lam` — the `lam`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:204-206 ETag.lam` — the `lam`
 /// constructor, line 349.
 pub const ETAG_LAM: u32 = 5;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_FORALL_E_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:219-221 ETag.forallE` — the
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:207-209 ETag.forallE` — the
 /// `forallE` constructor, line 350.
 pub const ETAG_FORALL_E: u32 = 6;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_LET_E_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:222-224 ETag.letE` — the `letE`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:210-212 ETag.letE` — the `letE`
 /// constructor, line 351.
 pub const ETAG_LET_E: u32 = 7;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_LIT_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:225-227 ETag.lit` — the `lit`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:213-215 ETag.lit` — the `lit`
 /// constructor, line 352.
 pub const ETAG_LIT: u32 = 8;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::ETAG_PROJ_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:228-230 ETag.proj` — the `proj`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:216-218 ETag.proj` — the `proj`
 /// constructor, line 353.
 pub const ETAG_PROJ: u32 = 9;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove handle::e_tag_is_bind_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:232-239 ETag.isBind` —
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:220-227 ETag.isBind` —
 /// `ETag.isBind`: `lam` or `forallE`, the two constructors that share the
 /// `BindNode` record shape. A named predicate rather than the disjunction
 /// written at the use site: a two-way `||` inside a `match` arm that still
@@ -514,46 +503,46 @@ pub fn e_tag_is_bind(t: u32) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:244-246 NTag.anonymous` — the
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:232-234 NTag.anonymous` — the
 /// `anonymous` constructor, line 35.
 pub const NTAG_ANONYMOUS: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:247-249 NTag.str` — the `str`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:235-237 NTag.str` — the `str`
 /// constructor, line 36.
 pub const NTAG_STR: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:250-252 NTag.num` — the `num`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:238-240 NTag.num` — the `num`
 /// constructor, line 37.
 pub const NTAG_NUM: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:257-259 LTag.zero` — the `zero`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:245-247 LTag.zero` — the `zero`
 /// constructor, line 41.
 pub const LTAG_ZERO: u32 = 0;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:260-262 LTag.succ` — the `succ`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:248-250 LTag.succ` — the `succ`
 /// constructor, line 42.
 pub const LTAG_SUCC: u32 = 1;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:263-265 LTag.max` — the `max`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:251-253 LTag.max` — the `max`
 /// constructor, line 43.
 pub const LTAG_MAX: u32 = 2;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:266-268 LTag.imax` — the `imax`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:254-256 LTag.imax` — the `imax`
 /// constructor, line 44.
 pub const LTAG_IMAX: u32 = 3;
 
 /// con-leche: ConLeche/Kernel/Expr.lean:39-44 Level
-/// Lean twin: `proof/ConRon/Arena/Handle.lean:269-271 LTag.param` — the `param`
+/// Lean twin: `proof/ConRon/Arena/Handle.lean:257-259 LTag.param` — the `param`
 /// constructor, line 45.
 pub const LTAG_PARAM: u32 = 4;
 
-/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:276-279 LsTag.list
+/// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Handle.lean:264-267 LsTag.list
 /// Level *lists* are interned as one object (nanoda's `LevelsPtr`), so the
 /// store has a single constructor and a single tag.
 pub const LSTAG_LIST: u32 = 0;

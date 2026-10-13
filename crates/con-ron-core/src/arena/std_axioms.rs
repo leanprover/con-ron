@@ -39,49 +39,49 @@ use crate::arena::store::PersTier;
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:33-34 propextName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:36-37 propextName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:32-33 propextName`.
 pub fn propext_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_propext(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:36-37 choiceName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:38-39 choiceName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:34-35 choiceName`.
 pub fn choice_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_choice(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:39-40 iffName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:40-41 iffName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:36-37 iffName`.
 pub fn iff_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_iff(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:42-43 iffIntroName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:42-43 iffIntroName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:38-39 iffIntroName`.
 pub fn iff_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_iff_intro(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:45-46 iffRecName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:44-45 iffRecName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:40-41 iffRecName`.
 pub fn iff_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_iff_rec(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:48-49 nonemptyName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:46-47 nonemptyName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:42-43 nonemptyName`.
 pub fn nonempty_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_nonempty(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:51-52 nonemptyIntroName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:48-49 nonemptyIntroName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:44-45 nonemptyIntroName`.
 pub fn nonempty_intro_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_nonempty_intro(st)
 }
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:54-55 nonemptyRecName
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:50-51 nonemptyRecName`.
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:46-47 nonemptyRecName`.
 pub fn nonempty_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
     crate::arena::pins::pin_nonempty_rec(st)
 }
@@ -91,7 +91,7 @@ pub fn nonempty_rec_name(st: &mut AState) -> Result<NIdx, CheckError> {
 // ---------------------------------------------------------------------------
 
 /// con-leche: ConLeche/Kernel/StdAxioms.lean:57-91 ConstantVal.matchesPin
-/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:50-59 IConstantVal.matchesPin`
+/// Lean twin: `proof/ConRon/Arena/StdAxioms.lean:51-59 IConstantVal.matchesPin`
 /// — shape comparison for the standard pins: exact name, level parameters and
 /// type.  Since con-leche's task #342 this is plain equality, and over handles
 /// handle equality (the module note).

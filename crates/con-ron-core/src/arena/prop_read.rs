@@ -70,7 +70,7 @@ const M_FUEL_PROP_READ: [u32; 24] = [
 const UNWRAP_FUEL: u64 = 4;
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:40-46 Expr.peelPis
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:41-54 peelPis` — the residual
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:45-57 peelPis` — the residual
 /// after peeling `k` *syntactic* ∀ binders, whatever their domains (no
 /// substitution).  Structural on `k`, so no fuel.
 pub fn peel_pis(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<Option<EIdx>, CheckError> {
@@ -87,7 +87,7 @@ pub fn peel_pis(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<Option
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:48-53 Expr.binderDom
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:56-67 binderDom` — the domain
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:59-74 binderDom` — the domain
 /// of the `k`-th syntactic ∀ binder (`0` = outermost) of a telescope,
 /// unsubstituted.  Structural on `k`.
 pub fn binder_dom(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<Option<EIdx>, CheckError> {
@@ -108,7 +108,7 @@ pub fn binder_dom(pers: &PersTier, st: &AState, k: u64, h: &EIdx) -> Result<Opti
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:55-58 Expr.numArgs
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:69-82 numArgs` — the number of
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:76-89 numArgs` — the number of
 /// arguments of an application spine.  A spine walk, hence fuel.
 pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64, CheckError> {
     if fuel == 0 {
@@ -127,7 +127,7 @@ pub fn num_args(pers: &PersTier, st: &AState, fuel: u64, h: &EIdx) -> Result<u64
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:62-68 residualPW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:84-98 residualPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:91-105 residualPW` — the
 /// zero-ness datum of the sort of a *residual type*.  The level is read back
 /// and `level::zeroness_of` is con-leche's own (deviation 3).
 pub fn residual_pw(pers: &PersTier, st: &AState, h: Option<EIdx>) -> Result<Option<PropWhen>, CheckError> {
@@ -150,7 +150,7 @@ pub fn residual_pw(pers: &PersTier, st: &AState, h: Option<EIdx>) -> Result<Opti
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:70-76 lamProj?
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:100-118 lamProj?` — the body
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:109-123 lamProj?` — the body
 /// of a λ-telescope that is a single bound variable: `some (k, j)` for
 /// `fun x₁ … x_k => x_{k-j}` (the shape of `outParam`, `semiOutParam`,
 /// `optParam`, `autoParam`).  A walk down the λ chain, hence fuel.
@@ -179,7 +179,7 @@ pub fn lam_proj(pers: &PersTier, st: &AState, fuel: u64, k: u64, h: &EIdx) -> Re
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:78-96 unwrapIdDefs
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:120-147 unwrapIdDefs` — unfold
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:125-148 unwrapIdDefs` — unfold
 /// an identity-like wrapper (a definition whose value is `fun x₁ … x_k =>
 /// x_i`, e.g. `outParam`) at the head of a residual type, `n` times at most;
 /// definitional (δ then β).
@@ -231,7 +231,7 @@ pub fn unwrap_id_defs(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:98-105 peelPisW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:149-168 peelPisW` —
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:150-168 peelPisW` —
 /// `peel_pis` through identity-like wrappers (`outParam (α → Sort u)`).
 /// Structural on `k`.
 pub fn peel_pis_w(
@@ -270,50 +270,40 @@ pub fn peel_pis_w(
     }
 }
 
-/// con-leche: none — `Level.substPW ks us pw = pw` at a parameter-free datum
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:170-176 pwParamFree` — the
-/// cutoff that skips the two readbacks of `subst_pw`: `bindZ` is the identity
-/// at `never` and at `ifAllZero []` (task #97-P6-10's "cutoff hoisted over the
-/// readback"), which are what a `Prop`-or-never head carries.
-pub fn pw_param_free(pw: &PropWhen) -> bool {
-    match pw {
-        PropWhen::Never => true,
-        PropWhen::IfAllZero(ps) => ps.is_empty(),
-    }
-}
-
-/// con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW
-/// con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:178-198 substConstPW` — the
-/// constant arm both head readers share, past the datum: level-instantiate
-/// it at the use's levels (`(…).map (Level.substPW cv.levelParams us)`).
-pub fn subst_const_pw(
+/// con-leche: none — `Level.substPW ks vs pw` at a stored constant's level parameters
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:172-184 substPWAt` — the
+/// datum level-instantiated at a use's universe arguments, with **the cutoff
+/// hoisted over the readback** (task #97-P6-10): a datum that names no
+/// parameter (`never`, or `ifAllZero []`) is its own substitution (`bindZ`
+/// is the identity there), so both readbacks would be computed and dropped.
+/// The constant arm both head readers share.
+pub fn subst_pw_at(
     pers: &PersTier,
     st: &mut AState,
     lps: &Vec<NIdx>,
     us: &LsIdx,
-    pw: Option<PropWhen>,
+    pw: PropWhen,
 ) -> Result<Option<PropWhen>, CheckError> {
     match pw {
-        Some(p) => {
-            if pw_param_free(&p) {
-                Ok(Some(p))
+        PropWhen::IfAllZero(ps) => {
+            if ps.is_empty() {
+                Ok(Some(PropWhen::IfAllZero(ps)))
             } else {
                 match read_names_m(pers, st, lps) {
                     Err(e) => Err(e),
                     Ok(ks) => match read_levels_m(pers, st, us) {
                         Err(e) => Err(e),
-                        Ok(vs) => Ok(Some(level::subst_pw(&ks, &vs, &p))),
+                        Ok(vs) => Ok(Some(level::subst_pw(&ks, &vs, &PropWhen::IfAllZero(ps)))),
                     },
                 }
             }
         }
-        None => Ok(None),
+        PropWhen::Never => Ok(Some(PropWhen::Never)),
     }
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:107-131 headTypePW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:200-247 headTypePW` — the datum
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:186-220 headTypePW` — the datum
 /// of a type-former application's *head* at `n` arguments: a constant head
 /// reads its stored type (level-instantiated), an fvar head its declared type,
 /// a `bvar` head (inside the ∀ telescope `root`, `d` binders deep) its
@@ -347,7 +337,8 @@ pub fn head_type_pw(
                                         Err(e) => Err(e),
                                         Ok(res) => match residual_pw(pers, st, res) {
                                             Err(e) => Err(e),
-                                            Ok(pw) => subst_const_pw(pers, st, &cv.level_params, &us, pw),
+                                            Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
+                                            Ok(None) => Ok(None),
                                         },
                                     }
                                 } else {
@@ -383,7 +374,7 @@ pub fn head_type_pw(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:133-140 typeSortPWGo
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:249-266 typeSortPWGo` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:222-238 typeSortPWGo` — the
 /// walk of `typeSortPW`: peel the ∀ telescope (a ∀'s prop-ness is its
 /// codomain's: `zeronessOf (imax u v) = zeronessOf v`), counting the binders,
 /// then read the residual's head.
@@ -416,7 +407,7 @@ pub fn type_sort_pw_go(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:142-150 typeSortPW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:268-276 typeSortPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:240-243 typeSortPW` — the
 /// zero-ness datum of the sort of the *type* `t` ("is `t` a proposition?"),
 /// read off `t`'s shape.  `none` = unknown.
 pub fn type_sort_pw(
@@ -431,7 +422,7 @@ pub fn type_sort_pw(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:152-183 headProofPW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:278-321 headProofPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:245-277 headProofPW` — the
 /// datum of a term's *head* (any arity): a constant head answers from its
 /// stored type (prop-ness is invariant under application), an fvar head from
 /// its declared type; sorts, ∀s and literals are never proofs; a projection
@@ -459,7 +450,8 @@ pub fn head_proof_pw(
                                 if usl == cv.level_params.len() {
                                     match type_sort_pw(pers, vis, st, fe, fuel, &cv.ty) {
                                         Err(e) => Err(e),
-                                        Ok(pw) => subst_const_pw(pers, st, &cv.level_params, &us, pw),
+                                        Ok(Some(pw)) => subst_pw_at(pers, st, &cv.level_params, &us, pw),
+                                        Ok(None) => Ok(None),
                                     }
                                 } else {
                                     Ok(None)
@@ -495,7 +487,7 @@ pub fn head_proof_pw(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:185-196 proofPW
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:323-342 proofPW` — the
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:279-300 proofPW` — the
 /// zero-ness datum of the sort of the *type* of `a` ("is `a` a proof?"), read
 /// off `a`'s head symbol at any arity: a λ and a `let` answer from their body,
 /// an application from its function, anything else from its head.
@@ -521,7 +513,7 @@ pub fn proof_pw(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:204-209 notProofFast
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:344-350 notProofFast` —
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:304-310 notProofFast` —
 /// **definitely not a proof**: the datum is known and is not always-zero.
 /// Refusing the proof-irrelevance shortcut is always sound.
 pub fn not_proof_fast(
@@ -546,7 +538,7 @@ pub fn not_proof_fast(
 }
 
 /// con-leche: ConLeche/Kernel/PropRead.lean:211-216 isProofFast
-/// Lean twin: `proof/ConRon/Arena/PropRead.lean:352-358 isProofFast` —
+/// Lean twin: `proof/ConRon/Arena/PropRead.lean:312-318 isProofFast` —
 /// **definitely a proof**: the datum is known and always-zero (justified by
 /// the squash regime, con-leche's `prf_of_isProofFast`).
 pub fn is_proof_fast(

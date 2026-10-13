@@ -275,11 +275,8 @@ pub fn has_loose_bvar_b_ins(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:102-115 Expr.hasLooseBVar
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:117-136 Expr.hasLooseBVarB
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:188-224 Expr.hasLooseBVarBGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:125-171 hasLooseBVarBGo`
 /// — does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
 /// (`bvarB ≤ i`) and its per-call memo, both kept: the cutoff stops the walk
@@ -328,7 +325,6 @@ pub fn has_loose_bvar_b_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:188-224 Expr.hasLooseBVarBGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::has_loose_bvar_b_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:125-171 hasLooseBVarBGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead
 /// at the memo's join (task #97-P4c's extraction rule 5, and P4a's second).
@@ -560,7 +556,6 @@ pub fn struct_proj_guards(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:494-512 structProjBodiesGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::struct_proj_bodies_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:232-248 structProjBodiesGo`
 /// — **the projection bodies of a recognised block**, one walk of the
 /// constructor telescope: field `i`'s domain is body `i`, and the field is
@@ -636,9 +631,7 @@ pub fn mc_probe(memo: &HashMap<EIdx, bool>, k: &EIdx) -> Option<bool> {
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:519-528 Expr.mentionsConst
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:560-595 Expr.mentionsConstGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::mentions_const_go_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:263-304 mentionsConstGo`
 /// — does the constant `T` occur in `e`?  A syntactic walk (`fvar`
 /// annotations included; a `.proj` node names its structure), with con-leche's
@@ -676,7 +669,6 @@ pub fn mentions_const_go(
 }
 
 /// con-leche: ConLeche/Kernel/Inductives/StructParts.lean:560-595 Expr.mentionsConstGo
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove struct_parts::mentions_const_node_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Inductives/StructParts.lean:263-304 mentionsConstGo`
 /// — the walk's compound arms, split off so that the `view`'s loans are dead at
 /// the memo's join (extraction rule 5).
