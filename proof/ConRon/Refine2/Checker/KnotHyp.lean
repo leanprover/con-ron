@@ -3,7 +3,7 @@
 
 **Task #97-P5-Checker, reconciled with task #97-P5-Core by task #97-P5-Arms.**
 The declaration-checker tier does not prove anything about `arena::core`; it
-CONSUMES it, at exactly seven entry points and at exactly one fuel
+CONSUMES it, at exactly six entry points and at exactly one fuel
 (`checkFuel`).  Task #97-P5-1 §8 names the shape:
 
 > **The knot's lane dispatch.**  `arena::core`'s six bodies are tied at fuel by
@@ -40,11 +40,12 @@ the Core tier's is used.  `KnotRel` below is
 `Refine2/Promote/**` projected a field of the old structure — every statement
 only CARRIES `KnotRel checkFuel` — so the change is this file and nothing else.
 
-## The seven entries, and what each of them additionally needs
+## The entries, and what each of them additionally needs
+
+(The old `annotate` field went with con-leche's annotate pass, task #119.)
 
 | the old field | what it is now |
 |---|---|
-| `annotate` | `Refine2/Core/Entries.lean`'s `annotate_core_refines` |
 | `inferType` | `infer_type_core_refines` (and `infer_type_io_refines` beside it, which the old structure had no field for) |
 | `isDefEq` | `is_def_eq_core_refines` |
 | `whnf` | `whnf_refines` |
@@ -209,7 +210,7 @@ macro_rules
       | (simp_all only [lockstep_simp]; done)
       | (simp_all; done)))
 
-/-! ## The seven front doors as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker)
+/-! ## The front doors as `@[lockstep]` specs (task #97-T2-LOCKSTEP lane Checker)
 
 The checker calls the Core tier at `checkFuel` only, so each front door is
 filed for the `lockstep` tactic at that fuel, with the knot discharged by
@@ -256,16 +257,6 @@ open Lockstep in
       (arena.core.whnf pers vis st mode fe fu depth e) lst
       (Arena.whnf (ConRon.Refine.absMode mode) lfe checkFuel (absU depth) (absEIdx e)) :=
   LS.ofSim₀ fun _ h => whnf_refines knotRel_checkFuel' hrel hinv hctx hf h
-
-open Lockstep in
-@[lockstep] theorem annotate_core_ls {pers vis st mode fe lfe fu depth e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = checkFuel) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.annotate_core pers vis st mode fe fu depth e) lst
-      (Arena.annotateCore (ConRon.Refine.absMode mode) lfe checkFuel (absU depth)
-        (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => annotate_core_refines knotRel_checkFuel' hrel hinv hctx hf h
 
 /-! ## The axiom census
 
