@@ -72,6 +72,19 @@ theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
     · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
     · simp at h
 
+/-- con-leche: none — `internLNode .zero`'s precondition. -/
+theorem lviewOK_zero' {st : EStore} : st.ls.ViewOK .zero :=
+  ⟨fun c hc => by simp [LNodeView.lchildren] at hc,
+   fun c hc => by simp [LNodeView.nchildren] at hc⟩
+
+/-- con-leche: none — `internLNode (.succ u)`'s precondition (the shape
+`bridge_frame` applies; `lviewOK_succ` below is the same). -/
+theorem lviewOK_succ' {st : EStore} {u : LIdx} {w : LNodeView}
+    (h : st.ls.view u = some w) : st.ls.ViewOK (.succ u) :=
+  ⟨fun c hc => by
+     simp [LNodeView.lchildren] at hc; subst hc; rw [h]; rfl,
+   fun c hc => by simp [LNodeView.nchildren] at hc⟩
+
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
 **THEOREM 1 for `toConstantVal`**, at the two fields the shape guards read:
 the level parameters and the type.  (The `.projInfo` arm's NAME is
@@ -109,32 +122,23 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
       vcgen [IConstantInfo.toConstantVal]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      case vc1 =>
-        rename_i _ sA sB _ _ _ w3 x1 x2 x3 _ _ _ _ _ _ _ _ c3 _ _ p3 c1 c2 _ p1 p2 _ d3 _ d1
-          _ d2
+      bridge_frame [lviewOK_zero', lviewOK_succ']
+      vc_arm (hv : LStore.view _ ?one = some _) ⊢ EStore.ViewOK _ (ENodeView.sort ?one) =>
+        exact viewOK_sort (by rw [hv]; rfl)
+      -- the interned `Type` (`sort (succ zero)`), read back node by node
+      vc_arm (d1 : denoteL (EStore.ls (AState.store ?sA)) ?z = denoteLView _ LNodeView.zero)
+          (d2 : denoteL (EStore.ls (AState.store ?sB)) ?one =
+            denoteLView _ (LNodeView.succ ?z))
+          (d3 : denoteE (AState.store ?sC) _ = denoteEView _ (ENodeView.sort ?one)) =>
         have h0 : denoteL sA.store.ls z = some Level.zero := by
           rw [d1]; simp [denoteLView]
         have h1 : denoteL sB.store.ls one = some (Level.succ .zero) := by
-          rw [d2]; simp [denoteLView, denoteL_ext h0 x2]
-        refine ⟨hok.mono ⟨w3⟩ (x1.trans (x2.trans x3))
-            (c3.trans (c2.trans c1)) (p3.trans (p2.trans p1)),
-          x1.trans (x2.trans x3), p3.trans (p2.trans p1), hlp, ?_⟩
-        rw [d3]; simp [denoteEView, denoteL_ext h1 x3,
+          rw [d2]
+          simp [denoteLView, denoteL_ext h0 (by bridge_frame : Ext sA.store sB.store)]
+        refine ⟨hlp, ?_⟩
+        rw [d3]
+        simp [denoteEView, denoteL_ext h1 (by bridge_frame : Ext sB.store sC.store),
           ConstantInfo.toConstantVal]
-      case vc7 =>
-        constructor
-        · intro c hc; simp [LNodeView.lchildren] at hc
-        · intro c hc; simp [LNodeView.nchildren] at hc
-      case vc5 =>
-        rename_i hv0 _
-        constructor
-        · intro c hc; simp [LNodeView.lchildren] at hc; subst hc
-          rw [hv0]; rfl
-        · intro c hc; simp [LNodeView.nchildren] at hc
-      case vc3 =>
-        rename_i hv1 _
-        exact viewOK_sort (by rw [hv1]; rfl)
-      all_goals assumption
     | _ => simp [IConstantInfo.isTowerEntry] at hti
 
 /-! ## 3. The two `Type`-valued shapes: `String` and `Char` -/
@@ -159,12 +163,13 @@ theorem stringTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc1 =>
-      rename_i hlp hck hs1 hty hx hp
-      refine ⟨hck, hx, hp, ?_⟩
+    bridge_frame [CheckOK.pins]
+    -- the verdict: no level parameters, and the type is `Type`
+    vc_arm (hlp : Frontend.denoteNList _ _ = some _) (hck : CheckOK _ _ _ ?s)
+        (hs1 : denoteE (AState.store ?s) _ = some (Expr.sort _))
+        (hty : denoteE (AState.store ?s) (IConstantVal.type _) = some _) =>
       simp only [ConLeche.stringTyOk, isEmpty_of_denoteNList hlp,
         beq_of_denoteE hck.state.wf hty hs1]
-    all_goals (apply CheckOK.pins; assumption)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:309-315 charTyOk — **THEOREM 1
 for `charTyOk`**. -/
@@ -186,12 +191,13 @@ theorem charTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    case vc1 =>
-      rename_i hlp hck hs1 hty hx hp
-      refine ⟨hck, hx, hp, ?_⟩
+    bridge_frame [CheckOK.pins]
+    -- the verdict: no level parameters, and the type is `Type`
+    vc_arm (hlp : Frontend.denoteNList _ _ = some _) (hck : CheckOK _ _ _ ?s)
+        (hs1 : denoteE (AState.store ?s) _ = some (Expr.sort _))
+        (hty : denoteE (AState.store ?s) (IConstantVal.type _) = some _) =>
       simp only [ConLeche.charTyOk, isEmpty_of_denoteNList hlp,
         beq_of_denoteE hck.state.wf hty hs1]
-    all_goals (apply CheckOK.pins; assumption)
 
 /-! ## 4. The `List` shapes -/
 
@@ -434,11 +440,11 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
     rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
     split
-    rotate_left
-    · rename_i hnotsingle
+    -- the match on the level-parameter list, by its arms' names
+    case h_2 hnotsingle =>
       exact triple_pureS ⟨hok1, hx1, hp1,
         (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).1.symm⟩
-    rename_i p hsingle
+    case' h_1 p hsingle => skip
     rw [hsingle] at hlp
     obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
     refine triple_seq (internLNode_okS s1 (.param p) hok1
@@ -516,11 +522,11 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
     rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
     split
-    rotate_left
-    · rename_i hnotsingle
+    -- the match on the level-parameter list, by its arms' names
+    case h_2 hnotsingle =>
       exact triple_pureS ⟨hok1, hx1, hp1,
         (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).2.1.symm⟩
-    rename_i p hsingle
+    case' h_1 p hsingle => skip
     rw [hsingle] at hlp
     obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
     refine triple_seq (internLNode_okS s1 (.param p) hok1
@@ -700,11 +706,11 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
     rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
     split
-    rotate_left
-    · rename_i hnotsingle
+    -- the match on the level-parameter list, by its arms' names
+    case h_2 hnotsingle =>
       exact triple_pureS ⟨hok1, hx1, hp1,
         (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).2.2.symm⟩
-    rename_i p hsingle
+    case' h_1 p hsingle => skip
     rw [hsingle] at hlp
     obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
     refine triple_seq (internLNode_okS s1 (.param p) hok1
@@ -854,10 +860,11 @@ theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
   obtain ⟨nm, hnm⟩ := hn
   have h := constE_spec (mode := mode) (env := env) (fe := fe) s₀ n nm hok hnm
   vcgen [h]
-  rename_i hpost
-  obtain ⟨hck, hx, hp, hd⟩ := hpost
-  refine ⟨hck, hx, hp, fun nm' hn' => ?_⟩
-  rw [hnm] at hn'; obtain rfl := Option.some.inj hn'; exact hd
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  vc_arm (hd : denoteE _ _ = some (Expr.const _ [])) =>
+    intro nm' hn'
+    rw [hnm] at hn'; obtain rfl := Option.some.inj hn'; exact hd
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk — in the
 twin's order, at a level-monomorphic constant whose type is a `∀`. -/
@@ -1099,67 +1106,13 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ConRon.Arena.pinCharOfNat, hn, h1, h2, h3, h4, h5, h6, h7]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
-  case vc1 =>
-    rename_i s1 s0 ck_s0 x_s1_s0 p_s0_s1 _
-    refine ⟨ck_s0, x_s1_s0,
-      p_s0_s1, ?_⟩
+  bridge_frame [CheckOK.pins]
+  -- each guard's environment lookup: the pinned name's index entry
+  vc_arm ⊢ OptCI _ _ _ =>
+    apply optCI_find (by assumption); apply_assumption; rfl
+  -- the verdict: the first failing guard, or all eight passed
+  vc_arm ⊢ _ = ConLeche.strLitSupported env =>
     simp_all [ConLeche.strLitSupported]
-  case vc2 =>
-    rename_i s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s1 hpin x_s2_s1 p_s1_s2 _
-    refine ⟨ck_s0, x_s2_s1.trans (x_s1_s0),
-      p_s0_s1.trans (p_s1_s2), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  case vc3 =>
-    rename_i s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s2 hpin x_s3_s2 p_s2_s3 hneg1 ck_s1
-      hpin_2 x_s2_s1 p_s1_s2 _
-    refine ⟨ck_s0, x_s3_s2.trans (x_s2_s1.trans (x_s1_s0)),
-      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3)), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  case vc4 =>
-    rename_i s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s3 hpin x_s4_s3 p_s3_s4 hneg1
-      ck_s2 hpin_2 x_s3_s2 p_s2_s3 hneg2 ck_s1 hpin_3 x_s2_s1 p_s1_s2 _
-    refine ⟨ck_s0, x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0))),
-      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4))), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  case vc5 =>
-    rename_i s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s4 hpin x_s5_s4 p_s4_s5 hneg1
-      ck_s3 hpin_2 x_s4_s3 p_s3_s4 hneg2 ck_s2 hpin_3 x_s3_s2 p_s2_s3 hneg3 ck_s1 hpin_4
-      x_s2_s1 p_s1_s2 _
-    refine ⟨ck_s0, x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0)))),
-      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5)))), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  case vc6 =>
-    rename_i s6 s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s5 hpin x_s6_s5 p_s5_s6
-      hneg1 ck_s4 hpin_2 x_s5_s4 p_s4_s5 hneg2 ck_s3 hpin_3 x_s4_s3 p_s3_s4 hneg3 ck_s2
-      hpin_4 x_s3_s2 p_s2_s3 hneg4 ck_s1 hpin_5 x_s2_s1 p_s1_s2 _
-    refine ⟨ck_s0, x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans
-        (x_s1_s0))))),
-      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6))))), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  case vc7 =>
-    rename_i s7 s6 s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s6 hpin x_s7_s6 p_s6_s7
-      hneg1 ck_s5 hpin_2 x_s6_s5 p_s5_s6 hneg2 ck_s4 hpin_3 x_s5_s4 p_s4_s5 hneg3 ck_s3
-      hpin_4 x_s4_s3 p_s3_s4 hneg4 ck_s2 hpin_5 x_s3_s2 p_s2_s3 hneg5 ck_s1 hpin_6 x_s2_s1
-      p_s1_s2 _
-    refine ⟨ck_s0, x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
-        (x_s2_s1.trans (x_s1_s0)))))),
-      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans
-        (p_s6_s7)))))), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  case vc8 =>
-    rename_i s8 s7 s6 s5 s4 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hneg0 ck_s7 hpin x_s8_s7
-      p_s7_s8 hneg1 ck_s6 hpin_2 x_s7_s6 p_s6_s7 hneg2 ck_s5 hpin_3 x_s6_s5 p_s5_s6 hneg3
-      ck_s4 hpin_4 x_s5_s4 p_s4_s5 hneg4 ck_s3 hpin_5 x_s4_s3 p_s3_s4 hneg5 ck_s2 hpin_6
-      x_s3_s2 p_s2_s3 hneg6 ck_s1 hpin_7 x_s2_s1 p_s1_s2
-    refine ⟨ck_s0, x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-        (x_s3_s2.trans (x_s2_s1.trans (x_s1_s0))))))),
-      p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans
-        (p_s6_s7.trans (p_s7_s8))))))), ?_⟩
-    simp_all [ConLeche.strLitSupported]
-  all_goals first
-    | assumption
-    | (apply CheckOK.pins; assumption)
-    | (apply optCI_find (by assumption); apply_assumption; rfl)
 
 /-! ## 7. The axiom census -/
 
