@@ -17,8 +17,7 @@ constructors' cons.  The Rust twin is `arena::inductives::block_install`.
   `consBlockRecs` and the member-major recursor cons (con-leche deleted the
   latter at its task #332) are not ported: the executed stage conses the
   records of `blockRecInfosTF` (`Arena/Inductives/RecCheck.lean`'s
-  `consBlockRecsTF`); `consBlockRecsBare` and
-  `openPisParamsIdx` are read by nothing executed.
+  `consBlockRecsTF`); `consBlockRecsBare` is read by nothing executed.
 * **`blockCapsAt`'s record is built by branches**, not `&&`/`!` (AENEAS_FINDINGS
   F18), and it is an `AM` function: the result sort is a handle, read
   (`readLevelM`) for its zero-ness.
@@ -46,11 +45,10 @@ open ConLeche
 /-! ## The capability record, per member -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:49-86 blockCapsAt
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockInstall.blockCapsAt_bridge, then delete this line
 **The capability record of member `mi`**: at a member with ONE constructor, η
 (index-free, not `Prop`, the block not recursive), unit-likeness (and no
-field), rule K (one member, no field, `Prop`) and the result sort's zero-ness;
-at every member the block's members, its parameter count and the member's
+field) and rule K (one member, no field, `Prop`); at every member the result
+sort's zero-ness, the block's members, its parameter count and the member's
 constructors.  (`p.members.getD mi default`: the default member has no
 constructor.) -/
 def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
@@ -83,11 +81,17 @@ def blockCapsAt (p : BlockShape) (mi : Nat) (isRec : Bool) : AM IIndCaps := do
              all := names
              nparams := p.nP
              ctors := [c.1.name] }
-    | cs => pure { all := names, nparams := p.nP, ctors := cs.map (·.1.name) }
-  | none => pure { all := names, nparams := p.nP, ctors := [] }
+    | cs => do
+      -- con-leche's task #349: the result sort's zero-ness is recorded for
+      -- EVERY member (the ι case split reads it)
+      let l ← readLevelM p.resSort
+      pure { sortZ := Level.zeronessOf l, all := names, nparams := p.nP,
+             ctors := cs.map (·.1.name) }
+  | none => do
+    let l ← readLevelM p.resSort
+    pure { sortZ := Level.zeronessOf l, all := names, nparams := p.nP, ctors := [] }
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:88-93 Expr.piDomsMentionAny
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockInstall.piDomsMentionAny_bridge, then delete this line
 Does some binder domain of the SYNTACTIC `∀`-telescope of `e` mention one of
 `names`?  No reduction; the `||` short-circuits.  Fueled (the module note). -/
 def piDomsMentionAny (names : List NIdx) : Nat → EIdx → AM Bool
@@ -96,7 +100,7 @@ def piDomsMentionAny (names : List NIdx) : Nat → EIdx → AM Bool
     if e.tag == ETag.forallE then
       match ← viewBind e with
       | none => failDanglingE
-      | some (ty, b, _) =>
+      | some (ty, b) =>
         if ← mentionsAnyConst names ty then pure true
         else piDomsMentionAny names fuel b
     else pure false
@@ -112,15 +116,13 @@ def blockRawRec (p : BlockParts) : AM Bool := do
 /-! ## Stage 1: the formers -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockInstall.lean:111-122 checkBlockTele
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockInstall.checkBlockTele_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:27-36 checkBlockTeleF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockInstall.checkBlockTele_bridge, then delete this line
 One member's type former: the constant check, official's telescope loop and
 the result sort, without the environment cons. -/
 def checkBlockTele (mode : CheckMode) (fe : IFEnv) (nP : Nat) (ms : MemberShape) :
     AM (IConstantVal × LIdx) := do
-  let cvTa₀ ← checkConstantVal mode fe ms.cvT
-  let (cvTa, s) ← checkSumTele mode fe ms.cvT (nP + ms.nIdx) cvTa₀
+  checkConstantVal mode fe ms.cvT
+  let (cvTa, s) ← checkSumTele mode fe ms.cvT (nP + ms.nIdx) ms.cvT
   match ← stripPis (nP + ms.nIdx) cvTa.type with
   | none => fail (.internal "direct sum: type former telescope")
   | some q => do

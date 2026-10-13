@@ -37,11 +37,9 @@ def checkStructDomsAt (mode : CheckMode) (fe : IFEnv) (off : Nat)
     checkStructDomsAt mode fe off fvs doms j
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-79 checkStructProjTable
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructInstallF.lean:71-87 checkStructProjTableF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructInstall.checkStructProjTable_bridge, then delete this line
 Stage 5: **the projection table** (task #175 S1).  One constant per structure:
-the fields' result-type bodies read off the *annotated* constructor type by
+the fields' result-type bodies read off the stored constructor type by
 substitution alone, the per-field guard levels, the constructor and the
 counts.  `IProjTable.tableName` is the reserved name the install interned,
 kept rather than recomputed (`Arena/Env.lean`'s one added field). -/
@@ -60,11 +58,6 @@ def checkStructProjTable (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       (← looseBVarsBoundedFast coreWalkFuel (nP + 1) b))
   unless bodies.size = nF ∧ scopedOk do
     fail (.internal "direct structure: projection body scoping")
-  -- the projection-function name family (the modeled route's, the key of its
-  -- η-family predicate) must be free too
-  unless ← (List.range nF).allM (fun j => do
-      pure (fe.find? (← projFnName T j)).isNone) do
-    fail (.invalid "projection name family taken")
   let tn ← projTableName T
   unless (fe.find? tn).isNone do
     fail (.invalid "projection table taken")

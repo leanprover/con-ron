@@ -96,9 +96,7 @@ open ConLeche
 /-! ## `mentionsAnyConst`: the positivity walk's question at k names -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:42-54 Expr.mentionsAnyConst
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.mentionsAnyGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:84-119 Expr.mentionsAnyGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.mentionsAnyGo_bridge, then delete this line
 Does any of the constants `names` occur in `h`?  A syntactic walk (`fvar`
 annotations included; a `.proj` node names its structure), memoised on the
 node.  Both children of a binary node are evaluated (no short circuit), as
@@ -122,11 +120,11 @@ def mentionsAnyGo (names : List NIdx) (memo : Std.HashMap EIdx Bool) :
             let (b1, m) ← mentionsAnyGo names memo fuel f
             let (b2, m2) ← mentionsAnyGo names m fuel a
             pure (b1 || b2, m2)
-          | .lam ty body _ => do
+          | .lam ty body => do
             let (b1, m) ← mentionsAnyGo names memo fuel ty
             let (b2, m2) ← mentionsAnyGo names m fuel body
             pure (b1 || b2, m2)
-          | .forallE ty body _ => do
+          | .forallE ty body => do
             let (b1, m) ← mentionsAnyGo names memo fuel ty
             let (b2, m2) ← mentionsAnyGo names m fuel body
             pure (b1 || b2, m2)
@@ -162,22 +160,19 @@ def memberIdxAt? (names : List NIdx) (lvls : LsIdx) (e : EIdx) : AM (Option Nat)
 /-! ## Closing a telescope -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:211-219 closeTelescope
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.closeTelescope_bridge, then delete this line
 Close a telescope opened at the free variables `i ..< i + bs.length` back into
 a syntactic Π-telescope over `body`, the innermost binder first. -/
-def closeTelescope : List (EIdx × BinderMeta) → Nat → EIdx → AM EIdx
+def closeTelescope : List EIdx → Nat → EIdx → AM EIdx
   | [], _, body => pure body
-  | (d, m) :: bs, i, body => do
+  | d :: bs, i, body => do
     let inner ← closeTelescope bs (i + 1) body
     let closed ← abstract1Fast coreWalkFuel inner i 0
-    internForallEE d closed m
+    internForallEE d closed
 
 /-! ## `nestOcc`: official's `has_ind_occ`, with the holes -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:328-345 Expr.nestOcc
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.nestOccGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:347-377 Expr.nestOccGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.nestOccGo_bridge, then delete this line
 Does a MEMBER or a HOLE (the free variables `lo ..< hi`) occur in `h`?  A
 free variable's annotation is NOT looked into, and a `.proj` node's structure
 name is no occurrence.  Short-circuiting, memoised on the node. -/
@@ -199,10 +194,10 @@ def nestOccGo (names : List NIdx) (lo hi : Nat) (memo : Std.HashMap EIdx Bool) :
           | .app f a => do
             let (b, m) ← nestOccGo names lo hi memo fuel f
             if b then pure (true, m) else nestOccGo names lo hi m fuel a
-          | .lam ty body _ => do
+          | .lam ty body => do
             let (b, m) ← nestOccGo names lo hi memo fuel ty
             if b then pure (true, m) else nestOccGo names lo hi m fuel body
-          | .forallE ty body _ => do
+          | .forallE ty body => do
             let (b, m) ← nestOccGo names lo hi memo fuel ty
             if b then pure (true, m) else nestOccGo names lo hi m fuel body
           | .letE ty val body => do
@@ -221,7 +216,6 @@ def nestOcc (names : List NIdx) (lo hi : Nat) (e : EIdx) : AM Bool := do
   pure r.1
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:514-519 instPisWith
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.instPisWith_bridge, then delete this line
 Instantiate the leading `Π` binders of `e` at `args`, in order; `none` when
 `e` runs out of binders first. -/
 def instPisWith : List EIdx → EIdx → AM (Option EIdx)
@@ -230,7 +224,7 @@ def instPisWith : List EIdx → EIdx → AM (Option EIdx)
     if e.tag == ETag.forallE then
       match ← viewBind e with
       | none => failDanglingE
-      | some (_, body, _) => do
+      | some (_, body) => do
         let b ← instantiate1Fast coreWalkFuel body a 0
         instPisWith args b
     else pure none
@@ -262,7 +256,6 @@ The fuel's slack above the term's depth. -/
 def fuelSlack : Nat := 1024
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:556-588 Expr.depthGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.depthGo_bridge, then delete this line
 The longest root-to-leaf path (`fvar` annotations not descended), memoised on
 the node, so a DAG costs its distinct nodes. -/
 def depthGo (memo : Std.HashMap EIdx Nat) : Nat → EIdx → AM (Nat × Std.HashMap EIdx Nat)
@@ -283,11 +276,11 @@ def depthGo (memo : Std.HashMap EIdx Nat) : Nat → EIdx → AM (Nat × Std.Hash
             let (d1, m) ← depthGo memo fuel f
             let (d2, m2) ← depthGo m fuel a
             pure (max d1 d2 + 1, m2)
-          | .lam ty body _ => do
+          | .lam ty body => do
             let (d1, m) ← depthGo memo fuel ty
             let (d2, m2) ← depthGo m fuel body
             pure (max d1 d2 + 1, m2)
-          | .forallE ty body _ => do
+          | .forallE ty body => do
             let (d1, m) ← depthGo memo fuel ty
             let (d2, m2) ← depthGo m fuel body
             pure (max d1 d2 + 1, m2)
@@ -434,7 +427,6 @@ def nestHoleAt (ctx : NestCtx) (prog : List NestHole) (i : Nat) : Option NestHol
 /-! ## Reading a walked term back: `replaceFVars` and its four maps -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.FvMap_bridge, then delete this line
 The function argument of `replaceFVars`, one variant per instantiation
 con-leche writes (the module note): `nestHoleImg ctx prog` (at the stack
 prefix of length `n`), `nestKeyMap ds holes`, `eraseFVarTys`' `fun i => some
@@ -462,7 +454,6 @@ def nestKeyMap (ds holes : List EIdx) (i : Nat) : Option EIdx :=
 mutual
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.fvMapAt_bridge, then delete this line
 The map `f` applied to the variable `i`, by the variant. -/
 def fvMapAt (f : FvMap) (i : Nat) : AM (Option EIdx) := do
   match f with
@@ -478,9 +469,7 @@ termination_by (f.rank, 0, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def, FvMap.rank] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:744-757 Expr.replaceFVars
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.replaceFVarsGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:775-810 Expr.replaceFVarsGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.replaceFVarsGo_bridge, then delete this line
 Replace the free variables `f` maps (a mapped variable is replaced whole, its
 annotation not descended into), memoised on the node. -/
 def replaceFVarsGo (f : FvMap) (memo : Std.HashMap EIdx EIdx) (fuel : Nat) (h : EIdx) :
@@ -507,15 +496,15 @@ def replaceFVarsGo (f : FvMap) (memo : Std.HashMap EIdx EIdx) (fuel : Nat) (h : 
             let (b2, m2) ← replaceFVarsGo f m fuel b
             let r ← internAppE a2 b2
             pure (r, m2)
-          | .lam ty body bm => do
+          | .lam ty body => do
             let (t2, m) ← replaceFVarsGo f memo fuel ty
             let (b2, m2) ← replaceFVarsGo f m fuel body
-            let r ← internLamE t2 b2 bm
+            let r ← internLamE t2 b2
             pure (r, m2)
-          | .forallE ty body bm => do
+          | .forallE ty body => do
             let (t2, m) ← replaceFVarsGo f memo fuel ty
             let (b2, m2) ← replaceFVarsGo f m fuel body
-            let r ← internForallEE t2 b2 bm
+            let r ← internForallEE t2 b2
             pure (r, m2)
           | .letE ty val body => do
             let (t2, m) ← replaceFVarsGo f memo fuel ty
@@ -622,9 +611,7 @@ def appHole? (names : List NIdx) (us : LsIdx) (b n : Nat) (e : EIdx) :
   | some (c, v) => nestCanonSub names us n c v
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:930-947 Expr.replaceApps
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.replaceAppsGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/Positivity.lean:966-1004 Expr.replaceAppsGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.replaceAppsGo_bridge, then delete this line
 **The whole-application replacement**, pre-order, at `nestCanonSub names us`:
 a subterm that is a whole application is replaced by its hole and not
 descended into; free variables are leaves.  Memoised on the node. -/
@@ -654,15 +641,15 @@ def replaceAppsGo (names : List NIdx) (us : LsIdx) (b n : Nat)
               let (x2, m2) ← replaceAppsGo names us b n m fuel x
               let r ← internAppE a2 x2
               pure (r, m2)
-          | .lam t body bm => do
+          | .lam t body => do
             let (t2, m) ← replaceAppsGo names us b n memo fuel t
             let (b2, m2) ← replaceAppsGo names us b n m fuel body
-            let r ← internLamE t2 b2 bm
+            let r ← internLamE t2 b2
             pure (r, m2)
-          | .forallE t body bm => do
+          | .forallE t body => do
             let (t2, m) ← replaceAppsGo names us b n memo fuel t
             let (b2, m2) ← replaceAppsGo names us b n m fuel body
-            let r ← internForallEE t2 b2 bm
+            let r ← internForallEE t2 b2
             pure (r, m2)
           | .letE t val body => do
             let (t2, m) ← replaceAppsGo names us b n memo fuel t
@@ -719,7 +706,6 @@ def nestCrest (names : List NIdx) (us : LsIdx) (ds holes : List EIdx) (cty : EId
 /-! ## The container's former, and a frame's constructors -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1118-1158 nestInstType
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.nestInstType_bridge, then delete this line
 The instantiation's type former, checked as official checks the auxiliary
 type before the block exists: the level count, the parameters bound, (N2) the
 index telescope names no member and no hole below `hi`, (N3) the sort is
@@ -748,7 +734,7 @@ def nestInstType (fe : IFEnv) (ctx : NestCtx) (hi : Nat) (key : NestKey) :
           let (bs, res) ← piBinders coreWalkFuel ty
           match ← view res with
           | .sort s => do
-            if ← bs.anyM (fun b => nestOcc ctx.names ctx.nP hi b.1) then
+            if ← bs.anyM (fun b => nestOcc ctx.names ctx.nP hi b) then
               fail (.invalid "nested positivity: a container's index telescope mentions the block (official: unknown constant)")
             else do
               let o ← lvlEq? s ctx.sort
@@ -764,7 +750,6 @@ def nestResHead (e : EIdx) : AM Bool := do
   pure (hd.tag == ETag.fvar)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1188-1196 nestCtorNf
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.nestCtorNf_bridge, then delete this line
 **A frame constructor's record** (K.53′): the constructor at the frame's key
 `(us, ds)` under the frames `prog`, its walked telescope `closed`
 (con-leche's `closeTelescope nds hi cur`, computed once by the caller), all
@@ -863,7 +848,6 @@ every fuel. -/
 mutual
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1169-1186 nestFields
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.nestFields_bridge, then delete this line
 A constructor's field telescope `cur` (`nF` fields from field `j`), each field
 through the walk at its depth `base + j`, the field opened at the variable
 `base + j` (annotated by its DECLARED domain): the fields' kinds, their walked
@@ -872,19 +856,19 @@ the Rust pushes (the same order of effects as con-leche's cons on the way
 out). -/
 def nestFields (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     (prog : List NestHole) (base nF j : Nat) (cur : EIdx) (ns : NestState)
-    (ks : List NestFieldKind) (nds : List (EIdx × BinderMeta)) :
-    AM (List NestFieldKind × List (EIdx × BinderMeta) × EIdx × NestState) := do
+    (ks : List NestFieldKind) (nds : List EIdx) :
+    AM (List NestFieldKind × List EIdx × EIdx × NestState) := do
   match nF with
   | 0 => pure (ks, nds, cur, ns)
   | nF + 1 =>
     if cur.tag == ETag.forallE then
       match ← viewBind cur with
       | none => failDanglingE
-      | some (a, b, bm) => do
+      | some (a, b) => do
         let (k, nd, ns2) ← nestPos mode fe ctx fuel prog (base + j) 0 a ns
         let fv ← internFVarE (base + j) a
         let b2 ← instantiate1Fast coreWalkFuel b fv 0
-        nestFields mode fe ctx fuel prog base nF (j + 1) b2 ns2 (ks ++ [k]) (nds ++ [(nd, bm)])
+        nestFields mode fe ctx fuel prog base nF (j + 1) b2 ns2 (ks ++ [k]) (nds ++ [nd])
     else
       fail (.invalid "nested positivity: invalid nested inductive datatype, its constructor type does not bind its fields (official: ill-formed constructor)")
 termination_by (0, fuel, 1, nF)
@@ -1052,7 +1036,6 @@ termination_by (0, fuel, 6, 0)
 decreasing_by all_goals (simp_wf; simp only [Prod.lex_def] at *; (try split at *) <;> (try simp_all) <;> omega)
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1442-1496 nestPos
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.nestPos_bridge, then delete this line
 **The positivity function**: the domain `e` at depth `dep`, `kb` `Π` binders
 into the field, `prog` the instantiations in progress.  The reduct (the
 kernel's own whnf) mentions no member and no hole — ordinary, its normal form
@@ -1076,7 +1059,7 @@ def nestPos (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
     else if w.tag == ETag.forallE then
       match ← viewBind w with
       | none => failDanglingE
-      | some (a, b, bm) =>
+      | some (a, b) =>
         if ← nestOcc ctx.names ctx.nP hi a then
           fail (.invalid "nested positivity: non positive occurrence of the datatypes being declared")
         else do
@@ -1084,7 +1067,7 @@ def nestPos (mode : CheckMode) (fe : IFEnv) (ctx : NestCtx) (fuel : Nat)
           let b2 ← instantiate1Fast coreWalkFuel b fv 0
           let (k, nb, ns2) ← nestPos mode fe ctx fuel prog (dep + 1) (kb + 1) b2 ns
           let nb2 ← abstract1Fast coreWalkFuel nb dep 0
-          let r ← internForallEE a nb2 bm
+          let r ← internForallEE a nb2
           pure (k, r, ns2)
     else do
       let args ← getAppArgs coreWalkFuel w
@@ -1146,7 +1129,6 @@ def nestRootCanon (ctx : NestCtx) (cv : IConstantVal) : AM (Option EIdx) := do
 /-! ## Uniform occurrences: official's `check_uniform_ind_occs` -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/Positivity.lean:1542-1547 Expr.piDomsOcc
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Positivity.piDomsOcc_bridge, then delete this line
 Does a member or a hole occur in one of the first `n` binder domains of
 `e`? -/
 def piDomsOcc (names : List NIdx) (lo hi : Nat) : Nat → EIdx → AM Bool
@@ -1155,7 +1137,7 @@ def piDomsOcc (names : List NIdx) (lo hi : Nat) : Nat → EIdx → AM Bool
     if e.tag == ETag.forallE then
       match ← viewBind e with
       | none => failDanglingE
-      | some (d, b, _) =>
+      | some (d, b) =>
         if ← nestOcc names lo hi d then pure true
         else piDomsOcc names lo hi n b
     else pure false

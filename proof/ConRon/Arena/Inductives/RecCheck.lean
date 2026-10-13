@@ -54,9 +54,7 @@ open ConLeche
 /-! ## The holes: the block's members abstracted to free variables -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:65-85 targetAbs
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetAbsGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:106-146 targetAbsGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetAbsGo_bridge, then delete this line
 **The member abstraction of one term**: every member at the block's levels
 `lvls` becomes its hole; `fvar` annotations are not entered.  Memoised on the
 node. -/
@@ -88,15 +86,15 @@ def targetAbsGo (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
             let (b', memo) ← targetAbsGo names lvls holes memo fuel b
             let r ← internAppE a' b'
             pure (r, memo)
-          | .lam ty body bm => do
+          | .lam ty body => do
             let (t', memo) ← targetAbsGo names lvls holes memo fuel ty
             let (b', memo) ← targetAbsGo names lvls holes memo fuel body
-            let r ← internLamE t' b' bm
+            let r ← internLamE t' b'
             pure (r, memo)
-          | .forallE ty body bm => do
+          | .forallE ty body => do
             let (t', memo) ← targetAbsGo names lvls holes memo fuel ty
             let (b', memo) ← targetAbsGo names lvls holes memo fuel body
-            let r ← internForallEE t' b' bm
+            let r ← internForallEE t' b'
             pure (r, memo)
           | .letE ty val body => do
             let (t', memo) ← targetAbsGo names lvls holes memo fuel ty
@@ -409,7 +407,6 @@ def targetCtorAt (M : TargetMajor) (c : IConstantVal) : AM EIdx :=
   | none => instLPFast coreWalkFuel c.levelParams M.lvls c.type
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:540-566 targetK53
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetK53_bridge, then delete this line
 **K.53′ at one recorded field** `f`: its telescope is the call's `tele` and its
 leaf the callee's major `majDom`, up to the free variables' annotations, the
 leaf's head and arity the major's, its indices up to annotations, its class
@@ -417,12 +414,12 @@ naming a member (official's `is_nested`), and that class matching the callee's
 class `Mc` per component.  The cited `&&` chain, left to right; both sides of
 each erased comparison are computed before it is read. -/
 def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List EIdx)
-    (Mc : TargetMajor) (tele : List (EIdx × BinderMeta)) (majDom f : EIdx) : AM Bool := do
+    (Mc : TargetMajor) (tele : List EIdx) (majDom f : EIdx) : AM Bool := do
   match ← stripPis tele.length f with
   | none => pure false
   | some (teleW, leafW) => do
-    let ew ← teleW.mapM fun b => do pure ((← eraseFVarTys b.1), b.2)
-    let et ← tele.mapM fun b => do pure ((← eraseFVarTys b.1), b.2)
+    let ew ← teleW.mapM fun b => eraseFVarTys b
+    let et ← tele.mapM fun b => eraseFVarTys b
     if ew != et then pure false
     else
       let lh ← getAppFn coreWalkFuel leafW
@@ -451,7 +448,6 @@ def targetK53 (mode : CheckMode) (fe : IFEnv) (p : BlockShape) (formerTys : List
       else pure false
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:568-573 targetPiDomsWith
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.targetPiDomsWith_bridge, then delete this line
 The domains of the first `|xs|` `∀` binders, each instantiated at the earlier
 `xs`. -/
 def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
@@ -460,7 +456,7 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
     if e.tag == ETag.forallE then
       match ← viewBind e with
       | none => failDanglingE
-      | some (d, b, _) => do
+      | some (d, b) => do
         let b' ← instantiate1Fast coreWalkFuel b x 0
         match ← targetPiDomsWith xs b' with
         | some ds => pure (some (d :: ds))
@@ -469,28 +465,47 @@ def targetPiDomsWith : List EIdx → EIdx → AM (Option (List EIdx))
 
 /-! ## The stored family -/
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-595 auxRuleFireR
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.auxRuleFireR_bridge, then delete this line
-**The firing mode of a rule at an OUTSIDE major**: `.nested` at the syntactic
-reading of the recursor type's major domain, `.inert` when it fails.
-`resolves` is the constructors' environment `fe`. -/
-def auxRuleFireR (fe : IFEnv) (cv : IConstantVal) (mI rP nPc : Nat) : AM IRecRuleFire := do
-  match ← nestedRuleSyn fe cv.levelParams cv.type mI rP nPc with
-  | some (lvls, pins) => pure (.nested lvls pins)
-  | none => pure .inert
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-591 Expr.abstractPrefix
+**The free variables `0 … k-1` closed at cursor `c`**: `fvar i` becomes
+`bvar (c + k - 1 - i)`, as the fold of `abstract1` passes, innermost first.
+Structural on `k`. -/
+def abstractPrefix : Nat → Nat → EIdx → AM EIdx
+  | 0, _, e => pure e
+  | k + 1, c, e => do
+    let e' ← abstract1Fast coreWalkFuel e k c
+    abstractPrefix k (c + 1) e'
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire —
+`M.ds.map (Expr.abstractPrefix rP 0)`, as an explicit list recursion (DESIGN
+§3.4). -/
+def abstractPrefixList (rP : Nat) : List EIdx → AM (List EIdx)
+  | [] => pure []
+  | d :: ds => do
+    let x ← abstractPrefix rP 0 d
+    let xs ← abstractPrefixList rP ds
+    pure (x :: xs)
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire —
+**the firing mode of a rule at an OUTSIDE major** (rule prefix `rP`):
+`.nested` at the class's levels and its parameters closed over the rule
+prefix (con-leche's task #342 S5C: computed, not read off the recursor's
+type). -/
+def auxRuleFire (M : TargetMajor) (rP : Nat) : AM IRecRuleFire := do
+  let lvls ← viewLs M.lvls
+  let pins ← abstractPrefixList rP M.ds
+  pure (.nested lvls pins)
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.tgtStoredRules_bridge, then delete this line
 **One checked recursor's stored rules, at its major**: `sumRules` at the
-major's parameter count and constructors, every rule firing as `auxRuleFireR`
-reads it at an OUTSIDE major (the reading computed once, the module note). -/
-def tgtStoredRules (fe : IFEnv) (cv : IConstantVal) (mI rP : Nat) (M : TargetMajor)
+major's parameter count and constructors; at an OUTSIDE major every rule fires
+`auxRuleFire`. -/
+def tgtStoredRules (fe : IFEnv) (cv : IConstantVal) (rP : Nat) (M : TargetMajor)
     (rhss : List EIdx) : AM (List IRecRule) := do
-  let rules ← sumRules fe cv.name M.nPc mI rP cv.type M.ctors rhss
+  let rules ← sumRules fe cv.name M.nPc M.ctors rhss
   match M.member with
   | some _ => pure rules
   | none => do
-    let f ← auxRuleFireR fe cv mI rP M.nPc
+    let f ← auxRuleFire M rP
     pure (rules.map fun rl => { rl with fire := f })
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:616-622 blockNestedBit
@@ -500,10 +515,8 @@ def blockNestedBit (p : BlockShape) (kinds : List (List (List NestFieldKind))) :
   if nestKindsFlat kinds then p.recs.any (fun rc => !(rc.tgt < p.k)) else true
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:624-634 blockRecInfosTF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/BlockInstallF.lean:127-130 FEnv.pushAll
 con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-104 consBlockRecsT
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove RecCheck.consBlockRecsTF_bridge, then delete this line
 **The checked family consed through the index, at its majors**: each recursor
 with its rules at ITS major, the rules' lookups at the constructors'
 environment, i.e. at its visibility bound `vis₂` while the recursors are pushed
@@ -517,7 +530,7 @@ def consBlockRecsTF (vis₂ : Nat) (p : BlockShape) :
   | m, (cv, M, rhss) :: rest, fe => do
     let mI := p.majorIdxAt m
     let rP := p.rulePrefixAt m
-    let rules ← tgtStoredRules (fe.restrictTo vis₂) cv mI rP M rhss
+    let rules ← tgtStoredRules (fe.restrictTo vis₂) cv rP M rhss
     consBlockRecsTF vis₂ p (m + 1) rest (fe.push (.recInfo cv mI rP rules))
 
 end ConRon.Arena

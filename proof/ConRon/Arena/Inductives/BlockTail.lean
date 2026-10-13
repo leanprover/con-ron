@@ -51,9 +51,7 @@ structure BlockPass where
   tbl : List NestCtorNf
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:54-74 checkBlockPass
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockTail.checkBlockPass_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:134-152 checkBlockPassS
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockTail.checkBlockPass_bridge, then delete this line
 **One pass over the formers, the constructors and the classes** at the
 block's `is_rec` verdict: the formers (and the flush entering the environment
 that holds them all), the constructors, the walk's context, the classes, and
@@ -107,9 +105,7 @@ def checkBlockTables (p : BlockShape) :
   | _, _, _, fe => pure fe
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:123-136 checkBlockTail
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 con-leche: ConLeche/Cached/CheckerC.lean:154-176 checkBlockTailS
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove BlockTail.checkBlockTail_bridge, then delete this line
 **The install after the pass**: the index binders' sorts, the constructors
 consed (and the flush entering that environment), the recursor stage, the
 recursors consed at their majors, and the projection tables. -/
