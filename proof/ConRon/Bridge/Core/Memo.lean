@@ -1,11 +1,12 @@
 /-
-# `ConRon.Bridge.Core.Memo` — the memo wrappers of the knot's six slots
+# `ConRon.Bridge.Core.Memo` — the memo wrappers of the knot's five slots
 
 DESIGN §8.2, and `_tmp/t97/conleche-arena-history.md` §2.3's middle piece:
 between the body walks (`Bridge/Core/Arms/*.lean`) and the fuel induction
 (`Bridge/Core/Induction.lean`) sit **the memo wrapper steps** — con-leche's
-`Verify/Cached/KnotC.lean`, whose six `memoEI_*_sim` / `memoBI_defeq_sim`
-theorems are the same six as this module's.
+`Verify/Cached/KnotC.lean`, whose `memoEI_*_sim` / `memoBI_defeq_sim`
+theorems are the same as this module's six wrapper steps (five slots, the
+`whnfCore` slot in its two cheap modes).
 
 A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
 
@@ -32,7 +33,7 @@ The other two branches are con-leche's:
   report's lesson 8), so it yields the pure run at the CALL's depth with no
   further work — which is the whole reason the depth is not in the key;
 * **the miss** runs the body walk and re-inserts, and the insert is where the
-  run has to be made depth-universal again.  con-leche's own six
+  run has to be made depth-universal again.  con-leche's own
   depth-invariance theorems (`Verify/Deep.lean:3066-3120`) are what does it,
   and they are the reason this module imports con-leche's `Verify` tier at
   all.
@@ -55,13 +56,13 @@ set_option maxHeartbeats 1000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## 1. The knot's six slots, unfolded once
+/-! ## 1. The knot's five slots, unfolded once
 
 Task #97-P3-0's rule 9: a definition the verification condition generator
 would rewrite forever needs its clauses as lemmas.  `coreKnot` recurses on
 the fuel, so one `rfl` per slot at `fuel + 1` unfolds it exactly once — and,
 because the arena's knot carries its memo probes INLINE (task #97c's
-deviation 6), these six equations are also the only place in the bridge where
+deviation 6), these equations are also the only place in the bridge where
 the probe's shape is written down. -/
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the
@@ -118,7 +119,7 @@ theorem coreKnot_infer_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
         match (← get).caches.inferC[i]? with
         | some x => pure x
         | none => do
-          let x ← inferBody mode (coreKnot mode fe id fuel) fe d i
+          let x ← inferBody (coreKnot mode fe id fuel) fe d i
           inferSet i x
           pure x) := rfl
 
@@ -135,45 +136,19 @@ theorem coreKnot_defeq_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
           defeqSet a b x
           pure x) := rfl
 
-/-- con-leche: ConLeche/Cached/CoreC.lean:1916-1979 coreKnotI — the
-`annotate` slot at `fuel + 1`. -/
-theorem coreKnot_annotate_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
-    (i : EIdx) :
-    (coreKnot mode fe id (fuel + 1)).annotate d i =
-      (do
-        match (← get).caches.annotC[i]? with
-        | some x => pure x
-        | none => do
-          let x ← annotateBody (coreKnot mode fe id fuel) fe d i
-          annotSet i x
-          pure x) := rfl
-
 /-- con-leche: ConLeche/Cached/CoreC.lean:1966-1979 coreKnotI — the `inferIO`
-slot at `fuel + 1`.  **The mode selects the grade, once per knot level**
-(task #97c's smaller deviation 4: the selector is `mode.ioGate`,
-`Cached/CoreC.lean:1971`'s spelling, and the two modes agree at `.verified`,
-which is where the bridge is stated).  Both arms are written out, so the
-equation is `rfl` and the gated arm below is one `ite_eq_left`. -/
+slot at `fuel + 1`: the io body under the io-grade view of the knot one
+level down, at every mode (con-leche task #346). -/
 theorem coreKnot_inferIO_succ (mode : CheckMode) (fe : IFEnv) (fuel d : Nat)
     (i : EIdx) :
     (coreKnot mode fe id (fuel + 1)).inferIO d i =
-      (if mode.ioGate then
-        (do
-          match (← get).caches.inferIOC[i]? with
-          | some x => pure x
-          | none => do
-            let x ← inferBodyIO mode
-              (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
-            inferIOSet i x
-            pure x)
-      else
-        (do
-          match (← get).caches.inferC[i]? with
-          | some x => pure x
-          | none => do
-            let x ← inferBody mode (coreKnot mode fe id fuel) fe d i
-            inferSet i x
-            pure x)) := rfl
+      (do
+        match (← get).caches.inferIOC[i]? with
+        | some x => pure x
+        | none => do
+          let x ← inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+          inferIOSet i x
+          pure x) := rfl
 
 /-! ## 2. The six cache setters' specs
 
@@ -224,14 +199,6 @@ the io grade's own table. -/
         inferIOC := s₀.caches.inferIOC.insert e r } }; ⊤⦄ := by
   dsimp only
   vcgen [inferIOSet] with finish
-
-/-- con-leche: ConLeche/Cached/CoreC.lean:1877-1890 memoEI — `annotSet`. -/
-@[spec] theorem annotSet_spec (s₀ : AState) (e r : EIdx) :
-    ⦃fun s => s = s₀⦄ annotSet e r
-    ⦃fun _u s' => s' = { s₀ with caches := { s₀.caches with
-        annotC := s₀.caches.annotC.insert e r } }; ⊤⦄ := by
-  dsimp only
-  vcgen [annotSet] with finish
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:1893-1906 memoBI — `defeqSet`, at
 the ORDERED pair and with the verdict. -/
@@ -346,16 +313,6 @@ theorem CacheOK.insertInferIO {mode : CheckMode} {env : Env} {s : AState}
       inferIOC := s.caches.inferIOC.insert i j } } :=
   { hc with inferIO := EntryCacheOK.insert hc.inferIO ha hb hrun }
 
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:127 CSOK.insertAnnotC. -/
-theorem CacheOK.insertAnnot {mode : CheckMode} {env : Env} {s : AState}
-    (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr}
-    (ha : denoteE s.store i = some a) (hb : denoteE s.store j = some b)
-    (hrun : ∃ F, ∀ d, Expr.wscopedB d a = true →
-      ConLeche.annotateCore mode env F d a = .ok b) :
-    CacheOK mode env { s with caches := { s.caches with
-      annotC := s.caches.annotC.insert i j } } :=
-  { hc with annot := EntryCacheOK.insert hc.annot ha hb hrun }
-
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:146 CSOK.insertDefeqC. -/
 theorem CacheOK.insertDefeq {mode : CheckMode} {env : Env} {s : AState}
     (hc : CacheOK mode env s) {i j : EIdx} {a b : Expr} {x : Bool}
@@ -425,8 +382,8 @@ theorem denote_stuck_of_whnfCoreStuckTag {st : EStore} (hwf : StoreWF st)
     {h : EIdx} {e : Expr} (he : denoteE st h = some e)
     (hs : whnfCoreStuckTag h = true) :
     (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨
-      (∃ l, e = .lit l) ∨ (∃ t b m, e = .lam t b) ∨
-      (∃ t b m, e = .forallE t b) := by
+      (∃ l, e = .lit l) ∨ (∃ t b, e = .lam t b) ∨
+      (∃ t b, e = .forallE t b) := by
   obtain ⟨happ, hproj, hlet, hbvar⟩ := whnfCoreStuckTag_ne hs
   obtain ⟨v, hv⟩ := denoteE_view he
   have htag := EStore.tagOf_of_view hv
@@ -444,10 +401,10 @@ theorem denote_stuck_of_whnfCoreStuckTag {st : EStore} (hwf : StoreWF st)
   | app f a => exact absurd (htag.trans rfl) happ
   | lam ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv he
-    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩))))
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, rfl⟩))))
   | forallE ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv he
-    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩))))
+    exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, rfl⟩))))
   | letE ty w b => exact absurd (htag.trans rfl) hlet
   | lit l =>
     rw [denote_lit_inv hwf hv he]
@@ -459,11 +416,11 @@ constructors the body's first six clauses answer with themselves. -/
 theorem whnfCore_of_stuck {mode : CheckMode} {env : Env} {e : Expr} {c : Bool}
     (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
       (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
-      (∃ t b m, e = .lam t b) ∨ (∃ t b m, e = .forallE t b))
+      (∃ t b, e = .lam t b) ∨ (∃ t b, e = .forallE t b))
     (F d : Nat) : ConLeche.whnfCore mode env (F + 1) d e c = .ok e := by
   rw [ConLeche.whnfCore_succ]
   rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ |
-      ⟨t, b, m, rfl⟩ | ⟨t, b, m, rfl⟩ <;>
+      ⟨t, b, rfl⟩ | ⟨t, b, rfl⟩ <;>
     simp [ConLeche.whnfCoreBody, pure, Except.pure]
 
 
@@ -473,8 +430,8 @@ reduction loop: a handle whose tag is `sort`, `fvar`, `lam`, `forallE` or
 theorem denote_stuck_of_whnfStuckTag {st : EStore} (hwf : StoreWF st)
     {h : EIdx} {e : Expr} (he : denoteE st h = some e)
     (hs : whnfStuckTag h = true) :
-    (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨ (∃ t b m, e = .lam t b) ∨
-      (∃ t b m, e = .forallE t b) ∨ (∃ l, e = .lit l) := by
+    (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨ (∃ t b, e = .lam t b) ∨
+      (∃ t b, e = .forallE t b) ∨ (∃ l, e = .lit l) := by
   obtain ⟨v, hv⟩ := denoteE_view he
   have htag := EStore.tagOf_of_view hv
   have htg := whnfStuckTag_eq hs
@@ -493,10 +450,10 @@ theorem denote_stuck_of_whnfStuckTag {st : EStore} (hwf : StoreWF st)
       ETag.fvar, ETag.lam, ETag.forallE, ETag.lit] at htg
   | lam ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv he
-    exact Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩))
+    exact Or.inr (Or.inr (Or.inl ⟨et, eb, rfl⟩))
   | forallE ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv he
-    exact Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩)))
+    exact Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, rfl⟩)))
   | letE ty w b => rw [htag] at htg; simp [ENodeView.tagOf, ETag.letE,
       ETag.sort, ETag.fvar, ETag.lam, ETag.forallE, ETag.lit] at htg
   | lit l =>
@@ -505,6 +462,13 @@ theorem denote_stuck_of_whnfStuckTag {st : EStore} (hwf : StoreWF st)
   | proj n i sub => rw [htag] at htg; simp [ENodeView.tagOf, ETag.proj,
       ETag.sort, ETag.fvar, ETag.lam, ETag.forallE, ETag.lit] at htg
 
+/-- con-leche: ConLeche/Verify/Knot.lean:42 whnfCore_succ — the pure knot's
+`whnfCore` slot at `F + 1`, in the record spelling `whnfBody` calls it by. -/
+theorem pureFns_whnfCore_succ (mode : CheckMode) (env : Env) (F d : Nat) (e : Expr)
+    (c : Bool) :
+    (pureFns mode env (F + 1)).whnfCore c d e =
+      ConLeche.whnfCoreBody mode (pureFns mode env F) env c d e := rfl
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1073-1099 whnfStep/whnfBody — the
 five constructors the reduction loop cannot move: `whnfCore` returns them
 unchanged, `reduceNat`'s match needs an `.app` and `unfoldDefinition`'s needs
@@ -512,15 +476,15 @@ a `.const` head, so the first iteration of the loop is `pure e`.  **Two fuel
 levels**, because the loop's own `whnfCore` call consumes one. -/
 theorem whnf_of_stuck {mode : CheckMode} {env : Env} {e : Expr}
     (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
-      (∃ t b m, e = .lam t b) ∨ (∃ t b m, e = .forallE t b) ∨
+      (∃ t b, e = .lam t b) ∨ (∃ t b, e = .forallE t b) ∨
       (∃ l, e = .lit l))
     (F d : Nat) : ConLeche.whnf mode env (F + 2) d e = .ok e := by
   obtain ⟨n, hn⟩ := ConLeche.whnfLoopFuel_succ
   rw [show F + 2 = (F + 1) + 1 from rfl, ConLeche.whnf_succ,
     ConLeche.whnfBody, hn, ConLeche.whnfLoop, ConLeche.whnfStep]
-  rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨t, b, m, rfl⟩ | ⟨t, b, m, rfl⟩ |
+  rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨t, b, rfl⟩ | ⟨t, b, rfl⟩ |
       ⟨l, rfl⟩ <;>
-    simp [ConLeche.pureFns_whnfCore, ConLeche.whnfCoreBody, ConLeche.reduceNat,
+    simp [pureFns_whnfCore_succ, ConLeche.whnfCoreBody, ConLeche.reduceNat,
       ConLeche.unfoldDefinition, ConLeche.Expr.getAppFn, pure, Except.pure,
       bind, Except.bind]
 
@@ -693,7 +657,7 @@ tag. -/
 theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hbody : BodySpec mode env fe
-      (inferBody mode (coreKnot mode fe id fuel) fe)
+      (inferBody (coreKnot mode fe id fuel) fe)
       (ConLeche.inferTypeCore mode env))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -726,53 +690,14 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
             exact hF⟩) rfl rfl,
       hx, hpn, v, hv, hwv, F, hF⟩
 
-/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:408 memoEI_annotate_sim —
-**the `annotate` wrapper**. -/
-theorem memoAnnotate_step {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {fuel : Nat} (henv : ConLeche.EnvWF env)
-    (hbody : BodySpec mode env fe
-      (annotateBody (coreKnot mode fe id fuel) fe)
-      (ConLeche.annotateCore mode env))
-    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
-    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
-    (hw : Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id (fuel + 1)).annotate d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
-  rw [coreKnot_annotate_succ]
-  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  vcgen [hb]
-  all_goals subst_vars
-  case vc1 =>
-    rename_i x hx
-    obtain ⟨a, b, ha, hb', F, hall⟩ := hok.caches.annot i x hx
-    rw [hden] at ha
-    obtain rfl := Option.some.inj ha
-    have hrun := hall d hw.to_wscopedB
-    exact ⟨hok, Ext.refl _, rfl, b, hb',
-      ConLeche.annotateCore_WScoped F _ hrun hw, F, hrun⟩
-  case vc3 => exact hok
-  case vc4 => exact hden
-  case vc2 =>
-    rename_i hpost _
-    obtain ⟨hck, hx, hpn, v, hv, hwv, F, hF⟩ := hpost
-    refine ⟨CheckOK.ofCache hck
-        (CacheOK.insertAnnot hck.caches (denote_ext hden hx) hv
-          ⟨F, fun d' hd' => by
-            rw [ConLeche.annotateCore_depth_inv henv F hd' hw.to_wscopedB]
-            exact hF⟩) rfl rfl,
-      hx, hpn, v, hv, hwv, F, hF⟩
-
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim —
-**the io wrapper**, at the gated mode (`mode.ioGate = true`, which every
-verified mode is): the io body under the io grade's OWN table.  A hit here
+**the io wrapper**: the io body under the io grade's OWN table.  A hit here
 never serves a full-`infer` query and vice versa — DESIGN §8.3's lesson 9,
 which is exactly the fact that the two clauses of `CacheOK` are separate. -/
 theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {fuel : Nat} (henv : ConLeche.EnvWF env) (hg : mode.ioGate = true)
+    {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hbody : BodySpec mode env fe
-      (inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe)
+      (inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe)
       (ConLeche.inferTypeIO mode env))
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -781,7 +706,7 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
-  rw [coreKnot_inferIO_succ, ite_eq_left hg]
+  rw [coreKnot_inferIO_succ]
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
   vcgen [hb]
   all_goals subst_vars
@@ -907,8 +832,8 @@ theorem tag_view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeVi
 
 /-- con-leche: none — `tag_view_bind_triple` when the tag test's `else`
 branch is NOT the view match's own fallthrough (the `.proj` arm of
-`annotateBody`, task #105: a dangling view and a non-constant head fail with
-different errors): each branch is given its own triple. -/
+a walk whose dangling view and non-constant head fail with different
+errors): each branch is given its own triple. -/
 theorem tag_view_bind_triple_else {α : Type} {s₀ : AState} {i : EIdx}
     {v : ENodeView} {t : UInt32} (hv : s₀.store.view i = some v)
     {f : ENodeView → AM α} {e : AM α} {Q : α → AState → Prop}
