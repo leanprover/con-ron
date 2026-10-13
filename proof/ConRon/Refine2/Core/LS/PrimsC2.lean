@@ -15,7 +15,7 @@ those bodies step through that no earlier file supplies:
   `get_d_eidx`) as `LSP` facts about the lists they denote;
 
 Several of these are the same statements regions A2 and C1 add in their own
-files (`PA2.nidx_eq2_ls`, `PC1.certs_ls` …); the coordinator deduplicates at
+files (`PA2.nidx_eq2_ls` …); the coordinator deduplicates at
 merge.
 -/
 import ConRon.Refine2.Core.LS.Prims
@@ -41,16 +41,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 attribute [local lockstep_simp] absConstT
 
 /-! ## Rust-only steps: the mode bits, handle comparisons, record copies -/
-
-@[lockstep] theorem certs_ls (m : kernel.env.CheckMode) :
-    LSP (kernel.env.certs m) (fun b => b = (ConRon.Refine.absMode m).certs) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.certs, Result.ok.injEq] at h; rw [← h]; rfl)
-
-@[lockstep] theorem beta_gate_ls (m : kernel.env.CheckMode) :
-    LSP (kernel.env.beta_gate m) (fun b => b = (ConRon.Refine.absMode m).betaGate) := by
-  intro b h
-  cases m <;> (simp only [kernel.env.beta_gate, Result.ok.injEq] at h; rw [← h]; rfl)
 
 @[lockstep] theorem nidx_eq2_ls (a b : arena.handle.NIdx) :
     LSP (arena.handle.NIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
@@ -105,7 +95,6 @@ theorem i_rec_rule_fire_dup_id {f o : arena.env.IRecRuleFire}
     (h : arena.env.i_rec_rule_fire_dup f = ok o) : o = f := by
   rw [arena.env.i_rec_rule_fire_dup.eq_def] at h
   cases f with
-  | Inert => rw [Result.ok_injective h]
   | Plain => rw [Result.ok_injective h]
   | Nested lvls pins =>
     simp only [] at h
@@ -315,16 +304,6 @@ theorem append_eidx_from_abs {xs ys r : alloc.vec.Vec arena.handle.EIdx}
   show _ = _
   rw [append_eidx_from_abs h, h1]
   simp [absEIdxList, alloc.vec.Vec.with_capacity]
-
-@[lockstep] theorem snoc_eidx_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
-    LSP (arena.core.snoc_eidx xs y)
-      (fun r => TwinEq (absEIdxList xs ++ [absEIdx y]) (absEIdxList r)) := by
-  intro r h
-  rw [arena.core.snoc_eidx] at h
-  obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hp := ConRon.Refine.vec_push_val h
-  show _ = _
-  simp [absEIdxList, hp, dupId_eidx _ _ he]
 
 @[lockstep] theorem snoc2_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx)
     (y z : arena.handle.EIdx) :
@@ -595,20 +574,6 @@ theorem CastFits.val {x : Std.U64} {r : Std.Usize} (h : CastFits x r) (hx : x.va
       simpa [hlt2] using hi
     rw [Array.getElem?_eq_getElem hlt3] at hsome
     rw [Option.some_inj.mp hsome]
-
-/-! ## The projection-function shape test -/
-
-@[lockstep] theorem name_is_proj_fn_shape_ls {n : kernel.name.Name} (hn : ConRon.Refine.NameWF n) :
-    LSP (kernel.level.name_is_proj_fn_shape n)
-      (fun b => b = ConLeche.Name.isProjFnShape (ConRon.Refine.absName n)) :=
-  fun _ h => ConRon.Refine.CoreK.name_is_proj_fn_shape_refines hn h
-
-@[lockstep] theorem i_rec_rule_compare_params_ls (rl : arena.env.IRecRule) :
-    LSP (arena.env.i_rec_rule_compare_params rl) (fun b => b = (absIRecRule rl).compareParams) := by
-  intro b h
-  rw [arena.env.i_rec_rule_compare_params] at h
-  cases hf : rl.fire <;> rw [hf] at h <;> cases Result.ok_injective h <;>
-    simp [IRecRule.compareParams, absIRecRule, absIRecRuleFire, hf]
 
 end ConRon.Refine2.Lockstep.PC2
 

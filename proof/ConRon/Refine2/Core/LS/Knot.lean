@@ -1,5 +1,5 @@
 /-
-# `ConRon.Refine2.Core.LS.Knot` — the knot's six slots as `@[lockstep]` lemmas
+# `ConRon.Refine2.Core.LS.Knot` — the knot's five slots as `@[lockstep]` lemmas
 
 Task #97-P5-Core round 5.  `KnotRel f`'s fields are `Sim₀` statements; here
 each is restated in the `LS` judgement and filed under its port entry
@@ -75,15 +75,5 @@ open ConRon.Arena ConRon.Refine2
       ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).defeq (absU depth) (absEIdx a)
         (absEIdx b)) :=
   LS.ofSim₀ (A := id) fun _ h => hk.defeq hrel hinv hctx hf h
-
-@[lockstep] theorem knot_annotate_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
-    LS pers (fun a b => b = absEIdx a)
-      (arena.core.knot_annotate pers vis st mode lane fu fe depth e) lst
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane f).annotate (absU depth)
-        (absEIdx e)) :=
-  LS.ofSim₀ fun _ h => hk.annotate hrel hinv hctx hf h
 
 end ConRon.Refine2.Lockstep

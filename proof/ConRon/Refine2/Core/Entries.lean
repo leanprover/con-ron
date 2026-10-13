@@ -1,5 +1,5 @@
 /-
-# `ConRon.Refine2.Core.Entries` — the six fueled entry points, from `KnotRel`
+# `ConRon.Refine2.Core.Entries` — the fueled entry points, from `KnotRel`
 
 **Task #97-P5-Core, the tier's interface.**  `ConLeche/Kernel/TypeChecker.lean`'s
 seven (T) declarations live in `arena::core` because the arena has ONE knot
@@ -13,7 +13,7 @@ a knot slot (it runs `r.whnf` and then reads the view), so it belongs in
 `Core/Arms/*` with the rest of the bodies and its statement is there.
 
 **What the Checker tier should call:** `knotRel_checkFuel`, below —
-`KnotRel (absU CHECK_FUEL)`, i.e. `KnotRel 100000` — and then the six
+`KnotRel (absU CHECK_FUEL)`, i.e. `KnotRel 100000` — and then the
 `*_refines`.  **Since task #97-P5-Core round 4 they are LOCKSTEP statements**:
 over `AStateRel₀` (no `StoreWF`), with no `EResolves` premise and a `Sim₀`
 conclusion (no `Ext`).  Task #97-P5-0's finding 3 — the tag-first / view-first
@@ -73,19 +73,6 @@ theorem is_def_eq_core_refines {f : Nat} (hk : KnotRel f) {a b o} (hrel : AState
         (absEIdx a) (absEIdx b)) := by
   rw [arena.core.is_def_eq_core] at hrun
   have h := hk.defeq hrel hinv hctx hf hrun
-  rw [laneKnot_full] at h
-  exact h
-
-/-- `arena::core::annotate_core` against `Arena.annotateCore`. -/
-theorem annotate_core_refines {f : Nat} (hk : KnotRel f) {e o} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (hf : absU fu = f)
-    (hrun : arena.core.annotate_core pers vis st mode fe fu depth e = ok o) :
-    Sim₀ absEIdx pers lst o
-      (Arena.annotateCore (ConRon.Refine.absMode mode) lfe f (absU depth)
-        (absEIdx e)) := by
-  rw [arena.core.annotate_core] at hrun
-  have h := hk.annotate hrel hinv hctx hf hrun
   rw [laneKnot_full] at h
   exact h
 
