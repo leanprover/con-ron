@@ -32,6 +32,7 @@ import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Core.Arms.Infer
 import ConRon.Bridge.Core.Walks.FvarB
 import ConRon.Bridge.ExprOps.Walks
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -511,15 +512,16 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
         vcgen [hcta]
         all_goals (bridge_peel; subst_vars)
         all_goals clear_tag_hyps
-        -- `constTyAt`'s precondition, at the state the arity guard kept
-        case vc1 => rfl
-        rename_i usl hlen _r _s hck hx hp hd hvl'
-        have hlen' : usl = cv.levelParams.length := by simpa using hlen
-        have hl : ls.length = c.toConstantVal.levelParams.length := by
-          rw [hvl] at hvl'; rw [← Option.some.inj hvl', hlen', hlp]
-        exact ⟨hck, hx, hp, _, hd nm ls c hname hus hfind,
-          Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind ls),
-          1, inferIO_const hfind hct hl⟩
+        bridge_frame
+        bridge_fwd
+        -- the arity guard passed: con-leche's instantiated type, closed
+        vc_arm (hlen : ¬(_ != _) = true) (hvl' : some _ = LsStore.viewLen _ us) =>
+          refine SimE.intro (by bridge_frame)
+            (Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _)) (F := 1)
+            (inferIO_const hfind hct ?_)
+          rw [hvl] at hvl'
+          rw [← Option.some.inj hvl', hlp]
+          simpa using hlen
       · -- `vcgen` does not read the case hypothesis: the guard is rewritten
         -- first, and the failing branch then leaves no condition at all
         simp only [ht, ite_true]
@@ -557,28 +559,30 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
       vcgen [hn, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      -- the pin's precondition, then `constE`'s two
-      case vc4 => apply CheckOK.pins; assumption
-      case vc2 => assumption
-      case vc3 => rename_i hpin _ _; exact ⟨_, hpin _ rfl⟩
-      case vc1 =>
-        rename_i hck hx hp hd hsup _ hpin hx1 hp1
-        exact ⟨hck, hx1.trans hx, hp.trans hp1, _, hd _ (hpin _ rfl),
-          by unfold Expr.WScoped; trivial, 1, inferIO_natLit hsup.symm⟩
+      -- the pin's precondition, then `constE`'s two, then the answer
+      bridge_frame [CheckOK.pins]
+      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x) ⊢ ∃ _, _ =>
+        exact ⟨_, hpin _ rfl⟩
+      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x)
+          (hd : ∀ nm, denoteN _ _ = some nm → denoteE _ _ = some _)
+          (hsup : true = _) =>
+        exact SimE.intro (hd _ (hpin _ rfl)) (by unfold Expr.WScoped; trivial) (F := 1)
+          (inferIO_natLit hsup.symm)
     | strVal str =>
       have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
       vcgen [hn, ConRon.Arena.pinString, hce]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      -- the pin's precondition, then `constE`'s two
-      case vc4 => apply CheckOK.pins; assumption
-      case vc2 => assumption
-      case vc3 => rename_i hpin _ _; exact ⟨_, hpin _ rfl⟩
-      case vc1 =>
-        rename_i hck hx hp hd hsup _ hpin hx1 hp1
-        exact ⟨hck, hx1.trans hx, hp.trans hp1, _, hd _ (hpin _ rfl),
-          by unfold Expr.WScoped; trivial, 1, inferIO_strLit hsup.symm⟩
+      -- the pin's precondition, then `constE`'s two, then the answer
+      bridge_frame [CheckOK.pins]
+      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x) ⊢ ∃ _, _ =>
+        exact ⟨_, hpin _ rfl⟩
+      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x)
+          (hd : ∀ nm, denoteN _ _ = some nm → denoteE _ _ = some _)
+          (hsup : true = _) =>
+        exact SimE.intro (hd _ (hpin _ rfl)) (by unfold Expr.WScoped; trivial) (F := 1)
+          (inferIO_strLit hsup.symm)
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — **the `.proj`
