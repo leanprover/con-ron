@@ -163,8 +163,8 @@ def exprTag : Expr → UInt32
   | .sort _ => ETag.sort
   | .const _ _ => ETag.const
   | .app _ _ => ETag.app
-  | .lam _ _ _ => ETag.lam
-  | .forallE _ _ _ => ETag.forallE
+  | .lam _ _ => ETag.lam
+  | .forallE _ _ => ETag.forallE
   | .letE _ _ _ => ETag.letE
   | .lit _ => ETag.lit
   | .proj _ _ _ => ETag.proj
@@ -325,10 +325,10 @@ inductive VD (st : EStore) : ENodeView → Expr → Prop
   | app (f a : EIdx) (ef ea : Expr) :
       denoteE st f = some ef → denoteE st a = some ea →
       VD st (.app f a) (.app ef ea)
-  | lam (ty b : EIdx) (m : ConLeche.BinderMeta) (et eb : Expr) :
+  | lam (ty b : EIdx) (et eb : Expr) :
       denoteE st ty = some et → denoteE st b = some eb →
       VD st (.lam ty b) (.lam et eb)
-  | forallE (ty b : EIdx) (m : ConLeche.BinderMeta) (et eb : Expr) :
+  | forallE (ty b : EIdx) (et eb : Expr) :
       denoteE st ty = some et → denoteE st b = some eb →
       VD st (.forallE ty b) (.forallE et eb)
   | letE (ty w b : EIdx) (et ew eb : Expr) :
@@ -358,10 +358,10 @@ theorem VD.of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
     exact .app f a p q hp hq
   | lam ty b =>
     obtain ⟨p, q, rfl, hp, hq⟩ := denote_lam_inv hwf hv hd
-    exact .lam ty b m p q hp hq
+    exact .lam ty b p q hp hq
   | forallE ty b =>
     obtain ⟨p, q, rfl, hp, hq⟩ := denote_forallE_inv hwf hv hd
-    exact .forallE ty b m p q hp hq
+    exact .forallE ty b p q hp hq
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, hp, hq, hr⟩ := denote_letE_inv hwf hv hd
     exact .letE ty w b p q r hp hq hr

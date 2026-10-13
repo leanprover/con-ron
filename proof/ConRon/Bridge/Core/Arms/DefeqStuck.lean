@@ -61,34 +61,34 @@ theorem dqArm_stuck (hμ : mode.verifiedChecks = true)
 the left**. -/
 theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' ty₁ bd₁ : EIdx)
-    (m₁ : ConLeche.BinderMeta) (t₁ c₁ y' : Expr)
+    (t₁ c₁ y' : Expr)
     (hok : CheckOK mode env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
-    (hx : denoteE s₁.store a' = some (.lam t₁ c₁ m₁))
+    (hx : denoteE s₁.store a' = some (.lam t₁ c₁))
     (hty : denoteE s₁.store ty₁ = some t₁)
     (hbd : denoteE s₁.store bd₁ = some c₁)
     (hy : denoteE s₁.store b' = some y')
-    (hwx : Expr.WScoped d (.lam t₁ c₁ m₁)) (hwy : Expr.WScoped d y')
+    (hwx : Expr.WScoped d (.lam t₁ c₁)) (hwy : Expr.WScoped d y')
     (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
-        (.lam t₁ c₁ m₁) y' =
-      (ConLeche.etaCert mode (ConLeche.pureFns mode env F) env d t₁ c₁ m₁ y'
+        (.lam t₁ c₁) y' =
+      (ConLeche.etaCert mode (ConLeche.pureFns mode env F) env d t₁ c₁ y'
         >>= fun b => if b then pure true else
           ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
-            (.lam t₁ c₁ m₁) y'))
+            (.lam t₁ c₁) y'))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
-      (.lam t₁ c₁ m₁) y' = .ok r → G F r)) :
+      (.lam t₁ c₁) y' = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
         let e ← ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₁
-          bd₁ m₁ b'
+          bd₁ b'
         if e = true then pure true
         else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
-  refine triple_seq (etaCert_spec hsim s₁ d ty₁ bd₁ b' m₁ t₁ c₁ y' hok hty hbd
+  refine triple_seq (etaCert_spec hsim s₁ d ty₁ bd₁ b' t₁ c₁ y' hok hty hbd
     hy hwx hwy) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
   have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode env F)
-      env d t₁ c₁ m₁ y' = .ok e) :=
+      env d t₁ c₁ y' = .ok e) :=
     Ev.of_mono (fun hle h => etaCertFueled_mono hle h) he
   cases e
   · simp only [Bool.false_eq_true, ↓reduceIte]
@@ -106,34 +106,34 @@ theorem dqArm_etaL (hμ : mode.verifiedChecks = true)
 the right**. -/
 theorem dqArm_etaR (hμ : mode.verifiedChecks = true)
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) (a' b' ty₂ bd₂ : EIdx)
-    (m₂ : ConLeche.BinderMeta) (x' t₂ c₂ : Expr)
+    (x' t₂ c₂ : Expr)
     (hok : CheckOK mode env fe s₁)
     (hx₁ : Ext s₀.store s₁.store) (hp₁ : s₁.pins = s₀.pins)
     (hx : denoteE s₁.store a' = some x')
-    (hy : denoteE s₁.store b' = some (.lam t₂ c₂ m₂))
+    (hy : denoteE s₁.store b' = some (.lam t₂ c₂))
     (hty : denoteE s₁.store ty₂ = some t₂)
     (hbd : denoteE s₁.store bd₂ = some c₂)
-    (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d (.lam t₂ c₂ m₂))
+    (hwx : Expr.WScoped d x') (hwy : Expr.WScoped d (.lam t₂ c₂))
     (hred : ∀ F, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
-        x' (.lam t₂ c₂ m₂) =
-      (ConLeche.etaCert mode (ConLeche.pureFns mode env F) env d t₂ c₂ m₂ x'
+        x' (.lam t₂ c₂) =
+      (ConLeche.etaCert mode (ConLeche.pureFns mode env F) env d t₂ c₂ x'
         >>= fun b => if b then pure true else
           ConLeche.stuckIrrel (ConLeche.pureFns mode env F) env d
-            x' (.lam t₂ c₂ m₂)))
+            x' (.lam t₂ c₂)))
     (hG : Ev (fun F => ∀ r, ConLeche.defeqStuck mode (ConLeche.pureFns mode env F) env d
-      x' (.lam t₂ c₂ m₂) = .ok r → G F r)) :
+      x' (.lam t₂ c₂) = .ok r → G F r)) :
     ⦃fun s => s = s₁⦄
       (do
         let e ← ConRon.Arena.etaCert mode (coreKnot mode fe id fuel) fe d ty₂
-          bd₂ m₂ a'
+          bd₂ a'
         if e = true then pure true
         else ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a' b')
     ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
-  refine triple_seq (etaCert_spec hsim s₁ d ty₂ bd₂ a' m₂ t₂ c₂ x' hok hty hbd
+  refine triple_seq (etaCert_spec hsim s₁ d ty₂ bd₂ a' t₂ c₂ x' hok hty hbd
     hx hwy hwx) ?_
   rintro e s2 ⟨hok2, hx2, hp2, he⟩
   have hE : Ev (fun F => ConLeche.etaCert mode (ConLeche.pureFns mode env F)
-      env d t₂ c₂ m₂ x' = .ok e) :=
+      env d t₂ c₂ x' = .ok e) :=
     Ev.of_mono (fun hle h => etaCertFueled_mono hle h) he
   cases e
   · simp only [Bool.false_eq_true, ↓reduceIte]
@@ -515,15 +515,15 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
   refine view_bind_triple hvb ?_
   have hA := VD.of_view hwf hva hx
   have hB := VD.of_view hwf hvb hy
-  rcases hA with ⟨i1⟩ | ⟨k1, t1, et1, ht1⟩ | ⟨u1, l1, hl1⟩ | ⟨n1, us1, nm1, ls1, hn1, hls1⟩ | ⟨f1, a1, ef1, ea1, hf1, ha1⟩ | ⟨ty1, bd1, m1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, bd1, m1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, w1, bd1, et1, ew1, eb1, hty1, hw1, hbd1⟩ | ⟨lit1⟩ | ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
+  rcases hA with ⟨i1⟩ | ⟨k1, t1, et1, ht1⟩ | ⟨u1, l1, hl1⟩ | ⟨n1, us1, nm1, ls1, hn1, hls1⟩ | ⟨f1, a1, ef1, ea1, hf1, ha1⟩ | ⟨ty1, bd1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, bd1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, w1, bd1, et1, ew1, eb1, hty1, hw1, hbd1⟩ | ⟨lit1⟩ | ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
   · -- left: bvar
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
@@ -531,13 +531,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: fvar
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_fvar hμ henv hsim a' b' k1 k2 et1 et2 hok hx₁ hp₁ hx hy hwx hwy hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
@@ -545,13 +545,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: sort
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
@@ -559,13 +559,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: const
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_const hμ henv hsim a' b' n1 n2 us1 us2 nm1 nm2 ls1 ls2 hok hx₁ hp₁ hx hy hn1 hn2 hls1 hls2 hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
@@ -573,13 +573,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: app
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · exact dqArm_app hμ henv hsim a' b' ef1 ea1 ef2 ea2 hok hx₁ hp₁ hx hy hwx hwy hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
     · rcases lit2 with nv2 | sv2
@@ -587,27 +587,27 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_strR hμ henv hsim a' b' f1 sv2 ef1 ea1 hok hx₁ hp₁ hx hy hf1 hwx hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by (cases ef1 <;> rfl)) hG
   · -- left: lam
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
-      · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 m1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaL hμ henv hsim a' b' ty1 bd1 et1 eb1 _ hok hx₁ hp₁ hx hty1 hbd1 hy hwx hwy (fun _ => by rfl) hG
   · -- left: forallE
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
@@ -615,13 +615,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: letE
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
@@ -631,13 +631,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
   · -- left: lit
     rcases lit1 with nv1 | sv1
     · -- Nat literal
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-      · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · rcases lit2 with nv2 | sv2
@@ -645,13 +645,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
         · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · -- String literal
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_strL hμ henv hsim a' b' f2 sv1 ef2 ea2 hok hx₁ hp₁ hx hy hf2 hwy hG
-      · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+      · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · rcases lit2 with nv2 | sv2
@@ -659,13 +659,13 @@ theorem defeqStuck_spec {fe : IFEnv} {fuel : Nat}
         · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
       · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
   · -- left: proj
-    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+    rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
-    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 m2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
+    · exact dqArm_etaR hμ henv hsim a' b' ty2 bd2 _ et2 eb2 hok hx₁ hp₁ hx hy hty2 hbd2 hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · exact dqArm_stuck hμ henv hsim a' b' _ _ hok hx₁ hp₁ hx hy hwx hwy (fun _ => by rfl) hG
     · rcases lit2 with nv2 | sv2
