@@ -98,8 +98,7 @@ theorem EStore_view_of_tag_const (st : EStore) (i : EIdx)
       ite_eq_right (by rw [hi]; simp [ETag.sort, ETag.const]),
       ite_eq_left (by rw [hi]; rfl)]
     cases t.consts.node? i.idxNat <;> rfl
-  rw [EStore.view, EStore.viewConst,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
+  rw [EStore.view, EStore.viewConst]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetConst]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]
@@ -561,11 +560,6 @@ structure ExprOpsHyp (pers : arena.store.PersTier) : Prop where
     AStateRel₀ pers st lst → AStateInv pers st →
     arena.expr_ops.loose_bvars_bounded_fast pers st fuel k e = ok o →
     Sim₀ id pers lst o (looseBVarsBoundedFast (absU fuel) (absU k) (absEIdx e))
-  /-- `lam_pw_refines`. -/
-  lamPw : ∀ {st lst} {h : arena.handle.EIdx} {o},
-    AStateRel₀ pers st lst → AStateInv pers st →
-    arena.expr_ops.lam_pw pers st h = ok o →
-    AOut₀ ExprOps.absPwOpt pers o st ((lamPw (absEIdx h)).run lst)
   /-- `pi_result_refines`. -/
   piResult : ∀ {st lst} {fuel : Std.U64} {h : arena.handle.EIdx} {o},
     AStateRel₀ pers st lst → AStateInv pers st →
