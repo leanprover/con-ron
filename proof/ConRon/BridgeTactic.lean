@@ -997,6 +997,12 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) :
     let (news, dl) := news
     deadL := dl
     if news.isEmpty then break
+    -- a round that derived a VIEW (a lemma of the list read one off a
+    -- projection's answer) revives the view inversions
+    if news.any (fun (_, t) => match t.eq? with
+        | some (_, l, _) => l.isAppOf `ConRon.Arena.EStore.view
+        | none => false) then
+      deadL := #[]
     seen := seen ++ news.map (·.2)
     let (fvs, g') ← g.assertHypotheses (news.map fun (p, t) =>
       { userName := `fwd, type := t, value := p })
