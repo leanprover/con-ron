@@ -84,6 +84,43 @@ theorem isBoolTrue_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
   exact isBoolTrue_of_not_const hwf hv he
     (fun c us hh => view_tagOf_ne hv (t := ETag.const) ht (by rw [hh]; rfl))
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
+universe-argument test fails: the handle is not the empty-levels pin, so the
+denoted list is not `[]` (task #120: the arm as a lemma in the shape the
+verification condition has). -/
+theorem isBoolTrue_levels {st : EStore} (hwf : StoreWF st) {u e : LsIdx}
+    {n : ConLeche.Name} {l : List Level} (hne : (u != e) = true)
+    (hus : denoteLs st.lss u = some l) (hel : denoteLs st.lss e = some []) :
+    false = ConLeche.Expr.isBoolTrue (.const n l) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  cases l with
+  | nil => exact absurd (denoteLs_inj hrk.lss hus hel) (by simpa using hne)
+  | cons a as => rfl
+
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
+universe arguments are the empty list, and the name decides by handle
+(`denoteN_inj`: index equality IS name equality). -/
+theorem isBoolTrue_name {st : EStore} (hwf : StoreWF st) {u e : LsIdx}
+    {c b : NIdx} {n : ConLeche.Name} {l : List Level} (hne : ¬ (u != e) = true)
+    (hus : denoteLs st.lss u = some l) (hel : denoteLs st.lss e = some [])
+    (hc : denoteN st.ns c = some n)
+    (hbtn : denoteN st.ns b = some ConLeche.boolTrueName) :
+    (c == b) = ConLeche.Expr.isBoolTrue (.const n l) := by
+  obtain ⟨rk, hrk⟩ := hwf
+  obtain rfl : u = e := by simpa using hne
+  obtain rfl := eq_of_eq_some hus hel
+  simp only [ConLeche.Expr.isBoolTrue]
+  by_cases hb : n = ConLeche.boolTrueName
+  · subst hb
+    obtain rfl := denoteN_inj hrk.nsWF hc hbtn
+    simp only [beq_self_eq_true]
+  · have h1 : (c == b) = false := by
+      simp only [beq_eq_false_iff_ne]
+      intro hcc; subst hcc; exact hb (eq_of_eq_some hc hbtn)
+    have h2 : (n == ConLeche.boolTrueName) = false := by
+      simp only [beq_eq_false_iff_ne]; exact hb
+    rw [h1, h2]
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue —
 **THEOREM 1 for `isBoolTrue`**: is `e` the constant `Bool.true` (the official
 kernel's `is_constant(e, Bool.true)`)?  CLOSED.
@@ -107,38 +144,11 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
   have hp := hok.pins
   have hbt := pinNames_boolTrue
-  obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
     ConRon.Arena.boolTrueName, ConRon.Arena.pinBoolTrue]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  bridge_fwd [isBoolTrue_of_not_const, isBoolTrue_of_tag]
-  -- (the two not-a-constant arms, by view and by tag, close here)
-  bridge_frame
-  -- the universe arguments are not the empty list
-  vc_arm (hne : (?u1 != ?e1) = true) (hel : denoteLs _ ?e1 = some [])
-      (hus : denoteLs _ ?u1 = some ?l1) =>
-    cases l1 with
-    | nil => exact absurd (denoteLs_inj hrk.lss hus hel) (by simpa using hne)
-    | cons a as => rfl
-  -- they are: the name decides, by handle
-  vc_arm (hne : ¬ (?u1 != ?e1) = true) (hel : denoteLs _ ?e1 = some [])
-      (hus : denoteLs _ ?u1 = some ?l1) (hc : denoteN _ ?c1 = some ?n1)
-      (hbtn : denoteN _ ?b1 = some ConLeche.boolTrueName)
-      ⊢ (?c1 == ?b1) = _ =>
-    obtain rfl : u1 = e1 := by simpa using hne
-    obtain rfl := eq_of_eq_some hus hel
-    simp only [ConLeche.Expr.isBoolTrue]
-    by_cases hb : n1 = ConLeche.boolTrueName
-    · subst hb
-      obtain rfl := denoteN_inj hrk.nsWF hc hbtn
-      simp only [beq_self_eq_true]
-    · have h1 : (c1 == b1) = false := by
-        simp only [beq_eq_false_iff_ne]
-        intro hcc; subst hcc; exact hb (eq_of_eq_some hc hbtn)
-      have h2 : (n1 == ConLeche.boolTrueName) = false := by
-        simp only [beq_eq_false_iff_ne]; exact hb
-      rw [h1, h2]
+  bridge_auto [isBoolTrue_of_not_const, isBoolTrue_of_tag, isBoolTrue_levels,
+    isBoolTrue_name]
 
 /-! ## The axiom census -/
 
@@ -146,6 +156,8 @@ section Census
 
 #print axioms pinNames_boolTrue
 #print axioms isBoolTrue_of_not_const
+#print axioms isBoolTrue_levels
+#print axioms isBoolTrue_name
 /-! **The round's third closed non-slot walk**, and the first that is not a
 memo wrapper. -/
 #print axioms isBoolTrue_spec
