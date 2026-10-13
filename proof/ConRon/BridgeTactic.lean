@@ -681,7 +681,7 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
         let (args, _, concl) ← forallMetaBoundedTelescope (← inferType l) (n - k')
         unless ← mayMatch concl t do return none
         unless ← same concl t do return none
-        unless ← proveArgs fuel args.toList do return none
+        unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
         let e ← instantiateMVars (mkAppN l args)
         if e.hasExprMVar then return none
         return some e
@@ -692,38 +692,42 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
 frame predicate nor a denotation fact (`MemoOK f tbl st`) is matched against
 EVERY hypothesis, with backtracking: the first match fixes metavariables
 (here the store) that a later premise (`Ext st s`) may refute. -/
-partial def proveArgs (fuel : Nat) (args : List Expr) : FM Bool := do
+partial def proveArgs (fuel : Nat) (ghd : Option Name) (args : List Expr) : FM Bool := do
   match args with
   | [] => return true
   | a :: rest =>
-    if ← a.mvarId!.isAssigned then return ← proveArgs fuel rest
+    if ← a.mvarId!.isAssigned then return ← proveArgs fuel ghd rest
     let aT ← instantiateMVars (← inferType a)
-    unless ← isProp aT do return ← proveArgs fuel rest
+    unless ← isProp aT do return ← proveArgs fuel ghd rest
     -- a closed premise: proved; one with metavariables (`CheckOK ?s`, a
     -- frame or fact premise included) branches over the hypotheses first
     if !aT.hasExprMVar then
       let some pa ← prove (fuel - 1) aT | return false
       unless ← supply a pa do return false
-      return ← proveArgs fuel rest
+      return ← proveArgs fuel ghd rest
     let aTn ← normNeg aT
     for h in (← read).hyps.reverse do
       unless ← mayMatch h.ty aTn do continue
       let s ← save
       if (← same h.ty aTn) && (← supply a h.pf) then
-        if ← proveArgs fuel rest then return true
+        if ← proveArgs fuel ghd rest then return true
       restore s
-    -- no hypothesis: the search itself — for a frame or fact premise only.
-    -- A relation premise with metavariables (`RelE f ?st c st' r`, the
-    -- premise of a transport lemma such as `RelE.ext`) would re-enter the
-    -- lemma list with a free store, every lemma unifying with it, at every
-    -- fuel level: 27 s on one walk (task #120 wave 2).  It is matched
-    -- against hypotheses only; `bridge_auto`'s forward step has put the step
+    -- no hypothesis: the search itself — except for an answer-relation
+    -- premise (`RelE f ?st c st' r`, through `abbrev`s: a transport lemma's,
+    -- a step lemma's child), an equation (a view read `st.view h = some
+    -- (.app ?f ?a)`: the search would unify it with every equation), or one
+    -- of the goal's own head, with metavariables: it would re-enter the lemma
+    -- list with a free store, every lemma unifying with it, at every fuel
+    -- level — 27 s on one walk (task #120 wave 2).  It is matched against
+    -- hypotheses only; `bridge_auto`'s forward step has put the step
     -- lemmas' answers there.
-    unless isFrameShape aT || isFactShape aT do return false
+    let hd := (← whnfR aT).getAppFn.constName?
+    if !(isFrameShape aT || isFactShape aT) &&
+        (hd == ghd || hd.any relNames.contains || hd == some ``Eq) then return false
     let s ← save
     if let some pa ← prove (fuel - 1) aT then
       if ← supply a pa then
-        if ← proveArgs fuel rest then return true
+        if ← proveArgs fuel ghd rest then return true
     restore s
     return false
 
