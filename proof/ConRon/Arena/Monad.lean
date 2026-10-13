@@ -32,7 +32,7 @@ It adds no store lemma of its own; what it adds is
 imports nothing from it); the two are the same constructors and P2d merges
 them when the driver is wired to the checker.
 -/
-import ConRon.Arena.WFSkip -- TEMP(task #119): WFProofs is being repaired on t119-twin-wf
+import ConRon.Arena.WFProofs
 import ConRon.Arena.CoreState
 import ConLeche.Kernel.Level
 

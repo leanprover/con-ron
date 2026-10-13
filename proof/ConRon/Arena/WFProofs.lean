@@ -1126,7 +1126,7 @@ theorem denoteE_inj {st : EStore} (h : StoreWF st) {i j : EIdx} {x : Expr}
 /-! ### The derived word is `ConLeche.Expr.data` of the denotation -/
 
 /-- con-leche: ConLeche/Kernel/Expr.lean:256-375 Expr — the `data` computed
-field, lines 357-402.  **Exactness** of the packed derived word: this is the
+field, lines 329-374.  **Exactness** of the packed derived word: this is the
 lemma DESIGN §8.3 asks for, "so `derived st i = (denote st i).data` is an
 exactness lemma and every pure-side lemma that reads `data` transfers". -/
 theorem EStore.derived_exact_at {st : EStore} {rk : EIdx → Nat}
