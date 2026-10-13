@@ -12,7 +12,7 @@ tiers down (DESIGN §8.4, "correctness before proofs"):
 > `checkDeclsPure` applied to the SAME values.
 
 The comparison is over the **whole outcome**: an accept must meet an accept
-at the same environment — every constant, its annotated type and its stored
+at the same environment — every constant, its type and its stored
 value compared as `ConstantInfo` values — and a failure must meet a failure
 of the same KIND (`errEq`; messages are not compared, DESIGN §3.1 — since
 task #97-T2-LOCKSTEP lane Checker the twin's declines carry the Rust port's
@@ -210,7 +210,7 @@ private def dOpaque : Declaration :=
 /-- con-leche: none — `sorryAx`: the one axiom tolerated as a DECLARATION, installing nothing. -/
 private def dSorry : Declaration :=
   .axiomDecl ⟨ConLeche.sorryAxName, [],
-    .forallE (.sort (.succ .zero)) (.bvar 0) ⟨.never⟩⟩
+    .forallE (.sort (.succ .zero)) (.bvar 0)⟩
 
 /-- con-leche: none — `propext` at a shape the pinned `Iff` family does not back. -/
 private def dPropext : Declaration :=
@@ -224,15 +224,15 @@ subject.  The environment has no `Nat.add` dependencies, so the gate declines
 with its environment message. -/
 private def dNatAdd : Declaration :=
   .defnDecl ⟨ConLeche.natName.str "add", [],
-    .forallE natTy (.forallE natTy natTy ⟨.never⟩) ⟨.never⟩⟩
-    (.lam natTy (.lam natTy (.bvar 1) ⟨.never⟩) ⟨.never⟩) (.regular 1)
+    .forallE natTy (.forallE natTy natTy)⟩
+    (.lam natTy (.lam natTy (.bvar 1))) (.regular 1)
 
 /-- con-leche: none — `Nat.div` under a nonstandard body: the WF-recursive pin gate's subject,
 declining at `divModEnvGuard` (the environment has no `Nat.ble`). -/
 private def dNatDiv : Declaration :=
   .defnDecl ⟨ConLeche.natName.str "div", [],
-    .forallE natTy (.forallE natTy natTy ⟨.never⟩) ⟨.never⟩⟩
-    (.lam natTy (.lam natTy (.bvar 1) ⟨.never⟩) ⟨.never⟩) (.regular 1)
+    .forallE natTy (.forallE natTy natTy)⟩
+    (.lam natTy (.lam natTy (.bvar 1))) (.regular 1)
 
 /-! ## The lists -/
 
@@ -365,10 +365,9 @@ private def chkStdAxiom (envCL : ConLeche.Env) (cv : ConstantVal) : Bool :=
 #guard chkStdAxiom envBasis ⟨ConLeche.choiceName, [], .sort .zero⟩
 #guard chkStdAxiom envBasis ⟨anon.str "x", [], natTy⟩
 
-/-- con-leche: none — the arena's `matchesPin` against con-leche's, on the
-pinned `Iff` shape and on a term that differs only in a binder's `pw`
-datum (which the comparison forgives) and on one that differs in its
-type (which it does not). -/
+/-- con-leche: none — the arena's `matchesPin` against con-leche's (plain
+equality since con-leche's task #342): an equal pin, a different type, a
+binder type that differs in its codomain, and different level parameters. -/
 private def chkMatchesPin (cv pin : ConstantVal) : Bool :=
   let prog : AM Bool := do
     let (m, a) ← Frontend.internCV ∅ cv
@@ -380,8 +379,8 @@ private def chkMatchesPin (cv pin : ConstantVal) : Bool :=
 
 #guard chkMatchesPin ⟨twoName, [], natTy⟩ ⟨twoName, [], natTy⟩
 #guard chkMatchesPin ⟨twoName, [], natTy⟩ ⟨twoName, [], .sort .zero⟩
-#guard chkMatchesPin ⟨twoName, [], .forallE natTy natTy ⟨.never⟩⟩
-  ⟨twoName, [], .forallE natTy natTy ⟨.ifAllZero []⟩⟩
+#guard chkMatchesPin ⟨twoName, [], .forallE natTy natTy⟩
+  ⟨twoName, [], .forallE natTy (.sort .zero)⟩
 #guard chkMatchesPin ⟨twoName, [anon.str "u"], natTy⟩ ⟨twoName, [], natTy⟩
 
 /-- con-leche: none — the arena's `canonEqList` against con-leche's, on the
