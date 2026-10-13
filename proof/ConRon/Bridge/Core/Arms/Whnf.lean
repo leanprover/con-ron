@@ -133,18 +133,6 @@ theorem whnfLoop_done_ex {F₁ F₂ d n : Nat} {e e₁ : Expr}
     (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
     (reduceNatFueled_mono (Nat.le_max_right _ _) h2) h3⟩
 
-/-- con-leche: none — an optional handle that is `some` denotes a `some`. -/
-theorem denoteEO_some_inv {st : EStore} {r : EIdx} {v : Option Expr}
-    (h : denoteEO st (some r) = some v) : ∃ x, v = some x ∧ denoteE st r = some x := by
-  simp only [denoteEO, Option.map_eq_some_iff] at h
-  obtain ⟨x, hx, rfl⟩ := h
-  exact ⟨x, rfl, hx⟩
-
-/-- con-leche: none — the absent handle denotes `none`. -/
-theorem denoteEO_none_inv {st : EStore} {v : Option Expr}
-    (h : denoteEO st none = some v) : v = none :=
-  (Option.some.inj h).symm
-
 /-! ## 2. The entry bracket -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the body IS the

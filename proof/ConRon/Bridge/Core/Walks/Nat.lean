@@ -851,40 +851,6 @@ theorem natOpResult_wscoped {c : ConLeche.Name} {a b d : Nat} {y : Expr}
   rw [ite_eq_right h14] at h
   cases h
 
-/-- con-leche: none — `CheckOK`'s two projections the precondition goals
-of `reduceNat` ask for. -/
-theorem CheckOK.wf' {s : AState} (h : CheckOK mode env fe s) : StoreWF s.store :=
-  h.state.wf
-
-/-- con-leche: none — the unary shape: an application of a level-free
-constant, read off two views. -/
-theorem unary_shape {st : EStore} (hwf : StoreWF st) {e f a : EIdx}
-    {c : NIdx} {us el : LsIdx} {x : Expr}
-    (hve : st.view e = some (.app f a)) (hvc : st.view f = some (.const c us))
-    (hden : denoteE st e = some x) (hel : denoteLs st.lss el = some []) :
-    ∃ nm ls ax, x = .app (.const nm ls) ax ∧ denoteN st.ns c = some nm ∧
-      denoteE st a = some ax ∧ ((us != el) = (ls != [])) := by
-  obtain ⟨fx, ax, rfl, hf, ha⟩ := denote_app_inv hwf hve hden
-  obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hwf hvc hf
-  obtain ⟨rk, hrk⟩ := hwf
-  exact ⟨nm, ls, ax, rfl, hn, ha, by simp only [bne, beq_of_denoteLs hrk.lss hls hel]⟩
-
-/-- con-leche: none — the binary shape. -/
-theorem binary_shape {st : EStore} (hwf : StoreWF st) {e f₂ f a b : EIdx}
-    {c : NIdx} {us el : LsIdx} {x : Expr}
-    (hve : st.view e = some (.app f₂ b)) (hvf2 : st.view f₂ = some (.app f a))
-    (hvc : st.view f = some (.const c us))
-    (hden : denoteE st e = some x) (hel : denoteLs st.lss el = some []) :
-    ∃ nm ls ax bx, x = .app (.app (.const nm ls) ax) bx ∧
-      denoteN st.ns c = some nm ∧ denoteE st a = some ax ∧
-      denoteE st b = some bx ∧ ((us != el) = (ls != [])) := by
-  obtain ⟨fx, bx, rfl, hf, hb⟩ := denote_app_inv hwf hve hden
-  obtain ⟨gx, ax, rfl, hg, ha⟩ := denote_app_inv hwf hvf2 hf
-  obtain ⟨nm, ls, rfl, hn, hls⟩ := denote_const_inv hwf hvc hg
-  obtain ⟨rk, hrk⟩ := hwf
-  exact ⟨nm, ls, ax, bx, rfl, hn, ha, hb,
-    by simp only [bne, beq_of_denoteLs hrk.lss hls hel]⟩
-
 /-! ### `reduceNat`'s exits, in the shape `bridge_fwd` leaves them (task #120)
 
 Each verification condition of `reduceNat_spec`, after `bridge_frame` and

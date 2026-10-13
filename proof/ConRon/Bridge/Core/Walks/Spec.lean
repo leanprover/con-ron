@@ -73,34 +73,10 @@ def SimBOp (P : Nat → CheckM Bool) (x : Bool) : Prop := ∃ F, P F = .ok x
 `Bridge/Rel.lean`'s five, in the shapes above.  `SimBOp` and `SimLOp`
 need `.ext` only where a store appears, which is `SimLOp`. -/
 
-/-- con-leche: none — **the `some` answer, read backwards**: a walk that
-answered a handle denotes it, and the pure call answered that denotation.
-The inverse of `SimOOp.of_some`, and what a CALLER of an `Option`-valued walk
-(`whnfStep`'s two) needs to continue on the reduct. -/
-theorem SimOOp.some_inv {P : Nat → CheckM (Option Expr)} {d : Nat}
-    {st : EStore} {j : EIdx} (h : SimOOp P d st (Option.some j)) :
-    ∃ v, denoteE st j = Option.some v ∧ Expr.WScoped d v ∧
-      ∃ F, P F = .ok (Option.some v) := by
-  obtain ⟨w, hw, hsc, F, hF⟩ := h
-  simp only [denoteEO, Option.map_eq_some_iff] at hw
-  obtain ⟨v, hv, rfl⟩ := hw
-  exact ⟨v, hv, hsc v rfl, F, hF⟩
-
-/-- con-leche: none — **the `none` answer, read backwards**. -/
-theorem SimOOp.none_inv {P : Nat → CheckM (Option Expr)} {d : Nat}
-    {st : EStore} (h : SimOOp P d st Option.none) :
-    ∃ F, P F = .ok Option.none := by
-  obtain ⟨w, hw, _, F, hF⟩ := h
-  simp only [denoteEO] at hw
-  obtain rfl := Option.some.inj hw
-  exact ⟨F, hF⟩
-
 /-! ## 4. The axiom census -/
 
 section Census
 
-#print axioms SimOOp.some_inv
-#print axioms SimOOp.none_inv
 
 end Census
 

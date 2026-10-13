@@ -41,7 +41,9 @@ import ConRon.BridgeTactic
 
 namespace ConRon.Bridge
 
-open ConRon.Arena
+open ConRon.Arena ConLeche
+
+set_option autoImplicit false
 
 /-! ## 1. The lemmas the search composes -/
 
@@ -91,11 +93,6 @@ theorem isSome_denote_ext {st st' : EStore} {h : EIdx}
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
   rw [denote_ext he hx]; rfl
 
-/-- con-leche: none — the denotation fact that discharges an
-`∃ v, denote… = some v ∧ P v` precondition. -/
-theorem exists_some_and {α : Type} {o : Option α} {a : α} {P : α → Prop}
-    (h : o = some a) (hp : P a) : ∃ v, o = some v ∧ P v := ⟨a, h, hp⟩
-
 /-- con-leche: none — a function's answer is unique. -/
 theorem eq_of_eq_some {α : Type} {o : Option α} {a b : α} (h₁ : o = some a)
     (h₂ : o = some b) : a = b := Option.some.inj (h₁.symm.trans h₂)
@@ -111,6 +108,99 @@ theorem MemoOK.get_hit' {f : Nat → ConLeche.Expr → ConLeche.Expr}
     RelE (f c) st₁ h st₂ r := by
   subst ht h₁ h₂
   exact MemoOK.get (k := (h, c)) hm hk.symm
+
+/-! ## 2. The tag tests and the optional handle (task #120)
+
+The tag-first twins test `h.tag == ETag.k` before they project; `exprTag`
+turns such a test into a fact about the denotation, in the `Bool` shape
+`contradiction` decides once the denotation is split by constructor — which
+is `bridge_finish`'s case split. -/
+
+/-- con-leche: none — **the constructor tag of a denotation**: the four tag
+bits of a handle are the tag of the expression it denotes. -/
+def exprTag : Expr → UInt32
+  | .bvar _ => ETag.bvar
+  | .fvar _ _ => ETag.fvar
+  | .sort _ => ETag.sort
+  | .const _ _ => ETag.const
+  | .app _ _ => ETag.app
+  | .lam _ _ => ETag.lam
+  | .forallE _ _ => ETag.forallE
+  | .letE _ _ _ => ETag.letE
+  | .lit _ => ETag.lit
+  | .proj _ _ _ => ETag.proj
+
+/-- con-leche: none — DESIGN §8.3: a handle's tag is its denotation's. -/
+theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    (hd : denoteE st h = some e) : h.tag = exprTag e := by
+  obtain ⟨v, hv⟩ := denoteE_view hd
+  rw [EStore.tagOf_of_view hv]
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv hd]; rfl
+  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hd; rfl
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hd; rfl
+  | const n us => obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hd; rfl
+  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv hd; rfl
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
+  | forallE ty b =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv hd; rfl
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv hd; rfl
+  | lit l => rw [denote_lit_inv hwf hv hd]; rfl
+  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
+
+
+/-- con-leche: none — a TRUE tag test is a tag of the denotation
+(`bridge_fwd`'s default). -/
+theorem exprTag_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    {t : UInt32} (hd : denoteE st h = some e) (ht : (h.tag == t) = true) :
+    (exprTag e == t) = true := by
+  rw [← tag_of_denote hwf hd]; exact ht
+
+/-- con-leche: none — a FALSE tag test, likewise. -/
+theorem exprTag_of_not_tag {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    {t : UInt32} (hd : denoteE st h = some e) (ht : ¬ (h.tag == t) = true) :
+    ¬ (exprTag e == t) = true := by
+  rw [← tag_of_denote hwf hd]; exact ht
+
+/-- con-leche: none — an optional handle that is `some` denotes a `some`. -/
+theorem denoteEO_some_inv {st : EStore} {r : EIdx} {v : Option ConLeche.Expr}
+    (h : denoteEO st (some r) = some v) : ∃ x, v = some x ∧ denoteE st r = some x := by
+  simp only [denoteEO, Option.map_eq_some_iff] at h
+  obtain ⟨x, hx, rfl⟩ := h
+  exact ⟨x, rfl, hx⟩
+
+/-- con-leche: none — the absent handle denotes `none`. -/
+theorem denoteEO_none_inv {st : EStore} {v : Option ConLeche.Expr}
+    (h : denoteEO st none = some v) : v = none :=
+  (Option.some.inj h).symm
+
+/-- con-leche: none — the view projections' answers in the orientation
+`vcgen` hands them (`some (f, a) = st.viewApp i`) under a true tag test: the
+view itself, for the inversions (task #120: `bridge_fwd`'s defaults). -/
+theorem view_of_viewApp_tag' {st : EStore} {i f a : EIdx}
+    (htg : (i.tag == ETag.app) = true) (h : some (f, a) = st.viewApp i) :
+    st.view i = some (.app f a) := view_of_viewApp_tag htg h.symm
+
+theorem view_of_viewSort_tag' {st : EStore} {i : EIdx} {u : LIdx}
+    (htg : (i.tag == ETag.sort) = true) (h : some u = st.viewSort i) :
+    st.view i = some (.sort u) := view_of_viewSort_tag htg h.symm
+
+theorem view_of_viewBVar_tag' {st : EStore} {i : EIdx} {k : Nat}
+    (htg : (i.tag == ETag.bvar) = true) (h : some k = st.viewBVar i) :
+    st.view i = some (.bvar k) := view_of_viewBVar_tag htg h.symm
+
+theorem view_of_viewConst_tag' {st : EStore} {i : EIdx} {n : NIdx} {us : LsIdx}
+    (htg : (i.tag == ETag.const) = true) (h : some (n, us) = st.viewConst i) :
+    st.view i = some (.const n us) := view_of_viewConst_tag htg h.symm
+
+theorem view_of_viewLet_tag' {st : EStore} {i ty val b : EIdx}
+    (htg : (i.tag == ETag.letE) = true) (h : some (ty, val, b) = st.viewLet i) :
+    st.view i = some (.letE ty val b) := view_of_viewLet_tag htg h.symm
+
+theorem view_of_viewProj_tag' {st : EStore} {i : EIdx} {n : NIdx} {k : Nat} {s : EIdx}
+    (htg : (i.tag == ETag.proj) = true) (h : some (n, k, s) = st.viewProj i) :
+    st.view i = some (.proj n k s) := view_of_viewProj_tag htg h.symm
 
 -- `ConRon.BridgeTactic` names the constants above (and the bridge's own)
 -- with single backticks, unchecked: this checks them.

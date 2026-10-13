@@ -33,10 +33,12 @@ namespace Frame
 /-- Every bridge constant this module names with a single backtick
 (unchecked here); `Bridge/Frame.lean` checks each exists. -/
 def usedConstants : List Name :=
-  [`ConRon.Arena.AState,
+  [`ConLeche.Expr,
+   `ConRon.Arena.AState,
    `ConRon.Arena.AState.caches,
    `ConRon.Arena.AState.store,
    `ConRon.Arena.EStore,
+   `ConRon.Arena.EStore.view,
    `ConRon.Arena.Ext,
    `ConRon.Arena.Ext.refl,
    `ConRon.Arena.Ext.trans,
@@ -69,6 +71,8 @@ def usedConstants : List Name :=
    `ConRon.Bridge.denoteEList_ext_fr,
    `ConRon.Bridge.denoteEO,
    `ConRon.Bridge.denoteEO_ext,
+   `ConRon.Bridge.denoteEO_none_inv,
+   `ConRon.Bridge.denoteEO_some_inv,
    `ConRon.Bridge.denoteL_ext,
    `ConRon.Bridge.denoteLs_ext,
    `ConRon.Bridge.denoteNList_ext_fr,
@@ -83,8 +87,17 @@ def usedConstants : List Name :=
    `ConRon.Bridge.denote_proj_inv,
    `ConRon.Bridge.denote_sort_inv,
    `ConRon.Bridge.eq_of_eq_some,
+   `ConRon.Bridge.exprTag,
+   `ConRon.Bridge.exprTag_of_not_tag,
+   `ConRon.Bridge.exprTag_of_tag,
    `ConRon.Bridge.isSome_denote_ext,
    `ConRon.Bridge.isSome_of_eq_some,
+   `ConRon.Bridge.view_of_viewApp_tag',
+   `ConRon.Bridge.view_of_viewBVar_tag',
+   `ConRon.Bridge.view_of_viewConst_tag',
+   `ConRon.Bridge.view_of_viewLet_tag',
+   `ConRon.Bridge.view_of_viewProj_tag',
+   `ConRon.Bridge.view_of_viewSort_tag',
    `Std.Do.Triple]
 
 /-- The transport lemmas: each is `(hd : P st) → (hx : Ext st st') → P st'`,
@@ -1093,44 +1106,71 @@ def peelAll (g : MVarId) : MetaM MVarId := do
   if exs.isEmpty then return g
   g.withContext (peelNew g exs)
 
-/-- `substVars`, if some hypothesis is an equation with a local variable on
-one side that the other side does not mention. -/
-def substIfAny (g : MVarId) : MetaM MVarId := g.withContext do
-  let mut any := false
-  for d in (← getLCtx) do
-    if d.isImplementationDetail then continue
-    let some (_, a, b) := (← instantiateMVars d.type).cleanupAnnotations.eq? | continue
-    if (a.isFVar && !b.containsFVar a.fvarId!) || (b.isFVar && !a.containsFVar b.fvarId!) then
-      any := true; break
-  unless any do return g
-  match ← observing? (substVars g) with
-  | some g' => pure g'
-  | none => pure g
-
 /-- Substitute the equations among the hypotheses NOT in `old` that solve a
 local variable (`subst_vars` restricted to what `bridge_fwd` added: on a
 verification condition's context a full `substVars` is the dearest step). -/
-partial def substNew (g : MVarId) (old : Std.HashSet FVarId) : MetaM MVarId := do
+partial def substNew (g : MVarId) (old : Std.HashSet FVarId)
+    (skip : Array FVarId := #[]) : MetaM MVarId := do
   let next ← g.withContext do
     for d in (← getLCtx) do
-      if d.isImplementationDetail || old.contains d.fvarId then continue
+      if d.isImplementationDetail || old.contains d.fvarId || skip.contains d.fvarId then
+        continue
       let some (_, a, b) := (← instantiateMVars d.type).cleanupAnnotations.eq? | continue
-      if a.isFVar && !b.containsFVar a.fvarId! then return some (d.fvarId, false)
-      if b.isFVar && !a.containsFVar b.fvarId! then return some (d.fvarId, true)
+      let va := a.isFVar && !b.containsFVar a.fvarId!
+      let vb := b.isFVar && !a.containsFVar b.fvarId!
+      -- eliminate the NEWER variable when both sides are one (an introduced
+      -- `x` identified with the statement's own `x` keeps the latter's name)
+      if va && vb then
+        return some (d.fvarId, old.contains a.fvarId!)
+      if va then return some (d.fvarId, false)
+      if vb then return some (d.fvarId, true)
     return none
   let some (fv, symm) := next | return g
   match ← observing? (substCore g fv (symm := symm)) with
-  | some (_, g') => substNew g' old
-  | none => return g
+  | some (_, g') => substNew g' old skip
+  | none => substNew g old (skip.push fv)
+
+/-- `bridge_fwd`'s default lemmas: the eight view inversions. -/
+def fwdDefaults : List Name := [`ConRon.Bridge.denote_fvar_inv, `ConRon.Bridge.denote_sort_inv,
+    `ConRon.Bridge.denote_const_inv, `ConRon.Bridge.denote_app_inv, `ConRon.Bridge.denote_lam_inv, `ConRon.Bridge.denote_forallE_inv,
+    `ConRon.Bridge.denote_letE_inv, `ConRon.Bridge.denote_proj_inv]
+
+/-- `bridge_auto`'s further defaults: the tag tests read as tags of the
+denotation, the view projections' answers under a true tag, and the optional
+handle's two inversions. -/
+def autoDefaults : List Name := [`ConRon.Bridge.exprTag_of_tag,
+    `ConRon.Bridge.exprTag_of_not_tag, `ConRon.Bridge.view_of_viewApp_tag',
+    `ConRon.Bridge.view_of_viewSort_tag', `ConRon.Bridge.view_of_viewBVar_tag',
+    `ConRon.Bridge.view_of_viewConst_tag', `ConRon.Bridge.view_of_viewLet_tag',
+    `ConRon.Bridge.view_of_viewProj_tag', `ConRon.Bridge.denoteEO_some_inv,
+    `ConRon.Bridge.denoteEO_none_inv]
 
 /-- `bridge_fwd` on one goal. -/
-def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) :
-    TacticM MVarId := do
+def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
+    (introFacts : Bool := false) : TacticM MVarId := do
   let mut g := g
   let old ← g.withContext do
     let mut st : Std.HashSet FVarId := {}
     for d in (← getLCtx) do st := st.insert d.fvarId
     pure st
+  -- `bridge_auto`: the goal's `∀ x, denote… = some x → …` binders become
+  -- hypotheses before the rounds, so that the facts take part; a known
+  -- denotation is identified at the end (`unifyFacts`)
+  if introFacts then
+    repeat
+      let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
+      let .forallE _ _ body _ := t | break
+      let .forallE _ hT _ _ := body | break
+      if hT.hasLooseBVars then
+        -- the premise mentions the bound variable: a fact about it?
+        let ok ← g.withContext do
+          let y ← mkFreshExprMVar (t.bindingDomain!)
+          pure (isFactShape (hT.instantiate1 y))
+        unless ok do break
+      else break
+      let (_, g1) ← g.intro1P
+      let (_, g2) ← g1.intro1P
+      g := g2
   -- the program's own `∃`s (a callee's postcondition): destructured first
   g ← peelAll g
   let mut seen : Array Expr := #[]
@@ -1240,15 +1280,127 @@ syntax (name := bridgeFwd) "bridge_fwd" (" [" term,* "]")? : tactic
 @[tactic bridgeFwd] def evalBridgeFwd : Tactic := fun stx => do
   let extra : Array Term :=
     if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
-  let defaults : List Name := [`ConRon.Bridge.denote_fvar_inv, `ConRon.Bridge.denote_sort_inv,
-    `ConRon.Bridge.denote_const_inv, `ConRon.Bridge.denote_app_inv, `ConRon.Bridge.denote_lam_inv, `ConRon.Bridge.denote_forallE_inv,
-    `ConRon.Bridge.denote_letE_inv, `ConRon.Bridge.denote_proj_inv]
   let goals ← getGoals
   let mut out := []
   for g in goals do
     if ← g.isAssigned then continue
-    out := out ++ [← Frame.fwdGoal g defaults extra]
+    out := out ++ [← Frame.fwdGoal g Frame.fwdDefaults extra]
   setGoals out
+
+namespace Frame
+
+/-- Close `g` with `h : ∀ xs, C … = C' xs → False` (a "not this constructor"
+fact) when the goal's own split made the equation `rfl`. -/
+def closeByNegCtor (g : MVarId) : MetaM Bool := g.withContext do
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t ← normNeg (← instantiateMVars d.type)
+    unless t.isForall do continue
+    let s ← saveState
+    try
+      let (args, _, concl) ← forallMetaTelescope t
+      unless concl.isConstOf ``False do s.restore; continue
+      let mut ok := true
+      for a in args do
+        if ← a.mvarId!.isAssigned then continue
+        let aT ← instantiateMVars (← inferType a)
+        let some (_, l, r) := aT.eq? | continue
+        if ← isDefEq l r then a.mvarId!.assign (← mkEqRefl l)
+        else ok := false; break
+      if ok && !(← args.anyM fun a => return !(← a.mvarId!.isAssigned)) then
+        g.assign (← mkFalseElim (← g.getType) (mkAppN d.toExpr args))
+        return true
+      s.restore
+    catch _ => s.restore
+  return false
+
+/-- The `Expr`-typed locals a case split may settle: those a tag fact
+(`exprTag e …`) or a "not this constructor" fact mentions. -/
+def splitCandidates (g : MVarId) : MetaM (Array FVarId) := g.withContext do
+  let mut out := #[]
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    unless (← whnfR (← instantiateMVars d.type)).isConstOf `ConLeche.Expr do continue
+    let x := d.toExpr
+    let mentioned ← (← getLCtx).anyM fun h => do
+      if h.isImplementationDetail || h.fvarId == d.fvarId then return false
+      let t ← instantiateMVars h.type
+      unless t.containsFVar d.fvarId do return false
+      if (t.find? fun e => e.isAppOf `ConRon.Bridge.exprTag && e.appArg! == x).isSome then
+        return true
+      let t ← normNeg t
+      return t.isForall && (t.find? fun e => e.isConstOf ``False).isSome
+    if mentioned then out := out.push d.fvarId
+  return out
+
+/-- `bridge_finish` on one goal: the cheap closers, else a case split on a
+candidate `Expr` and the closers on every constructor (depth two). -/
+partial def finishGoal (g : MVarId) (closer : Syntax) (depth : Nat) : TacticM Bool := do
+  let s ← saveState
+  setGoals [g]
+  try
+    evalTactic closer
+    if (← getUnsolvedGoals).isEmpty then return true
+  catch _ => pure ()
+  s.restore
+  if ← closeByNegCtor g then return true
+  if depth == 0 then return false
+  for fv in ← splitCandidates g do
+    let s ← saveState
+    try
+      let subs ← g.cases fv
+      let mut all := true
+      for sub in subs do
+        unless ← finishGoal sub.mvarId closer (depth - 1) do all := false; break
+      if all then return true
+    catch _ => pure ()
+    s.restore
+  return false
+
+end Frame
+
+/-- con-leche: none — **the finisher** (task #120): on every goal, try `rfl`,
+`contradiction`, `assumption`, a "not this constructor" hypothesis, and
+`simp only [f₁, …]` (the pure functions to unfold, then with the context's
+equations); failing that, split an `Expr` that a tag fact or a "not this
+constructor" fact mentions and finish every constructor the same way.  A goal
+it cannot close is left untouched. -/
+syntax (name := bridgeFinish) "bridge_finish" (" [" term,* "]")? : tactic
+
+/-- The finisher's closer, as a tactic. -/
+def finishCloser (fns : Array Term) : TacticM Syntax := do
+  let base ← `(tactic| first
+    | rfl
+    | contradiction
+    | assumption
+    | trivial)
+  if fns.isEmpty then return base
+  let lems : Array (TSyntax `Lean.Parser.Tactic.simpLemma) ←
+    fns.mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
+  `(tactic| first
+    | $(⟨base⟩):tactic
+    | (simp only [$lems,*]; done)
+    | (simp only [$lems,*, *]; done))
+
+@[tactic bridgeFinish] def evalBridgeFinish : Tactic := fun stx => do
+  let fns : Array Term :=
+    if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
+  let closer ← finishCloser fns
+  let gs ← getGoals
+  let mut out := []
+  for g in gs do
+    if ← g.isAssigned then continue
+    unless ← Frame.finishGoal g closer 2 do out := out ++ [g]
+  setGoals out
+
+/-- con-leche: none — **the whole pipeline** (task #120):
+`bridge_auto [l₁, …] unfolding [f₁, …]` is `bridge_frame [lᵢ]`,
+`bridge_fwd [lᵢ]` with the goal's `∀ x, denote… = some x →` binders
+introduced and the tag/`denoteEO` defaults, `bridge_frame [lᵢ]` and
+`bridge_finish [fᵢ]`.  What it leaves open are the arms with real reasoning,
+for `vc_arm`. -/
+syntax (name := bridgeAuto) "bridge_auto" (" [" term,* "]")?
+  (" unfolding" " [" term,* "]")? : tactic
 
 /-- con-leche: none — **an arm addressed by shape** (task #120):
 `vc_arm (h₁ : T₁) … (hₙ : Tₙ) => tac` runs `tac` on every open goal whose
@@ -1383,5 +1535,18 @@ end Frame
   unless hit do
     throwError "vc_arm: no open goal matches this arm{indentD (MessageData.joinSep why.toList "\n")}"
   setGoals out
+
+@[tactic bridgeAuto] def evalBridgeAuto : Tactic := fun stx => do
+  let ls : Array Term := if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
+  let fns : Array Term := if stx[2].isNone then #[] else (stx[2][2].getSepArgs.map (⟨·⟩))
+  evalTactic (← `(tactic| bridge_frame [$ls,*]))
+  let goals ← getGoals
+  let mut out := []
+  for g in goals do
+    if ← g.isAssigned then continue
+    out := out ++ [← Frame.fwdGoal g (Frame.fwdDefaults ++ Frame.autoDefaults) ls (introFacts := true)]
+  setGoals out
+  evalTactic (← `(tactic| bridge_frame [$ls,*]))
+  evalTactic (← `(tactic| bridge_finish [$fns,*]))
 
 end ConRon.Bridge

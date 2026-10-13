@@ -155,39 +155,6 @@ theorem denote_not_lam {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
-/-- con-leche: none — a handle whose view is none of `.app` denotes no
-application. -/
-theorem denote_not_app' {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
-    (he : denoteE st h = some e)
-    (hne : ∀ f a, v = .app f a → False) : ∀ p q, e ≠ .app p q := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv he]; simp
-  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
-  | const n us => obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
-  | app f a => exact absurd rfl (hne f a)
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
-  | lit l => rw [denote_lit_inv hwf hv he]; simp
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
-
-/-- con-leche: none — `denoteEO` at a present handle. -/
-theorem denoteEO_some_inv {st : EStore} {h : EIdx} {ox : Option Expr}
-    (hd : denoteEO st (some h) = some ox) :
-    ∃ x, ox = some x ∧ denoteE st h = some x := by
-  simp only [denoteEO, Option.map_eq_some_iff] at hd
-  obtain ⟨x, hx, rfl⟩ := hd
-  exact ⟨x, rfl, hx⟩
-
-/-- con-leche: none — `denoteEO` at an absent handle. -/
-theorem denoteEO_none_inv {st : EStore} {ox : Option Expr}
-    (hd : denoteEO st none = some ox) : ox = none := by
-  simp only [denoteEO] at hd; exact (Option.some.inj hd).symm
-
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the constant arm of both
 head readers, set up once**: a `.const` view under a denoted handle, an index
 HIT, and the stored record off the tower.  Everything the two readers compare
@@ -309,40 +276,6 @@ theorem substPW_cutoff {ks : List ConLeche.Name} {vs : List Level}
     cases ps with
     | nil => rfl
     | cons a as => exact absurd rfl (h a as)
-
-/-- con-leche: none — **the constructor tag of a denotation**: the four tag
-bits of a handle are the tag of the expression it denotes. -/
-def exprTag : Expr → UInt32
-  | .bvar _ => ETag.bvar
-  | .fvar _ _ => ETag.fvar
-  | .sort _ => ETag.sort
-  | .const _ _ => ETag.const
-  | .app _ _ => ETag.app
-  | .lam _ _ => ETag.lam
-  | .forallE _ _ => ETag.forallE
-  | .letE _ _ _ => ETag.letE
-  | .lit _ => ETag.lit
-  | .proj _ _ _ => ETag.proj
-
-/-- con-leche: none — DESIGN §8.3: a handle's tag is its denotation's. -/
-theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
-    (hd : denoteE st h = some e) : h.tag = exprTag e := by
-  obtain ⟨v, hv⟩ := denoteE_view hd
-  rw [EStore.tagOf_of_view hv]
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv hd]; rfl
-  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hd; rfl
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hd; rfl
-  | const n us => obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hd; rfl
-  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv hd; rfl
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv hd; rfl
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv hd; rfl
-  | lit l => rw [denote_lit_inv hwf hv hd]; rfl
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
-
 
 /-- con-leche: none — a denoting handle's view and its denotation carry one
 tag. -/
@@ -467,20 +400,6 @@ theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
       rw [tag_of_denote hok.state.wf hx] at htg
       cases x <;> simp_all [exprTag, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj, Expr.binderDom, denoteEO]
 
-/-- con-leche: none — `view_of_viewApp_tag` in the orientation `vcgen`
-hands a projection's answer (`some (f, a) = st.viewApp i`), so that
-`bridge_fwd` reads the view off the arm's own hypotheses (task #120). -/
-theorem view_of_viewApp_tag' {st : EStore} {i f a : EIdx}
-    (htg : (i.tag == ETag.app) = true) (h : some (f, a) = st.viewApp i) :
-    st.view i = some (.app f a) :=
-  view_of_viewApp_tag htg h.symm
-
-/-- con-leche: none — the same at a `sort` projection. -/
-theorem view_of_viewSort_tag' {st : EStore} {i : EIdx} {u : LIdx}
-    (htg : (i.tag == ETag.sort) = true) (h : some u = st.viewSort i) :
-    st.view i = some (.sort u) :=
-  view_of_viewSort_tag htg h.symm
-
 /-- con-leche: none — a handle whose TAG is not `sort` denotes no sort. -/
 theorem denote_not_sort_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} (he : denoteE st h = some e)
@@ -506,15 +425,7 @@ theorem numArgs_spec' (fuel : Nat) : ∀ (s₀ : AState) (h : EIdx),
     obtain ⟨x₀, hx₀⟩ := hpre
     vcgen [ConRon.Arena.numArgs, ih]
     all_goals (bridge_peel; subst_vars)
-    bridge_frame
-    bridge_fwd [view_of_viewApp_tag', denote_not_app_of_tag]
-    bridge_frame
-    -- an application: one more argument than its function (`bridge_fwd`
-    -- substituted the recursive call's answer)
-    vc_arm ⊢ Expr.numArgs _ + 1 = Expr.numArgs (.app _ _) => rfl
-    -- not an application (by its tag): no arguments
-    vc_arm (hna : ∀ f a, x₀ ≠ .app f a) =>
-      cases x₀ <;> first | rfl | exact absurd rfl (hna _ _)
+    bridge_auto unfolding [Expr.numArgs]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:65-71 residualPW — **THEOREM 1
 for `residualPW`**, in answer shape (the residual is `peelNeverPis`'s
@@ -527,25 +438,7 @@ theorem residualPW_spec' (s₀ : AState) (r : Option EIdx)
         pw = ConLeche.residualPW ox; ⊤⦄ := by
   vcgen [ConRon.Arena.residualPW]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  -- a `sort` node: its level's zeroness
-  vc_arm (htg : (Idx.tag ?h == ETag.sort) = true) (hv : some ?u = EStore.viewSort _ ?h)
-      (hl : denoteL _ ?u = some _) =>
-    intro ox hox
-    obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
-    obtain ⟨l', rfl, hl'⟩ := denote_sort_inv hok.state.wf
-      (view_of_viewSort_tag' htg hv) hx
-    rw [hl] at hl'; cases hl'; rfl
-  -- not a `sort` node (by its tag)
-  vc_arm (hnt : ¬ (_ == ETag.sort) = true) =>
-    intro ox hox
-    obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hox
-    have hns := denote_not_sort_of_tag hok.state.wf hx hnt
-    cases x <;> first | rfl | exact absurd rfl (hns _)
-  -- no residual at all
-  vc_arm ⊢ ∀ ox, denoteEO _ none = some ox → _ =>
-    intro ox hox
-    rw [denoteEO_none_inv hox]; rfl
+  bridge_auto unfolding [ConLeche.residualPW]
 
 /-! ## 2b. The identity-like wrappers (con-leche's task #342) -/
 
@@ -1580,7 +1473,6 @@ section Census
 #print axioms toConstantVal_nt_spec
 #print axioms denote_not_sort
 #print axioms denote_not_lam
-#print axioms denote_not_app'
 #print axioms denoteEO_some_inv
 #print axioms const_hit
 #print axioms headTypePW_const_hit
