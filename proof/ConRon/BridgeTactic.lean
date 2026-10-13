@@ -1367,7 +1367,7 @@ def splitCandidates (g : MVarId) : MetaM (Array FVarId) := g.withContext do
       if h.isImplementationDetail || h.fvarId == d.fvarId then return false
       let t ← instantiateMVars h.type
       unless t.containsFVar d.fvarId do return false
-      if (t.find? fun e => e.isAppOf `ConRon.Bridge.exprTag && e.appArg! == x).isSome then
+      if (t.find? fun e => e.isAppOfArity `ConRon.Bridge.exprTag 1 && e.appArg! == x).isSome then
         return true
       let t ← normNeg t
       return t.isForall && (t.find? fun e => e.isConstOf ``False).isSome
