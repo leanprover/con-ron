@@ -6,7 +6,7 @@
 > * **`checkDeclsPure`** is the THEOREM's shape […] one step per record,
 >   install and check together.
 > * **`installThenCheck`** is what the BINARY runs […] phase A installs every
->   record, annotating its header and its value but not inferring; phase B
+>   record, guarding its header and its value but not inferring; phase B
 >   checks each recorded declaration against the PREFIX VIEW it was installed
 >   at.  con-leche proves the two are the same accept
 >   (`fullyChecked_checkDecls`).
@@ -25,10 +25,10 @@ Both exist in con-leche at `78ded4b6` and neither has to be re-derived — they
 have to be *reached*:
 
 * `ConLeche.checkDecl_of_split_defn` / `_thm` / `_opaque`
-  (`Verify/CheckerSplit.lean:319` / `:344` / `:364`) take the install half and
+  (`Verify/CheckerSplit.lean:276` / `:303` / `:324`) take the install half and
   the check half AT THE SAME ENVIRONMENT and give `checkDecl`'s own run.  So
-  the arena's phase A must give con-leche's `installConstantVal` /
-  `installValue` at the prefix environment, and its phase B must give
+  the arena's phase A must give con-leche's `installHeader` /
+  `installValueGuards` at the prefix environment, and its phase B must give
   con-leche's `checkValueGroup` at the SAME one;
 * `ConLeche.mkFEnv_find?_visibleBelow` (`Verify/EnvBound.lean:141`) is what
   makes "the same one" true: phase B runs at `fe.restrictTo pc.vis`, whose
@@ -39,10 +39,10 @@ have to be *reached*:
 
 ## The three-way fuel
 
-`checkDecl_of_split_*` take the two halves at ONE fuel and con-leche raises
-each half with `installConstantVal_mono` / `checkValueGroup_mono`
-(`Verify/CheckerSplit.lean:233`–`:247`) before combining — `max F₁ F` at
-`Verify/Cached/InstalledC.lean:416`.  `Bridge/Checker/Mono.lean`'s
+`checkDecl_of_split_*` take the check half at ONE fuel (the install halves are
+pure guards since con-leche's task #342), and the fold raises each owed check
+with `checkValueGroup_mono` (this module's, off con-leche's inversion) before
+combining.  `Bridge/Checker/Mono.lean`'s
 `checkDecl_mono` is the same idea one level up, and the fold here needs both.
 
 ## What this module states and what it does not
@@ -66,51 +66,41 @@ set_option autoImplicit false
 
 /-! ## The install half -/
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
-the PURE half: nine guards accepted means con-leche's install accepts with the
-annotated header. -/
-theorem installConstantVal_pure {μ : CheckMode} {F : Nat} {env : Env}
-    {c : ConstantVal} {ty : Expr}
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader — the
+PURE half: eight guards accepted means con-leche's install accepts.  Since
+con-leche's task #342 there is no annotation: the header is stored as
+declared. -/
+theorem installHeader_pure {env : Env} {c : ConstantVal}
     (h1 : env.find? c.name = none)
     (h2 : ConLeche.reservedBasisNames.contains c.name = false)
     (h3 : c.name.isProjFnShape = false)
     (h4 : ConLeche.Name.nodup c.levelParams = true)
     (h5 : c.type.looseBVarsBounded 0 = true)
     (h6 : c.type.hasFvar = false)
-    (h7 : ConLeche.annotateCore μ env F 0 c.type = .ok ty)
-    (h8 : ty.allLevelParamsDefined c.levelParams = true)
-    (h9 : ty.constsResolve env = true) :
-    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env c
-      = .ok { c with type := ty } := by
-  simp only [ConLeche.installConstantVal, ConLeche.fueledOps, h1, h2, h3, h4,
-    h5, h6, h7, h8, h9, Option.isSome_none, Bool.false_eq_true, ite_false,
+    (h8 : c.type.allLevelParamsDefined c.levelParams = true)
+    (h9 : c.type.constsResolve env = true) :
+    ConLeche.installHeader (m := CheckM) env c = .ok () := by
+  simp only [ConLeche.installHeader, h1, h2, h3, h4,
+    h5, h6, h8, h9, Option.isSome_none, Bool.false_eq_true, ite_false,
     ite_true, bind, Except.bind, pure, Except.pure]
 
+/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader — the
+header's guards, without the inference.
 
-/-- con-leche: ConLeche/Kernel/CheckerSplit.lean:64-85 installConstantVal —
-the header's guards and annotation, without the inference.
-
-**PROVED** (task #97-P3-Checker round 4): the same six guards as
-`checkConstantVal_bridge` (`Bridge/Checker/Base.lean`) and its annotation,
-stopping before the inference and the sort test — con-leche's own
-`installConstantVal` is `checkConstantVal` minus exactly those two calls, so
-the two proofs are the same nine steps and this one ends at the ninth.  It
-was waiting on `allLevelParamsDefined_run` and `constsResolveFFast_run`,
-closed in the same round. -/
-theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
-    {fe : IFEnv} {cv cvA : IConstantVal} {c : ConstantVal} {s s' : AState}
-    (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+**PROVED** (task #97-P3-Checker round 4): the eight guards of
+`checkConstantVal_bridge` (`Bridge/Checker/Base.lean`), stopping before the
+inference and the sort test — con-leche's own `installHeader` is
+`checkConstantVal` minus exactly those two calls.  No core call, so the frame
+is the core frame with no core step in it. -/
+theorem installHeader_bridge {μ : CheckMode} {env : Env}
+    {fe : IFEnv} {cv : IConstantVal} {c : ConstantVal} {s s' : AState}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cv = some c)
-    (hrun : installConstantVal μ fe cv s = .ok (cvA, s')) :
-    CoreStep μ env fe s s' ∧ ∃ cA F, Frontend.denoteCV s'.store cvA = some cA ∧
-      ConLeche.installConstantVal (ConLeche.fueledOps μ F) env c = .ok cA := by
+    (hrun : installHeader fe cv s = .ok ((), s')) :
+    CoreStep μ env fe s s' ∧
+      ConLeche.installHeader (m := CheckM) env c = .ok () := by
   obtain ⟨hnm, hlps, hty⟩ := denoteCV_inv hcv
-  have hknot := hk.knot env fe hok.envWF
   have hck0 : CheckOK μ env fe s := hok.check
-  have hnever : ∀ {α β γ : Type} {x : AM α} {f : α → Arena.CheckError}
-      {g : γ → AM β}, AM.Never (x >>= fun a => ((Arena.fail (f a) : AM γ) >>= g)) :=
-    fun {_ _ _ _ _ _} => AM.Never.bind fun _ => AM.Never.fail_any
-  simp only [Arena.installConstantVal] at hrun
+  simp only [Arena.installHeader] at hrun
   -- 1. the duplicate-declaration guard
   obtain ⟨hdup, r1⟩ := AM.dguard_ok AM.Never.fail_any hrun
   replace r1 := AM.pure_bind_ok r1
@@ -193,71 +183,38 @@ theorem installConstantVal_bridge {μ : CheckMode} {env : Env}
   have hty6 : denoteE s6.store cv.type = some c.type := by rw [h6st]; exact hty5
   have hlps6 : Frontend.denoteNList s6.store.ns cv.levelParams
       = some c.levelParams := by rw [h6st]; exact hlps5
-  have hws : Expr.WScoped 0 c.type := ConLeche.Expr.WScoped.of_not_hasFvar hfvP
-  have hden6 : denoteFEnv s6.store fe = some env := by
-    rw [h6st, h5st]
-    exact denoteFEnv_pext (PExt.of_ext hp2.ext) hok.persEnv hok.denote
-  -- 7. the annotation
-  obtain ⟨type, s7, g7r, r11⟩ := AM.bind_ok r10
-  obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = s6)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s6.store t.store ∧
-      t.pins = s6.pins ∧
-      Core.SimE (ConLeche.annotateCore μ env) 0 c.type t.store r)
-    rfl g7r (hknot.annotate s6 0 cv.type c.type hck6 hty6 hws)
-  obtain ⟨v, hv7, hwsv, F7, hF7⟩ := hsim7
-  have hnm7 : denoteN s7.store.ns cv.name = some c.name := denoteN_ext hnm6 hx7
-  have hlps7 : Frontend.denoteNList s7.store.ns cv.levelParams
-      = some c.levelParams := denoteNList_ext hx7.lss.ls.ns _ _ hlps6
-  have hden7 : denoteFEnv s7.store fe = some env :=
-    denoteFEnv_pext (PExt.of_ext hx7) hok.persEnv hden6
-  -- 8. the undeclared-universe-parameter guard
-  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r11
+  -- 7. the undeclared-universe-parameter guard
+  obtain ⟨b8, s8, g8r, r12⟩ := AM.bind_ok r10
   obtain ⟨h8st, h8c, h8p, h8r⟩ :=
-    allLevelParamsDefined_run hck7.state hlps7 hv7 g8r
+    allLevelParamsDefined_run hck6.state hlps6 hty6 g8r
   obtain ⟨hlpd, r13⟩ := AM.dunless_ok AM.Never.fail_any r12
   replace r13 := AM.pure_bind_ok r13
-  have hlpdP : v.allLevelParamsDefined c.levelParams = true := by
+  have hlpdP : c.type.allLevelParamsDefined c.levelParams = true := by
     rw [← h8r]; exact hlpd
   have hck8 : CheckOK μ env fe s8 :=
-    hck7.mono ⟨by rw [h8st]; exact hck7.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
+    hck6.mono ⟨by rw [h8st]; exact hck6.state.wf⟩ (by rw [h8st]; exact Ext.refl _)
       h8c h8p
-  have hv8 : denoteE s8.store type = some v := by rw [h8st]; exact hv7
-  have hnm8 : denoteN s8.store.ns cv.name = some c.name := by rw [h8st]; exact hnm7
-  have hlps8 : Frontend.denoteNList s8.store.ns cv.levelParams
-      = some c.levelParams := by rw [h8st]; exact hlps7
-  have hden8 : denoteFEnv s8.store fe = some env := by rw [h8st]; exact hden7
-  -- 9. the unresolved-constant guard
+  have hty8 : denoteE s8.store cv.type = some c.type := by rw [h8st]; exact hty6
+  -- 8. the unresolved-constant guard
   obtain ⟨b9, s9, g9r, r14⟩ := AM.bind_ok r13
-  have hpins8 : s8.pins = s.pins := by rw [h8p, hp7, h6p, h5p, hp2.pins]
   obtain ⟨h9st, h9c, h9p, h9r⟩ :=
-    constsResolveFFast_run hck8 hv8 g9r
+    constsResolveFFast_run hck8 hty8 g9r
   obtain ⟨hcr, r15⟩ := AM.dunless_ok
-    (AM.Never.bind fun _ => AM.Never.fail_any) r14
-  replace r15 := AM.pure_bind_ok r15
-  have hcrP : v.constsResolve env = true := by rw [← h9r]; exact hcr
+    (AM.Never.bind fun _ => AM.Never.bind fun _ => AM.Never.fail _) r14
+  have hcrP : c.type.constsResolve env = true := by rw [← h9r]; exact hcr
   have hck9 : CheckOK μ env fe s9 :=
     hck8.mono ⟨by rw [h9st]; exact hck8.state.wf⟩ (by rw [h9st]; exact Ext.refl _)
       h9c h9p
-  have hv9 : denoteE s9.store type = some v := by rw [h9st]; exact hv8
-  have hnm9 : denoteN s9.store.ns cv.name = some c.name := by rw [h9st]; exact hnm8
-  have hlps9 : Frontend.denoteNList s9.store.ns cv.levelParams
-      = some c.levelParams := by rw [h9st]; exact hlps8
-  -- 10. the answer
-  obtain ⟨hcvA, hs'⟩ := AM.pure_ok r15
-  subst hcvA
-  subst hs'
+  -- 9. the answer
+  obtain ⟨-, rfl⟩ := AM.pure_ok r15
   have hext : Ext s.store s'.store := by
     refine hp2.ext.trans ?_
-    rw [← h5st, ← h6st]
-    refine hx7.trans ?_
-    rw [← h8st, ← h9st]
+    rw [h9st, h8st, h6st, h5st]
     exact Ext.refl _
   have hpins : s'.pins = s.pins := by
-    rw [h9p, h8p, hp7, h6p, h5p, hp2.pins]
-  refine ⟨⟨hck9, hext, hpins⟩, ⟨{ c with type := v }, F7, ?_, ?_⟩⟩
-  · simp only [Frontend.denoteCV, hnm9, hlps9, hv9]
-  · exact installConstantVal_pure hfindP hresP hprojP hnodP hlbbP hfvP hF7
-      hlpdP hcrP
+    rw [h9p, h8p, h6p, h5p, hp2.pins]
+  exact ⟨⟨hck9, hext, hpins⟩,
+    installHeader_pure hfindP hresP hprojP hnodP hlbbP hfvP hlpdP hcrP⟩
 
 /-! ## The check half -/
 
@@ -268,38 +225,37 @@ installed at.
 **THE STATEMENT WAS UNDER-HYPOTHESISED, and the two `WScoped` clauses are
 the repair** (task #97-P3-Checker round 5 — the campaign's seventh statement
 defect in this tier, found by taking the proof on).  `checkValueGroup`'s FIRST
-operation is `inferTypeCore … 0 g.cvA.type`, and the only route from an arena
+operation is `inferTypeCore … 0 g.cv.type`, and the only route from an arena
 core run to con-leche's is `KnotSpec.infer`, whose precondition is
 `Expr.WScoped 0` of the DENOTED argument.  Nothing in round 1's hypotheses
 delivers it: `FoldOK` speaks about the environment and the store, not about a
-pending record's header, and `gP.cvA` is not (as far as this statement says) a
+pending record's header, and `gP.cv` is not (as far as this statement says) a
 constant of `env`, so `EnvWF`'s `hasFvar = false` clause does not reach it
 either.  The same holds of `gP.jv` at the second inference, in the `defn` and
-`opaque` arms where the value reaches `inferTypeCore` unannotated.
+`opaque` arms where the value reaches `inferTypeCore` as declared.
 
 At depth 0 `WScoped` IS `hasFvar = false` (`Expr.WScoped.of_not_hasFvar`), so
-both clauses are free at the one call site: phase A's `installConstantVal` and
-`installValue` test exactly that guard, and `annotateCore_WScoped` carries it
-to the annotated term.  `Arena.checkPending_bridge` is where they are
+both clauses are free at the one call site: phase A's `installHeader` and
+`installValueGuards` test exactly that guard.  `Arena.checkPending_bridge` is where they are
 discharged.
 
 **PROVED** (task #97-P3-Checker round 6), on
 `Bridge/Checker/DeclVal.lean`'s `checkThmVal_bridge` machinery: the same
 `KnotSpec.infer` / `EnsureSortSpec` / `pinZeroLevel_spec` / `lvlEq?_spec` /
-`installValue_bridge` / `KnotSpec.defeq` chain, with the theorem's install
-behind the kind test rather than in front of it.  The two branches are joined
+`installValueGuards_bridge` / `KnotSpec.defeq` chain, with the theorem's
+guards behind the kind test rather than in front of it.  The two branches are joined
 into ONE postcondition (`step3` in the proof) before the value's inference
 runs, which is round 3's rule — never carry a branch-dependent invariant along
 the rest of a do-block.  Task #97-P3-Checker's sorry list, item 17, closed. -/
 theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
-    {s s' : AState} (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
+    {s s' : AState} (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
     (henv : EnvWF env) (hck : CheckOK μ env fe s)
     (hkind : g.kind = .defn ∧ gP.kind = .defn ∨ g.kind = .thm ∧ gP.kind = .thm ∨
       g.kind = .opaque ∧ gP.kind = .opaque)
-    (hcv : Frontend.denoteCV s.store g.cvA = some gP.cvA)
+    (hcv : Frontend.denoteCV s.store g.cv = some gP.cv)
     (hjv : denoteE s.store g.jv = some gP.jv)
-    (hwsty : Expr.WScoped 0 gP.cvA.type)
+    (hwsty : Expr.WScoped 0 gP.cv.type)
     (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : checkValueGroup μ fe g s = .ok ((), s')) :
     CoreStep μ env fe s s' ∧ ∃ F,
@@ -316,8 +272,8 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   obtain ⟨hcka, hxa, hpa, hsima⟩ := AM.of_run (P := fun t => t = s)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s.store t.store ∧
       t.pins = s.pins ∧
-      Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.cvA.type t.store r)
-    rfl ga (hknot.infer s 0 g.cvA.type gP.cvA.type hck hty0 hwsty)
+      Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.cv.type t.store r)
+    rfl ga (hknot.infer s 0 g.cv.type gP.cv.type hck hty0 hwsty)
   obtain ⟨sty, hsty, hwssty, Fa, hFa⟩ := hsima
   -- 2. the sort
   obtain ⟨u, s2, gb, rb⟩ := AM.bind_ok ra
@@ -328,46 +284,45 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   obtain ⟨uu, huu, Fb, hFb⟩ := hsimb
   have hext2 : Ext s.store s2.store := hxa.trans hxb
   have hpin2 : s2.pins = s.pins := by rw [hpb, hpa]
-  have hcv2 : Frontend.denoteCV s2.store g.cvA = some gP.cvA :=
+  have hcv2 : Frontend.denoteCV s2.store g.cv = some gP.cv :=
     denoteCV_ext hcv hext2
   have hjv2 : denoteE s2.store g.jv = some gP.jv := denote_ext hjv hext2
   -- **The kind test copies the tail into both arms**, so the tail is a local
   -- lemma rather than a continuation: the value's inference and the
-  -- conversion, at whatever value the arm produced and whatever it knows
-  -- about it.  (Round 3's rule, at a branch instead of at a loop.)
-  have tail : ∀ (sA : AState) (jvA : EIdx) (y : Expr) (Fc : Nat),
+  -- conversion, at whatever the arm knows about the value.  (Round 3's rule,
+  -- at a branch instead of at a loop.)
+  have tail : ∀ (sA : AState),
       CheckOK μ env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
-      denoteE sA.store jvA = some y → Expr.WScoped 0 y →
+      Expr.WScoped 0 gP.jv →
       (gP.kind = ConLeche.ValueKind.thm →
-        ConLeche.installValue (ConLeche.fueledOps μ Fc) env gP.cvA gP.jv
-          = .ok y) →
-      (gP.kind ≠ ConLeche.ValueKind.thm → y = gP.jv) →
+        ConLeche.installValueGuards (m := CheckM) env gP.cv gP.jv = .ok ()) →
       (gP.kind = ConLeche.ValueKind.thm →
         ConLeche.Level.isEquiv uu .zero = some true) →
       (do
-        let vtype ← Arena.inferTypeCore μ fe Arena.checkFuel 0 jvA
-        unless ← Arena.isDefEqCore μ fe Arena.checkFuel 0 vtype g.cvA.type do
+        let vtype ← Arena.inferTypeCore μ fe Arena.checkFuel 0 g.jv
+        unless ← Arena.isDefEqCore μ fe Arena.checkFuel 0 vtype g.cv.type do
           Arena.fail (.invalid s!"type mismatch in {g.kind.word}"))
         sA = .ok ((), s') →
       CoreStep μ env fe s s' ∧ ∃ F,
         ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env gP = .ok () := by
-    intro sA jvA y Fc hckA hxA hpA hyA hwsy hIV3 hEQ3 hLV3 rc
+    intro sA hckA hxA hpA hwsy hIV3 hLV3 rc
+    have hyA : denoteE sA.store g.jv = some gP.jv := denote_ext hjv2 hxA
     obtain ⟨vtype, s7, gh, rh⟩ := AM.bind_ok rc
     obtain ⟨hck7, hx7, hp7, hsim7⟩ := AM.of_run (P := fun t => t = sA)
       (Q := fun r t => CheckOK μ env fe t ∧ Ext sA.store t.store ∧
         t.pins = sA.pins ∧
-        Core.SimE (ConLeche.inferTypeCore μ env) 0 y t.store r)
-      rfl gh (hknot.infer sA 0 jvA y hckA hyA hwsy)
+        Core.SimE (ConLeche.inferTypeCore μ env) 0 gP.jv t.store r)
+      rfl gh (hknot.infer sA 0 g.jv gP.jv hckA hyA hwsy)
     obtain ⟨vt, hvt7, hwsvt, F2, hF2⟩ := hsim7
-    have hcv7 : Frontend.denoteCV s7.store g.cvA = some gP.cvA :=
+    have hcv7 : Frontend.denoteCV s7.store g.cv = some gP.cv :=
       denoteCV_ext hcv2 (hxA.trans hx7)
     obtain ⟨-, -, hty7⟩ := denoteCV_inv hcv7
     obtain ⟨b8, s8, gi, ri⟩ := AM.bind_ok rh
     obtain ⟨hck8, hx8, hp8, hsim8⟩ := AM.of_run (P := fun t => t = s7)
       (Q := fun r t => CheckOK μ env fe t ∧ Ext s7.store t.store ∧
         t.pins = s7.pins ∧
-        Core.SimV (ConLeche.isDefEqCore μ env) 0 vt gP.cvA.type r)
-      rfl gi (hknot.defeq s7 0 vtype g.cvA.type vt gP.cvA.type hck7 hvt7 hty7
+        Core.SimV (ConLeche.isDefEqCore μ env) 0 vt gP.cv.type r)
+      rfl gi (hknot.defeq s7 0 vtype g.cv.type vt gP.cv.type hck7 hvt7 hty7
         hwsvt hwsty)
     obtain ⟨F3, hF3⟩ := hsim8
     obtain ⟨hb, rj⟩ := AM.dunless_ok (AM.Never.fail _) ri
@@ -375,19 +330,17 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     subst hb
     refine ⟨⟨hck8, hext2.trans (hxA.trans (hx7.trans hx8)),
       by rw [hp8, hp7, hpA, hpin2]⟩,
-      max (max Fa Fb) (max Fc (max F2 F3)), ?_⟩
+      max (max Fa Fb) (max F2 F3), ?_⟩
     exact ConLeche.checkValueGroup_of_facts
       (ConLeche.inferTypeCore_mono (by omega) hFa)
       (ConLeche.ensureSortCore_mono (by omega) hFb)
-      hLV3
-      (fun hq => ConLeche.installValue_mono (by omega) (hIV3 hq))
-      hEQ3
+      hLV3 hIV3
       (ConLeche.inferTypeCore_mono (by omega) hF2)
       (ConLeche.isDefEqCore_mono (by omega) hF3)
-  -- 3. the value: a theorem installs its own, the other two kinds take the
-  -- record's
+  -- 3. a theorem's is-a-proposition test and value guards; the other two
+  -- kinds go straight on
   rcases AM.ite_ok rb with ⟨hthm, gd⟩ | ⟨hnthm, gd⟩
-  · -- the theorem branch: the is-a-proposition test, then the install
+  · -- the theorem branch: the is-a-proposition test, then the guards
     have hthmP : gP.kind = ConLeche.ValueKind.thm := hkeq.mp hthm
     obtain ⟨z, s4, ge, rd⟩ := AM.bind_ok gd
     obtain ⟨hs4, hz⟩ := AM.of_run (P := fun t => t = s2)
@@ -414,18 +367,18 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     have heqv : ConLeche.Level.isEquiv uu .zero = some true := by
       rw [← hod, hprop]
     have hext5 : Ext s2.store s6.store := by rw [hstd]; exact Ext.refl _
-    obtain ⟨jvA, s7, gIV, rT⟩ := AM.bind_ok rg
-    obtain ⟨hstep6, y, Fc, hy6, hIV⟩ := installValue_bridge hμ hk henv hckd
+    obtain ⟨_, s7, gIV, rT⟩ := AM.bind_ok rg
+    obtain ⟨hstep6, hIV⟩ := installValueGuards_bridge hckd
       (denoteCV_ext hcv2 hext5) (denote_ext hjv2 hext5) gIV
-    exact tail s7 jvA y Fc hstep6.ok (hext5.trans hstep6.ext)
-      (by rw [hstep6.pins, hpd]) hy6
-      (ConLeche.Expr.WScoped.of_not_hasFvar (installValue_valueWF hIV).1)
-      (fun _ => hIV) (fun hne => absurd hthmP hne) (fun _ => heqv) rT
-  · -- the other two kinds: the record's own value, and no test
+    exact tail s7 hstep6.ok (hext5.trans hstep6.ext)
+      (by rw [hstep6.pins, hpd])
+      (ConLeche.Expr.WScoped.of_not_hasFvar (ConLeche.installValueGuards_inv hIV).2.1)
+      (fun _ => hIV) (fun _ => heqv) rT
+  · -- the other two kinds: no test
     have hnthmP : gP.kind ≠ ConLeche.ValueKind.thm := fun hq =>
       hnthm (hkeq.mpr hq)
-    exact tail s2 g.jv gP.jv 0 hckb (Ext.refl _) rfl hjv2 (hwsjv hnthmP)
-      (fun hq => absurd hq hnthmP) (fun _ => rfl) (fun hq => absurd hq hnthmP)
+    exact tail s2 hckb (Ext.refl _) rfl (hwsjv hnthmP)
+      (fun hq => absurd hq hnthmP) (fun hq => absurd hq hnthmP)
       (AM.pure_bind_ok gd)
 
 /-! ### The bound, and the suffix it names
@@ -726,7 +679,7 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## The two-phase fold, skeletonised (task #97-P3-Checker round 8)
 
-`installThenCheck` is phase A (`annotFold`) then phase B (`checkPendingList`),
+`installThenCheck` is phase A (`installFold`) then phase B (`checkPendingList`),
 and `checkDeclsPure` is ONE fold of `checkDecl`.  The bridge between them is
 con-leche's `checkDecl_of_split_*` (`Verify/CheckerSplit.lean`): a separable
 value declaration's install halves at `env`, plus its check half at the SAME
@@ -736,8 +689,8 @@ value declaration's install halves at `env`, plus its check half at the SAME
    `checkDecl` step, or the install halves (`SplitInstall`) leaving the pair
    `(env, vg)` owed a check — and `PhaseA.foldlM`, which pays every owed
    check and returns `checkDecl`'s fold.  Pure, con-leche only: PROVED;
-2. **phase A over handles**, `Arena.annotFold_bridge`, by induction over
-   `Arena.annotStep_split` (one step: the four arms and the bracket);
+2. **phase A over handles**, `Arena.installFold_bridge`, by induction over
+   `Arena.installStep_split` (one step: the four arms and the bracket);
 3. **phase B over handles**, `Arena.checkPendingList_bridge`, by induction
    over `Arena.checkPending_prefix` (one record, at the prefix environment);
 4. the assembly, `Arena.installThenCheck_bridge`.
@@ -766,30 +719,33 @@ have their own `ValueKind`). -/
 def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
   a = .defn ∧ b = .defn ∨ a = .thm ∧ b = .thm ∨ a = .opaque ∧ b = .opaque
 
-/-- con-leche: ConLeche/Verify/CheckerSplit.lean:318-397 checkDecl_of_split_* —
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:275-345 checkDecl_of_split_* —
 the install halves of a separable value declaration, as the three lemmas'
 premises: what phase A ran, at `env`, for record `d`, leaving `vg` and the
-extended environment `env'`. -/
-def SplitInstall (μ : CheckMode) (F : Nat) (env : Env) (d : Declaration)
+extended environment `env'`.  Since con-leche's task #342 the halves are pure
+guards (`installHeader`, `installValueGuards`): the fuel `_F` is the check
+half's, carried for `PhaseA`'s shape. -/
+def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
     (vg : ConLeche.ValueGroup) (env' : Env) : Prop :=
   (∃ cv value hint, d = .defnDecl cv value hint ∧
     (ConLeche.natOpNames.contains cv.name ||
       ConLeche.natDivModNames.contains cv.name) = false ∧
-    vg.kind = .defn ∧
-    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
-    ConLeche.installValue (ConLeche.fueledOps μ F) env vg.cvA value = .ok vg.jv ∧
-    env' = ⟨.defnInfo vg.cvA vg.jv hint :: env.consts⟩) ∨
-  (∃ cv value, d = .thmDecl cv value ∧ vg.kind = .thm ∧
-    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
+    vg.kind = .defn ∧ vg.cv = cv ∧ vg.jv = value ∧
+    ConLeche.installHeader (m := CheckM) env cv = .ok () ∧
+    ConLeche.installValueGuards (m := CheckM) env vg.cv value = .ok () ∧
+    env' = ⟨.defnInfo vg.cv vg.jv hint :: env.consts⟩) ∨
+  (∃ cv value, d = .thmDecl cv value ∧ vg.kind = .thm ∧ vg.cv = cv ∧
     vg.jv = value ∧
-    env' = ⟨.thmInfo vg.cvA :: env.consts⟩) ∨
+    ConLeche.installHeader (m := CheckM) env cv = .ok () ∧
+    env' = ⟨.thmInfo vg.cv :: env.consts⟩) ∨
   (∃ cv value, d = .opaqueDecl cv value ∧
     ConLeche.reduceOpNames.contains cv.name = false ∧ vg.kind = .opaque ∧
-    ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok vg.cvA ∧
-    ConLeche.installValue (ConLeche.fueledOps μ F) env vg.cvA value = .ok vg.jv ∧
-    env' = ⟨.axiomInfo vg.cvA :: env.consts⟩)
+    vg.cv = cv ∧ vg.jv = value ∧
+    ConLeche.installHeader (m := CheckM) env cv = .ok () ∧
+    ConLeche.installValueGuards (m := CheckM) env vg.cv value = .ok () ∧
+    env' = ⟨.axiomInfo vg.cv :: env.consts⟩)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:201-209 InstallRun — **the pure
+/-- con-leche: ConLeche/Cached/Installed.lean:202-210 InstallRun — **the pure
 record of an accepting phase A**: each declaration is a full `checkDecl` step
 or a split install owing the check of `(env, vg)`, in fold order. -/
 inductive PhaseA (μ : CheckMode) (pinsP : List NatOpPinSet) :
@@ -806,30 +762,37 @@ inductive PhaseA (μ : CheckMode) (pinsP : List NatOpPinSet) :
       (rest : PhaseA μ pinsP env₁ ds env' pend) :
       PhaseA μ pinsP env (d :: ds) env' ((env, vg) :: pend)
 
-/-- con-leche: ConLeche/Verify/CheckerSplit.lean:318-397 checkDecl_of_split_* —
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:275-345 checkDecl_of_split_* —
 one split step with its owed check paid is `checkDecl`, at one fuel. -/
 theorem SplitInstall.checkDecl {μ : CheckMode} {pinsP : List NatOpPinSet}
     {F : Nat} {env env' : Env} {d : Declaration} {vg : ConLeche.ValueGroup}
     (h : SplitInstall μ F env d vg env')
     (hC : ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok ()) :
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env' := by
-  rcases h with ⟨cv, value, hint, rfl, hnat, hk, hI, hV, rfl⟩ |
-    ⟨cv, value, rfl, hk, hI, hjv, rfl⟩ | ⟨cv, value, rfl, hred, hk, hI, hV, rfl⟩
-  · exact ConLeche.checkDecl_of_split_defn hnat hk hI hV hC
-  · exact ConLeche.checkDecl_of_split_thm hk hI hjv hC
-  · exact ConLeche.checkDecl_of_split_opaque hred hk hI hV hC
+  rcases h with ⟨cv, value, hint, rfl, hnat, hk, hcv, hjv, hI, hV, rfl⟩ |
+    ⟨cv, value, rfl, hk, hcv, hjv, hI, rfl⟩ |
+    ⟨cv, value, rfl, hred, hk, hcv, hjv, hI, hV, rfl⟩
+  · exact ConLeche.checkDecl_of_split_defn hnat hk hcv hjv hI hV hC
+  · exact ConLeche.checkDecl_of_split_thm hk hcv hjv hI hC
+  · exact ConLeche.checkDecl_of_split_opaque hred hk hcv hjv hI hV hC
 
-theorem SplitInstall.mono {μ : CheckMode} {F F' : Nat} (hle : F ≤ F')
+theorem SplitInstall.mono {μ : CheckMode} {F F' : Nat} (_hle : F ≤ F')
     {env env' : Env} {d : Declaration} {vg : ConLeche.ValueGroup}
-    (h : SplitInstall μ F env d vg env') : SplitInstall μ F' env d vg env' := by
-  rcases h with ⟨cv, value, hint, h1, h2, h3, h4, h5, h6⟩ |
-    ⟨cv, value, h1, h2, h3, h4, h5⟩ | ⟨cv, value, h1, h2, h3, h4, h5, h6⟩
-  · exact Or.inl ⟨cv, value, hint, h1, h2, h3,
-      ConLeche.installConstantVal_mono hle h4, ConLeche.installValue_mono hle h5, h6⟩
-  · exact Or.inr (Or.inl ⟨cv, value, h1, h2,
-      ConLeche.installConstantVal_mono hle h3, h4, h5⟩)
-  · exact Or.inr (Or.inr ⟨cv, value, h1, h2, h3,
-      ConLeche.installConstantVal_mono hle h4, ConLeche.installValue_mono hle h5, h6⟩)
+    (h : SplitInstall μ F env d vg env') : SplitInstall μ F' env d vg env' := h
+
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:127-213 checkValueGroup_inv /
+checkValueGroup_of_facts — the check half at a larger fuel (con-leche dropped
+its `checkValueGroup_mono` with task #342; this is its proof, off the
+inversion and the core walks' monotonicity). -/
+theorem checkValueGroup_mono {μ : CheckMode} {F F' : Nat} (hle : F ≤ F')
+    {env : Env} {vg : ConLeche.ValueGroup}
+    (h : ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok ()) :
+    ConLeche.checkValueGroup (ConLeche.fueledOps μ F') env vg = .ok () := by
+  obtain ⟨stype, u, hst, hsort, hthm, hiv, vtype, hvt, hde⟩ :=
+    ConLeche.checkValueGroup_inv h
+  exact ConLeche.checkValueGroup_of_facts (ConLeche.inferTypeCore_mono hle hst)
+    (ConLeche.ensureSortCore_mono hle hsort) hthm hiv
+    (ConLeche.inferTypeCore_mono hle hvt) (ConLeche.isDefEqCore_mono hle hde)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — **phase A
 with every owed check paid is `checkDecl`'s fold**, at one fuel (and every
@@ -858,7 +821,7 @@ theorem PhaseA.foldlM {μ : CheckMode} {pinsP : List NatOpPinSet}
     have hF : F ≤ F' := by omega
     have hFc : Fc ≤ F' := by omega
     simp only [List.foldlM, Bind.bind, Except.bind]
-    rw [SplitInstall.checkDecl (h.mono hF) (ConLeche.checkValueGroup_mono hFc hC)]
+    rw [SplitInstall.checkDecl (h.mono hF) (checkValueGroup_mono hFc hC)]
     exact h₂ F' (by omega)
 
 /-- con-leche: none — **what crosses the install/check seam for one record**,
@@ -866,9 +829,9 @@ at the store phase B will read it in and the environment phase A ended at. -/
 structure PendRel (st : EStore) (envF : Env) (pc : PendingCheck)
     (p : Env × ConLeche.ValueGroup) : Prop where
   kind : KindRel pc.vg.kind p.2.kind
-  cv : Frontend.denoteCV st pc.vg.cvA = some p.2.cvA
+  cv : Frontend.denoteCV st pc.vg.cv = some p.2.cv
   jv : denoteE st pc.vg.jv = some p.2.jv
-  wsty : Expr.WScoped 0 p.2.cvA.type
+  wsty : Expr.WScoped 0 p.2.cv.type
   wsjv : p.2.kind ≠ .thm → Expr.WScoped 0 p.2.jv
   envWF : EnvWF p.1
   vis : pc.vis = p.1.consts.length
@@ -882,7 +845,7 @@ theorem PendRel.mono {st st' : EStore} {envF envF' : Env} {pc : PendingCheck}
     (hx : PExt st st') (he : ∃ new, envF'.consts = new ++ envF.consts) :
     PendRel st' envF' pc p where
   kind := h.kind
-  cv := denoteCV_pext hx h.pers.cvA h.cv
+  cv := denoteCV_pext hx h.pers.cv h.cv
   jv := hx.expr _ _ h.pers.jv h.jv
   wsty := h.wsty
   wsjv := h.wsjv
@@ -907,33 +870,32 @@ theorem PendRel.prefix {st : EStore} {envF : Env} {pc : PendingCheck}
 `Bridge/Checker/Nodup.lean`'s (task #97-P3-Checker round 9: PROVED off
 con-leche's `DeclRun`, arm by arm). -/
 
-/-- con-leche: ConLeche/Verify/CheckerSplit.lean installConstantVal_inv — a
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:30-77 installHeader_inv — a
 split install pushes one constant whose name the environment did not have.
 
-PROVED: `installConstantVal_inv`'s `find?` miss. -/
+PROVED: `installHeader_inv`'s `find?` miss. -/
 theorem SplitInstall.nodup {μ : CheckMode} {F : Nat} {env env' : Env}
     {d : Declaration} {vg : ConLeche.ValueGroup}
     (h : SplitInstall μ F env d vg env') (hnd : NodupNames env) :
     NodupNames env' := by
-  have key : ∀ {cv cvA : ConstantVal} {c : ConstantInfo},
-      ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok cvA →
-      c.name = cvA.name → NodupNames ⟨c :: env.consts⟩ := by
-    intro cv cvA c hI hc
-    obtain ⟨hfind, -, -, -, -, -, type', -, -, -, hcvA⟩ :=
-      ConLeche.installConstantVal_inv hI
+  have key : ∀ {cv : ConstantVal} {c : ConstantInfo},
+      ConLeche.installHeader (m := CheckM) env cv = .ok () →
+      c.name = cv.name → NodupNames ⟨c :: env.consts⟩ := by
+    intro cv c hI hc
+    have hfind := (ConLeche.installHeader_inv hI).1
     unfold NodupNames at hnd ⊢
     simp only [List.map_cons, List.nodup_cons]
     refine ⟨?_, hnd⟩
     intro hmem
     obtain ⟨x, hx, hxn⟩ := List.mem_map.mp hmem
     have hne := List.find?_eq_none.mp hfind x hx
-    rw [hc, hcvA] at hxn
+    rw [hc] at hxn
     simp [hxn] at hne
-  rcases h with ⟨cv, value, hint, -, -, -, hI, -, rfl⟩ |
-    ⟨cv, value, -, -, hI, -, rfl⟩ | ⟨cv, value, -, -, -, hI, -, rfl⟩
-  · exact key hI rfl
-  · exact key hI rfl
-  · exact key hI rfl
+  rcases h with ⟨cv, value, hint, -, -, -, hcv, -, hI, -, rfl⟩ |
+    ⟨cv, value, -, -, hcv, -, hI, rfl⟩ | ⟨cv, value, -, -, -, hcv, -, hI, -, rfl⟩
+  · exact key hI (by subst hcv; rfl)
+  · exact key hI (by subst hcv; rfl)
+  · exact key hI (by subst hcv; rfl)
 
 theorem PhaseA.nodup {μ : CheckMode} {pinsP : List NatOpPinSet}
     {env : Env} {ds : List Declaration} {env' : Env}
@@ -1058,7 +1020,7 @@ theorem IFEnvOK_prefix {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
 
 /-! ## The bracket's close, shared
 
-`Arena.annotStep` and `Arena.checkDeclStep` close the same way: the step body
+`Arena.installStep` and `Arena.checkDeclStep` close the same way: the step body
 has run in the scratch tier from the boundary `s0` and left an index `fe1`
 pushed onto `fe`; `promoteNew` copies the `k` new constants into the
 persistent tier and re-indexes, and `dropScratch` takes the tier.  What the
@@ -1179,21 +1141,14 @@ theorem FoldOK.enter {μ : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
       coh := hok.coh
       denote := denoteFEnv_pext hx hok.persEnv hok.denote }
 
-/-- con-leche: ConLeche/Verify/CheckerSplit.lean:30 installConstantVal_inv —
+/-- con-leche: ConLeche/Verify/CheckerSplit.lean:30-77 installHeader_inv —
 **the four type clauses of an INSTALLED header** (`checkConstantVal_typeWF`'s
 argument at the install half, which skips the inference). -/
-theorem installConstantVal_typeWF {μ : CheckMode} {F : Nat} {env : Env}
-    {cv cvA : ConstantVal}
-    (h : ConLeche.installConstantVal (ConLeche.fueledOps μ F) env cv = .ok cvA) :
-    CVTypeWF env cvA := by
-  obtain ⟨-, -, -, -, hlbt, hitf, type', hann, htp, htr, rfl⟩ :=
-    ConLeche.installConstantVal_inv h
-  exact { fvar := ConLeche.Expr.not_hasFvar_of_fvarsBelow_zero
-            ((ConLeche.annotateCore_WScoped F cv.type hann
-              (ConLeche.Expr.WScoped.of_not_hasFvar hitf)).fvarsBelow)
-          lvls := htp
-          res := htr
-          bnd := ConLeche.annotateCore_looseBVars F cv.type hann hlbt }
+theorem installHeader_typeWF {env : Env} {cv : ConstantVal}
+    (h : ConLeche.installHeader (m := CheckM) env cv = .ok ()) :
+    CVTypeWF env cv := by
+  obtain ⟨-, -, -, -, hlbt, hitf, htp, htr⟩ := ConLeche.installHeader_inv h
+  exact { fvar := hitf, lvls := htp, res := htr, bnd := hlbt }
 
 /-- con-leche: none — a denoting list whose denoted names are unique names
 pairwise different names, handle by handle (`denoteCI_name_of` at every
@@ -1246,11 +1201,11 @@ theorem Arena.checkDecl_wfProj {μ : CheckMode}
   · exact (hok.projMem hnd t hold).mono hout.ext
   · exact hnew
 
-/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC (the
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 installStepC (the
 `checkDeclStepC` arm) — **the full arm of the step body**: `Arena.checkDecl`'s
 `DeclOut`, `Arena.checkDecl_wfProj`'s two clauses, and the pushed names'
 distinctness from the pure fold's (`checkDecl_nodup`). -/
-theorem Arena.annotStepGo_full {μ : CheckMode}
+theorem Arena.installStepGo_full {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
@@ -1283,17 +1238,17 @@ theorem Arena.annotStepGo_full {μ : CheckMode}
   exact namesDistinct_of_denote newI za hza hndza
     (fun t ht => (hproj t (by rw [hn]; exact List.mem_append_left _ ht)).toNamed)
 
-/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
-step body, unbracketed**: `annotStepGo`'s four arms, from the state the
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 installStepC — **phase A's
+step body, unbracketed**: `installStepGo`'s four arms, from the state the
 bracket's opening left, deliver what the close needs (`BodyOut`) and the
 pure half the fold rebuilds `checkDecl` from — a full `checkDecl` step, or a
 split install owing the value group it returns.
 
 PROVED (task #97-P3-Checker round 9) for the three split arms
-(`installConstantVal_bridge`, `installValue_bridge`, `StepOK`'s push lemmas at
-one pushed constant) and, for every other arm, from `Arena.annotStepGo_full`,
+(`installHeader_bridge`, `installValueGuards_bridge`, `StepOK`'s push lemmas at
+one pushed constant) and, for every other arm, from `Arena.installStepGo_full`,
 whose `Arena.checkDecl_wfProj` is the open child. -/
-theorem Arena.annotStepGo_bridge {μ : CheckMode}
+theorem Arena.installStepGo_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {vg? : Option Arena.ValueGroup}
     {pd : IDeclaration} {d : Declaration} {s1 s2 : AState}
@@ -1301,15 +1256,15 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     (hok : FoldOK μ env fe s1) (hnd : NodupNames env)
     (hpins : PinsDenote s1.store pins pinsP)
     (hd : Frontend.denoteDecl s1.store pd = some d)
-    (hrun : Arena.annotStepGo μ pins fe pd s1 = .ok ((fe1, vg?), s2)) :
+    (hrun : Arena.installStepGo μ pins fe pd s1 = .ok ((fe1, vg?), s2)) :
     ∃ env', BodyOut env' fe fe1 s2 ∧ Ext s1.store s2.store ∧ s2.pins = s1.pins ∧
       ((vg? = none ∧ ∃ F,
           ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') ∨
         ∃ vg gP F, vg? = some vg ∧ SplitInstall μ F env d gP env' ∧
           KindRel vg.kind gP.kind ∧
-          Frontend.denoteCV s2.store vg.cvA = some gP.cvA ∧
+          Frontend.denoteCV s2.store vg.cv = some gP.cv ∧
           denoteE s2.store vg.jv = some gP.jv ∧
-          Expr.WScoped 0 gP.cvA.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
+          Expr.WScoped 0 gP.cv.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
   -- the full arm, whichever record reaches it
   have full : ∀ {sA : AState}, sA = s1 →
       ((Arena.checkDecl μ pins fe pd >>= fun fe' =>
@@ -1320,9 +1275,9 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
             ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env') ∨
           ∃ vg gP F, vg? = some vg ∧ SplitInstall μ F env d gP env' ∧
             KindRel vg.kind gP.kind ∧
-            Frontend.denoteCV s2.store vg.cvA = some gP.cvA ∧
+            Frontend.denoteCV s2.store vg.cv = some gP.cv ∧
             denoteE s2.store vg.jv = some gP.jv ∧
-            Expr.WScoped 0 gP.cvA.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
+            Expr.WScoped 0 gP.cv.type ∧ (gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)) := by
     intro sA hsA h
     subst hsA
     obtain ⟨feA, sB, gA, rA⟩ := AM.bind_ok h
@@ -1330,7 +1285,7 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     simp only [Prod.mk.injEq] at hv
     obtain ⟨rfl, rfl⟩ := hv
     obtain ⟨env', hb, hx, hp, F, hF⟩ :=
-      Arena.annotStepGo_full hμ hk hind hok hnd hpins hd gA
+      Arena.installStepGo_full hμ hk hind hok hnd hpins hd gA
     exact ⟨env', hb, hx, hp, Or.inl ⟨rfl, F, hF⟩⟩
   -- a split arm's shared tail: one pushed value-kind constant
   have split : ∀ {ci : IConstantInfo} {c : ConstantInfo}, (∀ t, ci ≠ .projInfo t) →
@@ -1359,7 +1314,7 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     rw [hcv, hv] at hd
     simp only [Option.some.injEq] at hd
     subst hd
-    simp only [Arena.annotStepGo] at hrun
+    simp only [Arena.installStepGo] at hrun
     obtain ⟨ns, t1, g1, r1⟩ := AM.bind_ok hrun
     obtain ⟨e1, hns⟩ := natOpNames_run hok.check.pins g1
     rw [e1] at r1
@@ -1373,21 +1328,23 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     split at r2
     · exact full rfl r2
     · rename_i hnat
-      obtain ⟨cvA, sa, ga, ra⟩ := AM.bind_ok r2
-      obtain ⟨hsa, cA, F1, hcA, hI⟩ := installConstantVal_bridge hμ hk hok hcv ga
+      obtain ⟨_, sa, ga, ra⟩ := AM.bind_ok r2
+      obtain ⟨hsa, hI⟩ := installHeader_bridge hok hcv ga
       have hoka := hok.ofCore hsa
-      obtain ⟨jv, sb, gb, rb⟩ := AM.bind_ok ra
-      obtain ⟨hsb, y, F2, hy, hV⟩ := installValue_bridge hμ hk hoka.envWF hoka.check hcA
+      have hcA : Frontend.denoteCV sa.store cv = some c := denoteCV_ext hcv hsa.ext
+      obtain ⟨_, sb, gb, rb⟩ := AM.bind_ok ra
+      obtain ⟨hsb, hV⟩ := installValueGuards_bridge hoka.check hcA
         (denote_ext hv hsa.ext) gb
       obtain ⟨hvv, rfl⟩ := AM.pure_ok rb
       simp only [Prod.mk.injEq] at hvv
       obtain ⟨rfl, rfl⟩ := hvv
       have hx12 : Ext s1.store s2.store := hsa.ext.trans hsb.ext
-      have hcA2 : Frontend.denoteCV s2.store cvA = some cA := denoteCV_ext hcA hsb.ext
-      have htw := installConstantVal_typeWF hI
-      obtain ⟨gf, gl, gr, gb'⟩ := installValue_valueWF hV
-      have hci : Frontend.denoteCI s2.store (.defnInfo cvA jv hint)
-          = some (.defnInfo cA y hint) := by
+      have hcA2 : Frontend.denoteCV s2.store cv = some c := denoteCV_ext hcA hsb.ext
+      have hy : denoteE s2.store value = some x := denote_ext hv hx12
+      have htw := installHeader_typeWF hI
+      obtain ⟨gb', gf, gl, gr⟩ := ConLeche.installValueGuards_inv hV
+      have hci : Frontend.denoteCI s2.store (.defnInfo cv value hint)
+          = some (.defnInfo c x hint) := by
         simp only [Frontend.denoteCI, hcA2, hy]
       have hnatP : (ConLeche.natOpNames.contains c.name ||
           ConLeche.natDivModNames.contains c.name) = false := by
@@ -1395,9 +1352,8 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
       refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsb.ok.state hx12 hci
           (constWF_defnInfo htw.cons gf gl (ConLeche.Expr.constsResolve_mono gr) gb'),
         hx12, by rw [hsb.pins, hsa.pins],
-        Or.inr ⟨_, ⟨.defn, cA, y⟩, max F1 F2, rfl, Or.inl ⟨c, x, hint, rfl, hnatP, rfl,
-          ConLeche.installConstantVal_mono (Nat.le_max_left _ _) hI,
-          ConLeche.installValue_mono (Nat.le_max_right _ _) hV, rfl⟩,
+        Or.inr ⟨_, ⟨.defn, c, x⟩, 0, rfl, Or.inl ⟨c, x, hint, rfl, hnatP, rfl, rfl, rfl,
+          hI, hV, rfl⟩,
           Or.inl ⟨rfl, rfl⟩, hcA2, hy, ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar,
           fun _ => ConLeche.Expr.WScoped.of_not_hasFvar gf⟩⟩
   | thmDecl cv value =>
@@ -1411,21 +1367,23 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     rw [hcv, hv] at hd
     simp only [Option.some.injEq] at hd
     subst hd
-    simp only [Arena.annotStepGo] at hrun
-    obtain ⟨cvA, sa, ga, ra⟩ := AM.bind_ok hrun
-    obtain ⟨hsa, cA, F1, hcA, hI⟩ := installConstantVal_bridge hμ hk hok hcv ga
+    simp only [Arena.installStepGo] at hrun
+    obtain ⟨_, sa, ga, ra⟩ := AM.bind_ok hrun
+    obtain ⟨hsa, hI⟩ := installHeader_bridge hok hcv ga
+    have hcA : Frontend.denoteCV sa.store cv = some c := denoteCV_ext hcv hsa.ext
     obtain ⟨hvv, rfl⟩ := AM.pure_ok ra
     simp only [Prod.mk.injEq] at hvv
     obtain ⟨rfl, rfl⟩ := hvv
     have hx2 : denoteE s2.store value = some x := denote_ext hv hsa.ext
-    have htw := installConstantVal_typeWF hI
-    have hci : Frontend.denoteCI s2.store (.thmInfo cvA)
-        = some (.thmInfo cA) := by
+    have htw := installHeader_typeWF hI
+    have hci : Frontend.denoteCI s2.store (.thmInfo cv)
+        = some (.thmInfo c) := by
       simp only [Frontend.denoteCI, hcA, Option.map_some]
     refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsa.ok.state hsa.ext hci
         (constWF_thmInfo htw.cons),
       hsa.ext, hsa.pins,
-      Or.inr ⟨_, ⟨.thm, cA, x⟩, F1, rfl, Or.inr (Or.inl ⟨c, x, rfl, rfl, hI, rfl, rfl⟩),
+      Or.inr ⟨_, ⟨.thm, c, x⟩, 0, rfl,
+        Or.inr (Or.inl ⟨c, x, rfl, rfl, rfl, rfl, hI, rfl⟩),
         Or.inr (Or.inl ⟨rfl, rfl⟩), hcA, hx2,
         ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar, fun h => absurd rfl h⟩⟩
   | opaqueDecl cv value =>
@@ -1439,7 +1397,7 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     rw [hcv, hv] at hd
     simp only [Option.some.injEq] at hd
     subst hd
-    simp only [Arena.annotStepGo] at hrun
+    simp only [Arena.installStepGo] at hrun
     obtain ⟨ns, t1, g1, r1⟩ := AM.bind_ok hrun
     obtain ⟨e1, hns⟩ := reduceOpNames_run hok.check.pins g1
     rw [e1] at r1
@@ -1449,29 +1407,30 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
     split at r1
     · exact full rfl r1
     · rename_i hred
-      obtain ⟨cvA, sa, ga, ra⟩ := AM.bind_ok r1
-      obtain ⟨hsa, cA, F1, hcA, hI⟩ := installConstantVal_bridge hμ hk hok hcv ga
+      obtain ⟨_, sa, ga, ra⟩ := AM.bind_ok r1
+      obtain ⟨hsa, hI⟩ := installHeader_bridge hok hcv ga
       have hoka := hok.ofCore hsa
-      obtain ⟨jv, sb, gb, rb⟩ := AM.bind_ok ra
-      obtain ⟨hsb, y, F2, hy, hV⟩ := installValue_bridge hμ hk hoka.envWF hoka.check hcA
+      have hcA : Frontend.denoteCV sa.store cv = some c := denoteCV_ext hcv hsa.ext
+      obtain ⟨_, sb, gb, rb⟩ := AM.bind_ok ra
+      obtain ⟨hsb, hV⟩ := installValueGuards_bridge hoka.check hcA
         (denote_ext hv hsa.ext) gb
       obtain ⟨hvv, rfl⟩ := AM.pure_ok rb
       simp only [Prod.mk.injEq] at hvv
       obtain ⟨rfl, rfl⟩ := hvv
       have hx12 : Ext s1.store s2.store := hsa.ext.trans hsb.ext
-      have hcA2 : Frontend.denoteCV s2.store cvA = some cA := denoteCV_ext hcA hsb.ext
-      have htw := installConstantVal_typeWF hI
-      obtain ⟨gf, -, -, -⟩ := installValue_valueWF hV
-      have hci : Frontend.denoteCI s2.store (.axiomInfo cvA) = some (.axiomInfo cA) := by
+      have hcA2 : Frontend.denoteCV s2.store cv = some c := denoteCV_ext hcA hsb.ext
+      have hy : denoteE s2.store value = some x := denote_ext hv hx12
+      have htw := installHeader_typeWF hI
+      obtain ⟨-, gf, -, -⟩ := ConLeche.installValueGuards_inv hV
+      have hci : Frontend.denoteCI s2.store (.axiomInfo cv) = some (.axiomInfo c) := by
         simp only [Frontend.denoteCI, hcA2, Option.map_some]
       have hredP : ConLeche.reduceOpNames.contains c.name = false := by
         rw [← hcR]; simpa using hred
       refine ⟨_, split (fun t h => IConstantInfo.noConfusion h) hsb.ok.state hx12 hci
           (constWF_axiomInfo htw.cons),
         hx12, by rw [hsb.pins, hsa.pins],
-        Or.inr ⟨_, ⟨.opaque, cA, y⟩, max F1 F2, rfl, Or.inr (Or.inr ⟨c, x, rfl, hredP, rfl,
-          ConLeche.installConstantVal_mono (Nat.le_max_left _ _) hI,
-          ConLeche.installValue_mono (Nat.le_max_right _ _) hV, rfl⟩),
+        Or.inr ⟨_, ⟨.opaque, c, x⟩, 0, rfl, Or.inr (Or.inr ⟨c, x, rfl, hredP, rfl, rfl, rfl,
+          hI, hV, rfl⟩),
           Or.inr (Or.inr ⟨rfl, rfl⟩), hcA2, hy, ConLeche.Expr.WScoped.of_not_hasFvar htw.fvar,
           fun _ => ConLeche.Expr.WScoped.of_not_hasFvar gf⟩⟩
   | axiomDecl cv => exact full rfl hrun
@@ -1479,8 +1438,8 @@ theorem Arena.annotStepGo_bridge {μ : CheckMode}
   | quotDecl k cv => exact full rfl hrun
   | indDecl block nP => exact full rfl hrun
 
-/-- con-leche: ConLeche/Cached/Installed.lean:144-183 annotStepC — **phase A's
-step with the pure half it ran**: `Arena.annotStep_bridge`'s conclusion plus
+/-- con-leche: ConLeche/Cached/Installed.lean:144-183 installStepC — **phase A's
+step with the pure half it ran**: `Arena.installStep_bridge`'s conclusion plus
 what the fold needs to rebuild `checkDecl` — a full step's `checkDecl` at
 `env`, or a split step's `SplitInstall` at `env` with the record's
 `PendRel` — and the two frame facts phase B reads (the caches are empty after
@@ -1490,18 +1449,18 @@ the bracket's `dropScratch`; the environment only grows).
 `FoldOK.enter` for the opening, `promoteVG_spec` for the split arms' record,
 and `bracketClose_foldOK` (`promoteNew_spec`, `promoteNew_pushed`,
 `promoteNew_projOK`, `promoteBracket_close`) for the close — around ONE child,
-`Arena.annotStepGo_bridge`, the step body.
+`Arena.installStepGo_bridge`, the step body.
 
 **The statement gained `hnd : NodupNames env`** (a precondition repair, round
 9): the close's `IFEnvOK_of_denote` needs every stored table of the pushed
 index well shaped, and `FoldOK` states that only for tables a LOOKUP reaches;
 under name uniqueness the two agree (`FoldOK.projMem`).  The fold has it
 (`PhaseA.nodup` from the empty environment, carried by
-`Arena.annotFold_bridge`).  **And `hpd : PersDecl pd`**: the record must be
+`Arena.installFold_bridge`).  **And `hpd : PersDecl pd`**: the record must be
 persistent for its denotation to survive the opening `enterScratch` —
 the deleted `Arena.checkDeclStep_bridge` had the same repair; the fold carries it
-(`Arena.annotFold_bridge`'s `hpd`). -/
-theorem Arena.annotStep_split {μ : CheckMode}
+(`Arena.installFold_bridge`'s `hpd`). -/
+theorem Arena.installStep_split {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
     {pd : IDeclaration} {d : Declaration} {s s' : AState}
@@ -1510,7 +1469,7 @@ theorem Arena.annotStep_split {μ : CheckMode}
     (hpins : PinsDenote s.store pins pinsP)
     (hpp : PersPinSets pins) (hpend : ∀ pc ∈ pend.toList, PersVG pc.vg)
     (hpd : PersDecl pd) (hd : Frontend.denoteDecl s.store pd = some d)
-    (hrun : Arena.annotStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
+    (hrun : Arena.installStep μ pins i fe pend pd s = .ok ((fe', pend'), s')) :
     ∃ env', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
       Pushed fe fe' ∧ (∀ pc ∈ pend'.toList, PersVG pc.vg) ∧
       s'.caches = Caches.empty ∧ (∃ new, env'.consts = new ++ env.consts) ∧
@@ -1521,7 +1480,7 @@ theorem Arena.annotStep_split {μ : CheckMode}
           PendRel s'.store env' pc (env, gP)) := by
   have hwf := hok.check.state.wf
   have hx1 : PExt s.store s.store.enableScratch := PExt.enterScratch hwf
-  simp only [Arena.annotStep] at hrun
+  simp only [Arena.installStep] at hrun
   obtain ⟨u0, s0, g0, r0⟩ := AM.bind_ok hrun
   rw [flushCaches_run] at g0
   simp only [Except.ok.injEq, Prod.mk.injEq] at g0
@@ -1533,7 +1492,7 @@ theorem Arena.annotStep_split {μ : CheckMode}
   obtain ⟨⟨fe1, vg?⟩, s2, g2, r2⟩ := AM.bind_ok r1
   have hok1 := hok.enter
   obtain ⟨env', hb, hx12, hp12, hcase⟩ :=
-    Arena.annotStepGo_bridge hμ hk hind hok1 hnd (PinsDenote.pmono hx1 _ _ hpp hpins)
+    Arena.installStepGo_bridge hμ hk hind hok1 hnd (PinsDenote.pmono hx1 _ _ hpp hpins)
       (denoteDecl_pext hx1 hpd hd) g2
   have hdenv := hok.denote
   have hnew : ∃ new, env'.consts = new ++ env.consts :=
@@ -1586,7 +1545,7 @@ theorem Arena.annotStep_split {μ : CheckMode}
       · rw [List.mem_singleton] at hpc; subst hpc; exact hpvg
     · exact
         { kind := by rw [hkd]; exact hkind
-          cv := denoteCV_pext hx2'4 hpvg.cvA hcv'
+          cv := denoteCV_pext hx2'4 hpvg.cv hcv'
           jv := hx2'4.expr _ _ hpvg.jv hjv'
           wsty := hwsty
           wsjv := hwsjv
@@ -1623,12 +1582,12 @@ theorem ListRel.snoc {α β : Type} {R : α → β → Prop} :
   | _ :: _, _ :: _, _, _, .cons h hs, hab => .cons h (ListRel.snoc hs hab)
 
 /-- con-leche: ConLeche/Cached/Installed.lean:450-455 checkDecls (phase A) —
-**phase A over handles**: an accepting `annotFold` is a pure `PhaseA` whose
+**phase A over handles**: an accepting `installFold` is a pure `PhaseA` whose
 owed checks are the arena's pending records, related one for one.
 
-PROVED from `Arena.annotStep_split`: an induction over the records, the
+PROVED from `Arena.installStep_split`: an induction over the records, the
 relation carried across each bracket by `PendRel.listRel_mono`. -/
-theorem Arena.annotFold_bridge {μ : CheckMode}
+theorem Arena.installFold_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel) (hind : IndSpec μ)
     (hpp : PersPinSets pins) :
@@ -1638,7 +1597,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
       FoldOK μ env fe s → NodupNames env → PinsDenote s.store pins pinsP →
       (∀ x ∈ ds, PersDecl x) → denoteDecls s.store ds = some dsP →
       ListRel (PendRel s.store env) pend.toList pendP →
-      Arena.annotFold μ pins (i, fe, pend) ds s = .ok (.ok (i', fe', pend'), s') →
+      Arena.installFold μ pins (i, fe, pend) ds s = .ok (.ok (i', fe', pend'), s') →
       ∃ env' pendP', FoldOK μ env' fe' s' ∧ PExt s.store s'.store ∧
         PhaseA μ pinsP env dsP env' pendP' ∧
         ListRel (PendRel s'.store env') pend'.toList (pendP ++ pendP') ∧
@@ -1649,7 +1608,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
     intro dsP env i i' fe fe' pend pend' pendP s s' hok _ _ _ hden hrel hrun
     simp only [denoteDecls, Option.some.injEq] at hden
     subst hden
-    simp only [Arena.annotFold] at hrun
+    simp only [Arena.installFold] at hrun
     obtain ⟨he, rfl⟩ := AM.pure_ok hrun
     simp only [Except.ok.injEq, Prod.mk.injEq] at he
     obtain ⟨rfl, rfl, rfl⟩ := he
@@ -1667,9 +1626,9 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
         rw [ha, has] at hden
         simp only [Option.some.injEq] at hden
         subst hden
-        simp only [Arena.annotFold] at hrun
+        simp only [Arena.installFold] at hrun
         obtain ⟨r1, s₁, hstep, htail⟩ := AM.bind_ok hrun
-        simp only [Arena.annotDeclStep] at hstep
+        simp only [Arena.installDeclStep] at hstep
         -- the `And` pin first (con-leche's ANDPIN): an accepting run passed
         -- it, and it only grew the store
         cases hP : andPinOk a s with
@@ -1699,7 +1658,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
           denoteDecl_pext hx0' (hpd a (by simp)) ha
         rw [hP] at hstep
         simp only at hstep
-        cases hA : Arena.annotStep μ pins i fe pend a s₀ with
+        cases hA : Arena.installStep μ pins i fe pend a s₀ with
         | error e =>
           rw [hA] at hstep
           simp only [Except.ok.injEq, Prod.mk.injEq] at hstep
@@ -1714,7 +1673,7 @@ theorem Arena.annotFold_bridge {μ : CheckMode}
           subst h1
           subst s₁'
           obtain ⟨env₁, hok₁, hx₁', -, -, hc₁, hext₁, hcase⟩ :=
-            Arena.annotStep_split hμ hk hind hok' hnd hpins0 hpp
+            Arena.installStep_split hμ hk hind hok' hnd hpins0 hpp
               (PendRel.listRel_pers hrel) (hpd a (by simp)) ha0 hA
           have hx₁ : PExt s.store s₁.store := hx0'.trans hx₁'
           have hrel₁ := PendRel.listRel_mono hx₁ hext₁ hrel
@@ -1777,9 +1736,9 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
     (hcE : s.caches = Caches.empty)
     (henvK : EnvWF (env.prefixTo pc.vis))
     (hkind : KindRel pc.vg.kind gP.kind)
-    (hcv : Frontend.denoteCV s.store pc.vg.cvA = some gP.cvA)
+    (hcv : Frontend.denoteCV s.store pc.vg.cv = some gP.cv)
     (hjv : denoteE s.store pc.vg.jv = some gP.jv)
-    (hwsty : Expr.WScoped 0 gP.cvA.type)
+    (hwsty : Expr.WScoped 0 gP.cv.type)
     (hwsjv : gP.kind ≠ .thm → Expr.WScoped 0 gP.jv)
     (hrun : Arena.checkPending μ fe pc s = .ok ((), s')) :
     FoldOK μ env fe s' ∧ PExt s.store s'.store ∧ s'.caches = Caches.empty ∧
@@ -1808,7 +1767,7 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
         ⟨hok.persEnv.env, hok.persEnv.idx⟩ hx1 }
   -- the check, at the prefix
   obtain ⟨hcs, F, hF⟩ := checkValueGroup_bridge hμ hk henvK hck1 hkind
-    (denoteCV_pext hx1 hpers.cvA hcv) (hx1.expr _ _ hpers.jv hjv) hwsty hwsjv g2
+    (denoteCV_pext hx1 hpers.cv hcv) (hx1.expr _ _ hpers.jv hjv) hwsty hwsjv g2
   -- the close
   have hwf2 := hcs.ok.state.wf
   have hx : PExt s.store s2.store.dropScratch :=

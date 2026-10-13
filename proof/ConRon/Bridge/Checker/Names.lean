@@ -399,12 +399,11 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
             AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k4
           obtain ⟨b2, tb2⟩ := q2
           obtain ⟨rfl, hb2, hm2⟩ := ih hok hm1 hxb g4
-          obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k5
-          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          obtain ⟨hq, rfl⟩ := AM.pure_ok k5
           simp only [Prod.mk.injEq] at hq
           obtain ⟨rfl, rfl⟩ := hq
           have hbt : b1 = true := by simpa using hc
-          have hres : (b2 && ConLeche.PropWhen.paramsDefined params m.pw)
+          have hres : b
               = Expr.allLevelParamsDefined params (.lam xt xb) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt,
               Bool.true_and]
@@ -429,12 +428,11 @@ theorem allLevelParamsDefinedGo_run {params : List ConLeche.Name} :
             AM.bind_ok (α := Bool × Std.HashMap EIdx Bool) k4
           obtain ⟨b2, tb2⟩ := q2
           obtain ⟨rfl, hb2, hm2⟩ := ih hok hm1 hxb g4
-          obtain ⟨t2, s5, gX, rfl, rfl⟩ := lpdClose k5
-          obtain ⟨hq, rfl⟩ := AM.pure_ok gX
+          obtain ⟨hq, rfl⟩ := AM.pure_ok k5
           simp only [Prod.mk.injEq] at hq
           obtain ⟨rfl, rfl⟩ := hq
           have hbt : b1 = true := by simpa using hc
-          have hres : (b2 && ConLeche.PropWhen.paramsDefined params m.pw)
+          have hres : b
               = Expr.allLevelParamsDefined params (.forallE xt xb) := by
             simp only [Expr.allLevelParamsDefined, ← hb1, ← hb2, hbt,
               Bool.true_and]

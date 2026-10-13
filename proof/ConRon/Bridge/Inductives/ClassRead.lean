@@ -269,7 +269,7 @@ theorem classReadMinor_spec (nP : Nat) (motPos : List Nat) (d : Nat) (dom : EIdx
   simp only [Arena.classReadMinor] at hrun
   obtain ⟨⟨bs, e⟩, s₁, h1, h2⟩ := AM.bind_ok hrun
   obtain ⟨rfl, hbs, -⟩ := piBinders_run _ hok hd h1
-  rw [denoteBinders_length hbs] at h2
+  rw [denoteEList_length hbs] at h2
   obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
   obtain ⟨p3, ho⟩ := openPisAtFvarsF_run hok hd h3
   cases o with
@@ -590,17 +590,6 @@ theorem classNPcOf_eq {env : Env} {fe : IFEnv} {s : AState} {p : Arena.BlockShap
 
 /-! ## `classReadSlot` -/
 
-/-- con-leche: none — a denoting binder telescope's last binder, both ways. -/
-theorem denoteBinders_getLast? {st : EStore} {bs : List (EIdx × BinderMeta)}
-    {xs : List (Expr × BinderMeta)} (h : denoteBinders st bs = some xs) :
-    (bs.getLast? = none → xs.getLast? = none) ∧
-      ∀ b m, bs.getLast? = some (b, m) →
-        ∃ x, xs.getLast? = some (x, m) ∧ denoteE st b = some x := by
-  have hl := denoteBinders_length h
-  have hg := denoteBinders_getElem? h (bs.length - 1)
-  rw [List.getLast?_eq_getElem?, List.getLast?_eq_getElem?, ← hl]
-  exact ⟨hg.2, hg.1⟩
-
 /-- con-leche: ConLeche/Kernel/Inductives/ClassRead.lean:111-117 classReadSlots —
 the per-binder reading (a motive when the domain's telescope ends in a sort,
 else a minor premise), as a function; `classReadSlots_succ` identifies it with
@@ -610,7 +599,7 @@ def slotP (nPc : ConLeche.Name → Nat) (np : Nat) (motPos : List Nat) (d : Nat)
   match dom.piResult with
   | .sort _ => do
     let (bs, _) := dom.piBinders
-    let (mdom, _) ← bs.getLast?
+    let mdom ← bs.getLast?
     let .const I us := mdom.getAppFn | none
     pure (ConLeche.ClassSlot.motive ⟨I, us, mdom.getAppArgs.take (nPc I)⟩)
   | _ => ConLeche.classReadMinor np motPos d dom
@@ -622,7 +611,7 @@ def motPosP (motPos : List Nat) (d np : Nat) : ConLeche.ClassSlot → List Nat
   | _ => motPos
 
 theorem classReadSlots_succ (nPc : ConLeche.Name → Nat) (np n : Nat) (motPos : List Nat)
-    (d : Nat) (dom body : Expr) (m : BinderMeta) :
+    (d : Nat) (dom body : Expr) :
     ConLeche.classReadSlots nPc np (n + 1) motPos d (.forallE dom body) =
       (slotP nPc np motPos d dom).bind fun slot =>
         (ConLeche.classReadSlots nPc np n (motPosP motPos d np slot) (d + 1)
@@ -636,8 +625,7 @@ theorem classReadSlots_succ (nPc : ConLeche.Name → Nat) (np n : Nat) (motPos :
     dsimp only
     cases bs.getLast? with
     | none => rfl
-    | some q =>
-      obtain ⟨mdom, _⟩ := q
+    | some mdom =>
       simp only [Option.bind_eq_bind, Option.bind_some]
       cases mdom.getAppFn <;> rfl
   · rename_i hu
@@ -667,7 +655,7 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
     simp only
     obtain ⟨⟨bs, e⟩, s₂, h3, h4⟩ := AM.bind_ok h2
     obtain ⟨rfl, hbs, -⟩ := piBinders_run _ hok hd h3
-    obtain ⟨hl1, hl2⟩ := denoteBinders_getLast? hbs
+    obtain ⟨hl1, hl2⟩ := denoteEList_getLast? hbs
     dsimp only at h4
     cases hl : bs.getLast? with
     | none =>
@@ -675,10 +663,9 @@ theorem classReadSlot_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (en
       obtain ⟨rfl, rfl⟩ := AM.pure_ok h4
       refine ⟨PStep.refl hok, ?_⟩
       simp [ROp, hl1 hl]
-    | some bm =>
-    obtain ⟨mdom, m⟩ := bm
+    | some mdom =>
     rw [hl] at h4
-    obtain ⟨mdomP, hlP, hmd⟩ := hl2 mdom m hl
+    obtain ⟨mdomP, hlP, hmd⟩ := hl2 mdom hl
     rw [hlP]
     simp only [Option.bind_eq_bind, Option.bind_some]
     dsimp only at h4
@@ -772,8 +759,8 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some pr =>
-      obtain ⟨dom, body, m⟩ := pr
-      have hw := view_of_viewBind_tag_forallE htg ho.symm
+      obtain ⟨dom, body⟩ := pr
+      have hw := view_forallE_of_viewBind htg ho.symm
       obtain ⟨domP, bodyP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
       rw [classReadSlots_succ]
       dsimp only at h2
@@ -804,9 +791,9 @@ theorem classReadSlots_spec (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (e
       obtain ⟨p5, hfv⟩ := internFVarE_run p3.ok (denote_ext hdd p3.ext) h5
       obtain ⟨b2, s₄, h7, h8⟩ := AM.bind_ok h6
       have hb3 : denoteE s₃.store body = some bodyP := denote_ext hbd (p3.ext.trans p5.ext)
-      obtain ⟨k1, k2, k3, k4, k5, -, k7⟩ := ExprOps.instantiate1Fast_run p5.ok hfv
+      obtain ⟨k1, k2, k4, k5, -, k7⟩ := ExprOps.instantiate1Fast_run p5.ok hfv
         (by rw [hb3]; rfl) h7
-      have p7 : PStep s₃ s₄ := PStep.of_caches k1 k2 k3 k4 k5
+      have p7 : PStep s₃ s₄ := PStep.of_caches k1 k2 k4 k5
       have hb2 : denoteE s₄.store b2 = some (bodyP.instantiate1 (.fvar d domP) 0) := k7 _ hb3
       have p37 := p3.trans (p5.trans p7)
       obtain ⟨o2, s₅, h9, h10⟩ := AM.bind_ok h8

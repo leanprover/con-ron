@@ -1268,7 +1268,7 @@ theorem denoteProjTable_inj {st : EStore} (hwf : StoreWF st) {t t' : IProjTable}
   · exact absurd h (by simp)
 
 /-- con-leche: none — a rule's firing mode is determined by its denotation:
-the two leaves carry nothing, and `.nested`'s two handle lists are injective
+the leaf carries nothing, and `.nested`'s two handle lists are injective
 (`denoteLList_inj`, `denoteEList_inj`). -/
 theorem denoteFire_inj {st : EStore} (hwf : StoreWF st) {f g : IRecRuleFire}
     {F : RecRuleFire} (hf : Frontend.denoteFire st f = some F)
@@ -1289,26 +1289,16 @@ theorem denoteFire_inj {st : EStore} (hwf : StoreWF st) {f g : IRecRuleFire}
         rw [hl, he] at h
         exact ⟨ls, es, rfl, rfl, (Option.some.inj h).symm⟩
   cases f with
-  | inert =>
-    simp only [Frontend.denoteFire, Option.some.injEq] at hf
-    subst hf
-    cases g with
-    | inert => rfl
-    | plain => simp only [Frontend.denoteFire] at hg; simp at hg
-    | nested l2 p2 =>
-      obtain ⟨u1, u2, u3, u4, hG⟩ := hnest l2 p2 _ hg; simp at hG
   | plain =>
     simp only [Frontend.denoteFire, Option.some.injEq] at hf
     subst hf
     cases g with
-    | inert => simp only [Frontend.denoteFire] at hg; simp at hg
     | plain => rfl
     | nested l2 p2 =>
       obtain ⟨u1, u2, u3, u4, hG⟩ := hnest l2 p2 _ hg; simp at hG
   | nested l1 p1 =>
     obtain ⟨ls1, es1, hl1, he1, rfl⟩ := hnest l1 p1 _ hf
     cases g with
-    | inert => simp only [Frontend.denoteFire, Option.some.injEq] at hg; simp at hg
     | plain => simp only [Frontend.denoteFire, Option.some.injEq] at hg; simp at hg
     | nested l2 p2 =>
       obtain ⟨ls2, es2, hl2, he2, hG⟩ := hnest l2 p2 _ hg
@@ -1323,8 +1313,7 @@ theorem denoteRule_inv {st : EStore} {rl : IRecRule} {R : RecRule}
     denoteN st.ns rl.ctor = some R.ctor ∧
       Frontend.denoteFire st rl.fire = some R.fire ∧
       denoteE st rl.rhs = some R.rhs ∧ rl.nfields = R.nfields ∧
-      rl.ctorParams = R.ctorParams ∧ rl.k = R.k ∧ rl.eta = R.eta ∧
-      rl.paramsBlind = R.paramsBlind := by
+      rl.ctorParams = R.ctorParams ∧ rl.k = R.k ∧ rl.eta = R.eta := by
   simp only [Frontend.denoteRule] at h
   cases hc : denoteN st.ns rl.ctor with
   | none => rw [hc] at h; simp at h
@@ -1338,7 +1327,7 @@ theorem denoteRule_inv {st : EStore} {rl : IRecRule} {R : RecRule}
         rw [hc, hf, hr] at h
         simp only [Option.some.injEq] at h
         subst h
-        exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+        exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 /-- con-leche: none — `Frontend.denoteRules`'s cons inversion. -/
 theorem denoteRules_cons {st : EStore} {a : IRecRule} {as : List IRecRule}
@@ -1366,16 +1355,16 @@ theorem canonRuleHead_eq {st : EStore} (hwf : StoreWF st) {r r' : IRecRule}
     (({ r with rhs := default } : IRecRule) == { r' with rhs := default })
       = ((({ R with rhs := .bvar 0 } : RecRule)) == { R' with rhs := .bvar 0 }) := by
   obtain ⟨rk, hrk⟩ := hwf
-  obtain ⟨hc, hf, -, hn, hp, hk, he, hb⟩ := denoteRule_inv hr
-  obtain ⟨hc', hf', -, hn', hp', hk', he', hb'⟩ := denoteRule_inv hr'
+  obtain ⟨hc, hf, -, hn, hp, hk, he⟩ := denoteRule_inv hr
+  obtain ⟨hc', hf', -, hn', hp', hk', he'⟩ := denoteRule_inv hr'
   rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
-  obtain ⟨c1, n1, p1, f1, x1, k1, e1, b1⟩ := r
-  obtain ⟨c2, n2, p2, f2, x2, k2, e2, b2⟩ := r'
-  obtain ⟨C1, N1, P1, F1, X1, K1, E1, B1⟩ := R
-  obtain ⟨C2, N2, P2, F2, X2, K2, E2, B2⟩ := R'
-  simp only at hc hf hn hp hk he hb hc' hf' hn' hp' hk' he' hb'
-  subst hn; subst hp; subst hk; subst he; subst hb
-  subst hn'; subst hp'; subst hk'; subst he'; subst hb'
+  obtain ⟨c1, n1, p1, f1, x1, k1, e1⟩ := r
+  obtain ⟨c2, n2, p2, f2, x2, k2, e2⟩ := r'
+  obtain ⟨C1, N1, P1, F1, X1, K1, E1⟩ := R
+  obtain ⟨C2, N2, P2, F2, X2, K2, E2⟩ := R'
+  simp only at hc hf hn hp hk he hc' hf' hn' hp' hk' he'
+  subst hn; subst hp; subst hk; subst he
+  subst hn'; subst hp'; subst hk'; subst he'
   constructor
   · intro h
     have q1 : c1 = c2 := congrArg IRecRule.ctor h
@@ -1384,8 +1373,7 @@ theorem canonRuleHead_eq {st : EStore} (hwf : StoreWF st) {r r' : IRecRule}
     have q4 : f1 = f2 := congrArg IRecRule.fire h
     have q5 : k1 = k2 := congrArg IRecRule.k h
     have q6 : e1 = e2 := congrArg IRecRule.eta h
-    have q7 : b1 = b2 := congrArg IRecRule.paramsBlind h
-    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6; subst q7
+    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6
     rw [hc] at hc'
     rw [hf] at hf'
     obtain rfl := Option.some.inj hc'
@@ -1398,8 +1386,7 @@ theorem canonRuleHead_eq {st : EStore} (hwf : StoreWF st) {r r' : IRecRule}
     have q4 : F1 = F2 := congrArg RecRule.fire h
     have q5 : k1 = k2 := congrArg RecRule.k h
     have q6 : e1 = e2 := congrArg RecRule.eta h
-    have q7 : b1 = b2 := congrArg RecRule.paramsBlind h
-    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6; subst q7
+    subst q1; subst q2; subst q3; subst q4; subst q5; subst q6
     obtain rfl := denoteN_inj hrk.nsWF hc hc'
     obtain rfl := denoteFire_inj ⟨rk, hrk⟩ hf hf'
     rfl

@@ -28,7 +28,7 @@ discharges the hypothesis `Hyp.lean` names `IndSpec` (`indSpec_of_bridge`).
 ## Two grades
 
 A twin that calls the knot (`inferTypeCore`, `isDefEqCore`, `whnf`,
-`annotateCore`, `ensureSortCore`) or reads a verdict cache (`lvlEq?`) is CORE
+`ensureSortCore`) or reads a verdict cache (`lvlEq?`) is CORE
 grade: `CSpec`/`CSpecF`, invariant `CheckOK`, frame `CoreStep`, hypothesis
 `CoreSpec`.  Everything else is PURE grade: `PSpec`, `StateOK`, `PStep`.  A
 core-grade statement's pure side is the monad-generic con-leche function at

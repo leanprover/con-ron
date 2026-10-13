@@ -102,7 +102,6 @@ namespace ConRon.Bridge
 
 -- the bracket's OPENING step (item 21), and the eight congruences under it
 #print axioms EStore.view_bracket
-#print axioms EStore.viewBM_bracket
 #print axioms denoteN_bracket
 #print axioms denoteL_bracket
 #print axioms denoteLs_bracket
@@ -218,10 +217,10 @@ namespace ConRon.Bridge
 #print axioms constsResolveFFast_run
 
 -- the install half of the front door, and the pinned-constant install
-#print axioms installConstantVal_pure
-#print axioms installConstantVal_bridge
-#print axioms installValue_pure
-#print axioms installValue_bridge
+#print axioms installHeader_pure
+#print axioms installHeader_bridge
+#print axioms installValueGuards_pure
+#print axioms installValueGuards_bridge
 
 -- the readback facts that moved down out of `Base.lean` (round 4)
 #print axioms beq_handle_iff
@@ -302,11 +301,10 @@ namespace ConRon.Bridge
 #print axioms StepOK.push
 
 -- `ConstWF` at an install: the type half (a hypothesis, read off the front
--- door's own pure run), the value half (con-leche's `installValue_inv` plus
--- `annotateCore`'s two preservation lemmas), and the three introductions
+-- door's own pure run), the value half (con-leche's `installValueGuards_inv`),
+-- and the three introductions
 #print axioms CVTypeWF.cons
 #print axioms checkConstantVal_typeWF
-#print axioms installValue_valueWF
 #print axioms constWF_defnInfo
 #print axioms constWF_thmInfo
 #print axioms constWF_axiomInfo
@@ -353,7 +351,6 @@ namespace ConRon.Bridge
 #print axioms checkBasisDecl_bridge
 
 -- task #97-P3-Checker round 8
-#print axioms erasePwEq_run
 #print axioms matchesPin_run
 #print axioms denoteCV_inj
 #print axioms denoteCI_inj_ind
@@ -406,7 +403,7 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 
 -- the fold's skeleton and the startup walk (task #97-P3-Checker round 8):
 -- closed, children included
-#print axioms Arena.annotFold_bridge
+#print axioms Arena.installFold_bridge
 #print axioms Arena.checkPendingList_bridge
 #print axioms internReservedPins_run
 #print axioms internAllPins_run
@@ -420,10 +417,10 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms internPinSets_run
 #print axioms bracketClose_foldOK
 #print axioms FoldOK.projMem
--- `annotStep_split`'s bracket is proved; its one open child is
--- `Arena.checkDecl_wfProj` (reached through `Arena.annotStepGo_full`)
-#print axioms Arena.annotStepGo_bridge
-#print axioms Arena.annotStep_split
+-- `installStep_split`'s bracket is proved; its one open child is
+-- `Arena.checkDecl_wfProj` (reached through `Arena.installStepGo_full`)
+#print axioms Arena.installStepGo_bridge
+#print axioms Arena.installStep_split
 -- `checkDivModPin_bridge` and its loop (round 9 skeleton, closed in round 10)
 #print axioms checkDivModPinLoop_bridge
 #print axioms checkDivModPin_bridge

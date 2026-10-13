@@ -199,11 +199,19 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   | none =>
     rw [hmi] at hrun hg
     simp only [Option.bind_none] at hg
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    refine ⟨CoreStep.refl hok, ?_⟩
+    dsimp only at hrun
+    obtain ⟨l, s₁, h1, h2⟩ := AM.bind_ok hrun
+    have hl := readLevelM_denote_core hok (PStep.refl hok.state) h1
+    rw [hsP] at hl
+    obtain rfl := (Option.some.inj hl).symm
+    have p1 := readLevelM_pstep hok.state h1
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+    refine ⟨p1.toCore hok, ?_⟩
+    have hx := p1.ext
     rw [hg]
     simp only [Option.getD_none]
-    simp only [Frontend.denoteCaps, hanon, hnames]
+    simp only [Frontend.denoteCaps, denoteN_ext hanon hx, denoteNListE_ext hx _ _ hnames,
+      Frontend.denoteNList]
     rfl
   | some m =>
     rw [hmi] at hrun hg
@@ -230,10 +238,17 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       rw [hc] at hrun hcs
       simp only [dCtors, List.mapM_nil, Option.pure_def, Option.some.injEq] at hcs
       subst hcs
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-      refine ⟨CoreStep.refl hok, ?_⟩
-      simp only [Frontend.denoteCaps, hanon, hnames, List.map_nil]
-      rfl
+      dsimp only at hrun
+      obtain ⟨l, s₁, h1, h2⟩ := AM.bind_ok hrun
+      have hl := readLevelM_denote_core hok (PStep.refl hok.state) h1
+      rw [hsP] at hl
+      obtain rfl := (Option.some.inj hl).symm
+      have p1 := readLevelM_pstep hok.state h1
+      obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+      refine ⟨p1.toCore hok, ?_⟩
+      have hx := p1.ext
+      simp only [Frontend.denoteCaps, denoteN_ext hanon hx, denoteNListE_ext hx _ _ hnames,
+        List.map_nil, Frontend.denoteNList]
     | cons c rest =>
       rw [hc] at hrun hcs
       obtain ⟨cP, restP, rfl, hcP, hrestP⟩ := mapM_option_cons_inv hcs
@@ -245,10 +260,17 @@ theorem blockCapsAt_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       cases rest with
       | cons c' rest' =>
         obtain ⟨cP', restP', rfl, hcP', hrestP'⟩ := mapM_option_cons_inv hrestP
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-        refine ⟨CoreStep.refl hok, ?_⟩
-        have hall := dCtors_names hcs
-        simp only [Frontend.denoteCaps, hanon, hnames, hall]
+        dsimp only at hrun
+        obtain ⟨l, s₁, h1, h2⟩ := AM.bind_ok hrun
+        have hl := readLevelM_denote_core hok (PStep.refl hok.state) h1
+        rw [hsP] at hl
+        obtain rfl := (Option.some.inj hl).symm
+        have p1 := readLevelM_pstep hok.state h1
+        obtain ⟨rfl, rfl⟩ := AM.pure_ok h2
+        refine ⟨p1.toCore hok, ?_⟩
+        have hx := p1.ext
+        have hall := denoteNListE_ext hx _ _ (dCtors_names hcs)
+        simp only [Frontend.denoteCaps, denoteN_ext hanon hx, denoteNListE_ext hx _ _ hnames, hall]
       | nil =>
         simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at hrestP
         subst hrestP
@@ -298,8 +320,8 @@ theorem piDomsMentionAny_spec (names : List NIdx) (namesP : List ConLeche.Name) 
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some q =>
-        obtain ⟨d, b, m⟩ := q
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        obtain ⟨d, b⟩ := q
+        have hw := view_forallE_of_viewBind htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
         obtain ⟨c, s₂, h3, h4⟩ := AM.bind_ok h2
@@ -434,16 +456,17 @@ theorem checkBlockTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hcv, rfl, -⟩ := dMember_inv hm
   dsimp only at hcv
   simp only [Arena.checkBlockTele] at hrun
-  obtain ⟨cvA, s₁, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨c1, cAP, F₁, hcA, hF₁⟩ := checkConstantVal_bridge hμ hk hok henv hcv k1
-  have hw1 : Expr.WScoped 0 cAP.type :=
+  obtain ⟨_, s₁, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨c1, F₁, hF₁⟩ := checkConstantVal_bridge hμ hk hok henv hcv k1
+  have hcA := denoteCV_ext hcv c1.ext
+  have hw1 : Expr.WScoped 0 cv.type :=
     Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF₁).1
-  have fk1 : FOk (ConLeche.checkConstantVal (fueledOpsM μ) env cv) cAP :=
+  have fk1 : FOk (ConLeche.checkConstantVal (fueledOpsM μ) env cv) () :=
     ⟨F₁, by rw [checkConstantVal_datF]; exact hF₁⟩
   obtain ⟨t2, s₂, k2, z2⟩ := AM.bind_ok z1
   obtain ⟨c2, ⟨cvTaP, sP⟩, ⟨h2a, h2b, hw2⟩, fk2⟩ := checkSumTele_specF fe hμ hk henv ms.cvT cv
-    (nP + ms.nIdx) cvA cAP hw1 s₁ s₂ t2 c1.ok
-    ⟨denoteCV_ext hcv c1.ext, hcA, denoteFEnv_mono c1.ext hfe⟩ k2
+    (nP + ms.nIdx) ms.cvT cv hw1 s₁ s₂ t2 c1.ok
+    ⟨hcA, hcA, denoteFEnv_mono c1.ext hfe⟩ k2
   obtain ⟨cvTa, sI⟩ := t2
   dsimp only at h2a h2b hw2 z2
   obtain ⟨sq, s₃, k3, z3⟩ := AM.bind_ok z2

@@ -19,7 +19,7 @@ run forms those stages share.
   generators call, `lvlEq?`/`readLevelM` at the pure frame, `List.mapM`/
   `allM`/`anyM` of a pure-grade step, `fvarB` (with `FvarBSpec` discharged),
   the knot's entry points (`whnf_crun`, `infer_crun`, `ensureSort_crun`,
-  `annotate_crun`, `defeq_crun`, `lvlEq?_crun`) and the telescope opener.
+  `defeq_crun`, `lvlEq?_crun`) and the telescope opener.
 
 **Why `lvlEq?` sits at the core grade** (task #97-P3-Frame): it is a CACHED
 verdict walk — it probes `caches.lvlEqC` and on a miss reads both handles
@@ -161,22 +161,19 @@ theorem IFEnvOKS.mono {env : Env} {fe : IFEnv} {st st' : EStore}
   have h1 := h0.mono (s' := s) (by rw [hs]; exact hx)
   exact h1
 
-/-- con-leche: none — **`denoteBinders` IS `Bridge/ExprOps/Spine.lean`'s
-`denoteBL`**: the same definition under two names, written independently by
-the two tiers (this one's note says `Bridge/Rel.lean` has no relation for the
-shape; the `ExprOps` tier grew one for `stripPis`' answer).  One induction
-identifies them, and it is what lets this tier read the BINDERS off
-`stripPis` rather than only the residual. -/
-theorem denoteBinders_eq_denoteBL {st : EStore} :
-    ∀ (bs : List (EIdx × BinderMeta)),
-      denoteBinders st bs = ExprOps.denoteBL st bs := by
+/-- con-leche: none — **`Bridge/ExprOps/Spine.lean`'s `denoteBL` IS
+`Frontend.denoteEList`**: a binder telescope is its list of domains (con-leche's
+task #342: a binder carries its type and nothing else), and the two tiers wrote
+the readback independently.  One induction identifies them, and it is what lets
+this tier read the BINDERS off `stripPis` rather than only the residual. -/
+theorem denoteBL_eq_denoteEList {st : EStore} :
+    ∀ (bs : List EIdx), ExprOps.denoteBL st bs = Frontend.denoteEList st bs := by
   intro bs
   induction bs with
   | nil => rfl
   | cons a as ih =>
-    obtain ⟨t, m⟩ := a
-    simp only [denoteBinders, ExprOps.denoteBL, ih]
-    rfl
+    simp only [ExprOps.denoteBL, Frontend.denoteEList, ih]
+    cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
 
 /-! ### `stripPis`, in run form
 
@@ -188,7 +185,7 @@ spine readers and interners the generators call, in run form. -/
 at this tier's frame; `stripPis` is read-only, so the state does not move at
 all. -/
 theorem stripPis_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
-    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    {r : Option (List EIdx × EIdx)} (hok : StateOK s₀)
     (hd : denoteE s₀.store c = some cP)
     (hrun : Arena.stripPis k c s₀ = .ok (r, s')) :
     s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripPis k cP) := by
@@ -204,10 +201,11 @@ theorem stripPis_none {st : EStore} {k : Nat} {cP : Expr}
 
 /-- con-leche: none — and a `some` answer of a telescope peel (`stripPis`,
 `stripLams`) names the pure answer: its binders and its residual denote. -/
-theorem denoteBP_some {st : EStore} {v : Option (List (Expr × BinderMeta) × Expr)}
-    {bs : List (EIdx × BinderMeta)} {e : EIdx}
+theorem denoteBP_some {st : EStore} {v : Option (List Expr × Expr)}
+    {bs : List EIdx} {e : EIdx}
     (h : ExprOps.denoteBP st (some (bs, e)) = some v) :
-    ∃ xs x, v = some (xs, x) ∧ denoteBinders st bs = some xs ∧ denoteE st e = some x := by
+    ∃ xs x, v = some (xs, x) ∧ Frontend.denoteEList st bs = some xs ∧
+      denoteE st e = some x := by
   simp only [ExprOps.denoteBP] at h
   cases hb : ExprOps.denoteBL st bs with
   | none => rw [hb] at h; simp at h
@@ -217,7 +215,7 @@ theorem denoteBP_some {st : EStore} {v : Option (List (Expr × BinderMeta) × Ex
     | some x =>
       rw [hb, he] at h
       refine ⟨xs, x, (Option.some.inj h).symm, ?_, rfl⟩
-      rw [denoteBinders_eq_denoteBL]; exact hb
+      rw [← denoteBL_eq_denoteEList]; exact hb
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1355-1357 piResult — the run form of
 `Bridge/ExprOps/Spine.lean`'s `piResult_spec`. -/
@@ -299,10 +297,10 @@ theorem internLsNode_run {s s' : AState} {v : LsNodeView} {vP : List Level}
     intro c hc
     obtain ⟨u, hu⟩ := denoteLList_mem hv hc
     exact lview_isSome_of_denote hu
-  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+  obtain ⟨h1, h2, _h3, _h4, _h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLsNode_spec s v hok.wf hvok)
   have hstep : PStep s s' :=
-    PStep.of_caches ⟨h1⟩ h2 (bmExt_of_tables h3 h4 h5) h7 h8
+    PStep.of_caches ⟨h1⟩ h2 h7 h8
   refine ⟨hstep, ?_⟩
   rw [h10]
   exact denoteLList_ext hstep.ext.lss.ls _ _ hv
@@ -312,9 +310,9 @@ theorem internNNode_run {s s' : AState} {v : NNodeView} {h : NIdx}
     (hok : StateOK s) (hv : s.store.ns.ViewOK v)
     (hrun : internNNode v s = .ok (h, s')) :
     PStep s s' ∧ denoteN s'.store.ns h = denoteNView s'.store.ns v := by
-  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+  obtain ⟨h1, h2, _h3, _h4, _h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internNNode_spec s v hok.wf hv)
-  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_tables h3 h4 h5) h7 h8, h10⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 h7 h8, h10⟩
 
 /-- con-leche: none — `internNNode` at a `.str`: every name this tier builds
 (`N._model`, `T.proj`, `T._model.proj_i`) goes through it. -/
@@ -375,88 +373,16 @@ theorem denoteEList_append {st : EStore} :
         obtain rfl := Option.some.inj ha
         simp only [List.cons_append, Frontend.denoteEList, hx, ih hxs hb]
 
-/-- con-leche: none — **a denoting binder telescope reads at an INDEX with the
-`Option` CARRIED**, both ways.  `structShape` reads `rbs[nP]?`, `rbs[nP+1]?`
-and `rbs[nP+2]?` and dispatches on the `Option`, so the `none` answers have to
-correspond as well as the `some` ones; the `BinderMeta` travels verbatim
-(`denoteBinders` copies it), which is why the two sides share one `m`. -/
-theorem denoteBinders_getElem? {st : EStore} :
-    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
-      denoteBinders st bs = some xs → ∀ (k : Nat),
-        (∀ b m, bs[k]? = some (b, m) →
-          ∃ x, xs[k]? = some (x, m) ∧ denoteE st b = some x) ∧
-        (bs[k]? = none → xs[k]? = none) := by
-  intro bs
-  induction bs with
-  | nil =>
-    intro xs h k
-    simp only [denoteBinders, Option.some.injEq] at h
-    subst h
-    exact ⟨by intro b m hb; simp at hb, by intro _; simp⟩
-  | cons a as ih =>
-    intro xs h k
-    obtain ⟨t, m⟩ := a
-    simp only [denoteBinders] at h
-    cases ht : denoteE st t with
-    | none => rw [ht] at h; simp at h
-    | some y =>
-      cases has : denoteBinders st as with
-      | none => rw [ht, has] at h; simp at h
-      | some ys =>
-        rw [ht, has] at h
-        obtain rfl := Option.some.inj h
-        cases k with
-        | zero =>
-          refine ⟨?_, ?_⟩
-          · intro b m' hb
-            simp only [List.getElem?_cons_zero, Option.some.injEq,
-              Prod.mk.injEq] at hb
-            obtain ⟨rfl, rfl⟩ := hb
-            exact ⟨y, by simp, ht⟩
-          · intro hb; simp at hb
-        | succ k =>
-          obtain ⟨hA, hB⟩ := ih has k
-          refine ⟨?_, ?_⟩
-          · intro b m' hb
-            simp only [List.getElem?_cons_succ] at hb
-            obtain ⟨x, hx, hd⟩ := hA b m' hb
-            exact ⟨x, by simpa using hx, hd⟩
-          · intro hb
-            simp only [List.getElem?_cons_succ] at hb ⊢
-            exact hB hb
-
-/-- con-leche: none — a binder telescope's denotation keeps its length. -/
-theorem denoteBinders_length {st : EStore} :
-    ∀ {bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
-      denoteBinders st bs = some xs → bs.length = xs.length := by
-  intro bs
-  induction bs with
-  | nil => intro xs h; simp only [denoteBinders, Option.some.injEq] at h; simp [← h]
-  | cons a as ih =>
-    intro xs h
-    obtain ⟨t, m⟩ := a
-    simp only [denoteBinders] at h
-    cases ht : denoteE st t with
-    | none => rw [ht] at h; simp at h
-    | some y =>
-      cases has : denoteBinders st as with
-      | none => rw [ht, has] at h; simp at h
-      | some ys =>
-        rw [ht, has] at h
-        obtain rfl := Option.some.inj h
-        simp only [List.length_cons, ih has]
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 liftLooseBVarsFast —
 **the lift in run form at this tier's frame**, from
-`Bridge/ExprOps/Subst.lean`'s `LiftSpec` (which states the `BMExt` conjunct
-`PStep` needs). -/
+`Bridge/ExprOps/Subst.lean`'s `LiftSpec`. -/
 theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
     {eP : Expr} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
     (hrun : Arena.liftLooseBVarsFast fuel amount c e s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ denoteE s'.store r = some (eP.liftLooseBVars amount c) := by
-  obtain ⟨h1, h2, h3, h4, h5, _, _, h8⟩ :=
+  obtain ⟨h1, h2, h4, h5, _, _, h8⟩ :=
     ExprOps.liftLooseBVarsFast_run hok (by rw [hd]; rfl) hrun
-  exact ⟨PStep.of_caches h1 h2 h3 h4 h5, h8 eP hd⟩
+  exact ⟨PStep.of_caches h1 h2 h4 h5, h8 eP hd⟩
 
 /-! ## One reader on loan from the `ExprOps` tier
 
@@ -490,7 +416,7 @@ theorem piSortTeleLen?_spec : ∀ (fuel : Nat) (h : EIdx) (hP : Expr),
     have hde : denoteEView s₀.store v = some hP := by
       rw [denoteE_view_eq hok.wf hw] at hd; exact hd
     cases v
-    case forallE ty body m =>
+    case forallE ty body =>
       obtain ⟨et, eb, rfl, hty, hb⟩ := denote_forallE_inv hok.wf hw hd
       obtain ⟨o, s₂, h3, h4⟩ := AM.bind_ok h2
       obtain ⟨hstep, ho⟩ := ih body eb s₀ s₂ o hok hb h3
@@ -858,17 +784,14 @@ theorem reservedBasisNames_nest : NestProg Arena.reservedBasisNames := by
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s
-`reservedBasisNames_run` gives `PinStep` and the list; `reservedBasisNames_nest`
-adds the three fields `BMExt` needs. -/
+`reservedBasisNames_run` gives `PinStep` and the list. -/
 theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
     (hok : StateOK s) (hp : PinsOK s)
     (hr : Arena.reservedBasisNames s = .ok (hs, s')) :
     PStep s s' ∧
       Frontend.denoteNList s'.store.ns hs = some ConLeche.reservedBasisNames := by
   obtain ⟨hps, hd⟩ := reservedBasisNames_run hok.wf hp hr
-  obtain ⟨-, h1, h2, h3⟩ := reservedBasisNames_nest s s' hs hr hok.wf
-  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext (bmExt_of_tables h1 h2 h3)
-    hps.caches hps.pins, ?_⟩
+  refine ⟨PStep.of_caches ⟨hps.wf⟩ hps.ext hps.caches hps.pins, ?_⟩
   rw [← reservedBasisNameValues_eq]
   exact denoteNL_toList _ _ hd
 
@@ -876,7 +799,7 @@ theorem reservedBasisNames_pstep {s s' : AState} {hs : List NIdx}
 of `Bridge/ExprOps/Spine.lean`'s closed `stripLams_spec`, `stripPis_pstep`'s
 λ twin. -/
 theorem stripLams_pstep {k : Nat} {s₀ s' : AState} {c : EIdx} {cP : Expr}
-    {r : Option (List (EIdx × BinderMeta) × EIdx)} (hok : StateOK s₀)
+    {r : Option (List EIdx × EIdx)} (hok : StateOK s₀)
     (hd : denoteE s₀.store c = some cP)
     (hrun : Arena.stripLams k c s₀ = .ok (r, s')) :
     s' = s₀ ∧ ExprOps.denoteBP s₀.store r = some (Expr.stripLams k cP) := by
@@ -907,7 +830,7 @@ theorem lvlEq?_pstep {s s' : AState} {u v : LIdx} {r : Option Bool}
     (hok : StateOK s) (hrun : Arena.lvlEq? u v s = .ok (r, s')) : PStep s s' := by
   obtain ⟨hst, -, hp, hcf⟩ := Core.lvlEq?_frame hrun
   exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
-    by rw [hst]; exact hcf, hp⟩
+    hcf, hp⟩
 
 /-- con-leche: none — **`readLevelM` at the pure grade's frame** (task
 #97-T2-LOCKSTEP lane Inductives round 3, ruling 1: the twin reads a level back
@@ -918,7 +841,7 @@ theorem readLevelM_pstep {s s' : AState} {h : LIdx} {u : Level}
     (hok : StateOK s) (hrun : readLevelM h s = .ok (u, s')) : PStep s s' := by
   obtain ⟨hst, -, hp, -⟩ := Core.readLevelM_frame hrun
   exact ⟨⟨by rw [hst]; exact hok.wf⟩, by rw [hst]; exact Ext.refl _,
-    by rw [hst]; exact Core.CacheFrame.ofReadLevelM hrun, hp⟩
+    Core.CacheFrame.ofReadLevelM hrun, hp⟩
 
 /-- con-leche: none — `readLevelM`'s ANSWER, which is the denotation only
 under `ReadLCacheOK`, carried from the statement's along the pure steps before
@@ -1067,52 +990,6 @@ theorem anyM_E_pstep {f : EIdx → AM Bool} {F : Expr → Bool} (Q : EStore → 
           refine ⟨p1.trans p2, ?_⟩
           simp only [List.any_cons, ← hc, Bool.false_or, hb]
 
-/-- con-leche: none — `List.anyM` of a pure-grade test over a denoting
-binder telescope, with a store invariant `Q`: the verdict is the pure
-`List.any`. -/
-theorem anyM_B_pstep {f : EIdx × BinderMeta → AM Bool} {F : Expr × BinderMeta → Bool}
-    (Q : EStore → Prop) (hQx : ∀ {st st' : EStore}, Ext st st' → Q st → Q st')
-    (hf : ∀ (b : EIdx × BinderMeta) (bP : Expr × BinderMeta) (s₀ s' : AState) (x : Bool),
-      StateOK s₀ → Q s₀.store → denoteE s₀.store b.1 = some bP.1 → b.2 = bP.2 →
-      f b s₀ = .ok (x, s') → PStep s₀ s' ∧ x = F bP) :
-    ∀ (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)) (s₀ s' : AState)
-      (x : Bool), StateOK s₀ → Q s₀.store → denoteBinders s₀.store bs = some bsP →
-      bs.anyM f s₀ = .ok (x, s') → PStep s₀ s' ∧ x = bsP.any F := by
-  intro bs
-  induction bs with
-  | nil =>
-    intro bsP s₀ s' x hok _ h hrun
-    simp only [denoteBinders, Option.some.injEq] at h
-    subst h
-    simp only [List.anyM] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons b bs ih =>
-    intro bsP s₀ s' x hok hq h hrun
-    obtain ⟨t, m⟩ := b
-    simp only [denoteBinders] at h
-    cases ht : denoteE s₀.store t with
-    | none => rw [ht] at h; simp at h
-    | some tP =>
-      cases hbs : denoteBinders s₀.store bs with
-      | none => rw [ht, hbs] at h; simp at h
-      | some rest =>
-        rw [ht, hbs] at h
-        obtain rfl := (Option.some.inj h).symm
-        simp only [List.anyM] at hrun
-        obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
-        obtain ⟨p1, hc⟩ := hf (t, m) (tP, m) s₀ s1 c hok hq ht rfl k1
-        cases c with
-        | true =>
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-          refine ⟨p1, ?_⟩
-          simp only [List.any_cons, ← hc, Bool.true_or]
-        | false =>
-          obtain ⟨p2, hx⟩ := ih rest s1 s' x p1.ok (hQx p1.ext hq)
-            (denoteBinders_ext p1.ext _ _ hbs) z1
-          refine ⟨p1.trans p2, ?_⟩
-          simp only [List.any_cons, ← hc, Bool.false_or, hx]
-
 /-- con-leche: none — `ListRel` at a handle denotation is `denoteEList`. -/
 theorem ListRel.toEList {st : EStore} :
     ∀ {bs : List EIdx} {cs : List Expr},
@@ -1152,9 +1029,8 @@ theorem fvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
     PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.fvarB eP := by
   obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (ExprOps.fvarB_spec fuel s₀ e hok (by rw [hd]; rfl))
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, ?_⟩
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ h2 h3, h1, ?_⟩
   · rw [h1]; exact Ext.refl _
-  · rw [h1]; exact BMExt.refl _
   · rw [h4 eP hd, Expr.fvarB_eq]
 
 /-! ## Reading the index at `ReadOK` -/
@@ -1186,7 +1062,7 @@ theorem constsResolveFFast_pstep {env : Env} {fe : IFEnv}
     PStep s₀ s' ∧ r = eP.constsResolve env := by
   obtain ⟨h1, h2, h3, h4⟩ := constsResolveFFast_runR hok he hrun
   refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.state.wf⟩ (by rw [h1]; exact Ext.refl _)
-    (by rw [h1]; exact BMExt.refl _) h2 h3, h4⟩
+    h2 h3, h4⟩
 
 /-- con-leche: none — `allM_E_ck` with a store invariant the body may read. -/
 theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
@@ -1262,19 +1138,6 @@ theorem allM_ck {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
       exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hb]⟩
 
 
-/-- con-leche: ConLeche/Kernel/Env.lean:629 projFnName — the run form:
-`(TP.str "proj").num i`, two interns. -/
-theorem projFnName_run {s s' : AState} {T : NIdx} {TP : ConLeche.Name}
-    {i : Nat} {h : NIdx} (hok : StateOK s)
-    (hT : denoteN s.store.ns T = some TP)
-    (hrun : Arena.projFnName T i s = .ok (h, s')) :
-    PStep s s' ∧ denoteN s'.store.ns h = some (ConLeche.projFnName TP i) := by
-  simp only [Arena.projFnName] at hrun
-  obtain ⟨m, s1, k1, h2⟩ := AM.bind_ok hrun
-  obtain ⟨p1, hm⟩ := internStrN_run hok hT k1
-  obtain ⟨p2, hr⟩ := internNumN_run p1.ok hm h2
-  exact ⟨p1.trans p2, hr⟩
-
 /-! ## The knot's entry points, in run form
 
 Each answer is an `FOk` of `fueledOpsM`'s operation, the frame a `CoreStep`. -/
@@ -1339,27 +1202,11 @@ theorem instLPFast_cstep {s s' : AState}
     (hrun : Arena.instLPFast Arena.coreWalkFuel ks us e s = .ok (r, s')) :
     CoreStep μ env fe s s' ∧
       denoteE s'.store r = some (eP.instantiateLevelParams ksv usv) := by
-  obtain ⟨hst, hx, -, hL, hLs, hN, hc, hp, -, hrel⟩ :=
+  obtain ⟨hst, hx, hL, hLs, hN, hc, hp, -, hrel⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun
     (ExprOps.instLPFast_spec _ s ks us e ksv usv hok.state hok.caches.readN hok.caches.readL
       hok.caches.readLs hks hus (by rw [he]; rfl))
   exact ⟨⟨Core.CheckOK.ofInstLP hok hst hx hL hLs hN hc hp, hx, hp⟩, hrel eP he⟩
-
-/-- con-leche: ConLeche/Kernel/CheckerBase.lean:27 CheckerOps.annotate — the
-knot's annotation in run form, its answer an `FOk` of `fueledOpsM`'s. -/
-theorem annotate_crun {μ : CheckMode} {env : Env} {fe : IFEnv}
-    (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
-    {s s' : AState} {d : Nat} {e r : EIdx} {eP : Expr}
-    (hok : CheckOK μ env fe s) (he : denoteE s.store e = some eP)
-    (hw : Expr.WScoped d eP)
-    (hrun : Arena.annotateCore μ fe Arena.checkFuel d e s = .ok (r, s')) :
-    CoreStep μ env fe s s' ∧ ∃ w, denoteE s'.store r = some w ∧ Expr.WScoped d w ∧
-      FOk ((fueledOpsM μ).annotate env d eP) w := by
-  obtain ⟨h1, h2, h3, v, hv, hwv, hF⟩ := AM.of_run (P := fun u => u = s)
-    (Q := fun r u => CheckOK μ env fe u ∧ Ext s.store u.store ∧ u.pins = s.pins ∧
-      Core.SimE (ConLeche.annotateCore μ env) d eP u.store r)
-    rfl hrun ((hk.knot env fe henv).annotate s d e eP hok he hw)
-  exact ⟨⟨h1, h2, h3⟩, v, hv, hwv, FOk.annotate hF⟩
 
 /-- con-leche: none — `lvlEq?` at the core grade: the store stands still and
 the verdict is `Level.isEquiv` of the denotations (`Core.lvlEq?_spec`). -/
@@ -1452,7 +1299,7 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
     cases v
-    case forallE dom body bm =>
+    case forallE dom body =>
       obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
       dsimp only at z1
       obtain ⟨fv, s2, k2, z2⟩ := AM.bind_ok z1
@@ -1461,9 +1308,9 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
         rw [hfv]; simp [denoteEView, denote_ext hd p2.ext]
       obtain ⟨op, s3, k3, z3⟩ := AM.bind_ok z2
       have hb2 : denoteE s2.store body = some bodyP := denote_ext hb p2.ext
-      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run p2.ok hfv'
+      obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run p2.ok hfv'
         (by rw [hb2]; rfl) k3
-      have p3 : PStep s2 s3 := PStep.of_caches h1 h2 h3 h4 h5
+      have p3 : PStep s2 s3 := PStep.of_caches h1 h2 h4 h5
       have hop : denoteE s3.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
         h7 _ hb2
       obtain ⟨o, s4, k4, z4⟩ := AM.bind_ok z3
@@ -1491,7 +1338,7 @@ theorem openPisAtFvars_run : ∀ (n : Nat) {i : Nat} {h : EIdx} {hP : Expr}
       refine ⟨PStep.refl hok, ?_⟩
       rw [denoteE_view_eq hok.wf hv] at hh
       cases hP
-      case forallE a b m => simp [denoteEView] at hh
+      case forallE a b => simp [denoteEView] at hh
       all_goals rfl
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:153-167 openPisAtFvarsFGo — **the
@@ -1508,10 +1355,10 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
     simp only [Arena.openPisAtFvarsFGo] at hrun
     obtain ⟨e, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
       (by rw [hh]; rfl) k1
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
+    refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
     simp [denoteOpen, Frontend.denoteEList, h7 _ hh, ConLeche.openPisAtFvarsFGo]
   | succ n ih =>
     intro acc ws i h hP s₀ s' r hok hacc hh hrun
@@ -1524,13 +1371,13 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
     obtain ⟨hs1, hv⟩ := view_run k1
     rw [hs1] at z1
     cases v
-    case forallE dom body bm =>
+    case forallE dom body =>
       obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok.wf hv hh
       dsimp only at z1
       obtain ⟨dd, s2, k2, z2⟩ := AM.bind_ok z1
-      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
+      obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiateListFast_run hok hacc
         (by rw [hd]; rfl) k2
-      have p2 : PStep s₀ s2 := PStep.of_caches h1 h2 h3 h4 h5
+      have p2 : PStep s₀ s2 := PStep.of_caches h1 h2 h4 h5
       have hdd : denoteE s2.store dd = some (domP.instantiateList ws 0) := h7 _ hd
       obtain ⟨fv, s3, k3, z3⟩ := AM.bind_ok z2
       obtain ⟨p3, hfv⟩ := internE_run p2.ok (viewOK_fvar (by rw [hdd]; rfl)) k3
@@ -1561,7 +1408,7 @@ theorem openPisAtFvarsFGo_run : ∀ (n : Nat) {acc : Array EIdx} {ws : List Expr
       refine ⟨PStep.refl hok, ?_⟩
       rw [denoteE_view_eq hok.wf hv] at hh
       cases hP
-      case forallE a b m => simp [denoteEView] at hh
+      case forallE a b => simp [denoteEView] at hh
       all_goals rfl
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:169-176 openPisAtFvarsF — **the

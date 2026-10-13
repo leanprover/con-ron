@@ -692,12 +692,10 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
 
 /-! ## The pin shape comparison
 
-`Arena.erasePwEq` is con-leche's `Expr.erasePwEq` — the `@[csimp]` lockstep
-twin of `matchesPin`'s `erasePw … == erasePw …` — descended on two handles.
-As `Canon.lean`'s `canonExprEq_run` does for `canonExprEqFast`, the bridge
-targets the lockstep twin and takes con-leche's word (`Expr.erasePwEq_eq`)
-for its agreement with the rebuild.  The walk only READS the store, so its
-frame is `s' = s`. -/
+Since con-leche's task #342 `matchesPin` is plain equality of the three
+fields, and the twin compares HANDLES: the readbacks are injective, so each
+handle comparison is the denotations' comparison.  The test only READS the
+store, so its frame is `s' = s`. -/
 
 /-- con-leche: none — a handle comparison IS the comparison of the two
 denotations, at any readback that is injective. -/
@@ -719,120 +717,10 @@ theorem beq_of_denote_inj {α β : Type} [BEq α] [LawfulBEq α] [BEq β]
       obtain rfl := Option.some.inj hj
       simp at hb
 
-/-- con-leche: none — `if c then m else pure false` answers `c && B` when `m`
-answers `B` and leaves the state alone. -/
-private theorem ite_and_run {c : Bool} {m : AM Bool} {B r : Bool}
-    {s s' : AState}
-    (hm : ∀ {r' : Bool} {s'' : AState}, m s = .ok (r', s'') → s'' = s ∧ r' = B)
-    (h : (if c = true then m else pure false) s = .ok (r, s')) :
-    s' = s ∧ r = (c && B) := by
-  rcases AM.ite_ok h with ⟨hc, k⟩ | ⟨hc, k⟩
-  · obtain ⟨rfl, rfl⟩ := hm k; simp [hc]
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
-    simp only [Bool.not_eq_true] at hc
-    simp [hc]
-
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq — **the
-lockstep shape comparison is con-leche's**, arm for arm.  The bridge is to the
-lockstep twin and not to `erasePw a = erasePw b`: con-leche proves the two
-equivalent itself (`Expr.erasePwEq_eq`). -/
-theorem erasePwEq_run :
-    ∀ (fuel : Nat) {a b : EIdx} {x y : Expr} {r : Bool} {s s' : AState},
-      StoreWF s.store → denoteE s.store a = some x →
-      denoteE s.store b = some y →
-      Arena.erasePwEq fuel a b s = .ok (r, s') →
-      s' = s ∧ r = ConLeche.Expr.erasePwEq x y := by
-  intro fuel
-  induction fuel with
-  | zero =>
-    intro a b x y r s s' _ _ _ hrun
-    exact absurd hrun (AM.Never.fail _ _ _ _)
-  | succ fuel ih =>
-    intro a b x y r s s' hwf hx hy hrun
-    have hwf' := hwf
-    obtain ⟨rk, hrk⟩ := hwf'
-    simp only [Arena.erasePwEq] at hrun
-    obtain ⟨va, s1, g1, k1⟩ := AM.bind_ok hrun
-    obtain ⟨rfl, hva⟩ := view_run g1
-    obtain ⟨vb, s2, g2, k2⟩ := AM.bind_ok k1
-    obtain ⟨rfl, hvb⟩ := view_run g2
-    cases va <;> cases vb
-    all_goals first
-      | obtain rfl := denote_bvar_inv hwf hva hx
-      | obtain ⟨xT, rfl, hxT⟩ := denote_fvar_inv hwf hva hx
-      | obtain ⟨xU, rfl, hxU⟩ := denote_sort_inv hwf hva hx
-      | obtain ⟨xN, xL, rfl, hxN, hxL⟩ := denote_const_inv hwf hva hx
-      | obtain ⟨xF, xA, rfl, hxF, hxA⟩ := denote_app_inv hwf hva hx
-      | obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_lam_inv hwf hva hx
-      | obtain ⟨xT, xB, rfl, hxT, hxB⟩ := denote_forallE_inv hwf hva hx
-      | obtain ⟨xT, xW, xB, rfl, hxT, hxW, hxB⟩ := denote_letE_inv hwf hva hx
-      | obtain rfl := denote_lit_inv hwf hva hx
-      | obtain ⟨xN, xE, rfl, hxN, hxE⟩ := denote_proj_inv hwf hva hx
-    all_goals first
-      | obtain rfl := denote_bvar_inv hwf hvb hy
-      | obtain ⟨yT, rfl, hyT⟩ := denote_fvar_inv hwf hvb hy
-      | obtain ⟨yU, rfl, hyU⟩ := denote_sort_inv hwf hvb hy
-      | obtain ⟨yN, yL, rfl, hyN, hyL⟩ := denote_const_inv hwf hvb hy
-      | obtain ⟨yF, yA, rfl, hyF, hyA⟩ := denote_app_inv hwf hvb hy
-      | obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_lam_inv hwf hvb hy
-      | obtain ⟨yT, yB, rfl, hyT, hyB⟩ := denote_forallE_inv hwf hvb hy
-      | obtain ⟨yT, yW, yB, rfl, hyT, hyW, hyB⟩ := denote_letE_inv hwf hvb hy
-      | obtain rfl := denote_lit_inv hwf hvb hy
-      | obtain ⟨yN, yE, rfl, hyN, hyE⟩ := denote_proj_inv hwf hvb hy
-    all_goals first
-      | (obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-         refine ⟨rfl, ?_⟩
-         simp [ConLeche.Expr.erasePwEq]
-         done)
-      | skip
-    case fvar.fvar =>
-      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxT hyT h) k2
-      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
-    case sort.sort =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-      exact ⟨rfl, by
-        simp only [ConLeche.Expr.erasePwEq,
-          beq_of_denote_inj (fun h1 h2 => denoteL_inj hrk.lsWF h1 h2) hxU hyU]⟩
-    case const.const =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok k2
-      exact ⟨rfl, by
-        simp only [ConLeche.Expr.erasePwEq,
-          beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hxN hyN,
-          beq_of_denote_inj (fun h1 h2 => denoteLs_inj hrk.lss h1 h2) hxL hyL]⟩
-    case app.app =>
-      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
-      obtain ⟨rfl, rfl⟩ := ih hwf hxF hyF g3
-      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxA hyA h) k3
-      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
-    case lam.lam =>
-      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
-      obtain ⟨rfl, rfl⟩ := ih hwf hxT hyT g3
-      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxB hyB h) k3
-      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
-    case forallE.forallE =>
-      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
-      obtain ⟨rfl, rfl⟩ := ih hwf hxT hyT g3
-      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxB hyB h) k3
-      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he]⟩
-    case letE.letE =>
-      obtain ⟨c1, s3, g3, k3⟩ := AM.bind_ok k2
-      obtain ⟨rfl, rfl⟩ := ih hwf hxT hyT g3
-      rcases AM.ite_ok k3 with ⟨hc, k4⟩ | ⟨hc, k4⟩
-      · obtain ⟨c2, s4, g4, k5⟩ := AM.bind_ok k4
-        obtain ⟨rfl, rfl⟩ := ih hwf hxW hyW g4
-        obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxB hyB h) k5
-        exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he, hc, Bool.true_and]⟩
-      · obtain ⟨rfl, rfl⟩ := AM.pure_ok k4
-        simp only [Bool.not_eq_true] at hc
-        exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, hc, Bool.false_and]⟩
-    case proj.proj =>
-      have hsn := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hxN hyN
-      obtain ⟨rfl, he⟩ := ite_and_run (fun h => ih hwf hxE hyE h) k2
-      exact ⟨rfl, by simp only [ConLeche.Expr.erasePwEq, he, hsn, Bool.and_assoc]⟩
-
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:197-201 ConstantVal.matchesPinFast
-— **the pin comparison is con-leche's**, at the lockstep twin, and hence (by
-con-leche's own `@[csimp]` equation) at `matchesPin` itself. -/
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:89-91 ConstantVal.matchesPin —
+**the pin comparison is con-leche's**: since task #342 it is plain equality of
+name, level parameters and type, and over handles each comparison is the
+denotations' (the readbacks are injective). -/
 theorem matchesPin_run {cv pin : IConstantVal} {c p : ConstantVal}
     {r : Bool} {s s' : AState} (hwf : StoreWF s.store)
     (hc : Frontend.denoteCV s.store cv = some c)
@@ -846,19 +734,12 @@ theorem matchesPin_run {cv pin : IConstantVal} {c p : ConstantVal}
   have e1 := beq_of_denote_inj (fun h1 h2 => denoteN_inj hrk.nsWF h1 h2) hcn hpn
   have e2 := beq_of_denote_inj
     (fun h1 h2 => denoteNList_inj hwf _ _ _ h1 h2) hcl hpl
-  rw [ConLeche.ConstantVal.matchesPin_eq_matchesPinFast]
+  have e3 := beq_of_denote_inj (fun h1 h2 => denoteE_inj hwf h1 h2) hct hpt
   simp only [IConstantVal.matchesPin] at hrun
-  rcases AM.ite_ok hrun with ⟨hq, k⟩ | ⟨hq, k⟩
-  · obtain ⟨rfl, rfl⟩ := erasePwEq_run _ hwf hct hpt k
-    simp only [Bool.and_eq_true, e1, e2, beq_iff_eq] at hq
-    refine ⟨rfl, ?_⟩
-    simp [ConLeche.ConstantVal.matchesPinFast, hq.1, hq.2]
-  · obtain ⟨rfl, rfl⟩ := AM.pure_ok k
-    refine ⟨rfl, ?_⟩
-    simp only [Bool.and_eq_true, e1, e2, beq_iff_eq, not_and] at hq
-    by_cases h1 : c.name = p.name
-    · simp [ConLeche.ConstantVal.matchesPinFast, h1, hq h1]
-    · simp [ConLeche.ConstantVal.matchesPinFast, h1]
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+  refine ⟨rfl, ?_⟩
+  rw [e1, e2, e3, ConLeche.ConstantVal.matchesPin]
+  congr 2 <;> exact Bool.eq_iff_iff.mpr (by simp)
 
 /-! ## The shape tests' frame
 
@@ -1356,23 +1237,14 @@ theorem reduceOpCvA_run {cH : NIdx} {cn : ConLeche.Name} {v : IConstantVal}
     refine ⟨hs, ?_⟩
     rw [hv, ConLeche.reduceOpCvA, ite_eq_right (fun h => hc (hiff.mpr h))]
 
-/-- The RAW pin an `ofReduce*` axiom is matched against — what the twin's
-`ofReducePinA` interns (`Arena/TrustAxioms.lean`: task #97-P5-Top round 2,
-ruling (a)).  con-leche's `ofReducePinA` is the annotated one. -/
-def ofReducePinRaw (n : ConLeche.Name) : ConstantVal :=
-  if n = ConLeche.ofReduceNatName then ConLeche.ofReduceRaw ConLeche.ofReduceNatName
-  else ConLeche.ofReduceRaw ConLeche.ofReduceBoolName
-
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:152-154 ofReducePinA — the
-pin an `ofReduce*` axiom is matched against, interned: the RAW one
-(`ofReducePinRaw`), since task #97-P5-Top round 2's ruling (a);
-`ofReducePinA_matchesPin_raw` is why the verdict is con-leche's. -/
+pin an `ofReduce*` axiom is matched against, interned. -/
 theorem ofReducePinA_run {nH : NIdx} {nm : ConLeche.Name} {v : IConstantVal}
     {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
     (hd : denoteN s.store.ns nH = some nm)
     (hrun : Arena.ofReducePinA nH s = .ok (v, s')) :
     Frontend.IStepS s s' ∧
-      Frontend.denoteCV s'.store v = some (ofReducePinRaw nm) := by
+      Frontend.denoteCV s'.store v = some (ConLeche.ofReducePinA nm) := by
   simp only [Arena.ofReducePinA] at hrun
   obtain ⟨rn, s1, g1, r1⟩ := AM.bind_ok hrun
   obtain ⟨rfl, d1⟩ := pinAt_run (x := ConLeche.ofReduceNatName) hp (by rfl) g1
@@ -1380,10 +1252,10 @@ theorem ofReducePinA_run {nH : NIdx} {nm : ConLeche.Name} {v : IConstantVal}
   rcases AM.ite_ok r1 with ⟨hc, k⟩ | ⟨hc, k⟩
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ofReducePinRaw, ite_eq_left (hiff.mp hc)]
+    rw [hv, ConLeche.ofReducePinA, ite_eq_left (hiff.mp hc)]
   · obtain ⟨hs, hv⟩ := internCV_fresh hst k
     refine ⟨hs, ?_⟩
-    rw [hv, ofReducePinRaw, ite_eq_right (fun h => hc (hiff.mpr h))]
+    rw [hv, ConLeche.ofReducePinA, ite_eq_right (fun h => hc (hiff.mpr h))]
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:179-186 reduceElemOk — the
 element inductive's shape test is con-leche's. -/
@@ -1553,74 +1425,12 @@ theorem RunsB.matchCod {x : Option IConstantInfo} {y : Option ConstantInfo}
     rw [h1, h2]
     exact RunsB.ret hs1.ok
 
-/-! ### The raw pins are con-leche's annotated ones, to `matchesPin`
-
-Task #97-P5-Top round 2, ruling (a): the twin interns and compares the RAW
-standard-axiom and `ofReduce*` pins, as the port does, where con-leche compares
-against the annotated ones.  Annotation writes only the binders' `pw` datum,
-and `matchesPin` compares types up to `erasePw`, so each pair gives the same
-verdict — by `rfl` on the erased types (the old campaign's
-`Refine/StdAxioms.lean` / `Refine/TrustAxioms.lean` facts, restated here
-because `Bridge` does not import `Refine`). -/
-
-/-- Two pins that agree on name, level parameters and `erasePw` of the type are
-the same pin as far as `ConstantVal.matchesPin` can tell. -/
-theorem matchesPin_congr {p q : ConstantVal} (hn : p.name = q.name)
-    (hl : p.levelParams = q.levelParams) (ht : p.type.erasePw = q.type.erasePw)
-    (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv p = ConLeche.ConstantVal.matchesPin cv q := by
-  simp [ConLeche.ConstantVal.matchesPin, hn, hl, ht]
-
-theorem iffA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.iffA.toConstantVal
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffRaw.toConstantVal :=
-  matchesPin_congr rfl rfl rfl cv
-theorem iffIntroA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.iffIntroA.toConstantVal
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffIntroRaw.toConstantVal :=
-  matchesPin_congr rfl rfl rfl cv
-theorem iffRecA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.iffRecA.toConstantVal
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.iffRecRaw.toConstantVal :=
-  matchesPin_congr rfl rfl rfl cv
-theorem nonemptyA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyA.toConstantVal
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRaw.toConstantVal :=
-  matchesPin_congr rfl rfl rfl cv
-theorem nonemptyIntroA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyIntroA.toConstantVal
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyIntroRaw.toConstantVal :=
-  matchesPin_congr rfl rfl rfl cv
-theorem nonemptyRecA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRecA.toConstantVal
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.nonemptyRecRaw.toConstantVal :=
-  matchesPin_congr rfl rfl rfl cv
-theorem propextA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.propextA
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.propextRaw :=
-  matchesPin_congr rfl rfl rfl cv
-theorem choiceA_matchesPin_raw (cv : ConstantVal) :
-    ConLeche.ConstantVal.matchesPin cv ConLeche.choiceA
-      = ConLeche.ConstantVal.matchesPin cv ConLeche.choiceRaw :=
-  matchesPin_congr rfl rfl rfl cv
-
-/-- `ofReducePinA` and its raw twin (`ConLeche/Kernel/TrustAxioms.lean:143-146`,
-the `#annotate_pins` command): the three binders' `pw` differ, `erasePw`
-erases exactly that. -/
-theorem ofReducePinA_matchesPin_raw (cv : ConstantVal) (n : ConLeche.Name) :
-    ConLeche.ConstantVal.matchesPin cv (ConLeche.ofReducePinA n)
-      = ConLeche.ConstantVal.matchesPin cv (ofReducePinRaw n) := by
-  rw [ConLeche.ofReducePinA, ofReducePinRaw]
-  split
-  · exact matchesPin_congr rfl rfl rfl cv
-  · exact matchesPin_congr rfl rfl rfl cv
-
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (stdAxiomOk) — the standard
 axioms' environment shape test is con-leche's.
 
 **PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
 through the `RunsB` combinators — `pinAt_run` per pinned name, `IFEnvOK.findRel`
-per index lookup, `matchesPin_run` (hence `erasePwEq_run`) per shape
+per index lookup, `matchesPin_run` per shape
 comparison, and `IFEnvOK.find_beq_ind` for the `Eq` basis test. -/
 theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
@@ -1639,10 +1449,7 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     ⟨ht.ok, hok.check.pins.mono ht.ext ht.pins, hok.check.ienv.mono ht.ext,
       denoteCV_ext hcv ht.ext⟩
   have hnm := (denoteCV_inv hcv).1
-  simp only [ConLeche.stdAxiomOk, Bool.and_assoc, iffA_matchesPin_raw,
-    iffIntroA_matchesPin_raw, iffRecA_matchesPin_raw, nonemptyA_matchesPin_raw,
-    nonemptyIntroA_matchesPin_raw, nonemptyRecA_matchesPin_raw,
-    propextA_matchesPin_raw, choiceA_matchesPin_raw]
+  simp only [ConLeche.stdAxiomOk, Bool.and_assoc]
   unfold Arena.stdAxiomOk
   obtain ⟨hst0, hp0, hie0, -⟩ := tr (Frontend.IStepS.refl hst)
   refine RunsB.pin hst hp0 (x := ConLeche.propextName) (by rfl) fun pn dpn => ?_
@@ -1746,7 +1553,7 @@ theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     ⟨ht.ok, hok.check.pins.mono ht.ext ht.pins, hok.check.ienv.mono ht.ext,
       denoteCV_ext hcv ht.ext⟩
   have hnm := (denoteCV_inv hcv).1
-  simp only [ConLeche.ofReduceAxOk, Bool.and_assoc, ofReducePinA_matchesPin_raw]
+  simp only [ConLeche.ofReduceAxOk, Bool.and_assoc]
   unfold Arena.ofReduceAxOk
   obtain ⟨-, hp0, -, -⟩ := tr (Frontend.IStepS.refl hst)
   refine RunsB.bind fun {cH s0} g0 => ?_
@@ -1776,9 +1583,9 @@ theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 /-! ## The pinned `And` (con-leche's ANDPIN)
 
 The fold asks `andPinOk` of every record before its dispatch
-(`Arena.annotDeclStep`).  Theorem 1 is about ACCEPTING runs, and con-leche's
+(`Arena.installDeclStep`).  Theorem 1 is about ACCEPTING runs, and con-leche's
 soundness chain never reads the test (`Cached/Installed.lean`'s note on
-`annotDeclStep`: the stuck-proof rescue it keeps available is sound for any
+the install step: the stuck-proof rescue it keeps available is sound for any
 `And`), so what the fold theorem needs of it is the frame: an accepting test
 only grew the store, and moved neither the caches nor the pin table. -/
 
