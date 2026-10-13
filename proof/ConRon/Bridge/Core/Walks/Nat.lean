@@ -484,7 +484,7 @@ theorem natZeroOk_spec (s₀ : AState) (oc : Option IConstantInfo)
 /-- con-leche: none — `denote_not_forallE` at the tag-first twin's `else`
 arm: a handle whose TAG is not `forallE` denotes no `∀` (task #120: the shape
 `bridge_fwd` instantiates). -/
-theorem denote_not_forallE_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
+theorem denote_not_forallE_of_tag' {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {e : Expr} (he : denoteE st h = some e)
     (ht : ¬ (h.tag == ETag.forallE) = true) : ∀ ty b, e ≠ .forallE ty b := by
   obtain ⟨v, hv⟩ := denoteE_view he
@@ -536,7 +536,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
       bridge_frame
-      bridge_fwd [denote_not_forallE, denote_not_forallE_of_tag]
+      bridge_fwd [denote_not_forallE, denote_not_forallE_of_tag']
       bridge_frame
       -- the type has universe parameters
       vc_arm (hne : (!v.levelParams.isEmpty) = true) =>
@@ -894,7 +894,7 @@ answer in context; the lemmas here turn that into the `SimOOp` exit in one
 `exact`. -/
 
 /-- con-leche: none — a declining exit. -/
-theorem simOOp_none {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStore}
+theorem reduceNat_decline {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStore}
     (F : Nat) (h : P F = .ok none) : SimOOp P d st none :=
   ⟨none, rfl, by simp, F, h⟩
 
@@ -1029,7 +1029,7 @@ theorem simOOp_succ_none {F d : Nat} {a w : Expr} {st : EStore}
     (hw : ConLeche.whnf mode env F d a = .ok w) (hr : none = ConLeche.rawNatLit? w) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
       (.app (.const ConLeche.natSuccName []) a)) d st none :=
-  simOOp_none F (by rw [reduceNatFueled_succ ⟨rfl, hs⟩ hw, ← hr]; rfl)
+  reduceNat_decline F (by rw [reduceNatFueled_succ ⟨rfl, hs⟩ hw, ← hr]; rfl)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the certified
 binary operation FIRES. -/
@@ -1061,7 +1061,7 @@ theorem simOOp_bin_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
     (hr₂ : none = ConLeche.rawNatLit? w₂) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
       (.app (.app (.const nm []) a) b)) d st none := by
-  refine simOOp_none (F₁ + F₂) ?_
+  refine reduceNat_decline (F₁ + F₂) ?_
   rw [reduceNatFueled_bin ⟨hb, hs⟩ (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
   simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hw₂,
     ← hr₂]
@@ -1076,7 +1076,7 @@ theorem simOOp_bin_fst {F₁ d : Nat} {nm : ConLeche.Name} {a b w₁ : Expr}
     (hr₁ : none = ConLeche.rawNatLit? w₁) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
       (.app (.app (.const nm []) a) b)) d st none :=
-  simOOp_none F₁ (by rw [reduceNatFueled_bin ⟨hb, hs⟩ hw₁, ← hr₁]; rfl)
+  reduceNat_decline F₁ (by rw [reduceNatFueled_bin ⟨hb, hs⟩ hw₁, ← hr₁]; rfl)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — the safety
 net: the second argument is not a literal. -/
@@ -1091,7 +1091,7 @@ theorem simOOp_wf_snd {F₁ F₂ d n₁ : Nat} {nm : ConLeche.Name}
     (hr₂ : none = ConLeche.rawNatLit? w₂) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
       (.app (.app (.const nm []) a) b)) d st none := by
-  refine simOOp_none (F₁ + F₂) ?_
+  refine reduceNat_decline (F₁ + F₂) ?_
   rw [reduceNatFueled_wf hg ⟨hc, hs⟩ (ConLeche.whnf_mono (by omega) hw₁), ← hr₁]
   simp only [bind, Except.bind, ConLeche.whnf_mono (by omega : F₂ ≤ F₁ + F₂) hw₂,
     ← hr₂]
@@ -1108,7 +1108,7 @@ theorem simOOp_wf_fst {F₁ d : Nat} {nm : ConLeche.Name} {a b w₁ : Expr}
     (hr₁ : none = ConLeche.rawNatLit? w₁) :
     SimOOp (fun F => ConLeche.reduceNatFueled mode env F d
       (.app (.app (.const nm []) a) b)) d st none :=
-  simOOp_none F₁ (by rw [reduceNatFueled_wf hg ⟨hc, hs⟩ hw₁, ← hr₁]; rfl)
+  reduceNat_decline F₁ (by rw [reduceNatFueled_wf hg ⟨hc, hs⟩ hw₁, ← hr₁]; rfl)
 
 /-! ## 6. `reduceNat` -/
 
@@ -1154,12 +1154,12 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   bridge_frame [viewOK_lit]
   -- a constant WITH universe levels: no operation
   vc_arm (hd : denoteE _ e = some (.app (.const _ ?ls) _)) (h : ?ls ≠ []) =>
-    exact simOOp_none 0 (reduceNat_unary_levels h)
+    exact reduceNat_decline 0 (reduceNat_unary_levels h)
   vc_arm (hd : denoteE _ e = some (.app (.app (.const _ ?ls) _) _)) (h : ?ls ≠ []) =>
-    exact simOOp_none 0 (reduceNat_binary_levels h)
+    exact reduceNat_decline 0 (reduceNat_binary_levels h)
   -- `Nat.succ`: the guard declines, the argument is a literal, or it is not
   vc_arm (hng : ¬ (_ = ConLeche.natSuccName ∧ _)) =>
-    exact simOOp_none 0 (reduceNatFueled_succ_no hng)
+    exact reduceNat_decline 0 (reduceNatFueled_succ_no hng)
   vc_arm (hs : ConLeche.natLitSupported _ = true) (hw : ConLeche.whnf _ _ _ _ _ = .ok ?w)
       (hr : some _ = ConLeche.rawNatLit? ?w) (hx : denoteE _ _ = denoteEView _ (.lit _)) =>
     exact simOOp_succ_some hs hw hr hx
@@ -1192,15 +1192,15 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (hw₁ : ConLeche.whnf _ _ _ _ ?a = .ok ?w₁) (hr₁ : none = ConLeche.rawNatLit? ?w₁) =>
     exact simOOp_wf_fst hg hc hs hw₁ hr₁
   vc_arm (hg : ¬ (NatBinOp _ ∧ _)) (hnw : ¬ (List.contains _ _ = true ∧ _)) =>
-    exact simOOp_none 0 (reduceNatFueled_bin_no hg hnw)
+    exact reduceNat_decline 0 (reduceNatFueled_bin_no hg hnw)
   -- the shapes that are not an operation at all
   vc_arm (hd : denoteE _ e = some (.app (.app ?f _) _)) (hnc : ∀ n us, ?f ≠ .const n us) =>
-    exact simOOp_none 0 (reduceNat_bin_nc hnc)
+    exact reduceNat_decline 0 (reduceNat_bin_nc hnc)
   vc_arm (hd : denoteE _ e = some (.app ?f _)) (hnc : ∀ n us, ?f ≠ .const n us)
       (hna : ∀ g a, ?f ≠ .app g a) =>
-    exact simOOp_none 0 (reduceNat_un_ncna hnc hna)
+    exact reduceNat_decline 0 (reduceNat_un_ncna hnc hna)
   vc_arm (hna : ∀ f a, x ≠ .app f a) =>
-    exact simOOp_none 0 (reduceNat_na hna)
+    exact reduceNat_decline 0 (reduceNat_na hna)
 
 /-! ## 7. The axiom census -/
 
