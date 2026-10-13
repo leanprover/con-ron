@@ -47,6 +47,7 @@ priority is the only lever.  Each is proved by `vcgen [f]`: unlike
 unfolding `f` (so these proofs used to `unfold f` first), `vcgen` unfolds a
 definition named in its list.
 -/
+import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 
 namespace ConRon.Bridge.ExprOps
@@ -72,8 +73,7 @@ table. -/
             MemoOK f s'.memos.abs1C s'.store; ⊤⦄ := by
   dsimp only
   vcgen [abs1Set]
-  rename_i hs
-  subst hs
+  subst_vars
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
   exact MemoOK.insert hm rfl hk hr
 
@@ -90,8 +90,7 @@ for `instLPSet`. -/
             MemoOK f s'.memos.instLPC s'.store; ⊤⦄ := by
   dsimp only
   vcgen [instLPSet]
-  rename_i hs
-  subst hs
+  subst_vars
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
   exact MemoOK.insert hm rfl hk hr
 
@@ -108,8 +107,7 @@ for `instLPSet`. -/
             MemoLOK f s'.memos.instLPLC s'.store; ⊤⦄ := by
   dsimp only
   vcgen [instLPLSet]
-  rename_i hs
-  subst hs
+  subst_vars
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
   exact MemoLOK.insert hm rfl hk hr
 
@@ -128,8 +126,7 @@ measured on. -/
             MemoLsOK f s'.memos.instLPLsC s'.store; ⊤⦄ := by
   dsimp only
   vcgen [instLPLsSet]
-  rename_i hs
-  subst hs
+  subst_vars
   refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
   exact MemoLsOK.insert hm rfl hk hr
 
@@ -293,16 +290,11 @@ reflexive there. -/
         (∀ i w, s₀.store.view i = some w → s'.store.view i = some w) ∧
         denoteE s'.store r = denoteEView s'.store v; ⊤⦄ := by
   vcgen [internRebuilt, internE_specV]
-  all_goals subst_vars
-  case vc1 =>
-    exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, fun _ _ hi => hi,
-      denoteE_view_eq hwf (hsame rfl)⟩
-  case vc2 =>
-    rename_i _hc _r _s2 hpost
-    obtain ⟨a, bb, c, dd, e, f, g, -, hj⟩ := hpost
-    exact ⟨a, bb, c, dd, e, f, g, hj⟩
-  case vc3 => exact hwf
-  case vc4 => exact hv
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  -- the `same` arm answers the handle it was given
+  vc_arm (hsame : true = true → _) =>
+    exact ⟨fun _ _ hi => hi, denoteE_view_eq hwf (hsame rfl)⟩
 
 /-! ### The binder intern at the V shape
 
@@ -390,8 +382,7 @@ theorem internRebuiltBind_specV (s₀ : AState) (h : EIdx) (same : Bool)
       simp [internRebuiltBind, hc]
     rw [hprog]
     vcgen
-    rename_i s hs
-    subst hs
+    subst s₀
     exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, rfl, fun _ _ hj => hj, hsame hc,
       denoteE_view_eq hwf (hsame hc)⟩
   · have hprog : internRebuiltBind h same tag ty b = internBindE tag ty b := by
