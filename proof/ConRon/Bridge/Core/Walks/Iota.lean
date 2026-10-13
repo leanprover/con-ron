@@ -1284,7 +1284,7 @@ theorem iotaRecAt_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
             have hwmaj : Expr.WScoped d (xs.getD mI (.bvar 0)) := by
               simp only [List.getD, List.getElem?_eq_getElem hmI', Option.getD_some]
               exact hwargs _ (List.getElem_mem hmI')
-            refine triple_seq (prepareMajor_spec hμ henv hsim s3 d c rules _ cn drules _
+            refine triple_seq (prepareMajor_spec hμ hsim s3 d c rules _ cn drules _
               hok3 (denoteRules_ext hx3 _ _ hdr) hmaj hwmaj) ?_
             rintro major s4 ⟨hok4, hx4, hp4, vmaj, hvmaj, hwvmaj, Fp, hFp⟩
             have hx04 := hx3.trans hx4
