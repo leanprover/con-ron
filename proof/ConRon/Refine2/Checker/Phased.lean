@@ -4,15 +4,15 @@
 **Task #97-P5-Driver.**  The binary's driver (`crates/con-ron/src/driver.rs`,
 unverified) is a straight line of calls into the verified crate:
 
-    annot_fold_hooked → freeze_tier → pool::parallel_all → thaw_tier
+    install_fold_hooked → freeze_tier → pool::parallel_all → thaw_tier
 
 and phase B is the pool's fold of the verified `check_pending` over the
 records, from one `worker_state` over the frozen tier.  This module is
 Theorem 2 for that line, against `Arena/Phased.lean`'s
 `installThenCheckPhased`:
 
-* **phase A** — `annot_fold_hooked` IS `annot_fold` (`annot_fold_hooked_eq`:
-  the hook is `Unit`-valued and reads only), so `annot_fold_refines` applies;
+* **phase A** — `install_fold_hooked` IS `install_fold` (`install_fold_hooked_eq`:
+  the hook is `Unit`-valued and reads only), so `install_fold_refines` applies;
 * **the boundary** — `freeze_tier` moves the store's four persistent tables
   out into a `frozen` tier, and `thaw_tier` puts them back, so the store comes
   back exactly (`freeze_tier_ok`; task #98-FREEZE made it a pure move, with no
@@ -46,18 +46,18 @@ open ConRon.Arena
 
 /-! ## Phase A: the hook changes nothing -/
 
-private theorem annot_fold_hooked_aux {H : Type} (inst : arena.checker.InstallHook H)
+private theorem install_fold_hooked_aux {H : Type} (inst : arena.checker.InstallHook H)
     (h : H) (n : Nat) :
     ∀ {pers st mode pins p} {ds : alloc.vec.Vec arena.env.IDeclaration}
       {i : Std.Usize} {o},
       ds.val.length - i.val = n →
-      arena.checker.annot_fold_hooked inst pers st mode pins p ds i h = ok o →
-      arena.checker.annot_fold pers st mode pins p ds i = ok o := by
+      arena.checker.install_fold_hooked inst pers st mode pins p ds i h = ok o →
+      arena.checker.install_fold pers st mode pins p ds i = ok o := by
   induction n using Nat.strong_induction_on with
   | _ n ih =>
     intro pers st mode pins p ds i o hn hrun
-    rw [arena.checker.annot_fold_hooked.eq_def] at hrun
-    rw [arena.checker.annot_fold.eq_def]
+    rw [arena.checker.install_fold_hooked.eq_def] at hrun
+    rw [arena.checker.install_fold.eq_def]
     try dsimp only at hrun ⊢
     split at hrun
     · rename_i hge
@@ -88,16 +88,16 @@ private theorem annot_fold_hooked_aux {H : Type} (inst : arena.checker.InstallHo
           have := alloc.vec.Vec.len_val ds; scalar_tac
         exact ih (ds.val.length - i2.val) (by omega) rfl hrun
 
-/-- **`annot_fold_hooked` IS `annot_fold`**: the driver's phase A, with the
-heartbeat's install line called before each step, has `annot_fold`'s outcome
+/-- **`install_fold_hooked` IS `install_fold`**: the driver's phase A, with the
+heartbeat's install line called before each step, has `install_fold`'s outcome
 whatever the hook — the hook returns `()` and is handed the store by shared
 reference, so it has nothing to change. -/
-theorem annot_fold_hooked_eq {H : Type} {inst : arena.checker.InstallHook H} {h : H}
+theorem install_fold_hooked_eq {H : Type} {inst : arena.checker.InstallHook H} {h : H}
     {pers st mode pins p} {ds : alloc.vec.Vec arena.env.IDeclaration}
     {i : Std.Usize} {o}
-    (hrun : arena.checker.annot_fold_hooked inst pers st mode pins p ds i h = ok o) :
-    arena.checker.annot_fold pers st mode pins p ds i = ok o :=
-  annot_fold_hooked_aux inst h _ rfl hrun
+    (hrun : arena.checker.install_fold_hooked inst pers st mode pins p ds i h = ok o) :
+    arena.checker.install_fold pers st mode pins p ds i = ok o :=
+  install_fold_hooked_aux inst h _ rfl hrun
 
 /-! ## The worker -/
 
@@ -329,7 +329,7 @@ def pendingStep (tier : arena.store.PersTier) (mode : kernel.env.CheckMode)
 
 /-- con-leche: Main.lean:289-316 checkPool — **the driver's fold with the
 pool, accepted** (`crates/con-ron/src/driver.rs` `check_decls_driver`, one
-conjunct per call): `fold_start`, phase A (`annot_fold_hooked`) accepting with
+conjunct per call): `fold_start`, phase A (`install_fold_hooked`) accepting with
 environment `fe`, pending records `pend` and state `st'`; the tier frozen out
 of `st'.store`; and phase B, `parallel_all` over the pending records with the
 driver's two closures, accepted — `ParallelAll`, the pool's contract.  The
@@ -345,7 +345,7 @@ def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
     (n : Std.U64) (pend : alloc.vec.Vec arena.checker.PendingCheck)
     (tier : arena.store.PersTier) (est : arena.store.EStore),
     arena.checker.fold_start = ok t ∧
-    arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+    arena.checker.install_fold_hooked inst pers st mode pins t ds 0#usize h
       = ok (.Ok (n, fe, pend), st') ∧
     arena.checker.freeze_tier st'.store = ok (tier, est) ∧
     ParallelAll pend.length (arena.checker.worker_state st'.pins)
@@ -353,7 +353,7 @@ def PoolAccepts {H : Type} (inst : arena.checker.InstallHook H)
 
 /-- `PoolAccepts` from one premise per step of the driver — the shape the
 headlines state it in (`ConRon.Capstone`'s `h6`, `h7`, `h8`): phase A as the
-driver calls it, `annot_fold_hooked(…, fold_start(), ds, 0, obs)`; the
+driver calls it, `install_fold_hooked(…, fold_start(), ds, 0, obs)`; the
 freeze; and phase B, `ParallelAll`. -/
 theorem poolAccepts_intro {H : Type} {inst : arena.checker.InstallHook H}
     {h : H} {pers st mode pins ds fe st'}
@@ -361,7 +361,7 @@ theorem poolAccepts_intro {H : Type} {inst : arena.checker.InstallHook H}
     {tier : arena.store.PersTier} {est : arena.store.EStore}
     (hA : (do
         let t ← arena.checker.fold_start
-        arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h)
+        arena.checker.install_fold_hooked inst pers st mode pins t ds 0#usize h)
       = ok (.Ok (n, fe, pend), st'))
     (hF : arena.checker.freeze_tier st'.store = ok (tier, est))
     (hB : ParallelAll pend.length (arena.checker.worker_state st'.pins)
@@ -387,7 +387,7 @@ def PoolAcceptsParts {H : Type} (inst : arena.checker.InstallHook H)
     (tier : arena.store.PersTier) (est : arena.store.EStore)
     (parts : List (List arena.checker.PendingCheck)),
     arena.checker.fold_start = ok t ∧
-    arena.checker.annot_fold_hooked inst pers st mode pins t ds 0#usize h
+    arena.checker.install_fold_hooked inst pers st mode pins t ds 0#usize h
       = ok (.Ok (n, fe, pend), st') ∧
     arena.checker.freeze_tier st'.store = ok (tier, est) ∧
     (∀ pc ∈ pend.val, ∃ w ∈ parts, pc ∈ w) ∧
@@ -507,9 +507,9 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   have ht' := (Result.ok_injective ht).symm
   subst ht'
   obtain ⟨hfe, hfinv⟩ := mk_ifenv_empty_refines' he hf
-  have hq' := annot_fold_hooked_eq hq
+  have hq' := install_fold_hooked_eq hq
   have hz1 : absIDeclLFrom ds 0#usize = absIDeclL ds := by simp
-  have hA := annot_fold_refines
+  have hA := install_fold_refines
     (p := (0#u64, f, alloc.vec.Vec.new arena.checker.PendingCheck))
     (lf := mkIFEnv IEnv.empty) (i := 0#usize) hrel hinv hpers hfe hfinv hq'
   have hz2 : (absPendingCheckL (alloc.vec.Vec.new arena.checker.PendingCheck)).toArray
@@ -522,7 +522,7 @@ theorem pool_accepts_refines {H : Type} {inst : arena.checker.InstallHook H}
   subst hv3
   obtain ⟨htier, -⟩ := freeze_tier_ok hfr
   subst htier
-  have hx' : annotFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
+  have hx' : installFold (ConRon.Refine.absMode mode) (absINatOpPinSetL pins)
       (0, mkIFEnv IEnv.empty, #[]) (absIDeclL ds) lst
       = .ok (.ok (n1, fe1, (absPendingCheckL pend).toArray), lst') := hx
   -- one worker: its own `worker_state`, its own list
