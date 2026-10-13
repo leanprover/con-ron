@@ -24,16 +24,15 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-- A `Vec<(EIdx, BinderMeta)>` as the twin's `List (EIdx × BinderMeta)` —
-`piBinders`' telescope.  `Refine2/Checker/Shape.lean`'s `absBinderArr` is the
-same `Vec` read as `domsMatchAux`' `Array`. -/
-def absBinderL (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    List (EIdx × ConLeche.BinderMeta) :=
-  v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
+/-- A `Vec<EIdx>` of binder types as the twin's `List EIdx` — `piBinders`'
+telescope (task #119: the binder datum beside each type is gone).
+`Refine2/Checker/Shape.lean`'s `absBinderArr` is the same `Vec` read as
+`domsMatchAux`' `Array`. -/
+def absBinderL (v : alloc.vec.Vec arena.handle.EIdx) : List EIdx :=
+  v.val.map absEIdx
 
-def absBinderLFrom (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-    (i : Std.Usize) : List (EIdx × ConLeche.BinderMeta) :=
-  (v.val.drop i.val).map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
+def absBinderLFrom (v : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) : List EIdx :=
+  (v.val.drop i.val).map absEIdx
 
 /-! ## The error constructors, for the `lockstep` tactic
 
@@ -65,7 +64,7 @@ open Lockstep in
     {pers st lst}
     {fuel : Std.U64}
     {h : arena.handle.EIdx}
-    {out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
+    {out : alloc.vec.Vec arena.handle.EIdx}
     (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a)
@@ -74,7 +73,7 @@ open Lockstep in
         let q ← piBinders (absU fuel) (absEIdx h)
         pure (absBinderL out ++ q.1, q.2)) := by
   suffices H : ∀ (n : Nat) (fuel : Std.U64) (h : arena.handle.EIdx)
-      (out : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) (lst : AState),
+      (out : alloc.vec.Vec arena.handle.EIdx) (lst : AState),
       fuel.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LSR pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a)
         (arena.inductives.field_tele.pi_binders pers st fuel h out) st lst
@@ -104,7 +103,6 @@ open Lockstep in
     · have e : absU a = n := by simp only [absU]; scalar_tac
       simp only [e, absBinderL, hv, List.map_append, List.map_cons, List.map_nil,
         List.append_assoc, List.cons_append, List.nil_append]
-      rfl
 
 open Lockstep in
 /-- `pi_binders` from an empty accumulator IS `piBinders` (the callers' form). -/
@@ -116,13 +114,13 @@ open Lockstep in
     (hinv : AStateInv pers st) :
     LSR pers (fun a b => b = (fun r => (absBinderL r.1, absEIdx r.2)) a)
       (arena.inductives.field_tele.pi_binders pers st fuel h
-        (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta))) st lst
+        (alloc.vec.Vec.new arena.handle.EIdx)) st lst
       (piBinders (absU fuel) (absEIdx h)) := by
   have hl := pi_binders_ls (fuel := fuel) (h := h)
-    (out := alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) hrel hinv
+    (out := alloc.vec.Vec.new arena.handle.EIdx) hrel hinv
   have e : (do
       let q ← piBinders (absU fuel) (absEIdx h)
-      pure (absBinderL (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) ++ q.1,
+      pure (absBinderL (alloc.vec.Vec.new arena.handle.EIdx) ++ q.1,
         q.2) : AM _) = piBinders (absU fuel) (absEIdx h) := by
     simp [absBinderL, alloc.vec.Vec.new]
   rwa [e] at hl

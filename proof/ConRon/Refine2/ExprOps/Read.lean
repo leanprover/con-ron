@@ -67,20 +67,18 @@ def absLeaves (v : alloc.vec.Vec (Std.U64 × arena.handle.EIdx)) :
     List (Nat × EIdx) :=
   v.val.map fun p => (absU p.1, absEIdx p.2)
 
-/-- A `Vec<(EIdx, BinderMeta)>` telescope as the twin's
-`List (EIdx × BinderMeta)` (`strip_lams`, `strip_pis`). -/
-def absBinders (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) :
-    List (EIdx × ConLeche.BinderMeta) :=
-  v.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)
+/-- A `Vec<EIdx>` telescope of binder types as the twin's `List EIdx`
+(`strip_lams`, `strip_pis`; the binder datum it carried beside each type went
+with the datum at task #119). -/
+def absBinders (v : alloc.vec.Vec arena.handle.EIdx) : List EIdx :=
+  v.val.map absEIdx
 
 /-- `strip_lams`/`strip_pis`' whole answer. -/
-def absStrip
-    (o : Option ((alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) ×
-      arena.handle.EIdx)) :
-    Option (List (EIdx × ConLeche.BinderMeta) × EIdx) :=
+def absStrip (o : Option ((alloc.vec.Vec arena.handle.EIdx) × arena.handle.EIdx)) :
+    Option (List EIdx × EIdx) :=
   o.map fun p => (absBinders p.1, absEIdx p.2)
 
-/-- `lam_pw`/`forall_pw`' answer. -/
+/-- A head reader's `PropWhen` answer. -/
 def absPwOpt (o : Option kernel.prop_when.PropWhen) : Option ConLeche.PropWhen :=
   o.map ConRon.Refine.absPropWhen
 
@@ -173,14 +171,6 @@ theorem get_app_args_go_aux (n : Nat) :
 end getAppArgs
 
 section oneNode
-
-theorem lam_pw_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (h : arena.handle.EIdx) :
-    LSR pers (fun a b => b = absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst
-      (lamPw (absEIdx h)) := by
-  apply LSR.of_LS
-  rw [arena.expr_ops.lam_pw, lamPw]
-  lockstep
 
 @[lockstep] theorem fvar_type_d_ls {pers st lst} (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (h : arena.handle.EIdx) :
@@ -394,7 +384,7 @@ end entries
       (stripPis (absU k) (absEIdx h)) :=
   strip_pis_aux _ k h rfl hrel hinv
 
-attribute [lockstep] lam_pw_ls fvar_type_d_ls
+attribute [lockstep] fvar_type_d_ls
 
 @[lockstep] theorem inst_list_cutoff_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) (k : Std.U64) :

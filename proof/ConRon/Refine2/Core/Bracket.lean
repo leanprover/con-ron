@@ -245,11 +245,10 @@ theorem etables_reset {rt rt' : arena.store.ETables}
   obtain ⟨t7, e7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t8, e8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t9, e9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t10, e10, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hst : rt' = ⟨t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10⟩ :=
+  have hst : rt' = ⟨t0, t1, t2, t3, t4, t5, t6, t7, t8, t9⟩ :=
     (Result.ok_injective h).symm
   subst hst
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   exacts [tbl_reset_rel hinv.bvars.inv e0,
     tbl_reset_rel hinv.fvars.inv e1,
     tbl_reset_rel hinv.sorts.inv e2,
@@ -260,7 +259,6 @@ theorem etables_reset {rt rt' : arena.store.ETables}
     tbl_reset_rel hinv.lets.inv e7,
     tbl_reset_rel hinv.lits.inv e8,
     tbl_reset_rel hinv.projs.inv e9,
-    tbl_reset_rel hinv.bms.inv e10,
     tbl_reset_inv hinv.bvars.inv e0,
     tbl_reset_inv hinv.fvars.inv e1,
     tbl_reset_inv hinv.sorts.inv e2,
@@ -270,8 +268,7 @@ theorem etables_reset {rt rt' : arena.store.ETables}
     tbl_reset_inv hinv.foralls.inv e6,
     tbl_reset_inv hinv.lets.inv e7,
     tbl_reset_inv hinv.lits.inv e8,
-    tbl_reset_inv hinv.projs.inv e9,
-    tbl_reset_inv hinv.bms.inv e10]
+    tbl_reset_inv hinv.projs.inv e9]
 
 
 
@@ -530,60 +527,56 @@ theorem caches_reset {rm rm' : arena.core_state.Caches} (hinv : CachesInv rm)
   obtain ⟨t11, e11, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t12, e12, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t13, e13, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t14, e14, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hst : rm' = {
     whnf_core_c := t0,
     whnf_core_cheap_c := t1,
     whnf_c := t2,
     infer_c := t3,
     infer_io_c := t4,
-    annot_c := t5,
-    defeq_c := t6,
-    lvl_eq_c := t7,
-    lvls_eq_c := t8,
-    const_ty_c := t9,
-    const_val_c := t10,
-    rule_rhs_c := t11,
-    read_l_c := t12,
-    read_n_c := t13,
-    read_ls_c := t14
+    defeq_c := t5,
+    lvl_eq_c := t6,
+    lvls_eq_c := t7,
+    const_ty_c := t8,
+    const_val_c := t9,
+    rule_rhs_c := t10,
+    read_l_c := t11,
+    read_n_c := t12,
+    read_ls_c := t13
   } := (Result.ok_injective h).symm
   subst hst
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   exacts [reset_map_rel hinv.whnfCoreC e0,
     reset_map_rel hinv.whnfCoreCheapC e1,
     reset_map_rel hinv.whnfC e2,
     reset_map_rel hinv.inferC e3,
     reset_map_rel hinv.inferIOC e4,
-    reset_map_rel hinv.annotC e5,
-    reset_map_rel hinv.defeqC e6,
-    reset_map_rel hinv.lvlEqC e7,
-    reset_map_rel hinv.lvlsEqC e8,
-    reset_map_rel hinv.constTyC e9,
-    reset_map_rel hinv.constValC e10,
-    reset_map_rel hinv.ruleRhsC e11,
-    reset_map_rel hinv.readLC e12,
-    reset_map_rel hinv.readNC e13,
-    reset_map_rel hinv.readLsC e14,
+    reset_map_rel hinv.defeqC e5,
+    reset_map_rel hinv.lvlEqC e6,
+    reset_map_rel hinv.lvlsEqC e7,
+    reset_map_rel hinv.constTyC e8,
+    reset_map_rel hinv.constValC e9,
+    reset_map_rel hinv.ruleRhsC e10,
+    reset_map_rel hinv.readLC e11,
+    reset_map_rel hinv.readNC e12,
+    reset_map_rel hinv.readLsC e13,
     reset_map_inv hinv.whnfCoreC e0,
     reset_map_inv hinv.whnfCoreCheapC e1,
     reset_map_inv hinv.whnfC e2,
     reset_map_inv hinv.inferC e3,
     reset_map_inv hinv.inferIOC e4,
-    reset_map_inv hinv.annotC e5,
-    reset_map_inv hinv.defeqC e6,
-    reset_map_inv hinv.lvlEqC e7,
-    reset_map_inv hinv.lvlsEqC e8,
-    reset_map_inv hinv.constTyC e9,
-    reset_map_inv hinv.constValC e10,
-    reset_map_inv hinv.ruleRhsC e11,
-    reset_map_inv hinv.readLC e12,
-    reset_map_inv hinv.readNC e13,
-    reset_map_inv hinv.readLsC e14,
-    by intro p hp; rw [reset_map_nil hinv.readLC e12] at hp; simp at hp,
-    by intro p hp; rw [reset_map_nil hinv.readNC e13] at hp; simp at hp,
-    by intro p hp; rw [reset_map_nil hinv.readLsC e14] at hp; simp at hp]
+    reset_map_inv hinv.defeqC e5,
+    reset_map_inv hinv.lvlEqC e6,
+    reset_map_inv hinv.lvlsEqC e7,
+    reset_map_inv hinv.constTyC e8,
+    reset_map_inv hinv.constValC e9,
+    reset_map_inv hinv.ruleRhsC e10,
+    reset_map_inv hinv.readLC e11,
+    reset_map_inv hinv.readNC e12,
+    reset_map_inv hinv.readLsC e13,
+    by intro p hp; rw [reset_map_nil hinv.readLC e11] at hp; simp at hp,
+    by intro p hp; rw [reset_map_nil hinv.readNC e12] at hp; simp at hp,
+    by intro p hp; rw [reset_map_nil hinv.readLsC e13] at hp; simp at hp]
 
 theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
     (h : arena.monad.Memos.reset rm = ok rm') :
@@ -599,45 +592,41 @@ theorem memos_reset {rm rm' : arena.monad.Memos} (hinv : MemosInv rm)
   obtain ⟨t7, e7, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t8, e8, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   obtain ⟨t9, e9, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨t10, e10, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
   have hst : rm' = { rm with
     inst1_c := t0,
     inst_l_c := t1,
     lift_c := t2,
     abs1_c := t3,
-    lower_c := t4,
-    inst1_l_c := t5,
-    inst_lp_c := t6,
-    bvar_b_c := t7,
-    fvar_b_c := t8,
-    inst_lp_l_c := t9,
-    inst_lp_ls_c := t10
+    inst1_l_c := t4,
+    inst_lp_c := t5,
+    bvar_b_c := t6,
+    fvar_b_c := t7,
+    inst_lp_l_c := t8,
+    inst_lp_ls_c := t9
   } := (Result.ok_injective h).symm
   subst hst
-  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
-    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC⟩⟩
+  refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩,
+    ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hinv.lpDefC, hinv.crfC⟩⟩
   exacts [reset_map_rel hinv.inst1C e0,
     reset_map_rel hinv.instLC e1,
     reset_map_rel hinv.liftC e2,
     reset_map_rel hinv.abs1C e3,
-    reset_map_rel hinv.lowerC e4,
-    reset_map_rel hinv.inst1LC e5,
-    reset_map_rel hinv.instLPC e6,
-    reset_map_rel hinv.bvarBC e7,
-    reset_map_rel hinv.fvarBC e8,
-    reset_map_rel hinv.instLPLC e9,
-    reset_map_rel hinv.instLPLsC e10,
+    reset_map_rel hinv.inst1LC e4,
+    reset_map_rel hinv.instLPC e5,
+    reset_map_rel hinv.bvarBC e6,
+    reset_map_rel hinv.fvarBC e7,
+    reset_map_rel hinv.instLPLC e8,
+    reset_map_rel hinv.instLPLsC e9,
     reset_map_inv hinv.inst1C e0,
     reset_map_inv hinv.instLC e1,
     reset_map_inv hinv.liftC e2,
     reset_map_inv hinv.abs1C e3,
-    reset_map_inv hinv.lowerC e4,
-    reset_map_inv hinv.inst1LC e5,
-    reset_map_inv hinv.instLPC e6,
-    reset_map_inv hinv.bvarBC e7,
-    reset_map_inv hinv.fvarBC e8,
-    reset_map_inv hinv.instLPLC e9,
-    reset_map_inv hinv.instLPLsC e10]
+    reset_map_inv hinv.inst1LC e4,
+    reset_map_inv hinv.instLPC e5,
+    reset_map_inv hinv.bvarBC e6,
+    reset_map_inv hinv.fvarBC e7,
+    reset_map_inv hinv.instLPLC e8,
+    reset_map_inv hinv.instLPLsC e9]
 
 
 /-! ## The bracket in the lockstep shape (task #97-T2-LOCKSTEP step 1)

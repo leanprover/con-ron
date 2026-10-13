@@ -195,30 +195,6 @@ theorem infer_io_probe_abs (hrel : AStateRel₀ pers st lst)
     subst h2
     rw [dupId_eidx _ _ hx]
 
-/-- `arena::core::annot_probe` against `lst.caches.annotC[·]?`. -/
-theorem annot_probe_abs (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {e : arena.handle.EIdx}
-    {o : Option arena.handle.EIdx}
-    (hrun : arena.core.annot_probe st e = ok o) :
-    o.map absEIdx = lst.caches.annotC[absEIdx e]? := by
-  rw [arena.core.annot_probe] at hrun
-  obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hto := ConRon.Refine.HashMap2.get_refines_wf eidx_eq2 hinv.caches.annotC
-    ConRon.Refine.HashMap2.KeysOk_true trivial hr
-  have hrelk := hrel.caches.annotC e trivial
-  rw [← hrelk, ← hto]
-  cases hrc : r with
-  | none =>
-    rw [hrc] at hrun
-    have h2 : (none : Option arena.handle.EIdx) = o := Result.ok_injective hrun
-    subst h2; rfl
-  | some r =>
-    rw [hrc] at hrun
-    obtain ⟨x, hx, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    have h2 : some x = o := Result.ok_injective hrun
-    subst h2
-    rw [dupId_eidx _ _ hx]
-
 /-- `arena::core_state::eidx_pair` against the twin's `(a, b)`: the `defeq`
 memo's key is the ORDERED pair, and `dup2` is the identity on a handle. -/
 theorem eidx_pair_abs {a b : arena.handle.EIdx} {k : arena.core_state.EIdxPair}
@@ -410,27 +386,6 @@ theorem infer_io_set_run (hrel : AStateRel₀ pers st lst)
       inferIOC := lst.caches.inferIOC.insert (absEIdx e) (absEIdx r) } })
     rfl { hrel with caches := { hrel.caches with inferIOC := h1 } }
     { hinv with caches := { hinv.caches with inferIOC := h2 } }
-
-/-- `arena::core::annot_set` against `Arena.annotSet`. -/
-theorem annot_set_run (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) {e r : arena.handle.EIdx} {st'}
-    (hrun : arena.core.annot_set st e r = ok st') :
-    SimS₀ pers lst st' (Arena.annotSet (absEIdx e) (absEIdx r)) := by
-  rw [arena.core.annot_set] at hrun
-  obtain ⟨e1, he1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨e2, he2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨p, hp, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  obtain ⟨old, hm2⟩ := p
-  rw [dupId_eidx _ _ he1, dupId_eidx _ _ he2] at hp
-  have hst : st' = { st with caches := { st.caches with annot_c := hm2 } } :=
-    (Result.ok_injective hrun).symm
-  subst hst
-  obtain ⟨h1, h2⟩ := memo_insert_step eidx_eq2 absEIdx_inj
-    hinv.caches.annotC hrel.caches.annotC hp
-  exact SimS₀.mk (lst' := { lst with caches := { lst.caches with
-      annotC := lst.caches.annotC.insert (absEIdx e) (absEIdx r) } })
-    rfl { hrel with caches := { hrel.caches with annotC := h1 } }
-    { hinv with caches := { hinv.caches with annotC := h2 } }
 
 /-- `arena::core::defeq_set` against `Arena.defeqSet` — the ORDERED pair key,
 built by `eidx_pair` on the port's side and written inline by the twin. -/

@@ -744,14 +744,13 @@ theorem scan_app_expr_wf {b : Slice Std.U8} {i : Std.Usize}
 or `ExprRec::ForallE`, behind the `lam` flag. -/
 private theorem scan_binder_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
     ∀ {w : Bool} {lam : Bool} {i : Std.Usize} {seen : Std.U32} {bd ty : Std.U64}
-      {pw : frontend.scan_types.PwRec}
       {r : frontend.scan_types.ExprRec} {j : Std.Usize},
       b.length - i.val ≤ f →
-      frontend.scan_fast.scan_binder_expr_loop_loop w b lam i seen bd ty pw
+      frontend.scan_fast.scan_binder_expr_loop_loop w b lam i seen bd ty
         = ok (.Ok (r, j)) → ExprRecWF r := by
   induction f using Nat.strong_induction_on with
   | _ f ih =>
-    intro w lam i seen bd ty pw r j hf h
+    intro w lam i seen bd ty r j hf h
     rw [frontend.scan_fast.scan_binder_expr_loop_loop.eq_def] at h
     obtain ⟨res, hres, h⟩ := bind_eq_ok_iff.mp h
     split at h
@@ -763,8 +762,8 @@ private theorem scan_binder_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
       · -- `Close`: `Lam` or `ForallE` behind the `lam` flag, neither of them
         -- with a string payload
         have hlam : ∀ er : frontend.scan_types.ExprRec,
-            (if lam = true then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
-             else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)) = ok er →
+            (if lam = true then ok (frontend.scan_types.ExprRec.Lam ty bd)
+             else ok (frontend.scan_types.ExprRec.ForallE ty bd)) = ok er →
             ExprRecWF er := by
           intro er h1
           split at h1 <;>
@@ -775,8 +774,8 @@ private theorem scan_binder_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
                  frontend.scan_types.ErrTag.MissingKey
              else do
                let er ←
-                 if lam = true then ok (frontend.scan_types.ExprRec.Lam ty bd pw)
-                 else ok (frontend.scan_types.ExprRec.ForallE ty bd pw)
+                 if lam = true then ok (frontend.scan_types.ExprRec.Lam ty bd)
+                 else ok (frontend.scan_types.ExprRec.ForallE ty bd)
                let i2 ← ni + 1#usize
                ok (core.result.Result.Ok (er, i2)))
               = ok (core.result.Result.Ok (r, j)) → ExprRecWF r := by
@@ -813,22 +812,6 @@ private theorem scan_binder_expr_loop_wf {b : Slice Std.U8} (f : Nat) :
                    have he := slot_nat_prog hr1
                    obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
                    exact ih _ (by omega) (le_refl _) h
-                 · simp at h)
-            | -- a sub-scanner closed by the `prog` guard
-              (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
-               split at h
-               · exact (err_ne_ok h).elim
-               · obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-                 split at h
-                 · rename_i _ p1
-                   obtain ⟨x, e⟩ := p1
-                   simp only [uncurry_apply_pair] at h
-                   obtain ⟨b2, hb2, h⟩ := bind_eq_ok_iff.mp h
-                   split at h
-                   · have he := prog_lt hb2 (by assumption)
-                     obtain ⟨seen1, -, h⟩ := bind_eq_ok_iff.mp h
-                     exact ih _ (by omega) (le_refl _) h
-                   · exact (err_ne_ok h).elim
                  · simp at h)
             | -- `scan_binder_info`'s bare `usize`
               (obtain ⟨b1, -, h⟩ := bind_eq_ok_iff.mp h
