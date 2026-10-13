@@ -287,7 +287,7 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
     bridge_frame [MemoOK.mono, viewMono_trans, viewMono_of_eq]
     -- the memo hits
     vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
-      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame) rfl
     -- the derived-word cutoff
     vc_arm (hfb : ?fb ≤ d) (hfr : RelV Expr.fvarRange _ h ?fb) ⊢ RelE _ _ h _ h =>
       exact (AbsRangeAt.cutoff (by abs_hyp) (by abs_hyp)).ext (by bridge_frame)
@@ -640,7 +640,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
       ReadLsCacheOK.mono', viewMono_trans, viewMono_of_eq, viewMono_of_tables]
     -- the memo hits
     vc_arm (hhit : some _ = _[_]?) ⊢ RelE _ _ _ _ _ =>
-      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame)
+      exact MemoOK.get_hit' hm hhit (by bridge_frame) (by bridge_frame) (by bridge_frame) rfl
     -- the `hasLP` cutoff
     vc_arm (hc : (!lpOfData _) = true) ⊢ RelE _ _ h _ h =>
       exact (InstLPAt.cutoff hok.wf (by grind)).ext (by bridge_frame)
