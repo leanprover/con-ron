@@ -202,7 +202,7 @@ theorem env_pi_sort_tele_len_run {pers rst lst fuel h' o}
       | Ok ev =>
         have hV' : (view (absEIdx cur)).run lst = .ok (absENodeView ev, lst) := hV
         cases ev with
-        | ForallE ty b m =>
+        | ForallE ty b =>
           obtain ⟨f1, hf1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
           have hf1v := (ConRon.Refine.Nat.usub_val hf1).2
           obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h

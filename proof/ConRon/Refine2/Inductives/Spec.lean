@@ -106,11 +106,11 @@ def hasLooseBVarBNodeSpec (memo : Std.HashMap (EIdx × Nat) Bool) (i fuel : Nat)
     match ← hasLooseBVarBGo memo i fuel f with
     | (true, memo) => pure (true, memo)
     | (false, memo) => hasLooseBVarBGo memo i fuel a
-  | .lam ty b _ => do
+  | .lam ty b => do
     match ← hasLooseBVarBGo memo i fuel ty with
     | (true, memo) => pure (true, memo)
     | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-  | .forallE ty b _ => do
+  | .forallE ty b => do
     match ← hasLooseBVarBGo memo i fuel ty with
     | (true, memo) => pure (true, memo)
     | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
@@ -215,24 +215,11 @@ def projBodiesScopedSpec (fe : IFEnv) (lps : List NIdx) (nP : Nat) :
     let w4 ← looseBVarsBoundedFast coreWalkFuel (nP + 1) b
     if !w1 && w2 && w3 && w4 then projBodiesScopedSpec fe lps nP bs else pure false
 
-/-- The projection-function name family, from field `j` on — the twin's
-`(List.range nF).allM`, as the counted recursion DESIGN §3.4 asks for.  The
-modeled route spells the same test at its own call site, and this
-transcription is the subject of both Rust functions. -/
-def projFnFamilyFreeSpec (fe : IFEnv) (T : NIdx) : Nat → Nat → AM Bool
-  | 0, _ => pure true
-  | k + 1, j => do
-    let pn ← projFnName T j
-    if (fe.find? pn).isNone then projFnFamilyFreeSpec fe T k (j + 1)
-    else pure false
-
-/-- `checkStructProjTable`'s tail: the name family and the table's own
-reserved name must be free, and then the table is stored. -/
+/-- `checkStructProjTable`'s tail: the table's own reserved name must be free,
+and then the table is stored. -/
 def checkStructProjTableNamesSpec (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
     (resSort : LIdx) (guards : List LIdx) (off : Nat) (bodies : Array EIdx)
     (fe : IFEnv) : AM IFEnv := do
-  unless ← projFnFamilyFreeSpec fe T nF 0 do
-    fail (.invalid "projection name family taken")
   let tn ← projTableName T
   unless (fe.find? tn).isNone do
     fail (.invalid "projection table taken")
@@ -258,13 +245,7 @@ theorem checkStructProjTable_unfold (T C : NIdx) (lps : List NIdx) (nP nF : Nat)
       pure (!w1 && w2 && w3 && w4))
     (projBodiesScopedSpec fe lps nP) rfl
     (by intro a l; twin_reduce [projBodiesScopedSpec])
-  have hfam := range_allM_counted (fun j => do
-      let pn ← projFnName T j
-      pure (fe.find? pn).isNone)
-    (projFnFamilyFreeSpec fe T) (fun i => rfl)
-    (by intro m i; twin_reduce [projFnFamilyFreeSpec])
-  twin_reduce [checkStructProjTable, hall, checkStructProjTableNamesSpec,
-    List.range_eq_range', hfam]
+  twin_reduce [checkStructProjTable, hall, checkStructProjTableNamesSpec]
 
 /-! # `arena::inductives::sum_install`
 
@@ -297,11 +278,11 @@ theorem whnfTelescope_succ (mode : ConLeche.CheckMode) (fe : IFEnv) (i n : Nat) 
     whnfTelescope mode fe i (n + 1) e = (do
       let e' ← whnf mode fe checkFuel i e
       match ← view e' with
-      | .forallE dom body bm => do
+      | .forallE dom body => do
         let fv ← internE (.fvar i dom)
         let b ← instantiate1Fast coreWalkFuel body fv 0
         let (bs, s) ← whnfTelescope mode fe (i + 1) n b
-        pure ((dom, bm) :: bs, s)
+        pure (dom :: bs, s)
       | _ => fail (.invalid "direct sum: type former does not reduce to a telescope")) := by
   delta whnfTelescope
   dsimp only [Nat.brecOn.go, whnfTelescope._f]
@@ -377,7 +358,8 @@ theorem checkSumCtor_unfold (mode : ConLeche.CheckMode) (fe₀ fe : IFEnv) (T : 
     (lps : List NIdx) (nP nIdx : Nat) (resSort : LIdx) (isProp large : Bool)
     (cvC : IConstantVal) (nF : Nat) (cvTa : IConstantVal) :
     checkSumCtor mode fe₀ fe T lps nP nIdx resSort isProp large cvC nF cvTa = (do
-      let cvCa ← checkConstantVal mode fe cvC
+      checkConstantVal mode fe cvC
+      let cvCa := cvC
       let (_, cbody) ← unwrapOr (← stripPis (nP + nF) cvCa.type)
         (.notImplemented "direct sum: constructor telescope")
       unless ← structCtorResidOk T lps nP nF nIdx cbody do

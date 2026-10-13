@@ -57,14 +57,11 @@ empty `if_all_zero` is `.ifAllZero []`). -/
     rw [← Result.ok_injective h]
     exact ConRon.Refine.PropWhen.if_all_zero_wf (fun n hn => by simp [alloc.vec.Vec.new] at hn) hpw
   simp only [arena.env.i_ind_caps_default, arena.handle.NIdx.of_word,
-    kernel.prop_when.if_all_zero, kernel.prop_when.of_repr, alloc.vec.Vec.new,
-    alloc.vec.Vec.len] at h
-  simp at h
-  rw [ite_eq_left (by rfl)] at h
+    kernel.prop_when.if_all_zero, alloc.vec.Vec.new] at h
   simp at h
   subst h
   simp [TwinEq, absIIndCaps]
-  rfl
+  exact ⟨rfl, by simp [ConRon.Refine.absNames, alloc.vec.Vec.from_val]⟩
 
 /-! ## The environment index's readers, as `TwinEq`s
 

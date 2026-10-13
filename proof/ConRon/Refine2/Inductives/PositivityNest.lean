@@ -37,8 +37,7 @@ the root frame (`nest_root`) and the seeds (`nest_seeds`).  The low part
   fields' fuel is any), `nest_frame_of`, `nest_cont_new_of`,
   `nest_cont_key_of`, `nest_cont_of` — and those give `nest_pos` at `F + 1`
   (`nest_pos_all`).  The `@[lockstep]` companions (`nest_pos_ls`, …,
-  `nest_cont_ls`) are derived afterwards.  `nest_fields`' answer carries
-  `TeleWF` of its walked telescope (`close_telescope`'s premise).
+  `nest_cont_ls`) are derived afterwards.
 * The Rust's `nest_ctors_walk` split (two tail calls, root fuel vs. enclosing
   fuel) is the twin's `if _h : root` around one `nestFields`: `nest_ctors_of`
   cases on `root` and takes the fields' lemma at the fuel each branch walks.
@@ -457,13 +456,12 @@ def NestPosRel (pers : arena.store.PersTier) (mode : kernel.env.CheckMode)
       lst (nestPos (ConRon.Refine.absMode mode) lf (absNestCtx ctx) F
         (prog.val.map absNestHole) (absU dep) (absU kb) (absEIdx e) (absNestState ns))
 
-/-- The answer relation of `nest_fields`: the twin's tuple, and the walked
-telescope's binder data well-formed (`close_telescope`'s premise). -/
+/-- The answer relation of `nest_fields`: the twin's tuple. -/
 abbrev RFields : (alloc.vec.Vec arena.inductives.positivity.NestFieldKind ×
-      alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta) × arena.handle.EIdx ×
+      alloc.vec.Vec arena.handle.EIdx × arena.handle.EIdx ×
       arena.inductives.positivity.NestState) →
-    (List NestFieldKind × List (EIdx × ConLeche.BinderMeta) × EIdx × NestState) → Prop :=
-  fun a b => TeleWF a.2.1 ∧ b = (a.1.val.map absNestFieldKind, absBinderL a.2.1,
+    (List NestFieldKind × List EIdx × EIdx × NestState) → Prop :=
+  fun a b => b = (a.1.val.map absNestFieldKind, absBinderL a.2.1,
     absEIdx a.2.2.1, absNestState a.2.2.2)
 
 /-- `nest_fields` ⊑ `nestFields` at a fuel whose `nest_pos` is related. -/
@@ -474,8 +472,8 @@ theorem nest_fields_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEn
       (base n_f j : Std.U64) (cur : arena.handle.EIdx)
       (ns : arena.inductives.positivity.NestState)
       (ks : alloc.vec.Vec arena.inductives.positivity.NestFieldKind)
-      (nds : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) st lst,
-      fuel.val = F → n_f.val = n → TeleWF nds → AStateRel₀ pers st lst → AStateInv pers st →
+      (nds : alloc.vec.Vec arena.handle.EIdx) st lst,
+      fuel.val = F → n_f.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers RFields
         (arena.inductives.positivity.nest_fields pers st mode rf ctx fuel prog base n_f j cur ns
           ks nds) lst
@@ -492,20 +490,18 @@ theorem nest_fields_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env.IFEn
   clear hP
   induction n with
   | zero =>
-    intro fuel prog base n_f j cur ns ks nds st lst hf hn hte hrel hinv
+    intro fuel prog base n_f j cur ns ks nds st lst hf hn hrel hinv
     rw [arena.inductives.positivity.nest_fields, ite_eq_left (by scalar_tac), nestFields]
     lockstep
   | succ n ih =>
-    intro fuel prog base n_f j cur ns ks nds st lst hf hn hte hrel hinv
+    intro fuel prog base n_f j cur ns ks nds st lst hf hn hrel hinv
     rw [arena.inductives.positivity.nest_fields, ite_eq_right (by scalar_tac), nestFields]
     lockstep
-    rename_i hwf _ _ _ b2 ks1 hks nds1 hnds nf1 hnf1
-    refine LS.tail (ih _ _ _ _ _ _ _ _ _ _ _ hf (by scalar_tac) ?_ (by assumption)
+    rename_i _ _ _ b2 ks1 hks nds1 hnds nf1 hnf1
+    refine LS.tail (ih _ _ _ _ _ _ _ _ _ _ _ hf (by scalar_tac) (by assumption)
       (by assumption)) ?_ (fun _ _ h => h)
-    · exact TeleWF.push hnds hte (hwf _ rfl)
-    · have e1 : absU a = absU j + 1 := by simp only [absU]; scalar_tac
-      simp only [e1, absBinderL, hks, hnds, List.map_append, List.map_cons, List.map_nil]
-      rfl
+    have e1 : absU a = absU j + 1 := by simp only [absU]; scalar_tac
+    simp only [e1, absBinderL, hks, hnds, List.map_append, List.map_cons, List.map_nil]
 
 -- The frame-constructor fragments of `nestCtors` (the crest typed, the fields
 -- walked at the constructor's fuel, U4 / the result / the record).
@@ -642,7 +638,7 @@ theorem nest_ctors_frame_of {pers} {mode : kernel.env.CheckMode} {rf : arena.env
   · rintro fuel_c (h | rfl)
     · cases h
     intro prog base n_f cur ns st lst hrel hinv
-    exact nest_fields_of hP _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl TeleWF.new
+    exact nest_fields_of hP _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl
       hrel hinv
 
 -- A container frame's fragments (the instantiation typed; the stack, the
@@ -929,7 +925,7 @@ frame's (`root`) and a container frame's alike. -/
   nest_ctors_of hctx root fuel
     (fun fuel_c _ prog base n_f cur ns st lst hrel hinv =>
       nest_fields_of (nest_pos_all hctx _) _ fuel_c prog base n_f 0#u64 cur ns _ _ st lst rfl rfl
-        TeleWF.new hrel hinv)
+        hrel hinv)
     prog hi us ds names holes cs i ns outs st lst hrel hinv
 
 /-- **`nest_cont_key` ⊑ `nestContKey`.** -/

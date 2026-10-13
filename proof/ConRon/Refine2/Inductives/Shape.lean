@@ -637,12 +637,6 @@ the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
 /-- info: 'ConRon.Refine2.sim_vec_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms sim_vec_cursor_copy
 
-open Lockstep in
-/-- `kernel::expr::binder_meta_dup` is the identity (a Rust-only copy). -/
-@[lockstep] theorem binder_meta_dup_spec (m : kernel.expr.BinderMeta) :
-    LSP (kernel.expr.binder_meta_dup m) (fun a => a = m) :=
-  fun _ h => ConRon.Refine.Expr.binder_meta_dup_eq h
-
 /-- `arena::core::append_eidx_from` appends `ys` from the cursor on. -/
 theorem append_eidx_from_abs {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
     {o : alloc.vec.Vec arena.handle.EIdx}
@@ -829,40 +823,6 @@ theorem take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
   have := absEIdxL_of_takeEidx (take_eidx_n_spec xs n r h)
   simpa [TwinEq, absU] using this.symm
 
-/-! ## Round 6: a binder telescope the port re-interns is well formed
-
-`intern_e_{lam,forall_e}_wf_ls` need `PropWhenWF` of the datum (the erased
-subtype invariant of con-leche's `PropWhen`).  The telescopes the tier's
-builders re-intern are made by `struct_tele_at` from one `pw`, so the fact is
-carried as `TeleWF` — a named predicate, not a `∀`, so the side tactic (which
-clears `∀` hypotheses) keeps it in the context. -/
-
-/-- Every binder datum of the telescope is well formed. -/
-def TeleWF (v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)) : Prop :=
-  ∀ p ∈ v.val, ConRon.Refine.PropWhenWF p.2.pw
-
-theorem TeleWF.new : TeleWF (alloc.vec.Vec.new (arena.handle.EIdx × kernel.expr.BinderMeta)) := by
-  intro p hp; simp [alloc.vec.Vec.new] at hp
-
-theorem TeleWF.push {v w : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    {x : arena.handle.EIdx × kernel.expr.BinderMeta}
-    (hw : w.val = v.val ++ [x]) (hv : TeleWF v) (hx : ConRon.Refine.PropWhenWF x.2.pw) :
-    TeleWF w := by
-  intro p hp
-  rw [hw, List.mem_append, List.mem_singleton] at hp
-  rcases hp with hp | rfl
-  · exact hv p hp
-  · exact hx
-
-theorem TeleWF.get {v : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta)}
-    (hv : TeleWF v) (k : Nat) (hk : k < v.val.length) :
-    ConRon.Refine.PropWhenWF (v.val[k]).2.pw :=
-  hv _ (List.getElem_mem hk)
-
-namespace Lockstep
-
-end Lockstep
-
 /-! ## `unwrapOr` at a constructor
 
 The port matches the `Option` itself where the twin `unwrapOr`s it.  Scoped:
@@ -877,19 +837,5 @@ namespace IndInstPrims
     unwrapOr (none : Option α) e = Arena.fail e := rfl
 
 end IndInstPrims
-
-namespace IndSide
-
-/-- Round 6's side alternative: a telescope's `TeleWF` after a `push`, and a
-read datum's `PropWhenWF` out of a `TeleWF` telescope. -/
-scoped macro_rules
-  | `(tactic| lockstep_side_ext) =>
-    `(tactic| first
-      | (refine TeleWF.push (by assumption) (by assumption) ?_; simp_all; done)
-      | (subst_vars; first
-          | exact TeleWF.get (by assumption) _ (by scalar_tac)
-          | (simp_all; done)))
-
-end IndSide
 
 end ConRon.Refine2

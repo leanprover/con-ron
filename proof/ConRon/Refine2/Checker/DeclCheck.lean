@@ -1207,26 +1207,27 @@ open Lockstep in
   nat_op_deps_stored_aux _ ns i rfl hrel hinv hfe hvis
 
 open Lockstep in
-/-- `arena::core::bool_ctors_lp_empty` ⊑ `natOpGuard`'s tail (the two `Bool`
-constructors stored at no level parameters), written inline in the twin. -/
-@[lockstep] theorem bool_ctors_lp_empty_ls {pers st lst} {vis : Std.U64} {rf lf}
+/-- `arena::core::bool_ctors_ok` ⊑ `natOpGuard`'s tail (the two `Bool`
+constructors stored level-free at the type `Bool` itself, con-leche's task
+#342), written inline in the twin around `boolCtorOk`. -/
+@[lockstep] theorem bool_ctors_ok_ls {pers st lst} {vis : Std.U64} {rf lf}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hfe : IFEnvRelI rf lf) (hvis : absU vis = lf.visibleBelow) :
     LS pers (fun a b => b = id a)
-      (arena.core.bool_ctors_lp_empty pers vis st rf) lst
+      (arena.core.bool_ctors_ok pers vis st rf) lst
       (do
         let bt ← boolTrueName
         let okT ←
           match lf.find? bt with
-          | some ci => do let cv ← ci.toConstantVal; pure cv.levelParams.isEmpty
+          | some ci => boolCtorOk ci
           | none => pure false
         if !okT then pure false else do
           let bf ← boolFalseName
           match lf.find? bf with
-          | some ci => do let cv ← ci.toConstantVal; pure cv.levelParams.isEmpty
+          | some ci => boolCtorOk ci
           | none => pure false) := by
-  rw [arena.core.bool_ctors_lp_empty]
-  simp only [arena.core.lp_empty]
+  rw [arena.core.bool_ctors_ok]
+  simp only [arena.core.bool_ctor_ok, boolCtorOk]
   lockstep
 
 open Lockstep in
