@@ -321,7 +321,95 @@ parameter (`never`, or `ifAllZero []`) is its own substitution, so answering
 theorem substPW_cutoff {ks : List ConLeche.Name} {vs : List Level}
     {pw : PropWhen} (h : ∀ a as, pw ≠ .ifAllZero (a :: as)) :
     Level.substPW ks vs pw = pw := by
-  sorry
+  cases pw with
+  | never => rfl
+  | ifAllZero ps =>
+    cases ps with
+    | nil => rfl
+    | cons a as => exact absurd rfl (h a as)
+
+/-- con-leche: none — **the constructor tag of a denotation**: the four tag
+bits of a handle are the tag of the expression it denotes. -/
+def exprTag : Expr → UInt32
+  | .bvar _ => ETag.bvar
+  | .fvar _ _ => ETag.fvar
+  | .sort _ => ETag.sort
+  | .const _ _ => ETag.const
+  | .app _ _ => ETag.app
+  | .lam _ _ => ETag.lam
+  | .forallE _ _ => ETag.forallE
+  | .letE _ _ _ => ETag.letE
+  | .lit _ => ETag.lit
+  | .proj _ _ _ => ETag.proj
+
+/-- con-leche: none — DESIGN §8.3: a handle's tag is its denotation's. -/
+theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    (hd : denoteE st h = some e) : h.tag = exprTag e := by
+  obtain ⟨v, hv⟩ := denoteE_view hd
+  rw [EStore.tagOf_of_view hv]
+  cases v with
+  | bvar i => rw [denote_bvar_inv hwf hv hd]; rfl
+  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hd; rfl
+  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hd; rfl
+  | const n us => obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hd; rfl
+  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv hd; rfl
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
+  | forallE ty b =>
+    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv hd; rfl
+  | letE ty w b =>
+    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv hd; rfl
+  | lit l => rw [denote_lit_inv hwf hv hd]; rfl
+  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
+
+
+/-- con-leche: none — **a `pure` exit** at a pinned state. -/
+theorem triple_pureR {α : Type} {s₀ : AState} {v : α}
+    {Q : α → AState → Prop} (h : Q v s₀) :
+    ⦃fun s => s = s₀⦄ (pure v : AM α) ⦃fun r s => Q r s; ⊤⦄ := by
+  vcgen
+  subst_vars; exact h
+
+/-- con-leche: none — the head-NAME projection of a `const` node, against
+`view`. -/
+theorem view_of_viewConstName {st : EStore} {i : EIdx} {n : NIdx}
+    (htg : i.tag = ETag.const) (h : st.viewConstName i = some n) :
+    ∃ us, st.view i = some (.const n us) := by
+  have key : ∀ t : ETables, t.getConstName i = some n →
+      ∃ us, t.get i = some (.const n us) := by
+    intro t ht
+    simp only [ETables.getConstName, Option.map_eq_some_iff] at ht
+    obtain ⟨r, hr, rfl⟩ := ht
+    exact ⟨r.us, ETables.get_of_getConst htg (by simp [ETables.getConst, hr])⟩
+  simp only [EStore.viewConstName, EStore.persGetConstName] at h
+  simp only [EStore.view]
+  by_cases hp : i.isPersistent = true
+  · rw [ite_eq_left hp] at h ⊢; exact key _ h
+  · simp only [Bool.not_eq_true] at hp
+    rw [hp] at h ⊢
+    simp only [Bool.false_eq_true, ite_false] at h ⊢
+    by_cases hon : st.scratchOn = true
+    · rw [ite_eq_left hon] at h ⊢; exact key _ h
+    · simp only [Bool.not_eq_true] at hon
+      rw [hon] at h; simp at h
+
+/-- con-leche: none — `viewConstName` reads the store and moves nothing. -/
+theorem viewConstName_spec (s₀ : AState) (h : EIdx) :
+    ⦃fun s => s = s₀⦄ viewConstName h
+    ⦃fun r s' => s' = s₀ ∧ r = s₀.store.viewConstName h; ⊤⦄ := by
+  vcgen [viewConstName] with finish
+
+/-- con-leche: none — a denoting handle list read at an index with a
+denoting default. -/
+theorem denoteEList_getD {st : EStore} :
+    ∀ {hs : List EIdx} {xs : List Expr}, Frontend.denoteEList st hs = some xs →
+      ∀ (i : Nat) (e : EIdx) (x : Expr), denoteE st e = some x →
+        denoteE st (hs.getD i e) = some (xs.getD i x)
+  | [], xs, h, i, e, x, hx => by rw [denoteEList_nil_inv h]; simpa using hx
+  | a :: as, xs, h, i, e, x, hx => by
+    obtain ⟨y, ys, hy, hys, rfl⟩ := denoteEList_cons_inv h
+    cases i with
+    | zero => simpa using hy
+    | succ i => simpa using denoteEList_getD hys i e x hx
 
 /-- con-leche: none — the `else` arm of a tag-first twin (task #97-P5-Core
 round 6): a denoting handle whose tag is not `t` views to a node that is not a
@@ -344,7 +432,51 @@ theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
     ⦃fun s => s = s₀⦄ ConRon.Arena.binderDom k h
     ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
         denoteEO s₀.store r = some (x.binderDom k); ⊤⦄ := by
-  sorry
+  induction k with
+  | zero =>
+    intro s₀ h hok
+    rw [ConRon.Arena.binderDom]
+    by_cases htg : (h.tag == ETag.forallE) = true
+    · rw [ite_eq_left htg]
+      refine triple_seq (viewBind_spec s₀ h) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewBind h with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨A, b⟩ := p
+        dsimp only
+        refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+        obtain ⟨et, eb, rfl, hA, _⟩ := denote_forallE_inv hok.state.wf
+          (view_of_viewBind_forallE (by simpa using htg) hvb) hx
+        simp [denoteEO, hA, Expr.binderDom]
+    · rw [ite_eq_right htg]
+      refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+      rw [tag_of_denote hok.state.wf hx] at htg
+      cases x <;> simp_all [exprTag, Expr.binderDom, denoteEO]
+  | succ k ih =>
+    intro s₀ h hok
+    rw [ConRon.Arena.binderDom]
+    by_cases htg : (h.tag == ETag.forallE) = true
+    · rw [ite_eq_left htg]
+      refine triple_seq (viewBind_spec s₀ h) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewBind h with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨A, b⟩ := p
+        dsimp only
+        refine triple_mono (ih s₀ b hok) ?_
+        rintro r s' ⟨rfl, hr⟩
+        refine ⟨rfl, fun x hx => ?_⟩
+        obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hok.state.wf
+          (view_of_viewBind_forallE (by simpa using htg) hvb) hx
+        rw [hr eb hb]; rfl
+    · rw [ite_eq_right htg]
+      refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+      rw [tag_of_denote hok.state.wf hx] at htg
+      cases x <;> simp_all [exprTag, Expr.binderDom, denoteEO]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:58-61 Expr.numArgs — **THEOREM 1
 for `numArgs`**, in answer shape.  The arena's walk is fueled and FAILS at
@@ -425,7 +557,47 @@ theorem lamProj?_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
     ⦃fun s => s = s₀⦄ ConRon.Arena.lamProj? fuel k h
     ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store h = some x →
         r = ConLeche.lamProj? k x; ⊤⦄ := by
-  sorry
+  induction fuel with
+  | zero =>
+    intro k s₀ h _
+    rw [ConRon.Arena.lamProj?]
+    exact triple_fail
+  | succ fuel ih =>
+    intro k s₀ h hok
+    rw [ConRon.Arena.lamProj?]
+    by_cases htl : (h.tag == ETag.lam) = true
+    · rw [ite_eq_left htl]
+      refine triple_seq (viewBind_spec s₀ h) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewBind h with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨A, b⟩ := p
+        dsimp only
+        refine triple_mono (ih (k + 1) s₀ b hok) ?_
+        rintro r s' ⟨rfl, hr⟩
+        refine ⟨rfl, fun x hx => ?_⟩
+        obtain ⟨et, eb, rfl, _, hb⟩ := denote_lam_inv hok.state.wf
+          (view_of_viewBind_lam (by simpa using htl) hvb) hx
+        rw [hr eb hb]; rfl
+    · rw [ite_eq_right htl]
+      by_cases htb : (h.tag == ETag.bvar) = true
+      · rw [ite_eq_left htb]
+        refine triple_seq (viewBVar_spec s₀ h) ?_
+        rintro ob s1 ⟨hs1, hob⟩
+        subst s1; subst hob
+        cases hvb : s₀.store.viewBVar h with
+        | none => exact triple_failDanglingE
+        | some j =>
+          dsimp only
+          refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+          rw [denote_bvar_inv hok.state.wf (view_of_viewBVar_tag htb hvb) hx]
+          rfl
+      · rw [ite_eq_right htb]
+        refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+        rw [tag_of_denote hok.state.wf hx] at htl htb
+        cases x <;> simp_all [exprTag, ConLeche.lamProj?]
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:81-97 unwrapIdDefs — **THEOREM
 1 for `unwrapIdDefs`**, in answer shape: the answer denotes con-leche's
@@ -435,7 +607,118 @@ theorem unwrapIdDefs_spec' (fuel : Nat) : ∀ (n : Nat) (s₀ : AState) (e : EId
     ⦃fun s => s = s₀⦄ ConRon.Arena.unwrapIdDefs fe fuel n e
     ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store e = some x →
         denoteE s₀.store r = some (ConLeche.unwrapIdDefs env.find? n x); ⊤⦄ := by
-  sorry
+  intro n
+  induction n with
+  | zero =>
+    intro s₀ e _ _
+    rw [ConRon.Arena.unwrapIdDefs]
+    exact triple_pureR ⟨rfl, fun x hx => by rw [hx]; rfl⟩
+  | succ n ih =>
+    intro s₀ e hok hpre
+    obtain ⟨x₀, hx₀⟩ := hpre
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.unwrapIdDefs]
+    refine triple_seq (ExprOps.getAppFn_spec fuel s₀ e hok.state
+      (by rw [hx₀]; rfl)) ?_
+    rintro hh s1 ⟨hs1, hrelF⟩
+    subst s1
+    have hdd : denoteE s₀.store hh = some x₀.getAppFn := hrelF x₀ hx₀
+    -- the answer `e` itself, when the head declines
+    have hkeep : ∀ (c : Expr → Prop), (∀ x, denoteE s₀.store e = some x →
+        ConLeche.unwrapIdDefs env.find? (n + 1) x = x) →
+        ⦃fun s => s = s₀⦄ (pure e : AM EIdx)
+        ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store e = some x →
+          denoteE s₀.store r = some (ConLeche.unwrapIdDefs env.find? (n + 1)
+            x); ⊤⦄ := by
+      intro _ h
+      exact triple_pureR ⟨rfl, fun x hx => by rw [h x hx, hx]⟩
+    by_cases htc : (hh.tag == ETag.const) = true
+    · rw [ite_eq_left htc]
+      refine triple_seq (viewConstName_spec s₀ hh) ?_
+      rintro oc s2 ⟨hs2, hoc⟩
+      subst s2; subst hoc
+      cases hvc : s₀.store.viewConstName hh with
+      | none => exact triple_failDanglingE
+      | some c =>
+        dsimp only
+        obtain ⟨us, hview⟩ := view_of_viewConstName (by simpa using htc) hvc
+        obtain ⟨nm, ls, hgf, hn, _⟩ := denote_const_inv hwf hview hdd
+        have hgf' : ∀ x, denoteE s₀.store e = some x →
+            x.getAppFn = .const nm ls := fun x hx => by
+          obtain rfl := Option.some.inj (hx.symm.trans hx₀); exact hgf
+        have hopt := optCI_find hok hn
+        cases hfd : fe.find? c with
+        | none =>
+          rw [hfd] at hopt
+          refine hkeep (fun _ => True) (fun x hx => ?_)
+          simp only [ConLeche.unwrapIdDefs, hgf' x hx]
+          rw [show env.find? nm = none from hopt]
+        | some ci =>
+          rw [hfd] at hopt
+          obtain ⟨c', hci, hfind⟩ := hopt
+          cases ci
+          case defnInfo cv v hint =>
+            obtain ⟨dcv, vx, _, hv, rfl⟩ := denoteCI_defnInfo_inv hci
+            dsimp only
+            refine triple_seq (lamProj?_spec' fuel 0 s₀ v hok) ?_
+            rintro op s3 ⟨hs3, hop⟩
+            subst s3
+            have hop' := hop vx hv
+            subst hop'
+            cases hlp : ConLeche.lamProj? 0 vx with
+            | none =>
+              dsimp only
+              refine hkeep (fun _ => True) (fun x hx => ?_)
+              simp only [ConLeche.unwrapIdDefs, hgf' x hx, hfind, hlp]
+            | some kj =>
+              obtain ⟨k, j⟩ := kj
+              dsimp only
+              refine triple_seq (ExprOps.getAppArgs_spec fuel s₀ e hok.state
+                (by rw [hx₀]; rfl)) ?_
+              rintro args s4 ⟨hs4, hrelA⟩
+              subst s4
+              have hargs : Frontend.denoteEList s₀.store args =
+                  some x₀.getAppArgs := hrelA x₀ hx₀
+              have hlen : x₀.getAppArgs.length = args.length :=
+                denoteEList_len hargs
+              by_cases hg : (decide (k ≤ args.length) && args.length == k) = true
+              · rw [ite_eq_left hg]
+                have hd := denoteEList_getD hargs (k - 1 - j) e x₀ hx₀
+                refine triple_mono (ih s₀ (args.getD (k - 1 - j) e) hok
+                  ⟨_, hd⟩) ?_
+                rintro r s' ⟨rfl, hr⟩
+                refine ⟨rfl, fun x hx => ?_⟩
+                obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+                rw [hr _ hd]
+                have hg' : (decide (k ≤ x.getAppArgs.length) &&
+                    x.getAppArgs.length == k) = true := by rw [hlen]; exact hg
+                simp only [ConLeche.unwrapIdDefs, hgf, hfind, hlp, hg', ite_true]
+              · rw [ite_eq_right hg]
+                refine hkeep (fun _ => True) (fun x hx => ?_)
+                obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+                have hg' : ¬ (decide (k ≤ x.getAppArgs.length) &&
+                    x.getAppArgs.length == k) = true := by rw [hlen]; exact hg
+                simp only [ConLeche.unwrapIdDefs, hgf, hfind, hlp]
+                rw [ite_eq_right hg']
+          all_goals
+            dsimp only
+            refine hkeep (fun _ => True) (fun x hx => ?_)
+            have hnd : ∀ cv vx hint, c' ≠ .defnInfo cv vx hint := by
+              rintro cv vx hint rfl
+              simp only [Frontend.denoteCI] at hci
+              first | (simp at hci) | (split at hci <;> simp_all)
+            simp only [ConLeche.unwrapIdDefs, hgf' x hx, hfind]
+            cases c' <;> first | rfl | exact absurd rfl (hnd _ _ _)
+    · rw [ite_eq_right htc]
+      refine hkeep (fun _ => True) (fun x hx => ?_)
+      obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+      have hne := htc
+      rw [tag_of_denote hwf hdd] at hne
+      simp only [ConLeche.unwrapIdDefs]
+      split
+      · rename_i c us' heq
+        rw [heq] at hne; simp [exprTag] at hne
+      · rfl
 
 /-- con-leche: ConLeche/Kernel/PropRead.lean:99-105 peelPisW — **THEOREM 1
 for `peelPisW`**, in answer shape. -/
@@ -444,7 +727,78 @@ theorem peelPisW_spec' (fuel : Nat) : ∀ (k : Nat) (s₀ : AState) (e : EIdx),
     ⦃fun s => s = s₀⦄ ConRon.Arena.peelPisW fe fuel k e
     ⦃fun r s' => s' = s₀ ∧ ∀ x, denoteE s₀.store e = some x →
         denoteEO s₀.store r = some (ConLeche.peelPisW env.find? k x); ⊤⦄ := by
-  sorry
+  intro k
+  induction k with
+  | zero =>
+    intro s₀ e hok hpre
+    rw [ConRon.Arena.peelPisW]
+    refine triple_seq (unwrapIdDefs_spec' fuel 4 s₀ e hok hpre) ?_
+    rintro u s1 ⟨hs1, hu⟩
+    subst s1
+    refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+    simp [denoteEO, hu x hx, ConLeche.peelPisW]
+  | succ k ih =>
+    intro s₀ e hok hpre
+    obtain ⟨x₀, hx₀⟩ := hpre
+    have hwf := hok.state.wf
+    rw [ConRon.Arena.peelPisW]
+    by_cases htg : (e.tag == ETag.forallE) = true
+    · rw [ite_eq_left htg]
+      refine triple_seq (viewBind_spec s₀ e) ?_
+      rintro ob s1 ⟨hs1, hob⟩
+      subst s1; subst hob
+      cases hvb : s₀.store.viewBind e with
+      | none => exact triple_failDanglingE
+      | some p =>
+        obtain ⟨A, b⟩ := p
+        dsimp only
+        have hv := view_of_viewBind_forallE (by simpa using htg) hvb
+        obtain ⟨_, eb₀, _, _, hb₀⟩ := denote_forallE_inv hwf hv hx₀
+        refine triple_mono (ih s₀ b hok ⟨eb₀, hb₀⟩) ?_
+        rintro r s' ⟨rfl, hr⟩
+        refine ⟨rfl, fun x hx => ?_⟩
+        obtain ⟨et, eb, rfl, _, hb⟩ := denote_forallE_inv hwf hv hx
+        rw [hr eb hb]; rfl
+    · rw [ite_eq_right htg]
+      have hnf : ∀ x, denoteE s₀.store e = some x →
+          ConLeche.peelPisW env.find? (k + 1) x =
+            match ConLeche.unwrapIdDefs env.find? 4 x with
+            | .forallE _ b => ConLeche.peelPisW env.find? k b
+            | _ => none := by
+        intro x hx
+        have htg' := htg
+        rw [tag_of_denote hwf hx] at htg'
+        cases x <;> (try simp [exprTag] at htg') <;> first | rfl | simp [ConLeche.peelPisW]
+      refine triple_seq (unwrapIdDefs_spec' fuel 4 s₀ e hok ⟨x₀, hx₀⟩) ?_
+      rintro u s1 ⟨hs1, hu⟩
+      subst s1
+      have hu₀ := hu x₀ hx₀
+      by_cases htu : (u.tag == ETag.forallE) = true
+      · rw [ite_eq_left htu]
+        refine triple_seq (viewBind_spec s₀ u) ?_
+        rintro ob s1 ⟨hs1, hob⟩
+        subst s1; subst hob
+        cases hvb : s₀.store.viewBind u with
+        | none => exact triple_failDanglingE
+        | some p =>
+          obtain ⟨A, b⟩ := p
+          dsimp only
+          have hv := view_of_viewBind_forallE (by simpa using htu) hvb
+          obtain ⟨_, eb₀, _, _, hb₀⟩ := denote_forallE_inv hwf hv hu₀
+          refine triple_mono (ih s₀ b hok ⟨eb₀, hb₀⟩) ?_
+          rintro r s' ⟨rfl, hr⟩
+          refine ⟨rfl, fun x hx => ?_⟩
+          obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+          obtain ⟨et, eb, heq, _, hb⟩ := denote_forallE_inv hwf hv hu₀
+          rw [hnf _ hx₀, heq, hr eb hb]
+      · rw [ite_eq_right htu]
+        refine triple_pureR ⟨rfl, fun x hx => ?_⟩
+        rw [hnf _ hx]
+        have hux := hu x hx
+        have htu' := htu
+        rw [tag_of_denote hwf hux] at htu'
+        generalize ConLeche.unwrapIdDefs env.find? 4 x = U at htu' ⊢
+        cases U <;> simp_all [exprTag, denoteEO]
 
 /-! ## 3. The head readers -/
 
