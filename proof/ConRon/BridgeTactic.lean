@@ -988,7 +988,7 @@ namespace Frame
 /-- Match the patterns against `g`'s context; on success, the goal with the
 matched hypotheses (and `?x` variables) renamed. -/
 def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
-    TacticM (Option MVarId) := g.withContext do
+    TacticM (Except MessageData MVarId) := g.withContext do
   let s ← saveState
   let before := (← getMCtx).decls
   try
@@ -998,7 +998,7 @@ def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
     if let some tgt := tgt? then
       let tt ← Term.withoutErrToSorry <| Tactic.elabTerm tgt none (mayPostpone := true)
       unless ← withAssignableSyntheticOpaque (same (← instantiateMVars (← g.getType)) tt) do
-        s.restore; return none
+        s.restore; return .error m!"the target is not {tgt}"
     for (n, pat) in pats do
       let pt ← normNeg (← Term.withoutErrToSorry <|
         Tactic.elabTerm pat none (mayPostpone := true))
@@ -1012,7 +1012,7 @@ def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
         if ← withAssignableSyntheticOpaque (same dt pt) then
           found := some d.fvarId; break
         st.restore
-      let some fv := found | s.restore; return none
+      let some fv := found | s.restore; return .error m!"no hypothesis `{n.getId} : {pat}`"
       used := used.push fv
       renames := renames.push (fv, n.getId)
     -- `?x` in a pattern names the local it matched
@@ -1028,8 +1028,8 @@ def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
     let mut g := g
     for (fv, n) in renames do
       g ← g.rename fv n
-    return some g
-  catch _ => s.restore; return none
+    return .ok g
+  catch e => s.restore; return .error m!"the patterns do not elaborate: {e.toMessageData}"
 
 end Frame
 
@@ -1041,16 +1041,20 @@ end Frame
   let gs ← getGoals
   let mut out := []
   let mut hit := false
+  let mut why : Array MessageData := #[]
   for g in gs do
     if ← g.isAssigned then continue
     match ← Frame.matchArm g pats tgt? with
-    | none => out := out ++ [g]
-    | some g' =>
+    | .error m =>
+      out := out ++ [g]
+      why := why.push m!"• {← g.getTag}: {m}"
+    | .ok g' =>
       hit := true
       setGoals [g']
       evalTactic tac
       out := out ++ (← getUnsolvedGoals)
-  unless hit do throwError "vc_arm: no open goal matches this arm"
+  unless hit do
+    throwError "vc_arm: no open goal matches this arm{indentD (MessageData.joinSep why.toList "\n")}"
   setGoals out
 
 end ConRon.Bridge
