@@ -32,9 +32,8 @@ invariant, `TablesWF`, threaded through the record pass:
 
     TablesWF tb → record_* t i tb = ok (.Ok (tb', j)) → TablesWF tb'
 
-with the four backward references (`name_ref`, `level_ref`, `pw_ref`,
-`expr_ref`) reading a well-formed entry out of a well-formed table and the
-three counted lists (`name_list`, `level_list`, `expr_list`) collecting them.
+with the three backward references (`name_ref`, `level_ref`, `expr_ref`) reading a well-formed entry out of a well-formed table and the
+two counted lists (`level_list`, `expr_list`) collecting them.
 `decode_wf` is this file's product:
 
     decode t = ok (.Ok v) → CheckerPins.PinsWF v
@@ -368,7 +367,6 @@ smart constructors. -/
 structure TablesWF (tb : pins_decode.Tables) : Prop where
   names : NamesWF tb.names
   levels : LevelsWF tb.levels
-  pws : ∀ pw ∈ tb.pws.val, PropWhenWF pw
   exprs : ExprsWF tb.exprs
   sets : ∀ s ∈ tb.sets.val, NatOpPinSetWF s
 
@@ -378,7 +376,7 @@ theorem tables_new_wf {tb : pins_decode.Tables}
   rw [pins_decode.tables_new, Result.ok.injEq] at h
   subst h
   exact ⟨by simp [NamesWF, alloc.vec.Vec.new], by simp [LevelsWF, alloc.vec.Vec.new],
-    by simp [alloc.vec.Vec.new], by simp [ExprsWF, alloc.vec.Vec.new],
+    by simp [ExprsWF, alloc.vec.Vec.new],
     by simp [alloc.vec.Vec.new]⟩
 
 /-! ## The backward references
@@ -431,27 +429,6 @@ theorem level_ref_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tabl
       exact htb.levels _ (List.getElem_mem (by scalar_tac))
     · exact (err_ne_ok h).elim
 
-theorem pw_ref_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tables}
-    {pw : prop_when.PropWhen} (htb : TablesWF tb)
-    (h : pins_decode.pw_ref t i tb = ok (.Ok (pw, j))) : PropWhenWF pw := by
-  rw [pins_decode.pw_ref] at h
-  simp only [bind_eq_ok_iff] at h
-  obtain ⟨r, hr, h⟩ := h
-  cases r with
-  | Err e => simp at h
-  | Ok p =>
-    obtain ⟨k, j1⟩ := p
-    replace h : (if k < alloc.vec.Vec.len tb.pws then _ else _)
-        = ok (core.result.Result.Ok (pw, j)) := h
-    split at h
-    · rename_i hlt
-      simp only [bind_eq_ok_iff] at h
-      obtain ⟨pw0, hpw0, pw1, hpw1, h⟩ := h
-      simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      rw [← h.1, PropWhen.dup_eq hpw1]
-      exact htb.pws pw0 (vec_index_mem (by scalar_tac) hpw0)
-    · exact (err_ne_ok h).elim
-
 theorem expr_ref_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tables}
     {e : expr.Expr} (htb : TablesWF tb)
     (h : pins_decode.expr_ref t i tb = ok (.Ok (e, j))) : ExprWF e := by
@@ -484,62 +461,6 @@ private theorem usub_eq {ty : Std.UScalarTy} {x y z : Std.UScalar ty}
     (h : x - y = ok z) : z.val = x.val - y.val := by
   have := Std.UScalar.sub_equiv x y
   rw [h] at this; simp at this; omega
-
-private theorem name_list_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
-    (htb : TablesWF tb) :
-    ∀ (kf : Nat) (i k : Std.Usize) (out : alloc.vec.Vec name.Name),
-      k.val ≤ kf → NamesWF out →
-      ∀ (res : alloc.vec.Vec name.Name) (j : Std.Usize),
-        pins_decode.name_list_from t i tb k out = ok (.Ok (res, j)) → NamesWF res := by
-  intro kf
-  induction kf with
-  | zero =>
-    intro i k out hk hout res j h
-    rw [pins_decode.name_list_from.eq_def] at h
-    rw [ite_eq_left (show k = 0#usize from by scalar_tac)] at h
-    simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact hout
-  | succ kf ih =>
-    intro i k out hk hout res j h
-    rw [pins_decode.name_list_from.eq_def] at h
-    split at h
-    · simp only [Result.ok.injEq, core.result.Result.Ok.injEq, Prod.mk.injEq] at h
-      obtain ⟨rfl, rfl⟩ := h
-      exact hout
-    · rename_i hk0
-      have hkpos : 0 < k.val := by
-        rcases Nat.eq_zero_or_pos k.val with _ | hp
-        · exact absurd (by scalar_tac : k = 0#usize) hk0
-        · exact hp
-      obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-      cases r with
-      | Err e => simp at h
-      | Ok j1 =>
-        obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-        cases r1 with
-        | Err e => simp at h
-        | Ok p =>
-          obtain ⟨x, m⟩ := p
-          obtain ⟨out1, hout1, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨k1, hk1, h⟩ := bind_eq_ok_iff.mp h
-          have hk1v : k1.val = k.val - 1 := usub_eq hk1
-          exact ih m k1 out1 (by omega)
-            (push_wf hout (name_ref_wf htb hr1) hout1) res j h
-
-/-- `name_list` enters the loop at the count it just read, with an empty
-accumulator. -/
-theorem name_list_wf {t : Slice Std.U8} {i j : Std.Usize} {tb : pins_decode.Tables}
-    {res : alloc.vec.Vec name.Name} (htb : TablesWF tb)
-    (h : pins_decode.name_list t i tb = ok (.Ok (res, j))) : NamesWF res := by
-  rw [pins_decode.name_list] at h
-  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-  cases r with
-  | Err e => simp at h
-  | Ok p =>
-    obtain ⟨n, j1⟩ := p
-    exact name_list_from_wf htb n.val j1 n _ (le_refl _)
-      (by simp [NamesWF, alloc.vec.Vec.new]) res j h
 
 private theorem level_list_from_wf {t : Slice Std.U8} {tb : pins_decode.Tables}
     (htb : TablesWF tb) :
@@ -666,32 +587,20 @@ invariant. -/
 unchanged.  Five one-liners, one per id space. -/
 private theorem with_names {tb : pins_decode.Tables} {v : alloc.vec.Vec name.Name}
     (htb : TablesWF tb) (hv : NamesWF v) : TablesWF { tb with names := v } :=
-  ⟨hv, htb.levels, htb.pws, htb.exprs, htb.sets⟩
+  ⟨hv, htb.levels, htb.exprs, htb.sets⟩
 
 private theorem with_levels {tb : pins_decode.Tables} {v : alloc.vec.Vec level.Level}
     (htb : TablesWF tb) (hv : LevelsWF v) : TablesWF { tb with levels := v } :=
-  ⟨htb.names, hv, htb.pws, htb.exprs, htb.sets⟩
-
-private theorem with_pws {tb : pins_decode.Tables}
-    {v : alloc.vec.Vec prop_when.PropWhen} (htb : TablesWF tb)
-    (hv : ∀ pw ∈ v.val, PropWhenWF pw) : TablesWF { tb with pws := v } :=
-  ⟨htb.names, htb.levels, hv, htb.exprs, htb.sets⟩
+  ⟨htb.names, hv, htb.exprs, htb.sets⟩
 
 private theorem with_exprs {tb : pins_decode.Tables} {v : alloc.vec.Vec expr.Expr}
     (htb : TablesWF tb) (hv : ExprsWF v) : TablesWF { tb with exprs := v } :=
-  ⟨htb.names, htb.levels, htb.pws, hv, htb.sets⟩
+  ⟨htb.names, htb.levels, hv, htb.sets⟩
 
 private theorem with_sets {tb : pins_decode.Tables}
     {v : alloc.vec.Vec nat_op_pins.NatOpPinSet} (htb : TablesWF tb)
     (hv : ∀ s ∈ v.val, NatOpPinSetWF s) : TablesWF { tb with sets := v } :=
-  ⟨htb.names, htb.levels, htb.pws, htb.exprs, hv⟩
-
-/-- `expr::binder_meta` is `Arc::new`, so the datum's `PropWhen` is the one it
-was given. -/
-private theorem binder_meta_wf {pw : prop_when.PropWhen} {m : expr.BinderMeta}
-    (hpw : PropWhenWF pw) (h : expr.binder_meta pw = ok m) : BinderMetaWF m := by
-  simp only [expr.binder_meta, Result.ok.injEq] at h
-  rw [← h]; exact hpw
+  ⟨htb.names, htb.levels, htb.exprs, hv⟩
 
 /-- `expr::literal_nat` is `Arc::new` on a normalised bignum. -/
 private theorem literal_nat_wf {n : ron.nat.Nat} {l : expr.Literal}
@@ -950,70 +859,6 @@ theorem record_level_wf {t : Slice Std.U8} {i j : Std.Usize}
 
 /-! ### `W` — the prop-when records -/
 
-theorem record_pw_zero_wf {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
-    (h : pins_decode.record_pw_zero t i tb = ok (.Ok (tb', j))) : TablesWF tb' := by
-  rw [pins_decode.record_pw_zero] at h
-  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-  cases r with
-  | Err e => simp at h
-  | Ok i1 =>
-    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-    cases r1 with
-    | Err e => simp at h
-    | Ok p =>
-      obtain ⟨ps, i2⟩ := p
-      obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
-      cases r2 with
-      | Err e => simp at h
-      | Ok i3 =>
-        obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-        simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-          Prod.mk.injEq] at h
-        rw [← h.1]
-        exact with_pws htb
-          (push_wf htb.pws (.if_all_zero (name_list_wf htb hr1) hpw) hv)
-
-theorem record_pw_wf {t : Slice Std.U8} {i j : Std.Usize}
-    {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
-    (h : pins_decode.record_pw t i tb = ok (.Ok (tb', j))) : TablesWF tb' := by
-  rw [pins_decode.record_pw] at h
-  obtain ⟨r, hr, h⟩ := bind_eq_ok_iff.mp h
-  cases r with
-  | Err e => simp at h
-  | Ok i2 =>
-    obtain ⟨r1, hr1, h⟩ := bind_eq_ok_iff.mp h
-    cases r1 with
-    | Err e => simp at h
-    | Ok i3 =>
-      obtain ⟨k, hk, h⟩ := bind_eq_ok_iff.mp h
-      split at h
-      · obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
-        obtain ⟨r2, hr2, h⟩ := bind_eq_ok_iff.mp h
-        cases r2 with
-        | Err e => simp at h
-        | Ok i5 =>
-          obtain ⟨pw, hpw, h⟩ := bind_eq_ok_iff.mp h
-          obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-          simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-            Prod.mk.injEq] at h
-          rw [← h.1]
-          exact with_pws htb (push_wf htb.pws (.never hpw) hv)
-      · split at h
-        · obtain ⟨i4, hi4, h⟩ := bind_eq_ok_iff.mp h
-          exact record_pw_zero_wf htb h
-        · exact (err_ne_ok h).elim
-
-
-/-! ### `E` — the expression records
-
-Ten smart constructors behind eleven reader chains, and every chain is the
-shape the `N` and `L` records already had: read the operands through the
-backward references, take the constructor's own `= ok` equation off the end,
-hand it to the matching `ExprWF` constructor.  `record_expr_binder` is the one
-record with two of them, `lam` and `forall_e`, behind its `is_lam` flag. -/
-
 theorem record_expr_bvar_wf {t : Slice Std.U8} {i j : Std.Usize}
     {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
     (h : pins_decode.record_expr_bvar t i tb = ok (.Ok (tb', j))) :
@@ -1199,35 +1044,26 @@ theorem record_expr_binder_wf {t : Slice Std.U8} {i j : Std.Usize}
           cases r4 with
           | Err e => simp at h
           | Ok i5 =>
-            obtain ⟨r5, hr5, h⟩ := bind_eq_ok_iff.mp h
-            cases r5 with
-            | Err e => simp at h
-            | Ok p2 =>
-              obtain ⟨pw, i6⟩ := p2
-              obtain ⟨r6, hr6, h⟩ := bind_eq_ok_iff.mp h
-              cases r6 with
-              | Err e => simp at h
-              | Ok i7 =>
-                obtain ⟨m, hm, h⟩ := bind_eq_ok_iff.mp h
-                have hmw : BinderMetaWF m := binder_meta_wf (pw_ref_wf htb hr5) hm
-                split at h
-                · obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
-                  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-                  simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-                    Prod.mk.injEq] at h
-                  rw [← h.1]
-                  exact with_exprs htb
-                    (push_wf htb.exprs
-                      (.lam (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hmw hex) hv)
-                · obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
-                  obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
-                  simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
-                    Prod.mk.injEq] at h
-                  rw [← h.1]
-                  exact with_exprs htb
-                    (push_wf htb.exprs
-                      (.forall_e (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hmw hex)
-                      hv)
+            by_cases hl : isLam = true
+            · simp only [hl, ↓reduceIte] at h
+              obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                Prod.mk.injEq] at h
+              rw [← h.1]
+              exact with_exprs htb
+                (push_wf htb.exprs
+                  (.lam (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hex) hv)
+            · simp only [hl, Bool.false_eq_true, ↓reduceIte] at h
+              obtain ⟨ex, hex, h⟩ := bind_eq_ok_iff.mp h
+              obtain ⟨v, hv, h⟩ := bind_eq_ok_iff.mp h
+              simp only [Result.ok.injEq, core.result.Result.Ok.injEq,
+                Prod.mk.injEq] at h
+              rw [← h.1]
+              exact with_exprs htb
+                (push_wf htb.exprs
+                  (.forall_e (expr_ref_wf htb hr1) (expr_ref_wf htb hr3) hex)
+                  hv)
 
 theorem record_expr_let_wf {t : Slice Std.U8} {i j : Std.Usize}
     {tb tb' : pins_decode.Tables} (htb : TablesWF tb)
@@ -1782,17 +1618,14 @@ private theorem run_records_wf {t : Slice Std.U8} :
               · obtain ⟨-, h1, h2⟩ := PinsRecords.record_level_refines hstep
                 exact ⟨record_level_wf htb hstep, h1, h2⟩
               · split at hstep
-                · obtain ⟨-, h1, h2⟩ := PinsRecords.record_pw_refines hstep
-                  exact ⟨record_pw_wf htb hstep, h1, h2⟩
+                · obtain ⟨-, h1, h2⟩ := PinsRecords.record_expr_refines hstep
+                  exact ⟨record_expr_wf htb hstep, h1, h2⟩
                 · split at hstep
-                  · obtain ⟨-, h1, h2⟩ := PinsRecords.record_expr_refines hstep
-                    exact ⟨record_expr_wf htb hstep, h1, h2⟩
-                  · split at hstep
-                    · obtain ⟨-, h1, h2⟩ := PinsRun.record_pin_set_refines hstep
-                      exact ⟨record_pin_set_wf htb hstep, h1, h2⟩
-                    · exfalso
-                      obtain ⟨ce, -, hstep⟩ := bind_eq_ok_iff.mp hstep
-                      simp at hstep
+                  · obtain ⟨-, h1, h2⟩ := PinsRun.record_pin_set_refines hstep
+                    exact ⟨record_pin_set_wf htb hstep, h1, h2⟩
+                  · exfalso
+                    obtain ⟨ce, -, hstep⟩ := bind_eq_ok_iff.mp hstep
+                    simp at hstep
           exact ih m tb1 (by omega) hrec.1 v h
 
 /-! ## The product
