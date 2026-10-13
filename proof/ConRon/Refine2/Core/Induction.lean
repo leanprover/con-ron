@@ -11,10 +11,11 @@ relations; this file is the induction that ties them:
 The premise of the last is `Core/Arms/*`'s obligation and the tier's real
 work; everything here is closed.
 
-## The step, six times, and the shape of each
+## The step, five times, and the shape of each
 
-Every one of the six port entries has the same four-branch skeleton (the
-fifth, the gated lane, went with con-leche's modeled route, task #105):
+Every one of the five port entries has the same four-branch skeleton (the
+gated lane went with con-leche's modeled route, task #105, the annotate slot
+with the annotate pass, task #119):
 
     if fuel == 0                      -- the twin's `coreKnot … 0` slot
     else if <stuck tag>               -- `whnf_core` and `whnf` only
@@ -33,7 +34,7 @@ cheap mode probes and writes its own table (`whnf_core_cheap_probe` /
 full mode the old one, and the step splits on the flag after the tag short
 circuit.
 
-## The three divergences the step had to prove, not assume
+## The divergences the step had to prove, not assume
 
 1. **The stuck-tag short circuit, which used to be an asymmetry and is not
    one any more.**  `knot_whnf_core` answers `Ok(e.dup2())` at a
@@ -43,17 +44,14 @@ circuit.
    port's `fuel = 0` arm has already declined.  The step reads the agreement
    off the knot's own equation, and neither `BodyRel` nor `KnotRel` carries
    anything for it.
-2. **At `LANE_IO`, `knot_whnf_core` / `knot_whnf` / `knot_defeq` /
-   `knot_annotate` fall through to the FULL lane's memoized arm**, and
-   `coreKnotIO (f + 1)`'s four corresponding slots are literally
-   `(coreKnot mode fe id (f + 1)).whnfCore` and its three siblings — the same
-   knot at the SAME fuel.  So those four fields at `LANE_IO` are the field at
-   `LANE_FULL`, and the proof is one `rw`.
-3. **`knot_infer_io`'s selector.**  The port reads
-   `kernel::env::io_gate(mode)` and the twin reads `mode.ioGate`; the port's
-   doc comment says `mode.betaGate`, which the code does not do.  The comment
-   is stale — see the task's report — and the two selectors agree because
-   `io_gate` is constantly `true` at both modes and so is `CheckMode.ioGate`.
+2. **At `LANE_IO`, `knot_whnf_core` / `knot_whnf` / `knot_defeq` fall
+   through to the FULL lane's memoized arm**, and `coreKnotIO (f + 1)`'s
+   three corresponding slots are literally
+   `(coreKnot mode fe id (f + 1)).whnfCore` and its two siblings — the same
+   knot at the SAME fuel.  So those three fields at `LANE_IO` are the field
+   at `LANE_FULL`, and the proof is one `rw`.  (`knot_infer_io`'s old
+   `io_gate` selector went with con-leche's task #346: the io slot is the io
+   body at both modes, on both sides.)
 -/
 import ConRon.Refine2.Core.KnotRel
 
@@ -76,7 +74,7 @@ open ConRon.Arena
 
 `absU fu = 0` is `fu = 0#u64` and `absU fu = f + 1` is `fu ≠ 0#u64` with
 `absU (fu - 1) = f`: the two halves of round 3's twelve-line fuel shape step,
-here stated once for the whole tier because all six entries decrement the same
+here stated once for the whole tier because all five entries decrement the same
 way. -/
 
 theorem absU_eq_zero {fu : Std.U64} (h : absU fu = 0) : fu = 0#u64 := by
@@ -97,14 +95,14 @@ theorem absU_pred {fu i : Std.U64} {f : Nat} (hf : absU fu = f + 1)
 
 /-! ## The twin's fuel-exhausted record
 
-All three knots agree at `0`: six slots, each `fail (.internal …)`.  The
+All three knots agree at `0`: five slots, each `fail (.internal …)`.  The
 reading the base case needs is therefore one lemma per slot, and each is
 `rfl` after `laneKnot` picks its branch. -/
 
 /-- Each knot's own fuel-exhausted slot, through its equation lemma: `rfl`
-alone would make the kernel whnf the WHOLE definition (all six bodies in the
+alone would make the kernel whnf the WHOLE definition (all five bodies in the
 successor branch), which is 45 s of kernel time on this file; rewriting with
-the equation lemma first leaves a six-`fail` record. -/
+the equation lemma first leaves a five-`fail` record. -/
 theorem coreKnot_zero_run (mode fe c d a b lst) :
     (((coreKnot mode fe id 0).whnfCore c d a).run lst
         = .error (.internal "fuel exhausted: whnfCore")) ∧
@@ -115,10 +113,8 @@ theorem coreKnot_zero_run (mode fe c d a b lst) :
       (((coreKnot mode fe id 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
       (((coreKnot mode fe id 0).defeq d a b).run lst
-        = .error (.internal "fuel exhausted: defeq")) ∧
-      (((coreKnot mode fe id 0).annotate d a).run lst
-        = .error (.internal "fuel exhausted: annotate")) := by
-  rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+        = .error (.internal "fuel exhausted: defeq")) := by
+  rw [coreKnot]; exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 theorem coreKnotIO_zero_run (mode fe c d a b lst) :
     (((coreKnotIO mode fe 0).whnfCore c d a).run lst
@@ -130,10 +126,8 @@ theorem coreKnotIO_zero_run (mode fe c d a b lst) :
       (((coreKnotIO mode fe 0).inferIO d a).run lst
         = .error (.internal "fuel exhausted: infer")) ∧
       (((coreKnotIO mode fe 0).defeq d a b).run lst
-        = .error (.internal "fuel exhausted: defeq")) ∧
-      (((coreKnotIO mode fe 0).annotate d a).run lst
-        = .error (.internal "fuel exhausted: annotate")) := by
-  rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+        = .error (.internal "fuel exhausted: defeq")) := by
+  rw [coreKnotIO]; exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The two reduction slots at fuel `0`, **at every lane**. -/
 theorem laneKnot_zero_whnfCore (mode fe lane c d e lst) :
@@ -168,15 +162,8 @@ theorem laneKnot_zero_defeq (mode fe lane d a b lst) :
     ((laneKnot mode fe lane 0).defeq d a b).run lst
       = .error (.internal "fuel exhausted: defeq") := by
   rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2.1
-  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2.1
-
-theorem laneKnot_zero_annotate (mode fe lane d e lst) :
-    ((laneKnot mode fe lane 0).annotate d e).run lst
-      = .error (.internal "fuel exhausted: annotate") := by
-  rw [laneKnot]; split
-  · exact (coreKnotIO_zero_run mode fe false d e e lst).2.2.2.2.2
-  · exact (coreKnot_zero_run mode fe false d e e lst).2.2.2.2.2
+  · exact (coreKnotIO_zero_run mode fe false d a b lst).2.2.2.2
+  · exact (coreKnot_zero_run mode fe false d a b lst).2.2.2.2
 
 /-! ## The base case
 
@@ -228,116 +215,11 @@ theorem knotRel_zero : KnotRel 0 := by
     rw [fail_run hr] at hrun
     rw [← Result.ok_injective hrun]
     exact AOut₀.err (AErrSim.internal (laneKnot_zero_defeq _ _ _ _ _ _ _))
-  · intro pers vis st mode lane fu fe lfe depth e lst o _ _ _ hf hrun
-    rw [arena.core.knot_annotate, ite_eq_left (absU_eq_zero hf)] at hrun
-    obtain ⟨s, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨v, -, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [fail_run hr] at hrun
-    rw [← Result.ok_injective hrun]
-    exact AOut₀.err (AErrSim.internal (laneKnot_zero_annotate _ _ _ _ _ _))
 
 /-! ## The twin's `do` block, split at a bind -/
 
 theorem am_run_bind {α β : Type} (m : AM α) (k : α → AM β) (lst : AState) :
     ((m >>= k)).run lst = (m.run lst) >>= fun p => (k p.1).run p.2 := rfl
-
-/-! ## The three knots' `annotate` slot at `f + 1` -/
-
-theorem coreKnotIO_succ_annotate (mode lfe f d e) :
-    (coreKnotIO mode lfe (f + 1)).annotate d e
-      = (coreKnot mode lfe id (f + 1)).annotate d e := by
-  rw [coreKnotIO]
-
-theorem coreKnot_succ_annotate_split (mode lfe f d e lst) :
-    ((coreKnot mode lfe id (f + 1)).annotate d e).run lst
-      = (((match lst.caches.annotC[e]? with
-            | some x => pure x
-            | none => do
-                let x ← annotateBody (coreKnot mode lfe id f) lfe d e
-                annotSet e x
-                pure x) : AM EIdx)).run lst := by
-  rw [coreKnot]; rfl
-
-theorem coreKnot_succ_annotate_hit (mode lfe f d e lst x)
-    (h : lst.caches.annotC[e]? = some x) :
-    ((coreKnot mode lfe id (f + 1)).annotate d e).run lst = .ok (x, lst) := by
-  rw [coreKnot_succ_annotate_split, h]; rfl
-
-theorem coreKnot_succ_annotate_miss (mode lfe f d e lst)
-    (h : lst.caches.annotC[e]? = none) :
-    ((coreKnot mode lfe id (f + 1)).annotate d e).run lst
-      = (((do
-            let x ← annotateBody (coreKnot mode lfe id f) lfe d e
-            annotSet e x
-            pure x) : AM EIdx)).run lst := by
-  rw [coreKnot_succ_annotate_split, h]
-
-/-! ## The `annotate` field of the step -/
-
-theorem knotRel_succ_annotate {f : Nat} (hb : BodyRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f + 1)
-    (hrun : arena.core.knot_annotate pers vis st mode lane fu fe depth e = ok o) :
-    Sim₀ absEIdx pers lst o
-      ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
-        (absU depth) (absEIdx e)) := by
-  rw [arena.core.knot_annotate, ite_eq_right (absU_ne_zero hf)] at hrun
-  -- the memoized lane: `LANE_FULL`, and `LANE_IO` falls through to it
-  have htwin : (laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
-      (absU depth) (absEIdx e)
-      = (coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).annotate
-          (absU depth) (absEIdx e) := by
-    by_cases hio : lane = arena.core.LANE_IO
-    · rw [hio, laneKnot_io, coreKnotIO_succ_annotate]
-    · rw [laneKnot_of_ne _ _ _ hio]
-  rw [show Sim₀ absEIdx pers lst o
-        ((laneKnot (ConRon.Refine.absMode mode) lfe lane (f + 1)).annotate
-          (absU depth) (absEIdx e))
-      = Sim₀ absEIdx pers lst o
-        ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).annotate
-          (absU depth) (absEIdx e)) from by rw [htwin]]
-  have hlane : laneKnot (ConRon.Refine.absMode mode) lfe arena.core.LANE_FULL f
-      = coreKnot (ConRon.Refine.absMode mode) lfe id f := laneKnot_full _ _ _
-  obtain ⟨op, hop, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-  have hprobe := annot_probe_abs hrel hinv hop
-  cases hoc : op with
-  | some x =>
-    rw [hoc] at hrun hprobe
-    have ho : (core.result.Result.Ok x, st) = o := Result.ok_injective hrun
-    rw [← ho]
-    exact AOut₀.ok (coreKnot_succ_annotate_hit _ _ _ _ _ _ _ hprobe.symm)
-      hrel hinv
-  | none =>
-    rw [hoc] at hrun hprobe
-    have htw := (coreKnot_succ_annotate_miss (ConRon.Refine.absMode mode) lfe f
-      (absU depth) (absEIdx e) lst hprobe.symm).trans
-      (am_run_bind (annotateBody (coreKnot (ConRon.Refine.absMode mode) lfe id f)
-        lfe (absU depth) (absEIdx e)) _ lst)
-    obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨p, hbd, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    obtain ⟨r, st1⟩ := p
-    have hbody := hb.annotate hrel hinv hctx (absU_pred hf hi) hbd
-    rw [hlane] at hbody
-    cases r with
-    | Err er =>
-      have ho : (core.result.Result.Err er, st1) = o := Result.ok_injective hrun
-      rw [← ho]
-      exact AOut₀.err (AErrSim.of_eq (AErrSim.bind (Sim₀.apply_err hbody) _) htw)
-    | Ok r1 =>
-      obtain ⟨lst1, hb1, hrel1, hinv1⟩ := Sim₀.apply hbody
-      obtain ⟨st2, hs2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have ho : (core.result.Result.Ok r1, st2) = o := Result.ok_injective hrun
-      rw [← ho]
-      obtain ⟨lst2, hset, hrel2, hinv2⟩ :=
-        SimS₀.apply (annot_set_run hrel1 hinv1 hs2)
-      refine AOut₀.ok ?_ hrel2 hinv2
-      rw [htw, hb1]
-      show ((do annotSet (absEIdx e) (absEIdx r1)
-                pure (absEIdx r1) : AM EIdx)).run lst1 = _
-      rw [am_run_bind, hset]
-      rfl
 
 /-! ## The `defeq` field -/
 
@@ -440,7 +322,7 @@ theorem knotRel_succ_defeq {f : Nat} (hb : BodyRel f)
 
 theorem coreKnotIO_succ_infer (mode lfe f d e) :
     (coreKnotIO mode lfe (f + 1)).infer d e
-      = inferBodyIO mode (coreKnotIO mode lfe f) lfe d e := by
+      = inferBodyIO (coreKnotIO mode lfe f) lfe d e := by
   rw [coreKnotIO]
 
 theorem coreKnot_succ_infer_split (mode lfe f d e lst) :
@@ -448,7 +330,7 @@ theorem coreKnot_succ_infer_split (mode lfe f d e lst) :
       = (((match lst.caches.inferC[e]? with
             | some x => pure x
             | none => do
-                let x ← inferBody mode (coreKnot mode lfe id f) lfe d e
+                let x ← inferBody (coreKnot mode lfe id f) lfe d e
                 inferSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot]; rfl
@@ -462,7 +344,7 @@ theorem coreKnot_succ_infer_miss (mode lfe f d e lst)
     (h : lst.caches.inferC[e]? = none) :
     ((coreKnot mode lfe id (f + 1)).infer d e).run lst
       = (((do
-            let x ← inferBody mode (coreKnot mode lfe id f) lfe d e
+            let x ← inferBody (coreKnot mode lfe id f) lfe d e
             inferSet e x
             pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_infer_split, h]
@@ -506,7 +388,7 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have htw := (coreKnot_succ_infer_miss (ConRon.Refine.absMode mode) lfe f
         (absU depth) (absEIdx e) lst hprobe.symm).trans
-        (am_run_bind (inferBody (ConRon.Refine.absMode mode)
+        (am_run_bind (inferBody
           (coreKnot (ConRon.Refine.absMode mode) lfe id f) lfe
           (absU depth) (absEIdx e)) _ lst)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -535,18 +417,9 @@ theorem knotRel_succ_infer {f : Nat} (hb : BodyRel f)
 
 /-! ## The `inferIO` field -/
 
-/-- `kernel::env::io_gate` against `CheckMode.ioGate` — **both are constantly
-`true`**, so the port's `else` arm (which probes the FULL grade's table) is
-unreachable and the twin's `else` arm is dead, which is what the twin's own
-note says.  The port's doc comment claims the selector is `mode.betaGate`;
-the code says `io_gate`, and the code is what this reads. -/
-theorem io_gate_abs {mode : kernel.env.CheckMode} {b : Bool}
-    (h : kernel.env.io_gate mode = ok b) : b = true := by
-  cases mode <;> (rw [kernel.env.io_gate] at h; exact (Result.ok_injective h).symm)
-
 theorem coreKnotIO_succ_inferIO (mode lfe f d e) :
     (coreKnotIO mode lfe (f + 1)).inferIO d e
-      = inferBodyIO mode (coreKnotIO mode lfe f) lfe d e := by
+      = inferBodyIO (coreKnotIO mode lfe f) lfe d e := by
   rw [coreKnotIO]
 
 theorem coreKnot_succ_inferIO_split (mode lfe f d e lst) :
@@ -554,7 +427,7 @@ theorem coreKnot_succ_inferIO_split (mode lfe f d e lst) :
       = (((match lst.caches.inferIOC[e]? with
             | some x => pure x
             | none => do
-                let x ← inferBodyIO mode ((coreKnot mode lfe id f).ioView) lfe d e
+                let x ← inferBodyIO ((coreKnot mode lfe id f).ioView) lfe d e
                 inferIOSet e x
                 pure x) : AM EIdx)).run lst := by
   rw [coreKnot]; rfl
@@ -568,7 +441,7 @@ theorem coreKnot_succ_inferIO_miss (mode lfe f d e lst)
     (h : lst.caches.inferIOC[e]? = none) :
     ((coreKnot mode lfe id (f + 1)).inferIO d e).run lst
       = (((do
-            let x ← inferBodyIO mode ((coreKnot mode lfe id f).ioView) lfe d e
+            let x ← inferBodyIO ((coreKnot mode lfe id f).ioView) lfe d e
             inferIOSet e x
             pure x) : AM EIdx)).run lst := by
   rw [coreKnot_succ_inferIO_split, h]
@@ -597,8 +470,6 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
         = Sim₀ absEIdx pers lst o
           ((coreKnot (ConRon.Refine.absMode mode) lfe id (f + 1)).inferIO
             (absU depth) (absEIdx e)) from by rw [laneKnot_of_ne _ _ _ hio]]
-    obtain ⟨bg, hbg, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-    rw [io_gate_abs hbg, ite_eq_left rfl] at hrun
     have hlane : (laneKnot (ConRon.Refine.absMode mode) lfe
           arena.core.LANE_FULL f).ioView
         = (coreKnot (ConRon.Refine.absMode mode) lfe id f).ioView := by
@@ -616,7 +487,7 @@ theorem knotRel_succ_inferIO {f : Nat} (hb : BodyRel f)
       rw [hoc] at hrun hprobe
       have htw := (coreKnot_succ_inferIO_miss (ConRon.Refine.absMode mode) lfe f
         (absU depth) (absEIdx e) lst hprobe.symm).trans
-        (am_run_bind (inferBodyIO (ConRon.Refine.absMode mode)
+        (am_run_bind (inferBodyIO
           ((coreKnot (ConRon.Refine.absMode mode) lfe id f).ioView) lfe
           (absU depth) (absEIdx e)) _ lst)
       obtain ⟨i, hi, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
@@ -1076,17 +947,16 @@ theorem knotRel_succ_whnf {f : Nat} (hb : BodyRel f)
 
 /-! ## The step, and the induction -/
 
-/-- **`BodyRel f → KnotRel (f + 1)`** — the six fields above, assembled. -/
+/-- **`BodyRel f → KnotRel (f + 1)`** — the five fields above, assembled. -/
 theorem knotRel_succ {f : Nat} (hb : BodyRel f) : KnotRel (f + 1) where
   whnfCore h1 h2 h3 h4 h5 := knotRel_succ_whnfCore hb h1 h2 h3 h4 h5
   whnf h1 h2 h3 h4 h5 := knotRel_succ_whnf hb h1 h2 h3 h4 h5
   infer h1 h2 h3 h4 h5 := knotRel_succ_infer hb h1 h2 h3 h4 h5
   inferIO h1 h2 h3 h4 h5 := knotRel_succ_inferIO hb h1 h2 h3 h4 h5
   defeq h1 h2 h3 h4 h5 := knotRel_succ_defeq hb h1 h2 h3 h4 h5
-  annotate h1 h2 h3 h4 h5 := knotRel_succ_annotate hb h1 h2 h3 h4 h5
 
 /-- **The fuel induction**: `KnotRel` at every fuel, given the arms.  The
-premise is `Core/Arms/*`'s obligation — *"given the knot at `f`, the six
+premise is `Core/Arms/*`'s obligation — *"given the knot at `f`, the five
 bodies at `f`"* — discharged by `Core/Arms.lean`'s `bodyRel_of_knot`. -/
 theorem knot_rel (hbody : ∀ f, KnotRel f → BodyRel f) : ∀ f, KnotRel f
   | 0 => knotRel_zero
@@ -1109,9 +979,6 @@ section Axioms
 /-- info: 'ConRon.Refine2.whnf_stuck_tag_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms whnf_stuck_tag_abs
 
-/-- info: 'ConRon.Refine2.io_gate_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms io_gate_abs
-
 /-- info: 'ConRon.Refine2.knotRel_succ_whnfCore' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms knotRel_succ_whnfCore
 
@@ -1126,9 +993,6 @@ section Axioms
 
 /-- info: 'ConRon.Refine2.knotRel_succ_defeq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms knotRel_succ_defeq
-
-/-- info: 'ConRon.Refine2.knotRel_succ_annotate' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in #print axioms knotRel_succ_annotate
 
 /-- info: 'ConRon.Refine2.knotRel_succ' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in #print axioms knotRel_succ
