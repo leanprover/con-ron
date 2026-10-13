@@ -176,7 +176,7 @@ theorem lsidx_eq2 :
 
 /-! ## The per-call memo tables
 
-Thirteen `RelOn` clauses at `P := True`: every key is handles and a cursor,
+Twelve `RelOn` clauses at `P := True`: every key is handles and a cursor,
 so the `Eq2` dictionaries above are unrestricted.  One structure rather than
 eleven hypotheses, so that a spec theorem states what a call touched in ONE
 equation (`Arena/Monad.lean`'s own reason for grouping them). -/
@@ -186,7 +186,6 @@ structure MemosRel (rm : arena.monad.Memos) (lm : Memos) : Prop where
   instLC : RelOn (fun _ => True) rm.inst_l_c lm.instLC absEIdxNat absEIdx
   liftC : RelOn (fun _ => True) rm.lift_c lm.liftC absEIdxNat absEIdx
   abs1C : RelOn (fun _ => True) rm.abs1_c lm.abs1C absEIdxNat absEIdx
-  lowerC : RelOn (fun _ => True) rm.lower_c lm.lowerC absEIdxNat absEIdx
   inst1LC : RelOn (fun _ => True) rm.inst1_l_c lm.inst1LC absEIdxNat absEIdx
   instLPC : RelOn (fun _ => True) rm.inst_lp_c lm.instLPC absEIdxNat absEIdx
   bvarBC : RelOn (fun _ => True) rm.bvar_b_c lm.bvarBC absEIdx absU
@@ -199,7 +198,6 @@ structure MemosInv (rm : arena.monad.Memos) : Prop where
   instLC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.inst_l_c
   liftC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.lift_c
   abs1C : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.abs1_c
-  lowerC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.lower_c
   inst1LC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.inst1_l_c
   instLPC : Inv arena.monad.EIdxNat.Insts.Con_ron_coreRonHashmapHashable rm.inst_lp_c
   bvarBC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rm.bvar_b_c
@@ -218,7 +216,7 @@ structure MemosInv (rm : arena.monad.Memos) : Prop where
 
 /-! ## The per-declaration caches
 
-Twelve handle-valued tables plus the three readback memos of task #97-P6-13,
+Eleven handle-valued tables plus the three readback memos of task #97-P6-13,
 whose VALUES are transient `ConLeche.Level` / `Name` / `List Level` trees —
 so those three carry a value-well-formedness clause in `CachesInv`, which is
 what makes a memo HIT hand its caller a `LevelWF` answer (the same clause
@@ -231,7 +229,6 @@ structure CachesRel (rc : arena.core_state.Caches) (lc : Caches) : Prop where
   whnfC : RelOn (fun _ => True) rc.whnf_c lc.whnfC absEIdx absEIdx
   inferC : RelOn (fun _ => True) rc.infer_c lc.inferC absEIdx absEIdx
   inferIOC : RelOn (fun _ => True) rc.infer_io_c lc.inferIOC absEIdx absEIdx
-  annotC : RelOn (fun _ => True) rc.annot_c lc.annotC absEIdx absEIdx
   defeqC : RelOn (fun _ => True) rc.defeq_c lc.defeqC absEIdxPair id
   lvlEqC : RelOn (fun _ => True) rc.lvl_eq_c lc.lvlEqC absLIdxPair id
   lvlsEqC : RelOn (fun _ => True) rc.lvls_eq_c lc.lvlsEqC absLsIdxPair id
@@ -253,7 +250,6 @@ structure CachesInv (rc : arena.core_state.Caches) : Prop where
   whnfC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.whnf_c
   inferC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.infer_c
   inferIOC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.infer_io_c
-  annotC : Inv arena.handle.EIdx.Insts.Con_ron_coreRonHashmapHashable rc.annot_c
   defeqC : Inv arena.core_state.EIdxPair.Insts.Con_ron_coreRonHashmapHashable
     rc.defeq_c
   lvlEqC : Inv arena.core_state.LIdxPair.Insts.Con_ron_coreRonHashmapHashable

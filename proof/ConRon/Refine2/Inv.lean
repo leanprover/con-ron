@@ -184,7 +184,7 @@ theorem bind_eq2 :
     Eq2Fwd arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2 BindNodeWF := by
   apply eq2Fwd_of_iff
   intro a b c _ _ h
-  obtain ⟨⟨w1⟩, ⟨w2⟩, ⟨w3⟩⟩ := a; obtain ⟨⟨w4⟩, ⟨w5⟩, ⟨w6⟩⟩ := b
+  obtain ⟨⟨w1⟩, ⟨w2⟩⟩ := a; obtain ⟨⟨w3⟩, ⟨w4⟩⟩ := b
   simp only [arena.store.BindNode.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
   grind
 
