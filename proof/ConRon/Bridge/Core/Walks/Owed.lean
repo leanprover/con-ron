@@ -134,6 +134,7 @@ structural gap; everything else on this list is labour.**
 -/
 import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Core.Walks.Mono
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -448,60 +449,38 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       exact ⟨0, defEqListFueled_rn⟩
     | cons b bs' =>
       have hdq := hsim.defeq'
+      -- the two lists' heads and tails, before the walk: every precondition
+      -- of the two calls is then a transported fact
+      obtain ⟨xs, hxs, hwx⟩ := hda
+      obtain ⟨x, xs', hx, hxs', rfl⟩ := denoteEList_cons_inv hxs
+      obtain ⟨ys, hys, hwy⟩ := hdb
+      obtain ⟨y, ys', hy, hys', rfl⟩ := denoteEList_cons_inv hys
+      have hwx0 : Expr.WScoped d x := hwx x (by simp)
+      have hwy0 : Expr.WScoped d y := hwy y (by simp)
+      have hwxs : ∀ z ∈ xs', Expr.WScoped d z := fun z hz => hwx z (by simp [hz])
+      have hwys : ∀ z ∈ ys', Expr.WScoped d z := fun z hz => hwy z (by simp [hz])
       vcgen [ConRon.Arena.defEqList, hdq, ih]
       all_goals (bridge_peel; subst_vars)
-      -- the two calls' `CheckOK` preconditions
-      case vc2 | vc6 => assumption
-      -- the cons/cons postcondition, heads agreeing
-      case vc1 =>
-        rename_i _s0 _s1 _rb _s2 _hck1 hck hxt01 hxt12 hpn10 hpn21 hrec hdefeq
-        refine ⟨hck, hxt01.trans hxt12, by rw [hpn21, hpn10],
-          fun xs ys hx hy => ?_⟩
-        obtain ⟨x, xs', hdx, hdxs, rfl⟩ := denoteEList_cons_inv hx
-        obtain ⟨y, ys', hdy, hdys, rfl⟩ := denoteEList_cons_inv hy
-        obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
-        obtain ⟨F2, hF2⟩ :=
-          hrec xs' ys' (denoteEList_ext hxt01 as' xs' hdxs)
-            (denoteEList_ext hxt01 bs' ys' hdys)
+      bridge_frame
+      bridge_fwd
+      bridge_frame
+      -- the heads agree: the tails' verdict, at the larger fuel
+      vc_arm (hF1 : ConLeche.isDefEqCore _ _ ?F1 _ x y = .ok true)
+          (hF2 : ConLeche.defEqList (pureFns _ _ ?F2) _ _ xs' ys' = .ok _) =>
+        intro zs ws hz hw
+        obtain rfl := eq_of_eq_some hxs hz
+        obtain rfl := eq_of_eq_some hys hw
         exact ⟨max F1 F2,
           defEqListFueled_cons_true
             (ConLeche.isDefEqCore_mono (Nat.le_max_left _ _) hF1)
             (defEqListFueled_mono (Nat.le_max_right _ _) hF2)⟩
-      -- the recursive call's subjects denote in the moved state
-      case vc3 =>
-        rename_i _ _ _ hxt _ _
-        obtain ⟨xs, hxs, hw⟩ := hda
-        obtain ⟨x, xs', _, hdxs, rfl⟩ := denoteEList_cons_inv hxs
-        exact ⟨xs', denoteEList_ext hxt as' xs' hdxs,
-          fun z hz => hw z (by simp [hz])⟩
-      case vc4 =>
-        rename_i _ _ _ hxt _ _
-        obtain ⟨ys, hys, hw⟩ := hdb
-        obtain ⟨y, ys', _, hdys, rfl⟩ := denoteEList_cons_inv hys
-        exact ⟨ys', denoteEList_ext hxt bs' ys' hdys,
-          fun z hz => hw z (by simp [hz])⟩
       -- the heads disagree
-      case vc5 =>
-        rename_i _s0 rb _s1 hnb hck0 hxt10 hpn01 hdefeq
-        obtain rfl : rb = false := by
-          cases rb with
-          | false => rfl
-          | true => exact absurd rfl hnb
-        refine ⟨hck0, hxt10, hpn01, fun xs ys hx hy => ?_⟩
-        obtain ⟨x, xs', hdx, _, rfl⟩ := denoteEList_cons_inv hx
-        obtain ⟨y, ys', hdy, _, rfl⟩ := denoteEList_cons_inv hy
-        obtain ⟨F1, hF1⟩ := hdefeq x y hdx hdy
-        exact ⟨F1, defEqListFueled_cons_false hF1⟩
-      -- the head call's subjects denote
-      case vc7 =>
-        obtain ⟨xs, hxs, hw⟩ := hda
-        obtain ⟨x, xs', hx, _, rfl⟩ := denoteEList_cons_inv hxs
-        exact ⟨x, hx, hw x (by simp)⟩
-      case vc8 =>
-        obtain ⟨ys, hys, hw⟩ := hdb
-        obtain ⟨y, ys', hy, _, rfl⟩ := denoteEList_cons_inv hys
-        exact ⟨y, hy, hw y (by simp)⟩
-
+      vc_arm (hnb : ¬ ?rb = true) (hF1 : ConLeche.isDefEqCore _ _ _ _ x y = .ok ?rb) =>
+        obtain rfl : rb = false := by cases rb <;> simp_all
+        intro zs ws hz hw
+        obtain rfl := eq_of_eq_some hxs hz
+        obtain rfl := eq_of_eq_some hys hw
+        exact ⟨_, defEqListFueled_cons_false hF1⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
@@ -526,9 +505,9 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           r; ⊤⦄ := by
   have hb := defEqList_go hsim d as bs s₀ hok ⟨xs, hda, hwa⟩ ⟨ys, hdb, hwb⟩
   vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4⟩ := hpost
-  exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  vc_arm (h4 : ∀ xs ys, Frontend.denoteEList _ as = some xs → _) => exact h4 xs ys hda hdb
 
 /-! ## 6. The axiom census
 

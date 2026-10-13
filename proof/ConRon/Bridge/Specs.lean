@@ -67,6 +67,7 @@ files erase the transports from `grind`'s set with `attribute [-grind]`
 the line.
 -/
 import ConRon.Bridge.StateOK
+import ConRon.Bridge.Frame
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 import ConRon.Arena.PersistentRun
@@ -464,11 +465,10 @@ theorem internLamE_spec_view (s₀ : AState) (ty b : EIdx)
         s'.store.view h = some (.lam ty b) ∧
         denoteE s'.store h = denoteEView s'.store (.lam ty b); ⊤⦄ := by
   vcgen [internLamE]
+  all_goals subst_vars
   -- **The cons HIT**: the probe comes first, so this arm answers the handle
   -- the `lams` table already holds and moves nothing.
-  case vc1 =>
-    rename_i hs i hfind
-    subst hs
+  vc_arm (hfind : EStore.findBind _ _ _ _ = some _) =>
     have hview := EStore.view_of_findBind (tag := ETag.lam) hwf (by decide) hfind
     have heb : eBindView ETag.lam ty b = ENodeView.lam ty b := by
       simp [eBindView]
@@ -476,14 +476,14 @@ theorem internLamE_spec_view (s₀ : AState) (ty b : EIdx)
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i hs _hfind hcap
-  subst hs
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
-    EStore.internBind_spec (tag := ETag.lam) hwf (by decide) hty hb hcap
-  have heb : eBindView ETag.lam ty b = ENodeView.lam ty b := by
-    simp [eBindView]
-  rw [heb] at h5 h6
-  exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
+  -- the MISS: the append, under the capacity test
+  vc_arm (hcap : _ < Idx.idxCap) =>
+    obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
+      EStore.internBind_spec (tag := ETag.lam) hwf (by decide) hty hb hcap
+    have heb : eBindView ETag.lam ty b = ENodeView.lam ty b := by
+      simp [eBindView]
+    rw [heb] at h5 h6
+    exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
 
 theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
     (hwf : StoreWF s₀.store) (hty : (s₀.store.view ty).isSome = true)
@@ -495,9 +495,9 @@ theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
         s'.store.view h = some (.forallE ty b) ∧
         denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ := by
   vcgen [internForallEE]
-  case vc1 =>
-    rename_i hs i hfind
-    subst hs
+  all_goals subst_vars
+  -- the probe HIT
+  vc_arm (hfind : EStore.findBind _ _ _ _ = some _) =>
     have hview :=
       EStore.view_of_findBind (tag := ETag.forallE) hwf (by decide) hfind
     have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b := by
@@ -506,14 +506,14 @@ theorem internForallEE_spec_view (s₀ : AState) (ty b : EIdx)
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i hs _hfind hcap
-  subst hs
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
-    EStore.internBind_spec (tag := ETag.forallE) hwf (by decide) hty hb hcap
-  have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b := by
-    simp [eBindView, ETag.lam, ETag.forallE]
-  rw [heb] at h5 h6
-  exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
+  -- the MISS: the append, under the capacity test
+  vc_arm (hcap : _ < Idx.idxCap) =>
+    obtain ⟨h1, h2, h3, h4, h5, h6⟩ :=
+      EStore.internBind_spec (tag := ETag.forallE) hwf (by decide) hty hb hcap
+    have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b := by
+      simp [eBindView, ETag.lam, ETag.forallE]
+    rw [heb] at h5 h6
+    exact ⟨h1, h2, h3, h4, rfl, rfl, rfl, h5, h6⟩
 
 /-- con-leche: none — `internLamE_spec_view` at denoting children: the face
 the node-building walks use. -/
@@ -579,23 +579,22 @@ theorem internNodeE_spec (s₀ : AState) (w : ENodeView)
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w; ⊤⦄ := by
   vcgen [internNodeE]
+  all_goals subst_vars
   -- **The cons HIT** (task #97-P5-1's finding 9, fixed in the twin at
   -- #97-P3-1): `internNodeE` probes before it tests the capacity, exactly as
   -- the Rust does, so this branch answers the handle the cons table already
   -- holds and moves nothing.  `EStore.view_of_find` is `StoreWF`'s own
   -- `consP`/`consS` clause read left to right — no capacity in it.
-  case vc1 =>
-    rename_i hs i hfind
-    subst hs
+  vc_arm (hfind : EStore.find? _ _ = some _) =>
     have hview := EStore.view_of_find hwf hfind
     obtain ⟨rk, hwf'⟩ := hwf
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, hview,
       denoteE_unfold hwf' hview⟩
-  rename_i hs _hfind hcap
-  subst hs
-  obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap
-  exact ⟨h1, h2, EStore.lss_intern _ _,
-    EStore.scratchOn_intern _ _, rfl, rfl, rfl, h3, h4⟩
+  -- the MISS: the append, under the capacity test
+  vc_arm (hcap : _ < Idx.idxCap) =>
+    obtain ⟨h1, h2, h3, h4⟩ := EStore.intern_spec hwf hv hcap
+    exact ⟨h1, h2, EStore.lss_intern _ _,
+      EStore.scratchOn_intern _ _, rfl, rfl, rfl, h3, h4⟩
 
 /-- con-leche: none — `AM.of_run`'s converse at a fixed pre-state: a
 partial-correctness triple from a statement about every accepting run. -/
@@ -792,21 +791,20 @@ fact under the wrapper's own capacity branch. -/
         s'.store.ns.view h = some v ∧
         denoteN s'.store.ns h = denoteNView s'.store.ns v; ⊤⦄ := by
   vcgen [internNNode]
+  all_goals subst_vars
   -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
   -- it tests the capacity, exactly as the Rust does.
-  case vc1 =>
-    rename_i hs i hfind
-    subst hs
+  vc_arm (hfind : NStore.find? _ _ = some _) =>
     obtain ⟨rk, hwf'⟩ := hwf
     obtain ⟨rkn, hnw⟩ := hwf'.nsWF
     have hview := NStore.view_of_find ⟨rkn, hnw⟩ hfind
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
       denoteN_unfold hnw hview⟩
-  rename_i hs _hfind hcap
-  subst hs
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-    EStore.internName_spec hwf hv (by exact hcap)
-  exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
+  -- the MISS: the append, under the capacity test
+  vc_arm (hcap : _ < Idx.idxCap) =>
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
+      EStore.internName_spec hwf hv (by exact hcap)
+    exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
 
 /-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — intern a transient
 name, by induction on the `Name` tree (the recursion `internName` takes: a
@@ -861,21 +859,20 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         s'.store.ls.view h = some v ∧
         denoteL s'.store.ls h = denoteLView s'.store.ls v; ⊤⦄ := by
   vcgen [internLNode]
+  all_goals subst_vars
   -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
   -- it tests the capacity, exactly as the Rust does.
-  case vc1 =>
-    rename_i hs i hfind
-    subst hs
+  vc_arm (hfind : LStore.find? _ _ = some _) =>
     obtain ⟨rk, hwf'⟩ := hwf
     obtain ⟨rkl, hlw⟩ := hwf'.lsWF
     have hview := LStore.view_of_find ⟨rkl, hlw⟩ hfind
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
       denoteL_unfold hlw hview⟩
-  rename_i hs _hfind hcap
-  subst hs
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-    EStore.internLevel_spec hwf hv (by exact hcap)
-  exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
+  -- the MISS: the append, under the capacity test
+  vc_arm (hcap : _ < Idx.idxCap) =>
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
+      EStore.internLevel_spec hwf hv (by exact hcap)
+    exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
 
 /-! ## The level-list store -/
 
@@ -904,20 +901,19 @@ algorithm"), which is what makes every level-algorithm obligation a pure
         s'.store.lss.view h = some v ∧
         denoteLs s'.store.lss h = denoteLsView s'.store.lss v; ⊤⦄ := by
   vcgen [internLsNode]
+  all_goals subst_vars
   -- **The cons HIT** (task #97-P5-1's finding 9): the wrapper probes before
   -- it tests the capacity, exactly as the Rust does.
-  case vc1 =>
-    rename_i hs i hfind
-    subst hs
+  vc_arm (hfind : LsStore.find? _ _ = some _) =>
     obtain ⟨rk, hwf'⟩ := hwf
     have hview := LsStore.view_of_find hwf'.lssWF hfind
     exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl, rfl, hview,
       denoteLs_unfold hview⟩
-  rename_i hs _hfind hcap
-  subst hs
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
-    EStore.internLevels_spec hwf hv (by exact hcap)
-  exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
+  -- the MISS: the append, under the capacity test
+  vc_arm (hcap : _ < Idx.idxCap) =>
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
+      EStore.internLevels_spec hwf hv (by exact hcap)
+    exact ⟨h1, h2, h3, h4, h5, rfl, rfl, rfl, h6, h7⟩
 
 /-! ## The readback memos (task #97-P6-13)
 
@@ -1011,8 +1007,7 @@ record bought. -/
         Inst1MemoA ve s'; ⊤⦄ := by
   dsimp only
   vcgen [inst1Set]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 @[spec] theorem inst1Clear_spec (s₀ : AState) :
@@ -1023,8 +1018,7 @@ record bought. -/
         ∀ ve, Inst1MemoA ve s'; ⊤⦄ := by
   dsimp only
   vcgen [inst1Clear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
 @[spec] theorem instLGet_spec (s₀ : AState) (k : EIdx × Nat) :
@@ -1039,8 +1033,7 @@ record bought. -/
         ∀ ws, InstLMemoA ws s'; ⊤⦄ := by
   dsimp only
   vcgen [instLClear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
 @[spec] theorem liftGet_spec (s₀ : AState) (k : EIdx × Nat) :
@@ -1055,8 +1048,7 @@ record bought. -/
         ∀ amount, LiftMemoA amount s'; ⊤⦄ := by
   dsimp only
   vcgen [liftClear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
 @[spec] theorem abs1Get_spec (s₀ : AState) (k : EIdx × Nat) :
@@ -1071,8 +1063,7 @@ record bought. -/
         ∀ d, Abs1MemoA d s'; ⊤⦄ := by
   dsimp only
   vcgen [abs1Clear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
 @[spec] theorem inst1LGet_spec (s₀ : AState) (k : EIdx × Nat) :
@@ -1087,8 +1078,7 @@ record bought. -/
         ∀ ve, Inst1LMemoA ve s'; ⊤⦄ := by
   dsimp only
   vcgen [inst1LClear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, fun _ => MemoOK.of_empty rfl⟩
 
 @[spec] theorem instLPGet_spec (s₀ : AState) (k : EIdx × Nat) :
@@ -1108,8 +1098,7 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         ∀ ks us, InstLPLsMemoA ks us s'; ⊤⦄ := by
   dsimp only
   vcgen [instLPClear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, fun _ _ => MemoOK.of_empty rfl,
     fun _ _ => MemoLOK.of_empty rfl, fun _ _ => MemoLsOK.of_empty rfl⟩
 
@@ -1138,8 +1127,7 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         MemoBA s'; ⊤⦄ := by
   dsimp only
   vcgen [bvarBSet]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.insert hm rfl hk hr⟩
 
 @[spec] theorem bvarBClear_spec (s₀ : AState) :
@@ -1149,8 +1137,7 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         MemoBA s'; ⊤⦄ := by
   dsimp only
   vcgen [bvarBClear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
 
 @[spec] theorem fvarBGet_spec (s₀ : AState) (k : EIdx) :
@@ -1168,8 +1155,7 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         MemoFA s'; ⊤⦄ := by
   dsimp only
   vcgen [fvarBSet]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.insert hm rfl hk hr⟩
 
 @[spec] theorem fvarBClear_spec (s₀ : AState) :
@@ -1179,8 +1165,7 @@ one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
         MemoFA s'; ⊤⦄ := by
   dsimp only
   vcgen [fvarBClear]
-  rename_i hs
-  subst hs
+  subst_vars
   exact ⟨rfl, rfl, rfl, rfl, MemoVOK.of_empty rfl⟩
 
 /-! ### The bulk-instantiation cutoff (task #97f's deviation)
@@ -1263,36 +1248,33 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
     ⦃fun n s' => s' = s₀ ∧ ∀ x, pinNames[i]? = some x →
         denoteN s₀.store.ns n = some x; ⊤⦄ := by
   vcgen [pinAt]
-  rename_i hs hlt
-  subst hs
-  refine ⟨rfl, fun x hx => ?_⟩
-  refine denoteNL_get s.pins.names.toList pinNames i _ x hp.names ?_ hx
-  have hlt' : i < s.pins.names.toList.length := by simpa using hlt
-  rw [List.getElem?_eq_getElem hlt']
-  simp
+  all_goals subst_vars
+  vc_arm (hlt : i < (AState.pins ?ps).names.size) =>
+    refine ⟨rfl, fun x hx => ?_⟩
+    refine denoteNL_get _ pinNames i _ x hp.names ?_ hx
+    have hlt' : i < ps.pins.names.toList.length := by simpa using hlt
+    rw [List.getElem?_eq_getElem hlt']
+    simp
 
 @[spec] theorem pinReserved_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinReserved
     ⦃fun ns s' => s' = s₀ ∧ denoteNL s₀.store ns reservedBasisNameValues; ⊤⦄ := by
   vcgen [pinReserved]
-  rename_i hs _hr
-  subst hs
+  subst_vars
   exact ⟨rfl, hp.reserved⟩
 
 @[spec] theorem pinEmptyLevels_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinEmptyLevels
     ⦃fun us s' => s' = s₀ ∧ denoteLs s₀.store.lss us = some []; ⊤⦄ := by
   vcgen [pinEmptyLevels]
-  rename_i hs _hr
-  subst hs
+  subst_vars
   exact ⟨rfl, hp.emptyLevels⟩
 
 @[spec] theorem pinZeroLevel_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinZeroLevel
     ⦃fun u s' => s' = s₀ ∧ denoteL s₀.store.ls u = some .zero; ⊤⦄ := by
   vcgen [pinZeroLevel]
-  rename_i hs _hr
-  subst hs
+  subst_vars
   exact ⟨rfl, hp.zeroLevel⟩
 
 @[spec] theorem pinSortOne_spec (s₀ : AState) (hp : PinsOK s₀) :
@@ -1300,8 +1282,7 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
     ⦃fun e s' => s' = s₀ ∧
         denoteE s₀.store e = some (.sort (.succ .zero)); ⊤⦄ := by
   vcgen [pinSortOne]
-  rename_i hs _hr
-  subst hs
+  subst_vars
   exact ⟨rfl, hp.sortOne⟩
 
 /-! ## The closer

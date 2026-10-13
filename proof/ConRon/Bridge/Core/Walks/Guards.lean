@@ -29,6 +29,7 @@ the one-line bridge from `Bridge/Specs.lean`'s quantified `pinAt_spec` to the
 named slot.
 -/
 import ConRon.Bridge.Core.Walks.Spec
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -73,6 +74,16 @@ theorem isBoolTrue_of_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; rfl
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; rfl
 
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue — the
+tag-first twin's `else` arm: a handle whose TAG is not `const` (task #120:
+in the shape `bridge_fwd` instantiates from the arm's own hypotheses). -/
+theorem isBoolTrue_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    (he : denoteE st h = some e) (ht : ¬ (h.tag == ETag.const) = true) :
+    ConLeche.Expr.isBoolTrue e = false := by
+  obtain ⟨v, hv⟩ := denoteE_view he
+  exact isBoolTrue_of_not_const hwf hv he
+    (fun c us hh => view_tagOf_ne hv (t := ETag.const) ht (by rw [hh]; rfl))
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue —
 **THEOREM 1 for `isBoolTrue`**: is `e` the constant `Bool.true` (the official
 kernel's `is_constant(e, Bool.true)`)?  CLOSED.
@@ -95,55 +106,39 @@ theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     ⦃fun b s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ b = ConLeche.Expr.isBoolTrue x; ⊤⦄ := by
   have hp := hok.pins
+  have hbt := pinNames_boolTrue
   obtain ⟨rk, hrk⟩ := hok.state.wf
   vcgen [ConRon.Arena.isBoolTrue, ConRon.Arena.emptyLevels,
     ConRon.Arena.boolTrueName, ConRon.Arena.pinBoolTrue]
   all_goals (bridge_peel; subst_vars)
-  case vc3 | vc4 => exact hp
-  case vc1 =>
-    rename_i _ _ _ _ hne hel hview
-    refine ⟨hok, rfl, rfl, ?_⟩
-    obtain ⟨nm, ls, rfl, _hc, hus⟩ := denote_const_inv hok.state.wf hview hden
-    cases ls with
-    | nil =>
-      exact absurd (denoteLs_inj hrk.lss hus hel) (by simpa using hne)
+  bridge_frame
+  bridge_fwd [isBoolTrue_of_not_const, isBoolTrue_of_tag]
+  -- (the two not-a-constant arms, by view and by tag, close here)
+  bridge_frame
+  -- the universe arguments are not the empty list
+  vc_arm (hne : (?u1 != ?e1) = true) (hel : denoteLs _ ?e1 = some [])
+      (hus : denoteLs _ ?u1 = some ?l1) =>
+    cases l1 with
+    | nil => exact absurd (denoteLs_inj hrk.lss hus hel) (by simpa using hne)
     | cons a as => rfl
-  case vc2 =>
-    rename_i _ hc0 hu0 hne _st hbt hel hview
-    refine ⟨hok, rfl, rfl, ?_⟩
-    obtain ⟨nm, ls, rfl, hc, hus⟩ := denote_const_inv hok.state.wf hview hden
-    have husr : hu0 = el := by simpa using hne
-    subst husr
-    rw [hus] at hel
-    obtain rfl := Option.some.inj hel
-    have hbtn := hbt _ pinNames_boolTrue
+  -- they are: the name decides, by handle
+  vc_arm (hne : ¬ (?u1 != ?e1) = true) (hel : denoteLs _ ?e1 = some [])
+      (hus : denoteLs _ ?u1 = some ?l1) (hc : denoteN _ ?c1 = some ?n1)
+      (hbtn : denoteN _ ?b1 = some ConLeche.boolTrueName)
+      ⊢ (?c1 == ?b1) = _ =>
+    obtain rfl : u1 = e1 := by simpa using hne
+    obtain rfl := eq_of_eq_some hus hel
     simp only [ConLeche.Expr.isBoolTrue]
-    by_cases hb : nm = ConLeche.boolTrueName
+    by_cases hb : n1 = ConLeche.boolTrueName
     · subst hb
       obtain rfl := denoteN_inj hrk.nsWF hc hbtn
       simp only [beq_self_eq_true]
-    · have hcr : hc0 ≠ bt := by
-        intro hcc
-        subst hcc
-        rw [hc] at hbtn
-        exact hb (Option.some.inj hbtn)
-      have h1 : (hc0 == bt) = false := by
-        simp only [beq_eq_false_iff_ne]; exact hcr
-      have h2 : (nm == ConLeche.boolTrueName) = false := by
+    · have h1 : (c1 == b1) = false := by
+        simp only [beq_eq_false_iff_ne]
+        intro hcc; subst hcc; exact hb (eq_of_eq_some hc hbtn)
+      have h2 : (n1 == ConLeche.boolTrueName) = false := by
         simp only [beq_eq_false_iff_ne]; exact hb
       rw [h1, h2]
-  case vc5 =>
-    rename_i _ _ _ hne hview
-    exact ⟨hok, rfl, rfl,
-      (isBoolTrue_of_not_const hok.state.wf hview hden hne).symm⟩
-  -- the tag-first `else` arm (task #97-P5-Core round 4): no view read, so it
-  -- is recovered from the denotation, and its tag is not `const`
-  case vc6 =>
-    obtain ⟨v, hv⟩ := denoteE_view hden
-    exact ⟨hok, rfl, rfl,
-      (isBoolTrue_of_not_const hok.state.wf hv hden
-        (fun c us hh => view_tagOf_ne hv (t := ETag.const) (by assumption)
-          (by rw [hh]; rfl))).symm⟩
 
 /-! ## The axiom census -/
 

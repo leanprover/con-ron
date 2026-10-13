@@ -67,6 +67,7 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Promote.Pers
 import ConRon.Bridge.ExprOps.Owed
+import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.Core
 
@@ -97,11 +98,11 @@ theorem LvlEqCacheOK.insert {tbl : Std.HashMap (LIdx × LIdx) Bool}
     intro t ht k x hl
     rw [Std.HashMap.getElem?_insert] at hl
     split at hl
-    · rename_i hbeq
+    next hbeq =>
       cases hl
       obtain rfl := eq_of_beq hbeq
       exact ⟨lu, lv, hu, hv, heq⟩
-    · exact ht k x hl
+    next => exact ht k x hl
   exact key _ h
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC — the
@@ -119,11 +120,11 @@ theorem LvlsEqCacheOK.insert {tbl : Std.HashMap (LsIdx × LsIdx) Bool}
     intro t ht k x hl
     rw [Std.HashMap.getElem?_insert] at hl
     split at hl
-    · rename_i hbeq
+    next hbeq =>
       cases hl
       obtain rfl := eq_of_beq hbeq
       exact ⟨lus, lvs, hu, hv, heq⟩
-    · exact ht k x hl
+    next => exact ht k x hl
   exact key _ h
 
 /-- con-leche: none — the instantiated-constant TYPE cache's insert. -/
@@ -141,11 +142,11 @@ theorem ConstTyCacheOK.insert {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
     intro t ht k j hl
     rw [Std.HashMap.getElem?_insert] at hl
     split at hl
-    · rename_i hbeq
+    next hbeq =>
       cases hl
       obtain rfl := eq_of_beq hbeq
       exact ⟨nm, ls, ci, hn, hus, hf, hi⟩
-    · exact ht k j hl
+    next => exact ht k j hl
   exact key _ h
 
 /-- con-leche: none — the instantiated-constant VALUE cache's insert. -/
@@ -164,11 +165,11 @@ theorem ConstValCacheOK.insert {tbl : Std.HashMap (NIdx × LsIdx) EIdx}
     intro t ht k j hl
     rw [Std.HashMap.getElem?_insert] at hl
     split at hl
-    · rename_i hbeq
+    next hbeq =>
       cases hl
       obtain rfl := eq_of_beq hbeq
       exact ⟨nm, ls, cv, value, hint, hn, hus, hf, hi⟩
-    · exact ht k j hl
+    next => exact ht k j hl
   exact key _ h
 
 /-- con-leche: none — the ι rule right-hand-side cache's insert, at the
@@ -191,11 +192,11 @@ theorem RuleRhsCacheOK.insert
     intro t ht k j hl
     rw [Std.HashMap.getElem?_insert] at hl
     split at hl
-    · rename_i hbeq
+    next hbeq =>
       cases hl
       obtain rfl := eq_of_beq hbeq
       exact ⟨rnv, cnv, ls, cv, mi, rp, rules, rl, hr, hc, hus, hf, hrl, hi⟩
-    · exact ht k j hl
+    next => exact ht k j hl
   exact key _ h
 
 /-! ### `CacheOK` past one of the five
@@ -264,6 +265,46 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
 
 /-! ## 2. `lvlEq?` — the tier's exemplar, CLOSED -/
 
+/-- con-leche: none — `CheckOK`'s level-readback table, as a frame rule
+(task #120: `bridge_frame [CheckOK.readL']` discharges a readback's
+precondition). -/
+theorem CheckOK.readL' {s : AState} (h : CheckOK mode env fe s) :
+    ReadLCacheOK s.caches.readLC s.store := h.caches.readL
+
+/-- con-leche: none — the same at the level-list readback table. -/
+theorem CheckOK.readLs' {s : AState} (h : CheckOK mode env fe s) :
+    ReadLsCacheOK s.caches.readLsC s.store := h.caches.readLs
+
+/-- con-leche: none — `CheckOK` past TWO level readbacks, as a frame rule
+for `bridge_frame`.  The binders are ordered so that each premise fixes the
+next state before an equation about it is searched: the second call's cache
+record first (it names the middle state), then its invariant, then the first
+call's. -/
+theorem CheckOK.ofReadL2 {s0 s1 s2 : AState}
+    (hc2 : s2.caches = { s1.caches with readLC := s2.caches.readLC })
+    (hc1 : s1.caches = { s0.caches with readLC := s1.caches.readLC })
+    (h : CheckOK mode env fe s0)
+    (hL2 : ReadLCacheOK s2.caches.readLC s2.store)
+    (hL1 : ReadLCacheOK s1.caches.readLC s1.store)
+    (hst2 : s2.store = s1.store) (hm2 : s2.memos = s1.memos) (hp2 : s2.pins = s1.pins)
+    (hst1 : s1.store = s0.store) (hm1 : s1.memos = s0.memos) (hp1 : s1.pins = s0.pins) :
+    CheckOK mode env fe s2 :=
+  CheckOK.ofReadbackFrame h ((ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1).trans
+    (ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2))
+
+/-- con-leche: none — the same past two level-LIST readbacks. -/
+theorem CheckOK.ofReadLs2 {s0 s1 s2 : AState}
+    (hc2 : s2.caches = { s1.caches with readLsC := s2.caches.readLsC })
+    (hc1 : s1.caches = { s0.caches with readLsC := s1.caches.readLsC })
+    (h : CheckOK mode env fe s0)
+    (hL2 : ReadLsCacheOK s2.caches.readLsC s2.store)
+    (hL1 : ReadLsCacheOK s1.caches.readLsC s1.store)
+    (hst2 : s2.store = s1.store) (hm2 : s2.memos = s1.memos) (hp2 : s2.pins = s1.pins)
+    (hst1 : s1.store = s0.store) (hm1 : s1.memos = s0.memos) (hp1 : s1.pins = s0.pins) :
+    CheckOK mode env fe s2 :=
+  CheckOK.ofReadbackFrame h ((ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1).trans
+    (ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2))
+
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 Level.isEquiv — **THEOREM 1
 for `lvlEq?`**, the first `Arena/Core.lean` walk that is not a knot slot to
 have one.
@@ -289,36 +330,16 @@ theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀
           r = Level.isEquiv lu lv; ⊤⦄ := by
   vcgen [lvlEq?]
   all_goals (bridge_peel; subst_vars)
-  -- the cache hit
-  case vc1 =>
-    rename_i hhit
-    refine ⟨hok, rfl, rfl, ?_⟩
+  bridge_frame [CheckOK.readL', CheckOK.ofReadL2]
+  -- the cache hit: the row's own clause
+  vc_arm (hhit : _[(u, v)]? = some _) =>
     obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlEq (u, v) _ hhit
     exact ⟨lu, lv, hu, hv, he.symm⟩
-  -- the two readbacks' preconditions
-  case vc5 => exact hok.caches.readL
-  case vc4 => assumption
   -- a miss with a verdict: inserted
-  case vc2 =>
-    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
-    have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
-    have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
-    have hf := hf1.trans hf2
-    have hck := CheckOK.ofReadbackFrame hok hf
-    refine ⟨CheckOK.ofCache hck
-        (CacheOK.insertLvlEq hck.caches ?_ ?_ heq) rfl rfl,
-      hf.store, hf.pins, ?_⟩
-    · rw [hf.store]; exact hdu
-    · rw [hf2.store]; exact hdv
-    · exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩
-  -- a miss without one
-  case vc3 =>
-    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
-    have hf1 := ReadbackFrame.ofReadL hst1 hm1 hp1 hc1 hL1
-    have hf2 := ReadbackFrame.ofReadL hst2 hm2 hp2 hc2 hL2
-    have hf := hf1.trans hf2
-    exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
-      ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩⟩
+  vc_arm (heq : Level.isEquiv _ _ = some _) (hL : ReadLCacheOK (AState.caches ?s).readLC _) =>
+    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofReadL2]
+    exact CheckOK.ofCache hck (CacheOK.insertLvlEq hck.caches (by bridge_frame)
+      (by bridge_frame) heq) rfl rfl
 
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
 **THEOREM 1 for `lvlsEq?`**.  Five verification conditions, the same five,
@@ -333,36 +354,17 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
           r = Level.isEquivList lus lvs; ⊤⦄ := by
   vcgen [lvlsEq?]
   all_goals (bridge_peel; subst_vars)
-  -- the cache hit
-  case vc1 =>
-    rename_i hhit
-    refine ⟨hok, rfl, rfl, ?_⟩
+  bridge_frame [CheckOK.readLs', CheckOK.ofReadLs2]
+  -- the cache hit: the row's own clause
+  vc_arm (hhit : _[(us, vs)]? = some _) =>
     obtain ⟨lu, lv, hu, hv, he⟩ := hok.caches.lvlsEq (us, vs) _ hhit
     exact ⟨lu, lv, hu, hv, he.symm⟩
-  -- the two readbacks' preconditions
-  case vc5 => exact hok.caches.readLs
-  case vc4 => assumption
   -- a miss with a verdict: inserted
-  case vc2 =>
-    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
-    have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
-    have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
-    have hf := hf1.trans hf2
-    have hck := CheckOK.ofReadbackFrame hok hf
-    refine ⟨CheckOK.ofCache hck
-        (CacheOK.insertLvlsEq hck.caches ?_ ?_ heq) rfl rfl,
-      hf.store, hf.pins, ?_⟩
-    · rw [hf.store]; exact hdu
-    · rw [hf2.store]; exact hdv
-    · exact ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩
-  -- a miss without one
-  case vc3 =>
-    rename_i heq hst1 hst2 hm1 hm2 hp1 hp2 hc1 hc2 hdu hL1 hdv hL2
-    have hf1 := ReadbackFrame.ofReadLs hst1 hm1 hp1 hc1 hL1
-    have hf2 := ReadbackFrame.ofReadLs hst2 hm2 hp2 hc2 hL2
-    have hf := hf1.trans hf2
-    exact ⟨CheckOK.ofReadbackFrame hok hf, hf.store, hf.pins,
-      ⟨_, _, hdu, by rw [← hf1.store]; exact hdv, heq.symm⟩⟩
+  vc_arm (heq : Level.isEquivList _ _ = some _)
+      (hL : ReadLsCacheOK (AState.caches ?s).readLsC _) =>
+    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofReadLs2]
+    exact CheckOK.ofCache hck (CacheOK.insertLvlsEq hck.caches (by bridge_frame)
+      (by bridge_frame) heq) rfl rfl
 
 /-! ## 4. The three instantiated-constant caches — CLOSED (round 4)
 
@@ -451,20 +453,21 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (by rw [hty]; rfl)
   vcgen [constTyAt, hi]
   all_goals (bridge_peel; subst_vars)
-  · -- the HIT: the row's own clause, at the three functional denotations
-    rename_i r hhit
-    refine ⟨hok, Ext.refl _, rfl, ?_⟩
-    obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := hok.caches.constTy _ r hhit
+  bridge_frame
+  bridge_fwd
+  bridge_frame
+  -- the HIT: the row's own clause, at the three functional denotations
+  vc_arm (hhit : (AState.caches _).constTyC[(cv.name, us)]? = some ?rh) =>
+    obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := hok.caches.constTy _ rh hhit
     obtain rfl := Option.some.inj (hn'.symm.trans hn)
     obtain rfl := Option.some.inj (hus'.symm.trans hus)
     obtain rfl := Option.some.inj (hf'.symm.trans hf)
     exact hd
-  · -- the MISS: `instLPFast`, then the insert
-    rename_i hst hL hLs hN hx hc hp _ hrel
-    have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
-    have hd := hrel _ hty
-    exact ⟨CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches
-        (denoteN_ext hn hx) (denoteLs_ext hus hx) hf hd) rfl rfl, hx, hp, hd⟩
+  -- the MISS: `instLPFast`, then the insert
+  vc_arm (hd : denoteE (AState.store ?s) _ = some (Expr.instantiateLevelParams _ _ _)) =>
+    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofInstLP]
+    exact CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches (by bridge_frame)
+      (by bridge_frame) hf hd) rfl rfl
 
 /-- con-leche: none — `constTyAt_spec` in ANSWER shape: the constant comes
 out of the environment index (`projCert` reads it off `fe.find?`), so its
@@ -485,13 +488,14 @@ theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
   obtain ⟨nm, ls, ci, hn, hus, hf, hcv⟩ := hpre
   have h := constTyAt_spec s₀ cv us nm ls ci hok hn hus hf hcv
   vcgen [h]
-  rename_i hpost
-  obtain ⟨hck, hx, hp, hd⟩ := hpost
-  refine ⟨hck, hx, hp, fun nm' ls' ci' hn' hus' hf' => ?_⟩
-  obtain rfl := Option.some.inj (hn.symm.trans hn')
-  obtain rfl := Option.some.inj (hus.symm.trans hus')
-  obtain rfl := Option.some.inj (hf.symm.trans hf')
-  exact hd
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  vc_arm (hd : denoteE _ _ = some (Expr.instantiateLevelParams _ _ _)) =>
+    intro nm' ls' ci' hn' hus' hf'
+    obtain rfl := Option.some.inj (hn.symm.trans hn')
+    obtain rfl := Option.some.inj (hus.symm.trans hus')
+    obtain rfl := Option.some.inj (hf.symm.trans hf')
+    exact hd
 
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
 expensive half, and the reason `unfoldDefinition` is not free).  **CLOSED**
@@ -515,22 +519,23 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (by rw [hval]; rfl)
   vcgen [constValAt, hi]
   all_goals (bridge_peel; subst_vars)
-  · -- the HIT
-    rename_i r hhit
-    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+  bridge_frame
+  bridge_fwd
+  bridge_frame
+  -- the HIT
+  vc_arm (hhit : (AState.caches _).constValC[(n, us)]? = some ?rh) =>
     obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ :=
-      hok.caches.constVal _ r hhit
+      hok.caches.constVal _ rh hhit
     obtain rfl := Option.some.inj (hn'.symm.trans hn)
     obtain rfl := Option.some.inj (hus'.symm.trans hus)
     rw [hfd] at hf'
     cases hf'
     exact hd
-  · -- the MISS
-    rename_i hst hL hLs hN hx hc hp _ hrel
-    have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
-    have hd := hrel _ hval
-    exact ⟨CheckOK.ofCache hck (CacheOK.insertConstVal hck.caches
-        (denoteN_ext hn hx) (denoteLs_ext hus hx) hfd hd) rfl rfl, hx, hp, hd⟩
+  -- the MISS
+  vc_arm (hd : denoteE (AState.store ?s) _ = some (Expr.instantiateLevelParams _ _ _)) =>
+    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofInstLP]
+    exact CheckOK.ofCache hck (CacheOK.insertConstVal hck.caches (by bridge_frame)
+      (by bridge_frame) hfd hd) rfl rfl
 
 /-- con-leche: none — `constValAt_spec` in ANSWER shape (round 3's rule: *a
 walk whose subject is another walk's answer must not take that answer's
@@ -558,14 +563,15 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
   have h := constValAt_spec s₀ n lps value us nm ls cv val hint hok hn hus
     hlps hval hfd
   vcgen [h]
-  rename_i hpost
-  obtain ⟨hck, hx, hp, hd⟩ := hpost
-  refine ⟨hck, hx, hp, fun nm' ls' cv' val' hint' hn' hus' hfd' => ?_⟩
-  obtain rfl := Option.some.inj (hn.symm.trans hn')
-  obtain rfl := Option.some.inj (hus.symm.trans hus')
-  rw [hfd] at hfd'
-  cases hfd'
-  exact hd
+  all_goals (bridge_peel; subst_vars)
+  bridge_frame
+  vc_arm (hd : denoteE _ _ = some (Expr.instantiateLevelParams _ _ _)) =>
+    intro nm' ls' cv' val' hint' hn' hus' hfd'
+    obtain rfl := Option.some.inj (hn.symm.trans hn')
+    obtain rfl := Option.some.inj (hus.symm.trans hus')
+    rw [hfd] at hfd'
+    cases hfd'
+    exact hd
 
 /-- con-leche: none — **THEOREM 1 for `ruleRhsAt`** (an ι rule's right-hand
 side at the recursor's universe instantiation).  **CLOSED** (round 4). -/
@@ -590,11 +596,13 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (by rw [hrhs]; rfl)
   vcgen [ruleRhsAt, hi]
   all_goals (bridge_peel; subst_vars)
-  · -- the HIT
-    rename_i r hhit
-    refine ⟨hok, Ext.refl _, rfl, ?_⟩
+  bridge_frame
+  bridge_fwd
+  bridge_frame
+  -- the HIT
+  vc_arm (hhit : (AState.caches _).ruleRhsC[(recName, ctor, us)]? = some ?rh) =>
     obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
-      hok.caches.ruleRhs _ r hhit
+      hok.caches.ruleRhs _ rh hhit
     obtain rfl := Option.some.inj (hr'.symm.trans hr)
     obtain rfl := Option.some.inj (hc'.symm.trans hc)
     obtain rfl := Option.some.inj (hus'.symm.trans hus)
@@ -603,15 +611,11 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     rw [hrl] at hrl'
     cases hrl'
     exact hd
-  · -- the MISS
-    rename_i hst hL hLs hN hx hcc hp _ hrel
-    have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hcc hp
-    have hd := hrel _ hrhs
-    exact ⟨CheckOK.ofCache hck (CacheOK.insertRuleRhs hck.caches
-        (denoteN_ext hr hx) (denoteN_ext hc hx) (denoteLs_ext hus hx) hfr hrl hd)
-        rfl rfl, hx, hp, hd⟩
-
-
+  -- the MISS
+  vc_arm (hd : denoteE (AState.store ?s) _ = some (Expr.instantiateLevelParams _ _ _)) =>
+    have hck : CheckOK mode env fe s := by bridge_frame [CheckOK.ofInstLP]
+    exact CheckOK.ofCache hck (CacheOK.insertRuleRhs hck.caches (by bridge_frame)
+      (by bridge_frame) (by bridge_frame) hfr hrl hd) rfl rfl
 
 /-! ## 4b. `lvlEq?`'s FRAME, with no cache-content hypothesis (task #97-P3-Frame)
 
