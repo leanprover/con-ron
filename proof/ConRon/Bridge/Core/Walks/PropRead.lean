@@ -39,6 +39,7 @@ The has-parameters cutoff (task #97-P6-10) is con-leche's own
 `Level.substPW_eq_self`.
 -/
 import ConRon.Bridge.Core.Walks.Nat
+import ConRon.Bridge.Core.Walks.Proj
 
 namespace ConRon.Bridge.Core
 
@@ -1136,70 +1137,48 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
   case proj S i sub =>
     dsimp only
     obtain ⟨Sn, es, rfl, hS, _⟩ := denote_proj_inv hwf hv hx₀
-    refine triple_seq (projTableName_spec s₀ S Sn hwf hS) ?_
-    rintro rn s1 ⟨hwf1, hx1, _, hc1, hp1, hdn⟩
-    have hok1 := hok.mono ⟨hwf1⟩ hx1 hc1 hp1
-    have hopt := optCI_find hok1 hdn
-    cases hfd : fe.find? rn with
+    refine triple_seq (IFEnv.findProj?_spec s₀ S i Sn hok hS) ?_
+    rintro r s1 ⟨hok1, hx1, _, _, hp1, hsome, hnone⟩
+    have hred : ConLeche.headProofPW env.find? (.proj Sn i es) =
+        match env.findProj? Sn i with
+        | some p =>
+          (match ConLeche.typeSortPW env.find? p.body with
+            | some pw => if pw.isNever then some pw else none
+            | none => none)
+        | none => none := by
+      simp only [ConLeche.headProofPW, ConLeche.Env.findProj?]
+      cases hf : env.find? (ConLeche.projTableName Sn) with
+      | none => rfl
+      | some ci =>
+        cases ci with
+        | projInfo tbl =>
+          by_cases hi : i < tbl.numFields
+          · simp only [hi, ite_true]; rfl
+          · simp only [hi, ite_false]
+        | _ => rfl
+    cases r with
     | none =>
-      rw [hfd] at hopt
       exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
         obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-        simp [ConLeche.headProofPW, show env.find? (ConLeche.projTableName Sn)
-          = none from hopt]⟩
-    | some ci =>
-      rw [hfd] at hopt
-      obtain ⟨c', hci, hfind⟩ := hopt
-      cases ci
-      case projInfo tbl =>
-        simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
-        obtain ⟨pt, hpt, rfl⟩ := hci
-        obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
-        have htok := hok1.ienv.proj rn tbl hfd
-        dsimp only
-        by_cases hi : i < tbl.numFields
-        · rw [ite_eq_left hi]
-          have hpe := denoteProjTable_entry hpt (by rw [htok.bodies]; exact hi)
-            (by rw [htok.guards]; exact hi)
-          obtain ⟨_, _, _, hbody, _⟩ := denoteProjEntry_inv hpe
-          refine triple_seq (typeSortPW_spec' fuel s1 (tbl.entry i).body hok1
-            ⟨_, hbody⟩) ?_
-          rintro opw s2 ⟨hok2, hst2, hp2, hopw⟩
-          have hpw := hopw _ hbody
-          have hx02 : Ext s₀.store s2.store :=
-            hx1.trans (by rw [hst2]; exact Ext.refl _)
-          have hres : ∀ x, denoteE s₀.store h = some x →
-              ConLeche.headProofPW env.find? x =
-                match ConLeche.typeSortPW env.find? (pt.entry i).body with
-                | some pw => if pw.isNever then some pw else none
-                | none => none := by
-            intro x hx
-            obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-            simp only [ConLeche.headProofPW, hfind]
-            rw [ite_eq_left (by rw [hnf]; exact hi)]
-            first | rfl | (split <;> simp_all)
-          cases opw with
-          | none =>
-            exact triple_pureR ⟨hok2, hx02, hp2.trans hp1, fun x hx => by
-              rw [hres x hx, ← hpw]⟩
-          | some pw =>
-            exact triple_pureR ⟨hok2, hx02, hp2.trans hp1, fun x hx => by
-              rw [hres x hx, ← hpw]⟩
-        · rw [ite_eq_right hi]
-          exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
-            obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-            simp only [ConLeche.headProofPW, hfind]
-            rw [ite_eq_right (by rw [hnf]; exact hi)]⟩
-      all_goals
-        dsimp only
-        have hnp : ∀ pt, c' ≠ .projInfo pt := by
-          rintro pt rfl
-          simp only [Frontend.denoteCI] at hci
-          first | (simp at hci) | (split at hci <;> simp_all)
-        exact triple_pureR ⟨hok1, hx1, hp1, fun x hx => by
+        rw [hred, hnone rfl]⟩
+    | some e =>
+      obtain ⟨p, hpe, hfp⟩ := hsome e rfl
+      obtain ⟨_, _, _, hbody, _⟩ := denoteProjEntry_inv hpe
+      dsimp only
+      refine triple_seq (typeSortPW_spec' fuel s1 e.body hok1 ⟨_, hbody⟩) ?_
+      rintro opw s2 ⟨hok2, hst2, hp2, hopw⟩
+      have hpw := hopw _ hbody
+      have hx02 : Ext s₀.store s2.store :=
+        hx1.trans (by rw [hst2]; exact Ext.refl _)
+      cases opw with
+      | none =>
+        exact triple_pureR ⟨hok2, hx02, hp2.trans hp1, fun x hx => by
           obtain rfl := Option.some.inj (hx.symm.trans hx₀)
-          simp only [ConLeche.headProofPW, hfind]
-          cases c' <;> first | rfl | exact absurd rfl (hnp _)⟩
+          rw [hred, hfp]; simp only; rw [← hpw]⟩
+      | some pw =>
+        exact triple_pureR ⟨hok2, hx02, hp2.trans hp1, fun x hx => by
+          obtain rfl := Option.some.inj (hx.symm.trans hx₀)
+          rw [hred, hfp]; simp only; rw [← hpw]⟩
   all_goals
     dsimp only
     exact triple_pureR ⟨hok, Ext.refl _, rfl, fun x hx => by
