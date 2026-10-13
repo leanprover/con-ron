@@ -283,38 +283,38 @@ def unresolvedConstsError (where_ : String) (e : EIdx) : AM CheckError := do
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:89-111 Expr.hasStrLitGo — does
 the term contain a string literal?  (Error path only.)  A memoized DAG walk:
-the memo is the set of nodes already walked, threaded as con-leche threads
-its `Std.HashSet`; the leaves are decided off the handle's tag before the
-memo is consulted, as con-leche's first two clauses are. -/
-def hasStrLitGo (memo : Std.HashSet EIdx) : Nat → EIdx → AM (Bool × Std.HashSet EIdx)
+con-leche's visited set is the memo's key set (the Rust's `HashMap<EIdx,
+bool>`, every entry `false`), threaded as con-leche threads its
+`Std.HashSet`.  The node is viewed first and the leaves decided off the view,
+before the memo is consulted, as con-leche's first two clauses are and in the
+Rust's order. -/
+def hasStrLitGo (memo : Std.HashMap EIdx Bool) :
+    Nat → EIdx → AM (Bool × Std.HashMap EIdx Bool)
   | 0, _ => fail (.internal "fuel exhausted: hasStrLit")
   | fuel + 1, e => do
-    let t := e.tag
-    if t == ETag.lit then
-      match ← viewLit e with
-      | none => failDanglingE
-      | some (.strVal _) => pure (true, memo)
+    match ← view e with
+    | .lit (.strVal _) => pure (true, memo)
+    | .bvar _ | .sort _ | .const _ _ | .lit _ => pure (false, memo)
+    | v =>
+      match memo[e]? with
       | some _ => pure (false, memo)
-    else if t == ETag.bvar || t == ETag.sort || t == ETag.const then
-      pure (false, memo)
-    else if memo.contains e then pure (false, memo)
-    else do
-      let memo := memo.insert e
-      match ← view e with
-      | .fvar _ ty => hasStrLitGo memo fuel ty
-      | .app f a => do
-        let (r, memo) ← hasStrLitGo memo fuel f
-        if r then pure (true, memo) else hasStrLitGo memo fuel a
-      | .lam ty b | .forallE ty b => do
-        let (r, memo) ← hasStrLitGo memo fuel ty
-        if r then pure (true, memo) else hasStrLitGo memo fuel b
-      | .letE ty v b => do
-        let (r, memo) ← hasStrLitGo memo fuel ty
-        if r then pure (true, memo) else do
-          let (r, memo) ← hasStrLitGo memo fuel v
+      | none => do
+        let memo := memo.insert e false
+        match v with
+        | .fvar _ ty => hasStrLitGo memo fuel ty
+        | .app f a => do
+          let (r, memo) ← hasStrLitGo memo fuel f
+          if r then pure (true, memo) else hasStrLitGo memo fuel a
+        | .lam ty b | .forallE ty b => do
+          let (r, memo) ← hasStrLitGo memo fuel ty
           if r then pure (true, memo) else hasStrLitGo memo fuel b
-      | .proj _ _ x => hasStrLitGo memo fuel x
-      | _ => pure (false, memo)
+        | .letE ty v b => do
+          let (r, memo) ← hasStrLitGo memo fuel ty
+          if r then pure (true, memo) else do
+            let (r, memo) ← hasStrLitGo memo fuel v
+            if r then pure (true, memo) else hasStrLitGo memo fuel b
+        | .proj _ _ x => hasStrLitGo memo fuel x
+        | _ => pure (false, memo)
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:113-119 unresolvedConstsErrorL —
 `unresolvedConstsError` with a string-literal guard ahead of it: a string
