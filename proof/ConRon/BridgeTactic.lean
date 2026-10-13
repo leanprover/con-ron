@@ -230,6 +230,9 @@ structure Snap where
   /-- `bridge_frame [l₁, …]`'s extra lemmas, tried last (their elaboration
   metavariables abstracted, so that each use instantiates afresh) -/
   lemmas : Array AbstractMVarsResult := #[]
+  /-- per lemma: its telescope length and its conclusion after each length,
+  syntactically (computed once per snapshot, for `quickMatch`) -/
+  lemmaSkels : Array (Nat × Array Expr) := #[]
 
 abbrev FM := ReaderT Snap MetaM
 
@@ -472,6 +475,18 @@ def findHyp (t : Expr) : FM (Option Expr) := do
       return some p
   return none
 
+/-- A lemma's telescope length and its conclusion after each length. -/
+def lemmaSkel (lr : AbstractMVarsResult) : MetaM (Nat × Array Expr) := do
+  let (_, _, l) ← openAbstractMVarsResult lr
+  let ty ← instantiateMVars (← inferType l)
+  let (args, _, _) ← forallMetaTelescope ty
+  let mut c := ty
+  let mut cs : Array Expr := #[c]
+  while c.isForall do
+    c := c.bindingBody!
+    cs := cs.push c
+  return (args.size, cs)
+
 mutual
 
 /-- The frame solver: a proof of `t`, or `none` — `proveCore`'s built-in
@@ -673,22 +688,11 @@ the `StateOK`/`StoreWF`/`CheckOK` searches: a walk's own frame rule — a cache
 insert, a readback frame — is passed this way): its conclusion unified with
 `t`, every premise proved by `prove`. -/
 partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  for lr in (← read).lemmas do
+  let snap ← read
+  for lr in snap.lemmas, (n, skels) in snap.lemmaSkels do
     -- the lemma's conclusion may itself be a `∀` (a monotonicity chain's
     -- `∀ i v, a.view i = some v → c.view i = some v`): every telescope
     -- length, longest first
-    let (n, skels) ← do
-      let (_, _, l) ← openAbstractMVarsResult lr
-      let ty ← instantiateMVars (← inferType l)
-      let (args, _, _) ← forallMetaTelescope ty
-      -- the conclusion after each telescope length, syntactically (loose
-      -- bound variables match anything in `quickMatch`)
-      let mut c := ty
-      let mut cs : Array Expr := #[c]
-      while c.isForall do
-        c := c.bindingBody!
-        cs := cs.push c
-      pure (args.size, cs)
     -- a cheap syntactic filter first: the conclusion at telescope length
     -- `n - k'` must match the goal (either way round for an equation)
     let env ← getEnv
@@ -1391,7 +1395,7 @@ syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
       let snap ← Frame.snapshot
       let mut ls := #[]
       for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
-      pure { snap with lemmas := ls }
+      pure { snap with lemmas := ls, lemmaSkels := ← ls.mapM (fun l => (Frame.lemmaSkel l : MetaM _)) }
     out := out ++ (← Frame.frameGoal snap g)
   setGoals out
 
@@ -1545,7 +1549,11 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
   let s ← saveState
   setGoals [g]
   try
-    evalTactic (← `(tactic| first | rfl | contradiction | assumption | trivial))
+    evalTactic (← `(tactic| first
+      | rfl
+      | contradiction
+      | assumption
+      | exact True.intro))
     if (← getUnsolvedGoals).isEmpty then return true
   catch _ => pure ()
   s.restore
@@ -1621,14 +1629,16 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
     | rfl
     | contradiction
     | assumption
-    | trivial)
-  if fns.isEmpty then return base
+    | exact True.intro)
+  if fns.isEmpty then `(tactic| first | $(⟨base⟩):tactic | trivial)
+  else
   let lems : Array (TSyntax `Lean.Parser.Tactic.simpLemma) ←
     fns.mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
   `(tactic| first
     | $(⟨base⟩):tactic
     | (simp only [$lems,*]; done)
-    | (simp only [$lems,*, *]; done))
+    | (simp only [$lems,*, *]; done)
+    | trivial)
 
 @[tactic bridgeFinish] def evalBridgeFinish : Tactic := fun stx => do
   let fns : Array Term :=
