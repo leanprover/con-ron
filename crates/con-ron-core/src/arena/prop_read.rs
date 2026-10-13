@@ -286,7 +286,7 @@ pub fn subst_pw_at(
 ) -> Result<Option<PropWhen>, CheckError> {
     match pw {
         PropWhen::IfAllZero(ps) => {
-            if ps.is_empty() {
+            if ps.len() == 0 {
                 Ok(Some(PropWhen::IfAllZero(ps)))
             } else {
                 match read_names_m(pers, st, lps) {

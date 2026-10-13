@@ -12,7 +12,7 @@ use crate::kernel::prop_when::PropWhen;
 pub fn is_prop(pw: &PropWhen) -> bool {
     match pw {
         PropWhen::Never => false,
-        PropWhen::IfAllZero(ps) => ps.is_empty(),
+        PropWhen::IfAllZero(ps) => ps.len() == 0,
     }
 }
 
