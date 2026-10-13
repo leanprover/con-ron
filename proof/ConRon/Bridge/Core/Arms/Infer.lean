@@ -582,9 +582,9 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
   | lit l => exact absurd htg hnl
   | const n us => exact absurd htg hnc
   | proj n k sub => exact absurd htg hnp
-  | lam ty b m =>
+  | lam ty b =>
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
-  | forallE ty b m =>
+  | forallE ty b =>
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
   | letE ty w b => vcgen
   | bvar k => vcgen

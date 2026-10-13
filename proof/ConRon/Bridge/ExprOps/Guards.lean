@@ -176,15 +176,14 @@ def leavesSubSpec (bl : List (Nat × Expr)) (e : Expr) : Bool :=
       (leavesSubSpec bl f && leavesSubSpec bl a) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_lam {bl : List (Nat × Expr)} {ty b : Expr}
-    {m : BinderMeta} :
-    leavesSubSpec bl (.lam ty b m) =
+@[grind =] theorem leavesSubSpec_lam {bl : List (Nat × Expr)} {ty b : Expr} :
+    leavesSubSpec bl (.lam ty b) =
       (leavesSubSpec bl ty && leavesSubSpec bl b) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
 @[grind =] theorem leavesSubSpec_forallE {bl : List (Nat × Expr)}
-    {ty b : Expr} {m : BinderMeta} :
-    leavesSubSpec bl (.forallE ty b m) =
+    {ty b : Expr} :
+    leavesSubSpec bl (.forallE ty b) =
       (leavesSubSpec bl ty && leavesSubSpec bl b) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 

@@ -371,21 +371,19 @@ theorem iotaCertsFueled_nil {F d : Nat} {lic : Bool} {ty : Expr} :
 
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a licensed
 `.never` slot is skipped. -/
-theorem iotaCertsFueled_skip {F d : Nat} {lic : Bool} {t b : Expr}
-    {m : BinderMeta} {x : Expr} {xs : List Expr}
+theorem iotaCertsFueled_skip {F d : Nat} {lic : Bool} {t b : Expr} {x : Expr} {xs : List Expr}
     (hg : (lic && m.pw.isNever) = true) :
-    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b m) (x :: xs) =
+    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b) (x :: xs) =
       ConLeche.iotaCertsFueled mode env F d lic (b.instantiate1 x) xs := by
   simp only [ConLeche.iotaCertsFueled, ConLeche.iotaCerts, hg, ite_true]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a certified
 slot: the argument's type agrees with the domain, and the walk continues. -/
-theorem iotaCertsFueled_cert {F d : Nat} {lic : Bool} {t b : Expr}
-    {m : BinderMeta} {x ta : Expr} {xs : List Expr}
+theorem iotaCertsFueled_cert {F d : Nat} {lic : Bool} {t b : Expr} {x ta : Expr} {xs : List Expr}
     (hg : (lic && m.pw.isNever) = false)
     (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
     (h2 : ConLeche.isDefEqCore mode env F d ta t = .ok true) :
-    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b m) (x :: xs) =
+    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b) (x :: xs) =
       ConLeche.iotaCertsFueled mode env F d lic (b.instantiate1 x) xs := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok true := h2
@@ -394,12 +392,11 @@ theorem iotaCertsFueled_cert {F d : Nat} {lic : Bool} {t b : Expr}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — a slot whose
 argument's type does not agree: declined. -/
-theorem iotaCertsFueled_fail {F d : Nat} {lic : Bool} {t b : Expr}
-    {m : BinderMeta} {x ta : Expr} {xs : List Expr}
+theorem iotaCertsFueled_fail {F d : Nat} {lic : Bool} {t b : Expr} {x ta : Expr} {xs : List Expr}
     (hg : (lic && m.pw.isNever) = false)
     (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
     (h2 : ConLeche.isDefEqCore mode env F d ta t = .ok false) :
-    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b m) (x :: xs) =
+    ConLeche.iotaCertsFueled mode env F d lic (.forallE t b) (x :: xs) =
       .ok false := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
   have e2 : (ConLeche.pureFns mode env F).defeq d ta t = .ok false := h2
@@ -410,7 +407,7 @@ theorem iotaCertsFueled_fail {F d : Nat} {lic : Bool} {t b : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:210-243 iotaCerts — arguments left
 over and no binder to take them: declined. -/
 theorem iotaCertsFueled_notpi {F d : Nat} {lic : Bool} {ty x : Expr}
-    {xs : List Expr} (h : ∀ t b m, ty ≠ .forallE t b m) :
+    {xs : List Expr} (h : ∀ t b m, ty ≠ .forallE t b) :
     ConLeche.iotaCertsFueled mode env F d lic ty (x :: xs) = .ok false := by
   cases ty <;> simp_all [ConLeche.iotaCertsFueled, ConLeche.iotaCerts] <;> rfl
 
@@ -444,9 +441,9 @@ theorem InstLVec.unique {st : EStore} {acc : Array EIdx} {ws ws' : List Expr}
 theorem InstLVec.empty (st : EStore) : ExprOps.InstLVec st #[] [] := rfl
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211 instantiateList — at a ∀. -/
-theorem instantiateList_forallE {t b : Expr} {m : BinderMeta}
+theorem instantiateList_forallE {t b : Expr}
     {ws : List Expr} :
-    (Expr.forallE t b m).instantiateList ws =
+    (Expr.forallE t b).instantiateList ws =
       .forallE (t.instantiateList ws) (b.instantiateList ws 1) m := by
   simp [Expr.instantiateList]
 
@@ -454,7 +451,7 @@ theorem instantiateList_forallE {t b : Expr} {m : BinderMeta}
 that is neither a ∀ nor a loose variable keeps its constructor, so it is not
 a ∀ afterwards either. -/
 theorem instantiateList_not_forallE {e : Expr} {ws : List Expr}
-    (hf : ∀ t b m, e ≠ .forallE t b m) (hb : ∀ k, e ≠ .bvar k) :
+    (hf : ∀ t b m, e ≠ .forallE t b) (hb : ∀ k, e ≠ .bvar k) :
     ∀ t b m, e.instantiateList ws ≠ .forallE t b m := by
   cases e <;> simp_all [Expr.instantiateList]
 
@@ -465,15 +462,15 @@ theorem denote_not_forallE_bvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
     (he : denoteE st h = some e)
     (hne : ∀ ty b m, v = .forallE ty b m → False)
     (hnb : ∀ k, v = .bvar k → False) :
-    (∀ p q m, e ≠ .forallE p q m) ∧ ∀ k, e ≠ .bvar k := by
+    (∀ p q m, e ≠ .forallE p q) ∧ ∀ k, e ≠ .bvar k := by
   cases v with
   | bvar i => exact absurd rfl (hnb i)
   | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv he; simp
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => obtain ⟨p, q, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m => exact absurd rfl (hne ty b m)
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b => exact absurd rfl (hne ty b m)
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
   | lit l => rw [denote_lit_inv hwf hv he]; simp

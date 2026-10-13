@@ -335,9 +335,9 @@ theorem recFireComparands_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:704-707 piResidual — a non-∀
 telescope has no residual along a non-empty spine. -/
 theorem piResidual_cons_none {e x : Expr} {xs : List Expr}
-    (h : ∀ p q m, e ≠ .forallE p q m) : ConLeche.piResidual e (x :: xs) = none := by
+    (h : ∀ p q m, e ≠ .forallE p q) : ConLeche.piResidual e (x :: xs) = none := by
   cases e with
-  | forallE p q m => exact absurd rfl (h p q m)
+  | forallE p q => exact absurd rfl (h p q m)
   | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:704-707 piResidual — **THEOREM 1

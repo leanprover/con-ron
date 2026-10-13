@@ -200,31 +200,71 @@ Both facts hold of the store operation: `EStore.view_intern_mono`
 conjunct in the monadic specs, which is what this section adds.  They belong
 in `Bridge/Specs.lean`, replacing the versions there. -/
 
+/-- con-leche: none — `internLamE`'s two outcomes: a cons hit moves
+nothing, a miss is `EStore.internBind` at the `lam` tag. -/
+theorem internLamE_ok {ty b : EIdx} {s : AState} {r : EIdx} {s' : AState}
+    (h : internLamE ty b s = .ok (r, s')) :
+    s' = s ∨ s' = { s with store := (s.store.internBind ETag.lam ty b).1 } := by
+  unfold internLamE at h
+  cases hf : s.store.findBind ETag.lam ty b with
+  | some i =>
+    simp [bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
+      Except.pure, Except.bind, hf, StateT.pure] at h
+    exact Or.inl h.2.symm
+  | none =>
+    by_cases hc : (if s.store.scratchOn = true then s.store.scr.bindSizeOf ETag.lam
+                else s.store.pers.bindSizeOf ETag.lam) < Idx.idxCap
+    · simp only [bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
+        Except.pure, Except.bind, hf, StateT.pure, set, StateT.set, ite_eq_left hc,
+        Except.ok.injEq, Prod.mk.injEq] at h
+      exact Or.inr h.2.symm
+    · simp [bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
+        Except.pure, Except.bind, hf, hc, fail, throwThe, MonadExceptOf.throw,
+        StateT.lift] at h
+
+/-- con-leche: none — and `internForallEE`'s. -/
+theorem internForallEE_ok {ty b : EIdx} {s : AState} {r : EIdx} {s' : AState}
+    (h : internForallEE ty b s = .ok (r, s')) :
+    s' = s ∨ s' = { s with store := (s.store.internBind ETag.forallE ty b).1 } := by
+  unfold internForallEE at h
+  cases hf : s.store.findBind ETag.forallE ty b with
+  | some i =>
+    simp [bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
+      Except.pure, Except.bind, hf, StateT.pure] at h
+    exact Or.inl h.2.symm
+  | none =>
+    by_cases hc : (if s.store.scratchOn = true then s.store.scr.bindSizeOf ETag.forallE
+                else s.store.pers.bindSizeOf ETag.forallE) < Idx.idxCap
+    · simp only [bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
+        Except.pure, Except.bind, hf, StateT.pure, set, StateT.set, ite_eq_left hc,
+        Except.ok.injEq, Prod.mk.injEq] at h
+      exact Or.inr h.2.symm
+    · simp [bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get, pure,
+        Except.pure, Except.bind, hf, hc, fail, throwThe, MonadExceptOf.throw,
+        StateT.lift] at h
+
 /-- con-leche: none — `internE` moves no node read: the node arms end at a
-cons hit or at `EStore.intern`, the two binder arms (task #97-T2-LOCKSTEP D6)
-at `EStore.internBM` and then `EStore.internBindI`. -/
+cons hit or at `EStore.intern`, the two binder arms at a cons hit or at
+`EStore.internBind`. -/
 theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
     (hrun : internE w s = .ok (h, s')) :
     ∀ i v, s.store.view i = some v → s'.store.view i = some v := by
   intro i v hi
   cases w
-  case lam ty b m =>
-    obtain ⟨mi, s₁, h1, h2⟩ := internE_lam_split hrun
-    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
-    obtain ⟨-, rfl⟩ := internLamIE_ok h2
-    exact EStore.view_internBindI_mono _ _ _ _ _ (EStore.view_internBM_mono _ m hi)
-  case forallE ty b m =>
-    obtain ⟨mi, s₁, h1, h2⟩ := internE_forallE_split hrun
-    obtain ⟨-, rfl, rfl⟩ := internBME_ok h1
-    obtain ⟨-, rfl⟩ := internForallEIE_ok h2
-    exact EStore.view_internBindI_mono _ _ _ _ _ (EStore.view_internBM_mono _ m hi)
+  case lam ty b =>
+    rcases internLamE_ok (internE_lam_split hrun) with rfl | rfl
+    · exact hi
+    · exact EStore.view_internBind_mono _ _ _ _ hi
+  case forallE ty b =>
+    rcases internForallEE_ok (internE_forallE_split hrun) with rfl | rfl
+    · exact hi
+    · exact EStore.view_internBind_mono _ _ _ _ hi
   all_goals
     rcases internNodeE_ok hrun with ⟨-, rfl⟩ | ⟨-, -, rfl⟩
     · exact hi
     · exact EStore.view_intern_mono _ _ hi
 
-/-- con-leche: none — `internE` with view and binder-datum monotonicity:
-`internE_spec` (whose `BMExt` conjunct is the datum half) and
+/-- con-leche: none — `internE` with view monotonicity: `internE_spec` and
 `internE_view_mono`. -/
 @[spec high] theorem internE_specV (s₀ : AState) (w : ENodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
@@ -233,13 +273,12 @@ theorem internE_view_mono {s s' : AState} {w : ENodeView} {h : EIdx}
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ i v, s₀.store.view i = some v → s'.store.view i = some v) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         s'.store.view h = some w ∧
         denoteE s'.store h = denoteEView s'.store w; ⊤⦄ := by
   refine AM.triple_of_run_at fun h s' hrun => ?_
-  obtain ⟨p1, p2, p3, p4, -, p6, p7, p8, p9, p10⟩ :=
+  obtain ⟨p1, p2, p4, -, p6, p7, p8, p9, p10⟩ :=
     AM.of_run (P := fun t => t = s₀) rfl hrun (internE_spec s₀ w hwf hv)
-  exact ⟨p1, p2, p4, p6, p7, p8, internE_view_mono hrun, p3, p9, p10⟩
+  exact ⟨p1, p2, p4, p6, p7, p8, internE_view_mono hrun, p9, p10⟩
 
 /-- con-leche: none — `internRebuilt` with the same two conjuncts.  The
 `same = true` branch answers the handle it was given, so both are
@@ -252,17 +291,16 @@ reflexive there. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ i w, s₀.store.view i = some w → s'.store.view i = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store v; ⊤⦄ := by
   vcgen [internRebuilt, internE_specV]
   all_goals subst_vars
   case vc1 =>
     exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, fun _ _ hi => hi,
-      fun _ _ hmi => hmi, denoteE_view_eq hwf (hsame rfl)⟩
+      denoteE_view_eq hwf (hsame rfl)⟩
   case vc2 =>
     rename_i _hc _r _s2 hpost
-    obtain ⟨a, bb, c, dd, e, f, g, hh, -, hj⟩ := hpost
-    exact ⟨a, bb, c, dd, e, f, g, hh, hj⟩
+    obtain ⟨a, bb, c, dd, e, f, g, -, hj⟩ := hpost
+    exact ⟨a, bb, c, dd, e, f, g, hj⟩
   case vc3 => exact hwf
   case vc4 => exact hv
 
@@ -280,7 +318,6 @@ args` IS `internRebuilt h same (.X args)`. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store (.fvar idx ty); ⊤⦄ :=
   internRebuilt_specV s₀ h same (.fvar idx ty) hwf (viewOK_fvar hty) hsame
 
@@ -293,7 +330,6 @@ args` IS `internRebuilt h same (.X args)`. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store (.sort u); ⊤⦄ :=
   internRebuilt_specV s₀ h same (.sort u) hwf (viewOK_sort hu) hsame
 
@@ -307,7 +343,6 @@ args` IS `internRebuilt h same (.X args)`. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store (.const n us); ⊤⦄ :=
   internRebuilt_specV s₀ h same (.const n us) hwf (viewOK_const hn hus) hsame
 
@@ -321,37 +356,34 @@ args` IS `internRebuilt h same (.X args)`. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store (.app f a); ⊤⦄ :=
   internRebuilt_specV s₀ h same (.app f a) hwf (viewOK_app hf ha) hsame
 
 @[spec high] theorem internRebuiltLam_specV (s₀ : AState) (h : EIdx)
-    (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
+    (same : Bool) (ty b : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.lam ty b m)) :
-    ⦃fun s => s = s₀⦄ internRebuiltLam h same ty b m
+    (hsame : same = true → s₀.store.view h = some (.lam ty b)) :
+    ⦃fun s => s = s₀⦄ internRebuiltLam h same ty b
     ⦃fun r s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi mm, s₀.store.viewBM mi = some mm → s'.store.viewBM mi = some mm) ∧
-        denoteE s'.store r = denoteEView s'.store (.lam ty b m); ⊤⦄ :=
-  internRebuilt_specV s₀ h same (.lam ty b m) hwf (viewOK_lam hty hb) hsame
+        denoteE s'.store r = denoteEView s'.store (.lam ty b); ⊤⦄ :=
+  internRebuilt_specV s₀ h same (.lam ty b) hwf (viewOK_lam hty hb) hsame
 
 @[spec high] theorem internRebuiltForallE_specV (s₀ : AState) (h : EIdx)
-    (same : Bool) (ty b : EIdx) (m : BinderMeta) (hwf : StoreWF s₀.store)
+    (same : Bool) (ty b : EIdx) (hwf : StoreWF s₀.store)
     (hty : (denoteE s₀.store ty).isSome = true)
     (hb : (denoteE s₀.store b).isSome = true)
-    (hsame : same = true → s₀.store.view h = some (.forallE ty b m)) :
-    ⦃fun s => s = s₀⦄ internRebuiltForallE h same ty b m
+    (hsame : same = true → s₀.store.view h = some (.forallE ty b)) :
+    ⦃fun s => s = s₀⦄ internRebuiltForallE h same ty b
     ⦃fun r s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi mm, s₀.store.viewBM mi = some mm → s'.store.viewBM mi = some mm) ∧
-        denoteE s'.store r = denoteEView s'.store (.forallE ty b m); ⊤⦄ :=
-  internRebuilt_specV s₀ h same (.forallE ty b m) hwf (viewOK_forallE hty hb)
+        denoteE s'.store r = denoteEView s'.store (.forallE ty b); ⊤⦄ :=
+  internRebuilt_specV s₀ h same (.forallE ty b) hwf (viewOK_forallE hty hb)
     hsame
 
 @[spec high] theorem internRebuiltLetE_specV (s₀ : AState) (h : EIdx)
@@ -365,7 +397,6 @@ args` IS `internRebuilt h same (.X args)`. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store (.letE ty val b); ⊤⦄ :=
   internRebuilt_specV s₀ h same (.letE ty val b) hwf
     (viewOK_letE hty hval hb) hsame
@@ -380,7 +411,6 @@ args` IS `internRebuilt h same (.X args)`. -/
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         denoteE s'.store r = denoteEView s'.store (.proj n i e); ⊤⦄ :=
   internRebuilt_specV s₀ h same (.proj n i e) hwf (viewOK_proj hn he) hsame
 
@@ -394,7 +424,6 @@ abstraction walks intern a fresh `bvar` rather than rebuilding, so they need
         s'.store.lss = s₀.store.lss ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        (∀ mi m, s₀.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         s'.store.view h = some (.bvar i) ∧
         denoteE s'.store h = denoteEView s'.store (.bvar i); ⊤⦄ :=
   internE_specV s₀ (.bvar i) hwf viewOK_bvar
@@ -474,38 +503,22 @@ stores are variables and `subst` closes the gap in one step; in a
 verification condition they are projections and it cannot.  These three are
 the facts the binder arm needs, stated so the hop happens inside. -/
 
-/-- con-leche: none — `view_of_viewBindI_wf` across a store equation. -/
-theorem view_of_viewBindI_hop {st st0 : EStore} (hst : st0 = st)
-    (hwf : StoreWF st) {i ty b : EIdx} {mi : BMIdx}
-    (htg : ETag.isBind i.tag = true) (h1 : some (ty, b, mi) = st0.viewBindI i) :
-    ∃ m, st0.viewBM mi = some m ∧ mi.tag = 0 ∧
-      st0.view i = some (eBindView i.tag ty b m) := by
-  subst hst
-  exact view_of_viewBindI_wf hwf htg h1.symm
-
-/-- con-leche: none — the binder datum still decodes at the store the two
-recursive calls left behind. -/
-theorem bmOK_hop {st st0 s1 s2 : EStore} (hst : st0 = st) (hwf : StoreWF st)
-    {i ty b : EIdx} {mi : BMIdx} (h1 : some (ty, b, mi) = st0.viewBindI i)
-    (hbm1 : ∀ mj m, st0.viewBM mj = some m → s1.viewBM mj = some m)
-    (hbm2 : ∀ mj m, s1.viewBM mj = some m → s2.viewBM mj = some m) :
-    (s2.viewBM mi).isSome = true := by
-  subst hst
-  obtain ⟨hb, _⟩ := bmOK_of_viewBindI hwf h1.symm
-  obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hb
-  rw [hbm2 mi m (hbm1 mi m hm)]
-  rfl
+/-- con-leche: none — `view_of_viewBind` at the reversed read `mvcgen`
+hands an arm. -/
+theorem view_of_viewBind_hop {st0 : EStore} {i ty b : EIdx}
+    (h1 : some (ty, b) = st0.viewBind i) :
+    st0.view i = some (eBindView i.tag ty b) :=
+  view_of_viewBind h1.symm
 
 /-- con-leche: none — the binder's two children denote, at the store the walk
 read the binder in. -/
-theorem bindI_children_hop {st st0 : EStore} (hst : st0 = st)
-    (hwf : StoreWF st) {i ty b : EIdx} {mi : BMIdx}
-    (htg : ETag.isBind i.tag = true) (h1 : some (ty, b, mi) = st0.viewBindI i)
+theorem bind_children_hop {st st0 : EStore} (hst : st0 = st)
+    (hwf : StoreWF st) {i ty b : EIdx}
+    (h1 : some (ty, b) = st0.viewBind i)
     (hden : (denoteE st i).isSome = true) :
     (denoteE st0 ty).isSome = true ∧ (denoteE st0 b).isSome = true := by
   subst hst
-  obtain ⟨m, hbm, _, hvw⟩ := view_of_viewBindI_wf hwf htg h1.symm
-  exact isSome_eBindView hwf hvw hden
+  exact isSome_eBindView hwf (view_of_viewBind h1.symm) hden
 
 /-- con-leche: none — an answer handle has a view at any later store: the
 `internRebuilt` arms' `ViewOK` obligation, in one lemma. -/
@@ -514,26 +527,17 @@ theorem view_isSome_of_rel {f : Expr → Expr} {st s1 s2 : EStore} {c r : EIdx}
     (hx : Ext s1 s2) : (s2.view r).isSome = true :=
   view_isSome (denote_isSome_ext (hr.isSome hden) hx)
 
-/-- con-leche: ConLeche/Kernel/Expr.lean:94-105 BinderMeta — **the binder
-arm's `internRebuilt` obligation**: if the two children came back unchanged
-then the rebuilt binder view IS the handle's view, at the store the intern
-happens in.  The datum's value is the one the walk carried, which is why the
-statement quantifies over it exactly as `internRebuiltBindI_spec'` does. -/
-theorem bindI_hsame {st s1 s2 : EStore} (hwf : StoreWF st)
-    {i ty b rt rb : EIdx} {mi : BMIdx} {tg : UInt32} (htg : tg = i.tag)
-    (htgb : ETag.isBind i.tag = true)
-    (h1 : some (ty, b, mi) = st.viewBindI i)
+/-- con-leche: none — **the binder arm's `internRebuilt` obligation**: if the
+two children came back unchanged then the rebuilt binder view IS the handle's
+view, at the store the intern happens in. -/
+theorem bind_hsame {st s1 s2 : EStore}
+    {i ty b rt rb : EIdx} {tg : UInt32} (htg : tg = i.tag)
+    (h1 : some (ty, b) = st.viewBind i)
     (hvm1 : ∀ j w, st.view j = some w → s1.view j = some w)
-    (hvm2 : ∀ j w, s1.view j = some w → s2.view j = some w)
-    (hbm1 : ∀ mj m, st.viewBM mj = some m → s1.viewBM mj = some m)
-    (hbm2 : ∀ mj m, s1.viewBM mj = some m → s2.viewBM mj = some m) :
-    ∀ m, s2.viewBM mi = some m → (rt == ty && rb == b) = true →
-      s2.view i = some (eBindView tg rt rb m) := by
-  intro m hbm hsame
-  obtain ⟨m0, hbm0, _, hvw⟩ := view_of_viewBindI_wf hwf htgb h1.symm
-  have hchain := hbm2 mi m0 (hbm1 mi m0 hbm0)
-  rw [hbm] at hchain
-  obtain rfl := Option.some.inj hchain
+    (hvm2 : ∀ j w, s1.view j = some w → s2.view j = some w) :
+    (rt == ty && rb == b) = true → s2.view i = some (eBindView tg rt rb) := by
+  intro hsame
+  have hvw := view_of_viewBind h1.symm
   simp only [Bool.and_eq_true, beq_iff_eq] at hsame
   obtain ⟨rfl, rfl⟩ := hsame
   rw [htg]

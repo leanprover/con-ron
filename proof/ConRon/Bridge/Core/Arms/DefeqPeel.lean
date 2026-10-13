@@ -329,14 +329,13 @@ theorem defeqPeelLeaf_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
 
 /-- con-leche: ConLeche/Verify/Shift.lean:93 WScoped — a binder is well
 scoped exactly when its domain and its body are. -/
-theorem wscoped_bndE {j : Nat} {L : Bool} {t c : Expr} {m : BinderMeta} :
+theorem wscoped_bndE {j : Nat} {L : Bool} {t c : Expr} :
     Expr.WScoped j (bndE L t c m) ↔ Expr.WScoped j t ∧ Expr.WScoped j c := by
   cases L <;> simp [bndE, Expr.WScoped]
 
 /-- con-leche: none — a handle whose view is a binder of its own tag denotes
 that binder, `bndE` at the tag's kind. -/
-theorem denote_bind_inv {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    {m : BinderMeta} {e : Expr} (hw : st.view h = some (eBindView h.tag ty b m))
+theorem denote_bind_inv {st : EStore} (hwf : StoreWF st) {h ty b : EIdx} {e : Expr} (hw : st.view h = some (eBindView h.tag ty b))
     (he : denoteE st h = some e) :
     ∃ et eb, e = bndE (h.tag == ETag.lam) et eb m ∧ denoteE st ty = some et ∧
       denoteE st b = some eb := by

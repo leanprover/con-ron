@@ -34,8 +34,8 @@ theorem view_of_denote_lit {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨_, h, _⟩ := denote_sort_inv hwf hv hd; cases h
   | const n us => obtain ⟨_, _, h, _, _⟩ := denote_const_inv hwf hv hd; cases h
   | app f a => obtain ⟨_, _, h, _, _⟩ := denote_app_inv hwf hv hd; cases h
-  | lam ty b m => obtain ⟨_, _, h, _, _⟩ := denote_lam_inv hwf hv hd; cases h
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨_, _, h, _, _⟩ := denote_lam_inv hwf hv hd; cases h
+  | forallE ty b =>
     obtain ⟨_, _, h, _, _⟩ := denote_forallE_inv hwf hv hd; cases h
   | letE ty w b =>
     obtain ⟨_, _, _, h, _, _, _⟩ := denote_letE_inv hwf hv hd; cases h

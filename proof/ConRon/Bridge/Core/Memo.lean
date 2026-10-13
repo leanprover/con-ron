@@ -425,8 +425,8 @@ theorem denote_stuck_of_whnfCoreStuckTag {st : EStore} (hwf : StoreWF st)
     {h : EIdx} {e : Expr} (he : denoteE st h = some e)
     (hs : whnfCoreStuckTag h = true) :
     (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨
-      (∃ l, e = .lit l) ∨ (∃ t b m, e = .lam t b m) ∨
-      (∃ t b m, e = .forallE t b m) := by
+      (∃ l, e = .lit l) ∨ (∃ t b m, e = .lam t b) ∨
+      (∃ t b m, e = .forallE t b) := by
   obtain ⟨happ, hproj, hlet, hbvar⟩ := whnfCoreStuckTag_ne hs
   obtain ⟨v, hv⟩ := denoteE_view he
   have htag := EStore.tagOf_of_view hv
@@ -442,10 +442,10 @@ theorem denote_stuck_of_whnfCoreStuckTag {st : EStore} (hwf : StoreWF st)
     obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv he
     exact Or.inr (Or.inr (Or.inl ⟨nm, ls, rfl⟩))
   | app f a => exact absurd (htag.trans rfl) happ
-  | lam ty b m =>
+  | lam ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv he
     exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩))))
-  | forallE ty b m =>
+  | forallE ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv he
     exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩))))
   | letE ty w b => exact absurd (htag.trans rfl) hlet
@@ -459,7 +459,7 @@ constructors the body's first six clauses answer with themselves. -/
 theorem whnfCore_of_stuck {mode : CheckMode} {env : Env} {e : Expr} {c : Bool}
     (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
       (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
-      (∃ t b m, e = .lam t b m) ∨ (∃ t b m, e = .forallE t b m))
+      (∃ t b m, e = .lam t b) ∨ (∃ t b m, e = .forallE t b))
     (F d : Nat) : ConLeche.whnfCore mode env (F + 1) d e c = .ok e := by
   rw [ConLeche.whnfCore_succ]
   rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ |
@@ -473,8 +473,8 @@ reduction loop: a handle whose tag is `sort`, `fvar`, `lam`, `forallE` or
 theorem denote_stuck_of_whnfStuckTag {st : EStore} (hwf : StoreWF st)
     {h : EIdx} {e : Expr} (he : denoteE st h = some e)
     (hs : whnfStuckTag h = true) :
-    (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨ (∃ t b m, e = .lam t b m) ∨
-      (∃ t b m, e = .forallE t b m) ∨ (∃ l, e = .lit l) := by
+    (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨ (∃ t b m, e = .lam t b) ∨
+      (∃ t b m, e = .forallE t b) ∨ (∃ l, e = .lit l) := by
   obtain ⟨v, hv⟩ := denoteE_view he
   have htag := EStore.tagOf_of_view hv
   have htg := whnfStuckTag_eq hs
@@ -491,10 +491,10 @@ theorem denote_stuck_of_whnfStuckTag {st : EStore} (hwf : StoreWF st)
       ETag.sort, ETag.fvar, ETag.lam, ETag.forallE, ETag.lit] at htg
   | app f a => rw [htag] at htg; simp [ENodeView.tagOf, ETag.app, ETag.sort,
       ETag.fvar, ETag.lam, ETag.forallE, ETag.lit] at htg
-  | lam ty b m =>
+  | lam ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv he
     exact Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩))
-  | forallE ty b m =>
+  | forallE ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv he
     exact Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩)))
   | letE ty w b => rw [htag] at htg; simp [ENodeView.tagOf, ETag.letE,
@@ -512,7 +512,7 @@ a `.const` head, so the first iteration of the loop is `pure e`.  **Two fuel
 levels**, because the loop's own `whnfCore` call consumes one. -/
 theorem whnf_of_stuck {mode : CheckMode} {env : Env} {e : Expr}
     (h : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
-      (∃ t b m, e = .lam t b m) ∨ (∃ t b m, e = .forallE t b m) ∨
+      (∃ t b m, e = .lam t b) ∨ (∃ t b m, e = .forallE t b) ∨
       (∃ l, e = .lit l))
     (F d : Nat) : ConLeche.whnf mode env (F + 2) d e = .ok e := by
   obtain ⟨n, hn⟩ := ConLeche.whnfLoopFuel_succ

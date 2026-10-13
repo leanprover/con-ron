@@ -56,8 +56,8 @@ theorem rawNatLit?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; rfl
   | const n us => exact absurd rfl (hnc n us)
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; rfl
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; rfl
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; rfl
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; rfl
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; rfl

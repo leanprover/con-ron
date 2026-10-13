@@ -228,8 +228,8 @@ abbrev typeAt (P : ConLeche.Name) : Expr := .sort (.succ (.param P))
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:317-328 listTyOk — at a
 one-parameter constant whose type is a `∀`, the two sides against `Type p`. -/
 theorem listTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
-    {D B : Expr} {m : BinderMeta} (hl : c.toConstantVal.levelParams = [P])
-    (ht : c.toConstantVal.type = .forallE D B m) :
+    {D B : Expr} (hl : c.toConstantVal.levelParams = [P])
+    (ht : c.toConstantVal.type = .forallE D B) :
     ConLeche.listTyOk (some c) = (D == typeAt P && B == typeAt P) := by
   simp only [ConLeche.listTyOk, hl, ht]
   cases D <;> cases B <;> (rw [Bool.eq_iff_iff]; simp [typeAt])
@@ -238,7 +238,7 @@ theorem listTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
 not a `∀`. -/
 theorem listTyOk_not_forallE {c : ConstantInfo} {P : ConLeche.Name}
     (hl : c.toConstantVal.levelParams = [P])
-    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B m) :
+    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B) :
     ConLeche.listTyOk (some c) = false := by
   simp only [ConLeche.listTyOk, hl]
   split
@@ -267,8 +267,8 @@ def listNilCod (P : ConLeche.Name) : Expr → Bool
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:330-341 listNilTyOk — in the
 twin's order: the domain against `Type p`, then the codomain. -/
 theorem listNilTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
-    {D B : Expr} {m : BinderMeta} (hl : c.toConstantVal.levelParams = [P])
-    (ht : c.toConstantVal.type = .forallE D B m) :
+    {D B : Expr} (hl : c.toConstantVal.levelParams = [P])
+    (ht : c.toConstantVal.type = .forallE D B) :
     ConLeche.listNilTyOk (some c) = (D == typeAt P && listNilCod P B) := by
   simp only [ConLeche.listNilTyOk, hl, ht]
   cases D <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt]; done))
@@ -282,7 +282,7 @@ theorem listNilTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
 `List.cons` guards at a one-parameter constant whose type is not a `∀`. -/
 theorem listNilConsTyOk_not_forallE {c : ConstantInfo} {P : ConLeche.Name}
     (hl : c.toConstantVal.levelParams = [P])
-    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B m) :
+    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B) :
     ConLeche.listNilTyOk (some c) = false ∧
       ConLeche.listConsTyOk (some c) = false := by
   refine ⟨?_, ?_⟩
@@ -783,8 +783,8 @@ def listConsR (P : ConLeche.Name) : Expr → Bool
 twin's order: each binder's domain against its interned comparand, one `∀`
 at a time. -/
 theorem listConsTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
-    {D R : Expr} {m : BinderMeta} (hl : c.toConstantVal.levelParams = [P])
-    (ht : c.toConstantVal.type = .forallE D R m) :
+    {D R : Expr} (hl : c.toConstantVal.levelParams = [P])
+    (ht : c.toConstantVal.type = .forallE D R) :
     ConLeche.listConsTyOk (some c) = (D == typeAt P && listConsR P R) := by
   simp only [ConLeche.listConsTyOk, hl, ht]
   cases D <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt]; done))
@@ -808,14 +808,14 @@ theorem listConsTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
 
 /-- con-leche: none — `listConsR` at a codomain that is not a `∀`. -/
 theorem listConsR_of_not {P : ConLeche.Name} {R : Expr}
-    (h : ∀ D B m, R ≠ .forallE D B m) : listConsR P R = false := by
+    (h : ∀ D B m, R ≠ .forallE D B) : listConsR P R = false := by
   unfold listConsR; split
   · rename_i D B m; exact absurd rfl (h D B m)
   · rfl
 
 /-- con-leche: none — `listConsR2` at a codomain that is not a `∀`. -/
 theorem listConsR2_of_not {P : ConLeche.Name} {R : Expr}
-    (h : ∀ D B m, R ≠ .forallE D B m) : listConsR2 P R = false := by
+    (h : ∀ D B m, R ≠ .forallE D B) : listConsR2 P R = false := by
   unfold listConsR2; split
   · rename_i D B m; exact absurd rfl (h D B m)
   · rfl
@@ -1333,9 +1333,8 @@ theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk — in the
 twin's order, at a level-monomorphic constant whose type is a `∀`. -/
-theorem charOfNatTyOk_forallE {c : ConstantInfo} {D B : Expr}
-    {m : BinderMeta} (hl : c.toConstantVal.levelParams.isEmpty = true)
-    (ht : c.toConstantVal.type = .forallE D B m) :
+theorem charOfNatTyOk_forallE {c : ConstantInfo} {D B : Expr} (hl : c.toConstantVal.levelParams.isEmpty = true)
+    (ht : c.toConstantVal.type = .forallE D B) :
     ConLeche.charOfNatTyOk (some c) =
       (D == .const ConLeche.natName [] && B == .const ConLeche.charName []) := by
   simp only [ConLeche.charOfNatTyOk, hl, ht, Bool.true_and]
@@ -1349,7 +1348,7 @@ theorem charOfNatTyOk_forallE {c : ConstantInfo} {D B : Expr}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-383 — the two function
 guards at a constant whose type is not a `∀`. -/
 theorem fnTyOks_not_forallE {c : ConstantInfo}
-    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B m) :
+    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B) :
     ConLeche.charOfNatTyOk (some c) = false ∧
       ConLeche.stringOfListTyOk (some c) = false := by
   refine ⟨?_, ?_⟩
@@ -1454,9 +1453,8 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
           (by rw [hh]; rfl)))).1.symm
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-383 stringOfListTyOk — in
 the twin's order, at a level-monomorphic constant whose type is a `∀`. -/
-theorem stringOfListTyOk_forallE {c : ConstantInfo} {D B : Expr}
-    {m : BinderMeta} (hl : c.toConstantVal.levelParams.isEmpty = true)
-    (ht : c.toConstantVal.type = .forallE D B m) :
+theorem stringOfListTyOk_forallE {c : ConstantInfo} {D B : Expr} (hl : c.toConstantVal.levelParams.isEmpty = true)
+    (ht : c.toConstantVal.type = .forallE D B) :
     ConLeche.stringOfListTyOk (some c) =
       (D == .app (.const ConLeche.listName [.zero]) (.const ConLeche.charName [])
         && B == .const ConLeche.stringName []) := by

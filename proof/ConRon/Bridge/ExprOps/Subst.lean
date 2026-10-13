@@ -422,11 +422,11 @@ theorem instantiateList_of_bvarBound_le {ws : List Expr} :
     intro d h
     simp only [Expr.bvarBound, Nat.max_le] at h
     rw [Expr.instantiateList, ihf d h.1, iha d h.2]
-  | lam ty b m iht ihb =>
+  | lam ty b iht ihb =>
     intro d h
     simp only [Expr.bvarBound, Nat.max_le] at h
     rw [Expr.instantiateList, iht d h.1, ihb (d + 1) (by omega)]
-  | forallE ty b m iht ihb =>
+  | forallE ty b iht ihb =>
     intro d h
     simp only [Expr.bvarBound, Nat.max_le] at h
     rw [Expr.instantiateList, iht d h.1, ihb (d + 1) (by omega)]
@@ -457,11 +457,11 @@ theorem liftLooseBVars_of_bvarBound_le {amount : Nat} :
     intro c h
     simp only [Expr.bvarBound, Nat.max_le] at h
     rw [Expr.liftLooseBVars, ihf c h.1, iha c h.2]
-  | lam ty b m iht ihb =>
+  | lam ty b iht ihb =>
     intro c h
     simp only [Expr.bvarBound, Nat.max_le] at h
     rw [Expr.liftLooseBVars, iht c h.1, ihb (c + 1) (by omega)]
-  | forallE ty b m iht ihb =>
+  | forallE ty b iht ihb =>
     intro c h
     simp only [Expr.bvarBound, Nat.max_le] at h
     rw [Expr.liftLooseBVars, iht c h.1, ihb (c + 1) (by omega)]
@@ -737,14 +737,13 @@ theorem InstLAt.app_step {ws : List Expr} {d : Nat} {h f a rf ra r : EIdx}
     (fun _ _ => by rw [Expr.instantiateList]) ((hf.ext hx2).ext hx3)
     ((ha.of_ext hx1).ext hx3) hr
 
-theorem InstLAt.bind_step {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} {tg : UInt32} (hwf : StoreWF st)
+theorem InstLAt.bind_step {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx} {tg : UInt32} (hwf : StoreWF st)
     (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b m))
+    (hview : st.view h = some (eBindView tg ty b))
     (hx1 : Ext st s1) (ht : InstLAt ws d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLAt ws (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     InstLAt ws d st h s3 r := by
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
@@ -758,13 +757,13 @@ theorem InstLAt.bind_step {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx}
       ((ht.ext hx2).ext hx3) ((hb.of_ext hx1).ext hx3) hr
 
 theorem InstLAt.bind_step' {ws : List Expr} {d : Nat} {h ty b rt rb r : EIdx}
-    {mi : BMIdx} {m : BinderMeta} {tg : UInt32} (hwf : StoreWF st)
+    {mi : BMIdx} {tg : UInt32} (hwf : StoreWF st)
     (htg : ETag.isBind tg = true) (htg2 : tg = h.tag)
     (hvb : some (ty, b, mi) = st.viewBindI h) (hbm : st.viewBM mi = some m)
     (hx1 : Ext st s1) (ht : InstLAt ws d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLAt ws (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     InstLAt ws d st h s3 r := by
   refine InstLAt.bind_step hwf htg ?_ hx1 ht hx2 hb hx3 hr
   rw [htg2] at htg ⊢
@@ -822,24 +821,22 @@ theorem LiftAt.app_step {amount c : Nat} {h f a rf ra r : EIdx}
   RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
     ((ha.of_ext hx1).ext hx3) hr
 
-theorem LiftAt.lam_step {amount c : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b m))
+theorem LiftAt.lam_step {amount c : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.lam ty b))
     (hx1 : Ext st s1) (ht : LiftAt amount c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : LiftAt amount (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
     LiftAt amount c st h s3 r :=
   RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
 
-theorem LiftAt.forallE_step {amount c : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
+theorem LiftAt.forallE_step {amount c : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.forallE ty b))
     (hx1 : Ext st s1) (ht : LiftAt amount c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : LiftAt amount (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
     LiftAt amount c st h s3 r :=
   RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
@@ -878,24 +875,22 @@ theorem LowerAt.app_step {amount c : Nat} {h f a rf ra r : EIdx}
   RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
     ((ha.of_ext hx1).ext hx3) hr
 
-theorem LowerAt.lam_step {amount c : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b m))
+theorem LowerAt.lam_step {amount c : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.lam ty b))
     (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
     LowerAt amount c st h s3 r :=
   RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
 
-theorem LowerAt.forallE_step {amount c : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
+theorem LowerAt.forallE_step {amount c : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.forallE ty b))
     (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
     LowerAt amount c st h s3 r :=
   RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
@@ -934,24 +929,22 @@ theorem Inst1LAt.app_step {ve : Expr} {d : Nat} {h f a rf ra r : EIdx}
   RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
     ((ha.of_ext hx1).ext hx3) hr
 
-theorem Inst1LAt.lam_step {ve : Expr} {d : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b m))
+theorem Inst1LAt.lam_step {ve : Expr} {d : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.lam ty b))
     (hx1 : Ext st s1) (ht : Inst1LAt ve d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Inst1LAt ve (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
     Inst1LAt ve d st h s3 r :=
   RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
 
-theorem Inst1LAt.forallE_step {ve : Expr} {d : Nat} {h ty b rt rb r : EIdx}
-    {m : BinderMeta} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b m))
+theorem Inst1LAt.forallE_step {ve : Expr} {d : Nat} {h ty b rt rb r : EIdx} (hwf : StoreWF st)
+    (hview : st.view h = some (.forallE ty b))
     (hx1 : Ext st s1) (ht : Inst1LAt ve d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Inst1LAt ve (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
     Inst1LAt ve d st h s3 r :=
   RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
@@ -1022,23 +1015,23 @@ theorem LowerAt.app_stepV {amount c : Nat} {st s1 s2 s3 : EStore}
 
 /-- con-leche: none — the `lam` arm, view first. -/
 theorem LowerAt.lam_stepV {amount c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hview : st.view h = some (.lam ty b m)) (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx}
+    (hview : st.view h = some (.lam ty b)) (hwf : StoreWF st)
     (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
     LowerAt amount c st h s3 r :=
   LowerAt.lam_step hwf hview hx1 ht hx2 hb hx3 hr
 
 /-- con-leche: none — the `forallE` arm, view first. -/
 theorem LowerAt.forallE_stepV {amount c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hview : st.view h = some (.forallE ty b m)) (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx}
+    (hview : st.view h = some (.forallE ty b)) (hwf : StoreWF st)
     (hx1 : Ext st s1) (ht : LowerAt amount c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : LowerAt amount (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
     LowerAt amount c st h s3 r :=
   LowerAt.forallE_step hwf hview hx1 ht hx2 hb hx3 hr
 
@@ -1077,23 +1070,23 @@ theorem Inst1LAt.app_stepV {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
 
 /-- con-leche: none — the `lam` arm, view first. -/
 theorem Inst1LAt.lam_stepV {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hview : st.view h = some (.lam ty b m)) (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx}
+    (hview : st.view h = some (.lam ty b)) (hwf : StoreWF st)
     (hx1 : Ext st s1) (ht : Inst1LAt ve d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Inst1LAt ve (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
     Inst1LAt ve d st h s3 r :=
   Inst1LAt.lam_step hwf hview hx1 ht hx2 hb hx3 hr
 
 /-- con-leche: none — the `forallE` arm, view first. -/
 theorem Inst1LAt.forallE_stepV {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hview : st.view h = some (.forallE ty b m)) (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx}
+    (hview : st.view h = some (.forallE ty b)) (hwf : StoreWF st)
     (hx1 : Ext st s1) (ht : Inst1LAt ve d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Inst1LAt ve (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
     Inst1LAt ve d st h s3 r :=
   Inst1LAt.forallE_step hwf hview hx1 ht hx2 hb hx3 hr
 
@@ -1402,7 +1395,6 @@ structure LiftSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c cc
     ⦃fun r s' => StateOK s' ∧ LiftMemoA amount s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
         LiftAt amount cc s₁.store c s'.store r; ⊤⦄
@@ -1442,7 +1434,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     all_goals (bridge_peel; subst_vars)
     -- the derived-word cutoff
     case vc1 =>
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
         LiftAt.cutoff hok.wf (by grind) (by grind)⟩
     -- `bvar`, the branch that interns the lifted index
     case vc2 =>
@@ -1451,17 +1443,17 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
         by rw [hmem], LiftAt.bvar_up hok.wf (by subst_hyp) (by subst_hyp) hrr⟩
     -- `bvar`, the branch below the cutoff
     case vc5 =>
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
         LiftAt.bvar_self hok.wf (by subst_hyp) (by subst_hyp)⟩
     -- the four leaves
     case vc6 | vc7 | vc8 | vc9 =>
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl, rfl,
         RelE.leaf_view hok.wf (by subst_hyp) (fun _ hh => liftLooseBVars_leaf hh)
           (by grind)⟩
     -- `app`: the arm's postcondition, then the memo insert's answer
     case vc11 =>
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     case vc14 =>
@@ -1471,7 +1463,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     -- `lam`: the arm's postcondition, then the memo insert's answer
     case vc24 =>
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.lam_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     case vc27 =>
@@ -1481,7 +1473,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     -- `forallE`: the arm's postcondition, then the memo insert's answer
     case vc37 =>
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.forallE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     case vc40 =>
@@ -1491,7 +1483,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
     -- `letE`: the arm's postcondition, then the memo insert's answer
     case vc50 =>
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
     case vc53 =>
@@ -1503,7 +1495,7 @@ theorem liftLooseBVarsGo_spec (amount : Nat) :
       obtain ⟨nm, es, _, hn0, _⟩ :=
         denote_eq_proj hok.wf (h := h) (by subst_hyp) hden
       refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-        by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.trans],
         by grind, by grind, by grind, ?_⟩
       exact LiftAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
     case vc69 =>
@@ -1519,7 +1511,6 @@ theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ liftLooseBVarsFast fuel amount c e
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.liftC = ∅ ∧ s'.memos.inst1LC = s₀.memos.inst1LC ∧
         LiftAt amount c s₀.store e s'.store r; ⊤⦄ := by
@@ -1586,7 +1577,6 @@ structure LowerSpec (amount : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
     LowerMemoA amount s₁ → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c cc
     ⦃fun r s' => StateOK s' ∧ LowerMemoA amount s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         LowerAt amount cc s₁.store c s'.store r; ⊤⦄
 
@@ -1627,7 +1617,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     -- the `bvarB` cutoff, which is con-leche's own
     case vc1 =>
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.refl],
         by grind, by grind, ?_⟩
       exact RelE.tgt_eq (by subst_hyp)
         (LowerAt.cutoff (by subst_hyp) (by subst_hyp))
@@ -1635,22 +1625,21 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     case vc2 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (LowerAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp)
           (by subst_hyp))
     -- `bvar`, inside the window
     case vc5 =>
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.refl],
         by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (LowerAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp))
     -- the four leaves
     case vc6 | vc7 | vc8 | vc9 =>
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.refl],
         by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
@@ -1660,8 +1649,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     case vc11 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc14 =>
       exact RelE.retarget (LowerAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1669,8 +1657,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     case vc24 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc27 =>
       exact RelE.retarget (LowerAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1678,8 +1665,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     case vc37 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc40 =>
       exact RelE.retarget (LowerAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1687,8 +1673,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
     case vc50 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc53 =>
       exact RelE.retarget (LowerAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1698,8 +1683,7 @@ theorem lowerBVarsGo_spec (amount : Nat) :
         denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (LowerAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
     case vc69 =>
       obtain ⟨nm, es, _, hn0, _⟩ :=
@@ -1716,7 +1700,6 @@ structure Inst1LSpec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
     (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Inst1LMemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1LAt ve dd s₁.store c s'.store r; ⊤⦄
 
@@ -1757,7 +1740,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     -- the `bvarB` cutoff, which is con-leche's own
     case vc1 =>
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.refl],
         by grind, by grind, ?_⟩
       exact RelE.tgt_eq (by subst_hyp)
         (Inst1LAt.cutoff (by subst_hyp) (by subst_hyp))
@@ -1765,8 +1748,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc2 =>
       rename_i hans _ _ _ _ _ _ _ _
       refine ⟨by assumption, by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_substV (by subst_hyp) (by subst_hyp) (by subst_hyp)
           (hans ve (by grind)))
@@ -1774,15 +1756,14 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc5 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_downV (by subst_hyp) (by subst_hyp) (by subst_hyp)
           (by subst_hyp) (by subst_hyp))
     -- `bvar`, below the cursor
     case vc8 =>
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.refl],
         by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (Inst1LAt.bvar_selfV (by subst_hyp) (by subst_hyp) (by subst_hyp)
@@ -1790,7 +1771,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     -- the four leaves
     case vc9 | vc10 | vc11 | vc12 =>
       refine ⟨by subst_hyp, by grind only [MemoOK.mono, Ext.refl],
-        by grind only [Ext.refl], by grind only [BMExt.trans, BMExt.refl],
+        by grind only [Ext.refl],
         by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp)
         (RelE.leaf_viewV (by subst_hyp) (by subst_hyp)
@@ -1800,8 +1781,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc14 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc17 =>
       exact RelE.retarget (Inst1LAt.app_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1809,8 +1789,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc29 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc32 =>
       exact RelE.retarget (Inst1LAt.lam_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1818,8 +1797,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc44 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc47 =>
       exact RelE.retarget (Inst1LAt.forallE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1827,8 +1805,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     case vc59 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
     case vc62 =>
       exact RelE.retarget (Inst1LAt.letE_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp))
@@ -1838,8 +1815,7 @@ theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
         denote_eq_projV (h := h) (by subst_hyp) (by subst_hyp) (by grind)
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind only [MemoOK.mono, Ext.trans, Ext.refl],
-        by grind only [Ext.trans, Ext.refl],
-        by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        by grind only [Ext.trans, Ext.refl], by grind, by grind, ?_⟩
       exact RelE.src_eq (by subst_hyp) (Inst1LAt.proj_stepV (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0)
     case vc81 =>
       obtain ⟨nm, es, _, hn0, _⟩ :=
@@ -1854,7 +1830,6 @@ theorem lowerBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ lowerBVarsFast fuel amount c e
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.lowerC = ∅ ∧ LowerAt amount c s₀.store e s'.store r; ⊤⦄ := by
   have hr := (lowerBVarsGo_spec amount fuel).run
@@ -1882,7 +1857,6 @@ theorem instantiate1LiftFast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instantiate1LiftFast fuel e v d
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1LC = ∅ ∧ Inst1LAt ve d s₀.store e s'.store r; ⊤⦄ := by
   have hr := (instantiate1LiftGo_spec v ve fuel).run
@@ -1908,9 +1882,8 @@ theorem instantiate1LiftFast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
 the nested `instantiate1LiftFast`, and the rest of the list consumed by the
 recursion.  Stated as one lemma so that the walk's one structural
 verification condition is a single `exact`. -/
-theorem RelEO.instPisAtLift_cons {st s1 s2 : EStore} {c ty body r1 : EIdx}
-    {m : BinderMeta} {r : Option EIdx} {ea : Expr} {eas : List Expr}
-    (hwf : StoreWF st) (hview : st.view c = some (.forallE ty body m))
+theorem RelEO.instPisAtLift_cons {st s1 s2 : EStore} {c ty body r1 : EIdx} {r : Option EIdx} {ea : Expr} {eas : List Expr}
+    (hwf : StoreWF st) (hview : st.view c = some (.forallE ty body))
     (h1 : Inst1LAt ea 0 st body s1 r1)
     (h2 : RelEO (fun e => Expr.instPisAtLift eas e) s1 r1 s2 r) :
     RelEO (fun e => Expr.instPisAtLift (ea :: eas) e) st c s2 r := by
@@ -1923,7 +1896,7 @@ step at a NON-`∀` head: con-leche's own catch-all clause answers `none`, and
 so does the twin. -/
 theorem RelEO.instPisAtLift_none {st st' : EStore} (hwf : StoreWF st)
     {c : EIdx} {vw : ENodeView} (hview : st.view c = some vw)
-    (hne : ∀ ty b m, vw ≠ .forallE ty b m) {ea : Expr} {eas : List Expr} :
+    (hne : ∀ ty b m, vw ≠ .forallE ty b) {ea : Expr} {eas : List Expr} :
     RelEO (fun e => Expr.instPisAtLift (ea :: eas) e) st c st' none := by
   intro e he
   rw [denoteE_view_eq hwf hview] at he
@@ -1952,7 +1925,6 @@ theorem instPisAtLift_spec (fuel : Nat) :
       (denoteE s₀.store c).isSome = true →
       ⦃fun s => s = s₀⦄ instPisAtLift fuel args c
       ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-          BMExt s₀.store s'.store ∧
           s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
           ∀ xs, Frontend.denoteEList s₀.store args = some xs →
             RelEO (fun e => Expr.instPisAtLift xs e) s₀.store c s'.store r; ⊤⦄ := by
@@ -1983,8 +1955,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
         subst_vars
         tf_views
         rename_i hans _ _ _
-        refine ⟨by assumption, by grind only [Ext.trans],
-          by grind only [BMExt.trans, BMExt.refl], by grind, by grind, ?_⟩
+        refine ⟨by assumption, by grind only [Ext.trans], by grind, by grind, ?_⟩
         intro xs hxs
         simp only [Frontend.denoteEList, hea, heas] at hxs
         obtain rfl := Option.some.inj hxs
@@ -2000,7 +1971,7 @@ theorem instPisAtLift_spec (fuel : Nat) :
         bridge_peel
         subst_vars
         tf_views
-        refine ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, ?_⟩
+        refine ⟨hok, Ext.refl _, rfl, rfl, ?_⟩
         intro xs hxs
         simp only [Frontend.denoteEList, hea, heas] at hxs
         obtain rfl := Option.some.inj hxs
@@ -2054,7 +2025,6 @@ structure InstLPureSpec (vs : Array EIdx) (ws : List Expr)
     InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄
 
@@ -2067,7 +2037,6 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.app) = true) :
     ⦃fun s => s = s₁⦄ instListArmApp vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2079,8 +2048,7 @@ theorem instListArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   next =>
     bridge_peel
     subst_vars
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
     exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
 
@@ -2094,7 +2062,6 @@ theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : ETag.isBind c.tag = true) :
     ⦃fun s => s = s₁⦄ instListArmBind vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2105,8 +2072,7 @@ theorem instListArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     view_of_viewBindI_wf hok.wf (i := c) htg (by subst_hyp)
   -- the arm's postcondition, through `internBindIE`'s answer
   case vc1 =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
     refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) ?_
@@ -2133,7 +2099,6 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.letE) = true) :
     ⦃fun s => s = s₁⦄ instListArmLet vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2142,8 +2107,7 @@ theorem instListArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   next =>
     bridge_peel
     subst_vars
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
     exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp)
@@ -2158,7 +2122,6 @@ theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.proj) = true) :
     ⦃fun s => s = s₁⦄ instListArmProj vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2170,8 +2133,7 @@ theorem instListArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     obtain ⟨nm, es, _, hn0, _⟩ :=
       denote_eq_proj hok.wf (h := c)
         (view_of_viewProj_tag htg (by subst_hyp)) hden
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
     exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
 
@@ -2190,7 +2152,6 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.bvar) = true) :
     ⦃fun s => s = s₁⦄ instListArmBVar vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧ s'.memos = s₁.memos ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := fun (m : Nat) => (ih m).run
@@ -2200,12 +2161,12 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   all_goals (bridge_peel; subst_vars)
   -- `j < d`: a bound variable of the term itself.
   next =>
-    exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+    exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
       InstLAt.bvar_below hok.wf
         (view_of_viewBVar_tag (by subst_hyp) (by subst_hyp)) (by subst_hyp)⟩
   -- in range, the twin's HOISTED cutoff firing at the replacement.
   next =>
-    exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+    exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
       InstLAt.bvar_cutV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
         (by subst_hyp) (by grind) (by grind)⟩
   -- in range, con-leche's own recursion into the replacement at the SHORTER
@@ -2220,8 +2181,7 @@ theorem instListArmBVar_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     exact InstLVec.isSome_get hvec (by subst_hyp)
   -- out of range: the index drops by the vector's length.
   next =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans],
-      by grind only [BMExt.trans, BMExt.refl], by grind, by grind, by grind, ?_⟩
+    refine ⟨by grind only [StateOK, StateOK.mk], by grind only [Ext.trans], by grind, by grind, by grind, ?_⟩
     exact InstLAt.bvar_aboveV hok.wf hvec htg (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp)
 
@@ -2268,14 +2228,14 @@ theorem instantiateList_spec :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
         InstLAt.cutoff hok.wf (by grind) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
       obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
       obtain ⟨vw, hvw⟩ := denoteE_view he0
-      exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+      exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
         InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
           (by grind)⟩
 
@@ -2293,7 +2253,6 @@ structure InstLSpec (vs : Array EIdx) (ws : List Expr)
     InstLVec s₁.store vs ws → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄
 
@@ -2307,7 +2266,6 @@ theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.app) = true) :
     ⦃fun s => s = s₁⦄ instListGoArmApp vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2318,7 +2276,7 @@ theorem instListGoArmApp_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   -- the arm's postcondition, then the memo insert's answer
   next =>
     refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact InstLAt.app_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
@@ -2340,7 +2298,6 @@ theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : ETag.isBind c.tag = true) :
     ⦃fun s => s = s₁⦄ instListGoArmBind vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2353,7 +2310,7 @@ theorem instListGoArmBind_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   -- the arm's postcondition, then the memo insert's answer
   case vc2 =>
     refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     refine InstLAt.bind_step' hok.wf htg rfl (by subst_hyp) hbm
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
@@ -2389,7 +2346,6 @@ theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.letE) = true) :
     ⦃fun s => s = s₁⦄ instListGoArmLet vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2400,7 +2356,7 @@ theorem instListGoArmLet_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   -- the arm's postcondition, then the memo insert's answer
   next =>
     refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact InstLAt.letE_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) (by subst_hyp)
@@ -2423,7 +2379,6 @@ theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
     (htg : (c.tag == ETag.proj) = true) :
     ⦃fun s => s = s₁⦄ instListGoArmProj vs fuel c dd
     ⦃fun r s' => StateOK s' ∧ InstLMemoA ws s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         InstLAt ws dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -2438,7 +2393,7 @@ theorem instListGoArmProj_spec (vs : Array EIdx) (ws : List Expr) (fuel : Nat)
   -- the arm's postcondition, then the memo insert's answer
   next =>
     refine ⟨by grind only [StateOK, StateOK.mk], by subst_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact InstLAt.proj_step hok.wf (by subst_hyp) (by subst_hyp) (by subst_hyp)
       (by subst_hyp) (by subst_hyp) (by subst_hyp) hn0
@@ -2478,14 +2433,14 @@ theorem instantiateListGo_spec (vs : Array EIdx) (ws : List Expr) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
         InstLAt.cutoff hok.wf (by grind) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
       obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hden
       obtain ⟨vw, hvw⟩ := denoteE_view he0
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
         InstLAt.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
           (by grind)⟩
 
@@ -2497,7 +2452,6 @@ theorem instantiateListFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instantiateListFast fuel e vs d
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.instLC = ∅ ∧ InstLAt ws d s₀.store e s'.store r; ⊤⦄ := by
   have hr := (instantiateListGo_spec vs ws fuel).run

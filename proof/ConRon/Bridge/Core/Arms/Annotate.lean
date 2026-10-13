@@ -201,9 +201,9 @@ theorem annotateBody_binders_batched {fe : IFEnv} {fuel : Nat}
     have hdb1 := denote_ext hdb hx1
     have hfin : ∀ r s', (CheckOK mode env fe s' ∧ Ext s1.store s'.store ∧
         s'.pins = s1.pins ∧
-        SimE (ConLeche.annotateCore mode env) d (.lam et eb m) s'.store r) →
+        SimE (ConLeche.annotateCore mode env) d (.lam et eb) s'.store r) →
         (CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d (.lam et eb m) s'.store r) :=
+        SimE (ConLeche.annotateCore mode env) d (.lam et eb) s'.store r) :=
       fun r s' ⟨h1, h2, h3, h4⟩ => ⟨h1, hx1.trans h2, h3.trans hp1, h4⟩
     split
     next => exact triple_mono (annotateLamLoop_spec hsim s1 d ty b m et eb hok1
@@ -239,8 +239,8 @@ theorem view_app_of_denote {st : EStore} (hwf : StoreWF st) {i f a : EIdx}
   | sort u => obtain ⟨_, h, _⟩ := denote_sort_inv hwf hw hi; cases h
   | const n us => obtain ⟨_, _, h, _⟩ := denote_const_inv hwf hw hi; cases h
   | lit l => cases denote_lit_inv hwf hw hi
-  | lam ty b m => obtain ⟨_, _, h, _⟩ := denote_lam_inv hwf hw hi; cases h
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨_, _, h, _⟩ := denote_lam_inv hwf hw hi; cases h
+  | forallE ty b =>
     obtain ⟨_, _, h, _⟩ := denote_forallE_inv hwf hw hi; cases h
   | letE ty v b => obtain ⟨_, _, _, h, _⟩ := denote_letE_inv hwf hw hi; cases h
   | proj n k sub => obtain ⟨_, _, h, _⟩ := denote_proj_inv hwf hw hi; cases h
@@ -650,9 +650,9 @@ theorem annotateBody_leaf {fe : IFEnv} {fuel : Nat}
   | lit l => exact absurd htg hnl
   | letE ty w b => exact absurd htg hne
   | proj n k sub => exact absurd htg hnp
-  | lam ty b m =>
+  | lam ty b =>
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
-  | forallE ty b m =>
+  | forallE ty b =>
     rw [htg] at hnb; simp [ENodeView.tagOf, ETag.isBind] at hnb
   | bvar k =>
     obtain rfl := denote_bvar_inv hwf hv hden

@@ -218,7 +218,7 @@ theorem etaCertFueled_nf {F d : Nat} {t x : Expr} {m₁ : BinderMeta} {y : Expr}
     {tb w : Expr}
     (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
     (h2 : ConLeche.whnf mode env F d tb = .ok w)
-    (hw : ∀ p q m, w ≠ .forallE p q m) :
+    (hw : ∀ p q m, w ≠ .forallE p q) :
     ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
   have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok w := h2

@@ -126,8 +126,8 @@ theorem denote_not_sort {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => exact absurd rfl (hne u)
   | const n us => obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
@@ -145,8 +145,8 @@ theorem denote_not_lam {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b m => exact absurd rfl (hne ty b m)
-  | forallE ty b m =>
+  | lam ty b => exact absurd rfl (hne ty b m)
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
@@ -165,8 +165,8 @@ theorem denote_not_app' {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => exact absurd rfl (hne f a)
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
@@ -198,8 +198,8 @@ theorem denote_not_fvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
@@ -570,7 +570,7 @@ theorem headTypePW_spec' (s₀ : AState) (h : EIdx) (n : Nat)
 /-- con-leche: ConLeche/Kernel/PropRead.lean:92-103 typeSortPW — the last
 arm: neither a ∀ nor a sort reads its head. -/
 theorem typeSortPW_other {find? : ConLeche.Name → Option ConstantInfo}
-    {x : Expr} (hf : ∀ p q m, x ≠ .forallE p q m) (hs : ∀ l, x ≠ .sort l) :
+    {x : Expr} (hf : ∀ p q m, x ≠ .forallE p q) (hs : ∀ l, x ≠ .sort l) :
     ConLeche.typeSortPW find? x =
       ConLeche.headTypePW find? x.getAppFn x.numArgs := by
   cases x <;> first
@@ -750,8 +750,8 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
     | sort u => exact absurd rfl (h3 u)
     | const c us => exact absurd rfl (h1 c us)
     | app f a => obtain ⟨_, _, rfl, _, _⟩ := denote_app_inv hwf hview hx; rfl
-    | lam ty b m => obtain ⟨_, _, rfl, _, _⟩ := denote_lam_inv hwf hview hx; rfl
-    | forallE ty b m => exact absurd rfl (h4 ty b m)
+    | lam ty b => obtain ⟨_, _, rfl, _, _⟩ := denote_lam_inv hwf hview hx; rfl
+    | forallE ty b => exact absurd rfl (h4 ty b m)
     | letE ty w b =>
       obtain ⟨_, _, _, rfl, _, _, _⟩ := denote_letE_inv hwf hview hx; rfl
     | lit l => exact absurd rfl (h5 l)
@@ -761,7 +761,7 @@ theorem headProofPW_spec' (fuel : Nat) (s₀ : AState) (h : EIdx)
 /-- con-leche: ConLeche/Kernel/PropRead.lean:124-134 proofPW — the last arm:
 anything but a λ reads its head. -/
 theorem proofPW_other {find? : ConLeche.Name → Option ConstantInfo}
-    {x : Expr} (hl : ∀ p q m, x ≠ .lam p q m) :
+    {x : Expr} (hl : ∀ p q m, x ≠ .lam p q) :
     ConLeche.proofPW find? x = ConLeche.headProofPW find? x.getAppFn := by
   cases x <;> first
     | rfl

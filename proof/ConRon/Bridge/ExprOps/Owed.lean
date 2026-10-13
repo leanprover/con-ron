@@ -117,7 +117,6 @@ theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ abstract1Fast fuel e d k
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.abs1C = ∅ ∧
         RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r; ⊤⦄ := by
   have hr := (abstract1Go_spec hfv d fuel).run
@@ -385,7 +384,6 @@ theorem abstractRangeGo_spec (hfv : FvarBSpec) (d k : Nat) (fuel : Nat)
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => s = s₀⦄ abstractRangeGo d k fuel c cur
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r; ⊤⦄ := by
   have hr := (abstractRangeGo_specS hfv d k fuel).run
@@ -408,7 +406,6 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ abstractRangeFast fuel e d k c
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (s'.memos.abs1C = ∅ ∨ s' = s₀) ∧
         RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r; ⊤⦄ := by
@@ -421,7 +418,7 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
   all_goals
     (bridge_peel
      subst_vars
-     refine ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, Or.inr rfl, ?_⟩
+     refine ⟨hok, Ext.refl _, rfl, rfl, Or.inr rfl, ?_⟩
      intro x hx
      rw [hx]
      simp only [abstractRange_zero_eq])
@@ -535,8 +532,8 @@ theorem InstLPAt.app_step {ks : List ConLeche.Name} {us : List Level}
 the `lam` arm, whose binder prop-ness DATUM is substituted too (con-leche's
 task #161, and the arena's `m2`). -/
 theorem InstLPAt.lam_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.lam ty b m))
+    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
+    (hwf : StoreWF st) (hview : st.view h = some (.lam ty b))
     (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLPAt ks us s1 b s2 rb)
     (hx3 : Ext s2 s3)
@@ -549,8 +546,8 @@ theorem InstLPAt.lam_step {ks : List ConLeche.Name} {us : List Level}
 /-- con-leche: ConLeche/Kernel/Level.lean:243-245 Expr.instantiateLevelParams —
 and the `forallE` arm. -/
 theorem InstLPAt.forallE_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty b m))
+    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
+    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty b))
     (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLPAt ks us s1 b s2 rb)
     (hx3 : Ext s2 s3)
@@ -604,7 +601,6 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
     ⦃fun s => s = s₁⦄ rec h
     ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -645,16 +641,16 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     -- two LEVEL arms added.
     -- the `hasLP` cutoff
     next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.cutoff hok.wf (by grind)⟩
     -- `bvar`, `lit`
     next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     -- `sort`: the LEVEL arm, `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
@@ -804,7 +800,6 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => s = s₀⦄ instLPGo ks us fuel c
     ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -901,7 +896,6 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instLPFast fuel ks us e
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         ReadNCacheOK s'.caches.readNC s'.store ∧
@@ -923,7 +917,7 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
   next =>
     bridge_peel
     subst_vars
-    exact ⟨hok, Ext.refl _, BMExt.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
+    exact ⟨hok, Ext.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
       InstLPAt.cutoff hok.wf (by grind)⟩
 
 /-! ## The axiom check -/

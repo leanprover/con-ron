@@ -50,7 +50,7 @@ theorem viewBind_of_lam_tag {st : EStore} (hwf : StoreWF st) {v : EIdx}
   obtain ⟨w, hw⟩ := denoteE_view hd
   have htw := EStore.tagOf_of_view hw
   cases w with
-  | lam ty b m =>
+  | lam ty b =>
     obtain ⟨et, eb, rfl, h1, h2⟩ := denote_lam_inv hwf hw hd
     have hb : ETag.isBind v.tag = true := by rw [htg]; decide
     refine ⟨ty, b, m, et, eb, ?_, rfl, h1, h2⟩

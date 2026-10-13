@@ -180,8 +180,8 @@ theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hd; rfl
   | const n us => obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hd; rfl
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv hd; rfl
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv hd; rfl
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv hd; rfl
@@ -327,10 +327,10 @@ inductive VD (st : EStore) : ENodeView → Expr → Prop
       VD st (.app f a) (.app ef ea)
   | lam (ty b : EIdx) (m : ConLeche.BinderMeta) (et eb : Expr) :
       denoteE st ty = some et → denoteE st b = some eb →
-      VD st (.lam ty b m) (.lam et eb m)
+      VD st (.lam ty b) (.lam et eb)
   | forallE (ty b : EIdx) (m : ConLeche.BinderMeta) (et eb : Expr) :
       denoteE st ty = some et → denoteE st b = some eb →
-      VD st (.forallE ty b m) (.forallE et eb m)
+      VD st (.forallE ty b) (.forallE et eb)
   | letE (ty w b : EIdx) (et ew eb : Expr) :
       denoteE st ty = some et → denoteE st w = some ew →
       denoteE st b = some eb → VD st (.letE ty w b) (.letE et ew eb)
@@ -356,10 +356,10 @@ theorem VD.of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | app f a =>
     obtain ⟨p, q, rfl, hp, hq⟩ := denote_app_inv hwf hv hd
     exact .app f a p q hp hq
-  | lam ty b m =>
+  | lam ty b =>
     obtain ⟨p, q, rfl, hp, hq⟩ := denote_lam_inv hwf hv hd
     exact .lam ty b m p q hp hq
-  | forallE ty b m =>
+  | forallE ty b =>
     obtain ⟨p, q, rfl, hp, hq⟩ := denote_forallE_inv hwf hv hd
     exact .forallE ty b m p q hp hq
   | letE ty w b =>

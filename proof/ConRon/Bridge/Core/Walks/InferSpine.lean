@@ -36,10 +36,9 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-- con-leche: none — a `viewBind` read at a handle tagged `.forallE` is the
 handle's `view`. -/
-theorem view_of_viewBind_forallE {st : EStore} {i ty b : EIdx}
-    {m : BinderMeta} (htg : (i.tag == ETag.forallE) = true)
+theorem view_of_viewBind_forallE {st : EStore} {i ty b : EIdx} (htg : (i.tag == ETag.forallE) = true)
     (h : st.viewBind i = some (ty, b, m)) :
-    st.view i = some (.forallE ty b m) := by
+    st.view i = some (.forallE ty b) := by
   have htg' : i.tag = ETag.forallE := by simpa using htg
   have hb : ETag.isBind i.tag = true := by rw [htg']; decide
   unfold EStore.view
@@ -103,7 +102,7 @@ theorem inferSpine_pi_step {F d : Nat} {dom body x ta : Expr}
 normalise-and-retry step, certificate passed. -/
 theorem inferSpine_whnf_step {F d : Nat} {ty dom body x ta : Expr}
     {mt : BinderMeta} {ws xs : List Expr}
-    (hne : ∀ p q m, ty ≠ .forallE p q m)
+    (hne : ∀ p q m, ty ≠ .forallE p q)
     (hw : ConLeche.whnf mode env F d (ty.instantiateList ws)
       = .ok (.forallE dom body mt))
     (hi : ConLeche.inferTypeCore mode env F d x = .ok ta)
@@ -150,7 +149,7 @@ theorem inferSpineIO_pi_cert {F d : Nat} {dom body x ta : Expr}
 normalise-and-retry step at a licensed binder. -/
 theorem inferSpineIO_whnf_skip {F d : Nat} {ty dom body x : Expr}
     {mt : BinderMeta} {ws xs : List Expr}
-    (hne : ∀ p q m, ty ≠ .forallE p q m)
+    (hne : ∀ p q m, ty ≠ .forallE p q)
     (hw : ConLeche.whnf mode env F d (ty.instantiateList ws)
       = .ok (.forallE dom body mt))
     (hn : mt.pw.isNever = true) :
@@ -166,7 +165,7 @@ theorem inferSpineIO_whnf_skip {F d : Nat} {ty dom body x : Expr}
 normalise-and-retry step, certificate run and passed. -/
 theorem inferSpineIO_whnf_cert {F d : Nat} {ty dom body x ta : Expr}
     {mt : BinderMeta} {ws xs : List Expr}
-    (hne : ∀ p q m, ty ≠ .forallE p q m)
+    (hne : ∀ p q m, ty ≠ .forallE p q)
     (hw : ConLeche.whnf mode env F d (ty.instantiateList ws)
       = .ok (.forallE dom body mt))
     (hn : mt.pw.isNever = false)

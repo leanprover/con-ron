@@ -262,8 +262,8 @@ theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => exact absurd rfl (hne n us)
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
@@ -598,8 +598,8 @@ theorem denote_not_app {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => obtain ⟨p, q, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => exact absurd rfl (hne f a)
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
@@ -620,8 +620,8 @@ theorem denote_not_forallE {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
   | const n us => obtain ⟨p, q, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b m => exact absurd rfl (hne ty b m)
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
+  | forallE ty b => exact absurd rfl (hne ty b m)
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
   | lit l => rw [denote_lit_inv hwf hv he]; simp

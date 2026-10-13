@@ -461,7 +461,7 @@ theorem inferLamResult_spec {fe : IFEnv} (s₀ : AState) (ty bt : EIdx) (d : Nat
   have hok1 := hok.mono hso1 hx1 hc1 hp1
   have hdab : denoteE s1.store ab = some (vbt.abstract1 d 0) := hrel vbt hdb
   have hdt1 := denote_ext hdt hx1
-  refine triple_mono (internE_spec s1 (.forallE ty ab m) hok1.state.wf
+  refine triple_mono (internE_spec s1 (.forallE ty ab) hok1.state.wf
     (viewOK_forallE (by rw [hdt1]; rfl) (by rw [hdab]; rfl))) ?_
   rintro r s2 ⟨hwf2, hx2, _, _, _, _, hc2, hp2, _, hd2⟩
   refine ⟨hok1.mono ⟨hwf2⟩ hx2 hc2 hp2, hx1.trans hx2, hp2.trans hp1, ?_⟩
@@ -937,8 +937,8 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
   | lit l => exact absurd htg hnl
   | const n us => exact absurd htg hnc
   | proj n k sub => exact absurd htg hnp
-  | lam ty b m => exact absurd htg hnm
-  | forallE ty b m => exact absurd htg hnf
+  | lam ty b => exact absurd htg hnm
+  | forallE ty b => exact absurd htg hnf
   | letE ty w b => vcgen
   | bvar k => vcgen
   | fvar k t =>

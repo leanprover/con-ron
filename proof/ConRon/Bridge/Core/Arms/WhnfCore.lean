@@ -236,7 +236,7 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat} (c : Bool)
   -- the value arms answer the handle itself
   have hval : (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
       (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
-      (∃ t b m, e = .lam t b m) ∨ (∃ t b m, e = .forallE t b m) →
+      (∃ t b m, e = .lam t b) ∨ (∃ t b m, e = .forallE t b) →
       SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e s₀.store i :=
     fun hs => ⟨e, hden, hw, 1, whnfCore_of_stuck hs 0 d⟩
   refine view_bind_triple hv ?_
@@ -261,11 +261,11 @@ theorem whnfCoreBody_leaf {fe : IFEnv} {fuel : Nat} (c : Bool)
     obtain rfl := denote_lit_inv hwf hv hden
     vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inl ⟨l, rfl⟩))))⟩
-  | lam ty b m =>
+  | lam ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_lam_inv hwf hv hden
     vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨et, eb, m, rfl⟩)))))⟩
-  | forallE ty b m =>
+  | forallE ty b =>
     obtain ⟨et, eb, rfl, _, _⟩ := denote_forallE_inv hwf hv hden
     vcgen; subst_vars
     exact ⟨hok, Ext.refl _, rfl, hval (Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨et, eb, m, rfl⟩)))))⟩

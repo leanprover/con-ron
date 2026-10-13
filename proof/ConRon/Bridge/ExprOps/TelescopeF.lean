@@ -151,18 +151,18 @@ residual-is-not-a-`∀` `false` clause. -/
 theorem recRulePlain_of_body_not_forallE {e e2 : Expr}
     {bs : List (Expr × BinderMeta)} {mI rP cnP : Nat}
     (h : Expr.stripPis mI e = some (bs, e2))
-    (h2 : ∀ ty b m, e2 ≠ Expr.forallE ty b m) :
+    (h2 : ∀ ty b m, e2 ≠ Expr.forallE ty b) :
     Expr.recRulePlain e mI rP cnP = false := by
   cases e2 with
-  | forallE ty b m => exact absurd rfl (h2 ty b m)
+  | forallE ty b => exact absurd rfl (h2 ty b m)
   | _ => simp [Expr.recRulePlain, h]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — the
 CANONICAL clause: the arity gate passes and the telescope strips to a `∀`. -/
 theorem recRulePlain_eq_beq {e edom ebody : Expr}
-    {bs : List (Expr × BinderMeta)} {m : BinderMeta} {mI rP cnP : Nat}
+    {bs : List (Expr × BinderMeta)} {mI rP cnP : Nat}
     (hle : (decide (cnP ≤ rP) && decide (rP ≤ mI)) = true)
-    (hsp : Expr.stripPis mI e = some (bs, .forallE edom ebody m)) :
+    (hsp : Expr.stripPis mI e = some (bs, .forallE edom ebody)) :
     Expr.recRulePlain e mI rP cnP =
       (edom.getAppArgs.take cnP ==
         (List.range cnP).map (fun k => Expr.bvar (mI - 1 - k))) := by
@@ -213,7 +213,7 @@ theorem recRulePlain_notPi {st : EStore} (hwf : StoreWF st) {recTy : EIdx}
     {erecTy : Expr} (hrecTy : denoteE st recTy = some erecTy)
     {p : List (EIdx × BinderMeta) × EIdx} {v : ENodeView} {mI rP cnP : Nat}
     (hstrip : RelBP (Expr.stripPis mI) st recTy st (some p))
-    (hview : st.view p.2 = some v) (hv : ∀ ty b m, v ≠ .forallE ty b m) :
+    (hview : st.view p.2 = some v) (hv : ∀ ty b m, v ≠ .forallE ty b) :
     RelV (fun x => Expr.recRulePlain x mI rP cnP) st recTy false := by
   intro e he
   rw [hrecTy] at he
@@ -254,10 +254,10 @@ literal) and `beq_of_denoteEList` (the twin's INDEX comparison is con-leche's
 structural one, by `denoteE_inj`). -/
 theorem recRulePlain_canonical {st : EStore} (hwf : StoreWF st)
     {recTy : EIdx} {erecTy : Expr} (hrecTy : denoteE st recTy = some erecTy)
-    {p : List (EIdx × BinderMeta) × EIdx} {dom body : EIdx} {m : BinderMeta}
+    {p : List (EIdx × BinderMeta) × EIdx} {dom body : EIdx}
     {args want : List EIdx} {mI rP cnP : Nat} {sA : AState}
     (hstrip : RelBP (Expr.stripPis mI) st recTy st (some p))
-    (hview : st.view p.2 = some (.forallE dom body m))
+    (hview : st.view p.2 = some (.forallE dom body))
     (hargs : RelEL Expr.getAppArgs st dom st args)
     (hwant : Frontend.denoteEList sA.store want = some (bvarRangeSpec mI cnP 0))
     (hx : Ext st sA.store) (hok1 : StateOK sA)
@@ -291,8 +291,7 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
     (mI rP cnP : Nat) (hok : StateOK s₀)
     (hden : (denoteE s₀.store recTy).isSome = true) :
     ⦃fun s => s = s₀⦄ recRulePlain fuel recTy mI rP cnP
-    ⦃fun b s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧ s'.memos = s₀.memos ∧
+    ⦃fun b s' => StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelV (fun x => Expr.recRulePlain x mI rP cnP) s₀.store recTy b; ⊤⦄ := by
   have hstrip := stripPis_spec mI
@@ -306,11 +305,10 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
      first
      | exact (isSome_forallE hok.wf (by arm_hyp)
          (RelBP.snd_isSome (by arm_hyp) hrecTy)).1
-     | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, recRulePlain_notLe (by grind)⟩
-     | exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+     | exact ⟨hok, Ext.refl _, rfl, rfl, rfl, recRulePlain_notLe (by grind)⟩
+     | exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
          recRulePlain_stripNone hrecTy (by arm_hyp)⟩
      | (refine ⟨by arm_hyp, by arm_hyp,
-          by grind only [BMExt.trans, BMExt.refl],
           by arm_hyp, by arm_hyp, by arm_hyp,
           ?_⟩
         exact recRulePlain_canonical hok.wf hrecTy (by arm_hyp) (by arm_hyp)
@@ -318,7 +316,7 @@ theorem recRulePlain_spec (fuel : Nat) (s₀ : AState) (recTy : EIdx)
      -- the tag-first `else` arm (task #97-P5-Core round 4): the residual's
      -- view is recovered from its denotation
      | (obtain ⟨v, hv⟩ := view_of_denote_isSome (RelBP.snd_isSome (by arm_hyp) hrecTy)
-        exact ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, rfl,
+        exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
           recRulePlain_notPi hok.wf hrecTy (by arm_hyp) hv
             (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
               (by rw [hh]; rfl))⟩))

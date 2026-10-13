@@ -199,13 +199,13 @@ theorem AbsRangeAt.app_step {d k c : Nat} {st s1 s2 s3 : EStore}
 binder arms at a tag the walk carries (`eBindView`), with the binder datum
 UNCHANGED (`abstractRange` does not touch it). -/
 theorem AbsRangeAt.bind_step {d k c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta} {tg : UInt32} (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx} {tg : UInt32} (hwf : StoreWF st)
     (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b m))
+    (hview : st.view h = some (eBindView tg ty b))
     (hx1 : Ext st s1) (ht : AbsRangeAt d k c st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : AbsRangeAt d k (c + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     AbsRangeAt d k c st h s3 r := by
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
@@ -295,9 +295,9 @@ theorem AbsRangeAt.leaf {d k c : Nat} {st : EStore} {h : EIdx}
       obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
       exact Or.inr (Or.inl ⟨nm, ls, rfl⟩)
     | app f a => exact absurd (htag.trans rfl) happ
-    | lam ty b m =>
+    | lam ty b =>
       rw [htag] at hbind; simp [ENodeView.tagOf, ETag.isBind] at hbind
-    | forallE ty b m =>
+    | forallE ty b =>
       rw [htag] at hbind
       simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hbind
     | letE ty w b => exact absurd (htag.trans rfl) hlet
@@ -402,9 +402,9 @@ theorem Abs1At.leaf {st : EStore} (hwf : StoreWF st) {h : EIdx}
       obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
       exact Or.inr (Or.inl ⟨nm, ls, rfl⟩)
     | app f a => exact absurd (htag.trans rfl) happ
-    | lam ty b m =>
+    | lam ty b =>
       rw [htag] at hbind; simp [ENodeView.tagOf, ETag.isBind] at hbind
-    | forallE ty b m =>
+    | forallE ty b =>
       rw [htag] at hbind
       simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hbind
     | letE ty w b => exact absurd (htag.trans rfl) hlet
@@ -431,13 +431,13 @@ theorem Abs1At.app_step {d kk : Nat} {st s1 s2 s3 : EStore}
     ((ha.of_ext hx1).ext hx3) hr
 
 theorem Abs1At.bind_step {d kk : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {m : BinderMeta} {tg : UInt32} (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx} {tg : UInt32} (hwf : StoreWF st)
     (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b m))
+    (hview : st.view h = some (eBindView tg ty b))
     (hx1 : Ext st s1) (ht : Abs1At d kk st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Abs1At d (kk + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     Abs1At d kk st h s3 r := by
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
@@ -509,14 +509,14 @@ theorem Abs1At.app_step' {d kk : Nat} {st st0 s1 s2 s3 : EStore}
 binder arm reads the datum's HANDLE, so the view fact needs the datum's value
 and `view_of_viewBindI` supplies it. -/
 theorem Abs1At.bind_step' {d kk : Nat} {st st0 s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {mi : BMIdx} {m : BinderMeta} {tg : UInt32}
+    {h ty b rt rb r : EIdx} {mi : BMIdx} {tg : UInt32}
     (hst : st0 = st) (hwf : StoreWF st0) (htg : ETag.isBind tg = true)
     (htg2 : tg = h.tag) (hvb : some (ty, b, mi) = st0.viewBindI h)
     (hbm : st0.viewBM mi = some m)
     (hx1 : Ext st0 s1) (ht : Abs1At d kk st0 ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Abs1At d (kk + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     Abs1At d kk st h s3 r := by
   rw [← hst]
   refine Abs1At.bind_step hwf htg ?_ hx1 ht hx2 hb hx3 hr
@@ -531,7 +531,7 @@ rebuilt handle, so it has to be the lemma's last hypothesis — with `hr`
 delayed to a `by grind` the arm leaves `r` a metavariable and elaboration
 fails (measured). -/
 theorem Abs1At.bindI_step' {d kk : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {mi : BMIdx} {m : BinderMeta} (hwf : StoreWF st)
+    {h ty b rt rb r : EIdx} {mi : BMIdx} (hwf : StoreWF st)
     (htg : ETag.isBind h.tag = true) (hvb : some (ty, b, mi) = st.viewBindI h)
     (hbm : st.viewBM mi = some m)
     (hbm1 : ∀ mj mm, st.viewBM mj = some mm → s1.viewBM mj = some mm)
@@ -665,7 +665,7 @@ verification conditions change shape under them. -/
 /-- con-leche: none — arena infrastructure: the binder `intern` over a datum
 HANDLE leaves every node view that already decoded decoding the same. -/
 theorem view_internBindI_mono {st : EStore} {tag : UInt32} {ty b : EIdx}
-    {mi : BMIdx} {m : BinderMeta} (hwf : StoreWF st)
+    {mi : BMIdx} (hwf : StoreWF st)
     (htag : ETag.isBind tag = true) (hbm : st.viewBM mi = some m) {i : EIdx}
     {v : ENodeView} (h : st.view i = some v) :
     (st.internBindI tag ty b mi).1.view i = some v := by
@@ -683,12 +683,11 @@ theorem internLamIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => s = s₀⦄ internLamIE ty b mi
     ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        s'.store.view h = some (.lam ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (.lam ty b m); ⊤⦄ := by
+        s'.store.view h = some (.lam ty b) ∧
+        denoteE s'.store h = denoteEView s'.store (.lam ty b); ⊤⦄ := by
   vcgen [internLamIE]
   -- **The cons HIT** (task #97-P5-Twin): the probe comes first, the store does
   -- not move, and view monotonicity is `id`.
@@ -697,17 +696,17 @@ theorem internLamIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     subst hs
     have hview :=
       EStore.view_of_findBindI (tag := ETag.lam) hwf (by decide) hbm hmi0 hfind
-    have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
+    have heb : eBindView ETag.lam ty b = ENodeView.lam ty b m := by
       simp [eBindView]
     rw [heb] at hview
     obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl,
       fun _ _ hj => hj, hview, denoteE_unfold hwf' hview⟩
   rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.lam) hwf (by decide) hbm hmi0 hty hb hcap
-  have heb : eBindView ETag.lam ty b m = ENodeView.lam ty b m := by
+  have heb : eBindView ETag.lam ty b = ENodeView.lam ty b m := by
     simp [eBindView]
   rw [heb] at h5 h6
   exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl,
@@ -722,12 +721,11 @@ theorem internForallEIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => s = s₀⦄ internForallEIE ty b mi
     ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-        s'.store.view h = some (.forallE ty b m) ∧
-        denoteE s'.store h = denoteEView s'.store (.forallE ty b m); ⊤⦄ := by
+        s'.store.view h = some (.forallE ty b) ∧
+        denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ := by
   vcgen [internForallEIE]
   -- **The cons HIT** (task #97-P5-Twin): the probe comes first, the store does
   -- not move, and view monotonicity is `id`.
@@ -736,18 +734,18 @@ theorem internForallEIE_specV (s₀ : AState) (ty b : EIdx) (mi : BMIdx)
     subst hs
     have hview :=
       EStore.view_of_findBindI (tag := ETag.forallE) hwf (by decide) hbm hmi0 hfind
-    have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
+    have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b m := by
       simp [eBindView, ETag.lam, ETag.forallE]
     rw [heb] at hview
     obtain ⟨rk, hwf'⟩ := hwf
-    exact ⟨⟨rk, hwf'⟩, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
+    exact ⟨⟨rk, hwf'⟩, Ext.refl _, rfl, rfl, rfl, rfl, rfl,
       fun _ _ hj => hj, hview, denoteE_unfold hwf' hview⟩
   rename_i hs _hfind hcap
   subst hs
   obtain ⟨h1, h2, hbe, h3, h4, h5, h6⟩ :=
     EStore.internBindI_spec (tag := ETag.forallE) hwf (by decide) hbm hmi0 hty
       hb hcap
-  have heb : eBindView ETag.forallE ty b m = ENodeView.forallE ty b m := by
+  have heb : eBindView ETag.forallE ty b = ENodeView.forallE ty b m := by
     simp [eBindView, ETag.lam, ETag.forallE]
   rw [heb] at h5 h6
   exact ⟨h1, h2, hbe, h3, h4, rfl, rfl, rfl,
@@ -764,25 +762,23 @@ theorem internBindIE_specV (s₀ : AState) (tag : UInt32) (ty b : EIdx)
     (hb : (s₀.store.view b).isSome = true) :
     ⦃fun s => s = s₀⦄ internBindIE tag ty b mi
     ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
         ∀ m, s₀.store.viewBM mi = some m →
-          (s'.store.view h = some (eBindView tag ty b m) ∧
+          (s'.store.view h = some (eBindView tag ty b) ∧
             denoteE s'.store h =
-              denoteEView s'.store (eBindView tag ty b m)); ⊤⦄ := by
+              denoteEView s'.store (eBindView tag ty b)); ⊤⦄ := by
   obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hbm
   have h0 : ⦃fun s => s = s₀⦄ internBindIE tag ty b mi
       ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-          BMExt s₀.store s'.store ∧
           s'.store.lss = s₀.store.lss ∧
           s'.store.scratchOn = s₀.store.scratchOn ∧
           s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
           (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
-          s'.store.view h = some (eBindView tag ty b m) ∧
+          s'.store.view h = some (eBindView tag ty b) ∧
           denoteE s'.store h =
-            denoteEView s'.store (eBindView tag ty b m); ⊤⦄ := by
+            denoteEView s'.store (eBindView tag ty b); ⊤⦄ := by
     rcases (show tag = ETag.lam ∨ tag = ETag.forallE by
         simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htag
         exact htag)
@@ -808,17 +804,16 @@ handle it was given, so the view monotonicity is reflexive there. -/
     (hty : (s₀.store.view ty).isSome = true)
     (hb : (s₀.store.view b).isSome = true)
     (hsame : ∀ m, s₀.store.viewBM mi = some m → same = true →
-      s₀.store.view h = some (eBindView tag ty b m)) :
+      s₀.store.view h = some (eBindView tag ty b)) :
     ⦃fun s => s = s₀⦄ internRebuiltBindI h same tag ty b mi
     ⦃fun r s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.store.lss = s₀.store.lss ∧ s'.store.scratchOn = s₀.store.scratchOn ∧
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ j w, s₀.store.view j = some w → s'.store.view j = some w) ∧
         ∀ m, s₀.store.viewBM mi = some m →
-          (s'.store.view r = some (eBindView tag ty b m) ∧
+          (s'.store.view r = some (eBindView tag ty b) ∧
             denoteE s'.store r =
-              denoteEView s'.store (eBindView tag ty b m)); ⊤⦄ := by
+              denoteEView s'.store (eBindView tag ty b)); ⊤⦄ := by
   by_cases hc : same = true
   · have hprog : internRebuiltBindI h same tag ty b mi = pure h := by
       simp [internRebuiltBindI, hc]
@@ -826,7 +821,7 @@ handle it was given, so the view monotonicity is reflexive there. -/
     vcgen
     rename_i s hs
     subst hs
-    exact ⟨hwf, Ext.refl _, BMExt.refl _, rfl, rfl, rfl, rfl, rfl,
+    exact ⟨hwf, Ext.refl _, rfl, rfl, rfl, rfl, rfl,
       fun _ _ hj => hj, fun m hm => ⟨hsame m hm hc,
         denoteE_view_eq hwf (hsame m hm hc)⟩⟩
   · have hprog :
