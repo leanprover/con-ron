@@ -593,7 +593,7 @@ mod tests {
         // `never` (task #10, surprise 6)
         let caps = env::ind_caps_default();
         assert!(!prop_when::is_never(&caps.sort_z));
-        assert!(prop_when::is_prop(&caps.sort_z));
+        assert!(crate::kernel::prop_read::is_prop(&caps.sort_z));
         let caps2 = env::ind_caps_dup(&caps);
         assert!(prop_when::beq(&caps.sort_z, &caps2.sort_z));
         // the remaining copies

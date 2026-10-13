@@ -41,8 +41,6 @@ use con_ron_core::arena::monad::{
 };
 use con_ron_core::arena::store::{ENodeView, EStore, LNodeView, NNodeView};
 use con_ron_core::kernel::core_types::CheckError;
-use con_ron_core::kernel::expr;
-use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::hashmap::Dup;
 use std::time::Instant;
 use con_ron_core::arena::store::PersTier;

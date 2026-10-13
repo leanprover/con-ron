@@ -4,7 +4,7 @@
 //! function for function).
 //!
 //! A pin dump is con-leche's `natOpPinSets` as text: three `S` records, one
-//! per pinned toolchain, over the shared `N`/`L`/`W`/`E` DAG of the `Expr`s
+//! per pinned toolchain, over the shared `N`/`L`/`E` DAG of the `Expr`s
 //! they name.  `scripts/gen-pins.sh` wraps those bytes in the verified core's
 //! embedded `kernel::pins_text::PINS_TEXT`, and `con-ron --pins FILE` reads a
 //! file in the same format through [`parse_pins`] as a test override
@@ -32,7 +32,7 @@
 //!
 //! Two properties FORMAT.md §6 asks for and this reader delivers:
 //!
-//! * **The DAG stays a DAG.**  `N`, `L`, `W` and `E` records are interned by
+//! * **The DAG stays a DAG.**  `N`, `L` and `E` records are interned by
 //!   the writer, so each shared subterm appears once; the reader builds each
 //!   such node once, pushes it onto the `Vec` for its id space, and every
 //!   later reference hands back a `clone` of the `Rc` handle
@@ -197,7 +197,6 @@ pub const ALLOCATOR: &str = if cfg!(feature = "jemalloc") {
 };
 
 use con_ron_core::kernel::expr;
-use con_ron_core::kernel::expr::BinderMeta;
 use con_ron_core::kernel::expr::Expr;
 #[allow(unused_imports)]
 use con_ron_core::kernel::expr::ExprView;
@@ -208,7 +207,6 @@ use con_ron_core::kernel::level::Level;
 use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
-use con_ron_core::kernel::prop_when;
 use con_ron_core::ron::nat::Nat;
 
 #[cfg(test)]
@@ -295,7 +293,6 @@ pub fn unescape(t: &str) -> Result<Vec<u32>, String> {
 pub struct Counts {
     pub names: usize,
     pub levels: usize,
-    pub pws: usize,
     pub exprs: usize,
     /// The `S` records, i.e. the pin variants.
     pub pin_sets: usize,
@@ -314,10 +311,6 @@ pub struct Counts {
 struct Tables {
     names: Vec<Name>,
     levels: Vec<Level>,
-    /// The `W` space, as binder data: the datum is behind a handle since task
-    /// #38, so a `lam`/`forallE` record shares the entry (`bm_ref`) instead
-    /// of copying a `PropWhen` per binder node.
-    pws: Vec<BinderMeta>,
     exprs: Vec<Expr>,
     /// The payload: the `S` records (FORMAT.md §4).
     pin_sets: Vec<NatOpPinSet>,
@@ -328,7 +321,6 @@ impl Tables {
         Tables {
             names: Vec::new(),
             levels: Vec::new(),
-            pws: Vec::new(),
             exprs: Vec::new(),
             pin_sets: Vec::new(),
         }
@@ -338,7 +330,6 @@ impl Tables {
         Counts {
             names: self.names.len(),
             levels: self.levels.len(),
-            pws: self.pws.len(),
             exprs: self.exprs.len(),
             pin_sets: self.pin_sets.len(),
         }
@@ -464,20 +455,6 @@ impl<'s, 'l> Rec<'s, 'l> {
         }
     }
 
-    /// A `W` reference as a binder datum: since task #38 that is a handle, so
-    /// a `lam`/`forallE` node *shares* the table's datum instead of copying
-    /// it.  The `W` space is tiny — 3 records for `init`, 4 for Mathlib — so
-    /// every binder in a dump points at one of a handful of `PropWhen`s and
-    /// the parse allocates none of its own.
-    fn bm_ref(&mut self) -> Result<BinderMeta, String> {
-        let i = self.count()?;
-        if i < self.st.pws.len() {
-            Ok(expr::binder_meta_dup(&self.st.pws[i]))
-        } else {
-            self.err(format!("propwhen id {} is not defined yet", i))
-        }
-    }
-
     fn expr_ref(&mut self) -> Result<Expr, String> {
         let i = self.count()?;
         if i < self.st.exprs.len() {
@@ -488,15 +465,6 @@ impl<'s, 'l> Rec<'s, 'l> {
     }
 
     // --- counted lists -----------------------------------------------------
-
-    fn name_list(&mut self) -> Result<Vec<Name>, String> {
-        let n = self.count()?;
-        let mut v: Vec<Name> = Vec::new();
-        for _ in 0..n {
-            v.push(self.name_ref()?);
-        }
-        Ok(v)
-    }
 
     fn level_list(&mut self) -> Result<Vec<Level>, String> {
         let n = self.count()?;
@@ -569,26 +537,6 @@ impl<'s, 'l> Rec<'s, 'l> {
         Ok(())
     }
 
-    /// `W` — `ConLeche/Kernel/PropWhen.lean`.  The list arrives canonical
-    /// (sorted by `Name.cmp`, duplicate-free) and is rebuilt through the
-    /// core's smart constructor, which re-normalises; on a canonical list that
-    /// is the identity (`PropWhen.ifAllZero_toList`, checked by
-    /// `canonical_list_renormalises_to_itself` below).
-    fn record_pw(&mut self) -> Result<(), String> {
-        self.expect_id(self.st.pws.len(), "propwhen")?;
-        let t = self.next_tok()?;
-        let v = if t == "n" {
-            prop_when::never()
-        } else if t == "z" {
-            let ps = self.name_list()?;
-            prop_when::if_all_zero(ps)
-        } else {
-            return self.err(format!("unknown propwhen record '{}'", t));
-        };
-        self.st.pws.push(expr::binder_meta(v));
-        Ok(())
-    }
-
     /// `E` — `ConLeche/Kernel/Expr.lean:343`.  The packed `data` word is
     /// recomputed by the constructors from the children (`pack_data`,
     /// `sat_succ`, `sat_pred`, `hash32`); its hash bits are the port's own
@@ -617,13 +565,11 @@ impl<'s, 'l> Rec<'s, 'l> {
         } else if t == "l" {
             let ty = self.expr_ref()?;
             let b = self.expr_ref()?;
-            let m = self.bm_ref()?;
-            expr::lam(ty, b, m)
+            expr::lam(ty, b)
         } else if t == "f" {
             let ty = self.expr_ref()?;
             let b = self.expr_ref()?;
-            let m = self.bm_ref()?;
-            expr::forall_e(ty, b, m)
+            expr::forall_e(ty, b)
         } else if t == "t" {
             let ty = self.expr_ref()?;
             let val = self.expr_ref()?;
@@ -696,7 +642,6 @@ impl<'s, 'l> Rec<'s, 'l> {
         match kind {
             "N" => self.record_name(),
             "L" => self.record_level(),
-            "W" => self.record_pw(),
             "E" => self.record_expr(),
             "S" => self.record_pin_set(),
             _ => self.err(format!("unknown record kind '{}'", kind)),
@@ -863,7 +808,6 @@ mod tests {
     use con_ron_core::kernel::level::LevelNode;
     use con_ron_core::kernel::name::NameKind;
     use con_ron_core::kernel::name::NameNode;
-    use con_ron_core::kernel::prop_when::PropWhen;
 
     // ---------------------------------------------------------------------------
     // What a node weighs (task #36; test-only since task #105, when nothing but
@@ -942,15 +886,13 @@ mod tests {
             row::<(Expr, Expr)>("    app payload", false),
             row::<(Name, P<Vec<Level>>)>("    const payload", false),
             row::<Literal>("    lit payload", false),
-            row::<(Expr, Expr, BinderMeta)>("    lam/forallE payload", false),
+            row::<(Expr, Expr)>("    lam/forallE payload", false),
             row::<(Expr, Expr, Expr)>("    letE payload", false),
             row::<(Name, u64, Expr)>("    proj payload", false),
             row::<NameNode>("NameNode (hash + kind)", true),
             row::<NameKind>("  NameKind", false),
             row::<LevelNode>("LevelNode (hash + kind)", true),
             row::<LevelKind>("  LevelKind", false),
-            row::<BinderMeta>("BinderMeta (inline PropWhen, task #90)", false),
-            row::<PropWhen>("  PropWhen", false),
             row::<Vec<u32>>("Vec<u32> (a string's header)", false),
             row::<Nat>("Nat (limb Vec header)", false),
             row::<ConstantInfo>("ConstantInfo (inline)", false),
@@ -1163,47 +1105,6 @@ mod tests {
         assert!(natdec::from_decimal("-1").is_err());
     }
 
-    // --- task #9's normalisation claim, on the reader's side ---------------
-
-    /// FORMAT.md §4's `W` record says the list is canonical on the wire and
-    /// that `if_all_zero` re-normalising it is the identity
-    /// (`PropWhen.ifAllZero_toList`).  The port normalises too (task #9), so
-    /// this is the check that re-normalising a canonical list changes nothing
-    /// — which is what lets the reader hand the list straight to the smart
-    /// constructor.
-    #[test]
-    fn canonical_list_renormalises_to_itself() {
-        let raw: Vec<Name> = vec![
-            nm("c"),
-            nm("a"),
-            nm("b"),
-            nm("a"),
-            name::mk_num(nm("a"), 3),
-            nm("zz"),
-        ];
-        let pw = prop_when::if_all_zero(raw);
-        let canonical = prop_when::to_list(&pw);
-        // canonical: sorted by `Name.cmp`, duplicate-free
-        assert_eq!(canonical.len(), 5);
-        for i in 1..canonical.len() {
-            assert!(matches!(
-                prop_when::name_cmp(&canonical[i - 1], &canonical[i]),
-                prop_when::Ordering::Lt
-            ));
-        }
-        // ... and feeding it back is the identity, on the datum and on the list
-        let again = prop_when::if_all_zero(prop_when::to_list(&pw));
-        assert!(prop_when::beq(&pw, &again));
-        assert!(prop_when::names_beq(&canonical, &prop_when::to_list(&again)));
-        assert_eq!(prop_when::hash_pw(&pw), prop_when::hash_pw(&again));
-        // `never` is not `if_all_zero []` (task #10, surprise 6)
-        assert!(prop_when::to_list_opt(&prop_when::never()).is_none());
-        assert!(!prop_when::beq(
-            &prop_when::never(),
-            &prop_when::if_all_zero(Vec::new())
-        ));
-    }
-
     // --- the failure modes -------------------------------------------------
 
     fn perr(text: &str) -> String {
@@ -1264,7 +1165,8 @@ mod tests {
         assert!(perr("con-ron-pins/1\nE 0 a 0 0\nend 0\n")
             .contains("expr id 0 is not defined yet"));
         assert!(perr("con-ron-pins/1\nL 0\nend 0\n").contains("unexpected end of record"));
-        assert!(perr("con-ron-pins/1\nW 0 x\nend 0\n").contains("unknown propwhen record"));
+        // task #119: the binder datum's `W` record is gone from the format
+        assert!(perr("con-ron-pins/1\nW 0 n\nend 0\n").contains("unknown record kind"));
 
         // a mutilated real dump fails, never silently succeeds
         let ok = dump_pins(&[a_pin_set("t"), a_pin_set("u")]);
@@ -1321,11 +1223,11 @@ mod tests {
             assert_eq!(r.size % 8, 0, "{} is not word-sized", r.what);
         }
         // Task #97-SWAP-2: one node as wide as the widest arm, behind a `P`.
-        assert_eq!(std::mem::size_of::<ExprKind>(), 40);
-        assert_eq!(std::mem::size_of::<ExprNode>(), 48);
-        assert_eq!(expr_node_bytes(), 64);
-        assert_eq!(std::mem::size_of::<PropWhen>(), 16);
-        assert_eq!(std::mem::size_of::<BinderMeta>(), 16);
+        // Task #119: the binder datum is gone, so `lam`/`forallE` are two
+        // words and the widest arms (`letE`, `proj`) three.
+        assert_eq!(std::mem::size_of::<ExprKind>(), 32);
+        assert_eq!(std::mem::size_of::<ExprNode>(), 40);
+        assert_eq!(expr_node_bytes(), 56);
         assert_eq!(std::mem::size_of::<Literal>(), 16);
         assert_eq!(std::mem::size_of::<NameNode>(), 40);
         assert_eq!(std::mem::size_of::<LevelNode>(), 32);

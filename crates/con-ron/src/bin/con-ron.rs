@@ -28,7 +28,7 @@
 //! list is interned ONCE while the scratch tier is still off
 //! (`checker::intern_all_pins`), and the resulting `Vec<IDeclaration>` goes to
 //! the two-phase fold, `con_ron::driver::check_decls_driver` — phase A
-//! (`checker::annot_fold_hooked`), the frozen tier, and the worker pool over
+//! (`checker::install_fold_hooked`), the frozen tier, and the worker pool over
 //! `checker::check_pending` for its phase B.
 //!
 //! Exit codes are con-leche's (`Main.lean:15-31`): 0 accepted, 1 rejected, 2

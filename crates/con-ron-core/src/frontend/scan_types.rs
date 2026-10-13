@@ -674,6 +674,6 @@ mod tests {
             assert!(!seen.contains(&d), "duplicate description {}", d);
             seen.push(d);
         }
-        assert_eq!(seen.len(), 21);
+        assert_eq!(seen.len(), 20);
     }
 }

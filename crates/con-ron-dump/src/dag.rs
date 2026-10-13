@@ -32,8 +32,6 @@ use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
 use con_ron_core::kernel::name::NameNode;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
-use con_ron_core::kernel::prop_when;
-use con_ron_core::kernel::prop_when::PropWhen;
 
 /// How many *distinct* heap nodes a pin list reaches.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -83,13 +81,6 @@ impl Walk {
         }
     }
 
-    /// The datum is not an `Rc` node; only the names in it are.
-    fn pw(&mut self, pw: &PropWhen) {
-        for p in prop_when::to_list(pw) {
-            self.name(&p);
-        }
-    }
-
     fn expr(&mut self, root: &Expr) {
         let mut stack: Vec<Expr> = vec![expr::dup(root)];
         while let Some(e) = stack.pop() {
@@ -111,7 +102,6 @@ impl Walk {
                 ExprView::Lam(ty, b) | ExprView::ForallE(ty, b) => {
                     stack.push(expr::dup(ty));
                     stack.push(expr::dup(b));
-                    self.pw(&m.pw);
                 }
                 ExprView::LetE(ty, v, b) => {
                     stack.push(expr::dup(ty));

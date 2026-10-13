@@ -12,7 +12,7 @@
 //!
 //! Byte-identity needs three things to match the Lean writer exactly:
 //!
-//! 1. **The interning tables.**  `N`, `L`, `W` and `E` are keyed by *value*
+//! 1. **The interning tables.**  `N`, `L` and `E` are keyed by *value*
 //!    (the core's own `beq` and cached hash, via the key wrappers below), as
 //!    Lean's `Std.HashMap Expr Nat` is; the `S` payload records are merely
 //!    counted.
@@ -21,9 +21,9 @@
 //!    constructor order — so the *last* child is emitted first.  The loop below
 //!    is that loop.  It is a worklist and not recursion for the same reason:
 //!    application spines tens of thousands of nodes deep (task #10).
-//! 3. **The order within a node.**  `wName`/`wLevel`/`wPw` run at *emit* time,
-//!    so `N`, `L` and `W` records interleave with the `E` records exactly where
-//!    Lean puts them.
+//! 3. **The order within a node.**  `wName`/`wLevel` run at *emit* time, so
+//!    `N` and `L` records interleave with the `E` records exactly where Lean
+//!    puts them.  (Task #119: the `W` records went with the binder datum.)
 //!
 //! Nothing here is part of the verified core; see the crate docs.
 
@@ -42,8 +42,6 @@ use con_ron_core::kernel::name;
 use con_ron_core::kernel::name::Name;
 use con_ron_core::kernel::name::NameKind;
 use con_ron_core::kernel::nat_op_pins::NatOpPinSet;
-use con_ron_core::kernel::prop_when;
-use con_ron_core::kernel::prop_when::PropWhen;
 
 use crate::natdec;
 use crate::PINS_HEADER;
@@ -115,7 +113,6 @@ macro_rules! key {
 key!(NameKey, Name, name::hash_data, name::beq);
 key!(LevelKey, Level, level::hash_data, level::beq);
 key!(ExprKey, Expr, expr::hash, expr::beq);
-key!(PwKey, PropWhen, prop_when::hash_pw, prop_when::beq);
 
 // ---------------------------------------------------------------------------
 // The writer's state
@@ -127,7 +124,6 @@ struct Writer {
     buf: String,
     names: HashMap<NameKey, usize>,
     levels: HashMap<LevelKey, usize>,
-    pws: HashMap<PwKey, usize>,
     exprs: HashMap<ExprKey, usize>,
     n_s: usize,
 }
@@ -138,7 +134,6 @@ impl Writer {
             buf: String::new(),
             names: HashMap::new(),
             levels: HashMap::new(),
-            pws: HashMap::new(),
             exprs: HashMap::new(),
             n_s: 0,
         }
@@ -206,26 +201,6 @@ impl Writer {
         id
     }
 
-    /// Emit a `PropWhen` through its public API (`to_list_opt`), returning its
-    /// id.  The representation is private on both sides; the wire form is the
-    /// canonical name list.
-    fn w_pw(&mut self, pw: &PropWhen) -> usize {
-        if let Some(&i) = self.pws.get(&PwKey(prop_when::dup(pw))) {
-            return i;
-        }
-        let body = match prop_when::to_list_opt(pw) {
-            None => "n".to_string(),
-            Some(ps) => {
-                let ids: Vec<usize> = ps.iter().map(|p| self.w_name(p)).collect();
-                format!("z {}", id_list(&ids))
-            }
-        };
-        let id = self.pws.len();
-        self.pws.insert(PwKey(prop_when::dup(pw)), id);
-        self.emit(&format!("W {} {}", id, body));
-        id
-    }
-
     // --- expressions -------------------------------------------------------
 
     /// The id of an already-emitted node (`Pins.lean`'s `eid`, `getD e 0`).
@@ -254,14 +229,12 @@ impl Writer {
             ExprView::Lam(ty, b) => {
                 let t = self.eid(ty);
                 let bi = self.eid(b);
-                let p = self.w_pw(&m.pw);
-                format!("l {} {} {}", t, bi, p)
+                format!("l {} {}", t, bi)
             }
             ExprView::ForallE(ty, b) => {
                 let t = self.eid(ty);
                 let bi = self.eid(b);
-                let p = self.w_pw(&m.pw);
-                format!("f {} {} {}", t, bi, p)
+                format!("f {} {}", t, bi)
             }
             ExprView::LetE(ty, v, b) => {
                 format!("t {} {} {}", self.eid(ty), self.eid(v), self.eid(b))

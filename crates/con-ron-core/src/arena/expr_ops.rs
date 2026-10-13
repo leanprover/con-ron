@@ -3933,7 +3933,6 @@ mod tests {
     use crate::arena::store::{EStore, LNodeView, NNodeView};
     use crate::kernel::expr::Expr;
 
-    use crate::kernel::prop_when;
     use crate::kernel::level as core_level;
     use crate::kernel::name;
     use crate::ron::nat;
@@ -3983,13 +3982,13 @@ mod tests {
             }
             Some(ENodeView::Lam(ty, b)) => {
                 match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
-                    (Some(x), Some(y)) => Some(expr::lam(x, y, m)),
+                    (Some(x), Some(y)) => Some(expr::lam(x, y)),
                     _ => None,
                 }
             }
             Some(ENodeView::ForallE(ty, b)) => {
                 match (denote_e_aux(pers, st, fuel - 1, &ty), denote_e_aux(pers, st, fuel - 1, &b)) {
-                    (Some(x), Some(y)) => Some(expr::forall_e(x, y, m)),
+                    (Some(x), Some(y)) => Some(expr::forall_e(x, y)),
                     _ => None,
                 }
             }
@@ -4133,7 +4132,6 @@ mod tests {
     fn fixture() -> (AState, Fx) {
         let pers: &PersTier = &PersTier::empty();
         let mut st = AState::init(EStore::empty());
-        let nev = || expr::binder_meta(prop_when::never());
         let z = ok(intern_l_node(pers, &mut st, LNodeView::Zero));
         let one = ok(intern_l_node(pers, &mut st, LNodeView::Succ(z.dup2())));
         let anon = ok(intern_n_node(pers, &mut st, NNodeView::Anonymous));
@@ -4156,24 +4154,24 @@ mod tests {
         let fv1 = ok(intern_e_fvar(pers, &mut st, 1, s1.dup2()));
         let ap1 = ok(intern_e_app(pers, &mut st, cf.dup2(), b0.dup2()));
         let pj = ok(intern_e_proj(pers, &mut st, foo.dup2(), 0, ap1.dup2()));
-        let lam_t = ok(intern_e_lam(pers, &mut st, s0.dup2(), ap1.dup2(), nev()));
+        let lam_t = ok(intern_e_lam(pers, &mut st, s0.dup2(), ap1.dup2()));
         let apbf = ok(intern_e_app(pers, &mut st, b1.dup2(), fv0.dup2()));
-        let all_t = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), apbf.dup2(), nev()));
+        let all_t = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), apbf.dup2()));
         let apbb = ok(intern_e_app(pers, &mut st, b0.dup2(), b1.dup2()));
         let let_t = ok(intern_e_let_e(pers, &mut st, s0.dup2(), cf.dup2(), apbb.dup2()));
         let apcb = ok(intern_e_app(pers, &mut st, cb.dup2(), b0.dup2()));
         let apfv = ok(intern_e_app(pers, &mut st, fv1.dup2(), b0.dup2()));
         let apb2 = ok(intern_e_app(pers, &mut st, b2.dup2(), apfv.dup2()));
         let pj2 = ok(intern_e_proj(pers, &mut st, foo.dup2(), 0, apb2.dup2()));
-        let inner = ok(intern_e_forall_e(pers, &mut st, s1.dup2(), pj2.dup2(), nev()));
+        let inner = ok(intern_e_forall_e(pers, &mut st, s1.dup2(), pj2.dup2()));
         let let_b = ok(intern_e_let_e(pers, &mut st, su.dup2(), apcb.dup2(), inner.dup2()));
-        let big = ok(intern_e_lam(pers, &mut st, s0.dup2(), let_b.dup2(), nev()));
+        let big = ok(intern_e_lam(pers, &mut st, s0.dup2(), let_b.dup2()));
         let apb10 = ok(intern_e_app(pers, &mut st, b1.dup2(), b0.dup2()));
-        let pi_in = ok(intern_e_forall_e(pers, &mut st, s1.dup2(), apb10.dup2(), nev()));
-        let pi_t = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), pi_in.dup2(), nev()));
-        let pi_s = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), s1.dup2(), nev()));
-        let lam_in = ok(intern_e_lam(pers, &mut st, s1.dup2(), apb10.dup2(), nev()));
-        let lam_t2 = ok(intern_e_lam(pers, &mut st, s0.dup2(), lam_in.dup2(), nev()));
+        let pi_in = ok(intern_e_forall_e(pers, &mut st, s1.dup2(), apb10.dup2()));
+        let pi_t = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), pi_in.dup2()));
+        let pi_s = ok(intern_e_forall_e(pers, &mut st, s0.dup2(), s1.dup2()));
+        let lam_in = ok(intern_e_lam(pers, &mut st, s1.dup2(), apb10.dup2()));
+        let lam_t2 = ok(intern_e_lam(pers, &mut st, s0.dup2(), lam_in.dup2()));
         let sp1 = ok(intern_e_app(pers, &mut st, cf.dup2(), fv0.dup2()));
         let spine = ok(intern_e_app(pers, &mut st, sp1.dup2(), b0.dup2()));
         let fx = Fx {
@@ -4215,7 +4213,6 @@ mod tests {
         let nfoo = name::mk_str(name::anonymous(), cp("foo"));
         let nbar = name::mk_str(name::anonymous(), cp("bar"));
         let nu = name::mk_str(name::anonymous(), cp("u"));
-        let nev = || expr::binder_meta(prop_when::never());
         assert!(eq_e(pers, &st, &fx.s0, &expr::sort(core_level::zero())));
         assert!(eq_e(
             pers,
@@ -4265,8 +4262,7 @@ mod tests {
                 expr::app(
                     expr::mk_const(name::dup(&nfoo), vec![core_level::zero()]),
                     expr::bvar(0)
-                ),
-                nev()
+                )
             )
         ));
         assert!(eq_e(
@@ -4299,11 +4295,9 @@ mod tests {
                                     expr::bvar(0)
                                 )
                             )
-                        ),
-                        nev()
+                        )
                     )
-                ),
-                nev()
+                )
             )
         ));
         assert!(eq_e(
@@ -4314,10 +4308,8 @@ mod tests {
                 expr::sort(core_level::zero()),
                 expr::forall_e(
                     expr::sort(core_level::succ(core_level::zero())),
-                    expr::app(expr::bvar(1), expr::bvar(0)),
-                    nev()
-                ),
-                nev()
+                    expr::app(expr::bvar(1), expr::bvar(0))
+                )
             )
         ));
         assert!(denote_e(pers, &st.store, &fx.let_t).is_some());

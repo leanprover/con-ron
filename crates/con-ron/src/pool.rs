@@ -458,7 +458,7 @@ mod tests {
             pend.push(PendingCheck {
                 vg: ValueGroup {
                     kind: ValueKind::Defn,
-                    cv_a: IConstantVal {
+                    cv: IConstantVal {
                         name: nm,
                         level_params: Vec::new(),
                         ty: sort1.dup2(),

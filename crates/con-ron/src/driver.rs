@@ -408,7 +408,7 @@ pub fn workers_for(jobs: u64, m: usize) -> usize {
 /// passed to every method because a handle is not a label until the store is
 /// asked.  Every method defaults to nothing, so a caller implements the lines
 /// it prints and no more.  The line printed BEFORE each install is not here:
-/// phase A is the verified `checker::annot_fold_hooked`, and its hook is
+/// phase A is the verified `checker::install_fold_hooked`, and its hook is
 /// `con_ron_core::arena::checker::InstallHook`, which every observer also
 /// implements (task #97-P5-Driver).
 pub trait PhaseObserver {
@@ -541,7 +541,7 @@ pub fn phase_b_verdict(
 ///
 /// | step | here | the capstone's premise |
 /// |---|---|---|
-/// | phase A | `checker::annot_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
+/// | phase A | `checker::install_fold_hooked(…, fold_start(), ds, 0, obs)` | the same call accepts |
 /// | boundary | `checker::freeze_tier(&mut st.store)` | the same call's value |
 /// | phase B | `pool::parallel_all(m, workers, ‖ worker_state(pins), ‖w, k‖ check_pending(&tier, w, mode, &fe, &pend[k]), …)` | `h8`: index lists `ws` covering `0..pend.len`, each `w` a `foldlM` of `check_pending tier st mode fe pend[k]` over `k ∈ w` from `worker_state pins`, accepting (internally `ParallelAll`) |
 /// | after | `checker::thaw_tier(&mut st.store, tier)` | restores the store (`freeze_tier_ok`) |
@@ -576,7 +576,7 @@ pub fn check_decls_driver<O: PhaseObserver + InstallHook + Send>(
 ) -> Result<IFEnv, (CheckError, u64)> {
     let total = ds.len();
     // PHASE A (ConRon.Capstone: h6): the verified fold, the heartbeat as hook.
-    let p = match checker::annot_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
+    let p = match checker::install_fold_hooked(pers, st, mode, pins, checker::fold_start(), ds, 0, &*obs) {
         Err(e) => {
             obs.install_failed(e.1, total);
             return Err(e);
@@ -842,7 +842,7 @@ impl PhaseObserver for Heartbeat {
                 done,
                 m,
                 value_kind_word(&pc.vg.kind),
-                name_of(pers, ar, &pc.vg.cv_a.name),
+                name_of(pers, ar, &pc.vg.cv.name),
                 ms_secs(self.now())
             );
         }
