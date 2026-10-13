@@ -92,7 +92,7 @@ pub const M_AND_PIN: [u32; 32] = [
 
 /// con-leche: ConLeche/Kernel/Checker.lean:423-433 checkBasisDecl
 /// Lean twin: `proof/ConRon/Arena/CheckDecl.lean:37-48 checkBasisDecl` —
-/// **install the pinned (pre-annotated) basis block.**  The three records that
+/// **install the pinned (stored) basis block.**  The three records that
 /// install one — the fold's own `basisDecl` kind, a stream block
 /// `basis_pin_hit` recognises and a quotient record `quot_pin_hit` recognises
 /// — share this body.  The quotient block's types mention the pinned equality

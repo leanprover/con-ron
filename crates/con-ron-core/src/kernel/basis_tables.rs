@@ -1,22 +1,22 @@
-//! The annotated basis blocks, generated (DESIGN.md §5 P1.5, task #22).
+//! The stored basis blocks, generated (DESIGN.md §5 P1.5, task #22).
 //!
 //! con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA
 //!
 //! **Generated file — do not edit.**  Written by
 //! `proof/ConRon/Gen/Main.lean` (`cd proof && lake exe con-ron-gen-tables`)
 //! from con-leche's own `BasisKind.declsA`, which con-leche computes while
-//! `ConLeche/Kernel/BasisA.lean` elaborates: the `#annotate_basis` command
-//! (`ConLeche/Kernel/BasisGen.lean`) runs the checker's annotation pass over
-//! the hand-written raw pins (`ConLeche/Kernel/Basis/*.lean`) in install
-//! order.  The Rust core has no elaborator, so the *result* is carried as
+//! `ConLeche/Kernel/BasisA.lean` elaborates: the `#stored_basis` command
+//! (`ConLeche/Kernel/BasisGen.lean`) computes the installer's rule fields and
+//! capabilities over the hand-written raw pins
+//! (`ConLeche/Kernel/Basis/*.lean`) in install order.  The Rust core has no elaborator, so the *result* is carried as
 //! source; `proof/ConRon/Refine/BasisTables.lean` proves that what these
 //! functions build abstracts to `ConLeche.BasisKind.declsA`.
 //!
 //! The module-level citation above covers every item in the file: the whole
 //! module is one Lean declaration's value (DESIGN.md §3.7, task #22).
 //!
-//! Shape: one `let` per distinct interned node (`Name`, `Level`,
-//! `PropWhen`, `Expr`), in dependency order, each a call to the port's own
+//! Shape: one `let` per distinct interned node (`Name`, `Level`, `Expr`), in
+//! dependency order, each a call to the port's own
 //! smart constructor, each use a `dup` — so the table is the same DAG
 //! con-leche's value is, and the generated Lean model is a `do` chain of
 //! constructor calls that the refinement lemmas evaluate.
@@ -40,9 +40,9 @@ use crate::kernel::prop_when;
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:37-41 eqRecMotive
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:43-60 eqRecRaw
 /// con-leche: ConLeche/Kernel/Basis/Eq.lean:62-63 eqBasis
-/// The annotated `eq` block (`BasisKind.declsA .eqK` = [eqA, eqReflA, eqRecA]).
+/// The stored `eq` block (`BasisKind.declsA .eqK` = [eqA, eqReflA, eqRecA]).
 ///
-/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
+/// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 3
 /// constants from the 5 raw declarations cited above, while
 /// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
 /// emitted as source (the module note).
@@ -159,9 +159,9 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:40-45 natRecSucc
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:47-66 natRecRaw
 /// con-leche: ConLeche/Kernel/Basis/Nat.lean:68-69 natBasis
-/// The annotated `nat` block (`BasisKind.declsA .natK` = [natA, natZeroA, natSuccA, natRecA]).
+/// The stored `nat` block (`BasisKind.declsA .natK` = [natA, natZeroA, natSuccA, natRecA]).
 ///
-/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 4
+/// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 4
 /// constants from the 8 raw declarations cited above, while
 /// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
 /// emitted as source (the module note).
@@ -273,9 +273,9 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:20-22 emptyRaw
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:24-31 emptyRecRaw
 /// con-leche: ConLeche/Kernel/Basis/Empty.lean:33-34 emptyBasis
-/// The annotated `empty` block (`BasisKind.declsA .emptyK` = [emptyA, emptyRecA]).
+/// The stored `empty` block (`BasisKind.declsA .emptyK` = [emptyA, emptyRecA]).
 ///
-/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
+/// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
 /// constants from the 3 raw declarations cited above, while
 /// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
 /// emitted as source (the module note).
@@ -332,9 +332,9 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
 /// con-leche: ConLeche/Kernel/Basis/False.lean:37-39 falseRaw
 /// con-leche: ConLeche/Kernel/Basis/False.lean:41-48 falseRecRaw
 /// con-leche: ConLeche/Kernel/Basis/False.lean:50-51 falseBasis
-/// The annotated `false` block (`BasisKind.declsA .falseK` = [falseA, falseRecA]).
+/// The stored `false` block (`BasisKind.declsA .falseK` = [falseA, falseRecA]).
 ///
-/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
+/// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 2
 /// constants from the 3 raw declarations cited above, while
 /// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
 /// emitted as source (the module note).
@@ -399,9 +399,9 @@ pub fn basis_decls_false() -> Vec<ConstantInfo> {
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:85-100 quotIndRaw
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:102-114 quotSoundRaw
 /// con-leche: ConLeche/Kernel/Basis/Quot.lean:116-118 quotBasis
-/// The annotated `quot` block (`BasisKind.declsA .quotK` = [quotA, quotMkA, quotLiftA, quotIndA, quotSoundA]).
+/// The stored `quot` block (`BasisKind.declsA .quotK` = [quotA, quotMkA, quotLiftA, quotIndA, quotSoundA]).
 ///
-/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 5
+/// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those 5
 /// constants from the 11 raw declarations cited above, while
 /// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,
 /// emitted as source (the module note).
@@ -580,7 +580,7 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     out0
 }
 
-/// The annotated constants of one basis block, in dependency order.
+/// The stored constants of one basis block, in dependency order.
 pub fn basis_decls_a(k: &BasisKind) -> Vec<ConstantInfo> {
     match k {
         BasisKind::EqK => basis_decls_eq(),

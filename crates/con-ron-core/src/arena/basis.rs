@@ -13,14 +13,17 @@
 //! `con_ron_core::kernel::basis_raw::basis_kind_decls` and
 //! `kernel::basis_tables::basis_decls_a`, which are the same two blocks —
 //! con-ron-core's raw pins are hand-ported from the same builder and its
-//! annotated tables are *generated from con-leche's own `declsA`* (task #22).
+//! stored tables are *generated from con-leche's own `declsA`* (task #22).
 //! What IS a twin here is the two recognisers, which read the environment and
 //! compare with `arena::canon`'s lockstep comparisons.
 //!
 //! **`decls` versus `declsA`.**  `BasisKind.decls` is the RAW block and
-//! `declsA` the ANNOTATED one the install stores; `basis_pin_hit` compares
-//! against the raw block and `check_basis_decl` installs the annotated one, so
-//! the arena keeps the two apart exactly as con-leche does.
+//! `declsA` the STORED one the install puts in the environment (con-leche's
+//! `#stored_basis`: the raw block with the installer's rule fields and
+//! capabilities computed; since con-leche task #342 there is no annotation);
+//! `basis_pin_hit` compares against the raw block and `check_basis_decl`
+//! installs the stored one, so the arena keeps the two apart exactly as
+//! con-leche does.
 
 use crate::arena::env::{i_constant_info_name, i_constant_info_to_constant_val, IConstantInfo, IConstantVal, IDeclaration};
 use crate::arena::handle::NIdx;

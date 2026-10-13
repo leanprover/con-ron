@@ -9,7 +9,7 @@
 # **This is the port's differential test** (task #80, which retired the
 # checker-only seam of task #28 in its favour).  It runs the whole binary on
 # the raw NDJSON, so it tests con-ron's own frontend AND checker together
-# against con-leche's `tests/{arena,e2e,annot}-expected.txt` (task #91:
+# against con-leche's `tests/{arena,e2e}-expected.txt` (task #91:
 # con-leche is a plain lake dependency, resolved through `provenance.py
 # dir`, not a vendored path).  The expectation files' format is "<exit-code>
 # <fixture>" with `#` comments -- the exit code is the WHOLE expectation,
@@ -211,8 +211,20 @@ want_for() {
 # by binder, ~130 s on con-leche's own run (task #105's `uniform-inds`
 # merge) — con-ron's own timing may differ, but the fixture is real work,
 # not a hang, so it gets the same headroom con-leche gives it.
+# omega_kloop, omega_demo2, k_rescue_stuck: BELOW the default as well, as in
+# con-leche's table — each checks in milliseconds and its regression does not
+# terminate.
+# whnf_delta_loop, whnf_core_loop (con-leche task #342 R2, our task #119):
+# their expected verdict IS the timeout — exit 124, a head normalization that
+# does not terminate, run in constant stack — so a 124 there is an agreement,
+# not a TIMEOUT line; 5 s tells it from a stack overflow (exit 134).
 declare -A E2E_TIMEOUT=(
+  [whnf_delta_loop.ndjson]=5
+  [whnf_core_loop.ndjson]=5
   [proj_stuck_struct.ndjson]=10
+  [omega_kloop.ndjson]=10
+  [omega_demo2.ndjson]=10
+  [k_rescue_stuck.ndjson]=10
   [complete_c05b_nest30_pi1000.ndjson]=600
 )
 
@@ -227,7 +239,7 @@ one() { # one <suite> <label> <stream> <expected-exit>
   fi
   out=$(timeout "$to" "$BIN" "$MODE" --jobs="$jobs" $pinargs $progress "$path" 2>&1); rc=$?
   printf '=== %s/%s (expect %s)\n%s\n  exit %s\n' "$suite" "$label" "$want" "$out" "$rc" >>"$log"
-  if [ "$rc" = 124 ]; then
+  if [ "$rc" = 124 ] && [ "$want" != 124 ]; then
     timedout=$((timedout + 1)); echo "TIMEOUT $suite/$label (after ${to}s, expected $want)"
   elif [ "$rc" = "$want" ]; then
     agree=$((agree + 1))
@@ -257,12 +269,6 @@ while read -r exp rel; do
   fi
   one e2e "$rel" "$src" "$exp"
 done <"$CL/tests/e2e-expected.txt"
-
-while read -r exp rel; do
-  case "$exp" in ''|'#'*) continue;; esac
-  [ -n "$rel" ] || continue
-  one annot "$rel" "$CL/tests/annot/$rel" "$exp"
-done <"$CL/tests/annot-expected.txt"
 
 t1=$(date +%s)
 

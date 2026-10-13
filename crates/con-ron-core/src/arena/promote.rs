@@ -27,9 +27,10 @@
 //! it right:
 //!
 //! * **a persistent handle promotes to itself**, by one tier-bit test
-//!   (`is_persistent`) and no store access at all.  Most of an annotated term
-//!   IS the parsed term — `annotate` rebuilds only the spine it changes — so
-//!   the walk stops at the first persistent node on every branch;
+//!   (`is_persistent`) and no store access at all.  Most of what a step
+//!   leaves behind IS the parsed term (since task #119 a value kind's record
+//!   is exactly the parsed one), so the walk stops at the first persistent
+//!   node on every branch;
 //! * **the memo makes it `O(result)`** and not `O(unfolding)`: the subject is
 //!   a hash-consed DAG, and an unmemoised structural copy of a DAG is the
 //!   mistake task #97g's item 5 found three times over.  The memo is per
@@ -433,8 +434,8 @@ pub fn pmemo_set_e(m: PMemo, h: &EIdx, r: &EIdx) -> PMemo {
 /// con-leche: none — arena infrastructure; Lean twin: proof/ConRon/Arena/Promote.lean:152-199 promoteE
 /// **Promote an EXPRESSION handle**: the structural copy of DESIGN.md §8.3,
 /// memoised on the node.  Ten clauses, the store's ten constructors, each
-/// promoting its own children first — `BinderMeta` and `Literal` are values
-/// and carry no handle (DESIGN.md §8.3), so they cross unchanged.
+/// promoting its own children first — `Literal` is a value
+/// and carries no handle (DESIGN.md §8.3), so they cross unchanged.
 pub fn promote_e(
     tier: &mut PersTier,
     st: &AState,
@@ -652,7 +653,7 @@ pub fn promote_e_list_from(
 //
 // `arena::env`'s records, field for field: every `EIdx`, `NIdx`, `LIdx` and
 // `Vec<LIdx>` in them is promoted, and every `u64`, `bool`,
-// `ReducibilityHint`, `PropWhen` and `BinderMeta` crosses unchanged (they
+// `ReducibilityHint` and `PropWhen` crosses unchanged (they
 // carry no handle — DESIGN.md §8.7's ruling that (B) imports con-leche's
 // representation-free types).  The shape is `frontend::readback`'s intern
 // direction in the twin, which walks the same records for the same reason.

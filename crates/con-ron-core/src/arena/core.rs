@@ -1,8 +1,9 @@
 //! `arena::core` — the checker core of (C), over handles.
 //!
 //! The Rust twin of `proof/ConRon/Arena/Core.lean`, which is
-//! `ConLeche/Kernel/Core.lean` clause for clause over handles: the six bodies
-//! (`whnf_core`, `whnf`, `infer`, `infer_io`, `defeq`, `annotate`), the
+//! `ConLeche/Kernel/Core.lean` clause for clause over handles: the five bodies
+//! (`whnf_core`, `whnf`, `infer`, `infer_io`, `defeq`; task #119 deleted the
+//! sixth, `annotate`, with con-leche's task #342), the
 //! helpers they call, the knot that ties them at fuel,
 //! `ConLeche/Kernel/TypeChecker.lean`'s seven fueled entry points, and the
 //! per-declaration bracket.
@@ -26,8 +27,8 @@
 //!    function fields is what `con_ron_core::cached::core_c` already refuses
 //!    to port ("§3.1 ties the knot with a mutually recursive block of plain
 //!    functions, so there is no record whose `infer` field can be rebound").
-//!    So the knot is six plain mutually recursive functions — `knot_whnf_core`
-//!    and its five siblings — and the *identity of the record* is the one
+//!    So the knot is five plain mutually recursive functions — `knot_whnf_core`
+//!    and its four siblings — and the *identity of the record* is the one
 //!    thing a body still has to be told, because the arena has two knots:
 //!    `coreKnot` (LANE_FULL, memoized) and `coreKnotIO` (LANE_IO,
 //!    `arena::core_io`, no memo; con-leche's gated knot `coreKnotGated` went
@@ -42,13 +43,15 @@
 //!    exactly as `con_ron_core::cached::core_c::infer_at_i` spells it ("this
 //!    function *is* the `ioView` substitution in the port").  No other body
 //!    or helper calls `r.infer`, so no other one carries it.
-//! 2. **A continuation argument is the loop's step budget.**  `whnfStep`
-//!    takes `k : EIdx → AM EIdx`, only ever applied to the loop one step
-//!    down, so `k x` is `whnf_loop(…, n, x)`.
-//!    `con_ron_core::cached::core_c::whnf_step_i` does the same, for the same
-//!    reason.  (The two lazy-delta loops, `lazyDeltaReduction` and
-//!    `lazyDeltaProjReduction`, recurse on their budget directly and so do
-//!    their ports.)
+//! 2. **The loops' steps RETURN their continuation** (task #119, con-leche
+//!    task #342 R2).  con-leche's `whnfCoreStep`/`whnfStep` return a
+//!    `WhnfStep` (`.done e` / `.cont e`) to a loop that iterates in constant
+//!    stack; the port's `whnf_core_loop` and `whnf_loop` are real `loop`s
+//!    (`// lint: allow`, DESIGN.md §3.4) over `WhnfStep`, because Rust has no
+//!    guaranteed tail call and a recursive loop would grow the native stack per
+//!    step — the very overflow R2 removed.  (The two lazy-delta loops,
+//!    `lazyDeltaReduction` and `lazyDeltaProjReduction`, recurse on their
+//!    budget directly and so do their ports.)
 //!
 //! `coreKnot`'s `wrap : CoreFnsA → CoreFnsA` parameter is dropped: `pureFnsA`
 //! is `coreKnot mode fe id` and `id` is its only instantiation in the whole
@@ -176,29 +179,6 @@ pub const M_NATIVE_NAT: [u32; 34] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"sort-annotation mismatch (eta)"`, as code points.
-pub const M_ETA: [u32; 30] = [
-    115, 111, 114, 116, 45, 97, 110, 110, 111, 116, 97, 116, 105, 111, 110, 32, 109, 105,
-    115, 109, 97, 116, 99, 104, 32, 40, 101, 116, 97, 41
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"iota reduction over a nested auxiliary recursor rule"`, as code points.
-pub const M_NESTED_RULE: [u32; 52] = [
-    105, 111, 116, 97, 32, 114, 101, 100, 117, 99, 116, 105, 111, 110, 32, 111, 118, 101,
-    114, 32, 97, 32, 110, 101, 115, 116, 101, 100, 32, 97, 117, 120, 105, 108, 105, 97,
-    114, 121, 32, 114, 101, 99, 117, 114, 115, 111, 114, 32, 114, 117, 108, 101
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"whnfCore: `let` in an annotated expression"`, as code points.
-pub const M_LET_WHNF: [u32; 42] = [
-    119, 104, 110, 102, 67, 111, 114, 101, 58, 32, 96, 108, 101, 116, 96, 32, 105, 110, 32,
-    97, 110, 32, 97, 110, 110, 111, 116, 97, 116, 101, 100, 32, 101, 120, 112, 114, 101,
-    115, 115, 105, 111, 110
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"whnf beyond the supported fragment"`, as code points.
 pub const M_BVAR_WHNF: [u32; 34] = [
     119, 104, 110, 102, 32, 98, 101, 121, 111, 110, 100, 32, 116, 104, 101, 32, 115, 117,
@@ -239,44 +219,6 @@ pub const M_FN: [u32; 17] = [
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"sort-annotation mismatch (forall-cod)"`, as code points.
-pub const M_COD: [u32; 37] = [
-    115, 111, 114, 116, 45, 97, 110, 110, 111, 116, 97, 116, 105, 111, 110, 32, 109, 105,
-    115, 109, 97, 116, 99, 104, 32, 40, 102, 111, 114, 97, 108, 108, 45, 99, 111, 100, 41
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"sort-annotation mismatch (lam-cod-chain)"`, as code points.
-pub const M_CHAIN: [u32; 40] = [
-    115, 111, 114, 116, 45, 97, 110, 110, 111, 116, 97, 116, 105, 111, 110, 32, 109, 105,
-    115, 109, 97, 116, 99, 104, 32, 40, 108, 97, 109, 45, 99, 111, 100, 45, 99, 104, 97,
-    105, 110, 41
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"sort-annotation mismatch (lam-cod-leaf)"`, as code points.
-pub const M_LEAF: [u32; 39] = [
-    115, 111, 114, 116, 45, 97, 110, 110, 111, 116, 97, 116, 105, 111, 110, 32, 109, 105,
-    115, 109, 97, 116, 99, 104, 32, 40, 108, 97, 109, 45, 99, 111, 100, 45, 108, 101, 97,
-    102, 41
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"sort-annotation mismatch (defeq-forall)"`, as code points.
-pub const M_DEFEQ_PI: [u32; 39] = [
-    115, 111, 114, 116, 45, 97, 110, 110, 111, 116, 97, 116, 105, 111, 110, 32, 109, 105,
-    115, 109, 97, 116, 99, 104, 32, 40, 100, 101, 102, 101, 113, 45, 102, 111, 114, 97,
-    108, 108, 41
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"sort-annotation mismatch (defeq-lam)"`, as code points.
-pub const M_DEFEQ_LAM: [u32; 36] = [
-    115, 111, 114, 116, 45, 97, 110, 110, 111, 116, 97, 116, 105, 111, 110, 32, 109, 105,
-    115, 109, 97, 116, 99, 104, 32, 40, 100, 101, 102, 101, 113, 45, 108, 97, 109, 41
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
 /// `"projection table entry used as a constant"`, as code points.
 pub const M_TOWER: [u32; 41] = [
     112, 114, 111, 106, 101, 99, 116, 105, 111, 110, 32, 116, 97, 98, 108, 101, 32, 101,
@@ -289,14 +231,6 @@ pub const M_TOWER: [u32; 41] = [
 pub const M_LEVELS: [u32; 35] = [
     105, 110, 99, 111, 114, 114, 101, 99, 116, 32, 110, 117, 109, 98, 101, 114, 32, 111,
     102, 32, 117, 110, 105, 118, 101, 114, 115, 101, 32, 108, 101, 118, 101, 108, 115
-];
-
-/// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
-/// `"inferType: `let` in an annotated expression"`, as code points.
-pub const M_LET_INFER: [u32; 43] = [
-    105, 110, 102, 101, 114, 84, 121, 112, 101, 58, 32, 96, 108, 101, 116, 96, 32, 105,
-    110, 32, 97, 110, 32, 97, 110, 110, 111, 116, 97, 116, 101, 100, 32, 101, 120, 112,
-    114, 101, 115, 115, 105, 111, 110
 ];
 
 /// con-leche: none — the port stores every Lean `String` as `Vec<u32>` code points (DESIGN.md §3.3)
@@ -1232,9 +1166,8 @@ pub fn nat_zero_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:184-192 natSuccOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::nat_succ_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:483-495 natSuccOk` — the stored
-/// `Nat.succ` declaration has the expected (annotated) shape.
+/// `Nat.succ` declaration has the expected shape.
 pub fn nat_succ_ok(
     pers: &PersTier,
     st: &mut AState,
@@ -1305,7 +1238,6 @@ pub fn nat_lit_supported(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:204-229 Expr.constsResolve
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::stored_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:509-555 constsResolve` — `(fe.find?
 /// n).isSome`, as its own function so the two literal arms below read as the
 /// twin's conjunctions do.
@@ -1317,7 +1249,6 @@ pub fn stored(vis: u64, fe: &IFEnv, n: &NIdx) -> bool {
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:204-229 Expr.constsResolve
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::nat_trio_stored_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:509-555 constsResolve` — the
 /// `.lit (.natVal _)` arm's three `find?`s, as its own function
 /// (`con_ron_core::kernel::core_k::nat_trio_stored`'s reason: the `String`
@@ -1336,7 +1267,6 @@ pub fn nat_trio_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, Ch
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:204-229 Expr.constsResolve
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::str_support_stored_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:509-555 constsResolve` — the
 /// `.lit (.strVal _)` arm's seven further `find?`s.
 pub fn str_support_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool, CheckError> {
@@ -1371,7 +1301,6 @@ pub fn str_support_stored(vis: u64, st: &mut AState, fe: &IFEnv) -> Result<bool,
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:204-229 Expr.constsResolve
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::consts_resolve_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:509-555 constsResolve` — do all
 /// constants referenced in `e` (including inside `fvar` type annotations)
 /// resolve in `fe`?  A full walk over the term, hence fuel; unlike the
@@ -1684,9 +1613,8 @@ pub fn char_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:288-299 listTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::list_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:634-651 listTyOk` — the stored
-/// `List` declaration has the expected (annotated) shape `List.{p} : Type p →
+/// `List` declaration has the expected shape `List.{p} : Type p →
 /// Type p`.
 pub fn list_ty_ok(
     pers: &PersTier,
@@ -1732,7 +1660,6 @@ pub fn list_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:301-312 listNilTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::list_nil_ty_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:653-687 listNilTyOk` — the cited
 /// `match ← view cv.type with | .forallE d b _mb => …` tail, split off so that
 /// the `let` chain above does not nest six deep.
@@ -1789,9 +1716,8 @@ pub fn list_nil_ty_body(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:301-312 listNilTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::list_nil_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:653-687 listNilTyOk` — the stored
-/// `List.nil` declaration has the expected (annotated) shape.
+/// `List.nil` declaration has the expected shape.
 pub fn list_nil_ty_ok(
     pers: &PersTier,
     st: &mut AState,
@@ -1838,7 +1764,6 @@ pub fn list_nil_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:314-330 listConsTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::list_cons_ty_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:689-725 listConsTyOk` — the three
 /// nested ∀ tests, once the comparands are interned.
 pub fn list_cons_ty_body(
@@ -1900,7 +1825,6 @@ pub fn list_cons_ty_body(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:314-330 listConsTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::list_cons_ty_at_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:689-725 listConsTyOk` — the cited
 /// `[p]` arm: the eight comparands, then the three-deep ∀ match.
 pub fn list_cons_ty_at(
@@ -1949,9 +1873,8 @@ pub fn list_cons_ty_at(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:314-330 listConsTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::list_cons_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:689-725 listConsTyOk` — the stored
-/// `List.cons` declaration has the expected (annotated) shape.
+/// `List.cons` declaration has the expected shape.
 pub fn list_cons_ty_ok(
     pers: &PersTier,
     st: &mut AState,
@@ -1974,9 +1897,8 @@ pub fn list_cons_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:332-341 charOfNatTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::char_of_nat_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:727-742 charOfNatTyOk` — the stored
-/// `Char.ofNat` declaration has the expected (annotated) shape `Nat → Char`.
+/// `Char.ofNat` declaration has the expected shape `Nat → Char`.
 pub fn char_of_nat_ty_ok(
     pers: &PersTier,
     st: &mut AState,
@@ -2023,7 +1945,6 @@ pub fn char_of_nat_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:343-353 stringOfListTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::string_of_list_ty_body_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:744-765 stringOfListTyOk` — the
 /// cited `do` block's body, once the level-parameter test has passed.
 pub fn string_of_list_ty_body(
@@ -2081,9 +2002,8 @@ pub fn string_of_list_ty_body(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:343-353 stringOfListTyOk
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::string_of_list_ty_ok_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:744-765 stringOfListTyOk` — the
-/// stored `String.ofList` declaration has the expected (annotated) shape
+/// stored `String.ofList` declaration has the expected shape
 /// `List.{0} Char → String`.
 pub fn string_of_list_ty_ok(
     pers: &PersTier,
@@ -3117,7 +3037,6 @@ pub fn bool_const(pers: &PersTier, st: &mut AState, b: bool) -> Result<Option<EI
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:582-603 natOpGuard
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::nat_op_deps_stored_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1008-1017 natOpDepsStored` —
 /// con-leche writes `(natOpDeps c).all (fun n => …)`; DESIGN.md §3.4's rule for
 /// a `List` walk is a named helper, and the `Vec` turns the twin's cons
@@ -3148,10 +3067,11 @@ pub fn nat_op_deps_stored(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:582-603 natOpGuard
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::bool_ctors_lp_empty_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1031-1055 natOpGuard` — the two
-/// `Bool` constructors stored at no level parameters, the guard's tail.
-pub fn bool_ctors_lp_empty(
+/// `Bool` constructors stored level-free at the type `Bool` itself, the
+/// guard's tail.  (Task #119, con-leche task #342: was
+/// `bool_ctors_lp_empty`, which checked the level parameters only.)
+pub fn bool_ctors_ok(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -3159,23 +3079,22 @@ pub fn bool_ctors_lp_empty(
 ) -> Result<bool, CheckError>  {
     match bool_true_name(st) {
         Err(e) => Err(e),
-        Ok(bt) => match lp_empty(pers, vis, st, fe, &bt) {
+        Ok(bt) => match bool_ctor_ok(pers, vis, st, fe, &bt) {
             Err(e) => Err(e),
             Ok(false) => Ok(false),
             Ok(true) => match bool_false_name(st) {
                 Err(e) => Err(e),
-                Ok(bf) => lp_empty(pers, vis, st, fe, &bf),
+                Ok(bf) => bool_ctor_ok(pers, vis, st, fe, &bf),
             },
         },
     }
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:582-603 natOpGuard
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::lp_empty_refines, then delete this line
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1031-1055 natOpGuard` — `match
-/// fe.find? n with | some ci => cv.levelParams.isEmpty | none => false`, at one
-/// name.
-pub fn lp_empty(
+/// Lean twin: `proof/ConRon/Arena/Core.lean:1018-1029 boolCtorOk` — `match
+/// fe.find? n with | some ci => ci.levelParams.isEmpty && ci.type == .const
+/// boolName [] | none => false`, at one name.  (Task #119: was `lp_empty`.)
+pub fn bool_ctor_ok(
     pers: &PersTier,
     vis: u64,
     st: &mut AState,
@@ -3185,20 +3104,31 @@ pub fn lp_empty(
     match env::ifenv_find(vis, fe, n) {
         Some(ci) => match env::i_constant_info_to_constant_val(pers, &mut st.store, ci) {
             Err(e) => Err(e),
-            Ok(cv) => Ok(cv.level_params.len() == 0),
+            Ok(cv) => {
+                if cv.level_params.len() == 0 {
+                    match bool_name(st) {
+                        Err(e) => Err(e),
+                        Ok(bn) => match const_e(pers, st, &bn) {
+                            Err(e) => Err(e),
+                            Ok(b) => Ok(cv.ty.eq2(&b)),
+                        },
+                    }
+                } else {
+                    Ok(false)
+                }
+            }
         },
         None => Ok(false),
     }
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:582-603 natOpGuard
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::nat_op_guard_refines, then delete this line
 /// con-leche: ConLeche/Kernel/FEnv.lean:223-238 natOpGuardF
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::nat_op_guard_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1031-1055 natOpGuard` —
 /// stored-constant guards for op `c`: the `Nat` basis, every dependency stored
 /// as a definition, and (for the `Bool`-valued ops and the `ble`-guarded
-/// `div`/`mod`) the `Bool` constructors stored.
+/// `div`/`mod`) the `Bool` constructors stored, level-free, at the type `Bool`
+/// itself (`bool_ctor_ok`).
 pub fn nat_op_guard(
     pers: &PersTier,
     vis: u64,
@@ -3223,7 +3153,7 @@ pub fn nat_op_guard(
                             Ok(dm) => {
                                 if c.eq2(&be) || c.eq2(&bl) || env::nidx_vec_contains(&dm, c)
                                 {
-                                    bool_ctors_lp_empty(pers, vis, st, fe)
+                                    bool_ctors_ok(pers, vis, st, fe)
                                 } else {
                                     Ok(true)
                                 }
@@ -3276,7 +3206,6 @@ pub fn subst_const0(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:625-641 Expr.substConstAll
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::subst_const_all_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1081-1111 substConstAll` —
 /// substitute the level-monomorphic constant `n` by the *closed* term `r`
 /// everywhere, including under binders.  `fvar` annotations are not entered.
@@ -3419,7 +3348,6 @@ pub fn bool_ty_ok(
 }
 
 /// con-leche: ConLeche/Kernel/CoreDefs.lean:655-670 natOpTyPinned
-/// con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove core::nat_op_ty_pinned_refines, then delete this line
 /// Lean twin: `proof/ConRon/Arena/Core.lean:1134-1160 natOpTyPinned` — the
 /// pinned type of a certified `Nat` operation: `Nat → Nat` for the unary
 /// `pred`, `Nat → Nat → Nat` for the arithmetic operations, `Nat → Nat → Bool`
@@ -3619,15 +3547,6 @@ pub fn append_eidx_from(xs: Vec<EIdx>, ys: &Vec<EIdx>, i: usize) -> Vec<EIdx> {
         xs.push(ys[i].dup2());
         append_eidx_from(xs, ys, i + 1)
     }
-}
-
-/// con-leche: none — `xs ++ [y]` on a `Vec`
-/// Lean twin: `proof/ConRon/Arena/Core.lean:1463-1509 structEtaCertWith` — the
-/// cited `targs ++ [b]`, which is one `push`.
-pub fn snoc_eidx(xs: Vec<EIdx>, y: &EIdx) -> Vec<EIdx> {
-    let mut xs = xs;
-    xs.push(y.dup2());
-    xs
 }
 
 /// con-leche: none — `xs ++ [y] ++ [z]` on a `Vec`, sized once
@@ -9706,9 +9625,9 @@ pub const PEEL_FUEL: u64 = 16777216;
 //
 // con-leche's `Core.lean`:2897-2936 with the memo probes of
 // `ConLeche/Cached/CoreC.lean`:1877-1906 inlined in the slots (the twin's
-// deviation 6).  The six slots are six plain mutually recursive functions
+// deviation 6).  The five slots are five plain mutually recursive functions
 // here (the module note's deviation 1), each taking the `lane` that says which
-// of the arena's three knots it belongs to.
+// of the arena's two knots it belongs to.
 //
 // The twin's detach-before-update (lesson 14) and `@[noinline]` (lesson 15)
 // have no Rust counterpart: `&mut` IS the unique reference the detaching

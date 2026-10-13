@@ -432,41 +432,6 @@ pub fn expr_ref(t: &[u8], i: usize, tb: &Tables) -> CheckM<(Expr, usize)> {
     }
 }
 
-/// con-leche: none — `Read.lean`'s `listTok nameRef`
-/// A counted id list: the length, then that many space-separated ids
-/// (`Write.lean`'s `idList`).
-pub fn name_list(t: &[u8], i: usize, tb: &Tables) -> CheckM<(Vec<Name>, usize)> {
-    match read_index(t, i) {
-        Err(e) => Err(e),
-        Ok((n, j)) => name_list_from(t, j, tb, n, Vec::new()),
-    }
-}
-
-/// con-leche: none — the index recursion behind `name_list`
-pub fn name_list_from(
-    t: &[u8],
-    i: usize,
-    tb: &Tables,
-    k: usize,
-    out: Vec<Name>,
-) -> CheckM<(Vec<Name>, usize)> {
-    if k == 0 {
-        Ok((out, i))
-    } else {
-        match after_space(t, i) {
-            Err(e) => Err(e),
-            Ok(j) => match name_ref(t, j, tb) {
-                Err(e) => Err(e),
-                Ok((n, m)) => {
-                    let mut out = out;
-                    out.push(n);
-                    name_list_from(t, m, tb, k - 1, out)
-                }
-            },
-        }
-    }
-}
-
 /// con-leche: none — `Read.lean`'s `listTok levelRef`
 pub fn level_list(
     t: &[u8],

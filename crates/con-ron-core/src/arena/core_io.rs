@@ -1,8 +1,8 @@
 //! `arena::core_io` — the io knot (the leaf lane), over handles.
 //!
 //! The Rust twin of `proof/ConRon/Arena/CoreIO.lean`, itself
-//! `ConLeche/Kernel/CoreIO.lean`'s.  `whnfCore` / `whnf` / `defeq` /
-//! `annotate` are the *full* knot's at the same fuel — the io lane consumes
+//! `ConLeche/Kernel/CoreIO.lean`'s.  `whnfCore` / `whnf` / `defeq` are the
+//! *full* knot's at the same fuel — the io lane consumes
 //! the certified reduction and definitional equality and never supplies them —
 //! and `infer` is `inferBodyIO` tied to the io knot one level down.  The full
 //! knot never mentions this one: that asymmetry is con-leche's
@@ -24,9 +24,9 @@
 //!
 //! **Where the knot is.**  The twin builds a `CoreFnsA` record whose slots
 //! point at the full knot and at `inferBodyIO`; §3.4 rules a record of
-//! functions out, so the port's knot is `arena::core`'s six `knot_*`
+//! functions out, so the port's knot is `arena::core`'s five `knot_*`
 //! functions taking a `lane`, and `coreKnotIO` is the value `LANE_IO` of that
-//! lane — `knot_whnf_core`/`knot_whnf`/`knot_defeq`/`knot_annotate` fall
+//! lane — `knot_whnf_core`/`knot_whnf`/`knot_defeq` fall
 //! through to `LANE_FULL` there (the twin's `(coreKnot mode fe id (fuel +
 //! 1)).whnfCore`, at the same fuel), and `knot_infer`/`knot_infer_io` are the
 //! unmemoized `inferBodyIO`.  So this module is the io lane's **entry point**

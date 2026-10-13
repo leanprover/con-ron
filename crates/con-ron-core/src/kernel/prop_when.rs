@@ -120,27 +120,6 @@ pub fn is_never(pw: &PropWhen) -> bool {
     }
 }
 
-/// con-leche: none — the `ps.all params.contains` of `paramsDefined`'s `ifAllZero` arm
-/// The index recursion the cited `List.all` becomes.
-pub fn all_contained_from(params: &Vec<Name>, ps: &Vec<Name>, i: usize) -> bool {
-    if i >= ps.len() {
-        true
-    } else if name::contains(params, &ps[i]) {
-        all_contained_from(params, ps, i + 1)
-    } else {
-        false
-    }
-}
-
-/// con-leche: ConLeche/Kernel/PropWhen.lean:60-65 PropWhen.paramsDefined
-/// Are all parameters of the datum among `params`?
-pub fn params_defined(params: &Vec<Name>, pw: &PropWhen) -> bool {
-    match pw {
-        PropWhen::Never => true,
-        PropWhen::IfAllZero(ps) => all_contained_from(params, ps, 0),
-    }
-}
-
 /// con-leche: ConLeche/Kernel/PropWhen.lean:70-76 PropWhen.inter
 /// Intersection of two zero-ness predicates (the `max` rule: a `max` is zero
 /// iff both sides are): `never` absorbs, parameter lists concatenate.
@@ -205,7 +184,7 @@ mod tests {
     use crate::kernel::name::Name;
     use crate::kernel::prop_when::{
         beq, bind_z, bind_z_go, dup, if_all_zero, inter, is_never, never,
-        params_defined, NameToPw, PropWhen,
+        NameToPw, PropWhen,
     };
     use crate::kernel::prop_read::is_prop;
 
@@ -311,17 +290,6 @@ mod tests {
             assert!(beq(&inter(p, &pw(&[])), p));
         }
         assert!(beq(&inter(&pw(&["b"]), &pw(&["a"])), &pw(&["b", "a"])));
-    }
-
-    /// `paramsDefined_inter_of`.
-    #[test]
-    fn params_defined_is_stable_under_inter() {
-        let params = names(&["a", "b"]);
-        assert!(params_defined(&params, &never()));
-        assert!(params_defined(&params, &pw(&[])));
-        assert!(params_defined(&params, &pw(&["a", "b"])));
-        assert!(!params_defined(&params, &pw(&["a", "c"])));
-        assert!(params_defined(&params, &inter(&pw(&["a"]), &pw(&["b"]))));
     }
 
     /// `holds_bindZ_go`, `bindZ_go_append`, `bindZ_inter`.

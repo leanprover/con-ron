@@ -1035,37 +1035,6 @@ pub fn read_name_at(pers: &PersTier, ar: &EStore, fuel: u64, h: &NIdx) -> Result
     }
 }
 
-/// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// Lean twin: `proof/ConRon/Arena/Monad.lean:409-418 readNames` — read a LIST
-/// of name handles back.  `ks.mapM readName` would do it with a closure, which
-/// DESIGN.md §3.4 forbids, so this is the cursor recursion.
-pub fn read_names(pers: &PersTier, ar: &EStore, hs: &Vec<NIdx>) -> Result<Vec<Name>, CheckError> {
-    read_names_from(pers, ar, hs, 0, Vec::with_capacity(hs.len()))
-}
-
-/// con-leche: ConLeche/Kernel/Name.lean:34-37 Name
-/// The cursor recursion behind `read_names`.
-pub fn read_names_from(
-    pers: &PersTier,
-    ar: &EStore,
-    hs: &Vec<NIdx>,
-    i: usize,
-    out: Vec<Name>,
-) -> Result<Vec<Name>, CheckError> {
-    if i >= hs.len() {
-        Ok(out)
-    } else {
-        match read_name(pers, ar, &hs[i]) {
-            Err(e) => Err(e),
-            Ok(x) => {
-                let mut out = out;
-                out.push(x);
-                read_names_from(pers, ar, hs, i + 1, out)
-            }
-        }
-    }
-}
-
 /// con-leche: ConLeche/Kernel/Level.lean:31-42 subst
 /// Lean twin: `proof/ConRon/Arena/Monad.lean:459-468 readLevel` — **the
 /// readback** (DESIGN.md §8.3 lesson 4, "intern the representation, not the

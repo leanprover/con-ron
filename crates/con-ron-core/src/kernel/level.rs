@@ -552,40 +552,6 @@ pub fn subst_pw(ks: &Vec<Name>, vs: &Vec<Level>, pw: &PropWhen) -> PropWhen {
    `crate::kernel::expr_ops` (the first at task #13, the other two at task
    #24, where `checkConstantVal` first needed them). */
 
-/// con-leche: none — the `"proj"` string literal of `Name.isProjFnShape`
-/// `s == "proj"` on code points.
-pub fn is_proj_str(s: &Vec<u32>) -> bool {
-    s.len() == 4 && s[0] == 112 && s[1] == 114 && s[2] == 111 && s[3] == 106
-}
-
-/// con-leche: none — the `"projTable"` string literal of `Name.isProjFnShape`
-/// `s == "projTable"` on code points.
-pub fn is_proj_table_str(s: &Vec<u32>) -> bool {
-    s.len() == 9
-        && s[0] == 112
-        && s[1] == 114
-        && s[2] == 111
-        && s[3] == 106
-        && s[4] == 84
-        && s[5] == 97
-        && s[6] == 98
-        && s[7] == 108
-        && s[8] == 101
-}
-
-/// con-leche: ConLeche/Kernel/Level.lean:216-223 Name.isProjFnShape
-/// `Name.isProjFnShape`, i.e. `.num (.str _ "proj") _` or
-/// `.num (.str _ "projTable") _`.
-pub fn name_is_proj_fn_shape(n: &Name) -> bool {
-    match &n.0.kind {
-        name::NameKind::Num(p, _) => match &p.0.kind {
-            name::NameKind::Str(_, s) => is_proj_str(s) || is_proj_table_str(s),
-            _ => false,
-        },
-        _ => false,
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The hash-map dictionaries (`crate::ron::hashmap`'s own traits, task #7)
 // ---------------------------------------------------------------------------
@@ -631,15 +597,6 @@ mod tests {
 
     fn p(s: &str) -> Level {
         level::param(nm(s))
-    }
-
-    #[test]
-    fn name_num_and_shapes() {
-        let projty = name::mk_num(nm("proj"), 3);
-        assert!(level::name_is_proj_fn_shape(&projty));
-        let tbl = name::mk_num(nm("projTable"), 0);
-        assert!(level::name_is_proj_fn_shape(&tbl));
-        assert!(!level::name_is_proj_fn_shape(&nm("proj")));
     }
 
     #[test]

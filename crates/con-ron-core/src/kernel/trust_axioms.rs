@@ -256,26 +256,6 @@ pub fn of_reduce_bool_a() -> ConstantVal {
     of_reduce_raw(&of_reduce_bool_name())
 }
 
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:131-133 reduceOpCvA
-/// The pinned type of a reduce operation.
-pub fn reduce_op_cv_a(c: &Name) -> ConstantVal {
-    if name::beq(c, &reduce_nat_name()) {
-        reduce_nat_cv_a()
-    } else {
-        reduce_bool_cv_a()
-    }
-}
-
-/// con-leche: ConLeche/Kernel/TrustAxioms.lean:135-137 ofReducePinA
-/// The pin an `ofReduce*` axiom is matched against.
-pub fn of_reduce_pin_a(n: &Name) -> ConstantVal {
-    if name::beq(n, &of_reduce_nat_name()) {
-        of_reduce_nat_a()
-    } else {
-        of_reduce_bool_a()
-    }
-}
-
 // ---------------------------------------------------------------------------
 // The environment predicates (`TrustAxioms.lean:154-196`)
 // ---------------------------------------------------------------------------

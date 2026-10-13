@@ -30,13 +30,13 @@
 //! * the syntactic readers and guards — `unfoldable_head`, `head_hint`,
 //!   `same_const_heads`, `raw_nat_lit`, `is_ctor_app`,
 //!   `eta_ctor_shape`, `is_bool_true`, `succ_of`,
-//!   `str_expansion_fires`, `pw_written`, `lift_fueled`.  **Six of these
+//!   `str_expansion_fires`, `lift_fueled`.  **Six of these
 //!   carry a second citation to `Cached/StateC.lean`'s `*C` index guards**
 //!   (`isCtorAppC`, `headHintC`, `unfoldableHeadC`,
 //!   `sameConstHeadsC`, `rawNatLitC?`, `etaCtorShapeC`): those are the same
 //!   function, since the port reads the environment through `FEnv` anyway
-//!   (deviation 3 below).  So are `litToCtorIfNatI` and `annotBinderMetaI`,
-//!   whose twins are the spec's under a `pure`;
+//!   (deviation 3 below).  So is `litToCtorIfNatI`,
+//!   whose twin is the spec's under a `pure`;
 //! * the pinned name tables and the `Nat`-operation pin sets;
 //! * the install-time rule bits (`rec_rule_bits`,
 //!   `rec_rule_k`) and the shape conjunctions the cached certificates read
@@ -269,7 +269,7 @@ pub fn bool_false_name() -> Name {
 }
 
 // ---------------------------------------------------------------------------
-// The annotation pass (`Core.lean:2677-2858`)
+// What is not ported
 // ---------------------------------------------------------------------------
 
 /* Not ported from `Kernel/Core.lean` (DESIGN.md §3.1), and why:
@@ -291,7 +291,7 @@ pub fn bool_false_name() -> Name {
 
    The `FEnv.lean` guards that read the same bodies through the index
    (`natLitSupportedF`, `strLitSupportedF`, `natOpGuardF`, `natOpStoredF`,
-   `andRescueSlotsF`, `towerSlotsAllF`, `recSlotsAllF`) and the seven
+   `andRescueSlotsF`, `towerSlotsAllF`) and the seven
    `StateC.lean` `*C` index guards are covered by the corresponding function
    here, with a second citation, per the module note's deviation 3. */
 #[cfg(test)]
