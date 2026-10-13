@@ -2,8 +2,8 @@
 The build-time table generator (DESIGN.md §4, §5 P1.5, task #22).
 
 con-leche builds two families of static tables while it *elaborates*: the
-annotated basis blocks (`ConLeche.BasisKind.declsA`, computed by
-`#annotate_basis` from the raw pins) and the Nat-op pin variants
+stored basis blocks (`ConLeche.BasisKind.declsA`, computed by
+`#stored_basis` from the raw pins) and the Nat-op pin variants
 (`ConLeche.natOpPinSets`, spliced from `pins/<toolchain>.json`).  The Rust
 core cannot compute either — it has no elaborator and no `Array Expr`
 global — so the values are *generated as Rust source* that rebuilds them
@@ -39,7 +39,7 @@ structure GSt where
   out : Array String := #[]
   names : Std.HashMap Name String := {}
   levels : Std.HashMap Level String := {}
-  pws : Std.HashMap PropWhen String := {}
+  pws : Nat := 0
   exprs : Std.HashMap Expr String := {}
   /-- Counters for the locals that are not interned (strings, vectors,
   records): one per prefix. -/
@@ -161,24 +161,17 @@ constructor's model is the only one in the port whose totality needs the
 whole canonicalisation machinery (`canon`/`merge`/`name_cmp`) — see the
 task-#22 log.  Emitting a fresh producer call per use costs a handful of
 extra `let`s per block and keeps the refinement proof to the producers
-themselves.  The `pws` table is still kept, so the census still reports
+themselves.  The `pws` counter is still kept, so the census still reports
 how many *distinct* data a block reaches. -/
 def gPw (pw : PropWhen) : G String := do
-  let rhs ← match pw.toList? with
-    | none => pure "prop_when::never()"
-    | some ps => do
+  let rhs ← match pw with
+    | .never => pure "prop_when::never()"
+    | .ifAllZero ps => do
       let psv ← gNameVec ps
       pure s!"prop_when::if_all_zero({psv})"
   let v ← bind "w" rhs
-  modify fun st => { st with pws := st.pws.insert pw v }
+  modify fun st => { st with pws := st.pws + 1 }
   return v
-
-/-- A `BinderMeta`, inline.  Task #38 put the datum behind a handle, so the
-port builds one through `expr::binder_meta` rather than with a struct
-literal. -/
-def gBinderMeta (m : BinderMeta) : G String := do
-  let p ← gPw m.pw
-  return s!"expr::binder_meta({p})"
 
 /-! ## Expressions
 
@@ -218,12 +211,12 @@ def gEmitExpr (e : Expr) : G Unit := do
     | .app f a => do
       let fv ← eid f; let av ← eid a
       pure s!"expr::app(expr::dup(&{fv}), expr::dup(&{av}))"
-    | .lam ty b m => do
-      let tv ← eid ty; let bv ← eid b; let mv ← gBinderMeta m
-      pure s!"expr::lam(expr::dup(&{tv}), expr::dup(&{bv}), {mv})"
-    | .forallE ty b m => do
-      let tv ← eid ty; let bv ← eid b; let mv ← gBinderMeta m
-      pure s!"expr::forall_e(expr::dup(&{tv}), expr::dup(&{bv}), {mv})"
+    | .lam ty b => do
+      let tv ← eid ty; let bv ← eid b
+      pure s!"expr::lam(expr::dup(&{tv}), expr::dup(&{bv}))"
+    | .forallE ty b => do
+      let tv ← eid ty; let bv ← eid b
+      pure s!"expr::forall_e(expr::dup(&{tv}), expr::dup(&{bv}))"
     | .letE ty val b => do
       let tv ← eid ty; let vv ← eid val; let bv ← eid b
       pure s!"expr::let_e(expr::dup(&{tv}), expr::dup(&{vv}), expr::dup(&{bv}))"
@@ -255,8 +248,8 @@ partial def gExprGo (stack : Array (Expr × Bool)) : G Unit := do
         | .bvar _ | .sort _ | .const _ _ | .lit _ => stack
         | .fvar _ ty => stack.push (ty, false)
         | .app f a => (stack.push (f, false)).push (a, false)
-        | .lam ty b _ => (stack.push (ty, false)).push (b, false)
-        | .forallE ty b _ => (stack.push (ty, false)).push (b, false)
+        | .lam ty b => (stack.push (ty, false)).push (b, false)
+        | .forallE ty b => (stack.push (ty, false)).push (b, false)
         | .letE ty v b => ((stack.push (ty, false)).push (v, false)).push (b, false)
         | .proj _ _ s => stack.push (s, false)
       gExprGo stack
@@ -293,7 +286,6 @@ unit_params: {c.unitParams}, rule_k: {c.ruleK}, sort_z: {sz}, all: {al}, \
 nparams: {c.nparams}, ctors: {cs} {rb}"
 
 def gFire : RecRuleFire → G String
-  | .inert => pure "RecRuleFire::Inert"
   | .plain => pure "RecRuleFire::Plain"
   | .nested us es => do
     let usv ← gLevelVec us
@@ -306,7 +298,7 @@ def gRecRule (r : RecRule) : G String := do
   let rv ← gExpr r.rhs
   bind "rr" s!"RecRule {lb} ctor: name::dup(&{cv}), nfields: {r.nfields}, \
 ctor_params: {r.ctorParams}, fire: {fv}, rhs: expr::dup(&{rv}), k: {r.k}, \
-eta: {r.eta}, params_blind: {r.paramsBlind} {rb}"
+eta: {r.eta} {rb}"
 
 def gHint : ReducibilityHint → String
   | .opaque => "ReducibilityHint::Opaque"

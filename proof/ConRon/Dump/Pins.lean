@@ -86,14 +86,13 @@ def idList (ids : List Nat) : String :=
 /-! ## The writer's state -/
 
 /-- The emission state: the output lines, one interning table per interned id
-space, and the payload counter.  `Name`, `Level`, `PropWhen` and `Expr` are
+space, and the payload counter.  `Name`, `Level` and `Expr` are
 interned — that is what keeps the DAG a DAG, and it is not optional here: as a
 tree one pin variant is 5.1 M nodes. -/
 structure WState where
   buf : Array String := #[]
   names : Std.HashMap Name Nat := {}
   levels : Std.HashMap Level Nat := {}
-  pws : Std.HashMap PropWhen Nat := {}
   exprs : Std.HashMap Expr Nat := {}
   nS : Nat := 0
 
@@ -103,7 +102,7 @@ abbrev W := StateM WState
 @[inline] def emit (s : String) : W Unit :=
   modify fun st => { st with buf := st.buf.push s }
 
-/-! ## Names, levels, the zero-ness datum -/
+/-! ## Names and levels -/
 
 /-- Emit a name (and its prefix), returning its id. -/
 partial def wName (n : Name) : W Nat := do
@@ -145,22 +144,6 @@ partial def wLevel (u : Level) : W Nat := do
                   buf := st.buf.push ("L " ++ toString id ++ " " ++ body) }
     return id
 
-/-- Emit a `PropWhen` through its public API (`toList?`), returning its id. -/
-def wPw (pw : PropWhen) : W Nat := do
-  match (← get).pws[pw]? with
-  | some i => return i
-  | none =>
-    let body ← match pw.toList? with
-      | none => pure "n"
-      | some ps => do
-        let ids ← ps.mapM wName
-        pure ("z " ++ idList ids)
-    let st ← get
-    let id := st.pws.size
-    set { st with pws := st.pws.insert pw id,
-                  buf := st.buf.push ("W " ++ toString id ++ " " ++ body) }
-    return id
-
 /-! ## Expressions
 
 The walk is an explicit worklist, not recursion: con-leche's terms reach
@@ -186,12 +169,12 @@ def emitExprNode (e : Expr) : W Unit := do
     | .app f a => do
       let fi ← eid f; let ai ← eid a
       pure ("a " ++ toString fi ++ " " ++ toString ai)
-    | .lam ty b m => do
-      let t ← eid ty; let bi ← eid b; let p ← wPw m.pw
-      pure ("l " ++ toString t ++ " " ++ toString bi ++ " " ++ toString p)
-    | .forallE ty b m => do
-      let t ← eid ty; let bi ← eid b; let p ← wPw m.pw
-      pure ("f " ++ toString t ++ " " ++ toString bi ++ " " ++ toString p)
+    | .lam ty b => do
+      let t ← eid ty; let bi ← eid b
+      pure ("l " ++ toString t ++ " " ++ toString bi)
+    | .forallE ty b => do
+      let t ← eid ty; let bi ← eid b
+      pure ("f " ++ toString t ++ " " ++ toString bi)
     | .letE ty v b => do
       let t ← eid ty; let vi ← eid v; let bi ← eid b
       pure ("t " ++ toString t ++ " " ++ toString vi ++ " " ++ toString bi)
@@ -222,8 +205,8 @@ partial def wExprGo (stack : Array (Expr × Bool)) : W Unit := do
         | .bvar _ | .sort _ | .const _ _ | .lit _ => stack
         | .fvar _ ty => stack.push (ty, false)
         | .app f a => (stack.push (f, false)).push (a, false)
-        | .lam ty b _ => (stack.push (ty, false)).push (b, false)
-        | .forallE ty b _ => (stack.push (ty, false)).push (b, false)
+        | .lam ty b => (stack.push (ty, false)).push (b, false)
+        | .forallE ty b => (stack.push (ty, false)).push (b, false)
         | .letE ty v b => ((stack.push (ty, false)).push (v, false)).push (b, false)
         | .proj _ _ s => stack.push (s, false)
       wExprGo stack
@@ -300,7 +283,6 @@ core's verified decoder (`kernel::pins_decode`) is this function on bytes. -/
 structure RState where
   names : Array Name := #[]
   levels : Array Level := #[]
-  pws : Array PropWhen := #[]
   exprs : Array Expr := #[]
   pinSets : Array NatOpPinSet := #[]
   toks : Array String := #[]
@@ -421,12 +403,6 @@ def levelRef : R Level := do
   if h : i < st.levels.size then return st.levels[i]'h
   else rerr ("level id " ++ toString i ++ " is not defined yet")
 
-def pwRef : R PropWhen := do
-  let i ← natTok
-  let st ← get
-  if h : i < st.pws.size then return st.pws[i]'h
-  else rerr ("propwhen id " ++ toString i ++ " is not defined yet")
-
 def exprRef : R Expr := do
   let i ← natTok
   let st ← get
@@ -461,13 +437,6 @@ def parseRecord (kind : String) : R Unit := do
       else if t == "p" then do pure (Level.param (← nameRef))
       else rerr ("unknown level record '" ++ t ++ "'")
     modify fun st => { st with levels := st.levels.push v }
-  else if kind == "W" then
-    expectId (← get).pws.size "propwhen"
-    let t ← nextTok
-    let v ← if t == "n" then pure PropWhen.never
-      else if t == "z" then do pure (PropWhen.ifAllZero (← listTok nameRef))
-      else rerr ("unknown propwhen record '" ++ t ++ "'")
-    modify fun st => { st with pws := st.pws.push v }
   else if kind == "E" then
     expectId (← get).exprs.size "expr"
     let t ← nextTok
@@ -480,11 +449,11 @@ def parseRecord (kind : String) : R Unit := do
       else if t == "a" then do
         let f ← exprRef; let a ← exprRef; pure (Expr.mkApp f a)
       else if t == "l" then do
-        let ty ← exprRef; let b ← exprRef; let p ← pwRef
-        pure (Expr.mkLam ty b ⟨p⟩)
+        let ty ← exprRef; let b ← exprRef
+        pure (Expr.mkLam ty b)
       else if t == "f" then do
-        let ty ← exprRef; let b ← exprRef; let p ← pwRef
-        pure (Expr.mkForallE ty b ⟨p⟩)
+        let ty ← exprRef; let b ← exprRef
+        pure (Expr.mkForallE ty b)
       else if t == "t" then do
         let ty ← exprRef; let val ← exprRef; let b ← exprRef
         pure (Expr.mkLetE ty val b)
@@ -623,7 +592,7 @@ def run (outp : String) (doRoundTrip : Bool) : IO UInt32 := do
   let bytes := text.utf8ByteSize
   IO.println s!"con-ron-dump-pins: {outp}"
   IO.println s!"  pin sets {st.nS}  names {st.names.size}  levels \
-    {st.levels.size}  propwhens {st.pws.size}  exprs {st.exprs.size}"
+    {st.levels.size}  exprs {st.exprs.size}"
   IO.println s!"  lines {st.buf.size}  bytes {bytes}  write {tWrite - t0}ms"
   for s in ss do
     IO.println s!"  variant {s.toolchain}  proof blobs {ConRon.Dump.proofCounts s}"

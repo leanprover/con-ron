@@ -52,14 +52,13 @@ a subterm.  Writing the tree out would blow up exponentially (as a tree one
 pin variant is 5.1 M nodes), so shared nodes are written **once** and referred
 to by an integer id, in the spirit of `lean4export`'s `<id> #N…` records.
 
-There are **four id spaces**, one per interned record kind, each dense from
+There are **three id spaces**, one per interned record kind, each dense from
 `0` and each assigned in the order the records appear:
 
 | kind | record letter | what |
 |---|---|---|
 | name | `N` | `ConLeche.Name` |
 | level | `L` | `ConLeche.Level` |
-| propwhen | `W` | `ConLeche.PropWhen` |
 | expr | `E` | `ExprC` = `ConLeche.Expr` |
 
 **Invariant (the reader may rely on it, and must check it):** within a kind,
@@ -70,7 +69,7 @@ a reader is a single forward pass that pushes each decoded value onto a
 `Vec` per kind and indexes into those vectors — no fixups, no cycles, no
 forward references.  This is what the Rust side wants.
 
-All four record kinds are **interned**: the writer keeps a hash map from value
+All three record kinds are **interned**: the writer keeps a hash map from value
 to id, so structurally equal subterms collapse to one record.  The `S` payload
 records are not interned and carry no id (§4).
 
@@ -104,7 +103,7 @@ needs no UTF-8 decoder: it reads bytes and produces `u32`s.
 
 ## 4. The records
 
-Below, `<name>`, `<level>`, `<pw>`, `<expr>` are ids into the corresponding
+Below, `<name>`, `<level>`, `<expr>` are ids into the corresponding
 space, written in decimal.  `<k>` is always a list length, immediately
 followed by that many fields.
 
@@ -131,22 +130,6 @@ L <id> p <name>                   -- Level.param
 
 `Level.hashData` is a computed field; not written.
 
-### `PropWhen` — `ConLeche/Kernel/PropWhen.lean`
-
-The datum's representation is `private`; the dump goes through its public
-API, `PropWhen.toList?` (`none` at `never`, `some ps` otherwise) and the
-smart constructor `PropWhen.ifAllZero`.
-
-```
-W <id> n                          -- PropWhen.never
-W <id> z <k> <name>*              -- PropWhen.ifAllZero [names]
-```
-
-The list `ps` is already canonical (sorted by `Name.cmp`, duplicate-free)
-when it comes out of `toList`, and `ifAllZero` re-normalises on read, so the
-round trip is the identity (`PropWhen.ifAllZero_toList`).  A Rust reader must
-either keep the list as given or re-sort it with the same order.
-
 ### Expressions — `ConLeche/Kernel/Expr.lean:343`
 
 ```
@@ -155,16 +138,17 @@ E <id> v <nat> <expr>             -- fvar idx type
 E <id> s <level>                  -- sort u
 E <id> c <name> <k> <level>*      -- const n us
 E <id> a <expr> <expr>            -- app f a
-E <id> l <expr> <expr> <pw>       -- lam type body ⟨pw⟩
-E <id> f <expr> <expr> <pw>       -- forallE type body ⟨pw⟩
+E <id> l <expr> <expr>            -- lam type body
+E <id> f <expr> <expr>            -- forallE type body
 E <id> t <expr> <expr> <expr>     -- letE type value body
 E <id> n <nat>                    -- lit (.natVal n)
 E <id> g <len> <text>             -- lit (.strVal s)
 E <id> p <name> <nat> <expr>      -- proj structName idx e
 ```
 
-`BinderMeta` has exactly one field, `pw`, so it is written as that field and
-nothing else.  The packed `data` word (32-bit hash ǀ `bvarB` ǀ `fvarB` ǀ
+Binders carry no datum (task #119: con-leche's task #342 removed `BinderMeta`;
+until then a `W` record space held the `PropWhen` binder datum and `l`/`f`
+records a third id).  The packed `data` word (32-bit hash ǀ `bvarB` ǀ `fvarB` ǀ
 `hasLP`) is a `@[computed_field]`: a function of the value, recomputed by the
 constructors, never written.  A Rust reader **must** recompute it with
 con-leche's own recurrences (`packData`, `satSucc`, `satPred`, `hash32`) —
@@ -209,8 +193,7 @@ recursion: con-leche's terms are deep enough (spines of tens of thousands of
    principle); `ron::Nat` is the target for the first, a `u64` for the
    indices (DESIGN.md §3.3, an overflow being a Rust-side failure).
 4. **Strings are code points, not bytes.**
-5. **`PropWhen` arrives canonical**; keep it so.
-6. **Keep the sharing.**  A byte-identical re-dump does not prove it (the
+5. **Keep the sharing.**  A byte-identical re-dump does not prove it (the
    writer interns by value, so it would collapse a tree expansion back into
    the same bytes): count the distinct heap nodes the parsed variants reach
    and compare with the file's record counts (`con_ron_dump::dag`).

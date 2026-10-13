@@ -7,7 +7,7 @@
   cd proof && lake exe con-ron-gen-tables --count    # the DAG census only
 
 The tables con-leche computes at *elaboration* time and the Rust core
-therefore has to carry as source.  Today: the annotated basis blocks
+therefore has to carry as source.  Today: the stored basis blocks
 (`ConLeche.BasisKind.declsA`).  The Nat-op pin variants
 (`ConLeche.natOpPinSets`) are two orders of magnitude bigger; the
 task-#22 log records the measurement and the recommendation, and the
@@ -26,11 +26,11 @@ open ConLeche
 
 /-- One basis block: the kind, its `BasisKind` constructor, the Rust function
 name, the `*A` names of `BasisKind.declsA`'s arm, the raw-pin module and the
-declarations in it the annotation pass consumes.
+declarations in it the `#stored_basis` command consumes.
 
 The last two fields are what the generated citations are made of (task #33):
 `basis_decls_<nm>` translates `BasisKind.declsA .<nm>K`, whose value
-`#annotate_basis` computes from exactly these raw definitions, so those are
+`#stored_basis` computes from exactly these raw definitions, so those are
 the con-leche lines the function is ported from — and with them the ledger
 (`scripts/provenance.py coverage`) reaches every declaration of
 `ConLeche/Kernel/Basis/*.lean`, which no hand-written Rust translates. -/
@@ -88,17 +88,17 @@ def locate (file : String) (decls : List String) : IO (List String) := do
 
 /-- One block function's doc block: the two `con-leche:` citation groups
 (the `BasisKind.declsA` arm this function is, and the raw pins its value is
-annotated from) and the prose naming the `*A` constants it holds. -/
+computed from) and the prose naming the `*A` constants it holds. -/
 def blockDoc (b : Block) : IO (Array String) := do
   let armCite ← locate "ConLeche/Kernel/BasisA.lean" ["BasisKind.declsA"]
   let rawCites ← locate b.file b.raw
   let cites : List String :=
     (armCite ++ rawCites).map fun c => "/// con-leche: " ++ c
   let prose : List String :=
-    [s!"/// The annotated `{b.nm}` block (`BasisKind.declsA .{b.nm}K` = \
+    [s!"/// The stored `{b.nm}` block (`BasisKind.declsA .{b.nm}K` = \
 [{String.intercalate ", " b.aNames}]).",
      "///",
-     s!"/// `#annotate_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those \
+     s!"/// `#stored_basis` (`ConLeche/Kernel/BasisGen.lean`) computes those \
 {b.aNames.length}",
      s!"/// constants from the {b.raw.length} raw declarations cited above, while",
      "/// `ConLeche/Kernel/BasisA.lean` elaborates; this function is that value,",
@@ -108,25 +108,25 @@ def blockDoc (b : Block) : IO (Array String) := do
 /-- The generated file's module header: the module-level `con-leche:`
 citation (DESIGN.md §3.7) and the imports the bodies need. -/
 def basisHeader : Array String := #[
-  "//! The annotated basis blocks, generated (DESIGN.md §5 P1.5, task #22).",
+  "//! The stored basis blocks, generated (DESIGN.md §5 P1.5, task #22).",
   "//!",
-  "//! con-leche: ConLeche/Kernel/BasisA.lean:47-53 BasisKind.declsA",
+  "//! con-leche: ConLeche/Kernel/BasisA.lean:48-54 BasisKind.declsA",
   "//!",
   "//! **Generated file — do not edit.**  Written by",
   "//! `proof/ConRon/Gen/Main.lean` (`cd proof && lake exe con-ron-gen-tables`)",
   "//! from con-leche's own `BasisKind.declsA`, which con-leche computes while",
-  "//! `ConLeche/Kernel/BasisA.lean` elaborates: the `#annotate_basis` command",
-  "//! (`ConLeche/Kernel/BasisGen.lean`) runs the checker's annotation pass over",
-  "//! the hand-written raw pins (`ConLeche/Kernel/Basis/*.lean`) in install",
-  "//! order.  The Rust core has no elaborator, so the *result* is carried as",
+  "//! `ConLeche/Kernel/BasisA.lean` elaborates: the `#stored_basis` command",
+  "//! (`ConLeche/Kernel/BasisGen.lean`) computes the installer's rule fields and",
+  "//! capabilities over the hand-written raw pins (`ConLeche/Kernel/Basis/*.lean`)",
+  "//! in install order.  The Rust core has no elaborator, so the *result* is carried as",
   "//! source; `proof/ConRon/Refine/BasisTables.lean` proves that what these",
   "//! functions build abstracts to `ConLeche.BasisKind.declsA`.",
   "//!",
   "//! The module-level citation above covers every item in the file: the whole",
   "//! module is one Lean declaration's value (DESIGN.md §3.7, task #22).",
   "//!",
-  "//! Shape: one `let` per distinct interned node (`Name`, `Level`,",
-  "//! `PropWhen`, `Expr`), in dependency order, each a call to the port's own",
+  "//! Shape: one `let` per distinct interned node (`Name`, `Level`, `Expr`), in",
+  "//! dependency order, each a call to the port's own",
   "//! smart constructor, each use a `dup` — so the table is the same DAG",
   "//! con-leche's value is, and the generated Lean model is a `do` chain of",
   "//! constructor calls that the refinement lemmas evaluate.",
@@ -147,7 +147,7 @@ def basisHeader : Array String := #[
 
 /-- The dispatcher, `BasisKind.declsA` itself. -/
 def basisDispatch : Array String :=
-  #["/// The annotated constants of one basis block, in dependency order.",
+  #["/// The stored constants of one basis block, in dependency order.",
     "pub fn basis_decls_a(k: &BasisKind) -> Vec<ConstantInfo> {",
     "    match k {"]
   ++ (basisBlocks.map fun b =>
@@ -170,8 +170,8 @@ number the task-#22 sizing rests on. -/
 
 def censusOf (act : G Unit) : String :=
   let st := (act.run {}).2
-  s!"names={st.names.size} levels={st.levels.size} pws={st.pws.size} \
-exprs={st.exprs.size} total={st.names.size + st.levels.size + st.pws.size + st.exprs.size} \
+  s!"names={st.names.size} levels={st.levels.size} pws={st.pws} \
+exprs={st.exprs.size} total={st.names.size + st.levels.size + st.pws + st.exprs.size} \
 lines={st.out.size}"
 
 def pinSetAct (s : NatOpPinSet) : G Unit := do

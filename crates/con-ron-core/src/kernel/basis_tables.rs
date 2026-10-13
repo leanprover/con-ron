@@ -7,8 +7,8 @@
 //! from con-leche's own `BasisKind.declsA`, which con-leche computes while
 //! `ConLeche/Kernel/BasisA.lean` elaborates: the `#stored_basis` command
 //! (`ConLeche/Kernel/BasisGen.lean`) computes the installer's rule fields and
-//! capabilities over the hand-written raw pins
-//! (`ConLeche/Kernel/Basis/*.lean`) in install order.  The Rust core has no elaborator, so the *result* is carried as
+//! capabilities over the hand-written raw pins (`ConLeche/Kernel/Basis/*.lean`)
+//! in install order.  The Rust core has no elaborator, so the *result* is carried as
 //! source; `proof/ConRon/Refine/BasisTables.lean` proves that what these
 //! functions build abstracts to `ConLeche.BasisKind.declsA`.
 //!
@@ -68,7 +68,7 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let e6 = expr::forall_e(expr::dup(&e5), expr::dup(&e4));
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e6) };
     let ns1: Vec<Name> = Vec::new();
-    let w3 = prop_when::if_all_zero(ns1);
+    let w0 = prop_when::if_all_zero(ns1);
     let mut ns2: Vec<Name> = Vec::new();
     ns2.push(name::dup(&n1));
     let mut s2: Vec<u32> = Vec::new();  // "refl"
@@ -79,7 +79,7 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let n3 = name::mk_str(name::dup(&n1), s2);
     let mut ns3: Vec<Name> = Vec::new();
     ns3.push(name::dup(&n3));
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: true, sort_z: w3, all: ns2, nparams: 2, ctors: ns3 };
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: true, sort_z: w0, all: ns2, nparams: 2, ctors: ns3 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
     let mut ns4: Vec<Name> = Vec::new();
     ns4.push(name::dup(&n2));
@@ -103,9 +103,9 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     s4.push(95);
     s4.push(49);
     let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns7: Vec<Name> = Vec::new();
-    ns7.push(name::dup(&n5));
-    ns7.push(name::dup(&n2));
+    let mut ns5: Vec<Name> = Vec::new();
+    ns5.push(name::dup(&n5));
+    ns5.push(name::dup(&n2));
     let e13 = expr::mk_bvar(3);
     let e14 = expr::app(expr::dup(&e13), expr::dup(&e1));
     let e15 = expr::app(expr::dup(&e14), expr::dup(&e3));
@@ -134,7 +134,7 @@ pub fn basis_decls_eq() -> Vec<ConstantInfo> {
     let e35 = expr::forall_e(expr::dup(&e34), expr::dup(&e28));
     let e36 = expr::forall_e(expr::dup(&e3), expr::dup(&e35));
     let e37 = expr::forall_e(expr::dup(&e5), expr::dup(&e36));
-    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns7, ty: expr::dup(&e37) };
+    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns5, ty: expr::dup(&e37) };
     let e38 = expr::lam(expr::dup(&e27), expr::dup(&e3));
     let e39 = expr::lam(expr::dup(&e34), expr::dup(&e38));
     let e40 = expr::lam(expr::dup(&e3), expr::dup(&e39));
@@ -178,8 +178,8 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let e0 = expr::sort(level::dup(&u1));
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e0) };
     let w0 = prop_when::never();
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n1));
+    let mut ns1: Vec<Name> = Vec::new();
+    ns1.push(name::dup(&n1));
     let mut s1: Vec<u32> = Vec::new();  // "zero"
     s1.push(122);
     s1.push(101);
@@ -192,19 +192,19 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     s2.push(99);
     s2.push(99);
     let n3 = name::mk_str(name::dup(&n1), s2);
-    let mut ns3: Vec<Name> = Vec::new();
-    ns3.push(name::dup(&n2));
-    ns3.push(name::dup(&n3));
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns2, nparams: 0, ctors: ns3 };
+    let mut ns2: Vec<Name> = Vec::new();
+    ns2.push(name::dup(&n2));
+    ns2.push(name::dup(&n3));
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns1, nparams: 0, ctors: ns2 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
-    let ns4: Vec<Name> = Vec::new();
+    let ns3: Vec<Name> = Vec::new();
     let us0: Vec<Level> = Vec::new();
     let e1 = expr::mk_const(name::dup(&n1), us0);
-    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns4, ty: expr::dup(&e1) };
+    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns3, ty: expr::dup(&e1) };
     let ci1 = ConstantInfo::CtorInfo(cv1, 0, 0);
-    let ns5: Vec<Name> = Vec::new();
+    let ns4: Vec<Name> = Vec::new();
     let e2 = expr::forall_e(expr::dup(&e1), expr::dup(&e1));
-    let cv2 = ConstantVal { name: name::dup(&n3), level_params: ns5, ty: expr::dup(&e2) };
+    let cv2 = ConstantVal { name: name::dup(&n3), level_params: ns4, ty: expr::dup(&e2) };
     let ci2 = ConstantInfo::CtorInfo(cv2, 0, 1);
     let mut s3: Vec<u32> = Vec::new();  // "rec"
     s3.push(114);
@@ -214,8 +214,8 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let mut s4: Vec<u32> = Vec::new();  // "u"
     s4.push(117);
     let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns6: Vec<Name> = Vec::new();
-    ns6.push(name::dup(&n5));
+    let mut ns5: Vec<Name> = Vec::new();
+    ns5.push(name::dup(&n5));
     let e3 = expr::mk_bvar(0);
     let e4 = expr::mk_bvar(3);
     let e5 = expr::app(expr::dup(&e4), expr::dup(&e3));
@@ -238,7 +238,7 @@ pub fn basis_decls_nat() -> Vec<ConstantInfo> {
     let e19 = expr::sort(level::dup(&u2));
     let e20 = expr::forall_e(expr::dup(&e1), expr::dup(&e19));
     let e21 = expr::forall_e(expr::dup(&e20), expr::dup(&e18));
-    let cv3 = ConstantVal { name: name::dup(&n4), level_params: ns6, ty: expr::dup(&e21) };
+    let cv3 = ConstantVal { name: name::dup(&n4), level_params: ns5, ty: expr::dup(&e21) };
     let e22 = expr::lam(expr::dup(&e14), expr::dup(&e7));
     let e23 = expr::lam(expr::dup(&e17), expr::dup(&e22));
     let e24 = expr::lam(expr::dup(&e20), expr::dup(&e23));
@@ -294,10 +294,10 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     let e0 = expr::sort(level::dup(&u1));
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e0) };
     let w0 = prop_when::never();
-    let mut ns2: Vec<Name> = Vec::new();
-    ns2.push(name::dup(&n1));
-    let ns3: Vec<Name> = Vec::new();
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns2, nparams: 0, ctors: ns3 };
+    let mut ns1: Vec<Name> = Vec::new();
+    ns1.push(name::dup(&n1));
+    let ns2: Vec<Name> = Vec::new();
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns1, nparams: 0, ctors: ns2 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
     let mut s1: Vec<u32> = Vec::new();  // "rec"
     s1.push(114);
@@ -307,8 +307,8 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     let mut s2: Vec<u32> = Vec::new();  // "u"
     s2.push(117);
     let n3 = name::mk_str(name::dup(&n0), s2);
-    let mut ns4: Vec<Name> = Vec::new();
-    ns4.push(name::dup(&n3));
+    let mut ns3: Vec<Name> = Vec::new();
+    ns3.push(name::dup(&n3));
     let e1 = expr::mk_bvar(0);
     let e2 = expr::mk_bvar(1);
     let e3 = expr::app(expr::dup(&e2), expr::dup(&e1));
@@ -319,7 +319,7 @@ pub fn basis_decls_empty() -> Vec<ConstantInfo> {
     let e6 = expr::sort(level::dup(&u2));
     let e7 = expr::forall_e(expr::dup(&e4), expr::dup(&e6));
     let e8 = expr::forall_e(expr::dup(&e7), expr::dup(&e5));
-    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns4, ty: expr::dup(&e8) };
+    let cv1 = ConstantVal { name: name::dup(&n2), level_params: ns3, ty: expr::dup(&e8) };
     let rs0: Vec<RecRule> = Vec::new();
     let ci1 = ConstantInfo::RecInfo(cv1, 1, 1, rs0);
     let mut out0: Vec<ConstantInfo> = Vec::new();
@@ -431,10 +431,10 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let cv0 = ConstantVal { name: name::dup(&n1), level_params: ns0, ty: expr::dup(&e7) };
     let mut ns1: Vec<Name> = Vec::new();
     ns1.push(name::dup(&n2));
-    let w4 = prop_when::if_all_zero(ns1);
+    let w0 = prop_when::if_all_zero(ns1);
     let ns2: Vec<Name> = Vec::new();
     let ns3: Vec<Name> = Vec::new();
-    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w4, all: ns2, nparams: 0, ctors: ns3 };
+    let ic0 = IndCaps { eta: false, eta_ctor: name::dup(&n0), eta_params: 0, eta_fields: 0, unitlike: false, unit_params: 0, rule_k: false, sort_z: w0, all: ns2, nparams: 0, ctors: ns3 };
     let ci0 = ConstantInfo::IndInfo(cv0, ic0);
     let mut s2: Vec<u32> = Vec::new();  // "mk"
     s2.push(109);
@@ -462,9 +462,9 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let mut s4: Vec<u32> = Vec::new();  // "v"
     s4.push(118);
     let n5 = name::mk_str(name::dup(&n0), s4);
-    let mut ns8: Vec<Name> = Vec::new();
-    ns8.push(name::dup(&n2));
-    ns8.push(name::dup(&n5));
+    let mut ns5: Vec<Name> = Vec::new();
+    ns5.push(name::dup(&n2));
+    ns5.push(name::dup(&n5));
     let e15 = expr::mk_bvar(3);
     let e16 = expr::mk_bvar(4);
     let e17 = expr::app(expr::dup(&e9), expr::dup(&e16));
@@ -495,7 +495,7 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let e35 = expr::forall_e(expr::dup(&e34), expr::dup(&e33));
     let e36 = expr::forall_e(expr::dup(&e5), expr::dup(&e35));
     let e37 = expr::forall_e(expr::dup(&e0), expr::dup(&e36));
-    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns8, ty: expr::dup(&e37) };
+    let cv2 = ConstantVal { name: name::dup(&n4), level_params: ns5, ty: expr::dup(&e37) };
     let e38 = expr::app(expr::dup(&e8), expr::dup(&e4));
     let e39 = expr::lam(expr::dup(&e16), expr::dup(&e38));
     let e40 = expr::lam(expr::dup(&e30), expr::dup(&e39));
@@ -512,8 +512,8 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     s6.push(110);
     s6.push(100);
     let n7 = name::mk_str(name::dup(&n1), s6);
-    let mut ns25: Vec<Name> = Vec::new();
-    ns25.push(name::dup(&n2));
+    let mut ns6: Vec<Name> = Vec::new();
+    ns6.push(name::dup(&n2));
     let e45 = expr::app(expr::dup(&e9), expr::dup(&e15));
     let e46 = expr::app(expr::dup(&e45), expr::dup(&e8));
     let e47 = expr::forall_e(expr::dup(&e46), expr::dup(&e38));
@@ -532,7 +532,7 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let e58 = expr::forall_e(expr::dup(&e57), expr::dup(&e54));
     let e59 = expr::forall_e(expr::dup(&e5), expr::dup(&e58));
     let e60 = expr::forall_e(expr::dup(&e0), expr::dup(&e59));
-    let cv3 = ConstantVal { name: name::dup(&n7), level_params: ns25, ty: expr::dup(&e60) };
+    let cv3 = ConstantVal { name: name::dup(&n7), level_params: ns6, ty: expr::dup(&e60) };
     let e61 = expr::app(expr::dup(&e2), expr::dup(&e4));
     let e62 = expr::lam(expr::dup(&e15), expr::dup(&e61));
     let e63 = expr::lam(expr::dup(&e53), expr::dup(&e62));
@@ -550,8 +550,8 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     s7.push(110);
     s7.push(100);
     let n8 = name::mk_str(name::dup(&n1), s7);
-    let mut ns37: Vec<Name> = Vec::new();
-    ns37.push(name::dup(&n2));
+    let mut ns7: Vec<Name> = Vec::new();
+    ns7.push(name::dup(&n2));
     let e67 = expr::app(expr::dup(&e48), expr::dup(&e16));
     let e68 = expr::app(expr::dup(&e67), expr::dup(&e15));
     let e69 = expr::app(expr::dup(&e68), expr::dup(&e2));
@@ -569,7 +569,7 @@ pub fn basis_decls_quot() -> Vec<ConstantInfo> {
     let e79 = expr::forall_e(expr::dup(&e2), expr::dup(&e78));
     let e80 = expr::forall_e(expr::dup(&e5), expr::dup(&e79));
     let e81 = expr::forall_e(expr::dup(&e0), expr::dup(&e80));
-    let cv4 = ConstantVal { name: name::dup(&n8), level_params: ns37, ty: expr::dup(&e81) };
+    let cv4 = ConstantVal { name: name::dup(&n8), level_params: ns7, ty: expr::dup(&e81) };
     let ci4 = ConstantInfo::AxiomInfo(cv4);
     let mut out0: Vec<ConstantInfo> = Vec::new();
     out0.push(ci0);
