@@ -798,7 +798,7 @@
 
 == crates/con-ron-core/src/arena/core.rs#L10118-L10158
  10118  /// con-leche: ConLeche/Cached/StateC.lean:313-320 CState.flushed
- 10119  /// Lean twin: `proof/ConRon/Arena/Core.lean:3584-3590 flushCaches` — **what
+ 10119  /// Lean twin: `proof/ConRon/Arena/Core.lean:3580-3586 flushCaches` — **what
  10120  /// the per-declaration bracket does to the caches**: it drops them whole,
  10121  /// which is con-leche's own `flushC`, the operation its driver runs at exactly
  10122  /// this point.
@@ -816,7 +816,7 @@
  10134  }
  10135  
  10136  /// con-leche: none — **the per-declaration bracket, closed** (DESIGN.md §8.3)
- 10137  /// Lean twin: `proof/ConRon/Arena/Core.lean:3592-3600 dropScratch` — drop the
+ 10137  /// Lean twin: `proof/ConRon/Arena/Core.lean:3588-3596 dropScratch` — drop the
  10138  /// scratch tier of the store and the cache entries that name it, in one
  10139  /// operation, so the two halves cannot drift apart; and **thaw** the store:
  10140  /// the tier `enter_scratch` handed out comes back (task #98-FREEZE), so the
@@ -827,7 +827,7 @@
  10145  }
  10146  
  10147  /// con-leche: none — **the per-declaration bracket, opened** (DESIGN.md §8.3)
- 10148  /// Lean twin: `proof/ConRon/Arena/Core.lean:3602-3609 enterScratch` — turn the
+ 10148  /// Lean twin: `proof/ConRon/Arena/Core.lean:3598-3605 enterScratch` — turn the
  10149  /// scratch tier on, and clear the per-call memo tables of `Memos`, which
  10150  /// belong to no tier and whose keys the new tier may reuse.  **Opening a
  10151  /// bracket is freezing the store** (task #98-FREEZE): its persistent tables
@@ -1104,7 +1104,7 @@
    372  // ---------------------------------------------------------------------------
    373  
    374  /// con-leche: ConLeche/Kernel/Core.lean:1706-1735 coreKnot
-   375  /// Lean twin: `proof/ConRon/Arena/Core.lean:3459-3531 coreKnot` — **the
+   375  /// Lean twin: `proof/ConRon/Arena/Core.lean:3455-3527 coreKnot` — **the
    376  /// executed knot**: the memoized one, `pureFnsA`'s.
    377  pub const LANE_FULL: u32 = 0;
    378  
