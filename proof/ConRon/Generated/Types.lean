@@ -610,7 +610,7 @@ structure arena.monad.EIdxNat where
   d : Std.U64
 
 /-- [con_ron_core::arena::monad::Memos]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 198:0-242:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 199:0-243:1
     Visibility: public -/
 structure arena.monad.Memos where
   inst1_c : ron.hashmap2.HashMap2 arena.monad.EIdxNat arena.handle.EIdx
@@ -683,7 +683,7 @@ structure arena.core_state.Caches where
     kernel.level.Level)
 
 /-- [con_ron_core::arena::monad::AState]
-    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 308:0-325:1
+    Source: 'crates/con-ron-core/src/arena/monad.rs', lines 309:0-326:1
     Visibility: public -/
 structure arena.monad.AState where
   store : arena.store.EStore
