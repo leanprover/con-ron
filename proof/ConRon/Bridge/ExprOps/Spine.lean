@@ -10,18 +10,16 @@ walk an APPLICATION SPINE or a BINDER TELESCOPE rather than the handle DAG:
 1. **Almost none of them takes a memo, and half take no fuel.**  The
    recursion is structural on a binder count (`stripPis`), on an
    argument list (`mkAppN`, `instSpine`, `instPisAt`) or on a `Nat` cursor
-   (`mkAppNFrom`, `bvarRange`), so the theorems are plain inductions over
+   (`mkAppNFrom`), so the theorems are plain inductions over
    that argument and not fuel inductions, and the postcondition frames no
    memo table at all.  The six READ-ONLY twins (`getAppFn`, `getAppArgs`,
    `stripLams`, `stripPis`, `piResult`, `fvarTypeD`) intern nothing, so their postcondition is `s' = s₀` and the
    answer relation's two stores coincide.
-2. **Two of them are arena-only.**  `bvarRange` interns `recRulePlain`'s
-   comparand list (con-leche writes it as a literal `List.map`) and
-   `mkAppNFrom` applies a PUSH-ORDER `Array` from a cursor (task #97-P6-15's
-   clause change).  Their doc comments say `con-leche: none` and their
-   theorems are exactly the list facts their callers consume: `bvarRange`'s
-   answer denotes `(List.range n).map …`, and `mkAppNFrom`'s pure function is
-   `mkAppN`'s at the dropped prefix, so `mkAppN_spec` composes with it.
+2. **One of them is arena-only.**  `mkAppNFrom` applies a PUSH-ORDER `Array`
+   from a cursor (task #97-P6-15's clause change).  Its doc comment says
+   `con-leche: none` and its theorem is exactly the fact its callers consume:
+   `mkAppNFrom`'s pure function is `mkAppN`'s at the dropped prefix, so
+   `mkAppN_spec` composes with it.
 3. **The `…F` accumulators are REVERSED.**  `instPisAtFGo` / `instLamsAtFGo`
    hold their pending substitutions in an `Array` built with `Array.push`,
    where con-leche's `instPisAtFGo` builds a `List` with `a :: acc` — task
@@ -39,16 +37,14 @@ types:
 
 * `RelEP` — an `Option (List EIdx × EIdx)` answer (`instPisAt`,
   `instLamsAt`, and the four `…F`s);
-* `RelBP` — an `Option (List (EIdx × BinderMeta) × EIdx)` answer
-  (`stripLams`, `stripPis`): the binder metadata is a VALUE and crosses the
-  denotation unchanged.
+* `RelBP` — an `Option (List EIdx × EIdx)` answer
+  (`stripLams`, `stripPis`).
 
 Everything else reuses `Rel.lean`: `RelE` for `getAppFn`, `piResult`,
 `fvarTypeD`, `instSpine`, `mkAppN` and `mkAppNFrom` (the last two at the
 partially applied pure function `fun x => Expr.mkAppN x eargs`, which is how
 a multi-subject twin fits a one-subject relation — the argument list's
-denotation is an ordinary hypothesis), `RelV` for `recRulePlain`, and
-`RelEL` for `getAppArgs` and `bvarRange`.
+denotation is an ordinary hypothesis), and `RelEL` for `getAppArgs`.
 
 ## The axiom check, and what it inherits
 
@@ -94,20 +90,18 @@ Modelled on `Bridge/Rel.lean`'s `RelEO`: an `Option`-valued answer gets a
 that the relation has `RelE`'s shape exactly and `grind` still sees a head
 symbol. -/
 
-/-- con-leche: none — the denotation of a BINDER list: the domain is a
-handle, the `BinderMeta` is a value and crosses unchanged (task #97-P6-16's
-datum store is read by `view`, so nothing here decodes one). -/
-def denoteBL (st : EStore) : List (EIdx × BinderMeta) →
-    Option (List (Expr × BinderMeta))
+/-- con-leche: none — the denotation of a BINDER list: the domains, handle by
+handle (a binder carries its type and nothing else). -/
+def denoteBL (st : EStore) : List EIdx → Option (List Expr)
   | [] => some []
-  | (t, m) :: bs =>
+  | t :: bs =>
     match denoteE st t, denoteBL st bs with
-    | some x, some xs => some ((x, m) :: xs)
+    | some x, some xs => some (x :: xs)
     | _, _ => none
 
 /-- con-leche: none — the denotation of `stripLams`' result shape. -/
-def denoteBP (st : EStore) : Option (List (EIdx × BinderMeta) × EIdx) →
-    Option (Option (List (Expr × BinderMeta) × Expr))
+def denoteBP (st : EStore) : Option (List EIdx × EIdx) →
+    Option (Option (List Expr × Expr))
   | none => some none
   | some (bs, e) =>
     match denoteBL st bs, denoteE st e with
@@ -116,9 +110,9 @@ def denoteBP (st : EStore) : Option (List (EIdx × BinderMeta) × EIdx) →
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — the answer relation at
 `stripLams`/`stripPis`' result shape. -/
-def RelBP (f : Expr → Option (List (Expr × BinderMeta) × Expr))
+def RelBP (f : Expr → Option (List Expr × Expr))
     (st : EStore) (c : EIdx) (st' : EStore)
-    (r : Option (List (EIdx × BinderMeta) × EIdx)) : Prop :=
+    (r : Option (List EIdx × EIdx)) : Prop :=
   ∀ e, denoteE st c = some e → denoteBP st' r = some (f e)
 
 /-! ### The TWO-SUBJECT relations
@@ -188,7 +182,7 @@ theorem RelE.self_of_view {f : Expr → Expr} {st : EStore} {h : EIdx}
 
 /-- con-leche: none — `RelBP` at a fallthrough arm that answers `none`. -/
 theorem RelBP.none_of_view
-    {f : Expr → Option (List (Expr × BinderMeta) × Expr)} {st : EStore}
+    {f : Expr → Option (List Expr × Expr)} {st : EStore}
     {h : EIdx} {v : ENodeView} (hwf : StoreWF st)
     (hview : st.view h = some v)
     (hf : ∀ e, denoteEView st v = some e → f e = none) :
@@ -262,8 +256,8 @@ function's own clause is an `Option.map`.  Two step lemmas per answer shape
 cover all eight.  They belong in `Bridge/Rel.lean` group 7. -/
 
 /-- con-leche: none — what `denoteBP` at `some p` says. -/
-theorem denoteBP_some_inv {st : EStore} {p : List (EIdx × BinderMeta) × EIdx}
-    {x : Option (List (Expr × BinderMeta) × Expr)}
+theorem denoteBP_some_inv {st : EStore} {p : List EIdx × EIdx}
+    {x : Option (List Expr × Expr)}
     (h : denoteBP st (some p) = some x) :
     ∃ xs e, x = some (xs, e) ∧ denoteBL st p.1 = some xs ∧
       denoteE st p.2 = some e := by
@@ -277,14 +271,14 @@ theorem denoteBP_some_inv {st : EStore} {p : List (EIdx × BinderMeta) × EIdx}
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the CONS arm
 of a binder peel that keeps the binder metadata. -/
-theorem RelBP.cons_step {F Fb : Expr → Option (List (Expr × BinderMeta) × Expr)}
+theorem RelBP.cons_step {F Fb : Expr → Option (List Expr × Expr)}
     {st : EStore} {h ty b : EIdx}
-    {p : List (EIdx × BinderMeta) × EIdx} (hwf : StoreWF st)
+    {p : List EIdx × EIdx} (hwf : StoreWF st)
     (hview : st.view h = some (.forallE ty b))
     (hdec : ∀ x y bs e, Fb y = some (bs, e) →
-      F (.forallE x y) = some ((x, m) :: bs, e))
+      F (.forallE x y) = some (x :: bs, e))
     (hb : RelBP Fb st b st (some p)) :
-    RelBP F st h st (some ((ty, m) :: p.1, p.2)) := by
+    RelBP F st h st (some (ty :: p.1, p.2)) := by
   intro e he
   obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hview he
   obtain ⟨xs, x, hx, hbl, hde⟩ := denoteBP_some_inv (hb eb hdb)
@@ -294,14 +288,14 @@ theorem RelBP.cons_step {F Fb : Expr → Option (List (Expr × BinderMeta) × Ex
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the same at
 a λ binder. -/
 theorem RelBP.consLam_step
-    {F Fb : Expr → Option (List (Expr × BinderMeta) × Expr)}
+    {F Fb : Expr → Option (List Expr × Expr)}
     {st : EStore} {h ty b : EIdx}
-    {p : List (EIdx × BinderMeta) × EIdx} (hwf : StoreWF st)
+    {p : List EIdx × EIdx} (hwf : StoreWF st)
     (hview : st.view h = some (.lam ty b))
     (hdec : ∀ x y bs e, Fb y = some (bs, e) →
-      F (.lam x y) = some ((x, m) :: bs, e))
+      F (.lam x y) = some (x :: bs, e))
     (hb : RelBP Fb st b st (some p)) :
-    RelBP F st h st (some ((ty, m) :: p.1, p.2)) := by
+    RelBP F st h st (some (ty :: p.1, p.2)) := by
   intro e he
   obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hview he
   obtain ⟨xs, x, hx, hbl, hde⟩ := denoteBP_some_inv (hb eb hdb)
@@ -310,7 +304,7 @@ theorem RelBP.consLam_step
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the `none`
 arm: the peel failed one level down, so it fails here. -/
-theorem RelBP.none_step {F Fb : Expr → Option (List (Expr × BinderMeta) × Expr)}
+theorem RelBP.none_step {F Fb : Expr → Option (List Expr × Expr)}
     {st : EStore} {h ty b : EIdx} (hwf : StoreWF st)
     (hview : st.view h = some (.forallE ty b))
     (hdec : ∀ x y, Fb y = none → F (.forallE x y) = none)
@@ -324,7 +318,7 @@ theorem RelBP.none_step {F Fb : Expr → Option (List (Expr × BinderMeta) × Ex
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the same at
 a λ binder. -/
 theorem RelBP.noneLam_step
-    {F Fb : Expr → Option (List (Expr × BinderMeta) × Expr)} {st : EStore}
+    {F Fb : Expr → Option (List Expr × Expr)} {st : EStore}
     {h ty b : EIdx} (hwf : StoreWF st)
     (hview : st.view h = some (.lam ty b))
     (hdec : ∀ x y, Fb y = none → F (.lam x y) = none)
@@ -364,7 +358,7 @@ Two facts; after them no proof below unfolds `denoteEList`.  Both belong in
 /-! ### `denoteEView` preserves the head constructor
 
 The fallthrough arm of a telescope walk is handed the view as an ABSTRACT
-`ENodeView` with a negative constraint (`∀ ty b m, x ≠ .forallE ty b m`) — it
+`ENodeView` with a negative constraint (`∀ ty b, x ≠ .forallE ty b`) — it
 is one arm and not nine, because `vcgen` does not split a `match` whose
 default case is a wildcard.  So what the arm needs is that the CONSTRAINT
 travels to the denoted term, and that is one ten-case analysis, done once
@@ -374,8 +368,8 @@ here.  It belongs in `Bridge/Rel.lean` beside `denoteEView_ext`. -/
 constructor, as the four negative facts this group's fallthrough arms need. -/
 theorem denoteEView_shape {st : EStore} {v : ENodeView} {e : Expr}
     (h : denoteEView st v = some e) :
-    ((∀ ty b m, v ≠ .forallE ty b) → ∀ ty b m, e ≠ .forallE ty b) ∧
-      ((∀ ty b m, v ≠ .lam ty b) → ∀ ty b m, e ≠ .lam ty b) ∧
+    ((∀ ty b, v ≠ .forallE ty b) → ∀ ty b, e ≠ .forallE ty b) ∧
+      ((∀ ty b, v ≠ .lam ty b) → ∀ ty b, e ≠ .lam ty b) ∧
       ((∀ k t, v ≠ .fvar k t) → ∀ k t, e ≠ .fvar k t) ∧
       ((∀ u, v ≠ .sort u) → ∀ l, e ≠ .sort l) := by
   cases v <;>
@@ -384,13 +378,13 @@ theorem denoteEView_shape {st : EStore} {v : ENodeView} {e : Expr}
 
 /-- con-leche: none — `denoteEView_shape`'s `∀` projection. -/
 theorem denoteEView_not_forallE {st : EStore} {v : ENodeView} {e : Expr}
-    (h : denoteEView st v = some e) (hv : ∀ ty b m, v ≠ .forallE ty b) :
-    ∀ ty b m, e ≠ .forallE ty b m := (denoteEView_shape h).1 hv
+    (h : denoteEView st v = some e) (hv : ∀ ty b, v ≠ .forallE ty b) :
+    ∀ ty b, e ≠ .forallE ty b := (denoteEView_shape h).1 hv
 
 /-- con-leche: none — its λ projection. -/
 theorem denoteEView_not_lam {st : EStore} {v : ENodeView} {e : Expr}
-    (h : denoteEView st v = some e) (hv : ∀ ty b m, v ≠ .lam ty b) :
-    ∀ ty b m, e ≠ .lam ty b m := (denoteEView_shape h).2.1 hv
+    (h : denoteEView st v = some e) (hv : ∀ ty b, v ≠ .lam ty b) :
+    ∀ ty b, e ≠ .lam ty b := (denoteEView_shape h).2.1 hv
 
 /-- con-leche: none — its `fvar` projection. -/
 theorem denoteEView_not_fvar {st : EStore} {v : ENodeView} {e : Expr}
@@ -410,9 +404,9 @@ One lemma per twin, each a `cases e` over the ten constructors.  They are the
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1136-1140 piResult — the
 fallthrough clause. -/
 theorem piResult_of_not_forallE {e : Expr}
-    (h : ∀ ty b m, e ≠ Expr.forallE ty b) : Expr.piResult e = e := by
+    (h : ∀ ty b, e ≠ Expr.forallE ty b) : Expr.piResult e = e := by
   cases e with
-  | forallE ty b => exact absurd rfl (h ty b m)
+  | forallE ty b => exact absurd rfl (h ty b)
   | _ => simp [Expr.piResult]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — the
@@ -426,19 +420,19 @@ theorem fvarTypeD_of_not_fvar {e : Expr} (h : ∀ k t, e ≠ Expr.fvar k t) :
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1128-1134 stripPis — the
 fallthrough clause at a nonzero count. -/
 theorem stripPis_of_not_forallE {e : Expr} {k : Nat}
-    (h : ∀ ty b m, e ≠ Expr.forallE ty b) :
+    (h : ∀ ty b, e ≠ Expr.forallE ty b) :
     Expr.stripPis (k + 1) e = none := by
   cases e with
-  | forallE ty b => exact absurd rfl (h ty b m)
+  | forallE ty b => exact absurd rfl (h ty b)
   | _ => simp [Expr.stripPis]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams — the
 fallthrough clause at a nonzero count. -/
 theorem stripLams_of_not_lam {e : Expr} {k : Nat}
-    (h : ∀ ty b m, e ≠ Expr.lam ty b) :
+    (h : ∀ ty b, e ≠ Expr.lam ty b) :
     Expr.stripLams (k + 1) e = none := by
   cases e with
-  | lam ty b => exact absurd rfl (h ty b m)
+  | lam ty b => exact absurd rfl (h ty b)
   | _ => simp [Expr.stripLams]
 
 /-! ### The tag dispatch's licence at `app`
@@ -635,21 +629,20 @@ theorem piResult_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
     -- Ten verification conditions remain: the `forallE` arm's postcondition
     -- and the nine fallthrough constructors.  `RelE` is a `def`, so the
     -- closer cannot unfold it; both shapes are one step lemma.
-    -- The twin tests the tag and reads `viewBindI` since task #97-P5-Core
+    -- The twin tests the tag and reads `viewBind` since task #97-P5-Core
     -- round 4, as the Rust does: the `forallE` arm recovers the view from the
     -- binder projection, the `else` arm from the denotation and the tag.
     all_goals
       (arm_pre
        first
-       | (obtain ⟨_, hv⟩ := view_forallE_of_viewBindI hok.wf (by arm_hyp)
-            (by arm_hyp)
+       | (have hv := view_forallE_of_viewBind (by arm_hyp) (by arm_hyp)
           exact ⟨rfl, RelE.body_step hok.wf hv (fun _ _ => rfl) (by arm_hyp)⟩)
        | (obtain ⟨v, hv⟩ := view_of_denote_isSome (by arm_hyp)
           exact ⟨rfl, RelE.self_of_view hok.wf hv (fun e he =>
             piResult_of_not_forallE (denoteEView_not_forallE he
-              (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
+              (fun ty b hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
                 (by rw [hh]; rfl))))⟩)
-       | exact isSome_body_of_viewBindI hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp))
+       | exact isSome_body_of_viewBind hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp))
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — **THEOREM 1**
 for `fvarTypeD`: the type annotation of a free-variable leaf, the expression
@@ -703,7 +696,7 @@ theorem stripPis_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
        | (obtain ⟨v, hv⟩ := view_of_denote_isSome (by arm_hyp)
           exact ⟨rfl, RelBP.none_of_view hok.wf hv (fun e he =>
             stripPis_of_not_forallE (denoteEView_not_forallE he
-              (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
+              (fun ty b hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
                 (by rw [hh]; rfl))))⟩))
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1120-1126 stripLams —
@@ -741,9 +734,9 @@ theorem stripLams_spec : ∀ (k : Nat) (s₀ : AState) (h : EIdx),
              (denoteEView_not_lam he (by grind)))⟩)
 
 
-/-! ## 5. The two argument folds, and `recRulePlain`'s comparand list
+/-! ## 5. The two argument folds
 
-These three intern, so their postcondition carries `Ext` and the four frame
+These two intern, so their postcondition carries `Ext` and the four frame
 equations.  None of them takes a memo: `internE`'s own spec frames
 `s'.memos = s₀.memos`, so `MemoOK` never appears. -/
 
@@ -878,63 +871,6 @@ theorem mkAppNFrom_spec : ∀ (n : Nat) (s₀ : AState) (f : EIdx)
          exact ⟨hok, Ext.refl _, rfl, rfl, rfl,
            RelEA.nil (fun _ => rfl) (Ext.refl _)⟩)
 
-/-- con-leche: none — `bvarRange`'s answer, as the recursion the twin itself
-performs.  `recRulePlain` compares against con-leche's
-`(List.range cnP).map (fun k => Expr.bvar (mI - 1 - k))`, which is this at
-cursor `0` (`bvarRangeSpec_eq_range`). -/
-def bvarRangeSpec (mI : Nat) : Nat → Nat → List Expr
-  | 0, _ => []
-  | n + 1, k => Expr.bvar (mI - 1 - k) :: bvarRangeSpec mI n (k + 1)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1229-1244 recRulePlain — **the
-equation the bridge cites**: `bvarRange`'s recursion IS con-leche's literal
-comparand list. -/
-theorem bvarRangeSpec_eq_range (mI : Nat) :
-    ∀ (n k : Nat), bvarRangeSpec mI n k =
-      (List.range n).map (fun j => Expr.bvar (mI - 1 - (k + j))) := by
-  intro n
-  induction n with
-  | zero => intro k; simp [bvarRangeSpec]
-  | succ n ih =>
-    intro k
-    have hf : (fun j => Expr.bvar (mI - 1 - (k + 1 + j))) =
-        (fun j => Expr.bvar (mI - 1 - (k + (j + 1)))) := by
-      funext j; congr 1; omega
-    rw [bvarRangeSpec, ih (k + 1), hf, List.range_succ_eq_map]
-    simp [Function.comp_def]
-
-/-- con-leche: none — **THEOREM 1** for `bvarRange`, the arena-only helper
-that interns `recRulePlain`'s comparand list.  There is no expression SUBJECT
-at all (the answer is built from `Nat`s), so no `RelEL`: what the caller
-consumes is that the answered handle list DENOTES `bvarRangeSpec`, and
-`bvarRangeSpec_eq_range` turns that into con-leche's `List.range` literal. -/
-theorem bvarRange_spec : ∀ (n : Nat) (s₀ : AState) (mI k : Nat), StateOK s₀ →
-    ⦃fun s => s = s₀⦄ bvarRange mI n k
-    ⦃fun rs s' => StateOK s' ∧ Ext s₀.store s'.store ∧ s'.memos = s₀.memos ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        Frontend.denoteEList s'.store rs = some (bvarRangeSpec mI n k); ⊤⦄ := by
-  intro n
-  induction n with
-  | zero =>
-    intro s₀ mI k hok
-    vcgen [bvarRange]
-    all_goals try bridge_vcs [bvarRangeSpec]
-    all_goals
-      (arm_pre
-       exact ⟨hok, Ext.refl _, rfl, rfl, rfl, rfl⟩)
-  | succ n ih =>
-    intro s₀ mI k hok
-    vcgen [bvarRange, ih]
-    all_goals try bridge_vcs [bvarRangeSpec]
-    all_goals
-      (arm_pre
-       refine ⟨by arm_hyp, by grind only [Ext.trans], by grind, by grind,
-         by grind, ?_⟩
-       rw [bvarRangeSpec]
-       exact denoteEList_cons_of
-         (denote_ext (denote_bvar_of_intern (by arm_hyp)) (by arm_hyp))
-         (by arm_hyp))
-
 /-! ## 7. The three walks that fold `instantiate1`
 
 `instSpine`, `instPisAt` and `instLamsAt` call
@@ -1034,8 +970,6 @@ statements rest on. -/
 #print axioms piResult_spec
 #print axioms fvarTypeD_spec
 #print axioms instSpine_spec
-#print axioms bvarRange_spec
-#print axioms bvarRangeSpec_eq_range
 #print axioms denoteEView_shape
 #print axioms not_app_of_tag
 #print axioms denoteEList_snoc
