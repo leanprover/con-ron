@@ -683,11 +683,16 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
     FM (Array (Expr × Expr) × Array Bool) := do
   let mut out : Array (Expr × Expr) := #[]
   let mut srcs : Array (Expr × Expr × Option Nat) := #[]
+  -- the telescopes are taken WITHOUT `normNeg`: a conclusion `ls ≠ []` must
+  -- stay a conclusion, not become a premise `ls = []` (premises are
+  -- normalised where they are matched)
   for h in (← read).hyps do
-    if let some r := h.rel? then srcs := srcs.push (h.pf, r, none)
+    if h.rel?.isSome then
+      let r ← unfoldRel (← instantiateMVars (← inferType h.pf))
+      if r.isForall then srcs := srcs.push (h.pf, r, none)
   for l in lemmas, i in [0:lemmas.size] do
     if deadL[i]?.getD false then continue
-    srcs := srcs.push (l, ← normNeg (← inferType l), some i)
+    srcs := srcs.push (l, ← inferType l, some i)
   let mut deadL := deadL
   if deadL.size < lemmas.size then deadL := Array.replicate lemmas.size false
   for (h, ht, li?) in srcs do
@@ -890,7 +895,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) :
   let mut deadL : Array Bool := #[]
   let mut cache : Std.HashMap FVarId Hyp := {}
   let mut first := true
-  for _ in [0:4] do
+  for _ in [0:8] do
     let (news, snap) ← g.withContext do
       let mut ls := #[]
       for n in defaults do ls := ls.push (← mkConstWithFreshMVarLevels n)
@@ -1017,8 +1022,8 @@ partial def matchPats (g : MVarId) (pats : List (Ident × Term)) (used : Array F
   | [] => return some #[]
   | (_, pat) :: rest =>
     let s0 ← saveState
-    let pt ← normNeg (← Term.withoutErrToSorry <|
-      Tactic.elabTerm pat none (mayPostpone := true))
+    let pt ← Term.withoutErrToSorry <| Tactic.elabTerm pat none (mayPostpone := true)
+    let pt ← normNeg (← instantiateMVars pt)
     for d in (← getLCtx).decls.toArray.reverse do
       let some d := d | continue
       if d.isImplementationDetail || used.contains d.fvarId then continue
