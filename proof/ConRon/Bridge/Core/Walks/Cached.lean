@@ -394,7 +394,6 @@ theorem CheckOK.ofInstLP {s₀ s' : AState} (hok : CheckOK mode env fe s₀)
       whnf := by rw [hc]; exact hok.caches.whnf.mono hx
       infer := by rw [hc]; exact hok.caches.infer.mono hx
       inferIO := by rw [hc]; exact hok.caches.inferIO.mono hx
-      annot := by rw [hc]; exact hok.caches.annot.mono hx
       defeq := by rw [hc]; exact hok.caches.defeq.mono hx
       lvlEq := by rw [hc]; exact hok.caches.lvlEq.mono hx
       lvlsEq := by rw [hc]; exact hok.caches.lvlsEq.mono hx
@@ -461,7 +460,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     obtain rfl := Option.some.inj (hf'.symm.trans hf)
     exact hd
   · -- the MISS: `instLPFast`, then the insert
-    rename_i hst hL hLs hN hx _ hc hp _ hrel
+    rename_i hst hL hLs hN hx hc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
     have hd := hrel _ hty
     exact ⟨CheckOK.ofCache hck (CacheOK.insertConstTy hck.caches
@@ -527,7 +526,7 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     cases hf'
     exact hd
   · -- the MISS
-    rename_i hst hL hLs hN hx _ hc hp _ hrel
+    rename_i hst hL hLs hN hx hc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hc hp
     have hd := hrel _ hval
     exact ⟨CheckOK.ofCache hck (CacheOK.insertConstVal hck.caches
@@ -605,7 +604,7 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     cases hrl'
     exact hd
   · -- the MISS
-    rename_i hst hL hLs hN hx _ hcc hp _ hrel
+    rename_i hst hL hLs hN hx hcc hp _ hrel
     have hck := CheckOK.ofInstLP hok hst hx hL hLs hN hcc hp
     have hd := hrel _ hrhs
     exact ⟨CheckOK.ofCache hck (CacheOK.insertRuleRhs hck.caches
