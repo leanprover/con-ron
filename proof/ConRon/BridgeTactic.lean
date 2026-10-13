@@ -350,6 +350,21 @@ partial def quickMatch (env : Environment) (a b : Expr) (depth : Nat := 3) : Boo
 /-- `quickMatch` at the top: the filter every search runs before `same`. -/
 def mayMatch (ht t : Expr) : MetaM Bool := return quickMatch (← getEnv) ht t
 
+/-- A CLOSED equation (no local, no metavariable) by `rfl` at default
+transparency: a pin table's entry, `pinNames[PIN_NAT]? = some natName`, which
+a callee's `∀ x, pinNames[i]? = some x → …` premise asks for.  Closed terms
+evaluate; nothing in the context can make the check expensive. -/
+def closedRfl (t : Expr) : FM (Option Expr) := do
+  let some (_, a, b) := t.eq? | return none
+  if t.hasFVar || t.hasMVar then return none
+  let s ← (saveState : MetaM _)
+  try
+    if ← withDefault (Meta.isDefEq a b) then
+      -- typed as the equation itself, so that `supply`'s check sees `t`
+      return some (← mkExpectedTypeHint (← mkEqRefl a) t)
+    s.restore; return none
+  catch _ => s.restore; return none
+
 /-- A hypothesis whose type is `t` (reducibly, the most recent first). -/
 def findHyp (t : Expr) : FM (Option Expr) := do
   let t ← normNeg t
@@ -387,7 +402,8 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
         let some ph ← attempt (provedFact fuel ft) | return none
         return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
       return none
-    return ← eqPath ty a b
+    if let some p ← eqPath ty a b then return some p
+    return ← closedRfl t
   if t.isAppOfArity ``Exists 2 then
     let body := t.appArg!
     let α := t.appFn!.appArg!
@@ -546,7 +562,9 @@ partial def chainHyp (fuel : Nat) (t : Expr) : FM (Option Expr) := do
 metavariable — from a hypothesis, from a `∀`-hypothesis (`chainHyp`), or from
 either at an earlier store and an `Ext` path. -/
 partial def provedFact (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  if !isFactShape t then return ← findHyp t
+  if !isFactShape t then
+    if let some h ← findHyp t then return some h
+    return ← closedRfl t
   if let some h ← findHyp t then return some h
   if let some h ← chainHyp fuel t then return some h
   -- the one transport lemma whose conclusion has `t`'s head
