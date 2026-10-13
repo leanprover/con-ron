@@ -141,7 +141,7 @@ answers what con-leche's `reduceProjCore` answers at some fuel — `none` when
 the rule does not fire, and otherwise the selected field, well-scoped.  The
 walk both `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`
 consume. -/
-theorem reduceProjCore_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
+theorem reduceProjCore_spec {fuel : Nat} (_henv : ConLeche.EnvWF env)
     (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (sn : NIdx) (k : Nat) (c : EIdx)
     (nm : Name) (ce : Expr)
