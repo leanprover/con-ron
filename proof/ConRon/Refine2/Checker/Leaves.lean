@@ -87,17 +87,12 @@ theorem mentions_const_go_aux (n : Nat) :
     rw [arena.inductives.struct_parts.mentions_const_go, mentionsConstGo]
     unfold arena.inductives.struct_parts.mentions_const_node
     lockstep
-    -- the `.const` arm and the `.proj` arm's two outcomes: the port's
-    -- `eq2` answer, read as the twin's `==`
+    -- the `.proj` arm: the port tested `s.eq2(t)` first (false here), the twin
+    -- reads `s == T || b`
     all_goals
-      have he := nidx_eq2_abs hf
-      first
-        | (subst he; exact LS.pure ⟨_, hm, rfl⟩ hrel hinv)
-        | (rw [← he, Bool.true_or]; exact LS.pure ⟨_, hP, rfl⟩ hrel hinv)
-        | (simp only [Bool.not_eq_true] at hc
-           rw [hc] at he
-           rw [← he, Bool.false_or]
-           exact LS.pure ⟨_, hP, rfl⟩ hrel hinv)
+      simp only [Bool.not_eq_true] at hc
+      simp only [hc, Bool.false_or]
+      exact LS.pure ⟨_, hP, rfl⟩ hrel hinv
 
 open Lockstep in
 @[lockstep] theorem mentions_const_go_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
