@@ -1734,17 +1734,19 @@ def majorToCtor (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
                   -- the *instantiated* non-Prop test (con-leche's task #61)
                   -- and the η law's keys
                   let nz ← capsNeverZero cvT.levelParams ust caps
-                  let reserved ← reservedBasisNames
-                  let slots ← towerSlotsAll fe T caps.etaFields
                   if T' = T ∧ targs.length = caps.etaParams ∧
-                      ustl.length = cvT.levelParams.length ∧ nz = true ∧
-                      reserved.contains T = false ∧
-                      reserved.contains caps.etaCtor = false ∧ slots = true then do
-                    let fabArgs ← etaFabArgsE T targs major caps.etaFields
-                    let hd ← internE (.const caps.etaCtor ust)
-                    let fab ← mkAppN hd fabArgs
-                    -- no certificate on the fabricated spine (task #342 L11b)
-                    if ← fabScopeOk depth fab major then pure fab
+                      ustl.length = cvT.levelParams.length ∧ nz = true then do
+                    let reserved ← reservedBasisNames
+                    if reserved.contains T = false ∧
+                        reserved.contains caps.etaCtor = false then do
+                      if ← towerSlotsAll fe T caps.etaFields then do
+                        let fabArgs ← etaFabArgsE T targs major caps.etaFields
+                        let hd ← internE (.const caps.etaCtor ust)
+                        let fab ← mkAppN hd fabArgs
+                        -- no certificate on the fabricated spine (task #342 L11b)
+                        if ← fabScopeOk depth fab major then pure fab
+                        else pure major
+                      else pure major
                     else pure major
                   else pure major
                 | _ => pure major
