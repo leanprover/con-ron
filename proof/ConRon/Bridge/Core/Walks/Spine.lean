@@ -803,12 +803,12 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
   obtain ⟨ve, hve⟩ := Option.isSome_iff_exists.mp hv
   have hb := ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden
   vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hpost
-  refine ⟨h1, h2, h3, h4, h5, fun w hw => ?_⟩
-  rw [hve] at hw
-  obtain rfl := (Option.some.inj hw).symm
-  exact h6
+  bridge_peel
+  bridge_frame
+  vc_arm (h6 : ExprOps.Inst1At ve _ _ _ _ _) =>
+    intro w hw
+    obtain rfl := eq_of_eq_some hve hw
+    exact h6
 
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast —
