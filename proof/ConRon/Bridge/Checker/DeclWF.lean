@@ -242,8 +242,7 @@ theorem constWF_ofType {env : Env} {c : ConstantInfo}
 /-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:49 checkDeclRun_ofEnvFactsK
 — **every arm off the inductive route keeps the environment well formed and
 pushes no projection table**, read off `DeclRun`: the value arms' records
-carry the type's and the value's guards and annotate outputs
-(`annotate_syntax`), the axiom arm's the type's, and the pinned blocks are
+carry the type's and the value's guards, the axiom arm's the type's, and the pinned blocks are
 `declBasisRun_envWF`.  (The unpinned inductive route is `IndSpec`'s and is
 excluded by `hd`.) -/
 theorem checkDecl_wf_pure {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}

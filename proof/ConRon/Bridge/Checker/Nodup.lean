@@ -193,7 +193,7 @@ theorem checkBlockTeles_names {mode : CheckMode} {F : Nat} {env : Env} {nP : Nat
     · exact ih2 q hq'
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:152 checkSumCtors — the
-annotated constructors carry the declared names, each fresh at the
+checked constructors carry the declared names, each fresh at the
 constructors' environment. -/
 theorem checkSumCtors_names {mode : CheckMode} {F : Nat} {env₀ env : Env} {T : Name}
     {lps : List Name} {nP nIdx : Nat} {resSort : Level} {isProp large : Bool}

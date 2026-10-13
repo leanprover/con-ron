@@ -381,7 +381,7 @@ theorem promoteNew_run_pos {m m' : PMemo} {fuel k : Nat} {fe fe' : IFEnv}
 Three facts about the same run, stated separately so that
 `promoteNew_spec`'s statement stays the one its consumers were written
 against: the environment after the promotion still only PUSHED onto the one
-before the step (`Arena.annotStep_split`'s `Pushed fe fe'`), `IFEnvOK`'s
+before the step (the install step's `Pushed fe fe'`), `IFEnvOK`'s
 `proj` clause survives it (the other half of "`IFEnvOK` at the pushed index"),
 and the bracket's closing `dropScratch` turns the promote window's invariant
 back into the strong one with every persistent denotation kept. -/
