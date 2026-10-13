@@ -120,6 +120,78 @@ theorem projTableName_spec (s₀ : AState) (T : NIdx) (Tn : ConLeche.Name)
 
 /-! ## 3. The lookup -/
 
+/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the index
+stores a TABLE at the reserved name: the entry the arena answers with denotes
+con-leche's (`IFEnvOK.hit` at the reserved name, `denoteCI`'s `.projInfo` arm
+and `denoteProjTable_entry`).  Task #120: the hit arm as a lemma, in the
+shape `bridge_auto` applies. -/
+theorem findProj?_hit_some {s : AState} {rn : NIdx} {tbl : IProjTable}
+    {Tn : ConLeche.Name} {i : Nat} (hck : CheckOK mode env fe s)
+    (hfind : fe.find? rn = some (.projInfo tbl))
+    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
+    ∀ e, (if i < tbl.numFields then some (tbl.entry i) else none) = some e →
+      ∃ p, denoteProjEntry s.store e = some p ∧ env.findProj? Tn i = some p := by
+  obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
+  obtain rfl : nm = ConLeche.projTableName Tn := by
+    rw [hnm] at hdn; exact Option.some.inj hdn
+  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+  obtain ⟨pt, hpt, rfl⟩ := hci
+  obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
+  obtain ⟨hbsz, hgsz, -⟩ := hck.ienv.proj rn tbl hfind
+  intro e he
+  split at he
+  next hlt =>
+    obtain rfl := Option.some.inj he
+    exact ⟨pt.entry i,
+      denoteProjTable_entry hpt (by rw [hbsz]; exact hlt) (by rw [hgsz]; exact hlt),
+      ConLeche.Env.findProj?_of_table hfindE (by rw [hnf]; exact hlt)⟩
+  next => exact absurd he (by simp)
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the table's
+slot is out of range in both tiers (the two `numFields` are one number). -/
+theorem findProj?_hit_none {s : AState} {rn : NIdx} {tbl : IProjTable}
+    {Tn : ConLeche.Name} {i : Nat} (hck : CheckOK mode env fe s)
+    (hfind : fe.find? rn = some (.projInfo tbl))
+    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
+    (if i < tbl.numFields then some (tbl.entry i) else none) = none →
+      env.findProj? Tn i = none := by
+  obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
+  obtain rfl : nm = ConLeche.projTableName Tn := by
+    rw [hnm] at hdn; exact Option.some.inj hdn
+  simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
+  obtain ⟨pt, hpt, rfl⟩ := hci
+  obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
+  intro he
+  split at he
+  next => exact absurd he (by simp)
+  next hlt =>
+    simp only [ConLeche.Env.findProj?, hfindE]
+    exact ite_eq_right (by rw [hnf]; exact hlt)
+
+/-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — the index
+stores no table at the reserved name, so neither does the environment
+(`IFEnvOK.miss` through `denoteN_inj`, or a non-table entry). -/
+theorem findProj?_miss_none {s : AState} {rn : NIdx} {Tn : ConLeche.Name}
+    {i : Nat} (hck : CheckOK mode env fe s)
+    (hno : ∀ tbl, fe.find? rn ≠ some (.projInfo tbl))
+    (hdn : denoteN s.store.ns rn = some (ConLeche.projTableName Tn)) :
+    (none : Option IProjEntry) = none → env.findProj? Tn i = none := by
+  intro _
+  cases hf : fe.find? rn with
+  | none =>
+    exact ConLeche.Env.findProj?_none_of_fresh
+      (IFEnvOK.miss hck.state hck.ienv hdn hf) i
+  | some ci =>
+    obtain ⟨nm, c, hnm, hci, hfindE⟩ := hck.ienv.hit rn ci hf
+    obtain rfl : nm = ConLeche.projTableName Tn := by
+      rw [hnm] at hdn; exact Option.some.inj hdn
+    simp only [ConLeche.Env.findProj?, hfindE]
+    cases c
+    case projInfo pt =>
+      obtain ⟨tbl, rfl, _⟩ := denoteCI_projInfo hci
+      exact (hno tbl hf).elim
+    all_goals rfl
+
 /-- con-leche: ConLeche/Kernel/FEnv.lean:91-95 FEnv.findProj? — **THEOREM 1
 for the indexed projection-table lookup**: the entry the arena answers with
 denotes the entry con-leche's environment answers with, and a miss is a miss.
@@ -139,51 +211,15 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
         (r = none → env.findProj? Tn i = none); ⊤⦄ := by
   vcgen [ConRon.Arena.IFEnv.findProj?, projTableName_spec (Tn := Tn)]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  -- the index stores a TABLE at the reserved name
-  vc_arm (hfind : IFEnv.find? _ ?rn = some (IConstantInfo.projInfo ?tbl))
-      (hdn : denoteN (AState.store ?s).ns _ = some (ConLeche.projTableName _)) =>
-    have hck : CheckOK mode env fe s := by bridge_frame
-    obtain ⟨nm, ci, hnm, hci, hfindE⟩ := hck.ienv.hit rn _ hfind
-    obtain rfl : nm = ConLeche.projTableName Tn := by
-      rw [hnm] at hdn; exact Option.some.inj hdn
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
-    obtain ⟨pt, hpt, rfl⟩ := hci
-    obtain ⟨hnf, _, _⟩ := denoteProjTable_fields hpt
-    obtain ⟨hbsz, hgsz, -⟩ := hck.ienv.proj rn tbl hfind
-    refine ⟨fun e he => ?_, fun he => ?_⟩
-    · split at he
-      next hlt =>
-        obtain rfl := Option.some.inj he
-        exact ⟨pt.entry i,
-          denoteProjTable_entry hpt (by rw [hbsz]; exact hlt)
-            (by rw [hgsz]; exact hlt),
-          ConLeche.Env.findProj?_of_table hfindE (by rw [hnf]; exact hlt)⟩
-      next => exact absurd he (by simp)
-    · split at he
-      next => exact absurd he (by simp)
-      next hlt =>
-        simp only [ConLeche.Env.findProj?, hfindE]
-        exact ite_eq_right (by rw [hnf]; exact hlt)
-  -- the index stores no table there, so neither does the environment
-  vc_arm (hno : ∀ tbl, IFEnv.find? _ ?rn ≠ some (.projInfo tbl))
-      (hdn : denoteN (AState.store ?s).ns _ = some (ConLeche.projTableName _)) =>
-    have hck : CheckOK mode env fe s := by bridge_frame
-    refine ⟨fun e he => absurd he (by simp), fun _ => ?_⟩
-    cases hf : fe.find? rn with
-    | none =>
-      exact ConLeche.Env.findProj?_none_of_fresh
-        (IFEnvOK.miss hck.state hck.ienv hdn hf) i
-    | some ci =>
-      obtain ⟨nm, c, hnm, hci, hfindE⟩ := hck.ienv.hit rn ci hf
-      obtain rfl : nm = ConLeche.projTableName Tn := by
-        rw [hnm] at hdn; exact Option.some.inj hdn
-      simp only [ConLeche.Env.findProj?, hfindE]
-      cases c
-      case projInfo pt =>
-        obtain ⟨tbl, rfl, _⟩ := denoteCI_projInfo hci
-        exact (hno tbl hf).elim
-      all_goals rfl
+  bridge_auto
+  -- the index's hit and miss (a table at the reserved name, or none)
+  vc_arm (hfind : IFEnv.find? _ _ = some (IConstantInfo.projInfo _))
+      (hdn : denoteN _ _ = some (ConLeche.projTableName _)) =>
+    exact ⟨findProj?_hit_some (by bridge_frame) hfind hdn,
+      findProj?_hit_none (by bridge_frame) hfind hdn⟩
+  vc_arm (hno : ∀ tbl, IFEnv.find? _ _ ≠ some (.projInfo tbl))
+      (hdn : denoteN _ _ = some (ConLeche.projTableName _)) =>
+    exact ⟨fun _ h => (nomatch h), findProj?_miss_none (by bridge_frame) hno hdn⟩
 
 /-! ## 4. `IProjEntry.fireOk` — CLOSED
 
@@ -208,11 +244,7 @@ theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
     vcgen [-readNamesM_spec, ConRon.Arena.readNamesM,
       readNameM_spec, ih]
     all_goals (bridge_peel; subst_vars)
-    bridge_frame [ReadbackFrame.ofReadN]
-    vc_arm (hx : denoteN (AState.store ?s).ns a = some _)
-        (hxs : Frontend.denoteNList _ as = some ?xs) =>
-      have hxs' : Frontend.denoteNList s.store.ns as = some xs := by bridge_frame
-      simp only [Frontend.denoteNList, hx, hxs']
+    bridge_auto [ReadbackFrame.ofReadN] unfolding [Frontend.denoteNList]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:768-794 ProjEntry.fireOk —
 **THEOREM 1 for the tower-fire guard**: at a `Prop`-declared structure the
@@ -237,22 +269,10 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
   vcgen [lvlEq?_spec (mode := mode) (env := env) (fe := fe),
     -readNamesM_spec, readNamesM_frame]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame [CheckOK.ofReadbackFrame, ReadbackFrame.ofReadLs, ReadbackFrame.ofReadL,
+  bridge_auto [CheckOK.ofReadbackFrame, ReadbackFrame.ofReadLs, ReadbackFrame.ofReadL,
     ReadbackFrame.ofReadN, CheckOK.pins, CheckOK.caches, CacheOK.readN, CacheOK.readL,
-    CacheOK.readLs]
-  bridge_fwd
-  bridge_frame
-  -- the guard DECLINES: the structure sort is not provably zero, so the rule
-  -- fires unconditionally and con-leche's first disjunct is `true`
-  vc_arm (hcond : (!Level.isEquiv _ _ == some true) = true) =>
-    simp only [ConLeche.ProjEntry.fireOk, hcond, Bool.true_or]
-  -- the guard FIRES: the structure sort IS provably zero, so con-leche's
-  -- first disjunct is `false` and the verdict is the field sort's (the three
-  -- readbacks ARE con-leche's three arguments: `bridge_fwd` unified them)
-  vc_arm (hcond : ¬ (!Level.isEquiv _ _ == some true) = true) =>
-    have hrb : p.structSort.isEquiv Level.zero = some true := by simpa using hcond
-    simp only [ConLeche.ProjEntry.fireOk, hrb, beq_self_eq_true,
-      Bool.not_true, Bool.false_or]
+    CacheOK.readLs] unfolding [ConLeche.ProjEntry.fireOk, Bool.true_or, Bool.false_or,
+    Bool.not_eq_true]
 
 /-! ## 5. The two that waited on another tier — CLOSED (round 4) -/
 
@@ -294,14 +314,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     exact ExprOps.denoteEList_snoc hpe _ _ hargs
   vcgen [ConRon.Arena.IProjEntry.typeAt, hi, hl]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame [CheckOK.ofInstLP, ExprOps.InstLVec.ext]
-  bridge_fwd
-  bridge_frame
-  -- the postcondition: the level instantiation, then the list instantiation
-  vc_arm (hrel : RelE (fun e => Expr.instantiateList e _) _ _ _ _)
-      (hb' : denoteE _ _ = some (Expr.instantiateLevelParams _ _ _)) =>
-    rw [hrel _ hb']
-    rfl
+  bridge_auto [CheckOK.ofInstLP, ExprOps.InstLVec.ext] unfolding [ConLeche.ProjEntry.typeAt]
 
 /-! ## 5a. `iotaCertsFull` — the batched full-grade telescope certificate
 
@@ -684,61 +697,76 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
+/-- con-leche: none — `view_of_viewBind_forallE` at the twin's tag test and
+in `vcgen`'s orientation (task #120). -/
+theorem view_of_viewBind_forallE' {st : EStore} {i ty b : EIdx}
+    (htg : (i.tag == ETag.forallE) = true) (h : some (ty, b) = st.viewBind i) :
+    st.view i = some (.forallE ty b) :=
+  view_of_viewBind_forallE (by simpa using htg) h.symm
+
+/-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — **THEOREM 1 for
+`peelPis`** in answer shape (task #120: the subject's denotation out as a
+universal, so `vcgen` needs no parameter it cannot see). -/
+theorem peelPis_specA (k : Nat) : ∀ (s₀ : AState) (h : EIdx), StoreWF s₀.store →
+    ⦃fun s => s = s₀⦄ ConRon.Arena.peelPis k h
+    ⦃fun r s' => s' = s₀ ∧ ∀ E, denoteE s₀.store h = some E →
+        denoteEO s₀.store r = some (Expr.peelPis k E); ⊤⦄ := by
+  induction k with
+  | zero =>
+    intro s₀ h _
+    vcgen [ConRon.Arena.peelPis]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto unfolding [Expr.peelPis, denoteEO.eq_2, Option.map_some]
+  | succ k ih =>
+    intro s₀ h hwf
+    vcgen [ConRon.Arena.peelPis, ih]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto [view_of_viewBind_forallE'] unfolding [Expr.peelPis, denoteEO.eq_1]
+
 /-- con-leche: ConLeche/Kernel/PropRead.lean:43-46 peelPis — **THEOREM 1 for
 `peelPis`**: read-only, and the answer denotes con-leche's peel. -/
 theorem peelPis_spec (s₀ : AState) (hwf : StoreWF s₀.store) :
     ∀ (k : Nat) (h : EIdx) (E : Expr), denoteE s₀.store h = some E →
       ⦃fun s => s = s₀⦄ ConRon.Arena.peelPis k h
-      ⦃fun r s' => s' = s₀ ∧ denoteEO s₀.store r = some (Expr.peelPis k E); ⊤⦄
-  | 0, h, E, hd => by
-    rw [ConRon.Arena.peelPis]
-    vcgen
-    subst_vars
-    exact ⟨rfl, by simp [denoteEO, hd, Expr.peelPis]⟩
-  | k + 1, h, E, hd => by
-    rw [ConRon.Arena.peelPis]
-    by_cases htg : (h.tag == ETag.forallE) = true
-    · rw [ite_eq_left htg]
-      refine triple_seq (viewBind_spec s₀ h) ?_
-      rintro o s1 ⟨hs1, rfl⟩
-      subst s1
-      cases hvb : s₀.store.viewBind h with
-      | none => exact triple_failDanglingE
-      | some p =>
-        obtain ⟨ty, b⟩ := p
-        dsimp only
-        have hv := view_of_viewBind_forallE (by simpa using htg) hvb
-        obtain ⟨T, B, rfl, _, hB⟩ := denote_forallE_inv hwf hv hd
-        refine triple_mono (peelPis_spec s₀ hwf k b B hB) ?_
-        rintro r s' ⟨rfl, hr⟩
-        exact ⟨rfl, by simpa [Expr.peelPis] using hr⟩
-    · rw [ite_eq_right htg]
-      vcgen
-      subst_vars
-      refine ⟨rfl, ?_⟩
-      obtain ⟨v, hv⟩ := denoteE_view hd
-      have hnf := denote_not_forallE hwf hv hd (fun ty b hvb => htg (by
-        rw [EStore.tagOf_of_view hv, hvb]; rfl))
-      cases E <;> simp_all [denoteEO, Expr.peelPis]
+      ⦃fun r s' => s' = s₀ ∧ denoteEO s₀.store r = some (Expr.peelPis k E); ⊤⦄ :=
+  fun k h E hd => triple_mono (peelPis_specA k s₀ h hwf)
+    (fun _ _ ⟨h1, h2⟩ => ⟨h1, h2 E hd⟩)
+
+/-- con-leche: none — an optional handle's `isSome` is its denotation's. -/
+theorem isSome_of_denoteEO {st : EStore} {r : Option EIdx} {v : Option Expr}
+    (h : denoteEO st r = some v) : r.isSome = v.isSome := by
+  cases r with
+  | none => simp only [denoteEO, Option.some.injEq] at h; subst h; rfl
+  | some j =>
+    simp only [denoteEO, Option.map_eq_some_iff] at h
+    obtain ⟨y, _, rfl⟩ := h; rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:752-753 teleArityOk — **THEOREM
-1 for `teleArityOk`**: read-only, and the syntactic arity test agrees. -/
+1 for `teleArityOk`**: read-only, and the syntactic arity test agrees
+(answer shape). -/
 theorem teleArityOk_spec (s₀ : AState) (hwf : StoreWF s₀.store) (ty : EIdx)
-    (T : Expr) (args : List EIdx) (xs : List Expr)
-    (hT : denoteE s₀.store ty = some T)
-    (hxs : Frontend.denoteEList s₀.store args = some xs) :
+    (args : List EIdx) (hT : ∃ T, denoteE s₀.store ty = some T)
+    (hxs : ∃ xs, Frontend.denoteEList s₀.store args = some xs) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.teleArityOk ty args
-    ⦃fun r s' => s' = s₀ ∧ r = ConLeche.teleArityOk T xs; ⊤⦄ := by
-  have hlen := ExprOps.denoteEList_length _ _ hxs
-  unfold ConRon.Arena.teleArityOk
-  refine triple_seq (peelPis_spec s₀ hwf args.length ty T hT) ?_
-  rintro o s1 ⟨rfl, ho⟩
-  vcgen
-  subst_vars
-  refine ⟨rfl, ?_⟩
-  simp only [ConLeche.teleArityOk]
-  cases o <;> cases hp : Expr.peelPis args.length T <;>
-    simp_all [denoteEO]
+    ⦃fun r s' => s' = s₀ ∧ ∀ T xs, denoteE s₀.store ty = some T →
+        Frontend.denoteEList s₀.store args = some xs →
+        r = ConLeche.teleArityOk T xs; ⊤⦄ := by
+  obtain ⟨T₀, hT₀⟩ := hT
+  obtain ⟨xs₀, hxs₀⟩ := hxs
+  vcgen [ConRon.Arena.teleArityOk, peelPis_specA]
+  all_goals (bridge_peel; subst_vars)
+  bridge_auto [ExprOps.denoteEList_length, isSome_of_denoteEO]
+    unfolding [ConLeche.teleArityOk]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — the stored
+constant is no constructor: no certificate. -/
+theorem projCert_not_ctor {cn : ConLeche.Name} {xs : List Expr}
+    (h : ∀ cv nP nF, env.find? cn ≠ some (.ctorInfo cv nP nF)) :
+    ConLeche.projCert env cn xs = false := by
+  unfold ConLeche.projCert
+  split
+  next cv nP nF heq => exact absurd heq (h cv nP nF)
+  next => rfl
 
 /-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — **THEOREM 1 for
 the structural projection's certificate**: the constructor's stored type has
@@ -749,33 +777,10 @@ theorem projCert_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
     (hargs : Frontend.denoteEList s₀.store args = some xs) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.projCert fe c args
     ⦃fun b s' => s' = s₀ ∧ b = ConLeche.projCert env cn xs; ⊤⦄ := by
-  unfold ConRon.Arena.projCert
-  cases hfd : fe.find? c with
-  | none =>
-    dsimp only
-    vcgen
-    subst_vars
-    exact ⟨rfl, by
-      simp [ConLeche.projCert, IFEnvOK.miss hok.state hok.ienv hc hfd]⟩
-  | some ci =>
-    obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hfd
-    obtain rfl := Option.some.inj (hn'.symm.trans hc)
-    cases ci with
-    | ctorInfo icv nP nF =>
-      obtain ⟨dcv, hdcv, rfl⟩ := denoteCI_ctorInfo_inv hci
-      obtain ⟨_, _, hty⟩ := denoteCV_inv hdcv
-      dsimp only
-      refine triple_mono (teleArityOk_spec s₀ hok.state.wf icv.type dcv.type
-        args xs hty hargs) ?_
-      rintro r s' ⟨rfl, hr⟩
-      exact ⟨rfl, by simp [ConLeche.projCert, hfind, hr]⟩
-    | _ =>
-      dsimp only
-      vcgen
-      subst_vars
-      refine ⟨rfl, ?_⟩
-      simp only [ConLeche.projCert, hfind]
-      cases cc <;> first | rfl | (obtain ⟨v, hv⟩ := denoteCI_ctor_inv hci; cases hv)
+  vcgen [ConRon.Arena.projCert, teleArityOk_spec]
+  all_goals (bridge_peel; subst_vars)
+  bridge_auto [env_ctor_of_index, env_not_ctor_of_index, denoteCV_inv]
+    unfolding [ConLeche.projCert, projCert_not_ctor]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:890-892 projCertAt — **THEOREM 1 for
 `projCertAt`**: the verified mode checks the arity, the trusted mode nothing.

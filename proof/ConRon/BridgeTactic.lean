@@ -1172,7 +1172,9 @@ partial def peelNew (g : MVarId) (fvs : Array FVarId) : MetaM MVarId := do
                   todo := fv' :: todo
                   continue
     if t.isAppOfArity ``And 2 || t.isAppOfArity ``Exists 2 then
-      let subs ← g.cases fv
+      -- (an `∃` cannot be destructured in a goal that is data: `vcgen`'s
+      -- unsolved spec parameter)
+      let some subs ← observing? (g.cases fv) | continue
       if subs.size != 1 then continue
       let some sub := subs[0]? | continue
       g := sub.mvarId
@@ -1451,29 +1453,60 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   let g' ← peelAll g
   if g' != g then g ← substNew g' old
   g ← clearTrivial g old
-  -- the goal's own `∀ x, denote… = some x → …`
+  -- the goal's own `∀ x, denote… = some x → …`, and `∀ x y, denote… = some x →
+  -- denote… = some y → …` (k data binders, then k denotation premises)
   repeat
     let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
-    let .forallE _ α body _ := t | break
-    let .forallE _ hT _ _ := body | break
     let found ← g.withContext do
-      let y ← mkFreshExprMVar α
-      let hT' := hT.instantiate1 y
-      unless isFactShape hT' do return none
+      -- the leading data binders
+      let mut k := 0
+      let mut b := t
+      while b.isForall do
+        let .forallE _ α body _ := b | break
+        if ← isProp α then break
+        k := k + 1
+        b := body
+      if k == 0 then return none
+      -- several binders at once only under `bridge_auto` (`introFacts`):
+      -- `bridge_fwd`'s callers address the goal's own binders by hand
+      if k > 1 && !introFacts then return none
+      -- `2k` SYNTACTIC binders (a telescope `whnf`s and may see more than
+      -- `intro` does)
+      let rec depth (e : Expr) (n : Nat) : Nat :=
+        match n, e with
+        | n + 1, .forallE _ _ b _ => 1 + depth b n
+        | _, _ => 0
+      if depth t (2 * k) < 2 * k then return none
+      let (args, _, _) ← forallMetaBoundedTelescope t (2 * k)
+      if args.size != 2 * k then return none
       let snap ← snapshot
-      attemptM ((provedFact 2 hT').run snap)
-    let some p := found | break
-    let (_, g1) ← g.intro1
-    let (hx, g2) ← g1.intro1
-    let (fv, g3) ← g2.withContext do
-      let heq ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p, mkFVar hx]
-      let (fv, g3) ← g2.note `hxeq heq
-      let g3 ← g3.clear hx
-      pure (fv, g3)
-    g ← g3.withContext (do
-      match ← observing? (substCore g3 fv (symm := true)) with
-      | some (_, g4) => pure g4
-      | none => pure g3)
+      let mut ps := #[]
+      for i in [k:2 * k] do
+        let hT ← instantiateMVars (← inferType args[i]!)
+        unless isFactShape hT do return none
+        let some p ← attemptM ((provedFact 2 hT).run snap) | return none
+        ps := ps.push p
+      for i in [0:k] do
+        unless ← args[i]!.mvarId!.isAssigned do return none
+      return some (k, ps)
+    let some (k, ps) := found | break
+    let before ← g.withContext do
+      let mut st : Std.HashSet FVarId := {}
+      for d in (← getLCtx) do st := st.insert d.fvarId
+      pure st
+    let some (fvs, g1) ← observing? (g.introN (2 * k)) | break
+    -- every equation first (the premises' fvars are stable until a subst),
+    -- then the premises cleared, then the new equations substituted
+    let hs ← g1.withContext do
+      let mut hs := #[]
+      for i in [0:k] do
+        let heq ← mkAppM `ConRon.Bridge.eq_of_eq_some #[ps[i]!, mkFVar fvs[k + i]!]
+        hs := hs.push { userName := `hxeq, type := ← inferType heq, value := heq }
+      pure hs
+    let (_, g2) ← g1.assertHypotheses hs
+    let g3 ← g2.tryClearMany (fvs.extract k (2 * k))
+    -- the binders themselves are new: `substNew` solves them
+    g ← substNew g3 before
   return g
 
 end Frame
@@ -1594,6 +1627,47 @@ def closeByNegCtor (g : MVarId) : MetaM Bool := g.withContext do
       s.restore
     catch _ => s.restore
   return false
+
+/-- Carry the context's denotation facts to the stores the GOAL mentions: a
+fact `denote… (A.store…) h = some v` is restated at every state `B` whose
+`B.store` occurs in the goal, when `bridge_frame`'s search proves it there
+(an `Ext`/equation path `A → B`).  What lets `simp only [f, *]` rewrite a
+goal at the final state with facts the walk established earlier. -/
+def transportToGoal (g : MVarId) : MetaM MVarId := g.withContext do
+  let tgt ← instantiateMVars (← g.getType)
+  let mut goalStores : Array Expr := #[]
+  -- every `AState.store B` subterm of the goal
+  let rec collect (e : Expr) (acc : Array Expr) : Array Expr :=
+    if e.isAppOfArity `ConRon.Arena.AState.store 1 then
+      if acc.contains e.appArg! then acc else acc.push e.appArg!
+    else match e with
+      | .app f a => collect a (collect f acc)
+      | .lam _ t b _ | .forallE _ t b _ => collect b (collect t acc)
+      | .mdata _ b => collect b acc
+      | _ => acc
+  goalStores := collect tgt #[]
+  if goalStores.isEmpty then return g
+  let snap ← snapshot
+  let mut news : Array Hypothesis := #[]
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t := (← instantiateMVars d.type).cleanupAnnotations
+    unless isFactShape t do continue
+    let srcs := collect t #[]
+    let some a := srcs[0]? | continue
+    unless srcs.size == 1 do continue
+    for b in goalStores do
+      if a == b then continue
+      let t' := t.replace fun e =>
+        if e.isAppOfArity `ConRon.Arena.AState.store 1 && e.appArg! == a then
+          some (mkApp (mkConst `ConRon.Arena.AState.store) b) else none
+      if (← (snap.hyps.anyM fun h => (same h.ty t' : MetaM Bool))) then continue
+      if ← news.anyM (fun h => (same h.type t' : MetaM Bool)) then continue
+      if let some p ← attemptM ((provedFact 1 t').run snap) then
+        news := news.push { userName := `fwd, type := t', value := p }
+  if news.isEmpty then return g
+  let (_, g) ← g.assertHypotheses news
+  return g
 
 /-- The arguments of the `exprTag _` subterms of `t` (closed ones). -/
 partial def tagSubjects (t : Expr) : Array Expr :=
@@ -1737,8 +1811,13 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
     | exact True.intro)
   if fns.isEmpty then `(tactic| first | $(⟨base⟩):tactic | trivial)
   else
+  -- with the Boolean connectives at constants (a guard the walk tested
+  -- arrives as `(true && b)`, `(!g) = true`)
+  let bools : Array Term := #[← `(Bool.and_true), ← `(Bool.true_and), ← `(Bool.and_false),
+    ← `(Bool.false_and), ← `(Bool.or_true), ← `(Bool.true_or), ← `(Bool.or_false),
+    ← `(Bool.false_or), ← `(Bool.not_true), ← `(Bool.not_false), ← `(Bool.not_eq_true')]
   let lems : Array (TSyntax `Lean.Parser.Tactic.simpLemma) ←
-    fns.mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
+    (fns ++ bools).mapM fun t => `(Lean.Parser.Tactic.simpLemma| $t:term)
   `(tactic| first
     | $(⟨base⟩):tactic
     | (simp only [$lems,*]; done)
@@ -1757,7 +1836,12 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
   let mut out := []
   for g in gs do
     if ← g.isAssigned then continue
-    unless ← Frame.finishGoal g closer unfold? 2 do out := out ++ [g]
+    let s ← saveState
+    let g' ← Frame.transportToGoal g
+    if ← Frame.finishGoal g' closer unfold? 2 then continue
+    -- nothing closed: hand the goal back as it was
+    s.restore
+    out := out ++ [g]
   setGoals out
 
 /-- con-leche: none — **the whole pipeline** (task #120):

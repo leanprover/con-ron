@@ -85,6 +85,30 @@ theorem lviewOK_succ' {st : EStore} {u : LIdx} {w : LNodeView}
      simp [LNodeView.lchildren] at hc; subst hc; rw [h]; rfl,
    fun c hc => by simp [LNodeView.nchildren] at hc⟩
 
+/-- con-leche: none — an interned `zero` level reads back (task #120: the
+readbacks as forward rules for `bridge_auto`). -/
+theorem denoteL_zero_of_view {st : LStore} {h : LIdx}
+    (hd : denoteL st h = denoteLView st .zero) : denoteL st h = some .zero := by
+  rw [hd]; simp [denoteLView]
+
+/-- con-leche: none — an interned `succ` level reads back. -/
+theorem denoteL_succ_of_view {st : LStore} {h u : LIdx} {U : Level}
+    (hd : denoteL st h = denoteLView st (.succ u)) (hu : denoteL st u = some U) :
+    denoteL st h = some (.succ U) := by
+  rw [hd]; simp [denoteLView, hu]
+
+/-- con-leche: none — an interned `sort` reads back. -/
+theorem denoteE_sort_of_view {st : EStore} {h : EIdx} {u : LIdx} {U : Level}
+    (hd : denoteE st h = denoteEView st (.sort u)) (hu : denoteL st.ls u = some U) :
+    denoteE st h = some (.sort U) := by
+  rw [hd]; simp [denoteEView, hu]
+
+/-- con-leche: none — `viewOK_sort` at a level handle that has a VIEW (what
+`internLNode`'s postcondition hands). -/
+theorem viewOK_sort' {st : EStore} {u : LIdx} {w : LNodeView}
+    (hv : st.ls.view u = some w) : st.ViewOK (.sort u) :=
+  viewOK_sort (by rw [hv]; rfl)
+
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
 **THEOREM 1 for `toConstantVal`**, at the two fields the shape guards read:
 the level parameters and the type.  (The `.projInfo` arm's NAME is
@@ -122,23 +146,8 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
       vcgen [IConstantInfo.toConstantVal]
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
-      bridge_frame [lviewOK_zero', lviewOK_succ']
-      vc_arm (hv : LStore.view _ ?one = some _) ⊢ EStore.ViewOK _ (ENodeView.sort ?one) =>
-        exact viewOK_sort (by rw [hv]; rfl)
-      -- the interned `Type` (`sort (succ zero)`), read back node by node
-      vc_arm (d1 : denoteL (EStore.ls (AState.store ?sA)) ?z = denoteLView _ LNodeView.zero)
-          (d2 : denoteL (EStore.ls (AState.store ?sB)) ?one =
-            denoteLView _ (LNodeView.succ ?z))
-          (d3 : denoteE (AState.store ?sC) _ = denoteEView _ (ENodeView.sort ?one)) =>
-        have h0 : denoteL sA.store.ls z = some Level.zero := by
-          rw [d1]; simp [denoteLView]
-        have h1 : denoteL sB.store.ls one = some (Level.succ .zero) := by
-          rw [d2]
-          simp [denoteLView, denoteL_ext h0 (by bridge_frame : Ext sA.store sB.store)]
-        refine ⟨hlp, ?_⟩
-        rw [d3]
-        simp [denoteEView, denoteL_ext h1 (by bridge_frame : Ext sB.store sC.store),
-          ConstantInfo.toConstantVal]
+      bridge_auto [lviewOK_zero', lviewOK_succ', viewOK_sort', denoteL_zero_of_view,
+        denoteL_succ_of_view, denoteE_sort_of_view] unfolding [ConstantInfo.toConstantVal]
     | _ => simp [IConstantInfo.isTowerEntry] at hti
 
 /-! ## 3. The two `Type`-valued shapes: `String` and `Char` -/
@@ -163,13 +172,8 @@ theorem stringTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     vcgen [ConRon.Arena.stringTyOk, ConRon.Arena.sortOne, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    bridge_frame [CheckOK.pins]
-    -- the verdict: no level parameters, and the type is `Type`
-    vc_arm (hlp : Frontend.denoteNList _ _ = some _) (hck : CheckOK _ _ _ ?s)
-        (hs1 : denoteE (AState.store ?s) _ = some (Expr.sort _))
-        (hty : denoteE (AState.store ?s) (IConstantVal.type _) = some _) =>
-      simp only [ConLeche.stringTyOk, isEmpty_of_denoteNList hlp,
-        beq_of_denoteE hck.state.wf hty hs1]
+    bridge_auto [CheckOK.pins, isEmpty_of_denoteNList, beq_of_denoteE]
+      unfolding [ConLeche.stringTyOk]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:309-315 charTyOk — **THEOREM 1
 for `charTyOk`**. -/
@@ -191,13 +195,8 @@ theorem charTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     vcgen [ConRon.Arena.charTyOk, ConRon.Arena.sortOne, htc]
     all_goals (bridge_peel; subst_vars)
     all_goals clear_tag_hyps
-    bridge_frame [CheckOK.pins]
-    -- the verdict: no level parameters, and the type is `Type`
-    vc_arm (hlp : Frontend.denoteNList _ _ = some _) (hck : CheckOK _ _ _ ?s)
-        (hs1 : denoteE (AState.store ?s) _ = some (Expr.sort _))
-        (hty : denoteE (AState.store ?s) (IConstantVal.type _) = some _) =>
-      simp only [ConLeche.charTyOk, isEmpty_of_denoteNList hlp,
-        beq_of_denoteE hck.state.wf hty hs1]
+    bridge_auto [CheckOK.pins, isEmpty_of_denoteNList, beq_of_denoteE]
+      unfolding [ConLeche.charTyOk]
 
 /-! ## 4. The `List` shapes -/
 
@@ -861,10 +860,7 @@ theorem constE_spec' (s₀ : AState) (n : NIdx) (hok : CheckOK mode env fe s₀)
   have h := constE_spec (mode := mode) (env := env) (fe := fe) s₀ n nm hok hnm
   vcgen [h]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  vc_arm (hd : denoteE _ _ = some (Expr.const _ [])) =>
-    intro nm' hn'
-    rw [hnm] at hn'; obtain rfl := Option.some.inj hn'; exact hd
+  bridge_auto
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-371 charOfNatTyOk — in the
 twin's order, at a level-monomorphic constant whose type is a `∀`. -/
@@ -1106,11 +1102,13 @@ theorem strLitSupported_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ConRon.Arena.pinCharOfNat, hn, h1, h2, h3, h4, h5, h6, h7]
   all_goals (bridge_peel; subst_vars)
   all_goals clear_tag_hyps
-  bridge_frame [CheckOK.pins]
-  -- each guard's environment lookup: the pinned name's index entry
+  bridge_auto [CheckOK.pins]
+  -- each guard's environment lookup: the pinned name's index entry (the pin's
+  -- `pinNames[i]? = some x` premise is closed by evaluation, `rfl`)
   vc_arm ⊢ OptCI _ _ _ =>
     apply optCI_find (by assumption); apply_assumption; rfl
-  -- the verdict: the first failing guard, or all eight passed
+  -- the verdict: the first failing guard decides the `&&` chain (its
+  -- hypothesis is `(!g) = true`, which `simp only [*]` cannot use as stated)
   vc_arm ⊢ _ = ConLeche.strLitSupported env =>
     simp_all [ConLeche.strLitSupported]
 
