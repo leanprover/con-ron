@@ -83,6 +83,14 @@ theorem denoteEO_ext {st st' : EStore} {r : Option EIdx} {v : Option ConLeche.Ex
 theorem isSome_of_eq_some {α : Type} {o : Option α} {a : α} (h : o = some a) :
     o.isSome = true := by rw [h]; rfl
 
+/-- con-leche: none — a handle that denotes still denotes past an extension
+(its `isSome`, as the walks' preconditions state it). -/
+theorem isSome_denote_ext {st st' : EStore} {h : EIdx}
+    (hs : (denoteE st h).isSome = true) (hx : Ext st st') :
+    (denoteE st' h).isSome = true := by
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
+  rw [denote_ext he hx]; rfl
+
 /-- con-leche: none — the denotation fact that discharges an
 `∃ v, denote… = some v ∧ P v` precondition. -/
 theorem exists_some_and {α : Type} {o : Option α} {a : α} {P : α → Prop}

@@ -83,6 +83,7 @@ def usedConstants : List Name :=
    `ConRon.Bridge.denote_proj_inv,
    `ConRon.Bridge.denote_sort_inv,
    `ConRon.Bridge.eq_of_eq_some,
+   `ConRon.Bridge.isSome_denote_ext,
    `ConRon.Bridge.isSome_of_eq_some,
    `Std.Do.Triple]
 
@@ -318,6 +319,59 @@ def eqPath (ty a b : Expr) : FM (Option Expr) := do
     frontier := next
   return none
 
+/-- Reduce projections of structure instances, innermost first:
+`{ m with liftC := x }.inst1LC` is `m.inst1LC`.  Nothing else is unfolded (a
+`whnfD` would open `HashMap.insert`). -/
+partial def projNorm (e : Expr) : MetaM Expr := do
+  let e := e.cleanupAnnotations
+  match e.getAppFn with
+  | .const n _ =>
+    let some info ← getProjectionFnInfo? n | return e
+    let args := e.getAppArgs
+    if args.size != info.numParams + 1 then return e
+    let st ← projNorm args[info.numParams]!
+    let stw ← whnfR st
+    if let .const cn _ := stw.getAppFn then
+      if let some (.ctorInfo ctor) := (← getEnv).find? cn then
+        let fields := stw.getAppArgs.extract ctor.numParams stw.getAppNumArgs
+        if let some f := fields[info.i]? then return ← projNorm f
+    return mkAppN e.getAppFn (args.set! info.numParams st)
+  | _ => return e
+
+/-- `eqPath` through CONGRUENCE: a step rewrites, inside the current node, an
+occurrence of one side of a hypothesis `u = v` of ANY type by the other, and
+then reduces projections of structure instances — so that `s₂.memos = { s₁.memos with
+liftC := … }` carries `s₂.memos.inst1LC = s₁.memos.inst1LC` (task #120: the
+memo-table frame of every memoized walk).  Breadth first, at most six steps. -/
+def eqPathCongr (a b : Expr) : FM (Option Expr) := do
+  let mut edges : Array (Expr × Expr × Expr) := #[]
+  for h in (← read).hyps do
+    if let some (_, u, v) := h.ty.eq? then
+      if isFactShape h.ty then continue
+      if u.isFVar && v.isFVar then continue
+      edges := edges.push (u, v, h.pf)
+      edges := edges.push (v, u, ← mkEqSymm h.pf)
+  if edges.isEmpty then return none
+  let mut frontier : Array (Expr × Expr) := #[(a, ← mkEqRefl a)]
+  let mut seen : Array Expr := #[a]
+  for _ in [0:6] do
+    let mut next := #[]
+    for (n, pn) in frontier do
+      for (u, v, pe) in edges do
+        unless (n.find? (· == u)).isSome do continue
+        let ty ← inferType u
+        let motive := Expr.lam `z ty (n.replace fun x => if x == u then some (.bvar 0) else none)
+          .default
+        let n' ← projNorm (n.replace fun x => if x == u then some v else none)
+        if ← seen.anyM (fun x => (same n' x : MetaM Bool)) then continue
+        let p ← mkEqTrans pn (← mkCongrArg motive pe)
+        if ← same n' b then return some p
+        seen := seen.push n'
+        next := next.push (n', p)
+    if next.isEmpty then return none
+    frontier := next
+  return none
+
 /-- Could `a` match `b` reducibly?  A syntactic over-approximation in front of
 `same`: two applications of DIFFERENT constants (or of one constant at
 different arities) never match at reducible transparency unless a head is
@@ -384,10 +438,21 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       let x ← mkFreshExprMVar α
       let ft ← mkEq o (← mkAppM ``Option.some #[x])
       if isFactShape ft then
-        let some ph ← attempt (provedFact fuel ft) | return none
-        return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
+        if let some ph ← attempt (provedFact fuel ft) then
+          return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
+        -- an `isSome` hypothesis at an earlier store, carried along the chain
+        if o.isAppOfArity `ConRon.Arena.denoteE 2 then
+          for h in (← read).hyps.reverse do
+            let some (_, a', b') := h.ty.eq? | continue
+            unless b'.isConstOf ``Bool.true && a'.isAppOfArity ``Option.isSome 2 do continue
+            let o' := a'.appArg!
+            unless o'.isAppOfArity `ConRon.Arena.denoteE 2 do continue
+            unless ← same o'.appArg! o.appArg! do continue
+            let some px ← extPath o'.appFn!.appArg! o.appFn!.appArg! | continue
+            return some (← mkAppM `ConRon.Bridge.isSome_denote_ext #[h.pf, px])
       return none
-    return ← eqPath ty a b
+    if let some p ← eqPath ty a b then return some p
+    return ← eqPathCongr a b
   if t.isAppOfArity ``Exists 2 then
     let body := t.appArg!
     let α := t.appFn!.appArg!
@@ -466,17 +531,37 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       let (args, _, concl) ← forallMetaTelescope (← inferType l)
       unless ← mayMatch concl t do return none
       unless ← same concl t do return none
-      for a in args do
-        if ← a.mvarId!.isAssigned then continue
-        let aT ← instantiateMVars (← inferType a)
-        unless ← isProp aT do continue
-        let some pa ← prove (fuel - 1) aT | return none
-        unless ← supply a pa do return none
+      unless ← proveArgs fuel args.toList do return none
       let e ← instantiateMVars (mkAppN l args)
       if e.hasExprMVar then return none
       return some e
     if let some p := r then return some p
   return none
+
+/-- The `Prop` premises of a lemma, in order.  A premise that is neither a
+frame predicate nor a denotation fact (`MemoOK f tbl st`) is matched against
+EVERY hypothesis, with backtracking: the first match fixes metavariables
+(here the store) that a later premise (`Ext st s`) may refute. -/
+partial def proveArgs (fuel : Nat) (args : List Expr) : FM Bool := do
+  match args with
+  | [] => return true
+  | a :: rest =>
+    if ← a.mvarId!.isAssigned then return ← proveArgs fuel rest
+    let aT ← instantiateMVars (← inferType a)
+    unless ← isProp aT do return ← proveArgs fuel rest
+    if isFrameShape aT || isFactShape aT || !aT.hasExprMVar then
+      let some pa ← prove (fuel - 1) aT | return false
+      unless ← supply a pa do return false
+      return ← proveArgs fuel rest
+    let aTn ← normNeg aT
+    for h in (← read).hyps.reverse do
+      unless ← mayMatch h.ty aTn do continue
+      let s ← save
+      if ← same h.ty aTn then
+        a.mvarId!.assign h.pf
+        if ← proveArgs fuel rest then return true
+      restore s
+    return false
 
 /-- `lem h ?…` at the goal `t`: the first explicit argument is `h`, the
 conclusion is unified with `t`, and every other explicit argument is proved by
