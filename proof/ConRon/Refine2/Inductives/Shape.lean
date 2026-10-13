@@ -490,4 +490,352 @@ macro_rules
       | (simp_all [absNIdxL, absCtors3L, absCtors3LFrom, absCtorsL, absCtorsLFrom,
           absIConstantVal, absICIL, absICILFrom, absEIdxL, absEIdxLFrom, NNodeViewWF]; done)))
 
+namespace IndSide
+
+/-- Round 5's side alternatives, SCOPED: active only in the files that
+`open scoped ConRon.Refine2.IndSide` (the lane's own), so the lanes that import
+this tier (`Frontend/ProjRec.lean`) do not pay for them on every failing side
+goal. -/
+scoped macro_rules
+  | `(tactic| lockstep_side_ext) =>
+    `(tactic| ((try simp only [Lockstep.TwinEq] at *); first
+      | (simp_all [absIRecRule]; done)
+      -- a Rust-computed Bool against the twin's conjunction whose other
+      -- conjuncts the port tested before (a length the context pins)
+      | (simp only [ExprOps.absEIdxL, absEIdxL, List.length_map, alloc.vec.Vec.len] at *
+         simp_all; done)
+      -- a memo walk's answer bit, read off its `WOutRel`/`LOutRel`
+      | (simp only [WOutRel, LOutRel] at *; simp_all; done)
+      -- a `usize` cast of a `u64` the port bounded before (a length, a count):
+      -- the overflow arm of the cast's spec is contradictory
+      | (casesm* (_ : Nat) = _ ∨ Std.Usize.max < _
+         all_goals first
+           | (exfalso; scalar_tac)
+           | (simp_all [absNIdxL, absEIdxL, absEIdxLFrom, absCtorsL, absCtorsLFrom]; done)
+           | (simp_all [absBinderL, List.getElem?_map, List.getElem?_eq_getElem]
+              subst_vars; simp_all; done)
+           | (simp_all [absBinderL, List.getElem_map, etag_forallE_abs, etag_sort_abs,
+               etag_lam_abs, etag_app_abs, etag_const_abs, absU32_eq_forallE_iff,
+               forallE_eq_absU32_iff]; done))))
+
+end IndSide
+
+/-! ## The cursor recipe in `LS` form (task #97-T2-LOCKSTEP lane Inductives round 4)
+
+The Rust walks a `Vec` by an index, the twin recurses structurally on the
+list from that index (DESIGN §3.4's `List`-as-cursor deviation).  `ls_cursor`
+is the induction once: a caller proves the stop case and the step case, each
+by unfolding one equation on each side and `lockstep`, with the induction
+hypothesis in the context for the recursive call. -/
+
+open Lockstep in
+theorem ls_cursor {α β γ δ : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (xs : alloc.vec.Vec α) (a : α → β) (G : List β → AM δ)
+    (F : arena.monad.AState → Std.Usize →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize), xs.val.length ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i) lst (G []))
+    (hstep : ∀ st lst (i : Std.Usize) (hb : i.val < xs.val.length),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize), j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j) lst' (G ((xs.val.drop j.val).map a))) →
+      LS pers R (F st i) lst (G (a xs.val[i.val] :: (xs.val.drop (i.val + 1)).map a))) :
+    ∀ (i : Std.Usize) st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ st lst, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i) lst (G ((xs.val.drop i.val).map a))) ?_ ?_ i ()
+  · intro i _ hn st lst hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil]
+    exact hstop st lst i hn hrel hinv
+  · intro i _ hi ih st lst hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    exact hstep st lst i hi hrel hinv (fun st' lst' j hj => ih j () hj st' lst')
+
+open Lockstep in
+/-- `ls_cursor` with an accumulator the Rust threads through the cursor walk
+(`out`, pushed at each step) and the twin's statement names
+(`absXL out ++ (← FSpec (the rest))`): the induction hypothesis is
+quantified over the accumulator too. -/
+theorem ls_cursor_acc {α β γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (xs : alloc.vec.Vec α) (a : α → β) (G : ω → List β → AM δ)
+    (F : arena.monad.AState → Std.Usize → ω →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.Usize) w, xs.val.length ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → Lockstep.LS pers R (F st i w) lst (G w []))
+    (hstep : ∀ st lst (i : Std.Usize) w (hb : i.val < xs.val.length),
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.Usize) w', j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        Lockstep.LS pers R (F st' j w') lst' (G w' ((xs.val.drop j.val).map a))) →
+      Lockstep.LS pers R (F st i w) lst
+        (G w (a xs.val[i.val] :: (xs.val.drop (i.val + 1)).map a))) :
+    ∀ (i : Std.Usize) st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers R (F st i w) lst (G w ((xs.val.drop i.val).map a)) := by
+  intro i
+  refine cursor_induction (fun i : Std.Usize => i.val) xs.val.length
+    (fun i (_ : Unit) => ∀ st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      Lockstep.LS pers R (F st i w) lst (G w ((xs.val.drop i.val).map a))) ?_ ?_ i ()
+  · intro i _ hn st lst w hrel hinv
+    rw [List.drop_eq_nil_of_le hn, List.map_nil]
+    exact hstop st lst i w hn hrel hinv
+  · intro i _ hi ih st lst w hrel hinv
+    rw [List.drop_eq_getElem_cons hi, List.map_cons]
+    exact hstep st lst i w hi hrel hinv (fun st' lst' j w' hj => ih j () hj st' lst' w')
+
+/-! ## The cursor abstractions at `0` (for the `lockstep` side tier)
+
+A caller's twin names the whole list (`absXL v`); the callee's statement is at
+the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
+
+@[lockstep_simp] theorem absNIdxLFrom_zero (v) : absNIdxLFrom v 0#usize = absNIdxL v := by
+  simp [absNIdxLFrom, absNIdxL]
+
+@[lockstep_simp] theorem absEIdxLFrom_zero (v) : absEIdxLFrom v 0#usize = absEIdxL v := by
+  simp [absEIdxLFrom, absEIdxL]
+
+@[lockstep_simp] theorem absICILFrom_zero (v) : absICILFrom v 0#usize = absICIL v := by
+  simp [absICILFrom, absICIL]
+
+@[lockstep_simp] theorem absNatLFrom_zero (v) : absNatLFrom v 0#usize = absNatL v := by
+  simp [absNatLFrom, absNatL]
+
+@[lockstep_simp] theorem absBinderLFrom_zero (v) : absBinderLFrom v 0#usize = absBinderL v := by
+  simp [absBinderLFrom, absBinderL]
+
+@[lockstep_simp] theorem absCtorsLFrom_zero (v) : absCtorsLFrom v 0#usize = absCtorsL v := by
+  simp [absCtorsLFrom, absCtorsL]
+
+@[lockstep_simp] theorem absCtors3LFrom_zero (v) : absCtors3LFrom v 0#usize = absCtors3L v := by
+  simp [absCtors3LFrom, absCtors3L]
+
+@[lockstep_simp] theorem absRecsLFrom_zero (v) : absRecsLFrom v 0#usize = absRecsL v := by
+  simp [absRecsLFrom, absRecsL]
+
+/-! ## The axiom census -/
+
+/-- info: 'ConRon.Refine2.list_allM_counted' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms list_allM_counted
+
+/-- info: 'ConRon.Refine2.vec_cursor_copy' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms vec_cursor_copy
+
+/-- info: 'ConRon.Refine2.vec_cursor_any' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs in #print axioms vec_cursor_any
+
+/-- info: 'ConRon.Refine2.nidx_vec_beq_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms nidx_vec_beq_abs
+
+/-- info: 'ConRon.Refine2.i_constant_info_dup_abs' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms i_constant_info_dup_abs
+
+/-- info: 'ConRon.Refine2.sim_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sim_cursor_copy
+
+/-- info: 'ConRon.Refine2.sim_vec_cursor_copy' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in #print axioms sim_vec_cursor_copy
+
+/-- `arena::core::append_eidx_from` appends `ys` from the cursor on. -/
+theorem append_eidx_from_abs {xs ys : alloc.vec.Vec arena.handle.EIdx} {i : Std.Usize}
+    {o : alloc.vec.Vec arena.handle.EIdx}
+    (hrun : arena.core.append_eidx_from xs ys i = ok o) :
+    absEIdxL o = absEIdxL xs ++ (ys.val.drop i.val).map absEIdx := by
+  simp only [absEIdxL]
+  refine vec_cursor_copy ys absEIdx absEIdx
+    (fun i out => arena.core.append_eidx_from out ys i) ?_ ?_ i xs o hrun
+  · intro i out o hn h
+    rw [arena.core.append_eidx_from.eq_def] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len ys by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.core.append_eidx_from.eq_def] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len ys by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, e1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_eidx _ _ he1], h⟩
+
+open Lockstep in
+/-- `arena::core::append_eidx` is the twin's `++`. -/
+@[lockstep] theorem append_eidx_twin (xs ys : alloc.vec.Vec arena.handle.EIdx) :
+    LSP (arena.core.append_eidx xs ys)
+      (fun o => TwinEq (absEIdxL xs ++ absEIdxL ys) (absEIdxL o)) := by
+  intro o h
+  rw [arena.core.append_eidx] at h
+  have := append_eidx_from_abs h
+  simp only [absEIdxL] at this
+  simp only [Lockstep.TwinEq, absEIdxL, this]
+  simp
+
+/-- `arena::core::drop_eidx_from` copies `xs` from the cursor on. -/
+theorem drop_eidx_from_abs {xs : alloc.vec.Vec arena.handle.EIdx} {k : Std.Usize}
+    {out o : alloc.vec.Vec arena.handle.EIdx}
+    (hrun : arena.core.drop_eidx_from xs k out = ok o) :
+    absEIdxL o = absEIdxL out ++ (xs.val.drop k.val).map absEIdx := by
+  simp only [absEIdxL]
+  refine vec_cursor_copy xs absEIdx absEIdx
+    (fun i out => arena.core.drop_eidx_from xs i out) ?_ ?_ k out o hrun
+  · intro i out o hn h
+    rw [arena.core.drop_eidx_from.eq_def] at h
+    rw [ite_eq_left (show i ≥ alloc.vec.Vec.len xs by scalar_tac), Result.ok.injEq] at h
+    rw [h]
+  · intro i x out o hx h
+    rw [arena.core.drop_eidx_from.eq_def] at h
+    rw [ite_eq_right (show ¬ i ≥ alloc.vec.Vec.len xs by
+      have := (List.getElem?_eq_some_iff.mp hx).1; scalar_tac)] at h
+    obtain ⟨q, hq, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    have hqx : q = x := by
+      have h1 := vec_index_some hq; rw [hx] at h1; exact (Option.some_inj.mp h1).symm
+    subst hqx
+    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨out1, hout1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    obtain ⟨i2, hi2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+    exact ⟨i2, e1, out1, absSz_add_one hi2, ConRon.Refine.vec_push_val hout1,
+      by rw [dupId_eidx _ _ he1], h⟩
+
+/-- `arena::core::drop_eidx_n_from` drops `n` more from the cursor on. -/
+theorem drop_eidx_n_from_abs {xs : alloc.vec.Vec arena.handle.EIdx} :
+    ∀ (m : Nat) (n : Std.U64) (i : Std.Usize) (o : alloc.vec.Vec arena.handle.EIdx),
+      n.val = m → arena.core.drop_eidx_n_from xs n i = ok o →
+      absEIdxL o = (xs.val.drop (i.val + n.val)).map absEIdx := by
+  intro m
+  induction m with
+  | zero =>
+    intro n i o hn h
+    rw [arena.core.drop_eidx_n_from.eq_def, ite_eq_left (by scalar_tac)] at h
+    rw [drop_eidx_from_abs h, hn]
+    simp [absEIdxL, alloc.vec.Vec.new]
+  | succ m ih =>
+    intro n i o hn h
+    rw [arena.core.drop_eidx_n_from.eq_def, ite_eq_right (by scalar_tac)] at h
+    by_cases hi : i ≥ alloc.vec.Vec.len xs
+    · rw [ite_eq_left hi, Result.ok.injEq] at h
+      subst h
+      rw [List.drop_eq_nil_of_le (by simp [alloc.vec.Vec.len] at hi; omega)]
+      simp [absEIdxL, alloc.vec.Vec.new]
+    · rw [ite_eq_right hi] at h
+      obtain ⟨n1, hn1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
+      have h1 := ConRon.Refine.Nat.usub_val hn1
+      have h2 := ConRon.Refine.Nat.uadd_val hi1
+      simp only [alloc.vec.Vec.len] at hi
+      rw [ih n1 i1 o (by simp at h1 h2 ⊢; omega) h]
+      congr 2
+      simp at h1 h2 ⊢; omega
+
+open Lockstep in
+/-- `arena::core::drop_eidx_n` is the twin's `List.drop`. -/
+@[lockstep] theorem drop_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.core.drop_eidx_n xs n)
+      (fun o => TwinEq ((absEIdxL xs).drop (absU n)) (absEIdxL o)) := by
+  intro o h
+  rw [arena.core.drop_eidx_n] at h
+  rw [Lockstep.TwinEq, drop_eidx_n_from_abs _ n 0#usize o rfl h]
+  simp [absEIdxL, List.map_drop, absU]
+
+open Lockstep in
+/-- `arena::core::drop_eidx` is the twin's `List.drop`. -/
+@[lockstep] theorem drop_eidx_twin (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
+    LSP (arena.core.drop_eidx xs k)
+      (fun o => TwinEq ((absEIdxL xs).drop k.val) (absEIdxL o)) := by
+  intro o h
+  rw [arena.core.drop_eidx] at h
+  rw [Lockstep.TwinEq, drop_eidx_from_abs h]
+  simp [absEIdxL, List.map_drop, alloc.vec.Vec.new]
+
+
+/-! ## Round 5 slice 2: the counted recipe with an accumulator, the domain read -/
+
+open Lockstep in
+/-- The COUNTED cursor recursion with an accumulator: the port walks a `u64`
+cursor `i` up to `n` pushing onto `w`, the twin recurses on the count
+`n - i` from `i`.  A caller proves the stop and the step case, each by
+unfolding one equation on each side and `lockstep`, the induction hypothesis
+(at `i + 1`, any accumulator) in the context. -/
+theorem ls_counted {γ δ ω : Type} {pers : arena.store.PersTier} {R : γ → δ → Prop}
+    (n : Std.U64) (G : ω → Nat → Nat → AM δ)
+    (F : arena.monad.AState → Std.U64 → ω →
+      Result (core.result.Result γ kernel.core_types.CheckError × arena.monad.AState))
+    (hstop : ∀ st lst (i : Std.U64) w, n.val ≤ i.val →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w 0 i.val))
+    (hstep : ∀ st lst (i : Std.U64) w (m : Nat), i.val < n.val → n.val - i.val = m + 1 →
+      AStateRel₀ pers st lst → AStateInv pers st →
+      (∀ st' lst' (j : Std.U64) w', j.val = i.val + 1 →
+        AStateRel₀ pers st' lst' → AStateInv pers st' →
+        LS pers R (F st' j w') lst' (G w' m j.val)) →
+      LS pers R (F st i w) lst (G w (m + 1) i.val)) :
+    ∀ (i : Std.U64) st lst w, AStateRel₀ pers st lst → AStateInv pers st →
+      LS pers R (F st i w) lst (G w (n.val - i.val) i.val) := by
+  suffices H : ∀ (m : Nat) (i : Std.U64) st lst w, n.val - i.val = m →
+      AStateRel₀ pers st lst → AStateInv pers st → LS pers R (F st i w) lst (G w m i.val) by
+    intro i st lst w hrel hinv; exact H _ i st lst w rfl hrel hinv
+  intro m
+  induction m with
+  | zero =>
+    intro i st lst w hm hrel hinv
+    exact hstop st lst i w (by omega) hrel hinv
+  | succ m ih =>
+    intro i st lst w hm hrel hinv
+    exact hstep st lst i w m (by omega) hm hrel hinv
+      (fun st' lst' j w' hj hrel' hinv' => ih j st' lst' w' (by omega) hrel' hinv')
+
+open Lockstep in
+/-- The twin of an `LS` judgement may be replaced by an equal one (the
+accumulator step: the induction hypothesis's `A (out.push b) ++ rest` against
+the step's `A out ++ f b :: rest`). -/
+theorem LS.twin_eq {α β : Type} {pers : arena.store.PersTier} {R : α → β → Prop}
+    {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
+    {lst : AState} {x y : AM β} (h : LS pers R m lst x) (e : x = y) : LS pers R m lst y :=
+  e ▸ h
+
+/-- `takeEidx` is `List.take` on the array's list (the tier's copy of the
+Core regions' `takeEidx_toList'`, which is region-local). -/
+theorem ind_takeEidx_toList (xs : Array EIdx) (k : Nat) :
+    (takeEidx xs k).toList = xs.toList.take k := by
+  rw [takeEidx, ExprOps.eidxCopyUpto_toList xs k k 0 #[] (by omega)]
+  simp
+
+/-- The port's `take_eidx_n` fact (stated by `Tactic/Prims.lean` at arrays)
+read at the tier's lists. -/
+theorem absEIdxL_of_takeEidx {a b : alloc.vec.Vec arena.handle.EIdx} {n : Nat}
+    (h : ExprOps.absEIdxArr a = takeEidx (ExprOps.absEIdxArr b) n) :
+    absEIdxL a = (absEIdxL b).take n := by
+  have := congrArg Array.toList h
+  rw [ind_takeEidx_toList] at this
+  simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL, absEIdxL] using this
+
+open Lockstep in
+/-- `arena::expr_ops::take_eidx_n` is the twin's `List.take` (`drop_eidx_n_twin`'s
+sibling; not `@[lockstep]`: a caller registers it `local lockstep high` ahead
+of the array-level `take_eidx_n_spec`). -/
+theorem take_eidx_n_twin (xs : alloc.vec.Vec arena.handle.EIdx) (n : Std.U64) :
+    LSP (arena.expr_ops.take_eidx_n xs n)
+      (fun r => TwinEq ((absEIdxL xs).take (absU n)) (absEIdxL r)) := by
+  intro r h
+  have := absEIdxL_of_takeEidx (take_eidx_n_spec xs n r h)
+  simpa [TwinEq, absU] using this.symm
+
+/-! ## `unwrapOr` at a constructor
+
+The port matches the `Option` itself where the twin `unwrapOr`s it.  Scoped:
+`open scoped ConRon.Refine2.IndInstPrims`, or registered `local`. -/
+
+namespace IndInstPrims
+
+@[scoped lockstep_simp] theorem unwrapOr_some' {α : Type} (a : α) (e : Arena.CheckError) :
+    unwrapOr (some a) e = pure a := rfl
+
+@[scoped lockstep_simp] theorem unwrapOr_none' {α : Type} (e : Arena.CheckError) :
+    unwrapOr (none : Option α) e = Arena.fail e := rfl
+
+end IndInstPrims
+
 end ConRon.Refine2
