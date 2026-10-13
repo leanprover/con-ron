@@ -389,12 +389,6 @@ theorem viewConstName_of_view {st : EStore} {i : EIdx} {n : NIdx} {us : LsIdx}
     · simp only [Bool.not_eq_true] at hon
       rw [hon] at h; simp at h
 
-/-- con-leche: none — the `viewConstName` read in triple form. -/
-theorem viewConstName_spec (s₀ : AState) (h : EIdx) :
-    ⦃fun s => s = s₀⦄ viewConstName h
-    ⦃fun r s' => s' = s₀ ∧ r = s₀.store.viewConstName h; ⊤⦄ := by
-  vcgen [viewConstName] with finish
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:72-93 iotaCtorNeverProp —
 **THEOREM 1 for `iotaCtorNeverProp`**: the ι case split's test, which
 changes no store. -/
