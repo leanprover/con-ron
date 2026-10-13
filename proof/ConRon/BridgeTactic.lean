@@ -1314,6 +1314,47 @@ def closeByNegCtor (g : MVarId) : MetaM Bool := g.withContext do
     catch _ => s.restore
   return false
 
+/-- Carry the context's denotation facts to the stores the GOAL mentions: a
+fact `denote… (A.store…) h = some v` is restated at every state `B` whose
+`B.store` occurs in the goal, when `bridge_frame`'s search proves it there
+(an `Ext`/equation path `A → B`).  What lets `simp only [f, *]` rewrite a
+goal at the final state with facts the walk established earlier. -/
+def transportToGoal (g : MVarId) : MetaM MVarId := g.withContext do
+  let tgt ← instantiateMVars (← g.getType)
+  let mut goalStores : Array Expr := #[]
+  -- every `AState.store B` subterm of the goal
+  let rec collect (e : Expr) (acc : Array Expr) : Array Expr :=
+    if e.isAppOfArity `ConRon.Arena.AState.store 1 then
+      if acc.contains e.appArg! then acc else acc.push e.appArg!
+    else match e with
+      | .app f a => collect a (collect f acc)
+      | .lam _ t b _ | .forallE _ t b _ => collect b (collect t acc)
+      | .mdata _ b => collect b acc
+      | _ => acc
+  goalStores := collect tgt #[]
+  if goalStores.isEmpty then return g
+  let snap ← snapshot
+  let mut news : Array Hypothesis := #[]
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t := (← instantiateMVars d.type).cleanupAnnotations
+    unless isFactShape t do continue
+    let srcs := collect t #[]
+    let some a := srcs[0]? | continue
+    unless srcs.size == 1 do continue
+    for b in goalStores do
+      if a == b then continue
+      let t' := t.replace fun e =>
+        if e.isAppOfArity `ConRon.Arena.AState.store 1 && e.appArg! == a then
+          some (mkApp (mkConst `ConRon.Arena.AState.store) b) else none
+      if (← (snap.hyps.anyM fun h => (same h.ty t' : MetaM Bool))) then continue
+      if ← news.anyM (fun h => (same h.type t' : MetaM Bool)) then continue
+      if let some p ← attemptM ((provedFact 1 t').run snap) then
+        news := news.push { userName := `fwd, type := t', value := p }
+  if news.isEmpty then return g
+  let (_, g) ← g.assertHypotheses news
+  return g
+
 /-- The `Expr`-typed locals a case split may settle: those a tag fact
 (`exprTag e …`) or a "not this constructor" fact mentions. -/
 def splitCandidates (g : MVarId) : MetaM (Array FVarId) := g.withContext do
@@ -1390,7 +1431,12 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
   let mut out := []
   for g in gs do
     if ← g.isAssigned then continue
-    unless ← Frame.finishGoal g closer 2 do out := out ++ [g]
+    let s ← saveState
+    let g' ← Frame.transportToGoal g
+    if ← Frame.finishGoal g' closer 2 then continue
+    -- nothing closed: hand the goal back as it was
+    s.restore
+    out := out ++ [g]
   setGoals out
 
 /-- con-leche: none — **the whole pipeline** (task #120):
