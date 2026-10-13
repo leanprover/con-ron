@@ -81,6 +81,14 @@ macro "arm_hyp" : tactic => `(tactic| first
   | (symm; assumption)
   | grind only [Ext.trans, Ext.refl])
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — a memo HIT
+at the arm's own hypothesis (`vcgen` hands the probe reversed): the recorded
+answer is the real one (task #120: `bridge_auto`'s list). -/
+theorem MemoOK.get' {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
+    {st : EStore} {c r : EIdx} {d : Nat} (hm : MemoOK f tbl st)
+    (hk : some r = tbl[(c, d)]?) : RelE (f d) st c st r :=
+  MemoOK.get (k := (c, d)) hm hk.symm
+
 /-! ## The cutoff's licence
 
 The one pure lemma this twin needs that con-leche does not have, because
@@ -278,6 +286,26 @@ theorem Inst1At.bind_step' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
   rw [htg2]
   exact view_of_viewBind hvb.symm
 
+/-- con-leche: none — `Inst1At.bind_step'` at the tag the twin passes
+(`internBindE h.tag …`), so that no tag variable is left to guess (task #120:
+`bridge_auto`'s list). -/
+theorem Inst1At.bind_step'' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
+    {h ty b rt rb r : EIdx} (hwf : StoreWF st) (htg : ETag.isBind h.tag = true)
+    (hvb : some (ty, b) = st.viewBind h)
+    (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
+    (hx2 : Ext s1 s2) (hb : Inst1At ve (d + 1) s1 b s2 rb)
+    (hx3 : Ext s2 s3)
+    (hr : denoteE s3 r = denoteEView s3 (eBindView h.tag rt rb)) :
+    Inst1At ve d st h s3 r :=
+  Inst1At.bind_step' hwf htg rfl hvb hx1 ht hx2 hb hx3 hr
+
+/-- con-leche: none — a binder node's children denote, at the arm's own
+hypotheses (the view read reversed). -/
+theorem isSome_viewBind {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
+    (hvb : some (ty, b) = st.viewBind h) (hs : (denoteE st h).isSome = true) :
+    (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true :=
+  isSome_eBindView hwf (view_of_viewBind hvb.symm) hs
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the CUTOFF
 arm, packaged as one step lemma.  Left as three separate hints
 (`EStore.derived_exact`, `Expr.bvarBRaw`, `instantiate1_of_raw_le`) it sends
@@ -308,6 +336,27 @@ theorem Inst1At.leaf {st : EStore} (hwf : StoreWF st) {h : EIdx}
     (denote_leaf_of_tag hwf hview happ hbind hbvar hlet hproj he)]
   exact he
 
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+cutoff at the dispatcher's own test (task #120: `bridge_auto`'s list). -/
+theorem Inst1At.cutoff' {st : EStore} (hwf : StoreWF st) {h : EIdx} {d : Nat}
+    {ve : Expr} (hc : (decide ((bvarOfData (st.derived h)).toNat < satRange) &&
+      decide ((bvarOfData (st.derived h)).toNat ≤ d)) = true) :
+    Inst1At ve d st h st h := by
+  simp only [Bool.and_eq_true, decide_eq_true_eq] at hc
+  exact Inst1At.cutoff hwf hc.1 hc.2
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the
+catch-all at the dispatcher's own five failed tag tests. -/
+theorem Inst1At.leaf' {st : EStore} (hwf : StoreWF st) {h : EIdx} {d : Nat}
+    {ve : Expr} (hden : (denoteE st h).isSome = true)
+    (happ : ¬ (h.tag == ETag.app) = true) (hbind : ¬ ETag.isBind h.tag = true)
+    (hbvar : ¬ (h.tag == ETag.bvar) = true) (hlet : ¬ (h.tag == ETag.letE) = true)
+    (hproj : ¬ (h.tag == ETag.proj) = true) : Inst1At ve d st h st h := by
+  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
+  obtain ⟨vw, hvw⟩ := denoteE_view he
+  exact Inst1At.leaf hwf hvw (by simpa using happ) (by simpa using hbind)
+    (by simpa using hbvar) (by simpa using hlet) (by simpa using hproj)
 /-! ## Theorem 1 for `instantiate1Go`
 
 One level of the recursion as a record, so that the fuel induction has
@@ -356,32 +405,10 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   vcgen [instantiate1ArmBVar]
-  all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  -- `i > dd`: the lowered index is interned.
-  vc_arm (hne : ¬ _ = _) (hgt : _ < _) (hvb : some _ = EStore.viewBVar _ c)
-      (hwf' : StoreWF _) (hx : Ext _ _) (hcaches : AState.caches _ = _)
-      (hpins : AState.pins _ = _) (hden' : denoteE _ _ = denoteEView _ _) =>
-    refine ⟨⟨hwf'⟩, hm.mono hx (by grind), hx, hcaches, hpins, ?_⟩
-    intro e he
-    have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
-    subst heq
-    rw [hden']
-    simp [Expr.instantiate1, hne, hgt, denoteEView]
-  -- `i < dd`: the node is its own instantiation.
-  vc_arm (hne : ¬ _ = _) (hle : ¬ _ < _) (hvb : some _ = EStore.viewBVar _ c) =>
-    refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
-    intro e he
-    have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
-    subst heq
-    simpa [Expr.instantiate1, hne, hle] using he
-  -- `i = dd`: the answer is the substituted handle itself.
-  vc_arm (hvb : some _ = EStore.viewBVar _ c) =>
-    refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
-    intro e he
-    have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
-    subst heq
-    simpa [Expr.instantiate1] using hv
+  -- the three branches are `Expr.instantiate1`'s own three
+  bridge_auto [denote_bvar_inv, MemoOK.mono]
+    unfolding [Expr.instantiate1, denoteEView, Option.map_some, ite_true, ite_false]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `app`
 ARM: probe, project, recurse into both children, rebuild, insert. -/
@@ -397,20 +424,9 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instantiate1ArmApp, hrec, inst1Set_spec (ve := ve)]
-  all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  -- the arm's postcondition, then the memo insert's answer
-  vc_arm ⊢ StateOK _ ∧ _ =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    exact Inst1At.app_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
-      (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
-  vc_arm ⊢ RelE _ _ _ _ _ =>
-    refine RelE.retarget ?_ ?_ hden
-    · exact Inst1At.app_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
-        (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
-    · grind only [Ext.trans]
+  bridge_auto [Inst1At.app_step', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
+    isSome_app]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the BINDER
 ARM (`lam` and `forallE` in one, as the tag dispatch tests them). -/
@@ -426,29 +442,9 @@ theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instantiate1ArmBind, hrec, inst1Set_spec (ve := ve)]
-  all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  all_goals have hvw := view_of_viewBind (i := c) (by arm_hyp)
-  all_goals have h2 := isSome_eBindView hok.wf hvw hden
-  -- the postcondition, then the memo insert's answer
-  vc_arm ⊢ StateOK _ ∧ _ =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans], by grind, by grind, ?_⟩
-    refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) (by arm_hyp)
-      (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) ?_
-    grind
-  vc_arm ⊢ RelE _ _ _ _ _ =>
-    refine RelE.retarget ?_ ?_ hden
-    · refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) (by arm_hyp)
-        (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) ?_
-      grind
-    · grind only [Ext.trans]
-  -- `internBindE`'s two side conditions, and the two recursive calls'
-  -- subjects denote
-  all_goals first
-    | exact h2.1
-    | grind
-    | exact view_isSome (by grind)
+  bridge_auto [Inst1At.bind_step'', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
+    isSome_viewBind, view_isSome]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `letE`
 ARM; the body descends at `dd + 1`. -/
@@ -464,22 +460,9 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instantiate1ArmLet, hrec, inst1Set_spec (ve := ve)]
-  all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  -- the postcondition, then the memo insert's answer
-  vc_arm ⊢ StateOK _ ∧ _ =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    exact Inst1At.letE_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
-      (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
-      (by arm_hyp) (by arm_hyp)
-  vc_arm ⊢ RelE _ _ _ _ _ =>
-    refine RelE.retarget ?_ ?_ hden
-    · exact Inst1At.letE_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
-        (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
-        (by arm_hyp) (by arm_hyp)
-    · grind only [Ext.trans]
+  bridge_auto [Inst1At.letE_step', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
+    isSome_letE]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `proj`
 ARM.  The struct NAME is carried unchanged, and its denotation comes from
@@ -496,22 +479,9 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instantiate1ArmProj, hrec, inst1Set_spec (ve := ve)]
-  all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  all_goals obtain ⟨nm, es, _, hn0, _⟩ :=
-    denote_eq_proj hok.wf (view_of_viewProj_tag (i := c) htg (by arm_hyp)) hden
-  -- the postcondition, then the memo insert's answer
-  vc_arm ⊢ StateOK _ ∧ _ =>
-    refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans],
-      by grind, by grind, ?_⟩
-    exact Inst1At.proj_step' hok.wf htg (by arm_hyp) (by arm_hyp)
-      (by arm_hyp) (by arm_hyp) (by arm_hyp) hn0
-  vc_arm ⊢ RelE _ _ _ _ _ =>
-    refine RelE.retarget ?_ ?_ hden
-    · exact Inst1At.proj_step' hok.wf htg (by arm_hyp) (by arm_hyp)
-        (by arm_hyp) (by arm_hyp) (by arm_hyp) hn0
-    · grind only [Ext.trans]
+  bridge_auto [Inst1At.proj_step', MemoOK.get', RelE.retarget, RelE.isSome, MemoOK.mono,
+    denote_eq_proj, nview_isSome_of_denote]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1
 con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go
@@ -526,7 +496,8 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
     constructor
     intro s₀ h d _ _ _ _
     vcgen [instantiate1Go_zero]
-    all_goals bridge_vcs [Expr.instantiate1]
+    all_goals (bridge_peel; subst_vars)
+    bridge_auto
   | succ fuel ih =>
     constructor
     intro s₀ h d hok hm hv hden
@@ -536,21 +507,9 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
     have hlet := instantiate1ArmLet_spec v ve fuel ih
     have hproj := instantiate1ArmProj_spec v ve fuel ih
     vcgen [instantiate1Go_succ, happ, hbind, hbvar, hlet, hproj]
-    all_goals try bridge_vcs [Expr.instantiate1]
-    -- TWO verification conditions survive the closer, against the inline
-    -- body's eighteen: the derived-word cutoff and the catch-all.
     all_goals (bridge_peel; subst_vars)
-    -- the derived-word cutoff
-    vc_arm (hcut : (decide (_ < _) && decide (_ ≤ _)) = true) =>
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
-        Inst1At.cutoff hok.wf (by grind) (by grind)⟩
-    -- the catch-all: no tag test fired
-    vc_arm (hnp : ¬(h.tag == ETag.proj) = true) =>
-      obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
-      obtain ⟨vw, hvw⟩ := denoteE_view he
-      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
-        Inst1At.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
-          (by grind)⟩
+    -- the five arms' preconditions, the derived-word cutoff and the catch-all
+    bridge_auto [Inst1At.cutoff', Inst1At.leaf']
 /-! ## The top-level entry, and Theorem 1 as a statement about a RUN
 
 `instantiate1Fast` is con-leche's `(instantiate1Go v {} e d).1`: the memo is
@@ -571,7 +530,8 @@ theorem instantiate1Fast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat
         Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
   have hr := (instantiate1Go_spec v ve fuel).run
   vcgen [instantiate1Fast, hr]
-  all_goals bridge_vcs [Expr.instantiate1]
+  all_goals (bridge_peel; subst_vars)
+  bridge_auto [MemoOK.of_empty]
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
 a RUN, which is the form the tier above consumes. -/
