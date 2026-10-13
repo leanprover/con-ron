@@ -94,6 +94,15 @@ def usedConstants : List Name :=
    `ConRon.Bridge.isSome_of_eq_some,
    `ConRon.Bridge.view_of_viewApp_tag',
    `ConRon.Bridge.view_of_viewBVar_tag',
+   `ConRon.Bridge.view_of_viewBind',
+   `ConRon.Bridge.isSome_eBindView,
+   `ConRon.Bridge.denoteEList_cons_fr,
+   `ConRon.Bridge.viewOK_bvar, `ConRon.Bridge.viewOK_lit, `ConRon.Bridge.viewOK_fvar,
+   `ConRon.Bridge.viewOK_sort, `ConRon.Bridge.viewOK_const, `ConRon.Bridge.viewOK_app,
+   `ConRon.Bridge.viewOK_lam, `ConRon.Bridge.viewOK_forallE, `ConRon.Bridge.viewOK_letE,
+   `ConRon.Bridge.viewOK_proj, `ConRon.Bridge.view_isSome,
+   `ConRon.Bridge.nview_isSome_of_denote, `ConRon.Bridge.lview_isSome_of_denote,
+   `ConRon.Bridge.lsview_isSome_of_denote,
    `ConRon.Bridge.view_of_viewConst_tag',
    `ConRon.Bridge.view_of_viewLet_tag',
    `ConRon.Bridge.view_of_viewProj_tag',
@@ -517,8 +526,13 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
             unless ← same o'.appArg! o.appArg! do continue
             let some px ← extPath o'.appFn!.appArg! o.appFn!.appArg! | continue
             return some (← mkAppM `ConRon.Bridge.isSome_denote_ext #[h.pf, px])
-      return none
+      -- a VIEW's `isSome` (`ViewOK`'s premises): the lemmas
+      return ← proveByLemmas fuel t
     if let some p ← eqPath ty a b then return some p
+    -- the congruence search only for a CLOSED equation: with metavariables
+    -- (a lemma premise `st.view h = some (.app ?f ?a)` no hypothesis states)
+    -- every rewrite unifies, and the search is the dearest step of a frame
+    if t.hasExprMVar then return none
     if let some p ← eqPathCongr a b then return some p
     return ← closedRfl t
   if t.isAppOfArity ``Exists 2 then
@@ -698,7 +712,14 @@ partial def proveArgs (fuel : Nat) (args : List Expr) : FM Bool := do
       if (← same h.ty aTn) && (← supply a h.pf) then
         if ← proveArgs fuel rest then return true
       restore s
-    -- no hypothesis: the search itself
+    -- no hypothesis: the search itself — for a frame or fact premise only.
+    -- A relation premise with metavariables (`RelE f ?st c st' r`, the
+    -- premise of a transport lemma such as `RelE.ext`) would re-enter the
+    -- lemma list with a free store, every lemma unifying with it, at every
+    -- fuel level: 27 s on one walk (task #120 wave 2).  It is matched
+    -- against hypotheses only; `bridge_auto`'s forward step has put the step
+    -- lemmas' answers there.
+    unless isFrameShape aT || isFactShape aT do return false
     let s ← save
     if let some pa ← prove (fuel - 1) aT then
       if ← supply a pa then
@@ -885,6 +906,14 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
         a.mvarId!.assign h.pf
         acc ← instances rest mk acc
       restore s
+    -- an equation no hypothesis states, whose two sides unify (`tg = h.tag`
+    -- once `tg` is fixed): `rfl`
+    if let some (_, l, r) := aT.eq? then
+      let s ← save
+      if ← same l r then
+        a.mvarId!.assign (← mkEqRefl (← instantiateMVars l))
+        acc ← instances rest mk acc
+      restore s
     return acc
 
 /-- Order a telescope: matched premises first (they branch and fix the
@@ -948,7 +977,7 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
       let aT ← instantiateMVars (← inferType a)
       let p ← isProp aT
       kinds := kinds.push (p, p && !isFrameShape aT)
-      if p && !isFrameShape aT && !isFactShape aT && dead == args.size then
+      if p && !isFrameShape aT && !isFactShape aT && !aT.isAppOf ``Eq && dead == args.size then
         let aT' ← normNeg aT
         unless ← (← read).hyps.anyM (fun h => (mayMatch h.ty aT' : MetaM Bool)) do
           dead := kinds.size - 1
@@ -1082,6 +1111,36 @@ def clearTrivial (g : MVarId) (old : Std.HashSet FVarId) : MetaM MVarId := g.wit
       if let some g' ← observing? (g.clear d.fvarId) then g := g'
   return g
 
+/-- A denotation's `isSome` hypothesis (`(denoteE st h).isSome = true`, how
+the walks' preconditions state a subject) opened to its value: a fresh
+`x` and `denoteE st h = some x`, so that the view inversions and the answer
+relations fire on it (task #120, `bridge_auto` only).  The original stays. -/
+def openIsSome (g : MVarId) (done : Std.HashSet FVarId) :
+    MetaM (MVarId × Std.HashSet FVarId) := g.withContext do
+  let mut news : Array Hypothesis := #[]
+  let mut done := done
+  for d in (← getLCtx) do
+    if d.isImplementationDetail || done.contains d.fvarId then continue
+    done := done.insert d.fvarId
+    let t := (← instantiateMVars d.type).cleanupAnnotations
+    let some (_, a, b) := t.eq? | continue
+    unless b.isConstOf ``Bool.true && a.isAppOfArity ``Option.isSome 2 do continue
+    let o := a.appArg!
+    let x ← mkFreshExprMVar a.appFn!.appArg!
+    unless isFactShape (← mkEq o (← mkAppM ``Option.some #[x])) do continue
+    let pf ← mkAppM ``Iff.mp #[← mkAppOptM ``Option.isSome_iff_exists
+      #[a.appFn!.appArg!, o], d.toExpr]
+    news := news.push { userName := `fwd, type := ← inferType pf, value := pf }
+  if news.isEmpty then return (g, done)
+  let (fvs, g) ← g.assertHypotheses news
+  let g ← g.withContext (peelNew g fvs)
+  -- the opened values' own fvars: never opened again
+  let done' ← g.withContext do
+    let mut acc := done
+    for d in (← getLCtx) do acc := acc.insert d.fvarId
+    pure acc
+  return (g, done')
+
 /-- `peelNew` at every hypothesis that is (or unfolds to) a conjunction or an
 existential. -/
 def peelAll (g : MVarId) : MetaM MVarId := do
@@ -1130,6 +1189,16 @@ partial def substNew (g : MVarId) (old : Std.HashSet FVarId)
   | some (_, g') => substNew g' old skip
   | none => substNew g old (skip.push fv)
 
+/-- `bridge_frame`'s default lemmas, after the list's: an intern's `ViewOK`
+from its children's denotations (task #120 wave 2: every rebuilding walk's
+`internE` precondition). -/
+def frameDefaults : List Name := [`ConRon.Bridge.viewOK_bvar, `ConRon.Bridge.viewOK_lit,
+    `ConRon.Bridge.viewOK_fvar, `ConRon.Bridge.viewOK_sort, `ConRon.Bridge.viewOK_const,
+    `ConRon.Bridge.viewOK_app, `ConRon.Bridge.viewOK_lam, `ConRon.Bridge.viewOK_forallE,
+    `ConRon.Bridge.viewOK_letE, `ConRon.Bridge.viewOK_proj, `ConRon.Bridge.view_isSome,
+    `ConRon.Bridge.nview_isSome_of_denote, `ConRon.Bridge.lview_isSome_of_denote,
+    `ConRon.Bridge.lsview_isSome_of_denote]
+
 /-- `bridge_fwd`'s default lemmas: the eight view inversions. -/
 def fwdDefaults : List Name := [`ConRon.Bridge.denote_fvar_inv, `ConRon.Bridge.denote_sort_inv,
     `ConRon.Bridge.denote_const_inv, `ConRon.Bridge.denote_app_inv, `ConRon.Bridge.denote_lam_inv, `ConRon.Bridge.denote_forallE_inv,
@@ -1142,8 +1211,107 @@ def autoDefaults : List Name := [`ConRon.Bridge.exprTag_of_tag,
     `ConRon.Bridge.exprTag_of_not_tag, `ConRon.Bridge.view_of_viewApp_tag',
     `ConRon.Bridge.view_of_viewSort_tag', `ConRon.Bridge.view_of_viewBVar_tag',
     `ConRon.Bridge.view_of_viewConst_tag', `ConRon.Bridge.view_of_viewLet_tag',
-    `ConRon.Bridge.view_of_viewProj_tag', `ConRon.Bridge.denoteEO_some_inv,
+    `ConRon.Bridge.view_of_viewProj_tag', `ConRon.Bridge.view_of_viewBind',
+    `ConRon.Bridge.isSome_eBindView, `ConRon.Bridge.denoteEList_cons_fr,
+    `ConRon.Bridge.denoteEO_some_inv,
     `ConRon.Bridge.denoteEO_none_inv]
+
+/-- The STORE ALIASES of a verification condition: a call that leaves the
+store alone (a memo insert, a pure read) hands `s'.store = s.store`, and the
+goal and the step lemmas then name one store twice.  Rewrite every
+`a.store` with such an equation to its representative (the end of the
+chain, followed to a fixpoint) in the target and in every other hypothesis,
+so that a lemma whose source and target store coincide (a leaf, a cutoff)
+unifies with the goal (task #120 wave 2, `bridge_auto` only). -/
+def storeNorm (g : MVarId) : MetaM MVarId := g.withContext do
+  -- the equations `a.store = b.store`, `a` and `b` locals of type `AState`
+  let mut rep : Std.HashMap FVarId Expr := {}   -- a ↦ (proof of a.store = b.store)
+  let mut tgt : Std.HashMap FVarId FVarId := {}
+  let mut eqs : Array FVarId := #[]
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let t := (← instantiateMVars d.type).cleanupAnnotations
+    let some (_, l, r) := t.eq? | continue
+    unless l.isAppOfArity `ConRon.Arena.AState.store 1 &&
+      r.isAppOfArity `ConRon.Arena.AState.store 1 do continue
+    let a := l.appArg!; let b := r.appArg!
+    unless a.isFVar && b.isFVar && a != b do continue
+    if rep.contains a.fvarId! then continue
+    -- no cycles: never map a store onto one that already maps back
+    let mut x := b.fvarId!
+    let mut cyc := false
+    for _ in [0:64] do
+      if x == a.fvarId! then cyc := true; break
+      match tgt[x]? with
+      | some y => x := y
+      | none => break
+    if cyc then continue
+    rep := rep.insert a.fvarId! d.toExpr
+    tgt := tgt.insert a.fvarId! b.fvarId!
+    eqs := eqs.push d.fvarId
+  if rep.isEmpty then return g
+  -- the proof that `a.store` is its representative's: follow the chain
+  let mut subst : Array (Expr × Expr × Expr) := #[]   -- (a.store, rep, proof)
+  for (a, pf0) in rep.toList do
+    let some b0 := tgt[a]? | continue
+    let mut pf := pf0
+    let mut b := b0
+    for _ in [0:64] do
+      match rep[b]?, tgt[b]? with
+      | some p, some c => pf ← mkEqTrans pf p; b := c
+      | _, _ => break
+    subst := subst.push (← mkAppM `ConRon.Arena.AState.store #[mkFVar a],
+      ← mkAppM `ConRon.Arena.AState.store #[mkFVar b], pf)
+  -- `a.store` as an application or as a primitive projection
+  let storeIdx := (getStructureFields (← getEnv) `ConRon.Arena.AState).idxOf `store
+  let isStore (x lhs : Expr) : Bool :=
+    x == lhs || (match x with
+      | .proj n i e => n == `ConRon.Arena.AState && i == storeIdx && e == lhs.appArg!
+      | _ => false)
+  let rewrite (e : Expr) : MetaM (Option (Expr × Expr)) := do
+    let mut e := e
+    let mut pf : Option Expr := none
+    for (lhs, r, pr) in subst do
+      unless (e.find? (isStore · lhs)).isSome do continue
+      let ty ← inferType lhs
+      let motive := Expr.lam `z ty
+        (e.replace fun x => if isStore x lhs then some (.bvar 0) else none) .default
+      let e' := e.replace fun x => if isStore x lhs then some r else none
+      let step ← mkCongrArg motive pr
+      let pf' ← match pf with
+        | some p => mkEqTrans p step
+        | none => pure step
+      pf := some pf'
+      e := e'
+    return pf.map (e, ·)
+  let mut g := g
+  -- the target
+  let t ← instantiateMVars (← g.getType)
+  if let some (t', pf) ← rewrite t then
+    g ← g.replaceTargetEq t' pf
+  -- the hypotheses (not the store equations themselves): the rewritten
+  -- copies appended, the originals cleared (where nothing depends on them).
+  -- Appending, not `replaceLocalDecl`: that re-introduces the later locals
+  -- under new ids, the store equations the proofs cite among them.
+  let (news, olds) ← g.withContext do
+    let mut news : Array Hypothesis := #[]
+    let mut olds : Array FVarId := #[]
+    for d in (← getLCtx) do
+      if d.isImplementationDetail then continue
+      let ty ← instantiateMVars d.type
+      if let some (_, l, r) := ty.cleanupAnnotations.eq? then
+        if l.isAppOfArity `ConRon.Arena.AState.store 1 &&
+            r.isAppOfArity `ConRon.Arena.AState.store 1 then continue
+      unless ← isProp ty do continue
+      if let some (ty', pf) ← rewrite ty then
+        news := news.push { userName := d.userName, type := ty',
+                            value := ← mkEqMP pf d.toExpr }
+        olds := olds.push d.fvarId
+    pure (news, olds)
+  unless news.isEmpty do
+    let (_, g') ← g.assertHypotheses news
+    g ← g'.tryClearMany olds
+  return g
 
 /-- `bridge_fwd` on one goal. -/
 def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
@@ -1173,6 +1341,11 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
       g := g2
   -- the program's own `∃`s (a callee's postcondition): destructured first
   g ← peelAll g
+  if introFacts then g ← storeNorm g
+  let mut opened : Std.HashSet FVarId := {}
+  if introFacts then
+    let (g', o) ← openIsSome g opened
+    g := g'; opened := o
   let mut seen : Array Expr := #[]
   let mut deadL : Array Bool := #[]
   let mut cache : Std.HashMap FVarId Hyp := {}
@@ -1203,6 +1376,10 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
     let (fvs, g') ← g.assertHypotheses (news.map fun (p, t) =>
       { userName := `fwd, type := t, value := p })
     g ← g'.withContext (peelNew g' fvs)
+    -- a round's new `isSome` facts (a binder's children) opened too
+    if introFacts then
+      let (g', o) ← openIsSome g opened
+      g := g'; opened := o
   -- a function's answer is unique: two denotations of one handle (two
   -- callees read the same node) are one value
   g ← g.withContext (unifyFacts g)
@@ -1263,6 +1440,8 @@ syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
       let snap ← Frame.snapshot
       let mut ls := #[]
       for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
+      for n in Frame.frameDefaults do
+        ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
       pure { snap with lemmas := ls }
     out := out ++ (← Frame.frameGoal snap g)
   setGoals out
@@ -1326,7 +1505,7 @@ def splitCandidates (g : MVarId) : MetaM (Array FVarId) := g.withContext do
       if h.isImplementationDetail || h.fvarId == d.fvarId then return false
       let t ← instantiateMVars h.type
       unless t.containsFVar d.fvarId do return false
-      if (t.find? fun e => e.isAppOf `ConRon.Bridge.exprTag && e.appArg! == x).isSome then
+      if (t.find? fun e => e.isAppOfArity `ConRon.Bridge.exprTag 1 && e.appArg! == x).isSome then
         return true
       let t ← normNeg t
       return t.isForall && (t.find? fun e => e.isConstOf ``False).isSome
