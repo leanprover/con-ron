@@ -284,13 +284,6 @@ theorem view_not_of_tagB {st : EStore} {h : EIdx} {e : Expr}
 `peelPis` is `Walks/Proj.lean`'s `peelPis_spec` (the recursor's and the
 projection certificate's arity read it too). -/
 
-/-- con-leche: none — `view_of_viewBind_forallE` at the twin's tag test and
-in `vcgen`'s orientation (task #120). -/
-theorem view_of_viewBind_forallE' {st : EStore} {i ty b : EIdx}
-    (htg : (i.tag == ETag.forallE) = true) (h : some (ty, b) = st.viewBind i) :
-    st.view i = some (.forallE ty b) :=
-  view_of_viewBind_forallE (by simpa using htg) h.symm
-
 /-- con-leche: ConLeche/Kernel/PropRead.lean:50-54 Expr.binderDom — **THEOREM
 1 for `binderDom`**, in answer shape.  Read-only, structural on `k`. -/
 theorem binderDom_spec' (k : Nat) : ∀ (s₀ : AState) (h : EIdx),
