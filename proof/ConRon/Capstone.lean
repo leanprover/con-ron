@@ -307,7 +307,7 @@ theorem stages_no_False (V : Type w) [ConLeche.SetTheory V]
 Theorem 2 is a lockstep refinement and its relation `AStateRel₀` carries no
 fact about the twin's store (task #97-T2-AUDIT); the headline states the full
 `AStateRel`, whose one extra clause, `StoreWF`, is Theorem 1's:
-phase A's `annotFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
+phase A's `installFold_bridge` (the first step of `Arena.pooledAccepts_bridge`)
 ends at `FoldOK`, whose `CheckOK` carries `StateOK`, and the pooled fold hands
 the phase-A state back. -/
 theorem stages_storeWF
@@ -326,7 +326,7 @@ theorem stages_storeWF
     stages_frame hA hB hC hD hE
   obtain ⟨n, pend, -, hA', -⟩ := hF
   obtain ⟨env₁, pendP, hok₁, -⟩ :=
-    Arena.annotFold_bridge rfl hk hind hpps ds.toList dsP Env.empty 0 n
+    Arena.installFold_bridge rfl hk hind hpps ds.toList dsP Env.empty 0 n
       (mkIFEnv IEnv.empty) fe' #[] pend [] sE sF hfold List.nodup_nil hipins hpd hden
       .nil hA'
   exact hok₁.check.state.wf
@@ -455,7 +455,7 @@ def emptyETables : arena.store.ETables :=
   { bvars := emptyTbl _ _ _, fvars := emptyTbl _ _ _, sorts := emptyTbl _ _ _,
     consts := emptyTbl _ _ _, apps := emptyTbl _ _ _, lams := emptyTbl _ _ _,
     foralls := emptyTbl _ _ _, lets := emptyTbl _ _ _, lits := emptyTbl _ _ _,
-    projs := emptyTbl _ _ _, bms := emptyTbl _ _ _ }
+    projs := emptyTbl _ _ _ }
 
 /-- **The binary's persistent tier**, `&PersTier::empty()`
 (`bin/con-ron.rs:370`): the tier every stage up to phase B is handed — not
@@ -483,13 +483,13 @@ def startState : arena.monad.AState :=
     memos :=
       { inst1_c := emptyMap _ _, inst_l_c := emptyMap _ _, lift_c := emptyMap _ _,
         abs1_c := emptyMap _ _,
-        lower_c := emptyMap _ _, inst1_l_c := emptyMap _ _, inst_lp_c := emptyMap _ _,
+        inst1_l_c := emptyMap _ _, inst_lp_c := emptyMap _ _,
         bvar_b_c := emptyMap _ _, fvar_b_c := emptyMap _ _, inst_lp_l_c := emptyMap _ _,
         inst_lp_ls_c := emptyMap _ _, lp_def_c := emptyMap _ _, crf_c := emptyMap _ _ },
     caches :=
       { whnf_core_c := emptyMap _ _, whnf_core_cheap_c := emptyMap _ _,
         whnf_c := emptyMap _ _, infer_c := emptyMap _ _,
-        infer_io_c := emptyMap _ _, annot_c := emptyMap _ _, defeq_c := emptyMap _ _,
+        infer_io_c := emptyMap _ _, defeq_c := emptyMap _ _,
         lvl_eq_c := emptyMap _ _, lvls_eq_c := emptyMap _ _, const_ty_c := emptyMap _ _,
         const_val_c := emptyMap _ _, rule_rhs_c := emptyMap _ _, read_l_c := emptyMap _ _,
         read_n_c := emptyMap _ _, read_ls_c := emptyMap _ _ },
@@ -621,7 +621,7 @@ walks through it and finds each verified call as one premise.
 | `h4` | `bin/con-ron.rs:454` `prepare::prepare_d` |
 | `hpins` | `bin/con-ron.rs:474` `driver::pins_for_run`, whose default is `driver.rs:299` `pins_decode::decode_embedded()`, which is `decode` of the embedded `PINS_TEXT` (the `_embedded` corollaries below name it) |
 | `h5` | `bin/con-ron.rs:500` `checker::intern_all_pins` |
-| `h6` | `bin/con-ron.rs:517`/`:520` `driver::check_decls_driver` at `CheckMode::Verified` (`:353`), phase A: `driver.rs:572` `checker::annot_fold_hooked(…, checker::fold_start(), ds, 0, obs)` |
+| `h6` | `bin/con-ron.rs:517`/`:520` `driver::check_decls_driver` at `CheckMode::Verified` (`:353`), phase A: `driver.rs:572` `checker::install_fold_hooked(…, checker::fold_start(), ds, 0, obs)` |
 | `h7` | the same, the boundary: `driver.rs:588` `checker::freeze_tier` |
 | `h8` | the same, phase B: `driver.rs:595` `pool::parallel_all` with `init` `checker::worker_state` and `step` `checker::check_pending` (`thaw_tier` at `:612` restores the store) |
 
@@ -696,7 +696,7 @@ theorem model_exists (V : Type w) [ConLeche.SetTheory V]
     {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     (h6 : (do
         let t ← arena.checker.fold_start
-        arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
@@ -761,7 +761,7 @@ theorem no_False_declaration (V : Type w) [ConLeche.SetTheory V]
     {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     (h6 : (do
         let t ← arena.checker.fold_start
-        arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
@@ -810,7 +810,7 @@ theorem model_exists_embedded (V : Type w) [ConLeche.SetTheory V]
     {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     (h6 : (do
         let t ← arena.checker.fold_start
-        arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
@@ -852,7 +852,7 @@ theorem no_False_declaration_embedded (V : Type w) [ConLeche.SetTheory V]
     {n : Std.U64} {fe : arena.env.IFEnv} {pend : alloc.vec.Vec arena.checker.PendingCheck}
     (h6 : (do
         let t ← arena.checker.fold_start
-        arena.checker.annot_fold_hooked hinst emptyTier st5 .Verified ipins t
+        arena.checker.install_fold_hooked hinst emptyTier st5 .Verified ipins t
           prepared.decls 0#usize hook)
       = ok (.Ok (n, fe, pend), st6))
     {tier : arena.store.PersTier} {frozen : arena.store.EStore}
