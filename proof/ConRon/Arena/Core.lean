@@ -2009,11 +2009,12 @@ def iotaRecAt (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
         | some usl =>
         -- checker change #9: the recursor's level arity, guarded as
         -- `unfoldDefinition` guards it
-        if args.length = mI + 1 ∧ usl = cv.levelParams.length then do
-          -- the recursor's own telescope has the arity it is applied at
-          -- (con-leche's task #342: in place of the spine's certificate)
-          if (← peelPis (mI + 1) cv.type).isNone then pure none
-          else do
+        -- the recursor's own telescope has the arity it is applied at
+        -- (con-leche's task #342: in place of the spine's certificate);
+        -- peeled before the three-way test, as the port does
+        let peeled ← peelPis (mI + 1) cv.type
+        if args.length = mI + 1 ∧ usl = cv.levelParams.length ∧
+            peeled.isSome then do
           let b0 ← internE (.bvar 0)
           let major ← prepareMajor mode r fe depth c rules (args.getD mI b0)
           let hh ← getAppFn coreWalkFuel major
@@ -2489,17 +2490,11 @@ def inferLams (r : CoreFnsA) (d : Nat) :
         let tty ← r.infer (d + k) tyo
         let w ← r.whnf (d + k) tty
         -- The codomain sort's LEVEL is not used — the `.lam` case wants only
-        -- that the type's whnf IS a sort, which the handle's own tag says —
-        -- but the port's loop does read the node (`view_sort`, failing
-        -- `internal` at a dangling sort-tagged handle), where its first
-        -- binder (`inferLam`) does not.  The twin reads it too (task
-        -- #97-P5-Core round 4's audit), so the two decline alike.
+        -- that the type's whnf IS a sort, which the handle's own tag says;
+        -- the node is not read (as the port's `infer_lams`, task #119).
         if w.tag == ETag.sort then do
-          match ← viewSort w with
-          | none => failDanglingE
-          | some _ => do
-            let fv ← internFVarE (d + k) tyo
-            inferLams r d peel body (k + 1) (fvs.push fv) (stk.push tyo)
+          let fv ← internFVarE (d + k) tyo
+          inferLams r d peel body (k + 1) (fvs.push fv) (stk.push tyo)
         else fail (.invalid "expected a sort")
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:976-987 inferPisOutI — the ∀
@@ -2674,11 +2669,10 @@ def inferProj (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (sn : NIdx) (i : Nat)
     | .const T us => do
       match ← fe.findProj? T i with
       | some entry => do
+        let targs ← getAppArgs coreWalkFuel te
         if T != sn then
           fail (.invalid "invalid projection: the node names another structure")
-        else do
-        let targs ← getAppArgs coreWalkFuel te
-        if targs.length != entry.numParams then
+        else if targs.length != entry.numParams then
           fail (.invalid "projection parameter mismatch")
         else
           match ← viewLsLen us with
