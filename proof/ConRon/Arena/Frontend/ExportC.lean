@@ -13,7 +13,7 @@ export's own sharing is preserved exactly (DESIGN §8.3, con-leche's lesson 25).
 **The scanner is NOT twinned.**  `ConLeche/Frontend/Scan/{Types,Fast}.lean`
 is imported and used as it is.  Its records — `LineRec`, `NameRec`,
 `LevelRec`, `ExprRec`, `CVRec`, `RuleRec`, `IndTypeRec`, `IndCtorRec`,
-`IndRecRec`, `DeclRec`, `PwRec`, `HintsRec` — are the dialect's *syntax*, in
+`IndRecRec`, `DeclRec`, `HintsRec` — are the dialect's *syntax*, in
 stream indices, with nothing resolved: there is no `Expr`, `Name` or `Level`
 anywhere in that file, and `Scan/Fast.lean` mentions `ExprRec` and never
 `ConLeche.Expr`.  A twin of a byte recogniser that produces
@@ -54,7 +54,7 @@ parameters (`Lk`), so that its rounds parse can run them over a window's
 partly built tables, and `processLineCoreD` is `declOf` then `pushDecl`.  The
 serial parse hands them the state's own tables (`StateD.lk`), which is what
 this twin reads: the same computation under the twin's own names
-(`getDeclD`, `parsePwD`, `parseCVD`, `parseRuleD`, `validateIndD`,
+(`getDeclD`, `parseCVD`, `parseRuleD`, `validateIndD`,
 `installIndD`), each citing the builder it mirrors.
 
 **The `M`/line-number collapse** is described in `Arena/Frontend/Types.lean`:
@@ -137,17 +137,6 @@ budget that used to sit here was retired at con-leche's task #215.) -/
 def getDeclD (st : StateD) (i : Nat) : AM EIdx :=
   st.expr i
 
-/-- con-leche: ConLeche/Frontend/ExportC.lean:119-122 pwOfF — the `pw` datum
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExportC.parsePwD_bridge, then delete this line
-over the direct name table.  `PropWhen` holds `ConLeche.Name`s — task #97a's
-store already carries con-leche's `BinderMeta` inside its binder node — so the
-resolved handles are read BACK to names here, which is `denoteN` itself. -/
-def parsePwD (st : StateD) : PwRec → AM PropWhen
-  | .never => pure .never
-  | .ifAllZero ns => do
-    let hs ← ns.mapM st.name
-    pure (.ifAllZero (← hs.mapM readName))
-
 /-! ## The rebinding test -/
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:178-180 reboundError — the
@@ -220,10 +209,10 @@ def parseExprEntryD (st : StateD) (i : Nat) (r : ExprRec) : AM StateD := do
       let lsh ← internLsNode ls
       internE (.const nm lsh)
     | .app f a => do internE (.app (← st.expr f) (← st.expr a))
-    | .lam ty bd pw => do
-      internE (.lam (← st.expr ty) (← st.expr bd) ⟨← parsePwD st pw⟩)
-    | .forallE ty bd pw => do
-      internE (.forallE (← st.expr ty) (← st.expr bd) ⟨← parsePwD st pw⟩)
+    | .lam ty bd => do
+      internE (.lam (← st.expr ty) (← st.expr bd))
+    | .forallE ty bd => do
+      internE (.forallE (← st.expr ty) (← st.expr bd))
     | .letE ty vl bd => do
       internE (.letE (← st.expr ty) (← st.expr vl) (← st.expr bd))
     | .proj tn ix s => do
@@ -244,7 +233,6 @@ def parseCVD (st : StateD) (cv : CVRec) : AM IConstantVal := do
          type := ty }
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:227-233 indPiTeleLen — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExportC.indPiTeleLen_bridge, then delete this line
 syntactic Π-telescope length of a declared type: official counts a
 constructor's binders by walking `is_pi` without reducing, and the count past
 the parameters is the `numFields` of the constructor it generates. -/
@@ -252,32 +240,28 @@ def indPiTeleLen : Nat → EIdx → AM Nat
   | 0, _ => fail (.internal "fuel exhausted: indPiTeleLen")
   | fuel + 1, h => do
     match ← view h with
-    | .forallE _ b _ => pure ((← indPiTeleLen fuel b) + 1)
+    | .forallE _ b => pure ((← indPiTeleLen fuel b) + 1)
     | _ => pure 0
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1164-1168 piResult — the body of a
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExportC.piResultD_bridge, then delete this line
 syntactic `∀`-telescope, reading the WHOLE `view` at each step: the port's
 `export_c::pi_result`, `validate_ind_d`'s `is_K_target` walk, is written over
-`env::view_e` (which decodes a binder's datum), where `Arena/ExprOps.lean`'s
-`piResult` — the twin of `expr_ops::pi_result` — reads `viewBindI` and never
-decodes it (task #97-P5-Core round 4).  At a `∀` node over a dangling datum
-the two answer differently, so `validateIndD` calls this one (task
-#97-T2-LOCKSTEP lane Frontend). -/
+`env::view_e`, where `Arena/ExprOps.lean`'s `piResult` — the twin of
+`expr_ops::pi_result` — reads the binder projection (task #97-P5-Core round
+4), so `validateIndD` calls this one (task #97-T2-LOCKSTEP lane Frontend). -/
 def piResultD : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: piResult")
   | fuel + 1, h => do
     match ← view h with
-    | .forallE _ b _ => piResultD fuel b
+    | .forallE _ b => piResultD fuel b
     | _ => pure h
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:235-238 ruleOfF — one recursor
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove ExportC.parseRuleD_bridge, then delete this line
 rule of an inductive record, resolved.  The install-computed fields carry
 con-leche's own parse placeholders. -/
 def parseRuleD (st : StateD) (ru : RuleRec) : AM IRecRule := do
-  pure (IRecRule.mk (← st.name ru.ctor) ru.nfields 0 .inert
-    (← getDeclD st ru.rhs) false false false)
+  pure (IRecRule.mk (← st.name ru.ctor) ru.nfields 0 .plain
+    (← getDeclD st ru.rhs) false false)
 
 /-- con-leche: ConLeche/Frontend/ExportC.lean:240-392 validateIndF — an
 inductive record, VALIDATED: the half of the record's processing that reads

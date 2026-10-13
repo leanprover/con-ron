@@ -33,32 +33,29 @@ open ConLeche
 /-! ## The standard axioms' environment shape -/
 
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:168-214 stdAxiomOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.stdAxiomOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:233-263 stdAxiomOkF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.stdAxiomOk_bridge, then delete this line
 Is this checked axiom one of the two recognized standard axioms, over
 standardly-shaped stored `Iff` / `Nonempty` families (and the pinned `Eq`
 basis)?  All three of each family's constants are pinned (the check must
-REALIZE the axiom).  The comparands are the RAW pins, as in the port (task
-#97-P5-Top round 2, ruling (a)); `matchesPin` erases `pw`, so con-leche's
-annotated `iffA` … `choiceA` give the same verdicts (`Bridge/Checker/Basis`). -/
-def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+REALIZE the axiom).  The comparands are con-leche's pins `iffA` … `choiceA`,
+compared by plain equality (`matchesPin`, con-leche's task #342). -/
+def stdAxiomOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   let pn ← propextName
-  if cvA.name == pn then do
+  if cv.name == pn then do
     let en ← pinEq
     let ea ← eqA
     if fe.find? en != some ea then pure false else do
       match fe.find? (← iffName) with
       | some (.indInfo cvI _) => do
-        if !(← cvI.matchesPin (← (← iffRaw).toConstantVal)) then pure false else do
+        if !(← cvI.matchesPin (← (← iffA).toConstantVal)) then pure false else do
           match fe.find? (← iffIntroName) with
           | some (.ctorInfo cvIi 2 2) => do
-            if !(← cvIi.matchesPin (← (← iffIntroRaw).toConstantVal)) then pure false
+            if !(← cvIi.matchesPin (← (← iffIntroA).toConstantVal)) then pure false
             else do
               match fe.find? (← iffRecName) with
               | some (.recInfo cvIr 4 4 _) => do
-                if !(← cvIr.matchesPin (← (← iffRecRaw).toConstantVal)) then pure false
-                else cvA.matchesPin (← propextRaw)
+                if !(← cvIr.matchesPin (← (← iffRecA).toConstantVal)) then pure false
+                else cv.matchesPin (← propextA)
               | _ => pure false
           | _ => pure false
       | _ => pure false
@@ -67,18 +64,18 @@ def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
     -- port's `std_axiom_ok` does (task #97-T2-LOCKSTEP lane Checker DeclCheck
     -- slice 2: the twin read both names first; a pin read can fail)
     let cn ← choiceName
-    if cvA.name == cn then do
+    if cv.name == cn then do
       match fe.find? (← nonemptyName) with
       | some (.indInfo cvN _) => do
-        if !(← cvN.matchesPin (← (← nonemptyRaw).toConstantVal)) then pure false else do
+        if !(← cvN.matchesPin (← (← nonemptyA).toConstantVal)) then pure false else do
           match fe.find? (← nonemptyIntroName) with
           | some (.ctorInfo cvNi 1 1) => do
-            if !(← cvNi.matchesPin (← (← nonemptyIntroRaw).toConstantVal)) then pure false
+            if !(← cvNi.matchesPin (← (← nonemptyIntroA).toConstantVal)) then pure false
             else do
               match fe.find? (← nonemptyRecName) with
               | some (.recInfo cvNr 3 3 _) => do
-                if !(← cvNr.matchesPin (← (← nonemptyRecRaw).toConstantVal)) then pure false
-                else cvA.matchesPin (← choiceRaw)
+                if !(← cvNr.matchesPin (← (← nonemptyRecA).toConstantVal)) then pure false
+                else cv.matchesPin (← choiceA)
               | _ => pure false
           | _ => pure false
       | _ => pure false
@@ -87,19 +84,17 @@ def stdAxiomOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
 /-! ## The compiler-trust family's environment shape -/
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:141-152 trustCompilerOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.trustCompilerOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:265-273 trustCompilerOkF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.trustCompilerOk_bridge, then delete this line
 Is `Lean.trustCompiler` installable here?  The `True` family must be stored
 with the pinned shapes, and the checked axiom's type must match the pin. -/
-def trustCompilerOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
+def trustCompilerOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
   match fe.find? (← trueName) with
   | some (.indInfo cvT _) => do
     if !(← cvT.matchesPin (← trueCvA)) then pure false else do
       match fe.find? (← trueIntroName) with
       | some (.ctorInfo cvTi 0 0) => do
         if !(← cvTi.matchesPin (← trueIntroCvA)) then pure false
-        else cvA.matchesPin (← trustCompilerA)
+        else cv.matchesPin (← trustCompilerA)
       | _ => pure false
   | _ => pure false
 
@@ -127,18 +122,16 @@ def reduceElemOk (fe : IFEnv) (c : NIdx) : AM Bool := do
     | _ => pure false
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:171-181 ofReduceAxOk
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.ofReduceAxOk_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:289-295 ofReduceAxOkF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.ofReduceAxOk_bridge, then delete this line
 Is this checked axiom a pinned `ofReduce*` over a standardly-shaped
 environment? -/
-def ofReduceAxOk (fe : IFEnv) (cvA : IConstantVal) : AM Bool := do
-  let c ← ofReduceOp cvA.name
+def ofReduceAxOk (fe : IFEnv) (cv : IConstantVal) : AM Bool := do
+  let c ← ofReduceOp cv.name
   let en ← pinEq
   if fe.find? en != some (← eqA) then pure false
   else if !(← reduceElemOk fe c) then pure false
   else if !(← reduceStoredOk fe c) then pure false
-  else cvA.matchesPin (← ofReducePinA cvA.name)
+  else cv.matchesPin (← ofReducePinA cv.name)
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:192-196 reducePinGuard
 con-leche: ConLeche/Kernel/DeclCheck.lean:297-301 reducePinGuardF
@@ -557,11 +550,9 @@ def divModCertsGuard (ps : INatOpPinSet) (fe : IFEnv) (c : NIdx)
   divModCertsGuardGo fe c annVal (← divModCertStmts c) (← divModCertProofs ps c)
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:248-271 checkDivModCerts
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkDivModCerts_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:380-394 checkDivModCertsF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkDivModCerts_bridge, then delete this line
 Check the pinned certificates of op `c`: per certificate, the vendored proof
-(with the op's self-references replaced by the stored annotated value — the
+(with the op's self-references replaced by the stored value — the
 checks run in the *pre-insertion* environment) is applied to free variables
 typed by the pinned open statement, its type inferred, and compared against
 the pinned characteristic equation. -/
@@ -572,7 +563,7 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     if ← divModCertGuard fe c annVal hyps eqE proof then do
       let p ← substConstAll c annVal coreWalkFuel proof
       let hs ← substConst0List c annVal hyps
-      let appliedA ← annotateCore mode fe checkFuel 4 (← divModCertApplied p hs)
+      let appliedA ← divModCertApplied p hs
       let tp ← inferTypeCore mode fe checkFuel 4 appliedA
       let rhs ← substConst0 c annVal coreWalkFuel eqE
       if ← isDefEqCore mode fe checkFuel 4 tp rhs then
@@ -582,9 +573,7 @@ def checkDivModCerts (mode : CheckMode) (fe : IFEnv) (c : NIdx)
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:304-324 checkDivModPinAt
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkDivModPinAt_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:396-404 checkDivModPinAtF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkDivModPinAt_bridge, then delete this line
 **One pin variant's attempt**: the stored value against the variant's pin by
 definitional equality, and on a match the variant's certificates.  `true` =
 matched; `false` = the pin is not definitionally equal, or a certificate did
@@ -592,7 +581,7 @@ not check.  The third outcome is an error thrown from inside, which
 `orElseAttempt` turns into "this variant does not match". -/
 def checkDivModPinAt (mode : CheckMode) (fe : IFEnv) (c : NIdx)
     (value' : EIdx) (ps : INatOpPinSet) : AM Bool := do
-  let pinA ← annotateCore mode fe checkFuel 0 (← divModDeclPin ps c)
+  let pinA ← divModDeclPin ps c
   let okPin ← isDefEqCore mode fe checkFuel 0 value' pinA
   if okPin then
     checkDivModCerts mode fe c value' (← divModCertStmts c)
@@ -659,9 +648,7 @@ def checkDivModPin (mode : CheckMode) (pins : List INatOpPinSet)
     "unsupported Nat.div/mod environment")
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:386-421 checkReducePin
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkReducePin_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:434-453 checkReducePinF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkReducePin_bridge, then delete this line
 The `Lean.reduceNat`/`Lean.reduceBool` install gate, run after the ordinary
 opaque check: the stored constant carries the pinned type, the witness value
 is definitionally equal to the build-time pin, and the *identity certificate*
@@ -677,8 +664,8 @@ def checkReducePin (mode : CheckMode) (fe fe2 : IFEnv) (c : NIdx)
   if ← reduceStoredOk fe2 c then
     if ← reduceElemOk fe c then
       if ← reducePinGuard fe c then do
-        let valA ← annotateCore mode fe checkFuel 0 value
-        let pinA ← annotateCore mode fe checkFuel 0 (← reduceDeclPin c)
+        let valA := value
+        let pinA ← reduceDeclPin c
         let okPin ← isDefEqCore mode fe checkFuel 0 valA pinA
         if okPin then do
           let x ← reduceCertVar c
@@ -722,23 +709,21 @@ def substConst0Pairs (n : NIdx) (r : EIdx) : List (EIdx × EIdx) → AM (List (E
 /-! ## The three value kinds' full checks -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:30-47 checkDefnVal
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkDefnVal_bridge, then delete this line
 Check a `def` declaration's value against its checked constant, returning the
 pushed index.  The reducibility hint is stored untouched: it steers only the
 lazy delta unfolding order, never a verdict. -/
 def checkDefnVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) (hint : ReducibilityHint) : AM IFEnv := do
-  let value ← installValue mode fe cv value
+  installValueGuards fe cv value
   let vtype ← inferTypeCore mode fe checkFuel 0 value
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
     fail (.invalid "type mismatch in definition")
   pure (fe.push (.defnInfo cv value hint))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:49-79 checkThmVal — check a
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkThmVal_bridge, then delete this line
 `theorem` declaration's value against its checked constant (whose type must
 additionally be a proposition).  **A theorem is stored by its statement
-only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the annotated
+only** (con-leche task #329 THMVAL: `thmInfo` carries no value): the checked
 value is a realizability witness, checked and then discarded. -/
 def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
@@ -747,21 +732,20 @@ def checkThmVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
   let z ← zeroLevel
   unless ← liftFueled "level comparison" (← lvlEq? u z) do
     fail (.invalid "type of theorem is not a proposition")
-  let jv ← installValue mode fe cv value
-  let vtype ← inferTypeCore mode fe checkFuel 0 jv
+  installValueGuards fe cv value
+  let vtype ← inferTypeCore mode fe checkFuel 0 value
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
     fail (.invalid "type mismatch in theorem")
   pure (fe.push (.thmInfo cv))
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:81-103 checkOpaqueVal — check an
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove DeclCheck.checkOpaqueVal_bridge, then delete this line
 `opaque` declaration's value against its checked constant: exactly the theorem
 check without the is-a-proposition requirement.  The result is stored as an
 `axiomInfo` — the checked value is a realizability witness, consumed by the
 model extension and then discarded. -/
 def checkOpaqueVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal)
     (value : EIdx) : AM IFEnv := do
-  let value ← installValue mode fe cv value
+  installValueGuards fe cv value
   let vtype ← inferTypeCore mode fe checkFuel 0 value
   unless ← isDefEqCore mode fe checkFuel 0 vtype cv.type do
     fail (.invalid "type mismatch in opaque")

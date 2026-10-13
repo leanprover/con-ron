@@ -73,28 +73,24 @@ element type of a reduce operation, as the pinned constant. -/
 def reduceElemTy (c : NIdx) : AM EIdx := do
   constE (← reduceElemName c)
 
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:140-142 _ — the annotated
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.reduceNatCvA_bridge, then delete this line
-pinned type of `Lean.reduceNat` (`#annotate_pins`' `reduceNatCvA`). -/
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:119-120 reduceNatCvA — the
+pinned type of `Lean.reduceNat`. -/
 def reduceNatCvA : AM IConstantVal := internCV ConLeche.reduceNatCvA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:140-142 _ — `reduceBoolCvA`. -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.reduceBoolCvA_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:122-123 reduceBoolCvA -/
 def reduceBoolCvA : AM IConstantVal := internCV ConLeche.reduceBoolCvA
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:144-147 _ — `ofReduceNatA`'s slot, RAW. -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.ofReduceNatA_bridge, then delete this line
-def ofReduceNatA : AM IConstantVal := internCV (ConLeche.ofReduceRaw ConLeche.ofReduceNatName)
-/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:144-147 _ — `ofReduceBoolA`'s slot, RAW. -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove TrustAxioms.ofReduceBoolA_bridge, then delete this line
-def ofReduceBoolA : AM IConstantVal := internCV (ConLeche.ofReduceRaw ConLeche.ofReduceBoolName)
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:125-126 ofReduceNatA -/
+def ofReduceNatA : AM IConstantVal := internCV ConLeche.ofReduceNatA
+/-- con-leche: ConLeche/Kernel/TrustAxioms.lean:128-129 ofReduceBoolA -/
+def ofReduceBoolA : AM IConstantVal := internCV ConLeche.ofReduceBoolA
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:131-133 reduceOpCvA — the
-annotated pinned type of a reduce operation. -/
+pinned type of a reduce operation. -/
 def reduceOpCvA (c : NIdx) : AM IConstantVal := do
   let rn ← reduceNatName
   if c == rn then reduceNatCvA else reduceBoolCvA
 
 /-- con-leche: ConLeche/Kernel/TrustAxioms.lean:135-137 ofReducePinA — the
-annotated pin an `ofReduce*` axiom is matched against. -/
+pin an `ofReduce*` axiom is matched against. -/
 def ofReducePinA (n : NIdx) : AM IConstantVal := do
   let orn ← ofReduceNatName
   if n == orn then ofReduceNatA else ofReduceBoolA

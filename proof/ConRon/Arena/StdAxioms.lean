@@ -5,21 +5,17 @@ The twin of `ConLeche/Kernel/StdAxioms.lean`: the eight reserved names, the
 shape comparison a pin hit is decided by, and the pinned `Iff` / `Nonempty`
 families with `propext` and `Classical.choice`.
 
-Three deviations, each of them one of DESIGN §8's own rules:
+Two deviations, each of them one of DESIGN §8's own rules:
 
 1. **The pins are con-leche's VALUES, interned** (`Arena/Intern.lean`'s module
-   note).  `iffRaw`, `iffA`, `propextA` … are hand-written and
+   note).  `iffA`, `propextA` … are hand-written and
    elaborator-spliced `ConstantInfo`/`ConstantVal` constants with no algorithm
    in them, and DESIGN §8.7 rules that (B) imports con-leche's
    representation-free data rather than copying it.  So each twin here is
    `internCI`/`internCV` of the con-leche constant it cites, and the startup
    walk (`internAllPins`, `Arena/Checker.lean`) puts them in the PERSISTENT
    tier before the fold runs.
-2. **`erasePw` and `erasePwEq` collapse into one twin**, as
-   `Arena/Canon.lean`'s comparisons do: con-leche carries the rebuild as the
-   specification and the lockstep descent as the executed `@[csimp]` twin, and
-   the arena writes one function per algorithm — the executed one.
-3. **`stdAxiomOk` is `Arena/DeclCheck.lean`'s** `stdAxiomOkF`, which cites both:
+2. **`stdAxiomOk` is `Arena/DeclCheck.lean`'s** `stdAxiomOkF`, which cites both:
    the arena has ONE environment type, the index (`Arena/Core.lean`'s
    deviation 1), so con-leche's `Env`/`FEnv` pairs collapse.
 -/
@@ -52,97 +48,45 @@ def nonemptyRecName : AM NIdx := pinNonemptyRec
 
 /-! ## The shape comparison -/
 
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:62-113 Expr.erasePw
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.erasePwEq_bridge, then delete this line
-con-leche: ConLeche/Kernel/StdAxioms.lean:139-153 Expr.erasePwEq
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.erasePwEq_bridge, then delete this line
-`a.erasePw = b.erasePw`, decided in lockstep on two handles.  `erasePw`
-preserves every node's constructor and its non-recursive fields (it only
-resets the binder `pw` datum), so two erased terms are equal iff the originals
-agree constructor by constructor down to their leaves — which is what this
-descent tests.  The `pw` datum is the one thing not compared, which is exactly
-what the erasure forgives (`StdAxioms.lean`'s "task #161 P5" note).
-
-One twin, not two (module note 2): con-leche's rebuild is the specification
-and this is the `@[csimp]` twin both binaries execute. -/
-def erasePwEq : Nat → EIdx → EIdx → AM Bool
-  | 0, _, _ => fail (.internal "fuel exhausted: erasePwEq")
-  | fuel + 1, a, b => do
-    match ← view a, ← view b with
-    | .bvar i, .bvar j => pure (i == j)
-    | .fvar i t, .fvar j t' =>
-      if i == j then erasePwEq fuel t t' else pure false
-    | .sort u, .sort v => pure (u == v)
-    | .const n us, .const n' us' => pure (n == n' && us == us')
-    | .app f x, .app f' x' =>
-      if ← erasePwEq fuel f f' then erasePwEq fuel x x' else pure false
-    | .lam t bd _, .lam t' bd' _ =>
-      if ← erasePwEq fuel t t' then erasePwEq fuel bd bd' else pure false
-    | .forallE t bd _, .forallE t' bd' _ =>
-      if ← erasePwEq fuel t t' then erasePwEq fuel bd bd' else pure false
-    | .letE t v bd, .letE t' v' bd' =>
-      if ← erasePwEq fuel t t' then
-        if ← erasePwEq fuel v v' then erasePwEq fuel bd bd' else pure false
-      else pure false
-    | .lit l, .lit l' => pure (l == l')
-    | .proj s i e, .proj s' i' e' =>
-      if s == s' && i == i' then erasePwEq fuel e e' else pure false
-    | _, _ => pure false
-
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:57-91 ConstantVal.matchesPin
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.IConstantVal.matchesPin_bridge, then delete this line
-con-leche: ConLeche/Kernel/StdAxioms.lean:197-201 ConstantVal.matchesPinFast
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.IConstantVal.matchesPin_bridge, then delete this line
-Shape comparison for the standard pins: exact name, level parameters and
-counts, type up to the `pw` datum.  A name comparison is a handle comparison
-(DESIGN §8.3: `denoteN` is injective, so index inequality IS structural
-inequality). -/
-def IConstantVal.matchesPin (cv pin : IConstantVal) : AM Bool := do
-  if cv.name == pin.name && cv.levelParams == pin.levelParams then
-    erasePwEq coreWalkFuel cv.type pin.type
-  else pure false
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:57-91 ConstantVal.matchesPin —
+shape comparison for the standard pins: exact name, level parameters and type.
+Since con-leche's task #342 the comparison is plain equality (no binder datum
+is left to forgive), and over handles it is handle equality: `denoteE` and
+`denoteN` are injective (DESIGN §8.3), so index equality IS structural
+equality. -/
+def IConstantVal.matchesPin (cv pin : IConstantVal) : AM Bool :=
+  pure (cv.name == pin.name && cv.levelParams == pin.levelParams &&
+    cv.type == pin.type)
 
 /-! ## The pins
 
-Each is `internCI` / `internCV` of the con-leche constant it cites — the raw
-pins hand-written through `ConLeche/Kernel/Basis/Builder.lean`, the annotated
-ones computed from them by `#annotate_basis` / `#annotate_pins` while
-con-leche elaborates.  The arena reads the results. -/
+Each is `internCI` / `internCV` of the con-leche constant it cites, hand-written
+through `ConLeche/Kernel/Basis/Builder.lean`.  The arena reads the results. -/
 
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:208-210 iffRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.iffRaw_bridge, then delete this line
-def iffRaw : AM IConstantInfo := internCI ConLeche.iffRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:212-220 iffIntroRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.iffIntroRaw_bridge, then delete this line
-def iffIntroRaw : AM IConstantInfo := internCI ConLeche.iffIntroRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:229-239 iffRecRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.iffRecRaw_bridge, then delete this line
-def iffRecRaw : AM IConstantInfo := internCI ConLeche.iffRecRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:241-248 propextRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.propextRaw_bridge, then delete this line
-def propextRaw : AM IConstantVal := internCV ConLeche.propextRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:250-252 nonemptyRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.nonemptyRaw_bridge, then delete this line
-def nonemptyRaw : AM IConstantInfo := internCI ConLeche.nonemptyRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:254-260 nonemptyIntroRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.nonemptyIntroRaw_bridge, then delete this line
-def nonemptyIntroRaw : AM IConstantInfo := internCI ConLeche.nonemptyIntroRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:262-274 nonemptyRecRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.nonemptyRecRaw_bridge, then delete this line
-def nonemptyRecRaw : AM IConstantInfo := internCI ConLeche.nonemptyRecRaw
-/-- con-leche: ConLeche/Kernel/StdAxioms.lean:276-281 choiceRaw -/
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.choiceRaw_bridge, then delete this line
-def choiceRaw : AM IConstantVal := internCV ConLeche.choiceRaw
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:93-95 iffA -/
+def iffA : AM IConstantInfo := internCI ConLeche.iffA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:97-105 iffIntroA -/
+def iffIntroA : AM IConstantInfo := internCI ConLeche.iffIntroA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:114-124 iffRecA -/
+def iffRecA : AM IConstantInfo := internCI ConLeche.iffRecA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:126-133 propextA -/
+def propextA : AM IConstantVal := internCV ConLeche.propextA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:135-137 nonemptyA -/
+def nonemptyA : AM IConstantInfo := internCI ConLeche.nonemptyA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:139-145 nonemptyIntroA -/
+def nonemptyIntroA : AM IConstantInfo := internCI ConLeche.nonemptyIntroA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:147-159 nonemptyRecA -/
+def nonemptyRecA : AM IConstantInfo := internCI ConLeche.nonemptyRecA
+/-- con-leche: ConLeche/Kernel/StdAxioms.lean:161-166 choiceA -/
+def choiceA : AM IConstantVal := internCV ConLeche.choiceA
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the annotated `Eq` pin,
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.eqA_bridge, then delete this line
-`ConLeche.eqA` (spliced by `#annotate_basis`, so the citation is the command's
+/-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the stored `Eq` pin,
+`ConLeche.eqA` (spliced by `#stored_basis`, so the citation is the command's
 range), interned.  It is the comparand of every "requires the pinned `Eq`
 basis" test in the checker. -/
 def eqA : AM IConstantInfo := internCI ConLeche.eqA
 
-/-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the annotated `Nat` pin,
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StdAxioms.natA_bridge, then delete this line
+/-- con-leche: ConLeche/Kernel/BasisA.lean:29-44 _ — the stored `Nat` pin,
 `ConLeche.natA`, interned. -/
 def natA : AM IConstantInfo := internCI ConLeche.natA
 

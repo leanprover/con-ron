@@ -34,7 +34,6 @@ DESIGN §8.3 and OVERVIEW §6.5 (the `Native` kind) describe con-ron's
 section is its twin. -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — what
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.OrElseStep_bridge, then delete this line
 `orElse` decides once the attempt has run.  con-leche's clause is three-way;
 the port's is four, and the arena's is the port's:
 
@@ -55,7 +54,6 @@ inductive OrElseStep where
   | failed (e : CheckError)
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — take the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.attemptSnapshot_bridge, then delete this line
 snapshot a variant attempt is restored from: the WHOLE state (task
 #97-T2-LOCKSTEP D4b).  In Lean it is the state itself; the port copies it
 (`attempt_snapshot`: the four stores with both tiers, the memos, the caches
@@ -63,13 +61,11 @@ and the pins). -/
 @[inline] def attemptSnapshot (st : AState) : AState := st
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — the restore
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.attemptRestore_bridge, then delete this line
 of `OrElseStep.recovered`: the snapshot becomes the state, so everything the
 attempt did goes.  The port moves its copy back (`attempt_restore`). -/
 @[inline] def attemptRestore (_st : AState) (snap : AState) : AState := snap
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — **the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.orElseStepOf_bridge, then delete this line
 four-way step itself**, as a PURE function of the attempt's outcome, which is
 the shape the port has. -/
 @[inline] def orElseStepOf : Except CheckError Bool → OrElseStep
@@ -79,7 +75,6 @@ the shape the port has. -/
   | .error e => .recovered e
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:23-50 CheckerOps — **the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.orElseAttempt_bridge, then delete this line
 attempt, with the memo state snapshotted and restored on a mirrored error.**
 
 This is the ONE place (B) recovers from a thrown error, and it is scoped to
@@ -155,9 +150,7 @@ own functions on transient values, and DESIGN §8.3's lesson 4 says a level
 algorithm runs on trees. -/
 
 /-- con-leche: ConLeche/Kernel/Level.lean:242-258 Expr.allLevelParamsDefined
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.allLevelParamsDefinedGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Level.lean:289-322 Expr.allLevelParamsDefinedGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.allLevelParamsDefinedGo_bridge, then delete this line
 The memoized walk.  `params` are transient names (see the section note); the
 memo is keyed on the node, which is what makes a shared subterm cost one
 probe. -/
@@ -181,11 +174,9 @@ def allLevelParamsDefinedGo (params : List ConLeche.Name)
           let (b₁, memo) ← allLevelParamsDefinedGo params memo fuel f
           if b₁ then allLevelParamsDefinedGo params memo fuel a
           else pure (false, memo)
-        | .lam t b m | .forallE t b m => do
+        | .lam t b | .forallE t b => do
           let (b₁, memo) ← allLevelParamsDefinedGo params memo fuel t
-          if !b₁ then pure (false, memo) else do
-            let (b₂, memo) ← allLevelParamsDefinedGo params memo fuel b
-            pure (b₂ && m.pw.paramsDefined params, memo)
+          if !b₁ then pure (false, memo) else allLevelParamsDefinedGo params memo fuel b
         | .letE t v b => do
           let (b₁, memo) ← allLevelParamsDefinedGo params memo fuel t
           if !b₁ then pure (false, memo) else do
@@ -214,9 +205,7 @@ only callers; the memo is threaded explicitly — the census's own twin column
 — because the answer depends on `fe` and `Memos` is the per-CALL record. -/
 
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean:30-51 Expr.constsResolveF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.constsResolveFGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:82-117 Expr.constsResolveFGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.constsResolveFGo_bridge, then delete this line
 The memoized walk.  The leaf clauses are `Arena/Core.lean`'s `constsResolve`
 at one node, exactly as con-leche's `…Go` calls the pure walk at its four
 non-recursive constructors.  The node is viewed ONCE and the miss arm
@@ -240,7 +229,7 @@ def constsResolveFGo (fe : IFEnv) (memo : Std.HashMap EIdx Bool) :
             let (b₁, memo) ← constsResolveFGo fe memo fuel f
             let (b₂, memo) ← constsResolveFGo fe memo fuel a
             pure (b₁ && b₂, memo)
-          | .lam ty body _ | .forallE ty body _ => do
+          | .lam ty body | .forallE ty body => do
             let (b₁, memo) ← constsResolveFGo fe memo fuel ty
             let (b₂, memo) ← constsResolveFGo fe memo fuel body
             pure (b₁ && b₂, memo)
@@ -292,21 +281,67 @@ def unresolvedConstsError (where_ : String) (e : EIdx) : AM CheckError := do
     pure (.notImplemented s!"use of the sorryAx axiom in {where_}")
   else pure (.invalid s!"unknown constant in {where_}")
 
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:89-111 Expr.hasStrLitGo — does
+the term contain a string literal?  (Error path only.)  A memoized DAG walk:
+the memo is the set of nodes already walked, threaded as con-leche threads
+its `Std.HashSet`; the leaves are decided off the handle's tag before the
+memo is consulted, as con-leche's first two clauses are. -/
+def hasStrLitGo (memo : Std.HashSet EIdx) : Nat → EIdx → AM (Bool × Std.HashSet EIdx)
+  | 0, _ => fail (.internal "fuel exhausted: hasStrLit")
+  | fuel + 1, e => do
+    let t := e.tag
+    if t == ETag.lit then
+      match ← viewLit e with
+      | none => failDanglingE
+      | some (.strVal _) => pure (true, memo)
+      | some _ => pure (false, memo)
+    else if t == ETag.bvar || t == ETag.sort || t == ETag.const then
+      pure (false, memo)
+    else if memo.contains e then pure (false, memo)
+    else do
+      let memo := memo.insert e
+      match ← view e with
+      | .fvar _ ty => hasStrLitGo memo fuel ty
+      | .app f a => do
+        let (r, memo) ← hasStrLitGo memo fuel f
+        if r then pure (true, memo) else hasStrLitGo memo fuel a
+      | .lam ty b | .forallE ty b => do
+        let (r, memo) ← hasStrLitGo memo fuel ty
+        if r then pure (true, memo) else hasStrLitGo memo fuel b
+      | .letE ty v b => do
+        let (r, memo) ← hasStrLitGo memo fuel ty
+        if r then pure (true, memo) else do
+          let (r, memo) ← hasStrLitGo memo fuel v
+          if r then pure (true, memo) else hasStrLitGo memo fuel b
+      | .proj _ _ x => hasStrLitGo memo fuel x
+      | _ => pure (false, memo)
+
+/-- con-leche: ConLeche/Kernel/CheckerBase.lean:113-119 unresolvedConstsErrorL —
+`unresolvedConstsError` with a string-literal guard ahead of it: a string
+literal is declined here, before resolution, when the String support
+declarations are not yet present (con-leche's task #342: the guard the retired
+annotate pass ran). -/
+def unresolvedConstsErrorL (strOk : Bool) (where_ : String) (e : EIdx) :
+    AM CheckError := do
+  if !strOk then do
+    let (r, _) ← hasStrLitGo {} coreWalkFuel e
+    if r then
+      pure (.notImplemented "string literals before the String support declarations")
+    else unresolvedConstsError where_ e
+  else unresolvedConstsError where_ e
+
 /-! ## The per-declaration constant check -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:123-144 checkConstantVal
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 con-leche: ConLeche/Kernel/DeclCheck.lean:352-372 checkConstantValF
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.checkConstantVal_bridge, then delete this line
 Checks common to all declarations: fresh name, well-formed universe
 parameters, and a type that is a type and mentions only declared parameters.
-Returns the constant with its type **annotated**; the guards run on the
-annotated type.
+Returns nothing: the constant is stored as declared (con-leche's task #342).
 
 The name is read back for four of the six messages — DESIGN §8.3's "readback
 happens only for the environment index's error text". -/
 def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
-    AM IConstantVal := do
+    AM Unit := do
   if (fe.find? cv.name).isSome then
     fail (.invalid "duplicate declaration")
   if (← reservedBasisNames).contains cv.name then
@@ -319,20 +354,17 @@ def checkConstantVal (mode : CheckMode) (fe : IFEnv) (cv : IConstantVal) :
     fail (.invalid "loose bound variable in type")
   if ← hasFvarFast coreWalkFuel cv.type then
     fail (.invalid "unexpected free variable in type")
-  let type ← annotateCore mode fe checkFuel 0 cv.type
-  unless ← allLevelParamsDefined cv.levelParams type do
+  unless ← allLevelParamsDefined cv.levelParams cv.type do
     fail (.invalid
       "undeclared universe parameter in type")
-  unless ← constsResolveFFast fe type do
-    fail (← unresolvedConstsError "type" type)
-  let stype ← inferTypeCore mode fe checkFuel 0 type
+  unless ← constsResolveFFast fe cv.type do
+    fail (← unresolvedConstsErrorL (← strLitSupported fe) "type" cv.type)
+  let stype ← inferTypeCore mode fe checkFuel 0 cv.type
   let _u ← ensureSortCore mode fe checkFuel 0 stype
-  pure { cv with type := type }
 
 /-! ## The strategy-independent helpers -/
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:146-156 openPisAtFvars — open
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.openPisAtFvars_bridge, then delete this line
 the first `n` `∀`-binders at fresh free variables `0..n-1` (each fvar's type
 is the binder domain, instantiated with the earlier fvars).  Structural on
 `n`, so no fuel of its own. -/
@@ -341,7 +373,7 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
   | n + 1, h, i => do
     if h.tag == ETag.forallE then
       match ← view h with
-      | .forallE dom body _ => do
+      | .forallE dom body => do
         let fv ← internE (.fvar i dom)
         let b ← instantiate1Fast coreWalkFuel body fv 0
         match ← openPisAtFvars n b (i + 1) with
@@ -351,7 +383,6 @@ def openPisAtFvars : Nat → EIdx → Nat → AM (Option (List EIdx × EIdx))
     else pure none
 
 /-- con-leche: ConLeche/Kernel/CheckerBase.lean:158-172 openPisAtFvarsFGo —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.openPisAtFvarsFGo_bridge, then delete this line
 core of `openPisAtFvarsF`: `acc` holds the already-created fvars, innermost
 binder first.  One `instantiateList` pass per domain instead of one
 whole-telescope `instantiate1` pass per binder. -/
@@ -361,7 +392,7 @@ def openPisAtFvarsFGo (acc : Array EIdx) :
   | n + 1, h, i => do
     if h.tag == ETag.forallE then
       match ← view h with
-      | .forallE dom body _ => do
+      | .forallE dom body => do
         let d ← instantiateListFast coreWalkFuel dom acc 0
         let fv ← internE (.fvar i d)
         match ← openPisAtFvarsFGo (acc.push fv) n body (i + 1) with
@@ -405,118 +436,5 @@ def indParamsOk (nP : Nat) : List IConstantInfo → AM Bool
       | .ctorInfo _ nPc _ => pure (nPc == nP)
       | _ => pure true
     if ok then indParamsOk nP rest else pure false
-
-/-! ## The syntactic reading of a nested rule's instantiation
-
-The Rust's `expr_ops::nested_rule_syn` group.  It sits HERE rather than in
-`Arena/ExprOps.lean` (con-leche's `Kernel/ExprOps.lean` home) because its
-`resolves` argument is the checker's `constsResolveFFast` — con-leche passes
-it in as a closure, the Rust calls `checker_base` from `expr_ops` (a module
-cycle Rust allows and Lean does not).  Module placement only; the functions
-are the Rust's, one for one. -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — `pins :=
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.lowerList_bridge, then delete this line
-(args.take cnP).map (lowerBVars k 0)`, left to right. -/
-def lowerList (k : Nat) : List EIdx → AM (List EIdx)
-  | [] => pure []
-  | x :: xs => do
-    let y ← lowerBVarsFast coreWalkFuel k 0 x
-    let ys ← lowerList k xs
-    pure (y :: ys)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.liftList_bridge, then delete this line
-`pins.map (liftLooseBVars k 0)`, left to right. -/
-def liftList (k : Nat) : List EIdx → AM (List EIdx)
-  | [] => pure []
-  | x :: xs => do
-    let y ← liftLooseBVarsFast coreWalkFuel k 0 x
-    let ys ← liftList k xs
-    pure (y :: ys)
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the pins'
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.pinsWf_bridge, then delete this line
-well-formedness, `pins.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
-resolves p && p.allLevelParamsDefined lps)`, the `&&` chain left to right. -/
-def pinsWf (fe : IFEnv) (lps : List NIdx) (rP : Nat) : List EIdx → AM Bool
-  | [] => pure true
-  | p :: ps => do
-    if ← hasFvarFast coreWalkFuel p then pure false
-    else if !(← looseBVarsBoundedFast coreWalkFuel rP p) then pure false
-    else if !(← constsResolveFFast fe p) then pure false
-    else if !(← allLevelParamsDefined lps p) then pure false
-    else pinsWf fe lps rP ps
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.levelsDeclaredFrom_bridge, then delete this line
-cursor recursion behind `levelsDeclared`. -/
-def levelsDeclaredFrom (ps : List ConLeche.Name) : List LIdx → AM Bool
-  | [] => pure true
-  | l :: ls => do
-    let lv ← readLevel l
-    if Level.allParamsDefined ps lv then levelsDeclaredFrom ps ls
-    else pure false
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn —
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.levelsDeclared_bridge, then delete this line
-`lvls.all (Level.allParamsDefined lps)`, over handles. -/
-def levelsDeclared (lps : List NIdx) (lvls : List LIdx) : AM Bool := do
-  let ps ← readNames lps
-  levelsDeclaredFrom ps lvls
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the pins'
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.nestedRuleSynGuards_bridge, then delete this line
-and the levels' guards, once the argument shape has matched. -/
-def nestedRuleSynGuards (fe : IFEnv) (lps : List NIdx) (lvls : LsIdx) (rP : Nat)
-    (pins : List EIdx) : AM (Option (List LIdx × List EIdx)) := do
-  if !(← pinsWf fe lps rP pins) then pure none
-  else do
-    let ls ← viewLs lvls
-    if !(← levelsDeclared lps ls) then pure none
-    else pure (some (ls, pins))
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — at the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.nestedRuleSynAt_bridge, then delete this line
-major's domain `dom = D lvls args`: the parameter prefix lowered past the
-`k` indices, the shape tests in con-leche's `∧` order, then the guards. -/
-def nestedRuleSynAt (fe : IFEnv) (lps : List NIdx) (dom : EIdx) (lvls : LsIdx)
-    (k rP cnP : Nat) : AM (Option (List LIdx × List EIdx)) := do
-  let args ← getAppArgs coreWalkFuel dom
-  let pre := args.take cnP
-  let pins ← lowerList k pre
-  if args.length != cnP + k then pure none
-  else do
-    let back ← liftList k pins
-    if pre != back then pure none
-    else do
-      let want ← bvarRange k k 0
-      if args.drop cnP != want then pure none
-      else nestedRuleSynGuards fe lps lvls rP pins
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — **the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove CheckerBase.nestedRuleSyn_bridge, then delete this line
-syntactic reading of a nested rule's instantiation**: the major's level and
-parameter instantiations, read off the recursor's type, when the major's
-domain applies a constant to parameters closed below the indices followed by
-exactly the index variables. -/
-def nestedRuleSyn (fe : IFEnv) (lps : List NIdx) (tyA : EIdx) (mI rP cnP : Nat) :
-    AM (Option (List LIdx × List EIdx)) := do
-  if rP ≤ mI then
-    match ← stripPis mI tyA with
-    | none => pure none
-    | some q =>
-      if q.2.tag == ETag.forallE then
-        match ← viewBind q.2 with
-        | none => failDanglingE
-        | some (dom, _, _) => do
-          let hd ← getAppFn coreWalkFuel dom
-          if hd.tag == ETag.const then
-            match ← viewConst hd with
-            | none => failDanglingE
-            | some (_, lvls) => nestedRuleSynAt fe lps dom lvls (mI - rP) rP cnP
-          else pure none
-      else pure none
-  else pure none
 
 end ConRon.Arena

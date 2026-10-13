@@ -76,7 +76,6 @@ def canonNameMap (ps cs : List NIdx) (n : NIdx) : NIdx :=
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:28-35 canonLevel
 con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Canon.canonLevelEq_bridge, then delete this line
 `canonLevel ps u == canonLevel ps' v`, decided in lockstep on the two level
 handles.  `canonLevel` preserves every node's constructor (it rewrites only
 the `.param` leaf), so the two canonical forms are equal iff the originals
@@ -100,7 +99,6 @@ def canonLevelEq (ps ps' cs : List NIdx) : Nat → LIdx → LIdx → AM Bool
     | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast — the
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Canon.canonLevelListEq_bridge, then delete this line
 `.const` clause's `us.map (canonLevel m) == us'.map (canonLevel m')`, at two
 universe-argument lists read out of the level-list store. -/
 def canonLevelListEq (ps ps' cs : List NIdx) (fuel : Nat) :
@@ -113,7 +111,6 @@ def canonLevelListEq (ps ps' cs : List NIdx) (fuel : Nat) :
   | _, _ => pure false
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast — the same
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Canon.canonLevelsEq_bridge, then delete this line
 at two interned universe-argument LIST handles. -/
 def canonLevelsEq (ps ps' cs : List NIdx) (fuel : Nat) (us vs : LsIdx) :
     AM Bool := do
@@ -122,17 +119,11 @@ def canonLevelsEq (ps ps' cs : List NIdx) (fuel : Nat) (us vs : LsIdx) :
 /-! ## Terms -/
 
 /-- con-leche: ConLeche/Kernel/Canon.lean:37-55 canonExpr
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Canon.canonExprEq_bridge, then delete this line
 con-leche: ConLeche/Kernel/Canon.lean:116-136 canonExprEqFast
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove Canon.canonExprEq_bridge, then delete this line
 **The agreement for expressions**, in lockstep on two handles.  `canonExpr`
-preserves every node's constructor (it rewrites only levels, and resets the
-binder metadata to the same constant on both sides), so the two canonical
-forms are equal iff the originals agree constructor by constructor down to
-their leaves — which is what this descent tests.
-
-The binder metadata is NOT compared, exactly as con-leche's clause does not:
-`canonExpr` writes `⟨.never⟩` on both sides. -/
+preserves every node's constructor (it renames only level parameters), so the
+two canonical forms are equal iff the originals agree constructor by
+constructor down to their leaves — which is what this descent tests. -/
 def canonExprEq (ps ps' cs : List NIdx) : Nat → EIdx → EIdx → AM Bool
   | 0, _, _ => fail (.internal "fuel exhausted: canonExprEq")
   | fuel + 1, a, b => do
@@ -147,11 +138,11 @@ def canonExprEq (ps ps' cs : List NIdx) : Nat → EIdx → EIdx → AM Bool
       if ← canonExprEq ps ps' cs fuel f f' then
         canonExprEq ps ps' cs fuel x x'
       else pure false
-    | .lam t bd _, .lam t' bd' _ =>
+    | .lam t bd, .lam t' bd' =>
       if ← canonExprEq ps ps' cs fuel t t' then
         canonExprEq ps ps' cs fuel bd bd'
       else pure false
-    | .forallE t bd _, .forallE t' bd' _ =>
+    | .forallE t bd, .forallE t' bd' =>
       if ← canonExprEq ps ps' cs fuel t t' then
         canonExprEq ps ps' cs fuel bd bd'
       else pure false

@@ -123,11 +123,8 @@ Record one answer for `(e, i)` in the memo the walk hands back. -/
   (r.1, r.2.insert (e, i) r.1)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:102-115 Expr.hasLooseBVar
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.hasLooseBVarBGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructParts.lean:117-136 Expr.hasLooseBVarB
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.hasLooseBVarBGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructParts.lean:188-224 Expr.hasLooseBVarBGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.hasLooseBVarBGo_bridge, then delete this line
 Does `bvar i` occur loose in `e`?  con-leche's packed-bound cutoff
 (`bvarB ≤ i`) and con-leche's per-call memo, both kept: the cutoff stops the
 walk where the variable CANNOT occur, the memo shares a shared node's answer
@@ -154,11 +151,11 @@ def hasLooseBVarBGo (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat) :
             match ← hasLooseBVarBGo memo i fuel f with
             | (true, memo) => pure (true, memo)
             | (false, memo) => hasLooseBVarBGo memo i fuel a
-          | .lam ty b _ => do
+          | .lam ty b => do
             match ← hasLooseBVarBGo memo i fuel ty with
             | (true, memo) => pure (true, memo)
             | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
-          | .forallE ty b _ => do
+          | .forallE ty b => do
             match ← hasLooseBVarBGo memo i fuel ty with
             | (true, memo) => pure (true, memo)
             | (false, memo) => hasLooseBVarBGo memo (i + 1) fuel b
@@ -233,7 +230,6 @@ def structProjGuards (cty : EIdx) (nP nF : Nat) (sorts : List LIdx) :
   row 0 nF
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:494-512 structProjBodiesGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.structProjBodiesGo_bridge, then delete this line
 **The projection bodies of a recognised block**, one walk of the constructor
 telescope: field `i`'s domain is body `i`, and the field is replaced by the
 subject's projection `.proj T i (bvar 0)` before the walk continues. -/
@@ -242,7 +238,7 @@ def structProjBodiesGo (T : NIdx) : Nat → Nat → EIdx → AM (Option (List EI
   | k + 1, i, h => do
     if h.tag == ETag.forallE then
       match ← view h with
-      | .forallE fdom body _ => do
+      | .forallE fdom body => do
         let a ← structProjArgP T i
         let b ← instantiate1LiftFast coreWalkFuel body a 0
         match ← structProjBodiesGo T k (i + 1) b with
@@ -265,9 +261,7 @@ def structProjBodies (T : NIdx) (nP nF : Nat) (cty : EIdx) :
 /-! ## `mentionsConst` — one twin for the pure walk and the memo -/
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:519-528 Expr.mentionsConst
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
 con-leche: ConLeche/Kernel/Inductives/StructParts.lean:560-595 Expr.mentionsConstGo
--- con-leche: CHANGED since 3b37939f — re-port, re-test, re-prove StructParts.mentionsConstGo_bridge, then delete this line
 Does the constant `T` occur in `e`?  A syntactic walk (`fvar` annotations
 included; a `.proj` node names its structure), with con-leche's per-call memo
 keyed by the node — `T` is fixed for the whole walk. -/
@@ -290,11 +284,11 @@ def mentionsConstGo (T : NIdx) (memo : Std.HashMap EIdx Bool) :
             let (b₁, memo) ← mentionsConstGo T memo fuel f
             let (b₂, memo) ← mentionsConstGo T memo fuel a
             pure (b₁ || b₂, memo)
-          | .lam ty body _ => do
+          | .lam ty body => do
             let (b₁, memo) ← mentionsConstGo T memo fuel ty
             let (b₂, memo) ← mentionsConstGo T memo fuel body
             pure (b₁ || b₂, memo)
-          | .forallE ty body _ => do
+          | .forallE ty body => do
             let (b₁, memo) ← mentionsConstGo T memo fuel ty
             let (b₂, memo) ← mentionsConstGo T memo fuel body
             pure (b₁ || b₂, memo)

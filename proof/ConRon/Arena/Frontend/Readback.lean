@@ -80,7 +80,6 @@ def denoteCV (st : EStore) (cv : IConstantVal) : Option ConstantVal :=
 
 /-- con-leche: none — the denotation of a recursor rule's firing mode. -/
 def denoteFire (st : EStore) : IRecRuleFire → Option RecRuleFire
-  | .inert => some .inert
   | .plain => some .plain
   | .nested lvls pins =>
     match denoteLList st.ls lvls, denoteEList st pins with
@@ -91,7 +90,7 @@ def denoteFire (st : EStore) : IRecRuleFire → Option RecRuleFire
 def denoteRule (st : EStore) (rl : IRecRule) : Option RecRule :=
   match denoteN st.ns rl.ctor, denoteFire st rl.fire, denoteE st rl.rhs with
   | some c, some f, some r =>
-    some ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta, rl.paramsBlind⟩
+    some ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta⟩
   | _, _, _ => none
 
 /-- con-leche: none — the denotation of a rule list. -/
@@ -103,8 +102,7 @@ def denoteRules (st : EStore) : List IRecRule → Option (List RecRule)
     | _, _ => none
 
 /-- con-leche: none — the denotation of an inductive's capabilities.  `sortZ`
-is con-leche's own `PropWhen` on both sides (`Arena/Env.lean`'s note: the
-store's binder metadata already carries one). -/
+is con-leche's own `PropWhen` on both sides (`Arena/Env.lean`'s note). -/
 def denoteCaps (st : EStore) (c : IIndCaps) : Option IndCaps :=
   match denoteN st.ns c.etaCtor, denoteNList st.ns c.all,
       denoteNList st.ns c.ctors with
@@ -218,21 +216,21 @@ def internExprGo (m : EMemo) : Expr → AM (EMemo × EIdx)
       let (m, ha) ← internExprGo m a
       let h ← internE (.app hf ha)
       pure (m.insert e h, h)
-  | e@(.lam ty b bi) => do
+  | e@(.lam ty b) => do
     match m[e]? with
     | some h => pure (m, h)
     | none => do
       let (m, ht) ← internExprGo m ty
       let (m, hb) ← internExprGo m b
-      let h ← internE (.lam ht hb bi)
+      let h ← internE (.lam ht hb)
       pure (m.insert e h, h)
-  | e@(.forallE ty b bi) => do
+  | e@(.forallE ty b) => do
     match m[e]? with
     | some h => pure (m, h)
     | none => do
       let (m, ht) ← internExprGo m ty
       let (m, hb) ← internExprGo m b
-      let h ← internE (.forallE ht hb bi)
+      let h ← internE (.forallE ht hb)
       pure (m.insert e h, h)
   | e@(.letE ty v b) => do
     match m[e]? with
@@ -281,7 +279,6 @@ def internCV (m : EMemo) (cv : ConstantVal) : AM (EMemo × IConstantVal) := do
 
 /-- con-leche: none — intern a recursor rule's firing mode. -/
 def internFire (m : EMemo) : RecRuleFire → AM (EMemo × IRecRuleFire)
-  | .inert => pure (m, .inert)
   | .plain => pure (m, .plain)
   | .nested lvls pins => do
     let hls ← internLevelList lvls
@@ -293,7 +290,7 @@ def internRule (m : EMemo) (rl : RecRule) : AM (EMemo × IRecRule) := do
   let c ← internName rl.ctor
   let (m, f) ← internFire m rl.fire
   let (m, r) ← internExprGo m rl.rhs
-  pure (m, ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta, rl.paramsBlind⟩)
+  pure (m, ⟨c, rl.nfields, rl.ctorParams, f, r, rl.k, rl.eta⟩)
 
 /-- con-leche: none — intern a rule list. -/
 def internRules (m : EMemo) : List RecRule → AM (EMemo × List IRecRule)
