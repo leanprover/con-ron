@@ -208,9 +208,8 @@ theorem constantValRun_typeWF {μ : CheckMode} {F : Nat} {env : Env}
     (c : ConstantInfo) :
     type'.hasFvar = false ∧ type'.allLevelParamsDefined cv.levelParams = true ∧
       type'.constsResolve ⟨c :: env.consts⟩ = true ∧ type'.looseBVarsBounded 0 = true := by
-  obtain ⟨-, -, -, -, hb, hf, hann, hlp, hres, -⟩ := h
-  obtain ⟨g1, g2⟩ := annotate_syntax hann hf hb
-  exact ⟨g1, hlp, Expr.constsResolve_mono hres, g2⟩
+  obtain ⟨-, -, -, -, hb, hf, rfl, hlp, hres, -⟩ := h
+  exact ⟨hf, hlp, Expr.constsResolve_mono hres, hb⟩
 
 /-- con-leche: ConLeche/Semantics/DeclRun.lean:107 ValueFrontRun — the value
 half of `ConstWF` at a checked value. -/
@@ -220,9 +219,8 @@ theorem valueFrontRun_valueWF {μ : CheckMode} {F : Nat} {env : Env}
     value'.hasFvar = false ∧ value'.allLevelParamsDefined cv.levelParams = true ∧
       value'.constsResolve ⟨c :: env.consts⟩ = true ∧
       value'.looseBVarsBounded 0 = true := by
-  obtain ⟨hb, hf, hann, hlp, hres, -⟩ := h
-  obtain ⟨g1, g2⟩ := annotate_syntax hann hf hb
-  exact ⟨g1, hlp, Expr.constsResolve_mono hres, g2⟩
+  obtain ⟨hb, hf, rfl, hlp, hres, -⟩ := h
+  exact ⟨hf, hlp, Expr.constsResolve_mono hres, hb⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — a checked header,
 stored with no value (`axiomInfo`, `thmInfo`). -/
