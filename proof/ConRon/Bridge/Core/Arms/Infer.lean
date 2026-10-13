@@ -102,6 +102,40 @@ theorem infer_strLit {F d : Nat} {s : String}
   rw [ConLeche.inferTypeCore_succ]
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1138-1140 inferBody — the `Nat`
+literal clause as an answer (wave 2: for `bridge_auto`'s list). -/
+theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
+    (hd : denoteE st r = some (.const ConLeche.natName []))
+    (h : ConLeche.natLitSupported env = true) :
+    SimE (ConLeche.inferTypeCore mode env) d (.lit (.natVal n)) st r :=
+  ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_natLit h⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1141-1147 inferBody — the string
+literal clause as an answer. -/
+theorem SimE.of_strLit {st : EStore} {r : EIdx} {d : Nat} {str : String}
+    (hd : denoteE st r = some (.const ConLeche.stringName []))
+    (h : ConLeche.strLitSupported env = true) :
+    SimE (ConLeche.inferTypeCore mode env) d (.lit (.strVal str)) st r :=
+  ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_strLit h⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — the constant
+clause as an answer: the twin's arity guard on the level list's VIEW length
+is con-leche's on the denoted list's length. -/
+theorem SimE.of_constTy {st st₀ : EStore} {r : EIdx} {d : Nat} {n : Name}
+    {ls : List Level} {c : ConstantInfo} {cv : IConstantVal} {us : LsIdx}
+    {usl : List LIdx} (henv : ConLeche.EnvWF env)
+    (hfind : env.find? n = some c) (hct : c.isTowerEntry = false)
+    (hd : denoteE st r = some (c.toConstantVal.type.instantiateLevelParams
+      c.toConstantVal.levelParams ls))
+    (hus : denoteLs st₀.lss us = some ls) (hview : st₀.lss.view us = some usl)
+    (hlen : ¬(usl.length != cv.levelParams.length) = true)
+    (hlp : c.toConstantVal.levelParams.length = cv.levelParams.length) :
+    SimE (ConLeche.inferTypeCore mode env) d (.const n ls) st r := by
+  refine ⟨_, hd, Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _), 1,
+    infer_const hfind hct ?_⟩
+  rw [← view_len_of_denoteLs hus hview, hlp]
+  simpa using hlen
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1166-1171 inferBody — **the `let`
 clause**, official `infer_let` (con-leche's task #342 S0): the type is a
 type, the value's type is the type, then the body at the value. -/
@@ -323,15 +357,8 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
         simp only [hcv_eq]
         vcgen [hcta]
         all_goals (bridge_peel; subst_vars)
-        bridge_frame
-        bridge_fwd
         -- the arity guard passed: con-leche's instantiated type, closed
-        vc_arm (hlen : ¬(List.length _ != _) = true) (hview : LsStore.view _ us = some _) =>
-          refine SimE.intro (by bridge_frame)
-            (Expr.WScoped.of_not_hasFvar (const_ty_hasFvar henv hfind _)) (F := 1)
-            (infer_const hfind hct ?_)
-          rw [← view_len_of_denoteLs hus hview, hlp]
-          simpa using hlen
+        bridge_auto [SimE.of_constTy henv]
       · -- `vcgen` does not read the case hypothesis: the guard is rewritten
         -- first, and the failing branch then leaves no condition at all
         simp only [ht, ite_true]
@@ -371,28 +398,14 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
       vcgen [hn, ConRon.Arena.pinNat, hce]
       all_goals (bridge_peel; subst_vars)
       -- the pin's precondition, then `constE`'s two, then the answer
-      bridge_frame [CheckOK.pins]
-      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x) ⊢ ∃ _, _ =>
-        exact ⟨_, hpin _ rfl⟩
-      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x)
-          (hd : ∀ nm, denoteN _ _ = some nm → denoteE _ _ = some _)
-          (hsup : true = _) =>
-        exact SimE.intro (hd _ (hpin _ rfl)) (by unfold Expr.WScoped; trivial) (F := 1)
-          (infer_natLit hsup.symm)
+      bridge_auto [CheckOK.pins, SimE.of_natLit]
     | strVal str =>
       have hn := strLitSupported_spec (mode := mode) (env := env) (fe := fe)
         s₀ hok
       vcgen [hn, ConRon.Arena.pinString, hce]
       all_goals (bridge_peel; subst_vars)
       -- the pin's precondition, then `constE`'s two, then the answer
-      bridge_frame [CheckOK.pins]
-      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x) ⊢ ∃ _, _ =>
-        exact ⟨_, hpin _ rfl⟩
-      vc_arm (hpin : ∀ x, _ = some x → denoteN _ _ = some x)
-          (hd : ∀ nm, denoteN _ _ = some nm → denoteE _ _ = some _)
-          (hsup : true = _) =>
-        exact SimE.intro (hd _ (hpin _ rfl)) (by unfold Expr.WScoped; trivial) (F := 1)
-          (infer_strLit hsup.symm)
+      bridge_auto [CheckOK.pins, SimE.of_strLit]
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-! ### The `.proj` clause, shared with the io body

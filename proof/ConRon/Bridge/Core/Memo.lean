@@ -355,8 +355,10 @@ theorem CheckOK.ofCache {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 Every wrapper of §5 has the same three exits — the stuck tag, the cache hit,
 the miss re-inserted — and each is one lemma here, stated in the shape the
-verification condition has, so that the wrappers' proofs address their arms
-by shape (`vc_arm`, `bridge_frame [...]`) and not by `vcgen`'s numbering.
+verification condition has, so that each wrapper's proof is `vcgen` and one
+`bridge_auto [...]` over these lemmas (with the per-table hit lemmas
+`CheckOK.*Hit` and the stuck-tag lemmas `SimE.of_*Stuck` below), not a list
+of arms.
 `row_of_run` is the depth-universal row from one run at the query's depth
 (the history report's lesson 8). -/
 
@@ -396,6 +398,70 @@ theorem SimE.of_row {P : Nat → Nat → Expr → CheckM Expr}
   obtain rfl := Option.some.inj ha
   have hrun := hall d hw.to_wscopedB
   exact ⟨b, hb, hpres F d _ _ hrun hw, F, hrun⟩
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
+**the hit** at each table, from the state invariant (wave 2: a lemma for
+`bridge_auto`'s list instead of an arm). -/
+theorem CheckOK.whnfCoreHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
+    (hok : CheckOK mode env fe s) (hx : s.caches.whnfCoreC[i]? = some j)
+    (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
+    SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s.store j :=
+  SimE.of_row (fun F _ _ _ h hw => ConLeche.whnfCore_WScoped henv F h hw)
+    (hok.caches.whnfCore _ _ hx) hden hw
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
+the hit, cheap mode. -/
+theorem CheckOK.whnfCoreCheapHit {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
+    (hok : CheckOK mode env fe s) (hx : s.caches.whnfCoreCheapC[i]? = some j)
+    (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
+    SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s.store j :=
+  SimE.of_row (fun F _ _ _ h hw => ConLeche.whnfCore_WScoped henv F h hw)
+    (hok.caches.whnfCoreCheap _ _ hx) hden hw
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
+hit, `whnf`. -/
+theorem CheckOK.whnfHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
+    (hok : CheckOK mode env fe s) (hx : s.caches.whnfC[i]? = some j)
+    (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
+    SimE (ConLeche.whnf mode env) d e s.store j :=
+  SimE.of_row (fun F _ _ _ h hw => ConLeche.whnf_WScoped henv F h hw)
+    (hok.caches.whnf _ _ hx) hden hw
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — the
+hit, `infer`. -/
+theorem CheckOK.inferHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
+    (hok : CheckOK mode env fe s) (hx : s.caches.inferC[i]? = some j)
+    (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
+    SimE (ConLeche.inferTypeCore mode env) d e s.store j :=
+  SimE.of_row (fun F _ _ _ h hw => ConLeche.inferTypeCore_WScoped henv F h hw)
+    (hok.caches.infer _ _ hx) hden hw
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim — the
+hit, the io grade. -/
+theorem CheckOK.inferIOHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
+    (hok : CheckOK mode env fe s) (hx : s.caches.inferIOC[i]? = some j)
+    (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
+    SimE (ConLeche.inferTypeIO mode env) d e s.store j :=
+  SimE.of_row (fun F _ _ _ h hw => ConLeche.inferTypeIO_WScoped henv F h hw)
+    (hok.caches.inferIO _ _ hx) hden hw
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim — the
+hit, `defeq`: the row carries the verdict, so both signs are sound. -/
+theorem CheckOK.defeqHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    {i j : EIdx} {x : Bool} {d : Nat} {a b : Expr}
+    (hok : CheckOK mode env fe s) (hx : s.caches.defeqC[(i, j)]? = some x)
+    (hda : denoteE s.store i = some a) (hdb : denoteE s.store j = some b)
+    (hwa : Expr.WScoped d a) (hwb : Expr.WScoped d b) :
+    SimV (ConLeche.isDefEqCore mode env) d a b x := by
+  obtain ⟨a', b', ha', hb', F, hall⟩ := hok.caches.defeq _ _ hx
+  obtain rfl := Option.some.inj (ha'.symm.trans hda)
+  obtain rfl := Option.some.inj (hb'.symm.trans hdb)
+  exact ⟨F, hall d hwa.to_wscopedB hwb.to_wscopedB⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the miss**, full `whnfCore`: the body's answer re-inserted. -/
@@ -618,6 +684,25 @@ theorem whnf_of_stuck {mode : CheckMode} {env : Env} {e : Expr}
       bind, Except.bind]
 
 
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
+**the stuck tag** of the `whnfCore` wrappers: the pure body answers with its
+own argument (wave 2: a lemma for `bridge_auto`'s list). -/
+theorem SimE.of_whnfCoreStuck {mode : CheckMode} {env : Env} {c : Bool}
+    {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
+    (hs : whnfCoreStuckTag i = true) (hden : denoteE st i = some e)
+    (hw : Expr.WScoped d e) :
+    SimE (fun F d e => ConLeche.whnfCore mode env F d e c) d e st i :=
+  ⟨e, hden, hw, 1, whnfCore_of_stuck (denote_stuck_of_whnfCoreStuckTag hwf hden hs) 0 d⟩
+
+/-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
+stuck tag of the `whnf` wrapper. -/
+theorem SimE.of_whnfStuck {mode : CheckMode} {env : Env}
+    {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
+    (hs : whnfStuckTag i = true) (hden : denoteE st i = some e)
+    (hw : Expr.WScoped d e) :
+    SimE (ConLeche.whnf mode env) d e st i :=
+  ⟨e, hden, hw, 2, whnf_of_stuck (denote_stuck_of_whnfStuckTag hwf hden hs) 0 d⟩
+
 /-! ## 5. The six memo-wrapper steps
 
 con-leche's `Verify/Cached/KnotC.lean:175-529`, one per slot: from the body
@@ -643,18 +728,8 @@ theorem memoWhnfCoreFull_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_fwd
-  -- the body call's preconditions, and **the miss**: the body's answer,
-  -- re-inserted in the depth-universal form (`CheckOK.insertWhnfCoreAt`)
-  bridge_frame [CheckOK.insertWhnfCoreAt henv, SimE.intro]
-  -- **the stuck tag**: the pure body answers with its own argument
-  vc_arm (hs : whnfCoreStuckTag _ = true) =>
-    exact SimE.intro hden hw (whnfCore_of_stuck
-      (denote_stuck_of_whnfCoreStuckTag hok.state.wf hden hs) 0 d)
-  -- **the hit**: `CacheOK`'s depth-universal row, at the query's own depth
-  vc_arm (hx : _[_]? = some _) =>
-    exact SimE.of_row (fun F _ _ _ h hw => ConLeche.whnfCore_WScoped henv F h hw)
-      (hok.caches.whnfCore _ _ hx) hden hw
+  bridge_auto [CheckOK.insertWhnfCoreAt henv, SimE.intro, SimE.of_whnfCoreStuck,
+    CheckOK.whnfCoreHit henv]
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper**, CHEAP mode (official `cheap_proj`), under the
@@ -675,18 +750,8 @@ theorem memoWhnfCoreCheap_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_fwd
-  -- the body call's preconditions, and **the miss**: the body's answer,
-  -- re-inserted in the depth-universal form (`CheckOK.insertWhnfCoreCheapAt`)
-  bridge_frame [CheckOK.insertWhnfCoreCheapAt henv, SimE.intro]
-  -- **the stuck tag**: the pure body answers with its own argument
-  vc_arm (hs : whnfCoreStuckTag _ = true) =>
-    exact SimE.intro hden hw (whnfCore_of_stuck
-      (denote_stuck_of_whnfCoreStuckTag hok.state.wf hden hs) 0 d)
-  -- **the hit**: `CacheOK`'s depth-universal row, at the query's own depth
-  vc_arm (hx : _[_]? = some _) =>
-    exact SimE.of_row (fun F _ _ _ h hw => ConLeche.whnfCore_WScoped henv F h hw)
-      (hok.caches.whnfCoreCheap _ _ hx) hden hw
+  bridge_auto [CheckOK.insertWhnfCoreCheapAt henv, SimE.intro, SimE.of_whnfCoreStuck,
+    CheckOK.whnfCoreCheapHit henv]
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper** in either mode. -/
@@ -726,17 +791,7 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_fwd
-  -- the body call's preconditions, and **the miss**: the body's answer,
-  -- re-inserted in the depth-universal form (`CheckOK.insertWhnfAt`)
-  bridge_frame [CheckOK.insertWhnfAt henv, SimE.intro]
-  -- **the stuck tag**: the pure body answers with its own argument
-  vc_arm (hs : whnfStuckTag _ = true) =>
-    exact SimE.intro hden hw (whnf_of_stuck (denote_stuck_of_whnfStuckTag hok.state.wf hden hs) 0 d)
-  -- **the hit**: `CacheOK`'s depth-universal row, at the query's own depth
-  vc_arm (hx : _[_]? = some _) =>
-    exact SimE.of_row (fun F _ _ _ h hw => ConLeche.whnf_WScoped henv F h hw)
-      (hok.caches.whnf _ _ hx) hden hw
+  bridge_auto [CheckOK.insertWhnfAt henv, SimE.intro, SimE.of_whnfStuck, CheckOK.whnfHit henv]
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — **the
 `infer` wrapper**.  Two branches only: inference has no answer-is-the-argument
@@ -757,14 +812,7 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_fwd
-  -- the body call's preconditions, and **the miss**: the body's answer,
-  -- re-inserted in the depth-universal form (`CheckOK.insertInferAt`)
-  bridge_frame [CheckOK.insertInferAt henv, SimE.intro]
-  -- **the hit**: `CacheOK`'s depth-universal row, at the query's own depth
-  vc_arm (hx : _[_]? = some _) =>
-    exact SimE.of_row (fun F _ _ _ h hw => ConLeche.inferTypeCore_WScoped henv F h hw)
-      (hok.caches.infer _ _ hx) hden hw
+  bridge_auto [CheckOK.insertInferAt henv, SimE.intro, CheckOK.inferHit henv]
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim —
 **the io wrapper**: the io body under the io grade's OWN table.  A hit here
@@ -786,14 +834,7 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_fwd
-  -- the body call's preconditions, and **the miss**: the body's answer,
-  -- re-inserted in the depth-universal form (`CheckOK.insertInferIOAt`)
-  bridge_frame [CheckOK.insertInferIOAt henv, SimE.intro]
-  -- **the hit**: `CacheOK`'s depth-universal row, at the query's own depth
-  vc_arm (hx : _[_]? = some _) =>
-    exact SimE.of_row (fun F _ _ _ h hw => ConLeche.inferTypeIO_WScoped henv F h hw)
-      (hok.caches.inferIO _ _ hx) hden hw
+  bridge_auto [CheckOK.insertInferIOAt henv, SimE.intro, CheckOK.inferIOHit henv]
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim — **the
 `defeq` wrapper**: two subjects, a `Bool` answer, and the row carries the
@@ -828,15 +869,7 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
     fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb
   vcgen [hb]
   all_goals (bridge_peel; subst_vars)
-  bridge_fwd
-  -- the body call's preconditions, and **the miss**: the verdict re-inserted
-  bridge_frame [CheckOK.insertDefeqAt henv, SimV.intro]
-  -- **the hit**: the row carries the verdict, so both signs are sound
-  vc_arm (hx : _[_]? = some _) =>
-    obtain ⟨a', b', ha', hb', F, hall⟩ := hok.caches.defeq _ _ hx
-    obtain rfl := Option.some.inj (ha'.symm.trans hda)
-    obtain rfl := Option.some.inj (hb'.symm.trans hdb)
-    exact ⟨F, hall d hwa.to_wscopedB hwb.to_wscopedB⟩
+  bridge_auto [CheckOK.insertDefeqAt henv, SimV.intro, CheckOK.defeqHit]
 
 /-! ## 6. The dispatch step (task #97-P3-Core round 5)
 
