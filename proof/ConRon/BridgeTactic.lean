@@ -989,6 +989,15 @@ namespace Frame
 matched hypotheses (and `?x` variables) renamed. -/
 def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
     TacticM (Option MVarId) := g.withContext do
+  -- a `?x` of the patterns must be a FRESH hole: forget any metavariable an
+  -- earlier arm (or goal) left under that name
+  let mut holes : Array Name := #[]
+  for stx in (pats.map (·.2.raw)) ++ (tgt?.map (·.raw)).toArray do
+    for t in stx.topDown do
+      if t.isOfKind ``Lean.Parser.Term.syntheticHole && t[1].isIdent then
+        holes := holes.push t[1].getId
+  for n in holes do
+    if let some mv := (← getMCtx).findUserName? n then mv.setUserName .anonymous
   let s ← saveState
   let before := (← getMCtx).decls
   try
