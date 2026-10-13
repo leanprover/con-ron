@@ -52,7 +52,7 @@ six more.
 * `Walks/Proj.lean` — **the projection table** (task #97-P3-Core-2), on
   `Bridge/Rel.lean`'s new `denoteProjEntry`: `projTableName_spec`,
   `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED; since round 4
-  also `IProjEntry.typeAt_spec`, `iotaCerts_spec`, `projCert_spec` and
+  also `IProjEntry.typeAt_spec`, `iotaCertsFull_spec`, `projCert_spec` and
   `projCertAt_spec` — the module is at zero `sorry`.  §5's structural gap
   below is closed by it.
 * `Walks/Nat.lean` — **the literal acceleration** (task #97-P3-Core round
@@ -61,9 +61,9 @@ six more.
 * `Walks/PropRead.lean` — **the head-symbol prop-ness readers** (task
   #97-P3-Core round 5): Theorem 1 for the nine functions of
   `Arena/PropRead.lean`, each an equation with con-leche's reader at
-  `find? := env.find?`, in published and answer shape; then `propIrrel_spec`,
-  `annotPwPi_spec` and `annotPwLam_spec` (moved from `Walks/Owed.lean`) and
-  their answer-shape forms.  All CLOSED.
+  `find? := env.find?`, in published and answer shape, the binder readers
+  of con-leche task #342 (`binderDom`, `lamProj?`, `unwrapIdDefs`, `peelPisW`,
+  `substPWAt`), then `propIrrel_spec`.
 * `Walks/StrLit.lean` — **the `String`-literal guard** (round 5):
   `strLitSupported_spec` and its seven stored-shape tests. CLOSED.
 * `Walks/StrCtor.lean` — **a string literal's constructor form** (round 5):

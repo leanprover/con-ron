@@ -35,8 +35,6 @@ import ConRon.Bridge.Core.Arms.Whnf
 import ConRon.Bridge.Core.Arms.Infer
 import ConRon.Bridge.Core.Arms.InferIO
 import ConRon.Bridge.Core.Arms.Defeq
-import ConRon.Bridge.Core.Arms.Annotate
-import ConLeche.Verify.BetaGate
 
 namespace ConRon.Bridge.Core
 
@@ -44,27 +42,12 @@ set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Bridge
 
-/-! ## The two mode facts the induction needs
-
-`mode.ioGate` is `true` at EVERY mode (`ConLeche/Kernel/Env.lean:131`, the
-licence ruling of 2026-09-06: the io grade is a licence, not a certificate,
-so the trusted lane keeps it) and `mode.betaGate` follows from
-`verifiedChecks`.  The twin's knot selects its io slot on `ioGate`
-(`Cached/CoreC.lean:1971`'s spelling) and the pure knot on `betaGate` — task
-#97c's smaller deviation 4 — so the two agree exactly at the mode the bridge
-is stated at, and this is where that is cashed. -/
-
-/-- con-leche: ConLeche/Kernel/Env.lean:131 CheckMode.ioGate — the io slot is
-the io body at every mode. -/
-theorem ioGate_true (mode : CheckMode) : mode.ioGate = true := by
-  cases mode <;> rfl
-
 /-! ## The induction -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:530 ssimC
 con-leche: ConLeche/Verify/SimIKnot.lean ssimI
 **THEOREM 1 AT EVERY FUEL.**  The arena's memoized knot refines con-leche's
-six fueled entry points on inputs that denote and are well scoped.
+five fueled entry points on inputs that denote and are well scoped.
 
 The proof is con-leche's architecture term for term: fuel zero throws
 everywhere, and at `f + 1` each slot is `memo_<slot>_step` applied to
@@ -88,13 +71,9 @@ theorem knot_spec {mode : CheckMode} {env : Env} {fe : IFEnv}
         memoDefeq_step henv
           (defeqBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i j a b hok hda
           hdb hwa hwb
-      annotate := fun s₀ d i e hok hden hw =>
-        memoAnnotate_step henv
-          (annotateBody_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw
       inferIO := fun s₀ d i e hok hden hw =>
-        memoInferIO_step henv (ioGate_true mode)
-          (inferBodyIO_spec henv hμ (ConLeche.betaGate_of_verifiedChecks hμ)
-            (knot_spec henv hμ f)) s₀ d i e hok hden hw }
+        memoInferIO_step henv
+          (inferBodyIO_spec henv hμ (knot_spec henv hμ f)) s₀ d i e hok hden hw }
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1960-1963 checkFuel — **what the
 Checker tier takes as its hypothesis**: the knot at the fuel the seven entry
@@ -118,24 +97,21 @@ section Census
 
 #print axioms SimE.denote
 #print axioms knotSpec_zero
-#print axioms ioGate_true
 
-/-! ### The knot's six slots, unfolded -/
+/-! ### The knot's five slots, unfolded -/
 
 #print axioms coreKnot_whnfCore_succ
 #print axioms coreKnot_whnf_succ
 #print axioms coreKnot_infer_succ
 #print axioms coreKnot_defeq_succ
-#print axioms coreKnot_annotate_succ
 #print axioms coreKnot_inferIO_succ
 
-/-! ### The six cache setters and the cache-insert lemmas — closed -/
+/-! ### The cache setters and the cache-insert lemmas — closed -/
 
 #print axioms whnfCoreSet_spec
 #print axioms whnfSet_spec
 #print axioms inferSet_spec
 #print axioms inferIOSet_spec
-#print axioms annotSet_spec
 #print axioms defeqSet_spec
 #print axioms EntryCacheOK.insert
 #print axioms DefeqCacheOK.insert
@@ -143,7 +119,6 @@ section Census
 #print axioms CacheOK.insertWhnf
 #print axioms CacheOK.insertInfer
 #print axioms CacheOK.insertInferIO
-#print axioms CacheOK.insertAnnot
 #print axioms CacheOK.insertDefeq
 #print axioms CheckOK.ofCache
 
@@ -156,7 +131,7 @@ section Census
 #print axioms whnfCore_of_stuck
 #print axioms whnf_of_stuck
 
-/-! ### **The six memo wrappers — closed.**  This is the tier's own result:
+/-! ### **The five memo wrappers — closed.**  This is the tier's own result:
 the whole memo layer of Theorem 1's Core tier is sorry-free, at the three
 standard axioms. -/
 
@@ -164,13 +139,14 @@ standard axioms. -/
 #print axioms memoWhnf_step
 #print axioms memoInfer_step
 #print axioms memoInferIO_step
-#print axioms memoAnnotate_step
 #print axioms memoDefeq_step
 
-/-! ### The per-arm step lemmas — closed, fifty-two of them -/
+/-! ### The per-arm step lemmas -/
 
-#print axioms whnfCore_proj_stuck
-#print axioms whnfCore_proj_fire
+#print axioms mStep_app
+#print axioms mStep_proj_none
+#print axioms mStep_proj_some
+#print axioms whnfCore_of_loopM
 #print axioms reduceProjCore_none
 #print axioms reduceProjCore_head
 #print axioms reduceProjCore_guard
@@ -190,8 +166,9 @@ standard axioms. -/
 #print axioms infer_proj_nonprop
 #print axioms infer_proj_prop
 
-#print axioms inferIO_lam_chain
-#print axioms inferIO_lam_leaf
+#print axioms infer_letE
+#print axioms inferIO_lam
+#print axioms inferIO_letE
 
 #print axioms defeqBody_syntactic
 #print axioms defeqBody_boolTrue
@@ -199,16 +176,6 @@ standard axioms. -/
 #print axioms defeqBody_propIrrel
 #print axioms defeqBody_verdict
 #print axioms defeqBody_unknown
-
-#print axioms annot_bvar
-#print axioms annot_fvar
-#print axioms annot_sort
-#print axioms annot_const
-#print axioms annot_natLit
-#print axioms annot_strLit
-#print axioms annot_app
-#print axioms annot_letE
-#print axioms annot_proj
 
 /-! ### The former open list — closed
 
@@ -225,7 +192,10 @@ written, and the `sorryAx` it then printed came from two walk theorems of
 `Bridge/Core/Walks/Owed.lean` — `reduceNat_spec` and `unfoldDefinition_spec`
 — and from nothing else. -/
 
-#print axioms whnfCoreBody_app_batched
+#print axioms betaPeel_carry
+#print axioms whnfApp_carry
+#print axioms whnfCoreStep_spec
+#print axioms whnfCoreLoop_spec
 #print axioms whnfCoreBody_spec
 #print axioms whnfBody_spec
 #print axioms inferBody_app_batched
@@ -234,8 +204,6 @@ written, and the `sorryAx` it then printed came from two walk theorems of
 #print axioms inferBodyIO_spec
 #print axioms defeqBinders_spec
 #print axioms defeqBody_spec
-#print axioms annotateBody_binders_batched
-#print axioms annotateBody_spec
 #print axioms knot_spec
 #print axioms knot_spec_checkFuel
 

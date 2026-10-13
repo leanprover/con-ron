@@ -83,10 +83,6 @@ theorem FOk.ensureSort {μ : CheckMode} {env : Env} {d : Nat} {e : Expr} {v : Le
     (h : ∃ F, ConLeche.ensureSortCore μ env F d e = .ok v) :
     FOk ((fueledOpsM μ).ensureSort env d e) v := h
 
-theorem FOk.annotate {μ : CheckMode} {env : Env} {d : Nat} {e v : Expr}
-    (h : ∃ F, ConLeche.annotateCore μ env F d e = .ok v) :
-    FOk ((fueledOpsM μ).annotate env d e) v := h
-
 /-- con-leche: ConLeche/Verify/BridgeDecl.lean:1201 checkDecl_datF — the
 tier's conclusion in the shape `IndSpec` states. -/
 theorem FOk.checkDecl {μ : CheckMode} {pins : List NatOpPinSet} {env env' : Env}

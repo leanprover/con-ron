@@ -208,9 +208,8 @@ theorem constantValRun_typeWF {μ : CheckMode} {F : Nat} {env : Env}
     (c : ConstantInfo) :
     type'.hasFvar = false ∧ type'.allLevelParamsDefined cv.levelParams = true ∧
       type'.constsResolve ⟨c :: env.consts⟩ = true ∧ type'.looseBVarsBounded 0 = true := by
-  obtain ⟨-, -, -, -, hb, hf, hann, hlp, hres, -⟩ := h
-  obtain ⟨g1, g2⟩ := annotate_syntax hann hf hb
-  exact ⟨g1, hlp, Expr.constsResolve_mono hres, g2⟩
+  obtain ⟨-, -, -, -, hb, hf, rfl, hlp, hres, -⟩ := h
+  exact ⟨hf, hlp, Expr.constsResolve_mono hres, hb⟩
 
 /-- con-leche: ConLeche/Semantics/DeclRun.lean:107 ValueFrontRun — the value
 half of `ConstWF` at a checked value. -/
@@ -220,9 +219,8 @@ theorem valueFrontRun_valueWF {μ : CheckMode} {F : Nat} {env : Env}
     value'.hasFvar = false ∧ value'.allLevelParamsDefined cv.levelParams = true ∧
       value'.constsResolve ⟨c :: env.consts⟩ = true ∧
       value'.looseBVarsBounded 0 = true := by
-  obtain ⟨hb, hf, hann, hlp, hres, -⟩ := h
-  obtain ⟨g1, g2⟩ := annotate_syntax hann hf hb
-  exact ⟨g1, hlp, Expr.constsResolve_mono hres, g2⟩
+  obtain ⟨hb, hf, rfl, hlp, hres, -⟩ := h
+  exact ⟨hf, hlp, Expr.constsResolve_mono hres, hb⟩
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean:147 ConstWF — a checked header,
 stored with no value (`axiomInfo`, `thmInfo`). -/
@@ -244,8 +242,7 @@ theorem constWF_ofType {env : Env} {c : ConstantInfo}
 /-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:49 checkDeclRun_ofEnvFactsK
 — **every arm off the inductive route keeps the environment well formed and
 pushes no projection table**, read off `DeclRun`: the value arms' records
-carry the type's and the value's guards and annotate outputs
-(`annotate_syntax`), the axiom arm's the type's, and the pinned blocks are
+carry the type's and the value's guards, the axiom arm's the type's, and the pinned blocks are
 `declBasisRun_envWF`.  (The unpinned inductive route is `IndSpec`'s and is
 excluded by `hd`.) -/
 theorem checkDecl_wf_pure {μ : CheckMode} {pinsP : List NatOpPinSet} {F : Nat}

@@ -230,26 +230,26 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
       obtain ⟨h11, h12, h13, hb1⟩ := AM.of_run (P := fun u => u = t) rfl g1
         (ExprOps.hasFvarFast_spec Arena.coreWalkFuel t e hr.state (by rw [he]; rfl))
       have q1 : PStep t t1 := PStep.of_caches ⟨by rw [h11]; exact hr.state.wf⟩
-        (by rw [h11]; exact Ext.refl _) (by rw [h11]; exact BMExt.refl _) h12 h13
+        (by rw [h11]; exact Ext.refl _) h12 h13
       have he1 : denoteE t1.store e = some eP := by rw [h11]; exact he
       obtain ⟨b2, t2, g2, y2⟩ := AM.bind_ok y1
       obtain ⟨h21, h22, h23, hb2⟩ := allLevelParamsDefined_run q1.ok
         (by rw [h11]; exact hq) he1 g2
       have q2 : PStep t1 t2 := PStep.of_caches ⟨by rw [h21]; exact q1.ok.wf⟩
-        (by rw [h21]; exact Ext.refl _) (by rw [h21]; exact BMExt.refl _) h22 h23
+        (by rw [h21]; exact Ext.refl _) h22 h23
       have he2 : denoteE t2.store e = some eP := by rw [h21]; exact he1
       obtain ⟨b3, t3, g3, y3⟩ := AM.bind_ok y2
       obtain ⟨h31, h32, h33, hb3⟩ := constsResolveFFast_runR
         (hr.mono q2.ok (q1.ext.trans q2.ext) (by rw [q2.pins, q1.pins])) he2 g3
       have q3 : PStep t2 t3 := PStep.of_caches ⟨by rw [h31]; exact q2.ok.wf⟩
-        (by rw [h31]; exact Ext.refl _) (by rw [h31]; exact BMExt.refl _) h32 h33
+        (by rw [h31]; exact Ext.refl _) h32 h33
       have he3 : denoteE t3.store e = some eP := by rw [h31]; exact he2
       obtain ⟨b4, t4, g4, y4⟩ := AM.bind_ok y3
       obtain ⟨h41, h42, h43, hb4⟩ := AM.of_run (P := fun u => u = t3) rfl g4
         (ExprOps.looseBVarsBoundedFast_spec Arena.coreWalkFuel (nP + 1) t3 e q3.ok
           (by rw [he3]; rfl))
       have q4 : PStep t3 t4 := PStep.of_caches ⟨by rw [h41]; exact q3.ok.wf⟩
-        (by rw [h41]; exact Ext.refl _) (by rw [h41]; exact BMExt.refl _) h42 h43
+        (by rw [h41]; exact Ext.refl _) h42 h43
       obtain ⟨rfl, rfl⟩ := AM.pure_ok y4
       refine ⟨q1.trans (q2.trans (q3.trans q4)), ?_⟩
       rw [hb1 eP he, hb2, hb3, hb4 eP he3])
@@ -258,36 +258,19 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
   obtain ⟨hg1, z4⟩ := AM.dunless_ok hnever z3
   replace z4 := AM.pure_bind_ok z4
   have x13 := p3.ext
-  -- the projection-function name family
   have hread₃ : ReadOK env fe s₃ := hread.mono p3.ok (p1.ext.trans p3.ext) (by rw [p3.pins, p1.pins])
-  obtain ⟨b5, s₅, k5, z5⟩ := AM.bind_ok z4
-  obtain ⟨p5, hb5⟩ := allM_ck (env := env) (fe := fe)
-    (g := fun j => (env.find? (ConLeche.projFnName TP j)).isNone)
-    (fun _ st => denoteN st.ns T = some TP) (fun hx h => denoteN_ext h hx)
-    (fun j t t' b hok hP hrun => by
-      obtain ⟨h, t1, g1, y1⟩ := AM.bind_ok hrun
-      obtain ⟨q1, hh⟩ := projFnName_run hok.state hP g1
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok y1
-      refine ⟨q1, ?_⟩
-      have e := (hok.mono q1.ok q1.ext q1.pins).ienv.find_isSome q1.ok hh
-      revert e
-      cases fe.find? h <;> cases env.find? (ConLeche.projFnName TP j) <;> simp)
-    (List.range nF) s₃ s₅ b5 hread₃ (fun _ _ => denoteN_ext hT (p1.ext.trans x13)) k5
-  obtain ⟨hg2, z6⟩ := AM.dunless_ok hnever z5
-  replace z6 := AM.pure_bind_ok z6
-  rw [hb5] at hg2
   -- the table's own name
-  obtain ⟨tn, s₆, k6, z7⟩ := AM.bind_ok z6
-  have x05 : Ext s₀.store s₅.store := p1.ext.trans (x13.trans p5.ext)
+  obtain ⟨tn, s₆, k6, z7⟩ := AM.bind_ok z4
+  have x05 : Ext s₀.store s₃.store := p1.ext.trans x13
   obtain ⟨p6, htn⟩ := (by
     simp only [Arena.projTableName] at k6
     obtain ⟨m, u1, j1, j2⟩ := AM.bind_ok k6
-    obtain ⟨r1, hm⟩ := internStrN_run p5.ok (denoteN_ext hT x05) j1
+    obtain ⟨r1, hm⟩ := internStrN_run p3.ok (denoteN_ext hT x05) j1
     obtain ⟨r2, hr⟩ := internNumN_run r1.ok hm j2
-    exact ⟨r1.trans r2, hr⟩ : PStep s₅ s₆ ∧
+    exact ⟨r1.trans r2, hr⟩ : PStep s₃ s₆ ∧
       denoteN s₆.store.ns tn = some (ConLeche.projTableName TP))
   have hread₆ : ReadOK env fe s₆ :=
-    hread₃.mono p6.ok (p5.ext.trans p6.ext) (by rw [p6.pins, p5.pins])
+    hread₃.mono p6.ok p6.ext p6.pins
   obtain ⟨hg3, z8⟩ := AM.dunless_ok hnever z7
   replace z8 := AM.pure_bind_ok z8
   have hg3' : (env.find? (ConLeche.projTableName TP)).isNone = true := by
@@ -308,18 +291,18 @@ theorem checkStructProjTable_run (fe : IFEnv) (env : Env)
   have hdt : Frontend.denoteProjTable s'.store ⟨T, tn, lps, nP, C, nF, resSort, bodies, guards, off⟩
       = some ⟨TP, lpsP, nP, CP, nF, resSortP, bodiesP, guardsP, off⟩ := by
     simp only [Frontend.denoteProjTable, denoteN_ext hT x06, denoteNListE_ext x06 _ _ hlps,
-      denoteN_ext hC x06, denoteL_ext hrs x06, denoteEArray_ext hbodies (x13.trans (p5.ext.trans p6.ext))]
+      denoteN_ext hC x06, denoteL_ext hrs x06, denoteEArray_ext hbodies (x13.trans p6.ext)]
     have e1 : denoteLList s'.store.ls guards = some guardsP := denoteLList_ext x06.lss.ls _ _ hgd
     rw [e1]
   have hci : Frontend.denoteCI s'.store (.projInfo ⟨T, tn, lps, nP, C, nF, resSort, bodies, guards, off⟩)
       = some (.projInfo ⟨TP, lpsP, nP, CP, nF, resSortP, bodiesP, guardsP, off⟩) := by
     simp only [Frontend.denoteCI, hdt, Option.map_some]
-  refine ⟨p1.trans (p3.trans (p5.trans p6)), hcoh.push _, Pushed.push _ _, Nat.le_succ _,
+  refine ⟨p1.trans (p3.trans p6), hcoh.push _, Pushed.push _ _, Nat.le_succ _,
     ⟨_, denoteFEnv_push (denoteFEnv_mono x06 hfe) hci, ?_⟩, ?_⟩
   · simp only [ConLeche.checkStructProjTable, hbP, ConLeche.unwrapOr, bind, Except.bind, pure,
       Except.pure]
     rw [ite_eq_left ⟨hsizeP, by rw [← Array.all_toList]; exact hall⟩,
-      ite_eq_left hg2, ite_eq_left hg3']
+      ite_eq_left hg3']
   · exact ProjOut.push_table hcoh _ ⟨hsize, hg, TP, denoteN_ext hT x06, htn⟩
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructInstall.lean:52-85 checkStructProjTable

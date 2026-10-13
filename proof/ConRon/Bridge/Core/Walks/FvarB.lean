@@ -95,10 +95,10 @@ theorem fvarRangeGo_a1 : ∀ (fuel : Nat) (h : EIdx), A1Prog (Arena.fvarRangeGo 
       | app f a =>
         simp only [Arena.fvarRangeArmApp]
         exact A1Prog.bind (ih f) (fun _ => A1Prog.bind (ih a) (fun _ => A1Prog.pure _))
-      | lam ty b _ =>
+      | lam ty b =>
         simp only [Arena.fvarRangeArmBind]
         exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
-      | forallE ty b _ =>
+      | forallE ty b =>
         simp only [Arena.fvarRangeArmBind]
         exact A1Prog.bind (ih ty) (fun _ => A1Prog.bind (ih b) (fun _ => A1Prog.pure _))
       | letE ty w b =>

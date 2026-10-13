@@ -28,7 +28,7 @@ four, with the arena's own theorems in place of the port's:
 
 **Step 4 is the one that is not a transport**, and §3 below says why: con-leche
 states its stream ingredient at the CACHED fold (`Cached.checkDecls_thmDecl_const`,
-`Verify/Cached/StreamThm.lean:183`) and the arena's bridge lands on the PURE
+`Verify/Cached/StreamThm.lean:101`) and the arena's bridge lands on the PURE
 one, so the pure-tier twin of that one lemma has to be stated here.
 
 ## Two savings the arena rewrite buys this statement
@@ -129,8 +129,8 @@ theorem FoldOK_of_start {μ : CheckMode} {s : AState} (hok : StateOK s)
 
 con-leche proves *"an accepted stream that declares a theorem of a bare
 constant type leaves a constant of that type in the environment"* at the
-CACHED fold (`Cached.checkDecls_thmDecl_const`, `Verify/Cached/StreamThm.lean:183`,
-through `installRun_thmDecl_const` and `annotStepC_thm_consts`).  The arena's
+CACHED fold (`Cached.checkDecls_thmDecl_const`, `Verify/Cached/StreamThm.lean:101`,
+through `installRun_thmDecl_const` and `installStepC_thm_consts`).  The arena's
 bridge (`Bridge/Checker/Fold.lean`, `Bridge/Checker/Split.lean`) lands on
 `ConLeche.checkDeclsPure`, so the pure twin of that lemma is what this
 capstone needs and it is the one thing on the path con-leche does not already
@@ -138,28 +138,6 @@ have.
 
 **It is a con-leche-tier lemma, not an arena one**, and it belongs beside the
 original — the note is here so that whoever takes it knows where it goes. -/
-
-/-- con-leche: ConLeche/Kernel/Core.lean:1818 annotateBody — **a bare constant
-annotates to itself**, at the PURE knot.  con-leche's `annotate_const_of_miss`
-(`Verify/Cached/StreamThm.lean:61`) is this fact at the CACHED knot, where it
-costs an argument about the annotation memo missing the key (the step's own
-`flushC` is what makes the hit branch unreachable).  The pure knot has no
-memo, so the equation is `rfl` at every non-zero fuel and vacuous at zero,
-where the knot's base case throws. -/
-theorem annotateCore_const {μ : CheckMode} {env : Env} {F : Nat}
-    {n : ConLeche.Name} {ls : List Level} {j : Expr}
-    (h : ConLeche.annotateCore μ env F 0 (.const n ls) = .ok j) :
-    j = .const n ls := by
-  cases F with
-  | zero =>
-    exact absurd h (by
-      simp [ConLeche.annotateCore, ConLeche.pureFns, ConLeche.coreKnot,
-        throw, throwThe, MonadExceptOf.throw])
-  | succ f =>
-    have he : ConLeche.annotateCore μ env (f + 1) 0 (Expr.const n ls)
-        = .ok (Expr.const n ls) := rfl
-    rw [he] at h
-    exact (Except.ok.inj h).symm
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:630 checkDeclsPure — **every
 PREFIX of an accepted pure run is an accepted pure run**, at the same mode,
@@ -184,7 +162,7 @@ theorem checkDeclsPure_prefix {μ : CheckMode} {F : Nat}
   | error e => rw [h₁] at h; exact nomatch h
   | ok env₁ => exact ⟨env₁, rfl⟩
 
-/-- con-leche: ConLeche/Verify/Cached/StreamThm.lean:183 checkDecls_thmDecl_const
+/-- con-leche: ConLeche/Verify/Cached/StreamThm.lean:101 checkDecls_thmDecl_const
 — **the same lemma at the PURE fold**: an accepted `checkDeclsPure` run of a
 stream that declares a theorem of a bare constant type has an accepted PREFIX
 RUN whose environment holds a constant of that type.
@@ -193,8 +171,8 @@ The conclusion is the prefix's and not the whole run's, and that is the pure
 tier's own saving over con-leche's cached one (`checkDeclsPure_prefix` above):
 the record's step is itself the end of an accepted run, so the constant never
 has to be carried past it.  What survives of the cached proof is its first two
-ingredients — *the annotation of a bare constant is the constant*
-(`annotateCore_const`) and *a theorem record is never dropped*
+ingredients — *the stored type is the declared one* (`ConstantValRun`'s
+`type' = cv.type`) and *a theorem record is never dropped*
 (`declThmRun_of`'s `env₂ = ⟨.thmInfo ⟨cv.name, cv.levelParams, type'⟩ ::
 env.consts⟩`) — and the third, the `PushChain`, is not needed at all.
 
@@ -233,18 +211,17 @@ theorem checkDeclsPure_thmDecl_const {μ : CheckMode} {F : Nat}
   rw [h₂] at h₀
   simp only [pure, Except.pure, Except.ok.injEq] at h₀
   subst h₀
-  -- `DeclThmRun`: the annotated header, and the constant it pushes
+  -- `DeclThmRun`: the header as declared, and the constant it pushes
   obtain ⟨type', value', hcv, -, -, henv⟩ :=
     ConLeche.Semantics.declThmRun_of (pins := pins) h₂
-  obtain ⟨-, -, -, -, -, -, hann, -, -, -⟩ := hcv
-  rw [hty] at hann
-  obtain rfl : type' = .const n ls := annotateCore_const hann
+  obtain ⟨-, -, -, -, -, -, htype, -, -, -⟩ := hcv
+  obtain rfl : type' = .const n ls := htype.trans hty
   refine ⟨ConstantInfo.thmInfo ⟨cv.name, cv.levelParams, .const n ls⟩,
     ?_, rfl⟩
   rw [henv]
   exact List.mem_cons_self
 
-/-- con-leche: ConLeche/Verify/Cached/StreamThm.lean:207 no_False_theorem_accepted
+/-- con-leche: ConLeche/Verify/Cached/StreamThm.lean:125 no_False_theorem_accepted
 — **the same letter at the PURE fold**: a stream that declares a theorem of
 type `False` is never accepted.  con-leche's own two steps, at the pure tier:
 the record's constant survives the run, and in the model of the main theorem

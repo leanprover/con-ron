@@ -174,7 +174,7 @@ theorem substConstAll_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr
       rw [hd]
       simp only [denoteEView, denote_ext hf3 hs4.ext, denote_ext ha' hs4.ext, opt2,
         Expr.substConstAll]
-    case lam ty b m =>
+    case lam ty b =>
       obtain ⟨et, eb, rfl, ht, hb⟩ := denote_lam_inv hwf hv he
       obtain ⟨t', s2, g2, k2⟩ := AM.bind_ok k1
       obtain ⟨hs2, ht'⟩ := step (Frontend.IStepS.refl hst) ht g2
@@ -187,7 +187,7 @@ theorem substConstAll_run {cn : NIdx} {nm : ConLeche.Name} {rh : EIdx} {x : Expr
       rw [hd]
       simp only [denoteEView, denote_ext ht3 hs4.ext, denote_ext hb' hs4.ext, opt2,
         Expr.substConstAll]
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, ht, hb⟩ := denote_forallE_inv hwf hv he
       obtain ⟨t', s2, g2, k2⟩ := AM.bind_ok k1
       obtain ⟨hs2, ht'⟩ := step (Frontend.IStepS.refl hst) ht g2
@@ -561,17 +561,31 @@ open Lean Elab Tactic Meta in
 /-- Move every denotation fact (and `StateOK`/`PinsOK`/`CertCtxOK`) along one
 `IStepS` step `hs`. -/
 elab "dmc_move " hs:term : tactic => withMainContext do
-  let names := (← getLCtx).foldl (init := #[]) fun acc d =>
-    if d.isImplementationDetail || d.userName.hasMacroScopes then acc else acc.push d.userName
-  for n in names do
-    let h := mkIdent n
+  -- each hypothesis is moved by the ONE lemma its head names: trying the
+  -- others makes the unifier unfold two different readbacks into each other
+  -- (a heartbeat timeout), and trying any on a run hypothesis evaluates the
+  -- program
+  let last (e : Lean.Expr) : String := match e.getAppFn.constName? with
+    | some n => n.getString!
+    | none => ""
+  for d in ← getLCtx do
+    if d.isImplementationDetail || d.userName.hasMacroScopes then continue
+    let ty ← instantiateMVars d.type
+    let h := mkIdent d.userName
+    let kind := match last ty with
+      | "Eq" => last (ty.getArg! 1)
+      | k => k
     try
-      evalTactic (← `(tactic| first
-        | replace $h:ident := denote_ext $h ($hs).ext
-        | replace $h:ident := denoteN_ext $h ($hs).ext
-        | replace $h:ident := CertCtxOK.mono $h ($hs).ext
-        | replace $h:ident := PinsOK.mono $h ($hs).ext ($hs).pins
-        | replace $h:ident := denoteEList_ext ($hs).ext _ _ $h))
+      match kind with
+      | "denoteE" => evalTactic (← `(tactic| replace $h:ident := denote_ext $h ($hs).ext))
+      | "denoteN" => evalTactic (← `(tactic| replace $h:ident := denoteN_ext $h ($hs).ext))
+      | "denoteEList" =>
+        evalTactic (← `(tactic| replace $h:ident := denoteEList_ext ($hs).ext _ _ $h))
+      | "CertCtxOK" =>
+        evalTactic (← `(tactic| replace $h:ident := CertCtxOK.mono $h ($hs).ext))
+      | "PinsOK" =>
+        evalTactic (← `(tactic| replace $h:ident := PinsOK.mono $h ($hs).ext ($hs).pins))
+      | _ => pure ()
     catch _ => pure ()
 
 abbrev natTyE : Expr := .const ConLeche.natName []
@@ -1476,25 +1490,24 @@ theorem checkDivModCerts_mono {μ : CheckMode} {env : Env} {nm : ConLeche.Name} 
 /-- con-leche: ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts — one
 certificate's clause, at one fuel. -/
 theorem checkDivModCerts_cons_pure {μ : CheckMode} {F : Nat} {env : Env}
-    {nm : ConLeche.Name} {v : Expr} {hyps : List Expr} {eqE proof w tp : Expr}
+    {nm : ConLeche.Name} {v : Expr} {hyps : List Expr} {eqE proof tp : Expr}
     {srest : List (List Expr × Expr)} {prest : List Expr}
     (hg : ConLeche.divModCertGuard env nm v hyps eqE proof = true)
-    (h1 : ConLeche.annotateCore μ env F 4 (ConLeche.divModCertApplied
-      (Expr.substConstAll nm v proof) (hyps.map (Expr.substConst0 nm v))) = .ok w)
-    (h2 : ConLeche.inferTypeCore μ env F 4 w = .ok tp)
+    (h2 : ConLeche.inferTypeCore μ env F 4 (ConLeche.divModCertApplied
+      (Expr.substConstAll nm v proof) (hyps.map (Expr.substConst0 nm v))) = .ok tp)
     (h3 : ConLeche.isDefEqCore μ env F 4 tp (Expr.substConst0 nm v eqE) = .ok true)
     (h4 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v srest prest
       = .ok true) :
     ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v ((hyps, eqE) :: srest)
       (proof :: prest) = .ok true := by
-  simp only [ConLeche.checkDivModCerts, hg, ite_true, ConLeche.fueledOps, h1, h2, h3,
+  simp only [ConLeche.checkDivModCerts, hg, ite_true, ConLeche.fueledOps, h2, h3,
     bind, Except.bind]
   exact h4
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:252-275 checkDivModCerts — **the
 certificate loop**: per certificate, the guards (`divModCertGuard_run`), the
-substituted proof applied to the open statement's variables and annotated,
-its type inferred and compared with the substituted equation, all at depth 4
+substituted proof applied to the open statement's variables, its type
+inferred and compared with the substituted equation, all at depth 4
 through `KnotSpec`; a `true` answer is con-leche's at one fuel. -/
 theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env) {cn : NIdx}
@@ -1577,22 +1590,15 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
       refine divModCertApplied_wscoped hPf fun h hh => ?_
       obtain ⟨h0, hh0, rfl⟩ := List.mem_map.mp hh
       exact substConst0_wscoped hws2 _ (hwh h0 hh0)
-    -- annotate, infer
-    obtain ⟨ap, s5, g5, r6⟩ := AM.bind_ok r5
-    obtain ⟨hck5, hx5, hp5, hsim5⟩ := AM.of_run (P := fun t => t = s4)
+    -- infer
+    obtain ⟨tp, s6, g6, r7⟩ := AM.bind_ok r5
+    obtain ⟨hck6, hx6, hp6, hsim6⟩ := AM.of_run (P := fun t => t = s4)
       (Q := fun r t => CheckOK μ env fe t ∧ Ext s4.store t.store ∧ t.pins = s4.pins ∧
-        Core.SimE (ConLeche.annotateCore μ env) 4 _ t.store r)
-      rfl g5 (hknot.annotate s4 4 ap0 _ c4.ok hap0 hwsA)
-    obtain ⟨w, hw5, hwsw, F5, hF5⟩ := hsim5
-    have c5 : CoreStep μ env fe s4 s5 := ⟨hck5, hx5, hp5⟩
-    obtain ⟨tp, s6, g6, r7⟩ := AM.bind_ok r6
-    obtain ⟨hck6, hx6, hp6, hsim6⟩ := AM.of_run (P := fun t => t = s5)
-      (Q := fun r t => CheckOK μ env fe t ∧ Ext s5.store t.store ∧ t.pins = s5.pins ∧
-        Core.SimE (ConLeche.inferTypeCore μ env) 4 w t.store r)
-      rfl g6 (hknot.infer s5 4 ap w hck5 hw5 hwsw)
+        Core.SimE (ConLeche.inferTypeCore μ env) 4 _ t.store r)
+      rfl g6 (hknot.infer s4 4 ap0 _ c4.ok hap0 hwsA)
     obtain ⟨tpx, htp6, hwstp, F6, hF6⟩ := hsim6
-    have c6 : CoreStep μ env fe s5 s6 := ⟨hck6, hx6, hp6⟩
-    have c06 := (c04.trans c5).trans c6
+    have c6 : CoreStep μ env fe s4 s6 := ⟨hck6, hx6, hp6⟩
+    have c06 := c04.trans c6
     -- the substituted equation, and the comparison
     obtain ⟨rhs, s7, g7, r8⟩ := AM.bind_ok r7
     obtain ⟨hs7, hrhs⟩ := substConst0_run coreWalkFuel hck6.state hck6.pins
@@ -1619,24 +1625,22 @@ theorem checkDivModCerts_bridge_aux {μ : CheckMode} {env : Env} {fe : IFEnv}
       (denoteEList_ext c08.ext _ _ hpxs) (fun q hq => hwq q (List.mem_cons_of_mem _ hq)) r10
     refine ⟨c08.trans c9, fun hr => ?_⟩
     obtain ⟨F9, hF9⟩ := himp hr
-    have l5 : F5 ≤ max (max (max F5 F6) F8) F9 := by omega
-    have l6 : F6 ≤ max (max (max F5 F6) F8) F9 := by omega
-    have l8 : F8 ≤ max (max (max F5 F6) F8) F9 := by omega
-    have l9 : F9 ≤ max (max (max F5 F6) F8) F9 := by omega
-    exact ⟨_, checkDivModCerts_cons_pure hg (ConLeche.annotateCore_mono l5 hF5)
+    have l6 : F6 ≤ max (max F6 F8) F9 := by omega
+    have l8 : F8 ≤ max (max F6 F8) F9 := by omega
+    have l9 : F9 ≤ max (max F6 F8) F9 := by omega
+    exact ⟨_, checkDivModCerts_cons_pure hg
       (ConLeche.inferTypeCore_mono l6 hF6) (ConLeche.isDefEqCore_mono l8 hF8)
       (checkDivModCerts_mono l9 hF9)⟩
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:321-328 checkDivModPinAt — the
 attempt's clause at one fuel. -/
 theorem checkDivModPinAt_pure {μ : CheckMode} {F : Nat} {env : Env}
-    {nm : ConLeche.Name} {v pw : Expr} {psP : NatOpPinSet}
-    (h1 : ConLeche.annotateCore μ env F 0 (ConLeche.divModDeclPin psP nm) = .ok pw)
-    (h2 : ConLeche.isDefEqCore μ env F 0 v pw = .ok true)
+    {nm : ConLeche.Name} {v : Expr} {psP : NatOpPinSet}
+    (h2 : ConLeche.isDefEqCore μ env F 0 v (ConLeche.divModDeclPin psP nm) = .ok true)
     (h3 : ConLeche.checkDivModCerts (ConLeche.fueledOps μ F) env nm v
       (ConLeche.divModCertStmts nm) (ConLeche.divModCertProofs psP nm) = .ok true) :
     ConLeche.checkDivModPinAt (ConLeche.fueledOps μ F) env nm v psP = .ok true := by
-  simp only [ConLeche.checkDivModPinAt, ConLeche.fueledOps, h1, h2, ite_true, bind,
+  simp only [ConLeche.checkDivModPinAt, ConLeche.fueledOps, h2, ite_true, bind,
     Except.bind]
   exact h3
 
@@ -1693,14 +1697,14 @@ variant's attempt: on success the invariant stands, and a `true` answer is
 con-leche's.
 
 **PROVED** (task #97-P3-Checker round 10): `divModDeclPin_run`, one
-`KnotSpec.annotate` and one `KnotSpec.defeq` at depth 0 for the pin, then
-`divModCertStmts_run`, `divModCertProofs_run` and the certificate loop
-(`checkDivModCerts_bridge_aux`: `KnotSpec.annotate`/`infer`/`defeq` at depth 4
-over `divModCertApplied`, scoped by `divModCertApplied_wscoped` and
+`KnotSpec.defeq` at depth 0 for the pin, then `divModCertStmts_run`,
+`divModCertProofs_run` and the certificate loop
+(`checkDivModCerts_bridge_aux`: `KnotSpec.infer`/`defeq` at depth 4 over
+`divModCertApplied`, scoped by `divModCertApplied_wscoped` and
 `divModCertStmts_wscoped`).
 
 **The statement gained `hpg : divModPinGuard psP env nm = true`** (a
-precondition repair): the pin is annotated through `KnotSpec.annotate`, which
+precondition repair): the pin is compared through `KnotSpec.defeq`, which
 needs it `WScoped 0`, and nothing else in the hypotheses says the pin is
 closed.  The one call site, the variant loop, runs the attempt only after
 the pin guard answered `true`. -/
@@ -1723,23 +1727,17 @@ theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
   obtain ⟨p, s1, g1, r1⟩ := AM.bind_ok hr
   obtain ⟨hs1, hpd⟩ := divModDeclPin_run hck.state hck.pins hps hn g1
   subst s1
-  obtain ⟨pa, s2, g2, r2⟩ := AM.bind_ok r1
-  obtain ⟨hck2, hx2, hp2, hsim2⟩ := AM.of_run (P := fun t => t = s)
+  obtain ⟨ok, s3, g3, r3⟩ := AM.bind_ok r1
+  obtain ⟨hck3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun t => t = s)
     (Q := fun r t => CheckOK μ env fe t ∧ Ext s.store t.store ∧ t.pins = s.pins ∧
-      Core.SimE (ConLeche.annotateCore μ env) 0 (ConLeche.divModDeclPin psP nm) t.store r)
-    rfl g2 (hknot.annotate s 0 p _ hck hpd hwsP)
-  obtain ⟨pw, hpw, hwspw, F2, hF2⟩ := hsim2
-  obtain ⟨ok, s3, g3, r3⟩ := AM.bind_ok r2
-  obtain ⟨hck3, hx3, hp3, hsim3⟩ := AM.of_run (P := fun t => t = s2)
-    (Q := fun r t => CheckOK μ env fe t ∧ Ext s2.store t.store ∧ t.pins = s2.pins ∧
-      Core.SimV (ConLeche.isDefEqCore μ env) 0 v pw r)
-    rfl g3 (hknot.defeq s2 0 val pa v pw hck2 (denote_ext hv hx2) hpw hwsv hwspw)
+      Core.SimV (ConLeche.isDefEqCore μ env) 0 v (ConLeche.divModDeclPin psP nm) r)
+    rfl g3 (hknot.defeq s 0 val p v _ hck hv hpd hwsv hwsP)
   obtain ⟨F3, hF3⟩ := hsim3
-  have hx03 : Ext s.store s3.store := hx2.trans hx3
+  have hx03 : Ext s.store s3.store := hx3
   rcases AM.ite_ok r3 with ⟨hok, r4⟩ | ⟨-, r4⟩
   rotate_left
   · obtain ⟨rfl, rfl⟩ := AM.pure_ok r4
-    exact ⟨hck3, hx03, by rw [hp3, hp2], fun h => absurd h (by simp)⟩
+    exact ⟨hck3, hx03, hp3, fun h => absurd h (by simp)⟩
   have hok' : ok = true := hok
   subst hok'
   obtain ⟨st, s4, g4, r5⟩ := AM.bind_ok r4
@@ -1751,12 +1749,11 @@ theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     (PinsDenote.mono hx04 [ps] [psP] ⟨hps, trivial⟩).1 (denoteN_ext hn hx04) g5
   obtain ⟨c6, himp⟩ := checkDivModCerts_bridge_aux hk henv hwsv _ _ _ _ _ _ _ c4.ok
     (denoteN_ext hn hx04) (denote_ext hv hx04) hsd hpr (divModCertStmts_wscoped nm) r6
-  refine ⟨c6.ok, hx04.trans c6.ext, by rw [c6.pins, hs4.pins, hp3, hp2], fun hb => ?_⟩
+  refine ⟨c6.ok, hx04.trans c6.ext, by rw [c6.pins, hs4.pins, hp3], fun hb => ?_⟩
   obtain ⟨F6, hF6⟩ := himp hb
-  have l2 : F2 ≤ max (max F2 F3) F6 := by omega
-  have l3 : F3 ≤ max (max F2 F3) F6 := by omega
-  have l6 : F6 ≤ max (max F2 F3) F6 := by omega
-  exact ⟨_, checkDivModPinAt_pure (ConLeche.annotateCore_mono l2 hF2)
+  have l3 : F3 ≤ max F3 F6 := by omega
+  have l6 : F6 ≤ max F3 F6 := by omega
+  exact ⟨_, checkDivModPinAt_pure
     (ConLeche.isDefEqCore_mono l3 hF3) (checkDivModCerts_mono l6 hF6)⟩
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop — **the

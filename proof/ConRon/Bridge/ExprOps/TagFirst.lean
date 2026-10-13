@@ -45,39 +45,15 @@ its view. -/
 
 /-- con-leche: none — `viewBind` at a λ-tagged handle is its view. -/
 @[grind →] theorem view_of_viewBind_tag_lam {st : EStore} {i ty b : EIdx}
-    {m : ConLeche.BinderMeta} (htg : (i.tag == ETag.lam) = true)
-    (h : st.viewBind i = some (ty, b, m)) : st.view i = some (.lam ty b m) := by
-  unfold EStore.viewBind at h
-  cases h1 : st.viewBindI i with
-  | none => rw [h1] at h; cases h
-  | some p =>
-    obtain ⟨ty', b', mi⟩ := p
-    rw [h1] at h
-    dsimp only at h
-    cases h2 : st.viewBM mi with
-    | none => rw [h2] at h; cases h
-    | some m' =>
-      rw [h2] at h
-      cases h
-      exact view_of_viewBindI_lam (by simpa using htg) h1 h2
+    (htg : (i.tag == ETag.lam) = true)
+    (h : st.viewBind i = some (ty, b)) : st.view i = some (.lam ty b) :=
+  view_of_viewBind_lam (by simpa using htg) h
 
 /-- con-leche: none — and at a `∀`-tagged handle. -/
 @[grind →] theorem view_of_viewBind_tag_forallE {st : EStore} {i ty b : EIdx}
-    {m : ConLeche.BinderMeta} (htg : (i.tag == ETag.forallE) = true)
-    (h : st.viewBind i = some (ty, b, m)) : st.view i = some (.forallE ty b m) := by
-  unfold EStore.viewBind at h
-  cases h1 : st.viewBindI i with
-  | none => rw [h1] at h; cases h
-  | some p =>
-    obtain ⟨ty', b', mi⟩ := p
-    rw [h1] at h
-    dsimp only at h
-    cases h2 : st.viewBM mi with
-    | none => rw [h2] at h; cases h
-    | some m' =>
-      rw [h2] at h
-      cases h
-      exact view_of_viewBindI_forallE (by simpa using htg) h1 h2
+    (htg : (i.tag == ETag.forallE) = true)
+    (h : st.viewBind i = some (ty, b)) : st.view i = some (.forallE ty b) :=
+  view_of_viewBind_forallE (by simpa using htg) h
 
 /-- con-leche: none — **the `else` arm of a tag-first twin**: a handle that
 denotes and whose tag is not `t` views to a node whose tag is not `t`. -/
@@ -88,26 +64,26 @@ theorem view_ne_of_tag {st : EStore} {h : EIdx} (hd : (denoteE st h).isSome = tr
 
 /-- con-leche: none — the same two at the `=` spelling of the tag test. -/
 @[grind →] theorem view_of_viewBind_eq_lam {st : EStore} {i ty b : EIdx}
-    {m : ConLeche.BinderMeta} (htg : i.tag = ETag.lam)
-    (h : st.viewBind i = some (ty, b, m)) : st.view i = some (.lam ty b m) :=
+    (htg : i.tag = ETag.lam)
+    (h : st.viewBind i = some (ty, b)) : st.view i = some (.lam ty b) :=
   view_of_viewBind_tag_lam (by simp [htg]) h
 
 @[grind →] theorem view_of_viewBind_eq_forallE {st : EStore} {i ty b : EIdx}
-    {m : ConLeche.BinderMeta} (htg : i.tag = ETag.forallE)
-    (h : st.viewBind i = some (ty, b, m)) : st.view i = some (.forallE ty b m) :=
+    (htg : i.tag = ETag.forallE)
+    (h : st.viewBind i = some (ty, b)) : st.view i = some (.forallE ty b) :=
   view_of_viewBind_tag_forallE (by simp [htg]) h
 
 /-! ### At the shape `mvcgen` hands the arms: the projection's answer a variable -/
 
-theorem view_of_viewBind_lam' {st : EStore} {i : EIdx} {p : EIdx × EIdx × ConLeche.BinderMeta}
+theorem view_of_viewBind_lam' {st : EStore} {i : EIdx} {p : EIdx × EIdx}
     (htg : (i.tag == ETag.lam) = true) (h : some p = st.viewBind i) :
-    st.view i = some (.lam p.1 p.2.1 p.2.2) :=
+    st.view i = some (.lam p.1 p.2) :=
   view_of_viewBind_tag_lam htg h.symm
 
 theorem view_of_viewBind_forallE' {st : EStore} {i : EIdx}
-    {p : EIdx × EIdx × ConLeche.BinderMeta}
+    {p : EIdx × EIdx}
     (htg : (i.tag == ETag.forallE) = true) (h : some p = st.viewBind i) :
-    st.view i = some (.forallE p.1 p.2.1 p.2.2) :=
+    st.view i = some (.forallE p.1 p.2) :=
   view_of_viewBind_tag_forallE htg h.symm
 
 theorem view_of_viewFVarTy' {st : EStore} {i ty : EIdx}
@@ -117,15 +93,15 @@ theorem view_of_viewFVarTy' {st : EStore} {i ty : EIdx}
 
 theorem not_forallE_of_tag {st : EStore} {h : EIdx} (hd : (denoteE st h).isSome = true)
     (ht : ¬ (h.tag == ETag.forallE) = true) :
-    ∃ v, st.view h = some v ∧ ∀ a b c, v ≠ .forallE a b c := by
+    ∃ v, st.view h = some v ∧ ∀ a b, v ≠ .forallE a b := by
   obtain ⟨v, hv, hne⟩ := view_ne_of_tag hd ht
-  exact ⟨v, hv, fun a b c hh => hne (by rw [hh]; rfl)⟩
+  exact ⟨v, hv, fun a b hh => hne (by rw [hh]; rfl)⟩
 
 theorem not_lam_of_tag {st : EStore} {h : EIdx} (hd : (denoteE st h).isSome = true)
     (ht : ¬ (h.tag == ETag.lam) = true) :
-    ∃ v, st.view h = some v ∧ ∀ a b c, v ≠ .lam a b c := by
+    ∃ v, st.view h = some v ∧ ∀ a b, v ≠ .lam a b := by
   obtain ⟨v, hv, hne⟩ := view_ne_of_tag hd ht
-  exact ⟨v, hv, fun a b c hh => hne (by rw [hh]; rfl)⟩
+  exact ⟨v, hv, fun a b hh => hne (by rw [hh]; rfl)⟩
 
 theorem not_fvar_of_tag {st : EStore} {h : EIdx} (hd : (denoteE st h).isSome = true)
     (ht : ¬ (h.tag == ETag.fvar) = true) :

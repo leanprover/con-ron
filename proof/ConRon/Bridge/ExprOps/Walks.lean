@@ -3,8 +3,8 @@
 
 DESIGN §8.2's Theorem 1 at the twins of `Arena/ExprOps.lean` whose answer is
 a **representation-free scalar**: `sizeB`, `sizeF`, `wscopedB`,
-`looseBVarsBounded`, `hasFvar`, and the two one-node readers `isLam`,
-`lamPw`.  Its two companions are `ExprOps/Ranges.lean` (the
+`looseBVarsBounded`, `hasFvar`, and the two one-node readers `isForallE`,
+`lamPair?`.  Its two companions are `ExprOps/Ranges.lean` (the
 packed-field reads and their memoized recomputations) and
 `ExprOps/Leaves.lean` (the leaf list, the `seen` set and the leaf guard).
 
@@ -69,53 +69,78 @@ of this tier repeats the line — even this one, which has no `Ext` in any
 statement: the closer's second stage still has them in its list. -/
 attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
 
-/-! ### The catch-all of the one-node readers
+/-! ## The two one-node readers — `ExprOps.lean:771`, `:776`
 
-`isLam` and `lamPw` are `match ← view h` with ONE named arm and a
-`_ =>` fallthrough, and the fallthrough is the one verification condition the
-closer cannot take unaided: it has "the view is not a `lam`" as a
-`∀`-hypothesis over `ENodeView` and no reason to case-split on the view.
-Stated as a DISJUNCTION the closer takes it in one step — `grind` splits the
-`∨`, and the left disjunct contradicts the arm's own hypothesis.  This is
-`Bridge/Rel.lean`'s `denote_leaf_of_tag` played at the constructor rather
-than at the tag, and it **morally belongs in `Bridge/Rel.lean`**. -/
+`isForallE` is a tag read off the handle word; `lamPair?` tests both tags and
+then takes the two binder projections (task #119: con-leche's λ-telescope
+comparison `defeqLams` descends with it).  No recursion, no fuel. -/
 
-/-! ## The two one-node readers — `ExprOps.lean:1000`, `:1008`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:771-774 isForallE — **THEOREM 1
+for `isForallE`**: the tag of a denoting handle is `forallE` exactly when its
+denotation is a ∀. -/
+theorem isForallE_rel {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    (he : denoteE st h = some e) : isForallE h = Expr.isForallE e := by
+  obtain ⟨v, hv⟩ := denoteE_view he
+  have htag := EStore.tagOf_of_view hv
+  rw [denoteE_view_eq hwf hv] at he
+  simp only [isForallE, htag]
+  cases v <;>
+    simp_all [ENodeView.tagOf, denoteEView, Expr.isForallE, opt2_eq_some_iff,
+      opt3_eq_some_iff, Option.map_eq_some_iff, ETag.bvar, ETag.fvar, ETag.sort,
+      ETag.const, ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit,
+      ETag.proj] <;> grind
 
-One `view` and a test: no recursion, no fuel, so no `Spec` record and no
-induction.  Theorem 1 is the triple itself.
+/-- con-leche: none — a handle that denotes a λ carries the `lam` tag. -/
+theorem tag_lam_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {t b : Expr}
+    (he : denoteE st h = some (.lam t b)) : h.tag = ETag.lam := by
+  obtain ⟨v, hv⟩ := denoteE_view he
+  have htag := EStore.tagOf_of_view hv
+  rw [denoteE_view_eq hwf hv] at he
+  cases v <;>
+    simp_all [ENodeView.tagOf, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
+      Option.map_eq_some_iff]
 
-**`lamPw` answers `Option PropWhen`, and `PropWhen` is a SEALED
-representation** (con-leche's own `ExprOps.lean` needs `import all` to
-destruct one; the arena never destructs one, it only compares).  So it
-is stated against con-leche's `Expr.lamPw` as an equation on
-the `Option PropWhen` and nothing below looks inside: the `BinderMeta` the
-twin reads off the node IS the one the denotation carries
-(`denote_lam_inv`'s `e = .lam et eb m`), so `m.pw` needs no unfolding. -/
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:887-894 lamPw — **THEOREM 1 for
-`lamPw`**, on the `Option PropWhen` and not inside it. -/
-theorem lamPw_spec (s₀ : AState) (h : EIdx) (hok : StateOK s₀)
-    (hden : (denoteE s₀.store h).isSome = true) :
-    ⦃fun s => s = s₀⦄ lamPw h
-    ⦃fun r s' => s' = s₀ ∧ RelV Expr.lamPw s₀.store h r; ⊤⦄ := by
-  vcgen [lamPw]
-  case vc1 => bridge_vcs [Expr.lamPw, RelV]
-  -- the tag-first `else` arm (task #97-P5-Core round 4): the view comes
-  -- back from the denotation, and its tag is not `lam`
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — **THEOREM 1
+for `lamPair?`**: the state does not move; `none` exactly when the two
+denotations are not both λs, and otherwise the four handles denote the four
+components. -/
+theorem lamPair?_spec (s₀ : AState) (a b : EIdx) (hok : StateOK s₀)
+    (ha : (denoteE s₀.store a).isSome = true)
+    (hb : (denoteE s₀.store b).isSome = true) :
+    ⦃fun s => s = s₀⦄ lamPair? a b
+    ⦃fun r s' => s' = s₀ ∧ ∀ ea eb, denoteE s₀.store a = some ea →
+        denoteE s₀.store b = some eb →
+        match r with
+        | none => Expr.lamPair? ea eb = none
+        | some (t₁, b₁, t₂, b₂) => ∃ et₁ eb₁ et₂ eb₂,
+            Expr.lamPair? ea eb = some (et₁, eb₁, et₂, eb₂) ∧
+            denoteE s₀.store t₁ = some et₁ ∧ denoteE s₀.store b₁ = some eb₁ ∧
+            denoteE s₀.store t₂ = some et₂ ∧ denoteE s₀.store b₂ = some eb₂; ⊤⦄ := by
+  vcgen [lamPair?]
+  all_goals subst_vars
+  case vc1 =>
+    rename_i _ htg _ _ _ _ _ _ h1 h2
+    obtain ⟨rfl, h1⟩ := h1
+    obtain ⟨rfl, h2⟩ := h2
+    simp only [Bool.and_eq_true, beq_iff_eq] at htg
+    have hva := view_of_viewBind_lam htg.1 h1.symm
+    have hvb := view_of_viewBind_lam htg.2 h2.symm
+    refine ⟨rfl, fun ea eb hea heb => ?_⟩
+    obtain ⟨t₁, b₁, rfl, ht₁, hb₁⟩ := denote_lam_inv hok.wf hva hea
+    obtain ⟨t₂, b₂, rfl, ht₂, hb₂⟩ := denote_lam_inv hok.wf hvb heb
+    exact ⟨t₁, b₁, t₂, b₂, rfl, ht₁, hb₁, ht₂, hb₂⟩
   case vc2 =>
-    subst_vars
-    obtain ⟨v, hv⟩ := view_of_denote_isSome hden
-    have hne := view_tagOf_ne hv (t := ETag.lam) (by assumption)
-    refine ⟨rfl, fun e he => ?_⟩
-    rw [denoteE_view_eq hok.wf hv] at he
-    cases v <;> first
-      | exact absurd rfl hne
-      | grind [denoteEView, Expr.lamPw, opt2_eq_some_iff, opt3_eq_some_iff,
-          Option.map_eq_some_iff]
+    rename_i _ htg
+    refine ⟨rfl, fun ea eb hea heb => ?_⟩
+    show Expr.lamPair? ea eb = none
+    cases ea <;> cases eb <;> try rfl
+    exact absurd (by simp [tag_lam_of_denote hok.wf hea, tag_lam_of_denote hok.wf heb])
+      htg
 
 /-! ## The axiom check -/
 
-#print axioms lamPw_spec
+#print axioms isForallE_rel
+#print axioms tag_lam_of_denote
+#print axioms lamPair?_spec
 
 end ConRon.Bridge.ExprOps

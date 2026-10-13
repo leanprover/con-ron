@@ -8,7 +8,7 @@ state with the scratch tier emptied and the memos and caches fresh
 (`AState.worker`), the phase-A state handed back at the end.
 
 It is `installThenCheck` in everything Theorem 1 asks about, because
-`annotFold_bridge` already says phase A leaves the caches empty whenever it
+`installFold_bridge` already says phase A leaves the caches empty whenever it
 installed anything — the fact `installThenCheck_bridge` itself uses to enter
 phase B — and `Arena.checkPendingList_worker` turns a worker's accepting walk
 into the phase-A state's.  So this module adds no argument: it is
@@ -99,7 +99,7 @@ theorem Arena.pooledAccepts_bridge {μ : CheckMode}
   have hnd0 : NodupNames Env.empty := List.nodup_nil
   obtain ⟨n, pend, parts, hA, hcov, hsub, hw⟩ := hrun
   obtain ⟨env₁, pendP, hok₁, -, hPA, hrel, -, hc₁⟩ :=
-    Arena.annotFold_bridge hμ hk hind hpp ds.toList dsP Env.empty 0 n
+    Arena.installFold_bridge hμ hk hind hpp ds.toList dsP Env.empty 0 n
       (mkIFEnv IEnv.empty) fe' #[] pend [] s s' hok hnd0 hpins hpd hden .nil hA
   simp only [List.nil_append] at hrel
   have hc : pend.toList ≠ [] → s'.caches = Caches.empty := by

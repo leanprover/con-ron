@@ -794,14 +794,14 @@ theorem denoteE_of_view' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
       obtain ⟨x, hx⟩ := hE f (by simp [ENodeView.echildren])
       obtain ⟨y, hy⟩ := hE a (by simp [ENodeView.echildren])
       exact ⟨.app x y, by simp [denoteEView, hx, hy, opt2]⟩
-    | lam ty b m =>
+    | lam ty b =>
       obtain ⟨x, hx⟩ := hE ty (by simp [ENodeView.echildren])
       obtain ⟨y, hy⟩ := hE b (by simp [ENodeView.echildren])
-      exact ⟨.lam x y m, by simp [denoteEView, hx, hy, opt2]⟩
-    | forallE ty b m =>
+      exact ⟨.lam x y, by simp [denoteEView, hx, hy, opt2]⟩
+    | forallE ty b =>
       obtain ⟨x, hx⟩ := hE ty (by simp [ENodeView.echildren])
       obtain ⟨y, hy⟩ := hE b (by simp [ENodeView.echildren])
-      exact ⟨.forallE x y m, by simp [denoteEView, hx, hy, opt2]⟩
+      exact ⟨.forallE x y, by simp [denoteEView, hx, hy, opt2]⟩
     | letE ty w b =>
       obtain ⟨x, hx⟩ := hE ty (by simp [ENodeView.echildren])
       obtain ⟨y, hy⟩ := hE w (by simp [ENodeView.echildren])
@@ -837,8 +837,8 @@ theorem internPersistentE_run {v : ENodeView} {s : AState} {r : EIdx} {s' : ASta
     StoreWF' s'.store ∧ s'.store.view r = some v ∧ PersE r := by
   -- audit D3: the wrapper runs in the Rust's order, and its success says the
   -- Rust's two miss-path capacity tests held (`Arena.internPersistentE_ok`)
-  obtain ⟨hb, hn, rfl, rfl⟩ := Arena.internPersistentE_ok h
-  exact EStore.internPersistent_spec' hwf hv hp hb hn
+  obtain ⟨hn, rfl, rfl⟩ := Arena.internPersistentE_ok h
+  exact EStore.internPersistent_spec' hwf hv hp hn
 
 /-- con-leche: none — arena infrastructure; a node view that denotes has
 children that decode: `intern`'s `ViewOK` precondition, read off the
@@ -882,7 +882,7 @@ theorem EStore.ViewOK.of_denoteEView {st : EStore} {w : ENodeView} {e : Expr}
       subst hc; exact hN ha
     · intro c hc; simp only [ENodeView.lschildren, List.mem_singleton] at hc
       subst hc; exact hLs hb
-  | app f a | lam f a _ | forallE f a _ =>
+  | app f a | lam f a | forallE f a =>
     simp only [denoteEView, opt2_eq_some_iff] at hd
     obtain ⟨x, y, hx, hy, -⟩ := hd
     refine ⟨?_, by simp [ENodeView.nchildren], by simp [ENodeView.lchildren],
@@ -1069,7 +1069,7 @@ theorem promoteE_core : ∀ (fuel : Nat) (m : PMemo) (h : EIdx) (s : AState)
             ⟨by simp [ENodeView.echildren, hpa, hpb], by simp [ENodeView.nchildren],
               by simp [ENodeView.lchildren], by simp [ENodeView.lschildren]⟩ h7
           exact fin m3 r2 _ hwf5 (hm4.mono hx5) ((hx13.trans hx34).trans hx5) hp5 hd5 hr rfl
-        | lam a b bm =>
+        | lam a b =>
           have hx0' := hx0
           simp only [denoteEView, opt2_eq_some_iff] at hx0'
           obtain ⟨ea, eb, hea, heb, hxe⟩ := hx0'
@@ -1082,11 +1082,11 @@ theorem promoteE_core : ∀ (fuel : Nat) (m : PMemo) (h : EIdx) (s : AState)
           have ha4 : denoteE s4.store a2 = some ea := hx34.expr _ _ (hda ea hea)
           have hb4 : denoteE s4.store b2 = some eb := hdb eb (hx13.expr _ _ heb)
           obtain ⟨hwf5, hx5, hp5, hd5⟩ := promoteE_node hwf4
-            (w := .lam a2 b2 bm) (x := x0) (by simp [denoteEView, ha4, hb4, opt2, hxe])
+            (w := .lam a2 b2) (x := x0) (by simp [denoteEView, ha4, hb4, opt2, hxe])
             ⟨by simp [ENodeView.echildren, hpa, hpb], by simp [ENodeView.nchildren],
               by simp [ENodeView.lchildren], by simp [ENodeView.lschildren]⟩ h7
           exact fin m3 r2 _ hwf5 (hm4.mono hx5) ((hx13.trans hx34).trans hx5) hp5 hd5 hr rfl
-        | forallE a b bm =>
+        | forallE a b =>
           have hx0' := hx0
           simp only [denoteEView, opt2_eq_some_iff] at hx0'
           obtain ⟨ea, eb, hea, heb, hxe⟩ := hx0'
@@ -1099,7 +1099,7 @@ theorem promoteE_core : ∀ (fuel : Nat) (m : PMemo) (h : EIdx) (s : AState)
           have ha4 : denoteE s4.store a2 = some ea := hx34.expr _ _ (hda ea hea)
           have hb4 : denoteE s4.store b2 = some eb := hdb eb (hx13.expr _ _ heb)
           obtain ⟨hwf5, hx5, hp5, hd5⟩ := promoteE_node hwf4
-            (w := .forallE a2 b2 bm) (x := x0) (by simp [denoteEView, ha4, hb4, opt2, hxe])
+            (w := .forallE a2 b2) (x := x0) (by simp [denoteEView, ha4, hb4, opt2, hxe])
             ⟨by simp [ENodeView.echildren, hpa, hpb], by simp [ENodeView.nchildren],
               by simp [ENodeView.lchildren], by simp [ENodeView.lschildren]⟩ h7
           exact fin m3 r2 _ hwf5 (hm4.mono hx5) ((hx13.trans hx34).trans hx5) hp5 hd5 hr rfl

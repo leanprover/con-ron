@@ -88,7 +88,7 @@ abstracted:
 | `SimOOp` — an `Option EIdx` answer | `reduceNat`, `iotaRec` |
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
 | `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
-| `SimVOp` — any shared type | `annotPwPi`, `annotPwLam` (`PropWhen`), `headHint` (`ReducibilityHint`) |
+| `SimVOp` — any shared type | `headHint` (`ReducibilityHint`) |
 | an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `isBoolTrue`, CLOSED in `Walks/Guards.lean`) |
 
 **The last row is the cheap one and it is worth naming.**  Four walks of the
@@ -111,7 +111,7 @@ theorems, to `Walks/PropRead.lean`.  Left here:
 * **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
   `litMajorToCtor`;
 * **`stuckIrrel`** and **`iotaRec`**, the two towers (`iotaRec`'s
-  `ruleRhsAt` and `iotaCerts` legs are now closed callee rules).
+  `ruleRhsAt` and `iotaCertsFull` legs are now closed callee rules).
 
 (Round 2's reading of this list said *"ten of the sixteen wait on an
 `ExprOps`-tier callee rule that this tier does not import"*.  That was true
@@ -201,89 +201,126 @@ The walk itself is not closed (its arm list is in the statement's note), but
 shape it cannot use.  Both are here because they are what the next round
 starts from and neither is about `etaCert` alone:
 
-* the four step equations below are con-leche's `etaCert` at its four exits,
-  each one `simp only` over the knot record's five slot equations;
+* the six step equations below are con-leche's `etaCert` at its six exits,
+  each one `simp only` over the knot record's slot equations;
 * `instantiate1Fast_specE` is **finding 5.2 at the `ExprOps` tier**.
   `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` takes the
   SUBSTITUTED VALUE's denotation as an explicit `(ve : Expr)` argument, and
   `etaCert` substitutes a free variable it has just INTERNED — so `mvcgen`
   guesses `ve` from the `Expr`s in scope (measured: it guesses the
   comparand `y`) and leaves a false side goal.  The primed form is the same
-  four lines as `Bridge/Core/Knot.lean`'s six slots, and it is the shape
+  four lines as `Bridge/Core/Knot.lean`'s slots, and it is the shape
   every interning caller of the substitution walks will want. -/
 
-/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the comparand's
+/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — the comparand's
+head is a λ, a `let` or a loose variable (not `ioNeutral`), so there is no
+certificate. -/
+theorem etaCertFueled_notNeutral {F d : Nat} {t x y : Expr}
+    (hn : y.ioNeutral = false) :
+    ConLeche.etaCertFueled mode env F d t x y = .ok false := by
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn]
+  rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — the comparand's
 type does not reduce to a ∀, so there is nothing to η-expand against. -/
-theorem etaCertFueled_nf {F d : Nat} {t x : Expr} {m₁ : BinderMeta} {y : Expr}
-    {tb w : Expr}
+theorem etaCertFueled_nf {F d : Nat} {t x y : Expr} {tb w : Expr}
+    (hn : y.ioNeutral = true)
     (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
     (h2 : ConLeche.whnf mode env F d tb = .ok w)
-    (hw : ∀ p q m, w ≠ .forallE p q m) :
-    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+    (hw : ∀ p q, w ≠ .forallE p q) :
+    ConLeche.etaCertFueled mode env F d t x y = .ok false := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
   have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok w := h2
-  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, bind,
-    Except.bind]
-  rfl
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, bind,
+    Except.bind, Bool.not_true, Bool.false_eq_true, ite_false]
+  cases w <;> first | rfl | exact absurd rfl (hw _ _)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the ∀'s domain
+/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — the ∀'s domain
 is not the λ's. -/
-theorem etaCertFueled_dom {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
-    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+theorem etaCertFueled_dom {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ : Expr}
+    (hn : y.ioNeutral = true)
     (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
-    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂))
     (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok false) :
-    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+    ConLeche.etaCertFueled mode env F d t x y = .ok false := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d tb
-      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
   have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok false := h3
-  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, bind,
-    Except.bind]
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, e3, bind,
+    Except.bind, Bool.not_true, Bool.false_eq_true, ite_false]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — the domains
+/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — the domains
 agree and the bodies do not. -/
-theorem etaCertFueled_body {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
-    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+theorem etaCertFueled_body {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ : Expr}
+    (hn : y.ioNeutral = true)
     (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
-    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂))
     (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
     (h4 : ConLeche.isDefEqCore mode env F (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false) :
-    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok false := by
+    ConLeche.etaCertFueled mode env F d t x y = .ok false := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d tb
-      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
   have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
   have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok false := h4
-  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, bind,
-    Except.bind, ite_true]
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, e3, e4, bind,
+    Except.bind, Bool.not_true, Bool.false_eq_true, ite_false, ite_true]
   rfl
 
-/-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **the
-certificate**: the domains agree, the opened bodies agree, and (at a verified
-mode) the two `PropWhen` data agree.  Task #161's regime agreement is checked
-LAST on both sides, which is what makes the two call sequences the same. -/
-theorem etaCertFueled_yes {F d : Nat} {t x : Expr} {m₁ : BinderMeta}
-    {y : Expr} {tb ty₂ bd₂ : Expr} {m₂ : BinderMeta}
+/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — **the
+certificate at the trusted mode**: the domains agree and the opened bodies
+agree; no λ/η tax. -/
+theorem etaCertFueled_trusted {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ : Expr}
+    (hn : y.ioNeutral = true)
     (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
-    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂ m₂))
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂))
     (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
     (h4 : ConLeche.isDefEqCore mode env F (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true)
-    (h5 : (mode.verifiedChecks && !(m₁.pw == m₂.pw)) = false) :
-    ConLeche.etaCertFueled mode env F d t x m₁ y = .ok true := by
+    (hv : mode.verifiedChecks = false) :
+    ConLeche.etaCertFueled mode env F d t x y = .ok true := by
   have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d tb
-      = .ok (.forallE ty₂ bd₂ m₂) := h2
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
   have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
   have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
       (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
-  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, e1, e2, e3, e4, h5,
-    bind, Except.bind, ite_true]
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, e3, e4, hv,
+    bind, Except.bind, Bool.not_true, Bool.false_eq_true, ite_false, ite_true]
   rfl
+
+/-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — **the
+certificate at the verified mode**: the domains and the opened bodies agree,
+and the verdict is the λ/η tax's — the λ body's FULL-grade type against the
+∀'s codomain, both at the fresh variable (task #342, T2). -/
+theorem etaCertFueled_tax {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ t₁ : Expr}
+    {r : Bool}
+    (hn : y.ioNeutral = true)
+    (h1 : ConLeche.inferTypeIO mode env F d y = .ok tb)
+    (h2 : ConLeche.whnf mode env F d tb = .ok (.forallE ty₂ bd₂))
+    (h3 : ConLeche.isDefEqCore mode env F d ty₂ t = .ok true)
+    (h4 : ConLeche.isDefEqCore mode env F (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true)
+    (hv : mode.verifiedChecks = true)
+    (h5 : ConLeche.inferTypeCore mode env F (d + 1)
+      (x.instantiate1 (.fvar d t)) = .ok t₁)
+    (h6 : ConLeche.isDefEqCore mode env F (d + 1) t₁
+      (bd₂.instantiate1 (.fvar d t)) = .ok r) :
+    ConLeche.etaCertFueled mode env F d t x y = .ok r := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d tb = .ok (.forallE ty₂ bd₂) := h2
+  have e3 : (ConLeche.pureFns mode env F).defeq d ty₂ t = .ok true := h3
+  have e4 : (ConLeche.pureFns mode env F).defeq (d + 1)
+      (x.instantiate1 (.fvar d t)) (.app y (.fvar d t)) = .ok true := h4
+  have e5 : (ConLeche.pureFns mode env F).infer (d + 1)
+      (x.instantiate1 (.fvar d t)) = .ok t₁ := h5
+  have e6 : (ConLeche.pureFns mode env F).defeq (d + 1) t₁
+      (bd₂.instantiate1 (.fvar d t)) = .ok r := h6
+  simp only [ConLeche.etaCertFueled, ConLeche.etaCert, hn, e1, e2, e3, e4, e5,
+    e6, hv, bind, Except.bind, Bool.not_true, Bool.false_eq_true, ite_false,
+    ite_true]
+  cases r <;> rfl
 
 /-! `etaCert_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in round 4
 and is CLOSED there, beside `instantiate1Fast_specE`, the one callee rule
@@ -493,17 +530,6 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   obtain ⟨h1, h2, h3, h4⟩ := hpost
   exact ⟨h1, h2, h3, h4 xs ys hda hdb⟩
 
-/-! ## 5. The annotation pass's three
-
-`Bridge/Core/Arms/Annotate.lean`'s `annotateBody_spec` names `annotPwPi` and
-`annotPwLam`. -/
-
-/-! `annotPwPi_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
-and is CLOSED there, over that module's `typeSortPW`. -/
-
-/-! `annotPwLam_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
-and is CLOSED there, over that module's `proofPW`. -/
-
 /-! ## 6. The axiom census
 
 The round's one CLOSED walk in this module, its induction, and the pure-side
@@ -516,7 +542,7 @@ section Census
 #print axioms defEqListFueled_cons_true
 #print axioms defEqList_go
 #print axioms defEqList_spec
-#print axioms etaCertFueled_yes
+#print axioms etaCertFueled_tax
 
 end Census
 

@@ -45,7 +45,7 @@ one-sided check, run before the dispatch and for both routes (con-leche's task
 
 **CLOSED** (task #97-P3-Ind round 2): a list induction over
 `piSortTeleLen?_spec` (`Bridge/Inductives/Rel.lean`, proved there on loan from
-`Bridge/ExprOps/TelescopeF.lean`) and `Frontend.denoteCI`'s case split — the
+`Bridge/ExprOps/Spine.lean`) and `Frontend.denoteCI`'s case split — the
 `.indInfo` and `.ctorInfo` arms are the only two that read anything, and the
 other five answer `true` on both sides because the denotation does not change
 a constant's constructor.

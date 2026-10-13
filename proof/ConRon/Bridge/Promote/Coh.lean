@@ -251,7 +251,7 @@ exact**: the `k` constants the step installed are copied into the persistent
 tier and re-indexed, and the environment denotes what it denoted.
 
 `fe0` is the PRE-step environment and `k` the counter difference, which is
-what `Arena/Checker.lean`'s `checkDeclStep` and `annotStep` compute; the
+what `Arena/Checker.lean`'s `checkDeclStep` and `installStep` compute; the
 hypotheses say the step only pushed and that everything below it was already
 persistent, which is the fold's own invariant one step earlier.
 

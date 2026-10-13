@@ -149,7 +149,7 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [Expr.mentionsAnyConst, hrA, hrB]) hmB hz
-    case lam ty b m =>
+    case lam ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -166,7 +166,7 @@ theorem mentionsAnyGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [Expr.mentionsAnyConst, hrA, hrB]) hmB hz
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -404,7 +404,7 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
           obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
-    case lam ty b m =>
+    case lam ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -426,7 +426,7 @@ theorem nestOccGo_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
           obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn1
           obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
           exact fin hsA (by simp only [Expr.nestOcc, ← hrA]; rfl) hmA hz
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -540,8 +540,8 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       cases o with
       | none => exact absurd h2 (fun hc => failDanglingE_ok hc)
       | some p =>
-        obtain ⟨d, b, m⟩ := p
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        obtain ⟨d, b⟩ := p
+        have hw := view_forallE_of_viewBind htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
         obtain ⟨c, s₂, h3, h4⟩ := AM.bind_ok h2
@@ -563,7 +563,7 @@ theorem piDomsOcc_spec (names : List NIdx) (namesP : List ConLeche.Name) (lo hi 
       refine ⟨PStep.refl hok, ?_⟩
       show false = Expr.piDomsOcc namesP lo hi (n + 1) eP
       cases eP with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
+      | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
 /-! ## The input-derived fuel: `depth`, `whnfWalkFuel`
@@ -577,8 +577,8 @@ the depth the memoised walk computes, as a structural function: the longest
 root-to-leaf path, `fvar` annotations not descended. -/
 def depthS : Expr → Nat
   | .app f a => max (depthS f) (depthS a) + 1
-  | .lam ty b _ => max (depthS ty) (depthS b) + 1
-  | .forallE ty b _ => max (depthS ty) (depthS b) + 1
+  | .lam ty b => max (depthS ty) (depthS b) + 1
+  | .forallE ty b => max (depthS ty) (depthS b) + 1
   | .letE ty v b => max (max (depthS ty) (depthS v)) (depthS b) + 1
   | .proj _ _ x => depthS x + 1
   | _ => 1
@@ -621,7 +621,7 @@ theorem depthGo_pure_spec :
       obtain ⟨h3, h4⟩ := ihb _ h2
       refine ⟨by simp [depthS, h1, h3], ?_⟩
       exact h4.insert (by simp [depthS, h1, h3])
-  | lam ty body bi iht ihb =>
+  | lam ty body iht ihb =>
     intro memo hm
     rw [Expr.depthGo]
     split
@@ -631,7 +631,7 @@ theorem depthGo_pure_spec :
       obtain ⟨h3, h4⟩ := ihb _ h2
       refine ⟨by simp [depthS, h1, h3], ?_⟩
       exact h4.insert (by simp [depthS, h1, h3])
-  | forallE ty body bi iht ihb =>
+  | forallE ty body iht ihb =>
     intro memo hm
     rw [Expr.depthGo]
     split
@@ -763,7 +763,7 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
-    case lam ty b m =>
+    case lam ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -780,7 +780,7 @@ theorem depthGo_spec (memo : Std.HashMap EIdx Nat) (fuel : Nat) (h : EIdx) (hP :
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin (hsA.trans hsB)
           (by simp only at hrA hrB; simp only [depthS, hrA, hrB]) hmB hz
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -1152,7 +1152,7 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
         obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
-    case lam ty b m =>
+    case lam ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -1171,7 +1171,7 @@ theorem replaceFVarsGo_spec_of (f : Arena.FvMap) (fP : Nat → Option Expr)
         obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -1749,7 +1749,7 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
           exact fin ((h3A.trans hsB).trans hsC)
             (by rw [hq]; simp only [Expr.replaceApps, hnone, Option.getD_none])
             (hmB.ext hsC.ext) hz
-    case lam ty bd m =>
+    case lam ty bd =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -1770,7 +1770,7 @@ theorem replaceAppsGo_spec (names : List NIdx) (namesP : List ConLeche.Name)
         obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
-    case forallE ty bd m =>
+    case forallE ty bd =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2

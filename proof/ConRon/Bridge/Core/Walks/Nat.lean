@@ -56,8 +56,8 @@ theorem rawNatLit?_of_view {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; rfl
   | const n us => exact absurd rfl (hnc n us)
   | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; rfl
-  | lam ty b m => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; rfl
-  | forallE ty b m =>
+  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; rfl
+  | forallE ty b =>
     obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; rfl
   | letE ty w b =>
     obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; rfl
@@ -411,7 +411,7 @@ theorem constE_spec (s₀ : AState) (n : NIdx) (nm : ConLeche.Name)
   vcgen [ConRon.Arena.constE, ConRon.Arena.emptyLevels]
   all_goals (bridge_peel; subst_vars)
   case vc1 =>
-    rename_i hwf' hx _ _ hc hp' _ _ _ hd hel
+    rename_i hwf' hx _ _ hc hp' _ _ hd hel
     refine ⟨hok.mono ⟨hwf'⟩ hx hc hp', hx, hp', ?_⟩
     rw [hd]
     simp only [denoteEView, denoteN_ext hn hx, denoteLs_ext hel hx, opt2]
@@ -495,7 +495,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         simp only [Bool.not_eq_eq_eq_not, Bool.not_true] at hne
         simp only [ConLeche.natSuccOk, hne, Bool.false_and]
       case vc2 =>
-        rename_i hne _ _ _ _ _ _ hck hx hp' hd hview
+        rename_i hne _ _ _ _ _ hck hx hp' hd hview
         refine ⟨hck, hx, hp', ?_⟩
         rw [isEmpty_of_denoteNList hlps] at hne
         obtain ⟨p, q, hpq, hp1, hq1⟩ :=
@@ -505,14 +505,14 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         have hle : cv.levelParams.isEmpty = true := by simpa using hne
         rw [hle, Bool.true_and]
         split
-        · rename_i c1 c2 mb heq
+        · rename_i c1 c2 heq
           simp only [Expr.forallE.injEq] at heq
-          obtain ⟨rfl, rfl, rfl⟩ := heq
+          obtain ⟨rfl, rfl⟩ := heq
           rw [Bool.eq_iff_iff]; simp
         · rename_i hne'
           by_cases hp : p = .const ConLeche.natName []
           · by_cases hq : q = .const ConLeche.natName []
-            · subst hp hq; exact absurd rfl (hne' _ _ _)
+            · subst hp hq; exact absurd rfl (hne' _ _)
             · simp [hq]
           · simp [hp]
       case vc3 =>
@@ -521,7 +521,7 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         have hnot := denote_not_forallE hck.state.wf hview (denote_ext hty hx) hnf
         simp only [ConLeche.natSuccOk]
         split
-        · rename_i heq; exact absurd heq (hnot _ _ _)
+        · rename_i heq; exact absurd heq (hnot _ _)
         · simp
       -- the type does not carry the `forallE` TAG (round 4's tag-first arm)
       case vc4 =>
@@ -530,11 +530,11 @@ theorem natSuccOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         have hty' := denote_ext hty hx
         obtain ⟨vt, hview⟩ := denoteE_view hty'
         have hnot := denote_not_forallE hck.state.wf hview hty'
-          (fun ty b m hh => view_tagOf_ne hview (t := ETag.forallE) htg
+          (fun ty b hh => view_tagOf_ne hview (t := ETag.forallE) htg
             (by rw [hh]; rfl))
         simp only [ConLeche.natSuccOk]
         split
-        · rename_i heq; exact absurd heq (hnot _ _ _)
+        · rename_i heq; exact absurd heq (hnot _ _)
         · simp
       case vc5 => exact hok
       case vc6 => rename_i hnt; exact hnt _ rfl
@@ -934,7 +934,7 @@ theorem reduceNat_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     exact ⟨w, hw⟩
   -- `Nat.succ` FIRES
   case vc2 =>
-    rename_i hus s0 s1 _ s2 n s3 hck1 hwf3 hx01 hx23 hp10 _ _ hc32 hp32 _ _ _ hlit hsucc
+    rename_i hus s0 s1 _ s2 n s3 hck1 hwf3 hx01 hx23 hp10 _ _ hc32 hp32 _ _ hlit hsucc
       hel hve hvc hg hck2 hx12 hp21 hwa hr
     obtain ⟨nm, ls, ax, rfl, hn, ha, hle⟩ := unary_shape hwf hve hvc hden hel
     obtain rfl : ls = [] := by rw [hle] at hus; simpa using hus

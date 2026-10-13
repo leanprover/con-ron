@@ -18,12 +18,14 @@ in the eventual form `Ev` (`Arms/DefeqBase.lean`):
 | `deltaQuick`, `lazyDeltaStep` | `deltaQuick_spec`, `lazyDeltaStep_spec` | `DSRel` |
 | `lazyDeltaReduction` | `lazyDeltaReduction_spec` (induction on the budget) | `LRRel` |
 
-The binder arms of `quickDefEq` are the port's batched descent
-(`defeqBinders`), whose identification is `Arms/DefeqPeel.lean`'s
-`defeqBinders_spec`.
+The ∀ arm of `quickDefEq` is the port's batched descent (`defeqBinders`),
+whose identification is `Arms/DefeqPeel.lean`'s `defeqBinders_spec`; the λ
+arm is con-leche's own λ-telescope congruence `defeqLams` (task #342), whose
+twin is proved here (`defeqLamsInner_spec`, `defeqLams_spec`).
 -/
 import ConRon.Bridge.Core.Arms.DefeqBase
 import ConRon.Bridge.Core.Arms.DefeqPeel
+import ConRon.Bridge.ExprOps.Walks
 
 namespace ConRon.Bridge.Core
 
@@ -116,30 +118,321 @@ theorem qdArm_lit {l₁ l₂ : ConLeche.Literal} (hok : CheckOK mode env fe s₀
   triple_pure_post ⟨hok, Ext.refl _, rfl, ⟨0, fun _ _ => by
     dsimp only; unfold ConLeche.quickDefEq; rw [ite_eq_right (by simp [hne])]; rfl⟩⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1478-1515 quickDefEq — **two binders
-of one kind**, batched (`defeqBinders_spec`). -/
-theorem qdArm_binder (hsim : KnotSpec mode env fe fuel) (isLam : Bool)
-    (ty₁ bd₁ ty₂ bd₂ : EIdx) (m₁ m₂ : ConLeche.BinderMeta) (t₁ c₁ t₂ c₂ : Expr)
+/-- con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq — **two ∀s**,
+batched (`defeqBinders_spec`). -/
+theorem qdArm_forallE (hsim : KnotSpec mode env fe fuel)
+    (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr)
     (hok : CheckOK mode env fe s₀)
     (h1 : denoteE s₀.store ty₁ = some t₁) (h2 : denoteE s₀.store bd₁ = some c₁)
     (h3 : denoteE s₀.store ty₂ = some t₂) (h4 : denoteE s₀.store bd₂ = some c₂)
-    (hwa : Expr.WScoped d (bndE isLam t₁ c₁ m₁))
-    (hwb : Expr.WScoped d (bndE isLam t₂ c₂ m₂))
-    (hne : (bndE isLam t₁ c₁ m₁ == bndE isLam t₂ c₂ m₂) = false) :
+    (hwa : Expr.WScoped d (.forallE t₁ c₁))
+    (hwb : Expr.WScoped d (.forallE t₂ c₂))
+    (hne : (Expr.forallE t₁ c₁ == .forallE t₂ c₂) = false) :
     ⦃fun s => s = s₀⦄
       (do
-        let ok ← defeqBinders mode (coreKnot mode fe id fuel) d ty₁ bd₁ m₁ ty₂
-          bd₂ m₂ isLam
+        let ok ← defeqBinders (coreKnot mode fe id fuel) d ty₁ bd₁ ty₂ bd₂
         pure (some ok))
     ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
-          (bndE isLam t₁ c₁ m₁) (bndE isLam t₂ c₂ m₂) = .ok o); ⊤⦄ := by
-  refine triple_seq (defeqBinders_spec hsim s₀ d ty₁ bd₁ ty₂ bd₂ m₁ m₂
-    isLam t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwa hwb hne) ?_
+          (.forallE t₁ c₁) (.forallE t₂ c₂) = .ok o); ⊤⦄ := by
+  refine triple_seq (defeqBinders_spec hsim s₀ d ty₁ bd₁ ty₂ bd₂
+    t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwa hwb hne) ?_
   rintro ok s1 ⟨hok1, hx1, hp1, hF⟩
   exact triple_pure_post ⟨hok1, hx1, hp1,
     Ev.of_mono (fun hle h => quickDefEqF_mono hle h) hF⟩
+
+/-! ### The λ arm: `defeqLams` (con-leche's task #342) -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1310-1317 defeqLamsInner — **the
+innermost level of the λ-telescope comparison**: the opened bodies through
+the knot, and at the verified mode their FULL-grade types. -/
+theorem defeqLamsInner_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
+    (b₁ b₂ : EIdx) (x₁ x₂ : Expr) (hok : CheckOK mode env fe s₀)
+    (hd1 : denoteE s₀.store b₁ = some x₁) (hd2 : denoteE s₀.store b₂ = some x₂)
+    (hw1 : Expr.WScoped (d + 1) x₁) (hw2 : Expr.WScoped (d + 1) x₂) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.defeqLamsInner mode (coreKnot mode fe id fuel) d b₁ b₂
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        ∃ F, ConLeche.defeqLamsInner mode (ConLeche.pureFns mode env F) d x₁ x₂
+          = .ok r; ⊤⦄ := by
+  unfold ConRon.Arena.defeqLamsInner
+  refine triple_seq (hsim.defeq s₀ (d + 1) b₁ b₂ x₁ x₂ hok hd1 hd2 hw1 hw2) ?_
+  rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
+  cases v
+  · simp only [Bool.not_false, ite_true]
+    have e1 : (ConLeche.pureFns mode env F1).defeq (d + 1) x₁ x₂ = .ok false :=
+      hF1
+    exact triple_pure_post ⟨hok1, hx1, hp1, F1, by
+      simp [ConLeche.defeqLamsInner, e1, bind, Except.bind, pure, Except.pure]⟩
+  simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+  cases hv : mode.verifiedChecks
+  · simp only [Bool.false_eq_true, ite_false]
+    have e1 : (ConLeche.pureFns mode env F1).defeq (d + 1) x₁ x₂ = .ok true :=
+      hF1
+    exact triple_pure_post ⟨hok1, hx1, hp1, F1, by
+      simp [ConLeche.defeqLamsInner, e1, hv, bind, Except.bind, pure,
+        Except.pure]⟩
+  simp only [ite_true]
+  refine triple_seq (hsim.infer s1 (d + 1) b₁ x₁ hok1 (denote_ext hd1 hx1)
+    hw1) ?_
+  rintro t₁ s2 ⟨hok2, hx2, hp2, T1, hT1, hwT1, F2, hF2⟩
+  refine triple_seq (hsim.infer s2 (d + 1) b₂ x₂ hok2
+    (denote_ext hd2 (hx1.trans hx2)) hw2) ?_
+  rintro t₂ s3 ⟨hok3, hx3, hp3, T2, hT2, hwT2, F3, hF3⟩
+  refine triple_mono (hsim.defeq s3 (d + 1) t₁ t₂ T1 T2 hok3
+    (denote_ext hT1 hx3) hT2 hwT1 hwT2) ?_
+  rintro r s4 ⟨hok4, hx4, hp4, F4, hF4⟩
+  refine ⟨hok4, hx1.trans (hx2.trans (hx3.trans hx4)),
+    by rw [hp4, hp3, hp2, hp1], F1 + F2 + F3 + F4, ?_⟩
+  have e1 : (ConLeche.pureFns mode env (F1 + F2 + F3 + F4)).defeq (d + 1) x₁ x₂
+      = .ok true := ConLeche.isDefEqCore_mono (by omega) hF1
+  have e2 : (ConLeche.pureFns mode env (F1 + F2 + F3 + F4)).infer (d + 1) x₁
+      = .ok T1 := ConLeche.inferTypeCore_mono (by omega) hF2
+  have e3 : (ConLeche.pureFns mode env (F1 + F2 + F3 + F4)).infer (d + 1) x₂
+      = .ok T2 := ConLeche.inferTypeCore_mono (by omega) hF3
+  have e4 : (ConLeche.pureFns mode env (F1 + F2 + F3 + F4)).defeq (d + 1) T1 T2
+      = .ok r := ConLeche.isDefEqCore_mono (by omega) hF4
+  cases r <;>
+    simp [ConLeche.defeqLamsInner, e1, e2, e3, e4, hv, bind, Except.bind, pure,
+      Except.pure]
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-780 lamPair? — a pair it
+answers is a pair of λs. -/
+theorem lamPair?_some {x y a b c e : Expr}
+    (h : Expr.lamPair? x y = some (a, b, c, e)) :
+    x = .lam a b ∧ y = .lam c e := by
+  cases x <;> cases y <;> simp [Expr.lamPair?] at h
+  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+  exact ⟨rfl, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the domains
+differ. -/
+theorem defeqLams_dom {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr}
+    (h1 : ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok false) :
+    ConLeche.defeqLams mode (ConLeche.pureFns mode env F) n d t₁ c₁ t₂ c₂
+      = .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).defeq d t₁ t₂ = .ok false := h1
+  rw [ConLeche.defeqLams.eq_def]
+  simp [e1, bind, Except.bind, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the domains
+agree and the descent stops here (budget out, or not both λs): the innermost
+level. -/
+theorem defeqLams_inner {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr} {r : Bool}
+    (h1 : ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok true)
+    (hstop : n = 0 ∨ Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
+      (c₂.instantiate1 (.fvar d t₂)) = none)
+    (h : ConLeche.defeqLamsInner mode (ConLeche.pureFns mode env F) d
+      (c₁.instantiate1 (.fvar d t₂)) (c₂.instantiate1 (.fvar d t₂)) = .ok r) :
+    ConLeche.defeqLams mode (ConLeche.pureFns mode env F) n d t₁ c₁ t₂ c₂
+      = .ok r := by
+  have e1 : (ConLeche.pureFns mode env F).defeq d t₁ t₂ = .ok true := h1
+  rw [ConLeche.defeqLams.eq_def]
+  simp only [e1, bind, Except.bind, pure, Except.pure]
+  rcases hstop with rfl | hn
+  · exact h
+  · rw [hn]; cases n <;> exact h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the opened
+bodies are two equal λs: `true`. -/
+theorem defeqLams_same {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr} {q}
+    (h1 : ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok true)
+    (hlp : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
+      (c₂.instantiate1 (.fvar d t₂)) = some q)
+    (heq : (c₁.instantiate1 (.fvar d t₂) == c₂.instantiate1 (.fvar d t₂))
+      = true) :
+    ConLeche.defeqLams mode (ConLeche.pureFns mode env F) (n + 1) d t₁ c₁ t₂ c₂
+      = .ok true := by
+  have e1 : (ConLeche.pureFns mode env F).defeq d t₁ t₂ = .ok true := h1
+  rw [ConLeche.defeqLams.eq_def]
+  simp only [e1, bind, Except.bind, pure, Except.pure, hlp]
+  obtain ⟨_, _, _, _⟩ := q
+  simp only [heq, ite_true]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the opened
+bodies are two distinct λs: the descent, one level deeper. -/
+theorem defeqLams_descend {F n d : Nat} {t₁ c₁ t₂ c₂ a b c e : Expr}
+    {r : Bool}
+    (h1 : ConLeche.isDefEqCore mode env F d t₁ t₂ = .ok true)
+    (hlp : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
+      (c₂.instantiate1 (.fvar d t₂)) = some (a, b, c, e))
+    (hne : (c₁.instantiate1 (.fvar d t₂) == c₂.instantiate1 (.fvar d t₂))
+      = false)
+    (h : ConLeche.defeqLams mode (ConLeche.pureFns mode env F) n (d + 1)
+      a b c e = .ok r) :
+    ConLeche.defeqLams mode (ConLeche.pureFns mode env F) (n + 1) d t₁ c₁ t₂ c₂
+      = .ok r := by
+  have e1 : (ConLeche.pureFns mode env F).defeq d t₁ t₂ = .ok true := h1
+  rw [ConLeche.defeqLams.eq_def]
+  simp only [e1, bind, Except.bind, pure, Except.pure, hlp, hne]
+  exact h
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — **one level's
+opening**: the fresh variable at the second domain and both bodies opened at
+it, then any continuation that is sound at the two opened bodies. -/
+theorem lams_open {Q : Bool → AState → Prop} (s₁ : AState) (d : Nat)
+    (ty₂ bd₁ bd₂ : EIdx) (t₂ c₁ c₂ : Expr) (hok : CheckOK mode env fe s₁)
+    (h3 : denoteE s₁.store ty₂ = some t₂) (h2 : denoteE s₁.store bd₁ = some c₁)
+    (h4 : denoteE s₁.store bd₂ = some c₂) {k : EIdx → EIdx → AM Bool}
+    (hk : ∀ (s4 : AState) (b₁ b₂ : EIdx), CheckOK mode env fe s4 →
+      Ext s₁.store s4.store → s4.pins = s₁.pins →
+      denoteE s4.store b₁ = some (c₁.instantiate1 (.fvar d t₂)) →
+      denoteE s4.store b₂ = some (c₂.instantiate1 (.fvar d t₂)) →
+      ⦃fun s => s = s4⦄ k b₁ b₂ ⦃fun r s' => Q r s'; ⊤⦄) :
+    ⦃fun s => s = s₁⦄
+      (do
+        let fv ← internFVarE d ty₂
+        let b₁ ← instantiate1Fast coreWalkFuel bd₁ fv 0
+        let b₂ ← instantiate1Fast coreWalkFuel bd₂ fv 0
+        k b₁ b₂)
+    ⦃fun r s' => Q r s'; ⊤⦄ := by
+  refine triple_seq (internFVarE_spec s₁ d ty₂ hok.state.wf
+    (by rw [h3]; rfl)) ?_
+  rintro fv s2 ⟨hwf2, hx2, -, -, -, hc2, hp2, -, hfv⟩
+  have hok2 := hok.mono ⟨hwf2⟩ hx2 hc2 hp2
+  have hfv' : denoteE s2.store fv = some (.fvar d t₂) := by
+    rw [hfv]; simp [denoteEView, denote_ext h3 hx2]
+  refine triple_seq (instantiate1Fast_ok_spec s2 bd₁ fv c₁ (.fvar d t₂) hok2
+    (denote_ext h2 hx2) hfv') ?_
+  rintro b₁ s3 ⟨hok3, hx3, hp3, hb1⟩
+  refine triple_seq (instantiate1Fast_ok_spec s3 bd₂ fv c₂ (.fvar d t₂) hok3
+    (denote_ext h4 (hx2.trans hx3)) (denote_ext hfv' hx3)) ?_
+  rintro b₂ s4 ⟨hok4, hx4, hp4, hb2⟩
+  exact hk s4 b₁ b₂ hok4 (hx2.trans (hx3.trans hx4)) (by rw [hp4, hp3, hp2])
+    (denote_ext hb1 hx4) hb2
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — **THEOREM 1
+for the λ-telescope congruence**, by induction on the descent budget: the
+twin's `defeqLams` (domains through the knot, the fresh variable, both bodies
+opened, then `lamPair?`) against con-leche's at the same budget.  The twin
+tests the budget before `lamPair?`, con-leche matches the pair `(fuel,
+lamPair? …)`: the same exits, since `lamPair?` is pure. -/
+theorem defeqLams_spec (hsim : KnotSpec mode env fe fuel) :
+    ∀ (n d : Nat) (s₀ : AState) (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr),
+      CheckOK mode env fe s₀ →
+      denoteE s₀.store ty₁ = some t₁ → denoteE s₀.store bd₁ = some c₁ →
+      denoteE s₀.store ty₂ = some t₂ → denoteE s₀.store bd₂ = some c₂ →
+      Expr.WScoped d t₁ → Expr.WScoped d c₁ →
+      Expr.WScoped d t₂ → Expr.WScoped d c₂ →
+      ⦃fun s => s = s₀⦄
+        ConRon.Arena.defeqLams mode (coreKnot mode fe id fuel) n d ty₁ bd₁
+          ty₂ bd₂
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧
+          ∃ F, ConLeche.defeqLams mode (ConLeche.pureFns mode env F) n d
+            t₁ c₁ t₂ c₂ = .ok r; ⊤⦄ := by
+  intro n
+  induction n with
+  | zero =>
+    intro d s₀ ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hw1 hwc1 hw2 hwc2
+    unfold ConRon.Arena.defeqLams
+    refine triple_seq (hsim.defeq s₀ d ty₁ ty₂ t₁ t₂ hok h1 h3 hw1 hw2) ?_
+    rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
+    cases v
+    · simp only [Bool.not_false, ite_true]
+      exact triple_pure_post ⟨hok1, hx1, hp1, F1, defeqLams_dom hF1⟩
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+    refine lams_open s1 d ty₂ bd₁ bd₂ t₂ c₁ c₂ hok1 (denote_ext h3 hx1)
+      (denote_ext h2 hx1) (denote_ext h4 hx1) ?_
+    intro s4 b₁ b₂ hok4 hx4 hp4 hb1 hb2
+    refine triple_mono (defeqLamsInner_spec hsim d b₁ b₂ _ _ hok4 hb1 hb2
+      (Expr.WScoped.instantiate1 hw2 0 hwc1)
+      (Expr.WScoped.instantiate1 hw2 0 hwc2)) ?_
+    rintro r s' ⟨hok', hx', hp', F2, hF2⟩
+    exact ⟨hok', hx1.trans (hx4.trans hx'), by rw [hp', hp4, hp1],
+      max F1 F2, defeqLams_inner (ConLeche.isDefEqCore_mono (by omega) hF1)
+        (.inl rfl) (defeqLamsInnerFueled_mono (by omega) hF2)⟩
+  | succ n ih =>
+    intro d s₀ ty₁ bd₁ ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hw1 hwc1 hw2 hwc2
+    unfold ConRon.Arena.defeqLams
+    refine triple_seq (hsim.defeq s₀ d ty₁ ty₂ t₁ t₂ hok h1 h3 hw1 hw2) ?_
+    rintro v s1 ⟨hok1, hx1, hp1, F1, hF1⟩
+    cases v
+    · simp only [Bool.not_false, ite_true]
+      exact triple_pure_post ⟨hok1, hx1, hp1, F1, defeqLams_dom hF1⟩
+    simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+    refine lams_open s1 d ty₂ bd₁ bd₂ t₂ c₁ c₂ hok1 (denote_ext h3 hx1)
+      (denote_ext h2 hx1) (denote_ext h4 hx1) ?_
+    intro s4 b₁ b₂ hok4 hx4 hp4 hb1 hb2
+    have hwo1 := Expr.WScoped.instantiate1 hw2 0 hwc1
+    have hwo2 := Expr.WScoped.instantiate1 hw2 0 hwc2
+    refine triple_seq (ExprOps.lamPair?_spec s4 b₁ b₂ hok4.state
+      (by rw [hb1]; rfl) (by rw [hb2]; rfl)) ?_
+    rintro lp s5 ⟨rfl, hrel⟩
+    have hlp := hrel _ _ hb1 hb2
+    cases lp with
+    | none =>
+      dsimp only
+      refine triple_mono (defeqLamsInner_spec hsim d b₁ b₂ _ _ hok4 hb1 hb2
+        hwo1 hwo2) ?_
+      rintro r s' ⟨hok', hx', hp', F2, hF2⟩
+      exact ⟨hok', hx1.trans (hx4.trans hx'), by rw [hp', hp4, hp1],
+        max F1 F2, defeqLams_inner (ConLeche.isDefEqCore_mono (by omega) hF1)
+          (.inr hlp) (defeqLamsInnerFueled_mono (by omega) hF2)⟩
+    | some q =>
+      obtain ⟨ty₁', bd₁', ty₂', bd₂'⟩ := q
+      obtain ⟨et₁, eb₁, et₂, eb₂, hlp', hd1, hd2, hd3, hd4⟩ := hlp
+      dsimp only
+      rw [beq_of_denoteE hok4.state.wf hb1 hb2]
+      split
+      · rename_i heq
+        exact triple_pure_post ⟨hok4, hx1.trans hx4, by rw [hp4, hp1], F1,
+          defeqLams_same hF1 hlp' heq⟩
+      · rename_i hne
+        have hne' : (c₁.instantiate1 (.fvar d t₂) ==
+            c₂.instantiate1 (.fvar d t₂)) = false := by simpa using hne
+        obtain ⟨he1, he2⟩ := lamPair?_some hlp'
+        rw [he1] at hwo1
+        rw [he2] at hwo2
+        obtain ⟨hwa1, hwa2⟩ : Expr.WScoped (d + 1) et₁ ∧
+            Expr.WScoped (d + 1) eb₁ := by simpa only [Expr.WScoped] using hwo1
+        obtain ⟨hwb1, hwb2⟩ : Expr.WScoped (d + 1) et₂ ∧
+            Expr.WScoped (d + 1) eb₂ := by simpa only [Expr.WScoped] using hwo2
+        refine triple_mono (ih (d + 1) s5 ty₁' bd₁' ty₂' bd₂' et₁ eb₁ et₂ eb₂
+          hok4 hd1 hd2 hd3 hd4 hwa1 hwa2 hwb1 hwb2) ?_
+        rintro r s' ⟨hok', hx', hp', F2, hF2⟩
+        exact ⟨hok', hx1.trans (hx4.trans hx'), by rw [hp', hp4, hp1],
+          max F1 F2, defeqLams_descend
+            (ConLeche.isDefEqCore_mono (by omega) hF1) hlp' hne'
+            (defeqLamsFueled_mono (by omega) hF2)⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1340-1366 quickDefEq — **two λs**:
+`defeqLams` at its budget. -/
+theorem qdArm_lam (hsim : KnotSpec mode env fe fuel)
+    (ty₁ bd₁ ty₂ bd₂ : EIdx) (t₁ c₁ t₂ c₂ : Expr)
+    (hok : CheckOK mode env fe s₀)
+    (h1 : denoteE s₀.store ty₁ = some t₁) (h2 : denoteE s₀.store bd₁ = some c₁)
+    (h3 : denoteE s₀.store ty₂ = some t₂) (h4 : denoteE s₀.store bd₂ = some c₂)
+    (hwa : Expr.WScoped d (.lam t₁ c₁))
+    (hwb : Expr.WScoped d (.lam t₂ c₂))
+    (hne : (Expr.lam t₁ c₁ == .lam t₂ c₂) = false) :
+    ⦃fun s => s = s₀⦄
+      (do
+        let ok ← ConRon.Arena.defeqLams mode (coreKnot mode fe id fuel)
+          ConRon.Arena.lamsFuel d ty₁ bd₁ ty₂ bd₂
+        pure (some ok))
+    ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        Ev (fun F => ConLeche.quickDefEq mode (ConLeche.pureFns mode env F) d
+          (.lam t₁ c₁) (.lam t₂ c₂) = .ok o); ⊤⦄ := by
+  obtain ⟨hwt1, hwc1⟩ : Expr.WScoped d t₁ ∧ Expr.WScoped d c₁ := by
+    simpa only [Expr.WScoped] using hwa
+  obtain ⟨hwt2, hwc2⟩ : Expr.WScoped d t₂ ∧ Expr.WScoped d c₂ := by
+    simpa only [Expr.WScoped] using hwb
+  refine triple_seq (defeqLams_spec hsim ConRon.Arena.lamsFuel d s₀ ty₁ bd₁
+    ty₂ bd₂ t₁ c₁ t₂ c₂ hok h1 h2 h3 h4 hwt1 hwc1 hwt2 hwc2) ?_
+  rintro ok s1 ⟨hok1, hx1, hp1, hF⟩
+  have hlf : ConRon.Arena.lamsFuel = ConLeche.lamsFuel := by
+    unfold ConRon.Arena.lamsFuel ConLeche.lamsFuel; rfl
+  rw [hlf] at hF
+  refine triple_pure_post ⟨hok1, hx1, hp1,
+    Ev.of_mono (p := fun F => ConLeche.defeqLams mode
+      (ConLeche.pureFns mode env F) ConLeche.lamsFuel d t₁ c₁ t₂ c₂ = .ok ok)
+      (fun hle h => defeqLamsFueled_mono hle h) hF |>.imp fun F h => ?_⟩
+  unfold ConLeche.quickDefEq
+  simp [hne, h, bind, Except.bind, pure, Except.pure]
 
 end QuickArms
 
@@ -180,9 +473,9 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
     refine view_bind_triple hvb ?_
     have hA := VD.of_view hwf hva hx
     have hB := VD.of_view hwf hvb hy
-    rcases hA with ⟨i1⟩ | ⟨k1, t1, et1, ht1⟩ | ⟨u1, l1, hl1⟩ | ⟨n1, us1, nm1, ls1, hn1, hls1⟩ | ⟨f1, a1, ef1, ea1, hf1, ha1⟩ | ⟨ty1, bd1, m1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, bd1, m1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, w1, bd1, et1, ew1, eb1, hty1, hw1, hbd1⟩ | ⟨lit1⟩ | ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
+    rcases hA with ⟨i1⟩ | ⟨k1, t1, et1, ht1⟩ | ⟨u1, l1, hl1⟩ | ⟨n1, us1, nm1, ls1, hn1, hls1⟩ | ⟨f1, a1, ef1, ea1, hf1, ha1⟩ | ⟨ty1, bd1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, bd1, et1, eb1, hty1, hbd1⟩ | ⟨ty1, w1, bd1, et1, ew1, eb1, hty1, hw1, hbd1⟩ | ⟨lit1⟩ | ⟨pn1, pi1, ps1, pnm1, pes1, hpn1, hps1⟩
     · -- left: bvar
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
@@ -194,7 +487,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: fvar
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
@@ -206,7 +499,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: sort
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qdArm_sort u1 u2 l1 l2 hok hl1 hl2 hne
@@ -218,7 +511,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: const
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
@@ -230,7 +523,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: app
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
@@ -242,31 +535,31 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: lam
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
-      · exact qdArm_binder hsim true ty1 bd1 ty2 bd2 m1 m2 et1 eb1 et2 eb2 hok hty1 hbd1 hty2 hbd2 hwx hwy hne
+      · exact qdArm_lam hsim ty1 bd1 ty2 bd2 et1 eb1 et2 eb2 hok hty1 hbd1 hty2 hbd2 hwx hwy hne
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: forallE
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
-      · exact qdArm_binder hsim false ty1 bd1 ty2 bd2 m1 m2 et1 eb1 et2 eb2 hok hty1 hbd1 hty2 hbd2 hwx hwy hne
+      · exact qdArm_forallE hsim ty1 bd1 ty2 bd2 et1 eb1 et2 eb2 hok hty1 hbd1 hty2 hbd2 hwx hwy hne
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: letE
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
@@ -278,7 +571,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: lit
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
@@ -290,7 +583,7 @@ theorem quickDefEq_spec {fe : IFEnv} {fuel : Nat}
       · exact qdArm_lit hok hne
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
     · -- left: proj
-      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, m2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
+      rcases hB with ⟨i2⟩ | ⟨k2, t2, et2, ht2⟩ | ⟨u2, l2, hl2⟩ | ⟨n2, us2, nm2, ls2, hn2, hls2⟩ | ⟨f2, a2, ef2, ea2, hf2, ha2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, bd2, et2, eb2, hty2, hbd2⟩ | ⟨ty2, w2, bd2, et2, ew2, eb2, hty2, hw2, hbd2⟩ | ⟨lit2⟩ | ⟨pn2, pi2, ps2, pnm2, pes2, hpn2, hps2⟩
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)
       · exact qd_none_exit hok hne (by simp only [exprTag]; decide)

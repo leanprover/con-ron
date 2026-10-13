@@ -94,14 +94,13 @@ open scoped Lean.Order
 
 /-! ### Attribute hygiene
 
-`ExprOps/Abs.lean`'s `internRebuiltBindI_specV` — `Bridge/Specs.lean`'s
-`internRebuiltBindI_spec'` with the view-monotonicity conjunct
-`Bridge/StoreBM.lean`'s "what is left to do" list asks for — is tagged
-`@[local spec high]` there, and a LOCAL attribute does not travel through an
+`ExprOps/MemoSpecs.lean`'s `internRebuiltBind_specV` — the binder intern with
+the view-monotonicity conjunct — is tagged `@[local spec high]` in
+`ExprOps/Abs.lean`, and a LOCAL attribute does not travel through an
 import.  The executed `abstractRange` walk below needs it for exactly the
 reason the executed `abstract1` walk does, so this file repeats the line (as
 every file of this tier repeats `attribute [-grind] RelE.ext …`). -/
-attribute [local spec high] internRebuiltBindI_specV
+attribute [local spec high] internRebuiltBind_specV
 
 
 /-! ## `abstract1`'s entry -/
@@ -117,12 +116,11 @@ theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (hok : StateOK s₀) (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ abstract1Fast fuel e d k
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.abs1C = ∅ ∧
         RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r; ⊤⦄ := by
   have hr := (abstract1Go_spec hfv d fuel).run
   vcgen [abstract1Fast, hr]
-  all_goals bridge_vcs [Expr.abstract1, BMExt]
+  all_goals bridge_vcs [Expr.abstract1]
 
 /-! ### `AbsRangeAt`'s step lemmas at the EXECUTED walk's own hypotheses
 
@@ -146,26 +144,21 @@ theorem AbsRangeAt.app_step' {d k c : Nat} {st st0 s1 s2 s3 : EStore}
     ha hx3 hr
 
 /-- con-leche: none — `AbsRangeAt.bind_step` at the arm's own hypotheses: the
-binder arm reads the datum's HANDLE, and the BODY descends at `c + 1`. -/
+binder arm reads `viewBind`, `view_of_viewBind` gives the view back, and the
+BODY descends at `c + 1`. -/
 theorem AbsRangeAt.bind_step' {d k c : Nat} {st st0 s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {mi : BMIdx} (hst : st0 = st) (hwf : StoreWF st)
-    (htg : ETag.isBind h.tag = true)
-    (hvb : some (ty, b, mi) = st0.viewBindI h)
+    {h ty b rt rb r : EIdx} {tg : UInt32} (hst : st0 = st) (hwf : StoreWF st)
+    (htg : ETag.isBind tg = true) (htg2 : tg = h.tag)
+    (hvb : some (ty, b) = st0.viewBind h)
     (hx1 : Ext st0 s1) (ht : AbsRangeAt d k c st0 ty s1 rt)
-    (_hvm1 : ∀ j w, st0.view j = some w → s1.view j = some w)
-    (hbm1 : ∀ mj mv, st0.viewBM mj = some mv → s1.viewBM mj = some mv)
     (hx2 : Ext s1 s2) (hb : AbsRangeAt d k (c + 1) s1 b s2 rb)
-    (_hvm2 : ∀ j w, s1.view j = some w → s2.view j = some w)
-    (hbm2 : ∀ mj mv, s1.viewBM mj = some mv → s2.viewBM mj = some mv)
     (hx3 : Ext s2 s3)
-    (hr : ∀ mv, s2.viewBM mi = some mv →
-      s3.view r = some (eBindView h.tag rt rb mv) ∧
-      denoteE s3 r = denoteEView s3 (eBindView h.tag rt rb mv)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     AbsRangeAt d k c st h s3 r := by
   subst hst
-  obtain ⟨mv, hbm0, _, hvw0⟩ := view_of_viewBindI_wf hwf htg hvb.symm
-  obtain ⟨_, hden3⟩ := hr mv (hbm2 mi mv (hbm1 mi mv hbm0))
-  exact AbsRangeAt.bind_step hwf htg hvw0 hx1 ht hx2 hb hx3 hden3
+  refine AbsRangeAt.bind_step hwf htg ?_ hx1 ht hx2 hb hx3 hr
+  rw [htg2]
+  exact view_of_viewBind hvb.symm
 
 /-- con-leche: none — `AbsRangeAt.letE_step` at the arm's own hypotheses. -/
 theorem AbsRangeAt.letE_step' {d k c : Nat} {st st0 s1 s2 s3 s4 : EStore}
@@ -255,7 +248,6 @@ structure AbsRangeGoSpec (d k : Nat) (rec : EIdx → Nat → AM EIdx) : Prop whe
     ⦃fun r s' => StateOK s' ∧ AbsRangeMemoA d k s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
-        (∀ mi m, s₁.store.viewBM mi = some m → s'.store.viewBM mi = some m) ∧
         AbsRangeAt d k c s₁.store h s'.store r; ⊤⦄
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange —
@@ -279,13 +271,13 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
     vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
       absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, hrec, hfvb]
     all_goals try bridge_vcs [Expr.abstractRange]
-    all_goals try bridge_vcs [Expr.abstractRange, view_of_viewBindI,
-      view_of_viewBindI_wf, isSome_eBindView, view_isSome]
+    all_goals try bridge_vcs [Expr.abstractRange, view_of_viewBind,
+      isSome_eBindView, view_isSome]
     all_goals (bridge_peel; subst_vars)
-    -- Twelve structural verification conditions remain: the derived-word
+    -- The structural verification conditions that remain: the derived-word
     -- cutoff, `app`'s postcondition, the binder arm's postcondition and its
-    -- four side conditions, the `fvar` arm's two branches, `letE`'s and
-    -- `proj`'s postconditions and the catch-all.  They are the conditions
+    -- side conditions, the `fvar` arm's two branches, `letE`'s and `proj`'s
+    -- postconditions and the catch-all.  They are the conditions
     -- of `ExprOps/Abs.lean`'s five `abstract1Go` arm theorems and its
     -- dispatcher together — the two executed walks differ only at the `fvar`
     -- arm and at the binder body's cursor.
@@ -293,7 +285,7 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
     case vc1 =>
       refine ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
-        by grind, by grind, by grind, ?_⟩
+        by grind, by grind, ?_⟩
       exact (AbsRangeAt.cutoff (by abs_hyp) (by abs_hyp)).ext
         (by grind only [Ext.refl])
     -- `app`
@@ -304,77 +296,70 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind, by grind, by grind, by grind,
+        by grind only [Ext.trans], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
     -- the binder arm's postcondition
     case vc16 =>
-      have hans := AbsRangeAt.bind_step' (by abs_hyp) hok.wf (by abs_hyp)
+      have hans := AbsRangeAt.bind_step' (by abs_hyp) hok.wf (by abs_hyp) rfl
         (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp)
+        (by abs_hyp) (by abs_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
       exact ⟨by grind only [StateOK, StateOK.mk],
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind, by grind, by grind, by grind,
+        by grind only [Ext.trans], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
-    -- the binder arm's four side conditions
-    case vc21 =>
-      exact bmOK_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) (by abs_hyp)
-    case vc22 =>
-      obtain ⟨hty, _⟩ :=
-        bindI_children_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) hden
-      exact view_isSome_of_rel hty (by abs_hyp) (by abs_hyp)
-    case vc23 =>
-      obtain ⟨_, hb⟩ :=
-        bindI_children_hop (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp) hden
-      exact view_isSome_of_rel (denote_isSome_ext hb (by abs_hyp)) (by abs_hyp)
-        (by grind only [Ext.refl])
-    case vc24 =>
-      -- `internRebuiltBindI_specV`'s `hsame`, its binders already introduced
-      refine bindI_hsame ?_ rfl (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) _ ‹_› ‹_›
-      grind [StateOK]
-    -- the `fvar` arm: in the range, then outside it
-    case vc31 =>
-      rename_i hr _ _ _ _ _
-      refine ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, Ext.refl], by grind only [Ext.trans],
-        by grind, by grind, by grind, by grind, ?_⟩
-      exact AbsRangeAt.fvar_hit' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by rw [hr, denoteEView])
-    case vc33 =>
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
-        by grind, by grind, by grind,
-        AbsRangeAt.fvar_miss' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
-          (by abs_hyp) (by grind only [Ext.refl])⟩
-    -- `letE`
-    case vc35 =>
-      have hans := AbsRangeAt.letE_step' (by abs_hyp) hok.wf
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind, by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- `proj`
-    case vc52 =>
-      have hans := AbsRangeAt.proj_step' (by abs_hyp) hok.wf hden
-        (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
-        (by abs_hyp)
-      have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
-        by grind only [Ext.trans], by grind, by grind, by grind, by grind,
-        hans.ext (by grind only [Ext.refl])⟩
-    -- the catch-all: the four leaves
-    case vc61 =>
-      exact ⟨by grind only [StateOK, StateOK.mk],
-        by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
-        by grind, by grind, by grind,
-        AbsRangeAt.leaf'' hok.wf hden (by abs_hyp) (by abs_hyp) (by abs_hyp)
-          (by abs_hyp) (by abs_hyp) (by grind only [Ext.refl])⟩
+    -- the remaining structural conditions: the binder arm's side conditions
+    -- (the two rebuilt children have views at the store the intern happens
+    -- in, `internRebuiltBind`'s `hsame`, the two recursive calls' subjects
+    -- denote), the `fvar` arm in the range and outside it, `letE`, `proj`,
+    -- and the catch-all
+    all_goals first
+      | (obtain ⟨hty, _⟩ :=
+           bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
+         exact view_isSome_of_rel hty (by abs_hyp) (by abs_hyp))
+      | (obtain ⟨_, hb⟩ :=
+           bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
+         exact view_isSome_of_rel (denote_isSome_ext hb (by abs_hyp)) (by abs_hyp)
+           (by grind only [Ext.refl]))
+      | exact bind_hsame rfl (by abs_hyp) (by abs_hyp) (by abs_hyp)
+      | (have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.bvar _)›
+         refine ⟨by grind only [StateOK, StateOK.mk],
+           by grind [MemoOK.mono, Ext.refl], by grind only [Ext.trans],
+           by grind, by grind, by grind, ?_⟩
+         exact AbsRangeAt.fvar_hit' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
+           (by abs_hyp) (by rw [hr, denoteEView]))
+      | exact ⟨by grind only [StateOK, StateOK.mk],
+          by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
+          by grind, by grind,
+          AbsRangeAt.fvar_miss' (by abs_hyp) hok.wf (by abs_hyp) (by abs_hyp)
+            (by abs_hyp) (by grind only [Ext.refl])⟩
+      | (have hans := AbsRangeAt.letE_step' (by abs_hyp) hok.wf
+           (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
+           (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
+         have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
+         exact ⟨by grind only [StateOK, StateOK.mk],
+           by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
+           by grind only [Ext.trans], by grind, by grind, by grind,
+           hans.ext (by grind only [Ext.refl])⟩)
+      | (have hans := AbsRangeAt.proj_step' (by abs_hyp) hok.wf hden
+           (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp) (by abs_hyp)
+           (by abs_hyp)
+         have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
+         exact ⟨by grind only [StateOK, StateOK.mk],
+           by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
+           by grind only [Ext.trans], by grind, by grind, by grind,
+           hans.ext (by grind only [Ext.refl])⟩)
+      | exact ⟨by grind only [StateOK, StateOK.mk],
+          by grind [MemoOK.mono, Ext.refl], by grind only [Ext.refl], by grind,
+          by grind, by grind,
+          AbsRangeAt.leaf'' hok.wf hden (by abs_hyp) (by abs_hyp) (by abs_hyp)
+            (by abs_hyp) (by abs_hyp) (by grind only [Ext.refl])⟩
+      -- the two recursive calls' subjects denote
+      | (obtain ⟨hty, hb⟩ := bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
+         first
+         | exact hty
+         | exact denote_isSome_ext hb (by abs_hyp)
+         | exact hb)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange — the
 EXECUTED descent at one state, against the SPEC descent `Abs.lean` proves.
@@ -385,12 +370,11 @@ theorem abstractRangeGo_spec (hfv : FvarBSpec) (d k : Nat) (fuel : Nat)
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => s = s₀⦄ abstractRangeGo d k fuel c cur
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r; ⊤⦄ := by
   have hr := (abstractRangeGo_specS hfv d k fuel).run
   vcgen [hr]
-  all_goals bridge_vcs [Expr.abstractRange, BMExt]
+  all_goals bridge_vcs [Expr.abstractRange]
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC — the
 bracket over `abstractRangeGo_spec`.
@@ -408,20 +392,19 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ abstractRangeFast fuel e d k c
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (s'.memos.abs1C = ∅ ∨ s' = s₀) ∧
         RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r; ⊤⦄ := by
   have hr := fun (s₁ : AState) (cc : EIdx) (cur : Nat) =>
     abstractRangeGo_spec hfv d k fuel s₁ cc cur
   vcgen [abstractRangeFast, hr]
-  all_goals try bridge_vcs [Expr.abstractRange, BMExt]
+  all_goals try bridge_vcs [Expr.abstractRange]
   -- The `k = 0` clause, which returns the subject: `abstractRange_zero_eq` is
   -- its licence and nothing in the state moves.
   all_goals
     (bridge_peel
      subst_vars
-     refine ⟨hok, Ext.refl _, BMExt.refl _, rfl, rfl, Or.inr rfl, ?_⟩
+     refine ⟨hok, Ext.refl _, rfl, rfl, Or.inr rfl, ?_⟩
      intro x hx
      rw [hx]
      simp only [abstractRange_zero_eq])
@@ -443,8 +426,7 @@ across `substLMemoAt` / `substLsMemoAt`, which move only the LEVEL store. -/
 theorem view_eq_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
     (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) (i : EIdx) :
     st'.view i = st.view i := by
-  simp only [EStore.view, EStore.viewBind, EStore.viewBindI, EStore.viewBM,
-    EStore.persGetBind, EStore.persGetBM, hp, hs, ho]
+  simp only [EStore.view, hp, hs, ho]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2465
 Expr.instantiateLevelParams_eq_self — **the `hasLP` cutoff's licence**, at the
@@ -532,16 +514,14 @@ theorem InstLPAt.app_step {ks : List ConLeche.Name} {us : List Level}
     ((ha.of_ext hx1).ext hx3) hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:240-242 Expr.instantiateLevelParams —
-the `lam` arm, whose binder prop-ness DATUM is substituted too (con-leche's
-task #161, and the arena's `m2`). -/
+the `lam` arm. -/
 theorem InstLPAt.lam_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.lam ty b m))
+    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
+    (hwf : StoreWF st) (hview : st.view h = some (.lam ty b))
     (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLPAt ks us s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r =
-      denoteEView s3 (.lam rt rb ⟨Level.substPW ks us m.pw⟩)) :
+    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
     InstLPAt ks us st h s3 r :=
   RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
@@ -549,13 +529,12 @@ theorem InstLPAt.lam_step {ks : List ConLeche.Name} {us : List Level}
 /-- con-leche: ConLeche/Kernel/Level.lean:243-245 Expr.instantiateLevelParams —
 and the `forallE` arm. -/
 theorem InstLPAt.forallE_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx} {m : BinderMeta}
-    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty b m))
+    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
+    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty b))
     (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : InstLPAt ks us s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r =
-      denoteEView s3 (.forallE rt rb ⟨Level.substPW ks us m.pw⟩)) :
+    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
     InstLPAt ks us st h s3 r :=
   RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
     ((hb.of_ext hx1).ext hx3) hr
@@ -604,7 +583,6 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
     ⦃fun s => s = s₁⦄ rec h
     ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -626,7 +604,7 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     constructor
     intro s₀ h _ _ _ _ _ _ _
     vcgen [instLPGo_zero]
-    all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
+    all_goals bridge_vcs [Expr.instantiateLevelParams]
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hml hmls hcl hcls hden
@@ -645,29 +623,24 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     -- two LEVEL arms added.
     -- the `hasLP` cutoff
     next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.cutoff hok.wf (by grind)⟩
     -- `bvar`, `lit`
     next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     next =>
-      exact ⟨hok, hm, hml, hmls, Ext.refl _, BMExt.refl _, hcl, hcls, rfl, rfl,
+      exact ⟨hok, hm, hml, hmls, Ext.refl _, hcl, hcls, rfl, rfl,
         fun _ _ hi => hi,
         InstLPAt.leaf hok.wf (by lp_hyp) (by grind)⟩
     -- `sort`: the LEVEL arm, `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
     next =>
-      rename_i hr _ _ _ _ _ _
+      have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.sort _)›
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              (by assumption),
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind,
         by grind [view_eq_of_tables], ?_⟩
@@ -675,16 +648,11 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         (RelL.ext (by lp_hyp) (by assumption)) hr
     -- `const`: the universe-argument LIST arm
     next =>
-      rename_i hr _ _ _ _ _ _
+      have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.const _ _)›
       obtain ⟨nm, ls, _, hn0, hl0⟩ := denote_eq_const hok.wf (by lp_hyp) hden
       refine ⟨by grind only [StateOK, StateOK.mk], by grind [MemoOK.mono],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              (by assumption),
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind,
         by grind [view_eq_of_tables], ?_⟩
@@ -704,11 +672,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
@@ -720,15 +683,10 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
-    -- `lam` and `forallE`: the binder DATUM is substituted too
+    -- `lam` and `forallE`
     next =>
       have hans := InstLPAt.lam_step hok.wf (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp) (by lp_hyp)
       have hret := RelE.retarget_self hans (by grind only [Ext.trans]) hden
@@ -736,11 +694,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
@@ -751,11 +704,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
@@ -767,11 +715,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
@@ -785,11 +728,6 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
         by grind [MemoOK.mono, MemoOK.insert, Ext.refl],
         by grind [MemoLOK.mono], by grind [MemoLsOK.mono],
         by grind only [Ext.trans],
-        by first
-          | grind only [BMExt, BMExt.trans, BMExt.refl]
-          | exact BMExt.trans
-              (bmExt_of_tables (by assumption) (by assumption) (by assumption))
-              _hbm,
         by grind [ReadLCacheOK.mono],
         by grind [ReadLsCacheOK.mono], by grind, by grind, by grind,
         hans.ext (by grind only [Ext.refl])⟩
@@ -804,7 +742,6 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
     (hden : (denoteE s₀.store c).isSome = true) :
     ⦃fun s => s = s₀⦄ instLPGo ks us fuel c
     ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
@@ -816,7 +753,7 @@ theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
   have hr := (instLPGo_specS ks us fuel).run
   dsimp only
   vcgen [hr]
-  all_goals bridge_vcs [Expr.instantiateLevelParams, BMExt]
+  all_goals bridge_vcs [Expr.instantiateLevelParams]
 
 /-! ### The NAME readback with the sibling readback tables framed
 
@@ -901,7 +838,6 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instLPFast fuel ks us e
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         ReadNCacheOK s'.caches.readNC s'.store ∧
@@ -917,13 +853,13 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
       (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
   dsimp only
   vcgen [instLPFast, hr]
-  all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono, BMExt]
+  all_goals try bridge_vcs [Expr.instantiateLevelParams, ReadNCacheOK.mono]
   -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
   -- without reading `ks`/`us` back and without clearing the memo.
   next =>
     bridge_peel
     subst_vars
-    exact ⟨hok, Ext.refl _, BMExt.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
+    exact ⟨hok, Ext.refl _, hcl, hcls, hcn, rfl, rfl, Or.inr rfl,
       InstLPAt.cutoff hok.wf (by grind)⟩
 
 /-! ## The axiom check -/

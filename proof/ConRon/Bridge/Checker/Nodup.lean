@@ -130,18 +130,18 @@ theorem consBlockInds_nodup (p₁ : BlockShape) (isRec : Bool) :
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean consBlockRecsTF_push — the
 recursors' conses at their majors push pairwise distinct names fresh at the
 base. -/
-theorem consBlockRecsT_nodup (find? : Name → Option ConstantInfo) (resolves : Expr → Bool)
+theorem consBlockRecsT_nodup (find? : Name → Option ConstantInfo)
     (q : BlockShape) :
     ∀ (out : List (ConstantVal × TargetMajor × List Expr)) (m : Nat) {e : Env},
       NodupNames e → FreshAt e (out.map (·.1.name)) →
-      NodupNames (consBlockRecsT find? resolves q m out e)
+      NodupNames (consBlockRecsT find? q m out e)
   | [], _, _, hnd, _ => hnd
   | (cv, M, rhss) :: rest, m, e, hnd, hfr => by
     have hfr' : FreshAt e
         ((ConstantInfo.recInfo cv (q.majorIdxAt m) (q.rulePrefixAt m)
-          (tgtStoredRules find? resolves cv (q.majorIdxAt m) (q.rulePrefixAt m) M rhss)).name
+          (tgtStoredRules find? cv (q.rulePrefixAt m) M rhss)).name
           :: rest.map (·.1.name)) := hfr
-    exact consBlockRecsT_nodup find? resolves q rest (m + 1)
+    exact consBlockRecsT_nodup find? q rest (m + 1)
       (nodupNames_push hnd (hfr.2 _ (List.mem_cons_self ..))) hfr'.step
 
 /-- con-leche: ConLeche/Verify/Cached/PushChain.lean checkBlockTablesF_push — every
@@ -158,7 +158,7 @@ theorem checkBlockTables_nodup (p : BlockShape) :
     refine checkBlockTables_nodup p rest hrest ?_
     split at hstep
     · split at hstep
-      · obtain ⟨-, -, -, -, hfP, rfl⟩ := checkStructProjTable_inv hstep
+      · obtain ⟨-, -, -, hfP, rfl⟩ := checkStructProjTable_inv hstep
         exact nodupNames_push hnd hfP
       · simp only [pure, Except.pure, Except.ok.injEq] at hstep
         subst hstep; exact hnd
@@ -182,8 +182,8 @@ theorem checkBlockTeles_names {mode : CheckMode} {F : Nat} {env : Env} {nP : Nat
     subst h
     obtain ⟨ih1, ih2⟩ := checkBlockTeles_names hqs
     obtain ⟨cvTa, s⟩ := q
-    obtain ⟨cvT, hn, -, hccv, -⟩ := checkBlockTele_shape hq
-    obtain ⟨hf, -, -, -, -, -, ty, -, -, -, -, -, -, -, heq⟩ := checkConstantVal_inv hccv
+    obtain ⟨cvT, hn, -, heq, hccv, -⟩ := checkBlockTele_shape hq
+    have hf := (checkConstantVal_inv hccv).1
     have hname : cvTa.name = cvT.name := by rw [heq]
     refine ⟨by simp only [List.map_cons, ih1, hname, hn], ?_⟩
     intro q hq'
@@ -193,7 +193,7 @@ theorem checkBlockTeles_names {mode : CheckMode} {F : Nat} {env : Env} {nP : Nat
     · exact ih2 q hq'
 
 /-- con-leche: ConLeche/Kernel/Inductives/SumInstall.lean:152 checkSumCtors — the
-annotated constructors carry the declared names, each fresh at the
+checked constructors carry the declared names, each fresh at the
 constructors' environment. -/
 theorem checkSumCtors_names {mode : CheckMode} {F : Nat} {env₀ env : Env} {T : Name}
     {lps : List Name} {nP nIdx : Nat} {resSort : Level} {isProp large : Bool}
@@ -210,17 +210,15 @@ theorem checkSumCtors_names {mode : CheckMode} {F : Nat} {env₀ env : Env} {T :
     simp only [List.getElem_map]
     obtain ⟨-, sorts, -, hrun⟩ := hall j _ _ (List.getElem?_eq_getElem hj2)
       (List.getElem?_eq_getElem hj1)
-    obtain ⟨⟨ty', hccvC⟩, -⟩ := checkSumCtor_shape hrun
-    obtain ⟨-, -, -, -, -, -, ty, -, -, -, -, -, -, -, heq⟩ := checkConstantVal_inv hccvC
+    obtain ⟨⟨heq, -⟩, -⟩ := checkSumCtor_shape hrun
     rw [heq]
   · intro c hc
     obtain ⟨j, hj⟩ := List.getElem?_of_mem hc
     have hj' : j < cs.length := by
       have := (List.getElem?_eq_some_iff.mp hj).1; omega
     obtain ⟨-, sorts, -, hrun⟩ := hall j _ _ (List.getElem?_eq_getElem hj') hj
-    obtain ⟨⟨ty', hccvC⟩, -⟩ := checkSumCtor_shape hrun
-    obtain ⟨hf, -, -, -, -, -, ty, -, -, -, -, -, -, -, heq⟩ := checkConstantVal_inv hccvC
-    rw [heq]; exact hf
+    obtain ⟨⟨heq, hccvC⟩, -⟩ := checkSumCtor_shape hrun
+    rw [heq]; exact (checkConstantVal_inv hccvC).1
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:488 targetRecPins — the
 pins check the family's names pairwise distinct. -/
@@ -263,9 +261,8 @@ theorem genRecCheck_out_names {mode : CheckMode} {env : Env} {p : BlockShape}
   | some rc =>
     obtain ⟨c, cvG, hc, hG, ⟨T⟩⟩ := hallG i rc hi
     obtain ⟨rhss, hoi, -⟩ := hallO i cvG c hG hc
-    obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, hcv⟩ := classConstOk_inv T.hcv
     simp only [hoi, Option.map_some]
-    rw [hcv]
+    rw [T.hcvG]
 
 /-- con-leche: ConLeche/Semantics/Inductives/DeclBlock.lean:40 DeclBlockRun —
 the uniform install pushes the formers, the constructors, the recursors and
@@ -278,8 +275,8 @@ theorem declBlockRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
   -- the formers: the members' names, each fresh at the base
   obtain ⟨ms0, rest, cvTa0, s0, cvs, hm, hcv, hp1, henv1, htele0, hteles, -⟩ :=
     checkBlockInds_shape hInd
-  obtain ⟨cvT0, hn0, -, hccv0, -⟩ := checkBlockTele_shape htele0
-  obtain ⟨hf0, -, -, -, -, -, ty0, -, -, -, -, -, -, -, heq0⟩ := checkConstantVal_inv hccv0
+  obtain ⟨cvT0, hn0, -, heq0, hccv0, -⟩ := checkBlockTele_shape htele0
+  have hf0 := (checkConstantVal_inv hccv0).1
   have hname0 : cvTa0.name = ms0.cvT.name := by rw [heq0]; exact hn0
   obtain ⟨hnsR, hfrR⟩ := checkBlockTeles_names hteles
   have hnamesT : cvTas.map (·.name) = p₀.members.map (·.cvT.name) := by
@@ -346,9 +343,9 @@ theorem declBlockRun_nodup {μ : CheckMode} {F : Nat} {e e' : Env}
     obtain ⟨c, hc, rfl⟩ := List.mem_map.mp hn
     exact hfrC c hc
   -- the recursors: fresh at the constructors' environment, distinct by the pins
-  obtain ⟨R⟩ := checkBlockRec_run hRec
+  obtain ⟨R⟩ := genRecCheck_run hRec
   have hnd3 := consBlockRecsT_nodup (consBlockCtors p.nP ctorsAs env₁).find?
-    (·.constsResolve (consBlockCtors p.nP ctorsAs env₁)) p.toBlockShape out 0 hnd2
+    p.toBlockShape out 0 hnd2
     ⟨by rw [genRecCheck_out_names hRec]; exact targetRecPins_nodup R.pins, fun n hn => by
       obtain ⟨o, ho, rfl⟩ := List.mem_map.mp hn
       exact genRecCheck_out_fresh hRec o ho⟩

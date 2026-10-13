@@ -43,18 +43,18 @@ The store never moves here — nothing interns — so the postconditions say
 What does move is `s.memos.bvarBC` (resp. `fvarBC`), so `caches` and `pins`
 are framed.
 
-**Two of the twelve other per-call tables are framed too, on the `bvarBound`
-side only** (task #97-P3-ExprOps round 4): `bvarBoundGo`, `bvarBoundMemo` and
-`bvarB` all carry `s'.memos.lowerC = s₁.memos.lowerC` and
-`s'.memos.inst1LC = s₁.memos.inst1LC`.  They are what `ExprOps/Subst.lean`'s
-`BvarBSpec` asks for — `lowerBVarsGo` and `instantiate1LiftGo` test `bvarB`
-inside their own memoised walks and have to carry `LowerMemoA` / `Inst1LMemoA`
-across the call — and without them `bvarB_spec` could not discharge it, so
-`instPisAtLift_spec` and `instantiate1LiftFast_spec` were closed and
-uncallable.  They cost the proofs NOTHING: `bvarBClear_spec` and
+**One of the other per-call tables is framed too, on the `bvarBound` side
+only** (task #97-P3-ExprOps round 4): `bvarBoundGo`, `bvarBoundMemo` and
+`bvarB` all carry `s'.memos.inst1LC = s₁.memos.inst1LC`.  It is what
+`ExprOps/Subst.lean`'s `BvarBSpec` asks for — `instantiate1LiftGo` tests
+`bvarB` inside its own memoised walk and has to carry `Inst1LMemoA` across
+the call (task #119 removed `lowerBVarsGo`, the other such walk, and its
+`lowerC` frame with it) — and without it `bvarB_spec` could not discharge it,
+so `instPisAtLift_spec` and `instantiate1LiftFast_spec` were closed and
+uncallable.  It costs the proofs NOTHING: `bvarBClear_spec` and
 `bvarBSet_spec` hand back a whole-record update `{ memos with bvarBC := … }`,
-so each conjunct is one projection and `bridge_vcs` closes it unchanged.  The
-`fvarRange` side is deliberately left narrow — nothing asks — and the ten
+so the conjunct is one projection and `bridge_vcs` closes it unchanged.  The
+`fvarRange` side is deliberately left narrow — nothing asks — and the other
 remaining tables are the gap `ExprOps/Inst1.lean` records; widen them the same
 way, one statement at a time, when a consumer needs one.
 -/
@@ -136,7 +136,6 @@ structure BvarBoundSpec (rec : EIdx → AM Nat) : Prop where
     ⦃fun s => s = s₁⦄ rec c
     ⦃fun r s' => s'.store = s₁.store ∧ s'.caches = s₁.caches ∧
         s'.pins = s₁.pins ∧ MemoBA s' ∧
-        s'.memos.lowerC = s₁.memos.lowerC ∧
         s'.memos.inst1LC = s₁.memos.inst1LC ∧
         RelV Expr.bvarBound s₁.store c r; ⊤⦄
 
@@ -171,7 +170,6 @@ theorem bvarBoundMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     ⦃fun s => s = s₀⦄ bvarBoundMemo fuel e
     ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos.bvarBC = ∅ ∧
-        s'.memos.lowerC = s₀.memos.lowerC ∧
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
         RelV Expr.bvarBound s₀.store e r; ⊤⦄ := by
   have hr := (bvarBoundGo_spec fuel).run
@@ -235,14 +233,13 @@ proved one arm at a time. -/
 `bvarB`**.  Stated at the exact function; `bvarB_run` below is the same
 statement about a RUN, at con-leche's accessor.
 
-The two memo-frame conjuncts are `ExprOps/Subst.lean`'s `BvarBSpec`, whose
-two cutoff walks memoise while they call this one (round 4). -/
+The memo-frame conjunct is `ExprOps/Subst.lean`'s `BvarBSpec`, whose cutoff
+walk memoises while it calls this one (round 4). -/
 theorem bvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ bvarB fuel e
     ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
-        s'.memos.lowerC = s₀.memos.lowerC ∧
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
         RelV Expr.bvarBound s₀.store e r; ⊤⦄ := by
   have hr := bvarBoundMemo_spec fuel
@@ -257,7 +254,7 @@ theorem bvarB_run {fuel : Nat} {s₀ s' : AState} {e : EIdx} {r : Nat}
     (hrun : (bvarB fuel e).run s₀ = Except.ok (r, s')) :
     s'.store = s₀.store ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
       RelV Expr.bvarBound s₀.store e r ∧ RelV Expr.bvarB s₀.store e r := by
-  obtain ⟨h1, h2, h3, _, _, h4⟩ :=
+  obtain ⟨h1, h2, h3, _, h4⟩ :=
     AM.of_run (P := fun s => s = s₀) rfl hrun (bvarB_spec fuel s₀ e hok hden)
   exact ⟨h1, h2, h3, h4, h4.congr (fun x => (Expr.bvarB_eq x).symm)⟩
 

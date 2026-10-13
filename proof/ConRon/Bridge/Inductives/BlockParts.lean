@@ -489,7 +489,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       | none => exact absurd h4 (fun hc => failDanglingE_ok hc)
       | some p =>
         obtain ⟨d, b, m⟩ := p
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        have hw := view_forallE_of_viewBind htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, -⟩ := denote_forallE_inv hok.wf hw hx
         dsimp only at h4
         obtain ⟨hh, s₃, h5, h6⟩ := AM.bind_ok h4
@@ -540,7 +540,7 @@ theorem recTargetOf_spec (names : List NIdx) (namesP : List ConLeche.Name) (mI :
       simp only [ConLeche.recTargetOf, hsp]
       rw [hlen]
       cases x with
-      | forallE d b m => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
+      | forallE d b => exact absurd (tag_forallE_of_denote hok.wf hx) (by simpa using htg)
       | _ => rfl
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
@@ -570,7 +570,7 @@ theorem blockCounts_eq (nPd k nC nR : Nat) (cvTP : ConstantVal) (r : Option (Nat
 
 /-- con-leche: ConLeche/Kernel/Inductives/BlockParts.lean:273-299 blockCounts?
 One member's parameter and index counts: `piBinders_spec`, the ten-way `view`
-dispatch at the residual, `denoteBinders_length` for the telescope's
+dispatch at the residual, `denoteEList_length` for the telescope's
 length. -/
 theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : ConstantVal)
     (r : Option (Nat × Nat)) :
@@ -588,7 +588,7 @@ theorem blockCounts?_spec (nPd k nC nR : Nat) (cvT : IConstantVal) (cvTP : Const
   obtain ⟨v, s2, k2, hz2⟩ := AM.bind_ok hz1
   obtain ⟨hs2, hview⟩ := view_run k2
   rw [hs2] at hz2
-  have hlen : bs.length = (cvTP.type.piBinders).1.length := denoteBinders_length hbs
+  have hlen : bs.length = (cvTP.type.piBinders).1.length := denoteEList_length hbs
   have hbv : denoteEView s1.store v = some (cvTP.type.piBinders).2 := by
     rw [← denoteE_view_eq p1.ok.wf hview]; exact hbody
   rw [blockCounts_eq]

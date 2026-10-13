@@ -200,11 +200,11 @@ theorem fvarLeaves_nil_of_hasFvar :
     intro h
     simp only [Expr.hasFvar, Bool.or_eq_false_iff] at h
     simp [Expr.fvarLeaves, ihf h.1, iha h.2]
-  | lam ty b m iht ihb =>
+  | lam ty b iht ihb =>
     intro h
     simp only [Expr.hasFvar, Bool.or_eq_false_iff] at h
     simp [Expr.fvarLeaves, iht h.1, ihb h.2]
-  | forallE ty b m iht ihb =>
+  | forallE ty b iht ihb =>
     intro h
     simp only [Expr.hasFvar, Bool.or_eq_false_iff] at h
     simp [Expr.fvarLeaves, iht h.1, ihb h.2]
@@ -230,11 +230,11 @@ theorem wscopedB_of_hasFvar :
     intro d h
     simp only [Expr.hasFvar, Bool.or_eq_false_iff] at h
     simp [Expr.wscopedB, ihf d h.1, iha d h.2]
-  | lam ty b m iht ihb =>
+  | lam ty b iht ihb =>
     intro d h
     simp only [Expr.hasFvar, Bool.or_eq_false_iff] at h
     simp [Expr.wscopedB, iht d h.1, ihb d h.2]
-  | forallE ty b m iht ihb =>
+  | forallE ty b iht ihb =>
     intro d h
     simp only [Expr.hasFvar, Bool.or_eq_false_iff] at h
     simp [Expr.wscopedB, iht d h.1, ihb d h.2]
@@ -680,14 +680,14 @@ theorem LeavesEq.app_step {st : EStore} (hwf : StoreWF st)
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the `lam`
 arm. -/
 theorem LeavesEq.lam_step {st : EStore} (hwf : StoreWF st)
-    {acc mid res : List (Nat × EIdx)} {h ty b : EIdx} {m : BinderMeta}
-    (hview : st.view h = some (.lam ty b m))
+    {acc mid res : List (Nat × EIdx)} {h ty b : EIdx}
+    (hview : st.view h = some (.lam ty b))
     (h1 : LeavesEq st acc ty mid) (h2 : LeavesEq st mid b res)
     (hmid : (denoteLeaves st mid).isSome = true) : LeavesEq st acc h res := by
   intro e ea r he hea hr x
   obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hview he
   obtain ⟨em, hem⟩ := Option.isSome_iff_exists.mp hmid
-  have hp : Expr.fvarLeaves (.lam et eb m) =
+  have hp : Expr.fvarLeaves (.lam et eb) =
       Expr.fvarLeaves et ++ Expr.fvarLeaves eb := by simp [Expr.fvarLeaves]
   rw [hp, h2 eb em r hdb hem hr x, h1 et ea em hdt hea hem x, List.mem_append]
   grind
@@ -695,14 +695,14 @@ theorem LeavesEq.lam_step {st : EStore} (hwf : StoreWF st)
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — the
 `forallE` arm. -/
 theorem LeavesEq.forallE_step {st : EStore} (hwf : StoreWF st)
-    {acc mid res : List (Nat × EIdx)} {h ty b : EIdx} {m : BinderMeta}
-    (hview : st.view h = some (.forallE ty b m))
+    {acc mid res : List (Nat × EIdx)} {h ty b : EIdx}
+    (hview : st.view h = some (.forallE ty b))
     (h1 : LeavesEq st acc ty mid) (h2 : LeavesEq st mid b res)
     (hmid : (denoteLeaves st mid).isSome = true) : LeavesEq st acc h res := by
   intro e ea r he hea hr x
   obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hview he
   obtain ⟨em, hem⟩ := Option.isSome_iff_exists.mp hmid
-  have hp : Expr.fvarLeaves (.forallE et eb m) =
+  have hp : Expr.fvarLeaves (.forallE et eb) =
       Expr.fvarLeaves et ++ Expr.fvarLeaves eb := by simp [Expr.fvarLeaves]
   rw [hp, h2 eb em r hdb hem hr x, h1 et ea em hdt hea hem x, List.mem_append]
   grind

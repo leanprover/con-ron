@@ -103,11 +103,11 @@ theorem instantiate1_of_bvarBound_le {v : Expr} :
     intro d h
     simp only [Expr.bvarBound, Nat.max_le] at h
     simp [Expr.instantiate1, ihf d h.1, iha d h.2]
-  | lam ty b m iht ihb =>
+  | lam ty b iht ihb =>
     intro d h
     simp only [Expr.bvarBound, Nat.max_le] at h
     simp [Expr.instantiate1, iht d h.1, ihb (d + 1) (by omega)]
-  | forallE ty b m iht ihb =>
+  | forallE ty b iht ihb =>
     intro d h
     simp only [Expr.bvarBound, Nat.max_le] at h
     simp [Expr.instantiate1, iht d h.1, ihb (d + 1) (by omega)]
@@ -170,13 +170,13 @@ theorem Inst1At.app_step {ve : Expr} {d : Nat}
     ((ha.of_ext hx1).ext hx3) hr
 
 theorem Inst1At.bind_step {ve : Expr} {d : Nat}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx} {m : BinderMeta}
+    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
     {tg : UInt32} (hwf : StoreWF st) (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b m))
+    (hview : st.view h = some (eBindView tg ty b))
     (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Inst1At ve (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     Inst1At ve d st h s3 r := by
   rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
       simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
@@ -263,21 +263,19 @@ theorem Inst1At.proj_step' {ve : Expr} {d : Nat} {st s1 s2 : EStore}
   Inst1At.proj_step hwf (view_of_viewProj_tag htg hvp.symm) hx1 hs hx2 hr hn0
 
 /-- con-leche: none — `Inst1At.bind_step` at the arm's own hypotheses: the
-binder arm reads the datum's HANDLE, so the view fact needs the datum's value
-and `view_of_viewBindI_wf` supplies it. -/
+binder arm reads `viewBind`, and `view_of_viewBind` gives the view back. -/
 theorem Inst1At.bind_step' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {mi : BMIdx} {m : BinderMeta} {tg : UInt32}
+    {h ty b rt rb r : EIdx} {tg : UInt32}
     (hwf : StoreWF st) (htg : ETag.isBind tg = true) (htg2 : tg = h.tag)
-    (hvb : some (ty, b, mi) = st.viewBindI h)
-    (hbm : st.viewBM mi = some m)
+    (hvb : some (ty, b) = st.viewBind h)
     (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
     (hx2 : Ext s1 s2) (hb : Inst1At ve (d + 1) s1 b s2 rb)
     (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb m)) :
+    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
     Inst1At ve d st h s3 r := by
   refine Inst1At.bind_step hwf htg ?_ hx1 ht hx2 hb hx3 hr
-  rw [htg2] at htg ⊢
-  exact view_of_viewBindI htg hvb.symm hbm
+  rw [htg2]
+  exact view_of_viewBind hvb.symm
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the CUTOFF
 arm, packaged as one step lemma.  Left as three separate hints
@@ -328,13 +326,7 @@ worth of context at a time.
 the tag (it is the array read the tag dispatch has already decided, tasks
 #97-P6-10 and #97-P6-13), so `view_of_viewApp` needs `h.tag = ETag.app` and
 the arm theorem takes it as a parameter; the dispatcher supplies it from the
-branch it is in, as one more verification condition that `assumption` closes.
-
-**The record carries `BMExt`** (task #97-P3-1, `Bridge/StoreBM.lean`): the
-binder-datum store's own extension, which `Ext` cannot say because a `BMIdx`
-denotes nothing.  It is what closes the binder arm — `internBindIE`'s
-precondition is asked at the store the two recursive calls left behind, while
-the `viewBindI` read was taken in the store they started in. -/
+branch it is in, as one more verification condition that `assumption` closes. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `instantiate1Go`'s recursion. -/
@@ -344,7 +336,6 @@ structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
     denoteE s₁.store v = some ve → (denoteE s₁.store c).isSome = true →
     ⦃fun s => s = s₁⦄ rec c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄
 
@@ -361,7 +352,6 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
     (htg : (c.tag == ETag.bvar) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmBVar v c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   vcgen [instantiate1ArmBVar]
@@ -370,16 +360,16 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
   -- `i = dd`: the answer is the substituted handle itself.
   next =>
     rename_i _s i hvb
-    refine ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, ?_⟩
+    refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
     intro e he
     have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
     subst heq
     simpa [Expr.instantiate1] using hv
   -- `i > dd`: the lowered index is interned.
   next =>
-    rename_i _s i hne hgt r _st hwf' hx hbx _hlss _hscr _hmemos hcaches hpins _hview' hden'
+    rename_i _s i hne hgt r _st hwf' hx _hlss _hscr _hmemos hcaches hpins _hview' hden'
       hvb
-    refine ⟨⟨hwf'⟩, hm.mono hx (by grind), hx, hbx, hcaches, hpins, ?_⟩
+    refine ⟨⟨hwf'⟩, hm.mono hx (by grind), hx, hcaches, hpins, ?_⟩
     intro e he
     have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
     subst heq
@@ -388,7 +378,7 @@ theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
   -- `i < dd`: the node is its own instantiation.
   next =>
     rename_i _s i hne hle hvb
-    refine ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl, ?_⟩
+    refine ⟨hok, hm, Ext.refl _, rfl, rfl, ?_⟩
     intro e he
     have heq := denote_bvar_inv hok.wf (view_of_viewBVar_tag htg hvb.symm) he
     subst heq
@@ -404,7 +394,6 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : (c.tag == ETag.app) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmApp v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -414,7 +403,7 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   -- the arm's postcondition, then the memo insert's answer
   next =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact Inst1At.app_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -425,8 +414,7 @@ theorem instantiate1ArmApp_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     · grind only [Ext.trans]
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the BINDER
-ARM (`lam` and `forallE` in one, as the tag dispatch tests them).  This is the
-arm `BMExt` exists for. -/
+ARM (`lam` and `forallE` in one, as the tag dispatch tests them). -/
 theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (ih : Inst1Spec v ve (instantiate1Go v fuel)) (s₁ : AState) (c : EIdx)
     (dd : Nat) (hok : StateOK s₁) (hm : Inst1MemoA ve s₁)
@@ -435,44 +423,33 @@ theorem instantiate1ArmBind_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : ETag.isBind c.tag = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmBind v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
   vcgen [instantiate1ArmBind, hrec, inst1Set_spec (ve := ve)]
   all_goals try bridge_vcs [Expr.instantiate1]
   all_goals (bridge_peel; subst_vars)
-  all_goals obtain ⟨m, hbm, _htag0, hvw⟩ :=
-    view_of_viewBindI_wf hok.wf (i := c) htg (by arm_hyp)
+  all_goals have hvw := view_of_viewBind (i := c) (by arm_hyp)
+  all_goals have h2 := isSome_eBindView hok.wf hvw hden
   -- the postcondition, then the memo insert's answer
   case vc2 =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
-      by grind, by grind, ?_⟩
-    refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) hbm (by arm_hyp)
+      by grind only [Ext.trans], by grind, by grind, ?_⟩
+    refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) ?_
     grind
   case vc5 =>
     refine RelE.retarget ?_ ?_ hden
-    · refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) hbm (by arm_hyp)
+    · refine Inst1At.bind_step' hok.wf htg rfl (by arm_hyp) (by arm_hyp)
         (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) ?_
       grind
     · grind only [Ext.trans]
-  -- `internBindIE`'s three side conditions.  The datum survives the two
-  -- recursive calls by `BMExt` — the conjunct `Bridge/StoreBM.lean` exists
-  -- for, and the reason task #97-P3-0 left this arm open.
-  case vc9 => grind [BMExt.get]
-  case vc10 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    exact view_isSome (by grind)
-  case vc11 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    exact view_isSome (by grind)
-  -- the two recursive calls' subjects denote
-  case vc15 =>
-    have h2 := isSome_eBindView hok.wf hvw hden
-    grind
-  case vc19 => exact (isSome_eBindView hok.wf hvw hden).1
+  -- `internBindE`'s two side conditions, and the two recursive calls'
+  -- subjects denote
+  all_goals first
+    | exact h2.1
+    | grind
+    | exact view_isSome (by grind)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `letE`
 ARM; the body descends at `dd + 1`. -/
@@ -484,7 +461,6 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : (c.tag == ETag.letE) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmLet v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -494,7 +470,7 @@ theorem instantiate1ArmLet_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   -- the postcondition, then the memo insert's answer
   next =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact Inst1At.letE_step' hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp) (by arm_hyp)
@@ -517,7 +493,6 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
     (htg : (c.tag == ETag.proj) = true) :
     ⦃fun s => s = s₁⦄ instantiate1ArmProj v fuel c dd
     ⦃fun r s' => StateOK s' ∧ Inst1MemoA ve s' ∧ Ext s₁.store s'.store ∧
-        BMExt s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         Inst1At ve dd s₁.store c s'.store r; ⊤⦄ := by
   have hrec := ih.run
@@ -529,7 +504,7 @@ theorem instantiate1ArmProj_spec (v : EIdx) (ve : Expr) (fuel : Nat)
   -- the postcondition, then the memo insert's answer
   next =>
     refine ⟨by grind only [StateOK, StateOK.mk], by arm_hyp,
-      by grind only [Ext.trans], by grind only [BMExt.trans, BMExt.refl],
+      by grind only [Ext.trans],
       by grind, by grind, ?_⟩
     exact Inst1At.proj_step' hok.wf htg (by arm_hyp) (by arm_hyp)
       (by arm_hyp) (by arm_hyp) (by arm_hyp) hn0
@@ -568,14 +543,14 @@ theorem instantiate1Go_spec (v : EIdx) (ve : Expr) :
     next =>
       bridge_peel
       subst_vars
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
         Inst1At.cutoff hok.wf (by grind) (by grind)⟩
     next =>
       bridge_peel
       subst_vars
       obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
       obtain ⟨vw, hvw⟩ := denoteE_view he
-      exact ⟨hok, hm, Ext.refl _, BMExt.refl _, rfl, rfl,
+      exact ⟨hok, hm, Ext.refl _, rfl, rfl,
         Inst1At.leaf hok.wf hvw (by grind) (by grind) (by grind) (by grind)
           (by grind)⟩
 /-! ## The top-level entry, and Theorem 1 as a statement about a RUN
@@ -593,7 +568,6 @@ theorem instantiate1Fast_spec (fuel : Nat) (s₀ : AState) (e v : EIdx) (d : Nat
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ instantiate1Fast fuel e v d
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        BMExt s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         s'.memos.inst1C = ∅ ∧
         Inst1At ve d s₀.store e s'.store r; ⊤⦄ := by
@@ -608,7 +582,7 @@ theorem instantiate1Fast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
     (hv : denoteE s₀.store v = some ve)
     (hden : (denoteE s₀.store e).isSome = true)
     (hrun : (instantiate1Fast fuel e v d).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧ BMExt s₀.store s'.store ∧
+    StateOK s' ∧ Ext s₀.store s'.store ∧
       s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.inst1C = ∅ ∧
       Inst1At ve d s₀.store e s'.store r :=
   AM.of_run (P := fun s => s = s₀) rfl hrun

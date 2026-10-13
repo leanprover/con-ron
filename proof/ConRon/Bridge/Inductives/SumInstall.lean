@@ -62,11 +62,11 @@ theorem whnfTelescope_succ_eq (μ : CheckMode) (fe : IFEnv) (i n : Nat) (e : EId
     Arena.whnfTelescope μ fe i (n + 1) e = (do
       let e' ← Arena.whnf μ fe Arena.checkFuel i e
       match ← view e' with
-      | .forallE dom body bm => do
+      | .forallE dom body => do
         let fv ← internE (.fvar i dom)
         let b ← instantiate1Fast coreWalkFuel body fv 0
         let (bs, s) ← Arena.whnfTelescope μ fe (i + 1) n b
-        pure ((dom, bm) :: bs, s)
+        pure (dom :: bs, s)
       | _ => Arena.fail (.invalid
           "direct sum: type former does not reduce to a telescope")) := by
   show _ = bind (Arena.whnf μ fe Arena.checkFuel i e) _
@@ -78,7 +78,7 @@ theorem whnfTelescope_succ_eq (μ : CheckMode) (fe : IFEnv) (i n : Nat) (e : EId
 /-- con-leche: none — `whnfTelescope` is monotone in the fuel of its
 `whnf`: `ConLeche.whnf_mono` at every binder. -/
 theorem whnfTelescope_mono {μ : CheckMode} {env : Env} {F F' : Nat}
-    (hle : F ≤ F') : ∀ {n i : Nat} {e : Expr} {v : List (Expr × BinderMeta) × Level},
+    (hle : F ≤ F') : ∀ {n i : Nat} {e : Expr} {v : List Expr × Level},
     ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env i n e = .ok v →
     ConLeche.whnfTelescope (ConLeche.fueledOps μ F') env i n e = .ok v := by
   intro n
@@ -98,7 +98,7 @@ theorem whnfTelescope_mono {μ : CheckMode} {env : Env} {F F' : Nat}
     rw [hw] at h; rw [ConLeche.whnf_mono hle hw]
     dsimp only at h ⊢
     cases w
-    case forallE dom body bm =>
+    case forallE dom body =>
       dsimp only at h ⊢
       cases hr : ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env (i + 1) n
           (body.instantiate1 (.fvar i dom)) with
@@ -130,7 +130,7 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       (fun st r => ∃ F bsP sP,
         ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env i n eP
           = .ok (bsP, sP) ∧
-        denoteBinders st r.1 = some bsP ∧ denoteL st.ls r.2 = some sP) := by
+        Frontend.denoteEList st r.1 = some bsP ∧ denoteL st.ls r.2 = some sP) := by
   have hknot := hk.knot env fe henv
   induction n generalizing i e eP with
   | zero =>
@@ -169,7 +169,7 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨hs2, hv⟩ := view_run k2
     rw [hs2] at z2
     cases v
-    case forallE dom body bm =>
+    case forallE dom body =>
       obtain ⟨domP, bodyP, rfl, hd, hb⟩ := denote_forallE_inv hok1.state.wf hv hwP
       have hwsdb : Expr.WScoped i domP ∧ Expr.WScoped i bodyP := by
         simp only [Expr.WScoped] at hwsw; exact hwsw
@@ -182,9 +182,9 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       have c3 := c1.trans (p3.toCore hok1)
       obtain ⟨op, s4, k4, z4⟩ := AM.bind_ok z3
       have hb3 : denoteE s3.store body = some bodyP := denote_ext hb p3.ext
-      obtain ⟨h1, h2, h3, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c3.ok.state hfv'
+      obtain ⟨h1, h2, h4, h5, -, h7⟩ := ExprOps.instantiate1Fast_run c3.ok.state hfv'
         (by rw [hb3]; rfl) k4
-      have p4 : PStep s3 s4 := PStep.of_caches h1 h2 h3 h4 h5
+      have p4 : PStep s3 s4 := PStep.of_caches h1 h2 h4 h5
       have hop : denoteE s4.store op = some (bodyP.instantiate1 (.fvar i domP) 0) :=
         h7 _ hb3
       have c4 := c3.trans (p4.toCore c3.ok)
@@ -193,14 +193,14 @@ theorem whnfTelescope_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         (Expr.WScoped.instantiate1 hwsd 0 hwsb) s4 s5 br c4.ok
         ⟨hop, denoteFEnv_mono c4.ext hfe⟩ k5
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
-      refine ⟨c4.trans c5, max F1 F2, (domP, bm) :: bsP, sP, ?_, ?_, hsP⟩
+      refine ⟨c4.trans c5, max F1 F2, domP :: bsP, sP, ?_, ?_, hsP⟩
       · have hF1' := ConLeche.whnf_mono (Nat.le_max_left F1 F2) hF1
         have hF2' := whnfTelescope_mono (Nat.le_max_right F1 F2) hF2
         simp only [ConLeche.fueledOps] at hF2'
         simp only [ConLeche.whnfTelescope, ConLeche.fueledOps, bind, Except.bind, hF1']
         rw [hF2']
         rfl
-      · simp only [denoteBinders, denote_ext hd (p3.ext.trans (p4.ext.trans c5.ext)), hbs]
+      · simp only [Frontend.denoteEList, denote_ext hd (p3.ext.trans (p4.ext.trans c5.ext)), hbs]
     all_goals exact absurd z2 (fun h => AM.fail_ok h)
 
 /-- con-leche: none — a handle denoting a sort carries the sort tag (the
@@ -236,12 +236,14 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       Frontend.denoteCV s₁.store cvTa₀ = some cvTa₀P →
       denoteFEnv s₁.store fe = some env →
       Arena.checkSumTele.checkSumTeleSlow μ fe cv n cvTa₀ s₁ = .ok (r, s'') →
-      CoreStep μ env fe s₁ s'' ∧ ∃ F bsP sP cvAP,
+      CoreStep μ env fe s₁ s'' ∧ ∃ F bsP sP,
         ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env 0 n cvTa₀P.type
           = .ok (bsP, sP) ∧
         ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env
-          { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } = .ok cvAP ∧
-        Frontend.denoteCV s''.store r.1 = some cvAP ∧ denoteL s''.store.ls r.2 = some sP := by
+          { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } = .ok () ∧
+        Frontend.denoteCV s''.store r.1
+          = some { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } ∧
+        denoteL s''.store.ls r.2 = some sP := by
     intro s₁ s'' r hck hcv hcv0 hfe hrun
     simp only [Arena.checkSumTele.checkSumTeleSlow] at hrun
     obtain ⟨bs, s₂, k2, z2⟩ := AM.bind_ok hrun
@@ -253,19 +255,19 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     obtain ⟨p3, hsort⟩ := internSortE_run c2.ok.state hsP k3
     obtain ⟨ty, s₄, k4, z4⟩ := AM.bind_ok z3
     obtain ⟨p4, hty⟩ := closeTelescope_spec bsI bsP 0 sortS (.sort sP) s₃ s₄ ty p3.ok
-      ⟨denoteBinders_ext p3.ext _ _ hbs, hsort⟩ k4
+      ⟨denoteEList_ext p3.ext _ _ hbs, hsort⟩ k4
     have c4 := c2.trans ((p3.trans p4).toCore c2.ok)
     have x14 : Ext s₁.store s₄.store := c4.ext
-    obtain ⟨cvA, s₅, k5, z5⟩ := AM.bind_ok z4
     have hcvT : Frontend.denoteCV s₄.store { cv with type := ty } =
         some { cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) } := by
       obtain ⟨hn, hl, -⟩ := denoteCV_inv hcv
       simp only [Frontend.denoteCV, denoteN_ext hn x14, denoteNListE_ext x14 _ _ hl, hty]
-    obtain ⟨c5, cAP, F₂, hcA, hF₂⟩ := checkConstantVal_bridge hμ hk c4.ok henv hcvT k5
+    obtain ⟨_, s₅, k5, z5⟩ := AM.bind_ok z4
+    obtain ⟨c5, F₂, hF₂⟩ := checkConstantVal_bridge hμ hk c4.ok henv hcvT k5
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z5
-    refine ⟨c4.trans c5, max F₁ F₂, bsP, sP, cAP,
+    refine ⟨c4.trans c5, max F₁ F₂, bsP, sP,
       whnfTelescope_mono (Nat.le_max_left F₁ F₂) hF₁,
-      checkConstantVal_mono (Nat.le_max_right F₁ F₂) hF₂, hcA,
+      checkConstantVal_mono (Nat.le_max_right F₁ F₂) hF₂, denoteCV_ext hcvT c5.ext,
       denoteL_ext hsP (p3.ext.trans (p4.ext.trans c5.ext))⟩
   intro s₀ s' r hck hpre hrun
   obtain ⟨hcv, hcv0, hfe⟩ := hpre
@@ -280,13 +282,14 @@ theorem checkSumTele_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
         ConLeche.checkSumTele (ConLeche.fueledOps μ F) env cvP n cvTa₀P = .ok (cvAP, sP) ∧
         Frontend.denoteCV s'.store r.1 = some cvAP ∧ denoteL s'.store.ls r.2 = some sP := by
     intro hz hns
-    obtain ⟨c, F, bsP, sP, cvAP, hF₁, hF₂, hcA, hsP⟩ := slow s₀ s' r hck hcv hcv0 hfe hz
-    refine ⟨c, F, cvAP, sP, ?_, hcA, hsP⟩
+    obtain ⟨c, F, bsP, sP, hF₁, hF₂, hcA, hsP⟩ := slow s₀ s' r hck hcv hcv0 hfe hz
+    refine ⟨c, F, _, sP, ?_, hcA, hsP⟩
     have tail : (do
         let (bs, s) ← ConLeche.whnfTelescope (ConLeche.fueledOps μ F) env 0 n cvTa₀P.type
-        let cvTa ← ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env
-          { cvP with type := ConLeche.closeTelescope bs 0 (.sort s) }
-        pure (cvTa, s) : CheckM (ConstantVal × Level)) = .ok (cvAP, sP) := by
+        let cvTa := { cvP with type := ConLeche.closeTelescope bs 0 (.sort s) }
+        ConLeche.checkConstantVal (ConLeche.fueledOps μ F) env cvTa
+        pure (cvTa, s) : CheckM (ConstantVal × Level))
+          = .ok ({ cvP with type := ConLeche.closeTelescope bsP 0 (.sort sP) }, sP) := by
       simp only [bind, Except.bind, hF₁, hF₂, pure, Except.pure]
     unfold ConLeche.checkSumTele
     rcases hsp : cvTa₀P.type.stripPis n with _ | ⟨bs, b⟩
@@ -778,11 +781,12 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
       AM.Never ((Arena.fail e : AM α) >>= g) := fun {_ _ _ _} => AM.Never.fail_any
   simp only [Arena.checkSumCtor] at hrun
   -- the constructor's own check (stored as declared)
-  obtain ⟨cvCa, s₂, k1, z2⟩ := AM.bind_ok hrun
-  obtain ⟨c12, cAP, F₁, hcA, hF₁⟩ := checkConstantVal_bridge hμ hk hck henv hcvC k1
+  obtain ⟨_, s₂, k1, z2⟩ := AM.bind_ok hrun
+  obtain ⟨c12, F₁, hF₁⟩ := checkConstantVal_bridge hμ hk hck henv hcvC k1
+  have hcA : Frontend.denoteCV s₂.store cvC = some cvCP := denoteCV_ext hcvC c12.ext
   have x1 := c12.ext
   -- the stored constructor is a checked constant: closed
-  have hwsA : Expr.WScoped 0 cAP.type :=
+  have hwsA : Expr.WScoped 0 cvCP.type :=
     Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hF₁).1
   -- the result shape
   obtain ⟨o3, s₃, k3, z3⟩ := AM.bind_ok z2
@@ -925,7 +929,7 @@ theorem checkSumCtor_spec {μ : CheckMode} {env : Env} (fe₀ fe : IFEnv)
     ⟨denoteL_ext hrs c22.ext, denoteEList_ext (x12_15.trans x15_22) _ _ hxfvs,
       denoteEList_drop (denoteEList_ext x15_22 _ _ hxargs) nP, denoteFEnv_mono c22.ext hfe⟩ k23
   obtain ⟨rfl, rfl⟩ := AM.pure_ok z24
-  refine ⟨c22.trans c23, max F₁ (max F₃ F₄), cAP, sortsP, ?_,
+  refine ⟨c22.trans c23, max F₁ (max F₃ F₄), cvCP, sortsP, ?_,
     denoteCV_ext hcA ((p5.ext.trans p6.ext).trans (x7_15.trans (x15_22.trans c23.ext))),
     hsorts⟩
   have g₁ := checkConstantVal_mono (show F₁ ≤ max F₁ (max F₃ F₄) by omega) hF₁
@@ -1121,7 +1125,8 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
   subst s3
   cases v
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+    (dsimp only at z3
+     obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
      refine ⟨rfl, ?_⟩
      have hnc := Core.denote_not_const hst.wf hv hfn (by intro _ _ h; cases h)
      split
@@ -1167,15 +1172,15 @@ theorem recRuleKOf_run {env : Env} {fe : IFEnv} {s s' : AState}
     exact ⟨rfl, rfl⟩
   · simp at hcaps
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:846-858 recRuleEtaOf — the
-η-rescue bit at install, in run form.  The recursor's name is read back
-(`readNameM`), so the frame is a `ReadbackFrame`. -/
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:818-841 recRuleEtaOf — the
+η-rescue bit at install, in run form.  Read-only (con-leche's task #342 dropped
+the recursor-name read), so the frame is `ReadbackFrame.refl`. -/
 theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
-    {recName ctor : NIdx} {recNameP ctorP : ConLeche.Name} {r : Bool}
-    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
+    {ctor : NIdx} {ctorP : ConLeche.Name} {r : Bool}
+    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)
     (hc : denoteN s.store.ns ctor = some ctorP)
-    (hrun : Arena.recRuleEtaOf fe recName ctor s = .ok (r, s')) :
-    Core.ReadbackFrame s s' ∧ r = ConLeche.recRuleEtaOf env.find? recNameP ctorP := by
+    (hrun : Arena.recRuleEtaOf fe ctor s = .ok (r, s')) :
+    Core.ReadbackFrame s s' ∧ r = ConLeche.recRuleEtaOf env.find? ctorP := by
   simp only [Arena.recRuleEtaOf] at hrun
   cases hf : fe.find? ctor with
   | none =>
@@ -1212,7 +1217,8 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
   subst s3
   cases v
   all_goals try
-    (obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+    (dsimp only at z3
+     obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
      refine ⟨Core.ReadbackFrame.refl _, ?_⟩
      have hnc := Core.denote_not_const hok.state.wf hv hfn (by intro _ _ h; cases h)
      split
@@ -1257,12 +1263,8 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
     obtain rfl := (Option.some.inj hcaps).symm
     dsimp only
     dsimp only at z3
-    obtain ⟨rn, s4, k4, z4⟩ := AM.bind_ok z3
-    obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s) rfl k4
-      (readNameM_spec s recName hok.caches.readN)
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
-    obtain rfl : rn = recNameP := Option.some.inj (h5.symm.trans hrn)
-    refine ⟨Core.ReadbackFrame.ofReadN h1 h2 h3 h4 h6, ?_⟩
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
+    refine ⟨Core.ReadbackFrame.refl _, ?_⟩
     rw [beq_handle_eq hok.state.wf hct hc,
       beq_nhandleList_eq hok.state.wf (denoteCV_lps hcvj) (denoteCV_lps hcvT)]
   · simp at hcaps
@@ -1270,19 +1272,19 @@ theorem recRuleEtaOf_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:860-870 recRuleBits — the two
 bits stamped, in run form: the rule denotes con-leche's stamped rule. -/
 theorem recRuleBits_run {μ : CheckMode} {env envC : Env} {fe feC : IFEnv} {s s' : AState}
-    {recName : NIdx} {recNameP : ConLeche.Name} {rl rl' : IRecRule} {rlP : RecRule}
-    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s) (hrn : denoteN s.store.ns recName = some recNameP)
+    {rl rl' : IRecRule} {rlP : RecRule}
+    (hok : CheckOK μ envC feC s) (hi : IFEnvOK env fe s)
     (hrl : Frontend.denoteRule s.store rl = some rlP)
-    (hrun : Arena.recRuleBits fe recName rl s = .ok (rl', s')) :
+    (hrun : Arena.recRuleBits fe rl s = .ok (rl', s')) :
     Core.ReadbackFrame s s' ∧
-      Frontend.denoteRule s'.store rl' = some (ConLeche.recRuleBits env.find? recNameP rlP) := by
+      Frontend.denoteRule s'.store rl' = some (ConLeche.recRuleBits env.find? rlP) := by
   obtain ⟨hctor, -⟩ := denoteRule_ctor hrl
   simp only [Arena.recRuleBits] at hrun
   obtain ⟨k, s1, k1, z1⟩ := AM.bind_ok hrun
   obtain ⟨hs1, hk⟩ := recRuleKOf_run hok.state hi hctor k1
   rw [hs1] at z1
   obtain ⟨e, s2, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨hfr, he⟩ := recRuleEtaOf_run hok hi hrn hctor k2
+  obtain ⟨hfr, he⟩ := recRuleEtaOf_run hok hi hctor k2
   obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
   refine ⟨hfr, ?_⟩
   rw [hfr.store]
@@ -1341,7 +1343,7 @@ theorem checkSumTele_specF {μ : CheckMode} {env : Env} (fe : IFEnv)
   obtain ⟨hstep, F, cvAP, sP, hF, h1, h2⟩ :=
     checkSumTele_spec fe hμ hk henv cv cvP n cvTa₀ cvTa₀P hws s₀ s' r hok hpre hrun
   refine ⟨hstep, (cvAP, sP), ⟨h1, h2, ?_⟩, F, by rw [checkSumTele_datF]; exact hF⟩
-  rcases ConLeche.checkSumTele_shape hF with ⟨rfl, -⟩ | ⟨_, hc⟩
+  rcases ConLeche.checkSumTele_shape hF with ⟨rfl, -⟩ | ⟨_, rfl, hc⟩
   · exact hws
   · exact Expr.WScoped.of_not_hasFvar (ConLeche.checkConstantVal_typeWF hc).1
 

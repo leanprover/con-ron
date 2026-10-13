@@ -283,9 +283,9 @@ theorem instPisAtLift_pstep {fuel : Nat} {args : List EIdx} {argsP : List Expr}
     (hc : denoteE s₀.store c = some cP)
     (hrun : Arena.instPisAtLift fuel args c s₀ = .ok (r, s')) :
     PStep s₀ s' ∧ ROp RE (Expr.instPisAtLift argsP cP) s'.store r := by
-  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
+  obtain ⟨h1, h2, h4, h5, h6⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (ExprOps.instPisAtLift_spec fuel args s₀ c hok (by rw [ha]; rfl) (by rw [hc]; rfl))
-  refine ⟨PStep.of_caches h1 h2 h3 h4 h5, ?_⟩
+  refine ⟨PStep.of_caches h1 h2 h4 h5, ?_⟩
   have h7 := h6 argsP ha cP hc
   cases r with
   | none => simp only [denoteEO, Option.some.injEq] at h7; exact h7.symm
@@ -304,9 +304,8 @@ theorem bvarB_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
     PStep s₀ s' ∧ s'.store = s₀.store ∧ r = Expr.bvarB eP := by
   obtain ⟨h1, h2, h3, _, h5⟩ :=
     ExprOps.bvarB_run hok (by rw [hd]; rfl) hrun
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h1, h5 eP hd⟩
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ h2 h3, h1, h5 eP hd⟩
   · rw [h1]; exact Ext.refl _
-  · rw [h1]; exact BMExt.refl _
 
 /-! ### The pure side's own equations
 
@@ -331,15 +330,15 @@ theorem hasLooseBVarB_app {i : Nat} {f a : Expr}
       (Expr.hasLooseBVarB i f || Expr.hasLooseBVarB i a) := by
   rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
-theorem hasLooseBVarB_lam {i : Nat} {ty b : Expr} {m : BinderMeta}
-    (hc : ¬ (Expr.lam ty b m).bvarB ≤ i) :
-    Expr.hasLooseBVarB i (.lam ty b m) =
+theorem hasLooseBVarB_lam {i : Nat} {ty b : Expr}
+    (hc : ¬ (Expr.lam ty b).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.lam ty b) =
       (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
   rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
-theorem hasLooseBVarB_forallE {i : Nat} {ty b : Expr} {m : BinderMeta}
-    (hc : ¬ (Expr.forallE ty b m).bvarB ≤ i) :
-    Expr.hasLooseBVarB i (.forallE ty b m) =
+theorem hasLooseBVarB_forallE {i : Nat} {ty b : Expr}
+    (hc : ¬ (Expr.forallE ty b).bvarB ≤ i) :
+    Expr.hasLooseBVarB i (.forallE ty b) =
       (Expr.hasLooseBVarB i ty || Expr.hasLooseBVarB (i + 1) b) := by
   rw [Expr.hasLooseBVarB]; exact ite_eq_right hc
 
@@ -462,7 +461,7 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
           · obtain ⟨y, s₂', hy, hz⟩ := AM.bind_ok h4
             obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin hsA (by simp [hasLooseBVarB_app hc, ← hrA']) hmA hz
-      case lam ty b m =>
+      case lam ty b =>
         obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok1.wf hw hd1
         cases hlk : memo[(h, i)]? with
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
@@ -485,7 +484,7 @@ theorem hasLooseBVarBGo_spec (memo : Std.HashMap (EIdx × Nat) Bool) (i : Nat)
           · obtain ⟨y, s₂', hy, hz⟩ := AM.bind_ok h4
             obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
             exact fin hsA (by simp [hasLooseBVarB_lam hc, ← hrA']) hmA hz
-      case forallE ty b m =>
+      case forallE ty b =>
         obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok1.wf hw hd1
         cases hlk : memo[(h, i)]? with
         | some r₀ => rw [hlk] at h3; exact hit hlk h3
@@ -840,15 +839,15 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
     have hhv : denoteEView s₀.store v = some hP := by
       rw [← denoteE_view_eq hok.wf hv]; exact hh
     split at hz1
-    case h_1 fdom body m =>
+    case h_1 fdom body =>
       obtain ⟨fdomP, bodyP, rfl, hfd, hbd⟩ := denote_forallE_inv hok.wf hv hh
       obtain ⟨a, s2, k2, hz2⟩ := AM.bind_ok hz1
       obtain ⟨p2, ha⟩ := structProjArgP_spec T TP i s₀ s2 a hok hT k2
       obtain ⟨b, s3, k3, hz3⟩ := AM.bind_ok hz2
-      obtain ⟨hok3, hx3, hbm3, hc3, hp3, -, hb⟩ :=
+      obtain ⟨hok3, hx3, hc3, hp3, -, hb⟩ :=
         ExprOps.instantiate1LiftFast_run p2.ok ha
           (by rw [denote_ext hbd p2.ext]; rfl) k3
-      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hbm3 hc3 hp3
+      have p3 : PStep s2 s3 := PStep.of_caches hok3 hx3 hc3 hp3
       have hb' := hb bodyP (denote_ext hbd p2.ext)
       obtain ⟨o, s4, k4, hz4⟩ := AM.bind_ok hz3
       obtain ⟨p4, ho⟩ := ih (i + 1) b _ s3 s4 o p3.ok
@@ -858,7 +857,7 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
       | none =>
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hz4
         refine ⟨q4, ?_⟩
-        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP m) = none
+        show ConLeche.structProjBodiesGo TP (k + 1) i (.forallE fdomP bodyP) = none
         simp only [ConLeche.structProjBodiesGo]
         rw [show ConLeche.structProjBodiesGo TP k (i + 1) _ = none from ho]
         rfl
@@ -875,7 +874,7 @@ theorem structProjBodiesGo_spec (T : NIdx) (TP : ConLeche.Name) (k i : Nat)
       refine ⟨PStep.refl hok, ?_⟩
       have hns := ExprOps.denoteEView_not_forallE hhv hne
       show _ = none
-      cases hP <;> first | rfl | exact absurd rfl (hns _ _ _)
+      cases hP <;> first | rfl | exact absurd rfl (hns _ _)
 
 /-- con-leche: ConLeche/Kernel/Inductives/StructParts.lean:523-526 structProjBodies
 The entry, after `nP` parameter binders.

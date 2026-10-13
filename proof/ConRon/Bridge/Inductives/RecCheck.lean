@@ -8,7 +8,7 @@ class match and the three functions over it (`targetParamsDefEq`,
 `targetClassMatch`, `targetMajorNfs`), a class resolved and typed
 (`targetOutsideInst`, `targetMajorOf`, `targetPinTys`, `targetMajorPins`), the
 recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
-`targetPiDomsWith`), and the stored family (`auxRuleFireR`, `tgtStoredRules`,
+`targetPiDomsWith`), and the stored family (`auxRuleFire`, `tgtStoredRules`,
 `blockNestedBit`, `consBlockRecsTF`).
 
 **The twin module note's deviations, as the statements read them:**
@@ -28,20 +28,19 @@ recursor records' pins, node agreement (`targetCtorAt`, `targetK53`,
 * `eraseFVarTys`/`targetCanonParams` are `replaceFVars` at the `.erase` and
   `.canon pfvs` maps (`PosWalks.lean`'s `FvMapRel`).
 * `consBlockRecsTF vis₂` reads the rules at `fe.restrictTo vis₂`; the
-  statement relates it to `consBlockRecsT env₂.find? (·.constsResolve env₂)`
+  statement relates it to `consBlockRecsT env₂.find?`
   at the environment `env₂` that restriction denotes, under a FRESHNESS
   hypothesis on the recursors' names (see `consBlockRecsTF_spec`).
 
 **Grades.**  The pure walks are `PSpec`/`PSpecP`; everything that calls the
 knot or reads the readback caches (`instLPFast`, `lvlEq?`, `lvlsEq?`) is
-`CSpec`/`CSpecF`; `nestedRuleSyn` and `auxRuleFireR` read the index but no
-cache, so they are at the read grade `RdSpec` (`ReadOK` in, `PStep` out).
+`CSpec`/`CSpecF`; `auxRuleFire` (con-leche's task #342: computed from the
+major, no longer read off the recursor's type) is a pure walk.
 The stored-family statements (`sumRules_spec`, `tgtStoredRules_spec`,
 `consBlockRecsTF_spec`) carry TWO environments: the knot's caches' (`CheckOK
 μ envC feC`) and the lookup index's (`IFEnvOK env fe`), because the rules are
 read at the constructors' view while the caches serve whatever index the
-recursor stage ended on.  `nestedRuleSyn` had no Theorem-1 statement in any
-tier; it is proved here (`nestedRuleSyn_spec` and its five components).
+recursor stage ended on.
 -/
 import ConRon.Bridge.Inductives.Rel
 import ConRon.Bridge.Inductives.PosWalks
@@ -309,7 +308,7 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
-    case lam ty b m =>
+    case lam ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_lam_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -327,7 +326,7 @@ theorem targetAbsGo_spec (names : List NIdx) (lvls : LsIdx) (holes : List EIdx)
         obtain ⟨y, sy, hy, hz⟩ := AM.bind_ok hn3
         obtain ⟨rfl, rfl⟩ := AM.pure_ok hy
         exact fin ((hsA.trans hsB).trans hsC) (by rw [hq]; rfl) (hmB.ext hsC.ext) hz
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, hty, hbd⟩ := denote_forallE_inv hok.wf hw hd
       cases hlk : memo[h]? with
       | some r₀ => rw [hlk] at h2; exact hit hlk h2
@@ -1017,13 +1016,13 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
       | none => exact absurd h2 (fun hc => AM.fail_ok hc)
       | some q =>
         obtain ⟨d, b, m⟩ := q
-        have hw := view_of_viewBind_tag_forallE htg ho.symm
+        have hw := view_forallE_of_viewBind htg ho.symm
         obtain ⟨dP, bP, rfl, hdd, hbd⟩ := denote_forallE_inv hok.wf hw hd
         dsimp only at h2
         obtain ⟨b', s₂, h3, h4⟩ := AM.bind_ok h2
-        obtain ⟨o1, o2, o3, o4, o5, -, o7⟩ := ExprOps.instantiate1Fast_run hok hxP
+        obtain ⟨o1, o2, o4, o5, -, o7⟩ := ExprOps.instantiate1Fast_run hok hxP
           (by rw [hbd]; rfl) h3
-        have p2 : PStep s₀ s₂ := PStep.of_caches o1 o2 o3 o4 o5
+        have p2 : PStep s₀ s₂ := PStep.of_caches o1 o2 o4 o5
         have hb' : denoteE s₂.store b' = some (bP.instantiate1 xP 0) := o7 bP hbd
         obtain ⟨q, s₃, h5, h6⟩ := AM.bind_ok h4
         obtain ⟨p3, hq⟩ := ih xsP' b' _ s₂ s₃ q p2.ok
@@ -1049,7 +1048,7 @@ theorem targetPiDomsWith_spec : ∀ (xs : List EIdx) (xsP : List Expr) (e : EIdx
       refine ⟨PStep.refl hok, ?_⟩
       show _ = none
       cases eP with
-      | forallE dP bP m =>
+      | forallE dP bP =>
         exact absurd (tag_forallE_of_denote hok.wf hd) (by simpa using htg)
       | _ => rfl
 
@@ -1175,7 +1174,7 @@ theorem targetOutsideInst_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
       obtain ⟨lP, hlP, hl⟩ := denote_sort_inv c3.ok.state.wf hv hsh
       obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
       refine ⟨c3, ((Expr.piBinders tyP).1.length, lP), ⟨?_, hl⟩, 0, ?_⟩
-      · exact denoteBinders_length hibs
+      · exact denoteEList_length hibs
       · unfold ConLeche.targetOutsideInst
         rw [mkFEnv_find?_fun, he]
         dsimp only
@@ -1186,20 +1185,7 @@ theorem targetOutsideInst_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     | _ => exact absurd z4 (fun hc => AM.fail_ok hc)
   | _ => exact absurd hrun (fun hc => AM.fail_ok hc)
 
-/-! ## The syntactic reading of a nested rule (`nestedRuleSyn`)
-
-`Arena/CheckerBase.lean`'s twin of `ConLeche/Kernel/ExprOps.lean:1521-1559`,
-which no tier had stated: the recursor stage is its only reader (through
-`auxRuleFireR`).  It reads the index (`constsResolveFFast`), so its grade is
-the read grade `RdSpec`: `ReadOK` in, `PStep` out. -/
-
-/-- con-leche: none — **the read grade**: a twin that reads the index but
-never the knot's caches (`constsResolveFFast`, `ReadOK`) moves only what a
-pure step moves. -/
-def RdSpec (env : Env) (fe : IFEnv) {α : Type} (P : EStore → Prop) (c : AM α)
-    (R : EStore → α → Prop) : Prop :=
-  ∀ (s₀ s' : AState) (r : α), ReadOK env fe s₀ → P s₀.store → c s₀ = .ok (r, s') →
-    PStep s₀ s' ∧ R s'.store r
+/-! ## Two scope tests, in run form -/
 
 namespace RC
 
@@ -1210,9 +1196,8 @@ theorem hasFvarFast_pstep {fuel : Nat} {s₀ s' : AState} {e : EIdx} {eP : Expr}
     PStep s₀ s' ∧ r = eP.hasFvar := by
   obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (ExprOps.hasFvarFast_spec fuel s₀ e hok (by rw [hd]; rfl))
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h4 eP hd⟩
-  · rw [h1]; exact Ext.refl _
-  · rw [h1]; exact BMExt.refl _
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ h2 h3, h4 eP hd⟩
+  rw [h1]; exact Ext.refl _
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1718-1719 looseBVarsBoundedFast —
 run form. -/
@@ -1222,432 +1207,10 @@ theorem looseBVarsBoundedFast_pstep {fuel k : Nat} {s₀ s' : AState} {e : EIdx}
     PStep s₀ s' ∧ r = eP.looseBVarsBounded k := by
   obtain ⟨h1, h2, h3, h4⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
     (ExprOps.looseBVarsBoundedFast_spec fuel k s₀ e hok (by rw [hd]; rfl))
-  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ ?_ h2 h3, h4 eP hd⟩
-  · rw [h1]; exact Ext.refl _
-  · rw [h1]; exact BMExt.refl _
+  refine ⟨PStep.of_caches ⟨by rw [h1]; exact hok.wf⟩ ?_ h2 h3, h4 eP hd⟩
+  rw [h1]; exact Ext.refl _
 
 end RC
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-(`(args.take cnP).map (lowerBVars k 0)`) — the lowered parameter prefix. -/
-theorem lowerList_spec (k : Nat) : ∀ (xs : List EIdx) (xsP : List Expr),
-    PSpec (fun st => Frontend.denoteEList st xs = some xsP) (Arena.lowerList k xs)
-      (REL (xsP.map (Expr.lowerBVars k 0))) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro xsP s₀ s' r hok hx hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at hx
-    subst hx
-    simp only [Arena.lowerList] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons x xs ih =>
-    intro xsP s₀ s' r hok hx hrun
-    obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := Core.denoteEList_cons_inv hx
-    simp only [Arena.lowerList] at hrun
-    obtain ⟨y, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨o1, o2, o3, o4, o5, -, o7⟩ := ExprOps.lowerBVarsFast_run hok
-      (by rw [hxP]; rfl) k1
-    have p1 : PStep s₀ s1 := PStep.of_caches o1 o2 o3 o4 o5
-    obtain ⟨ys, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hys⟩ := ih xsP' s1 s2 ys p1.ok (denoteEList_ext p1.ext _ _ hxsP) k2
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-    refine ⟨p1.trans p2, ?_⟩
-    show Frontend.denoteEList _ (y :: ys) = _
-    simp only [List.map_cons, Frontend.denoteEList, denote_ext (o7 xP hxP) p2.ext, hys]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-(`pins.map (liftLooseBVars k 0)`) — the lift back. -/
-theorem liftList_spec (k : Nat) : ∀ (xs : List EIdx) (xsP : List Expr),
-    PSpec (fun st => Frontend.denoteEList st xs = some xsP) (Arena.liftList k xs)
-      (REL (xsP.map (Expr.liftLooseBVars k 0))) := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro xsP s₀ s' r hok hx hrun
-    simp only [Frontend.denoteEList, Option.some.injEq] at hx
-    subst hx
-    simp only [Arena.liftList] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons x xs ih =>
-    intro xsP s₀ s' r hok hx hrun
-    obtain ⟨xP, xsP', hxP, hxsP, rfl⟩ := Core.denoteEList_cons_inv hx
-    simp only [Arena.liftList] at hrun
-    obtain ⟨y, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hy⟩ := liftFast_pstep hok hxP k1
-    obtain ⟨ys, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hys⟩ := ih xsP' s1 s2 ys p1.ok (denoteEList_ext p1.ext _ _ hxsP) k2
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-    refine ⟨p1.trans p2, ?_⟩
-    show Frontend.denoteEList _ (y :: ys) = _
-    simp only [Frontend.denoteEList, List.map_cons, denote_ext hy p2.ext, hys]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn (the pins'
-guard) — the four-way `&&` per pin, left to right, at `resolves :=
-(·.constsResolve env)`. -/
-theorem pinsWf_spec {env : Env} (fe : IFEnv) (lps : List NIdx) (lpsP : List ConLeche.Name)
-    (rP : Nat) : ∀ (ps : List EIdx) (psP : List Expr),
-    RdSpec env fe (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
-        Frontend.denoteEList st ps = some psP)
-      (Arena.pinsWf fe lps rP ps)
-      (RV (psP.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
-        p.constsResolve env && p.allLevelParamsDefined lpsP))) := by
-  intro ps
-  induction ps with
-  | nil =>
-    intro psP s₀ s' r hok hpre hrun
-    obtain ⟨-, hx⟩ := hpre
-    simp only [Frontend.denoteEList, Option.some.injEq] at hx
-    subst hx
-    simp only [Arena.pinsWf] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok.state, rfl⟩
-  | cons q qs ih =>
-    intro psP s₀ s' r hok hpre hrun
-    obtain ⟨hl, hx⟩ := hpre
-    obtain ⟨qP, qsP, hqP, hqsP, rfl⟩ := Core.denoteEList_cons_inv hx
-    simp only [Arena.pinsWf] at hrun
-    obtain ⟨b1, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, rfl⟩ := RC.hasFvarFast_pstep hok.state hqP k1
-    simp only [List.all_cons]
-    by_cases c1 : qP.hasFvar = true
-    · rw [ite_eq_left c1] at z1
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      exact ⟨p1, by simp [c1]⟩
-    · rw [ite_eq_right c1] at z1
-      obtain ⟨b2, s2, k2, z2⟩ := AM.bind_ok z1
-      obtain ⟨p2, rfl⟩ := RC.looseBVarsBoundedFast_pstep p1.ok (denote_ext hqP p1.ext) k2
-      have p12 := p1.trans p2
-      by_cases c2 : qP.looseBVarsBounded rP = true
-      · rw [ite_eq_right (by simp [c2])] at z2
-        obtain ⟨b3, s3, k3, z3⟩ := AM.bind_ok z2
-        obtain ⟨p3, rfl⟩ := constsResolveFFast_pstep (hok.mono p12.ok p12.ext p12.pins)
-          (denote_ext hqP p12.ext) k3
-        have p13 := p12.trans p3
-        by_cases c3 : qP.constsResolve env = true
-        · rw [ite_eq_right (by simp [c3])] at z3
-          obtain ⟨b4, s4, k4, z4⟩ := AM.bind_ok z3
-          obtain ⟨hs4, hc4, hp4, rfl⟩ := allLevelParamsDefined_run p13.ok
-            (denoteNListE_ext p13.ext _ _ hl) (denote_ext hqP p13.ext) k4
-          have p4 : PStep s3 s4 := PStep.of_caches ⟨by rw [hs4]; exact p13.ok.wf⟩
-            (by rw [hs4]; exact Ext.refl _) (by rw [hs4]; exact BMExt.refl _) hc4 hp4
-          have p14 := p13.trans p4
-          by_cases c4 : qP.allLevelParamsDefined lpsP = true
-          · rw [ite_eq_right (by simp [c4])] at z4
-            obtain ⟨p5, hr⟩ := ih qsP s4 s' r (hok.mono p14.ok p14.ext p14.pins)
-              ⟨denoteNListE_ext p14.ext _ _ hl, denoteEList_ext p14.ext _ _ hqsP⟩ z4
-            exact ⟨p14.trans p5, by rw [hr]; simp [c1, c2, c3, c4]⟩
-          · rw [ite_eq_left (by simpa using c4)] at z4
-            obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
-            exact ⟨p14, by simp [c1, c2, c3, c4]⟩
-        · rw [ite_eq_left (by simpa using c3)] at z3
-          obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-          exact ⟨p13, by simp [c1, c2, c3]⟩
-      · rw [ite_eq_left (by simpa using c2)] at z2
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-        exact ⟨p12, by simp [c1, c2]⟩
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn
-(`lvls.all (Level.allParamsDefined lps)`) — the cursor recursion. -/
-theorem levelsDeclaredFrom_spec (ps : List ConLeche.Name) :
-    ∀ (ls : List LIdx) (lsP : List Level),
-    PSpec (fun st => denoteLList st.ls ls = some lsP) (Arena.levelsDeclaredFrom ps ls)
-      (RV (lsP.all (Level.allParamsDefined ps))) := by
-  intro ls
-  induction ls with
-  | nil =>
-    intro lsP s₀ s' r hok hx hrun
-    simp only [denoteLList, Option.some.injEq] at hx
-    subst hx
-    simp only [Arena.levelsDeclaredFrom] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons l ls ih =>
-    intro lsP s₀ s' r hok hx hrun
-    simp only [denoteLList, opt2] at hx
-    cases hl : denoteL s₀.store.ls l with
-    | none => rw [hl] at hx; simp at hx
-    | some lP =>
-    cases hls : denoteLList s₀.store.ls ls with
-    | none => rw [hl, hls] at hx; simp at hx
-    | some lsP' =>
-    rw [hl, hls] at hx
-    obtain rfl := (Option.some.inj hx).symm
-    simp only [Arena.levelsDeclaredFrom] at hrun
-    obtain ⟨lv, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, hlv⟩ := readLevel_run k1
-    rw [hs1] at z1
-    rw [hl] at hlv
-    obtain rfl := Option.some.inj hlv
-    simp only [List.all_cons]
-    by_cases c : Level.allParamsDefined ps lP = true
-    · rw [ite_eq_left c] at z1
-      obtain ⟨p, hr⟩ := ih lsP' s₀ s' r hok hls z1
-      exact ⟨p, by rw [hr]; simp [c]⟩
-    · rw [ite_eq_right c] at z1
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      exact ⟨PStep.refl hok, by simp [c]⟩
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the
-levels' guard, the names read once. -/
-theorem levelsDeclared_spec (lps : List NIdx) (lpsP : List ConLeche.Name) (ls : List LIdx)
-    (lsP : List Level) :
-    PSpec (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteLList st.ls ls = some lsP)
-      (Arena.levelsDeclared lps ls) (RV (lsP.all (Level.allParamsDefined lpsP))) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hl, hx⟩ := hpre
-  simp only [Arena.levelsDeclared] at hrun
-  obtain ⟨ps, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, hps⟩ := readNames_run k1
-  rw [hs1] at z1
-  rw [hl] at hps
-  obtain rfl := Option.some.inj hps
-  exact levelsDeclaredFrom_spec _ ls lsP s₀ s' r hok hx z1
-
-/-- con-leche: none — the answer relation of `nestedRuleSyn`: the level
-handles and the pin handles denote. -/
-abbrev RSyn (x : List Level × List Expr) : EStore → List LIdx × List EIdx → Prop :=
-  fun st r => denoteLList st.ls r.1 = some x.1 ∧ Frontend.denoteEList st r.2 = some x.2
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — the
-pins' and the levels' guards, in the cited `∧` order. -/
-theorem nestedRuleSynGuards_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
-    (lpsP : List ConLeche.Name) (lvls : LsIdx) (lvlsP : List Level) (rP : Nat)
-    (pins : List EIdx) (pinsP : List Expr) :
-    RdSpec env fe (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteLs st.lss lvls = some lvlsP ∧ Frontend.denoteEList st pins = some pinsP)
-      (Arena.nestedRuleSynGuards fe lps lvls rP pins)
-      (ROp RSyn (if pinsP.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
-          p.constsResolve env && p.allLevelParamsDefined lpsP) = true ∧
-          lvlsP.all (Level.allParamsDefined lpsP) = true then some (lvlsP, pinsP) else none)) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hl, hlv, hpins⟩ := hpre
-  simp only [Arena.nestedRuleSynGuards] at hrun
-  obtain ⟨b, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, rfl⟩ := pinsWf_spec fe lps lpsP rP pins pinsP s₀ s1 b hok ⟨hl, hpins⟩ k1
-  by_cases c1 : pinsP.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
-      p.constsResolve env && p.allLevelParamsDefined lpsP) = true
-  · rw [ite_eq_right (by simp [c1])] at z1
-    obtain ⟨ls, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨hs2, hv⟩ := viewLs_run k2
-    rw [hs2] at z2
-    have hls : denoteLList s1.store.ls ls = some lvlsP :=
-      denoteLs_of_view hv (denoteLs_ext hlv p1.ext)
-    obtain ⟨b2, s3, k3, z3⟩ := AM.bind_ok z2
-    obtain ⟨p3, rfl⟩ := levelsDeclared_spec lps lpsP ls lvlsP s1 s3 b2 p1.ok
-      ⟨denoteNListE_ext p1.ext _ _ hl, hls⟩ k3
-    have p13 := p1.trans p3
-    by_cases c2 : lvlsP.all (Level.allParamsDefined lpsP) = true
-    · rw [ite_eq_right (by simp [c2])] at z3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-      refine ⟨p13, (lvlsP, pinsP), by rw [ite_eq_left ⟨c1, c2⟩], ?_, ?_⟩
-      · exact denoteLList_ext p3.ext.lss.ls _ _ hls
-      · exact denoteEList_ext p13.ext _ _ hpins
-    · rw [ite_eq_left (by simpa using c2)] at z3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-      exact ⟨p13, by rw [ite_eq_right (fun h => c2 h.2)]; rfl⟩
-  · rw [ite_eq_left (by simpa using c1)] at z1
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    exact ⟨p1, by rw [ite_eq_right (fun h => c1 h.1)]; rfl⟩
-
-namespace RC
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1541-1557 nestedRuleSyn — **the
-reading at the major's domain** `dom = D.{lvls} args`, as con-leche's
-`nestedRuleSyn` computes it once the domain's head is a constant (at
-`resolves := (·.constsResolve env)`). -/
-def synAt (env : Env) (lps : List ConLeche.Name) (dom : Expr) (lvls : List Level)
-    (k rP cnP : Nat) : Option (List Level × List Expr) :=
-  let args := dom.getAppArgs
-  let pins := (args.take cnP).map (Expr.lowerBVars k 0)
-  if args.length = cnP + k ∧
-      args.take cnP == pins.map (Expr.liftLooseBVars k 0) ∧
-      args.drop cnP == (List.range k).map (fun i => Expr.bvar (k - 1 - i)) ∧
-      pins.all (fun p => !p.hasFvar && p.looseBVarsBounded rP &&
-        p.constsResolve env && p.allLevelParamsDefined lps) ∧
-      lvls.all (Level.allParamsDefined lps) then
-    some (lvls, pins)
-  else none
-
-/-- con-leche: none — `bvarRange`, in run form. -/
-theorem bvarRange_pstep {n mI k : Nat} {s₀ s' : AState} {rs : List EIdx}
-    (hok : StateOK s₀) (hrun : Arena.bvarRange mI n k s₀ = .ok (rs, s')) :
-    PStep s₀ s' ∧ Frontend.denoteEList s'.store rs = some (ExprOps.bvarRangeSpec mI n k) := by
-  obtain ⟨h1, h2, h3, -, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl hrun
-    (ExprOps.bvarRange_spec n s₀ mI k hok)
-  exact ⟨PStep.of_caches h1 h2 h3 h5 h6, h7⟩
-
-end RC
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1541-1557 nestedRuleSyn — **at the
-major's domain**: the parameter prefix lowered past the `k` indices, the
-shape tests in con-leche's `∧` order, then the guards. -/
-theorem nestedRuleSynAt_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
-    (lpsP : List ConLeche.Name) (dom : EIdx) (domP : Expr) (lvls : LsIdx)
-    (lvlsP : List Level) (k rP cnP : Nat) :
-    RdSpec env fe (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteE st dom = some domP ∧ denoteLs st.lss lvls = some lvlsP)
-      (Arena.nestedRuleSynAt fe lps dom lvls k rP cnP)
-      (ROp RSyn (RC.synAt env lpsP domP lvlsP k rP cnP)) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hl, hd, hlv⟩ := hpre
-  simp only [Arena.nestedRuleSynAt] at hrun
-  obtain ⟨args, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨hs1, hargs⟩ := getAppArgs_run hok.state hd k1
-  rw [hs1] at z1
-  obtain ⟨pins, s2, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨p2, hpins⟩ := lowerList_spec k (args.take cnP) (domP.getAppArgs.take cnP) s₀ s2 pins
-    hok.state (denoteEList_take hargs cnP) k2
-  have hlen : args.length = domP.getAppArgs.length := denoteEList_length hargs
-  simp only [RC.synAt]
-  by_cases c1 : (args.length != cnP + k) = true
-  · rw [ite_eq_left c1] at z2
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-    refine ⟨p2, ?_⟩
-    rw [ite_eq_right (by
-      intro h
-      have : args.length = cnP + k := hlen.trans h.1
-      exact absurd c1 (by rw [bne, this]; simp))]; rfl
-  · rw [ite_eq_right c1] at z2
-    have e1 : domP.getAppArgs.length = cnP + k := by simpa [hlen] using c1
-    obtain ⟨back, s3, k3, z3⟩ := AM.bind_ok z2
-    obtain ⟨p3, hback⟩ := liftList_spec k pins _ s2 s3 back p2.ok hpins k3
-    have p23 := p2.trans p3
-    have hpre3 := denoteEList_ext p23.ext _ _ (denoteEList_take hargs cnP)
-    have hb1 := beq_of_denoteEList p3.ok.wf hpre3 hback
-    by_cases c2 : (args.take cnP != back) = true
-    · rw [ite_eq_left c2] at z3
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-      refine ⟨p23, ?_⟩
-      rw [ite_eq_right (by
-        intro h
-        have : (args.take cnP == back) = true := by rw [hb1]; exact h.2.1
-        exact absurd c2 (by rw [bne, this]; simp))]; rfl
-    · rw [ite_eq_right c2] at z3
-      have e2 : (domP.getAppArgs.take cnP ==
-          ((domP.getAppArgs.take cnP).map (Expr.lowerBVars k 0)).map
-            (Expr.liftLooseBVars k 0)) = true := by
-        rw [← hb1]; simpa using c2
-      obtain ⟨want, s4, k4, z4⟩ := AM.bind_ok z3
-      obtain ⟨p4, hwant⟩ := RC.bvarRange_pstep p3.ok k4
-      have p24 := p23.trans p4
-      have hdrop := denoteEList_ext p24.ext _ _ (denoteEList_drop hargs cnP)
-      have hb2 := beq_of_denoteEList p4.ok.wf hdrop hwant
-      rw [ExprOps.bvarRangeSpec_eq_range] at hb2
-      simp only [Nat.zero_add] at hb2
-      by_cases c3 : (args.drop cnP != want) = true
-      · rw [ite_eq_left c3] at z4
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok z4
-        refine ⟨p24, ?_⟩
-        rw [ite_eq_right (by
-          intro h
-          have : (args.drop cnP == want) = true := by rw [hb2]; exact h.2.2.1
-          exact absurd c3 (by rw [bne, this]; simp))]; rfl
-      · rw [ite_eq_right c3] at z4
-        have e3 : (domP.getAppArgs.drop cnP ==
-            (List.range k).map (fun i => Expr.bvar (k - 1 - i))) = true := by
-          rw [← hb2]; simpa using c3
-        have p34 := p3.trans p4
-        obtain ⟨p5, hr⟩ := nestedRuleSynGuards_spec fe lps lpsP lvls lvlsP rP pins _
-          s4 s' r (hok.mono p24.ok p24.ext p24.pins)
-          ⟨denoteNListE_ext p24.ext _ _ hl, denoteLs_ext hlv p24.ext,
-            denoteEList_ext p34.ext _ _ hpins⟩ z4
-        refine ⟨p24.trans p5, ?_⟩
-        by_cases c4 : ((domP.getAppArgs.take cnP).map (Expr.lowerBVars k 0)).all
-            (fun p => !p.hasFvar && p.looseBVarsBounded rP && p.constsResolve env &&
-              p.allLevelParamsDefined lpsP) = true ∧
-            lvlsP.all (Level.allParamsDefined lpsP) = true
-        · rw [ite_eq_left c4] at hr
-          rw [ite_eq_left ⟨e1, e2, e3, c4.1, c4.2⟩]
-          exact hr
-        · rw [ite_eq_right c4] at hr
-          rw [ite_eq_right (fun h => c4 ⟨h.2.2.2.1, h.2.2.2.2⟩)]
-          exact hr
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1521-1559 nestedRuleSyn — **the
-syntactic reading of a nested rule's instantiation**, at `resolves :=
-(·.constsResolve env)`: the prefix within the major's position, the major's
-domain a constant-headed application, then `nestedRuleSynAt`. -/
-theorem nestedRuleSyn_spec {env : Env} (fe : IFEnv) (lps : List NIdx)
-    (lpsP : List ConLeche.Name) (tyA : EIdx) (tyAP : Expr) (mI rP cnP : Nat) :
-    RdSpec env fe (fun st => Frontend.denoteNList st.ns lps = some lpsP ∧
-        denoteE st tyA = some tyAP)
-      (Arena.nestedRuleSyn fe lps tyA mI rP cnP)
-      (ROp RSyn (Expr.nestedRuleSyn (·.constsResolve env) lpsP tyAP mI rP cnP)) := by
-  intro s₀ s' r hok hpre hrun
-  obtain ⟨hl, hd⟩ := hpre
-  simp only [Arena.nestedRuleSyn] at hrun
-  simp only [Expr.nestedRuleSyn]
-  by_cases hle : rP ≤ mI
-  · rw [ite_eq_left hle] at hrun
-    rw [ite_eq_left hle]
-    obtain ⟨q, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, hq⟩ := stripPis_pstep hok.state hd k1
-    rw [hs1] at z1
-    cases q with
-    | none =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      refine ⟨PStep.refl hok.state, ?_⟩
-      rw [stripPis_none hq]; rfl
-    | some q =>
-      obtain ⟨bs, e⟩ := q
-      obtain ⟨xs, x, hsx, -, hx⟩ := denoteBP_some hq
-      rw [hsx]
-      dsimp only at z1
-      by_cases htg : (e.tag == ETag.forallE) = true
-      · rw [ite_eq_left htg] at z1
-        obtain ⟨o, s2, k2, z2⟩ := AM.bind_ok z1
-        obtain ⟨hs2, ho⟩ := viewBind_run k2
-        rw [hs2] at z2
-        cases o with
-        | none => exact absurd z2 (fun hc => AM.fail_ok hc)
-        | some t =>
-          obtain ⟨dom, b, m⟩ := t
-          have hw := view_of_viewBind_tag_forallE htg ho.symm
-          obtain ⟨domP, bP, rfl, hdom, -⟩ := denote_forallE_inv hok.state.wf hw hx
-          dsimp only at z2
-          obtain ⟨hd', s3, k3, z3⟩ := AM.bind_ok z2
-          obtain ⟨hs3, hhd⟩ := getAppFn_run hok.state hdom k3
-          rw [hs3] at z3
-          by_cases htc : (hd'.tag == ETag.const) = true
-          · rw [ite_eq_left htc] at z3
-            obtain ⟨o2, s4, k4, z4⟩ := AM.bind_ok z3
-            obtain ⟨hs4, ho2⟩ := viewConst_run k4
-            rw [hs4] at z4
-            cases o2 with
-            | none => exact absurd z4 (fun hc => AM.fail_ok hc)
-            | some t2 =>
-              obtain ⟨D, lvls⟩ := t2
-              have hw2 := view_of_viewConst_tag htc ho2.symm
-              obtain ⟨DP, lvlsP, hDP, -, hlvP⟩ := denote_const_inv hok.state.wf hw2 hhd
-              dsimp only
-              rw [hDP]
-              dsimp only at z4
-              exact nestedRuleSynAt_spec fe lps lpsP dom domP lvls lvlsP (mI - rP) rP cnP
-                s₀ s' r hok ⟨hl, hdom, hlvP⟩ z4
-          · rw [ite_eq_right htc] at z3
-            obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
-            refine ⟨PStep.refl hok.state, ?_⟩
-            dsimp only
-            cases hg : domP.getAppFn with
-            | const D us =>
-              rw [hg] at hhd
-              exact absurd (tag_const_of_denote hok.state.wf hhd) (by simpa using htc)
-            | _ => show _ = none; rfl
-      · rw [ite_eq_right htg] at z1
-        obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-        refine ⟨PStep.refl hok.state, ?_⟩
-        cases x with
-        | forallE dP bP m =>
-          exact absurd (tag_forallE_of_denote hok.state.wf hx) (by simpa using htg)
-        | _ => show _ = none; rfl
-  · rw [ite_eq_right hle] at hrun
-    rw [ite_eq_right hle]
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok.state, rfl⟩
 
 /-! ## The stored family
 
@@ -1757,20 +1320,18 @@ apart from the knot's: the rules read `fe` (`IFEnvOK env fe`), the caches serve
 `feC` (`CheckOK μ envC feC`), as `recRuleBits_run` states it.  **Belongs in
 `SumInstall.lean` beside `sumRules_spec`** (which is this at `feC := fe`). -/
 theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
-    (recName : NIdx) (recNameP : ConLeche.Name) (nP mI rP : Nat)
-    (recTy : EIdx) (recTyP : Expr) :
+    (recName : NIdx) (recNameP : ConLeche.Name) (nP : Nat) :
     ∀ (cs : List (IConstantVal × Nat)) (csP : List (ConstantVal × Nat))
       (rhss : List EIdx) (rhssP : List Expr) (s₀ s' : AState) (r : List IRecRule),
       CheckOK μ envC feC s₀ → IFEnvOK env fe s₀ →
-      denoteN s₀.store.ns recName = some recNameP → denoteE s₀.store recTy = some recTyP →
       denoteCtors s₀.store cs = some csP → Frontend.denoteEList s₀.store rhss = some rhssP →
-      Arena.sumRules fe recName nP mI rP recTy cs rhss s₀ = .ok (r, s') →
+      Arena.sumRules fe recName nP cs rhss s₀ = .ok (r, s') →
       CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r
-        = some (ConLeche.sumRules env.find? recNameP nP mI rP recTyP csP rhssP) := by
+        = some (ConLeche.sumRules env.find? recNameP nP csP rhssP) := by
   intro cs
   induction cs with
   | nil =>
-    intro csP rhss rhssP s₀ s' r hok _ _ _ hcs _ hrun
+    intro csP rhss rhssP s₀ s' r hok _ hcs _ hrun
     simp only [denoteCtors, Option.some.injEq] at hcs
     subst hcs
     simp only [Arena.sumRules] at hrun
@@ -1778,7 +1339,7 @@ theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEn
     refine ⟨CoreStep.refl hok, ?_⟩
     cases rhssP <;> rfl
   | cons c cs ih =>
-    intro csP rhss rhssP s₀ s' r hok hie hrn hrt hcs hrh hrun
+    intro csP rhss rhssP s₀ s' r hok hie hcs hrh hrun
     obtain ⟨cv, n⟩ := c
     simp only [denoteCtors] at hcs
     cases hcv : Frontend.denoteCV s₀.store cv with
@@ -1807,90 +1368,123 @@ theorem sumRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEn
     rw [hrhs, hrhss] at hrh
     obtain rfl := (Option.some.inj hrh).symm
     simp only [Arena.sumRules] at hrun
-    obtain ⟨b, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
-      (ExprOps.recRulePlain_spec Arena.coreWalkFuel s₀ recTy mI rP nP hok.state
-        (by rw [hrt]; rfl))
-    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h3 h5 h6
-    have hb : b = Expr.recRulePlain recTyP mI rP nP := h7 recTyP hrt
-    have c1 := p1.toCore hok
-    obtain ⟨rl, s2, k2, z2⟩ := AM.bind_ok z1
-    have hrl : Frontend.denoteRule s1.store
-        { ctor := cv.name, nfields := n, ctorParams := nP,
-          fire := (if b then .plain else .inert), rhs := rhs, paramsBlind := true } =
-        some { ctor := cP.name, nfields := n, ctorParams := nP,
-               fire := (if Expr.recRulePlain recTyP mI rP nP then .plain else .inert),
-               rhs := rhsP, paramsBlind := true } := by
-      subst hb
-      simp only [Frontend.denoteRule, denoteN_ext (denoteCV_name hcv) p1.ext,
-        denote_ext hrhs p1.ext]
-      cases Expr.recRulePlain recTyP mI rP nP <;> rfl
-    obtain ⟨hfr, hrlr⟩ := recRuleBits_run c1.ok (hie.mono p1.ext)
-      (denoteN_ext hrn p1.ext) hrl k2
+    obtain ⟨rl, s2, k2, z2⟩ := AM.bind_ok hrun
+    have hrl : Frontend.denoteRule s₀.store
+        { ctor := cv.name, nfields := n, ctorParams := nP, fire := .plain, rhs := rhs } =
+        some { ctor := cP.name, nfields := n, ctorParams := nP, fire := .plain,
+               rhs := rhsP } := by
+      simp only [Frontend.denoteRule, denoteCV_name hcv, hrhs]
+      rfl
+    obtain ⟨hfr, hrlr⟩ := recRuleBits_run hok hie hrl k2
     have c2 : CoreStep μ envC feC s₀ s2 :=
-      c1.trans ⟨Core.CheckOK.ofReadbackFrame c1.ok hfr, hfr.ext, hfr.pins⟩
+      ⟨Core.CheckOK.ofReadbackFrame hok hfr, hfr.ext, hfr.pins⟩
     obtain ⟨rs, s3, k3, z3⟩ := AM.bind_ok z2
     obtain ⟨c3, hrs⟩ := ih restP rhss rhssP' s2 s3 rs c2.ok (hie.mono c2.ext)
-      (denoteN_ext hrn c2.ext) (denote_ext hrt c2.ext) (denoteCtors_ext c2.ext _ _ hrest)
-      (denoteEList_ext c2.ext _ _ hrhss) k3
+      (denoteCtors_ext c2.ext _ _ hrest) (denoteEList_ext c2.ext _ _ hrhss) k3
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z3
     refine ⟨c2.trans c3, ?_⟩
     simp only [Frontend.denoteRules, denoteRule_ext hrlr c3.ext, hrs]
     rfl
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:574-585 auxRuleFireR
-**The firing mode of a rule at an OUTSIDE major**: `.nested` at the
-syntactic reading, `.inert` when it fails, at `resolves :=
-(·.constsResolve env)` for the index `fe` denotes. -/
-theorem auxRuleFireR_spec {env : Env} (fe : IFEnv) (cv : IConstantVal) (cvP : ConstantVal)
-    (mI rP nPc : Nat) :
-    RdSpec env fe (fun st => Frontend.denoteCV st cv = some cvP)
-      (Arena.auxRuleFireR fe cv mI rP nPc)
-      (fun st r => Frontend.denoteFire st r =
-        some (ConLeche.auxRuleFireR (·.constsResolve env) cvP mI rP nPc)) := by
-  intro s₀ s' r hok hcv hrun
-  simp only [Arena.auxRuleFireR] at hrun
-  obtain ⟨o, s1, k1, z1⟩ := AM.bind_ok hrun
-  obtain ⟨p1, ho⟩ := nestedRuleSyn_spec fe cv.levelParams cvP.levelParams cv.type cvP.type
-    mI rP nPc s₀ s1 o hok ⟨denoteCV_lps hcv, denoteCV_type hcv⟩ k1
-  simp only [ConLeche.auxRuleFireR]
-  cases o with
-  | none =>
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    have : Expr.nestedRuleSyn (·.constsResolve env) cvP.levelParams cvP.type mI rP nPc
-      = none := ho
-    rw [this]
-    exact ⟨p1, rfl⟩
-  | some q =>
-    obtain ⟨lvls, pins⟩ := q
-    obtain ⟨⟨lvlsP, pinsP⟩, hq, hl, hp⟩ := ho
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-    rw [hq]
-    refine ⟨p1, ?_⟩
-    simp only [Frontend.denoteFire, hl, hp]
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:584-591 Expr.abstractPrefix
+The free variables `0 … k-1` closed at cursor `c`, one `abstract1Fast` pass
+each (`Bridge/ExprOps/Owed.lean`'s `abstract1Fast_spec`). -/
+theorem abstractPrefix_run : ∀ (k c : Nat) (e : EIdx) (eP : Expr) (s₀ s' : AState) (r : EIdx),
+    StateOK s₀ → denoteE s₀.store e = some eP → Arena.abstractPrefix k c e s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ denoteE s'.store r = some (Expr.abstractPrefix k c eP) := by
+  intro k
+  induction k with
+  | zero =>
+    intro c e eP s₀ s' r hok he hrun
+    simp only [Arena.abstractPrefix] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, he⟩
+  | succ k ih =>
+    intro c e eP s₀ s' r hok he hrun
+    simp only [Arena.abstractPrefix] at hrun
+    obtain ⟨e1, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨h1, h2, h4, h5, -, h7⟩ := AM.of_run (P := fun t => t = s₀) rfl k1
+      (ExprOps.abstract1Fast_spec Core.fvarBSpec Arena.coreWalkFuel s₀ e k c hok
+        (by rw [he]; rfl))
+    have p1 : PStep s₀ s1 := PStep.of_caches h1 h2 h4 h5
+    obtain ⟨p2, hr⟩ := ih (c + 1) e1 _ s1 s' r p1.ok (h7 _ he) z1
+    exact ⟨p1.trans p2, by simpa only [Expr.abstractPrefix] using hr⟩
 
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:587-597 tgtStoredRules
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire —
+`M.ds.map (Expr.abstractPrefix rP 0)`, as the twin's list recursion. -/
+theorem abstractPrefixList_run (rP : Nat) : ∀ (ds : List EIdx) (dsP : List Expr)
+    (s₀ s' : AState) (r : List EIdx),
+    StateOK s₀ → Frontend.denoteEList s₀.store ds = some dsP →
+    Arena.abstractPrefixList rP ds s₀ = .ok (r, s') →
+    PStep s₀ s' ∧ Frontend.denoteEList s'.store r = some (dsP.map (Expr.abstractPrefix rP 0)) := by
+  intro ds
+  induction ds with
+  | nil =>
+    intro dsP s₀ s' r hok hd hrun
+    simp only [Frontend.denoteEList, Option.some.injEq] at hd
+    subst hd
+    simp only [Arena.abstractPrefixList] at hrun
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
+    exact ⟨PStep.refl hok, rfl⟩
+  | cons d ds ih =>
+    intro dsP s₀ s' r hok hd hrun
+    simp only [Frontend.denoteEList] at hd
+    cases h1 : denoteE s₀.store d with
+    | none => rw [h1] at hd; simp at hd
+    | some dP =>
+    cases h2 : Frontend.denoteEList s₀.store ds with
+    | none => rw [h1, h2] at hd; simp at hd
+    | some rest =>
+    rw [h1, h2] at hd
+    obtain rfl := (Option.some.inj hd).symm
+    simp only [Arena.abstractPrefixList] at hrun
+    obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
+    obtain ⟨p1, hx⟩ := abstractPrefix_run rP 0 d dP s₀ s1 x hok h1 k1
+    obtain ⟨xs, s2, k2, z2⟩ := AM.bind_ok z1
+    obtain ⟨p2, hxs⟩ := ih rest s1 s2 xs p1.ok (denoteEList_ext p1.ext _ _ h2) k2
+    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+    refine ⟨p1.trans p2, ?_⟩
+    simp only [Frontend.denoteEList, denote_ext hx p2.ext, hxs, List.map_cons]
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:593-600 auxRuleFire
+**The firing mode of a rule at an OUTSIDE major**: `.nested` at the class's
+levels and its parameters closed over the rule prefix. -/
+theorem auxRuleFire_run (M : Arena.TargetMajor) (MP : ConLeche.TargetMajor) (rP : Nat)
+    (s₀ s' : AState) (r : IRecRuleFire) (hok : StateOK s₀) (hM : dMajor s₀.store M = some MP)
+    (hrun : Arena.auxRuleFire M rP s₀ = .ok (r, s')) :
+    PStep s₀ s' ∧ Frontend.denoteFire s'.store r = some (ConLeche.auxRuleFire MP rP) := by
+  obtain ⟨-, hlv, hds, -⟩ := dMajor_inv hM
+  simp only [Arena.auxRuleFire] at hrun
+  obtain ⟨lv, s1, k1, z1⟩ := AM.bind_ok hrun
+  obtain ⟨hs1, hv⟩ := viewLs_run k1
+  rw [hs1] at z1
+  have hll := denoteLs_of_view hv hlv
+  obtain ⟨ps, s2, k2, z2⟩ := AM.bind_ok z1
+  obtain ⟨p2, hps⟩ := abstractPrefixList_run rP M.ds MP.ds s₀ s2 ps hok hds k2
+  obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
+  refine ⟨p2, ?_⟩
+  simp only [Frontend.denoteFire, ConLeche.auxRuleFire, denoteLListE_ext p2.ext _ _ hll, hps]
+
+/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:602-614 tgtStoredRules
 **One checked recursor's stored rules, at its major**: `sumRules` at the
-major's parameter count and constructors, every rule firing as
-`auxRuleFireR` reads it at an OUTSIDE major.  The pure side at `find? :=
-env.find?` and `resolves := (·.constsResolve env)` for the lookup index's
-environment `env`; the caches at `feC`. -/
+major's parameter count and constructors, every rule firing `auxRuleFire` at
+an OUTSIDE major.  The pure side at `find? := env.find?` for the lookup
+index's environment `env`; the caches at `feC`. -/
 theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe : IFEnv)
-    (cv : IConstantVal) (cvP : ConstantVal) (mI rP : Nat) (M : Arena.TargetMajor)
+    (cv : IConstantVal) (cvP : ConstantVal) (rP : Nat) (M : Arena.TargetMajor)
     (MP : ConLeche.TargetMajor) (rhss : List EIdx) (rhssP : List Expr)
     (s₀ s' : AState) (r : List IRecRule) (hok : CheckOK μ envC feC s₀)
-    (hie : IFEnvOK env fe s₀) (hcv : Frontend.denoteCV s₀.store cv = some cvP)
+    (hie : IFEnvOK env fe s₀) (_hcv : Frontend.denoteCV s₀.store cv = some cvP)
     (hM : dMajor s₀.store M = some MP) (hrh : Frontend.denoteEList s₀.store rhss = some rhssP)
-    (hrun : Arena.tgtStoredRules fe cv mI rP M rhss s₀ = .ok (r, s')) :
+    (hrun : Arena.tgtStoredRules fe cv rP M rhss s₀ = .ok (r, s')) :
     CoreStep μ envC feC s₀ s' ∧ Frontend.denoteRules s'.store r =
-      some (ConLeche.tgtStoredRules env.find? (·.constsResolve env) cvP mI rP MP rhssP) := by
+      some (ConLeche.tgtStoredRules env.find? cvP rP MP rhssP) := by
   obtain ⟨-, -, -, hnpc, -, hctors, hmem, -, -⟩ := dMajor_inv hM
   simp only [Arena.tgtStoredRules] at hrun
   obtain ⟨rules, s1, k1, z1⟩ := AM.bind_ok hrun
   rw [dCtors_eq_denoteCtors] at hctors
-  obtain ⟨c1, hrules⟩ := sumRules_spec fe cv.name cvP.name M.nPc mI rP cv.type cvP.type
-    M.ctors MP.ctors rhss rhssP s₀ s1 rules hok hie (denoteCV_name hcv) (denoteCV_type hcv)
-    hctors hrh k1
+  obtain ⟨c1, hrules⟩ := sumRules_spec fe cv.name cvP.name M.nPc
+    M.ctors MP.ctors rhss rhssP s₀ s1 rules hok hie hctors hrh k1
   simp only [ConLeche.tgtStoredRules, ← hnpc, ← hmem]
   cases hm : M.member with
   | some t =>
@@ -1901,8 +1495,7 @@ theorem tgtStoredRules_spec {μ : CheckMode} {envC env : Env} {feC : IFEnv} (fe 
     rw [hm] at z1
     dsimp only at z1
     obtain ⟨f, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hf⟩ := auxRuleFireR_spec fe cv cvP mI rP M.nPc s1 s2 f
-      ⟨c1.ok.state, c1.ok.pins, hie.mono c1.ext⟩ (denoteCV_ext hcv c1.ext) k2
+    obtain ⟨p2, hf⟩ := auxRuleFire_run M MP rP s1 s2 f c1.ok.state (dMajor_ext c1.ext _ _ hM) k2
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
     exact ⟨c1.trans (p2.toCore c1.ok),
       RC.denoteRules_map_fire hf (denoteRules_ext p2.ext _ _ hrules)⟩
@@ -2005,8 +1598,7 @@ end RC
 con-leche: ConLeche/Kernel/Inductives/BlockTail.lean:93-106 consBlockRecsT
 **The checked family consed through the index, at its majors**: each
 recursor with its rules at ITS major, read at the constructors' view
-`fe.restrictTo vis₂` — con-leche's `consBlockRecsT env₂.find?
-(·.constsResolve env₂)`, where `env₂` is what that view denotes.  The answer
+`fe.restrictTo vis₂` — con-leche's `consBlockRecsT env₂.find?`, where `env₂` is what that view denotes.  The answer
 is an install (`InstRel`: coherent, only pushed, the bound only rose,
 denoting con-leche's cons, no projection table).
 
@@ -2026,7 +1618,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
       (∀ t ∈ outP, env₂.find? t.1.name = none) →
       Arena.consBlockRecsTF vis₂ p m out fe s₀ = .ok (fe', s') →
       CoreStep μ envC feC s₀ s' ∧
-        InstRel fe (fun e => e = consBlockRecsT env₂.find? (·.constsResolve env₂) pP m outP env)
+        InstRel fe (fun e => e = consBlockRecsT env₂.find? pP m outP env)
           s'.store fe' := by
   intro out
   induction out with
@@ -2058,12 +1650,12 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
     simp only [Arena.consBlockRecsTF] at hrun
     obtain ⟨rules, s1, k1, z1⟩ := AM.bind_ok hrun
     obtain ⟨c1, hrules⟩ := tgtStoredRules_spec (fe.restrictTo vis₂) cv cvP
-      (p.majorIdxAt m) (p.rulePrefixAt m) M MP rhss rhssP s₀ s1 rules hok hie hcv hM hrh k1
-    rw [hmI, hrP] at hrules
+      (p.rulePrefixAt m) M MP rhss rhssP s₀ s1 rules hok hie hcv hM hrh k1
+    rw [hrP] at hrules
     -- the pushed recursor
     have hci : Frontend.denoteCI s1.store (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules)
         = some (.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m)
-          (ConLeche.tgtStoredRules env₂.find? (·.constsResolve env₂) cvP (pP.majorIdxAt m)
+          (ConLeche.tgtStoredRules env₂.find? cvP
             (pP.rulePrefixAt m) MP rhssP)) := by
       simp only [Frontend.denoteCI, denoteCV_ext hcv c1.ext, hrules, hmI, hrP]
     have hfe1 := denoteFEnv_push (denoteFEnv_mono c1.ext hfe) hci
@@ -2084,7 +1676,7 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
       (dRecOut_ext.list c1.ext _ _ hr) (fun t ht => hfresh t (by simp [ht])) z1
     refine ⟨c1.trans c2, ?_⟩
     have h1 : InstRel fe (fun e => e = ⟨.recInfo cvP (pP.majorIdxAt m) (pP.rulePrefixAt m)
-          (ConLeche.tgtStoredRules env₂.find? (·.constsResolve env₂) cvP (pP.majorIdxAt m)
+          (ConLeche.tgtStoredRules env₂.find? cvP
             (pP.rulePrefixAt m) MP rhssP) :: env.consts⟩) s1.store
         (fe.push (.recInfo cv (p.majorIdxAt m) (p.rulePrefixAt m) rules)) :=
       ⟨hcoh.push _, Pushed.push _ _, by simp only [IFEnv.push]; omega, ⟨_, hfe1, rfl⟩,
@@ -2092,118 +1684,6 @@ theorem consBlockRecsTF_spec {μ : CheckMode} {envC env₂ : Env} {feC : IFEnv} 
     exact InstRel.trans c2.ext h1 hrel
 
 /-! ## Node agreement (K.53′) -/
-
-namespace RC
-
-/-- con-leche: none — `denoteEList_inj` at a binder telescope: two telescopes
-denoting the same one ARE the same handles. -/
-theorem denoteBinders_inj {st : EStore} (hwf : StoreWF st) :
-    ∀ {as bs : List (EIdx × BinderMeta)} {xs : List (Expr × BinderMeta)},
-      denoteBinders st as = some xs → denoteBinders st bs = some xs → as = bs := by
-  intro as
-  induction as with
-  | nil =>
-    intro bs xs ha hb
-    simp only [denoteBinders, Option.some.injEq] at ha
-    subst ha
-    cases bs with
-    | nil => rfl
-    | cons b bs =>
-      obtain ⟨t, m⟩ := b
-      simp only [denoteBinders] at hb
-      split at hb <;> simp at hb
-  | cons a as ih =>
-    intro bs xs ha hb
-    obtain ⟨t, m⟩ := a
-    simp only [denoteBinders] at ha
-    cases hx : denoteE st t with
-    | none => rw [hx] at ha; simp at ha
-    | some y =>
-    cases hxs : denoteBinders st as with
-    | none => rw [hx, hxs] at ha; simp at ha
-    | some ys =>
-    rw [hx, hxs] at ha
-    obtain rfl := Option.some.inj ha
-    cases bs with
-    | nil => simp only [denoteBinders] at hb; simp at hb
-    | cons b bs =>
-      obtain ⟨t', m'⟩ := b
-      simp only [denoteBinders] at hb
-      cases hy : denoteE st t' with
-      | none => rw [hy] at hb; simp at hb
-      | some z =>
-      cases hys : denoteBinders st bs with
-      | none => rw [hy, hys] at hb; simp at hb
-      | some zs =>
-      rw [hy, hys] at hb
-      obtain ⟨h1, rfl⟩ := List.cons.inj (Option.some.inj hb)
-      obtain ⟨rfl, rfl⟩ := Prod.mk.inj h1
-      rw [denoteE_inj hwf hx hy, ih hxs hys]
-
-/-- con-leche: none — a binder-telescope comparison over handles is the
-structural one. -/
-theorem beq_binders_eq {st : EStore} (hwf : StoreWF st)
-    {as bs : List (EIdx × BinderMeta)} {xs ys : List (Expr × BinderMeta)}
-    (ha : denoteBinders st as = some xs) (hb : denoteBinders st bs = some ys) :
-    (as == bs) = (xs == ys) := by
-  cases h1 : as == bs with
-  | true =>
-    obtain rfl := eq_of_beq h1
-    rw [ha] at hb
-    obtain rfl := Option.some.inj hb
-    simp
-  | false =>
-    symm
-    rw [beq_eq_false_iff_ne]
-    intro heq
-    subst heq
-    have hne : (as == bs) = true := beq_iff_eq.mpr (denoteBinders_inj hwf ha hb)
-    rw [h1] at hne
-    exact absurd hne (by simp)
-
-/-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:541 targetK53 (the
-erased telescopes) — every binder's domain with its free variables'
-annotations erased, the metadata kept. -/
-theorem eraseBinders_spec : ∀ (bs : List (EIdx × BinderMeta)) (bsP : List (Expr × BinderMeta)),
-    PSpecP (fun st => denoteBinders st bs = some bsP)
-      (bs.mapM fun b => do pure ((← Arena.eraseFVarTys b.1), b.2))
-      (RB (bsP.map fun b => (b.1.eraseFVarTys, b.2))) := by
-  intro bs
-  induction bs with
-  | nil =>
-    intro bsP s₀ s' r hok _ h hrun
-    simp only [denoteBinders, Option.some.injEq] at h
-    subst h
-    simp only [List.mapM_nil] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok, rfl⟩
-  | cons b bs ih =>
-    intro bsP s₀ s' r hok hp h hrun
-    obtain ⟨t, m⟩ := b
-    simp only [denoteBinders] at h
-    cases ht : denoteE s₀.store t with
-    | none => rw [ht] at h; simp at h
-    | some tP =>
-    cases hbs : denoteBinders s₀.store bs with
-    | none => rw [ht, hbs] at h; simp at h
-    | some rest =>
-    rw [ht, hbs] at h
-    obtain rfl := (Option.some.inj h).symm
-    simp only [List.mapM_cons] at hrun
-    obtain ⟨x, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨e, s1', k1', z1'⟩ := AM.bind_ok k1
-    obtain ⟨p1, he⟩ := eraseFVarTys_spec t tP s₀ s1' e hok hp ht k1'
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z1'
-    obtain ⟨xs, s2, k2, z2⟩ := AM.bind_ok z1
-    obtain ⟨p2, hxs⟩ := ih rest s1 s2 xs p1.ok (PinsOK.ofPStep hp p1)
-      (denoteBinders_ext p1.ext _ _ hbs) k2
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok z2
-    refine ⟨p1.trans p2, ?_⟩
-    show denoteBinders _ ((e, m) :: xs) = _
-    have hxs' : denoteBinders _ xs = some (rest.map fun b => (b.1.eraseFVarTys, b.2)) := hxs
-    simp only [denoteBinders, List.map_cons, denote_ext he p2.ext, hxs']
-
-end RC
 
 /-- con-leche: ConLeche/Kernel/Inductives/RecCheck.lean:530-556 targetK53
 **K.53′ at one recorded field**: its telescope is the call's up to the free
@@ -2216,19 +1696,19 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
     (hk : CoreSpec μ Arena.checkFuel) (henv : EnvWF env)
     (p : Arena.BlockShape) (pP : ConLeche.BlockShape) (formerTys : List EIdx)
     (formerTysP : List Expr) (Mc : Arena.TargetMajor) (McP : ConLeche.TargetMajor)
-    (tele : List (EIdx × BinderMeta)) (teleP : List (Expr × BinderMeta))
+    (tele : List EIdx) (teleP : List Expr)
     (majDom f : EIdx) (majDomP fP : Expr)
     (hformer : ∀ t ∈ formerTysP, Expr.WScoped 0 t) (hMc : Cached.TargetMajScoped McP) :
     CSpecF μ env fe
       (fun st => dShape st p = some pP ∧ Frontend.denoteEList st formerTys = some formerTysP ∧
-        dMajor st Mc = some McP ∧ denoteBinders st tele = some teleP ∧
+        dMajor st Mc = some McP ∧ Frontend.denoteEList st tele = some teleP ∧
         denoteE st majDom = some majDomP ∧ denoteE st f = some fP)
       (Arena.targetK53 μ fe p formerTys Mc tele majDom f) (fun _ r v => r = v)
       (ConLeche.targetK53 (fueledOpsM μ) env pP formerTysP McP teleP majDomP fP) := by
   intro s₀ s' r hok hpre hrun
   obtain ⟨hsh, hft, hMc', htele, hmd, hf⟩ := hpre
   obtain ⟨-, hMlv, hMds, hMnpc, -, -, -, -, hMpf⟩ := dMajor_inv hMc'
-  have hlen : tele.length = teleP.length := denoteBinders_length htele
+  have hlen : tele.length = teleP.length := denoteEList_length htele
   simp only [Arena.targetK53] at hrun
   simp only [ConLeche.targetK53]
   obtain ⟨q, s1, k1, z1⟩ := AM.bind_ok hrun
@@ -2246,12 +1726,16 @@ theorem targetK53_spec {μ : CheckMode} {env : Env} (fe : IFEnv)
   rw [hsx]
   dsimp only at z1 ⊢
   obtain ⟨ew, s2, k2, z2⟩ := AM.bind_ok z1
-  obtain ⟨c2, hew⟩ := RC.pspecP_core (RC.eraseBinders_spec teleW twP) hok htw k2
+  obtain ⟨c2, hew⟩ := RC.pspecP_core (mapM_RE_P (fun _ => True) (fun _ h => h)
+    (fun e eP => fun s₀ s' r hok hp hpre hrun =>
+      eraseFVarTys_spec e eP s₀ s' r hok hp hpre.2 hrun) _ _) hok ⟨trivial, htw⟩ k2
   obtain ⟨et, s3, k3, z3⟩ := AM.bind_ok z2
-  obtain ⟨c3, het⟩ := RC.pspecP_core (RC.eraseBinders_spec tele teleP) c2.ok
-    (denoteBinders_ext c2.ext _ _ htele) k3
+  obtain ⟨c3, het⟩ := RC.pspecP_core (mapM_RE_P (fun _ => True) (fun _ h => h)
+    (fun e eP => fun s₀ s' r hok hp hpre hrun =>
+      eraseFVarTys_spec e eP s₀ s' r hok hp hpre.2 hrun) _ _) c2.ok
+    ⟨trivial, denoteEList_ext c2.ext _ _ htele⟩ k3
   have c13 := c2.trans c3
-  have hb1 := RC.beq_binders_eq c3.ok.state.wf (denoteBinders_ext c3.ext _ _ hew) het
+  have hb1 := beq_of_denoteEList c3.ok.state.wf (denoteEList_ext c3.ext _ _ hew) het
   by_cases cb : (ew != et) = true
   · rw [ite_eq_left cb] at z3
     obtain ⟨rfl, rfl⟩ := AM.pure_ok z3

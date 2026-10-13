@@ -3,7 +3,7 @@
 
 `Arena/WF.lean`'s `StoreWF'` (task #97-P5-Fresh) is the invariant a store has
 while a promotion is in flight: `StoreWF` minus the freshness clauses at every
-tier, and minus `consS`'s `←` half and `bmKeyS`'s strength.  None of the four
+tier, and minus `consS`'s `←` half.  None of the three
 missing clauses is about the RANK, and the rank is all the readback needs: a
 node's children rank below it, so the fuel `denote*` is run at is invisible.
 
@@ -216,12 +216,12 @@ theorem denoteEAux_congr' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk) :
         have h2 := hchild b (by simp [ENodeView.echildren])
         simp only [Option.bind_some, ih a g g' h1.1 h1.2.1 h1.2.2,
           ih b g g' h2.1 h2.2.1 h2.2.2]
-      | lam ty b m =>
+      | lam ty b =>
         have h1 := hchild ty (by simp [ENodeView.echildren])
         have h2 := hchild b (by simp [ENodeView.echildren])
         simp only [Option.bind_some, ih ty g g' h1.1 h1.2.1 h1.2.2,
           ih b g g' h2.1 h2.2.1 h2.2.2]
-      | forallE ty b m =>
+      | forallE ty b =>
         have h1 := hchild ty (by simp [ENodeView.echildren])
         have h2 := hchild b (by simp [ENodeView.echildren])
         simp only [Option.bind_some, ih ty g g' h1.1 h1.2.1 h1.2.2,
@@ -264,10 +264,10 @@ theorem denoteE_unfold' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st rk)
   | app a b =>
     simp only [denoteEView, denoteE]
     rw [key a (by simp [ENodeView.echildren]), key b (by simp [ENodeView.echildren])]
-  | lam ty b m =>
+  | lam ty b =>
     simp only [denoteEView, denoteE]
     rw [key ty (by simp [ENodeView.echildren]), key b (by simp [ENodeView.echildren])]
-  | forallE ty b m =>
+  | forallE ty b =>
     simp only [denoteEView, denoteE]
     rw [key ty (by simp [ENodeView.echildren]), key b (by simp [ENodeView.echildren])]
   | letE ty w b =>
@@ -398,9 +398,6 @@ theorem denoteEAux_dropScratch' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st
   have hlsw : LsWF' st.lss := h.lss
   obtain ⟨rkl, hl⟩ : LStoreWF' st.ls := hlsw.ls
   obtain ⟨rkn, hn⟩ : NStoreWF' st.ns := hl.ns
-  have hbm : ∀ i, i.isPersistent = true →
-      ∀ ty b mi, st.viewBindI i = some (ty, b, mi) → mi.isPersistent = true :=
-    fun i hp ty b mi hh => (h.bmChildOK i ty b mi hh).2.1 hp
   intro f
   induction f with
   | zero => intro i x _ hd; simp [denoteEAux] at hd
@@ -408,7 +405,7 @@ theorem denoteEAux_dropScratch' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st
     intro i x hp hd
     simp only [denoteEAux, Option.bind_eq_some_iff] at hd ⊢
     obtain ⟨v, hv, hd⟩ := hd
-    refine ⟨v, by rw [EStore.view_dropScratch_pers st (hbm i hp) hp]; exact hv, ?_⟩
+    refine ⟨v, by rw [EStore.view_dropScratch_pers st hp]; exact hv, ?_⟩
     cases v with
     | bvar _ => exact hd
     | lit _ => exact hd
@@ -435,12 +432,12 @@ theorem denoteEAux_dropScratch' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' st
       obtain ⟨p, q, hp1, hq1, he⟩ := hd
       exact ⟨p, q, ih g p ((h.childOK i _ hv g (by simp [ENodeView.echildren])).2.2 hp) hp1,
         ih a q ((h.childOK i _ hv a (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
-    | lam ty b m =>
+    | lam ty b =>
       simp only [opt2_eq_some_iff] at hd ⊢
       obtain ⟨p, q, hp1, hq1, he⟩ := hd
       exact ⟨p, q, ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
         ih b q ((h.childOK i _ hv b (by simp [ENodeView.echildren])).2.2 hp) hq1, he⟩
-    | forallE ty b m =>
+    | forallE ty b =>
       simp only [opt2_eq_some_iff] at hd ⊢
       obtain ⟨p, q, hp1, hq1, he⟩ := hd
       exact ⟨p, q, ih ty p ((h.childOK i _ hv ty (by simp [ENodeView.echildren])).2.2 hp) hp1,
@@ -466,10 +463,8 @@ theorem denoteE_dropScratch_pers' {st : EStore} {rk : EIdx → Nat} (h : EWFAt' 
     (hd : denoteE st i = some e) : denoteE st.dropScratch i = some e := by
   have h' := EStore.dropScratch_wfAt' h
   obtain ⟨v, hv⟩ := denoteE_view hd
-  have hbm : ∀ ty b mi, st.viewBindI i = some (ty, b, mi) → mi.isPersistent = true :=
-    fun ty b mi hh => (h.bmChildOK i ty b mi hh).2.1 hp
   have hsome : (st.dropScratch.view i).isSome = true := by
-    rw [EStore.view_dropScratch_pers st hbm hp, hv]; rfl
+    rw [EStore.view_dropScratch_pers st hp, hv]; rfl
   have hr1 : rk i < st.dropScratch.nodeCount := h'.rank_lt hsome
   have hr2 : rk i < st.nodeCount := rankE_lt' h (by rw [hv]; rfl)
   have h1 : denoteEAux st.dropScratch (st.nodeCount + 1) i = some e :=

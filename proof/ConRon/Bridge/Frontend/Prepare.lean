@@ -715,7 +715,7 @@ theorem usedConstsGo_run {s : AState} (hok : StateOK s) :
         obtain ⟨rfl, hs1, ha1⟩ := ih hins hacc hf hg1
         simp only [] at hr1
         exact ih hs1 ha1 ha hr1
-      | .lam ty body mt, hview =>
+      | .lam ty body, hview =>
         obtain ⟨et, eb, rfl, hf, ha⟩ := denote_lam_inv hwf hview he
         simp only [] at hrest
         obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest
@@ -723,7 +723,7 @@ theorem usedConstsGo_run {s : AState} (hok : StateOK s) :
         obtain ⟨rfl, hs1, ha1⟩ := ih hins hacc hf hg1
         simp only [] at hr1
         exact ih hs1 ha1 ha hr1
-      | .forallE ty body mt, hview =>
+      | .forallE ty body, hview =>
         obtain ⟨et, eb, rfl, hf, ha⟩ := denote_forallE_inv hwf hview he
         simp only [] at hrest
         obtain ⟨p1, s₂, hg1, hr1⟩ := AM.bind_ok hrest

@@ -155,14 +155,6 @@ structure KnotSpec (mode : CheckMode) (env : Env) (fe : IFEnv) (f : Nat) :
     ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄
-  /-- The annotation pass. -/
-  annotate : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
-    CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
-    Expr.WScoped d e →
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).annotate d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄
   /-- The io grade (con-leche's task #170): its own body, its own table. -/
   inferIO : ∀ (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr),
     CheckOK mode env fe s₀ → denoteE s₀.store i = some e →
@@ -186,7 +178,6 @@ theorem knotSpec_zero (mode : CheckMode) (env : Env) (fe : IFEnv) :
   whnf := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   infer := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   defeq := fun _ _ _ _ _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
-  annotate := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   inferIO := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
 
 /-! ## The six slots in ANSWER shape (task #97-P3-Core round 3)
@@ -207,8 +198,8 @@ program does not name is left as a goal of its own, so the answer shape
 serves it the same way.)
 
 Every walk of `Bridge/Core/Walks/Owed.lean` that chains two knot calls
-(`r.inferIO d ty'` on `r.annotate`'s ANSWER, say) meets it.  So
-rather than re-derive the existential/universal form at each site, the six
+(`r.inferIO d ty'` on `r.whnf`'s ANSWER, say) meets it.  So
+rather than re-derive the existential/universal form at each site, the five
 slots are restated here, once: **the denotation goes IN as an existential
 (which names no metavariable) and OUT as a universal**.  Each is four lines
 over its own field, and `denoteE`'s functionality at one handle is the whole
@@ -250,25 +241,6 @@ theorem KnotSpec.infer' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
           SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   obtain ⟨e₀, hd, hwf⟩ := hdw
   have hb := hsim.infer s₀ d i e₀ hok hd hwf
-  vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4⟩ := hpost
-  refine ⟨h1, h2, h3, fun e he => ?_⟩
-  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
-annotation slot in ANSWER shape. -/
-theorem KnotSpec.annotate' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).annotate d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ e, denoteE s₀.store i = some e →
-          SimE (ConLeche.annotateCore mode env) d e s'.store r; ⊤⦄ := by
-  obtain ⟨e₀, hd, hwf⟩ := hdw
-  have hb := hsim.annotate s₀ d i e₀ hok hd hwf
   vcgen [hb]
   rename_i hpost
   obtain ⟨h1, h2, h3, h4⟩ := hpost
@@ -324,7 +296,6 @@ section Census
 
 #print axioms KnotSpec.whnf'
 #print axioms KnotSpec.infer'
-#print axioms KnotSpec.annotate'
 #print axioms KnotSpec.inferIO'
 #print axioms KnotSpec.defeq'
 

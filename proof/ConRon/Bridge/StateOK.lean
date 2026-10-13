@@ -258,7 +258,7 @@ theorem MemoLsOK.insert {f : List Level → List Level}
     exact ⟨us, hus, hr us hus⟩
   · exact hm k' r' hk'
 
-/-! ### The eleven tables, one `abbrev` each
+/-! ### The ten tables, one `abbrev` each
 
 Each fixes the generic `f` to a concrete lambda whose free variables are the
 walk's own parameters and are all first-order (task #97b finding 2).  The one
@@ -281,10 +281,6 @@ abbrev LiftMemoA (amount : Nat) (s : AState) : Prop :=
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1772-1774 Abs1MemoInv. -/
 abbrev Abs1MemoA (d : Nat) (s : AState) : Prop :=
   MemoOK (fun k e => Expr.abstract1 e d k) s.memos.abs1C s.store
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1995-1997 LowerMemoInv. -/
-abbrev LowerMemoA (amount : Nat) (s : AState) : Prop :=
-  MemoOK (fun c e => Expr.lowerBVars amount c e) s.memos.lowerC s.store
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv. -/
 abbrev Inst1LMemoA (ve : Expr) (s : AState) : Prop :=
@@ -412,7 +408,7 @@ def ReadLsCacheOK (tbl : Std.HashMap LsIdx (List Level)) (st : EStore) :
   ∀ (k : LsIdx) (us : List Level), tbl[k]? = some us →
     denoteLs st.lss k = some us
 
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the fifteen
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the fourteen
 per-declaration tables of `Caches`, in one record, at the pure knot the
 bridge's Theorem 1 is stated against (`pureFns mode env F`, con-leche's
 `ConLeche/Kernel/TypeChecker.lean`). -/
@@ -424,7 +420,6 @@ structure CacheOK (mode : CheckMode) (env : Env) (s : AState) : Prop where
   whnf : EntryCacheOK (ConLeche.whnf mode env) s.caches.whnfC s.store
   infer : EntryCacheOK (ConLeche.inferTypeCore mode env) s.caches.inferC s.store
   inferIO : EntryCacheOK (ConLeche.inferTypeIO mode env) s.caches.inferIOC s.store
-  annot : EntryCacheOK (ConLeche.annotateCore mode env) s.caches.annotC s.store
   defeq : DefeqCacheOK (ConLeche.isDefEqCore mode env) s.caches.defeqC s.store
   lvlEq : LvlEqCacheOK s.caches.lvlEqC s.store
   lvlsEq : LvlsEqCacheOK s.caches.lvlsEqC s.store
@@ -688,7 +683,6 @@ theorem CacheOK.mono {mode : CheckMode} {env : Env} {s s' : AState}
   whnf := by rw [hc]; exact h.whnf.mono hx
   infer := by rw [hc]; exact h.infer.mono hx
   inferIO := by rw [hc]; exact h.inferIO.mono hx
-  annot := by rw [hc]; exact h.annot.mono hx
   defeq := by rw [hc]; exact h.defeq.mono hx
   lvlEq := by rw [hc]; exact h.lvlEq.mono hx
   lvlsEq := by rw [hc]; exact h.lvlsEq.mono hx
@@ -847,7 +841,6 @@ theorem CacheOK.monoF {mode : CheckMode} {env : Env} {s s' : AState}
   whnf := by rw [hf.caches]; exact h.whnf.mono hx
   infer := by rw [hf.caches]; exact h.infer.mono hx
   inferIO := by rw [hf.caches]; exact h.inferIO.mono hx
-  annot := by rw [hf.caches]; exact h.annot.mono hx
   defeq := by rw [hf.caches]; exact h.defeq.mono hx
   lvlEq := hf.lvlEq h.readL h.lvlEq
   lvlsEq := by rw [hf.caches]; exact h.lvlsEq.mono hx
