@@ -420,7 +420,7 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       let he ← mkEq (← mkAppM `ConRon.Arena.AState.store #[s]) (← mkAppM `ConRon.Arena.AState.store #[s'])
       if let some pe ← attempt (prove (fuel - 1) he) then
         return some (← mkAppM `ConRon.Bridge.StateOK.of_store #[src, pe])
-    return none
+    proveByLemmas fuel t
   | some `ConRon.Arena.StoreWF =>
     let st := t.appArg!
     for h in (← read).hyps.reverse do
@@ -431,13 +431,13 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       let s' := (← inferType src).appArg!
       if ← same (← mkAppM `ConRon.Arena.AState.store #[s']) st then
         return some (← mkAppM `ConRon.Bridge.StateOK.wf #[src])
-    return none
+    proveByLemmas fuel t
   | some `ConRon.Bridge.CheckOK =>
     for h in (← read).hyps.reverse do
       unless h.ty.isAppOfArity `ConRon.Bridge.CheckOK 4 do continue
       for lem in [`ConRon.Bridge.CheckOK.mono, `ConRon.Bridge.CheckOK.monoF] do
         if let some p ← attempt (applyLemma fuel lem h.pf t) then return some p
-    return none
+    proveByLemmas fuel t
   | some `ConRon.Bridge.CacheFrame =>
     let a := t.appFn!.appArg!
     let b := t.appArg!
@@ -457,8 +457,10 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     return some (← mkAppM `ConRon.Bridge.CacheFrame.of_eq #[pc, px])
   | _ => proveByLemmas fuel t
 
-/-- The goal from one of `bridge_frame [l₁, …]`'s lemmas: its conclusion
-unified with `t`, every premise proved by `prove`. -/
+/-- The goal from one of `bridge_frame [l₁, …]`'s lemmas (also the fallback of
+the `StateOK`/`StoreWF`/`CheckOK` searches: a walk's own frame rule — a cache
+insert, a readback frame — is passed this way): its conclusion unified with
+`t`, every premise proved by `prove`. -/
 partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   for lr in (← read).lemmas do
     let r ← attempt do
