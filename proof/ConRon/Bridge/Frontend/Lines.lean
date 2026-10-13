@@ -34,7 +34,7 @@ namespace ConRon.Bridge.Frontend
 set_option autoImplicit false
 
 open ConLeche ConRon.Arena ConRon.Arena.Frontend
-open ConLeche.Frontend (pwOfF nameOf nameOfF levelOf levelOfF exprOf exprOfF cvOfF ruleOfF
+open ConLeche.Frontend (nameOf nameOfF levelOf levelOfF exprOf exprOfF cvOfF ruleOfF
   validateIndF indBlockOfF declOf declOfF)
 
 /-! ## The verdict, and the sum -/
@@ -163,37 +163,8 @@ theorem readName_run {s s' : AState} {h : NIdx} {x : ConLeche.Name}
     s' = s ∧ denoteN s.store.ns h = some x :=
   AM.of_run (P := fun t => t = s) rfl hrun (readName_spec s h)
 
-/-- con-leche: ConLeche/Kernel/Name.lean:34-37 Name — the readback at a LIST
-of handles, which is what `parsePwD` runs: `PropWhen` holds `ConLeche.Name`s,
-so the resolved handles are read BACK, and the readback IS `denoteN`. -/
-theorem readNames_mapM_run {s : AState} :
-    ∀ (hs : List NIdx) {xs : List ConLeche.Name} {s' : AState},
-      (hs.mapM readName) s = .ok (xs, s') →
-        s' = s ∧ denoteNList s.store.ns hs = some xs := by
-  intro hs
-  induction hs with
-  | nil =>
-    intro xs s' hrun
-    simp only [List.mapM_nil] at hrun
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-    subst hv; subst hst
-    exact ⟨rfl, rfl⟩
-  | cons h hs ih =>
-    intro xs s' hrun
-    simp only [List.mapM_cons] at hrun
-    obtain ⟨x, s₁, hone, hrest⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, hdx⟩ := readName_run hone
-    subst hs1
-    obtain ⟨ys, s₂, hmany, hrest2⟩ := AM.bind_ok hrest
-    obtain ⟨hs2, hdys⟩ := ih hmany
-    subst hs2
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
-    subst hv; subst hst
-    exact ⟨rfl, by simp only [denoteNList, hdx, hdys]⟩
-
 /-- con-leche: ConLeche/Frontend/ExportC.lean:164-167 StateD.name — the name
-table read at a LIST of stream indices: `parseCVD`'s level-parameter list and
-`parsePwD`'s `ifAllZero` one.  `List.mapM_cons` at `AM` on one side and at
+table read at a LIST of stream indices: `parseCVD`'s level-parameter list.  `List.mapM_cons` at `AM` on one side and at
 `Except String` on the other; neither side moves anything. -/
 theorem StateD_names_run {s : AState} {sd : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc) :
@@ -354,43 +325,6 @@ theorem StateD_levels_run {s : AState} {sd : StateD}
       rfl
     · simp only [denoteLList, opt2_eq_some_iff]
       exact ⟨u, us, hdu, hdus, rfl⟩
-
-/-- con-leche: ConLeche/Frontend/ExportC.lean:192-194 parsePwD — the `pw`
-datum.  The twin resolves the handles and READS THEM BACK (`PropWhen` holds
-`ConLeche.Name`s, which the binder node carries as values), so the answer is
-literally con-leche's and the theorem is an equation, not a relation.
-
-`StateD_names_run` at the list, then `readNames_mapM_run` — `readName`'s
-exactness (`Bridge/Specs.lean`) lifted over the list.  The two readbacks of a
-handle are the same `denoteN`, which is why the answer is an equation. -/
-theorem parsePwD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
-    {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
-    {r : ConLeche.Frontend.PwRec} {pw : PropWhen}
-    (hrun : parsePwD sd r s = .ok (pw, s')) :
-    s' = s ∧ pwOfF sc.name sc.level sc.expr r = .ok pw := by
-  cases r with
-  | never =>
-    rw [parsePwD] at hrun
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrun
-    subst hv; subst hst
-    exact ⟨rfl, rfl⟩
-  | ifAllZero ns =>
-    rw [parsePwD] at hrun
-    obtain ⟨hs0, s₁, hnames, hrest⟩ := AM.bind_ok hrun
-    obtain ⟨hs1, xs, hcl, hd⟩ := StateD_names_run hrel ns hnames
-    subst hs1
-    obtain ⟨xs', s₂, hread, hrest2⟩ := AM.bind_ok hrest
-    obtain ⟨hs2, hd2⟩ := readNames_mapM_run hs0 hread
-    subst hs2
-    obtain ⟨hv, hst⟩ := AM.pure_ok hrest2
-    subst hst
-    obtain rfl : xs' = xs := by
-      rw [hd] at hd2; exact (Option.some.injEq _ _ ▸ hd2).symm
-    subst hv
-    refine ⟨rfl, ?_⟩
-    rw [pwOfF]
-    simp only [hcl]
-    rfl
 
 /-! ## The three entry parsers -/
 
@@ -607,9 +541,8 @@ own sharing.
 Ten arms, each the same four moves — read the children out of the three
 tables, intern the node (`internE_istep`, `internLsNode_istep` for the `const`
 arm's one level-list node), transport the children's denotations across the
-append, and write the table.  The `lam`/`forallE` arms carry con-leche's own
-`BinderMeta` as a VALUE (`Arena/Store.lean:348`: "`BinderMeta` and `Literal`
-stay values"), so `parsePwD_run`'s equation is all they need of it. -/
+append, and write the table.  The `lam`/`forallE` arms are the `app` arm's
+moves: a binder carries its type and its body and nothing else. -/
 theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
     (hoff : s.store.scratchOn = false) {sd sd' : StateD}
     {sc : ConLeche.Frontend.StateD} (hrel : StateDRel s.store sd sc)
@@ -727,51 +660,45 @@ theorem parseExprEntryD_run {s s' : AState} (hok : StateOK s)
       ConLeche.Frontend.StateD.lk]
       simp only [hguard, hclf, hcla]
       rfl
-  | lam ty bd pw =>
+  | lam ty bd =>
     obtain ⟨hty, s₁, hety, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨hs1, tyP, hclty, hdty⟩ := StateD_expr_run hrel hety
     rw [hs1] at hrest2
     obtain ⟨hbd, s₂, hebd, hrest3⟩ := AM.bind_ok hrest2
     obtain ⟨hs2, bdP, hclbd, hdbd⟩ := StateD_expr_run hrel hebd
     rw [hs2] at hrest3
-    obtain ⟨pwv, s₃, hpw, hrest4⟩ := AM.bind_ok hrest3
-    obtain ⟨hs3, hclpw⟩ := parsePwD_run hok hrel hpw
-    rw [hs3] at hrest4
-    obtain ⟨e, s₄, hin, hrest5⟩ := AM.bind_ok hrest4
+    obtain ⟨e, s₄, hin, hrest5⟩ := AM.bind_ok hrest3
     obtain ⟨histep, hpe, hde⟩ :=
       internE_istep hok hoff
         (viewOK_lam (by rw [hdty]; rfl) (by rw [hdbd]; rfl)) hin
-    refine hcl e s₄ (.lam tyP bdP ⟨pwv⟩) histep hpe ?_ hrest5 ?_
+    refine hcl e s₄ (.lam tyP bdP) histep hpe ?_ hrest5 ?_
     · rw [hde]
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨tyP, bdP, denote_ext hdty histep.ext, denote_ext hdbd histep.ext,
         rfl⟩
     · simp only [ConLeche.Frontend.parseExprEntryD, exprOf, exprOfF,
       ConLeche.Frontend.StateD.lk]
-      simp only [hguard, hclty, hclbd, hclpw]
+      simp only [hguard, hclty, hclbd]
       rfl
-  | forallE ty bd pw =>
+  | forallE ty bd =>
     obtain ⟨hty, s₁, hety, hrest2⟩ := AM.bind_ok hrest
     obtain ⟨hs1, tyP, hclty, hdty⟩ := StateD_expr_run hrel hety
     rw [hs1] at hrest2
     obtain ⟨hbd, s₂, hebd, hrest3⟩ := AM.bind_ok hrest2
     obtain ⟨hs2, bdP, hclbd, hdbd⟩ := StateD_expr_run hrel hebd
     rw [hs2] at hrest3
-    obtain ⟨pwv, s₃, hpw, hrest4⟩ := AM.bind_ok hrest3
-    obtain ⟨hs3, hclpw⟩ := parsePwD_run hok hrel hpw
-    rw [hs3] at hrest4
-    obtain ⟨e, s₄, hin, hrest5⟩ := AM.bind_ok hrest4
+    obtain ⟨e, s₄, hin, hrest5⟩ := AM.bind_ok hrest3
     obtain ⟨histep, hpe, hde⟩ :=
       internE_istep hok hoff
         (viewOK_forallE (by rw [hdty]; rfl) (by rw [hdbd]; rfl)) hin
-    refine hcl e s₄ (.forallE tyP bdP ⟨pwv⟩) histep hpe ?_ hrest5 ?_
+    refine hcl e s₄ (.forallE tyP bdP) histep hpe ?_ hrest5 ?_
     · rw [hde]
       simp only [denoteEView, opt2_eq_some_iff]
       exact ⟨tyP, bdP, denote_ext hdty histep.ext, denote_ext hdbd histep.ext,
         rfl⟩
     · simp only [ConLeche.Frontend.parseExprEntryD, exprOf, exprOfF,
       ConLeche.Frontend.StateD.lk]
-      simp only [hguard, hclty, hclbd, hclpw]
+      simp only [hguard, hclty, hclbd]
       rfl
   | letE ty vl bd =>
     obtain ⟨hty, s₁, hety, hrest2⟩ := AM.bind_ok hrest
@@ -1135,7 +1062,7 @@ theorem parseRuleD_run {s s' : AState} (hok : StateOK s) {sd : StateD}
   subst hs2
   obtain ⟨hv, hst⟩ := AM.pure_ok h2
   subst hv; subst hst
-  refine ⟨rfl, RecRule.mk n ru.nfields 0 .inert e false false false, ?_,
+  refine ⟨rfl, RecRule.mk n ru.nfields 0 .plain e false false, ?_,
     by simp only [denoteRule, hdn, hde, denoteFire]⟩
   rw [ruleOfF]
   simp only [hcln, hclr]
@@ -1424,7 +1351,7 @@ theorem piResultD_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
     have hde : denoteEView s.store v = some e := by
       rw [denoteE_view_eq hok.wf hview] at hd; exact hd
     cases v
-    case forallE ty b m =>
+    case forallE ty b =>
       obtain ⟨et, eb, rfl, -, hb⟩ := denote_forallE_inv hok.wf hview hd
       obtain ⟨hs, hr⟩ := ih hb hrest
       exact ⟨hs, by rw [hr]; rfl⟩
@@ -1433,7 +1360,7 @@ theorem piResultD_run {fuel : Nat} {s s' : AState} {h r : EIdx} {e : Expr}
       refine ⟨rfl, ?_⟩
       rw [hd]
       cases e with
-      | forallE x y m =>
+      | forallE x y =>
         obtain ⟨_, _, hc, -, -⟩ := denoteEView_forallE hde
         exact absurd hc (by simp)
       | _ => rfl
@@ -1459,7 +1386,7 @@ theorem indPiTeleLen_run {s : AState} (hok : StateOK s) :
     have hde : denoteEView s.store v = some e := by
       rw [denoteE_view_eq hok.wf hview] at he; exact he
     cases v
-    case forallE ty body m =>
+    case forallE ty body =>
       obtain ⟨et, eb, rfl, -, hb⟩ := denote_forallE_inv hok.wf hview he
       obtain ⟨k, s₂, hgo, hrest2⟩ := AM.bind_ok hrest
       obtain ⟨rfl, rfl⟩ := ih hb hgo
@@ -1469,7 +1396,7 @@ theorem indPiTeleLen_run {s : AState} (hok : StateOK s) :
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
       refine ⟨rfl, ?_⟩
       cases e with
-      | forallE x y m =>
+      | forallE x y =>
         obtain ⟨_, _, hc, -, -⟩ := denoteEView_forallE hde
         exact absurd hc (by simp)
       | _ => rfl
@@ -1496,7 +1423,7 @@ theorem piSortTeleLen?_run {s : AState} (hok : StateOK s) :
     have hde : denoteEView s.store v = some e := by
       rw [denoteE_view_eq hok.wf hview] at he; exact he
     cases v
-    case forallE ty body m =>
+    case forallE ty body =>
       obtain ⟨et, eb, rfl, -, hb⟩ := denote_forallE_inv hok.wf hview he
       obtain ⟨k, s₂, hgo, hrest2⟩ := AM.bind_ok hrest
       obtain ⟨rfl, rfl⟩ := ih hb hgo
@@ -1510,7 +1437,7 @@ theorem piSortTeleLen?_run {s : AState} (hok : StateOK s) :
       obtain ⟨rfl, rfl⟩ := AM.pure_ok hrest
       refine ⟨rfl, ?_⟩
       cases e with
-      | forallE x y m =>
+      | forallE x y =>
         obtain ⟨_, _, hc, -, -⟩ := denoteEView_forallE hde
         exact absurd hc (by simp)
       | sort l =>
