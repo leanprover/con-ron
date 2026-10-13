@@ -50,7 +50,7 @@ namespace ConRon.Refine2.Frontend
 
 open ConRon.Arena
 open ConRon.Arena.Frontend
-open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec PwRec CVRec HintsRec RuleRec
+open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec CVRec HintsRec RuleRec
   IndTypeRec IndCtorRec IndRecRec DeclRec LineRec)
 
 /-! ## `export_c`'s own splits
@@ -90,10 +90,8 @@ def parseExprRecD (st : StateD) : ConLeche.Frontend.ExprRec → AM EIdx
     let lsh ← internLsNode ls
     internE (.const nm lsh)
   | .app f a => do internE (.app (← st.expr f) (← st.expr a))
-  | .lam ty bd pw => do
-    internE (.lam (← st.expr ty) (← st.expr bd) ⟨← parsePwD st pw⟩)
-  | .forallE ty bd pw => do
-    internE (.forallE (← st.expr ty) (← st.expr bd) ⟨← parsePwD st pw⟩)
+  | .lam ty bd => do internE (.lam (← st.expr ty) (← st.expr bd))
+  | .forallE ty bd => do internE (.forallE (← st.expr ty) (← st.expr bd))
   | .letE ty vl bd => do
     internE (.letE (← st.expr ty) (← st.expr vl) (← st.expr bd))
   | .proj tn ix s => do internE (.proj (← st.name tn) ix (← st.expr s))

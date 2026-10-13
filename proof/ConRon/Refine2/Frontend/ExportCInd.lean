@@ -56,7 +56,7 @@ namespace ConRon.Refine2.Frontend
 
 open ConRon.Arena
 open ConRon.Arena.Frontend
-open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec PwRec CVRec HintsRec RuleRec
+open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec CVRec HintsRec RuleRec
   IndTypeRec IndCtorRec IndRecRec DeclRec LineRec)
 
 /-! ## The block's own fields -/
@@ -2032,8 +2032,7 @@ theorem i_ind_caps_default_abs {ic : arena.env.IIndCaps}
   cases Result.ok_injective h
   rw [arena.handle.NIdx.of_word] at hn
   cases Result.ok_injective hn
-  have hpwv := ConRon.Refine.PropWhen.if_all_zero_refines
-    (by intro x hx; simp [alloc.vec.Vec.new] at hx) hpw
+  have hpwv := ConRon.Refine.PropWhen.if_all_zero_refines hpw
   simp only [absIIndCaps, hpwv]
   rfl
 
