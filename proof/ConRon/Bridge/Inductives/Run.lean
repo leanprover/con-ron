@@ -3,7 +3,7 @@
 
 The half of the tier's vocabulary that reads no knot and no environment
 index: the pure frame `PStep`, the pure statement shapes (`PSpec`, `PSpecP`,
-`PSpecL`), the `Option` lift `ROp`, the answer relations, the binder and
+`PSpecL`), the `Option` lift `ROp`, the answer relations, the
 constructor-list denotations, the store
 primitives in RUN form (`zeroLevel_run`, `mkAppN_run`, the views and the
 interners) and the tag and handle-list lemmas every walk reads.  The
@@ -24,8 +24,7 @@ open ConLeche ConRon.Arena ConRon.Bridge
 /-! ## The pure frame -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the frame of the tier's
-PURE grade**: the store grows (and with it the binder-datum store), the pin
-table stands still, and the fourteen per-declaration caches stand still up to
+PURE grade**: the store grows, the pin table stands still, and the fourteen per-declaration caches stand still up to
 `readLC` and `lvlEqC` — the two a `lvlEq?` call may write (task #97-P3-Frame;
 `Bridge/StateOK.lean`'s `CacheFrame` is the clause, and `PStep.of_caches` is
 what a twin that writes neither uses).  The memo tables are NOT framed: every
@@ -34,25 +33,24 @@ rebuilding walk of `Arena/ExprOps.lean` writes its own, and task #97-P3-0 §7's
 structure PStep (s s' : AState) : Prop where
   ok : StateOK s'
   ext : Ext s.store s'.store
-  bm : BMExt s.store s'.store
   cframe : CacheFrame s s'
   pins : s'.pins = s.pins
 
 theorem PStep.refl {s : AState} (h : StateOK s) : PStep s s :=
-  ⟨h, Ext.refl _, BMExt.refl _, CacheFrame.refl _, rfl⟩
+  ⟨h, Ext.refl _, CacheFrame.refl _, rfl⟩
 
 theorem PStep.trans {a b c : AState} (h₁ : PStep a b) (h₂ : PStep b c) :
     PStep a c :=
-  ⟨h₂.ok, h₁.ext.trans h₂.ext, h₁.bm.trans h₂.bm,
+  ⟨h₂.ok, h₁.ext.trans h₂.ext,
     h₁.cframe.trans h₂.cframe, by rw [h₂.pins, h₁.pins]⟩
 
 /-- con-leche: none — the frame of a twin that writes no per-declaration
 table at all, which is what all but three of the tier's ~110 twins do.  The
 shape a proof reaches when it has the plain cache equation in hand. -/
 theorem PStep.of_caches {s s' : AState} (hok : StateOK s')
-    (hx : Ext s.store s'.store) (hbm : BMExt s.store s'.store)
+    (hx : Ext s.store s'.store)
     (hc : s'.caches = s.caches) (hp : s'.pins = s.pins) : PStep s s' :=
-  ⟨hok, hx, hbm, CacheFrame.of_eq hc hx, hp⟩
+  ⟨hok, hx, CacheFrame.of_eq hc hx, hp⟩
 
 /-! ## The two statement shapes -/
 
@@ -92,7 +90,7 @@ run ACCEPTS and answers something else.  `PinsOK` is the missing licence, and
 this is the only shape that carries it while keeping `PStep`: the twin is
 still pure — it interns and reads, it calls no knot — so dropping to `CSpec`
 (the other statement that has `PinsOK`, through `CheckOK`) would give away the
-`BMExt` and cache-frame conjuncts for nothing. -/
+cache-frame conjunct for nothing. -/
 def PSpecP {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
     Prop :=
   ∀ (s₀ s' : AState) (r : α), StateOK s₀ → PinsOK s₀ → P s₀.store →
@@ -151,48 +149,6 @@ abbrev RLL (us : List Level) : EStore → List LIdx → Prop :=
 /-- a representation-free answer (`Bool`, `Nat`, `List Nat`, `Unit`, …): NO
 target store, task #97-P3-0 §5's finding 1. -/
 abbrev RV {α : Type} (x : α) : EStore → α → Prop := fun _ r => r = x
-
-/-! ## The binder telescope
-
-`List (EIdx × BinderMeta)` is the shape `piBinders`, `structTeleAt`,
-`normFieldDoms` and `whnfTelescope` answer with, and `Bridge/Rel.lean` has no
-relation for it because the `ExprOps` tier never returns one. -/
-
-/-- con-leche: none — a binder telescope denotes, domain by domain; the
-`BinderMeta` datum is carried VERBATIM (it is representation-free: `BinderMeta`
-is con-leche's own type, DESIGN §8.7's import rule). -/
-def denoteBinders (st : EStore) :
-    List (EIdx × BinderMeta) → Option (List (Expr × BinderMeta))
-  | [] => some []
-  | (t, m) :: bs =>
-    match denoteE st t, denoteBinders st bs with
-    | some x, some xs => some ((x, m) :: xs)
-    | _, _ => none
-
-/-- a binder telescope denotes a given one. -/
-abbrev RB (bs : List (Expr × BinderMeta)) :
-    EStore → List (EIdx × BinderMeta) → Prop :=
-  fun st r => denoteBinders st r = some bs
-
-theorem denoteBinders_ext {st st' : EStore} (hx : Ext st st') :
-    ∀ (bs : List (EIdx × BinderMeta)) (xs : List (Expr × BinderMeta)),
-      denoteBinders st bs = some xs → denoteBinders st' bs = some xs := by
-  intro bs
-  induction bs with
-  | nil => intro xs h; exact h
-  | cons a as ih =>
-    intro xs h
-    obtain ⟨t, m⟩ := a
-    simp only [denoteBinders] at h ⊢
-    cases ht : denoteE st t with
-    | none => rw [ht] at h; simp at h
-    | some x =>
-      cases has : denoteBinders st as with
-      | none => rw [ht, has] at h; simp at h
-      | some ys =>
-        rw [ht, has] at h
-        rw [denote_ext ht hx, ih ys has]
-        exact h
 
 /-! ## The constructor lists
 
@@ -374,9 +330,9 @@ theorem internE_run {s s' : AState} {w : ENodeView} {h : EIdx}
     (hok : StateOK s) (hv : s.store.ViewOK w)
     (hrun : internE w s = .ok (h, s')) :
     PStep s s' ∧ denoteE s'.store h = denoteEView s'.store w := by
-  obtain ⟨h1, h2, h3, _h4, _h4b, _h5, h6, h7, _h8, h9⟩ :=
+  obtain ⟨h1, h2, _h3, _h4, _h5, h6, h7, _h8, h9⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internE_spec s w hok.wf hv)
-  exact ⟨PStep.of_caches ⟨h1⟩ h2 h3 h6 h7, h9⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 h6 h7, h9⟩
 
 /-- con-leche: none — `internE` at a `.bvar`: no precondition at all. -/
 theorem internBVarE_run {s s' : AState} {i : Nat} {h : EIdx} (hok : StateOK s)
@@ -439,14 +395,13 @@ theorem internAppE_run {s s' : AState} {f a : EIdx} {fP aP : Expr} {h : EIdx}
   simp only [denoteEView, denote_ext hf hstep.ext, denote_ext ha hstep.ext,
     opt2]
 
-/-- con-leche: none — `internE` at a binder whose datum is a VALUE
-(`replacePisPw`, `pisToLamsPw` and the recursor generators build their binders
-this way, not through the datum-handle face). -/
+/-- con-leche: none — `internE` at a `.forallE`: the binder the recursor
+generators and the telescope closers build. -/
 theorem internForallEE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
-    {m : BinderMeta} {h : EIdx} (hok : StateOK s)
+    {h : EIdx} (hok : StateOK s)
     (hty : denoteE s.store ty = some tyP) (hb : denoteE s.store b = some bP)
-    (hrun : internE (.forallE ty b m) s = .ok (h, s')) :
-    PStep s s' ∧ denoteE s'.store h = some (.forallE tyP bP m) := by
+    (hrun : internE (.forallE ty b) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.forallE tyP bP) := by
   obtain ⟨hstep, hd⟩ :=
     internE_run hok (viewOK_forallE (by rw [hty]; rfl) (by rw [hb]; rfl)) hrun
   refine ⟨hstep, ?_⟩
@@ -456,10 +411,10 @@ theorem internForallEE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
 
 /-- con-leche: none — the same at a `.lam`. -/
 theorem internLamE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
-    {m : BinderMeta} {h : EIdx} (hok : StateOK s)
+    {h : EIdx} (hok : StateOK s)
     (hty : denoteE s.store ty = some tyP) (hb : denoteE s.store b = some bP)
-    (hrun : internE (.lam ty b m) s = .ok (h, s')) :
-    PStep s s' ∧ denoteE s'.store h = some (.lam tyP bP m) := by
+    (hrun : internE (.lam ty b) s = .ok (h, s')) :
+    PStep s s' ∧ denoteE s'.store h = some (.lam tyP bP) := by
   obtain ⟨hstep, hd⟩ :=
     internE_run hok (viewOK_lam (by rw [hty]; rfl) (by rw [hb]; rfl)) hrun
   refine ⟨hstep, ?_⟩
@@ -467,15 +422,14 @@ theorem internLamE_run {s s' : AState} {ty b : EIdx} {tyP bP : Expr}
   simp only [denoteEView, denote_ext hty hstep.ext, denote_ext hb hstep.ext,
     opt2]
 
-/-- con-leche: none — **`internLNode`, as a run**.  The nested stores keep
-`pers`/`scr`/`scratchOn`, so `BMExt` is `bmExt_of_tables`. -/
+/-- con-leche: none — **`internLNode`, as a run**. -/
 theorem internLNode_run {s s' : AState} {v : LNodeView} {h : LIdx}
     (hok : StateOK s) (hv : s.store.ls.ViewOK v)
     (hrun : internLNode v s = .ok (h, s')) :
     PStep s s' ∧ denoteL s'.store.ls h = denoteLView s'.store.ls v := by
-  obtain ⟨h1, h2, h3, h4, h5, _h6, h7, h8, _h9, h10⟩ :=
+  obtain ⟨h1, h2, _h3, _h4, _h5, _h6, h7, h8, _h9, h10⟩ :=
     AM.of_run (P := fun t => t = s) rfl hrun (internLNode_spec s v hok.wf hv)
-  exact ⟨PStep.of_caches ⟨h1⟩ h2 (bmExt_of_tables h3 h4 h5) h7 h8, h10⟩
+  exact ⟨PStep.of_caches ⟨h1⟩ h2 h7 h8, h10⟩
 
 /-- con-leche: none — `internLNode` at `.zero`: `structElimLevel`'s small
 arm. -/
@@ -613,9 +567,9 @@ theorem zeroLevel_run {s s' : AState} {u : LIdx} (hp : PinsOK s)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:925-928 mkAppN — **`mkAppN`, as a
 run**.  `Bridge/ExprOps/Spine.lean`'s `mkAppN_spec` is closed and says the
-same thing, but its frame has no `BMExt` conjunct and `PStep` needs one, so
-the four-line induction is done here rather than re-stated there (the twin is
-`internE (.app f a)` folded over the list, so each step's `BMExt` is
+same thing as a triple at its `RelEA` answer; this tier wants the run form
+and the plain denotation, so the four-line induction is done here (the twin is
+`internE (.app f a)` folded over the list, so each step's frame is
 `internE_run`'s own). -/
 theorem mkAppN_run : ∀ (args : List EIdx) (argsP : List Expr) {s s' : AState}
     {f : EIdx} {fP : Expr} {r : EIdx}, StateOK s →
@@ -722,7 +676,7 @@ theorem viewFVarIdx_run {s s' : AState} {h : EIdx} {r : Option Nat}
 
 /-- con-leche: none — `viewBind`, as a run. -/
 theorem viewBind_run {s s' : AState} {h : EIdx}
-    {r : Option (EIdx × EIdx × BinderMeta)}
+    {r : Option (EIdx × EIdx)}
     (hrun : viewBind h s = .ok (r, s')) : s' = s ∧ r = s.store.viewBind h :=
   AM.of_run (P := fun t => t = s) rfl hrun (viewBind_spec s h)
 
@@ -760,7 +714,7 @@ theorem tag_fvar_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx}
   cases v <;> simp_all [denoteEView, opt2_eq_some_iff, opt3_eq_some_iff] <;> rfl
 
 theorem tag_forallE_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {d b : Expr} {m : BinderMeta} (hd : denoteE st h = some (.forallE d b m)) :
+    {d b : Expr} (hd : denoteE st h = some (.forallE d b)) :
     h.tag = ETag.forallE := by
   obtain ⟨v, _, ht, hv⟩ := denote_view_tag hwf hd
   rw [ht]
