@@ -785,7 +785,7 @@ pub fn io_neutral(pers: &PersTier, st: &AState, e: &EIdx) -> Result<bool, CheckE
         Err(er) => Err(er),
         Ok(h) => {
             let t: u32 = h.tag();
-            Ok(!(t == ETAG_LAM || t == ETAG_LET_E || t == ETAG_BVAR))
+            Ok(t != ETAG_LAM && t != ETAG_LET_E && t != ETAG_BVAR)
         }
     }
 }

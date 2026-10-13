@@ -25092,14 +25092,12 @@ def arena.core.io_neutral
   match r with
   | core.result.Result.Ok h =>
     let t ← arena.handle.EIdx.tag h
-    let b ←
-      if t = arena.handle.ETAG_LAM
-      then ok true
-      else
-        if t = arena.handle.ETAG_LET_E
-        then ok true
-        else ok (t = arena.handle.ETAG_BVAR)
-    ok (core.result.Result.Ok (¬ b))
+    if t != arena.handle.ETAG_LAM
+    then
+      if t != arena.handle.ETAG_LET_E
+      then ok (core.result.Result.Ok (t != arena.handle.ETAG_BVAR))
+      else ok (core.result.Result.Ok false)
+    else ok (core.result.Result.Ok false)
   | core.result.Result.Err er => ok (core.result.Result.Err er)
 
 /-- [con_ron_core::arena::core::M_FUEL_LEVEL_CMP]

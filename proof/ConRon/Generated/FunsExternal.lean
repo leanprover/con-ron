@@ -102,8 +102,8 @@ def kernel.expr.ExprView.ofKind :
   | .«Sort» u => .«Sort» u
   | .Const n us => .Const n us
   | .App f a => .App f a
-  | .Lam ty b m => .Lam ty b m
-  | .ForallE ty b m => .ForallE ty b m
+  | .Lam ty b => .Lam ty b
+  | .ForallE ty b => .ForallE ty b
   | .LetE ty v b => .LetE ty v b
   | .Lit l => .Lit l
   | .Proj s i e => .Proj s i e
