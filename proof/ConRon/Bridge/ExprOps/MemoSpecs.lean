@@ -291,10 +291,8 @@ reflexive there. -/
         denoteE s'.store r = denoteEView s'.store v; ⊤⦄ := by
   vcgen [internRebuilt, internE_specV]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
   -- the `same` arm answers the handle it was given
-  vc_arm (hsame : true = true → _) =>
-    exact ⟨fun _ _ hi => hi, denoteE_view_eq hwf (hsame rfl)⟩
+  bridge_auto unfolding [denoteE_view_eq hwf (hsame rfl), imp_self, implies_true, true_and]
 
 /-! ### The binder intern at the V shape
 
