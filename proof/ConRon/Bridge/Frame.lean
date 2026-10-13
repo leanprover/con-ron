@@ -202,6 +202,19 @@ theorem view_of_viewProj_tag' {st : EStore} {i : EIdx} {n : NIdx} {k : Nat} {s :
     (htg : (i.tag == ETag.proj) = true) (h : some (n, k, s) = st.viewProj i) :
     st.view i = some (.proj n k s) := view_of_viewProj_tag htg h.symm
 
+/-- con-leche: none — the binder view under a true `lam` tag, in the
+orientation `vcgen` hands it (task #120: `bridge_auto`'s defaults). -/
+theorem view_of_viewBind_lam_tag' {st : EStore} {i ty b : EIdx}
+    (htg : (i.tag == ETag.lam) = true) (h : some (ty, b) = st.viewBind i) :
+    st.view i = some (.lam ty b) := view_of_viewBind_lam (by simpa using htg) h.symm
+
+/-- con-leche: none — the binder view under a true `forallE` tag. -/
+theorem view_of_viewBind_forallE_tag' {st : EStore} {i ty b : EIdx}
+    (htg : (i.tag == ETag.forallE) = true) (h : some (ty, b) = st.viewBind i) :
+    st.view i = some (.forallE ty b) := by
+  rw [view_of_viewBind h.symm, eBindView, show i.tag = ETag.forallE by simpa using htg]
+  rfl
+
 -- `ConRon.BridgeTactic` names the constants above (and the bridge's own)
 -- with single backticks, unchecked: this checks them.
 run_cmd do
