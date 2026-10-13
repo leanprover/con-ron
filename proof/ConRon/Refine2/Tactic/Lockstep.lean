@@ -1076,8 +1076,7 @@ theorem tagView_const (st : EStore) (i : EIdx) (hi : i.tag = ETag.const) :
     simp only [ETables.get, ETables.getConst, hi, Option.map_map]
     simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
-  rw [EStore.view, EStore.viewConst,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.const])]
+  rw [EStore.view, EStore.viewConst]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetConst]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]
@@ -1092,8 +1091,7 @@ theorem tagView_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort) :
     simp only [ETables.get, ETables.getSort, hi, Option.map_map]
     simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
-  rw [EStore.view, EStore.viewSort,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
+  rw [EStore.view, EStore.viewSort]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetSort]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]
@@ -1192,8 +1190,7 @@ theorem tagView_app (st : EStore) (i : EIdx) (hi : i.tag = ETag.app) :
     simp only [ETables.get, ETables.getApp, hi, Option.map_map]
     simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
-  rw [EStore.view, EStore.viewApp,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.app])]
+  rw [EStore.view, EStore.viewApp]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetApp]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]
@@ -1208,8 +1205,7 @@ theorem tagView_lit (st : EStore) (i : EIdx) (hi : i.tag = ETag.lit) :
     simp only [ETables.get, ETables.getLit, hi, Option.map_map]
     simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
-  rw [EStore.view, EStore.viewLit,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.lit])]
+  rw [EStore.view, EStore.viewLit]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetLit]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]
@@ -1224,8 +1220,7 @@ theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
     simp only [ETables.get, ETables.getBVar, hi, Option.map_map]
     simp (config := {decide := true}) only [ite_false, ite_true]
     rfl
-  rw [EStore.view, EStore.viewBVar,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.bvar])]
+  rw [EStore.view, EStore.viewBVar]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetBVar]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]
@@ -1234,13 +1229,20 @@ theorem tagView_bvar (st : EStore) (i : EIdx) (hi : i.tag = ETag.bvar) :
     · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
-    st.view i = (st.viewBind i).map (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) := by
-  rw [EStore.view, ite_eq_left (by rw [hi]; rfl)]
-  cases st.viewBind i with
-  | none => rfl
-  | some p =>
-    obtain ⟨ty, b, m⟩ := p
-    simp [eBindView, hi, ETag.forallE, ETag.lam]
+    st.view i = (st.viewBind i).map (fun p => ENodeView.forallE p.1 p.2) := by
+  have key : ∀ t : ETables,
+      t.get i = (t.getBind i).map (fun p => ENodeView.forallE p.1 p.2) := by
+    intro t
+    simp only [ETables.get, ETables.getBind, hi]
+    simp (config := {decide := true}) only [ite_false, ite_true]
+    rw [Option.map_map]; rfl
+  rw [EStore.view, EStore.viewBind]
+  by_cases hp : i.isPersistent
+  · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetBind]; exact key _
+  · rw [ite_eq_right hp, ite_eq_right hp]
+    by_cases hs : st.scratchOn
+    · rw [ite_eq_left hs, ite_eq_left hs]; exact key _
+    · rw [ite_eq_right hs, ite_eq_right hs]; rfl
 
 @[lockstep_twin] theorem LS.twin_view_app {α β : Type} {pers : arena.store.PersTier}
     {R : α → β → Prop}
@@ -1276,10 +1278,10 @@ theorem tagView_forallE (st : EStore) (i : EIdx) (hi : i.tag = ETag.forallE) :
     {R : α → β → Prop}
     {m : Result (core.result.Result α kernel.core_types.CheckError × arena.monad.AState)}
     {lst : AState} {h : EIdx} {g : ENodeView → AM β} (ht : h.tag = ETag.forallE)
-    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.forallE p.1 p.2.1 p.2.2) p))) :
+    (hls : LS pers R m lst (viewBind h >>= danglingOr fun p => g ((fun p => ENodeView.forallE p.1 p.2) p))) :
     LS pers R m lst (Arena.view h >>= g) := by
   rw [view_bind_of_proj h (viewBind h) (fun s => s.viewBind h) (fun _ => rfl)
-    (fun p => (fun p => ENodeView.forallE p.1 p.2.1 p.2.2) p) (fun st => tagView_forallE st h ht)]
+    (fun p => (fun p => ENodeView.forallE p.1 p.2) p) (fun st => tagView_forallE st h ht)]
   exact hls
 
 /-! ## The tactic -/
