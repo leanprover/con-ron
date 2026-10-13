@@ -1157,6 +1157,24 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   -- hypotheses before the rounds, so that the facts take part; a known
   -- denotation is identified at the end (`unifyFacts`)
   if introFacts then
+    -- a block of data binders followed by facts about them
+    -- (`∀ xs ys, denoteEList … = some xs → denoteEList … = some ys → …`)
+    let block ← g.withContext do
+      let t ← whnfR (← instantiateMVars (← g.getType))
+      forallTelescopeReducing t fun xs _ => do
+        let mut n := 0
+        while n < xs.size do
+          unless ← isProp (← inferType xs[n]!) do n := n + 1; continue
+          break
+        if n < 2 then return 0
+        let mut k := n
+        while k < xs.size do
+          let ty ← inferType xs[k]!
+          if (← isProp ty) && isFactShape ty then k := k + 1 else break
+        return if k > n then k else 0
+    if block > 0 then
+      let (_, g') ← g.introNP block
+      g := g'
     repeat
       let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
       let .forallE _ _ body _ := t | break
@@ -1289,6 +1307,50 @@ syntax (name := bridgeFwd) "bridge_fwd" (" [" term,* "]")? : tactic
 
 namespace Frame
 
+/-- Close `g` when it is (or unfolds to) `∃ x, P x` and a hypothesis is
+`P w` for some `w` (reducibly, after β): the answer relations `SimBOp`,
+`SimE`, … are such `∃ F, …`, and `bridge_fwd` peels the instance a lemma
+produced into its witness and its body. -/
+def closeExistsByHyp (g : MVarId) : MetaM Bool := g.withContext do
+  let t ← whnfD (← instantiateMVars (← g.getType))
+  unless t.isAppOfArity ``Exists 2 do return false
+  let α := t.appFn!.appArg!
+  let p := t.appArg!
+  for d in (← getLCtx) do
+    if d.isImplementationDetail then continue
+    let s ← saveState
+    let w ← mkFreshExprMVar α
+    let body ← Core.betaReduce (p.beta #[w])
+    let ht ← Core.betaReduce (← instantiateMVars d.type)
+    if ← same ht body then
+      let w ← instantiateMVars w
+      unless w.hasExprMVar do
+        g.assign (← mkAppOptM ``Exists.intro #[α, p, w, d.toExpr])
+        return true
+    s.restore
+  -- no hypothesis: the body may hold by `rfl` whatever the witness (a pure
+  -- function's base case, `defEqList … [] [] = .ok true` at any fuel); the
+  -- check is bounded, and the witness defaults when the body ignores it
+  let s ← saveState
+  try
+    let w ← mkFreshExprMVar α
+    let body ← Core.betaReduce (p.beta #[w])
+    if let some (_, l, r) := body.eq? then
+      let ok ← tryCatchRuntimeEx
+        (withCurrHeartbeats <| withTheReader Core.Context (fun c => { c with maxHeartbeats := 20000 * 1000 })
+          (withDefault (Meta.isDefEq l r)))
+        (fun _ => pure false)
+      if ok then
+        let w ← instantiateMVars w
+        let w ← if w.hasExprMVar then mkAppOptM ``Inhabited.default #[α, none] else pure w
+        let body ← Core.betaReduce (p.beta #[w])
+        let some (_, l, _) := body.eq? | do s.restore; return false
+        g.assign (← mkAppOptM ``Exists.intro #[α, p, w, ← mkEqRefl l])
+        return true
+  catch _ => pure ()
+  s.restore
+  return false
+
 /-- Close `g` with `h : ∀ xs, C … = C' xs → False` (a "not this constructor"
 fact) when the goal's own split made the equation `rfl`. -/
 def closeByNegCtor (g : MVarId) : MetaM Bool := g.withContext do
@@ -1344,6 +1406,7 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (depth : Nat) : TacticM Bo
   catch _ => pure ()
   s.restore
   if ← closeByNegCtor g then return true
+  if ← closeExistsByHyp g then return true
   if depth == 0 then return false
   for fv in ← splitCandidates g do
     let s ← saveState
