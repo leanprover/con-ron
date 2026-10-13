@@ -1012,7 +1012,9 @@ partial def peelNew (g : MVarId) (fvs : Array FVarId) : MetaM MVarId := do
                   todo := fv' :: todo
                   continue
     if t.isAppOfArity ``And 2 || t.isAppOfArity ``Exists 2 then
-      let subs ← g.cases fv
+      -- (an `∃` cannot be destructured in a goal that is data: `vcgen`'s
+      -- unsolved spec parameter)
+      let some subs ← observing? (g.cases fv) | continue
       if subs.size != 1 then continue
       let some sub := subs[0]? | continue
       g := sub.mvarId
@@ -1214,29 +1216,60 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   let g' ← peelAll g
   if g' != g then g ← substNew g' old
   g ← clearTrivial g old
-  -- the goal's own `∀ x, denote… = some x → …`
+  -- the goal's own `∀ x, denote… = some x → …`, and `∀ x y, denote… = some x →
+  -- denote… = some y → …` (k data binders, then k denotation premises)
   repeat
     let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
-    let .forallE _ α body _ := t | break
-    let .forallE _ hT _ _ := body | break
     let found ← g.withContext do
-      let y ← mkFreshExprMVar α
-      let hT' := hT.instantiate1 y
-      unless isFactShape hT' do return none
+      -- the leading data binders
+      let mut k := 0
+      let mut b := t
+      while b.isForall do
+        let .forallE _ α body _ := b | break
+        if ← isProp α then break
+        k := k + 1
+        b := body
+      if k == 0 then return none
+      -- several binders at once only under `bridge_auto` (`introFacts`):
+      -- `bridge_fwd`'s callers address the goal's own binders by hand
+      if k > 1 && !introFacts then return none
+      -- `2k` SYNTACTIC binders (a telescope `whnf`s and may see more than
+      -- `intro` does)
+      let rec depth (e : Expr) (n : Nat) : Nat :=
+        match n, e with
+        | n + 1, .forallE _ _ b _ => 1 + depth b n
+        | _, _ => 0
+      if depth t (2 * k) < 2 * k then return none
+      let (args, _, _) ← forallMetaBoundedTelescope t (2 * k)
+      if args.size != 2 * k then return none
       let snap ← snapshot
-      attemptM ((provedFact 2 hT').run snap)
-    let some p := found | break
-    let (_, g1) ← g.intro1
-    let (hx, g2) ← g1.intro1
-    let (fv, g3) ← g2.withContext do
-      let heq ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p, mkFVar hx]
-      let (fv, g3) ← g2.note `hxeq heq
-      let g3 ← g3.clear hx
-      pure (fv, g3)
-    g ← g3.withContext (do
-      match ← observing? (substCore g3 fv (symm := true)) with
-      | some (_, g4) => pure g4
-      | none => pure g3)
+      let mut ps := #[]
+      for i in [k:2 * k] do
+        let hT ← instantiateMVars (← inferType args[i]!)
+        unless isFactShape hT do return none
+        let some p ← attemptM ((provedFact 2 hT).run snap) | return none
+        ps := ps.push p
+      for i in [0:k] do
+        unless ← args[i]!.mvarId!.isAssigned do return none
+      return some (k, ps)
+    let some (k, ps) := found | break
+    let before ← g.withContext do
+      let mut st : Std.HashSet FVarId := {}
+      for d in (← getLCtx) do st := st.insert d.fvarId
+      pure st
+    let some (fvs, g1) ← observing? (g.introN (2 * k)) | break
+    -- every equation first (the premises' fvars are stable until a subst),
+    -- then the premises cleared, then the new equations substituted
+    let hs ← g1.withContext do
+      let mut hs := #[]
+      for i in [0:k] do
+        let heq ← mkAppM `ConRon.Bridge.eq_of_eq_some #[ps[i]!, mkFVar fvs[k + i]!]
+        hs := hs.push { userName := `hxeq, type := ← inferType heq, value := heq }
+      pure hs
+    let (_, g2) ← g1.assertHypotheses hs
+    let g3 ← g2.tryClearMany (fvs.extract k (2 * k))
+    -- the binders themselves are new: `substNew` solves them
+    g ← substNew g3 before
   return g
 
 end Frame
