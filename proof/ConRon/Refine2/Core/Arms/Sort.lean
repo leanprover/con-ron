@@ -49,7 +49,7 @@ open ConRon.Arena
 /-! ## The `view` / tag agreement at the `sort` constructor -/
 
 /-- **A `sort`-tagged handle's view IS its `sort` projection**, with no
-`StoreWF`: `EStore.view`'s binder test fails, its tier select is
+`StoreWF`: its tier select is
 `EStore.viewSort`'s own, and `ETables.get`'s third arm is `ETables.getSort`
 wrapped in the constructor.  This is the positive half of task #97-P5-2 §10's
 `estore_view_tagOf`, at one constructor. -/
@@ -62,8 +62,7 @@ theorem EStore_view_of_tag_sort (st : EStore) (i : EIdx) (hi : i.tag = ETag.sort
       ite_eq_right (by rw [hi]; simp [ETag.fvar, ETag.sort]),
       ite_eq_left (by rw [hi]; rfl)]
     cases t.sorts.node? i.idxNat <;> rfl
-  rw [EStore.view, EStore.viewSort,
-    ite_eq_right (by rw [ETag.isBind, hi]; simp [ETag.lam, ETag.forallE, ETag.sort])]
+  rw [EStore.view, EStore.viewSort]
   by_cases hp : i.isPersistent
   · rw [ite_eq_left hp, ite_eq_left hp, EStore.persGetSort]; exact key _
   · rw [ite_eq_right hp, ite_eq_right hp]

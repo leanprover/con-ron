@@ -3,9 +3,9 @@
 
 Task #97-P5-Core round 5, region A2.  The Theorem-2 lockstep lemmas of the
 small `arena::core` helpers — the spine readers (`get_app_spine`,
-`head_and_args`), the stuck-tag test, the binder-datum helpers, the
+`head_and_args`), the stuck-tag test, the
 telescope rebuilds (`infer_lams_out`, `infer_pis_out`), the projection-slot
-walks (`tower_slots_all`, `rec_slots_all`, `and_rescue_slots`), the
+walks (`tower_slots_all`, `and_rescue_slots`), the
 fabricated projections (`eta_projs`) and the scope/shape guards — each
 against its twin in `Arena/Core.lean`, by `lockstep_core`.
 
@@ -29,83 +29,7 @@ namespace ConRon.Refine2.Lockstep
 
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep.PA2
 
-/-! ## Pure helpers -/
-
-@[lockstep] theorem pw_written_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (arena.core.pw_written pw) (fun b => b = pwWritten (ConRon.Refine.absPropWhen pw)) := by
-  intro b h
-  rw [arena.core.pw_written] at h
-  obtain ⟨c, hc, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [pwWritten, ← ConRon.Refine.PropWhen.is_never_refines hc, ← Result.ok_injective h]
-  cases c <;> rfl
-
-theorem annot_binder_meta_spec (pw : Option kernel.prop_when.PropWhen)
-    (mb : kernel.expr.BinderMeta) :
-    LSP (arena.core.annot_binder_meta pw mb)
-      (fun r => ConRon.Refine.absBinderMeta r =
-        annotBinderMeta (pw.map ConRon.Refine.absPropWhen) (ConRon.Refine.absBinderMeta mb)) := by
-  intro r h
-  unfold arena.core.annot_binder_meta at h
-  cases pw with
-  | none =>
-    obtain rfl := ConRon.Refine.Expr.binder_meta_dup_eq h
-    rfl
-  | some p =>
-    obtain ⟨b, hb, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have hb' := pw_written_ls _ b hb
-    simp only [Option.map_some, annotBinderMeta, ConRon.Refine.absBinderMeta]
-    split at h
-    · rename_i hc
-      obtain rfl := ConRon.Refine.Expr.binder_meta_dup_eq h
-      rw [← hb', hc]; rfl
-    · rename_i hc
-      rw [binder_meta_ls p r h]
-      simp only [Bool.not_eq_true] at hc
-      rw [← hb', hc]; rfl
-
-/-- `annot_binder_meta`'s answer is well formed when its inputs are: it is
-either `mb` or `{ pw := p }` (a representation fact about the Rust inputs). -/
-theorem annot_binder_meta_wf (pw : Option kernel.prop_when.PropWhen)
-    (mb : kernel.expr.BinderMeta) :
-    LSP (arena.core.annot_binder_meta pw mb)
-      (fun m => ConRon.Refine.PropWhenWF mb.pw →
-        (∀ p, pw = some p → ConRon.Refine.PropWhenWF p) → ConRon.Refine.PropWhenWF m.pw) := by
-  intro r h hmb hpw
-  unfold arena.core.annot_binder_meta at h
-  cases pw with
-  | none =>
-    obtain rfl := ConRon.Refine.Expr.binder_meta_dup_eq h
-    exact hmb
-  | some p =>
-    obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    split at h
-    · obtain rfl := ConRon.Refine.Expr.binder_meta_dup_eq h
-      exact hmb
-    · rw [binder_meta_ls p r h]
-      exact hpw p rfl
-
-/-- `annot_binder_meta` in the `TwinEq` form the zip rewrites the twin with
-(region G's statement): the twin's `annotBinderMeta` of the abstracted
-arguments IS the abstraction of the port's answer; and the answer's datum is
-well formed when the inputs' are. -/
-@[lockstep] theorem annot_binder_meta_ls (pw : Option kernel.prop_when.PropWhen)
-    (mb : kernel.expr.BinderMeta) :
-    LSP (arena.core.annot_binder_meta pw mb)
-      (fun m => TwinEq (annotBinderMeta (ExprOps.absPwOpt pw) (ConRon.Refine.absBinderMeta mb))
-        (ConRon.Refine.absBinderMeta m) ∧
-        (ConRon.Refine.PropWhenWF mb.pw →
-          (∀ p, pw = some p → ConRon.Refine.PropWhenWF p) → ConRon.Refine.PropWhenWF m.pw)) :=
-  fun r h => ⟨(annot_binder_meta_spec pw mb r h).symm, annot_binder_meta_wf pw mb r h⟩
-
 /-! ## Reads -/
-
-@[lockstep] theorem defeq_peel_done_ls {pers st mism mism_lam lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LSR pers (fun a b => b = a) (arena.core.defeq_peel_done mism mism_lam) st lst
-      (defeqPeelDone mism mism_lam) := by
-  apply LSR.of_LS
-  rw [arena.core.defeq_peel_done, defeqPeelDone]
-  lockstep
 
 theorem get_app_spine_go_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
@@ -150,6 +74,20 @@ theorem get_app_spine_go_aux (n : Nat) :
   rw [arena.core.head_and_args, headAndArgs]
   lockstep
 
+/-- `io_neutral` (the η guard: the spine head's tag is not λ, `let` or a
+bound variable) against `ioNeutral`. -/
+@[lockstep] theorem io_neutral_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.io_neutral pers st e) st lst
+      (ioNeutral (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.core.io_neutral, ioNeutral]
+  lockstep
+  -- glue: the port answers `t != BVAR`, the twin tests and answers a literal
+  split
+  · rename_i hb; subst hb; rw [bne_self_eq_false]; lockstep
+  · rename_i hb; rw [bne_iff_ne.mpr hb]; lockstep
+
 /-! ## Straight-line state-threading helpers -/
 
 section
@@ -180,11 +118,10 @@ end
   rw [arena.core.fab_scope_ok, fabScopeOk]
   lockstep
 
-@[lockstep] theorem infer_lam_result_ls {pers st ty bt depth mb lst}
-    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hmb : ConRon.Refine.PropWhenWF mb.pw) :
-    LS pers (fun a b => b = absEIdx a) (arena.core.infer_lam_result pers st ty bt depth mb) lst
-      (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth) (ConRon.Refine.absBinderMeta mb)) := by
+@[lockstep] theorem infer_lam_result_ls {pers st ty bt depth lst}
+    (_hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdx a) (arena.core.infer_lam_result pers st ty bt depth) lst
+      (inferLamResult (absEIdx ty) (absEIdx bt) (absU depth)) := by
   rw [arena.core.infer_lam_result, inferLamResult]
   lockstep
 
@@ -269,38 +206,6 @@ theorem tower_slots_all_go_aux (n : Nat) :
   rw [arena.core.tower_slots_all, towerSlotsAll]
   lockstep
 
-theorem rec_slots_all_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {vis : Std.U64} {st : arena.monad.AState}
-      {fe : arena.env.IFEnv} {lfe : IFEnv} {lst : AState}
-      (t : arena.handle.NIdx) (nn j : Std.U64),
-      nn.val = n → AStateRel₀ pers st lst → AStateInv pers st → CoreCtx vis fe lfe →
-      LS pers (fun a b => b = a) (arena.core.rec_slots_all_go pers vis st fe t nn j) lst
-        (recSlotsAllGo lfe (absNIdx t) n (absU j)) := by
-  induction n with
-  | zero =>
-    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
-    rw [arena.core.rec_slots_all_go, recSlotsAllGo]
-    lockstep
-  | succ m ih =>
-    intro pers vis st fe lfe lst t nn j hn hrel hinv hctx
-    rw [arena.core.rec_slots_all_go, recSlotsAllGo]
-    lockstep
-
-@[lockstep] theorem rec_slots_all_go_ls {pers vis st fe lfe t n j lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.rec_slots_all_go pers vis st fe t n j) lst
-      (recSlotsAllGo lfe (absNIdx t) (absU n) (absU j)) :=
-  rec_slots_all_go_aux _ t n j rfl hrel hinv hctx
-
-@[lockstep] theorem rec_slots_all_ls {pers vis st fe lfe t n_f lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = a) (arena.core.rec_slots_all pers vis st fe t n_f) lst
-      (recSlotsAll lfe (absNIdx t) (absU n_f)) := by
-  rw [arena.core.rec_slots_all, recSlotsAll]
-  lockstep
-
 end slots
 
 section projs
@@ -328,37 +233,11 @@ theorem proj_nodes_go_aux (n : Nat) :
       (projNodesGo (absNIdx t) (absEIdx b) (absU n) (absU j)) :=
   proj_nodes_go_aux _ t b n j rfl hrel hinv
 
-theorem proj_apps_go_aux (n : Nat) :
-    ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (t : arena.handle.NIdx) (us : arena.handle.LsIdx) (targs : alloc.vec.Vec arena.handle.EIdx)
-      (b : arena.handle.EIdx) (nn j : Std.U64),
-      ExprOpsHyp pers → nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
-      LS pers (fun a b => b = absEIdxList a)
-        (arena.core.proj_apps_go pers st t us targs b nn j) lst
-        (projAppsGo (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) n (absU j)) := by
-  induction n with
-  | zero =>
-    intro pers st lst t us targs b nn j hx hn hrel hinv
-    rw [arena.core.proj_apps_go, projAppsGo]
-    lockstep
-  | succ m ih =>
-    intro pers st lst t us targs b nn j hx hn hrel hinv
-    rw [arena.core.proj_apps_go, projAppsGo]
-    lockstep
-
-@[lockstep] theorem proj_apps_go_ls {pers st t us targs b n j lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+@[lockstep] theorem eta_projs_ls {pers st t b n_f lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdxList a)
-      (arena.core.proj_apps_go pers st t us targs b n j) lst
-      (projAppsGo (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n) (absU j)) :=
-  proj_apps_go_aux _ t us targs b n j hx rfl hrel hinv
-
-@[lockstep] theorem eta_projs_ls {pers vis st fe lfe t us targs b n_f lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
-    LS pers (fun a b => b = absEIdxList a)
-      (arena.core.eta_projs pers vis st fe t us targs b n_f) lst
-      (etaProjs lfe (absNIdx t) (absLsIdx us) (absEIdxList targs) (absEIdx b) (absU n_f)) := by
+      (arena.core.eta_projs pers st t b n_f) lst
+      (etaProjs (absNIdx t) (absEIdx b) (absU n_f)) := by
   rw [arena.core.eta_projs, etaProjs]
   lockstep
 
@@ -459,8 +338,6 @@ elab "a2_idx" : tactic => withMainContext do
     return
   throwError "a2_idx: no stack read"
 
-attribute [local lockstep_simp] ConRon.Refine.absBinderMeta
-
 /-- `lockstep` with the stack-read rewrite `a2_idx` FIRST: the tactic now splits
 an undecided twin `if` (task #97-T2-TACTIC round 2), so the twin's `stk[k]!`
 must be in the Rust's spelling before its test is reached. -/
@@ -469,71 +346,53 @@ macro "lockstep_a2_stk" : tactic =>
 
 theorem infer_lams_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (mode : kernel.env.CheckMode) (d : Std.U64)
-      (stk : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
-      (nn : Std.Usize) (cur : arena.handle.EIdx) (prev_pw : kernel.prop_when.PropWhen),
+      (d : Std.U64) (stk : alloc.vec.Vec arena.handle.EIdx)
+      (nn : Std.Usize) (cur : arena.handle.EIdx),
       ExprOpsHyp pers →
-      (∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2.pw) → ConRon.Refine.PropWhenWF prev_pw →
       nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absEIdx a)
-        (arena.core.infer_lams_out pers st mode d stk nn cur prev_pw) lst
-        (inferLamsOut (ConRon.Refine.absMode mode) (absU d)
-          (stk.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray n
-          (absEIdx cur) (ConRon.Refine.absPropWhen prev_pw)) := by
+        (arena.core.infer_lams_out pers st d stk nn cur) lst
+        (inferLamsOut (absU d) (stk.val.map absEIdx).toArray n (absEIdx cur)) := by
   induction n with
   | zero =>
-    intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
+    intro pers st lst d stk nn cur hx hn hrel hinv
     rw [arena.core.infer_lams_out, inferLamsOut]
     lockstep_a2_stk
   | succ m ih =>
-    intro pers st lst mode d stk nn cur prev_pw hx hstk hpw hn hrel hinv
+    intro pers st lst d stk nn cur hx hn hrel hinv
     rw [arena.core.infer_lams_out, inferLamsOut]
     lockstep_a2_stk
 
 theorem infer_pis_out_aux (n : Nat) :
     ∀ {pers : arena.store.PersTier} {st : arena.monad.AState} {lst : AState}
-      (mode : kernel.env.CheckMode)
-      (stk : alloc.vec.Vec (arena.handle.LIdx × kernel.prop_when.PropWhen))
-      (nn : Std.Usize) (v : arena.handle.LIdx) (pv : kernel.prop_when.PropWhen),
-      (∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2) → ConRon.Refine.PropWhenWF pv →
+      (stk : alloc.vec.Vec arena.handle.LIdx) (nn : Std.Usize) (v : arena.handle.LIdx),
       nn.val = n → AStateRel₀ pers st lst → AStateInv pers st →
       LS pers (fun a b => b = absLIdx a)
-        (arena.core.infer_pis_out pers st mode stk nn v pv) lst
-        (inferPisOut (ConRon.Refine.absMode mode)
-          (stk.val.map fun p => (absLIdx p.1, ConRon.Refine.absPropWhen p.2)).toArray n
-          (absLIdx v) (ConRon.Refine.absPropWhen pv)) := by
+        (arena.core.infer_pis_out pers st stk nn v) lst
+        (inferPisOut (stk.val.map absLIdx).toArray n (absLIdx v)) := by
   induction n with
   | zero =>
-    intro pers st lst mode stk nn v pv hstk hpw hn hrel hinv
+    intro pers st lst stk nn v hn hrel hinv
     rw [arena.core.infer_pis_out, inferPisOut]
     lockstep_a2_stk
   | succ m ih =>
-    intro pers st lst mode stk nn v pv hstk hpw hn hrel hinv
+    intro pers st lst stk nn v hn hrel hinv
     rw [arena.core.infer_pis_out, inferPisOut]
     lockstep_a2_stk
 
-@[lockstep] theorem infer_lams_out_ls {pers st mode d stk n cur prev_pw lst}
-    (hx : ExprOpsHyp pers)
-    (hstk : ∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2.pw)
-    (hpw : ConRon.Refine.PropWhenWF prev_pw)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+@[lockstep] theorem infer_lams_out_ls {pers st d stk n cur lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a)
-      (arena.core.infer_lams_out pers st mode d stk n cur prev_pw) lst
-      (inferLamsOut (ConRon.Refine.absMode mode) (absU d)
-        (stk.val.map fun p => (absEIdx p.1, ConRon.Refine.absBinderMeta p.2)).toArray (absSz n)
-        (absEIdx cur) (ConRon.Refine.absPropWhen prev_pw)) :=
-  infer_lams_out_aux _ mode d stk n cur prev_pw hx hstk hpw rfl hrel hinv
+      (arena.core.infer_lams_out pers st d stk n cur) lst
+      (inferLamsOut (absU d) (stk.val.map absEIdx).toArray (absSz n) (absEIdx cur)) :=
+  infer_lams_out_aux _ d stk n cur hx rfl hrel hinv
 
-@[lockstep] theorem infer_pis_out_ls {pers st mode stk n v pv lst}
-    (hstk : ∀ x ∈ stk.val, ConRon.Refine.PropWhenWF x.2)
-    (hpw : ConRon.Refine.PropWhenWF pv)
+@[lockstep] theorem infer_pis_out_ls {pers st stk n v lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absLIdx a)
-      (arena.core.infer_pis_out pers st mode stk n v pv) lst
-      (inferPisOut (ConRon.Refine.absMode mode)
-        (stk.val.map fun p => (absLIdx p.1, ConRon.Refine.absPropWhen p.2)).toArray (absSz n)
-        (absLIdx v) (ConRon.Refine.absPropWhen pv)) :=
-  infer_pis_out_aux _ mode stk n v pv hstk hpw rfl hrel hinv
+      (arena.core.infer_pis_out pers st stk n v) lst
+      (inferPisOut (stk.val.map absLIdx).toArray (absSz n) (absLIdx v)) :=
+  infer_pis_out_aux _ stk n v rfl hrel hinv
 
 end tele
 
@@ -541,19 +400,14 @@ end tele
 
 #print axioms get_app_spine_ls
 #print axioms head_and_args_ls
+#print axioms io_neutral_ls
 #print axioms intern_app_rebuilt_ls
-#print axioms defeq_peel_done_ls
-#print axioms pw_written_ls
-#print axioms annot_binder_meta_ls
-#print axioms annot_binder_meta_spec
-#print axioms annot_binder_meta_wf
 #print axioms defeq_no_fvars_ls
 #print axioms fab_scope_ok_ls
 #print axioms infer_lam_result_ls
 #print axioms eta_ctor_shape_ls
 #print axioms pi_residual_ls
 #print axioms tower_slots_all_ls
-#print axioms rec_slots_all_ls
 #print axioms eta_projs_ls
 #print axioms and_rescue_slots_ls
 #print axioms infer_lams_out_ls

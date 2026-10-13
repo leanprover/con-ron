@@ -33,7 +33,7 @@ namespace ConRon.Refine2.Frontend
 
 open ConRon.Arena
 open ConRon.Arena.Frontend
-open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec PwRec CVRec HintsRec RuleRec
+open ConLeche.Frontend (IdTable NameRec LevelRec ExprRec CVRec HintsRec RuleRec
   IndTypeRec IndCtorRec IndRecRec DeclRec LineRec)
 
 /-! ## The error channel's four constructors
@@ -813,69 +813,6 @@ theorem get_decl_d_refines {rsd lsd lst i o} (hd : StateDRel rsd lsd)
   rw [frontend.export_c.get_decl_d] at h
   exact st_expr_refines hd h
 
-/-- **`parse_pw_d` refines `parsePwD`** (`ExportC.lean:192-197`): the `pw`
-datum over the direct name table.  `PropWhen` holds con-leche `Name`s, so the
-resolved handles are read BACK — `arena::env::read_names` against the twin's
-`hs.mapM readName`, the same `denoteN` (`Text.lean`'s `env_read_names_abs`).
-The second conjunct is the port's own representation fact the binder intern
-needs: the datum is a `PropWhenWF` one (the names read back are well formed). -/
-theorem parse_pw_d_refines {pers rst lst rsd lsd r o}
-    (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
-    (hd : StateDRel rsd lsd)
-    (h : frontend.export_c.parse_pw_d pers rst.store rsd r = ok o) :
-    SimLR ConRon.Refine.absPropWhen lst o (parsePwD lsd (absPwRec r)) ∧
-      (∀ pw, o = .Ok pw → ConRon.Refine.PropWhenWF pw) := by
-  rw [frontend.export_c.parse_pw_d.eq_def] at h
-  cases r with
-  | Never =>
-    simp only at h
-    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases Result.ok_injective h
-    refine ⟨?_, fun p hp => by cases hp; exact ConRon.Refine.PropWhenWF.never hpw⟩
-    show Except.ok _ = _
-    rw [ConRon.Refine.PropWhen.never_refines hpw]
-  | IfAllZero ns =>
-    simp only at h
-    obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    have h1 := st_names_refines (lst := lst) hd hr1
-    have hns : absU64s ns = ns.val.map absU := rfl
-    simp only [absPwRec, parsePwD, hns]
-    cases r1 with
-    | Err e =>
-      cases Result.ok_injective h
-      exact ⟨SimLR.bind_err h1, fun p hp => by cases hp⟩
-    | Ok hs =>
-      obtain ⟨r2, hr2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-      have hR := env_read_names_abs hrel.store hinv.store hr2
-      cases hdl : denoteNList lst.store.ns (hs.val.map absNIdx) with
-      | none =>
-        rw [hdl] at hR
-        obtain ⟨e, rfl, hek⟩ := hR
-        obtain ⟨e', rfl, hk'⟩ := fail_refines h
-        refine ⟨?_, fun p hp => by cases hp⟩
-        show AErrSim e' (((do
-          let hs ← (ns.val.map absU).mapM lsd.name
-          let xs ← hs.mapM readName
-          pure (ConLeche.PropWhen.ifAllZero xs)) : AM _).run lst)
-        rw [am_run_bind', SimLR.apply h1, except_ok_bind, am_run_bind',
-          show absNIdxL hs = hs.val.map absNIdx from rfl, mapM_readName_run, hdl]
-        exact AErrSim.mk rfl (by rw [hk', hek]; rfl)
-      | some xs =>
-        rw [hdl] at hR
-        obtain ⟨v, rfl, hv, hw⟩ := hR
-        obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        cases Result.ok_injective h
-        refine ⟨?_, fun p hp => by
-          cases hp; exact ConRon.Refine.PropWhenWF.if_all_zero hw hpw⟩
-        show ((do
-          let hs ← (ns.val.map absU).mapM lsd.name
-          let xs ← hs.mapM readName
-          pure (ConLeche.PropWhen.ifAllZero xs)) : AM _).run lst = _
-        rw [am_run_bind', SimLR.apply h1, except_ok_bind, am_run_bind',
-          show absNIdxL hs = hs.val.map absNIdx from rfl, mapM_readName_run, hdl]
-        show Except.ok _ = _
-        rw [ConRon.Refine.PropWhen.if_all_zero_refines hw hpw, ConRon.Refine.absNames, hv]
-
 /-! ## Writing an index table
 
 `scan_types::id_table_insert` against `ConLeche/Frontend/Scan/Types.lean`'s
@@ -1274,8 +1211,6 @@ view, lifted to the ambient state, against the twin's `internE`. -/
 theorem expr_intern_tail {pers rst lst} {v : arena.store.ENodeView} {o}
     (hrel : AStateRel₀ pers rst lst) (hinv : AStateInv pers rst)
     (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
-      ConRon.Refine.PropWhenWF m.pw)
     (h : (do
       let (r1, ar1) ← arena.store.EStore.intern rst.store pers v
       match r1 with
@@ -1285,7 +1220,7 @@ theorem expr_intern_tail {pers rst lst} {v : arena.store.ENodeView} {o}
         ok (r2, ar1)) = ok o) :
     SimL absEIdx pers lst (o.1, withStore rst o.2) (internE (absENodeView v)) := by
   obtain ⟨⟨r1, ar1⟩, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hS := intern_e_run₀ hrel hinv v hlit hpw (o := (r1, withStore rst ar1))
+  have hS := intern_e_run₀ hrel hinv v hlit (o := (r1, withStore rst ar1))
     (by rw [arena.monad.intern_e, h1]; simp only [bind_ok]; rfl)
   cases r1 with
   | Ok hh =>
@@ -1317,14 +1252,6 @@ theorem from_decimal_wf {s : Slice Std.U8} {n : ron.nat.Nat}
 theorem no_lit_wf {v : arena.store.ENodeView} (hv : ∀ l, v ≠ .Lit l) :
     ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l := fun l hl => absurd hl (hv l)
 
-theorem no_pw_wf {v : arena.store.ENodeView}
-    (hv : ∀ ty b m, v ≠ .Lam ty b m ∧ v ≠ .ForallE ty b m) :
-    ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m → ConRon.Refine.PropWhenWF m.pw :=
-  fun ty b m hm => by
-    rcases hm with hm | hm
-    · exact absurd hm (hv ty b m).1
-    · exact absurd hm (hv ty b m).2
-
 /-- **`parse_expr_rec_d`** — the value half of `parseExprEntryD` (`Spec.lean`'s
 `parseExprRecD`), arm for arm: the table reads, then one intern.  Round 3's
 F11: false only while `AStateRel` carried `storeWF` (a child handle out of the
@@ -1339,8 +1266,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
     (h : frontend.export_c.parse_expr_rec_d pers rst.store rsd r = ok o) :
     SimL absEIdx pers lst (o.1, withStore rst o.2)
       (parseExprRecD lsd (absExprRec r)) := by
-  have hnl : ∀ {v : arena.store.ENodeView}, (∀ l, v ≠ .Lit l) →
-      (∀ ty b m, v ≠ .Lam ty b m ∧ v ≠ .ForallE ty b m) → ∀ {o}, (do
+  have hnl : ∀ {v : arena.store.ENodeView}, (∀ l, v ≠ .Lit l) → ∀ {o}, (do
       let (r1, ar1) ← arena.store.EStore.intern rst.store pers v
       match r1 with
       | core.result.Result.Ok h => ok (core.result.Result.Ok h, ar1)
@@ -1348,13 +1274,13 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
         let r2 ← frontend.export_c.fail arena.handle.EIdx e
         ok (r2, ar1)) = ok o →
       SimL absEIdx pers lst (o.1, withStore rst o.2) (internE (absENodeView v)) :=
-    fun hv hw _ h => expr_intern_tail hrel hinv (no_lit_wf hv) (no_pw_wf hw) h
+    fun hv _ h => expr_intern_tail hrel hinv (no_lit_wf hv) h
   rw [frontend.export_c.parse_expr_rec_d.eq_def] at h
   show LOut _ _ _ _ _
   cases r with
   | Bvar k =>
     simp only at h
-    exact hnl (by intro l hl; cases hl) (by intro _ _ _; constructor <;> intro hc <;> cases hc) h
+    exact hnl (by intro l hl; cases hl) h
   | «Sort» u =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1365,8 +1291,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
     | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h1 _
     | Ok l =>
       rw [SimLR.apply h1, except_ok_bind]
-      exact hnl (v := arena.store.ENodeView.Sort l) (by intro l hl; cases hl)
-        (by intro _ _ _; constructor <;> intro hc <;> cases hc) h
+      exact hnl (v := arena.store.ENodeView.Sort l) (by intro l hl; cases hl) h
   | Const n us =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1399,8 +1324,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
           rw [show absLsNodeView ls = ls.val.map absLIdx from rfl] at hx1
           rw [hx1, except_ok_bind]
           exact expr_intern_tail (rst := withStore rst ar1) (v := .Const nm lsh) hrel1 hinv1
-            (no_lit_wf (by intro l hl; cases hl))
-            (no_pw_wf (by intro _ _ _; constructor <;> intro hc <;> cases hc)) h
+            (no_lit_wf (by intro l hl; cases hl)) h
   | App f a =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1418,9 +1342,8 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
       | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h2 _
       | Ok y =>
         rw [SimLR.apply h2, except_ok_bind]
-        exact hnl (v := .App x y) (by intro l hl; cases hl)
-          (by intro _ _ _; constructor <;> intro hc <;> cases hc) h
-  | Lam ty bd pw =>
+        exact hnl (v := .App x y) (by intro l hl; cases hl) h
+  | Lam ty bd =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have h1 := st_expr_refines (lst := lst) hd hr1
@@ -1437,22 +1360,8 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
       | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h2 _
       | Ok y =>
         rw [SimLR.apply h2, except_ok_bind]
-        obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨h3, hw3⟩ := parse_pw_d_refines (lst := lst) hrel hinv hd hr3
-        rw [am_run_bind']
-        cases r3 with
-        | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h3 _
-        | Ok p =>
-          rw [SimLR.apply h3, except_ok_bind]
-          obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          rw [kernel.expr.binder_meta] at hbm
-          cases Result.ok_injective hbm
-          exact expr_intern_tail hrel hinv (v := arena.store.ENodeView.Lam x y { pw := p })
-            (no_lit_wf (by intro l hl; cases hl))
-            (fun _ _ m hm => by
-              rcases hm with hm | hm <;> cases hm
-              exact hw3 p rfl) h
-  | ForallE ty bd pw =>
+        exact hnl (v := .Lam x y) (by intro l hl; cases hl) h
+  | ForallE ty bd =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     have h1 := st_expr_refines (lst := lst) hd hr1
@@ -1469,21 +1378,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
       | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h2 _
       | Ok y =>
         rw [SimLR.apply h2, except_ok_bind]
-        obtain ⟨r3, hr3, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-        obtain ⟨h3, hw3⟩ := parse_pw_d_refines (lst := lst) hrel hinv hd hr3
-        rw [am_run_bind']
-        cases r3 with
-        | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h3 _
-        | Ok p =>
-          rw [SimLR.apply h3, except_ok_bind]
-          obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-          rw [kernel.expr.binder_meta] at hbm
-          cases Result.ok_injective hbm
-          exact expr_intern_tail hrel hinv (v := arena.store.ENodeView.ForallE x y { pw := p })
-            (no_lit_wf (by intro l hl; cases hl))
-            (fun _ _ m hm => by
-              rcases hm with hm | hm <;> cases hm
-              exact hw3 p rfl) h
+        exact hnl (v := .ForallE x y) (by intro l hl; cases hl) h
   | LetE ty vl bd =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1508,8 +1403,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
         | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h3 _
         | Ok z =>
           rw [SimLR.apply h3, except_ok_bind]
-          exact hnl (v := .LetE x y z) (by intro l hl; cases hl)
-            (by intro _ _ _; constructor <;> intro hc <;> cases hc) h
+          exact hnl (v := .LetE x y z) (by intro l hl; cases hl) h
   | Proj tn ix s =>
     simp only at h
     obtain ⟨r1, hr1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1527,8 +1421,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
       | Err e => cases Result.ok_injective h; exact ALineErrSim.bind h2 _
       | Ok x =>
         rw [SimLR.apply h2, except_ok_bind]
-        exact hnl (v := .Proj t ix x) (by intro l hl; cases hl)
-          (by intro _ _ _; constructor <;> intro hc <;> cases hc) h
+        exact hnl (v := .Proj t ix x) (by intro l hl; cases hl) h
   | NatVal ds =>
     simp only at h
     obtain ⟨on, hon, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
@@ -1539,8 +1432,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
     simp only [absExprRec, parseExprRecD]
     have hT := expr_intern_tail hrel hinv
       (v := arena.store.ENodeView.Lit (kernel.expr.Literal.NatVal n))
-      (fun l hl => by cases hl; exact from_decimal_wf hon)
-      (no_pw_wf (by intro _ _ _; constructor <;> intro hc <;> cases hc)) h
+      (fun l hl => by cases hl; exact from_decimal_wf hon) h
     simp only [absENodeView, ConRon.Refine.absLiteral, hnv] at hT
     exact hT
   | StrVal s =>
@@ -1559,8 +1451,7 @@ theorem parse_expr_rec_d_refines {pers rst lst rsd lsd r o}
       (v := arena.store.ENodeView.Lit (kernel.expr.Literal.StrVal v))
       (fun l hl => by
         cases hl
-        intro c hc; rw [hvv] at hc; exact hs c hc)
-      (no_pw_wf (by intro _ _ _; constructor <;> intro hc <;> cases hc)) h
+        intro c hc; rw [hvv] at hc; exact hs c hc) h
     simp only [absENodeView, ConRon.Refine.absLiteral, hsv] at hT
     exact hT
 

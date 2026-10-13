@@ -3,13 +3,14 @@
 
 Task #97-P5-Core round 5, region C2.  The Theorem-2 lockstep lemmas of
 
-* `majorToCtor` (Rust `major_to_ctor` and its nine fragments
-  `major_to_ctor_{certs,k,eta_certs,eta,eta_build,and,and_build,at}`,
-  `iota_certs_fam`), `etaFabArgsE`;
-* `litMajorToCtor`, `projLitToCtor`, `prepareMajor`;
+* `majorToCtor` (Rust `major_to_ctor` and its fragments
+  `major_to_ctor_{certs,k,eta,eta_keys,eta_build,and,and_build,at}`),
+  `etaFabArgsE`;
+* `litMajorToCtor`, `projLitToCtor`, `prepareMajor` (`prepare_major_whnf`);
 * `iotaRecAt` (Rust `iota_rec_at` and the fragments
-  `iota_rec_{major,fire,params,certs,fam,reduct}`, `get_d_eidx`);
-* `projCert`, `projCertAt`.
+  `iota_rec_{major,fire,cert,case3,fam,reduct}`, `get_d_eidx`), the case
+  split's `iotaCase3` / `iotaCtorNeverProp`;
+* `teleArityOk`, `projCert`, `projCertAt`.
 
 Each is one `lockstep_c2` run (the shared `lockstep` plus this file's local moves) over the Rust body with its fragments inlined
 (`@[lockstep_inline]`) against the twin's body.
@@ -19,6 +20,7 @@ import ConRon.Refine2.Core.LS.Leaves
 import ConRon.Refine2.Core.LS.Shapes
 import ConRon.Refine2.Core.LS.Lits
 import ConRon.Refine2.Core.LS.Certs
+import ConRon.Refine2.Core.LS.PropRead
 
 -- the Core regions' `lockstep_simp` rules (scoped, task #97-P5-Core round 5)
 open scoped ConRon.Refine2.Lockstep.CoreLSReg ConRon.Refine2.Lockstep.PA1.CoreLSReg ConRon.Refine2.Lockstep.PB.CoreLSReg ConRon.Refine2.Lockstep.PC1.CoreLSReg ConRon.Refine2.Lockstep.PC2.CoreLSReg
@@ -246,29 +248,35 @@ theorem vec_len_eq_iff {α β : Type} (x : alloc.vec.Vec α) (y : alloc.vec.Vec 
 attribute [local lockstep_simp] PC1.absIIndCaps_eta PC1.absIIndCaps_etaCtor vec_len_eq_iff
   List.length_map
 
-/-! ## `projCert` / `projCertAt` -/
+/-! ## `teleArityOk`, `projCert` / `projCertAt` -/
 
-@[lockstep] theorem proj_cert_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth lic c us args lst}
-    (hx : ExprOpsHyp pers)
+/-- `tele_arity_ok` (the spine's telescope arity: `peel_pis` at the argument
+count) against `teleArityOk`. -/
+@[lockstep] theorem tele_arity_ok_ls {pers st ty args lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.tele_arity_ok pers st ty args) st lst
+      (teleArityOk (absEIdx ty) (absEIdxList args)) := by
+  apply LSR.of_LS
+  rw [arena.core.tele_arity_ok, teleArityOk]
+  lockstep_c2
+
+@[lockstep] theorem proj_cert_ls
+    {pers vis st fe lfe c args lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx vis fe lfe) :
     LS pers (fun a b => b = a)
-      (arena.core.proj_cert pers vis st mode lane fu fe depth lic c us args) lst
-      (projCert (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth) lic
-        (absNIdx c) (absLsIdx us) (absEIdxList args)) := by
+      (arena.core.proj_cert pers vis st fe c args) lst
+      (projCert lfe (absNIdx c) (absEIdxList args)) := by
   rw [arena.core.proj_cert, projCert]
   lockstep_c2
 
-@[lockstep] theorem proj_cert_at_ls {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth verified lic c us args lst}
-    (hx : ExprOpsHyp pers)
+@[lockstep] theorem proj_cert_at_ls
+    {pers vis st fe lfe verified c args lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f) :
+    (hctx : CoreCtx vis fe lfe) :
     LS pers (fun a b => b = a)
-      (arena.core.proj_cert_at pers vis st mode lane fu fe depth verified lic c us args) lst
-      (projCertAt (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe (absU depth)
-        verified lic (absNIdx c) (absLsIdx us) (absEIdxList args)) := by
+      (arena.core.proj_cert_at pers vis st fe verified c args) lst
+      (projCertAt lfe verified (absNIdx c) (absEIdxList args)) := by
   rw [arena.core.proj_cert_at, projCertAt]
   lockstep_c2
 
@@ -300,21 +308,18 @@ attribute [local lockstep_simp] ConRon.Refine.absLiteral
 
 /-! ## `etaFabArgsE` -/
 
-@[lockstep] theorem eta_fab_args_e_ls {pers vis st fe lfe t ust targs major nF lst}
-    (hx : ExprOpsHyp pers)
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) :
+@[lockstep] theorem eta_fab_args_e_ls {pers st t targs major nF lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdxList a)
-      (arena.core.eta_fab_args_e pers vis st fe t ust targs major nF) lst
-      (etaFabArgsE lfe (absNIdx t) (absLsIdx ust) (absEIdxList targs) (absEIdx major)
-        (absU nF)) := by
+      (arena.core.eta_fab_args_e pers st t targs major nF) lst
+      (etaFabArgsE (absNIdx t) (absEIdxList targs) (absEIdx major) (absU nF)) := by
   rw [arena.core.eta_fab_args_e, etaFabArgsE]
   lockstep_c2
 
 /-! ## `majorToCtor` -/
 
-attribute [lockstep_inline] arena.core.major_to_ctor_certs arena.core.iota_certs_fam
-  arena.core.major_to_ctor_k arena.core.major_to_ctor_eta_certs arena.core.major_to_ctor_eta
+attribute [lockstep_inline] arena.core.major_to_ctor_certs
+  arena.core.major_to_ctor_k arena.core.major_to_ctor_eta arena.core.major_to_ctor_eta_keys
   arena.core.major_to_ctor_eta_build arena.core.major_to_ctor_and
   arena.core.major_to_ctor_and_build arena.core.major_to_ctor_at
 
@@ -358,7 +363,19 @@ set_option maxHeartbeats 0 in
 
 end majorToCtor
 
-/-! ## `prepareMajor` -/
+/-! ## `prepareMajor` (fragment `prepare_major_whnf`) -/
+
+/-- `is_str_lit` (the rescue order's string-literal skip) against
+`isStrLit`. -/
+@[lockstep] theorem is_str_lit_ls {pers st e lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LSR pers (fun a b => b = a) (arena.core.is_str_lit pers st e) st lst
+      (isStrLit (absEIdx e)) := by
+  apply LSR.of_LS
+  rw [arena.core.is_str_lit, isStrLit]
+  lockstep_c2
+
+attribute [lockstep_inline] arena.core.prepare_major_whnf
 
 set_option maxHeartbeats 0 in
 @[lockstep] theorem prepare_major_ls {f : Nat} (hk : KnotRel f)
@@ -387,8 +404,27 @@ theorem absIRecRule_rhs (r : arena.env.IRecRule) : (absIRecRule r).rhs = absEIdx
 attribute [local lockstep_simp] absIRecRule_ctor absIRecRule_nfields absIRecRule_ctorParams
   absIRecRule_fire absIRecRule_rhs absIRecRuleFire
 
+/-- `iota_ctor_never_prop` (the ι case split's test) against
+`iotaCtorNeverProp`. -/
+@[lockstep] theorem iota_ctor_never_prop_ls {pers vis st fe lfe cvj us lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.iota_ctor_never_prop pers vis st fe cvj us) lst
+      (iotaCtorNeverProp lfe (absIConstantVal cvj) (absLsIdx us)) := by
+  rw [arena.core.iota_ctor_never_prop, iotaCtorNeverProp]
+  lockstep_c2
+
+/-- `iota_case3` (case 3 of the ι case split) against `iotaCase3`. -/
+@[lockstep] theorem iota_case3_ls {pers vis st fe lfe rl cvj us lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
+    (hctx : CoreCtx vis fe lfe) :
+    LS pers (fun a b => b = a) (arena.core.iota_case3 pers vis st fe rl cvj us) lst
+      (iotaCase3 lfe (absIRecRule rl) (absIConstantVal cvj) (absLsIdx us)) := by
+  rw [arena.core.iota_case3, iotaCase3]
+  lockstep_c2
+
 attribute [lockstep_inline] arena.core.iota_rec_major arena.core.iota_rec_fire
-  arena.core.iota_rec_params arena.core.iota_rec_certs arena.core.iota_rec_fam
+  arena.core.iota_rec_cert arena.core.iota_rec_case3 arena.core.iota_rec_fam
   arena.core.iota_rec_reduct
 
 set_option maxHeartbeats 0 in

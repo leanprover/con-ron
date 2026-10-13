@@ -314,15 +314,15 @@ def internExprNodeSpec (m : Frontend.EMemo) : ConLeche.Expr → AM (Frontend.EMe
     let (m, ha) ← Frontend.internExprGo m a
     let h ← internE (.app hf ha)
     pure (m, h)
-  | .lam ty b bi => do
+  | .lam ty b => do
     let (m, ht) ← Frontend.internExprGo m ty
     let (m, hb) ← Frontend.internExprGo m b
-    let h ← internE (.lam ht hb bi)
+    let h ← internE (.lam ht hb)
     pure (m, h)
-  | .forallE ty b bi => do
+  | .forallE ty b => do
     let (m, ht) ← Frontend.internExprGo m ty
     let (m, hb) ← Frontend.internExprGo m b
-    let h ← internE (.forallE ht hb bi)
+    let h ← internE (.forallE ht hb)
     pure (m, h)
   | .letE ty v b => do
     let (m, ht) ← Frontend.internExprGo m ty
@@ -358,12 +358,10 @@ theorem internExprGo_compound (m : Frontend.EMemo) (e : ConLeche.Expr)
 
 private theorem intern_e_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (v : arena.store.ENodeView)
-    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l)
-    (hpw : ∀ ty b m, v = .Lam ty b m ∨ v = .ForallE ty b m →
-      ConRon.Refine.PropWhenWF m.pw) :
+    (hlit : ∀ l, v = .Lit l → ConRon.Refine.LiteralWF l) :
     Lockstep.LS pers (fun a b => b = absEIdx a) (arena.monad.intern_e pers st v) lst
       (Arena.internE (absENodeView v)) :=
-  Lockstep.LS.ofSim₀ fun _ h => intern_e_run₀ hrel hinv v hlit hpw h
+  Lockstep.LS.ofSim₀ fun _ h => intern_e_run₀ hrel hinv v hlit h
 
 private theorem intern_name_ls' {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (n : kernel.name.Name) (hwf : NameWF n) :
@@ -461,7 +459,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       rw [arena.intern.intern_expr_go]; rust_view; twin_abs
       refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel hinv _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
     rw [arena.intern.intern_expr_node]; rust_view
     exact hgo hrel hinv hm
@@ -480,7 +477,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       subst hR
       refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel1 hinv1 _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
     rw [arena.intern.intern_expr_node]; rust_view
     exact hgo hrel hinv hm
@@ -503,7 +499,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       subst hR'
       refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
     rw [arena.intern.intern_expr_node]; rust_view
     exact hgo hrel hinv hm
@@ -521,7 +516,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       rw [ConRon.Refine.Expr.literal_dup_eq hl1]
       refine LSMI.tailS ?_ (fun _ _ => rfl) hm (fun _ _ h => h)
       exact intern_e_ls' hrel hinv (.Lit l) (fun _ h => by injection h with h; subst h; exact hl)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨hgo, fun hrel hinv hm => ?_⟩
     rw [arena.intern.intern_expr_node]; rust_view
     exact hgo hrel hinv hm
@@ -540,7 +534,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       subst hR
       refine LSMI.tailS ?_ (fun _ _ => rfl) hms (fun _ _ h => h)
       exact intern_e_ls' hrel1 hinv1 _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
     rw [internExprGo_compound _ _ (by twin_abs)]
@@ -563,18 +556,17 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       subst hR2
       refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
     rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
-  | lam d ty b bi h ihty ihb =>
-    obtain ⟨hty, hb, hbi⟩ := ConRon.Refine.ExprWF.lam_kids h
+  | lam d ty b h ihty ihb =>
+    obtain ⟨hty, hb⟩ := ConRon.Refine.ExprWF.lam_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
         LSMI pers (fun a b => b = absEIdx a)
-          (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.Lam ty b bi)))) lst
-          (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.Lam ty b bi))))) := by
+          (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.Lam ty b)))) lst
+          (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.Lam ty b))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
@@ -584,22 +576,19 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       refine LSMI.bindM ((ihb hb).1 hrel1 hinv1 hms1) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSMI.bindP fun bm hbm => ?_
-      rw [ConRon.Refine.Expr.binder_meta_dup_eq hbm]
       refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
-      exact intern_e_ls' hrel2 hinv2 (.Lam _ _ bi) (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h; exact hbi)
+      exact intern_e_ls' hrel2 hinv2 (.Lam _ _) (by intro _ h; cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
     rw [internExprGo_compound _ _ (by twin_abs)]
     exact intern_probe_ls hrel hinv hm h (hnode hrel hinv hm)
-  | forall_e d ty b bi h ihty ihb =>
-    obtain ⟨hty, hb, hbi⟩ := ConRon.Refine.ExprWF.forall_e_kids h
+  | forall_e d ty b h ihty ihb =>
+    obtain ⟨hty, hb⟩ := ConRon.Refine.ExprWF.forall_e_kids h
     have hnode : ∀ {pers st lst rm lm}, AStateRel₀ pers st lst → AStateInv pers st →
         EMemoRel rm lm →
         LSMI pers (fun a b => b = absEIdx a)
-          (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.ForallE ty b bi)))) lst
-          (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.ForallE ty b bi))))) := by
+          (arena.intern.intern_expr_node pers st rm (.mk (.mk d (.ForallE ty b)))) lst
+          (internExprNodeSpec lm (ConRon.Refine.absExpr (.mk (.mk d (.ForallE ty b))))) := by
       intro pers st lst rm lm hrel hinv hm
       rw [arena.intern.intern_expr_node]; rust_view; twin_abs
       simp only [internExprNodeSpec]
@@ -609,11 +598,8 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       refine LSMI.bindM ((ihb hb).1 hrel1 hinv1 hms1) (by lsm_err) ?_
       intro a2 b2 s2 st2 m2 lst2 hms2 hR2 hrel2 hinv2
       subst hR2
-      refine LSMI.bindP fun bm hbm => ?_
-      rw [ConRon.Refine.Expr.binder_meta_dup_eq hbm]
       refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
-      exact intern_e_ls' hrel2 hinv2 (.ForallE _ _ bi) (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h; exact hbi)
+      exact intern_e_ls' hrel2 hinv2 (.ForallE _ _) (by intro _ h; cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
     rw [internExprGo_compound _ _ (by twin_abs)]
@@ -639,7 +625,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       subst hR3
       refine LSMI.tailS ?_ (fun _ _ => rfl) hms3 (fun _ _ h => h)
       exact intern_e_ls' hrel3 hinv3 _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
     rw [internExprGo_compound _ _ (by twin_abs)]
@@ -662,7 +647,6 @@ private theorem intern_expr_aux (e : kernel.expr.Expr) (he : ExprWF e) :
       subst hR2
       refine LSMI.tailS ?_ (fun _ _ => rfl) hms2 (fun _ _ h => h)
       exact intern_e_ls' hrel2 hinv2 _ (by intro _ h; cases h)
-        (by intro _ _ _ h; rcases h with h | h <;> cases h)
     refine ⟨fun hrel hinv hm => ?_, hnode⟩
     rw [arena.intern.intern_expr_go]; rust_view
     rw [internExprGo_compound _ _ (by twin_abs)]
@@ -1028,9 +1012,6 @@ theorem intern_fire_ls {pers st lst rm lm} {f : kernel.env.RecRuleFire}
     LSMI pers (fun a b => b = absIRecRuleFire a) (arena.intern.intern_fire pers st rm f) lst
       (Frontend.internFire lm (ConRon.Refine.absFire f)) := by
   cases f with
-  | Inert =>
-    rw [arena.intern.intern_fire]; simp only [Frontend.internFire, ConRon.Refine.absFire]
-    exact LSMI.pure hm rfl hrel hinv
   | Plain =>
     rw [arena.intern.intern_fire]; simp only [Frontend.internFire, ConRon.Refine.absFire]
     exact LSMI.pure hm rfl hrel hinv

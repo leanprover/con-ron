@@ -8,11 +8,12 @@ Ported from `RefineOld/Frontend/ProjRecR.lean` / `ProjRec.lean` (task #87),
 which proved the same two functions for the `Expr`-tree port: the functions
 are untouched since (`crates/con-ron-core/src/frontend/text.rs`).
 
-The second half is `arena::env::read_name` / `read_names` — the readback the
-frontend's MESSAGES and its `pw` datum use (`show_name`, `parse_pw_d`,
-`prepare`).  The monad-level `read_name` has its `Specs.lean` lemma; this
-EStore-level twin of the same `denoteN` (fuel `node_count + 1`, the same
-algorithm) had none.
+The second half is `arena::env::read_name` — the readback the frontend's
+MESSAGES use (`show_name`, `prepare`).  The monad-level `read_name` /
+`read_names` have their `Specs.lean` lemmas; this EStore-level twin of the same
+`denoteN` (fuel `node_count + 1`, the same algorithm) had none.  (Its
+`read_names` sibling went to `arena::monad` at task #119, with the `pw`
+datum that was its reader.)
 
 ## `sorry` count in this file: 0
 -/
@@ -231,98 +232,6 @@ theorem env_read_name_abs {pers : arena.store.PersTier} {ar : arena.store.EStore
     rw [this, hc1v, hcv]; rfl
   rw [denoteN]
   exact env_read_name_at_abs hnrel _ c2 h hc2v hrun
-
-/-- `arena::env::read_names_from`, at a cursor: `denoteNList` of the rest,
-and every name read well formed. -/
-theorem env_read_names_from_abs {pers : arena.store.PersTier} {ar : arena.store.EStore}
-    {ls : EStore} (hrel : StoreRel pers ar ls) (hinv : StoreInv pers ar)
-    {ks : alloc.vec.Vec arena.handle.NIdx} :
-    ∀ k (i : Std.Usize) (out : alloc.vec.Vec kernel.name.Name),
-      ks.length - i.val ≤ k → (∀ n ∈ out.val, ConRon.Refine.NameWF n) → ∀ {o},
-      arena.env.read_names_from pers ar ks i out = ok o →
-      match denoteNList ls.ns ((ks.val.drop i.val).map absNIdx) with
-      | some xs => ∃ v, o = .Ok v ∧ v.val.map ConRon.Refine.absName
-          = out.val.map ConRon.Refine.absName ++ xs ∧ ∀ n ∈ v.val, ConRon.Refine.NameWF n
-      | none => ∃ e, o = .Err e ∧ absAErrKind e = some .internal := by
-  intro k
-  induction k with
-  | zero =>
-    intro i out hk hout o hrun
-    rw [arena.env.read_names_from.eq_def] at hrun; simp only [] at hrun
-    rw [ite_eq_left (by scalar_tac)] at hrun
-    rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
-    exact ⟨out, (Result.ok_injective hrun).symm, by simp, hout⟩
-  | succ k ih =>
-    intro i out hk hout o hrun
-    rw [arena.env.read_names_from.eq_def] at hrun; simp only [] at hrun
-    split at hrun
-    · rw [List.drop_eq_nil_of_le (by scalar_tac), List.map_nil]
-      exact ⟨out, (Result.ok_injective hrun).symm, by simp, hout⟩
-    · rename_i hlt
-      have hb : i.val < ks.length := by scalar_tac
-      obtain ⟨n, hn, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hnv : ks.val[i.val] = n := by
-        have h1 : ks.val[i.val]? = some n := vec_index_some hn
-        rw [List.getElem?_eq_getElem hb] at h1
-        exact (Option.some.injEq _ _ ▸ h1)
-      obtain ⟨r, hr, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-      have hra := env_read_name_abs hrel hr
-      have hrw := env_read_name_wf hinv hr
-      rw [List.drop_eq_getElem_cons hb, List.map_cons, denoteNList, hnv]
-      cases hdn : denoteN ls.ns (absNIdx n) with
-      | none =>
-        rw [hdn] at hra
-        obtain ⟨e, rfl, hek⟩ := hra
-        simp only [opt2]
-        exact ⟨e, (Result.ok_injective hrun).symm, hek⟩
-      | some x =>
-        rw [hdn] at hra
-        obtain ⟨y, rfl, hy⟩ := hra
-        obtain ⟨out1, hout1, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        obtain ⟨i2, hi2, hrun⟩ := ConRon.Refine.bind_eq_ok_iff.mp hrun
-        have hi2v : i2.val = i.val + 1 := by
-          have := ConRon.Refine.Nat.uadd_val hi2; simpa using this
-        have hout1v : out1.val = out.val ++ [y] := ConRon.Refine.vec_push_val hout1
-        have hih := ih i2 out1 (by scalar_tac) (by
-          intro nn hnn
-          rw [hout1v] at hnn
-          rcases List.mem_append.mp hnn with hnn | hnn
-          · exact hout nn hnn
-          · rw [List.mem_singleton.mp hnn]; exact hrw y rfl) hrun
-        rw [hi2v] at hih
-        cases hdl : denoteNList ls.ns ((ks.val.drop (i.val + 1)).map absNIdx) with
-        | none =>
-          rw [hdl] at hih
-          simp only [opt2]
-          exact hih
-        | some xs =>
-          rw [hdl] at hih
-          obtain ⟨v, rfl, hv, hvw⟩ := hih
-          simp only [opt2]
-          refine ⟨v, rfl, ?_, hvw⟩
-          rw [hv, hout1v]
-          simp only [List.map_append, List.map_cons, List.map_nil,
-            List.append_assoc, List.cons_append, List.nil_append, hy]
-
-/-- **`arena::env::read_names` is `denoteNList`**, its names well formed. -/
-theorem env_read_names_abs {pers : arena.store.PersTier} {ar : arena.store.EStore}
-    {ls : EStore} (hrel : StoreRel pers ar ls) (hinv : StoreInv pers ar)
-    {ks : alloc.vec.Vec arena.handle.NIdx} {o}
-    (hrun : arena.env.read_names pers ar ks = ok o) :
-    match denoteNList ls.ns (ks.val.map absNIdx) with
-    | some xs => ∃ v, o = .Ok v ∧ v.val.map ConRon.Refine.absName = xs ∧
-        ∀ n ∈ v.val, ConRon.Refine.NameWF n
-    | none => ∃ e, o = .Err e ∧ absAErrKind e = some .internal := by
-  rw [arena.env.read_names] at hrun
-  have hh := env_read_names_from_abs hrel hinv ks.length 0#usize _ (by scalar_tac)
-    (by intro n hn; simp [alloc.vec.Vec.with_capacity] at hn) hrun
-  simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hh
-  cases hdl : denoteNList ls.ns (ks.val.map absNIdx) with
-  | none => rw [hdl] at hh; exact hh
-  | some xs =>
-    rw [hdl] at hh
-    obtain ⟨v, rfl, hv, hw⟩ := hh
-    exact ⟨v, rfl, by simpa [alloc.vec.Vec.with_capacity] using hv, hw⟩
 
 /-- The twin's `hs.mapM readName` is its `readNames hs`. -/
 theorem mapM_readName_run_eq : ∀ (l : List NIdx) (lst : AState),

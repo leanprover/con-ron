@@ -126,12 +126,6 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 `assumption`: a body lemma carries the bundle as a hypothesis, and
 `Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
 
-@[lockstep] theorem lam_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (h) :
-    LSR pers (fun a b => b = ExprOps.absPwOpt a) (arena.expr_ops.lam_pw pers st h) st lst
-      (lamPw (absEIdx h)) :=
-  LSR.ofAOut₀ fun _ hr => hx.lamPw hrel hinv hr
-
 @[lockstep] theorem proof_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (fuel a) :
@@ -227,62 +221,11 @@ theorem code_points_val' {codes : Slice Std.U32} {r : alloc.vec.Vec Std.U32}
   rw [code_points_from_val' _ codes 0#usize _ r rfl h]
   simp [alloc.vec.Vec.with_capacity]
 
-theorem proj_fn_name_str_abs {v : alloc.vec.Vec Std.U32}
-    (h : kernel.core_types.code_points (Array.to_slice arena.env.proj_fn_name.S) = ok v) :
-    ConRon.Refine.absString v = "proj" ∧ ConRon.Refine.StrWF v := by
-  have hv : v.val = [112#u32, 114#u32, 111#u32, 106#u32] := by
-    rw [code_points_val' h, Array.val_to_slice, arena.env.proj_fn_name.S,
-      Array.make_val]
-  refine ⟨?_, ?_⟩
-  · rw [ConRon.Refine.absString, hv]; rfl
-  · intro c hc; rw [hv] at hc; fin_cases hc <;> decide
-
 theorem intern_n_node_of_estore {pers : arena.store.PersTier} {st : arena.monad.AState}
     {v : arena.store.NNodeView} {r e}
     (h : arena.store.EStore.intern_name st.store pers v = ok (r, e)) :
     arena.monad.intern_n_node pers st v = ok (r, { st with store := e }) := by
   rw [arena.monad.intern_n_node, h]; simp
-
-/-- `arena::env::proj_fn_name` (two name interns on the bare store) against
-`projFnName`. -/
-@[lockstep] theorem proj_fn_name_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
-    (hinv : AStateInv pers st) (t : arena.handle.NIdx) (j : Std.U64) :
-    LSS pers (fun a b => b = absNIdx a) (arena.env.proj_fn_name pers st.store t j) st lst
-      (projFnName (absNIdx t) (absU j)) := by
-  intro o s' hm
-  rw [arena.env.proj_fn_name] at hm
-  obtain ⟨n, hn, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  obtain ⟨sl, hsl, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  obtain ⟨v, hv, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  obtain ⟨⟨r1, ar1⟩, h1, hm⟩ := ConRon.Refine.bind_eq_ok_iff.mp hm
-  simp only [lift, Result.ok.injEq] at hsl
-  subst hsl
-  have hnt : n = t := dupId_nidx _ _ hn
-  subst hnt
-  obtain ⟨hstr, hwf⟩ := proj_fn_name_str_abs hv
-  have sim1 := intern_n_node_run₀ hrel hinv _ (by exact hwf) (intern_n_node_of_estore h1)
-  have htw : projFnName (absNIdx n) (absU j)
-      = (Arena.internNNode (absNNodeView (.Str n v)) >>= fun s =>
-          Arena.internNNode (.num s (absU j))) := by
-    rw [projFnName, absNNodeView, hstr]
-  rw [htw]
-  cases r1 with
-  | Err e =>
-    have ho := Result.ok_injective hm
-    cases ho
-    exact errSim_bind sim1
-  | Ok s1 =>
-    obtain ⟨lst1, hx1, hrel1, hinv1⟩ := sim1.apply
-    rw [run_bind_ok hx1]
-    have sim2 := intern_n_node_run₀ (st := { st with store := ar1 }) hrel1 hinv1
-      (.Num s1 j) trivial (intern_n_node_of_estore hm)
-    show LOut pers _ o { st with store := s' } _
-    cases o with
-    | Err e => exact sim2
-    | Ok a =>
-      obtain ⟨lst2, hx2, hrel2, hinv2⟩ := sim2.apply
-      exact ⟨_, lst2, hx2, rfl, hrel2, hinv2⟩
-
 
 theorem proj_table_name_str_abs {v : alloc.vec.Vec Std.U32}
     (h : kernel.core_types.code_points (Array.to_slice arena.env.proj_table_name.S) = ok v) :
@@ -396,9 +339,8 @@ theorem i_proj_table_entry_abs {tbl : arena.env.IProjTable} {i : Std.U64}
   simp only [absIProjEntry, absIProjTable, IProjTable.entry, hb, hg, hvv]
 
 /-- `proj_table_name_ls` at a store argument named apart from the state
-(`ifenv_find_proj_ls`'s form): the table-less `.proj` arm of `annotate_proj_at`
-(con-leche's PROJREJ, task #105) builds the table name on the store the lookup
-returned. -/
+(`ifenv_find_proj_ls`'s form): the projection-miss arm of `infer_proj`
+(`infer_proj_miss`) builds the table name on the store the lookup returned. -/
 theorem proj_table_name_at_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (s : arena.store.EStore) (hs : st.store = s)
     (t : arena.handle.NIdx) :

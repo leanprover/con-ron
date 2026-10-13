@@ -5,7 +5,7 @@ Task #97-P5-Core round 5, region F (the `defeq` loop).  The `@[lockstep]`
 pairs the `defeq` bodies need that no other file has: handle equality, the
 tag tests in `!=` form, the literal and bignum steps of the literal arms, and
 `view_wf_ls` — the `view` read carrying the node's well-formedness, which the
-literal and binder-datum comparisons need to be exact.
+literal comparisons need to be exact.
 -/
 import ConRon.Refine2.Core.LS.Prims
 
@@ -62,14 +62,6 @@ private theorem word_decide {k : IdxKind} {α : Type} (w : α → Std.U32)
   rw [arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
   cases Result.ok_injective h
   exact word_decide arena.handle.LsIdx.word absLsIdx (fun _ => rfl) a b
-
-@[lockstep] theorem bmidx_eq2_ls (a b : arena.handle.BMIdx) :
-    LSP (arena.handle.BMIdx.Insts.Con_ron_coreRonHashmapEq2.eq2 a b)
-      (fun r => r = decide (absBMIdx a = absBMIdx b)) := by
-  intro r h
-  rw [arena.handle.BMIdx.Insts.Con_ron_coreRonHashmapEq2.eq2] at h
-  cases Result.ok_injective h
-  exact word_decide arena.handle.BMIdx.word absBMIdx (fun _ => rfl) a b
 
 /-! ## Tag tests in `bne` form
 
@@ -203,53 +195,12 @@ attribute [local lockstep_simp] ConRon.Refine.absLiteral ConRon.Refine.LiteralWF
 
 /-! ## What a `view` read: a well-formed node
 
-The port's `view` returns a node whose literal payload and binder datum are
-well formed (`StoreInv`'s node columns, `tbl_node_wf`).  The `defeq` arms
-compare literals (`literal_beq`, `nat::is_zero`) and binder data
-(`prop_when::beq`), which are exact only on well-formed values, so the
+The port's `view` returns a node whose literal payload is well formed
+(`StoreInv`'s node columns, `tbl_node_wf`).  The `defeq` arms compare
+literals (`literal_beq`, `nat::is_zero`), which are exact only on
+well-formed values, so the
 `defeq` proofs use `view_wf_ls` (a local hypothesis, tried before the global
 `view_ls`), which carries `ENodeViewWF` in its relation. -/
-
-theorem etables_get_bm_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.BMIdx}
-    {o : Option kernel.expr.BinderMeta}
-    (h : arena.store.ETables.get_bm rt i = ok o) :
-    ∀ m, o = some m → ConRon.Refine.PropWhenWF m.pw := by
-  rw [arena.store.ETables.get_bm] at h
-  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨p, hp, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hw := tbl_node_wf hinv.bms hp
-  cases hpc : p with
-  | none =>
-    rw [hpc] at h; intro m hm; rw [← Result.ok_injective h] at hm; simp at hm
-  | some r =>
-    rw [hpc] at h
-    obtain ⟨pw, hpw, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨bm, hbm, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    intro m hm
-    rw [← Result.ok_injective h] at hm
-    cases Option.some.inj hm
-    rw [kernel.expr.binder_meta] at hbm
-    cases Result.ok_injective hbm
-    show ConRon.Refine.PropWhenWF pw
-    rw [ConRon.Refine.PropWhen.dup_eq hpw]
-    exact hw r hpc
-
-theorem estore_view_bm_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.BMIdx}
-    {o : Option kernel.expr.BinderMeta}
-    (h : arena.store.EStore.view_bm rs pers i = ok o) :
-    ∀ m, o = some m → ConRon.Refine.PropWhenWF m.pw := by
-  rw [arena.store.EStore.view_bm] at h
-  obtain ⟨b, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  split at h
-  · rw [arena.store.EStore.pers_get_bm] at h
-    have hp := hinv.perst
-    rw [rPersE] at hp
-    split at h <;> rename_i hs
-    · rw [ite_eq_left hs] at hp; exact etables_get_bm_wf hp h
-    · rw [ite_eq_right hs] at hp; exact etables_get_bm_wf hp h
-  · split at h
-    · exact etables_get_bm_wf hinv.scrt h
-    · intro m hm; rw [← Result.ok_injective h] at hm; simp at hm
 
 theorem etables_get_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
     {o : Option arena.store.ENodeView}
@@ -272,25 +223,6 @@ theorem etables_get_wf {rt} (hinv : ETablesInv rt) {i : arena.handle.EIdx}
   rw [ConRon.Refine.Expr.literal_dup_eq hd]
   exact tbl_node_wf hinv.lits hn r rfl
 
-theorem estore_view_bind_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx}
-    {o : Option (arena.handle.EIdx × arena.handle.EIdx × kernel.expr.BinderMeta)}
-    (h : arena.store.EStore.view_bind rs pers i = ok o) :
-    ∀ t, o = some t → ConRon.Refine.PropWhenWF t.2.2.pw := by
-  rw [arena.store.EStore.view_bind] at h
-  obtain ⟨q, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  intro t ht
-  cases q with
-  | none => rw [← Result.ok_injective h] at ht; simp at ht
-  | some q =>
-    obtain ⟨e, e1, b⟩ := q
-    obtain ⟨o1, h1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    cases o1 with
-    | none => rw [← Result.ok_injective h] at ht; simp at ht
-    | some m =>
-      rw [← Result.ok_injective h] at ht
-      cases Option.some.inj ht
-      exact estore_view_bm_wf hinv h1 m rfl
-
 theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EIdx}
     {o : Option arena.store.ENodeView}
     (h : arena.store.EStore.view rs pers i = ok o) :
@@ -304,13 +236,12 @@ theorem estore_view_wf {pers rs} (hinv : StoreInv pers rs) {i : arena.handle.EId
     cases q with
     | none => rw [← Result.ok_injective h] at hv; simp at hv
     | some q =>
-      obtain ⟨e, e1, m⟩ := q
-      have hm := estore_view_bind_wf hinv hq _ rfl
+      obtain ⟨e, e1⟩ := q
       obtain ⟨ev, hev, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
       rw [← Result.ok_injective h] at hv
       cases Option.some.inj hv
       rw [arena.store.e_bind_view] at hev
-      split at hev <;> (cases Result.ok_injective hev; exact hm)
+      split at hev <;> (cases Result.ok_injective hev; trivial)
   · obtain ⟨b1, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
     split at h
     · rw [arena.store.EStore.pers_get] at h
@@ -327,8 +258,8 @@ attribute [local lockstep_simp] ENodeViewWF
 
 /-- `arena::monad::view` against `Arena.view`, carrying the port's own
 representation fact about what it read: the viewed node is well formed
-(`StoreInv`'s node columns) — what the `defeq` arms' literal and binder-datum
-comparisons need to be exact. -/
+(`StoreInv`'s node columns) — what the `defeq` arms' literal comparisons need
+to be exact. -/
 theorem view_wf_ls {pers st lst} (hrel : AStateRel₀ pers st lst)
     (hinv : AStateInv pers st) (h : arena.handle.EIdx) :
     LSR pers (fun a b => ENodeViewWF a ∧ b = absENodeView a) (arena.monad.view pers st h) st lst

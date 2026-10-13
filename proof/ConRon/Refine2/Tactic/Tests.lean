@@ -284,29 +284,24 @@ the walk, so the entry updates the state around the callee;
 the walk's `LSM` lemma, and the example is retired rather than rewritten. -/
 
 /-- `all_level_params_defined_binder`: a memoised READER walk (`LSRM`), twice,
-with the binder's own test between. -/
+the second behind the first's verdict (task #119: no binder datum to test). -/
 example {pers st lst} {params : alloc.vec.Vec kernel.name.Name} {rm lm}
-    {fuel : Std.U64} {t b : arena.handle.EIdx} {m : kernel.expr.BinderMeta}
+    {fuel : Std.U64} {t b : arena.handle.EIdx}
     (hgo : ∀ {rm lm lst} (h : arena.handle.EIdx), AStateRel₀ pers st lst →
       AStateInv pers st → ExprOps.LMemoRel rm lm →
       LSRM pers BMemoR (arena.checker_base.all_level_params_defined_go pers st params rm fuel h)
         st lst
         (allLevelParamsDefinedGo (ConRon.Refine.absNames params) lm (absU fuel) (absEIdx h)))
-    (hpd : LSP (kernel.prop_when.params_defined params m.pw)
-      (fun b3 => TwinEq ((ConRon.Refine.absBinderMeta m).pw.paramsDefined
-        (ConRon.Refine.absNames params)) b3))
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
     (hm : ExprOps.LMemoRel rm lm) :
     LSRM pers BMemoR
-      (arena.checker_base.all_level_params_defined_binder pers st params rm fuel t b m) st lst
+      (arena.checker_base.all_level_params_defined_binder pers st params rm fuel t b) st lst
       (do
         let (b₁, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
           lm (absU fuel) (absEIdx t)
-        if !b₁ then pure (false, memo) else do
-          let (b₂, memo) ← allLevelParamsDefinedGo (ConRon.Refine.absNames params)
-            memo (absU fuel) (absEIdx b)
-          pure (b₂ && (ConRon.Refine.absBinderMeta m).pw.paramsDefined
-            (ConRon.Refine.absNames params), memo)) := by
+        if !b₁ then pure (false, memo) else
+          allLevelParamsDefinedGo (ConRon.Refine.absNames params)
+            memo (absU fuel) (absEIdx b)) := by
   rw [arena.checker_base.all_level_params_defined_binder]
   lockstep
 
@@ -398,8 +393,9 @@ example (m_i n_p i : Std.U64) (hP : i.val = n_p.val + 2) (hc : ¬ m_i = i) :
 /-- The Rust's pair read `let (e, _) ← v[j]; dup2 e` under an `if` the
 tactic distributes (`rec_ctor_kinds_from`'s `dom`): stepped through, not kept
 as an equation `(let (e, _) := v[j]; dup2 e) = ok a` (the lane's
-`let_pair_dup2_eq` finish). -/
-example {pers st lst} (cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.BinderMeta))
+`let_pair_dup2_eq` finish).  The pair's second component was a binder datum
+until task #119; any type serves. -/
+example {pers st lst} (cbs : alloc.vec.Vec (arena.handle.EIdx × Std.U64))
     (k n : Std.U64) (hk : k.val < cbs.val.length) (hmax : k.val ≤ Std.Usize.max)
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
     LS pers (fun a b => b = absEIdx a)
@@ -408,7 +404,7 @@ example {pers st lst} (cbs : alloc.vec.Vec (arena.handle.EIdx × kernel.expr.Bin
           if k < n then do
             let i4 ← lift (Std.UScalar.cast .Usize k)
             let (e, _) ← alloc.vec.Vec.index (core.slice.index.SliceIndexUsizeSlice
-              (arena.handle.EIdx × kernel.expr.BinderMeta)) cbs i4
+              (arena.handle.EIdx × Std.U64)) cbs i4
             arena.handle.EIdx.Insts.Con_ron_coreRonHashmapDup.dup2 e
           else arena.handle.EIdx.of_word 0#u32
         ok (.Ok dom, st)) lst

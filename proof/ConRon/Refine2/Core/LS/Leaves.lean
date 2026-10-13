@@ -483,16 +483,28 @@ theorem inst_spine_pins_aux {pers} (_hx : ExprOpsHyp pers) (lps : alloc.vec.Vec 
   simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at h
   exact LS.tail h rfl (fun a b hab => by simp [hab, alloc.vec.Vec.new])
 
-attribute [lockstep_inline] arena.core.rec_fire_comparands_plain
-
-@[lockstep] theorem rec_fire_comparands_ls {pers st rl lps us cvj_lps args r_p lst}
-    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
-    LS pers (fun a b => b = (absLsIdx a.1, absEIdxList a.2))
-      (arena.core.rec_fire_comparands pers st rl lps us cvj_lps args r_p) lst
-      (recFireComparands (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
-        (cvj_lps.val.map absNIdx) (absEIdxList args) (absU r_p)) := by
-  rw [arena.core.rec_fire_comparands, recFireComparands]
+/-- `arena::core::rec_fire_levels` against `recFireLevels`: the port reads the
+recursor's level parameters and levels before it splits on the rule's `fire`,
+the twin in each arm — the same reads, so the split is taken once for both. -/
+@[lockstep] theorem rec_fire_levels_ls {pers st rl lps us cvj_lps lst}
+    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absLsIdx a)
+      (arena.core.rec_fire_levels pers st rl lps us cvj_lps) lst
+      (recFireLevels (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
+        (cvj_lps.val.map absNIdx)) := by
+  rw [arena.core.rec_fire_levels, recFireLevels]
   -- glue: both sides match on the rule's `fire`; split it once for both
+  simp only [absIRecRule]
+  cases hf : rl.fire <;> simp only [absIRecRuleFire] <;> lockstep_a1
+
+/-- `arena::core::rec_fire_args` against `recFireArgs`. -/
+@[lockstep] theorem rec_fire_args_ls {pers st rl lps us args r_p lst}
+    (hx : ExprOpsHyp pers) (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) :
+    LS pers (fun a b => b = absEIdxList a)
+      (arena.core.rec_fire_args pers st rl lps us args r_p) lst
+      (recFireArgs (absIRecRule rl) (lps.val.map absNIdx) (absLsIdx us)
+        (absEIdxList args) (absU r_p)) := by
+  rw [arena.core.rec_fire_args, recFireArgs]
   simp only [absIRecRule]
   cases hf : rl.fire <;> simp only [absIRecRuleFire] <;> lockstep_a1
 

@@ -22,32 +22,12 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 
 /-! ## The mode reads -/
 
-@[lockstep] theorem beta_skip_ls (mode : kernel.env.CheckMode) (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.env.beta_skip mode pw)
-      (fun b => b = (ConRon.Refine.absMode mode).betaSkip (ConRon.Refine.absPropWhen pw)) :=
-  by
-    intro b h
-    cases mode
-    · simp only [kernel.env.beta_skip, kernel.env.certs, kernel.env.beta_gate, bind_ok,
-        reduceIte] at h
-      rw [ConRon.Refine.PropWhen.is_never_refines h]; rfl
-    · simp only [kernel.env.beta_skip, kernel.env.certs, bind_ok, Bool.false_eq_true,
-        ite_false, Result.ok.injEq] at h
-      rw [← h]; rfl
-
 @[lockstep] theorem verified_checks_ls (mode : kernel.env.CheckMode) :
     LSP (kernel.env.verified_checks mode)
       (fun b => b = (ConRon.Refine.absMode mode).verifiedChecks) :=
   by
     intro b h
     cases mode <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
-
-@[lockstep] theorem beta_gate_ls (mode : kernel.env.CheckMode) :
-    LSP (kernel.env.beta_gate mode)
-      (fun b => b = (ConRon.Refine.absMode mode).betaGate) :=
-  by
-    intro b h
-    cases mode <;> (simp only [kernel.env.beta_gate, Result.ok.injEq] at h; rw [← h]; rfl)
 
 @[lockstep] theorem is_never_ls (pw : kernel.prop_when.PropWhen) :
     LSP (kernel.prop_when.is_never pw)
