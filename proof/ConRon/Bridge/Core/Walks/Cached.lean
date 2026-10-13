@@ -58,7 +58,7 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
    `hok.caches.readL` and the same through the first frame.
 4. **The insert is `LvlEqCacheOK.insert`**, a plain insert since task
    #115 removed the cap.
-5. **The answer relation is not `Bridge/Core/Walks/Spec.lean`'s `SimVOp`.**
+5. **The answer relation is none of `Bridge/Core/Walks/Spec.lean`'s.**
    The pure side of these five is not fueled at all (`Level.isEquiv` is a
    total function of two trees), so there is no `∃ F` and the conclusion is
    an equation.  That is the one structural difference between this group and

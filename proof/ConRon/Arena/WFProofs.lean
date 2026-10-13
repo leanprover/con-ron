@@ -1407,15 +1407,6 @@ theorem ETables.get_eq_none_of_size {t : ETables} {w : ENodeView} {i : EIdx}
       ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj,
       Tbl.node?_size]
 
-theorem ETables.getBind_eq_none_of_size {t : ETables} {w : ENodeView} {i : EIdx}
-    (htg : i.tag = w.tagOf) (hix : i.idxNat = t.sizeOf w) : t.getBind i = none := by
-  cases w <;>
-    simp only [ENodeView.tagOf] at htg <;>
-    simp only [ETables.sizeOf] at hix <;>
-    simp [ETables.getBind, htg, hix, ETag.bvar, ETag.fvar, ETag.sort, ETag.const,
-      ETag.app, ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj,
-      Tbl.node?_size]
-
 theorem ETables.push_tag {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt32}
     (htr : tr.toNat < 2) (hcap : t.sizeOf w < Idx.idxCap) :
     (t.push w d tr).2.tag = w.tagOf := by
@@ -1466,53 +1457,6 @@ theorem ETables.count_push {t : ETables} {w : ENodeView} {d : UInt64} {tr : UInt
     (t.push w d tr).1.count = t.count + 1 := by
   cases w <;>
     simp [ETables.push, ETables.count, Tbl.size_push] <;> omega
-
-/-! The arms of `ETables.derAt`, each read off once. -/
-
-theorem ETables.derAt_bvar {t : ETables} {i : EIdx} (hc : i.tag = ETag.bvar) :
-    t.derAt i = t.bvars.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar]
-
-theorem ETables.derAt_fvar {t : ETables} {i : EIdx} (hc : i.tag = ETag.fvar) :
-    t.derAt i = t.fvars.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar]
-
-theorem ETables.derAt_sort {t : ETables} {i : EIdx} (hc : i.tag = ETag.sort) :
-    t.derAt i = t.sorts.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort]
-
-theorem ETables.derAt_const {t : ETables} {i : EIdx} (hc : i.tag = ETag.const) :
-    t.derAt i = t.consts.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const]
-
-theorem ETables.derAt_app {t : ETables} {i : EIdx} (hc : i.tag = ETag.app) :
-    t.derAt i = t.apps.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app]
-
-theorem ETables.derAt_lam {t : ETables} {i : EIdx} (hc : i.tag = ETag.lam) :
-    t.derAt i = t.lams.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-    ETag.lam]
-
-theorem ETables.derAt_forallE {t : ETables} {i : EIdx} (hc : i.tag = ETag.forallE) :
-    t.derAt i = t.foralls.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-    ETag.lam, ETag.forallE]
-
-theorem ETables.derAt_letE {t : ETables} {i : EIdx} (hc : i.tag = ETag.letE) :
-    t.derAt i = t.lets.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-    ETag.lam, ETag.forallE, ETag.letE]
-
-theorem ETables.derAt_lit {t : ETables} {i : EIdx} (hc : i.tag = ETag.lit) :
-    t.derAt i = t.lits.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-    ETag.lam, ETag.forallE, ETag.letE, ETag.lit]
-
-theorem ETables.derAt_proj {t : ETables} {i : EIdx} (hc : i.tag = ETag.proj) :
-    t.derAt i = t.projs.derAt i.idxNat := by
-  simp [ETables.derAt, hc, ETag.bvar, ETag.fvar, ETag.sort, ETag.const, ETag.app,
-    ETag.lam, ETag.forallE, ETag.letE, ETag.lit, ETag.proj]
 
 /-- The derived column is read through the same tag dispatch as `get`, so a
 column-wise agreement transfers. -/
@@ -1571,9 +1515,6 @@ theorem ETables.derAt_push_new {t : ETables} {w : ENodeView} {d : UInt64}
 theorem ETables.get_empty (i : EIdx) : (ETables.empty).get i = none := by
   simp [ETables.empty, ETables.get, Tbl.empty, Tbl.node?]
 
-theorem ETables.getBind_empty (i : EIdx) : (ETables.empty).getBind i = none := by
-  simp [ETables.empty, ETables.getBind, Tbl.empty, Tbl.node?]
-
 theorem ETables.find?_empty (v : ENodeView) : (ETables.empty).find? v = none := by
   cases v <;> simp [ETables.empty, ETables.find?, Tbl.find?_empty]
 
@@ -1631,33 +1572,11 @@ theorem ETables.get_mono {t t' : ETables}
   rw [ite_eq_right c9] at h ⊢
   exact absurd h (by simp)
 
-theorem ETables.getBind_mono {t t' : ETables}
-    (hla : ∀ n a, t.lams.node? n = some a → t'.lams.node? n = some a)
-    (hfa : ∀ n a, t.foralls.node? n = some a → t'.foralls.node? n = some a)
-    {i : EIdx} {p : EIdx × EIdx} (h : t.getBind i = some p) :
-    t'.getBind i = some p := by
-  simp only [ETables.getBind] at h ⊢
-  by_cases c5 : (i.tag == ETag.lam) = true
-  · rw [ite_eq_left c5] at h ⊢; exact Option.map_mono (hla _) h
-  rw [ite_eq_right c5] at h ⊢
-  by_cases c6 : (i.tag == ETag.forallE) = true
-  · rw [ite_eq_left c6] at h ⊢; exact Option.map_mono (hfa _) h
-  rw [ite_eq_right c6] at h ⊢
-  exact absurd h (by simp)
-
 theorem ETables.get_push_mono (t : ETables) (w : ENodeView) (d : UInt64)
     (tr : UInt32) {i : EIdx} {v : ENodeView} (h : t.get i = some v) :
     (t.push w d tr).1.get i = some v := by
   cases w <;>
     refine ETables.get_mono ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_ h <;>
-    intro n a ha <;> simp only [ETables.push] <;>
-    first | exact ha | exact Tbl.node?_push ha
-
-theorem ETables.getBind_push_mono (t : ETables) (w : ENodeView) (d : UInt64)
-    (tr : UInt32) {i : EIdx} {p : EIdx × EIdx}
-    (h : t.getBind i = some p) : (t.push w d tr).1.getBind i = some p := by
-  cases w <;>
-    refine ETables.getBind_mono ?_ ?_ h <;>
     intro n a ha <;> simp only [ETables.push] <;>
     first | exact ha | exact Tbl.node?_push ha
 
@@ -5603,13 +5522,6 @@ theorem ETables.get_pushBind_mono (t : ETables) (tag : UInt32) (r : BindNode)
     (simp only [ETables.pushBind]; split) <;>
     first | exact ha | exact Tbl.node?_push ha
 
-theorem ETables.getBind_pushBind_mono (t : ETables) (tag : UInt32) (r : BindNode)
-    (d : UInt64) (tier : UInt32) {i : EIdx} {p : EIdx × EIdx}
-    (h : t.getBind i = some p) : (t.pushBind tag r d tier).1.getBind i = some p := by
-  refine ETables.getBind_mono ?_ ?_ h <;> intro n a ha <;>
-    (simp only [ETables.pushBind]; split) <;>
-    first | exact ha | exact Tbl.node?_push ha
-
 /-! ### `internBind` — `intern` at a binder record
 
 `internBind tag ty b` is `intern` at the binder view `tag` spells, whenever
@@ -5661,10 +5573,6 @@ theorem EStore.view_internBind_mono (st : EStore) (tag : UInt32) (ty b : EIdx)
     · rfl
     · exact fun _ _ hh => ETables.get_pushBind_mono _ _ _ _ _ hh
     · exact fun _ _ hh => hh
-
-theorem EStore.scratchOn_internBind (st : EStore) (tag : UInt32) (ty b : EIdx) :
-    (st.internBind tag ty b).1.scratchOn = st.scratchOn := by
-  rcases EStore.internBind_cases st tag ty b with he | he | he <;> rw [he]
 
 /-! ### The persistent-tier append
 
@@ -5826,25 +5734,6 @@ theorem LsStore.internPersistent_ext (st : LsStore) (w : LsNodeView) :
     LsExt st (st.internPersistent w).1 :=
   LsExt.of_view_mono (by rw [LsStore.ls_internPersistent]; exact LExt.refl _)
     (fun _ _ h => LsStore.view_internPersistent_mono st w h)
-
-theorem EStore.nodeCount_internBind_le (st : EStore) (tag : UInt32) (ty b : EIdx) :
-    st.nodeCount ≤ (st.internBind tag ty b).1.nodeCount := by
-  rcases EStore.internBind_cases st tag ty b with he | he | he <;> rw [he]
-  · exact Nat.le_refl _
-  all_goals
-    simp only [EStore.nodeCount, EStore.persCount, EStore.scrCount, ETables.count,
-      ETables.pushBind]
-    split <;> simp only [Tbl.size_push] <;> omega
-
-/-- con-leche: none — arena infrastructure; the binder entry extends the
-arena. -/
-theorem EStore.internBind_ext (st : EStore) (tag : UInt32) (ty b : EIdx) :
-    Ext st (st.internBind tag ty b).1 :=
-  Ext.of_view_mono (by
-      rcases EStore.internBind_cases st tag ty b with he | he | he <;> rw [he] <;>
-        exact LsExt.refl _)
-    (fun _ _ h => EStore.view_internBind_mono st tag ty b h)
-    (EStore.nodeCount_internBind_le st tag ty b)
 
 /-- con-leche: none — arena infrastructure; **the promotion's append extends
 the arena** (task #97-P6-2).  This is the conjunct the promotion keeps

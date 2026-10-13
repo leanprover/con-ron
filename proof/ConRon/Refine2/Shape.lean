@@ -221,12 +221,6 @@ theorem AOut₀.err {α β : Type} {A : α → β} {e : kernel.core_types.CheckE
     {x : Except Arena.CheckError (β × AState)} (h : AErrSim e x) :
     AOut₀ A pers (.Err e) st' x := h
 
-theorem AOut₀.of_eq {α β : Type} {A : α → β} {pers : arena.store.PersTier}
-    {o : core.result.Result α kernel.core_types.CheckError}
-    {st' : arena.monad.AState} {x y : Except Arena.CheckError (β × AState)}
-    (h : AOut₀ A pers o st' x) (hxy : y = x) : AOut₀ A pers o st' y := by
-  rw [hxy]; exact h
-
 /-- The lockstep simulation statement for a state-threading Rust function. -/
 def Sim₀ {α β : Type} (A : α → β) (pers : arena.store.PersTier) (lst : AState)
     (o : core.result.Result α kernel.core_types.CheckError × arena.monad.AState)

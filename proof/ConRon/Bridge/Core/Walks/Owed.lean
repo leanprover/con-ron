@@ -88,14 +88,14 @@ abstracted:
 | `SimOOp` — an `Option EIdx` answer | `reduceNat`, `iotaRec` |
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
 | `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
-| `SimVOp` — any shared type | `headHint` (`ReducibilityHint`) |
-| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `isBoolTrue`, CLOSED in `Walks/Guards.lean`) |
+| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `headHint`, `isBoolTrue`, CLOSED in `Walks/Spine.lean`, `Walks/Guards.lean`) |
 
-**The last row is the cheap one and it is worth naming.**  Four walks of the
-group (three here, `isBoolTrue` in `Walks/Guards.lean`) refine a con-leche
-function that is not in `CheckM` at all
+**The last row is the cheap one and it is worth naming.**  Five walks of the
+group (three here, `headHint` in `Walks/Spine.lean`, `isBoolTrue` in
+`Walks/Guards.lean`) refine a con-leche function that is not in `CheckM` at all
 (`unfoldDefinition env e : Option Expr`, `unfoldableHead env e : Bool`,
-`sameConstHeads a b : Bool`, `Expr.isBoolTrue e : Bool`), so there is no
+`sameConstHeads a b : Bool`, `headHint env e : ReducibilityHint`,
+`Expr.isBoolTrue e : Bool`), so there is no
 `∃ F` and no fuel bookkeeping: the conclusion is an equation between the
 arena's answer and con-leche's.  They are the first four of these to write.
 

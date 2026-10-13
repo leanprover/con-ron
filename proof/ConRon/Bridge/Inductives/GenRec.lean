@@ -138,15 +138,6 @@ theorem dClassGen_pre {st : EStore} {g : Arena.ClassGen} {gP : ConLeche.ClassGen
   simp only [dClassGen, h1, h2, h3, h4, h5, h6, hp, Option.bind_eq_bind, Option.bind_some,
     Option.pure_def, hnP]
 
-/-- con-leche: none — `denoteEList` is `mapM denoteE`. -/
-theorem mapM_denoteE_eq_list {st : EStore} :
-    ∀ (l : List EIdx), l.mapM (fun e => denoteE st e) = Frontend.denoteEList st l
-  | [] => rfl
-  | a :: l => by
-    simp only [List.mapM_cons, Frontend.denoteEList, mapM_denoteE_eq_list l,
-      Option.bind_eq_bind, Option.pure_def]
-    cases denoteE st a <;> cases Frontend.denoteEList st l <;> rfl
-
 /-- con-leche: none — `mapM denoteE` is `denoteEList`. -/
 theorem mapM_denoteE {st : EStore} :
     ∀ {l : List EIdx} {v : List Expr}, l.mapM (fun e => denoteE st e) = some v →

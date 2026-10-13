@@ -6,8 +6,7 @@ Task #97-P5-Core round 5, region B.  `crates/con-ron-core/src/arena/core.rs`'s
 `Arena/Core.lean`'s twins: the fifteen `nat*Name` pins, the name lists, the
 stored-declaration shape guards (`natLitSupported`, `strLitSupported` and their
 eleven helpers), the constructor forms of a literal, `rawNatLit?`,
-`natOpResult` and the headline `reduceNat` (`reduce_nat_ls`), which
-discharges `Core/Arms/Loops.lean`'s `reduce_nat_refines`.
+`natOpResult` and the headline `reduceNat` (`reduce_nat_ls`).
 -/
 import ConRon.Refine2.Core.LS.PrimsB
 import ConRon.Refine2.Core.LS.Leaves
@@ -536,9 +535,7 @@ section
 attribute [local lockstep_simp] natOpStored_pure
 
 set_option maxHeartbeats 4000000 in
-/-- **`arena::core::reduce_nat` ⊑ `Arena.reduceNat`** — the headline of region B,
-discharging `Core/Arms/Loops.lean`'s `reduce_nat_refines` through
-`LS.toSim₀`. -/
+/-- **`arena::core::reduce_nat` ⊑ `Arena.reduceNat`** — the headline of region B. -/
 @[lockstep] theorem reduce_nat_ls {f : Nat} (hk : KnotRel f)
     {pers vis st mode lane fu fe lfe depth e lst}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)

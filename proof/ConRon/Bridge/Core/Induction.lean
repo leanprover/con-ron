@@ -95,7 +95,6 @@ section Census
 
 /-! ### The statement layer — closed -/
 
-#print axioms SimE.denote
 #print axioms knotSpec_zero
 
 /-! ### The knot's five slots, unfolded -/

@@ -7059,8 +7059,7 @@ theorem intern_e_lit_run₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
 
 Task #97-P5-2 §10 named these five as waiting on ONE lemma, and named it
 right: `Ext st (st.internBind tag ty b).1`, which `Arena/WFProofs.lean`
-did not have.  It has it now (task #97a follow-up 4: `EStore.internBind_ext`
-and its `internLam` / `internForallE` instances), so the three that go
+did not have.  It got it in task #97a follow-up 4, so the three that go
 straight to `internBind` are `intern_e_lit_run`'s proof at the binder array
 — the hypotheses being finding 7's `hchild` (the skipped persistent probe),
 finding 8's `hfrozen` (retired in task #97-P5-Unfreeze), and the twin's own

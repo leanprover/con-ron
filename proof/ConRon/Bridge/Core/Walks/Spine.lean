@@ -517,8 +517,7 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM 1
 for `headHint`**: the reducibility hint of the constant at the head.
 **CLOSED** (round 3).  The answer type is one both tiers share, so the
-relation is `SimVOp`'s — here spelled as the equation it is, because
-con-leche's `headHint` takes no fuel.  It is `unfoldableHead` minus the
+relation is an equation, because con-leche's `headHint` takes no fuel.  It is `unfoldableHead` minus the
 level-list read: five verification conditions and the same three arms. -/
 theorem headHint_of_not_defn {env : Env} {nm : ConLeche.Name} {x : Expr}
     {ls : List Level} (hgf : x.getAppFn = .const nm ls)
@@ -536,8 +535,7 @@ theorem headHint_of_not_const {env : Env} {x : Expr}
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM
 1 for `headHint`**: the reducibility hint of the constant at the head.
 **CLOSED** (round 3).  The answer type is one both tiers share, so the
-relation is `SimVOp`'s — here spelled as the equation it is, because
-con-leche's `headHint` takes no fuel.  Five verification conditions. -/
+relation is an equation, because con-leche's `headHint` takes no fuel.  Five verification conditions. -/
 theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.headHint fe e
@@ -1185,18 +1183,7 @@ theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       (ConLeche.whnf_mono (by omega) hF2)
       (denote_not_forallE hok3.state.wf hv hvw (fun _ _ h => nomatch h))⟩
 
-/-! ## 5. A knot slot's answer, forgotten -/
-
-/-- con-leche: none — a knot slot's answer, forgetting the pure run: the
-existential a SECOND slot's precondition asks for.  The one-line bridge
-between `Bridge/Core/Knot.lean`'s `SimE` and its primed slots'
-`hdw` hypothesis. -/
-theorem SimE.exists_denote {op : Nat → Nat → Expr → CheckM Expr} {d : Nat}
-    {e : Expr} {st : EStore} {r : EIdx} (h : SimE op d e st r) :
-    ∃ v, denoteE st r = some v ∧ Expr.WScoped d v := by
-  obtain ⟨v, hv, hw, _⟩ := h; exact ⟨v, hv, hw⟩
-
-/-! ## 6. The axiom census -/
+/-! ## 5. The axiom census -/
 
 section Census
 

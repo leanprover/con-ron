@@ -89,18 +89,6 @@ def SimV (op : Nat → Nat → Expr → Expr → CheckM Bool) (d : Nat)
     (a b : Expr) (x : Bool) : Prop :=
   ∃ F, op F d a b = .ok x
 
-/-! ### The eliminators
-
-`Bridge/Rel.lean`'s five, in the two shapes above.  `SimV` needs none but
-`.mk`: it mentions no store, so nothing transports. -/
-
-/-- con-leche: none — the answer's denotation, forgetting the pure run. -/
-theorem SimE.denote {op : Nat → Nat → Expr → CheckM Expr} {d : Nat}
-    {e : Expr} {st : EStore} {r : EIdx} (h : SimE op d e st r) :
-    (denoteE st r).isSome = true := by
-  obtain ⟨v, hv, _, _, _⟩ := h
-  rw [hv]; rfl
-
 /-! ## The knot statement
 
 The six slots of `ConRon.Arena.coreKnot mode fe id f` — which is
@@ -229,44 +217,6 @@ theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
   rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
-full-grade inference slot in ANSWER shape. -/
-theorem KnotSpec.infer' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).infer d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ e, denoteE s₀.store i = some e →
-          SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
-  obtain ⟨e₀, hd, hwf⟩ := hdw
-  have hb := hsim.infer s₀ d i e₀ hok hd hwf
-  vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4⟩ := hpost
-  refine ⟨h1, h2, h3, fun e he => ?_⟩
-  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the io
-grade in ANSWER shape. -/
-theorem KnotSpec.inferIO' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).inferIO d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ e, denoteE s₀.store i = some e →
-          SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
-  obtain ⟨e₀, hd, hwf⟩ := hdw
-  have hb := hsim.inferIO s₀ d i e₀ hok hd hwf
-  vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4⟩ := hpost
-  refine ⟨h1, h2, h3, fun e he => ?_⟩
-  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
 defeq slot in ANSWER shape, at BOTH subjects. -/
 theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
     (hsim : KnotSpec mode env fe f)
@@ -295,8 +245,6 @@ theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
 section Census
 
 #print axioms KnotSpec.whnf'
-#print axioms KnotSpec.infer'
-#print axioms KnotSpec.inferIO'
 #print axioms KnotSpec.defeq'
 
 end Census

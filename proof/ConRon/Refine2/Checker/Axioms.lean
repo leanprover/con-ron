@@ -468,22 +468,7 @@ open Lockstep in
       (nonemptyRecName) :=
   LS.ofSim₀ fun _ h => nonempty_rec_name_refines hrel hinv h
 
-/-! ### `i_constant_val_matches_pin` and the literal comparison -/
-
-open Lockstep in
-/-- `kernel::expr::literal_beq` is the twin's `==` on well-formed literals. -/
-@[lockstep] theorem literal_beq_spec {a b : kernel.expr.Literal}
-    (ha : ConRon.Refine.LiteralWF a) (hb : ConRon.Refine.LiteralWF b) :
-    LSP (kernel.expr.literal_beq a b)
-      (fun c => c = (ConRon.Refine.absLiteral a == ConRon.Refine.absLiteral b)) := by
-  intro c h
-  rw [ConRon.Refine.Expr.literal_beq_refines ha hb h]
-  cases h' : decide (ConRon.Refine.absLiteral a = ConRon.Refine.absLiteral b) <;> simp_all
-
-/-- The twin's `matchesPin` is a `pure` of its three comparisons. -/
-@[lockstep_simp] theorem IConstantVal.matchesPin_eq (cv pin : IConstantVal) :
-    cv.matchesPin pin = pure (cv.name == pin.name && cv.levelParams == pin.levelParams &&
-      cv.type == pin.type) := rfl
+/-! ### `i_constant_val_matches_pin` -/
 
 open Lockstep in
 /-- `i_constant_val_matches_pin` ⊑ `IConstantVal.matchesPin` — exact name,

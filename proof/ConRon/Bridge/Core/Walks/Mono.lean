@@ -188,13 +188,6 @@ theorem prepareMajor_mono (h : FnsRefines r₁ r₂) (d : Nat) (c : Name) (rules
   rwa [prepareMajor_fst_proj, prepareMajor_snd_proj] at this
 
 /-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
-string-literal scrutinee's expansion. -/
-theorem projLitToCtor_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
-    MRefines (projLitToCtor r₁ env d e) (projLitToCtor r₂ env d e) := by
-  have := (projLitToCtor (pairFns r₁ r₂ h) env d e).property
-  rwa [projLitToCtor_fst_proj, projLitToCtor_snd_proj] at this
-
-/-- con-leche: ConLeche/Verify/Mono.lean:52 whnfCoreBody_mono — the
 `Bool.true` short-circuit. -/
 theorem boolTrueShortcut_mono (h : FnsRefines r₁ r₂) (d : Nat) (e : Expr) :
     MRefines (boolTrueShortcut r₁ d e) (boolTrueShortcut r₂ d e) := by
@@ -348,13 +341,6 @@ theorem prepareMajorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {c : Nam
     (hr : prepareMajorFueled mode env f d c rules e = .ok r) :
     prepareMajorFueled mode env f' d c rules e = .ok r :=
   prepareMajor_mono (pureFns_mono env hle) d c rules e r hr
-
-/-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
-`projLitToCtor`. -/
-theorem projLitToCtorFueled_mono {f f' : Nat} (hle : f ≤ f') {d : Nat} {e r : Expr}
-    (hr : projLitToCtorFueled mode env f d e = .ok r) :
-    projLitToCtorFueled mode env f' d e = .ok r :=
-  projLitToCtor_mono (pureFns_mono env hle) d e r hr
 
 /-- con-leche: ConLeche/Verify/Mono.lean:135 isDefEqCore_mono — the merge at
 `boolTrueShortcut`. -/

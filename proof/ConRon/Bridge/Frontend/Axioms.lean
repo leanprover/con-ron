@@ -119,7 +119,6 @@ closed scratch tier and the three untouched state fields — and
 #print axioms IStep.trans
 #print axioms IStep.toParse
 #print axioms EStore.scratchOn_intern
-#print axioms internE_scratchOn
 #print axioms internE_istep
 #print axioms internNNode_istep
 

@@ -641,8 +641,7 @@ theorem piResult_spec : ∀ (fuel : Nat) (s₀ : AState) (h : EIdx),
           exact ⟨rfl, RelE.self_of_view hok.wf hv (fun e he =>
             piResult_of_not_forallE (denoteEView_not_forallE he
               (fun ty b hh => view_tagOf_ne hv (t := ETag.forallE) (by arm_hyp)
-                (by rw [hh]; rfl))))⟩)
-       | exact isSome_body_of_viewBind hok.wf (by arm_hyp) (by arm_hyp) (by arm_hyp))
+                (by rw [hh]; rfl))))⟩))
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1212-1217 fvarTypeD — **THEOREM 1**
 for `fvarTypeD`: the type annotation of a free-variable leaf, the expression
@@ -776,20 +775,6 @@ theorem mkAppN_spec : ∀ (args : List EIdx) (s₀ : AState) (f : EIdx),
             by grind, ?_⟩
           exact RelEA.cons_step (fun _ _ _ => rfl) (by arm_hyp) (by arm_hyp)
             (by arm_hyp)))
-
-/-- con-leche: none — a handle list's denotation, extended by one at the
-FRONT.  Belongs in `Bridge/Rel.lean` beside `denoteEList_snoc`. -/
-theorem denoteEList_cons_of {st : EStore} {b : EIdx} {rest : List EIdx}
-    {x : Expr} {xs : List Expr} (hb : denoteE st b = some x)
-    (hrest : Frontend.denoteEList st rest = some xs) :
-    Frontend.denoteEList st (b :: rest) = some (x :: xs) := by
-  simp only [Frontend.denoteEList, hb, hrest]
-
-/-- con-leche: none — `internE`'s postcondition at a `bvar` node, read as a
-denotation.  `denoteEView st (.bvar i)` IS `some (.bvar i)`. -/
-theorem denote_bvar_of_intern {st : EStore} {b : EIdx} {i : Nat}
-    (h : denoteE st b = denoteEView st (.bvar i)) :
-    denoteE st b = some (.bvar i) := h
 
 /-- con-leche: none — `mkAppNFrom`'s two clauses, spelled out.  **Unfolding
 the walk by name LOOPS**: its recursion is on a cursor and not on a

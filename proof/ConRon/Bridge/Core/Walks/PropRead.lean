@@ -187,26 +187,6 @@ theorem denoteEO_none_inv {st : EStore} {ox : Option Expr}
     (hd : denoteEO st none = some ox) : ox = none := by
   simp only [denoteEO] at hd; exact (Option.some.inj hd).symm
 
-/-- con-leche: none — a handle whose view is not an `.fvar` denotes no
-free variable. -/
-theorem denote_not_fvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} {v : ENodeView} (hv : st.view h = some v)
-    (he : denoteE st h = some e)
-    (hne : ∀ k t, v = .fvar k t → False) : ∀ k t, e ≠ .fvar k t := by
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv he]; simp
-  | fvar k t => exact absurd rfl (hne k t)
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv he; simp
-  | const n us => obtain ⟨_, _, rfl, _, _⟩ := denote_const_inv hwf hv he; simp
-  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv he; simp
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv he; simp
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv he; simp
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv he; simp
-  | lit l => rw [denote_lit_inv hwf hv he]; simp
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
-
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the constant arm of both
 head readers, set up once**: a `.const` view under a denoted handle, an index
 HIT, and the stored record off the tower.  Everything the two readers compare
@@ -1418,19 +1398,12 @@ theorem propIrrel_slow {F d : Nat} {x y ta tta tb ttb : Expr} {uT vT : Level}
 
 /-! ### `propIrrel` -/
 
-/-- con-leche: none — a state whose store did not move is an extension of
-the one before it; the readers' store equations feed the knot's `Ext`
-chain through this. -/
-theorem ext_of_store_eq {s t : AState} (h : t.store = s.store) :
-    Ext s.store t.store := by
-  rw [h]; exact Ext.refl _
-
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **THEOREM 1 for
 `propIrrel`**, the hoisted proof-irrelevance test.  **CLOSED** (round 5,
 moved from `Walks/Owed.lean`, statement unchanged): the two fast arms are
 `notProofFast_spec'` / `isProofFast_spec'` at both subjects — equations, so
 both Bool outcomes of each guard transfer — and the slow path is
-`KnotSpec.inferIO'` twice and `KnotSpec.whnf'` once per side, the zero pin
+the `inferIO` slot twice and `KnotSpec.whnf'` once per side, the zero pin
 and `lvlEq?_spec`, over a six-way fuel merge. -/
 theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
@@ -1596,7 +1569,6 @@ section Census
 #print axioms denote_not_sort
 #print axioms denote_not_lam
 #print axioms denote_not_app'
-#print axioms denote_not_fvar
 #print axioms denoteEO_some_inv
 #print axioms const_hit
 #print axioms headTypePW_const_hit

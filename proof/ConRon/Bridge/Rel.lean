@@ -607,10 +607,6 @@ theorem viewBind_of_view_lam {st : EStore} {i ty b : EIdx}
     (h : st.view i = some (.lam ty b)) : st.viewBind i = some (ty, b) :=
   viewBind_of_view h (Or.inl rfl)
 
-theorem viewBind_of_view_forallE {st : EStore} {i ty b : EIdx}
-    (h : st.view i = some (.forallE ty b)) : st.viewBind i = some (ty, b) :=
-  viewBind_of_view h (Or.inr rfl)
-
 /-! ### The same eight, in the form the twins' tag dispatch produces
 
 A twin tests `h.tag == ETag.C` (a `Bool`) and then takes the projection, so
@@ -717,17 +713,6 @@ theorem view_forallE_of_viewBind {st : EStore} {h ty b : EIdx}
     (h1 : st.viewBind h = some (ty, b)) :
     st.view h = some (.forallE ty b) :=
   view_of_viewBind_forallE (by simpa using htg) h1
-
-/-- con-leche: none — the body of a `forallE`-tagged handle read through
-`viewBind` denotes when the handle does. -/
-theorem isSome_body_of_viewBind {st : EStore} (hwf : StoreWF st) {h ty b : EIdx}
-    (htg : (h.tag == ETag.forallE) = true)
-    (h1 : st.viewBind h = some (ty, b)) (hd : (denoteE st h).isSome = true) :
-    (denoteE st b).isSome = true := by
-  have hv := view_forallE_of_viewBind htg h1
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hd
-  obtain ⟨_, eb, _, _, hb⟩ := denote_forallE_inv hwf hv he
-  rw [hb]; rfl
 
 /-- con-leche: none — the catch-all arm's content, once: a handle whose tag is
 none of the six the substituting walks dispatch on decodes to one of the four

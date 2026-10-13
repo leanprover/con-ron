@@ -38,24 +38,6 @@ def optPwWF : Option kernel.prop_when.PropWhen → Prop
 
 attribute [local lockstep_simp] optPwWF
 
-theorem fail_dangling_e_not_ok {T : Type} {o} (h : arena.monad.fail_dangling_e T = ok o) :
-    ∀ p, o ≠ .Ok p := by
-  rw [arena.monad.fail_dangling_e] at h
-  obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [arena.monad.fail] at h
-  cases Result.ok_injective h
-  intro p hp; cases hp
-
-theorem fail_dangling_ls_not_ok {T : Type} {o} (h : arena.monad.fail_dangling_ls T = ok o) :
-    ∀ p, o ≠ .Ok p := by
-  rw [arena.monad.fail_dangling_ls] at h
-  obtain ⟨s, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨v, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  rw [arena.monad.fail] at h
-  cases Result.ok_injective h
-  intro p hp; cases hp
-
 /-- `read_level`'s answer is well formed (`denote_l_wf`). -/
 theorem read_level_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LIdx} {l}
     (hrun : arena.monad.read_level pers st h = ok (.Ok l)) : ConRon.Refine.LevelWF l := by
@@ -77,12 +59,6 @@ theorem read_level_wf {pers st} (hinv : AStateInv pers st) {h : arena.handle.LId
     subst hrun
     exact hdw x rfl
 
-theorem never_wf {pw} (h : kernel.prop_when.never = ok pw) : ConRon.Refine.PropWhenWF pw :=
-  ConRon.Refine.PropWhen.never_wf h
-
-@[local lockstep_simp] theorem forall_none_eq_imp {α : Type} (P : α → Prop) :
-    (∀ p, (none : Option α) = some p → P p) = True := by simp
-
 end ConRon.Refine2.Lockstep.PG2
 
 /-! The region's `lockstep_simp` rules, registered `scoped` (task #97-P5-Core
@@ -93,5 +69,5 @@ namespace ConRon.Refine2.Lockstep.PG2.CoreLSReg
 open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
-attribute [scoped lockstep_simp] optPwWF forall_none_eq_imp
+attribute [scoped lockstep_simp] optPwWF
 end ConRon.Refine2.Lockstep.PG2.CoreLSReg

@@ -126,21 +126,6 @@ Each wrapper's `hx : ExprOpsHyp pers` premise is closed from the context by
 `assumption`: a body lemma carries the bundle as a hypothesis, and
 `Core/Arms.lean`'s `exprOpsHyp` is the one place it is discharged. -/
 
-@[lockstep] theorem proof_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (fuel a) :
-    LS pers (fun a b => b = ExprOps.absPwOpt a) (arena.prop_read.proof_pw pers vis st fe fuel a)
-      lst (proofPW lfe (absU fuel) (absEIdx a)) :=
-  LS.ofSim₀ fun _ h => hx.proofPW hrel hinv hctx h
-
-@[lockstep] theorem type_sort_pw_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
-    (fuel t) :
-    LS pers (fun a b => b = ExprOps.absPwOpt a)
-      (arena.prop_read.type_sort_pw pers vis st fe fuel t)
-      lst (typeSortPW lfe (absU fuel) (absEIdx t)) :=
-  LS.ofSim₀ fun _ h => hx.typeSortPW hrel hinv hctx h
-
 @[lockstep] theorem is_proof_fast_ls {pers} (hx : ExprOpsHyp pers) {st lst vis fe lfe}
     (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st) (hctx : CoreCtx vis fe lfe)
     (fuel a) :

@@ -1030,15 +1030,6 @@ attribute [lockstep_simp] List.map_append List.map_cons List.map_nil List.drop_z
       (fun r => ExprOps.absEIdxL r = absEIdx a :: ExprOps.absEIdxL xs) :=
   fun _ h => ExprOps.cons_eidx_refines h
 
-/-- `snoc_eidx_of` is the twin's `Array.push` (the accumulators' push order). -/
-@[lockstep] theorem snoc_eidx_of_spec (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
-    LSP (arena.expr_ops.snoc_eidx_of xs y)
-      (fun r => absEIdxArr r = (absEIdxArr xs).push (absEIdx y)) := by
-  intro r h
-  have := ExprOps.snoc_eidx_of_refines h
-  simp only [ExprOps.absEIdxL] at this
-  simp only [absEIdxArr, this, List.push_toArray]
-
 @[lockstep] theorem eidx_take_beq_spec (args want : alloc.vec.Vec arena.handle.EIdx) :
     LSP (arena.expr_ops.eidx_take_beq args want)
       (fun r => r = ((ExprOps.absEIdxL args).take (ExprOps.absEIdxL want).length ==
@@ -1288,12 +1279,6 @@ theorem LSV.ofLS {α β : Type} {pers : arena.store.PersTier} {R : α → β →
     rw [← h]
     show (0 : Nat) = a.val - b.val
     scalar_tac
-
-@[lockstep] theorem never_spec :
-    LSP kernel.prop_when.never (fun r => ConRon.Refine.PropWhenWF r ∧
-      ConRon.Refine.absPropWhen r = ConLeche.PropWhen.never) := by
-  intro r h
-  exact ⟨ConRon.Refine.PropWhen.never_wf h, ConRon.Refine.PropWhen.never_refines h⟩
 
 @[lockstep] theorem last_eidx_spec (xs : alloc.vec.Vec arena.handle.EIdx) (k : Std.Usize) :
     LSP (arena.expr_ops.last_eidx xs k)

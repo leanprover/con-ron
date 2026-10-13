@@ -321,7 +321,6 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
            bind_children_hop (by abs_hyp) hok.wf (by abs_hyp) hden
          exact view_isSome_of_rel (denote_isSome_ext hb (by abs_hyp)) (by abs_hyp)
            (by grind only [Ext.refl]))
-      | exact bind_hsame rfl (by abs_hyp) (by abs_hyp) (by abs_hyp)
       | (have hr := ‹denoteE _ _ = denoteEView _ (ENodeView.bvar _)›
          refine ⟨by grind only [StateOK, StateOK.mk],
            by grind [MemoOK.mono, Ext.refl], by grind only [Ext.trans],

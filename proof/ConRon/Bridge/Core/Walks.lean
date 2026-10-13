@@ -28,8 +28,8 @@ six more.
   reads a name, a level or a universe-argument list back can rebuild
   `CheckOK`; plus the three readback bodies copied (the module note says why)
   and their frame specs.  CLOSED.
-* `Walks/Spec.lean` — the five answer relations a non-slot walk's theorem is
-  phrased with (`SimEOp`, `SimOOp`, `SimBOp`, `SimLOp`, `SimVOp`), each
+* `Walks/Spec.lean` — the four answer relations a non-slot walk's theorem is
+  phrased with (`SimEOp`, `SimOOp`, `SimBOp`, `SimLOp`), each
   taking the pure call already applied to everything but its fuel, with the
   two `Iff.rfl` bridges to `Bridge/Core/Knot.lean`'s `SimE`/`SimV`.  CLOSED.
 * `Walks/Cached.lean` — the five cached verdict walks.  **`lvlEq?_spec` and

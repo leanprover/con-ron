@@ -132,61 +132,7 @@ theorem take_eidx_n_from_aux (m : Nat) :
   simp only [absEIdxList, this, absU]
   simp [alloc.vec.Vec.new]
 
-theorem append_eidx_from_aux (k : Nat) :
-    ∀ (xs ys : alloc.vec.Vec arena.handle.EIdx) (i : Std.Usize) (r : alloc.vec.Vec arena.handle.EIdx),
-      ys.val.length - i.val = k → arena.core.append_eidx_from xs ys i = ok r →
-      r.val = xs.val ++ ys.val.drop i.val := by
-  induction k with
-  | zero =>
-    intro xs ys i r hk h
-    rw [arena.core.append_eidx_from] at h
-    rw [ite_eq_left (by scalar_tac)] at h
-    cases Result.ok_injective h
-    rw [List.drop_eq_nil_of_le (by omega)]; simp
-  | succ k ih =>
-    intro xs ys i r hk h
-    rw [arena.core.append_eidx_from] at h
-    rw [ite_eq_right (by scalar_tac)] at h
-    obtain ⟨e, he, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨e1, he1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨o1, ho1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨i1, hi1, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-    obtain ⟨hb, hx⟩ := ExprOps.vecIndexAt he
-    have hd := dupId_eidx _ _ he1
-    have hp := ConRon.Refine.vec_push_val ho1
-    have h2 := ConRon.Refine.Nat.uadd_val hi1
-    rw [ih o1 ys i1 r (by simp at h2; omega) h, hp, hd, ← hx,
-      show i1.val = i.val + 1 by simpa using h2, List.drop_eq_getElem_cons hb]
-    simp
-
-/-- The whole-vector copy `eidx_copy_upto xs (len xs) 0 out` at an empty `out`. -/
-theorem eidx_copy_all_map {xs : alloc.vec.Vec arena.handle.EIdx} {n : Std.Usize}
-    {out : alloc.vec.Vec arena.handle.EIdx}
-    (h : arena.expr_ops.eidx_copy_upto xs (alloc.vec.Vec.len xs) 0#usize
-      (alloc.vec.Vec.with_capacity arena.handle.EIdx n) = ok out) :
-    out.val.map absEIdx = xs.val.map absEIdx := by
-  have hc := ExprOps.eidx_copy_upto_refines h
-  rw [ExprOps.absEIdxArr_size_len xs, ExprOps.usize_zero_val, ExprOps.absEIdxArr_with_capacity,
-    ExprOps.eidxCopyUpto_all] at hc
-  simpa [ExprOps.absEIdxArr, ExprOps.absEIdxL] using hc.symm
-
-@[lockstep] theorem append_eidx_of_ls (xs ys : alloc.vec.Vec arena.handle.EIdx) :
-    LSP (arena.core.append_eidx_of xs ys)
-      (fun r => absEIdxList r = absEIdxList xs ++ absEIdxList ys) := by
-  intro r h
-  rw [arena.core.append_eidx_of] at h
-  obtain ⟨n, -, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  obtain ⟨o2, ho2, h⟩ := ConRon.Refine.bind_eq_ok_iff.mp h
-  have hc := eidx_copy_all_map ho2
-  have := append_eidx_from_aux _ o2 ys 0#usize r rfl h
-  simp [absEIdxList, this, hc]
-
 /-! ## Rust-only mode and `PropWhen` gates -/
-
-@[lockstep] theorem is_never_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.prop_when.is_never pw)
-      (fun b => b = ConLeche.PropWhen.isNever (ConRon.Refine.absPropWhen pw)) :=
-  fun _ h => ConRon.Refine.PropWhen.is_never_refines h
 
 @[lockstep] theorem verified_checks_ls (m : kernel.env.CheckMode) :
     LSP (kernel.env.verified_checks m)
@@ -197,16 +143,6 @@ theorem eidx_copy_all_map {xs : alloc.vec.Vec arena.handle.EIdx} {n : Std.Usize}
 
 attribute [local lockstep_simp] ExprOps.absStrip Option.isSome_some
   Option.isSome_none
-
-/-! ## `PropWhen` comparison -/
-
-/-- `prop_when::beq` against the twin's `==` on the abstraction: exact on
-well-formed data (`Refine/PropWhen.lean`'s `beq_refines`). -/
-@[lockstep] theorem prop_when_beq_ls (a b : kernel.prop_when.PropWhen)
-    (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
-    LSP (kernel.prop_when.beq a b)
-      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) :=
-  fun _ h => ConRon.Refine.PropWhen.beq_refines ha hb h
 
 /-! ## Rust-only scalar and handle steps -/
 

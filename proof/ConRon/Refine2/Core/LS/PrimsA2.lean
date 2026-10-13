@@ -34,19 +34,6 @@ open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
   intro b h
   cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
-@[lockstep] theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
-  fun _ h => ConRon.Refine.PropWhen.dup_eq h
-
-/-- `prop_when::beq` is the twin's `==` on the abstraction, at two
-canonical-form (`PropWhenWF`) data. -/
-@[lockstep] theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}
-    (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
-    LSP (kernel.prop_when.beq a b)
-      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) := by
-  intro c h
-  exact ConRon.Refine.PropWhen.beq_refines ha hb h
-
 /-- `usize as u64`: a widening, so the value is kept. -/
 @[lockstep] theorem cast_u64_usize_ls (i : Std.Usize) :
     LSP (lift (UScalar.cast .U64 i)) (fun r : Std.U64 => r.val = i.val) := by
@@ -82,19 +69,10 @@ canonical-form (`PropWhenWF`) data. -/
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
   fun _ he => dupId_lidx _ _ he
 
-@[lockstep] theorem dup2_lsidx_ls (h : arena.handle.LsIdx) :
-    LSP (arena.handle.LsIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
-  fun _ he => dupId_lsidx _ _ he
-
 @[lockstep] theorem cons_eidx_ls (a : arena.handle.EIdx) (xs : alloc.vec.Vec arena.handle.EIdx) :
     LSP (arena.expr_ops.cons_eidx a xs)
       (fun r => absEIdxList r = absEIdx a :: absEIdxList xs) :=
   fun _ h => ExprOps.cons_eidx_refines h
-
-@[lockstep] theorem snoc_eidx_of_ls (xs : alloc.vec.Vec arena.handle.EIdx) (y : arena.handle.EIdx) :
-    LSP (arena.expr_ops.snoc_eidx_of xs y)
-      (fun r => absEIdxList r = absEIdxList xs ++ [absEIdx y]) :=
-  fun _ h => ExprOps.snoc_eidx_of_refines h
 
 /-! ## The pin -/
 

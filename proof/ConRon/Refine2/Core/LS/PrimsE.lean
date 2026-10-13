@@ -62,9 +62,6 @@ rebound to `inferIO`; every other slot is the lane knot's own, by iota. -/
 
 @[local lockstep_simp] theorem laneKnotAt_whnf (m fe l io f) :
     (laneKnotAt m fe l io f).whnf = (laneKnot m fe l f).whnf := by cases io <;> rfl
-@[local lockstep_simp] theorem laneKnotAt_defeq (m fe l io f) :
-    (laneKnotAt m fe l io f).defeq = (laneKnot m fe l f).defeq := by cases io <;> rfl
-
 /-- Under the io view the `infer` slot IS the lane knot's `inferIO`. -/
 theorem laneKnotAt_true_infer (m fe l f) :
     (laneKnotAt m fe l true f).infer = (laneKnot m fe l f).inferIO := rfl
@@ -84,15 +81,6 @@ attribute [local lockstep_simp] Bool.not_eq_true' decide_eq_false_iff_not not_no
 leave on the twin side. -/
 @[local lockstep_simp] theorem u32_beq_decide (a b : Std.U32) : (a == b) = decide (a = b) := by
   by_cases h : a = b <;> simp [h]
-
-/-! ## Rust-only value steps -/
-
-@[lockstep] theorem verified_checks_ls (m : kernel.env.CheckMode) :
-    LSP (kernel.env.verified_checks m)
-      (fun b => b = (ConRon.Refine.absMode m).verifiedChecks) :=
-  by
-  intro b h
-  cases m <;> (simp only [kernel.env.verified_checks, Result.ok.injEq] at h; rw [← h]; rfl)
 
 /-! ## Reads -/
 
@@ -234,21 +222,10 @@ theorem read_names_m_wf₀ {pers st lst} (hrel : AStateRel₀ pers st lst)
   have := ConRon.Refine.ExprOps.zeroness_of_refines hl pw h
   exact ⟨this.2, this.1⟩
 
-@[lockstep] theorem prop_when_beq_ls {a b : kernel.prop_when.PropWhen}
-    (ha : ConRon.Refine.PropWhenWF a) (hb : ConRon.Refine.PropWhenWF b) :
-    LSP (kernel.prop_when.beq a b)
-      (fun c => c = (ConRon.Refine.absPropWhen a == ConRon.Refine.absPropWhen b)) := by
-  intro c h
-  exact ConRon.Refine.PropWhen.beq_refines ha hb h
-
 @[lockstep] theorem prop_when_never_ls :
     LSP kernel.prop_when.never (fun pw => ConRon.Refine.PropWhenWF pw ∧
       ConRon.Refine.absPropWhen pw = ConLeche.PropWhen.never) :=
   fun _ h => ⟨ConRon.Refine.PropWhen.never_wf h, ConRon.Refine.PropWhen.never_refines h⟩
-
-@[lockstep] theorem prop_when_dup_ls (pw : kernel.prop_when.PropWhen) :
-    LSP (kernel.prop_when.dup pw) (fun r => r = pw) :=
-  fun _ h => ConRon.Refine.PropWhen.dup_eq h
 
 @[lockstep] theorem lidx_dup2_ls (h : arena.handle.LIdx) :
     LSP (arena.handle.LIdx.Insts.Con_ron_coreRonHashmapDup.dup2 h) (fun e => e = h) :=
@@ -498,7 +475,7 @@ open Aeneas Aeneas.Std Result
 open ConRon.Generated
 open ConRon.Arena ConRon.Refine2 ConRon.Refine2.Lockstep
 attribute [scoped lockstep_simp] absLamStk_size absPiStk_size vec_len_abs
-  absConstT peel_fuel_abs laneKnotAt_whnf laneKnotAt_defeq
+  absConstT peel_fuel_abs laneKnotAt_whnf
   ensureSort_laneKnotAt bne_eq_not_beq' Bool.not_eq_true' decide_eq_false_iff_not not_not
   u32_beq_decide ExprOps.absPwOpt List.length_map
   ExprOps.absEIdxList opt_beq_some_true opt_beq_some_false Option.some.injEq reduceCtorEq

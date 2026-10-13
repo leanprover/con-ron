@@ -473,7 +473,6 @@ and (task #97a's arithmetic packing) no `bv_decide` axiom. -/
 
 #print axioms Ext.of_view_mono
 #print axioms EStore.intern_ext
-#print axioms EStore.internBind_ext
 #print axioms EStore.internPersistent_ext
 #print axioms EStore.internName_ext
 #print axioms EStore.internLevel_ext

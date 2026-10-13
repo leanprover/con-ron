@@ -1329,68 +1329,6 @@ theorem RunsB.guardT {c D B : Bool} {Y : AM Bool} {s : AState}
     simp only [ite_true, Bool.true_and]
     exact hY rfl
 
-/-- A stored constant's level parameters, read through
-`IConstantInfo.toConstantVal` (whose `.projInfo` arm interns, so the stored
-table must be rightly named). -/
-theorem RunsB.matchLps {x : Option IConstantInfo} {y : Option ConstantInfo}
-    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
-    (hpn : ∀ ci, x = some ci → Frontend.CIProjNamed s.store ci) :
-    RunsB (match (generalizing := false) x with
-        | some ci => do
-          let cv ← ci.toConstantVal
-          pure cv.levelParams.isEmpty
-        | none => pure false) s
-      (match (generalizing := false) y with
-        | some ci => ci.toConstantVal.levelParams.isEmpty
-        | none => false) := by
-  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
-  · exact RunsB.ret hok
-  · refine RunsB.bind fun {v s₁} g1 => ?_
-    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (hpn ci rfl) hd g1
-    refine ⟨hs1, ?_⟩
-    obtain ⟨-, hl, -⟩ := denoteCV_inv hv
-    have hlen := denoteNList_length _ _ hl
-    have he : v.levelParams.isEmpty = c.toConstantVal.levelParams.isEmpty := by
-      cases h1 : v.levelParams <;> cases h2 : c.toConstantVal.levelParams <;>
-        simp_all
-    rw [he]
-    exact RunsB.ret hs1.ok
-
-/-- `RunsB.matchLps` where the `do`-elaborator has pushed the continuation
-into both arms as a join point (`let okT ← match …; rest`). -/
-theorem RunsB.matchLpsJP {x : Option IConstantInfo} {y : Option ConstantInfo}
-    {s : AState} (hok : StateOK s) (hxy : FindRel s.store x y)
-    (hpn : ∀ ci, x = some ci → Frontend.CIProjNamed s.store ci)
-    {jp : Bool → AM Bool} {B : Bool}
-    (hjp : ∀ {s₁ : AState}, Frontend.IStepS s s₁ →
-      RunsB (jp (match (generalizing := false) y with
-        | some ci => ci.toConstantVal.levelParams.isEmpty
-        | none => false)) s₁ B) :
-    RunsB (match (generalizing := false) x with
-        | some ci => do
-          let cv ← ci.toConstantVal
-          let y ← pure cv.levelParams.isEmpty
-          jp y
-        | none => do
-          let y ← pure false
-          jp y) s B := by
-  rcases hxy with ⟨rfl, rfl⟩ | ⟨ci, c, rfl, rfl, hd⟩
-  · refine RunsB.bind fun {b s₁} g1 => ?_
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok g1
-    exact ⟨Frontend.IStepS.refl hok, hjp (Frontend.IStepS.refl hok)⟩
-  · refine RunsB.bind fun {v s₁} g1 => ?_
-    obtain ⟨hs1, hv⟩ := toConstantVal_sstep hok (hpn ci rfl) hd g1
-    refine ⟨hs1, RunsB.bind fun {b s₂} g2 => ?_⟩
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok g2
-    refine ⟨Frontend.IStepS.refl hs1.ok, ?_⟩
-    obtain ⟨-, hl, -⟩ := denoteCV_inv hv
-    have hlen := denoteNList_length _ _ hl
-    have he : v.levelParams.isEmpty = c.toConstantVal.levelParams.isEmpty := by
-      cases h1 : v.levelParams <;> cases h2 : c.toConstantVal.levelParams <;>
-        simp_all
-    rw [he]
-    exact hjp hs1
-
 /-- `natOpCod`'s `Bool` lookup: the stored `Bool`'s level parameters and type,
 read through `IConstantInfo.toConstantVal`, against the pinned `Sort 1`. -/
 theorem RunsB.matchCod {x : Option IConstantInfo} {y : Option ConstantInfo}

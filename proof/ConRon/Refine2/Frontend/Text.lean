@@ -233,28 +233,4 @@ theorem env_read_name_abs {pers : arena.store.PersTier} {ar : arena.store.EStore
   rw [denoteN]
   exact env_read_name_at_abs hnrel _ c2 h hc2v hrun
 
-/-- The twin's `hs.mapM readName` is its `readNames hs`. -/
-theorem mapM_readName_run_eq : ∀ (l : List NIdx) (lst : AState),
-    (l.mapM readName).run lst = (Arena.readNames l).run lst
-  | [], _ => rfl
-  | h :: hs, lst => by
-    rw [List.mapM_cons]
-    show (do let x ← Arena.readName h; let xs ← hs.mapM readName; pure (x :: xs) : AM _).run lst
-      = (do let x ← Arena.readName h; let xs ← Arena.readNames hs; pure (x :: xs) : AM _).run lst
-    rw [am_run_bind', am_run_bind']
-    cases (Arena.readName h).run lst with
-    | error e => rfl
-    | ok p =>
-      show ((hs.mapM readName >>= fun xs => pure (p.1 :: xs)) : AM _).run p.2
-        = ((Arena.readNames hs >>= fun xs => pure (p.1 :: xs)) : AM _).run p.2
-      rw [am_run_bind', am_run_bind', mapM_readName_run_eq hs p.2]
-
-/-- The twin's `hs.mapM readName` is `denoteNList`. -/
-theorem mapM_readName_run (lst : AState) (l : List NIdx) :
-    (l.mapM readName).run lst
-      = match denoteNList lst.store.ns l with
-        | some xs => Except.ok (xs, lst)
-        | none => Except.error (.internal "arena: dangling name handle") := by
-  rw [mapM_readName_run_eq]; exact readNames_run lst l
-
 end ConRon.Refine2.Frontend

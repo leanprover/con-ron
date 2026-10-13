@@ -137,23 +137,6 @@ theorem list_allM_counted {α : Type} (F : α → AM Bool) (G : List α → AM B
     intro b
     cases b <;> rfl
 
-/-- `(List.range' i m).allM` IS the counted recursion that transcribes it —
-and `List.range n` is `List.range' 0 n`. -/
-theorem range_allM_counted (F : Nat → AM Bool) (G : Nat → Nat → AM Bool)
-    (h0 : ∀ i, G 0 i = pure true)
-    (hs : ∀ m i, G (m + 1) i = (do if ← F i then G m (i + 1) else pure false)) :
-    ∀ m i, (List.range' i m).allM F = G m i := by
-  intro m
-  induction m with
-  | zero => intro i; rw [h0]; rfl
-  | succ m ih =>
-    intro i
-    rw [hs]
-    simp only [List.range'_succ, List.allM, ih]
-    refine am_bind_congr _ ?_
-    intro b
-    cases b <;> rfl
-
 /-- **The memo walks' arm peel.**  A twin that writes
 `let r ← match v with …; pure (ins h r)` has its continuation pushed into
 every arm by the `do` elaborator, while the transcription binds once; rule 11's
@@ -601,9 +584,6 @@ the cursor (`absXLFrom v i`) and the port calls it at `0#usize`. -/
 
 @[lockstep_simp] theorem absNatLFrom_zero (v) : absNatLFrom v 0#usize = absNatL v := by
   simp [absNatLFrom, absNatL]
-
-@[lockstep_simp] theorem absBinderLFrom_zero (v) : absBinderLFrom v 0#usize = absBinderL v := by
-  simp [absBinderLFrom, absBinderL]
 
 @[lockstep_simp] theorem absCtorsLFrom_zero (v) : absCtorsLFrom v 0#usize = absCtorsL v := by
   simp [absCtorsLFrom, absCtorsL]

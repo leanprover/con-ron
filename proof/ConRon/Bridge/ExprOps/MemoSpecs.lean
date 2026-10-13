@@ -595,15 +595,8 @@ A walk that reads `fvarB` before it reads the store has every `view` fact at a
 store EQUAL to but not syntactically `s₀.store` (`fvarB` writes `fvarBC`, so
 its Theorem 1 frames the store with an equation).  Inside a lemma the two
 stores are variables and `subst` closes the gap in one step; in a
-verification condition they are projections and it cannot.  These three are
+verification condition they are projections and it cannot.  These are
 the facts the binder arm needs, stated so the hop happens inside. -/
-
-/-- con-leche: none — `view_of_viewBind` at the reversed read `mvcgen`
-hands an arm. -/
-theorem view_of_viewBind_hop {st0 : EStore} {i ty b : EIdx}
-    (h1 : some (ty, b) = st0.viewBind i) :
-    st0.view i = some (eBindView i.tag ty b) :=
-  view_of_viewBind h1.symm
 
 /-- con-leche: none — the binder's two children denote, at the store the walk
 read the binder in. -/
@@ -621,21 +614,5 @@ theorem view_isSome_of_rel {f : Expr → Expr} {st s1 s2 : EStore} {c r : EIdx}
     (hden : (denoteE st c).isSome = true) (hr : RelE f st c s1 r)
     (hx : Ext s1 s2) : (s2.view r).isSome = true :=
   view_isSome (denote_isSome_ext (hr.isSome hden) hx)
-
-/-- con-leche: none — **the binder arm's `internRebuilt` obligation**: if the
-two children came back unchanged then the rebuilt binder view IS the handle's
-view, at the store the intern happens in. -/
-theorem bind_hsame {st s1 s2 : EStore}
-    {i ty b rt rb : EIdx} {tg : UInt32} (htg : tg = i.tag)
-    (h1 : some (ty, b) = st.viewBind i)
-    (hvm1 : ∀ j w, st.view j = some w → s1.view j = some w)
-    (hvm2 : ∀ j w, s1.view j = some w → s2.view j = some w) :
-    (rt == ty && rb == b) = true → s2.view i = some (eBindView tg rt rb) := by
-  intro hsame
-  have hvw := view_of_viewBind h1.symm
-  simp only [Bool.and_eq_true, beq_iff_eq] at hsame
-  obtain ⟨rfl, rfl⟩ := hsame
-  rw [htg]
-  exact hvm2 i _ (hvm1 i _ hvw)
 
 end ConRon.Bridge.ExprOps

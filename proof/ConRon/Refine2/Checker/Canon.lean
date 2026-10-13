@@ -870,8 +870,7 @@ theorem canon_name_map_refines {ps cs : alloc.vec.Vec arena.handle.NIdx}
 /-! ## This file's primitive pairs
 
 Value steps the walks below need, `local` so no other tier sees a second
-copy: `Checker/Axioms.lean` (which imports this file) has the global
-`literal_beq_spec`, `Inductives/Prims.lean` the global `intern_n_node_ls`. -/
+copy: `Inductives/Prims.lean` has the global `intern_n_node_ls`. -/
 
 open Lockstep in
 @[local lockstep] private theorem canon_name_map_spec (ps cs : alloc.vec.Vec arena.handle.NIdx)

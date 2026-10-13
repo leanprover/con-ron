@@ -61,14 +61,6 @@ theorem names_copy_val {xs v : alloc.vec.Vec name.Name}
   have hv := append_from_val xs xs.length 0#usize _ v (by scalar_tac) h
   simpa [alloc.vec.Vec.new] using hv
 
-theorem names_copy_wf {xs v : alloc.vec.Vec name.Name} (hxs : NamesWF xs)
-    (h : prop_when.names_copy xs = ok v) : NamesWF v := by
-  intro n hn; rw [names_copy_val h] at hn; exact hxs n hn
-
-theorem names_copy_abs {xs v : alloc.vec.Vec name.Name}
-    (h : prop_when.names_copy xs = ok v) : absNames v = absNames xs := by
-  simp [absNames, names_copy_val h]
-
 /-! ## `dup` -/
 
 theorem dup_eq {pw c : prop_when.PropWhen} (h : prop_when.dup pw = ok c) : c = pw := by
@@ -91,16 +83,6 @@ theorem names_map_inj : ∀ {l m : List name.Name}, (∀ n ∈ l, NameWF n) →
     rw [Name.absName_injective (hl x (by simp)) (hm y (by simp)) h.1,
       names_map_inj (l := l) (m := m) (fun n hn => hl n (by simp [hn]))
         (fun n hn => hm n (by simp [hn])) h.2]
-
-theorem absNames_injective {l m : alloc.vec.Vec name.Name} (hl : NamesWF l) (hm : NamesWF m)
-    (h : absNames l = absNames m) : l = m :=
-  alloc.vec.Vec.ext _ _ (names_map_inj hl hm h)
-
-theorem absPropWhen_injective {a b : prop_when.PropWhen}
-    (ha : PropWhenWF a) (hb : PropWhenWF b) (hab : absPropWhen a = absPropWhen b) :
-    a = b := by
-  cases a <;> cases b <;> simp_all [absPropWhen, PropWhenWF]
-  exact absNames_injective ha hb hab
 
 /-! ## `beq` -/
 

@@ -514,21 +514,6 @@ theorem triple_ite {α : Type} {c : Prop} [Decidable c] {x y : AM α}
   · rw [ite_eq_left hc]; exact h1 hc
   · rw [ite_eq_right hc]; exact h2 hc
 
-/-- con-leche: none — **a conditional with a shared continuation**: the
-`do` elaborator copies the join point into both branches of
-`let v ← if c then x else y`, and this puts it back. -/
-theorem triple_ite_seq {α β : Type} {c : Prop} [Decidable c] {x y : AM α}
-    {k : α → AM β} {s₀ : AState} {Q : α → AState → Prop}
-    {R : β → AState → Prop}
-    (hxy : ⦃fun s => s = s₀⦄ (if c then x else y) ⦃fun a s => Q a s; ⊤⦄)
-    (hk : ∀ a s₁, Q a s₁ → ⦃fun s => s = s₁⦄ k a ⦃fun b s => R b s; ⊤⦄) :
-    ⦃fun s => s = s₀⦄ (if c then x >>= k else y >>= k)
-      ⦃fun b s => R b s; ⊤⦄ := by
-  have e : (if c then x >>= k else y >>= k) = ((if c then x else y) >>= k) := by
-    split <;> rfl
-  rw [e]
-  exact triple_seq hxy hk
-
 /-- con-leche: ConLeche/Kernel/Core.lean:376-448 structEtaCertWith — **THEOREM
 1 for `structEtaCertWith`**, the structure-η certificate against a GIVEN
 weak-head-normal type `wtb` of the stuck side.
@@ -544,8 +529,7 @@ spent), the per-slot certificates (`structEtaProjCerts_spec`), the
 parameters (`defEqList_spec`), the TT-lane synthetic spine (`constTyAt_spec`,
 `etaProjs_spec`, `iotaCerts_spec`) and the fields (`etaProjs_spec`,
 `defEqList_spec`).  The pure side is `structEtaCertWith_exits`, one
-statement per exit over `structEtaCertWith_tail`; the do elaborator's
-copied join points are put back by `triple_ite_seq`. -/
+statement per exit over `structEtaCertWith_tail`. -/
 theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
     (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b wtb : EIdx) (x y w : Expr)

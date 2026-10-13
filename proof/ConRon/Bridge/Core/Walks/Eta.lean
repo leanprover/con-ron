@@ -46,96 +46,6 @@ theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
   · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
   · rintro rfl; exact denoteNList_inj hwf as bs xs ha hb
 
-/-- con-leche: none — a snoc of denoting handles denotes the snoc. -/
-theorem denoteEList_snoc {st : EStore} :
-    ∀ (l : List EIdx) (es : List Expr) (b : EIdx) (y : Expr),
-      Frontend.denoteEList st l = some es → denoteE st b = some y →
-      Frontend.denoteEList st (l ++ [b]) = some (es ++ [y])
-  | [], es, b, y, h, hb => by
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h
-    simp [Frontend.denoteEList, hb]
-  | a :: as, es, b, y, h, hb => by
-    simp only [Frontend.denoteEList] at h
-    cases ha : denoteE st a with
-    | none => rw [ha] at h; simp at h
-    | some x =>
-      cases has : Frontend.denoteEList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some xs =>
-        rw [ha, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [List.cons_append, Frontend.denoteEList, ha,
-          denoteEList_snoc as xs b y has hb]
-
-/-- con-leche: none — a concatenation of denoting handle lists denotes the
-concatenation. -/
-theorem denoteEList_appendC {st : EStore} :
-    ∀ (l m : List EIdx) (es fs : List Expr),
-      Frontend.denoteEList st l = some es → Frontend.denoteEList st m = some fs →
-      Frontend.denoteEList st (l ++ m) = some (es ++ fs)
-  | [], m, es, fs, h, hm => by
-    simp only [Frontend.denoteEList, Option.some.injEq] at h
-    subst h; simpa using hm
-  | a :: as, m, es, fs, h, hm => by
-    simp only [Frontend.denoteEList] at h
-    cases ha : denoteE st a with
-    | none => rw [ha] at h; simp at h
-    | some x =>
-      cases has : Frontend.denoteEList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some xs =>
-        rw [ha, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        simp only [List.cons_append, Frontend.denoteEList, ha,
-          denoteEList_appendC as m xs fs has hm]
-
-/-- con-leche: none — a stored recursor denotes a recursor, and nothing else
-does. -/
-theorem denoteCI_rec_iff {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (h : Frontend.denoteCI st ci = some c) :
-    (∃ v mI rP rs, ci = .recInfo v mI rP rs) ↔
-      ∃ cv mI rP rules, c = .recInfo cv mI rP rules := by
-  cases ci <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-  all_goals first
-    | (obtain ⟨_, _, rfl⟩ := h; simp)
-    | (split at h
-       · rename_i heq1 heq2; cases h; simp
-       · simp at h)
-
-/-- con-leche: none — an indexed recursor is an environment recursor, with
-the denoted constant value. -/
-theorem optCI_rec_some {st : EStore} {oc' : Option ConstantInfo}
-    {v : IConstantVal} {mI rP : Nat} {rs : List IRecRule}
-    (hrel : OptCI st (some (.recInfo v mI rP rs)) oc') :
-    ∃ cv rules, Frontend.denoteCV st v = some cv ∧
-      oc' = some (.recInfo cv mI rP rules) := by
-  obtain ⟨c, hci, rfl⟩ := hrel
-  simp only [Frontend.denoteCI] at hci
-  split at hci
-  · rename_i cv rules hcv _
-    cases hci
-    exact ⟨cv, rules, hcv, rfl⟩
-  · simp at hci
-
-/-- con-leche: none — and nothing else the index holds is a recursor. -/
-theorem optCI_rec_none {st : EStore} {oc : Option IConstantInfo}
-    {oc' : Option ConstantInfo} (hrel : OptCI st oc oc')
-    (hnot : ∀ v mI rP rs, oc ≠ some (.recInfo v mI rP rs)) :
-    ∀ cv mI rP rules, oc' ≠ some (.recInfo cv mI rP rules) := by
-  intro cv mI rP rules h
-  subst h
-  cases oc with
-  | none => simp only [OptCI] at hrel; cases hrel
-  | some ci =>
-    obtain ⟨c, hci, hc⟩ := hrel
-    cases hc
-    obtain ⟨v, mI', rP', rs, rfl⟩ :=
-      (denoteCI_rec_iff hci).mpr ⟨cv, mI, rP, rules, rfl⟩
-    exact hnot v mI' rP' rs rfl
-
 /-! ## 2. The slot walk -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:713-714 towerSlotsAll — **THEOREM
@@ -256,8 +166,6 @@ theorem etaProjs_WScoped {d : Nat} {Tn : ConLeche.Name} {y : Expr} {nF : Nat}
 section Census
 
 #print axioms denoteNList_inj
-#print axioms optCI_rec_some
-#print axioms optCI_rec_none
 #print axioms towerSlotsAll_spec
 #print axioms projNodesGo_spec
 #print axioms etaProjs_spec

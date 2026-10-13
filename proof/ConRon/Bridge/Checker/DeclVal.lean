@@ -1248,8 +1248,7 @@ anything and the conclusion was not provable.  Free at the one call site
 **PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
 through `Basis.lean`'s `RunsB` combinators — `natLitSupported_run`,
 `natOpDeps_run` / `natOpDeps_state`, `natOpDepsStored_run`, and the two `Bool`
-constructor lookups through `RunsB.matchLps` (whose `.projInfo` premise
-`IFEnvOK.proj` discharges).  Round 10 moved the chain into
+constructor lookups (whose `.projInfo` premise `IFEnvOK.proj` discharges).  Round 10 moved the chain into
 `natOpGuard_runsB` (below), which `divModEnvGuard` binds. -/
 theorem natOpGuard_runsB {env2 : Env} {fe2 : IFEnv} {cn : NIdx}
     {nm : ConLeche.Name} {s : AState} (hok : StateOK s) (hp : PinsOK s)

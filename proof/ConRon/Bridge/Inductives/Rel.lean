@@ -373,17 +373,6 @@ theorem denoteEList_append {st : EStore} :
         obtain rfl := Option.some.inj ha
         simp only [List.cons_append, Frontend.denoteEList, hx, ih hxs hb]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1112-1114 liftLooseBVarsFast —
-**the lift in run form at this tier's frame**, from
-`Bridge/ExprOps/Subst.lean`'s `LiftSpec`. -/
-theorem liftFast_pstep {fuel amount c : Nat} {s₀ s' : AState} {e r : EIdx}
-    {eP : Expr} (hok : StateOK s₀) (hd : denoteE s₀.store e = some eP)
-    (hrun : Arena.liftLooseBVarsFast fuel amount c e s₀ = .ok (r, s')) :
-    PStep s₀ s' ∧ denoteE s'.store r = some (eP.liftLooseBVars amount c) := by
-  obtain ⟨h1, h2, h4, h5, _, _, h8⟩ :=
-    ExprOps.liftLooseBVarsFast_run hok (by rw [hd]; rfl) hrun
-  exact ⟨PStep.of_caches h1 h2 h4 h5, h8 eP hd⟩
-
 /-! ## One reader on loan from the `ExprOps` tier
 
 `Arena/Env.lean`'s `piSortTeleLen?` is the syntactic Π-telescope's length, and
@@ -757,31 +746,6 @@ the reserved-name list, peel a rule's right-hand side with `stripLams`, and
 ask `lvlEq?` for `isProp`.  The run forms below put each of those at THIS
 tier's frame. -/
 
-/-- con-leche: none — the frame a name-only program leaves on the three
-fields `EStore.viewBM` reads: `bmExt_of_tables`'s hypotheses, as a relation
-between states that composes along a `do` block. -/
-def NestFrame (s s' : AState) : Prop :=
-  StoreWF s.store → StoreWF s'.store ∧ s'.store.pers = s.store.pers ∧
-    s'.store.scr = s.store.scr ∧ s'.store.scratchOn = s.store.scratchOn
-
-/-- con-leche: none — every accepting run of the program leaves `NestFrame`. -/
-def NestProg {α : Type} (c : AM α) : Prop :=
-  ∀ (s s' : AState) (a : α), c s = .ok (a, s') → NestFrame s s'
-
-/-- con-leche: none — `reservedBasisNames` touches no expression table:
-it is the pin-table read `pinReserved` (twin fix D5). -/
-theorem reservedBasisNames_nest : NestProg Arena.reservedBasisNames := by
-  intro s s' n h
-  simp only [Arena.reservedBasisNames, Arena.pinReserved] at h
-  obtain ⟨t, s₁, h1, h2⟩ := AM.bind_ok h
-  have e1 : t = s ∧ s₁ = s := by
-    injection h1 with h1'; injection h1' with a b; exact ⟨a.symm, b.symm⟩
-  obtain ⟨rfl, rfl⟩ := e1
-  split at h2
-  · obtain ⟨-, rfl⟩ := AM.pure_ok h2
-    exact fun hw => ⟨hw, rfl, rfl, rfl⟩
-  · exact absurd h2 (fun hc => AM.fail_ok hc)
-
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the reserved list at this tier's frame**: `Bridge/Checker/Names.lean`'s
 `reservedBasisNames_run` gives `PinStep` and the list. -/
@@ -1014,7 +978,7 @@ theorem ListRel.toEList {st : EStore} :
 `FvarBSpec`, and `Bridge/ExprOps/Ranges.lean`'s `fvarB_spec` states everything
 it asks EXCEPT the `abs1C` frame (`fvarB` writes only `fvarBC`).  This section
 supplies that frame — a program-level fact, proved over `fvarRangeGo`'s
-mutual block the way `NestProg` is over `reservedBasisNames` — and assembles
+mutual block — and assembles
 the record, so `abstract1Fast_spec` has its hypothesis and `closeTelescope`
 (`FieldTele.lean`) can call it; `fvarB_pstep` is the run form the walks read.  **On loan from the `ExprOps` tier**, whose
 module it belongs in: `Ranges.lean`'s `fvarB_spec` gaining the conjunct makes
@@ -1106,36 +1070,6 @@ theorem allM_E_ckQ {env : Env} {fe : IFEnv} {f : EIdx → AM Bool}
         (denoteEList_ext p1.ext _ _ hr) z1
       exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hx]⟩
 
-
-/-- con-leche: none — `allM_pstep` with a body that reads the index. -/
-theorem allM_ck {env : Env} {fe : IFEnv} {α : Type} {f : α → AM Bool}
-    {g : α → Bool} (P : α → EStore → Prop)
-    (hPx : ∀ {a : α} {st st' : EStore}, Ext st st' → P a st → P a st')
-    (hf : ∀ (a : α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ → P a s₀.store →
-      f a s₀ = .ok (b, s') → PStep s₀ s' ∧ b = g a) :
-    ∀ (xs : List α) (s₀ s' : AState) (b : Bool), ReadOK env fe s₀ →
-      (∀ a ∈ xs, P a s₀.store) → xs.allM f s₀ = .ok (b, s') →
-      PStep s₀ s' ∧ b = xs.all g := by
-  intro xs
-  induction xs with
-  | nil =>
-    intro s₀ s' b hok _ hrun
-    simp only [List.allM] at hrun
-    obtain ⟨rfl, rfl⟩ := AM.pure_ok hrun
-    exact ⟨PStep.refl hok.state, rfl⟩
-  | cons a as ih =>
-    intro s₀ s' b hok hP hrun
-    simp only [List.allM] at hrun
-    obtain ⟨c, s1, k1, z1⟩ := AM.bind_ok hrun
-    obtain ⟨p1, hc⟩ := hf a s₀ s1 c hok (hP a (by simp)) k1
-    cases c with
-    | false =>
-      obtain ⟨rfl, rfl⟩ := AM.pure_ok z1
-      exact ⟨p1, by simp only [List.all_cons, ← hc, Bool.false_and]⟩
-    | true =>
-      obtain ⟨p2, hb⟩ := ih s1 s' b (hok.mono p1.ok p1.ext p1.pins)
-        (fun x hx => hPx p1.ext (hP x (by simp [hx]))) z1
-      exact ⟨p1.trans p2, by simp only [List.all_cons, ← hc, Bool.true_and, hb]⟩
 
 
 /-! ## The knot's entry points, in run form

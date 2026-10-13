@@ -319,15 +319,6 @@ theorem absIndCaps_eq {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
           ruleK := true, all := absNames v, nparams := 2, ctors := absNames w } from rfl, ← h]
   rfl
 
-/-- `{ ic with all, ctors }`, the two fields `nat_raw` sets. -/
-theorem absIndCaps_all_ctors {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
-    (h : absIndCaps c = ({} : ConLeche.IndCaps)) :
-    absIndCaps { c with all := v, ctors := w }
-      = { all := absNames v, ctors := absNames w } := by
-  rw [show ({ all := absNames v, ctors := absNames w } : ConLeche.IndCaps)
-      = { ({} : ConLeche.IndCaps) with all := absNames v, ctors := absNames w } from rfl, ← h]
-  rfl
-
 /-- `{ ic with all, nparams := 2, ctors }`, the three fields `and_raw` sets. -/
 theorem absIndCaps_all_nparams_ctors {c : env.IndCaps} {v w : alloc.vec.Vec name.Name}
     (h : absIndCaps c = ({} : ConLeche.IndCaps)) :

@@ -67,26 +67,6 @@ namespace ConRon.Refine2
 
 open ConRon.Arena
 
-/-! ## The `whnf` loop's two leaves — one closed, one open
-
-`unfold_definition_refines` lives in `Core/Arms/Delta.lean`; what is left
-here is `reduce_nat`. -/
-
-/-- `arena::core::reduce_nat` against `Arena.reduceNat` — the literal
-acceleration.  **Open**: the fifteen `natOp*` guards and `natOpResult`'s own
-dispatch, i.e. a body of its own and not a step of the loop.  Its old second
-conjunct ("the reduct resolves") is gone: the twin's `reduceNat` is tag-first
-now, as the port's is (round 4's audit). -/
-theorem reduce_nat_refines {f : Nat} (hk : KnotRel f)
-    {pers vis st mode lane fu fe lfe depth e lst o}
-    (hrel : AStateRel₀ pers st lst) (hinv : AStateInv pers st)
-    (hctx : CoreCtx vis fe lfe) (hf : absU fu = f)
-    (hrun : arena.core.reduce_nat pers vis st mode lane fu fe depth e = ok o) :
-    Sim₀ (Option.map absEIdx) pers lst o
-      (reduceNat (laneKnot (ConRon.Refine.absMode mode) lfe lane f) lfe
-        (absU depth) (absEIdx e)) :=
-  Lockstep.LS.toSim₀ (Lockstep.reduce_nat_ls hk hrel hinv hctx hf) hrun
-
 /-! ## The step and the loop, in lockstep
 
 Since con-leche's task #342 R2 the step RETURNS its continuation

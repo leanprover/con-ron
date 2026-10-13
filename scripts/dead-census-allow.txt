@@ -4,8 +4,6 @@
 # spots) or is tooling that no target builds.
 ConRon.Generated.FunsExternal_Template	Aeneas's hole template for the opaque functions, never built by design; read by scripts/holes.sh
 ConRon.Generated.TypesExternal_Template	Aeneas's hole template for the opaque types, never built by design; read by scripts/holes.sh
-ConRon.Arena.ETables.get_pushBM	rfl lemma in `simp only` sets of Arena/WFProofs.lean (ETables.getWith_pushBM); dsimp leaves no trace in the term
-ConRon.Arena.ETables.count_pushBM	rfl lemma in `simp` sets of Arena/WFProofs.lean (nodeCount after pushBM); dsimp leaves no trace
 _private.ConRon.Arena.PersistentRun.0.ConRon.Arena.failRun	rfl lemma in `simp only [failRun]` of Arena/PersistentRun.lean
 ConRon.Bridge.RelE.apply	@[grind →] forward lemma; Bridge/ExprOps/{Abs,Inst1,Subst}.lean's binder-arm VCs need it in `bridge_vcs`' grind
 ConRon.Bridge.RelV.of_ext	named in Bridge/Specs.lean's `bridge_vcs` grind list
@@ -17,7 +15,6 @@ ConRon.Bridge.matchOwner_fvarLeaves	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_instantiate1ArmApp	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_instantiate1ArmApp3	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_instantiate1ArmBVar	as matchOwner_denoteLs
-ConRon.Bridge.matchOwner_instantiate1ArmBind	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_instantiate1ArmLet	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_instantiate1ArmProj	as matchOwner_denoteLs
 ConRon.Bridge.matchOwner_isCtorApp	as matchOwner_denoteLs
@@ -43,7 +40,6 @@ ConRon.Arena.hash_name_eq	as ConRon.Arena.EStore.lss_empty
 # Task #105 SW-R2 (Refine, Refine2): owners the build needs although no term names them.
 # The 110 rfl rows were each seen rewriting in a trace.Meta.Tactic.simp.rewrite pass
 # over every module downstream of them; the rest are named by tactic or macro code.
-ConRon.Refine.CoreK.name_node_kind	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine.ExprOps.level_node_kind	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine.HashMap.alvO_none	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine.HashMap.alvO_some	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
@@ -86,9 +82,6 @@ ConRon.Refine2.Lockstep.PE.danglingLsOr_none	rfl lemma a `simp`/`dsimp` call rew
 ConRon.Refine2.Lockstep.PE.danglingLsOr_some	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.PE.laneKnotAt_true_infer	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.PF.beq_of_decEq	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.Lockstep.PG.absEIdxArr_eq	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.Lockstep.PG.absStk_eq	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.Lockstep.PG.vec_len_abs	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Frontend.except_pure_bind	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absBlockShape_recs	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absMemberShape_nIdx	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
@@ -100,7 +93,6 @@ ConRon.Refine2.absClassCtor_kinds	rfl lemma a `simp`/`dsimp` call rewrites with 
 ConRon.Refine2.absClassCtor_nF	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absClassCtor_tyD	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absClassCtor_tyN	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.absClassGen_bm	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absClassGen_cls	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absClassGen_ctors	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absClassGen_elim	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
@@ -132,7 +124,6 @@ ConRon.Refine2.fvMapWF_holeImg	rfl lemma a `simp`/`dsimp` call rewrites with (se
 ConRon.Refine2.fvMapWF_keyMap	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.IndModeledPrims.absIIndCaps_ruleK	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.IndModeledPrims.absIRecRule_ctorParams	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.IndModeledPrims.absIRecRule_paramsBlind	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absNestCtorNf_ctor	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absNestCtorNf_ds	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absNestCtorNf_lvls	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
@@ -146,12 +137,9 @@ ConRon.Refine2.absTargetMajor_nPc	rfl lemma a `simp`/`dsimp` call rewrites with 
 ConRon.Refine2.absTargetMajor_nfs	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absTargetMajor_pfvs	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.rc_absBlockShape_nP	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.stripWF_some	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.IndInstPrims.unwrapOr_none'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.IndInstPrims.unwrapOr_some'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.absIRecRule_nfields_eq	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
-ConRon.Refine2.bwf_new	named by `Inductives/SumInstall.lean`'s `bwf_side` macro (a `first` alternative)
-ConRon.Refine2.wf_of_view_some	named by `Inductives/SumInstall.lean`'s `bwf_side` macro (a `first` alternative)
 ConRon.Refine2.Lockstep.ErrArm.packM_bind	named by `Tactic/Lockstep.lean`'s own tactic code (an `applyRule` backtick literal); shared core, no alternative changed
 ConRon.Refine2.Lockstep.ErrArm.packRM_bind	named by `Tactic/Lockstep.lean`'s own tactic code (an `applyRule` backtick literal); shared core, no alternative changed
 ConRon.Refine2.Lockstep.ErrArm.packT_bind	named by `Tactic/Lockstep.lean`'s own tactic code (an `applyRule` backtick literal); shared core, no alternative changed
@@ -178,3 +166,4 @@ ConRon.Refine2.Lockstep.isBind_forallE	rfl lemma a `simp`/`dsimp` call rewrites 
 ConRon.Refine2.Lockstep.isBind_lam	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.vec_new_val'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.vec_with_capacity_val'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
+ConRon.Bridge.Core.pureFns_whnfCore_succ	rfl lemma in the `simp` set of Bridge/Core/Memo.lean's `whnf_of_stuck` (the build fails without it); simp leaves no trace

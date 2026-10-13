@@ -110,25 +110,6 @@ theorem IStepS.toIStep {s s' : AState} (h : IStepS s s')
     (hoff : s.store.scratchOn = false) : IStep s s' :=
   ⟨h.ok, h.ext, h.off hoff, h.memos, h.caches, h.pins⟩
 
-/-! ## `internE`'s scratch flag -/
-
-theorem internE_scratchOn {s s' : AState} {v : ENodeView} {h : EIdx}
-    (hrun : internE v s = .ok (h, s')) :
-    s'.store.scratchOn = s.store.scratchOn := by
-  -- the two binder arms: the binder array's intern, read off by
-  -- `Arena/PersistentRun.lean`
-  cases v
-  case lam ty b =>
-    obtain ⟨-, rfl⟩ := internLamE_ok (internE_lam_split hrun)
-    exact EStore.scratchOn_internBind _ _ _ _
-  case forallE ty b =>
-    obtain ⟨-, rfl⟩ := internForallEE_ok (internE_forallE_split hrun)
-    exact EStore.scratchOn_internBind _ _ _ _
-  all_goals
-    rcases internNodeE_ok hrun with ⟨-, rfl⟩ | ⟨-, -, rfl⟩
-    · rfl
-    · exact EStore.scratchOn_intern _ _
-
 /-! ## The four leaf interns, in run form -/
 
 theorem internE_sstep {s s' : AState} (hok : StateOK s)

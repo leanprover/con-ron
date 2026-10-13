@@ -303,16 +303,6 @@ theorem mWA_mono {F F' d : Nat} {V : Expr} {xs : List Expr}
   rw [← ConLeche.whnfAppW_atF] at h ⊢
   exact (ConLeche.whnfAppW mode (ConLeche.fueledFns mode env) env d V xs).property hle h
 
-/-- con-leche: ConLeche/Verify/BetaSpine.lean:436 betaPeelW_atF — fuel
-monotonicity. -/
-theorem mBP_mono {F F' d : Nat} {t : Expr} {acc xs : List Expr}
-    {r : ConLeche.WhnfStep} (hle : F ≤ F') (h : mBP mode env F d t acc xs = .ok r) :
-    mBP mode env F' d t acc xs = .ok r := by
-  simp only [mBP] at h ⊢
-  rw [← ConLeche.betaPeelW_atF] at h ⊢
-  exact (ConLeche.betaPeelW mode (ConLeche.fueledFns mode env) env d t acc
-    xs).property hle h
-
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:236 whnfAppW_nil. -/
 theorem mWA_nil {F d : Nat} {V : Expr} : mWA mode env F d V [] = .ok (.done V) := by
   simp only [mWA, ConLeche.whnfAppW_nil]; rfl
@@ -377,18 +367,6 @@ def StepWS (d : Nat) : ConLeche.WhnfStep → Prop
   | .done e => Expr.WScoped d e
   | .cont e => Expr.WScoped d e
 
-/-- con-leche: none — `denoteStep` survives an extension. -/
-theorem denoteStep_ext {st st' : EStore} {r : ConRon.Arena.WhnfStep}
-    {R : ConLeche.WhnfStep} (h : denoteStep st r = some R) (hx : Ext st st') :
-    denoteStep st' r = some R := by
-  cases r with
-  | done e =>
-    simp only [denoteStep, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨x, hx', rfl⟩ := h; exact ⟨x, denote_ext hx' hx, rfl⟩
-  | cont e =>
-    simp only [denoteStep, Option.map_eq_some_iff] at h ⊢
-    obtain ⟨x, hx', rfl⟩ := h; exact ⟨x, denote_ext hx' hx, rfl⟩
-
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:202 whnfAppW — the carry's
 postcondition at a step-returning walk whose pure side is `P`. -/
 def StepPost (mode : CheckMode) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AState)
@@ -401,11 +379,6 @@ def StepPost (mode : CheckMode) (env : Env) (fe : IFEnv) (d : Nat) (s₀ : AStat
 store: it denotes `xs`, each well scoped. -/
 def ArgsCtx (d : Nat) (args : Array EIdx) (xs : List Expr) (st : EStore) : Prop :=
   Frontend.denoteEList st args.toList = some xs ∧ ∀ x ∈ xs, Expr.WScoped d x
-
-theorem ArgsCtx.ext {d : Nat} {args : Array EIdx} {xs : List Expr}
-    {st st' : EStore} (h : ArgsCtx d args xs st) (hx : Ext st st') :
-    ArgsCtx d args xs st' :=
-  ⟨denoteEList_ext' hx h.1, h.2⟩
 
 /-- con-leche: none — the fixed data of one batched spine walk, at a store:
 the argument vector denotes `xs` (each well-scoped) and node `j` denotes the
@@ -719,7 +692,6 @@ section Census
 #print axioms headAndArgs_spec
 #print axioms internAppRebuilt_spec
 #print axioms mWA_mono
-#print axioms mBP_mono
 #print axioms mWA_iota_some
 #print axioms mBP_nonlam
 #print axioms instantiateListFast_ok_spec

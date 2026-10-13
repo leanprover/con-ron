@@ -1325,20 +1325,6 @@ theorem liftLooseBVarsFast_spec (fuel amount c : Nat) (s₀ : AState) (e : EIdx)
   vcgen [liftLooseBVarsFast, hr]
   all_goals bridge_vcs [Expr.liftLooseBVars]
 
-/-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — the same statement about
-a RUN, which is the form the tier above consumes. -/
-theorem liftLooseBVarsFast_run {fuel amount c : Nat} {s₀ s' : AState}
-    {e r : EIdx} (hok : StateOK s₀)
-    (hden : (denoteE s₀.store e).isSome = true)
-    (hrun : (liftLooseBVarsFast fuel amount c e).run s₀ = Except.ok (r, s')) :
-    StateOK s' ∧ Ext s₀.store s'.store ∧
-      s'.caches = s₀.caches ∧
-      s'.pins = s₀.pins ∧ s'.memos.liftC = ∅ ∧
-      s'.memos.inst1LC = s₀.memos.inst1LC ∧
-      LiftAt amount c s₀.store e s'.store r :=
-  AM.of_run (P := fun s => s = s₀) rfl hrun
-    (liftLooseBVarsFast_spec fuel amount c s₀ e hok hden)
-
 /-! ## K. Theorem 1 for `lowerBVars`, `instantiate1Lift` and `instPisAtLift` -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2205-2207 Inst1LMemoInv — the memo
@@ -2118,7 +2104,6 @@ name. -/
 #print axioms bvarB_bvarBSpec
 #print axioms liftLooseBVarsGo_spec
 #print axioms liftLooseBVarsFast_spec
-#print axioms liftLooseBVarsFast_run
 #print axioms instantiate1LiftGo_spec
 #print axioms instantiate1LiftFast_spec
 #print axioms instantiate1LiftFast_run

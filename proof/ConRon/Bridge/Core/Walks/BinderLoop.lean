@@ -59,14 +59,6 @@ theorem StkRel.imp {α β : Type} {R R' : α → β → Prop}
   | [], _ :: _, hr => hr.elim
   | _ :: _, [], hr => hr.elim
 
-/-- con-leche: none — related stacks have the same length. -/
-theorem StkRel.length {α β : Type} {R : α → β → Prop} :
-    ∀ {as : List α} {bs : List β}, StkRel R as bs → as.length = bs.length
-  | [], [], _ => rfl
-  | _ :: _, _ :: _, ⟨_, h2⟩ => by simp [StkRel.length h2]
-  | [], _ :: _, hr => hr.elim
-  | _ :: _, [], hr => hr.elim
-
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:94 RelILE — a λ
 stack entry: the opened domain handle denotes the mirror's opened domain. -/
 def LamR (st : EStore) (e : EIdx) (x : Expr) : Prop :=

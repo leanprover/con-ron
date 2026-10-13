@@ -40,7 +40,6 @@ namespace ConRon.Bridge
 #print axioms view_of_viewApp
 #print axioms view_of_viewBind
 #print axioms view_forallE_of_viewBind
-#print axioms isSome_body_of_viewBind
 #print axioms denoteEView_ext
 #print axioms denoteCI_ext
 

@@ -309,14 +309,6 @@ theorem contains_refines {ns : alloc.vec.Vec name.Name} {n : name.Name} {c : Boo
   simp only [show (0#usize : Std.Usize).val = 0 from rfl, List.drop_zero] at hc
   rw [hc, absNames, Bool.eq_iff_iff, decide_eq_true_iff, List.contains_iff_mem]
 
-/-- `name::singleton` is con-leche's one-element list. -/
-theorem singleton_refines {n : name.Name} {v : alloc.vec.Vec name.Name}
-    (h : name.singleton n = ok v) : absNames v = [absName n] := by
-  simp only [name.singleton, bind_eq_ok_iff, name_dup_eq, Result.ok.injEq,
-    exists_eq_left'] at h
-  rw [absNames, vec_push_val h]
-  simp [alloc.vec.Vec.new]
-
 /-! ## The task-#5 statements, under the `ConRon/Refine/README.md` names
 
 `ConRon.Generated.name.<fn>` is refined by `ConRon.Refine.Name.<fn>_refines`;

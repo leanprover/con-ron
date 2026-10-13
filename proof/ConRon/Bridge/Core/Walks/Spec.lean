@@ -32,7 +32,7 @@ straight to `Bridge/Core/Knot.lean`'s.
 `Bridge/Core/Knot.lean`).  A walk's answer needs it exactly when the answer
 is fed back into a knot slot: `unfoldDefinition`'s reduct is (`whnfStep`
 hands it to `whnfLoop`, which calls `whnfCore`), `headHint`'s hint is
-not.  So `SimEOp` and `SimOOp` carry it and `SimBOp`/`SimLOp`/`SimVOp` do
+not.  So `SimEOp` and `SimOOp` carry it and `SimBOp`/`SimLOp` do
 not.
 -/
 import ConRon.Bridge.Core.Knot
@@ -68,15 +68,10 @@ answer**, which names no handle and therefore needs no target store.
 `Bridge/Core/Knot.lean`'s `SimV` is this at `fun F => op F d a b`. -/
 def SimBOp (P : Nat → CheckM Bool) (x : Bool) : Prop := ∃ F, P F = .ok x
 
-/-- con-leche: ConLeche/Verify/SimI.lean:252 RelV — **the
-representation-free answer at any type** (`headHint`'s `ReducibilityHint`, `rawNatLit?`'s `Option Nat`): the arena's
-value IS con-leche's, because the type is one both tiers share. -/
-def SimVOp {α : Type} (P : Nat → CheckM α) (x : α) : Prop := ∃ F, P F = .ok x
-
 /-! ## 3. The eliminators
 
-`Bridge/Rel.lean`'s five, in the shapes above.  `SimBOp`, `SimLOp` and
-`SimVOp` need `.ext` only where a store appears, which is `SimLOp`. -/
+`Bridge/Rel.lean`'s five, in the shapes above.  `SimBOp` and `SimLOp`
+need `.ext` only where a store appears, which is `SimLOp`. -/
 
 /-- con-leche: none — **the `some` answer, read backwards**: a walk that
 answered a handle denotes it, and the pure call answered that denotation.
