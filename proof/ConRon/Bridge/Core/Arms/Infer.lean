@@ -164,7 +164,7 @@ theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : (i.tag == ETag.app) = true) :
-    ⦃fun s => s = s₀⦄ inferApp mode (coreKnot mode fe id fuel) fe d i
+    ⦃fun s => s = s₀⦄ inferApp (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -211,7 +211,7 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
     (hw : Expr.WScoped d e) (htag : ETag.isBind i.tag = true) :
     ⦃fun s => s = s₀⦄
-      inferBody mode (coreKnot mode fe id fuel) fe d i
+      inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -252,7 +252,7 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.app) :
     ⦃fun s => s = s₀⦄
-      inferBody mode (coreKnot mode fe id fuel) fe d i
+      inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -277,7 +277,7 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.const) :
     ⦃fun s => s = s₀⦄
-      inferBody mode (coreKnot mode fe id fuel) fe d i
+      inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -334,7 +334,7 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lit) :
     ⦃fun s => s = s₀⦄
-      inferBody mode (coreKnot mode fe id fuel) fe d i
+      inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -393,7 +393,7 @@ theorem inferBody_proj {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.proj) :
     ⦃fun s => s = s₀⦄
-      inferBody mode (coreKnot mode fe id fuel) fe d i
+      inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -569,7 +569,7 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     (hnb : ETag.isBind i.tag = false) (hnc : i.tag ≠ ETag.const)
     (hnl : i.tag ≠ ETag.lit) :
     ⦃fun s => s = s₀⦄
-      inferBody mode (coreKnot mode fe id fuel) fe d i
+      inferBody (coreKnot mode fe id fuel) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
@@ -631,7 +631,7 @@ step lemmas above are closed and are what the split arms consume. -/
 theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) :
-    BodySpec mode env fe (inferBody mode (coreKnot mode fe id fuel) fe)
+    BodySpec mode env fe (inferBody (coreKnot mode fe id fuel) fe)
       (ConLeche.inferTypeCore mode env) := by
   intro s₀ d i e hok hden hw
   by_cases ha : i.tag = ETag.app

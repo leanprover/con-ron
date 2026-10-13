@@ -229,7 +229,7 @@ theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.app) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -280,7 +280,7 @@ theorem inferBodyIO_forallE {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.forallE) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -516,7 +516,7 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lam) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -633,7 +633,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.const) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -690,7 +690,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.lit) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -748,7 +748,7 @@ theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
     (hw : Expr.WScoped d e)
     (htag : i.tag = ETag.proj) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -924,7 +924,7 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     (hnf : i.tag ≠ ETag.forallE) (hnm : i.tag ≠ ETag.lam)
     (hnc : i.tag ≠ ETag.const) (hnl : i.tag ≠ ETag.lit) :
     ⦃fun s => s = s₀⦄
-      inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
+      inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d i
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
@@ -988,7 +988,7 @@ theorem inferBodyIO_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hg : mode.betaGate = true) (hsim : KnotSpec mode env fe fuel) :
     BodySpec mode env fe
-      (inferBodyIO mode (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe)
+      (inferBodyIO (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe)
       (ConLeche.inferTypeIO mode env) := by
   intro s₀ d i e hok hden hw
   by_cases ha : i.tag = ETag.app

@@ -159,7 +159,7 @@ def mtcEta (mode : CheckMode) (env : Env) (F d : Nat) (cvj cvT : ConstantVal)
             (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs major
               caps.etaFields) >>= fun rc =>
         if rc then
-          ConLeche.structEtaCertWith mode (ConLeche.pureFns mode env F) env d fab
+          ConLeche.structEtaCertWith (ConLeche.pureFns mode env F) env d fab
               major tmaj >>= fun r =>
           if r then pure fab else pure major
         else pure major
@@ -661,7 +661,7 @@ theorem mtcEta_fire {F d : Nat} {cvj cvT : ConstantVal} {caps : IndCaps}
   simp only [hgd, ite_true, h3']
   cases b3
   · rfl
-  · have h4' : ConLeche.structEtaCertWith mode (ConLeche.pureFns mode env F) env d
+  · have h4' : ConLeche.structEtaCertWith (ConLeche.pureFns mode env F) env d
         (Expr.mkAppN (.const caps.etaCtor ust)
           (ConLeche.etaFabArgsE env T ust tmaj.getAppArgs x caps.etaFields)) x tmaj
         = .ok b4 := h4 rfl
@@ -764,7 +764,7 @@ theorem majorEta_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
                     (← constTyAt icvj ust) fabArgs
                 else pure true
               if famE then do
-                if ← ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d
+                if ← ConRon.Arena.structEtaCertWith (coreKnot mode fe id fuel) fe d
                     fab major tmaj then
                   pure fab
                 else pure major

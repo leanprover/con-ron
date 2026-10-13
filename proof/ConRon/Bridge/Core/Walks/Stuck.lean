@@ -615,7 +615,7 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y)
     (hww : Expr.WScoped d w) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structEtaCertWith mode (coreKnot mode fe id fuel) fe d a b wtb
+      ConRon.Arena.structEtaCertWith (coreKnot mode fe id fuel) fe d a b wtb
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertWithFueled mode env F d x y w)
@@ -1017,7 +1017,7 @@ theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structEtaCert mode (coreKnot mode fe id fuel) fe d a b
+      ConRon.Arena.structEtaCert (coreKnot mode fe id fuel) fe d a b
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertFueled mode env F d x y) r; ⊤⦄ := by
@@ -1078,7 +1078,7 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.structUnitCert mode (coreKnot mode fe id fuel) fe d a b
+      ConRon.Arena.structUnitCert (coreKnot mode fe id fuel) fe d a b
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structUnitCertFueled mode env F d x y) r; ⊤⦄ := by
@@ -1359,7 +1359,7 @@ direction certifies. -/
 theorem stuckIrrelFueled_eta1 {F d : Nat} {x y : Expr}
     (h : ConLeche.structEtaCertFueled mode env F d x y = .ok true) :
     ConLeche.stuckIrrelFueled mode env F d x y = .ok true := by
-  have h' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d x y
+  have h' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d x y
       = .ok true := h
   simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h', bind,
     Except.bind, ite_true, pure, Except.pure]
@@ -1370,9 +1370,9 @@ theorem stuckIrrelFueled_eta2 {F d : Nat} {x y : Expr}
     (h1 : ConLeche.structEtaCertFueled mode env F d x y = .ok false)
     (h2 : ConLeche.structEtaCertFueled mode env F d y x = .ok true) :
     ConLeche.stuckIrrelFueled mode env F d x y = .ok true := by
-  have h1' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d x y
+  have h1' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d x y
       = .ok false := h1
-  have h2' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d y x
+  have h2' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d y x
       = .ok true := h2
   simp only [ConLeche.stuckIrrelFueled, ConLeche.stuckIrrel, h1', h2', bind,
     Except.bind, Bool.false_eq_true, ite_false, ite_true, pure, Except.pure]
@@ -1384,9 +1384,9 @@ theorem stuckIrrelFueled_unit {F d : Nat} {x y : Expr}
     (h2 : ConLeche.structEtaCertFueled mode env F d y x = .ok false)
     (h3 : ConLeche.structUnitCertFueled mode env F d x y = .ok true) :
     ConLeche.stuckIrrelFueled mode env F d x y = .ok true := by
-  have h1' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d x y
+  have h1' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d x y
       = .ok false := h1
-  have h2' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d y x
+  have h2' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d y x
       = .ok false := h2
   have h3' : ConLeche.structUnitCert (ConLeche.pureFns mode env F) env d x y
       = .ok true := h3
@@ -1402,9 +1402,9 @@ theorem stuckIrrelFueled_proof {F d : Nat} {x y : Expr} {r : Bool}
     (h3 : ConLeche.structUnitCertFueled mode env F d x y = .ok false)
     (h4 : ConLeche.proofIrrelFueled mode env F d x y = .ok r) :
     ConLeche.stuckIrrelFueled mode env F d x y = .ok r := by
-  have h1' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d x y
+  have h1' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d x y
       = .ok false := h1
-  have h2' : ConLeche.structEtaCert mode (ConLeche.pureFns mode env F) env d y x
+  have h2' : ConLeche.structEtaCert (ConLeche.pureFns mode env F) env d y x
       = .ok false := h2
   have h3' : ConLeche.structUnitCert (ConLeche.pureFns mode env F) env d x y
       = .ok false := h3
@@ -1429,7 +1429,7 @@ theorem stuckIrrel_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hdb : denoteE s₀.store b = some y)
     (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d a b
+      ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d a b
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.stuckIrrelFueled mode env F d x y) r; ⊤⦄ := by

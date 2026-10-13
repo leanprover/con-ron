@@ -128,7 +128,7 @@ theorem qdArm_binder (hsim : KnotSpec mode env fe fuel) (isLam : Bool)
     (hne : (bndE isLam t₁ c₁ m₁ == bndE isLam t₂ c₂ m₂) = false) :
     ⦃fun s => s = s₀⦄
       (do
-        let ok ← defeqBinders mode (coreKnot mode fe id fuel) d ty₁ bd₁ m₁ ty₂
+        let ok ← defeqBinders (coreKnot mode fe id fuel) d ty₁ bd₁ m₁ ty₂
           bd₂ m₂ isLam
         pure (some ok))
     ⦃fun o s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧

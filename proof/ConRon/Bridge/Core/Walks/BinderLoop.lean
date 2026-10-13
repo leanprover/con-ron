@@ -144,7 +144,7 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array (EIdx × BinderMeta)) :
       (stkx : List (Expr × BinderMeta)),
       CheckOK mode env fe s₀ → denoteE s₀.store cur = some curx →
       n ≤ stk.size → StkRel (LamR s₀.store) (stk.toList.take n).reverse stkx →
-      ⦃fun s => s = s₀⦄ ConRon.Arena.inferLamsOut mode d stk n cur prevPw
+      ⦃fun s => s = s₀⦄ ConRon.Arena.inferLamsOut d stk n cur prevPw
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ConLeche.inferLamsOut (m := CheckM) mode d stkx (n - 1) curx prevPw
@@ -340,7 +340,7 @@ theorem inferLamsLeafCheck_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hwbt : Expr.WScoped (d + k) btx)
     (hstk : StkRel (LamR s₀.store) stk.toList.reverse stkx) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.inferLamsLeafCheck mode (coreKnot mode fe id fuel) fe d k
+      ConRon.Arena.inferLamsLeafCheck (coreKnot mode fe id fuel) fe d k
         stk bt
     ⦃fun _u s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ F, LamLeafOK mode env d k btx stkx F; ⊤⦄ := by
@@ -414,7 +414,7 @@ theorem mInferLamsLeaf {F d k : Nat} {tx bt v : Expr} {ws : List Expr}
     (hchk : tx.lamPw = none → LamLeafOK mode env d k bt stkx F)
     (hout : ConLeche.inferLamsOut (m := CheckM) mode d stkx (k - 1)
       (bt.abstractRange d k) (mPrev tx.lamPw stkx) = .ok v) :
-    ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx k ws stkx
+    ConLeche.inferLamsLeaf (ConLeche.pureFns mode env F) d tx k ws stkx
       = .ok v := by
   unfold ConLeche.inferLamsLeaf
   rw [infer_def, hb, ConLeche.okB_bind]
@@ -465,10 +465,10 @@ theorem inferLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hk : stk.size = k)
     (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.inferLamsLeaf mode (coreKnot mode fe id fuel) fe d t k fvs stk
+      ConRon.Arena.inferLamsLeaf (coreKnot mode fe id fuel) fe d t k fvs stk
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
-        ∃ F, ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx k
+        ∃ F, ConLeche.inferLamsLeaf (ConLeche.pureFns mode env F) d tx k
           ws stkx = .ok v; ⊤⦄ := by
   unfold ConRon.Arena.inferLamsLeaf
   -- stage 1: the residual, opened in bulk
@@ -495,10 +495,10 @@ theorem inferLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ∀ (prevPw : PropWhen), prevPw = mPrev tx.lamPw stkx →
       ⦃fun s => s = s3⦄ (do
         let cur ← abstractRangeFast coreWalkFuel bt d k 0
-        ConRon.Arena.inferLamsOut mode d stk stk.size cur prevPw)
+        ConRon.Arena.inferLamsOut d stk stk.size cur prevPw)
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
-          ∃ F, ConLeche.inferLamsLeaf mode (ConLeche.pureFns mode env F) d tx
+          ∃ F, ConLeche.inferLamsLeaf (ConLeche.pureFns mode env F) d tx
             k ws stkx = .ok v; ⊤⦄ := by
     intro s3 F2 hok3 hx3 hp3 hchk prevPw hprev
     have hbt3 := denote_ext hbtx hx3
@@ -538,12 +538,12 @@ theorem inferLamsLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 `inferLams_atF`). -/
 theorem mInferLams_mono {d peel k : Nat} {t v : Expr} {ws : List Expr}
     {stkx : List (Expr × BinderMeta)} {F F' : Nat} (hle : F ≤ F')
-    (h : ConLeche.inferLams mode (ConLeche.pureFns mode env F) d peel t k ws stkx
+    (h : ConLeche.inferLams (ConLeche.pureFns mode env F) d peel t k ws stkx
       = .ok v) :
-    ConLeche.inferLams mode (ConLeche.pureFns mode env F') d peel t k ws stkx
+    ConLeche.inferLams (ConLeche.pureFns mode env F') d peel t k ws stkx
       = .ok v := by
   rw [← ConLeche.inferLams_atF] at h ⊢
-  exact (ConLeche.inferLams mode (ConLeche.fueledFns mode env) d peel t k ws
+  exact (ConLeche.inferLams (ConLeche.fueledFns mode env) d peel t k ws
     stkx).property hle h
 
 /-- con-leche: none — opening a binder's body at the next free variable
@@ -570,11 +570,11 @@ theorem inferLams_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       StkRel (LamR s₀.store) stk.toList.reverse stkx → stk.size = k →
       Expr.WScoped (d + k) (tx.instantiateList ws) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.inferLams mode (coreKnot mode fe id fuel) fe d peel t k
+        ConRon.Arena.inferLams (coreKnot mode fe id fuel) fe d peel t k
           fvs stk
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
-          ∃ F, ConLeche.inferLams mode (ConLeche.pureFns mode env F) d peel tx
+          ∃ F, ConLeche.inferLams (ConLeche.pureFns mode env F) d peel tx
             k ws stkx = .ok v; ⊤⦄
   | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hk, hw => by
     rw [ConRon.Arena.inferLams]
@@ -680,7 +680,7 @@ theorem inferTypeCore_lam_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
     {u : Level} {mb : BinderMeta} {v : Expr} {peel : Nat}
     (hF1 : ConLeche.inferTypeCore mode env F1 d tyx = .ok ttyx)
     (hF2 : ConLeche.whnf mode env F2 d ttyx = .ok (.sort u))
-    (hF3 : ConLeche.inferLams mode (ConLeche.pureFns mode env F3) d peel bodyx 1
+    (hF3 : ConLeche.inferLams (ConLeche.pureFns mode env F3) d peel bodyx 1
       [Expr.fvar d tyx] [(tyx, mb)] = .ok v) :
     ∃ F, ConLeche.inferTypeCore mode env F d (.lam tyx bodyx mb) = .ok v := by
   obtain ⟨F', hchain⟩ := ConLeche.inferLams_sound (env := env) peel bodyx 1
@@ -770,7 +770,7 @@ theorem inferLam_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.lam tyx bodyx mb)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.inferLam mode (coreKnot mode fe id fuel) fe d ty body mb
+      ConRon.Arena.inferLam (coreKnot mode fe id fuel) fe d ty body mb
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d (.lam tyx bodyx mb)
@@ -838,7 +838,7 @@ theorem inferPisOut_carry (stk : Array (LIdx × PropWhen)) (pv : PropWhen) :
       CheckOK mode env fe s₀ → denoteL s₀.store.ls v = some vx →
       Level.zeronessOf vx = pv →
       n ≤ stk.size → StkRel (PiR s₀.store) (stk.toList.take n).reverse stkx →
-      ⦃fun s => s = s₀⦄ ConRon.Arena.inferPisOut mode stk n v pv
+      ⦃fun s => s = s₀⦄ ConRon.Arena.inferPisOut stk n v pv
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ lx, denoteL s'.store.ls r = some lx ∧
           ConLeche.inferPisOut (m := CheckM) mode stkx vx = .ok lx; ⊤⦄
@@ -893,7 +893,7 @@ theorem mInferPisLeaf {F d k : Nat} {tx bt : Expr} {vx lx : Level}
       = .ok bt)
     (hw : ConLeche.whnf mode env F (d + k) bt = .ok (.sort vx))
     (hout : ConLeche.inferPisOut (m := CheckM) mode stkx vx = .ok lx) :
-    ConLeche.inferPisLeaf mode (ConLeche.pureFns mode env F) d tx k ws stkx
+    ConLeche.inferPisLeaf (ConLeche.pureFns mode env F) d tx k ws stkx
       = .ok (.sort lx) := by
   unfold ConLeche.inferPisLeaf
   rw [infer_def, hb, ConLeche.okB_bind, whnf_def, hw, ConLeche.okB_bind]
@@ -913,10 +913,10 @@ theorem inferPisLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (hstk : StkRel (PiR s₀.store) stk.toList.reverse stkx)
     (hw : Expr.WScoped (d + k) (tx.instantiateList ws)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.inferPisLeaf mode (coreKnot mode fe id fuel) fe d t k fvs stk
+      ConRon.Arena.inferPisLeaf (coreKnot mode fe id fuel) fe d t k fvs stk
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
-        ∃ F, ConLeche.inferPisLeaf mode (ConLeche.pureFns mode env F) d tx k
+        ∃ F, ConLeche.inferPisLeaf (ConLeche.pureFns mode env F) d tx k
           ws stkx = .ok v; ⊤⦄ := by
   unfold ConRon.Arena.inferPisLeaf
   refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ t fvs 0 ws
@@ -956,12 +956,12 @@ theorem inferPisLeaf_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-- con-leche: none — the ∀ mirror is fuel-monotone (`inferPis_atF`). -/
 theorem mInferPis_mono {d peel k : Nat} {t v : Expr} {ws : List Expr}
     {stkx : List (Level × PropWhen)} {F F' : Nat} (hle : F ≤ F')
-    (h : ConLeche.inferPis mode (ConLeche.pureFns mode env F) d peel t k ws stkx
+    (h : ConLeche.inferPis (ConLeche.pureFns mode env F) d peel t k ws stkx
       = .ok v) :
-    ConLeche.inferPis mode (ConLeche.pureFns mode env F') d peel t k ws stkx
+    ConLeche.inferPis (ConLeche.pureFns mode env F') d peel t k ws stkx
       = .ok v := by
   rw [← ConLeche.inferPis_atF] at h ⊢
-  exact (ConLeche.inferPis mode (ConLeche.fueledFns mode env) d peel t k ws
+  exact (ConLeche.inferPis (ConLeche.fueledFns mode env) d peel t k ws
     stkx).property hle h
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:436 inferPisC_sim —
@@ -976,11 +976,11 @@ theorem inferPis_carry {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       StkRel (PiR s₀.store) stk.toList.reverse stkx →
       Expr.WScoped (d + k) (tx.instantiateList ws) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.inferPis mode (coreKnot mode fe id fuel) fe d peel t k
+        ConRon.Arena.inferPis (coreKnot mode fe id fuel) fe d peel t k
           fvs stk
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
-          ∃ F, ConLeche.inferPis mode (ConLeche.pureFns mode env F) d peel tx
+          ∃ F, ConLeche.inferPis (ConLeche.pureFns mode env F) d peel tx
             k ws stkx = .ok v; ⊤⦄
   | 0, s₀, t, k, fvs, stk, tx, ws, stkx, hok, ht, hvec, hstk, hw => by
     rw [ConRon.Arena.inferPis]
@@ -1080,7 +1080,7 @@ theorem inferTypeCore_forallE_of_loop {d F1 F2 F3 : Nat} {tyx bodyx ttyx : Expr}
     {ux : Level} {mb : BinderMeta} {v : Expr} {peel : Nat}
     (hF1 : ConLeche.inferTypeCore mode env F1 d tyx = .ok ttyx)
     (hF2 : ConLeche.whnf mode env F2 d ttyx = .ok (.sort ux))
-    (hF3 : ConLeche.inferPis mode (ConLeche.pureFns mode env F3) d peel bodyx 1
+    (hF3 : ConLeche.inferPis (ConLeche.pureFns mode env F3) d peel bodyx 1
       [Expr.fvar d tyx] [(ux, mb.pw)] = .ok v) :
     ∃ F, ConLeche.inferTypeCore mode env F d (.forallE tyx bodyx mb) = .ok v := by
   obtain ⟨F', hchain⟩ := ConLeche.inferPis_sound (env := env) peel bodyx 1
@@ -1130,7 +1130,7 @@ theorem inferForall_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
     (hbody : denoteE s₀.store body = some bodyx)
     (hw : Expr.WScoped d (.forallE tyx bodyx mb)) :
     ⦃fun s => s = s₀⦄
-      ConRon.Arena.inferForall mode (coreKnot mode fe id fuel) fe d ty body mb
+      ConRon.Arena.inferForall (coreKnot mode fe id fuel) fe d ty body mb
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d (.forallE tyx bodyx mb)

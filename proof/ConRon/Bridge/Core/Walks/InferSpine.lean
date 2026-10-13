@@ -204,7 +204,7 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.inferSpine mode (coreKnot mode fe id fuel) fe d ty acc
+        ConRon.Arena.inferSpine (coreKnot mode fe id fuel) fe d ty acc
           args i
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
@@ -353,7 +353,7 @@ theorem inferSpineIO_go {fuel : Nat} (hμ : mode.verifiedChecks = true)
       Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
       (∀ x ∈ xs, Expr.WScoped d x) →
       ⦃fun s => s = s₀⦄
-        ConRon.Arena.inferSpineIO mode
+        ConRon.Arena.inferSpineIO
           (CoreFnsA.ioView (coreKnot mode fe id fuel)) fe d ty acc args i
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧

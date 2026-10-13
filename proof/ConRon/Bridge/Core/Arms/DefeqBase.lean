@@ -293,10 +293,10 @@ theorem dq_stuck_exit {fe : IFEnv} {fuel d : Nat}
     (hps : s.pins = s₀.pins) (hp : denoteE s.store p = some u)
     (hq : denoteE s.store q = some w) (hwu : Expr.WScoped d u)
     (hww : Expr.WScoped d w)
-    (hG : Ev (fun F => ∀ r, ConLeche.stuckIrrel mode
+    (hG : Ev (fun F => ∀ r, ConLeche.stuckIrrel
       (ConLeche.pureFns mode env F) env d u w = .ok r → G F r)) :
     ⦃fun s' => s' = s⦄
-      ConRon.Arena.stuckIrrel mode (coreKnot mode fe id fuel) fe d p q
+      ConRon.Arena.stuckIrrel (coreKnot mode fe id fuel) fe d p q
     ⦃fun r s' => DqPost mode env fe s₀ G r s'; ⊤⦄ := by
   refine triple_mono (stuckIrrel_spec hμ henv hsim s d p q u w hok hp hq hwu hww) ?_
   rintro r s' ⟨hok', hx', hp', hr⟩

@@ -387,8 +387,8 @@ def peelStep (mode : CheckMode) (r : CoreFnsA) (d : Nat) (peel : Nat)
 a successor budget is one level over the rest. -/
 theorem defeqPeel_succ_eq (mode : CheckMode) (r : CoreFnsA) (d p : Nat)
     (a b : EIdx) (k : Nat) (fvs : Array EIdx) (mism ml : Bool) :
-    defeqPeel mode r d (p + 1) a b k fvs mism ml =
-      peelStep mode r d (p + 1) (defeqPeel mode r d p) a b k fvs mism ml := by
+    defeqPeel r d (p + 1) a b k fvs mism ml =
+      peelStep mode r d (p + 1) (defeqPeel r d p) a b k fvs mism ml := by
   delta defeqPeel peelStep
   exact rfl
 
@@ -396,7 +396,7 @@ theorem defeqPeel_succ_eq (mode : CheckMode) (r : CoreFnsA) (d p : Nat)
 zero (where the level's own guard sends every pair to the leaf). -/
 theorem defeqPeel_zero_eq (mode : CheckMode) (r : CoreFnsA) (d : Nat)
     (a b : EIdx) (k : Nat) (fvs : Array EIdx) (mism ml : Bool) :
-    defeqPeel mode r d 0 a b k fvs mism ml =
+    defeqPeel r d 0 a b k fvs mism ml =
       peelStep mode r d 0 (defeqPeelLeaf r d) a b k fvs mism ml := by
   delta defeqPeel peelStep
   exact rfl
@@ -414,7 +414,7 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
       Expr.WScoped (d + k) (ca.instantiateList ws 0) →
       Expr.WScoped (d + k) (cb.instantiateList ws 0) →
       ⦃fun s => s = s₀⦄
-        defeqPeel mode (coreKnot mode fe id fuel) d peel a b k fvs mism ml
+        defeqPeel (coreKnot mode fe id fuel) d peel a b k fvs mism ml
       ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
           ∃ F, PeelOK mode env F (d + k) (ca.instantiateList ws 0)
@@ -500,7 +500,7 @@ theorem defeqPeel_spec (hsim : KnotSpec mode env fe fuel) (d : Nat) :
           (if (!dq) = true then pure false
            else do
              let fv ← internFVarE (d + k) t2
-             defeqPeel mode (coreKnot mode fe id fuel) d p ba bb (k + 1)
+             defeqPeel (coreKnot mode fe id fuel) d p ba bb (k + 1)
                (fvs.push fv) (mism || (mode.verifiedChecks && !(ma == mb)))
                (if (mode.verifiedChecks && !(ma == mb)) = true then
                   a.tag == ETag.lam else ml))
@@ -598,7 +598,7 @@ theorem defeqBinders_spec {fe : IFEnv} {fuel : Nat}
       (if isLam then .lam t2 b2 m2 else .forallE t2 b2 m2))
     (hne : (bndE isLam t1 b1 m1 == bndE isLam t2 b2 m2) = false) :
     ⦃fun s => s = s₀⦄
-      defeqBinders mode (coreKnot mode fe id fuel) d ty1 body1 m1 ty2 body2 m2
+      defeqBinders (coreKnot mode fe id fuel) d ty1 body1 m1 ty2 body2 m2
         isLam
     ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
