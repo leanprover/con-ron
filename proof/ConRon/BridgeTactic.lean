@@ -437,7 +437,8 @@ partial def prove (fuel : Nat) (t : Expr) : FM (Option Expr) := do
       unless h.ty.isAppOfArity `ConRon.Bridge.CheckOK 4 do continue
       for lem in [`ConRon.Bridge.CheckOK.mono, `ConRon.Bridge.CheckOK.monoF] do
         if let some p ← attempt (applyLemma fuel lem h.pf t) then return some p
-    return none
+    -- a state the chain does not reach (a cache insert): the caller's lemmas
+    proveByLemmas fuel t
   | some `ConRon.Bridge.CacheFrame =>
     let a := t.appFn!.appArg!
     let b := t.appArg!
