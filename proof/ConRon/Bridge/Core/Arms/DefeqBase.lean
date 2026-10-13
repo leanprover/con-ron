@@ -155,39 +155,7 @@ theorem boolTrueShortcutIf_spec {fe : IFEnv} {fuel : Nat}
 
 /-! ## 2. Denotations and guards -/
 
-/-- con-leche: none — **the constructor tag of a denotation**: the four tag
-bits of a handle are the tag of the expression it denotes. -/
-def exprTag : Expr → UInt32
-  | .bvar _ => ETag.bvar
-  | .fvar _ _ => ETag.fvar
-  | .sort _ => ETag.sort
-  | .const _ _ => ETag.const
-  | .app _ _ => ETag.app
-  | .lam _ _ => ETag.lam
-  | .forallE _ _ => ETag.forallE
-  | .letE _ _ _ => ETag.letE
-  | .lit _ => ETag.lit
-  | .proj _ _ _ => ETag.proj
-
-/-- con-leche: none — DESIGN §8.3: a handle's tag is its denotation's. -/
-theorem tag_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
-    (hd : denoteE st h = some e) : h.tag = exprTag e := by
-  obtain ⟨v, hv⟩ := denoteE_view hd
-  rw [EStore.tagOf_of_view hv]
-  cases v with
-  | bvar i => rw [denote_bvar_inv hwf hv hd]; rfl
-  | fvar k t => obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hv hd; rfl
-  | sort u => obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hv hd; rfl
-  | const n us => obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hv hd; rfl
-  | app f a => obtain ⟨p, q, rfl, _, _⟩ := denote_app_inv hwf hv hd; rfl
-  | lam ty b => obtain ⟨p, q, rfl, _, _⟩ := denote_lam_inv hwf hv hd; rfl
-  | forallE ty b =>
-    obtain ⟨p, q, rfl, _, _⟩ := denote_forallE_inv hwf hv hd; rfl
-  | letE ty w b =>
-    obtain ⟨p, q, r, rfl, _, _, _⟩ := denote_letE_inv hwf hv hd; rfl
-  | lit l => rw [denote_lit_inv hwf hv hd]; rfl
-  | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv hd; rfl
-
+/-! `exprTag` / `tag_of_denote` moved to `Walks/PropRead.lean` (task #119). -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1656-1689 lazyDeltaReduction — the literal
 guard: the twin's two eager fvar-range reads are con-leche's

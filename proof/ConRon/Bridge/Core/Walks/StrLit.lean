@@ -328,6 +328,93 @@ theorem denote_typeAt {s₂ s₁ s₀ : AState} {p : NIdx} {r₂ r₁ : LIdx}
     rw [h₁]; simp [denoteLView, denoteL_ext hpl x₂₁]
   rw [h₀]; simp [denoteEView, denoteL_ext hsp x₁₀, typeAt]
 
+/-! ### The interned comparands' denotations, one node at a time -/
+
+/-- con-leche: none — an interned `bvar k`. -/
+theorem denote_view_bvar {st : EStore} {h : EIdx} {k : Nat}
+    (hd : denoteE st h = denoteEView st (.bvar k)) :
+    denoteE st h = some (.bvar k) := by rw [hd]; rfl
+
+/-- con-leche: none — an interned constant. -/
+theorem denote_view_const {st : EStore} {h : EIdx} {n : NIdx} {us : LsIdx}
+    {N : ConLeche.Name} {US : List Level}
+    (hd : denoteE st h = denoteEView st (.const n us))
+    (hn : denoteN st.ns n = some N) (hus : denoteLs st.lss us = some US) :
+    denoteE st h = some (.const N US) := by
+  rw [hd]; simp [denoteEView, opt2, hn, hus]
+
+/-- con-leche: none — an interned application. -/
+theorem denote_view_app {st : EStore} {h f a : EIdx} {F A : Expr}
+    (hd : denoteE st h = denoteEView st (.app f a))
+    (hf : denoteE st f = some F) (ha : denoteE st a = some A) :
+    denoteE st h = some (.app F A) := by
+  rw [hd]; simp [denoteEView, opt2, hf, ha]
+
+/-- con-leche: none — an interned `param`. -/
+theorem denoteL_view_param {st : EStore} {h : LIdx} {p : NIdx}
+    {P : ConLeche.Name}
+    (hd : denoteL st.ls h = denoteLView st.ls (.param p))
+    (hp : denoteN st.ns p = some P) : denoteL st.ls h = some (.param P) := by
+  rw [hd]; simp only [denoteLView]
+  rw [show denoteN st.ls.ns p = some P from hp]; rfl
+
+/-- con-leche: none — an interned one-element level list. -/
+theorem denoteLs_view_single {st : EStore} {h : LsIdx} {u : LIdx}
+    {U : Level} (hd : denoteLs st.lss h = denoteLsView st.lss [u])
+    (hu : denoteL st.ls u = some U) : denoteLs st.lss h = some [U] := by
+  rw [hd]
+  simp [denoteLsView, denoteLList, opt2,
+    show denoteL st.lss.ls u = some U from hu]
+
+/-! ### Staged interning (task #119: the shapes are proved stage by stage) -/
+
+/-- con-leche: none — **a `pure` exit** at a pinned state. -/
+theorem triple_pureS {α : Type} {s₀ : AState} {v : α}
+    {Q : α → AState → Prop} (h : Q v s₀) :
+    ⦃fun s => s = s₀⦄ (pure v : AM α) ⦃fun r s => Q r s; ⊤⦄ := by
+  vcgen
+  subst_vars; exact h
+
+/-- con-leche: none — `internLNode` at the tier's invariant. -/
+theorem internLNode_okS (s₀ : AState) (w : LNodeView)
+    (hok : CheckOK mode env fe s₀) (hv : s₀.store.ls.ViewOK w) :
+    ⦃fun s => s = s₀⦄ internLNode w
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ s'.store.ls.view h = some w ∧
+        denoteL s'.store.ls h = denoteLView s'.store.ls w; ⊤⦄ :=
+  triple_mono (internLNode_spec s₀ w hok.state.wf hv)
+    (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hv', hd⟩ =>
+      ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hv', hd⟩)
+
+/-- con-leche: none — `internLsNode` at the tier's invariant. -/
+theorem internLsNode_okS (s₀ : AState) (w : LsNodeView)
+    (hok : CheckOK mode env fe s₀) (hv : s₀.store.lss.ViewOK w) :
+    ⦃fun s => s = s₀⦄ internLsNode w
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ s'.store.lss.view h = some w ∧
+        denoteLs s'.store.lss h = denoteLsView s'.store.lss w; ⊤⦄ :=
+  triple_mono (internLsNode_spec s₀ w hok.state.wf hv)
+    (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hv', hd⟩ =>
+      ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hv', hd⟩)
+
+/-- con-leche: none — `internE` at the tier's invariant. -/
+theorem internE_okS (s₀ : AState) (w : ENodeView)
+    (hok : CheckOK mode env fe s₀) (hv : s₀.store.ViewOK w) :
+    ⦃fun s => s = s₀⦄ internE w
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ s'.store.view h = some w ∧
+        denoteE s'.store h = denoteEView s'.store w; ⊤⦄ :=
+  triple_mono (internE_spec s₀ w hok.state.wf hv)
+    (fun _ _ ⟨hwf', hx', _, _, _, hc', hp', hv', hd⟩ =>
+      ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hv', hd⟩)
+
+/-- con-leche: none — a pinned name, off the table. -/
+theorem pinAt_okS (s₀ : AState) (i : Nat) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ pinAt i
+    ⦃fun n s' => s' = s₀ ∧ ∀ x, pinNames[i]? = some x →
+        denoteN s₀.store.ns n = some x; ⊤⦄ :=
+  pinAt_spec s₀ i hok.pins
+
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:317-328 listTyOk — **THEOREM 1
 for `listTyOk`**. -/
 theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
@@ -343,40 +430,48 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    vcgen [ConRon.Arena.listTyOk, htc]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc9 =>
-      rename_i s1 s0 p0 hsingle ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      exact lviewOK_param (denoteN_ext hdp x_s1_s0)
-    case vc7 =>
-      rename_i s2 s1 p0 hsingle s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _ c_s0_s1 p_s0_s1
-        vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
-      exact lviewOK_succ vl_r0_s0
-    case vc5 =>
-      rename_i s3 s2 p0 hsingle s1 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _ _ d_r2_type_s2 _ _
-        _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1 dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2
-        p_s2_s3 hlps
-      exact viewOK_sort (by rw [vl_r0_s0]; rfl)
-    case vc1 =>
-      sorry
-    case vc2 =>
-      sorry
-    -- the type does not carry the `forallE` TAG (task #97-P5-Core round 4's
-    -- tag-first arm): its view comes back from its denotation
-    case vc3 =>
-      sorry
-    case vc10 =>
-      rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
-      exact ⟨ck_s0, x_s1_s0, p_s0_s1,
-        (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).1.symm⟩
-    all_goals first
-      | assumption
-      | (apply CheckOK.wf'; assumption)
-
+    simp only [ConRon.Arena.listTyOk]
+    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
+    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    split
+    rotate_left
+    · rename_i hnotsingle
+      exact triple_pureS ⟨hok1, hx1, hp1,
+        (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).1.symm⟩
+    rename_i p hsingle
+    rw [hsingle] at hlp
+    obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
+    refine triple_seq (internLNode_okS s1 (.param p) hok1
+      (lviewOK_param (denoteN_ext hdp hx1))) ?_
+    rintro pl s2 ⟨hok2, hx2, hp2, hv2, hd2⟩
+    refine triple_seq (internLNode_okS s2 (.succ pl) hok2 (lviewOK_succ hv2)) ?_
+    rintro sp s3 ⟨hok3, hx3, hp3, hv3, hd3⟩
+    refine triple_seq (internE_okS s3 (.sort sp) hok3
+      (viewOK_sort (by rw [hv3]; rfl))) ?_
+    rintro so s4 ⟨hok4, hx4, hp4, _, hd4⟩
+    have hpl : denoteL s2.store.ls pl = some (.param P) :=
+      denoteL_view_param hd2 (denoteN_ext hdp (hx1.trans hx2))
+    have hso : denoteE s4.store so = some (typeAt P) :=
+      denote_typeAt (denoteN_ext hdp (hx1.trans hx2)) hd2 hd3 hd4 hx3 hx4
+    have hx14 : Ext s1.store s4.store := hx2.trans (hx3.trans hx4)
+    have hx04 : Ext s₀.store s4.store := hx1.trans hx14
+    have hp04 : s4.pins = s₀.pins := hp4.trans (hp3.trans (hp2.trans hp1))
+    have hty4 := denote_ext hty hx14
+    have hwf4 := hok4.state.wf
+    obtain ⟨v, hv⟩ := denoteE_view hty4
+    refine tag_view_bind_triple hv ?_
+      (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
+    cases v
+    case forallE d b =>
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf4 hv hty4
+      dsimp only
+      refine triple_pureS ⟨hok4, hx04, hp04, ?_⟩
+      rw [beq_of_denoteE hwf4 hD hso, beq_of_denoteE hwf4 hB hso,
+        listTyOk_forallE hP hT]
+    all_goals
+      dsimp only
+      exact triple_pureS ⟨hok4, hx04, hp04, (listTyOk_not_forallE hP
+        (denote_not_forallE hwf4 hv hty4 (fun _ _ h => nomatch h))).symm⟩
 /-- con-leche: none — `listNilCod` at a codomain that is not
 `List.{_} (bvar 0)`. -/
 theorem listNilCod_of_not {P : ConLeche.Name} {B : Expr}
@@ -417,64 +512,119 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    vcgen [ConRon.Arena.listNilTyOk, ConRon.Arena.pinList, htc]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc19 =>
-      rename_i s1 s0 p0 hsingle ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      exact lviewOK_param (denoteN_ext hdp x_s1_s0)
-    case vc17 =>
-      rename_i s2 s1 p0 hsingle s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _ c_s0_s1 p_s0_s1
-        vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
-      exact lviewOK_succ vl_r0_s0
-    case vc15 =>
-      rename_i s3 s2 p0 hsingle s1 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _ _ d_r2_type_s2 _ _
-        _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1 dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2
-        p_s2_s3 hlps
-      exact viewOK_sort (by rw [vl_r0_s0]; rfl)
-    case vc13 =>
-      sorry
-    case vc11 =>
-      sorry
-    case vc1 =>
-      sorry
-    case vc2 =>
-      sorry
-    case vc3 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm (the view comes back from the
-    -- denotation, the tag says it is not the tested constructor)
-    case vc4 =>
-      sorry
-    case vc5 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm (the view comes back from the
-    -- denotation, the tag says it is not the tested constructor)
-    case vc6 =>
-      sorry
-    case vc7 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm (the view comes back from the
-    -- denotation, the tag says it is not the tested constructor)
-    case vc8 =>
-      sorry
-    case vc9 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm (the view comes back from the
-    -- denotation, the tag says it is not the tested constructor)
-    case vc10 =>
-      sorry
-    case vc20 =>
-      rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
-      exact ⟨ck_s0, x_s1_s0, p_s0_s1,
-        (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).2.1.symm⟩
-    all_goals first
-      | assumption
-      | (apply CheckOK.wf'; assumption)
-
+    simp only [ConRon.Arena.listNilTyOk]
+    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
+    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    split
+    rotate_left
+    · rename_i hnotsingle
+      exact triple_pureS ⟨hok1, hx1, hp1,
+        (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).2.1.symm⟩
+    rename_i p hsingle
+    rw [hsingle] at hlp
+    obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
+    refine triple_seq (internLNode_okS s1 (.param p) hok1
+      (lviewOK_param (denoteN_ext hdp hx1))) ?_
+    rintro pl s2 ⟨hok2, hx2, hp2, hv2, hd2⟩
+    refine triple_seq (internLNode_okS s2 (.succ pl) hok2 (lviewOK_succ hv2)) ?_
+    rintro sp s3 ⟨hok3, hx3, hp3, hv3, hd3⟩
+    refine triple_seq (internE_okS s3 (.sort sp) hok3
+      (viewOK_sort (by rw [hv3]; rfl))) ?_
+    rintro so s4 ⟨hok4, hx4, hp4, _, hd4⟩
+    have hpl : denoteL s2.store.ls pl = some (.param P) :=
+      denoteL_view_param hd2 (denoteN_ext hdp (hx1.trans hx2))
+    have hso : denoteE s4.store so = some (typeAt P) :=
+      denote_typeAt (denoteN_ext hdp (hx1.trans hx2)) hd2 hd3 hd4 hx3 hx4
+    have hx14 : Ext s1.store s4.store := hx2.trans (hx3.trans hx4)
+    refine triple_seq (internLsNode_okS s4 [pl] hok4 (by
+      intro c hc
+      simp only [List.mem_singleton] at hc; subst hc
+      exact lview_isSome_of_denote (denoteL_ext hpl (hx3.trans hx4)))) ?_
+    rintro ps s5 ⟨hok5, hx5, hp5, _, hd5⟩
+    have hps : denoteLs s5.store.lss ps = some [.param P] :=
+      denoteLs_view_single hd5 (denoteL_ext hpl ((hx3.trans hx4).trans hx5))
+    simp only [ConRon.Arena.pinList]
+    refine triple_seq (pinAt_okS s5 _ hok5) ?_
+    rintro li s6 ⟨hs6, hli⟩
+    subst s6
+    have hli' : denoteN s5.store.ns li = some ConLeche.listName := hli _ rfl
+    have hx15 : Ext s1.store s5.store := hx14.trans hx5
+    have hx05 : Ext s₀.store s5.store := hx1.trans hx15
+    have hp05 : s5.pins = s₀.pins :=
+      hp5.trans (hp4.trans (hp3.trans (hp2.trans hp1)))
+    have hso5 := denote_ext hso hx5
+    have hty5 := denote_ext hty hx15
+    have hwf5 := hok5.state.wf
+    have hfalse : ∀ (b : Bool), b = ConLeche.listNilTyOk (some c) →
+        ⦃fun s => s = s5⦄ (pure b : AM Bool)
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ r = ConLeche.listNilTyOk (some c); ⊤⦄ :=
+      fun b hb => triple_pureS ⟨hok5, hx05, hp05, hb⟩
+    obtain ⟨v, hv⟩ := denoteE_view hty5
+    refine tag_view_bind_triple hv ?_
+      (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
+    cases v
+    case forallE d b =>
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf5 hv hty5
+      rw [listNilTyOk_forallE hP hT] at hfalse ⊢
+      dsimp only
+      rw [bne, beq_of_denoteE hwf5 hD hso5]
+      by_cases hDe : (D == typeAt P) = true
+      · rw [hDe]
+        simp only [Bool.not_true, Bool.false_eq_true, ite_false, Bool.true_and]
+        simp only [hDe, Bool.true_and] at hfalse
+        obtain ⟨vb, hvb⟩ := denoteE_view hB
+        refine tag_view_bind_triple hvb ?_
+          (fun hne => by cases vb <;> first | rfl | exact absurd rfl hne)
+        cases vb
+        case app f a =>
+          obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv hwf5 hvb hB
+          dsimp only
+          obtain ⟨vf, hvf⟩ := denoteE_view hF
+          refine tag_view_bind_triple hvf ?_
+            (fun hne => by cases vf <;> first | rfl | exact absurd rfl hne)
+          cases vf
+          case const l1 us1 =>
+            obtain ⟨L, US, rfl, hL, hUS⟩ := denote_const_inv hwf5 hvf hF
+            dsimp only
+            obtain ⟨va, hva⟩ := denoteE_view hA
+            refine tag_view_bind_triple hva ?_
+              (fun hne => by cases va <;> first | rfl | exact absurd rfl hne)
+            cases va
+            case bvar k =>
+              obtain rfl := denote_bvar_inv hwf5 hva hA
+              cases k with
+              | zero =>
+                try dsimp only
+                refine hfalse _ ?_
+                rw [beq_handle_eq hwf5 hL hli',
+                  beq_of_denoteLs (StoreWF.lssWF' hwf5) hUS hps]
+                simp [listNilCod]
+              | succ k =>
+                try dsimp only
+                exact hfalse _ (by simp [listNilCod])
+            all_goals
+              dsimp only
+              refine hfalse _ (listNilCod_of_not (fun L' US' h => ?_)).symm
+              injection h with h1 h2
+              exact denote_ne_bvar0 hwf5 hva hA (fun h => nomatch h) h2
+          all_goals
+            dsimp only
+            refine hfalse _ (listNilCod_of_not (fun L' US' h => ?_)).symm
+            injection h with h1 h2
+            exact denote_not_const hwf5 hvf hF (fun _ _ h => nomatch h) _ _ h1
+        all_goals
+          dsimp only
+          refine hfalse _ (listNilCod_of_not (fun L' US' h => ?_)).symm
+          exact denote_not_app hwf5 hvb hB (fun _ _ h => nomatch h) _ _ h
+      · have hDf : (D == typeAt P) = false := by simpa using hDe
+        rw [hDf]
+        simp only [Bool.not_false, ite_true]
+        exact triple_pureS ⟨hok5, hx05, hp05, by simp⟩
+    all_goals
+      dsimp only
+      exact hfalse _ (listNilConsTyOk_not_forallE hP
+        (denote_not_forallE hwf5 hv hty5 (fun _ _ h => nomatch h))).1.symm
 /-- con-leche: none — `List.{p} (bvar k)`, the `List.cons` shape's two
 applications. -/
 abbrev listApp (P : ConLeche.Name) (k : Nat) : Expr :=
@@ -531,44 +681,6 @@ theorem listConsR2_of_not {P : ConLeche.Name} {R : Expr}
   · rename_i D B; exact absurd rfl (h D B)
   · rfl
 
-/-! ### The interned comparands' denotations, one node at a time -/
-
-/-- con-leche: none — an interned `bvar k`. -/
-theorem denote_view_bvar {st : EStore} {h : EIdx} {k : Nat}
-    (hd : denoteE st h = denoteEView st (.bvar k)) :
-    denoteE st h = some (.bvar k) := by rw [hd]; rfl
-
-/-- con-leche: none — an interned constant. -/
-theorem denote_view_const {st : EStore} {h : EIdx} {n : NIdx} {us : LsIdx}
-    {N : ConLeche.Name} {US : List Level}
-    (hd : denoteE st h = denoteEView st (.const n us))
-    (hn : denoteN st.ns n = some N) (hus : denoteLs st.lss us = some US) :
-    denoteE st h = some (.const N US) := by
-  rw [hd]; simp [denoteEView, opt2, hn, hus]
-
-/-- con-leche: none — an interned application. -/
-theorem denote_view_app {st : EStore} {h f a : EIdx} {F A : Expr}
-    (hd : denoteE st h = denoteEView st (.app f a))
-    (hf : denoteE st f = some F) (ha : denoteE st a = some A) :
-    denoteE st h = some (.app F A) := by
-  rw [hd]; simp [denoteEView, opt2, hf, ha]
-
-/-- con-leche: none — an interned `param`. -/
-theorem denoteL_view_param {st : EStore} {h : LIdx} {p : NIdx}
-    {P : ConLeche.Name}
-    (hd : denoteL st.ls h = denoteLView st.ls (.param p))
-    (hp : denoteN st.ns p = some P) : denoteL st.ls h = some (.param P) := by
-  rw [hd]; simp only [denoteLView]
-  rw [show denoteN st.ls.ns p = some P from hp]; rfl
-
-/-- con-leche: none — an interned one-element level list. -/
-theorem denoteLs_view_single {st : EStore} {h : LsIdx} {u : LIdx}
-    {U : Level} (hd : denoteLs st.lss h = denoteLsView st.lss [u])
-    (hu : denoteL st.ls u = some U) : denoteLs st.lss h = some [U] := by
-  rw [hd]
-  simp [denoteLsView, denoteLList, opt2,
-    show denoteL st.lss.ls u = some U from hu]
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk — **THEOREM
 1 for `listConsTyOk`**. -/
 theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
@@ -584,64 +696,149 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    vcgen [ConRon.Arena.listConsTyOk, ConRon.Arena.pinList, htc]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc30 =>
-      rename_i s1 s0 p0 hsingle ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      exact lviewOK_param (denoteN_ext hdp x_s1_s0)
-    case vc28 =>
-      rename_i s2 s1 p0 hsingle s0 ck_s1 wf_s0 x_s1_s0 _ d_r1_type_s1 _ _ _ c_s0_s1 p_s0_s1
-        vl_r0_s0 dl_r0_s0 x_s2_s1 p_s1_s2 hlps
-      exact lviewOK_succ vl_r0_s0
-    case vc26 =>
-      rename_i s3 s2 p0 hsingle s1 s0 ck_s2 wf_s1 wf_s0 x_s2_s1 x_s1_s0 _ _ d_r2_type_s2 _ _
-        _ _ _ _ c_s1_s2 c_s0_s1 p_s1_s2 p_s0_s1 vl_r1_s1 dl_r1_s1 vl_r0_s0 dl_r0_s0 x_s3_s2
-        p_s2_s3 hlps
-      exact viewOK_sort (by rw [vl_r0_s0]; rfl)
-    case vc24 =>
-      sorry
-    case vc22 =>
-      sorry
-    case vc15 =>
-      sorry
-    case vc13 =>
-      sorry
-    case vc11 =>
-      sorry
-    case vc1 =>
-      sorry
-    case vc2 =>
-      sorry
-    case vc3 =>
-      sorry
-    case vc4 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm
-    case vc5 =>
-      sorry
-    case vc6 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm
-    case vc7 =>
-      sorry
-    case vc8 =>
-      sorry
-    -- round 4: the tag-first twin's `else` arm
-    case vc9 =>
-      sorry
-    case vc31 =>
-      rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
-      exact ⟨ck_s0, x_s1_s0, p_s0_s1,
-        (listTyOks_not_single (denoteNList_not_single hlps hnotsingle)).2.2.symm⟩
-    all_goals first
-      | assumption
-      | (apply CheckOK.wf'; assumption)
-      | exact viewOK_bvar
-
+    simp only [ConRon.Arena.listConsTyOk]
+    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
+    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    split
+    rotate_left
+    · rename_i hnotsingle
+      exact triple_pureS ⟨hok1, hx1, hp1,
+        (listTyOks_not_single (denoteNList_not_single hlp hnotsingle)).2.2.symm⟩
+    rename_i p hsingle
+    rw [hsingle] at hlp
+    obtain ⟨P, hP, hdp⟩ := denoteNList_single hlp
+    refine triple_seq (internLNode_okS s1 (.param p) hok1
+      (lviewOK_param (denoteN_ext hdp hx1))) ?_
+    rintro pl s2 ⟨hok2, hx2, hp2, hv2, hd2⟩
+    refine triple_seq (internLNode_okS s2 (.succ pl) hok2 (lviewOK_succ hv2)) ?_
+    rintro sp s3 ⟨hok3, hx3, hp3, hv3, hd3⟩
+    refine triple_seq (internE_okS s3 (.sort sp) hok3
+      (viewOK_sort (by rw [hv3]; rfl))) ?_
+    rintro so s4 ⟨hok4, hx4, hp4, _, hd4⟩
+    have hpl : denoteL s2.store.ls pl = some (.param P) :=
+      denoteL_view_param hd2 (denoteN_ext hdp (hx1.trans hx2))
+    have hso : denoteE s4.store so = some (typeAt P) :=
+      denote_typeAt (denoteN_ext hdp (hx1.trans hx2)) hd2 hd3 hd4 hx3 hx4
+    refine triple_seq (internLsNode_okS s4 [pl] hok4 (by
+      intro c hc
+      simp only [List.mem_singleton] at hc; subst hc
+      exact lview_isSome_of_denote (denoteL_ext hpl (hx3.trans hx4)))) ?_
+    rintro ps s5 ⟨hok5, hx5, hp5, hvps, hd5⟩
+    have hps : denoteLs s5.store.lss ps = some [.param P] :=
+      denoteLs_view_single hd5 (denoteL_ext hpl ((hx3.trans hx4).trans hx5))
+    simp only [ConRon.Arena.pinList]
+    refine triple_seq (pinAt_okS s5 _ hok5) ?_
+    rintro li s6 ⟨hs6, hli⟩
+    subst s6
+    have hli' : denoteN s5.store.ns li = some ConLeche.listName := hli _ rfl
+    refine triple_seq (internE_okS s5 (.bvar 0) hok5 viewOK_bvar) ?_
+    rintro b0 s6 ⟨hok6, hx6, hp6, _, hd6⟩
+    refine triple_seq (internE_okS s6 (.bvar 1) hok6 viewOK_bvar) ?_
+    rintro b1 s7 ⟨hok7, hx7, hp7, _, hd7⟩
+    refine triple_seq (internE_okS s7 (.bvar 2) hok7 viewOK_bvar) ?_
+    rintro b2 s8 ⟨hok8, hx8, hp8, _, hd8⟩
+    have hx58 := hx6.trans (hx7.trans hx8)
+    refine triple_seq (internE_okS s8 (.const li ps) hok8
+      (viewOK_const (nview_isSome_of_denote (denoteN_ext hli' hx58))
+        (lsview_isSome_of_denote (denoteLs_ext hps hx58)))) ?_
+    rintro l1 s9 ⟨hok9, hx9, hp9, _, hd9⟩
+    have hl1 : denoteE s9.store l1 = some (.const ConLeche.listName [.param P]) :=
+      denote_view_const hd9 (denoteN_ext hli' (hx58.trans hx9))
+        (denoteLs_ext hps (hx58.trans hx9))
+    have hb1 : denoteE s9.store b1 = some (.bvar 1) :=
+      denote_ext (denote_view_bvar hd7) (hx8.trans hx9)
+    have hb2 : denoteE s9.store b2 = some (.bvar 2) :=
+      denote_ext (denote_view_bvar hd8) hx9
+    refine triple_seq (internE_okS s9 (.app l1 b1) hok9
+      (viewOK_app (by rw [hl1]; rfl) (by rw [hb1]; rfl))) ?_
+    rintro dom3 s10 ⟨hok10, hx10, hp10, _, hd10⟩
+    have hdom3 : denoteE s10.store dom3 = some (listApp P 1) :=
+      denote_view_app hd10 (denote_ext hl1 hx10) (denote_ext hb1 hx10)
+    refine triple_seq (internE_okS s10 (.app l1 b2) hok10
+      (viewOK_app (by rw [denote_ext hl1 hx10]; rfl)
+        (by rw [denote_ext hb2 hx10]; rfl))) ?_
+    rintro cod3 s11 ⟨hok11, hx11, hp11, _, hd11⟩
+    have hcod3 : denoteE s11.store cod3 = some (listApp P 2) :=
+      denote_view_app hd11 (denote_ext hl1 (hx10.trans hx11))
+        (denote_ext hb2 (hx10.trans hx11))
+    have hx511 : Ext s5.store s11.store :=
+      hx58.trans (hx9.trans (hx10.trans hx11))
+    have hx111 : Ext s1.store s11.store :=
+      hx2.trans (hx3.trans (hx4.trans (hx5.trans hx511)))
+    have hx011 : Ext s₀.store s11.store := hx1.trans hx111
+    have hp011 : s11.pins = s₀.pins := by
+      rw [hp11, hp10, hp9, hp8, hp7, hp6, hp5, hp4, hp3, hp2, hp1]
+    have hwf := hok11.state.wf
+    have hso' := denote_ext hso (hx5.trans hx511)
+    have hb0 : denoteE s11.store b0 = some (.bvar 0) :=
+      denote_ext (denote_view_bvar hd6) (hx7.trans (hx8.trans (hx9.trans
+        (hx10.trans hx11))))
+    have hdom3' := denote_ext hdom3 hx11
+    have hty' := denote_ext hty hx111
+    have hret : ∀ (b : Bool), b = ConLeche.listConsTyOk (some c) →
+        ⦃fun s => s = s11⦄ (pure b : AM Bool)
+        ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ r = ConLeche.listConsTyOk (some c); ⊤⦄ :=
+      fun b hb => triple_pureS ⟨hok11, hx011, hp011, hb⟩
+    obtain ⟨v, hv⟩ := denoteE_view hty'
+    refine tag_view_bind_triple hv ?_
+      (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
+    cases v
+    case forallE d1 r1 =>
+      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf hv hty'
+      have hpure := listConsTyOk_forallE hP hT
+      dsimp only
+      rw [bne, beq_of_denoteE hwf hD hso']
+      by_cases hDe : (D == typeAt P) = true
+      · rw [hDe]
+        simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+        rw [hDe, Bool.true_and] at hpure
+        obtain ⟨vr, hvr⟩ := denoteE_view hR
+        refine tag_view_bind_triple hvr ?_
+          (fun hne => by cases vr <;> first | rfl | exact absurd rfl hne)
+        cases vr
+        case forallE d2 r2 =>
+          obtain ⟨D2, R2, rfl, hD2, hR2⟩ := denote_forallE_inv hwf hvr hR
+          dsimp only
+          rw [bne, beq_of_denoteE hwf hD2 hb0]
+          by_cases hD2e : (D2 == .bvar 0) = true
+          · rw [hD2e]
+            simp only [Bool.not_true, Bool.false_eq_true, ite_false]
+            have hpure2 : ConLeche.listConsTyOk (some c) = listConsR2 P R2 := by
+              rw [hpure]; simp [listConsR, hD2e]
+            obtain ⟨vr2, hvr2⟩ := denoteE_view hR2
+            refine tag_view_bind_triple hvr2 ?_
+              (fun hne => by cases vr2 <;> first | rfl | exact absurd rfl hne)
+            cases vr2
+            case forallE d3 c3 =>
+              obtain ⟨D3, C3, rfl, hD3, hC3⟩ := denote_forallE_inv hwf hvr2 hR2
+              dsimp only
+              refine hret _ ?_
+              rw [hpure2, beq_of_denoteE hwf hD3 hdom3',
+                beq_of_denoteE hwf hC3 hcod3]
+              rfl
+            all_goals
+              dsimp only
+              exact hret _ (by
+                rw [hpure2, listConsR2_of_not (denote_not_forallE hwf hvr2 hR2
+                  (fun _ _ h => nomatch h))])
+          · have hf : (D2 == .bvar 0) = false := by simpa using hD2e
+            rw [hf]
+            simp only [Bool.not_false, ite_true]
+            exact hret _ (by rw [hpure]; simp [listConsR, hf])
+        all_goals
+          dsimp only
+          exact hret _ (by
+            rw [hpure, listConsR_of_not (denote_not_forallE hwf hvr hR
+              (fun _ _ h => nomatch h))])
+      · have hf : (D == typeAt P) = false := by simpa using hDe
+        rw [hf]
+        simp only [Bool.not_false, ite_true]
+        exact hret _ (by rw [hpure, hf]; rfl)
+    all_goals
+      dsimp only
+      exact hret _ (listNilConsTyOk_not_forallE hP
+        (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).2.symm
 /-! ## 5. The two function shapes: `Char.ofNat` and `String.ofList` -/
 
 /-- con-leche: none — `constE_spec` in ANSWER shape: the name handle comes
@@ -715,54 +912,50 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    have hce := fun (s : AState) (n : NIdx) =>
-      constE_spec' (mode := mode) (env := env) (fe := fe) s n
-    vcgen [ConRon.Arena.charOfNatTyOk, ConRon.Arena.pinNat,
-      ConRon.Arena.pinChar, htc, hce]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc1 =>
-      rename_i s1 s0 hne ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      refine ⟨ck_s0, x_s1_s0, p_s0_s1, ?_⟩
-      rw [isEmpty_of_denoteNList hlps] at hne
-      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hne
-      exact (fnTyOks_not_empty (by simpa using hne)).1.symm
-    case vc10 =>
-      rename_i s1 s0 hneg0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      exact ck_s0.pins
-    case vc8 =>
-      rename_i s1 hneg0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
-      exact ck_s0
-    case vc9 =>
-      rename_i s1 hneg0 s0 hlps ck_s0 hpin d_r1_type_s0 x_s1_s0 p_s0_s1
-      exact ⟨_, hpin _ rfl⟩
-    case vc7 =>
-      rename_i s2 hneg0 s1 s0 ck_s0 x_s1_s0 p_s0_s1 _ hlps ck_s1 hpin d_r2_type_s1 x_s2_s1
-        p_s1_s2
-      exact ck_s0.pins
-    case vc5 =>
-      rename_i s2 hneg0 s1 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1 p_s1_s2 ck_s0 hpin_2
-        x_s1_s0 p_s0_s1 _
-      exact ck_s0
-    case vc6 =>
-      rename_i s2 hneg0 s1 s0 hlps ck_s1 hpin d_r3_type_s1 x_s2_s1 p_s1_s2 ck_s0 hpin_2
-        x_s1_s0 p_s0_s1 _
-      exact ⟨_, hpin_2 _ rfl⟩
-    case vc2 =>
-      sorry
-    case vc3 =>
-      rename_i s3 hneg0 s2 s1 s0 x1 hnot0 hlps ck_s2 hpin d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1
-        hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0 x_s1_s0 p_s0_s1 hc2 v_r4_type_s0
-      have x20 := x_s2_s1.trans x_s1_s0
-      refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
-      exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf v_r4_type_s0
-        (denote_ext d_r4_type_s2 x20) hnot0)).1.symm
-
-    -- round 4: the type does not carry the `forallE` TAG
-    case vc4 =>
-      sorry
+    simp only [ConRon.Arena.charOfNatTyOk]
+    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
+    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hemp := isEmpty_of_denoteNList hlp
+    by_cases hne : (!cv.levelParams.isEmpty) = true
+    · rw [ite_eq_left hne]
+      rw [hemp] at hne
+      exact triple_pureS ⟨hok1, hx1, hp1,
+        (fnTyOks_not_empty (by simpa using hne)).1.symm⟩
+    rw [ite_eq_right hne]
+    have hl : c.toConstantVal.levelParams.isEmpty = true := by
+      rw [← hemp]; simpa using hne
+    simp only [ConRon.Arena.pinNat, ConRon.Arena.pinChar]
+    refine triple_seq (pinAt_okS s1 _ hok1) ?_
+    rintro nt s2 ⟨hs2, hnt⟩
+    subst s2
+    refine triple_seq (constE_spec' s1 nt hok1 ⟨_, hnt _ rfl⟩) ?_
+    rintro nc s2 ⟨hok2, hx2, hp2, hnc⟩
+    refine triple_seq (pinAt_okS s2 _ hok2) ?_
+    rintro ch s3 ⟨hs3, hch⟩
+    subst s3
+    refine triple_seq (constE_spec' s2 ch hok2 ⟨_, hch _ rfl⟩) ?_
+    rintro cc s3 ⟨hok3, hx3, hp3, hcc⟩
+    have hwf := hok3.state.wf
+    have hx13 := hx2.trans hx3
+    have hx03 : Ext s₀.store s3.store := hx1.trans hx13
+    have hp03 : s3.pins = s₀.pins := by rw [hp3, hp2, hp1]
+    have hnc' := denote_ext (hnc _ (hnt _ rfl)) hx3
+    have hcc' := hcc _ (hch _ rfl)
+    have hty' := denote_ext hty hx13
+    obtain ⟨v, hv⟩ := denoteE_view hty'
+    refine tag_view_bind_triple hv ?_
+      (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
+    cases v
+    case forallE d b =>
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf hv hty'
+      dsimp only
+      refine triple_pureS ⟨hok3, hx03, hp03, ?_⟩
+      rw [beq_of_denoteE hwf hD hnc', beq_of_denoteE hwf hB hcc',
+        charOfNatTyOk_forallE hl hT]
+    all_goals
+      dsimp only
+      exact triple_pureS ⟨hok3, hx03, hp03, (fnTyOks_not_forallE
+        (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).1.symm⟩
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-383 stringOfListTyOk — in
 the twin's order, at a level-monomorphic constant whose type is a `∀`. -/
 theorem stringOfListTyOk_forallE {c : ConstantInfo} {D B : Expr} (hl : c.toConstantVal.levelParams.isEmpty = true)
@@ -796,63 +989,78 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
     all_goals (bridge_peel; subst_vars; exact ⟨hok, Ext.refl _, rfl, rfl⟩)
   | some ci =>
     obtain ⟨c, hci, rfl⟩ := hrel
-    have htc := toConstantVal_spec (mode := mode) (env := env) (fe := fe)
-      s₀ ci c hok hci
-    have hce := fun (s : AState) (n : NIdx) =>
-      constE_spec' (mode := mode) (env := env) (fe := fe) s n
-    vcgen [ConRon.Arena.stringOfListTyOk, ConRon.Arena.zeroLevel,
-      ConRon.Arena.pinList, ConRon.Arena.pinChar, ConRon.Arena.pinString,
-      htc, hce]
-    all_goals (bridge_peel; subst_vars)
-    all_goals clear_tag_hyps
-    case vc1 =>
-      rename_i s1 s0 hne ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      refine ⟨ck_s0, x_s1_s0, p_s0_s1, ?_⟩
-      rw [isEmpty_of_denoteNList hlps] at hne
-      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hne
-      exact (fnTyOks_not_empty (by simpa using hne)).2.symm
-    case vc18 =>
-      rename_i s1 s0 hneg0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps
-      exact ck_s0.pins
-    case vc17 =>
-      rename_i dl_r0_s0 _ _ _
+    simp only [ConRon.Arena.stringOfListTyOk]
+    refine triple_seq (toConstantVal_spec s₀ ci c hok hci) ?_
+    rintro cv s1 ⟨hok1, hx1, hp1, hlp, hty⟩
+    have hemp := isEmpty_of_denoteNList hlp
+    by_cases hne : (!cv.levelParams.isEmpty) = true
+    · rw [ite_eq_left hne]
+      rw [hemp] at hne
+      exact triple_pureS ⟨hok1, hx1, hp1,
+        (fnTyOks_not_empty (by simpa using hne)).2.symm⟩
+    rw [ite_eq_right hne]
+    have hl : c.toConstantVal.levelParams.isEmpty = true := by
+      rw [← hemp]; simpa using hne
+    unfold ConRon.Arena.zeroLevel
+    simp only [ConRon.Arena.pinList, ConRon.Arena.pinChar, ConRon.Arena.pinString]
+    refine triple_seq (pinZeroLevel_spec s1 hok1.pins) ?_
+    rintro z s2 ⟨hs2, hz⟩
+    subst s2
+    refine triple_seq (internLsNode_okS s1 [z] hok1 (by
       intro c hc
       simp only [List.mem_singleton] at hc; subst hc
-      exact lview_isSome_of_denote dl_r0_s0
-    case vc15 =>
-      rename_i s2 hneg0 s1 s0 wf_s0 x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r0_s0 dls_r0_s0 hlps
-        ck_s1 dl_r1_s1 d_r2_type_s1 x_s2_s1 p_s1_s2
-      exact ck_s1.pins.mono x_s1_s0 p_s0_s1
-    case vc14 =>
-      rename_i s2 hneg0 s1 s0 hlps ck_s1 dl_r2_s1 d_r3_type_s1 x_s2_s1 p_s1_s2 wf_s0 hpin
-        x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
-      exact viewOK_const (nview_isSome_of_denote (hpin _ rfl))
-        (by rw [vls_r1_s0]; rfl)
-    case vc12 =>
-      sorry
-    case vc10 =>
-      sorry
-    case vc11 =>
-      sorry
-    case vc9 =>
-      sorry
-    case vc7 =>
-      sorry
-    case vc5 =>
-      sorry
-    case vc6 =>
-      sorry
-    case vc2 =>
-      sorry
-    case vc3 =>
-      sorry
-    -- round 4: the type does not carry the `forallE` TAG
-    case vc4 =>
-      sorry
-    all_goals first
-      | assumption
-      | (apply CheckOK.wf'; assumption)
-
+      exact lview_isSome_of_denote hz)) ?_
+    rintro zs s2 ⟨hok2, hx2, hp2, hvzs, hdzs⟩
+    have hzs : denoteLs s2.store.lss zs = some [.zero] :=
+      denoteLs_view_single hdzs (denoteL_ext hz hx2)
+    refine triple_seq (pinAt_okS s2 _ hok2) ?_
+    rintro li s3 ⟨hs3, hli⟩
+    subst s3
+    have hli' : denoteN s2.store.ns li = some ConLeche.listName := hli _ rfl
+    refine triple_seq (internE_okS s2 (.const li zs) hok2
+      (viewOK_const (nview_isSome_of_denote hli') (by rw [hvzs]; rfl))) ?_
+    rintro lc s3 ⟨hok3, hx3, hp3, _, hd3⟩
+    have hlc : denoteE s3.store lc = some (.const ConLeche.listName [.zero]) :=
+      denote_view_const hd3 (denoteN_ext hli' hx3) (denoteLs_ext hzs hx3)
+    refine triple_seq (pinAt_okS s3 _ hok3) ?_
+    rintro ch s4 ⟨hs4, hch⟩
+    subst s4
+    refine triple_seq (constE_spec' s3 ch hok3 ⟨_, hch _ rfl⟩) ?_
+    rintro cc s4 ⟨hok4, hx4, hp4, hcc⟩
+    have hcc' := hcc _ (hch _ rfl)
+    refine triple_seq (internE_okS s4 (.app lc cc) hok4
+      (viewOK_app (by rw [denote_ext hlc hx4]; rfl) (by rw [hcc']; rfl))) ?_
+    rintro dom s5 ⟨hok5, hx5, hp5, _, hd5⟩
+    have hdom : denoteE s5.store dom = some (.app (.const ConLeche.listName [.zero])
+        (.const ConLeche.charName [])) :=
+      denote_view_app hd5 (denote_ext hlc (hx4.trans hx5)) (denote_ext hcc' hx5)
+    refine triple_seq (pinAt_okS s5 _ hok5) ?_
+    rintro st s6 ⟨hs6, hst⟩
+    subst s6
+    refine triple_seq (constE_spec' s5 st hok5 ⟨_, hst _ rfl⟩) ?_
+    rintro sc s6 ⟨hok6, hx6, hp6, hsc⟩
+    have hsc' := hsc _ (hst _ rfl)
+    have hwf := hok6.state.wf
+    have hx16 : Ext s1.store s6.store :=
+      hx2.trans (hx3.trans (hx4.trans (hx5.trans hx6)))
+    have hx06 : Ext s₀.store s6.store := hx1.trans hx16
+    have hp06 : s6.pins = s₀.pins := by rw [hp6, hp5, hp4, hp3, hp2, hp1]
+    have hdom' := denote_ext hdom hx6
+    have hty' := denote_ext hty hx16
+    obtain ⟨v, hv⟩ := denoteE_view hty'
+    refine tag_view_bind_triple hv ?_
+      (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
+    cases v
+    case forallE d b =>
+      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf hv hty'
+      dsimp only
+      refine triple_pureS ⟨hok6, hx06, hp06, ?_⟩
+      rw [beq_of_denoteE hwf hD hdom', beq_of_denoteE hwf hB hsc',
+        stringOfListTyOk_forallE hl hT]
+    all_goals
+      dsimp only
+      exact triple_pureS ⟨hok6, hx06, hp06, (fnTyOks_not_forallE
+        (denote_not_forallE hwf hv hty' (fun _ _ h => nomatch h))).2.symm⟩
 /-! ## 6. `strLitSupported` -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:385-403 strLitSupported —

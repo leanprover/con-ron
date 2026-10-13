@@ -491,7 +491,129 @@ theorem iotaCertsFullAux_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
             Frontend.denoteEList s₀.store (args.toList.drop i) = some xs →
             SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d
               (tyx.instantiateList ws) xs) r; ⊤⦄ := by
-  sorry
+  have tpure : ∀ {s : AState} {v : Bool} {Q : Bool → AState → Prop}, Q v s →
+      ⦃fun s' => s' = s⦄ (pure v : AM Bool) ⦃fun r s' => Q r s'; ⊤⦄ := by
+    intro s v Q h
+    vcgen
+    subst_vars; exact h
+  intro k
+  induction k using Nat.strongRecOn with
+  | _ k ihk =>
+  intro m
+  induction m using Nat.strongRecOn with
+  | _ m ihm =>
+  intro h acc i s₀ hk hm hok hpre
+  obtain ⟨tyx, ws, xs, hh, hacc, hwty, hxs, hwxs⟩ := hpre
+  have hwf := hok.state.wf
+  -- the postcondition's three subjects are functional
+  suffices key : ⦃fun s => s = s₀⦄
+      ConRon.Arena.iotaCertsFullAux (coreKnot mode fe id fuel) fe d h acc args i
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        SimBOp (fun F => ConLeche.iotaCertsFullFueled mode env F d
+          (tyx.instantiateList ws) xs) r; ⊤⦄ by
+    refine triple_mono key ?_
+    rintro r s' ⟨h1, h2, h3, h4⟩
+    refine ⟨h1, h2, h3, fun tyx' ws' xs' e1 e2 e3 => ?_⟩
+    obtain rfl := Option.some.inj (e1.symm.trans hh)
+    obtain rfl := InstLVec.unique e2 hacc
+    obtain rfl := Option.some.inj (e3.symm.trans hxs)
+    exact h4
+  rw [ConRon.Arena.iotaCertsFullAux]
+  by_cases hi : i < args.size
+  · rw [dite_eq_left hi]
+    obtain ⟨x, xs', rfl, hx, hxs'⟩ := denoteEList_drop_cons hi hxs
+    have hwx : Expr.WScoped d x := hwxs x (by simp)
+    have hwxs' : ∀ z ∈ xs', Expr.WScoped d z :=
+      fun z hz => hwxs z (by simp [hz])
+    obtain ⟨v, hv⟩ := denoteE_view hh
+    refine view_bind_triple hv ?_
+    cases v
+    case forallE ty b =>
+      obtain ⟨p, q, rfl, hp, hq⟩ := denote_forallE_inv hwf hv hh
+      rw [instantiateList_forallE]
+      simp only [instantiateList_forallE, Expr.WScoped] at hwty
+      dsimp only
+      refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ ty
+        acc 0 ws hok.state hacc (by rw [hp]; rfl)) ?_
+      rintro ty2 s1 ⟨hst1, hx1, hc1, hp1, _, hrel1⟩
+      have hok1 := hok.mono hst1 hx1 hc1 hp1
+      have hty2 : denoteE s1.store ty2 = some (p.instantiateList ws) :=
+        hrel1 _ hp
+      refine triple_seq (hsim.infer s1 d args[i] x hok1 (denote_ext hx hx1)
+        hwx) ?_
+      rintro ta s2 ⟨hok2, hx2, hp2, vta, hvta, hwvta, F1, hF1⟩
+      refine triple_seq (hsim.defeq s2 d ta ty2 vta _ hok2 hvta
+        (denote_ext hty2 hx2) hwvta hwty.1) ?_
+      rintro bb s3 ⟨hok3, hx3, hp3, F2, hF2⟩
+      have hx03 : Ext s₀.store s3.store := hx1.trans (hx2.trans hx3)
+      cases bb
+      · simp only [Bool.false_eq_true, ite_false]
+        exact tpure ⟨hok3, hx03, by rw [hp3, hp2, hp1], F1 + F2,
+          iotaCertsFullFueled_fail (ConLeche.inferTypeCore_mono (by omega) hF1)
+            (ConLeche.isDefEqCore_mono (by omega) hF2)⟩
+      · simp only [ite_true]
+        have hwq : Expr.WScoped d (q.instantiateList (x :: ws)) := by
+          rw [Expr.instantiateList_cons]
+          exact Expr.WScoped.instantiate1_gen hwx 0 hwty.2
+        refine triple_mono (ihk (args.size - (i + 1)) (by omega)
+          (acc.push args[i]).size b (acc.push args[i]) (i + 1) s3 rfl rfl hok3
+          ⟨q, x :: ws, xs', denote_ext hq hx03,
+            InstLVec.push (hacc.ext hx03) (denote_ext hx hx03), hwq,
+            denoteEList_ext hx03 _ _ hxs', hwxs'⟩) ?_
+        rintro r s4 ⟨hok4, hx4, hp4, hr⟩
+        obtain ⟨F3, hF3⟩ := hr q (x :: ws) xs' (denote_ext hq hx03)
+          (InstLVec.push (hacc.ext hx03) (denote_ext hx hx03))
+          (denoteEList_ext hx03 _ _ hxs')
+        refine ⟨hok4, hx03.trans hx4, by rw [hp4, hp3, hp2, hp1],
+          F1 + F2 + F3, ?_⟩
+        show ConLeche.iotaCertsFullFueled mode env _ d _ _ = _
+        rw [iotaCertsFullFueled_cert (ConLeche.inferTypeCore_mono (by omega) hF1)
+          (ConLeche.isDefEqCore_mono (by omega) hF2),
+          ← Expr.instantiateList_cons]
+        exact iotaCertsFullFueled_mono (by omega) hF3
+    case bvar k0 =>
+      dsimp only
+      by_cases hz : acc.size = 0
+      · rw [ite_eq_left hz]
+        have hws : ws = [] := by
+          have h0 : acc = #[] := Array.eq_empty_of_size_eq_zero hz
+          subst h0
+          exact InstLVec.unique hacc (InstLVec.empty _)
+        subst hws
+        refine tpure ⟨hok, Ext.refl _, rfl, 0, ?_⟩
+        rw [denote_bvar_inv hwf hv hh, ConLeche.Expr.instantiateList_nil]
+        exact iotaCertsFullFueled_notpi (by simp)
+      · rw [ite_eq_right hz]
+        refine triple_seq (ExprOps.instantiateListFast_spec coreWalkFuel s₀ h
+          acc 0 ws hok.state hacc (by rw [hh]; rfl)) ?_
+        rintro ty2 s1 ⟨hst1, hx1, hc1, hp1, _, hrel1⟩
+        have hok1 := hok.mono hst1 hx1 hc1 hp1
+        have hty2 : denoteE s1.store ty2 = some (tyx.instantiateList ws) :=
+          hrel1 _ hh
+        refine triple_mono (ihm 0 (by omega) ty2 #[] i s1 hk rfl hok1
+          ⟨_, [], x :: xs', hty2, InstLVec.empty _,
+            by rw [ConLeche.Expr.instantiateList_nil]; exact hwty,
+            denoteEList_ext hx1 _ _ hxs, hwxs⟩) ?_
+        rintro r s4 ⟨hok4, hx4, hp4, hr⟩
+        refine ⟨hok4, hx1.trans hx4, by rw [hp4, hp1], ?_⟩
+        have := hr _ [] (x :: xs') hty2 (InstLVec.empty _)
+          (denoteEList_ext hx1 _ _ hxs)
+        rwa [ConLeche.Expr.instantiateList_nil] at this
+    all_goals
+      dsimp only
+      obtain ⟨hne, hnb⟩ := denote_not_forallE_bvar hwf hv hh
+        (fun _ _ h => nomatch h) (fun _ h => nomatch h)
+      exact tpure ⟨hok, Ext.refl _, rfl, 0,
+        iotaCertsFullFueled_notpi (instantiateList_not_forallE hne hnb)⟩
+  · rw [dite_eq_right hi]
+    have hnil : xs = [] := by
+      have h0 : args.toList.drop i = [] :=
+        List.drop_eq_nil_of_le (by simp; omega)
+      rw [h0] at hxs
+      exact denoteEList_nil_inv hxs
+    subst hnil
+    exact tpure ⟨hok, Ext.refl _, rfl, 0, iotaCertsFullFueled_nil⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:251-259 iotaCertsFull — **THEOREM 1
 for `iotaCertsFull`**, the empty-accumulator entry of `iotaCertsFullAux_go`,
@@ -662,7 +784,7 @@ theorem teleArityOk_spec (s₀ : AState) (hwf : StoreWF s₀.store) (ty : EIdx)
   vcgen
   subst_vars
   refine ⟨rfl, ?_⟩
-  simp only [ConLeche.teleArityOk, ← hlen]
+  simp only [ConLeche.teleArityOk]
   cases o <;> cases hp : Expr.peelPis args.length T <;>
     simp_all [denoteEO]
 

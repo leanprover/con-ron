@@ -31,6 +31,7 @@ is what every body theorem of this tier already has in hand
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.Reserved
 import ConRon.Bridge.Core.Walks.Eta
+import ConRon.Bridge.ExprOps.Walks
 
 namespace ConRon.Bridge.Core
 
@@ -545,8 +546,8 @@ parameters (`defEqList_spec`), the TT-lane synthetic spine (`constTyAt_spec`,
 `defEqList_spec`).  The pure side is `structEtaCertWith_exits`, one
 statement per exit over `structEtaCertWith_tail`; the do elaborator's
 copied join points are put back by `triple_ite_seq`. -/
-theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
+theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b wtb : EIdx) (x y w : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) (hdw : denoteE s₀.store wtb = some w)
@@ -558,7 +559,195 @@ theorem structEtaCertWith_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₀.pins ∧
         SimBOp (fun F => ConLeche.structEtaCertWithFueled mode env F d x y w)
           r; ⊤⦄ := by
-  sorry
+  have hwf := hok.state.wf
+  obtain ⟨rk, hrk⟩ := hok.state.wf
+  unfold ConRon.Arena.structEtaCertWith
+  -- stage 1: the candidate's head
+  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ a hok.state
+    (by rw [hda]; rfl)) ?_
+  rintro hd s1 ⟨hs1, hrelF⟩
+  subst s1
+  have hdd : denoteE s₀.store hd = some x.getAppFn := hrelF x hda
+  obtain ⟨vh, hvh⟩ := denoteE_view hdd
+  refine tag_view_bind_triple hvh ?_
+    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
+  cases vh
+  case const c us =>
+    obtain ⟨cn, ls, hgf, hcn, hus⟩ := denote_const_inv hwf hvh hdd
+    dsimp only
+    split
+    next icvc cnP cnF hfdc =>
+      obtain ⟨dcvc, hdcvc, hfindc⟩ := env_ctor_of_index hok hcn hfdc
+      -- stage 2: its arguments
+      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ a hok.state
+        (by rw [hda]; rfl)) ?_
+      rintro aargs s2 ⟨hs2, hrelA⟩
+      subst s2
+      have haargs : Frontend.denoteEList s₀.store aargs = some x.getAppArgs :=
+        hrelA x hda
+      have hlenEq : x.getAppArgs.length = aargs.length := denoteEList_len haargs
+      by_cases hlenT : aargs.length = cnP + cnF
+      · rw [ite_eq_left hlenT]
+        have hlenP : x.getAppArgs.length = cnP + cnF := hlenEq ▸ hlenT
+        -- stage 3: the stuck side's type's head
+        refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s₀ wtb hok.state
+          (by rw [hdw]; rfl)) ?_
+        rintro hw' s3 ⟨hs3, hrelW⟩
+        subst s3
+        have hdw' : denoteE s₀.store hw' = some w.getAppFn := hrelW w hdw
+        obtain ⟨vw, hvw⟩ := denoteE_view hdw'
+        refine tag_view_bind_triple hvw ?_
+          (fun hne => by cases vw <;> first | rfl | exact absurd rfl hne)
+        cases vw
+        case const T us' =>
+          obtain ⟨Tn, ls', hgw, hTn, hus'⟩ := denote_const_inv hwf hvw hdw'
+          dsimp only
+          split
+          next icvT icaps hfdT =>
+            obtain ⟨dcvT, dcaps, hdcvT, hdcaps, hfindT⟩ :=
+              env_ind_of_index hok hTn hfdT
+            have hcapsD : ∃ ct als cts, denoteN s₀.store.ns icaps.etaCtor = some ct ∧
+                dcaps = ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
+                  icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
+                  als, icaps.nparams, cts⟩ := by
+              simp only [Frontend.denoteCaps] at hdcaps
+              split at hdcaps
+              · rename_i ct als cts hct _ _
+                exact ⟨ct, als, cts, hct, (Option.some.inj hdcaps).symm⟩
+              · simp at hdcaps
+            obtain ⟨ct, als, cts, hct, rfl⟩ := hcapsD
+            -- stage 4: the type's arguments, the reserved names, the levels
+            refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s₀ wtb
+              hok.state (by rw [hdw]; rfl)) ?_
+            rintro targs s4 ⟨hs4, hrelT⟩
+            subst s4
+            have htargs : Frontend.denoteEList s₀.store targs = some w.getAppArgs :=
+              hrelT w hdw
+            refine triple_seq (reservedBasisNames_spec s₀ hok) ?_
+            rintro res s5 ⟨hok5, hx5, hp5, hres⟩
+            have hwf5 := hok5.state.wf
+            refine triple_seq (viewLsLen_spec s5 us') ?_
+            rintro ol s6 ⟨hs6, hol⟩
+            subst s6
+            rw [viewLen_of_denoteLs (denoteLs_ext hus' hx5)] at hol
+            subst hol
+            dsimp only
+            -- stage 5: the slot discipline
+            refine triple_seq (towerSlotsAll_spec s5 T Tn icaps.etaFields hok5
+              (denoteN_ext hTn hx5)) ?_
+            rintro slots s7 ⟨hok7, hx6, hp6, hslots⟩
+            have hx07 : Ext s₀.store s7.store := hx5.trans hx6
+            have hp07 : s7.pins = s₀.pins := hp6.trans hp5
+            obtain ⟨_, hlpsC, _⟩ := denoteCV_inv hdcvc
+            obtain ⟨_, hlpsT, _⟩ := denoteCV_inv hdcvT
+            have hctr : icaps.etaCtor = c ↔ ct = cn :=
+              ⟨fun h => by subst h; exact Option.some.inj (hct.symm.trans hcn),
+               fun h => by subst h; exact denoteN_inj hrk.nsWF hct hcn⟩
+            have hguard : (icaps.eta = true ∧ icaps.etaCtor = c ∧
+                res.contains T = false ∧ res.contains c = false ∧
+                targs.length = icaps.etaParams ∧
+                ls'.length = icvT.levelParams.length ∧
+                icvc.levelParams = icvT.levelParams ∧ slots = true) ↔
+                EtaGuard env w cn Tn ls' dcvc dcvT
+                  ⟨icaps.eta, ct, icaps.etaParams, icaps.etaFields,
+                    icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
+                    als, icaps.nparams, cts⟩ := by
+              unfold EtaGuard
+              rw [hctr, denoteNList_containsC hwf5 res _ hres T Tn
+                  (denoteN_ext hTn hx5),
+                denoteNList_containsC hwf5 res _ hres c cn (denoteN_ext hcn hx5),
+                ← denoteEList_len htargs, denoteNList_len hlpsT,
+                denoteNList_eq_iff hwf hlpsC hlpsT, hslots]
+            have hwx : ∀ z ∈ x.getAppArgs, Expr.WScoped d z :=
+              Expr.WScoped.getAppArgs hwa
+            have hwtargs : ∀ z ∈ w.getAppArgs, Expr.WScoped d z :=
+              Expr.WScoped.getAppArgs hww
+            refine triple_ite (fun hgT => ?_) (fun hgF => ?_)
+            · have hgP := hguard.mp hgT
+              have hEx := fun F => structEtaCertWith_exits (mode := mode) (F := F)
+                (d := d) (y := y) hgf hfindc hlenP hgw hfindT hgP
+              -- stage 6: the two level lists
+              refine triple_seq (lvlsEq?_spec s7 us us' hok7) ?_
+              rintro q s8 ⟨hok8, hst8, hp8, lus, lvs, hlus, hlvs, hq⟩
+              rw [denoteLs_ext hus hx07] at hlus
+              rw [denoteLs_ext hus' hx07] at hlvs
+              obtain rfl := Option.some.inj hlus
+              obtain rfl := Option.some.inj hlvs
+              refine triple_seq (liftFueled_spec s8 _ q) ?_
+              rintro okL s9 ⟨hs9, hokL⟩
+              subst s9
+              have hlv : Level.isEquivList ls ls' = some okL := hq ▸ hokL
+              have hx08 : Ext s₀.store s8.store := by rw [hst8]; exact hx07
+              have hp08 : s8.pins = s₀.pins := hp8.trans hp07
+              refine triple_ite (fun hokT => ?_) (fun hokF => ?_)
+              · have hokL' : okL = true := hokT
+                subst hokL'
+                -- stage 7: the parameters agree
+                have haargs8 := denoteEList_ext hx08 _ _
+                  (ExprOps.denoteEList_take icaps.etaParams aargs _ haargs)
+                refine triple_seq (defEqList_spec hsim s8 d
+                  (aargs.take icaps.etaParams) targs _ _ hok8 haargs8
+                  (denoteEList_ext hx08 _ _ htargs)
+                  (fun z hz => hwx z (List.mem_of_mem_take hz)) hwtargs) ?_
+                rintro dq s10 ⟨hok10, hx10, hp10, F3, hF3⟩
+                have hx010 := hx08.trans hx10
+                have hp010 : s10.pins = s₀.pins := hp10.trans hp08
+                refine triple_ite (fun hdT => ?_) (fun hdF => ?_)
+                · have hdq : dq = true := hdT
+                  subst hdq
+                  -- stage 8: the fabricated fields agree
+                  refine triple_seq (etaProjs_spec s10 T b icaps.etaFields Tn y
+                    hok10 (denoteN_ext hTn hx010) (denote_ext hdb hx010)) ?_
+                  rintro projs s11 ⟨hok11, hx11, hp11, hprojs⟩
+                  have hx011 := hx010.trans hx11
+                  refine triple_mono (defEqList_spec hsim s11 d
+                    (aargs.drop icaps.etaParams) projs _ _ hok11
+                    (denoteEList_ext hx011 _ _
+                      (ExprOps.denoteEList_drop icaps.etaParams aargs _ haargs))
+                    hprojs (fun z hz => hwx z (List.mem_of_mem_drop hz))
+                    (etaProjs_WScoped hwb)) ?_
+                  rintro r s12 ⟨hok12, hx12, hp12, F5, hF5⟩
+                  refine ⟨hok12, hx011.trans hx12,
+                    hp12.trans (hp11.trans hp010), F3 + F5, ?_⟩
+                  exact (((hEx (F3 + F5)).2 hlv true
+                    (defEqListFueled_mono (by omega) hF3)).2 rfl r
+                    (defEqListFueled_mono (by omega) hF5))
+                · have hdq : dq = false := by simpa using hdF
+                  subst hdq
+                  exact triple_pureC ⟨hok10, hx010, hp010, F3,
+                    (((hEx F3).2 hlv false hF3).1 rfl)⟩
+              · have hokL' : okL = false := by simpa using hokF
+                subst hokL'
+                exact triple_pureC ⟨hok8, hx08, hp08, 0, (hEx 0).1 hlv⟩
+            · exact triple_pureC ⟨hok7, hx07, hp07, 0,
+                structEtaCertWith_guard hgf hfindc hlenP hgw hfindT
+                  (fun h => hgF (hguard.mpr h))⟩
+          next hnd =>
+            have hnf := env_not_ind_of_index hok hTn (fun v c h => hnd v c h)
+            have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+                .ok false := structEtaCertWith_noind hgf hfindc hlenP hgw hnf
+            exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
+        all_goals
+          have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+              .ok false := structEtaCertWith_nohead_w hgf hfindc hlenP
+                (denote_not_const hwf hvw hdw' (by intro c us h; cases h))
+          dsimp only
+          exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
+      · rw [ite_eq_right hlenT]
+        have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+            .ok false := structEtaCertWith_len hgf hfindc (by rw [hlenEq]; exact hlenT)
+        exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
+    next hnd =>
+      have hnc := env_not_ctor_of_index hok hcn (fun v p q h => hnd v p q h)
+      have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+          .ok false := structEtaCertWith_noctor hgf hnc
+      exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
+  all_goals
+    have hres : ConLeche.structEtaCertWithFueled mode env 0 d x y w =
+        .ok false := structEtaCertWith_nohead
+          (denote_not_const hwf hvh hdd (by intro c us h; cases h))
+    dsimp only
+    exact triple_pureC ⟨hok, Ext.refl _, rfl, 0, hres⟩
 
 /-! ## 2. The three children -/
 
@@ -629,8 +818,8 @@ gate is where `hμ` is spent, and **`EnvWF env` is a second added
 precondition**: `iotaCerts_spec` needs the instantiated stored type
 well-scoped, which is con-leche's `const_ty_hasFvar` — whose hypothesis is
 `EnvWF` (the same repair round 4 made to `projCert_spec`). -/
-theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
+theorem structUnitCert_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
+    (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y)
@@ -704,7 +893,45 @@ theorem structUnitCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
           hcaps.1, hcaps.2, ← denoteEList_len hargs, denoteNList_len hlps]
       split
       next hg =>
-        sorry
+        have hgP := hguard.mp hg
+        have hx05 := hx02.trans hx5
+        have hp05 : s5.pins = s₀.pins := hp5.trans hp02
+        -- stage 4: `b`'s io-grade type, head-normalised
+        refine triple_seq (hsim.inferIO s5 d b y hok5 (denote_ext hdb hx05)
+          hwb) ?_
+        rintro tb s6 ⟨hok6, hx6, hp6, vtb, hvtb, hwvtb, F3, hF3⟩
+        refine triple_seq (hsim.whnf s6 d tb vtb hok6 hvtb hwvtb) ?_
+        rintro wtb s7 ⟨hok7, hx7, hp7, vwtb, hvwtb, hwvwtb, F4, hF4⟩
+        have hx07 := hx05.trans (hx6.trans hx7)
+        have hp07 : s7.pins = s₀.pins := hp7.trans (hp6.trans hp05)
+        have hG : ∀ G, F1 + F2 + F3 + F4 ≤ G →
+            ConLeche.inferTypeIO mode env G d x = .ok vta ∧
+            ConLeche.whnf mode env G d vta = .ok vwta ∧
+            ConLeche.inferTypeIO mode env G d y = .ok vtb ∧
+            ConLeche.whnf mode env G d vtb = .ok vwtb := fun G hle =>
+          ⟨hA G (by omega), hB G (by omega),
+            ConLeche.inferTypeIO_mono (by omega) hF3,
+            ConLeche.whnf_mono (by omega) hF4⟩
+        have hfa := ExprOps.isForallE_rel hok7.state.wf hvwtb
+        split
+        next hfT =>
+          refine triple_pureC ⟨hok7, hx07, hp07, F1 + F2 + F3 + F4, ?_⟩
+          obtain ⟨g1, g2, g3, g4⟩ := hG _ (Nat.le_refl _)
+          refine structUnitCert_cmp g1 g2 hgf hfind hgP g3 g4 ?_
+          rw [← hfa, hfT]; rfl
+        next hfF =>
+          refine triple_mono (hsim.defeq s7 d wta wtb vwta vwtb hok7
+            (denote_ext hvwta (hx5.trans (hx6.trans hx7))) hvwtb hwvwta
+            hwvwtb) ?_
+          rintro r s8 ⟨hok8, hx8, hp8, F5, hF5⟩
+          refine ⟨hok8, hx07.trans hx8, hp8.trans hp07,
+            F1 + F2 + F3 + F4 + F5, ?_⟩
+          obtain ⟨g1, g2, g3, g4⟩ := hG (F1 + F2 + F3 + F4 + F5) (by omega)
+          refine structUnitCert_cmp g1 g2 hgf hfind hgP g3 g4 ?_
+          have hnf : vwtb.isForallE = false := by
+            rw [← hfa]; simpa using hfF
+          rw [hnf]
+          exact ConLeche.isDefEqCore_mono (by omega) hF5
       next hg =>
         vcgen
         bridge_peel; subst_vars
