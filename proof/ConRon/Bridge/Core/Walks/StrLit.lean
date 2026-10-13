@@ -110,8 +110,8 @@ theorem toConstantVal_spec (s₀ : AState) (ci : IConstantInfo)
       all_goals (bridge_peel; subst_vars)
       all_goals clear_tag_hyps
       case vc1 =>
-        rename_i sA sB _ _ _ w3 x1 x2 x3 _ _ _ _ _ _ _ _ c3 _ _ p3 c1 c2 _ p1 p2 _ _ d1 _ d2
-          _ d3
+        rename_i _ sA sB _ _ _ w3 x1 x2 x3 _ _ _ _ _ _ _ _ c3 _ _ p3 c1 c2 _ p1 p2 _ d3 _ d1
+          _ d2
         have h0 : denoteL sA.store.ls z = some Level.zero := by
           rw [d1]; simp [denoteLView]
         have h1 : denoteL sB.store.ls one = some (Level.succ .zero) := by
@@ -238,11 +238,11 @@ theorem listTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
 not a `∀`. -/
 theorem listTyOk_not_forallE {c : ConstantInfo} {P : ConLeche.Name}
     (hl : c.toConstantVal.levelParams = [P])
-    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B) :
+    (ht : ∀ D B, c.toConstantVal.type ≠ .forallE D B) :
     ConLeche.listTyOk (some c) = false := by
   simp only [ConLeche.listTyOk, hl]
   split
-  · rename_i u1 u2 mb heq; exact absurd heq (ht _ _ _)
+  · rename_i u1 u2 heq; exact absurd heq (ht _ _)
   · rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:317-343 — the three `List`
@@ -282,17 +282,17 @@ theorem listNilTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
 `List.cons` guards at a one-parameter constant whose type is not a `∀`. -/
 theorem listNilConsTyOk_not_forallE {c : ConstantInfo} {P : ConLeche.Name}
     (hl : c.toConstantVal.levelParams = [P])
-    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B) :
+    (ht : ∀ D B, c.toConstantVal.type ≠ .forallE D B) :
     ConLeche.listNilTyOk (some c) = false ∧
       ConLeche.listConsTyOk (some c) = false := by
   refine ⟨?_, ?_⟩
   · simp only [ConLeche.listNilTyOk, hl]
     split
-    · rename_i heq; exact absurd heq (ht _ _ _)
+    · rename_i heq; exact absurd heq (ht _ _)
     · rfl
   · simp only [ConLeche.listConsTyOk, hl]
     split
-    · rename_i heq; exact absurd heq (ht _ _ _)
+    · rename_i heq; exact absurd heq (ht _ _)
     · rfl
 
 /-! ### Interning the comparands -/
@@ -362,49 +362,13 @@ theorem listTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         p_s2_s3 hlps
       exact viewOK_sort (by rw [vl_r0_s0]; rfl)
     case vc1 =>
-      rename_i s4 s3 p0 hsingle s2 s1 s0 dom0 body0 mb0 ck_s3 wf_s2 wf_s1 x_s3_s2 x_s2_s1 _
-        _ d_r3_type_s3 _ _ _ _ _ _ c_s2_s3 c_s1_s2 p_s2_s3 p_s1_s2 vl_r2_s2 dl_r2_s2
-        vl_r1_s1 dl_r1_s1 x_s4_s3 p_s3_s4 hlps wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0
-        d_r0_s0 v_r3_type_s0
-      have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
-      refine ⟨ck_s3.mono ⟨wf_s0⟩ x30 (c_s0_s1.trans (c_s1_s2.trans c_s2_s3))
-          (p_s0_s1.trans (p_s1_s2.trans p_s2_s3)), x_s4_s3.trans x30,
-        p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)), ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      obtain ⟨D, B, hT, hD, hB⟩ :=
-        denote_forallE_inv wf_s0 v_r3_type_s0 (denote_ext d_r3_type_s3 x30)
-      have hso := denote_typeAt (denoteN_ext hdp (x_s4_s3.trans x_s3_s2))
-        dl_r2_s2 dl_r1_s1 d_r0_s0 x_s2_s1 x_s1_s0
-      rw [beq_of_denoteE wf_s0 hD hso, beq_of_denoteE wf_s0 hB hso,
-        listTyOk_forallE hP hT]
+      sorry
     case vc2 =>
-      rename_i s4 s3 p0 hsingle s2 s1 s0 x1 hnot0 ck_s3 wf_s2 wf_s1 x_s3_s2 x_s2_s1 _ _
-        d_r3_type_s3 _ _ _ _ _ _ c_s2_s3 c_s1_s2 p_s2_s3 p_s1_s2 vl_r2_s2 dl_r2_s2 vl_r1_s1
-        dl_r1_s1 x_s4_s3 p_s3_s4 hlps wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0
-        v_r3_type_s0
-      have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
-      refine ⟨ck_s3.mono ⟨wf_s0⟩ x30 (c_s0_s1.trans (c_s1_s2.trans c_s2_s3))
-          (p_s0_s1.trans (p_s1_s2.trans p_s2_s3)), x_s4_s3.trans x30,
-        p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)), ?_⟩
-      obtain ⟨P, hP, _⟩ := denoteNList_single (hsingle ▸ hlps)
-      exact (listTyOk_not_forallE hP (denote_not_forallE wf_s0 v_r3_type_s0
-        (denote_ext d_r3_type_s3 x30) hnot0)).symm
+      sorry
     -- the type does not carry the `forallE` TAG (task #97-P5-Core round 4's
     -- tag-first arm): its view comes back from its denotation
     case vc3 =>
-      rename_i s4 s3 p0 hsingle s2 s1 s0 htag ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2 x_s2_s1
-        x_s1_s0 _ _ _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3 c_s1_s2 _ p_s2_s3
-        p_s1_s2 _ _ _ _ _ _ _ x_s4_s3 p_s3_s4 hlps
-      have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
-      refine ⟨ck_s3.mono ⟨wf_s0⟩ x30 (c_s0_s1.trans (c_s1_s2.trans c_s2_s3))
-          (p_s0_s1.trans (p_s1_s2.trans p_s2_s3)), x_s4_s3.trans x30,
-        p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)), ?_⟩
-      obtain ⟨P, hP, _⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hd0 := denote_ext d_r3_type_s3 x30
-      obtain ⟨v, hv⟩ := denoteE_view hd0
-      exact (listTyOk_not_forallE hP (denote_not_forallE wf_s0 hv hd0
-        (fun ty b m hh => view_tagOf_ne hv (t := ETag.forallE) htag
-          (by rw [hh]; rfl)))).symm
+      sorry
     case vc10 =>
       rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
       exact ⟨ck_s0, x_s1_s0, p_s0_s1,
@@ -472,290 +436,37 @@ theorem listNilTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         p_s2_s3 hlps
       exact viewOK_sort (by rw [vl_r0_s0]; rfl)
     case vc13 =>
-      rename_i s4 s3 p0 hsingle s2 s1 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2 x_s2_s1 x_s1_s0 _ _
-        _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3 c_s1_s2 _ p_s2_s3 p_s1_s2 _
-        vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0 d_r0_s0 x_s4_s3 p_s3_s4 hlps
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hpl : denoteL s2.store.ls pl = some (.param P) := by
-        rw [dl_r2_s2]; simp only [denoteLView]
-        rw [show denoteN s2.store.ls.ns p0 = some P from
-          denoteN_ext hdp (x_s4_s3.trans x_s3_s2)]; rfl
-      intro c hc
-      simp only [List.mem_singleton] at hc; subst hc
-      exact lview_isSome_of_denote (denoteL_ext hpl (x_s2_s1.trans x_s1_s0))
+      sorry
     case vc11 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 ck_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s4_s3 x_s3_s2
-        x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _ c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4
-        c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _ p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2
-        v_r1_s1 d_r1_s1 vls_r0_s0 dls_r0_s0 x_s5_s4 p_s4_s5 hlps
-      exact ck_s4.pins.mono (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)))
+      sorry
     case vc1 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 dom0 body0 mb0 hbeq0 ck_s4 wf_s3 wf_s2 wf_s1
-        x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4
-        c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1
-        x_s5_s4 p_s4_s5 hlps wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
-        v_r5_type_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      rw [bne, hDb] at hbeq0
-      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
-      simp [hbeq0]
+      sorry
     case vc2 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 c0 us0 s0 ck_s4 wf_s3
-        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
-        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
-        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
-        dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0 v_a0_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      rw [bne, hDb] at hneg0
-      have hDe : D = typeAt P := by simpa using hneg0
-      subst hDe
-      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
-      obtain ⟨L, US, rfl, hL, hUS⟩ := denote_const_inv wf_s0 v_f20_s0 hF
-      obtain rfl := denote_bvar_inv wf_s0 v_a0_s0 hA
-      have hpl : denoteL s0.store.ls pl = some (.param P) := by
-        refine denoteL_ext ?_ (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-        rw [dl_r4_s3]; simp only [denoteLView]
-        rw [show denoteN s3.store.ls.ns p0 = some P from
-          denoteN_ext hdp (x_s5_s4.trans x_s4_s3)]; rfl
-      have hps : denoteLs s0.store.lss ps = some [.param P] := by
-        rw [dls_r1_s0]
-        simp [denoteLsView, denoteLList, opt2,
-          show denoteL s0.store.lss.ls pl = some (Level.param P) from hpl]
-      rw [beq_handle_eq wf_s0 hL (hpin _ rfl),
-        beq_of_denoteLs (StoreWF.lssWF' wf_s0) hUS hps]
-      simp [listNilCod]
+      sorry
     case vc3 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 c0 us0 s0 x1 hnb ck_s4
-        wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _
-        p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2
-        v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1
-        vls_r1_s0 dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0 v_a0_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
-      have hA0 := denote_ne_bvar0 wf_s0 v_a0_s0 hA hnb
-      rw [listNilCod_of_not (fun L US h => by cases h; exact hA0 rfl)]
-      simp
+      sorry
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
     case vc4 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 s0 c0 us0 htag ck_s4
-        wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _
-        p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2
-        v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1
-        vls_r1_s0 dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
-      obtain ⟨va, hva⟩ := denoteE_view hA
-      have hA0 := denote_ne_bvar0 wf_s0 hva hA (fun hh => view_tagOf_ne hva
-        (t := ETag.bvar) htag (by rw [hh]; rfl))
-      rw [listNilCod_of_not (fun L US h => by cases h; exact hA0 rfl)]
-      simp
+      sorry
     case vc5 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 f20 a0 s0 x1 hnot0 ck_s4 wf_s3
-        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
-        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
-        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
-        dls_r1_s0 v_r5_type_s0 v_body0_s0 v_f20_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
-      have hF0 := denote_not_const wf_s0 v_f20_s0 hF hnot0
-      rw [listNilCod_of_not (fun L US h => by cases h; exact hF0 L US rfl)]
-      simp
+      sorry
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
     case vc6 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 s0 f20 a0 htag ck_s4 wf_s3
-        wf_s2 wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
-        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
-        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 hpin x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
-        dls_r1_s0 v_r5_type_s0 v_body0_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      obtain ⟨F, A, rfl, hF, hA⟩ := denote_app_inv wf_s0 v_body0_s0 hB
-      obtain ⟨vf, hvf⟩ := denoteE_view hF
-      have hF0 := denote_not_const wf_s0 hvf hF (fun c us hh => view_tagOf_ne hvf
-        (t := ETag.const) htag (by rw [hh]; rfl))
-      rw [listNilCod_of_not (fun L US h => by cases h; exact hF0 L US rfl)]
-      simp
+      sorry
     case vc7 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 dom0 body0 mb0 hneg0 s0 x1 hnot0 ck_s4 wf_s3 wf_s2
-        wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
-        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
-        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
-        dls_r1_s0 v_r5_type_s0 v_body0_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      have hB0 := denote_not_app wf_s0 v_body0_s0 hB hnot0
-      rw [listNilCod_of_not (fun L US h => hB0 _ _ h)]
-      simp
+      sorry
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
     case vc8 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 dom0 body0 mb0 hneg0 htag ck_s4 wf_s3 wf_s2
-        wf_s1 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2
-        c_s3_s4 c_s2_s3 _ p_s3_s4 p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1
-        d_r2_s1 x_s5_s4 p_s4_s5 hlps wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0
-        dls_r1_s0 v_r5_type_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv wf_s0 v_r5_type_s0 hty0
-      have hDb := beq_of_denoteE wf_s0 hD hso
-      rw [listNilTyOk_forallE hP hT]
-      obtain ⟨vb, hvb⟩ := denoteE_view hB
-      have hB0 := denote_not_app wf_s0 hvb hB (fun f a hh => view_tagOf_ne hvb
-        (t := ETag.app) htag (by rw [hh]; rfl))
-      rw [listNilCod_of_not (fun L US h => hB0 _ _ h)]
-      simp
+      sorry
     case vc9 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 x1 hnot0 ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2
-        x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps
-        wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0 v_r5_type_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      exact (listNilConsTyOk_not_forallE hP
-        (denote_not_forallE wf_s0 v_r5_type_s0 hty0 hnot0)).1.symm
+      sorry
     -- round 4: the tag-first twin's `else` arm (the view comes back from the
     -- denotation, the tag says it is not the tested constructor)
     case vc10 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 htag ck_s4 wf_s3 wf_s2 wf_s1 x_s4_s3 x_s3_s2
-        x_s2_s1 _ _ _ d_r5_type_s4 _ _ _ _ _ c_s1_s2 _ _ p_s1_s2 c_s3_s4 c_s2_s3 _ p_s3_s4
-        p_s2_s3 _ vl_r4_s3 dl_r4_s3 vl_r3_s2 dl_r3_s2 v_r2_s1 d_r2_s1 x_s5_s4 p_s4_s5 hlps
-        wf_s0 _ x_s1_s0 _ _ _ _ c_s0_s1 p_s0_s1 vls_r1_s0 dls_r1_s0
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      refine ⟨ck_s4.mono ⟨wf_s0⟩ x40
-          (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans c_s3_s4)))
-          (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))),
-        x_s5_s4.trans x40,
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4))).trans p_s4_s5,
-        ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hty0 := denote_ext d_r5_type_s4 x40
-      have hso := denote_ext (denote_typeAt
-        (denoteN_ext hdp (x_s5_s4.trans x_s4_s3)) dl_r4_s3 dl_r3_s2 d_r2_s1
-        x_s3_s2 x_s2_s1) x_s1_s0
-      exact (listNilConsTyOk_not_forallE hP
-        (by
-          obtain ⟨vt, hvt⟩ := denoteE_view hty0
-          exact denote_not_forallE wf_s0 hvt hty0 (fun ty b m hh => view_tagOf_ne hvt
-            (t := ETag.forallE) htag (by rw [hh]; rfl)))).1.symm
+      sorry
     case vc20 =>
       rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
       exact ⟨ck_s0, x_s1_s0, p_s0_s1,
@@ -771,12 +482,12 @@ abbrev listApp (P : ConLeche.Name) (k : Nat) : Expr :=
 
 /-- con-leche: none — `listConsTyOk`'s innermost `∀`, in the twin's order. -/
 def listConsR2 (P : ConLeche.Name) : Expr → Bool
-  | .forallE D3 C3 _ => D3 == listApp P 1 && C3 == listApp P 2
+  | .forallE D3 C3 => D3 == listApp P 1 && C3 == listApp P 2
   | _ => false
 
 /-- con-leche: none — `listConsTyOk`'s middle `∀`, in the twin's order. -/
 def listConsR (P : ConLeche.Name) : Expr → Bool
-  | .forallE D2 R2 _ => D2 == .bvar 0 && listConsR2 P R2
+  | .forallE D2 R2 => D2 == .bvar 0 && listConsR2 P R2
   | _ => false
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:343-360 listConsTyOk — in the
@@ -789,12 +500,12 @@ theorem listConsTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
   simp only [ConLeche.listConsTyOk, hl, ht]
   cases D <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt]; done))
   cases R <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR]; done))
-  rename_i D2 R2 _
+  rename_i D2 R2
   cases D2 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR]; done))
   rename_i k
   cases k <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR]; done))
   cases R2 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
-  rename_i D3 C3 _
+  rename_i D3 C3
   cases D3 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
   rename_i F3 A3
   cases F3 <;> (try (rw [Bool.eq_iff_iff]; simp [typeAt, listConsR, listConsR2]; done))
@@ -808,16 +519,16 @@ theorem listConsTyOk_forallE {c : ConstantInfo} {P : ConLeche.Name}
 
 /-- con-leche: none — `listConsR` at a codomain that is not a `∀`. -/
 theorem listConsR_of_not {P : ConLeche.Name} {R : Expr}
-    (h : ∀ D B m, R ≠ .forallE D B) : listConsR P R = false := by
+    (h : ∀ D B, R ≠ .forallE D B) : listConsR P R = false := by
   unfold listConsR; split
-  · rename_i D B m; exact absurd rfl (h D B m)
+  · rename_i D B; exact absurd rfl (h D B)
   · rfl
 
 /-- con-leche: none — `listConsR2` at a codomain that is not a `∀`. -/
 theorem listConsR2_of_not {P : ConLeche.Name} {R : Expr}
-    (h : ∀ D B m, R ≠ .forallE D B) : listConsR2 P R = false := by
+    (h : ∀ D B, R ≠ .forallE D B) : listConsR2 P R = false := by
   unfold listConsR2; split
-  · rename_i D B m; exact absurd rfl (h D B m)
+  · rename_i D B; exact absurd rfl (h D B)
   · rfl
 
 /-! ### The interned comparands' denotations, one node at a time -/
@@ -892,416 +603,36 @@ theorem listConsTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         p_s2_s3 hlps
       exact viewOK_sort (by rw [vl_r0_s0]; rfl)
     case vc24 =>
-      rename_i s4 s3 p0 hsingle s2 s1 s0 ck_s3 wf_s2 wf_s1 wf_s0 x_s3_s2 x_s2_s1 x_s1_s0 _ _
-        _ d_r3_type_s3 _ _ _ _ _ c_s0_s1 _ _ p_s0_s1 c_s2_s3 c_s1_s2 _ p_s2_s3 p_s1_s2 _
-        vl_r2_s2 dl_r2_s2 vl_r1_s1 dl_r1_s1 v_r0_s0 d_r0_s0 x_s4_s3 p_s3_s4 hlps
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hpl := denoteL_view_param dl_r2_s2
-        (denoteN_ext hdp (x_s4_s3.trans x_s3_s2))
-      intro c hc
-      simp only [List.mem_singleton] at hc; subst hc
-      exact lview_isSome_of_denote (denoteL_ext hpl (x_s2_s1.trans x_s1_s0))
+      sorry
     case vc22 =>
-      rename_i s5 s4 p0 hsingle s3 s2 s1 s0 ck_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s4_s3 x_s3_s2
-        x_s2_s1 x_s1_s0 _ _ _ _ d_r4_type_s4 _ _ _ _ _ _ c_s1_s2 _ _ _ p_s1_s2 _ c_s3_s4
-        c_s2_s3 _ c_s0_s1 p_s3_s4 p_s2_s3 _ p_s0_s1 vl_r3_s3 dl_r3_s3 vl_r2_s2 dl_r2_s2
-        v_r1_s1 d_r1_s1 vls_r0_s0 dls_r0_s0 x_s5_s4 p_s4_s5 hlps
-      exact ck_s4.pins.mono (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
-        (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans p_s3_s4)))
+      sorry
     case vc15 =>
-      rename_i s8 s7 p0 hsingle s6 s5 s4 s3 s2 s1 s0 ck_s7 wf_s6 wf_s5 wf_s4 wf_s2 wf_s1
-        wf_s0 x_s7_s6 x_s6_s5 x_s5_s4 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ d_r8_type_s7 _ _ _
-        _ _ _ _ _ c_s4_s5 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s4_s5 p_s2_s3 p_s1_s2 p_s0_s1
-        c_s6_s7 c_s5_s6 _ _ _ _ p_s6_s7 p_s5_s6 _ _ _ _ vl_r7_s6 dl_r7_s6 vl_r6_s5 dl_r6_s5
-        v_r5_s4 d_r5_s4 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s8_s7 p_s7_s8 hlps
-        wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r4_s3 dls_r4_s3
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hpl := denoteL_view_param dl_r7_s6
-        (denoteN_ext hdp (x_s8_s7.trans x_s7_s6))
-      have hps := denoteLs_view_single dls_r4_s3
-        (denoteL_ext hpl (x_s6_s5.trans (x_s5_s4.trans x_s4_s3)))
-      have x30 := x_s3_s2.trans (x_s2_s1.trans x_s1_s0)
-      exact viewOK_const (nview_isSome_of_denote (denoteN_ext (hpin _ rfl) x30))
-        (lsview_isSome_of_denote (denoteLs_ext hps x30))
+      sorry
     case vc13 =>
-      rename_i s9 s8 p0 hsingle s7 s6 s5 s4 s3 s2 s1 s0 ck_s8 wf_s7 wf_s6 wf_s5 wf_s3 wf_s2
-        wf_s1 wf_s0 x_s8_s7 x_s7_s6 x_s6_s5 x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _
-        d_r9_type_s8 _ _ _ _ _ _ _ _ _ c_s5_s6 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s5_s6
-        p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s7_s8 c_s6_s7 _ _ _ _ _ p_s7_s8 p_s6_s7 _ _ _ _ _
-        vl_r8_s7 dl_r8_s7 vl_r7_s6 dl_r7_s6 v_r6_s5 d_r6_s5 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2
-        v_r1_s1 d_r1_s1 v_r0_s0 d_r0_s0 x_s9_s8 p_s8_s9 hlps wf_s4 hpin x_s5_s4 _ _ _ _
-        c_s4_s5 p_s4_s5 vls_r5_s4 dls_r5_s4
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hpl := denoteL_view_param dl_r8_s7
-        (denoteN_ext hdp (x_s9_s8.trans x_s8_s7))
-      have hps := denoteLs_view_single dls_r5_s4
-        (denoteL_ext hpl (x_s7_s6.trans (x_s6_s5.trans x_s5_s4)))
-      have x40 := x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))
-      have hl1 := denote_view_const d_r0_s0 (denoteN_ext (hpin _ rfl) x40)
-        (denoteLs_ext hps x40)
-      have hb1 := denote_ext (denote_view_bvar d_r2_s2) (x_s2_s1.trans x_s1_s0)
-      exact viewOK_app (by rw [hl1]; rfl) (by rw [hb1]; rfl)
+      sorry
     case vc11 =>
-      rename_i s10 s9 p0 hsingle s8 s7 s6 s5 s4 s3 s2 s1 s0 ck_s9 wf_s8 wf_s7 wf_s6 wf_s4
-        wf_s3 wf_s2 wf_s1 wf_s0 x_s9_s8 x_s8_s7 x_s7_s6 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1
-        x_s1_s0 _ _ _ _ _ _ _ _ d_r10_type_s9 _ _ _ _ _ _ _ _ _ _ c_s6_s7 c_s4_s5 c_s3_s4
-        c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s6_s7 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s8_s9
-        c_s7_s8 _ _ _ _ _ _ p_s8_s9 p_s7_s8 _ _ _ _ _ _ vl_r9_s8 dl_r9_s8 vl_r8_s7 dl_r8_s7
-        v_r7_s6 d_r7_s6 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        v_r0_s0 d_r0_s0 x_s10_s9 p_s9_s10 hlps wf_s5 hpin x_s6_s5 _ _ _ _ c_s5_s6 p_s5_s6
-        vls_r6_s5 dls_r6_s5
-      obtain ⟨P, _, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hpl := denoteL_view_param dl_r9_s8
-        (denoteN_ext hdp (x_s10_s9.trans x_s9_s8))
-      have hps := denoteLs_view_single dls_r6_s5
-        (denoteL_ext hpl (x_s8_s7.trans (x_s7_s6.trans x_s6_s5)))
-      have x51 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans x_s2_s1))
-      have hl1 := denote_view_const d_r1_s1 (denoteN_ext (hpin _ rfl) x51)
-        (denoteLs_ext hps x51)
-      exact viewOK_app (by rw [denote_ext hl1 x_s1_s0]; rfl)
-        (by rw [denote_ext (denote_view_bvar d_r2_s2) (x_s2_s1.trans x_s1_s0)]; rfl)
+      sorry
     case vc1 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 dom0 body0 mb0 hbeq0 ck_s10
-        wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5
-        x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _
-        c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4
-        p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9
-        dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3
-        d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6
-        _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _
-        v_r0_s0 d_r0_s0 v_r11_type_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      obtain ⟨D, R, hT, hD, _⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      rw [bne, beq_of_denoteE hwf0 hD hso] at hbeq0
-      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
-      rw [listConsTyOk_forallE hP hT]; simp [hbeq0]
+      sorry
     case vc2 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom1 body1 mb1 hneg0 s0 dom0
-        body0 mb0 hbeq0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9
-        x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
-        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
-        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
-        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
-        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
-        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
-        v_body1_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
-          x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
-      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
-        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
-      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
-        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
-      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      obtain ⟨D2, R2, rfl, hD2, _⟩ := denote_forallE_inv hwf0 v_body1_s0 hR
-      rw [bne, beq_of_denoteE hwf0 hD2 hb0] at hbeq0
-      simp only [Bool.not_eq_true', Bool.eq_false_iff] at hbeq0
-      rw [listConsTyOk_forallE hP hT]; simp [listConsR, hbeq0]
+      sorry
     case vc3 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom2 body2 mb2 hneg0 dom1 body1
-        mb1 hneg1 s0 dom0 body0 mb0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
-        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
-        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
-        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
-        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
-        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
-        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
-        v_body2_s0 v_body1_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
-          x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
-      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
-        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
-      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
-        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
-      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      obtain ⟨D2, R2, rfl, hD2, hR2⟩ := denote_forallE_inv hwf0 v_body2_s0 hR
-      obtain ⟨D3, C3, rfl, hD3, hC3⟩ := denote_forallE_inv hwf0 v_body1_s0 hR2
-      have hDe : D = typeAt P := by
-        rw [bne, beq_of_denoteE hwf0 hD hso] at hneg0; simpa using hneg0
-      have hD2e : D2 = .bvar 0 := by
-        rw [bne, beq_of_denoteE hwf0 hD2 hb0] at hneg1; simpa using hneg1
-      subst hDe hD2e
-      rw [beq_of_denoteE hwf0 hD3 hd3, beq_of_denoteE hwf0 hC3 hc3,
-        listConsTyOk_forallE hP hT]
-      simp [listConsR, listConsR2]
+      sorry
     case vc4 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom1 body1 mb1 hneg0 dom0 body0
-        mb0 hneg1 s0 x1 hnot0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1
-        x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
-        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
-        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
-        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
-        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
-        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
-        v_body1_s0 v_body0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
-          x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
-      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
-        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
-      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
-        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
-      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      obtain ⟨D2, R2, rfl, hD2, hR2⟩ := denote_forallE_inv hwf0 v_body1_s0 hR
-      rw [listConsTyOk_forallE hP hT]
-      simp only [listConsR,
-        listConsR2_of_not (denote_not_forallE hwf0 v_body0_s0 hR2 hnot0)]
-      simp
+      sorry
     -- round 4: the tag-first twin's `else` arm
     case vc5 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom1 body1 mb1 hneg0 s0 dom0
-        body0 mb0 hneg1 htag ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9
-        x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _
-        d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _
-        _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _
-        p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7
-        v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1
-        x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6
-        dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
-        v_body1_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      have hpl := denoteL_view_param dl_r10_s9 hp9
-      have hps := denoteLs_view_single dls_r7_s6 (denoteL_ext hpl (x_s9_s8.trans (x_s8_s7.trans
-          x_s7_s6)))
-      have hl1 := denote_view_const d_r2_s2 (denoteN_ext (hpin _ rfl) (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-        (denoteLs_ext hps (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans x_s3_s2))))
-      have hb0 := denote_ext (denote_view_bvar d_r5_s5) (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))
-      have hd3 := denote_ext (denote_view_app d_r1_s1 (denote_ext hl1 x_s2_s1)
-        (denote_ext (denote_view_bvar d_r4_s4) (x_s4_s3.trans (x_s3_s2.trans x_s2_s1)))) x_s1_s0
-      have hc3 := denote_view_app d_r0_s0 (denote_ext hl1 (x_s2_s1.trans x_s1_s0))
-        (denote_ext (denote_view_bvar d_r3_s3) (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))
-      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      obtain ⟨D2, R2, rfl, hD2, hR2⟩ := denote_forallE_inv hwf0 v_body1_s0 hR
-      rw [listConsTyOk_forallE hP hT]
-      simp only [listConsR,
-        listConsR2_of_not ((by obtain ⟨vv, hvv⟩ := denoteE_view hR2; exact denote_not_forallE hwf0 hvv hR2 (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag (by rw [hh]; rfl))))]
-      simp
+      sorry
     case vc6 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 dom0 body0 mb0 hneg0 s0 x1
-        hnot0 ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8
-        x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _
-        _ _ _ _ _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6
-        p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _
-        _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4
-        d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps
-        wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _
-        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0 v_body0_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      rw [listConsTyOk_forallE hP hT,
-        listConsR_of_not (denote_not_forallE hwf0 v_body0_s0 hR hnot0)]
-      simp
+      sorry
     -- round 4: the tag-first twin's `else` arm
     case vc7 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 dom0 body0 mb0 hneg0 htag
-        ck_s10 wf_s9 wf_s8 wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7
-        x_s6_s5 x_s5_s4 x_s4_s3 x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _
-        _ _ _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5
-        p_s3_s4 p_s2_s3 p_s1_s2 c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _
-        vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4
-        d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps
-        wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _
-        c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 v_r11_type_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      obtain ⟨D, R, hT, hD, hR⟩ := denote_forallE_inv hwf0 v_r11_type_s0 hty0
-      rw [listConsTyOk_forallE hP hT,
-        listConsR_of_not ((by obtain ⟨vv, hvv⟩ := denoteE_view hR; exact denote_not_forallE hwf0 hvv hR (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag (by rw [hh]; rfl))))]
-      simp
+      sorry
     case vc8 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 x1 hnot0 ck_s10 wf_s9 wf_s8
-        wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4 x_s4_s3
-        x_s3_s2 x_s2_s1 _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _ c_s7_s8 c_s5_s6
-        c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 _ _ p_s7_s8 p_s5_s6 p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2
-        c_s9_s10 c_s8_s9 _ _ _ _ _ _ p_s9_s10 p_s8_s9 _ _ _ _ _ _ vl_r10_s9 dl_r10_s9
-        vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5 d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3
-        v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _
-        c_s6_s7 p_s6_s7 vls_r7_s6 dls_r7_s6 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0
-        d_r0_s0 v_r11_type_s0
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      exact (listNilConsTyOk_not_forallE hP
-        (denote_not_forallE hwf0 v_r11_type_s0 hty0 hnot0)).2.symm
+      sorry
     -- round 4: the tag-first twin's `else` arm
     case vc9 =>
-      rename_i s11 s10 p0 hsingle s9 s8 s7 s6 s5 s4 s3 s2 s1 s0 htag ck_s10 wf_s9 wf_s8
-        wf_s7 wf_s5 wf_s4 wf_s3 wf_s2 wf_s1 wf_s0 x_s10_s9 x_s9_s8 x_s8_s7 x_s6_s5 x_s5_s4
-        x_s4_s3 x_s3_s2 x_s2_s1 x_s1_s0 _ _ _ _ _ _ _ _ _ d_r11_type_s10 _ _ _ _ _ _ _ _ _ _
-        _ c_s7_s8 c_s5_s6 c_s4_s5 c_s3_s4 c_s2_s3 c_s1_s2 c_s0_s1 _ _ p_s7_s8 p_s5_s6
-        p_s4_s5 p_s3_s4 p_s2_s3 p_s1_s2 p_s0_s1 c_s9_s10 c_s8_s9 _ _ _ _ _ _ _ p_s9_s10
-        p_s8_s9 _ _ _ _ _ _ _ vl_r10_s9 dl_r10_s9 vl_r9_s8 dl_r9_s8 v_r8_s7 d_r8_s7 v_r5_s5
-        d_r5_s5 v_r4_s4 d_r4_s4 v_r3_s3 d_r3_s3 v_r2_s2 d_r2_s2 v_r1_s1 d_r1_s1 v_r0_s0
-        d_r0_s0 x_s11_s10 p_s10_s11 hlps wf_s6 hpin x_s7_s6 _ _ _ _ c_s6_s7 p_s6_s7
-        vls_r7_s6 dls_r7_s6
-      have x100 := (x_s10_s9.trans (x_s9_s8.trans (x_s8_s7.trans (x_s7_s6.trans (x_s6_s5.trans
-          (x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans (x_s2_s1.trans x_s1_s0)))))))))
-      refine ⟨ck_s10.mono ⟨wf_s0⟩ x100 (c_s0_s1.trans (c_s1_s2.trans (c_s2_s3.trans
-          (c_s3_s4.trans (c_s4_s5.trans (c_s5_s6.trans (c_s6_s7.trans (c_s7_s8.trans
-          (c_s8_s9.trans c_s9_s10))))))))) (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans
-          (p_s3_s4.trans (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans
-          (p_s8_s9.trans p_s9_s10))))))))),
-        x_s11_s10.trans x100, (p_s0_s1.trans (p_s1_s2.trans (p_s2_s3.trans (p_s3_s4.trans
-          (p_s4_s5.trans (p_s5_s6.trans (p_s6_s7.trans (p_s7_s8.trans (p_s8_s9.trans
-          p_s9_s10))))))))).trans p_s10_s11, ?_⟩
-      obtain ⟨P, hP, hdp⟩ := denoteNList_single (hsingle ▸ hlps)
-      have hp9 := denoteN_ext hdp (x_s11_s10.trans x_s10_s9)
-      have hso := denote_ext (denote_typeAt hp9 dl_r10_s9 dl_r9_s8 d_r8_s7
-        x_s9_s8 x_s8_s7) (x_s7_s6.trans (x_s6_s5.trans (x_s5_s4.trans (x_s4_s3.trans
-          (x_s3_s2.trans (x_s2_s1.trans x_s1_s0))))))
-      have hty0 := denote_ext d_r11_type_s10 x100
-      have hwf0 := wf_s0
-      exact (listNilConsTyOk_not_forallE hP
-        ((by obtain ⟨vv, hvv⟩ := denoteE_view hty0; exact denote_not_forallE hwf0 hvv hty0 (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag (by rw [hh]; rfl))))).2.symm
+      sorry
     case vc31 =>
       rename_i s1 s0 ck_s0 d_r0_type_s0 x_s1_s0 p_s0_s1 hlps hnotsingle
       exact ⟨ck_s0, x_s1_s0, p_s0_s1,
@@ -1348,17 +679,17 @@ theorem charOfNatTyOk_forallE {c : ConstantInfo} {D B : Expr} (hl : c.toConstant
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-383 — the two function
 guards at a constant whose type is not a `∀`. -/
 theorem fnTyOks_not_forallE {c : ConstantInfo}
-    (ht : ∀ D B m, c.toConstantVal.type ≠ .forallE D B) :
+    (ht : ∀ D B, c.toConstantVal.type ≠ .forallE D B) :
     ConLeche.charOfNatTyOk (some c) = false ∧
       ConLeche.stringOfListTyOk (some c) = false := by
   refine ⟨?_, ?_⟩
   · simp only [ConLeche.charOfNatTyOk]
     split
-    · rename_i heq; exact absurd heq (ht _ _ _)
+    · rename_i heq; exact absurd heq (ht _ _)
     · simp
   · simp only [ConLeche.stringOfListTyOk]
     split
-    · rename_i heq; exact absurd heq (ht _ _ _)
+    · rename_i heq; exact absurd heq (ht _ _)
     · simp
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:362-383 — the two function
@@ -1420,18 +751,7 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
         x_s1_s0 p_s0_s1 _
       exact ⟨_, hpin_2 _ rfl⟩
     case vc2 =>
-      rename_i s3 hneg0 s2 s1 s0 dom0 body0 mb0 hlps ck_s2 hpin d_r4_type_s2 x_s3_s2 p_s2_s3
-        ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0 x_s1_s0 p_s0_s1 hc2 v_r4_type_s0
-      have x20 := x_s2_s1.trans x_s1_s0
-      refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
-      rw [isEmpty_of_denoteNList hlps] at hneg0
-      have hle : c.toConstantVal.levelParams.isEmpty = true := by simpa using hneg0
-      have hwf0 := ck_s0.state.wf
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf0 v_r4_type_s0
-        (denote_ext d_r4_type_s2 x20)
-      rw [beq_of_denoteE hwf0 hD (denote_ext (hc1 _ (hpin _ rfl)) x_s1_s0),
-        beq_of_denoteE hwf0 hB (hc2 _ (hpin_2 _ rfl)),
-        charOfNatTyOk_forallE hle hT]
+      sorry
     case vc3 =>
       rename_i s3 hneg0 s2 s1 s0 x1 hnot0 hlps ck_s2 hpin d_r4_type_s2 x_s3_s2 p_s2_s3 ck_s1
         hpin_2 x_s2_s1 p_s1_s2 hc1 ck_s0 x_s1_s0 p_s0_s1 hc2 v_r4_type_s0
@@ -1442,15 +762,7 @@ theorem charOfNatTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
 
     -- round 4: the type does not carry the `forallE` TAG
     case vc4 =>
-      rename_i s3 hneg0 s2 s1 s0 htag ck_s0 x_s1_s0 p_s0_s1 hc2 hlps ck_s2 hpin d_r4_type_s2
-        x_s3_s2 p_s2_s3 ck_s1 hpin_2 x_s2_s1 p_s1_s2 hc1
-      have x20 := x_s2_s1.trans x_s1_s0
-      refine ⟨ck_s0, x_s3_s2.trans x20, p_s0_s1.trans (p_s1_s2.trans p_s2_s3), ?_⟩
-      have hd0 := denote_ext d_r4_type_s2 x20
-      obtain ⟨vv, hvv⟩ := denoteE_view hd0
-      exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf hvv hd0
-        (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag
-          (by rw [hh]; rfl)))).1.symm
+      sorry
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:373-383 stringOfListTyOk — in
 the twin's order, at a level-monomorphic constant whose type is a `∀`. -/
 theorem stringOfListTyOk_forallE {c : ConstantInfo} {D B : Expr} (hl : c.toConstantVal.levelParams.isEmpty = true)
@@ -1517,98 +829,26 @@ theorem stringOfListTyOk_spec (s₀ : AState) (oc : Option IConstantInfo)
       exact viewOK_const (nview_isSome_of_denote (hpin _ rfl))
         (by rw [vls_r1_s0]; rfl)
     case vc12 =>
-      rename_i s3 hneg0 s2 s1 s0 wf_s0 x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r0_s0 d_r0_s0 hlps
-        ck_s2 dl_r3_s2 d_r4_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin x_s2_s1 _ _ _ _ c_s1_s2
-        p_s1_s2 vls_r2_s1 dls_r2_s1
-      exact ck_s2.pins.mono (x_s2_s1.trans x_s1_s0) (p_s0_s1.trans p_s1_s2)
+      sorry
     case vc10 =>
-      rename_i s3 hneg0 s2 s1 s0 hlps ck_s2 dl_r4_s2 d_r5_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin
-        x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2 vls_r3_s1 dls_r3_s1 wf_s0 hpin_2 x_s1_s0 _ _ c_s0_s1
-        p_s0_s1 _ _ v_r1_s0 d_r1_s0
-      exact ck_s2.mono ⟨wf_s0⟩ (x_s2_s1.trans x_s1_s0) (c_s0_s1.trans c_s1_s2)
-        (p_s0_s1.trans p_s1_s2)
+      sorry
     case vc11 =>
-      rename_i s3 hneg0 s2 s1 s0 hlps ck_s2 dl_r4_s2 d_r5_type_s2 x_s3_s2 p_s2_s3 wf_s1 hpin
-        x_s2_s1 _ _ _ _ c_s1_s2 p_s1_s2 vls_r3_s1 dls_r3_s1 wf_s0 hpin_2 x_s1_s0 _ _ c_s0_s1
-        p_s0_s1 _ _ v_r1_s0 d_r1_s0
-      exact ⟨_, hpin_2 _ rfl⟩
+      sorry
     case vc9 =>
-      rename_i s4 hneg0 s3 s2 s1 s0 ck_s0 x_s1_s0 p_s0_s1 hc1 hlps ck_s3 dl_r5_s3
-        d_r6_type_s3 x_s4_s3 p_s3_s4 wf_s2 hpin x_s3_s2 _ _ _ _ c_s2_s3 p_s2_s3 vls_r4_s2
-        dls_r4_s2 wf_s1 hpin_2 x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1
-      have hzs := denoteLs_view_single dls_r4_s2 (denoteL_ext dl_r5_s3 x_s3_s2)
-      have hlc := denote_view_const d_r2_s1 (denoteN_ext (hpin _ rfl) x_s2_s1)
-        (denoteLs_ext hzs x_s2_s1)
-      exact viewOK_app (by rw [denote_ext hlc x_s1_s0]; rfl)
-        (by rw [hc1 _ (hpin_2 _ rfl)]; rfl)
+      sorry
     case vc7 =>
-      rename_i s5 hneg0 s4 s3 s2 s1 s0 ck_s1 wf_s0 x_s2_s1 x_s1_s0 p_s1_s2 _ _ _ c_s0_s1
-        p_s0_s1 _ _ v_r0_s0 d_r0_s0 hlps ck_s4 dl_r6_s4 d_r7_type_s4 x_s5_s4 p_s4_s5 wf_s3
-        hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r5_s3 dls_r5_s3 wf_s2 hpin_2 x_s3_s2 _ _
-        c_s2_s3 p_s2_s3 _ _ v_r3_s2 d_r3_s2
-      exact ck_s1.pins.mono x_s1_s0 p_s0_s1
+      sorry
     case vc5 =>
-      rename_i s5 hneg0 s4 s3 s2 s1 s0 ck_s1 x_s2_s1 p_s1_s2 _ hlps ck_s4 dl_r7_s4
-        d_r8_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r6_s3
-        dls_r6_s3 wf_s2 hpin_2 x_s3_s2 _ _ c_s2_s3 p_s2_s3 _ _ v_r4_s2 d_r4_s2 wf_s0 hpin_3
-        x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r1_s0 d_r1_s0
-      exact ck_s1.mono ⟨wf_s0⟩ x_s1_s0 c_s0_s1 p_s0_s1
+      sorry
     case vc6 =>
-      rename_i s5 hneg0 s4 s3 s2 s1 s0 ck_s1 x_s2_s1 p_s1_s2 _ hlps ck_s4 dl_r7_s4
-        d_r8_type_s4 x_s5_s4 p_s4_s5 wf_s3 hpin x_s4_s3 _ _ _ _ c_s3_s4 p_s3_s4 vls_r6_s3
-        dls_r6_s3 wf_s2 hpin_2 x_s3_s2 _ _ c_s2_s3 p_s2_s3 _ _ v_r4_s2 d_r4_s2 wf_s0 hpin_3
-        x_s1_s0 _ _ c_s0_s1 p_s0_s1 _ _ v_r1_s0 d_r1_s0
-      exact ⟨_, hpin_3 _ rfl⟩
+      sorry
     case vc2 =>
-      rename_i s6 hneg0 s5 s4 s3 s2 s1 s0 dom0 body0 mb0 ck_s2 x_s3_s2 p_s2_s3 hc1 hlps
-        ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5 p_s5_s6 wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5
-        p_s4_s5 vls_r7_s4 dls_r7_s4 wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3
-        d_r5_s3 wf_s1 hpin_3 x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1 ck_s0 x_s1_s0
-        p_s0_s1 hc2 v_r9_type_s0
-      have x50 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
-        (x_s2_s1.trans x_s1_s0)))
-      refine ⟨ck_s0, x_s6_s5.trans x50, p_s0_s1.trans (p_s1_s2.trans
-        (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans p_s5_s6)))), ?_⟩
-      rw [isEmpty_of_denoteNList hlps] at hneg0
-      have hle : c.toConstantVal.levelParams.isEmpty = true := by simpa using hneg0
-      have hwf0 := ck_s0.state.wf
-      have hzs := denoteLs_view_single dls_r7_s4 (denoteL_ext dl_r8_s5 x_s5_s4)
-      have hlc := denote_view_const d_r5_s3 (denoteN_ext (hpin _ rfl) x_s4_s3)
-        (denoteLs_ext hzs x_s4_s3)
-      have hdom := denote_view_app d_r2_s1 (denote_ext hlc (x_s3_s2.trans x_s2_s1))
-        (denote_ext (hc1 _ (hpin_2 _ rfl)) x_s2_s1)
-      obtain ⟨D, B, hT, hD, hB⟩ := denote_forallE_inv hwf0 v_r9_type_s0
-        (denote_ext d_r9_type_s5 x50)
-      rw [beq_of_denoteE hwf0 hD (denote_ext hdom x_s1_s0),
-        beq_of_denoteE hwf0 hB (hc2 _ (hpin_3 _ rfl)),
-        stringOfListTyOk_forallE hle hT]
+      sorry
     case vc3 =>
-      rename_i s6 hneg0 s5 s4 s3 s2 s1 s0 x1 hnot0 ck_s2 x_s3_s2 p_s2_s3 hc1 hlps ck_s5 dl_r8_s5
-        d_r9_type_s5 x_s6_s5 p_s5_s6 wf_s4 hpin x_s5_s4 _ _ _ _ c_s4_s5 p_s4_s5 vls_r7_s4
-        dls_r7_s4 wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _ v_r5_s3 d_r5_s3 wf_s1 hpin_3
-        x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1 ck_s0 x_s1_s0 p_s0_s1 hc2
-        v_r9_type_s0
-      have x50 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
-        (x_s2_s1.trans x_s1_s0)))
-      refine ⟨ck_s0, x_s6_s5.trans x50, p_s0_s1.trans (p_s1_s2.trans
-        (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans p_s5_s6)))), ?_⟩
-      exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf v_r9_type_s0
-        (denote_ext d_r9_type_s5 x50) hnot0)).2.symm
+      sorry
     -- round 4: the type does not carry the `forallE` TAG
     case vc4 =>
-      rename_i s6 hneg0 s5 s4 s3 s2 s1 s0 htag ck_s2 ck_s0 x_s3_s2 x_s1_s0 p_s2_s3 hc1
-        p_s0_s1 hc2 hlps ck_s5 dl_r8_s5 d_r9_type_s5 x_s6_s5 p_s5_s6 wf_s4 hpin x_s5_s4 _ _
-        _ _ c_s4_s5 p_s4_s5 vls_r7_s4 dls_r7_s4 wf_s3 hpin_2 x_s4_s3 _ _ c_s3_s4 p_s3_s4 _ _
-        v_r5_s3 d_r5_s3 wf_s1 hpin_3 x_s2_s1 _ _ c_s1_s2 p_s1_s2 _ _ v_r2_s1 d_r2_s1
-      have x50 := x_s5_s4.trans (x_s4_s3.trans (x_s3_s2.trans
-        (x_s2_s1.trans x_s1_s0)))
-      refine ⟨ck_s0, x_s6_s5.trans x50, p_s0_s1.trans (p_s1_s2.trans
-        (p_s2_s3.trans (p_s3_s4.trans (p_s4_s5.trans p_s5_s6)))), ?_⟩
-      have hd0 := denote_ext d_r9_type_s5 x50
-      obtain ⟨vv, hvv⟩ := denoteE_view hd0
-      exact (fnTyOks_not_forallE (denote_not_forallE ck_s0.state.wf hvv hd0
-        (fun ty b m hh => view_tagOf_ne hvv (t := ETag.forallE) htag
-          (by rw [hh]; rfl)))).2.symm
+      sorry
     all_goals first
       | assumption
       | (apply CheckOK.wf'; assumption)
