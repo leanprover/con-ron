@@ -101,6 +101,16 @@ theorem tag_lam_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {t b : Exp
     simp_all [ENodeView.tagOf, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
       Option.map_eq_some_iff]
 
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — the declining
+arm: a handle pair whose tags are not both `lam` denotes no λ pair (task
+#120: the arm's content as a lemma `bridge_auto` instantiates). -/
+theorem lamPair?_none_of_tag {st : EStore} (hwf : StoreWF st) {a b : EIdx}
+    {ea eb : Expr} (hea : denoteE st a = some ea) (heb : denoteE st b = some eb)
+    (htg : ¬ (a.tag == ETag.lam && b.tag == ETag.lam) = true) :
+    Expr.lamPair? ea eb = none := by
+  cases ea <;> cases eb <;> try rfl
+  exact absurd (by simp [tag_lam_of_denote hwf hea, tag_lam_of_denote hwf heb]) htg
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — **THEOREM 1
 for `lamPair?`**: the state does not move; `none` exactly when the two
 denotations are not both λs, and otherwise the four handles denote the four
@@ -119,24 +129,7 @@ theorem lamPair?_spec (s₀ : AState) (a b : EIdx) (hok : StateOK s₀)
             denoteE s₀.store t₂ = some et₂ ∧ denoteE s₀.store b₂ = some eb₂; ⊤⦄ := by
   vcgen [lamPair?]
   all_goals (bridge_peel; subst_vars)
-  bridge_frame
-  -- both tags are `lam`: the binder views are the views
-  vc_arm (htg : (a.tag == ETag.lam && b.tag == ETag.lam) = true)
-      (h1 : some _ = EStore.viewBind _ a) (h2 : some _ = EStore.viewBind _ b) =>
-    simp only [Bool.and_eq_true, beq_iff_eq] at htg
-    have hva := view_of_viewBind_lam htg.1 h1.symm
-    have hvb := view_of_viewBind_lam htg.2 h2.symm
-    intro ea eb hea heb
-    obtain ⟨t₁, b₁, rfl, ht₁, hb₁⟩ := denote_lam_inv hok.wf hva hea
-    obtain ⟨t₂, b₂, rfl, ht₂, hb₂⟩ := denote_lam_inv hok.wf hvb heb
-    exact ⟨t₁, b₁, t₂, b₂, rfl, ht₁, hb₁, ht₂, hb₂⟩
-  -- a tag is not `lam`: neither denotation is a λ
-  vc_arm (htg : ¬ (a.tag == ETag.lam && b.tag == ETag.lam) = true) =>
-    intro ea eb hea heb
-    show Expr.lamPair? ea eb = none
-    cases ea <;> cases eb <;> try rfl
-    exact absurd (by simp [tag_lam_of_denote hok.wf hea, tag_lam_of_denote hok.wf heb])
-      htg
+  bridge_auto [lamPair?_none_of_tag]
 
 /-! ## The axiom check -/
 

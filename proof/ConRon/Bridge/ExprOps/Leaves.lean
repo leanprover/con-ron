@@ -780,6 +780,82 @@ theorem fvarLeavesGo_leaf {s : AState} {acc : List (Nat × EIdx)}
       fvarLeaves_eq_nil_of_relFL hr he),
     LeavesEq.of_nil fun _ he => fvarLeaves_eq_nil_of_relFL hr he⟩
 
+/-! ### The arms' exits as lemmas
+
+The cutoff, the `seen` hit and the four leaf views, each in the shape of the
+postcondition's conjunct it closes (task #120: `bridge_frame`'s list). -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:821-833 fvarLeaves — a leaf view
+adds nothing. -/
+theorem LeavesEq.of_relFL {st : EStore} {acc : List (Nat × EIdx)} {c : EIdx}
+    (hr : RelFL Expr.fvarLeaves st c []) : LeavesEq st acc c acc :=
+  LeavesEq.of_nil fun _ he => fvarLeaves_eq_nil_of_relFL hr he
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1093-1128 fvarLeavesGoC — a leaf
+goes into `seen` black. -/
+theorem SeenGrow.of_relFL {st : EStore} {acc : List (Nat × EIdx)}
+    {seen : Std.HashMap EIdx Unit} {c : EIdx} (hr : RelFL Expr.fvarLeaves st c []) :
+    SeenGrow st acc seen (seen.insert c ()) :=
+  SeenGrow.of_insert (BlackA.of_nil fun _ he => fvarLeaves_eq_nil_of_relFL hr he)
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
+CUTOFF: a zero fvar-range field means no leaves at all. -/
+theorem LeavesEq.of_cut {st : EStore} (hwf : StoreWF st) {acc : List (Nat × EIdx)}
+    {c : EIdx} (hcut : ((fvarOfData (st.derived c)).toNat == 0) = true) :
+    LeavesEq st acc c acc :=
+  LeavesEq.of_nil fun e he => fvarLeaves_nil_of_hasFvar e
+    (hasFvar_false_of_derived hwf he (by simpa using hcut))
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1130-1152 fvarLeavesGoC — the
+`seen` HIT: the invariant's gray disjunct is `rk c < rk c`, which is what the
+rank is in the invariant for. -/
+theorem LeavesEq.of_hit {st : EStore} (hwf : StoreWF st) {acc : List (Nat × EIdx)}
+    {seen : Std.HashMap EIdx Unit} {c : EIdx} {u : Unit} (hs : SeenOK st acc seen c)
+    (hhit : seen[c]? = some u) : LeavesEq st acc c acc := by
+  obtain ⟨rk, hrk⟩ := hwf
+  refine LeavesEq.of_black ?_
+  rcases hs rk hrk c (by rw [hhit]; rfl) with hlt | hb
+  · exact absurd hlt (Nat.lt_irrefl _)
+  · exact hb
+
+/-- con-leche: none — the `fvar` arm's pushed pair keeps the accumulator
+denoting. -/
+theorem isSome_denoteLeaves_cons {st : EStore} {acc : List (Nat × EIdx)} {i : Nat}
+    {t : EIdx} (hacc : (denoteLeaves st acc).isSome = true)
+    (ht : (denoteE st t).isSome = true) :
+    (denoteLeaves st ((i, t) :: acc)).isSome = true :=
+  Option.isSome_iff_exists.mpr
+    ⟨_, denoteLeaves_cons (Option.isSome_iff_exists.mp ht).choose_spec
+      (Option.isSome_iff_exists.mp hacc).choose_spec⟩
+
+/-! ### A child's membership, one lemma per position
+
+`SeenOK.of_grow`/`.child` ask for `ch ∈ v.echildren`; at a concrete view these
+close it by unification (task #120: `bridge_auto`'s list, not an arm). -/
+
+theorem mem_ech_fvar {i : Nat} {ty : EIdx} : ty ∈ (ENodeView.fvar i ty).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_app₁ {f a : EIdx} : f ∈ (ENodeView.app f a).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_app₂ {f a : EIdx} : a ∈ (ENodeView.app f a).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_lam₁ {t b : EIdx} : t ∈ (ENodeView.lam t b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_lam₂ {t b : EIdx} : b ∈ (ENodeView.lam t b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_forallE₁ {t b : EIdx} : t ∈ (ENodeView.forallE t b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_forallE₂ {t b : EIdx} : b ∈ (ENodeView.forallE t b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_letE₁ {t v b : EIdx} : t ∈ (ENodeView.letE t v b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_letE₂ {t v b : EIdx} : v ∈ (ENodeView.letE t v b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_letE₃ {t v b : EIdx} : b ∈ (ENodeView.letE t v b).echildren := by
+  simp [ENodeView.echildren]
+theorem mem_ech_proj {n : NIdx} {i : Nat} {e : EIdx} : e ∈ (ENodeView.proj n i e).echildren := by
+  simp [ENodeView.echildren]
+
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `fvarLeavesGo`'s recursion. -/
 structure FvarLeavesGoSpec (rec : List (Nat × EIdx) → Std.HashMap EIdx Unit →
@@ -814,109 +890,19 @@ theorem fvarLeavesGo_spec :
       fvarLeavesGoArmLet, hrec]
     all_goals (bridge_peel; subst_vars)
     all_goals try bridge_vcs [denoteLeaves_nil]
-    -- Twenty-four verification conditions survive the closer, in five shapes:
-    -- the two early exits, the four leaf views, one `SeenOK` side goal per
-    -- recursive call (nine of them) and one postcondition per arm (seven).
-    -- Task #120: each is addressed by its SHAPE — the node's view, the
-    -- recursive calls' postconditions keyed by the child they walked, and
-    -- the target — never by its `vcgen` number.
-    -- **The cutoff**: a zero fvar-range field means no leaves at all.
-    vc_arm (hcut : ((fvarOfData _).toNat == 0) = true) =>
-      exact ⟨rfl, hacc, SeenGrow.refl, LeavesEq.of_nil fun e he =>
-        fvarLeaves_nil_of_hasFvar e
-          (hasFvar_false_of_derived hok.wf he (by simpa using hcut))⟩
-    -- **The `seen` HIT**: the invariant's gray disjunct is `rk c < rk c`,
-    -- which is what the rank is in the invariant for.
-    vc_arm (hhit : _[c]? = some _) =>
-      obtain ⟨rk, hrk⟩ := hok.wf
-      refine ⟨rfl, hacc, SeenGrow.refl, LeavesEq.of_black ?_⟩
-      rcases hseen rk hrk c (by rw [hhit]; rfl) with hlt | hb
-      · exact absurd hlt (Nat.lt_irrefl _)
-      · exact hb
-    -- **The four leaf views**: no leaves, so the node goes in BLACK.
-    vc_arm (hview : EStore.view _ c = some (.bvar _)) =>
-      exact fvarLeavesGo_leaf (RelFL.bvar_step hok.wf hview) hacc
-    vc_arm (hview : EStore.view _ c = some (.sort _)) =>
-      exact fvarLeavesGo_leaf (RelFL.sort_step hok.wf hview) hacc
-    vc_arm (hview : EStore.view _ c = some (.const _ _)) =>
-      exact fvarLeavesGo_leaf (RelFL.const_step hok.wf hview) hacc
-    vc_arm (hview : EStore.view _ c = some (.lit _)) =>
-      exact fvarLeavesGo_leaf (RelFL.lit_step hok.wf hview) hacc
-    -- **The `fvar` arm**: its own leaf is pushed first, so its `AccGrow` is
-    -- `AccGrow.cons` and its step lemma carries the pushed pair back out.
-    vc_arm (hview : EStore.view _ c = some (.fvar _ _)) (hle : LeavesEq _ _ _ ?res)
-        (h1 : (denoteLeaves _ ?res).isSome = true) (h2 : SeenGrow _ ?res _ _) =>
-      have hle' := LeavesEq.fvar_step hok.wf hview hle
-      exact ⟨rfl, h1, h2.drop_insert (hle'.black hacc), hle'⟩
-    vc_arm (hview : EStore.view _ c = some (.fvar _ _))
-        ⊢ (denoteLeaves _ (_ :: _)).isSome = true =>
-      exact Option.isSome_iff_exists.mpr
-        ⟨_, denoteLeaves_cons
-          (Option.isSome_iff_exists.mp (isSome_fvar hok.wf hview hden)).choose_spec
-          (Option.isSome_iff_exists.mp hacc).choose_spec⟩
-    vc_arm (hview : EStore.view _ c = some (.fvar _ _)) ⊢ SeenOK _ _ _ _ =>
-      exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen
-        SeenGrow.refl (AccGrow.cons hacc (isSome_fvar hok.wf hview hden))
-    -- **Every arm's FIRST child**: the node inserted, nothing walked yet.
-    vc_arm (hview : EStore.view _ c = some _) ⊢ SeenOK _ _ (Std.HashMap.insert _ c _) _ =>
-      exact SeenOK.child hview (by simp [ENodeView.echildren]) hseen hacc
-    -- **A SECOND child after one walked child** (`app`, `lam`, `forallE`, and
-    -- `letE`'s value): `SeenOK.of_grow` past the first call.
-    vc_arm (hview : EStore.view _ c = some _) (hle1 : LeavesEq _ _ ?chX ?mid)
-        (hsg1 : SeenGrow _ ?mid (Std.HashMap.insert _ c _) _) ⊢ SeenOK _ ?mid _ _ =>
-      exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen hsg1
-        (hle1.accGrow (isSome_echild hok.wf hview hden (by simp [ENodeView.echildren]))
-          hacc)
-    -- **`letE`'s body**, after two walked children: `SeenGrow.trans` once.
-    vc_arm (hview : EStore.view _ c = some (.letE ?chT ?chW _)) (hle1 : LeavesEq _ _ ?chT ?mid1)
-        (hsg1 : SeenGrow _ ?mid1 (Std.HashMap.insert _ c _) _) (hm1 : (denoteLeaves _ ?mid1).isSome = true)
-        (hle2 : LeavesEq _ _ ?chW ?mid2) (hsg2 : SeenGrow _ ?mid2 _ _) ⊢ SeenOK _ ?mid2 _ _ =>
-      have hg2 := hle2.accGrow (isSome_letE hok.wf hview hden).2.1 hm1
-      exact SeenOK.of_grow hview (by simp [ENodeView.echildren]) hseen
-        (SeenGrow.trans hsg1 hsg2 hg2)
-        ((hle1.accGrow (isSome_letE hok.wf hview hden).1 hacc).trans hg2)
-    -- **The two-child arms' postconditions** (`app`, `lam`, `forallE`).
-    vc_arm (hview : EStore.view _ c = some (.app ?chF ?chA)) (hle1 : LeavesEq _ _ ?chF ?mid)
-        (hsg1 : SeenGrow _ ?mid _ _) (hm1 : (denoteLeaves _ ?mid).isSome = true)
-        (hle2 : LeavesEq _ _ ?chA ?res) (hsg2 : SeenGrow _ ?res _ _)
-        (h1 : (denoteLeaves _ ?res).isSome = true) =>
-      have hle := LeavesEq.app_step hok.wf hview hle1 hle2 hm1
-      exact ⟨rfl, h1, (SeenGrow.trans hsg1 hsg2
-        (hle2.accGrow (isSome_app hok.wf hview hden).2 hm1)).drop_insert
-        (hle.black hacc), hle⟩
-    vc_arm (hview : EStore.view _ c = some (.lam ?chT ?chB)) (hle1 : LeavesEq _ _ ?chT ?mid)
-        (hsg1 : SeenGrow _ ?mid _ _) (hm1 : (denoteLeaves _ ?mid).isSome = true)
-        (hle2 : LeavesEq _ _ ?chB ?res) (hsg2 : SeenGrow _ ?res _ _)
-        (h1 : (denoteLeaves _ ?res).isSome = true) =>
-      have hle := LeavesEq.lam_step hok.wf hview hle1 hle2 hm1
-      exact ⟨rfl, h1, (SeenGrow.trans hsg1 hsg2
-        (hle2.accGrow (isSome_lam hok.wf hview hden).2 hm1)).drop_insert
-        (hle.black hacc), hle⟩
-    vc_arm (hview : EStore.view _ c = some (.forallE ?chT ?chB)) (hle1 : LeavesEq _ _ ?chT ?mid)
-        (hsg1 : SeenGrow _ ?mid _ _) (hm1 : (denoteLeaves _ ?mid).isSome = true)
-        (hle2 : LeavesEq _ _ ?chB ?res) (hsg2 : SeenGrow _ ?res _ _)
-        (h1 : (denoteLeaves _ ?res).isSome = true) =>
-      have hle := LeavesEq.forallE_step hok.wf hview hle1 hle2 hm1
-      exact ⟨rfl, h1, (SeenGrow.trans hsg1 hsg2
-        (hle2.accGrow (isSome_forallE hok.wf hview hden).2 hm1)).drop_insert
-        (hle.black hacc), hle⟩
-    -- **The `letE` arm's postcondition**: three calls, `SeenGrow.trans` twice.
-    vc_arm (hview : EStore.view _ c = some (.letE ?chT ?chW ?chB)) (hle1 : LeavesEq _ _ ?chT ?mid1)
-        (hsg1 : SeenGrow _ ?mid1 _ _) (hm1 : (denoteLeaves _ ?mid1).isSome = true)
-        (hle2 : LeavesEq _ _ ?chW ?mid2) (hsg2 : SeenGrow _ ?mid2 _ _)
-        (hm2 : (denoteLeaves _ ?mid2).isSome = true)
-        (hle3 : LeavesEq _ _ ?chB ?res) (hsg3 : SeenGrow _ ?res _ _)
-        (h1 : (denoteLeaves _ ?res).isSome = true) =>
-      have hg2 := hle2.accGrow (isSome_letE hok.wf hview hden).2.1 hm1
-      have hle := LeavesEq.letE_step hok.wf hview hle1 hle2 hle3 hm1 hm2
-      exact ⟨rfl, h1, (SeenGrow.trans (SeenGrow.trans hsg1 hsg2 hg2) hsg3
-        (hle3.accGrow (isSome_letE hok.wf hview hden).2.2 hm2)).drop_insert
-        (hle.black hacc), hle⟩
-    -- **The `proj` arm**: the struct name is not a leaf.
-    vc_arm (hview : EStore.view _ c = some (.proj _ _ _)) (hle : LeavesEq _ _ _ ?res)
-        (h1 : (denoteLeaves _ ?res).isSome = true) (h2 : SeenGrow _ ?res _ _) =>
-      have hle' := LeavesEq.proj_step hok.wf hview hle
-      exact ⟨rfl, h1, h2.drop_insert (hle'.black hacc), hle'⟩
+    -- the view inversions' answers the step lemmas want: the children denote
+    bridge_auto [isSome_fvar, isSome_app, isSome_lam, isSome_forallE, isSome_letE,
+      RelFL.bvar_step, RelFL.sort_step, RelFL.const_step, RelFL.lit_step]
+    -- every arm is its step lemmas composed: `LeavesEq` by the node's step,
+    -- `SeenGrow` by `drop_insert` after the children's `trans`, and each
+    -- recursive call's `SeenOK` by the gray argument `SeenOK.of_grow`
+    bridge_frame [LeavesEq.fvar_step, LeavesEq.app_step, LeavesEq.lam_step,
+      LeavesEq.forallE_step, LeavesEq.letE_step, LeavesEq.proj_step, LeavesEq.of_relFL,
+      LeavesEq.of_cut, LeavesEq.of_hit, LeavesEq.black, LeavesEq.accGrow, AccGrow.trans,
+      AccGrow.cons, SeenGrow.drop_insert, SeenGrow.of_relFL, SeenGrow.refl, SeenGrow.trans,
+      SeenOK.child, SeenOK.of_grow, isSome_denoteLeaves_cons, mem_ech_fvar, mem_ech_app₁,
+      mem_ech_app₂, mem_ech_lam₁, mem_ech_lam₂, mem_ech_forallE₁, mem_ech_forallE₂,
+      mem_ech_letE₁, mem_ech_letE₂, mem_ech_letE₃, mem_ech_proj]
 
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1154-1155 fvarLeavesC —
