@@ -2133,38 +2133,76 @@ non-`app` is the node itself and the `match` is on `.const`). -/
   else if t == ETag.lit then true
   else false
 
+/-! ### The step a reduction loop iterates (con-leche's task #342 R2) -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:997-1006 WhnfStep — the outcome of one
+step of a head-normalization loop: the head normal form, or the term the loop
+continues with.  A step RETURNS its continuation instead of calling it, so
+every reduction step is the loop's own iteration and a chain of any length —
+a non-terminating one included — runs in constant native stack. -/
+inductive WhnfStep where
+  | done (e : EIdx)
+  | cont (e : EIdx)
+  deriving Inhabited
+
+/-- con-leche: ConLeche/Kernel/Core.lean:977-995 whnfCoreLoopFuel — step budget
+of the head-normalization loop: `2^62`, con-leche's value (task #330);
+exhaustion is an internal error, never a verdict.  `@[noinline]` for
+con-leche's reason: a literal at or above `2^32` is parsed from its decimal
+string at every use otherwise. -/
+@[noinline] def whnfCoreLoopFuel : Nat := 4611686018427387904  -- 2^62
+
 /-! ### The batched β spine
 
-con-leche's own CACHED-tier clauses (`Cached/CoreC.lean:857-900 whnfAppI` and
-`:902-938 betaPeelI`), whose identification with the chained spec bodies
-con-leche proves in `Verify/BetaSpine.lean` (`whnfApp_sound:900`,
-`betaPeel_snoc:722`) over `Expr.instantiateList_cons`.  The spec-shaped clause
-they replace re-entered the knot once per argument; these peel a consecutive
-run of λ binders into ONE `instantiateList` walk.
+con-leche's own CACHED-tier clauses (`Cached/CoreC.lean:739-766 whnfAppI` and
+`:720-737 betaPeelI`), whose identification with the chained spec bodies
+con-leche proves in `Verify/BetaSpine.lean` over `Expr.instantiateList_cons`.
+The spec-shaped clause they replace re-entered the knot once per argument;
+these peel a consecutive run of λ binders into ONE `instantiateList` walk.
+Both RETURN a `WhnfStep` (con-leche's task #342 R2): a fired ι or a finished
+peel hands the loop its reduct applied to the rest of the spine.
 
 The accumulator is an `Array` in PUSH order (task #97-P6-15's clause change),
 which `instantiateList` reads from the end — the same list con-leche's `::`
 chain builds, the other way round. -/
 
-mutual
+/-- con-leche: ConLeche/Cached/CoreC.lean:720-737 betaPeelI — peel a
+consecutive run of λ binders, collecting their arguments, and substitute the
+whole run in ONE `instantiateList`; the reduct, applied to the arguments left
+over, is the term the loop continues with.  β is uniform (con-leche's task
+#342 S0: no certificate, no gate). -/
+def betaPeel (t : EIdx) (acc : Array EIdx) (args : Array EIdx) (i : Nat) :
+    AM WhnfStep := do
+  if hi : i < args.size then do
+    if t.tag == ETag.lam then
+      match ← viewBind t with
+      | none => failDanglingE
+      | some (_, body) => betaPeel body (acc.push args[i]) args (i + 1)
+    else do
+      let e2 ← instantiateListFast coreWalkFuel t acc 0
+      let e3 ← mkAppNFrom e2 args i
+      pure (.cont e3)
+  else do
+    let e2 ← instantiateListFast coreWalkFuel t acc 0
+    pure (.cont e2)
+termination_by args.size - i
 
 /-- con-leche: ConLeche/Cached/CoreC.lean:739-766 whnfAppI — walk the spine's
-arguments, applying each to the head's reduct: a λ head opens a peel group, a
-stuck head applies the argument and tries one iota step at the spine the walk
-already holds. -/
-def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
-    (depth : Nat) (v hd : EIdx) (vargs : Array EIdx) (same : Bool)
-    (args nodes : Array EIdx) (i : Nat) : AM EIdx := do
+arguments, applying each to the head's reduct: a λ head opens a peel group
+(`betaPeel`), a stuck head applies the argument and tries one ι step at the
+spine the walk already holds; a fired ι hands the loop its reduct applied to
+the rest of the spine (`.cont`), the stuck spine is `.done`. -/
+def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
+    (v hd : EIdx) (vargs : Array EIdx) (same : Bool) (args nodes : Array EIdx)
+    (i : Nat) : AM WhnfStep := do
   if hi : i < args.size then do
     let a := args[i]
+    let node := nodes[i]!
     if v.tag == ETag.lam then
       match ← viewBind v with
       | none => failDanglingE
-      | some (_, body) =>
-        -- uniform β, no certificate, at every λ (con-leche's task #342 S0)
-        betaPeel mode r fe cheap depth body #[a] args nodes (i + 1)
+      | some (_, body) => betaPeel body #[a] args (i + 1)
     else do
-      let node := nodes[i]!
       let ap ← internAppRebuilt node same v a
       let same2 := ap == node
       let va := vargs.push a
@@ -2175,42 +2213,12 @@ def whnfApp (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
         -- prefix: con-leche's `iotaArityOk` guard, off the handle's tag.
         else pure none
       match step with
-      | none => whnfApp mode r fe cheap depth ap hd va same2 args nodes (i + 1)
+      | none => whnfApp mode r fe depth ap hd va same2 args nodes (i + 1)
       | some e2 => do
-        let v2 ← r.whnfCore cheap depth e2
-        let hv ← headAndArgs v2
-        whnfApp mode r fe cheap depth v2 hv.1 hv.2 false args nodes (i + 1)
-  else pure v
-termination_by (args.size - i, 0)
-
-/-- con-leche: ConLeche/Cached/CoreC.lean:720-737 betaPeelI — peel a
-consecutive run of λ binders, collecting their arguments, and substitute the
-whole run in ONE `instantiateList`. -/
-def betaPeel (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
-    (depth : Nat) (t : EIdx) (acc : Array EIdx) (args nodes : Array EIdx) (i : Nat) :
-    AM EIdx := do
-  if hi : i < args.size then do
-    let a := args[i]
-    if t.tag == ETag.lam then
-      match ← viewBind t with
-      | none => failDanglingE
-      | some (_, body) =>
-        -- uniform β (con-leche's task #342 S0)
-        betaPeel mode r fe cheap depth body (acc.push a) args nodes (i + 1)
-    else do
-      let e2 ← instantiateListFast coreWalkFuel t acc 0
-      let v2 ← r.whnfCore cheap depth e2
-      -- The peeled group is over and the spine is not: re-enter `whnfApp` at
-      -- the SAME argument.  A β has happened, so the accumulated head is no
-      -- longer the original prefix and the upward cutoff is OFF.
-      let hv ← headAndArgs v2
-      whnfApp mode r fe cheap depth v2 hv.1 hv.2 false args nodes i
-  else do
-    let e2 ← instantiateListFast coreWalkFuel t acc 0
-    r.whnfCore cheap depth e2
-termination_by (args.size - i, 1)
-
-end
+        let e3 ← mkAppNFrom e2 args (i + 1)
+        pure (.cont e3)
+  else pure (.done v)
+termination_by args.size - i
 
 /-! ## The projection certificate and the reduction bodies
 
@@ -2288,45 +2296,70 @@ def reduceProjCore (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (depth : Nat)
     else pure none
   | none => pure none
 
-/-- con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody — the
-head-normalization body: beta (uniform, con-leche's task #342 S0), iota (with
-the stuck-major machinery), the projection rule and ζ — but **no delta**.  Values return themselves, which over handles is the handle itself:
-hash-consing makes `.sort u` interned from a `.sort u` view the same
-node.  `cheap` is the official kernel's `cheap_proj`: a projection's
-scrutinee is reduced by `whnfCore` itself instead of `whnf`, and the flag
-propagates to every recursive head normalization. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
+con-leche: ConLeche/Cached/CoreC.lean:768-804 whnfCoreStepI — the `.proj`
+clause of the step: the scrutinee by `whnf`, or — in the CHEAP mode (official
+`cheap_proj`) — by the cheap `whnfCore`, then the projection rule: a fired
+field is the term the loop continues with, a stuck projection is its own
+input. -/
+def whnfCoreStepProj (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) (e : EIdx) (sn : NIdx) (i : Nat) (pe : EIdx) : AM WhnfStep := do
+  let c ← if cheap then r.whnfCore true depth pe else r.whnf depth pe
+  match ← reduceProjCore mode r fe depth sn i c with
+  | some m' => pure (.cont m')
+  | none => pure (.done e)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
+con-leche: ConLeche/Cached/CoreC.lean:768-804 whnfCoreStepI — **one
+head-normalization step** (β, ι, projection, ζ — **no δ**), returning the head
+normal form or the term to continue with.  Only the spine head's
+normalization stays a knot call (genuine nesting, bounded by the term's
+depth); every *reduction* step is the loop's iteration.  Values return
+themselves, which over handles is the handle itself. -/
+def whnfCoreStep (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) (e : EIdx) : AM WhnfStep := do
+  match ← view e with
+  | .sort _ | .fvar _ _ | .forallE _ _ | .lam _ _ | .const _ _
+  | .lit _ => pure (.done e)
+  -- **The batched β spine** (task #97-P6-9): the spine's head is normalized
+  -- once and the whole argument vector is run through `whnfApp`.
+  | .app _ _ => do
+    let sp ← getAppSpine coreWalkFuel e
+    let v ← r.whnfCore cheap depth sp.1
+    let same := v == sp.1
+    let hv ← headAndArgs v
+    whnfApp mode r fe depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
+  | .proj sn i pe => whnfCoreStepProj mode r fe cheap depth e sn i pe
+  | .letE _ v b => do
+    -- ζ, Lean's way (con-leche's task #342 S0: lets are stored as Lean
+    -- stores them)
+    let e' ← instantiate1Fast coreWalkFuel b v 0
+    pure (.cont e')
+  | .bvar _ =>
+    fail (.notImplemented "whnf beyond the supported fragment")
+
+/-- con-leche: ConLeche/Cached/CoreC.lean:806-817 whnfCoreLoopI — iterate
+`whnfCoreStep` on its own step budget: the continuation is the loop's own tail
+call (con-leche's task #342 R2), so a reduction chain of any length runs in
+constant native stack, and a non-terminating one runs until the external
+timeout.  The Rust spells the iteration as a loop. -/
+def whnfCoreLoop (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) (cheap : Bool)
+    (depth : Nat) : Nat → EIdx → AM EIdx
+  | 0, _ => fail (.internal "fuel exhausted: whnfCore loop")
+  | n + 1, e => do
+    match ← whnfCoreStep mode r fe cheap depth e with
+    | .done v => pure v
+    | .cont e' => whnfCoreLoop mode r fe cheap depth n e'
+
+/-- con-leche: ConLeche/Kernel/Core.lean:926-975 whnfCoreBody
+con-leche: ConLeche/Cached/CoreC.lean:819-822 whnfCoreBodyI — the
+head-normalization body: the loop at its own step budget.  `cheap` is the
+official kernel's `cheap_proj`: a projection's scrutinee is reduced by
+`whnfCore` itself instead of `whnf`, and the flag propagates to every
+recursive head normalization. -/
 def whnfCoreBody (mode : CheckMode) (r : CoreFnsA) (fe : IFEnv) :
     Bool → Nat → EIdx → AM EIdx :=
-  fun cheap depth e => do
-    match ← view e with
-    | .sort _ | .fvar _ _ | .forallE _ _ | .lam _ _ | .const _ _
-    | .lit _ => pure e
-    -- **The batched β spine** (task #97-P6-9), con-leche's
-    -- `Cached/CoreC.lean:950-986 whnfCoreStepI`'s own `.app` clause: the
-    -- spine's head is normalized once and the whole argument vector is run
-    -- through `whnfApp`, which batches a consecutive run of λ binders into
-    -- ONE `instantiateList` walk.  The spec-shaped clause this replaces
-    -- re-entered the knot per argument.
-    | .app _ _ => do
-      let sp ← getAppSpine coreWalkFuel e
-      let v ← r.whnfCore cheap depth sp.1
-      let same := v == sp.1
-      let hv ← headAndArgs v
-      whnfApp mode r fe cheap depth v hv.1 hv.2 same sp.2.1 sp.2.2 0
-    | .proj sn i pe => do
-      -- official `reduce_proj`: the scrutinee by `whnf`, or by the cheap
-      -- `whnfCore` in the cheap mode; stuck: the INPUT itself
-      let c ← if cheap then r.whnfCore true depth pe else r.whnf depth pe
-      match ← reduceProjCore mode r fe depth sn i c with
-      | some m' => r.whnfCore cheap depth m'
-      | none => pure e
-    | .letE _ v b => do
-      -- ζ, Lean's way (con-leche's task #342 S0: lets are stored as Lean
-      -- stores them)
-      let e' ← instantiate1Fast coreWalkFuel b v 0
-      r.whnfCore cheap depth e'
-    | .bvar _ =>
-      fail (.notImplemented "whnf beyond the supported fragment")
+  fun cheap depth e => whnfCoreLoop mode r fe cheap depth whnfCoreLoopFuel e
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1008-1019 whnfLoopFuel — step budget
 of the `whnf` reduction loop.  Literal-acceleration and delta steps are
@@ -2336,25 +2369,33 @@ of the `whnf` reduction loop.  Literal-acceleration and delta steps are
 from its decimal string at every use otherwise. -/
 @[noinline] def whnfLoopFuel : Nat := 4611686018427387904  -- 2^62
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1021-1036 whnfStep — one iteration
-of the reduction loop: head-normalize, try literal acceleration, unfold one
-definition — and hand the reduct to the loop's continuation `k`. -/
-def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (k : EIdx → AM EIdx)
-    (e : EIdx) : AM EIdx := do
+/-- con-leche: ConLeche/Kernel/Core.lean:1021-1036 whnfStep
+con-leche: ConLeche/Cached/CoreC.lean:876-890 whnfStepI — one iteration of
+the reduction loop: head-normalize, try literal acceleration, unfold one
+definition.  **The continuation is returned, not called**: con-leche's `k e'`
+is `.cont e'` (con-leche inlines the step so that its continuation call is
+the loop's own tail call, task #342 R2; the twin returns the step, as the
+Rust does). -/
+def whnfStep (r : CoreFnsA) (fe : IFEnv) (depth : Nat) (e : EIdx) :
+    AM WhnfStep := do
   let e₁ ← r.whnfCore false depth e
   match ← reduceNat r fe depth e₁ with
-  | some e₂ => k e₂
+  | some e₂ => pure (.cont e₂)
   | none =>
     match ← unfoldDefinition fe e₁ with
-    | some e₂ => k e₂
-    | none => pure e₁
+    | some e₂ => pure (.cont e₂)
+    | none => pure (.done e₁)
 
-/-- con-leche: ConLeche/Kernel/Core.lean:1038-1043 whnfLoop — the reduction
-loop: iterate `whnfStep` on its own step budget, so the whole chain costs one
-knot level however many steps it takes. -/
+/-- con-leche: ConLeche/Kernel/Core.lean:1038-1043 whnfLoop
+con-leche: ConLeche/Cached/CoreC.lean:892-896 whnfLoopI — the reduction loop:
+iterate `whnfStep` on its own step budget, so the whole chain costs one knot
+level however many steps it takes, in constant native stack. -/
 def whnfLoop (r : CoreFnsA) (fe : IFEnv) (depth : Nat) : Nat → EIdx → AM EIdx
   | 0, _ => fail (.internal "fuel exhausted: whnf loop")
-  | n + 1, e => whnfStep r fe depth (whnfLoop r fe depth n) e
+  | n + 1, e => do
+    match ← whnfStep r fe depth e with
+    | .done v => pure v
+    | .cont e' => whnfLoop r fe depth n e'
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1045-1047 whnfBody — the reduction
 loop's body: run `whnfLoop` at its own step budget. -/
