@@ -58,6 +58,7 @@ level obligations are `Level.subst`-shaped facts about `denoteL`.
   answers `true` as a shortcut.
 -/
 import ConRon.Bridge.ExprOps.MemoSpecs
+import ConRon.Bridge.SpecsL
 
 namespace ConRon.Bridge.ExprOps
 
@@ -68,13 +69,33 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-- con-leche: none — `vcgen` hands an arm its projection read as
-`some fields = st.viewC h`, i.e. REVERSED, so the one-line `assumption` that
-supplies a step lemma's hypothesis has to try both orientations. -/
-macro "lp_hyp" : tactic => `(tactic| first
-  | assumption
-  | (symm; assumption)
-  | grind only [Ext.trans, Ext.refl])
+/-! ## Vocabulary candidates (for Bridge/Grind.lean)
+
+The level memo invariants' hits (`Bridge/Grind.lean` §5's shape: guarded at
+the probe the program matched; their inserts are `MemoSpecs.lean`'s
+`instLP*Set_specI` posts), and a level or level-list handle known only to
+denote denotes SOMETHING (§3's `denote_some_of_isSome` at the level stores). -/
+
+grind_pattern [bridge_grind] MemoLOK.get => MemoLOK f tbl st, tbl[k]?, some r where
+  guard tbl[k]? = some r
+
+grind_pattern [bridge_grind] MemoLsOK.get => MemoLsOK f tbl st, tbl[k]?, some r where
+  guard tbl[k]? = some r
+
+/-- con-leche: none — `denote_some_of_isSome` at a level handle. -/
+@[bridge_grind →] theorem denoteL_some_of_isSome {st : LStore} {h : LIdx}
+    (hs : (denoteL st h).isSome = true) : ∃ u, denoteL st h = some u :=
+  Option.isSome_iff_exists.mp hs
+
+/-- con-leche: none — `denote_some_of_isSome` at a universe-argument list
+handle. -/
+@[bridge_grind →] theorem denoteLs_some_of_isSome {st : LsStore} {h : LsIdx}
+    (hs : (denoteLs st h).isSome = true) : ∃ us, denoteLs st h = some us :=
+  Option.isSome_iff_exists.mp hs
+
+-- A hit's cache frame is structure eta at the cache record (as in
+-- `MemoSpecs.lean`).
+attribute [local bridge_grind ext] Caches
 
 /-! ## 3. `substLevelList` — `Arena/ExprOps.lean:1901`
 
@@ -91,124 +112,6 @@ theorem substLevelList_eq (ks : List ConLeche.Name) (us : List Level) :
   induction vs with
   | nil => rfl
   | cons v rest ih => simp only [substLevelList, List.map_cons, ih]
-
-/-! ## 4. The level interners' specs
-
-`Bridge/Specs.lean` has `internLNode_spec` and `internLsNode_spec` (the NODE
-interners) but not the two TRANSIENT-TREE interners `internLevel` /
-`internLevels` that DESIGN §8.3 lesson 4 makes the level algorithms' only
-exit.  They are `internName_spec`'s shape exactly — a structural induction on
-the transient value — and they belong in `Bridge/Specs.lean` beside it; they
-are here because P3's group split put `Specs.lean` out of this file's
-reach. -/
-
-/-- con-leche: ConLeche/Kernel/Expr.lean:41-54 Level — intern a transient
-level tree, by induction on the `Level` (the recursion `internLevel` takes: a
-`Level` is a value, not a DAG, so no fuel). -/
-@[spec] theorem internLevel_spec (s₀ : AState) (u : Level)
-    (hwf : StoreWF s₀.store) :
-    ⦃fun s => s = s₀⦄ internLevel u
-    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.pers = s₀.store.pers ∧ s'.store.scr = s₀.store.scr ∧
-        s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteL s'.store.ls h = some u; ⊤⦄ := by
-  induction u generalizing s₀ with
-  | zero =>
-    vcgen [internLevel, internLNode_spec]
-      with finish [denoteLView, Arena.LStore.ViewOK, LNodeView.lchildren,
-      LNodeView.nchildren, Ext.refl]
-  | succ a ih =>
-    vcgen [internLevel, ih, internLNode_spec]
-    all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
-      LNodeView.lchildren, LNodeView.nchildren, lview_isSome_of_denote,
-      denoteL_ext]
-  | max a b ih1 ih2 =>
-    vcgen [internLevel, ih1, ih2, internLNode_spec]
-    all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
-      LNodeView.lchildren, LNodeView.nchildren, lview_isSome_of_denote,
-      denoteL_ext]
-  | imax a b ih1 ih2 =>
-    vcgen [internLevel, ih1, ih2, internLNode_spec]
-    all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
-      LNodeView.lchildren, LNodeView.nchildren, lview_isSome_of_denote,
-      denoteL_ext]
-  | param nm =>
-    vcgen [internLevel, internName_spec, internLNode_spec]
-    all_goals bridge_vcs [denoteLView, Arena.LStore.ViewOK,
-      LNodeView.lchildren, LNodeView.nchildren, nview_isSome_of_denote,
-      denoteN_ext, EStore.ns, EStore.ls]
-
-/-- con-leche: none — intern a list of transient levels, one handle each. -/
-@[spec] theorem internLevelList_spec (s₀ : AState) (us : List Level)
-    (hwf : StoreWF s₀.store) :
-    ⦃fun s => s = s₀⦄ internLevelList us
-    ⦃fun hs s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.pers = s₀.store.pers ∧ s'.store.scr = s₀.store.scr ∧
-        s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteLList s'.store.ls hs = some us; ⊤⦄ := by
-  induction us generalizing s₀ with
-  | nil =>
-    vcgen [internLevelList]
-      with finish [denoteLList, Ext.refl]
-  | cons u rest ih =>
-    vcgen [internLevelList, internLevel_spec, ih]
-    all_goals bridge_vcs [denoteLList, denoteL_ext, denoteLList_ext]
-
-/-- con-leche: none — a level-handle list that denotes has views at every
-member: `internLsNode`'s `ViewOK` at a list the walk has just built.  A
-general-purpose store fact; it belongs in `Bridge/Rel.lean`'s group 8 beside
-`view_isSome`. -/
-theorem lview_isSome_of_denoteLList {st : LStore} :
-    ∀ (hs : List LIdx) (xs : List Level), denoteLList st hs = some xs →
-      ∀ c ∈ hs, (st.view c).isSome = true := by
-  intro hs
-  induction hs with
-  | nil => intro _ _ c hc; simp at hc
-  | cons a as ih =>
-    intro xs h c hc
-    simp only [denoteLList, opt2_eq_some_iff] at h
-    obtain ⟨x, ys, hx, hys, _⟩ := h
-    rcases List.mem_cons.mp hc with rfl | hc'
-    · exact lview_isSome_of_denote hx
-    · exact ih ys hys c hc'
-
-/-- con-leche: none — intern a list of transient levels and hash-cons the
-list node. -/
-@[spec] theorem internLevels_spec (s₀ : AState) (us : List Level)
-    (hwf : StoreWF s₀.store) :
-    ⦃fun s => s = s₀⦄ internLevels us
-    ⦃fun h s' => StoreWF s'.store ∧ Ext s₀.store s'.store ∧
-        s'.store.pers = s₀.store.pers ∧ s'.store.scr = s₀.store.scr ∧
-        s'.store.scratchOn = s₀.store.scratchOn ∧
-        s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        denoteLs s'.store.lss h = some us; ⊤⦄ := by
-  vcgen [internLevels, internLevelList_spec, internLsNode_spec]
-  all_goals bridge_vcs [denoteLs, denoteLsView, Arena.LsStore.ViewOK,
-    lview_isSome_of_denote, denoteLList, denoteLListE_ext, EStore.ls,
-    lview_isSome_of_denoteLList]
-
-/-- con-leche: none — `RelL` from the two denotations, which is the shape a
-memo insert's side condition has (`instLPLSet_spec`'s `hr`).  `RelL` is a
-`def`, so `grind` will not build one; this lemma is what it applies instead.
-It belongs in `Bridge/Rel.lean` beside `RelE.self`. -/
-theorem RelL.of_denote {f : Level → Level} {st st' : EStore} {c r : LIdx}
-    {u : Level} (hc : denoteL st.ls c = some u)
-    (hr : denoteL st'.ls r = some (f u)) : RelL f st c st' r := by
-  intro u' hu'
-  rw [hc] at hu'
-  obtain rfl := Option.some.inj hu'
-  exact hr
-
-/-- con-leche: none — the same at a universe-argument LIST handle. -/
-theorem RelLs.of_denote {f : List Level → List Level} {st st' : EStore}
-    {c r : LsIdx} {us : List Level} (hc : denoteLs st.lss c = some us)
-    (hr : denoteLs st'.lss r = some (f us)) : RelLs f st c st' r := by
-  intro us' hus'
-  rw [hc] at hus'
-  obtain rfl := Option.some.inj hus'
-  exact hr
 
 /-! ## 5. `substLMemoAt` / `substLsMemoAt` — `Arena/ExprOps.lean:1914`, `:1925`
 
@@ -248,9 +151,7 @@ theorem substLMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         s'.caches = { s₀.caches with readLC := s'.caches.readLC } ∧
         RelL (Level.subst ks us) s₀.store u s'.store r; ⊤⦄ := by
   dsimp only
-  vcgen [substLMemoAt]
-  all_goals bridge_vcs [MemoLOK.insert, MemoLOK.get, RelL.of_ext,
-    RelL.of_denote, denoteL_ext, ReadLCacheOK.mono, Option.isSome_iff_exists]
+  sym only [bridge_grind] => vcgen [substLMemoAt] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 **THEOREM 1 for `substLsMemoAt`**: the same at a universe-argument LIST
@@ -273,9 +174,6 @@ theorem substLsMemoAt_spec (s₀ : AState) (ks : List ConLeche.Name)
         s'.caches = { s₀.caches with readLsC := s'.caches.readLsC } ∧
         RelLs (fun ws => ws.map (Level.subst ks us)) s₀.store vs s'.store r; ⊤⦄ := by
   dsimp only
-  vcgen [substLsMemoAt]
-  all_goals bridge_vcs [MemoLsOK.insert, MemoLsOK.get, MemoLsOK.mono,
-    RelLs.of_ext, RelLs.of_denote, denoteLs_ext, substLevelList_eq,
-    ReadLsCacheOK.mono, Option.isSome_iff_exists]
+  sym only [bridge_grind, substLevelList_eq] => vcgen [substLsMemoAt] <;> finish
 
 end ConRon.Bridge.ExprOps

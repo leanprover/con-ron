@@ -1172,31 +1172,23 @@ theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
 @[spec] theorem pinReserved_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinReserved
     ⦃fun ns s' => s' = s₀ ∧ denoteNL s₀.store ns reservedBasisNameValues; ⊤⦄ := by
-  vcgen [pinReserved]
-  subst_vars
-  exact ⟨rfl, hp.reserved⟩
+  sym only [bridge_grind, hp.reserved] => vcgen [pinReserved] <;> finish
 
 @[spec] theorem pinEmptyLevels_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinEmptyLevels
     ⦃fun us s' => s' = s₀ ∧ denoteLs s₀.store.lss us = some []; ⊤⦄ := by
-  vcgen [pinEmptyLevels]
-  subst_vars
-  exact ⟨rfl, hp.emptyLevels⟩
+  sym only [bridge_grind, hp.emptyLevels] => vcgen [pinEmptyLevels] <;> finish
 
 @[spec] theorem pinZeroLevel_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinZeroLevel
     ⦃fun u s' => s' = s₀ ∧ denoteL s₀.store.ls u = some .zero; ⊤⦄ := by
-  vcgen [pinZeroLevel]
-  subst_vars
-  exact ⟨rfl, hp.zeroLevel⟩
+  sym only [bridge_grind, hp.zeroLevel] => vcgen [pinZeroLevel] <;> finish
 
 @[spec] theorem pinSortOne_spec (s₀ : AState) (hp : PinsOK s₀) :
     ⦃fun s => s = s₀⦄ pinSortOne
     ⦃fun e s' => s' = s₀ ∧
         denoteE s₀.store e = some (.sort (.succ .zero)); ⊤⦄ := by
-  vcgen [pinSortOne]
-  subst_vars
-  exact ⟨rfl, hp.sortOne⟩
+  sym only [bridge_grind, hp.sortOne] => vcgen [pinSortOne] <;> finish
 
 /-! ## The closer
 

@@ -61,6 +61,33 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
+/-! ## Vocabulary candidates (for Bridge/Grind.lean)
+
+The memo invariants this module's walks carry, in `Bridge/Grind.lean` §5's
+shape: the hit at a probe the program matched, the insert at the update's
+table term, the dropped table, each guarded so that it fires there only.
+`MemoVDOK` (`ExprOps/Leaves.lean`) is the cursor-keyed one; `MemoVOK`'s three
+are `ExprOps/Ranges.lean`'s candidates again, registered locally here because
+the two modules do not import each other. -/
+
+grind_pattern [bridge_grind] MemoVDOK.get => MemoVDOK f tbl st, tbl[k]?, some v where
+  guard tbl[k]? = some v
+
+grind_pattern [bridge_grind] MemoVDOK.insert => MemoVDOK f tbl' st, tbl.insert k v where
+  guard tbl' = tbl.insert k v
+
+grind_pattern [bridge_grind] MemoVDOK.of_empty => MemoVDOK f tbl st where
+  guard tbl = ∅
+
+local grind_pattern [bridge_grind] MemoVOK.get => MemoVOK f tbl st, tbl[k]?, some v where
+  guard tbl[k]? = some v
+
+local grind_pattern [bridge_grind] MemoVOK.insert => MemoVOK f tbl' st, tbl.insert k v where
+  guard tbl' = tbl.insert k v
+
+local grind_pattern [bridge_grind] MemoVOK.of_empty => MemoVOK f tbl st where
+  guard tbl = ∅
+
 /-! ## 1. `wscopedBGo` and `wscopedBFast` — `ExprOps.lean:833`, `:868`
 
 `Walks.lean`'s `wscopedB` with three additions, all of them con-leche's own
@@ -74,7 +101,7 @@ invariant: every recorded verdict is `Expr.wscopedB` at the key's own cursor.
 2: the only metavariable `mspec` then leaves is first-order). -/
 abbrev WScopedMemoA (tbl : Std.HashMap (EIdx × Nat) Bool) (st : EStore) :
     Prop :=
-  MemoVDOK (fun d e => Expr.wscopedB d e) tbl st
+  MemoVDOK Expr.wscopedB tbl st
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1013-1015 wscopedBP_cut — the
 CUTOFF's licence, as the answer relation: an `fvar`-free term is in scope at
@@ -92,6 +119,7 @@ theorem wscopedB_cut_of_derived {st : EStore} (hwf : StoreWF st)
     RelV (Expr.wscopedB d) st h true := by
   intro e he
   exact (wscopedB_of_hasFvar e d (hasFvar_false_of_derived hwf he h0)).symm
+grind_pattern [bridge_grind] wscopedB_cut_of_derived => RelV (Expr.wscopedB d) st h true
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `wscopedBGo`'s recursion. -/
@@ -113,16 +141,13 @@ theorem wscopedBGo_spec :
   | zero =>
     constructor
     intro s₀ tbl d h _ _ _
-    vcgen [wscopedBGo_zero]
-    all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
-      MemoVDOK.of_empty, wscopedB_cut_of_derived]
+    sym only [bridge_grind] => vcgen [wscopedBGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ tbl d h hok hm hden
-    have hrec := ih.run
-    vcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet, hrec]
-    all_goals bridge_vcs [Expr.wscopedB, RelV, MemoVDOK.insert,
-      MemoVDOK.of_empty, wscopedB_cut_of_derived]
+    sym only [bridge_grind, Expr.wscopedB] =>
+      vcgen [wscopedBGo_succ, wscopedBGoArmApp, wscopedBGoArmBind, wscopedBGoArmLet,
+        ih.run] <;> finish
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1090-1095 wscopedBC — **THEOREM 1
 for `wscopedBFast`**: one memoized DAG walk from the empty memo. -/
@@ -130,9 +155,8 @@ theorem wscopedBFast_spec (fuel d : Nat) (s₀ : AState) (h : EIdx)
     (hok : StateOK s₀) (hden : (denoteE s₀.store h).isSome = true) :
     ⦃fun s => s = s₀⦄ wscopedBFast fuel d h
     ⦃fun r s' => s' = s₀ ∧ RelV (Expr.wscopedB d) s₀.store h r; ⊤⦄ := by
-  have hr := (wscopedBGo_spec fuel).run
-  vcgen [wscopedBFast, hr]
-  all_goals bridge_vcs [RelV, MemoVDOK.of_empty]
+  sym only [bridge_grind] =>
+    vcgen [wscopedBFast, (wscopedBGo_spec fuel).run] <;> finish
 
 /-! ## 2. The leaf-subset test's pure specification
 
@@ -146,52 +170,52 @@ range cutoff inlined; the equations below are the two against each other. -/
 def leavesSubSpec (bl : List (Nat × Expr)) (e : Expr) : Bool :=
   (Expr.fvarLeaves e).all (fun l => bl.contains l)
 
-@[grind =] theorem leavesSubSpec_bvar {bl : List (Nat × Expr)} {i : Nat} :
+@[bridge_grind =] theorem leavesSubSpec_bvar {bl : List (Nat × Expr)} {i : Nat} :
     leavesSubSpec bl (.bvar i) = true := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_sort {bl : List (Nat × Expr)} {u : Level} :
+@[bridge_grind =] theorem leavesSubSpec_sort {bl : List (Nat × Expr)} {u : Level} :
     leavesSubSpec bl (.sort u) = true := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_const {bl : List (Nat × Expr)}
+@[bridge_grind =] theorem leavesSubSpec_const {bl : List (Nat × Expr)}
     {n : ConLeche.Name} {us : List Level} :
     leavesSubSpec bl (.const n us) = true := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_lit {bl : List (Nat × Expr)}
+@[bridge_grind =] theorem leavesSubSpec_lit {bl : List (Nat × Expr)}
     {l : ConLeche.Literal} : leavesSubSpec bl (.lit l) = true := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_fvar {bl : List (Nat × Expr)} {i : Nat}
+@[bridge_grind =] theorem leavesSubSpec_fvar {bl : List (Nat × Expr)} {i : Nat}
     {t : Expr} :
     leavesSubSpec bl (.fvar i t) =
       (bl.contains (i, t) && leavesSubSpec bl t) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_app {bl : List (Nat × Expr)} {f a : Expr} :
+@[bridge_grind =] theorem leavesSubSpec_app {bl : List (Nat × Expr)} {f a : Expr} :
     leavesSubSpec bl (.app f a) =
       (leavesSubSpec bl f && leavesSubSpec bl a) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_lam {bl : List (Nat × Expr)} {ty b : Expr} :
+@[bridge_grind =] theorem leavesSubSpec_lam {bl : List (Nat × Expr)} {ty b : Expr} :
     leavesSubSpec bl (.lam ty b) =
       (leavesSubSpec bl ty && leavesSubSpec bl b) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_forallE {bl : List (Nat × Expr)}
+@[bridge_grind =] theorem leavesSubSpec_forallE {bl : List (Nat × Expr)}
     {ty b : Expr} :
     leavesSubSpec bl (.forallE ty b) =
       (leavesSubSpec bl ty && leavesSubSpec bl b) := by
   simp [leavesSubSpec, Expr.fvarLeaves]
 
-@[grind =] theorem leavesSubSpec_letE {bl : List (Nat × Expr)}
+@[bridge_grind =] theorem leavesSubSpec_letE {bl : List (Nat × Expr)}
     {ty v b : Expr} :
     leavesSubSpec bl (.letE ty v b) =
       (leavesSubSpec bl ty && leavesSubSpec bl v && leavesSubSpec bl b) := by
   simp [leavesSubSpec, Expr.fvarLeaves, Bool.and_assoc]
 
-@[grind =] theorem leavesSubSpec_proj {bl : List (Nat × Expr)}
+@[bridge_grind =] theorem leavesSubSpec_proj {bl : List (Nat × Expr)}
     {n : ConLeche.Name} {i : Nat} {s : Expr} :
     leavesSubSpec bl (.proj n i s) = leavesSubSpec bl s := by
   simp [leavesSubSpec, Expr.fvarLeaves]
@@ -233,22 +257,30 @@ def LSubAt (bl : List (Nat × EIdx)) (st : EStore) (c : EIdx) (r : Bool) :
     Prop :=
   ∀ bl', denoteLeaves st bl = some bl' → RelV (leavesSubSpec bl') st c r
 
-/-- con-leche: none — `LSubAt` from `RelV` at the base list's denotation. -/
-@[grind →] theorem LSubAt.of_relV {bl : List (Nat × EIdx)} {st : EStore}
-    {c : EIdx} {r : Bool} {bl' : List (Nat × Expr)}
-    (hbl : denoteLeaves st bl = some bl')
-    (h : RelV (leavesSubSpec bl') st c r) : LSubAt bl st c r := by
-  intro bl2 hbl2
-  rw [hbl] at hbl2
-  obtain rfl := Option.some.inj hbl2
-  exact h
+/-- con-leche: none — `LSubAt`'s answer at the base list's optional
+denotation, as a named predicate (`Bridge/Grind.lean` §3's `MapRelV` shape):
+the verdict is the pure guard's at whatever the base list denotes. -/
+def LSubO (st : EStore) (c : EIdx) (r : Bool) : Option (List (Nat × Expr)) → Prop
+  | some bl' => RelV (leavesSubSpec bl') st c r
+  | none => True
 
-/-- con-leche: none — and back, so that every per-arm step happens at
-`Bridge/Rel.lean`'s plain `RelV`. -/
-@[grind →] theorem LSubAt.to_relV {bl : List (Nat × EIdx)} {st : EStore}
-    {c : EIdx} {r : Bool} {bl' : List (Nat × Expr)} (h : LSubAt bl st c r)
-    (hbl : denoteLeaves st bl = some bl') :
-    RelV (leavesSubSpec bl') st c r := h bl' hbl
+/-- con-leche: none — `LSubAt` IS `LSubO` at the base list's denotation. -/
+@[bridge_grind =] theorem lSubAt_eq (bl : List (Nat × EIdx)) (st : EStore) (c : EIdx)
+    (r : Bool) : LSubAt bl st c r = LSubO st c r (denoteLeaves st bl) := by
+  unfold LSubAt
+  cases denoteLeaves st bl <;> simp [LSubO]
+
+/-- con-leche: none — `LSubO` at a denoting base list. -/
+@[bridge_grind =] theorem LSubO.some_eq (st : EStore) (c : EIdx) (r : Bool)
+    (bl' : List (Nat × Expr)) : LSubO st c r (some bl') = RelV (leavesSubSpec bl') st c r :=
+  rfl
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1187-1189 leavesSubP_cut — the
+cutoff at a base list of handles, keyed by the answer it licenses. -/
+theorem LSubAt.cut {st : EStore} (hwf : StoreWF st) (bl : List (Nat × EIdx)) {h : EIdx}
+    (h0 : (fvarOfData (st.derived h)).toNat = 0) : LSubAt bl st h true :=
+  fun bl' _ => leavesSub_cut_of_derived hwf bl' h0
+grind_pattern [bridge_grind] LSubAt.cut => LSubAt bl st h true
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
 memo's invariant, at the base list's denotation.  `Bridge/StateOK.lean`'s
@@ -257,26 +289,54 @@ def LSubMemoA (bl : List (Nat × EIdx)) (tbl : Std.HashMap EIdx Bool)
     (st : EStore) : Prop :=
   ∀ bl', denoteLeaves st bl = some bl' → MemoVOK (leavesSubSpec bl') tbl st
 
-/-- con-leche: none — a dropped table satisfies the invariant. -/
-theorem LSubMemoA.of_empty {bl : List (Nat × EIdx)}
-    {tbl : Std.HashMap EIdx Bool} {st : EStore} (h : tbl = ∅) :
-    LSubMemoA bl tbl st := fun _ _ => MemoVOK.of_empty h
+/-- con-leche: none — `LSubMemoA` at the base list's optional denotation. -/
+def LSubMemoO (tbl : Std.HashMap EIdx Bool) (st : EStore) :
+    Option (List (Nat × Expr)) → Prop
+  | some bl' => MemoVOK (leavesSubSpec bl') tbl st
+  | none => True
 
-/-- con-leche: none — `LSubMemoA` from `MemoVOK`. -/
-@[grind →] theorem LSubMemoA.of_memoVOK {bl : List (Nat × EIdx)}
-    {tbl : Std.HashMap EIdx Bool} {st : EStore} {bl' : List (Nat × Expr)}
-    (hbl : denoteLeaves st bl = some bl')
-    (h : MemoVOK (leavesSubSpec bl') tbl st) : LSubMemoA bl tbl st := by
-  intro bl2 hbl2
-  rw [hbl] at hbl2
-  obtain rfl := Option.some.inj hbl2
-  exact h
+/-- con-leche: none — `LSubMemoA` IS `LSubMemoO` at the base list's
+denotation. -/
+@[bridge_grind =] theorem lSubMemoA_eq (bl : List (Nat × EIdx)) (tbl : Std.HashMap EIdx Bool)
+    (st : EStore) : LSubMemoA bl tbl st = LSubMemoO tbl st (denoteLeaves st bl) := by
+  unfold LSubMemoA
+  cases denoteLeaves st bl <;> simp [LSubMemoO]
 
-/-- con-leche: none — and back. -/
-@[grind →] theorem LSubMemoA.to_memoVOK {bl : List (Nat × EIdx)}
-    {tbl : Std.HashMap EIdx Bool} {st : EStore} {bl' : List (Nat × Expr)}
-    (h : LSubMemoA bl tbl st) (hbl : denoteLeaves st bl = some bl') :
-    MemoVOK (leavesSubSpec bl') tbl st := h bl' hbl
+/-- con-leche: none — `LSubMemoO` at a denoting base list. -/
+@[bridge_grind =] theorem LSubMemoO.some_eq (tbl : Std.HashMap EIdx Bool) (st : EStore)
+    (bl' : List (Nat × Expr)) :
+    LSubMemoO tbl st (some bl') = MemoVOK (leavesSubSpec bl') tbl st := rfl
+
+/-- con-leche: none — a base list known only to denote denotes SOMETHING (the
+witness `LSubO.some_eq` and `LSubMemoO.some_eq` fire on). -/
+@[bridge_grind →] theorem denoteLeaves_some_of_isSome {st : EStore} {bl : List (Nat × EIdx)}
+    (h : (denoteLeaves st bl).isSome = true) : ∃ bl', denoteLeaves st bl = some bl' :=
+  Option.isSome_iff_exists.mp h
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1157-1162 leafMem — `leafMem`'s
+verdict at the base list's and the annotation's optional denotations. -/
+def LeafMemO (bl : List (Nat × EIdx)) (idx : Nat) (ty : EIdx) :
+    Option (List (Nat × Expr)) → Option Expr → Prop
+  | some bl', some t => leafMem bl idx ty = bl'.contains (idx, t)
+  | _, _ => True
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1157-1162 leafMem — `leafMem_spec`
+at every test the walk makes, keyed by the test and the two denotations. -/
+theorem leafMemO {st : EStore} (hwf : StoreWF st) (bl : List (Nat × EIdx)) (idx : Nat)
+    (ty : EIdx) : LeafMemO bl idx ty (denoteLeaves st bl) (denoteE st ty) := by
+  cases hb : denoteLeaves st bl with
+  | none => trivial
+  | some bl' =>
+    cases ht : denoteE st ty with
+    | none => trivial
+    | some t => exact leafMem_spec hwf bl bl' hb idx ty t ht
+grind_pattern [bridge_grind] leafMemO => leafMem bl idx ty, denoteLeaves st bl, denoteE st ty
+
+/-- con-leche: none — `LeafMemO` at two denotations. -/
+@[bridge_grind =] theorem LeafMemO.some_eq (bl : List (Nat × EIdx)) (idx : Nat) (ty : EIdx)
+    (bl' : List (Nat × Expr)) (t : Expr) :
+    LeafMemO bl idx ty (some bl') (some t) = (leafMem bl idx ty = bl'.contains (idx, t)) :=
+  rfl
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `leavesSubGo`'s recursion. -/
@@ -299,14 +359,13 @@ theorem leavesSubGo_spec (bl : List (Nat × EIdx)) :
   | zero =>
     constructor
     intro s₀ tbl h _ _ _ _
-    vcgen [leavesSubGo_zero]
-    all_goals bridge_vcs [RelV, LSubAt, LSubMemoA]
+    sym only [bridge_grind] => vcgen [leavesSubGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ tbl h hok hbl hm hden
-    have hrec := ih.run
-    vcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet, hrec]
-    all_goals bridge_vcs [RelV, leavesSub_cut_of_derived]
+    sym only [bridge_grind] =>
+      vcgen [leavesSubGo_succ, leavesSubArmApp, leavesSubArmBind, leavesSubArmLet,
+        ih.run] <;> finish
 
 /-! ## 4. `leafGuard` — `ExprOps.lean:962`
 
@@ -325,6 +384,47 @@ def LeafGuardAt (st : EStore) (fab base : EIdx) (r : Bool) : Prop :=
   ∀ eb, denoteE st base = some eb →
     RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r
 
+/-- con-leche: none — `LeafGuardAt`'s answer at `base`'s optional
+denotation. -/
+def LeafGuardO (st : EStore) (fab : EIdx) (r : Bool) : Option Expr → Prop
+  | some eb => RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r
+  | none => True
+
+/-- con-leche: none — `LeafGuardAt` IS `LeafGuardO` at `base`'s denotation. -/
+@[bridge_grind =] theorem leafGuardAt_eq (st : EStore) (fab base : EIdx) (r : Bool) :
+    LeafGuardAt st fab base r = LeafGuardO st fab r (denoteE st base) := by
+  unfold LeafGuardAt
+  cases denoteE st base <;> simp [LeafGuardO]
+
+/-- con-leche: none — `LeafGuardO` at a denoting `base`. -/
+@[bridge_grind =] theorem LeafGuardO.some_eq (st : EStore) (fab : EIdx) (r : Bool)
+    (eb : Expr) :
+    LeafGuardO st fab r (some eb) = RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r :=
+  rfl
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — the
+cutoff: an `fvar`-free fabrication passes. -/
+theorem LeafGuardAt.cut {st : EStore} (hwf : StoreWF st) {fab : EIdx} (base : EIdx)
+    (h0 : (fvarOfData (st.derived fab)).toNat = 0) : LeafGuardAt st fab base true :=
+  fun eb _ => leavesSub_cut_of_derived hwf (Expr.fvarLeaves eb) h0
+grind_pattern [bridge_grind] LeafGuardAt.cut => LeafGuardAt st fab base true
+
+/-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — **the
+composition**: the walk's verdict against a list with `base`'s leaves as its
+MEMBERS is the guard's (`leavesSubSpec_congr`), keyed by the walk's answer and
+the leaf list's. -/
+theorem LeafGuardAt.of_lSubAt {st : EStore} {fab base : EIdx} {rs : List (Nat × EIdx)}
+    {r : Bool} (hl : LeavesEq st [] base rs) (hrs : (denoteLeaves st rs).isSome = true)
+    (hs : LSubAt rs st fab r) : LeafGuardAt st fab base r := by
+  intro eb heb
+  obtain ⟨bl', hbl'⟩ := Option.isSome_iff_exists.mp hrs
+  intro e he
+  rw [hs bl' hbl' e he]
+  refine leavesSubSpec_congr (fun x => ?_) e
+  have := hl eb [] bl' heb rfl hbl' x
+  simpa using this
+grind_pattern [bridge_grind] LeafGuardAt.of_lSubAt => LSubAt rs st fab r, LeavesEq st [] base rs
+
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — **THEOREM
 1 for `leafGuard`**.  Complete except for the `fvarLeavesGo` gray clause it
 inherits through `Leaves.lean`'s `fvarLeavesFast_spec`. -/
@@ -333,12 +433,9 @@ theorem leafGuard_spec (fuel : Nat) (s₀ : AState) (fab base : EIdx)
     (hbase : (denoteE s₀.store base).isSome = true) :
     ⦃fun s => s = s₀⦄ leafGuard fuel fab base
     ⦃fun r s' => s' = s₀ ∧ LeafGuardAt s₀.store fab base r; ⊤⦄ := by
-  have hfl := fvarLeavesFast_spec fuel
-  have hls := fun bl => (leavesSubGo_spec bl fuel).run
-  vcgen [leafGuard, hfl, hls]
-  all_goals bridge_vcs [LeafGuardAt, LSubAt, LSubMemoA, LeavesEq, RelV,
-    MemoVOK.of_empty, LSubMemoA.of_empty, leavesSubSpec_congr,
-    leavesSub_cut_of_derived, denoteLeaves_nil]
+  sym only [bridge_grind] =>
+    vcgen [leafGuard, fvarLeavesFast_spec fuel, fun bl => (leavesSubGo_spec bl fuel).run] <;>
+      finish
 
 /-! ## The axiom check -/
 

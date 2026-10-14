@@ -69,6 +69,22 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
+/-! ## Vocabulary candidates (for Bridge/Grind.lean)
+
+`Bridge/StateOK.lean`'s handle-keyed, value-valued memo invariant `MemoVOK`
+(`MemoBA`, `MemoFA`, `Guards.lean`'s `LSubMemoA`), in `Bridge/Grind.lean` §5's
+shape: the hit at a probe the program matched, the insert at the update's
+table term, the dropped table — each guarded so that it fires there only. -/
+
+grind_pattern [bridge_grind] MemoVOK.get => MemoVOK f tbl st, tbl[k]?, some v where
+  guard tbl[k]? = some v
+
+grind_pattern [bridge_grind] MemoVOK.insert => MemoVOK f tbl' st, tbl.insert k v where
+  guard tbl' = tbl.insert k v
+
+grind_pattern [bridge_grind] MemoVOK.of_empty => MemoVOK f tbl st where
+  guard tbl = ∅
+
 /-! ## The two derived-word licences
 
 The one place this file unfolds the packed word.  Both are
@@ -77,8 +93,8 @@ answer relation so that the arm proof never mentions either. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1456 bvarBRaw_exact — **the
 unsaturated branch's licence**: off saturation the store's derived word IS
-`Expr.bvarBound` of the denoted term. -/
-@[grind →] theorem bvarBound_of_derived {st : EStore} (hwf : StoreWF st)
+`Expr.bvarBound` of the denoted term.  Keyed by the field read. -/
+theorem bvarBound_of_derived {st : EStore} (hwf : StoreWF st)
     {h : EIdx} (hne : ¬ (bvarOfData (st.derived h)).toNat = satRange) :
     RelV Expr.bvarBound st h (bvarOfData (st.derived h)).toNat := by
   intro e he
@@ -92,7 +108,7 @@ unsaturated branch's licence**: off saturation the store's derived word IS
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1590 fvarBRaw_exact — the same at
 the fvar-range field. -/
-@[grind →] theorem fvarRange_of_derived {st : EStore} (hwf : StoreWF st)
+theorem fvarRange_of_derived {st : EStore} (hwf : StoreWF st)
     {h : EIdx} (hne : ¬ (fvarOfData (st.derived h)).toNat = satRange) :
     RelV Expr.fvarRange st h (fvarOfData (st.derived h)).toNat := by
   intro e he
@@ -103,6 +119,9 @@ the fvar-range field. -/
     simp only [Expr.fvarBRaw, satRange] at hne ⊢
     omega
   exact Expr.fvarBRaw_exact e hlt
+
+grind_pattern [bridge_grind] bvarBound_of_derived => bvarOfData (st.derived h)
+grind_pattern [bridge_grind] fvarRange_of_derived => fvarOfData (st.derived h)
 
 /-! ## The two readback equations the `Fast` twins need -/
 
@@ -146,14 +165,13 @@ theorem bvarBoundGo_spec : ∀ fuel, BvarBoundSpec (bvarBoundGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    vcgen [bvarBoundGo_zero]
-    all_goals bridge_vcs [Expr.bvarBound, RelV]
+    sym only [bridge_grind] => vcgen [bvarBoundGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
-    have hrec := ih.run
-    vcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet, hrec]
-    all_goals bridge_vcs [Expr.bvarBound, RelV]
+    sym only [bridge_grind, Expr.bvarBound] =>
+      vcgen [bvarBoundGo_succ, bvarBoundArmApp, bvarBoundArmBind, bvarBoundArmLet,
+        ih.run] <;> finish
 
 /-! ## `bvarBoundMemo` — `ExprOps.lean:1437`
 
@@ -170,9 +188,8 @@ theorem bvarBoundMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
         s'.pins = s₀.pins ∧ s'.memos.bvarBC = ∅ ∧
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
         RelV Expr.bvarBound s₀.store e r; ⊤⦄ := by
-  have hr := (bvarBoundGo_spec fuel).run
-  vcgen [bvarBoundMemo, hr]
-  all_goals bridge_vcs [Expr.bvarBound, RelV]
+  sym only [bridge_grind] =>
+    vcgen [bvarBoundMemo, (bvarBoundGo_spec fuel).run] <;> finish
 
 /-! ## `fvarRangeGo` — `ExprOps.lean:1447`
 
@@ -198,14 +215,13 @@ theorem fvarRangeGo_spec : ∀ fuel, FvarRangeSpec (fvarRangeGo fuel) := by
   | zero =>
     constructor
     intro s₀ h _ _ _
-    vcgen [fvarRangeGo_zero]
-    all_goals bridge_vcs [Expr.fvarRange, RelV]
+    sym only [bridge_grind] => vcgen [fvarRangeGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hden
-    have hrec := ih.run
-    vcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet, hrec]
-    all_goals bridge_vcs [Expr.fvarRange, RelV]
+    sym only [bridge_grind, Expr.fvarRange] =>
+      vcgen [fvarRangeGo_succ, fvarRangeArmApp, fvarRangeArmBind, fvarRangeArmLet,
+        ih.run] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1426-1427 fvarRangeMemo —
 **THEOREM 1 for `fvarRange`, at the entry point**. -/
@@ -215,9 +231,8 @@ theorem fvarRangeMemo_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ s'.memos.fvarBC = ∅ ∧
         RelV Expr.fvarRange s₀.store e r; ⊤⦄ := by
-  have hr := (fvarRangeGo_spec fuel).run
-  vcgen [fvarRangeMemo, hr]
-  all_goals bridge_vcs [Expr.fvarRange, RelV]
+  sym only [bridge_grind] =>
+    vcgen [fvarRangeMemo, (fvarRangeGo_spec fuel).run] <;> finish
 
 /-! ## `bvarB` and `fvarB` — `ExprOps.lean:1486`, `:1494`
 
@@ -240,9 +255,8 @@ theorem bvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
         s'.pins = s₀.pins ∧
         s'.memos.inst1LC = s₀.memos.inst1LC ∧
         RelV Expr.bvarBound s₀.store e r; ⊤⦄ := by
-  have hr := bvarBoundMemo_spec fuel
-  vcgen [bvarB, hr]
-  all_goals bridge_vcs [RelV, bvarBound_of_derived]
+  sym only [bridge_grind] =>
+    vcgen [bvarB, bvarBoundMemo_spec fuel] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1577 bvarB_eq — the same about a
 RUN, and at con-leche's `Expr.bvarB`: the spelling the checker's cutoffs
@@ -263,9 +277,8 @@ theorem fvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
     ⦃fun s => s = s₀⦄ fvarB fuel e
     ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ RelV Expr.fvarRange s₀.store e r; ⊤⦄ := by
-  have hr := fvarRangeMemo_spec fuel
-  vcgen [fvarB, hr]
-  all_goals bridge_vcs [RelV, fvarRange_of_derived]
+  sym only [bridge_grind] =>
+    vcgen [fvarB, fvarRangeMemo_spec fuel] <;> finish
 
 /-! ## `hasFvarFast` and `looseBVarsBoundedFast` — `ExprOps.lean:1501`, `:1507`
 
@@ -282,9 +295,8 @@ theorem hasFvarFast_spec (fuel : Nat) (s₀ : AState) (e : EIdx)
     ⦃fun s => s = s₀⦄ hasFvarFast fuel e
     ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧ RelV Expr.hasFvar s₀.store e r; ⊤⦄ := by
-  have hr := fvarB_spec fuel
-  vcgen [hasFvarFast, hr]
-  all_goals bridge_vcs [RelV, Expr.fvarRange_bne_zero]
+  sym only [bridge_grind, Expr.fvarRange_bne_zero] =>
+    vcgen [hasFvarFast, fvarB_spec fuel] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1718-1719 looseBVarsBoundedFast —
 **THEOREM 1 for `looseBVarsBoundedFast`**, at `looseBVarsBounded`. -/
@@ -294,9 +306,8 @@ theorem looseBVarsBoundedFast_spec (fuel k : Nat) (s₀ : AState) (e : EIdx)
     ⦃fun r s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
         s'.pins = s₀.pins ∧
         RelV (Expr.looseBVarsBounded k) s₀.store e r; ⊤⦄ := by
-  have hr := bvarB_spec fuel
-  vcgen [looseBVarsBoundedFast, hr]
-  all_goals bridge_vcs [RelV, looseBVarsBounded_decide]
+  sym only [bridge_grind, looseBVarsBounded_decide] =>
+    vcgen [looseBVarsBoundedFast, bvarB_spec fuel] <;> finish
 
 /-! ## The axiom check -/
 
