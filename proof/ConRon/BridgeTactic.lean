@@ -1401,6 +1401,34 @@ def storeNorm (g : MVarId) : MetaM MVarId := g.withContext do
     g ← g'.tryClearMany olds
   return g
 
+/-- Introduce the goal's leading `∀ x₁ … xₖ, P₁ → … → Pₘ → …` while the
+premises are facts about the `xᵢ` (then `… = some …` lookups): a
+postcondition's `∀ e, denoteE st c = some e → …`, so that its facts take part
+in the rounds; `unifyFacts` identifies a known denotation with the new one. -/
+partial def introFacts (g : MVarId) : MetaM MVarId := do
+  let n ← g.withContext do
+    let env ← getEnv
+    let t ← whnfR (← instantiateMVars (← g.getType))
+    forallTelescope t fun xs _ => do
+      let mut k := 0
+      while k < xs.size do
+        if ← isProp (← inferType xs[k]!) then break
+        k := k + 1
+      if k == 0 then return 0
+      let mut m := 0
+      while k + m < xs.size do
+        let pt ← instantiateMVars (← inferType xs[k + m]!)
+        unless ← isProp pt do break
+        if isFactShape env pt && xs[0:k].toArray.any (pt.containsFVar ·.fvarId!) then
+          m := m + 1; continue
+        -- a lookup `env.find? nm = some ci`, after the facts
+        unless m > 0 && pt.eq?.any (·.2.2.isAppOfArity ``Option.some 2) do break
+        m := m + 1
+      return if m == 0 then 0 else k + m
+  if n == 0 then return g
+  let (_, g') ← g.introNP n
+  introFacts g'
+
 /-- `bridge_fwd` on one goal. -/
 def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
     (unfoldRelGoal : Bool := false) : TacticM MVarId := do
@@ -1418,53 +1446,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   if unfoldRelGoal && tg.getAppFn.constName?.any (isAnswerRel (← getEnv)) then
     let tu ← g.withContext (unfoldRel tg)
     if tu != tg then g ← g.replaceTargetDefEq (← Core.betaReduce tu)
-  -- a block of data binders followed by facts about them
-  -- (`∀ xs ys, denoteEList … = some xs → denoteEList … = some ys → …`)
-  let block ← g.withContext do
-    let t ← whnfR (← instantiateMVars (← g.getType))
-    forallTelescopeReducing t fun xs _ => do
-      let mut n := 0
-      while n < xs.size do
-        unless ← isProp (← inferType xs[n]!) do n := n + 1; continue
-        break
-      if n < 2 then return 0
-      let mut k := n
-      while k < xs.size do
-        let ty ← inferType xs[k]!
-        if (← isProp ty) && isFactShape (← getEnv) ty then k := k + 1 else break
-      if k == n then return 0
-      -- and the lookups that follow (`env.find? nm = some ci`), which
-      -- `unifyFacts` identifies with the context's own
-      while k < xs.size do
-        let ty ← inferType xs[k]!
-        match ty.eq? with
-        | some (_, _, r) => if r.isAppOfArity ``Option.some 2 then k := k + 1 else break
-        | none => break
-      return k
-  if block > 0 then
-    let (_, g') ← g.introNP block
-    g := g'
-  repeat
-    -- `∀ x₁ … xₖ, P₁ → … → Pₘ → …` with every `Pⱼ` a denotation fact about
-    -- the `xᵢ` (`∀ ea eb, denoteE st a = some ea → denoteE st b = some eb → …`)
-    let n ← g.withContext do
-      let t ← whnfR (← instantiateMVars (← g.getType))
-      forallTelescope t fun xs _ => do
-        let mut k := 0
-        while k < xs.size do
-          if ← isProp (← inferType xs[k]!) then break
-          k := k + 1
-        if k == 0 then return 0
-        let mut m := 0
-        while k + m < xs.size do
-          let pt ← instantiateMVars (← inferType xs[k + m]!)
-          unless ← isProp pt do break
-          unless isFactShape (← getEnv) pt && xs[0:k].toArray.any (pt.containsFVar ·.fvarId!) do break
-          m := m + 1
-        return if m == 0 then 0 else k + m
-    if n == 0 then break
-    let (_, g') ← g.introNP n
-    g := g'
+  g ← introFacts g
   -- the program's own `∃`s (a callee's postcondition): destructured first;
   -- under `bridge_auto` also a Boolean conjunction tested true
   g ← peelAll g (boolAnd := true)
