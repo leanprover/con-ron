@@ -443,31 +443,41 @@ def steps (n : Name) (pre ty : Expr) : FM (Array (Expr × Expr × Expr)) := do
       out := out.push (t.appFn!.appArg!, t.appArg!, h.pf)
   return out
 
-/-- A chain `R a b` of the snapshot's steps, breadth first. -/
+/-- Breadth first from `a` (its chain `pa`) to `b`: `next seen x px` lists the
+nodes one step from `x` that are not `seen`, each with its chain from `a`. -/
+def bfs (a pa b : Expr) (bound : Nat)
+    (next : Array Expr → Expr → Expr → FM (Array (Expr × Expr))) : FM (Option Expr) := do
+  let env ← getEnv
+  let mut frontier : Array (Expr × Expr) := #[(a, pa)]
+  let mut seen : Array Expr := #[a]
+  for _ in [0:bound] do
+    let mut layer := #[]
+    for (x, px) in frontier do
+      for (y, py) in ← next seen x px do
+        if ← seen.anyM (fun z => do
+            if !quickMatch env y z then return false
+            same y z) then continue
+        if quickMatch env y b then
+          if ← same y b then return some py
+        seen := seen.push y
+        layer := layer.push (y, py)
+    if layer.isEmpty then return none
+    frontier := layer
+  return none
+
+/-- A chain `R a b` of the snapshot's steps. -/
 def path (n : Name) (pre a b : Expr) : FM (Option Expr) := do
   if ← same a b then return some (← preRefl n a)
   let edges ← steps n pre (← inferType a)
   if edges.isEmpty then return none
   let env ← getEnv
-  let mut frontier : Array (Expr × Expr) := #[(a, ← preRefl n a)]
-  let mut seen : Array Expr := #[a]
-  for _ in [0:edges.size] do
-    let mut next := #[]
-    for (x, px) in frontier do
-      for (src, dst, pe) in edges do
-        unless quickMatch env x src do continue
-        unless ← same x src do continue
-        if ← seen.anyM (fun y => do
-            if !quickMatch env dst y then return false
-            same dst y) then continue
-        let p ← preTrans n px pe
-        if quickMatch env dst b then
-          if ← same dst b then return some p
-        seen := seen.push dst
-        next := next.push (dst, p)
-    if next.isEmpty then return none
-    frontier := next
-  return none
+  bfs a (← preRefl n a) b edges.size fun _ x px => do
+    let mut out := #[]
+    for (src, dst, pe) in edges do
+      unless quickMatch env x src do continue
+      unless ← same x src do continue
+      out := out.push (dst, ← preTrans n px pe)
+    return out
 
 /-- Reduce projections of structure instances, innermost first:
 `{ m with liftC := x }.inst1LC` is `m.inst1LC`.  Nothing else is unfolded (a
@@ -663,10 +673,10 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   return some (← mkExpectedTypeHint p t)
 
 /-- `R a b` for a preorder `R` through steps the rules prove (`ReadbackFrame`
-of a readback call, from `bridge_frame [ReadbackFrame.ofReadN]`): breadth
-first over the locals of `a`'s type, a step `R x y` being a hypothesis or
-proved by `byRules`.  Only when there is a local besides `a` and `b` (else the
-one step is `prove`'s own rule fallback). -/
+of a readback call, from `ReadbackFrame.ofReadN`): breadth first over the
+locals of `a`'s type, a step `R x y` being a hypothesis or proved by
+`byRules`.  Only when there is a local besides `a` and `b` (else the one step
+is `prove`'s own rule fallback). -/
 partial def pathByRules (fuel : Nat) (n : Name) (pre a b : Expr) : FM (Option Expr) := do
   let ty ← inferType a
   let mut nodes : Array Expr := #[]
@@ -676,25 +686,16 @@ partial def pathByRules (fuel : Nat) (n : Name) (pre a b : Expr) : FM (Option Ex
     if ← same d.type ty then nodes := nodes.push d.toExpr
   if nodes.isEmpty then return none
   nodes := nodes.push b
-  let step (x y : Expr) : FM (Option Expr) := do
-    let g := mkApp2 pre x y
-    if let some h ← findHyp g then return some h
-    byRules (fuel - 1) g
-  let mut frontier : Array (Expr × Expr) := #[(a, ← preRefl n a)]
-  let mut seen : Array Expr := #[a]
-  for _ in [0:nodes.size] do
-    let mut next := #[]
-    for (x, px) in frontier do
-      for y in nodes do
-        if ← seen.anyM (same · y) then continue
-        let some pe ← attempt (step x y) | continue
-        let p ← preTrans n px pe
-        if ← same y b then return some p
-        seen := seen.push y
-        next := next.push (y, p)
-    if next.isEmpty then return none
-    frontier := next
-  return none
+  bfs a (← preRefl n a) b nodes.size fun seen x px => do
+    let mut out := #[]
+    for y in nodes do
+      if ← seen.anyM (same · y) then continue
+      let g := mkApp2 pre x y
+      let some pe ← attempt (do
+          if let some h ← findHyp g then return some h
+          byRules (fuel - 1) g) | continue
+      out := out.push (y, ← preTrans n px pe)
+    return out
 
 /-- The rules: the lemmas (the call's list, then `@[bridge_frame]`), then the
 `∀`-hypotheses (a fact's are `provedFact`'s). -/
