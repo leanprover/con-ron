@@ -49,6 +49,7 @@ definition named in its list.
 -/
 import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.ExprOps
 
@@ -289,10 +290,8 @@ reflexive there. -/
         s'.memos = s₀.memos ∧ s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (∀ i w, s₀.store.view i = some w → s'.store.view i = some w) ∧
         denoteE s'.store r = denoteEView s'.store v; ⊤⦄ := by
-  vcgen [internRebuilt, internE_specV]
-  all_goals (bridge_peel; subst_vars)
-  -- the `same` arm answers the handle it was given
-  bridge_auto unfolding [denoteE_view_eq hwf (hsame rfl), imp_self, implies_true, true_and]
+  sym only [bridge_grind, denoteE_view_eq hwf] =>
+    vcgen [internRebuilt, internE_specV] <;> finish
 
 /-! ### The binder intern at the V shape
 
