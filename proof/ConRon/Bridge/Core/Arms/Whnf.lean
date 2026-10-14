@@ -20,12 +20,18 @@ con-leche's own task #106 shape and the arena copies it verbatim (task #97c:
 twin's induction is on the LOOP's budget with the knot record fixed — one
 `Nat` induction, not a second fuel tower.  `whnfBody_spec` below is where it
 runs.
+
+**The proofs are `vcgen` and `grind`** (task #122, as `Memo.lean`'s): the
+three exits are `grind` lemmas whose every variable occurs in a pattern
+(§1's `_eq` forms), and the loop states its answer as an `Ans` atom about
+its subject's denotation (`Bridge/Grind.lean` §3), as do the two callees it
+reads that way (`reduceNat_specA`, `unfoldDefinition_specA`).
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Mono
 import ConRon.Bridge.Core.Walks.Nat
-import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -85,53 +91,100 @@ theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind, pure,
     Except.pure]
 
-/-! ### The three iterations with their fuels merged (task #120)
+/-! ### The three iterations as `grind` lemmas (tasks #120, #122)
 
-The same three step lemmas, each from the three runs a verification
-condition has — one `∃ F` per callee — with the `max` merge inside, so that an
-arm is closed by `bridge_frame [...]` instead of a hand-written merge.  And the
-two inversions of an OPTIONAL answer (`denoteEO`) the loop's callees return. -/
+The same three step lemmas, in the shape a verification condition of the
+loop has: one `∃ F` per callee, merged by `max` inside the lemma.  Task #122
+states them for `grind`: every variable occurs in the multi-pattern of the
+three runs (`whnfCore`, `reduceNat`, the inner loop), and the inner loop's run
+is a premise only as `isOk` and the merged loop's run is an EQUATION with it,
+so that no premise names an answer `grind` would have to guess. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — the literal
-acceleration, fuels merged. -/
-theorem whnfLoop_reduceNat_ex {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ res : Expr}
+acceleration, fuels merged: the step's loop is the inner loop. -/
+theorem whnfLoop_reduceNat_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
     (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
     (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok (some e₂))
-    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ = .ok res) :
-    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok res :=
-  ⟨max F₁ (max F₂ F₃), whnfLoop_reduceNat
-    (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
-    (reduceNatFueled_mono
-      (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
-    (whnfLoopFueled_mono
-      (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hk)⟩
+    (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂).isOk = true) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e =
+      ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ := by
+  cases hr : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ with
+  | error => rw [hr] at hk; cases hk
+  | ok res =>
+    exact ⟨max F₁ (max F₂ F₃), whnfLoop_reduceNat
+      (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
+      (reduceNatFueled_mono
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
+      (whnfLoopFueled_mono
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hr)⟩
+grind_pattern [bridge_grind] whnfLoop_reduceNat_eq =>
+  ConLeche.whnfCore mode env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
+  ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1123-1124 whnfStep — the delta step,
 fuels merged. -/
-theorem whnfLoop_delta_ex {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ res : Expr}
+theorem whnfLoop_delta_eq {F₁ F₂ F₃ d n : Nat} {e e₁ e₂ : Expr}
     (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
     (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok none)
     (h3 : ConLeche.unfoldDefinition env e₁ = some e₂)
-    (hk : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ = .ok res) :
-    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok res :=
-  ⟨max F₁ (max F₂ F₃), whnfLoop_delta
-    (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
-    (reduceNatFueled_mono
-      (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
-    h3
-    (whnfLoopFueled_mono
-      (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hk)⟩
+    (hk : (ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂).isOk = true) :
+    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e =
+      ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ := by
+  cases hr : ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂ with
+  | error => rw [hr] at hk; cases hk
+  | ok res =>
+    exact ⟨max F₁ (max F₂ F₃), whnfLoop_delta
+      (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
+      (reduceNatFueled_mono
+        (Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_right _ _)) h2)
+      h3
+      (whnfLoopFueled_mono
+        (Nat.le_trans (Nat.le_max_right _ _) (Nat.le_max_right _ _)) hr)⟩
+grind_pattern [bridge_grind] whnfLoop_delta_eq =>
+  ConLeche.whnfCore mode env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
+  ConLeche.unfoldDefinition env e₁,
+  ConLeche.whnfLoop (ConLeche.pureFns mode env F₃) env d n e₂
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1125 whnfStep — the loop's exit,
-fuels merged. -/
-theorem whnfLoop_done_ex {F₁ F₂ d n : Nat} {e e₁ : Expr}
+fuels merged, at every remaining budget. -/
+theorem whnfLoop_done_eq {F₁ F₂ d : Nat} {e e₁ : Expr}
     (h1 : ConLeche.whnfCore mode env F₁ d e = .ok e₁)
     (h2 : ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁ = .ok none)
     (h3 : ConLeche.unfoldDefinition env e₁ = none) :
-    ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok e₁ :=
-  ⟨max F₁ F₂, whnfLoop_done
+    ∃ F, ∀ n, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d (n + 1) e = .ok e₁ :=
+  ⟨max F₁ F₂, fun _ => whnfLoop_done
     (ConLeche.whnfCore_mono (Nat.le_max_left _ _) h1)
     (reduceNatFueled_mono (Nat.le_max_right _ _) h2) h3⟩
+grind_pattern [bridge_grind] whnfLoop_done_eq =>
+  ConLeche.whnfCore mode env F₁ d e,
+  ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
+  ConLeche.unfoldDefinition env e₁
+
+/-! ### The callees' optional answers (task #122)
+
+`reduceNat`'s answer is an optional handle; the loop's verification
+conditions open it at the constructor the program matched.  (These belong
+with `SimOOp` in `Bridge/Core/Walks/Spec.lean`; they are here while only this
+module's proofs are `grind`'s.) -/
+
+/-- con-leche: none — a `SimOOp` answer that is a handle: it denotes, in scope,
+and the pure run answers `some` of its denotation. -/
+theorem SimOOp.some_inv {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStore}
+    {r : EIdx} (h : SimOOp P d st (some r)) :
+    ∃ x, denoteE st r = some x ∧ Expr.WScoped d x ∧ ∃ F, P F = .ok (some x) := by
+  obtain ⟨v, hv, hw, F, hF⟩ := h
+  obtain ⟨x, rfl, hx⟩ := denoteEO_some_some hv
+  exact ⟨x, hx, hw x rfl, F, hF⟩
+grind_pattern [bridge_grind] SimOOp.some_inv => SimOOp P d st (some r)
+
+/-- con-leche: none — a declining `SimOOp` answer: the pure run declines. -/
+theorem SimOOp.none_inv {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStore}
+    (h : SimOOp P d st none) : ∃ F, P F = .ok none := by
+  obtain ⟨v, hv, _, F, hF⟩ := h
+  cases hv; exact ⟨F, hF⟩
+grind_pattern [bridge_grind] SimOOp.none_inv => SimOOp P d st none
 
 /-! ## 2. The entry bracket -/
 
@@ -176,9 +229,37 @@ so the equation needs an `unseal`; the arena's is a plain `def`. -/
 theorem whnfLoopFuel_eq :
     ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel := rfl
 
+/-- con-leche: none — `reduceNat_spec` with its answer as an `Ans` atom
+(task #122: the same proposition; `Bridge/Grind.lean` §3). -/
+theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        Ans (fun x => SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
+          s'.store r) (denoteE s₀.store e); ⊤⦄ :=
+  reduceNat_spec hsim s₀ d e hok hdw
+
+/-- con-leche: none — `unfoldDefinition_spec` with its answer as an `Ans`
+atom (task #122). -/
+theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : AState)
+    (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
+    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
+    ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldDefinition fe e
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧
+        Ans (fun x => denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
+          ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y)
+          (denoteE s₀.store e); ⊤⦄ :=
+  unfoldDefinition_spec henv s₀ d e hok hdw
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1127-1132 whnfLoop — **THEOREM 1 for
 the reduction LOOP**, at an arbitrary step budget: one `Nat` induction over
-§1's three step lemmas, with the fuel merge at every iteration. -/
+§1's three step lemmas, with the fuel merge at every iteration.  The answer is
+an `Ans` atom about the subject's denotation (task #122): the loop is also
+called on handles the caller has only just made, whose denotation is not a
+parameter. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) :
     ∀ (n : Nat) (s₀ : AState) (d : Nat) (i : EIdx),
@@ -188,10 +269,9 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
         ConRon.Arena.whnfLoop (coreKnot mode fe id fuel) fe d n i
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧
-          ∀ e, denoteE s₀.store i = some e →
-            ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
+          Ans (fun e => ∃ v, denoteE s'.store r = some v ∧ Expr.WScoped d v ∧
               ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d n e
-                = .ok v; ⊤⦄ := by
+                = .ok v) (denoteE s₀.store i); ⊤⦄ := by
   intro n
   induction n with
   | zero =>
@@ -200,26 +280,25 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
   | succ n ih =>
     intro s₀ d i hok hdw
     obtain ⟨e, hden, hw⟩ := hdw
-    have hwc := hsim.whnfCore (c := false) (e := e)
-    have hud := unfoldDefinition_spec (mode := mode) (fe := fe) henv (d := d)
-    vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
-      hwc, reduceNat_spec hsim, hud, ih]
-    all_goals (bridge_peel; subst_vars)
-    -- every exit: the three iterations' fuels merged by the `_ex` lemmas
-    bridge_auto [whnfLoop_reduceNat_ex, whnfLoop_delta_ex, whnfLoop_done_ex]
+    -- every exit: the three iterations' fuels merged by the `_eq` lemmas
+    sym only [bridge_grind] =>
+      vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
+        hsim.whnfCore (c := false) (e := e), reduceNat_specA hsim,
+        unfoldDefinition_specA (mode := mode) (fe := fe) henv (d := d), ih] <;> finish
 
 /-! ## 4. The body theorem -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the loop's
 answer at the twin's budget is a `whnf` answer (`whnf_of_loop` with the
-budgets' equation, in the shape `bridge_auto` concludes). -/
-theorem SimE.of_whnfLoop {st : EStore} {r : EIdx} {d F : Nat} {e v : Expr}
-    (h : denoteE st r = some v) (hw : Expr.WScoped d v)
-    (hF : ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d
-      ConRon.Arena.whnfLoopFuel e = .ok v) :
+budgets' equation), from the loop's answer as ONE premise (task #122). -/
+@[bridge_grind .] theorem SimE.of_whnfLoop {st : EStore} {r : EIdx} {d : Nat} {e : Expr}
+    (h : ∃ v, denoteE st r = some v ∧ Expr.WScoped d v ∧
+      ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d
+        ConRon.Arena.whnfLoopFuel e = .ok v) :
     SimE (ConLeche.whnf mode env) d e st r := by
+  obtain ⟨v, hv, hw, F, hF⟩ := h
   rw [whnfLoopFuel_eq] at hF
-  exact ⟨v, h, hw, F + 1, whnf_of_loop hF⟩
+  exact ⟨v, hv, hw, F + 1, whnf_of_loop hF⟩
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean whnfBodyC_sim — **THEOREM 1
 for `whnfBody`**.
@@ -235,11 +314,9 @@ theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
     BodySpec mode env fe (whnfBody (coreKnot mode fe id fuel) fe)
       (ConLeche.whnf mode env) := by
   intro s₀ d i e hok hden hw
-  have hloop := whnfLoop_spec henv hsim
-  vcgen [ConRon.Arena.whnfBody, hloop]
-  all_goals (bridge_peel; subst_vars)
   -- the loop's answer, through the entry bracket
-  bridge_auto [SimE.of_whnfLoop]
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.whnfBody, whnfLoop_spec henv hsim] <;> finish
 
 /-! ## 5. The axiom census -/
 

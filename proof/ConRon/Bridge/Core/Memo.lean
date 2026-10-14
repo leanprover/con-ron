@@ -38,6 +38,15 @@ The other two branches are con-leche's:
   and they are the reason this module imports con-leche's `Verify` tier at
   all.
 
+## The proofs: `vcgen` and `grind` (task #122)
+
+Each wrapper is `sym only [bridge_grind] => vcgen [the body's spec] <;> finish`:
+`vcgen` generates the verification conditions inside `grind`'s symbolic
+state, and `finish` closes each in the same E-graph from the three arm lemmas
+of §3 (registered with `@[bridge_grind]`) and `Bridge/Grind.lean`'s
+vocabulary (the store order, the state invariant's projections).  No custom
+tactic, no addressing of a condition.
+
 ## No cap
 
 Until task #115 `whnfCoreSet` dropped the table whole past `cacheCap` (DESIGN
@@ -46,7 +55,7 @@ cap's `if`.  The cap is gone (con-leche's `memoEI` has none), and a setter is
 a plain insert.
 -/
 import ConRon.Bridge.Core.Knot
-import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -351,28 +360,27 @@ theorem CheckOK.ofCache {mode : CheckMode} {env : Env} {fe : IFEnv}
     · exact h.ienv.proj
 
 
-/-! ### The three arms of a memo wrapper, as lemmas (task #120)
+/-! ### The three arms of a memo wrapper, as lemmas (tasks #120, #122)
 
 Every wrapper of §5 has the same three exits — the stuck tag, the cache hit,
 the miss re-inserted — and each is one lemma here, stated in the shape the
-verification condition has, so that each wrapper's proof is `vcgen` and one
-`bridge_auto [...]` over these lemmas (with the per-table hit lemmas
-`CheckOK.*Hit` and the stuck-tag lemmas `SimE.of_*Stuck` below), not a list
-of arms.
+verification condition has and registered with `@[bridge_grind]`, so that
+each wrapper's proof is `vcgen` with `finish` (`Bridge/Grind.lean`), not a
+list of arms.  Every variable of a registered lemma occurs in its pattern: the
+miss lemmas take the body's answer as ONE premise (`SimE`/`SimV`, the
+callee's own postcondition atom) instead of its parts, whose answer and fuel
+`grind` could not bind; the hit lemmas' patterns name the state invariant and
+the table probe besides the answer.
 `row_of_run` is the depth-universal row from one run at the query's depth
 (the history report's lesson 8). -/
 
-/-- con-leche: none — a `SimE` answer from its three parts (the shape
-`bridge_frame` composes: a denotation, its scope, a run). -/
-theorem SimE.intro {op : Nat → Nat → Expr → CheckM Expr} {d : Nat} {e : Expr}
-    {st : EStore} {r : EIdx} {v : Expr} {F : Nat}
-    (h : denoteE st r = some v) (hw : Expr.WScoped d v) (hF : op F d e = .ok v) :
-    SimE op d e st r := ⟨v, h, hw, F, hF⟩
-
-/-- con-leche: none — a `SimV` answer from one run. -/
-theorem SimV.intro {op : Nat → Nat → Expr → Expr → CheckM Bool} {d : Nat}
-    {a b : Expr} {x : Bool} {F : Nat} (hF : op F d a b = .ok x) :
-    SimV op d a b x := ⟨F, hF⟩
+/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — **a `SimE` answer, opened**
+(task #122): the answer handle's denotation, its scope and the run, for a
+caller that composes the answer with another walk's. -/
+theorem SimE.inv {op : Nat → Nat → Expr → CheckM Expr} {d : Nat} {e : Expr}
+    {st : EStore} {r : EIdx} (h : SimE op d e st r) :
+    ∃ v, denoteE st r = some v ∧ Expr.WScoped d v ∧ ∃ F, op F d e = .ok v := h
+grind_pattern [bridge_grind] SimE.inv => SimE op d e st r
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 the depth-universal row a miss inserts, from the one run at the query's
@@ -400,9 +408,9 @@ theorem SimE.of_row {P : Nat → Nat → Expr → CheckM Expr}
   exact ⟨b, hb, hpres F d _ _ hrun hw, F, hrun⟩
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
-**the hit** at each table, from the state invariant (wave 2: a lemma for
-`bridge_auto`'s list instead of an arm). -/
-theorem CheckOK.whnfCoreHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+**the hit** at each table, from the state invariant (its pattern names the
+answer, the invariant and the probe, so that `grind` binds `fe` and `i`). -/
+@[bridge_grind .] theorem CheckOK.whnfCoreHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
     (hok : CheckOK mode env fe s) (hx : s.caches.whnfCoreC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
@@ -412,7 +420,7 @@ theorem CheckOK.whnfCoreHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : ASt
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 the hit, cheap mode. -/
-theorem CheckOK.whnfCoreCheapHit {mode : CheckMode} {env : Env} {fe : IFEnv}
+@[bridge_grind .] theorem CheckOK.whnfCoreCheapHit {mode : CheckMode} {env : Env} {fe : IFEnv}
     {s : AState} {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
     (hok : CheckOK mode env fe s) (hx : s.caches.whnfCoreCheapC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
@@ -422,7 +430,7 @@ theorem CheckOK.whnfCoreCheapHit {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
 hit, `whnf`. -/
-theorem CheckOK.whnfHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.whnfHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
     (hok : CheckOK mode env fe s) (hx : s.caches.whnfC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
@@ -432,7 +440,7 @@ theorem CheckOK.whnfHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — the
 hit, `infer`. -/
-theorem CheckOK.inferHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.inferHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
     (hok : CheckOK mode env fe s) (hx : s.caches.inferC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
@@ -442,7 +450,7 @@ theorem CheckOK.inferHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim — the
 hit, the io grade. -/
-theorem CheckOK.inferIOHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.inferIOHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {d : Nat} {e : Expr} (henv : ConLeche.EnvWF env)
     (hok : CheckOK mode env fe s) (hx : s.caches.inferIOC[i]? = some j)
     (hden : denoteE s.store i = some e) (hw : Expr.WScoped d e) :
@@ -452,7 +460,7 @@ theorem CheckOK.inferIOHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : ASta
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim — the
 hit, `defeq`: the row carries the verdict, so both signs are sound. -/
-theorem CheckOK.defeqHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+@[bridge_grind .] theorem CheckOK.defeqHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
     {i j : EIdx} {x : Bool} {d : Nat} {a b : Expr}
     (hok : CheckOK mode env fe s) (hx : s.caches.defeqC[(i, j)]? = some x)
     (hda : denoteE s.store i = some a) (hdb : denoteE s.store j = some b)
@@ -465,80 +473,80 @@ theorem CheckOK.defeqHit {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the miss**, full `whnfCore`: the body's answer re-inserted. -/
-theorem CheckOK.insertWhnfCoreAt {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {i j : EIdx} {a b : Expr} {d F : Nat} (henv : ConLeche.EnvWF env)
+@[bridge_grind .] theorem CheckOK.insertWhnfCoreAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
     (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hb : denoteE s.store j = some b) (hw : Expr.WScoped d a)
-    (hF : ConLeche.whnfCore mode env F d a false = .ok b) :
+    (hw : Expr.WScoped d a) (hs : SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d a s.store j) :
     CheckOK mode env fe { s with caches := { s.caches with
       whnfCoreC := s.caches.whnfCoreC.insert i j } } :=
+  let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertWhnfCore hck.caches ha hb
     (row_of_run (P := fun F d e => ConLeche.whnfCore mode env F d e false)
       (fun F _ _ _ h1 h2 => ConLeche.whnfCore_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the miss**, cheap `whnfCore`. -/
-theorem CheckOK.insertWhnfCoreCheapAt {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {i j : EIdx} {a b : Expr} {d F : Nat} (henv : ConLeche.EnvWF env)
+@[bridge_grind .] theorem CheckOK.insertWhnfCoreCheapAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
     (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hb : denoteE s.store j = some b) (hw : Expr.WScoped d a)
-    (hF : ConLeche.whnfCore mode env F d a true = .ok b) :
+    (hw : Expr.WScoped d a) (hs : SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d a s.store j) :
     CheckOK mode env fe { s with caches := { s.caches with
       whnfCoreCheapC := s.caches.whnfCoreCheapC.insert i j } } :=
+  let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertWhnfCoreCheap hck.caches ha hb
     (row_of_run (P := fun F d e => ConLeche.whnfCore mode env F d e true)
       (fun F _ _ _ h1 h2 => ConLeche.whnfCore_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim —
 **the miss**, `whnf`. -/
-theorem CheckOK.insertWhnfAt {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {i j : EIdx} {a b : Expr} {d F : Nat} (henv : ConLeche.EnvWF env)
+@[bridge_grind .] theorem CheckOK.insertWhnfAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
     (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hb : denoteE s.store j = some b) (hw : Expr.WScoped d a)
-    (hF : ConLeche.whnf mode env F d a = .ok b) :
+    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.whnf mode env) d a s.store j) :
     CheckOK mode env fe { s with caches := { s.caches with
       whnfC := s.caches.whnfC.insert i j } } :=
+  let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertWhnf hck.caches ha hb
     (row_of_run (P := ConLeche.whnf mode env)
       (fun F _ _ _ h1 h2 => ConLeche.whnf_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim —
 **the miss**, `infer`. -/
-theorem CheckOK.insertInferAt {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {i j : EIdx} {a b : Expr} {d F : Nat} (henv : ConLeche.EnvWF env)
+@[bridge_grind .] theorem CheckOK.insertInferAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
     (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hb : denoteE s.store j = some b) (hw : Expr.WScoped d a)
-    (hF : ConLeche.inferTypeCore mode env F d a = .ok b) :
+    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.inferTypeCore mode env) d a s.store j) :
     CheckOK mode env fe { s with caches := { s.caches with
       inferC := s.caches.inferC.insert i j } } :=
+  let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertInfer hck.caches ha hb
     (row_of_run (P := ConLeche.inferTypeCore mode env)
       (fun F _ _ _ h1 h2 => ConLeche.inferTypeCore_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim —
 **the miss**, the io grade. -/
-theorem CheckOK.insertInferIOAt {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {i j : EIdx} {a b : Expr} {d F : Nat} (henv : ConLeche.EnvWF env)
+@[bridge_grind .] theorem CheckOK.insertInferIOAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {a : Expr} {d : Nat} (henv : ConLeche.EnvWF env)
     (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
-    (hb : denoteE s.store j = some b) (hw : Expr.WScoped d a)
-    (hF : ConLeche.inferTypeIO mode env F d a = .ok b) :
+    (hw : Expr.WScoped d a) (hs : SimE (ConLeche.inferTypeIO mode env) d a s.store j) :
     CheckOK mode env fe { s with caches := { s.caches with
       inferIOC := s.caches.inferIOC.insert i j } } :=
+  let ⟨_, hb, _, _, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertInferIO hck.caches ha hb
     (row_of_run (P := ConLeche.inferTypeIO mode env)
       (fun F _ _ _ h1 h2 => ConLeche.inferTypeIO_depth_inv henv F h1 h2) hw hF)) rfl rfl
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim —
 **the miss**, `defeq`: the verdict re-inserted at the pair. -/
-theorem CheckOK.insertDefeqAt {mode : CheckMode} {env : Env} {fe : IFEnv}
-    {s : AState} {i j : EIdx} {a b : Expr} {x : Bool} {d F : Nat}
+@[bridge_grind .] theorem CheckOK.insertDefeqAt {mode : CheckMode} {env : Env} {fe : IFEnv}
+    {s : AState} {i j : EIdx} {a b : Expr} {x : Bool} {d : Nat}
     (henv : ConLeche.EnvWF env)
     (hck : CheckOK mode env fe s) (ha : denoteE s.store i = some a)
     (hb : denoteE s.store j = some b) (hwa : Expr.WScoped d a)
-    (hwb : Expr.WScoped d b)
-    (hF : ConLeche.isDefEqCore mode env F d a b = .ok x) :
+    (hwb : Expr.WScoped d b) (hs : SimV (ConLeche.isDefEqCore mode env) d a b x) :
     CheckOK mode env fe { s with caches := { s.caches with
       defeqC := s.caches.defeqC.insert (i, j) x } } :=
+  let ⟨F, hF⟩ := hs
   CheckOK.ofCache hck (CacheOK.insertDefeq hck.caches ha hb
     ⟨F, fun d' hda' hdb' => by
       rw [ConLeche.isDefEqCore_depth_inv henv F hda' hdb' hwa.to_wscopedB
@@ -686,7 +694,8 @@ theorem whnf_of_stuck {mode : CheckMode} {env : Env} {e : Expr}
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the stuck tag** of the `whnfCore` wrappers: the pure body answers with its
-own argument (wave 2: a lemma for `bridge_auto`'s list). -/
+own argument.  Not registered: its operation is a `fun` over `mode`, `env`
+and `c`, which no pattern can bind, so a wrapper passes it instantiated. -/
 theorem SimE.of_whnfCoreStuck {mode : CheckMode} {env : Env} {c : Bool}
     {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
     (hs : whnfCoreStuckTag i = true) (hden : denoteE st i = some e)
@@ -696,7 +705,7 @@ theorem SimE.of_whnfCoreStuck {mode : CheckMode} {env : Env} {c : Bool}
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:230 memoEI_whnf_sim — the
 stuck tag of the `whnf` wrapper. -/
-theorem SimE.of_whnfStuck {mode : CheckMode} {env : Env}
+@[bridge_grind .] theorem SimE.of_whnfStuck {mode : CheckMode} {env : Env}
     {st : EStore} {i : EIdx} {d : Nat} {e : Expr} (hwf : StoreWF st)
     (hs : whnfStuckTag i = true) (hden : denoteE st i = some e)
     (hw : Expr.WScoped d e) :
@@ -724,12 +733,11 @@ theorem memoWhnfCoreFull_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         SimE (fun F d e => ConLeche.whnfCore mode env F d e false) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnfCore_succ]
   -- the body spec at THIS subject: `e` does not occur in the program, so
-  -- `vcgen` would not solve it by unification (as `memoDefeq_step` notes)
-  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [CheckOK.insertWhnfCoreAt henv, SimE.intro, SimE.of_whnfCoreStuck,
-    CheckOK.whnfCoreHit henv]
+  -- `vcgen` would not solve it by unification (as `memoDefeq_step` notes);
+  -- the stuck-tag lemma at THIS slot: its answer's operation is a `fun`, so
+  -- the registered form would have no pattern for `mode`, `env`, `c`
+  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := mode) (env := env) (c := false)] =>
+    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper**, CHEAP mode (official `cheap_proj`), under the
@@ -747,11 +755,8 @@ theorem memoWhnfCoreCheap_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (fun F d e => ConLeche.whnfCore mode env F d e true) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnfCoreCheap_succ]
-  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [CheckOK.insertWhnfCoreCheapAt henv, SimE.intro, SimE.of_whnfCoreStuck,
-    CheckOK.whnfCoreCheapHit henv]
+  sym only [bridge_grind, SimE.of_whnfCoreStuck (mode := mode) (env := env) (c := true)] =>
+    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:175 memoEI_whnfCore_sim —
 **the `whnfCore` wrapper** in either mode. -/
@@ -788,10 +793,8 @@ theorem memoWhnf_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.whnf mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_whnf_succ]
-  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [CheckOK.insertWhnfAt henv, SimE.intro, SimE.of_whnfStuck, CheckOK.whnfHit henv]
+  sym only [bridge_grind] =>
+    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:283 memoEI_infer_sim — **the
 `infer` wrapper**.  Two branches only: inference has no answer-is-the-argument
@@ -809,10 +812,8 @@ theorem memoInfer_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeCore mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_infer_succ]
-  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [CheckOK.insertInferAt henv, SimE.intro, CheckOK.inferHit henv]
+  sym only [bridge_grind] =>
+    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:341 memoEI_inferIO_sim —
 **the io wrapper**: the io body under the io grade's OWN table.  A hit here
@@ -831,10 +832,8 @@ theorem memoInferIO_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         s'.pins = s₀.pins ∧
         SimE (ConLeche.inferTypeIO mode env) d e s'.store r; ⊤⦄ := by
   rw [coreKnot_inferIO_succ]
-  have hb := fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [CheckOK.insertInferIOAt henv, SimE.intro, CheckOK.inferIOHit henv]
+  sym only [bridge_grind] =>
+    vcgen [fun s₁ h1 h2 => hbody s₁ d i e h1 h2 hw] <;> finish
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:463 memoBI_defeq_sim — **the
 `defeq` wrapper**: two subjects, a `Bool` answer, and the row carries the
@@ -860,16 +859,8 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
   -- `WScoped d ?a` by `assumption` with the WRONG subject, so that the two
   -- comparands collapsed — measured).  Task #97-P3-0's rule 4 at a second
   -- subject.
-  have hb : ∀ (s₁ : AState), CheckOK mode env fe s₁ →
-      denoteE s₁.store i = some a → denoteE s₁.store j = some b →
-      ⦃fun s => s = s₁⦄ defeqBody mode (coreKnot mode fe id fuel) fe d i j
-      ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₁.store s'.store ∧
-          s'.pins = s₁.pins ∧
-          SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄ :=
-    fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb
-  vcgen [hb]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [CheckOK.insertDefeqAt henv, SimV.intro, CheckOK.defeqHit]
+  sym only [bridge_grind] =>
+    vcgen [fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb] <;> finish
 
 /-! ## 6. The dispatch step (task #97-P3-Core round 5)
 
@@ -878,24 +869,32 @@ are proved as a case split on the tag, with one child per group of that
 dispatch, and each child starts here: at a state whose store views the
 handle as `v`, the program `view i >>= f` is `f v`. -/
 
+/-- con-leche: none — **sequencing at a pinned state**: a triple for `x`
+whose postcondition names its facts, and one for the continuation at every
+state those facts hold of, make a triple for `x >>= f`.  This is what lets
+a long arm be proved stage by stage, each stage's facts introduced by NAME,
+instead of as one `vcgen` whose verification conditions carry forty
+inaccessible hypotheses. -/
+theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
+    {Q : α → AState → Prop} {R : β → AState → Prop}
+    (hx : ⦃fun s => s = s₀⦄ x ⦃fun a s => Q a s; ⊤⦄)
+    (hf : ∀ a s₁, Q a s₁ → ⦃fun s => s = s₁⦄ f a ⦃fun b s => R b s; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ (x >>= f) ⦃fun b s => R b s; ⊤⦄ := by
+  exact Triple.bind x f (fun a s => Q a s) hx fun a =>
+    ⟨fun s hs => (hf a s hs).le_wp s rfl⟩
+
+
 /-- con-leche: none — **the `view` dispatch**: `view i` reads the store and
 touches nothing, so a triple for the arm the store selects is a triple for
-the whole dispatch. -/
+the whole dispatch.  `view_spec` names the view the store decodes, which is
+`v` (task #122: `triple_seq`, no verification conditions). -/
 theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
     (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
     {Q : α → AState → Prop}
     (h : ⦃fun s => s = s₀⦄ f v ⦃fun r s' => Q r s'; ⊤⦄) :
-    ⦃fun s => s = s₀⦄ (view i >>= f) ⦃fun r s' => Q r s'; ⊤⦄ := by
-  -- `f` is a variable, so the continuation has no spec: it is left as the
-  -- verification condition `wp (f v') …`, which `h` discharges once the
-  -- view is known to be `v`
-  vcgen (errorOnMissingSpec := false)
-  bridge_peel; subst_vars
-  vc_arm (hv₁ : EStore.view _ i = some v) (hv' : EStore.view _ i = some _) =>
-    rw [hv₁] at hv'
-    obtain rfl := Option.some.inj hv'
-    exact h.1 _ rfl
-
+    ⦃fun s => s = s₀⦄ (view i >>= f) ⦃fun r s' => Q r s'; ⊤⦄ :=
+  triple_seq (view_spec s₀ i) fun _ _ ⟨hs, hv'⟩ => by
+    subst hs; cases hv.symm.trans hv'; exact h
 
 /-- con-leche: none — **`view_bind_triple` behind the tag-first twin's test**
 (task #97-P5-Core round 4): the twin tests the handle's TAG before it reads
@@ -930,21 +929,6 @@ theorem tag_view_bind_triple_else {α : Type} {s₀ : AState} {i : EIdx}
   · rw [ite_eq_left ht]; exact view_bind_triple hv h
   · rw [ite_eq_right ht]
     exact he (by rw [← EStore.tagOf_of_view hv]; simpa using ht)
-
-/-- con-leche: none — **sequencing at a pinned state**: a triple for `x`
-whose postcondition names its facts, and one for the continuation at every
-state those facts hold of, make a triple for `x >>= f`.  This is what lets
-a long arm be proved stage by stage, each stage's facts introduced by NAME,
-instead of as one `vcgen` whose verification conditions carry forty
-inaccessible hypotheses. -/
-theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
-    {Q : α → AState → Prop} {R : β → AState → Prop}
-    (hx : ⦃fun s => s = s₀⦄ x ⦃fun a s => Q a s; ⊤⦄)
-    (hf : ∀ a s₁, Q a s₁ → ⦃fun s => s = s₁⦄ f a ⦃fun b s => R b s; ⊤⦄) :
-    ⦃fun s => s = s₀⦄ (x >>= f) ⦃fun b s => R b s; ⊤⦄ := by
-  exact Triple.bind x f (fun a s => Q a s) hx fun a =>
-    ⟨fun s hs => (hf a s hs).le_wp s rfl⟩
-
 
 /-- con-leche: none — **the consequence rule at a pinned state**, for the
 same reason as `triple_seq`: a callee's published postcondition, read by
