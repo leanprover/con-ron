@@ -197,11 +197,14 @@ section for every task you land.
   `Bridge/Grind.lean`, a walk's own lemmas next to it.  A lemma is
   `grind`-shaped when every variable occurs in a pattern, a callee's answer
   is ONE premise, facts are equations over named projections (no `∃` or
-  disjunction in a premise or a callee's post), no `fun` reaches `grind`
+  disjunction in a premise or a callee's post), no `∃` in a postcondition
+  (witnesses are denotations, i.e. functions of handles: state them as
+  equations over the denotation functions), no `fun` reaches `grind`
   (answers are named predicates such as `MapRel`), each con-leche function a
   walk compares against has one unconditional equation over tags and
   projections, and a multi-pattern that would pair unrelated terms carries a
-  `where guard`.  Raise `finish`'s limits (`gen`, `ematch`, `splits`) only
+  `where guard` (a `grind_pattern` constraint on the plain lemma is preferred
+  over restating it).  Raise `finish`'s limits (`gen`, `ematch`, `splits`) only
   locally, with the reason in a comment.  A genuine `vcgen`/`grind`/`Sym`
   limitation gets a minimal standalone reproducer in
   `_tmp/corpus/vcgen-grind/`, not a silent workaround.
