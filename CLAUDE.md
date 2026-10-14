@@ -187,21 +187,24 @@ section for every task you land.
     `### Task …` heading (as `#### Slice N`), never appended at the end of
     DESIGN.md — end-of-file appends from concurrent lanes land under the
     wrong heading (found by the merge queue twice).
-* **Theorem 1 verification conditions are addressed by shape, never by
-  position** (task #120, DESIGN `### Task #120`).  After `vcgen` in
-  `proof/ConRon/Bridge/**`: no `case vcN`, no `rename_i`, no positional
-  `next =>`.  The idiom is `vcgen […]; all_goals (bridge_peel; subst_vars);
-  bridge_auto [lemmas] unfolding [pure functions]`, the mathematics in small
-  pure lemmas stated in the shape the verification condition has (goal's
-  orientation; a declining exit concludes the postcondition); `vc_arm (h :
-  T) … ⊢ t => tac`, keyed by a branch condition, only for real reasoning.
-  Task #122's spike adds the toolchain idiom, `sym only [bridge_grind] =>
-  vcgen […] <;> finish` (`Core/Memo.lean`, `Core/Arms/Whnf.lean`; the
-  vocabulary and the rules for a `grind` lemma in `Bridge/Grind.lean` and
-  DESIGN `### Task #122`).  The tactics' meta code is `ConRon/BridgeTactic.lean`
-  (a precompiled library: `lake env lean` needs
-  `--load-dynlib=.lake/build/lib/libcon_x2dron_ConRonBridgeTactic.so` to run
-  it natively).
+* **Theorem 1 verification conditions are closed by `vcgen` and `grind`
+  inside `SymM`** (DESIGN `### Task #123`).  A walk proof in
+  `proof/ConRon/Bridge/**` is `sym only [bridge_grind, local facts…] =>
+  vcgen [f, callee specs as terms…] <;> finish`: one `SymM` context per
+  theorem, no custom closer, nothing between `vcgen` and `finish`, and no
+  positional addressing (`case vcN`, `rename_i`, positional `next =>`).  The
+  mathematics is in `@[bridge_grind]` lemmas — the shared vocabulary in
+  `Bridge/Grind.lean`, a walk's own lemmas next to it.  A lemma is
+  `grind`-shaped when every variable occurs in a pattern, a callee's answer
+  is ONE premise, facts are equations over named projections (no `∃` or
+  disjunction in a premise or a callee's post), no `fun` reaches `grind`
+  (answers are named predicates such as `MapRel`), each con-leche function a
+  walk compares against has one unconditional equation over tags and
+  projections, and a multi-pattern that would pair unrelated terms carries a
+  `where guard`.  Raise `finish`'s limits (`gen`, `ematch`, `splits`) only
+  locally, with the reason in a comment.  A genuine `vcgen`/`grind`/`Sym`
+  limitation gets a minimal standalone reproducer in
+  `_tmp/corpus/vcgen-grind/`, not a silent workaround.
 * **`Refine2/Tactic/Lockstep.lean` is shared core.**  Lanes extend the
   `lockstep` tactic through its extension points — `@[lockstep]`/
   `@[lockstep_inline]` lemmas and the side-goal tier's `macro_rules` — and do
