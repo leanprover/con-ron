@@ -350,14 +350,6 @@ attribute [bridge_grind =] Option.isSome_some Option.map_some
 @[bridge_grind =] theorem denoteEO_some_eq (st : EStore) (r : EIdx) :
     denoteEO st (some r) = (denoteE st r).map some := rfl
 
-/-- con-leche: none — `denote_le` at a handle LIST. -/
-theorem denoteEList_le {st st' : EStore} {hs : List EIdx} (hx : st ≤ st')
-    (hd : Frontend.denoteEList st hs ≠ none) :
-    Frontend.denoteEList st' hs = Frontend.denoteEList st hs := by
-  obtain ⟨e, he⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [he]; exact denoteEList_ext hx _ _ he
-grind_pattern [bridge_grind] denoteEList_le => st ≤ st', Frontend.denoteEList st hs
-
 /-- con-leche: none — `RelEL`'s answer at an optional subject (`MapRel` at a
 list answer). -/
 def MapRelL (g : Expr → List Expr) : Option Expr → Option (List Expr) → Prop
@@ -425,10 +417,6 @@ def cDefnHint : Option ConstantInfo → ReducibilityHint
 /-- con-leche: none — `iDefnValue` at a definition. -/
 @[bridge_grind =] theorem iDefnValue_defn (v : IConstantVal) (e : EIdx) (h : ReducibilityHint) :
     iDefnValue (some (.defnInfo v e h)) = e := rfl
-/-- con-leche: none — `iDefnHint` at a definition. -/
-@[bridge_grind =] theorem iDefnHint_defn (v : IConstantVal) (e : EIdx) (h : ReducibilityHint) :
-    iDefnHint (some (.defnInfo v e h)) = h := rfl
-
 /-- con-leche: none — a lookup that is a definition IS one: what refutes a
 `match`'s fall-through arm. -/
 theorem iDefn?_eta {o : Option IConstantInfo} (h : iDefn? o = true) :
