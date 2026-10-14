@@ -1,21 +1,18 @@
 /-
 # `ConRon.Bridge.Core.Walks.Reserved` — the reserved-name list, for the Core tier
 
-Task #97-P3-Core round 5.  `structUnitCert` and `structEtaCertWith` read
-`Arena/Core.lean`'s `reservedBasisNames` (since twin fix D5, the pin-table
-read `pinReserved`).  Its closed rule is `Bridge/Checker/Names.lean`'s
-`reservedBasisNames_run`, and this tier first imported that module — until
-task #97-P3-Checker round 9 made `Checker/Names.lean` import `Checker/Hyp.lean`,
-which imports this tier's `Induction.lean`: a cycle.  The Checker lane is not
-this tier's to edit, so the seven small pieces the chain needs are COPIED
-here under `…C` names (so the two copies never clash when both modules meet
-in one import closure): `pinAt_runC`, `PinStepC`, `internName_runC`,
-`reservedBasisNames_runC` (now one `pinReserved_spec` read),
-`denoteNL_toListC`, `denoteNList_containsC`.
+`structUnitCert` and `structEtaCertWith` read `Arena/Core.lean`'s
+`reservedBasisNames` (the pin-table read `pinReserved`).  Its rule is
+`Bridge/Checker/Names.lean`'s `reservedBasisNames_run`, which this tier cannot
+import: `Checker/Names.lean` imports `Checker/Hyp.lean`, which imports this
+tier's `Induction.lean`.  So the small pieces the chain needs are COPIED here
+under `…C` names (so the two copies never clash when both modules meet in one
+import closure): `PinStepC`, `reservedBasisNames_runC` (one
+`pinReserved_spec` read), `denoteNL_toListC`, `denoteNList_containsC`.
 
-**Ask for the Checker lane**: these belong below both tiers (they mention
-nothing but `Bridge/Specs.lean`'s pin/intern triples and `StateOK.lean`'s
-`denoteNL`); moved to a module both can import, this file shrinks to nothing.
+These belong below both tiers (they mention nothing but `Bridge/Specs.lean`'s
+pin/intern triples and `StateOK.lean`'s `denoteNL`); in a module both can
+import, this file would shrink to nothing.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Promote.Pers
@@ -42,7 +39,7 @@ theorem PinStepC.refl {s : AState} (h : StoreWF s.store) : PinStepC s s :=
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
 **the nineteen reserved names, as handles that denote them**, off the pin
-table (`pinReserved_spec`, twin fix D5 of task #97-T2-LOCKSTEP): the state
+table (`pinReserved_spec`, twin fix D5, DESIGN `### Task #97-T2-LOCKSTEP`): the state
 does not move, so the frame is `PinStepC.refl`. -/
 theorem reservedBasisNames_runC {s s' : AState} {hs : List NIdx}
     (hwf : StoreWF s.store) (hp : PinsOK s)

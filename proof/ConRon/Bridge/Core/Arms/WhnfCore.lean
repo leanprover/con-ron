@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Core.Arms.WhnfCore` — Theorem 1 for `whnfCoreBody`
 
 DESIGN §8.2, task #97s's **rule 8**: one step lemma per exit of the PURE
-function.  Since con-leche's task #342 R2 the twin's `whnfCoreBody` is the
+function.  The twin's `whnfCoreBody` is (con-leche's task #342 R2) the
 CACHED tier's loop (`Cached/CoreC.lean:768-822 whnfCoreStepI` /
 `whnfCoreLoopI`): `whnfCoreStep` RETURNS the term to continue with
 (`WhnfStep.cont`) and `whnfCoreLoop` iterates it on its own step budget.

@@ -1,10 +1,10 @@
 /-
 # `ConRon.Bridge.Core.Walks.InferSpine` — the batched application spine
 
-Task #97-P3-Core round 6.  The twin's `.app` clauses of `inferBody` and
+The twin's `.app` clauses of `inferBody` and
 `inferBodyIO` are `inferApp`/`inferAppIOAt`: the head is inferred ONCE and
 the argument vector is walked by `inferSpine`/`inferSpineIO`, con-leche's own
-cached-tier clauses (`Cached/CoreC.lean:1011-1091`, task #97-P6-9).  The
+cached-tier clauses (`Cached/CoreC.lean:1011-1091`, DESIGN `### Task #97-P6-9`).  The
 identification with the chained clause is con-leche's:
 `Verify/BetaSpine.lean`'s `inferSpine_sound` (1566) and `inferSpineIO_sound`
 (2041), stated over the PURE mirrors `ConLeche.inferSpine` /
@@ -260,8 +260,8 @@ theorem inferSpine_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean inferSpineIOC_sim — **the
 carry of `inferSpineIO`**, `inferSpine_go` at the io grade (official
 `infer_only`): the record is `CoreFnsA.ioView` of the knot, and no argument is
-inferred or compared (con-leche's task #342: the licence and certificate arms
-are gone, so no `verifiedChecks` premise either). -/
+inferred or compared (con-leche's task #342: there are no licence or
+certificate arms, so no `verifiedChecks` premise either). -/
 theorem inferSpineIO_go {fuel : Nat}
     (hsim : KnotSpec mode env fe fuel) (d : Nat) (args : Array EIdx) :
     ∀ (k : Nat) (ty : EIdx) (acc : Array EIdx) (i : Nat) (s₀ : AState)

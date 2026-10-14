@@ -1,8 +1,8 @@
 /-
 # `ConRon.Bridge.Core.Walks` — Theorem 1 for the walks that are not knot slots
 
-Task #97-P3-CoreWalks.  `Bridge/Core/**` does the six slots of
-`Arena/Core.lean`'s `coreKnot`; this tier does everything else in that file.
+`Bridge/Core/**` does the six slots of `Arena/Core.lean`'s `coreKnot`; this
+tier does everything else in that file (DESIGN `### Task #97-P3-CoreWalks`).
 
 ## The census (DESIGN §8's `### Task #97-P3-CoreWalks` §1)
 
@@ -17,94 +17,82 @@ Task #97-P3-CoreWalks.  `Bridge/Core/**` does the six slots of
 | **W** knot-calling walks | **49** | a `BodySpec`-shaped theorem with `KnotSpec` as a hypothesis |
 | **S** state-only walks | **84** | a `BodySpec`-shaped theorem without one |
 
-So the tier is **133 theorems**, not the fifteen task #97-P3-Core's §6
-named: those fifteen are the top of the W column and each sits on three to
-six more.
+So the tier is **133 theorems**: the fifteen at the top of the W column each
+sit on three to six more.
 
-## The four modules
+## The modules
 
 * `Walks/Frame.lean` — **the foundation**.  `ReadbackFrame`, the per-call
-  memo frame task #97-P3-0's §7 listed as owed, without which no walk that
-  reads a name, a level or a universe-argument list back can rebuild
-  `CheckOK`; plus the three readback bodies copied (the module note says why)
-  and their frame specs.  CLOSED.
+  memo frame without which no walk that reads a name, a level or a
+  universe-argument list back can rebuild `CheckOK`, with one constructor
+  per readback.
 * `Walks/Spec.lean` — the four answer relations a non-slot walk's theorem is
   phrased with (`SimEOp`, `SimOOp`, `SimBOp`, `SimLOp`), each
   taking the pure call already applied to everything but its fuel, with the
-  two `Iff.rfl` bridges to `Bridge/Core/Knot.lean`'s `SimE`/`SimV`.  CLOSED.
-* `Walks/Cached.lean` — the five cached verdict walks.  **`lvlEq?_spec` and
-  `lvlsEq?_spec` are CLOSED** — the first two non-slot walks of
-  `Arena/Core.lean` with a theorem — and are the tier's exemplar; the three
-  instantiated-constant caches are CLOSED too (round 4, over
-  `ExprOps.instLPFast_spec`).
+  two `Iff.rfl` bridges to `Bridge/Core/Knot.lean`'s `SimE`/`SimV`.
+* `Walks/Cached.lean` — the five cached verdict walks: `lvlEq?_spec` and
+  `lvlsEq?_spec`, the tier's exemplar, and the three instantiated-constant
+  caches (over `ExprOps.instLPFast_spec`).
 * `Walks/Guards.lean` — the `defeq` body's cheap scalar tests.
-  **`isBoolTrue_spec` is CLOSED**, the tier's third closed walk and the first
-  that is not a memo wrapper: five verification conditions, no `ExprOps`
-  callee rule, no new denotation, and DESIGN §8.3's "index inequality IS
-  structural inequality" cashed twice in one walk.
-* `Walks/Mono.lean` — **the fuel merge** (task #97-P3-Core-2, DESIGN §8's
+  `isBoolTrue_spec` is five verification conditions, no `ExprOps` callee
+  rule, no new denotation, and DESIGN §8.3's "index inequality IS structural
+  inequality" cashed twice in one walk.
+* `Walks/Mono.lean` — **the fuel merge** (DESIGN §8's
   `### Task #97-P3-CoreWalks` §6.1): one `…_mono` at the record and one
   `…Fueled_mono` at the fuel for every knot-calling walk of con-leche's
   `Kernel/Core.lean` — twenty-two of each, plus `merge2`, the `max`-and-lift
-  idiom every caller repeats.  All CLOSED, and the module mentions no arena
+  idiom every caller repeats.  The module mentions no arena
   state at all: it is pure con-leche over `Verify/PairM.lean`'s projections
   and `Verify/Mono.lean`'s `pureFns_mono`.
-* `Walks/Proj.lean` — **the projection table** (task #97-P3-Core-2), on
-  `Bridge/Rel.lean`'s new `denoteProjEntry`: `projTableName_spec`,
-  `IFEnv.findProj?_spec` and `IProjEntry.fireOk_spec` CLOSED; since round 4
-  also `IProjEntry.typeAt_spec`, `iotaCertsFull_spec`, `projCert_spec` and
-  `projCertAt_spec` — the module is at zero `sorry`.  §5's structural gap
-  below is closed by it.
-* `Walks/Nat.lean` — **the literal acceleration** (task #97-P3-Core round
-  4): `reduceNat_spec` and the six state-only walks under it, all CLOSED —
-  which is what makes `Arms/Whnf.lean`'s `whnfBody_spec` sorry-free.
-* `Walks/PropRead.lean` — **the head-symbol prop-ness readers** (task
-  #97-P3-Core round 5): Theorem 1 for the nine functions of
+* `Walks/Proj.lean` — **the projection table**, on `Bridge/Rel.lean`'s
+  `denoteProjEntry`: `projTableName_spec`, `IFEnv.findProj?_spec`,
+  `IProjEntry.fireOk_spec`, `IProjEntry.typeAt_spec`, `iotaCertsFull_spec`,
+  `projCert_spec` and `projCertAt_spec`.
+* `Walks/Nat.lean` — **the literal acceleration**: `reduceNat_spec` and the
+  six state-only walks under it, which `Arms/Whnf.lean`'s `whnfBody_spec`
+  calls.
+* `Walks/PropRead.lean` — **the head-symbol prop-ness readers**: Theorem 1
+  for the nine functions of
   `Arena/PropRead.lean`, each an equation with con-leche's reader at
   `find? := env.find?`, in published and answer shape, the binder readers
   of con-leche task #342 (`binderDom`, `lamProj?`, `unwrapIdDefs`, `peelPisW`,
   `substPWAt`), then `propIrrel_spec`.
-* `Walks/StrLit.lean` — **the `String`-literal guard** (round 5):
-  `strLitSupported_spec` and its seven stored-shape tests. CLOSED.
-* `Walks/StrCtor.lean` — **a string literal's constructor form** (round 5):
+* `Walks/StrLit.lean` — **the `String`-literal guard**:
+  `strLitSupported_spec` and its seven stored-shape tests.
+* `Walks/StrCtor.lean` — **a string literal's constructor form**:
   `strLitToConstructor_spec` over the `strLitConsSpine` recursion, and
-  `strLitToConstructor_WScoped`. CLOSED.
-* `Walks/ProjLit.lean` — `projLitToCtor_spec` (round 5, moved from
-  `Walks/Owed.lean`). CLOSED.
+  `strLitToConstructor_WScoped`.
+* `Walks/ProjLit.lean` — `projLitToCtor_spec`.
 * `Walks/ProjCore.lean` — **the projection rule on a reduced scrutinee**
-  (task #109, con-leche's `reduceProjCore`): `reduceProjCore_spec` in
+  (con-leche's `reduceProjCore`): `reduceProjCore_spec` in
   `SimOOp` form, its five pure exits and `reduceProjCoreFueled_mono`; shared
-  by `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`. CLOSED.
-* `Walks/Stuck.lean` — **the stuck fallback** (round 5): `stuckIrrel_spec`
-  PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and
-  `structEtaCertWith_spec`, CLOSED round 6), `structUnitCert_spec` and
-  `proofIrrel_spec` (both CLOSED, over `reservedBasisNames_spec`; task #105
-  dropped `isUnitLikeTy_spec` with con-leche's PUNIT).  The module is at zero `sorry`.
-* `Walks/Eta.lean` — **the structure-η certificate's sub-walks** (round 6):
+  by `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`.
+* `Walks/Stuck.lean` — **the stuck fallback**: `stuckIrrel_spec` from
+  `structEtaCert_spec` (over `etaCtorShape_spec` and
+  `structEtaCertWith_spec`), `structUnitCert_spec` and `proofIrrel_spec`
+  (both over `reservedBasisNames_spec`).
+* `Walks/Eta.lean` — **the structure-η certificate's sub-walks**:
   `projFnName_spec`, `towerSlotsAll_spec`, `recSlotsAll_spec`,
   `structEtaProjCerts_spec`, `etaProjs_spec` (`projNodesGo`/`projAppsGo`).
-  CLOSED.
-* `Walks/Owed.lean` — **the statements reached last** (one after round
-  5: `iotaRec`, proved in `Walks/Iota.lean`; all CLOSED now),
-  each with what it was waiting on noted at the site.  `defEqList_spec` was
-  the nearest and its fuel merge came IN HAND (`Walks/Mono.lean`'s
-  `defEqListFueled_mono`); `reduceNat_spec` and `unfoldDefinition_spec` were
-  RESTATED by task #97-P3-Core-2 in the existential-precondition shape
-  (§0 of that module) so that `whnfLoop_spec` can call them.
+* `Walks/Owed.lean` — `etaCert`'s pure side and `defEqList` (over
+  `Walks/Mono.lean`'s `defEqListFueled_mono`), with the table of where every
+  other walk's statement lives and §0's existential-precondition shape, in
+  which `reduceNat_spec` and `unfoldDefinition_spec` are stated so that
+  `whnfLoop_spec` can call them.
 
 **This module imports none of them** — the rule `Bridge/Core.lean` and
 `Bridge/ExprOps.lean` carry, for the reason `lakefile.toml`'s `ConRonBridge`
 entry gives.  The library globs `ConRon.Bridge.+`; this file is the index.
 
-## The one thing the tier was missing that is not a proof — CLOSED
+## The projection-entry denotation
 
-`Arena/Env.lean`'s `IProjEntry` had no denotation, so `IProjEntry.typeAt`,
-`projCert` and `IProjEntry.fireOk` could not even be STATED, and neither
-could the `.proj` arms of `whnfCoreBody` and `inferBody` below their guard.
-**Task #97-P3-Core-2 added `denoteProjEntry` to `Bridge/Rel.lean`** beside
-the other ten transports, with its `Ext` transport, its field inversion and
-the exactness lemma `denoteProjTable_entry` (*taking the per-field view
-commutes with the denotation*), and `Walks/Proj.lean` is what it unblocks.
+`Bridge/Rel.lean`'s `denoteProjEntry` gives `Arena/Env.lean`'s `IProjEntry`
+its denotation, so that `IProjEntry.typeAt`, `projCert`, `IProjEntry.fireOk`
+and the `.proj` arms of `whnfCoreBody` and `inferBody` below their guard can
+be stated.  It sits beside the other ten transports, with its `Ext`
+transport, its field inversion and the exactness lemma
+`denoteProjTable_entry` (*taking the per-field view commutes with the
+denotation*); `Walks/Proj.lean` is its user.
 
 Its one caveat is recorded there and in DESIGN: the exactness lemma holds
 **in range**, because both `entry` functions read their two indexed columns
@@ -113,5 +101,5 @@ That the two columns have `numFields` entries is a clause of OUR
 environment invariant (`Bridge/StateOK.lean`'s `IProjTableOK`, a field of
 `IFEnvOK`) and not of con-leche's `ConstWF`, which is the wrong side of a
 B ⇒ A simulation to take an invariant from; `findProj?_spec` reads it off
-`hok.ienv.proj` (task #97-P3-Checker-2).
+`hok.ienv.proj`.
 -/

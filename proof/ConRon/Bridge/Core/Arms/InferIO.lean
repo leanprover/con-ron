@@ -15,7 +15,7 @@ differ from `Bridge/Core/Arms/Infer.lean`'s:
 Everything else (`.sort`, `.fvar`, `.const`, the two literals, `.forallE`,
 `.proj`, the throw) is `inferBody`'s, and the io lemmas for those clauses are
 the same proofs at `inferTypeIO`.  The io slot is the io body at EVERY mode
-(con-leche's task #346: the gate is gone), so nothing here is conditional on
+(con-leche's task #346: no mode gate), so nothing here is conditional on
 the mode.
 
 ## The grade propagates through the RECORD, not through a flag
