@@ -198,15 +198,6 @@ theorem defeqLamsInner_spec (hsim : KnotSpec mode env fe fuel) (d : Nat)
     simp [ConLeche.defeqLamsInner, e1, e2, e3, e4, hv, bind, Except.bind, pure,
       Except.pure]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:778-780 lamPair? — a pair it
-answers is a pair of λs. -/
-theorem lamPair?_some {x y a b c e : Expr}
-    (h : Expr.lamPair? x y = some (a, b, c, e)) :
-    x = .lam a b ∧ y = .lam c e := by
-  cases x <;> cases y <;> simp [Expr.lamPair?] at h
-  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
-  exact ⟨rfl, rfl⟩
-
 /-- con-leche: ConLeche/Kernel/Core.lean:1319-1338 defeqLams — the domains
 differ. -/
 theorem defeqLams_dom {F n d : Nat} {t₁ c₁ t₂ c₂ : Expr}
@@ -361,9 +352,11 @@ theorem defeqLams_spec (hsim : KnotSpec mode env fe fuel) :
     refine triple_seq (ExprOps.lamPair?_spec s4 b₁ b₂ hok4.state
       (by rw [hb1]; rfl) (by rw [hb2]; rfl)) ?_
     rintro lp s5 ⟨rfl, hrel⟩
-    have hlp := hrel _ _ hb1 hb2
     cases lp with
     | none =>
+      have hlp : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
+          (c₂.instantiate1 (.fvar d t₂)) = none := by
+        simpa only [hb1, hb2, opt2, Option.some.injEq] using hrel
       dsimp only
       refine triple_mono (defeqLamsInner_spec hsim d b₁ b₂ _ _ hok4 hb1 hb2
         hwo1 hwo2) ?_
@@ -373,7 +366,14 @@ theorem defeqLams_spec (hsim : KnotSpec mode env fe fuel) :
           (.inr hlp) (defeqLamsInnerFueled_mono (by omega) hF2)⟩
     | some q =>
       obtain ⟨ty₁', bd₁', ty₂', bd₂'⟩ := q
-      obtain ⟨et₁, eb₁, et₂, eb₂, hlp', hd1, hd2, hd3, hd4⟩ := hlp
+      obtain ⟨hda, hdb⟩ := hrel
+      rw [hb1, eq_comm, opt2_eq_some_iff] at hda
+      rw [hb2, eq_comm, opt2_eq_some_iff] at hdb
+      obtain ⟨et₁, eb₁, hd1, hd2, he1⟩ := hda
+      obtain ⟨et₂, eb₂, hd3, hd4, he2⟩ := hdb
+      have hlp' : Expr.lamPair? (c₁.instantiate1 (.fvar d t₂))
+          (c₂.instantiate1 (.fvar d t₂)) = some (et₁, eb₁, et₂, eb₂) := by
+        rw [← he1, ← he2]; rfl
       dsimp only
       rw [beq_of_denoteE hok4.state.wf hb1 hb2]
       split
@@ -383,9 +383,8 @@ theorem defeqLams_spec (hsim : KnotSpec mode env fe fuel) :
       · rename_i hne
         have hne' : (c₁.instantiate1 (.fvar d t₂) ==
             c₂.instantiate1 (.fvar d t₂)) = false := by simpa using hne
-        obtain ⟨he1, he2⟩ := lamPair?_some hlp'
-        rw [he1] at hwo1
-        rw [he2] at hwo2
+        rw [← he1] at hwo1
+        rw [← he2] at hwo2
         obtain ⟨hwa1, hwa2⟩ : Expr.WScoped (d + 1) et₁ ∧
             Expr.WScoped (d + 1) eb₁ := by simpa only [Expr.WScoped] using hwo1
         obtain ⟨hwb1, hwb2⟩ : Expr.WScoped (d + 1) et₂ ∧
