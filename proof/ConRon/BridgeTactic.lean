@@ -54,7 +54,6 @@ def usedConstants : List Name :=
    `ConRon.Arena.EStore.view,
    `ConRon.Arena.Ext,
    `ConRon.Arena.StoreWF,
-   `ConRon.Arena.denoteE,
    `ConRon.Bridge.CacheFrame,
    `ConRon.Bridge.CheckOK,
    `ConRon.Bridge.StateOK,
@@ -896,7 +895,18 @@ def frameAll (extra : Array Term) (defs : Rules) : TacticM Unit := do
                             failCache := some (← IO.mkRef {}) } g)
   setGoals out
 
-/-! ## 6. The forward step: instantiate what the context already knows -/
+/-! ## 6. The forward step
+
+`bridge_auto`'s middle stage, per goal (`fwdGoal`): the goal's
+`∀ x, denote… = some x →` binders introduced (`introFacts`), the context
+normalised (`∧`/`∃` split, store aliases rewritten, `isSome` subjects opened),
+then rounds that instantiate every `∀`-hypothesis and every `@[bridge_fwd]`
+lemma (and the call's list) at what the context knows — premises matched
+against hypotheses with backtracking, facts by `provedFact`, frame premises by
+`prove` — adding each new instance (`fwd✝`) and splitting it; semi-naive (a
+source fires again only if a premise could match a new hypothesis), at most
+eight rounds.  Then two answers for one handle are identified (`unifyFacts`)
+and the new equations substituted. -/
 
 /-- The premise with its head constant unfolded once, if that constant is a
 non-reducible definition (not a frame predicate or an answer relation). -/
@@ -1221,7 +1231,7 @@ def clearTrivial (g : MVarId) (old : Std.HashSet FVarId) : MetaM MVarId := g.wit
 /-- A denotation's `isSome` hypothesis (`(denoteE st h).isSome = true`, how
 the walks' preconditions state a subject) opened to its value: a fresh
 `x` and `denoteE st h = some x`, so that the view inversions and the answer
-relations fire on it (task #120, `bridge_auto` only).  The original stays. -/
+relations fire on it.  The original stays. -/
 def openIsSome (g : MVarId) (done : Std.HashSet FVarId) :
     MetaM (MVarId × Std.HashSet FVarId) := g.withContext do
   let mut news : Array Hypothesis := #[]
@@ -1269,7 +1279,7 @@ def peelAll (g : MVarId) (boolAnd : Bool := false) (old : Std.HashSet FVarId := 
   g.withContext (peelNew g exs)
 
 /-- Substitute the equations among the hypotheses NOT in `old` that solve a
-local variable (`subst_vars` restricted to what `bridge_fwd` added: on a
+local variable (`subst_vars` restricted to what the forward step added: on a
 verification condition's context a full `substVars` is the dearest step). -/
 partial def substNew (g : MVarId) (old : Std.HashSet FVarId)
     (skip : Array FVarId := #[]) : MetaM MVarId := do
@@ -1310,7 +1320,8 @@ goal and the step lemmas then name one store twice.  Rewrite every
 `a.store` with such an equation to its representative (the end of the
 chain, followed to a fixpoint) in the target and in every other hypothesis,
 so that a lemma whose source and target store coincide (a leaf, a cutoff)
-unifies with the goal (task #120 wave 2, `bridge_auto` only). -/
+unifies with the goal.  (Lemma premises the search generates at an aliased
+store are `findHypModStoreEq`'s.) -/
 def storeNorm (g : MVarId) : MetaM MVarId := g.withContext do
   -- the equations `a.store = b.store`, `a` and `b` locals of type `AState`
   let mut rep : Std.HashMap FVarId Expr := {}   -- a ↦ (proof of a.store = b.store)
@@ -1429,7 +1440,8 @@ partial def introFacts (g : MVarId) : MetaM MVarId := do
   let (_, g') ← g.introNP n
   introFacts g'
 
-/-- `bridge_fwd` on one goal. -/
+/-- The forward step on one goal (`defaults`: the `@[bridge_fwd]` lemmas;
+`extra`: the call's list; `defs`: the rules frame premises are proved with). -/
 def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) (defs : Rules)
     (unfoldRelGoal : Bool := false) : TacticM MVarId := do
   let mut g := g
@@ -1500,6 +1512,14 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) (defs : Rul
   g ← then_subst (← g.withContext (unifyFacts g))
   g ← then_subst (← peelAll g)
   clearTrivial g old
+
+/-! ## 7. The finisher
+
+On every goal the frame left open: `rfl`/`assumption`/`True.intro`; a gated
+`contradiction`; a conjunction split; the pure functions unfolded (`simp only
+[fᵢ]`); a case split on an `Expr` a tag fact or a not-this-constructor fact
+mentions; last `simp only [fᵢ, Bool-at-constants, *]`.  A goal it does not
+close is handed back untouched. -/
 
 /-- Carry the context's denotation facts to the stores the GOAL mentions: a
 fact `denote… (A.store…) h = some v` is restated at every state `B` whose
@@ -1626,7 +1646,7 @@ def contraGate (g : MVarId) : MetaM Bool := g.withContext do
           if ca == cb then return true
   return false
 
-/-- `bridge_finish` on one goal: the cheap closers, else a case split on a
+/-- The finisher on one goal: the cheap closers, else a case split on a
 candidate `Expr` and the closers on every constructor (depth two); else the
 pure functions unfolded once and the split tried again. -/
 partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
@@ -1742,12 +1762,13 @@ def finishGoals (fns : Array Term) : TacticM Unit := do
     out := out ++ [g]
   setGoals out
 
+/-! ## 8. `vc_arm` -/
+
 /-- The hypothesis patterns, matched depth first: each pattern's candidates
 (the most recent first, distinct from the earlier patterns' choices) are
 tried in turn, and a later pattern that finds nothing backtracks into the
-next candidate of an earlier one (the nat lane's fix: `(hck : CheckOK _ _ _
-?s) (hd : denoteE ?s.store _ = …)` failed when a CheckOK at another state
-came first). -/
+next candidate of an earlier one (`(hck : CheckOK _ _ _ ?s) (hd : denoteE
+?s.store _ = …)` must not stop at a `CheckOK` at another state). -/
 partial def matchPats (g : MVarId) (pats : List (Ident × Term)) (used : Array FVarId) :
     TacticM (Option (Array FVarId)) := g.withContext do
   match pats with
@@ -1839,15 +1860,11 @@ def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
 
 end Frame
 
-/-- con-leche: none — **the frame closer** (task #120).  On every goal:
-close it if it is a frame fact — a hypothesis, an `Ext` chain, an equation
-chain (`s₃.pins = s₀.pins`), `StateOK`/`StoreWF`/`CheckOK` past the chain
-(`CheckOK.mono`/`.monoF`), a `CacheFrame` chain, a denotation carried along
-the chain or read off an answer relation, its `isSome`, or
-`∃ v, denote… = some v ∧ P v` from one; otherwise split the top-level `∧` and
-close the frame conjuncts, leaving the rest.  `bridge_frame [l₁, …]` also
-applies the lemmas `lᵢ` (their premises proved the same way): a walk's own
-side-condition rule, `viewOK_lit`.  Deterministic meta code, no `grind`. -/
+/-- con-leche: none — **the frame closer**: `prove` (§5) on every goal; a
+goal it cannot close has its top-level `∧` split and the conjuncts it can
+close closed (only if one closes: an arm's own conjunction stays whole).
+`bridge_frame [l₁, …]` adds the rules `lᵢ` (premises proved the same way)
+before `@[bridge_frame]`.  Deterministic meta code, no `grind`. -/
 syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
 
 @[tactic bridgeFrame] def evalBridgeFrame : Tactic := fun stx => do
@@ -1855,16 +1872,26 @@ syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
     if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
   Frame.frameAll extra (← Frame.defaultRules)
 
-/-- con-leche: none — **the whole pipeline** (task #120):
-`bridge_auto [l₁, …] unfolding [f₁, …]` is `bridge_frame [lᵢ]`,
-`bridge_fwd [lᵢ]` with the goal's `∀ x, denote… = some x →` binders
-introduced and the tag/`denoteEO` defaults, `bridge_frame [lᵢ]` and
-`bridge_finish [fᵢ]`.  What it leaves open are the arms with real reasoning,
-for `vc_arm`. -/
+/-- con-leche: none — **the closer of a Theorem 1 walk** (tasks #120, #121):
+
+```lean
+  vcgen [f, hcallee₁, …]
+  all_goals (bridge_peel; subst_vars)
+  bridge_auto [l₁, …] unfolding [f₁, …]
+```
+
+is the frame (`bridge_frame [lᵢ]`), the forward step (§6, with `lᵢ` beside
+`@[bridge_fwd]`), the frame again, and the finisher (§7, unfolding `fᵢ`); an
+answer-relation goal still open gets one more pass with the relation
+unfolded, kept only if it closes.  What it leaves open are the arms with real
+reasoning, for `vc_arm`.  A lemma `lᵢ` concludes in the goal's orientation
+(the flipped equation is tried too), a declining exit concludes the
+postcondition itself, its first premise fixes the store, and in a list the
+specific comes before the general. -/
 syntax (name := bridgeAuto) "bridge_auto" (" [" term,* "]")?
   (" unfolding" " [" term,* "]")? : tactic
 
-/-- con-leche: none — **an arm addressed by shape** (task #120):
+/-- con-leche: none — **an arm addressed by shape**:
 `vc_arm (h₁ : T₁) … (hₙ : Tₙ) => tac` runs `tac` on every open goal whose
 context has hypotheses of types `T₁ … Tₙ` (elaborated in that goal, `_` holes
 allowed, matched reducibly, the most recent first, distinct), each renamed

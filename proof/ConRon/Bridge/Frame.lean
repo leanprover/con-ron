@@ -1,40 +1,21 @@
 /-
-# `ConRon.Bridge.Frame` — the frame closer `bridge_frame` and the shape-addressed `vc_arm`
+# `ConRon.Bridge.Frame` — the lemmas Theorem 1's closers compose
 
-Task #120.  Theorem 1's simulation proofs run `vcgen` over an arena walk and
-then had to discharge, by hand and BY POSITION, two kinds of residue:
+`ConRon/BridgeTactic.lean` holds the closers (`bridge_frame`, `bridge_auto`,
+`vc_arm`; tasks #120, #121) and the three registries; this module, the first
+of the `Bridge` tier to import that library, holds the general lemmas they
+build proofs from and registers them:
 
-* the **frame**: a callee's precondition (`CheckOK s`, `StateOK s`,
-  `StoreWF s.store`, a handle that denotes at the CURRENT store, an
-  `∃ v, denoteE … = some v ∧ WScoped d v`) and a postcondition's frame
-  conjuncts (`Ext s₀.store s₃.store`, `s₃.pins = s₀.pins`, `CheckOK s₃`),
-  each of which is a CHAIN through the calls' postconditions —
-  `denote_ext hden (hx01.trans hx12)`, `hck2.mono hst hx23 hc32 hp32`,
-  `by rw [hp32, hp21, hp10]`;
-* the **arms**: the mathematics of one branch of the walk.
+* `@[bridge_transport]` — a fact carried along `Ext` (`denote_ext` and its
+  siblings);
+* `@[bridge_frame]` — the frame rules: `StateOK` past a store equation,
+  `CheckOK.mono`, a denoting handle's `isSome`, an intern's `ViewOK`;
+* `@[bridge_fwd]` — the forward rules: the view inversions, the tag tests
+  read as tags of the denotation, the optional handle.
 
-Both were written as `case vc15 => rename_i s0 s1 _ s2 … hx12 hp21 …`, and
-both broke on every sync: one extra call shifts every verification-condition
-number and every `rename_i` position, although nothing mathematical moved.
-
-`bridge_frame` closes the first kind outright, by SEARCH rather than by
-position: it collects the context's `Ext`/`=`/`CacheFrame` edges and finds the
-chain itself.  It is deterministic meta code — no `grind`, no `simp` — so it
-costs milliseconds per goal (task #97s: *the cost is `grind`*).  On a goal it
-cannot close it splits the top-level conjunction and closes the frame
-conjuncts it can, leaving the arm's mathematical conjunct(s) alone.
-
-`vc_arm (h₁ : T₁) … => tac` addresses what remains BY SHAPE: it runs `tac` on
-every open goal whose context has hypotheses of the given types (matched up to
-`_` holes, the most recent first), naming them `h₁ …`.  A goal it does not
-match is left for the next `vc_arm`; a `vc_arm` that matches nothing is an
-error, so a stale arm is reported rather than silently skipped.
-
-`bridge_fwd` is the forward half: it instantiates every answer relation
-(`RelE`, `RelEL`, `RelEO`, `RelV`, and a bare `∀ e, denoteE st c = some e → …`)
-at every denotation of its subject the context has — transported along the
-`Ext` chain — and adds the result as a hypothesis, so an arm reads its callees'
-answers off the context instead of `obtain`ing them by position.
+A walk's own lemmas go in its `bridge_auto [...]` list, or are tagged where
+they are declared when every walk wants them.  The census line at the end
+checks that the constants the tactic names with single backticks exist.
 -/
 import ConRon.Bridge.StateOK
 import ConRon.BridgeTactic
