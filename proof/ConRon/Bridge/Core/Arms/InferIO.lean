@@ -169,7 +169,7 @@ theorem inferIO_strLit {F d : Nat} {s : String}
     pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1313 inferBodyIO — the `Nat`
-literal clause as an answer, at the io grade (a `grind` lemma, task #123). -/
+literal clause as an answer, at the io grade (a `grind` lemma). -/
 @[bridge_grind ←] theorem SimE.of_natLitIO {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
     (h : ConLeche.natLitSupported env = true) :
@@ -186,7 +186,7 @@ literal clause as an answer, at the io grade. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1299-1310 inferBodyIO — the constant
 clause as an answer, at the io grade, at the denoted level list's length
-(task #123: the twin's arity guard reads the level list's LENGTH word, which
+(the twin's arity guard reads the level list's LENGTH word, which
 `viewLen_of_denoteLs`, a `grind` rule, identifies; passed instantiated at the
 constant, as `Infer.lean`'s `SimE.of_constTy`). -/
 theorem SimE.of_constTyIO {st : EStore} {r : EIdx} {d : Nat} {n : Name}
@@ -200,15 +200,11 @@ theorem SimE.of_constTyIO {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     inferIO_const hfind hct hl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1296-1298 inferBodyIO — the free
-variable clause as an answer, at the io grade (task #123). -/
+variable clause as an answer, at the io grade. -/
 @[bridge_grind ←] theorem SimE.of_fvarIO {st : EStore} {r : EIdx} {d k : Nat} {t : Expr}
     (hk : k < d) (hd : denoteE st r = some t) (hw : Expr.WScoped d t) :
     SimE (ConLeche.inferTypeIO mode env) d (.fvar k t) st r :=
   ⟨_, hd, hw, 1, inferIO_fvar hk⟩
-
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
-
-attribute [bridge_grind →] viewLen_of_denoteLs
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the io
 ∀-formation rule**: `Infer.lean`'s `infer_forallE` with both inferences at
@@ -579,7 +575,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
   cases v
   case lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
-    -- the pin's name is the basis constant's (`Infer.lean`'s `pinNames_nat`)
+    -- the pin's name is the basis constant's (`Bridge/Grind.lean`'s `pinNames_eq_natName`)
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>

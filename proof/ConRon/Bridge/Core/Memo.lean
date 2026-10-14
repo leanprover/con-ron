@@ -38,7 +38,7 @@ The other two branches are con-leche's:
   and they are the reason this module imports con-leche's `Verify` tier at
   all.
 
-## The proofs: `vcgen` and `grind` (task #122)
+## The proofs: `vcgen` and `grind`
 
 Each wrapper is `sym only [bridge_grind] => vcgen [the body's spec] <;> finish`:
 `vcgen` generates the verification conditions inside `grind`'s symbolic
@@ -360,7 +360,7 @@ theorem CheckOK.ofCache {mode : CheckMode} {env : Env} {fe : IFEnv}
     · exact h.ienv.proj
 
 
-/-! ### The three arms of a memo wrapper, as lemmas (tasks #120, #122)
+/-! ### The three arms of a memo wrapper, as lemmas
 
 Every wrapper of §5 has the same three exits — the stuck tag, the cache hit,
 the miss re-inserted — and each is one lemma here, stated in the shape the
@@ -374,8 +374,8 @@ the table probe besides the answer.
 `row_of_run` is the depth-universal row from one run at the query's depth
 (the history report's lesson 8). -/
 
-/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — **a `SimE` answer, opened**
-(task #122): the answer handle's denotation, its scope and the run, for a
+/-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — **a `SimE` answer, opened**:
+the answer handle's denotation, its scope and the run, for a
 caller that composes the answer with another walk's. -/
 theorem SimE.inv {op : Nat → Nat → Expr → CheckM Expr} {d : Nat} {e : Expr}
     {st : EStore} {r : EIdx} (h : SimE op d e st r) :
@@ -887,7 +887,7 @@ theorem triple_seq {α β : Type} {x : AM α} {f : α → AM β} {s₀ : AState}
 /-- con-leche: none — **the `view` dispatch**: `view i` reads the store and
 touches nothing, so a triple for the arm the store selects is a triple for
 the whole dispatch.  `view_spec` names the view the store decodes, which is
-`v` (task #122: `triple_seq`, no verification conditions). -/
+`v` (`triple_seq`, no verification conditions). -/
 theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
     (hv : s₀.store.view i = some v) {f : ENodeView → AM α}
     {Q : α → AState → Prop}

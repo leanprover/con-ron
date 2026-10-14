@@ -69,8 +69,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
-
 /-! ## The two derived-word licences
 
 The one place this file unfolds the packed word.  Both are

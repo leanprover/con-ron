@@ -103,8 +103,8 @@ theorem infer_strLit {F d : Nat} {s : String}
   simp only [ConLeche.inferBody, h, ite_true, pure, Except.pure]
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1140 inferBody — the `Nat`
-literal clause as an answer (a `grind` lemma, task #123: its conclusion is
-its pattern). -/
+literal clause as an answer (a `grind` lemma: its conclusion is its
+pattern). -/
 @[bridge_grind ←] theorem SimE.of_natLit {st : EStore} {r : EIdx} {d n : Nat}
     (hd : denoteE st r = some (.const ConLeche.natName []))
     (h : ConLeche.natLitSupported env = true) :
@@ -120,7 +120,7 @@ literal clause as an answer. -/
   ⟨_, hd, by unfold Expr.WScoped; trivial, 1, infer_strLit h⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — the constant
-clause as an answer, at the denoted level list's length (task #123: the
+clause as an answer, at the denoted level list's length (the
 twin's arity guard on the level list's VIEW reaches it through
 `view_len_of_denoteLs`, a `grind` rule; the constant is not in the
 conclusion, so the arm passes this lemma instantiated at it). -/
@@ -135,7 +135,7 @@ theorem SimE.of_constTy {st : EStore} {r : EIdx} {d : Nat} {n : Name}
     infer_const hfind hct hl⟩
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1116-1125 inferBody — the free
-variable clause as an answer (task #123). -/
+variable clause as an answer. -/
 @[bridge_grind ←] theorem SimE.of_fvar {st : EStore} {r : EIdx} {d k : Nat} {t : Expr}
     (hk : k < d) (hd : denoteE st r = some t) (hw : Expr.WScoped d t) :
     SimE (ConLeche.inferTypeCore mode env) d (.fvar k t) st r :=
@@ -160,16 +160,6 @@ theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
   simp only [ConLeche.inferBody, e1, e2, e3, e4, e5, bind, Except.bind]
   rfl
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
-
-attribute [bridge_grind →] CheckOK.pins view_len_of_denoteLs
-
-/-- con-leche: none — the `Nat` pin's name (`Arena/Pins.lean`'s table). -/
-@[bridge_grind =] theorem pinNames_nat : pinNames[PIN_NAT]? = some ConLeche.natName := rfl
-
-/-- con-leche: none — the `String` pin's name. -/
-@[bridge_grind =] theorem pinNames_string :
-    pinNames[PIN_STRING]? = some ConLeche.stringName := rfl
 
 /-! ## 4. The projection clause
 
@@ -403,7 +393,7 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
   cases v
   case lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
-    -- the pin's name is the basis constant's (`pinNames_nat`/`_string`)
+    -- the pin's name is the basis constant's (`Bridge/Grind.lean`'s `pinNames_eq_natName`/`_stringName`)
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>

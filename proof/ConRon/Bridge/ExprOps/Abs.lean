@@ -7,9 +7,9 @@ free variables into bound ones: `abstractRange` (the SPEC descent, `:669`),
 `abstractRangeFast` (`:1616`, `:1686`).
 
 Written against `ExprOps/Inst1.lean`, the tier's exemplar: the same `…Spec`
-record for one level of the recursion and the same fuel induction; since
-task #123 the arms are closed by `grind` (see *The closer* below), not by
-per-arm step lemmas.
+record for one level of the recursion and the same fuel induction; the arms
+are closed by `grind` (see *The closer* below), with no per-arm step
+lemmas.
 
 ## The three deviations this family carries
 
@@ -36,9 +36,8 @@ per-arm step lemmas.
    IDENTITY, not a clause."  `Bridge/StateOK.lean`'s `Abs1MemoA d` is the
    `abstract1` reading of that table and `AbsRangeMemoA d k` below is the
    `abstractRange` reading; the two are never in scope at once, and
-   `ExprOps/MemoSpecs.lean`'s `abs1Set_specI` — the memo insert's spec with
-   the pure function moved INSIDE the postcondition — is what lets one
-   primitive serve both.
+   `abs1Set_specA` — the memo insert's spec with the pure function a
+   parameter — is what lets one primitive serve both.
 
 ## What this module ASSUMES: `fvarB`
 
@@ -62,11 +61,10 @@ dispatcher's `vcgen` list is the five of them.  `vcgen` (task #111)
 instantiates an arm spec at the state `fvarB` returned and leaves the arm's
 preconditions at that state as verification conditions.
 
-## The closer (task #123)
+## The closer
 
-Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish` (DESIGN
-#122's idiom; no `bridge_*`, no `vc_arm`).  What `grind` needs is
-equations, never a `fun` (DESIGN #123's recipe):
+Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish`.  What
+`grind` needs is equations, never a `fun`:
 
 * the pure functions are NAMED (`abs1Fn d k`, `absRangeFn d k c`), so the
   answer relation `RelE (abs1Fn d k)` and the memo invariant
@@ -74,16 +72,14 @@ equations, never a `fun` (DESIGN #123's recipe):
   walk descends into (`abs1Fn_app`, …), and the cutoff and the catch-all as
   two lemmas the DISPATCHER passes to `sym` (`abs1Fn_cutoff`,
   `abs1Fn_leaf`);
-* the view a tag-guarded projection read gives is `Bridge/Rel.lean`'s
-  `view_of_viewApp` & co. under a guarded pattern, the denotation's
-  constructor follows from its tag (`exprTag_app` & co.), and the children's
-  denotations are `Bridge/Grind.lean` §5's `DenoteView` extractions;
+* the view a tag-guarded projection read gives, the denotation's
+  constructor from its tag and the children's denotations are
+  `Bridge/Grind.lean` §6's (`view_of_viewApp`, `exprTag_app`, the
+  `DenoteView` extractions);
 * the memo insert is `abs1Set_specA`, the insert's spec with the walk's
   function a parameter (given in the `vcgen` list) and the invariant and
   the answer as PRECONDITIONS, so that its post is a plain conjunction.
 
-The general lemmas this needed are in the section *Vocabulary candidates for
-Bridge/Grind.lean*.
 -/
 import ConRon.Bridge.ExprOps.MemoSpecs
 
@@ -127,12 +123,11 @@ theorem abstractRange_zero_eq :
 
 /-! ## The pure functions, named
 
-`grind` must see the walk's pure function as a TERM, not a `fun` (DESIGN
-#123's recipe, rule 2): `abs1Fn d` and `absRangeFn d k` are the memo
+`grind` must see the walk's pure function as a TERM, not a `fun`: `abs1Fn d` and `absRangeFn d k` are the memo
 invariant's function, `abs1Fn d k` and `absRangeFn d k c` the answer
 relation's.  Each comes with one `=` lemma per constructor the walk descends
 into — they fire once congruence closure knows the denotation's constructor
-(`exprTag_app` & co. below) — and with the cutoff and the catch-all, which
+(`Bridge/Grind.lean`'s `exprTag_app` & co.) — and with the cutoff and the catch-all, which
 only the dispatcher needs and passes to `sym` itself. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:659-671 abstract1 — `abstract1`
@@ -229,8 +224,8 @@ theorem absRangeFn_leaf {d k c : Nat} {e : Expr}
 
 /-! ## The answer relations
 
-`Bridge/Rel.lean`'s generic `RelE` at the named function (task #97b finding
-1, and task #123's rule against a `fun`). -/
+`Bridge/Rel.lean`'s generic `RelE` at the named function (no `fun` for
+`grind` to split on). -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `abstract1`'s answer
 relation. -/
@@ -256,183 +251,9 @@ sibling). -/
 abbrev AbsRangeMemoA (d k : Nat) (s : AState) : Prop :=
   MemoOK (absRangeFn d k) s.memos.abs1C s.store
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
-
-General lemmas the abstraction walks needed, in `Bridge/Grind.lean`'s §§3–5
-style; each is general (stores, views, denotations, answer relations, the
-generic memo invariant) and not specific to this family. -/
-
-/-- con-leche: none — the state invariant IS the store's well-formedness (an
-equation, so that a `StateOK` goal meets the callees' `StoreWF` posts). -/
-@[bridge_grind =] theorem StateOK_eq (s : AState) : StateOK s = StoreWF s.store :=
-  propext ⟨fun h => h.wf, fun h => ⟨h⟩⟩
-
-/-- con-leche: none — `RelE` IS a `MapRel` fact on the two denotation terms
-(the `=` form of `RelE.mapRel`, so that it also rewrites a `RelE` GOAL). -/
-@[bridge_grind =] theorem RelE_eq_mapRel (g : Expr → Expr) (st : EStore) (c : EIdx)
-    (st' : EStore) (r : EIdx) :
-    RelE g st c st' r = MapRel g (denoteE st c) (denoteE st' r) := by
-  apply propext; constructor
-  · exact RelE.mapRel
-  · intro h e he; rw [he] at h; exact h
-
-/-- con-leche: none — `MapRel` at a denoting subject, as an equation (both
-polarities: a `MapRel` goal too). -/
-@[bridge_grind =] theorem MapRel.some_eq (g : Expr → Expr) (e : Expr) (o : Option Expr) :
-    MapRel g (some e) o = (o = some (g e)) := rfl
-
-/-- con-leche: none — `RelV`'s answer at an optional subject (`MapRel` at a
-value answer). -/
-def MapRelV {α : Type} (g : Expr → α) : Option Expr → α → Prop
-  | some e, x => x = g e
-  | none, _ => True
-
-/-- con-leche: none — `RelV` IS a `MapRelV` fact on the denotation term. -/
-@[bridge_grind =] theorem RelV_eq_mapRelV {α : Type} (g : Expr → α) (st : EStore)
-    (c : EIdx) (x : α) : RelV g st c x = MapRelV g (denoteE st c) x := by
-  apply propext; constructor
-  · intro h; cases hc : denoteE st c with
-    | none => trivial
-    | some e => exact h e hc
-  · intro h e he; rw [he] at h; exact h
-
-/-- con-leche: none — `MapRelV` at a denoting subject. -/
-@[bridge_grind =] theorem MapRelV.some_eq {α : Type} (g : Expr → α) (e : Expr) (x : α) :
-    MapRelV g (some e) x = (x = g e) := rfl
-
-/-- con-leche: none — a subject the spec knows to denote denotes SOMETHING:
-the witness congruence closure needs to fire `MapRel.some_eq` and the
-`DenoteView` extractions. -/
-@[bridge_grind →] theorem denote_some_of_isSome {st : EStore} {h : EIdx}
-    (hs : (denoteE st h).isSome = true) : ∃ e, denoteE st h = some e :=
-  Option.isSome_iff_exists.mp hs
-
-grind_pattern [bridge_grind] view_isSome => (st.view c).isSome
-
-/-- con-leche: none — a name handle that denotes has a view (the intern
-specs' precondition on a `proj`'s struct name). -/
-theorem nview_isSome {st : NStore} {c : NIdx} (hd : (denoteN st c).isSome = true) :
-    (st.view c).isSome = true := by
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
-  exact nview_isSome_of_denote hx
-grind_pattern [bridge_grind] nview_isSome => (st.view c).isSome
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — a memo
-invariant survives a store extension when the table stood still (the table
-is the SAME term: congruence closure supplies the table equations). -/
-theorem MemoOK.le {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
-    {st st' : EStore} (hm : MemoOK f tbl st) (hx : st ≤ st') : MemoOK f tbl st' :=
-  MemoOK.mono hm hx rfl
-grind_pattern [bridge_grind] MemoOK.le => MemoOK f tbl st, st ≤ st'
-grind_pattern [bridge_grind] MemoOK.get => MemoOK f tbl st, tbl[k]?, some r where
-  guard tbl[k]? = some r
-
-grind_pattern [bridge_grind] view_of_viewApp => st.viewApp i, some (f, a) where
-  guard st.viewApp i = some (f, a)
-grind_pattern [bridge_grind] view_of_viewBind => st.viewBind i, some (ty, b) where
-  guard st.viewBind i = some (ty, b)
-grind_pattern [bridge_grind] view_of_viewLet => st.viewLet i, some (ty, val, b) where
-  guard st.viewLet i = some (ty, val, b)
-grind_pattern [bridge_grind] view_of_viewProj => st.viewProj i, some (n, k, e) where
-  guard st.viewProj i = some (n, k, e)
-
-/-- con-leche: none — the `fvar` index read under its tag gives the view (the
-type handle exists: `viewFVarTy_of_viewFVarIdx`). -/
-theorem view_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
-    (htg : i.tag = ETag.fvar) (h : st.viewFVarIdx i = some k) :
-    ∃ ty, st.view i = some (.fvar k ty) := by
-  obtain ⟨ty, hty⟩ := viewFVarTy_of_viewFVarIdx h
-  exact ⟨ty, view_of_viewFVar htg h hty⟩
-grind_pattern [bridge_grind] view_of_viewFVarIdx => st.viewFVarIdx i, some k where
-  guard st.viewFVarIdx i = some k
-
-attribute [bridge_grind =] eBindView
-
-/-- con-leche: none — an expression tagged `app` IS an application of its two
-projections (§5's "views follow from tags", at the denotation). -/
-theorem exprTag_app {e : Expr} (h : exprTag e = ETag.app) :
-    e = .app (exprFn e) (exprArg e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_app => exprTag e where
-  guard exprTag e = ETag.app
-
-/-- con-leche: none — an expression tagged `lam` IS a λ of its projections. -/
-theorem exprTag_lam {e : Expr} (h : exprTag e = ETag.lam) :
-    e = .lam (exprBinderType e) (exprBody e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_lam => exprTag e where
-  guard exprTag e = ETag.lam
-
-/-- con-leche: none — an expression tagged `forallE` IS a ∀ of its
-projections. -/
-theorem exprTag_forallE {e : Expr} (h : exprTag e = ETag.forallE) :
-    e = .forallE (exprBinderType e) (exprBody e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_forallE => exprTag e where
-  guard exprTag e = ETag.forallE
-
-/-- con-leche: none — an expression tagged `letE` IS a `let` of its
-projections. -/
-theorem exprTag_letE {e : Expr} (h : exprTag e = ETag.letE) :
-    e = .letE (exprBinderType e) (exprLetVal e) (exprBody e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_letE => exprTag e where
-  guard exprTag e = ETag.letE
-
-/-- con-leche: none — an expression tagged `proj` IS a projection of its
-projections. -/
-theorem exprTag_proj {e : Expr} (h : exprTag e = ETag.proj) :
-    e = .proj (exprProjName e) (exprProjIdx e) (exprProjStruct e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_proj => exprTag e where
-  guard exprTag e = ETag.proj
-
-/-- con-leche: none — an expression tagged `fvar` IS a free variable of its
-projections. -/
-theorem exprTag_fvar {e : Expr} (h : exprTag e = ETag.fvar) :
-    e = .fvar (exprFVarIdx e) (exprFVarType e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_fvar => exprTag e where
-  guard exprTag e = ETag.fvar
-
-/-- con-leche: none — an `fvar` view's index and type annotation. -/
-theorem DenoteView.fvar {st : EStore} {k : Nat} {ty : EIdx} {e : Expr}
-    (H : DenoteView st (some (.fvar k ty)) (some e)) :
-    exprFVarIdx e = k ∧ denoteE st ty = some (exprFVarType e) := H
-grind_pattern [bridge_grind] DenoteView.fvar => DenoteView st (some (.fvar k ty)) (some e)
-
-/-- con-leche: none — a `lam` view's children. -/
-theorem DenoteView.lam {st : EStore} {ty b : EIdx} {e : Expr}
-    (H : DenoteView st (some (.lam ty b)) (some e)) :
-    denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
-grind_pattern [bridge_grind] DenoteView.lam => DenoteView st (some (.lam ty b)) (some e)
-
-/-- con-leche: none — a `forallE` view's children. -/
-theorem DenoteView.forallE {st : EStore} {ty b : EIdx} {e : Expr}
-    (H : DenoteView st (some (.forallE ty b)) (some e)) :
-    denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
-grind_pattern [bridge_grind] DenoteView.forallE =>
-  DenoteView st (some (.forallE ty b)) (some e)
-
-/-- con-leche: none — a `letE` view's children. -/
-theorem DenoteView.letE {st : EStore} {ty w b : EIdx} {e : Expr}
-    (H : DenoteView st (some (.letE ty w b)) (some e)) :
-    denoteE st ty = some (exprBinderType e) ∧ denoteE st w = some (exprLetVal e) ∧
-      denoteE st b = some (exprBody e) := H
-grind_pattern [bridge_grind] DenoteView.letE => DenoteView st (some (.letE ty w b)) (some e)
-
-/-- con-leche: none — a `proj` view's struct name, index and subject. -/
-theorem DenoteView.proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
-    (H : DenoteView st (some (.proj n i sub)) (some e)) :
-    denoteN st.ns n = some (exprProjName e) ∧ idxOfName st.ns (exprProjName e) = n ∧
-      exprProjIdx e = i ∧ denoteE st sub = some (exprProjStruct e) := H
-grind_pattern [bridge_grind] DenoteView.proj => DenoteView st (some (.proj n i sub)) (some e)
-
 /-! ## The memo insert, generic in the walk
 
-`ExprOps/MemoSpecs.lean`'s `abs1Set_specI` moved the walk's function inside a
-`∀ f` of the postcondition, which `grind` would have to instantiate (at a
-`fun`).  This face takes the function as a parameter — `vcgen`'s list gives
+`abs1Set`'s spec at the walk's function: it takes the function as a parameter — `vcgen`'s list gives
 it, `abs1Set_specA (f := abs1Fn d)` — and the invariant and the answer as
 PRECONDITIONS, which `vcgen` leaves as verification conditions; the post is a
 plain conjunction. -/

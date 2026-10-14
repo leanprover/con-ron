@@ -50,7 +50,6 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena Std.WP
 open scoped Lean.Order
 
-
 /-! ## 1. Soundness: from the triple back to a run -/
 
 /-- con-leche: none — the `WP` soundness step for `AM`.  Everything `vcgen`
@@ -273,21 +272,6 @@ a node and along an extension, which is all the automation needs. -/
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
   obtain ⟨x, y, _, _, hy⟩ := denote_proj_inv hwf hw he
   rw [hy]; rfl
-
-/-- con-leche: none — the `isSome` calculus at `eBindView`, so that a walk
-whose binder clause is shared between `lam` and `forallE` (which is every
-rebuilding walk since task #97-P6-16) needs no case split. -/
-@[grind →] theorem isSome_eBindView {st : EStore} (hwf : StoreWF st)
-    {h ty b : EIdx} {tg : UInt32}
-    (hview : st.view h = some (eBindView tg ty b))
-    (hs : (denoteE st h).isSome = true) :
-    (denoteE st ty).isSome = true ∧ (denoteE st b).isSome = true := by
-  unfold eBindView at hview
-  by_cases hc : (tg == ETag.lam) = true
-  · rw [ite_eq_left hc] at hview; exact isSome_lam hwf hview hs
-  · simp only [Bool.not_eq_true] at hc
-    rw [hc] at hview; simp only [Bool.false_eq_true, ite_false] at hview
-    exact isSome_forallE hwf hview hs
 
 /-! ## 5. The `isSome`-flavoured inversions — the form `grind` can use
 
@@ -620,11 +604,6 @@ derives the `view` fact itself and the arm proofs never mention it. -/
     st.view i = some (.app f a) :=
   view_of_viewApp (by simpa using htg) h
 
-@[grind →] theorem view_of_viewBVar_tag {st : EStore} {i : EIdx} {k : Nat}
-    (htg : (i.tag == ETag.bvar) = true) (h : st.viewBVar i = some k) :
-    st.view i = some (.bvar k) :=
-  view_of_viewBVar (by simpa using htg) h
-
 @[grind →] theorem view_of_viewSort_tag {st : EStore} {i : EIdx} {u : LIdx}
     (htg : (i.tag == ETag.sort) = true) (h : st.viewSort i = some u) :
     st.view i = some (.sort u) :=
@@ -634,16 +613,6 @@ derives the `view` fact itself and the arm proofs never mention it. -/
     {us : LsIdx} (htg : (i.tag == ETag.const) = true)
     (h : st.viewConst i = some (n, us)) : st.view i = some (.const n us) :=
   view_of_viewConst (by simpa using htg) h
-
-@[grind →] theorem view_of_viewLet_tag {st : EStore} {i ty val b : EIdx}
-    (htg : (i.tag == ETag.letE) = true) (h : st.viewLet i = some (ty, val, b)) :
-    st.view i = some (.letE ty val b) :=
-  view_of_viewLet (by simpa using htg) h
-
-@[grind →] theorem view_of_viewProj_tag {st : EStore} {i : EIdx} {n : NIdx}
-    {k : Nat} {e : EIdx} (htg : (i.tag == ETag.proj) = true)
-    (h : st.viewProj i = some (n, k, e)) : st.view i = some (.proj n k e) :=
-  view_of_viewProj (by simpa using htg) h
 
 @[grind →] theorem view_of_viewFVar_tag {st : EStore} {i : EIdx} {k : Nat}
     {ty : EIdx} (htg : (i.tag == ETag.fvar) = true)
@@ -713,40 +682,6 @@ theorem view_forallE_of_viewBind {st : EStore} {h ty b : EIdx}
     (h1 : st.viewBind h = some (ty, b)) :
     st.view h = some (.forallE ty b) :=
   view_of_viewBind_forallE (by simpa using htg) h1
-
-/-- con-leche: none — the catch-all arm's content, once: a handle whose tag is
-none of the six the substituting walks dispatch on decodes to one of the four
-LEAF constructors, and its denotation is that leaf. -/
-theorem denote_leaf_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {v : ENodeView} (hview : st.view h = some v)
-    (happ : ¬ (h.tag = ETag.app)) (hbind : ETag.isBind h.tag = false)
-    (hbvar : ¬ (h.tag = ETag.bvar)) (hlet : ¬ (h.tag = ETag.letE))
-    (hproj : ¬ (h.tag = ETag.proj)) {e : Expr} (he : denoteE st h = some e) :
-    (∃ k t, e = .fvar k t) ∨ (∃ u, e = .sort u) ∨
-      (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) := by
-  have htag := EStore.tagOf_of_view hview
-  cases v with
-  | bvar i => exact absurd (htag.trans rfl) hbvar
-  | fvar k t =>
-    obtain ⟨t', rfl, _⟩ := denote_fvar_inv hwf hview he
-    exact Or.inl ⟨k, t', rfl⟩
-  | sort u =>
-    obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hview he
-    exact Or.inr (Or.inl ⟨l, rfl⟩)
-  | const n us =>
-    obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
-    exact Or.inr (Or.inr (Or.inl ⟨nm, ls, rfl⟩))
-  | app f a => exact absurd (htag.trans rfl) happ
-  | lam ty b =>
-    rw [htag] at hbind; simp [ENodeView.tagOf, ETag.isBind] at hbind
-  | forallE ty b =>
-    rw [htag] at hbind
-    simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hbind
-  | letE ty w b => exact absurd (htag.trans rfl) hlet
-  | lit l =>
-    rw [denote_lit_inv hwf hview he]
-    exact Or.inr (Or.inr (Or.inr ⟨l, rfl⟩))
-  | proj n i sub => exact absurd (htag.trans rfl) hproj
 
 /-! ## 6b. `denoteEView` transports too
 
@@ -1401,50 +1336,16 @@ def RelLs (f : List Level → List Level) (st : EStore) (c : LsIdx) (st' : EStor
     (r : LsIdx) : Prop :=
   ∀ us, denoteLs st.lss c = some us → denoteLs st'.lss r = some (f us)
 
-/-! ### The five eliminators
+/-! ### The eliminators
 
-`.apply`, `.isSome`, `.ext`, `.of_ext`, `.retarget` — the set task #97s round
-1 found necessary and round 2 found explosive as `@[grind →]` *together with*
-the per-site step lemmas.  They are tagged here and the arm proofs erase the
-three transports with `attribute [-grind]`, exactly as `ExpAFast.lean` does;
-the erasure does not travel through an import, so each arm file repeats the
-line. -/
-
-@[grind →] theorem RelE.apply {f : Expr → Expr} {st st' : EStore} {c r : EIdx}
-    {e : Expr} (h : RelE f st c st' r) (he : denoteE st c = some e) :
-    denoteE st' r = some (f e) := h e he
+`.isSome` and `.self`; the walks' proofs read `RelE` as `Bridge/Grind.lean`'s
+`MapRel`. -/
 
 @[grind →] theorem RelE.isSome {f : Expr → Expr} {st st' : EStore} {c r : EIdx}
     (h : RelE f st c st' r) (hs : (denoteE st c).isSome = true) :
     (denoteE st' r).isSome = true := by
   obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
   rw [h e he]; rfl
-
-/-- con-leche: none — the answer travels forward with the arena. -/
-@[grind →] theorem RelE.ext {f : Expr → Expr} {st st' st'' : EStore} {c r : EIdx}
-    (h : RelE f st c st' r) (hx : Ext st' st'') : RelE f st c st'' r :=
-  fun e he => denote_ext (h e he) hx
-
-/-- con-leche: none — and backward along an extension of the SOURCE. -/
-@[grind →] theorem RelE.of_ext {f : Expr → Expr} {st st0 st' : EStore}
-    {c r : EIdx} (h : RelE f st c st' r) (hx : Ext st0 st) :
-    RelE f st0 c st' r :=
-  fun e he => h e (denote_ext he hx)
-
-/-- con-leche: none — **retarget the source store**.  The answer relation was
-established against the store the call *started* in; the memo records it
-against the store the call *ended* in.  They agree because `denoteE` is a
-function and `Ext` transports the input's denotation forward.  This is the one
-lemma con-leche's tree-shaped proof never needed. -/
-@[grind →] theorem RelE.retarget {f : Expr → Expr} {st st0 st' : EStore}
-    {c r : EIdx} (h : RelE f st c st' r) (hx : Ext st st0)
-    (hs : (denoteE st c).isSome = true) : RelE f st0 c st' r := by
-  intro e he
-  obtain ⟨e0, he0⟩ := Option.isSome_iff_exists.mp hs
-  have hh := denote_ext he0 hx
-  rw [he] at hh
-  rw [Option.some.inj hh]
-  exact h e0 he0
 
 /-- con-leche: none — a leaf arm that answers the handle it was given: the
 CUTOFF shape.  Every derived-word cutoff in `ExprOps.lean` closes through
@@ -1468,96 +1369,15 @@ theorem RelV.congr {α : Type} {f g : Expr → α} {st : EStore} {c : EIdx} {x :
     (h : RelV f st c x) (hfg : ∀ e, f e = g e) : RelV g st c x :=
   fun e he => by rw [← hfg e]; exact h e he
 
-@[grind →] theorem RelL.ext {f : Level → Level} {st st' st'' : EStore}
-    {c r : LIdx} (h : RelL f st c st' r) (hx : Ext st' st'') :
-    RelL f st c st'' r :=
-  fun u hu => denoteL_ext (h u hu) hx
-
 @[grind →] theorem RelL.of_ext {f : Level → Level} {st st0 st' : EStore}
     {c r : LIdx} (h : RelL f st c st' r) (hx : Ext st0 st) :
     RelL f st0 c st' r :=
   fun u hu => h u (denoteL_ext hu hx)
 
-@[grind →] theorem RelLs.ext {f : List Level → List Level}
-    {st st' st'' : EStore} {c r : LsIdx} (h : RelLs f st c st' r)
-    (hx : Ext st' st'') : RelLs f st c st'' r :=
-  fun u hu => denoteLs_ext (h u hu) hx
-
 @[grind →] theorem RelLs.of_ext {f : List Level → List Level}
     {st st0 st' : EStore} {c r : LsIdx} (h : RelLs f st c st' r)
     (hx : Ext st0 st) : RelLs f st0 c st' r :=
   fun u hu => h u (denoteLs_ext hu hx)
-
-/-! ### The universal step, and the five per-site instances
-
-`RelE.of_view` is the whole content: the subject's view denotes what the
-subject denotes (that is `denoteE_view_eq`), the answer's handle denotes what
-the REBUILT view denotes (that is `intern`'s postcondition), and what is left
-is a statement about `denoteEView` alone, with no store operation in it.
-
-The five lemmas after it are `of_view` at a concrete constructor, with the
-pure function's own clause supplied as a decomposition hypothesis `hdec`.  Per
-task #97b finding 1 they are **not** `@[grind →]`: `hdec`'s head is a
-variable, so `grind` finds no pattern.  They are applied by hand, which is
-what task #97s round 2's recipe item 3 prescribes anyway. -/
-
-theorem RelE.app {F Ff Fa : Expr → Expr} {st st' : EStore}
-    {h f a rf ra r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.app f a))
-    (hdec : ∀ x y, F (.app x y) = .app (Ff x) (Fa y))
-    (hf : RelE Ff st f st' rf) (ha : RelE Fa st a st' ra)
-    (hr : denoteE st' r = denoteEView st' (.app rf ra)) : RelE F st h st' r := by
-  intro e he
-  obtain ⟨ef, ea, rfl, hdf, hda⟩ := denote_app_inv hwf hview he
-  rw [hr, denoteEView, hdec, hf ef hdf, ha ea hda]; rfl
-
-theorem RelE.lam {F Ft Fb : Expr → Expr} {st st' : EStore}
-    {h ty b rt rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.lam ty b))
-    (hdec : ∀ x y, F (.lam x y) = .lam (Ft x) (Fb y))
-    (ht : RelE Ft st ty st' rt) (hb : RelE Fb st b st' rb)
-    (hr : denoteE st' r = denoteEView st' (.lam rt rb)) :
-    RelE F st h st' r := by
-  intro e he
-  obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_lam_inv hwf hview he
-  rw [hr, denoteEView, hdec, ht et hdt, hb eb hdb]; rfl
-
-theorem RelE.forallE {F Ft Fb : Expr → Expr} {st st' : EStore}
-    {h ty b rt rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.forallE ty b))
-    (hdec : ∀ x y, F (.forallE x y) = .forallE (Ft x) (Fb y))
-    (ht : RelE Ft st ty st' rt) (hb : RelE Fb st b st' rb)
-    (hr : denoteE st' r = denoteEView st' (.forallE rt rb)) :
-    RelE F st h st' r := by
-  intro e he
-  obtain ⟨et, eb, rfl, hdt, hdb⟩ := denote_forallE_inv hwf hview he
-  rw [hr, denoteEView, hdec, ht et hdt, hb eb hdb]; rfl
-
-theorem RelE.letE {F Ft Fv Fb : Expr → Expr} {st st' : EStore}
-    {h ty v b rt rv rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.letE ty v b))
-    (hdec : ∀ x y z, F (.letE x y z) = .letE (Ft x) (Fv y) (Fb z))
-    (ht : RelE Ft st ty st' rt) (hv : RelE Fv st v st' rv)
-    (hb : RelE Fb st b st' rb)
-    (hr : denoteE st' r = denoteEView st' (.letE rt rv rb)) :
-    RelE F st h st' r := by
-  intro e he
-  obtain ⟨et, ev, eb, rfl, hdt, hdv, hdb⟩ := denote_letE_inv hwf hview he
-  rw [hr, denoteEView, hdec, ht et hdt, hv ev hdv, hb eb hdb]; rfl
-
-theorem RelE.proj {F Fs : Expr → Expr} {st st' : EStore} {h sub rs r : EIdx}
-    {n n' : NIdx} {i : Nat} {nm nm' : ConLeche.Name} (hwf : StoreWF st)
-    (hview : st.view h = some (.proj n i sub))
-    (hdec : ∀ x, F (.proj nm i x) = .proj nm' i (Fs x))
-    (hs : RelE Fs st sub st' rs)
-    (hn0 : denoteN st.ns n = some nm) (hn' : denoteN st'.ns n' = some nm')
-    (hr : denoteE st' r = denoteEView st' (.proj n' i rs)) :
-    RelE F st h st' r := by
-  intro e he
-  obtain ⟨nm2, es, rfl, hdn, hds⟩ := denote_proj_inv hwf hview he
-  rw [hn0] at hdn
-  obtain rfl := Option.some.inj hdn
-  rw [hr, denoteEView, hdec, hs es hds, hn']; rfl
 
 /-! ## 8. `ViewOK` — `intern`'s precondition
 

@@ -197,55 +197,9 @@ The primed forms do not replace the unprimed ones — a caller that holds the
 denotation should keep using the field, which leaves it one fewer `∀` to
 instantiate. -/
 
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
-whnf slot in ANSWER shape. -/
-theorem KnotSpec.whnf' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ e, denoteE s₀.store i = some e →
-          SimE (ConLeche.whnf mode env) d e s'.store r; ⊤⦄ := by
-  obtain ⟨e₀, hd, hwf⟩ := hdw
-  have hb := hsim.whnf s₀ d i e₀ hok hd hwf
-  vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4⟩ := hpost
-  refine ⟨h1, h2, h3, fun e he => ?_⟩
-  rw [hd] at he; obtain rfl := (Option.some.inj he).symm; exact h4
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
-defeq slot in ANSWER shape, at BOTH subjects. -/
-theorem KnotSpec.defeq' {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
-    (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i j : EIdx) (hok : CheckOK mode env fe s₀)
-    (hda : ∃ a, denoteE s₀.store i = some a ∧ Expr.WScoped d a)
-    (hdb : ∃ b, denoteE s₀.store j = some b ∧ Expr.WScoped d b) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).defeq d i j
-    ⦃fun x s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ a b, denoteE s₀.store i = some a → denoteE s₀.store j = some b →
-          SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄ := by
-  obtain ⟨a₀, hda1, hda2⟩ := hda
-  obtain ⟨b₀, hdb1, hdb2⟩ := hdb
-  have hb := hsim.defeq s₀ d i j a₀ b₀ hok hda1 hdb1 hda2 hdb2
-  vcgen [hb]
-  rename_i hpost
-  obtain ⟨h1, h2, h3, h4⟩ := hpost
-  refine ⟨h1, h2, h3, fun a b ha hbb => ?_⟩
-  rw [hda1] at ha; rw [hdb1] at hbb
-  obtain rfl := (Option.some.inj ha).symm
-  obtain rfl := (Option.some.inj hbb).symm
-  exact h4
-
 /-! ### The primed slots' axiom census -/
 
 section Census
-
-#print axioms KnotSpec.whnf'
-#print axioms KnotSpec.defeq'
 
 end Census
 

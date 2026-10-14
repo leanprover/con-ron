@@ -21,7 +21,7 @@ twin's induction is on the LOOP's budget with the knot record fixed — one
 `Nat` induction, not a second fuel tower.  `whnfBody_spec` below is where it
 runs.
 
-**The proofs are `vcgen` and `grind`** (task #122, as `Memo.lean`'s): the
+**The proofs are `vcgen` and `grind`** (as `Memo.lean`'s): the
 three exits are `grind` lemmas whose every variable occurs in a pattern
 (§1's `_eq` forms), and the loop states its answer as an `Ans` atom about
 its subject's denotation (`Bridge/Grind.lean` §3), as do the two callees it
@@ -91,11 +91,11 @@ theorem whnfLoop_done {F d n : Nat} {e e₁ : Expr}
   simp only [ConLeche.whnfCore_def, h1, h2, h3, bind, Except.bind, pure,
     Except.pure]
 
-/-! ### The three iterations as `grind` lemmas (tasks #120, #122)
+/-! ### The three iterations as `grind` lemmas
 
 The same three step lemmas, in the shape a verification condition of the
-loop has: one `∃ F` per callee, merged by `max` inside the lemma.  Task #122
-states them for `grind`: every variable occurs in the multi-pattern of the
+loop has: one `∃ F` per callee, merged by `max` inside the lemma, stated
+for `grind`: every variable occurs in the multi-pattern of the
 three runs (`whnfCore`, `reduceNat`, the inner loop), and the inner loop's run
 is a premise only as `isOk` and the merged loop's run is an EQUATION with it,
 so that no premise names an answer `grind` would have to guess. -/
@@ -162,7 +162,7 @@ grind_pattern [bridge_grind] whnfLoop_done_eq =>
   ConLeche.reduceNat (ConLeche.pureFns mode env F₂) env d e₁,
   ConLeche.unfoldDefinition env e₁
 
-/-! ### The callees' optional answers (task #122)
+/-! ### The callees' optional answers
 
 `reduceNat`'s answer is an optional handle; the loop's verification
 conditions open it at the constructor the program matched.  (These belong
@@ -175,7 +175,7 @@ theorem SimOOp.some_inv {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStor
     {r : EIdx} (h : SimOOp P d st (some r)) :
     ∃ x, denoteE st r = some x ∧ Expr.WScoped d x ∧ ∃ F, P F = .ok (some x) := by
   obtain ⟨v, hv, hw, F, hF⟩ := h
-  obtain ⟨x, rfl, hx⟩ := denoteEO_some_some hv
+  obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hv
   exact ⟨x, hx, hw x rfl, F, hF⟩
 grind_pattern [bridge_grind] SimOOp.some_inv => SimOOp P d st (some r)
 
@@ -230,7 +230,7 @@ theorem whnfLoopFuel_eq :
     ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel := rfl
 
 /-- con-leche: none — `reduceNat_spec` with its answer as an `Ans` atom
-(task #122: the same proposition; `Bridge/Grind.lean` §3). -/
+(the same proposition; `Bridge/Grind.lean` §3). -/
 theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
@@ -242,7 +242,7 @@ theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode env fe f
   reduceNat_spec hsim s₀ d e hok hdw
 
 /-- con-leche: none — `unfoldDefinition_spec` with its answer as an `Ans`
-atom (task #122). -/
+atom. -/
 theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : AState)
     (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
@@ -257,7 +257,7 @@ theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : 
 /-- con-leche: ConLeche/Kernel/Core.lean:1127-1132 whnfLoop — **THEOREM 1 for
 the reduction LOOP**, at an arbitrary step budget: one `Nat` induction over
 §1's three step lemmas, with the fuel merge at every iteration.  The answer is
-an `Ans` atom about the subject's denotation (task #122): the loop is also
+an `Ans` atom about the subject's denotation: the loop is also
 called on handles the caller has only just made, whose denotation is not a
 parameter. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
@@ -290,7 +290,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1134-1136 whnfBody — the loop's
 answer at the twin's budget is a `whnf` answer (`whnf_of_loop` with the
-budgets' equation), from the loop's answer as ONE premise (task #122). -/
+budgets' equation), from the loop's answer as ONE premise. -/
 @[bridge_grind .] theorem SimE.of_whnfLoop {st : EStore} {r : EIdx} {d : Nat} {e : Expr}
     (h : ∃ v, denoteE st r = some v ∧ Expr.WScoped d v ∧
       ∃ F, ConLeche.whnfLoop (ConLeche.pureFns mode env F) env d

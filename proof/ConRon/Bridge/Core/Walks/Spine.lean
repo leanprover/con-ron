@@ -45,14 +45,13 @@ finding 18 books it.
 ## What is in here besides the four walks
 
 The facts the four need and no tier had — the length projection of `viewLs`
-bridged to the denotation, `denoteCI`'s constructor preservation at
-`defnInfo` in both directions, the environment index's two halves packaged,
-and the two "index equality IS structural equality" transfers at the name
-store.  Their section notes are below.
+bridged to the denotation and `denoteCI`'s constructor preservation at
+`defnInfo` — and the two "index equality IS structural equality" transfers at
+the name store.  Their section notes are below.
 
-**The proofs are `vcgen` and `grind`** (task #123, the calibration of the
+**The proofs are `vcgen` and `grind`** (the calibration of the
 dispatch walks): `sym only [bridge_grind] => vcgen [f, callee specs…] <;>
-finish` for all six walk theorems, no `bridge_*`, no `vc_arm`.  What makes a
+finish` for all six walk theorems.  What makes a
 dispatch walk `grind`-shaped is `Bridge/Grind.lean` §5/§6 (views, tags and the
 environment index as EQUATIONS over projections) and, here, ONE unconditional
 equation per con-leche function the walks compare against
@@ -70,7 +69,6 @@ task #105.)
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
@@ -86,41 +84,17 @@ variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 0c. What the spine group needs and no tier had
 
-The three walks of §1 read the head of an application, so each one is
-`ExprOps/Spine.lean`'s `getAppFn_spec` over a `view`, and then the
-ENVIRONMENT INDEX at the head's name.  **This is the first module of
-`Bridge/Core/**` that imports the `ExprOps` tier** — task
-#97-P3-CoreWalks left the three here for exactly that reason, and
-`Bridge/ExprOps/**` reached zero `sorry` while the previous round ran, so
-the import costs nothing and unblocks the cheap row whole.
+The walks of §1 read the head of an application (`ExprOps/Spine.lean`'s
+`getAppFn_spec` over a `view`) and then the ENVIRONMENT INDEX at the head's
+name.  Two facts are stated here:
 
-Four facts were missing, in three groups.
-
-1. **`viewLsLen` had no bridge to the denotation.**  Task #97-P6-10's length
-   projection reads the stored record's own length and never rebuilds the
-   list; nothing said that the number it answers IS the length of what the
-   handle denotes.  `viewLen_of_denoteLs` is that, over two one-line
-   projection equations.
-2. **`denoteCI` does not change a constant's CONSTRUCTOR** — the fact task
-   #97-P3-Core-2 proved at `projInfo` (`denoteCI_projInfo`), here at
-   `defnInfo` and in both directions, because a walk that asks "is the head a
-   DEFINITION?" needs the negative half as much as the positive one (the
-   round's own rule, one rung down: *a walk that decides a guard needs the
-   negative half*).
-3. **The index's two halves, packaged.**  `env_defn_of_index` and
-   `env_not_defn_of_index` are `IFEnvOK.hit` / `IFEnvOK.miss` plus
-   `denoteN`'s functionality at one handle; every walk that reads
-   `fe.find?` under a denoted name wants one of the two and neither is a
-   one-liner at the site.
-
-**And one measured finding about `simp`** that pays for itself three times
-below: the match-equation lemmas of a con-leche `def` carry their negative
-side conditions as hypotheses, and `simp only [ConLeche.unfoldableHead, hgf]`
-DISCHARGES them from the local context.  So the "the head is not a stored
-definition" arm of each of these walks is one `simp only` and no case bash
-(since task #120 `bridge_finish`'s `simp only [f, *]` does exactly that).  Where the match is on a PAIR (`sameConstHeads`) the discharger does
-not fire and the arm needs `cases … <;> cases … <;> first | rfl | …`, which
-is the whole difference between the two shapes. -/
+1. **`viewLsLen` against the denotation.**  The length projection reads the
+   stored record's own length and never rebuilds the list;
+   `viewLen_of_denoteLs` says that the number it answers IS the length of
+   what the handle denotes, over two one-line projection equations.
+2. **`denoteCI` keeps a constant's CONSTRUCTOR** at `defnInfo`
+   (`denoteCI_defnInfo_inv`), and a handle whose tag is not `const` denotes
+   no constant (`denote_not_const`). -/
 
 /-- con-leche: none — the LENGTH projection of one tier's `LsTables.get`:
 the stored record's own length is the length of the list the handle decodes to
@@ -172,27 +146,6 @@ theorem view_len_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
   rw [lsStore_viewLen_eq, hv, Option.map_some] at hl
   exact Option.some.inj hl
 
-/-- con-leche: none — a denoting NAME-handle list keeps its length.
-`Bridge/Rel.lean` has this at expression and level handles
-(`denoteEList_len`, `denoteLList_len`) and not at names. -/
-theorem denoteNList_len {st : NStore} :
-    ∀ {hs : List NIdx} {xs : List ConLeche.Name},
-      Frontend.denoteNList st hs = some xs → xs.length = hs.length
-  | [], xs, h => by
-    simp only [Frontend.denoteNList] at h
-    obtain rfl := Option.some.inj h; rfl
-  | a :: as, xs, h => by
-    simp only [Frontend.denoteNList] at h
-    cases ha : denoteN st a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteNList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        obtain rfl := Option.some.inj h
-        simp [denoteNList_len has]
-
 /-- con-leche: none — the denotation of a stored DEFINITION is a
 definition, with the same reducibility hint and a denoting value. -/
 theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
@@ -210,55 +163,9 @@ theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
       rw [hv, he] at h
       exact ⟨cv, x, rfl, rfl, (Option.some.inj h).symm⟩
 
-
 /-! `denoteCV_inv` — the field-by-field inversion of `denoteCV` — moved down
 to `Bridge/Core/Walks/Cached.lean` in round 4, where the three
 instantiated-constant caches need it. -/
-
-/-- con-leche: none — **and the other direction**: a stored constant that
-DENOTES a definition IS one.  DESIGN §8.3's "the denotation does not change a
-constant's constructor" (task #97-P3-Core-2 proved it at `projInfo`), here at
-`defnInfo` — and this is the half a walk that decides "is the head
-unfoldable?" needs, because it decides a GUARD. -/
-theorem denoteCI_defn_inv {st : EStore} {ci : IConstantInfo} {cv : ConstantVal}
-    {x : Expr} {hint : ReducibilityHint}
-    (h : Frontend.denoteCI st ci = some (.defnInfo cv x hint)) :
-    ∃ v e, ci = .defnInfo v e hint ∧ Frontend.denoteCV st v = some cv ∧
-      denoteE st e = some x := by
-  cases ci with
-  | defnInfo v e hi =>
-    obtain ⟨cv', x', hv, he, hc⟩ := denoteCI_defnInfo_inv h
-    simp only [ConstantInfo.defnInfo.injEq] at hc
-    obtain ⟨rfl, rfl, rfl⟩ := hc
-    exact ⟨v, e, rfl, hv, he⟩
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; simp at hc
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; simp at hc
-  | projInfo t =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; simp at hc
-  | thmInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨_, _, hc⟩ := h; simp at hc
-  | indInfo v c =>
-    simp only [Frontend.denoteCI] at h
-    cases hv : Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cvv =>
-      cases hc : Frontend.denoteCaps st c with
-      | none => rw [hv, hc] at h; simp at h
-      | some cc => rw [hv, hc] at h; simp at h
-  | recInfo v mI rP rs =>
-    simp only [Frontend.denoteCI] at h
-    cases hv : Frontend.denoteCV st v with
-    | none => rw [hv] at h; simp at h
-    | some cvv =>
-      cases hr : Frontend.denoteRules st rs with
-      | none => rw [hv, hr] at h; simp at h
-      | some rr => rw [hv, hr] at h; simp at h
 
 /-- con-leche: none — a handle whose VIEW is not a `.const` denotes an
 expression that is not a `.const`.  `Bridge/Core/Walks/Guards.lean`'s
@@ -281,54 +188,9 @@ theorem denote_not_const {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
+/-! ## The spine tier's vocabulary
 
-/-- con-leche: none — `denote_not_const` at the tag-first twin's `else` arm:
-a handle whose TAG is not `const` denotes no constant (task #120: the shape
-`bridge_fwd` instantiates from the arm's own hypotheses). -/
-theorem denote_not_const_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} (he : denoteE st h = some e)
-    (ht : ¬ (h.tag == ETag.const) = true) : ∀ n us, e ≠ .const n us := by
-  obtain ⟨v, hv⟩ := denoteE_view he
-  exact denote_not_const hwf hv he
-    (fun c us hh => view_tagOf_ne hv (t := ETag.const) ht (by rw [hh]; rfl))
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index's HIT
-half at a definition**: a handle the index answers `defnInfo` at denotes a
-name the environment answers `defnInfo` at, with the same hint. -/
-theorem env_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
-    {c : NIdx} {nm : ConLeche.Name} {icv : IConstantVal} {value : EIdx}
-    {hint : ReducibilityHint} (hn : denoteN s.store.ns c = some nm)
-    (hfd : fe.find? c = some (.defnInfo icv value hint)) :
-    ∃ dcv dval, Frontend.denoteCV s.store icv = some dcv ∧
-      denoteE s.store value = some dval ∧
-      env.find? nm = some (.defnInfo dcv dval hint) := by
-  obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c _ hfd
-  obtain rfl := Option.some.inj (hn'.symm.trans hn)
-  obtain ⟨dcv, dval, hdcv, hdval, rfl⟩ := denoteCI_defnInfo_inv hci
-  exact ⟨dcv, dval, hdcv, hdval, hfind⟩
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index's MISS
-half**, which is `IFEnvOK.miss` at a `find?` miss and `denoteCI_defn_inv` at a
-hit on something that is not a definition.  A walk that decides whether the
-head unfolds needs exactly this. -/
-theorem env_not_defn_of_index {s : AState} (hok : CheckOK mode env fe s)
-    {c : NIdx} {nm : ConLeche.Name} (hn : denoteN s.store.ns c = some nm)
-    (hnd : ∀ cv value hint, fe.find? c ≠ some (.defnInfo cv value hint)) :
-    ∀ cv val hint, env.find? nm ≠ some (.defnInfo cv val hint) := by
-  intro dcv dval dh hcon
-  cases hf : fe.find? c with
-  | none => rw [IFEnvOK.miss hok.state hok.ienv hn hf] at hcon; simp at hcon
-  | some ci =>
-    obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
-    obtain rfl := Option.some.inj (hn'.symm.trans hn)
-    rw [hfind] at hcon
-    obtain rfl := Option.some.inj hcon
-    obtain ⟨v', e', rfl, _, _⟩ := denoteCI_defn_inv hci
-    exact hnd v' e' dh hf
-
-
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
-
-`Bridge/Grind.lean` §5/§6's shape for what this module's walks read and the
+`Bridge/Grind.lean` §6/§8's shape for what this module's walks read and the
 generic vocabulary cannot see from its place in the import graph (the
 lengths and the well-scopedness live in con-leche's `InferLemmas` and in §0c
 above, `RelEA` in `ExprOps/Spine.lean`), and the two callees whose specs
@@ -471,7 +333,7 @@ grind_pattern [bridge_grind] ConstValPost.some => ConstValPost env st r (some nm
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:115-125 unfoldDefinition —
 `Walks/Cached.lean`'s `constValAt_spec'` with the index's projections as its
-precondition and `ConstValPost` as its answer (task #123: no `∃` to prove, no
+precondition and `ConstValPost` as its answer (no `∃` to prove, no
 `∀` to instantiate). -/
 theorem constValAt_specA (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (value : EIdx) (us : LsIdx) (hok : CheckOK mode env fe s₀)
@@ -515,7 +377,7 @@ here differ from it only by needing `getAppFn`.  **All three are CLOSED**
 (task #97-P3-Core round 3), which is what the `ExprOps` import buys. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:134-140 unfoldableHead — the
-function as ONE equation over tags and projections (task #123): the head is a
+function as ONE equation over tags and projections: the head is a
 constant, the environment has a definition at its name, the level counts
 agree. -/
 @[bridge_grind =] theorem unfoldableHead_eq (x : Expr) : ConLeche.unfoldableHead env x =
@@ -660,14 +522,6 @@ theorem denote_not_app {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l => rw [denote_lit_inv hwf hv he]; simp
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
-
-/-- con-leche: none — `denote_not_app` at the tag-first `else` arm. -/
-theorem denote_not_app_of_tag {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {e : Expr} (he : denoteE st h = some e)
-    (ht : ¬ (h.tag == ETag.app) = true) : ∀ f a, e ≠ .app f a := by
-  obtain ⟨v, hv⟩ := denoteE_view he
-  exact denote_not_app hwf hv he
-    (fun f a hh => view_tagOf_ne hv (t := ETag.app) ht (by rw [hh]; rfl))
 /-- con-leche: none — a handle whose VIEW is not a `.forallE` denotes an
 expression that is not a `.forallE`.  `etaCert`'s not-a-∀ exit. -/
 theorem denote_not_forallE {st : EStore} (hwf : StoreWF st) {h : EIdx}
@@ -706,8 +560,8 @@ theorem beq_of_denoteN {st : NStore} (hwf : NStoreWF st) {n₁ n₂ : NIdx}
     rw [e1, e2]
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-162 sameConstHeads — **the
-function as ONE unconditional equation over tags and projections** (task
-#123): both applications, both heads constants, the same name.  `grind`
+function as ONE unconditional equation over tags and projections**: both
+applications, both heads constants, the same name.  `grind`
 rewrites the comparand with it and never splits the nested `match`. -/
 @[bridge_grind =] theorem sameConstHeads_eq (x y : Expr) :
     ConLeche.sameConstHeads x y =
@@ -724,9 +578,9 @@ rewrites the comparand with it and never splits the nested `match`. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
-**CLOSED** (round 3).  Thirteen verification conditions, the most of the
-three, because the walk peels two subjects.  `grind` since task #123: the
-views and tags are `Bridge/Grind.lean` §5's equations, the comparand is
+Thirteen verification conditions, the most of the three, because the walk
+peels two subjects.  The views and tags are `Bridge/Grind.lean` §6's
+equations, the comparand is
 `sameConstHeads_eq`, and the name guard is `idxOfName`'s congruence. -/
 theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
@@ -764,8 +618,8 @@ def ListDefEq (mode : CheckMode) (env : Env) (d : Nat) :
   | _, _, _ => True
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1213-1222 defEqList — `Walks/Owed.lean`'s
-`defEqList_go` with `OptAllWS` preconditions and a `ListDefEq` answer (task
-#123: no `∃` to prove, no `∀` to instantiate). -/
+`defEqList_go` with `OptAllWS` preconditions and a `ListDefEq` answer (no
+`∃` to prove, no `∀` to instantiate). -/
 theorem defEqList_goA {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat)
     (as bs : List EIdx) (s₀ : AState) (hok : CheckOK mode env fe s₀)
     (ha : OptAllWS d (Frontend.denoteEList s₀.store as))
@@ -881,7 +735,6 @@ theorem instantiate1Fast_specE (fuel : Nat) (s₀ : AState) (e v : EIdx)
   sym only [bridge_grind] =>
     vcgen [ExprOps.instantiate1Fast_spec fuel s₀ e v d ve hok hve hden] <;> finish
 
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:176-178 instantiate1Fast —
 `instantiate1Fast_spec` at the tier's invariant (the `.letE` exit's ζ). -/
 theorem instantiate1Fast_ok_spec (s₀ : AState) (b w : EIdx) (B W : Expr)
@@ -908,7 +761,7 @@ in their primed shape, two `internE`s with their `ViewOK` obligations, one
 `instantiate1Fast`, and the well-scopedness of the opened body at `d + 1`
 (con-leche's `WScoped.instantiate1` and `WScoped.mono` are exactly it).  The
 statement's FOUR subjects are the λ's two children, its binder datum and the
-comparand — `Bridge/Rel.lean`'s `RelE.lam` shape, at the level of a whole
+comparand — the `lam` step of an answer relation, at the level of a whole
 walk. -/
 theorem etaCert_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (ty₁ body₁ b : EIdx)
@@ -1081,12 +934,9 @@ section Census
 #print axioms viewLen_of_denoteLs
 #print axioms denoteNList_len
 #print axioms denoteCI_defnInfo_inv
-#print axioms denoteCI_defn_inv
 #print axioms denoteCV_inv
 #print axioms denote_not_const
 #print axioms denote_not_app
-#print axioms env_defn_of_index
-#print axioms env_not_defn_of_index
 #print axioms beq_of_denoteN
 #print axioms name_eq_iff_of_denoteN
 #print axioms instantiate1Fast_specE
@@ -1099,7 +949,7 @@ section Census
 #print axioms denote_not_forallE
 #print axioms unfoldDefinition_spec
 #print axioms etaCert_spec
-/-! The restated callees and the equations (task #123). -/
+/-! The restated callees and the equations. -/
 #print axioms constValAt_specA
 #print axioms defEqList_goA
 #print axioms mkAppN_specC

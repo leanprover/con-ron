@@ -5,7 +5,6 @@
 ConRon.Generated.FunsExternal_Template	Aeneas's hole template for the opaque functions, never built by design; read by scripts/holes.sh
 ConRon.Generated.TypesExternal_Template	Aeneas's hole template for the opaque types, never built by design; read by scripts/holes.sh
 _private.ConRon.Arena.PersistentRun.0.ConRon.Arena.failRun	rfl lemma in `simp only [failRun]` of Arena/PersistentRun.lean
-ConRon.Bridge.RelE.apply	@[grind →] forward lemma; Bridge/ExprOps/{Abs,Inst1,Subst}.lean's binder-arm VCs need it in `bridge_vcs`' grind
 ConRon.Bridge.RelV.of_ext	named in Bridge/Specs.lean's `bridge_vcs` grind list
 ConRon.Bridge.RelL.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
 ConRon.Bridge.RelLs.of_ext	rfl lemma in `simp` sets of Bridge/ExprOps/InstLP.lean
@@ -167,6 +166,3 @@ ConRon.Refine2.Lockstep.isBind_lam	rfl lemma a `simp`/`dsimp` call rewrites with
 ConRon.Refine2.Lockstep.vec_new_val'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Refine2.Lockstep.vec_with_capacity_val'	rfl lemma a `simp`/`dsimp` call rewrites with (seen by `trace.Meta.Tactic.simp.rewrite`); leaves no reference in the term
 ConRon.Bridge.Core.pureFns_whnfCore_succ	rfl lemma in the `simp` set of Bridge/Core/Memo.lean's `whnf_of_stuck` (the build fails without it); simp leaves no trace
-ConRon.Bridge.Frame.usedConstants	read by `run_cmd` in Bridge/Frame.lean (checks the single-backtick names of ConRon/BridgeTactic.lean exist); a command, not a term reference
-ConRon.Bridge.view_of_viewConst_tag'	named (single backtick) in ConRon/BridgeTactic.lean's autoDefaults: a default view lemma of bridge_auto, no current proof happens to use it
-ConRon.Bridge.denoteEO_ext	@[bridge_transport] rule bridge_auto's search consults; Bridge/Core/Walks/PropRead.lean's residualPW_spec' fails without it, though no proof term names it (its last term-level user was task #122's old whnfLoop_spec)

@@ -57,18 +57,14 @@ checker invariant crosses an `ExprOps` call on `Ext` plus
 
 ## The closer
 
-`bridge_vcs` at the end of this file is task #97s round 2's recipe: ONE
-curated `grind` list, a `bridge_peel` in front of it, and a second stage that
-puts the `RelE` transports back for the handful of verification conditions
-that genuinely have to move an answer along the extension chain.  The arm
-files erase the transports from `grind`'s set with `attribute [-grind]`
-(round 2's item 1, worth 70 s → 11.5 s on the spike's one file), and because
-`attribute [-grind]` does not travel through an import each of them repeats
-the line.
+Most walks are closed by `sym only [bridge_grind] => vcgen [...] <;> finish`
+over `Bridge/Grind.lean`'s vocabulary.  `bridge_vcs` at the end of this file
+is the closer of the modules that are not stated for that yet
+(`ExprOps/{Guards,Ranges,Spine,InstLP}.lean`): ONE curated `grind` list, a
+`bridge_peel` in front of it, and a second stage with a larger budget.
 -/
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.Grind
-import ConRon.Bridge.Frame
 import ConRon.Bridge.StoreNested
 import ConRon.Bridge.StoreBind
 import ConRon.Arena.PersistentRun
@@ -411,24 +407,6 @@ theorem beq_of_denoteEList {st : EStore} (hwf : StoreWF st)
     rw [h1] at hne
     exact absurd hne (by simp)
 
-/-- con-leche: none — the `fvar` index projection read means the type
-projection reads too (one row of the `fvar` array): `TagFirst`'s
-`viewFVarIdx_of_viewFVarTy`, the other way. -/
-theorem viewFVarTy_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
-    (h : st.viewFVarIdx i = some k) : ∃ ty, st.viewFVarTy i = some ty := by
-  unfold EStore.viewFVarIdx at h
-  unfold EStore.viewFVarTy EStore.persGetFVarTy
-  unfold EStore.persGetFVarIdx at h
-  split at h
-  · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-    obtain ⟨r, hr, -⟩ := h
-    exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
-  · split at h
-    · simp only [ETables.getFVarIdx, Option.map_eq_some_iff] at h
-      obtain ⟨r, hr, -⟩ := h
-      exact ⟨r.ty, by simp [*, ETables.getFVarTy]⟩
-    · cases h
-
 /-- con-leche: ConLeche/Kernel/Expr.lean:344-403 Expr — `derivedE` does not
 touch the state and returns the packed word; with `EStore.derived_exact` that
 word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
@@ -436,72 +414,6 @@ word is `e.data` for the denoted `e`, which is what every cutoff reads. -/
     ⦃fun s => s = s₀⦄ derivedE h
     ⦃fun w s' => s' = s₀ ∧ w = s₀.store.derived h; ⊤⦄ := by
   vcgen [derivedE] with finish
-
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
-
-The binder record's two faces as `grind` equations: `eBindView` at a literal
-tag is the constructor it spells, and `internLam`/`internForallE` are
-`internBind` at that tag (so that `EStore.internBind_spec`'s pattern meets the
-program's call). -/
-
-/-- con-leche: none — `eBindView` at the `lam` tag. -/
-@[bridge_grind =] theorem eBindView_lam (ty b : EIdx) :
-    eBindView ETag.lam ty b = .lam ty b := rfl
-
-/-- con-leche: none — `eBindView` at the `forallE` tag. -/
-@[bridge_grind =] theorem eBindView_forallE (ty b : EIdx) :
-    eBindView ETag.forallE ty b = .forallE ty b := rfl
-
-/-- con-leche: none — `internLam` is `internBind` at the `lam` tag. -/
-@[bridge_grind =] theorem EStore.internLam_eq (st : EStore) (ty b : EIdx) :
-    st.internLam ty b = st.internBind ETag.lam ty b := rfl
-
-/-- con-leche: none — `internForallE` is `internBind` at the `forallE` tag. -/
-@[bridge_grind =] theorem EStore.internForallE_eq (st : EStore) (ty b : EIdx) :
-    st.internForallE ty b = st.internBind ETag.forallE ty b := rfl
-
-/-- con-leche: none — `capOK` is the program's own capacity branch
-condition, as an equation (`EStore.intern_spec`'s premise meets the branch). -/
-@[bridge_grind =] theorem EStore.capOK_eq (st : EStore) (v : ENodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `capOK` of the name store, as an equation. -/
-@[bridge_grind =] theorem NStore.capOK_eq (st : NStore) (v : NNodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `capOK` of the level store, as an equation. -/
-@[bridge_grind =] theorem LStore.capOK_eq (st : LStore) (v : LNodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `capOK` of the level-list store, as an equation. -/
-@[bridge_grind =] theorem LsStore.capOK_eq (st : LsStore) (v : LsNodeView) :
-    st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
-  rfl
-
-/-- con-leche: none — `denote_le` for a NAME handle: past an extension, a
-name handle that denotes denotes the same. -/
-theorem denoteN_le {st st' : EStore} {c : NIdx} (hx : st ≤ st')
-    (hd : denoteN st.ns c ≠ none) : denoteN st'.ns c = denoteN st.ns c := by
-  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hx']; exact denoteN_ext hx' hx
-grind_pattern [bridge_grind] denoteN_le => st ≤ st', denoteN st.ns c
-
-/-- con-leche: none — `denote_le` for a LEVEL handle. -/
-theorem denoteL_le {st st' : EStore} {c : LIdx} (hx : st ≤ st')
-    (hd : denoteL st.ls c ≠ none) : denoteL st'.ls c = denoteL st.ls c := by
-  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hx']; exact denoteL_ext hx' hx
-grind_pattern [bridge_grind] denoteL_le => st ≤ st', denoteL st.ls c
-
-/-- con-leche: none — `denote_le` for a universe-argument LIST handle. -/
-theorem denoteLs_le {st st' : EStore} {c : LsIdx} (hx : st ≤ st')
-    (hd : denoteLs st.lss c ≠ none) : denoteLs st'.lss c = denoteLs st.lss c := by
-  obtain ⟨x, hx'⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [hx']; exact denoteLs_ext hx' hx
-grind_pattern [bridge_grind] denoteLs_le => st ≤ st', denoteLs st.lss c
 
 /-! ### The two binder faces
 
@@ -789,8 +701,8 @@ LIST, by induction on the list (the recursion `readNames` itself takes). -/
   | cons a as ih =>
     sym only [bridge_grind, Frontend.denoteNList] => vcgen [readNames, ih] <;> finish
 
-/-- con-leche: none — the NAME store's probe hit, at `StoreWF` (task #120:
-the cons-hit arm of the three nested interns as lemmas the closer takes). -/
+/-- con-leche: none — the NAME store's probe hit, at `StoreWF` (the
+cons-hit arm of the three nested interns, as a lemma). -/
 theorem EStore.nview_of_find {st : EStore} {v : NNodeView} {i : NIdx}
     (h : StoreWF st) (hf : st.ns.find? v = some i) : st.ns.view i = some v := by
   obtain ⟨rk, hwf⟩ := h; exact NStore.view_of_find hwf.nsWF hf
@@ -1243,8 +1155,8 @@ theorem denoteNL_get {st : EStore} : ∀ (hs : List NIdx)
         exact ih ys k n x hd.2 h1 h2
 
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:109-116 reservedBasisNames —
-the pin at slot `i`, when the table has one, denotes `pinNames[i]` (task
-#120: `pinAt`'s one arm as a lemma). -/
+the pin at slot `i`, when the table has one, denotes `pinNames[i]` (`pinAt`'s
+one arm as a lemma). -/
 theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
     (hlt : i < s.pins.names.size) :
     ∀ x, pinNames[i]? = some x → denoteN s.store.ns s.pins.names[i] = some x := by
@@ -1292,21 +1204,11 @@ theorem PinsOK.pinAt {s : AState} (hp : PinsOK s) {i : Nat}
 
 /-! ## The closer
 
-Task #97s round 2's recipe, item by item.  ONE curated `grind` list; a
-`bridge_peel` in front of it, which is what lets `grind` see one state where
-the verification condition shows seven; and a second stage that puts the
-`RelE` transports back and raises the instance budget, for the verification
-conditions that genuinely have to move an answer along the extension chain.
-
-**The arm files erase the transports.**  `RelE.ext`, `.of_ext` and
-`.retarget` close the answer relation under `Ext` in both directions, so every
-intermediate store multiplies every answer already known — measured on the
-spike's one file, 70 s against 11.5 s.  The `_step` lemmas of
-`Bridge/Rel.lean` group 7 already carry the chain, so the transports are
-redundant *and* explosive; `attribute [-grind] RelE.ext RelE.of_ext
-RelE.retarget` at the top of each arm file is the single highest-value line in
-it, and because `attribute [-grind]` does not travel through an import each
-file repeats it. -/
+ONE curated `grind` list, with a `bridge_peel` in front of it, which is what
+lets `grind` see one state where the verification condition shows seven; and
+a second stage with a larger instance budget and `RelV.of_ext`, for the
+verification conditions that move a value answer along the extension
+chain. -/
 
 /-- con-leche: none — **the uniform closer** for Theorem 1's verification
 conditions.  ONE curated list, plus the walk's own pure function where a
@@ -1339,7 +1241,7 @@ macro_rules
            MemoVOK.of_empty, MemoLOK.of_empty, MemoLsOK.of_empty,
            MemoVOK.insert, MemoLOK.mono, MemoLsOK.mono,
            Ext.trans, Ext.refl,
-           RelE.ext, RelE.of_ext, RelV.of_ext,
+           RelV.of_ext,
            viewOK_bvar, viewOK_lit, viewOK_fvar, viewOK_sort, viewOK_const,
            viewOK_app, viewOK_lam, viewOK_forallE, viewOK_letE, viewOK_proj,
            denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,

@@ -18,7 +18,7 @@ the `grind` vocabulary the level arms need, and three pieces of arena/spec
 infrastructure that belong further down the stack and are flagged in place
 (`view_eq_viewAt`, `readNameM_specF` / `readNamesM_specF`).
 
-## The closer (task #123)
+## The closer
 
 Every walk is `sym only [bridge_grind, …] => vcgen [...] <;> finish`, as in
 `ExprOps/Abs.lean` (whose header says what `grind` is given): the two walks
@@ -78,9 +78,8 @@ worth keeping:
    **What it cost**: the same record equation stated one level down at each
    of `readNameM_specF`, `readNamesM_specF` (this file),
    `readLevelM_specF`, `readLevelsM_specF` (`ExprOps/MemoSpecs.lean`) and
-   `substLMemoAt_spec`, `substLsMemoAt_spec` (`ExprOps/InstLP.lean`) — each
-   replacing the two sibling-table equations it used to carry, which are its
-   projections — and **one lemma in `instLPFast_spec`'s closer list**
+   `substLMemoAt_spec`, `substLsMemoAt_spec` (`ExprOps/InstLP.lean`), whose
+   two sibling-table equations are its projections — and **one lemma in `instLPFast_spec`'s closer list**
    (`ReadNCacheOK.mono`).  Every other proof of the chain closed unchanged.
    `instLPGo_specS`'s fourteen structural blocks each gained one `by grind` /
    one `rfl`.
@@ -284,131 +283,6 @@ theorem instLPSet_specA (f : Nat → Expr → Expr) (s₀ : AState) (h : EIdx) (
   subst_vars
   exact ⟨rfl, rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
-/-! ### Vocabulary candidates for Bridge/Grind.lean (task #123)
-
-The level answers and the remaining view constructors, in
-`ExprOps/Abs.lean`'s style. -/
-
-/-- con-leche: none — `RelL`/`RelLs`'s answer at an optional subject (`MapRel`
-at any carrier). -/
-def MapRelG {α β : Type} (g : α → β) : Option α → Option β → Prop
-  | some a, o => o = some (g a)
-  | none, _ => True
-
-/-- con-leche: none — `MapRelG` at a present subject. -/
-@[bridge_grind =] theorem MapRelG.some_eq {α β : Type} (g : α → β) (a : α) (o : Option β) :
-    MapRelG g (some a) o = (o = some (g a)) := rfl
-
-/-- con-leche: none — `RelL` IS a `MapRelG` fact on the two level
-denotations. -/
-@[bridge_grind =] theorem RelL_eq_mapRelG (g : Level → Level) (st : EStore) (c : LIdx)
-    (st' : EStore) (r : LIdx) :
-    RelL g st c st' r = MapRelG g (denoteL st.ls c) (denoteL st'.ls r) := by
-  apply propext; constructor
-  · intro h; cases hc : denoteL st.ls c with
-    | none => trivial
-    | some u => exact h u hc
-  · intro h u hu; rw [hu] at h; exact h
-
-/-- con-leche: none — `RelLs` IS a `MapRelG` fact on the two level-list
-denotations. -/
-@[bridge_grind =] theorem RelLs_eq_mapRelG (g : List Level → List Level) (st : EStore)
-    (c : LsIdx) (st' : EStore) (r : LsIdx) :
-    RelLs g st c st' r = MapRelG g (denoteLs st.lss c) (denoteLs st'.lss r) := by
-  apply propext; constructor
-  · intro h; cases hc : denoteLs st.lss c with
-    | none => trivial
-    | some u => exact h u hc
-  · intro h u hu; rw [hu] at h; exact h
-
-/-- con-leche: none — a `sort` view's level. -/
-theorem DenoteView.sort {st : EStore} {u : LIdx} {e : Expr}
-    (H : DenoteView st (some (.sort u)) (some e)) : denoteL st.ls u = some (exprSort e) := H
-grind_pattern [bridge_grind] DenoteView.sort => DenoteView st (some (.sort u)) (some e)
-
-/-- con-leche: none — an expression tagged `bvar` IS a bound variable. -/
-theorem exprTag_bvar {e : Expr} (h : exprTag e = ETag.bvar) : e = .bvar (exprBVar e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_bvar => exprTag e where
-  guard exprTag e = ETag.bvar
-
-/-- con-leche: none — an expression tagged `sort` IS a sort. -/
-theorem exprTag_sort {e : Expr} (h : exprTag e = ETag.sort) : e = .sort (exprSort e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_sort => exprTag e where
-  guard exprTag e = ETag.sort
-
-/-- con-leche: none — an expression tagged `const` IS a constant. -/
-theorem exprTag_const {e : Expr} (h : exprTag e = ETag.const) :
-    e = .const (exprConstName e) (exprConstLevels e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_const => exprTag e where
-  guard exprTag e = ETag.const
-
-/-- con-leche: none — an expression tagged `lit` IS a literal. -/
-theorem exprTag_lit {e : Expr} (h : exprTag e = ETag.lit) : e = .lit (exprLit e) := by
-  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] exprTag_lit => exprTag e where
-  guard exprTag e = ETag.lit
-
-attribute [bridge_grind =] ENodeView.tagOf
-
-/-- con-leche: none — a level handle that denotes has a view (the intern
-specs' precondition on a `sort`'s level). -/
-theorem lview_isSome {st : LStore} {c : LIdx} (hd : (denoteL st c).isSome = true) :
-    (st.view c).isSome = true := by
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
-  exact lview_isSome_of_denote hx
-grind_pattern [bridge_grind] lview_isSome => (st.view c).isSome
-
-/-- con-leche: none — a universe-argument list handle that denotes has a view
-(the intern specs' precondition on a `const`'s levels). -/
-theorem lsview_isSome {st : LsStore} {c : LsIdx} (hd : (denoteLs st c).isSome = true) :
-    (st.view c).isSome = true := by
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
-  obtain ⟨w, hw, -⟩ := denoteLs_view hx
-  rw [hw]; rfl
-grind_pattern [bridge_grind] lsview_isSome => (st.view c).isSome
-
-/-- con-leche: none — `MemoLOK.mono` with the table the same term. -/
-theorem MemoLOK.le {f : Level → Level} {tbl : Std.HashMap LIdx LIdx} {st st' : EStore}
-    (hm : MemoLOK f tbl st) (hx : st ≤ st') : MemoLOK f tbl st' := MemoLOK.mono hm hx rfl
-grind_pattern [bridge_grind] MemoLOK.le => MemoLOK f tbl st, st ≤ st'
-
-/-- con-leche: none — `MemoLsOK.mono` with the table the same term. -/
-theorem MemoLsOK.le {f : List Level → List Level} {tbl : Std.HashMap LsIdx LsIdx}
-    {st st' : EStore} (hm : MemoLsOK f tbl st) (hx : st ≤ st') : MemoLsOK f tbl st' :=
-  MemoLsOK.mono hm hx rfl
-grind_pattern [bridge_grind] MemoLsOK.le => MemoLsOK f tbl st, st ≤ st'
-
-/-- con-leche: none — `ReadLCacheOK.mono` at the store order. -/
-theorem ReadLCacheOK.le {tbl : Std.HashMap LIdx Level} {st st' : EStore}
-    (h : ReadLCacheOK tbl st) (hx : st ≤ st') : ReadLCacheOK tbl st' := h.mono hx
-grind_pattern [bridge_grind] ReadLCacheOK.le => ReadLCacheOK tbl st, st ≤ st'
-
-/-- con-leche: none — `ReadLsCacheOK.mono` at the store order. -/
-theorem ReadLsCacheOK.le {tbl : Std.HashMap LsIdx (List Level)} {st st' : EStore}
-    (h : ReadLsCacheOK tbl st) (hx : st ≤ st') : ReadLsCacheOK tbl st' := h.mono hx
-grind_pattern [bridge_grind] ReadLsCacheOK.le => ReadLsCacheOK tbl st, st ≤ st'
-
-/-- con-leche: none — `ReadNCacheOK.mono` at the store order. -/
-theorem ReadNCacheOK.le {tbl : Std.HashMap NIdx ConLeche.Name} {st st' : EStore}
-    (h : ReadNCacheOK tbl st) (hx : st ≤ st') : ReadNCacheOK tbl st' := h.mono hx
-grind_pattern [bridge_grind] ReadNCacheOK.le => ReadNCacheOK tbl st, st ≤ st'
-
-/-- con-leche: none — arena infrastructure: `EStore.view` reads `pers`, `scr`
-and `scratchOn` and nothing else. -/
-def viewAt (p s : ETables) (on : Bool) (i : EIdx) : Option ENodeView :=
-  if i.isPersistent then p.get i else if on then s.get i else none
-
-/-- con-leche: none — `EStore.view` as a function of the three tables it
-reads, so that congruence closure carries a view across a step that frames
-them (`substLMemoAt` moves only the LEVEL store).  Passed to `sym` by the walk
-that needs it. -/
-theorem view_eq_viewAt (st : EStore) (i : EIdx) :
-    st.view i = viewAt st.pers st.scr st.scratchOn i := by
-  rw [EStore.view_eq_tier]; rfl
-
 /-! ### Theorem 1 for `instLPGo` -/
 
 -- The cache frame, `s'.caches = { s₁.caches with readLC := …, readLsC := … }`,
@@ -532,10 +406,7 @@ recursion is on the list as `readNames`' is. -/
     vcgen [readNamesM]
     all_goals (subst_vars; grind [Frontend.denoteNList, ReadNCacheOK])
   | cons a as ih =>
-    -- `mvcgen` preferred `Bridge/SpecsL.lean`'s database `readNamesM_spec` to
-    -- the induction hypothesis, so the tail used to be generalised to a
-    -- program VARIABLE first; with `vcgen` the hypothesis passed in the list
-    -- serves directly.
+    -- the induction hypothesis, passed in `vcgen`'s list, serves the tail
     sym only [bridge_grind, Frontend.denoteNList, ReadNCacheOK] =>
       vcgen [readNamesM, readNameM_specF, ih] <;> finish
 

@@ -42,12 +42,9 @@ The specs below are `@[spec high]` because `vcgen`'s spec lookup
 (`Lean.Elab.Tactic.VCGen`'s `SpecTheorems.findSpecs`) sorts the candidates by
 priority and `Specs.lean`'s versions match the same
 program; `attribute [-spec]` is refused by the attribute (measured), so the
-priority is the only lever.  Each is proved by `vcgen [f]`: unlike
-`mvcgen [f]`, which applied `Specs.lean`'s spec from the database instead of
-unfolding `f` (so these proofs used to `unfold f` first), `vcgen` unfolds a
+priority is the only lever.  Each is proved by `vcgen [f]`, which unfolds a
 definition named in its list.
 -/
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 import ConRon.Bridge.Grind
 
@@ -58,42 +55,6 @@ set_option experimental.vcgen true
 
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1772-1774 Abs1MemoInv — `abs1Set`
-with the memo's pure function moved inside the postcondition.  Generic in
-`f`, which is what lets `abstract1Go` and `abstractRangeGo` share the one
-table. -/
-@[spec high] theorem abs1Set_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
-    (hk : (denoteE s₀.store k.1).isSome = true) :
-    ⦃fun s => s = s₀⦄ abs1Set k r
-    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with abs1C := s₀.memos.abs1C.insert k r } ∧
-        ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.abs1C s₀.store →
-          RelE (f k.2) s₀.store k.1 s₀.store r →
-            MemoOK f s'.memos.abs1C s'.store; ⊤⦄ := by
-  dsimp only
-  vcgen [abs1Set]
-  subst_vars
-  refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  exact MemoOK.insert hm rfl hk hr
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — the same
-for `instLPSet`. -/
-@[spec high] theorem instLPSet_specI (s₀ : AState) (k : EIdx × Nat) (r : EIdx)
-    (hk : (denoteE s₀.store k.1).isSome = true) :
-    ⦃fun s => s = s₀⦄ instLPSet k r
-    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
-        s'.pins = s₀.pins ∧
-        s'.memos = { s₀.memos with instLPC := s₀.memos.instLPC.insert k r } ∧
-        ∀ f : Nat → Expr → Expr, MemoOK f s₀.memos.instLPC s₀.store →
-          RelE (f k.2) s₀.store k.1 s₀.store r →
-            MemoOK f s'.memos.instLPC s'.store; ⊤⦄ := by
-  dsimp only
-  vcgen [instLPSet]
-  subst_vars
-  refine ⟨rfl, rfl, rfl, rfl, fun f hm hr => ?_⟩
-  exact MemoOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
 `instLPLSet`, the LEVEL-handle memo. -/
@@ -174,7 +135,6 @@ sibling readback tables framed. -/
   dsimp only
   sym only [bridge_grind, ReadLsCacheOK, Std.HashMap.getElem?_insert] =>
     vcgen [readLevelsM] <;> finish
-
 
 /-! ## The intern specs with the two MONOTONICITY conjuncts
 
@@ -513,63 +473,6 @@ abstraction walks intern a fresh `bvar` rather than rebuilding, so they need
         s'.store.view h = some (.bvar i) ∧
         denoteE s'.store h = denoteEView s'.store (.bvar i); ⊤⦄ :=
   internE_specV s₀ (.bvar i) hwf viewOK_bvar
-
-
-/-! ## The three generic step lemmas `Bridge/Rel.lean` is missing
-
-`Bridge/Rel.lean`'s group 7 has `RelE.of_view` and the five per-site instances
-for the BRANCHING constructors (`app`, `lam`, `forallE`, `letE`, `proj`).
-`instLPGo` rebuilds constructors that group 7 does not cover — a `fvar`'s
-annotation, a `sort` and a `const`.  These are the same lemma at those three
-constructors, and they belong beside the other five. -/
-
-/-- con-leche: none — `RelE.of_view` at `fvar`, whose child is the type
-ANNOTATION (`instantiateLevelParams` descends into it). -/
-theorem RelE.fvar {F Ft : Expr → Expr} {st st' : EStore} {h ty rt r : EIdx}
-    {idx : Nat} (hwf : StoreWF st)
-    (hview : st.view h = some (.fvar idx ty))
-    (hdec : ∀ x, F (.fvar idx x) = .fvar idx (Ft x))
-    (ht : RelE Ft st ty st' rt)
-    (hr : denoteE st' r = denoteEView st' (.fvar idx rt)) :
-    RelE F st h st' r := by
-  intro e he
-  obtain ⟨t, rfl, hdt⟩ := denote_fvar_inv hwf hview he
-  rw [hr, denoteEView, hdec, ht t hdt]
-  rfl
-
-/-- con-leche: none — `RelE.of_view` at `sort`, whose child is a LEVEL handle:
-the answer's level is related to the subject's by `RelL` (`instLPGo`'s
-`.sort` arm, the one place an expression walk calls a level algorithm). -/
-theorem RelE.sort {F : Expr → Expr} {Fl : Level → Level} {st st' : EStore}
-    {h r : EIdx} {u ru : LIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.sort u))
-    (hdec : ∀ l, F (.sort l) = .sort (Fl l))
-    (hu : RelL Fl st u st' ru)
-    (hr : denoteE st' r = denoteEView st' (.sort ru)) : RelE F st h st' r := by
-  intro e he
-  obtain ⟨l, rfl, hdl⟩ := denote_sort_inv hwf hview he
-  rw [hr, denoteEView, hdec, hu l hdl]
-  rfl
-
-/-- con-leche: none — `RelE.of_view` at `const`, whose children are a NAME
-handle (carried, possibly renamed) and a universe-argument LIST handle
-(related by `RelLs`). -/
-theorem RelE.const {F : Expr → Expr} {Fls : List Level → List Level}
-    {st st' : EStore} {h r : EIdx} {n n' : NIdx} {us rus : LsIdx}
-    {nm nm' : ConLeche.Name} (hwf : StoreWF st)
-    (hview : st.view h = some (.const n us))
-    (hdec : ∀ ls, F (.const nm ls) = .const nm' (Fls ls))
-    (hn0 : denoteN st.ns n = some nm) (hn' : denoteN st'.ns n' = some nm')
-    (hus : RelLs Fls st us st' rus)
-    (hr : denoteE st' r = denoteEView st' (.const n' rus)) :
-    RelE F st h st' r := by
-  intro e he
-  obtain ⟨nm2, ls, rfl, hdn, hdl⟩ := denote_const_inv hwf hview he
-  rw [hn0] at hdn
-  obtain rfl := Option.some.inj hdn
-  rw [hr, denoteEView, hdec, hn', hus ls hdl]
-  rfl
-
 
 /-! ## The three "hop" helpers
 

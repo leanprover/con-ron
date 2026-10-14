@@ -39,17 +39,13 @@ and the three are proved below.
 
 Read off `lvlEq?_spec` below; every cached walk follows it.
 
-1. **`sym only [bridge_grind] => vcgen [<the walk>] <;> finish`** (task
-   #123).  `Bridge/Specs.lean`'s three readback specs are `@[spec]`, so
+1. **`sym only [bridge_grind] => vcgen [<the walk>] <;> finish`**.
+   `Bridge/Specs.lean`'s three readback specs are `@[spec]`, so
    `vcgen` applies them by itself and each readback contributes its five
    conjuncts to the verification condition; `CheckOK.ofReadL` (and its
    sibling), a `grind` rule keyed by the readback's cache record, carries
    `CheckOK` across each, and the hit and insert lemmas of §1 close the
    branches.
-   *(Under `mvcgen`, which could not be made to prefer a theorem passed in its
-   list over a registered `@[spec]` — measured — this was forced; `vcgen` can
-   erase a registered spec per call, `vcgen [-readLevelM_spec, …]`, task
-   #111, but the frame is still assembled in the walk.)*
 2. **The postcondition does not take the subjects' denotations as
    hypotheses.**  It says "*if* the walk answered `some b`, then the subjects
    denote and `Level.isEquiv` answers `b`" — task #97-P3-0's rule 4 at two
@@ -58,8 +54,7 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 3. **The five verification conditions are the three branches plus the two
    readbacks' preconditions**, and the two preconditions are
    `CheckOK.readL' hok` (passed to `sym`) and the first readback's own post.
-4. **The insert is `LvlEqCacheOK.insert`**, a plain insert since task
-   #115 removed the cap.
+4. **The insert is `LvlEqCacheOK.insert`**, a plain insert.
 5. **The answer relation is none of `Bridge/Core/Walks/Spec.lean`'s.**
    The pure side of these five is not fueled at all (`Level.isEquiv` is a
    total function of two trees), so there is no `∃ F` and the conclusion is
@@ -69,7 +64,6 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
 import ConRon.Bridge.Core.Walks.Frame
 import ConRon.Bridge.Promote.Pers
 import ConRon.Bridge.ExprOps.Owed
-import ConRon.Bridge.Frame
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
@@ -266,17 +260,9 @@ theorem CacheOK.insertRuleRhs {s : AState} (hc : CacheOK mode env s)
       ruleRhsC := s.caches.ruleRhsC.insert (rn, cn, us) i } } :=
   { hc with ruleRhs := RuleRhsCacheOK.insert hc.ruleRhs hr hcn hus hf hrl hi }
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+/-! ### The five caches' hit and insert, at `CheckOK`
 
-/-- con-leche: none — `RelE` is an `Ans` atom about its subject's
-denotation (definitionally; `Bridge/Grind.lean` §3). -/
-@[bridge_grind =] theorem RelE_eq_ans (f : Expr → Expr) (st : EStore) (c : EIdx)
-    (st' : EStore) (r : EIdx) :
-    RelE f st c st' r = Ans (fun e => denoteE st' r = some (f e)) (denoteE st c) := rfl
-
-/-! ### The five caches' hit and insert, at `CheckOK` (tasks #120, #123)
-
-The arms of the five cache walks as `grind` lemmas (task #123, the shape of
+The arms of the five cache walks as `grind` lemmas (the shape of
 `Bridge/Core/Memo.lean`'s): a miss arm's `CheckOK` of the inserted state is
 the insert lemma, whose conclusion is the state the verification condition
 names (`vcgen` folds the twin's empty-then-insert into one record update),
@@ -286,7 +272,7 @@ atom about the probe (`Bridge/Grind.lean` §3), whose equation fires at the
 three instantiated-constant caches' are passed to `sym` instantiated at the
 walk's key (their key's denotation names the environment entry, and the ι
 rule's `List.find?` is a `fun` over the constructor name, which no pattern
-can bind — task #122's rule), with the key's denotations at the CALL's store
+can bind), with the key's denotations at the CALL's store
 and the order to the current one. -/
 
 /-- con-leche: ConLeche/Verify/Cached/KnotC.lean:51 CSOK.insertWhnfCoreC —
@@ -388,9 +374,9 @@ theorem CheckOK.constTy_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
     Ans (fun i => denoteE s.store i = some (ci.toConstantVal.type.instantiateLevelParams
       ci.toConstantVal.levelParams ls)) (s.caches.constTyC[(n, us)]?) := fun i hhit => by
   obtain ⟨nm', ls', ci', hn', hus', hf', hd⟩ := h.caches.constTy _ i hhit
-  obtain rfl := eq_of_eq_some (denoteN_ext hn hx) hn'
-  obtain rfl := eq_of_eq_some (denoteLs_ext hus hx) hus'
-  obtain rfl := eq_of_eq_some hf hf'
+  obtain rfl := Option.some.inj ((denoteN_ext hn hx).symm.trans hn')
+  obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
+  obtain rfl := Option.some.inj (hf.symm.trans hf')
   exact hd
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a VALUE-cache HIT. -/
@@ -403,8 +389,8 @@ theorem CheckOK.constVal_hit {st₀ : EStore} {n : NIdx} {us : LsIdx}
     Ans (fun i => denoteE s.store i = some (val.instantiateLevelParams cv.levelParams ls))
       (s.caches.constValC[(n, us)]?) := fun i hhit => by
   obtain ⟨nm', ls', cv', val', hint', hn', hus', hf', hd⟩ := h.caches.constVal _ i hhit
-  obtain rfl := eq_of_eq_some (denoteN_ext hn hx) hn'
-  obtain rfl := eq_of_eq_some (denoteLs_ext hus hx) hus'
+  obtain rfl := Option.some.inj ((denoteN_ext hn hx).symm.trans hn')
+  obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
   rw [hf] at hf'
   cases hf'
   exact hd
@@ -422,9 +408,9 @@ theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
       (s.caches.ruleRhsC[(rn, cn, us)]?) := fun i hhit => by
   obtain ⟨rn', cn', ls', cv', mi', rp', rules', rl', hr', hc', hus', hf', hrl', hd⟩ :=
     h.caches.ruleRhs _ i hhit
-  obtain rfl := eq_of_eq_some (denoteN_ext hr hx) hr'
-  obtain rfl := eq_of_eq_some (denoteN_ext hcn hx) hc'
-  obtain rfl := eq_of_eq_some (denoteLs_ext hus hx) hus'
+  obtain rfl := Option.some.inj ((denoteN_ext hr hx).symm.trans hr')
+  obtain rfl := Option.some.inj ((denoteN_ext hcn hx).symm.trans hc')
+  obtain rfl := Option.some.inj ((denoteLs_ext hus hx).symm.trans hus')
   rw [hf] at hf'
   cases hf'
   rw [hrl] at hrl'
@@ -596,26 +582,6 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
         _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
         (by rw [hty]; rfl)] <;> finish
 
-/-- con-leche: none — `constTyAt_spec` in ANSWER shape: the constant comes
-out of the environment index (`projCert` reads it off `fe.find?`), so its
-denotation is not known when `vcgen` applies the spec. -/
-theorem constTyAt_spec' (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
-    (hok : CheckOK mode env fe s₀)
-    (hpre : ∃ nm ls ci, denoteN s₀.store.ns cv.name = some nm ∧
-      denoteLs s₀.store.lss us = some ls ∧ env.find? nm = some ci ∧
-      Frontend.denoteCV s₀.store cv = some ci.toConstantVal) :
-    ⦃fun s => s = s₀⦄ constTyAt cv us
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        ∀ nm ls ci, denoteN s₀.store.ns cv.name = some nm →
-          denoteLs s₀.store.lss us = some ls → env.find? nm = some ci →
-          denoteE s'.store r =
-            some (ci.toConstantVal.type.instantiateLevelParams
-              ci.toConstantVal.levelParams ls); ⊤⦄ := by
-  obtain ⟨nm, ls, ci, hn, hus, hf, hcv⟩ := hpre
-  sym only [bridge_grind] =>
-    vcgen [constTyAt_spec s₀ cv us nm ls ci hok hn hus hf hcv] <;> finish
-
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
 expensive half, and the reason `unfoldDefinition` is not free).  **CLOSED**
 (round 4). -/
@@ -714,7 +680,7 @@ applied it rather than unfolding `readLevelM`, and its hypothesis
 (`ReadLCacheOK s₀.caches.readLC s₀.store`) then appeared as a verification
 condition a `StateOK`-graded proof cannot discharge.  A registered `[spec]`
 cannot be erased globally (`attribute [-spec]` is rejected) and `mvcgen` could
-not be made to prefer a locally supplied theorem — `Frame.lean`'s note
+not be made to prefer a locally supplied theorem — `Walks/Frame.lean`'s note
 measured both.  (`vcgen` erases a spec PER CALL — `vcgen [lvlEq?,
 -readLevelM_spec, readLevelM]` leaves no `ReadLCacheOK` condition, checked
 by task #111 — so a triple form is now possible; the run form stays because
@@ -885,7 +851,6 @@ theorem lvlEq?_frame {s s' : AState} {u v : LIdx} {r : Option Bool}
 
 end Frame
 
-
 /-! ## 5. The axiom census
 
 DESIGN §8's gate for every tier of this library, at this module's closed
@@ -935,7 +900,6 @@ have written". -/
 #print axioms constTyAt_spec
 #print axioms constValAt_spec
 #print axioms constValAt_spec'
-#print axioms constTyAt_spec'
 #print axioms ruleRhsAt_spec
 
 end Census
