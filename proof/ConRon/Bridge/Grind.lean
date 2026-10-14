@@ -351,12 +351,22 @@ attribute [bridge_grind =] List.isEmpty_eq_len
 @[bridge_grind =] theorem opt3_some_some {α β γ δ : Type} (f : α → β → γ → δ) (a : α) (b : β)
     (c : γ) : opt3 f (some a) (some b) (some c) = some (f a b c) := rfl
 
-/-- con-leche: none — an optional handle that is `some` denotes a `some`. -/
-@[bridge_grind →] theorem denoteEO_some_inv {st : EStore} {r : EIdx} {v : Option Expr}
+/-- con-leche: none — an optional handle that is `some` denotes a `some`
+(for term-mode callers that name it; `grind` reads `denoteEO_some_eq_inv`). -/
+theorem denoteEO_some_inv {st : EStore} {r : EIdx} {v : Option Expr}
     (h : denoteEO st (some r) = some v) : ∃ x, v = some x ∧ denoteE st r = some x := by
   simp only [denoteEO, Option.map_eq_some_iff] at h
   obtain ⟨x, hx, rfl⟩ := h
   exact ⟨x, rfl, hx⟩
+
+/-- con-leche: none — an optional handle that is `some`: the inner option IS
+the handle's denotation, and it is present (an equation and an `isSome`;
+`denote_some_of_isSome` names the value). -/
+@[bridge_grind →] theorem denoteEO_some_eq_inv {st : EStore} {r : EIdx} {v : Option Expr}
+    (h : denoteEO st (some r) = some v) :
+    denoteE st r = v ∧ (denoteE st r).isSome = true := by
+  obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv h
+  exact ⟨hx, by rw [hx]; rfl⟩
 
 /-- con-leche: none — an absent handle's denotation is `none`. -/
 theorem denoteEO_none_inv {st : EStore} {v : Option Expr}
@@ -394,15 +404,23 @@ theorem denoteEList_cons_inv {st : EStore} {a : EIdx} {as : List EIdx}
     | none => rw [ha, has] at h; simp at h
     | some xs' => rw [ha, has] at h; exact ⟨x, xs', rfl, rfl, (Option.some.inj h).symm⟩
 
-/-- con-leche: none — a cons of handles, as an `Ans` atom about its
-denotation (§3): whatever it denotes is the cons of the head's and the
-tail's denotations. -/
-theorem denoteEList_cons_ans (st : EStore) (a : EIdx) (as : List EIdx) :
-    Ans (fun xs => ∃ x xs', denoteE st a = some x ∧
-      Frontend.denoteEList st as = some xs' ∧ xs = x :: xs')
-      (Frontend.denoteEList st (a :: as)) :=
-  fun _ h => denoteEList_cons_inv h
-grind_pattern [bridge_grind] denoteEList_cons_ans => Frontend.denoteEList st (a :: as)
+/-- con-leche: none — a cons of handles denotes the cons of the head's and
+the tail's denotations (`opt2`, an equation over the three denotation
+terms). -/
+@[bridge_grind =] theorem denoteEList_cons_eq (st : EStore) (a : EIdx) (as : List EIdx) :
+    Frontend.denoteEList st (a :: as) =
+      opt2 List.cons (denoteE st a) (Frontend.denoteEList st as) := by
+  simp only [Frontend.denoteEList, opt2]
+  cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
+
+/-- con-leche: none — an `opt2` that is `some` has both arguments present
+(so that `denote_some_of_isSome` names them and `opt2_some_some` fires). -/
+theorem opt2_isSome_of_eq_some {α β γ : Type} {f : α → β → γ} {a : Option α}
+    {b : Option β} {c : γ} (h : opt2 f a b = some c) :
+    a.isSome = true ∧ b.isSome = true := by
+  cases a <;> cases b <;> simp_all [opt2]
+grind_pattern [bridge_grind] opt2_isSome_of_eq_some => opt2 f a b, some c where
+  guard opt2 f a b = some c
 
 /-- con-leche: none — a handle list extended at the END denotes its
 denotation's `concat`. -/
@@ -1129,7 +1147,21 @@ theorem view_of_viewConstName {st : EStore} {i : EIdx} {n : NIdx}
 
 grind_pattern [bridge_grind] view_of_viewSort => st.viewSort i, some u where
   guard st.viewSort i = some u
-grind_pattern [bridge_grind] view_of_viewConstName => st.viewConstName i, some n where
+/-- con-leche: none — the level-list handle of a `const` view (the
+universe-argument projection, `default` off a `const` view). -/
+def viewConstLevels (st : EStore) (i : EIdx) : LsIdx :=
+  match st.view i with
+  | some (.const _ us) => us
+  | _ => default
+
+/-- con-leche: none — `view_of_viewConstName` with the universe-argument
+handle as the named projection `viewConstLevels`: one equation. -/
+theorem view_of_viewConstName_eq {st : EStore} {i : EIdx} {n : NIdx}
+    (htg : i.tag = ETag.const) (h : st.viewConstName i = some n) :
+    st.view i = some (.const n (viewConstLevels st i)) := by
+  obtain ⟨us, hv⟩ := view_of_viewConstName htg h
+  simp only [viewConstLevels, hv]
+grind_pattern [bridge_grind] view_of_viewConstName_eq => st.viewConstName i, some n where
   guard st.viewConstName i = some n
 grind_pattern [bridge_grind] view_of_viewApp => st.viewApp i, some (f, a) where
   guard st.viewApp i = some (f, a)
