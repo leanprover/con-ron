@@ -70,28 +70,30 @@ def MapRel2 {α β γ : Type} (g : α → β → γ) : Option α → Option β �
 
 /-- con-leche: none — the `fvar` type projection read means the index
 projection reads too (one row of the `fvar` array). -/
-theorem viewFVarIdx_of_viewFVarTy {st : EStore} {i ty : EIdx}
-    (h : st.viewFVarTy i = some ty) : ∃ k, st.viewFVarIdx i = some k := by
+theorem viewFVarIdx_isSome_of_viewFVarTy {st : EStore} {i ty : EIdx}
+    (h : st.viewFVarTy i = some ty) : (st.viewFVarIdx i).isSome = true := by
   unfold EStore.viewFVarTy at h
   unfold EStore.viewFVarIdx EStore.persGetFVarIdx
   unfold EStore.persGetFVarTy at h
   split at h
   · simp only [ETables.getFVarTy, Option.map_eq_some_iff] at h
     obtain ⟨r, hr, -⟩ := h
-    exact ⟨r.idx, by simp [*, ETables.getFVarIdx]⟩
+    simp [*, ETables.getFVarIdx]
   · split at h
     · simp only [ETables.getFVarTy, Option.map_eq_some_iff] at h
       obtain ⟨r, hr, -⟩ := h
-      exact ⟨r.idx, by simp [*, ETables.getFVarIdx]⟩
+      simp [*, ETables.getFVarIdx]
     · cases h
 
 /-- con-leche: none — the `fvar` TYPE projection read under its tag gives the
-view (`view_of_viewFVarIdx`'s twin), guarded at that read. -/
+view, its index the index projection's (`view_of_viewFVarIdx`'s twin),
+guarded at that read. -/
 theorem view_of_viewFVarTy {st : EStore} {i ty : EIdx}
     (htg : i.tag = ETag.fvar) (h : st.viewFVarTy i = some ty) :
-    ∃ k, st.view i = some (.fvar k ty) := by
-  obtain ⟨k, hk⟩ := viewFVarIdx_of_viewFVarTy h
-  exact ⟨k, view_of_viewFVar htg hk h⟩
+    st.view i = some (.fvar ((st.viewFVarIdx i).getD 0) ty) := by
+  obtain ⟨k, hk⟩ := Option.isSome_iff_exists.mp (viewFVarIdx_isSome_of_viewFVarTy h)
+  rw [hk]
+  exact view_of_viewFVar htg hk h
 grind_pattern [bridge_grind] view_of_viewFVarTy => st.viewFVarTy i, some ty where
   guard st.viewFVarTy i = some ty
 
