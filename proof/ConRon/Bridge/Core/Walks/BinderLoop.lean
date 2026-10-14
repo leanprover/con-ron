@@ -1,8 +1,8 @@
 /-
 # `ConRon.Bridge.Core.Walks.BinderLoop` — the two binder-telescope loops
 
-Task #97-P3-Core round 6, lane `binders`; task #119 (con-leche's task #342:
-no binder datum, so no threaded PropWhen and no leaf check).  The twin's
+No binder datum is threaded (con-leche's task #342: no PropWhen, no leaf
+check).  The twin's
 `inferBody` binder clauses are con-leche's CACHED-tier telescope loops
 (`Arena/Core.lean`'s `inferLams`/`inferPis`), not the pure tier's per-binder
 chain.  con-leche proves the loops sound against the chain in two layers, and
@@ -20,6 +20,12 @@ The stacks are push-order `Array`s on the twin side and cons-order `List`s
 on the mirror side (`BinderLoopC.lean`'s `toListRev_push`); the rebuild
 phase reads `stk[n-1]` counting down, which is the mirror's head, so the
 out-phase invariant is about `(stk.toList.take n).reverse`.
+
+The two out-phase folds and `ensureSort` are `sym only [bridge_grind, …] =>
+vcgen […] <;> finish` (the folds against con-leche's mirror as functions,
+`lamsOutFn`/`pisOutFn`; the induction hypothesis instantiated at the
+recursive call); the peel and leaf walks are staged over the twin's program
+order.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Frame
@@ -112,13 +118,138 @@ theorem StkRel.take_size {α β : Type} {R : α → β → Prop} {stk : Array α
     StkRel R (stk.toList.take stk.size).reverse stkx := by
   rw [show stk.size = stk.toList.length by simp, List.take_length]; exact h
 
+/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
+
+/-- con-leche: none — `internLNode (.imax u v)`'s precondition, at level
+handles that denote. -/
+@[bridge_grind ←] theorem lviewOK_imax {st : EStore} {u v : LIdx}
+    (hu : (denoteL st.ls u).isSome = true) (hv : (denoteL st.ls v).isSome = true) :
+    st.ls.ViewOK (.imax u v) := by
+  obtain ⟨_, hu'⟩ := Option.isSome_iff_exists.mp hu
+  obtain ⟨_, hv'⟩ := Option.isSome_iff_exists.mp hv
+  constructor
+  · intro c hc
+    simp only [LNodeView.lchildren, List.mem_cons, List.not_mem_nil, or_false] at hc
+    rcases hc with rfl | rfl
+    · exact lview_isSome_of_denote hu'
+    · exact lview_isSome_of_denote hv'
+  · intro c hc; simp [LNodeView.nchildren] at hc
+
+/-- con-leche: none — `ExprOps/Owed.lean`'s `abstractRangeFast_spec` at the
+tier's invariant, its answer as ONE equation over `absRangeFn`. -/
+theorem abstractRangeFast_specC (fuel : Nat) (s₀ : AState) (e : EIdx) (d k c : Nat)
+    (hok : CheckOK mode env fe s₀) (hden : (denoteE s₀.store e).isSome = true) :
+    ⦃fun s => s = s₀⦄ abstractRangeFast fuel e d k c
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        denoteE s'.store r = (denoteE s₀.store e).map (ExprOps.absRangeFn d k c); ⊤⦄ :=
+  triple_mono (ExprOps.abstractRangeFast_spec fvarBSpec fuel s₀ e d k c hok.state hden)
+    (fun r _ ⟨hs, hx, hc, hp, _, hrel⟩ => ⟨hok.mono hs hx hc hp, hx, hp, by
+      obtain ⟨x, hx'⟩ := Option.isSome_iff_exists.mp hden
+      rw [hx', hrel x hx']; rfl⟩)
+
+/-- con-leche: none — `Bridge/Specs.lean`'s `internForallEE_spec` at the
+tier's invariant. -/
+theorem internForallEE_specC (s₀ : AState) (ty b : EIdx) (hok : CheckOK mode env fe s₀)
+    (hty : (denoteE s₀.store ty).isSome = true) (hb : (denoteE s₀.store b).isSome = true) :
+    ⦃fun s => s = s₀⦄ internForallEE ty b
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        denoteE s'.store h = denoteEView s'.store (.forallE ty b); ⊤⦄ :=
+  triple_mono (internForallEE_spec s₀ ty b hok.state.wf hty hb)
+    (fun _ _ ⟨hwf, hx, _, _, _, hc, hp, _, hd⟩ => ⟨hok.mono ⟨hwf⟩ hx hc hp, hx, hp, hd⟩)
+
+/-- con-leche: none — `Bridge/Specs.lean`'s `internLNode_spec` at the tier's
+invariant. -/
+theorem internLNode_specC (s₀ : AState) (v : LNodeView) (hok : CheckOK mode env fe s₀)
+    (hv : s₀.store.ls.ViewOK v) :
+    ⦃fun s => s = s₀⦄ internLNode v
+    ⦃fun h s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        denoteL s'.store.ls h = denoteLView s'.store.ls v; ⊤⦄ :=
+  triple_mono (internLNode_spec s₀ v hok.state.wf hv)
+    (fun _ _ ⟨hwf, hx, _, _, _, _, hc, hp, _, hd⟩ => ⟨hok.mono ⟨hwf⟩ hx hc hp, hx, hp, hd⟩)
+
+/-- con-leche: none — a λ stack transports along the store order. -/
+theorem StkRel.lamR_le {st st' : EStore} (hx : st ≤ st') {l : List EIdx} {xs : List Expr}
+    (h : StkRel (LamR st) l xs) : StkRel (LamR st') l xs :=
+  StkRel.imp (LamR.ext hx) h
+grind_pattern [bridge_grind] StkRel.lamR_le => st ≤ st', StkRel (LamR st) l xs
+
+/-- con-leche: none — a ∀ stack transports along the store order. -/
+theorem StkRel.piR_le {st st' : EStore} (hx : st ≤ st') {l : List LIdx} {xs : List Level}
+    (h : StkRel (PiR st) l xs) : StkRel (PiR st') l xs :=
+  StkRel.imp (PiR.ext hx) h
+grind_pattern [bridge_grind] StkRel.piR_le => st ≤ st', StkRel (PiR st) l xs
+
+/-! ### The two rebuild folds, as functions -/
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:52-56 inferLamsOut — the
+mirror's rebuild fold, which never fails, as a function. -/
+def lamsOutFn (d : Nat) : List Expr → Nat → Expr → Expr
+  | [], _, cur => cur
+  | tyo :: rest, j, cur => lamsOutFn d rest (j - 1) (.forallE (tyo.abstractRange d j) cur)
+attribute [bridge_grind =] lamsOutFn
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:52-56 inferLamsOut — the fold
+answers `lamsOutFn`. -/
+theorem inferLamsOut_eq (d : Nat) :
+    ∀ (stkx : List Expr) (j : Nat) (cur : Expr),
+      ConLeche.inferLamsOut (m := CheckM) d stkx j cur = .ok (lamsOutFn d stkx j cur)
+  | [], _, _ => rfl
+  | _ :: rest, _, _ => by
+    simp only [ConLeche.inferLamsOut, lamsOutFn]; exact inferLamsOut_eq d rest _ _
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:83-85 inferPisOut — the
+mirror's `imax` fold, as a function. -/
+def pisOutFn : List Level → Level → Level
+  | [], v => v
+  | u :: rest, v => pisOutFn rest (.imax u v)
+attribute [bridge_grind =] pisOutFn
+
+/-- con-leche: ConLeche/Verify/BinderLoop.lean:83-85 inferPisOut — the fold
+answers `pisOutFn`. -/
+theorem inferPisOut_eq :
+    ∀ (stkx : List Level) (v : Level),
+      ConLeche.inferPisOut (m := CheckM) stkx v = .ok (pisOutFn stkx v)
+  | [], _ => rfl
+  | _ :: rest, _ => by simp only [ConLeche.inferPisOut, pisOutFn]; exact inferPisOut_eq rest _
+
 /-! ## 2. The λ-inference loop
 
 ### 2.1 The outward rebuild -/
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:117 inferLamsOutC_sim
 — **the λ loop's rebuild carries**: the twin's count-down over the pushed
-stack denotes the mirror's fold over the consed one. -/
+stack denotes the mirror's fold over the consed one (`lamsOutFn`). -/
+theorem inferLamsOut_carryA (d : Nat) (stk : Array EIdx) (n : Nat) :
+    ∀ (stkx : List Expr) (curx : Expr) (s₀ : AState) (cur : EIdx),
+      CheckOK mode env fe s₀ → denoteE s₀.store cur = some curx →
+      n ≤ stk.size → StkRel (LamR s₀.store) (stk.toList.take n).reverse stkx →
+      ⦃fun s => s = s₀⦄ ConRon.Arena.inferLamsOut d stk n cur
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ denoteE s'.store r = some (lamsOutFn d stkx (n - 1) curx); ⊤⦄ := by
+  induction n with
+  | zero =>
+    intro stkx curx s₀ cur hok hcur _ hstk
+    cases stkx with
+    | cons _ _ => exact hstk.elim
+    | nil =>
+      rw [ConRon.Arena.inferLamsOut]
+      sym only [bridge_grind] => vcgen <;> finish
+  | succ j ih =>
+    intro stkx curx s₀ cur hok hcur hle hstk
+    -- the stack's top entry and the rest of the stack (the precondition, opened)
+    obtain ⟨tyox, rest, rfl, hty, hrest⟩ := StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
+    rw [ConRon.Arena.inferLamsOut]
+    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
+    -- the recursive call at the tail and the rebuilt node; instantiated, so
+    -- that `grind` does not instantiate the induction hypothesis itself
+    have hrec := ih rest (.forallE (tyox.abstractRange d j) curx)
+    clear ih
+    sym only [bridge_grind, LamR, ExprOps.absRangeFn] =>
+      vcgen [abstractRangeFast_specC (mode := mode) (env := env) (fe := fe),
+        internForallEE_specC (mode := mode) (env := env) (fe := fe), hrec] <;> finish
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:117 inferLamsOutC_sim
+— `inferLamsOut_carryA` with the mirror's own fold. -/
 theorem inferLamsOut_carry (d : Nat) (stk : Array EIdx) :
     ∀ (n : Nat) (s₀ : AState) (cur : EIdx) (curx : Expr) (stkx : List Expr),
       CheckOK mode env fe s₀ → denoteE s₀.store cur = some curx →
@@ -127,40 +258,10 @@ theorem inferLamsOut_carry (d : Nat) (stk : Array EIdx) :
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ v, denoteE s'.store r = some v ∧
           ConLeche.inferLamsOut (m := CheckM) d stkx (n - 1) curx
-            = .ok v; ⊤⦄
-  | 0, s₀, cur, curx, stkx, hok, hcur, _, hstk => by
-    cases stkx with
-    | cons _ _ => exact hstk.elim
-    | nil =>
-      rw [ConRon.Arena.inferLamsOut]
-      vcgen +internalize
-      bridge_peel; subst_vars
-      exact ⟨hok, Ext.refl _, rfl, curx, hcur, rfl⟩
-  | j + 1, s₀, cur, curx, stkx, hok, hcur, hle, hstk => by
-    obtain ⟨tyox, rest, rfl, hty, hrest⟩ :=
-      StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
-    rw [ConRon.Arena.inferLamsOut]
-    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
-    refine triple_seq (ExprOps.abstractRangeFast_spec fvarBSpec
-      coreWalkFuel s₀ stk[j]! d j 0 hok.state (by rw [hty]; rfl)) ?_
-    rintro tyAbs s1 ⟨hs1, hx1, hc1, hp1, -, hrel1⟩
-    have hok1 := hok.mono hs1 hx1 hc1 hp1
-    have hta : denoteE s1.store tyAbs = some (tyox.abstractRange d j) :=
-      hrel1 _ hty
-    refine triple_seq (internForallEE_spec s1 tyAbs cur hs1.wf
-      (by rw [hta]; rfl) (by rw [denote_ext hcur hx1]; rfl)) ?_
-    rintro nd s2 ⟨hwf2, hx2, -, -, -, hc2, hp2, -, hd2⟩
-    have hok2 := hok1.mono ⟨hwf2⟩ hx2 hc2 hp2
-    have hnd : denoteE s2.store nd =
-        some (.forallE (tyox.abstractRange d j) curx) := by
-      rw [hd2]
-      simp [denoteEView, denote_ext hta hx2, denote_ext hcur (hx1.trans hx2)]
-    have hx02 : Ext s₀.store s2.store := hx1.trans hx2
-    refine triple_mono (inferLamsOut_carry d stk j s2 nd _ rest hok2 hnd
-      (Nat.le_of_succ_le hle)
-      (StkRel.imp (LamR.ext hx02) hrest)) ?_
-    rintro r s' ⟨hok', hx', hp', v, hv, hrun⟩
-    exact ⟨hok', hx02.trans hx', hp'.trans (hp2.trans hp1), v, hv, hrun⟩
+            = .ok v; ⊤⦄ :=
+  fun n s₀ cur curx stkx hok hcur hle hstk =>
+    triple_mono (inferLamsOut_carryA d stk n stkx curx s₀ cur hok hcur hle hstk)
+      (fun _ _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, _, h4, inferLamsOut_eq d stkx _ curx⟩)
 
 /-! ### 2.2 Shape facts the loops read off a handle -/
 
@@ -198,8 +299,40 @@ theorem denote_sort_of_tag {st : EStore} (hwf : StoreWF st) {w : EIdx}
       ETag.sort, ETag.const, ETag.lam, ETag.forallE, ETag.letE,
       ETag.lit] at htg
 
+/-- con-leche: ConLeche/Kernel/Core.lean:1049-1055 ensureSort — the answer:
+the level handle denotes the level of the sort `e` head-normalises to (a
+named predicate). -/
+def WhnfSort (mode : CheckMode) (env : Env) (d : Nat) (e : Expr) (st : EStore) (u : LIdx) :
+    Prop :=
+  ∃ l, denoteL st.ls u = some l ∧ ∃ F, ConLeche.whnf mode env F d e = .ok (.sort l)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1049-1055 ensureSort — the exit: the
+`whnf` slot answered a handle whose view is a sort. -/
+theorem WhnfSort.of {d : Nat} {e : Expr} {st : EStore} {w : EIdx} {u : LIdx}
+    (hs : SimE (ConLeche.whnf mode env) d e st w) (hwf : StoreWF st)
+    (hv : st.view w = some (.sort u)) : WhnfSort mode env d e st u := by
+  obtain ⟨v, hd, _, F, hF⟩ := hs
+  obtain ⟨l, rfl, hl⟩ := denote_sort_inv hwf hv hd
+  exact ⟨l, hl, F, hF⟩
+grind_pattern [bridge_grind] WhnfSort.of =>
+  WhnfSort mode env d e st u, SimE (ConLeche.whnf mode env) d e st w
+
 /-- con-leche: ConLeche/Kernel/Core.lean:1049-1055 ensureSort — **the twin's
-`ensureSort` at the knot record**: one `whnf` slot call and a sort view. -/
+`ensureSort` at the knot record**: one `whnf` slot call and a sort view
+(answer `WhnfSort`). -/
+theorem ensureSortK_specA {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
+    (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
+    (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
+    (hw : Expr.WScoped d e) :
+    ⦃fun s => s = s₀⦄
+      ConRon.Arena.ensureSort (coreKnot mode fe id fuel) fe d i
+    ⦃fun u s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ WhnfSort mode env d e s'.store u; ⊤⦄ := by
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.ensureSort, hsim.whnf s₀ d i e hok hden hw] <;> finish
+
+/-- con-leche: ConLeche/Kernel/Core.lean:1049-1055 ensureSort —
+`ensureSortK_specA` with `WhnfSort` spelled out. -/
 theorem ensureSortK_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (i : EIdx) (e : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store i = some e)
@@ -208,21 +341,8 @@ theorem ensureSortK_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ConRon.Arena.ensureSort (coreKnot mode fe id fuel) fe d i
     ⦃fun u s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ ∃ l, denoteL s'.store.ls u = some l ∧
-        ∃ F, ConLeche.whnf mode env F d e = .ok (.sort l); ⊤⦄ := by
-  unfold ConRon.Arena.ensureSort
-  refine triple_seq (hsim.whnf s₀ d i e hok hden hw) ?_
-  rintro w s1 ⟨hok1, hx1, hp1, wx, hwx, -, F, hF⟩
-  obtain ⟨v, hv⟩ := denoteE_view hwx
-  refine tag_view_bind_triple hv ?_
-    (fun hne => by cases v <;> first | rfl | exact absurd rfl hne)
-  cases v
-  case sort u =>
-    obtain ⟨l, rfl, hl⟩ := denote_sort_inv hok1.state.wf hv hwx
-    dsimp only
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok1, hx1, hp1, l, hl, F, hF⟩
-  all_goals (dsimp only; exact triple_fail)
+        ∃ F, ConLeche.whnf mode env F d e = .ok (.sort l); ⊤⦄ :=
+  ensureSortK_specA hsim s₀ d i e hok hden hw
 
 /-! ### 2.3 The λ leaf -/
 
@@ -506,7 +626,37 @@ theorem inferLam_spec {fuel : Nat} (henv : ConLeche.EnvWF env)
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:359 inferPisOutC_sim
 — **the ∀ loop's fold carries** (con-leche's task #272: the fold reads no
-per-node datum). -/
+per-node datum; answer `pisOutFn`). -/
+theorem inferPisOut_carryA (stk : Array LIdx) (n : Nat) :
+    ∀ (stkx : List Level) (vx : Level) (s₀ : AState) (v : LIdx),
+      CheckOK mode env fe s₀ → denoteL s₀.store.ls v = some vx →
+      n ≤ stk.size → StkRel (PiR s₀.store) (stk.toList.take n).reverse stkx →
+      ⦃fun s => s = s₀⦄ ConRon.Arena.inferPisOut stk n v
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ denoteL s'.store.ls r = some (pisOutFn stkx vx); ⊤⦄ := by
+  induction n with
+  | zero =>
+    intro stkx vx s₀ v hok hv _ hstk
+    cases stkx with
+    | cons _ _ => exact hstk.elim
+    | nil =>
+      rw [ConRon.Arena.inferPisOut]
+      sym only [bridge_grind] => vcgen <;> finish
+  | succ j ih =>
+    intro stkx vx s₀ v hok hv hle hstk
+    -- the stack's top entry and the rest of the stack (the precondition, opened)
+    obtain ⟨ux, rest, rfl, hu, hrest⟩ := StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
+    rw [ConRon.Arena.inferPisOut]
+    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
+    -- the recursive call at the tail and the new `imax`; instantiated, so that
+    -- `grind` does not instantiate the induction hypothesis itself
+    have hrec := ih rest (.imax ux vx)
+    clear ih
+    sym only [bridge_grind, PiR] =>
+      vcgen [internLNode_specC (mode := mode) (env := env) (fe := fe), hrec] <;> finish
+
+/-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:359 inferPisOutC_sim
+— `inferPisOut_carryA` with the mirror's own fold. -/
 theorem inferPisOut_carry (stk : Array LIdx) :
     ∀ (n : Nat) (s₀ : AState) (v : LIdx) (vx : Level) (stkx : List Level),
       CheckOK mode env fe s₀ → denoteL s₀.store.ls v = some vx →
@@ -514,39 +664,10 @@ theorem inferPisOut_carry (stk : Array LIdx) :
       ⦃fun s => s = s₀⦄ ConRon.Arena.inferPisOut stk n v
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
           s'.pins = s₀.pins ∧ ∃ lx, denoteL s'.store.ls r = some lx ∧
-          ConLeche.inferPisOut (m := CheckM) stkx vx = .ok lx; ⊤⦄
-  | 0, s₀, v, vx, stkx, hok, hv, _, hstk => by
-    cases stkx with
-    | cons _ _ => exact hstk.elim
-    | nil =>
-      rw [ConRon.Arena.inferPisOut]
-      vcgen +internalize
-      bridge_peel; subst_vars
-      exact ⟨hok, Ext.refl _, rfl, vx, hv, rfl⟩
-  | j + 1, s₀, v, vx, stkx, hok, hv, hle, hstk => by
-    obtain ⟨ux, rest, rfl, hu, hrest⟩ :=
-      StkRel.take_succ (Nat.lt_of_succ_le hle) hstk
-    rw [ConRon.Arena.inferPisOut]
-    simp only [Nat.add_one_ne_zero, ite_false, Nat.add_sub_cancel]
-    have hvo : s₀.store.ls.ViewOK (.imax stk[j]! v) := by
-      constructor
-      · intro c hc
-        simp only [LNodeView.lchildren, List.mem_cons,
-          List.not_mem_nil, or_false] at hc
-        rcases hc with rfl | rfl
-        · exact lview_isSome_of_denote hu
-        · exact lview_isSome_of_denote hv
-      · intro c hc; simp [LNodeView.nchildren] at hc
-    refine triple_seq (internLNode_spec s₀ (.imax stk[j]! v) hok.state.wf hvo) ?_
-    rintro v2 s1 ⟨hwf1, hx1, -, -, -, -, hc1, hp1, -, hd1⟩
-    have hok1 := hok.mono ⟨hwf1⟩ hx1 hc1 hp1
-    have hv2 : denoteL s1.store.ls v2 = some (.imax ux vx) := by
-      rw [hd1]
-      simp [denoteLView, opt2, denoteL_ext hu hx1, denoteL_ext hv hx1]
-    refine triple_mono (inferPisOut_carry stk j s1 v2 _ rest hok1 hv2
-      (Nat.le_of_succ_le hle) (StkRel.imp (PiR.ext hx1) hrest)) ?_
-    rintro r s' ⟨hok', hx', hp', lx, hl, hrun⟩
-    exact ⟨hok', hx1.trans hx', hp'.trans hp1, lx, hl, hrun⟩
+          ConLeche.inferPisOut (m := CheckM) stkx vx = .ok lx; ⊤⦄ :=
+  fun n s₀ v vx stkx hok hv hle hstk =>
+    triple_mono (inferPisOut_carryA stk n stkx vx s₀ v hok hv hle hstk)
+      (fun _ _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, _, h4, inferPisOut_eq stkx vx⟩)
 
 /-! ### 3.2 The ∀ leaf -/
 
