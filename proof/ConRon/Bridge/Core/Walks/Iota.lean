@@ -132,7 +132,7 @@ theorem instSpinePins_spec (lps : List NIdx) (us : LsIdx) (args : List EIdx)
     obtain ⟨P, Ps', hP, hPs', rfl⟩ := denoteEList_cons_inv hPs
     have step := fun s => ih s Ps'
     clear ih
-    sym only [bridge_grind, List.map_cons, pinCmpFn, denoteEList_cons_eq, CheckOK.readN' hok, CheckOK.readL' hok,
+    sym only [bridge_grind, List.map_cons, pinCmpFn, CheckOK.readN' hok, CheckOK.readL' hok,
         CheckOK.readLs' hok] =>
       vcgen [ConRon.Arena.instSpinePins, ExprOps.instLPFast_spec (ksv := ksv) (usv := usv),
         ExprOps.instSpine_spec, step] <;> finish
@@ -169,7 +169,8 @@ theorem iotaCtorNeverProp_eq (find? : ConLeche.Name → Option ConstantInfo) (cv
 `iotaCtorNeverProp`**: the ι case split's test, which changes no store.
 `capsNeverZero_spec` is instantiated at the family the constructor's type names; the
 family's name arrives through four derived steps (the type, its `piResult`, its head,
-the head view's name), hence `gen := 10`. -/
+the head view's name) and the index fact at it is read one round later, hence
+`ematch := 8` (seven rounds needed). -/
 theorem iotaCtorNeverProp_spec (s₀ : AState) (icvj : IConstantVal)
     (dcvj : ConstantVal) (us : LsIdx) (ls : List Level)
     (hok : CheckOK mode env fe s₀)
@@ -184,7 +185,7 @@ theorem iotaCtorNeverProp_spec (s₀ : AState) (icvj : IConstantVal)
       viewConstName_spec,
       capsNeverZero_spec (ks := (cIndVal (env.find?
         (exprConstName dcvj.type.piResult.getAppFn))).levelParams) (vs := ls)
-        (caps := cIndCaps (env.find? (exprConstName dcvj.type.piResult.getAppFn)))] <;> finish (gen := 10)
+        (caps := cIndCaps (env.find? (exprConstName dcvj.type.piResult.getAppFn)))] <;> finish (ematch := 8)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:95-104 iotaCase3 — **THEOREM 1 for `iotaCase3`**. -/
 theorem iotaCase3_spec (s₀ : AState) (rl : IRecRule) (rl' : RecRule)

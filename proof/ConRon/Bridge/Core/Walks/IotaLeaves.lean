@@ -207,18 +207,6 @@ theorem denoteEList_appendI {st : EStore} :
     simp only [List.cons_append, Frontend.denoteEList, hx,
       denoteEList_appendI hxs hb]
 
-/-- con-leche: none — the denotation of an appended handle list, as ONE
-equation (`opt2` of the two halves). -/
-theorem denoteEList_append_eq (st : EStore) (as bs : List EIdx) :
-    Frontend.denoteEList st (as ++ bs) =
-      opt2 HAppend.hAppend (Frontend.denoteEList st as) (Frontend.denoteEList st bs) := by
-  induction as with
-  | nil => cases h : Frontend.denoteEList st bs <;> simp [Frontend.denoteEList, opt2, h]
-  | cons a as ih =>
-    simp only [List.cons_append, Frontend.denoteEList, ih]
-    cases denoteE st a <;> cases Frontend.denoteEList st as <;>
-      cases Frontend.denoteEList st bs <;> rfl
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:741-743 etaFabArgsE — **THEOREM
 1 for `etaFabArgsE`**: the η rescue's fabricated argument spine, the type's
 arguments then `etaProjs` (`Walks/Eta.lean`'s `etaProjs_spec`). -/

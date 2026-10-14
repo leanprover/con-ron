@@ -404,6 +404,18 @@ terms). -/
   simp only [Frontend.denoteEList, opt2]
   cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
 
+/-- con-leche: none — the denotation of an appended handle list, as ONE
+equation (`opt2` of the two halves). -/
+theorem denoteEList_append_eq (st : EStore) (as bs : List EIdx) :
+    Frontend.denoteEList st (as ++ bs) =
+      opt2 HAppend.hAppend (Frontend.denoteEList st as) (Frontend.denoteEList st bs) := by
+  induction as with
+  | nil => cases h : Frontend.denoteEList st bs <;> simp [Frontend.denoteEList, opt2, h]
+  | cons a as ih =>
+    simp only [List.cons_append, Frontend.denoteEList, ih]
+    cases denoteE st a <;> cases Frontend.denoteEList st as <;>
+      cases Frontend.denoteEList st bs <;> rfl
+
 /-- con-leche: none — an `opt2` that is `some` has both arguments present
 (so that `denote_some_of_isSome` names them and `opt2_some_some` fires). -/
 theorem opt2_isSome_of_eq_some {α β γ : Type} {f : α → β → γ} {a : Option α}

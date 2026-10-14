@@ -299,33 +299,6 @@ theorem containsAt {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx) 
   | some x => exact denoteNList_containsC hwf ns xs h1 n x h2
 grind_pattern [bridge_grind] containsAt => StoreWF st, List.elem n ns, Frontend.denoteNList st.ns ns
 
-/-- con-leche: none — a cons of handles denotes the cons of the denotations, as an equation. -/
-theorem denoteEList_cons_eq (st : EStore) (a : EIdx) (as : List EIdx) :
-    Frontend.denoteEList st (a :: as) =
-      opt2 List.cons (denoteE st a) (Frontend.denoteEList st as) := by
-  simp only [Frontend.denoteEList]
-  cases denoteE st a <;> cases Frontend.denoteEList st as <;> rfl
-
-/-- two optional lists, appended -/
-def optAppend {α : Type} : Option (List α) → Option (List α) → Option (List α)
-  | some a, some b => some (a ++ b)
-  | _, _ => none
-
-/-- con-leche: none — `optAppend` at two present lists. -/
-@[bridge_grind =] theorem optAppend_some {α : Type} (a b : List α) :
-    optAppend (some a) (some b) = some (a ++ b) := rfl
-
-/-- con-leche: none — an append of handle lists denotes the append of the denotations. -/
-theorem denoteEList_append_eq (st : EStore) :
-    ∀ (as bs : List EIdx), Frontend.denoteEList st (as ++ bs) =
-      optAppend (Frontend.denoteEList st as) (Frontend.denoteEList st bs)
-  | [], bs => by
-    rw [List.nil_append]; cases Frontend.denoteEList st bs <;> rfl
-  | a :: as, bs => by
-    rw [List.cons_append, denoteEList_cons_eq, denoteEList_cons_eq, denoteEList_append_eq st as bs]
-    cases denoteE st a <;> cases Frontend.denoteEList st as <;>
-      cases Frontend.denoteEList st bs <;> rfl
-
 /-- a projection node's denotation at its two children's -/
 def optProj (i : Nat) : Option ConLeche.Name → Option Expr → Option Expr
   | some nm, some x => some (.proj nm i x)
@@ -357,9 +330,6 @@ theorem view_of_viewLit {st : EStore} {i : EIdx} {l : Literal}
 grind_pattern [bridge_grind] view_of_viewLit => st.viewLit i, some l where
   guard st.viewLit i = some l
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean andName — the pin table's `And` slot -/
-@[bridge_grind =] theorem pinNames_eq_andName : pinNames[PIN_AND]? = some ConLeche.andName := rfl
-
 /-- con-leche: none — is a literal a string. -/
 def litIsStr : Literal → Bool | .strVal _ => true | .natVal _ => false
 /-- a string literal's string -/
@@ -374,10 +344,6 @@ theorem isStrLit_eq (e : Expr) :
 
 /-! ## The environment index at inductives, constructors and recursors -/
 
-/-- con-leche: none — an inductive's capabilities (a default elsewhere). -/
-def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
-/-- con-leche: none — a constructor's parameter count (`0` elsewhere). -/
-def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
 /-- con-leche: none — is a stored lookup a recursor. -/
 def iRec? : Option IConstantInfo → Bool | some (.recInfo _ _ _ _) => true | _ => false
 /-- con-leche: none — a stored recursor's record. -/
@@ -1570,8 +1536,7 @@ theorem andRescueSlots_specS (s₀ : AState) (ctor : NIdx) (nP : Nat) (ust : LsI
 /-- con-leche: ConLeche/Kernel/Core.lean:659-721 majorToCtor — **the pinned `And`
 rescue**, certified the K branch's way. Sixteen states, hence `gen := 16`; the
 projection nodes' denotations go through `denoteEView_proj` (the generic `denoteEView`
-equation carries a `fun`, erased here, as is the `Ans`-shaped `denoteEList_cons_ans`).
--/
+equation carries a `fun`, erased here). -/
 theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
     (s₁ : AState) (d : Nat) (rl : IRecRule) (rl' : RecRule) (major : EIdx)
@@ -1587,9 +1552,8 @@ theorem majorAnd_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
         s'.pins = s₁.pins ∧
         SimEOp (mtcAndOp mode env d rl' dcvj cnP Tn x) d s'.store r; ⊤⦄ := by
   have hrc := (rule_denote hrl').2.2.1
-  sym (gen := 16) only [bridge_grind, -denoteEList_cons_ans, -denoteEView, denoteEView_proj,
-      denoteEView_const, andFab, andRescueOk, denoteEList_append_eq,
-      denoteEList_cons_eq, ← viewOK_const] =>
+  sym (gen := 16) only [bridge_grind, -denoteEView, denoteEView_proj,
+      denoteEView_const, andFab, andRescueOk, denoteEList_append_eq, ← viewOK_const] =>
     vcgen [majorAndA, hsim.inferIOS, hsim.whnfS, ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
       andRescueSlots_specS (mode := mode) (env := env) (fe := fe) (cn := rl'.ctor),
       internE_specC (mode := mode) (env := env) (fe := fe),
@@ -1670,8 +1634,7 @@ theorem litMajorToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ConRon.Arena.litMajorToCtor (coreKnot mode fe id fuel) fe d h
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ SimEOp (litMajorOp mode env d x) d s'.store r; ⊤⦄ := by
-  sym only [bridge_grind, isStrLit_eq, ConLeche.litToCtorIfNat_WScoped,
-      strLitToConstructor_WScoped] =>
+  sym only [bridge_grind, isStrLit_eq, ConLeche.litToCtorIfNat_WScoped] =>
     vcgen [litMajorToCtor_split, strLitSupported_spec (mode := mode) (env := env) (fe := fe),
       strLitToConstructor_spec (mode := mode) (env := env) (fe := fe), hsim.whnfS,
       litToCtorIfNat_spec (x := x)] <;> finish
