@@ -305,9 +305,9 @@ theorem constValAt_specA (s₀ : AState) (n : NIdx) (lps : List NIdx)
         ConstValPost env s'.store r (denoteN s₀.store.ns n) (denoteLs s₀.store.lss us); ⊤⦄ := by
   obtain ⟨nm, hnm⟩ := Option.isSome_iff_exists.mp hn
   obtain ⟨ls, hls⟩ := Option.isSome_iff_exists.mp hus
-  have hfa := findAt hok n
+  have hfa := indexAt hok n
   rw [hnm] at hfa
-  obtain ⟨h1, -, h3⟩ := hfa
+  obtain ⟨h1, -, h3, -⟩ := hfa
   obtain ⟨hcv, hve⟩ := h3 hd
   have hc := denoteCVAt s₀.store (iDefnVal (fe.find? n))
   rw [hcv] at hc

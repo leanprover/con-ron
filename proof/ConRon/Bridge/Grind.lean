@@ -78,8 +78,9 @@ a walk module adds only what is about its own walk.
    denotation from its view, its `ViewOK` side condition.
 8. **The environment index as equations.**  A lookup `fe.find? c` and the
    environment's `env.find? nm` at the name `c` denotes agree on every
-   projection the walks read (`FindAt`): is it a definition, its hint, its
-   record and value.  A lookup that is a definition IS one (`iDefn?_eta`),
+   projection the walks read — ONE fact per lookup (`IndexAt`): is it
+   present, a definition, a constructor, a tower entry; a definition's hint,
+   record and value, a constructor's record, any record off the tower.  A lookup that is a definition IS one (`iDefn?_eta`),
    which refutes a match's fall-through arm; the one case split left is on
    "definition or not" where a walk needs the hint of a lookup it did not
    match (`iDefnHint_cases`).
@@ -1267,8 +1268,7 @@ theorem iDefnHint_cases (o : Option IConstantInfo) :
   | some (.recInfo _ _ _ _) | some (.projInfo _) | none => rfl
 grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
 
-/-! The same projections at the inductives and constructors (`Core/Walks/Nat.lean`'s
-`OptCI` and `Core/Walks/Proj.lean`'s `CtorAt` read them). -/
+/-! The same projections at the inductives and constructors. -/
 
 /-- con-leche: none — is a stored lookup an inductive. -/
 def iInd? : Option IConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
@@ -1308,62 +1308,125 @@ theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
   | some (.ctorInfo _ _ _), _ => rfl
 grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
 
+/-! The projections at any stored constant: tower-ness and the record off
+the tower (`Core/Walks/PropRead.lean`'s readers). -/
+
+/-- con-leche: none — a stored constant's record off the tower (`default` on
+the tower arm, which interns). -/
+def iPureVal : IConstantInfo → IConstantVal
+  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v
+  | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ => v
+  | .projInfo _ => default
+/-- con-leche: none — is a stored lookup a tower entry. -/
+def iTower? : Option IConstantInfo → Bool | some ci => ci.isTowerEntry | none => false
+/-- con-leche: none — a stored lookup's record. -/
+def iValP : Option IConstantInfo → IConstantVal | some ci => iPureVal ci | none => default
+/-- con-leche: none — is an environment lookup a tower entry. -/
+def cTower? : Option ConstantInfo → Bool | some ci => ci.isTowerEntry | none => false
+/-- con-leche: none — an environment lookup's record. -/
+def cValP : Option ConstantInfo → ConstantVal | some ci => ci.toConstantVal | none => default
+attribute [bridge_grind =] iTower? iValP
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a stored lookup against
+the environment's, through every projection the walks read: the two
+lookups agree on being present, a definition, a constructor and a tower
+entry, on a definition's hint, and the stored records denote the
+environment's (a definition's record and value, a constructor's record, any
+record off the tower). -/
+def IndexCI (st : EStore) (oi : Option IConstantInfo) (oc : Option ConstantInfo) : Prop :=
+  cDefn? oc = iDefn? oi ∧ cDefnHint oc = iDefnHint oi ∧
+  (iDefn? oi = true →
+    Frontend.denoteCV st (iDefnVal oi) = some (cDefnVal oc) ∧
+    denoteE st (iDefnValue oi) = some (cDefnValue oc)) ∧
+  cCtor? oc = iCtor? oi ∧
+  (iCtor? oi = true → Frontend.denoteCV st (iCtorVal oi) = some (cCtorVal oc)) ∧
+  oi.isSome = oc.isSome ∧ iTower? oi = cTower? oc ∧
+  (oi.isSome = true → iTower? oi = false →
+    Frontend.denoteCV st (iValP oi) = some (cValP oc))
+
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index at a name
-handle `c` denoting `nm`**, through the projections the walks read. -/
-def FindAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
-  | some nm => cDefn? (env.find? nm) = iDefn? (fe.find? c) ∧
-      cDefnHint (env.find? nm) = iDefnHint (fe.find? c) ∧
-      (iDefn? (fe.find? c) = true →
-        Frontend.denoteCV st (iDefnVal (fe.find? c)) = some (cDefnVal (env.find? nm)) ∧
-        denoteE st (iDefnValue (fe.find? c)) = some (cDefnValue (env.find? nm)))
+handle `c` denoting `nm`**: `IndexCI` between the two lookups. -/
+def IndexAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
+  | some nm => IndexCI st (fe.find? c) (env.find? nm)
   | none => True
+
+/-- con-leche: none — a stored constant and its denotation agree on every
+projection `IndexAt` names. -/
+theorem indexAt_hit {st : EStore} {ci : IConstantInfo} {cc : ConstantInfo}
+    (h : Frontend.denoteCI st ci = some cc) :
+    IndexCI st (some ci) (some cc) := by
+  cases ci with
+  | defnInfo v e hh =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv hx; cases h
+      exact ⟨rfl, rfl, fun _ => ⟨hcv, hx⟩, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    · cases h
+  | indInfo v caps =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv _; cases h
+      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    · cases h
+  | recInfo v mI rP rs =>
+    simp only [Frontend.denoteCI] at h
+    split at h
+    · rename_i cv x hcv _; cases h
+      exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+    · cases h
+  | axiomInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+  | thmInfo v =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ _ => hcv⟩
+  | ctorInfo v nP nF =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨cv, hcv, rfl⟩ := h
+    exact ⟨rfl, rfl, nofun, rfl, fun _ => hcv, rfl, rfl, fun _ _ => hcv⟩
+  | projInfo t =>
+    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
+    obtain ⟨t', _, rfl⟩ := h
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, fun _ h => nomatch h⟩
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK`'s two halves at
 every lookup the program makes, keyed by the invariant and the lookup. -/
-theorem findAt {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
-    (hok : CheckOK mode env fe s) (c : NIdx) : FindAt env fe s.store c (denoteN s.store.ns c) := by
+theorem indexAt {mode : CheckMode} {env : Env} {fe : IFEnv} {s : AState}
+    (hok : CheckOK mode env fe s) (c : NIdx) :
+    IndexAt env fe s.store c (denoteN s.store.ns c) := by
   cases hn : denoteN s.store.ns c with
   | none => trivial
   | some nm =>
   cases hf : fe.find? c with
   | none =>
-    show FindAt env fe s.store c (some nm)
-    simp only [FindAt, hf, IFEnvOK.miss hok.state hok.ienv hn hf]
-    exact ⟨rfl, rfl, fun h => nomatch h⟩
+    show IndexCI s.store (fe.find? c) (env.find? nm)
+    simp only [hf, IFEnvOK.miss hok.state hok.ienv hn hf]
+    exact ⟨rfl, rfl, nofun, rfl, nofun, rfl, rfl, nofun⟩
   | some ci =>
     obtain ⟨nm', cc, hn', hci, hfind⟩ := hok.ienv.hit c ci hf
     obtain rfl := Option.some.inj (hn'.symm.trans hn)
-    simp only [FindAt, hf, hfind]
-    cases ci with
-    | defnInfo v e h =>
-      simp only [Frontend.denoteCI] at hci
-      cases hv : Frontend.denoteCV s.store v with
-      | none => rw [hv] at hci; simp at hci
-      | some cv =>
-        cases he : denoteE s.store e with
-        | none => rw [hv, he] at hci; simp at hci
-        | some x =>
-          rw [hv, he] at hci
-          obtain rfl := (Option.some.inj hci).symm
-          exact ⟨rfl, rfl, fun _ => ⟨hv, he⟩⟩
-    | _ =>
-      cases cc with
-      | defnInfo cv x h =>
-        simp only [Frontend.denoteCI, Option.map_eq_some_iff] at hci
-        first
-          | (obtain ⟨_, _, hc⟩ := hci; cases hc)
-          | (split at hci <;> simp at hci)
-      | _ => exact ⟨rfl, rfl, fun h => nomatch h⟩
-grind_pattern [bridge_grind] findAt => CheckOK mode env fe s, fe.find? c
+    show IndexCI s.store (fe.find? c) (env.find? nm')
+    rw [hf, hfind]
+    exact indexAt_hit hci
+grind_pattern [bridge_grind] indexAt => CheckOK mode env fe s, fe.find? c
 
-/-- con-leche: none — `FindAt` at a denoting handle. -/
-theorem FindAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : ConLeche.Name}
-    (H : FindAt env fe st c (some nm)) :
+/-- con-leche: none — `IndexAt` at a denoting handle. -/
+theorem IndexAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : ConLeche.Name}
+    (H : IndexAt env fe st c (some nm)) :
     cDefn? (env.find? nm) = iDefn? (fe.find? c) ∧
       cDefnHint (env.find? nm) = iDefnHint (fe.find? c) ∧
       (iDefn? (fe.find? c) = true →
         Frontend.denoteCV st (iDefnVal (fe.find? c)) = some (cDefnVal (env.find? nm)) ∧
-        denoteE st (iDefnValue (fe.find? c)) = some (cDefnValue (env.find? nm))) := H
-grind_pattern [bridge_grind] FindAt.some => FindAt env fe st c (some nm)
+        denoteE st (iDefnValue (fe.find? c)) = some (cDefnValue (env.find? nm))) ∧
+      cCtor? (env.find? nm) = iCtor? (fe.find? c) ∧
+      (iCtor? (fe.find? c) = true →
+        Frontend.denoteCV st (iCtorVal (fe.find? c)) = some (cCtorVal (env.find? nm))) ∧
+      (fe.find? c).isSome = (env.find? nm).isSome ∧
+      iTower? (fe.find? c) = cTower? (env.find? nm) ∧
+      ((fe.find? c).isSome = true → iTower? (fe.find? c) = false →
+        Frontend.denoteCV st (iValP (fe.find? c)) = some (cValP (env.find? nm))) := H
+grind_pattern [bridge_grind] IndexAt.some => IndexAt env fe st c (some nm)
 
 end ConRon.Bridge

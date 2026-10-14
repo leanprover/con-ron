@@ -753,58 +753,6 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
     obtain ⟨v, rfl⟩ := denoteCI_ctor_inv hci
     exact hnd v nP nF hf
 
-/-! ### The constructor index
-
-`Bridge/Grind.lean` §8's shape (`FindAt`, the definitions) at a CONSTRUCTOR
-(the projections `iCtor?`, `iCtorVal`, … are §8's): the index's two halves
-at a denoting name handle as one fact keyed by the invariant and the
-lookup. -/
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index at a name handle
-`c` denoting `nm`, at a constructor: the two lookups agree on being one, and
-the records correspond. -/
-def CtorAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
-  | some nm => cCtor? (env.find? nm) = iCtor? (fe.find? c) ∧
-      (iCtor? (fe.find? c) = true →
-        Frontend.denoteCV st (iCtorVal (fe.find? c)) = some (cCtorVal (env.find? nm)))
-  | none => True
-
-/-- con-leche: none — a non-constructor environment lookup is `cCtor?`-false. -/
-theorem cCtor?_of_not {o : Option ConstantInfo}
-    (h : ∀ cv nP nF, o ≠ some (.ctorInfo cv nP nF)) : cCtor? o = false := by
-  match o, h with
-  | some (.ctorInfo cv a b), h => exact absurd rfl (h cv a b)
-  | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.indInfo _ _), _
-  | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _ | some (.projInfo _), _
-  | none, _ => rfl
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `env_ctor_of_index` and
-`env_not_ctor_of_index` as one fact at every lookup the program makes, keyed
-by the invariant and the lookup. -/
-theorem ctorAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
-    CtorAt env fe s.store c (denoteN s.store.ns c) := by
-  cases hn : denoteN s.store.ns c with
-  | none => trivial
-  | some nm =>
-  show _ ∧ _
-  by_cases hc : iCtor? (fe.find? c) = true
-  · have hf := iCtor?_eta hc
-    obtain ⟨dcv, hdcv, hfind⟩ := env_ctor_of_index hok hn hf
-    exact ⟨by rw [hc, hfind]; rfl, fun _ => by rw [hfind]; exact hdcv⟩
-  · refine ⟨?_, fun h => absurd h hc⟩
-    rw [Bool.not_eq_true] at hc
-    rw [hc]
-    exact cCtor?_of_not (env_not_ctor_of_index hok hn (fun v a b h => by
-      rw [h] at hc; exact Bool.noConfusion hc))
-grind_pattern [bridge_grind] ctorAt => CheckOK mode env fe s, fe.find? c
-
-/-- con-leche: none — `CtorAt` at a denoting handle. -/
-theorem CtorAt.some {st : EStore} {c : NIdx} {nm : ConLeche.Name}
-    (H : CtorAt env fe st c (some nm)) :
-    cCtor? (env.find? nm) = iCtor? (fe.find? c) ∧
-      (iCtor? (fe.find? c) = true →
-        Frontend.denoteCV st (iCtorVal (fe.find? c)) = some (cCtorVal (env.find? nm))) := H
-grind_pattern [bridge_grind] CtorAt.some => CtorAt env fe st c (some nm)
 
 /-! ## 5b. The arity certificate -/
 
@@ -888,7 +836,7 @@ ONE equation over the environment's constructor projections. -/
 /-- con-leche: ConLeche/Kernel/Core.lean:879-883 projCert — **THEOREM 1 for
 the structural projection's certificate**: the constructor's stored type has
 the spine's arity (`teleArityOk`, con-leche's task #342 L18).  Read-only.
-`grind` reads the index through `CtorAt` and the type through `DenoteCV`. -/
+`grind` reads the index through `IndexAt` and the type through `DenoteCV`. -/
 theorem projCert_spec (s₀ : AState) (hok : CheckOK mode env fe s₀)
     (c : NIdx) (args : List EIdx) (cn : ConLeche.Name) (xs : List Expr)
     (hc : denoteN s₀.store.ns c = some cn)
@@ -927,7 +875,6 @@ section Census
 #print axioms IFEnv.findProj?_specA
 #print axioms IFEnv.findProj?_spec
 #print axioms IProjEntry.fireOk_spec
-#print axioms ctorAt
 #print axioms instantiateListFast_specC
 #print axioms readNamesM_frame
 #print axioms IProjEntry.typeAt_spec

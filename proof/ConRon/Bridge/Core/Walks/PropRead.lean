@@ -28,10 +28,10 @@ stand on it (`propIrrel`, `annotPwPi`, `annotPwLam`).
 
 ## The index lookup
 
-`fe.find? I` against `env.find? nm` is `Walks/Nat.lean`'s `OptCI` /
-`optCI_find`; a hit's `isTowerEntry` is the denotation's
-(`denoteCI_isTowerEntry`), and off the tower the arena's monadic
-`toConstantVal` is pure and denotes con-leche's (`toConstantVal_specP`).
+`fe.find? I` against `env.find? nm` is `Bridge/Grind.lean` §8's `IndexAt`:
+a hit's tower-ness is the denotation's, and off the tower the stored record
+denotes the environment's; the arena's monadic `toConstantVal` is then pure
+(`toConstantVal_specP`).
 The has-parameters cutoff (DESIGN, task #97-P6-10) is con-leche's own
 `Level.substPW_eq_self`.
 
@@ -46,8 +46,8 @@ given denotation where the caller names it (`headTypePW_specX`,
 and projections, passed locally to the walk that unfolds them (they are
 recursive, so a registered rule would unfold them at every call); the
 `view*` projections are facts keyed by the projection and the denotation
-(`BindAt`, `AppAt`, …); the index at a constant is `ConstAt` (§6's `FindAt`
-at every constructor).  `substPWAt`'s cutoff and `rawNatLit?`'s literal arm
+(`BindAt`, `AppAt`, …); the index at a constant is `Bridge/Grind.lean` §8's
+`IndexAt`.  `substPWAt`'s cutoff and `rawNatLit?`'s literal arm
 meet the same `grind` limitation (`_tmp/corpus/vcgen-grind/
 nested-ctor-fallthrough-hyp.lean`) and the same workaround: `vcgen` runs on
 the twin with the nested pattern as a `Bool` test (`substPWAt_split`).
@@ -68,17 +68,6 @@ open scoped Lean.Order
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
 /-! ## 1. Facts the readers need and no tier had -/
-
-/-- con-leche: none — the denotation keeps a constant's tower-ness. -/
-theorem denoteCI_isTowerEntry {st : EStore} {ci : IConstantInfo}
-    {c : ConstantInfo} (h : Frontend.denoteCI st ci = some c) :
-    ci.isTowerEntry = c.isTowerEntry := by
-  cases ci <;> simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-  all_goals first
-    | (obtain ⟨_, _, rfl⟩ := h; rfl)
-    | (split at h
-       · cases h; rfl
-       · simp at h)
 
 /-- con-leche: none — a handle whose view is not a `.sort` denotes no sort. -/
 theorem denote_not_sort {st : EStore} (hwf : StoreWF st) {h : EIdx}
@@ -161,8 +150,7 @@ theorem denoteEList_getD {st : EStore} :
 /-! ## The readers' vocabulary
 
 The `view*` projections the readers read are `Bridge/Grind.lean` §6's
-(`view_of_view*`, guarded at the read).  Here: the index at a constant
-through projections (`ConstAt`, §8's `FindAt` at every constructor); a stored
+(`view_of_view*`, guarded at the read).  Here: a stored
 projection entry's body; a handle list read at an index; the readbacks at the
 tier's invariant. -/
 
@@ -253,98 +241,6 @@ theorem readLevelsM_specC (s₀ : AState) (h : LsIdx) (hok : CheckOK mode env fe
   triple_mono (readLevelsM_spec s₀ h hok.caches.readLs)
     (fun _ _ ⟨hst, hm, hp, hc, hd, hLs⟩ =>
       ⟨CheckOK.ofReadbackFrame hok (ReadbackFrame.ofReadLs hst hm hp hc hLs), hst, hp, hd⟩)
-
-/-! ### The index at a constant, as projections -/
-
-/-- con-leche: none — a stored constant's record off the tower (`default` on
-the tower arm, which interns). -/
-def iPureVal : IConstantInfo → IConstantVal
-  | .axiomInfo v | .defnInfo v _ _ | .thmInfo v => v
-  | .indInfo v _ | .ctorInfo v _ _ | .recInfo v _ _ _ => v
-  | .projInfo _ => default
-
-/-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
-off the tower, the stored record denotes the denoted constant's. -/
-theorem denoteCV_pureVal {st : EStore} {ci : IConstantInfo} {c : ConstantInfo}
-    (h : Frontend.denoteCI st ci = some c) (ht : ci.isTowerEntry = false) :
-    Frontend.denoteCV st (iPureVal ci) = some c.toConstantVal := by
-  cases ci with
-  | projInfo t => simp [IConstantInfo.isTowerEntry] at ht
-  | axiomInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h; exact hcv
-  | ctorInfo v nP nF =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h; exact hcv
-  | thmInfo v =>
-    simp only [Frontend.denoteCI, Option.map_eq_some_iff] at h
-    obtain ⟨cv, hcv, rfl⟩ := h; exact hcv
-  | defnInfo v e hh =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact hcv
-    · simp at h
-  | indInfo v caps =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact hcv
-    · simp at h
-  | recInfo v mI rP rs =>
-    simp only [Frontend.denoteCI] at h
-    split at h
-    · rename_i cv x hcv _; cases h; exact hcv
-    · simp at h
-
-/-- con-leche: none — is a stored lookup a tower entry. -/
-def iTower? : Option IConstantInfo → Bool | some ci => ci.isTowerEntry | none => false
-/-- con-leche: none — a stored lookup's record. -/
-def iValP : Option IConstantInfo → IConstantVal | some ci => iPureVal ci | none => default
-/-- con-leche: none — is an environment lookup a tower entry. -/
-def cTower? : Option ConstantInfo → Bool | some ci => ci.isTowerEntry | none => false
-/-- con-leche: none — an environment lookup's record. -/
-def cValP : Option ConstantInfo → ConstantVal | some ci => ci.toConstantVal | none => default
-attribute [bridge_grind =] iTower? iValP
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index at a name
-handle `c` denoting `nm`**, at every constructor: present together, tower
-together, and off the tower the stored record denotes the environment's. -/
-def ConstAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
-  | some nm => (fe.find? c).isSome = (env.find? nm).isSome ∧
-      iTower? (fe.find? c) = cTower? (env.find? nm) ∧
-      ((fe.find? c).isSome = true → iTower? (fe.find? c) = false →
-        Frontend.denoteCV st (iValP (fe.find? c)) = some (cValP (env.find? nm)))
-  | none => True
-
-/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `IFEnvOK` at every lookup. -/
-theorem constAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
-    ConstAt env fe s.store c (denoteN s.store.ns c) := by
-  cases hn : denoteN s.store.ns c with
-  | none => trivial
-  | some nm =>
-  have hrel := optCI_find hok hn
-  cases hf : fe.find? c with
-  | none =>
-    rw [hf] at hrel
-    simp only [OptCI] at hrel
-    simp [ConstAt, hf, hrel, iTower?, cTower?]
-  | some ci =>
-    rw [hf] at hrel
-    obtain ⟨cc, hci, hfind⟩ := hrel
-    simp only [ConstAt, hf, hfind]
-    show (some ci).isSome = (some cc).isSome ∧ iTower? (some ci) = cTower? (some cc) ∧
-      ((some ci).isSome = true → iTower? (some ci) = false →
-        Frontend.denoteCV s.store (iValP (some ci)) = some (cValP (some cc)))
-    exact ⟨rfl, denoteCI_isTowerEntry hci, fun _ ht => denoteCV_pureVal hci ht⟩
-grind_pattern [bridge_grind] constAt => CheckOK mode env fe s, fe.find? c
-
-/-- con-leche: none — `ConstAt` at a denoting handle. -/
-theorem ConstAt.some {env : Env} {fe : IFEnv} {st : EStore} {c : NIdx} {nm : ConLeche.Name}
-    (H : ConstAt env fe st c (some nm)) :
-    (fe.find? c).isSome = (env.find? nm).isSome ∧
-      iTower? (fe.find? c) = cTower? (env.find? nm) ∧
-      ((fe.find? c).isSome = true → iTower? (fe.find? c) = false →
-        Frontend.denoteCV st (iValP (fe.find? c)) = some (cValP (env.find? nm))) := H
-grind_pattern [bridge_grind] ConstAt.some => ConstAt env fe st c (some nm)
 
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
 off the tower the arena's `toConstantVal` is pure: the stored record. -/
@@ -1190,7 +1086,6 @@ theorem propIrrel_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 
 section Census
 
-#print axioms denoteCI_isTowerEntry
 #print axioms toConstantVal_specP
 #print axioms denote_not_sort
 #print axioms denote_not_lam
