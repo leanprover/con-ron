@@ -77,10 +77,8 @@ six more.
   `reduceProjCoreFueled_mono`; shared
   by `whnfCoreBody`'s `.proj` clause and `lazyDeltaProjReduction`. CLOSED.
 * `Walks/Stuck.lean` — **the stuck fallback** (round 5): `stuckIrrel_spec`
-  PROVED from `structEtaCert_spec` (proved, over `etaCtorShape_spec` and
-  `structEtaCertWith_spec`, CLOSED round 6), `structUnitCert_spec` and
-  `proofIrrel_spec` (both CLOSED, over `reservedBasisNames_spec`; task #105
-  dropped `isUnitLikeTy_spec` with con-leche's PUNIT).  The module is at zero `sorry`.
+  from `structEtaCert_specA` (over `etaCtorShape_spec` and
+  `structEtaCertWith_spec`), `structUnitCert_specA` and `proofIrrel_specA`.
 * `Walks/Eta.lean` — **the structure-η certificate's sub-walks** (round 6):
   `projFnName_spec`, `towerSlotsAll_spec`, `recSlotsAll_spec`,
   `structEtaProjCerts_spec`, `etaProjs_spec` (`projNodesGo`/`projAppsGo`).

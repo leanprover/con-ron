@@ -1,32 +1,39 @@
 /-
 # `ConRon.Bridge.Core.Walks.Stuck` — the stuck fallback, `stuckIrrel`
 
-Task #97-P3-Core round 5.  `stuckIrrel` is the `defeq` body's fallback at two
-structurally distinct stuck terms — structure-η in both directions, then
-unit-likeness, then proof irrelevance — and every congruence failure of
-`defeqStuck` (the old `defeqStep` before task #109) ends in it.  Round 4 left it in `Walks/Owed.lean` as one
-statement over a tower; this module skeletonises the tower top-down:
+`stuckIrrel` is the `defeq` body's fallback at two structurally distinct
+stuck terms — structure-η in both directions, then unit-likeness, then proof
+irrelevance — and every congruence failure of `defeqStuck` ends in it.
 
-| walk | twin | con-leche | status |
+| walk | twin | con-leche | proof |
 |---|---|---|---|
-| `stuckIrrel_spec` | `Arena/Core.lean:1564` | `Kernel/Core.lean:532-542` | **proved** from the three below |
-| `structEtaCert_spec` | `:1502` | `:450-473` | **proved** from `etaCtorShape_spec` (closed) and `structEtaCertWith_spec` (`:1416` / `:376-448`, **CLOSED** round 6, over `Walks/Eta.lean`) |
-| `structUnitCert_spec` | `:1513` | `:475-503` | **CLOSED** |
-| `proofIrrel_spec` | `:1310` | `:327-341` | **CLOSED** |
+| `stuckIrrel_specA` | `Arena/Core.lean:1601` | `Kernel/Core.lean:487-492` | `vcgen`/`grind` over the four exits (`StuckE.*`) |
+| `structEtaCert_specA` | `:1531` | `:413-425` | `vcgen`/`grind`, exits `EtaCertE.shape`/`.with` |
+| `structEtaCertWith_spec` | `:1416` | `:376-448` | staged over the twin's program order (`triple_seq`), exits `structEtaCertWith_exits` |
+| `structUnitCert_specA` | `:1543` | `:431-455` | `vcgen`/`grind`, guard `unitGuard`, exits `UnitCertE.*` |
+| `proofIrrel_specA` | `:1334` | `:298-312` | `vcgen`/`grind`, exits `PIrrelE.*` |
+| `etaCtorShape_spec` | `:1515` | `CoreDefs.lean:731-737` | `vcgen`/`grind`, `etaCtorShape_eq` |
 
-**Two preconditions added, and why.**  (2) `EnvWF env`, on
-`structUnitCert_spec`/`structEtaCert_spec` and so on `stuckIrrel_spec`: the
-family certificate runs `iotaCerts` on an instantiated STORED type, and
-`iotaCerts_spec` needs it well-scoped — con-leche's `const_ty_hasFvar`,
-whose hypothesis is `EnvWF`.  (1)  The twin gates the type-former
-telescope certificate of `structUnitCert` (and the two certificate families
-of `structEtaCertWith`) on `mode.certs` — the EXECUTED core's
-`Cached/CoreC.lean:437/440/508` — where con-leche's spec body runs it
-unconditionally.  At `mode.certs = false` the twin answers `true` where the
-spec may answer `false`, so the published `stuckIrrel_spec` was **false at
-the trusted mode**.  It now takes `hμ : mode.verifiedChecks = true`, which
-is what every body theorem of this tier already has in hand
-(`certs_of_verifiedChecks`, con-leche's `Verify/BetaGate.lean:126`).
+**The answer shape.**  Each child answers about its subjects' DENOTATIONS
+(`PairAns P (denoteE s₀.store a) (denoteE s₀.store b) r`, preconditions
+`DenWS`), so that a caller never names a denotation; `P` is a named
+predicate (`EtaCertE`, `UnitCertE`, `PIrrelE`: `SimBOp` at the pure call,
+the `fun` hidden from `grind`).  A chain of knot calls is one named run
+keyed by its handles (`SortRun`, `TyRun`, `TyRunH`), and each exit of the
+pure side is a lemma over those runs, the fuel merge inside it.
+
+**Two preconditions, and why.**  (2) `EnvWF env`, on `structUnitCert` /
+`structEtaCert` and so on `stuckIrrel`: the family certificate runs
+`iotaCerts` on an instantiated STORED type, and `iotaCerts_spec` needs it
+well-scoped — con-leche's `const_ty_hasFvar`, whose hypothesis is `EnvWF`.
+(1)  The twin gates the type-former telescope certificate of
+`structUnitCert` (and the two certificate families of `structEtaCertWith`)
+on `mode.certs` — the EXECUTED core's `Cached/CoreC.lean:437/440/508` —
+where con-leche's spec body runs it unconditionally.  At `mode.certs =
+false` the twin answers `true` where the spec may answer `false`, so the
+statements take `hμ : mode.verifiedChecks = true`, which every body theorem
+of this tier has in hand (`certs_of_verifiedChecks`, con-leche's
+`Verify/BetaGate.lean:126`).
 -/
 import ConRon.Bridge.Core.Walks.PropRead
 import ConRon.Bridge.Core.Walks.Reserved
@@ -124,6 +131,75 @@ def TripleAns (P : Expr → Expr → Expr → Bool → Prop) :
 /-- con-leche: none — `TripleAns` at denoting subjects. -/
 @[bridge_grind =] theorem TripleAns.some_eq (P : Expr → Expr → Expr → Bool → Prop)
     (x y w : Expr) (r : Bool) : TripleAns P (some x) (some y) (some w) r = P x y w r := rfl
+
+/-- con-leche: none — an environment inductive's capabilities. -/
+def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
+attribute [bridge_grind =] cIndCaps
+
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index at a name handle
+`c` denoting `nm`, at an inductive: the two lookups agree on being one, and
+the stored record and capabilities denote the environment's. -/
+def IndAt (env : Env) (fe : IFEnv) (st : EStore) (c : NIdx) : Option ConLeche.Name → Prop
+  | some nm => cInd? (env.find? nm) = iInd? (fe.find? c) ∧
+      (iInd? (fe.find? c) = true →
+        Frontend.denoteCV st (iIndVal (fe.find? c)) = some (cIndVal (env.find? nm)) ∧
+        Frontend.denoteCaps st (iIndCaps (fe.find? c)) = some (cIndCaps (env.find? nm)))
+  | none => True
+
+/-- con-leche: none — a capability record's denotation, the scalar fields the
+walks compare (shared by the two tiers). -/
+def CapsFields (c : IIndCaps) : Option IndCaps → Prop
+  | some dc => dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ
+  | none => True
+
+/-- con-leche: none — `CapsFields` at the denotation term. -/
+theorem capsFields (st : EStore) (c : IIndCaps) : CapsFields c (Frontend.denoteCaps st c) := by
+  cases h : Frontend.denoteCaps st c with
+  | none => trivial
+  | some dc =>
+    simp only [Frontend.denoteCaps] at h
+    split at h
+    · cases h; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+    · simp at h
+grind_pattern [bridge_grind] capsFields => Frontend.denoteCaps st c
+
+/-- con-leche: none — `CapsFields` at a denoting record. -/
+theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc)) :
+    dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
+      dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ := H
+grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
+
+/-- con-leche: none — a name-list membership test at optional denotations. -/
+def containsO : Option (List ConLeche.Name) → Option ConLeche.Name → Bool
+  | some xs, some x => xs.contains x
+  | _, _ => false
+
+/-- con-leche: none — `containsO` at denoting subjects. -/
+@[bridge_grind =] theorem containsO_some (xs : List ConLeche.Name) (x : ConLeche.Name) :
+    containsO (some xs) (some x) = xs.contains x := rfl
+
+/-- con-leche: none — `denoteNList_containsC` as an equation: a handle-list
+membership test is its denotations' (the store interns names injectively). -/
+theorem contains_eq {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx)
+    (h1 : (Frontend.denoteNList st.ns ns).isSome = true) (h2 : (denoteN st.ns n).isSome = true) :
+    ns.contains n = containsO (Frontend.denoteNList st.ns ns) (denoteN st.ns n) := by
+  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h1
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp h2
+  rw [hxs, hx]
+  exact denoteNList_containsC hwf ns xs hxs n x hx
+grind_pattern [bridge_grind] contains_eq =>
+  List.contains ns n, Frontend.denoteNList st.ns ns, denoteN st.ns n
+
+/-- con-leche: none — `KnotSpec.defeq` in answer shape (`PairAns` of `SimV`). -/
+theorem KnotSpec.defeqA {f : Nat} (hsim : KnotSpec mode env fe f)
+    (s₀ : AState) (d : Nat) (i j : EIdx) (hok : CheckOK mode env fe s₀)
+    (hi : DenWS d (denoteE s₀.store i)) (hj : DenWS d (denoteE s₀.store j)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).defeq d i j
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (SimV (ConLeche.isDefEqCore mode env) d) (denoteE s₀.store i)
+          (denoteE s₀.store j) r; ⊤⦄ :=
+  pairAns_of_spec hi hj fun a b ha hb hwa hwb => hsim.defeq s₀ d i j a b hok ha hb hwa hwb
 
 /-! ### The children's answers, named -/
 
@@ -297,89 +373,40 @@ theorem env_not_ind_of_index {s : AState} (hok : CheckOK mode env fe s)
     ∀ cv caps, env.find? Tn ≠ some (.indInfo cv caps) :=
   optCI_ind_none (optCI_find hok hn) hnd
 
-/-! ### `structUnitCert`'s pure side at its exits -/
+/-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — `env_ind_of_index` and
+`env_not_ind_of_index` as one fact at every lookup the program makes. -/
+theorem indAt {s : AState} (hok : CheckOK mode env fe s) (c : NIdx) :
+    IndAt env fe s.store c (denoteN s.store.ns c) := by
+  cases hn : denoteN s.store.ns c with
+  | none => trivial
+  | some nm =>
+  show _ ∧ _
+  by_cases hc : iInd? (fe.find? c) = true
+  · obtain ⟨dcv, dcaps, hdcv, hdcaps, hfind⟩ := env_ind_of_index hok hn (iInd?_eta hc)
+    refine ⟨by rw [hc, hfind]; rfl, fun _ => ?_⟩
+    rw [hfind]
+    have he := iInd?_eta hc
+    rw [he] at hdcv hdcaps
+    exact ⟨hdcv, hdcaps⟩
+  · refine ⟨?_, fun h => absurd h hc⟩
+    rw [Bool.not_eq_true] at hc
+    rw [hc]
+    have hnot := env_not_ind_of_index hok hn (fun v caps h => by rw [h] at hc; cases hc)
+    generalize env.find? nm = o at hnot
+    match o, hnot with
+    | some (.indInfo cv caps), hnot => exact absurd rfl (hnot cv caps)
+    | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
+    | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _ | some (.projInfo _), _
+    | none, _ => rfl
+grind_pattern [bridge_grind] indAt => CheckOK mode env fe s, fe.find? c
 
-/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the type's
-head is not a constant. -/
-theorem structUnitCert_nohead {F d : Nat} {x y ta wta : Expr}
-    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
-    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
-    (hh : ∀ c us, wta.getAppFn ≠ .const c us) :
-    ConLeche.structUnitCertFueled mode env F d x y = .ok false := by
-  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
-  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
-    bind, Except.bind]
-  first
-    | rfl
-    | (split
-       · rename_i c us heq; exact absurd heq (hh c us)
-       · rfl)
-
-/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the head is
-not a stored inductive. -/
-theorem structUnitCert_noind {F d : Nat} {x y ta wta : Expr} {T : Name}
-    {us : List Level}
-    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
-    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
-    (hh : wta.getAppFn = .const T us)
-    (hf : ∀ cv caps, env.find? T ≠ some (.indInfo cv caps)) :
-    ConLeche.structUnitCertFueled mode env F d x y = .ok false := by
-  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
-  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
-    hh, bind, Except.bind]
-  first
-    | rfl
-    | (split
-       · rename_i cv caps heq; exact absurd heq (hf cv caps)
-       · rfl)
-
-/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the family
-is not unit-like at this application. -/
-theorem structUnitCert_guard {F d : Nat} {x y ta wta : Expr} {T : Name}
-    {us : List Level} {cvT : ConstantVal} {caps : IndCaps}
-    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
-    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
-    (hh : wta.getAppFn = .const T us)
-    (hf : env.find? T = some (.indInfo cvT caps))
-    (hg : ¬ (caps.unitlike = true ∧ ConLeche.reservedBasisNames.contains T = false ∧
-      wta.getAppArgs.length = caps.unitParams ∧
-      us.length = cvT.levelParams.length)) :
-    ConLeche.structUnitCertFueled mode env F d x y = .ok false := by
-  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
-  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
-    hh, hf, bind, Except.bind]
-  rw [ite_eq_right hg]
-  rfl
-
-/-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — the two
-types are compared (a ∀ is never a family's application, con-leche's task
-#342 L18; no certificate on the type application, L11b). -/
-theorem structUnitCert_cmp {F d : Nat} {x y ta wta tb wtb : Expr} {T : Name}
-    {us : List Level} {cvT : ConstantVal} {caps : IndCaps} {r : Bool}
-    (h1 : ConLeche.inferTypeIO mode env F d x = .ok ta)
-    (h2 : ConLeche.whnf mode env F d ta = .ok wta)
-    (hh : wta.getAppFn = .const T us)
-    (hf : env.find? T = some (.indInfo cvT caps))
-    (hg : caps.unitlike = true ∧ ConLeche.reservedBasisNames.contains T = false ∧
-      wta.getAppArgs.length = caps.unitParams ∧
-      us.length = cvT.levelParams.length)
-    (h3 : ConLeche.inferTypeIO mode env F d y = .ok tb)
-    (h4 : ConLeche.whnf mode env F d tb = .ok wtb)
-    (h5 : (if wtb.isForallE then pure false
-      else ConLeche.isDefEqCore mode env F d wta wtb : CheckM Bool) = .ok r) :
-    ConLeche.structUnitCertFueled mode env F d x y = .ok r := by
-  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok ta := h1
-  have e2 : (ConLeche.pureFns mode env F).whnf d ta = .ok wta := h2
-  have e3 : (ConLeche.pureFns mode env F).inferIO d y = .ok tb := h3
-  have e4 : (ConLeche.pureFns mode env F).whnf d tb = .ok wtb := h4
-  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2,
-    hh, hf, bind, Except.bind]
-  rw [ite_eq_left hg]
-  simp only [e3, e4]
-  exact h5
+/-- con-leche: none — `IndAt` at a denoting handle. -/
+theorem IndAt.some {st : EStore} {c : NIdx} {nm : ConLeche.Name}
+    (H : IndAt env fe st c (some nm)) : cInd? (env.find? nm) = iInd? (fe.find? c) ∧
+      (iInd? (fe.find? c) = true →
+        Frontend.denoteCV st (iIndVal (fe.find? c)) = some (cIndVal (env.find? nm)) ∧
+        Frontend.denoteCaps st (iIndCaps (fe.find? c)) = some (cIndCaps (env.find? nm))) := H
+grind_pattern [bridge_grind] IndAt.some => IndAt env fe st c (some nm)
 
 /-- con-leche: none — an environment constructor's parameter count. -/
 def cCtorNP : Option ConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
@@ -632,18 +659,15 @@ theorem triple_ite {α : Type} {c : Prop} [Decidable c] {x y : AM α}
 1 for `structEtaCertWith`**, the structure-η certificate against a GIVEN
 weak-head-normal type `wtb` of the stuck side.
 
-**CLOSED** (round 6), staged over the twin's program order: `getAppFn` /
-`getAppArgs` at both sides, the index at the constructor and the type former
+Staged over the twin's program order: `getAppFn` / `getAppArgs` at both
+sides, the index at the constructor and the type former
 (`env_ctor_of_index`, `env_ind_of_index`), `reservedBasisNames_spec`,
-`viewLsLen`, the slot discipline (`Walks/Eta.lean`'s `towerSlotsAll_spec` /
-`recSlotsAll_spec`), the guard (`EtaGuard`, identified by name injectivity
-and `denoteNList_containsC`), `lvlsEq?_spec` + `liftFueled_spec`, the
-family certificate (`constTyAt_spec` + `iotaCerts_spec`, where `hμ` is
-spent), the per-slot certificates (`structEtaProjCerts_spec`), the
-parameters (`defEqList_spec`), the TT-lane synthetic spine (`constTyAt_spec`,
-`etaProjs_spec`, `iotaCerts_spec`) and the fields (`etaProjs_spec`,
-`defEqList_spec`).  The pure side is `structEtaCertWith_exits`, one
-statement per exit over `structEtaCertWith_tail`. -/
+`viewLsLen`, the slot discipline (`Walks/Eta.lean`'s `towerSlotsAll_spec`),
+the guard (`EtaGuard`, identified by name injectivity and
+`denoteNList_containsC`), `lvlsEq?_spec` + `liftFueled_spec`, the parameters
+(`defEqList_spec`) and the fields (`etaProjs_spec`, `defEqList_spec`).  The
+pure side is `structEtaCertWith_exits`, one statement per exit over
+`structEtaCertWith_tail`. -/
 theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
     (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b wtb : EIdx) (x y w : Expr)
@@ -927,171 +951,180 @@ theorem structEtaCert_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
       KnotSpec.inferIOA hsim, KnotSpec.whnfA hsim, structEtaCertWith_specA hμ henv hsim] <;>
       finish
 
-/-- con-leche: ConLeche/Kernel/Core.lean:450-473 structEtaCert — **THEOREM 1
-for `structEtaCert`**: structural η certification of a fully applied
-constructor `a` against a stuck `b` of an η-capable stored structure
-(`structEtaCert_specA`). -/
-theorem structEtaCert_spec {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.structEtaCert (coreKnot mode fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.structEtaCertFueled mode env F d x y) r; ⊤⦄ :=
-  triple_mono (structEtaCert_specA hμ henv hsim s₀ d a b hok (by rw [hda]; exact hwa)
-    (by rw [hdb]; exact hwb)) (fun _ _ ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, by
-      rw [hda, hdb] at h4; exact h4⟩)
+/-! ### `structUnitCert` in answer shape -/
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — one side's
+io-grade type, head-normalised to `w`, at one fuel. -/
+def TyRun (mode : CheckMode) (env : Env) (d : Nat) (x w : Expr) : Prop :=
+  ∃ F t, ConLeche.inferTypeIO mode env F d x = .ok t ∧ ConLeche.whnf mode env F d t = .ok w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the two slot
+answers of one side, chained by their handles, are its run. -/
+theorem TyRun.mk {d : Nat} {x w : Expr} {st₁ st₂ : EStore} {ta wta : EIdx}
+    (h1 : SimE (ConLeche.inferTypeIO mode env) d x st₁ ta)
+    (h2 : WhnfAns mode env d st₂ wta (denoteE st₁ ta)) (hd : denoteE st₂ wta = some w) :
+    TyRun mode env d x w := by
+  obtain ⟨v1, hv1, _, F1, hF1⟩ := h1
+  rw [hv1] at h2
+  obtain ⟨v2, hv2, _, F2, hF2⟩ := h2
+  rw [hv2] at hd; cases hd
+  exact ⟨F1 + F2, v1, ConLeche.inferTypeIO_mono (by omega) hF1,
+    ConLeche.whnf_mono (by omega) hF2⟩
+grind_pattern [bridge_grind] TyRun.mk =>
+  SimE (ConLeche.inferTypeIO mode env) d x st₁ ta, WhnfAns mode env d st₂ wta (denoteE st₁ ta),
+  some w where
+  guard denoteE st₂ wta = some w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:440-445 structUnitCert — the
+unit-like guard on the first side's whnf'd type, over its head's tag and
+projections and the environment's inductive projections. -/
+def unitGuard (env : Env) (w : Expr) : Bool :=
+  exprTag w.getAppFn == ETag.const && cInd? (env.find? (exprConstName w.getAppFn)) &&
+    (cIndCaps (env.find? (exprConstName w.getAppFn))).unitlike &&
+    !(ConLeche.reservedBasisNames.contains (exprConstName w.getAppFn)) &&
+    w.getAppArgs.length == (cIndCaps (env.find? (exprConstName w.getAppFn))).unitParams &&
+    (exprConstLevels w.getAppFn).length ==
+      (cIndVal (env.find? (exprConstName w.getAppFn))).levelParams.length
+attribute [bridge_grind =] unitGuard
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the run is
+the guard and, past it, the second side's run and the comparison. -/
+theorem structUnitCert_run {F d : Nat} {x y t w : Expr}
+    (h1 : ConLeche.inferTypeIO mode env F d x = .ok t) (h2 : ConLeche.whnf mode env F d t = .ok w) :
+    ConLeche.structUnitCertFueled mode env F d x y =
+      if unitGuard env w then
+        (do
+          let tb ← ConLeche.inferTypeIO mode env F d y
+          let wtb ← ConLeche.whnf mode env F d tb
+          if wtb.isForallE then pure false else ConLeche.isDefEqCore mode env F d w wtb :
+          CheckM Bool)
+      else .ok false := by
+  have e1 : (ConLeche.pureFns mode env F).inferIO d x = .ok t := h1
+  have e2 : (ConLeche.pureFns mode env F).whnf d t = .ok w := h2
+  simp only [ConLeche.structUnitCertFueled, ConLeche.structUnitCert, e1, e2, bind,
+    Except.bind, unitGuard]
+  cases w.getAppFn with
+  | const T us =>
+    simp only [exprTag, exprConstName, exprConstLevels, beq_self_eq_true, Bool.true_and]
+    split
+    · rename_i cvT caps hf
+      simp only [hf, cInd?, cIndCaps, cIndVal, Bool.true_and]
+      by_cases hgd : caps.unitlike = true ∧ ConLeche.reservedBasisNames.contains T = false ∧
+          w.getAppArgs.length = caps.unitParams ∧ us.length = cvT.levelParams.length
+      · obtain ⟨g1, g2, g3, g4⟩ := hgd
+        simp [g1, g3, g4]; rfl
+      · have hb : (caps.unitlike && !ConLeche.reservedBasisNames.contains T &&
+            w.getAppArgs.length == caps.unitParams &&
+            us.length == cvT.levelParams.length) = false := by
+          cases h1 : caps.unitlike <;> cases h2 : ConLeche.reservedBasisNames.contains T <;>
+            simp_all
+        simp only [hb, hgd, ite_false, Bool.false_eq_true]; rfl
+    · rename_i hnot
+      have hc : cInd? (env.find? T) = false := by
+        generalize env.find? T = o at hnot
+        match o, hnot with
+        | some (.indInfo cv caps), hnot => exact absurd rfl (hnot cv caps)
+        | some (.axiomInfo _), _ | some (.thmInfo _), _ | some (.ctorInfo _ _ _), _
+        | some (.defnInfo _ _ _), _ | some (.recInfo _ _ _ _), _ | some (.projInfo _), _
+        | none, _ => rfl
+      simp [hc, pure, Except.pure]
+  | _ => simp [exprTag, ETag.const, ETag.bvar, ETag.fvar, ETag.sort, ETag.app, ETag.lam,
+      ETag.forallE, ETag.letE, ETag.lit, ETag.proj, pure, Except.pure]
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the guard
+fails. -/
+theorem UnitCertE.guard {d : Nat} {x y w : Expr} {r : Bool} (hr : r = false)
+    (hs : TyRun mode env d x w) (hg : unitGuard env w = false) : UnitCertE mode env d x y r := by
+  obtain ⟨F, t, h1, h2⟩ := hs
+  subst hr
+  exact ⟨F, by dsimp only; rw [structUnitCert_run h1 h2, hg]; rfl⟩
+grind_pattern [bridge_grind] UnitCertE.guard => UnitCertE mode env d x y r, TyRun mode env d x w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the second
+side's run, answered by the handle `h` at the store `st`. -/
+def TyRunH (mode : CheckMode) (env : Env) (d : Nat) (y : Expr) (st : EStore) (h : EIdx) :
+    Prop :=
+  ∃ w, denoteE st h = some w ∧ TyRun mode env d y w
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the two slot
+answers of the second side, chained by their handles. -/
+theorem TyRunH.mk {d : Nat} {y : Expr} {st₁ st₂ : EStore} {tb wtb : EIdx}
+    (h1 : SimE (ConLeche.inferTypeIO mode env) d y st₁ tb)
+    (h2 : WhnfAns mode env d st₂ wtb (denoteE st₁ tb)) : TyRunH mode env d y st₂ wtb := by
+  obtain ⟨v1, hv1, _, F1, hF1⟩ := h1
+  rw [hv1] at h2
+  obtain ⟨v2, hv2, _, F2, hF2⟩ := h2
+  exact ⟨v2, hv2, F1 + F2, v1, ConLeche.inferTypeIO_mono (by omega) hF1,
+    ConLeche.whnf_mono (by omega) hF2⟩
+grind_pattern [bridge_grind] TyRunH.mk =>
+  SimE (ConLeche.inferTypeIO mode env) d y st₁ tb, WhnfAns mode env d st₂ wtb (denoteE st₁ tb)
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the second
+side's type is a ∀ (never a family's application). -/
+theorem UnitCertE.forall {d : Nat} {x y w : Expr} {st : EStore} {wtb : EIdx} {r : Bool}
+    (hr : r = false) (hs : TyRun mode env d x w) (hg : unitGuard env w = true)
+    (hs2 : TyRunH mode env d y st wtb) (hwf : StoreWF st) (hf : isForallE wtb = true) :
+    UnitCertE mode env d x y r := by
+  obtain ⟨F1, t, h1, h2⟩ := hs
+  obtain ⟨w2, hd2, F2, t2, h3, h4⟩ := hs2
+  rw [ExprOps.isForallE_rel hwf hd2] at hf
+  subst hr
+  refine ⟨F1 + F2, ?_⟩
+  dsimp only
+  rw [structUnitCert_run (ConLeche.inferTypeIO_mono (by omega) h1)
+    (ConLeche.whnf_mono (by omega) h2), hg]
+  simp only [ite_true, ConLeche.inferTypeIO_mono (show F2 ≤ F1 + F2 by omega) h3,
+    ConLeche.whnf_mono (show F2 ≤ F1 + F2 by omega) h4, bind, Except.bind, hf]
+  rfl
+grind_pattern [bridge_grind] UnitCertE.forall =>
+  UnitCertE mode env d x y r, TyRun mode env d x w, TyRunH mode env d y st wtb
+
+/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the two
+types are compared. -/
+theorem UnitCertE.defeq {d : Nat} {x y w w2 : Expr} {st : EStore} {wtb : EIdx} {r : Bool}
+    (hs : TyRun mode env d x w) (hg : unitGuard env w = true)
+    (hs2 : TyRunH mode env d y st wtb) (hwf : StoreWF st) (hd2 : denoteE st wtb = some w2)
+    (hf : isForallE wtb = false) (hq : SimV (ConLeche.isDefEqCore mode env) d w w2 r) :
+    UnitCertE mode env d x y r := by
+  obtain ⟨F1, t, h1, h2⟩ := hs
+  obtain ⟨w2', hd2', F2, t2, h3, h4⟩ := hs2
+  rw [hd2] at hd2'; cases hd2'
+  rw [ExprOps.isForallE_rel hwf hd2] at hf
+  obtain ⟨F3, hF3⟩ := hq
+  refine ⟨F1 + F2 + F3, ?_⟩
+  dsimp only
+  rw [structUnitCert_run (ConLeche.inferTypeIO_mono (by omega) h1)
+    (ConLeche.whnf_mono (by omega) h2), hg]
+  simp only [ite_true, ConLeche.inferTypeIO_mono (show F2 ≤ F1 + F2 + F3 by omega) h3,
+    ConLeche.whnf_mono (show F2 ≤ F1 + F2 + F3 by omega) h4, bind, Except.bind, hf,
+    Bool.false_eq_true, ite_false]
+  exact ConLeche.isDefEqCore_mono (by omega) hF3
+grind_pattern [bridge_grind] UnitCertE.defeq =>
+  UnitCertE mode env d x y r, TyRun mode env d x w, TyRunH mode env d y st wtb,
+  SimV (ConLeche.isDefEqCore mode env) d w w2 r
 
 /-- con-leche: ConLeche/Kernel/Core.lean:475-503 structUnitCert — **THEOREM 1
-for `structUnitCert`**: `a` and `b` inhabit the same stored unit-like family.
-
-**CLOSED** (round 5), staged: two `inferIO`/`whnf` pairs, `getAppFn` and
-the head's `view`, the index (`env_ind_of_index`), `getAppArgs`,
-`reservedBasisNames_spec` (the Checker tier's run lemma, read as a triple),
-`viewLsLen`, the guard (`denoteNList_contains` for the reserved test),
-`KnotSpec.defeq`, `constTyAt_spec` and `iotaCerts_spec`.  The `mode.certs`
-gate is where `hμ` is spent, and **`EnvWF env` is a second added
-precondition**: `iotaCerts_spec` needs the instantiated stored type
-well-scoped, which is con-leche's `const_ty_hasFvar` — whose hypothesis is
-`EnvWF` (the same repair round 4 made to `projCert_spec`). -/
-theorem structUnitCert_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
+for `structUnitCert`**, in answer shape (`PairAns` of `UnitCertE`): `a` and
+`b` inhabit the same stored unit-like family.  Two `inferIO`/`whnf` pairs,
+`getAppFn` and the head's `view`, the index (`IndAt`), `getAppArgs`, the
+reserved names, `viewLsLen`, the guard (`unitGuard`), `isForallE` and the
+knot's `defeq`. -/
+theorem structUnitCert_specA {fuel : Nat} (_hμ : mode.verifiedChecks = true)
     (_henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
-    (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
-    (hdb : denoteE s₀.store b = some y)
-    (hwa : Expr.WScoped d x) (hwb : Expr.WScoped d y) :
+    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode env fe s₀)
+    (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b)) :
     ⦃fun s => s = s₀⦄
       ConRon.Arena.structUnitCert (coreKnot mode fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧
-        SimBOp (fun F => ConLeche.structUnitCertFueled mode env F d x y) r; ⊤⦄ := by
-  unfold ConRon.Arena.structUnitCert
-  -- stage 1: `a`'s io-grade type, head-normalised
-  refine triple_seq (hsim.inferIO s₀ d a x hok hda hwa) ?_
-  rintro ta s1 ⟨hok1, hx1, hp1, vta, hvta, hwvta, F1, hF1⟩
-  refine triple_seq (hsim.whnf s1 d ta vta hok1 hvta hwvta) ?_
-  rintro wta s2 ⟨hok2, hx2, hp2, vwta, hvwta, hwvwta, F2, hF2⟩
-  have hx02 : Ext s₀.store s2.store := hx1.trans hx2
-  have hp02 : s2.pins = s₀.pins := hp2.trans hp1
-  have hwf2 := hok2.state.wf
-  have hA : ∀ G, max F1 F2 ≤ G →
-      ConLeche.inferTypeIO mode env G d x = .ok vta := fun G hle =>
-    ConLeche.inferTypeIO_mono (Nat.le_trans (Nat.le_max_left _ _) hle) hF1
-  have hB : ∀ G, max F1 F2 ≤ G → ConLeche.whnf mode env G d vta = .ok vwta :=
-    fun G hle => ConLeche.whnf_mono (Nat.le_trans (Nat.le_max_right _ _) hle) hF2
-  -- stage 2: its head
-  refine triple_seq (ExprOps.getAppFn_spec coreWalkFuel s2 wta hok2.state
-    (by rw [hvwta]; rfl)) ?_
-  rintro hd s3 ⟨hs3, hrelF⟩
-  subst s3
-  have hdd : denoteE s2.store hd = some vwta.getAppFn := hrelF vwta hvwta
-  obtain ⟨vh, hvh⟩ := denoteE_view hdd
-  refine tag_view_bind_triple hvh ?_
-    (fun hne => by cases vh <;> first | rfl | exact absurd rfl hne)
-  cases vh
-  case const T us =>
-    obtain ⟨Tn, ls, hgf, hTn, hus⟩ := denote_const_inv hwf2 hvh hdd
-    dsimp only
-    split
-    next icv icaps hfd =>
-      obtain ⟨dcv, dcaps, hdcv, hdcaps, hfind⟩ := env_ind_of_index hok2 hTn hfd
-      -- stage 3: the type's arguments, the reserved names, the level count
-      refine triple_seq (ExprOps.getAppArgs_spec coreWalkFuel s2 wta hok2.state
-        (by rw [hvwta]; rfl)) ?_
-      rintro targs s4 ⟨hs4, hrelA⟩
-      subst s4
-      have hargs : Frontend.denoteEList s2.store targs = some vwta.getAppArgs :=
-        hrelA vwta hvwta
-      refine triple_seq (reservedBasisNames_spec s2 hok2) ?_
-      rintro res s5 ⟨hok5, hx5, hp5, hres⟩
-      have hwf5 := hok5.state.wf
-      refine triple_seq (viewLsLen_spec s5 us) ?_
-      rintro ol s6 ⟨hs6, hol⟩
-      subst s6
-      rw [viewLen_of_denoteLs (denoteLs_ext hus hx5)] at hol
-      subst hol
-      dsimp only
-      obtain ⟨_hnm, hlps, _hty⟩ := denoteCV_inv hdcv
-      have hcaps : dcaps.unitlike = icaps.unitlike ∧
-          dcaps.unitParams = icaps.unitParams := by
-        simp only [Frontend.denoteCaps] at hdcaps
-        split at hdcaps
-        · cases hdcaps; exact ⟨rfl, rfl⟩
-        · simp at hdcaps
-      have hguard : (icaps.unitlike = true ∧ res.contains T = false ∧
-          targs.length = icaps.unitParams ∧
-          ls.length = icv.levelParams.length) ↔
-          (dcaps.unitlike = true ∧
-            ConLeche.reservedBasisNames.contains Tn = false ∧
-            vwta.getAppArgs.length = dcaps.unitParams ∧
-            ls.length = dcv.levelParams.length) := by
-        rw [denoteNList_containsC hwf5 res _ hres T Tn (denoteN_ext hTn hx5),
-          hcaps.1, hcaps.2, ← denoteEList_len hargs, denoteNList_len hlps]
-      split
-      next hg =>
-        have hgP := hguard.mp hg
-        have hx05 := hx02.trans hx5
-        have hp05 : s5.pins = s₀.pins := hp5.trans hp02
-        -- stage 4: `b`'s io-grade type, head-normalised
-        refine triple_seq (hsim.inferIO s5 d b y hok5 (denote_ext hdb hx05)
-          hwb) ?_
-        rintro tb s6 ⟨hok6, hx6, hp6, vtb, hvtb, hwvtb, F3, hF3⟩
-        refine triple_seq (hsim.whnf s6 d tb vtb hok6 hvtb hwvtb) ?_
-        rintro wtb s7 ⟨hok7, hx7, hp7, vwtb, hvwtb, hwvwtb, F4, hF4⟩
-        have hx07 := hx05.trans (hx6.trans hx7)
-        have hp07 : s7.pins = s₀.pins := hp7.trans (hp6.trans hp05)
-        have hG : ∀ G, F1 + F2 + F3 + F4 ≤ G →
-            ConLeche.inferTypeIO mode env G d x = .ok vta ∧
-            ConLeche.whnf mode env G d vta = .ok vwta ∧
-            ConLeche.inferTypeIO mode env G d y = .ok vtb ∧
-            ConLeche.whnf mode env G d vtb = .ok vwtb := fun G hle =>
-          ⟨hA G (by omega), hB G (by omega),
-            ConLeche.inferTypeIO_mono (by omega) hF3,
-            ConLeche.whnf_mono (by omega) hF4⟩
-        have hfa := ExprOps.isForallE_rel hok7.state.wf hvwtb
-        split
-        next hfT =>
-          refine triple_pureC ⟨hok7, hx07, hp07, F1 + F2 + F3 + F4, ?_⟩
-          obtain ⟨g1, g2, g3, g4⟩ := hG _ (Nat.le_refl _)
-          refine structUnitCert_cmp g1 g2 hgf hfind hgP g3 g4 ?_
-          rw [← hfa, hfT]; rfl
-        next hfF =>
-          refine triple_mono (hsim.defeq s7 d wta wtb vwta vwtb hok7
-            (denote_ext hvwta (hx5.trans (hx6.trans hx7))) hvwtb hwvwta
-            hwvwtb) ?_
-          rintro r s8 ⟨hok8, hx8, hp8, F5, hF5⟩
-          refine ⟨hok8, hx07.trans hx8, hp8.trans hp07,
-            F1 + F2 + F3 + F4 + F5, ?_⟩
-          obtain ⟨g1, g2, g3, g4⟩ := hG (F1 + F2 + F3 + F4 + F5) (by omega)
-          refine structUnitCert_cmp g1 g2 hgf hfind hgP g3 g4 ?_
-          have hnf : vwtb.isForallE = false := by
-            rw [← hfa]; simpa using hfF
-          rw [hnf]
-          exact ConLeche.isDefEqCore_mono (by omega) hF5
-      next hg =>
-        vcgen
-        bridge_peel; subst_vars
-        exact ⟨hok5, hx02.trans hx5, hp5.trans hp02, max F1 F2,
-          structUnitCert_guard (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
-            hgf hfind (fun h => hg (hguard.mpr h))⟩
-    next hnd =>
-      have hnf := env_not_ind_of_index hok2 hTn (fun v c h => hnd v c h)
-      vcgen
-      bridge_peel; subst_vars
-      exact ⟨hok2, hx02, hp02, max F1 F2,
-        structUnitCert_noind (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _)) hgf
-          hnf⟩
-  all_goals
-    dsimp only
-    vcgen
-    bridge_peel; subst_vars
-    exact ⟨hok2, hx02, hp02, max F1 F2,
-      structUnitCert_nohead (hA _ (Nat.le_refl _)) (hB _ (Nat.le_refl _))
-        (denote_not_const hwf2 hvh hdd (by intro c us h; cases h))⟩
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (UnitCertE mode env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
+  -- `gen := 12`: the guard reads the head, the index and the arguments of the
+  -- answer of an answer (`inferIO`, then `whnf`, then `getAppFn`/`getAppArgs`),
+  -- past the default generation limit
+  sym (gen := 12) only [bridge_grind] =>
+    vcgen [ConRon.Arena.structUnitCert, KnotSpec.inferIOA hsim, KnotSpec.whnfA hsim,
+      ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
+      reservedBasisNames_spec (mode := mode) (env := env) (fe := fe), viewLsLen_spec,
+      KnotSpec.defeqA hsim] <;> finish
 
 /-! ### `proofIrrel` in answer shape -/
 
@@ -1360,19 +1393,6 @@ three certifies, so proof irrelevance decides. -/
     (structEtaCertFueled_mono (by omega) hF1) (structEtaCertFueled_mono (by omega) hF2)
     (structUnitCertFueled_mono (by omega) hF3) (proofIrrelFueled_mono (by omega) hF4)⟩
 
-/-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert —
-`structUnitCert_spec` in answer shape. -/
-theorem structUnitCert_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
-    (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel)
-    (s₀ : AState) (d : Nat) (a b : EIdx) (hok : CheckOK mode env fe s₀)
-    (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b)) :
-    ⦃fun s => s = s₀⦄
-      ConRon.Arena.structUnitCert (coreKnot mode fe id fuel) fe d a b
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        PairAns (UnitCertE mode env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ :=
-  pairAns_of_spec hda hdb fun x y ha hb hwa hwb =>
-    structUnitCert_spec hμ henv hsim s₀ d a b x y hok ha hb hwa hwb
-
 /-- con-leche: ConLeche/Kernel/Core.lean:532-542 stuckIrrel — the walk in
 answer shape (`StuckE`). -/
 theorem stuckIrrel_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
@@ -1417,19 +1437,16 @@ section Census
 #print axioms proofIrrel_spec
 #print axioms reservedBasisNames_spec
 #print axioms env_ind_of_index
-#print axioms structUnitCert_cmp
-#print axioms structUnitCert_spec
+#print axioms structUnitCert_specA
 #print axioms etaCtorShape_spec
 #print axioms structEtaCertWith_tail
 #print axioms structEtaCertWith_exits
 #print axioms structEtaCertWith_spec
 #print axioms structEtaCert_specA
-#print axioms structEtaCert_spec
 #print axioms stuckIrrelFueled_eta1
 #print axioms stuckIrrelFueled_eta2
 #print axioms stuckIrrelFueled_unit
 #print axioms stuckIrrelFueled_proof
-/-! No `sorryAx` since round 6: `structEtaCertWith_spec` closed. -/
 #print axioms stuckIrrel_specA
 #print axioms stuckIrrel_spec
 
