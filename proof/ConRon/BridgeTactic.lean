@@ -26,6 +26,14 @@ a heartbeat timeout on one goal), and `backward.isDefEq.respectTransparency`
 is switched back on locally for the same reason (the project sets it `false`
 for Aeneas). -/
 
+/-- con-leche: none — a denoting handle's `isSome`. -/
+theorem isSome_of_eq_some {α : Type} {o : Option α} {a : α} (h : o = some a) :
+    o.isSome = true := by rw [h]; rfl
+
+/-- con-leche: none — a function's answer is unique. -/
+theorem eq_of_eq_some {α : Type} {o : Option α} {a b : α} (h₁ : o = some a)
+    (h₂ : o = some b) : a = b := Option.some.inj (h₁.symm.trans h₂)
+
 open Lean Meta Elab Tactic
 
 namespace Frame
@@ -42,13 +50,8 @@ def usedConstants : List Name :=
    `ConRon.Arena.Ext,
    `ConRon.Arena.Ext.refl,
    `ConRon.Arena.Ext.trans,
-   `ConRon.Arena.Frontend.denoteEList,
-   `ConRon.Arena.Frontend.denoteNList,
    `ConRon.Arena.StoreWF,
    `ConRon.Arena.denoteE,
-   `ConRon.Arena.denoteL,
-   `ConRon.Arena.denoteLs,
-   `ConRon.Arena.denoteN,
    `ConRon.Bridge.CacheFrame,
    `ConRon.Bridge.CacheFrame.of_eq,
    `ConRon.Bridge.CacheFrame.refl,
@@ -68,61 +71,67 @@ def usedConstants : List Name :=
    `ConRon.Bridge.StateOK.of_store,
    `ConRon.Bridge.StateOK.of_wf,
    `ConRon.Bridge.StateOK.wf,
-   `ConRon.Bridge.denoteEList_ext_fr,
-   `ConRon.Bridge.denoteEO,
-   `ConRon.Bridge.denoteEO_ext,
-   `ConRon.Bridge.denoteEO_none_inv,
-   `ConRon.Bridge.denoteEO_some_inv,
-   `ConRon.Bridge.denoteL_ext,
-   `ConRon.Bridge.denoteLs_ext,
-   `ConRon.Bridge.denoteNList_ext_fr,
-   `ConRon.Bridge.denoteN_ext,
-   `ConRon.Bridge.denote_app_inv,
-   `ConRon.Bridge.denote_const_inv,
-   `ConRon.Bridge.denote_ext,
-   `ConRon.Bridge.denote_forallE_inv,
-   `ConRon.Bridge.denote_fvar_inv,
-   `ConRon.Bridge.denote_lam_inv,
-   `ConRon.Bridge.denote_letE_inv,
-   `ConRon.Bridge.denote_proj_inv,
-   `ConRon.Bridge.denote_sort_inv,
-   `ConRon.Bridge.eq_of_eq_some,
    `ConRon.Bridge.exprTag,
-   `ConRon.Bridge.exprTag_of_not_tag,
-   `ConRon.Bridge.exprTag_of_tag,
    `ConRon.Bridge.isSome_denote_ext,
-   `ConRon.Bridge.isSome_of_eq_some,
-   `ConRon.Bridge.view_of_viewApp_tag',
-   `ConRon.Bridge.view_of_viewBind_forallE_tag',
-   `ConRon.Bridge.view_of_viewBind_lam_tag',
-   `ConRon.Bridge.view_of_viewBVar_tag',
-   `ConRon.Bridge.view_of_viewBind',
-   `ConRon.Bridge.isSome_eBindView,
-   `ConRon.Bridge.denoteEList_cons_fr,
-   `ConRon.Bridge.viewOK_bvar, `ConRon.Bridge.viewOK_lit, `ConRon.Bridge.viewOK_fvar,
-   `ConRon.Bridge.viewOK_sort, `ConRon.Bridge.viewOK_const, `ConRon.Bridge.viewOK_app,
-   `ConRon.Bridge.viewOK_lam, `ConRon.Bridge.viewOK_forallE, `ConRon.Bridge.viewOK_letE,
-   `ConRon.Bridge.viewOK_proj, `ConRon.Bridge.view_isSome,
-   `ConRon.Bridge.nview_isSome_of_denote, `ConRon.Bridge.lview_isSome_of_denote,
-   `ConRon.Bridge.lsview_isSome_of_denote,
-   `ConRon.Bridge.view_of_viewConst_tag',
-   `ConRon.Bridge.view_of_viewLet_tag',
-   `ConRon.Bridge.view_of_viewProj_tag',
-   `ConRon.Bridge.view_of_viewSort_tag',
    `Std.Do.Triple]
 
-/-- The transport lemmas: each is `(hd : P st) → (hx : Ext st st') → P st'`,
-with the denotation fact FIRST so that the store it lives at is fixed by a
-hypothesis before the `Ext` path is searched. -/
-def transportLemmas : List Name :=
-  [`ConRon.Bridge.denote_ext, `ConRon.Bridge.denoteN_ext, `ConRon.Bridge.denoteL_ext, `ConRon.Bridge.denoteLs_ext,
-   `ConRon.Bridge.denoteEList_ext_fr, `ConRon.Bridge.denoteNList_ext_fr, `ConRon.Bridge.denoteEO_ext]
--- (in `factHeads`' order: `provedFact` picks the one at its fact's head)
+/-! ## 1. The lemma registries
 
-/-- The heads of the denotation facts the transports conclude. -/
-def factHeads : List Name :=
-  [`ConRon.Arena.denoteE, `ConRon.Arena.denoteN, `ConRon.Arena.denoteL, `ConRon.Arena.denoteLs, `ConRon.Arena.Frontend.denoteEList,
-   `ConRon.Arena.Frontend.denoteNList, `ConRon.Bridge.denoteEO]
+The lemmas the closers compose are registered by attribute where they are
+declared (or, for the bridge's older modules, in `Bridge/Frame.lean`), in
+declaration order:
+
+* `@[bridge_transport]` — `(hd : F st x = some v) → (hx : Ext st st') →
+  F st' x = some v`, the denotation fact FIRST (so that the store it lives at
+  is fixed by a hypothesis before the `Ext` path is searched).  The head `F`
+  of its conclusion makes `F … = some …` a *fact*: what the transports carry,
+  what the answer relations quantify over, what `bridge_auto` identifies.
+* `@[bridge_frame]` — a backward rule of the frame search, applied to every
+  goal it does not close otherwise (after the call's own list).
+* `@[bridge_fwd]` — a forward rule of `bridge_auto`, instantiated at what the
+  context knows (the view inversions, the tag tests, the optional handle). -/
+
+/-- A registry: `(lemma, key)` in declaration order, imports first. -/
+abbrev Registry := SimplePersistentEnvExtension (Name × Name) (Array (Name × Name))
+
+/-- Register the attribute `attr`; `key` computes an entry's key from the
+lemma's type (and rejects a lemma of the wrong shape). -/
+def mkRegistry (attr : Name) (descr : String) (key : Expr → MetaM Name) : IO Registry := do
+  let ext ← registerSimplePersistentEnvExtension {
+    name := attr
+    addEntryFn := Array.push
+    addImportedFn := fun as => as.foldl (· ++ ·) #[] }
+  registerBuiltinAttribute {
+    name := attr
+    descr
+    add := fun decl _ kind => do
+      unless kind == AttributeKind.global do throwError "`@[{attr}]` is global only"
+      let k ← (key (← getConstInfo decl).type).run'
+      modifyEnv (ext.addEntry · (decl, k)) }
+  return ext
+
+/-- A transport lemma's key: the head of its conclusion's left side. -/
+def transportKey (ty : Expr) : MetaM Name := do
+  let mut c := ty
+  while c.isForall do c := c.bindingBody!
+  let some (_, lhs, _) := c.eq? | throwError "@[bridge_transport]: not an equation"
+  let some n := lhs.getAppFn.constName? | throwError "@[bridge_transport]: no head"
+  return n
+
+initialize transportExt : Registry ←
+  mkRegistry `bridge_transport "a denotation fact carried along `Ext`" transportKey
+initialize frameExt : Registry ←
+  mkRegistry `bridge_frame "a backward rule of the frame search" fun _ => pure .anonymous
+initialize fwdExt : Registry ←
+  mkRegistry `bridge_fwd "a forward rule of `bridge_auto`" fun _ => pure .anonymous
+
+/-- The registered lemmas of `ext`. -/
+def registered (env : Environment) (ext : Registry) : Array Name :=
+  (ext.getState env).map (·.1)
+
+/-- The fact heads: the keys of the transport lemmas. -/
+def factHeads (env : Environment) : Array Name :=
+  (transportExt.getState env).map (·.2)
 
 /-- The answer relations whose definitions are a `∀ e, denote… = some e → …`. -/
 def relNames : List Name :=
@@ -161,9 +170,9 @@ def supply (a p : Expr) : MetaM Bool := do
   same a p
 
 /-- Is `t` an equation whose left side is a denotation (`factHeads`)? -/
-def isFactShape (t : Expr) : Bool :=
+def isFactShape (env : Environment) (t : Expr) : Bool :=
   match t.eq? with
-  | some (_, lhs, _) => lhs.getAppFn.constName?.any (· ∈ factHeads)
+  | some (_, lhs, _) => lhs.getAppFn.constName?.any ((factHeads env).contains ·)
   | none => false
 
 /-- Is `t` one of the frame predicates `prove` decides? -/
@@ -378,7 +387,7 @@ def eqPath (ty a b : Expr) : FM (Option Expr) := do
   let mut edges : Array (Expr × Expr × Expr) := #[]
   for h in (← read).hyps do
     if let some (ty', u, v) := h.ty.eq? then
-      if isFactShape h.ty then continue
+      if isFactShape (← getEnv) h.ty then continue
       unless ← same ty ty' do continue
       edges := edges.push (u, v, h.pf)
       edges := edges.push (v, u, ← mkEqSymm h.pf)
@@ -455,7 +464,7 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
   let mut edges : Array (Expr × Expr × Expr) := #[]
   for h in (← read).hyps do
     if let some (_, u, v) := h.ty.eq? then
-      if isFactShape h.ty then continue
+      if isFactShape (← getEnv) h.ty then continue
       if u.isFVar && v.isFVar then continue
       edges := edges.push (u, v, h.pf)
       edges := edges.push (v, u, ← mkEqSymm h.pf)
@@ -650,16 +659,16 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
     return ← extPath t.appFn!.appArg! t.appArg!
   if let some (ty, a, b) := t.eq? then
     -- a denotation at the current store: a fact at an earlier one, transported
-    if isFactShape t then return ← provedFact fuel t
+    if isFactShape (← getEnv) t then return ← provedFact fuel t
     -- `o.isSome = true` from a denotation fact `o = some x`
     if b.isConstOf ``Bool.true && a.isAppOfArity ``Option.isSome 2 then
       let o := a.appArg!
       let α := a.appFn!.appArg!
       let x ← mkFreshExprMVar α
       let ft ← mkEq o (← mkAppM ``Option.some #[x])
-      if isFactShape ft then
+      if isFactShape (← getEnv) ft then
         if let some ph ← attempt (provedFact fuel ft) then
-          return some (← mkAppM `ConRon.Bridge.isSome_of_eq_some #[ph])
+          return some (← mkAppM ``ConRon.Bridge.isSome_of_eq_some #[ph])
         -- an `isSome` hypothesis at an earlier store, carried along the chain
         if o.isAppOfArity `ConRon.Arena.denoteE 2 then
           for h in (← read).hyps.reverse do
@@ -670,17 +679,6 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
             unless ← same o'.appArg! o.appArg! do continue
             let some px ← extPath o'.appFn!.appArg! o.appFn!.appArg! | continue
             return some (← mkAppM `ConRon.Bridge.isSome_denote_ext #[h.pf, px])
-          -- at an earlier store of the chain, by any rule (an answer
-          -- relation's `isSome` lands at its own target store)
-          if fuel > 1 then
-            let st := o.appFn!.appArg!
-            for (src, dst, pe) in (← read).ext do
-              unless ← same dst st do continue
-              if ← same src st then continue
-              let o' := mkApp2 o.appFn!.appFn! src o.appArg!
-              let t' ← mkEq (← mkAppM ``Option.isSome #[o']) (mkConst ``Bool.true)
-              if let some p ← attempt (prove (fuel - 1) t') then
-                return some (← mkAppM `ConRon.Bridge.isSome_denote_ext #[p, pe])
       -- a VIEW's `isSome` (`ViewOK`'s premises): the lemmas
       return ← proveByLemmas fuel t
     if let some p ← eqPath ty a b then return some p
@@ -763,23 +761,6 @@ partial def proveCore (fuel : Nat) (t : Expr) : FM (Option Expr) := do
         for lem in [`ConRon.Bridge.CheckOK.mono, `ConRon.Bridge.CheckOK.monoF] do
           if let some p ← attempt (applyLemma (fuel - 1) lem h' t) then return some p
     return none
-  | some `ConRon.Bridge.CacheFrame =>
-    let a := t.appFn!.appArg!
-    let b := t.appArg!
-    if ← same a b then return some (← mkAppM `ConRon.Bridge.CacheFrame.refl #[a])
-    for h in (← read).hyps.reverse do
-      unless h.ty.isAppOfArity `ConRon.Bridge.CacheFrame 2 do continue
-      unless ← same h.ty.appFn!.appArg! a do continue
-      let m := h.ty.appArg!
-      if ← same m b then return some h.pf
-      if let some p ← attempt (prove (fuel - 1) (← mkAppM `ConRon.Bridge.CacheFrame #[m, b])) then
-        return some (← mkAppM `ConRon.Bridge.CacheFrame.trans #[h.pf, p])
-    -- the frame of a call that moved no cache
-    let hc ← mkEq (← mkAppM `ConRon.Arena.AState.caches #[b]) (← mkAppM `ConRon.Arena.AState.caches #[a])
-    let some pc ← attempt (prove (fuel - 1) hc) | return none
-    let some px ← extPath (← mkAppM `ConRon.Arena.AState.store #[a]) (← mkAppM `ConRon.Arena.AState.store #[b])
-      | return none
-    return some (← mkAppM `ConRon.Bridge.CacheFrame.of_eq #[pc, px])
   | some n =>
     -- a transitive relation of the bridge (`ReadbackFrame`, …: it has
     -- `.refl` and `.trans`): a path through the context
@@ -880,14 +861,14 @@ partial def proveByLemmas (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   -- a `∀`-HYPOTHESIS as a lemma: a callee's postcondition that concludes a
   -- non-fact (`memo insert's ∀ f, MemoOK f … → RelE … → MemoOK f …`); its
   -- conclusion is not a denotation (those are `chainHyp`'s)
-  if isFactShape t then return none
+  if isFactShape (← getEnv) t then return none
   let env ← getEnv
   for h in (← read).hyps.reverse do
     let some rt := h.rel? | continue
     unless h.concls.any (quickMatch env · t) do continue
     let r ← attempt do
       let (args, _, concl) ← forallMetaTelescope rt
-      if isFactShape concl then return none
+      if isFactShape (← getEnv) concl then return none
       unless ← mayMatch concl t do return none
       unless ← same concl t do return none
       unless ← proveArgs fuel t.getAppFn.constName? args.toList do return none
@@ -933,7 +914,7 @@ partial def proveArgs (fuel : Nat) (ghd : Option Name) (args : List Expr) : FM B
     let hd := (← whnfR aT).getAppFn.constName?
     -- (the goal's own head only near the bottom of the fuel: a chain of
     -- `SeenGrow.trans` is a search through it, a free-store lemma list is not)
-    if !(isFrameShape aT || isFactShape aT) &&
+    if !(isFrameShape aT || isFactShape (← getEnv) aT) &&
         ((hd == ghd && fuel < 4) || hd.any relNames.contains || hd == some ``Eq) then
       return false
     let s ← save
@@ -1011,7 +992,7 @@ partial def chainHyp (fuel : Nat) (t : Expr) : FM (Option Expr) := do
 metavariable — from a hypothesis, from a `∀`-hypothesis (`chainHyp`), or from
 either at an earlier store and an `Ext` path. -/
 partial def provedFact (fuel : Nat) (t : Expr) : FM (Option Expr) := do
-  if !isFactShape t then
+  if !isFactShape (← getEnv) t then
     if let some h ← findHyp t then return some h
     return ← closedRfl t
   if let some h ← findHyp t then return some h
@@ -1019,8 +1000,8 @@ partial def provedFact (fuel : Nat) (t : Expr) : FM (Option Expr) := do
   -- the one transport lemma whose conclusion has `t`'s head
   let some (_, lhs, _) := t.eq? | return none
   let some hd := lhs.getAppFn.constName? | return none
-  let some i := factHeads.idxOf? hd | return none
-  for lem in [transportLemmas[i]!] do
+  for (lem, k) in transportExt.getState (← getEnv) do
+    unless k == hd do continue
     let r ← attempt do
       let pf ← mkConstWithFreshMVarLevels lem
       let (args, _, concl) ← forallMetaTelescope (← inferType pf)
@@ -1102,7 +1083,7 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
       let r ← instances rest mk acc
       restore s
       return r
-    if isFactShape aT then
+    if isFactShape (← getEnv) aT then
       -- every hypothesis that IS the fact (an inversion lemma fires at each),
       -- else one derived fact (transported, or read off a relation)
       let mut acc := acc
@@ -1166,7 +1147,7 @@ def orderArgs (args : Array Expr) : MetaM (List Expr) := do
     let aT ← instantiateMVars (← inferType a)
     if !(← isProp aT) then r := r.push a
     else if isFrameShape aT then r := r.push a
-    else if isFactShape aT then f := f.push a
+    else if isFactShape (← getEnv) aT then f := f.push a
     else m := m.push a
   return (m ++ f ++ r).toList
 
@@ -1220,7 +1201,7 @@ def fwdRound (lemmas : Array Expr) (nViews : Nat) (seen : Array Expr) (deadL : A
       let aT ← instantiateMVars (← inferType a)
       let p ← isProp aT
       kinds := kinds.push (p, p && !isFrameShape aT)
-      if p && !isFrameShape aT && !isFactShape aT && !aT.isAppOf ``Eq && dead == args.size then
+      if p && !isFrameShape aT && !isFactShape (← getEnv) aT && !aT.isAppOf ``Eq && dead == args.size then
         let aT' ← normNeg aT
         let closedEq := match aT'.eq? with
           | some (_, l, _) => !l.hasFVar && !l.hasMVar
@@ -1335,7 +1316,7 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
     -- a denotation, or any other function answering `some` (`env.find? nm`)
     let some (_, l, r) := t.eq? | continue
     unless r.isAppOfArity ``Option.some 2 do continue
-    unless isFactShape t || l.getAppFn.isConst do continue
+    unless isFactShape (← getEnv) t || l.getAppFn.isConst do continue
     facts := facts.push (l, r.appArg!, d.toExpr)
   let mut news : Array Hypothesis := #[]
   let mut snap? : Option Snap := none
@@ -1348,21 +1329,21 @@ def unifyFacts (g : MVarId) : MetaM MVarId := do
       if ← same a b then continue
       if ← same l₁ l₂ then
         news := news.push { userName := `fwd, type := ← mkEq a b,
-                            value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p₁, p₂] }
+                            value := ← mkAppM ``ConRon.Bridge.eq_of_eq_some #[p₁, p₂] }
         continue
       -- the same handle at two stores of one `Ext` chain: one value
-      unless isFactShape (← mkEq l₁ (← mkAppM ``Option.some #[a])) do continue
+      unless isFactShape (← getEnv) (← mkEq l₁ (← mkAppM ``Option.some #[a])) do continue
       let snap ← snap?.getDM snapshot
       snap? := some snap
       let t₂ ← mkEq l₂ (← mkAppM ``Option.some #[a])
       if let some q ← attemptM ((provedFact 0 t₂).run snap) then
         news := news.push { userName := `fwd, type := ← mkEq a b,
-                            value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[q, p₂] }
+                            value := ← mkAppM ``ConRon.Bridge.eq_of_eq_some #[q, p₂] }
         continue
       let t₁ ← mkEq l₁ (← mkAppM ``Option.some #[b])
       if let some q ← attemptM ((provedFact 0 t₁).run snap) then
         news := news.push { userName := `fwd, type := ← mkEq a b,
-                            value := ← mkAppM `ConRon.Bridge.eq_of_eq_some #[p₁, q] }
+                            value := ← mkAppM ``ConRon.Bridge.eq_of_eq_some #[p₁, q] }
   if news.isEmpty then return g
   let (fvs, g) ← g.assertHypotheses news
   -- two answers built by one constructor (`.defnInfo cv val hint` against
@@ -1416,7 +1397,7 @@ def openIsSome (g : MVarId) (done : Std.HashSet FVarId) :
     unless b.isConstOf ``Bool.true && a.isAppOfArity ``Option.isSome 2 do continue
     let o := a.appArg!
     let x ← mkFreshExprMVar a.appFn!.appArg!
-    unless isFactShape (← mkEq o (← mkAppM ``Option.some #[x])) do continue
+    unless isFactShape (← getEnv) (← mkEq o (← mkAppM ``Option.some #[x])) do continue
     let pf ← mkAppM ``Iff.mp #[← mkAppOptM ``Option.isSome_iff_exists
       #[a.appFn!.appArg!, o], d.toExpr]
     news := news.push { userName := `fwd, type := ← inferType pf, value := pf }
@@ -1478,34 +1459,6 @@ partial def substNew (g : MVarId) (old : Std.HashSet FVarId)
   match ← observing? (substCore g fv (symm := symm)) with
   | some (_, g') => substNew g' old skip
   | none => substNew g old (skip.push fv)
-
-/-- `bridge_frame`'s default lemmas, after the list's: an intern's `ViewOK`
-from its children's denotations (task #120 wave 2: every rebuilding walk's
-`internE` precondition). -/
-def frameDefaults : List Name := [`ConRon.Bridge.viewOK_bvar, `ConRon.Bridge.viewOK_lit,
-    `ConRon.Bridge.viewOK_fvar, `ConRon.Bridge.viewOK_sort, `ConRon.Bridge.viewOK_const,
-    `ConRon.Bridge.viewOK_app, `ConRon.Bridge.viewOK_lam, `ConRon.Bridge.viewOK_forallE,
-    `ConRon.Bridge.viewOK_letE, `ConRon.Bridge.viewOK_proj, `ConRon.Bridge.view_isSome,
-    `ConRon.Bridge.nview_isSome_of_denote, `ConRon.Bridge.lview_isSome_of_denote,
-    `ConRon.Bridge.lsview_isSome_of_denote]
-
-/-- `bridge_fwd`'s default lemmas: the eight view inversions. -/
-def fwdDefaults : List Name := [`ConRon.Bridge.denote_fvar_inv, `ConRon.Bridge.denote_sort_inv,
-    `ConRon.Bridge.denote_const_inv, `ConRon.Bridge.denote_app_inv, `ConRon.Bridge.denote_lam_inv, `ConRon.Bridge.denote_forallE_inv,
-    `ConRon.Bridge.denote_letE_inv, `ConRon.Bridge.denote_proj_inv]
-
-/-- `bridge_auto`'s further defaults: the tag tests read as tags of the
-denotation, the view projections' answers under a true tag, and the optional
-handle's two inversions. -/
-def autoDefaults : List Name := [`ConRon.Bridge.exprTag_of_tag,
-    `ConRon.Bridge.exprTag_of_not_tag, `ConRon.Bridge.view_of_viewApp_tag',
-    `ConRon.Bridge.view_of_viewSort_tag', `ConRon.Bridge.view_of_viewBVar_tag',
-    `ConRon.Bridge.view_of_viewConst_tag', `ConRon.Bridge.view_of_viewLet_tag',
-    `ConRon.Bridge.view_of_viewProj_tag', `ConRon.Bridge.view_of_viewBind_lam_tag',
-    `ConRon.Bridge.view_of_viewBind_forallE_tag', `ConRon.Bridge.view_of_viewBind',
-    `ConRon.Bridge.isSome_eBindView,
-    `ConRon.Bridge.denoteEO_some_inv,
-    `ConRon.Bridge.denoteEO_none_inv]
 
 /-- Reduce every `match` of the goal whose discriminants are constructors
 (`match some (a, b) with …`: a postcondition `vcgen` instantiated at the
@@ -1618,7 +1571,7 @@ def storeNorm (g : MVarId) : MetaM MVarId := g.withContext do
 
 /-- `bridge_fwd` on one goal. -/
 def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
-    (introFacts : Bool := false) (unfoldRelGoal : Bool := false) : TacticM MVarId := do
+    (unfoldRelGoal : Bool := false) : TacticM MVarId := do
   let mut g := g
   let old ← g.withContext do
     let mut st : Std.HashSet FVarId := {}
@@ -1627,68 +1580,66 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   -- `bridge_auto`: the goal's `∀ x, denote… = some x → …` binders become
   -- hypotheses before the rounds, so that the facts take part; a known
   -- denotation is identified at the end (`unifyFacts`)
-  if introFacts then
-    g ← reduceGoalMatches g
-    -- an answer relation the frame could not close: its `∀` form
-    let tg ← g.withContext do instantiateMVars (← g.getType)
-    if unfoldRelGoal && tg.getAppFn.constName?.any (relNames.contains ·) then
-      let tu ← g.withContext (unfoldRel tg)
-      if tu != tg then g ← g.replaceTargetDefEq (← Core.betaReduce tu)
-    -- a block of data binders followed by facts about them
-    -- (`∀ xs ys, denoteEList … = some xs → denoteEList … = some ys → …`)
-    let block ← g.withContext do
+  g ← reduceGoalMatches g
+  -- an answer relation the frame could not close: its `∀` form
+  let tg ← g.withContext do instantiateMVars (← g.getType)
+  if unfoldRelGoal && tg.getAppFn.constName?.any (relNames.contains ·) then
+    let tu ← g.withContext (unfoldRel tg)
+    if tu != tg then g ← g.replaceTargetDefEq (← Core.betaReduce tu)
+  -- a block of data binders followed by facts about them
+  -- (`∀ xs ys, denoteEList … = some xs → denoteEList … = some ys → …`)
+  let block ← g.withContext do
+    let t ← whnfR (← instantiateMVars (← g.getType))
+    forallTelescopeReducing t fun xs _ => do
+      let mut n := 0
+      while n < xs.size do
+        unless ← isProp (← inferType xs[n]!) do n := n + 1; continue
+        break
+      if n < 2 then return 0
+      let mut k := n
+      while k < xs.size do
+        let ty ← inferType xs[k]!
+        if (← isProp ty) && isFactShape (← getEnv) ty then k := k + 1 else break
+      if k == n then return 0
+      -- and the lookups that follow (`env.find? nm = some ci`), which
+      -- `unifyFacts` identifies with the context's own
+      while k < xs.size do
+        let ty ← inferType xs[k]!
+        match ty.eq? with
+        | some (_, _, r) => if r.isAppOfArity ``Option.some 2 then k := k + 1 else break
+        | none => break
+      return k
+  if block > 0 then
+    let (_, g') ← g.introNP block
+    g := g'
+  repeat
+    -- `∀ x₁ … xₖ, P₁ → … → Pₘ → …` with every `Pⱼ` a denotation fact about
+    -- the `xᵢ` (`∀ ea eb, denoteE st a = some ea → denoteE st b = some eb → …`)
+    let n ← g.withContext do
       let t ← whnfR (← instantiateMVars (← g.getType))
-      forallTelescopeReducing t fun xs _ => do
-        let mut n := 0
-        while n < xs.size do
-          unless ← isProp (← inferType xs[n]!) do n := n + 1; continue
-          break
-        if n < 2 then return 0
-        let mut k := n
+      forallTelescope t fun xs _ => do
+        let mut k := 0
         while k < xs.size do
-          let ty ← inferType xs[k]!
-          if (← isProp ty) && isFactShape ty then k := k + 1 else break
-        if k == n then return 0
-        -- and the lookups that follow (`env.find? nm = some ci`), which
-        -- `unifyFacts` identifies with the context's own
-        while k < xs.size do
-          let ty ← inferType xs[k]!
-          match ty.eq? with
-          | some (_, _, r) => if r.isAppOfArity ``Option.some 2 then k := k + 1 else break
-          | none => break
-        return k
-    if block > 0 then
-      let (_, g') ← g.introNP block
-      g := g'
-    repeat
-      -- `∀ x₁ … xₖ, P₁ → … → Pₘ → …` with every `Pⱼ` a denotation fact about
-      -- the `xᵢ` (`∀ ea eb, denoteE st a = some ea → denoteE st b = some eb → …`)
-      let n ← g.withContext do
-        let t ← whnfR (← instantiateMVars (← g.getType))
-        forallTelescope t fun xs _ => do
-          let mut k := 0
-          while k < xs.size do
-            if ← isProp (← inferType xs[k]!) then break
-            k := k + 1
-          if k == 0 then return 0
-          let mut m := 0
-          while k + m < xs.size do
-            let pt ← instantiateMVars (← inferType xs[k + m]!)
-            unless ← isProp pt do break
-            unless isFactShape pt && xs[0:k].toArray.any (pt.containsFVar ·.fvarId!) do break
-            m := m + 1
-          return if m == 0 then 0 else k + m
-      if n == 0 then break
-      let (_, g') ← g.introNP n
-      g := g'
+          if ← isProp (← inferType xs[k]!) then break
+          k := k + 1
+        if k == 0 then return 0
+        let mut m := 0
+        while k + m < xs.size do
+          let pt ← instantiateMVars (← inferType xs[k + m]!)
+          unless ← isProp pt do break
+          unless isFactShape (← getEnv) pt && xs[0:k].toArray.any (pt.containsFVar ·.fvarId!) do break
+          m := m + 1
+        return if m == 0 then 0 else k + m
+    if n == 0 then break
+    let (_, g') ← g.introNP n
+    g := g'
   -- the program's own `∃`s (a callee's postcondition): destructured first;
   -- under `bridge_auto` also a Boolean conjunction tested true
-  g ← peelAll g (boolAnd := introFacts)
-  if introFacts then g ← storeNorm g
+  g ← peelAll g (boolAnd := true)
+  g ← storeNorm g
   let mut opened : Std.HashSet FVarId := {}
-  if introFacts then
-    let (g', o) ← openIsSome g opened
-    g := g'; opened := o
+  let (g', o) ← openIsSome g opened
+  g := g'; opened := o
   let mut seen : Array Expr := #[]
   let mut deadL : Array Bool := #[]
   let mut cache : Std.HashMap FVarId Hyp := {}
@@ -1720,9 +1671,8 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
       { userName := `fwd, type := t, value := p })
     g ← g'.withContext (peelNew g' fvs)
     -- a round's new `isSome` facts (a binder's children) opened too
-    if introFacts then
-      let (g', o) ← openIsSome g opened
-      g := g'; opened := o
+    let (g', o) ← openIsSome g opened
+    g := g'; opened := o
   -- a function's answer is unique: two denotations of one handle (two
   -- callees read the same node) are one value
   g ← g.withContext (unifyFacts g)
@@ -1738,115 +1688,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   let g' ← peelAll g
   if g' != g then g ← substNew g' old
   g ← clearTrivial g old
-  -- the goal's own `∀ x, denote… = some x → …`, and `∀ x y, denote… = some x →
-  -- denote… = some y → …` (k data binders, then k denotation premises)
-  repeat
-    let t ← g.withContext do whnfR (← instantiateMVars (← g.getType))
-    let found ← g.withContext do
-      -- the leading data binders
-      let mut k := 0
-      let mut b := t
-      while b.isForall do
-        let .forallE _ α body _ := b | break
-        if ← isProp α then break
-        k := k + 1
-        b := body
-      if k == 0 then return none
-      -- several binders at once only under `bridge_auto` (`introFacts`):
-      -- `bridge_fwd`'s callers address the goal's own binders by hand
-      if k > 1 && !introFacts then return none
-      -- `2k` SYNTACTIC binders (a telescope `whnf`s and may see more than
-      -- `intro` does)
-      let rec depth (e : Expr) (n : Nat) : Nat :=
-        match n, e with
-        | n + 1, .forallE _ _ b _ => 1 + depth b n
-        | _, _ => 0
-      if depth t (2 * k) < 2 * k then return none
-      let (args, _, _) ← forallMetaBoundedTelescope t (2 * k)
-      if args.size != 2 * k then return none
-      let snap ← snapshot
-      let mut ps := #[]
-      for i in [k:2 * k] do
-        let hT ← instantiateMVars (← inferType args[i]!)
-        unless isFactShape hT do return none
-        let some p ← attemptM ((provedFact 2 hT).run snap) | return none
-        ps := ps.push p
-      for i in [0:k] do
-        unless ← args[i]!.mvarId!.isAssigned do return none
-      return some (k, ps)
-    let some (k, ps) := found | break
-    let before ← g.withContext do
-      let mut st : Std.HashSet FVarId := {}
-      for d in (← getLCtx) do st := st.insert d.fvarId
-      pure st
-    let some (fvs, g1) ← observing? (g.introN (2 * k)) | break
-    -- every equation first (the premises' fvars are stable until a subst),
-    -- then the premises cleared, then the new equations substituted
-    let hs ← g1.withContext do
-      let mut hs := #[]
-      for i in [0:k] do
-        let heq ← mkAppM `ConRon.Bridge.eq_of_eq_some #[ps[i]!, mkFVar fvs[k + i]!]
-        hs := hs.push { userName := `hxeq, type := ← inferType heq, value := heq }
-      pure hs
-    let (_, g2) ← g1.assertHypotheses hs
-    let g3 ← g2.tryClearMany (fvs.extract k (2 * k))
-    -- the binders themselves are new: `substNew` solves them
-    g ← substNew g3 before
   return g
-
-end Frame
-
-/-- con-leche: none — **the frame closer** (task #120).  On every goal:
-close it if it is a frame fact — a hypothesis, an `Ext` chain, an equation
-chain (`s₃.pins = s₀.pins`), `StateOK`/`StoreWF`/`CheckOK` past the chain
-(`CheckOK.mono`/`.monoF`), a `CacheFrame` chain, a denotation carried along
-the chain or read off an answer relation, its `isSome`, or
-`∃ v, denote… = some v ∧ P v` from one; otherwise split the top-level `∧` and
-close the frame conjuncts, leaving the rest.  `bridge_frame [l₁, …]` also
-applies the lemmas `lᵢ` (their premises proved the same way): a walk's own
-side-condition rule, `viewOK_lit`.  Deterministic meta code, no `grind`. -/
-syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
-
-@[tactic bridgeFrame] def evalBridgeFrame : Tactic := fun stx => do
-  let extra : Array Term :=
-    if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
-  let gs ← getGoals
-  let mut out := []
-  for g in gs do
-    if ← g.isAssigned then continue
-    let snap ← g.withContext do
-      let snap ← Frame.snapshot
-      let mut ls := #[]
-      for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
-      for n in Frame.frameDefaults do
-        ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
-      let sks ← ls.mapM (fun l => (Frame.lemmaSkel l : MetaM _))
-      let fc ← IO.mkRef {}
-      pure { snap with lemmas := ls, lemmaSkels := sks, failCache := some fc }
-    out := out ++ (← Frame.frameGoal snap g)
-  setGoals out
-
-/-- con-leche: none — **the forward step** (task #120): instantiate every
-answer relation and every `∀`-hypothesis of the context — and the lemmas in
-the list, with the view inversions `denote_*_inv` always — at what the
-context already knows (denotations transported along the `Ext` chain, frame
-facts by `bridge_frame`'s search), add each new instance as a hypothesis
-(`fwd✝`), split its `∧`/`∃`, and `subst_vars`; at most three rounds.  On a
-goal `∀ x, denote… = some x → …` whose denotation the context already has, it
-introduces `x` and identifies it with the known one. -/
-syntax (name := bridgeFwd) "bridge_fwd" (" [" term,* "]")? : tactic
-
-@[tactic bridgeFwd] def evalBridgeFwd : Tactic := fun stx => do
-  let extra : Array Term :=
-    if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
-  let goals ← getGoals
-  let mut out := []
-  for g in goals do
-    if ← g.isAssigned then continue
-    out := out ++ [← Frame.fwdGoal g Frame.fwdDefaults extra]
-  setGoals out
-
-namespace Frame
 
 /-- Close `g` when it is (or unfolds to) `∃ x, P x` and a hypothesis is
 `P w` for some `w` (reducibly, after β): the answer relations `SimBOp`,
@@ -1892,31 +1734,6 @@ def closeExistsByHyp (g : MVarId) : MetaM Bool := g.withContext do
   s.restore
   return false
 
-/-- Close `g` with `h : ∀ xs, C … = C' xs → False` (a "not this constructor"
-fact) when the goal's own split made the equation `rfl`. -/
-def closeByNegCtor (g : MVarId) : MetaM Bool := g.withContext do
-  for d in (← getLCtx) do
-    if d.isImplementationDetail then continue
-    let t ← normNeg (← instantiateMVars d.type)
-    unless t.isForall do continue
-    let s ← saveState
-    try
-      let (args, _, concl) ← forallMetaTelescope t
-      unless concl.isConstOf ``False do s.restore; continue
-      let mut ok := true
-      for a in args do
-        if ← a.mvarId!.isAssigned then continue
-        let aT ← instantiateMVars (← inferType a)
-        let some (_, l, r) := aT.eq? | continue
-        if ← isDefEq l r then a.mvarId!.assign (← mkEqRefl l)
-        else ok := false; break
-      if ok && !(← args.anyM fun a => return !(← a.mvarId!.isAssigned)) then
-        g.assign (← mkFalseElim (← g.getType) (mkAppN d.toExpr args))
-        return true
-      s.restore
-    catch _ => s.restore
-  return false
-
 /-- Carry the context's denotation facts to the stores the GOAL mentions: a
 fact `denote… (A.store…) h = some v` is restated at every state `B` whose
 `B.store` occurs in the goal, when `bridge_frame`'s search proves it there
@@ -1941,7 +1758,7 @@ def transportToGoal (g : MVarId) : MetaM MVarId := g.withContext do
   for d in (← getLCtx) do
     if d.isImplementationDetail then continue
     let t := (← instantiateMVars d.type).cleanupAnnotations
-    unless isFactShape t do continue
+    unless isFactShape (← getEnv) t do continue
     let srcs := collect t #[]
     let some a := srcs[0]? | continue
     unless srcs.size == 1 do continue
@@ -2064,7 +1881,6 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
       if (← getUnsolvedGoals).isEmpty then return true
     catch _ => pure ()
     s.restore
-  if ← closeByNegCtor g then return true
   -- an `∃` goal (`SimBOp`) from a hypothesis, or by `rfl` at a default
   -- witness: only at the top (its bounded default-transparency check, at every
   -- node of the split tree, added up past the heartbeat limit — Core/Walks/Owed)
@@ -2124,16 +1940,6 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
   s.restore
   return false
 
-end Frame
-
-/-- con-leche: none — **the finisher** (task #120): on every goal, try `rfl`,
-`contradiction`, `assumption`, a "not this constructor" hypothesis, and
-`simp only [f₁, …]` (the pure functions to unfold, then with the context's
-equations); failing that, split an `Expr` that a tag fact or a "not this
-constructor" fact mentions and finish every constructor the same way.  A goal
-it cannot close is left untouched. -/
-syntax (name := bridgeFinish) "bridge_finish" (" [" term,* "]")? : tactic
-
 /-- The finisher's closer, as a tactic. -/
 def finishCloser (fns : Array Term) : TacticM Syntax := do
   let base ← `(tactic| first
@@ -2155,9 +1961,9 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
     | (simp only [$lems,*, *]; done)
     | trivial)
 
-@[tactic bridgeFinish] def evalBridgeFinish : Tactic := fun stx => do
-  let fns : Array Term :=
-    if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
+/-- The finisher on every goal: what it closes, it closes; the others are
+handed back as they were. -/
+def finishGoals (fns : Array Term) : TacticM Unit := do
   let closer ← finishCloser fns
   let unfold? : Option Syntax ← if fns.isEmpty then pure none else do
     let lems : Array (TSyntax `Lean.Parser.Tactic.simpLemma) ←
@@ -2168,34 +1974,11 @@ def finishCloser (fns : Array Term) : TacticM Syntax := do
   for g in gs do
     if ← g.isAssigned then continue
     let s ← saveState
-    let g' ← Frame.transportToGoal g
-    if ← Frame.finishGoal g' closer unfold? 2 then continue
-    -- nothing closed: hand the goal back as it was
+    let g' ← transportToGoal g
+    if ← finishGoal g' closer unfold? 2 then continue
     s.restore
     out := out ++ [g]
   setGoals out
-
-/-- con-leche: none — **the whole pipeline** (task #120):
-`bridge_auto [l₁, …] unfolding [f₁, …]` is `bridge_frame [lᵢ]`,
-`bridge_fwd [lᵢ]` with the goal's `∀ x, denote… = some x →` binders
-introduced and the tag/`denoteEO` defaults, `bridge_frame [lᵢ]` and
-`bridge_finish [fᵢ]`.  What it leaves open are the arms with real reasoning,
-for `vc_arm`. -/
-syntax (name := bridgeAuto) "bridge_auto" (" [" term,* "]")?
-  (" unfolding" " [" term,* "]")? : tactic
-
-/-- con-leche: none — **an arm addressed by shape** (task #120):
-`vc_arm (h₁ : T₁) … (hₙ : Tₙ) => tac` runs `tac` on every open goal whose
-context has hypotheses of types `T₁ … Tₙ` (elaborated in that goal, `_` holes
-allowed, matched reducibly, the most recent first, distinct), each renamed
-`hᵢ`; a `?x` in a pattern names the local it matched `x`.  Goals it does not
-match stay open for the next `vc_arm`; it is an error if NO goal matches, so
-an arm the program no longer has is reported, not skipped.
-`vc_arm … ⊢ T => tac` also matches the target. -/
-syntax (name := vcArm) "vc_arm" (ppSpace "(" ident " : " term ")")*
-  (" ⊢ " term)? " => " tacticSeq : tactic
-
-namespace Frame
 
 /-- The hypothesis patterns, matched depth first: each pattern's candidates
 (the most recent first, distinct from the earlier patterns' choices) are
@@ -2294,6 +2077,56 @@ def matchArm (g : MVarId) (pats : Array (Ident × Term)) (tgt? : Option Term) :
 
 end Frame
 
+/-- con-leche: none — **the frame closer** (task #120).  On every goal:
+close it if it is a frame fact — a hypothesis, an `Ext` chain, an equation
+chain (`s₃.pins = s₀.pins`), `StateOK`/`StoreWF`/`CheckOK` past the chain
+(`CheckOK.mono`/`.monoF`), a `CacheFrame` chain, a denotation carried along
+the chain or read off an answer relation, its `isSome`, or
+`∃ v, denote… = some v ∧ P v` from one; otherwise split the top-level `∧` and
+close the frame conjuncts, leaving the rest.  `bridge_frame [l₁, …]` also
+applies the lemmas `lᵢ` (their premises proved the same way): a walk's own
+side-condition rule, `viewOK_lit`.  Deterministic meta code, no `grind`. -/
+syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
+
+@[tactic bridgeFrame] def evalBridgeFrame : Tactic := fun stx => do
+  let extra : Array Term :=
+    if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
+  let gs ← getGoals
+  let mut out := []
+  for g in gs do
+    if ← g.isAssigned then continue
+    let snap ← g.withContext do
+      let snap ← Frame.snapshot
+      let mut ls := #[]
+      for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
+      for n in Frame.registered (← getEnv) Frame.frameExt do
+        ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
+      let sks ← ls.mapM (fun l => (Frame.lemmaSkel l : MetaM _))
+      let fc ← IO.mkRef {}
+      pure { snap with lemmas := ls, lemmaSkels := sks, failCache := some fc }
+    out := out ++ (← Frame.frameGoal snap g)
+  setGoals out
+
+/-- con-leche: none — **the whole pipeline** (task #120):
+`bridge_auto [l₁, …] unfolding [f₁, …]` is `bridge_frame [lᵢ]`,
+`bridge_fwd [lᵢ]` with the goal's `∀ x, denote… = some x →` binders
+introduced and the tag/`denoteEO` defaults, `bridge_frame [lᵢ]` and
+`bridge_finish [fᵢ]`.  What it leaves open are the arms with real reasoning,
+for `vc_arm`. -/
+syntax (name := bridgeAuto) "bridge_auto" (" [" term,* "]")?
+  (" unfolding" " [" term,* "]")? : tactic
+
+/-- con-leche: none — **an arm addressed by shape** (task #120):
+`vc_arm (h₁ : T₁) … (hₙ : Tₙ) => tac` runs `tac` on every open goal whose
+context has hypotheses of types `T₁ … Tₙ` (elaborated in that goal, `_` holes
+allowed, matched reducibly, the most recent first, distinct), each renamed
+`hᵢ`; a `?x` in a pattern names the local it matched `x`.  Goals it does not
+match stay open for the next `vc_arm`; it is an error if NO goal matches, so
+an arm the program no longer has is reported, not skipped.
+`vc_arm … ⊢ T => tac` also matches the target. -/
+syntax (name := vcArm) "vc_arm" (ppSpace "(" ident " : " term ")")*
+  (" ⊢ " term)? " => " tacticSeq : tactic
+
 @[tactic vcArm] def evalVcArm : Tactic := fun stx => do
   let hs := stx[1].getArgs
   let pats : Array (Ident × Term) := hs.map fun h => (⟨h[1]⟩, ⟨h[3]⟩)
@@ -2326,10 +2159,10 @@ end Frame
   let mut out := []
   for g in goals do
     if ← g.isAssigned then continue
-    out := out ++ [← Frame.fwdGoal g (Frame.fwdDefaults ++ Frame.autoDefaults) ls (introFacts := true)]
+    out := out ++ [← Frame.fwdGoal g (Frame.registered (← getEnv) Frame.fwdExt).toList ls]
   setGoals out
   evalTactic (← `(tactic| bridge_frame [$ls,*]))
-  evalTactic (← `(tactic| bridge_finish [$fns,*]))
+  Frame.finishGoals fns
   -- second pass: an answer-relation goal (`RelE f st c st' r`) the step
   -- lemmas did not close is unfolded to its `∀ e, denoteE st c = some e → …`
   -- form, and the pipeline runs once more on the introduced denotation —
@@ -2344,11 +2177,11 @@ end Frame
     unless isRel do out2 := out2 ++ [g]; continue
     let s ← saveState
     try
-      let g' ← Frame.fwdGoal g (Frame.fwdDefaults ++ Frame.autoDefaults) ls
-        (introFacts := true) (unfoldRelGoal := true)
+      let g' ← Frame.fwdGoal g (Frame.registered (← getEnv) Frame.fwdExt).toList ls
+        (unfoldRelGoal := true)
       setGoals [g']
       evalTactic (← `(tactic| bridge_frame [$ls,*]))
-      evalTactic (← `(tactic| bridge_finish [$fns,*]))
+      Frame.finishGoals fns
       if (← getUnsolvedGoals).isEmpty then continue
     catch _ => pure ()
     s.restore
