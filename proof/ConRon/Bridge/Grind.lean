@@ -305,17 +305,6 @@ witness one generation deeper, and `finish` then fails in `ExprOps/Inst1`,
     (hs : (denoteE st h).isSome = true) : ∃ e, denoteE st h = some e :=
   Option.isSome_iff_exists.mp hs
 
-/-- con-leche: none — `denote_some_of_isSome` at a level handle. -/
-@[bridge_grind →] theorem denoteL_some_of_isSome {st : LStore} {h : LIdx}
-    (hs : (denoteL st h).isSome = true) : ∃ u, denoteL st h = some u :=
-  Option.isSome_iff_exists.mp hs
-
-/-- con-leche: none — `denote_some_of_isSome` at a universe-argument list
-handle. -/
-@[bridge_grind →] theorem denoteLs_some_of_isSome {st : LsStore} {h : LsIdx}
-    (hs : (denoteLs st h).isSome = true) : ∃ us, denoteLs st h = some us :=
-  Option.isSome_iff_exists.mp hs
-
 /-- con-leche: none — `denote_some_of_isSome` at a handle LIST. -/
 @[bridge_grind →] theorem denoteEList_some_of_isSome {st : EStore} {hs : List EIdx}
     (h : (Frontend.denoteEList st hs).isSome = true) :
