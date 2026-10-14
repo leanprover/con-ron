@@ -677,7 +677,7 @@ theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
 /-! ## 4. `constE` and `natOpResult` -/
 
 /-- con-leche: none — `ViewOK` of a constant node whose name and level list
-denote (task #120: `bridge_frame`'s side-condition lemma for `constE`). -/
+denote (`constE`'s intern precondition, passed to `grind`). -/
 theorem viewOK_const_of_denote {st : EStore} {n : NIdx} {us : LsIdx}
     {nm : ConLeche.Name} {ls : List Level}
     (hn : denoteN st.ns n = some nm) (hl : denoteLs st.lss us = some ls) :

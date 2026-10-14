@@ -54,7 +54,7 @@ meet the same `grind` limitation (`_tmp/corpus/vcgen-grind/
 nested-ctor-fallthrough-hyp.lean`) and the same workaround: `vcgen` runs on
 the twin with the nested pattern as a `Bool` test (`substPWAt_split`).
 -/
-import ConRon.Bridge.Core.Walks.StrLit
+import ConRon.Bridge.Core.Walks.Nat
 import ConRon.Bridge.Core.Walks.Proj
 import ConRon.Bridge.Grind
 
