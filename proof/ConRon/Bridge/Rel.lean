@@ -211,16 +211,8 @@ theorem denote_proj_inv {st : EStore} (hwf : StoreWF st) {h : EIdx} {n : NIdx}
 
 A (B) function's *precondition* is "this handle denotes" — `isSome`, with no
 `Expr` in it, so that a recursive call's side goal carries **no
-metavariable** (DESIGN `### Task #97s`, template rule 4).  These lemmas push
-`isSome` down a node and along an extension, which is all the automation needs.
--/
-
-/-- con-leche: none — `isSome` survives an arena extension. -/
-@[grind →] theorem denote_isSome_ext {st st' : EStore} {c : EIdx}
-    (hs : (denoteE st c).isSome = true) (hx : Ext st st') :
-    (denoteE st' c).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  rw [denote_ext he hx]; rfl
+metavariable** (DESIGN `### Task #97s`, template rule 4).  These lemmas
+push `isSome` down a node. -/
 
 @[grind →] theorem isSome_fvar {st : EStore} (hwf : StoreWF st) {h : EIdx}
     {k : Nat} {ty : EIdx} (hw : st.view h = some (.fvar k ty))
@@ -653,17 +645,9 @@ theorem EStore.tagOf_of_view {st : EStore} {i : EIdx} {v : ENodeView}
 
 /-! ### The tag-first twin's two arms
 
-The twin tests a handle's TAG before it reads the node wherever the Rust does.
-A Theorem-1 proof then meets two shapes: the `else` arm, where it has the tag
-test's negation and the handle's denotation but no view, and the binder arms
-that read `viewBind` rather than `view`.  These three lemmas are the whole of
-what those shapes need. -/
-
-/-- con-leche: none — a handle that denotes has a view. -/
-theorem view_of_denote_isSome {st : EStore} {h : EIdx}
-    (hd : (denoteE st h).isSome = true) : ∃ v, st.view h = some v := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hd
-  exact denoteE_view he
+A twin that tests a handle's TAG before it reads the node has two arm shapes:
+the `else` arm, with the tag test's negation and the handle's view, and the
+binder arm, which reads `viewBind`.  One lemma each. -/
 
 /-- con-leche: none — **the `else` arm**: a handle whose tag is not `t`
 views to a node whose tag is not `t`. -/
@@ -1334,23 +1318,8 @@ def RelLs (f : List Level → List Level) (st : EStore) (c : LsIdx) (st' : EStor
 
 /-! ### The eliminators
 
-`.isSome` and `.self`; the walks' proofs read `RelE` as `Bridge/Grind.lean`'s
-`MapRel`. -/
-
-@[grind →] theorem RelE.isSome {f : Expr → Expr} {st st' : EStore} {c r : EIdx}
-    (h : RelE f st c st' r) (hs : (denoteE st c).isSome = true) :
-    (denoteE st' r).isSome = true := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hs
-  rw [h e he]; rfl
-
-/-- con-leche: none — a leaf arm that answers the handle it was given: the
-CUTOFF shape.  Every derived-word cutoff in `ExprOps.lean` closes through
-this, with `hf` supplied by con-leche's own `*_of_*_le` licence. -/
-theorem RelE.self {f : Expr → Expr} {st : EStore} {c : EIdx}
-    (hf : ∀ e, denoteE st c = some e → f e = e) : RelE f st c st c :=
-  fun e he => by rw [hf e he]; exact he
-
-/-! ### The same eliminators, at the other four shapes -/
+The walks' proofs read `RelE` as `Bridge/Grind.lean`'s `MapRel`; the other
+shapes keep these. -/
 
 @[grind →] theorem RelV.apply {α : Type} {f : Expr → α} {st : EStore} {c : EIdx}
     {x : α} {e : Expr} (h : RelV f st c x) (he : denoteE st c = some e) :

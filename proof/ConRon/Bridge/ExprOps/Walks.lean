@@ -1,50 +1,24 @@
 /-
-# `ConRon.Bridge.ExprOps.Walks` — Theorem 1 for the `Bool` and `Nat` walks
+# `ConRon.Bridge.ExprOps.Walks` — Theorem 1 for the two one-node readers
 
-DESIGN §8.2's Theorem 1 at the twins of `Arena/ExprOps.lean` whose answer is
-a **representation-free scalar**: `sizeB`, `sizeF`, `wscopedB`,
-`looseBVarsBounded`, `hasFvar`, and the two one-node readers `isForallE`,
-`lamPair?`.  Its two companions are `ExprOps/Ranges.lean` (the
-packed-field reads and their memoized recomputations) and
-`ExprOps/Leaves.lean` (the leaf list, the `seen` set and the leaf guard).
-
-## Why this tier is the cheap one
-
-`Bridge/Rel.lean`'s answer relation for these twins is `RelV`:
-
-```lean
-RelV (f : Expr → α) (st : EStore) (c : EIdx) (x : α) : Prop :=
-  ∀ e, denoteE st c = some e → x = f e
-```
-
-— **no target store**, because a `Bool` or a `Nat` names none.  Nothing here
-interns, so nothing here grows the arena: every twin below leaves the state
-literally unchanged and Theorem 1's postcondition says `s' = s₁` where a
-rebuilding walk needs `Ext s₁.store s'.store` plus four frame equations.
-There is no extension chain to carry and no answer to retarget.
+DESIGN §8.2's Theorem 1 at the two twins of `Arena/ExprOps.lean` that read
+ONE node and do not recurse: `isForallE` (a tag read off the handle word) and
+`lamPair?` (both tags, then the two binder projections).  Neither interns, so
+the state is unchanged.  The scalar walks of the tier are in
+`ExprOps/Guards.lean`, `ExprOps/Ranges.lean` and `ExprOps/Leaves.lean`.
 
 ## The proof
 
-`lamPair?_spec` is
+`isForallE_rel` is an equation between the twin and con-leche at a denoting
+handle, by the tag's view.  `lamPair?_spec` is
 `sym only [bridge_grind, Expr.lamPair?] => vcgen [lamPair?] <;> finish`:
 `grind` reads the binder view of a `lam`-tagged handle from
 `Bridge/Grind.lean`'s guarded `view_of_viewBind` and the `DenoteView`
 extractions, and declines by `lamPair?_none_left`/`_right`, both
 `grind_pattern … where guard` so that they fire only at the denotation
 `lamPair?` is applied to.
-
-## Fuel, and what the twins dispatch on
-
-Fuel, as everywhere in this tier, because a handle DAG has no structural
-order the elaborator can see; exhaustion is a failure and Theorem 1 claims
-nothing on failure, which is what the `⊤` exception postcondition says.  Unlike the rebuilding walks,
-these five dispatch on `view` DIRECTLY (a `match ← view h` over the ten
-`ENodeView` constructors, not the tag test of DESIGN task #97-P6-13), so the arms
-arrive already carrying their `view` equation and `Bridge/Rel.lean`'s group 5
-inversions fire on it without help.
 -/
 import ConRon.Bridge.Specs
-import ConRon.Bridge.ExprOps.TagFirst
 import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.ExprOps
