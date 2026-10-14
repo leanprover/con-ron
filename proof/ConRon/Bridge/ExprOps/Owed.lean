@@ -10,13 +10,21 @@ induction the round ran out on —
   abstraction walks, and `abstractRangeGo` itself;
 * `instLPGo` and `instLPFast`.
 
-`Bridge/ExprOps/{Abs,InstLP,MemoSpecs}.lean` carry the step-lemma layer
-each of them consumes; what is added here is the two `…Spec` records the
-two walks are inducted over (`AbsRangeGoSpec`, `InstLPSpec`),
-the arm step lemmas those two need that the other modules do not already
-have, and three pieces of arena/spec infrastructure that belong further down
-the stack and are flagged in place (`view_eq_of_tables`, `readNameM_specF` /
-`readNamesM_specF`).
+`Bridge/ExprOps/{Abs,InstLP,MemoSpecs}.lean` carry the vocabulary and the
+callee specs each of them consumes; what is added here is the two `…Spec`
+records the two walks are inducted over (`AbsRangeGoSpec`, `InstLPSpec`),
+`instLPGo`'s pure function as a named term with its equations (`instLPFn`),
+the `grind` vocabulary the level arms need, and three pieces of arena/spec
+infrastructure that belong further down the stack and are flagged in place
+(`view_eq_viewAt`, `readNameM_specF` / `readNamesM_specF`).
+
+## The closer (task #123)
+
+Every walk is `sym only [bridge_grind, …] => vcgen [...] <;> finish`, as in
+`ExprOps/Abs.lean` (whose header says what `grind` is given): the two walks
+here are not split into arm theorems — `vcgen` unfolds the arms in place —
+and the entries convert the named function back to the statement's `fun`
+by unfolding it (`abs1Fn`, `absRangeFn`, `instLPFn` in the `sym` list).
 
 ## The deviations each statement carries
 
@@ -38,7 +46,7 @@ The ones `Arena/ExprOps.lean`'s own doc comments name:
 The shapes the earlier round wrote down were not provable, and the reasons are
 worth keeping:
 
-1. **`abstractRangeGo_spec`'s memo invariant is `AbsRangeMemoA d k`, not
+1. **`abstractRangeGo_specS`'s memo invariant is `AbsRangeMemoA d k`, not
    `Abs1MemoA d`.**  The table `abs1C` is shared by the two abstraction walks
    (`Arena/ExprOps.lean`: "That is a table IDENTITY, not a clause"), and what
    it holds inside an `abstractRangeFast` call is `abstractRange` answers.
@@ -51,7 +59,7 @@ worth keeping:
    `k = 0` (task #97-P6-11) and `instLPFast` at `hasLP = false` (the cutoff
    hoisted over the readbacks, task #97-P6-10).  The second disjunct is the
    stronger of the two for a caller: nothing moved at all.
-3. **`instLPGo_spec` and `instLPFast_spec` frame `s'.caches` as a RECORD
+3. **`instLPGo_specS` and `instLPFast_spec` frame `s'.caches` as a RECORD
    EQUATION** (round 4; the earlier rounds did not frame it at all).
    `ExprOps/InstLP.lean`'s header says why it cannot be `s'.caches =
    s₀.caches`: the two LEVEL arms read a level back and the memoised readback
@@ -81,8 +89,6 @@ import ConRon.Bridge.ExprOps.Abs
 import ConRon.Bridge.ExprOps.MemoSpecs
 import ConRon.Bridge.ExprOps.InstLP
 import ConRon.Bridge.SpecsL
-import ConRon.Bridge.ExprOps.TagFirst
-import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.ExprOps
 
@@ -99,8 +105,7 @@ open scoped Lean.Order
 the view-monotonicity conjunct — is tagged `@[local spec high]` in
 `ExprOps/Abs.lean`, and a LOCAL attribute does not travel through an
 import.  The executed `abstractRange` walk below needs it for exactly the
-reason the executed `abstract1` walk does, so this file repeats the line (as
-every file of this tier repeats `attribute [-grind] RelE.ext …`). -/
+reason the executed `abstract1` walk does, so this file repeats the line. -/
 attribute [local spec high] internRebuiltBind_specV
 
 
@@ -119,45 +124,9 @@ theorem abstract1Fast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
     ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧ s'.memos.abs1C = ∅ ∧
         RelE (fun x => Expr.abstract1 x d k) s₀.store e s'.store r; ⊤⦄ := by
-  have hr := (abstract1Go_spec hfv d fuel).run
-  vcgen [abstract1Fast, hr]
-  all_goals bridge_vcs [Expr.abstract1]
+  sym only [bridge_grind, abs1Fn, MemoOK.of_empty] =>
+    vcgen [abstract1Fast, (abstract1Go_spec hfv d fuel).run] <;> finish
 
-/-! ### `AbsRangeAt`'s step lemmas at the EXECUTED walk's own hypotheses
-
-`ExprOps/Abs.lean`'s `AbsRangeAt.*_step` are stated at `st.view`; the executed
-walk reads the PROJECTIONS behind a tag test and calls `fvarB` before it reads
-the store at all.  These are `Abs1At.*_step'`'s shape at `abstractRange`: the
-extra hypothesis `hst : st0 = st` is the `fvarB` hop (`fvarB`'s Theorem 1
-frames the store with an EQUATION, not by leaving the state alone), and with
-it every other hypothesis of an arm is found by `assumption`. -/
-
-/-- con-leche: none — the catch-all arm, at the arm's own hypotheses: a
-handle whose tag is none of the five the walk dispatches on denotes `bvar`,
-`sort`, `const` or `lit`.  The view the lemma needs is the one its own
-denotation gives, so the arm supplies `hden` and nothing else. -/
-theorem AbsRangeAt.leaf'' {st st' : EStore} (hwf : StoreWF st) {h : EIdx}
-    {d k c : Nat} (hden : (denoteE st h).isSome = true)
-    (hfvar : ¬ ((h.tag == ETag.fvar) = true))
-    (happ : ¬ ((h.tag == ETag.app) = true))
-    (hbind : ¬ (ETag.isBind h.tag = true))
-    (hlet : ¬ ((h.tag == ETag.letE) = true))
-    (hproj : ¬ ((h.tag == ETag.proj) = true)) (hx : Ext st st') :
-    AbsRangeAt d k c st h st' h := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
-  obtain ⟨v, hv⟩ := denoteE_view he
-  exact (AbsRangeAt.leaf hwf hv (by simpa using hfvar) (by simpa using happ)
-    (by simpa using hbind) (by simpa using hlet) (by simpa using hproj)).ext hx
-
-
-/-- con-leche: none — `AbsRangeAt.fvar_hitB` with the intern's answer as
-`internE` states it (`denoteEView`). -/
-theorem AbsRangeAt.fvar_hitV {d k c idx : Nat} {st st' : EStore}
-    {h ty r : EIdx} (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hin : (decide (d ≤ idx) && decide (idx < d + k)) = true)
-    (hr : denoteE st' r = denoteEView st' (.bvar (c + (d + k - 1 - idx)))) :
-    AbsRangeAt d k c st h st' r :=
-  AbsRangeAt.fvar_hitB hwf hview hin (by rw [hr, denoteEView])
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange —
 Theorem 1's statement for one level of the EXECUTED descent's recursion.
 The memo invariant is `AbsRangeMemoA d k` and NOT `Abs1MemoA d`: the table
@@ -175,51 +144,29 @@ structure AbsRangeGoSpec (d k : Nat) (rec : EIdx → Nat → AM EIdx) : Prop whe
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange —
 **THEOREM 1 for the EXECUTED `abstractRange`**, at one level of the
-recursion, by induction on the fuel.  `abstract1Go_spec`'s shape: the `fvarB`
-cutoff, the tag chain, the five arms by name and the catch-all. -/
+recursion, by induction on the fuel.  `abstract1Go_spec`'s shape with the
+five arms unfolded in place (they are not split into theorems of their own):
+the `fvarB` cutoff (`absRangeFn_cutoff`), the tag chain, the catch-all
+(`absRangeFn_leaf`). -/
 theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
-    ∀ fuel, AbsRangeGoSpec d k (fun h c => abstractRangeGo d k fuel h c) := by
+    ∀ fuel, AbsRangeGoSpec d k (abstractRangeGo d k fuel) := by
   intro fuel
   induction fuel with
   | zero =>
     constructor
     intro s₀ h c _ _ _
-    vcgen [abstractRangeGo_zero]
-    all_goals bridge_vcs [Expr.abstractRange]
+    sym only [bridge_grind] => vcgen [abstractRangeGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
-    have hrec := ih.run
-    have hfvb := hfv.run
-    vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
-      absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, hrec, hfvb]
-    all_goals (bridge_peel; subst_vars)
-    bridge_auto [MemoOK.mono, MemoOK.get_hit', viewMono_trans, viewMono_of_eq,
-      RelE.transport, AbsRangeAt.cutoff, AbsRangeAt.app_step, AbsRangeAt.bind_step,
-      AbsRangeAt.letE_step, AbsRangeAt.proj_step, AbsRangeAt.fvar_hitV,
-      AbsRangeAt.fvar_missB, AbsRangeAt.leaf'', view_of_viewFVarIdx_tag', view_isSome]
-    -- the arms' preconditions, and `internRebuilt`'s "the children came back
-    -- unchanged" view
-    all_goals bridge_vcs [Expr.abstractRange, view_of_viewBind, isSome_eBindView,
-      view_isSome]
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-811 abstractRange — the
-EXECUTED descent at one state, against the SPEC descent `Abs.lean` proves.
-Its step lemmas are `Abs.lean`'s `AbsRangeAt.*`. -/
-theorem abstractRangeGo_spec (hfv : FvarBSpec) (d k : Nat) (fuel : Nat)
-    (s₀ : AState) (c : EIdx)
-    (cur : Nat) (hok : StateOK s₀) (hm : AbsRangeMemoA d k s₀)
-    (hden : (denoteE s₀.store c).isSome = true) :
-    ⦃fun s => s = s₀⦄ abstractRangeGo d k fuel c cur
-    ⦃fun r s' => StateOK s' ∧ Ext s₀.store s'.store ∧
-        s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
-        RelE (fun x => Expr.abstractRange x d k cur) s₀.store c s'.store r; ⊤⦄ := by
-  have hr := (abstractRangeGo_specS hfv d k fuel).run
-  vcgen [hr]
-  all_goals bridge_vcs [Expr.abstractRange]
+    sym only [bridge_grind, denoteEView, opt2, opt3, ETag.isBind, absRangeFn_cutoff,
+        absRangeFn_leaf] =>
+      vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
+        absRangeArmFVar, absRangeGoArmLet, absRangeGoArmProj, ih.run, hfv.run,
+        abs1Set_specA (f := absRangeFn d k)] <;> finish (gen := 10)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:748-755 abstractRangeC — the
-bracket over `abstractRangeGo_spec`.
+bracket over `abstractRangeGo_specS`.
 
 **The memo clause is a DISJUNCTION here and an equation at the other four
 entries** (a statement change this round had to make: the shape the round
@@ -237,193 +184,246 @@ theorem abstractRangeFast_spec (hfv : FvarBSpec) (fuel : Nat) (s₀ : AState)
         s'.caches = s₀.caches ∧ s'.pins = s₀.pins ∧
         (s'.memos.abs1C = ∅ ∨ s' = s₀) ∧
         RelE (fun x => Expr.abstractRange x d k c) s₀.store e s'.store r; ⊤⦄ := by
-  have hr := fun (s₁ : AState) (cc : EIdx) (cur : Nat) =>
-    abstractRangeGo_spec hfv d k fuel s₁ cc cur
-  vcgen [abstractRangeFast, hr]
-  all_goals try bridge_vcs [Expr.abstractRange]
-  -- The `k = 0` clause, which returns the subject: `abstractRange_zero_eq` is
-  -- its licence and nothing in the state moves.
-  all_goals
-    (bridge_peel
-     subst_vars
-     refine ⟨hok, Ext.refl _, rfl, rfl, Or.inr rfl, ?_⟩
-     intro x hx
-     rw [hx]
-     simp only [abstractRange_zero_eq])
+  sym only [bridge_grind, absRangeFn, MemoOK.of_empty, abstractRange_zero_eq] =>
+    vcgen [abstractRangeFast, (abstractRangeGo_specS hfv d k fuel).run] <;> finish
 
 /-! ## `instantiateLevelParams`' entry -/
 
-/-! ### The answer relation, the cutoff's licence and the step lemmas -/
+/-! ### The pure function, named, and its equations
+
+As `ExprOps/Abs.lean`'s `abs1Fn`: the walk's function is a TERM, not a
+`fun`, so that `grind` sees the answer relation and the memo invariant as
+atoms.  The memo table is keyed `(h, 0)`, so the function takes the (unused)
+cursor first, which makes `instLPFn ks us` the memo invariant's function and
+`instLPFn ks us 0` the answer relation's. -/
+
+/-- con-leche: ConLeche/Kernel/Level.lean:234-249 Expr.instantiateLevelParams —
+with the memo key's (unused) cursor first. -/
+def instLPFn (ks : List ConLeche.Name) (us : List Level) (_c : Nat) (e : Expr) : Expr :=
+  e.instantiateLevelParams ks us
+
+section
+variable (ks : List ConLeche.Name) (us : List Level) (c : Nat)
+
+/-- con-leche: ConLeche/Kernel/Level.lean:235 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_bvar (i : Nat) : instLPFn ks us c (.bvar i) = .bvar i := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:236 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_fvar (i : Nat) (t : Expr) :
+    instLPFn ks us c (.fvar i t) = .fvar i (instLPFn ks us c t) := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:237 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_sort (u : Level) :
+    instLPFn ks us c (.sort u) = .sort (Level.subst ks us u) := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:238 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_const (n : ConLeche.Name) (vs : List Level) :
+    instLPFn ks us c (.const n vs) = .const n (vs.map (Level.subst ks us)) := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:239 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_app (f a : Expr) :
+    instLPFn ks us c (.app f a) = .app (instLPFn ks us c f) (instLPFn ks us c a) := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:240-242 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_lam (t b : Expr) :
+    instLPFn ks us c (.lam t b) = .lam (instLPFn ks us c t) (instLPFn ks us c b) := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:243-245 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_forallE (t b : Expr) :
+    instLPFn ks us c (.forallE t b) = .forallE (instLPFn ks us c t) (instLPFn ks us c b) :=
+  rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:246-247 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_letE (t w b : Expr) :
+    instLPFn ks us c (.letE t w b) =
+      .letE (instLPFn ks us c t) (instLPFn ks us c w) (instLPFn ks us c b) := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:248 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_lit (l : Literal) : instLPFn ks us c (.lit l) = .lit l := rfl
+/-- con-leche: ConLeche/Kernel/Level.lean:249 Expr.instantiateLevelParams. -/
+@[bridge_grind =] theorem instLPFn_proj (n : ConLeche.Name) (i : Nat) (s : Expr) :
+    instLPFn ks us c (.proj n i s) = .proj n i (instLPFn ks us c s) := rfl
+
+end
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2242
+Expr.instantiateLevelParams_eq_self — **the `hasLP` cutoff's licence**: a
+term with no level parameter is its own instantiation. -/
+theorem instLPFn_cutoff {ks : List ConLeche.Name} {us : List Level} {c : Nat} {e : Expr}
+    (h : e.hasLevelParam = false) : instLPFn ks us c e = e :=
+  Expr.instantiateLevelParams_eq_self h
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2541 Expr.hasLP_eq — the packed
+`hasLP` bit the arena reads IS the denotation's `hasLevelParam`
+(`EStore.derived_exact`), keyed by the derived-word read and the
+denotation. -/
+theorem lpOfData_derived {st : EStore} (hwf : StoreWF st) {h : EIdx} {e : Expr}
+    (he : denoteE st h = some e) : lpOfData (st.derived h) = e.hasLevelParam := by
+  rw [EStore.derived_exact hwf he]; exact Expr.Expr.hasLP_eq e
+grind_pattern [bridge_grind] lpOfData_derived => st.derived h, some e where
+  guard denoteE st h = some e
+
+/-! ### The answer relation and the memo invariant -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiateLevelParams`'
 answer relation. -/
 abbrev InstLPAt (ks : List ConLeche.Name) (us : List Level) :
     EStore → EIdx → EStore → EIdx → Prop :=
-  RelE (fun x => x.instantiateLevelParams ks us)
+  RelE (instLPFn ks us 0)
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — the
+expression memo's invariant at the named function (`Bridge/StateOK.lean`'s
+`InstLPMemoA` with a `fun`, definitionally). -/
+abbrev InstLPMemoF (ks : List ConLeche.Name) (us : List Level) (s : AState) : Prop :=
+  MemoOK (instLPFn ks us) s.memos.instLPC s.store
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:2546-2550 InstLPMemoInv — `instLPSet`
+carrying the memo invariant of the walk `f` the caller names
+(`ExprOps/Abs.lean`'s `abs1Set_specA`). -/
+theorem instLPSet_specA (f : Nat → Expr → Expr) (s₀ : AState) (h : EIdx) (c : Nat)
+    (r : EIdx) (hk : (denoteE s₀.store h).isSome = true)
+    (hm : MemoOK f s₀.memos.instLPC s₀.store) (hr : RelE (f c) s₀.store h s₀.store r) :
+    ⦃fun s => s = s₀⦄ instLPSet (h, c) r
+    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+        s'.pins = s₀.pins ∧ s'.memos.instLPLC = s₀.memos.instLPLC ∧
+        s'.memos.instLPLsC = s₀.memos.instLPLsC ∧
+        MemoOK f s'.memos.instLPC s'.store; ⊤⦄ := by
+  vcgen [instLPSet]
+  subst_vars
+  exact ⟨rfl, rfl, rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
+
+/-! ### Vocabulary candidates for Bridge/Grind.lean (task #123)
+
+The level answers and the remaining view constructors, in
+`ExprOps/Abs.lean`'s style. -/
+
+/-- con-leche: none — `RelL`/`RelLs`'s answer at an optional subject (`MapRel`
+at any carrier). -/
+def MapRelG {α β : Type} (g : α → β) : Option α → Option β → Prop
+  | some a, o => o = some (g a)
+  | none, _ => True
+
+/-- con-leche: none — `MapRelG` at a present subject. -/
+@[bridge_grind =] theorem MapRelG.some_eq {α β : Type} (g : α → β) (a : α) (o : Option β) :
+    MapRelG g (some a) o = (o = some (g a)) := rfl
+
+/-- con-leche: none — `RelL` IS a `MapRelG` fact on the two level
+denotations. -/
+@[bridge_grind =] theorem RelL_eq_mapRelG (g : Level → Level) (st : EStore) (c : LIdx)
+    (st' : EStore) (r : LIdx) :
+    RelL g st c st' r = MapRelG g (denoteL st.ls c) (denoteL st'.ls r) := by
+  apply propext; constructor
+  · intro h; cases hc : denoteL st.ls c with
+    | none => trivial
+    | some u => exact h u hc
+  · intro h u hu; rw [hu] at h; exact h
+
+/-- con-leche: none — `RelLs` IS a `MapRelG` fact on the two level-list
+denotations. -/
+@[bridge_grind =] theorem RelLs_eq_mapRelG (g : List Level → List Level) (st : EStore)
+    (c : LsIdx) (st' : EStore) (r : LsIdx) :
+    RelLs g st c st' r = MapRelG g (denoteLs st.lss c) (denoteLs st'.lss r) := by
+  apply propext; constructor
+  · intro h; cases hc : denoteLs st.lss c with
+    | none => trivial
+    | some u => exact h u hc
+  · intro h u hu; rw [hu] at h; exact h
+
+/-- con-leche: none — a `bvar` view's index. -/
+theorem DenoteView.bvar {st : EStore} {i : Nat} {e : Expr}
+    (H : DenoteView st (some (.bvar i)) (some e)) : exprBVar e = i := H
+grind_pattern [bridge_grind] DenoteView.bvar => DenoteView st (some (.bvar i)) (some e)
+
+/-- con-leche: none — a `sort` view's level. -/
+theorem DenoteView.sort {st : EStore} {u : LIdx} {e : Expr}
+    (H : DenoteView st (some (.sort u)) (some e)) : denoteL st.ls u = some (exprSort e) := H
+grind_pattern [bridge_grind] DenoteView.sort => DenoteView st (some (.sort u)) (some e)
+
+/-- con-leche: none — a `lit` view's literal. -/
+theorem DenoteView.lit {st : EStore} {l : Literal} {e : Expr}
+    (H : DenoteView st (some (.lit l)) (some e)) : exprLit e = l := H
+grind_pattern [bridge_grind] DenoteView.lit => DenoteView st (some (.lit l)) (some e)
+
+/-- con-leche: none — an expression tagged `bvar` IS a bound variable. -/
+theorem exprTag_bvar {e : Expr} (h : exprTag e = ETag.bvar) : e = .bvar (exprBVar e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_bvar => exprTag e where
+  guard exprTag e = ETag.bvar
+
+/-- con-leche: none — an expression tagged `sort` IS a sort. -/
+theorem exprTag_sort {e : Expr} (h : exprTag e = ETag.sort) : e = .sort (exprSort e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_sort => exprTag e where
+  guard exprTag e = ETag.sort
+
+/-- con-leche: none — an expression tagged `const` IS a constant. -/
+theorem exprTag_const {e : Expr} (h : exprTag e = ETag.const) :
+    e = .const (exprConstName e) (exprConstLevels e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_const => exprTag e where
+  guard exprTag e = ETag.const
+
+/-- con-leche: none — an expression tagged `lit` IS a literal. -/
+theorem exprTag_lit {e : Expr} (h : exprTag e = ETag.lit) : e = .lit (exprLit e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_lit => exprTag e where
+  guard exprTag e = ETag.lit
+
+attribute [bridge_grind =] ENodeView.tagOf
+
+/-- con-leche: none — a level handle that denotes has a view (the intern
+specs' precondition on a `sort`'s level). -/
+theorem lview_isSome {st : LStore} {c : LIdx} (hd : (denoteL st c).isSome = true) :
+    (st.view c).isSome = true := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
+  exact lview_isSome_of_denote hx
+grind_pattern [bridge_grind] lview_isSome => (st.view c).isSome
+
+/-- con-leche: none — a universe-argument list handle that denotes has a view
+(the intern specs' precondition on a `const`'s levels). -/
+theorem lsview_isSome {st : LsStore} {c : LsIdx} (hd : (denoteLs st c).isSome = true) :
+    (st.view c).isSome = true := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
+  obtain ⟨w, hw, -⟩ := denoteLs_view hx
+  rw [hw]; rfl
+grind_pattern [bridge_grind] lsview_isSome => (st.view c).isSome
+
+/-- con-leche: none — `MemoLOK.mono` with the table the same term. -/
+theorem MemoLOK.le {f : Level → Level} {tbl : Std.HashMap LIdx LIdx} {st st' : EStore}
+    (hm : MemoLOK f tbl st) (hx : st ≤ st') : MemoLOK f tbl st' := MemoLOK.mono hm hx rfl
+grind_pattern [bridge_grind] MemoLOK.le => MemoLOK f tbl st, st ≤ st'
+
+/-- con-leche: none — `MemoLsOK.mono` with the table the same term. -/
+theorem MemoLsOK.le {f : List Level → List Level} {tbl : Std.HashMap LsIdx LsIdx}
+    {st st' : EStore} (hm : MemoLsOK f tbl st) (hx : st ≤ st') : MemoLsOK f tbl st' :=
+  MemoLsOK.mono hm hx rfl
+grind_pattern [bridge_grind] MemoLsOK.le => MemoLsOK f tbl st, st ≤ st'
+
+/-- con-leche: none — `ReadLCacheOK.mono` at the store order. -/
+theorem ReadLCacheOK.le {tbl : Std.HashMap LIdx Level} {st st' : EStore}
+    (h : ReadLCacheOK tbl st) (hx : st ≤ st') : ReadLCacheOK tbl st' := h.mono hx
+grind_pattern [bridge_grind] ReadLCacheOK.le => ReadLCacheOK tbl st, st ≤ st'
+
+/-- con-leche: none — `ReadLsCacheOK.mono` at the store order. -/
+theorem ReadLsCacheOK.le {tbl : Std.HashMap LsIdx (List Level)} {st st' : EStore}
+    (h : ReadLsCacheOK tbl st) (hx : st ≤ st') : ReadLsCacheOK tbl st' := h.mono hx
+grind_pattern [bridge_grind] ReadLsCacheOK.le => ReadLsCacheOK tbl st, st ≤ st'
+
+/-- con-leche: none — `ReadNCacheOK.mono` at the store order. -/
+theorem ReadNCacheOK.le {tbl : Std.HashMap NIdx ConLeche.Name} {st st' : EStore}
+    (h : ReadNCacheOK tbl st) (hx : st ≤ st') : ReadNCacheOK tbl st' := h.mono hx
+grind_pattern [bridge_grind] ReadNCacheOK.le => ReadNCacheOK tbl st, st ≤ st'
 
 /-- con-leche: none — arena infrastructure: `EStore.view` reads `pers`, `scr`
-and `scratchOn` and nothing else, so a step that frames those three frames
-every view.  This is what carries a rebuilding arm's `internRebuilt` cutoff
-across `substLMemoAt` / `substLsMemoAt`, which move only the LEVEL store. -/
-theorem view_eq_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
-    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) (i : EIdx) :
-    st'.view i = st.view i := by
-  simp only [EStore.view, hp, hs, ho]
+and `scratchOn` and nothing else. -/
+def viewAt (p s : ETables) (on : Bool) (i : EIdx) : Option ENodeView :=
+  if i.isPersistent then p.get i else if on then s.get i else none
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:2465
-Expr.instantiateLevelParams_eq_self — **the `hasLP` cutoff's licence**, at the
-packed bit the arena reads: a subtree with no level parameter is its own
-instantiation.  `EStore.derived_exact` says the word is `e.data` and
-`Expr.hasLP_eq` (con-leche `ExprOps.lean:2541`) says `lpOfData e.data` is
-`e.hasLevelParam`. -/
-theorem InstLPAt.cutoff {ks : List ConLeche.Name} {us : List Level}
-    {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    (hlp : lpOfData (st.derived h) = false) : InstLPAt ks us st h st h := by
-  intro e he
-  have h1 : lpOfData (st.derived h) = e.hasLevelParam := by
-    rw [EStore.derived_exact hwf he]; exact Expr.Expr.hasLP_eq e
-  show denoteE st h = some (e.instantiateLevelParams ks us)
-  rw [Expr.instantiateLevelParams_eq_self (by rw [← h1]; exact hlp)]
-  exact he
+/-- con-leche: none — `EStore.view` as a function of the three tables it
+reads, so that congruence closure carries a view across a step that frames
+them (`substLMemoAt` moves only the LEVEL store).  Passed to `sym` by the walk
+that needs it. -/
+theorem view_eq_viewAt (st : EStore) (i : EIdx) :
+    st.view i = viewAt st.pers st.scr st.scratchOn i := by
+  rw [EStore.view_eq_tier]; rfl
 
-/-- con-leche: ConLeche/Kernel/Level.lean:234-249 Expr.instantiateLevelParams —
-the two leaf constructors that are fixed points (`sort` and `const` are the
-two the walk exists for, and `fvar` is descended into). -/
-theorem instantiateLevelParams_leaf {ks : List ConLeche.Name}
-    {us : List Level} {e : Expr}
-    (h : (∃ i, e = .bvar i) ∨ ∃ l, e = .lit l) :
-    e.instantiateLevelParams ks us = e := by
-  rcases h with ⟨i, rfl⟩ | ⟨l, rfl⟩ <;> simp [Expr.instantiateLevelParams]
+/-! ### Theorem 1 for `instLPGo` -/
 
-/-- con-leche: ConLeche/Kernel/Level.lean:234-249 Expr.instantiateLevelParams —
-the LEAF arms. -/
-theorem InstLPAt.leaf {ks : List ConLeche.Name} {us : List Level}
-    {st : EStore} {h : EIdx} {v : ENodeView} (hwf : StoreWF st)
-    (hview : st.view h = some v)
-    (hv : (∃ i, v = .bvar i) ∨ ∃ l, v = .lit l) : InstLPAt ks us st h st h := by
-  intro e he
-  show denoteE st h = some (e.instantiateLevelParams ks us)
-  have hleaf : (∃ i, e = .bvar i) ∨ ∃ l, e = .lit l := by
-    rcases hv with ⟨i, rfl⟩ | ⟨l, rfl⟩
-    · exact Or.inl ⟨i, denote_bvar_inv hwf hview he⟩
-    · exact Or.inr ⟨l, denote_lit_inv hwf hview he⟩
-  rw [instantiateLevelParams_leaf hleaf]
-  exact he
-
-/-- con-leche: none — the three statements above in the shapes the dispatch
-hands them (the `hasLP` guard as tested, one leaf constructor per view):
-`bridge_auto`'s lemma list applies them as they stand. -/
-theorem InstLPAt.cutoffT {ks : List ConLeche.Name} {us : List Level}
-    {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    (hlp : (!lpOfData (st.derived h)) = true) : InstLPAt ks us st h st h :=
-  InstLPAt.cutoff hwf (by simpa using hlp)
-
-theorem InstLPAt.bvar {ks : List ConLeche.Name} {us : List Level}
-    {st : EStore} {h : EIdx} {i : Nat} (hwf : StoreWF st)
-    (hview : st.view h = some (.bvar i)) : InstLPAt ks us st h st h :=
-  InstLPAt.leaf hwf hview (Or.inl ⟨i, rfl⟩)
-
-theorem InstLPAt.lit {ks : List ConLeche.Name} {us : List Level}
-    {st : EStore} {h : EIdx} {l : Literal} (hwf : StoreWF st)
-    (hview : st.view h = some (.lit l)) : InstLPAt ks us st h st h :=
-  InstLPAt.leaf hwf hview (Or.inr ⟨l, rfl⟩)
-
-/-- con-leche: ConLeche/Kernel/Level.lean:237 Expr.instantiateLevelParams — the
-`sort` arm, the one place an expression walk calls a LEVEL algorithm. -/
-theorem InstLPAt.sort_step {ks : List ConLeche.Name} {us : List Level}
-    {st st' : EStore} {h r : EIdx} {u ru : LIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.sort u))
-    (hu : RelL (Level.subst ks us) st u st' ru)
-    (hr : denoteE st' r = denoteEView st' (.sort ru)) :
-    InstLPAt ks us st h st' r :=
-  RelE.sort hwf hview (fun _ => rfl) hu hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:238 Expr.instantiateLevelParams — the
-`const` arm: the NAME is carried, the universe arguments are substituted. -/
-theorem InstLPAt.const_step {ks : List ConLeche.Name} {us : List Level}
-    {st st' : EStore} {h r : EIdx} {n : NIdx} {vs rvs : LsIdx}
-    {nm : ConLeche.Name} (hwf : StoreWF st)
-    (hview : st.view h = some (.const n vs))
-    (hn0 : denoteN st.ns n = some nm) (hx : Ext st st')
-    (hvs : RelLs (fun ws => ws.map (Level.subst ks us)) st vs st' rvs)
-    (hr : denoteE st' r = denoteEView st' (.const n rvs)) :
-    InstLPAt ks us st h st' r :=
-  RelE.const hwf hview (fun _ => rfl) hn0 (denoteN_ext hn0 hx) hvs hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:236 Expr.instantiateLevelParams — the
-`fvar` arm; the type ANNOTATION is descended into. -/
-theorem InstLPAt.fvar_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 : EStore} {h ty rt r : EIdx} {idx : Nat} (hwf : StoreWF st)
-    (hview : st.view h = some (.fvar idx ty))
-    (_hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt) (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.fvar idx rt)) :
-    InstLPAt ks us st h s2 r :=
-  RelE.fvar hwf hview (fun _ => rfl) (ht.ext hx2) hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:239 Expr.instantiateLevelParams — the
-`app` arm. -/
-theorem InstLPAt.app_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h f a rf ra r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.app f a))
-    (hx1 : Ext st s1) (hf : InstLPAt ks us st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : InstLPAt ks us s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    InstLPAt ks us st h s3 r :=
-  RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
-    ((ha.of_ext hx1).ext hx3) hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:240-242 Expr.instantiateLevelParams —
-the `lam` arm. -/
-theorem InstLPAt.lam_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.lam ty b))
-    (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : InstLPAt ks us s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.lam rt rb)) :
-    InstLPAt ks us st h s3 r :=
-  RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-    ((hb.of_ext hx1).ext hx3) hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:243-245 Expr.instantiateLevelParams —
-and the `forallE` arm. -/
-theorem InstLPAt.forallE_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.forallE ty b))
-    (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : InstLPAt ks us s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.forallE rt rb)) :
-    InstLPAt ks us st h s3 r :=
-  RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-    ((hb.of_ext hx1).ext hx3) hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:246-247
-Expr.instantiateLevelParams — the `letE` arm. -/
-theorem InstLPAt.letE_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 s3 s4 : EStore} {h ty w b rt rw rb r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.letE ty w b))
-    (hx1 : Ext st s1) (ht : InstLPAt ks us st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : InstLPAt ks us s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : InstLPAt ks us s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    InstLPAt ks us st h s4 r :=
-  RelE.letE hwf hview (fun _ _ _ => rfl) (((ht.ext hx2).ext hx3).ext hx4)
-    (((hw.of_ext hx1).ext hx3).ext hx4) ((hb.of_ext (hx1.trans hx2)).ext hx4) hr
-
-/-- con-leche: ConLeche/Kernel/Level.lean:249 Expr.instantiateLevelParams — the
-`proj` arm. -/
-theorem InstLPAt.proj_step {ks : List ConLeche.Name} {us : List Level}
-    {st s1 s2 : EStore} {h sub rs r : EIdx} {n : NIdx} {i : Nat}
-    {nm : ConLeche.Name} (hwf : StoreWF st)
-    (hview : st.view h = some (.proj n i sub))
-    (hx1 : Ext st s1) (hs : InstLPAt ks us st sub s1 rs) (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : InstLPAt ks us st h s2 r :=
-  RelE.proj hwf hview (fun _ => rfl) (hs.ext hx2) hn0
-    (denoteN_ext (denoteN_ext hn0 hx1) hx2) hr
+-- The cache frame, `s'.caches = { s₁.caches with readLC := …, readLsC := … }`,
+-- is structure eta at the cache record (`Bridge/Specs.lean`'s local line).
+attribute [local bridge_grind ext] Caches
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `instLPGo`'s recursion.
@@ -435,13 +435,13 @@ instead — and what its own recursive calls need — is the two readback
 CLAUSES, so those are hypotheses and conjuncts both. -/
 structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
     (rec : EIdx → AM EIdx) : Prop where
-  run : ∀ (s₁ : AState) (h : EIdx), StateOK s₁ → InstLPMemoA ks us s₁ →
+  run : ∀ (s₁ : AState) (h : EIdx), StateOK s₁ → InstLPMemoF ks us s₁ →
     InstLPLMemoA ks us s₁ → InstLPLsMemoA ks us s₁ →
     ReadLCacheOK s₁.caches.readLC s₁.store →
     ReadLsCacheOK s₁.caches.readLsC s₁.store →
     (denoteE s₁.store h).isSome = true →
     ⦃fun s => s = s₁⦄ rec h
-    ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ InstLPLMemoA ks us s' ∧
+    ⦃fun r s' => StateOK s' ∧ InstLPMemoF ks us s' ∧ InstLPLMemoA ks us s' ∧
         InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
@@ -452,33 +452,11 @@ structure InstLPSpec (ks : List ConLeche.Name) (us : List Level)
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         InstLPAt ks us s₁.store h s'.store r; ⊤⦄
 
-/-- con-leche: none — `ReadLCacheOK.mono` across a moved table (task #120:
-`bridge_frame`'s frame lemma; the table equation is the frame's). -/
-theorem ReadLCacheOK.mono' {tbl tbl' : Std.HashMap LIdx Level} {st st' : EStore}
-    (h : ReadLCacheOK tbl st) (hx : Ext st st') (ht : tbl' = tbl) :
-    ReadLCacheOK tbl' st' := ht ▸ h.mono hx
-
-/-- con-leche: none — and `ReadNCacheOK.mono`. -/
-theorem ReadNCacheOK.mono' {tbl tbl' : Std.HashMap NIdx ConLeche.Name}
-    {st st' : EStore} (h : ReadNCacheOK tbl st) (hx : Ext st st')
-    (ht : tbl' = tbl) : ReadNCacheOK tbl' st' := ht ▸ h.mono hx
-
-/-- con-leche: none — and `ReadLsCacheOK.mono`. -/
-theorem ReadLsCacheOK.mono' {tbl tbl' : Std.HashMap LsIdx (List Level)}
-    {st st' : EStore} (h : ReadLsCacheOK tbl st) (hx : Ext st st')
-    (ht : tbl' = tbl) : ReadLsCacheOK tbl' st' := ht ▸ h.mono hx
-
-/-- con-leche: none — a store whose three tables are another's has its views
-(`view_eq_of_tables`), as the arms' view-monotonicity conjunct states it. -/
-theorem viewMono_of_tables {st st' : EStore} (hp : st'.pers = st.pers)
-    (hs : st'.scr = st.scr) (ho : st'.scratchOn = st.scratchOn) :
-    ∀ i v, st.view i = some v → st'.view i = some v :=
-  fun i _ hv => (view_eq_of_tables hp hs ho i).trans hv
-
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo —
 **THEOREM 1 for `instantiateLevelParams`**, at one level of the recursion, by
-induction on the fuel.  `resetMetaGo_spec`'s shape with the `hasLP` cutoff in
-front and the two LEVEL arms `ExprOps/InstLP.lean` closes. -/
+induction on the fuel: the `hasLP` cutoff (`lpOfData_derived`,
+`instLPFn_cutoff`), the view dispatch with its ten arms unfolded in place, the
+two LEVEL arms by `ExprOps/InstLP.lean`'s specs. -/
 theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
     ∀ fuel, InstLPSpec ks us (instLPGo ks us fuel) := by
   intro fuel
@@ -486,50 +464,37 @@ theorem instLPGo_specS (ks : List ConLeche.Name) (us : List Level) :
   | zero =>
     constructor
     intro s₀ h _ _ _ _ _ _ _
-    vcgen [instLPGo_zero]
-    all_goals bridge_vcs [Expr.instantiateLevelParams]
+    sym only [bridge_grind] => vcgen [instLPGo_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h hok hm hml hmls hcl hcls hden
-    have hrec := ih.run
     dsimp only
-    vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
-      instLPArmForallE, instLPArmLet, instLPArmProj, hrec,
-      substLMemoAt_spec, substLsMemoAt_spec]
-    all_goals (bridge_peel; subst_vars)
-    bridge_auto [MemoOK.mono, MemoLOK.mono, MemoLsOK.mono, ReadLCacheOK.mono',
-      ReadLsCacheOK.mono', viewMono_trans, viewMono_of_eq, viewMono_of_tables,
-      MemoOK.get_hit', RelE.transport, RelL.ext, RelLs.ext, InstLPAt.sort_step,
-      InstLPAt.const_step, InstLPAt.fvar_step, InstLPAt.app_step, InstLPAt.lam_step,
-      InstLPAt.forallE_step, InstLPAt.letE_step, InstLPAt.proj_step,
-      InstLPAt.cutoffT, InstLPAt.bvar, InstLPAt.lit]
-    -- `internRebuilt`'s "the children came back unchanged" view, and the
-    -- callees' preconditions
-    all_goals bridge_vcs [Expr.instantiateLevelParams, ReadLCacheOK.mono,
-      ReadLsCacheOK.mono, view_eq_of_tables]
+    sym only [bridge_grind, denoteEView, opt2, opt3, instLPFn_cutoff, view_eq_viewAt] =>
+      vcgen [instLPGo_succ, instLPArmFVar, instLPArmApp, instLPArmLam,
+        instLPArmForallE, instLPArmLet, instLPArmProj, ih.run,
+        substLMemoAt_spec, substLsMemoAt_spec,
+        instLPSet_specA (f := instLPFn ks us)] <;> finish (gen := 10)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2566-2605 Expr.instLPGo — the walk
-at one state, which is the form the entry consumes. -/
-theorem instLPGo_spec (ks : List ConLeche.Name) (us : List Level) (fuel : Nat)
-    (s₀ : AState) (c : EIdx) (hok : StateOK s₀) (hm : InstLPMemoA ks us s₀)
-    (hml : InstLPLMemoA ks us s₀) (hmls : InstLPLsMemoA ks us s₀)
-    (hcl : ReadLCacheOK s₀.caches.readLC s₀.store)
-    (hcls : ReadLsCacheOK s₀.caches.readLsC s₀.store)
-    (hden : (denoteE s₀.store c).isSome = true) :
-    ⦃fun s => s = s₀⦄ instLPGo ks us fuel c
-    ⦃fun r s' => StateOK s' ∧ InstLPMemoA ks us s' ∧ Ext s₀.store s'.store ∧
+at every substitution, as the entry's `vcgen` list takes it. -/
+theorem instLPGo_spec (fuel : Nat) (ks : List ConLeche.Name) (us : List Level)
+    (s₁ : AState) (h : EIdx) (hok : StateOK s₁) (hm : InstLPMemoF ks us s₁)
+    (hml : InstLPLMemoA ks us s₁) (hmls : InstLPLsMemoA ks us s₁)
+    (hcl : ReadLCacheOK s₁.caches.readLC s₁.store)
+    (hcls : ReadLsCacheOK s₁.caches.readLsC s₁.store)
+    (hden : (denoteE s₁.store h).isSome = true) :
+    ⦃fun s => s = s₁⦄ instLPGo ks us fuel h
+    ⦃fun r s' => StateOK s' ∧ InstLPMemoF ks us s' ∧ InstLPLMemoA ks us s' ∧
+        InstLPLsMemoA ks us s' ∧ Ext s₁.store s'.store ∧
         ReadLCacheOK s'.caches.readLC s'.store ∧
         ReadLsCacheOK s'.caches.readLsC s'.store ∧
         s'.caches =
-          { s₀.caches with
+          { s₁.caches with
             readLC := s'.caches.readLC, readLsC := s'.caches.readLsC } ∧
-        s'.pins = s₀.pins ∧
-        RelE (fun x => x.instantiateLevelParams ks us) s₀.store c
-          s'.store r; ⊤⦄ := by
-  have hr := (instLPGo_specS ks us fuel).run
-  dsimp only
-  vcgen [hr]
-  all_goals bridge_vcs [Expr.instantiateLevelParams]
+        s'.pins = s₁.pins ∧
+        (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
+        InstLPAt ks us s₁.store h s'.store r; ⊤⦄ :=
+  (instLPGo_specS ks us fuel).run s₁ h hok hm hml hmls hcl hcls hden
 
 /-! ### The NAME readback with the sibling readback tables framed
 
@@ -581,9 +546,8 @@ recursion is on the list as `readNames`' is. -/
     -- the induction hypothesis, so the tail used to be generalised to a
     -- program VARIABLE first; with `vcgen` the hypothesis passed in the list
     -- serves directly.
-    vcgen [readNamesM, readNameM_specF, ih]
-    all_goals (bridge_peel; subst_vars
-               grind [Frontend.denoteNList, ReadNCacheOK])
+    sym only [bridge_grind, Frontend.denoteNList, ReadNCacheOK] =>
+      vcgen [readNamesM, readNameM_specF, ih] <;> finish
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2718-2722 Expr.instLPFast — the
 entry, which reads `ks` and `us` back ONCE (`readNamesM` / `readLevelsM`) and
@@ -625,23 +589,18 @@ theorem instLPFast_spec (fuel : Nat) (s₀ : AState) (ks : List NIdx)
         (s'.memos.instLPC = ∅ ∨ s' = s₀) ∧
         RelE (fun x => x.instantiateLevelParams ksv usv) s₀.store e
           s'.store r; ⊤⦄ := by
-  have hr := fun (kk : List ConLeche.Name) (uu : List Level) (s₁ : AState)
-      (c : EIdx) => instLPGo_spec kk uu fuel s₁ c
   dsimp only
-  vcgen [instLPFast, hr]
-  all_goals (bridge_peel; subst_vars)
-  -- The HOISTED `hasLP` cutoff (task #97-P6-10), which returns the subject
-  -- without reading `ks`/`us` back and without clearing the memo.
-  bridge_auto [InstLPAt.cutoffT, ReadLCacheOK.mono', ReadLsCacheOK.mono',
-    ReadNCacheOK.mono']
+  sym only [bridge_grind, instLPFn, Expr.instantiateLevelParams_eq_self, MemoOK.of_empty,
+      MemoLOK.of_empty, MemoLsOK.of_empty] =>
+    vcgen [instLPFast, instLPGo_spec fuel] <;> finish
 
 
 /-! ## The axiom check -/
 
 #print axioms abstract1Fast_spec
-#print axioms abstractRangeGo_spec
+#print axioms abstractRangeGo_specS
 #print axioms abstractRangeFast_spec
-#print axioms instLPGo_spec
+#print axioms instLPGo_specS
 #print axioms instLPFast_spec
 
 end ConRon.Bridge.ExprOps

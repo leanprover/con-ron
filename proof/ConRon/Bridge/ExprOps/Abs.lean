@@ -7,9 +7,9 @@ free variables into bound ones: `abstractRange` (the SPEC descent, `:669`),
 `abstractRangeFast` (`:1616`, `:1686`).
 
 Written against `ExprOps/Inst1.lean`, the tier's exemplar: the same `…Spec`
-record for one level of the recursion, the same fuel induction, the same
-per-arm `_step` lemmas in "the shape `vcgen` actually produces", the same
-`abs_hyp`, the same `attribute [-grind]` line.
+record for one level of the recursion and the same fuel induction; since
+task #123 the arms are closed by `grind` (see *The closer* below), not by
+per-arm step lemmas.
 
 ## The three deviations this family carries
 
@@ -58,21 +58,34 @@ constructor arm — and the proof follows it exactly, the way
 `ExprOps/Inst1.lean` does for `instantiate1Go`.  The five arm theorems take
 the previous fuel level's `Abs1Spec` as their induction hypothesis and their
 own TAG as a hypothesis (`EStore.viewApp` does not test the tag), and the
-dispatcher's `vcgen` list is the five of them.
-
-It is what closed this file's five open goals.  `fvarB` lives in the
-DISPATCHER and the arms never call it, so an arm has no store hop at all and
-every hypothesis is found by `assumption`; what is left for the dispatcher is
-the hop, the cutoff and the catch-all.  Under `mvcgen` the hop was not free
-even there — `mvcgen` matched an arm spec's POSTCONDITION first and so pinned
-its start state to `s₀`, the state before `fvarB` — so each arm went through
-a `…_hop` wrapper naming the two states separately.  `vcgen` (task #111)
+dispatcher's `vcgen` list is the five of them.  `vcgen` (task #111)
 instantiates an arm spec at the state `fvarB` returned and leaves the arm's
-preconditions at that state as verification conditions, which the closer
-discharges from `fvarB`'s framing equations; the wrappers are gone.
+preconditions at that state as verification conditions.
+
+## The closer (task #123)
+
+Every proof is `sym only [bridge_grind] => vcgen [...] <;> finish` (DESIGN
+#122's idiom; no `bridge_*`, no `vc_arm`).  What `grind` needs is
+equations, never a `fun` (DESIGN #123's recipe):
+
+* the pure functions are NAMED (`abs1Fn d k`, `absRangeFn d k c`), so the
+  answer relation `RelE (abs1Fn d k)` and the memo invariant
+  `MemoOK (abs1Fn d)` carry no lambda; one `=` lemma per constructor the
+  walk descends into (`abs1Fn_app`, …), and the cutoff and the catch-all as
+  two lemmas the DISPATCHER passes to `sym` (`abs1Fn_cutoff`,
+  `abs1Fn_leaf`);
+* the view a tag-guarded projection read gives is `Bridge/Rel.lean`'s
+  `view_of_viewApp` & co. under a guarded pattern, the denotation's
+  constructor follows from its tag (`exprTag_app` & co.), and the children's
+  denotations are `Bridge/Grind.lean` §5's `DenoteView` extractions;
+* the memo insert is `abs1Set_specA`, the insert's spec with the walk's
+  function a parameter (given in the `vcgen` list) and the invariant and
+  the answer as PRECONDITIONS, so that its post is a plain conjunction.
+
+The general lemmas this needed are in the section *Vocabulary candidates for
+Bridge/Grind.lean*.
 -/
 import ConRon.Bridge.ExprOps.MemoSpecs
-import ConRon.Bridge.Frame
 
 namespace ConRon.Bridge.ExprOps
 
@@ -83,31 +96,13 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ### Attribute hygiene (task #97s round 2, item 1)
-
-`RelE.ext`, `.of_ext` and `.retarget` close the answer relation under `Ext` in
-both directions, so every intermediate store multiplies every answer already
-known; the `_step` lemmas carry the chain themselves.  `attribute [-grind]`
-does not travel through an import, so every file of this tier repeats the
-line. -/
-attribute [-grind] RelE.ext RelE.of_ext RelE.retarget
-
-/-- con-leche: none — `vcgen` hands an arm its projection read as
-`some fields = st.viewC h`, i.e. REVERSED, so the one-line `assumption` that
-supplies a step lemma's hypothesis has to try both orientations. -/
-macro "abs_hyp" : tactic => `(tactic| first
-  | assumption
-  | (symm; assumption)
-  | grind only [Ext.trans, Ext.refl]
-  | grind [StateOK])
-
 /-! ## The pure licences
 
-Three pure facts about con-leche's `abstractRange`, one of which con-leche
-has (`abstract1_of_fvarRange_le`, `ConLeche/Kernel/ExprOps.lean:1765`) and two
-of which it states in `Verify/` against `fvarsBelow` rather than against
-`fvarRange`.  They are re-proved here at the field the arena READS, so that
-this tier imports `ConLeche.Kernel.*` only. -/
+Two pure facts about con-leche's `abstractRange`, which con-leche states in
+`Verify/` against `fvarsBelow` rather than against `fvarRange`.  They are
+re-proved here at the field the arena READS, so that this tier imports
+`ConLeche.Kernel.*` only.  (`abstract1`'s, `Expr.abstract1_of_fvarRange_le`,
+con-leche has at `fvarRange` already.) -/
 
 /-- con-leche: ConLeche/Verify/AbstractRange.lean:61 abstractRange_eq_self —
 **the fvar-range cutoff's licence**: abstracting a range at or above a term's
@@ -130,349 +125,329 @@ theorem abstractRange_zero_eq :
   intro e
   induction e <;> intro d c <;> simp_all [Expr.abstractRange] <;> omega
 
+/-! ## The pure functions, named
+
+`grind` must see the walk's pure function as a TERM, not a `fun` (DESIGN
+#123's recipe, rule 2): `abs1Fn d` and `absRangeFn d k` are the memo
+invariant's function, `abs1Fn d k` and `absRangeFn d k c` the answer
+relation's.  Each comes with one `=` lemma per constructor the walk descends
+into — they fire once congruence closure knows the denotation's constructor
+(`exprTag_app` & co. below) — and with the cutoff and the catch-all, which
+only the dispatcher needs and passes to `sym` itself. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:659-671 abstract1 — `abstract1`
+with the cursor first, as the memo table keys it. -/
+def abs1Fn (d k : Nat) (e : Expr) : Expr := e.abstract1 d k
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:686-703 abstractRange —
+`abstractRange` with the cursor first, as the memo table keys it. -/
+def absRangeFn (d k c : Nat) (e : Expr) : Expr := e.abstractRange d k c
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:665 abstract1 — the `app` clause. -/
+@[bridge_grind =] theorem abs1Fn_app (d k : Nat) (f a : Expr) :
+    abs1Fn d k (.app f a) = .app (abs1Fn d k f) (abs1Fn d k a) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:666 abstract1 — the `lam` clause. -/
+@[bridge_grind =] theorem abs1Fn_lam (d k : Nat) (t b : Expr) :
+    abs1Fn d k (.lam t b) = .lam (abs1Fn d k t) (abs1Fn d (k + 1) b) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:667 abstract1 — the `forallE`
+clause. -/
+@[bridge_grind =] theorem abs1Fn_forallE (d k : Nat) (t b : Expr) :
+    abs1Fn d k (.forallE t b) = .forallE (abs1Fn d k t) (abs1Fn d (k + 1) b) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:668-669 abstract1 — the `letE`
+clause. -/
+@[bridge_grind =] theorem abs1Fn_letE (d k : Nat) (t w b : Expr) :
+    abs1Fn d k (.letE t w b) =
+      .letE (abs1Fn d k t) (abs1Fn d k w) (abs1Fn d (k + 1) b) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:671 abstract1 — the `proj`
+clause. -/
+@[bridge_grind =] theorem abs1Fn_proj (d k : Nat) (n : ConLeche.Name) (i : Nat)
+    (s : Expr) : abs1Fn d k (.proj n i s) = .proj n i (abs1Fn d k s) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:662 abstract1 — the `fvar`
+clause: the leaf at the abstracted level becomes `bvar k`. -/
+@[bridge_grind =] theorem abs1Fn_fvar (d k i : Nat) (t : Expr) :
+    abs1Fn d k (.fvar i t) = if i = d then .bvar k else .fvar i t := rfl
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1765 abstract1_of_fvarRange_le —
-the same licence for `abstract1`, which con-leche has at `fvarRange`
-already. -/
-theorem abstract1_of_fvarRange_le_ {e : Expr} {d k : Nat}
-    (h : e.fvarRange ≤ d) : Expr.abstract1 e d k = e :=
+the cutoff of `abstract1Go`. -/
+theorem abs1Fn_cutoff {d k : Nat} {e : Expr} (h : e.fvarRange ≤ d) :
+    abs1Fn d k e = e :=
   Expr.abstract1_of_fvarRange_le e d k h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:764-776 abstract1 — the four LEAF
-constructors a catch-all arm covers are fixed points of `abstract1`. -/
-theorem abstract1_leaf {e : Expr} {d k : Nat}
-    (h : (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
-      ∃ i, e = .bvar i) : Expr.abstract1 e d k = e := by
-  rcases h with ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ | ⟨i, rfl⟩ <;>
-    simp [Expr.abstract1]
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:659-671 abstract1 — the
+catch-all: a term whose tag is none of the five the walk dispatches on is a
+`bvar`, `sort`, `const` or `lit`, all four fixed points. -/
+theorem abs1Fn_leaf {d k : Nat} {e : Expr}
+    (h1 : exprTag e ≠ ETag.fvar) (h2 : exprTag e ≠ ETag.app)
+    (h3 : ETag.isBind (exprTag e) = false) (h4 : exprTag e ≠ ETag.letE)
+    (h5 : exprTag e ≠ ETag.proj) : abs1Fn d k e = e := by
+  cases e <;> simp_all [abs1Fn, exprTag, Expr.abstract1, ETag.isBind] <;> decide
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — and of
-`abstractRange`. -/
-theorem abstractRange_leaf {e : Expr} {d k c : Nat}
-    (h : (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨ (∃ l, e = .lit l) ∨
-      ∃ i, e = .bvar i) : e.abstractRange d k c = e := by
-  rcases h with ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ | ⟨i, rfl⟩ <;>
-    simp [Expr.abstractRange]
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:694 abstractRange — the `app`
+clause. -/
+@[bridge_grind =] theorem absRangeFn_app (d k c : Nat) (f a : Expr) :
+    absRangeFn d k c (.app f a) = .app (absRangeFn d k c f) (absRangeFn d k c a) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:695-696 abstractRange — the `lam`
+clause. -/
+@[bridge_grind =] theorem absRangeFn_lam (d k c : Nat) (t b : Expr) :
+    absRangeFn d k c (.lam t b) = .lam (absRangeFn d k c t) (absRangeFn d k (c + 1) b) :=
+  rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:697-698 abstractRange — the
+`forallE` clause. -/
+@[bridge_grind =] theorem absRangeFn_forallE (d k c : Nat) (t b : Expr) :
+    absRangeFn d k c (.forallE t b) =
+      .forallE (absRangeFn d k c t) (absRangeFn d k (c + 1) b) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:699-701 abstractRange — the
+`letE` clause. -/
+@[bridge_grind =] theorem absRangeFn_letE (d k c : Nat) (t w b : Expr) :
+    absRangeFn d k c (.letE t w b) =
+      .letE (absRangeFn d k c t) (absRangeFn d k c w) (absRangeFn d k (c + 1) b) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:703 abstractRange — the `proj`
+clause. -/
+@[bridge_grind =] theorem absRangeFn_proj (d k c : Nat) (n : ConLeche.Name) (i : Nat)
+    (s : Expr) : absRangeFn d k c (.proj n i s) = .proj n i (absRangeFn d k c s) := rfl
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:689-691 abstractRange — the
+`fvar` clause, at the executed walk's `Bool` range test. -/
+@[bridge_grind =] theorem absRangeFn_fvar (d k c i : Nat) (t : Expr) :
+    absRangeFn d k c (.fvar i t) =
+      if (decide (d ≤ i) && decide (i < d + k)) = true then .bvar (c + (d + k - 1 - i))
+      else .fvar i t := by
+  simp [absRangeFn, Expr.abstractRange]
+
+/-- con-leche: ConLeche/Verify/AbstractRange.lean:61 abstractRange_eq_self —
+the cutoff of `abstractRangeGo`. -/
+theorem absRangeFn_cutoff {d k c : Nat} {e : Expr} (h : e.fvarRange ≤ d) :
+    absRangeFn d k c e = e :=
+  abstractRange_of_fvarRange_le e d k c h
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:686-703 abstractRange — the
+catch-all, as `abs1Fn_leaf`. -/
+theorem absRangeFn_leaf {d k c : Nat} {e : Expr}
+    (h1 : exprTag e ≠ ETag.fvar) (h2 : exprTag e ≠ ETag.app)
+    (h3 : ETag.isBind (exprTag e) = false) (h4 : exprTag e ≠ ETag.letE)
+    (h5 : exprTag e ≠ ETag.proj) : absRangeFn d k c e = e := by
+  cases e <;> simp_all [absRangeFn, exprTag, Expr.abstractRange, ETag.isBind] <;> decide
 
 /-! ## The answer relations
 
-`Bridge/Rel.lean`'s generic `RelE` with the pure function fixed (task #97b
-finding 1), so all of `RelE`'s eliminators apply and `grind` still sees a head
-symbol. -/
+`Bridge/Rel.lean`'s generic `RelE` at the named function (task #97b finding
+1, and task #123's rule against a `fun`). -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `abstract1`'s answer
 relation. -/
 abbrev Abs1At (d k : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
-  RelE (fun e => Expr.abstract1 e d k)
+  RelE (abs1Fn d k)
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `abstractRange`'s answer
 relation, at the SPEC function for both the spec descent and the executed
 walk. -/
 abbrev AbsRangeAt (d k c : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
-  RelE (fun e => e.abstractRange d k c)
+  RelE (absRangeFn d k c)
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1772-1774 Abs1MemoInv — the
-`abstractRange` reading of the SHARED memo table `abs1C`
-(`Bridge/StateOK.lean` has the `abstract1` reading, `Abs1MemoA d`; this is
-its sibling and belongs beside it). -/
+`abstract1` reading of the SHARED memo table `abs1C`, at the named function
+(`Bridge/StateOK.lean`'s `Abs1MemoA d` is the same invariant with a `fun`,
+definitionally). -/
+abbrev Abs1MemoF (d : Nat) (s : AState) : Prop :=
+  MemoOK (abs1Fn d) s.memos.abs1C s.store
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1772-1774 Abs1MemoInv — the
+`abstractRange` reading of the SHARED memo table `abs1C` (`Abs1MemoF` is its
+sibling). -/
 abbrev AbsRangeMemoA (d k : Nat) (s : AState) : Prop :=
-  MemoOK (fun c e => e.abstractRange d k c) s.memos.abs1C s.store
+  MemoOK (absRangeFn d k) s.memos.abs1C s.store
 
-/-! ## The step lemmas, in the shape `vcgen` actually produces
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
 
-Task #97s round 1's group 7 and round 2's item 3.  Five per walk: the four
-branching node kinds and the `fvar` leaf that ANSWERS (the one arm where the
-two walks differ). -/
+General lemmas the abstraction walks needed, in `Bridge/Grind.lean`'s §§3–5
+style; each is general (stores, views, denotations, answer relations, the
+generic memo invariant) and not specific to this family. -/
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `app`
-arm. -/
-theorem AbsRangeAt.app_step {d k c : Nat} {st s1 s2 s3 : EStore}
-    {h f a rf ra r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.app f a))
-    (hx1 : Ext st s1) (hf : AbsRangeAt d k c st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : AbsRangeAt d k c s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    AbsRangeAt d k c st h s3 r :=
-  RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
-    ((ha.of_ext hx1).ext hx3) hr
+/-- con-leche: none — the state invariant IS the store's well-formedness (an
+equation, so that a `StateOK` goal meets the callees' `StoreWF` posts). -/
+@[bridge_grind =] theorem StateOK_eq (s : AState) : StateOK s = StoreWF s.store :=
+  propext ⟨fun h => h.wf, fun h => ⟨h⟩⟩
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the two
-binder arms at a tag the walk carries (`eBindView`), with the binder datum
-UNCHANGED (`abstractRange` does not touch it). -/
-theorem AbsRangeAt.bind_step {d k c : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {tg : UInt32} (hwf : StoreWF st)
-    (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b))
-    (hx1 : Ext st s1) (ht : AbsRangeAt d k c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : AbsRangeAt d k (c + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
-    AbsRangeAt d k c st h s3 r := by
-  rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
-      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
-    with rfl | rfl
-  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, ite_true] at hview hr
-    exact RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-      ((hb.of_ext hx1).ext hx3) hr
-  · rw [eBindView] at hview hr
-    simp only [ETag.lam, ETag.forallE] at hview hr
-    exact RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-      ((hb.of_ext hx1).ext hx3) hr
+/-- con-leche: none — `RelE` IS a `MapRel` fact on the two denotation terms
+(the `=` form of `RelE.mapRel`, so that it also rewrites a `RelE` GOAL). -/
+@[bridge_grind =] theorem RelE_eq_mapRel (g : Expr → Expr) (st : EStore) (c : EIdx)
+    (st' : EStore) (r : EIdx) :
+    RelE g st c st' r = MapRel g (denoteE st c) (denoteE st' r) := by
+  apply propext; constructor
+  · exact RelE.mapRel
+  · intro h e he; rw [he] at h; exact h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `letE`
-arm, whose BODY is the one child at the bumped cursor. -/
-theorem AbsRangeAt.letE_step {d k c : Nat} {st s1 s2 s3 s4 : EStore}
-    {h ty w b rt rw rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.letE ty w b))
-    (hx1 : Ext st s1) (ht : AbsRangeAt d k c st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : AbsRangeAt d k c s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : AbsRangeAt d k (c + 1) s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    AbsRangeAt d k c st h s4 r :=
-  RelE.letE hwf hview (fun _ _ _ => rfl) (((ht.ext hx2).ext hx3).ext hx4)
-    (((hw.of_ext hx1).ext hx3).ext hx4) ((hb.of_ext (hx1.trans hx2)).ext hx4) hr
+/-- con-leche: none — `MapRel` at a denoting subject, as an equation (both
+polarities: a `MapRel` goal too). -/
+@[bridge_grind =] theorem MapRel.some_eq (g : Expr → Expr) (e : Expr) (o : Option Expr) :
+    MapRel g (some e) o = (o = some (g e)) := rfl
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `proj`
-arm, whose struct name is carried unchanged. -/
-theorem AbsRangeAt.proj_step {d k c : Nat} {st s1 s2 : EStore}
-    {h sub rs r : EIdx} {n : NIdx} {i : Nat} {nm : ConLeche.Name}
-    (hwf : StoreWF st) (hview : st.view h = some (.proj n i sub))
-    (hx1 : Ext st s1) (hs : AbsRangeAt d k c st sub s1 rs)
-    (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : AbsRangeAt d k c st h s2 r :=
-  RelE.proj hwf hview (fun _ => rfl) (hs.ext hx2) hn0
-    (denoteN_ext (denoteN_ext hn0 hx1) hx2) hr
+/-- con-leche: none — `RelV`'s answer at an optional subject (`MapRel` at a
+value answer). -/
+def MapRelV {α : Type} (g : Expr → α) : Option Expr → α → Prop
+  | some e, x => x = g e
+  | none, _ => True
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `fvar`
-arm IN THE RANGE: the leaf is replaced by the bound variable of the binder it
-names, and the annotation is not descended into. -/
-theorem AbsRangeAt.fvar_hit {d k c idx : Nat} {st st' : EStore} {h ty r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hin : d ≤ idx ∧ idx < d + k)
-    (hr : denoteE st' r = some (.bvar (c + (d + k - 1 - idx)))) :
-    AbsRangeAt d k c st h st' r := by
-  intro e he
-  obtain ⟨t, rfl, _⟩ := denote_fvar_inv hwf hview he
-  show denoteE st' r = some ((Expr.fvar idx t).abstractRange d k c)
-  have h2 : (Expr.fvar idx t).abstractRange d k c
-      = Expr.bvar (c + (d + k - 1 - idx)) := by
-    simp [Expr.abstractRange, hin]
-  rw [h2]; exact hr
+/-- con-leche: none — `RelV` IS a `MapRelV` fact on the denotation term. -/
+@[bridge_grind =] theorem RelV_eq_mapRelV {α : Type} (g : Expr → α) (st : EStore)
+    (c : EIdx) (x : α) : RelV g st c x = MapRelV g (denoteE st c) x := by
+  apply propext; constructor
+  · intro h; cases hc : denoteE st c with
+    | none => trivial
+    | some e => exact h e hc
+  · intro h e he; rw [he] at h; exact h
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `fvar`
-arm OUTSIDE the range: the handle answers itself. -/
-theorem AbsRangeAt.fvar_miss {d k c idx : Nat} {st : EStore} {h ty : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hout : ¬ (d ≤ idx ∧ idx < d + k)) : AbsRangeAt d k c st h st h := by
-  intro e he
-  obtain ⟨t, rfl, _⟩ := denote_fvar_inv hwf hview he
-  show denoteE st h = some ((Expr.fvar idx t).abstractRange d k c)
-  have h2 : (Expr.fvar idx t).abstractRange d k c = Expr.fvar idx t := by
-    simp [Expr.abstractRange, hout]
-  rw [h2]; exact he
+/-- con-leche: none — `MapRelV` at a denoting subject. -/
+@[bridge_grind =] theorem MapRelV.some_eq {α : Type} (g : Expr → α) (e : Expr) (x : α) :
+    MapRelV g (some e) x = (x = g e) := rfl
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the LEAF
-arms at a TAG dispatch (the executed walk's catch-all `else`): `bvar`, `sort`,
-`const` and `lit` answer the handle they were given. -/
-theorem AbsRangeAt.leaf {d k c : Nat} {st : EStore} {h : EIdx}
-    {v : ENodeView} (hwf : StoreWF st) (hview : st.view h = some v)
-    (hfvar : ¬ (h.tag = ETag.fvar)) (happ : ¬ (h.tag = ETag.app))
-    (hbind : ETag.isBind h.tag = false) (hlet : ¬ (h.tag = ETag.letE))
-    (hproj : ¬ (h.tag = ETag.proj)) : AbsRangeAt d k c st h st h := by
-  intro e he
-  show denoteE st h = some (e.abstractRange d k c)
-  have htag := EStore.tagOf_of_view hview
-  have hleaf : (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨
-      (∃ l, e = .lit l) ∨ ∃ i, e = .bvar i := by
-    cases v with
-    | bvar i => exact Or.inr (Or.inr (Or.inr ⟨i, denote_bvar_inv hwf hview he⟩))
-    | fvar j t => exact absurd (htag.trans rfl) hfvar
-    | sort u =>
-      obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hview he
-      exact Or.inl ⟨l, rfl⟩
-    | const n us =>
-      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
-      exact Or.inr (Or.inl ⟨nm, ls, rfl⟩)
-    | app f a => exact absurd (htag.trans rfl) happ
-    | lam ty b =>
-      rw [htag] at hbind; simp [ENodeView.tagOf, ETag.isBind] at hbind
-    | forallE ty b =>
-      rw [htag] at hbind
-      simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hbind
-    | letE ty w b => exact absurd (htag.trans rfl) hlet
-    | lit l => exact Or.inr (Or.inr (Or.inl ⟨l, denote_lit_inv hwf hview he⟩))
-    | proj n i sub => exact absurd (htag.trans rfl) hproj
-  rw [abstractRange_leaf hleaf]
-  exact he
+/-- con-leche: none — a subject the spec knows to denote denotes SOMETHING:
+the witness congruence closure needs to fire `MapRel.some_eq` and the
+`DenoteView` extractions. -/
+@[bridge_grind →] theorem denote_some_of_isSome {st : EStore} {h : EIdx}
+    (hs : (denoteE st h).isSome = true) : ∃ e, denoteE st h = some e :=
+  Option.isSome_iff_exists.mp hs
 
-/-! ## The executed walks' own lemmas
+grind_pattern [bridge_grind] view_isSome => (st.view c).isSome
 
-The cutoff, the `fvar` leaf that answers, and the catch-all — the three arms
-where the executed walks differ from the spec descent. -/
+/-- con-leche: none — a name handle that denotes has a view (the intern
+specs' precondition on a `proj`'s struct name). -/
+theorem nview_isSome {st : NStore} {c : NIdx} (hd : (denoteN st c).isSome = true) :
+    (st.view c).isSome = true := by
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp hd
+  exact nview_isSome_of_denote hx
+grind_pattern [bridge_grind] nview_isSome => (st.view c).isSome
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:1765 abstract1_of_fvarRange_le —
-the CUTOFF arm of `abstract1Go`, packaged as one step lemma (task #97s's rule
-about a lemma whose hypotheses `grind` would have to assemble: here the pair
-`fvarB`'s answer relation + con-leche's licence fires once). -/
-theorem Abs1At.cutoff {st : EStore} {h : EIdx} {d kk fb : Nat}
-    (hfb : RelV Expr.fvarRange st h fb) (hle : fb ≤ d) :
-    Abs1At d kk st h st h := by
-  intro e he
-  show denoteE st h = some (Expr.abstract1 e d kk)
-  have h1 : fb = e.fvarRange := hfb e he
-  rw [abstract1_of_fvarRange_le_ (by omega)]
-  exact he
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — a memo
+invariant survives a store extension when the table stood still (the table
+is the SAME term: congruence closure supplies the table equations). -/
+theorem MemoOK.le {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
+    {st st' : EStore} (hm : MemoOK f tbl st) (hx : st ≤ st') : MemoOK f tbl st' :=
+  MemoOK.mono hm hx rfl
+grind_pattern [bridge_grind] MemoOK.le => MemoOK f tbl st, st ≤ st'
+grind_pattern [bridge_grind] MemoOK.get => MemoOK f tbl st, tbl[k]?, some r where
+  guard tbl[k]? = some r
 
-/-- con-leche: ConLeche/Verify/AbstractRange.lean:61 abstractRange_eq_self —
-the same cutoff for `abstractRangeGo`. -/
-theorem AbsRangeAt.cutoff {st : EStore} {h : EIdx} {d k c fb : Nat}
-    (hfb : RelV Expr.fvarRange st h fb) (hle : fb ≤ d) :
-    AbsRangeAt d k c st h st h := by
-  intro e he
-  show denoteE st h = some (e.abstractRange d k c)
-  have h1 : fb = e.fvarRange := hfb e he
-  rw [abstractRange_of_fvarRange_le e d k c (by omega)]
-  exact he
+grind_pattern [bridge_grind] view_of_viewApp => st.viewApp i, some (f, a) where
+  guard st.viewApp i = some (f, a)
+grind_pattern [bridge_grind] view_of_viewBind => st.viewBind i, some (ty, b) where
+  guard st.viewBind i = some (ty, b)
+grind_pattern [bridge_grind] view_of_viewLet => st.viewLet i, some (ty, val, b) where
+  guard st.viewLet i = some (ty, val, b)
+grind_pattern [bridge_grind] view_of_viewProj => st.viewProj i, some (n, k, e) where
+  guard st.viewProj i = some (n, k, e)
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:764-776 abstract1 — the `fvar`
-arm AT the abstracted level: the leaf becomes `bvar kk`. -/
-theorem Abs1At.fvar_hit {d kk idx : Nat} {st st' : EStore} {h ty r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hidx : idx = d) (hr : denoteE st' r = some (.bvar kk)) :
-    Abs1At d kk st h st' r := by
-  intro e he
-  obtain ⟨t, rfl, _⟩ := denote_fvar_inv hwf hview he
-  show denoteE st' r = some (Expr.abstract1 (.fvar idx t) d kk)
-  rw [show Expr.abstract1 (.fvar idx t) d kk = Expr.bvar kk by
-    simp [Expr.abstract1, hidx]]
-  exact hr
+/-- con-leche: none — the `fvar` index read under its tag gives the view (the
+type handle exists: `viewFVarTy_of_viewFVarIdx`). -/
+theorem view_of_viewFVarIdx {st : EStore} {i : EIdx} {k : Nat}
+    (htg : i.tag = ETag.fvar) (h : st.viewFVarIdx i = some k) :
+    ∃ ty, st.view i = some (.fvar k ty) := by
+  obtain ⟨ty, hty⟩ := viewFVarTy_of_viewFVarIdx h
+  exact ⟨ty, view_of_viewFVar htg h hty⟩
+grind_pattern [bridge_grind] view_of_viewFVarIdx => st.viewFVarIdx i, some k where
+  guard st.viewFVarIdx i = some k
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:764-776 abstract1 — and at any
-other level, where the handle answers itself. -/
-theorem Abs1At.fvar_miss {d kk idx : Nat} {st : EStore} {h ty : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hidx : ¬ (idx = d)) : Abs1At d kk st h st h := by
-  intro e he
-  obtain ⟨t, rfl, _⟩ := denote_fvar_inv hwf hview he
-  show denoteE st h = some (Expr.abstract1 (.fvar idx t) d kk)
-  rw [show Expr.abstract1 (.fvar idx t) d kk = Expr.fvar idx t by
-    simp [Expr.abstract1, hidx]]
-  exact he
+attribute [bridge_grind =] eBindView
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — the `fvar`
-arm of the EXECUTED walk, whose range test is the `Bool` conjunction. -/
-theorem AbsRangeAt.fvar_hitB {d k c idx : Nat} {st st' : EStore}
-    {h ty r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.fvar idx ty))
-    (hin : (decide (d ≤ idx) && decide (idx < d + k)) = true)
-    (hr : denoteE st' r = some (.bvar (c + (d + k - 1 - idx)))) :
-    AbsRangeAt d k c st h st' r :=
-  AbsRangeAt.fvar_hit hwf hview (by simp at hin; omega) hr
+/-- con-leche: none — an expression tagged `app` IS an application of its two
+projections (§5's "views follow from tags", at the denotation). -/
+theorem exprTag_app {e : Expr} (h : exprTag e = ETag.app) :
+    e = .app (exprFn e) (exprArg e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_app => exprTag e where
+  guard exprTag e = ETag.app
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:791-808 abstractRange — and its
-`false` branch. -/
-theorem AbsRangeAt.fvar_missB {d k c idx : Nat} {st : EStore} {h ty : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hout : ¬ ((decide (d ≤ idx) && decide (idx < d + k)) = true)) :
-    AbsRangeAt d k c st h st h :=
-  AbsRangeAt.fvar_miss hwf hview (by simp at hout; omega)
+/-- con-leche: none — an expression tagged `lam` IS a λ of its projections. -/
+theorem exprTag_lam {e : Expr} (h : exprTag e = ETag.lam) :
+    e = .lam (exprBinderType e) (exprBody e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_lam => exprTag e where
+  guard exprTag e = ETag.lam
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:764-776 abstract1 — the CATCH-ALL
-arm of `abstract1Go` / `abstractRangeGo`: a handle whose tag is none of the
-five the walk dispatches on denotes `bvar`, `sort`, `const` or `lit`, all four
-of which are fixed points. -/
-theorem Abs1At.leaf {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {v : ENodeView} {d kk : Nat} (hview : st.view h = some v)
-    (hfvar : ¬ (h.tag = ETag.fvar)) (happ : ¬ (h.tag = ETag.app))
-    (hbind : ETag.isBind h.tag = false) (hlet : ¬ (h.tag = ETag.letE))
-    (hproj : ¬ (h.tag = ETag.proj)) : Abs1At d kk st h st h := by
-  intro e he
-  show denoteE st h = some (Expr.abstract1 e d kk)
-  have htag := EStore.tagOf_of_view hview
-  have hleaf : (∃ u, e = .sort u) ∨ (∃ n us, e = .const n us) ∨
-      (∃ l, e = .lit l) ∨ ∃ i, e = .bvar i := by
-    cases v with
-    | bvar i => exact Or.inr (Or.inr (Or.inr ⟨i, denote_bvar_inv hwf hview he⟩))
-    | fvar j t => exact absurd (htag.trans rfl) hfvar
-    | sort u =>
-      obtain ⟨l, rfl, _⟩ := denote_sort_inv hwf hview he
-      exact Or.inl ⟨l, rfl⟩
-    | const n us =>
-      obtain ⟨nm, ls, rfl, _, _⟩ := denote_const_inv hwf hview he
-      exact Or.inr (Or.inl ⟨nm, ls, rfl⟩)
-    | app f a => exact absurd (htag.trans rfl) happ
-    | lam ty b =>
-      rw [htag] at hbind; simp [ENodeView.tagOf, ETag.isBind] at hbind
-    | forallE ty b =>
-      rw [htag] at hbind
-      simp [ENodeView.tagOf, ETag.isBind, ETag.lam, ETag.forallE] at hbind
-    | letE ty w b => exact absurd (htag.trans rfl) hlet
-    | lit l => exact Or.inr (Or.inr (Or.inl ⟨l, denote_lit_inv hwf hview he⟩))
-    | proj n i sub => exact absurd (htag.trans rfl) hproj
-  rw [abstract1_leaf hleaf]
-  exact he
+/-- con-leche: none — an expression tagged `forallE` IS a ∀ of its
+projections. -/
+theorem exprTag_forallE {e : Expr} (h : exprTag e = ETag.forallE) :
+    e = .forallE (exprBinderType e) (exprBody e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_forallE => exprTag e where
+  guard exprTag e = ETag.forallE
 
-/-! ### The `abstract1` step lemmas
+/-- con-leche: none — an expression tagged `letE` IS a `let` of its
+projections. -/
+theorem exprTag_letE {e : Expr} (h : exprTag e = ETag.letE) :
+    e = .letE (exprBinderType e) (exprLetVal e) (exprBody e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_letE => exprTag e where
+  guard exprTag e = ETag.letE
 
-The executed walks test the TAG and then project (task #97-P6-13), so the arms
-are guarded by tag equations and a REVERSED projection read; the `view` fact
-each step lemma wants is derived by `Bridge/Rel.lean`'s group 6. -/
+/-- con-leche: none — an expression tagged `proj` IS a projection of its
+projections. -/
+theorem exprTag_proj {e : Expr} (h : exprTag e = ETag.proj) :
+    e = .proj (exprProjName e) (exprProjIdx e) (exprProjStruct e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_proj => exprTag e where
+  guard exprTag e = ETag.proj
 
-theorem Abs1At.app_step {d kk : Nat} {st s1 s2 s3 : EStore}
-    {h f a rf ra r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.app f a))
-    (hx1 : Ext st s1) (hf : Abs1At d kk st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : Abs1At d kk s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    Abs1At d kk st h s3 r :=
-  RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
-    ((ha.of_ext hx1).ext hx3) hr
+/-- con-leche: none — an expression tagged `fvar` IS a free variable of its
+projections. -/
+theorem exprTag_fvar {e : Expr} (h : exprTag e = ETag.fvar) :
+    e = .fvar (exprFVarIdx e) (exprFVarType e) := by
+  cases e <;> first | rfl | (simp only [exprTag] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] exprTag_fvar => exprTag e where
+  guard exprTag e = ETag.fvar
 
-theorem Abs1At.bind_step {d kk : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {tg : UInt32} (hwf : StoreWF st)
-    (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b))
-    (hx1 : Ext st s1) (ht : Abs1At d kk st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : Abs1At d (kk + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
-    Abs1At d kk st h s3 r := by
-  rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
-      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
-    with rfl | rfl
-  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, ite_true] at hview hr
-    exact RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-      ((hb.of_ext hx1).ext hx3) hr
-  · rw [eBindView] at hview hr
-    simp only [ETag.lam, ETag.forallE] at hview hr
-    exact RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-      ((hb.of_ext hx1).ext hx3) hr
+/-- con-leche: none — an `fvar` view's index and type annotation. -/
+theorem DenoteView.fvar {st : EStore} {k : Nat} {ty : EIdx} {e : Expr}
+    (H : DenoteView st (some (.fvar k ty)) (some e)) :
+    exprFVarIdx e = k ∧ denoteE st ty = some (exprFVarType e) := H
+grind_pattern [bridge_grind] DenoteView.fvar => DenoteView st (some (.fvar k ty)) (some e)
 
-theorem Abs1At.letE_step {d kk : Nat} {st s1 s2 s3 s4 : EStore}
-    {h ty w b rt rw rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.letE ty w b))
-    (hx1 : Ext st s1) (ht : Abs1At d kk st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : Abs1At d kk s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : Abs1At d (kk + 1) s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    Abs1At d kk st h s4 r :=
-  RelE.letE hwf hview (fun _ _ _ => rfl) (((ht.ext hx2).ext hx3).ext hx4)
-    (((hw.of_ext hx1).ext hx3).ext hx4) ((hb.of_ext (hx1.trans hx2)).ext hx4) hr
+/-- con-leche: none — a `lam` view's children. -/
+theorem DenoteView.lam {st : EStore} {ty b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.lam ty b)) (some e)) :
+    denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+grind_pattern [bridge_grind] DenoteView.lam => DenoteView st (some (.lam ty b)) (some e)
 
-theorem Abs1At.proj_step {d kk : Nat} {st s1 s2 : EStore} {h sub rs r : EIdx}
-    {n : NIdx} {i : Nat} {nm : ConLeche.Name} (hwf : StoreWF st)
-    (hview : st.view h = some (.proj n i sub))
-    (hx1 : Ext st s1) (hs : Abs1At d kk st sub s1 rs)
-    (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : Abs1At d kk st h s2 r :=
-  RelE.proj hwf hview (fun _ => rfl) (hs.ext hx2) hn0
-    (denoteN_ext (denoteN_ext hn0 hx1) hx2) hr
+/-- con-leche: none — a `forallE` view's children. -/
+theorem DenoteView.forallE {st : EStore} {ty b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.forallE ty b)) (some e)) :
+    denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
+grind_pattern [bridge_grind] DenoteView.forallE =>
+  DenoteView st (some (.forallE ty b)) (some e)
 
+/-- con-leche: none — a `letE` view's children. -/
+theorem DenoteView.letE {st : EStore} {ty w b : EIdx} {e : Expr}
+    (H : DenoteView st (some (.letE ty w b)) (some e)) :
+    denoteE st ty = some (exprBinderType e) ∧ denoteE st w = some (exprLetVal e) ∧
+      denoteE st b = some (exprBody e) := H
+grind_pattern [bridge_grind] DenoteView.letE => DenoteView st (some (.letE ty w b)) (some e)
+
+/-- con-leche: none — a `proj` view's struct name, index and subject. -/
+theorem DenoteView.proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
+    (H : DenoteView st (some (.proj n i sub)) (some e)) :
+    denoteN st.ns n = some (exprProjName e) ∧ idxOfName st.ns (exprProjName e) = n ∧
+      exprProjIdx e = i ∧ denoteE st sub = some (exprProjStruct e) := H
+grind_pattern [bridge_grind] DenoteView.proj => DenoteView st (some (.proj n i sub)) (some e)
+
+/-! ## The memo insert, generic in the walk
+
+`ExprOps/MemoSpecs.lean`'s `abs1Set_specI` moved the walk's function inside a
+`∀ f` of the postcondition, which `grind` would have to instantiate (at a
+`fun`).  This face takes the function as a parameter — `vcgen`'s list gives
+it, `abs1Set_specA (f := abs1Fn d)` — and the invariant and the answer as
+PRECONDITIONS, which `vcgen` leaves as verification conditions; the post is a
+plain conjunction. -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:1772-1774 Abs1MemoInv — `abs1Set`
+carrying the memo invariant of the walk `f` the caller names. -/
+theorem abs1Set_specA (f : Nat → Expr → Expr) (s₀ : AState) (h : EIdx) (c : Nat)
+    (r : EIdx) (hk : (denoteE s₀.store h).isSome = true)
+    (hm : MemoOK f s₀.memos.abs1C s₀.store) (hr : RelE (f c) s₀.store h s₀.store r) :
+    ⦃fun s => s = s₀⦄ abs1Set (h, c) r
+    ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
+        s'.pins = s₀.pins ∧ MemoOK f s'.memos.abs1C s'.store; ⊤⦄ := by
+  vcgen [abs1Set]
+  subst_vars
+  exact ⟨rfl, rfl, rfl, MemoOK.insert hm rfl hk hr⟩
 
 /-! ## `fvarB`, as a hypothesis (see the module header)
 
@@ -497,10 +472,10 @@ structure FvarBSpec : Prop where
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `abstract1Go`'s recursion. -/
 structure Abs1Spec (d : Nat) (rec : EIdx → Nat → AM EIdx) : Prop where
-  run : ∀ (s₁ : AState) (h : EIdx) (kk : Nat), StateOK s₁ → Abs1MemoA d s₁ →
+  run : ∀ (s₁ : AState) (h : EIdx) (kk : Nat), StateOK s₁ → Abs1MemoF d s₁ →
     (denoteE s₁.store h).isSome = true →
     ⦃fun s => s = s₁⦄ rec h kk
-    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoF d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         Abs1At d kk s₁.store h s'.store r; ⊤⦄
@@ -514,160 +489,102 @@ monotonicity dies at that arm.  A local spec, so no other file's verification
 conditions change shape under it. -/
 attribute [local spec high] internRebuiltBind_specV
 
-/-- con-leche: none — view monotonicity (the arms' `∀ i v, s₁.store.view i =
-some v → s'.store.view i = some v` conjunct) composes: `bridge_frame`'s
-lemma for the chain through the calls (task #120). -/
-theorem viewMono_trans {a b c : EStore}
-    (h₁ : ∀ i v, a.view i = some v → b.view i = some v)
-    (h₂ : ∀ i v, b.view i = some v → c.view i = some v) :
-    ∀ i v, a.view i = some v → c.view i = some v :=
-  fun i v h => h₂ i v (h₁ i v h)
-
-/-- con-leche: none — and an equation of stores is one. -/
-theorem viewMono_of_eq {a b : EStore} (h : b = a) :
-    ∀ i v, a.view i = some v → b.view i = some v :=
-  fun _ _ hv => h ▸ hv
-
-/-- con-leche: none — the `fvar` arm's index read under its tag gives the
-view (the type handle exists: `viewFVarTy_of_viewFVarIdx`), in the
-orientation `vcgen` hands it: `bridge_auto`'s lemma for the arm. -/
-theorem view_of_viewFVarIdx_tag' {st : EStore} {i : EIdx} {k : Nat}
-    (htg : (i.tag == ETag.fvar) = true) (h : some k = st.viewFVarIdx i) :
-    ∃ ty, st.view i = some (.fvar k ty) := by
-  obtain ⟨ty, hty⟩ := viewFVarTy_of_viewFVarIdx h.symm
-  exact ⟨ty, view_of_viewFVar_tag htg h.symm hty⟩
-
-/-- con-leche: none — `Abs1At.fvar_hit` with the intern's answer as
-`internE` states it (`denoteEView`). -/
-theorem Abs1At.fvar_hitV {d kk idx : Nat} {st st' : EStore} {h ty r : EIdx}
-    (hwf : StoreWF st) (hview : st.view h = some (.fvar idx ty))
-    (hidx : idx = d) (hr : denoteE st' r = denoteEView st' (.bvar kk)) :
-    Abs1At d kk st h st' r :=
-  Abs1At.fvar_hit hwf hview hidx (by rw [hr, denoteEView])
-
-/-- con-leche: none — the catch-all arm in the dispatch's tag form, from the
-subject's `isSome` (its view is the one its denotation gives): the shape
-`bridge_auto`'s lemma list applies as it stands. -/
-theorem Abs1At.leafT {st : EStore} (hwf : StoreWF st) {h : EIdx} {d kk : Nat}
-    (hden : (denoteE st h).isSome = true)
-    (hfvar : ¬ (h.tag == ETag.fvar) = true) (happ : ¬ (h.tag == ETag.app) = true)
-    (hbind : ¬ ETag.isBind h.tag = true) (hlet : ¬ (h.tag == ETag.letE) = true)
-    (hproj : ¬ (h.tag == ETag.proj) = true) : Abs1At d kk st h st h := by
-  obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
-  obtain ⟨vw, hvw⟩ := denoteE_view he
-  exact Abs1At.leaf hwf hvw (by simpa using hfvar) (by simpa using happ)
-    (by simpa using hbind) (by simpa using hlet) (by simpa using hproj)
-
 /-! ### The five ARM theorems (DESIGN §8.6's arm-split ruling, 2026-09-22)
 
 One theorem per `mutual`-block arm, exactly as `ExprOps/Inst1.lean` does, and
 for the reason task #97-P3-1 gives: **the `fvarB` call lives in the DISPATCHER
-only**.  Since task #120 wave 2 each arm is `bridge_auto` with the
-`Abs1At.*_step` lemmas in its list (the forward step applies them to the
-arm's own facts, `RelE.transport` carries the answer to the memo insert's
-store), and the dispatcher's cutoff and catch-all are two more lemmas. -/
+only**.  Each arm is the probe, the projection, the recursive calls (the
+induction hypothesis in the `vcgen` list), the intern and the insert; the
+view monotonicity of the arm's post is the callees' `∀` conjuncts, chained
+by `grind`. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the `app`
 ARM: probe, project, recurse into both children, rebuild, insert. -/
 theorem abstract1ArmApp_spec (d fuel : Nat)
     (ih : Abs1Spec d (abstract1Go d fuel)) (s₁ : AState) (h : EIdx) (kk : Nat)
-    (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
+    (hok : StateOK s₁) (hm : Abs1MemoF d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.app) = true) :
     ⦃fun s => s = s₁⦄ abstract1ArmApp d fuel h kk
-    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoF d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [abstract1ArmApp, hrec]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [MemoOK.mono, MemoOK.get_hit', viewMono_trans, viewMono_of_eq,
-    RelE.transport, Abs1At.app_step]
-  -- `internRebuilt`'s "the children came back unchanged" view
-  all_goals bridge_vcs [Expr.abstract1]
+  sym only [bridge_grind, denoteEView, opt2] =>
+    vcgen [abstract1ArmApp, ih.run, abs1Set_specA (f := abs1Fn d)] <;> finish
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the BINDER
 ARM (`lam` and `forallE` in one, as the tag dispatch tests them).  The body
 descends at `kk + 1`, and the binder DATUM is carried across unchanged, which
 is what the `viewBM` monotonicity conjunct is for. -/
 theorem abstract1ArmBind_spec (d fuel : Nat)
     (ih : Abs1Spec d (abstract1Go d fuel)) (s₁ : AState) (h : EIdx) (kk : Nat)
-    (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
+    (hok : StateOK s₁) (hm : Abs1MemoF d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : ETag.isBind h.tag = true) :
     ⦃fun s => s = s₁⦄ abstract1ArmBind d fuel h kk
-    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoF d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [abstract1ArmBind, hrec]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [MemoOK.mono, MemoOK.get_hit', viewMono_trans, viewMono_of_eq,
-    RelE.transport, Abs1At.bind_step, view_isSome]
-  -- `internRebuilt`'s "the children came back unchanged" view
-  all_goals bridge_vcs [Expr.abstract1, view_of_viewBind, isSome_eBindView,
-    view_isSome]
+  sym only [bridge_grind, denoteEView, opt2, ETag.isBind] =>
+    vcgen [abstract1ArmBind, ih.run, abs1Set_specA (f := abs1Fn d)] <;> finish
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the `fvar`
 ARM, which does not recurse and needs no induction hypothesis: at the
 abstracted level it interns a fresh `bvar kk`, at any other it answers the
 handle it was given. -/
 theorem abstract1ArmFVar_spec (d : Nat) (s₁ : AState) (h : EIdx) (kk : Nat)
-    (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
+    (hok : StateOK s₁) (hm : Abs1MemoF d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.fvar) = true) :
     ⦃fun s => s = s₁⦄ abstract1ArmFVar d h kk
-    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoF d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
-  vcgen [abstract1ArmFVar]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [MemoOK.mono, viewMono_trans, viewMono_of_eq, RelE.transport,
-    Abs1At.fvar_hitV, Abs1At.fvar_miss, view_of_viewFVarIdx_tag']
+  sym only [bridge_grind, denoteEView] =>
+    vcgen [abstract1ArmFVar] <;> finish
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the `letE`
-ARM; the body is the one child at the bumped cursor. -/
+ARM; the body is the one child at the bumped cursor.  Three recursive calls
+put the body's answer six instantiation generations from the subject's view,
+past `grind`'s default of 8 with the transport at the insert: `gen := 10`. -/
 theorem abstract1ArmLet_spec (d fuel : Nat)
     (ih : Abs1Spec d (abstract1Go d fuel)) (s₁ : AState) (h : EIdx) (kk : Nat)
-    (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
+    (hok : StateOK s₁) (hm : Abs1MemoF d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.letE) = true) :
     ⦃fun s => s = s₁⦄ abstract1ArmLet d fuel h kk
-    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoF d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [abstract1ArmLet, hrec]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [MemoOK.mono, MemoOK.get_hit', viewMono_trans, viewMono_of_eq,
-    RelE.transport, Abs1At.letE_step]
-  -- `internRebuilt`'s "the children came back unchanged" view
-  all_goals bridge_vcs [Expr.abstract1]
+  sym only [bridge_grind, denoteEView, opt3] =>
+    vcgen [abstract1ArmLet, ih.run, abs1Set_specA (f := abs1Fn d)] <;>
+      finish (gen := 10)
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go — the `proj`
-ARM.  The struct NAME is carried unchanged, and its denotation comes from
-`denote_eq_proj`'s existential, which `grind` cannot see through. -/
+ARM.  The struct NAME is carried unchanged: `DenoteView.proj` names its
+denotation, `denoteN_le` carries it to the intern. -/
 theorem abstract1ArmProj_spec (d fuel : Nat)
     (ih : Abs1Spec d (abstract1Go d fuel)) (s₁ : AState) (h : EIdx) (kk : Nat)
-    (hok : StateOK s₁) (hm : Abs1MemoA d s₁)
+    (hok : StateOK s₁) (hm : Abs1MemoF d s₁)
     (hden : (denoteE s₁.store h).isSome = true)
     (htg : (h.tag == ETag.proj) = true) :
     ⦃fun s => s = s₁⦄ abstract1ArmProj d fuel h kk
-    ⦃fun r s' => StateOK s' ∧ Abs1MemoA d s' ∧ Ext s₁.store s'.store ∧
+    ⦃fun r s' => StateOK s' ∧ Abs1MemoF d s' ∧ Ext s₁.store s'.store ∧
         s'.caches = s₁.caches ∧ s'.pins = s₁.pins ∧
         (∀ i v, s₁.store.view i = some v → s'.store.view i = some v) ∧
         Abs1At d kk s₁.store h s'.store r; ⊤⦄ := by
-  have hrec := ih.run
-  vcgen [abstract1ArmProj, hrec]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [MemoOK.mono, MemoOK.get_hit', viewMono_trans, viewMono_of_eq,
-    RelE.transport, Abs1At.proj_step]
-  -- `internRebuilt`'s "the children came back unchanged" view
-  all_goals bridge_vcs [Expr.abstract1]
+  sym only [bridge_grind, denoteEView, opt2] =>
+    vcgen [abstract1ArmProj, ih.run, abs1Set_specA (f := abs1Fn d)] <;> finish
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:764-776 abstract1
 con-leche: ConLeche/Kernel/ExprOps.lean:1791-1835 abstract1Go
 **THEOREM 1 for `abstract1`**, at one level of the recursion, by induction on
-the fuel. -/
+the fuel.  The dispatcher: `fvarB`'s answer and `abs1Fn_cutoff` close the
+cutoff, the five arm theorems the tag chain, `abs1Fn_leaf` the catch-all. -/
 theorem abstract1Go_spec (hfv : FvarBSpec) (d : Nat) :
     ∀ fuel, Abs1Spec d (abstract1Go d fuel) := by
   intro fuel
@@ -675,31 +592,20 @@ theorem abstract1Go_spec (hfv : FvarBSpec) (d : Nat) :
   | zero =>
     constructor
     intro s₀ h kk _ _ _
-    vcgen [abstract1Go_zero]
-    all_goals bridge_vcs [Expr.abstract1]
+    sym only [bridge_grind] => vcgen [abstract1Go_zero] <;> finish
   | succ fuel ih =>
     constructor
     intro s₀ h kk hok hm hden
-    have happ := abstract1ArmApp_spec d fuel ih
-    have hbind := abstract1ArmBind_spec d fuel ih
-    have hfvar := abstract1ArmFVar_spec d
-    have hlet := abstract1ArmLet_spec d fuel ih
-    have hproj := abstract1ArmProj_spec d fuel ih
-    have hfvb := hfv.run
-    vcgen [abstract1Go_succ, happ, hbind, hfvar, hlet,
-      hproj, hfvb]
-    all_goals (bridge_peel; subst_vars)
-    bridge_auto [MemoOK.mono, viewMono_trans, viewMono_of_eq, RelE.transport,
-      Abs1At.cutoff, Abs1At.leafT]
-    -- the arms' and `fvarB`'s preconditions
-    all_goals bridge_vcs [Expr.abstract1]
+    sym only [bridge_grind, abs1Fn_cutoff, abs1Fn_leaf] =>
+      vcgen [abstract1Go_succ, abstract1ArmApp_spec d fuel ih,
+        abstract1ArmBind_spec d fuel ih, abstract1ArmFVar_spec d,
+        abstract1ArmLet_spec d fuel ih, abstract1ArmProj_spec d fuel ih,
+        hfv.run] <;> finish
 
 /-! ## The axiom check -/
 
 #print axioms abstractRange_of_fvarRange_le
 #print axioms abstractRange_zero_eq
-#print axioms Abs1At.cutoff
-#print axioms Abs1At.leaf
 #print axioms abstract1Go_spec
 
 end ConRon.Bridge.ExprOps
