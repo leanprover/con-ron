@@ -321,20 +321,10 @@ denotations. -/
     | some u => exact h u hc
   · intro h u hu; rw [hu] at h; exact h
 
-/-- con-leche: none — a `bvar` view's index. -/
-theorem DenoteView.bvar {st : EStore} {i : Nat} {e : Expr}
-    (H : DenoteView st (some (.bvar i)) (some e)) : exprBVar e = i := H
-grind_pattern [bridge_grind] DenoteView.bvar => DenoteView st (some (.bvar i)) (some e)
-
 /-- con-leche: none — a `sort` view's level. -/
 theorem DenoteView.sort {st : EStore} {u : LIdx} {e : Expr}
     (H : DenoteView st (some (.sort u)) (some e)) : denoteL st.ls u = some (exprSort e) := H
 grind_pattern [bridge_grind] DenoteView.sort => DenoteView st (some (.sort u)) (some e)
-
-/-- con-leche: none — a `lit` view's literal. -/
-theorem DenoteView.lit {st : EStore} {l : Literal} {e : Expr}
-    (H : DenoteView st (some (.lit l)) (some e)) : exprLit e = l := H
-grind_pattern [bridge_grind] DenoteView.lit => DenoteView st (some (.lit l)) (some e)
 
 /-- con-leche: none — an expression tagged `bvar` IS a bound variable. -/
 theorem exprTag_bvar {e : Expr} (h : exprTag e = ETag.bvar) : e = .bvar (exprBVar e) := by
