@@ -631,7 +631,7 @@ statements are instead plain implications over a successful run, like the
 graded ones below.
 
 **Spec grades.**  A twin function's statement has one of two grades
-([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L56-L72),
+([`Bridge/Inductives/Run.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Run.lean#L55-L71),
 [`Rel.lean`](https://github.com/leanprover/con-ron/blob/master/proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66)):
 
 * **pure grade** (`PSpec`), for functions that do not call the type

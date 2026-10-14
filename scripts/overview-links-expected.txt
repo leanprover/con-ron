@@ -2028,24 +2028,24 @@
     30     `StateT σ (Except ε)` leaves universe metavariables in the verification
     31     conditions.
 
-== proof/ConRon/Bridge/Inductives/Run.lean#L56-L72
-    56  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
-    57  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
-    58  answer related to the pure side's by `R`, having only grown the arena.
-    59  
-    60  Partial correctness, as everywhere in this library: a (B) function may fail
-    61  and Theorem 1 claims nothing then — which is why the hypothesis is
-    62  `c s0 = .ok (r, s')` and not an unconditional equation.
-    63  
-    64  **RUN form rather than a Hoare triple** (DESIGN `### Task #97-P3-Checker`
-    65  §1): this tier's work is composition, inversion and list induction rather
-    66  than verification conditions, and the checker tier that consumes `IndSpec`
-    67  (`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
-    68  inversion). -/
-    69  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
-    70      Prop :=
-    71    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
-    72      PStep s₀ s' ∧ R s'.store r
+== proof/ConRon/Bridge/Inductives/Run.lean#L55-L71
+    55  /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — **the PURE grade's
+    56  statement**: from a well-formed store, an ACCEPTING run of the twin returns an
+    57  answer related to the pure side's by `R`, having only grown the arena.
+    58  
+    59  Partial correctness, as everywhere in this library: a (B) function may fail
+    60  and Theorem 1 claims nothing then — which is why the hypothesis is
+    61  `c s0 = .ok (r, s')` and not an unconditional equation.
+    62  
+    63  **RUN form rather than a Hoare triple** (DESIGN `### Task #97-P3-Checker`
+    64  §1): this tier's work is composition, inversion and list induction rather
+    65  than verification conditions, and the checker tier that consumes `IndSpec`
+    66  (`Bridge/Checker/Arms.lean`) is written in run form too (`AM.bind_ok` is its
+    67  inversion). -/
+    68  def PSpec {α : Type} (P : EStore → Prop) (c : AM α) (R : EStore → α → Prop) :
+    69      Prop :=
+    70    ∀ (s₀ s' : AState) (r : α), StateOK s₀ → P s₀.store → c s₀ = .ok (r, s') →
+    71      PStep s₀ s' ∧ R s'.store r
 
 == proof/ConRon/Bridge/Inductives/Rel.lean#L49-L66
     49  /-! ## The core grade -/
