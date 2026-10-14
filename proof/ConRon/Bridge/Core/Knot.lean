@@ -168,34 +168,103 @@ theorem knotSpec_zero (mode : CheckMode) (env : Env) (fe : IFEnv) :
   defeq := fun _ _ _ _ _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
   inferIO := fun _ _ _ _ _ _ _ => AM.triple_of_run fun _ _ _ _ h => nomatch h
 
-/-! ## The six slots in ANSWER shape
+/-! ## The slots in answer shape
 
-`KnotSpec`'s six fields take the subject's denotation as an explicit
-`(e : Expr)` argument with a `denoteE s₀.store i = some e` hypothesis.  That
-is the right shape for a caller that already holds the denotation, and it is
-the WRONG shape for a caller that reaches the slot through another call:
-the program does not name that `e`, so `vcgen` leaves it as a goal of its
-own, and the only `Expr` in scope is the *original* subject, at which the
-side goal is false.  `reduceNat_spec` and `unfoldDefinition_spec` take the
-existential-precondition shape for the same reason.
+`KnotSpec`'s fields take the subject's denotation as an explicit `(e : Expr)`
+with a `denoteE s₀.store i = some e` hypothesis: the right shape for a caller
+that holds the denotation, and the wrong one for a caller that reaches the
+slot through another call, whose answer's denotation the program does not
+name.  For those callers the slots are restated over the subject's
+denotation TERM: the precondition `DenWS d (denoteE s₀.store i)` (it denotes,
+in scope), the answer a named predicate on that term (`SlotAns`, or
+`Bridge/Grind.lean`'s `PairAns` at two subjects) with its equation at
+`some` — no `∃` to prove, no `∀` to instantiate, no `fun` for `grind`. -/
 
-Every walk of `Bridge/Core/Walks/Owed.lean` that chains two knot calls
-(`r.inferIO d ty'` on `r.whnf`'s ANSWER, say) meets it.  So
-rather than re-derive the existential/universal form at each site, the five
-slots are restated here, once: **the denotation goes IN as an existential
-(which names no metavariable) and OUT as a universal**.  Each is four lines
-over its own field, and `denoteE`'s functionality at one handle is the whole
-argument.
+/-- con-leche: none — a precondition on an optional subject: it denotes, in
+scope at `d`. -/
+def DenWS (d : Nat) : Option Expr → Prop | some e => Expr.WScoped d e | none => False
 
-The primed forms do not replace the unprimed ones — a caller that holds the
-denotation should keep using the field, which leaves it one fewer `∀` to
-instantiate. -/
+/-- con-leche: none — `DenWS` at a denoting subject. -/
+@[bridge_grind =] theorem DenWS.some_eq (d : Nat) (e : Expr) :
+    DenWS d (some e) = Expr.WScoped d e := rfl
 
-/-! ### The primed slots' axiom census -/
+/-- con-leche: none — a `DenWS` precondition: the subject denotes. -/
+theorem DenWS.isSome {d : Nat} {o : Option Expr} (h : DenWS d o) : o.isSome = true := by
+  cases o with
+  | none => exact h.elim
+  | some _ => rfl
+grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
 
-section Census
+/-- con-leche: none — a knot slot's answer about an optional subject: at a
+denoting subject `e`, the slot's `SimE` at `e`. -/
+def SlotAns (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (st : EStore) (r : EIdx) :
+    Option Expr → Prop
+  | some e => SimE op d e st r
+  | none => True
 
-end Census
+/-- con-leche: none — `SlotAns` at a denoting subject. -/
+@[bridge_grind =] theorem SlotAns.some_eq (op : Nat → Nat → Expr → CheckM Expr) (d : Nat)
+    (st : EStore) (r : EIdx) (e : Expr) : SlotAns op d st r (some e) = SimE op d e st r :=
+  rfl
+
+/-- con-leche: none — a triple whose answer is a `Bool` about the
+denotations of two subjects, restated over the denotation terms
+(`PairAns`): the subjects' denotations are no longer parameters. -/
+theorem pairAns_of_spec {mode : CheckMode} {env : Env} {fe : IFEnv} {m : AM Bool}
+    {P : Expr → Expr → Bool → Prop} {s₀ : AState} {a b : EIdx} {d : Nat}
+    (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b))
+    (h : ∀ x y, denoteE s₀.store a = some x → denoteE s₀.store b = some y →
+      Expr.WScoped d x → Expr.WScoped d y →
+      ⦃fun s => s = s₀⦄ m
+      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+          s'.pins = s₀.pins ∧ P x y r; ⊤⦄) :
+    ⦃fun s => s = s₀⦄ m
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
+        s'.pins = s₀.pins ∧ PairAns P (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
+  cases ha : denoteE s₀.store a with
+  | none => rw [ha] at hda; exact hda.elim
+  | some x =>
+  cases hb : denoteE s₀.store b with
+  | none => rw [hb] at hdb; exact hdb.elim
+  | some y =>
+  rw [ha] at hda; rw [hb] at hdb
+  exact h x y ha hb hda hdb
+
+/-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the `whnf` slot in
+answer shape. -/
+theorem KnotSpec.whnfS {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f) (s₀ : AState) (d : Nat) (i : EIdx)
+    (hok : CheckOK mode env fe s₀) (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SlotAns (ConLeche.whnf mode env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+  cases hd : denoteE s₀.store i with
+  | none => rw [hd] at hw; exact hw.elim
+  | some e => rw [hd] at hw; exact hsim.whnf s₀ d i e hok hd hw
+
+/-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the io-grade
+inference slot in answer shape. -/
+theorem KnotSpec.inferIOS {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f) (s₀ : AState) (d : Nat) (i : EIdx)
+    (hok : CheckOK mode env fe s₀) (hw : DenWS d (denoteE s₀.store i)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).inferIO d i
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        SlotAns (ConLeche.inferTypeIO mode env) d s'.store r (denoteE s₀.store i); ⊤⦄ := by
+  cases hd : denoteE s₀.store i with
+  | none => rw [hd] at hw; exact hw.elim
+  | some e => rw [hd] at hw; exact hsim.inferIO s₀ d i e hok hd hw
+
+/-- con-leche: ConLeche/Verify/SimIKnot.lean:28 SSimI — the `defeq` slot in
+answer shape (`PairAns` of `SimV`). -/
+theorem KnotSpec.defeqS {mode : CheckMode} {env : Env} {fe : IFEnv} {f : Nat}
+    (hsim : KnotSpec mode env fe f) (s₀ : AState) (d : Nat) (i j : EIdx)
+    (hok : CheckOK mode env fe s₀)
+    (hi : DenWS d (denoteE s₀.store i)) (hj : DenWS d (denoteE s₀.store j)) :
+    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).defeq d i j
+    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
+        PairAns (SimV (ConLeche.isDefEqCore mode env) d) (denoteE s₀.store i)
+          (denoteE s₀.store j) r; ⊤⦄ :=
+  pairAns_of_spec hi hj fun a b ha hb hwa hwb => hsim.defeq s₀ d i j a b hok ha hb hwa hwb
 
 /-! ## The body statement, once
 

@@ -118,22 +118,7 @@ theorem StkRel.take_size {α β : Type} {R : α → β → Prop} {stk : Array α
     StkRel R (stk.toList.take stk.size).reverse stkx := by
   rw [show stk.size = stk.toList.length by simp, List.take_length]; exact h
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
-
-/-- con-leche: none — `internLNode (.imax u v)`'s precondition, at level
-handles that denote. -/
-@[bridge_grind ←] theorem lviewOK_imax {st : EStore} {u v : LIdx}
-    (hu : (denoteL st.ls u).isSome = true) (hv : (denoteL st.ls v).isSome = true) :
-    st.ls.ViewOK (.imax u v) := by
-  obtain ⟨_, hu'⟩ := Option.isSome_iff_exists.mp hu
-  obtain ⟨_, hv'⟩ := Option.isSome_iff_exists.mp hv
-  constructor
-  · intro c hc
-    simp only [LNodeView.lchildren, List.mem_cons, List.not_mem_nil, or_false] at hc
-    rcases hc with rfl | rfl
-    · exact lview_isSome_of_denote hu'
-    · exact lview_isSome_of_denote hv'
-  · intro c hc; simp [LNodeView.nchildren] at hc
+/-! ## The loops' callees at the tier's invariant, and the stacks' transport -/
 
 /-- con-leche: none — `ExprOps/Owed.lean`'s `abstractRangeFast_spec` at the
 tier's invariant, its answer as ONE equation over `absRangeFn`. -/

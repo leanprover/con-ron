@@ -21,8 +21,7 @@ here, in the one place both tiers see — `Bridge/Checker/Inv.lean` plus
 |---|---|
 | `pinAt_run` | the pin-table reader |
 | `PinStep`, `PinStep.refl` | the frame of a pin read |
-| `denoteNL_toList`, `reservedBasisNameValues_eq` | the two equations a CONSUMER of the answer needs |
-| `denoteNList_contains` | and the third: a handle `List.contains` is a name `List.contains` |
+| `denoteNL_toList`, `reservedBasisNameValues_eq` | the two equations a CONSUMER of the answer needs (the third, `denoteNList_contains`, is `Bridge/Grind.lean`'s) |
 
 and the two memoised front-door walks, `allLevelParamsDefined_run` and
 `constsResolveFFast_run`, which the inductive tier's `checkStructProjTable`,
@@ -122,48 +121,6 @@ the arena's copy of the reserved list IS con-leche's, on the nose. -/
 theorem reservedBasisNameValues_eq :
     reservedBasisNameValues = ConLeche.reservedBasisNames := rfl
 /-! ## The name-list denotation, at a membership test -/
-
-/-- con-leche: none — **a handle comparison is a name comparison, at a LIST**:
-`List.contains` over handles answers what `List.contains` over the denoted
-names answers.  Both directions are needed and they come from different
-places — `denoteN` is a function (handles equal ⇒ names equal) and it is
-INJECTIVE (names equal ⇒ handles equal), which is DESIGN §8.3's soundness
-obligation cashed. -/
-theorem denoteNList_contains {st : EStore} (hwf : StoreWF st) :
-    ∀ (ns : List NIdx) (xs : List ConLeche.Name),
-      Frontend.denoteNList st.ns ns = some xs →
-      ∀ (n : NIdx) (x : ConLeche.Name), denoteN st.ns n = some x →
-        ns.contains n = xs.contains x := by
-  obtain ⟨rk, hrk⟩ := hwf
-  have hns : NStoreWF st.ns := hrk.nsWF
-  intro ns
-  induction ns with
-  | nil => intro xs h n x _; simp only [Frontend.denoteNList, Option.some.injEq] at h
-           subst h; rfl
-  | cons a as ih =>
-    intro xs h n x hx
-    simp only [Frontend.denoteNList] at h
-    cases ha : denoteN st.ns a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteNList st.ns as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        have hhead : (n == a) = (x == y) := by
-          by_cases hae : a = n
-          · subst hae
-            rw [hx] at ha
-            obtain rfl := Option.some.inj ha
-            simp
-          · have hae' : ¬ n = a := fun hh => hae hh.symm
-            have hne' : ¬ x = y := by
-              intro hxy; subst hxy
-              exact hae (denoteN_inj hns ha hx)
-            rw [beq_eq_false_iff_ne.mpr hae', beq_eq_false_iff_ne.mpr hne']
-        simp only [List.contains_cons, hhead, ih ys has n x hx]
 
 /-! ## The memoised DAG walks of the front door -/
 

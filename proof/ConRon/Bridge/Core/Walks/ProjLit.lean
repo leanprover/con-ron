@@ -26,7 +26,7 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean)
+/-! ## The projection table, as `grind` reads it
 
 The projection table's entries as `grind` reads them: a lookup's answer as
 ONE named predicate (`ProjAns`), a denoting entry's fields as equations
@@ -134,10 +134,6 @@ theorem view_of_denote_lit {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | lit l' => have := denote_lit_inv hwf hv hd; cases this; rfl
   | proj n i sub => obtain ⟨_, _, h, _, _⟩ := denote_proj_inv hwf hv hd; cases h
 
-/-- con-leche: none — a literal's string, if it is one. -/
-def litStr? : Literal → Option String | .strVal s => some s | .natVal _ => none
-attribute [bridge_grind =] litStr?
-
 /-- con-leche: ConLeche/Kernel/Core.lean:680-685 projLitToCtor — does the
 expansion fire: a string literal, and the stored declarations support it. -/
 def projLitFires (env : Env) (x : Expr) : Bool :=
@@ -231,7 +227,7 @@ theorem projLitToCtor_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   sym only [bridge_grind] =>
     vcgen [projLitToCtor_split, strLitSupported_spec (mode := mode) (env := env) (fe := fe),
       strLitToConstructor_spec (mode := mode) (env := env) (fe := fe),
-      KnotSpec.whnfA hsim] <;> finish
+      KnotSpec.whnfS hsim] <;> finish
 
 section Census
 

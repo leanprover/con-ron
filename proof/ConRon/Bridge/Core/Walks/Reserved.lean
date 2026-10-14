@@ -8,7 +8,8 @@ import: `Checker/Names.lean` imports `Checker/Hyp.lean`, which imports this
 tier's `Induction.lean`.  So the small pieces the chain needs are COPIED here
 under `…C` names (so the two copies never clash when both modules meet in one
 import closure): `PinStepC`, `reservedBasisNames_runC` (one
-`pinReserved_spec` read), `denoteNL_toListC`, `denoteNList_containsC`.
+`pinReserved_spec` read), `denoteNL_toListC` (the list membership test,
+`denoteNList_contains`, is `Bridge/Grind.lean`'s).
 
 These belong below both tiers (they mention nothing but `Bridge/Specs.lean`'s
 pin/intern triples and `StateOK.lean`'s `denoteNL`); in a module both can
@@ -69,49 +70,10 @@ theorem denoteNL_toListC {st : EStore} :
     | cons y ys =>
       simp only [Frontend.denoteNList, h.1, ih ys h.2]
 
-/-- con-leche: none — a handle `List.contains` is a name `List.contains`
-(copy of `Bridge/Checker/Names.lean`'s `denoteNList_containsC`). -/
-theorem denoteNList_containsC {st : EStore} (hwf : StoreWF st) :
-    ∀ (ns : List NIdx) (xs : List ConLeche.Name),
-      Frontend.denoteNList st.ns ns = some xs →
-      ∀ (n : NIdx) (x : ConLeche.Name), denoteN st.ns n = some x →
-        ns.contains n = xs.contains x := by
-  obtain ⟨rk, hrk⟩ := hwf
-  have hns : NStoreWF st.ns := hrk.nsWF
-  intro ns
-  induction ns with
-  | nil => intro xs h n x _; simp only [Frontend.denoteNList, Option.some.injEq] at h
-           subst h; rfl
-  | cons a as ih =>
-    intro xs h n x hx
-    simp only [Frontend.denoteNList] at h
-    cases ha : denoteN st.ns a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteNList st.ns as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        simp only [Option.some.injEq] at h
-        subst h
-        have hhead : (n == a) = (x == y) := by
-          by_cases hae : a = n
-          · subst hae
-            rw [hx] at ha
-            obtain rfl := Option.some.inj ha
-            simp
-          · have hae' : ¬ n = a := fun hh => hae hh.symm
-            have hne' : ¬ x = y := by
-              intro hxy; subst hxy
-              exact hae (denoteN_inj hns ha hx)
-            rw [beq_eq_false_iff_ne.mpr hae', beq_eq_false_iff_ne.mpr hne']
-        simp only [List.contains_cons, hhead, ih ys has n x hx]
-
 section Census
 
 #print axioms reservedBasisNames_runC
 #print axioms denoteNL_toListC
-#print axioms denoteNList_containsC
 
 end Census
 

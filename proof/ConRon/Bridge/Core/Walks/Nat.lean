@@ -28,7 +28,7 @@ walk.  What makes them `grind`-shaped:
 * `reduceNat`'s answer named (`NatRed`), its fourteen exits as `grind`
   lemmas over the subject's projections (`exprFn`, `exprArg`), and the
   callees it reads at handles it has only just made in answer shape
-  (`KnotSpec.whnfA`, `rawNatLit?_specA`, `constE_specA`);
+  (`KnotSpec.whnfS`, `rawNatLit?_specA`, `constE_specA`);
 * the binary guards as `Bool`s (`natBinOpB`, `WfNames`), so a fourteen-way
   name test is one equation per pin, not a disjunction.
 
@@ -84,23 +84,11 @@ local grind_pattern [bridge_grind] EIdxAt.some => EIdxAt st n (some e)
 attribute [local bridge_grind =] ETag.bvar ETag.fvar ETag.sort ETag.const ETag.app ETag.lam
   ETag.forallE ETag.letE ETag.lit ETag.proj exprTag
 
-/-- con-leche: none — a literal's `Nat`, if it is one. -/
-def litNat? : Literal → Option Nat | .natVal n => some n | .strVal _ => none
-attribute [bridge_grind =] litNat?
-
 /-- con-leche: none — membership in a cons as a `||` (`List.elem_cons`'s
 `match` is what `grind` would otherwise split). -/
 theorem List.elem_cons_or {α : Type} [BEq α] (a b : α) (bs : List α) :
     (b :: bs).elem a = (a == b || bs.elem a) := by
   simp only [List.elem_cons]; cases a == b <;> rfl
-
-/-- con-leche: none — a precondition on an optional subject: it denotes, in
-scope at `d`. -/
-def DenWS (d : Nat) : Option Expr → Prop | some e => Expr.WScoped d e | none => False
-
-/-- con-leche: none — `DenWS` at a denoting subject. -/
-@[bridge_grind =] theorem DenWS.some_eq (d : Nat) (e : Expr) :
-    DenWS d (some e) = Expr.WScoped d e := rfl
 
 /-- con-leche: none — an application's argument is in scope where it is. -/
 theorem wscoped_exprArg {d : Nat} {x : Expr} (h : Expr.WScoped d x) :
@@ -113,33 +101,6 @@ theorem wscoped_exprFn {d : Nat} {x : Expr} (h : Expr.WScoped d x) :
     Expr.WScoped d (exprFn x) := by
   cases x <;> simp_all [Expr.WScoped, exprFn]
 grind_pattern [bridge_grind] wscoped_exprFn => Expr.WScoped d x, exprFn x
-
-/-- con-leche: none — the `whnf` slot's answer at an optional subject (a
-named predicate on the denotation term, `MapRel`'s idea at `SimE`). -/
-def WhnfAns (mode : CheckMode) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
-    Option Expr → Prop
-  | some e => SimE (ConLeche.whnf mode env) d e st r
-  | none => True
-
-/-- con-leche: none — `WhnfAns` at a denoting subject. -/
-theorem WhnfAns.some {d : Nat} {st : EStore} {r : EIdx} {e : Expr}
-    (H : WhnfAns mode env d st r (some e)) : SimE (ConLeche.whnf mode env) d e st r := H
-grind_pattern [bridge_grind] WhnfAns.some => WhnfAns mode env d st r (some e)
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the `whnf`
-slot in answer shape (`KnotSpec.whnf'` with a `DenWS` precondition and a
-`WhnfAns` post: no `∃` to prove, no `∀` to instantiate). -/
-theorem KnotSpec.whnfA {f : Nat} (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hw : DenWS d (denoteE s₀.store i)) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).whnf d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ WhnfAns mode env d s'.store r (denoteE s₀.store i); ⊤⦄ := by
-  cases hd : denoteE s₀.store i with
-  | none => rw [hd] at hw; exact hw.elim
-  | some e =>
-    rw [hd] at hw
-    exact triple_mono (hsim.whnf s₀ d i e hok hd hw) (fun _ _ h => h)
 
 /-- con-leche: none — `Bridge/Specs.lean`'s `internE_spec` at the tier's
 invariant (`CheckOK.mono`), so that `grind` need not re-derive `CheckOK`. -/
@@ -1155,7 +1116,7 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   -- application spine and the knot's `whnf`, past the default generation and e-matching limits
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
-      KnotSpec.whnfA hsim, rawNatLit?_specA (mode := mode) (env := env) (fe := fe),
+      KnotSpec.whnfS hsim, rawNatLit?_specA (mode := mode) (env := env) (fe := fe),
       natLitSupported_spec (mode := mode) (env := env) (fe := fe),
       natBinOpName_spec (mode := mode) (env := env) (fe := fe)
         (nm := exprConstName (exprFn (exprFn x))),

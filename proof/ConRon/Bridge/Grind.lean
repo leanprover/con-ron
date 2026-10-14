@@ -155,6 +155,46 @@ theorem denoteEList_le {st st' : EStore} {hs : List EIdx} (hx : st ≤ st')
   rw [h]; exact denoteEList_ext hx _ _ h
 grind_pattern [bridge_grind] denoteEList_le => st ≤ st', Frontend.denoteEList st hs
 
+/-- con-leche: none — `denote_le` for a name-handle LIST. -/
+theorem denoteNList_le {st st' : EStore} {hs : List NIdx} (hx : st ≤ st')
+    (hd : Frontend.denoteNList st.ns hs ≠ none) :
+    Frontend.denoteNList st'.ns hs = Frontend.denoteNList st.ns hs := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteNListE_ext hx _ _ h
+grind_pattern [bridge_grind] denoteNList_le => st ≤ st', Frontend.denoteNList st.ns hs
+
+/-- con-leche: none — `denote_le` for a capability record. -/
+theorem denoteCaps_le {st st' : EStore} {c : IIndCaps} (hx : st ≤ st')
+    (hd : Frontend.denoteCaps st c ≠ none) :
+    Frontend.denoteCaps st' c = Frontend.denoteCaps st c := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteCaps_ext h hx
+grind_pattern [bridge_grind] denoteCaps_le => st ≤ st', Frontend.denoteCaps st c
+
+/-- con-leche: none — `denote_le` for a rule list. -/
+theorem denoteRules_le {st st' : EStore} {rs : List IRecRule} (hx : st ≤ st')
+    (hd : Frontend.denoteRules st rs ≠ none) :
+    Frontend.denoteRules st' rs = Frontend.denoteRules st rs := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteRules_ext hx _ _ h
+grind_pattern [bridge_grind] denoteRules_le => st ≤ st', Frontend.denoteRules st rs
+
+/-- con-leche: none — `denote_le` for a constant record. -/
+theorem denoteCV_le {st st' : EStore} {cv : IConstantVal} (hx : st ≤ st')
+    (hd : Frontend.denoteCV st cv ≠ none) :
+    Frontend.denoteCV st' cv = Frontend.denoteCV st cv := by
+  obtain ⟨c, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteCV_ext h hx
+grind_pattern [bridge_grind] denoteCV_le => st ≤ st', Frontend.denoteCV st cv
+
+/-- con-leche: none — `denote_le` for a level-handle LIST. -/
+theorem denoteLList_le {st st' : EStore} {hs : List LIdx} (hx : st ≤ st')
+    (hd : denoteLList st.ls hs ≠ none) :
+    denoteLList st'.ls hs = denoteLList st.ls hs := by
+  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
+  rw [h]; exact denoteLListE_ext hx _ _ h
+grind_pattern [bridge_grind] denoteLList_le => st ≤ st', denoteLList st.ls hs
+
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:61-63 Inst1MemoInv — a memo
 invariant survives a store extension when the table stood still. -/
 theorem MemoOK.le {f : Nat → Expr → Expr} {tbl : Std.HashMap (EIdx × Nat) EIdx}
@@ -310,6 +350,32 @@ witness one generation deeper, and `finish` then fails in `ExprOps/Inst1`,
     (h : (Frontend.denoteEList st hs).isSome = true) :
     ∃ xs, Frontend.denoteEList st hs = some xs :=
   Option.isSome_iff_exists.mp h
+
+/-! A `Bool` answer about two or three optional subjects, as a named predicate
+on their denotations (`PairAns`, `TripleAns`), with its equation at `some`
+(`Core/Knot.lean` has the slot answers and the `DenWS` precondition). -/
+
+/-- con-leche: none — a `Bool` answer about two optional subjects, as a named
+predicate `P` on their denotations (`P` a partial application, never a
+`fun`). -/
+def PairAns (P : Expr → Expr → Bool → Prop) : Option Expr → Option Expr → Bool → Prop
+  | some x, some y, r => P x y r
+  | _, _, _ => True
+
+/-- con-leche: none — `PairAns` at denoting subjects. -/
+@[bridge_grind =] theorem PairAns.some_eq (P : Expr → Expr → Bool → Prop) (x y : Expr)
+    (r : Bool) : PairAns P (some x) (some y) r = P x y r := rfl
+
+/-- con-leche: none — a `Bool` answer about three optional subjects, as a
+named predicate on their denotations. -/
+def TripleAns (P : Expr → Expr → Expr → Bool → Prop) :
+    Option Expr → Option Expr → Option Expr → Bool → Prop
+  | some x, some y, some w, r => P x y w r
+  | _, _, _, _ => True
+
+/-- con-leche: none — `TripleAns` at denoting subjects. -/
+@[bridge_grind =] theorem TripleAns.some_eq (P : Expr → Expr → Expr → Bool → Prop)
+    (x y w : Expr) (r : Bool) : TripleAns P (some x) (some y) (some w) r = P x y w r := rfl
 
 /-! ## 4. The state invariant, and small facts -/
 
@@ -495,6 +561,93 @@ theorem NListLen.some {hs : List NIdx} {xs : List ConLeche.Name} (H : NListLen h
     xs.length = hs.length := H
 grind_pattern [bridge_grind] NListLen.some => NListLen hs (some xs)
 
+/-- con-leche: none — a denoting cons of level handles is a cons of denotations. -/
+theorem denoteLList_cons_inv {st : LStore} {u : LIdx} {us : List LIdx} {L : List Level}
+    (h : denoteLList st (u :: us) = some L) :
+    ∃ l L', denoteL st u = some l ∧ denoteLList st us = some L' ∧ L = l :: L' := by
+  simp only [denoteLList] at h
+  cases h1 : denoteL st u <;> cases h2 : denoteLList st us <;> simp_all [opt2]
+
+/-- con-leche: none — a denoting cons of name handles is a cons of denotations. -/
+theorem denoteNList_cons_inv {st : NStore} {u : NIdx} {us : List NIdx} {L : List ConLeche.Name}
+    (h : Frontend.denoteNList st (u :: us) = some L) :
+    ∃ l L', denoteN st u = some l ∧ Frontend.denoteNList st us = some L' ∧ L = l :: L' := by
+  simp only [Frontend.denoteNList] at h
+  cases h1 : denoteN st u <;> cases h2 : Frontend.denoteNList st us <;> simp_all
+
+/-! ### Membership in a name-handle list -/
+
+/-- con-leche: none — **a handle comparison is a name comparison, at a LIST**:
+`List.contains` over handles answers what `List.contains` over the denoted
+names answers.  Both directions come from different places — `denoteN` is a
+function (handles equal ⇒ names equal) and it is INJECTIVE (names equal ⇒
+handles equal), which is DESIGN §8.3's soundness obligation cashed. -/
+theorem denoteNList_contains {st : EStore} (hwf : StoreWF st) :
+    ∀ (ns : List NIdx) (xs : List ConLeche.Name),
+      Frontend.denoteNList st.ns ns = some xs →
+      ∀ (n : NIdx) (x : ConLeche.Name), denoteN st.ns n = some x →
+        ns.contains n = xs.contains x := by
+  obtain ⟨rk, hrk⟩ := hwf
+  have hns : NStoreWF st.ns := hrk.nsWF
+  intro ns
+  induction ns with
+  | nil => intro xs h n x _; simp only [Frontend.denoteNList, Option.some.injEq] at h
+           subst h; rfl
+  | cons a as ih =>
+    intro xs h n x hx
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN st.ns a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList st.ns as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        simp only [Option.some.injEq] at h
+        subst h
+        have hhead : (n == a) = (x == y) := by
+          by_cases hae : a = n
+          · subst hae
+            rw [hx] at ha
+            obtain rfl := Option.some.inj ha
+            simp
+          · have hae' : ¬ n = a := fun hh => hae hh.symm
+            have hne' : ¬ x = y := by
+              intro hxy; subst hxy
+              exact hae (denoteN_inj hns ha hx)
+            rw [beq_eq_false_iff_ne.mpr hae', beq_eq_false_iff_ne.mpr hne']
+        simp only [List.contains_cons, hhead, ih ys has n x hx]
+
+/-- con-leche: none — a name-list membership test at optional denotations. -/
+def containsO : Option (List ConLeche.Name) → Option ConLeche.Name → Bool
+  | some xs, some x => xs.contains x
+  | _, _ => false
+
+/-- con-leche: none — `containsO` at denoting subjects. -/
+@[bridge_grind =] theorem containsO_some (xs : List ConLeche.Name) (x : ConLeche.Name) :
+    containsO (some xs) (some x) = xs.contains x := rfl
+
+/-- con-leche: none — `denoteNList_contains` as an equation: a handle-list
+membership test is its denotations' (the store interns names injectively). -/
+theorem contains_eq {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx)
+    (h1 : (Frontend.denoteNList st.ns ns).isSome = true) (h2 : (denoteN st.ns n).isSome = true) :
+    ns.contains n = containsO (Frontend.denoteNList st.ns ns) (denoteN st.ns n) := by
+  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h1
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp h2
+  rw [hxs, hx]
+  exact denoteNList_contains hwf ns xs hxs n x hx
+grind_pattern [bridge_grind] contains_eq =>
+  List.contains ns n, Frontend.denoteNList st.ns ns, denoteN st.ns n
+
+/-- con-leche: none — `contains_eq` at `List.elem` (the spelling the twins'
+`if` conditions reach `grind` in). -/
+theorem elem_eq {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx)
+    (h1 : (Frontend.denoteNList st.ns ns).isSome = true) (h2 : (denoteN st.ns n).isSome = true) :
+    List.elem n ns = containsO (Frontend.denoteNList st.ns ns) (denoteN st.ns n) :=
+  contains_eq hwf ns n h1 h2
+grind_pattern [bridge_grind] elem_eq =>
+  List.elem n ns, Frontend.denoteNList st.ns ns, denoteN st.ns n
+
 /-! ### The pin table
 
 The names the reserved slots hold, as closed equations (`pinNames[i]?` at a
@@ -581,6 +734,10 @@ slot constant is what a pin read's answer is stated over). -/
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
 `PIN_CHAR_OF_NAT` slot names `charOfNatName`. -/
 @[bridge_grind =] theorem pinNames_eq_charOfNatName : pinNames[PIN_CHAR_OF_NAT]? = some ConLeche.charOfNatName := rfl
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_AND` slot names `andName`. -/
+@[bridge_grind =] theorem pinNames_eq_andName : pinNames[PIN_AND]? = some ConLeche.andName := rfl
 
 /-! ## 5. The memo tables
 
@@ -700,6 +857,23 @@ def exprProjIdx : Expr → Nat | .proj _ i _ => i | _ => 0
 /-- con-leche: none — the projected structure. -/
 def exprProjStruct : Expr → Expr | .proj _ _ s => s | e => e
 
+/-! A literal's two readings, and `Expr.isStrLit` over them. -/
+
+/-- con-leche: none — a literal's `Nat`, if it is one. -/
+def litNat? : Literal → Option Nat | .natVal n => some n | .strVal _ => none
+attribute [bridge_grind =] litNat?
+
+/-- con-leche: none — a literal's string, if it is one. -/
+def litStr? : Literal → Option String | .strVal s => some s | .natVal _ => none
+attribute [bridge_grind =] litStr?
+
+/-- con-leche: ConLeche/Kernel/Core.lean:687-691 Expr.isStrLit — as one equation over
+the tag and the literal. -/
+theorem isStrLit_eq (e : Expr) :
+    e.isStrLit = (exprTag e == ETag.lit && (litStr? (exprLit e)).isSome) := by
+  cases e <;> try rfl
+  rename_i l; cases l <;> rfl
+
 /-! **A denotation's constructor from its tag**: an expression whose tag is
 KNOWN is its constructor applied to its projections.  Guarded — the lemma
 fires only where congruence closure already has `exprTag e = ETag.k`;
@@ -787,6 +961,17 @@ theorem idxOfName_eq {st : NStore} (hwf : NStoreWF st) {n : NIdx} {nm : ConLeche
   have hex : ∃ n, denoteN st n = some nm := ⟨n, h⟩
   simp only [idxOfName, hex, dite_true]
   exact denoteN_inj hwf (Classical.choose_spec hex) h
+
+/-- con-leche: none — two name handles of one store with one denotation are one handle
+(`denoteN`'s injectivity), instantiated only for pairs `grind` knows to denote alike. -/
+theorem nidx_eq_of_denote {st : EStore} (hwf : StoreWF st) {a b : NIdx}
+    (h : denoteN st.ns a = denoteN st.ns b) (hs : denoteN st.ns a ≠ none) : a = b := by
+  obtain ⟨x, hx⟩ := Option.ne_none_iff_exists'.mp hs
+  obtain ⟨rk, hrk⟩ := hwf
+  exact denoteN_inj hrk.nsWF hx (h ▸ hx)
+grind_pattern [bridge_grind] nidx_eq_of_denote => StoreWF st, denoteN st.ns a, denoteN st.ns b where
+  guard denoteN st.ns a = denoteN st.ns b
+  a =/= b
 
 /-! **The handle inverses at the other stores** (`idxOfName` at the level-list
 and expression stores, and the name store's keyed by the denotation term).
@@ -1175,6 +1360,18 @@ grind_pattern [bridge_grind] view_of_viewLet => st.viewLet i, some (ty, val, b) 
 grind_pattern [bridge_grind] view_of_viewProj => st.viewProj i, some (n, k, e) where
   guard st.viewProj i = some (n, k, e)
 
+/-- con-leche: none — a handle whose literal read answers views as that literal. -/
+theorem view_of_viewLit {st : EStore} {i : EIdx} {l : Literal}
+    (htg : i.tag = ETag.lit) (h : st.viewLit i = some l) :
+    st.view i = some (.lit l) :=
+  EStore.view_of_proj (p := ETables.getLit) (fun t hh => by
+    simp only [ETables.getLit, Option.map_eq_some_iff] at hh
+    obtain ⟨r, hr, rfl⟩ := hh
+    simp [ETables.get, htg, hr, ETag.lit, ETag.sort, ETag.bvar, ETag.fvar, ETag.const,
+      ETag.app, ETag.lam, ETag.forallE, ETag.letE]) h
+grind_pattern [bridge_grind] view_of_viewLit => st.viewLit i, some l where
+  guard st.viewLit i = some l
+
 /-- con-leche: none — the `fvar` index projection read means the type
 projection reads too (one row of the `fvar` array);
 `viewFVarIdx_isSome_of_viewFVarTy` is the other way. -/
@@ -1343,6 +1540,21 @@ handle that has a view. -/
     (h : (st.ls.view u).isSome = true) : st.ls.ViewOK (.succ u) :=
   ⟨fun c hc => by simp [LNodeView.lchildren] at hc; subst hc; exact h,
    fun c hc => by simp [LNodeView.nchildren] at hc⟩
+
+/-- con-leche: none — `internLNode (.imax u v)`'s precondition, at level
+handles that denote. -/
+@[bridge_grind ←] theorem lviewOK_imax {st : EStore} {u v : LIdx}
+    (hu : (denoteL st.ls u).isSome = true) (hv : (denoteL st.ls v).isSome = true) :
+    st.ls.ViewOK (.imax u v) := by
+  obtain ⟨_, hu'⟩ := Option.isSome_iff_exists.mp hu
+  obtain ⟨_, hv'⟩ := Option.isSome_iff_exists.mp hv
+  constructor
+  · intro c hc
+    simp only [LNodeView.lchildren, List.mem_cons, List.not_mem_nil, or_false] at hc
+    rcases hc with rfl | rfl
+    · exact lview_isSome_of_denote hu'
+    · exact lview_isSome_of_denote hv'
+  · intro c hc; simp [LNodeView.nchildren] at hc
 
 /-! ## 8. The environment index as equations -/
 

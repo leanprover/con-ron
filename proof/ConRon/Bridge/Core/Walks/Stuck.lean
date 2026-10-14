@@ -51,86 +51,7 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
-
-/-- con-leche: none — a `DenWS` precondition: the subject denotes. -/
-theorem DenWS.isSome {d : Nat} {o : Option Expr} (h : DenWS d o) : o.isSome = true := by
-  cases o with
-  | none => exact h.elim
-  | some _ => rfl
-grind_pattern [bridge_grind] DenWS.isSome => DenWS d o
-
-/-- con-leche: none — a `Bool` answer about two optional subjects, as a named
-predicate `P` on their denotations (`P` a partial application, never a
-`fun`). -/
-def PairAns (P : Expr → Expr → Bool → Prop) : Option Expr → Option Expr → Bool → Prop
-  | some x, some y, r => P x y r
-  | _, _, _ => True
-
-/-- con-leche: none — `PairAns` at denoting subjects. -/
-@[bridge_grind =] theorem PairAns.some_eq (P : Expr → Expr → Bool → Prop) (x y : Expr)
-    (r : Bool) : PairAns P (some x) (some y) r = P x y r := rfl
-
-/-- con-leche: none — a `SimBOp` triple at denoting subjects is a `PairAns`
-triple at their denotations (the answer-shape restatement of a two-subject
-`Bool` walk). -/
-theorem pairAns_of_spec {m : AM Bool} {P : Expr → Expr → Bool → Prop} {s₀ : AState}
-    {a b : EIdx} {d : Nat}
-    (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b))
-    (h : ∀ x y, denoteE s₀.store a = some x → denoteE s₀.store b = some y →
-      Expr.WScoped d x → Expr.WScoped d y →
-      ⦃fun s => s = s₀⦄ m
-      ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-          s'.pins = s₀.pins ∧ P x y r; ⊤⦄) :
-    ⦃fun s => s = s₀⦄ m
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ PairAns P (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
-  cases ha : denoteE s₀.store a with
-  | none => rw [ha] at hda; exact hda.elim
-  | some x =>
-  cases hb : denoteE s₀.store b with
-  | none => rw [hb] at hdb; exact hdb.elim
-  | some y =>
-  rw [ha] at hda; rw [hb] at hdb
-  exact h x y ha hb hda hdb
-
-/-- con-leche: none — the `inferIO` slot's answer at an optional subject
-(`WhnfAns`'s shape, `Core/Walks/Nat.lean`). -/
-def InferIOAns (mode : CheckMode) (env : Env) (d : Nat) (st : EStore) (r : EIdx) :
-    Option Expr → Prop
-  | some e => SimE (ConLeche.inferTypeIO mode env) d e st r
-  | none => True
-
-/-- con-leche: none — `InferIOAns` at a denoting subject. -/
-theorem InferIOAns.some {d : Nat} {st : EStore} {r : EIdx} {e : Expr}
-    (H : InferIOAns mode env d st r (some e)) : SimE (ConLeche.inferTypeIO mode env) d e st r :=
-  H
-grind_pattern [bridge_grind] InferIOAns.some => InferIOAns mode env d st r (some e)
-
-/-- con-leche: ConLeche/Verify/Cached/DiscC1.lean:70 ssimC_zero — the
-`inferIO` slot in answer shape (`KnotSpec.whnfA`'s). -/
-theorem KnotSpec.inferIOA {f : Nat} (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i : EIdx) (hok : CheckOK mode env fe s₀)
-    (hw : DenWS d (denoteE s₀.store i)) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).inferIO d i
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
-        s'.pins = s₀.pins ∧ InferIOAns mode env d s'.store r (denoteE s₀.store i); ⊤⦄ := by
-  cases hd : denoteE s₀.store i with
-  | none => rw [hd] at hw; exact hw.elim
-  | some e =>
-    rw [hd] at hw
-    exact triple_mono (hsim.inferIO s₀ d i e hok hd hw) (fun _ _ h => h)
-
-/-- con-leche: none — a `Bool` answer about three optional subjects, as a
-named predicate on their denotations. -/
-def TripleAns (P : Expr → Expr → Expr → Bool → Prop) :
-    Option Expr → Option Expr → Option Expr → Bool → Prop
-  | some x, some y, some w, r => P x y w r
-  | _, _, _, _ => True
-
-/-- con-leche: none — `TripleAns` at denoting subjects. -/
-@[bridge_grind =] theorem TripleAns.some_eq (P : Expr → Expr → Expr → Bool → Prop)
-    (x y w : Expr) (r : Bool) : TripleAns P (some x) (some y) (some w) r = P x y w r := rfl
+/-! ## The index at an inductive, and the children's answers -/
 
 /-- con-leche: none — an environment inductive's capabilities. -/
 def cIndCaps : Option ConstantInfo → IndCaps | some (.indInfo _ c) => c | _ => {}
@@ -169,37 +90,6 @@ theorem CapsFields.some {c : IIndCaps} {dc : IndCaps} (H : CapsFields c (some dc
     dc.unitlike = c.unitlike ∧ dc.unitParams = c.unitParams ∧ dc.eta = c.eta ∧
       dc.etaParams = c.etaParams ∧ dc.etaFields = c.etaFields ∧ dc.sortZ = c.sortZ := H
 grind_pattern [bridge_grind] CapsFields.some => CapsFields c (some dc)
-
-/-- con-leche: none — a name-list membership test at optional denotations. -/
-def containsO : Option (List ConLeche.Name) → Option ConLeche.Name → Bool
-  | some xs, some x => xs.contains x
-  | _, _ => false
-
-/-- con-leche: none — `containsO` at denoting subjects. -/
-@[bridge_grind =] theorem containsO_some (xs : List ConLeche.Name) (x : ConLeche.Name) :
-    containsO (some xs) (some x) = xs.contains x := rfl
-
-/-- con-leche: none — `denoteNList_containsC` as an equation: a handle-list
-membership test is its denotations' (the store interns names injectively). -/
-theorem contains_eq {st : EStore} (hwf : StoreWF st) (ns : List NIdx) (n : NIdx)
-    (h1 : (Frontend.denoteNList st.ns ns).isSome = true) (h2 : (denoteN st.ns n).isSome = true) :
-    ns.contains n = containsO (Frontend.denoteNList st.ns ns) (denoteN st.ns n) := by
-  obtain ⟨xs, hxs⟩ := Option.isSome_iff_exists.mp h1
-  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp h2
-  rw [hxs, hx]
-  exact denoteNList_containsC hwf ns xs hxs n x hx
-grind_pattern [bridge_grind] contains_eq =>
-  List.contains ns n, Frontend.denoteNList st.ns ns, denoteN st.ns n
-
-/-- con-leche: none — `KnotSpec.defeq` in answer shape (`PairAns` of `SimV`). -/
-theorem KnotSpec.defeqA {f : Nat} (hsim : KnotSpec mode env fe f)
-    (s₀ : AState) (d : Nat) (i j : EIdx) (hok : CheckOK mode env fe s₀)
-    (hi : DenWS d (denoteE s₀.store i)) (hj : DenWS d (denoteE s₀.store j)) :
-    ⦃fun s => s = s₀⦄ (coreKnot mode fe id f).defeq d i j
-    ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
-        PairAns (SimV (ConLeche.isDefEqCore mode env) d) (denoteE s₀.store i)
-          (denoteE s₀.store j) r; ⊤⦄ :=
-  pairAns_of_spec hi hj fun a b ha hb hwa hwb => hsim.defeq s₀ d i j a b hok ha hb hwa hwb
 
 /-! ### The children's answers, named -/
 
@@ -664,7 +554,7 @@ sides, the index at the constructor and the type former
 (`env_ctor_of_index`, `env_ind_of_index`), `reservedBasisNames_spec`,
 `viewLsLen`, the slot discipline (`Walks/Eta.lean`'s `towerSlotsAll_spec`),
 the guard (`EtaGuard`, identified by name injectivity and
-`denoteNList_containsC`), `lvlsEq?_spec` + `liftFueled_spec`, the parameters
+`denoteNList_contains`), `lvlsEq?_spec` + `liftFueled_spec`, the parameters
 (`defEqList_spec`) and the fields (`etaProjs_spec`, `defEqList_spec`).  The
 pure side is `structEtaCertWith_exits`, one statement per exit over
 `structEtaCertWith_tail`. -/
@@ -775,9 +665,9 @@ theorem structEtaCertWith_spec {fuel : Nat} (_hμ : mode.verifiedChecks = true)
                     icaps.unitlike, icaps.unitParams, icaps.ruleK, icaps.sortZ,
                     als, icaps.nparams, cts⟩ := by
               unfold EtaGuard
-              rw [hctr, denoteNList_containsC hwf5 res _ hres T Tn
+              rw [hctr, denoteNList_contains hwf5 res _ hres T Tn
                   (denoteN_ext hTn hx5),
-                denoteNList_containsC hwf5 res _ hres c cn (denoteN_ext hcn hx5),
+                denoteNList_contains hwf5 res _ hres c cn (denoteN_ext hcn hx5),
                 ← denoteEList_len htargs, denoteNList_len hlpsT,
                 denoteNList_eq_iff hwf hlpsC hlpsT, hslots]
             have hwx : ∀ z ∈ x.getAppArgs, Expr.WScoped d z :=
@@ -948,7 +838,7 @@ theorem structEtaCert_specA {fuel : Nat} (hμ : mode.verifiedChecks = true)
         PairAns (EtaCertE mode env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.structEtaCert, etaCtorShape_specA (mode := mode) (env := env) (fe := fe),
-      KnotSpec.inferIOA hsim, KnotSpec.whnfA hsim, structEtaCertWith_specA hμ henv hsim] <;>
+      KnotSpec.inferIOS hsim, KnotSpec.whnfS hsim, structEtaCertWith_specA hμ henv hsim] <;>
       finish
 
 /-! ### `structUnitCert` in answer shape -/
@@ -962,7 +852,7 @@ def TyRun (mode : CheckMode) (env : Env) (d : Nat) (x w : Expr) : Prop :=
 answers of one side, chained by their handles, are its run. -/
 theorem TyRun.mk {d : Nat} {x w : Expr} {st₁ st₂ : EStore} {ta wta : EIdx}
     (h1 : SimE (ConLeche.inferTypeIO mode env) d x st₁ ta)
-    (h2 : WhnfAns mode env d st₂ wta (denoteE st₁ ta)) (hd : denoteE st₂ wta = some w) :
+    (h2 : SlotAns (ConLeche.whnf mode env) d st₂ wta (denoteE st₁ ta)) (hd : denoteE st₂ wta = some w) :
     TyRun mode env d x w := by
   obtain ⟨v1, hv1, _, F1, hF1⟩ := h1
   rw [hv1] at h2
@@ -971,7 +861,7 @@ theorem TyRun.mk {d : Nat} {x w : Expr} {st₁ st₂ : EStore} {ta wta : EIdx}
   exact ⟨F1 + F2, v1, ConLeche.inferTypeIO_mono (by omega) hF1,
     ConLeche.whnf_mono (by omega) hF2⟩
 grind_pattern [bridge_grind] TyRun.mk =>
-  SimE (ConLeche.inferTypeIO mode env) d x st₁ ta, WhnfAns mode env d st₂ wta (denoteE st₁ ta),
+  SimE (ConLeche.inferTypeIO mode env) d x st₁ ta, SlotAns (ConLeche.whnf mode env) d st₂ wta (denoteE st₁ ta),
   some w where
   guard denoteE st₂ wta = some w
 
@@ -1050,14 +940,14 @@ def TyRunH (mode : CheckMode) (env : Env) (d : Nat) (y : Expr) (st : EStore) (h 
 answers of the second side, chained by their handles. -/
 theorem TyRunH.mk {d : Nat} {y : Expr} {st₁ st₂ : EStore} {tb wtb : EIdx}
     (h1 : SimE (ConLeche.inferTypeIO mode env) d y st₁ tb)
-    (h2 : WhnfAns mode env d st₂ wtb (denoteE st₁ tb)) : TyRunH mode env d y st₂ wtb := by
+    (h2 : SlotAns (ConLeche.whnf mode env) d st₂ wtb (denoteE st₁ tb)) : TyRunH mode env d y st₂ wtb := by
   obtain ⟨v1, hv1, _, F1, hF1⟩ := h1
   rw [hv1] at h2
   obtain ⟨v2, hv2, _, F2, hF2⟩ := h2
   exact ⟨v2, hv2, F1 + F2, v1, ConLeche.inferTypeIO_mono (by omega) hF1,
     ConLeche.whnf_mono (by omega) hF2⟩
 grind_pattern [bridge_grind] TyRunH.mk =>
-  SimE (ConLeche.inferTypeIO mode env) d y st₁ tb, WhnfAns mode env d st₂ wtb (denoteE st₁ tb)
+  SimE (ConLeche.inferTypeIO mode env) d y st₁ tb, SlotAns (ConLeche.whnf mode env) d st₂ wtb (denoteE st₁ tb)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:431-455 structUnitCert — the second
 side's type is a ∀ (never a family's application). -/
@@ -1121,10 +1011,10 @@ theorem structUnitCert_specA {fuel : Nat} (_hμ : mode.verifiedChecks = true)
   -- answer of an answer (`inferIO`, then `whnf`, then `getAppFn`/`getAppArgs`),
   -- past the default generation limit
   sym (gen := 12) only [bridge_grind] =>
-    vcgen [ConRon.Arena.structUnitCert, KnotSpec.inferIOA hsim, KnotSpec.whnfA hsim,
+    vcgen [ConRon.Arena.structUnitCert, KnotSpec.inferIOS hsim, KnotSpec.whnfS hsim,
       ExprOps.getAppFn_spec, ExprOps.getAppArgs_spec,
       reservedBasisNames_spec (mode := mode) (env := env) (fe := fe), viewLsLen_spec,
-      KnotSpec.defeqA hsim] <;> finish
+      KnotSpec.defeqS hsim] <;> finish
 
 /-! ### `proofIrrel` in answer shape -/
 
@@ -1141,8 +1031,8 @@ def SortRun (mode : CheckMode) (env : Env) (d : Nat) (x : Expr) (st : EStore) (h
 answers of one side, chained by their handles, are its run. -/
 theorem SortRun.mk {d : Nat} {x : Expr} {st₁ st₂ st₃ : EStore} {ta tta hh : EIdx}
     (h1 : SimE (ConLeche.inferTypeIO mode env) d x st₁ ta)
-    (h2 : InferIOAns mode env d st₂ tta (denoteE st₁ ta))
-    (h3 : WhnfAns mode env d st₃ hh (denoteE st₂ tta)) : SortRun mode env d x st₃ hh := by
+    (h2 : SlotAns (ConLeche.inferTypeIO mode env) d st₂ tta (denoteE st₁ ta))
+    (h3 : SlotAns (ConLeche.whnf mode env) d st₃ hh (denoteE st₂ tta)) : SortRun mode env d x st₃ hh := by
   obtain ⟨v1, hv1, _, F1, hF1⟩ := h1
   rw [hv1] at h2
   obtain ⟨v2, hv2, _, F2, hF2⟩ := h2
@@ -1151,8 +1041,8 @@ theorem SortRun.mk {d : Nat} {x : Expr} {st₁ st₂ st₃ : EStore} {ta tta hh 
   exact ⟨F1 + F2 + F3, v1, v2, v3, ConLeche.inferTypeIO_mono (by omega) hF1,
     ConLeche.inferTypeIO_mono (by omega) hF2, ConLeche.whnf_mono (by omega) hF3, hv3⟩
 grind_pattern [bridge_grind] SortRun.mk =>
-  SimE (ConLeche.inferTypeIO mode env) d x st₁ ta, InferIOAns mode env d st₂ tta (denoteE st₁ ta),
-  WhnfAns mode env d st₃ hh (denoteE st₂ tta)
+  SimE (ConLeche.inferTypeIO mode env) d x st₁ ta, SlotAns (ConLeche.inferTypeIO mode env) d st₂ tta (denoteE st₁ ta),
+  SlotAns (ConLeche.whnf mode env) d st₃ hh (denoteE st₂ tta)
 
 /-- con-leche: none — a run's answer is a sort at its view's level, or not a
 sort at all (`denote_sort_inv`, `denote_not_sort`). -/
@@ -1252,8 +1142,8 @@ theorem proofIrrel_specA {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧ s'.pins = s₀.pins ∧
         PairAns (PIrrelE mode env d) (denoteE s₀.store a) (denoteE s₀.store b) r; ⊤⦄ := by
   sym only [bridge_grind] =>
-    vcgen [ConRon.Arena.proofIrrel, ConRon.Arena.zeroLevel, KnotSpec.inferIOA hsim,
-      KnotSpec.whnfA hsim, pinZeroLevel_spec, lvlEq?_specA (mode := mode) (env := env) (fe := fe),
+    vcgen [ConRon.Arena.proofIrrel, ConRon.Arena.zeroLevel, KnotSpec.inferIOS hsim,
+      KnotSpec.whnfS hsim, pinZeroLevel_spec, lvlEq?_specA (mode := mode) (env := env) (fe := fe),
       liftFueled_spec] <;> finish
 
 /-- con-leche: ConLeche/Kernel/Core.lean:327-341 proofIrrel — **THEOREM 1 for

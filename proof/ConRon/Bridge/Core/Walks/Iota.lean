@@ -44,7 +44,7 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
+/-! ## The comparands -/
 
 /-- con-leche: none — `internLevel` at the tier's invariant. -/
 theorem internLevel_specC (s₀ : AState) (u : Level) (hok : CheckOK mode env fe s₀) :
@@ -53,28 +53,6 @@ theorem internLevel_specC (s₀ : AState) (u : Level) (hok : CheckOK mode env fe
         denoteL s'.store.ls h = some u; ⊤⦄ :=
   triple_mono (internLevel_spec s₀ u hok.state.wf)
     (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hd⟩ => ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hd⟩)
-
-/-- con-leche: none — `denote_le` for a level-handle LIST. -/
-theorem denoteLList_le {st st' : EStore} {hs : List LIdx} (hx : st ≤ st')
-    (hd : denoteLList st.ls hs ≠ none) :
-    denoteLList st'.ls hs = denoteLList st.ls hs := by
-  obtain ⟨xs, h⟩ := Option.ne_none_iff_exists'.mp hd
-  rw [h]; exact denoteLListE_ext hx _ _ h
-grind_pattern [bridge_grind] denoteLList_le => st ≤ st', denoteLList st.ls hs
-
-/-- con-leche: none — a denoting cons of level handles is a cons of denotations. -/
-theorem denoteLList_cons_inv {st : LStore} {u : LIdx} {us : List LIdx} {L : List Level}
-    (h : denoteLList st (u :: us) = some L) :
-    ∃ l L', denoteL st u = some l ∧ denoteLList st us = some L' ∧ L = l :: L' := by
-  simp only [denoteLList] at h
-  cases h1 : denoteL st u <;> cases h2 : denoteLList st us <;> simp_all [opt2]
-
-/-- con-leche: none — a denoting cons of name handles is a cons of denotations. -/
-theorem denoteNList_cons_inv {st : NStore} {u : NIdx} {us : List NIdx} {L : List ConLeche.Name}
-    (h : Frontend.denoteNList st (u :: us) = some L) :
-    ∃ l L', denoteN st u = some l ∧ Frontend.denoteNList st us = some L' ∧ L = l :: L' := by
-  simp only [Frontend.denoteNList] at h
-  cases h1 : denoteN st u <;> cases h2 : Frontend.denoteNList st us <;> simp_all
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:906-920 recFireComparands — the canonical
 rule's level comparands, `cvjLps.map fun p => Level.subst lps us (.param p)`. -/

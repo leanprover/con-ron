@@ -83,8 +83,7 @@ Pure tests on handles.  Each is a handle comparison where con-leche has a
 `Name` comparison, and each is exact for the same reason: `denoteN` is
 injective (`Arena/WFProofs.lean`'s `denoteN_inj`, DESIGN §8.3's soundness
 obligation).  The LIST membership test of the family,
-`denoteNList_contains`, lives in `Bridge/Checker/Names.lean` with the
-reserved-name chain that is its only caller here.
+`denoteNList_contains`, is `Bridge/Grind.lean`'s.
 
 **The `AM` readers, as equations.**  `viewN` is a `get` and a `match`, so its
 run form is `rfl`; after `viewN_apply` no proof below mentions `StateT`. -/

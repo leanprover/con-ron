@@ -29,12 +29,6 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
-
-/-- con-leche: none — the pin table's `And` slot (`pinNames_eq_*`'s shape). -/
-@[bridge_grind =] theorem pinNames_eq_andName : pinNames[PIN_AND]? = some ConLeche.andName :=
-  rfl
-
 /-! ## 1. State-only readers -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:46-53 isCtorApp — the reader as

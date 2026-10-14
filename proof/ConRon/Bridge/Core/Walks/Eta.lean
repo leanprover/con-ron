@@ -43,7 +43,7 @@ theorem denoteNList_eq_iff {st : EStore} (hwf : StoreWF st)
   · rintro rfl; exact Option.some.inj (ha.symm.trans hb)
   · rintro rfl; exact denoteNList_inj hwf as bs xs ha hb
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean) -/
+/-! ## The projection-table lookup -/
 
 /-- con-leche: none — an optional projection-table entry is found exactly
 when its denotation is. -/
