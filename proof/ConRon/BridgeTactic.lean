@@ -870,18 +870,31 @@ def lemmaSkel (lr : AbstractMVarsResult) : MetaM (Nat × Array Expr) := do
 
 /-- The rules `prove` applies: the terms `extra` (elaborated in the current
 goal), then `@[bridge_frame]`; with their skeletons. -/
-def rules (extra : Array Term) : TacticM (Array AbstractMVarsResult × Array (Nat × Array Expr)) := do
-  let mut ls := #[]
-  for t in extra do ls := ls.push (← abstractMVars (← Tactic.elabTerm t none))
-  for n in registered (← getEnv) frameExt do
-    ls := ls.push (← abstractMVars (← mkConstWithFreshMVarLevels n))
-  return (ls, ← ls.mapM (fun l => (lemmaSkel l : MetaM _)))
+abbrev Rules := Array AbstractMVarsResult × Array (Nat × Array Expr)
 
-/-- `bridge_frame [l₁, …]` on one goal. -/
-def frameGoals (extra : Array Term) (g : MVarId) : TacticM (List MVarId) := g.withContext do
-  let (ls, sks) ← rules extra
-  let snap ← snapshot
-  frameGoal { snap with lemmas := ls, lemmaSkels := sks, failCache := some (← IO.mkRef {}) } g
+/-- The `@[bridge_frame]` rules, with their skeletons (once per tactic call). -/
+def defaultRules : MetaM Rules := do
+  let ls ← (registered (← getEnv) frameExt).mapM fun n => do
+    abstractMVars (← mkConstWithFreshMVarLevels n)
+  return (ls, ← ls.mapM lemmaSkel)
+
+/-- The rules `prove` applies on a goal: the terms `extra` (elaborated in
+the goal), then the defaults. -/
+def goalRules (extra : Array Term) (defs : Rules) : TacticM Rules := do
+  let ls ← extra.mapM fun t => do abstractMVars (← Tactic.elabTerm t none)
+  return (ls ++ defs.1, (← ls.mapM (fun l => (lemmaSkel l : MetaM _))) ++ defs.2)
+
+/-- `bridge_frame [l₁, …]` on every goal. -/
+def frameAll (extra : Array Term) (defs : Rules) : TacticM Unit := do
+  let mut out := []
+  for g in ← getGoals do
+    if ← g.isAssigned then continue
+    out := out ++ (← g.withContext do
+      let (ls, sks) ← goalRules extra defs
+      let snap ← snapshot
+      frameGoal { snap with lemmas := ls, lemmaSkels := sks,
+                            failCache := some (← IO.mkRef {}) } g)
+  setGoals out
 
 /-! ## 6. The forward step: instantiate what the context already knows -/
 
@@ -950,24 +963,15 @@ partial def instances (args : List Expr) (mk : Expr) (acc : Array Expr) :
           a.mvarId!.assign h.pf
           acc ← instances rest mk acc
         restore s
-    -- an equation about a CLOSED term (`pinNames[PIN_NAT]? = some x`): no
-    -- hypothesis states it, evaluation decides it
-    if acc.isEmpty then
-      if let some (_, l, r) := aT.eq? then
-        if !l.hasFVar && !l.hasMVar then
-          let s ← save
-          let ok ← try withTransparency .default (Meta.isDefEq l r) catch _ => pure false
-          if ok then
-            a.mvarId!.assign (← mkEqRefl l)
-            acc ← instances rest mk acc
-          restore s
-    -- an equation no hypothesis states, whose two sides unify (`tg = h.tag`
-    -- once `tg` is fixed): `rfl`
+    -- an equation no hypothesis states: its two sides unify (`tg = h.tag` once
+    -- `tg` is fixed), or evaluation decides it (`pinNames[PIN_NAT]? = some ?x`)
     if acc.isEmpty then
       if let some (_, l, r) := aT.eq? then
         let s ← save
-        if ← same l r then
-          a.mvarId!.assign (← mkEqRefl (← instantiateMVars l))
+        let l ← instantiateMVars l
+        -- (a closed left side evaluates; the right side may be the hole)
+        if (← same l r) || (!l.hasFVar && !l.hasMVar && (← boundedDefEq l r)) then
+          a.mvarId!.assign (← mkEqRefl l)
           acc ← instances rest mk acc
         restore s
     return acc
@@ -1426,7 +1430,7 @@ partial def introFacts (g : MVarId) : MetaM MVarId := do
   introFacts g'
 
 /-- `bridge_fwd` on one goal. -/
-def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
+def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term) (defs : Rules)
     (unfoldRelGoal : Bool := false) : TacticM MVarId := do
   let mut g := g
   let old ← g.withContext do
@@ -1455,7 +1459,7 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   let mut cache : Std.HashMap FVarId (Array Hyp) := {}
   let mut first := true
   -- the frame premises of the sources are proved with `@[bridge_frame]`
-  let (rl, rsk) ← g.withContext (rules #[])
+  let (rl, rsk) := defs
   for _ in [0:8] do
     let (news, snap) ← g.withContext do
       let mut ls := #[]
@@ -1849,10 +1853,7 @@ syntax (name := bridgeFrame) "bridge_frame" (" [" term,* "]")? : tactic
 @[tactic bridgeFrame] def evalBridgeFrame : Tactic := fun stx => do
   let extra : Array Term :=
     if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
-  let mut out := []
-  for g in ← getGoals do
-    unless ← g.isAssigned do out := out ++ (← Frame.frameGoals extra g)
-  setGoals out
+  Frame.frameAll extra (← Frame.defaultRules)
 
 /-- con-leche: none — **the whole pipeline** (task #120):
 `bridge_auto [l₁, …] unfolding [f₁, …]` is `bridge_frame [lᵢ]`,
@@ -1901,38 +1902,37 @@ syntax (name := vcArm) "vc_arm" (ppSpace "(" ident " : " term ")")*
 @[tactic bridgeAuto] def evalBridgeAuto : Tactic := fun stx => do
   let ls : Array Term := if stx[1].isNone then #[] else (stx[1][1].getSepArgs.map (⟨·⟩))
   let fns : Array Term := if stx[2].isNone then #[] else (stx[2][2].getSepArgs.map (⟨·⟩))
-  evalTactic (← `(tactic| bridge_frame [$ls,*]))
-  let goals ← getGoals
-  let mut out := []
-  for g in goals do
-    if ← g.isAssigned then continue
-    out := out ++ [← Frame.fwdGoal g (Frame.registered (← getEnv) Frame.fwdExt).toList ls]
-  setGoals out
-  evalTactic (← `(tactic| bridge_frame [$ls,*]))
+  let defs ← Frame.defaultRules
+  let fwd := (Frame.registered (← getEnv) Frame.fwdExt).toList
+  let fwdAll (unfoldRelGoal : Bool) : TacticM Unit := do
+    let mut out := []
+    for g in ← getGoals do
+      unless ← g.isAssigned do out := out ++ [← Frame.fwdGoal g fwd ls defs unfoldRelGoal]
+    setGoals out
+  Frame.frameAll ls defs
+  fwdAll false
+  Frame.frameAll ls defs
   Frame.finishGoals fns
-  -- second pass: an answer-relation goal (`RelE f st c st' r`) the step
-  -- lemmas did not close is unfolded to its `∀ e, denoteE st c = some e → …`
-  -- form, and the pipeline runs once more on the introduced denotation —
-  -- kept only if it closes the goal (an arm may still want the `RelE`)
-  let goals ← getGoals
-  let mut out2 := []
-  for g in goals do
+  -- an answer-relation goal (`RelE f st c st' r`) still open: once more with
+  -- it unfolded to `∀ e, denoteE st c = some e → …`, kept only if that closes
+  -- it (an arm keyed by `⊢ RelE …` still sees the relation)
+  let mut out := []
+  for g in ← getGoals do
     if ← g.isAssigned then continue
     let isRel ← g.withContext do
-      let t ← instantiateMVars (← g.getType)
-      return t.getAppFn.constName?.any (Frame.isAnswerRel (← getEnv))
-    unless isRel do out2 := out2 ++ [g]; continue
-    let s ← saveState
-    try
-      let g' ← Frame.fwdGoal g (Frame.registered (← getEnv) Frame.fwdExt).toList ls
-        (unfoldRelGoal := true)
-      setGoals [g']
-      evalTactic (← `(tactic| bridge_frame [$ls,*]))
-      Frame.finishGoals fns
-      if (← getUnsolvedGoals).isEmpty then continue
-    catch _ => pure ()
-    s.restore
-    out2 := out2 ++ [g]
-  setGoals out2
+      return (← instantiateMVars (← g.getType)).getAppFn.constName?.any
+        (Frame.isAnswerRel (← getEnv))
+    if isRel then
+      let s ← saveState
+      try
+        setGoals [g]
+        fwdAll true
+        Frame.frameAll ls defs
+        Frame.finishGoals fns
+        if (← getUnsolvedGoals).isEmpty then continue
+      catch _ => pure ()
+      s.restore
+    out := out ++ [g]
+  setGoals out
 
 end ConRon.Bridge

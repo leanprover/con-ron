@@ -63,7 +63,7 @@ the bridge's older modules do not import the tactic library, so their
 lemmas are registered here.  The frame: the state invariants past a chain of
 calls, a denoting handle's `isSome`, an intern's `ViewOK`. -/
 
-attribute [bridge_frame] StateOK.of_store StateOK.of_wf CheckOK.mono CheckOK.monoF
+attribute [bridge_frame] StateOK.of_store StateOK.of_wf CheckOK.mono
   isSome_of_eq_some
 
 attribute [bridge_transport] denote_ext denoteN_ext denoteL_ext denoteLs_ext
