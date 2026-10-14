@@ -34,7 +34,7 @@ The groups, in order:
    their five eliminators and their generic step lemmas;
 8. `ViewOK` — `intern`'s precondition, one lemma per node shape.
 -/
-import ConRon.Bridge.Peel
+import ConRon.Arena
 import ConLeche.Kernel.ExprOps
 import Std.WP
 

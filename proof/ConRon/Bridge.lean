@@ -5,7 +5,6 @@ checker (A)
 DESIGN.md §8.2.  The library root: one module per layer, in dependency
 order.
 
-* `Bridge/Peel.lean` — the meta tactic every closer is built on;
 * `Bridge/Rel.lean` — the answer relations and the denotation calculus;
 * `Bridge/StateOK.lean` — the state invariant and the memo invariants;
 * `Bridge/StoreNested.lean`, `Bridge/StoreBind.lean` — the store specs the
@@ -72,7 +71,6 @@ the capstone is its own library, `ConRonCapstone`), and both are in `lakefile.to
 `defaultTargets`, so a plain `lake build` — `scripts/gates.sh`'s
 `lake-build` step — elaborates the whole tier.  The tier is `sorry`-free.
 -/
-import ConRon.Bridge.Peel
 import ConRon.Bridge.Rel
 import ConRon.Bridge.StateOK
 import ConRon.Bridge.StoreNested
