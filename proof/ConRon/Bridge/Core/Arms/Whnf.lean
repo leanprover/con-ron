@@ -98,7 +98,9 @@ loop has: one `∃ F` per callee, merged by `max` inside the lemma, stated
 for `grind`: every variable occurs in the multi-pattern of the
 three runs (`whnfCore`, `reduceNat`, the inner loop), and the inner loop's run
 is a premise only as `isOk` and the merged loop's run is an EQUATION with it,
-so that no premise names an answer `grind` would have to guess. -/
+so that no premise names an answer `grind` would have to guess.  The merged
+fuel is the one witness that stays an `∃`: it is not a function of the
+handles, so there is no term to state it as. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1120-1121 whnfStep — the literal
 acceleration, fuels merged: the step's loop is the inner loop. -/
@@ -220,6 +222,14 @@ and the two meet in `whnfBody_spec`.  Two things make it work:
 `unfoldDefinition_WScoped`'s, whose hypothesis it is), so the loop takes it
 too, as `whnfBody_spec` does. -/
 
+/-- con-leche: none — `DenWS` named: the subject denotes, in scope (for the
+specs this module passes it to, which name the denotation). -/
+theorem denWS_exists {d : Nat} {o : Option Expr} (h : DenWS d o) :
+    ∃ x, o = some x ∧ Expr.WScoped d x := by
+  cases o with
+  | none => exact h.elim
+  | some x => exact ⟨x, rfl, h⟩
+
 unseal ConLeche.whnfLoopFuel in
 /-- con-leche: ConLeche/Kernel/Core.lean:1101-1108 whnfLoopFuel — the two
 budgets are the same number.  con-leche's is `@[irreducible]`,
@@ -228,29 +238,30 @@ theorem whnfLoopFuel_eq :
     ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel := rfl
 
 /-- con-leche: none — `reduceNat_spec` with its answer as an `Ans` atom
-(the same proposition; `Bridge/Grind.lean` §3). -/
+(the same proposition; `Bridge/Grind.lean` §3) and its precondition as the
+named predicate `DenWS` on the subject's denotation term. -/
 theorem reduceNat_specA {fe : IFEnv} {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
+    (hdw : DenWS d (denoteE s₀.store e)) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ans (fun x => SimOOp (fun F => ConLeche.reduceNatFueled mode env F d x) d
           s'.store r) (denoteE s₀.store e); ⊤⦄ :=
-  reduceNat_spec hsim s₀ d e hok hdw
+  reduceNat_spec hsim s₀ d e hok (denWS_exists hdw)
 
 /-- con-leche: none — `unfoldDefinition_spec` with its answer as an `Ans`
-atom. -/
+atom and its precondition as `DenWS`. -/
 theorem unfoldDefinition_specA {fe : IFEnv} (henv : ConLeche.EnvWF env) (s₀ : AState)
     (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
-    (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
+    (hdw : DenWS d (denoteE s₀.store e)) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.unfoldDefinition fe e
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         Ans (fun x => denoteEO s'.store r = some (ConLeche.unfoldDefinition env x) ∧
           ∀ y, ConLeche.unfoldDefinition env x = some y → Expr.WScoped d y)
           (denoteE s₀.store e); ⊤⦄ :=
-  unfoldDefinition_spec henv s₀ d e hok hdw
+  unfoldDefinition_spec henv s₀ d e hok (denWS_exists hdw)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1127-1132 whnfLoop — **THEOREM 1 for
 the reduction LOOP**, at an arbitrary step budget: one `Nat` induction over
@@ -261,8 +272,7 @@ parameter. -/
 theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hsim : KnotSpec mode env fe fuel) :
     ∀ (n : Nat) (s₀ : AState) (d : Nat) (i : EIdx),
-      CheckOK mode env fe s₀ →
-      (∃ e, denoteE s₀.store i = some e ∧ Expr.WScoped d e) →
+      CheckOK mode env fe s₀ → DenWS d (denoteE s₀.store i) →
       ⦃fun s => s = s₀⦄
         ConRon.Arena.whnfLoop (coreKnot mode fe id fuel) fe d n i
       ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
@@ -277,7 +287,7 @@ theorem whnfLoop_spec {fe : IFEnv} {fuel : Nat}
     vcgen [ConRon.Arena.whnfLoop]
   | succ n ih =>
     intro s₀ d i hok hdw
-    obtain ⟨e, hden, hw⟩ := hdw
+    obtain ⟨e, hden, hw⟩ := denWS_exists hdw
     -- every exit: the three iterations' fuels merged by the `_eq` lemmas
     sym only [bridge_grind] =>
       vcgen [ConRon.Arena.whnfLoop, ConRon.Arena.whnfStep,
