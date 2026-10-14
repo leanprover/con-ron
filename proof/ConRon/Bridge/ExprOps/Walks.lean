@@ -38,6 +38,15 @@ does **not** apply to a walk with no target store — there is no `proj` arm
 whose answer has to be retargeted, so the unfold is free and universal.
 No `_step` lemma, no `next =>` block, no `arm_hyp` appears below.
 
+## The closer now (task #123)
+
+`lamPair?_spec`, the one walk left in this file, is
+`sym only [bridge_grind, Expr.lamPair?] => vcgen [lamPair?] <;> finish`
+(DESIGN #122's idiom): `grind` closes both arms from `viewBind_lam_eq` (the
+binder view of a `lam`-tagged handle, as an equation) and the two declining
+lemmas `lamPair?_none_left`/`_right`, all three `grind_pattern … where guard`
+so that they fire only at the facts the program produced.
+
 ## Fuel, and what the twins dispatch on
 
 Fuel, as everywhere in this tier, because a handle DAG has no structural
@@ -51,6 +60,7 @@ inversions fire on it without help.
 import ConRon.Bridge.Frame
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.TagFirst
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.ExprOps
 
@@ -101,15 +111,47 @@ theorem tag_lam_of_denote {st : EStore} (hwf : StoreWF st) {h : EIdx} {t b : Exp
     simp_all [ENodeView.tagOf, denoteEView, opt2_eq_some_iff, opt3_eq_some_iff,
       Option.map_eq_some_iff]
 
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — the declining
-arm: a handle pair whose tags are not both `lam` denotes no λ pair (task
-#120: the arm's content as a lemma `bridge_auto` instantiates). -/
-theorem lamPair?_none_of_tag {st : EStore} (hwf : StoreWF st) {a b : EIdx}
-    {ea eb : Expr} (hea : denoteE st a = some ea) (heb : denoteE st b = some eb)
-    (htg : ¬ (a.tag == ETag.lam && b.tag == ETag.lam) = true) :
+/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123) -/
+
+/-- con-leche: none — a denoting `lam`-tagged handle whose binder view is
+`(ty, b)` denotes a λ whose two parts `ty` and `b` denote.  Guarded: it fires
+only at the binder view the program read. -/
+theorem viewBind_lam_eq {st : EStore} (hwf : StoreWF st) {i ty b : EIdx}
+    (htg : i.tag = ETag.lam) (h : st.viewBind i = some (ty, b))
+    (hs : (denoteE st i).isSome = true) :
+    ∃ et eb, denoteE st i = some (.lam et eb) ∧ denoteE st ty = some et ∧
+      denoteE st b = some eb :=
+  denote_eq_lam hwf (view_of_viewBind_lam htg h) hs
+grind_pattern [bridge_grind] viewBind_lam_eq => StoreWF st, st.viewBind i, some (ty, b) where
+  guard st.viewBind i = some (ty, b)
+
+/-! ## `lamPair?`'s arms as `grind` lemmas (task #123)
+
+The declining arm knows only that one of the two tags is not `lam`; the lemma
+for each side is guarded by the subject's denotation, so that it fires at the
+pair `lamPair?` is applied to and nowhere else (unguarded, the multi-pattern
+pairs every denoting handle with every `lamPair?` term, and each instance is a
+case split on a tag). -/
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — a handle without the `lam` tag denotes no λ: `lamPair?`
+declines whatever the other side is.  Guarded: `ea` is the handle's
+denotation. -/
+theorem lamPair?_none_left {st : EStore} (hwf : StoreWF st) {a : EIdx} {ea eb : Expr}
+    (htg : a.tag ≠ ETag.lam) (hea : denoteE st a = some ea) :
     Expr.lamPair? ea eb = none := by
-  cases ea <;> cases eb <;> try rfl
-  exact absurd (by simp [tag_lam_of_denote hwf hea, tag_lam_of_denote hwf heb]) htg
+  cases ea <;> try rfl
+  exact absurd (tag_lam_of_denote hwf hea) htg
+grind_pattern [bridge_grind] lamPair?_none_left => denoteE st a, Expr.lamPair? ea eb where
+  guard denoteE st a = some ea
+
+/-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — `lamPair?_none_left` on the right. -/
+theorem lamPair?_none_right {st : EStore} (hwf : StoreWF st) {b : EIdx} {ea eb : Expr}
+    (htg : b.tag ≠ ETag.lam) (heb : denoteE st b = some eb) :
+    Expr.lamPair? ea eb = none := by
+  cases eb <;> cases ea <;> try rfl
+  exact absurd (tag_lam_of_denote hwf heb) htg
+grind_pattern [bridge_grind] lamPair?_none_right => denoteE st b, Expr.lamPair? ea eb where
+  guard denoteE st b = some eb
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — **THEOREM 1
 for `lamPair?`**: the state does not move; `none` exactly when the two
@@ -127,9 +169,8 @@ theorem lamPair?_spec (s₀ : AState) (a b : EIdx) (hok : StateOK s₀)
             Expr.lamPair? ea eb = some (et₁, eb₁, et₂, eb₂) ∧
             denoteE s₀.store t₁ = some et₁ ∧ denoteE s₀.store b₁ = some eb₁ ∧
             denoteE s₀.store t₂ = some et₂ ∧ denoteE s₀.store b₂ = some eb₂; ⊤⦄ := by
-  vcgen [lamPair?]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [lamPair?_none_of_tag]
+  sym only [bridge_grind, Expr.lamPair?] =>
+    vcgen [lamPair?] <;> finish
 
 /-! ## The axiom check -/
 
