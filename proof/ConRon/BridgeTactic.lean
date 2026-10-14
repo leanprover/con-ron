@@ -1489,22 +1489,17 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
     -- a round's new `isSome` facts (a binder's children) opened too
     let (g', o) ← openIsSome g opened
     g := g'; opened := o
-  -- a function's answer is unique: two denotations of one handle (two
-  -- callees read the same node) are one value
-  g ← g.withContext (unifyFacts g)
-  -- `subst_vars` once at the end (between rounds it would rename the locals
-  -- `seen` mentions), and only when an equation solves a variable: on a
-  -- verification condition's context `substVars` is the dearest step
-  g ← substNew g old
-  -- once more: an identification can make two lookups' keys equal
-  -- (`nm' = nm`, then `env.find? nm = some ci'` against `… = some ci`)
-  let g' ← g.withContext (unifyFacts g)
-  if g' != g then g ← substNew g' old
-  -- what the substitution made reducible (`Expr.WScoped d x` at `x := .app …`)
-  let g' ← peelAll g
-  if g' != g then g ← substNew g' old
-  g ← clearTrivial g old
-  return g
+  -- to a fixpoint: a function's answer is unique (two denotations of one
+  -- handle are one value: `unifyFacts`), the new equations substituted (only
+  -- those, and only after the rounds, which name the locals: on a
+  -- verification condition's context `substVars` is the dearest step), and
+  -- what the substitution made a constructor split (`Expr.WScoped d x` at
+  -- `x := .app …`); an identification can make two lookups' keys equal
+  for _ in [0:3] do
+    let g' ← substNew (← peelAll (← g.withContext (unifyFacts g))) old
+    if g' == g then break
+    g := g'
+  clearTrivial g old
 
 /-- Carry the context's denotation facts to the stores the GOAL mentions: a
 fact `denote… (A.store…) h = some v` is restated at every state `B` whose
