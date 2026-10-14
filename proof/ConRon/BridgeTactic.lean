@@ -1524,50 +1524,6 @@ def fwdGoal (g : MVarId) (defaults : List Name) (extra : Array Term)
   g ← clearTrivial g old
   return g
 
-/-- Close `g` when it is (or unfolds to) `∃ x, P x` and a hypothesis is
-`P w` for some `w` (reducibly, after β): the answer relations `SimBOp`,
-`SimE`, … are such `∃ F, …`, and `bridge_fwd` peels the instance a lemma
-produced into its witness and its body. -/
-def closeExistsByHyp (g : MVarId) : MetaM Bool := g.withContext do
-  let t ← whnfD (← instantiateMVars (← g.getType))
-  unless t.isAppOfArity ``Exists 2 do return false
-  let α := t.appFn!.appArg!
-  let p := t.appArg!
-  for d in (← getLCtx) do
-    if d.isImplementationDetail then continue
-    let s ← saveState
-    let w ← mkFreshExprMVar α
-    let body ← Core.betaReduce (p.beta #[w])
-    let ht ← Core.betaReduce (← instantiateMVars d.type)
-    if ← same ht body then
-      let w ← instantiateMVars w
-      unless w.hasExprMVar do
-        g.assign (← mkAppOptM ``Exists.intro #[α, p, w, d.toExpr])
-        return true
-    s.restore
-  -- no hypothesis: the body may hold by `rfl` whatever the witness (a pure
-  -- function's base case, `defEqList … [] [] = .ok true` at any fuel); the
-  -- check is bounded, and the witness defaults when the body ignores it
-  let s ← saveState
-  try
-    let w ← mkFreshExprMVar α
-    let body ← Core.betaReduce (p.beta #[w])
-    if let some (_, l, r) := body.eq? then
-      let ok ← tryCatchRuntimeEx
-        (withCurrHeartbeats <| withTheReader Core.Context (fun c => { c with maxHeartbeats := 20000 * 1000 })
-          (withDefault (Meta.isDefEq l r)))
-        (fun _ => pure false)
-      if ok then
-        let w ← instantiateMVars w
-        let w ← if w.hasExprMVar then mkAppOptM ``Inhabited.default #[α, none] else pure w
-        let body ← Core.betaReduce (p.beta #[w])
-        let some (_, l, _) := body.eq? | do s.restore; return false
-        g.assign (← mkAppOptM ``Exists.intro #[α, p, w, ← mkEqRefl l])
-        return true
-  catch _ => pure ()
-  s.restore
-  return false
-
 /-- Carry the context's denotation facts to the stores the GOAL mentions: a
 fact `denote… (A.store…) h = some v` is restated at every state `B` whose
 `B.store` occurs in the goal, when `bridge_frame`'s search proves it there
@@ -1715,11 +1671,6 @@ partial def finishGoal (g : MVarId) (closer : Syntax) (unfold : Option Syntax)
       if (← getUnsolvedGoals).isEmpty then return true
     catch _ => pure ()
     s.restore
-  -- an `∃` goal (`SimBOp`) from a hypothesis, or by `rfl` at a default
-  -- witness: only at the top (its bounded default-transparency check, at every
-  -- node of the split tree, added up past the heartbeat limit — Core/Walks/Owed)
-  if depth == 2 then
-    if ← closeExistsByHyp g then return true
   -- a conjunction: each conjunct finished on its own
   let tg ← g.withContext do whnfR (← instantiateMVars (← g.getType))
   if tg.isAppOfArity ``And 2 then

@@ -385,6 +385,25 @@ theorem defEqListFueled_cons_false {F d : Nat} {x y : Expr}
     Except.bind]
   rfl
 
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the two empty
+lists, as the answer relation (at any fuel; task #121: the exit as a lemma in
+the shape the verification condition has). -/
+theorem defEqList_nil_nil_sim {d : Nat} :
+    SimBOp (fun F => ConLeche.defEqList (pureFns mode env F) env d [] []) true :=
+  ⟨0, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — lists of
+different lengths, the left one empty. -/
+theorem defEqList_nil_cons_sim {d : Nat} {y : Expr} {ys : List Expr} :
+    SimBOp (fun F => ConLeche.defEqList (pureFns mode env F) env d [] (y :: ys)) false :=
+  ⟨0, rfl⟩
+
+/-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — lists of
+different lengths, the right one empty. -/
+theorem defEqList_cons_nil_sim {d : Nat} {x : Expr} {xs : List Expr} :
+    SimBOp (fun F => ConLeche.defEqList (pureFns mode env F) env d (x :: xs) []) false :=
+  ⟨0, rfl⟩
+
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — the cons/cons
 arm, heads agreeing, as the answer relation at the larger fuel (task #120:
 the fuel merge as a lemma in the shape the verification condition has). -/
@@ -432,18 +451,18 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
     | nil =>
       vcgen [ConRon.Arena.defEqList]
       bridge_peel; subst_vars
-      bridge_auto [denoteEList_nil_inv]
+      bridge_auto [denoteEList_nil_inv, defEqList_nil_nil_sim]
     | cons b bs' =>
       vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
-      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv]
+      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv, defEqList_nil_cons_sim]
   | cons a as' ih =>
     intro bs s₀ hok hda hdb
     cases bs with
     | nil =>
       vcgen [ConRon.Arena.defEqList.eq_def]
       bridge_peel; subst_vars
-      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv]
+      bridge_auto [denoteEList_nil_inv, denoteEList_cons_inv, defEqList_cons_nil_sim]
     | cons b bs' =>
       have hdq := hsim.defeq'
       -- the two lists' heads and tails, before the walk: every precondition
