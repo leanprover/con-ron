@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.Core.Walks.Cached` — the five cached verdict walks
 
-Task #97-P3-CoreWalks, and **the exemplar of the tier**: the five walks of
+**The exemplar of the tier**: the five walks of
 `Arena/Core.lean` that are memo wrappers of their own rather than knot slots.
 `Bridge/Core/Memo.lean` does the six knot slots; these five are the same
 three-branch shape (probe, hit, miss-and-insert) over the five tables of
@@ -15,25 +15,16 @@ three-branch shape (probe, hit, miss-and-insert) over the five tables of
 | `constValAt` | `constValC` | none — the delta step's expensive half |
 | `ruleRhsAt` | `ruleRhsC` | none — the ι rule's right-hand side |
 
-## The two halves, and why they land differently
+## The two halves
 
-The first two are **CLOSED**: their miss branch computes with `Level.isEquiv`
-on trees read back from the store, and the readback's own obligation is
-`Bridge/Core/Walks/Frame.lean`'s.  They are the first non-slot walks of
-`Arena/Core.lean` to have a theorem at all.
+The first two compute their miss branch with `Level.isEquiv` on trees read
+back from the store, and the readback's own obligation is
+`Bridge/Core/Walks/Frame.lean`'s.
 
-The last three were **`sorry`** when this was written (all closed since),
-and for one reason each time: the miss branch
-is `instLPFast`, whose callee rule is `Bridge/ExprOps/Owed.lean`'s
-`instLPFast_spec` and is itself `sorry` (task #97-P3-0's open list, item "the
-eight of `ExprOps/Owed.lean`").  Their proofs are otherwise the first two's,
-table for table — the five insert lemmas below are written for all of them.
-
-**No module of `Bridge/Core/Walks/` imported `Bridge/ExprOps/`** then, which
-is why the three were only stated here at first: task #97-P3-1 re-stated that
-tier against the split arms while this round ran.  This module has imported
-`Bridge/ExprOps/Owed.lean` since round 4 (the note before `CheckOK.ofInstLP`),
-and the three are proved below.
+The last three compute their miss branch with `instLPFast`, whose callee
+rule is `Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` — which is why this
+module imports that one.  Their proofs are otherwise the first two's, table
+for table — the five insert lemmas below are written for all of them.
 
 ## The tier's recipe, in five steps
 
@@ -48,9 +39,10 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
    branches.
 2. **The postcondition does not take the subjects' denotations as
    hypotheses.**  It says "*if* the walk answered `some b`, then the subjects
-   denote and `Level.isEquiv` answers `b`" — task #97-P3-0's rule 4 at two
-   subjects, and the reason is the hit branch: `LvlEqCacheOK` DELIVERS the
-   denotations, it does not consume them.
+   denote and `Level.isEquiv` answers `b`" — the no-`Expr`-in-the-precondition
+   rule (DESIGN, task #97-P3-0, rule 4) at two subjects, and the reason is
+   the hit branch: `LvlEqCacheOK` DELIVERS the denotations, it does not
+   consume them.
 3. **The five verification conditions are the three branches plus the two
    readbacks' preconditions**, and the two preconditions are
    `CheckOK.readL' hok` (passed to `sym`) and the first readback's own post.
@@ -417,7 +409,7 @@ theorem CheckOK.ruleRhs_hit {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
   cases hrl'
   exact hd
 
-/-! ## 2. `lvlEq?` — the tier's exemplar, CLOSED -/
+/-! ## 2. `lvlEq?` — the tier's exemplar -/
 
 /-- con-leche: none — `CheckOK`'s level-readback table: the first
 readback's precondition, passed to `sym` at the walk's initial state (as a
@@ -452,21 +444,19 @@ grind_pattern [bridge_grind] CheckOK.ofReadLs =>
   ({ s0.caches with readLsC := s1.caches.readLsC } : Caches), CheckOK mode env fe s0
 
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 Level.isEquiv — **THEOREM 1
-for `lvlEq?`**, the first `Arena/Core.lean` walk that is not a knot slot to
-have one.
+for `lvlEq?`**.
 
 The verdict the walk answers **IS** `Level.isEquiv`'s at the two handles'
 denotations — the `Option Bool` and not just its `some` half — and the state
 keeps `CheckOK` with the store and the pins untouched.
 
-*(Task #97-P3-Core-2 strengthened the last conjunct from "∀ b, r = some b →
-…" to the equation.  The walk's `none` is `isEquiv`'s own `none` and nothing
-else — `lvlEq?` returns the memo row or `Level.isEquiv lu lv` itself — and a
-caller that must decide a GUARD off the verdict needs the negative half:
-`IProjEntry.fireOk` fires the projection rule when the structure sort is NOT
-provably zero, so a one-directional spec leaves the `none` case unrelatable.
-`Bridge/Inductives/SumParts.lean`'s own note asks for the same thing, in its
-words "`lvlEq?_spec` read at both signs".)* -/
+The last conjunct is an equation, not "∀ b, r = some b → …": the walk's
+`none` is `isEquiv`'s own `none` and nothing else — `lvlEq?` returns the memo
+row or `Level.isEquiv lu lv` itself — and a caller that must decide a GUARD
+off the verdict needs the negative half: `IProjEntry.fireOk` fires the
+projection rule when the structure sort is NOT provably zero, so a
+one-directional spec would leave the `none` case unrelatable
+(`Bridge/Inductives/SumParts.lean` reads `lvlEq?_spec` at both signs). -/
 theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlEq? u v
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
@@ -491,15 +481,12 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
   sym only [bridge_grind, CheckOK.readLs' hok] =>
     vcgen [lvlsEq?] <;> finish
 
-/-! ## 4. The three instantiated-constant caches — CLOSED (round 4)
+/-! ## 4. The three instantiated-constant caches
 
 The miss branch is `instLPFast`, and `Bridge/ExprOps/Owed.lean`'s
-`instLPFast_spec` now carries the cache frame (a record equation naming
-`readLC`/`readNC`/`readLsC`) and `ReadNCacheOK` — task #97-P3-1 round 4, the
-answer to this tier's finding 19.  `CheckOK.ofInstLP` turns the two into
-`CheckOK` past the call; the insert is the one above.  This module
-imports `Bridge/ExprOps/Owed.lean` since round 4 (the derived-auxiliary wall
-of finding 18 is gone). -/
+`instLPFast_spec` carries the cache frame (a record equation naming
+`readLC`/`readNC`/`readLsC`) and `ReadNCacheOK`.  `CheckOK.ofInstLP` turns
+the two into `CheckOK` past the call; the insert is the one above. -/
 
 /-- con-leche: none — **`CheckOK` past an `instLPFast` call**: the call's
 record equation names the three readback tables it moves and frames the other
@@ -536,9 +523,8 @@ grind_pattern [bridge_grind] CheckOK.ofInstLP =>
   CheckOK mode env fe s₀, ReadNCacheOK s'.caches.readNC s'.store
 
 /-- con-leche: none — the field-by-field inversion of `denoteCV`, which
-is where `cv.levelParams` on the two sides meet.  (Moved down from
-`Bridge/Core/Walks/Spine.lean`, round 4: the three instantiated-constant
-caches need it.) -/
+is where `cv.levelParams` on the two sides meet (the three
+instantiated-constant caches need it). -/
 theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
     (h : Frontend.denoteCV st v = some c) :
     denoteN st.ns v.name = some c.name ∧
@@ -559,7 +545,7 @@ theorem denoteCV_inv {st : EStore} {v : IConstantVal} {c : ConstantVal}
         exact ⟨rfl, rfl, rfl⟩
 
 /-- con-leche: none — **THEOREM 1 for `constTyAt`** (DESIGN §8.3's
-instantiated-constant TYPE cache).  **CLOSED** (round 4), on
+instantiated-constant TYPE cache), on
 `Bridge/ExprOps/Owed.lean`'s `instLPFast_spec` with its cache frame. -/
 theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
     (nm : ConLeche.Name) (ls : List Level) (ci : ConstantInfo)
@@ -583,8 +569,7 @@ theorem constTyAt_spec (s₀ : AState) (cv : IConstantVal) (us : LsIdx)
         (by rw [hty]; rfl)] <;> finish
 
 /-- con-leche: none — **THEOREM 1 for `constValAt`** (the delta step's
-expensive half, and the reason `unfoldDefinition` is not free).  **CLOSED**
-(round 4). -/
+expensive half, and the reason `unfoldDefinition` is not free). -/
 theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
     (value : EIdx) (us : LsIdx) (nm : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (val : Expr) (hint : ReducibilityHint)
@@ -606,7 +591,7 @@ theorem constValAt_spec (s₀ : AState) (n : NIdx) (lps : List NIdx)
         _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
         (by rw [hval]; rfl)] <;> finish
 
-/-- con-leche: none — `constValAt_spec` in ANSWER shape (round 3's rule: *a
+/-- con-leche: none — `constValAt_spec` in ANSWER shape (the rule of `Walks/Owed.lean` §0: *a
 walk whose subject is another walk's answer must not take that answer's
 denotation as an explicit argument*).  The five denotations go IN as an
 existential and come OUT as a universal, so a caller that reaches the walk
@@ -634,7 +619,7 @@ theorem constValAt_spec' (s₀ : AState) (n : NIdx) (lps : List NIdx)
       hlps hval hfd] <;> finish
 
 /-- con-leche: none — **THEOREM 1 for `ruleRhsAt`** (an ι rule's right-hand
-side at the recursor's universe instantiation).  **CLOSED** (round 4). -/
+side at the recursor's universe instantiation). -/
 theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
     (rhs : EIdx) (us : LsIdx) (rnv cnv : ConLeche.Name) (ls : List Level)
     (cv : ConstantVal) (mi rp : Nat) (rules : List RecRule) (rl : RecRule)
@@ -658,7 +643,7 @@ theorem ruleRhsAt_spec (s₀ : AState) (recName ctor : NIdx) (lps : List NIdx)
         _ _ hok.state hok.caches.readN hok.caches.readL hok.caches.readLs hlps hus
         (by rw [hrhs]; rfl)] <;> finish
 
-/-! ## 4b. `lvlEq?`'s FRAME, with no cache-content hypothesis (task #97-P3-Frame)
+/-! ## 4b. `lvlEq?`'s FRAME, with no cache-content hypothesis
 
 `lvlEq?_spec` above is the CORE grade's statement: `CheckOK` in, `CheckOK`
 out.  It is the right statement for a caller that needs the VERDICT, because
@@ -669,23 +654,18 @@ A caller at `StateOK` — `Bridge/Inductives/Rel.lean`'s `PStep`,
 `Bridge/Frontend/Rel.lean`'s `ParseStep` — needs something else, and something
 weaker: *which tables the call may have written*.  That is a fact about the
 program text and not about any invariant, and `lvlEq?_frame` is it.  It is
-what makes those two frames provable at `StateOK` now that task #97-P3-Frame
-has widened their cache clause to `Bridge/StateOK.lean`'s `CacheFrame`, and it
-is the concrete answer to "can the frame be carried at `StateOK`?": yes, and
-this is it.
+what makes those two frames, whose cache clause is `Bridge/StateOK.lean`'s
+`CacheFrame`, provable at `StateOK`.
 
-**Run form and not a triple, and the reason is the `[spec]` commitment.**
-`Bridge/Specs.lean`'s `readLevelM_spec` is registered `@[spec]`, so `mvcgen`
-applied it rather than unfolding `readLevelM`, and its hypothesis
-(`ReadLCacheOK s₀.caches.readLC s₀.store`) then appeared as a verification
-condition a `StateOK`-graded proof cannot discharge.  A registered `[spec]`
-cannot be erased globally (`attribute [-spec]` is rejected) and `mvcgen` could
-not be made to prefer a locally supplied theorem — `Walks/Frame.lean`'s note
-measured both.  (`vcgen` erases a spec PER CALL — `vcgen [lvlEq?,
--readLevelM_spec, readLevelM]` leaves no `ReadLCacheOK` condition, checked
-by task #111 — so a triple form is now possible; the run form stays because
-it is what `Bridge/Inductives/Rel.lean` consumes.)  Taking the two do-blocks
-apart by hand costs twenty lines and commits to nothing.
+**Run form and not a triple.**  `Bridge/Specs.lean`'s `readLevelM_spec` is
+registered `@[spec]`, and its hypothesis (`ReadLCacheOK s₀.caches.readLC
+s₀.store`) is a verification condition a `StateOK`-graded proof cannot
+discharge; a registered `[spec]` cannot be erased globally (`attribute
+[-spec]` is rejected).  `vcgen` can erase it per call (`vcgen [lvlEq?,
+-readLevelM_spec, readLevelM]` leaves no `ReadLCacheOK` condition), so a
+triple form is possible; the run form is what `Bridge/Inductives/Rel.lean`
+consumes, and taking the two do-blocks apart by hand costs twenty lines and
+commits to nothing.
 
 **Why the two implications' hypotheses are at the INITIAL state.**  The frame
 is NOT assembled as "the two readbacks, then the insert" by `CacheFrame.trans`,
@@ -755,7 +735,7 @@ theorem CacheFrame.ofReadLevelM {s s' : AState} {h : LIdx} {l : Level}
       readLs := fun h' => by rw [hls, hst]; exact h' }
 
 /-- con-leche: ConLeche/Kernel/Level.lean:158-163 isEquiv — **`lvlEq?`'s
-FRAME**, `Bridge/StateOK.lean`'s `CacheFrame` at the one walk it was written
+FRAME**, `Bridge/StateOK.lean`'s `CacheFrame` at the walk it is
 for: the cached level comparison writes `readLC` (twice, through `readLevelM`)
 and `lvlEqC`, no other per-declaration table, and neither the store, the
 per-call memos nor the pin table.
@@ -853,7 +833,7 @@ end Frame
 
 /-! ## 5. The axiom census
 
-DESIGN §8's gate for every tier of this library, at this module's closed
+DESIGN §8's gate for every tier of this library, at this module's
 results and at `Bridge/Core/Walks/Frame.lean`'s (which it imports): the three
 standard axioms and no `sorryAx`.  The three come in through `Std.HashMap`,
 `Classical` in `Option`'s lemmas and `Quot` in `String`. -/
@@ -877,21 +857,19 @@ section Census
 #print axioms CacheOK.insertLvlEq
 #print axioms CacheOK.insertLvlsEq
 
-/-! **The tier's own result**: the first two non-slot walks of
-`Arena/Core.lean` with a theorem, and both sorry-free. -/
+/-! **The tier's own result**: the two cached level comparisons. -/
 #print axioms lvlEq?_spec
 #print axioms lvlsEq?_spec
 
-/-! **The frames task #97-P3-Frame owes `PStep` and `ParseStep`**, all four
-closed: the `StateOK`-graded answer to "which tables may a level comparison
+/-! **The frames `PStep` and `ParseStep` consume**: the `StateOK`-graded answer to "which tables may a level comparison
 have written". -/
 #print axioms readLevelM_frame
 #print axioms readLevelM_denote
 #print axioms CacheFrame.ofReadLevelM
 #print axioms lvlEq?_frame
 
-/-! The three instantiated-constant caches — CLOSED in round 4, on
-`instLPFast_spec`'s cache frame. -/
+/-! The three instantiated-constant caches, on `instLPFast_spec`'s cache
+frame. -/
 #print axioms CheckOK.ofInstLP
 #print axioms denoteCV_inv
 #print axioms CacheOK.insertConstTy
@@ -905,9 +883,9 @@ have written". -/
 end Census
 
 /-- con-leche: ConLeche/Verify/EnvWF.lean ConstWF — a stored constant's type
-has no free variables, after any level instantiation (con-leche's own copy,
-`Verify/InferLemmas.lean`'s `const_ty_hasFvar`, was retired upstream as
-census-dead; the bridge's walks read it at the projection certificate, the
+has no free variables, after any level instantiation (con-leche has no copy
+of its own — `Verify/InferLemmas.lean`'s `const_ty_hasFvar` is census-dead
+there; the bridge's walks read it at the projection certificate, the
 ι recursor's type and the η family's former). -/
 theorem const_ty_hasFvar {env : Env} (henv : ConLeche.EnvWF env)
     {n : ConLeche.Name} {ci : ConstantInfo} (hf : env.find? n = some ci)

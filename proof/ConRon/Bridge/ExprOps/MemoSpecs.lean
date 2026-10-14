@@ -1,7 +1,7 @@
 /-
 # `ConRon.Bridge.ExprOps.MemoSpecs` — the memo-set specs with the pure function INSIDE
 
-**A finding of P3's group B, and the file that should be folded into
+**The memo-set specs, generic in the memo's pure function; they belong in
 `Bridge/Specs.lean`.**
 
 `Bridge/Specs.lean` states each memo insert's spec with the walk's own
@@ -13,17 +13,14 @@ parameters as THEOREM PARAMETERS:
 ```
 
 Those parameters do not occur in the PROGRAM, so when the verification
-condition generator selects the spec it has nothing to pin them against.
-`mvcgen` (before task #111) did not leave them as metavariables for the
-closer to solve either: it assigned them from whatever was in scope at the
-right type; `vcgen` leaves them as goals of their own type, to be
-supplied by hand (`f_spec (x := x)`).  Measured under `mvcgen` in
-`ExprOps/InstLP.lean`'s `substLsMemoAt`: the readback list `ls : List Level` is in scope, so the
-arm's memo verification condition comes out as `InstLPLsMemoA ks ls s` — not
-merely hard, **false**.  (`substLMemoAt` is spared only because its readback
-is a `Level` and not a `List Level`, so `us` is the sole candidate of its
-type.  This is task #97b finding 2's trap in its worst form: the wrong
-assignment is silent.)
+condition generator selects the spec it has nothing to pin them against:
+`vcgen` leaves them as goals of their own type, to be supplied by hand
+(`f_spec (x := x)`), and an assignment from whatever is in scope at the
+right type is wrong silently.  In `ExprOps/InstLP.lean`'s `substLsMemoAt`
+the readback list `ls : List Level` is in scope, and at `us := ls` the
+arm's memo verification condition is `InstLPLsMemoA ks ls s` — not merely
+hard, **false**.  (`substLMemoAt`'s readback is a `Level` and not a
+`List Level`, so there `us` is the sole candidate of its type.)
 
 The fix is `Bridge/Specs.lean`'s own `internBindIE_spec'` trick — template
 rule 4 applied to the memo's pure function: **move the parameters inside the
@@ -31,7 +28,7 @@ postcondition**.  Then the spec's statement has no metavariable at all, the
 arm gets the memo implication as a hypothesis, and it applies it at the
 function the walk is about.
 
-It buys a second thing the group needed anyway: `abstractRangeGo` shares
+It buys a second thing: `abstractRangeGo` shares
 `abs1C` with `abstract1Go` (`Arena/ExprOps.lean`'s "That is a table
 IDENTITY, not a clause"), so the one table carries two different invariants.
 `Specs.lean`'s `abs1Set_spec` fixes `Abs1MemoA d` and cannot serve the
@@ -74,8 +71,8 @@ open scoped Lean.Order
   exact MemoLOK.insert hm rfl hk hr
 
 /-- con-leche: ConLeche/Kernel/Level.lean:28-40 Level.subst — the same for
-`instLPLsSet`, the universe-argument-LIST memo.  This is the one the trap was
-measured on. -/
+`instLPLsSet`, the universe-argument-LIST memo, the one where the trap is a
+false goal (module note). -/
 @[spec high] theorem instLPLsSet_specI (s₀ : AState) (h r : LsIdx)
     (hk : (denoteLs s₀.store.lss h).isSome = true) :
     ⦃fun s => s = s₀⦄ instLPLsSet h r
@@ -138,8 +135,7 @@ sibling readback tables framed. -/
 
 /-! ## The intern specs with the two MONOTONICITY conjuncts
 
-**The second finding of P3's group B, and the one that retired
-`ExprOps/Inst1.lean`'s last open goal.**
+**What a rebuilding walk needs beyond `Ext`.**
 
 `Bridge/Rel.lean`'s `Ext` is about DENOTATIONS: "every handle of `st` denotes
 the same in `st'`".  A rebuilding walk needs two facts it does not give.
@@ -150,16 +146,13 @@ the same in `st'`".  A rebuilding walk needs two facts it does not give.
    so the arm cannot discharge it — for EVERY rebuilding arm of every walk of
    this tier (five walks, twenty-nine arms).
 2. `internBindIE_spec'`'s precondition `(s.store.viewBM mi).isSome` is asked
-   at the same later store, which is exactly the gap
-   `ExprOps/Inst1.lean`'s note describes ("threading it is a mechanical
-   postcondition change across the twelve `intern` specs; it is the next
-   round's first item").
+   at the same later store.
 
 Both facts hold of the store operation: `EStore.view_intern_mono`
 (`Arena/WFProofs.lean:2263`) and `EStore.viewBM_intern_mono`
-(`Bridge/StoreBM.lean:86`) are proved and unused.  What was missing is the
-conjunct in the monadic specs, which is what this section adds.  They belong
-in `Bridge/Specs.lean`, replacing the versions there. -/
+(`Bridge/StoreBM.lean:86`); this section states the two conjuncts in the
+monadic specs.  They belong in `Bridge/Specs.lean`, replacing the versions
+there. -/
 
 /-- con-leche: none — `internLamE`'s two outcomes: a cons hit moves
 nothing, a miss is `EStore.internBind` at the `lam` tag. -/

@@ -113,11 +113,11 @@ theorem inferIO_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
   rw [ite_eq_left hg]
   simp only [ite_eq_left hp, hf, pure, Except.pure]
   simp
-/-! ### The leaf clauses at the io grade (task #97-P3-Core round 5)
+/-! ### The leaf clauses at the io grade
 
 `inferBodyIO`'s `.sort`/`.fvar`/`.const`/literal clauses are `inferBody`'s
-verbatim, so at either value of the gate bit the io entry answers what
-`Infer.lean`'s `infer_*` lemmas say.  Stated once here, at any mode. -/
+verbatim, so the io entry answers what `Infer.lean`'s `infer_*` lemmas say.
+Stated once here, at any mode. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1295 inferBodyIO — a sort's type is
 the next sort, at the io grade. -/
@@ -285,17 +285,17 @@ theorem ensureSort_ioView_spec {fe : IFEnv} {fuel : Nat}
     exact triple_pure_lam ⟨hok1, hx1, hp1, U, hU, F, hF⟩
   all_goals exact triple_fail
 
-/-! ### The dispatch's children (task #97-P3-Core round 5)
+/-! ### The dispatch's children
 
 `inferBodyIO_spec` below is a case split on the tag: one child per group of
-the twin's `view` dispatch.  The io lane keeps CHAINED binder clauses, so
+the twin's `view` dispatch.  The io grade keeps CHAINED binder clauses, so
 `.forallE` and `.lam` are two children here where `Infer.lean` has one
 batched one. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1350-1373 inferBodyIO — **the io
-`.app` clause**: the batched `inferAppIOAt`/`inferSpineIO` (task #97-P6-9)
-against the chained `inferIO_app_licensed`/`inferIO_app_cert`.
-**CLOSED** (task #97-P3-Core round 6): `headAndArgs_app_spec`, the knot's
+`.app` clause**: the batched `inferAppIOAt`/`inferSpineIO` (DESIGN, task
+#97-P6-9) against the chained `inferIO_app_licensed`/`inferIO_app_cert`.
+Staged: `headAndArgs_app_spec`, the knot's
 io slot at the head, the carry `inferSpineIO_go` (`Walks/InferSpine.lean`;
 no argument is checked), then con-leche's `inferSpineIO_sound` and
 `Expr.mkAppN_getApp`. -/
@@ -342,7 +342,6 @@ theorem inferBodyIO_app {fe : IFEnv} {fuel : Nat}
     exact ⟨F', hF'⟩
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
-/-! `inferBodyIO_app`: sorry-free (task #97-P3-Core round 6). -/
 #print axioms inferBodyIO_app
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1318-1327 inferBodyIO — **the `.forallE`
@@ -508,8 +507,7 @@ theorem inferBodyIO_lam {fe : IFEnv} {fuel : Nat}
       ETag.lit] at htg
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1299-1310 inferBodyIO — **the `.const`
-clause**, `inferBody`'s verbatim at the io grade.
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
+clause**, `inferBody`'s verbatim at the io grade. -/
 theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (_hsim : KnotSpec mode env fe fuel)
@@ -554,8 +552,7 @@ theorem inferBodyIO_const {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1311-1317 inferBodyIO — **the two
-literal clauses**, `inferBody`'s verbatim at the io grade.
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
+literal clauses**, `inferBody`'s verbatim at the io grade. -/
 theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (_hsim : KnotSpec mode env fe fuel)
@@ -592,11 +589,9 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1374-1399 inferBodyIO — **the `.proj`
-clause**, `inferBody`'s verbatim at the io grade.
-
-**CLOSED** (round 5), staged by `triple_seq` (`Memo.lean`): every
-callee is applied at a subject whose denotation the previous stage NAMED,
-and every callee rule it needs was already closed. -/
+clause**, `inferBody`'s verbatim at the io grade, staged by `triple_seq`
+(`Memo.lean`): every callee is applied at a subject whose denotation the
+previous stage NAMED. -/
 theorem inferBodyIO_proj {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -681,8 +676,7 @@ theorem inferBodyIO_letE {fe : IFEnv} {fuel : Nat}
       ETag.lit] at htg
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1295-1298 inferBodyIO — **the leaf
-clauses**: `.sort`, `.fvar`, and the throw.
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
+clauses**: `.sort`, `.fvar`, and the throw. -/
 theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (_hsim : KnotSpec mode env fe fuel)
@@ -737,15 +731,10 @@ theorem inferBodyIO_leaf {fe : IFEnv} {fuel : Nat}
     rw [hd2]; simp [denoteEView, denoteL_ext hs1 hx2]
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyIOC_sim —
-**THEOREM 1 for `inferBodyIO`**.
-
-**CLOSED** (the Core tier is `sorry`-free since task #97-P3-Core round 6).
-It was open for the same reasons as `inferBody_spec`:
-the twin's io `.app` clause is the batched `inferSpineIO`/`inferAppIOAt`
-(task #97-P6-9) and its `.proj` clause needs the same three callee rules.
-The io lane keeps CHAINED binder clauses — con-leche's `inferBodyIOI` does
-(task #97-P6-12's own note), so `infer_lam_open`/`_cod`/`_result` survive as
-this lane's λ clause and the batched-telescope debt of `Infer.lean` does NOT
+**THEOREM 1 for `inferBodyIO`**: a case split on the tag, one dispatch child
+per arm.  The io grade keeps CHAINED binder clauses, as con-leche's
+`inferBodyIOI` does (DESIGN, task #97-P6-12), so `infer_lam_open`/`_cod`/
+`_result` are its λ clause and `Infer.lean`'s batched telescope does not
 apply here. -/
 theorem inferBodyIO_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
@@ -770,8 +759,7 @@ theorem inferBodyIO_spec {fe : IFEnv} {fuel : Nat}
   · exact inferBodyIO_letE hsim s₀ d i e hok hden hw hlt
   exact inferBodyIO_leaf henv hμ hsim s₀ d i e hok hden hw ha hp hf hm hc hl hlt
 
-/-! ## The axiom census of the closed children (task #97-P3-Core round 5,
-sub-lane Leaves) -/
+/-! ## The axiom census of the dispatch's children -/
 
 section Census
 
@@ -787,7 +775,7 @@ section Census
 #print axioms inferBodyIO_forallE
 end Census
 
-/-! Lane `lam` (task #97-P3-Core round 6): the `.lam` clause, sorry-free. -/
+/-! The `.lam` clause. -/
 
 section CensusLam
 #print axioms inferLamResult_spec

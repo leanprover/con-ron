@@ -15,8 +15,8 @@ the entry bracket.
 | the five values | the wrapper's stuck tag | `Bridge/Core/Memo.lean`'s `whnf_of_stuck` |
 
 **The loop is `whnfLoopFuel` deep and the knot is one level.**  That is
-con-leche's own task #106 shape and the arena copies it verbatim (task #97c:
-"`whnfLoopFuel` and `whnfLoopFuel` are con-leche's numbers verbatim"), so the
+con-leche's own task #106 shape and the arena copies it verbatim
+(`whnfLoopFuel` is con-leche's number; DESIGN, task #97c), so the
 twin's induction is on the LOOP's budget with the knot record fixed — one
 `Nat` induction, not a second fuel tower.  `whnfBody_spec` below is where it
 runs.
@@ -198,33 +198,31 @@ theorem whnf_of_loop {F d : Nat} {e res : Expr}
   rw [ConLeche.whnf_succ, ConLeche.whnfBody]
   exact h
 
-/-! ## 3. The loop, by induction on its budget (task #97-P3-Core-2)
+/-! ## 3. The loop, by induction on its budget
 
 The three step lemmas above are about con-leche's loop; this is the twin's,
-and the two meet in `whnfBody_spec`.  Two things make it work that did not
-exist before this round:
+and the two meet in `whnfBody_spec`.  Two things make it work:
 
 * **the fuel merge** (`Bridge/Core/Walks/Mono.lean`).  Each iteration hands
   out its own `∃ F` — one from `KnotSpec.whnfCore`, one from `reduceNat`, one
   from the induction hypothesis — and the three have to become one before a
   step lemma can apply.  `Verify/Mono.lean`'s `whnfCore_mono`, this tier's
   `reduceNatFueled_mono` and its `whnfLoopFueled_mono` are the three lifts,
-  and `max` is the merge.  DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 named
-  this as the tier's one unpriced line item and this is where it is spent;
-* **`ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel`** — task #97c twinned
+  and `max` is the merge;
+* **`ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel`** — the arena twins
   con-leche's number verbatim, but con-leche SEALS it, so the equation needs
   one `unseal`.
 
-`whnfLoop_spec` stands on two walk theorems, both CLOSED in task
-#97-P3-Core round 4: `reduceNat_spec` (`Bridge/Core/Walks/Nat.lean`) and
-`unfoldDefinition_spec` (`Bridge/Core/Walks/Spine.lean`, over
-`Walks/Cached.lean`'s `constValAt_spec'`).  The second needed `EnvWF env`
-(the unfolding's scope is `unfoldDefinition_WScoped`'s, whose hypothesis it
-is), so the loop takes it too; `whnfBody_spec` always did. -/
+`whnfLoop_spec` stands on two walk theorems: `reduceNat_spec`
+(`Bridge/Core/Walks/Nat.lean`) and `unfoldDefinition_spec`
+(`Bridge/Core/Walks/Spine.lean`, over `Walks/Cached.lean`'s
+`constValAt_spec'`).  The second needs `EnvWF env` (the unfolding's scope is
+`unfoldDefinition_WScoped`'s, whose hypothesis it is), so the loop takes it
+too, as `whnfBody_spec` does. -/
 
 unseal ConLeche.whnfLoopFuel in
 /-- con-leche: ConLeche/Kernel/Core.lean:1101-1108 whnfLoopFuel — the two
-budgets are the same number (task #97c).  con-leche's is `@[irreducible]`,
+budgets are the same number.  con-leche's is `@[irreducible]`,
 so the equation needs an `unseal`; the arena's is a plain `def`. -/
 theorem whnfLoopFuel_eq :
     ConRon.Arena.whnfLoopFuel = ConLeche.whnfLoopFuel := rfl
@@ -303,11 +301,8 @@ budgets' equation), from the loop's answer as ONE premise. -/
 /-- con-leche: ConLeche/Verify/Cached/DiscC4.lean whnfBodyC_sim — **THEOREM 1
 for `whnfBody`**.
 
-**PROVED** (task #97-P3-Core-2) and **SORRY-FREE** since task #97-P3-Core
-round 4: `whnfLoop_spec` above is the `Nat` induction, `whnfLoopFuel_eq` is
-the entry, and `whnf_of_loop` is the bracket; the two walks it stood on
-(`reduceNat_spec`, `unfoldDefinition_spec`) are closed.  The first of the six
-bodies at `[propext, Classical.choice, Quot.sound]`. -/
+`whnfLoop_spec` above is the `Nat` induction, `whnfLoopFuel_eq` is the
+entry, and `whnf_of_loop` is the bracket. -/
 theorem whnfBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) :
@@ -327,7 +322,6 @@ section Census
 #print axioms whnfLoop_done
 #print axioms whnf_of_loop
 #print axioms whnfLoopFuel_eq
-/-! `whnfLoop_spec` and `whnfBody_spec`: no `sorryAx` since round 4. -/
 #print axioms whnfLoop_spec
 #print axioms whnfBody_spec
 

@@ -1,50 +1,16 @@
 /-
-# `ConRon.Bridge.Core.Walks.Spine` — the non-slot walks that cannot sit on the knot-facing chain
+# `ConRon.Bridge.Core.Walks.Spine` — the non-slot walks over the `ExprOps` spine rules
 
-Task #97-P3-Core round 3.  `Bridge/Core/Walks/Owed.lean` left four walks with
-one note between them — *"no import of the `ExprOps` tier is made by
-`Bridge/Core/Walks/**` this round, which is the only reason this is not
-proved here"* — and `Bridge/ExprOps/**` reached zero `sorry` while round 2
-ran.  **All four are closed here**: `unfoldableHead`, `headHint`,
-`sameConstHeads` and `defeqSpine`, on `ExprOps/Spine.lean`'s `getAppFn_spec`
-and `getAppArgs_spec`.
-
-## Why this is a module of its own and not four theorems in `Owed.lean`
-
-`lakefile.toml`'s `ConRonBridge` entry: *"Two modules of the `ExprOps` tier
-cannot sit in ONE import closure — `grind` generates the same
-`match`-auxiliary for an `Arena/ExprOps.lean` definition in each, and Lean
-refuses the second."*  **The same clash reaches the Core tier through the
-`ExprOps` import**, and it was found by building, not by reading:
-
-    import ConRon.Bridge.Core.EnsureSort failed, environment already contains
-    'ConRon.Arena.piResultIsProp.match_1.congr_eq_1._sparseCasesOn_2'
-    from ConRon.Bridge.Core.Walks.Owed
-
-`Bridge/Checker/Hyp.lean` imports `Core.EnsureSort` beside `Core.Induction`,
-and `Core.Induction` reaches `Walks/Owed.lean` through the six `Arms/`
-modules.  So the moment `Owed.lean` imports `ExprOps/Spine.lean`, the Checker
-tier cannot be built — the derived congruence auxiliary of the `ENodeView`
-match is generated in `EnsureSort.lean` and in the `ExprOps` closure, and the
-two oleans both carry it.
-
-The rule the round takes from it: **`Bridge/Core/**`'s knot-facing chain
-(`Knot → Memo → Arms/* → Induction`) stays free of the `ExprOps` tier and of
-`mvcgen` over `ensureSort`, and the walks that need either live in SIBLING
-modules off it.**  A body walk that eventually needs one of these will
-import this module beside `Owed.lean`; nothing on the chain has to.
-
-**And this module is a workaround, not a fix.**  `Arena/Core.lean` calls
-`ensureSort` from `inferBodyIO`'s `.forallE` arm and from the binder walks, so
-`Arms/{InferIO,Infer}.lean` meet the same wall — and both are ON the chain.
-The auxiliary is *derived on demand*, so the real repair is to give it one
-owner (force its derivation in `Bridge/Specs.lean`, which every module of
-this library imports); DESIGN §8's `### Task #97-P3-Core-2` round 3
-finding 18 books it.
+The four walks whose theorems need the `ExprOps` tier's spine rules:
+`unfoldableHead`, `headHint`, `sameConstHeads` and `defeqSpine`, on
+`ExprOps/Spine.lean`'s `getAppFn_spec` and `getAppArgs_spec`, together with
+`unfoldDefinition` and `etaCert`.  `Walks/Owed.lean` does not import the
+`ExprOps` tier; a body walk that needs one of these imports this module
+beside it.
 
 ## What is in here besides the four walks
 
-The facts the four need and no tier had — the length projection of `viewLs`
+The facts the four need — the length projection of `viewLs`
 bridged to the denotation and `denoteCI`'s constructor preservation at
 `defnInfo` — and the two "index equality IS structural equality" transfers at
 the name store.  Their section notes are below.
@@ -62,9 +28,7 @@ one at the tier's invariant (`mkAppN_specC`).
 
 One thing is here for the IMPORT's sake rather than the subject's:
 `instantiate1Fast_specE`, which is `ExprOps/Inst1.lean`'s spec in answer
-shape and is what `etaCert_spec` (open when this was written, closed since)
-needed.  (`isPropType_spec` was the other; con-leche deleted `isPropType`,
-task #105.)
+shape and is what `etaCert_spec` needs.
 -/
 import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
@@ -82,7 +46,7 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! ## 0c. What the spine group needs and no tier had
+/-! ## 0c. What the spine group needs
 
 The walks of §1 read the head of an application (`ExprOps/Spine.lean`'s
 `getAppFn_spec` over a `view`) and then the ENVIRONMENT INDEX at the head's
@@ -98,8 +62,7 @@ name.  Two facts are stated here:
 
 /-- con-leche: none — the LENGTH projection of one tier's `LsTables.get`:
 the stored record's own length is the length of the list the handle decodes to
-in that tier.  Task #97-P6-10 wrote the projection and nothing related it to
-the list. -/
+in that tier. -/
 theorem lsTables_getLen_eq (t : LsTables) (i : LsIdx) :
     t.getLen i = (t.get i).map List.length := by
   simp only [LsTables.getLen, LsTables.get]
@@ -125,8 +88,7 @@ theorem lsStore_viewLen_eq (st : LsStore) (i : LsIdx) :
 
 /-- con-leche: none — **the length projection agrees with the
 DENOTATION**: a level-list handle that denotes `us` answers `us.length`.  This
-is what a walk comparing `viewLsLen` against con-leche's `us.length` needs and
-what no tier had. -/
+is what a walk comparing `viewLsLen` against con-leche's `us.length` needs. -/
 theorem viewLen_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
     (h : denoteLs st i = some us) : st.viewLen i = some us.length := by
   simp only [denoteLs] at h
@@ -162,10 +124,6 @@ theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}
     | some x =>
       rw [hv, he] at h
       exact ⟨cv, x, rfl, rfl, (Option.some.inj h).symm⟩
-
-/-! `denoteCV_inv` — the field-by-field inversion of `denoteCV` — moved down
-to `Bridge/Core/Walks/Cached.lean` in round 4, where the three
-instantiated-constant caches need it. -/
 
 /-- con-leche: none — a handle whose VIEW is not a `.const` denotes an
 expression that is not a `.const`.  `Bridge/Core/Walks/Guards.lean`'s
@@ -372,9 +330,9 @@ theorem constValAt_specA (s₀ : AState) (n : NIdx) (lps : List NIdx)
 con-leche's comparand is a plain function of the environment, so the
 conclusion is an equation and there is no fuel existential anywhere in the
 statement.  These are the cheapest walks of the tier — their fourth,
-`isBoolTrue`, is CLOSED in `Bridge/Core/Walks/Guards.lean`, and the three
-here differ from it only by needing `getAppFn`.  **All three are CLOSED**
-(task #97-P3-Core round 3), which is what the `ExprOps` import buys. -/
+`isBoolTrue`, is in `Bridge/Core/Walks/Guards.lean`, and the three here
+differ from it only by needing `getAppFn`, which is what the `ExprOps`
+import buys. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:134-140 unfoldableHead — the
 function as ONE equation over tags and projections: the head is a
@@ -438,7 +396,7 @@ as ONE equation: the hint at the head constant's name, `opaque` elsewhere. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-170 unfoldableHead —
 **THEOREM 1 for `unfoldableHead`**: the delta step's DECISION, taken before
-the unfolding is materialized.  **CLOSED** (round 3): six verification
+the unfolding is materialized.  Six verification
 conditions — `getAppFn_spec`'s two preconditions, the dangling-level-list
 failure arm (free), the definition arm, the not-a-definition arm and the
 not-a-constant arm. -/
@@ -455,19 +413,18 @@ theorem unfoldableHead_spec (s₀ : AState) (e : EIdx) (x : Expr)
 definition at the head, one step.  The pure side takes no fuel, so the
 conclusion is an equation through `denoteEO` (`Bridge/Rel.lean`).
 
-**CLOSED** (round 4), and it moved here from `Walks/Owed.lean`: the spine
-rules are the `ExprOps` tier's, the index facts are this module's, and the
-delta step's value is `Walks/Cached.lean`'s `constValAt_spec'` — the ANSWER
-shape, because the constant's name and levels come out of `getAppFn`/`view`.
+The spine rules are the `ExprOps` tier's, the index facts are this module's,
+and the delta step's value is `constValAt_specA` — the ANSWER shape of
+`Walks/Cached.lean`'s `constValAt_spec`, because the constant's name and
+levels come out of `getAppFn`/`view`.
 
-**One precondition was missing and is repaired: `EnvWF env`.**  The
-postcondition promises the unfolding is well-scoped at `d`, and that is
+**The precondition `EnvWF env` is needed.**  The postcondition promises the unfolding is well-scoped at `d`, and that is
 con-leche's `unfoldDefinition_WScoped` — whose own hypothesis is exactly
 `EnvWF` (the stored VALUE is closed).  Without it the statement is false: a
 definition whose stored value has a loose bound variable unfolds, in both
 tiers, to a term that is not well-scoped, and nothing in `CheckOK` rules such
 an environment out.  Its one caller, `Arms/Whnf.lean`'s `whnfBody_spec`,
-already took `EnvWF`. -/
+takes `EnvWF` too. -/
 theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
     (d : Nat) (e : EIdx) (hok : CheckOK mode env fe s₀)
     (hdw : ∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x) :
@@ -486,7 +443,7 @@ theorem unfoldDefinition_spec (henv : ConLeche.EnvWF env) (s₀ : AState)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:172-181 headHint — **THEOREM
 1 for `headHint`**: the reducibility hint of the constant at the head.
-**CLOSED** (round 3).  The answer type is one both tiers share, so the
+The answer type is one both tiers share, so the
 relation is an equation, because con-leche's `headHint` takes no fuel.  Five verification conditions. -/
 theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store e = some x) :
@@ -498,7 +455,7 @@ theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
-**CLOSED** (round 3), and it is DESIGN §8.3's *"index inequality IS
+It is DESIGN §8.3's *"index inequality IS
 structural inequality"* at the NAME store: `beq_of_denoteN` turns the
 arena's `==` on `NIdx` into con-leche's `==` on `Name`, in both directions
 (`denoteN`'s functionality one way, `denoteN_inj` the other).  Nine
@@ -591,12 +548,11 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.sameConstHeads, ExprOps.getAppFn_spec coreWalkFuel] <;> finish
 
-/-! ### `defeqSpine`, the walk that consumes the whole round
+/-! ### `defeqSpine`
 
-It is the first walk of the tier whose callee list is entirely made of
-things this round or the last one closed: `getAppFn_spec` and
-`getAppArgs_spec` (the `ExprOps` import, §0c), `lvlsEq?_spec` (round 2,
-strengthened to the equation), and `defEqList_go` (above).  Twenty
+Its callees are `getAppFn_spec` and `getAppArgs_spec` (the `ExprOps`
+import, §0c), `lvlsEq?_spec` (at the equation, so at both signs), and
+`defEqList_goA` (above).  Twenty
 verification conditions, sixteen of them the four `StateOK`/`isSome`
 preconditions of the four spine reads. -/
 
@@ -692,14 +648,14 @@ length, `false` otherwise (the fuel is the same on both sides). -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1420-1439 defeqSpine — **THEOREM 1
 for `defeqSpine`**: two applications of the same constant are defeq if their
-universe arguments and their argument vectors are.  **CLOSED** (round 3).
+universe arguments and their argument vectors are.
 
 Two of DESIGN §8.3's "index inequality IS structural inequality" in one
 guard: the twin tests `n = n'` on `NIdx` where con-leche tests `Name`
 equality (`name_eq_iff_of_denoteN`, both directions), and `aa.length =
 bb.length` on handle lists where con-leche tests the denoted spines'
 (`denoteEList_len`, both directions).  The walk DECLINES on either, so both
-are needed at both signs — round 2's rule at a compound guard. -/
+are needed at both signs — `lvlEq?_spec`'s rule at a compound guard. -/
 theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
@@ -751,12 +707,11 @@ theorem instantiate1Fast_ok_spec (s₀ : AState) (b w : EIdx) (B W : Expr)
 /-- con-leche: ConLeche/Kernel/Core.lean:505-530 etaCert — **THEOREM 1 for
 `etaCert`**: η at a λ against a non-λ.
 
-**CLOSED** since (this note is round 3's, when it was the cheapest of the
-ten open walks): its whole PURE side is
-proved above (`etaCertFueled_nf`, `_dom`, `_body`, `_yes`) and so is the one
-callee rule whose published shape it cannot use
-(`instantiate1Fast_specE`, `Bridge/Core/Walks/Spine.lean`).  What is left is
-twenty-three verification conditions on the arena side — the three knot calls
+Its PURE side is `Walks/Owed.lean`'s step equations
+(`etaCertFueled_notNeutral`, `_nf`, `_dom`, `_body`, `_trusted`, `_tax`),
+and the one callee rule whose published shape it cannot use is restated
+above (`instantiate1Fast_specE`).  The arena side is twenty-three
+verification conditions — the three knot calls
 in their primed shape, two `internE`s with their `ViewOK` obligations, one
 `instantiate1Fast`, and the well-scopedness of the opened body at `d + 1`
 (con-leche's `WScoped.instantiate1` and `WScoped.mono` are exactly it).  The
@@ -940,7 +895,7 @@ section Census
 #print axioms beq_of_denoteN
 #print axioms name_eq_iff_of_denoteN
 #print axioms instantiate1Fast_specE
-/-! **The four closed walks of this module.** -/
+/-! **The walks of this module.** -/
 #print axioms unfoldableHead_spec
 #print axioms headHint_spec
 #print axioms sameConstHeads_spec

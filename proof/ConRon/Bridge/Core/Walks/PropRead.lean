@@ -1,14 +1,12 @@
 /-
 # `ConRon.Bridge.Core.Walks.PropRead` — the head-symbol prop-ness readers
 
-Task #97-P3-Core round 5, sub-lane PropRead.  `Arena/PropRead.lean` is nine
-state-only readers (`peelNeverPis`, `numArgs`, `residualPW`, `headTypePW`,
-`typeSortPW`, `headProofPW`, `proofPW`, `notProofFast`, `isProofFast`), and
-round 4 (§5) priced it as `Walks/Nat.lean`'s row: no knot, no fuel on the
-pure side, each an EQUATION with the con-leche function of the same name at
-`find? := env.find?`.  This module is that, then the three walks of
-`Walks/Owed.lean` that waited on it (`propIrrel`, `annotPwPi`,
-`annotPwLam`).
+`Arena/PropRead.lean` is nine state-only readers (`peelNeverPis`, `numArgs`,
+`residualPW`, `headTypePW`, `typeSortPW`, `headProofPW`, `proofPW`,
+`notProofFast`, `isProofFast`), shaped as `Walks/Nat.lean`'s walks: no knot,
+no fuel on the pure side, each an EQUATION with the con-leche function of the same name at
+`find? := env.find?`.  This module is that, then the three walks that
+stand on it (`propIrrel`, `annotPwPi`, `annotPwLam`).
 
 ## The shape
 
@@ -34,7 +32,7 @@ pure side, each an EQUATION with the con-leche function of the same name at
 `optCI_find`; a hit's `isTowerEntry` is the denotation's
 (`denoteCI_isTowerEntry`), and off the tower the arena's monadic
 `toConstantVal` is pure and denotes con-leche's (`toConstantVal_specP`).
-The has-parameters cutoff (task #97-P6-10) is con-leche's own
+The has-parameters cutoff (DESIGN, task #97-P6-10) is con-leche's own
 `Level.substPW_eq_self`.
 
 ## The proofs
@@ -121,7 +119,7 @@ theorem denote_not_lam {st : EStore} (hwf : StoreWF st) {h : EIdx}
   | proj n i sub => obtain ⟨p, q, rfl, _, _⟩ := denote_proj_inv hwf hv he; simp
 
 /-- con-leche: ConLeche/Kernel/Level.lean:203-205 Level.substPW — **the
-cutoff** of the arena's `substPWAt` (task #97-P6-10): a datum that names no
+cutoff** of the arena's `substPWAt` (DESIGN, task #97-P6-10): a datum that names no
 parameter (`never`, or `ifAllZero []`) is its own substitution, so answering
 `pw` without the two readbacks is con-leche's `map`. -/
 theorem substPW_cutoff {ks : List ConLeche.Name} {vs : List Level}
@@ -1027,8 +1025,7 @@ theorem propIrrel_slow {F d : Nat} {x y ta tta tb ttb : Expr} {uT vT : Level}
 /-! ### `propIrrel` -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:307-349 propIrrel — **THEOREM 1 for
-`propIrrel`**, the hoisted proof-irrelevance test.  **CLOSED** (round 5,
-moved from `Walks/Owed.lean`, statement unchanged): the two fast arms are
+`propIrrel`**, the hoisted proof-irrelevance test.  The two fast arms are
 `notProofFast_specA` / `isProofFast_specA` at both subjects — equations, so
 both Bool outcomes of each guard transfer — and the slow path is
 the `inferIO` slot twice and `KnotSpec.whnf'` once per side, the zero pin

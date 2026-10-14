@@ -1,10 +1,8 @@
 /-
-# `ConRon.Bridge.ExprOps.Owed` — the five twins the earlier round only stated
+# `ConRon.Bridge.ExprOps.Owed` — the abstraction and level-instantiation entries
 
-DESIGN §8.2's Theorem 1 for the five twins of `Arena/ExprOps.lean` whose
-STATEMENT an earlier round owed and whose PROOF it did not reach (task
-#97-P3-2): three `…Fast` entry brackets and the two walks whose fuel
-induction the round ran out on —
+DESIGN §8.2's Theorem 1 for five twins of `Arena/ExprOps.lean`: three
+`…Fast` entry brackets and two fuel-inducted walks —
 
 * `abstract1Fast` and `abstractRangeFast`, the two brackets over the EXECUTED
   abstraction walks, and `abstractRangeGo` itself;
@@ -41,10 +39,9 @@ The ones `Arena/ExprOps.lean`'s own doc comments name:
   §8.3 lesson 4), so `instLPFast`'s theorem carries the readback hypotheses
   its entry establishes with `readNamesM` / `readLevelsM`.
 
-## Three statement changes this round had to make
+## Three statement shapes, and why
 
-The shapes the earlier round wrote down were not provable, and the reasons are
-worth keeping:
+The obvious shapes are not provable, for these reasons:
 
 1. **`abstractRangeGo_specS`'s memo invariant is `AbsRangeMemoA d k`, not
    `Abs1MemoA d`.**  The table `abs1C` is shared by the two abstraction walks
@@ -60,7 +57,7 @@ worth keeping:
    hoisted over the readbacks, task #97-P6-10).  The second disjunct is the
    stronger of the two for a caller: nothing moved at all.
 3. **`instLPGo_specS` and `instLPFast_spec` frame `s'.caches` as a RECORD
-   EQUATION** (round 4; the earlier rounds did not frame it at all).
+   EQUATION**.
    `ExprOps/InstLP.lean`'s header says why it cannot be `s'.caches =
    s₀.caches`: the two LEVEL arms read a level back and the memoised readback
    WRITES `caches.readLC` / `caches.readLsC`, and `instLPFast`'s entry writes
@@ -75,14 +72,12 @@ worth keeping:
    name-readback cache is framed across `instLPGo` and `ReadNCacheOK.mono`
    carries the clause along the walk's `Ext`.
 
-   **What it cost**: the same record equation stated one level down at each
+   The same record equation is stated one level down at each
    of `readNameM_specF`, `readNamesM_specF` (this file),
    `readLevelM_specF`, `readLevelsM_specF` (`ExprOps/MemoSpecs.lean`) and
    `substLMemoAt_spec`, `substLsMemoAt_spec` (`ExprOps/InstLP.lean`), whose
    two sibling-table equations are its projections — and **one lemma in `instLPFast_spec`'s closer list**
-   (`ReadNCacheOK.mono`).  Every other proof of the chain closed unchanged.
-   `instLPGo_specS`'s fourteen structural blocks each gained one `by grind` /
-   one `rfl`.
+   (`ReadNCacheOK.mono`).
 -/
 import ConRon.Bridge.ExprOps.Abs
 import ConRon.Bridge.ExprOps.MemoSpecs
@@ -158,6 +153,8 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
   | succ fuel ih =>
     constructor
     intro s₀ h c hok hm hden
+    -- `gen := 10`: the `letE` arm's body answer arrives through three recursive calls, past the
+    -- default generation limit
     sym only [bridge_grind, denoteEView, opt2, opt3, ETag.isBind, absRangeFn_cutoff,
         absRangeFn_leaf] =>
       vcgen [abstractRangeGo_succ, absRangeGoArmApp, absRangeGoArmBind,
@@ -168,8 +165,7 @@ theorem abstractRangeGo_specS (hfv : FvarBSpec) (d k : Nat) :
 bracket over `abstractRangeGo_specS`.
 
 **The memo clause is a DISJUNCTION here and an equation at the other four
-entries** (a statement change this round had to make: the shape the round
-owed was not provable).  `abstractRangeFast` tests `k = 0` FIRST and returns
+entries** (an equation is not provable here).  `abstractRangeFast` tests `k = 0` FIRST and returns
 the subject without clearing anything (`Arena/ExprOps.lean`'s own clause, and
 what makes the annotation telescope's outermost binder domain cost nothing),
 so on that branch the shared `abs1C` table is whatever the caller had.  What
@@ -370,8 +366,8 @@ the third face of the same lemma, and `Bridge/SpecsL.lean`'s
 `readNamesM_spec` does not frame `caches.readLC` / `caches.readLsC`.  These
 two belong in `Bridge/SpecsL.lean` beside the specs they strengthen.
 
-Round 4 made all four `_specF` faces carry the RECORD equation
-`s'.caches = { s₀.caches with readNC := … }` instead of the two sibling-table
+All four `_specF` faces carry the RECORD equation
+`s'.caches = { s₀.caches with readNC := … }` rather than the two sibling-table
 equations: the sibling equations are its projections, and the other eleven
 cache tables come with it, which is what lets `instLPFast_spec` state a cache
 frame at all. -/
@@ -414,16 +410,13 @@ recursion is on the list as `readNames`' is. -/
 entry, which reads `ks` and `us` back ONCE (`readNamesM` / `readLevelsM`) and
 then runs `instLPGo` on the transient trees.
 
-**Two statement changes this round had to make** (the shape the round owed
-was not provable):
+**Two statement shapes differ from the obvious ones** (which are not
+provable):
 
 * the frame is NOT `s'.caches = s₀.caches` — the readbacks and the walk's two
   level arms WRITE the readback caches (`ExprOps/InstLP.lean`'s header).  The
-  two readback CLAUSES are carried instead, as hypotheses and conjuncts both;
-  the THIRD (`ReadNCacheOK`, which `readNamesM` needs) is a hypothesis and
-  cannot be a conjunct, because `ExprOps/InstLP.lean`'s `substLMemoAt_spec`
-  does not frame `caches.readNC` — a one-conjunct change there would give it
-  back;
+  three readback CLAUSES are carried instead, as hypotheses and conjuncts
+  both, with the record equation naming the three tables that move;
 * the memo clause is a DISJUNCTION, exactly as `abstractRangeFast_spec`'s is
   and for the same reason: the `hasLP` cutoff is HOISTED over the readbacks
   (task #97-P6-10), so on a level-parameter-free subject the entry returns

@@ -1,31 +1,23 @@
 /-
-# `ConRon.Bridge.Core.Walks.Proj` — the projection table, and the tier's one
-structural gap closed
+# `ConRon.Bridge.Core.Walks.Proj` — the projection table
 
-Task #97-P3-Core-2.  DESIGN §8's `### Task #97-P3-CoreWalks` §5 named exactly
-one item of the Core-walks tier that was *not* labour:
+The projection table's walks: the reserved table name, the indexed lookup at
+`Bridge/Rel.lean`'s `denoteProjEntry`, the tower-fire guard, the `.proj`
+node's type and the projection certificates.  Without `denoteProjEntry` an
+`IProjEntry` (`Arena/Env.lean:150`, ten fields, four of them handles) has no
+denotation, and `IProjEntry.typeAt`, `projCert`, `IProjEntry.fireOk` and the
+`.proj` arms of `whnfCoreBody` and `inferBody` could not be stated.
 
-> **The projection table has no denotation.**  `Arena/Frontend/Readback.lean`
-> has `denoteCI` for an `IConstantInfo` and `denoteCV` for an `IConstantVal`,
-> and nothing for an `IProjEntry` (`Arena/Env.lean:150`, ten fields, four of
-> them handles).  So `IProjEntry.typeAt` **cannot be stated**, and neither can
-> `projCert`, `IProjEntry.fireOk`, or the `.proj` arm of `whnfCoreBody` and
-> `inferBody` below the guard. … **It should be the next round's first
-> commit.**
+## The statements
 
-`Bridge/Rel.lean`'s `denoteProjEntry` is that commit; this module is what it
-unblocks.
-
-## The four statements, and where each stands
-
-| theorem | what it is | status |
-|---|---|---|
-| `projTableName_spec` | the reserved name of `T`'s table, interned | **CLOSED** |
-| `IFEnv.findProj?_spec` | the indexed table lookup, at `denoteProjEntry` | **CLOSED**, modulo §2's shape hypothesis |
-| `IProjEntry.fireOk_spec` | the tower-fire guard | **CLOSED** |
-| `IProjEntry.typeAt_spec` | the `.proj` node's type | **CLOSED** (round 4) |
-| `iotaCerts_spec` | the batched spine certificate | **CLOSED** (round 4) |
-| `projCert_spec`, `projCertAt_spec` | the structural projection's certificate | **CLOSED** (round 4) |
+| theorem | what it is |
+|---|---|
+| `projTableName_spec` | the reserved name of `T`'s table, interned |
+| `IFEnv.findProj?_spec` | the indexed table lookup, at `denoteProjEntry` |
+| `IProjEntry.fireOk_spec` | the tower-fire guard |
+| `IProjEntry.typeAt_spec` | the `.proj` node's type |
+| `iotaCerts_spec` | the batched spine certificate |
+| `projCert_spec`, `projCertAt_spec` | the structural projection's certificate |
 
 ## 1. The one thing the exactness lemma needs that neither tier records
 
@@ -37,47 +29,25 @@ denotation — `(default : EIdx)` need not denote `(default : Expr)` and
 `findProj?`'s own guard is `i < tbl.numFields`, which is in range only if the
 two columns have `numFields` entries.
 
-**That clause is ours, not con-leche's** (task #97-P3-Checker-2, correcting
-this round's second finding).  It was booked here as a free hypothesis
-`ProjTablesShaped` with a note that `Verify/EnvWF.lean:191`'s `ConstWF`
-records the `bodies` half and not the `guards` half — but `ConstWF` is the
-wrong place to take it from: **a simulation B ⇒ A takes invariants on the
-REFINED side only**, `denoteProjTable` transports both columns pointwise and
-copies `numFields` verbatim, so the pure table's sizes ARE ours.  The clause
-is now `Bridge/StateOK.lean`'s `IProjTableOK`, a field of `IFEnvOK`, and
+**That clause is ours, not con-leche's.**  `Verify/EnvWF.lean:191`'s
+`ConstWF` records the `bodies` half and not the `guards` half, but it is the
+wrong place to take it from anyway: **a simulation B ⇒ A takes invariants on
+the REFINED side only**, `denoteProjTable` transports both columns pointwise
+and copies `numFields` verbatim, so the pure table's sizes ARE ours.  The
+clause is `Bridge/StateOK.lean`'s `IProjTableOK`, a field of `IFEnvOK`, and
 `findProj?_spec` reads it off `hok.ienv.proj` with no hypothesis of its own.
 Its one debtor is the install (`Bridge/Checker/Inv.lean`'s
 `projTableOK_of_install`, owned by the Inductives tier).
 
-## 2. The `readNamesM` detour, and why it is here rather than at the spec
+## 2. The `readNamesM` frame
 
-Task #97-P3-CoreWalks' **finding 3** — *"a registered `@[spec]` is a
-commitment; state the frame in it the first time, because a caller cannot add
-one later"* — bites a second time.  `Bridge/Specs.lean`'s three readback
-specs were strengthened with the `caches` frame conjunct last round;
-**`Bridge/SpecsL.lean`'s `readNamesM_spec` was not**, and `IProjEntry.fireOk`
-reads a level-parameter list back.  Without the conjunct no caller can rebuild
-`CacheOK`, and — measured last round, under `mvcgen` — the conjunct cannot
-be supplied from the caller, by erasing the attribute or by passing a
-stronger theorem.
-
-The fix belongs at `SpecsL.lean`'s spec, and `SpecsL.lean` is **not this
-round's lane** (`Bridge/ExprOps/**` is being closed concurrently against
-`readNamesM` through `instLPFast_spec`, and strengthening a spec under a live
-proof is how a merge breaks).  So this module first took the *first* shape
-task #97-P3-CoreWalks §3 describes and then discarded: a body copy with no
-spec of its own (`readNamesMB`, `= rfl` to `readNamesM`), a frame theorem
-about the copy, and a `simp only` rewrite in front of the walk's `mvcgen`.
-**Task #111 deleted the copy**: `vcgen` erases a registered spec per call, so
-`readNamesM_frame` is stated about `readNamesM` itself, proved with
-`vcgen [-readNamesM_spec, …]`, and `IProjEntry.fireOk_spec` erases the
-spec the same way and passes the frame instead — the "erasing the
-attribute" route `mvcgen` did not have.
-
-**Ask for the coordinator** (still open): one conjunct in
-`Bridge/SpecsL.lean`'s `readNamesM_spec`,
-`s'.caches = { s₀.caches with readNC := s'.caches.readNC } ∧`, deletes §2
-whole — the same one-line fix, at the same cost (`rfl`), as last round's.
+`IProjEntry.fireOk` reads a level-parameter list back, and its caller must
+rebuild `CacheOK` afterwards, so it needs the call's frame.
+`readNamesM_frame` states that frame as `ReadbackFrame` together with the
+list's denotation, about `readNamesM` itself, proved with
+`vcgen [-readNamesM_spec, …]`; `IProjEntry.fireOk_spec` erases the
+registered spec the same way and passes the frame instead (`vcgen` erases a
+registered spec per call).
 -/
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.Core.Walks.Spec
@@ -305,13 +275,13 @@ theorem IFEnv.findProj?_spec (s₀ : AState) (T : NIdx) (i : Nat)
   · subst he
     exact (Option.some.inj h6).symm
 
-/-! ## 4. `IProjEntry.fireOk` — CLOSED
+/-! ## 4. `IProjEntry.fireOk`
 
 The module note's §2 detour, then the walk. -/
 
-/-- con-leche: none — **the frame of a `readNamesM` call**, which
-`Bridge/SpecsL.lean`'s registered spec does not carry.  One list induction
-over `readNameM_spec`, whose own frame conjunct `Bridge/Specs.lean` has; the
+/-- con-leche: none — **the frame of a `readNamesM` call**, as
+`ReadbackFrame` with the list's denotation.  One list induction over
+`readNameM_spec`, whose own frame conjunct `Bridge/Specs.lean` has; the
 registered `readNamesM_spec` is erased for the two calls (`vcgen [-…]`, see
 the module note §2). -/
 theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
@@ -332,7 +302,7 @@ theorem readNamesM_frame (s₀ : AState) (hs : List NIdx)
 field's guard level must be a proposition at this instantiation; at every
 other family the rule fires unconditionally.
 
-CLOSED.  `lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`, closed) decides the
+`lvlEq?_spec` (`Bridge/Core/Walks/Cached.lean`) decides the
 structure sort against the zero pin, the three readbacks give the level
 parameters, the instantiation levels and the field sort, and the rest is
 `Level.subst`/`Level.isEquiv` on values both tiers share — no `ExprOps` rule,
@@ -352,7 +322,7 @@ theorem IProjEntry.fireOk_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     vcgen [lvlEq?_spec (mode := mode) (env := env) (fe := fe), -readNamesM_spec,
       readNamesM_frame] <;> finish
 
-/-! ## 5. The two that waited on another tier — CLOSED (round 4) -/
+/-! ## 5. The two that stand on `ExprOps` -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:371-373 instantiateListFast —
 `ExprOps/Subst.lean`'s `instantiateListFast_spec` at the tier's invariant
@@ -373,9 +343,9 @@ stored body, level-instantiated at the subject type's levels, with the
 subject type's arguments and the subject substituted for its `numParams + 1`
 loose variables in ONE traversal.
 
-**CLOSED** (round 4): `instLPFast_spec` (with its cache frame) then
+`instLPFast_spec` (with its cache frame) then
 `instantiateListFast_spec` on the push-order array `targs.toArray.push pe`
-(task #97-P6-15's accumulator ruling), whose `InstLVec` is exactly
+(the accumulator ruling, DESIGN task #97-P6-15), whose `InstLVec` is exactly
 `pe :: targs.reverse`. -/
 theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     (targs : List EIdx) (pe : EIdx) (p : ProjEntry) (ls : List Level)
@@ -396,7 +366,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
     simp only [Array.toList_push, List.reverse_cons,
       List.reverse_reverse]
     exact ExprOps.denoteEList_snoc hpe _ _ hargs
-  -- the push-order vector denotes `pe :: targs.reverse` (task #97-P6-15)
+  -- the push-order vector denotes `pe :: targs.reverse` (DESIGN, task #97-P6-15)
   sym only [bridge_grind, ConLeche.ProjEntry.typeAt] =>
     vcgen [ConRon.Arena.IProjEntry.typeAt,
       ExprOps.instLPFast_spec coreWalkFuel s₀ entry.levelParams us entry.body _ _ hok.state
@@ -407,7 +377,7 @@ theorem IProjEntry.typeAt_spec (s₀ : AState) (entry : IProjEntry) (us : LsIdx)
 /-! ## 5a. `iotaCertsFull` — the batched full-grade telescope certificate
 
 `Arena/Core.lean`'s `iotaCertsFullAux` carries a PUSH-order accumulator of
-pending substitutions (task #97-P6-9) and matches on the UN-instantiated
+pending substitutions (DESIGN, task #97-P6-9) and matches on the UN-instantiated
 telescope, flushing at a `.bvar` head; con-leche's `iotaCertsFull` (task
 #342 L10: ι's case 3, every slot at the FULL grade) substitutes eagerly.  The
 two meet through `ExprOps/Subst.lean`'s `InstLVec`: at every step the arena's

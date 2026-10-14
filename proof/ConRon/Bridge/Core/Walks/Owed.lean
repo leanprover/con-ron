@@ -1,82 +1,47 @@
 /-
-# `ConRon.Bridge.Core.Walks.Owed` — the sixteen non-slot walks (all CLOSED now; the notes below keep each round's status)
+# `ConRon.Bridge.Core.Walks.Owed` — `etaCert`'s pure side and `defEqList`
 
-Task #97-P3-CoreWalks.  DESIGN §8's `### Task #97-P3-Core` §6 ends with the
-round's own estimate of where the next tier's work is:
+The `Arena/Core.lean` walks that are not knot slots each have a
+`BodySpec`-shaped Theorem 1 statement, with the con-leche function it refines
+named through `Verify/Knot.lean`'s own `…Fueled` abbreviation.  This module
+holds two of them:
 
-> what the tier is waiting on … is a `BodySpec`-shaped theorem for the ~15
-> `Arena/Core.lean` walks that are not knot slots (`iotaRec`, `projCertAt`,
-> `projLitToCtor`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`,
-> `defEqList`, `reduceNat`, `unfoldDefinition`, `annotPwPi`, `annotPwLam`,
-> `IProjEntry.typeAt`, `lvlEq?`, the readbacks).  **It is bigger than the six
-> bodies.**
+* `etaCert`'s six pure-side step equations (its arena-side theorem,
+  `etaCert_spec`, is in `Walks/Spine.lean`, beside `instantiate1Fast_specE`);
+* `defEqList`, in full: the list inversions, the step equations, the
+  induction `defEqList_specA` and the caller-facing `defEqList_go` /
+  `defEqList_spec` (§3).
 
-This module is that list, **stated**.  `lvlEq?`/`lvlsEq?` and the readbacks
-are `Bridge/Core/Walks/{Cached,Frame}.lean` and are CLOSED; `ensureSort` is
-`Bridge/Core/EnsureSort.lean` and is CLOSED; `IProjEntry.typeAt` is the one
-name of the list that is NOT here, and §3 says why; `isBoolTrue` is
-`Bridge/Core/Walks/Guards.lean` and is CLOSED.  The sixteen below are what is
-left of it, each with the con-leche function it refines named through
-`Verify/Knot.lean`'s own `…Fueled` abbreviation, and each (proved since) with
-what it was waiting on noted at the site.
+The others live in the module whose imports they need:
 
-This is `Bridge/ExprOps/Owed.lean`'s role one tier up: a statement is not a
-proof, but it is the interface, and the six body walks cannot be written
-against a walk that has no statement.
+| walk | module |
+|---|---|
+| `lvlEq?`/`lvlsEq?`, the readbacks | `Walks/{Cached,Frame}.lean` |
+| `ensureSort` | `Core/EnsureSort.lean` |
+| `isBoolTrue` | `Walks/Guards.lean` |
+| `unfoldableHead`, `unfoldDefinition`, `headHint`, `sameConstHeads`, `defeqSpine`, `etaCert` | `Walks/Spine.lean` |
+| `reduceNat` | `Walks/Nat.lean` |
+| `projCertAt` | `Walks/Proj.lean` |
+| `projLitToCtor` | `Walks/ProjLit.lean` |
+| `propIrrel`, `annotPwPi`, `annotPwLam` | `Walks/PropRead.lean` |
+| `stuckIrrel` | `Walks/Stuck.lean` |
+| `iotaRec` | `Walks/Iota.lean` |
 
-## 0a. Round 3: six of the sixteen are CLOSED, and five of them moved out
+## 0. The subject's denotation: an existential in, a universal out
 
-Task #97-P3-Core round 3 closed `unfoldableHead`, `headHint`,
-`sameConstHeads`, `defeqSpine`, `isPropType` (deleted with con-leche's
-`isPropType`, task #105) and `defEqList`.  **`defEqList`
-is the only one still here** (§4): the other five live in
-`Bridge/Core/Walks/Spine.lean`, a sibling module off the knot-facing import
-chain, because a module that imports the `ExprOps` tier or `mvcgen`s over
-`ensureSort` cannot sit in one closure with `Core/EnsureSort.lean` — that
-module's own header has the error message and the reason.  The statements
-below are therefore the TEN that are open, plus `defEqList`'s proof and the
-pure side of two walks whose arena side is not written.
-
-Three things made the six possible, and none of them is about any one walk:
-
-1. **`Bridge/Core/**` imports the `ExprOps` tier.**  Its thirteen modules
-   reached zero `sorry` while round 2 ran, and task #97-P3-CoreWalks left
-   three walks here with the note *"until this tier imports the `ExprOps`
-   tier"*.  The import is `ConRon.Bridge.ExprOps.Spine` and it costs nothing:
-   no theorem of that tier is registered `@[spec]`, so `vcgen` (`mvcgen`
-   then) sees them only where they are passed.
-2. **The knot's six slots in ANSWER shape** (`Bridge/Core/Knot.lean`, round
-   3): §0's rule, paid once at the knot instead of per site.
-3. **The fuel merge** (`Bridge/Core/Walks/Mono.lean`, round 2), which
-   `defEqList`'s cons arm spends.
-
-## 0. The shape correction of task #97-P3-Core-2, and why it was forced
-
-The first two statements of this module — `unfoldDefinition_spec` and
-`reduceNat_spec`, the two `whnfBody_spec` consumes — took the subject's
-denotation as an explicit `(x : Expr)` argument with a
-`denoteE s₀.store e = some x` hypothesis.  **That shape cannot be used from a
-caller that reaches the walk through another call**, and `whnfStep` is
-exactly such a caller: it runs `r.whnfCore` first and hands `reduceNat` the
-REDUCT, whose denotation is not known until the first call's postcondition is
-in hand.  `mvcgen` had to guess `x` when it applied the spec, it guessed the
-only `Expr` in scope (the *original* subject), and the side goal it left —
-`denoteE s.store <reduct> = some <original>` — was false.  (`vcgen` guesses
-nothing: it leaves `x` a metavariable and an `Expr` goal of its own, which is
-no better.)
-
-The fix is task #97-P3-0's own **rule 4** (*"a precondition with no `Expr` in
-it, so that a recursive call's side goal carries no metavariable"*) taken one
-step further: the denotation goes into the hypothesis as an **existential**
-(`∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x`, which names no
-metavariable) and out of the postcondition as a **universal** (`∀ x,
-denoteE s₀.store e = some x → …`), which is the shape
-`Bridge/Core/Walks/Cached.lean`'s closed exemplars already have and the shape
+A walk's subject may be another walk's ANSWER — `whnfStep` runs `r.whnfCore`
+first and hands `reduceNat` the REDUCT, whose denotation is not known until
+the first call's postcondition is in hand.  A statement that took the
+subject's denotation as an explicit `(x : Expr)` argument with a
+`denoteE s₀.store e = some x` hypothesis would make the verification
+condition generator guess `x` (it leaves it a metavariable and an `Expr`
+goal of its own).  So the denotation goes into the hypothesis as an
+**existential** (`∃ x, denoteE s₀.store e = some x ∧ Expr.WScoped d x`,
+which names no metavariable) and out of the postcondition as a
+**universal** (`∀ x, denoteE s₀.store e = some x → …`), the shape
 `Bridge/Core/Arms/Whnf.lean`'s `whnfLoop_spec` needs at every iteration.
-The other fourteen statements below keep the explicit-argument shape for now;
-each should move the day its caller is written, and the rule is: *a walk
-whose subject is another walk's ANSWER must not take that answer's denotation
-as an explicit argument.*
+The rule: *a walk whose subject is another walk's ANSWER must not take that
+answer's denotation as an explicit argument.*
 
 ## 1. The three answer shapes, and which walk has which
 
@@ -88,49 +53,13 @@ abstracted:
 | `SimOOp` — an `Option EIdx` answer | `reduceNat`, `iotaRec` |
 | `SimEOp` — an `EIdx` answer | `projLitToCtor` |
 | `SimBOp` — a `Bool` answer | `projCertAt`, `propIrrel`, `stuckIrrel`, `etaCert`, `defeqSpine`, `defEqList` |
-| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads` (and `headHint`, `isBoolTrue`, CLOSED in `Walks/Spine.lean`, `Walks/Guards.lean`) |
+| an EQUATION — the pure side takes no fuel | `unfoldDefinition`, `unfoldableHead`, `sameConstHeads`, `headHint`, `isBoolTrue` |
 
-**The last row is the cheap one and it is worth naming.**  Five walks of the
-group (three here, `headHint` in `Walks/Spine.lean`, `isBoolTrue` in
-`Walks/Guards.lean`) refine a con-leche function that is not in `CheckM` at all
+The last row refines con-leche functions that are not in `CheckM` at all
 (`unfoldDefinition env e : Option Expr`, `unfoldableHead env e : Bool`,
 `sameConstHeads a b : Bool`, `headHint env e : ReducibilityHint`,
-`Expr.isBoolTrue e : Bool`), so there is no
-`∃ F` and no fuel bookkeeping: the conclusion is an equation between the
-arena's answer and con-leche's.  They are the first four of these to write.
-
-## 2. What the THREE that are left are waiting on (round 5)
-
-Round 4 closed four of round 3's ten and moved each to the module whose
-imports it needs: `unfoldDefinition` and `etaCert` to `Walks/Spine.lean`,
-`projCertAt` to `Walks/Proj.lean`, `reduceNat` to `Walks/Nat.lean`.  Round 5
-closed three more — `propIrrel`, `annotPwPi` and `annotPwLam`, which waited
-on `Arena/PropRead.lean`'s readers — and moved them beside those readers'
-theorems, to `Walks/PropRead.lean`.  Left here:
-
-* **`projLitToCtor`** — `strLitSupported`, `strLitToConstructor` and
-  `litMajorToCtor`;
-* **`stuckIrrel`** and **`iotaRec`**, the two towers (`iotaRec`'s
-  `ruleRhsAt` and `iotaCertsFull` legs are now closed callee rules).
-
-(Round 2's reading of this list said *"ten of the sixteen wait on an
-`ExprOps`-tier callee rule that this tier does not import"*.  That was true
-of the import and wrong about the count: the `ExprOps` import closed three
-walks outright and is not what any of the remaining ten is blocked on.)
-
-## 3. `IProjEntry.typeAt`, and the one thing the tier is missing that is not
-a proof
-
-`IProjEntry.typeAt` cannot be STATED here, because **the projection table has
-no denotation**: `Arena/Frontend/Readback.lean` has `denoteCI` for a
-`IConstantInfo` and `denoteCV` for a `IConstantVal`, and nothing for an
-`IProjEntry` (`Arena/Env.lean:150`, ten fields, four of them handles).  Its
-`denoteProjEntry` is the one piece of *new* denotation machinery the Core
-walks tier needs, and it belongs beside the other ten transports in
-`Bridge/Rel.lean` — which this round does not edit.  Every `.proj` arm of
-`whnfCoreBody` and `inferBody` waits on it, and so do `projCert`,
-`projCertAt`'s guard and `IProjEntry.fireOk`.  **That is the tier's one
-structural gap; everything else on this list is labour.**
+`Expr.isBoolTrue e : Bool`), so there is no `∃ F` and no fuel bookkeeping:
+the conclusion is an equation between the arena's answer and con-leche's.
 -/
 import ConRon.Bridge.Core.Walks.Spec
 import ConRon.Bridge.Core.Walks.Mono
@@ -147,71 +76,15 @@ open scoped Lean.Order
 
 variable {mode : CheckMode} {env : Env} {fe : IFEnv}
 
-/-! `isBoolTrue` was the fourth of this group and is **CLOSED** —
-`Bridge/Core/Walks/Guards.lean`.  It was the cheapest of the seventeen (five
-verification conditions, no `ExprOps` rule, no new denotation), and closing
-it is this round's evidence that the row above really is the cheap one. -/
+/-! ## 2. `etaCert`'s pure side
 
-/-! ## 2. The delta step and the literal acceleration
-
-`whnfStep`'s two callees (`Bridge/Core/Arms/Whnf.lean`'s `whnfLoop_delta`
-and `whnfLoop_reduceNat` are their pure-side step lemmas, and both are
-closed), which is why `whnfBody_spec` — the most reachable of the six body
-walks — was still open then (closed since). -/
-
-/-! `unfoldDefinition_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in
-round 4 and is CLOSED there: it needs `getAppFn`/`getAppArgs`/`mkAppN` from
-the `ExprOps` tier and the index facts that module owns, and the reason it
-could not import them from here (finding 18) is gone. -/
-
-/-! `reduceNat_spec` **moved to `Bridge/Core/Walks/Nat.lean`** in round 4
-and is CLOSED there, over the six state-only walks under it. -/
-
-/-! ## 3. The ι step and the projection rule
-
-`whnfCoreBody`'s `.app` and `.proj` clauses' callees. -/
-
-/-! `iotaRec_spec` **moved to `Bridge/Core/Walks/Iota.lean`** in round 6: its
-η rescue calls `structEtaCertWith` (`Walks/Stuck.lean`), which this module
-cannot import.  It gained `hμ` and `EnvWF env` there (that module's note). -/
-
-/-! `projLitToCtor_spec` **moved to `Bridge/Core/Walks/ProjLit.lean`** in round
-5 and is CLOSED there, over `strLitSupported_spec` (`Walks/StrLit.lean`) and
-`strLitToConstructor_spec` (`Walks/StrCtor.lean`). -/
-
-/-! `projCertAt_spec` **moved to `Bridge/Core/Walks/Proj.lean`** in round 4
-and is CLOSED there, beside `projCert_spec`. -/
-
-/-! ## 4. The `defeq` body's five certificate walks
-
-`Bridge/Core/Arms/Defeq.lean`'s `defeqBody_spec` names exactly these five as
-the callee rules it is missing. -/
-
-/-! `propIrrel_spec` **moved to `Bridge/Core/Walks/PropRead.lean`** in round 5
-and is CLOSED there, over that module's `notProofFast` / `isProofFast`. -/
-
-/-! `stuckIrrel_spec` **moved to `Bridge/Core/Walks/Stuck.lean`** in round 5,
-where it is PROVED from three child walks (`structEtaCert_spec`,
-`structUnitCert_spec`, `proofIrrel_spec`) and gains the precondition
-`hμ : mode.verifiedChecks = true` (that module's note says why). -/
-
-/-! ### `etaCert`'s pure side, and the ExprOps slot in ANSWER shape
-
-The walk itself is not closed (its arm list is in the statement's note), but
-**its whole pure side is**, and so is the one callee rule whose published
-shape it cannot use.  Both are here because they are what the next round
-starts from and neither is about `etaCert` alone:
-
-* the six step equations below are con-leche's `etaCert` at its six exits,
-  each one `simp only` over the knot record's slot equations;
-* `instantiate1Fast_specE` is **finding 5.2 at the `ExprOps` tier**.
-  `Bridge/ExprOps/Inst1.lean`'s `instantiate1Fast_spec` takes the
-  SUBSTITUTED VALUE's denotation as an explicit `(ve : Expr)` argument, and
-  `etaCert` substitutes a free variable it has just INTERNED — so `mvcgen`
-  guesses `ve` from the `Expr`s in scope (measured: it guesses the
-  comparand `y`) and leaves a false side goal.  The primed form is the same
-  four lines as `Bridge/Core/Knot.lean`'s slots, and it is the shape
-  every interning caller of the substitution walks will want. -/
+The six step equations below are con-leche's `etaCert` at its six exits,
+each one `simp only` over the knot record's slot equations.  The arena-side
+theorem, `etaCert_spec`, is in `Walks/Spine.lean`, beside
+`instantiate1Fast_specE`: `Bridge/ExprOps/Inst1.lean`'s
+`instantiate1Fast_spec` takes the SUBSTITUTED VALUE's denotation as an
+explicit `(ve : Expr)` argument, and `etaCert` substitutes a free variable
+it has just INTERNED, so it needs the §0 answer shape of that rule. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — the comparand's
 head is a λ, a `let` or a loose variable (not `ioNeutral`), so there is no
@@ -294,7 +167,7 @@ theorem etaCertFueled_trusted {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ : Expr}
 /-- con-leche: ConLeche/Kernel/Core.lean:461-484 etaCert — **the
 certificate at the verified mode**: the domains and the opened bodies agree,
 and the verdict is the λ/η tax's — the λ body's FULL-grade type against the
-∀'s codomain, both at the fresh variable (task #342, T2). -/
+∀'s codomain, both at the fresh variable (con-leche's task #342, T2). -/
 theorem etaCertFueled_tax {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ t₁ : Expr}
     {r : Bool}
     (hn : y.ioNeutral = true)
@@ -323,11 +196,7 @@ theorem etaCertFueled_tax {F d : Nat} {t x y : Expr} {tb ty₂ bd₂ t₁ : Expr
     ite_true]
   cases r <;> rfl
 
-/-! `etaCert_spec` **moved to `Bridge/Core/Walks/Spine.lean`** in round 4
-and is CLOSED there, beside `instantiate1Fast_specE`, the one callee rule
-whose answer shape it needs. -/
-
-/-! ### `defEqList`, the tier's first `List` recursion
+/-! ## 3. `defEqList`, a `List` recursion
 
 The two list inversions, the four pure-side step equations, the induction
 itself, and the caller-facing statement derived from it.
@@ -499,13 +368,10 @@ theorem defEqList_go {fuel : Nat} (hsim : KnotSpec mode env fe fuel) (d : Nat) :
 
 /-- con-leche: ConLeche/Kernel/Core.lean:245-254 defEqList — **THEOREM 1 for
 `defEqList`**: pairwise definitional equality of two argument vectors.
-**CLOSED** (round 3), at the published statement: `defEqList_specA`, whose
-answer is the same proposition.
-
-DESIGN §8's `### Task #97-P3-CoreWalks` §6.1 named the fuel merge as the one
-thing this walk was missing beyond the induction; `Walks/Mono.lean`'s
-`defEqListFueled_mono` is it, and the cons arm's `max F₁ F₂` over it and
-con-leche's own `isDefEqCore_mono` is two lines. -/
+It is `defEqList_specA`, whose answer is the same proposition; the cons
+arm's fuel is the `max F₁ F₂` of the head's and the tail's, merged by
+con-leche's own `isDefEqCore_mono` and `Walks/Mono.lean`'s
+`defEqListFueled_mono`. -/
 theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (as bs : List EIdx) (xs ys : List Expr)
     (hok : CheckOK mode env fe s₀)
@@ -520,11 +386,10 @@ theorem defEqList_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
           r; ⊤⦄ :=
   defEqList_specA hsim d as bs xs ys s₀ hok hda hdb hwa hwb
 
-/-! ## 6. The axiom census
+/-! ## 4. The axiom census
 
-The round's one CLOSED walk in this module, its induction, and the pure-side
-step equations of the two walks whose arena side was then still open (closed
-since). -/
+`defEqList`'s walk, its induction and a step equation, and `etaCert`'s
+pure-side step equation. -/
 
 section Census
 

@@ -1,11 +1,9 @@
 /-
 # `ConRon.Bridge.Core.Walks.StrLit` — the `String` literal guard
 
-Task #97-P3-Core round 5 (sub-lane Leaves).  The literal clauses of
-`inferBody`, `inferBodyIO` and `annotateBody` run `natLitSupported`
-(`Walks/Nat.lean`, closed in round 4) and `strLitSupported`
-(`Arena/Core.lean:709`), and the second had no bridge spec.  This module is
-that spec and the seven state-only walks under it (`stringTyOk`,
+The literal clauses of `inferBody`, `inferBodyIO` and `annotateBody` run
+`natLitSupported` (`Walks/Nat.lean`) and `strLitSupported`
+(`Arena/Core.lean:709`).  This module is the second's spec and the seven state-only walks under it (`stringTyOk`,
 `stringOfListTyOk`, `listTyOk`, `listNilTyOk`, `listConsTyOk`, `charTyOk`,
 `charOfNatTyOk`), each an EQUATION with the con-leche function of the same
 name (`ConLeche/Kernel/CoreDefs.lean:301-403`) — `Walks/Nat.lean`'s
@@ -374,7 +372,7 @@ theorem denoteLs_view_single {st : EStore} {h : LsIdx} {u : LIdx}
   simp [denoteLsView, denoteLList, opt2,
     show denoteL st.lss.ls u = some U from hu]
 
-/-! ### Staged interning (task #119: the shapes are proved stage by stage) -/
+/-! ### Staged interning (the shapes are proved stage by stage) -/
 
 /-- con-leche: none — **a `pure` exit** at a pinned state. -/
 theorem triple_pureS {α : Type} {s₀ : AState} {v : α}

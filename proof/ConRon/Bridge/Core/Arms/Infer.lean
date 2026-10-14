@@ -21,19 +21,18 @@ a twin SUCCESS is what each success lemma is the licence for.
 
 ## The deviations the twin carries at this body
 
-1. **The binder-telescope loops** (task #97-P6-12): the twin's `.lam` and
-   `.forallE` clauses are `inferLams`/`inferPis`, con-leche's own CACHED-tier
+1. **The binder-telescope loops** (DESIGN, task #97-P6-12): the twin's
+   `.lam` and `.forallE` clauses are `inferLams`/`inferPis`, con-leche's own CACHED-tier
    `inferLamsI`/`inferPisI`, which peel and open the whole chain in one walk.
    The identification is con-leche's — `Verify/Cached/BinderLoopC.lean` and
    `Verify/BinderLoop.lean` — and what this library owes is the denotation
-   carry, `inferBody_binders_batched` below (CLOSED, round 6, over
-   `Walks/BinderLoop.lean`).
-2. **The batched application spine** (task #97-P6-9): `inferSpine`/`inferApp`
-   in place of the per-argument chain, identified by
+   carry, `inferBody_binders_batched` below (over `Walks/BinderLoop.lean`).
+2. **The batched application spine** (DESIGN, task #97-P6-9):
+   `inferSpine`/`inferApp` in place of the per-argument chain, identified by
    `Verify/BetaSpine.lean`'s `inferSpine_*` family
    (`inferBody_app_batched` below).
-3. `env : Env` is `fe : IFEnv` throughout (task #97c's deviation 1), which
-   `Bridge/StateOK.lean`'s `IFEnvOK` absorbs with no clause of its own here.
+3. `env : Env` is `fe : IFEnv` throughout (DESIGN, task #97c, deviation 1),
+   which `Bridge/StateOK.lean`'s `IFEnvOK` absorbs with no clause of its own here.
 -/
 import ConRon.Bridge.Core.Memo
 import ConRon.Bridge.Core.Walks.Proj
@@ -212,9 +211,8 @@ theorem infer_proj_prop {F d i : Nat} {sn T : Name} {pe te tpe : Expr}
 /-! ## 5. The two batched clauses' identification, and the body theorem -/
 
 /-- con-leche: ConLeche/Verify/BetaSpine.lean:1288-1373 inferSpine_* —
-**CLOSED** (task #97-P3-Core round 6): the twin's `.app` clause is
-`inferSpine`/`inferApp`, con-leche's own cached-tier clause (task #97-P6-9),
-against the chained `infer_app` above.  Staged: `headAndArgs_app_spec`, the
+the twin's `.app` clause is `inferSpine`/`inferApp`, con-leche's own
+cached-tier clause, against the chained `infer_app` above.  Staged: `headAndArgs_app_spec`, the
 knot's `infer` at the head, the carry `inferSpine_go`
 (`Walks/InferSpine.lean`), then con-leche's own identification
 `inferSpine_sound` and `Expr.mkAppN_getApp`. -/
@@ -251,15 +249,12 @@ theorem inferBody_app_batched {fe : IFEnv} {fuel : Nat}
   rw [ConLeche.Expr.mkAppN_getApp] at hF'
   exact ⟨F', hF'⟩
 
-/-! `inferBody_app_batched`: sorry-free (task #97-P3-Core round 6). -/
 #print axioms inferBody_app_batched
 
 /-- con-leche: ConLeche/Verify/Cached/BinderLoopC.lean:595/790
 inferLamsC_tail_sim / inferPisC_tail_sim — the twin's `.lam`/`.forallE`
-clauses are `inferLams`/`inferPis` (task #97-P6-12), con-leche's own
-cached-tier telescope loops, against the chained `infer_lam_*`/
-`infer_forallE` above.  **CLOSED** (task #97-P3-Core round 6, lane
-`binders`): the carries are `Walks/BinderLoop.lean`'s `inferLam_spec` and
+clauses are `inferLams`/`inferPis`, con-leche's own cached-tier telescope
+loops, against the chained `infer_lam_*`/`infer_forallE` above: the carries are `Walks/BinderLoop.lean`'s `inferLam_spec` and
 `inferForall_spec`, over con-leche's `inferLams_sound`/`inferPis_sound`. -/
 theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env)
@@ -286,7 +281,7 @@ theorem inferBody_binders_batched {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 
-/-! ### The dispatch's children (task #97-P3-Core round 5)
+/-! ### The dispatch's children
 
 `inferBody_spec` below is a case split on the tag and nothing else: one
 child per group of the twin's `view` dispatch, each a triple at the same
@@ -296,11 +291,7 @@ the other four are here. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1216-1228 inferBody — **the `.app`
 clause**, at the body: the dispatch hands the node to `inferApp`, whose
-carry is `inferBody_app_batched`.
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves) as a dispatch: its
-own proof is sorry-free, and its census line showed `sorryAx` only through
-`inferBody_app_batched`, the real content — closed since (the Core tier is
-`sorry`-free: task #97-MILESTONE). -/
+carry is `inferBody_app_batched`. -/
 theorem inferBody_app {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel)
@@ -323,9 +314,8 @@ theorem inferBody_app {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1126-1137 inferBody — **the `.const`
 clause**: the index lookup, the tower-entry and level-arity guards, and the
-stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec`,
-CLOSED); pure side `infer_const`.
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
+stored type through `constTyAt` (`Walks/Cached.lean`'s `constTyAt_spec`);
+pure side `infer_const`. -/
 theorem inferBody_const {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (_hsim : KnotSpec mode env fe fuel)
@@ -370,10 +360,9 @@ theorem inferBody_const {fe : IFEnv} {fuel : Nat}
   all_goals (rw [htg] at htag; exact absurd htag (by simp [ENodeView.tagOf]; decide))
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1138-1147 inferBody — **the two
-literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`, CLOSED) and
-`strLitSupported_spec` (`Walks/StrLit.lean`, CLOSED), then `constE_spec`;
-pure side `infer_natLit`/`infer_strLit`.
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
+literal clauses**: `natLitSupported_spec` (`Walks/Nat.lean`) and
+`strLitSupported_spec` (`Walks/StrLit.lean`), then `constE_spec`; pure side
+`infer_natLit`/`infer_strLit`. -/
 theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (_hsim : KnotSpec mode env fe fuel)
@@ -746,8 +735,7 @@ theorem inferBody_letE {fe : IFEnv} {fuel : Nat}
 
 /-- con-leche: ConLeche/Kernel/Core.lean:1115-1125 inferBody — **the leaf
 clauses**: `.sort` (one level intern and one node intern), `.fvar` (the
-scope check), and the throw (`.bvar`).
-**CLOSED** (task #97-P3-Core round 5, sub-lane Leaves). -/
+scope check), and the throw (`.bvar`). -/
 theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     (_henv : ConLeche.EnvWF env) (_hμ : mode.verifiedChecks = true)
     (_hsim : KnotSpec mode env fe fuel)
@@ -803,14 +791,7 @@ theorem inferBody_leaf {fe : IFEnv} {fuel : Nat}
     rw [hd2]; simp [denoteEView, denoteL_ext hs1 hx2]
 
 /-- con-leche: ConLeche/Verify/Cached/DiscC5.lean inferBodyC_sim — **THEOREM 1
-for `inferBody`**.
-
-**CLOSED** (the Core tier is `sorry`-free since task #97-P3-Core round 6).
-What was missing when this note was written: the two batched clauses above,
-and the `.proj` arm's callee rules (`IProjEntry.typeAt`, `lvlEq?`, the three
-memoised readbacks), which are `Arena/Core.lean` walks that are not knot slots
-and need `BodySpec`-shaped theorems of their own.  The nine leaf/binder/app
-step lemmas above are closed and are what the split arms consume. -/
+for `inferBody`**: a case split on the tag, one dispatch child per arm. -/
 theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
     (henv : ConLeche.EnvWF env) (hμ : mode.verifiedChecks = true)
     (hsim : KnotSpec mode env fe fuel) :
@@ -832,12 +813,10 @@ theorem inferBody_spec {fe : IFEnv} {fuel : Nat}
   exact inferBody_leaf henv hμ hsim s₀ d i e hok hden hw ha hp
     (Bool.eq_false_iff.mpr hb) hc hl hlt
 
-/-! ## The axiom census of the closed children (task #97-P3-Core round 5,
-sub-lane Leaves) -/
+/-! ## The axiom census of the dispatch's children -/
 
 section Census
 
--- no `sorryAx` since `inferBody_app_batched` closed (it was inherited through the dispatch)
 #print axioms inferBody_app
 #print axioms inferBody_binders_batched
 #print axioms inferBody_const

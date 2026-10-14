@@ -18,10 +18,9 @@ against.  Both are companions of `ExprOps/Walks.lean` (the unmemoized
    **`denoteLeaves`, its equations, `denoteLeaves_append` and `RelFL` with
    its ten step lemmas morally belong in `Bridge/Rel.lean`.**
 
-   The ten step lemmas are **not** decoration, and that is this file's one
-   measured finding: `denoteLeaves_append` tagged `@[grind →]` and left to
-   the closer does not terminate in any usable time (killed at 15 minutes on
-   one file) — its three list variables let every pair of known
+   The ten step lemmas are **not** decoration: `denoteLeaves_append` tagged
+   `@[grind →]` and left to the closer does not terminate in any usable
+   time — its three list variables let every pair of known
    `denoteLeaves` facts breed another, and the appended facts breed again.
    A list answer needs per-arm step lemmas, monomorphic at the walk's own
    pure function, each registered with the pattern of its arm.
@@ -51,11 +50,11 @@ Every relation below quantifies the DENOTATIONS inside itself and takes
 style: `fvarLeavesFast`'s answer list is the base of `leafGuard`'s membership
 test, so a spec that named the base list as a PARAMETER would leave the
 verification-condition generator a spec parameter the program does not
-determine (`mvcgen` handed it on as a side goal `denoteLeaves s.store bl =
-some ?bl'` with a metavariable in it, which the closer cannot take — task
-#97s template rule 4, measured again here).
+determine (a side goal `denoteLeaves s.store bl = some ?bl'` with a
+metavariable in it, which the closer cannot take — DESIGN, task #97s
+template rule 4).
 
-## `fvarLeavesGo`'s `seen` set, and the rank (task #97-P3-2)
+## `fvarLeavesGo`'s `seen` set, and the rank
 
 `fvarLeavesGo`'s memo is a visited SET whose entries are `Unit`, and an entry
 means *"this node's leaves are already in `acc`"* — a statement about the
@@ -69,14 +68,13 @@ walking its children, so the plain invariant is violated for exactly the
 descent path, and discharging the gray case needs the acyclicity of the
 store — `StoreWF`'s rank witness.
 
-Task #97-P3-0 called that "a second induction beside the fuel" and left the
-walk open.  It is **cheaper than a second induction**: the rank enters as a
+This needs **no second induction**: the rank enters as a
 second *parameter of the invariant* (`SeenOK`, §7 — a key is gray when its
 rank is above the current subject's) and the fuel induction is unchanged.
-`EWFAt.childOK`'s rank clause is the only part of `StoreWF` used, the rank
-is quantified INSIDE `SeenOK` so no statement in the file grew an argument,
-and `fvarLeavesFast_spec` — the one `ExprOps/Guards.lean` consumes — is
-where it was.  **Nothing in this file is unproved.**
+`EWFAt.childOK`'s rank clause is the only part of `StoreWF` used, and the rank
+is quantified INSIDE `SeenOK`, so no statement in the file takes it as an
+argument and `fvarLeavesFast_spec` — the one `ExprOps/Guards.lean` consumes —
+does not mention it.
 
 Because the answer is a SET and not a list — a shared subterm is walked once,
 where `Expr.fvarLeaves` re-concatenates its leaves per occurrence — that
@@ -334,9 +332,8 @@ theorem leafMem_spec {st : EStore} (hwf : StoreWF st) :
     · exact absurd hb (by simp)
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1157-1162 leafMem — the same,
-keyed so the closer derives it itself.  **Two lemmas and not one equation**,
-which is a finding of its own: with the equation as the conclusion the leaf
-INDEX occurs nowhere in the antecedents, so `grind` reports *failed to find
+keyed so the closer derives it itself.  **Two lemmas and not one equation**:
+with the equation as the conclusion the leaf INDEX occurs nowhere in the antecedents, so `grind` reports *failed to find
 patterns in the antecedents of the theorem* and the rule cannot be
 registered.  Both twins that use `leafMem` TEST it (`if leafMem bl idx ty
 then …`), so `vcgen` hands the arm the verdict as a hypothesis and the
@@ -378,13 +375,12 @@ instead: every key of `seen` either has all its leaves in `acc` already
 §8.3: "`StoreWF st` carries an existential rank `r : EIdx → Nat` with every
 child ranked below its parent") — a gray key is one whose rank is ABOVE the
 current subject's, and `EWFAt.childOK` is the only clause of the store
-invariant the argument uses.  Task #97-P3-0 called this "a second induction
-beside the fuel"; it is cheaper than that, because the rank enters as a
+invariant the argument uses.  The rank enters as a
 second *parameter of the invariant* and not as a second recursion — the fuel
 induction is unchanged.  The rank is quantified INSIDE `SeenOK` (over every
 rank the store admits, `∀ rk, EWFAt st rk → …`), which is template rule 6's
-shape and is what keeps `fvarLeavesFast_spec`'s statement — the one
-`ExprOps/Guards.lean` consumes — exactly where it was.
+shape and is what keeps it out of `fvarLeavesFast_spec`'s statement — the one
+`ExprOps/Guards.lean` consumes.
 
 The three moving parts, and the lemmas that make the descent go:
 

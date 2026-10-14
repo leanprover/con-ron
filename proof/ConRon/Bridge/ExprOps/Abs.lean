@@ -51,13 +51,13 @@ file changes.
 
 ## `abstract1Go` is proved ONE THEOREM PER ARM
 
-DESIGN §8.6's arm-split ruling (coordinator, 2026-09-22) and task #97-P3-2:
+DESIGN §8.6's arm-split ruling:
 `abstract1Go` is a `mutual` block — a dispatcher and one `def` per
 constructor arm — and the proof follows it exactly, the way
 `ExprOps/Inst1.lean` does for `instantiate1Go`.  The five arm theorems take
 the previous fuel level's `Abs1Spec` as their induction hypothesis and their
 own TAG as a hypothesis (`EStore.viewApp` does not test the tag), and the
-dispatcher's `vcgen` list is the five of them.  `vcgen` (task #111)
+dispatcher's `vcgen` list is the five of them.  `vcgen`
 instantiates an arm spec at the state `fvarB` returned and leaves the arm's
 preconditions at that state as verification conditions.
 
@@ -310,10 +310,10 @@ monotonicity dies at that arm.  A local spec, so no other file's verification
 conditions change shape under it. -/
 attribute [local spec high] internRebuiltBind_specV
 
-/-! ### The five ARM theorems (DESIGN §8.6's arm-split ruling, 2026-09-22)
+/-! ### The five ARM theorems (DESIGN §8.6's arm-split ruling)
 
 One theorem per `mutual`-block arm, exactly as `ExprOps/Inst1.lean` does, and
-for the reason task #97-P3-1 gives: **the `fvarB` call lives in the DISPATCHER
+for the same reason: **the `fvarB` call lives in the DISPATCHER
 only**.  Each arm is the probe, the projection, the recursive calls (the
 induction hypothesis in the `vcgen` list), the intern and the insert; the
 view monotonicity of the arm's post is the callees' `∀` conjuncts, chained

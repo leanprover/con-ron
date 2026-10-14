@@ -1,11 +1,10 @@
 /-
 # `ConRon.Bridge.ExprOps.Subst` — Theorem 1 for the SUBSTITUTING walks
 
-DESIGN §8.2's Theorem 1 for group A of the `ExprOps` bridge tier (task
-#97-P3-0): `instantiateList`, `liftLooseBVars`,
+DESIGN §8.2's Theorem 1 for group A of the `ExprOps` bridge tier:
+`instantiateList`, `liftLooseBVars`,
 `instantiate1Lift`, `instPisAtLift` and the three pure `Array` helpers the
-first of them consumes.  `ExprOps/Inst1.lean` was the exemplar and this file
-keeps its shape — the `…Spec` record for one level of the recursion, the fuel
+first of them consumes.  The file has `ExprOps/Inst1.lean`'s shape — the `…Spec` record for one level of the recursion, the fuel
 induction, the per-arm theorems of the tag-dispatching walks.
 
 ## The closer
@@ -70,7 +69,7 @@ lemma keyed by the cut subject's `bvarBound` (§H).
    `.bvar` arm consumes, and `reverse_drop_eq_take_reverse` is the list law
    behind the second.
 
-## The arm split, at this file's two tag-dispatching walks (task #97-P3-2)
+## The arm split, at this file's two tag-dispatching walks
 
 DESIGN §8.6's arm-split ruling, carried into the proof for `instantiateList`
 and `instantiateListGo`: one theorem per constructor arm
@@ -93,13 +92,11 @@ conditions are the derived-word cutoff and the catch-all leaf
   `@[spec high]` (a later `@[spec]` does **not** override an earlier one for
   the same program), and each walk passes them INSTANTIATED in its `vcgen`
   list.  `liftSet_specG` carries the full note.
-* **`bvarB` is not one of these twins**, and `instantiate1LiftGo` tests it.  Round 3 carried its Theorem 1 as a
-  hypothesis `hbb : ∀ f, BvarBSpec (bvarB f)`; **round 4 discharged it**
-  (`bvarB_bvarBSpec`) and deleted every binder, so the entry points and
-  `instPisAtLift_spec` are callable with no hypothesis about `bvarB` at all.
-  The discharge was not free: `Bridge/ExprOps/Ranges.lean` had to state the
-  memo-frame conjunct `BvarBSpec` asks for and `bvarB_spec` did not
-  (`s'.memos.inst1LC`) — see §4 of that round.
+* **`bvarB` is not one of these twins**, and `instantiate1LiftGo` tests it.
+  Its Theorem 1 is `bvarB_bvarBSpec` (from `Bridge/ExprOps/Ranges.lean`'s
+  `bvarB_spec`, which states the memo-frame conjunct `s'.memos.inst1LC`
+  that `BvarBSpec` asks for), so the entry points and `instPisAtLift_spec`
+  are callable with no hypothesis about `bvarB` at all.
 -/
 import ConRon.Bridge.Specs
 import ConRon.Bridge.ExprOps.Ranges
@@ -142,7 +139,7 @@ theorem reverse_drop_eq_take_reverse {α : Type} (l : List α) (m : Nat) :
 
 Four facts, in the shape `denoteEList_ext` (`Bridge/Rel.lean` group 6c) is
 written in.  **They morally belong in `Bridge/Rel.lean`** next to
-`denoteEList_ext`; task #97-P3-0 owns only this file, so they live here. -/
+`denoteEList_ext`; they are stated here, next to their only consumers. -/
 
 /-- con-leche: none — a denoting handle list has the length of its
 denotation. -/
@@ -495,9 +492,9 @@ grind_pattern [bridge_grind] DerivedBound.some => DerivedBound st h (some e)
 
 The pure functions as `grind` reads them — the cutoffs' licences keyed by the
 `bvarBound` term the cutoff created (so they fire at the cutoff's subject and
-nowhere else: `Inst1.lean`'s finding that a loose licence spirals on the pure
-function's own iterate), `instantiateList`'s `.bvar` clause and catch-all as
-equations without a dependent `if`, `instPisAtLift`'s cons clause over the tag —
+nowhere else: a loose licence spirals on the pure function's own iterate),
+`instantiateList`'s `.bvar` clause and catch-all as equations without a
+dependent `if`, `instPisAtLift`'s cons clause over the tag —
 and the push-order vector's three facts. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:211-235 instantiateList — the
@@ -587,10 +584,8 @@ grind_pattern [bridge_grind] InstLVec.getElem_eq =>
 `instantiate1LiftGo` tests con-leche's own `bvarB` — the
 packed field, or the memoized recomputation on the saturated branch
 (`Arena/ExprOps.lean:1486`).  **`bvarB` is not one of this file's thirteen
-twins**: it belongs to the packed-range group.  Round 3 carried its Theorem 1
-as a HYPOTHESIS so that `#print axioms` stayed clean while that group's file
-was open; round 4 **discharged** it from `ExprOps/Ranges.lean`'s `bvarB_spec`
-(`bvarB_bvarBSpec` below) and deleted the binders. -/
+twins**: it belongs to the packed-range group, and its Theorem 1 here is
+`bvarB_bvarBSpec` below, from `ExprOps/Ranges.lean`'s `bvarB_spec`. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — Theorem 1 for
 `bvarB`, in the shape the two cutoff walks need: the answer is
@@ -608,7 +603,7 @@ structure BvarBSpec (prog : EIdx → AM Nat) : Prop where
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1429-1434 bvarB — **`BvarBSpec`,
 discharged**, from `ExprOps/Ranges.lean`'s `bvarB_spec`: its five conjuncts
-are `bvarB_spec`'s (the memo-frame one, `inst1LC`, was round 4's gap), and
+are `bvarB_spec`'s (including the memo-frame one, `inst1LC`), and
 `StateOK s'`/`StoreWF s'.store` are `hok` along `s'.store = s₁.store`. -/
 theorem bvarB_bvarBSpec (fuel : Nat) : BvarBSpec (bvarB fuel) := by
   constructor
@@ -621,10 +616,8 @@ theorem bvarB_bvarBSpec (fuel : Nat) : BvarBSpec (bvarB fuel) := by
 insert's spec, generic in the pure function**.
 
 `Bridge/Specs.lean`'s `liftSet_spec` takes `amount : Nat` as an ordinary
-parameter, and `amount` appears nowhere in the program `liftSet k r`: under
-`mvcgen` the leftover argument was filled in by a context search (the
-cutoff's own `bRaw` inside `liftLooseBVarsGo`'s arms — false side goals), and
-under `vcgen` (task #111) it is simply left open.  So the pure function is the
+parameter, and `amount` appears nowhere in the program `liftSet k r`, so
+`vcgen` leaves it open.  So the pure function is the
 parameter and each walk passes this spec INSTANTIATED in its `vcgen` list —
 `liftSet_specG (f := fun c e => Expr.liftLooseBVars amount c e)`.
 `@[spec high]`: a spec registered later does not override an earlier one for
@@ -749,7 +742,7 @@ Two things make this the most interesting walk of the group:
 
 `bvarB` moves the STATE (it clears its own memo) and leaves the STORE alone,
 so every arm proves its answer at a store equal to the one its statement
-names: congruence closure, where the old closer needed two casts. -/
+names, which congruence closure handles with no cast. -/
 theorem instantiate1LiftGo_spec (v : EIdx) (ve : Expr) :
     ∀ fuel, Inst1LSpec v ve (instantiate1LiftGo v fuel) := by
   intro fuel

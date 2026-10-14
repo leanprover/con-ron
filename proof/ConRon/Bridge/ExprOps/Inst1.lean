@@ -67,9 +67,10 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-- con-leche: none — `mvcgen` hands an arm its projection read as
-`some fields = st.viewC h`, i.e. REVERSED, so the one-line `assumption` that
-supplies a step lemma's hypothesis has to try both orientations. -/
+/-- con-leche: none — an arm's projection read can reach the context
+REVERSED (`some fields = st.viewC h`), so the one-line `assumption` that
+supplies a step lemma's hypothesis tries both orientations, then `grind`
+over `Ext`. -/
 macro "arm_hyp" : tactic => `(tactic| first
   | assumption
   | (symm; assumption)
@@ -167,14 +168,13 @@ local grind_pattern [bridge_grind] inst1_leaf => Expr.instantiate1 e v d, exprTa
 One level of the recursion as a record, so that the fuel induction has
 something to hand the arms (task #97s rule 8).
 
-**Since DESIGN §8.6's arm-split ruling** (coordinator, 2026-09-22) the twin
+**Per DESIGN §8.6's arm-split ruling** the twin
 is a `mutual` block — a dispatcher and one `def` per constructor arm — and
 the proof follows it exactly: one theorem per arm, each taking the previous
 fuel level's record as its induction hypothesis, and a dispatcher whose
-`mvcgen` list is the five arm theorems.  The dispatcher's body is then the
-cutoff, the tag chain and six calls, so `mvcgen` leaves a handful of
-verification conditions instead of the seventy-nine the inline body left, and
-`grind` — which was 66 of the 71 net seconds — never sees more than one arm's
+`vcgen` list is the five arm theorems.  The dispatcher's body is then the
+cutoff, the tag chain and six calls, so `vcgen` leaves a handful of
+verification conditions, and `grind` never sees more than one arm's
 worth of context at a time.
 
 **Each arm carries its own tag hypothesis.**  `EStore.viewApp` does not test
@@ -196,10 +196,8 @@ structure Inst1Spec (v : EIdx) (ve : Expr) (rec : EIdx → Nat → AM EIdx) :
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:80-116 instantiate1Go — the `bvar`
 ARM, which is not recursive and needs no induction hypothesis.  The three
-branches are `Expr.instantiate1`'s own three, and they are written out because
-the closer will not unfold `RelE` (a `def`); at one arm in one theorem that is
-nine lines rather than the file-wide `unfold RelE` that task #97-P3-0 measured
-breaking the `proj` arm. -/
+branches are `Expr.instantiate1`'s own three, given to `sym` as its
+equations. -/
 theorem instantiate1ArmBVar_spec (v : EIdx) (ve : Expr) (s₁ : AState)
     (c : EIdx) (dd : Nat) (hok : StateOK s₁) (hm : Inst1MemoA ve s₁)
     (hv : denoteE s₁.store v = some ve)

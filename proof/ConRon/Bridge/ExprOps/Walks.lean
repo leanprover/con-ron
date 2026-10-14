@@ -39,7 +39,7 @@ Fuel, as everywhere in this tier, because a handle DAG has no structural
 order the elaborator can see; exhaustion is a failure and Theorem 1 claims
 nothing on failure, which is what the `⊤` exception postcondition says.  Unlike the rebuilding walks,
 these five dispatch on `view` DIRECTLY (a `match ← view h` over the ten
-`ENodeView` constructors, not the tag test of task #97-P6-13), so the arms
+`ENodeView` constructors, not the tag test of DESIGN task #97-P6-13), so the arms
 arrive already carrying their `view` equation and `Bridge/Rel.lean`'s group 5
 inversions fire on it without help.
 -/
@@ -59,7 +59,7 @@ open scoped Lean.Order
 /-! ## The two one-node readers — `ExprOps.lean:771`, `:776`
 
 `isForallE` is a tag read off the handle word; `lamPair?` tests both tags and
-then takes the two binder projections (task #119: con-leche's λ-telescope
+then takes the two binder projections (con-leche's λ-telescope
 comparison `defeqLams` descends with it).  No recursion, no fuel. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:771-774 isForallE — **THEOREM 1

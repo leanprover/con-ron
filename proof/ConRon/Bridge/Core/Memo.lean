@@ -12,7 +12,7 @@ A slot of `Arena/Core.lean`'s `coreKnot` at `fuel + 1` is
 
 ```lean
 fun d e => do
-  if whnfCoreStuckTag e then pure e          -- task #97-P6-7's lever 2
+  if whnfCoreStuckTag e then pure e          -- the stuck-tag lever (DESIGN, task #97-P6-7)
   else match (← get).caches.whnfCoreC[e]? with
   | some x => pure x                          -- the HIT
   | none   => do let x ← whnfCoreBody …; whnfCoreSet e x; pure x
@@ -49,10 +49,8 @@ tactic, no addressing of a condition.
 
 ## No cap
 
-Until task #115 `whnfCoreSet` dropped the table whole past `cacheCap` (DESIGN
-§8.3's former lesson 10), and the insert lemmas took both branches of the
-cap's `if`.  The cap is gone (con-leche's `memoEI` has none), and a setter is
-a plain insert.
+The tables have no size cap (con-leche's `memoEI` has none): a setter is a
+plain insert.
 -/
 import ConRon.Bridge.Core.Knot
 import ConRon.Bridge.Grind
@@ -68,10 +66,10 @@ open scoped Lean.Order
 
 /-! ## 1. The knot's five slots, unfolded once
 
-Task #97-P3-0's rule 9: a definition the verification condition generator
-would rewrite forever needs its clauses as lemmas.  `coreKnot` recurses on
-the fuel, so one `rfl` per slot at `fuel + 1` unfolds it exactly once — and,
-because the arena's knot carries its memo probes INLINE (task #97c's
+A definition the verification condition generator would rewrite forever
+needs its clauses as lemmas (DESIGN, task #97-P3-0, rule 9).  `coreKnot`
+recurses on the fuel, so one `rfl` per slot at `fuel + 1` unfolds it exactly once — and,
+because the arena's knot carries its memo probes INLINE (DESIGN, task #97c,
 deviation 6), these equations are also the only place in the bridge where
 the probe's shape is written down. -/
 
@@ -553,7 +551,7 @@ hit, `defeq`: the row carries the verdict, so both signs are sound. -/
         hwb.to_wscopedB]
       exact hF⟩) rfl rfl
 
-/-! ## 4. The stuck-tag branch (task #97-P6-7's lever 2)
+/-! ## 4. The stuck-tag branch (DESIGN, task #97-P6-7)
 
 The arena's third branch, which con-leche's `memoEI` has no counterpart for:
 six head kinds are answered off the handle word alone, with neither a store
@@ -854,15 +852,14 @@ theorem memoDefeq_step {mode : CheckMode} {env : Env} {fe : IFEnv}
         SimV (ConLeche.isDefEqCore mode env) d a b x; ⊤⦄ := by
   rw [coreKnot_defeq_succ]
   -- the spec is instantiated at THIS pair before `vcgen` sees it: `a` and `b`
-  -- do not occur in the program, so `vcgen` would leave them as goals (and
-  -- `mvcgen`, with the two `WScoped` hypotheses still open, closed
-  -- `WScoped d ?a` by `assumption` with the WRONG subject, so that the two
-  -- comparands collapsed — measured).  Task #97-P3-0's rule 4 at a second
-  -- subject.
+  -- do not occur in the program, so `vcgen` would leave them as goals, and
+  -- with the two `WScoped` hypotheses open an `assumption` can close
+  -- `WScoped d ?a` with the WRONG subject, collapsing the two comparands
+  -- (DESIGN, task #97-P3-0, rule 4).
   sym only [bridge_grind] =>
     vcgen [fun s₁ h1 h2 h3 => hbody s₁ d i j a b h1 h2 h3 hwa hwb] <;> finish
 
-/-! ## 6. The dispatch step (task #97-P3-Core round 5)
+/-! ## 6. The dispatch step
 
 Every body of the knot opens with `match ← view e with …`.  The body theorems
 are proved as a case split on the tag, with one child per group of that
@@ -896,9 +893,9 @@ theorem view_bind_triple {α : Type} {s₀ : AState} {i : EIdx} {v : ENodeView}
   triple_seq (view_spec s₀ i) fun _ _ ⟨hs, hv'⟩ => by
     subst hs; cases hv.symm.trans hv'; exact h
 
-/-- con-leche: none — **`view_bind_triple` behind the tag-first twin's test**
-(task #97-P5-Core round 4): the twin tests the handle's TAG before it reads
-the node wherever the Rust does, `if i.tag == t then (view i >>= f) else e`.
+/-- con-leche: none — **`view_bind_triple` behind the tag-first twin's test**:
+the twin tests the handle's TAG before it reads the node wherever the Rust
+does, `if i.tag == t then (view i >>= f) else e`.
 At a handle whose view is known the test is decided by the view's own tag
 (`EStore.tagOf_of_view`), and on the `else` side the continuation's
 catch-all arm IS `e`, so a proof of the view-first form carries over. -/

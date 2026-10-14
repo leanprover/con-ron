@@ -1,9 +1,8 @@
 /-
 # `ConRon.Bridge.Core.Walks.Nat` — the literal acceleration, `reduceNat`
 
-Task #97-P3-Core round 4.  `Bridge/Core/Arms/Whnf.lean`'s `whnfBody_spec`
-inherited `sorryAx` (at the time) from exactly one walk after this round closed
-`unfoldDefinition`: `reduceNat`.  This module is that walk and the six
+`reduceNat`, the walk `Bridge/Core/Arms/Whnf.lean`'s `whnfBody_spec` runs
+before delta-unfolding.  This module is that walk and the six
 state-only walks under it (`rawNatLit?`, `natLitSupported`, `natBinOpName`,
 `natOpStored`, `natOpWfNames`, `natOpResult`), each an EQUATION with the
 con-leche function of the same name — none of them is fueled on the pure
@@ -369,6 +368,7 @@ theorem natBinOpName_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     (hok : CheckOK mode env fe s₀) (hn : denoteN s₀.store.ns c = some nm) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natBinOpName c
     ⦃fun b s' => s' = s₀ ∧ b = natBinOpB nm; ⊤⦄ := by
+  -- `splits := 20`: the fourteen-way pin-name test splits once per name
   sym only [bridge_grind, natBinOpB.eq_1] =>
     vcgen [ConRon.Arena.natBinOpName,
       ConRon.Arena.natAddName, ConRon.Arena.pinNatAdd,
@@ -435,6 +435,8 @@ membership test at every denoted name. -/
 theorem natOpWfNames_spec (s₀ : AState) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.natOpWfNames
     ⦃fun ws s' => s' = s₀ ∧ WfNames s₀.store.ns ws; ⊤⦄ := by
+  -- `gen := 16`: the eight pin reads are chained, so the later names' denotations lie past the
+  -- default generation limit
   sym only [bridge_grind, WfNames, List.elem_cons_or, List.elem_nil, ConLeche.natOpWfNames] =>
     vcgen [ConRon.Arena.natOpWfNames,
       ConRon.Arena.natDivName, ConRon.Arena.pinNatDiv,
@@ -495,6 +497,7 @@ theorem natOpResult_spec (s₀ : AState) (c : NIdx) (nm : ConLeche.Name)
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧
         denoteEO s'.store r = some (ConLeche.natOpResult nm a b); ⊤⦄ := by
+  -- `splits := 20`: the fifteen-way pin-name dispatch splits once per name
   sym only [bridge_grind, ConLeche.natOpResult] =>
     vcgen [ConRon.Arena.natOpResult,
       ConRon.Arena.natPredName, ConRon.Arena.pinNatPred,
@@ -1148,6 +1151,8 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
       ConRon.Arena.reduceNat (coreKnot mode fe id fuel) fe d e
     ⦃fun r s' => CheckOK mode env fe s' ∧ Ext s₀.store s'.store ∧
         s'.pins = s₀.pins ∧ NatRed mode env d x s'.store r; ⊤⦄ := by
+  -- `gen := 16`, `ematch := 10`: the callees are stated at `exprFn (exprFn x)`, behind the
+  -- application spine and the knot's `whnf`, past the default generation and e-matching limits
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.reduceNat, ConRon.Arena.emptyLevels, ConRon.Arena.pinNatSucc,
       KnotSpec.whnfA hsim, rawNatLit?_specA (mode := mode) (env := env) (fe := fe),
@@ -1163,8 +1168,7 @@ theorem reduceNat_specR {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
 
 /-- con-leche: ConLeche/Kernel/Core.lean:156-208 reduceNat — **THEOREM 1 for
 `reduceNat`**: the literal acceleration, run in the `whnf` loop before
-delta-unfolding.  **CLOSED** (round 4; moved here from `Walks/Owed.lean`,
-statement unchanged).  The divergence audit's D15 is preserved by the twin —
+delta-unfolding.  The divergence audit's D15 is preserved by the twin —
 the FIRST argument is head-normalised and, unless it is a literal, the step
 declines without touching the second — so the two call sequences agree and
 the proof is a straight walk (`reduceNat_specR`, by `vcgen` and `grind`). -/

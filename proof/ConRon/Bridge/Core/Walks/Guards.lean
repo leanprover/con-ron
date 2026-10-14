@@ -1,21 +1,17 @@
 /-
 # `ConRon.Bridge.Core.Walks.Guards` — the `defeq` body's cheap tests
 
-Task #97-P3-CoreWalks.  `Arena/Core.lean`'s definitional-equality block
-(`defeqBody` and its lazy-delta steps since task #109, `defeqStep` before)
-runs scalar tests — `isBoolTrue`, `sameConstHeads`, `unfoldableHead` (and,
-before task #109, `quickPair`) — that read the handle word or one `view` and
-nothing else.  They are the
-cheapest walks of the whole non-slot tier, because con-leche's comparand is a
+`Arena/Core.lean`'s definitional-equality block (`defeqBody` and its
+lazy-delta steps) runs scalar tests — `isBoolTrue`, `sameConstHeads`,
+`unfoldableHead` — that read the handle word or one `view` and nothing else.
+They are the cheapest walks of the whole non-slot tier, because con-leche's comparand is a
 plain function (no `CheckM`, no fuel), so the conclusion is an EQUATION
 between the arena's answer and con-leche's and there is no `∃ F` to carry.
 
-**`isBoolTrue_spec` is CLOSED**, and it is the round's demonstration that the
-cheap row of `Bridge/Core/Walks/Owed.lean`'s table really is cheap: five
-verification conditions, no `ExprOps` callee rule, no new denotation, ~45
-lines.  Its two siblings that need `getAppFn` (`sameConstHeads`,
-`unfoldableHead`) stay in `Owed.lean` until this tier imports the `ExprOps`
-tier.
+This module holds `isBoolTrue_spec`: five verification conditions, no
+`ExprOps` callee rule, no new denotation.  Its two siblings that need
+`getAppFn` (`sameConstHeads_spec`, `unfoldableHead_spec`) are in
+`Spine.lean`, over the `ExprOps` tier.
 
 ## What it cashes
 
@@ -143,7 +139,7 @@ theorem boolTrueName_spec (s₀ : AState) (hp : PinsOK s₀) :
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:452-457 Expr.isBoolTrue —
 **THEOREM 1 for `isBoolTrue`**: is `e` the constant `Bool.true` (the official
-kernel's `is_constant(e, Bool.true)`)?  CLOSED.
+kernel's `is_constant(e, Bool.true)`)?
 
 Five verification conditions: the universe-argument test, the name test
 (both signs), the catch-all of the view match and the tag test.  **Both tests
@@ -154,9 +150,7 @@ a `Name` against `boolTrueName`, and `denoteLs_inj` / `denoteN_inj` are what
 make the two the same test.
 
 It needs nothing from the `ExprOps` tier, nothing from `denoteProjEntry` and
-no fuel bookkeeping (con-leche's `Expr.isBoolTrue` is a plain function), which
-is why it was the round's third closed walk and the cheapest of the
-seventeen. -/
+no fuel bookkeeping (con-leche's `Expr.isBoolTrue` is a plain function). -/
 theorem isBoolTrue_spec (s₀ : AState) (h : EIdx) (x : Expr)
     (hok : CheckOK mode env fe s₀) (hden : denoteE s₀.store h = some x) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.isBoolTrue h
@@ -176,8 +170,6 @@ section Census
 #print axioms isBoolTrue_of_not_const
 #print axioms isBoolTrue_levels
 #print axioms isBoolTrue_name
-/-! **The round's third closed non-slot walk**, and the first that is not a
-memo wrapper. -/
 #print axioms isBoolTrue_spec
 
 end Census

@@ -1,12 +1,11 @@
 /-
 # `ConRon.Bridge.Specs` — one `@[spec]` theorem per `Monad.lean` primitive
 
-The thing task #97s's spike exists to fix: **one spec theorem per (B)
-primitive, in one shape**, so that the verification-condition generator
-(`mvcgen` until task #111, `vcgen` since, on native `Std.WP` triples since
-task #111 slice 2) can walk a twin's body without any store reasoning
-appearing in the proof text.  The shape is the spike's
-seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
+**One spec theorem per (B) primitive, in one shape**, so that the
+verification-condition generator (`vcgen`, on native `Std.WP` triples) can
+walk a twin's body without any store reasoning appearing in the proof text.
+The shape is the seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task
+#97s's section):
 
 ```lean
 @[spec] theorem f_spec (s₀ : AState) (args…) (pre…) :
@@ -26,16 +25,17 @@ seven-rule template (DESIGN §8.6, `P2s SPIKE`, and task #97s's own section):
 5. **the answer is a named relation** (`Bridge/Rel.lean`'s `RelE` family),
    never a bare `∀ e, … → …`;
 6. **a memo insert's spec states that the INVARIANT is preserved**, not that
-   the table grew — the single highest-value change of the spike;
+   the table grew — the rule that matters most;
 7. **one named failure primitive** (`fail`), because a bare `throw` in
-   `StateT σ (Except ε)` leaves `mvcgen` with universe metavariables.
+   `StateT σ (Except ε)` leaves universe metavariables in the verification
+   conditions.
 
 ## The frame conditions
 
 `AState` has four fields and the `Memos` record has thirteen tables, so a
-naive frame condition would be sixteen equations per spec.  Task #97b put the
-per-call tables in ONE record and task #97c the per-declaration ones in
-another for exactly this reason: every spec below frames the state in at most
+naive frame condition would be sixteen equations per spec.  The per-call
+tables are in ONE record and the per-declaration ones in another for exactly
+this reason: every spec below frames the state in at most
 four equations, and a memo write frames the other twelve tables with one
 (`s'.memos = { s₀.memos with xC := … }`).
 
@@ -80,8 +80,7 @@ set_option experimental.vcgen true
 open ConLeche ConRon.Arena Std.WP
 open scoped Lean.Order
 
-/-! ## The derived `match` auxiliaries, given an owner (task #97-P3-ExprOps
-round 4)
+/-! ## The derived `match` auxiliaries, given an owner
 
 **The clash `lakefile.toml` and `Bridge/Core/Walks/Spine.lean` both record.**
 `grind` derives a congruence auxiliary for the `match` of an
@@ -99,10 +98,10 @@ calling `ensureSort` — would hit next.
 
 **The repair is to give the auxiliary ONE owner, and this file is it**: every
 module of `ConRon/Bridge/**` imports it, and a derivation finds an imported
-one and reuses it rather than adding a second.  That was measured, not
-assumed: a module carrying `mvcgen [forallPw]` and importing a module
-carrying only the two lines below re-uses the owner's auxiliary
-(`getModuleIdxFor?` names the owner) and adds nothing.
+one and reuses it rather than adding a second: a module whose proof needs
+the auxiliary and that imports a module carrying only the two lines below
+re-uses the owner's auxiliary (`getModuleIdxFor?` names the owner) and adds
+nothing.
 
 **The spelling matters** (the `Refine2/Core/Eqns.lean` precedent).  What
 forces the derivation is a `grind` on a goal whose head IS the matcher and
@@ -123,7 +122,7 @@ theorem matchOwner_isCtorApp (x : ENodeView) :
   grind
 
 /-- con-leche: none — `ConRon.Arena.proofIrrel`'s (`Core/Walks/PropRead.lean`
-against `Core/EnsureSort.lean`'s closure, task #105: the `.sort` view match
+against `Core/EnsureSort.lean`'s closure: the `.sort` view match
 it shares with `ensureSort`). -/
 theorem matchOwner_proofIrrel (x : ENodeView) :
     ConRon.Arena.proofIrrel.match_1 (motive := fun _ => Nat) x
@@ -186,14 +185,11 @@ theorem matchOwner_liftLooseBVarsGo (x : ENodeView) :
 
 /-! ## The failure primitives (template rule 7) -/
 
-/-! ### The failure specs (task #111)
+/-! ### The failure specs
 
 With a SCHEMATIC postcondition `Q`: a `fail` never returns and the
 exception postcondition is `⊤`, so `fail` establishes any `Q` and the failing
-branch of a twin leaves no verification condition at all.  The `mvcgen`-era
-specs they replaced (task #111) had a `False` postcondition and left one
-`False` barrel per failure site, closed under `mvcgen` by a `spec_fails`
-macro; both are gone. -/
+branch of a twin leaves no verification condition at all. -/
 
 /-- con-leche: ConLeche/Kernel/Core.lean:53-72 CheckError — `fail` meets
 every postcondition under partial correctness. -/
@@ -506,8 +502,8 @@ handle that had a view still has one).
 The capacity test is `internNodeE`'s own branch (DESIGN §8.3: "the Rust raises
 `Native` at the limit, the Lean `throw`s the same kind"), which is what
 discharges `EStore.intern_spec`'s `capOK` hypothesis without a precondition
-here — task #97a follow-up 3 made `capOK` *literally* that branch condition
-for exactly this reason; its datum half is vacuous at a non-binder view. -/
+here — `capOK` is *literally* that branch condition for exactly this reason
+(DESIGN, task #97a follow-up 3); its datum half is vacuous at a non-binder view. -/
 theorem internNodeE_spec (s₀ : AState) (w : ENodeView)
     (hwf : StoreWF s₀.store) (hv : s₀.store.ViewOK w) :
     ⦃fun s => s = s₀⦄ internNodeE w
@@ -999,7 +995,7 @@ record bought. -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:2720-2722 Expr.instLPFast — the
 one `Clear` that drops THREE tables: `instLPFast`'s memo depends on `ks` and
-`us`, and so do the two level-handle tables task #97-P6-13 added beside it. -/
+`us`, and so do the two level-handle tables beside it. -/
 @[spec] theorem instLPClear_spec (s₀ : AState) :
     ⦃fun s => s = s₀⦄ instLPClear
     ⦃fun _u s' => s'.store = s₀.store ∧ s'.caches = s₀.caches ∧
@@ -1220,7 +1216,7 @@ syntax "bridge_vcs" (" [" (Lean.Parser.Tactic.grindParam),* "]")? : tactic
 
 macro_rules
   -- NOT `bridge_vcs []`: an empty splice expands to a leading comma and
-  -- `grind` reports "unexpected grind parameter" (group C's finding).
+  -- `grind` reports "unexpected grind parameter".
   | `(tactic| bridge_vcs) => `(tactic| bridge_vcs [Ext.refl])
   | `(tactic| bridge_vcs [$ts,*]) => `(tactic| first
       | (intro hf; exact False.elim hf)
