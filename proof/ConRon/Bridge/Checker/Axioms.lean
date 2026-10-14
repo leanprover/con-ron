@@ -6,26 +6,22 @@ promotion tiers'.  Two groups, and the distinction is the point of the file.
 
 **Group 1 — the CLOSED results.**  Every one prints
 `[propext, Classical.choice, Quot.sound]` and nothing else: no `sorryAx`, and
-— the point of task #97a's arithmetic packing — no `bv_decide` axiom.  The
+— the point of the arena's arithmetic packing (DESIGN `### Task #97a`) — no
+`bv_decide` axiom.  The
 three standard axioms come in through `Std.HashMap`, `Classical` in `Option`'s
 lemmas and `Quot` in `String`, which is the same three every tier of this
 repository already carries.
 
 **Group 2 — the headline theorems.**  `Arena.checkDecl_bridge` and
-`Arena.installThenCheck_bridge` (the sequential fold `Arena.checkDeclsPure_bridge`
-and its `Arena.model_exists` were deleted by task #97-T2-CLEANUP).  They
-printed `sorryAx` beside the three while the tier had open items (DESIGN,
-task #97-P3-Checker's sorry list); since the tier closed they print the
-three standard axioms only, like group 1 (task #97-MILESTONE: the capstone's
-closure, which contains them, is `sorry`-free).  What they do NOT print is `CoreSpec` or `IndSpec` —
+`Arena.installThenCheck_bridge`.  They print the three standard axioms only,
+like group 1 (the capstone's closure, which contains them, is
+`sorry`-free).  What they do NOT print is `CoreSpec` or `IndSpec` —
 those are HYPOTHESES of the statements, not axioms of the environment, which
 is exactly the discipline `proof/ConRon/RefineOld/Main.lean`'s
 `conron.model_exists` kept with `hk` and `hind`, and it is what makes "two
 named hypotheses" a checkable claim rather than a prose one.
 
-**The seven arms are printed in group 2** for the historical reason that
-they reached the open leaves below them; they are closed now, leaves
-included.
+**The seven arms are printed in group 2**, beside the theorem they make up.
 -/
 import ConRon.Bridge.Checker.Fold
 import ConRon.Bridge.Checker.Base
@@ -98,9 +94,9 @@ namespace ConRon.Bridge
 -- the variant fallback
 #print axioms orElseAttempt_run
 
-/-! ### Task #97-P3-Checker-2's own additions -/
+/-! ### The bracket, the `AM` reading layer, the index and the pin tables -/
 
--- the bracket's OPENING step (item 21), and the eight congruences under it
+-- the bracket's OPENING step, and the eight congruences under it
 #print axioms EStore.view_bracket
 #print axioms denoteN_bracket
 #print axioms denoteL_bracket
@@ -120,7 +116,7 @@ namespace ConRon.Bridge
 #print axioms AM.dunless_ok
 #print axioms AM.pure_bind_ok
 
--- the two `IFEnv.push` lemmas (task #97-P3-Ind §8), and what a push denotes
+-- the two `IFEnv.push` lemmas, and what a push denotes
 #print axioms IFEnvCoh.push
 #print axioms denoteFEnv_push
 
@@ -131,32 +127,31 @@ namespace ConRon.Bridge
 #print axioms denoteCIList_mono
 #print axioms denoteFEnv_mono
 
--- `StepOK` (task #97-P3-Checker-3): the invariant at an index a step has just
+-- `StepOK`: the invariant at an index a step has just
 -- extended, and the three ways it moves.  `FoldOK` is `StepOK` plus the two
 -- persistence clauses, and the rule is that only a fold-step BOUNDARY may
 -- conclude the latter.
 #print axioms StepOK.mono
 #print axioms FoldOK.toStepOK
 
--- the name-shape guards (item 10) and the handle/name comparison they cash
+-- the name-shape guards and the handle/name comparison they cash
 #print axioms denoteNList_contains
 #print axioms beq_handle_iff
 #print axioms nameNodup_spec
 #print axioms viewN_run
 #print axioms isProjFnShape_run
 
--- the pin readers and the nineteen reserved names (part of item 13)
+-- the pin readers and the nineteen reserved names
 #print axioms pinAt_run
 #print axioms reservedBasisNames_run
 
--- the sibling pin-table walks (task #97-P3-Checker-3), in
+-- the sibling pin-table walks, in
 -- `reservedBasisNames_run`'s no-accumulator shape
 #print axioms natOpNames_run
 #print axioms natDivModNames_run
 #print axioms natOpDeps_run
 
--- the pinned-block comparison's two closed entry points (task
--- #97-P3-Checker-3)
+-- the pinned-block comparison's two entry points
 #print axioms internNNode_run
 #print axioms canonNamesGo_run
 #print axioms canonNames_run
@@ -165,7 +160,7 @@ namespace ConRon.Bridge
 #print axioms reduceOpNames_run
 
 -- the level tier's readers and inversions, and the whole lockstep `canon`
--- comparison (task #97-P3-Checker round 4)
+-- comparison
 #print axioms view_run
 #print axioms viewL_run
 #print axioms viewLs_run
@@ -200,8 +195,7 @@ namespace ConRon.Bridge
 #print axioms denoteCI_ind_inv
 #print axioms denoteCI_rec_inv
 
--- the two memoised DAG walks of the front door (task #97-P3-Checker round 4),
--- which is what takes `Bridge/Checker/Base.lean` to zero
+-- the two memoised DAG walks of the front door
 #print axioms readNames_run
 #print axioms readLevel_run
 #print axioms readLevels_run
@@ -222,10 +216,10 @@ namespace ConRon.Bridge
 #print axioms installValueGuards_pure
 #print axioms installValueGuards_bridge
 
--- the readback facts that moved down out of `Base.lean` (round 4)
+-- the readback facts `Base.lean` reads
 #print axioms beq_handle_iff
 
--- **THE DECLARATION FRONT DOOR** (item 11)
+-- **THE DECLARATION FRONT DOOR**
 #print axioms denoteCV_inv
 #print axioms denoteCIList_get
 #print axioms denoteEList_cons
@@ -256,8 +250,8 @@ namespace ConRon.Bridge
 #print axioms checkDecl_axiom_ofReduce_pure
 #print axioms checkDecl_axiom_sorryAx_pure
 
--- **ROUND 5.**  The index retired (`IFEnvOK_of_denote`, `IFEnvOK_restrictTo`),
--- the whole `canon` comparison, and the recurrence certifier.
+-- The index's spec (`IFEnvOK_of_denote`, `IFEnvOK_restrictTo`), the whole
+-- `canon` comparison, and the recurrence certifier.
 
 -- the index IS the list: con-leche's `mkFEnv_find?` at the arena's hash map
 #print axioms mkIFEnvGo_fst
@@ -293,8 +287,7 @@ namespace ConRon.Bridge
 #print axioms certifyNatEqs_bridge_aux
 #print axioms certifyNatEqs_bridge
 
--- **ROUND 6.**  `EnvWF` at a push — the one theorem round 5 scheduled — and
--- the three value checks that stand on it.
+-- `EnvWF` at a push, and the three value checks that stand on it.
 
 -- the `IFEnv.push` family: the index, and the whole step invariant
 #print axioms IFEnvOK.push
@@ -317,9 +310,9 @@ namespace ConRon.Bridge
 -- the check half of the install/check seam, on the same machinery
 #print axioms checkValueGroup_bridge
 
--- **ROUND 7.**  `Bridge/Checker/Basis.lean`, behind the frontend round's
--- scratch-agnostic intern family: the two interned blocks, the two
--- recognisers and the block install.
+-- `Bridge/Checker/Basis.lean`, behind the frontend's scratch-agnostic
+-- intern family: the two interned blocks, the two recognisers and the block
+-- install.
 
 -- `Arena/Intern.lean`'s fresh-memo wrappers, and `toConstantVal` without a
 -- scratch flag (the tier's fifth `.projInfo` site)
@@ -332,8 +325,8 @@ namespace ConRon.Bridge
 #print axioms BasisKind.declsA_run
 #print axioms BasisKind.decls_proj
 
--- no pinned block declares a projection table, so the tier's standing
--- `.projInfo` hypothesis is DISCHARGED at the basis route rather than carried
+-- no pinned block declares a projection table, so the tier's `.projInfo`
+-- hypothesis is DISCHARGED at the basis route rather than carried
 #print axioms basis_declsA_no_proj
 #print axioms basis_decls_no_proj
 #print axioms basis_decls_name_not_num
@@ -350,7 +343,7 @@ namespace ConRon.Bridge
 #print axioms installBasisDecls_bridge
 #print axioms checkBasisDecl_bridge
 
--- task #97-P3-Checker round 8
+-- the pin checks, the reduce-pin gate and the install/check seam's pieces
 #print axioms matchesPin_run
 #print axioms denoteCV_inj
 #print axioms denoteCI_inj_ind
@@ -379,12 +372,11 @@ namespace ConRon.Bridge
 
 /-! ## Group 2 — the three headline theorems
 
-None carries `sorryAx` any more (the tier's open items are closed); none
-carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
+None carries `sorryAx`; none carries `CoreSpec` nor `IndSpec`, which are
+hypotheses of the statement. -/
 
 -- the Core tier's half of `CoreSpec`, discharged by
--- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel` (closed since task
--- #97-P3-Core round 6)
+-- `Bridge/Core/Induction.lean`'s `knot_spec_checkFuel`
 #print axioms CoreSpec.of_knot
 
 #print axioms checkDecl_defn_pure_nn
@@ -401,14 +393,13 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms checkDecl_bridge_quot
 #print axioms Arena.checkDecl_bridge
 
--- the fold's skeleton and the startup walk (task #97-P3-Checker round 8):
--- closed, children included
+-- the fold's skeleton and the startup walk
 #print axioms Arena.installFold_bridge
 #print axioms Arena.checkPendingList_bridge
 #print axioms internReservedPins_run
 #print axioms internAllPins_run
 
--- round 9: the children closed (each prints the three standard axioms)
+-- the fold's children (each prints the three standard axioms)
 #print axioms declBlockRun_nodup
 #print axioms checkShapeless_ne_ok
 #print axioms checkDecl_nodup
@@ -417,15 +408,15 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms internPinSets_run
 #print axioms bracketClose_foldOK
 #print axioms FoldOK.projMem
--- `installStep_split`'s bracket is proved; its one open child is
--- `Arena.checkDecl_wfProj` (reached through `Arena.installStepGo_full`)
+-- `installStep_split`'s bracket; it reaches `Arena.checkDecl_wfProj` through
+-- `Arena.installStepGo_full`
 #print axioms Arena.installStepGo_bridge
 #print axioms Arena.installStep_split
--- `checkDivModPin_bridge` and its loop (round 9 skeleton, closed in round 10)
+-- `checkDivModPin_bridge` and its loop
 #print axioms checkDivModPinLoop_bridge
 #print axioms checkDivModPin_bridge
 
--- round 10: `DeclOut`'s two clauses (each prints the three standard axioms)
+-- `DeclOut`'s two clauses (each prints the three standard axioms)
 #print axioms declBasisRun_envWF
 #print axioms checkDecl_wf_pure
 #print axioms projMem_of_noTower
@@ -433,11 +424,11 @@ carries `CoreSpec` nor `IndSpec`, which are hypotheses of the statement. -/
 #print axioms divModEnvGuard_run
 #print axioms divModPinGuard_run
 #print axioms substConstAll_run
--- `Arena.checkDecl_wfProj` is proved; it reaches `IndSpec.wf` (the Inductives
--- tier's debt) and the arms' own leaves
+-- `Arena.checkDecl_wfProj` reaches `IndSpec.wf` (the Inductives tier's
+-- hypothesis) and the arms' own leaves
 #print axioms Arena.checkDecl_wfProj
--- round 10, part 2: the divMod gate's last two pieces; `checkDivModPin_bridge`
--- reaches only the Core tier's leaves now
+-- the divMod gate's last two pieces; `checkDivModPin_bridge` reaches only the
+-- Core tier's leaves
 #print axioms divModCertStmts_run
 #print axioms divModCertsGuard_run
 #print axioms checkDivModCerts_bridge_aux

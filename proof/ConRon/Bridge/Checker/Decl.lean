@@ -1,8 +1,8 @@
 /-
-# `ConRon.Bridge.Checker.Decl` — `checkDecl`'s seven arms, one theorem each
+# `ConRon.Bridge.Checker.Decl` — what each of `checkDecl`'s seven arms concludes
 
-`Arena/Checker.lean`'s `checkDecl` is a seven-way match, and this module is
-one bridge theorem per arm, all with the same conclusion (`DeclOut` below).
+`Arena/Checker.lean`'s `checkDecl` is a seven-way match, with one bridge
+theorem per arm, all with the same conclusion (`DeclOut` below).
 `Bridge/Checker/Fold.lean`'s `Arena.checkDecl_bridge` is then `cases pd` and
 nothing else, which is what keeps the per-declaration theorem — the one DESIGN
 §8.2 states — free of arm-specific hypotheses.
@@ -19,7 +19,7 @@ place that can supply: the store invariant survives, the arena only grew, the
 pin table is untouched, the index is still its list's index, and **the step
 only pushed** (`Pushed`, `Bridge/Promote/Exact.lean`) — which is what makes
 `checkDeclStep`'s promotion counter `k` mean "the constants this step
-installed".  The two after it (task #97-P3-Checker round 10) are what the
+installed".  The two after it are what the
 bracket's close needs of the pushed index and only the arm can supply: the
 environment it denotes is well formed (`envWF`), and every projection table it
 holds is either an old one or well shaped (`proj`).
@@ -28,7 +28,7 @@ There is **no persistence clause**: `checkDecl` does not promote.  The
 environment it hands back names scratch handles, and it is `promoteNew`'s job
 — one level up, in `checkDeclStep` — to make it persistent before
 `dropScratch`.  Writing `PersIFEnv` into `DeclOut` would be stating a
-falsehood about the very deviation task #97-P6-2 introduced.
+falsehood about the very deviation DESIGN `### Task #97-P6-2` describes.
 
 ## The pins
 
@@ -40,10 +40,10 @@ standing hypothesis of every theorem here.
 
 ## Where the arms are
 
-The seven arm theorems moved to `Bridge/Checker/Arms.lean` in task
-#97-P3-Checker-2, because proving them needs `Bridge/Checker/Base.lean`,
-`DeclVal.lean` and `Basis.lean`, all three of which import THIS module for
-`DeclOut` and `PinsDenote`.  What each arm needs is still:
+The seven arm theorems are in `Bridge/Checker/Arms.lean`, because proving
+them needs `Bridge/Checker/Base.lean`, `DeclVal.lean` and `Basis.lean`, all
+three of which import THIS module for `DeclOut` and `PinsDenote`.  What each
+arm needs:
 
 | arm | what it needs |
 |---|---|
@@ -152,13 +152,12 @@ structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
   pushed : Pushed fe fe'
   run : ∃ env' F, denoteFEnv s'.store fe' = some env' ∧
     ConLeche.checkDecl μ (ConLeche.fueledOps μ F) pinsP env d = .ok env'
-  /-- **the pushed environment is well formed** (task #97-P3-Checker round 10,
-  under the coordinator's authorisation): what the bracket's close needs
+  /-- **the pushed environment is well formed**: what the bracket's close needs
   (`Bridge/Checker/Split.lean`'s `BodyOut.envWF`) and only the arm can
   supply.  Stated at every denotation, which `run` makes the one. -/
   envWF : ∀ env', denoteFEnv s'.store fe' = some env' → EnvWF env'
-  /-- **the pushed index's projection tables** (round 10, the same
-  authorisation): every table the index now holds is one it held before, or
+  /-- **the pushed index's projection tables**: every table the index now
+  holds is one it held before, or
   is well shaped and rightly named at the new store — `IFEnvOK.proj`'s
   conclusion, over membership (the shape `IFEnvOK_of_denote` takes) and
   relative to the step (the shape `Bridge/Inductives/Rel.lean`'s `ProjOut`
@@ -167,7 +166,7 @@ structure DeclOut (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
     IConstantInfo.projInfo t ∈ fe.env.consts ∨ IProjTableOK s'.store t
 
 /-- con-leche: none — `DeclOut`'s first six clauses, which every arm
-assembles by the same transcription; the two round-10 clauses are derived
+assembles by the same transcription; the last two clauses are derived
 from them once, in `Bridge/Checker/Arms.lean`'s `DeclCore.out`. -/
 structure DeclCore (μ : CheckMode) (pinsP : List NatOpPinSet) (env : Env)
     (d : Declaration) (s : AState) (fe fe' : IFEnv) (s' : AState) : Prop where

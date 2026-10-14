@@ -1,7 +1,7 @@
 /-
-# `ConRon.Bridge.Checker.BasisWF` — the pinned blocks are well formed
+# `ConRon.Bridge.Checker.DeclWF` — the pinned blocks are well formed
 
-Task #97-P3-Checker round 10.  `checkDecl`'s basis and quotient arms push a
+`checkDecl`'s basis and quotient arms push a
 pinned block (`BasisKind.declsA`), and `DeclOut`'s `envWF` clause needs
 `ConstWF` of every constant of it.  con-leche's model tier proves exactly
 this, block by block — but INLINE, as the `have hwf1 … hwfN : EnvWF …` steps

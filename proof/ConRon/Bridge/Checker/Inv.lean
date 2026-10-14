@@ -46,11 +46,9 @@ open ConLeche ConRon.Arena
 
 /-! ## Two denotation facts the whole tier uses
 
-Both were written in `Bridge/Checker/Base.lean` (task #97-P3-Checker-2) and
-both are facts about the READBACK rather than about `CheckerBase`, so round 4
-moved them down here, where `Bridge/Checker/Canon.lean` — a sibling of
-`Base.lean`, not a consumer of it — can see them too.  Nothing about either
-statement changed. -/
+Both are facts about the READBACK rather than about `CheckerBase`, so they
+live here, where `Bridge/Checker/Canon.lean` — a sibling of `Base.lean`, not a
+consumer of it — can see them too. -/
 
 /-- con-leche: none — **a handle comparison is a name comparison**, at two
 handles that denote.  The `→` half is `denoteN`'s functionality and the `←`
@@ -418,10 +416,8 @@ theorem denoteNL_pext {st st' : EStore} (hx : PExt st st') :
       exact ⟨denoteN_pext hx (hp a (by simp)) h1,
         ih ys (fun c hc => hp c (by simp [hc])) h2⟩
 
-/-- con-leche: none — **`PinsOK` survives `dropScratch`** — task #97-P3-0 §7's
-"`DeclCheck` / `Checker` need `PinsOK` to survive `dropScratch`, which needs
-one more clause: the pin handles are persistent".  Here is the clause
-(`PersPins`) and here is what it buys. -/
+/-- con-leche: none — **`PinsOK` survives `dropScratch`**, given one more
+clause: the pin handles are persistent (`PersPins`). -/
 theorem PinsOK.pmono {s s' : AState} (h : PinsOK s) (hp : PersPins s)
     (hx : PExt s.store s'.store) (hpe : s'.pins = s.pins) : PinsOK s' where
   ready := by rw [hpe]; exact h.ready
@@ -592,12 +588,11 @@ theorem IFEnvOK.pmono {env : Env} {fe : IFEnv} {s s' : AState}
 /-! ## The two invariants, and the rule that separates them
 
 **`StepOK` is the invariant at an index a step has just EXTENDED; `FoldOK` is
-the invariant at a fold-step BOUNDARY.**  Task #97-P3-Checker-2 found the same
-statement defect three times over (`IndSpec.run`, `checkDivModPin_bridge`,
-`checkReducePin_bridge`): each said `FoldOK` where it meant "the invariant at
-an index this step produced", and `FoldOK` carries `PersIFEnv`, which is
-FALSE of an index extended inside the scratch bracket — the constant it holds
-carries a freshly interned, hence scratch, type.  Persistence is
+the invariant at a fold-step BOUNDARY.**  A statement about "the invariant at
+an index this step produced" (`IndSpec.run`, `checkDivModPin_bridge`,
+`checkReducePin_bridge`) cannot say `FoldOK`: `FoldOK` carries `PersIFEnv`,
+which is FALSE of an index extended inside the scratch bracket — the constant
+it holds carries a freshly interned, hence scratch, type.  Persistence is
 `promoteNew`'s, one level up.
 
 Splitting the record makes the rule greppable rather than remembered:
@@ -610,8 +605,7 @@ Splitting the record makes the rule greppable rather than remembered:
 tier runs from a boundary — so the rule is about the right-hand side of a `:`
 and about `DeclOut`-shaped records, and nothing else.
 
-**Why `StepOK` carries `IFEnvOK` and not `CheckOK`** (a deliberate departure
-from the sketch task #97-P3-Checker-2 §8 wrote).  `CheckOK` carries
+**Why `StepOK` carries `IFEnvOK` and not `CheckOK`.**  `CheckOK` carries
 `CacheOK mode env s`, the fourteen caches read AT an environment, and an
 install grows the environment: the entries a `whnf`/`infer`/`defeq` cache
 holds were computed at `env` and say nothing at `env.push c`.  That is
@@ -620,7 +614,7 @@ check that has just installed a constant cannot hand back `CheckOK` at the
 extended environment and must not claim to; what it does know is the four
 clauses below, and the invariant at the pre-insertion environment — which it
 hands back separately, as `CoreStep μ env fe s s'`.  Putting `CheckOK` in
-`StepOK` would have been the `PersIFEnv` defect again, one field over. -/
+`StepOK` would be the `PersIFEnv` defect again, one field over. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK
 con-leche: ConLeche/Verify/Cached/BridgeC.lean:609 checkDeclStepC_run —
@@ -683,8 +677,8 @@ the environment alone.**  A step of an arm leaves `CheckOK` at the SAME
 environment and an `Ext`; the other four clauses are about the environment
 index and the pin handles, and both transport.
 
-(Stated in `Bridge/Checker/Arms.lean` until task #97-P3-Checker round 6, which
-needed it two modules lower, in `DeclVal.lean`'s `checkThmVal_bridge`.) -/
+It lives here rather than in `Bridge/Checker/Arms.lean` because
+`DeclVal.lean`'s `checkThmVal_bridge`, two modules lower, uses it. -/
 theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     (h : FoldOK μ env fe s) (hck : CheckOK μ env fe s')
     (hx : Ext s.store s'.store) (hp : s'.pins = s.pins) :
@@ -698,9 +692,9 @@ theorem FoldOK.step {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
 
 /-- con-leche: none — **every entry the index answers with is an entry of the
 list it was built from**.  `mkIFEnvGo` only ever inserts entries of its own
-list, so a hash-map hit is a list member.  (Task #97-P3-Checker round 5: this
-is what makes the membership-shaped `hproj` of `IFEnvOK_of_denote` strictly
-stronger than the `find?`-shaped clause its conclusion has to deliver.) -/
+list, so a hash-map hit is a list member.  This is what makes the
+membership-shaped `hproj` of `IFEnvOK_of_denote` strictly stronger than the
+`find?`-shaped clause its conclusion has to deliver. -/
 theorem mkIFEnvGo_mem : ∀ (cs : List IConstantInfo) (n : NIdx)
     (p : Nat × IConstantInfo), (mkIFEnvGo cs).2[n]? = some p → p.2 ∈ cs := by
   intro cs
@@ -821,18 +815,17 @@ the cons.  The two lemmas below are that — the third and fourth members of the
 `IFEnv.push` family, beside `Pushed.push` and `IFEnvCoh.push`
 (`Bridge/Promote/Exact.lean`).
 
-**This is task #97-P3-Checker round 5's scheduling finding, taken as one
-theorem.**  `StepOK` carries `EnvWF env`; con-leche does not prove that
-`checkDefnVal` preserves it (`Verify/BridgeWfImp.lean`'s `checkDefnVal_wfimp`
-is about the fuel family, and the model tier takes `EnvWF` as a hypothesis
-rather than re-establishing it), so the arena tier owes
-`ConstWF ⟨c :: env.consts⟩ c` at every value install.  It is owed once and
-paid once: `StepOK.push` takes it as a hypothesis and
+**One theorem pays for `EnvWF` at every value install.**  `StepOK` carries
+`EnvWF env`; con-leche does not prove that `checkDefnVal` preserves it
+(`Verify/BridgeWfImp.lean`'s `checkDefnVal_wfimp` is about the fuel family, and
+the model tier takes `EnvWF` as a hypothesis rather than re-establishing it),
+so the arena tier owes `ConstWF ⟨c :: env.consts⟩ c` at every value install.
+It is owed once and paid once: `StepOK.push` takes it as a hypothesis and
 `Bridge/Checker/DeclVal.lean`'s three `constWF_*` discharge it from the guards
 the run has already passed. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index spec survives a
-push.**  With `IFEnvCoh` on both sides the index is retired (round 5's move):
+push.**  With `IFEnvCoh` on both sides the index reduces to its list:
 `(fe.push ci).find? n` is `List.find?` on a cons, con-leche's side is
 `Env.find?_cons`, and the two negative cases are `denoteN_inj` — a handle the
 pushed key is not cannot denote the pushed constant's name, because the two
@@ -1019,9 +1012,8 @@ denotation**: `IFEnvOK`'s two clauses follow from "the environment denotes"
 and "the index is its list's index", because `IEnv.find?` and `Env.find?` are
 the same linear search and `denoteN` is injective on a well-formed store.
 
-**It needs one thing the denotation does not carry** (task
-#97-P3-Checker-2's second statement defect, now fixed where it belongs).
-Both halves want "the index's key denotes the constant's own name", i.e.
+**It needs one thing the denotation does not carry.**  Both halves want "the
+index's key denotes the constant's own name", i.e.
 
     denoteN st.ns ci.name = some (Frontend.denoteCI st ci).get.name
 
@@ -1037,38 +1029,36 @@ refutes the conclusion.
 **The fix is NOT in `Arena/Frontend/Readback.lean`.**  A simulation B ⇒ A
 takes invariants on the REFINED side only, and this is a fact about OUR
 stored table, so it is a clause of `IFEnvOK` — `Bridge/StateOK.lean`'s
-`IProjTableOK.named`, which is the hypothesis this theorem now takes and its
-conclusion re-delivers.  The same clause record carries task #97-P3-Core-2's
-`ProjTablesShaped`: they are one problem (the projection-table denotation does
-not carry what its consumers need) and one fix.
+`IProjTableOK.named`, which is the hypothesis this theorem takes and its
+conclusion re-delivers.  The same clause record carries the table's shape
+(its bodies and guards): they are one problem (the projection-table denotation
+does not carry what its consumers need) and one fix.
 
-**`hproj` WAS TOO WEAK FOR `cover`, and this is the repair** (found by task
-#97-P3-Checker round 4, authorised and applied in round 5).  Round 4's
-hypothesis was
+**Why `hproj` quantifies over MEMBERSHIP.**  The `find?`-shaped hypothesis
 
     ∀ n t, fe.find? n = some (.projInfo t) → IProjTableOK s.store t
 
-which quantifies over what `fe.find?` ANSWERS, and `fe.find?` is a hash-map
-read of the index `mkIFEnvGo` builds — an entry SHADOWED by a later insert at
-the same name handle is not covered by it.  `hit` is fine, because the entry
-`find?` returns is the entry the hypothesis speaks about.  `cover` is not: it
-starts from `env.find? nm = some c`, picks the `ci` at the same position of
-`fe.env.consts`, and must show `ci` is the entry the index answers with; that
-argument needs `denoteCI_name_of` AT `ci`, and `ci` is precisely the entry
-`fe.find?` may never return.  Concretely: two entries whose name handles are
-equal, the later a `.projInfo` whose `tableName` is that handle and whose
-`IProjTableOK` is false, satisfy every one of round 4's hypotheses and refute
+would be too weak for `cover`: it quantifies over what `fe.find?` ANSWERS, and
+`fe.find?` is a hash-map read of the index `mkIFEnvGo` builds — an entry
+SHADOWED by a later insert at the same name handle is not covered by it.  `hit`
+is fine, because the entry `find?` returns is the entry the hypothesis speaks
+about.  `cover` is not: it starts from `env.find? nm = some c`, picks the `ci`
+at the same position of `fe.env.consts`, and must show `ci` is the entry the
+index answers with; that argument needs `denoteCI_name_of` AT `ci`, and `ci` is
+precisely the entry `fe.find?` may never return.  Concretely: two entries whose
+name handles are equal, the later a `.projInfo` whose `tableName` is that
+handle and whose `IProjTableOK` is false, satisfy that hypothesis and refute
 `cover`.
 
-The repair is one word in the quantifier — membership in `fe.env.consts`
-rather than an answer of `fe.find?` — and the SAME debtor still discharges it
+So the quantifier is membership in `fe.env.consts` rather than an answer of
+`fe.find?`, and the one debtor discharges it
 (`projTableOK_of_install`: the install is the only place a `.projInfo` row is
 created, so every row of the list satisfies it).  The conclusion's own
 `IFEnvOK.proj` field is still at the `find?` shape, and this hypothesis
 delivers it, because `IFEnvCoh` makes every answer of `fe.find?` a member of
 `fe.env.consts` (`IFEnv.find?_mem`).
 
-**PROVED** (task #97-P3-Checker round 5), in two halves.  `IFEnvCoh.find?`
+**The proof**, in two halves.  `IFEnvCoh.find?`
 (above) retires the index — `mkIFEnvGo` inserts from the back, so the hash
 map answers what `List.find?` answers, and every counter it hands out is below
 the list's length, so `mkIFEnv`'s own bound hides nothing — after which the
@@ -1076,8 +1066,7 @@ theorem is a statement about two LISTS and `denoteCIList_find?` is the whole
 of it: one induction, both directions, `denoteCI_name_of` at each entry and
 `denoteN_inj` in the two negative cases.  It is the one place `IFEnvCoh` is
 consumed rather than propagated, and it is con-leche's `mkFEnv_find?` at a
-denoted list, exactly as round 2 predicted.  Task #97-P3-Checker's sorry
-list, item 6, closed. -/
+denoted list. -/
 theorem IFEnvOK_of_denote {env : Env} {fe : IFEnv} {s : AState}
     (hwf : StateOK s) (hcoh : IFEnvCoh fe)
     (hproj : ∀ t, IConstantInfo.projInfo t ∈ fe.env.consts →

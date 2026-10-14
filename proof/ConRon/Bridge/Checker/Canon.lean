@@ -11,8 +11,8 @@ name list (`canonNames`).
 
 **The bridge's shape is `RelV`'s** (`Bridge/Rel.lean`): the answer is a
 `Bool`, which names no handle, so there is no target store and the tier's
-cheapest shape applies — task #97-P3-0 §5's finding 1, *"the cheapest group is
-the one with no target store"*.
+cheapest shape applies — DESIGN `### Task #97-P3-0` §5's finding 1, *"the
+cheapest group is the one with no target store"*.
 
 **The one subtlety is the generated names.**  `canonNames n` interns `n` fresh
 names and the comparison substitutes them for the two sides' parameters.  The
@@ -53,7 +53,7 @@ theorem internNNode_run {v : NNodeView} {s s' : AState} {h : NIdx}
 /-- con-leche: ConLeche/Kernel/Canon.lean:67-73 canonNameMap — the generated
 name list denotes con-leche's, and the handles are fresh.
 
-**PROVED** (task #97-P3-Checker-3): the `Nat` recursion over
+**Proof:** the `Nat` recursion over
 `internNNode_run` twice per step (`⟨⟩` and then `.num ⟨⟩ i`, which is what
 `internName (.num .anonymous i)` is), with `List.range_succ_eq_map` lining the
 counted-up index list up with the recursion's own `i + 1`.  No accumulator:
@@ -1219,12 +1219,12 @@ theorem denoteEArray_inj {st : EStore} (hwf : StoreWF st) {as bs : Array EIdx}
       simpa using congrArg List.toArray hl
 
 /-- con-leche: none — **the stored projection table is determined by its
-denotation, ONCE `IProjTableOK` holds on both sides** (task #97-P3-Checker
-round 5; round 4's fourth `.projInfo` site).  `Frontend.denoteProjTable` drops
-`tableName`, so without `named` two tables differing only there denote the
-same `ProjTable` and this is FALSE; with it, `tableName` is pinned to
-`projTableName` of the denoted `structName` and `denoteN_inj` recovers it.
-Every other field is either carried verbatim or injective. -/
+denotation, ONCE `IProjTableOK` holds on both sides**.
+`Frontend.denoteProjTable` drops `tableName`, so without `named` two tables
+differing only there denote the same `ProjTable` and this is FALSE; with it,
+`tableName` is pinned to `projTableName` of the denoted `structName` and
+`denoteN_inj` recovers it. Every other field is either carried verbatim or
+injective. -/
 theorem denoteProjTable_inj {st : EStore} (hwf : StoreWF st) {t t' : IProjTable}
     {T : ProjTable} (hok : IProjTableOK st t) (hok' : IProjTableOK st t')
     (h : Frontend.denoteProjTable st t = some T)
@@ -1603,16 +1603,15 @@ diagonal arms are `IConstantVal.canonEq_run` plus (where the constructor
 carries one) `canonExprEq_run` or `canonRulesEq_run` at a freshly interned
 numeral list.
 
-**PROVED** (task #97-P3-Checker round 5), on the `hproj` hypothesis round 4
-asked the coordinator for.  Round 4 left the `.projInfo`/`.projInfo` arm
-`sorry` because it is FALSE without one: the arena compares two `IProjTable`s
+**Proof**, on the `hproj` hypothesis.  The `.projInfo`/`.projInfo` arm
+needs it because it is FALSE without one: the arena compares two `IProjTable`s
 by record equality and `Frontend.denoteProjTable` **drops `tableName`**, so
 two tables that differ only there denote the same `ProjTable` and the twin
 answers `false` where con-leche answers `true`.
 
-`hproj` is the repair, and it is the SAME hypothesis `denoteCI_name_of`
+`hproj` is the SAME hypothesis `denoteCI_name_of`
 (`Bridge/StateOK.lean`) and `IFEnvOK_of_denote` (`Bridge/Checker/Inv.lean`)
-take at the same gap — the fourth of round 4's four named `.projInfo` sites.
+take at the same gap.
 It is stated at the WEAKEST shape the proof needs: both sides at once, so its
 premise is unreachable unless BOTH constants are projection tables.  That
 makes it free at every call site where either side has a known constructor —
@@ -2094,10 +2093,9 @@ theorem denoteCIList_cons {st : EStore} {a : IConstantInfo}
       exact ⟨x, xs, rfl, rfl, h.symm⟩
 
 /-! `denoteCIList_get` and `denoteCIList_length` live here rather than in
-`Base.lean` and `Split.lean`, where they were first written: both are plain
-list inversions of the readback, and `Basis.lean` — which is BELOW both of
-those — needs them for the quotient pin's slot read.  Task #97-P3-Checker
-round 7; `Base.lean` gained one import line and reads them unchanged. -/
+`Base.lean` and `Split.lean`: both are plain list inversions of the readback,
+and `Basis.lean` — which is BELOW both of those — needs them for the quotient
+pin's slot read. -/
 
 /-- con-leche: none — `Frontend.denoteCIList`'s indexed inversion. -/
 theorem denoteCIList_get {st : EStore} :
@@ -2163,16 +2161,16 @@ theorem denoteCIList_length {st : EStore} : ∀ (cs : List IConstantInfo)
 /-- con-leche: ConLeche/Kernel/Canon.lean:291-293 canonEqList — the same at a
 block.
 
-**PROVED** (task #97-P3-Checker-3): the list induction over
+**Proof:** the list induction over
 `IConstantInfo.canonEq_run`, with con-leche's own `ConstantInfo.canonEq`
 (a `decide` on the two canonical forms) driving both branches — an accepted
 member makes the two `canon`s equal and peels one cons off each `map`, a
 declined one makes the lists differ at the head.
 
-The `hproj` hypothesis is `IConstantInfo.canonEq_run`'s (task #97-P3-Checker
-round 5) lifted to the two lists, at the same both-sides-at-once shape: its
-premise is unreachable unless BOTH blocks contain a projection table, which no
-pinned basis block does.  `IProjTableOK.mono` carries it along the fold. -/
+The `hproj` hypothesis is `IConstantInfo.canonEq_run`'s lifted to the two
+lists, at the same both-sides-at-once shape: its premise is unreachable unless
+BOTH blocks contain a projection table, which no pinned basis block does.
+`IProjTableOK.mono` carries it along the fold. -/
 theorem canonEqList_run_aux : ∀ (cs cs' : List IConstantInfo)
     (xs xs' : List ConstantInfo) (r : Bool) (s s' : AState), StateOK s →
     (∀ t t', IConstantInfo.projInfo t ∈ cs → IConstantInfo.projInfo t' ∈ cs' →

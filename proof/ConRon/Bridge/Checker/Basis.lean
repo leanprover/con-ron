@@ -40,8 +40,8 @@ set_option autoImplicit false
 /-- con-leche: ConLeche/Kernel/Basis.lean:41-66 BasisKind.decls — the raw
 pinned block denotes con-leche's.
 
-**PROVED** (task #97-P3-Checker round 7): `Frontend.internCIList_sstep` at a
-fresh memo.  One line of import and three of proof — the frontend round's
+**Proof:** `Frontend.internCIList_sstep` at a
+fresh memo.  The frontend tier's
 `IStepS` family is stated without a scratch flag and without the `Pers…`
 conjuncts, which is exactly what a caller inside the per-declaration bracket
 can use and all this statement asks for. -/
@@ -64,7 +64,7 @@ theorem BasisKind.decls_run {k : BasisKind} {r : List IConstantInfo}
 ANNOTATED pinned block denotes con-leche's.  This is the one the install
 puts in the environment.
 
-**PROVED** (task #97-P3-Checker round 7): as `BasisKind.decls_run`. -/
+**Proof:** as `BasisKind.decls_run`. -/
 theorem BasisKind.declsA_run {k : BasisKind} {r : List IConstantInfo}
     {s s' : AState} (hok : StateOK s)
     (hrun : BasisKind.declsA k s = .ok (r, s')) :
@@ -395,16 +395,15 @@ by kind.  con-leche's `find?`-then-`filter` and the arena's explicit recursion
 are the same answer: the first kind whose NAMES match decides, and the
 canonical comparison then keeps or drops it.
 
-**The statement takes no `.projInfo` hypothesis, and that is the round's
-finding about this theorem.**  The obvious route — `denoteCI_name_of` at every
-member of the incoming block — would ask for `CIProjNamed` of a STREAM record,
-and that clause travels through `checkDecl_bridge_ind`, `checkDecl_bridge`,
-the fold theorems and on to `ConRon.Capstone.model_exists`.  It
-is not needed: a block that matches a pin — by names or by canonical forms —
-can hold no projection table at all, because a table's name is a `.num` node
-(`projTableName T = (T.str "projTable").num 0`) and no pinned name is.  So the
-`.projInfo` case is DISCHARGED inside the theorem instead of hypothesised
-above it. -/
+**The statement takes no `.projInfo` hypothesis.**  The obvious route —
+`denoteCI_name_of` at every member of the incoming block — would ask for
+`CIProjNamed` of a STREAM record, and that clause travels through
+`checkDecl_bridge_ind`, `checkDecl_bridge`, the fold theorems and on to
+`ConRon.Capstone.model_exists`.  It is not needed: a block that matches a pin —
+by names or by canonical forms — can hold no projection table at all, because a
+table's name is a `.num` node (`projTableName T = (T.str "projTable").num 0`)
+and no pinned name is.  So the `.projInfo` case is DISCHARGED inside the theorem
+instead of hypothesised above it. -/
 theorem basisPinHitGo_run {block : List IConstantInfo} {b : List ConstantInfo} :
     ∀ (ks : List BasisKind) {r : Option BasisKind} {s s' : AState},
       StateOK s →
@@ -502,8 +501,8 @@ theorem basisPinHitGo_run {block : List IConstantInfo} {b : List ConstantInfo} :
 recogniser**: a stream block under a pinned name that matches the pin.  The
 arena's answer is con-leche's at the denoted block.
 
-**PROVED** (task #97-P3-Checker round 7), and at the statement round 1 wrote:
-no `.projInfo` hypothesis, see `basisPinHitGo_run`.  It is what `checkDecl`'s
+**Proof:** `basisPinHitGo_run`, at its statement: no `.projInfo`
+hypothesis.  It is what `checkDecl`'s
 `.indDecl` arm needs before it may hand the block to `IndSpec`. -/
 theorem basisPinHit_run {block : List IConstantInfo} {b : List ConstantInfo}
     {r : Option BasisKind} {s s' : AState} (hok : StateOK s)
@@ -517,7 +516,7 @@ theorem basisPinHit_run {block : List IConstantInfo} {b : List ConstantInfo}
 /-- con-leche: ConLeche/Kernel/Basis.lean:77-84 quotPinHit — the quotient
 package's four-record recogniser.
 
-**PROVED** (task #97-P3-Checker round 7): `BasisKind.decls_run` for the pinned
+**Proof:** `BasisKind.decls_run` for the pinned
 block, `toConstantVal_sstep` at the slot `QuotKind.slot` names, and
 `IConstantVal.canonEq_run`.  The `none` arm of the slot read is unreachable —
 the quotient block has five members and `slot` is below five. -/
@@ -569,7 +568,7 @@ The hypotheses are the four facts `installBasisDecl_bridge` actually reads —
 `StateOK`, `IFEnvOK`, `IFEnvCoh`, `denoteFEnv` — and NOT `FoldOK`: the fold
 cannot carry `FoldOK`, because `EnvWF` of the extended environment would ask
 for `ConstWF` of a basis constant and nothing in the install establishes one
-(round 6 §1's debt, which the basis route never pays and never needs).  So
+(nor needs to: the basis route never reads it).  So
 the step is `IFEnvOK.push`, `IFEnvCoh.push` and `denoteFEnv_push`, and the
 `.projInfo` premise of the first is discharged by `basis_declsA_no_proj`
 rather than carried. -/
@@ -624,7 +623,7 @@ theorem installBasisDecls_bridge :
 one body.  `Pushed` here is the block's length, which is the one place outside
 the inductive route where a step installs more than one constant.
 
-**PROVED** (task #97-P3-Checker round 7): `BasisKind.declsA_run`, then
+**Proof:** `BasisKind.declsA_run`, then
 `installBasisDecls_bridge`, with the `.quotK` precondition (`fe.find? eqName =
 some eqA`) read through `IFEnvOK.hit` at the freshly interned `ConLeche.eqA`
 — `internCI_fresh` plus `pinAt_run`, and `denoteN`/`denoteCI` being functions
@@ -692,8 +691,8 @@ theorem checkBasisDecl_bridge {μ : CheckMode} {env : Env}
 
 /-! ## The pin shape comparison
 
-Since con-leche's task #342 `matchesPin` is plain equality of the three
-fields, and the twin compares HANDLES: the readbacks are injective, so each
+con-leche's `matchesPin` is plain equality of the three fields, and the
+twin compares HANDLES: the readbacks are injective, so each
 handle comparison is the denotations' comparison.  The test only READS the
 store, so its frame is `s' = s`. -/
 
@@ -718,7 +717,7 @@ theorem beq_of_denote_inj {α β : Type} [BEq α] [LawfulBEq α] [BEq β]
       simp at hb
 
 /-- con-leche: ConLeche/Kernel/StdAxioms.lean:89-91 ConstantVal.matchesPin —
-**the pin comparison is con-leche's**: since task #342 it is plain equality of
+**the pin comparison is con-leche's**: it is plain equality of
 name, level parameters and type, and over handles each comparison is the
 denotations' (the readbacks are injective). -/
 theorem matchesPin_run {cv pin : IConstantVal} {c p : ConstantVal}
@@ -796,7 +795,7 @@ theorem view_run_of_some {h : EIdx} {s : AState} {v : ENodeView}
   simp only [view, bind, StateT.bind, get, getThe, MonadStateOf.get, StateT.get,
     pure, StateT.pure, Except.bind, Except.pure, hv]
 
-/-- con-leche: none — **the tag-first twin's test** (task #97-P5-Core round 4):
+/-- con-leche: none — **the tag-first twin's test**:
 `if h.tag == t then (view h >>= f) else e` runs as `view h >>= f` at a handle
 whose view is known, because on the `else` side the continuation's catch-all
 arm IS `e`. -/
@@ -1366,7 +1365,7 @@ theorem RunsB.matchCod {x : Option IConstantInfo} {y : Option ConstantInfo}
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (stdAxiomOk) — the standard
 axioms' environment shape test is con-leche's.
 
-**PROVED** (task #97-P3-Checker round 8): the `do`-block read link by link
+**Proof:** the `do`-block read link by link
 through the `RunsB` combinators — `pinAt_run` per pinned name, `IFEnvOK.findRel`
 per index lookup, `matchesPin_run` per shape
 comparison, and `IFEnvOK.find_beq_ind` for the `Eq` basis test. -/
@@ -1442,7 +1441,7 @@ theorem stdAxiomOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (trustCompilerOk) — the
 `Lean.trustCompiler` environment shape test is con-leche's.
 
-**PROVED** (task #97-P3-Checker round 8): exactly as `stdAxiomOk_run`. -/
+**Proof:** exactly as `stdAxiomOk_run`. -/
 theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}
     (hok : FoldOK μ env fe s) (hcv : Frontend.denoteCV s.store cvA = some c)
@@ -1472,7 +1471,7 @@ theorem trustCompilerOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 /-- con-leche: ConLeche/Kernel/DeclCheck.lean (ofReduceAxOk) — the
 `Lean.ofReduceNat`/`ofReduceBool` environment shape test is con-leche's.
 
-**PROVED** (task #97-P3-Checker round 8): `ofReduceOp_run`, the `Eq` basis
+**Proof:** `ofReduceOp_run`, the `Eq` basis
 test, then `reduceElemOk_run` / `reduceStoredOk_run` and the pinned type. -/
 theorem ofReduceAxOk_run {μ : CheckMode} {env : Env} {fe : IFEnv}
     {cvA : IConstantVal} {c : ConstantVal} {r : Bool} {s s' : AState}

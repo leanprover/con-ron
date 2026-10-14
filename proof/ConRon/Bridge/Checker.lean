@@ -14,7 +14,7 @@ In dependency order:
   rather than inside `Base.lean` because **`Bridge/Inductives/Rel.lean`
   imports it too**: `structPartsCore?` and `nativeShape?` test
   `reserved.contains`, and the inductive tier cannot import `Base.lean`
-  (task #97-P3-Layout);
+  (DESIGN `### Task #97-P3-Layout`);
 * `Bridge/Checker/Hyp.lean` — the two named hypotheses, `KnotSpec` (the Core
   tier's) and `IndSpec` (the Inductives tier's);
 * `Bridge/Checker/Decl.lean` — what an arm concludes (`DeclOut`) and what
@@ -24,8 +24,7 @@ In dependency order:
   where their content is, and those three import `Decl.lean`;
 * `Bridge/Checker/Mono.lean` — one fuel for the whole fold, from con-leche's
   `FueledM`;
-* `Bridge/Checker/Fold.lean` — **`Arena.checkDecl_bridge`** (the sequential
-  fold and its capstone letters were deleted by task #97-T2-CLEANUP; the
+* `Bridge/Checker/Fold.lean` — **`Arena.checkDecl_bridge`** (one step; the
   binary's fold is `Split.lean`'s and `Phased.lean`'s);
 * `Bridge/Checker/Base.lean`, `Canon.lean`, `Basis.lean`, `Pins.lean`,
   `DeclVal.lean` — the specs of `Arena/{CheckerBase,Canon,Basis,StdAxioms,

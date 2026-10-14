@@ -11,8 +11,8 @@
 >   at.  con-leche proves the two are the same accept
 >   (`fullyChecked_checkDecls`).
 
-`Bridge/Checker/Fold.lean` proves Theorem 1 for `checkDeclsPure`.  This module
-is what carries it to `installThenCheck`, and it is the history report's
+`Bridge/Checker/Fold.lean` proves Theorem 1 for one `checkDecl` step.  This
+module is what carries it to `installThenCheck`, and it is the history report's
 **fine print 5** in full:
 
 > If the foreign core wants the two-phase install-then-check fold rather than
@@ -21,8 +21,8 @@ is what carries it to `installThenCheck`, and it is the history report's
 > prefix-view congruence (`KnotCongr.lean:543`,
 > `mkFEnv_find?_visibleBelow`).
 
-Both exist in con-leche at `78ded4b6` and neither has to be re-derived — they
-have to be *reached*:
+Both exist in con-leche and neither has to be re-derived — they have to be
+*reached*:
 
 * `ConLeche.checkDecl_of_split_defn` / `_thm` / `_opaque`
   (`Verify/CheckerSplit.lean:276` / `:303` / `:324`) take the install half and
@@ -40,7 +40,7 @@ have to be *reached*:
 ## The three-way fuel
 
 `checkDecl_of_split_*` take the check half at ONE fuel (the install halves are
-pure guards since con-leche's task #342), and the fold raises each owed check
+pure guards in con-leche), and the fold raises each owed check
 with `checkValueGroup_mono` (this module's, off con-leche's inversion) before
 combining.  `Bridge/Checker/Mono.lean`'s
 `checkDecl_mono` is the same idea one level up, and the fold here needs both.
@@ -67,9 +67,8 @@ set_option autoImplicit false
 /-! ## The install half -/
 
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader — the
-PURE half: eight guards accepted means con-leche's install accepts.  Since
-con-leche's task #342 there is no annotation: the header is stored as
-declared. -/
+PURE half: eight guards accepted means con-leche's install accepts.  There is
+no annotation: the header is stored as declared. -/
 theorem installHeader_pure {env : Env} {c : ConstantVal}
     (h1 : env.find? c.name = none)
     (h2 : ConLeche.reservedBasisNames.contains c.name = false)
@@ -87,7 +86,7 @@ theorem installHeader_pure {env : Env} {c : ConstantVal}
 /-- con-leche: ConLeche/Kernel/CheckerSplit.lean:63-81 installHeader — the
 header's guards, without the inference.
 
-**PROVED** (task #97-P3-Checker round 4): the eight guards of
+The proof runs the eight guards of
 `checkConstantVal_bridge` (`Bridge/Checker/Base.lean`), stopping before the
 inference and the sort test — con-leche's own `installHeader` is
 `checkConstantVal` minus exactly those two calls.  No core call, so the frame
@@ -222,12 +221,10 @@ theorem installHeader_bridge {μ : CheckMode} {env : Env}
 **the check half of a value declaration**, at the environment the constant was
 installed at.
 
-**THE STATEMENT WAS UNDER-HYPOTHESISED, and the two `WScoped` clauses are
-the repair** (task #97-P3-Checker round 5 — the campaign's seventh statement
-defect in this tier, found by taking the proof on).  `checkValueGroup`'s FIRST
+**Why the two `WScoped` hypotheses.**  `checkValueGroup`'s FIRST
 operation is `inferTypeCore … 0 g.cv.type`, and the only route from an arena
 core run to con-leche's is `KnotSpec.infer`, whose precondition is
-`Expr.WScoped 0` of the DENOTED argument.  Nothing in round 1's hypotheses
+`Expr.WScoped 0` of the DENOTED argument.  Nothing else in the hypotheses
 delivers it: `FoldOK` speaks about the environment and the store, not about a
 pending record's header, and `gP.cv` is not (as far as this statement says) a
 constant of `env`, so `EnvWF`'s `hasFvar = false` clause does not reach it
@@ -239,14 +236,13 @@ both clauses are free at the one call site: phase A's `installHeader` and
 `installValueGuards` test exactly that guard.  `Arena.checkPending_bridge` is where they are
 discharged.
 
-**PROVED** (task #97-P3-Checker round 6), on
-`Bridge/Checker/DeclVal.lean`'s `checkThmVal_bridge` machinery: the same
-`KnotSpec.infer` / `EnsureSortSpec` / `pinZeroLevel_spec` / `lvlEq?_spec` /
-`installValueGuards_bridge` / `KnotSpec.defeq` chain, with the theorem's
-guards behind the kind test rather than in front of it.  The two branches are joined
-into ONE postcondition (`step3` in the proof) before the value's inference
-runs, which is round 3's rule — never carry a branch-dependent invariant along
-the rest of a do-block.  Task #97-P3-Checker's sorry list, item 17, closed. -/
+**The proof** runs on `Bridge/Checker/DeclVal.lean`'s `checkThmVal_bridge`
+machinery: the same `KnotSpec.infer` / `EnsureSortSpec` / `pinZeroLevel_spec` /
+`lvlEq?_spec` / `installValueGuards_bridge` / `KnotSpec.defeq` chain, with the
+theorem's guards behind the kind test rather than in front of it.  The two
+branches are joined into ONE postcondition (`step3` in the proof) before the
+value's inference runs, by the tier's rule: never carry a branch-dependent
+invariant along the rest of a do-block. -/
 theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
     {fe : IFEnv} {g : Arena.ValueGroup} {gP : ConLeche.ValueGroup}
     {s s' : AState} (_hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
@@ -289,8 +285,8 @@ theorem checkValueGroup_bridge {μ : CheckMode} {env : Env}
   have hjv2 : denoteE s2.store g.jv = some gP.jv := denote_ext hjv hext2
   -- **The kind test copies the tail into both arms**, so the tail is a local
   -- lemma rather than a continuation: the value's inference and the
-  -- conversion, at whatever the arm knows about the value.  (Round 3's rule,
-  -- at a branch instead of at a loop.)
+  -- conversion, at whatever the arm knows about the value.  (The same rule:
+  -- no branch-dependent invariant along the rest of the block.)
   have tail : ∀ (sA : AState),
       CheckOK μ env fe sA → Ext s2.store sA.store → sA.pins = s2.pins →
       Expr.WScoped 0 gP.jv →
@@ -407,9 +403,8 @@ theorem IFEnv.restrictTo_find?_le {fe : IFEnv} {k : Nat}
     -- at `(fe.restrictTo k).visibleBelow`, so neither `rw [ite_eq_left hc]` nor
     -- `simp only [ite_eq_left hc]` matches.  The two are defeq, so a `have` with
     -- the type written out re-elaborates it at the canonical instance and
-    -- everything below is ordinary (task #97-P3-Checker round 6; the
-    -- fragility surfaced when `Core/Walks/Cached.lean` entered this module's
-    -- import closure).
+    -- everything below is ordinary (the mismatch appears with
+    -- `Core/Walks/Cached.lean` in this module's import closure).
     have hh : (if c0 < k then some ci0 else none) = some ci := h
     by_cases hc : c0 < k
     · rw [ite_eq_left hc] at hh
@@ -574,13 +569,13 @@ the environment the record was installed at.
 The `Nodup` side condition is con-leche's own and it is the accumulated
 duplicate test of `checkConstantVal`; the fold carries it.
 
-**RESTATED** (task #97-P3-Checker round 5, on round 4's finding).  Round 4's
-conclusion was
+**Why it is stated about the INDEX, not the denotation.**  The
+denotation-shaped statement
 
     ∃ envK, denoteFEnv s.store (fe.restrictTo k) = some envK ∧
       envK.find? = (env.prefixTo k).find?
 
-and it is FALSE.  `IFEnv.restrictTo k` is `{ fe with visibleBelow := k }` — a
+is FALSE.  `IFEnv.restrictTo k` is `{ fe with visibleBelow := k }` — a
 change to the INDEX's bound and to nothing else — while `denoteFEnv st fe` is
 `denoteIEnv st fe.env`, which reads `fe.env.consts` and ignores `idx` and
 `visibleBelow` entirely.  So `denoteFEnv s.store (fe.restrictTo k)
@@ -592,13 +587,12 @@ con-leche's own `mkFEnv_find?_visibleBelow` is a statement about `FEnv.find?`,
 not about a denotation — *"looking a name up in the full index with the bound
 `k` is looking it up in the environment truncated to its first `k` installed
 constants"* — and the arena twin of that is a statement about the INDEX.  That
-is what stands here now, and it is what the one consumer
+is what stands here, and it is what the one consumer
 (`Arena.checkPending_bridge`, phase B, which calls the core at
 `fe.restrictTo pc.vis`) actually needs: the Core tier's hypotheses are
 `IFEnvOK`-shaped, not denotation-shaped.
 
-**PROVED** (task #97-P3-Checker round 5, in the same round as the
-restatement).  `proj` is immediate: `hk` makes every hit of the restricted
+**The proof.**  `proj` is immediate: `hk` makes every hit of the restricted
 view a hit of `fe` (`IFEnv.restrictTo_find?_le`), so `FoldOK`'s own
 `IFEnvOK.proj` applies.  `hit` and `cover` are con-leche's `idxBelow_eq` at a
 DENOTED list: `mkIFEnvGo_below` and `mkIFEnvGo_below_of` above turn the
@@ -677,7 +671,7 @@ theorem IFEnvOK_restrictTo {μ : CheckMode} {env : Env} {fe : IFEnv}
   · intro n t hf
     exact hok.check.ienv.proj n t (IFEnv.restrictTo_find?_le hk hf)
 
-/-! ## The two-phase fold, skeletonised (task #97-P3-Checker round 8)
+/-! ## The two-phase fold
 
 `installThenCheck` is phase A (`installFold`) then phase B (`checkPendingList`),
 and `checkDeclsPure` is ONE fold of `checkDecl`.  The bridge between them is
@@ -688,7 +682,7 @@ value declaration's install halves at `env`, plus its check half at the SAME
 1. **the pure record of phase A**, `PhaseA` — per declaration either a full
    `checkDecl` step, or the install halves (`SplitInstall`) leaving the pair
    `(env, vg)` owed a check — and `PhaseA.foldlM`, which pays every owed
-   check and returns `checkDecl`'s fold.  Pure, con-leche only: PROVED;
+   check and returns `checkDecl`'s fold.  Pure, con-leche only;
 2. **phase A over handles**, `Arena.installFold_bridge`, by induction over
    `Arena.installStep_split` (one step: the four arms and the bracket);
 3. **phase B over handles**, `Arena.checkPendingList_bridge`, by induction
@@ -722,7 +716,7 @@ def KindRel (a : Arena.ValueKind) (b : ConLeche.ValueKind) : Prop :=
 /-- con-leche: ConLeche/Verify/CheckerSplit.lean:275-345 checkDecl_of_split_* —
 the install halves of a separable value declaration, as the three lemmas'
 premises: what phase A ran, at `env`, for record `d`, leaving `vg` and the
-extended environment `env'`.  Since con-leche's task #342 the halves are pure
+extended environment `env'`.  The halves are pure
 guards (`installHeader`, `installValueGuards`): the fuel `_F` is the check
 half's, carried for `PhaseA`'s shape. -/
 def SplitInstall (_μ : CheckMode) (_F : Nat) (env : Env) (d : Declaration)
@@ -781,9 +775,9 @@ theorem SplitInstall.mono {μ : CheckMode} {F F' : Nat} (_hle : F ≤ F')
     (h : SplitInstall μ F env d vg env') : SplitInstall μ F' env d vg env' := h
 
 /-- con-leche: ConLeche/Verify/CheckerSplit.lean:127-213 checkValueGroup_inv /
-checkValueGroup_of_facts — the check half at a larger fuel (con-leche dropped
-its `checkValueGroup_mono` with task #342; this is its proof, off the
-inversion and the core walks' monotonicity). -/
+checkValueGroup_of_facts — the check half at a larger fuel (con-leche states no
+`checkValueGroup_mono`; this proves it off the inversion and the core walks'
+monotonicity). -/
 theorem checkValueGroup_mono {μ : CheckMode} {F F' : Nat} (hle : F ≤ F')
     {env : Env} {vg : ConLeche.ValueGroup}
     (h : ConLeche.checkValueGroup (ConLeche.fueledOps μ F) env vg = .ok ()) :
@@ -796,8 +790,8 @@ theorem checkValueGroup_mono {μ : CheckMode} {F F' : Nat} (hle : F ≤ F')
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:628-632 checkDeclsPure — **phase A
 with every owed check paid is `checkDecl`'s fold**, at one fuel (and every
-larger one).  PROVED: an induction over `PhaseA`, `SplitInstall.checkDecl` at
-each split step, the fuels raised to one `max`. -/
+larger one).  The proof: an induction over `PhaseA`, `SplitInstall.checkDecl`
+at each split step, the fuels raised to one `max`. -/
 theorem PhaseA.foldlM {μ : CheckMode} {pinsP : List NatOpPinSet}
     {env : Env} {ds : List Declaration} {env' : Env}
     {pend : List (Env × ConLeche.ValueGroup)} (h : PhaseA μ pinsP env ds env' pend)
@@ -867,13 +861,13 @@ theorem PendRel.prefix {st : EStore} {envF : Env} {pc : PendingCheck}
   exact Env.prefixTo_of_extends hn
 
 /-! `checkDecl_nodup` — the pure fold keeps names unique — is
-`Bridge/Checker/Nodup.lean`'s (task #97-P3-Checker round 9: PROVED off
-con-leche's `DeclRun`, arm by arm). -/
+`Bridge/Checker/Nodup.lean`'s (proved off con-leche's `DeclRun`, arm by
+arm). -/
 
 /-- con-leche: ConLeche/Verify/CheckerSplit.lean:30-77 installHeader_inv — a
 split install pushes one constant whose name the environment did not have.
 
-PROVED: `installHeader_inv`'s `find?` miss. -/
+The proof: `installHeader_inv`'s `find?` miss. -/
 theorem SplitInstall.nodup {μ : CheckMode} {F : Nat} {env env' : Env}
     {d : Declaration} {vg : ConLeche.ValueGroup}
     (h : SplitInstall μ F env d vg env') (hnd : NodupNames env) :
@@ -1177,8 +1171,7 @@ theorem namesDistinct_of_denote {st : EStore} :
 /-- con-leche: none — **the full `checkDecl` arm's pushed environment is well
 formed, and every projection table of the pushed index is well shaped**.
 
-PROVED (task #97-P3-Checker round 10), from `DeclOut`'s two round-10 clauses
-(the coordinator's ruling on round 9's finding): `envWF` at the one
+The proof is `DeclOut`'s `envWF` and `proj` clauses: `envWF` at the one
 denotation, and `proj`, whose old tables are the incoming index's —
 `FoldOK.projMem` under name uniqueness, carried across the arm's `Ext`.  The
 arms prove the two clauses off their pure run (`DeclCore.out`,
@@ -1244,10 +1237,10 @@ bracket's opening left, deliver what the close needs (`BodyOut`) and the
 pure half the fold rebuilds `checkDecl` from — a full `checkDecl` step, or a
 split install owing the value group it returns.
 
-PROVED (task #97-P3-Checker round 9) for the three split arms
-(`installHeader_bridge`, `installValueGuards_bridge`, `StepOK`'s push lemmas at
-one pushed constant) and, for every other arm, from `Arena.installStepGo_full`,
-whose `Arena.checkDecl_wfProj` is the open child. -/
+The proof: for the three split arms, `installHeader_bridge`,
+`installValueGuards_bridge` and `StepOK`'s push lemmas at one pushed
+constant; for every other arm, `Arena.installStepGo_full`, which reaches
+`Arena.checkDecl_wfProj`. -/
 theorem Arena.installStepGo_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {fe fe1 : IFEnv} {vg? : Option Arena.ValueGroup}
@@ -1445,21 +1438,18 @@ what the fold needs to rebuild `checkDecl` — a full step's `checkDecl` at
 `PendRel` — and the two frame facts phase B reads (the caches are empty after
 the bracket's `dropScratch`; the environment only grows).
 
-**SKELETONISED** (task #97-P3-Checker round 9): the bracket is PROVED —
-`FoldOK.enter` for the opening, `promoteVG_spec` for the split arms' record,
-and `bracketClose_foldOK` (`promoteNew_spec`, `promoteNew_pushed`,
-`promoteNew_projOK`, `promoteBracket_close`) for the close — around ONE child,
-`Arena.installStepGo_bridge`, the step body.
+**The proof** is the bracket — `FoldOK.enter` for the opening, `promoteVG_spec`
+for the split arms' record, and `bracketClose_foldOK` (`promoteNew_spec`,
+`promoteNew_pushed`, `promoteNew_projOK`, `promoteBracket_close`) for the close
+— around ONE child, `Arena.installStepGo_bridge`, the step body.
 
-**The statement gained `hnd : NodupNames env`** (a precondition repair, round
-9): the close's `IFEnvOK_of_denote` needs every stored table of the pushed
-index well shaped, and `FoldOK` states that only for tables a LOOKUP reaches;
-under name uniqueness the two agree (`FoldOK.projMem`).  The fold has it
-(`PhaseA.nodup` from the empty environment, carried by
-`Arena.installFold_bridge`).  **And `hpd : PersDecl pd`**: the record must be
-persistent for its denotation to survive the opening `enterScratch` —
-the deleted `Arena.checkDeclStep_bridge` had the same repair; the fold carries it
-(`Arena.installFold_bridge`'s `hpd`). -/
+**Why `hnd : NodupNames env`**: the close's `IFEnvOK_of_denote` needs every
+stored table of the pushed index well shaped, and `FoldOK` states that only for
+tables a LOOKUP reaches; under name uniqueness the two agree
+(`FoldOK.projMem`).  The fold has it (`PhaseA.nodup` from the empty
+environment, carried by `Arena.installFold_bridge`).  **And `hpd : PersDecl
+pd`**: the record must be persistent for its denotation to survive the opening
+`enterScratch`; the fold carries it (`Arena.installFold_bridge`'s `hpd`). -/
 theorem Arena.installStep_split {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
     {i : Nat} {fe fe' : IFEnv} {pend pend' : Array PendingCheck}
@@ -1585,7 +1575,7 @@ theorem ListRel.snoc {α β : Type} {R : α → β → Prop} :
 **phase A over handles**: an accepting `installFold` is a pure `PhaseA` whose
 owed checks are the arena's pending records, related one for one.
 
-PROVED from `Arena.installStep_split`: an induction over the records, the
+The proof: `Arena.installStep_split` and an induction over the records, the
 relation carried across each bracket by `PendRel.listRel_mono`. -/
 theorem Arena.installFold_bridge {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet}
@@ -1713,21 +1703,21 @@ it without a `find?`-congruence of the whole pure core that con-leche does not
 state.  It is available here directly: `IFEnvOK_restrictTo` gives the index
 invariant AT `env.prefixTo pc.vis`, so the knot is instantiated there.
 
-PROVED (task #97-P3-Checker round 9): `IFEnvOK_prefix` (`IFEnvOK_restrictTo`,
+The proof: `IFEnvOK_prefix` (`IFEnvOK_restrictTo`,
 its `hproj` from `FoldOK.projMem` — every stored table IS a lookup's answer
 under name uniqueness), carried into the fresh scratch tier by
 `IFEnvOK.pmono`, `checkValueGroup_bridge` at the prefix, then the bracket
 with nothing to promote — `PExt.enterScratch` / `PExt.dropScratch` and
 `FoldOK` across them.
 
-**The statement's `hckK : CacheOK μ (env.prefixTo pc.vis) s` became
-`hcE : s.caches = Caches.empty`** (a precondition repair, round 9).
-`checkPending` opens with `enterScratch`, which REPLACES the scratch tier by
-an empty one and keeps the caches; a cache row valid at `s` whose handles are
-scratch handles names nothing — or, once the check interns again, something
-else — after it, so `CacheOK` at `s` does not survive the opening and the
-theorem was not provable from it.  The call site has the stronger fact: every
-`checkPending` follows a `dropScratch` (`checkPendingList_bridge`'s `hc`). -/
+**Why `hcE : s.caches = Caches.empty` and not `CacheOK μ (env.prefixTo
+pc.vis) s`.**  `checkPending` opens with `enterScratch`, which REPLACES the
+scratch tier by an empty one and keeps the caches; a cache row valid at `s`
+whose handles are scratch handles names nothing — or, once the check interns
+again, something else — after it, so `CacheOK` at `s` does not survive the
+opening and the theorem is not provable from it.  The call site has the
+stronger fact: every `checkPending` follows a `dropScratch`
+(`checkPendingList_bridge`'s `hc`). -/
 theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
     {fe : IFEnv} {pc : PendingCheck} {gP : ConLeche.ValueGroup} {s s' : AState}
     (hμ : μ.verifiedChecks = true) (hk : CoreSpec μ Arena.checkFuel)
@@ -1790,7 +1780,7 @@ theorem Arena.checkPending_prefix {μ : CheckMode} {env : Env}
 **phase B over handles**: every owed check of phase A is paid, at the
 environment it was owed at.
 
-PROVED from `Arena.checkPending_prefix`: an induction over the records;
+The proof: `Arena.checkPending_prefix` and an induction over the records;
 each check leaves the caches empty (`dropScratch`), which is the next check's
 `CacheOK` at ITS prefix. -/
 theorem Arena.checkPendingList_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}

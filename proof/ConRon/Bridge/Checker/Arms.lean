@@ -1,14 +1,13 @@
 /-
-# `ConRon.Bridge.Checker.Arms` — `checkDecl`'s seven arms, PROVED
+# `ConRon.Bridge.Checker.Arms` — `checkDecl`'s seven arms
 
 `Bridge/Checker/Decl.lean` states what an arm concludes (`DeclOut`) and what
 relates the two pin lists (`PinsDenote`); this module is the seven arms
-themselves, and **all seven are PROVED** — every one is an ASSEMBLY, a chain
+themselves.  Every one is an ASSEMBLY, a chain
 of `AM.bind_ok` inversions over statements that live one tier down, closed by
-a pure step lemma about con-leche's own `checkDecl` clause.  The module has no
-`sorry`, and neither do the leaves below it (the tier is closed).
+a pure step lemma about con-leche's own `checkDecl` clause.
 
-**Why the arms are not in `Decl.lean`** (task #97-P3-Checker-2).  An arm's
+**Why the arms are not in `Decl.lean`.**  An arm's
 content is `Bridge/Checker/Base.lean`'s `checkConstantVal_bridge`,
 `Bridge/Checker/DeclVal.lean`'s three value checks and two pin gates, and
 `Bridge/Checker/Basis.lean`'s recognisers and installs — and all three of
@@ -27,8 +26,8 @@ imports this module beside `Mono.lean`.
 
 The `FoldOK` that each step after the first needs is rebuilt from the previous
 step's `CoreStep`/`Ext` by `denoteFEnv_pext` and `PersPins.mono`; that
-bookkeeping is `FoldOK.step` below, which is the only thing in this module
-that is not a transcription.
+bookkeeping is `FoldOK.step` (`Bridge/Checker/Inv.lean`) and `FoldOK.ofCore`
+below.
 -/
 import ConRon.Bridge.Checker.DivMod
 import ConRon.Bridge.Checker.Basis
@@ -42,9 +41,9 @@ set_option autoImplicit false
 
 /-! ## Carrying the fold's invariant across a step
 
-`FoldOK.step` moved down to `Bridge/Checker/Inv.lean` beside `FoldOK` itself
-(task #97-P3-Checker round 6): `Bridge/Checker/DeclVal.lean`'s
-`checkThmVal_bridge` needs it, and that module is BELOW this one. -/
+`FoldOK.step` lives in `Bridge/Checker/Inv.lean` beside `FoldOK` itself:
+`Bridge/Checker/DeclVal.lean`'s `checkThmVal_bridge` needs it, and that
+module is BELOW this one. -/
 
 /-- con-leche: none — the same at a `CoreStep`, which is what every core
 consumer hands back. -/
@@ -52,9 +51,9 @@ theorem FoldOK.ofCore {μ : CheckMode} {env : Env} {fe : IFEnv} {s s' : AState}
     (h : FoldOK μ env fe s) (hc : CoreStep μ env fe s s') :
     FoldOK μ env fe s' := h.step hc.ok hc.ext hc.pins
 
-/-! ## `DeclOut`'s two round-10 clauses, off the pure run
+/-! ## `DeclOut`'s environment and projection-table clauses, off the pure run
 
-Task #97-P3-Checker round 10.  Off the inductive route, both clauses are
+Off the inductive route, both clauses are
 read off the PURE step the arm already proves (`DeclCore.run`): con-leche's
 run relation says the step pushed only non-table constants, each well formed
 (`checkDecl_wf_pure`, `Bridge/Checker/DeclWF.lean`), and the pushed front of
@@ -90,7 +89,7 @@ theorem projMem_of_noTower {st : EStore} {fe fe' : IFEnv} {env env' : Env}
 
 /-- con-leche: ConLeche/Semantics/Bridge/Sound.lean:49 checkDeclRun_ofEnvFactsK
 — **an arm off the inductive route owes nothing more than its six clauses**:
-the two round-10 clauses follow from the pure run (`checkDecl_wf_pure`) and
+the `envWF` and `proj` clauses follow from the pure run (`checkDecl_wf_pure`) and
 the incoming `FoldOK`'s `EnvWF`. -/
 theorem DeclCore.out {μ : CheckMode} {pinsP : List NatOpPinSet} {env : Env}
     {d : Declaration} {s : AState} {fe fe' : IFEnv} {s' : AState}
@@ -108,8 +107,8 @@ theorem DeclCore.out {μ : CheckMode} {pinsP : List NatOpPinSet} {env : Env}
 
 /-! ## The pure side's step lemmas
 
-Task #97-P3-Core §5's rule 8: one lemma per CLAUSE of con-leche's `checkDecl`,
-stated in the shape the arm's last tactic produces. -/
+DESIGN `### Task #97-P3-Core` §5's rule 8: one lemma per CLAUSE of con-leche's
+`checkDecl`, stated in the shape the arm's last tactic produces. -/
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:486-489 checkDecl (the `.thmDecl`
 arm). -/
@@ -371,7 +370,7 @@ theorem checkDecl_axiom_sorryAx_pure {μ : CheckMode} {F : Nat}
     ite_false, ite_eq_right h3, ite_eq_right h4, ite_eq_right h5, ite_eq_left h6, bind, Except.bind,
     pure, Except.pure]
 
-/-! ## The pin gates' pre-insertion view (task #97-T2-LOCKSTEP lane Checker round 2)
+/-! ## The pin gates' pre-insertion view
 
 The twin runs `checkDecl`'s three pin gates at `fe2.restrictTo
 fe.visibleBelow`, as the Rust does (`restrict(fe2, k_pre)`).  Every gate lemma
@@ -429,7 +428,7 @@ theorem restrict_pushed_find {fe fe2 : IFEnv} {ci : IConstantInfo}
 /-- con-leche: ConLeche/Kernel/Checker.lean:441-484 checkDecl (the `.defnDecl`
 arm) — a definition, with the two `Nat`-operation pin gates behind it.
 
-**PROVED** (task #97-P3-Checker-2), and the widest of the seven to assemble:
+The widest of the seven to assemble:
 Lean's `do` elaborator copies the tail into both arms of BOTH gates, so
 con-leche's clause has four leaves — structural-`Nat` taken or not ×
 `Nat.div`/`Nat.mod` taken or not — and each needs its own pure step lemma.
@@ -672,7 +671,7 @@ theorem checkDecl_bridge_defn {μ : CheckMode}
 /-- con-leche: ConLeche/Kernel/Checker.lean:486-489 checkDecl (the `.thmDecl`
 arm).
 
-**PROVED** (task #97-P3-Checker-2): `checkConstantVal_bridge` and
+**Proof:** `checkConstantVal_bridge` and
 `checkThmVal_bridge`, at one fuel. -/
 theorem checkDecl_bridge_thm {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
@@ -708,7 +707,7 @@ theorem checkDecl_bridge_thm {μ : CheckMode}
 /-- con-leche: ConLeche/Kernel/Checker.lean:491-500 checkDecl (the
 `.opaqueDecl` arm), with the compiler-trust `reduce*` gate behind it.
 
-**PROVED** (task #97-P3-Checker-2): the front door, the value check, and the
+**Proof:** the front door, the value check, and the
 compiler-trust gate behind a `contains` test that `denoteNList_contains` makes
 con-leche's. -/
 theorem checkDecl_bridge_opaque {μ : CheckMode}
@@ -800,7 +799,7 @@ theorem checkDecl_bridge_opaque {μ : CheckMode}
 the standard axioms, `Lean.trustCompiler`, the two `ofReduce*` axioms, the two
 positively-declined standard shapes and `sorryAx`.
 
-**PROVED** (task #97-P3-Checker-2): six exits, assembled — `pinAt_run` and
+**Proof:** six exits, assembled — `pinAt_run` and
 `beq_handle_iff` for each pinned-name test, `BasisKind.decls_run` +
 `IConstantInfo.canonEq_run` for the `Quot.sound` comparison,
 `checkConstantVal_bridge` for the front door, the three shape tests for the
@@ -1029,7 +1028,7 @@ theorem checkDecl_bridge_axiom {μ : CheckMode}
 /-- con-leche: ConLeche/Kernel/Checker.lean:562 checkDecl (the `.basisDecl`
 arm) — the fold's own pinned-block record.
 
-**PROVED** (task #97-P3-Checker-2): the arm IS `checkBasisDecl`, on both
+**Proof:** the arm IS `checkBasisDecl`, on both
 sides. -/
 theorem checkDecl_bridge_basis {μ : CheckMode}
     {pins : List INatOpPinSet} {pinsP : List NatOpPinSet} {env : Env}
@@ -1050,7 +1049,7 @@ arm) — **the one arm this tier does not own**.  The recogniser
 (`basisPinHit`) is `Bridge/Checker/Basis.lean`'s and the route behind it is
 `IndSpec`, the named hypothesis.
 
-**PROVED** (task #97-P3-Checker-2): `basisPinHit_run` for the recogniser,
+**Proof:** `basisPinHit_run` for the recogniser,
 then `checkBasisDecl_bridge` on the pinned route and `IndSpec.run` verbatim on
 the other — the only one of the seven whose remaining content is a
 *hypothesis* rather than a proof. -/
@@ -1090,7 +1089,7 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
   | none =>
     obtain ⟨hst, hx, hp, hcoh, hpush, hvis, env', F, hden, hpure, -⟩ :=
       hind.run (pinsP := pinsP) hok1 hb1 hr1.symm r1
-    -- the two round-10 clauses: the Inductives tier's, through `IndSpec.wf`
+    -- the `envWF` and `proj` clauses: the Inductives tier's, through `IndSpec.wf`
     obtain ⟨hwfI, hprojI⟩ := (IndSpec.wf hμ hind).run hok1 hb1 hr1.symm r1
     exact
       { state := hst
@@ -1106,7 +1105,7 @@ theorem checkDecl_bridge_ind {μ : CheckMode}
 arm) — the four-record quotient package, the first matching record installing
 the pinned block whole.
 
-**PROVED** (task #97-P3-Checker-2): `quotPinHit_run` for the recogniser and
+**Proof:** `quotPinHit_run` for the recogniser and
 `checkBasisDecl_bridge` for the `.type` record's install; the other four
 kinds install nothing, so their `Pushed` is `refl` and their environment is
 the one they arrived at. -/

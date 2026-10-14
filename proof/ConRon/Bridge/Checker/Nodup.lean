@@ -1,12 +1,12 @@
 /-
 # `ConRon.Bridge.Checker.Nodup` — the pure checker keeps names unique
 
-`Bridge/Checker/Split.lean`'s `checkDecl_nodup` (task #97-P3-Checker round 8's
-child, closed in round 9): an accepted `ConLeche.checkDecl` step keeps the
-environment's names pairwise distinct.  con-leche proves this for its CACHED
-driver only (`Verify/Cached/PushChain.lean`'s `PushChain`, over `FEnv`); the
-two-phase fold's bridge needs it for the PURE checker, which is what phase A's
-`PhaseA` records.
+`Bridge/Checker/Split.lean`'s `checkDecl_nodup`: an accepted
+`ConLeche.checkDecl` step keeps the environment's names pairwise distinct.
+con-leche proves this for its CACHED driver only
+(`Verify/Cached/PushChain.lean`'s `PushChain`, over `FEnv`); the two-phase
+fold's bridge needs it for the PURE checker, which is what phase A's `PhaseA`
+records.
 
 The proof reads the run off con-leche's own run relation, `DeclRun`
 (`checkDeclRun_ofEnvFactsK`), whose records already carry every duplicate

@@ -2,48 +2,33 @@
 # `ConRon.Bridge.Checker.Names` — the reserved-name list, and the two readers
 under it
 
-**Why this module exists** (task #97-P3-Layout).  `reservedBasisNames_run`
-below is read by two tiers that do not see each other.  The checker tier's
+**Why this module exists.**  `reservedBasisNames_run` below is read by two
+tiers that do not see each other.  The checker tier's
 `Bridge/Checker/Base.lean` uses it for `checkConstantVal_bridge`'s second
 guard; the inductive tier's `Bridge/Inductives/StructParts.lean` needs it for
 `structPartsCore?_spec`, `structPartsCore?_isSome` and `nativeShape?_spec` —
 `structPartsCore?` tests `reserved.contains T`, `reserved.contains C` and
-`reserved.contains cvR.name`, and `nativeShape?` tests two of the same.  It
-used to live in `Base.lean`, which `Bridge/Inductives/**` does not import and
-must not (the checker tier's `.indDecl` arm imports the inductive tier back),
-so those three statements were blocked on an import wall with no missing
-proof (task #97-P3-Ind round 5, §R5.5 item 1).
+`reserved.contains cvR.name`, and `nativeShape?` tests two of the same.
+`Bridge/Inductives/**` does not import `Base.lean` and must not (the checker
+tier's `.indDecl` arm imports the inductive tier back), so the theorem lives
+here, in the one place both tiers see — `Bridge/Checker/Inv.lean` plus
+`Bridge/Specs.lean` plus `Bridge/Checker/Hyp.lean`, the common prefix of
+`Base.lean`'s imports and of `Bridge/Inductives/Rel.lean`'s.
 
-Restating it in the inductive tier was not an option: round 3 of the checker
-tier measured `reservedBasisNames_run` at **63 seconds** in its first shape,
-and the note on the theorem below is where that lesson is written down.  So
-the theorem moved DOWN instead, to the one place both tiers already see —
-`Bridge/Checker/Inv.lean` plus `Bridge/Specs.lean`, which is the common
-prefix of `Bridge/Checker/Hyp.lean` (what `Base.lean` imports) and of
-`Bridge/Inductives/Rel.lean`'s imports.
-
-**What came with it**, because none of it can be restated any more cheaply
-than the theorem itself:
+**What lives here with it**, for the same reason:
 
 | | |
 |---|---|
-| `pinAt_run` | the pin-table reader — six of the nineteen steps |
-| `PinStep` and its three laws | the frame every step shares |
-| `internName_run` | the intern — thirteen of the nineteen steps |
-| `denoteNL_snoc` | the shape the note forbids, kept because the fact is right |
+| `pinAt_run` | the pin-table reader |
+| `PinStep`, `PinStep.refl` | the frame of a pin read |
 | `denoteNL_toList`, `reservedBasisNameValues_eq` | the two equations a CONSUMER of the answer needs |
 | `denoteNList_contains` | and the third: a handle `List.contains` is a name `List.contains` |
 
-Nothing else moved and no proof changed: `Base.lean` imports this module, so
-every one of its old readers still reads the same theorem.
-
-**The second move** (task #97-P3-Checker round 9, on the coordinator's
-request): the two memoised front-door walks, `allLevelParamsDefined_run` and
+and the two memoised front-door walks, `allLevelParamsDefined_run` and
 `constsResolveFFast_run`, which the inductive tier's `checkStructProjTable`,
 `checkProjTy`, `nestedRuleShape` and `nativeOpenedOk` statements (and through
 them `checkNativeTable`, `nativeFieldsOk` and the projection-install chain)
-read and could not import.  The whole cone came, verbatim, from `Base.lean`'s
-section "The memoised DAG walks of the front door":
+read, with their cone:
 
 | | |
 |---|---|
@@ -52,10 +37,7 @@ section "The memoised DAG walks of the front door":
 | `IFEnvOK.find_isSome`, `constsResolve_run` | the pure resolution walk |
 | `CRMemoOK` and its two laws, `crLeaf`, `constsResolveFGo_run` | the memoised one |
 
-It needs `view_run`, which lives in `Bridge/Checker/Hyp.lean`; that module is
-already in both tiers' import prefix (`Base.lean` and `Bridge/Inductives/
-Rel.lean` both import it) and imports nothing of this one, so this module now
-imports it.
+`Base.lean` imports this module, so its readers see all of it.
 -/
 import ConRon.Bridge.Checker.Inv
 import ConRon.Bridge.Specs
@@ -70,11 +52,7 @@ set_option autoImplicit false
 /-! ## The pin-table reader -/
 
 /-- con-leche: none — `pinAt` in run form, off `Bridge/Specs.lean`'s triple.
-
-It sat beside `PinStep` until round 4, which moved it above
-`constsResolve_run` (whose literal arms read pins); task #97-P3-Layout brought
-it back down here with the chain that needs it, and `Base.lean` imports this
-module, so `constsResolve_run` still sees it. -/
+`constsResolve_run`'s literal arms read pins through it. -/
 theorem pinAt_run {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
     (hp : PinsOK s) (hx : pinNames[i]? = some x)
     (hr : pinAt i s = .ok (n, s')) :
@@ -86,13 +64,11 @@ theorem pinAt_run {i : Nat} {s s' : AState} {n : NIdx} {x : ConLeche.Name}
 /-! ## The reserved-name list, interned
 
 `Arena/Core.lean`'s `reservedBasisNames` IS `Arena/Pins.lean`'s
-`pinReserved`, as the port's `reserved_basis_names` is `pin_reserved` (task
-#97-T2-LOCKSTEP step 1, twin fix D5; before it the twin re-interned thirteen
-of the then nineteen names on every call).  So its run lemma is
+`pinReserved`, as the port's `reserved_basis_names` is `pin_reserved` (DESIGN
+`### Task #97-T2-LOCKSTEP`, twin fix D5).  So its run lemma is
 `pinReserved_spec` read at `PinsOK`, and the state does not move.
 
-`PinStep` is kept as the lemma's frame (a table read is the reflexive step)
-so that its readers did not change. -/
+`PinStep` is the lemma's frame (a table read is the reflexive step). -/
 
 /-- con-leche: none — the frame a pin read or a name intern leaves: the store
 only grew, and nothing else moved. -/
@@ -109,12 +85,7 @@ theorem PinStep.refl {s : AState} (h : StoreWF s.store) : PinStep s s :=
 /-- con-leche: ConLeche/Kernel/Basis/Names.lean:91-98 reservedBasisNames —
 **the sixteen reserved names, as handles that denote them**, off the pin
 table (`pinReserved_spec`): the state does not move, so the frame is
-`PinStep.refl`, and the answer is `denoteNL` at con-leche's own list.
-
-(Before twin fix D5 this was a nineteen-step chain, six pin reads and thirteen
-interns, whose first shape cost 63 s by accumulating the list along the chain;
-the lesson — never accumulate a list-indexed invariant along a do-block chain
-— stands, and is written in DESIGN.md's task #97-P3-Checker-3.) -/
+`PinStep.refl`, and the answer is `denoteNL` at con-leche's own list. -/
 theorem reservedBasisNames_run {s s' : AState} {hs : List NIdx}
     (hwf : StoreWF s.store) (hp : PinsOK s)
     (hr : reservedBasisNames s = .ok (hs, s')) :
@@ -484,7 +455,7 @@ Expr.allLevelParamsDefinedFast — **Theorem 1 for the front door's
 level-parameter guard**: the memoised DAG walk answers what con-leche's
 `allLevelParamsDefined` answers at the denoted parameter list.
 
-**PROVED** (task #97-P3-Checker round 4): `readNames_run` and then
+**Proof:** `readNames_run` and then
 `allLevelParamsDefinedGo_run`'s fuel induction at the empty memo. -/
 theorem allLevelParamsDefined_run {lps : List NIdx} {ks : List ConLeche.Name}
     {e : EIdx} {x : Expr} {r : Bool} {s s' : AState} (hok : StateOK s)
@@ -530,7 +501,7 @@ theorem IFEnvOK.find_isSome {env : Env} {fe : IFEnv} {s : AState}
 `Arena/Core.lean`'s `constsResolve` is con-leche's `Expr.constsResolve`,
 which is the SPECIFICATION the memoised walk below is measured against
 (con-leche's `@[csimp]` pair).  The two literal arms read the pin table, so
-this is a `PinsOK` theorem (round 3's `PSpecP` grade). -/
+this is a `PinsOK` theorem. -/
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:235-260 Expr.constsResolve — the
 pure walk over handles is con-leche's over terms. -/
@@ -932,7 +903,7 @@ theorem constsResolveFGo_run {env : Env} {fe : IFEnv} :
 DAG walk answers what con-leche's `Expr.constsResolve` answers at the denoted
 environment.
 
-**PROVED** (task #97-P3-Checker round 4): `constsResolveFGo_run`'s fuel
+**Proof:** `constsResolveFGo_run`'s fuel
 induction at the empty memo, over `constsResolve_run`'s pure walk at the four
 unmemoised leaves.  `IFEnvOK.find_isSome` is the whole `.const`/`.proj`
 content, and its MISS half is `denoteN_inj`. -/

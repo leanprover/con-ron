@@ -1,11 +1,10 @@
 /-
 # `ConRon.Bridge.Checker.DivMod` — the `Nat.div`/`Nat.mod` pin-variant gate
 
-Moved out of `Bridge/Checker/DeclVal.lean` in task #97-P3-Checker round 10,
-when its four pieces were proved: `checkDivModPin` is an environment guard, a
-lookup of the stored value, and the variant loop over the interned pin sets,
-whose step is two syntactic guards and one attempt.  `DeclVal.lean` keeps the
-shared four-walk pin guard (`pinGuardWalk_run`) that the compiler-trust gate
+`checkDivModPin` is an environment guard, a lookup of the stored value, and
+the variant loop over the interned pin sets, whose step is two syntactic
+guards and one attempt.  `Bridge/Checker/DeclVal.lean` holds the shared
+four-walk pin guard (`pinGuardWalk_run`) that the compiler-trust gate
 uses too; `Bridge/Checker/Arms.lean`'s `defn` arm consumes
 `checkDivModPin_bridge` from here.
 -/
@@ -17,12 +16,12 @@ namespace ConRon.Bridge
 
 set_option autoImplicit false
 
-/-! ## The `Nat.div`/`Nat.mod` variant gate, skeletonised (round 9)
+/-! ## The `Nat.div`/`Nat.mod` variant gate
 
 `checkDivModPin` is an environment guard, a lookup of the stored value, and
 the variant loop; the loop's step is two syntactic guards and one ATTEMPT
-under `orElseAttempt`.  The proof below reads that structure and names the
-four pieces it does not prove: the three guards' exactness and the attempt's.
+under `orElseAttempt`.  The proof below reads that structure over four
+pieces: the three guards' exactness and the attempt's.
 
 **The loop needs only the `true` direction of each piece.**  Every outcome
 but `matched` moves the arena to the next variant, and con-leche's
@@ -61,7 +60,7 @@ theorem boolCtorTyped_runsB {env2 : Env} {fe2 : IFEnv} {n : NIdx}
 /-- con-leche: ConLeche/Kernel/Checker.lean:277-290 divModEnvGuard — the
 environment prerequisites, read at the extended environment.
 
-**PROVED** (task #97-P3-Checker round 10): `natOpGuard_runsB`,
+**Proof:** `natOpGuard_runsB`,
 `natOpDeps_run` + `natOpStoredOkAll_runs`, the `fe2.find? en == some eqA` test
 (`IFEnvOK.find_beq_ind` at the freshly interned `eqA`), and the two `Bool`
 constructors' types (`RunsB.matchTyAnd`, `RunsB.matchTy`) against the interned
@@ -520,8 +519,8 @@ theorem eqAt1_run {ty a b h : EIdx} {T A B : Expr} {s s' : AState} (hst : StateO
   refine ⟨A7.trans st8, ?_⟩
   rw [hd8]; simp only [denoteEView, denote_ext he7 st8.ext, denote_ext hb7 st8.ext, opt2]
 
-/-! ### `divModCertStmts` in the port's factoring (task #97-T2-LOCKSTEP lane
-Checker DeclCheck slice 2): one `_run` per twin helper. -/
+/-! ### `divModCertStmts` in the port's factoring: one `_run` per twin
+helper. -/
 
 /-- The context's twenty-one handles denote con-leche's `let`s. -/
 structure CertCtxOK (st : EStore) (cx : CertCtxA) : Prop where
@@ -1097,9 +1096,8 @@ theorem divModCertStmtsAt_run {cx : CertCtxA} {c : NIdx} {nm : ConLeche.Name}
 pinned characterization statements, interned**: the context, then the arm the
 operation's name selects.
 
-**PROVED** compositionally (task #97-T2-LOCKSTEP lane Checker DeclCheck slice
-2), one `_run` per twin helper, after the twin took the port's factoring.  It
-replaces round 10's generated 500-line proof of the old twin. -/
+**Proof**, compositionally: one `_run` per twin helper, in the port's
+factoring. -/
 theorem divModCertStmts_run {cn : NIdx} {nm : ConLeche.Name}
     {stmts : List (List EIdx × EIdx)} {s s' : AState} (hst : StateOK s) (hp : PinsOK s)
     (hn : denoteN s.store.ns cn = some nm)
@@ -1647,7 +1645,7 @@ theorem checkDivModPinAt_pure {μ : CheckMode} {F : Nat} {env : Env}
 /-- con-leche: ConLeche/Kernel/Checker.lean:292-297 divModPinGuard — one
 variant's pin guards.
 
-**PROVED** (task #97-P3-Checker round 10): `divModDeclPin_run` (the
+**Proof:** `divModDeclPin_run` (the
 handle-comparison chain against the pins), then `pinGuardWalk_run`, the four
 walks `reducePinGuard_run` shares. -/
 theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
@@ -1667,7 +1665,7 @@ theorem divModPinGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 /-- con-leche: ConLeche/Kernel/Checker.lean:299-306 divModCertsGuard — one
 variant's certificate guards, over the pinned statements.
 
-**PROVED** (task #97-P3-Checker round 10): `divModCertStmts_run` (the pinned
+**Proof:** `divModCertStmts_run` (the pinned
 statements, interned), `divModCertProofs_run`, then `divModCertsGuardGo_run`
 over the zip — each step `divModCertGuard_run`: `substConstAll_run`, the four
 Fast walks, `substConst0List_run` + `constsResolveAll_runsC`, and
@@ -1696,18 +1694,17 @@ theorem divModCertsGuard_run {μ : CheckMode} {env : Env} {fe : IFEnv}
 variant's attempt: on success the invariant stands, and a `true` answer is
 con-leche's.
 
-**PROVED** (task #97-P3-Checker round 10): `divModDeclPin_run`, one
+**Proof:** `divModDeclPin_run`, one
 `KnotSpec.defeq` at depth 0 for the pin, then `divModCertStmts_run`,
 `divModCertProofs_run` and the certificate loop
 (`checkDivModCerts_bridge_aux`: `KnotSpec.infer`/`defeq` at depth 4 over
 `divModCertApplied`, scoped by `divModCertApplied_wscoped` and
 `divModCertStmts_wscoped`).
 
-**The statement gained `hpg : divModPinGuard psP env nm = true`** (a
-precondition repair): the pin is compared through `KnotSpec.defeq`, which
-needs it `WScoped 0`, and nothing else in the hypotheses says the pin is
-closed.  The one call site, the variant loop, runs the attempt only after
-the pin guard answered `true`. -/
+**The statement takes `hpg : divModPinGuard psP env nm = true`**: the pin is
+compared through `KnotSpec.defeq`, which needs it `WScoped 0`, and nothing else
+in the hypotheses says the pin is closed.  The one call site, the variant loop,
+runs the attempt only after the pin guard answered `true`. -/
 theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
     {ps : INatOpPinSet} {psP : NatOpPinSet} {cn : NIdx} {nm : ConLeche.Name}
     {val : EIdx} {v : Expr} {b : Bool} {s s' : AState}
@@ -1758,7 +1755,7 @@ theorem checkDivModPinAt_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
 
 /-- con-leche: ConLeche/Kernel/Checker.lean:338-360 checkDivModPinLoop — **the
 variant loop**: an accepting arena loop is an accepting pure loop, at some
-fuel, whatever the two sides' decline messages.  PROVED over the four pieces
+fuel, whatever the two sides' decline messages.  Proved over the four pieces
 above (the module section's note says why only their `true` direction is
 spent). -/
 theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
@@ -1863,7 +1860,7 @@ theorem checkDivModPinLoop_bridge {μ : CheckMode} {env : Env} {fe : IFEnv}
 equal to some committed pin variant and that variant's certificates must
 check.  No variant matching is a decline.
 
-**PROVED** (task #97-P3-Checker rounds 9–10): the environment guard
+**Proof:** the environment guard
 (`divModEnvGuard_run`), the lookup of the stored value through the extended
 index's `IFEnvOK` (its `WScoped 0` from `EnvWF env2`), and the variant loop
 (`checkDivModPinLoop_bridge`) over its three pieces, `divModPinGuard_run`,

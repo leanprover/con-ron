@@ -8,8 +8,8 @@ the fold carries:
 
 | | |
 |---|---|
-| `PinsOK s` | the fifty `PIN_*` slots denote `pinNames`, the reserved list denotes `reservedBasisNameValues`, the three nullary values denote, and **the zero name handle decodes to `.anonymous`** (`Bridge/StateOK.lean`; the last clause is task #97-P3-Ind round 5's, and this theorem is its debtor — see `PinsOK.anon`) |
-| `PersPins s` | **every pin handle is persistent** — task #97-P3-0 §7's "one more clause", the one that makes `PinsOK` survive `dropScratch` (`Bridge/Checker/Inv.lean`'s `PinsOK.pmono`) |
+| `PinsOK s` | the fifty `PIN_*` slots denote `pinNames`, the reserved list denotes `reservedBasisNameValues`, the three nullary values denote, and **the zero name handle decodes to `.anonymous`** (`Bridge/StateOK.lean`; this theorem is the last clause's debtor — see `PinsOK.anon`) |
+| `PersPins s` | **every pin handle is persistent** — the clause (DESIGN `### Task #97-P3-0` §7) that makes `PinsOK` survive `dropScratch` (`Bridge/Checker/Inv.lean`'s `PinsOK.pmono`) |
 | `PinsDenote s.store pins pinsP` | the interned `Nat`-operation pin variants denote con-leche's (`Bridge/Checker/Decl.lean`) |
 
 `Arena/Pins.lean`'s own module note states the obligation:
@@ -29,14 +29,13 @@ branch is the only one reachable, and every handle it produces has the
 persistent tier bit.  The hypothesis below is therefore `s.store.scratchOn =
 false` and nothing else.
 
-**Why this module imports the frontend tier** (task #97-P3-Layout).
+**Why this module imports the frontend tier.**
 `internAllPins` interns whole `ConstantInfo`s, and the exactness of
 `internCI` / `internCV` / `internExpr` is
 `Bridge/Frontend/Shared.lean`'s — eighteen reads of it in the walk below.
-That file used to sit ABOVE this one, because `Bridge/Frontend/Rel.lean`
-imported `Bridge/Checker.lean` whole for three names that live in
-`Bridge/Checker/Inv.lean`.  With that import narrowed, the frontend tier's
-bottom is below the checker tier and this import is the right way round.
+The frontend tier's bottom (`Bridge/Frontend/Shared.lean`) sits below the
+checker tier: from it, `Bridge/Frontend/Rel.lean` imports only
+`Bridge/Checker/Inv.lean`, not `Bridge/Checker.lean` whole.
 -/
 import ConRon.Bridge.Checker.Decl
 import ConRon.Bridge.Frontend.Shared
@@ -120,8 +119,7 @@ slot is 0, and `Idx.ofWord 0` is tag-`anonymous`, tier-persistent, slot 0
 (`PinsOK.anon`'s doc comment is the argument).
 
 Proved: the chain's last link through `Arena.denoteN_view`, then the `anons`
-table's single slot — a fact about `Arena/Store.lean`'s name tables (it was
-estimated at one round). -/
+table's single slot — a fact about `Arena/Store.lean`'s name tables. -/
 theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
     (hoff : st.scratchOn = false) {hs : List NIdx}
     (hd : Frontend.denoteNList st.ns hs = some pinNames) :
@@ -183,7 +181,7 @@ theorem denoteN_default_of_pinNames {st : EStore} (hwf : StoreWF st)
 **the pin table, filled**: `internReservedPins` on a store with the scratch
 tier closed leaves the table denoting and persistent.
 
-**SKELETONISED** (task #97-P3-Checker round 8): proved from the frontend
+Proved from the frontend
 tier's `IStepS` leaves (`internNameList_pins_sstep`, `internLsNode_sstep`,
 `internLNode_sstep`, `internE_sstep`) — persistence off `Pers…_of_denote` at
 the closed store, `PersLs_of_denote` new — and ONE child,
@@ -435,7 +433,7 @@ denotes its argument, variant by variant, in persistent handles.
 
 Proved: sixteen `Frontend.internExpr` calls per variant, over the frontend
 tier's intern exactness (`denoteE (internExpr e) = some e`), and the list
-recursion.  Was task #97-P3-Checker's sorry list, item 13. -/
+recursion. -/
 theorem internPinSets_run {ps : List NatOpPinSet} {r : List INatOpPinSet}
     {s s' : AState} (hok : StateOK s) (hoff : s.store.scratchOn = false)
     (hrun : internPinSets ps s = .ok (r, s')) :
@@ -519,11 +517,11 @@ with the rest.  `Bridge/Frontend/Capstone.lean`'s
 `no_False_declaration_pipeline` needs them for the `internAllPins` call
 `runPipelineM` makes between `preparePrelude` and `installThenCheck`.
 
-**PROVED** (task #97-P3-Checker round 8), relative to `internPinSets_run`:
+**Proof**, relative to `internPinSets_run`:
 thirty-six links, each a scratch-agnostic `IStepS` — the twelve basis blocks
 (`BasisKind.decls_sstep` / `declsA_sstep`), eighteen fresh-memo interns
 (`internCI_fresh`, `internCV_fresh`, `Frontend.internExpr_sstep`),
-`reservedBasisNames_sstep` (a table read since twin fix D5), and six pin
+`reservedBasisNames_sstep` (a table read), and six pin
 reads that leave the state alone —
 then `internPinSets_run` for the variants.  `PersPins` travels because the pin
 record is untouched and persistence is a fact about handles. -/
