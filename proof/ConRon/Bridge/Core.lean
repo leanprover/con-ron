@@ -25,7 +25,7 @@ steps, one knot induction**:
   asks for;
 * `Core/Walks/**` — **Theorem 1 for the walks of `Arena/Core.lean` that are
   NOT knot slots**, 133 of them by the census in `Core/Walks.lean`: the
-  readback frame (`Walks/Frame.lean`), the five answer relations
+  readback frame (`Walks/Frame.lean`), the three answer relations
   (`Walks/Spec.lean`), the five cached verdict walks (`Walks/Cached.lean`),
   the `defeq` body's cheap tests (`Walks/Guards.lean`), **the fuel merge**
   (`Walks/Mono.lean` — one `…_mono` and one `…Fueled_mono` per knot-calling

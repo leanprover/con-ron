@@ -211,7 +211,7 @@ def SlotAns (op : Nat → Nat → Expr → CheckM Expr) (d : Nat) (st : EStore) 
 
 /-- con-leche: none — a triple whose answer is a `Bool` about the
 denotations of two subjects, restated over the denotation terms
-(`PairAns`): the subjects' denotations are no longer parameters. -/
+(`PairAns`): the subjects' denotations are terms, not parameters. -/
 theorem pairAns_of_spec {mode : CheckMode} {env : Env} {fe : IFEnv} {m : AM Bool}
     {P : Expr → Expr → Bool → Prop} {s₀ : AState} {a b : EIdx} {d : Nat}
     (hda : DenWS d (denoteE s₀.store a)) (hdb : DenWS d (denoteE s₀.store b))

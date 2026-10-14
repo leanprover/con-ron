@@ -68,9 +68,8 @@ theorem beq_of_denoteLs {st : LsStore} (hwf : LsStoreWF st) {i j : LsIdx}
 /-! ## The `Nat` walks' vocabulary
 
 Beyond `Bridge/Grind.lean`: its handle inverses and tag values registered
-locally, the literal's `Nat`, the knot's `whnf` slot and `internE` at the
-invariant in answer shape, the pin reads as equations, and the index's
-answer at a name against the environment's (`OptCI`). -/
+locally, `internE` at the invariant, the pin reads as equations, and the
+index's answer at a name against the environment's (`OptCI`). -/
 
 /-! `Bridge/Grind.lean` §6's handle inverses and the tags' values, registered
 locally (they fire on every denotation; these walks compare handles against

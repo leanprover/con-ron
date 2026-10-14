@@ -22,9 +22,9 @@ takes the mode, the fueled record, the environment, the depth and the
 subject; `ConLeche.projCertAt` takes two `Bool` switches besides — so the
 relations below take the pure call **already applied to everything but the
 fuel**, as a `Nat → CheckM α`.  `SimE` and `SimV` are the `d`-and-`e`-applied
-instances of `SimEOp` and `SimBOp`, and the two bridging lemmas below say so,
-which is what lets an arm of a body theorem hand a walk theorem's conclusion
-straight to `Bridge/Core/Knot.lean`'s.
+instances of `SimEOp` and `SimBOp` (definitionally), which is what lets an
+arm of a body theorem hand a walk theorem's conclusion straight to
+`Bridge/Core/Knot.lean`'s.
 
 ## The well-scopedness conjunct, and why it is not everywhere
 
@@ -32,8 +32,7 @@ straight to `Bridge/Core/Knot.lean`'s.
 `Bridge/Core/Knot.lean`).  A walk's answer needs it exactly when the answer
 is fed back into a knot slot: `unfoldDefinition`'s reduct is (`whnfStep`
 hands it to `whnfLoop`, which calls `whnfCore`), `headHint`'s hint is
-not.  So `SimEOp` and `SimOOp` carry it and `SimBOp`/`SimLOp` do
-not.
+not.  So `SimEOp` and `SimOOp` carry it and `SimBOp` does not.
 -/
 import ConRon.Bridge.Core.Knot
 
@@ -44,7 +43,7 @@ set_option autoImplicit false
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## 1. The five answer relations -/
+/-! ## 1. The three answer relations -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — **the handle-valued walk
 answer**: the answer handle denotes a well-scoped `v` that the pure call
@@ -67,17 +66,5 @@ def SimOOp (P : Nat → CheckM (Option Expr)) (d : Nat) (st' : EStore)
 answer**, which names no handle and therefore needs no target store.
 `Bridge/Core/Knot.lean`'s `SimV` is this at `fun F => op F d a b`. -/
 def SimBOp (P : Nat → CheckM Bool) (x : Bool) : Prop := ∃ F, P F = .ok x
-
-/-! ## 3. The eliminators
-
-`Bridge/Rel.lean`'s five, in the shapes above.  `SimBOp` and `SimLOp`
-need `.ext` only where a store appears, which is `SimLOp`. -/
-
-/-! ## 4. The axiom census -/
-
-section Census
-
-
-end Census
 
 end ConRon.Bridge.Core

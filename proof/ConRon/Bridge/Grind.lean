@@ -22,7 +22,8 @@ a walk module adds only what is about its own walk.
    `s₀.store ≤ s₁.store ≤ … ≤ sₙ.store` a sequence of calls leaves.  The
    statements keep `Ext`; `ext_eq_le` turns each `Ext` atom into its `≤`.
 2. **Transport as an equation.**  `denote_le` (and its siblings at names,
-   levels, level lists and handle lists): past `st ≤ st'` a handle that
+   levels, level lists, handle lists, name and level-handle lists,
+   capability records and rule lists): past `st ≤ st'` a handle that
    denotes denotes the same — an equation between the two denotation terms,
    with the multi-pattern `st ≤ st', denoteE st h`, so that congruence
    closure carries every denotation along the chain.  The table invariants
@@ -37,9 +38,14 @@ a walk module adds only what is about its own walk.
    spelling both replace is the same proposition, but as a hypothesis its
    only pattern is `some e`, which matches every `some` in the context; and a
    `fun` inside an atom is what `grind`'s `funext` splits on, which is why the
-   relations are `MapRel`, not `Ans`.)
+   relations are `MapRel`, not `Ans`.)  A `Bool` answer about two or three
+   subjects is `PairAns`/`TripleAns` of a named predicate on their
+   denotations (`Core/Knot.lean` has the knot slots' `SlotAns` and the
+   `DenWS` precondition, which need the slots' `SimE`).
 4. **The state invariant** (`CheckOK → StateOK = StoreWF`), and small facts
-   (`opt2`/`opt3`, `denoteEO`, the handle lists).
+   (`opt2`/`opt3`, `denoteEO`, the handle lists and their cons inversions,
+   membership in a name-handle list as `containsO` of the denotations, the
+   pin table's names).
 5. **The memo tables**: the hit, the insert and the dropped table of the
    generic expression memo invariant, each keyed by the table term the
    program builds.
@@ -67,7 +73,10 @@ a walk module adds only what is about its own walk.
    * the predicate arguments are named functions, never `fun`s;
    * a name store index is the inverse of `denoteN` (`idxOfName`), so "the
      handles are equal iff the names are" is congruence closure in both
-     directions;
+     directions (`nidx_eq_of_denote` the guarded rule, registered where a
+     walk compares name handles);
+   * a literal's two readings (`litNat?`, `litStr?`) and `Expr.isStrLit`
+     over them;
    * a view's constructor follows from its tag through the view projections
      (`ENodeView.tagOf_app`, …), which is what refutes a match's
      fall-through arm after a tag test;
@@ -75,7 +84,8 @@ a walk module adds only what is about its own walk.
      unconditional equation over tags and projections (`sameConstHeads_eq`,
      `Core/Walks/Spine.lean`), so `grind` never splits its `match`.
 7. **Interning**: the binder record's faces, the capacity branch, a node's
-   denotation from its view, its `ViewOK` side condition.
+   denotation from its view (one `fun`-free equation per constructor,
+   `optProj` at a projection), its `ViewOK` side condition.
 8. **The environment index as equations.**  A lookup `fe.find? c` and the
    environment's `env.find? nm` at the name `c` denotes agree on every
    projection the walks read — ONE fact per lookup (`IndexAt`): is it

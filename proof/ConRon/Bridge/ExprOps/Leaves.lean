@@ -69,7 +69,7 @@ descent path, and discharging the gray case needs the acyclicity of the
 store — `StoreWF`'s rank witness.
 
 This needs **no second induction**: the rank enters as a
-second *parameter of the invariant* (`SeenOK`, §7 — a key is gray when its
+second *parameter of the invariant* (`SeenOK`, §6 — a key is gray when its
 rank is above the current subject's) and the fuel induction is unchanged.
 `EWFAt.childOK`'s rank clause is the only part of `StoreWF` used, and the rank
 is quantified INSIDE `SeenOK`, so no statement in the file takes it as an
@@ -305,7 +305,7 @@ arm. -/
   rw [denote_lit_inv hwf hview he]
   simp [Expr.fvarLeaves, denoteLeaves]
 
-/-! ## 6. `leafMem` — `ExprOps.lean:914`
+/-! ## 5. `leafMem` — `ExprOps.lean:914`
 
 **Not a monadic twin**: a pure `Bool` function on handles, and the one place
 this tier needs `denoteE`'s INJECTIVITY.  con-leche compares the annotation
@@ -344,7 +344,7 @@ theorem leafMem_spec {st : EStore} (hwf : StoreWF st) :
       grind
     · exact absurd hb (by simp)
 
-/-! ## 7. `fvarLeavesGo` and `fvarLeavesFast` — `ExprOps.lean:876`, `:906`
+/-! ## 6. `fvarLeavesGo` and `fvarLeavesFast` — `ExprOps.lean:876`, `:906`
 
 The `seen`-set walk and its entry point.  Both statements are
 metavariable-free (`SeenOK` and `LeavesEq` quantify what they speak about
@@ -912,7 +912,7 @@ theorem fvarLeavesGo_spec :
     constructor
     intro s₀ acc seen c hok hacc hseen hden
     obtain ⟨e, he⟩ := Option.isSome_iff_exists.mp hden
-    -- every arm is the step rules of the candidates section composed: `LeavesEq`
+    -- every arm is the step lemmas of §6 composed: `LeavesEq`
     -- by the node's step, `SeenGrow` by `drop_insert` after the children's
     -- `trans`, and each recursive call's `SeenOK` by the gray argument
     sym only [bridge_grind, leafV, ochildren, ENodeView.echildren, List.mem_cons] =>
