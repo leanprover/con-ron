@@ -69066,3 +69066,209 @@ walks) are unchanged.  `findAt`, `ctorAt` and `constAt` are three facts that
 each fire at every environment lookup; one would do.
 
 **State.**  Not merged into master (the maintainer lands).  `LAKE_JOBS=4 scripts/gates.sh` on the tip is green.
+
+### Task #124 — `bridge_vcs` and `bridge_peel` retired; one index fact; no `∃` in posts (2026-10-14, Opus)
+
+**The brief.**  Finish the move of Theorem 1 to the toolchain's own idiom
+(`sym only [bridge_grind, …] => vcgen [f, callee specs…] <;> finish`, one
+`SymM` context per theorem, no custom tactics, no Aesop): retire the
+`bridge_vcs` closer (`Specs.lean`) and the `bridge_peel` meta tactic
+(`Peel.lean`) by converting their users; survey the other project tactics in
+`Bridge/**`; unify #123's three index facts; docs describe the code as it
+is.  Mid-task the maintainer added two rules: prefer a `grind_pattern`
+constraint (`where guard …`) on a plain lemma over restating it, and **no
+`∃` in a spec's postcondition** — the witnesses are denotations, i.e.
+functions of handles, so they are stated as equations over the denotation
+functions (`grind` has no dedicated `∃` support: it negates an `∃` goal into
+a local `∀` and e-matches it, `exists-goal-multipattern.lean`).
+
+**How.**  Lanes in parallel worktrees: `exprops` (Guards, Ranges, InstLP,
+Specs' pin readers), `spine` (ExprOps/Spine, TagFirst, Inst1's `arm_hyp`),
+`iota` (Iota, IotaMajor), `walks` (IotaLeaves, Stuck, Eta, BinderLoop,
+ProjCore, ProjLit, StrCtor, EnsureSort), `docs` (the history sweep), and
+after the `∃` rule `exists` (the sweep of the triple tiers).  The
+coordinator owned `Grind.lean` and did the index unification; a
+consolidation pass hoisted the lanes' vocabulary, merged the duplicate
+families and ran the dead census; two follow-ups fixed IotaMajor's cost after
+integration and converted DefeqLazy's offset tests.
+
+**`bridge_peel` was unnecessary.**  Every one of its 103 uses sat in a
+hand-staged `triple_seq` chain (`refine triple_seq (callee_spec …) ?_;
+rintro … ⟨…⟩; … vcgen; bridge_peel; subst_vars; refine ⟨…⟩`).  With the
+callee specs in `vcgen`'s list inside `sym`, `vcgen` introduces each post's
+conjunction into `grind`'s E-graph itself; nothing is left to peel.  What the
+conversion needed instead was the #123 recipe applied to the callees: knot
+slots and callees in ANSWER shape (`SlotAns`, `PairAns`, `TripleAns` with a
+`DenWS` precondition, `KnotSpec.whnfS`/`inferIOS`/`defeqS` in
+`Core/Knot.lean`), a chain of knot calls as one named run keyed by its
+handles (`SortRun`, `TyRun`, `Runs`/`RunE`), each exit of the pure side a
+lemma over a NAMED fuelled op that merges the callees' fuels by con-leche's
+monotonicity lemmas (`mtcKOp`, `litMajorOp`, …), rescue blocks as named arena
+fragments with an rfl split equation (`majorKA`, `majorEtaA`, `majorAndA`),
+and nested literal matches flattened one constructor deep by `_split`
+equations (the `nested-ctor-fallthrough-hyp.lean` workaround).
+`bridge_vcs`'s users were already `vcgen` + a curated `grind` list per goal
+(leaving `SymM` per goal); they became one `sym … => vcgen … <;> finish`
+over `Grind.lean`'s vocabulary, with the answer relations as `MapRelV`-shaped
+equations (`LSubO`, `LSubMemoO`) and the memo invariants' hit/insert/empty
+as guarded patterns.
+
+**One index fact** (#123's open item).  `FindAt` (defn), `CtorAt` (ctor) and
+`ConstAt` (tower) — and the lanes' `IndAt`, `CtorCountsAt`, `IotaAt` — are
+one fact `IndexAt env fe st c (denoteN st.ns c)` = `IndexCI st (fe.find? c)
+(env.find? nm)` (`Grind.lean` §8), keyed by the invariant and the lookup:
+present together; definition (hint, record, value); constructor (record,
+`nP`, `nF`); inductive (record, level params, caps); recursor (record, rules,
+major index, rule prefix); tower entry and the record off the tower.  The
+projections are one equation per constructor (as `iDefn?_defn`), not `=`
+registrations of the wildcard definitions, whose catch-all arms made
+`grind` case-split (`majorToCtor_spec` had to erase them).  `IndexAt.some`
+spells the conjunction out: unfolding `IndexCI` costs one more e-matching
+round and broke `Core/Walks/Spine`.
+
+**No `∃` in posts** (the `exists` lane and the conversion lanes).
+`lamPair?_spec`'s `∃ et₁ eb₁ et₂ eb₂, …` became `denoteE a = opt2 Expr.lam
+(denoteE t₁) (denoteE b₁) ∧ …` (exact because the subjects denote; the
+suggested `lamPair? ea eb = combine …` cannot give the components back);
+`lvlEq?_specA`/`lvlsEq?_specA` answer `opt2 Level.isEquiv (denoteL u)
+(denoteL v) = some r`; `whnfLoop_spec` and its callee variants take the
+subject as `DenWS d (denoteE …)`; `denoteEList_cons_eq`,
+`denoteEList_append_eq`, `denoteEO_some_eq_inv`, `view_of_viewConstName_eq`
+(`viewConstLevels`), `view_of_viewFVarIdx`/`…Ty` and the `denoteEView_*_eq`
+(one fun-free equation per constructor, `optProj` at the projection arm) are
+equations.  `∃` stays where the witness is not a function of handles — the
+fuel of a run (`SimE.inv`, `SimOOp.*_inv`, `whnfLoop_*_eq`, the memo inserts'
+`hrun`) — and in `denote_some_of_isSome` and its list/leaves siblings, whose
+`∃`-free spelling `o = some (o.getD _)` makes `finish` fail in Inst1,
+Ranges and Leaves (re-checked here); term-mode-only lemmas keep theirs.  The
+old `∃` forms with term-mode callers (Checker/Inductives) are derived from
+the new ones.
+
+**Guarded patterns.**  `forward-eq-hyp-multipattern.lean` now shows the fix:
+the plain `→` lemma registered `grind_pattern den_node => view h, some
+(.node l r) where guard view h = some (.node l r)` instantiates only the
+meaningful pairs (4 → 2 on the example).  The memo invariants' hits
+(`MemoVOK`/`MemoVDOK`/`MemoLOK`/`MemoLsOK.get`), inserts and empty tables are
+registered so (`Grind.lean` §5); `DenoteView`'s keying (#123) was left, as it
+is one fact per handle rather than a restated lemma.
+
+**Measured limits.**  `finish`'s limits ARE honoured under `sym`; its failure
+message prints `sym`'s defaults instead of the configured ones
+(`finish-limits-under-sym.lean`), which read as "`finish (gen := N)` does
+nothing".  Each of the fourteen raised limits was removed in turn and every
+removal failed, so all stay, each with its reason.  New ones: `gen := 16` on
+`majorK_spec`/`majorEta_spec`/`majorAnd_spec`/`prepareMajor_spec` (12–16
+store states, each a transport generation), `gen := 10` on
+`majorToCtor_spec`, `ematch := 8` on `iotaCtorNeverProp_spec` (the index
+fact at the head's name arrives one round after the name), `sym (gen := 12)`
+on `structUnitCert_specA` (an answer of an answer of an answer).
+`majorAnd_spec` erases `opt2_isSome_of_eq_some` locally: the And
+fabrication's denotation is an `opt2` chain restated at five states, and
+each derived `isSome` opens a fresh witness through `denote_some_of_isSome`
+(284 → 388 instances, `instantiate_delayed_fn` at 22 % of cycles); erased,
+IotaMajor goes 163 G → 92 G.  Two rules are registered only where they pay
+(`nidx_eq_of_denote` in Iota/IotaMajor: globally +27 % on Nat;
+`DenWS.isSome` from Stuck on: +7 % on Whnf).
+
+**Numbers** (`perf stat -e instructions:u` of `lake env lean` with the
+lakefile options, #120's method, `_tmp/t124-measure.sh`; before = master
+4fa9aaa2 measured by the lanes before their first edit, after = the tip):
+
+| module | instructions | lines |
+|---|---:|---:|
+| `Grind` | 12.34 G → 14.37 G | 1369 → 1928 |
+| `Specs` | 21.77 G → 21.31 G | 1246 → 1179 |
+| `ExprOps/Guards` | 144.97 G → 15.73 G | 353 → 398 |
+| `ExprOps/Ranges` | 172.73 G → 13.41 G | 314 → 312 |
+| `ExprOps/InstLP` | 45.30 G → 5.16 G | 281 → 120 |
+| `ExprOps/Spine` | 214.54 G → 17.10 G | 955 → 501 |
+| `ExprOps/Inst1` | 14.37 G → 14.25 G | 342 → 332 |
+| `ExprOps/TagFirst` | 5.03 G → deleted | 155 → 0 |
+| `ExprOps/Walks` | 8.77 G → 7.24 G | 145 → 118 |
+| `Core/EnsureSort` | 4.17 G → 4.25 G | 108 → 114 |
+| `Core/Arms/DefeqLazy` | 21.60 G → 23.25 G | 1461 → 1475 |
+| `Core/Arms/Whnf` | 6.59 G → 7.09 G | 330 → 340 |
+| `Core/Walks/Iota` | 43.15 G → 26.49 G | 1492 → 1387 |
+| `Core/Walks/IotaMajor` | 66.06 G → 92.15 G (1.39×) | 1614 → 1711 |
+| `Core/Walks/IotaLeaves` | 8.11 G → 9.71 G | 400 → 311 |
+| `Core/Walks/Stuck` | 21.73 G → 28.12 G (1.29×) | 1222 → 1216 |
+| `Core/Walks/Eta` | 5.04 G → 5.61 G | 176 → 188 |
+| `Core/Walks/BinderLoop` | 12.11 G → 13.35 G | 839 → 945 |
+| `Core/Walks/ProjCore` | 6.07 G → 8.36 G (1.38×) | 316 → 227 |
+| `Core/Walks/ProjLit` | 4.54 G → 5.45 G | 130 → 220 |
+| `Core/Walks/StrCtor` | 5.01 G → 5.81 G | 231 → 211 |
+| `Core/Walks/Cached` | 10.64 G → 10.39 G | 899 → 934 |
+| `Core/Walks/Proj` | 14.08 G → 14.01 G | 944 → 891 |
+| `Core/Walks/PropRead` | 36.68 G → 36.24 G | 1219 → 1114 |
+| `Core/Walks/Spine` | 20.48 G → 21.25 G | 917 → 896 |
+| `Core/Walks/Nat` | 46.57 G → 46.38 G | 1212 → 1172 |
+| `Core/Walks/StrLit` | 35.25 G → 35.19 G | 1076 → 1090 |
+| `Peel` | — → deleted | 58 → 0 |
+| **these 28 files** | **1 007.7 G → 501.7 G (0.50×)** | **19 804 → 19 330** |
+
+The three `bridge_vcs` modules and ExprOps/Spine carry the drop (577 G →
+51 G: one `SymM` context instead of a curated `grind` per goal); the
+`bridge_peel` modules, which had hand-written staging, cost 1.0–1.4× (linear:
+the reasoning moved from terms into `grind`), Iota 0.6×.  `Grind.lean` grew
+by the hoisted vocabulary (transports of names, level lists, caps, rules;
+`MapRel2`, `PairAns`/`TripleAns`; membership `containsO`; literals
+`litNat?`/`litStr?`; the guarded memo patterns; §8's index).
+
+**Project tactics in `Bridge/**`** (master → tip):
+
+| tactic | where | uses | now |
+|---|---|---:|---|
+| `bridge_vcs` | `Specs.lean` | 45 | deleted |
+| `bridge_peel` | `Peel.lean` | 103 | deleted (module gone) |
+| `arm_pre` | `ExprOps/Spine` | 15 | deleted |
+| `arm_hyp` | `ExprOps/Inst1` | 38 | deleted |
+| `tf_views` | `ExprOps/TagFirst` | 1 | deleted (module gone; §6 supersedes it) |
+| `lp_hyp` | `ExprOps/InstLP` | 2 | deleted |
+| `tag_dec` | `Core/Arms/DefeqLazy` | 6 | deleted (`isNatZero_spec`, `natPred?_spec` in the idiom) |
+| `dmc_move` | `Checker/DivMod` | 66 | kept |
+| `constWF_closed` | `Checker/DeclWF` | 1 | kept |
+| `vind_*` (six) | `Frontend/Lines` | 22 | kept |
+
+What remains and why: all three are in the RUN-style tiers (Checker,
+Frontend: `AM.bind_ok` decompositions of `= .ok` runs, not `⦃⦄` triples), to
+which `vcgen` does not apply until those tiers are restated as triples.
+`dmc_move` moves each denotation fact along one `IStepS` step by the one
+transport its head names (in a triple tier `grind`'s `denote_le` does this);
+`constWF_closed` closes a `ConstWF` goal at a pinned constant by kernel
+evaluation (`decide +kernel`, structural); the `vind_*` macros are one
+proof script shared by the three join-point copies the elaborator leaves in
+`validateIndD` (code sharing, not a closer).  `Refine2/Tactic/*` (Theorem 2)
+is a separate design and untouched.
+
+**Still staged** (no peel, no custom tactic, `triple_seq` chains):
+`iotaRecAt_spec`/`iotaFam_spec` (needs `prepareMajor`/`ruleRhsAt` and the
+certificate family over seven optional denotations; a 215-line partial
+prototype was not cheap), `structEtaCertWith_spec`, BinderLoop's leaf, peel
+and clause walks, `strLitToConstructor_spec` (`finish` failed on its
+sixteen-call straight line even with raised limits), and #123's `etaCert_spec`,
+`inferProj_spec`, `iotaCertsFullAux_go`, `propIrrel_spec`.
+
+**Docs.**  The `docs` lane swept all of `Bridge/**` (72 files, comments
+only): status markers ("**PROVED** (task #… round N)"), move/rename stories,
+findings and rulings, removed code — each now a present-tense statement;
+rationale pointers kept as "DESIGN `### Task #N`".  Every converting lane
+swept its own files; OVERVIEW's one moved anchor (`Inductives/Run.lean`)
+updated.  CLAUDE.md's Theorem 1 rule has the `∃` rule and the guarded-pattern
+preference.  `### Task #122`/`#123` now point at the frame reproducers in
+`_tmp/corpus/vcgen-frames/`.
+
+**Reproducers** (`_tmp/corpus/vcgen-grind/`): new
+`finish-limits-under-sym.lean` (the diagnostic reports `sym`'s default
+limits, not `finish`'s); `forward-eq-hyp-multipattern.lean` extended with the
+guarded-pattern fix.  Two lane observations without a minimal reproducer:
+in Stuck's long chains `denote_view`/`denote_tag`/`denote_le` sometimes did
+not fire on a `denoteE` term created late by an `∃`-split of `SimE.inv`
+(standalone probes fired; worked around by exit lemmas over handles).
+
+**Dead census.**  Deleted what the conversion left unreached (Rel's
+`denote_eq_*`, `isSome_*`, `RelV.apply`/`of_ext`, `RelE.isSome`/`self`,
+`denote_isSome_ext`, `view_of_denote_isSome`; Guards' `LeafGuardO*`; Leaves'
+`leafMem_of_*`; Spine's 22 step lemmas; InstLP's copies of `SpecsL`'s three
+level specs; IotaMajor/Stuck exit lemmas; …); `mtcK_eq`/`mtcEta_eq`/
+`mtcAnd_eq` allowlisted (rfl lemmas `simp only` needs, invisible to the
+census).
