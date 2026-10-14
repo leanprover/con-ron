@@ -68760,7 +68760,7 @@ the spike does not use it.**
   part.  No framing ever happened because `StateT` has no `@[frameproc]`
   and the default meet procedure frames only what a `frames` clause pins.
 * *What a frame procedure for `AM` looks like*: ten lines
-  (`_tmp/t122-repro-a99ebf1ea732/FrameProc.lean`, `growsFP`): keyed on
+  (`_tmp/corpus/vcgen-frames/FrameProc.lean`, `growsFP`): keyed on
   `StateT`, decline unless the state is ours, frame `Grows s` (grows from
   the CALL's state `s`, the first excess argument), `FrameDecision.ofFrame`.
   It works — `vcgen` frames every call — and it pays nothing:
@@ -68867,9 +68867,8 @@ under ~2× `bridge_auto` (case-split strategy, condition splitting, or an
 upstream `grind` feature) before committing to a full conversion; until
 then the two closers coexist, `bridge_auto` shrinking as modules move.
 
-**Reproducers** (`_tmp/t122-repro-a99ebf1ea732/`, plain Lean at this
-toolchain, no project imports — copy them out before
-`scripts/drop-worktree.sh`, which deletes `_tmp/*-<key>`):
+**Reproducers** (`_tmp/corpus/vcgen-frames/`, plain Lean at this
+toolchain, no project imports):
 `Frames.lean` — `of_conjunctive`'s premise at `E = ⊥` for a throwing program
 (the condition left is `⊥ "no"`), and `of_top`; `FrameProc.lean` — the
 `growsFP` frame procedure and the 1 → 7 condition count.  No bug in `vcgen`,
@@ -69053,8 +69052,8 @@ with an expected/observed header; all six re-run and behave as described):
 * `struct-update-pattern.lean` — a structure update is rejected as a
   `grind_pattern` without a type ascription (usability).
 
-#122's frame-procedure reproducers were not copied out before that
-worktree was dropped; they are described in `### Task #122`.
+#122's frame-procedure reproducers are in `_tmp/corpus/vcgen-frames/`
+(`Frames.lean`, `FrameProc.lean`; `### Task #122`).
 
 **What remains.**  Nothing on the old closers.  `bridge_vcs` (a `grind`
 macro in `Specs.lean`, ~50 calls in `ExprOps/{Guards,Ranges,Spine,InstLP}`)
