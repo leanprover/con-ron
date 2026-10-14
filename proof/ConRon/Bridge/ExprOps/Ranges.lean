@@ -22,18 +22,25 @@ that `if` verbatim.  Three facts connect the three spellings:
 * `Expr.bvarB_eq` (`:1577`) — and the accessor is `Expr.bvarBound`
   unconditionally, which is why every theorem below is stated against
   `Expr.bvarBound` / `Expr.fvarRange` and the `Expr.bvarB` / `Expr.fvarB`
-  spelling is a one-line corollary (`bvarB_spec'`, `fvarB_spec'`).
+  spelling is a one-line corollary (`bvarB_run`).
 
 `bvarBound_of_derived` and `fvarRange_of_derived` below package the first two
-into the shape the `else` arm of the twin presents, and they are the two
-`@[grind →]` rules the closer needs that `Bridge/Rel.lean` does not have.
-**They morally belong in `Bridge/Rel.lean`.**
+into the shape the `else` arm of the twin presents, keyed by the field read.
+
+## The proofs
+
+Every proof is `sym only [bridge_grind, …] => vcgen [f, callee specs…] <;>
+finish`: `grind` reads a viewed node's children from `Bridge/Grind.lean`'s
+`DenoteView` facts and its constructor from the view's tag, and the arm is
+congruence closure through `Expr.bvarBound`'s (`Expr.fvarRange`'s) own
+equations.
 
 **The memo is in `AState`.**  Unlike `wscopedBGo`'s and `leavesSubGo`'s, the
 `bvarBound` / `fvarRange` memo is one of `Bridge/StateOK.lean`'s thirteen
 tables (`MemoBA` over `bvarBC`, `MemoFA` over `fvarBC`), so the invariant is
-`MemoVOK` and `MemoVOK.get` / `.insert` / `.of_empty` carry it — exactly the
-`Nat`-valued shape `StateOK.lean` says this group has.
+`MemoVOK` and `MemoVOK.get` / `.insert` / `.of_empty` carry it (registered
+for `grind` below) — exactly the `Nat`-valued shape `StateOK.lean` says this
+group has.
 
 ## The frame
 
@@ -44,19 +51,15 @@ What does move is `s.memos.bvarBC` (resp. `fvarBC`), so `caches` and `pins`
 are framed.
 
 **One of the other per-call tables is framed too, on the `bvarBound` side
-only** (task #97-P3-ExprOps round 4): `bvarBoundGo`, `bvarBoundMemo` and
-`bvarB` all carry `s'.memos.inst1LC = s₁.memos.inst1LC`.  It is what
-`ExprOps/Subst.lean`'s `BvarBSpec` asks for — `instantiate1LiftGo` tests
-`bvarB` inside its own memoised walk and has to carry `Inst1LMemoA` across
-the call (task #119 removed `lowerBVarsGo`, the other such walk, and its
-`lowerC` frame with it) — and without it `bvarB_spec` could not discharge it,
-so `instPisAtLift_spec` and `instantiate1LiftFast_spec` were closed and
-uncallable.  It costs the proofs NOTHING: `bvarBClear_spec` and
-`bvarBSet_spec` hand back a whole-record update `{ memos with bvarBC := … }`,
-so the conjunct is one projection and `bridge_vcs` closes it unchanged.  The
-`fvarRange` side is deliberately left narrow — nothing asks — and the other
-remaining tables are the gap `ExprOps/Inst1.lean` records; widen them the same
-way, one statement at a time, when a consumer needs one.
+only**: `bvarBoundGo`, `bvarBoundMemo` and `bvarB` all carry
+`s'.memos.inst1LC = s₁.memos.inst1LC`.  It is what `ExprOps/Subst.lean`'s
+`BvarBSpec` asks for — `instantiate1LiftGo` tests `bvarB` inside its own
+memoised walk and has to carry `Inst1LMemoA` across the call.  It costs the
+proofs nothing: `bvarBClear_spec` and `bvarBSet_spec` hand back a
+whole-record update `{ memos with bvarBC := … }`, so the conjunct is one
+projection.  The `fvarRange` side is deliberately left narrow — nothing asks;
+widen the other tables the same way, one statement at a time, when a
+consumer needs one.
 -/
 import ConRon.Bridge.Specs
 
@@ -123,7 +126,7 @@ theorem fvarRange_of_derived {st : EStore} (hwf : StoreWF st)
 grind_pattern [bridge_grind] bvarBound_of_derived => bvarOfData (st.derived h)
 grind_pattern [bridge_grind] fvarRange_of_derived => fvarOfData (st.derived h)
 
-/-! ## The two readback equations the `Fast` twins need -/
+/-! ## The `Bool` equation `looseBVarsBoundedFast` needs -/
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:1308 looseBVarsBounded_iff — the
 `iff` as the `Bool` equation `looseBVarsBoundedFast` computes. -/
@@ -247,7 +250,7 @@ proved one arm at a time. -/
 statement about a RUN, at con-leche's accessor.
 
 The memo-frame conjunct is `ExprOps/Subst.lean`'s `BvarBSpec`, whose cutoff
-walk memoises while it calls this one (round 4). -/
+walk memoises while it calls this one. -/
 theorem bvarB_spec (fuel : Nat) (s₀ : AState) (e : EIdx) (hok : StateOK s₀)
     (hden : (denoteE s₀.store e).isSome = true) :
     ⦃fun s => s = s₀⦄ bvarB fuel e

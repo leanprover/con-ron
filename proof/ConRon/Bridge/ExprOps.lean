@@ -14,8 +14,8 @@ recursion, the fuel induction), the arm step lemmas' shape ("the shape
 * `ExprOps/MemoSpecs.lean` — the memo-set specs with the pure function
   INSIDE the relation, which the four rebuilding walks below share;
 * `ExprOps/Abs.lean` — `abstract1` and `abstractRange`;
-* `ExprOps/InstLP.lean` — the level side: `instantiateLevelParams`, the two
-  level memos, and the two `O(1)` derived-bit readers;
+* `ExprOps/InstLP.lean` — the level helpers of `instantiateLevelParams`:
+  `substLevelList` and the two level memos;
 * `ExprOps/Walks.lean`, `ExprOps/Ranges.lean`, `ExprOps/Leaves.lean`,
   `ExprOps/Guards.lean` — the `Bool` and `Nat` walks, whose answers are
   representation-free and whose relation is therefore `RelV` with no target

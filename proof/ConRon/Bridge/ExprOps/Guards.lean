@@ -5,7 +5,7 @@ DESIGN §8.2's Theorem 1 at the four twins of `Arena/ExprOps.lean` that are
 `Cached/ExprOpsC.lean`'s memoized DAG walks: `wscopedBGo` (`:833`),
 `wscopedBFast` (`:868`), `leavesSubGo` (`:923`) and `leafGuard` (`:962`).
 Companion of `ExprOps/Leaves.lean`, whose `denoteLeaves`, `leafMem_spec`,
-`MemoVDOK` and cutoff licence it uses, and of `ExprOps/Walks.lean` and
+`MemoVDOK`, `LeavesEq` and cutoff licence it uses, and of
 `ExprOps/Ranges.lean`.
 
 ## What is stated against what
@@ -17,13 +17,11 @@ con-ron references con-leche's `Cached` tier").  So each is stated against the
 **Kernel-tier** function it computes:
 
 * `wscopedBGo` / `wscopedBFast` against `Expr.wscopedB d` — which is what
-  `wscopedBP_spec` proves of `wscopedBP` upstream, and is exactly
-  `ExprOps/Walks.lean`'s `wscopedB_spec` with a memo and a cutoff added;
+  `wscopedBP_spec` proves of `wscopedBP` upstream;
 * `leavesSubGo` / `leafGuard` against `leavesSubSpec` below, which is
   `Kernel/Core.lean:586`'s own spelling of the guard
   (`fab.fvarLeaves.all (fun l => major.fvarLeaves.contains l)`).  Its ten
-  equations are `leavesSubP` clause for clause — that is what makes the arms
-  of `leavesSubGo_spec` the same one-line `bridge_vcs` as `Walks.lean`'s.
+  equations, one per constructor, are `leavesSubP` clause for clause.
 
 ## The three memos' invariants
 
@@ -37,18 +35,22 @@ All three memos are ARGUMENTS and not `AState` fields, so none is one of
   the invariant, and the answer relation, are quantified over the base list's
   DENOTATION rather than taking it as a parameter (`LSubAt`, `LSubMemoA`
   below), because a parameter would be one the program does not determine,
-  which the verification-condition generator cannot instantiate (`mvcgen`
-  left the side goal `denoteLeaves s.store bl = some ?bl'` with a
-  metavariable in it) — task #97s template rule 4, and `leafGuard` is where it bites (its base list is
-  *computed* by `fvarLeavesFast`).  The two `to_`/`of_` bridging lemmas below
-  turn `LSubAt` into `Bridge/Rel.lean`'s plain `RelV` and back, so all the
-  per-arm reasoning still happens at `RelV` where `Walks.lean`'s recipe
-  works unchanged.
+  which the verification-condition generator cannot instantiate — and
+  `leafGuard` *computes* its base list (`fvarLeavesFast`).  For `grind`, each
+  of the two is an equation to a named predicate on that denotation term
+  (`LSubO`, `LSubMemoO`, `Bridge/Grind.lean` §3's `MapRelV` shape), which at
+  `some` is `Bridge/Rel.lean`'s plain `RelV` (resp. `MemoVOK`).
 
-## Elaboration
+## The proofs
 
-`leavesSubSpec`'s ten equations are `@[grind =]`, and with them the closer
-takes every arm of both walks.  Nothing in this file needs a `next =>` block.
+Every proof is `sym only [bridge_grind, …] => vcgen [f, callee specs…] <;>
+finish`.  `grind` reads a viewed node's children from `Bridge/Grind.lean`'s
+`DenoteView` facts and its constructor from the view's tag, and then the
+step is congruence closure through the pure function's per-constructor
+equations (`Expr.wscopedB`'s own, `leavesSubSpec_*`).  The cutoffs, the memo
+hit, insert and dropped table, `leafMem`'s verdict (`LeafMemO`) and
+`leafGuard`'s composition (`LeafGuardAt.of_lSubAt`) are lemmas keyed by the
+terms the verification conditions have.
 -/
 import ConRon.Bridge.ExprOps.Leaves
 
@@ -90,30 +92,22 @@ local grind_pattern [bridge_grind] MemoVOK.of_empty => MemoVOK f tbl st where
 
 /-! ## 1. `wscopedBGo` and `wscopedBFast` — `ExprOps.lean:833`, `:868`
 
-`Walks.lean`'s `wscopedB` with three additions, all of them con-leche's own
+The scope walk `Expr.wscopedB` with three additions, all of them con-leche's own
 (`Cached/ExprOpsC.lean`'s `wscopedBXP` / `wscopedBC`): the fvar-range cutoff
 at the head, the memo probe, and the insert on the way out. -/
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1029-1088 wscopedBXP — the memo's
 invariant: every recorded verdict is `Expr.wscopedB` at the key's own cursor.
 `MemoVDOK` at `wscopedB`, as an `abbrev` fixing the pure function, which is
-`Bridge/StateOK.lean`'s own shape for its thirteen tables (task #97b finding
-2: the only metavariable `mspec` then leaves is first-order). -/
+`Bridge/StateOK.lean`'s own shape for its thirteen tables. -/
 abbrev WScopedMemoA (tbl : Std.HashMap (EIdx × Nat) Bool) (st : EStore) :
     Prop :=
   MemoVDOK Expr.wscopedB tbl st
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1013-1015 wscopedBP_cut — the
 CUTOFF's licence, as the answer relation: an `fvar`-free term is in scope at
-every depth.
-
-**Not `@[grind →]`, and the cursor is EXPLICIT**: `d` occurs only in the
-conclusion, so a forward rule has no pattern for it (`grind` reports *failed
-to find patterns in the antecedents of the theorem*).  Passed to the closer
-in `bridge_vcs`'s list instead, with `d` explicit so that the instance is
-determined by the goal — the same shape `leavesSub_cut_of_derived` below
-needs for its base list, and the second half of this file's `leafMem`
-finding. -/
+every depth.  The cursor occurs only in the conclusion, so the lemma is keyed
+by the answer it licenses. -/
 theorem wscopedB_cut_of_derived {st : EStore} (hwf : StoreWF st)
     {h : EIdx} (d : Nat) (h0 : (fvarOfData (st.derived h)).toNat = 0) :
     RelV (Expr.wscopedB d) st h true := by
@@ -247,8 +241,7 @@ theorem leavesSubSpec_congr {bl bl' : List (Nat × Expr)}
 
 The fabrication-side leaf-subset test, memoized on the node.  The base list
 is a list of HANDLES, so both the answer relation and the memo invariant
-quantify its DENOTATION rather than naming it — template rule 4, see the
-module doc. -/
+quantify its DENOTATION rather than naming it — see the module doc. -/
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1197-1256 leavesSubXP — the
 answer relation at a base list of HANDLES: whatever that list denotes, the
@@ -378,8 +371,7 @@ quadratic `fvarLeavesSubset`.  Theorem 1 is stated at
 with `Expr.fvarLeaves ebase`'s MEMBERS, not that list. -/
 
 /-- con-leche: ConLeche/Cached/ExprOpsC.lean:1264-1268 leafGuard — the
-guard's answer relation, with `base`'s denotation quantified inside (template
-rule 4). -/
+guard's answer relation, with `base`'s denotation quantified inside. -/
 def LeafGuardAt (st : EStore) (fab base : EIdx) (r : Bool) : Prop :=
   ∀ eb, denoteE st base = some eb →
     RelV (leavesSubSpec (Expr.fvarLeaves eb)) st fab r
