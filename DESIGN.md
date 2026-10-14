@@ -68882,3 +68882,188 @@ protocol notes).
 (the dead-census step after `Ans.none_eq` was deleted — `grind` never needed
 it — and `Frame.lean`'s `denoteEO_ext` was allowlisted: `bridge_auto`'s
 search needs it in `PropRead`, no proof term names it).
+
+### Task #123 — Theorem 1 by `vcgen` and `grind` throughout; the custom closers deleted (2026-10-14, Opus)
+
+**The brief.**  Task #122 proved `Core/Memo` and `Core/Arms/Whnf` with the
+toolchain's own mechanisms (`sym only [bridge_grind] => vcgen […] <;>
+finish`) and found the dispatch walks (Spine's `sameConstHeads_spec`: 7/9
+conditions, ~113 G against `bridge_auto`'s 3 G) to be the open question.
+The maintainer: start the easy modules and a calibration on Spine in
+parallel, and if the calibration succeeds, convert the rest — the end state
+`ConRon/BridgeTactic.lean`, `bridge_auto`, `bridge_frame`, `vc_arm` and the
+`ConRonBridgeTactic` library deleted, `Bridge/Frame.lean` folded into
+`Bridge/Grind.lean`; the toolchain used as intended (no custom meta code, no
+Aesop, one `SymM` context per theorem, ≤ ~2× cost per module, minimal
+standalone reproducers for genuine limitations).
+
+**Result.**  Every Theorem 1 walk is `sym only [bridge_grind, local facts…]
+=> vcgen [f, callee specs as terms…] <;> finish`.  `BridgeTactic.lean` (1 974
+lines), `Frame.lean` (256), the `ConRonBridgeTactic` library and its
+default target, and the `clear_tag_hyps` elab (`Core/Walks/Spec.lean`) are
+deleted: ~2 255 lines of custom tactic code → 0 (one
+`register_grind_attr` line remains, `Bridge/GrindAttr.lean`).  The twenty
+modules of #120's table cost **1 105 G → 379 G** instructions (−66 %), every
+one within 1.09× of its baseline and thirteen of them cheaper.
+
+**How it was done.**  Wave 1, four lanes in parallel worktrees: Lane A1
+(`Core/Arms/{Infer,InferIO}`), A2 (`Core/Walks/{Guards,Owed,Cached}`), A3
+(`ExprOps/{Walks,MemoSpecs}`, `Specs`), and Lane B, the calibration, which
+owned `Bridge/Grind.lean` for the wave.  Lane B's answer was GO
+(`sameConstHeads_spec` 3.95 G → 1.45 G, all of Spine 31.1 G → 20.2 G), so
+wave 2 converted the dispatch walks in four lanes: `ExprOps/Subst` +
+`Core/Walks/Proj`; `ExprOps/{Abs,Owed}`; `ExprOps/{Inst1,Leaves}`;
+`Core/Walks/{Nat,StrLit,PropRead}`.  Lanes did not edit `Grind.lean` in wave
+2; each wrote its general vocabulary in a "candidates" section of its own
+module, and a consolidation pass (one owner) hoisted, deduplicated, retired
+the old closers and ran the dead census.  The one integration failure was
+the expected one: two lanes' `DenoteView.proj` met in `Proj`'s import
+closure.  A last pass rewrote the touched modules' docs to describe the code
+as it is (no tactic or proof-state history in source).
+
+**The recipe for a `grind`-shaped walk** (Lane B's calibration, confirmed by
+every wave-2 lane):
+
+1. *Facts as equations about named projections* — never `∃` or a
+   disjunction.  A viewed handle gets ONE fact, `DenoteView st (st.view h)
+   (denoteE st h)`, triggered by its own two terms; per-constructor
+   extraction lemmas fire on `DenoteView st (some (.app f a)) (some e)` and
+   give `denoteE st f = some (exprFn e)`.  A tag test gives `exprTag e =
+   ETag.K`, and a guarded eta (`where guard exprTag e = ETag.K`) gives `e =
+   .K (proj₁ e) …`.
+2. *No `fun` reaches `grind`.*  Its `funext` support case-splits on
+   equalities between unrelated lambdas under one predicate — the `fun`s
+   inside `Ans P o` atoms were what exhausted #122's split budget.  The
+   answer relations are named predicates on the denotation terms: one
+   generic `MapRel g (denoteE st c) (denoteE st' r)` for `RelE`/`RelEL`/
+   `RelEO`/`RelL`/`RelLs` (`relE_eq_mapRel`, an `=` rule), `MapRelV`, with
+   one equation each at `some`.  `Ans` stays only where the memo/whnf chain
+   wants it.
+3. *Injectivity as an inverse function*: `idxOfName` inverts `denoteN`, so
+   name-handle equality follows by congruence (`idxOfLs`, `idxOfExpr`
+   likewise, registered locally where needed: globally they fire on every
+   denotation and cost the ExprOps modules 12–20 %).
+4. *Views follow from tags* (`tagOf_*` etas, guarded), refuting a match's
+   fall-through arm after the tag test.
+5. *The environment index as projections* (`iDefn?`/`iInd?`/`iCtor?`/
+   `cInd?`/`cCtor?`, `FindAt`): one fact per lookup, one case split
+   ("definition or not") where the program has one.
+6. *One unconditional equation per con-leche function a walk compares
+   against*, over tags and projections, so `grind` never splits a `match`
+   (`sameConstHeads_eq`, `unfoldDefinition_eq`, `instantiateList_bvar_eq`,
+   `peelPis_succ_eq`, …); a recursive con-leche function gets one equation
+   per step, passed in the `sym` list; the cutoff and catch-all as one
+   equation each.  A pure function the walk computes is NAMED
+   (`abs1Fn`, `absRangeFn`, `instLPFn`) with one `=` lemma per constructor.
+7. *Callee specs in that shape*: preconditions as projections or `isSome`,
+   no `∃`; posts as named predicates or `Option.map` equations, no `∀`/`∃`;
+   at the `CheckOK` level (a global `CheckOK.monoLe` rule cost +0.8 G
+   elsewhere).  Where another module used the old statement, a variant
+   beside it (`…A`, `…C`, `…X`, `…S`) and the old one derived from it.
+
+Further rules the lanes found: facts about the initial state (`hok.pins`,
+`CheckOK.readL' hok`) go into the `sym` list as terms, not as global `→`
+rules; a lemma keyed by a `fun` or an environment search is passed
+instantiated in the `sym` list; `→` in the `sym` list for a lemma whose
+default pattern is a conclusion term that never occurs; `where guard` on a
+multi-pattern that would pair unrelated terms (`MemoOK.get`,
+`view_of_view*`); an induction hypothesis goes into the `vcgen` list as a
+term (`ih.run`), or is instantiated at the tails and cleared when `grind`
+over-instantiates it; derived-word cutoffs are linear arithmetic (`grind`'s
+cutsat) over `bvarBound` (`DerivedBound`); `attribute [local bridge_grind
+ext] Caches` for the readback memos' record frame (global, it would expand
+every `Caches` term).  `finish`'s limits are raised in six places, each with
+its reason in a comment or docstring: `gen := 10` where an answer arrives
+through three recursive calls (Abs's `letE` arm, Owed's `abstractRangeGo`),
+`splits := 20` for the 14/15-way pin-name tests (Nat's `natBinOpName_spec`,
+`natOpResult_spec`), `gen := 16` for the
+eight chained pin reads (Nat's `natOpWfNames_spec`) and `gen := 16`/`ematch
+:= 10` for `reduceNat_specR`, whose callees are stated at `exprFn (exprFn
+x)`; four more raises the lanes had added were not needed and are gone.
+
+**Numbers** (`perf stat -e instructions:u` of `lake env lean` on the module
+with its options, #120's method; baseline = master
+50b53138 rebuilt in the integration worktree, identical to #121's table;
+after = the tip; one run each, the lanes' two-run checks agreed to 0.01 G):
+
+| module | instructions | file lines | old-closer calls (after: 0) | lemmas restated / added / deleted (notable) |
+|---|---:|---:|---:|---|
+| `Core/Walks/Spine` | 31.13 G → 20.48 G | 991 → 917 | 7 | 3 spec variants (`constValAt_specA`, `defEqList_goA`, `mkAppN_specC`), 5 function equations (`sameConstHeads_eq`, `unfoldableHead_eq`, `unfoldDefinition_eq`, `headHint_eq`, `spineDefEq_eq`); 17 arm lemmas deleted |
+| `Core/Walks/Nat` | 137.13 G → 46.56 G | 1175 → 1212 | 12 | 5 restated (`natBinOpName_spec` to a `Bool`, `natOpWfNames_spec` to `WfNames`, the three `nat*Ok_spec`), `reduceNat_specR`, `rawNatLit?_specA`, `constE_specA`, `KnotSpec.whnfA`, `pinAt_specE`; guard/exit lemmas and the `nat_*` macros deleted |
+| `ExprOps/Subst` | 109.54 G → 46.01 G | 1805 → 1173 | 20 | `instPisAtLift_specA`; 52 step/cutoff/leaf lemmas and the `subst_hyp` macro deleted, the generic half of 47 additions hoisted to `Grind` |
+| `ExprOps/Abs` | 102.25 G → 17.71 G | 705 → 432 | 6 | the specs over named functions (`abs1Fn`, `absRangeFn`, 1 `=` per constructor); `Abs1At.*`/`AbsRangeAt.*`, `viewMono_*` deleted |
+| `ExprOps/Owed` | 311.69 G → 34.16 G | 647 → 460 | 3 | `instLPFn`, `instLPGo_specS`, `abs1Set_specA`/`instLPSet_specA`; `InstLPAt.*`, `abs_hyp` deleted (~45 with Abs) |
+| `Core/Memo` | 11.53 G → 11.54 G | 960 → 957 | 0 (#122) | — |
+| `Core/Arms/Whnf` | 6.23 G → 6.59 G | 336 → 330 | 0 (#122) | — (+0.36 G: the larger `Grind` import and the vocabulary's global rules) |
+| `Core/Arms/Infer` | 14.30 G → 14.45 G | 849 → 828 | 3 | `SimE.of_constTy` restated (length premise, passed instantiated), `SimE.of_fvar` added |
+| `Core/Arms/InferIO` | 10.98 G → 10.99 G | 805 → 786 | 3 | the IO twins of the same |
+| `Core/Walks/Proj` | 16.50 G → 14.07 G | 803 → 944 | 12 | `peelPis_specA` (`RelEO` answer), `teleArityOk_spec` (`TeleArityPost`), `findProj?_specA`/`_specX`, `projTableName_specC`, `instantiateListFast_specC`, the constructor index (`CtorAt`) |
+| `Core/Walks/StrLit` | 53.27 G → 35.22 G | 1132 → 1076 | 7 | `constE_spec'` deleted; `OptCI` equations registered; the pin-table reads as `pinNames_eq_*` |
+| `Core/Walks/PropRead` | 74.50 G → 36.67 G | 958 → 1219 | 17 | the fourteen readers restated (`…_specA` as `Option.map` equations, `…_specX` at a given denotation), `toConstantVal_specP`; `const_entry*`, `*_other` deleted |
+| `ExprOps/Leaves` | 109.78 G → 10.78 G | 864 → 955 | 2 | 20 step lemmas registered with patterns that select them; 11 `mem_ech_*` deleted |
+| `ExprOps/Inst1` | 51.45 G → 14.37 G | 556 → 342 | 8 | no step lemmas left: `Expr.instantiate1`'s own equations and `inst1_cut`/`inst1_leaf`; the `Inst1At.*` step lemmas and helpers deleted (15) |
+| `ExprOps/Walks` | 8.04 G → 8.77 G | 140 → 145 | 1 | `lamPair?_none_left/right` for `lamPair?_none_of_tag` (+0.7 G: `lamPair?_spec`'s `∃` post, kept for `DefeqLazy` — `exists-goal-multipattern.lean`) |
+| `ExprOps/MemoSpecs` | 8.06 G → 7.31 G | 581 → 479 | 1 | `RelE.const/fvar/sort`, `abs1Set_specI`, `instLPSet_specI` deleted |
+| `Core/Walks/Cached` | 10.08 G → 10.64 G | 947 → 899 | 7 | 12 restated (5 inserts, 5 hits as `Ans` at the probe, `readL'`/`readLs'`), `ofReadL`/`ofReadLs` for `ofReadL2`/`ofReadLs2`, `constTyAt_spec'` deleted |
+| `Core/Walks/Owed` | 7.47 G → 6.28 G | 524 → 404 | 5 | 5 exits restated over `defEqListOp`, `defEqList_specA` (the induction; `defEqList_go`/`_spec` derived) |
+| `Core/Walks/Guards` | 4.80 G → 5.00 G | 167 → 177 | 1 | 3 restated (`isBoolTrue_of_tag/levels/name`), `boolTrueName_spec` |
+| `Specs` | 26.27 G → 21.77 G | 1295 → 1246 | 7 | 12 vocabulary additions (hoisted to `Grind`) |
+| **the 20 modules** | **1 105.0 G → 379.3 G (0.34×)** | **16 240 → 14 981** | **122 → 0** | |
+
+`Bridge/Grind.lean` grew 103 → 1 369 lines and 3.85 → 12.34 G (paid once:
+it now holds the vocabulary and the proofs that were in `Frame.lean`):
+§1 the store order, §2 transport (`denote_le` and its siblings for names,
+levels, level lists, handle lists, the memo and readback invariants), §3
+answers (`Ans`, `MapRel`, `MapRelV`, `denote_some_of_isSome`), §4 the state
+invariant and small facts (`stateOK_eq`, `opt2`/`opt3`, handle lists, the
+27 `pinNames_eq_*`), §5 memo tables, §6 views and tags (`exprTag`,
+`tag_of_denote`, the projections, the index inverses, `DenoteView` and its
+ten extractions, the guarded etas and `view_of_view*`), §7 interning
+(`capOK`, `eBindView`, `viewOK_*`), §8 the environment index.  Walk-specific
+vocabulary stays with its walk (Proj's readback frame and `CtorAt`,
+PropRead's `ConstAt`, Nat's `OptCI`/`WhnfAns`, Spine's `ConstValPost`,
+Subst's `DerivedBound`).  The dead census deleted 31 more declarations the
+conversion left unreached (Rel's `RelE.{app,lam,…}` and `RelE.ext`/`of_ext`/
+`retarget` with every `attribute [-grind]` line that erased them, the
+`Inst1At` step lemmas, `KnotSpec.defeq'`/`whnf'`, …) and four allowlist
+entries.
+
+**Reproducers** (`_tmp/corpus/vcgen-grind/`, plain Lean at v4.35.0-rc3, each
+with an expected/observed header; all six re-run and behave as described):
+
+* `funext-splits-on-predicate-lambdas.lean` — `grind` case-splits on
+  `(fun e => …) = (fun e => …)` for lambdas that are only arguments of the
+  same uninterpreted predicate; this is what made #122's dispatch arms hit
+  the split limit.
+* `forward-eq-hyp-multipattern.lean` — a `→` rule whose hypothesis is `view
+  h = some (.node l r)` gets the multi-pattern `view h, .node l r` (two
+  unrelated terms) and is instantiated for every pair.
+* `exists-goal-multipattern.lean` — a negated `∃` goal with four `some xᵢ`
+  conjuncts is instantiated through `[some, some, some, some]` over every
+  4-tuple of `some` terms (1 000 instances, the limit, for a goal one closes).
+* `nested-ctor-fallthrough-hyp.lean` — `vcgen`'s match fall-through
+  hypothesis with a nested constructor pattern (`∀ n, v = .lit (.natVal n) →
+  False`) gets no e-matching pattern; wrapped as `Lean.Grind.MatchCond` it
+  works — `vcgen` could mark its fall-through conditions so.
+* `vcgen-let-src-in-spec.lean` — a spec whose post contains `{ s₀.memos with
+  … }` (elaborated to `let __src := …`) makes `vcgen` fail ("unexpected
+  let-declaration term during structural definitional equality"), inside
+  `sym` and outside; `dsimp only` first is the workaround (Subst's three
+  memo-insert specs, Abs).
+* `struct-update-pattern.lean` — a structure update is rejected as a
+  `grind_pattern` without a type ascription (usability).
+
+#122's frame-procedure reproducers were not copied out before that
+worktree was dropped; they are described in `### Task #122`.
+
+**What remains.**  Nothing on the old closers.  `bridge_vcs` (a `grind`
+macro in `Specs.lean`, ~50 calls in `ExprOps/{Guards,Ranges,Spine,InstLP}`)
+and `bridge_peel` (`Bridge/Peel.lean`, the `triple_seq`-style proofs in
+Specs, EnsureSort, `ExprOps/Spine` and nine `Core/Walks` modules) were not in
+this task's scope; they are the next candidates for the same idiom.  The
+staged `triple_seq` proofs that never used a closer (`etaCert_spec`,
+`inferProj_spec`, `iotaCertsFullAux_go`, `propIrrel_spec`, StrLit's shape
+walks) are unchanged.  `findAt`, `ctorAt` and `constAt` are three facts that
+each fire at every environment lookup; one would do.
+
+**State.**  Not merged into master (the maintainer lands).  `LAKE_JOBS=4 scripts/gates.sh` on the tip is green.
