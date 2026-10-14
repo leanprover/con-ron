@@ -60,6 +60,7 @@ import ConRon.Bridge.Core.Walks.Owed
 import ConRon.Bridge.Core.Walks.Cached
 import ConRon.Bridge.ExprOps.Spine
 import ConRon.Bridge.Frame
+import ConRon.Bridge.Grind
 
 namespace ConRon.Bridge.Core
 
@@ -472,42 +473,6 @@ theorem headHint_spec (s₀ : AState) (e : EIdx) (x : Expr)
   bridge_auto [env_defn_of_index, env_not_defn_of_index, denote_not_const]
     unfolding [ConLeche.headHint]
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
-second head is not a constant (task #120: the four declining arms as lemmas,
-so that each arm is one `exact`). -/
-theorem sameConstHeads_nc_right {f₁ a₁ f₂ a₂ : Expr}
-    (h : ∀ n us, f₂.getAppFn ≠ .const n us) :
-    ConLeche.sameConstHeads (.app f₁ a₁) (.app f₂ a₂) = false := by
-  simp only [ConLeche.sameConstHeads]
-  cases hgx : f₁.getAppFn <;> cases hgy : f₂.getAppFn <;>
-    first | rfl | exact absurd hgy (h _ _)
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
-first head is not a constant. -/
-theorem sameConstHeads_nc_left {f₁ a₁ y : Expr}
-    (h : ∀ n us, f₁.getAppFn ≠ .const n us) :
-    ConLeche.sameConstHeads (.app f₁ a₁) y = false := by
-  cases y with
-  | app f₂ a₂ =>
-    simp only [ConLeche.sameConstHeads]
-    cases hgx : f₁.getAppFn <;> cases f₂.getAppFn <;>
-      first | rfl | exact absurd hgx (h _ _)
-  | _ => simp only [ConLeche.sameConstHeads]
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
-second subject is not an application. -/
-theorem sameConstHeads_na_right {f₁ a₁ y : Expr} (h : ∀ f a, y ≠ .app f a) :
-    ConLeche.sameConstHeads (.app f₁ a₁) y = false := by
-  simp only [ConLeche.sameConstHeads]
-  cases hy : y <;> first | rfl | exact absurd hy (h _ _)
-
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — the
-first subject is not an application. -/
-theorem sameConstHeads_na_left {x y : Expr} (h : ∀ f a, x ≠ .app f a) :
-    ConLeche.sameConstHeads x y = false := by
-  simp only [ConLeche.sameConstHeads]
-  cases hx : x <;> cases hy : y <;> first | rfl | exact absurd hx (h _ _)
-
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
 **CLOSED** (round 3), and it is DESIGN §8.3's *"index inequality IS
@@ -579,35 +544,37 @@ theorem beq_of_denoteN {st : NStore} (hwf : NStoreWF st) {n₁ n₂ : NIdx}
       simp only [beq_eq_false_iff_ne]; exact hne
     rw [e1, e2]
 
-/-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads — both
-heads are constants: the verdict is the comparison of their NAME HANDLES
-(task #120: the shape of the walk's last verification condition). -/
-theorem sameConstHeads_handles {st : EStore} (hwf : StoreWF st) {ca cb : NIdx}
-    {na nb : ConLeche.Name} {fa a fb b : Expr} {lsa lsb : List Level}
-    (hna : denoteN st.ns ca = some na) (hnb : denoteN st.ns cb = some nb)
-    (hgfa : fa.getAppFn = .const na lsa) (hgfb : fb.getAppFn = .const nb lsb) :
-    (ca == cb) = ConLeche.sameConstHeads (.app fa a) (.app fb b) := by
-  obtain ⟨rk, hrk⟩ := hwf
-  rw [beq_of_denoteN hrk.nsWF hna hnb]
-  simp only [ConLeche.sameConstHeads, hgfa, hgfb]
+/-- con-leche: ConLeche/Kernel/CoreDefs.lean:157-162 sameConstHeads — **the
+function as ONE unconditional equation over tags and projections** (task
+#123): both applications, both heads constants, the same name.  `grind`
+rewrites the comparand with it and never splits the nested `match`. -/
+@[bridge_grind =] theorem sameConstHeads_eq (x y : Expr) :
+    ConLeche.sameConstHeads x y =
+      (exprTag x == ETag.app && exprTag y == ETag.app &&
+        exprTag (exprFn x).getAppFn == ETag.const &&
+        exprTag (exprFn y).getAppFn == ETag.const &&
+        exprConstName (exprFn x).getAppFn == exprConstName (exprFn y).getAppFn) := by
+  cases x <;> cases y <;> try rfl
+  rename_i f₁ a₁ f₂ a₂
+  simp only [ConLeche.sameConstHeads, exprFn]
+  generalize f₁.getAppFn = g₁
+  generalize f₂.getAppFn = g₂
+  cases g₁ <;> cases g₂ <;> rfl
 
 /-- con-leche: ConLeche/Kernel/CoreDefs.lean:183-192 sameConstHeads —
 **THEOREM 1 for `sameConstHeads`**: the lazy-delta same-head short-circuit.
-**CLOSED** (round 3).  Nine verification conditions, the most of the three,
-because the walk peels two subjects; `beq_of_denoteN` is the guard. -/
+**CLOSED** (round 3).  Thirteen verification conditions, the most of the
+three, because the walk peels two subjects.  `grind` since task #123: the
+views and tags are `Bridge/Grind.lean` §5's equations, the comparand is
+`sameConstHeads_eq`, and the name guard is `idxOfName`'s congruence. -/
 theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
     (hdb : denoteE s₀.store b = some y) :
     ⦃fun s => s = s₀⦄ ConRon.Arena.sameConstHeads a b
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧ r = ConLeche.sameConstHeads x y; ⊤⦄ := by
-  have hfn := ExprOps.getAppFn_spec coreWalkFuel
-  obtain ⟨rk, hrk⟩ := hok.state.wf
-  vcgen [ConRon.Arena.sameConstHeads, hfn]
-  all_goals (bridge_peel; subst_vars)
-  bridge_auto [denote_not_const, denote_not_const_of_tag, denote_not_app,
-    denote_not_app_of_tag, sameConstHeads_handles, sameConstHeads_nc_right,
-    sameConstHeads_nc_left, sameConstHeads_na_right, sameConstHeads_na_left]
+  sym only [bridge_grind] =>
+    vcgen [ConRon.Arena.sameConstHeads, ExprOps.getAppFn_spec coreWalkFuel] <;> finish
 
 /-! ### `defeqSpine`, the walk that consumes the whole round
 
