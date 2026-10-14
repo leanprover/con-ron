@@ -859,8 +859,9 @@ under `vcgen` (task #111) it is simply left open.  So the pure function is the
 parameter and each walk passes this spec INSTANTIATED in its `vcgen` list —
 `liftSet_specG (f := fun c e => Expr.liftLooseBVars amount c e)`.
 `@[spec high]`: a spec registered later does not override an earlier one for
-the same program.  The program's `let`s are unfolded before `sym`, which
-does not accept them (task #123). -/
+the same program.  `dsimp only` first: the postcondition's record update
+elaborates to `let __src := s0.memos; …`, which `vcgen` rejects (task #123,
+reproducer `vcgen-let-src-in-spec.lean`). -/
 @[spec high] theorem liftSet_specG (s0 : AState) (f : Nat -> Expr -> Expr)
     (k : EIdx × Nat) (r : EIdx) (hm : MemoOK f s0.memos.liftC s0.store)
     (hk : (denoteE s0.store k.1).isSome = true)
@@ -870,9 +871,8 @@ does not accept them (task #123). -/
         s'.pins = s0.pins ∧
         s'.memos = { s0.memos with liftC := s0.memos.liftC.insert k r } ∧
         MemoOK f s'.memos.liftC s'.store; ⊤⦄ := by
-  unfold liftSet
   dsimp only
-  sym only [bridge_grind] => vcgen <;> finish
+  sym only [bridge_grind] => vcgen [liftSet] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `liftLooseBVarsGo`'s recursion.
@@ -949,9 +949,8 @@ insert's spec for `inst1LC`, generic in the pure function (see
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with inst1LC := s₀.memos.inst1LC.insert k r } ∧
         MemoOK f s'.memos.inst1LC s'.store; ⊤⦄ := by
-  unfold inst1LSet
   dsimp only
-  sym only [bridge_grind] => vcgen <;> finish
+  sym only [bridge_grind] => vcgen [inst1LSet] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt — Theorem 1's statement for
 one level of `instantiate1LiftGo`'s recursion. -/
@@ -1098,9 +1097,8 @@ insert's spec for `instLC`, generic in the pure function (see
         s'.pins = s₀.pins ∧
         s'.memos = { s₀.memos with instLC := s₀.memos.instLC.insert k r } ∧
         MemoOK f s'.memos.instLC s'.store; ⊤⦄ := by
-  unfold instLSet
   dsimp only
-  sym only [bridge_grind] => vcgen <;> finish
+  sym only [bridge_grind] => vcgen [instLSet] <;> finish
 
 /-! ### `instantiateList`, the unmemoized walk -/
 
