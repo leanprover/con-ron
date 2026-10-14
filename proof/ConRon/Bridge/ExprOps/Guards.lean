@@ -63,33 +63,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean)
-
-The memo invariants this module's walks carry, in `Bridge/Grind.lean` §5's
-shape: the hit at a probe the program matched, the insert at the update's
-table term, the dropped table, each guarded so that it fires there only.
-`MemoVDOK` (`ExprOps/Leaves.lean`) is the cursor-keyed one; `MemoVOK`'s three
-are `ExprOps/Ranges.lean`'s candidates again, registered locally here because
-the two modules do not import each other. -/
-
-grind_pattern [bridge_grind] MemoVDOK.get => MemoVDOK f tbl st, tbl[k]?, some v where
-  guard tbl[k]? = some v
-
-grind_pattern [bridge_grind] MemoVDOK.insert => MemoVDOK f tbl' st, tbl.insert k v where
-  guard tbl' = tbl.insert k v
-
-grind_pattern [bridge_grind] MemoVDOK.of_empty => MemoVDOK f tbl st where
-  guard tbl = ∅
-
-local grind_pattern [bridge_grind] MemoVOK.get => MemoVOK f tbl st, tbl[k]?, some v where
-  guard tbl[k]? = some v
-
-local grind_pattern [bridge_grind] MemoVOK.insert => MemoVOK f tbl' st, tbl.insert k v where
-  guard tbl' = tbl.insert k v
-
-local grind_pattern [bridge_grind] MemoVOK.of_empty => MemoVOK f tbl st where
-  guard tbl = ∅
-
 /-! ## 1. `wscopedBGo` and `wscopedBFast` — `ExprOps.lean:833`, `:868`
 
 The scope walk `Expr.wscopedB` with three additions, all of them con-leche's own

@@ -175,6 +175,19 @@ theorem MemoVDOK.insert {α : Type} {f : Nat → Expr → α}
     exact ⟨e, he, hr e he⟩
   · exact hm k' v' hk'
 
+/-! `MemoVDOK` in `Bridge/Grind.lean` §5's shape: the hit at a probe the
+program matched, the insert at the update's table term, the dropped table,
+each guarded so that it fires there only. -/
+
+grind_pattern [bridge_grind] MemoVDOK.get => MemoVDOK f tbl st, tbl[k]?, some v where
+  guard tbl[k]? = some v
+
+grind_pattern [bridge_grind] MemoVDOK.insert => MemoVDOK f tbl' st, tbl.insert k v where
+  guard tbl' = tbl.insert k v
+
+grind_pattern [bridge_grind] MemoVDOK.of_empty => MemoVDOK f tbl st where
+  guard tbl = ∅
+
 /-! ## 3. The pure facts behind the fvar-range cutoff
 
 Two structural inductions on `Expr`, plus `Expr.hasFvar_eq_false_iff` and

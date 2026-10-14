@@ -36,30 +36,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean)
-
-The level memo invariants' hits (`Bridge/Grind.lean` §5's shape: guarded at
-the probe the program matched; their inserts are `MemoSpecs.lean`'s
-`instLP*Set_specI` posts), and a level or level-list handle known only to
-denote denotes SOMETHING (§3's `denote_some_of_isSome` at the level stores). -/
-
-grind_pattern [bridge_grind] MemoLOK.get => MemoLOK f tbl st, tbl[k]?, some r where
-  guard tbl[k]? = some r
-
-grind_pattern [bridge_grind] MemoLsOK.get => MemoLsOK f tbl st, tbl[k]?, some r where
-  guard tbl[k]? = some r
-
-/-- con-leche: none — `denote_some_of_isSome` at a level handle. -/
-@[bridge_grind →] theorem denoteL_some_of_isSome {st : LStore} {h : LIdx}
-    (hs : (denoteL st h).isSome = true) : ∃ u, denoteL st h = some u :=
-  Option.isSome_iff_exists.mp hs
-
-/-- con-leche: none — `denote_some_of_isSome` at a universe-argument list
-handle. -/
-@[bridge_grind →] theorem denoteLs_some_of_isSome {st : LsStore} {h : LsIdx}
-    (hs : (denoteLs st h).isSome = true) : ∃ us, denoteLs st h = some us :=
-  Option.isSome_iff_exists.mp hs
-
 -- A hit's cache frame is structure eta at the cache record (as in
 -- `MemoSpecs.lean`).
 attribute [local bridge_grind ext] Caches

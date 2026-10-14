@@ -292,6 +292,17 @@ equations — measured on `ExprOps/Abs.lean` and `ExprOps/Subst.lean`.) -/
     (hs : (denoteE st h).isSome = true) : ∃ e, denoteE st h = some e :=
   Option.isSome_iff_exists.mp hs
 
+/-- con-leche: none — `denote_some_of_isSome` at a level handle. -/
+@[bridge_grind →] theorem denoteL_some_of_isSome {st : LStore} {h : LIdx}
+    (hs : (denoteL st h).isSome = true) : ∃ u, denoteL st h = some u :=
+  Option.isSome_iff_exists.mp hs
+
+/-- con-leche: none — `denote_some_of_isSome` at a universe-argument list
+handle. -/
+@[bridge_grind →] theorem denoteLs_some_of_isSome {st : LsStore} {h : LsIdx}
+    (hs : (denoteLs st h).isSome = true) : ∃ us, denoteLs st h = some us :=
+  Option.isSome_iff_exists.mp hs
+
 /-- con-leche: none — `denote_some_of_isSome` at a handle LIST. -/
 @[bridge_grind →] theorem denoteEList_some_of_isSome {st : EStore} {hs : List EIdx}
     (h : (Frontend.denoteEList st hs).isSome = true) :
@@ -546,6 +557,24 @@ grind_pattern [bridge_grind] MemoOK.insert_at => MemoOK f (tbl.insert k r) st
 
 grind_pattern [bridge_grind] MemoOK.of_empty => MemoOK f tbl st where
   guard tbl = ∅
+
+/-! The handle-keyed, value-valued invariant `MemoVOK` and the level memos'
+hits, in the same shape. -/
+
+grind_pattern [bridge_grind] MemoVOK.get => MemoVOK f tbl st, tbl[k]?, some v where
+  guard tbl[k]? = some v
+
+grind_pattern [bridge_grind] MemoVOK.insert => MemoVOK f tbl' st, tbl.insert k v where
+  guard tbl' = tbl.insert k v
+
+grind_pattern [bridge_grind] MemoVOK.of_empty => MemoVOK f tbl st where
+  guard tbl = ∅
+
+grind_pattern [bridge_grind] MemoLOK.get => MemoLOK f tbl st, tbl[k]?, some r where
+  guard tbl[k]? = some r
+
+grind_pattern [bridge_grind] MemoLsOK.get => MemoLsOK f tbl st, tbl[k]?, some r where
+  guard tbl[k]? = some r
 
 /-! ## 6. Views and tags as equations -/
 

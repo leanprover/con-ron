@@ -72,22 +72,6 @@ set_option maxHeartbeats 2000000
 open ConLeche ConRon.Arena ConRon.Bridge Std.WP
 open scoped Lean.Order
 
-/-! ## Vocabulary candidates (for Bridge/Grind.lean)
-
-`Bridge/StateOK.lean`'s handle-keyed, value-valued memo invariant `MemoVOK`
-(`MemoBA`, `MemoFA`, `Guards.lean`'s `LSubMemoA`), in `Bridge/Grind.lean` §5's
-shape: the hit at a probe the program matched, the insert at the update's
-table term, the dropped table — each guarded so that it fires there only. -/
-
-grind_pattern [bridge_grind] MemoVOK.get => MemoVOK f tbl st, tbl[k]?, some v where
-  guard tbl[k]? = some v
-
-grind_pattern [bridge_grind] MemoVOK.insert => MemoVOK f tbl' st, tbl.insert k v where
-  guard tbl' = tbl.insert k v
-
-grind_pattern [bridge_grind] MemoVOK.of_empty => MemoVOK f tbl st where
-  guard tbl = ∅
-
 /-! ## The two derived-word licences
 
 The one place this file unfolds the packed word.  Both are
