@@ -541,7 +541,7 @@ theorem sameConstHeads_spec (s₀ : AState) (a b : EIdx) (x y : Expr)
 /-! ### `defeqSpine`
 
 Its callees are `getAppFn_spec` and `getAppArgs_spec` (the `ExprOps`
-import, §0c), `lvlsEq?_spec` (at the equation, so at both signs), and
+import, §0c), `lvlsEq?_specA` (at the equation, so at both signs), and
 `defEqList_goA` (above).  Twenty
 verification conditions, sixteen of them the four `StateOK`/`isSome`
 preconditions of the four spine reads. -/
@@ -645,7 +645,7 @@ guard: the twin tests `n = n'` on `NIdx` where con-leche tests `Name`
 equality (`name_eq_iff_of_denoteN`, both directions), and `aa.length =
 bb.length` on handle lists where con-leche tests the denoted spines'
 (`denoteEList_len`, both directions).  The walk DECLINES on either, so both
-are needed at both signs — `lvlEq?_spec`'s rule at a compound guard. -/
+are needed at both signs — `lvlEq?_specA`'s rule at a compound guard. -/
 theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
     (s₀ : AState) (d : Nat) (a b : EIdx) (x y : Expr)
     (hok : CheckOK mode env fe s₀) (hda : denoteE s₀.store a = some x)
@@ -659,7 +659,7 @@ theorem defeqSpine_spec {fuel : Nat} (hsim : KnotSpec mode env fe fuel)
   show ⦃fun s => s = s₀⦄ _ ⦃fun r s' => _ ∧ _ ∧ _ ∧ SpineDefEq mode env d x y r; ⊤⦄
   sym only [bridge_grind] =>
     vcgen [ConRon.Arena.defeqSpine, ExprOps.getAppFn_spec coreWalkFuel,
-      ExprOps.getAppArgs_spec coreWalkFuel, lvlsEq?_spec (mode := mode) (env := env) (fe := fe),
+      ExprOps.getAppArgs_spec coreWalkFuel, lvlsEq?_specA (mode := mode) (env := env) (fe := fe),
       defEqList_goA hsim d] <;> finish
 
 /-- con-leche: ConLeche/Verify/SimI.lean:244 SimAt —

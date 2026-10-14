@@ -92,21 +92,20 @@ grind_pattern [bridge_grind] lamPair?_none_right => denoteE st b, Expr.lamPair? 
   guard denoteE st b = some eb
 
 /-- con-leche: ConLeche/Kernel/ExprOps.lean:776-780 lamPair? — **THEOREM 1
-for `lamPair?`**: the state does not move; `none` exactly when the two
-denotations are not both λs, and otherwise the four handles denote the four
-components. -/
+for `lamPair?`**: the state does not move; `none` exactly when con-leche's
+`lamPair?` of the two denotations is `none`, and otherwise the two handles
+denote the λs of the four answered handles' denotations.  Both arms are
+equations over the denotation terms (`opt2`): no witness to name. -/
 theorem lamPair?_spec (s₀ : AState) (a b : EIdx) (hok : StateOK s₀)
     (_ha : (denoteE s₀.store a).isSome = true)
     (_hb : (denoteE s₀.store b).isSome = true) :
     ⦃fun s => s = s₀⦄ lamPair? a b
-    ⦃fun r s' => s' = s₀ ∧ ∀ ea eb, denoteE s₀.store a = some ea →
-        denoteE s₀.store b = some eb →
+    ⦃fun r s' => s' = s₀ ∧
         match r with
-        | none => Expr.lamPair? ea eb = none
-        | some (t₁, b₁, t₂, b₂) => ∃ et₁ eb₁ et₂ eb₂,
-            Expr.lamPair? ea eb = some (et₁, eb₁, et₂, eb₂) ∧
-            denoteE s₀.store t₁ = some et₁ ∧ denoteE s₀.store b₁ = some eb₁ ∧
-            denoteE s₀.store t₂ = some et₂ ∧ denoteE s₀.store b₂ = some eb₂; ⊤⦄ := by
+        | none => opt2 Expr.lamPair? (denoteE s₀.store a) (denoteE s₀.store b) = some none
+        | some (t₁, b₁, t₂, b₂) =>
+            denoteE s₀.store a = opt2 Expr.lam (denoteE s₀.store t₁) (denoteE s₀.store b₁) ∧
+            denoteE s₀.store b = opt2 Expr.lam (denoteE s₀.store t₂) (denoteE s₀.store b₂); ⊤⦄ := by
   sym only [bridge_grind, Expr.lamPair?] =>
     vcgen [lamPair?] <;> finish
 

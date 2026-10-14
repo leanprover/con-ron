@@ -113,7 +113,21 @@ theorem CVFields.some {st₀ st : EStore} {cv : IConstantVal} {c : ConstantInfo}
       denoteE st cv.type = some c.toConstantVal.type := H
 grind_pattern [bridge_grind] CVFields.some => CVFields st₀ st cv (some c)
 
-attribute [bridge_grind =] OptCI
+/-- con-leche: none — `OptCI` at a miss. -/
+@[bridge_grind =] theorem OptCI.none_eq (st : EStore) (oc' : Option ConstantInfo) :
+    OptCI st none oc' = (oc' = none) := rfl
+
+/-- con-leche: none — `OptCI` at a hit, as an equation over the denotation
+term: the environment's answer IS the stored record's denotation, present. -/
+@[bridge_grind =] theorem OptCI.some_eq (st : EStore) (ci : IConstantInfo)
+    (oc' : Option ConstantInfo) :
+    OptCI st (some ci) oc' =
+      (oc' = Frontend.denoteCI st ci ∧ oc' = some (oc'.getD default)) := by
+  apply propext
+  constructor
+  · rintro ⟨c, hc, rfl⟩; exact ⟨hc.symm, rfl⟩
+  · rintro ⟨h1, h2⟩
+    exact ⟨_, (h1.symm.trans h2), h2⟩
 
 grind_pattern [bridge_grind] optCI_find => OptCI s.store (fe.find? n) (env.find? nm),
   CheckOK mode env fe s

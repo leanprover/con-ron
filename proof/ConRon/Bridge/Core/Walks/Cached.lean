@@ -38,8 +38,9 @@ Read off `lvlEq?_spec` below; every cached walk follows it.
    `CheckOK` across each, and the hit and insert lemmas of §1 close the
    branches.
 2. **The postcondition does not take the subjects' denotations as
-   hypotheses.**  It says "*if* the walk answered `some b`, then the subjects
-   denote and `Level.isEquiv` answers `b`" — the no-`Expr`-in-the-precondition
+   hypotheses.**  It says "`opt2 Level.isEquiv` of the two subjects'
+   denotations is `some` of the answer" — one equation over the denotation
+   terms, which also says that both subjects denote; the no-`Expr`-in-the-precondition
    rule (DESIGN, task #97-P3-0, rule 4) at two subjects, and the reason is
    the hit branch: `LvlEqCacheOK` DELIVERS the denotations, it does not
    consume them.
@@ -335,24 +336,30 @@ theorem CheckOK.insertRuleRhs {st₀ : EStore} {rn cn : NIdx} {us : LsIdx}
     (denoteN_ext hcn hx) (denoteLs_ext hus hx) hf hrl hi) rfl rfl
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — a level-verdict HIT is
-`Level.isEquiv`'s verdict at the two denotations (the clause at the probe). -/
+`Level.isEquiv`'s verdict at the two denotations (the clause at the probe), as
+an equation over the denotation terms: whatever the row holds, `opt2
+Level.isEquiv` of the two denotations is `some` of it. -/
 theorem CheckOK.lvlEq_hit {s : AState} (h : CheckOK mode env fe s) (u v : LIdx) :
-    Ans (fun r => ∃ lu lv, denoteL s.store.ls u = some lu ∧
-      denoteL s.store.ls v = some lv ∧ some r = Level.isEquiv lu lv)
-      (s.caches.lvlEqC[(u, v)]?) := fun r hhit => by
-  obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlEq (u, v) r hhit
-  exact ⟨lu, lv, hu, hv, he.symm⟩
+    MapRel some (s.caches.lvlEqC[(u, v)]?)
+      (opt2 Level.isEquiv (denoteL s.store.ls u) (denoteL s.store.ls v)) := by
+  cases hhit : s.caches.lvlEqC[(u, v)]? with
+  | none => trivial
+  | some r =>
+    obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlEq (u, v) r hhit
+    simp only [MapRel, hu, hv, opt2, he]
 grind_pattern [bridge_grind] CheckOK.lvlEq_hit =>
   CheckOK mode env fe s, s.caches.lvlEqC[(u, v)]?
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the same at two
 universe-argument lists. -/
 theorem CheckOK.lvlsEq_hit {s : AState} (h : CheckOK mode env fe s) (us vs : LsIdx) :
-    Ans (fun r => ∃ lus lvs, denoteLs s.store.lss us = some lus ∧
-      denoteLs s.store.lss vs = some lvs ∧ some r = Level.isEquivList lus lvs)
-      (s.caches.lvlsEqC[(us, vs)]?) := fun r hhit => by
-  obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlsEq (us, vs) r hhit
-  exact ⟨lu, lv, hu, hv, he.symm⟩
+    MapRel some (s.caches.lvlsEqC[(us, vs)]?)
+      (opt2 Level.isEquivList (denoteLs s.store.lss us) (denoteLs s.store.lss vs)) := by
+  cases hhit : s.caches.lvlsEqC[(us, vs)]? with
+  | none => trivial
+  | some r =>
+    obtain ⟨lu, lv, hu, hv, he⟩ := h.caches.lvlsEq (us, vs) r hhit
+    simp only [MapRel, hu, hv, opt2, he]
 grind_pattern [bridge_grind] CheckOK.lvlsEq_hit =>
   CheckOK mode env fe s, s.caches.lvlsEqC[(us, vs)]?
 
@@ -448,28 +455,53 @@ for `lvlEq?`**.
 
 The verdict the walk answers **IS** `Level.isEquiv`'s at the two handles'
 denotations — the `Option Bool` and not just its `some` half — and the state
-keeps `CheckOK` with the store and the pins untouched.
+keeps `CheckOK` with the store and the pins untouched.  The verdict is one
+equation over the two denotation terms, `opt2 Level.isEquiv … = some r`, so
+it also says that both handles denote.
 
-The last conjunct is an equation, not "∀ b, r = some b → …": the walk's
-`none` is `isEquiv`'s own `none` and nothing else — `lvlEq?` returns the memo
-row or `Level.isEquiv lu lv` itself — and a caller that must decide a GUARD
-off the verdict needs the negative half: `IProjEntry.fireOk` fires the
-projection rule when the structure sort is NOT provably zero, so a
-one-directional spec would leave the `none` case unrelatable
-(`Bridge/Inductives/SumParts.lean` reads `lvlEq?_spec` at both signs). -/
+The verdict is an equation, not "∀ b, r = some b → …": the walk's `none` is
+`isEquiv`'s own `none` and nothing else — `lvlEq?` returns the memo row or
+`Level.isEquiv lu lv` itself — and a caller that must decide a GUARD off the
+verdict needs the negative half: `IProjEntry.fireOk` fires the projection
+rule when the structure sort is NOT provably zero, so a one-directional spec
+would leave the `none` case unrelatable (`Bridge/Inductives/SumParts.lean`
+reads `lvlEq?_spec` at both signs). -/
+theorem lvlEq?_specA (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ lvlEq? u v
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧
+        opt2 Level.isEquiv (denoteL s₀.store.ls u) (denoteL s₀.store.ls v) = some r; ⊤⦄ := by
+  sym only [bridge_grind, CheckOK.readL' hok] =>
+    vcgen [lvlEq?] <;> finish
+
+/-- con-leche: ConLeche/Kernel/Level.lean:158-163 Level.isEquiv — `lvlEq?_specA`
+with the two denotations named, for the term-mode callers that destructure
+it. -/
 theorem lvlEq?_spec (s₀ : AState) (u v : LIdx) (hok : CheckOK mode env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlEq? u v
     ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
         s'.pins = s₀.pins ∧
         ∃ lu lv, denoteL s₀.store.ls u = some lu ∧
           denoteL s₀.store.ls v = some lv ∧
-          r = Level.isEquiv lu lv; ⊤⦄ := by
-  sym only [bridge_grind, CheckOK.readL' hok] =>
-    vcgen [lvlEq?] <;> finish
+          r = Level.isEquiv lu lv; ⊤⦄ :=
+  triple_mono (lvlEq?_specA s₀ u v hok) fun _ _ ⟨h1, h2, h3, h4⟩ => by
+    obtain ⟨lu, lv, hu, hv, he⟩ := opt2_eq_some_iff.mp h4
+    exact ⟨h1, h2, h3, lu, lv, hu, hv, he.symm⟩
 
 /-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
-**THEOREM 1 for `lvlsEq?`**.  Five verification conditions, the same five,
-with `CheckOK.ofReadLs` in place of `.ofReadL`. -/
+**THEOREM 1 for `lvlsEq?`**: `lvlEq?_specA` at two universe-argument lists. -/
+theorem lvlsEq?_specA (s₀ : AState) (us vs : LsIdx)
+    (hok : CheckOK mode env fe s₀) :
+    ⦃fun s => s = s₀⦄ lvlsEq? us vs
+    ⦃fun r s' => CheckOK mode env fe s' ∧ s'.store = s₀.store ∧
+        s'.pins = s₀.pins ∧
+        opt2 Level.isEquivList (denoteLs s₀.store.lss us) (denoteLs s₀.store.lss vs) =
+          some r; ⊤⦄ := by
+  sym only [bridge_grind, CheckOK.readLs' hok] =>
+    vcgen [lvlsEq?] <;> finish
+
+/-- con-leche: ConLeche/Kernel/Level.lean:165-172 Level.isEquivList —
+`lvlsEq?_specA` with the two denotations named. -/
 theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
     (hok : CheckOK mode env fe s₀) :
     ⦃fun s => s = s₀⦄ lvlsEq? us vs
@@ -477,9 +509,10 @@ theorem lvlsEq?_spec (s₀ : AState) (us vs : LsIdx)
         s'.pins = s₀.pins ∧
         ∃ lus lvs, denoteLs s₀.store.lss us = some lus ∧
           denoteLs s₀.store.lss vs = some lvs ∧
-          r = Level.isEquivList lus lvs; ⊤⦄ := by
-  sym only [bridge_grind, CheckOK.readLs' hok] =>
-    vcgen [lvlsEq?] <;> finish
+          r = Level.isEquivList lus lvs; ⊤⦄ :=
+  triple_mono (lvlsEq?_specA s₀ us vs hok) fun _ _ ⟨h1, h2, h3, h4⟩ => by
+    obtain ⟨lu, lv, hu, hv, he⟩ := opt2_eq_some_iff.mp h4
+    exact ⟨h1, h2, h3, lu, lv, hu, hv, he.symm⟩
 
 /-! ## 4. The three instantiated-constant caches
 
@@ -858,7 +891,9 @@ section Census
 #print axioms CacheOK.insertLvlsEq
 
 /-! **The tier's own result**: the two cached level comparisons. -/
+#print axioms lvlEq?_specA
 #print axioms lvlEq?_spec
+#print axioms lvlsEq?_specA
 #print axioms lvlsEq?_spec
 
 /-! **The frames `PStep` and `ParseStep` consume**: the `StateOK`-graded answer to "which tables may a level comparison
