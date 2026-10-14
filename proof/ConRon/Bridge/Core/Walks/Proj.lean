@@ -785,33 +785,10 @@ theorem env_not_ctor_of_index {s : AState} (hok : CheckOK mode env fe s)
 
 /-! ### The constructor index (task #123)
 
-`Bridge/Grind.lean` §6's shape (`FindAt`, the definitions) at a CONSTRUCTOR:
-is a lookup a constructor, its record, and the index's two halves at a
-denoting name handle as one fact keyed by the invariant and the lookup. -/
-
-/-- con-leche: none — is a stored lookup a constructor. -/
-def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
-/-- con-leche: none — a stored constructor's record (a default elsewhere). -/
-def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _) => v | _ => default
-/-- con-leche: none — a stored constructor's parameter count. -/
-def iCtorNP : Option IConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
-/-- con-leche: none — a stored constructor's field count. -/
-def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
-/-- con-leche: none — is an environment lookup a constructor. -/
-def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
-/-- con-leche: none — a constructor's record. -/
-def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
-
-/-- con-leche: none — `iCtor?` at a constructor. -/
-@[bridge_grind =] theorem iCtor?_ctor (v : IConstantVal) (a b : Nat) :
-    iCtor? (some (.ctorInfo v a b)) = true := rfl
-/-- con-leche: none — a lookup that is a constructor IS one: what refutes a
-`match`'s fall-through arm. -/
-theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
-    o = some (.ctorInfo (iCtorVal o) (iCtorNP o) (iCtorNF o)) := by
-  match o, h with
-  | some (.ctorInfo _ _ _), _ => rfl
-grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
+`Bridge/Grind.lean` §8's shape (`FindAt`, the definitions) at a CONSTRUCTOR
+(the projections `iCtor?`, `iCtorVal`, … are §8's): the index's two halves
+at a denoting name handle as one fact keyed by the invariant and the
+lookup. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — the index at a name handle
 `c` denoting `nm`, at a constructor: the two lookups agree on being one, and

@@ -141,29 +141,6 @@ theorem triple_pureR {α : Type} {s₀ : AState} {v : α}
   vcgen
   subst_vars; exact h
 
-/-- con-leche: none — the head-NAME projection of a `const` node, against
-`view`. -/
-theorem view_of_viewConstName {st : EStore} {i : EIdx} {n : NIdx}
-    (htg : i.tag = ETag.const) (h : st.viewConstName i = some n) :
-    ∃ us, st.view i = some (.const n us) := by
-  have key : ∀ t : ETables, t.getConstName i = some n →
-      ∃ us, t.get i = some (.const n us) := by
-    intro t ht
-    simp only [ETables.getConstName, Option.map_eq_some_iff] at ht
-    obtain ⟨r, hr, rfl⟩ := ht
-    exact ⟨r.us, ETables.get_of_getConst htg (by simp [ETables.getConst, hr])⟩
-  simp only [EStore.viewConstName, EStore.persGetConstName] at h
-  simp only [EStore.view]
-  by_cases hp : i.isPersistent = true
-  · rw [ite_eq_left hp] at h ⊢; exact key _ h
-  · simp only [Bool.not_eq_true] at hp
-    rw [hp] at h ⊢
-    simp only [Bool.false_eq_true, ite_false] at h ⊢
-    by_cases hon : st.scratchOn = true
-    · rw [ite_eq_left hon] at h ⊢; exact key _ h
-    · simp only [Bool.not_eq_true] at hon
-      rw [hon] at h; simp at h
-
 /-- con-leche: none — `viewConstName` reads the store and moves nothing. -/
 theorem viewConstName_spec (s₀ : AState) (h : EIdx) :
     ⦃fun s => s = s₀⦄ viewConstName h
@@ -183,180 +160,13 @@ theorem denoteEList_getD {st : EStore} :
     | zero => simpa using hy
     | succ i => simpa using denoteEList_getD hys i e x hx
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+/-! ## The readers' vocabulary (task #123)
 
-The `view*` projections the readers read, each a fact keyed by the projection
-term and the denotation (`DenoteView`'s idea at a projection: the tag the walk
-tested is its premise); the index at a constant through projections
-(`ConstAt`, `Bridge/Grind.lean` §6's `FindAt` at every constructor); a stored
+The `view*` projections the readers read are `Bridge/Grind.lean` §6's
+(`view_of_view*`, guarded at the read).  Here: the index at a constant
+through projections (`ConstAt`, §8's `FindAt` at every constructor); a stored
 projection entry's body; a handle list read at an index; the readbacks at the
-tier's invariant; and `Option` equations. -/
-
-/-- con-leche: none — what a binder projection says about the denotation. -/
-def BindAt (st : EStore) : Option (EIdx × EIdx) → Option Expr → Prop
-  | some (ty, b), some e => denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e)
-  | _, _ => True
-
-/-- con-leche: none — a binder projection's children denote the binder type
-and the body (at a `lam` or a `∀`, the two tags `viewBind` answers at). -/
-theorem bindAt {st : EStore} (hwf : StoreWF st) (i : EIdx) :
-    BindAt st (st.viewBind i) (denoteE st i) := by
-  cases hb : st.viewBind i with
-  | none => trivial
-  | some p =>
-  obtain ⟨ty, b⟩ := p
-  cases he : denoteE st i with
-  | none => trivial
-  | some e =>
-  have hv := view_of_viewBind hb
-  have hd := denote_view hwf i
-  rw [hv, he] at hd
-  simp only [eBindView] at hd
-  split at hd
-  · exact hd
-  · exact hd
-grind_pattern [bridge_grind] bindAt => st.viewBind i, denoteE st i
-
-/-- con-leche: none — `BindAt` at a present projection and denotation. -/
-theorem BindAt.some {st : EStore} {ty b : EIdx} {e : Expr}
-    (H : BindAt st (some (ty, b)) (some e)) :
-    denoteE st ty = some (exprBinderType e) ∧ denoteE st b = some (exprBody e) := H
-grind_pattern [bridge_grind] BindAt.some => BindAt st (some (ty, b)) (some e)
-
-/-- con-leche: none — what an `app` projection says about the denotation, at
-the `app` tag. -/
-def AppAt (st : EStore) (i : EIdx) : Option (EIdx × EIdx) → Option Expr → Prop
-  | some (f, a), some e => i.tag = ETag.app →
-      denoteE st f = some (exprFn e) ∧ denoteE st a = some (exprArg e)
-  | _, _ => True
-
-/-- con-leche: none — `AppAt` at every `app` projection. -/
-theorem appAt {st : EStore} (hwf : StoreWF st) (i : EIdx) :
-    AppAt st i (st.viewApp i) (denoteE st i) := by
-  cases hb : st.viewApp i with
-  | none => trivial
-  | some p =>
-  obtain ⟨f, a⟩ := p
-  cases he : denoteE st i with
-  | none => trivial
-  | some e =>
-  intro ht
-  have hd := denote_view hwf i
-  rw [view_of_viewApp ht hb, he] at hd
-  exact hd
-grind_pattern [bridge_grind] appAt => st.viewApp i, denoteE st i
-
-/-- con-leche: none — `AppAt` at a present projection and denotation. -/
-theorem AppAt.some {st : EStore} {i f a : EIdx} {e : Expr}
-    (H : AppAt st i (some (f, a)) (some e)) (ht : i.tag = ETag.app) :
-    denoteE st f = some (exprFn e) ∧ denoteE st a = some (exprArg e) := H ht
-grind_pattern [bridge_grind] AppAt.some => AppAt st i (some (f, a)) (some e)
-
-/-- con-leche: none — what a `letE` projection says, at the `letE` tag. -/
-def LetAt (st : EStore) (i : EIdx) : Option (EIdx × EIdx × EIdx) → Option Expr → Prop
-  | some (_, _, b), some e => i.tag = ETag.letE → denoteE st b = some (exprBody e)
-  | _, _ => True
-
-/-- con-leche: none — `LetAt` at every `letE` projection. -/
-theorem letAt {st : EStore} (hwf : StoreWF st) (i : EIdx) :
-    LetAt st i (st.viewLet i) (denoteE st i) := by
-  cases hb : st.viewLet i with
-  | none => trivial
-  | some p =>
-  obtain ⟨ty, w, b⟩ := p
-  cases he : denoteE st i with
-  | none => trivial
-  | some e =>
-  intro ht
-  have hd := denote_view hwf i
-  rw [view_of_viewLet ht hb, he] at hd
-  exact hd.2.2
-grind_pattern [bridge_grind] letAt => st.viewLet i, denoteE st i
-
-/-- con-leche: none — `LetAt` at a present projection and denotation. -/
-theorem LetAt.some {st : EStore} {i ty w b : EIdx} {e : Expr}
-    (H : LetAt st i (some (ty, w, b)) (some e)) (ht : i.tag = ETag.letE) :
-    denoteE st b = some (exprBody e) := H ht
-grind_pattern [bridge_grind] LetAt.some => LetAt st i (some (ty, w, b)) (some e)
-
-/-- con-leche: none — what a `sort` projection says, at the `sort` tag. -/
-def SortAt (st : EStore) (i : EIdx) : Option LIdx → Option Expr → Prop
-  | some u, some e => i.tag = ETag.sort → denoteL st.ls u = some (exprSort e)
-  | _, _ => True
-
-/-- con-leche: none — `SortAt` at every `sort` projection. -/
-theorem sortAt {st : EStore} (hwf : StoreWF st) (i : EIdx) :
-    SortAt st i (st.viewSort i) (denoteE st i) := by
-  cases hb : st.viewSort i with
-  | none => trivial
-  | some u =>
-  cases he : denoteE st i with
-  | none => trivial
-  | some e =>
-  intro ht
-  have hd := denote_view hwf i
-  rw [view_of_viewSort ht hb, he] at hd
-  exact hd
-grind_pattern [bridge_grind] sortAt => st.viewSort i, denoteE st i
-
-/-- con-leche: none — `SortAt` at a present projection and denotation. -/
-theorem SortAt.some {st : EStore} {i : EIdx} {u : LIdx} {e : Expr}
-    (H : SortAt st i (some u) (some e)) (ht : i.tag = ETag.sort) :
-    denoteL st.ls u = some (exprSort e) := H ht
-grind_pattern [bridge_grind] SortAt.some => SortAt st i (some u) (some e)
-
-/-- con-leche: none — what a `bvar` projection says, at the `bvar` tag. -/
-def BVarAt (i : EIdx) : Option Nat → Option Expr → Prop
-  | some j, some e => i.tag = ETag.bvar → exprBVar e = j
-  | _, _ => True
-
-/-- con-leche: none — `BVarAt` at every `bvar` projection. -/
-theorem bvarAt {st : EStore} (hwf : StoreWF st) (i : EIdx) :
-    BVarAt i (st.viewBVar i) (denoteE st i) := by
-  cases hb : st.viewBVar i with
-  | none => trivial
-  | some j =>
-  cases he : denoteE st i with
-  | none => trivial
-  | some e =>
-  intro ht
-  have hd := denote_view hwf i
-  rw [view_of_viewBVar ht hb, he] at hd
-  exact hd
-grind_pattern [bridge_grind] bvarAt => st.viewBVar i, denoteE st i
-
-/-- con-leche: none — `BVarAt` at a present projection and denotation. -/
-theorem BVarAt.some {i : EIdx} {j : Nat} {e : Expr}
-    (H : BVarAt i (some j) (some e)) (ht : i.tag = ETag.bvar) : exprBVar e = j := H ht
-grind_pattern [bridge_grind] BVarAt.some => BVarAt i (some j) (some e)
-
-/-- con-leche: none — what the head-name projection says, at the `const`
-tag. -/
-def ConstNameAt (st : EStore) (i : EIdx) : Option NIdx → Option Expr → Prop
-  | some n, some e => i.tag = ETag.const → denoteN st.ns n = some (exprConstName e)
-  | _, _ => True
-
-/-- con-leche: none — `ConstNameAt` at every head-name projection. -/
-theorem constNameAt {st : EStore} (hwf : StoreWF st) (i : EIdx) :
-    ConstNameAt st i (st.viewConstName i) (denoteE st i) := by
-  cases hb : st.viewConstName i with
-  | none => trivial
-  | some n =>
-  cases he : denoteE st i with
-  | none => trivial
-  | some e =>
-  intro ht
-  obtain ⟨us, hv⟩ := view_of_viewConstName ht hb
-  have hd := denote_view hwf i
-  rw [hv, he] at hd
-  exact hd.1
-grind_pattern [bridge_grind] constNameAt => st.viewConstName i, denoteE st i
-
-/-- con-leche: none — `ConstNameAt` at a present projection and denotation. -/
-theorem ConstNameAt.some {st : EStore} {i : EIdx} {n : NIdx} {e : Expr}
-    (H : ConstNameAt st i (some n) (some e)) (ht : i.tag = ETag.const) :
-    denoteN st.ns n = some (exprConstName e) := H ht
-grind_pattern [bridge_grind] ConstNameAt.some => ConstNameAt st i (some n) (some e)
+tier's invariant. -/
 
 /-- con-leche: none — a handle list read at an index, with a default. -/
 def GetDAt (st : EStore) (hs : List EIdx) (i : Nat) (e : EIdx) :
@@ -400,28 +210,6 @@ theorem entryAt (st : EStore) (en : IProjEntry) : EntryAt st en (denoteProjEntry
     · simp at h
 grind_pattern [bridge_grind] entryAt => denoteProjEntry st en
 
-
-attribute [bridge_grind =] Option.bind_some Option.bind_none Option.isSome_none
-
-/-- con-leche: none — an `fvar` view's type handle denotes the variable's
-type. -/
-theorem DenoteView.fvar {st : EStore} {k : Nat} {ty : EIdx} {e : Expr}
-    (H : DenoteView st (some (.fvar k ty)) (some e)) :
-    exprFVarIdx e = k ∧ denoteE st ty = some (exprFVarType e) := H
-grind_pattern [bridge_grind] DenoteView.fvar => DenoteView st (some (.fvar k ty)) (some e)
-
-/-- con-leche: none — a `bvar` view's index is the variable's. -/
-theorem DenoteView.bvar {st : EStore} {i : Nat} {e : Expr}
-    (H : DenoteView st (some (.bvar i)) (some e)) : exprBVar e = i := H
-grind_pattern [bridge_grind] DenoteView.bvar => DenoteView st (some (.bvar i)) (some e)
-
-/-- con-leche: none — a `proj` view's fields denote the projection's. -/
-theorem DenoteView.proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
-    (H : DenoteView st (some (.proj n i sub)) (some e)) :
-    denoteN st.ns n = some (exprProjName e) ∧ idxOfName st.ns (exprProjName e) = n ∧
-      exprProjIdx e = i ∧ denoteE st sub = some (exprProjStruct e) := H
-grind_pattern [bridge_grind] DenoteView.proj => DenoteView st (some (.proj n i sub)) (some e)
-
 /-- con-leche: none — a projection entry, or a default. -/
 def projOf : Option ProjEntry → ProjEntry | some p => p | none => default
 
@@ -449,44 +237,6 @@ theorem ProjFound.none {st : EStore} {o : Option ProjEntry} (H : ProjFound st no
   | none => rfl
   | some p => exact H.elim
 grind_pattern [bridge_grind] ProjFound.none => ProjFound st none o
-
-/-- con-leche: none — the handle of an `fvar` view's type. -/
-def nodeFVarType : ENodeView → EIdx | .fvar _ t => t | _ => default
-/-- con-leche: none — the index of an `fvar` view. -/
-def nodeFVarIdx : ENodeView → Nat | .fvar k _ => k | _ => 0
-/-- con-leche: none — a view tagged `fvar` IS an `fvar` view. -/
-theorem ENodeView.tagOf_fvar {v : ENodeView} (h : v.tagOf = ETag.fvar) :
-    v = .fvar (nodeFVarIdx v) (nodeFVarType v) := by
-  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] ENodeView.tagOf_fvar => ENodeView.tagOf v
-
-/-- con-leche: none — the index of a `bvar` view. -/
-def nodeBVar : ENodeView → Nat | .bvar i => i | _ => 0
-/-- con-leche: none — a view tagged `bvar` IS a `bvar` view. -/
-theorem ENodeView.tagOf_bvar {v : ENodeView} (h : v.tagOf = ETag.bvar) :
-    v = .bvar (nodeBVar v) := by
-  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] ENodeView.tagOf_bvar => ENodeView.tagOf v
-
-/-- con-leche: none — the level of a `sort` view. -/
-def nodeSort : ENodeView → LIdx | .sort u => u | _ => default
-/-- con-leche: none — a view tagged `sort` IS a `sort` view. -/
-theorem ENodeView.tagOf_sort {v : ENodeView} (h : v.tagOf = ETag.sort) :
-    v = .sort (nodeSort v) := by
-  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] ENodeView.tagOf_sort => ENodeView.tagOf v
-
-/-- con-leche: none — the name handle of a `proj` view. -/
-def nodeProjName : ENodeView → NIdx | .proj n _ _ => n | _ => default
-/-- con-leche: none — the field index of a `proj` view. -/
-def nodeProjIdx : ENodeView → Nat | .proj _ i _ => i | _ => 0
-/-- con-leche: none — the structure handle of a `proj` view. -/
-def nodeProjStruct : ENodeView → EIdx | .proj _ _ s => s | _ => default
-/-- con-leche: none — a view tagged `proj` IS a `proj` view. -/
-theorem ENodeView.tagOf_proj {v : ENodeView} (h : v.tagOf = ETag.proj) :
-    v = .proj (nodeProjName v) (nodeProjIdx v) (nodeProjStruct v) := by
-  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
-grind_pattern [bridge_grind] ENodeView.tagOf_proj => ENodeView.tagOf v
 
 /-- con-leche: none — `readNamesM` at the tier's invariant (`CheckOK.ofReadbackFrame`). -/
 theorem readNamesM_specC (s₀ : AState) (hs : List NIdx) (hok : CheckOK mode env fe s₀) :

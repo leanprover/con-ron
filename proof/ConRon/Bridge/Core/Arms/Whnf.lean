@@ -175,7 +175,7 @@ theorem SimOOp.some_inv {P : Nat → CheckM (Option Expr)} {d : Nat} {st : EStor
     {r : EIdx} (h : SimOOp P d st (some r)) :
     ∃ x, denoteE st r = some x ∧ Expr.WScoped d x ∧ ∃ F, P F = .ok (some x) := by
   obtain ⟨v, hv, hw, F, hF⟩ := h
-  obtain ⟨x, rfl, hx⟩ := denoteEO_some_some hv
+  obtain ⟨x, rfl, hx⟩ := denoteEO_some_inv hv
   exact ⟨x, hx, hw x rfl, F, hF⟩
 grind_pattern [bridge_grind] SimOOp.some_inv => SimOOp P d st (some r)
 

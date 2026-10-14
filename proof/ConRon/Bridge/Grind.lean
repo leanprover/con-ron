@@ -16,8 +16,9 @@ fire on every denotation in sight).  What `grind` needs from the bridge is this
 module's vocabulary and the walks' own arm lemmas, all registered with
 `@[bridge_grind]`.  This module is the ONE place general vocabulary lives
 (task #123's consolidation): a walk module adds only what is about its own
-walk.  It imports neither `Bridge/Frame.lean` nor the old closers' tactic
-library.
+walk.  (The custom closers it replaced — `bridge_auto`, `bridge_frame`,
+`vc_arm`, with `ConRon/BridgeTactic.lean` and `Bridge/Frame.lean` — are
+deleted, task #123.)
 
 1. **The store order.**  `Ext` is the preorder `≤` on `EStore`
    (`Std.IsPreorder`), so `grind`'s order solver decides the chains
@@ -313,7 +314,14 @@ a callee's run as `isOk`, which names no answer). -/
 @[bridge_grind =] theorem except_isOk_ok {ε α : Type} (a : α) :
     (Except.ok a : Except ε α).isOk = true := rfl
 
-attribute [bridge_grind =] Option.isSome_some Option.map_some
+attribute [bridge_grind =] Option.isSome_some Option.isSome_none Option.map_some
+  Option.map_none Option.bind_some Option.bind_none
+
+/-- con-leche: none — a list is empty iff its length is `0` (the twin reads
+the stored list, con-leche the denoted one: their lengths agree). -/
+theorem List.isEmpty_eq_len {α : Type} (l : List α) : l.isEmpty = (l.length == 0) := by
+  cases l <;> rfl
+attribute [bridge_grind =] List.isEmpty_eq_len
 
 /-- con-leche: none — `opt2` at two present arguments. -/
 @[bridge_grind =] theorem opt2_some_some {α β γ : Type} (f : α → β → γ) (a : α) (b : β) :
@@ -324,11 +332,16 @@ attribute [bridge_grind =] Option.isSome_some Option.map_some
     (c : γ) : opt3 f (some a) (some b) (some c) = some (f a b c) := rfl
 
 /-- con-leche: none — an optional handle that is `some` denotes a `some`. -/
-@[bridge_grind →] theorem denoteEO_some_some {st : EStore} {r : EIdx} {v : Option Expr}
+@[bridge_grind →] theorem denoteEO_some_inv {st : EStore} {r : EIdx} {v : Option Expr}
     (h : denoteEO st (some r) = some v) : ∃ x, v = some x ∧ denoteE st r = some x := by
   simp only [denoteEO, Option.map_eq_some_iff] at h
   obtain ⟨x, hx, rfl⟩ := h
   exact ⟨x, rfl, hx⟩
+
+/-- con-leche: none — an absent handle's denotation is `none`. -/
+theorem denoteEO_none_inv {st : EStore} {v : Option Expr}
+    (h : denoteEO st none = some v) : v = none :=
+  (Option.some.inj h).symm
 
 /-- con-leche: none — the absent handle denotes `none`. -/
 @[bridge_grind =] theorem denoteEO_none_eq (st : EStore) : denoteEO st none = some none := rfl
@@ -387,6 +400,132 @@ grind_pattern [bridge_grind] eListLen => Frontend.denoteEList st hs
 theorem EListLen.some {hs : List EIdx} {xs : List Expr} (H : EListLen hs (some xs)) :
     xs.length = hs.length := H
 grind_pattern [bridge_grind] EListLen.some => EListLen hs (some xs)
+
+/-- con-leche: none — a denoting NAME-handle list keeps its length.
+`Bridge/Rel.lean` has this at expression and level handles
+(`denoteEList_len`, `denoteLList_len`) and not at names. -/
+theorem denoteNList_len {st : NStore} :
+    ∀ {hs : List NIdx} {xs : List ConLeche.Name},
+      Frontend.denoteNList st hs = some xs → xs.length = hs.length
+  | [], xs, h => by
+    simp only [Frontend.denoteNList] at h
+    obtain rfl := Option.some.inj h; rfl
+  | a :: as, xs, h => by
+    simp only [Frontend.denoteNList] at h
+    cases ha : denoteN st a with
+    | none => rw [ha] at h; simp at h
+    | some y =>
+      cases has : Frontend.denoteNList st as with
+      | none => rw [ha, has] at h; simp at h
+      | some ys =>
+        rw [ha, has] at h
+        obtain rfl := Option.some.inj h
+        simp [denoteNList_len has]
+
+/-- con-leche: none — a name-handle list's length is its denotation's. -/
+def NListLen (hs : List NIdx) : Option (List ConLeche.Name) → Prop
+  | some xs => xs.length = hs.length
+  | none => True
+
+/-- con-leche: none — `denoteNList_len` at the denotation term. -/
+theorem nListLen (st : NStore) (hs : List NIdx) :
+    NListLen hs (Frontend.denoteNList st hs) := by
+  cases h : Frontend.denoteNList st hs with
+  | none => trivial
+  | some xs => exact denoteNList_len h
+grind_pattern [bridge_grind] nListLen => Frontend.denoteNList st hs
+
+/-- con-leche: none — `NListLen` at a denoting list. -/
+theorem NListLen.some {hs : List NIdx} {xs : List ConLeche.Name} (H : NListLen hs (some xs)) :
+    xs.length = hs.length := H
+grind_pattern [bridge_grind] NListLen.some => NListLen hs (some xs)
+
+/-! ### The pin table
+
+The names the reserved slots hold, as closed equations (`pinNames[i]?` at a
+slot constant is what a pin read's answer is stated over). -/
+
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT` slot names `natName`. -/
+@[bridge_grind =] theorem pinNames_eq_natName : pinNames[PIN_NAT]? = some ConLeche.natName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_ZERO` slot names `natZeroName`. -/
+@[bridge_grind =] theorem pinNames_eq_natZeroName : pinNames[PIN_NAT_ZERO]? = some ConLeche.natZeroName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SUCC` slot names `natSuccName`. -/
+@[bridge_grind =] theorem pinNames_eq_natSuccName : pinNames[PIN_NAT_SUCC]? = some ConLeche.natSuccName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_PRED` slot names `natPredName`. -/
+@[bridge_grind =] theorem pinNames_eq_natPredName : pinNames[PIN_NAT_PRED]? = some ConLeche.natPredName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_ADD` slot names `natAddName`. -/
+@[bridge_grind =] theorem pinNames_eq_natAddName : pinNames[PIN_NAT_ADD]? = some ConLeche.natAddName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SUB` slot names `natSubName`. -/
+@[bridge_grind =] theorem pinNames_eq_natSubName : pinNames[PIN_NAT_SUB]? = some ConLeche.natSubName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_MUL` slot names `natMulName`. -/
+@[bridge_grind =] theorem pinNames_eq_natMulName : pinNames[PIN_NAT_MUL]? = some ConLeche.natMulName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_POW` slot names `natPowName`. -/
+@[bridge_grind =] theorem pinNames_eq_natPowName : pinNames[PIN_NAT_POW]? = some ConLeche.natPowName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_BEQ` slot names `natBeqName`. -/
+@[bridge_grind =] theorem pinNames_eq_natBeqName : pinNames[PIN_NAT_BEQ]? = some ConLeche.natBeqName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_BLE` slot names `natBleName`. -/
+@[bridge_grind =] theorem pinNames_eq_natBleName : pinNames[PIN_NAT_BLE]? = some ConLeche.natBleName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_DIV` slot names `natDivName`. -/
+@[bridge_grind =] theorem pinNames_eq_natDivName : pinNames[PIN_NAT_DIV]? = some ConLeche.natDivName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_MOD` slot names `natModName`. -/
+@[bridge_grind =] theorem pinNames_eq_natModName : pinNames[PIN_NAT_MOD]? = some ConLeche.natModName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_GCD` slot names `natGcdName`. -/
+@[bridge_grind =] theorem pinNames_eq_natGcdName : pinNames[PIN_NAT_GCD]? = some ConLeche.natGcdName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_LAND` slot names `natLandName`. -/
+@[bridge_grind =] theorem pinNames_eq_natLandName : pinNames[PIN_NAT_LAND]? = some ConLeche.natLandName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_LOR` slot names `natLorName`. -/
+@[bridge_grind =] theorem pinNames_eq_natLorName : pinNames[PIN_NAT_LOR]? = some ConLeche.natLorName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_XOR` slot names `natXorName`. -/
+@[bridge_grind =] theorem pinNames_eq_natXorName : pinNames[PIN_NAT_XOR]? = some ConLeche.natXorName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SHIFT_LEFT` slot names `natShiftLeftName`. -/
+@[bridge_grind =] theorem pinNames_eq_natShiftLeftName : pinNames[PIN_NAT_SHIFT_LEFT]? = some ConLeche.natShiftLeftName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_NAT_SHIFT_RIGHT` slot names `natShiftRightName`. -/
+@[bridge_grind =] theorem pinNames_eq_natShiftRightName : pinNames[PIN_NAT_SHIFT_RIGHT]? = some ConLeche.natShiftRightName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_BOOL_TRUE` slot names `boolTrueName`. -/
+@[bridge_grind =] theorem pinNames_eq_boolTrueName : pinNames[PIN_BOOL_TRUE]? = some ConLeche.boolTrueName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_BOOL_FALSE` slot names `boolFalseName`. -/
+@[bridge_grind =] theorem pinNames_eq_boolFalseName : pinNames[PIN_BOOL_FALSE]? = some ConLeche.boolFalseName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_STRING` slot names `stringName`. -/
+@[bridge_grind =] theorem pinNames_eq_stringName : pinNames[PIN_STRING]? = some ConLeche.stringName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_STRING_OF_LIST` slot names `stringOfListName`. -/
+@[bridge_grind =] theorem pinNames_eq_stringOfListName : pinNames[PIN_STRING_OF_LIST]? = some ConLeche.stringOfListName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_LIST` slot names `listName`. -/
+@[bridge_grind =] theorem pinNames_eq_listName : pinNames[PIN_LIST]? = some ConLeche.listName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_LIST_NIL` slot names `listNilName`. -/
+@[bridge_grind =] theorem pinNames_eq_listNilName : pinNames[PIN_LIST_NIL]? = some ConLeche.listNilName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_LIST_CONS` slot names `listConsName`. -/
+@[bridge_grind =] theorem pinNames_eq_listConsName : pinNames[PIN_LIST_CONS]? = some ConLeche.listConsName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_CHAR` slot names `charName`. -/
+@[bridge_grind =] theorem pinNames_eq_charName : pinNames[PIN_CHAR]? = some ConLeche.charName := rfl
+/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
+`PIN_CHAR_OF_NAT` slot names `charOfNatName`. -/
+@[bridge_grind =] theorem pinNames_eq_charOfNatName : pinNames[PIN_CHAR_OF_NAT]? = some ConLeche.charOfNatName := rfl
 
 /-! ## 5. The memo tables
 
@@ -570,6 +709,87 @@ theorem idxOfName_eq {st : NStore} (hwf : NStoreWF st) {n : NIdx} {nm : ConLeche
   simp only [idxOfName, hex, dite_true]
   exact denoteN_inj hwf (Classical.choose_spec hex) h
 
+/-! **The handle inverses at the other stores** (`idxOfName` at the level-list
+and expression stores, and the name store's keyed by the denotation term).
+Each fires on EVERY denotation term in sight, which costs the walks that never
+compare handles 10–20 % (measured on the `ExprOps` tier), so they are NOT
+registered here: the walks that compare a handle against a pin or an interned
+list (`Core/Walks/{Nat,StrLit}.lean`) register them locally, with
+`ETag`'s and `exprTag`'s defining equations (the tags as literals). -/
+
+/-- con-leche: none — **the name handle of a denoted name** at the name
+store, keyed by the denotation term (`idxOfName_eq` as a fact): with it, a
+handle test against a pin is the name test by congruence closure. -/
+def NameIdx (st : NStore) (n : NIdx) : Option ConLeche.Name → Prop
+  | some nm => idxOfName st nm = n
+  | none => True
+
+/-- con-leche: none — every denoting name handle is its name's handle. -/
+theorem nameIdx {st : EStore} (hwf : StoreWF st) (n : NIdx) :
+    NameIdx st.ns n (denoteN st.ns n) := by
+  cases h : denoteN st.ns n with
+  | none => trivial
+  | some nm => obtain ⟨rk, hrk⟩ := hwf; exact idxOfName_eq hrk.nsWF h
+
+/-- con-leche: none — `NameIdx` at a denoting handle. -/
+theorem NameIdx.some {st : NStore} {n : NIdx} {nm : ConLeche.Name}
+    (H : NameIdx st n (some nm)) : idxOfName st nm = n := H
+
+open Classical in
+/-- con-leche: none — **the level-list handle of a level list**, `denoteLs`'s
+inverse on the lists the store denotes (`idxOfName` at the level-list
+store). -/
+noncomputable def idxOfLs (st : LsStore) (ls : List Level) : LsIdx :=
+  if h : ∃ n, denoteLs st n = some ls then Classical.choose h else default
+
+/-- con-leche: none — a denoting level-list handle is its list's handle. -/
+def LsIdxAt (st : LsStore) (n : LsIdx) : Option (List Level) → Prop
+  | some ls => idxOfLs st ls = n
+  | none => True
+
+/-- con-leche: none — `idxOfLs` inverts `denoteLs` (`denoteLs_inj`). -/
+theorem lsIdxAt {st : EStore} (hwf : StoreWF st) (n : LsIdx) :
+    LsIdxAt st.lss n (denoteLs st.lss n) := by
+  cases h : denoteLs st.lss n with
+  | none => trivial
+  | some ls =>
+    obtain ⟨rk, hrk⟩ := hwf
+    have hex : ∃ n, denoteLs st.lss n = some ls := ⟨n, h⟩
+    show idxOfLs _ _ = _
+    simp only [idxOfLs, hex, dite_true]
+    exact denoteLs_inj hrk.lss (Classical.choose_spec hex) h
+
+/-- con-leche: none — `LsIdxAt` at a denoting handle. -/
+theorem LsIdxAt.some {st : LsStore} {n : LsIdx} {ls : List Level}
+    (H : LsIdxAt st n (some ls)) : idxOfLs st ls = n := H
+
+open Classical in
+/-- con-leche: none — **the expression handle of an expression**, `denoteE`'s
+inverse on the expressions the store denotes (DESIGN §8.3 at the expression
+store, `denoteE_inj`). -/
+noncomputable def idxOfExpr (st : EStore) (e : Expr) : EIdx :=
+  if h : ∃ n, denoteE st n = some e then Classical.choose h else default
+
+/-- con-leche: none — a denoting expression handle is its expression's
+handle. -/
+def EIdxAt (st : EStore) (n : EIdx) : Option Expr → Prop
+  | some e => idxOfExpr st e = n
+  | none => True
+
+/-- con-leche: none — `idxOfExpr` inverts `denoteE`. -/
+theorem eIdxAt {st : EStore} (hwf : StoreWF st) (n : EIdx) : EIdxAt st n (denoteE st n) := by
+  cases h : denoteE st n with
+  | none => trivial
+  | some e =>
+    have hex : ∃ n, denoteE st n = some e := ⟨n, h⟩
+    show idxOfExpr _ _ = _
+    simp only [idxOfExpr, hex, dite_true]
+    exact denoteE_inj hwf (Classical.choose_spec hex) h
+
+/-- con-leche: none — `EIdxAt` at a denoting handle. -/
+theorem EIdxAt.some {st : EStore} {n : EIdx} {e : Expr} (H : EIdxAt st n (some e)) :
+    idxOfExpr st e = n := H
+
 /-- con-leche: none — **what a view says about the denotation**: at a denoting
 handle (view `ov`, denotation `oe`), each child of the view denotes the
 matching projection.  `denote_view` states it of every handle whose view and
@@ -677,6 +897,12 @@ theorem DenoteView.letE {st : EStore} {ty w b : EIdx} {e : Expr}
       denoteE st b = some (exprBody e) := H
 grind_pattern [bridge_grind] DenoteView.letE => DenoteView st (some (.letE ty w b)) (some e)
 
+/-- con-leche: none — a `lit` view's denotation is that literal (its
+projection). -/
+theorem DenoteView.lit {st : EStore} {l : Literal} {e : Expr}
+    (H : DenoteView st (some (.lit l)) (some e)) : exprLit e = l := H
+grind_pattern [bridge_grind] DenoteView.lit => DenoteView st (some (.lit l)) (some e)
+
 /-- con-leche: none — a `proj` view's struct name (and its handle), index and
 subject. -/
 theorem DenoteView.proj {st : EStore} {n : NIdx} {i : Nat} {sub : EIdx} {e : Expr}
@@ -751,6 +977,68 @@ theorem ENodeView.tagOf_const {v : ENodeView} (h : v.tagOf = ETag.const) :
 grind_pattern [bridge_grind] ENodeView.tagOf_const => ENodeView.tagOf v where
   guard ENodeView.tagOf v = ETag.const
 
+/-- con-leche: none — the binder-type handle of a `forallE`/`lam` view. -/
+def nodeBinderType : ENodeView → EIdx | .forallE t _ => t | .lam t _ => t | _ => default
+/-- con-leche: none — the body handle of a `forallE`/`lam` view. -/
+def nodeBody : ENodeView → EIdx | .forallE _ b => b | .lam _ b => b | _ => default
+/-- con-leche: none — the literal of a `lit` view. -/
+def nodeLit : ENodeView → Literal | .lit l => l | _ => .natVal 0
+/-- con-leche: none — the handle of an `fvar` view's type. -/
+def nodeFVarType : ENodeView → EIdx | .fvar _ t => t | _ => default
+/-- con-leche: none — the index of an `fvar` view. -/
+def nodeFVarIdx : ENodeView → Nat | .fvar k _ => k | _ => 0
+/-- con-leche: none — the index of a `bvar` view. -/
+def nodeBVar : ENodeView → Nat | .bvar i => i | _ => 0
+/-- con-leche: none — the level of a `sort` view. -/
+def nodeSort : ENodeView → LIdx | .sort u => u | _ => default
+/-- con-leche: none — the name handle of a `proj` view. -/
+def nodeProjName : ENodeView → NIdx | .proj n _ _ => n | _ => default
+/-- con-leche: none — the field index of a `proj` view. -/
+def nodeProjIdx : ENodeView → Nat | .proj _ i _ => i | _ => 0
+/-- con-leche: none — the structure handle of a `proj` view. -/
+def nodeProjStruct : ENodeView → EIdx | .proj _ _ s => s | _ => default
+
+/-- con-leche: none — a view tagged `forallE` IS a `forallE` view. -/
+theorem ENodeView.tagOf_forallE {v : ENodeView} (h : v.tagOf = ETag.forallE) :
+    v = .forallE (nodeBinderType v) (nodeBody v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_forallE => ENodeView.tagOf v where
+  guard ENodeView.tagOf v = ETag.forallE
+
+/-- con-leche: none — a view tagged `lit` IS a `lit` view. -/
+theorem ENodeView.tagOf_lit {v : ENodeView} (h : v.tagOf = ETag.lit) : v = .lit (nodeLit v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_lit => ENodeView.tagOf v where
+  guard ENodeView.tagOf v = ETag.lit
+
+/-- con-leche: none — a view tagged `fvar` IS an `fvar` view. -/
+theorem ENodeView.tagOf_fvar {v : ENodeView} (h : v.tagOf = ETag.fvar) :
+    v = .fvar (nodeFVarIdx v) (nodeFVarType v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_fvar => ENodeView.tagOf v where
+  guard ENodeView.tagOf v = ETag.fvar
+
+/-- con-leche: none — a view tagged `bvar` IS a `bvar` view. -/
+theorem ENodeView.tagOf_bvar {v : ENodeView} (h : v.tagOf = ETag.bvar) :
+    v = .bvar (nodeBVar v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_bvar => ENodeView.tagOf v where
+  guard ENodeView.tagOf v = ETag.bvar
+
+/-- con-leche: none — a view tagged `sort` IS a `sort` view. -/
+theorem ENodeView.tagOf_sort {v : ENodeView} (h : v.tagOf = ETag.sort) :
+    v = .sort (nodeSort v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_sort => ENodeView.tagOf v where
+  guard ENodeView.tagOf v = ETag.sort
+
+/-- con-leche: none — a view tagged `proj` IS a `proj` view. -/
+theorem ENodeView.tagOf_proj {v : ENodeView} (h : v.tagOf = ETag.proj) :
+    v = .proj (nodeProjName v) (nodeProjIdx v) (nodeProjStruct v) := by
+  cases v <;> first | rfl | (simp only [ENodeView.tagOf] at h; exact absurd h (by decide))
+grind_pattern [bridge_grind] ENodeView.tagOf_proj => ENodeView.tagOf v where
+  guard ENodeView.tagOf v = ETag.proj
+
 /-! The one-constructor projections the tag-dispatching walks read
 (`Bridge/Rel.lean` group 5) give the view, guarded so that each fires at the
 projection the program read and nowhere else; `denote_view` then turns the
@@ -758,6 +1046,33 @@ view into the `DenoteView` fact. -/
 
 grind_pattern [bridge_grind] view_of_viewBVar => st.viewBVar i, some k where
   guard st.viewBVar i = some k
+/-- con-leche: none — the head-NAME projection of a `const` node, against
+`view`. -/
+theorem view_of_viewConstName {st : EStore} {i : EIdx} {n : NIdx}
+    (htg : i.tag = ETag.const) (h : st.viewConstName i = some n) :
+    ∃ us, st.view i = some (.const n us) := by
+  have key : ∀ t : ETables, t.getConstName i = some n →
+      ∃ us, t.get i = some (.const n us) := by
+    intro t ht
+    simp only [ETables.getConstName, Option.map_eq_some_iff] at ht
+    obtain ⟨r, hr, rfl⟩ := ht
+    exact ⟨r.us, ETables.get_of_getConst htg (by simp [ETables.getConst, hr])⟩
+  simp only [EStore.viewConstName, EStore.persGetConstName] at h
+  simp only [EStore.view]
+  by_cases hp : i.isPersistent = true
+  · rw [ite_eq_left hp] at h ⊢; exact key _ h
+  · simp only [Bool.not_eq_true] at hp
+    rw [hp] at h ⊢
+    simp only [Bool.false_eq_true, ite_false] at h ⊢
+    by_cases hon : st.scratchOn = true
+    · rw [ite_eq_left hon] at h ⊢; exact key _ h
+    · simp only [Bool.not_eq_true] at hon
+      rw [hon] at h; simp at h
+
+grind_pattern [bridge_grind] view_of_viewSort => st.viewSort i, some u where
+  guard st.viewSort i = some u
+grind_pattern [bridge_grind] view_of_viewConstName => st.viewConstName i, some n where
+  guard st.viewConstName i = some n
 grind_pattern [bridge_grind] view_of_viewApp => st.viewApp i, some (f, a) where
   guard st.viewApp i = some (f, a)
 grind_pattern [bridge_grind] view_of_viewBind => st.viewBind i, some (ty, b) where
@@ -829,8 +1144,7 @@ grind_pattern [bridge_grind] lview_isSome => (st.view c).isSome
 
 /-- con-leche: none — a denoting universe-argument list handle has a view
 (`viewOK_const`'s premise; the name and level stores have theirs in
-`Bridge/Rel.lean`; in `Bridge/Frame.lean` from task #120 wave 2, here since
-task #123). -/
+`Bridge/Rel.lean`). -/
 theorem lsview_isSome_of_denote {st : LsStore} {c : LsIdx} {us : List ConLeche.Level}
     (hd : denoteLs st c = some us) : (st.view c).isSome = true := by
   obtain ⟨w, hw, _⟩ := denoteLs_view hd
@@ -850,7 +1164,7 @@ What the intern specs ask and answer, as equations: the binder record's two
 faces (`eBindView` at a literal tag is the constructor it spells, and
 `internLam`/`internForallE` are `internBind` at that tag), the capacity
 branch (`capOK` is the program's own condition), a node's denotation from its
-view (`denoteEView`) and its `ViewOK` side condition. -/
+view (`denoteEView`, `denoteLView`) and its `ViewOK` side condition. -/
 
 attribute [bridge_grind =] eBindView ETag.isBind
 
@@ -891,10 +1205,21 @@ condition, as an equation (`EStore.intern_spec`'s premise meets the branch). -/
     st.capOK v = ((if st.scratchOn then st.scr.sizeOf v else st.pers.sizeOf v) < Idx.idxCap) :=
   rfl
 
-attribute [bridge_grind =] denoteEView.eq_1 denoteEView.eq_5 denoteEView.eq_6
-  denoteEView.eq_7 denoteEView.eq_8 denoteEView.eq_10
-attribute [bridge_grind ←] viewOK_bvar viewOK_app viewOK_lam viewOK_forallE viewOK_letE
-  viewOK_proj
+attribute [bridge_grind =] denoteEView denoteLView
+attribute [bridge_grind ←] viewOK_bvar viewOK_lit viewOK_sort viewOK_app viewOK_lam
+  viewOK_forallE viewOK_letE viewOK_proj
+
+/-- con-leche: none — `internLNode .zero`'s precondition. -/
+@[bridge_grind .] theorem lviewOK_zero {st : EStore} : st.ls.ViewOK .zero :=
+  ⟨fun c hc => by simp [LNodeView.lchildren] at hc,
+   fun c hc => by simp [LNodeView.nchildren] at hc⟩
+
+/-- con-leche: none — `internLNode (.succ u)`'s precondition, at a level
+handle that has a view. -/
+@[bridge_grind ←] theorem lviewOK_succ {st : EStore} {u : LIdx}
+    (h : (st.ls.view u).isSome = true) : st.ls.ViewOK (.succ u) :=
+  ⟨fun c hc => by simp [LNodeView.lchildren] at hc; subst hc; exact h,
+   fun c hc => by simp [LNodeView.nchildren] at hc⟩
 
 /-! ## 8. The environment index as equations (task #123) -/
 
@@ -944,6 +1269,47 @@ theorem iDefnHint_cases (o : Option IConstantInfo) :
   | some (.axiomInfo _) | some (.thmInfo _) | some (.indInfo _ _) | some (.ctorInfo _ _ _)
   | some (.recInfo _ _ _ _) | some (.projInfo _) | none => rfl
 grind_pattern [bridge_grind] iDefnHint_cases => iDefnHint o
+
+/-! The same projections at the inductives and constructors (`Core/Walks/Nat.lean`'s
+`OptCI` and `Core/Walks/Proj.lean`'s `CtorAt` read them). -/
+
+/-- con-leche: none — is a stored lookup an inductive. -/
+def iInd? : Option IConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
+/-- con-leche: none — a stored inductive's record. -/
+def iIndVal : Option IConstantInfo → IConstantVal | some (.indInfo v _) => v | _ => default
+/-- con-leche: none — a stored inductive's capabilities. -/
+def iIndCaps : Option IConstantInfo → IIndCaps | some (.indInfo _ c) => c | _ => default
+/-- con-leche: none — is a stored lookup a constructor. -/
+def iCtor? : Option IConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+/-- con-leche: none — a stored constructor's record. -/
+def iCtorVal : Option IConstantInfo → IConstantVal | some (.ctorInfo v _ _) => v | _ => default
+/-- con-leche: none — a stored constructor's parameter count. -/
+def iCtorNP : Option IConstantInfo → Nat | some (.ctorInfo _ n _) => n | _ => 0
+/-- con-leche: none — a stored constructor's field count. -/
+def iCtorNF : Option IConstantInfo → Nat | some (.ctorInfo _ _ n) => n | _ => 0
+/-- con-leche: none — is an environment lookup an inductive. -/
+def cInd? : Option ConstantInfo → Bool | some (.indInfo _ _) => true | _ => false
+/-- con-leche: none — an inductive's record. -/
+def cIndVal : Option ConstantInfo → ConstantVal | some (.indInfo v _) => v | _ => default
+/-- con-leche: none — is an environment lookup a constructor. -/
+def cCtor? : Option ConstantInfo → Bool | some (.ctorInfo _ _ _) => true | _ => false
+/-- con-leche: none — a constructor's record. -/
+def cCtorVal : Option ConstantInfo → ConstantVal | some (.ctorInfo v _ _) => v | _ => default
+attribute [bridge_grind =] iInd? iIndVal iIndCaps iCtor? iCtorVal iCtorNP iCtorNF
+
+/-- con-leche: none — a lookup that is an inductive IS one. -/
+theorem iInd?_eta {o : Option IConstantInfo} (h : iInd? o = true) :
+    o = some (.indInfo (iIndVal o) (iIndCaps o)) := by
+  match o, h with
+  | some (.indInfo _ _), _ => rfl
+grind_pattern [bridge_grind] iInd?_eta => iInd? o
+
+/-- con-leche: none — a lookup that is a constructor IS one. -/
+theorem iCtor?_eta {o : Option IConstantInfo} (h : iCtor? o = true) :
+    o = some (.ctorInfo (iCtorVal o) (iCtorNP o) (iCtorNF o)) := by
+  match o, h with
+  | some (.ctorInfo _ _ _), _ => rfl
+grind_pattern [bridge_grind] iCtor?_eta => iCtor? o
 
 /-- con-leche: ConLeche/Verify/SimI.lean:54 ISOK — **the index at a name
 handle `c` denoting `nm`**, through the projections the walks read. -/

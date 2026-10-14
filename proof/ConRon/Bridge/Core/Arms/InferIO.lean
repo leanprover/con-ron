@@ -575,7 +575,7 @@ theorem inferBodyIO_lit {fe : IFEnv} {fuel : Nat}
   cases v
   case lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
-    -- the pin's name is the basis constant's (`Infer.lean`'s `pinNames_nat`)
+    -- the pin's name is the basis constant's (`Bridge/Grind.lean`'s `pinNames_eq_natName`)
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>

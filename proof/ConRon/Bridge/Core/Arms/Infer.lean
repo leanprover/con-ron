@@ -160,16 +160,6 @@ theorem infer_letE {F d : Nat} {ty v b tty tv res : Expr} {u : Level}
   simp only [ConLeche.inferBody, e1, e2, e3, e4, e5, bind, Except.bind]
   rfl
 
-/-! ## The pins, as `grind` reads them (task #123) -/
-
-attribute [bridge_grind →] CheckOK.pins
-
-/-- con-leche: none — the `Nat` pin's name (`Arena/Pins.lean`'s table). -/
-@[bridge_grind =] theorem pinNames_nat : pinNames[PIN_NAT]? = some ConLeche.natName := rfl
-
-/-- con-leche: none — the `String` pin's name. -/
-@[bridge_grind =] theorem pinNames_string :
-    pinNames[PIN_STRING]? = some ConLeche.stringName := rfl
 
 /-! ## 4. The projection clause
 
@@ -403,7 +393,7 @@ theorem inferBody_lit {fe : IFEnv} {fuel : Nat}
   cases v
   case lit l =>
     obtain rfl := denote_lit_inv hwf hv hden
-    -- the pin's name is the basis constant's (`pinNames_nat`/`_string`)
+    -- the pin's name is the basis constant's (`Bridge/Grind.lean`'s `pinNames_eq_natName`/`_stringName`)
     cases l with
     | natVal n =>
       sym only [bridge_grind] =>

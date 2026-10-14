@@ -128,16 +128,6 @@ the run form — and every one of them must report the three. -/
 #print axioms ExprOps.instantiate1_of_bvarBound_le
 #print axioms ExprOps.instantiate1_of_raw_le
 #print axioms ExprOps.instantiate1_leaf
-#print axioms ExprOps.Inst1At.cutoff
-#print axioms ExprOps.Inst1At.leaf
-#print axioms ExprOps.Inst1At.app_step
-#print axioms ExprOps.Inst1At.app_step'
-#print axioms ExprOps.Inst1At.bind_step
-#print axioms ExprOps.Inst1At.bind_step'
-#print axioms ExprOps.Inst1At.letE_step
-#print axioms ExprOps.Inst1At.letE_step'
-#print axioms ExprOps.Inst1At.proj_step
-#print axioms ExprOps.Inst1At.proj_step'
 
 /-! ## The `fvar`-leaf group — **closed** (task #97-P3-2)
 

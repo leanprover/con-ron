@@ -72,11 +72,23 @@ theorem denoteCI_nonTower {st : EStore} {ci : IConstantInfo}
     · rename_i cv x hcv _; cases h; exact ⟨rfl, v, rfl, hcv⟩
     · simp at h
 
-/-! ## Vocabulary candidates for Bridge/Grind.lean (task #123)
+/-! ## The string walks' vocabulary (task #123)
 
-The interning of a level and a sort at the tier's invariant, with the
-readbacks as equations and the `ViewOK` preconditions as `grind` lemmas
-over `isSome` (so that a view an intern just produced discharges them). -/
+The interning of a level at the tier's invariant (its readbacks and `ViewOK`
+preconditions are `Bridge/Grind.lean` §7's), the record fields the shape
+guards read, and `OptCI` as `grind` reads it. -/
+
+/-! `Bridge/Grind.lean` §6's handle inverses and the tags' values, registered
+locally (they fire on every denotation; these walks compare handles against
+pins and interned lists, and tags as literals). -/
+local grind_pattern [bridge_grind] nameIdx => denoteN st.ns n
+local grind_pattern [bridge_grind] NameIdx.some => NameIdx st n (some nm)
+local grind_pattern [bridge_grind] lsIdxAt => denoteLs st.lss n
+local grind_pattern [bridge_grind] LsIdxAt.some => LsIdxAt st n (some ls)
+local grind_pattern [bridge_grind] eIdxAt => denoteE st n
+local grind_pattern [bridge_grind] EIdxAt.some => EIdxAt st n (some e)
+attribute [local bridge_grind =] ETag.bvar ETag.fvar ETag.sort ETag.const ETag.app ETag.lam
+  ETag.forallE ETag.letE ETag.lit ETag.proj exprTag
 
 /-- con-leche: none — `internLNode` at the tier's invariant. -/
 theorem internLNode_okS (s₀ : AState) (w : LNodeView)
@@ -88,49 +100,6 @@ theorem internLNode_okS (s₀ : AState) (w : LNodeView)
   triple_mono (internLNode_spec s₀ w hok.state.wf hv)
     (fun _ _ ⟨hwf', hx', _, _, _, _, hc', hp', hv', hd⟩ =>
       ⟨hok.mono ⟨hwf'⟩ hx' hc' hp', hx', hp', hv', hd⟩)
-
-/-- con-leche: none — `denoteLView` at `zero`. -/
-@[bridge_grind =] theorem denoteLView_zero (st : LStore) : denoteLView st .zero = some .zero := rfl
-
-/-- con-leche: none — `denoteLView` at a `succ`. -/
-@[bridge_grind =] theorem denoteLView_succ (st : LStore) (u : LIdx) :
-    denoteLView st (.succ u) = (denoteL st u).map Level.succ := rfl
-
-/-- con-leche: none — `denoteEView` at a `sort`. -/
-@[bridge_grind =] theorem denoteEView_sort (st : EStore) (u : LIdx) :
-    denoteEView st (.sort u) = (denoteL st.ls u).map Expr.sort := rfl
-
-/-- con-leche: none — `internLNode .zero`'s precondition. -/
-@[bridge_grind .] theorem lviewOK_zero' {st : EStore} : st.ls.ViewOK .zero :=
-  ⟨fun c hc => by simp [LNodeView.lchildren] at hc,
-   fun c hc => by simp [LNodeView.nchildren] at hc⟩
-
-/-- con-leche: none — `internLNode (.succ u)`'s precondition, at a level
-handle that has a view. -/
-@[bridge_grind ←] theorem lviewOK_succA {st : EStore} {u : LIdx}
-    (h : (st.ls.view u).isSome = true) : st.ls.ViewOK (.succ u) :=
-  ⟨fun c hc => by simp [LNodeView.lchildren] at hc; subst hc; exact h,
-   fun c hc => by simp [LNodeView.nchildren] at hc⟩
-
-attribute [bridge_grind ←] viewOK_sort
-
-/-- con-leche: none — a name-handle list's length is its denotation's. -/
-def NListLen (hs : List NIdx) : Option (List ConLeche.Name) → Prop
-  | some xs => xs.length = hs.length
-  | none => True
-
-/-- con-leche: none — `denoteNList_len` at the denotation term. -/
-theorem nListLen (st : NStore) (hs : List NIdx) :
-    NListLen hs (Frontend.denoteNList st hs) := by
-  cases h : Frontend.denoteNList st hs with
-  | none => trivial
-  | some xs => exact denoteNList_len h
-grind_pattern [bridge_grind] nListLen => Frontend.denoteNList st hs
-
-/-- con-leche: none — `NListLen` at a denoting list. -/
-theorem NListLen.some {hs : List NIdx} {xs : List ConLeche.Name} (H : NListLen hs (some xs)) :
-    xs.length = hs.length := H
-grind_pattern [bridge_grind] NListLen.some => NListLen hs (some xs)
 
 /-- con-leche: none — `toConstantVal`'s two fields the shape guards read, at
 an optional stored constant's denotation. -/
@@ -151,27 +120,6 @@ attribute [bridge_grind =] OptCI
 grind_pattern [bridge_grind] optCI_find => OptCI s.store (fe.find? n) (env.find? nm),
   CheckOK mode env fe s
 
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_STRING` slot names `stringName`. -/
-@[bridge_grind =] theorem pinNames_eq_stringName : pinNames[PIN_STRING]? = some ConLeche.stringName := rfl
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_STRING_OF_LIST` slot names `stringOfListName`. -/
-@[bridge_grind =] theorem pinNames_eq_stringOfListName : pinNames[PIN_STRING_OF_LIST]? = some ConLeche.stringOfListName := rfl
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_LIST` slot names `listName`. -/
-@[bridge_grind =] theorem pinNames_eq_listName : pinNames[PIN_LIST]? = some ConLeche.listName := rfl
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_LIST_NIL` slot names `listNilName`. -/
-@[bridge_grind =] theorem pinNames_eq_listNilName : pinNames[PIN_LIST_NIL]? = some ConLeche.listNilName := rfl
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_LIST_CONS` slot names `listConsName`. -/
-@[bridge_grind =] theorem pinNames_eq_listConsName : pinNames[PIN_LIST_CONS]? = some ConLeche.listConsName := rfl
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_CHAR` slot names `charName`. -/
-@[bridge_grind =] theorem pinNames_eq_charName : pinNames[PIN_CHAR]? = some ConLeche.charName := rfl
-/-- con-leche: ConLeche/Kernel/Basis/Names.lean reservedBasisNames — the
-`PIN_CHAR_OF_NAT` slot names `charOfNatName`. -/
-@[bridge_grind =] theorem pinNames_eq_charOfNatName : pinNames[PIN_CHAR_OF_NAT]? = some ConLeche.charOfNatName := rfl
 
 /-- con-leche: ConLeche/Kernel/Env.lean:639-642 ConstantInfo.toConstantVal —
 **THEOREM 1 for `toConstantVal`**, at the two fields the shape guards read:

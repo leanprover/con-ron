@@ -171,27 +171,6 @@ theorem view_len_of_denoteLs {st : LsStore} {i : LsIdx} {us : List Level}
   rw [lsStore_viewLen_eq, hv, Option.map_some] at hl
   exact Option.some.inj hl
 
-/-- con-leche: none — a denoting NAME-handle list keeps its length.
-`Bridge/Rel.lean` has this at expression and level handles
-(`denoteEList_len`, `denoteLList_len`) and not at names. -/
-theorem denoteNList_len {st : NStore} :
-    ∀ {hs : List NIdx} {xs : List ConLeche.Name},
-      Frontend.denoteNList st hs = some xs → xs.length = hs.length
-  | [], xs, h => by
-    simp only [Frontend.denoteNList] at h
-    obtain rfl := Option.some.inj h; rfl
-  | a :: as, xs, h => by
-    simp only [Frontend.denoteNList] at h
-    cases ha : denoteN st a with
-    | none => rw [ha] at h; simp at h
-    | some y =>
-      cases has : Frontend.denoteNList st as with
-      | none => rw [ha, has] at h; simp at h
-      | some ys =>
-        rw [ha, has] at h
-        obtain rfl := Option.some.inj h
-        simp [denoteNList_len has]
-
 /-- con-leche: none — the denotation of a stored DEFINITION is a
 definition, with the same reducibility hint and a denoting value. -/
 theorem denoteCI_defnInfo_inv {st : EStore} {v : IConstantVal} {e : EIdx}

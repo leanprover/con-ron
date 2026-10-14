@@ -132,181 +132,17 @@ theorem instantiate1_leaf {v e : Expr} {d : Nat}
   rcases h with ⟨k, t, rfl⟩ | ⟨u, rfl⟩ | ⟨n, us, rfl⟩ | ⟨l, rfl⟩ <;>
     simp [Expr.instantiate1]
 
-/-! ## The answer relation, and the four step lemmas
+/-! ## The answer relation
 
-`Inst1At` is `RelE` at `instantiate1`'s pure function.  The four `_step`
-lemmas are `Bridge/Rel.lean`'s generic `RelE.app` / `.lam` / `.forallE` /
-`.letE` / `.proj` with the decomposition discharged and the extension chain
-spelled out in the shape `mvcgen` produces — which, per task #97s round 2's
-item 3, is what makes each arm's two structural verification conditions one
-`exact` instead of thousands of E-matching instances.
-
-**They are applied BY HAND and not tagged `@[grind →]`**, and that is a
-finding of its own: the spike could tag its monomorphic `Inst1At.app_step`
-because its `Inst1At` was a `def` with a head symbol, while the generic `RelE`
-behind this tier's `abbrev` leaves `grind` reporting *failed to find patterns
-in the antecedents of the theorem*.  Round 2's item 3 asks for the hand
-application anyway, so the generic relation costs nothing here.
-
-**Since task #123 no proof uses them**: the arms are closed by `grind` from
-the vocabulary below (§ "Vocabulary candidates").  They stay only because
-`Bridge/Axioms.lean` prints their axioms; they and those lines are deletion
-candidates. -/
+`Inst1At` is `RelE` at `instantiate1`'s pure function.  Since task #123 the
+arms are closed by `grind` from `Bridge/Grind.lean`'s vocabulary and the two
+clause equations below; the step lemmas the hand-applied arms used are
+deleted. -/
 
 /-- con-leche: ConLeche/Verify/SimI.lean:250 RelE — `instantiate1`'s answer
 relation. -/
 abbrev Inst1At (ve : Expr) (d : Nat) : EStore → EIdx → EStore → EIdx → Prop :=
   RelE (fun e => e.instantiate1 ve d)
-
-theorem Inst1At.app_step {ve : Expr} {d : Nat}
-    {st s1 s2 s3 : EStore} {h f a rf ra r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.app f a))
-    (hx1 : Ext st s1) (hf : Inst1At ve d st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : Inst1At ve d s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    Inst1At ve d st h s3 r :=
-  RelE.app hwf hview (fun _ _ => rfl) ((hf.ext hx2).ext hx3)
-    ((ha.of_ext hx1).ext hx3) hr
-
-theorem Inst1At.bind_step {ve : Expr} {d : Nat}
-    {st s1 s2 s3 : EStore} {h ty b rt rb r : EIdx}
-    {tg : UInt32} (hwf : StoreWF st) (htg : ETag.isBind tg = true)
-    (hview : st.view h = some (eBindView tg ty b))
-    (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : Inst1At ve (d + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
-    Inst1At ve d st h s3 r := by
-  rcases (show tg = ETag.lam ∨ tg = ETag.forallE by
-      simp only [ETag.isBind, Bool.or_eq_true, beq_iff_eq] at htg; exact htg)
-    with rfl | rfl
-  · rw [eBindView] at hview hr; simp only [beq_self_eq_true, ite_true] at hview hr
-    exact RelE.lam hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-      ((hb.of_ext hx1).ext hx3) hr
-  · rw [eBindView] at hview hr
-    simp only [ETag.lam, ETag.forallE] at hview hr
-    exact RelE.forallE hwf hview (fun _ _ => rfl) ((ht.ext hx2).ext hx3)
-      ((hb.of_ext hx1).ext hx3) hr
-
-theorem Inst1At.letE_step {ve : Expr} {d : Nat}
-    {st s1 s2 s3 s4 : EStore} {h ty w b rt rw rb r : EIdx} (hwf : StoreWF st)
-    (hview : st.view h = some (.letE ty w b))
-    (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : Inst1At ve d s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : Inst1At ve (d + 1) s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    Inst1At ve d st h s4 r :=
-  RelE.letE hwf hview (fun _ _ _ => rfl) (((ht.ext hx2).ext hx3).ext hx4)
-    (((hw.of_ext hx1).ext hx3).ext hx4) ((hb.of_ext (hx1.trans hx2)).ext hx4) hr
-
-theorem Inst1At.proj_step {ve : Expr} {d : Nat} {st s1 s2 : EStore}
-    {h sub rs r : EIdx} {n : NIdx} {i : Nat} {nm : ConLeche.Name}
-    (hwf : StoreWF st) (hview : st.view h = some (.proj n i sub))
-    (hx1 : Ext st s1) (hs : Inst1At ve d st sub s1 rs)
-    (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : Inst1At ve d st h s2 r :=
-  RelE.proj hwf hview (fun _ => rfl) (hs.ext hx2) hn0
-    (denoteN_ext (denoteN_ext hn0 hx1) hx2) hr
-
-/-! ### The same four, in the shape `mvcgen` actually produces
-
-Task #97s round 1's group 7 ("the per-site step lemmas, as the verification
-condition presents them"), and it is load-bearing for a different reason here
-than there: the twin dispatches on the TAG and then projects, so what the arm
-has is `(h.tag == ETag.app) = true` and `some (f, a) = st.viewApp h` —
-REVERSED, because `mvcgen` orients a spec's postcondition equation that way.
-With the view derived inside the lemma, `f` and `a` are determined by the
-hypothesis `assumption` finds; with a `have` in front of the `exact` they are
-metavariables when `assumption` runs, and it fails (measured).
-
--/
-
-/-- con-leche: none — `Inst1At.app_step` at the arm's own hypotheses. -/
-theorem Inst1At.app_step' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
-    {h f a rf ra r : EIdx} (hwf : StoreWF st)
-    (htg : (h.tag == ETag.app) = true) (hva : some (f, a) = st.viewApp h)
-    (hx1 : Ext st s1) (hf : Inst1At ve d st f s1 rf)
-    (hx2 : Ext s1 s2) (ha : Inst1At ve d s1 a s2 ra)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (.app rf ra)) :
-    Inst1At ve d st h s3 r :=
-  Inst1At.app_step hwf (view_of_viewApp_tag htg hva.symm) hx1 hf hx2 ha hx3 hr
-
-/-- con-leche: none — `Inst1At.letE_step` at the arm's own hypotheses. -/
-theorem Inst1At.letE_step' {ve : Expr} {d : Nat} {st s1 s2 s3 s4 : EStore}
-    {h ty w b rt rw rb r : EIdx} (hwf : StoreWF st)
-    (htg : (h.tag == ETag.letE) = true)
-    (hvl : some (ty, w, b) = st.viewLet h)
-    (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
-    (hx2 : Ext s1 s2) (hw : Inst1At ve d s1 w s2 rw)
-    (hx3 : Ext s2 s3) (hb : Inst1At ve (d + 1) s2 b s3 rb)
-    (hx4 : Ext s3 s4)
-    (hr : denoteE s4 r = denoteEView s4 (.letE rt rw rb)) :
-    Inst1At ve d st h s4 r :=
-  Inst1At.letE_step hwf (view_of_viewLet_tag htg hvl.symm) hx1 ht hx2 hw hx3 hb
-    hx4 hr
-
-/-- con-leche: none — `Inst1At.proj_step` at the arm's own hypotheses.  The
-name fact is supplied by the caller (it comes from `denote_eq_proj`, whose
-existential `grind` cannot see through). -/
-theorem Inst1At.proj_step' {ve : Expr} {d : Nat} {st s1 s2 : EStore}
-    {h sub rs r : EIdx} {n : NIdx} {i : Nat} {nm : ConLeche.Name}
-    (hwf : StoreWF st) (htg : (h.tag == ETag.proj) = true)
-    (hvp : some (n, i, sub) = st.viewProj h)
-    (hx1 : Ext st s1) (hs : Inst1At ve d st sub s1 rs)
-    (hx2 : Ext s1 s2)
-    (hr : denoteE s2 r = denoteEView s2 (.proj n i rs))
-    (hn0 : denoteN st.ns n = some nm) : Inst1At ve d st h s2 r :=
-  Inst1At.proj_step hwf (view_of_viewProj_tag htg hvp.symm) hx1 hs hx2 hr hn0
-
-/-- con-leche: none — `Inst1At.bind_step` at the arm's own hypotheses: the
-binder arm reads `viewBind`, and `view_of_viewBind` gives the view back. -/
-theorem Inst1At.bind_step' {ve : Expr} {d : Nat} {st s1 s2 s3 : EStore}
-    {h ty b rt rb r : EIdx} {tg : UInt32}
-    (hwf : StoreWF st) (htg : ETag.isBind tg = true) (htg2 : tg = h.tag)
-    (hvb : some (ty, b) = st.viewBind h)
-    (hx1 : Ext st s1) (ht : Inst1At ve d st ty s1 rt)
-    (hx2 : Ext s1 s2) (hb : Inst1At ve (d + 1) s1 b s2 rb)
-    (hx3 : Ext s2 s3)
-    (hr : denoteE s3 r = denoteEView s3 (eBindView tg rt rb)) :
-    Inst1At ve d st h s3 r := by
-  refine Inst1At.bind_step hwf htg ?_ hx1 ht hx2 hb hx3 hr
-  rw [htg2]
-  exact view_of_viewBind hvb.symm
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the CUTOFF
-arm, packaged as one step lemma.  Left as three separate hints
-(`EStore.derived_exact`, `Expr.bvarBRaw`, `instantiate1_of_raw_le`) it sends
-`grind` into an ematching spiral on `((ve.instantiate1 ve d).instantiate1 ve
-d)…`; as one lemma with the store read as its pattern it fires once (task
-#97s's one manual verification condition). -/
-theorem Inst1At.cutoff {st : EStore} (hwf : StoreWF st) {h : EIdx} {d : Nat}
-    {ve : Expr} (hsat : (bvarOfData (st.derived h)).toNat < satRange)
-    (hle : (bvarOfData (st.derived h)).toNat ≤ d) : Inst1At ve d st h st h := by
-  intro e he
-  show denoteE st h = some (e.instantiate1 ve d)
-  have hd := EStore.derived_exact hwf he
-  rw [hd] at hsat hle
-  rw [instantiate1_of_raw_le hsat hle]
-  exact he
-
-/-- con-leche: ConLeche/Kernel/ExprOps.lean:33-45 instantiate1 — the CATCH-ALL
-arm: a handle whose tag is none of the six the walk dispatches on denotes a
-leaf, and `instantiate1` is the identity there. -/
-theorem Inst1At.leaf {st : EStore} (hwf : StoreWF st) {h : EIdx}
-    {v : ENodeView} {d : Nat} {ve : Expr} (hview : st.view h = some v)
-    (happ : ¬ (h.tag = ETag.app)) (hbind : ETag.isBind h.tag = false)
-    (hbvar : ¬ (h.tag = ETag.bvar)) (hlet : ¬ (h.tag = ETag.letE))
-    (hproj : ¬ (h.tag = ETag.proj)) : Inst1At ve d st h st h := by
-  intro e he
-  show denoteE st h = some (e.instantiate1 ve d)
-  rw [instantiate1_leaf
-    (denote_leaf_of_tag hwf hview happ hbind hbvar hlet hproj he)]
-  exact he
-
 
 /-! ### `instantiate1`'s two non-structural clauses as equations
 
@@ -514,7 +350,5 @@ theorem instantiate1Fast_run {fuel : Nat} {s₀ s' : AState} {e v r : EIdx}
 
 #print axioms instantiate1_of_bvarBound_le
 #print axioms instantiate1_of_raw_le
-#print axioms Inst1At.cutoff
-#print axioms Inst1At.leaf
 
 end ConRon.Bridge.ExprOps
