@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Inductives.PosWalks` — Theorem 1 for the positivity walk's leaves
 
 `Arena/Inductives/Positivity.lean`'s PURE-grade leaf twins against
-`ConLeche/Kernel/Inductives/Positivity.lean` (task #105, lane B-IND): the
+`ConLeche/Kernel/Inductives/Positivity.lean` (task #105): the
 memoised occurrence tests (`mentionsAnyConst`, `nestOcc`, `piDomsOcc`), the
 member lookup (`memberIdxAt?`), the input-derived fuel (`depth`,
 `whnfWalkFuel`), the readback block (`fvMapAt`/`replaceFVarsGo`/

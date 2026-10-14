@@ -2,7 +2,7 @@
 # `ConRon.Bridge.Inductives.ClassRead` — Theorem 1 for the recursor stage's pre-pass
 
 `Arena/Inductives/ClassRead.lean` against `ConLeche/Kernel/Inductives/ClassRead.lean`
-(task #105, lane B-IND): the pre-pass's records, denoted (`dClassKey`, `dSlot`,
+(task #105): the pre-pass's records, denoted (`dClassKey`, `dSlot`,
 `dClassRead`, each with a `DExt` transport), and an exact-result lemma for
 every twin function, up to the headline `classRead_spec`.
 
