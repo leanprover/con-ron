@@ -493,13 +493,6 @@ def eqPathCongr (a b : Expr) : FM (Option Expr) := do
         return some (← mkEqTrans pa (← mkEqSymm pb))
   return none
 
-/-- The final conclusion of a `∀`-telescope, its binders left loose. -/
-partial def forallSkel (t : Expr) : Expr :=
-  match t with
-  | .forallE _ _ b _ => forallSkel b
-  | .mdata _ b => forallSkel b
-  | _ => t
-
 /-- `quickMatch` at the top: the filter every search runs before `same`. -/
 def mayMatch (ht t : Expr) : MetaM Bool := return quickMatch (← getEnv) ht t
 

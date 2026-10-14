@@ -68222,7 +68222,9 @@ The closest upstream relative of (i)+(iii) is a `first | (rename t => h; tac)
 turns a failing proof into a silent fallthrough.
 
 **The rule** (now in CLAUDE.md): a Theorem 1 verification-condition proof
-has no `case vcN`, no `rename_i` and no positional `next =>` after `vcgen`.
+has no `case vcN`, no `rename_i` and no positional `next =>` after `vcgen`
+(wave 2 below: in practice `bridge_auto`, with `vc_arm` only for real
+reasoning).
 The frame goes to `bridge_frame`; the answers come from `bridge_fwd`; an arm
 is a `vc_arm` keyed by its branch condition (the `if`'s hypothesis, the
 view's constructor, the probe's `= some _`) or its target, and its body is
@@ -68342,3 +68344,116 @@ removed `s₀`, reach the surviving state through a `?ps` binding; give the
 callee's WScoped facts before `vcgen` (`have hwaa := hwa.getAppArgs`) so the
 frame finds them; key a recursive call's facts by the child handle they
 mention.
+
+#### Wave 2 — the arms' content automated (`bridge_auto`)
+
+The maintainer's question after wave 1 — "I thought we were automating the
+mechanical proofs?" — was right: wave 1 removed the FRAGILITY (no `case vcN`,
+no `rename_i`) but kept the arms' content, and that content was formulaic:
+open the optional handle (`denoteEO_some_inv`), turn a tag test into a fact
+about the denotation (`denote_sort_inv … (view_of_viewSort_tag' htg hv)`,
+`denote_not_sort_of_tag`), substitute, and finish with `cases x <;> first |
+rfl | absurd` or by unfolding the pure function.  Wave 2 automates exactly
+that, and the idiom of a Theorem 1 walk is now
+
+```lean
+  vcgen [f, hcallee₁, …]
+  all_goals (bridge_peel; subst_vars)
+  bridge_auto [lemmas…] unfolding [pure functions…]
+```
+
+* **`bridge_auto [l…] unfolding [f…]`** is `bridge_frame [l]`, `bridge_fwd
+  [l]` with the goal's `∀ x, denote… = some x →` binders (and blocks of them)
+  introduced and with more defaults — a tag test `(h.tag == t) = true` (or its
+  negation) read as `(exprTag e == t) = true` for a denotation `e` of `h`
+  (`exprTag_of_tag`, via `tag_of_denote`, now in `Bridge/Frame.lean`), the
+  view projections' answers under a true tag (`view_of_view*_tag'`), the
+  `denoteEO` inversions — then `bridge_frame [l]` and `bridge_finish [f]`;
+  an answer-relation goal still open gets one more pass with the relation
+  unfolded, kept only if it closes.
+* **`bridge_finish [f…]`**: per goal `rfl`/`assumption`/`True.intro`; a
+  gated `contradiction` (it decides `(exprTag (.sort l) == ETag.app) = true`;
+  ungated it cost ~130 ms a node); a "not this constructor" fact; a
+  conjunction split; an `∃` from a hypothesis or by `rfl` at a default
+  witness (top level only); `simp only [f]` and a `match` on a term the facts
+  settle split by `cases` (a local, or a term like `x.getAppFn` generalized
+  first); last `simp only [f, Bool-at-constants, *]`.
+* **The lemma lists carry the mathematics.**  An arm's content became a
+  small pure lemma in the shape the verification condition has, applied by
+  the frame: Spine's `unfoldDefinition_post_*`, `sameConstHeads_handles`,
+  `defeqSpineFueled_ne_handles`; Nat's guard and exit lemmas (`simOOp_*`);
+  Memo's `SimE.of_row`/`CheckOK.*Hit`; Cached's per-table insert and hit
+  lemmas; Leaves' `LeavesEq.of_*`; Inst1's `Inst1At.*'`.  The lemmas' rules
+  (found by the lanes): **conclude in the goal's orientation** (the frame now
+  also tries the flipped equation, but not through `∃`); **a declining exit
+  concludes the postcondition itself** (`SimOOp … none`), not an equation
+  the frame would have to prove; **order the premises** so that the first
+  fixes the store (a fact at the current store before `StoreWF st`), and in
+  a list of step lemmas put the specific before the general (`SeenOK.child`
+  before `of_grow`, `drop_insert` before `trans`: in the other order Leaves
+  went from 114 G to 165 G); a lemma whose conclusion is a `∀` is tried at
+  every telescope length.
+
+The six lanes (one file group each, worktrees under `_tmp/wt-120-*`) ran
+wave 2 from the same tactic; each extended it additively, and the merges of
+`ConRon/BridgeTactic.lean` were the expensive part: four lineages each
+correct alone, and their COMBINATION had to be debugged (a second pass that
+replaced the goal an arm wanted; `denoteEList_cons_fr` as a default looping
+on a list induction; a `quickMatch` that called projection functions rigid;
+a `boolAnd` split that replaced a hypothesis a lemma wanted whole; an
+unbounded default-transparency `rfl`).  **Lesson for the next such task: a
+shared tactic should have ONE owner per wave, lanes send it requests.**
+
+| module | positional cases (wave 0) | `vc_arm` wave 1 → 2 | VC proof lines 0 → 1 → 2 | file lines 0 → 2 | instructions 0 → 1 → 2 |
+|---|---:|---:|---:|---:|---:|
+| `Core/Walks/Spine` | 50 | 21 → 1 | 551 → 303 → 223 | 1214 → 1027 | 19.4G → 20.0G → 31.3G |
+| `Core/Walks/Nat` | 47 | 25 → 0 | 771 → 424 → 313 | 1294 → 1175 | 106.6G → 114.1G → 135.3G |
+| `ExprOps/Subst` | 29 | 58 → 6 | 569 → 467 → 291 | 2131 → 1819 | 1416.4G → 188.5G → 108.5G |
+| `ExprOps/Abs` | 5 | 10 → 0 | 136 → 111 → 64 | 854 → 705 | 523.1G → 75.8G → 101.7G |
+| `ExprOps/Owed` | 3 | 24 → 0 | 297 → 215 → 137 | 872 → 647 | 1139.4G → 341.9G → 312.0G |
+| `Core/Memo` | 28 | 11 → 1 | 218 → 146 → 116 | 891 → 976 | 10.9G → 12.0G → 13.1G |
+| `Core/Arms/Whnf` | 10 | 1 → 0 | 104 → 34 → 24 | 280 → 259 | 5.9G → 6.1G → 6.7G |
+| `Core/Arms/Infer` | 9 | 5 → 0 | 129 → 131 → 110 | 833 → 849 | 14.1G → 14.2G → 14.3G |
+| `Core/Arms/InferIO` | 9 | 5 → 0 | 134 → 137 → 114 | 789 → 805 | 10.8G → 10.9G → 10.9G |
+| `Core/Walks/Proj` | 15 | 7 → 3 | 368 → 325 → 266 | 863 → 820 | 12.3G → 15.4G → 16.6G |
+| `Core/Walks/StrLit` | 14 | 7 → 2 | 650 → 582 → 557 | 1181 → 1132 | 40.7G → 40.2G → 53.1G |
+| `Core/Walks/PropRead` | 7 | 5 → 1 | 98 → 130 → 206 | 1598 → 997 | 55.9G → 55.9G → 74.6G |
+| `ExprOps/Leaves` | 24 | 17 → 0 | 207 → 191 → 116 | 917 → 930 | 96.6G → 98.2G → 110.1G |
+| `ExprOps/Inst1` | 2 | 13 → 0 | 182 → 177 → 98 | 598 → 556 | 402.4G → 402.6G → 50.9G |
+| `ExprOps/Walks` | 2 | 2 → 0 | 21 → 19 → 4 | 146 → 140 | 7.0G → 7.1G → 8.0G |
+| `ExprOps/MemoSpecs` | 4 | 1 → 0 | 96 → 85 → 83 | 618 → 607 | 7.9G → 7.9G → 8.1G |
+| `Core/Walks/Cached` | 10 | 12 → 0 | 202 → 165 → 95 | 878 → 947 | 8.8G → 10.6G → 10.0G |
+| `Core/Walks/Owed` | 7 | 3 → 0 | 124 → 104 → 77 | 549 → 505 | 6.2G → 8.7G → 7.4G |
+| `Core/Walks/Guards` | 5 | 2 → 0 | 52 → 35 → 11 | 160 → 167 | 4.6G → 4.7G → 4.8G |
+| `Specs` | 6 | 13 → 0 | 325 → 298 → 234 | 1362 → 1307 | 21.6G → 21.7G → 27.1G |
+| **the 20 modules** | **286** | **242 → 14** | **5234 → 4079 → 3139** | **18028 → 16370** | **3 911 G → 1 457 G → 1104 G** |
+
+Positional addressing is gone (286 → 0 `case vcN`; `rename_i` remain only in
+pure lemmas after a `split` of a con-leche function).  14 arms remain (6 in
+Subst — the walk function's leaf disjunction, and the derived-bvar-word
+arithmetic guard of four cutoffs; Proj's `findProj?` hit/miss and
+`iotaCertsFull`'s accumulator; StrLit's pin-table lookup and its `(!g) =
+true` verdict; PropRead's `substPW_cutoff` side condition; Memo's
+`view_bind_triple` view identification; Spine's `instantiate1Fast_specE`
+retargeting), each one line of real reasoning or a known closer gap.  The
+proof lines of the verification-condition theorems fell 40 % (5 234 → 3 139),
+the files 9 % (18 028 → 16 370), against 2 625 lines of tactic and lemmas
+(`ConRon/BridgeTactic.lean` 2 358, `Bridge/Frame.lean` 267).
+
+**Cost.**  The twenty modules went from 3 911 G instructions to 1 104 G
+(`ExprOps/Inst1` 402 → 51 G: `bridge_auto` replaced every `grind` closer;
+Subst/Abs/Owed by the same move).  Over the 1.5× budget in instructions is
+`Core/Walks/Spine` (19.4 → 31.3 G, 1.61×; its wall time fell, 2.9 → 2.4 s,
+because the proofs are many small independent goals); Nat (1.27×), PropRead
+(1.33×), Proj (1.35×) and StrLit (1.30×) are inside it.  The search's cost is
+spread over many cheap calls — no single call above 0.3 s.
+
+**What did not get done.**  The tactic is 2 358 lines with overlapping
+mechanisms the merges left side by side (two goal-intro blocks, two
+lemma-skeleton filters, `chainHyp` beside the ∀-hypothesis lemma rule,
+`closedRfl`/`pureRfl`/the finisher's `rfl`); a consolidation pass would
+shrink it by a third without changing behaviour, and is the natural next
+step.  StrLit's five `List`/`Char`/`String` shape walks and the
+`triple_seq`-style proofs elsewhere in `Bridge/**` (Frontend/Lines,
+Arms/DefeqLazy, Inductives/*: one `rename_i` per `split`, stable) were not
+converted.

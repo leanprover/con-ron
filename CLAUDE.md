@@ -190,11 +190,11 @@ section for every task you land.
 * **Theorem 1 verification conditions are addressed by shape, never by
   position** (task #120, DESIGN `### Task #120`).  After `vcgen` in
   `proof/ConRon/Bridge/**`: no `case vcN`, no `rename_i`, no positional
-  `next =>`.  Use `bridge_frame [lemmas]` for preconditions and frame
-  conjuncts, `bridge_fwd [lemmas]` to put the callees' answers and the view
-  inversions in context, and `vc_arm (h : T) … ⊢ t => tac` for each arm,
-  keyed by its branch condition; prefer an arm body that is one `exact` of a
-  small pure lemma.  The tactics' meta code is `ConRon/BridgeTactic.lean`
+  `next =>`.  The idiom is `vcgen […]; all_goals (bridge_peel; subst_vars);
+  bridge_auto [lemmas] unfolding [pure functions]`, the mathematics in small
+  pure lemmas stated in the shape the verification condition has (goal's
+  orientation; a declining exit concludes the postcondition); `vc_arm (h :
+  T) … ⊢ t => tac`, keyed by a branch condition, only for real reasoning.  The tactics' meta code is `ConRon/BridgeTactic.lean`
   (a precompiled library: `lake env lean` needs
   `--load-dynlib=.lake/build/lib/libcon_x2dron_ConRonBridgeTactic.so` to run
   it natively).
